@@ -1,0 +1,137 @@
+; SIDfinity Player - Universal 6502 SID music player
+
+SIDBASE     = $D400
+ZP          = $FB
+
+; Channel variables use stride 7 (same as SID voice offset)
+; so X register serves both as SID offset and variable index
+; X = 0 (voice 1), 7 (voice 2), 14 (voice 3)
+
+chn_counter = $0B00
+chn_tempo   = $0B03
+chn_note    = $0B06
+chn_gate    = $0B09
+chn_wave    = $0B0C
+chn_ad      = $0B0F
+chn_sr      = $0B12
+chn_freqlo  = $0B15
+chn_freqhi  = $0B18
+chn_pulselo = $0B1B
+chn_pulsehi = $0B1E
+chn_trans   = $0B21
+chn_newnote = $0B24
+chn_pattidx = $0B27
+chn_songidx = $0B2A
+
+g_volume    = $0B70
+g_fltcuthi  = $0B71
+g_fltctrl   = $0B72
+g_fltmode   = $0B73
+
+            * = $0800
+
+; Entry points
+            jmp init
+            jmp play
+
+; Init - A = subtune (0-based)
+init
+            pha
+            lda #$00
+            ldx #$70
+initclr
+            sta $0B00,x
+            dex
+            bpl initclr
+            ldx #$18
+initsid
+            sta SIDBASE,x
+            dex
+            bpl initsid
+            lda #$0F
+            sta g_volume
+            sta SIDBASE+$18
+            lda #$06
+            sta chn_tempo
+            sta chn_tempo+1
+            sta chn_tempo+2
+            sta chn_counter
+            sta chn_counter+1
+            sta chn_counter+2
+            lda #$FE
+            sta chn_gate
+            sta chn_gate+1
+            sta chn_gate+2
+            pla
+            rts
+
+; Play - called once per frame
+play
+            lda ZP
+            pha
+            lda ZP+1
+            pha
+            ldx #$00
+            jsr playvoice
+            ldx #$07
+            jsr playvoice
+            ldx #$0E
+            jsr playvoice
+            lda g_fltcuthi
+            sta SIDBASE+$16
+            lda g_fltctrl
+            sta SIDBASE+$17
+            lda g_fltmode
+            ora g_volume
+            sta SIDBASE+$18
+            pla
+            sta ZP+1
+            pla
+            sta ZP
+            rts
+
+; Per-voice player - X = voice offset (0/7/14)
+playvoice
+            dec chn_counter,x
+            bne pv_write
+            lda chn_tempo,x
+            sta chn_counter,x
+; Sequencer advance would go here
+
+pv_write
+            lda chn_freqlo,x
+            sta SIDBASE,x
+            lda chn_freqhi,x
+            sta SIDBASE+1,x
+            lda chn_pulselo,x
+            sta SIDBASE+2,x
+            lda chn_pulsehi,x
+            sta SIDBASE+3,x
+            lda chn_wave,x
+            and chn_gate,x
+            sta SIDBASE+4,x
+            lda chn_ad,x
+            sta SIDBASE+5,x
+            lda chn_sr,x
+            sta SIDBASE+6,x
+            rts
+
+; PAL Frequency Table (96 notes)
+freqlo
+            .byte $17,$27,$39,$4B,$5F,$74,$8A,$A1,$BA,$D4,$F0,$0E
+            .byte $2D,$4E,$71,$96,$BE,$E8,$14,$43,$74,$A9,$E1,$1C
+            .byte $5A,$9C,$E2,$2D,$7C,$CF,$28,$85,$E8,$52,$C1,$37
+            .byte $B4,$39,$C5,$5A,$F7,$9E,$4F,$0A,$D1,$A3,$82,$6E
+            .byte $68,$71,$8A,$B3,$EE,$3C,$9E,$15,$A2,$46,$04,$DC
+            .byte $D0,$E2,$14,$67,$DD,$79,$3C,$29,$44,$8D,$08,$B8
+            .byte $A1,$C5,$28,$CD,$BA,$F1,$78,$53,$87,$1A,$10,$71
+            .byte $42,$89,$4F,$9B,$74,$E2,$F0,$A6,$0E,$33,$20,$FF
+freqhi
+            .byte $01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$02
+            .byte $02,$02,$02,$02,$02,$02,$03,$03,$03,$03,$03,$04
+            .byte $04,$04,$04,$05,$05,$05,$06,$06,$06,$07,$07,$08
+            .byte $08,$09,$09,$0A,$0A,$0B,$0C,$0D,$0D,$0E,$0F,$10
+            .byte $11,$12,$13,$14,$15,$17,$18,$1A,$1B,$1D,$1F,$20
+            .byte $22,$24,$27,$29,$2B,$2E,$31,$34,$37,$3A,$3E,$41
+            .byte $45,$49,$4E,$52,$57,$5C,$62,$68,$6E,$75,$7C,$83
+            .byte $8B,$93,$9C,$A5,$AF,$B9,$C4,$D0,$DD,$EA,$F8,$FF
