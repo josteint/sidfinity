@@ -1,0 +1,3000 @@
+{
+  "DMC": [
+    "data/C64Music/MUSICIANS/W/Wodnik/Arni.sid",
+    "data/C64Music/MUSICIANS/R/Raffi/Music_King_1_v2.sid",
+    "data/C64Music/MUSICIANS/A/Albartus_Jan/Cobra_Moves.sid"
+  ],
+  "GoatTracker_V2.x": [
+    "data/C64Music/MUSICIANS/D/Dobek_Eric/Vectron_70s_Prog_Mix.sid",
+    "data/C64Music/MUSICIANS/H/Haschpipan/Bolle_Di_Fumo.sid",
+    "data/C64Music/MUSICIANS/B/Bayliss_Richard/BCC_11_Invitation.sid"
+  ],
+  "Music_Assembler": [
+    "data/C64Music/MUSICIANS/H/Harlequin/Notion.sid",
+    "data/C64Music/MUSICIANS/R/Red_Devil/Great_Balls.sid",
+    "data/C64Music/MUSICIANS/W/Warnock/Blizzard_part_5.sid"
+  ],
+  "MoN/FutureComposer": [
+    "data/C64Music/MUSICIANS/R/Rock/Money_Money_Money.sid",
+    "data/C64Music/MUSICIANS/R/Ray/Everything_Counts.sid",
+    "data/C64Music/MUSICIANS/W/Willox/Psyco.sid"
+  ],
+  "Soundmonitor": [
+    "data/C64Music/MUSICIANS/K/Knatter/Connection_87.sid",
+    "data/C64Music/MUSICIANS/K/Knatter/Go_to_Sleep_part_4.sid",
+    "data/C64Music/MUSICIANS/R/Rosenstiel_Joerg/Opportunities_drum_mix.sid"
+  ],
+  "JCH_NewPlayer": [
+    "data/C64Music/MUSICIANS/M/Megmyx/Kick.sid",
+    "data/C64Music/MUSICIANS/M/Merken_Vincent/Love.sid",
+    "data/C64Music/MUSICIANS/P/Priarone_Gabriele/Puggsy_Meets_SID.sid"
+  ],
+  "Master_Composer": [
+    "data/C64Music/DEMOS/UNKNOWN/Master_Composer/Bach_370.sid",
+    "data/C64Music/MUSICIANS/R/Rosenstiel_Joerg/Planet-Shuttle_1.sid",
+    "data/C64Music/DEMOS/UNKNOWN/Master_Composer/Red_Roses.sid"
+  ],
+  "GoatTracker_V1.x": [
+    "data/C64Music/MUSICIANS/0-9/4-Mat/Promises_Promises.sid",
+    "data/C64Music/DEMOS/A-F/Alive.sid",
+    "data/C64Music/MUSICIANS/N/Ne7/Train_Jams.sid"
+  ],
+  "HardTrack_Composer": [
+    "data/C64Music/MUSICIANS/S/Shapie/Needle.sid",
+    "data/C64Music/MUSICIANS/R/Randy/Miami_Vice.sid",
+    "data/C64Music/MUSICIANS/S/Sage/Passion_tune_1.sid"
+  ],
+  "Hermit/SidWizard_V1.x": [
+    "data/C64Music/MUSICIANS/S/Spider_Jerusalem/Dark_Path.sid",
+    "data/C64Music/MUSICIANS/U/Uneksija/Run_and_They_ll_Never_Find_You.sid",
+    "data/C64Music/MUSICIANS/O/Ocean/Tide_and_Time.sid"
+  ],
+  "Geir_Tjelta/SIDDuzz'It": [
+    "data/C64Music/MUSICIANS/S/SIDwave/Hearts_n_Bones.sid",
+    "data/C64Music/MUSICIANS/H/Henne/Little_Bossa.sid",
+    "data/C64Music/MUSICIANS/B/Blues_Muz/Gallefoss_Glenn/Ode_to_Bugg.sid"
+  ],
+  "SoedeSoft": [
+    "data/C64Music/MUSICIANS/M/MAC2/Us_Ninja_P.sid",
+    "data/C64Music/MUSICIANS/O/Odi/Lunatic_Trashcan.sid",
+    "data/C64Music/MUSICIANS/M/Mitch_and_Dane/Mitch/Enjoy_the_Silence.sid"
+  ],
+  "Digitalizer_V2.x": [
+    "data/C64Music/MUSICIANS/B/Blues_Muz/Worktunes/Bensin.sid",
+    "data/C64Music/MUSICIANS/B/Blues_Muz/Nordboe_Kjell/A_Huge_One.sid",
+    "data/C64Music/MUSICIANS/B/Blues_Muz/Nordboe_Kjell/Starving_Eyes.sid"
+  ],
+  "RoMuzak_V6.x": [
+    "data/C64Music/MUSICIANS/P/Professor_Chaos/Prince.sid",
+    "data/C64Music/MUSICIANS/L/Lord_SID/Little_Aciiid.sid",
+    "data/C64Music/MUSICIANS/J/Jane/Its_Going_Down_part_2.sid"
+  ],
+  "Basic_Program": [
+    "data/C64Music/DEMOS/A-F/Ahoy_Magazine_BASIC.sid",
+    "data/C64Music/GAMES/S-Z/Zauberwald_1987_BASIC.sid",
+    "data/C64Music/MUSICIANS/L/Latimer_Joey/Old-Time_Rock_n_Roll_BASIC.sid"
+  ],
+  "GMC/Superiors": [
+    "data/C64Music/MUSICIANS/W/Wacek/Life_in_Forms.sid",
+    "data/C64Music/MUSICIANS/P/Paco/If_TG.sid",
+    "data/C64Music/MUSICIANS/N/NecroPolo/Eucalyptus.sid"
+  ],
+  "X-Ample": [
+    "data/C64Music/MUSICIANS/A/A-Man/Based.sid",
+    "data/C64Music/MUSICIANS/S/Sonic/Situations.sid",
+    "data/C64Music/MUSICIANS/A/A-Man/Transfer_Ticket.sid"
+  ],
+  "SidFactory_II/Laxity": [
+    "data/C64Music/MUSICIANS/T/The_Syndrom/Happy_Birthday_Mikael.sid",
+    "data/C64Music/MUSICIANS/V/Vincenzo/Lights_Off_Lights_On.sid",
+    "data/C64Music/MUSICIANS/J/JCH/Down.sid"
+  ],
+  "Laxity_NewPlayer_V21": [
+    "data/C64Music/MUSICIANS/D/DRAX/MoN-ster_Crackers.sid",
+    "data/C64Music/MUSICIANS/D/DRAX/Unboxed_Ending_8580.sid",
+    "data/C64Music/MUSICIANS/G/G-Fellow/Old_World.sid"
+  ],
+  "Loadstar_SongSmith": [
+    "data/C64Music/MUSICIANS/B/Beggerow_Alan/Goodbye_My_Lady_Love.sid",
+    "data/C64Music/MUSICIANS/B/Beggerow_Alan/Ta-Ra-Ra.sid",
+    "data/C64Music/MUSICIANS/M/Marquis_Dave/When_I_was_a_Lad.sid"
+  ],
+  "CheeseCutter_2.x": [
+    "data/C64Music/MUSICIANS/G/G-Fellow/Just_a_Ordinary_Intro_Tune.sid",
+    "data/C64Music/MUSICIANS/A/Abaddon/Join_the_Cosmic_Caravan.sid",
+    "data/C64Music/MUSICIANS/B/Bayliss_Richard/QLT_Remix_V2.sid"
+  ],
+  "Electrosound": [
+    "data/C64Music/MUSICIANS/L/Leitch_Barry/Hoover.sid",
+    "data/C64Music/MUSICIANS/Z/Zeb/Ectoplasm.sid",
+    "data/C64Music/MUSICIANS/M/Matt/Heard_on_High.sid"
+  ],
+  "MusicShop": [
+    "data/C64Music/DEMOS/UNKNOWN/Music_Shop/Hard_to_Say.sid",
+    "data/C64Music/DEMOS/UNKNOWN/Music_Shop/Kein_Schoener.sid",
+    "data/C64Music/DEMOS/UNKNOWN/Music_Shop/Seeraeuberlied.sid"
+  ],
+  "Rob_Hubbard": [
+    "data/C64Music/MUSICIANS/S/Selles_Ward/Farmers-song.sid",
+    "data/C64Music/MUSICIANS/S/Square/Euh_tune_2.sid",
+    "data/C64Music/MUSICIANS/H/Hubbard_Rob/Lightforce.sid"
+  ],
+  "Ubik's_Musik": [
+    "data/C64Music/MUSICIANS/S/Stormont_John/Idea_4.sid",
+    "data/C64Music/MUSICIANS/F/Francois_Marc/Sonix_Systems_02.sid",
+    "data/C64Music/MUSICIANS/S/Sonic_Graffiti/Hayes_Ben/Demo-Ha.sid"
+  ],
+  "TFX": [
+    "data/C64Music/MUSICIANS/S/Sad/Wait_for_Us.sid",
+    "data/C64Music/MUSICIANS/S/Sad/Forever_Quattro.sid",
+    "data/C64Music/MUSICIANS/P/PCH/Who_Is_Who.sid"
+  ],
+  "SidTracker64": [
+    "data/C64Music/MUSICIANS/P/Page_Jason/First.sid",
+    "data/C64Music/MUSICIANS/S/Skyffel/Broder_Medvurst.sid",
+    "data/C64Music/MUSICIANS/V/Vaz/This_Is_It.sid"
+  ],
+  "AMP": [
+    "data/C64Music/MUSICIANS/M/Mass_Murderer/Oracle_tune_3.sid",
+    "data/C64Music/MUSICIANS/B/Bakker_Nantco/Song_for_Kim.sid",
+    "data/C64Music/MUSICIANS/D/Dr_Zoom/New_Jump_end.sid"
+  ],
+  "20CC": [
+    "data/C64Music/MUSICIANS/J/JB/Game_Over.sid",
+    "data/C64Music/MUSICIANS/J/JB/Phonemess.sid",
+    "data/C64Music/MUSICIANS/H/HeatWave/youtH/Outrun_remix.sid"
+  ],
+  "DefleMask_v12": [
+    "data/C64Music/MUSICIANS/M/MotionRide/SoundShine.sid",
+    "data/C64Music/DEMOS/A-F/Beautiful_Power.sid",
+    "data/C64Music/MUSICIANS/K/Kleeder/Okay.sid"
+  ],
+  "EMS/Odie": [
+    "data/C64Music/MUSICIANS/M/Merman/Too_Much.sid",
+    "data/C64Music/MUSICIANS/M/Merman/Music_File.sid",
+    "data/C64Music/MUSICIANS/M/Merman/Banshee.sid"
+  ],
+  "Cyberlogic_SoundStudio": [
+    "data/C64Music/MUSICIANS/X/X-Radical/Holloween.sid",
+    "data/C64Music/MUSICIANS/T/The_Blue_Ninja/Stroke_World_Level_3.sid",
+    "data/C64Music/MUSICIANS/N/Nagie_Sascha/SID_Nation_IV.sid"
+  ],
+  "Jeff": [
+    "data/C64Music/MUSICIANS/D/Duck_LaRock/Camel_Park_tune_9.sid",
+    "data/C64Music/MUSICIANS/J/Jeff/Bableblab.sid",
+    "data/C64Music/MUSICIANS/J/Jeff/Reflex_Tune.sid"
+  ],
+  "John_Player": [
+    "data/C64Music/MUSICIANS/C/Crome/Dazzy_Levstovski.sid",
+    "data/C64Music/MUSICIANS/T/TDS/Black_Oak.sid",
+    "data/C64Music/MUSICIANS/M/Mortimer_Twang/Hising_Island_Riddim.sid"
+  ],
+  "Vibrants/Laxity": [
+    "data/C64Music/MUSICIANS/Z/Zenox/Starion_Intro.sid",
+    "data/C64Music/MUSICIANS/L/Laxity/Gametune_1.sid",
+    "data/C64Music/MUSICIANS/L/Laxity/Galaxylogo.sid"
+  ],
+  "OdinTracker": [
+    "data/C64Music/MUSICIANS/H/Hoffmann_Michal/Creme_De_La_Creme.sid",
+    "data/C64Music/MUSICIANS/F/Factor6/Rotr_Filtered.sid",
+    "data/C64Music/MUSICIANS/H/Hoffmann_Michal/Last_Ninja_10.sid"
+  ],
+  "Ariston": [
+    "data/C64Music/DEMOS/UNKNOWN/Juliet_Bravo.sid",
+    "data/C64Music/GAMES/M-R/Platform_Mania_preview.sid",
+    "data/C64Music/MUSICIANS/G/Gray_Matt/Worktunes/Mean_Streak_v1.sid"
+  ],
+  "MoN/Deenen": [
+    "data/C64Music/MUSICIANS/J/JVD/Falling_Asleep.sid",
+    "data/C64Music/MUSICIANS/T/Tel_Jeroen/Super_Cup_Football.sid",
+    "data/C64Music/MUSICIANS/T/Tel_Jeroen/2400_AD.sid"
+  ],
+  "Reflextracker": [
+    "data/C64Music/MUSICIANS/M/Manik/Hlavno_Pivo.sid",
+    "data/C64Music/MUSICIANS/G/Gregfeel/Space_Harpooner.sid",
+    "data/C64Music/MUSICIANS/W/Warlock/Im_Gonna_Fuck.sid"
+  ],
+  "LordsOfSonics/MS": [
+    "data/C64Music/MUSICIANS/M/Mc_Olly/Look_preview.sid",
+    "data/C64Music/MUSICIANS/B/Blidon_Jens/Magic_Writer_tune_02.sid",
+    "data/C64Music/MUSICIANS/S/Schneider_Markus/A_Song_for_You_tune_9.sid"
+  ],
+  "Prosonix": [
+    "data/C64Music/MUSICIANS/P/Prosonix/Hoff_Lars/Alderan-Ingame_92.sid",
+    "data/C64Music/MUSICIANS/P/Prosonix/Hoff_Lars/Destination_I.sid",
+    "data/C64Music/MUSICIANS/P/Prosonix/Alderan.sid"
+  ],
+  "CyberTracker_exe": [
+    "data/C64Music/MUSICIANS/F/Fredrik/Homekomputer.sid",
+    "data/C64Music/MUSICIANS/P/Pievspie/Ninth_Cycle.sid",
+    "data/C64Music/MUSICIANS/F/Fredrik/Ethics.sid"
+  ],
+  "Vibrants/JO": [
+    "data/C64Music/MUSICIANS/J/JO/Popcorn.sid",
+    "data/C64Music/MUSICIANS/J/JO/Cyb_Test.sid",
+    "data/C64Music/MUSICIANS/J/JO/Col.sid"
+  ],
+  "CyberTracker": [
+    "data/C64Music/MUSICIANS/M/Mr_Mouse/Crazy_Fly.sid",
+    "data/C64Music/MUSICIANS/X/Xonic_the_Fox/Xlf_64.sid",
+    "data/C64Music/DEMOS/M-R/Panos-Tuotto.sid"
+  ],
+  "SidWinder": [
+    "data/C64Music/MUSICIANS/E/Eclipse/High_Score_Ballad.sid",
+    "data/C64Music/MUSICIANS/P/PCH/I_Am_Back.sid",
+    "data/C64Music/MUSICIANS/L/Luca/Little_Sara_Sister.sid"
+  ],
+  "David_Whittaker": [
+    "data/C64Music/MUSICIANS/W/Whittaker_David/Super_Robin_Hood.sid",
+    "data/C64Music/MUSICIANS/W/Whittaker_David/Tube.sid",
+    "data/C64Music/MUSICIANS/W/Whittaker_David/Solomons_Key.sid"
+  ],
+  "DefMon": [
+    "data/C64Music/MUSICIANS/D/Demsky_Martin/Sandstorm.sid",
+    "data/C64Music/MUSICIANS/D/Demsky_Martin/Crazy_Intro.sid",
+    "data/C64Music/MUSICIANS/I/Ilkke/Glow_Worm.sid"
+  ],
+  "SynC": [
+    "data/C64Music/MUSICIANS/B/Bakewell_Dwayne/Skunkjazz.sid",
+    "data/C64Music/MUSICIANS/D/DaFunk/Art_of_Vandalism.sid",
+    "data/C64Music/MUSICIANS/T/The_Syndrom/Take_Me_to_the_Time.sid"
+  ],
+  "System6581": [
+    "data/C64Music/MUSICIANS/M/Moppe/Harmonious_part_2.sid",
+    "data/C64Music/MUSICIANS/M/Moppe/Eliminator.sid",
+    "data/C64Music/MUSICIANS/M/Moppe/Eyhocd.sid"
+  ],
+  "Walt/Bonzai": [
+    "data/C64Music/MUSICIANS/W/Walt/Funk_Off.sid",
+    "data/C64Music/MUSICIANS/W/Walt/Worktunes/Leader_of.sid",
+    "data/C64Music/MUSICIANS/W/Walt/Moby-Bass.sid"
+  ],
+  "Michael_Winterberg": [
+    "data/C64Music/MUSICIANS/W/Winterberg_Michael/Result_of_Work.sid",
+    "data/C64Music/MUSICIANS/W/Winterberg_Michael/Speedy_Music_II.sid",
+    "data/C64Music/MUSICIANS/W/Winterberg_Michael/Effects_Factory.sid"
+  ],
+  "Audial_Arts": [
+    "data/C64Music/MUSICIANS/A/Audial_Arts/Pasch_Ronny/Rain-Fan.sid",
+    "data/C64Music/MUSICIANS/A/Audial_Arts/Prijt_Francois/Iduna_preview.sid",
+    "data/C64Music/MUSICIANS/A/Audial_Arts/Prijt_Francois/Alf_Returns.sid"
+  ],
+  "Chubrocker_V3.x": [
+    "data/C64Music/MUSICIANS/C/Chubrock/Tendance_Intro.sid",
+    "data/C64Music/MUSICIANS/P/Peet/Something.sid",
+    "data/C64Music/MUSICIANS/C/Chubrock/Corruption.sid"
+  ],
+  "NinjaTracker_V2.x": [
+    "data/C64Music/MUSICIANS/N/NecroPolo/Fender_of_the_Crown.sid",
+    "data/C64Music/MUSICIANS/C/Cadaver/Steel_Ranger.sid",
+    "data/C64Music/MUSICIANS/M/Mat64/Adventure_1.sid"
+  ],
+  "JCH_Protracker": [
+    "data/C64Music/MUSICIANS/K/Kosa/Camouflage_Remix.sid",
+    "data/C64Music/MUSICIANS/K/Kosa/Grzechy.sid",
+    "data/C64Music/MUSICIANS/K/Kosa/Game_Music_2.sid"
+  ],
+  "TBB/SideB": [
+    "data/C64Music/MUSICIANS/B/Barracuda/Twerk_Yeah.sid",
+    "data/C64Music/MUSICIANS/B/Barracuda/Durum_and_Basta.sid",
+    "data/C64Music/MUSICIANS/A/AMJ/Unsound_Minds_tune_2.sid"
+  ],
+  "Sosperec": [
+    "data/C64Music/MUSICIANS/C/Cane/Azure.sid",
+    "data/C64Music/MUSICIANS/D/DOS/25_Years_Later.sid",
+    "data/C64Music/MUSICIANS/C/Cane/We_Can_V2.sid"
+  ],
+  "Guy_Shavitt": [
+    "data/C64Music/MUSICIANS/S/Shavitt_Guy/Force_Writer.sid",
+    "data/C64Music/MUSICIANS/S/Shavitt_Guy/Dog_Doesnt_Give_Choice.sid",
+    "data/C64Music/MUSICIANS/S/Shavitt_Guy/Digital_Madness_Intro.sid"
+  ],
+  "Antony_Crowther_V3": [
+    "data/C64Music/MUSICIANS/D/Daglish_Ben/Future_Knight.sid",
+    "data/C64Music/MUSICIANS/D/Daglish_Ben/Hades_Nebula.sid",
+    "data/C64Music/MUSICIANS/R/Rowlands_Steve/Creatures_2_preview.sid"
+  ],
+  "Digitalizer_V3.0": [
+    "data/C64Music/MUSICIANS/B/Blues_Muz/Roestoeen_Kristian/Boring.sid",
+    "data/C64Music/MUSICIANS/B/Blues_Muz/Gallefoss_Glenn/Sad_Toob.sid",
+    "data/C64Music/MUSICIANS/B/Blues_Muz/Roestoeen_Kristian/Spectrum.sid"
+  ],
+  "Yip_MegaSound": [
+    "data/C64Music/MUSICIANS/F/Flotsam/Lost_Troop.sid",
+    "data/C64Music/MUSICIANS/N/Nutcase/Mahtisound.sid",
+    "data/C64Music/MUSICIANS/A/Agemixer/Summer_Touch.sid"
+  ],
+  "PollyTracker": [
+    "data/C64Music/DEMOS/A-F/Crowd.sid",
+    "data/C64Music/MUSICIANS/R/Reed/R_E_E_D.sid",
+    "data/C64Music/MUSICIANS/C/Crowley_Owen/Combine_Escape.sid"
+  ],
+  "SoundMaker": [
+    "data/C64Music/MUSICIANS/S/Sid_United_Artists/Awakening_intro.sid",
+    "data/C64Music/MUSICIANS/A/Arne/Follow_the_Crowd_II_tune_6.sid",
+    "data/C64Music/MUSICIANS/A/A-Man/Colour_Section.sid"
+  ],
+  "MoN/Bjerregaard": [
+    "data/C64Music/MUSICIANS/W/Wijnhoven_Joachim/Ode_to_Junior.sid",
+    "data/C64Music/MUSICIANS/Z/Zipper/Zipper_01.sid",
+    "data/C64Music/MUSICIANS/B/Bjerregaard_Johannes/STII8.sid"
+  ],
+  "Groovy_Bits": [
+    "data/C64Music/DEMOS/A-F/Active_Guru.sid",
+    "data/C64Music/MUSICIANS/B/Bluez/Brutality_2.sid",
+    "data/C64Music/MUSICIANS/S/Slaygon/Worktunes/Holiday.sid"
+  ],
+  "Matt_Gray": [
+    "data/C64Music/MUSICIANS/M/Madmax/Pro_BMX_Madmax_Mix.sid",
+    "data/C64Music/MUSICIANS/G/Gray_Matt/Bangkok_Knights_Loader.sid",
+    "data/C64Music/MUSICIANS/D/Danko_Tomas/Demotraz_1.sid"
+  ],
+  "DefleMask_v2": [
+    "data/C64Music/DEMOS/M-R/Maybe_Next_Time.sid",
+    "data/C64Music/DEMOS/G-L/In_the_South_African.sid",
+    "data/C64Music/MUSICIANS/G/Gotoandplay/Reconciliation.sid"
+  ],
+  "Zardax": [
+    "data/C64Music/MUSICIANS/Z/Zardax/In_Style_of_20CC.sid",
+    "data/C64Music/MUSICIANS/Z/Zardax/Witchcraft.sid",
+    "data/C64Music/MUSICIANS/Z/Zardax/Zardax_04.sid"
+  ],
+  "Ed/Wrath": [
+    "data/C64Music/MUSICIANS/E/Ed/Home.sid",
+    "data/C64Music/MUSICIANS/E/Ed/Gill.sid",
+    "data/C64Music/MUSICIANS/E/Ed/Last_Aproach.sid"
+  ],
+  "Trident/Active": [
+    "data/C64Music/MUSICIANS/T/Trident/Misantrophy.sid",
+    "data/C64Music/MUSICIANS/T/Trident/Fugue_in_g-minor.sid",
+    "data/C64Music/MUSICIANS/T/Trident/Upheaval.sid"
+  ],
+  "Glover_NewPlayer_V21": [
+    "data/C64Music/MUSICIANS/G/Glover/Draxmania.sid",
+    "data/C64Music/MUSICIANS/P/Phobos/What_Is_Love_2SID.sid",
+    "data/C64Music/MUSICIANS/G/Glover/No_Name.sid"
+  ],
+  "Bjerregaard": [
+    "data/C64Music/MUSICIANS/B/Bjerregaard_Johannes/Chase_v2.sid",
+    "data/C64Music/MUSICIANS/B/Bjerregaard_Johannes/Hit_the_Baze.sid",
+    "data/C64Music/MUSICIANS/B/Bjerregaard_Johannes/Again_Its_JB.sid"
+  ],
+  "Heathcliff/DigitalArts": [
+    "data/C64Music/MUSICIANS/N/No-XS/Less_Gravity.sid",
+    "data/C64Music/MUSICIANS/N/No-XS/Uppers.sid",
+    "data/C64Music/MUSICIANS/N/No-XS/Flubber_Tune.sid"
+  ],
+  "Asterion_V1.x": [
+    "data/C64Music/MUSICIANS/T/Tinnitus/Asterion/Dark_Stronghold.sid",
+    "data/C64Music/MUSICIANS/T/Tinnitus/Asterion/Song_of_the_Dryad.sid",
+    "data/C64Music/MUSICIANS/T/Tinnitus/Asterion/6581_live_in_Berlin.sid"
+  ],
+  "Roland_Hermans": [
+    "data/C64Music/MUSICIANS/W/Wijnhoven_Joachim/Rolfie_Title_Remix.sid",
+    "data/C64Music/MUSICIANS/W/Wijnhoven_Joachim/Yogis_Dutch_Anthem.sid",
+    "data/C64Music/MUSICIANS/W/Wijnhoven_Joachim/Rise_and_Sine.sid"
+  ],
+  "Music_Processor": [
+    "data/C64Music/MUSICIANS/V/van_Riemsdijk_Dick/Easy_Winners.sid",
+    "data/C64Music/MUSICIANS/V/van_Riemsdijk_Dick/Harbor_Lights.sid",
+    "data/C64Music/MUSICIANS/V/van_Riemsdijk_Dick/Menuet_in_G.sid"
+  ],
+  "The_Music_System": [
+    "data/C64Music/DEMOS/UNKNOWN/Vivaldi.sid",
+    "data/C64Music/DEMOS/UNKNOWN/Because.sid",
+    "data/C64Music/DEMOS/UNKNOWN/Cleopha.sid"
+  ],
+  "Virtuoso": [
+    "data/C64Music/MUSICIANS/H/Holt_Hein/Breakstep.sid",
+    "data/C64Music/MUSICIANS/H/Holt_Hein/Unoptimixed.sid",
+    "data/C64Music/MUSICIANS/H/Holt_Hein/Summer_Breeze_Low_Season.sid"
+  ],
+  "Ben_Daglish/Gremlin": [
+    "data/C64Music/MUSICIANS/D/Daglish_Ben/Alternative_World_Games.sid",
+    "data/C64Music/MUSICIANS/D/Daglish_Ben/Munsters.sid",
+    "data/C64Music/MUSICIANS/D/Daglish_Ben/Terramex.sid"
+  ],
+  "PASS": [
+    "data/C64Music/DEMOS/UNKNOWN/Dry-Cleaner.sid",
+    "data/C64Music/DEMOS/UNKNOWN/Festival.sid",
+    "data/C64Music/DEMOS/UNKNOWN/Dry-Cleaner.sid"
+  ],
+  "Martin_Galway": [
+    "data/C64Music/MUSICIANS/G/Galway_Martin/Game_Over.sid",
+    "data/C64Music/MUSICIANS/D/Dunn_Jonathan/Basket_Master.sid",
+    "data/C64Music/MUSICIANS/D/Dunn_Jonathan/Arkanoid-Revenge_of_Doh.sid"
+  ],
+  "FAME": [
+    "data/C64Music/MUSICIANS/F/FAME/Hendriks_Michael/Fame_on_the_Run.sid",
+    "data/C64Music/MUSICIANS/F/FAME/Hendriks_Michael/Tetrados.sid",
+    "data/C64Music/MUSICIANS/F/FAME/Cyberblocks.sid"
+  ],
+  "SkyLine_Editor": [
+    "data/C64Music/MUSICIANS/Z/Zyron/Wonderful_Land.sid",
+    "data/C64Music/MUSICIANS/E/Elastic_Dream/First_Shower_tune_1.sid",
+    "data/C64Music/DEMOS/0-9/53_Miles_West_of_Venus.sid"
+  ],
+  "Fred_Gray": [
+    "data/C64Music/MUSICIANS/G/Gray_Fred/G_U_T_Z.sid",
+    "data/C64Music/MUSICIANS/G/Gray_Fred/Starace.sid",
+    "data/C64Music/MUSICIANS/G/Gray_Fred/Stairways.sid"
+  ],
+  "Artline_Designs": [
+    "data/C64Music/MUSICIANS/H/Hannula_Antti/Needle.sid",
+    "data/C64Music/MUSICIANS/H/Hannula_Antti/Superstitious.sid",
+    "data/C64Music/MUSICIANS/H/Hannula_Antti/Weekend.sid"
+  ],
+  "GKGM": [
+    "data/C64Music/MUSICIANS/D/Del_Priore_Fabian/Buggys.sid",
+    "data/C64Music/MUSICIANS/D/DeMeo_Alex/Birthday_Greetings.sid",
+    "data/C64Music/MUSICIANS/D/Del_Priore_Fabian/Kiss_My_Ass_preview.sid"
+  ],
+  "Geir_Tjelta/SIDSys18.6": [
+    "data/C64Music/MUSICIANS/R/Red_Devil/P_Jukebox.sid",
+    "data/C64Music/MUSICIANS/R/Red_Devil/Extra_Life.sid",
+    "data/C64Music/MUSICIANS/R/Red_Devil/Gods_Power.sid"
+  ],
+  "Basic/Jim_Butterfield": [
+    "data/C64Music/MUSICIANS/B/Butterfield_Jim/Lincolnshire_BASIC.sid",
+    "data/C64Music/MUSICIANS/P/Pace_Wayne/Music_Box_Dancer_BASIC.sid",
+    "data/C64Music/DEMOS/A-F/America_BASIC.sid"
+  ],
+  "Power_Music": [
+    "data/C64Music/MUSICIANS/G/Gaston/Black_Magic_part_1.sid",
+    "data/C64Music/MUSICIANS/H/Hartwig_Stefan/Die_Hard_preview.sid",
+    "data/C64Music/GAMES/S-Z/Underground.sid"
+  ],
+  "Arne/AFL": [
+    "data/C64Music/MUSICIANS/A/Arne/Enough_for_Today.sid",
+    "data/C64Music/MUSICIANS/A/Arne/Propaganda.sid",
+    "data/C64Music/MUSICIANS/A/Arne/Leeways_Intro_Tune.sid"
+  ],
+  "Adam_Gilmore": [
+    "data/C64Music/MUSICIANS/G/Gilmore_Adam/Blinkys_Scary_School.sid",
+    "data/C64Music/MUSICIANS/G/Gilmore_Adam/Slalom.sid",
+    "data/C64Music/MUSICIANS/G/Gilmore_Adam/Ninja_Commando.sid"
+  ],
+  "Geir_Tjelta/SIDSys18.4": [
+    "data/C64Music/MUSICIANS/T/Tjelta_Geir/Orcanic.sid",
+    "data/C64Music/MUSICIANS/T/Tjelta_Geir/Smile_to_the_Sky.sid",
+    "data/C64Music/MUSICIANS/M/Magnar/Apocalypse.sid"
+  ],
+  "Geir_Tjelta/SIDSys_1.0": [
+    "data/C64Music/MUSICIANS/T/Tjelta_Geir/Outrun_Remix.sid",
+    "data/C64Music/MUSICIANS/L/Lindanger_Trond/Performance.sid",
+    "data/C64Music/MUSICIANS/T/Tjelta_Geir/Short_Tune.sid"
+  ],
+  "David_Dunn": [
+    "data/C64Music/MUSICIANS/D/Dunn_David/Elite_128_NTSC.sid",
+    "data/C64Music/MUSICIANS/B/Brooke_Jason/Bismarck.sid",
+    "data/C64Music/MUSICIANS/D/Dunn_David/Chiller_v2.sid"
+  ],
+  "Griff": [
+    "data/C64Music/MUSICIANS/G/Griff/Sun_for_Fun_Intro.sid",
+    "data/C64Music/MUSICIANS/G/Griff/Unknown_2.sid",
+    "data/C64Music/MUSICIANS/G/Griff/Connection.sid"
+  ],
+  "Music_Studio/Lieblich": [
+    "data/C64Music/DEMOS/UNKNOWN/Canon_in_D.sid",
+    "data/C64Music/DEMOS/UNKNOWN/Ueber_Brue.sid",
+    "data/C64Music/MUSICIANS/B/Bogas_Ed/Latin.sid"
+  ],
+  "Mssiah": [
+    "data/C64Music/MUSICIANS/I/IGP/Chips_Challenge_BUGS_Level_Remix.sid",
+    "data/C64Music/MUSICIANS/I/IGP/La_Ciaffarata.sid",
+    "data/C64Music/MUSICIANS/I/IGP/No_Second_SID.sid"
+  ],
+  "Background_MusicEditor": [
+    "data/C64Music/MUSICIANS/B/Boray/Computer_Brains.sid",
+    "data/C64Music/MUSICIANS/L/Luode_Toni/Finlandia_Hymnista.sid",
+    "data/C64Music/DEMOS/UNKNOWN/Pac_Runner.sid"
+  ],
+  "Zardax/SoundKiller": [
+    "data/C64Music/MUSICIANS/C/Coax/Fresh_n_Sticky_1_tune_1.sid",
+    "data/C64Music/MUSICIANS/P/Piirainen_Antti/Partyhole_part_2.sid",
+    "data/C64Music/MUSICIANS/C/Coax/Killercow.sid"
+  ],
+  "5_Dimension": [
+    "data/C64Music/MUSICIANS/A/A-Man/Dreamline_B_O.sid",
+    "data/C64Music/MUSICIANS/S/Surtax/What_a_Logo.sid",
+    "data/C64Music/MUSICIANS/S/Surtax/Exploding_05_tune_2.sid"
+  ],
+  "SidFactory/Laxity": [
+    "data/C64Music/MUSICIANS/S/Sidder/SomeTThing.sid",
+    "data/C64Music/MUSICIANS/S/Sidder/Crystal_Structure.sid",
+    "data/C64Music/MUSICIANS/L/Laxity/Phoenix_Code_Intro.sid"
+  ],
+  "Blackbird/LFT": [
+    "data/C64Music/MUSICIANS/L/Lft/Dithered_Island.sid",
+    "data/C64Music/MUSICIANS/L/Lft/Glyptodont.sid",
+    "data/C64Music/MUSICIANS/L/Lft/Lunatico_Side_1.sid"
+  ],
+  "Olav_Moerkrid": [
+    "data/C64Music/MUSICIANS/R/Rokling_Henning/Thats_the_Name.sid",
+    "data/C64Music/MUSICIANS/R/Rokling_Henning/Jingle_Bells.sid",
+    "data/C64Music/MUSICIANS/R/Rokling_Henning/Moebelhandler.sid"
+  ],
+  "Digi-Organizer": [
+    "data/C64Music/MUSICIANS/T/The_Mighty_Bulldozer/Earbleed_II.sid",
+    "data/C64Music/MUSICIANS/F/Feekzoid/Xmas_Chortles_x-rated_version.sid",
+    "data/C64Music/DEMOS/A-F/Damn_Fine_Digi.sid"
+  ],
+  "D.A.I.S.Y.": [
+    "data/C64Music/MUSICIANS/H/Hucky/Squaler_tune_3.sid",
+    "data/C64Music/DEMOS/UNKNOWN/Amiga_Dead_Demo_tune_3.sid",
+    "data/C64Music/DEMOS/UNKNOWN/A_New_Digi.sid"
+  ],
+  "MusicComposer/FlashInc": [
+    "data/C64Music/MUSICIANS/M/Moon/Do_You_Get_Excited_worktune.sid",
+    "data/C64Music/MUSICIANS/M/Moon/Dancing_with_Tears_in_My_Eyes.sid",
+    "data/C64Music/MUSICIANS/M/Moon/Kebab_i_Stan.sid"
+  ],
+  "Equalizer": [
+    "data/C64Music/MUSICIANS/N/Nilsen_Ronny/Pumpline-Last_Heartbeat.sid",
+    "data/C64Music/MUSICIANS/N/Nilsen_Ronny/Full_Moon_Rock.sid",
+    "data/C64Music/MUSICIANS/N/Nilsen_Ronny/Jungle_All_the_Way.sid"
+  ],
+  "Stephen_Ruddy": [
+    "data/C64Music/MUSICIANS/F/Follin_Tim/Qix.sid",
+    "data/C64Music/MUSICIANS/F/Follin_Tim/Sky_Shark.sid",
+    "data/C64Music/MUSICIANS/F/Follin_Tim/Bodyslam.sid"
+  ],
+  "MusDriver/Paul_Hughes": [
+    "data/C64Music/MUSICIANS/D/Dunn_Jonathan/WEC_Le_Mans.sid",
+    "data/C64Music/MUSICIANS/D/Dunn_Jonathan/Hook.sid",
+    "data/C64Music/MUSICIANS/D/Dunn_Jonathan/Ocean_Loader_5.sid"
+  ],
+  "Maduplec": [
+    "data/C64Music/MUSICIANS/M/Maduplec/Tripler_tune_3.sid",
+    "data/C64Music/MUSICIANS/M/Maduplec/Dodger_part_4.sid",
+    "data/C64Music/MUSICIANS/M/Maduplec/Matcher_part_3.sid"
+  ],
+  "NordicBeat_Editor": [
+    "data/C64Music/MUSICIANS/N/Nordic_Beat/Evony/Classic_Game_Over_Song.sid",
+    "data/C64Music/MUSICIANS/N/Nordic_Beat/Matrix/Vixen_Theme.sid",
+    "data/C64Music/MUSICIANS/N/Nordic_Beat/Matrix/Harmony.sid"
+  ],
+  "Mark_Cooksey": [
+    "data/C64Music/MUSICIANS/C/Cooksey_Mark/Crack_Down.sid",
+    "data/C64Music/MUSICIANS/C/Cooksey_Mark/Bomb_Jack_II.sid",
+    "data/C64Music/MUSICIANS/C/Cooksey_Mark/Pirates_in_Hyperspace.sid"
+  ],
+  "Comer/NMI_Sample_5": [
+    "data/C64Music/MUSICIANS/R/Ramos/Gouitar_Song.sid",
+    "data/C64Music/MUSICIANS/C/Comer/Terror.sid",
+    "data/C64Music/MUSICIANS/B/Black/Unique.sid"
+  ],
+  "4753_Softcopy": [
+    "data/C64Music/DEMOS/M-R/Music_Non-Stop.sid",
+    "data/C64Music/MUSICIANS/0-9/4753_Softcopy/Push_It.sid",
+    "data/C64Music/MUSICIANS/0-9/4753_Softcopy/Sick_Tune_Remix.sid"
+  ],
+  "Soundbooster": [
+    "data/C64Music/MUSICIANS/M/Midas/Soundbooster_V1_mus6_remix.sid",
+    "data/C64Music/MUSICIANS/G/G-Fellow/Thinking.sid",
+    "data/C64Music/MUSICIANS/G/Gerpsnot/Parody.sid"
+  ],
+  "Jeroen_Kimmel": [
+    "data/C64Music/MUSICIANS/R/Red_Kimmel_Jeroen/Game_Music_2.sid",
+    "data/C64Music/MUSICIANS/R/Red_Kimmel_Jeroen/Frightmare.sid",
+    "data/C64Music/MUSICIANS/R/Red_Kimmel_Jeroen/Big_Deal.sid"
+  ],
+  "PVL/Rhythmic_Lunatics": [
+    "data/C64Music/MUSICIANS/P/PVL/Dirty_Diana.sid",
+    "data/C64Music/GAMES/A-F/A_P_E_X_preview.sid",
+    "data/C64Music/MUSICIANS/P/PVL/Brainless_Act_part_2.sid"
+  ],
+  "GeniusComposer": [
+    "data/C64Music/MUSICIANS/D/Dr_Zoom/Game_Over.sid",
+    "data/C64Music/MUSICIANS/D/Dr_Zoom/Nice_Drum.sid",
+    "data/C64Music/MUSICIANS/D/Dr_Zoom/Aliens_Song.sid"
+  ],
+  "Sonic_Graffiti": [
+    "data/C64Music/GAMES/M-R/Official_Father_Christmas_Game.sid",
+    "data/C64Music/MUSICIANS/S/Sonic_Graffiti/Sonic_Graffiti_04.sid",
+    "data/C64Music/MUSICIANS/S/Sonic_Graffiti/Steel_Eagle.sid"
+  ],
+  "JCH_OldPlayer": [
+    "data/C64Music/MUSICIANS/J/JCH/Alpha_Centauri.sid",
+    "data/C64Music/MUSICIANS/J/JCH/Experiment_6_v2.sid",
+    "data/C64Music/MUSICIANS/J/JCH/Classic_Rhythms.sid"
+  ],
+  "C64_Speech_System": [
+    "data/C64Music/MUSICIANS/P/Pernet/Mega_Digi.sid",
+    "data/C64Music/MUSICIANS/P/Pet_Shop_Boy/Stop_Wake_Up.sid",
+    "data/C64Music/MUSICIANS/A/Alien-Crackings/Digital_Mix_Three.sid"
+  ],
+  "Cycleburner_Digi": [
+    "data/C64Music/MUSICIANS/S/Saltkjelvik_Thomas/Loaded_end.sid",
+    "data/C64Music/MUSICIANS/S/Saltkjelvik_Thomas/Voodoo_People.sid",
+    "data/C64Music/MUSICIANS/C/Cycleburner/Piece_of_Cake_3_part_6.sid"
+  ],
+  "TFMX/TimeComposer": [
+    "data/C64Music/MUSICIANS/S/Steffens_Matthias/Flap_Flopp.sid",
+    "data/C64Music/DEMOS/UNKNOWN/Crucified.sid",
+    "data/C64Music/MUSICIANS/S/Steffens_Matthias/Sweet_I.sid"
+  ],
+  "Mark_Tait": [
+    "data/C64Music/MUSICIANS/T/Tait_Mark/Thunder_Blade.sid",
+    "data/C64Music/MUSICIANS/T/Tait_Mark/Music_Demo_4.sid",
+    "data/C64Music/MUSICIANS/T/Tait_Mark/Music_Demo_3.sid"
+  ],
+  "Sidbang64_2/Warp8": [
+    "data/C64Music/MUSICIANS/W/Warp_8/Sunloop.sid",
+    "data/C64Music/MUSICIANS/W/Warp_8/Beamforming_2SID.sid",
+    "data/C64Music/MUSICIANS/W/Warp_8/Triphace.sid"
+  ],
+  "Acid_Player": [
+    "data/C64Music/MUSICIANS/M/McDowell_Stuart/C128_f0.sid",
+    "data/C64Music/MUSICIANS/M/McDowell_Stuart/C128_n4.sid",
+    "data/C64Music/MUSICIANS/M/McDowell_Stuart/Eliminator.sid"
+  ],
+  "Harri_Palviainen": [
+    "data/C64Music/DEMOS/UNKNOWN/Yksi_Ruusu_On_Kasvanut_Laaksossa.sid",
+    "data/C64Music/MUSICIANS/L/Lievonen_Ere/Maa_on_niin_kaunis.sid",
+    "data/C64Music/MUSICIANS/L/Lievonen_Ere/Joulupuu_on_rakennettu.sid"
+  ],
+  "Neil_Brennan": [
+    "data/C64Music/GAMES/M-R/Merry_Christmas.sid",
+    "data/C64Music/MUSICIANS/B/Brennan_Neil/Grand_Larceny.sid",
+    "data/C64Music/MUSICIANS/B/Brennan_Neil/Zim_Sala_Bim.sid"
+  ],
+  "Hermit/1RasterTracker": [
+    "data/C64Music/MUSICIANS/F/Freqvibez/Hankerchief_Hills.sid",
+    "data/C64Music/MUSICIANS/F/Freqvibez/Foo_omnipotens_est.sid",
+    "data/C64Music/MUSICIANS/H/Hermit/Another_One_Bites_the_Dust.sid"
+  ],
+  "Companion": [
+    "data/C64Music/DEMOS/M-R/Roundabout.sid",
+    "data/C64Music/MUSICIANS/B/Berry_Vic/In_C.sid",
+    "data/C64Music/GAMES/G-L/Henrys_House.sid"
+  ],
+  "Mike/LSD": [
+    "data/C64Music/MUSICIANS/M/Mike/Freaky_Trip_4.sid",
+    "data/C64Music/MUSICIANS/M/Mike/Broken_Dreamz_1.sid",
+    "data/C64Music/MUSICIANS/M/Mike/Zoolookologie_5.sid"
+  ],
+  "Frank_Hammer/Sharon": [
+    "data/C64Music/MUSICIANS/S/Simon_Michael/Heaven.sid",
+    "data/C64Music/MUSICIANS/S/Simon_Michael/J_M_Jarre_2.sid",
+    "data/C64Music/MUSICIANS/S/Simon_Michael/Sharon_Theme.sid"
+  ],
+  "Sidbang64_1/Warp8": [
+    "data/C64Music/MUSICIANS/W/Warp_8/Jam_n_Flute.sid",
+    "data/C64Music/MUSICIANS/W/Warp_8/Jack_Voicebreaker.sid",
+    "data/C64Music/MUSICIANS/W/Warp_8/Minimalprinzip.sid"
+  ],
+  "Kawasaki_Synthesizer": [
+    "data/C64Music/MUSICIANS/K/Kawasaki_Ryo/Fugue.sid",
+    "data/C64Music/MUSICIANS/K/Kawasaki_Ryo/Minor_9.sid",
+    "data/C64Music/MUSICIANS/K/Kawasaki_Ryo/E1.sid"
+  ],
+  "Barry_Leitch": [
+    "data/C64Music/MUSICIANS/L/Leitch_Barry/R-Type.sid",
+    "data/C64Music/MUSICIANS/L/Leitch_Barry/Gilbert.sid",
+    "data/C64Music/MUSICIANS/L/Leitch_Barry/Zone_Warrior_Level_1.sid"
+  ],
+  "Companion/Jay_Derrett": [
+    "data/C64Music/MUSICIANS/D/Derrett_Jay/Sqij.sid",
+    "data/C64Music/MUSICIANS/D/Derrett_Jay/Lifeforce.sid",
+    "data/C64Music/MUSICIANS/D/Derrett_Jay/Death_or_Glory.sid"
+  ],
+  "Element114Studio_2.0": [
+    "data/C64Music/MUSICIANS/B/Bayliss_Richard/Dance-A-Load_V3_MS_Remix.sid",
+    "data/C64Music/MUSICIANS/N/NecroPolo/Summerset.sid",
+    "data/C64Music/MUSICIANS/B/Bayliss_Richard/Dairy_Ice_Cream.sid"
+  ],
+  "CCC_Editor": [
+    "data/C64Music/MUSICIANS/S/Sanden_Richard/Chanson_D_Amour.sid",
+    "data/C64Music/MUSICIANS/S/Sanden_Richard/Corrina_Corrina.sid",
+    "data/C64Music/MUSICIANS/S/Sanden_Richard/Happy_Birthday.sid"
+  ],
+  "Sound-Tracker_64": [
+    "data/C64Music/MUSICIANS/G/Groo/Sound-tracker_64.sid",
+    "data/C64Music/MUSICIANS/F/Flea/Ugly_tune_2.sid",
+    "data/C64Music/GAMES/A-F/Brave_African_Huntress.sid"
+  ],
+  "Jason_Brooke": [
+    "data/C64Music/MUSICIANS/B/Brooke_Jason/Lawn_Tennis.sid",
+    "data/C64Music/MUSICIANS/B/Brooke_Jason/Street_Cred_Football.sid",
+    "data/C64Music/MUSICIANS/B/Brooke_Jason/Pac-Land.sid"
+  ],
+  "RoMuzak_V7.x": [
+    "data/C64Music/MUSICIANS/H/Heitkamp_Arndt/Digital_Excess-The_Demo.sid",
+    "data/C64Music/MUSICIANS/H/Hartwig_Stefan/Disco_Mix.sid",
+    "data/C64Music/MUSICIANS/H/Hartwig_Stefan/Worktune_1.sid"
+  ],
+  "TrackPlayer": [
+    "data/C64Music/MUSICIANS/M/MHD/For_Chaos.sid",
+    "data/C64Music/MUSICIANS/M/MHD/For_Extirpator.sid",
+    "data/C64Music/MUSICIANS/M/MHD/Pyogenesis.sid"
+  ],
+  "Jeroen_Koops": [
+    "data/C64Music/MUSICIANS/K/Koops_Jeroen/MTMTE_coming_soon.sid",
+    "data/C64Music/MUSICIANS/K/Koops_Jeroen/MTMTE_scrollirium.sid",
+    "data/C64Music/MUSICIANS/K/Koops_Jeroen/Bernies_Lifestyle_note.sid"
+  ],
+  "Stephan/Bytemare": [
+    "data/C64Music/MUSICIANS/A/Antitrack/Antitrack_01.sid",
+    "data/C64Music/MUSICIANS/M/MC_Lord/Freds_Back_III.sid",
+    "data/C64Music/MUSICIANS/M/MC_Lord/Crossfire.sid"
+  ],
+  "Loadstar_SongSmith_v1": [
+    "data/C64Music/MUSICIANS/W/Weiler_James/Square_Dance.sid",
+    "data/C64Music/MUSICIANS/G/Gardner_Alan/Minuet_Purcell.sid",
+    "data/C64Music/MUSICIANS/G/Gardner_Alan/Policemans_Song.sid"
+  ],
+  "TFMX": [
+    "data/C64Music/MUSICIANS/H/Huelsbeck_Chris/Third_TFMX_Song.sid",
+    "data/C64Music/MUSICIANS/H/Huelsbeck_Chris/Compilation_I.sid",
+    "data/C64Music/MUSICIANS/H/Huelsbeck_Chris/Spherical.sid"
+  ],
+  "Slaygon": [
+    "data/C64Music/MUSICIANS/S/Slaygon/Moozak.sid",
+    "data/C64Music/MUSICIANS/S/Slaygon/Primadonna.sid",
+    "data/C64Music/MUSICIANS/S/Slaygon/Blunder.sid"
+  ],
+  "Radarsoft": [
+    "data/C64Music/MUSICIANS/V/Vanderaart_John/Letterstress.sid",
+    "data/C64Music/MUSICIANS/V/Vanderaart_John/Anonimus.sid",
+    "data/C64Music/MUSICIANS/V/Vanderaart_John/Zone_7.sid"
+  ],
+  "Roel_Bosch": [
+    "data/C64Music/MUSICIANS/B/Bosch_Roel/Music_Mania_part_3-4.sid",
+    "data/C64Music/MUSICIANS/B/Bosch_Roel/Look.sid",
+    "data/C64Music/MUSICIANS/B/Bosch_Roel/Smash_Out.sid"
+  ],
+  "SadoTracker": [
+    "data/C64Music/MUSICIANS/H/Hoffmann_Michal/Jon_Dunns_Addams_Family.sid",
+    "data/C64Music/MUSICIANS/D/Dosoo/Retro_Folksong.sid",
+    "data/C64Music/MUSICIANS/C/Cadaver/Metal_Warrior_2.sid"
+  ],
+  "Paradroid/Lameplayer": [
+    "data/C64Music/MUSICIANS/P/Paradroid/Zoolook_Mix.sid",
+    "data/C64Music/MUSICIANS/P/Paradroid/Wings.sid",
+    "data/C64Music/MUSICIANS/P/Paradroid/Bangkok_Knight.sid"
+  ],
+  "Games_Creator": [
+    "data/C64Music/GAMES/M-R/Mega_Turbo.sid",
+    "data/C64Music/GAMES/M-R/Niterider.sid",
+    "data/C64Music/GAMES/S-Z/Sub_Hunt.sid"
+  ],
+  "Novaload": [
+    "data/C64Music/GAMES/G-L/Gandalf_the_Sorcerer_loader.sid",
+    "data/C64Music/GAMES/A-F/Countdown.sid",
+    "data/C64Music/GAMES/M-R/Mercenary_loader.sid"
+  ],
+  "Anvil": [
+    "data/C64Music/MUSICIANS/A/Anvil/Assembly_92_Compotune.sid",
+    "data/C64Music/MUSICIANS/A/Anvil/Fresh_n_Sticky_6_tune_2.sid",
+    "data/C64Music/MUSICIANS/A/Anvil/Oho.sid"
+  ],
+  "Electronic_Speech_Sys": [
+    "data/C64Music/MUSICIANS/B/Butler_Paul/Desert_Fox.sid",
+    "data/C64Music/MUSICIANS/E/Electronic_Speech_Systems/Slapshot.sid",
+    "data/C64Music/MUSICIANS/L/Lieblich_Russell/Ghostbusters.sid"
+  ],
+  "Antony_Crowther_V2": [
+    "data/C64Music/MUSICIANS/D/Daglish_Ben/William_Wobbler.sid",
+    "data/C64Music/MUSICIANS/C/Crowther_Antony/Example_1-Simple_Scale.sid",
+    "data/C64Music/MUSICIANS/C/Crowther_Antony/Diagonal_Demo.sid"
+  ],
+  "MacMusic": [
+    "data/C64Music/MUSICIANS/S/Stone_Phil/Hey_Jude.sid",
+    "data/C64Music/MUSICIANS/S/Stone_Phil/Endless_Love.sid",
+    "data/C64Music/MUSICIANS/S/Stone_Phil/Arthurs_Theme.sid"
+  ],
+  "Tiny/Sound_Images": [
+    "data/C64Music/MUSICIANS/T/Tonge_Paul/Pang.sid",
+    "data/C64Music/MUSICIANS/W/Williams_Tony/Great_Courts.sid",
+    "data/C64Music/MUSICIANS/T/Tonge_Paul/Cosmic_Pirate.sid"
+  ],
+  "Dave_Warhol": [
+    "data/C64Music/MUSICIANS/W/Warhol_Dave/Pool_of_Radiance.sid",
+    "data/C64Music/MUSICIANS/W/Warhol_Dave/Neuromancer.sid",
+    "data/C64Music/GAMES/M-R/Project_Firestart.sid"
+  ],
+  "Artlace": [
+    "data/C64Music/MUSICIANS/A/Artlace/Inspirit.sid",
+    "data/C64Music/MUSICIANS/A/Artlace/Falsehappy.sid",
+    "data/C64Music/MUSICIANS/A/Artlace/True_Faith.sid"
+  ],
+  "Music_Construction_Set": [
+    "data/C64Music/MUSICIANS/F/Fulton_Douglas/Racket.sid",
+    "data/C64Music/MUSICIANS/F/Fulton_Douglas/Buggy.sid",
+    "data/C64Music/MUSICIANS/F/Fulton_Douglas/Fanfare.sid"
+  ],
+  "*Unidentified*": [
+    "data/C64Music/DEMOS/UNKNOWN/Compo_Tune.sid",
+    "data/C64Music/DEMOS/UNKNOWN/Beat_Digi.sid",
+    "data/C64Music/DEMOS/UNKNOWN/Smoke_on_the_Water.sid"
+  ],
+  "Ghost/SampleMon": [
+    "data/C64Music/MUSICIANS/Y/Yattaman/Rolnicze_Techno.sid",
+    "data/C64Music/MUSICIANS/S/Swayze/Huts_of_Hay_2.sid",
+    "data/C64Music/MUSICIANS/W/Warlock/Their_Law.sid"
+  ],
+  "OxyMod4Bit/THCM": [
+    "data/C64Music/MUSICIANS/T/THCM/Vicious_SID_2-Blood_Money.sid",
+    "data/C64Music/MUSICIANS/T/THCM/Oxy_Rock_tune_2.sid",
+    "data/C64Music/MUSICIANS/T/THCM/Vicious_SID_part_2.sid"
+  ],
+  "LFT": [
+    "data/C64Music/MUSICIANS/L/Lft/Foerklaedd_Gud_gamma.sid",
+    "data/C64Music/MUSICIANS/L/Lft/Nymphaea.sid",
+    "data/C64Music/MUSICIANS/L/Lft/Allt_under_himmelens_faeste.sid"
+  ],
+  "Micropearl/Fitzpatrick": [
+    "data/C64Music/MUSICIANS/F/Fitzpatrick_John/Zorro.sid",
+    "data/C64Music/MUSICIANS/F/Fitzpatrick_John/Bruce_Lee.sid",
+    "data/C64Music/MUSICIANS/F/Fitzpatrick_John/Conan.sid"
+  ],
+  "Harald_Rosenfeldt": [
+    "data/C64Music/MUSICIANS/R/Rosenfeldt_Harald/Yesterday_2SID.sid",
+    "data/C64Music/MUSICIANS/R/Rosenfeldt_Harald/Demo-Music_2.sid",
+    "data/C64Music/MUSICIANS/R/Rosenfeldt_Harald/Yesterday.sid"
+  ],
+  "NinjaTracker_V1.x": [
+    "data/C64Music/MUSICIANS/J/Julian_Jaymz/cdagame_s3m.sid",
+    "data/C64Music/MUSICIANS/P/Puterman/Emanation_Machine_tune_2.sid",
+    "data/C64Music/MUSICIANS/R/Radiantx/Fruit_Salad.sid"
+  ],
+  "Comer/Sample_Studio": [
+    "data/C64Music/MUSICIANS/D/Data/Banditti_2SID.sid",
+    "data/C64Music/DEMOS/A-F/Cannon_Fodder_Digi.sid",
+    "data/C64Music/MUSICIANS/B/Blackman/Vadis.sid"
+  ],
+  "GRG_tiny_4": [
+    "data/C64Music/MUSICIANS/B/Blues_Muz/Gallefoss_Glenn/N0s_Intro_85.sid",
+    "data/C64Music/MUSICIANS/B/Blues_Muz/Gallefoss_Glenn/Stableraster.sid",
+    "data/C64Music/MUSICIANS/B/Blues_Muz/Gallefoss_Glenn/N0s_Intro_84.sid"
+  ],
+  "Burgstaller_B": [
+    "data/C64Music/MUSICIANS/B/Burgstaller_Bernhard/Xy-Trance.sid",
+    "data/C64Music/MUSICIANS/B/Burgstaller_Bernhard/China.sid",
+    "data/C64Music/MUSICIANS/B/Burgstaller_Bernhard/Iso.sid"
+  ],
+  "K-Byte": [
+    "data/C64Music/DEMOS/UNKNOWN/Chevytech_1985.sid",
+    "data/C64Music/GAMES/S-Z/World_Games.sid",
+    "data/C64Music/GAMES/S-Z/Street_Sports_Basketball.sid"
+  ],
+  "GalBard/ATOO": [
+    "data/C64Music/MUSICIANS/A/ATOO/Ivanhoe_Loader.sid",
+    "data/C64Music/MUSICIANS/A/ATOO/GBK-Test.sid",
+    "data/C64Music/MUSICIANS/A/ATOO/Radio_Waves.sid"
+  ],
+  "Ashley_Hogg": [
+    "data/C64Music/MUSICIANS/H/Hogg_Ashley/Nobby_the_Aardvark.sid",
+    "data/C64Music/MUSICIANS/H/Hogg_Ashley/Steg_the_Slug.sid",
+    "data/C64Music/MUSICIANS/H/Hogg_Ashley/5-Channel_Digi-Tune.sid"
+  ],
+  "Extra_Sound": [
+    "data/C64Music/MUSICIANS/H/Herre_Tobias/Blaues_Wunder.sid",
+    "data/C64Music/MUSICIANS/H/Herre_Tobias/NDW.sid",
+    "data/C64Music/MUSICIANS/S/Struebing_Volker/Noname.sid"
+  ],
+  "Toaster_Digi": [
+    "data/C64Music/MUSICIANS/T/Toaster/No_Name_tune_3.sid",
+    "data/C64Music/MUSICIANS/T/Toaster/Journey.sid",
+    "data/C64Music/MUSICIANS/S/Stice/Ghetto_People.sid"
+  ],
+  "Chris_Cox": [
+    "data/C64Music/MUSICIANS/C/Cox_Chris/Heroes_of_Karn.sid",
+    "data/C64Music/MUSICIANS/C/Cox_Chris/Web.sid",
+    "data/C64Music/MUSICIANS/J/Jervis_Andy/Deliverance.sid"
+  ],
+  "Martin_Walker": [
+    "data/C64Music/MUSICIANS/W/Walker_Martin/Ninja_Spirit.sid",
+    "data/C64Music/MUSICIANS/W/Walker_Martin/Dominion.sid",
+    "data/C64Music/MUSICIANS/W/Walker_Martin/Secret_Project.sid"
+  ],
+  "DMC_V6.x": [
+    "data/C64Music/MUSICIANS/B/Bayliss_Richard/Techno_Heat.sid",
+    "data/C64Music/MUSICIANS/T/The_Syndrom/Offseason.sid",
+    "data/C64Music/MUSICIANS/T/The_Syndrom/In_the_Line.sid"
+  ],
+  "Element114Studio_1.0": [
+    "data/C64Music/MUSICIANS/P/Peters_Alan/Racing_Game.sid",
+    "data/C64Music/MUSICIANS/P/Peters_Alan/Blippy_Intro_1.sid",
+    "data/C64Music/MUSICIANS/P/Peters_Alan/Tusari_level_3.sid"
+  ],
+  "Assassin_Sample_Mixer": [
+    "data/C64Music/MUSICIANS/P/Puma/Desert_Strike.sid",
+    "data/C64Music/MUSICIANS/P/Puma/Lamiga_Music.sid",
+    "data/C64Music/MUSICIANS/J/JFK/Robots.sid"
+  ],
+  "Henning_Andersen": [
+    "data/C64Music/MUSICIANS/J/Jensen_Henrik/Last_Schoolday.sid",
+    "data/C64Music/MUSICIANS/J/Jensen_Henrik/Nasty_Waggie.sid",
+    "data/C64Music/MUSICIANS/J/Jensen_Henrik/Monty_on_the_Run_Mix.sid"
+  ],
+  "Polyanna": [
+    "data/C64Music/MUSICIANS/N/Nick_Vivid/Polychrome.sid",
+    "data/C64Music/MUSICIANS/U/Uneksija/Lo-Fi_in_My_Basement.sid",
+    "data/C64Music/MUSICIANS/D/D_V/Tomato_Freakshow.sid"
+  ],
+  "PlayStar": [
+    "data/C64Music/MUSICIANS/R/Rabbi/Klonfa.sid",
+    "data/C64Music/MUSICIANS/R/Rabbi/Julia_part_2.sid",
+    "data/C64Music/MUSICIANS/R/Rabbi/Popcorn.sid"
+  ],
+  "Music_Producer_II": [
+    "data/C64Music/MUSICIANS/G/Gillies_Ewen/Most_Evil_Dream_tune_1.sid",
+    "data/C64Music/MUSICIANS/U/Uzzy/Tenochca.sid",
+    "data/C64Music/MUSICIANS/U/Uzzy/Galactic_Flight.sid"
+  ],
+  "Android": [
+    "data/C64Music/MUSICIANS/A/Android/Cherry_Pink.sid",
+    "data/C64Music/MUSICIANS/A/Android/Golden_Brown.sid",
+    "data/C64Music/MUSICIANS/A/Android/Boppy.sid"
+  ],
+  "Hermit/FlexSID": [
+    "data/C64Music/MUSICIANS/S/Spider_Jerusalem/1kTestAcle.sid",
+    "data/C64Music/MUSICIANS/S/Shogoon/Young_Poe.sid",
+    "data/C64Music/MUSICIANS/L/Laurikka/Barrel_Cortex.sid"
+  ],
+  "Sidplayer": [
+    "data/C64Music/MUSICIANS/Y/Yip/Scroll_Machine.sid",
+    "data/C64Music/MUSICIANS/R/Red_Kimmel_Jeroen/Crazy_Sample.sid",
+    "data/C64Music/MUSICIANS/R/Red_Kimmel_Jeroen/Rhaa_Lovely_intro.sid"
+  ],
+  "GRG_tiny_2": [
+    "data/C64Music/MUSICIANS/B/Blues_Muz/Gallefoss_Glenn/Nomen_Nescio.sid",
+    "data/C64Music/MUSICIANS/B/Blues_Muz/Gallefoss_Glenn/Monday.sid",
+    "data/C64Music/MUSICIANS/B/Blues_Muz/Gallefoss_Glenn/Hyperbased.sid"
+  ],
+  "Michael_Delaney": [
+    "data/C64Music/MUSICIANS/0-9/4-Mat/Bit_Like_Johannes.sid",
+    "data/C64Music/MUSICIANS/B/Brimble_Allister/Wild_West_Seymour.sid",
+    "data/C64Music/MUSICIANS/0-9/4-Mat/First_One.sid"
+  ],
+  "OmegaSupreme_Digi": [
+    "data/C64Music/MUSICIANS/M/Metal_Maniac/Gunnar_tune_5.sid",
+    "data/C64Music/MUSICIANS/M/Metal_Maniac/Smells_Like_Teen_Spirits.sid",
+    "data/C64Music/MUSICIANS/M/Metal_Maniac/Gunnar_tune_3.sid"
+  ],
+  "Glover": [
+    "data/C64Music/MUSICIANS/G/Glover/Arranged.sid",
+    "data/C64Music/MUSICIANS/G/Glover/Ode_to_Wizard.sid",
+    "data/C64Music/MUSICIANS/G/Glover/Inside.sid"
+  ],
+  "Kosa_Protracker": [
+    "data/C64Music/MUSICIANS/K/Kosa/Rave_Race.sid",
+    "data/C64Music/MUSICIANS/K/Kosa/Ice_Machine.sid",
+    "data/C64Music/MUSICIANS/K/Kosa/Time_Again.sid"
+  ],
+  "Dave_Lowe": [
+    "data/C64Music/MUSICIANS/L/Lowe_Dave/P-47_Freedom_Fighter.sid",
+    "data/C64Music/MUSICIANS/L/Lowe_Dave/Final_Fight.sid",
+    "data/C64Music/MUSICIANS/L/Lowe_Dave/Line_of_Fire.sid"
+  ],
+  "Neil_Baldwin": [
+    "data/C64Music/MUSICIANS/B/Baldwin_Neil/Non-Stop_Funk.sid",
+    "data/C64Music/MUSICIANS/B/Baldwin_Neil/Another_Tune_for_Joanne.sid",
+    "data/C64Music/MUSICIANS/B/Baldwin_Neil/T_E_C_Intro_Music.sid"
+  ],
+  "JammicroV1": [
+    "data/C64Music/MUSICIANS/J/Jammer/Mini_House.sid",
+    "data/C64Music/MUSICIANS/J/Jammer/Ambience.sid",
+    "data/C64Music/MUSICIANS/J/Jammer/Warped_Speeds.sid"
+  ],
+  "Twynn": [
+    "data/C64Music/MUSICIANS/T/Twynn/Cool_One.sid",
+    "data/C64Music/MUSICIANS/T/Twynn/Silicon_Party_Demo_end.sid",
+    "data/C64Music/MUSICIANS/T/Twynn/Preview_nr_3.sid"
+  ],
+  "Anthony_Lees": [
+    "data/C64Music/MUSICIANS/L/Lees_Anthony/Rainbow_Dragon.sid",
+    "data/C64Music/MUSICIANS/J/Jaz_and_Mo/Mindsmear_2.sid",
+    "data/C64Music/MUSICIANS/L/Lees_Anthony/Reflex_Arc.sid"
+  ],
+  "Georg_Brandt": [
+    "data/C64Music/MUSICIANS/B/Brandt_Georg/USS_John_Young.sid",
+    "data/C64Music/MUSICIANS/B/Brandt_Georg/Paranoia_Complex.sid",
+    "data/C64Music/MUSICIANS/B/Brandt_Georg/Mental_Warriors.sid"
+  ],
+  "Chris_Huelsbeck": [
+    "data/C64Music/MUSICIANS/H/Huelsbeck_Chris/Katakis.sid",
+    "data/C64Music/MUSICIANS/H/Huelsbeck_Chris/Bad_Cat.sid",
+    "data/C64Music/MUSICIANS/H/Huelsbeck_Chris/Oxxonian.sid"
+  ],
+  "Paul_Butler": [
+    "data/C64Music/MUSICIANS/B/Butler_Paul/Grogs_Revenge.sid",
+    "data/C64Music/MUSICIANS/B/Butler_Paul/Mini_Putt.sid",
+    "data/C64Music/MUSICIANS/B/Butler_Paul/Deceptor.sid"
+  ],
+  "RiffQuick": [
+    "data/C64Music/MUSICIANS/B/Bond_Alan/Egypt.sid",
+    "data/C64Music/MUSICIANS/B/Bond_Alan/Soulless.sid",
+    "data/C64Music/MUSICIANS/B/Bond_Alan/Mellow.sid"
+  ],
+  "Stuart_Taylor": [
+    "data/C64Music/MUSICIANS/T/Taylor_Stuart/Walk_of_Life.sid",
+    "data/C64Music/MUSICIANS/T/Taylor_Stuart/Original_plus_2.sid",
+    "data/C64Music/MUSICIANS/T/Taylor_Stuart/Dal_Segno.sid"
+  ],
+  "Dutch-USA_Team/ProDrum": [
+    "data/C64Music/MUSICIANS/C/Commander/Rythm_Runner.sid",
+    "data/C64Music/DEMOS/UNKNOWN/Lame_Beats.sid",
+    "data/C64Music/MUSICIANS/C/Commander/Drum_Addicted.sid"
+  ],
+  "Basically_Music": [
+    "data/C64Music/MUSICIANS/C/Claff_Chester/Jelly_Roll_Blues.sid",
+    "data/C64Music/MUSICIANS/C/Claff_Chester/Dill_Pickles.sid",
+    "data/C64Music/MUSICIANS/C/Claff_Chester/Moonlight_Cocktail.sid"
+  ],
+  "Mark_Clements": [
+    "data/C64Music/MUSICIANS/C/Clements_Mark/Heatseeker.sid",
+    "data/C64Music/MUSICIANS/C/Clements_Mark/Quedex.sid",
+    "data/C64Music/MUSICIANS/C/Clements_Mark/Simsense.sid"
+  ],
+  "Mark_Wilson": [
+    "data/C64Music/MUSICIANS/W/Wilson_Mark/Deep_Star.sid",
+    "data/C64Music/MUSICIANS/W/Wilson_Mark/Xenomorph.sid",
+    "data/C64Music/MUSICIANS/W/Wilson_Mark/A_Walk_in_the_Park.sid"
+  ],
+  "Samplomed": [
+    "data/C64Music/MUSICIANS/A/Astovel/Smack_My_Bitch.sid",
+    "data/C64Music/MUSICIANS/A/Astovel/Pump_You_Up.sid",
+    "data/C64Music/MUSICIANS/A/Astovel/Funky_Shit.sid"
+  ],
+  "Russell_Lieblich": [
+    "data/C64Music/MUSICIANS/L/Lieblich_Russell/Master_of_the_Lamps.sid",
+    "data/C64Music/MUSICIANS/L/Lieblich_Russell/Star_Rank_Boxing_II.sid",
+    "data/C64Music/MUSICIANS/L/Lieblich_Russell/Web_Dimension.sid"
+  ],
+  "Gavin_Raeburn": [
+    "data/C64Music/MUSICIANS/R/Raeburn_Gavin/Toddler.sid",
+    "data/C64Music/MUSICIANS/R/Raeburn_Gavin/Thunderbolt.sid",
+    "data/C64Music/MUSICIANS/R/Raeburn_Gavin/Pro_Tennis_Simulator.sid"
+  ],
+  "GRG": [
+    "data/C64Music/MUSICIANS/B/Blues_Muz/Gallefoss_Glenn/Invention_1.sid",
+    "data/C64Music/MUSICIANS/B/Blues_Muz/Gallefoss_Glenn/Rising_Sun.sid",
+    "data/C64Music/MUSICIANS/B/Blues_Muz/Gallefoss_Glenn/Cruisin.sid"
+  ],
+  "?Hoernell/Players": [
+    "data/C64Music/GAMES/M-R/Pestroy.sid",
+    "data/C64Music/GAMES/G-L/Garden_of_Eden.sid",
+    "data/C64Music/MUSICIANS/H/Hoernell_Karl/Velocipede_II.sid"
+  ],
+  "ATMDS_3.x": [
+    "data/C64Music/MUSICIANS/S/Stoff/Confusion_in_My_Mind.sid",
+    "data/C64Music/MUSICIANS/S/Stoff/Weirdo.sid",
+    "data/C64Music/MUSICIANS/S/Stoff/Delete_That.sid"
+  ],
+  "Prosonix_new": [
+    "data/C64Music/MUSICIANS/P/Prosonix/Pettersen_Ole_Marius/Rumblr.sid",
+    "data/C64Music/MUSICIANS/P/Prosonix/Pedersen_Stein/Polarcirkeln.sid",
+    "data/C64Music/MUSICIANS/P/Prosonix/Pedersen_Stein/Happy_Birthday.sid"
+  ],
+  "Oliver_Klaewer": [
+    "data/C64Music/MUSICIANS/K/Klaewer_Oliver/Introcoder_1_1.sid",
+    "data/C64Music/MUSICIANS/K/Klaewer_Oliver/Emerald_Mine_II.sid",
+    "data/C64Music/MUSICIANS/K/Klaewer_Oliver/Emerald_Mine.sid"
+  ],
+  "Network": [
+    "data/C64Music/DEMOS/UNKNOWN/Sea_Melodie.sid",
+    "data/C64Music/MUSICIANS/A/Albert_Christoph/Fun_House.sid",
+    "data/C64Music/MUSICIANS/A/Albert_Christoph/Flexer.sid"
+  ],
+  "OxyMod/THCM": [
+    "data/C64Music/MUSICIANS/T/THCM/Total_Triple_Trouble.sid",
+    "data/C64Music/MUSICIANS/M/Morton_Adam/Break5.sid",
+    "data/C64Music/MUSICIANS/T/THCM/Tristar_Boulder.sid"
+  ],
+  "Geir_Tjelta/Echo": [
+    "data/C64Music/MUSICIANS/E/Et1999cc/Buzzer_echoed.sid",
+    "data/C64Music/MUSICIANS/A/Aleksi_Knutsi/Autumnness_echofied.sid",
+    "data/C64Music/MUSICIANS/D/DRAX/Sub_Hunter_Highscore_echoed.sid"
+  ],
+  "Star_Bars": [
+    "data/C64Music/MUSICIANS/T/Tempest/Mathematicians_Air_Display.sid",
+    "data/C64Music/MUSICIANS/E/Eeben_Aleksi/Barbie_Girl.sid",
+    "data/C64Music/MUSICIANS/E/Eeben_Aleksi/Stella_2600_by_Starlight.sid"
+  ],
+  "Paul_Norman/Cosmi": [
+    "data/C64Music/MUSICIANS/N/Norman_Paul/Slinky.sid",
+    "data/C64Music/MUSICIANS/N/Norman_Paul/Trivia_Monster.sid",
+    "data/C64Music/GAMES/M-R/Mad_Planets.sid"
+  ],
+  "Faith_Sample_Mixer": [
+    "data/C64Music/MUSICIANS/P/Pajda/Psy.sid",
+    "data/C64Music/MUSICIANS/B/Blackman/Hey.sid",
+    "data/C64Music/MUSICIANS/P/Pajda/Cannon_Fodder_Soundtrack.sid"
+  ],
+  "Kris_Hatlelid": [
+    "data/C64Music/MUSICIANS/H/Hatlelid_Kris/Test_Drive_2_The_Duel.sid",
+    "data/C64Music/MUSICIANS/H/Hatlelid_Kris/Grand_Prix_Circuit.sid",
+    "data/C64Music/MUSICIANS/H/Hatlelid_Kris/Wings_of_Fury.sid"
+  ],
+  "DrumEditor": [
+    "data/C64Music/MUSICIANS/H/Hugenroth_Andre_and_Frank/Toggle_It.sid",
+    "data/C64Music/MUSICIANS/H/Hugenroth_Andre_and_Frank/Boom_title.sid",
+    "data/C64Music/MUSICIANS/H/Hugenroth_Andre_and_Frank/Das_Omen.sid"
+  ],
+  "?Paul_Hodgson": [
+    "data/C64Music/GAMES/M-R/Rupert_and_the_Ice_Castle.sid",
+    "data/C64Music/MUSICIANS/H/Hodgson_Paul/Poster_Paster.sid",
+    "data/C64Music/MUSICIANS/H/Hodgson_Paul/Super_Pipeline_II.sid"
+  ],
+  "?MSB": [
+    "data/C64Music/MUSICIANS/M/MSB/Wizzy.sid",
+    "data/C64Music/MUSICIANS/M/MSB/Mrs_Robinson.sid",
+    "data/C64Music/MUSICIANS/M/MSB/Ragtime.sid"
+  ],
+  "?Source_2": [
+    "data/C64Music/MUSICIANS/S/Source_The_Software_House/Sonic_Boom.sid",
+    "data/C64Music/MUSICIANS/S/Summers_Paul/Fighting_Soccer.sid",
+    "data/C64Music/MUSICIANS/S/Source_The_Software_House/Espionage.sid"
+  ],
+  "?TheSpy_Digi": [
+    "data/C64Music/MUSICIANS/T/The_Dream_Maker/Zapp_5_Digi_Mix.sid",
+    "data/C64Music/MUSICIANS/T/The_Big_Dada/Its_Cool_Its_Hot.sid",
+    "data/C64Music/MUSICIANS/T/The_Big_Dada/C_in_China.sid"
+  ],
+  "Frank_Tout": [
+    "data/C64Music/MUSICIANS/T/Tout_Frank/Four_Crowns_of_Adelim.sid",
+    "data/C64Music/GAMES/A-F/Balloon_64.sid",
+    "data/C64Music/MUSICIANS/T/Tout_Frank/Enclave.sid"
+  ],
+  "Oeyvind_Jergan": [
+    "data/C64Music/MUSICIANS/J/Jergan_Oeyvind/Turbo-Rock.sid",
+    "data/C64Music/MUSICIANS/J/Jergan_Oeyvind/Fantasi.sid",
+    "data/C64Music/MUSICIANS/J/Jergan_Oeyvind/Relaxed.sid"
+  ],
+  "Zyborg": [
+    "data/C64Music/MUSICIANS/Z/Zyborg/Dreamland.sid",
+    "data/C64Music/MUSICIANS/Z/Zyborg/Sound_of_C.sid",
+    "data/C64Music/MUSICIANS/Z/Zyborg/Nonsense.sid"
+  ],
+  "Wyndex/Blahtune": [
+    "data/C64Music/MUSICIANS/W/Wyndex/Accidential_Tourist.sid",
+    "data/C64Music/MUSICIANS/W/Wyndex/Mozart_570.sid",
+    "data/C64Music/MUSICIANS/W/Wyndex/Cool_World_Remix.sid"
+  ],
+  "SoundBox/MDA": [
+    "data/C64Music/MUSICIANS/K/Kleinert_Tim/Demo_Tune.sid",
+    "data/C64Music/MUSICIANS/K/Kleinert_Tim/Graphixmania_2_part_6.sid",
+    "data/C64Music/MUSICIANS/H/Hillebrand_Matthias/Disko.sid"
+  ],
+  "MiniMusic": [
+    "data/C64Music/MUSICIANS/L/Locust/Garfield_News_07_intro.sid",
+    "data/C64Music/MUSICIANS/B/Brian/Quo_Vadis.sid",
+    "data/C64Music/MUSICIANS/B/Brian/Action_Mary.sid"
+  ],
+  "Synth_Executor": [
+    "data/C64Music/MUSICIANS/F/Feil_Georg/Nobodys_Diary.sid",
+    "data/C64Music/DEMOS/A-F/Camptown_Races.sid",
+    "data/C64Music/MUSICIANS/F/Feil_Georg/A_Spaceman_Came_Travelling.sid"
+  ],
+  "Odie/Cosine": [
+    "data/C64Music/MUSICIANS/C/Connolly_Sean/Cybersub_Preview.sid",
+    "data/C64Music/MUSICIANS/F/Francois_Marc/Hektic.sid",
+    "data/C64Music/MUSICIANS/C/Connolly_Sean/Flying_High.sid"
+  ],
+  "Music_Magic": [
+    "data/C64Music/MUSICIANS/R/Rami_Jon/Andy_Griffith_Show.sid",
+    "data/C64Music/MUSICIANS/R/Rami_Jon/Super_Bunny_Theme.sid",
+    "data/C64Music/MUSICIANS/R/Rami_Jon/Nut_Cracker.sid"
+  ],
+  "GRG_tiny_1": [
+    "data/C64Music/MUSICIANS/B/Blues_Muz/Gallefoss_Glenn/Pling_Plong_2.sid",
+    "data/C64Music/MUSICIANS/B/Blues_Muz/Gallefoss_Glenn/Delta_Ingame.sid",
+    "data/C64Music/MUSICIANS/B/Blues_Muz/Gallefoss_Glenn/Final_Fantasy.sid"
+  ],
+  "Stephen_Biggs": [
+    "data/C64Music/MUSICIANS/B/Biggs_Stephen/Two_Part_Invention_2.sid",
+    "data/C64Music/MUSICIANS/B/Biggs_Stephen/Two_Part_Invention_3.sid",
+    "data/C64Music/MUSICIANS/B/Biggs_Stephen/Three_Part_Invention_1.sid"
+  ],
+  "GMC_V2.0/Superiors": [
+    "data/C64Music/MUSICIANS/W/Wacek/Forgotten_short_version.sid",
+    "data/C64Music/MUSICIANS/N/NecroPolo/GP_Cars.sid",
+    "data/C64Music/MUSICIANS/N/NecroPolo/GP_Cars_Main_plus_V10FX.sid"
+  ],
+  "?Bob_Vieira/Epyx": [
+    "data/C64Music/GAMES/G-L/Jet_Combat_Simulator.sid",
+    "data/C64Music/MUSICIANS/V/Vieira_Bob/Movie_Monster_Game.sid",
+    "data/C64Music/GAMES/G-L/Hot_Wheels_1985.sid"
+  ],
+  "Holger_Gehrmann": [
+    "data/C64Music/MUSICIANS/G/Gehrmann_Holger/Hollywood_Poker.sid",
+    "data/C64Music/MUSICIANS/G/Gehrmann_Holger/Top_Secret.sid",
+    "data/C64Music/MUSICIANS/G/Gehrmann_Holger/Operation_Hongkong.sid"
+  ],
+  "Sorex_Digi": [
+    "data/C64Music/MUSICIANS/S/Sorex/Give_It_Up.sid",
+    "data/C64Music/MUSICIANS/S/Sorex/Anasthasia.sid",
+    "data/C64Music/MUSICIANS/S/Sorex/Out_of_Space.sid"
+  ],
+  "Censor_Digi_1": [
+    "data/C64Music/MUSICIANS/S/Swallow/Wonderland_V_part_3.sid",
+    "data/C64Music/MUSICIANS/S/Swallow/Wonderland_V_part_5.sid",
+    "data/C64Music/MUSICIANS/S/Swallow/Wonderland_IX_part_3.sid"
+  ],
+  "Richard_Joseph": [
+    "data/C64Music/MUSICIANS/J/Joseph_Richard/Stifflip_and_Co.sid",
+    "data/C64Music/MUSICIANS/J/Joseph_Richard/Barbarian.sid",
+    "data/C64Music/MUSICIANS/J/Joseph_Richard/Wicked.sid"
+  ],
+  "Zod_Digi": [
+    "data/C64Music/MUSICIANS/Z/Zod/Kiss.sid",
+    "data/C64Music/MUSICIANS/Z/Zod/Qui_m_a_Enleve.sid",
+    "data/C64Music/MUSICIANS/Z/Zod/Pop_Music.sid"
+  ],
+  "?Alligata/Quicksilva": [
+    "data/C64Music/GAMES/A-F/Burger_Chase.sid",
+    "data/C64Music/GAMES/S-Z/Skull.sid",
+    "data/C64Music/MUSICIANS/C/Crowther_Antony/Gryphon.sid"
+  ],
+  "Drumtex": [
+    "data/C64Music/MUSICIANS/D/Drumtex/Captain_Cloudberry_loader.sid",
+    "data/C64Music/MUSICIANS/D/Drumtex/Tacky.sid",
+    "data/C64Music/MUSICIANS/D/Drumtex/Spikes.sid"
+  ],
+  "SoundWriter_2.0": [
+    "data/C64Music/MUSICIANS/K/Klose_Thorsten/Vienna.sid",
+    "data/C64Music/MUSICIANS/K/Klose_Thorsten/Mazed.sid",
+    "data/C64Music/MUSICIANS/K/Klose_Thorsten/Beat_It.sid"
+  ],
+  "Dave_Lee": [
+    "data/C64Music/MUSICIANS/L/Lee_Steve/Shogun.sid",
+    "data/C64Music/MUSICIANS/L/Lee_Dave/Falcon_Patrol_II.sid",
+    "data/C64Music/MUSICIANS/L/Lee_Dave/Hunter_Patrol_hidden_tune.sid"
+  ],
+  "Reiter_Digi": [
+    "data/C64Music/MUSICIANS/R/Reiter/Dusty_Vinyl.sid",
+    "data/C64Music/MUSICIANS/R/Reiter/Watch_Out.sid",
+    "data/C64Music/MUSICIANS/R/Reiter/Slice_Me_Nice.sid"
+  ],
+  "?Howard_Boles": [
+    "data/C64Music/MUSICIANS/B/Boles_Howard/Treasure_Island.sid",
+    "data/C64Music/MUSICIANS/B/Boles_Howard/Nine_Princes_in_Amber.sid",
+    "data/C64Music/MUSICIANS/B/Boles_Howard/Rendezvous_with_Rama.sid"
+  ],
+  "Colleen": [
+    "data/C64Music/DEMOS/UNKNOWN/Colleen_Music_Compendium.sid",
+    "data/C64Music/DEMOS/UNKNOWN/Colleen_Music_Compendium.sid",
+    "data/C64Music/GAMES/M-R/Mystery_Voyage.sid"
+  ],
+  "Nigel_Grieve": [
+    "data/C64Music/MUSICIANS/G/Grieve_Nigel/Starglider.sid",
+    "data/C64Music/MUSICIANS/G/Grieve_Nigel/Super_Cup_Football.sid",
+    "data/C64Music/MUSICIANS/G/Grieve_Nigel/Herobotix.sid"
+  ],
+  "Jason_Page/RobTracker": [
+    "data/C64Music/MUSICIANS/H/Hubbard_Rob/Pacific_Coast.sid",
+    "data/C64Music/MUSICIANS/M/Mibri/Riot_House.sid",
+    "data/C64Music/MUSICIANS/H/Hubbard_Rob/Lakers_vs_Celtics.sid"
+  ],
+  "David_Green": [
+    "data/C64Music/MUSICIANS/G/Green_David/Boing.sid",
+    "data/C64Music/MUSICIANS/G/Green_David/Dream_State.sid",
+    "data/C64Music/MUSICIANS/G/Green_David/Reckless_Rufus.sid"
+  ],
+  "Steve_Turner": [
+    "data/C64Music/MUSICIANS/T/Turner_Steve/Morpheus.sid",
+    "data/C64Music/GAMES/M-R/Paradroid.sid",
+    "data/C64Music/MUSICIANS/G/Grieve_Nigel/Zynaps_pre-release.sid"
+  ],
+  "Tonal_Kaos": [
+    "data/C64Music/MUSICIANS/T/Tonal_Kaos/Superkid.sid",
+    "data/C64Music/MUSICIANS/G/Gray_Matt/Mean_Streak.sid",
+    "data/C64Music/MUSICIANS/G/Gray_Matt/Yogi_Bear.sid"
+  ],
+  "ICC/TheVoice": [
+    "data/C64Music/MUSICIANS/G/Goofy/Small_Tune.sid",
+    "data/C64Music/MUSICIANS/G/Goofy/New_Sound.sid",
+    "data/C64Music/MUSICIANS/G/Goofy/Terra_Mix.sid"
+  ],
+  "Mixer": [
+    "data/C64Music/MUSICIANS/M/Mixer/Elysion_intro_loader.sid",
+    "data/C64Music/MUSICIANS/M/Mixer/Hellraiser.sid",
+    "data/C64Music/MUSICIANS/M/Mixer/Dawn.sid"
+  ],
+  "Noise-Mon_V2": [
+    "data/C64Music/MUSICIANS/S/Snowball/Fort_Boyard.sid",
+    "data/C64Music/MUSICIANS/M/Moog/Popcorn.sid",
+    "data/C64Music/MUSICIANS/M/Moog/Dervish_D.sid"
+  ],
+  "Dane": [
+    "data/C64Music/MUSICIANS/M/Mitch_and_Dane/Dane/Live_Forever.sid",
+    "data/C64Music/MUSICIANS/M/Mitch_and_Dane/Dane/Naiv_Loop.sid",
+    "data/C64Music/MUSICIANS/M/Mitch_and_Dane/Dane/Round_and_Round.sid"
+  ],
+  "Mermaid_tiny": [
+    "data/C64Music/MUSICIANS/M/Mermaid/Goblin.sid",
+    "data/C64Music/MUSICIANS/M/Mermaid/Goblin_note.sid",
+    "data/C64Music/MUSICIANS/M/Mermaid/Attack_of_the_Mutant_Cabbages.sid"
+  ],
+  "Martijn_Schutten": [
+    "data/C64Music/MUSICIANS/S/Schutten_Martijn/Fred_the_Fruiter.sid",
+    "data/C64Music/MUSICIANS/S/Schutten_Martijn/Troddlers_preview.sid",
+    "data/C64Music/MUSICIANS/S/Schutten_Martijn/Disc-o-very.sid"
+  ],
+  "Hans_Siemons": [
+    "data/C64Music/MUSICIANS/S/Selles_Ward/Thingum-demo_part_2.sid",
+    "data/C64Music/MUSICIANS/S/Selles_Ward/Dignified_tune_5.sid",
+    "data/C64Music/MUSICIANS/S/Selles_Ward/Dignified_tune_4.sid"
+  ],
+  "Thiel_Sound_System": [
+    "data/C64Music/GAMES/M-R/MTV_Remote_Control.sid",
+    "data/C64Music/MUSICIANS/T/Thiel_David/Family_Feud.sid",
+    "data/C64Music/GAMES/A-F/Card_Sharks.sid"
+  ],
+  "Graffity/Grabowsky": [
+    "data/C64Music/MUSICIANS/T/Trays/Promethida_part_7.sid",
+    "data/C64Music/MUSICIANS/T/Trays/Promethida_part_5.sid",
+    "data/C64Music/MUSICIANS/T/Trays/Justincase_note.sid"
+  ],
+  "Jason_Page": [
+    "data/C64Music/MUSICIANS/P/Page_Jason/Orion.sid",
+    "data/C64Music/MUSICIANS/T/Turner_Steve/Bushido.sid",
+    "data/C64Music/MUSICIANS/P/Page_Jason/Head_the_Ball.sid"
+  ],
+  "Jim_Cuomo": [
+    "data/C64Music/GAMES/G-L/Krisp.sid",
+    "data/C64Music/MUSICIANS/C/Cuomo_Jim/Raging_Beast.sid",
+    "data/C64Music/MUSICIANS/C/Cuomo_Jim/Cage_Match.sid"
+  ],
+  "Matthias_Weber": [
+    "data/C64Music/MUSICIANS/W/Weber_Matthias/Sample_Hawk_intro.sid",
+    "data/C64Music/MUSICIANS/W/Weber_Matthias/Bubble_It.sid",
+    "data/C64Music/MUSICIANS/W/Weber_Matthias/Devorator.sid"
+  ],
+  "Softidea": [
+    "data/C64Music/DEMOS/UNKNOWN/Pc_ok_disco.sid",
+    "data/C64Music/DEMOS/UNKNOWN/Profondo_Rosso.sid",
+    "data/C64Music/DEMOS/UNKNOWN/Pc_ok_disco.sid"
+  ],
+  "Mat/MDA": [
+    "data/C64Music/MUSICIANS/K/Kleinert_Tim/Agima.sid",
+    "data/C64Music/MUSICIANS/K/Kleinert_Tim/Graphixmania_part_1.sid",
+    "data/C64Music/MUSICIANS/K/Kleinert_Tim/Warriors.sid"
+  ],
+  "Algorithm/Frodigi": [
+    "data/C64Music/MUSICIANS/K/Khugiani_Naveed/FRODIGI.sid",
+    "data/C64Music/MUSICIANS/K/Khugiani_Naveed/Taylortest.sid",
+    "data/C64Music/MUSICIANS/K/Khugiani_Naveed/FRODIGI_4_tune_2.sid"
+  ],
+  "Quantum_Soundtracker": [
+    "data/C64Music/MUSICIANS/S/SIDwave/Mantronic_Beat.sid",
+    "data/C64Music/MUSICIANS/M/Mibri/Bad_Critters.sid",
+    "data/C64Music/MUSICIANS/A/Aomeba/This_is_Spedecore.sid"
+  ],
+  "Bobbi_Towers": [
+    "data/C64Music/MUSICIANS/B/Bobbi_Towers/Breathe_into_the_Night.sid",
+    "data/C64Music/MUSICIANS/B/Bobbi_Towers/Beethoven_Piano_Sonata_No_1.sid",
+    "data/C64Music/MUSICIANS/B/Bobbi_Towers/Adio_Kerida.sid"
+  ],
+  "Ed_Bogas/Accolade": [
+    "data/C64Music/MUSICIANS/B/Bogas_Ed/4th_and_Inches.sid",
+    "data/C64Music/MUSICIANS/B/Bogas_Ed/Law_of_the_West.sid",
+    "data/C64Music/MUSICIANS/B/Bogas_Ed/PSI-5_Trading_Company.sid"
+  ],
+  "VoiceEater": [
+    "data/C64Music/MUSICIANS/B/Blues_Muz/Gallefoss_Glenn/Pultost_VE-4x.sid",
+    "data/C64Music/MUSICIANS/B/Blues_Muz/Gallefoss_Glenn/Oh_Boy_VE-2x.sid"
+  ],
+  "Ozzy_Oldschool_V1": [
+    "data/C64Music/MUSICIANS/O/Ozzy_Oldskool/Risperdal_Dreams_part_5.sid",
+    "data/C64Music/MUSICIANS/O/Ozzy_Oldskool/Risperdal_Dreams_part_3.sid",
+    "data/C64Music/MUSICIANS/O/Ozzy_Oldskool/Risperdal_Dreams_end.sid"
+  ],
+  "Gavin_Graham_2": [
+    "data/C64Music/MUSICIANS/G/Gazza/Airwolf.sid",
+    "data/C64Music/MUSICIANS/G/Gazza/Tenko.sid",
+    "data/C64Music/MUSICIANS/G/Gazza/Leviticus.sid"
+  ],
+  "(Dane_NewPlayer)": [
+    "data/C64Music/MUSICIANS/M/Mitch_and_Dane/Dane/Partly_Snowy.sid",
+    "data/C64Music/MUSICIANS/M/Mitch_and_Dane/Dane/Coffee_Zone.sid",
+    "data/C64Music/MUSICIANS/M/Mitch_and_Dane/Dane/Intertwined.sid"
+  ],
+  "Mcee_Digi": [
+    "data/C64Music/MUSICIANS/M/Mcee/Lord_Have_Mercy.sid",
+    "data/C64Music/MUSICIANS/M/Mcee/No_Limits.sid",
+    "data/C64Music/MUSICIANS/M/Mcee/She_Drives_Me_Crazy.sid"
+  ],
+  "?Jim_Simmons/Capcom": [
+    "data/C64Music/GAMES/M-R/Pocket_Rockets.sid",
+    "data/C64Music/GAMES/A-F/Bionic_Commando_USA_Version.sid",
+    "data/C64Music/MUSICIANS/S/Simmons_Jim/Designasaurus.sid"
+  ],
+  "Power-Composer": [
+    "data/C64Music/MUSICIANS/S/Surtax/Demo-Sound_3.sid",
+    "data/C64Music/MUSICIANS/S/Surtax/Intro_Zak_2.sid",
+    "data/C64Music/MUSICIANS/S/Surtax/Demo-Sound_4.sid"
+  ],
+  "SounDemon": [
+    "data/C64Music/MUSICIANS/S/SounDemoN/Psycho_Killer.sid",
+    "data/C64Music/MUSICIANS/S/SounDemoN/Iloliemi.sid",
+    "data/C64Music/MUSICIANS/S/SounDemoN/Tense_Years.sid"
+  ],
+  "Song_Writer": [
+    "data/C64Music/MUSICIANS/T/Thorne_Jeremy/Song_Writer-Lost.sid",
+    "data/C64Music/MUSICIANS/T/Thorne_Jeremy/Song_Writer-Games.sid",
+    "data/C64Music/MUSICIANS/T/Thorne_Jeremy/Song_Writer-Follow_Me.sid"
+  ],
+  "Ivan_Del_Duca": [
+    "data/C64Music/MUSICIANS/D/Del_Duca_Ivan/Warm_Up.sid",
+    "data/C64Music/MUSICIANS/D/Del_Duca_Ivan/Dribbling.sid",
+    "data/C64Music/MUSICIANS/D/Del_Duca_Ivan/Parsley.sid"
+  ],
+  "Neil_Crossley": [
+    "data/C64Music/MUSICIANS/C/Crossley_Neil/Space_Gun.sid",
+    "data/C64Music/MUSICIANS/C/Crossley_Neil/G-Loc_R360.sid",
+    "data/C64Music/MUSICIANS/C/Crossley_Neil/Chips_Challenge.sid"
+  ],
+  "Symphonica/MDA": [
+    "data/C64Music/MUSICIANS/K/Kleinert_Tim/Graphixmania_part_2.sid",
+    "data/C64Music/MUSICIANS/K/Kleinert_Tim/Ensemble.sid",
+    "data/C64Music/MUSICIANS/K/Kleinert_Tim/Intergalactic_Terminators.sid"
+  ],
+  "Dave_Kelly": [
+    "data/C64Music/MUSICIANS/K/Kelly_Dave/Every_Second_Counts.sid",
+    "data/C64Music/MUSICIANS/K/Kelly_Dave/Return_of_the_Jedi.sid",
+    "data/C64Music/MUSICIANS/K/Kelly_Dave/Vindicators.sid"
+  ],
+  "Modulator": [
+    "data/C64Music/GAMES/G-L/Halcyon.sid",
+    "data/C64Music/DEMOS/A-F/Air.sid",
+    "data/C64Music/MUSICIANS/A/Arenz_Bernhard/Hotel.sid"
+  ],
+  "KB/TOM": [
+    "data/C64Music/MUSICIANS/P/PVCF/Reflection.sid",
+    "data/C64Music/MUSICIANS/P/PVCF/Triage_tune_2.sid",
+    "data/C64Music/MUSICIANS/P/PVCF/Breitbandkatze.sid"
+  ],
+  "ID_3.x": [
+    "data/C64Music/MUSICIANS/A/Amadeus_Meka_Design/Bamse_Tramse.sid",
+    "data/C64Music/MUSICIANS/A/Amadeus_Meka_Design/Bungalow.sid",
+    "data/C64Music/MUSICIANS/A/Amadeus_Meka_Design/Honey.sid"
+  ],
+  "Stephen_Legg": [
+    "data/C64Music/MUSICIANS/L/Legg_Stephen/Hellfire.sid",
+    "data/C64Music/MUSICIANS/L/Legg_Stephen/Jaws.sid",
+    "data/C64Music/MUSICIANS/L/Legg_Stephen/Steigar.sid"
+  ],
+  "Matt_Furniss": [
+    "data/C64Music/MUSICIANS/F/Furniss_Matt/Subbuteo.sid",
+    "data/C64Music/MUSICIANS/F/Furniss_Matt/Badlands.sid",
+    "data/C64Music/MUSICIANS/F/Furniss_Matt/Manchester_United_Europe.sid"
+  ],
+  "Digimixer/FunFactory": [
+    "data/C64Music/MUSICIANS/W/Walt/Amiga_Works_part_2.sid",
+    "data/C64Music/MUSICIANS/B/Booker/Usura.sid",
+    "data/C64Music/MUSICIANS/B/Booker/Space_Balls.sid"
+  ],
+  "Steve_Bak": [
+    "data/C64Music/MUSICIANS/B/Bak_Steve/Crazy_Painter.sid",
+    "data/C64Music/MUSICIANS/B/Bak_Steve/Lands_of_Havoc.sid",
+    "data/C64Music/MUSICIANS/B/Bak_Steve/Hercules.sid"
+  ],
+  "Ed_Bogas/Hakansson": [
+    "data/C64Music/MUSICIANS/B/Bogas_Ed/Aegean_Voyage.sid",
+    "data/C64Music/GAMES/G-L/Kermits_Electronic_Storymaker.sid",
+    "data/C64Music/MUSICIANS/B/Bogas_Ed/Seahorses.sid"
+  ],
+  "Element114Studio_1.2": [
+    "data/C64Music/MUSICIANS/N/NecroPolo/Bare_Knuckle.sid",
+    "data/C64Music/MUSICIANS/B/Bayliss_Richard/Earth_Super_Force.sid",
+    "data/C64Music/MUSICIANS/N/NecroPolo/Lobster.sid"
+  ],
+  "MusicSlave": [
+    "data/C64Music/MUSICIANS/S/Siegert_Stefan/Gotcha.sid",
+    "data/C64Music/MUSICIANS/S/Siegert_Stefan/Look.sid",
+    "data/C64Music/MUSICIANS/S/Siegert_Stefan/Anti-Zieg-Demo.sid"
+  ],
+  "?Source": [
+    "data/C64Music/MUSICIANS/G/Gibson_Tony/Rainbow_Warrior.sid",
+    "data/C64Music/MUSICIANS/H/Harrison_Mark/Street_Beat.sid",
+    "data/C64Music/MUSICIANS/H/Harrison_Mark/Sigue_Sigue_Sputnik.sid"
+  ],
+  "Van_Styer_Digi": [
+    "data/C64Music/MUSICIANS/V/Van_Styer/Yeaah.sid",
+    "data/C64Music/MUSICIANS/V/Van_Styer/Mega_Bump.sid",
+    "data/C64Music/MUSICIANS/V/Van_Styer/Super_Sonic_Dance_Attack.sid"
+  ],
+  "Hermit": [
+    "data/C64Music/MUSICIANS/H/Hermit/3SID_Tracker_Demo_1_3SID.sid",
+    "data/C64Music/MUSICIANS/H/Hermit/Majorzak.sid",
+    "data/C64Music/MUSICIANS/H/Hermit/Hermit_Demo.sid"
+  ],
+  "Visac_tiny": [
+    "data/C64Music/MUSICIANS/P/PCH/Oje_Balstrom.sid",
+    "data/C64Music/MUSICIANS/P/PCH/Microture.sid",
+    "data/C64Music/MUSICIANS/T/Top_Secret/LHSs_Olympics.sid"
+  ],
+  "Rene_Romijn": [
+    "data/C64Music/MUSICIANS/E/Emotional_Mozes/Bangers_89.sid",
+    "data/C64Music/MUSICIANS/E/Emotional_Mozes/N_M_I_at_Six.sid",
+    "data/C64Music/MUSICIANS/E/Emotional_Mozes/Orion_Intro.sid"
+  ],
+  "Golem": [
+    "data/C64Music/MUSICIANS/G/Golem/Darker_Side.sid",
+    "data/C64Music/MUSICIANS/G/Golem/Minuet_in_Echo.sid",
+    "data/C64Music/MUSICIANS/G/Golem/Sonatina_4.sid"
+  ],
+  "MacGyver/ESV": [
+    "data/C64Music/MUSICIANS/M/Mac_Gyver/Break_Dance.sid",
+    "data/C64Music/MUSICIANS/M/Mac_Gyver/ESV-Demo_part_2.sid",
+    "data/C64Music/MUSICIANS/D/Deadbeat/Compodigi.sid"
+  ],
+  "Magnar_tiny": [
+    "data/C64Music/MUSICIANS/M/Magnar/Bella_Ciao.sid",
+    "data/C64Music/MUSICIANS/M/Magnar/Aura_2.sid",
+    "data/C64Music/MUSICIANS/M/Magnar/SOS.sid"
+  ],
+  "Paul_Mudra": [
+    "data/C64Music/MUSICIANS/M/Mudra_Paul/Hillsfar.sid",
+    "data/C64Music/MUSICIANS/M/Mudra_Paul/Roadwar_Europa.sid",
+    "data/C64Music/MUSICIANS/M/Mudra_Paul/Mars_Saga.sid"
+  ],
+  "Voicemaster_Covox": [
+    "data/C64Music/GAMES/A-F/Animated_Strip_Poker.sid",
+    "data/C64Music/GAMES/S-Z/Voyager.sid",
+    "data/C64Music/GAMES/S-Z/Slapshot.sid"
+  ],
+  "Madhacker_Digi": [
+    "data/C64Music/MUSICIANS/M/Madhacker/Music_Lover_Mix.sid",
+    "data/C64Music/MUSICIANS/M/Madhacker/Get_Up.sid",
+    "data/C64Music/MUSICIANS/M/Madhacker/Fine_Time.sid"
+  ],
+  "MrMouse/EasyPlayer": [
+    "data/C64Music/MUSICIANS/M/Mr_Mouse/Vampire_Killer_OST_Intro.sid",
+    "data/C64Music/MUSICIANS/M/Mr_Mouse/Vampire_Killer_OST.sid",
+    "data/C64Music/MUSICIANS/M/Mr_Mouse/Metal_Gear_OST_Intro.sid"
+  ],
+  "Geir_Tjelta/Comptech-X": [
+    "data/C64Music/MUSICIANS/S/Schneider_Markus/Legacy.sid",
+    "data/C64Music/MUSICIANS/S/Schneider_Markus/Harmony.sid",
+    "data/C64Music/MUSICIANS/T/Tjelta_Geir/X-Rated_Red_Wine_GT_Remix.sid"
+  ],
+  "Censor_Digi_2": [
+    "data/C64Music/MUSICIANS/S/Swallow/Wonderland_X_part_1.sid",
+    "data/C64Music/MUSICIANS/D/Danko_Tomas/Ragga_Run.sid",
+    "data/C64Music/MUSICIANS/S/Swallow/Wonderland_IX_part_9.sid"
+  ],
+  "JammicroV0": [
+    "data/C64Music/MUSICIANS/J/Jammer/Rasters.sid",
+    "data/C64Music/MUSICIANS/J/Jammer/French_Kissing.sid",
+    "data/C64Music/MUSICIANS/J/Jammer/Chessboard_Peya.sid"
+  ],
+  "MicroRhythm": [
+    "data/C64Music/DEMOS/A-F/Final_Demo_II.sid",
+    "data/C64Music/MUSICIANS/P/Pick_Simon/Microlatin.sid",
+    "data/C64Music/MUSICIANS/P/Pick_Simon/Microvocals.sid"
+  ],
+  "Paul_Hughes": [
+    "data/C64Music/GAMES/M-R/Quest.sid",
+    "data/C64Music/GAMES/G-L/Heli_Drop.sid",
+    "data/C64Music/GAMES/S-Z/Zzzz.sid"
+  ],
+  "CharlesCallet/MusicPro": [
+    "data/C64Music/MUSICIANS/C/Callet_Charles/Iznogoud.sid",
+    "data/C64Music/MUSICIANS/C/Callet_Charles/Bob_Moran-Science_Fiction.sid",
+    "data/C64Music/MUSICIANS/C/Callet_Charles/Passengers_on_the_Wind_II.sid"
+  ],
+  "Cyberbrain_Digi": [
+    "data/C64Music/DEMOS/A-F/Crazy_World_3_digipart.sid",
+    "data/C64Music/MUSICIANS/C/Cyberbrain/Voodoo_People_part_1.sid",
+    "data/C64Music/MUSICIANS/C/Cyberbrain/Voodoo_People_part_3.sid"
+  ],
+  "Graffity/Brian": [
+    "data/C64Music/MUSICIANS/B/Brian/Justinblue_tune_4.sid",
+    "data/C64Music/MUSICIANS/B/Brian/Justinblue_tune_5.sid",
+    "data/C64Music/MUSICIANS/B/Brian/Justinblue_tune_2.sid"
+  ],
+  "Audial_Arts/Cody": [
+    "data/C64Music/MUSICIANS/A/Audial_Arts/Pasch_Ronny/Capitol_Music_08.sid",
+    "data/C64Music/MUSICIANS/A/Audial_Arts/Pasch_Ronny/Bad.sid",
+    "data/C64Music/MUSICIANS/A/Audial_Arts/Pasch_Ronny/Axel-F.sid"
+  ],
+  "HCL/BoozeDesign": [
+    "data/C64Music/MUSICIANS/A/Agemixer/Burp.sid",
+    "data/C64Music/MUSICIANS/M/Merken_Vincent/Wet_Jazz.sid",
+    "data/C64Music/MUSICIANS/A/Agemixer/Dark_Space.sid"
+  ],
+  "Llamasoft/James_Lisney": [
+    "data/C64Music/GAMES/M-R/Meta_Galactic_Llamas.sid",
+    "data/C64Music/MUSICIANS/L/Lisney_James/Sheep_in_Space.sid",
+    "data/C64Music/MUSICIANS/L/Lisney_James/Hover_Bovver.sid"
+  ],
+  "TFMX/MasterComposer": [
+    "data/C64Music/MUSICIANS/R/Reason/Holy_Smoke_Intro.sid",
+    "data/C64Music/DEMOS/M-R/Psycho_Beat.sid",
+    "data/C64Music/DEMOS/M-R/MasterComposer_sample.sid"
+  ],
+  "Jason_Briggs": [
+    "data/C64Music/MUSICIANS/B/Briggs_Jason/Tiger_Tank.sid",
+    "data/C64Music/MUSICIANS/B/Briggs_Jason/Poga.sid",
+    "data/C64Music/MUSICIANS/B/Briggs_Jason/Bert_the_Bug_Bites_Back.sid"
+  ],
+  "Bappalander/Spacelab1": [
+    "data/C64Music/MUSICIANS/B/Bappalander/Last_Traktor_III_intro.sid",
+    "data/C64Music/MUSICIANS/B/Bappalander/Run_to_You.sid",
+    "data/C64Music/MUSICIANS/B/Bappalander/A_Bit_Odd.sid"
+  ],
+  "Bug/NCI": [
+    "data/C64Music/MUSICIANS/B/Becher_Patrick/Mozart_II.sid",
+    "data/C64Music/MUSICIANS/B/Becher_Patrick/Boogie.sid",
+    "data/C64Music/MUSICIANS/B/Becher_Patrick/Train.sid"
+  ],
+  "SkyLine_Editor_V3.0": [
+    "data/C64Music/MUSICIANS/B/Boogaloo/Lingonben_intro.sid",
+    "data/C64Music/MUSICIANS/B/Boogaloo/Testtune.sid",
+    "data/C64Music/MUSICIANS/B/Boogaloo/Vector_Tune.sid"
+  ],
+  "Martin_Galway_Digi": [
+    "data/C64Music/MUSICIANS/B/Bowie/Touch_Me.sid",
+    "data/C64Music/MUSICIANS/B/Bowie/Silent_Love.sid",
+    "data/C64Music/MUSICIANS/D/Deenen_Charles/Worktunes/Just_Made_It.sid"
+  ],
+  "Muso": [
+    "data/C64Music/GAMES/S-Z/Viper.sid",
+    "data/C64Music/GAMES/S-Z/Task-F.sid",
+    "data/C64Music/GAMES/A-F/Calvin.sid"
+  ],
+  "?Unknown_1": [
+    "data/C64Music/DEMOS/UNKNOWN/Im_the_One_Who_Loves_You.sid",
+    "data/C64Music/MUSICIANS/H/Hodgetts_Kyle/African_Safari.sid",
+    "data/C64Music/DEMOS/UNKNOWN/Im_the_One_Who_Loves_You.sid"
+  ],
+  "Hansford/Interceptor": [
+    "data/C64Music/MUSICIANS/H/Hansford_Graham/Caverns_of_Sillahc.sid",
+    "data/C64Music/MUSICIANS/H/Hansford_Graham/Wallie_Goes_to_Rhymeland.sid",
+    "data/C64Music/MUSICIANS/H/Hansford_Graham/Wheelin_Wallie.sid"
+  ],
+  "4-Mat_tiny_1": [
+    "data/C64Music/MUSICIANS/0-9/4-Mat/Menutune_new_player_test.sid",
+    "data/C64Music/MUSICIANS/0-9/4-Mat/Paige.sid",
+    "data/C64Music/MUSICIANS/0-9/4-Mat/In_a_Loop_note.sid"
+  ],
+  "Chris_Grigg": [
+    "data/C64Music/MUSICIANS/G/Grigg_Chris/Games_Summer_Edition.sid",
+    "data/C64Music/MUSICIANS/G/Grigg_Chris/L_A_Crackdown.sid",
+    "data/C64Music/MUSICIANS/G/Grigg_Chris/Legend_of_Blacksilver.sid"
+  ],
+  "Chris_Grigg_2": [
+    "data/C64Music/MUSICIANS/G/Grigg_Chris/Maniac_Mansion.sid",
+    "data/C64Music/MUSICIANS/G/Grigg_Chris/PHM_Pegasus.sid",
+    "data/C64Music/GAMES/G-L/Labyrinth.sid"
+  ],
+  "Maxx_Digi": [
+    "data/C64Music/MUSICIANS/M/Maxx/Acid_Party.sid",
+    "data/C64Music/MUSICIANS/M/Maxx/Smile_On.sid",
+    "data/C64Music/MUSICIANS/M/Maxx/Dream_World_intro.sid"
+  ],
+  "Ulrich_Muehl": [
+    "data/C64Music/MUSICIANS/M/Muehl_Ulrich/Blaster.sid",
+    "data/C64Music/MUSICIANS/M/Muehl_Ulrich/Startrip.sid",
+    "data/C64Music/MUSICIANS/M/Muehl_Ulrich/Projekt_A_I_D_S.sid"
+  ],
+  "Mermaid_tiny_2": [
+    "data/C64Music/MUSICIANS/M/Mermaid/Breakin.sid",
+    "data/C64Music/MUSICIANS/M/Mermaid/Last_Hero_512b_for_Scrap.sid",
+    "data/C64Music/MUSICIANS/M/Mermaid/474_bytes_for_Zyron.sid"
+  ],
+  "HouseDesigns": [
+    "data/C64Music/MUSICIANS/J/JVD/Reality.sid",
+    "data/C64Music/MUSICIANS/J/JVD/Salient.sid",
+    "data/C64Music/MUSICIANS/S/Slide_Gorissen_Udo/Gumptious.sid"
+  ],
+  "Steve_Day_Digi": [
+    "data/C64Music/MUSICIANS/D/Day_Steve/Get_Down.sid",
+    "data/C64Music/MUSICIANS/D/Day_Steve/Beat_Dis.sid",
+    "data/C64Music/MUSICIANS/S/Sonic_Graffiti/Hayes_Ben/Step_On.sid"
+  ],
+  "ATMDS_1.x": [
+    "data/C64Music/MUSICIANS/S/Stoff/Mono-Toniq.sid",
+    "data/C64Music/MUSICIANS/S/Stoff/Kiffertune.sid",
+    "data/C64Music/MUSICIANS/S/Stoff/Dreamin.sid"
+  ],
+  "Shaun_Southern": [
+    "data/C64Music/MUSICIANS/S/Southern_Shaun/Operation_Fireball.sid",
+    "data/C64Music/MUSICIANS/S/Southern_Shaun/Labyrinth.sid",
+    "data/C64Music/MUSICIANS/S/Southern_Shaun/Dizasterblaster.sid"
+  ],
+  "Sentinel_V0.7": [
+    "data/C64Music/MUSICIANS/S/Sentinel_Cherubs/8x_Compo_Music.sid",
+    "data/C64Music/MUSICIANS/S/Sentinel_Cherubs/Test_01.sid",
+    "data/C64Music/MUSICIANS/S/Sentinel_Cherubs/Poison.sid"
+  ],
+  "Sarratou_Digi": [
+    "data/C64Music/MUSICIANS/S/Sarratou_Pierre/Evil_Garden_4_Game_Over.sid",
+    "data/C64Music/MUSICIANS/S/Sarratou_Pierre/Evil_Garden_ingame_1-2.sid",
+    "data/C64Music/MUSICIANS/S/Sarratou_Pierre/Evil_Garden_ingame_3-6.sid"
+  ],
+  "Marco_Scheepers": [
+    "data/C64Music/MUSICIANS/S/Scheepers_Marco/Sprightly_Spidey.sid",
+    "data/C64Music/MUSICIANS/S/Scheepers_Marco/Beat_Box_II_tune_1.sid",
+    "data/C64Music/MUSICIANS/S/Scheepers_Marco/Beat_Box_II_tune_2.sid"
+  ],
+  "?Juergen_Jost": [
+    "data/C64Music/GAMES/M-R/Reversi.sid",
+    "data/C64Music/DEMOS/A-F/Fuer_Elise_1986.sid",
+    "data/C64Music/MUSICIANS/S/Sieslack_Joerg/Balloon_Raid.sid"
+  ],
+  "Rotteroy_tiny": [
+    "data/C64Music/MUSICIANS/W/Widding_Roy_Johan/Kung_Poo_Fighter.sid",
+    "data/C64Music/MUSICIANS/W/Widding_Roy_Johan/City_Bomber_4k.sid",
+    "data/C64Music/MUSICIANS/D/Drumtex/Lumberjack.sid"
+  ],
+  "Ultimate": [
+    "data/C64Music/MUSICIANS/T/Thomas_Dave/Staff_of_Karnath.sid",
+    "data/C64Music/MUSICIANS/T/Thomas_Dave/Outlaws.sid",
+    "data/C64Music/MUSICIANS/T/Thomas_Dave/Dragon_Skulle.sid"
+  ],
+  "JITT64_1.x": [
+    "data/C64Music/MUSICIANS/T/Tognon_Stefano/STRH_Mix.sid",
+    "data/C64Music/MUSICIANS/T/Tognon_Stefano/A_Piece_of_Graffiti.sid",
+    "data/C64Music/MUSICIANS/T/Tognon_Stefano/Carillon.sid"
+  ],
+  "ALiH": [
+    "data/C64Music/MUSICIANS/J/Julian_Jaymz/Square_Two_2SID.sid",
+    "data/C64Music/MUSICIANS/J/Julian_Jaymz/Simulcra.sid",
+    "data/C64Music/MUSICIANS/J/Julian_Jaymz/Square_Two.sid"
+  ],
+  "PM/Niwa": [
+    "data/C64Music/MUSICIANS/P/PM/Piersoft_Intro_1.sid",
+    "data/C64Music/MUSICIANS/P/PM/Niwa_Intro.sid",
+    "data/C64Music/MUSICIANS/P/PM/Star_Wars.sid"
+  ],
+  "Neil_Bate": [
+    "data/C64Music/GAMES/G-L/Kokotoni_Wilf.sid",
+    "data/C64Music/GAMES/A-F/Fall_Guy.sid",
+    "data/C64Music/MUSICIANS/C/Cooksey_Mark/911_Tiger_Shark.sid"
+  ],
+  "Music_Maker_128": [
+    "data/C64Music/MUSICIANS/C/Cardinali_Rick/Sound_Studio_Editor.sid",
+    "data/C64Music/MUSICIANS/C/Cardinali_Rick/Music_Maker_128.sid"
+  ],
+  "ChristopherJam": [
+    "data/C64Music/MUSICIANS/C/ChristopherJam/Effluvious.sid",
+    "data/C64Music/MUSICIANS/C/ChristopherJam/Escher_Victorious.sid",
+    "data/C64Music/MUSICIANS/C/ChristopherJam/DrillTastic.sid"
+  ],
+  "Walt_Digi": [
+    "data/C64Music/MUSICIANS/W/Walt/Amiga_Works_II_part_1.sid",
+    "data/C64Music/MUSICIANS/W/Walt/Amiga_Works_II_part_4.sid",
+    "data/C64Music/MUSICIANS/W/Walt/Amiga_Works_II_part_2.sid"
+  ],
+  "Steffen_Wagner": [
+    "data/C64Music/MUSICIANS/W/Wagner_Steffen/Go_On.sid",
+    "data/C64Music/MUSICIANS/W/Wagner_Steffen/Cant_Stop.sid",
+    "data/C64Music/MUSICIANS/W/Wagner_Steffen/Get_Higher.sid"
+  ],
+  "Parker_Bros": [
+    "data/C64Music/GAMES/A-F/Frogger_Parker_Bros.sid",
+    "data/C64Music/GAMES/M-R/Mr_Dos_Castle.sid",
+    "data/C64Music/GAMES/G-L/Gyruss.sid"
+  ],
+  "Capcom_2": [
+    "data/C64Music/GAMES/G-L/Hat_Trick.sid",
+    "data/C64Music/GAMES/G-L/Hyper_Dyne_Sidearms.sid",
+    "data/C64Music/GAMES/G-L/Gun_Smoke.sid"
+  ],
+  "Loadstar_SongSmith_v3": [
+    "data/C64Music/DEMOS/UNKNOWN/Loadstar_Menu_issue_27.sid",
+    "data/C64Music/DEMOS/UNKNOWN/Loadstar_Menu_issue_26.sid",
+    "data/C64Music/DEMOS/UNKNOWN/Loadstar_Menu_issue_25.sid"
+  ],
+  "Audio_Effect_Editor": [
+    "data/C64Music/MUSICIANS/K/Kirsch_Alexander/Sidwiz.sid",
+    "data/C64Music/MUSICIANS/K/Kirsch_Alexander/Tune_1_v5.sid",
+    "data/C64Music/MUSICIANS/S/Stember_Rudolf/Tower_of_Terror.sid"
+  ],
+  "Twice_Effect_Editor": [
+    "data/C64Music/MUSICIANS/K/Kriwanek_Mario/Deri_Colours.sid",
+    "data/C64Music/MUSICIANS/K/Kriwanek_Mario/Einstein.sid",
+    "data/C64Music/MUSICIANS/K/Kriwanek_Mario/Space_Quiz.sid"
+  ],
+  "KingFisher_Digi": [
+    "data/C64Music/MUSICIANS/K/King_Fisher/Keep_This_Frequency_Clear.sid",
+    "data/C64Music/MUSICIANS/K/King_Fisher/Red_Storm.sid",
+    "data/C64Music/MUSICIANS/K/King_Fisher/Red_October.sid"
+  ],
+  "Mjoosic_Mejker": [
+    "data/C64Music/MUSICIANS/A/Ademar_Fredrik/X-Mas_Night.sid",
+    "data/C64Music/MUSICIANS/A/Ademar_Fredrik/Mindblast_tune_2.sid"
+  ],
+  "Ash&Dave_Digi": [
+    "data/C64Music/MUSICIANS/A/Ash_and_Dave/Daffy_Duck_intro.sid",
+    "data/C64Music/MUSICIANS/W/Walker_Martin/Dragon_Breed.sid",
+    "data/C64Music/MUSICIANS/W/Waz/Digital_Acid_Zaw_Remix.sid"
+  ],
+  "Georg_Brandt/Rhythm_CS": [
+    "data/C64Music/MUSICIANS/B/Brandt_Georg/Progress-Demo.sid",
+    "data/C64Music/MUSICIANS/B/Brandt_Georg/RPS-Demo.sid",
+    "data/C64Music/MUSICIANS/A/Abbing_Frank/Donald_the_Hero.sid"
+  ],
+  "Dan_Liverani": [
+    "data/C64Music/MUSICIANS/L/Liverani_Daniele/Genius.sid",
+    "data/C64Music/MUSICIANS/L/Liverani_Daniele/Genius_2.sid",
+    "data/C64Music/MUSICIANS/L/Liverani_Daniele/Genius_3.sid"
+  ],
+  "Bubble_Bus/Love_R": [
+    "data/C64Music/GAMES/G-L/Hustler.sid",
+    "data/C64Music/MUSICIANS/L/Love_R/Flying_Feathers.sid",
+    "data/C64Music/MUSICIANS/L/Love_R/Kick_Off.sid"
+  ],
+  "Daryll_Reynolds": [
+    "data/C64Music/MUSICIANS/R/Reynolds_Daryll/Nuclear_War_Games.sid",
+    "data/C64Music/MUSICIANS/R/Reynolds_Daryll/Skull_Island.sid",
+    "data/C64Music/MUSICIANS/R/Reynolds_Daryll/Alien.sid"
+  ],
+  "Luigi_Recanatese": [
+    "data/C64Music/MUSICIANS/R/Recanatese_Luigi/Arrivo_v1.sid",
+    "data/C64Music/MUSICIANS/R/Recanatese_Luigi/Guerra.sid",
+    "data/C64Music/MUSICIANS/R/Recanatese_Luigi/Elia.sid"
+  ],
+  "Steven_Baumrucker_2": [
+    "data/C64Music/MUSICIANS/B/Baumrucker_Steven/Warrior_of_Ras_II-Kaiv.sid"
+  ],
+  "Christoph_Bergmann": [
+    "data/C64Music/MUSICIANS/B/Bergmann_Christoph/Master_Blaster.sid",
+    "data/C64Music/MUSICIANS/B/Bergmann_Christoph/Master_Blaster_intro.sid",
+    "data/C64Music/MUSICIANS/B/Bergmann_Christoph/Zounds_Demo.sid"
+  ],
+  "Hein_tiny": [
+    "data/C64Music/MUSICIANS/H/Holt_Hein/Airport.sid",
+    "data/C64Music/MUSICIANS/H/Holt_Hein/Humming_a_Cheesy_Melody.sid",
+    "data/C64Music/MUSICIANS/H/Holt_Hein/Lift_Off.sid"
+  ],
+  "Lars_Haard": [
+    "data/C64Music/MUSICIANS/H/Haard_Lars/Blood_n_Guts.sid",
+    "data/C64Music/MUSICIANS/H/Haard_Lars/Three_Musketeers.sid",
+    "data/C64Music/MUSICIANS/H/Haard_Lars/Supercan.sid"
+  ],
+  "Urs_Heckmann": [
+    "data/C64Music/MUSICIANS/H/Heckmann_Urs/La_Piranha.sid",
+    "data/C64Music/MUSICIANS/H/Heckmann_Urs/Das_Model.sid",
+    "data/C64Music/MUSICIANS/H/Heckmann_Urs/Nippon.sid"
+  ],
+  "Prophet64": [
+    "data/C64Music/DEMOS/M-R/Prophet64_Sequencer_Demo_2SID.sid",
+    "data/C64Music/DEMOS/G-L/Gott_Och_Blandat.sid",
+    "data/C64Music/MUSICIANS/V/Vintaque/Razorberries.sid"
+  ],
+  "Ozzy_Oldschool_V2": [
+    "data/C64Music/MUSICIANS/O/Ozzy_Oldskool/Starglide.sid",
+    "data/C64Music/DEMOS/S-Z/Vertical_Smiley.sid",
+    "data/C64Music/MUSICIANS/O/Ozzy_Oldskool/Bulliting.sid"
+  ],
+  "4-Mat/Patchwork": [
+    "data/C64Music/MUSICIANS/M/Maak/Illuminate_Patchwork_Edit.sid",
+    "data/C64Music/MUSICIANS/0-9/4-Mat/Patchwork_Demotrack_3.sid",
+    "data/C64Music/MUSICIANS/0-9/4-Mat/Patchwork_Demotrack_1.sid"
+  ],
+  "4-Mat/TEDplay": [
+    "data/C64Music/MUSICIANS/0-9/4-Mat/fUJi_Intro_3.sid",
+    "data/C64Music/MUSICIANS/0-9/4-Mat/fUJi_Intro_2.sid",
+    "data/C64Music/MUSICIANS/0-9/4-Mat/fUJi_Intro_1.sid"
+  ],
+  "Gavin_Graham": [
+    "data/C64Music/MUSICIANS/G/Gazza/Gazza_01.sid",
+    "data/C64Music/MUSICIANS/G/Gazza/WOT_on_Earth_part_2.sid",
+    "data/C64Music/MUSICIANS/G/Gazza/Kernal_Selecter_menu.sid"
+  ],
+  "Groo/Psygon": [
+    "data/C64Music/MUSICIANS/G/Groo/Broken_Limits.sid",
+    "data/C64Music/MUSICIANS/G/Groo/Mechanix_Introtune.sid",
+    "data/C64Music/MUSICIANS/G/Groo/Oh_l_Amour.sid"
+  ],
+  "Montecchio/Coolsound": [
+    "data/C64Music/MUSICIANS/M/Montecchio_Andreas/Tricky.sid",
+    "data/C64Music/MUSICIANS/M/Montecchio_Andreas/Wall.sid",
+    "data/C64Music/MUSICIANS/M/Montecchio_Andreas/Centron.sid"
+  ],
+  "MRG": [
+    "data/C64Music/MUSICIANS/M/MRG/MRG_01.sid",
+    "data/C64Music/MUSICIANS/M/MRG/Zoo.sid",
+    "data/C64Music/MUSICIANS/M/MRG/187_5.sid"
+  ],
+  "Dutch-USA_Team/MC": [
+    "data/C64Music/MUSICIANS/M/MC/Rockmonitor_5_Intromusic.sid",
+    "data/C64Music/DEMOS/UNKNOWN/Bad_Boys_Intro.sid",
+    "data/C64Music/MUSICIANS/M/MC/Ode_to_Galway.sid"
+  ],
+  "Gilles_Soulet": [
+    "data/C64Music/MUSICIANS/S/Soulet_Gilles/Albedo.sid",
+    "data/C64Music/MUSICIANS/S/Soulet_Gilles/Sapiens.sid",
+    "data/C64Music/MUSICIANS/S/Soulet_Gilles/Demo_Tune.sid"
+  ],
+  "Sentinel_V0.4": [
+    "data/C64Music/MUSICIANS/S/Sentinel_Cherubs/Classic_Tour.sid",
+    "data/C64Music/MUSICIANS/S/Sentinel_Cherubs/Saci.sid",
+    "data/C64Music/MUSICIANS/S/Sentinel_Cherubs/For_Chaotic_Country.sid"
+  ],
+  "Spinnaker": [
+    "data/C64Music/GAMES/A-F/Aerobics.sid",
+    "data/C64Music/MUSICIANS/S/Scarim_Nick/Grandmas_House.sid",
+    "data/C64Music/DEMOS/M-R/Mary_Had_a_Little_Blam.sid"
+  ],
+  "Comer/Digi": [
+    "data/C64Music/MUSICIANS/C/Comer/Compo_Zak_10.sid",
+    "data/C64Music/MUSICIANS/C/Comer/SLTs_Zak_2.sid",
+    "data/C64Music/MUSICIANS/S/Shogoon/Dune_Cover.sid"
+  ],
+  "Rastelin/Bones": [
+    "data/C64Music/DEMOS/A-F/Blue_Monday.sid",
+    "data/C64Music/MUSICIANS/S/Surland_Jacob/Tillsammans_part_4.sid",
+    "data/C64Music/MUSICIANS/S/Surland_Jacob/Larch_tune_5.sid"
+  ],
+  "Censor_Digi/16khz": [
+    "data/C64Music/MUSICIANS/S/Swallow/Wonderland_XII-Digi_part_3.sid",
+    "data/C64Music/MUSICIANS/S/Swallow/Wonderland_XII-Digi_part_4.sid",
+    "data/C64Music/MUSICIANS/S/Swallow/Wonderland_XII-Digi_part_2.sid"
+  ],
+  "Colin_Davies": [
+    "data/C64Music/MUSICIANS/D/Davies_Colin/Bad_Toon.sid",
+    "data/C64Music/MUSICIANS/D/Davies_Colin/Very_Naff.sid",
+    "data/C64Music/MUSICIANS/T/Tinkler_Jason/Aquarius_V1.sid"
+  ],
+  "Kyle_Johnson": [
+    "data/C64Music/MUSICIANS/J/Johnson_Kyle/Three_Stooges.sid",
+    "data/C64Music/MUSICIANS/J/Johnson_Kyle/Snow_Strike.sid",
+    "data/C64Music/MUSICIANS/J/Johnson_Kyle/Grave_Yardage.sid"
+  ],
+  "JCH_DigiPlayer": [
+    "data/C64Music/MUSICIANS/J/JCH/Shift.sid",
+    "data/C64Music/MUSICIANS/J/JCH/Little_Test.sid",
+    "data/C64Music/MUSICIANS/J/JCH/Easy_Does_It.sid"
+  ],
+  "John_Prince": [
+    "data/C64Music/MUSICIANS/P/Prince_John/FA_Cup_Football.sid",
+    "data/C64Music/MUSICIANS/P/Prince_John/World_Cup_2.sid",
+    "data/C64Music/MUSICIANS/P/Prince_John/Super_Gran.sid"
+  ],
+  "Antony_Crowther_V1": [
+    "data/C64Music/MUSICIANS/C/Crowther_Antony/Monty_Mole.sid",
+    "data/C64Music/MUSICIANS/C/Crowther_Antony/No_More_Booze.sid",
+    "data/C64Music/MUSICIANS/C/Crowther_Antony/Son_of_Blagger.sid"
+  ],
+  "XPMCK": [
+    "data/C64Music/MUSICIANS/D/Djmaximum/Lifes_Ones_To.sid",
+    "data/C64Music/MUSICIANS/D/Djmaximum/Densetsu_no_Stafy-Coral_Reef.sid",
+    "data/C64Music/DEMOS/S-Z/We_Wish_You_a_Merry_Xmas.sid"
+  ],
+  "Danko/Shadi": [
+    "data/C64Music/MUSICIANS/D/Danko_Tomas/Shadi-Music.sid",
+    "data/C64Music/MUSICIANS/D/Danko_Tomas/Zyntomix.sid",
+    "data/C64Music/MUSICIANS/D/Danko_Tomas/Exploding_Fist_Demo.sid"
+  ],
+  "WizPlayer_2.0": [
+    "data/C64Music/MUSICIANS/W/Wizard_Oxygen/Live_and_Let_Die.sid",
+    "data/C64Music/MUSICIANS/W/Wizard_Oxygen/Droids_Life.sid",
+    "data/C64Music/MUSICIANS/W/Wizard_Oxygen/Comeback.sid"
+  ],
+  "Keith_Wood": [
+    "data/C64Music/MUSICIANS/W/Wood_Keith/Santas_Grotty_Christmas.sid",
+    "data/C64Music/MUSICIANS/W/Wood_Keith/Pengon.sid",
+    "data/C64Music/MUSICIANS/W/Wood_Keith/Mr_Dig.sid"
+  ],
+  "?Emerald_Software": [
+    "data/C64Music/GAMES/M-R/Running_Man.sid",
+    "data/C64Music/GAMES/M-R/Moonwalker.sid",
+    "data/C64Music/GAMES/A-F/Fallen_Angel.sid"
+  ],
+  "?Jetsoft": [
+    "data/C64Music/GAMES/A-F/Bryan_Robsons_Super_League.sid",
+    "data/C64Music/GAMES/M-R/Quari.sid",
+    "data/C64Music/GAMES/A-F/Cavelon.sid"
+  ],
+  "MegaVisionMusic64": [
+    "data/C64Music/GAMES/A-F/Firebird.sid",
+    "data/C64Music/GAMES/M-R/Rockus-The_Game.sid",
+    "data/C64Music/GAMES/G-L/Lost_Robot_II_preview.sid"
+  ],
+  "Creative_Sparks": [
+    "data/C64Music/GAMES/G-L/Ice_Palace_1985.sid",
+    "data/C64Music/GAMES/A-F/Danger_Mouse_in_Double_Trouble.sid",
+    "data/C64Music/GAMES/A-F/Black_Hawk.sid"
+  ],
+  "?Unknown_8": [
+    "data/C64Music/GAMES/A-F/Back_to_Reality.sid",
+    "data/C64Music/GAMES/S-Z/Tazz.sid",
+    "data/C64Music/GAMES/A-F/Castle-Kingdom.sid"
+  ],
+  "?Charlie_Barr/DataEast": [
+    "data/C64Music/GAMES/S-Z/Victory_Road.sid",
+    "data/C64Music/GAMES/S-Z/Tag_Team_Wrestling.sid",
+    "data/C64Music/GAMES/G-L/Ikari_III-The_Rescue.sid"
+  ],
+  "?CBS": [
+    "data/C64Music/GAMES/G-L/Light-waves.sid",
+    "data/C64Music/GAMES/A-F/Fleet_Feet.sid",
+    "data/C64Music/GAMES/A-F/Argos_Expedition.sid"
+  ],
+  "Torpex": [
+    "data/C64Music/DEMOS/UNKNOWN/Final_FAT_tune_1.sid",
+    "data/C64Music/DEMOS/S-Z/TPX_Musiced_02.sid",
+    "data/C64Music/DEMOS/S-Z/TPX_Musiced_01.sid"
+  ],
+  "FurC64": [
+    "data/C64Music/DEMOS/S-Z/Ys_II_Opening_tune_1.sid",
+    "data/C64Music/DEMOS/A-F/Blue_Matter.sid",
+    "data/C64Music/DEMOS/S-Z/Ys_II_Opening_tune_2.sid"
+  ],
+  "Entropy_Editor": [
+    "data/C64Music/MUSICIANS/B/Bakker_Nantco/Midnight_Express.sid",
+    "data/C64Music/MUSICIANS/U/Uzzy/Entropy_Editor_Sample_2.sid",
+    "data/C64Music/MUSICIANS/U/Uzzy/Entropy_Editor_Sample_1.sid"
+  ],
+  "Thomas_Kolbe": [
+    "data/C64Music/MUSICIANS/K/Kolbe_Thomas/Hyperrace.sid",
+    "data/C64Music/MUSICIANS/K/Kolbe_Thomas/Omidar.sid",
+    "data/C64Music/MUSICIANS/K/Kolbe_Thomas/Das_Schwarze_Schloss.sid"
+  ],
+  "Oliver_Kirwa": [
+    "data/C64Music/MUSICIANS/K/Kirwa_Oliver/Sensitive.sid",
+    "data/C64Music/MUSICIANS/K/Kirwa_Oliver/Stagger.sid",
+    "data/C64Music/MUSICIANS/K/Kirwa_Oliver/Build_It.sid"
+  ],
+  "Ryo_Kawasaki": [
+    "data/C64Music/MUSICIANS/K/Kawasaki_Ryo/Kawasaki_Synthesizer_Demo.sid",
+    "data/C64Music/MUSICIANS/K/Kawasaki_Ryo/Prelude_by_J_S_Bach.sid"
+  ],
+  "Audial_Arts/Cody_Digi": [
+    "data/C64Music/MUSICIANS/A/Audial_Arts/Balai_Rodney/Acid_House_Mix.sid",
+    "data/C64Music/MUSICIANS/H/Harlequin/Splash.sid",
+    "data/C64Music/MUSICIANS/H/Harlequin/Super_Bonebreak_Cut.sid"
+  ],
+  "Kenneth_Arnold": [
+    "data/C64Music/MUSICIANS/A/Arnold_Kenneth/Ultima_III-Exodus.sid"
+  ],
+  "Al_Lowe": [
+    "data/C64Music/MUSICIANS/L/Lowe_Al/Donald_Ducks_Playground.sid",
+    "data/C64Music/MUSICIANS/L/Lowe_Al/Winnie_the_Pooh.sid",
+    "data/C64Music/MUSICIANS/L/Lowe_Al/Mickeys_Space_Adventure.sid"
+  ],
+  "Lethal_Digi": [
+    "data/C64Music/MUSICIANS/L/Lead/Poing.sid",
+    "data/C64Music/MUSICIANS/L/Lead/Paradise.sid",
+    "data/C64Music/MUSICIANS/L/Lead/No_Women_Allowed.sid"
+  ],
+  "Catalyst_Coders": [
+    "data/C64Music/GAMES/A-F/Flying_Shark.sid",
+    "data/C64Music/MUSICIANS/L/Lieblich_Russell/Rampage.sid",
+    "data/C64Music/GAMES/A-F/Flying_Shark_preview.sid"
+  ],
+  "Ken_Lagace": [
+    "data/C64Music/MUSICIANS/L/Lagace_Ken/Project_Stealth_Fighter.sid",
+    "data/C64Music/MUSICIANS/L/Lagace_Ken/Airborne_Ranger.sid",
+    "data/C64Music/MUSICIANS/L/Lagace_Ken/Red_Storm_Rising.sid"
+  ],
+  "Hermit/FlexSID-Bare": [
+    "data/C64Music/MUSICIANS/F/Freqvibez/Mini_Blues.sid",
+    "data/C64Music/MUSICIANS/H/Hermit/MajomTanc.sid",
+    "data/C64Music/MUSICIANS/S/Shogoon/Dark_Castle.sid"
+  ],
+  "Digitize_Design_Group": [
+    "data/C64Music/MUSICIANS/M/Mac_Gyver/Heart.sid",
+    "data/C64Music/DEMOS/S-Z/Sabrina_Remix.sid",
+    "data/C64Music/MUSICIANS/F/Feekzoid/Jimi_Digi.sid"
+  ],
+  "Commodore/Andy_Finkel": [
+    "data/C64Music/MUSICIANS/F/Finkel_Andy/Blueprint.sid",
+    "data/C64Music/MUSICIANS/F/Finkel_Andy/Lazarian.sid",
+    "data/C64Music/MUSICIANS/F/Finkel_Andy/Dragons_Den.sid"
+  ],
+  "Frank_Brodersen": [
+    "data/C64Music/MUSICIANS/B/Brodersen_Frank/Original_Tetris-Game.sid",
+    "data/C64Music/MUSICIANS/B/Brodersen_Frank/Pacman.sid",
+    "data/C64Music/MUSICIANS/B/Brodersen_Frank/Pacman_II.sid"
+  ],
+  "Steven_Baumrucker_1": [
+    "data/C64Music/MUSICIANS/B/Baumrucker_Steven/Pogo_Joe.sid",
+    "data/C64Music/MUSICIANS/B/Baumrucker_Steven/Trivia_Arcade.sid"
+  ],
+  "Jim_Baguley/SolarSoft": [
+    "data/C64Music/MUSICIANS/B/Baguley_Jim/Jungle_Quest.sid",
+    "data/C64Music/GAMES/M-R/Monkey_Magic.sid",
+    "data/C64Music/MUSICIANS/B/Baguley_Jim/Bizy_Beez.sid"
+  ],
+  "Pretzel/Soundscape": [
+    "data/C64Music/MUSICIANS/B/Blom_Fredrik/Soundscape_Sample_1.sid",
+    "data/C64Music/GAMES/A-F/Breakdown.sid",
+    "data/C64Music/MUSICIANS/B/Blom_Fredrik/Soundscape_Sample_2.sid"
+  ],
+  "Andy_Brown": [
+    "data/C64Music/MUSICIANS/B/Brown_Andy/Power_Pyramids.sid",
+    "data/C64Music/MUSICIANS/B/Brown_Andy/Little_Green_Man.sid",
+    "data/C64Music/MUSICIANS/B/Brown_Andy/Rik_the_Roadie.sid"
+  ],
+  "Andreas_Bauernfeind": [
+    "data/C64Music/MUSICIANS/B/Bauernfeind_Andreas/Ylcodrom.sid",
+    "data/C64Music/MUSICIANS/B/Bauernfeind_Andreas/Jupple_Dust.sid",
+    "data/C64Music/MUSICIANS/B/Bauernfeind_Andreas/Block_n_Bubble.sid"
+  ],
+  "Jonas_Hulten": [
+    "data/C64Music/MUSICIANS/H/Hulten_Jonas/Cosmos.sid",
+    "data/C64Music/MUSICIANS/H/Hulten_Jonas/SCK_Intro.sid",
+    "data/C64Music/MUSICIANS/H/Hulten_Jonas/Bruce_Lee_II.sid"
+  ],
+  "Crunched:Exomizer": [
+    "data/C64Music/MUSICIANS/H/Hobbs_Edward/Castles_of_Doctor_Creep.sid",
+    "data/C64Music/MUSICIANS/C/Cadaver/Metal_Warrior_4_goatpack.sid",
+    "data/C64Music/GAMES/S-Z/Violator.sid"
+  ],
+  "John_Hancock": [
+    "data/C64Music/MUSICIANS/H/Hancock_John/Bonanza_Bros.sid",
+    "data/C64Music/MUSICIANS/H/Hancock_John/Alien_Storm.sid",
+    "data/C64Music/MUSICIANS/H/Hancock_John/Die_Hard_2_Die_Harder.sid"
+  ],
+  "Digital_Systems": [
+    "data/C64Music/MUSICIANS/H/Harlequin/Axel_F.sid",
+    "data/C64Music/MUSICIANS/H/Harlequin/Natural_Mystics_Song_1.sid",
+    "data/C64Music/MUSICIANS/H/Harlequin/Are_You_Paranoia_Too.sid"
+  ],
+  "Jeremy_Hall": [
+    "data/C64Music/MUSICIANS/H/Hall_Jeremy/G-Force.sid",
+    "data/C64Music/MUSICIANS/H/Hall_Jeremy/Mr_Mephisto.sid",
+    "data/C64Music/MUSICIANS/H/Hall_Jeremy/Stairway_to_Heaven.sid"
+  ],
+  "Arti_Haroutunian": [
+    "data/C64Music/MUSICIANS/H/Haroutunian_Arti/Slalom.sid",
+    "data/C64Music/MUSICIANS/H/Haroutunian_Arti/Waterline.sid",
+    "data/C64Music/MUSICIANS/H/Haroutunian_Arti/Suicide_Strike.sid"
+  ],
+  "Music_Works": [
+    "data/C64Music/MUSICIANS/V/Venturi_Ivan/I_Play_Football_Champ.sid",
+    "data/C64Music/MUSICIANS/V/Venturi_Ivan/500cc_Motomanager.sid",
+    "data/C64Music/MUSICIANS/P/Palmonari_Stefano/1000_Miglia.sid"
+  ],
+  "Trasher_Digi": [
+    "data/C64Music/MUSICIANS/V/Vindholmen_Preben/Immerswimmel.sid",
+    "data/C64Music/MUSICIANS/V/Vindholmen_Preben/Flexible_II_part_2.sid",
+    "data/C64Music/MUSICIANS/V/Vindholmen_Preben/Kalle_Kanon.sid"
+  ],
+  "4-Mat_tiny_2": [
+    "data/C64Music/MUSICIANS/0-9/4-Mat/Mus1k.sid",
+    "data/C64Music/MUSICIANS/0-9/4-Mat/Spy_vs_Spy_3_Cover.sid",
+    "data/C64Music/MUSICIANS/0-9/4-Mat/And_Again.sid"
+  ],
+  "Kevin_Grieve": [
+    "data/C64Music/GAMES/G-L/Knight_Rider.sid",
+    "data/C64Music/MUSICIANS/G/Grieve_Nigel/Zolo.sid",
+    "data/C64Music/GAMES/G-L/Galivan.sid"
+  ],
+  "TGS_Digi": [
+    "data/C64Music/MUSICIANS/G/Gaspar_Gabor/Future_Megademo_end.sid",
+    "data/C64Music/MUSICIANS/S/Scrap/Fine_Time.sid",
+    "data/C64Music/MUSICIANS/G/Gaspar_Gabor/Future_Megademo_intro.sid"
+  ],
+  "DreamComposer/Tendance": [
+    "data/C64Music/MUSICIANS/M/Marcy/Boom.sid",
+    "data/C64Music/MUSICIANS/M/Marcy/Doorway.sid",
+    "data/C64Music/MUSICIANS/M/Marcy/Another_Style.sid"
+  ],
+  "8bitDigi/Mahoney": [
+    "data/C64Music/MUSICIANS/M/Mahoney/Stereophonik_6581_2SID.sid",
+    "data/C64Music/MUSICIANS/M/Mahoney/Musik_Run_Stop.sid",
+    "data/C64Music/MUSICIANS/M/Mahoney/Stereophonik_8580_2SID.sid"
+  ],
+  "MrWarp_Digi": [
+    "data/C64Music/MUSICIANS/M/Mr_Warp/We_Will_Rock_You.sid",
+    "data/C64Music/MUSICIANS/M/Mr_Warp/Bladerunner_Theme.sid",
+    "data/C64Music/MUSICIANS/M/Mr_Warp/Enter_Sandman.sid"
+  ],
+  "Bo_Mellberg": [
+    "data/C64Music/MUSICIANS/M/Mellberg_Bo/Ryshka.sid",
+    "data/C64Music/MUSICIANS/M/Mellberg_Bo/Motorhead.sid",
+    "data/C64Music/MUSICIANS/M/Mellberg_Bo/Point_X.sid"
+  ],
+  "Yip_Digi": [
+    "data/C64Music/MUSICIANS/Y/Yip/Netherworld_preview_1.sid",
+    "data/C64Music/MUSICIANS/Y/Yip/Netherworld_preview_2.sid",
+    "data/C64Music/MUSICIANS/Y/Yip/Netherworld.sid"
+  ],
+  "Audiomaster_V2": [
+    "data/C64Music/DEMOS/M-R/Piece_of_Cake_2_part_3.sid",
+    "data/C64Music/MUSICIANS/S/Scroll/Piece_of_Cake_2_part_2.sid",
+    "data/C64Music/MUSICIANS/S/Scroll/Piece_of_Cake_2_part_7.sid"
+  ],
+  "Roger_Svensson": [
+    "data/C64Music/MUSICIANS/S/Svensson_Roger/Astrobot_II.sid",
+    "data/C64Music/MUSICIANS/S/Svensson_Roger/Walliball.sid",
+    "data/C64Music/MUSICIANS/S/Svensson_Roger/Astrobot.sid"
+  ],
+  "Sanyo_Digi": [
+    "data/C64Music/MUSICIANS/S/Sanyo/Evolution_tune_3.sid",
+    "data/C64Music/MUSICIANS/S/Sanyo/Evolution_tune_5.sid",
+    "data/C64Music/MUSICIANS/S/Sanyo/Tropical_Storm_tune_6.sid"
+  ],
+  "Scout_Digi": [
+    "data/C64Music/MUSICIANS/S/Scout/Rave_da_Scene_part_1.sid",
+    "data/C64Music/MUSICIANS/S/Scout/Scouts_House.sid",
+    "data/C64Music/MUSICIANS/S/Scout/Rave_da_Scene_part_2.sid"
+  ],
+  "Silpheed_tiny": [
+    "data/C64Music/MUSICIANS/S/Silpheed/Blue_Sunday.sid",
+    "data/C64Music/MUSICIANS/S/Silpheed/Until_Late.sid",
+    "data/C64Music/MUSICIANS/S/Silpheed/Rain.sid"
+  ],
+  "Tom_Snyder": [
+    "data/C64Music/MUSICIANS/S/Snyder_Tom/Agent_USA.sid",
+    "data/C64Music/MUSICIANS/S/Snyder_Tom/Halley_Project.sid",
+    "data/C64Music/MUSICIANS/S/Snyder_Tom/Swiss_Family_Robinson.sid"
+  ],
+  "StreetTuff_Digi": [
+    "data/C64Music/MUSICIANS/S/Street_Tuff/Calling_Earth.sid",
+    "data/C64Music/MUSICIANS/S/Street_Tuff/Acid_Preview.sid",
+    "data/C64Music/MUSICIANS/S/Street_Tuff/G-Spot_tinitus_remix.sid"
+  ],
+  "StreetTuff_4K": [
+    "data/C64Music/MUSICIANS/S/Street_Tuff/Bendingbars.sid",
+    "data/C64Music/MUSICIANS/S/Street_Tuff/4Krawall.sid",
+    "data/C64Music/MUSICIANS/S/Street_Tuff/1_Kilobyte_of_GOA.sid"
+  ],
+  "TIC/Artworx": [
+    "data/C64Music/MUSICIANS/T/The_Invincible_Cracker/TIC_02.sid",
+    "data/C64Music/MUSICIANS/T/The_Invincible_Cracker/TIC_03.sid",
+    "data/C64Music/MUSICIANS/T/The_Invincible_Cracker/TIC_01.sid"
+  ],
+  "Andrew_Colin": [
+    "data/C64Music/MUSICIANS/C/Colin_Andrew/Testcard.sid",
+    "data/C64Music/MUSICIANS/T/Tognon_Stefano/Return_of_Sheba.sid"
+  ],
+  "Microtracker": [
+    "data/C64Music/MUSICIANS/T/The_Syndrom/Micromania.sid",
+    "data/C64Music/MUSICIANS/T/The_Syndrom/Size_Matters.sid",
+    "data/C64Music/MUSICIANS/T/The_Syndrom/Cyclemania.sid"
+  ],
+  "Frederic_Thiesse": [
+    "data/C64Music/MUSICIANS/T/Thiesse_Frederic/Push_em.sid",
+    "data/C64Music/MUSICIANS/T/Thiesse_Frederic/Maze-Man.sid",
+    "data/C64Music/MUSICIANS/T/Thiesse_Frederic/Dingdong.sid"
+  ],
+  "Nick_Jones": [
+    "data/C64Music/MUSICIANS/J/Jones_Nick/Exolon.sid",
+    "data/C64Music/MUSICIANS/J/Jones_Nick/Equinox.sid",
+    "data/C64Music/MUSICIANS/J/Jones_Nick/Frostbyte.sid"
+  ],
+  "Tommi_Joutsiniemi": [
+    "data/C64Music/MUSICIANS/J/Joutsiniemi_Tommi/1986.sid",
+    "data/C64Music/MUSICIANS/J/Joutsiniemi_Tommi/Guvio.sid",
+    "data/C64Music/MUSICIANS/J/Joutsiniemi_Tommi/R_and_S.sid"
+  ],
+  "Jeff/Airwalk": [
+    "data/C64Music/MUSICIANS/J/Jeff/Old_Tune.sid",
+    "data/C64Music/MUSICIANS/J/Jeff/Music_001.sid",
+    "data/C64Music/MUSICIANS/J/Jeff/Cool_Fool.sid"
+  ],
+  "Jeff/XLarge": [
+    "data/C64Music/MUSICIANS/J/Jeff/X-Large_2.sid",
+    "data/C64Music/MUSICIANS/J/Jeff/X-Large_4.sid",
+    "data/C64Music/MUSICIANS/J/Jeff/X-Large.sid"
+  ],
+  "Jeff/BullSID": [
+    "data/C64Music/MUSICIANS/C/Crowley_Owen/BS_Test_Tune.sid",
+    "data/C64Music/MUSICIANS/J/Jeff/Evolver_6581.sid",
+    "data/C64Music/MUSICIANS/J/Jeff/Rectumor_8580.sid"
+  ],
+  "Jason_Page/Jay": [
+    "data/C64Music/MUSICIANS/P/Page_Jason/Jays_Editor_2.sid",
+    "data/C64Music/MUSICIANS/P/Page_Jason/Automatic.sid",
+    "data/C64Music/MUSICIANS/P/Page_Jason/Jays_Editor_3.sid"
+  ],
+  "Boners": [
+    "data/C64Music/DEMOS/M-R/Roundo.sid",
+    "data/C64Music/DEMOS/M-R/Mission_Impossible.sid",
+    "data/C64Music/MUSICIANS/P/Prosonix/Hoff_Lars/Omed_Ylgu.sid"
+  ],
+  "Zirias": [
+    "data/C64Music/MUSICIANS/Z/Zirias/Invitro.sid",
+    "data/C64Music/MUSICIANS/Z/Zirias/8192.sid",
+    "data/C64Music/MUSICIANS/Z/Zirias/EX_Beach.sid"
+  ],
+  "Daw_Digi": [
+    "data/C64Music/MUSICIANS/D/Daw/Immortal_tune_3.sid",
+    "data/C64Music/MUSICIANS/D/Daw/Lickpipe_tune_3.sid",
+    "data/C64Music/MUSICIANS/D/Daw/Jordgubbar_Bellman.sid"
+  ],
+  "Drumtex_tiny": [
+    "data/C64Music/MUSICIANS/D/Drumtex/Citro_Drag.sid",
+    "data/C64Music/MUSICIANS/D/Drumtex/Ascension.sid",
+    "data/C64Music/MUSICIANS/D/Drumtex/Watrfall.sid"
+  ],
+  "Odie_tiny": [
+    "data/C64Music/MUSICIANS/C/Connolly_Sean/4k_Digi_Competition_Entry.sid",
+    "data/C64Music/MUSICIANS/C/Connolly_Sean/Wild_One.sid",
+    "data/C64Music/MUSICIANS/C/Connolly_Sean/4k_Party_2.sid"
+  ],
+  "Cope/Omicron": [
+    "data/C64Music/MUSICIANS/C/Cope/Interlude_2.sid",
+    "data/C64Music/MUSICIANS/C/Cope/Interlude_3.sid",
+    "data/C64Music/MUSICIANS/C/Cope/At_Last.sid"
+  ],
+  "CRD_Tracker": [
+    "data/C64Music/MUSICIANS/C/Crowley_Owen/Worktunes/DraXMas.sid",
+    "data/C64Music/MUSICIANS/C/Crowley_Owen/Worktunes/Another_Test_Tune.sid",
+    "data/C64Music/MUSICIANS/C/Crowley_Owen/Worktunes/Breath.sid"
+  ],
+  "Charles_Callet": [
+    "data/C64Music/MUSICIANS/C/Callet_Charles/Hostages.sid",
+    "data/C64Music/GAMES/A-F/Action_Service.sid",
+    "data/C64Music/GAMES/M-R/Pick_n_Pile.sid"
+  ],
+  "Cadaver_Musicdriver_10": [
+    "data/C64Music/MUSICIANS/C/Cadaver/Slither.sid",
+    "data/C64Music/MUSICIANS/C/Cadaver/Metal_Warrior_3.sid",
+    "data/C64Music/MUSICIANS/C/Cadaver/Rant_7_Example.sid"
+  ],
+  "Cyrion_Digi": [
+    "data/C64Music/MUSICIANS/C/Cyrion/Night_in_Motion.sid",
+    "data/C64Music/MUSICIANS/C/Cyrion/Everybody_in_the_Place.sid",
+    "data/C64Music/MUSICIANS/C/Cyrion/Outta_Space.sid"
+  ],
+  "Wyndex/ISEQ": [
+    "data/C64Music/MUSICIANS/W/Wyndex/Commando_Cover.sid",
+    "data/C64Music/MUSICIANS/W/Wyndex/Examples.sid",
+    "data/C64Music/MUSICIANS/W/Wyndex/Snood_Blockheads_Revenge.sid"
+  ],
+  "Robert_Westgate_v2": [
+    "data/C64Music/MUSICIANS/W/Westgate_Robert/Batty.sid",
+    "data/C64Music/MUSICIANS/W/Westgate_Robert/Kwik_Snax.sid",
+    "data/C64Music/MUSICIANS/W/Westgate_Robert/By_Fair_Means_or_Foul.sid"
+  ],
+  "Robert_Westgate_v1": [
+    "data/C64Music/MUSICIANS/W/Westgate_Robert/Bigtop_Barney.sid",
+    "data/C64Music/MUSICIANS/W/Westgate_Robert/Guzzler.sid",
+    "data/C64Music/MUSICIANS/W/Westgate_Robert/Legend_of_Sinbad.sid"
+  ],
+  "En-Tech_Studio64": [
+    "data/C64Music/GAMES/A-F/Archon_III_Exciter.sid",
+    "data/C64Music/GAMES/G-L/Kuhala-Adventure.sid"
+  ],
+  "Audial_Revolution": [
+    "data/C64Music/MUSICIANS/W/Whizz/Revenge_tune_2.sid",
+    "data/C64Music/MUSICIANS/W/Whizz/Cool_Ripp_31.sid",
+    "data/C64Music/DEMOS/M-R/Music_Editor.sid"
+  ],
+  "?ArgusPress": [
+    "data/C64Music/GAMES/S-Z/Wibstars.sid",
+    "data/C64Music/GAMES/A-F/Colony.sid",
+    "data/C64Music/GAMES/M-R/Nether_Earth.sid"
+  ],
+  "?Heiko_Schroeder": [
+    "data/C64Music/GAMES/M-R/Mysterious_Mountain.sid",
+    "data/C64Music/GAMES/A-F/Atock.sid",
+    "data/C64Music/GAMES/S-Z/Trouble_Bubble.sid"
+  ],
+  "?Unknown_10": [
+    "data/C64Music/GAMES/A-F/Deactivators.sid",
+    "data/C64Music/GAMES/M-R/Roy_of_the_Rovers.sid",
+    "data/C64Music/GAMES/G-L/Gladiator.sid"
+  ],
+  "?Beam_Software": [
+    "data/C64Music/GAMES/G-L/Horace_Goes_Skiing.sid",
+    "data/C64Music/GAMES/S-Z/Star_Trooper.sid",
+    "data/C64Music/GAMES/G-L/Hungry_Horace.sid"
+  ],
+  "?DaveJones/MrChip": [
+    "data/C64Music/GAMES/S-Z/Terror_of_the_Deep.sid",
+    "data/C64Music/GAMES/S-Z/Wonderboy.sid",
+    "data/C64Music/GAMES/S-Z/Strike_Force_Harrier.sid"
+  ],
+  "?Caesar_Studio": [
+    "data/C64Music/GAMES/S-Z/Wild_West.sid",
+    "data/C64Music/GAMES/S-Z/Starship_Andromeda.sid",
+    "data/C64Music/GAMES/A-F/Eureka.sid"
+  ],
+  "Choice_Software": [
+    "data/C64Music/GAMES/S-Z/Shackled.sid",
+    "data/C64Music/GAMES/A-F/Cred_Breaks_Out.sid",
+    "data/C64Music/GAMES/S-Z/Tank.sid"
+  ],
+  "?Kyle_Granger": [
+    "data/C64Music/GAMES/S-Z/Willow.sid",
+    "data/C64Music/GAMES/S-Z/Starsat.sid",
+    "data/C64Music/GAMES/S-Z/Skate_or_Die.sid"
+  ],
+  "Bubble_Bus": [
+    "data/C64Music/GAMES/S-Z/Wizards_Lair.sid",
+    "data/C64Music/GAMES/A-F/Aqua_Racer.sid",
+    "data/C64Music/GAMES/A-F/Cave_Fighter.sid"
+  ],
+  "?American_Greetings": [
+    "data/C64Music/DEMOS/UNKNOWN/A_Ziggy_Christmas.sid",
+    "data/C64Music/GAMES/A-F/A_Popples_Christmas_Adventure.sid",
+    "data/C64Music/DEMOS/UNKNOWN/A_Ziggy_Christmas.sid"
+  ],
+  "?Dataapan": [
+    "data/C64Music/DEMOS/UNKNOWN/Dataapan_tar_sig.sid",
+    "data/C64Music/DEMOS/UNKNOWN/Dataapan_Trippar.sid",
+    "data/C64Music/DEMOS/UNKNOWN/Dataapan_Trippar.sid"
+  ],
+  "Oliver_Klaewer/Woogle": [
+    "data/C64Music/MUSICIANS/K/Klaewer_Oliver/Sound_Sampler_Nr_0.sid",
+    "data/C64Music/DEMOS/UNKNOWN/Unknown_153.sid"
+  ],
+  "Sequencer": [
+    "data/C64Music/GAMES/G-L/Harcon.sid",
+    "data/C64Music/MUSICIANS/K/Kraetzig_Thomas/Kobold.sid"
+  ],
+  "KB/SDS": [
+    "data/C64Music/MUSICIANS/K/KB/C64_303_Emulator.sid",
+    "data/C64Music/MUSICIANS/A/AEG/4K_Power.sid"
+  ],
+  "Algorithm/8bitDigi": [
+    "data/C64Music/MUSICIANS/K/Khugiani_Naveed/Boing_Boom_Tschak.sid",
+    "data/C64Music/MUSICIANS/K/Khugiani_Naveed/Channels.sid"
+  ],
+  "AlgoVQTracker_V1": [
+    "data/C64Music/MUSICIANS/K/Khugiani_Naveed/That_Cant_be_in_50k.sid",
+    "data/C64Music/MUSICIANS/K/Khugiani_Naveed/Kaos_64.sid"
+  ],
+  "Sarah_Jane_Avory": [
+    "data/C64Music/MUSICIANS/A/Avory_Sarah_Jane/Zeta_Wing_II.sid"
+  ],
+  "Abaddon_Digi": [
+    "data/C64Music/MUSICIANS/A/Abaddon/Vaakataso.sid",
+    "data/C64Music/MUSICIANS/A/Abaddon/Out_of_Contex_tune_4.sid"
+  ],
+  "(Audial_Arts_Digi)": [
+    "data/C64Music/MUSICIANS/A/Audial_Arts/Peters_Patrick/Echodemo.sid"
+  ],
+  "Longhair": [
+    "data/C64Music/MUSICIANS/L/Longhair/Music_Collection_intro.sid",
+    "data/C64Music/MUSICIANS/L/Longhair/Potwor_3.sid"
+  ],
+  "Thomas_Levine": [
+    "data/C64Music/MUSICIANS/L/Levine_Thomas/Locomotive_Switcher.sid",
+    "data/C64Music/MUSICIANS/L/Levine_Thomas/Sonar_Search.sid"
+  ],
+  "256bytes/LFT": [
+    "data/C64Music/GAMES/0-9/10_Print_Racer_Revamp.sid",
+    "data/C64Music/MUSICIANS/L/Lft/A_Mind_Is_Born.sid"
+  ],
+  "?Action_Graphics": [
+    "data/C64Music/MUSICIANS/T/Thiel_David/Artillery_Duel.sid",
+    "data/C64Music/MUSICIANS/L/Lieblich_Russell/Decathlon.sid"
+  ],
+  "256bytes/Laxity": [
+    "data/C64Music/MUSICIANS/F/Freqvibez/Anorectic_Trunk.sid",
+    "data/C64Music/MUSICIANS/L/Laxity/Repeat_me.sid"
+  ],
+  "Krill_tiny": [
+    "data/C64Music/MUSICIANS/D/Dalezy/Softwired.sid",
+    "data/C64Music/MUSICIANS/F/Fanta/Artefacts.sid"
+  ],
+  "256bytes/Frantic": [
+    "data/C64Music/DEMOS/G-L/HF4k.sid",
+    "data/C64Music/MUSICIANS/F/Frantic/New_Kid_on_the_Block.sid"
+  ],
+  "ProDrum_2/Antifan": [
+    "data/C64Music/MUSICIANS/B/Bax/Natural_Woman.sid",
+    "data/C64Music/MUSICIANS/F/Fade/Rizz.sid"
+  ],
+  "Musicodec": [
+    "data/C64Music/MUSICIANS/R/Rosenschein_Fabian/Reactor_Run.sid",
+    "data/C64Music/MUSICIANS/R/Rosenschein_Fabian/Pink_Panther.sid"
+  ],
+  "X-Byte": [
+    "data/C64Music/MUSICIANS/X/X-Byte/Doolittle_part_5.sid",
+    "data/C64Music/MUSICIANS/X/X-Byte/No_13_Baby_part_3.sid"
+  ],
+  "Mega_Player": [
+    "data/C64Music/MUSICIANS/B/Bialluch_Dirk/Helden.sid",
+    "data/C64Music/MUSICIANS/B/Bialluch_Dirk/Triton.sid"
+  ],
+  "GRG_tiny_3": [
+    "data/C64Music/MUSICIANS/B/Blues_Muz/Gallefoss_Glenn/Into_the_Abyss.sid"
+  ],
+  "Andy_Wilson": [
+    "data/C64Music/DEMOS/S-Z/Stripey.sid",
+    "data/C64Music/MUSICIANS/B/BOGG/Dan_Dare-Pilot_of_the_Future.sid"
+  ],
+  "Christian_Hikl": [
+    "data/C64Music/MUSICIANS/H/Hikl_Christian/Jump_n_Jive.sid",
+    "data/C64Music/MUSICIANS/H/Hikl_Christian/Raddish_in_the_Jungle.sid"
+  ],
+  "4-Mat/1k_Play": [
+    "data/C64Music/MUSICIANS/0-9/4-Mat/Best_Intro_Ever.sid",
+    "data/C64Music/MUSICIANS/H/Hoffman/Makeshift.sid"
+  ],
+  "Gregor_Larson": [
+    "data/C64Music/MUSICIANS/H/Hatlelid_Kris/Frantic_Freddie.sid"
+  ],
+  "Eweguo": [
+    "data/C64Music/MUSICIANS/H/Hoernell_Karl/Iceblox_Plus.sid",
+    "data/C64Music/MUSICIANS/H/Hoernell_Karl/Scuttlebutt_64.sid"
+  ],
+  "Rule3_Digi_2": [
+    "data/C64Music/MUSICIANS/H/Helios_Rule3/5_4_Fasta.sid",
+    "data/C64Music/MUSICIANS/H/Helios_Rule3/Das_Boot.sid"
+  ],
+  "?Paul_Higginbottom": [
+    "data/C64Music/MUSICIANS/H/Higginbottom_Paul/Invention_8.sid",
+    "data/C64Music/MUSICIANS/H/Higginbottom_Paul/Entertainer.sid"
+  ],
+  "Visac_Sequencer": [
+    "data/C64Music/MUSICIANS/V/Visac/Black_Angle.sid",
+    "data/C64Music/MUSICIANS/V/Visac/Sequencer_Demo_Tune.sid"
+  ],
+  "?Unknown_Digi_3": [
+    "data/C64Music/MUSICIANS/V/Vic/Dentagardo_part_9.sid",
+    "data/C64Music/DEMOS/M-R/Oh_Well.sid"
+  ],
+  "Ed/Wrath_Digi_2": [
+    "data/C64Music/MUSICIANS/E/Ed/Miracle_8_intro.sid",
+    "data/C64Music/MUSICIANS/E/Ed/Winning_Tune.sid"
+  ],
+  "Ed/Wrath_Digi": [
+    "data/C64Music/MUSICIANS/E/Ed/Compotune.sid",
+    "data/C64Music/DEMOS/A-F/Compotune.sid"
+  ],
+  "4-Mat/MiniSeq": [
+    "data/C64Music/MUSICIANS/0-9/4-Mat/MiniSEQ_Demo_Songs.sid",
+    "data/C64Music/MUSICIANS/0-9/4-Mat/MiniSEQ_Loop_Song.sid"
+  ],
+  "4-Mat_tiny_3": [
+    "data/C64Music/MUSICIANS/0-9/4-Mat/Type_Mismatch.sid",
+    "data/C64Music/MUSICIANS/0-9/4-Mat/Type_Mismatch_Remix.sid"
+  ],
+  "?Edge": [
+    "data/C64Music/GAMES/A-F/Brian_Bloodaxe.sid",
+    "data/C64Music/MUSICIANS/G/Green_Andrew/Almazz.sid"
+  ],
+  "Input64": [
+    "data/C64Music/MUSICIANS/G/Gehrmann_Holger/Input_64_Issue_01_85.sid",
+    "data/C64Music/MUSICIANS/G/Gehrmann_Holger/Input_64_Issue_02_85.sid"
+  ],
+  "Mindcooler": [
+    "data/C64Music/MUSICIANS/M/Mindcooler/MSP430G2202_Greatest_Hits.sid",
+    "data/C64Music/MUSICIANS/M/Mindcooler/Acid_Lindgren.sid"
+  ],
+  "Mindcooler_2": [
+    "data/C64Music/MUSICIANS/M/Mindcooler/Borderline_Waltz.sid",
+    "data/C64Music/MUSICIANS/M/Mindcooler/Borderline_Jitterbug.sid"
+  ],
+  "Dutch-USA_Team/86": [
+    "data/C64Music/MUSICIANS/M/MC/Convincing.sid",
+    "data/C64Music/MUSICIANS/M/MC/Galdrumway.sid"
+  ],
+  "Magnar/Unrolled": [
+    "data/C64Music/MUSICIANS/M/Magnar/Cherry_Pepsi_PAL.sid",
+    "data/C64Music/MUSICIANS/M/Magnar/Cherry_Pepsi_NTSC.sid"
+  ],
+  "Censor_8bit_Digi_1": [
+    "data/C64Music/MUSICIANS/M/Magnar/Comaland_tune_3.sid",
+    "data/C64Music/MUSICIANS/S/Swallow/Fantasmolytic_tune_2.sid"
+  ],
+  "Magic_Man/Crazy": [
+    "data/C64Music/MUSICIANS/M/Magic_Man/Mamba_issue_15.sid",
+    "data/C64Music/MUSICIANS/M/Magic_Man/Mamba_Tune_plus_Digi.sid"
+  ],
+  "Jeff_Minter": [
+    "data/C64Music/MUSICIANS/M/Minter_Jeff/Syncro.sid",
+    "data/C64Music/GAMES/M-R/Puss_n_Boots.sid"
+  ],
+  "Bacco_Digi": [
+    "data/C64Music/MUSICIANS/D/Detert_Thomas/Quadrant.sid",
+    "data/C64Music/MUSICIANS/S/Siebold_Markus/Beat_of_Violence_tune_3.sid"
+  ],
+  "E_Determann": [
+    "data/C64Music/MUSICIANS/S/Siebold_Markus/Digital_Tangram.sid",
+    "data/C64Music/MUSICIANS/S/Scheepers_Marco/Deranged.sid"
+  ],
+  "Nutt67_Digi": [
+    "data/C64Music/MUSICIANS/S/Sonic_Graffiti/Hayes_Ben/Green_Onions.sid",
+    "data/C64Music/MUSICIANS/S/Sonic_Graffiti/Hayes_Ben/Back_to_Life.sid"
+  ],
+  "Nick_Scarim": [
+    "data/C64Music/MUSICIANS/S/Scarim_Nick/Spy_vs_Spy.sid"
+  ],
+  "Dave_Spicer_V1": [
+    "data/C64Music/MUSICIANS/S/Spicer_David/Wacky_Races.sid",
+    "data/C64Music/MUSICIANS/S/Spicer_David/Black_Hornet.sid"
+  ],
+  "Mr_Watson_Digi": [
+    "data/C64Music/MUSICIANS/S/Sir/Airdance_IV-Chicken_MC.sid",
+    "data/C64Music/MUSICIANS/S/Sir/Megablast_part_3.sid"
+  ],
+  "?Tork/Pulsar": [
+    "data/C64Music/MUSICIANS/T/Tork_and_Torky/Circus_Games.sid",
+    "data/C64Music/MUSICIANS/T/Tork_and_Torky/Pulsar_Intro.sid"
+  ],
+  "Champ_Digi": [
+    "data/C64Music/DEMOS/A-F/Digi_Panth_1.sid",
+    "data/C64Music/MUSICIANS/T/The_Magic_Man/Rock_the_World.sid"
+  ],
+  "Carmine_TSM": [
+    "data/C64Music/MUSICIANS/T/TSM/Willow.sid",
+    "data/C64Music/MUSICIANS/T/TSM/Great_Bath.sid"
+  ],
+  "256bytes/Ice00": [
+    "data/C64Music/MUSICIANS/T/Tognon_Stefano/Random_Ninja.sid",
+    "data/C64Music/MUSICIANS/T/Tognon_Stefano/XL5_256_bytes.sid"
+  ],
+  "Mark_Trotter": [
+    "data/C64Music/MUSICIANS/T/Trotter_Mark/Sams_Jam.sid",
+    "data/C64Music/MUSICIANS/T/Trotter_Mark/Connect_4.sid"
+  ],
+  "Peter_Thierolf": [
+    "data/C64Music/MUSICIANS/T/Thierolf_Peter/No_Rain_Song.sid",
+    "data/C64Music/MUSICIANS/T/Thierolf_Peter/Quality.sid"
+  ],
+  "256bytes/ALiH": [
+    "data/C64Music/MUSICIANS/J/Julian_Jaymz/Crue_Gurl_Freestyle_Remix.sid"
+  ],
+  "Jer_Digi": [
+    "data/C64Music/MUSICIANS/J/Jer/Music.sid",
+    "data/C64Music/MUSICIANS/J/Jer/Dexter.sid"
+  ],
+  "Jeff/FLT": [
+    "data/C64Music/MUSICIANS/J/Jeff/Martin_Walker_Tribute.sid",
+    "data/C64Music/MUSICIANS/J/Jeff/Deep_Shit.sid"
+  ],
+  "Jeff/BullSID3": [
+    "data/C64Music/MUSICIANS/J/Jeff/Touching_Cloth.sid",
+    "data/C64Music/MUSICIANS/J/Jeff/Drax_8580_Years_Old.sid"
+  ],
+  "Proton_tiny": [
+    "data/C64Music/MUSICIANS/P/Proton/Immortality_II.sid",
+    "data/C64Music/MUSICIANS/P/Proton/Immortality.sid"
+  ],
+  "Prosonix_tiny": [
+    "data/C64Music/MUSICIANS/P/Prosonix/Pedersen_Stein/Shortloop.sid"
+  ],
+  "Zmolk": [
+    "data/C64Music/MUSICIANS/Z/Zmolk/Droid_Sprites_Cracktro.sid",
+    "data/C64Music/MUSICIANS/Z/Zmolk/Cubetro.sid"
+  ],
+  "Ola_Zandelin": [
+    "data/C64Music/MUSICIANS/Z/Zandelin_Ola/Sherwood.sid",
+    "data/C64Music/MUSICIANS/Z/Zandelin_Ola/Musketeer.sid"
+  ],
+  "Zeta_Digi": [
+    "data/C64Music/MUSICIANS/Z/Zeta/ZZ_Top_Mix.sid",
+    "data/C64Music/MUSICIANS/Z/Zeta/Zamplingmicz.sid"
+  ],
+  "Daglish/?Jeff_Calder": [
+    "data/C64Music/MUSICIANS/D/Daglish_Ben/Switchblade.sid",
+    "data/C64Music/GAMES/S-Z/Stryker_in_the_Crypts_of_Trogan.sid"
+  ],
+  "Tommy_Dunbar": [
+    "data/C64Music/MUSICIANS/D/Dunbar_Tommy/Archon.sid",
+    "data/C64Music/MUSICIANS/D/Dunbar_Tommy/Archon_II_Adept.sid"
+  ],
+  "Colin_Porch": [
+    "data/C64Music/GAMES/A-F/Dragons_Lair.sid",
+    "data/C64Music/MUSICIANS/C/Clarke_Peter/Double_Take.sid"
+  ],
+  "(EMS_V10.x)": [
+    "data/C64Music/MUSICIANS/C/Connolly_Sean/Rescued_Pixels_3.sid"
+  ],
+  "Odie/Pulse": [
+    "data/C64Music/MUSICIANS/C/Connolly_Sean/Crazy_Mirrors.sid",
+    "data/C64Music/MUSICIANS/C/Connolly_Sean/Merry_Christmas_87.sid"
+  ],
+  "Cadaver_Musicdriver_7": [
+    "data/C64Music/MUSICIANS/C/Cadaver/Metal_Warrior_Unused_Music.sid",
+    "data/C64Music/MUSICIANS/C/Cadaver/Metal_Warrior.sid"
+  ],
+  "?Andrew_Colin/Talent": [
+    "data/C64Music/MUSICIANS/C/Colin_Andrew/Kalah.sid",
+    "data/C64Music/GAMES/A-F/Archipelago.sid"
+  ],
+  "Chris_Walsh": [
+    "data/C64Music/MUSICIANS/W/Walsh_Chris/Bobby_Bounceback_preview.sid",
+    "data/C64Music/MUSICIANS/W/Walsh_Chris/Bobby_Bounceback.sid"
+  ],
+  "Martin_Wheeler": [
+    "data/C64Music/MUSICIANS/W/Wheeler_Martin/Rebel.sid",
+    "data/C64Music/MUSICIANS/W/Wheeler_Martin/Action_Force.sid"
+  ],
+  "Silas_Warner_Digi": [
+    "data/C64Music/MUSICIANS/W/Warner_Silas/Beyond_Castle_Wolfenstein.sid",
+    "data/C64Music/MUSICIANS/W/Warner_Silas/Castle_Wolfenstein.sid"
+  ],
+  "Silas_Warner": [
+    "data/C64Music/MUSICIANS/W/Warner_Silas/Rescue_Squad.sid",
+    "data/C64Music/MUSICIANS/W/Warner_Silas/Space_Taxi.sid"
+  ],
+  "Mr_Wedge": [
+    "data/C64Music/MUSICIANS/W/Wedge/Sunday_Bloody_Sunday.sid",
+    "data/C64Music/MUSICIANS/W/Wedge/Char_Demo.sid"
+  ],
+  "?Robert_Hardy": [
+    "data/C64Music/GAMES/M-R/Pensate.sid",
+    "data/C64Music/GAMES/S-Z/Spy_Strikes_Back.sid"
+  ],
+  "Oliver_Buettner": [
+    "data/C64Music/GAMES/M-R/Operation_Merkur.sid",
+    "data/C64Music/GAMES/M-R/Manta-Mania.sid"
+  ],
+  "Steven_Green": [
+    "data/C64Music/GAMES/M-R/RMS_Titanic.sid",
+    "data/C64Music/GAMES/S-Z/Sailing.sid"
+  ],
+  "Olivier_Barthelemy": [
+    "data/C64Music/GAMES/S-Z/Star_Crash.sid",
+    "data/C64Music/GAMES/M-R/Pancho.sid"
+  ],
+  "Alberto_Geneletti": [
+    "data/C64Music/GAMES/S-Z/West.sid",
+    "data/C64Music/GAMES/M-R/Pirati.sid"
+  ],
+  "Roy_Glover": [
+    "data/C64Music/GAMES/M-R/M_U_L_E.sid",
+    "data/C64Music/GAMES/S-Z/Seven_Cities_of_Gold.sid"
+  ],
+  "English_Software": [
+    "data/C64Music/GAMES/M-R/Mediator.sid",
+    "data/C64Music/GAMES/S-Z/WitchSwitch.sid"
+  ],
+  "M_J": [
+    "data/C64Music/GAMES/M-R/Operation_Omega_Blast.sid",
+    "data/C64Music/GAMES/A-F/Die_drei_Musketiere.sid"
+  ],
+  "?Konami": [
+    "data/C64Music/GAMES/G-L/Gradius.sid",
+    "data/C64Music/GAMES/M-R/Nemesis.sid"
+  ],
+  "Microillusions": [
+    "data/C64Music/GAMES/S-Z/Scooby_Doo.sid",
+    "data/C64Music/GAMES/M-R/Main_Frame.sid"
+  ],
+  "Americana": [
+    "data/C64Music/GAMES/G-L/Halley_Mission.sid",
+    "data/C64Music/GAMES/M-R/Pacos_Pete.sid"
+  ],
+  "?Macsen": [
+    "data/C64Music/GAMES/M-R/Play_Your_Cards_Right.sid",
+    "data/C64Music/GAMES/A-F/Blockbusters-Gold_Run.sid"
+  ],
+  "Chris_Hochberger": [
+    "data/C64Music/GAMES/G-L/Gyroscope_3.sid",
+    "data/C64Music/GAMES/M-R/Masters_of_Time.sid"
+  ],
+  "?Steve_Kellet": [
+    "data/C64Music/DEMOS/UNKNOWN/A_Little_Ditty.sid",
+    "data/C64Music/GAMES/M-R/Romulus.sid"
+  ],
+  "?MindSpan": [
+    "data/C64Music/GAMES/A-F/Face_Off.sid",
+    "data/C64Music/GAMES/M-R/Mondus_Fight_Palace.sid"
+  ],
+  "?Andrew_Pohl": [
+    "data/C64Music/GAMES/A-F/Bug_Blitz.sid",
+    "data/C64Music/GAMES/G-L/Kosmo-Kobus.sid"
+  ],
+  "?Unknown_7": [
+    "data/C64Music/GAMES/G-L/Livingstone_Supongo.sid",
+    "data/C64Music/GAMES/A-F/Addicta_Ball.sid"
+  ],
+  "John_Darnell": [
+    "data/C64Music/GAMES/G-L/Kane.sid",
+    "data/C64Music/GAMES/G-L/Kane_II.sid"
+  ],
+  "?US_Gold_90": [
+    "data/C64Music/GAMES/G-L/Italy_1990.sid",
+    "data/C64Music/GAMES/S-Z/UN_Squadron.sid"
+  ],
+  "Randy_Glover": [
+    "data/C64Music/GAMES/G-L/Jumpman.sid",
+    "data/C64Music/GAMES/G-L/Jumpman_Junior.sid"
+  ],
+  "Johannes_Goettker": [
+    "data/C64Music/GAMES/G-L/Karting_Grand_Prix.sid",
+    "data/C64Music/GAMES/S-Z/Two_to_One.sid"
+  ],
+  "?Ice_Software": [
+    "data/C64Music/GAMES/G-L/Hydra.sid",
+    "data/C64Music/GAMES/A-F/Cisco_Heat.sid"
+  ],
+  "Andy_Morton": [
+    "data/C64Music/GAMES/S-Z/Spaghetti_Western_Simulator.sid",
+    "data/C64Music/GAMES/G-L/Hercules_Slayer_of_the_Damned.sid"
+  ],
+  "Tim_Gibson": [
+    "data/C64Music/GAMES/G-L/Jewels_of_Babylon.sid",
+    "data/C64Music/GAMES/A-F/Crystals_of_Carus.sid"
+  ],
+  "Berkeley": [
+    "data/C64Music/GAMES/G-L/Karate_Champ.sid",
+    "data/C64Music/GAMES/G-L/Kung-Fu_Master.sid"
+  ],
+  "?Commodore": [
+    "data/C64Music/DEMOS/A-F/Easyscript.sid",
+    "data/C64Music/GAMES/G-L/Get_Ready_for_Number.sid"
+  ],
+  "?Virgin": [
+    "data/C64Music/GAMES/G-L/How_to_be_a_Complete_Bastard.sid",
+    "data/C64Music/GAMES/S-Z/Scruples.sid"
+  ],
+  "?Gamestar": [
+    "data/C64Music/GAMES/S-Z/Sinbad_and_the_Throne_of_the_Falcon.sid",
+    "data/C64Music/GAMES/S-Z/Take_Down.sid"
+  ],
+  "Synthesizer64": [
+    "data/C64Music/GAMES/A-F/Express_Raider.sid",
+    "data/C64Music/GAMES/S-Z/Scarabaeus.sid"
+  ],
+  "Ray_Rideout": [
+    "data/C64Music/GAMES/A-F/Cell_Defense.sid",
+    "data/C64Music/GAMES/S-Z/Super_Zaxxon.sid"
+  ],
+  "?Jim_Andron": [
+    "data/C64Music/GAMES/A-F/Die_Hard.sid",
+    "data/C64Music/GAMES/S-Z/Who_Framed_Roger_Rabbit.sid"
+  ],
+  "?Pal_Balog": [
+    "data/C64Music/GAMES/S-Z/White_Viper.sid",
+    "data/C64Music/GAMES/A-F/Bird_Mother.sid"
+  ],
+  "Marcin_Grzegorzewski": [
+    "data/C64Music/GAMES/S-Z/Street_Rod.sid",
+    "data/C64Music/GAMES/A-F/Blockout.sid"
+  ],
+  "Zoltan_Mohos": [
+    "data/C64Music/GAMES/S-Z/Uj_Vadnyugat.sid",
+    "data/C64Music/GAMES/A-F/Bosszu.sid"
+  ],
+  "B_Robinson": [
+    "data/C64Music/GAMES/A-F/Citadel_of_Chaos.sid",
+    "data/C64Music/GAMES/A-F/Forest_of_Doom.sid"
+  ],
+  "Achim_Schulz": [
+    "data/C64Music/GAMES/A-F/FlaschBier.sid",
+    "data/C64Music/GAMES/A-F/Double_Digger.sid"
+  ],
+  "?Jeff_Schneider": [
+    "data/C64Music/GAMES/A-F/Boulder_Dash.sid",
+    "data/C64Music/GAMES/A-F/Boulder_Dash_II.sid"
+  ],
+  "Maurizio_Feletto": [
+    "data/C64Music/GAMES/A-F/Castle_of_Life.sid",
+    "data/C64Music/GAMES/A-F/Fire-Drill.sid"
+  ],
+  "Synthicat": [
+    "data/C64Music/GAMES/A-F/Captain_Stark-The_Mission.sid",
+    "data/C64Music/GAMES/A-F/Abyss.sid"
+  ],
+  "?Digital_Integration": [
+    "data/C64Music/GAMES/A-F/Advanced_Tactical_Fighter.sid",
+    "data/C64Music/GAMES/A-F/Bobsleigh.sid"
+  ],
+  "Kurt_Heiden": [
+    "data/C64Music/GAMES/A-F/Bards_Tale_III-Thief_of_Fate.sid",
+    "data/C64Music/GAMES/A-F/Dragon_Wars.sid"
+  ],
+  "?Ahead_Designs": [
+    "data/C64Music/GAMES/A-F/Freddys_Puzzling_Adventures.sid",
+    "data/C64Music/GAMES/A-F/Create_with_Garfield.sid"
+  ],
+  "Hane_MusicMaker": [
+    "data/C64Music/DEMOS/S-Z/Waves.sid",
+    "data/C64Music/DEMOS/S-Z/Touch_of_Fist_tune_2.sid"
+  ],
+  "Busic/Frank_Inklaar": [
+    "data/C64Music/DEMOS/S-Z/Sage_Leaf.sid",
+    "data/C64Music/DEMOS/G-L/Goddesses.sid"
+  ],
+  "Emmanuel_Lavall": [
+    "data/C64Music/DEMOS/M-R/Muzax.sid",
+    "data/C64Music/DEMOS/A-F/Equinoxe_5.sid"
+  ],
+  "?Unknown_Digi_2": [
+    "data/C64Music/DEMOS/M-R/Max-Mix.sid",
+    "data/C64Music/DEMOS/M-R/Open_Your_Mind.sid"
+  ],
+  "Loadstar_SongSmith_v2": [
+    "data/C64Music/DEMOS/UNKNOWN/Loadstar_Menu_issue_24.sid",
+    "data/C64Music/DEMOS/UNKNOWN/Loadstar_Menu_issue_24.sid"
+  ],
+  "Georg_Brandt_Digi": [
+    "data/C64Music/DEMOS/UNKNOWN/Ultimate_Television_V1_tune_2.sid",
+    "data/C64Music/DEMOS/UNKNOWN/Ultimate_Television_V1_tune_2.sid"
+  ],
+  "Kawasaki_Rhythm_Rocker": [
+    "data/C64Music/MUSICIANS/K/Kawasaki_Ryo/Satellite_Station.sid"
+  ],
+  "256bytes/Agemixer": [
+    "data/C64Music/MUSICIANS/A/Agemixer/Myblock_One_Block.sid"
+  ],
+  "Geir_Tjelta/MacroPlay1": [
+    "data/C64Music/MUSICIANS/F/Freqvibez/RAM_Joint.sid"
+  ],
+  "Daryll_Reynolds_Digi": [
+    "data/C64Music/MUSICIANS/R/Reynolds_Daryll/Ninja.sid"
+  ],
+  "Rayden_Digi_V2": [
+    "data/C64Music/MUSICIANS/R/Rayden/Spelling_Around.sid"
+  ],
+  "Soft_Tune_Composer": [
+    "data/C64Music/MUSICIANS/B/Babyface/Soft_Tune_Composer_sample.sid"
+  ],
+  "Pretzel/C64Composer": [
+    "data/C64Music/MUSICIANS/B/Blom_Fredrik/Demotune.sid"
+  ],
+  "Crunched:PUCrunch": [
+    "data/C64Music/MUSICIANS/H/Hultink_Gerard/Crazy_Sue_unused.sid"
+  ],
+  "256bytes/AEB": [
+    "data/C64Music/MUSICIANS/E/Eeben_Aleksi/Electronic_256_bytes.sid"
+  ],
+  "TheTracker/Hitmen": [
+    "data/C64Music/MUSICIANS/G/Groepaz/Sulfo_64.sid"
+  ],
+  "Censor_8bit_Digi_2": [
+    "data/C64Music/MUSICIANS/M/Magnar/Wonderland_XIII_tune_1.sid"
+  ],
+  "Mat/MDA_Digi": [
+    "data/C64Music/MUSICIANS/M/Mr_Mouse/Digihack_1_Graphixmania.sid"
+  ],
+  "(XTracker_V4.2x)": [
+    "data/C64Music/MUSICIANS/S/Sonic/Falk-Ohr-Filter_Model_50.sid"
+  ],
+  "Dave_Spicer_V15": [
+    "data/C64Music/MUSICIANS/S/Spicer_David/Time_Soldier.sid"
+  ],
+  "256bytes/Tape": [
+    "data/C64Music/MUSICIANS/T/Tape/Imperial_March.sid"
+  ],
+  "Geir_Tjelta/MacroPlay2": [
+    "data/C64Music/MUSICIANS/T/Tjelta_Geir/Pal_sine_hoener_tune_2.sid"
+  ],
+  "Daglish/Gremlin_SFX": [
+    "data/C64Music/MUSICIANS/D/Daglish_Ben/Skate_Crazy.sid"
+  ],
+  "SidStep2": [
+    "data/C64Music/MUSICIANS/D/Demosic/Step_into_the_Sid.sid"
+  ],
+  "SoftwareAutomaticMouth": [
+    "data/C64Music/MUSICIANS/C/Crowther_Antony/Suicide_Express.sid"
+  ],
+  "Conrad/Samar": [
+    "data/C64Music/MUSICIANS/C/Crowley_Owen/Bomberland.sid"
+  ],
+  "GoatTracker_V2/Mini": [
+    "data/C64Music/MUSICIANS/C/Cadaver/Metal_Warrior_Ultra.sid"
+  ],
+  "GoatTracker_V2/Mini2": [
+    "data/C64Music/MUSICIANS/C/Cadaver/Storming_Through_Pink_Clouds.sid"
+  ],
+  "DrumStudio": [
+    "data/C64Music/MUSICIANS/W/Wilson_Mark/Volfied.sid"
+  ],
+  "(Rob_Hubbard_Digi)": [
+    "data/C64Music/MUSICIANS/W/Walsh_Chris/Digi_Demo.sid"
+  ],
+  "256bytes/Wyndex": [
+    "data/C64Music/MUSICIANS/W/Wyndex/Splatform_256_bytes.sid"
+  ],
+  "WizPlayer_1.0": [
+    "data/C64Music/MUSICIANS/W/Wizard_Oxygen/Wizard_03.sid"
+  ],
+  "(Frank_Tout_V2)": [
+    "data/C64Music/GAMES/G-L/Hi_Q_Quiz.sid"
+  ],
+  "Johnny_Klonaris": [
+    "data/C64Music/GAMES/G-L/Legacy_of_the_Ancients.sid"
+  ],
+  "Tamas_Revbiro": [
+    "data/C64Music/GAMES/G-L/Impossible_Mission_II_v1.sid"
+  ],
+  "?Summergames/Epyx": [
+    "data/C64Music/GAMES/S-Z/Summer_Games.sid"
+  ],
+  "?Programming_Partners": [
+    "data/C64Music/GAMES/A-F/Bubble_Ghost.sid"
+  ],
+  "Censored_Editor": [
+    "data/C64Music/DEMOS/S-Z/Unipacker_v1.sid"
+  ],
+  "128bytes_tiny": [
+    "data/C64Music/DEMOS/0-9/128_Byte_Blues_BASIC.sid"
+  ],
+  "(Kris_Hatlelid_Digi)": [
+    "data/C64Music/DEMOS/G-L/He_He_He_Nederland.sid"
+  ],
+  "DefleMask_v1": [
+    "data/C64Music/DEMOS/G-L/Green_Tea.sid"
+  ]
+}
