@@ -1,0 +1,30 @@
+# Data (HVSC, curated SIDs) - too large for git
+data/
+
+# Python virtual env
+.pylocal/
+
+# Built binaries
+tools/siddump
+tools/siddump_debug
+tools/test_libsid
+tools/7zz
+*.o
+*.a
+
+# Vendored source trees (build from source on target)
+tools/libsidplayfp/
+tools/xa65/
+
+# Build artifacts
+tools/libsidplayfp/build/
+__pycache__/
+*.pyc
+
+# Editor / IDE
+.vscode/
+*.swp
+*~
+
+# Claude Code
+.claude/
