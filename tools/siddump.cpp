@@ -110,12 +110,15 @@ int main(int argc, char* argv[])
     int timeout = 0;
     bool raw = false;
     bool digi = false;
+    bool writelog = false;
 
     for (int i = 2; i < argc; i++) {
         if (strcmp(argv[i], "--raw") == 0) {
             raw = true;
         } else if (strcmp(argv[i], "--digi") == 0) {
             digi = true;
+        } else if (strcmp(argv[i], "--writelog") == 0) {
+            writelog = true;
         } else if (strcmp(argv[i], "--subtune") == 0 && i + 1 < argc) {
             subtune = atoi(argv[++i]);
         } else if (strcmp(argv[i], "--duration") == 0 && i + 1 < argc) {
@@ -191,11 +194,12 @@ int main(int argc, char* argv[])
         return 1;
     }
 
-    // Calculate cycles per frame
-    // PAL:  985248 Hz CPU / 50 fps = 19705 cycles/frame
-    // NTSC: 1022727 Hz CPU / 60 fps = 17045 cycles/frame
-    unsigned int cpuFreq = isPAL ? 985248 : 1022727;
-    unsigned int cyclesPerFrame = cpuFreq / fps;
+    // Cycles per frame: use the VIC raster frame length plus a small margin
+    // to ensure exactly one VBI fires per play() call.
+    // PAL:  63 cycles/line × 312 lines = 19656, + margin
+    // NTSC: 65 cycles/line × 263 lines = 17095, + margin
+    // The margin ensures we always cross the raster trigger point.
+    unsigned int cyclesPerFrame = isPAL ? (63 * 312 + 32) : (65 * 263 + 32);
 
     int totalFrames = seconds * fps;
 
@@ -226,8 +230,8 @@ int main(int argc, char* argv[])
         printf("\n");
     }
 
-    // Enable digi write logging if requested
-    if (digi) {
+    // Enable write logging if requested
+    if (digi || writelog) {
         engine.enableWriteLog(0, true);
     }
 
@@ -239,7 +243,7 @@ int main(int argc, char* argv[])
     bool anyNonZero = false;
 
     for (int frame = 0; frame < totalFrames; frame++) {
-        if (digi) {
+        if (digi || writelog) {
             engine.clearWriteLog(0);
         }
 
@@ -260,9 +264,8 @@ int main(int argc, char* argv[])
         }
 
         // Append digi writes if any register was written more than once
-        if (digi) {
+        if (digi && !writelog) {
             const auto& log = engine.getWriteLog(0);
-            // Count writes per register to detect multi-writes
             int writeCounts[32] = {};
             for (const auto& w : log) {
                 writeCounts[w.reg]++;
@@ -277,6 +280,17 @@ int main(int argc, char* argv[])
                     if (writeCounts[w.reg] > 1) {
                         printf(":%u:%02X:%02X", w.cycle, w.reg, w.value);
                     }
+                }
+            }
+        }
+
+        // Append full write log (all writes with cycle timing)
+        if (writelog) {
+            const auto& log = engine.getWriteLog(0);
+            if (!log.empty()) {
+                printf("|W");
+                for (const auto& w : log) {
+                    printf(":%u:%02X:%02X", w.cycle, w.reg, w.value);
                 }
             }
         }

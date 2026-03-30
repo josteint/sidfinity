@@ -22,6 +22,7 @@
 #define C64SID_H
 
 #include "Banks/Bank.h"
+#include "EventScheduler.h"
 
 #include "sidcxx11.h"
 
@@ -38,7 +39,7 @@ namespace libsidplayfp
  * Record of a single SID register write with cycle timing.
  */
 struct SidWrite {
-    uint32_t cycle;      // cycle offset within frame
+    uint32_t cycle;      // cycle offset within frame (PHI1 clocks)
     uint8_t  reg;        // register 0x00-0x1f
     uint8_t  value;
 };
@@ -53,7 +54,7 @@ private:
 
     bool m_logEnabled = false;
     uint32_t m_cycleBase = 0;
-    uint32_t m_currentCycle = 0;
+    EventScheduler *m_scheduler = nullptr;
 
 public:
     std::vector<SidWrite> writeLog;
@@ -72,15 +73,25 @@ public:
         std::fill(std::begin(lastpoke), std::end(lastpoke), 0);
         m_logEnabled = false;
         m_cycleBase = 0;
-        m_currentCycle = 0;
         writeLog.clear();
         reset(0xf);
     }
 
+    /// Set the event scheduler for accurate cycle timing in write logs.
+    void setEventScheduler(EventScheduler *scheduler) { m_scheduler = scheduler; }
+
     // Write logging control
     void enableWriteLog(bool enable) { m_logEnabled = enable; }
-    void clearWriteLog() { writeLog.clear(); m_cycleBase = m_currentCycle; }
-    void setCurrentCycle(uint32_t cycle) { m_currentCycle = cycle; }
+
+    void clearWriteLog()
+    {
+        writeLog.clear();
+        if (m_scheduler)
+            m_cycleBase = static_cast<uint32_t>(m_scheduler->getTime(EVENT_CLOCK_PHI1));
+        else
+            m_cycleBase = 0;
+    }
+
     const std::vector<SidWrite>& getWriteLog() const { return writeLog; }
 
     // Bank functions
@@ -89,7 +100,10 @@ public:
         const uint8_t reg = address & 0x1f;
         lastpoke[reg] = value;
         if (m_logEnabled) {
-            writeLog.push_back({m_currentCycle - m_cycleBase, reg, value});
+            uint32_t cycle = 0;
+            if (m_scheduler)
+                cycle = static_cast<uint32_t>(m_scheduler->getTime(EVENT_CLOCK_PHI1)) - m_cycleBase;
+            writeLog.push_back({cycle, reg, value});
         }
         writeReg(reg, value);
     }

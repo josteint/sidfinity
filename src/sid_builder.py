@@ -97,6 +97,7 @@ def build_player(num_frames: int) -> bytearray:
     asm_source = f"""
 ; SID register replay player
 ; Loaded at ${LOAD_ADDR:04X}
+; Uses self-modifying code to avoid zero page conflicts
 
 * = ${LOAD_ADDR:04X}
 
@@ -106,9 +107,9 @@ init
     sta frame_ctr
     sta frame_ctr+1
     lda #<data_start
-    sta data_ptr
+    sta src_addr        ; patch LDA operand low byte
     lda #>data_start
-    sta data_ptr+1
+    sta src_addr+1      ; patch LDA operand high byte
     rts
 
 ; pad to $1020
@@ -126,29 +127,25 @@ play
     bcs done
 
 go
-    ; copy data_ptr to zero page
-    lda data_ptr
-    sta $fb
-    lda data_ptr+1
-    sta $fc
-
-    ; copy 25 bytes from (data_ptr) to $D400
+    ; copy 25 bytes from data pointer to $D400
+    ; uses self-modifying absolute,Y addressing
     ldy #0
 loop
-    lda ($fb),y
+    lda $FFFF,y         ; operand is self-modified
+src_addr = loop + 1     ; points to the address operand of the LDA
     sta $d400,y
     iny
     cpy #25
     bne loop
 
-    ; advance data_ptr by 25
+    ; advance source address by 25
     clc
-    lda data_ptr
+    lda src_addr
     adc #25
-    sta data_ptr
-    lda data_ptr+1
+    sta src_addr
+    lda src_addr+1
     adc #0
-    sta data_ptr+1
+    sta src_addr+1
 
     ; increment frame counter
     inc frame_ctr
@@ -166,8 +163,6 @@ frame_ctr
     .word 0
 total_frames
     .word {num_frames}
-data_ptr
-    .word data_start
 
     .dsb ${LOAD_ADDR + DATA_OFFSET:04X}-*, 0
 data_start
