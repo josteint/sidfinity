@@ -12,7 +12,13 @@ import sys
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.dirname(os.path.dirname(SCRIPT_DIR))
-XA = os.path.join(PROJECT_ROOT, 'tools', 'xa65', 'xa', 'xa')
+TASS = os.path.join(PROJECT_ROOT, 'tools', '64tass')
+SIDDUMP = os.path.join(PROJECT_ROOT, 'tools', 'siddump')
+PLAYER_SRC = os.path.join(SCRIPT_DIR, 'sidfinity.asm')
+
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.dirname(os.path.dirname(SCRIPT_DIR))
+TASS = os.path.join(PROJECT_ROOT, 'tools', '64tass')
 SIDDUMP = os.path.join(PROJECT_ROOT, 'tools', 'siddump')
 
 LOAD_ADDR = 0x0800
@@ -248,16 +254,9 @@ fthi
 def main():
     output = sys.argv[1] if len(sys.argv) > 1 else '/tmp/sidfinity_song.sid'
 
-    # Assemble player
-    import tempfile
-    asm = build_player_asm()
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.a65', delete=False) as f:
-        f.write(asm)
-        asm_path = f.name
-
-    result = subprocess.run([XA, '-o', '/tmp/sf_player.bin', asm_path],
+    # Assemble player from sidfinity.a65
+    result = subprocess.run([TASS, '-o', '/tmp/sf_player.bin', '-b', PLAYER_SRC],
                           capture_output=True, text=True)
-    os.unlink(asm_path)
     if result.returncode != 0:
         print(f'Assembly failed:\n{result.stderr}')
         sys.exit(1)
@@ -384,20 +383,24 @@ def main():
     poke(0x0BD4, (ol_addrs[1] >> 8) & 0xFF)
     poke(0x0BD5, (ol_addrs[2] >> 8) & 0xFF)
 
+    # New variable layout: stride 7, packed groups
+    # Group B at $0B15: wave[+0] ad[+1] sr[+2] freqlo[+3] freqhi[+4] pulselo[+5] pulsehi[+6]
+    # Voice 1 at X=0, Voice 2 at X=7, Voice 3 at X=14
+
     # Voice 1: pulse wave ($41), AD=$09, SR=$00, pulse=$0808
-    poke(0x0B4D, 0x41)  # chn_wave voice 1
-    poke(0x0B54, 0x09)  # chn_ad
-    poke(0x0B5B, 0x00)  # chn_sr
-    poke(0x0B70, 0x08)  # chn_pulselo
-    poke(0x0B77, 0x08)  # chn_pulsehi
+    poke(0x0B15, 0x41)     # chn_wave v1
+    poke(0x0B16, 0x09)     # chn_ad v1
+    poke(0x0B17, 0x00)     # chn_sr v1
+    poke(0x0B1A, 0x08)     # chn_pulselo v1
+    poke(0x0B1B, 0x08)     # chn_pulsehi v1
 
     # Voice 2: saw wave ($21), AD=$0A
-    poke(0x0B4D+7, 0x21)
-    poke(0x0B54+7, 0x0A)
+    poke(0x0B15+7, 0x21)   # chn_wave v2
+    poke(0x0B16+7, 0x0A)   # chn_ad v2
 
     # Voice 3: noise ($81), SR=$F0
-    poke(0x0B4D+14, 0x81)
-    poke(0x0B5B+14, 0xF0)
+    poke(0x0B15+14, 0x81)  # chn_wave v3
+    poke(0x0B17+14, 0xF0)  # chn_sr v3
 
     # BUT: the init routine clears $0B00-$0BFF to zero!
     # Our poked values will be erased. We need the init to NOT clear these,
@@ -410,12 +413,22 @@ def main():
     # This clears $0B00-$0BFF. Then it sets tempo and gates.
     # We need to ADD code after the tempo/gate setup to set our pointers.
 
-    # Find the RTS in the init (first RTS after $0800)
-    init_start = 2  # skip load addr
-    for i in range(init_start, init_start + 200):
+    # Find the init's RTS: it's the first RTS after the init code
+    # Init starts at offset 2 (after load addr bytes) with JMP init, JMP play
+    # The init label is at the JMP target. Search for first RTS after init code.
+    # Init JMP is at binary[2] = $4C, target at binary[3:5]
+    init_jmp_target = binary[3] | (binary[4] << 8)
+    init_code_start = init_jmp_target - LOAD_ADDR + 2
+    rts_pos = None
+    for i in range(init_code_start, init_code_start + 200):
         if binary[i] == 0x60:  # RTS
             rts_pos = i
             break
+    if rts_pos is None:
+        print('ERROR: could not find init RTS')
+        sys.exit(1)
+    # Verify it's actually RTS
+    assert binary[rts_pos] == 0x60, f'Expected RTS at {rts_pos}, got ${binary[rts_pos]:02X}'
 
     print(f'Init RTS at binary offset {rts_pos} (addr ${LOAD_ADDR + rts_pos - 2:04X})')
 
@@ -430,26 +443,26 @@ def main():
     patch_off = patch_addr - LOAD_ADDR + 2
     patch = bytearray()
 
-    # Set orderlist pointers
+    # Set orderlist pointers (ol_lo=$0B80, ol_hi=$0B83 in player)
     for i, addr in enumerate(ol_addrs):
         patch.extend([0xA9, addr & 0xFF])           # LDA #lo
-        patch.extend([0x8D, 0xD0 + i, 0x0B])        # STA $0BD0+i
+        patch.extend([0x8D, 0x80 + i, 0x0B])        # STA $0B80+i
     for i, addr in enumerate(ol_addrs):
         patch.extend([0xA9, (addr >> 8) & 0xFF])     # LDA #hi
-        patch.extend([0x8D, 0xD3 + i, 0x0B])        # STA $0BD3+i
+        patch.extend([0x8D, 0x83 + i, 0x0B])        # STA $0B83+i
 
-    # Set voice 1 instrument params
-    for val, lo, hi in [(0x41, 0x4D, 0x0B), (0x09, 0x54, 0x0B), (0x00, 0x5B, 0x0B),
-                         (0x08, 0x70, 0x0B), (0x08, 0x77, 0x0B)]:
-        patch.extend([0xA9, val, 0x8D, lo, hi])
+    # Set voice 1 instrument params (Group B: $0B15+offset, stride 7)
+    for val, addr in [(0x41, 0x0B15), (0x09, 0x0B16), (0x00, 0x0B17),
+                       (0x08, 0x0B1A), (0x08, 0x0B1B)]:
+        patch.extend([0xA9, val, 0x8D, addr & 0xFF, (addr >> 8) & 0xFF])
 
-    # Voice 2
-    for val, lo, hi in [(0x21, 0x4D+7, 0x0B), (0x0A, 0x54+7, 0x0B)]:
-        patch.extend([0xA9, val, 0x8D, lo, hi])
+    # Voice 2 (+7 offset)
+    for val, addr in [(0x21, 0x0B15+7), (0x0A, 0x0B16+7)]:
+        patch.extend([0xA9, val, 0x8D, addr & 0xFF, (addr >> 8) & 0xFF])
 
-    # Voice 3
-    for val, lo, hi in [(0x81, 0x4D+14, 0x0B), (0xF0, 0x5B+14, 0x0B)]:
-        patch.extend([0xA9, val, 0x8D, lo, hi])
+    # Voice 3 (+14 offset)
+    for val, addr in [(0x81, 0x0B15+14), (0xF0, 0x0B17+14)]:
+        patch.extend([0xA9, val, 0x8D, addr & 0xFF, (addr >> 8) & 0xFF])
 
     patch.append(0x60)  # RTS
 
