@@ -53,20 +53,42 @@ The pipeline: input (text prompt, MP3, MIDI, or style reference) -> neural net -
 9. **SIDfinity player prototype** - `src/player/sidfinity.asm` (64tass, 623 bytes, 3 voices working, pattern reader has bugs)
 10. **Tooling** - 64tass V1.60 and ACME V0.96 cross-assemblers built and available
 
-### Step 1: GoatTracker Transpiler (IN PROGRESS)
+### Step 1: GoatTracker Encoder (DONE)
 
-Strategy change: instead of building SIDfinity player from scratch, use GoatTracker's own
-battle-tested player (player.s, free license) as the foundation. The GT2 binary roundtrip
-proves we can decompose and reconstruct GT2 SID files losslessly.
+GT2 SID -> parse -> high-level data -> serialize -> byte-for-byte identical SID.
+5,922/7,006 clean files validated. Can modify data (transpose) and produce playable SIDs.
 
-Next steps:
-- **Fix the 492 section-ordering failures** - investigate what's different about these files
-- **Parse the instrument+tables section** into individual components (instrument columns, wave/pulse/filter/speed tables)
-- **Build GT2 SID from parsed data** - given extracted components, build a new SID using GT2's own player blob
-- **Register comparison** - siddump original vs rebuilt, verify identical output
-- **Then**: modify parsed data (swap instruments, transpose) and produce valid new SIDs
+Key files: `src/gt_parser.py`, `src/gt_encoder.py`, `src/gt_roundtrip.py`, `src/gt_modify.py`
 
-### Step 2: GoatTracker Transpiler
+### Step 2: Universal Data Extractor (DONE)
+
+`src/sid_data_extractor.py` discovers all data tables in ANY SID file by analyzing
+6502 player code address references. Tested on GoatTracker, DMC V4, DMC V5, Rob Hubbard,
+JCH NewPlayer — finds 11-29 data tables per file regardless of player.
+
+### Step 3: DMC -> SIDfinity Transpiler (IN PROGRESS)
+
+Strategy: use GoatTracker's player as the SIDfinity player foundation. GT2 player.s
+is forked into `src/player/sidfinity_player.s` (free license).
+
+The transpiler pipeline: DMC SID -> parse -> transpile to GT2 format -> GT2 player -> output SID
+
+**Where we left off:**
+- DMC sector data DECODED successfully (Turrican_32k: 55 sectors with real music)
+- DMC sector pointer table found via universal address analysis
+- DMC instrument table found at freq_hi + $0248 (works for ~96% of files)
+- DMC has two main versions: V4 (fhi at +$06A8) and V5 (fhi at +$0770)
+- The universal extractor handles both versions
+
+**Next steps (pick up here):**
+1. Build complete DMC parser using universal extractor + sector/track decoding
+2. Map DMC instruments to GT2 instruments (11-byte -> 9-byte + wave/pulse/filter tables)
+3. Map DMC sectors to GT2 packed patterns (different note/duration encoding)
+4. Map DMC tracks to GT2 orderlists
+5. Assemble with GT2 player blob
+6. Validate: siddump comparison original DMC vs rebuilt GT2 SID
+
+### Step 4: Scale to More Players
 
 Take parsed GT2 data from `gt_parser.py` and convert to SIDfinity format:
 - Map GT2 instruments (9 bytes + name) to SIDfinity instruments (12 bytes)
