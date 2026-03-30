@@ -1,49 +1,45 @@
+; SIDfinity Player - Universal 6502 SID music player
+; xa -o sidfinity.bin sidfinity.a65
+;
 
 SIDBASE     = $D400
 ZP          = $FB
 
+chn_counter = $0B00
+chn_tempo   = $0B01
+chn_pattidx = $0B02
+chn_songidx = $0B03
+chn_trans   = $0B04
+chn_gate    = $0B05
+chn_newnote = $0B06
 
-chn_counter = $0B00     ; tempo countdown
-chn_tempo   = $0B07     ; tempo reload value
-chn_pattlo  = $0B0E     ; current pattern address lo
-chn_patthi  = $0B15     ; current pattern address hi
-chn_pattidx = $0B1C     ; index within current pattern (0=need new pattern)
-chn_songidx = $0B23     ; index within orderlist
+chn_wave    = $0B15
+chn_ad      = $0B16
+chn_sr      = $0B17
+chn_freqlo  = $0B18
+chn_freqhi  = $0B19
+chn_pulselo = $0B1A
+chn_pulsehi = $0B1B
 
-chn_note    = $0B2A     ; current note number
-chn_newnote = $0B31     ; new note pending (note value or 0)
-chn_trans   = $0B38     ; transpose for current pattern
-chn_gate    = $0B3F     ; gate mask ($FF=on, $FE=off)
-chn_hrcount = $0B46     ; hard restart countdown frames
+chn_pattlo  = $0B2A
+chn_patthi  = $0B2B
+chn_wvptr   = $0B2C
+chn_wvcnt   = $0B2D
+chn_plptr   = $0B2E
+chn_plcnt   = $0B2F
+chn_instr   = $0B30
 
-chn_wave    = $0B4D     ; waveform register value
-chn_ad      = $0B54     ; attack/decay
-chn_sr      = $0B5B     ; sustain/release
-chn_freqlo  = $0B62     ; frequency lo
-chn_freqhi  = $0B69     ; frequency hi
-chn_pulselo = $0B70     ; pulse width lo
-chn_pulsehi = $0B77     ; pulse width hi
+; Global state
+g_volume    = $0B70
+g_fltcuthi  = $0B71
+g_fltctrl   = $0B72
+g_fltmode   = $0B73
 
-chn_wvptr   = $0B7E     ; wave table index
-chn_wvcnt   = $0B85     ; wave table delay counter
-chn_plptr   = $0B8C     ; pulse table index
-chn_plcnt   = $0B93     ; pulse table delay counter
-chn_instr   = $0B9A     ; current instrument number
+; Orderlist base addresses per voice (indexed by 0/1/2)
+ol_lo       = $0B80
+ol_hi       = $0B83
 
-chn_fx      = $0BA1     ; current effect number
-chn_fxparam = $0BA8     ; current effect parameter
-chn_vbtime  = $0BAF     ; vibrato phase
-chn_vbdel   = $0BB6     ; vibrato delay countdown
-
-g_volume    = $0BC0
-g_fltcuthi  = $0BC1
-g_fltctrl   = $0BC2
-g_fltmode   = $0BC3
-g_speed     = $0BC4
-
-ol_lo       = $0BD0     ; 3 bytes
-ol_hi       = $0BD3     ; 3 bytes
-
+; Song data
 song_data   = $0C00
 
             * = $0800
@@ -53,43 +49,30 @@ song_data   = $0C00
 
 init
             pha
-
             lda #$00
-            ldx #$BF
-initclr
-            sta $0B00,x
+            ldx #$70
+iclr        sta $0B00,x
             dex
-            bpl initclr
-
-            ldx #$BF
-initclr2
-            sta $0B40,x
-            dex
-            bpl initclr2
-
+            bpl iclr
             ldx #$18
-initsid
-            sta SIDBASE,x
+isid        sta SIDBASE,x
             dex
-            bpl initsid
-
+            bpl isid
             lda #$0F
             sta g_volume
             sta SIDBASE+$18
-
             lda #$06
             sta chn_tempo
             sta chn_tempo+7
             sta chn_tempo+14
+            lda #$01
             sta chn_counter
             sta chn_counter+7
             sta chn_counter+14
-
             lda #$FE
             sta chn_gate
             sta chn_gate+7
             sta chn_gate+14
-
             pla
             rts
 
@@ -98,14 +81,12 @@ play
             pha
             lda ZP+1
             pha
-
             ldx #$00
-            jsr playvoice
+            jsr pv
             ldx #$07
-            jsr playvoice
+            jsr pv
             ldx #$0E
-            jsr playvoice
-
+            jsr pv
             lda g_fltcuthi
             sta SIDBASE+$16
             lda g_fltctrl
@@ -113,54 +94,22 @@ play
             lda g_fltmode
             ora g_volume
             sta SIDBASE+$18
-
             pla
             sta ZP+1
             pla
             sta ZP
             rts
 
-playvoice
-
+pv
             dec chn_counter,x
-            bne pv_effects
-
+            bne pvw
             lda chn_tempo,x
             sta chn_counter,x
-
             lda chn_pattidx,x
-            bne pv_readpatt
-
-            jsr seq_nextpatt
-
-pv_readpatt
-            jsr seq_readnote
-
-pv_effects
-            lda chn_newnote,x
-            beq pv_wave
-
-            lda chn_hrcount,x
-            beq pv_trigger
-            dec chn_hrcount,x
-            jmp pv_write
-
-pv_trigger
-            ldy chn_newnote,x
-            lda freqlo,y
-            sta chn_freqlo,x
-            lda freqhi,y
-            sta chn_freqhi,x
-
-            lda #$FF
-            sta chn_gate,x
-
-            lda #$00
-            sta chn_newnote,x
-
-pv_wave
-
-pv_write
+            bne pvrd
+            jsr nxpat
+pvrd        jsr rdnt
+pvw
             lda chn_freqlo,x
             sta SIDBASE,x
             lda chn_freqhi,x
@@ -178,187 +127,113 @@ pv_write
             sta SIDBASE+6,x
             rts
 
-seq_nextpatt
-
-            stx savex+1
-            txa
-            lsr
-            lsr
-            lsr
-            tay             ; Y = 0/1/2 (voice index, since 7>>3=0... no)
-
-savex       ldx #$00        ; self-modified
-            lda voicemap,x
-            tay             ; Y = 0/1/2
-
-            lda ol_lo,y
+; Orderlist sequencer
+nxpat
+            stx sx+1
+            lda vmap,x
+            tax
+            lda ol_lo,x
             sta ZP
-            lda ol_hi,y
+            lda ol_hi,x
             sta ZP+1
-
-            lda chn_songidx,x
-            tay
-snp_read
+sx          ldx #$00
+            ldy chn_songidx,x
+nprd        lda (ZP),y
+            cmp #$FF
+            bne npne
+            iny
             lda (ZP),y
-            cmp #$FF        ; end marker?
-            bne snp_notend
-            iny
-            lda (ZP),y     ; restart position
             tay
-            jmp snp_read
-
-snp_notend
-            pha             ; save pattern number
+            jmp nprd
+npne        pha
             iny
-
             lda (ZP),y
             sec
-            sbc #$80        ; $80 = no transpose
+            sbc #$80
             sta chn_trans,x
             iny
-
             tya
             sta chn_songidx,x
-
             pla
-            asl             ; *2 for 16-bit pointer
+            asl
             tay
-
-            lda pattbl_lo,y
+            lda song_data,y
             sta chn_pattlo,x
-            lda pattbl_hi,y
+            lda song_data+128,y
             sta chn_patthi,x
-
             lda #$00
             sta chn_pattidx,x
             rts
 
-voicemap
-            .byte 0,0,0,0,0,0,0,1,1,1,1,1,1,1,2
-
-seq_readnote
-
+; Pattern reader
+rdnt
             lda chn_pattlo,x
             sta ZP
             lda chn_patthi,x
             sta ZP+1
             ldy chn_pattidx,x
-
             lda (ZP),y
-            bne srn_notend0
-            jmp srn_endpatt
-srn_notend0
-            cmp #$40
-            bcs srn_chkfx
+            bne rn0
+            sta chn_pattidx,x
+            rts
+rn0         cmp #$40
+            bcs rnfx
             sta chn_instr,x
             iny
-            lda (ZP),y     ; read next byte (fx or note)
-
-srn_chkfx
+            lda (ZP),y
+rnfx        cmp #$60
+            bcs rnnote
+            iny
+            lda (ZP),y
             cmp #$60
-            bcs srn_note    ; >= $60 means note/rest/keyoff/keyon/packed rest
-
-            pha
-            and #$0F
-            sta chn_fx,x
-            pla
-            pha
-            cmp #$50
-            bcs srn_fxonly  ; >= $50 = FXONLY (rest follows)
-
-            lda chn_fx,x
-            beq srn_fx_noparam
+            bcs rnnote
             iny
             lda (ZP),y
-            sta chn_fxparam,x
-srn_fx_noparam
-            pla
-            iny
-            lda (ZP),y     ; read note byte
-            jmp srn_note
-
-srn_fxonly
-            lda chn_fx,x
-            beq srn_fxo_nop
-            iny
-            lda (ZP),y
-            sta chn_fxparam,x
-srn_fxo_nop
-            pla
-            iny             ; advance past this row
-            lda (ZP),y
-            beq srn_endpatt
-            tya
-            sta chn_pattidx,x
-            rts
-
-srn_note
-            cmp #$C0        ; packed rest?
-            bcs srn_pkrest
-            cmp #$BD        ; REST?
-            beq srn_rest
-            cmp #$BE        ; KEYOFF?
-            beq srn_keyoff
-            cmp #$BF        ; KEYON?
-            beq srn_keyon
-
+rnnote      cmp #$BD
+            beq rnrest
+            cmp #$BE
+            beq rnkoff
+            cmp #$BF
+            beq rnkon
+            cmp #$C0
+            bcs rnpk
             sec
-            sbc #$60        ; convert to 0-based note number
+            sbc #$60
             clc
-            adc chn_trans,x ; add transpose
-            sta chn_newnote,x
-            iny
-            lda (ZP),y
-            beq srn_endpatt
-            tya
-            sta chn_pattidx,x
-            rts
-
-srn_rest
-            iny
-            lda (ZP),y
-            beq srn_endpatt
-            tya
-            sta chn_pattidx,x
-            rts
-
-srn_keyoff
-            lda #$FE
-            sta chn_gate,x
-            iny
-            lda (ZP),y
-            beq srn_endpatt
-            tya
-            sta chn_pattidx,x
-            rts
-
-srn_keyon
+            adc chn_trans,x
+            tay
+            lda ftlo,y
+            sta chn_freqlo,x
+            lda fthi,y
+            sta chn_freqhi,x
             lda #$FF
             sta chn_gate,x
-            iny
+rnrest      iny
             lda (ZP),y
-            beq srn_endpatt
+            beq rnend
             tya
             sta chn_pattidx,x
             rts
-
-srn_pkrest
-            iny
+rnkoff      lda #$FE
+            sta chn_gate,x
+            jmp rnrest
+rnkon       lda #$FF
+            sta chn_gate,x
+            jmp rnrest
+rnpk        iny
             lda (ZP),y
-            beq srn_endpatt
+            beq rnend
             tya
             sta chn_pattidx,x
             rts
-
-srn_endpatt
-            lda #$00
+rnend       lda #$00
             sta chn_pattidx,x
             rts
 
-pattbl_lo = song_data
-pattbl_hi = song_data + 128
+; Voice offset to index
+vmap        .byte 0,0,0,0,0,0,0,1,1,1,1,1,1,1,2
 
-freqlo
+ftlo
             .byte $17,$27,$39,$4B,$5F,$74,$8A,$A1,$BA,$D4,$F0,$0E
             .byte $2D,$4E,$71,$96,$BE,$E8,$14,$43,$74,$A9,$E1,$1C
             .byte $5A,$9C,$E2,$2D,$7C,$CF,$28,$85,$E8,$52,$C1,$37
@@ -367,7 +242,7 @@ freqlo
             .byte $D0,$E2,$14,$67,$DD,$79,$3C,$29,$44,$8D,$08,$B8
             .byte $A1,$C5,$28,$CD,$BA,$F1,$78,$53,$87,$1A,$10,$71
             .byte $42,$89,$4F,$9B,$74,$E2,$F0,$A6,$0E,$33,$20,$FF
-freqhi
+fthi
             .byte $01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$01,$02
             .byte $02,$02,$02,$02,$02,$02,$03,$03,$03,$03,$03,$04
             .byte $04,$04,$04,$05,$05,$05,$06,$06,$06,$07,$07,$08
