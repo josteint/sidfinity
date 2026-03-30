@@ -2,7 +2,17 @@
 
 ## Project Goal
 
-Build a lossless `sid → symbolic → sid` pipeline validated against all ~56,676 single-SID PSID files in HVSC #84. This is a prerequisite for training a neural net to generate SID music.
+Build the SIDfinity universal SID music player and ML pipeline. See `docs/PLAN.md` for the full roadmap and current status.
+
+**Current task:** Finish the SIDfinity 6502 player (`src/player/sidfinity.a65`). The skeleton assembles and plays. Needs: pattern reader, orderlist sequencer, instrument loader, wave/pulse/filter table steppers, hard restart engine, vibrato/portamento. Spec is in `docs/sidfinity_player_spec.md`.
+
+**What's done:** Register-level validation (100% on 56,936 files), 642 player engines analyzed, 48 documented, player spec written, player skeleton assembling at 364 bytes.
+
+**After the player:** Build GoatTracker transpiler (GT2 data -> SIDfinity format), then DMC and JCH transpilers, then audio comparison, then ML training.
+
+## Original Goal (completed)
+
+Lossless `sid -> symbolic -> sid` pipeline validated against all ~56,676 single-SID PSID files in HVSC #84. **Achieved: 100% pass rate on 56,936 files.**
 
 ## Build Environment Setup
 
