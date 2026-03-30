@@ -45,26 +45,26 @@ The pipeline: input (text prompt, MP3, MIDI, or style reference) -> neural net -
    - 5.5% multispeed, median 12.5 writes/frame, median 563 cycle span
 5. **SID chip stats** - 41.5% target 8580, 40.3% target 6581, 89.3% PAL
 6. **Cycle-accurate write logging** - libsidplayfp modified to record real cycle offsets per SID write
-7. **GoatTracker V2 parser** - `src/gt_parser.py` extracts instruments/patterns/orderlists (~30% success rate, needs freq table detection improvements)
-8. **SIDfinity player skeleton** - `src/player/sidfinity.a65` assembles to 364 bytes, plays through siddump
-9. **SIDfinity player spec** - `docs/sidfinity_player_spec.md` (12-byte instruments, wave/pulse/filter tables, packed patterns, all 3 HR methods)
+7. **GoatTracker V2 parser** - `src/gt_parser.py` and `src/gt_roundtrip.py`
+   - Binary section roundtrip: 5,792/7,006 clean single-SID PSID files match byte-for-byte (82.7%)
+   - 722 skip (freq table not found), 492 fail (section ordering edge cases)
+   - Extracts: player code, freq tables, song table, pattern table, instruments+tables, orderlists, patterns
+8. **SIDfinity player spec** - `docs/sidfinity_player_spec.md`
+9. **SIDfinity player prototype** - `src/player/sidfinity.asm` (64tass, 623 bytes, 3 voices working, pattern reader has bugs)
+10. **Tooling** - 64tass V1.60 and ACME V0.96 cross-assemblers built and available
 
-### Step 1: Finish SIDfinity Player (IN PROGRESS)
+### Step 1: GoatTracker Transpiler (IN PROGRESS)
 
-The player skeleton at `src/player/sidfinity.a65` has the frame loop and SID register writes working. Still needs:
+Strategy change: instead of building SIDfinity player from scratch, use GoatTracker's own
+battle-tested player (player.s, free license) as the foundation. The GT2 binary roundtrip
+proves we can decompose and reconstruct GT2 SID files losslessly.
 
-- **Pattern reader** - decode packed pattern format ($00=end, $01-$3F=instrument, $40-$4F=FX+note, $50-$5F=FX+rest, $60-$BC=note, $BD=rest, $BE=keyoff, $BF=keyon, $C0-$FF=packed rests)
-- **Orderlist sequencer** - advance through pattern list with transpose, handle repeats and loops
-- **Instrument loader** - read 12-byte instrument definitions, set AD/SR/wave/pulse/filter table pointers, configure HR method
-- **Wave table stepper** - step through waveform+pitch program per tick
-- **Pulse table stepper** - step through pulse width modulation program
-- **Filter table stepper** - step through filter cutoff/resonance/mode program (global, not per-voice)
-- **Hard restart engine** - implement all 3 methods (gate-off, test-bit, ADSR-only) with configurable lead time
-- **Vibrato/portamento** - via speed table lookup
-
-Test by manually creating a song in the native format and verifying through siddump.
-
-The data format is specified in `docs/sidfinity_player_spec.md`. Key design: X register = voice offset (0/7/14) used for both SID register addressing and channel variable indexing (stride 7). Wave/pulse/filter tables use 2-3 bytes per row with jump/loop commands.
+Next steps:
+- **Fix the 492 section-ordering failures** - investigate what's different about these files
+- **Parse the instrument+tables section** into individual components (instrument columns, wave/pulse/filter/speed tables)
+- **Build GT2 SID from parsed data** - given extracted components, build a new SID using GT2's own player blob
+- **Register comparison** - siddump original vs rebuilt, verify identical output
+- **Then**: modify parsed data (swap instruments, transpose) and produce valid new SIDs
 
 ### Step 2: GoatTracker Transpiler
 
