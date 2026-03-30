@@ -107,63 +107,132 @@ def analyze_write_order(frames):
 
 
 def analyze_hard_restart(frames):
-    """Detect hard restart patterns.
+    """Detect hard restart patterns across all known methods.
 
-    Hard restart: gate off + ADSR clear before a new note.
-    Look for patterns where control reg clears gate, then ADSR goes to 0/specific value,
-    then gate comes back on with new note.
+    Methods used by different players:
+    1. Gate toggle: gate on → gate off → gate on (classic)
+    2. Test bit: write $09/$08 to control reg to reset oscillator
+    3. ADSR manipulation: write specific ADSR values before new note
+    4. Waveform $00: clear waveform to silence before new note
+
+    We detect note transitions by watching for frequency changes with gate on,
+    then look backwards to find the preparation sequence.
     """
     hr_patterns = []
 
-    for i in range(2, len(frames)):
-        for voice_base in (0x04, 0x0B, 0x12):  # control reg per voice
-            ad_reg = voice_base + 1
-            sr_reg = voice_base + 2
+    for voice in range(3):
+        base = voice * 7
+        ctrl_reg = base + 4
+        ad_reg = base + 5
+        sr_reg = base + 6
+        fhi_reg = base + 1
 
-            prev2_ctrl = None
-            prev1_ctrl = None
-            curr_ctrl = None
+        # Track per-frame state from register snapshots
+        for i in range(4, len(frames)):
+            curr = frames[i]['regs']
+            prev1 = frames[i-1]['regs']
+            prev2 = frames[i-2]['regs']
+            prev3 = frames[i-3]['regs']
 
-            # Find control register writes in each frame
-            for w in frames[i-2]['writes']:
-                if w[1] == voice_base:
-                    prev2_ctrl = w[2]
-            for w in frames[i-1]['writes']:
-                if w[1] == voice_base:
-                    prev1_ctrl = w[2]
-            for w in frames[i]['writes']:
-                if w[1] == voice_base:
-                    curr_ctrl = w[2]
+            # Detect note start: gate on with new frequency
+            curr_gate = curr[ctrl_reg] & 0x01
+            curr_freq = curr[fhi_reg]
+            prev1_freq = prev1[fhi_reg]
 
-            if prev2_ctrl is None or prev1_ctrl is None or curr_ctrl is None:
+            if not curr_gate or curr_freq == prev1_freq:
                 continue
 
-            # Pattern: gate on -> gate off -> gate on (with possible ADSR changes)
-            if (prev2_ctrl & 0x01) and not (prev1_ctrl & 0x01) and (curr_ctrl & 0x01):
-                # Check what happens to ADSR during gate-off frame
-                ad_val = sr_val = None
-                for w in frames[i-1]['writes']:
-                    if w[1] == ad_reg:
-                        ad_val = w[2]
-                    if w[1] == sr_reg:
-                        sr_val = w[2]
+            # New note detected. Look back for HR preparation.
+            hr_type = None
+            hr_frames = 0
+            hr_detail = {}
 
-                hr_patterns.append({
-                    'frame': i,
-                    'voice': (voice_base - 4) // 7,
-                    'gate_off_waveform': prev1_ctrl,
-                    'gate_on_waveform': curr_ctrl,
-                    'hr_ad': ad_val,
-                    'hr_sr': sr_val,
-                })
+            # Check for test bit ($08 or $09) in preceding frames
+            for back in range(1, 4):
+                if i - back < 0:
+                    break
+                prev_ctrl = frames[i-back]['regs'][ctrl_reg]
+                if prev_ctrl & 0x08:  # test bit set
+                    hr_type = 'test_bit'
+                    hr_frames = back
+                    hr_detail['test_frame_ctrl'] = prev_ctrl
+                    break
 
-    # Summarize
+            # Check for gate off in preceding frames
+            if hr_type is None:
+                for back in range(1, 4):
+                    if i - back < 0:
+                        break
+                    prev_ctrl = frames[i-back]['regs'][ctrl_reg]
+                    if not (prev_ctrl & 0x01):  # gate off
+                        hr_type = 'gate_off'
+                        hr_frames = back
+                        hr_detail['gateoff_ctrl'] = prev_ctrl
+                        break
+
+            # Check for ADSR change in preceding frames
+            if hr_type is None:
+                for back in range(1, 3):
+                    if i - back < 0:
+                        break
+                    prev_ad = frames[i-back]['regs'][ad_reg]
+                    prev_sr = frames[i-back]['regs'][sr_reg]
+                    prev2_ad = frames[i-back-1]['regs'][ad_reg] if i-back-1 >= 0 else prev_ad
+                    prev2_sr = frames[i-back-1]['regs'][sr_reg] if i-back-1 >= 0 else prev_sr
+                    if prev_ad != prev2_ad or prev_sr != prev2_sr:
+                        hr_type = 'adsr_change'
+                        hr_frames = back
+                        break
+
+            # Check for waveform $00 (silence) in preceding frames
+            if hr_type is None:
+                for back in range(1, 3):
+                    if i - back < 0:
+                        break
+                    prev_ctrl = frames[i-back]['regs'][ctrl_reg]
+                    if (prev_ctrl & 0xF0) == 0 and not (prev_ctrl & 0x01):  # no waveform, no gate
+                        hr_type = 'waveform_clear'
+                        hr_frames = back
+                        break
+
+            if hr_type is None:
+                hr_type = 'none'  # no HR detected — direct note change
+                hr_frames = 0
+
+            # Capture the ADSR values used during HR
+            hr_ad = None
+            hr_sr = None
+            for back in range(1, hr_frames + 1):
+                if i - back >= 0:
+                    hr_ad = frames[i-back]['regs'][ad_reg]
+                    hr_sr = frames[i-back]['regs'][sr_reg]
+
+            hr_patterns.append({
+                'frame': i,
+                'voice': voice,
+                'type': hr_type,
+                'hr_frames': hr_frames,
+                'gate_on_waveform': curr[ctrl_reg],
+                'hr_ad': hr_ad,
+                'hr_sr': hr_sr,
+                'new_freq_hi': curr_freq,
+                **hr_detail,
+            })
+
+    # Summarize by type
     hr_types = Counter()
     for p in hr_patterns:
-        key = (p['gate_off_waveform'], p.get('hr_ad'), p.get('hr_sr'))
-        hr_types[key] += 1
+        hr_types[p['type']] += 1
 
-    return hr_patterns, hr_types
+    # Summarize by (type, hr_frames, hr_ad, hr_sr)
+    hr_detail_types = Counter()
+    for p in hr_patterns:
+        key = (p['type'], p['hr_frames'],
+               f"${p['hr_ad']:02X}" if p['hr_ad'] is not None else None,
+               f"${p['hr_sr']:02X}" if p['hr_sr'] is not None else None)
+        hr_detail_types[key] += 1
+
+    return hr_patterns, hr_types, hr_detail_types
 
 
 def analyze_multispeed(frames):
@@ -352,13 +421,13 @@ def analyze_sid(sid_path, duration=10, do_mutate=False):
     }
 
     # Hard restart analysis
-    hr_patterns, hr_types = analyze_hard_restart(frames)
+    hr_patterns, hr_types, hr_detail_types = analyze_hard_restart(frames)
     result['hard_restart'] = {
-        'total_detected': len(hr_patterns),
-        'types': [
-            {'gate_off_wf': f'${k[0]:02X}', 'hr_ad': f'${k[1]:02X}' if k[1] is not None else None,
-             'hr_sr': f'${k[2]:02X}' if k[2] is not None else None, 'count': v}
-            for k, v in hr_types.most_common(5)
+        'total_note_changes': len(hr_patterns),
+        'by_type': {k: v for k, v in hr_types.most_common()},
+        'details': [
+            {'type': k[0], 'frames': k[1], 'hr_ad': k[2], 'hr_sr': k[3], 'count': v}
+            for k, v in hr_detail_types.most_common(10)
         ],
     }
 
