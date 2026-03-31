@@ -16,7 +16,8 @@ import argparse
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from sidxray.trace import capture
-from sidxray.analyze import analyze_traces, find_regions, classify_regions, identify_tables
+from sidxray.analyze import (analyze_traces, find_regions, classify_regions,
+                              identify_tables, find_periodicities, detect_tempo)
 
 
 def find_data_start(sid_path):
@@ -116,6 +117,24 @@ def main():
                     vals.append(f'{entries[0][1]:02X}')
             val_str = ' '.join(vals)
             print(f'  ${base:04X} len={length:3d}: [{val_str}]')
+
+    # Tempo detection
+    tempo, confidence, all_peaks = detect_tempo(frames, result)
+    if tempo > 0:
+        print(f'\n=== Tempo Detection ===')
+        print(f'  Best guess: {tempo} frames/tick (confidence: {confidence:.2f})')
+        if all_peaks:
+            peak_str = ', '.join(f'{p[0]}({p[1]:.2f})' for p in all_peaks[:6])
+            print(f'  All peaks: {peak_str}')
+
+    # Periodicities
+    periods = find_periodicities(frames, result)
+    if periods:
+        # Show most interesting: short periods (wave tables), medium (tempo), long (song structure)
+        print(f'\n=== Periodic Patterns ({len(periods)}) ===')
+        for label, peaks in sorted(periods.items()):
+            peak_str = ', '.join(f'lag={p[0]} r={p[1]:.2f}' for p in peaks[:3])
+            print(f'  {label}: {peak_str}')
 
     # Verbose: per-address detail
     if args.verbose:
