@@ -1552,7 +1552,7 @@ mt_execwavetick0jump:
               .ENDIF
 
               .IF (NOEFFECTS == 0)
-              .IF (!1)
+              .IF (!0)
 mt_tick0jumptbl:
                 .BYTE (mt_tick0_0 % 256)
                 .BYTE (mt_tick0_12 % 256)
@@ -1574,7 +1574,7 @@ mt_tick0jumptbl:
               .ENDIF
 
               .IF (NOEFFECTS == 0)
-              .IF (!1)
+              .IF (!0)
               .IF ((NOTONEPORTA == 0) || (NOPORTAMENTO == 0) || (NOVIB == 0))
 mt_effectjumptbl:
                 .BYTE (mt_effect_0 % 256)
@@ -1586,7 +1586,7 @@ mt_effectjumptbl:
               .ENDIF
               .ENDIF
 
-              .IF (!1)
+              .IF (!0)
               .IF (NOFUNKTEMPO == 0)
 mt_funktempotbl:
                 .BYTE (8,5)
