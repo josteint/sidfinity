@@ -35,28 +35,8 @@ _sid        sta SIDBASE,x
             bpl _sid
             lda #$0F
             sta SIDBASE+$18
-            lda #$06
-            sta chn_tempo
-            lda #$01
-            sta chn_counter
-            lda #$FE
-            sta chn_gate
-            lda #$41
-            sta chn_wave
-            lda #$09
-            sta chn_ad
-            lda #$08
-            sta chn_pulselo
-            sta chn_pulsehi
-            lda #<orderlist0
-            sta ol_lo
-            lda #>orderlist0
-            sta ol_hi
-            ; Set up pattern pointer table
-            lda #<pattern0
-            sta pattbl_lo
-            lda #>pattern0
-            sta pattbl_hi
+            ; All data setup (tempo, instruments, OL pointers, pattern table)
+            ; is done by the builder's init patch which replaces this RTS with JMP
             rts
 
 play
@@ -181,6 +161,4 @@ fhi
             .byte $45,$49,$4E,$52,$57,$5C,$62,$68,$6E,$75,$7C,$83
             .byte $8B,$93,$9C,$A5,$AF,$B9,$C4,$D0,$DD,$EA,$F8,$FF
 
-orderlist0  .byte $00, $80, $FF, $00
-pattern0    .byte $90, $BD, $BD, $BD, $94, $BD, $BD, $BD
-            .byte $97, $BD, $BD, $BD, $9C, $BD, $BD, $BD, $00
+; No embedded test data - the builder provides all music data

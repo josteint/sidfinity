@@ -112,11 +112,22 @@ def build_init_patch(player_size, ol_addrs, instruments, freq_table=None):
     for i, addr in enumerate(ol_addrs):
         patch.extend([0xA9, (addr >> 8) & 0xFF, 0x8D, (OL_HI + i) & 0xFF, (OL_HI + i) >> 8])
 
+    # Set tempo, counter, gate for each voice
+    # Group A: counter($0B00) tempo($0B01) gate($0B05)
+    for vi in range(3):
+        offset = vi * 7
+        # Tempo
+        patch.extend([0xA9, 0x06, 0x8D, (0x0B01 + offset) & 0xFF, (0x0B01 + offset) >> 8])
+        # Counter = 1 (trigger on first frame)
+        patch.extend([0xA9, 0x01, 0x8D, (0x0B00 + offset) & 0xFF, (0x0B00 + offset) >> 8])
+        # Gate = $FE (off initially)
+        patch.extend([0xA9, 0xFE, 0x8D, (0x0B05 + offset) & 0xFF, (0x0B05 + offset) >> 8])
+
     # Set instrument defaults for each voice
     # Group B: wave($0B15) ad($0B16) sr($0B17) pulselo($0B1A) pulsehi($0B1B)
     for vi in range(min(3, len(instruments))):
         instr = instruments[vi]
-        offset = vi * 7  # stride 7
+        offset = vi * 7
         for val, base in [
             (instr.get('wave', 0x41), 0x0B15),
             (instr.get('ad', 0x09), 0x0B16),
