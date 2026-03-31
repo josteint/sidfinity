@@ -35,34 +35,128 @@ import json
 
 @dataclass
 class WaveTableStep:
-    """One step in a wave table program."""
+    """One step in a wave table program.
+
+    GT2 wave table left column:
+      $00=no change, $01-$0F=delay N frames, $10-$DF=waveform,
+      $E0-$EF=inaudible wave, $F0-$FE=commands, $FF=jump/loop
+    GT2 wave table right column:
+      $00-$5F=relative note up, $60-$7F=relative note down (signed),
+      $80=keep freq, $81-$DF=absolute note
+    """
     waveform: int = 0x41       # SID waveform byte (e.g. $41 = pulse+gate)
     note_offset: int = 0       # relative semitone offset (negative = down)
     absolute_note: int = -1    # if >= 0, absolute note instead of relative
-    is_loop: bool = False      # if True, this is a loop-to target
-    loop_target: int = 0       # loop destination step index
+    is_loop: bool = False      # if True, this is a loop/jump command
+    loop_target: int = 0       # loop destination step index (within this instrument's WT)
+    delay: int = 0             # if > 0, delay N frames before applying this step
+    keep_freq: bool = False    # if True, don't change frequency ($80 in right column)
+
+
+@dataclass
+class PulseTableStep:
+    """One step in a pulse table program.
+
+    GT2 pulse table left column:
+      $01-$7F=modulate for N frames, $8x=set pulse width (right=low byte),
+      $FF=jump/loop
+    GT2 pulse table right column:
+      signed speed (modulation) or low 8 bits (set)
+    """
+    is_set: bool = False       # True=set pulse width, False=modulate
+    value: int = 0             # set: pulse width high nib | modulate: signed speed
+    low_byte: int = 0          # set: pulse width low byte
+    duration: int = 1          # modulate: number of frames
+    is_loop: bool = False
+    loop_target: int = 0
+
+
+@dataclass
+class FilterTableStep:
+    """One step in a filter table program.
+
+    GT2 filter table left column:
+      $00=set cutoff (right=cutoff value),
+      $01-$7F=modulate for N frames (right=signed speed),
+      $80-$8F=set filter params (right=resonance<<4 | routing),
+      $FF=jump/loop
+    """
+    type: str = 'cutoff'       # 'cutoff', 'modulate', 'params', 'loop'
+    value: int = 0             # cutoff value, speed, or resonance<<4|routing
+    duration: int = 1          # modulation frame count
+    is_loop: bool = False
+    loop_target: int = 0
+
+
+@dataclass
+class SpeedTableEntry:
+    """One entry in the speed table.
+
+    GT2 speed table is used for vibrato, portamento, and funktempo:
+      Vibrato: left=speed (bit 7=note-independent), right=depth
+      Portamento: left=MSB, right=LSB (16-bit speed)
+      Funktempo: left=tempo even rows, right=tempo odd rows
+    """
+    left: int = 0
+    right: int = 0
 
 
 @dataclass
 class Instrument:
-    """Instrument definition."""
+    """Instrument definition.
+
+    Maps to GT2 instrument columns:
+      AD, SR, wave_ptr, pulse_ptr, filter_ptr, vib_param, vib_delay,
+      gate_timer, first_wave
+    """
     id: int = 0
     ad: int = 0x09             # attack/decay
     sr: int = 0x00             # sustain/release
-    waveform: str = 'pulse'    # tri, saw, pulse, noise
-    gate_timer: int = 2        # hard restart lead time (frames)
+    waveform: str = 'pulse'    # primary waveform: tri, saw, pulse, noise
+    first_wave: int = -1       # first-frame waveform override ($00=skip, -1=derive from waveform)
+    gate_timer: int = 2        # hard restart lead time (frames, bits 0-5)
     hr_method: str = 'gate'    # none, gate, test, adsr
-    wave_table: list = field(default_factory=list)  # list of WaveTableStep
+    legato: bool = False       # if True, don't retrigger ADSR (gate_timer bit 6 in GT2)
+    wave_table: list = field(default_factory=list)    # list of WaveTableStep
+    pulse_table: list = field(default_factory=list)   # list of PulseTableStep
+    filter_table: list = field(default_factory=list)  # list of FilterTableStep
     pulse_width: int = 0x0808  # initial pulse width (16-bit)
+    vib_speed_idx: int = 0     # speed table index for vibrato (0=none)
+    vib_delay: int = 0         # vibrato delay in frames
 
 
 @dataclass
 class NoteEvent:
-    """A single note/rest/control event in a pattern."""
+    """A single note/rest/control event in a pattern.
+
+    GT2 pattern commands are stored per-event. command=0 means no command
+    (instrument vibrato active). See PATTERN_COMMANDS for the full list.
+    """
     type: str = 'note'         # note, rest, off, on, tie
     note: int = 0              # note number 0-95 (C0=0, C4=48)
     duration: int = 1          # duration in ticks
     instrument: int = -1       # instrument change (-1 = no change)
+    command: int = 0           # pattern command 0-15 (0=none/inst vibrato)
+    command_val: int = 0       # command parameter byte
+
+
+# Pattern command constants (match GT2)
+CMD_NONE        = 0x00   # do nothing / instrument vibrato
+CMD_PORTA_UP    = 0x01   # portamento up (speed table index)
+CMD_PORTA_DOWN  = 0x02   # portamento down (speed table index)
+CMD_TONE_PORTA  = 0x03   # tone portamento (speed table index, $00=tie)
+CMD_VIBRATO     = 0x04   # vibrato (speed table index)
+CMD_SET_AD      = 0x05   # set attack/decay
+CMD_SET_SR      = 0x06   # set sustain/release
+CMD_SET_WAVE    = 0x07   # set waveform
+CMD_SET_WAVEPTR = 0x08   # set wave table pointer
+CMD_SET_PULPTR  = 0x09   # set pulse table pointer
+CMD_SET_FILTPTR = 0x0A   # set filter table pointer
+CMD_SET_FILTCTL = 0x0B   # set filter control (resonance|routing)
+CMD_SET_FILTCUT = 0x0C   # set filter cutoff
+CMD_SET_MASTERVOL = 0x0D # set master volume ($00-$0F)
+CMD_FUNKTEMPO   = 0x0E   # funktempo (speed table index)
+CMD_SET_TEMPO   = 0x0F   # set tempo ($03-$7F=global, $83-$FF=channel)
 
 
 @dataclass
@@ -80,12 +174,13 @@ class Song:
     sid_model: str = '6581'    # 6581 or 8580
     clock: str = 'PAL'         # PAL or NTSC
     tempo: int = 6             # default ticks per row
-    instruments: list = field(default_factory=list)  # list of Instrument
-    patterns: list = field(default_factory=list)      # list of Pattern
+    instruments: list = field(default_factory=list)    # list of Instrument
+    patterns: list = field(default_factory=list)        # list of Pattern
     orderlists: list = field(default_factory=lambda: [[], [], []])  # 3 voices
     # Each orderlist entry: (pattern_id, transpose)
-    freq_lo: bytes = None       # custom frequency table lo (96 bytes), or None for PAL
-    freq_hi: bytes = None       # custom frequency table hi (96 bytes), or None for PAL
+    speed_table: list = field(default_factory=list)    # list of SpeedTableEntry
+    freq_lo: bytes = None      # custom frequency table lo (96 bytes), or None for PAL
+    freq_hi: bytes = None      # custom frequency table hi (96 bytes), or None for PAL
 
 
 # ============================================================
@@ -139,6 +234,14 @@ def tokenize(song):
         tokens.append(inst.waveform.upper()[:3])
         tokens.append(f'HR_{inst.hr_method.upper()}')
         tokens.append(f'GT{inst.gate_timer:X}')
+        if inst.legato:
+            tokens.append('LEG')
+        if inst.vib_speed_idx > 0:
+            tokens.append(f'VIB{inst.vib_speed_idx:X}')
+        if inst.vib_delay > 0:
+            tokens.append(f'VD{inst.vib_delay:X}')
+        if inst.first_wave >= 0:
+            tokens.append(f'FW{inst.first_wave:02X}')
 
         # Wave table
         if inst.wave_table:
@@ -146,17 +249,55 @@ def tokenize(song):
             for step in inst.wave_table:
                 if step.is_loop:
                     tokens.append(f'L{step.loop_target}')
+                elif step.keep_freq:
+                    wt = WAVEFORM_TOKENS.get(step.waveform, f'${step.waveform:02X}')
+                    tokens.append(f'{wt}~')  # ~ means keep freq
+                elif step.delay > 0:
+                    tokens.append(f'W{step.delay}')  # delay N frames
                 elif step.absolute_note >= 0:
-                    tokens.append(f'{WAVEFORM_TOKENS.get(step.waveform, "?")}'
-                                  f'={note_name(step.absolute_note)}')
+                    wt = WAVEFORM_TOKENS.get(step.waveform, f'${step.waveform:02X}')
+                    tokens.append(f'{wt}={note_name(step.absolute_note)}')
                 else:
                     off = step.note_offset
                     sign = '+' if off >= 0 else ''
-                    tokens.append(f'{WAVEFORM_TOKENS.get(step.waveform, "?")}'
-                                  f'{sign}{off}')
+                    wt = WAVEFORM_TOKENS.get(step.waveform, f'${step.waveform:02X}')
+                    tokens.append(f'{wt}{sign}{off}')
             tokens.append(']WT')
 
+        # Pulse table
+        if inst.pulse_table:
+            tokens.append('PT[')
+            for step in inst.pulse_table:
+                if step.is_loop:
+                    tokens.append(f'L{step.loop_target}')
+                elif step.is_set:
+                    tokens.append(f'={step.value:02X}{step.low_byte:02X}')
+                else:
+                    tokens.append(f'm{step.value:+d}x{step.duration}')
+            tokens.append(']PT')
+
+        # Filter table
+        if inst.filter_table:
+            tokens.append('FT[')
+            for step in inst.filter_table:
+                if step.is_loop:
+                    tokens.append(f'L{step.loop_target}')
+                elif step.type == 'cutoff':
+                    tokens.append(f'C{step.value:02X}')
+                elif step.type == 'modulate':
+                    tokens.append(f'm{step.value:+d}x{step.duration}')
+                elif step.type == 'params':
+                    tokens.append(f'R{step.value:02X}')
+            tokens.append(']FT')
+
         tokens.append('/INST')
+
+    # Speed table
+    if song.speed_table:
+        tokens.append('SPD[')
+        for entry in song.speed_table:
+            tokens.append(f'{entry.left:02X}{entry.right:02X}')
+        tokens.append(']SPD')
 
     # Patterns
     for patt in song.patterns:
@@ -178,6 +319,9 @@ def tokenize(song):
                 tokens.append('ON')
             elif event.type == 'tie':
                 tokens.append('TIE')
+
+            if event.command > 0:
+                tokens.append(f'x{event.command:X}{event.command_val:02X}')
 
             if event.duration > 1:
                 tokens.append(f'd{event.duration}')
@@ -231,8 +375,56 @@ def detokenize(tokens):
                     inst.waveform = {'TRI': 'tri', 'SAW': 'saw', 'PUL': 'pulse', 'NOI': 'noise'}[t2]
                 elif t2.startswith('HR_'):
                     inst.hr_method = t2[3:].lower()
-                elif t2.startswith('GT'):
+                elif t2.startswith('GT') and len(t2) <= 4:
                     inst.gate_timer = int(t2[2:], 16)
+                elif t2 == 'LEG':
+                    inst.legato = True
+                elif t2.startswith('VIB') and t2 != 'VIBRATO':
+                    inst.vib_speed_idx = int(t2[3:], 16)
+                elif t2.startswith('VD'):
+                    inst.vib_delay = int(t2[2:], 16)
+                elif t2.startswith('FW'):
+                    inst.first_wave = int(t2[2:], 16)
+                elif t2 == 'PT[':
+                    i += 1
+                    while i < len(tokens) and tokens[i] != ']PT':
+                        pt = tokens[i]
+                        step = PulseTableStep()
+                        if pt.startswith('L'):
+                            step.is_loop = True
+                            step.loop_target = int(pt[1:])
+                        elif pt.startswith('='):
+                            step.is_set = True
+                            step.value = int(pt[1:3], 16)
+                            step.low_byte = int(pt[3:5], 16)
+                        elif pt.startswith('m'):
+                            # m+3x5 = modulate speed +3 for 5 frames
+                            parts = pt[1:].split('x')
+                            step.value = int(parts[0])
+                            step.duration = int(parts[1]) if len(parts) > 1 else 1
+                        inst.pulse_table.append(step)
+                        i += 1
+                elif t2 == 'FT[':
+                    i += 1
+                    while i < len(tokens) and tokens[i] != ']FT':
+                        ft = tokens[i]
+                        step = FilterTableStep()
+                        if ft.startswith('L'):
+                            step.is_loop = True
+                            step.loop_target = int(ft[1:])
+                        elif ft.startswith('C'):
+                            step.type = 'cutoff'
+                            step.value = int(ft[1:], 16)
+                        elif ft.startswith('R'):
+                            step.type = 'params'
+                            step.value = int(ft[1:], 16)
+                        elif ft.startswith('m'):
+                            step.type = 'modulate'
+                            parts = ft[1:].split('x')
+                            step.value = int(parts[0])
+                            step.duration = int(parts[1]) if len(parts) > 1 else 1
+                        inst.filter_table.append(step)
+                        i += 1
                 elif t2 == 'WT[':
                     i += 1
                     while i < len(tokens) and tokens[i] != ']WT':
@@ -241,11 +433,27 @@ def detokenize(tokens):
                         if wt.startswith('L'):
                             step.is_loop = True
                             step.loop_target = int(wt[1:])
+                        elif wt.startswith('W') and wt[1:].isdigit():
+                            step.delay = int(wt[1:])
+                        elif wt.endswith('~'):
+                            # Keep freq: PUL~ SAW~ etc.
+                            wn = wt[:-1]
+                            step.waveform = WAVEFORM_NAMES.get(wn.lower() + '_gate', 0x41)
+                            step.keep_freq = True
                         elif '=' in wt:
                             # Absolute note: PUL=C4
                             parts = wt.split('=')
                             step.waveform = WAVEFORM_NAMES.get(parts[0].lower() + '_gate', 0x41)
                             step.absolute_note = note_from_name(parts[1])
+                        elif wt.startswith('$'):
+                            # Raw hex waveform: $30+0
+                            rest = wt[1:]
+                            for sep in ('+', '-'):
+                                if sep in rest:
+                                    parts = rest.split(sep, 1)
+                                    step.waveform = int(parts[0], 16)
+                                    step.note_offset = int(sep + parts[1])
+                                    break
                         else:
                             # Relative: PUL+4 or PUL-2 or PUL+0
                             for wn, wv in [('PUL', 0x41), ('SAW', 0x21), ('TRI', 0x11), ('NOI', 0x81)]:
@@ -276,6 +484,11 @@ def detokenize(tokens):
                     patt.events.append(NoteEvent(type='on'))
                 elif t2 == 'TIE':
                     patt.events.append(NoteEvent(type='tie'))
+                elif t2.startswith('x') and len(t2) >= 4:
+                    # Command: x1FF = command 1, param $FF
+                    if patt.events:
+                        patt.events[-1].command = int(t2[1], 16)
+                        patt.events[-1].command_val = int(t2[2:4], 16)
                 elif t2.startswith('d') and t2[1:].isdigit():
                     # Duration modifier for previous event
                     if patt.events:
@@ -304,6 +517,15 @@ def detokenize(tokens):
                     patt_id = int(t2[1:])
                     song.orderlists[vi].append((patt_id, current_trans))
                     current_trans = 0
+                i += 1
+
+        elif t == 'SPD[':
+            i += 1
+            while i < len(tokens) and tokens[i] != ']SPD':
+                s = tokens[i]
+                if len(s) == 4:
+                    song.speed_table.append(SpeedTableEntry(
+                        left=int(s[:2], 16), right=int(s[2:], 16)))
                 i += 1
 
         elif t == '/SONG':

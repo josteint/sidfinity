@@ -1,13 +1,11 @@
 # Universal Symbolic Format (USF) Specification
 
-**Version:** 0.2 (2026-03-31)
-**Status:** Draft — evolving as we add player support
+**Version:** 0.3 (2026-03-31)
+**Status:** Draft — covers full GoatTracker V2 feature set
 
 ## Purpose
 
 USF is the intermediate representation between any C64 SID player's native format and the SIDfinity player output. It also serves as the tokenization format for ML training.
-
-All conversions go through USF:
 
 ```
   DMC SID ──→ USF ──→ SIDfinity SID
@@ -16,208 +14,293 @@ All conversions go through USF:
   ...
 ```
 
-USF must be expressive enough to represent any feature used by any supported player. When a new player uses a feature USF can't represent, USF must be extended — and all converters updated.
+USF must be expressive enough to represent any feature used by any supported player. When a new player uses a feature USF can't represent, USF must be extended — and all converters updated (see Sync Rules).
 
 ## Design Goals
 
 - **Compact**: A 3-minute tune ≈ 2000–4000 tokens
 - **Event-based**: Durations attached to events, not grid/frame-based
-- **Explicit structure**: Instruments defined once, patterns reused, orderlists reference patterns
+- **Explicit structure**: Instruments defined once, patterns reused via orderlists
 - **Fixed vocabulary**: ~300 tokens for transformer tokenization
-- **Lossless for supported features**: USF→SID should reproduce the same register output as the original
+- **Lossless for supported features**: roundtrip through USF preserves register output
 
 ## Data Structures
 
 ### Song
 
-Top-level container.
-
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | title | string | '' | Song title |
 | author | string | '' | Author name |
-| sid_model | string | '6581' | SID chip model: '6581' or '8580' |
-| clock | string | 'PAL' | System clock: 'PAL' or 'NTSC' |
+| sid_model | string | '6581' | SID chip: '6581' or '8580' |
+| clock | string | 'PAL' | Clock: 'PAL' or 'NTSC' |
 | tempo | int | 6 | Default speed: frames per tick |
 | instruments | list[Instrument] | [] | Instrument definitions |
 | patterns | list[Pattern] | [] | Pattern definitions |
-| orderlists | list[list[tuple]] | [[], [], []] | 3 voices, each a list of (pattern_id, transpose) |
-| freq_lo | bytes\|None | None | Custom frequency table lo (96 bytes), None = PAL default |
-| freq_hi | bytes\|None | None | Custom frequency table hi (96 bytes), None = PAL default |
+| orderlists | list×3 of list[(pat_id, transpose)] | [[],[],[]] | Per-voice play order |
+| speed_table | list[SpeedTableEntry] | [] | Shared vibrato/portamento/funktempo data |
+| freq_lo | bytes\|None | None | Custom freq table lo (96 bytes), None=PAL |
+| freq_hi | bytes\|None | None | Custom freq table hi (96 bytes), None=PAL |
 
 ### Instrument
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | id | int | 0 | Instrument index |
-| ad | int | 0x09 | Attack/Decay byte (SID $D405 format) |
-| sr | int | 0x00 | Sustain/Release byte (SID $D406 format) |
-| waveform | string | 'pulse' | Primary waveform: 'tri', 'saw', 'pulse', 'noise' |
-| gate_timer | int | 2 | Hard restart lead time in frames |
-| hr_method | string | 'gate' | Hard restart method: 'none', 'gate', 'test', 'adsr' |
+| ad | int | 0x09 | Attack/Decay (SID $D405) |
+| sr | int | 0x00 | Sustain/Release (SID $D406) |
+| waveform | string | 'pulse' | Primary waveform: tri, saw, pulse, noise |
+| first_wave | int | -1 | First-frame waveform override (-1=derive from waveform) |
+| gate_timer | int | 2 | Hard restart lead time in frames (0-63) |
+| hr_method | string | 'gate' | HR method: none, gate, test, adsr |
+| legato | bool | False | No ADSR retrigger on new notes |
+| vib_speed_idx | int | 0 | Speed table index for instrument vibrato (0=none) |
+| vib_delay | int | 0 | Vibrato delay in frames |
 | wave_table | list[WaveTableStep] | [] | Per-frame waveform program |
+| pulse_table | list[PulseTableStep] | [] | Pulse width modulation program |
+| filter_table | list[FilterTableStep] | [] | Filter modulation program |
 | pulse_width | int | 0x0808 | Initial pulse width (16-bit) |
 
 ### WaveTableStep
 
-One frame of the wave table program.
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| waveform | int | 0x41 | SID waveform byte (bits 7-4: wave, 3-0: gate/sync/ring/test) |
+| note_offset | int | 0 | Relative semitone offset from current note |
+| absolute_note | int | -1 | If ≥0: absolute note (overrides note_offset) |
+| is_loop | bool | False | This is a loop/jump command |
+| loop_target | int | 0 | Loop destination (step index within this instrument's WT) |
+| delay | int | 0 | Delay N frames before this step (GT2: $01-$0F) |
+| keep_freq | bool | False | Don't change frequency (GT2: right=$80) |
+
+### PulseTableStep
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| waveform | int | 0x41 | SID waveform register value (bits 7-4: wave, bits 3-0: gate/sync/ring/test) |
-| note_offset | int | 0 | Relative semitone offset from current note |
-| absolute_note | int | -1 | If ≥ 0: absolute note number (overrides note_offset) |
-| is_loop | bool | False | If True: this is a loop command |
-| loop_target | int | 0 | Loop destination (step index within this instrument's wave table) |
+| is_set | bool | False | True=set pulse width, False=modulate |
+| value | int | 0 | Set: PW high nib. Modulate: signed speed. |
+| low_byte | int | 0 | Set: PW low byte |
+| duration | int | 1 | Modulate: frame count |
+| is_loop | bool | False | Loop command |
+| loop_target | int | 0 | Loop destination step index |
+
+### FilterTableStep
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| type | string | 'cutoff' | 'cutoff', 'modulate', 'params', 'loop' |
+| value | int | 0 | Cutoff value, signed speed, or resonance<<4\|routing |
+| duration | int | 1 | Modulation frame count |
+| is_loop | bool | False | Loop command |
+| loop_target | int | 0 | Loop destination step index |
+
+### SpeedTableEntry
+
+Shared table for vibrato, portamento, and funktempo. Referenced by index from instruments and pattern commands.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| left | int | 0 | Vibrato: speed (bit7=note-independent). Portamento: MSB. Funktempo: tempo1. |
+| right | int | 0 | Vibrato: depth. Portamento: LSB. Funktempo: tempo2. |
 
 ### NoteEvent
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| type | string | 'note' | Event type: 'note', 'rest', 'off', 'on', 'tie' |
-| note | int | 0 | Note number 0–95 (C0=0, C1=12, ..., B7=95) |
+| type | string | 'note' | note, rest, off, on, tie |
+| note | int | 0 | Note number 0–95 (C0=0, C4=48) |
 | duration | int | 1 | Duration in ticks |
-| instrument | int | -1 | Instrument index (-1 = no change) |
+| instrument | int | -1 | Instrument index (-1=no change) |
+| command | int | 0 | Pattern command 0–15 (0=none) |
+| command_val | int | 0 | Command parameter byte |
 
-### Pattern
+### Pattern Commands
 
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| id | int | 0 | Pattern index |
-| events | list[NoteEvent] | [] | Sequence of events |
+| Cmd | Token | Name | Param |
+|-----|-------|------|-------|
+| 0 | — | None / inst vibrato | — |
+| 1 | x1 | Portamento up | speed table index |
+| 2 | x2 | Portamento down | speed table index |
+| 3 | x3 | Tone portamento | speed table index ($00=tie) |
+| 4 | x4 | Vibrato | speed table index |
+| 5 | x5 | Set AD | value |
+| 6 | x6 | Set SR | value |
+| 7 | x7 | Set waveform | waveform byte |
+| 8 | x8 | Set wave ptr | wave table index |
+| 9 | x9 | Set pulse ptr | pulse table index |
+| A | xA | Set filter ptr | filter table index |
+| B | xB | Set filter ctrl | resonance(hi) \| routing(lo) |
+| C | xC | Set filter cutoff | cutoff value |
+| D | xD | Set master volume | $00–$0F |
+| E | xE | Funktempo | speed table index |
+| F | xF | Set tempo | $03–$7F=global, $83–$FF=channel |
 
 ### Event Types
 
 | Type | Meaning |
 |------|---------|
-| `note` | Play note with current instrument. Sets frequency, triggers ADSR. |
-| `rest` | Silence — no frequency change, no gate trigger. Duration advances. |
-| `off` | Gate off — release current note. |
-| `on` | Gate on — retrigger without changing frequency. |
-| `tie` | Continue previous note without retriggering ADSR. |
-
-### Orderlist Entry
-
-Each voice's orderlist is a list of `(pattern_id, transpose)` tuples:
-- `pattern_id`: Index into the song's pattern list
-- `transpose`: Semitone offset applied to all notes in this pattern instance (signed int)
+| note | Play note. Sets frequency, triggers ADSR (unless legato). |
+| rest | Silence — no change, duration advances. |
+| off | Gate off — release current note. |
+| on | Gate on — retrigger without changing frequency. |
+| tie | Continue previous note without retriggering ADSR. |
 
 ## Token Format
-
-For ML training and text serialization. Vocabulary ≈ 300 tokens.
 
 ### Grammar
 
 ```
-song        := SONG header instruments patterns orderlists /SONG
-header      := sid_model clock tempo
-sid_model   := SID_6581 | SID_8580
-clock       := PAL | NTSC
-tempo       := T<1-32>
+song         := SONG header instruments speed_table? patterns orderlists /SONG
+header       := sid_model clock tempo
+sid_model    := SID_6581 | SID_8580
+clock        := PAL | NTSC
+tempo        := T<1-99>
 
-instruments := instrument*
-instrument  := INST params wave_table? /INST
-params      := AD<00-FF> SR<00-FF> waveform hr_method gate_timer
-waveform    := TRI | SAW | PUL | NOI
-hr_method   := HR_NONE | HR_GATE | HR_TEST | HR_ADSR
-gate_timer  := GT<0-F>
-wave_table  := WT[ wt_step+ ]WT
-wt_step     := wt_wave | wt_loop
-wt_wave     := <WAVE><sign><offset>     (relative: PUL+0, SAW-3)
-             | <WAVE>=<note_name>        (absolute: TRI=C4)
-wt_loop     := L<target_index>
+instruments  := instrument*
+instrument   := INST params tables /INST
+params       := AD<HH> SR<HH> waveform hr gate_timer legato? vibrato? first_wave?
+waveform     := TRI | SAW | PUL | NOI
+hr           := HR_NONE | HR_GATE | HR_TEST | HR_ADSR
+gate_timer   := GT<H>
+legato       := LEG
+vibrato      := VIB<H> VD<H>
+first_wave   := FW<HH>
 
-patterns    := pattern*
-pattern     := PAT<id> event* /PAT
-event       := inst_change? (note | rest | off | on | tie) duration?
-inst_change := I<0-255>
-note        := <note_name>               (C0, C#4, G7, etc.)
-rest        := .
-off         := OFF
-on          := ON
-tie         := TIE
-duration    := d<1-32>                   (omit if duration=1)
+tables       := wave_table? pulse_table? filter_table?
+wave_table   := WT[ wt_step+ ]WT
+wt_step      := L<idx>                     loop
+             | W<n>                         delay n frames
+             | <WAVE>~                      keep freq
+             | <WAVE>=<note>                absolute note
+             | <WAVE><sign><offset>         relative note
+             | $<HH><sign><offset>          raw waveform byte + relative
+pulse_table  := PT[ pt_step+ ]PT
+pt_step      := L<idx> | =<HHHH> | m<sign><n>x<dur>
+filter_table := FT[ ft_step+ ]FT
+ft_step      := L<idx> | C<HH> | R<HH> | m<sign><n>x<dur>
 
-orderlists  := ORD voice voice voice /ORD
-voice       := V<1-3> order_entry* /V<1-3>
-order_entry := transpose? P<pattern_id>
-transpose   := T<signed_int>            (T+5, T-3, etc.)
+speed_table  := SPD[ <HHHH>+ ]SPD
+
+patterns     := pattern*
+pattern      := PAT<id> event* /PAT
+event        := inst_change? (note|rest|off|on|tie) command? duration?
+inst_change  := I<n>
+note         := <note_name>
+rest         := .
+off          := OFF
+on           := ON
+tie          := TIE
+command      := x<H><HH>                    command + param
+duration     := d<n>                         (omit if 1)
+
+orderlists   := ORD voice voice voice /ORD
+voice        := V<1-3> order_entry* /V<1-3>
+order_entry  := transpose? P<pattern_id>
+transpose    := T<signed>
 ```
 
-### Note Names
-
-96 notes: C0 C#0 D0 D#0 ... B0 C1 ... B7
-
-| Note | Number | SID Freq Hi (PAL) |
-|------|--------|-------------------|
-| C0 | 0 | $01 |
-| C4 | 48 | $11 |
-| A4 | 57 | $1D |
-| C7 | 84 | $45 |
+Where `<H>` = hex digit, `<HH>` = 2 hex digits, `<HHHH>` = 4 hex digits, `<n>` = decimal.
 
 ## Mapping to SIDfinity Player (GT2)
 
-USF maps to the GoatTracker V2 packed format used by the SIDfinity player:
+### Packed Pattern Encoding
 
-| USF | GT2 Packed |
-|-----|-----------|
+| USF | GT2 Packed Byte |
+|-----|----------------|
 | note N | $60 + N |
 | rest | $BD |
 | off | $BE |
 | on | $BF |
-| duration D | D-1 consecutive $BD bytes after the note |
-| instrument I | byte I+1 before the note (1-based) |
-| packed rest run | $C0–$FF (256 - count) |
+| instrument I | I+1 before note (1-based) |
+| command C val V | $40+C before note (FX), or $50+C (FXONLY for rest) |
+| duration D | D-1 consecutive $BD after note |
+| packed rests | $C0–$FF (256 - count) |
 
-### Wave Table Encoding
+### Instrument Columns
 
-GT2 wave table has two parallel columns:
-- **Left column** (waveform): raw SID waveform byte. $FF = loop marker.
-- **Right column** (note): $80+ = relative offset from current note. $01–$7F = absolute note. $00 = no change. When left=$FF, right = loop target (1-based global index).
+GT2 stores instruments column-major:
 
-### Orderlist Encoding
+| USF Field | GT2 Column |
+|-----------|-----------|
+| ad | mt_insad |
+| sr | mt_inssr |
+| wave_table[0] → wave_ptr | mt_inswaveptr (1-based index into global wave table) |
+| pulse_table[0] → pulse_ptr | mt_inspulseptr |
+| filter_table[0] → filter_ptr | mt_insfiltptr |
+| vib_speed_idx | mt_insvibparam |
+| vib_delay | mt_insvibdelay |
+| gate_timer \| (legato<<6) \| (no_hr<<7) | mt_insgatetimer |
+| first_wave (or derived) | mt_insfirstwave |
 
-GT2 orderlists are byte sequences:
-- $00–$EF: pattern number
-- $F0–$FE: transpose ($F0 + semitones for positive, $E0 + (16 + semitones) for negative)
-- $FF $00: loop to start
+### Wave Table
+
+GT2 wave table = two parallel columns (left + right), shared across instruments. Each instrument's `wave_ptr` indexes into the global table (1-based).
+
+| USF WaveTableStep | GT2 Left | GT2 Right |
+|-------------------|----------|-----------|
+| waveform + note_offset | waveform byte | $00-$5F (up) or $60-$7F (down, signed) |
+| waveform + absolute_note | waveform byte | $81-$DF (absolute) |
+| waveform + keep_freq | waveform byte | $80 |
+| delay N | $01-$0F | $00 |
+| loop → target | $FF | target (1-based global) |
+
+### Pulse Table
+
+| USF PulseTableStep | GT2 Left | GT2 Right |
+|--------------------|----------|-----------|
+| set PW | $80+ (high nib) | low byte |
+| modulate speed for dur | duration ($01-$7F) | signed speed |
+| loop → target | $FF | target (1-based) |
+
+### Filter Table
+
+| USF FilterTableStep | GT2 Left | GT2 Right |
+|---------------------|----------|-----------|
+| set cutoff | $00 | cutoff value |
+| set params | $80+ | resonance<<4 \| routing |
+| modulate for dur | duration ($01-$7F) | signed speed |
+| loop → target | $FF | target (1-based) |
+
+### Speed Table
+
+Stored as-is: array of (left, right) byte pairs.
+
+### Orderlist
+
+| USF | GT2 |
+|-----|-----|
+| (pat_id, 0) | pat_id byte |
+| (pat_id, +N) | $F0+N, then pat_id |
+| (pat_id, -N) | $E0+(16-N), then pat_id |
+| end + loop | $FF, $00 |
 
 ## Implementation Files
 
-| File | Role | Direction |
-|------|------|-----------|
-| `src/usf.py` | Data structures, tokenize/detokenize | Core |
-| `src/gt2_to_usf.py` | GoatTracker V2 → USF | Input |
-| `src/dmc_to_usf.py` | DMC → USF | Input |
-| `src/usf_to_sid.py` | USF → SIDfinity .sid | Output |
-| `src/sidfinity_packer.py` | Pack USF data with GT2 player | Output |
+| File | Role | Status |
+|------|------|--------|
+| `src/usf.py` | Data structures, tokenize/detokenize | ✅ v0.3 |
+| `src/gt2_to_usf.py` | GoatTracker V2 → USF | 🔧 needs table extraction |
+| `src/dmc_to_usf.py` | DMC → USF | 🔧 needs command mapping |
+| `src/usf_to_sid.py` | USF → SIDfinity .sid | 🔧 needs pulse/filter/speed/command support |
+| `src/sidfinity_packer.py` | Pack data with GT2 player | 🔧 needs pulse/filter/speed table packing |
+| `docs/usf_spec.md` | This spec | ✅ v0.3 |
 
 ## Sync Rules
 
-When USF changes (new fields, new event types, new token types):
+When USF changes (new fields, event types, token types):
 
-1. **Update `usf.py`**: dataclasses, tokenize(), detokenize()
-2. **Update this spec**: add the new feature to the tables above
-3. **Update all `*_to_usf.py` converters**: emit the new data where applicable
-4. **Update `usf_to_sid.py`**: consume the new data and map to GT2 format
-5. **Update `sidfinity_packer.py`**: if new player features are needed
-6. **Update `player/sidfinity_gt2.asm`**: if the player needs new capabilities
-7. **Run GT2→USF→SID roundtrip test**: verify no regression
+1. Update `src/usf.py` — dataclasses + tokenize() + detokenize()
+2. Update `docs/usf_spec.md` — this document
+3. Update ALL `*_to_usf.py` converters — emit the new data
+4. Update `src/usf_to_sid.py` — consume the new data
+5. Update `src/sidfinity_packer.py` — if new assembly defines needed
+6. Update player assembly — if player needs new capabilities
+7. Run roundtrip test — verify no regression
 
 ## Version History
 
 | Version | Date | Changes |
 |---------|------|---------|
 | 0.1 | 2026-03 | Initial: notes, instruments, wave tables, orderlists |
-| 0.2 | 2026-03-31 | Spec doc created. Added custom freq tables, tempo pass-through. |
-
-## Known Limitations (to address)
-
-- No pulse width modulation table support (instruments have initial PW only)
-- No filter table support
-- No vibrato parameters
-- No speed/funk tempo changes within a song
-- No portamento/glide effects
-- No multi-speed support
-- Tempo is global, not per-pattern or per-voice
-- No sample/digi support
+| 0.2 | 2026-03-31 | Spec doc created. Custom freq tables, tempo pass-through. |
+| 0.3 | 2026-03-31 | Full GT2 coverage: pulse/filter/speed tables, pattern commands 0–F, instrument vibrato, legato, first_wave, wave table delay/keep_freq. |
