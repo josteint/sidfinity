@@ -135,6 +135,39 @@ def dmc_sector_to_gt2_pattern(sector_events):
 
     # End marker
     packed.append(GT2_ENDPATT)
+
+    # GT2 patterns must be <= 255 bytes (pattptr is 8-bit, 0=need new pattern)
+    # Also avoid very large patterns that waste time on silence
+    if len(packed) > 128:
+        # Repack: replace long runs of rests/keyoffs with packed rests
+        compact = bytearray()
+        j = 0
+        while j < len(packed) - 1:  # -1 to exclude end marker
+            b = packed[j]
+            if b == GT2_REST or b == GT2_KEYOFF:
+                # Count consecutive rests/keyoffs
+                count = 0
+                while j < len(packed) - 1 and (packed[j] == GT2_REST or packed[j] == GT2_KEYOFF):
+                    count += 1
+                    j += 1
+                # Emit as packed rests (max 64 per byte)
+                while count > 0:
+                    chunk = min(count, 64)
+                    if chunk == 1:
+                        compact.append(GT2_REST)
+                    else:
+                        compact.append(256 - chunk)
+                    count -= chunk
+            else:
+                compact.append(b)
+                j += 1
+        compact.append(GT2_ENDPATT)
+        packed = compact
+
+    if len(packed) > 255:
+        packed = bytearray(packed[:254])
+        packed.append(GT2_ENDPATT)
+
     return bytes(packed)
 
 

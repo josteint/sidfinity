@@ -362,24 +362,7 @@ mt_speedrighttbl = ${speedrighttbl_addr:04x}
     if actual_player_size > DATA_OFFSET:
         raise ValueError(f"Player ({actual_player_size} bytes) exceeds DATA_OFFSET ({DATA_OFFSET})")
 
-    # Patch initial counter values to 1 for all 3 voices
-    # Find DEC abs,X ($DE) instruction in player code - this is mt_chncounter
-    player_code = bytearray(player_code)
-    for i in range(len(player_code) - 3):
-        if player_code[i] == 0xDE:  # DEC abs,X
-            addr = player_code[i + 1] | (player_code[i + 2] << 8)
-            # Check: is this within the player's variable area?
-            if base_addr < addr < base_addr + actual_player_size:
-                counter_off = addr - base_addr
-                # Set counter to 1 for all 3 voices (stride 7)
-                if player_code[counter_off] == 0x00:
-                    player_code[counter_off] = 0x01      # voice 1
-                    if counter_off + 7 < len(player_code):
-                        player_code[counter_off + 7] = 0x01  # voice 2
-                    if counter_off + 14 < len(player_code):
-                        player_code[counter_off + 14] = 0x01  # voice 3
-                    break
-    player_code = bytes(player_code)
+    # No counter patching needed - mt_initchn sets counter=1 during first play()
 
     # --- Build PSID header ---
     header = bytearray(124)
