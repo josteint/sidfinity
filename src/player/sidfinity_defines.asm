@@ -1,0 +1,87 @@
+; SIDfinity defines (all features enabled)
+base = $1000
+zpbase = $fc
+SIDBASE = $d400
+SOUNDSUPPORT = 0
+VOLSUPPORT = 0
+BUFFEREDWRITES = 0
+ZPGHOSTREGS = 0
+NOAUTHORINFO = 1
+NOEFFECTS = 0
+NOGATE = 0
+NOFILTER = 0
+NOFILTERMOD = 0
+NOPULSE = 0
+NOPULSEMOD = 0
+NOWAVEDELAY = 0
+NOWAVECMD = 0
+NOREPEAT = 0
+NOTRANS = 0
+NOPORTAMENTO = 0
+NOTONEPORTA = 0
+NOVIB = 0
+NOINSTRVIB = 0
+NOSETAD = 0
+NOSETSR = 0
+NOSETWAVE = 0
+NOSETWAVEPTR = 0
+NOSETPULSEPTR = 0
+NOSETFILTPTR = 0
+NOSETFILTCTRL = 0
+NOSETFILTCUTOFF = 0
+NOSETMASTERVOL = 0
+NOFUNKTEMPO = 0
+NOGLOBALTEMPO = 0
+NOCHANNELTEMPO = 0
+NOZEROSPEED = 0
+NUMCHANNELS = 3
+NUMSONGS = 1
+FIRSTNOTE = 0
+FIRSTNOHRINSTR = 10
+FIRSTLEGATOINSTR = 20
+NUMHRINSTR = 9
+NUMNOHRINSTR = 10
+NUMLEGATOINSTR = 5
+ADPARAM = $0f
+SRPARAM = $00
+FIXEDPARAMS = 0
+SIMPLEPULSE = 0
+
+; Additional defines
+NOCALCULATEDSPEED = 0
+NONORMALSPEED = 0
+NOFIRSTWAVECMD = 0
+PULSEOPTIMIZATION = 0
+REALTIMEOPTIMIZATION = 0
+DEFAULTTEMPO = 6
+
+; Data table labels (will be placed after player code)
+; These are placeholder addresses - the builder will fill in actual data
+DATATABLES = base + $0600
+
+mt_freqtbllo = DATATABLES
+mt_freqtblhi = DATATABLES + 96
+mt_songtbllo = DATATABLES + 192
+mt_songtblhi = DATATABLES + 195
+mt_patttbllo = DATATABLES + 198
+mt_patttblhi = DATATABLES + 326
+mt_insad     = DATATABLES + 454
+mt_inssr     = DATATABLES + 486
+mt_inswaveptr = DATATABLES + 518
+mt_inspulseptr = DATATABLES + 550
+mt_insfiltptr = DATATABLES + 582
+mt_insvibparam = DATATABLES + 614
+mt_insvibdelay = DATATABLES + 646
+mt_insgatetimer = DATATABLES + 678
+mt_insfirstwave = DATATABLES + 710
+mt_wavetbl   = DATATABLES + 742
+mt_notetbl   = DATATABLES + 870
+mt_pulsetimetbl = DATATABLES + 998
+mt_pulsespdtbl = DATATABLES + 1126
+mt_filttimetbl = DATATABLES + 1254
+mt_filtspdtbl = DATATABLES + 1382
+mt_speedlefttbl = DATATABLES + 1510
+mt_speedrighttbl = DATATABLES + 1638
+mt_funktempotbl = DATATABLES + 1766
+mt_tick0jumptbl = DATATABLES + 1894
+mt_effectjumptbl = DATATABLES + 1910
