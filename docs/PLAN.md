@@ -73,20 +73,30 @@ is forked into `src/player/sidfinity_player.s` (free license).
 
 The transpiler pipeline: DMC SID -> parse -> transpile to GT2 format -> GT2 player -> output SID
 
-**Where we left off:**
-- DMC sector data DECODED successfully (Turrican_32k: 55 sectors with real music)
+**Completed:**
+- DMC sector data DECODED: 55 sectors with real music (Turrican_32k)
 - DMC sector pointer table found via universal address analysis
 - DMC instrument table found at freq_hi + $0248 (works for ~96% of files)
-- DMC has two main versions: V4 (fhi at +$06A8) and V5 (fhi at +$0770)
-- The universal extractor handles both versions
+- DMC track data decoded: 3 voices with sector refs, transpose, repeat commands
+- DMC sectors -> GT2 packed patterns: working (duration expansion, note mapping)
+- Full pipeline produces playable SID (GT2 player reads transpiled DMC patterns)
+- DMC parser tested on 497 files: 367/455 have sectors extracted (80.7%)
+
+**Key problem discovered:**
+Hacking an existing GT2 SID template doesn't work because:
+1. Template instruments don't match DMC instruments (wrong waveforms, ADSR, wave tables)
+2. DMC uses non-standard freq tables (different tuning per file)
+3. GT2 player initialization expects its own data format for instruments, wave/pulse/filter tables
 
 **Next steps (pick up here):**
-1. Build complete DMC parser using universal extractor + sector/track decoding
-2. Map DMC instruments to GT2 instruments (11-byte -> 9-byte + wave/pulse/filter tables)
-3. Map DMC sectors to GT2 packed patterns (different note/duration encoding)
-4. Map DMC tracks to GT2 orderlists
-5. Assemble with GT2 player blob
-6. Validate: siddump comparison original DMC vs rebuilt GT2 SID
+1. **Port greloc.c to Python** — build a GT2 SID assembler that creates complete binaries
+   from scratch: player code + defines + freq table + instruments + tables + orderlists + patterns.
+   This is the proper way to produce GT2 SIDs rather than hacking templates.
+2. Map DMC instruments to GT2 instruments properly (AD/SR, wave table for waveform,
+   pulse table for PWM, gate timer for hard restart / nogate mode)
+3. Map DMC wave table to GT2 wave table
+4. Copy DMC freq table into output SID
+5. Validate: siddump comparison original DMC vs rebuilt SID
 
 ### Step 4: Scale to More Players
 
