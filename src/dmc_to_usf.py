@@ -41,6 +41,30 @@ def dmc_to_usf(sid_path):
     song.freq_lo = freq_lo
     song.freq_hi = freq_hi
 
+    # Find DMC wave table addresses by tracing player code
+    # Wave table has two columns: left (waveform bytes) and right (note data)
+    # Left column accessed via: LDA $XXXX,Y followed by CMP #$90
+    # Right column accessed via: LDA $YYYY,Y shortly after
+    dmc_wt_left = None
+    dmc_wt_right = None
+    for i in range(len(binary) - 5):
+        if binary[i] == 0xB9:  # LDA abs,Y
+            addr = binary[i + 1] | (binary[i + 2] << 8)
+            for j in range(i + 3, min(i + 10, len(binary) - 1)):
+                if binary[j] == 0xC9 and binary[j + 1] == 0x90:
+                    dmc_wt_left = addr - la
+                    # Find right column: next LDA abs,Y after the branch
+                    for k in range(j + 2, min(j + 40, len(binary) - 2)):
+                        if binary[k] == 0xB9:
+                            raddr = binary[k + 1] | (binary[k + 2] << 8)
+                            roff = raddr - la
+                            if roff > dmc_wt_left and roff < dmc_wt_left + 200:
+                                dmc_wt_right = roff
+                                break
+                    break
+            if dmc_wt_left is not None:
+                break
+
     # Convert instruments
     for dmc_instr in dmc['instruments']:
         if dmc_instr is None:
@@ -48,22 +72,45 @@ def dmc_to_usf(sid_path):
             continue
 
         fx = dmc_instr['fx']
-        waveform = 'pulse'
-        if fx & 0x01:  # drum
-            waveform = 'noise'
-        elif fx & 0x80:  # cymbal
-            waveform = 'noise'
-
         hr = 'gate'
         if fx & 0x08:  # nogate
             hr = 'none'
 
-        # Simple wave table: just set the waveform and keep note frequency
-        wt = [
-            WaveTableStep(waveform={'pulse': 0x41, 'saw': 0x21, 'tri': 0x11,
-                                     'noise': 0x81}[waveform], note_offset=0),
-            WaveTableStep(is_loop=True, loop_target=0),
-        ]
+        # Extract wave table from DMC binary (both columns)
+        wt = []
+        wp = dmc_instr['wave_ptr']
+        if dmc_wt_left is not None and wp > 0:
+            idx = wp
+            while dmc_wt_left + idx < len(binary) and len(wt) < 32:
+                b = binary[dmc_wt_left + idx]
+                if b == 0xFE:
+                    wt.append(WaveTableStep(waveform=0x00, note_offset=0))
+                elif b < 0x90:
+                    # Raw SID waveform byte (left column)
+                    # Right column has note data
+                    note_data = 0
+                    if dmc_wt_right is not None and dmc_wt_right + idx < len(binary):
+                        note_data = binary[dmc_wt_right + idx]
+                    wt.append(WaveTableStep(waveform=b, note_offset=note_data))
+                else:
+                    # Command >= $90: loop back (b - $90) steps
+                    jump_back = b - 0x90
+                    loop_target = max(0, len(wt) - jump_back)
+                    wt.append(WaveTableStep(is_loop=True, loop_target=loop_target))
+                    break
+                idx += 1
+
+        if not wt:
+            # Default: pulse wave, loop
+            wt = [
+                WaveTableStep(waveform=0x41, note_offset=0),
+                WaveTableStep(is_loop=True, loop_target=0),
+            ]
+
+        # Determine primary waveform from first non-loop wave table entry
+        first_wave = wt[0].waveform if wt and not wt[0].is_loop else 0x41
+        wave_bits = (first_wave >> 4) & 0xF
+        waveform = {1: 'tri', 2: 'saw', 4: 'pulse', 8: 'noise'}.get(wave_bits, 'pulse')
 
         inst = Instrument(
             id=len(song.instruments),
@@ -125,36 +172,48 @@ def dmc_to_usf(sid_path):
         song.patterns.append(patt)
 
     # Convert tracks to orderlists
-    # Find tune pointer table (hardcoded for now, needs generalization)
+    # Find tune pointer table by searching player code for LDA abs,Y pairs
+    # DMC stores tune pointers as an interleaved table: lo0 hi0 lo1 hi1 lo2 hi2
+    # Player accesses via LDA $XXXX,Y and LDA $XXXX+1,Y with Y=0,2,4
     tpt_off = None
-    # Search for tune pointer table using address analysis
     ft = find_freq_table(binary)
     if ft:
         freq_off = ft[0]
         fhi = freq_off if ft[1] == 'hi_lo' else freq_off + 96
         instr_off = fhi + 0x0248
-        code_regions = [(0, freq_off), (freq_off + 192, instr_off)]
-        refs = collect_addresses(binary, la, code_regions)
-        data_addrs = sorted(a for a, r in refs.items()
-                            if r['is_data'] and (a - la) >= instr_off + 352)
+        code_end = freq_off  # player code is before freq table
 
-        # Find tune pointer table: 3 consecutive addresses pointing into track area
-        for a in data_addrs:
-            off = a - la
-            if off + 6 <= len(binary):
-                v1 = binary[off] | (binary[off + 1] << 8)
-                v2 = binary[off + 2] | (binary[off + 3] << 8)
-                v3 = binary[off + 4] | (binary[off + 5] << 8)
-                if (la < v1 < la + len(binary) and
-                    la < v2 < la + len(binary) and
-                    la < v3 < la + len(binary) and
-                    v1 != v2):
-                    tpt_off = off
-                    break
+        # Collect all LDA abs,Y ($B9) in player code pointing past instruments
+        lda_refs = []
+        for i in range(code_end - 2):
+            if binary[i] == 0xB9:  # LDA abs,Y
+                addr = binary[i + 1] | (binary[i + 2] << 8)
+                off = addr - la
+                if instr_off <= off < len(binary):
+                    lda_refs.append(addr)
+
+        # Find pairs where addresses differ by 1 (lo/hi table access)
+        lda_set = set(lda_refs)
+        for addr in sorted(lda_set):
+            if addr + 1 in lda_set:
+                off = addr - la
+                # Check if this looks like 3 interleaved 16-bit pointers
+                if off + 6 <= len(binary):
+                    ptrs = []
+                    valid = True
+                    for k in range(3):
+                        v = binary[off + k * 2] | (binary[off + k * 2 + 1] << 8)
+                        if not (la <= v < la + len(binary)):
+                            valid = False
+                            break
+                        ptrs.append(v)
+                    if valid and len(set(ptrs)) >= 2:
+                        tpt_off = off
+                        break
 
     if tpt_off is not None:
-        voice_addrs = [binary[tpt_off + i] | (binary[tpt_off + i + 1] << 8)
-                       for i in range(0, 6, 2)]
+        voice_addrs = [binary[tpt_off + i * 2] | (binary[tpt_off + i * 2 + 1] << 8)
+                       for i in range(3)]
 
         for vi, va in enumerate(voice_addrs):
             ol = []
@@ -171,6 +230,9 @@ def dmc_to_usf(sid_path):
                     break
                 elif 0xA0 <= b <= 0xAF:
                     trans = b & 0x0F
+                    off += 1
+                elif 0x80 <= b <= 0x8F:
+                    trans = -(b & 0x0F)
                     off += 1
                 else:
                     off += 1

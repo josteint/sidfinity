@@ -53,12 +53,43 @@ def find_dmc_layout(binary, load_addr):
     freq_off, freq_order = ft
     freq_end = freq_off + 192
 
-    # Instrument table is consistently at freq_hi + $0248
     if freq_order == 'hi_lo':
         fhi_off = freq_off
     else:
         fhi_off = freq_off + 96
-    instr_off = fhi_off + 0x0248
+
+    # Detect DMC version using SIDId signatures
+    # V4.x: FE ?? ?? BD ?? ?? 18 7D ?? ?? 9D
+    # V5.x: BC ?? ?? B9 ?? ?? C9 90
+    dmc_version = 'v4'
+    for i in range(len(binary) - 8):
+        if (binary[i] == 0xBC and binary[i+3] == 0xB9 and
+            binary[i+6] == 0xC9 and binary[i+7] == 0x90):
+            dmc_version = 'v5'
+            break
+
+    # Instrument table offset from freq_hi depends on version
+    # V4: fhi + $0248, V5: find dynamically via player code references
+    if dmc_version == 'v5':
+        # V5: find instrument table by looking for LDA abs,Y refs from player code
+        # Per-voice variables use X indexing, instrument columns use Y indexing
+        # Only look at Y-indexed loads (LDA $XXXX,Y = $B9)
+        code_end = freq_off
+        instr_refs = set()
+        for i in range(code_end - 2):
+            if binary[i] == 0xB9:  # LDA abs,Y only
+                addr = binary[i+1] | (binary[i+2] << 8)
+                off = addr - load_addr
+                if freq_end < off < freq_end + 0x400:
+                    instr_refs.add(off)
+        if instr_refs:
+            # The instrument table starts at the lowest Y-indexed address
+            candidates = sorted(instr_refs)
+            instr_off = candidates[0]
+        else:
+            instr_off = fhi_off + 0x0248
+    else:
+        instr_off = fhi_off + 0x0248
 
     if instr_off + 352 > len(binary):
         return None
@@ -240,9 +271,8 @@ def parse_dmc_sid(sid_path):
     if layout is None:
         return None
 
-    # Parse instruments
+    # Parse instruments (keep full 32-element array to preserve index mapping)
     instruments = parse_instruments(binary, layout['instr_off'])
-    active_instruments = [i for i in instruments if i is not None]
 
     # Parse sectors
     sectors = []
@@ -266,8 +296,8 @@ def parse_dmc_sid(sid_path):
                    if k not in ('data_addrs',) and not isinstance(v, list)},
         'num_sectors': layout['num_sectors'],
         'sector_addrs': [f'${a:04X}' for a in layout['sector_addrs']],
-        'instruments': active_instruments,
-        'num_instruments': len(active_instruments),
+        'instruments': instruments,
+        'num_instruments': sum(1 for i in instruments if i is not None),
         'sectors': sectors,
         'total_notes': total_notes,
     }
