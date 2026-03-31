@@ -1,225 +1,276 @@
 """
 dmc_parser.py - Parse DMC (Demo Music Creator) SID files.
 
-DMC uses fixed offsets (unlike GoatTracker's conditional compilation):
-  +$0000: JMP init, JMP play
-  +$06A8: Frequency table hi (96 bytes)
-  +$0708: Frequency table lo (96 bytes)
-  +$08F0: Instrument table (32 x 11 bytes)
-  +$0AA2: Track data (sector order lists)
-  +$0BF9: Tune pointer table (8 x 8 bytes)
-  +$0C01: Sector data (variable length)
-  end-2N: Sector pointer table (N lo bytes + N hi bytes)
+Uses the universal address analysis technique: find the freq table,
+then use player code references to locate all data tables.
 
-Sector data encoding:
-  $00-$5F: Note (C-0 through B-7)
+DMC sector encoding:
+  $00-$5F: Note (C-0 through B-7, 96 notes)
   $60-$7C: Duration (AND $1F = ticks)
-  $7D: Continuation (no ADSR reset)
+  $7D: Continuation (no ADSR reset on next note)
   $7E: Gate off
-  $7F: End of sector
+  $7F: End of sector (V4) / also $FF for some versions
   $80-$9F: Instrument select (AND $1F)
-  $A0-$BF: Glide command
+  $A0-$BF: Glide command ($A0 + semitones)
+  $C0-$DF: Additional commands
 """
 
 import struct
 import sys
 import os
+import json
 
-# DMC frequency table (first 24 bytes of hi table for detection)
-DMC_FREQ_HI_NEEDLE = bytes([
-    0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x02,
-    0x02,0x02,0x02,0x02,0x02,0x02,0x03,0x03,0x03,0x03,0x03,0x04,
-])
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from sid_data_extractor import (parse_sid_header, find_freq_table,
+                                 collect_addresses, cluster_addresses,
+                                 _INST_LEN)
+
+NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B']
 
 # DMC constants
-DMC_SECTOR_END = 0x7F
-DMC_GATE_OFF = 0x7E
-DMC_CONTINUATION = 0x7D
+DMC_NOTE_MAX = 0x5F
+DMC_DUR_MIN = 0x60
+DMC_DUR_MAX = 0x7C
+DMC_CONT = 0x7D
+DMC_GATEOFF = 0x7E
+DMC_SECTOR_END_V4 = 0x7F
+DMC_INST_MIN = 0x80
+DMC_INST_MAX = 0x9F
+DMC_GLIDE_MIN = 0xA0
+DMC_GLIDE_MAX = 0xBF
+DMC_SECTOR_END_V5 = 0xFF
 
 
-def parse_psid_header(data):
-    """Parse PSID header, return header dict + binary + load_addr."""
-    if data[:4] not in (b'PSID', b'RSID'):
-        raise ValueError("Not a SID file")
-    data_offset = struct.unpack('>H', data[6:8])[0]
-    load_addr = struct.unpack('>H', data[8:10])[0]
-    init_addr = struct.unpack('>H', data[10:12])[0]
-    play_addr = struct.unpack('>H', data[12:14])[0]
-    songs = struct.unpack('>H', data[14:16])[0]
-    title = data[22:54].split(b'\x00')[0].decode('latin-1')
-    author = data[54:86].split(b'\x00')[0].decode('latin-1')
+def find_dmc_layout(binary, load_addr):
+    """Find DMC data sections using freq table + address analysis.
 
-    payload = data[data_offset:]
-    if load_addr == 0:
-        load_addr = struct.unpack('<H', payload[:2])[0]
-        binary = payload[2:]
-    else:
-        binary = payload
-
-    return {
-        'title': title,
-        'author': author,
-        'load_addr': load_addr,
-        'init_addr': init_addr,
-        'play_addr': play_addr,
-        'songs': songs,
-    }, binary, load_addr
-
-
-def find_dmc_base(binary):
-    """Find the DMC player base offset by locating the freq table.
-
-    Returns base_offset (0 for standard layout) or None.
+    Returns dict with all section offsets, or None if not DMC.
     """
-    pos = binary.find(DMC_FREQ_HI_NEEDLE)
-    if pos == -1:
+    ft = find_freq_table(binary)
+    if ft is None:
         return None
-    # Standard DMC has freq hi at +$06A8
-    base = pos - 0x06A8
-    if base < 0:
+
+    freq_off, freq_order = ft
+    freq_end = freq_off + 192
+
+    # Instrument table is consistently at freq_hi + $0248
+    if freq_order == 'hi_lo':
+        fhi_off = freq_off
+    else:
+        fhi_off = freq_off + 96
+    instr_off = fhi_off + 0x0248
+
+    if instr_off + 352 > len(binary):
         return None
-    # Verify: JMP at base+0 and base+3
-    if base + 3 < len(binary) and binary[base] == 0x4C and binary[base + 3] == 0x4C:
-        return base
-    # If base is 0 and binary starts with JMP
-    if binary[0] == 0x4C and binary[3] == 0x4C:
-        return 0
-    return None
 
+    # Verify: check that instruments look valid (not all zeros, not all code)
+    instr_region = binary[instr_off:instr_off + 352]
+    nonzero_instrs = sum(1 for i in range(32)
+                         if any(instr_region[i*11+j] != 0 for j in range(11)))
+    if nonzero_instrs < 2:
+        return None
 
-def parse_dmc_sid(data):
-    """Parse a DMC SID file into its components."""
-    header, binary, load_addr = parse_psid_header(data)
+    # Collect all data addresses referenced by player code
+    # Code is in multiple regions: before freq, and between freq and instruments
+    code_regions = [
+        (0, freq_off),
+        (freq_end, instr_off),
+    ]
+    refs = collect_addresses(binary, load_addr, code_regions)
 
-    base = find_dmc_base(binary)
-    if base is None:
-        raise ValueError("Could not identify DMC layout")
+    # Find all data-access references after instruments
+    instr_end = instr_off + 352
+    data_addrs = sorted(a for a, r in refs.items()
+                        if r['is_data'] and (a - load_addr) >= instr_end)
 
-    songs = header['songs']
-
-    # Read instruments (32 x 11 bytes at base+$08F0)
-    instr_off = base + 0x08F0
-    instruments = []
-    for i in range(32):
-        b = instr_off + i * 11
-        if b + 11 > len(binary):
-            break
-        raw = list(binary[b:b + 11])
-        instruments.append({
-            'index': i,
-            'ad': raw[0], 'sr': raw[1], 'wave_ptr': raw[2],
-            'pw1': raw[3], 'pw2': raw[4], 'pw3': raw[5],
-            'pw_limit': raw[6], 'vib1': raw[7], 'vib2': raw[8],
-            'filter': raw[9], 'fx': raw[10],
-            'raw': raw,
-        })
-
-    # Read tune pointer table (base+$0BF9, 8 x 8 bytes)
-    tpt_off = base + 0x0BF9
-    tune_pointers = []
-    for t in range(min(songs, 8)):
-        b = tpt_off + t * 8
-        if b + 6 > len(binary):
-            break
-        v1 = binary[b] | (binary[b + 1] << 8)
-        v2 = binary[b + 2] | (binary[b + 3] << 8)
-        v3 = binary[b + 4] | (binary[b + 5] << 8)
-        tune_pointers.append((v1, v2, v3))
-
-    # Find sector pointer table at end of file
-    # It's 2*N bytes at the end: N lo bytes then N hi bytes
-    # Sectors are numbered 0 to N-1
-    # We detect N by scanning backward from end for valid sector addresses
-
-    # Sector data starts around base+$0C01
-    sector_data_start = load_addr + base + 0x0C01
-
-    # The sector pointer table contains addresses that should point
-    # into the sector data area. Scan from end of binary.
+    # Find sector pointer table: a pair of referenced addresses where
+    # the gap = N (sector count), and the N addresses they contain
+    # point to valid sector data locations.
+    sector_ptr_lo = None
+    sector_ptr_hi = None
     num_sectors = 0
-    for n in range(1, 65):  # max 64 sectors
-        # Test if last 2*n bytes form valid sector pointers
-        if 2 * n > len(binary):
-            break
-        lo_start = len(binary) - 2 * n
-        hi_start = len(binary) - n
 
-        valid = True
-        for j in range(n):
-            addr = binary[lo_start + j] | (binary[hi_start + j] << 8)
-            if not (sector_data_start <= addr < load_addr + len(binary)):
-                valid = False
-                break
-        if valid:
-            num_sectors = n
+    best_score = 0
+    for i in range(len(data_addrs)):
+        for j in range(i + 1, len(data_addrs)):
+            lo_addr = data_addrs[i]
+            hi_addr = data_addrs[j]
+            n = hi_addr - lo_addr
+            if n < 3 or n > 64:
+                continue
 
-    # Read sector pointer table
+            lo_off = lo_addr - load_addr
+            hi_off = hi_addr - load_addr
+            if hi_off + n > len(binary):
+                continue
+
+            # Read addresses and check validity
+            valid = True
+            addrs = []
+            for k in range(n):
+                addr = binary[lo_off + k] | (binary[hi_off + k] << 8)
+                if not (load_addr <= addr < load_addr + len(binary)):
+                    valid = False
+                    break
+                addrs.append(addr)
+
+            if not valid or len(addrs) != n:
+                continue
+
+            # Score: how many pointed-to locations look like sector data?
+            # Sector data starts with note ($00-$5F), duration ($60-$7C),
+            # instrument ($80-$9F), glide ($A0-$BF), gate off ($7E), or cmd ($C0+)
+            score = 0
+            for addr in addrs:
+                off = addr - load_addr
+                if off < len(binary):
+                    b = binary[off]
+                    if b <= 0xBF or b == 0x7E:
+                        score += 1
+
+            if score > best_score and score >= n * 0.7:
+                best_score = score
+                sector_ptr_lo = lo_addr
+                sector_ptr_hi = hi_addr
+                num_sectors = n
+
+    # Read sector addresses
     sector_addrs = []
-    if num_sectors > 0:
-        lo_start = len(binary) - 2 * num_sectors
-        hi_start = len(binary) - num_sectors
-        for j in range(num_sectors):
-            addr = binary[lo_start + j] | (binary[hi_start + j] << 8)
+    if sector_ptr_lo:
+        lo_off = sector_ptr_lo - load_addr
+        hi_off = sector_ptr_hi - load_addr
+        for k in range(num_sectors):
+            addr = binary[lo_off + k] | (binary[hi_off + k] << 8)
             sector_addrs.append(addr)
 
-    # Read sector data
-    sectors = []
-    for addr in sector_addrs:
-        off = addr - load_addr
-        if off < 0 or off >= len(binary):
-            sectors.append([])
-            continue
-        raw = []
-        i = off
-        while i < len(binary) and binary[i] != DMC_SECTOR_END:
-            raw.append(binary[i])
-            i += 1
-        if i < len(binary):
-            raw.append(DMC_SECTOR_END)
-        sectors.append(raw)
-
-    # Read track data (base+$0AA2)
-    # Track data is the order list for each voice per subtune
-    # Format: byte sequence where each byte is a sector number,
-    # $FF = loop, $FE = end
-    track_off = base + 0x0AA2
-
     return {
-        'header': header,
-        'load_addr': load_addr,
-        'base': base,
-        'binary': binary,
-        'instruments': instruments,
-        'tune_pointers': tune_pointers,
+        'freq_off': freq_off,
+        'freq_order': freq_order,
+        'freq_end': freq_end,
+        'instr_off': instr_off,
+        'instr_end': instr_end,
+        'sector_ptr_lo': sector_ptr_lo,
+        'sector_ptr_hi': sector_ptr_hi,
         'num_sectors': num_sectors,
         'sector_addrs': sector_addrs,
-        'sectors': sectors,
-        'header_bytes': data[:124],
-        'load_addr_bytes': data[124:126] if struct.unpack('>H', data[8:10])[0] == 0 else b'',
+        'data_addrs': data_addrs,
     }
 
 
-def coarse_roundtrip(sid_path):
-    """Test coarse roundtrip: just verify we can read and reconstruct."""
+def parse_instruments(binary, instr_off):
+    """Parse 32 DMC instruments (11 bytes each)."""
+    instruments = []
+    for i in range(32):
+        base = instr_off + i * 11
+        raw = list(binary[base:base + 11])
+        if all(b == 0 for b in raw):
+            instruments.append(None)
+            continue
+        instruments.append({
+            'index': i,
+            'ad': raw[0],
+            'sr': raw[1],
+            'wave_ptr': raw[2],
+            'pw1': raw[3],
+            'pw2': raw[4],
+            'pw3': raw[5],
+            'pw_limit': raw[6],
+            'vib1': raw[7],
+            'vib2': raw[8],
+            'filter': raw[9],
+            'fx': raw[10],
+        })
+    return instruments
+
+
+def decode_sector(binary, load_addr, sector_addr, next_sector_addr=None):
+    """Decode a single DMC sector into events.
+
+    Returns list of event dicts.
+    """
+    off = sector_addr - load_addr
+    if off < 0 or off >= len(binary):
+        return []
+
+    max_off = (next_sector_addr - load_addr) if next_sector_addr else len(binary)
+    events = []
+    i = off
+
+    while i < max_off and i < len(binary):
+        b = binary[i]
+
+        if b == DMC_SECTOR_END_V4 or b == DMC_SECTOR_END_V5:
+            break
+
+        if b <= DMC_NOTE_MAX:
+            note_num = b
+            octave = note_num // 12
+            name = NOTE_NAMES[note_num % 12]
+            events.append({'type': 'note', 'value': note_num,
+                          'name': f'{name}{octave}'})
+        elif DMC_DUR_MIN <= b <= DMC_DUR_MAX:
+            events.append({'type': 'duration', 'value': b & 0x1F})
+        elif b == DMC_CONT:
+            events.append({'type': 'continuation'})
+        elif b == DMC_GATEOFF:
+            events.append({'type': 'gate_off'})
+        elif DMC_INST_MIN <= b <= DMC_INST_MAX:
+            events.append({'type': 'instrument', 'value': b & 0x1F})
+        elif DMC_GLIDE_MIN <= b <= DMC_GLIDE_MAX:
+            events.append({'type': 'glide', 'value': b - DMC_GLIDE_MIN})
+        else:
+            events.append({'type': 'command', 'value': b})
+
+        i += 1
+
+    return events
+
+
+def parse_dmc_sid(sid_path):
+    """Parse a DMC SID file into structured data.
+
+    Returns dict with header, instruments, sectors, or None.
+    """
     with open(sid_path, 'rb') as f:
-        original = f.read()
+        data = f.read()
 
-    try:
-        parsed = parse_dmc_sid(original)
-    except ValueError:
-        return 'skip'
+    header, binary, load_addr = parse_sid_header(data)
 
-    # Reconstruct: header + load_addr_bytes + binary (unchanged)
-    rebuilt = bytearray()
-    rebuilt.extend(parsed['header_bytes'])
-    rebuilt.extend(parsed['load_addr_bytes'])
-    rebuilt.extend(parsed['binary'])
+    layout = find_dmc_layout(binary, load_addr)
+    if layout is None:
+        return None
 
-    if bytes(rebuilt) == original:
-        ns = parsed['num_sectors']
-        ni = sum(1 for i in parsed['instruments'] if any(v != 0 for v in i['raw']))
-        return f'match|sectors={ns}|instr={ni}'
-    return 'diff'
+    # Parse instruments
+    instruments = parse_instruments(binary, layout['instr_off'])
+    active_instruments = [i for i in instruments if i is not None]
+
+    # Parse sectors
+    sectors = []
+    sorted_addrs = sorted(set(layout['sector_addrs']))
+    for idx, addr in enumerate(layout['sector_addrs']):
+        # Find next sector for boundary
+        sa_idx = sorted_addrs.index(addr)
+        next_addr = sorted_addrs[sa_idx + 1] if sa_idx + 1 < len(sorted_addrs) else None
+        events = decode_sector(binary, load_addr, addr, next_addr)
+        sectors.append(events)
+
+    # Count notes
+    total_notes = sum(sum(1 for e in sec if e['type'] == 'note') for sec in sectors)
+
+    return {
+        'file': os.path.basename(sid_path),
+        'header': header,
+        'load_addr': load_addr,
+        'binary_size': len(binary),
+        'layout': {k: v for k, v in layout.items()
+                   if k not in ('data_addrs',) and not isinstance(v, list)},
+        'num_sectors': layout['num_sectors'],
+        'sector_addrs': [f'${a:04X}' for a in layout['sector_addrs']],
+        'instruments': active_instruments,
+        'num_instruments': len(active_instruments),
+        'sectors': sectors,
+        'total_notes': total_notes,
+    }
 
 
 def main():
@@ -227,24 +278,37 @@ def main():
     parser = argparse.ArgumentParser(description='Parse DMC SID files')
     parser.add_argument('input', nargs='+', help='SID file(s)')
     parser.add_argument('-v', '--verbose', action='store_true')
+    parser.add_argument('-o', '--output', help='Output JSON file')
     args = parser.parse_args()
 
-    match = fail = skip = 0
+    results = []
     for path in args.input:
         if not os.path.exists(path):
             continue
-        result = coarse_roundtrip(path)
-        if result.startswith('match'):
-            match += 1
-            if args.verbose:
-                print(f'  OK {os.path.basename(path)} ({result})')
-        elif result == 'skip':
-            skip += 1
-        else:
-            fail += 1
-            print(f'FAIL {os.path.basename(path)}: {result}')
+        result = parse_dmc_sid(path)
+        if result is None:
+            print(f'SKIP {os.path.basename(path)}: not DMC or parse failed')
+            continue
 
-    print(f'\nResults: {match} match, {fail} fail, {skip} skip')
+        results.append(result)
+        h = result['header']
+        print(f'{result["file"]:40s} sectors={result["num_sectors"]:3d} '
+              f'instr={result["num_instruments"]:2d} notes={result["total_notes"]:5d}')
+
+        if args.verbose:
+            print(f'  {h["title"]} by {h["author"]}')
+            print(f'  Load=${result["load_addr"]:04X} Size={result["binary_size"]}')
+            for i, sec in enumerate(result['sectors'][:5]):
+                notes = [e['name'] for e in sec if e['type'] == 'note']
+                print(f'  S{i:02d}: {len(sec)} events, notes: {notes[:8]}')
+            if result['num_sectors'] > 5:
+                print(f'  ... ({result["num_sectors"]} total sectors)')
+
+    if args.output and results:
+        with open(args.output, 'w') as f:
+            json.dump(results, f, indent=2)
+
+    print(f'\nParsed: {len(results)} files')
 
 
 if __name__ == '__main__':

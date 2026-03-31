@@ -108,37 +108,39 @@ def find_freq_table(binary):
     Searches for the distinctive PAL frequency table pattern.
     Uses a sliding window with fuzzy matching (>= 20/24 bytes match).
     """
-    # Try both hi and lo needles with fuzzy matching
+    # Phase 1: Try both hi and lo needles with fuzzy matching, require both
     for needle, name in [(FREQ_HI_NEEDLE, 'hi'), (FREQ_LO_NEEDLE, 'lo')]:
         for pos in range(len(binary) - 24):
             match = sum(1 for i in range(24) if binary[pos + i] == needle[i])
-            if match < 20:  # require 20/24 match
+            if match < 20:
                 continue
 
-            # Found a match — check for the complementary table at +96 or -96
             other_needle = FREQ_LO_NEEDLE if name == 'hi' else FREQ_HI_NEEDLE
 
-            # Check +96
-            other_pos = pos + 96
-            if other_pos + 24 <= len(binary):
+            for other_pos in [pos + 96, pos - 96]:
+                if other_pos < 0 or other_pos + 24 > len(binary):
+                    continue
                 other_match = sum(1 for i in range(24)
                                   if binary[other_pos + i] == other_needle[i])
                 if other_match >= 20:
                     if name == 'hi':
-                        return pos, 'hi_lo'
+                        if other_pos > pos:
+                            return pos, 'hi_lo'
+                        else:
+                            return other_pos, 'lo_hi'
                     else:
-                        return pos, 'lo_hi'
+                        if other_pos > pos:
+                            return pos, 'lo_hi'
+                        else:
+                            return other_pos, 'hi_lo'
 
-            # Check -96
-            other_pos = pos - 96
-            if other_pos >= 0:
-                other_match = sum(1 for i in range(24)
-                                  if binary[other_pos + i] == other_needle[i])
-                if other_match >= 20:
-                    if name == 'hi':
-                        return other_pos, 'lo_hi'  # lo is before hi
-                    else:
-                        return other_pos, 'hi_lo'  # hi is before lo
+    # Phase 2: Hi-only matching (DMC uses custom lo tables sometimes)
+    # The hi table is always standard (octave relationships are fixed)
+    for pos in range(len(binary) - 24):
+        match = sum(1 for i in range(24) if binary[pos + i] == FREQ_HI_NEEDLE[i])
+        if match >= 22:  # stricter threshold since we only have one table
+            # Assume hi-lo order (most common for DMC)
+            return pos, 'hi_lo'
 
     return None
 
