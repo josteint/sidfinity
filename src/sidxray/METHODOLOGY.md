@@ -75,9 +75,43 @@ Common issues:
 - **Missing tables**: check for addresses read every frame that aren't freq table
 - **Timing mismatch**: check tempo/speed detection
 
+## Lessons Learned: GoatTracker V2
+
+What we discovered applying this methodology to `On_a_Sanction_from_CIA.sid`:
+
+### Static analysis failed
+
+- The GT2 packer (`greloc.c`) conditionally strips unused columns, so the number and order of columns varies per file.
+- Address gap analysis gave ni=5 (wrong). The first two referenced addresses happened to be 5 apart, but the actual stride was 11.
+- The greloc.c source says data order is freq→song→patt→instruments, but this file had freq hi before lo (opposite of what greloc.c emits). Different GT2 versions use different orders.
+- Searching for column base addresses as 16-bit operands in the player code only found 3 out of 7 columns — the rest were accessed but not at the expected stride-5 offsets.
+
+### Memtrace succeeded
+
+- Co-occurrence analysis immediately revealed 5 addresses always read on the same 13 frames → these are 5 instrument columns for instrument Y=7.
+- The stride between them (11) gave the true ni=11.
+- Checking other mod-11 offsets confirmed: Y=8 read 4 times, Y=9 read once — different instruments triggered at different rates.
+- High-duty addresses (>80%) at the same base turned out to be per-frame register updates, not instrument triggers — important to separate from note-trigger reads.
+- The wave table was identified by sequential stepping (frame-by-frame increment) at addresses right after the instrument columns.
+
+### Key finding: ni ≠ address gap
+
+The GT2 packer can produce ANY ni value depending on how many instruments are defined (not just used). The first two addresses in the data area may have a gap that has nothing to do with ni. Only the co-occurrence stride is reliable.
+
+### What FIXEDPARAMS does
+
+When the GT2 packer determines all instruments share the same gate_timer and first_wave values, it sets FIXEDPARAMS=1 and:
+- Removes the gate_timer and first_wave columns entirely
+- Embeds them as compile-time constants in the player code (LDA #xx instead of LDA table,Y)
+- This reduces column count from 9 to 7 (in this file's case)
+
+The memtrace reveals this because those addresses simply don't appear in the note-trigger co-occurrence group.
+
 ## Tips
 
 - Run with `--duration 30` for better statistics (more note triggers = clearer co-occurrence)
 - Compare two files with the same player to find common structure
 - Use `--writelog` alongside `--memtrace` to correlate reads with SID writes
 - The first frame (init) reads addresses in a different pattern — skip frame 0 in analysis
+- High-duty reads at instrument column addresses are per-frame register writes, not note triggers — filter by duty cycle to separate them
+- If ni seems wrong, check co-occurrence stride instead of address gaps
