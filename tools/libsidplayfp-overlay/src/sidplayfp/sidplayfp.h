@@ -40,9 +40,11 @@ namespace libsidplayfp
 {
     class Player;
     struct SidWrite;
+    struct MemRead;
 }
 
 using libsidplayfp::SidWrite;
+using libsidplayfp::MemRead;
 
 /**
  * sidplayfp
@@ -233,6 +235,10 @@ public:
     bool enableWriteLog(unsigned int sidNum, bool enable);
     bool clearWriteLog(unsigned int sidNum);
     const std::vector<SidWrite>& getWriteLog(unsigned int sidNum);
+
+    void enableReadTrace(bool enable, uint16_t minAddr = 0, uint16_t maxAddr = 0xCFFF);
+    void clearReadLog();
+    const std::vector<MemRead>& getReadLog() const;
 
     /**
      * Get the required size of the buffer for the number of cycles to run,

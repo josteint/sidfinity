@@ -106,28 +106,108 @@ Each row in .sng = 4 bytes:
 
 ## Packed/Exported SID Format
 
-The `greloc.c` packer/relocator heavily optimizes the .sng into a completely different binary format.
+The `greloc.c` packer/relocator heavily optimizes the .sng into a completely different binary format. Source: [github.com/leafo/goattracker2](https://github.com/leafo/goattracker2)
+
+### Exact Data Section Order (from greloc.c)
+
+```
+1. Player code (player.s, assembled at base address)
+2. Frequency table lo (mt_freqtbllo, trimmed to used note range)
+3. Frequency table hi (mt_freqtblhi)
+4. Song table lo (mt_songtbllo, songs*3 entries)
+5. Song table hi (mt_songtblhi)
+6. Pattern table lo (mt_patttbllo, num_patterns entries)
+7. Pattern table hi (mt_patttblhi)
+8. Instrument columns (column-major, see below)
+9. Wave table left (mt_wavetbl), then right (mt_notetbl)
+10. Pulse table left (mt_pulsetimetbl), right (mt_pulsespdtbl) [if !NOPULSE]
+11. Filter table left (mt_filttimetbl), right (mt_filtspdtbl) [if !NOFILTER]
+12. Speed table left (mt_speedlefttbl), right (mt_speedrighttbl) [extra zero prepended]
+13. Song orderlists (raw bytes per song per channel)
+14. Pattern data (packed bytes per pattern)
+```
+
+### Instrument Column Layout (Column-Major)
+
+Each column is `ni` bytes (number of used instruments). Columns are contiguous. Some are conditionally omitted:
+
+| Index | Label | Content | Condition |
+|-------|-------|---------|-----------|
+| 0 | `mt_insad` | Attack/Decay | Always |
+| 1 | `mt_inssr` | Sustain/Release | Always |
+| 2 | `mt_inswaveptr` | Wave table ptr (remapped) | Always |
+| 3 | `mt_inspulseptr` | Pulse table ptr | Only if `!NOPULSE` |
+| 4 | `mt_insfiltptr` | Filter table ptr | Only if `!NOFILTER` |
+| 5 | `mt_insvibparam` | Speed table ptr (vibrato) | Only if `!NOINSVIB` |
+| 6 | `mt_insvibdelay` | Vibrato delay - 1 | Only if `!NOINSVIB` |
+| 7 | `mt_insgatetimer` | Gate timer & $3F | Only if `!FIXEDPARAMS` |
+| 8 | `mt_insfirstwave` | First frame waveform | Only if `!FIXEDPARAMS` |
+
+Player accesses as `LDA mt_insXX-1,Y` where Y is 1-based instrument number.
+
+### Instrument Sorting
+
+Instruments are reindexed by type:
+1. Normal HR instruments (indices 1 to NUMHRINSTR)
+2. No-HR instruments (from FIRSTNOHRINSTR)
+3. Legato instruments (from FIRSTLEGATOINSTR)
 
 ### Packed Pattern Encoding
 
 Variable-length byte stream per pattern:
 - `$00`: End of pattern
-- `$01-$3F`: Instrument change
-- `$40-$4F`: Effect + note follows (next byte = param if cmd!=0)
-- `$50-$5F`: Effect + rest (next byte = param if cmd!=0)
-- `$60-$BC`: Note values
+- `$01-$3F`: Instrument change (1-based index)
+- `$40-$4F`: Effect + note follows (`$40 + effect_number`, param byte if cmd!=0)
+- `$50-$5F`: Effect + rest (`$50 + effect_number`, param byte if cmd!=0)
+- `$60-$BC`: Note values (FIRSTNOTE-relative)
 - `$BD`: Rest, `$BE`: Keyoff, `$BF`: Keyon
-- `$C0-$FF`: Packed rests (count = 256-value, max 64)
+- `$C0-$FF`: Packed rests (count = 256 - value)
 
-Instrument/effect bytes omitted if unchanged from previous row.
+### Conditional Compilation Flags
 
-### Conditional Compilation
+~40 flags set by the relocator based on song analysis:
+```
+NOPULSE, NOFILTER, NOVIB, NOINSTRVIB, NOTONEPORTA, NOPORTAMENTO,
+NOEFFECTS, NOSETAD, NOSETSR, NOSETWAVE, NOSETWAVEPTR,
+NOSETPULSEPTR, NOSETFILTPTR, NOSETFILTCTRL, NOSETFILTCUTOFF,
+NOSETMASTERVOL, NOFUNKTEMPO, NOCHANNELTEMPO, NOGLOBALTEMPO,
+NOWAVEDELAY, NOWAVECMD, NOFIRSTWAVECMD, NOTRANS, NOREPEAT,
+SIMPLEPULSE, FIXEDPARAMS, NOCALCULATEDSPEED, NONORMALSPEED,
+ZPGHOSTREGS, BUFFEREDWRITES, SOUNDSUPPORT, VOLSUPPORT
+```
 
-The relocator analyzes the song and strips unused features (NOFILTER, NOPULSE, NOVIB, etc.). Player size varies from ~200 to ~800+ bytes.
+Player size varies from ~200 to ~800+ bytes depending on which flags are set.
 
-### Memory Layout
+### Wave Table Format (in packed SID)
 
-Instrument data stored column-major (all AD values, then all SR values, etc.) for indexed access. Frequency table trimmed to used note range. Channel state: arrays with stride 7 (X = 0, 7, 14 for channels 0-2).
+Left column (`mt_wavetbl`):
+- `$00`: No waveform change
+- `$01-$0F`: Delay N frames (if `NOWAVEDELAY==0`)
+- `$10-$DF`: Waveform value (player subtracts $10 before use? NO — see below)
+- `$E0-$EF`: Inaudible wave / command
+- `$F0-$FE`: Wave commands
+- `$FF`: Loop/jump (right column = target index, 1-based)
+
+Right column (`mt_notetbl`):
+- `$00-$5F`: Relative note up
+- `$60-$7F`: Relative note down (two's complement from $80)
+- `$80`: Keep current frequency
+- `$81-$DF`: Absolute note
+
+**Important:** Wave table values in packed format differ from .sng format. The packer maps instrument `firstwave` and wave table entries through `tablemap[][]` which can remap indices.
+
+### Channel State (stride 7 for X=0,7,14)
+
+```
+mt_chnsongptr, mt_chntrans, mt_chnrepeat, mt_chnpattptr,
+mt_chnpackedrest, mt_chnnewfx, mt_chnnewparam, mt_chnfx,
+mt_chnparam, mt_chnnewnote, mt_chnwaveptr, mt_chnwave,
+mt_chnpulseptr, mt_chnpulsetime, mt_chnsongnum, mt_chnpattnum,
+mt_chntempo, mt_chncounter, mt_chnnote, mt_chninstr,
+mt_chngate, mt_chnvibtime, mt_chnvibdelay, mt_chnwavetime,
+mt_chnfreqlo, mt_chnfreqhi, mt_chnpulselo, mt_chnpulsehi,
+mt_chnad, mt_chnsr, mt_chngatetimer, mt_chnlastnote
+```
 
 ## V1 vs V2 Differences
 
@@ -135,3 +215,10 @@ Instrument data stored column-major (all AD values, then all SR values, etc.) fo
 - V1 had arpeggio command; V2 replaced with wave tables
 - V2 added 63 instruments, uniform step-programming tables, more commands
 - V2 can load V1 songs
+
+## References
+
+- [GoatTracker V2 source (GitHub mirror)](https://github.com/leafo/goattracker2)
+- [GoatTracker official page](https://cadaver.github.io/tools.html)
+- [Cadaver's miniplayer](https://github.com/cadaver/miniplayer)
+- [ChiptuneSAK GT2 docs](https://github.com/c64cryptoboy/ChiptuneSAK/blob/master/docs/goattracker.rst)

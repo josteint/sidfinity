@@ -39,6 +39,7 @@
 #include "sidplayfp/SidConfig.h"
 #include "sidplayfp/sidbuilder.h"
 #include "c64/c64sid.h"
+#include "c64/c64cpu.h"
 #include "sidlite.h"
 
 // SID register names for the header line
@@ -111,6 +112,7 @@ int main(int argc, char* argv[])
     bool raw = false;
     bool digi = false;
     bool writelog = false;
+    bool memtrace = false;
 
     for (int i = 2; i < argc; i++) {
         if (strcmp(argv[i], "--raw") == 0) {
@@ -119,6 +121,8 @@ int main(int argc, char* argv[])
             digi = true;
         } else if (strcmp(argv[i], "--writelog") == 0) {
             writelog = true;
+        } else if (strcmp(argv[i], "--memtrace") == 0) {
+            memtrace = true;
         } else if (strcmp(argv[i], "--subtune") == 0 && i + 1 < argc) {
             subtune = atoi(argv[++i]);
         } else if (strcmp(argv[i], "--duration") == 0 && i + 1 < argc) {
@@ -235,6 +239,13 @@ int main(int argc, char* argv[])
         engine.enableWriteLog(0, true);
     }
 
+    // Enable memory read tracing if requested
+    if (memtrace) {
+        // Trace reads from the load address to $CFFF (before I/O at $D000)
+        uint16_t loadAddr = info->loadAddr();
+        engine.enableReadTrace(true, loadAddr, 0xCFFF);
+    }
+
     // Initialize mixer (needed for play() to work)
     engine.initMixer(false); // mono
 
@@ -246,11 +257,28 @@ int main(int argc, char* argv[])
         if (digi || writelog) {
             engine.clearWriteLog(0);
         }
+        if (memtrace) {
+            engine.clearReadLog();
+        }
 
         int samples = engine.play(cyclesPerFrame);
         if (samples < 0) {
             fprintf(stderr, "Error at frame %d: %s\n", frame, engine.error());
             break;
+        }
+
+        // In memtrace mode, output reads instead of registers
+        if (memtrace) {
+            const auto& rlog = engine.getReadLog();
+            if (!rlog.empty()) {
+                printf("F%d", frame);
+                for (const auto& r : rlog) {
+                    printf(" %04X=%02X", r.addr, r.value);
+                }
+                printf("\n");
+            }
+            anyNonZero = true;
+            continue;
         }
 
         // Read current SID register state

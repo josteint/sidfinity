@@ -162,6 +162,12 @@ public:
     bool clearWriteLog(unsigned int sidNum);
     const std::vector<libsidplayfp::SidWrite>* getWriteLog(unsigned int sidNum);
 
+    void enableReadTrace(bool enable, uint16_t minAddr = 0, uint16_t maxAddr = 0xCFFF)
+    { m_c64.getCpuBus().enableReadTrace(enable, minAddr, maxAddr); }
+    void clearReadLog() { m_c64.getCpuBus().clearReadLog(); }
+    const std::vector<libsidplayfp::MemRead>& getReadLog() const
+    { return m_c64.getCpuBus().getReadLog(); }
+
     unsigned int installedSIDs() const { return m_chips.size(); }
 
     void initMixer(bool stereo);

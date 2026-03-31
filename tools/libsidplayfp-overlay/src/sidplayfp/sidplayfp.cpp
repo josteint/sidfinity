@@ -33,6 +33,7 @@
 
 #include "player.h"
 #include "c64/c64sid.h"
+#include "c64/c64cpu.h"
 
 sidplayfp::sidplayfp() :
     sidplayer(*(new libsidplayfp::Player)) {}
@@ -145,6 +146,21 @@ const std::vector<SidWrite>& sidplayfp::getWriteLog(unsigned int sidNum)
     const auto* log = sidplayer.getWriteLog(sidNum);
     if (!log) return emptyLog;
     return *log;
+}
+
+void sidplayfp::enableReadTrace(bool enable, uint16_t minAddr, uint16_t maxAddr)
+{
+    sidplayer.enableReadTrace(enable, minAddr, maxAddr);
+}
+
+void sidplayfp::clearReadLog()
+{
+    sidplayer.clearReadLog();
+}
+
+const std::vector<MemRead>& sidplayfp::getReadLog() const
+{
+    return sidplayer.getReadLog();
 }
 
 unsigned int sidplayfp::installedSIDs() const
