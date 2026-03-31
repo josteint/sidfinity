@@ -79,6 +79,7 @@ def pack_sid(
     freq_hi=None,
     first_note=0,
     last_note=95,
+    default_tempo=6,
 ):
     """Pack music data with the SIDfinity player into a SID file.
 
@@ -296,7 +297,7 @@ NOCALCULATEDSPEED = 0
 NOFIRSTWAVECMD = 0
 PULSEOPTIMIZATION = 0
 REALTIMEOPTIMIZATION = 0
-DEFAULTTEMPO = 6
+DEFAULTTEMPO = {default_tempo}
 NUMCHANNELS = 3
 NUMSONGS = {songs}
 FIRSTNOTE = {first_note}

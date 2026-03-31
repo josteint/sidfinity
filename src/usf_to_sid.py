@@ -176,6 +176,7 @@ def usf_to_sid(song, output_path=None):
         wave_right=bytes(wave_r),
         orderlists=gt2_orderlists,
         patterns=gt2_patterns,
+        default_tempo=getattr(song, 'tempo', 6),
     )
 
     if output_path:
