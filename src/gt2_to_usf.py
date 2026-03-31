@@ -54,10 +54,13 @@ def gt2_to_usf(sid_path, trace_duration=10):
     columns = layout['columns'] if layout else {}
     num_cols = layout['num_columns'] if layout else 0
 
-    # GT2 column order (when present): AD, SR, wave_ptr, pulse_ptr, filter_ptr,
-    # vib_param, vib_delay, gate_timer, first_wave
-    col_names = ['ad', 'sr', 'wave_ptr', 'pulse_ptr', 'filter_ptr',
-                 'vib_param', 'vib_delay', 'gate_timer', 'first_wave']
+    # GT2 column order confirmed by disassembly (STA $D405/D406 mapping):
+    # col 0 → SID AD ($D405), col 1 → SID SR ($D406), col 2 → wave_ptr,
+    # col 3 → first_wave, col 4+ → varies (pulse_ptr, filter_ptr, etc.)
+    # Note: some columns may be stripped by FIXEDPARAMS/NOPULSE/NOFILTER.
+    # The detected column count tells us how many are present.
+    col_names = ['ad', 'sr', 'wave_ptr', 'first_wave', 'pulse_ptr',
+                 'filter_ptr', 'vib_param', 'vib_delay', 'gate_timer']
 
     for y in range(ni):
         fields = {}

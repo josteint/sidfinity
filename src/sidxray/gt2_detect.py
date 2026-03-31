@@ -87,15 +87,49 @@ def detect_gt2_layout(sid_path, duration=10):
 
     ni = best_ni
 
-    # The column base = first address in group - (Y offset)
-    # Y offset = (first_addr - some_base) % ni
-    # The base should be at freq_end_addr or shortly after
+    # The co-occurrence addresses are at column_operand + Y, where Y is the
+    # most-triggered instrument number. The column operands are at stride ni.
+    # Column operand = co_occurrence_addr - Y.
+    # We detect Y from the offset of the first address relative to freq_end.
     first_addr = best_group[0]
-    y_offset = (first_addr - freq_end_addr) % ni
-    col_base = freq_end_addr
 
-    # Number of columns = how many stride-ni steps fit in the group's address range
+    # Number of columns = stride-ni steps in the group
     num_columns = (best_group[-1] - best_group[0]) // ni + 1
+
+    # The first column operand = first_addr - Y.
+    # Y is the instrument number (1-based). We can find Y from the pattern:
+    # the co-occurrence Y is consistent across all columns.
+    # For now, we know: column_data[inst] = operand + inst (1-based).
+    # The operand = first_co_addr - Y_value. We don't know Y_value yet,
+    # but we don't need it — we read the raw data at the operand addresses.
+    # Column operand 0 = first_addr - (first_addr - freq_end_addr) % ni ... nope.
+    # Simpler: the first column OPERAND is at some address before first_addr.
+    # Since we use LDA operand,Y with Y=1..ni, data for instrument i is at operand+i.
+    # Column 0 operand: first_co_addr rounded down to nearest stride boundary from freq_end.
+    # col0_operand + Y = first_co_addr, so col0_operand = first_co_addr - Y.
+    # All co-occurrence addrs share the same Y, so: Y = (first_addr - col0_operand).
+    # col0_operand is the first address past freq_end that, when added to some Y, gives first_addr.
+
+    # The operand addresses are NOT in our data — they're in the player code.
+    # What we CAN do: the data starts at col0_operand + 1 (instrument 1).
+    # col0_operand is right after freq_end + possible song/patt tables.
+    # For the column reader, we need: for each instrument Y (1..ni),
+    # read binary[col_operand_offset + Y] for each column.
+
+    # The co-occurrence addresses = column_operand + Y for some instrument Y.
+    # GT2 uses LDA operand,Y with 1-based Y. The operand = co_addr - Y.
+    # Find Y: try small values (1-10) and check which gives consistent column spacing.
+    # The correct Y makes: (co_addr - Y) spaced at exact stride ni.
+    best_y = 1
+    for y_try in range(1, min(ni, 10)):
+        operands = [a - y_try for a in best_group]
+        gaps = [operands[i+1] - operands[i] for i in range(len(operands)-1)]
+        if all(g == ni for g in gaps):
+            best_y = y_try
+            break
+
+    y_value = best_y
+    col_base = first_addr - y_value  # first column's LDA operand
 
     # Verify: also check other Y offsets for the same stride
     # This confirms the stride is correct
@@ -105,22 +139,31 @@ def detect_gt2_layout(sid_path, duration=10):
             off = (addr - freq_end_addr) % ni
             all_y_offsets.add(off)
 
-    # Read column data
+    # Read column data. Each column operand is at col_base + ci * ni.
+    # Instrument Y's value is at col_operand + Y = col_base + ci*ni + Y.
+    # We read for Y = 1..ni (1-based instrument numbering).
+    col_base_offset = col_base - la
     columns = {}
     for ci in range(num_columns):
-        col_off = freq_end + ci * ni
-        if col_off + ni <= len(binary):
-            columns[ci] = list(binary[col_off:col_off + ni])
+        col_off = col_base_offset + ci * ni
+        vals = []
+        for y in range(1, ni + 1):
+            off = col_off + y
+            if off < len(binary):
+                vals.append(binary[off])
+            else:
+                vals.append(0)
+        columns[ci] = vals
 
     return {
         'ni': ni,
         'num_columns': num_columns,
         'col_base': col_base,
-        'col_base_offset': freq_end,
+        'col_base_offset': col_base_offset,
         'freq_end': freq_end,
         'freq_end_addr': freq_end_addr,
         'columns': columns,
-        'y_offsets_seen': sorted(all_y_offsets),
+        'y_value': y_value,
         'co_occurrence_size': len(best_group),
     }
 
