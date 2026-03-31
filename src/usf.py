@@ -84,6 +84,8 @@ class Song:
     patterns: list = field(default_factory=list)      # list of Pattern
     orderlists: list = field(default_factory=lambda: [[], [], []])  # 3 voices
     # Each orderlist entry: (pattern_id, transpose)
+    freq_lo: bytes = None       # custom frequency table lo (96 bytes), or None for PAL
+    freq_hi: bytes = None       # custom frequency table hi (96 bytes), or None for PAL
 
 
 # ============================================================

@@ -121,10 +121,11 @@ def usf_to_sid(song, output_path=None):
     for i, inst in enumerate(song.instruments):
         if inst.wave_table:
             wp_col[i] = wt_offset
+            inst_wt_start = wt_offset
             for step in inst.wave_table:
                 if step.is_loop:
                     wave_l.append(0xFF)
-                    wave_r.append(step.loop_target + (wt_offset - wp_col[i]))
+                    wave_r.append(inst_wt_start + step.loop_target)
                 elif step.absolute_note >= 0:
                     wave_l.append(step.waveform)
                     wave_r.append(step.absolute_note & 0x7F)  # absolute: bit 7 clear
@@ -156,11 +157,16 @@ def usf_to_sid(song, output_path=None):
         ol.extend([0xFF, 0x00])  # loop to start
         gt2_orderlists.append(bytes(ol))
 
-    # Pack
+    # Pack (with optional custom freq table)
+    freq_lo = getattr(song, 'freq_lo', None)
+    freq_hi = getattr(song, 'freq_hi', None)
+
     sid_bytes, player_size = pack_sid(
         title=song.title,
         author=song.author,
         num_instruments=ni,
+        freq_lo=freq_lo,
+        freq_hi=freq_hi,
         instruments_ad=bytes(ad_col),
         instruments_sr=bytes(sr_col),
         instruments_firstwave=bytes(fw_col),

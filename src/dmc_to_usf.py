@@ -8,7 +8,7 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from dmc_parser import parse_dmc_sid
 from usf import Song, Instrument, WaveTableStep, Pattern, NoteEvent
-from sid_data_extractor import parse_sid_header
+from sid_data_extractor import parse_sid_header, find_freq_table, collect_addresses
 
 
 def dmc_to_usf(sid_path):
@@ -22,6 +22,15 @@ def dmc_to_usf(sid_path):
         raw = f.read()
     _, binary, la = parse_sid_header(raw)
 
+    # Extract DMC frequency table
+    ft = find_freq_table(binary)
+    freq_lo = None
+    freq_hi = None
+    if ft:
+        fhi_off = ft[0]
+        freq_hi = bytes(binary[fhi_off:fhi_off + 96])
+        freq_lo = bytes(binary[fhi_off + 96:fhi_off + 192])
+
     song = Song(
         title=dmc['header']['title'],
         author=dmc['header']['author'],
@@ -29,6 +38,8 @@ def dmc_to_usf(sid_path):
         clock='PAL',
         tempo=6,  # default DMC speed
     )
+    song.freq_lo = freq_lo
+    song.freq_hi = freq_hi
 
     # Convert instruments
     for dmc_instr in dmc['instruments']:
@@ -117,7 +128,6 @@ def dmc_to_usf(sid_path):
     # Find tune pointer table (hardcoded for now, needs generalization)
     tpt_off = None
     # Search for tune pointer table using address analysis
-    from sid_data_extractor import find_freq_table, collect_addresses
     ft = find_freq_table(binary)
     if ft:
         freq_off = ft[0]
