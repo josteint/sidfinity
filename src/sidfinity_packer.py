@@ -400,7 +400,7 @@ def main():
     orderlists = [bytes([0x00, 0x80, 0xFF, 0x00])] * 3
 
     wave_l = bytes([0x41, 0x41, 0x41, 0xFF])
-    wave_r = bytes([0x00, 0x04, 0x07, 0x01])
+    wave_r = bytes([0x80, 0x84, 0x87, 0x01])  # $80+offset for relative notes
 
     sid, ps = pack_sid(
         title='SIDfinity Packer Test',
