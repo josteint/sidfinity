@@ -12,7 +12,7 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from gt_parser import parse_goattracker_sid, parse_psid_header, find_freq_table
 from usf import Song, Instrument, WaveTableStep, Pattern, NoteEvent
-from sidxray.gt2_detect import detect_gt2_layout
+from gt2_parse_direct import parse_gt2_direct
 
 
 def gt2_to_usf(sid_path, trace_duration=10):
@@ -23,8 +23,8 @@ def gt2_to_usf(sid_path, trace_duration=10):
     # Use gt_parser for patterns and orderlists (these work)
     parsed = parse_goattracker_sid(data)
 
-    # Use sidxray to detect instrument layout (ni, columns)
-    layout = detect_gt2_layout(sid_path, trace_duration)
+    # Use direct parser for instrument columns and wave table
+    layout = parse_gt2_direct(sid_path)
 
     header = parsed['header']
 
@@ -49,32 +49,18 @@ def gt2_to_usf(sid_path, trace_duration=10):
         tempo=initial_tempo,
     )
 
-    # Read instrument data from detected layout
+    # Read instrument data from direct parser
     ni = layout['ni'] if layout else 5
-    columns = layout['columns'] if layout else {}
-    num_cols = layout['num_columns'] if layout else 0
-
-    # GT2 column order confirmed by disassembly (STA $D405/D406 mapping):
-    # col 0 → SID AD ($D405), col 1 → SID SR ($D406), col 2 → wave_ptr,
-    # col 3 → first_wave, col 4+ → varies (pulse_ptr, filter_ptr, etc.)
-    # Note: some columns may be stripped by FIXEDPARAMS/NOPULSE/NOFILTER.
-    # The detected column count tells us how many are present.
-    col_names = ['ad', 'sr', 'wave_ptr', 'first_wave', 'pulse_ptr',
-                 'filter_ptr', 'vib_param', 'vib_delay', 'gate_timer']
+    col_data = layout['col_data'] if layout else {}
 
     for y in range(ni):
-        fields = {}
-        for ci in range(min(num_cols, len(col_names))):
-            if ci in columns and y < len(columns[ci]):
-                fields[col_names[ci]] = columns[ci][y]
-
-        ad = fields.get('ad', 0)
-        sr = fields.get('sr', 0)
-        wp = fields.get('wave_ptr', 0)
-        fw_byte = fields.get('first_wave', 0)
-        gt_byte = fields.get('gate_timer', 2)
-        vp = fields.get('vib_param', 0)
-        vd = fields.get('vib_delay', 0)
+        ad = col_data.get('ad', [])[y] if y < len(col_data.get('ad', [])) else 0
+        sr = col_data.get('sr', [])[y] if y < len(col_data.get('sr', [])) else 0
+        wp = col_data.get('wave_ptr', [])[y] if y < len(col_data.get('wave_ptr', [])) else 0
+        fw_byte = col_data.get('first_wave', [])[y] if y < len(col_data.get('first_wave', [])) else 0
+        gt_byte = col_data.get('gate_timer', [])[y] if y < len(col_data.get('gate_timer', [])) else 2
+        vp = col_data.get('vib_param', [])[y] if y < len(col_data.get('vib_param', [])) else 0
+        vd = col_data.get('vib_delay', [])[y] if y < len(col_data.get('vib_delay', [])) else 0
 
         # Determine waveform from first_wave byte
         if fw_byte in (0, 0xFE, 0xFF):
@@ -92,6 +78,7 @@ def gt2_to_usf(sid_path, trace_duration=10):
         wt = []
         wl = layout.get('wave_left', b'') if layout else b''
         wr = layout.get('wave_right', b'') if layout else b''
+        # Wave table arrays are indexed by Y = wave_ptr (1-based)
         if wp > 0 and wp < len(wl):
             idx = wp  # wave_ptr = Y value; array stored from operand, so index=Y
             while idx < len(wl) and len(wt) < 64:
@@ -131,7 +118,7 @@ def gt2_to_usf(sid_path, trace_duration=10):
             first_wave=fw,
             hr_method=hr,
             gate_timer=gt_byte & 0x3F if gt_byte < 0x80 else 0,
-            legato=bool(gt_byte & 0x40) if num_cols > 7 else False,
+            legato=bool(gt_byte & 0x40) if 'gate_timer' in col_data else False,
             vib_speed_idx=vp,
             vib_delay=vd,
             wave_table=wt,
