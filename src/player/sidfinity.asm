@@ -1,21 +1,42 @@
+; SIDfinity Player - Universal 6502 SID music player
+; Assemble: 64tass -o sidfinity.bin -b sidfinity.asm
+;
+; 3 voices, stride-7 variables, GT2-compatible packed patterns
+
 SIDBASE = $D400
 ZP      = $FB
+
+; Group A ($0B00): sequencer state (stride 7)
 chn_counter = $0B00
 chn_tempo   = $0B01
 chn_pattidx = $0B02
 chn_songidx = $0B03
 chn_trans   = $0B04
 chn_gate    = $0B05
+chn_newnote = $0B06
+
+; Group B ($0B15): sound output (stride 7)
 chn_wave    = $0B15
 chn_ad      = $0B16
+chn_sr      = $0B17
 chn_freqlo  = $0B18
 chn_freqhi  = $0B19
 chn_pulselo = $0B1A
 chn_pulsehi = $0B1B
+
+; Group C ($0B2A): pointers (stride 7)
 chn_pattlo  = $0B2A
 chn_patthi  = $0B2B
+chn_instr   = $0B2C
+
+; Orderlist pointers per voice (indexed 0/1/2, NOT stride 7)
 ol_lo       = $0B80
 ol_hi       = $0B83
+
+; Global
+g_volume    = $0B70
+
+; Song data
 pattbl_lo   = $0C00
 pattbl_hi   = $0C80
 
@@ -34,9 +55,8 @@ _sid        sta SIDBASE,x
             dex
             bpl _sid
             lda #$0F
+            sta g_volume
             sta SIDBASE+$18
-            ; All data setup (tempo, instruments, OL pointers, pattern table)
-            ; is done by the builder's init patch which replaces this RTS with JMP
             rts
 
 play
@@ -44,14 +64,24 @@ play
             pha
             lda ZP+1
             pha
+
             ldx #$00
             jsr pv
+            ldx #$07
+            jsr pv
+            ldx #$0E
+            jsr pv
+
+            lda g_volume
+            sta SIDBASE+$18
+
             pla
             sta ZP+1
             pla
             sta ZP
             rts
 
+; Per-voice player. X = 0/7/14
 pv          dec chn_counter,x
             bne _wr
             lda chn_tempo,x
@@ -60,10 +90,8 @@ pv          dec chn_counter,x
             bne _rd
             jsr np
 _rd         jsr rn
-_wr
-            lda chn_pattidx,x
-            sta SIDBASE+$16
-            lda chn_freqlo,x
+
+_wr         lda chn_freqlo,x
             sta SIDBASE,x
             lda chn_freqhi,x
             sta SIDBASE+1,x
@@ -76,13 +104,19 @@ _wr
             sta SIDBASE+4,x
             lda chn_ad,x
             sta SIDBASE+5,x
+            lda chn_sr,x
+            sta SIDBASE+6,x
             rts
 
-np
-            lda ol_lo
+; Orderlist sequencer. X = 0/7/14 (preserved)
+np          stx _npx+1
+            lda vidx,x
+            tax
+            lda ol_lo,x
             sta ZP
-            lda ol_hi
+            lda ol_hi,x
             sta ZP+1
+_npx        ldx #$00
             ldy chn_songidx,x
 _olrd       lda (ZP),y
             cmp #$FF
@@ -111,6 +145,7 @@ _olne       pha
             sta chn_pattidx,x
             rts
 
+; Pattern reader. X = 0/7/14 (preserved)
 rn          lda chn_pattlo,x
             sta ZP
             lda chn_patthi,x
@@ -118,12 +153,28 @@ rn          lda chn_pattlo,x
             ldy chn_pattidx,x
             lda (ZP),y
             beq _ep
-            cmp #$BD
+
+            cmp #$40
+            bcs _chkfx
+            sta chn_instr,x
+            iny
+            lda (ZP),y
+
+_chkfx      cmp #$BD
             beq _rest
+            cmp #$BE
+            beq _koff
+            cmp #$BF
+            beq _kon
+            cmp #$C0
+            bcs _pkrest
             cmp #$60
             bcc _rest
+
             sec
             sbc #$60
+            clc
+            adc chn_trans,x
             tay
             lda flo,y
             sta chn_freqlo,x
@@ -132,16 +183,41 @@ rn          lda chn_pattlo,x
             lda #$FF
             sta chn_gate,x
             ldy chn_pattidx,x
+
 _rest       iny
             lda (ZP),y
             beq _ep
             tya
             sta chn_pattidx,x
             rts
+
+_koff       lda #$FE
+            sta chn_gate,x
+            ldy chn_pattidx,x
+            jmp _rest
+
+_kon        lda #$FF
+            sta chn_gate,x
+            ldy chn_pattidx,x
+            jmp _rest
+
+_pkrest     iny
+            lda (ZP),y
+            beq _ep
+            tya
+            sta chn_pattidx,x
+            rts
+
 _ep         lda #$00
             sta chn_pattidx,x
             rts
 
+; Voice offset to index: 0->0, 7->1, 14->2
+vidx        .byte 0, 0, 0, 0, 0, 0, 0
+            .byte 1, 1, 1, 1, 1, 1, 1
+            .byte 2
+
+; PAL frequency tables
 flo
             .byte $17,$27,$39,$4B,$5F,$74,$8A,$A1,$BA,$D4,$F0,$0E
             .byte $2D,$4E,$71,$96,$BE,$E8,$14,$43,$74,$A9,$E1,$1C
@@ -160,5 +236,3 @@ fhi
             .byte $22,$24,$27,$29,$2B,$2E,$31,$34,$37,$3A,$3E,$41
             .byte $45,$49,$4E,$52,$57,$5C,$62,$68,$6E,$75,$7C,$83
             .byte $8B,$93,$9C,$A5,$AF,$B9,$C4,$D0,$DD,$EA,$F8,$FF
-
-; No embedded test data - the builder provides all music data
