@@ -1,5 +1,11 @@
 # CLAUDE.md — Instructions for continuing development
 
+## Key References
+
+- **`docs/PLAN.md`** — Full roadmap and current status
+- **`docs/usf_spec.md`** — USF specification (update when USF changes, then update all converters)
+- **`src/sidxray/METHODOLOGY.md`** — How to reverse-engineer any SID player. **Read this before cracking a new player. Update it after with lessons learned.**
+
 ## Project Goal
 
 Build the SIDfinity universal SID music player and ML pipeline. See `docs/PLAN.md` for the full roadmap and current status.
