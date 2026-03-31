@@ -88,15 +88,39 @@ def gt2_to_usf(sid_path, trace_duration=10):
         # Hard restart method
         hr = 'none' if gt_byte >= 0x80 else 'gate'
 
-        # Build wave table from binary data (if wave table data follows instruments)
+        # Build wave table from extracted binary data
         wt = []
-        # TODO: extract wave table from binary using wave_ptr
-        # For now, create a minimal wave table from first_wave
-        if fw > 0:
-            wt = [WaveTableStep(waveform=fw, note_offset=0),
-                  WaveTableStep(is_loop=True, loop_target=0)]
-        else:
-            wt = [WaveTableStep(waveform=0x41, note_offset=0),
+        wl = layout.get('wave_left', b'') if layout else b''
+        wr = layout.get('wave_right', b'') if layout else b''
+        if wp > 0 and wp < len(wl):
+            idx = wp  # wave_ptr = Y value; array stored from operand, so index=Y
+            while idx < len(wl) and len(wt) < 64:
+                left = wl[idx]
+                right = wr[idx] if idx < len(wr) else 0x80
+
+                if left == 0xFF:
+                    # Loop: right column has target (same indexing as wave_ptr)
+                    loop_target = max(0, right - wp)
+                    wt.append(WaveTableStep(is_loop=True, loop_target=loop_target))
+                    break
+                elif left < 0x10:
+                    # Delay
+                    wt.append(WaveTableStep(delay=left))
+                else:
+                    # Waveform + note
+                    if right == 0x80:
+                        wt.append(WaveTableStep(waveform=left, keep_freq=True))
+                    elif right > 0x80:
+                        wt.append(WaveTableStep(waveform=left, absolute_note=right - 0x81))
+                    elif right >= 0x60:
+                        wt.append(WaveTableStep(waveform=left, note_offset=right - 0x100))
+                    else:
+                        wt.append(WaveTableStep(waveform=left, note_offset=right))
+                idx += 1
+
+        if not wt:
+            default_fw = fw if fw > 0 else 0x41
+            wt = [WaveTableStep(waveform=default_fw, note_offset=0),
                   WaveTableStep(is_loop=True, loop_target=0)]
 
         inst = Instrument(

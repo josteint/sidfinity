@@ -14,7 +14,7 @@ from collections import defaultdict
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from sidxray.trace import capture
-from gt_parser import parse_psid_header, find_freq_table
+from gt_parser import parse_psid_header, find_freq_table, collect_abs_addresses
 
 
 def detect_gt2_layout(sid_path, duration=10):
@@ -47,13 +47,13 @@ def detect_gt2_layout(sid_path, duration=10):
     for frame in frames:
         frame.reads = [r for r in frame.reads if r.addr >= freq_end_addr]
 
-    num_frames = max(ft.frame for ft in frames) + 1
+    num_frames = max(frm.frame for frm in frames) + 1
 
     # Build per-address frame sets
     addr_frames = defaultdict(set)
-    for ft in frames:
-        for r in ft.reads:
-            addr_frames[r.addr].add(ft.frame)
+    for frm in frames:
+        for r in frm.reads:
+            addr_frames[r.addr].add(frm.frame)
 
     # Find co-occurrence groups at low duty (note triggers)
     groups = defaultdict(list)
@@ -155,6 +155,61 @@ def detect_gt2_layout(sid_path, duration=10):
                 vals.append(0)
         columns[ci] = vals
 
+    # Find wave table using address pair detection from player code.
+    # GT2 tables use -1 addressing: LDA table-1,Y and LDA table,Y
+    # This creates pairs where both addr and addr+1 are referenced.
+    # The first such pair past the instrument columns = wave table.
+    wt_left_addr = 0
+    wt_right_addr = 0
+    wt_size = 0
+
+    all_code_addrs = sorted(set(a for a in
+        collect_abs_addresses(binary, la, 0, ft[0])
+        if a >= col_base + ni))
+    code_addr_set = set(all_code_addrs)
+
+    # Find pairs: addr and addr+1 both referenced, past instruments
+    table_pairs = []
+    for a in all_code_addrs:
+        if a + 1 in code_addr_set and a > col_base + num_columns * ni:
+            table_pairs.append(a)
+
+    # Each table_pair entry is an operand where both addr and addr+1 are referenced.
+    # These are individual table column operands (wave_left, wave_right, pulse_left, etc.)
+    # NOT left/right pairs. The table order from greloc.c:
+    # wave_left, wave_right, pulse_left, pulse_right, filter_left, filter_right, speed_left, speed_right
+    # Wave left operand = table_pairs[0], wave right operand = table_pairs[1]
+    # The data size = gap between them (both use same Y indexing).
+    # Wave left operand = first pair's first member ($159F)
+    # Wave right operand = second pair's first member ($15BF) + 1 = $15C0
+    # Both use LDA operand,Y with Y=wave_ptr (1-based).
+    # Left data at operand+1, right data at operand+1.
+    # Size = right_operand - left_operand (= gap between the two operands).
+    # But the right operand isn't table_pairs[1] — it's the NEXT operand
+    # that is NOT addr+1 of the first pair.
+    # table_pairs: [$159F, $15BF, $15E1, $1611] — each has addr+1 also referenced.
+    # Wave left operand = $159F, wave right operand = $15BF.
+    # WRONG: $15A0 = $159F+1 is the "+1 ref" of the first pair, not the right operand.
+    # The right operand is the SECOND independent pair: $15BF.
+    # But $15BF+1=$15C0 is also referenced, confirming it's a -1 operand pair.
+    # The actual right column operand for the wave table uses the +1 member
+    # of the second pair: $15C0. Because: wave right = LDA $15C0,Y (memtrace confirmed).
+    if len(table_pairs) >= 2:
+        wt_left_operand = table_pairs[0]       # $159F
+        wt_right_operand = table_pairs[1] + 1  # $15BF → $15C0 (the +1 member)
+        wt_size = wt_right_operand - wt_left_operand  # $15C0 - $159F = 33
+
+    # Read wave table data. Arrays indexed by Y (wave_ptr, 1-based).
+    # Left array at operand, right array at operand. Y=N reads operand+N.
+    wave_left = b''
+    wave_right = b''
+    if wt_left_operand and wt_size > 0:
+        wl_off = wt_left_operand - la
+        wr_off = wt_right_operand - la
+        if wl_off + wt_size <= len(binary) and wr_off + wt_size <= len(binary):
+            wave_left = bytes(binary[wl_off:wl_off + wt_size])
+            wave_right = bytes(binary[wr_off:wr_off + wt_size])
+
     return {
         'ni': ni,
         'num_columns': num_columns,
@@ -165,6 +220,9 @@ def detect_gt2_layout(sid_path, duration=10):
         'columns': columns,
         'y_value': y_value,
         'co_occurrence_size': len(best_group),
+        'wave_left': wave_left,
+        'wave_right': wave_right,
+        'wave_size': wt_size,
     }
 
 
