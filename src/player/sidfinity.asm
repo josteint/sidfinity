@@ -1,19 +1,18 @@
 ; SIDfinity Player - Universal 6502 SID music player
+; 3 voices, wave table support, GT2-compatible packed patterns
 ; Assemble: 64tass -o sidfinity.bin -b sidfinity.asm
-;
-; 3 voices, stride-7 variables, GT2-compatible packed patterns
 
 SIDBASE = $D400
 ZP      = $FB
 
-; Group A ($0B00): sequencer state (stride 7)
+; Group A ($0B00): sequencer (stride 7)
 chn_counter = $0B00
 chn_tempo   = $0B01
 chn_pattidx = $0B02
 chn_songidx = $0B03
 chn_trans   = $0B04
 chn_gate    = $0B05
-chn_newnote = $0B06
+chn_note    = $0B06
 
 ; Group B ($0B15): sound output (stride 7)
 chn_wave    = $0B15
@@ -27,18 +26,25 @@ chn_pulsehi = $0B1B
 ; Group C ($0B2A): pointers (stride 7)
 chn_pattlo  = $0B2A
 chn_patthi  = $0B2B
-chn_instr   = $0B2C
+chn_waveptr = $0B2C
+chn_wavecnt = $0B2D
+chn_instr   = $0B2E
 
-; Orderlist pointers per voice (indexed 0/1/2, NOT stride 7)
+; Orderlist pointers (indexed 0/1/2)
 ol_lo       = $0B80
 ol_hi       = $0B83
 
 ; Global
 g_volume    = $0B70
 
-; Song data
+; Song data layout
 pattbl_lo   = $0C00
 pattbl_hi   = $0C80
+
+; Wave table (2 bytes per row: waveform, note offset)
+; Located right after pattern pointer tables
+wavetbl_l   = $0D00
+wavetbl_r   = $0D80
 
             * = $0800
             jmp init
@@ -81,15 +87,18 @@ play
             sta ZP
             rts
 
-; Per-voice player. X = 0/7/14
+; Per-voice: sequencer + wave table + SID write
 pv          dec chn_counter,x
-            bne _wr
+            bne _effects
             lda chn_tempo,x
             sta chn_counter,x
             lda chn_pattidx,x
             bne _rd
             jsr np
 _rd         jsr rn
+
+_effects
+            jsr wt
 
 _wr         lda chn_freqlo,x
             sta SIDBASE,x
@@ -108,7 +117,66 @@ _wr         lda chn_freqlo,x
             sta SIDBASE+6,x
             rts
 
-; Orderlist sequencer. X = 0/7/14 (preserved)
+; Wave table stepper
+; Reads 2 bytes per frame: waveform (left column), note offset (right column)
+; Advances wave pointer each frame
+wt          ldy chn_waveptr,x
+            beq _wt_done
+            lda wavetbl_l-1,y
+            beq _wt_done
+            cmp #$FF
+            bne _wt_noloop
+            lda wavetbl_r-1,y
+            sta chn_waveptr,x
+            beq _wt_done
+            tay
+            lda wavetbl_l-1,y
+_wt_noloop
+            cmp #$10
+            bcc _wt_delay
+            sta chn_wave,x
+            lda wavetbl_r-1,y
+            cmp #$80
+            beq _wt_adv
+            bcs _wt_abs
+            ; Relative note: save wave row Y on stack, do freq lookup, restore
+            tya
+            pha                     ; push wave row index via A
+            lda wavetbl_r-1,y      ; re-read note offset
+            clc
+            adc chn_note,x
+            tay
+            lda flo,y
+            sta chn_freqlo,x
+            lda fhi,y
+            sta chn_freqhi,x
+            pla
+            tay                     ; restore wave row index
+_wt_adv     iny                     ; advance to next wave table row
+            tya
+            sta chn_waveptr,x
+_wt_done    rts
+
+_wt_abs     and #$7F
+            tya
+            pha
+            lda wavetbl_r-1,y
+            and #$7F
+            tay
+            lda flo,y
+            sta chn_freqlo,x
+            lda fhi,y
+            sta chn_freqhi,x
+            pla
+            tay
+            jmp _wt_adv
+
+_wt_delay   iny
+            tya
+            sta chn_waveptr,x
+            rts
+
+; Orderlist sequencer
 np          stx _npx+1
             lda vidx,x
             tax
@@ -145,7 +213,7 @@ _olne       pha
             sta chn_pattidx,x
             rts
 
-; Pattern reader. X = 0/7/14 (preserved)
+; Pattern reader
 rn          lda chn_pattlo,x
             sta ZP
             lda chn_patthi,x
@@ -155,12 +223,12 @@ rn          lda chn_pattlo,x
             beq _ep
 
             cmp #$40
-            bcs _chkfx
+            bcs _chkn
             sta chn_instr,x
             iny
             lda (ZP),y
 
-_chkfx      cmp #$BD
+_chkn       cmp #$BD
             beq _rest
             cmp #$BE
             beq _koff
@@ -175,6 +243,7 @@ _chkfx      cmp #$BD
             sbc #$60
             clc
             adc chn_trans,x
+            sta chn_note,x
             tay
             lda flo,y
             sta chn_freqlo,x
@@ -212,7 +281,7 @@ _ep         lda #$00
             sta chn_pattidx,x
             rts
 
-; Voice offset to index: 0->0, 7->1, 14->2
+; Voice index lookup
 vidx        .byte 0, 0, 0, 0, 0, 0, 0
             .byte 1, 1, 1, 1, 1, 1, 1
             .byte 2

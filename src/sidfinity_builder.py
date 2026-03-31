@@ -134,6 +134,7 @@ def build_init_patch(player_size, ol_addrs, instruments, freq_table=None):
             (instr.get('sr', 0x00), 0x0B17),
             (instr.get('pulselo', 0x08), 0x0B1A),
             (instr.get('pulsehi', 0x08), 0x0B1B),
+            (instr.get('waveptr', 0), 0x0B2C),  # chn_waveptr
         ]:
             addr = base + offset
             patch.extend([0xA9, val, 0x8D, addr & 0xFF, (addr >> 8) & 0xFF])
@@ -143,7 +144,8 @@ def build_init_patch(player_size, ol_addrs, instruments, freq_table=None):
 
 
 def build_sid(title, author, patterns, orderlists, instruments=None,
-              freq_lo=None, freq_hi=None, songs=1, tempo=6):
+              freq_lo=None, freq_hi=None, wave_l=None, wave_r=None,
+              songs=1, tempo=6):
     """Build a complete SIDfinity SID file.
 
     Args:
@@ -151,9 +153,11 @@ def build_sid(title, author, patterns, orderlists, instruments=None,
         author: Song author
         patterns: list of bytes objects (GT2 packed pattern data)
         orderlists: list of 3 bytes objects (one per voice)
-        instruments: list of 3 dicts with wave/ad/sr/pulselo/pulsehi
+        instruments: list of 3 dicts with wave/ad/sr/pulselo/pulsehi/waveptr
         freq_lo: 96-byte frequency table (lo), or None for PAL default
         freq_hi: 96-byte frequency table (hi), or None for PAL default
+        wave_l: wave table left column (waveform bytes), or None
+        wave_r: wave table right column (note offset bytes), or None
         songs: number of subtunes
         tempo: frames per row
     """
@@ -198,14 +202,25 @@ def build_sid(title, author, patterns, orderlists, instruments=None,
             break
 
     # Build song data
-    # Layout at DATA_ADDR:
-    #   Pattern pointer table: lo[max_patt] + hi[max_patt]
-    #   Orderlists
-    #   Pattern data
-    max_patt = max(128, len(patterns))
+    # Layout at DATA_ADDR ($0C00):
+    #   $0C00: Pattern pointer table lo (128 bytes)
+    #   $0C80: Pattern pointer table hi (128 bytes)
+    #   $0D00: Wave table left (128 bytes)
+    #   $0D80: Wave table right (128 bytes)
+    #   $0E00: Orderlists + pattern data
+    max_patt = 128
     patt_tbl_size = max_patt * 2
+    wave_tbl_size = 256  # 128 left + 128 right
 
-    ol_base = DATA_ADDR + patt_tbl_size
+    # Wave table data (128 bytes each for left/right)
+    wt_l = bytearray(128)
+    wt_r = bytearray(128)
+    if wave_l:
+        wt_l[:len(wave_l)] = wave_l[:128]
+    if wave_r:
+        wt_r[:len(wave_r)] = wave_r[:128]
+
+    ol_base = DATA_ADDR + patt_tbl_size + wave_tbl_size  # $0E00
     ol_blob = bytearray()
     ol_addrs = []
     for ol in orderlists:
@@ -226,7 +241,7 @@ def build_sid(title, author, patterns, orderlists, instruments=None,
             patt_tbl[i] = addr & 0xFF
             patt_tbl[max_patt + i] = (addr >> 8) & 0xFF
 
-    song_data = patt_tbl + ol_blob + patt_blob
+    song_data = patt_tbl + wt_l + wt_r + ol_blob + patt_blob
 
     # Pad binary to DATA_ADDR
     pad_needed = DATA_ADDR - LOAD_ADDR - len(player)
