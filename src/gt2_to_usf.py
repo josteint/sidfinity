@@ -27,12 +27,26 @@ def gt2_to_usf(sid_path, trace_duration=10):
     layout = detect_gt2_layout(sid_path, trace_duration)
 
     header = parsed['header']
+
+    # Detect initial tempo from first SETTEMPO command in patterns
+    initial_tempo = 6  # GT2 default
+    for patt in parsed['patterns']:
+        for row in patt:
+            if row.get('command') == 15 and row.get('param'):
+                val = row['param']
+                if val < 0x80:  # global tempo (not channel-specific)
+                    initial_tempo = val
+                    break
+        else:
+            continue
+        break
+
     song = Song(
         title=header['title'],
         author=header['author'],
         sid_model='6581',
         clock='PAL',
-        tempo=6,
+        tempo=initial_tempo,
     )
 
     # Read instrument data from detected layout
