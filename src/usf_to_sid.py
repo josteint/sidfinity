@@ -154,15 +154,34 @@ def usf_to_sid(song, output_path=None):
     wave_r = bytearray()
 
     if not raw.get('wave_left'):
+        # Build wave table, deduplicating instruments that share the same steps.
+        # Group instruments by their wave table content (tuple of steps).
+        step_key = {}  # tuple of step repr → wt_offset
         wt_offset = 1
         for i, inst in enumerate(song.instruments):
             if inst.wave_table:
+                key = tuple((s.waveform, s.is_loop, s.loop_target, s.keep_freq,
+                             s.absolute_note, s.note_offset, s.delay)
+                            for s in inst.wave_table)
+                if key in step_key:
+                    wp_col[i] = step_key[key]
+                    continue
+                step_key[key] = wt_offset
                 wp_col[i] = wt_offset
                 inst_wt_start = wt_offset
                 for step in inst.wave_table:
                     if step.is_loop:
                         wave_l.append(0xFF)
                         wave_r.append(inst_wt_start + step.loop_target)
+                    elif step.delay > 0:
+                        wave_l.append(step.delay)  # delay value < $10
+                        # Right column: same format as waveform entries
+                        if step.keep_freq:
+                            wave_r.append(0x00)
+                        elif step.absolute_note >= 0:
+                            wave_r.append(step.absolute_note & 0x7F)
+                        else:
+                            wave_r.append((step.note_offset + 0x80) & 0xFF)
                     elif step.keep_freq:
                         wave_l.append(step.waveform)
                         wave_r.append(0x80)

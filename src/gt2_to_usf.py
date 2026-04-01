@@ -97,8 +97,8 @@ def gt2_to_usf(sid_path, trace_duration=10):
         wl = layout.get('wave_left', b'') if layout else b''
         wr = layout.get('wave_right', b'') if layout else b''
         # Wave table arrays are indexed by Y = wave_ptr (1-based)
-        if wp > 0 and wp < len(wl):
-            idx = wp  # wave_ptr = Y value; array stored from operand, so index=Y
+        if wp > 0 and wp <= len(wl):
+            idx = wp - 1  # wave_ptr is 1-based Y; array is 0-indexed from mt_wavetbl
             while idx < len(wl) and len(wt) < 64:
                 left = wl[idx]
                 right = wr[idx] if idx < len(wr) else 0x80
@@ -113,8 +113,14 @@ def gt2_to_usf(sid_path, trace_duration=10):
                     # else: stop — table ends without loop, last waveform persists
                     break
                 elif left < 0x10:
-                    # Delay
-                    wt.append(WaveTableStep(delay=left))
+                    # Delay: left = frame count, right = note (same format as waveform entries)
+                    if right == 0x00:
+                        wt.append(WaveTableStep(delay=left, keep_freq=True))
+                    elif right < 0x80:
+                        wt.append(WaveTableStep(delay=left, absolute_note=right))
+                    else:
+                        rel = right if right < 0xC0 else right - 0x100
+                        wt.append(WaveTableStep(delay=left, note_offset=rel - 0x80))
                 else:
                     # Waveform + note (packed format from greloc.c):
                     #   $00 = keep freq (player skips freq change)
