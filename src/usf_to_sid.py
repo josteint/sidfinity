@@ -21,66 +21,89 @@ WAVE_MAP = {'pulse': 0x41, 'saw': 0x21, 'tri': 0x11, 'noise': 0x81}
 
 
 def usf_pattern_to_gt2(pattern):
-    """Convert a USF Pattern to GT2 packed pattern bytes."""
-    packed = bytearray()
+    """Convert a USF Pattern to GT2 packed pattern bytes.
+
+    GT2 packed format:
+      $00        = end of pattern
+      $01-$3F    = instrument change (1-based), then next byte is FX or note
+      $40-$4F    = FX command (cmd = byte & $0F), read param if cmd!=0, then read note
+      $50-$5F    = FXONLY command (cmd = byte & $0F), read param if cmd!=0, row = rest
+      $60-$BC    = note (note_num = byte - $60)
+      $BD        = rest
+      $BE        = keyoff
+      $BF        = keyon
+      $C0-$FE    = packed rest (count = 256 - byte)
+    """
+    # First pass: build a list of row bytes (instrument, fx, note)
+    rows = []
     prev_inst = -1
 
     for event in pattern.events:
+        row = bytearray()
+
         # Instrument change
         if event.instrument >= 0 and event.instrument != prev_inst:
-            packed.append(event.instrument + 1)  # GT2 is 1-based
+            row.append(event.instrument + 1)  # GT2 is 1-based
             prev_inst = event.instrument
 
-        # Event type
-        if event.type == 'note':
-            note_byte = GT2_FIRSTNOTE + event.note
-            if note_byte > 0xBC:
-                note_byte = 0xBC
-            packed.append(note_byte)
-        elif event.type == 'rest':
-            packed.append(GT2_REST)
-        elif event.type == 'off':
-            packed.append(GT2_KEYOFF)
-        elif event.type == 'on':
-            packed.append(GT2_KEYON)
-        elif event.type == 'tie':
-            packed.append(GT2_REST)  # approximate: tie as rest
+        # Command + note
+        has_cmd = event.command and event.command > 0
+        is_note = event.type in ('note', 'off', 'on')
 
-        # Duration: add rests for duration-1 ticks
-        dur = max(1, event.duration)
-        for _ in range(dur - 1):
-            packed.append(GT2_REST)
+        if has_cmd:
+            if is_note:
+                # FX: command + param + note
+                row.append(0x40 + (event.command & 0x0F))
+                row.append(event.command_val & 0xFF)
+                if event.type == 'note':
+                    row.append(min(GT2_FIRSTNOTE + event.note, 0xBC))
+                elif event.type == 'off':
+                    row.append(GT2_KEYOFF)
+                elif event.type == 'on':
+                    row.append(GT2_KEYON)
+            else:
+                # FXONLY: command + param, row is rest
+                row.append(0x50 + (event.command & 0x0F))
+                row.append(event.command_val & 0xFF)
+        else:
+            if event.type == 'note':
+                row.append(min(GT2_FIRSTNOTE + event.note, 0xBC))
+            elif event.type == 'off':
+                row.append(GT2_KEYOFF)
+            elif event.type == 'on':
+                row.append(GT2_KEYON)
+            else:
+                row.append(GT2_REST)
+
+        rows.append(bytes(row))
+
+    # Second pass: compress consecutive rests into packed rests
+    packed = bytearray()
+    i = 0
+    while i < len(rows):
+        row = rows[i]
+        if row == bytes([GT2_REST]):
+            # Count consecutive rests
+            count = 0
+            while i < len(rows) and rows[i] == bytes([GT2_REST]):
+                count += 1
+                i += 1
+            # Emit packed rests
+            while count > 0:
+                if count == 1:
+                    packed.append(GT2_REST)
+                    count -= 1
+                else:
+                    chunk = min(count, 126)  # max packed rest = 256 - $C0 = 64... actually up to $01
+                    # Packed rest byte: 256 - count. Must be >= $C0.
+                    chunk = min(count, 64)
+                    packed.append(256 - chunk)
+                    count -= chunk
+        else:
+            packed.extend(row)
+            i += 1
 
     packed.append(GT2_ENDPATT)
-
-    # Compact: replace long rest runs with packed rests
-    if len(packed) > 128:
-        compact = bytearray()
-        j = 0
-        while j < len(packed) - 1:
-            b = packed[j]
-            if b == GT2_REST or b == GT2_KEYOFF:
-                count = 0
-                while j < len(packed) - 1 and (packed[j] == GT2_REST or packed[j] == GT2_KEYOFF):
-                    count += 1
-                    j += 1
-                while count > 0:
-                    chunk = min(count, 64)
-                    if chunk == 1:
-                        compact.append(GT2_REST)
-                    else:
-                        compact.append(256 - chunk)
-                    count -= chunk
-            else:
-                compact.append(b)
-                j += 1
-        compact.append(GT2_ENDPATT)
-        packed = compact
-
-    if len(packed) > 255:
-        packed = bytearray(packed[:254])
-        packed.append(GT2_ENDPATT)
-
     return bytes(packed)
 
 
