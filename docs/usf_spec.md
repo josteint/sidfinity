@@ -1,7 +1,7 @@
 # Universal Symbolic Format (USF) Specification
 
-**Version:** 0.3 (2026-03-31)
-**Status:** Draft — covers full GoatTracker V2 feature set
+**Version:** 0.4 (2026-04-01)
+**Status:** Draft — validated lossless GT2→USF→GT2 roundtrip
 
 ## Purpose
 
@@ -56,10 +56,14 @@ USF must be expressive enough to represent any feature used by any supported pla
 | legato | bool | False | No ADSR retrigger on new notes |
 | vib_speed_idx | int | 0 | Speed table index for instrument vibrato (0=none) |
 | vib_delay | int | 0 | Vibrato delay in frames |
+| pulse_ptr | int | 0 | Pulse table index (0=no pulse modulation) |
+| filter_ptr | int | 0 | Filter table index (0=no filter modulation) |
 | wave_table | list[WaveTableStep] | [] | Per-frame waveform program |
 | pulse_table | list[PulseTableStep] | [] | Pulse width modulation program |
 | filter_table | list[FilterTableStep] | [] | Filter modulation program |
 | pulse_width | int | 0x0808 | Initial pulse width (16-bit) |
+
+**Note:** `pulse_ptr` and `filter_ptr` are raw table indices used by the GT2 player to reference shared pulse/filter tables. They are set by pattern commands (cmd 9, cmd A) and stored per-instrument for the initial value. When USF includes inline `pulse_table`/`filter_table`, these pointers are redundant. Both representations coexist for roundtrip fidelity with GT2.
 
 ### WaveTableStep
 
@@ -71,7 +75,7 @@ USF must be expressive enough to represent any feature used by any supported pla
 | is_loop | bool | False | This is a loop/jump command |
 | loop_target | int | 0 | Loop destination (step index within this instrument's WT) |
 | delay | int | 0 | Delay N frames before this step (GT2: $01-$0F) |
-| keep_freq | bool | False | Don't change frequency (GT2: right=$80) |
+| keep_freq | bool | False | Don't change frequency (GT2 packed: right=$00, player skips freq) |
 
 ### PulseTableStep
 
@@ -111,8 +115,10 @@ Shared table for vibrato, portamento, and funktempo. Referenced by index from in
 | note | int | 0 | Note number 0–95 (C0=0, C4=48) |
 | duration | int | 1 | Duration in ticks |
 | instrument | int | -1 | Instrument index (-1=no change) |
-| command | int | 0 | Pattern command 0–15 (0=none) |
+| command | int\|None | None | Pattern command 0–15, or None for no command |
 | command_val | int | 0 | Command parameter byte |
+
+**Important:** `command=None` and `command=0` are distinct. `None` means no effect processing on this row. `command=0` means "effect 0" (instrument vibrato reload in GT2), which actively triggers vibrato parameter loading. The GT2 packed format encodes `command=0` as an FX/FXONLY byte ($40/$50), while `command=None` emits no FX byte.
 
 ### Pattern Commands
 
@@ -144,6 +150,14 @@ Shared table for vibrato, portamento, and funktempo. Referenced by index from in
 | off | Gate off — release current note. |
 | on | Gate on — retrigger without changing frequency. |
 | tie | Continue previous note without retriggering ADSR. |
+
+### Cross-Pattern Byte Sharing (GT2)
+
+The GT2 packer (greloc.c) optimizes memory by letting a pattern's last FX command read its note byte from adjacent memory. In USF, this is represented as a **rest with command** at the end of the pattern: the command is preserved (e.g., SETPULSEPTR=0) but the note is omitted since it lives in a shared memory region.
+
+The USF→GT2 encoder detects this case (trailing FXONLY with param=0) and emits `$4X $00` (FX byte + param) without a note byte or ENDPATT. The `$00` param doubles as the pattern terminator. The GT2 player reads the note from whatever follows in memory.
+
+This encoding is faithful to the original binary: the pattern bytes are byte-identical to greloc.c output.
 
 ## Token Format
 

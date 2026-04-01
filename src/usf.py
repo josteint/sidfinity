@@ -123,20 +123,23 @@ class Instrument:
     pulse_width: int = 0x0808  # initial pulse width (16-bit)
     vib_speed_idx: int = 0     # speed table index for vibrato (0=none)
     vib_delay: int = 0         # vibrato delay in frames
+    pulse_ptr: int = 0         # pulse table index (0=no pulse mod)
+    filter_ptr: int = 0        # filter table index (0=no filter mod)
 
 
 @dataclass
 class NoteEvent:
     """A single note/rest/control event in a pattern.
 
-    GT2 pattern commands are stored per-event. command=0 means no command
-    (instrument vibrato active). See PATTERN_COMMANDS for the full list.
+    command=None means no effect processing on this row.
+    command=0 means effect 0 (instrument vibrato reload in GT2).
+    These are distinct: None emits no FX byte, 0 emits $40/$50.
     """
     type: str = 'note'         # note, rest, off, on, tie
     note: int = 0              # note number 0-95 (C0=0, C4=48)
     duration: int = 1          # duration in ticks
     instrument: int = -1       # instrument change (-1 = no change)
-    command: int = 0           # pattern command 0-15 (0=none/inst vibrato)
+    command: object = None     # pattern command 0-15, or None for no command
     command_val: int = 0       # command parameter byte
 
 
