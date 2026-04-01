@@ -284,7 +284,7 @@ def extract_orderlists(binary, load_addr, song_lo_addr, song_hi_addr, songs, cha
                     # Actually in packed orderlists the pattern is BEFORE the repeat marker
                     decoded.append({'type': 'repeat', 'count': (b & 0x0F) + 1})
                 elif 0xE0 <= b <= 0xEF:
-                    decoded.append({'type': 'transpose', 'value': -(b & 0x0F)})
+                    decoded.append({'type': 'transpose', 'value': (b & 0x0F) - 16})
                 elif 0xF0 <= b <= 0xFE:
                     decoded.append({'type': 'transpose', 'value': b - 0xF0})
                 j += 1

@@ -230,18 +230,41 @@ def usf_to_sid(song, output_path=None):
             if wp_col[i] == 0:
                 wp_col[i] = 1
 
-    # Convert orderlists
+    # Convert orderlists. GT2 packed format:
+    # - Always emit transpose byte before each pattern/group
+    # - 2 repeats: write pattern byte twice
+    # - 3+ repeats: write pattern once + $D0+(count-1)
     gt2_orderlists = []
     for vi in range(3):
+        entries = song.orderlists[vi]
         ol = bytearray()
-        for patt_id, transpose in song.orderlists[vi]:
-            if transpose != 0:
-                if transpose > 0:
+        i = 0
+        while i < len(entries):
+            patt_id, transpose = entries[i]
+
+            # Count consecutive identical entries
+            repeat_count = 1
+            while (i + repeat_count < len(entries) and
+                   entries[i + repeat_count] == entries[i]):
+                repeat_count += 1
+
+            # Emit transpose when changed (or first entry)
+            if i == 0 or transpose != entries[i-1][1]:
+                if transpose >= 0:
                     ol.append(0xF0 + transpose)
                 else:
                     ol.append(0xE0 + (16 + transpose))
-            ol.append(patt_id)
-        ol.extend([0xFF, 0x00])  # loop to start
+
+            if repeat_count <= 2:
+                for _ in range(repeat_count):
+                    ol.append(patt_id)
+            else:
+                ol.append(patt_id)
+                ol.append(0xD0 + (repeat_count - 1))
+
+            i += repeat_count
+
+        ol.extend([0xFF, 0x00])
         gt2_orderlists.append(bytes(ol))
 
     # Pack (with optional custom freq table)
