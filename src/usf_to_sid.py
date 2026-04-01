@@ -113,10 +113,7 @@ def usf_to_sid(song, output_path=None):
     for i, inst in enumerate(song.instruments):
         ad_col[i] = inst.ad
         sr_col[i] = inst.sr
-        if inst.first_wave >= 0:
-            fw_col[i] = inst.first_wave
-        else:
-            fw_col[i] = WAVE_MAP.get(inst.waveform, 0x41)
+        fw_col[i] = WAVE_MAP.get(inst.waveform, 0x41)
         gt_col[i] = inst.gate_timer if inst.hr_method != 'none' else 0x80
         wp_col[i] = 1 if inst.wave_table else 0
         vp_col[i] = getattr(inst, 'vib_speed_idx', 0) or 0

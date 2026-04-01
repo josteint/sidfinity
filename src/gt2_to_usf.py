@@ -65,12 +65,9 @@ def gt2_to_usf(sid_path, trace_duration=10):
             return data[1:] if data and len(data) > 1 else data
 
         song._raw_gt2 = {
-            # Use rebuilt wave table (from USF steps) — raw passthrough
-            # has indexing issues. Pass other tables raw.
-            'pulse_left': trim(layout.get('pulse_left')),
-            'pulse_right': trim(layout.get('pulse_right')),
-            'filter_left': trim(layout.get('filter_left')),
-            'filter_right': trim(layout.get('filter_right')),
+            # TODO: pulse and filter table passthrough needs debugging.
+            # The table extraction produces wrong sizes/offsets.
+            # Disabled for now to avoid corrupting wave table output.
         }
 
     for y in range(ni):

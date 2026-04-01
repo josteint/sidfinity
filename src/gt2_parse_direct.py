@@ -182,25 +182,55 @@ def parse_gt2_direct(sid_path):
     # The right column operand = next pair's first member + 1.
     # Table size = right_op - left_op.
 
-    def extract_table_pair(idx):
-        """Extract a left/right table pair from table_operands[idx] and [idx+1]."""
-        if idx + 1 >= len(table_operands):
-            return b'', b'', 0
-        l_op = table_operands[idx]
-        r_op = table_operands[idx + 1] + 1  # right uses +1 member of next pair
-        size = r_op - l_op
-        l_off = l_op - la
-        r_off = r_op - la
-        if l_off >= 0 and r_off + size + ni < len(binary) and size > 0:
-            return (bytes(binary[l_off: l_off + size + ni]),
-                    bytes(binary[r_off: r_off + size + ni]),
-                    size)
-        return b'', b'', 0
+    # GT2 table layout: contiguous regions, each table has left+right of equal size.
+    # Layout order: wave_L, wave_R, pulse_L, pulse_R, filter_L, filter_R, speed_L, speed_R
+    # The table_operands (pairs) mark: wave_L, wave_R, pulse_L, filter_L (not all 8).
+    # Each table's size = gap between its left operand and its right operand.
+    # Wave: left at pair[0], right at pair[1]+1. size = pair[1]+1 - pair[0].
+    # Pulse left at pair[2], right at pair[2] + pulse_size.
+    # Pulse size = gap from pulse_left to the next table (filter at pair[3]).
 
-    wave_left, wave_right, wt_size = extract_table_pair(0)
-    pulse_left, pulse_right, pt_size = extract_table_pair(1)
-    filter_left, filter_right, ft_size = extract_table_pair(2)
-    speed_left, speed_right, st_size = extract_table_pair(3) if len(table_operands) > 3 else (b'', b'', 0)
+    def read_table(start_off, size):
+        """Read size bytes from binary at offset."""
+        if start_off >= 0 and start_off + size <= len(binary):
+            return bytes(binary[start_off: start_off + size])
+        return b''
+
+    wave_left = wave_right = pulse_left = pulse_right = b''
+    filter_left = filter_right = speed_left = speed_right = b''
+    wt_size = pt_size = ft_size = st_size = 0
+
+    if len(table_operands) >= 2:
+        # Wave table: left at pair[0]+1, right at pair[1]+2
+        # (pair[1] is the wave RIGHT operand, pair[1]+1 is the -1 adj)
+        wl_start = table_operands[0] + 1  # mt_wavetbl
+        wr_start = table_operands[1] + 2  # mt_notetbl (pair[1]+1 gives operand, +1 for -1 adj)
+        wt_size = wr_start - wl_start
+
+        wave_left = read_table(wl_start - la, wt_size + ni)
+        wave_right = read_table(wr_start - la, wt_size + ni)
+
+    if len(table_operands) >= 4:
+        # Pulse table: left at pair[2]+1, size = (pair[3]+1 - pair[2]+1) / 2
+        # Because pulse_R follows pulse_L, and filter_L follows pulse_R.
+        # pair[2]+1 = mt_pulsetimetbl, pair[3]+1 = mt_filttimetbl
+        # pulse total = pair[3]+1 - (pair[2]+1) = pair[3] - pair[2]
+        # pulse_size = pulse_total / 2
+        pl_start = table_operands[2] + 1  # mt_pulsetimetbl
+        fl_start = table_operands[3] + 1  # mt_filttimetbl
+        pulse_total = fl_start - pl_start
+        pt_size = pulse_total // 2
+        pr_start = pl_start + pt_size
+
+        pulse_left = read_table(pl_start - la, pt_size + ni)
+        pulse_right = read_table(pr_start - la, pt_size + ni)
+
+        # Filter table: from fl_start, extends to the end of known data
+        # We don't know the filter size precisely without another landmark.
+        # Use a reasonable default or read until the next known address.
+        # For now, use the same approach: assume filter + speed fill remaining space.
+        filter_left = read_table(fl_start - la, pt_size + ni)  # guess same size as pulse
+        filter_right = read_table(fl_start + pt_size - la, pt_size + ni)
 
     # Build result
     col_data = {}
