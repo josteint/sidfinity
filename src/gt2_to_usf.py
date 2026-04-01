@@ -86,23 +86,30 @@ def gt2_to_usf(sid_path, trace_duration=10):
                 right = wr[idx] if idx < len(wr) else 0x80
 
                 if left == 0xFF:
-                    # Loop: right column has target (same indexing as wave_ptr)
-                    loop_target = max(0, right - wp)
-                    wt.append(WaveTableStep(is_loop=True, loop_target=loop_target))
+                    # Jump: right column = new wave_ptr value.
+                    # $00 = stop (player sets waveptr=0 → beq skips wave processing)
+                    # Non-zero = jump to that position (loop)
+                    if right > 0:
+                        loop_target = max(0, right - wp)
+                        wt.append(WaveTableStep(is_loop=True, loop_target=loop_target))
+                    # else: stop — table ends without loop, last waveform persists
                     break
                 elif left < 0x10:
                     # Delay
                     wt.append(WaveTableStep(delay=left))
                 else:
-                    # Waveform + note
-                    if right == 0x80:
+                    # Waveform + note (packed format from greloc.c):
+                    #   $00 = keep freq (player skips freq change)
+                    #   $01-$7F = absolute note number (bit 7 clear → BPL)
+                    #   $80-$FF = relative note (bit 7 set → signed add)
+                    if right == 0x00:
                         wt.append(WaveTableStep(waveform=left, keep_freq=True))
-                    elif right > 0x80:
-                        wt.append(WaveTableStep(waveform=left, absolute_note=right - 0x81))
-                    elif right >= 0x60:
-                        wt.append(WaveTableStep(waveform=left, note_offset=right - 0x100))
+                    elif right < 0x80:
+                        wt.append(WaveTableStep(waveform=left, absolute_note=right))
                     else:
-                        wt.append(WaveTableStep(waveform=left, note_offset=right))
+                        # Signed relative: $80=+0, $81=+1, $FF=-1
+                        rel = right if right < 0xC0 else right - 0x100
+                        wt.append(WaveTableStep(waveform=left, note_offset=rel - 0x80))
                 idx += 1
 
         if not wt:

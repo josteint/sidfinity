@@ -935,7 +935,6 @@ mt_waveexec:
                 inc mt_chnwavetime,x
                 bne mt_wavedone
 mt_nowavedelay:
-                sbc #$10
               .ELSE
                 beq mt_nowavechange
               .ENDIF

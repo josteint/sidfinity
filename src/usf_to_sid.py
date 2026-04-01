@@ -126,13 +126,23 @@ def usf_to_sid(song, output_path=None):
                 if step.is_loop:
                     wave_l.append(0xFF)
                     wave_r.append(inst_wt_start + step.loop_target)
+                elif step.keep_freq:
+                    wave_l.append(step.waveform)
+                    wave_r.append(0x00)  # $00 = keep freq
                 elif step.absolute_note >= 0:
                     wave_l.append(step.waveform)
-                    wave_r.append(step.absolute_note & 0x7F)  # absolute: bit 7 clear
+                    wave_r.append(step.absolute_note & 0x7F)  # $01-$7F = absolute
                 else:
                     wave_l.append(step.waveform)
-                    wave_r.append(0x80 + (step.note_offset & 0x7F))  # relative: bit 7 set
-            wt_offset += len(inst.wave_table)
+                    wave_r.append((step.note_offset + 0x80) & 0xFF)  # $80+ = relative
+            # If no loop step, add a stop entry ($FF/$00)
+            has_loop = any(s.is_loop for s in inst.wave_table)
+            if not has_loop:
+                wave_l.append(0xFF)
+                wave_r.append(0x00)  # stop
+                wt_offset += len(inst.wave_table) + 1
+            else:
+                wt_offset += len(inst.wave_table)
         else:
             wp_col[i] = 0
 
