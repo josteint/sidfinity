@@ -322,13 +322,25 @@ def unpack_pattern(binary, load_addr, patt_addr, max_bytes=256):
     if off < 0 or off >= len(binary):
         return []
 
+    # Find pattern's own $00 terminator
+    patt_size = 0
+    while off + patt_size < len(binary) and binary[off + patt_size] != 0x00:
+        patt_size += 1
+    patt_size += 1  # include the $00
+
     rows = []
     y = 0  # mirrors the Y register in player
+    # allow_overshoot: when an FX command at the end of a pattern needs to
+    # read its note from beyond the $00 terminator (cross-pattern sharing),
+    # we allow reading a few bytes past the boundary.
+    allow_overshoot = 0
 
     def readbyte():
         nonlocal y
         pos = off + y
         if pos >= len(binary):
+            return None
+        if y >= patt_size + allow_overshoot:
             return None
         return binary[pos]
 
@@ -336,6 +348,7 @@ def unpack_pattern(binary, load_addr, patt_addr, max_bytes=256):
         if y >= max_bytes:
             break
 
+        force_end = False
         b = readbyte()
         if b is None:
             break
@@ -386,7 +399,14 @@ def unpack_pattern(binary, load_addr, patt_addr, max_bytes=256):
                 # FX (not FXONLY): read note
                 b = readbyte()
                 if b is None:
-                    break
+                    # The note is past the $00 terminator — cross-pattern sharing.
+                    # Allow reading the borrowed note, then force pattern end.
+                    allow_overshoot = 1
+                    b = readbyte()
+                    if b is None:
+                        break
+                    # Process this note, then stop (don't read more from gap data)
+                    force_end = True
 
         # Now b should be note ($60-$BC), REST($BD), KEYOFF($BE), KEYON($BF),
         # or packed rest ($C0-$FF)
@@ -419,6 +439,8 @@ def unpack_pattern(binary, load_addr, patt_addr, max_bytes=256):
                 'param': new_param,
             })
             y += 1
+            if force_end:
+                break
             nb = readbyte()
             if nb is not None and nb == ENDPATT:
                 break
