@@ -47,14 +47,16 @@ def usf_pattern_to_gt2(pattern):
             prev_inst = event.instrument
 
         # Command + note
-        has_cmd = event.command and event.command > 0
+        has_cmd = event.command is not None
         is_note = event.type in ('note', 'off', 'on')
 
         if has_cmd:
+            cmd_num = event.command & 0x0F
             if is_note:
                 # FX: command + param + note
-                row.append(0x40 + (event.command & 0x0F))
-                row.append(event.command_val & 0xFF)
+                row.append(0x40 + cmd_num)
+                if cmd_num != 0:
+                    row.append(event.command_val & 0xFF)
                 if event.type == 'note':
                     row.append(min(GT2_FIRSTNOTE + event.note, 0xBC))
                 elif event.type == 'off':
@@ -63,8 +65,9 @@ def usf_pattern_to_gt2(pattern):
                     row.append(GT2_KEYON)
             else:
                 # FXONLY: command + param, row is rest
-                row.append(0x50 + (event.command & 0x0F))
-                row.append(event.command_val & 0xFF)
+                row.append(0x50 + cmd_num)
+                if cmd_num != 0:
+                    row.append(event.command_val & 0xFF)
         else:
             if event.type == 'note':
                 row.append(min(GT2_FIRSTNOTE + event.note, 0xBC))
@@ -88,15 +91,17 @@ def usf_pattern_to_gt2(pattern):
             while i < len(rows) and rows[i] == bytes([GT2_REST]):
                 count += 1
                 i += 1
-            # Emit packed rests
+            # Emit packed rests (max 16 per packed byte to match GT2 packer)
             while count > 0:
                 if count == 1:
                     packed.append(GT2_REST)
                     count -= 1
+                elif count == 2:
+                    packed.append(GT2_REST)
+                    packed.append(GT2_REST)
+                    count -= 2
                 else:
-                    chunk = min(count, 126)  # max packed rest = 256 - $C0 = 64... actually up to $01
-                    # Packed rest byte: 256 - count. Must be >= $C0.
-                    chunk = min(count, 64)
+                    chunk = min(count, 16)
                     packed.append(256 - chunk)
                     count -= chunk
         else:

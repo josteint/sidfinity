@@ -167,8 +167,8 @@ def gt2_to_usf(sid_path, trace_duration=10):
             if inst_num is not None:
                 inst_num -= 1  # GT2 pattern bytes are 1-based
 
-            cmd = row.get('command', 0) or 0
-            cmd_val = row.get('param', 0) or 0
+            cmd = row.get('command')  # None = no command, 0 = effect 0 (instrvib)
+            cmd_val = row.get('param') or 0
 
             ev_kwargs = dict(
                 duration=1,
