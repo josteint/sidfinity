@@ -53,6 +53,26 @@ def gt2_to_usf(sid_path, trace_duration=10):
     ni = layout['ni'] if layout else 5
     col_data = layout['col_data'] if layout else {}
 
+    # Attach raw GT2 table data for direct passthrough to packer.
+    # Raw data starts at operand address (index 0), but the packer expects
+    # data starting from mt_wavetbl (the player reads via LDA mt_wavetbl-1,Y
+    # with Y≥1, so mt_wavetbl[0] = first entry). Our raw arrays have the
+    # operand byte at [0], so skip it.
+    if layout:
+        wp_vals = col_data.get('wave_ptr', [])
+        def trim(data):
+            """Skip the operand byte (index 0) — data starts at index 1."""
+            return data[1:] if data and len(data) > 1 else data
+
+        song._raw_gt2 = {
+            # Use rebuilt wave table (from USF steps) — raw passthrough
+            # has indexing issues. Pass other tables raw.
+            'pulse_left': trim(layout.get('pulse_left')),
+            'pulse_right': trim(layout.get('pulse_right')),
+            'filter_left': trim(layout.get('filter_left')),
+            'filter_right': trim(layout.get('filter_right')),
+        }
+
     for y in range(ni):
         ad = col_data.get('ad', [])[y] if y < len(col_data.get('ad', [])) else 0
         sr = col_data.get('sr', [])[y] if y < len(col_data.get('sr', [])) else 0
@@ -61,6 +81,8 @@ def gt2_to_usf(sid_path, trace_duration=10):
         gt_byte = col_data.get('gate_timer', [])[y] if y < len(col_data.get('gate_timer', [])) else 2
         vp = col_data.get('vib_param', [])[y] if y < len(col_data.get('vib_param', [])) else 0
         vd = col_data.get('vib_delay', [])[y] if y < len(col_data.get('vib_delay', [])) else 0
+        pp = col_data.get('pulse_ptr', [])[y] if y < len(col_data.get('pulse_ptr', [])) else 0
+        fp = col_data.get('filter_ptr', [])[y] if y < len(col_data.get('filter_ptr', [])) else 0
 
         # Determine waveform from first_wave byte
         if fw_byte in (0, 0xFE, 0xFF):
@@ -130,6 +152,8 @@ def gt2_to_usf(sid_path, trace_duration=10):
             vib_delay=vd,
             wave_table=wt,
         )
+        inst.pulse_ptr = pp
+        inst.filter_ptr = fp
         song.instruments.append(inst)
 
     # Convert patterns

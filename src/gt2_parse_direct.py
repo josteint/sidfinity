@@ -16,6 +16,24 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from gt_parser import parse_psid_header, find_freq_table, collect_abs_addresses
 
 
+def find_lda_sta_pairs(binary, la, code_end):
+    """Find all LDA abs,Y → STA patterns in player code."""
+    pairs = []
+    i = 0
+    while i < code_end - 5:
+        if binary[i] == 0xB9:  # LDA abs,Y
+            src = binary[i + 1] | (binary[i + 2] << 8)
+            if (src - la) >= 0:
+                for j in range(i + 3, min(i + 15, code_end - 2)):
+                    if binary[j] in (0x9D, 0x8D):
+                        dst = binary[j + 1] | (binary[j + 2] << 8)
+                        mode = 'abs_x' if binary[j] == 0x9D else 'abs'
+                        pairs.append((src, dst, mode))
+                        break
+        i += 1
+    return pairs
+
+
 def parse_gt2_direct(sid_path):
     """Parse a GT2 SID by reading operand addresses from the player code."""
     with open(sid_path, 'rb') as f:
@@ -77,42 +95,73 @@ def parse_gt2_direct(sid_path):
         vals = [binary[off + y] for y in range(1, ni + 1) if off + y < len(binary)]
         raw_cols[ci] = vals
 
-    # Step 5: Identify columns by content and STA targets
+    # Step 5: Identify columns by STA targets.
+    # Build a map: column operand → STA target
+    col_sta_targets = {}
+    for src, dst, mode in find_lda_sta_pairs(binary, la, code_end):
+        if src in set(col_operands):
+            ci = col_operands.index(src)
+            if ci not in col_sta_targets:
+                col_sta_targets[ci] = (dst, mode)
+
     columns = {'ad': 0, 'sr': 1}
 
-    # Find wave_ptr: it feeds the same STA target as the wave table right column
-    # Find first_wave: values look like SID waveform bytes ($00, $09, $10-$81)
-    for ci in range(2, len(col_operands)):
-        vals = raw_cols.get(ci, [])
-        if not vals:
-            continue
+    # Identify remaining columns by their STA targets.
+    # The wave_ptr column shares its STA target with the wave table right column:
+    # both write to mt_chnwaveptr. Find which column index has same STA target
+    # as any LDA from the post-instrument area.
+    post_instr_targets = {}
+    for src, dst, mode in find_lda_sta_pairs(binary, la, code_end):
+        if (src - la) > freq_end + ni * 7 and mode == 'abs_x':
+            post_instr_targets[dst] = src
 
-        # Check if values look like waveform bytes
-        waveform_like = sum(1 for v in vals if v in (0, 0x09, 0x10, 0x11, 0x13,
-                            0x17, 0x20, 0x21, 0x23, 0x40, 0x41, 0x42, 0x80, 0x81))
-        if waveform_like > len(vals) * 0.4 and 'first_wave' not in columns:
-            columns['first_wave'] = ci
+    # Wave_ptr column: the one that shares STA target $1450-equivalent with
+    # the wave table right column. Pick the LOWEST column index that matches.
+    wave_ptr_candidates = []
+    for ci, (target, mode) in col_sta_targets.items():
+        if ci <= 1:
             continue
+        if target in post_instr_targets and mode == 'abs_x':
+            wave_ptr_candidates.append(ci)
+    if wave_ptr_candidates:
+        columns['wave_ptr'] = min(wave_ptr_candidates)
 
-        # Check if values look like small table indices (0-30ish)
-        small_indices = sum(1 for v in vals if v < 40)
-        if small_indices > len(vals) * 0.6 and 'wave_ptr' not in columns:
-            columns['wave_ptr'] = ci
-            continue
+    # The first_wave column stores to mt_chnwave. Identify by: it's the column
+    # immediately after wave_ptr (greloc.c always emits them adjacent).
+    # Actually, just use the order: after AD, SR, wave_ptr come first_wave,
+    # pulse_ptr, filter_ptr, vib_delay, vib_param. But this varies.
+    # Safest: assign unidentified columns by their stride position.
+    # GT2 standard order: AD, SR, wave_ptr, pulse_ptr, filt_ptr, vib_param, vib_delay
+    # With FIXEDPARAMS: AD, SR, wave_ptr, first_wave, pulse_ptr, vib_delay, vib_param
+    # Assign unidentified columns. The wave_ptr column is already identified
+    # by shared STA target. The remaining columns after wave_ptr follow
+    # greloc.c order. With FIXEDPARAMS=1: first_wave, pulse_ptr, vib_delay, vib_param.
+    # Without FIXEDPARAMS: pulse_ptr, filt_ptr, vib_param, vib_delay, gate_timer, first_wave.
+    # Detect FIXEDPARAMS: if wave_ptr is at col2 and col3 has waveform-like values
+    unassigned = sorted(ci for ci in range(2, len(col_operands))
+                        if ci not in columns.values())
 
-    # Assign remaining columns by position
-    for ci in range(2, len(col_operands)):
-        if ci not in columns.values():
-            if 'pulse_ptr' not in columns:
-                columns['pulse_ptr'] = ci
-            elif 'filter_ptr' not in columns:
-                columns['filter_ptr'] = ci
-            elif 'vib_param' not in columns:
-                columns['vib_param'] = ci
-            elif 'vib_delay' not in columns:
-                columns['vib_delay'] = ci
-            elif 'gate_timer' not in columns:
-                columns['gate_timer'] = ci
+    if 'wave_ptr' in columns and len(unassigned) >= 1:
+        next_ci = unassigned[0]
+        next_vals = raw_cols.get(next_ci, [])
+        # If the next column after wave_ptr has small values (0-20) that look
+        # like waveform bytes or first_wave codes, it's FIXEDPARAMS mode
+        wf_count = sum(1 for v in next_vals if v in (0, 1, 6, 0x09, 0x10, 0x11,
+                        0x13, 0x17, 0x20, 0x21, 0x23, 0x40, 0x41, 0x42, 0x80, 0x81))
+        has_fixedparams = wf_count > len(next_vals) * 0.3
+
+        if has_fixedparams:
+            remaining_names = ['first_wave', 'pulse_ptr', 'vib_delay', 'vib_param',
+                               'filter_ptr', 'gate_timer']
+        else:
+            remaining_names = ['pulse_ptr', 'filter_ptr', 'vib_param', 'vib_delay',
+                               'gate_timer', 'first_wave']
+    else:
+        remaining_names = ['first_wave', 'pulse_ptr', 'filter_ptr',
+                           'vib_param', 'vib_delay', 'gate_timer']
+
+    for ci, name in zip(unassigned, remaining_names):
+        columns[name] = ci
 
     # Step 6: Find wave table via address pairs
     # Wave table left/right operands: both addr and addr+1 referenced
@@ -127,17 +176,31 @@ def parse_gt2_direct(sid_path):
     wt_size = 0
     # table_operands has the FIRST member of each (addr, addr+1) pair.
     # Wave left uses the first pair's first member: LDA $159F,Y
-    # Wave right uses the second pair's SECOND member: LDA $15C0,Y
-    # (because the right column also uses -1 addressing independently)
-    if len(table_operands) >= 2:
-        wl_op = table_operands[0]         # $159F
-        wr_op = table_operands[1] + 1     # $15BF + 1 = $15C0
-        wt_size = wr_op - wl_op           # $15C0 - $159F = 33
-        wl_off = wl_op - la
-        wr_off = wr_op - la
-        if wl_off >= 0 and wr_off + wt_size < len(binary):
-            wave_left = bytes(binary[wl_off: wl_off + wt_size + ni])
-            wave_right = bytes(binary[wr_off: wr_off + wt_size + ni])
+    # Extract all table pairs: wave, pulse, filter, speed
+    # table_operands = [wave_left, pulse_left, filter_left, speed_left, ...]
+    # Each pair: left_op and left_op+1 both referenced.
+    # The right column operand = next pair's first member + 1.
+    # Table size = right_op - left_op.
+
+    def extract_table_pair(idx):
+        """Extract a left/right table pair from table_operands[idx] and [idx+1]."""
+        if idx + 1 >= len(table_operands):
+            return b'', b'', 0
+        l_op = table_operands[idx]
+        r_op = table_operands[idx + 1] + 1  # right uses +1 member of next pair
+        size = r_op - l_op
+        l_off = l_op - la
+        r_off = r_op - la
+        if l_off >= 0 and r_off + size + ni < len(binary) and size > 0:
+            return (bytes(binary[l_off: l_off + size + ni]),
+                    bytes(binary[r_off: r_off + size + ni]),
+                    size)
+        return b'', b'', 0
+
+    wave_left, wave_right, wt_size = extract_table_pair(0)
+    pulse_left, pulse_right, pt_size = extract_table_pair(1)
+    filter_left, filter_right, ft_size = extract_table_pair(2)
+    speed_left, speed_right, st_size = extract_table_pair(3) if len(table_operands) > 3 else (b'', b'', 0)
 
     # Build result
     col_data = {}
@@ -155,6 +218,12 @@ def parse_gt2_direct(sid_path):
         'wave_left': wave_left,
         'wave_right': wave_right,
         'wave_size': wt_size,
+        'pulse_left': pulse_left,
+        'pulse_right': pulse_right,
+        'filter_left': filter_left,
+        'filter_right': filter_right,
+        'speed_left': speed_left,
+        'speed_right': speed_right,
     }
 
 

@@ -105,13 +105,24 @@ def usf_to_sid(song, output_path=None):
     fw_col = bytearray(ni)
     gt_col = bytearray(ni)
     wp_col = bytearray(ni)
+    vp_col = bytearray(ni)
+    vd_col = bytearray(ni)
+    pp_col = bytearray(ni)
+    fp_col = bytearray(ni)
 
     for i, inst in enumerate(song.instruments):
         ad_col[i] = inst.ad
         sr_col[i] = inst.sr
-        fw_col[i] = WAVE_MAP.get(inst.waveform, 0x41)
+        if inst.first_wave >= 0:
+            fw_col[i] = inst.first_wave
+        else:
+            fw_col[i] = WAVE_MAP.get(inst.waveform, 0x41)
         gt_col[i] = inst.gate_timer if inst.hr_method != 'none' else 0x80
         wp_col[i] = 1 if inst.wave_table else 0
+        vp_col[i] = getattr(inst, 'vib_speed_idx', 0) or 0
+        vd_col[i] = getattr(inst, 'vib_delay', 0) or 0
+        pp_col[i] = getattr(inst, 'pulse_ptr', 0) or 0
+        fp_col[i] = getattr(inst, 'filter_ptr', 0) or 0
 
     # Build wave table from all instruments' wave tables concatenated
     wave_l = bytearray()
@@ -128,7 +139,7 @@ def usf_to_sid(song, output_path=None):
                     wave_r.append(inst_wt_start + step.loop_target)
                 elif step.keep_freq:
                     wave_l.append(step.waveform)
-                    wave_r.append(0x00)  # $00 = keep freq
+                    wave_r.append(0x80)  # $80 = relative +0 (sets freq from current note)
                 elif step.absolute_note >= 0:
                     wave_l.append(step.waveform)
                     wave_r.append(step.absolute_note & 0x7F)  # $01-$7F = absolute
@@ -171,6 +182,9 @@ def usf_to_sid(song, output_path=None):
     freq_lo = getattr(song, 'freq_lo', None)
     freq_hi = getattr(song, 'freq_hi', None)
 
+    # Use raw GT2 table data if available (from direct parser passthrough)
+    raw = getattr(song, '_raw_gt2', None) or {}
+
     sid_bytes, player_size = pack_sid(
         title=song.title,
         author=song.author,
@@ -181,9 +195,19 @@ def usf_to_sid(song, output_path=None):
         instruments_sr=bytes(sr_col),
         instruments_firstwave=bytes(fw_col),
         instruments_gatetimer=bytes(gt_col),
-        instruments_waveptr=bytes(wp_col),
-        wave_left=bytes(wave_l),
-        wave_right=bytes(wave_r),
+        instruments_waveptr=raw.get('wave_ptr_col', bytes(wp_col)),
+        instruments_vibparam=bytes(vp_col),
+        instruments_vibdelay=bytes(vd_col),
+        instruments_pulseptr=bytes(pp_col),
+        instruments_filtptr=bytes(fp_col),
+        wave_left=raw.get('wave_left', bytes(wave_l)),
+        wave_right=raw.get('wave_right', bytes(wave_r)),
+        pulse_left=raw.get('pulse_left'),
+        pulse_right=raw.get('pulse_right'),
+        filter_left=raw.get('filter_left'),
+        filter_right=raw.get('filter_right'),
+        speed_left=raw.get('speed_left'),
+        speed_right=raw.get('speed_right'),
         orderlists=gt2_orderlists,
         patterns=gt2_patterns,
         default_tempo=getattr(song, 'tempo', 6),
