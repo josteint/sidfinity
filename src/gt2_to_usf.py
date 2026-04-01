@@ -58,11 +58,29 @@ def gt2_to_usf(sid_path, trace_duration=10):
     # Table data starts at operand address — we pass it raw and let
     # the packer handle the -1 addressing.
     if layout:
+        # Populate shared wave table from raw bytes
+        raw_wl = layout.get('wave_left', b'')
+        raw_wr = layout.get('wave_right', b'')
+        if raw_wl and raw_wr:
+            size = min(len(raw_wl), len(raw_wr))
+            song.shared_wave_table = [(raw_wl[i], raw_wr[i]) for i in range(size)]
+
+        # Populate shared pulse/filter tables
+        raw_pl = layout.get('pulse_left', b'')
+        raw_pr = layout.get('pulse_right', b'')
+        if raw_pl and raw_pr:
+            size = min(len(raw_pl), len(raw_pr))
+            song.shared_pulse_table = [(raw_pl[i], raw_pr[i]) for i in range(size)]
+
+        raw_fl = layout.get('filter_left', b'')
+        raw_fr = layout.get('filter_right', b'')
+        if raw_fl and raw_fr:
+            size = min(len(raw_fl), len(raw_fr))
+            song.shared_filter_table = [(raw_fl[i], raw_fr[i]) for i in range(size)]
+
         song._raw_gt2 = {
             'col_data': col_data,
             'ni': ni,
-            'wave_left': layout.get('wave_left'),
-            'wave_right': layout.get('wave_right'),
             'pulse_left': layout.get('pulse_left'),
             'pulse_right': layout.get('pulse_right'),
             # filter and speed tables disabled — extraction sizes are wrong

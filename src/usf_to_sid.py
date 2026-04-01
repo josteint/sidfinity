@@ -191,7 +191,12 @@ def usf_to_sid(song, output_path=None):
     wave_l = bytearray()
     wave_r = bytearray()
 
-    if not raw.get('wave_left'):
+    # Use shared wave table if available (preserves GT2 sharing layout)
+    if song.shared_wave_table:
+        for l, r in song.shared_wave_table:
+            wave_l.append(l)
+            wave_r.append(r)
+    elif not raw.get('wave_left'):
         # Build wave table with suffix-aware deduplication.
         # GT2's greloc.c shares suffixes: if inst B's steps are a suffix of
         # inst A's steps, B points into A's data (no duplication).
@@ -270,7 +275,7 @@ def usf_to_sid(song, output_path=None):
                     else:
                         wave_l.append(step.waveform)
                         wave_r.append((step.note_offset + 0x80) & 0xFF)
-                has_loop = any(s.is_loop for s in inst.wave_table)
+                    has_loop = any(s.is_loop for s in inst.wave_table)
                 if not has_loop:
                     wave_l.append(0xFF)
                     wave_r.append(0x00)
@@ -327,8 +332,18 @@ def usf_to_sid(song, output_path=None):
     freq_lo = getattr(song, 'freq_lo', None)
     freq_hi = getattr(song, 'freq_hi', None)
 
-    # Raw GT2 table arrays are already extracted starting from the data
-    # (operand+1), not from the operand. No trimming needed.
+    # Build pulse/filter table bytes from shared tables
+    pulse_l = bytearray()
+    pulse_r = bytearray()
+    if song.shared_pulse_table:
+        for l, r in song.shared_pulse_table:
+            pulse_l.append(l); pulse_r.append(r)
+
+    filter_l = bytearray()
+    filter_r = bytearray()
+    if song.shared_filter_table:
+        for l, r in song.shared_filter_table:
+            filter_l.append(l); filter_r.append(r)
 
     sid_bytes, player_size = pack_sid(
         title=song.title,
@@ -345,12 +360,12 @@ def usf_to_sid(song, output_path=None):
         instruments_vibdelay=vd_col,
         instruments_pulseptr=pp_col,
         instruments_filtptr=fp_col,
-        wave_left=raw.get('wave_left') or bytes(wave_l),
-        wave_right=raw.get('wave_right') or bytes(wave_r),
-        pulse_left=raw.get('pulse_left'),
-        pulse_right=raw.get('pulse_right'),
-        filter_left=raw.get('filter_left'),
-        filter_right=raw.get('filter_right'),
+        wave_left=bytes(wave_l) if wave_l else raw.get('wave_left') or bytes([0]),
+        wave_right=bytes(wave_r) if wave_r else raw.get('wave_right') or bytes([0]),
+        pulse_left=bytes(pulse_l) if pulse_l else raw.get('pulse_left'),
+        pulse_right=bytes(pulse_r) if pulse_r else raw.get('pulse_right'),
+        filter_left=bytes(filter_l) if filter_l else raw.get('filter_left'),
+        filter_right=bytes(filter_r) if filter_r else raw.get('filter_right'),
         speed_left=raw.get('speed_left'),
         speed_right=raw.get('speed_right'),
         orderlists=gt2_orderlists,

@@ -182,6 +182,12 @@ class Song:
     orderlists: list = field(default_factory=lambda: [[], [], []])  # 3 voices
     # Each orderlist entry: (pattern_id, transpose)
     speed_table: list = field(default_factory=list)    # list of SpeedTableEntry
+    # Shared tables: list of (left_byte, right_byte) pairs.
+    # Instruments reference positions via wave_ptr, pulse_ptr, filter_ptr.
+    # These are the raw GT2 table bytes — shared across instruments.
+    shared_wave_table: list = field(default_factory=list)
+    shared_pulse_table: list = field(default_factory=list)
+    shared_filter_table: list = field(default_factory=list)
     freq_lo: bytes = None      # custom frequency table lo (96 bytes), or None for PAL
     freq_hi: bytes = None      # custom frequency table hi (96 bytes), or None for PAL
 
