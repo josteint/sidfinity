@@ -323,7 +323,7 @@ def tokenize(song):
             elif event.type == 'tie':
                 tokens.append('TIE')
 
-            if event.command > 0:
+            if event.command is not None and event.command > 0:
                 tokens.append(f'x{event.command:X}{event.command_val:02X}')
 
             if event.duration > 1:
