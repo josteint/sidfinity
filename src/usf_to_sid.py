@@ -100,63 +100,90 @@ def usf_to_sid(song, output_path=None):
         ni = 1
         song.instruments = [usf.Instrument()]
 
-    ad_col = bytearray(ni)
-    sr_col = bytearray(ni)
-    fw_col = bytearray(ni)
-    gt_col = bytearray(ni)
-    wp_col = bytearray(ni)
-    vp_col = bytearray(ni)
-    vd_col = bytearray(ni)
-    pp_col = bytearray(ni)
-    fp_col = bytearray(ni)
+    # Build instrument columns. If raw GT2 data is available, use it
+    # directly (remapped to our packer's column order). Otherwise,
+    # build from USF instrument fields.
+    raw = getattr(song, '_raw_gt2', None) or {}
+    raw_cols = raw.get('col_data', {})
 
-    for i, inst in enumerate(song.instruments):
-        ad_col[i] = inst.ad
-        sr_col[i] = inst.sr
-        fw_col[i] = WAVE_MAP.get(inst.waveform, 0x41)
-        gt_col[i] = inst.gate_timer if inst.hr_method != 'none' else 0x80
-        wp_col[i] = 1 if inst.wave_table else 0
-        vp_col[i] = getattr(inst, 'vib_speed_idx', 0) or 0
-        vd_col[i] = getattr(inst, 'vib_delay', 0) or 0
-        pp_col[i] = getattr(inst, 'pulse_ptr', 0) or 0
-        fp_col[i] = getattr(inst, 'filter_ptr', 0) or 0
+    def raw_col(name, default_val=0):
+        """Get raw column bytes, padded to ni."""
+        vals = raw_cols.get(name, [])
+        if vals:
+            result = list(vals[:ni])
+            while len(result) < ni:
+                result.append(default_val)
+            return bytes(result)
+        return bytes([default_val] * ni)
 
-    # Build wave table from all instruments' wave tables concatenated
+    if raw_cols:
+        # Use raw column data directly, remapped to packer order
+        ad_col = raw_col('ad')
+        sr_col = raw_col('sr')
+        wp_col = raw_col('wave_ptr')
+        pp_col = raw_col('pulse_ptr')
+        fp_col = raw_col('filter_ptr')
+        vp_col = raw_col('vib_param')
+        vd_col = raw_col('vib_delay')
+        gt_col = raw_col('gate_timer', 0x02)  # default: gate timer 2
+        fw_col = raw_col('first_wave', 0x41)  # default: pulse+gate
+    else:
+        ad_col = bytearray(ni)
+        sr_col = bytearray(ni)
+        fw_col = bytearray(ni)
+        gt_col = bytearray(ni)
+        wp_col = bytearray(ni)
+        vp_col = bytearray(ni)
+        vd_col = bytearray(ni)
+        pp_col = bytearray(ni)
+        fp_col = bytearray(ni)
+        for i, inst in enumerate(song.instruments):
+            ad_col[i] = inst.ad
+            sr_col[i] = inst.sr
+            fw_col[i] = WAVE_MAP.get(inst.waveform, 0x41)
+            gt_col[i] = inst.gate_timer if inst.hr_method != 'none' else 0x80
+            wp_col[i] = 1 if inst.wave_table else 0
+            vp_col[i] = getattr(inst, 'vib_speed_idx', 0) or 0
+            vd_col[i] = getattr(inst, 'vib_delay', 0) or 0
+            pp_col[i] = getattr(inst, 'pulse_ptr', 0) or 0
+            fp_col[i] = getattr(inst, 'filter_ptr', 0) or 0
+
+    # Build wave table. If raw GT2 data is available, use it directly.
+    # Otherwise rebuild from USF wave table steps.
     wave_l = bytearray()
     wave_r = bytearray()
-    wt_offset = 1  # 1-based indexing
 
-    for i, inst in enumerate(song.instruments):
-        if inst.wave_table:
-            wp_col[i] = wt_offset
-            inst_wt_start = wt_offset
-            for step in inst.wave_table:
-                if step.is_loop:
+    if not raw.get('wave_left'):
+        wt_offset = 1
+        for i, inst in enumerate(song.instruments):
+            if inst.wave_table:
+                wp_col[i] = wt_offset
+                inst_wt_start = wt_offset
+                for step in inst.wave_table:
+                    if step.is_loop:
+                        wave_l.append(0xFF)
+                        wave_r.append(inst_wt_start + step.loop_target)
+                    elif step.keep_freq:
+                        wave_l.append(step.waveform)
+                        wave_r.append(0x80)
+                    elif step.absolute_note >= 0:
+                        wave_l.append(step.waveform)
+                        wave_r.append(step.absolute_note & 0x7F)
+                    else:
+                        wave_l.append(step.waveform)
+                        wave_r.append((step.note_offset + 0x80) & 0xFF)
+                has_loop = any(s.is_loop for s in inst.wave_table)
+                if not has_loop:
                     wave_l.append(0xFF)
-                    wave_r.append(inst_wt_start + step.loop_target)
-                elif step.keep_freq:
-                    wave_l.append(step.waveform)
-                    wave_r.append(0x80)  # $80 = relative +0 (sets freq from current note)
-                elif step.absolute_note >= 0:
-                    wave_l.append(step.waveform)
-                    wave_r.append(step.absolute_note & 0x7F)  # $01-$7F = absolute
+                    wave_r.append(0x00)
+                    wt_offset += len(inst.wave_table) + 1
                 else:
-                    wave_l.append(step.waveform)
-                    wave_r.append((step.note_offset + 0x80) & 0xFF)  # $80+ = relative
-            # If no loop step, add a stop entry ($FF/$00)
-            has_loop = any(s.is_loop for s in inst.wave_table)
-            if not has_loop:
-                wave_l.append(0xFF)
-                wave_r.append(0x00)  # stop
-                wt_offset += len(inst.wave_table) + 1
+                    wt_offset += len(inst.wave_table)
             else:
-                wt_offset += len(inst.wave_table)
-        else:
-            wp_col[i] = 0
-
-    if not wave_l:
-        wave_l = bytes([0x41, 0xFF])
-        wave_r = bytes([0x80, 0x01])
+                wp_col[i] = 0
+        if not wave_l:
+            wave_l = bytes([0x41, 0xFF])
+            wave_r = bytes([0x80, 0x01])
         for i in range(ni):
             if wp_col[i] == 0:
                 wp_col[i] = 1
@@ -179,8 +206,8 @@ def usf_to_sid(song, output_path=None):
     freq_lo = getattr(song, 'freq_lo', None)
     freq_hi = getattr(song, 'freq_hi', None)
 
-    # Use raw GT2 table data if available (from direct parser passthrough)
-    raw = getattr(song, '_raw_gt2', None) or {}
+    # Raw GT2 table arrays are already extracted starting from the data
+    # (operand+1), not from the operand. No trimming needed.
 
     sid_bytes, player_size = pack_sid(
         title=song.title,
@@ -188,17 +215,17 @@ def usf_to_sid(song, output_path=None):
         num_instruments=ni,
         freq_lo=freq_lo,
         freq_hi=freq_hi,
-        instruments_ad=bytes(ad_col),
-        instruments_sr=bytes(sr_col),
-        instruments_firstwave=bytes(fw_col),
-        instruments_gatetimer=bytes(gt_col),
-        instruments_waveptr=raw.get('wave_ptr_col', bytes(wp_col)),
-        instruments_vibparam=bytes(vp_col),
-        instruments_vibdelay=bytes(vd_col),
-        instruments_pulseptr=bytes(pp_col),
-        instruments_filtptr=bytes(fp_col),
-        wave_left=raw.get('wave_left', bytes(wave_l)),
-        wave_right=raw.get('wave_right', bytes(wave_r)),
+        instruments_ad=ad_col,
+        instruments_sr=sr_col,
+        instruments_firstwave=fw_col,
+        instruments_gatetimer=gt_col,
+        instruments_waveptr=wp_col,
+        instruments_vibparam=vp_col,
+        instruments_vibdelay=vd_col,
+        instruments_pulseptr=pp_col,
+        instruments_filtptr=fp_col,
+        wave_left=raw.get('wave_left') or bytes(wave_l),
+        wave_right=raw.get('wave_right') or bytes(wave_r),
         pulse_left=raw.get('pulse_left'),
         pulse_right=raw.get('pulse_right'),
         filter_left=raw.get('filter_left'),

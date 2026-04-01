@@ -126,6 +126,29 @@ def parse_gt2_direct(sid_path):
     if wave_ptr_candidates:
         columns['wave_ptr'] = min(wave_ptr_candidates)
 
+    # Identify pulse_ptr: the column that writes to mt_chnpulseptr.
+    # mt_chnpulseptr = mt_chnwave + 1. Find mt_chnwave from the waveform
+    # register write chain: LDA mt_chnwave,X; AND mt_chngate,X; STA $D404,X.
+    # Then mt_chnpulseptr = mt_chnwave + 1.
+    mt_chnwave = None
+    for i in range(code_end - 5):
+        if binary[i] == 0x9D:
+            dst = binary[i + 1] | (binary[i + 2] << 8)
+            if 0xD400 <= dst <= 0xD41F and (dst - 0xD400) % 7 == 4:
+                # STA $D404,X — look back for LDA abs,X
+                for j in range(max(0, i - 8), i):
+                    if binary[j] == 0xBD:
+                        mt_chnwave = binary[j + 1] | (binary[j + 2] << 8)
+                        break
+                break
+
+    if mt_chnwave is not None:
+        mt_chnpulseptr = mt_chnwave + 1
+        for ci, (target, mode) in col_sta_targets.items():
+            if target == mt_chnpulseptr and mode == 'abs_x':
+                columns['pulse_ptr'] = ci
+                break
+
     # The first_wave column stores to mt_chnwave. Identify by: it's the column
     # immediately after wave_ptr (greloc.c always emits them adjacent).
     # Actually, just use the order: after AD, SR, wave_ptr come first_wave,
@@ -133,33 +156,21 @@ def parse_gt2_direct(sid_path):
     # Safest: assign unidentified columns by their stride position.
     # GT2 standard order: AD, SR, wave_ptr, pulse_ptr, filt_ptr, vib_param, vib_delay
     # With FIXEDPARAMS: AD, SR, wave_ptr, first_wave, pulse_ptr, vib_delay, vib_param
-    # Assign unidentified columns. The wave_ptr column is already identified
-    # by shared STA target. The remaining columns after wave_ptr follow
-    # greloc.c order. With FIXEDPARAMS=1: first_wave, pulse_ptr, vib_delay, vib_param.
-    # Without FIXEDPARAMS: pulse_ptr, filt_ptr, vib_param, vib_delay, gate_timer, first_wave.
-    # Detect FIXEDPARAMS: if wave_ptr is at col2 and col3 has waveform-like values
+    # Identify filter_ptr: column that writes to a GLOBAL variable (STA abs, not abs,X).
+    # Filter is global in GT2 (shared across all channels).
+    for ci, (target, mode) in col_sta_targets.items():
+        if ci <= 1 or ci in columns.values():
+            continue
+        if mode == 'abs':  # STA abs (global, not per-channel)
+            columns['filter_ptr'] = ci
+            break
+
+    # Assign remaining unidentified columns by position.
+    # After wave_ptr, pulse_ptr, filter_ptr: remaining are vib_delay, vib_param
+    # (or gate_timer, first_wave if FIXEDPARAMS=0).
     unassigned = sorted(ci for ci in range(2, len(col_operands))
                         if ci not in columns.values())
-
-    if 'wave_ptr' in columns and len(unassigned) >= 1:
-        next_ci = unassigned[0]
-        next_vals = raw_cols.get(next_ci, [])
-        # If the next column after wave_ptr has small values (0-20) that look
-        # like waveform bytes or first_wave codes, it's FIXEDPARAMS mode
-        wf_count = sum(1 for v in next_vals if v in (0, 1, 6, 0x09, 0x10, 0x11,
-                        0x13, 0x17, 0x20, 0x21, 0x23, 0x40, 0x41, 0x42, 0x80, 0x81))
-        has_fixedparams = wf_count > len(next_vals) * 0.3
-
-        if has_fixedparams:
-            remaining_names = ['first_wave', 'pulse_ptr', 'vib_delay', 'vib_param',
-                               'filter_ptr', 'gate_timer']
-        else:
-            remaining_names = ['pulse_ptr', 'filter_ptr', 'vib_param', 'vib_delay',
-                               'gate_timer', 'first_wave']
-    else:
-        remaining_names = ['first_wave', 'pulse_ptr', 'filter_ptr',
-                           'vib_param', 'vib_delay', 'gate_timer']
-
+    remaining_names = ['vib_delay', 'vib_param', 'gate_timer', 'first_wave']
     for ci, name in zip(unassigned, remaining_names):
         columns[name] = ci
 

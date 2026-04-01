@@ -53,22 +53,20 @@ def gt2_to_usf(sid_path, trace_duration=10):
     ni = layout['ni'] if layout else 5
     col_data = layout['col_data'] if layout else {}
 
-    # Attach raw GT2 table data for direct passthrough to packer.
-    # Raw data starts at operand address (index 0), but the packer expects
-    # data starting from mt_wavetbl (the player reads via LDA mt_wavetbl-1,Y
-    # with Y≥1, so mt_wavetbl[0] = first entry). Our raw arrays have the
-    # operand byte at [0], so skip it.
+    # Attach raw GT2 data for direct passthrough to packer.
+    # Column data is already correctly extracted (1-based Y indexing).
+    # Table data starts at operand address — we pass it raw and let
+    # the packer handle the -1 addressing.
     if layout:
-        wp_vals = col_data.get('wave_ptr', [])
-        def trim(data):
-            """Skip the operand byte (index 0) — data starts at index 1."""
-            return data[1:] if data and len(data) > 1 else data
-
         song._raw_gt2 = {
+            'col_data': col_data,
+            'ni': ni,
+            'wave_left': layout.get('wave_left'),
+            'wave_right': layout.get('wave_right'),
             'pulse_left': layout.get('pulse_left'),
             'pulse_right': layout.get('pulse_right'),
-            'filter_left': layout.get('filter_left'),
-            'filter_right': layout.get('filter_right'),
+            # filter and speed tables disabled — extraction sizes are wrong
+            # TODO: compute correct filter/speed table boundaries
         }
 
     for y in range(ni):
