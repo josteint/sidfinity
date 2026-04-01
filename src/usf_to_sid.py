@@ -254,36 +254,27 @@ def usf_to_sid(song, output_path=None):
             wp_col[i] = wt_offset
             inst_wt_start = wt_offset
             for step in inst.wave_table:
-                    if step.is_loop:
-                        wave_l.append(0xFF)
-                        wave_r.append(inst_wt_start + step.loop_target)
-                    elif step.delay > 0:
-                        wave_l.append(step.delay)  # delay value < $10
-                        # Right column: same format as waveform entries
-                        if step.keep_freq:
-                            wave_r.append(0x00)
-                        elif step.absolute_note >= 0:
-                            wave_r.append(step.absolute_note & 0x7F)
-                        else:
-                            wave_r.append((step.note_offset + 0x80) & 0xFF)
-                    elif step.keep_freq:
-                        wave_l.append(step.waveform)
-                        wave_r.append(0x80)
-                    elif step.absolute_note >= 0:
-                        wave_l.append(step.waveform)
-                        wave_r.append(step.absolute_note & 0x7F)
-                    else:
-                        wave_l.append(step.waveform)
-                        wave_r.append((step.note_offset + 0x80) & 0xFF)
-                    has_loop = any(s.is_loop for s in inst.wave_table)
-                if not has_loop:
+                if step.is_loop:
                     wave_l.append(0xFF)
-                    wave_r.append(0x00)
-                    wt_offset += len(inst.wave_table) + 1
+                    wave_r.append(inst_wt_start + step.loop_target)
+                elif step.delay > 0:
+                    wave_l.append(step.delay)
+                    if step.keep_freq: wave_r.append(0x00)
+                    elif step.absolute_note >= 0: wave_r.append(step.absolute_note & 0x7F)
+                    else: wave_r.append((step.note_offset + 0x80) & 0xFF)
+                elif step.keep_freq:
+                    wave_l.append(step.waveform); wave_r.append(0x80)
+                elif step.absolute_note >= 0:
+                    wave_l.append(step.waveform); wave_r.append(step.absolute_note & 0x7F)
                 else:
-                    wt_offset += len(inst.wave_table)
+                    wave_l.append(step.waveform); wave_r.append((step.note_offset + 0x80) & 0xFF)
+            has_loop = any(s.is_loop for s in inst.wave_table)
+            if not has_loop:
+                wave_l.append(0xFF)
+                wave_r.append(0x00)
+                wt_offset += len(inst.wave_table) + 1
             else:
-                wp_col[i] = 0
+                wt_offset += len(inst.wave_table)
         if not wave_l:
             wave_l = bytes([0x41, 0xFF])
             wave_r = bytes([0x80, 0x01])
