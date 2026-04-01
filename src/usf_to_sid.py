@@ -1,15 +1,15 @@
 """
-usf_to_sid.py - Convert USF Song to a playable .sid file via SIDfinity packer.
+usf_to_sid.py — Convert USF Song to GT2-format SID file.
 """
 
 import sys
 import os
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from usf import Song, NoteEvent
+import usf
+from usf import Song, Pattern, NoteEvent
 from sidfinity_packer import pack_sid
 
-# GT2 packed pattern constants
 GT2_ENDPATT = 0x00
 GT2_FIRSTNOTE = 0x60
 GT2_REST = 0xBD
@@ -17,91 +17,88 @@ GT2_KEYOFF = 0xBE
 GT2_KEYON = 0xBF
 GT2_FIRSTPACKEDREST = 0xC0
 
-WAVE_MAP = {'pulse': 0x41, 'saw': 0x21, 'tri': 0x11, 'noise': 0x81}
+WAVE_MAP = {'tri': 0x11, 'saw': 0x21, 'pulse': 0x41, 'noise': 0x81}
 
 
 def usf_pattern_to_gt2(pattern):
     """Convert a USF Pattern to GT2 packed pattern bytes.
 
-    GT2 packed format:
-      $00        = end of pattern
-      $01-$3F    = instrument change (1-based), then next byte is FX or note
-      $40-$4F    = FX command (cmd = byte & $0F), read param if cmd!=0, then read note
-      $50-$5F    = FXONLY command (cmd = byte & $0F), read param if cmd!=0, row = rest
-      $60-$BC    = note (note_num = byte - $60)
-      $BD        = rest
-      $BE        = keyoff
-      $BF        = keyon
-      $C0-$FE    = packed rest (count = 256 - byte)
+    Mirrors greloc.c encoding: only emits FX byte when command changes.
     """
-    # First pass: build a list of row bytes (instrument, fx, note)
     rows = []
     prev_inst = -1
+    prev_cmd = -1
+    prev_param = -1
 
     for event in pattern.events:
         row = bytearray()
 
         # Instrument change
         if event.instrument >= 0 and event.instrument != prev_inst:
-            row.append(event.instrument + 1)  # GT2 is 1-based
+            row.append(event.instrument + 1)
             prev_inst = event.instrument
 
-        # Command + note
+        # Command state
         has_cmd = event.command is not None
-        is_note = event.type in ('note', 'off', 'on')
+        cmd_num = (event.command & 0x0F) if has_cmd else 0
+        cmd_val = (event.command_val & 0xFF) if has_cmd else 0
+        cmd_changed = has_cmd and (cmd_num != prev_cmd or cmd_val != prev_param)
 
-        if has_cmd:
-            cmd_num = event.command & 0x0F
-            if is_note:
-                # FX: command + param + note
-                row.append(0x40 + cmd_num)
+        if cmd_changed:
+            prev_cmd = cmd_num
+            prev_param = cmd_val
+
+        # Encode row based on type
+        if event.type == 'rest':
+            if cmd_changed:
+                row.append(0x50 + cmd_num)  # FXONLY
                 if cmd_num != 0:
-                    row.append(event.command_val & 0xFF)
-                if event.type == 'note':
-                    row.append(min(GT2_FIRSTNOTE + event.note, 0xBC))
-                elif event.type == 'off':
-                    row.append(GT2_KEYOFF)
-                elif event.type == 'on':
-                    row.append(GT2_KEYON)
-            else:
-                # FXONLY: command + param, row is rest
-                row.append(0x50 + cmd_num)
-                if cmd_num != 0:
-                    row.append(event.command_val & 0xFF)
-        else:
-            if event.type == 'note':
-                row.append(min(GT2_FIRSTNOTE + event.note, 0xBC))
-            elif event.type == 'off':
-                row.append(GT2_KEYOFF)
-            elif event.type == 'on':
-                row.append(GT2_KEYON)
+                    row.append(cmd_val)
             else:
                 row.append(GT2_REST)
+        elif event.type == 'note':
+            if cmd_changed:
+                row.append(0x40 + cmd_num)  # FX
+                if cmd_num != 0:
+                    row.append(cmd_val)
+            row.append(min(GT2_FIRSTNOTE + event.note, 0xBC))
+        elif event.type == 'off':
+            if cmd_changed:
+                row.append(0x40 + cmd_num)
+                if cmd_num != 0:
+                    row.append(cmd_val)
+            row.append(GT2_KEYOFF)
+        elif event.type == 'on':
+            if cmd_changed:
+                row.append(0x40 + cmd_num)
+                if cmd_num != 0:
+                    row.append(cmd_val)
+            row.append(GT2_KEYON)
 
         rows.append(bytes(row))
 
-    # Second pass: compress consecutive rests into packed rests
+    # Compress consecutive rests
     packed = bytearray()
     i = 0
     while i < len(rows):
         row = rows[i]
         if row == bytes([GT2_REST]):
-            # Count consecutive rests
             count = 0
             while i < len(rows) and rows[i] == bytes([GT2_REST]):
                 count += 1
                 i += 1
-            # Emit packed rests (max 16 per packed byte to match GT2 packer)
+            is_last = (i >= len(rows))  # this is the last run before ENDPATT
             while count > 0:
                 if count == 1:
                     packed.append(GT2_REST)
                     count -= 1
-                elif count == 2:
-                    packed.append(GT2_REST)
-                    packed.append(GT2_REST)
-                    count -= 2
+                elif is_last and count > 2:
+                    # GT2 packer leaves 1 explicit $BD before ENDPATT
+                    chunk = min(count - 1, 62)
+                    packed.append(256 - chunk)
+                    count -= chunk
                 else:
-                    chunk = min(count, 16)
+                    chunk = min(count, 62)
                     packed.append(256 - chunk)
                     count -= chunk
         else:
