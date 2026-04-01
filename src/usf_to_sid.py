@@ -192,22 +192,63 @@ def usf_to_sid(song, output_path=None):
     wave_r = bytearray()
 
     if not raw.get('wave_left'):
-        # Build wave table, deduplicating instruments that share the same steps.
-        # Group instruments by their wave table content (tuple of steps).
-        step_key = {}  # tuple of step repr → wt_offset
-        wt_offset = 1
+        # Build wave table with suffix-aware deduplication.
+        # GT2's greloc.c shares suffixes: if inst B's steps are a suffix of
+        # inst A's steps, B points into A's data (no duplication).
+
+        def step_key(s):
+            return (s.waveform, s.is_loop, s.loop_target, s.keep_freq,
+                    s.absolute_note, s.note_offset, s.delay)
+
+        # Two-pass: first emit all instruments in order, then resolve suffixes.
+        # Pass 1: collect step tuples for all instruments
+        all_steps = {}  # inst_idx → step_tuple
         for i, inst in enumerate(song.instruments):
             if inst.wave_table:
-                key = tuple((s.waveform, s.is_loop, s.loop_target, s.keep_freq,
-                             s.absolute_note, s.note_offset, s.delay)
-                            for s in inst.wave_table)
-                if key in step_key:
-                    wp_col[i] = step_key[key]
-                    continue
-                step_key[key] = wt_offset
-                wp_col[i] = wt_offset
-                inst_wt_start = wt_offset
-                for step in inst.wave_table:
+                all_steps[i] = tuple(step_key(s) for s in inst.wave_table)
+
+        # Pass 2: emit in order. For each instrument, check if its steps
+        # are a suffix of a LATER instrument's steps (which hasn't been
+        # emitted yet). If so, skip it — it will be emitted as part of
+        # the longer sequence. After all are emitted, point suffixes to
+        # the correct offset within the longer sequence.
+        #
+        # Actually simpler: emit in order. After emitting, check if any
+        # PREVIOUS instrument's steps are a suffix of this one. If so,
+        # it was already emitted and we need to detect the overlap.
+        #
+        # Simplest correct approach: emit all in order, then post-process
+        # to detect suffix sharing and adjust wave_ptr values.
+        emitted = []  # list of (inst_idx, step_tuple, wt_offset)
+        wt_offset = 1
+
+        for i, inst in enumerate(song.instruments):
+            if not inst.wave_table:
+                continue
+            steps = all_steps[i]
+
+            # Check if this instrument's steps are a suffix of an already-emitted one
+            found = False
+            for ei, es, eo in emitted:
+                if len(steps) <= len(es):
+                    suffix_start = len(es) - len(steps)
+                    if es[suffix_start:] == steps:
+                        wp_col[i] = eo + suffix_start
+                        found = True
+                        break
+
+            # Check if an already-emitted instrument is a suffix of THIS one
+            # (this handles the case where a shorter instrument was emitted first
+            # and a longer one containing it comes later — but greloc.c emits
+            # in instrument order, so the shorter one gets its own slot)
+
+            if found:
+                continue
+
+            emitted.append((i, steps, wt_offset))
+            wp_col[i] = wt_offset
+            inst_wt_start = wt_offset
+            for step in inst.wave_table:
                     if step.is_loop:
                         wave_l.append(0xFF)
                         wave_r.append(inst_wt_start + step.loop_target)
