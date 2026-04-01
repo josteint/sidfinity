@@ -151,14 +151,6 @@ Shared table for vibrato, portamento, and funktempo. Referenced by index from in
 | on | Gate on — retrigger without changing frequency. |
 | tie | Continue previous note without retriggering ADSR. |
 
-### Cross-Pattern Byte Sharing (GT2)
-
-The GT2 packer (greloc.c) optimizes memory by letting a pattern's last FX command read its note byte from adjacent memory. In USF, this is represented as a **rest with command** at the end of the pattern: the command is preserved (e.g., SETPULSEPTR=0) but the note is omitted since it lives in a shared memory region.
-
-The USF→GT2 encoder detects this case (trailing FXONLY with param=0) and emits `$4X $00` (FX byte + param) without a note byte or ENDPATT. The `$00` param doubles as the pattern terminator. The GT2 player reads the note from whatever follows in memory.
-
-This encoding is faithful to the original binary: the pattern bytes are byte-identical to greloc.c output.
-
 ## Token Format
 
 ### Grammar
