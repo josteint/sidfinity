@@ -76,17 +76,28 @@ def parse_gt2_direct(sid_path):
         return None
 
     # Step 3: Find all columns at stride ni from AD.
-    # Stop when we hit an address pair (addr and addr+1 both referenced) —
+    # Stop when we hit an address pair (addr and addr+1 both referenced as LDA sources) —
     # that's the start of table data, not instrument columns.
+    # Only count LDA references (not STA) to avoid self-modifying code false positives.
     all_code_refs = set(s for s in collect_abs_addresses(binary, la, 0, code_end)
                         if s >= la + freq_end)
+    lda_refs = set()
+    for i in range(code_end - 3):
+        if binary[i] in (0xB9, 0xBD, 0xBC, 0xBE, 0xAD, 0xAC, 0xAE):  # LDA/LDY/LDX variants
+            addr = binary[i + 1] | (binary[i + 2] << 8)
+            if addr >= la + freq_end:
+                lda_refs.add(addr)
+
     col_operands = []
     for k in range(15):
         addr = ad_operand + k * ni
-        if addr in all_code_refs and (addr + 1) not in all_code_refs:
-            col_operands.append(addr)
-        else:
+        if addr not in all_code_refs:
             break
+        # Stop at table pair: addr AND addr+1 both LDA refs.
+        # But with ni=1, consecutive columns look like pairs — skip this check.
+        if ni > 1 and (addr + 1) in lda_refs:
+            break
+        col_operands.append(addr)
 
     # Step 4: Read column data (1-based Y indexing)
     raw_cols = {}
