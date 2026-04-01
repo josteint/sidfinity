@@ -1,7 +1,7 @@
 # Universal Symbolic Format (USF) Specification
 
-**Version:** 0.4 (2026-04-01)
-**Status:** Draft — validated lossless GT2→USF→GT2 roundtrip
+**Version:** 0.5 (2026-04-01)
+**Status:** Draft — validated lossless on 2680/2690 GT2 files (99.6%)
 
 ## Purpose
 
@@ -39,8 +39,13 @@ USF must be expressive enough to represent any feature used by any supported pla
 | patterns | list[Pattern] | [] | Pattern definitions |
 | orderlists | list×3 of list[(pat_id, transpose)] | [[],[],[]] | Per-voice play order |
 | speed_table | list[SpeedTableEntry] | [] | Shared vibrato/portamento/funktempo data |
+| shared_wave_table | list[(int,int)] | [] | Shared wave table: (left_byte, right_byte) pairs |
+| shared_pulse_table | list[(int,int)] | [] | Shared pulse table: (left_byte, right_byte) pairs |
+| shared_filter_table | list[(int,int)] | [] | Shared filter table: (left_byte, right_byte) pairs |
 | freq_lo | bytes\|None | None | Custom freq table lo (96 bytes), None=PAL |
 | freq_hi | bytes\|None | None | Custom freq table hi (96 bytes), None=PAL |
+
+**Shared tables:** GT2 uses shared wave/pulse/filter tables where multiple instruments reference positions in a single array via pointer indices (wave_ptr, pulse_ptr, filter_ptr). Instruments can share suffixes, prefixes, or even have loop commands that point into other instruments' data. The shared table preserves this layout exactly. Each entry is a (left_byte, right_byte) pair matching the GT2 binary format.
 
 ### Instrument
 
