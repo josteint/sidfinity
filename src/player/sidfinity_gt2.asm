@@ -986,6 +986,8 @@ mt_wavedone:
                 beq mt_done
               .ENDIF
               .ENDIF
+                lda mt_chnwaveptr,x             ;Skip effects if no note played yet
+                beq mt_done
               .IF (NOEFFECTS == 0)
                 ldy mt_chnfx,x
               .IF (NOWAVECMD == 0)
