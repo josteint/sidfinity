@@ -433,6 +433,10 @@ mt_effectnum:
                 bcc mt_freqadd
                 beq mt_freqsub
               .ELSE
+              .IF (NOWAVECMD == 0)
+mt_effectnum:
+                lda #$00
+              .ENDIF
               .IF (NOTONEPORTA == 0)
                 sec
               .ENDIF
@@ -1551,7 +1555,7 @@ mt_execwavetick0jump:
               .ENDIF
 
               .IF (NOEFFECTS == 0)
-              .IF (!0)
+              .IF ((NOAUTHORINFO != 0) || ((authorinfopos - checkpos1) <= 15))
 mt_tick0jumptbl:
                 .BYTE (mt_tick0_0 % 256)
                 .BYTE (mt_tick0_12 % 256)
