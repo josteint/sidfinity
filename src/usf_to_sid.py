@@ -105,6 +105,19 @@ def usf_pattern_to_gt2(pattern):
             packed.extend(row)
             i += 1
 
+    # Check if the last row is a trailing FX rest (cross-pattern sharing).
+    # If the last row bytes are FXONLY ($50+cmd, [param]), the encoder already
+    # emitted them. But greloc.c uses FX ($40+cmd) not FXONLY ($50+cmd) for
+    # these trailing commands, and the $00 param doubles as ENDPATT.
+    # Detect and fix: if last row is FXONLY with param=0, replace with FX.
+    if (len(rows) > 0 and len(packed) >= 2 and
+            packed[-1] == 0x00 and packed[-2] >= 0x50 and packed[-2] < 0x60):
+        # Last emitted bytes: $5X $00 (FXONLY cmd=X, param=0)
+        # Replace $5X with $4X (FX instead of FXONLY)
+        # The $00 param doubles as ENDPATT — don't add another $00
+        packed[-2] = packed[-2] - 0x10  # $5X → $4X
+        return bytes(packed)
+
     packed.append(GT2_ENDPATT)
     return bytes(packed)
 

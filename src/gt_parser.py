@@ -399,14 +399,16 @@ def unpack_pattern(binary, load_addr, patt_addr, max_bytes=256):
                 # FX (not FXONLY): read note
                 b = readbyte()
                 if b is None:
-                    # The note is past the $00 terminator — cross-pattern sharing.
-                    # Allow reading the borrowed note, then force pattern end.
-                    allow_overshoot = 1
-                    b = readbyte()
-                    if b is None:
-                        break
-                    # Process this note, then stop (don't read more from gap data)
-                    force_end = True
+                    # Note is past pattern boundary (cross-pattern sharing).
+                    # Record as FXONLY rest — the note lives in adjacent memory
+                    # and will be provided by the memory layout, not the USF.
+                    rows.append({
+                        'note': 'REST',
+                        'instrument': new_instr,
+                        'command': new_cmd,
+                        'param': new_param,
+                    })
+                    break
 
         # Now b should be note ($60-$BC), REST($BD), KEYOFF($BE), KEYON($BF),
         # or packed rest ($C0-$FF)
