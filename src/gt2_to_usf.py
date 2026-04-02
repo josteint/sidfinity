@@ -185,9 +185,13 @@ def gt2_to_usf(sid_path, trace_duration=10):
             pulse_ptr=pp,
             filter_ptr=fp,
         )
-        # Store raw gate_timer byte for exact roundtrip
         inst._gate_timer_raw = gt_byte
         song.instruments.append(inst)
+
+    # NOTE: Some instruments have pulse_ptr/filter_ptr values that reference
+    # entries beyond the table size. These are stale pointers from greloc.c
+    # stripping unused table entries. We preserve them because they're part
+    # of the original column data and changing them affects the binary layout.
 
     # Convert patterns
     for pi, gt_patt in enumerate(parsed['patterns']):
@@ -238,6 +242,39 @@ def gt2_to_usf(sid_path, trace_duration=10):
                         for _ in range(count - 1):
                             ol.extend(repeated)
             song.orderlists[vi] = ol
+
+    # Extract orderlist loop points from the original binary.
+    # The byte after $FF is a byte OFFSET into the orderlist. We convert
+    # it to a PATTERN ENTRY INDEX so USF is position-independent.
+    if ft:
+        freq_end = ft[0] + ft[2] * 2
+        if freq_end + 6 < len(binary):
+            st_lo = [binary[freq_end + i] for i in range(3)]
+            st_hi = [binary[freq_end + 3 + i] for i in range(3)]
+            for vi in range(3):
+                addr = st_lo[vi] | (st_hi[vi] << 8)
+                off = addr - la
+                # Walk the orderlist bytes, mapping byte positions to entry indices
+                byte_to_entry = {}
+                entry_idx = 0
+                pos = 0
+                while off + pos < len(binary):
+                    byte = binary[off + pos]
+                    if byte == 0xFF:
+                        restart_byte = binary[off + pos + 1] if off + pos + 1 < len(binary) else 0
+                        # Convert byte offset to entry index
+                        song.orderlist_restart[vi] = byte_to_entry.get(restart_byte, 0)
+                        break
+                    elif byte >= 0xE0:  # transpose marker
+                        pos += 1
+                        continue  # doesn't count as an entry
+                    elif byte >= 0xD0:  # repeat marker
+                        pos += 1
+                        continue  # repeat applies to previous entry
+                    else:  # pattern ID
+                        byte_to_entry[pos] = entry_idx
+                        entry_idx += 1
+                        pos += 1
 
     return song
 

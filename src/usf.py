@@ -182,6 +182,7 @@ class Song:
     patterns: list = field(default_factory=list)        # list of Pattern
     orderlists: list = field(default_factory=lambda: [[], [], []])  # 3 voices
     # Each orderlist entry: (pattern_id, transpose)
+    orderlist_restart: list = field(default_factory=lambda: [0, 0, 0])  # loop-back pattern entry index per voice
     speed_table: list = field(default_factory=list)    # list of SpeedTableEntry
     # Shared tables: list of (left_byte, right_byte) pairs.
     # Instruments reference positions via wave_ptr, pulse_ptr, filter_ptr.

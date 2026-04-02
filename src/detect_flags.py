@@ -82,6 +82,18 @@ def detect_gt2_flags(song, r):
             elif cmd == 0:
                 F['NOEFFECTS'] = 0
 
+    # --- Column presence from parsed binary ---
+    # The number of columns in the original binary tells us which features
+    # were compiled in. This overrides the data-based detection below.
+    col_data = r.get('col_data', {}) if r else {}
+    if 'pulse_ptr' in col_data:
+        F['NOPULSE'] = 0
+    if 'filter_ptr' in col_data:
+        F['NOFILTER'] = 0
+    if 'vib_param' in col_data:
+        F['NOINSTRVIB'] = 0
+        F['NOVIB'] = 0
+
     # --- Scan instruments ---
     for inst in song.instruments:
         if inst.vib_speed_idx > 0:
