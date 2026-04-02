@@ -5,9 +5,12 @@ Walks the data section in layout order (per docs/gt2_data_layout.md),
 extracting each section at its correct size. Reverses all greloc.c
 transformations to recover .sng-equivalent data.
 
-Wave table size is determined by frequency tracing: run the SID,
-capture the first note's frequency, trace it backwards through
-the freq table and wave table to find mt_notetbl's exact position.
+Table sizes are determined by runtime tracing: run the SID via siddump,
+capture the first note's frequency, pulse width, and filter settings,
+then trace backwards through the binary to find exact table boundaries:
+- Wave:   freq_hi -> freq table -> note -> wave_right position
+- Pulse:  pw_hi -> mt_pulsetimetbl set-pulse entry
+- Filter: filt_ctrl -> mt_filtspdtbl set-filter entry + passband cross-check
 """
 
 import sys
@@ -273,12 +276,243 @@ def _find_wave_size_by_freq_trace(sid_path, binary, la, code_end, table_start_of
     return max_entry if max_entry > 0 else min(max(wp_col), max_possible_wave)
 
 
+def _run_siddump(sid_path, duration=3):
+    """Run siddump and return parsed frames as list of 25-element int lists.
+
+    Returns list of frames or [] on failure.
+    Each frame has 25 values: 3 voices x 7 regs + 4 global regs.
+    Register layout per voice: freq_lo, freq_hi, pw_lo, pw_hi, ctrl, ad, sr.
+    Global: filt_lo, filt_hi, filt_ctrl, filt_mode_vol.
+    """
+    try:
+        r = subprocess.run([SIDDUMP, sid_path, '--duration', str(duration)],
+                           capture_output=True, text=True, timeout=30)
+        if r.returncode not in (0, 2):
+            return []
+    except Exception:
+        return []
+
+    raw_lines = r.stdout.strip().split('\n')[2:]  # skip JSON header + CSV header
+    frames = []
+    for line in raw_lines:
+        try:
+            vals = [int(v, 16) for v in line.split(',')]
+            frames.append(vals)
+        except ValueError:
+            continue
+    return frames
+
+
+def _walk_pulse_table(table_region, pulse_start, pulse_ptrs):
+    """Walk all pulse_ptr chains from pulse_start to find the full extent."""
+    max_pulse_entry = 0
+    for pp in pulse_ptrs:
+        if pp <= 0:
+            continue
+        idx = pp - 1
+        visited = set()
+        while idx >= 0 and idx not in visited:
+            abs_off = pulse_start + idx
+            if abs_off >= len(table_region):
+                break
+            visited.add(idx)
+            left = table_region[abs_off]
+            max_pulse_entry = max(max_pulse_entry, idx + 1)
+            if left == 0xFF:
+                break  # jump entry
+            idx += 1
+    return max_pulse_entry
+
+
+def _find_pulse_size_by_trace(frames, table_region, wave_size, columns):
+    """Determine pulse table size by tracing pw_hi from siddump output.
+
+    The GT2 player writes mt_pulsetimetbl[pulse_ptr-1] directly to the
+    SID pulse width high register when the entry is a set-pulse command
+    (bit 7 set). By finding the first non-zero pw_hi in siddump output
+    and matching it against the binary at the expected offset, we confirm
+    the pulse table position and then walk all pulse_ptr chains to find
+    the full extent.
+
+    If the given wave_size produces no match, also searches nearby
+    wave_size values to find a consistent solution.
+
+    Returns (pulse_size, corrected_wave_size) or (0, wave_size) if trace fails.
+    """
+    pulse_ptrs = columns.get('pulse_ptr', [])
+    if not pulse_ptrs:
+        return 0, wave_size
+
+    # Find first frame where any voice has pw_hi != 0 with a real waveform.
+    # Also capture AD/SR to identify which instrument is playing.
+    first_pw = {}  # voice -> (pw_hi, ad, sr, frame_idx)
+    for fi, vals in enumerate(frames):
+        if len(vals) < 25:
+            continue
+        for voice in range(3):
+            if voice in first_pw:
+                continue
+            pw_hi = vals[voice * 7 + 3]
+            wav = vals[voice * 7 + 4]
+            if pw_hi > 0 and wav not in (0x00, 0x09):
+                ad = vals[voice * 7 + 5]
+                sr = vals[voice * 7 + 6]
+                first_pw[voice] = (pw_hi, ad, sr, fi)
+        if first_pw:
+            break
+
+    if not first_pw:
+        return 0, wave_size
+
+    # Identify which instrument played on each voice by matching AD/SR
+    ad_col = columns.get('ad', [])
+    sr_col = columns.get('sr', [])
+    voice_instruments = {}  # voice -> list of matching instrument indices
+    for voice, (pw_hi, ad, sr, fi) in first_pw.items():
+        matches = []
+        for i in range(len(ad_col)):
+            if ad_col[i] == ad and sr_col[i] == sr and pulse_ptrs[i] > 0:
+                matches.append(i)
+        voice_instruments[voice] = matches
+
+    # Determine minimum wave_size from max wave_ptr across all instruments.
+    wave_ptrs = columns.get('wave_ptr', [])
+    min_wave_size = max(wave_ptrs) if wave_ptrs else 1
+
+    # Search wave_sizes starting from min_wave_size.
+    # Only try pulse_ptrs of the instruments that match the voice's AD/SR.
+    candidates = [wave_size] if wave_size >= min_wave_size else []
+    for ws in range(min_wave_size, len(table_region) // 2):
+        if ws != wave_size:
+            candidates.append(ws)
+
+    for ws in candidates:
+        pulse_start = 2 * ws
+        for voice, (pw_hi, ad, sr, fi) in first_pw.items():
+            # Only check pulse_ptrs from instruments matching this voice
+            matching_insts = voice_instruments.get(voice, [])
+            ptrs_to_check = [pulse_ptrs[i] for i in matching_insts] if matching_insts else pulse_ptrs
+            for pp in ptrs_to_check:
+                if pp <= 0:
+                    continue
+                entry_off = pulse_start + (pp - 1)
+                if entry_off >= len(table_region):
+                    continue
+                candidate = table_region[entry_off]
+                if candidate == pw_hi and (candidate & 0x80):
+                    # Confirmed pulse table position.
+                    ps = _walk_pulse_table(table_region, pulse_start, pulse_ptrs)
+                    return ps, ws
+
+    return 0, wave_size
+
+
+def _find_filter_size_by_trace(frames, table_region, wave_size, pulse_size, columns):
+    """Determine filter table size by tracing filter ctrl from siddump output.
+
+    When the GT2 player processes a set-filter entry (mt_filttimetbl byte
+    with bit 7 set), it stores mt_filtspdtbl[filter_ptr-1] as the filter
+    control register ($D417 = resonance | routing). By matching the first
+    non-zero FILT_CTRL from siddump against bytes in the binary, we find
+    the filter table boundary.
+
+    Cross-validates by checking: player ASL's the left byte to get the
+    passband bits, which must match FILT_MODE_VOL from siddump.
+
+    Returns filter_size (entries per column) or 0 if trace fails.
+    """
+    filter_ptrs = columns.get('filter_ptr', [])
+    if not filter_ptrs or max(filter_ptrs) == 0:
+        return 0
+
+    # Find first frame where FILT_CTRL is non-zero
+    first_filt_ctrl = None
+    first_mode_vol = None
+    for fi, vals in enumerate(frames):
+        if len(vals) < 25:
+            continue
+        filt_ctrl = vals[23]
+        mode_vol = vals[24]
+        if filt_ctrl > 0 and first_filt_ctrl is None:
+            first_filt_ctrl = filt_ctrl
+            first_mode_vol = mode_vol
+        if first_filt_ctrl is not None:
+            break
+
+    if first_filt_ctrl is None:
+        return 0
+
+    filter_start = 2 * wave_size + 2 * pulse_size
+
+    for inst_idx, fp in enumerate(filter_ptrs):
+        if fp <= 0:
+            continue
+
+        # mt_filtspdtbl starts at filter_start + filter_size.
+        # filtspdtbl[fp-1] should equal first_filt_ctrl.
+        # So: table_region[filter_start + fs + (fp-1)] == first_filt_ctrl
+        for fs in range(fp, len(table_region) - filter_start - (fp - 1)):
+            right_off = filter_start + fs + (fp - 1)
+            if right_off >= len(table_region):
+                break
+
+            if table_region[right_off] != first_filt_ctrl:
+                continue
+
+            # Validate: left byte should be a set-filter entry (>= $80)
+            left_off = filter_start + (fp - 1)
+            if left_off >= len(table_region):
+                continue
+            left_byte = table_region[left_off]
+            if not (left_byte & 0x80):
+                continue
+
+            # Cross-validate passband: player does ASL on left byte
+            if first_mode_vol is not None:
+                expected_passband = (left_byte << 1) & 0xF0
+                actual_passband = first_mode_vol & 0xF0
+                if expected_passband != actual_passband:
+                    continue
+
+            # Confirmed. Walk all filter_ptr chains to find full extent.
+            max_filter_entry = 0
+            for fp2 in filter_ptrs:
+                if fp2 <= 0:
+                    continue
+                idx = fp2 - 1
+                visited = set()
+                while idx >= 0 and idx not in visited:
+                    abs_off = filter_start + idx
+                    if abs_off >= len(table_region):
+                        break
+                    visited.add(idx)
+                    left = table_region[abs_off]
+                    max_filter_entry = max(max_filter_entry, idx + 1)
+                    if left == 0xFF:
+                        break
+                    if left >= 0x80:
+                        # Set-filter: check if next is $00 (set-cutoff)
+                        next_off = filter_start + idx + 1
+                        if (next_off < len(table_region) and
+                                table_region[next_off] == 0x00):
+                            max_filter_entry = max(max_filter_entry, idx + 2)
+                            idx += 2
+                        else:
+                            idx += 1
+                        continue
+                    idx += 1
+
+            return max(max_filter_entry, fs)
+
+    return 0
+
+
 def decompile_gt2(sid_path):
     """Decompile a GT2 packed SID to .sng-equivalent data.
 
     Uses gt2_parse_direct for reliable column detection, then walks
-    the data section sequentially. Wave table size is determined by
-    frequency tracing.
+    the data section sequentially. Table sizes are determined by runtime
+    tracing (siddump) with static analysis fallback.
 
     Returns a dict with all extracted sections.
     """
@@ -454,17 +688,48 @@ def decompile_gt2(sid_path):
     result['wave_right'] = bytes(table_region[tp:tp + wave_size])
     tp += wave_size
 
-    # Remaining table region after wave
-    remaining = len(table_region) - tp
+    # === Pulse and filter table sizes via runtime tracing ===
+    # Run siddump once and use the output to find pulse/filter boundaries.
+    frames = _run_siddump(sid_path)
 
-    # Parse pulse/filter/speed from remaining bytes.
-    # Tables appear in order: pulse (if has_pulse), filter (if has_filter),
-    # speed (if has_vib/portamento, with $00 prefix per column).
-    # Each table has left + right of equal size.
-    #
-    # Strategy: count how many table types exist, then use siddump output
-    # to validate boundaries. For the common case (1-2 table types after
-    # wave), the division is straightforward.
+    # Pulse table size: trace pw_hi from siddump to mt_pulsetimetbl.
+    # The pulse trace also cross-validates wave_size, correcting it if needed.
+    pulse_size = 0
+    if has_pulse:
+        if frames:
+            pulse_size, wave_size_from_pulse = _find_pulse_size_by_trace(
+                frames, table_region, wave_size, columns)
+            if pulse_size > 0 and wave_size_from_pulse != wave_size:
+                wave_size = wave_size_from_pulse
+                result['wave_size'] = wave_size
+                tp = 2 * wave_size  # recalculate position
+                result['wave_left'] = bytes(table_region[:wave_size])
+                result['wave_right'] = bytes(table_region[wave_size:2 * wave_size])
+        # Fallback: single table fills remaining (when only pulse, no filter/speed)
+        if pulse_size <= 0 and not has_filter and not has_speed:
+            pulse_size = (len(table_region) - 2 * wave_size) // 2
+
+    # Filter table size: trace filt_ctrl from siddump to mt_filtspdtbl
+    filter_size = 0
+    if has_filter:
+        if frames:
+            filter_size = _find_filter_size_by_trace(
+                frames, table_region, wave_size, pulse_size, columns)
+        # Fallback: single table fills remaining (when only filter, no speed)
+        if filter_size <= 0 and not has_speed:
+            filter_size = (len(table_region) - 2 * wave_size - 2 * pulse_size) // 2
+
+    # Speed table size: derived from remaining bytes after wave+pulse+filter
+    speed_size = 0
+    if has_speed:
+        used = 2 * wave_size + 2 * pulse_size + 2 * filter_size
+        remaining_for_speed = len(table_region) - used
+        if remaining_for_speed >= 4:
+            speed_size = (remaining_for_speed - 2) // 2
+
+    result['pulse_size'] = pulse_size
+    result['filter_size'] = filter_size
+    result['speed_size'] = speed_size
 
     result['pulse_left'] = b''
     result['pulse_right'] = b''
@@ -473,76 +738,30 @@ def decompile_gt2(sid_path):
     result['speed_left'] = b''
     result['speed_right'] = b''
 
-    remaining_data = bytes(table_region[tp:])
+    if has_pulse and pulse_size > 0:
+        result['pulse_left'] = bytes(table_region[tp:tp + pulse_size])
+        tp += pulse_size
+        result['pulse_right'] = bytes(table_region[tp:tp + pulse_size])
+        tp += pulse_size
 
-    # Count remaining table types and their layout
-    table_types = []
-    if has_pulse:
-        table_types.append('pulse')
-    if has_filter:
-        table_types.append('filter')
-    if has_speed:
-        table_types.append('speed')
+    if has_filter and filter_size > 0:
+        result['filter_left'] = bytes(table_region[tp:tp + filter_size])
+        tp += filter_size
+        result['filter_right'] = bytes(table_region[tp:tp + filter_size])
+        tp += filter_size
 
-    if remaining > 0 and table_types:
-        # Speed table has $00 prefix per column — account for that
-        speed_prefix_bytes = 2 if has_speed else 0  # two $00 bytes (one per column)
+    # Speed table: $00 prefix + left_data + $00 prefix + right_data
+    if has_speed and speed_size > 0:
+        if tp < len(table_region) and table_region[tp] == 0x00:
+            tp += 1  # skip $00 prefix
+            result['speed_left'] = bytes(table_region[tp:tp + speed_size])
+            tp += speed_size
+            if tp < len(table_region) and table_region[tp] == 0x00:
+                tp += 1  # skip $00 prefix
+                result['speed_right'] = bytes(table_region[tp:tp + speed_size])
+                tp += speed_size
 
-        data_bytes = remaining - speed_prefix_bytes
-        # Each table type has left + right of equal size
-        # total data_bytes = sum of (2 * table_size) for each type
-        # Without additional info, assume all remaining non-speed tables
-        # share the remaining space equally. But usually there's only
-        # one type (pulse OR filter, rarely both without the other).
-
-        if len(table_types) == 1 and table_types[0] != 'speed':
-            # Simple: one table fills the remaining space
-            tbl_size = data_bytes // 2
-            name = table_types[0]
-            result[f'{name}_left'] = remaining_data[:tbl_size]
-            result[f'{name}_right'] = remaining_data[tbl_size:tbl_size * 2]
-        elif len(table_types) == 1 and table_types[0] == 'speed':
-            # Speed only: skip $00 prefixes
-            tbl_size = data_bytes // 2
-            result['speed_left'] = remaining_data[1:1 + tbl_size]
-            result['speed_right'] = remaining_data[1 + tbl_size + 1:1 + tbl_size + 1 + tbl_size]
-        else:
-            # Multiple table types — use siddump pulse width trace to find
-            # pulse table size, then filter fills the rest before speed.
-            # For now: use equal division as approximation, then validate.
-            # TODO: use pulse width trace for precise boundary
-            non_speed_types = [t for t in table_types if t != 'speed']
-            speed_data = data_bytes if has_speed else 0
-            if has_speed:
-                # Speed table is at the END. Find it by looking for the $00 prefixes.
-                # The last section of remaining_data has: $00 + speed_left + $00 + speed_right
-                # Scan backwards for the pattern.
-                # For now, just divide equally among non-speed types.
-                pass
-
-            if non_speed_types:
-                # Divide remaining (minus speed) equally
-                non_speed_bytes = data_bytes
-                if has_speed and len(remaining_data) > 4:
-                    # Try to find speed table by looking for $00 byte followed by data
-                    # Speed table $00 prefix is distinctive
-                    for scan in range(len(remaining_data) - 4, 0, -1):
-                        if remaining_data[scan] == 0x00:
-                            # Check if this could be the second speed $00 prefix
-                            # First prefix would be at scan - speed_right_size - 1
-                            # This is heuristic — for now use equal division
-                            break
-                    non_speed_bytes = data_bytes  # fallback
-
-                per_type = non_speed_bytes // (len(non_speed_types) * 2)
-                rp = 0
-                for name in non_speed_types:
-                    result[f'{name}_left'] = remaining_data[rp:rp + per_type]
-                    rp += per_type
-                    result[f'{name}_right'] = remaining_data[rp:rp + per_type]
-                    rp += per_type
-
-    result['table_remaining'] = b''  # everything parsed
+    result['table_remaining'] = bytes(table_region[tp:])
 
     # === Step 5: Orderlists ===
     orderlists = []
@@ -590,6 +809,9 @@ if __name__ == '__main__':
     print(f"ni={r['ni']}, cols={r['num_cols']}, patterns={r['num_patt']}")
     print(f"first_note={r['first_note']}, num_notes={r['num_notes']}")
     print(f"wave_size={r['wave_size']}")
+    print(f"pulse_size={r.get('pulse_size', 0)}")
+    print(f"filter_size={r.get('filter_size', 0)}")
+    print(f"speed_size={r.get('speed_size', 0)}")
     print(f"table_remaining={len(r['table_remaining'])}B")
 
     print(f"\nColumns:")
@@ -598,6 +820,16 @@ if __name__ == '__main__':
 
     print(f"\nWave left:  {r['wave_left'].hex()}")
     print(f"Wave right: {r['wave_right'].hex()}")
+
+    if r['pulse_left']:
+        print(f"Pulse left:  {r['pulse_left'].hex()}")
+        print(f"Pulse right: {r['pulse_right'].hex()}")
+    if r['filter_left']:
+        print(f"Filter left:  {r['filter_left'].hex()}")
+        print(f"Filter right: {r['filter_right'].hex()}")
+    if r['speed_left']:
+        print(f"Speed left:  {r['speed_left'].hex()}")
+        print(f"Speed right: {r['speed_right'].hex()}")
 
     print(f"\nOrderlists:")
     for vi, ol in enumerate(r['orderlists'][:3]):
