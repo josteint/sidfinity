@@ -89,7 +89,10 @@ def build_sid_from_usf(sid_path, song, r, flags):
             while (i + repeat_count < len(entries) and
                    entries[i + repeat_count] == entries[i]):
                 repeat_count += 1
-            if i == 0 or transpose != entries[i - 1][1]:
+            # Emit transpose only when it CHANGES from current value.
+            # Default starts at 0, so first entry with transpose=0 needs no marker.
+            prev_trans = entries[i - 1][1] if i > 0 else 0
+            if transpose != prev_trans:
                 if transpose >= 0:
                     ol.append(0xF0 + transpose)
                 else:
@@ -199,22 +202,11 @@ def test_single(sid_path, duration=10, verbose=False):
     if song is None:
         return {'status': 'usf_fail', 'path': sid_path}
 
-    # Start with all features enabled, then disable based on actual data.
-    # This ensures the data layout matches: tables that don't exist in the
-    # data aren't emitted by the packer (no phantom bytes to shift offsets).
-    flags = {k: 0 for k in [
-        'NOEFFECTS','NOGATE','NOFILTER','NOFILTERMOD','NOPULSE','NOPULSEMOD',
-        'NOWAVEDELAY','NOWAVECMD','NOREPEAT','NOTRANS','NOPORTAMENTO','NOTONEPORTA',
-        'NOVIB','NOINSTRVIB','NOSETAD','NOSETSR','NOSETWAVE','NOSETWAVEPTR',
-        'NOSETPULSEPTR','NOSETFILTPTR','NOSETFILTCTRL','NOSETFILTCUTOFF',
-        'NOSETMASTERVOL','NOFUNKTEMPO','NOGLOBALTEMPO','NOCHANNELTEMPO',
-        'NOFIRSTWAVECMD','NOCALCULATEDSPEED','NONORMALSPEED','NOZEROSPEED']}
-    flags['FIXEDPARAMS'] = 0
-    flags['SIMPLEPULSE'] = 0
-
-    # Keep all features enabled — the original GT2 packer includes ALL
-    # instrument columns and tables even when unused (zero-filled).
-    # Disabling features removes columns, shifting the wave table position.
+    # Detect flags from USF data — this determines which columns and tables
+    # the player code includes. Must match the original's layout: if an
+    # instrument references pulse_ptr, NOPULSE must be 0 (column present).
+    # If no instrument uses pulse, NOPULSE=1 (column absent, table absent).
+    flags = detect_gt2_flags(song, r)
 
     # Build SID
     try:
