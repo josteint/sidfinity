@@ -56,7 +56,7 @@ USF must be expressive enough to represent any feature used by any supported pla
 | C | 2.73-2.74 | B + ghost register support |
 | D | 2.76-2.77 | C + vibrato parameter fix |
 
-**Shared tables:** GT2 uses shared wave/pulse/filter tables where multiple instruments reference positions in a single array via pointer indices (wave_ptr, pulse_ptr, filter_ptr). Instruments can share suffixes, prefixes, or even have loop commands that point into other instruments' data. The shared table preserves this layout exactly. Each entry is a (left_byte, right_byte) pair matching the GT2 binary format.
+**Shared tables:** GT2 uses shared wave/pulse/filter tables where multiple instruments reference positions in a single array via pointer indices (wave_ptr, pulse_ptr, filter_ptr). Instruments can share suffixes, prefixes, or even have loop commands that point into other instruments' data. The shared table preserves this layout exactly. Each entry is a (left_byte, right_byte) pair. **Wave table** entries are stored in .sng-equivalent format (pre-transform), NOT the packed binary format. The encoder re-applies the packed format transforms (left column +$10 for NOWAVEDELAY=0, right column XOR $80) when building the SID binary. Pulse and filter tables currently store packed format values (transform cleanup is planned).
 
 ### Instrument
 
@@ -90,8 +90,8 @@ USF must be expressive enough to represent any feature used by any supported pla
 | absolute_note | int | -1 | If ≥0: absolute note (overrides note_offset) |
 | is_loop | bool | False | This is a loop/jump command |
 | loop_target | int | 0 | Loop destination (step index within this instrument's WT) |
-| delay | int | 0 | Delay N frames before this step (GT2: $01-$0F) |
-| keep_freq | bool | False | Don't change frequency (GT2 packed: right=$00, player skips freq) |
+| delay | int | 0 | Delay N frames before this step (.sng: $01-$0F) |
+| keep_freq | bool | False | Don't change frequency (.sng right=$80, packed right=$00) |
 
 ### PulseTableStep
 
@@ -258,13 +258,22 @@ GT2 stores instruments column-major:
 
 GT2 wave table = two parallel columns (left + right), shared across instruments. Each instrument's `wave_ptr` indexes into the global table (1-based).
 
-| USF WaveTableStep | GT2 Left | GT2 Right |
-|-------------------|----------|-----------|
-| waveform + note_offset | waveform byte | $00-$5F (up) or $60-$7F (down, signed) |
-| waveform + absolute_note | waveform byte | $81-$DF (absolute) |
-| waveform + keep_freq | waveform byte | $80 |
-| delay N | $01-$0F | $00 |
-| loop → target | $FF | target (1-based global) |
+**Values are stored in .sng-equivalent format** (pre-transform, musical intent), NOT the packed binary format. The GT2 packer (greloc.c) applies two transforms when building packed binaries:
+
+1. **Left column:** Waveforms $10-$DF get +$10 added (only when NOWAVEDELAY=0, to make room for delay values $01-$0F). Silent waves $E0-$EF are masked to low nibble then +$10.
+2. **Right column:** Non-command, non-jump entries are XOR $80 (flips the relative/absolute bit).
+
+The encoder (usf_to_sid.py) re-applies these transforms. The parser (gt2_to_usf.py) reverses them.
+
+| USF WaveTableStep | .sng Left | .sng Right |
+|-------------------|-----------|------------|
+| waveform + note_offset | waveform byte ($10-$DF) | $00-$5F (up) or $60-$7F (down, signed offset) |
+| waveform + absolute_note | waveform byte ($10-$DF) | $81-$DF (absolute note = right - $80) |
+| waveform + keep_freq | waveform byte ($10-$DF) | $80 |
+| delay N | $01-$0F | (same right column encoding) |
+| wave command | $F0-$FE (command + table index) | parameter (no XOR) |
+| silent wave | $E0-$EF | (same right column encoding) |
+| loop → target | $FF | target (1-based global, no XOR) |
 
 ### Pulse Table
 
@@ -327,3 +336,4 @@ When USF changes (new fields, event types, token types):
 | 0.2 | 2026-03-31 | Spec doc created. Custom freq tables, tempo pass-through. |
 | 0.3 | 2026-03-31 | Full GT2 coverage: pulse/filter/speed tables, pattern commands 0–F, instrument vibrato, legato, first_wave, wave table delay/keep_freq. |
 | 0.6 | 2026-04-02 | Player behavior groups (A-D), first_note field. GT2 player version detection. |
+| 0.7 | 2026-04-02 | Wave table stores .sng-equivalent values (pre-transform). Left column: reversed +$10 offset (NOWAVEDELAY). Right column: reversed XOR $80. Encoder re-applies transforms. Fixed detect_flags wave command range ($F0-$FE, was incorrectly $E0-$EF). |
