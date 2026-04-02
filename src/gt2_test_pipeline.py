@@ -42,39 +42,26 @@ def reorder_column(col_bytes, order):
 
 
 def build_sid_from_usf(sid_path, song, r, flags):
-    """Build a SID from USF data + flags using gt2asm."""
+    """Build a SID from USF data + flags using gt2asm.
+
+    All data comes from USF Song fields — no raw binary passthrough.
+    """
     ni = len(song.instruments)
-    raw = getattr(song, '_raw_gt2', None) or {}
-    raw_cols = raw.get('col_data', {})
 
-    def raw_col(name, default=0):
-        vals = raw_cols.get(name, [])
-        if vals:
-            result = list(vals[:ni])
-            while len(result) < ni:
-                result.append(default)
-            return bytes(result)
-        return bytes([default] * ni)
-
-    # Get instrument columns
-    ad_col = raw_col('ad')
-    sr_col = raw_col('sr')
-    wp_col = raw_col('wave_ptr')
-    pp_col = raw_col('pulse_ptr')
-    fp_col = raw_col('filter_ptr')
-    vp_col = raw_col('vib_param')
-    vd_col = raw_col('vib_delay')
-    gt_col = raw_col('gate_timer', 0x02)
-    fw_col = raw_col('first_wave', 0x41)
+    # Build instrument columns from USF Instrument fields
+    ad_col = bytes([inst.ad for inst in song.instruments])
+    sr_col = bytes([inst.sr for inst in song.instruments])
+    wp_col = bytes([inst.wave_ptr for inst in song.instruments])
+    pp_col = bytes([inst.pulse_ptr for inst in song.instruments])
+    fp_col = bytes([inst.filter_ptr for inst in song.instruments])
+    vp_col = bytes([inst.vib_speed_idx for inst in song.instruments])
+    vd_col = bytes([inst.vib_delay for inst in song.instruments])
+    gt_col = bytes([getattr(inst, '_gate_timer_raw', inst.gate_timer) for inst in song.instruments])
+    fw_col = bytes([inst.first_wave if inst.first_wave >= 0 else 0x41 for inst in song.instruments])
 
     # Classify and reorder instruments
     reorder, num_normal, num_nohr, num_legato = classify_instruments(gt_col)
-
-    # If all normal (most common), no reorder needed
-    if num_nohr == 0 and num_legato == 0:
-        # No reorder
-        pass
-    else:
+    if num_nohr > 0 or num_legato > 0:
         ad_col = reorder_column(ad_col, reorder)
         sr_col = reorder_column(sr_col, reorder)
         wp_col = reorder_column(wp_col, reorder)
@@ -85,14 +72,12 @@ def build_sid_from_usf(sid_path, song, r, flags):
         gt_col = reorder_column(gt_col, reorder)
         fw_col = reorder_column(fw_col, reorder)
 
-    # FIXEDPARAMS: extract first instrument's values
     first_wave_param = fw_col[0] if fw_col else 0x09
     gate_timer_param = (gt_col[0] & 0x3F) if gt_col else 0x02
 
-    # Encode patterns
+    # Encode patterns and orderlists
     gt2_patterns = [usf_pattern_to_gt2(p) for p in song.patterns]
 
-    # Encode orderlists
     gt2_orderlists = []
     for vi in range(3):
         entries = song.orderlists[vi]
@@ -119,47 +104,23 @@ def build_sid_from_usf(sid_path, song, r, flags):
         ol.extend([0xFF, 0x00])
         gt2_orderlists.append(bytes(ol))
 
-    # Shared tables
-    wave_l = bytearray()
-    wave_r = bytearray()
-    if song.shared_wave_table:
-        for l, rv in song.shared_wave_table:
-            wave_l.append(l)
-            wave_r.append(rv)
-
-    pulse_l = bytearray()
-    pulse_r = bytearray()
-    if song.shared_pulse_table:
-        for l, rv in song.shared_pulse_table:
-            pulse_l.append(l)
-            pulse_r.append(rv)
-
-    filter_l = bytearray()
-    filter_r = bytearray()
-    if song.shared_filter_table:
-        for l, rv in song.shared_filter_table:
-            filter_l.append(l)
-            filter_r.append(rv)
-
-    speed_l = raw.get('speed_left') or bytes([0])
-    speed_r = raw.get('speed_right') or bytes([0])
-
-    freq_lo = getattr(song, 'freq_lo', None)
-    freq_hi = getattr(song, 'freq_hi', None)
-
-    first_note = getattr(song, 'first_note', 0)
-    last_note = first_note + 95  # default range
-    # Adjust last_note based on freq table if available
-    if first_note > 0:
-        last_note = 95  # always end at note 95
+    # Tables — from USF shared tables and speed_table
+    wave_l = bytes([l for l, _ in song.shared_wave_table]) if song.shared_wave_table else None
+    wave_r = bytes([rv for _, rv in song.shared_wave_table]) if song.shared_wave_table else None
+    pulse_l = bytes([l for l, _ in song.shared_pulse_table]) if song.shared_pulse_table else None
+    pulse_r = bytes([rv for _, rv in song.shared_pulse_table]) if song.shared_pulse_table else None
+    filter_l = bytes([l for l, _ in song.shared_filter_table]) if song.shared_filter_table else None
+    filter_r = bytes([rv for _, rv in song.shared_filter_table]) if song.shared_filter_table else None
+    speed_l = bytes([e.left for e in song.speed_table]) if song.speed_table else None
+    speed_r = bytes([e.right for e in song.speed_table]) if song.speed_table else None
 
     return pack_gt2(
         flags=flags,
         base_addr=r['la'],
         songs=1,
-        first_note=first_note,
-        last_note=last_note,
-        default_tempo=getattr(song, 'tempo', 6) - 1,
+        first_note=song.first_note,
+        last_note=95,
+        default_tempo=song.tempo - 1,
         num_instruments=ni,
         num_normal=num_normal,
         num_nohr=num_nohr,
@@ -177,21 +138,19 @@ def build_sid_from_usf(sid_path, song, r, flags):
         instruments_vibdelay=vd_col,
         instruments_gatetimer=gt_col,
         instruments_firstwave=fw_col,
-        wave_left=bytes(wave_l) if wave_l else None,
-        wave_right=bytes(wave_r) if wave_r else None,
-        pulse_left=bytes(pulse_l) if pulse_l else None,
-        pulse_right=bytes(pulse_r) if pulse_r else None,
-        filter_left=bytes(filter_l) if filter_l else None,
-        filter_right=bytes(filter_r) if filter_r else None,
+        wave_left=wave_l,
+        wave_right=wave_r,
+        pulse_left=pulse_l,
+        pulse_right=pulse_r,
+        filter_left=filter_l,
+        filter_right=filter_r,
         speed_left=speed_l,
         speed_right=speed_r,
         orderlists=gt2_orderlists,
         patterns=gt2_patterns,
-        freq_lo=freq_lo,
-        freq_hi=freq_hi,
         title=song.title,
         author=song.author,
-        player_group=getattr(song, 'gt2_player_group', ''),
+        player_group=song.gt2_player_group,
     )
 
 

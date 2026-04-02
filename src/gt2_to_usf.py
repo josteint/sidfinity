@@ -94,62 +94,59 @@ def gt2_to_usf(sid_path, trace_duration=10):
             size = ft_size if ft_size > 0 else min(len(raw_fl), len(raw_fr))
             song.shared_filter_table = [(raw_fl[i], raw_fr[i]) for i in range(size)]
 
-        song._raw_gt2 = {
-            'col_data': col_data,
-            'ni': ni,
-            'pulse_left': layout.get('pulse_left'),
-            'pulse_right': layout.get('pulse_right'),
-            'filter_left': layout.get('filter_left'),
-            'filter_right': layout.get('filter_right'),
-            'speed_left': layout.get('speed_left'),
-            'speed_right': layout.get('speed_right'),
-        }
+        # Populate speed table from raw bytes
+        raw_sl = layout.get('speed_left', b'')
+        raw_sr = layout.get('speed_right', b'')
+        st_size = layout.get('speed_size', 0)
+        if raw_sl and raw_sr and st_size > 0:
+            from usf import SpeedTableEntry
+            for i in range(st_size):
+                song.speed_table.append(SpeedTableEntry(left=raw_sl[i], right=raw_sr[i]))
 
+    # Build instruments from column data — no raw passthrough
     for y in range(ni):
-        ad = col_data.get('ad', [])[y] if y < len(col_data.get('ad', [])) else 0
-        sr = col_data.get('sr', [])[y] if y < len(col_data.get('sr', [])) else 0
-        wp = col_data.get('wave_ptr', [])[y] if y < len(col_data.get('wave_ptr', [])) else 0
-        fw_byte = col_data.get('first_wave', [])[y] if y < len(col_data.get('first_wave', [])) else 0
-        gt_byte = col_data.get('gate_timer', [])[y] if y < len(col_data.get('gate_timer', [])) else 2
-        vp = col_data.get('vib_param', [])[y] if y < len(col_data.get('vib_param', [])) else 0
-        vd = col_data.get('vib_delay', [])[y] if y < len(col_data.get('vib_delay', [])) else 0
-        pp = col_data.get('pulse_ptr', [])[y] if y < len(col_data.get('pulse_ptr', [])) else 0
-        fp = col_data.get('filter_ptr', [])[y] if y < len(col_data.get('filter_ptr', [])) else 0
+        def col(name, default=0):
+            vals = col_data.get(name, [])
+            return vals[y] if y < len(vals) else default
+
+        ad = col('ad')
+        sr = col('sr')
+        wp = col('wave_ptr')
+        fw_byte = col('first_wave')
+        gt_byte = col('gate_timer', 2)
+        vp = col('vib_param')
+        vd = col('vib_delay')
+        pp = col('pulse_ptr')
+        fp = col('filter_ptr')
 
         # Determine waveform from first_wave byte
         if fw_byte in (0, 0xFE, 0xFF):
             waveform = 'pulse'
-            fw = -1
+            fw = fw_byte  # preserve exact value for roundtrip
         else:
             wave_bits = (fw_byte >> 4) & 0xF
             waveform = {1: 'tri', 2: 'saw', 4: 'pulse', 8: 'noise'}.get(wave_bits, 'pulse')
             fw = fw_byte
 
         # Hard restart method
-        hr = 'none' if gt_byte >= 0x80 else 'gate'
+        hr = 'none' if gt_byte & 0x80 else 'gate'
 
         # Build wave table from extracted binary data
         wt = []
         wl = layout.get('wave_left', b'') if layout else b''
         wr = layout.get('wave_right', b'') if layout else b''
-        # Wave table arrays are indexed by Y = wave_ptr (1-based)
         if wp > 0 and wp <= len(wl):
-            idx = wp - 1  # wave_ptr is 1-based Y; array is 0-indexed from mt_wavetbl
+            idx = wp - 1
             while idx < len(wl) and len(wt) < 64:
                 left = wl[idx]
                 right = wr[idx] if idx < len(wr) else 0x80
 
                 if left == 0xFF:
-                    # Jump: right column = new wave_ptr value.
-                    # $00 = stop (player sets waveptr=0 → beq skips wave processing)
-                    # Non-zero = jump to that position (loop)
                     if right > 0:
                         loop_target = max(0, right - wp)
                         wt.append(WaveTableStep(is_loop=True, loop_target=loop_target))
-                    # else: stop — table ends without loop, last waveform persists
                     break
                 elif left < 0x10:
-                    # Delay: left = frame count, right = note (same format as waveform entries)
                     if right == 0x00:
                         wt.append(WaveTableStep(delay=left, keep_freq=True))
                     elif right < 0x80:
@@ -158,16 +155,11 @@ def gt2_to_usf(sid_path, trace_duration=10):
                         rel = right if right < 0xC0 else right - 0x100
                         wt.append(WaveTableStep(delay=left, note_offset=rel - 0x80))
                 else:
-                    # Waveform + note (packed format from greloc.c):
-                    #   $00 = keep freq (player skips freq change)
-                    #   $01-$7F = absolute note number (bit 7 clear → BPL)
-                    #   $80-$FF = relative note (bit 7 set → signed add)
                     if right == 0x00:
                         wt.append(WaveTableStep(waveform=left, keep_freq=True))
                     elif right < 0x80:
                         wt.append(WaveTableStep(waveform=left, absolute_note=right))
                     else:
-                        # Signed relative: $80=+0, $81=+1, $FF=-1
                         rel = right if right < 0xC0 else right - 0x100
                         wt.append(WaveTableStep(waveform=left, note_offset=rel - 0x80))
                 idx += 1
@@ -184,14 +176,17 @@ def gt2_to_usf(sid_path, trace_duration=10):
             waveform=waveform,
             first_wave=fw,
             hr_method=hr,
-            gate_timer=gt_byte & 0x3F if gt_byte < 0x80 else 0,
-            legato=bool(gt_byte & 0x40) if 'gate_timer' in col_data else False,
+            gate_timer=gt_byte & 0x3F,
+            legato=bool(gt_byte & 0x40),
+            wave_ptr=wp,
             vib_speed_idx=vp,
             vib_delay=vd,
             wave_table=wt,
+            pulse_ptr=pp,
+            filter_ptr=fp,
         )
-        inst.pulse_ptr = pp
-        inst.filter_ptr = fp
+        # Store raw gate_timer byte for exact roundtrip
+        inst._gate_timer_raw = gt_byte
         song.instruments.append(inst)
 
     # Convert patterns
