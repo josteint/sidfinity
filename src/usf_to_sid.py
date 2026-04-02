@@ -273,7 +273,8 @@ def usf_to_sid(song, output_path=None):
                 repeat_count += 1
 
             # Emit transpose when changed (or first entry)
-            if i == 0 or transpose != entries[i-1][1]:
+            prev_trans = entries[i-1][1] if i > 0 else 0
+            if transpose != prev_trans:
                 if transpose >= 0:
                     ol.append(0xF0 + transpose)
                 else:
