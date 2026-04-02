@@ -45,4 +45,12 @@ cd ../..
 
 echo "Building siddump..."
 g++ $CXXFLAGS $INCFLAGS siddump.cpp libsidplayfp/build/libsidplayfp.a -o siddump
-echo "Done. Binary: tools/siddump"
+echo "  Built tools/siddump"
+
+# --- Step 5: Build sidrender (PCM renderer for audio comparison) ---
+
+echo "Building sidrender..."
+g++ $CXXFLAGS $INCFLAGS sidrender.cpp libsidplayfp/build/libsidplayfp.a -o sidrender
+echo "  Built tools/sidrender"
+
+echo "Done."
