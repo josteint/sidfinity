@@ -12,7 +12,7 @@ import os
 import tempfile
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-GT2ASM = '/tmp/gt2asm'
+GT2ASM = os.path.join(SCRIPT_DIR, '..', 'tmp', 'gt2asm')
 PLAYER_S = os.path.join(SCRIPT_DIR, 'GoatTracker_2.77', 'src', 'player.s')
 
 # Player version mapping: behavior group → GT2 version directory
@@ -284,28 +284,35 @@ def pack_gt2(
     # Pulse table (only if pulse used)
     if not F.get('NOPULSE', 1):
         insertlabel(buf, 'mt_pulsetimetbl')
-        insertbytes(buf, pulse_left or bytes([0]))
+        if pulse_left:
+            insertbytes(buf, pulse_left)
         insertlabel(buf, 'mt_pulsespdtbl')
-        insertbytes(buf, pulse_right or bytes([0]))
+        if pulse_right:
+            insertbytes(buf, pulse_right)
 
     # Filter table (only if filter used)
     if not F.get('NOFILTER', 1):
         insertlabel(buf, 'mt_filttimetbl')
-        insertbytes(buf, filter_left or bytes([0]))
+        if filter_left:
+            insertbytes(buf, filter_left)
         insertlabel(buf, 'mt_filtspdtbl')
-        insertbytes(buf, filter_right or bytes([0]))
+        if filter_right:
+            insertbytes(buf, filter_right)
 
     # Speed table (with extra zero prefix if speed features used)
     has_speed = (not F.get('NOVIB', 1) or not F.get('NOFUNKTEMPO', 1) or
                  not F.get('NOPORTAMENTO', 1) or not F.get('NOTONEPORTA', 1))
-    if has_speed:
+    has_speed_data = speed_left and len(speed_left) > 0 and speed_left != bytes([0])
+    if has_speed and has_speed_data:
         insertbyte(buf, 0)
     insertlabel(buf, 'mt_speedlefttbl')
-    insertbytes(buf, speed_left)
-    if has_speed:
+    if has_speed_data:
+        insertbytes(buf, speed_left)
+    if has_speed and has_speed_data:
         insertbyte(buf, 0)
     insertlabel(buf, 'mt_speedrighttbl')
-    insertbytes(buf, speed_right)
+    if has_speed_data:
+        insertbytes(buf, speed_right)
 
     # Orderlists
     for c in range(songs):
