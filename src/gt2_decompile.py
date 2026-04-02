@@ -233,14 +233,27 @@ def _find_wave_size_by_freq_trace(sid_path, binary, la, code_end, table_start_of
     if not wp_col:
         return 0
 
-    # Calculate total table region size
+    # Calculate total table region size and max wave size.
+    # Other tables (pulse, filter, speed) share the region with wave.
     freq_end = code_end + num_notes * 2
     song_lo_off = freq_end
     song_hi_off = freq_end + 3
     ol_addrs = [binary[song_lo_off + v] | (binary[song_hi_off + v] << 8) for v in range(3)]
     first_ol_off = min(a - la for a in ol_addrs)
     table_region_size = first_ol_off - table_start_off
-    max_possible_wave = table_region_size // 2  # wave left+right can't exceed region
+
+    # Estimate bytes used by other tables to bound the wave walk
+    has_pulse_col = 'pulse_ptr' in columns
+    has_filter_col = 'filter_ptr' in columns
+    has_vib_col = 'vib_param' in columns
+    other_bytes = 0
+    if has_vib_col and table_region_size > 4:
+        other_bytes += 4  # speed table minimum ($00 + 1 entry + $00 + 1 entry)
+    if has_pulse_col:
+        other_bytes += 2  # pulse minimum
+    if has_filter_col:
+        other_bytes += 2  # filter minimum
+    max_possible_wave = (table_region_size - other_bytes) // 2
 
     max_entry = 0
     for wp in wp_col:
@@ -289,9 +302,25 @@ def decompile_gt2(sid_path):
         return None
 
     ni = r['ni']
-    num_cols = r['num_columns']
+    num_cols = min(r['num_columns'], 9)  # GT2 max is 9 columns
     col_start = r['col_operands']['ad'] + 1  # first byte of AD column
     col_start_off = col_start - la
+
+    # For ni=1, the stride-based column detection can overcount (wave table
+    # accesses look like columns). Validate by checking that the table region
+    # between columns end and orderlists is large enough for a wave table.
+    if ni == 1:
+        freq_end_v = ft[0] + ft[2] * 2
+        if freq_end_v + 6 < len(binary):
+            sl = [binary[freq_end_v + i] for i in range(3)]
+            sh = [binary[freq_end_v + 3 + i] for i in range(3)]
+            first_ol_v = min(sl[i] | (sh[i] << 8) for i in range(3))
+            while num_cols > 3:
+                instr_end_v = (col_start - la) + num_cols * ni
+                table_region_v = first_ol_v - la - instr_end_v
+                if table_region_v >= 2 and table_region_v % 2 == 0:
+                    break
+                num_cols -= 1
 
     # === Step 3: Walk the data section sequentially ===
     pos = code_end  # start of data
@@ -334,19 +363,38 @@ def decompile_gt2(sid_path):
     result['num_patt'] = num_patt
     result['patt_addrs'] = patt_addrs
 
-    # Instrument columns
+    # Instrument columns — determine names from column count.
+    # GT2 column order: ad, sr, wave_ptr, [pulse_ptr], [filter_ptr],
+    #   [vib_param, vib_delay], [gate_timer, first_wave]
+    # Brackets = conditional on flags. Columns come in groups:
+    #   pulse_ptr alone, filter_ptr alone, vib_param+vib_delay together,
+    #   gate_timer+first_wave together.
+    # Standard configurations by column count:
+    col_name_configs = {
+        3: ['ad', 'sr', 'wave_ptr'],
+        4: ['ad', 'sr', 'wave_ptr', 'pulse_ptr'],
+        5: ['ad', 'sr', 'wave_ptr', 'pulse_ptr', 'filter_ptr'],
+        6: ['ad', 'sr', 'wave_ptr', 'pulse_ptr', 'filter_ptr', 'vib_param'],  # rare
+        7: ['ad', 'sr', 'wave_ptr', 'vib_param', 'vib_delay', 'gate_timer', 'first_wave'],
+        8: ['ad', 'sr', 'wave_ptr', 'pulse_ptr', 'vib_param', 'vib_delay', 'gate_timer', 'first_wave'],
+        9: ['ad', 'sr', 'wave_ptr', 'pulse_ptr', 'filter_ptr', 'vib_param', 'vib_delay', 'gate_timer', 'first_wave'],
+    }
+
+    # Use gt2_parse_direct's identified columns if available and reliable (ni > 1)
+    if ni > 1 and r['col_data']:
+        col_names_for_file = list(r['col_data'].keys())[:num_cols]
+    else:
+        # For ni=1 or unreliable detection: use standard configs
+        col_names_for_file = col_name_configs.get(num_cols)
+        if col_names_for_file is None:
+            # Fallback: fill from full order
+            full = ['ad', 'sr', 'wave_ptr', 'pulse_ptr', 'filter_ptr',
+                    'vib_param', 'vib_delay', 'gate_timer', 'first_wave']
+            col_names_for_file = full[:num_cols]
+
     columns = {}
-    # Column naming based on GT2 column order:
-    # Always: ad, sr, wave_ptr
-    # Conditional: pulse_ptr, filter_ptr, vib_param, vib_delay, gate_timer, first_wave
-    col_names_full = ['ad', 'sr', 'wave_ptr', 'pulse_ptr', 'filter_ptr',
-                      'vib_param', 'vib_delay', 'gate_timer', 'first_wave']
-    # With fewer columns, some are missing. The order is always the same.
-    # 3 cols = ad, sr, wave_ptr (+ FIXEDPARAMS + no pulse/filter/vib)
-    # 4 cols = ad, sr, wave_ptr, pulse_ptr OR something else
-    # We assign names in order, which works for standard GT2 configurations
     for c in range(num_cols):
-        name = col_names_full[c] if c < len(col_names_full) else f'col{c}'
+        name = col_names_for_file[c] if c < len(col_names_for_file) else f'col{c}'
         columns[name] = list(binary[pos:pos + ni])
         pos += ni
 
@@ -381,9 +429,23 @@ def decompile_gt2(sid_path):
     wave_size = _find_wave_size_by_freq_trace(
         sid_path, binary, la, code_end, pos, first_note, num_notes, columns)
 
-    # Fallback: if trace fails, assume wave fills the table region
+    # Fallback: if trace fails, estimate wave_size from table region.
+    # Account for other tables (pulse, filter, speed) that share the region.
     if wave_size <= 0:
-        wave_size = len(table_region) // 2
+        other_bytes = 0
+        # Speed table: $00 prefix + data + $00 prefix + data (minimum 4 bytes if present)
+        if has_speed and len(table_region) > 4:
+            # Check if there's a $00 byte that could be a speed prefix
+            # Speed is at the END of the table region
+            # Try: assume speed has at least 1 entry (4 bytes: $00+L+$00+R)
+            other_bytes += 4
+        # Pulse and filter: each has left+right (minimum 2 bytes if present)
+        if has_pulse:
+            other_bytes += 2  # minimum pulse table
+        if has_filter:
+            other_bytes += 2  # minimum filter table
+        wave_bytes = len(table_region) - other_bytes
+        wave_size = max(1, wave_bytes // 2)
 
     result['wave_size'] = wave_size
     tp = 0

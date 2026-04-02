@@ -185,8 +185,31 @@ def parse_gt2_direct(sid_path):
     for ci, name in zip(unassigned, remaining_names):
         columns[name] = ci
 
+    # Validate column count: the table region (between columns end and
+    # orderlists) must accommodate at least a wave table (even number of
+    # bytes). For ni=1 files, stride-based detection often overcounts.
+    num_columns_detected = len(col_operands)
+    instr_end = ad_operand + num_columns_detected * ni
+
+    # Find first orderlist address for validation
+    ft_check = find_freq_table(binary, la)
+    if ft_check:
+        freq_end_check = ft_check[0] + ft_check[2] * 2
+        if freq_end_check + 6 < len(binary):
+            sl = [binary[freq_end_check + i] for i in range(3)]
+            sh = [binary[freq_end_check + 3 + i] for i in range(3)]
+            first_ol = min(sl[i] | (sh[i] << 8) for i in range(3))
+            table_region = first_ol - instr_end
+            # If table region is odd or negative, reduce column count
+            while table_region < 2 or (table_region % 2 != 0 and ni == 1):
+                num_columns_detected -= 1
+                instr_end = ad_operand + num_columns_detected * ni
+                table_region = first_ol - instr_end
+                if num_columns_detected < 3:
+                    break
+            col_operands = col_operands[:num_columns_detected]
+
     # Step 6: Find wave table via address pairs
-    # Wave table left/right operands: both addr and addr+1 referenced
     instr_end = ad_operand + len(col_operands) * ni
     table_operands = []
     for a in sorted(all_code_refs):
