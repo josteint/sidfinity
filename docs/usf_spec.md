@@ -46,6 +46,8 @@ USF must be expressive enough to represent any feature used by any supported pla
 | freq_hi | bytes\|None | None | Custom freq table hi (96 bytes), None=PAL |
 | first_note | int | 0 | First note in freq table (GT2 FIRSTNOTE optimization) |
 | gt2_player_group | string | '' | Player behavior group: 'A', 'B', 'C', 'D' (see below) |
+| ad_param | int | 0x0F | Hard restart AD value (SID $D405). Detected from player binary. *GT2-specific.* |
+| sr_param | int | 0x00 | Hard restart SR value (SID $D406). Detected from player binary. *GT2-specific.* |
 
 **Player behavior group (GT2 only):** The GT2 player has 4 behavior groups that produce audibly different output from the same song data. The group determines ADSR write order, new-note register behavior, and vibrato handling. See `docs/gt2_player_versions.md` for full details.
 

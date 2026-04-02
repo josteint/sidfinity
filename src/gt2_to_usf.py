@@ -49,6 +49,9 @@ def gt2_to_usf(sid_path, trace_duration=10):
     ft = find_freq_table(binary, la)
     first_note = ft[1] if ft else 0
 
+    ad_param = version_info['ad_param'] if version_info else 0x0F
+    sr_param = version_info['sr_param'] if version_info else 0x00
+
     song = Song(
         title=header['title'],
         author=header['author'],
@@ -57,6 +60,8 @@ def gt2_to_usf(sid_path, trace_duration=10):
         tempo=default_tempo,
         first_note=first_note,
         gt2_player_group=player_group or '',
+        ad_param=ad_param,
+        sr_param=sr_param,
     )
 
     # Read instrument data from direct parser
