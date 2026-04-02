@@ -1080,6 +1080,14 @@ void relocator(void)
   }
 
   // Insert baseaddresses
+  fprintf(stderr, "FLAGS: noeffects=%d nogate=%d nofilter=%d nofiltermod=%d nopulse=%d nopulsemod=%d nowavedelay=%d nowavecmd=%d\n", noeffects, nogate, nofilter, nofiltermod, nopulse, nopulsemod, nowavedelay, nowavecmd);
+  fprintf(stderr, "FLAGS: norepeat=%d notrans=%d noportamento=%d notoneporta=%d novib=%d noinsvib=%d nosetad=%d nosetsr=%d nosetwave=%d\n", norepeat, notrans, noportamento, notoneporta, novib, noinsvib, nosetad, nosetsr, nosetwave);
+  fprintf(stderr, "FLAGS: nosetwaveptr=%d nosetpulseptr=%d nosetfiltptr=%d nosetfiltctrl=%d nosetfiltcutoff=%d nosetmastervol=%d nofunktempo=%d\n", nosetwaveptr, nosetpulseptr, nosetfiltptr, nosetfiltctrl, nosetfiltcutoff, nosetmastervol, nofunktempo);
+  fprintf(stderr, "FLAGS: noglobaltempo=%d nochanneltempo=%d nofirstwavecmd=%d nocalculatedspeed=%d nonormalspeed=%d nozerospeed=%d fixedparams=%d simplepulse=%d\n", noglobaltempo, nochanneltempo, nofirstwavecmd, nocalculatedspeed, nonormalspeed, nozerospeed, fixedparams, simplepulse);
+  fprintf(stderr, "F1: %d %d %d %d %d %d %d %d\n", noeffects, nogate, nofilter, nofiltermod, nopulse, nopulsemod, nowavedelay, nowavecmd);
+  fprintf(stderr, "F2: %d %d %d %d %d %d %d %d %d\n", norepeat, notrans, noportamento, notoneporta, novib, noinsvib, nosetad, nosetsr, nosetwave);
+  fprintf(stderr, "F3: %d %d %d %d %d %d %d\n", nosetwaveptr, nosetpulseptr, nosetfiltptr, nosetfiltctrl, nosetfiltcutoff, nosetmastervol, nofunktempo);
+  fprintf(stderr, "F4: %d %d %d %d %d %d %d %d\n", noglobaltempo, nochanneltempo, nofirstwavecmd, nocalculatedspeed, nonormalspeed, nozerospeed, fixedparams, simplepulse);
   insertdefine("base", playeradr);
   insertdefine("zpbase", zeropageadr);
   insertdefine("SIDBASE", sidaddress);
