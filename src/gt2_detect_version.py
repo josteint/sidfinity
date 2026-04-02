@@ -24,8 +24,8 @@ def detect_gt2_player_group(sid_path):
         newnote_regs: 'all_regs' or 'wave_only'
         ghost_regs: True/False
         vibrato_fix: True/False
-        ad_param: int (0x00-0xFF, default 0x0F if not detected)
-        sr_param: int (0x00-0xFF, default 0x00 if not detected)
+        fixedparams: 1 (constant waveform/gate), 0 (per-instrument), or None
+        simplepulse: 1 (same val to lo+hi), 0 (separate lo/hi), or None (no pulse)
         details: dict of detection evidence
     """
     with open(sid_path, 'rb') as f:
@@ -44,8 +44,8 @@ def detect_gt2_player_group(sid_path):
     adsr_order = None
     hr_ad_offset = None
     hr_sr_offset = None
-    ad_param = None  # ADPARAM: the AD value written during hard restart
-    sr_param = None  # SRPARAM: the SR value written during hard restart
+    ad_param = None
+    sr_param = None
 
     hr_writes = []
     for i in range(code_end - 5):
@@ -148,6 +148,76 @@ def detect_gt2_player_group(sid_path):
             ghost_regs = True
             break
 
+    # --- Detect FIXEDPARAMS ---
+    # FIXEDPARAMS=1: initial waveform is a constant: LDA #xx / STA mt_chnwave,X
+    # FIXEDPARAMS=0: per-instrument lookup: LDA mt_insfirstwave-1,Y / STA mt_chnwave,X
+    #
+    # We find mt_chnwave's address from the loadregswaveonly pattern, then search
+    # for STA to that address and check the preceding LDA instruction.
+    fixedparams = None
+
+    if loadregswaveonly_off is not None:
+        # mt_chnwave address is the operand of the LDA at loadregswaveonly
+        chnwave_addr = binary[loadregswaveonly_off + 1] | (binary[loadregswaveonly_off + 2] << 8)
+
+        # Find STA mt_chnwave,X in the new-note init area.
+        # The new-note code does: LDA ... / [optional BEQ/BCS] / STA mt_chnwave,X
+        # We look for all STA mt_chnwave,X and check the preceding LDA.
+        for i in range(code_end - 3):
+            if (binary[i] == 0x9D and
+                    (binary[i + 1] | (binary[i + 2] << 8)) == chnwave_addr):
+                # Found STA mt_chnwave,X -- look backwards for the loading instruction
+                for j in range(i - 1, max(0, i - 20), -1):
+                    if binary[j] == 0xA9:  # LDA #xx (immediate) -> FIXEDPARAMS=1
+                        fixedparams = 1
+                        break
+                    if binary[j] == 0xB9:  # LDA abs,Y (mt_insfirstwave-1,Y) -> FIXEDPARAMS=0
+                        fixedparams = 0
+                        break
+                    if binary[j] == 0xBD:  # LDA abs,X -> not the new-note path
+                        break
+                if fixedparams is not None:
+                    break
+
+    # Fallback: detect via gate timer pattern
+    # CMP abs,X / BEQ (DD xx xx F0) -> FIXEDPARAMS=0
+    # CMP #xx / BEQ (C9 xx F0) -> FIXEDPARAMS=1
+    if fixedparams is None:
+        for i in range(code_end - 4):
+            if (binary[i] == 0xDD and i + 4 < code_end and binary[i + 3] == 0xF0):
+                addr = binary[i + 1] | (binary[i + 2] << 8)
+                if addr < 0xD000:
+                    fixedparams = 0
+                    break
+            if (binary[i] == 0xC9 and i + 3 < code_end and binary[i + 2] == 0xF0):
+                if 1 <= binary[i + 1] <= 0x20:
+                    fixedparams = 1
+                    break
+
+    # --- Detect SIMPLEPULSE ---
+    # SIMPLEPULSE=1: STA $D402,X / STA $D403,X (same value written to both lo+hi)
+    #   bytes: 9D 02 D4 9D 03 D4
+    # SIMPLEPULSE=0: STA $D402,X / LDA abs,X / STA $D403,X (different lo/hi)
+    #   bytes: 9D 02 D4 BD xx xx 9D 03 D4
+    # None if NOPULSE=1 (no STA $D403,X in code at all)
+    simplepulse = None
+
+    # Search for STA $D403,X and check what precedes it
+    for i in range(code_end - 3):
+        if binary[i] == 0x9D and binary[i + 1] == 0x03 and binary[i + 2] == 0xD4:
+            # Found STA $D403,X -- check what's immediately before
+            if (i >= 3 and binary[i - 3] == 0x9D and
+                    binary[i - 2] == 0x02 and binary[i - 1] == 0xD4):
+                # STA $D402,X immediately before -> SIMPLEPULSE=1
+                simplepulse = 1
+                break
+            if (i >= 6 and binary[i - 3] == 0xBD and
+                    binary[i - 6] == 0x9D and binary[i - 5] == 0x02 and
+                    binary[i - 4] == 0xD4):
+                # STA $D402,X / LDA abs,X / STA $D403,X -> SIMPLEPULSE=0
+                simplepulse = 0
+                break
+
     # --- Detect vibrato param fix ---
     # In the effect 0 handler (instrument vibrato), look for:
     # LDA #$00 / JMP mt_tick0_34
@@ -198,6 +268,8 @@ def detect_gt2_player_group(sid_path):
         'newnote_regs': newnote_regs,
         'ghost_regs': ghost_regs,
         'vibrato_fix': vibrato_fix,
+        'fixedparams': fixedparams,
+        'simplepulse': simplepulse,
         'ad_param': ad_param if ad_param is not None else 0x0F,
         'sr_param': sr_param if sr_param is not None else 0x00,
         'details': {
@@ -243,8 +315,8 @@ if __name__ == '__main__':
                   f'newnote={result["newnote_regs"]} '
                   f'ghost={result["ghost_regs"]} '
                   f'vibfix={result["vibrato_fix"]} '
-                  f'ad_param=${result["ad_param"]:02X} '
-                  f'sr_param=${result["sr_param"]:02X}')
+                  f'fixedparams={result["fixedparams"]} '
+                  f'simplepulse={result["simplepulse"]}')
 
     if len(files) > 10:
         print(f'\n{sum(counts.values())} GT2 files:')
