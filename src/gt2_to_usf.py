@@ -247,10 +247,12 @@ def gt2_to_usf(sid_path, trace_duration=10):
     # it to a PATTERN ENTRY INDEX so USF is position-independent.
     if ft:
         freq_end = ft[0] + ft[2] * 2
-        if freq_end + 6 < len(binary):
-            st_lo = [binary[freq_end + i] for i in range(3)]
-            st_hi = [binary[freq_end + 3 + i] for i in range(3)]
-            for vi in range(3):
+        songs_count = header_obj['songs']
+        se = songs_count * 3
+        if freq_end + se * 2 < len(binary):
+            st_lo = [binary[freq_end + i] for i in range(se)]
+            st_hi = [binary[freq_end + se + i] for i in range(se)]
+            for vi in range(3):  # USF currently only handles subtune 0
                 addr = st_lo[vi] | (st_hi[vi] << 8)
                 off = addr - la
                 # Walk the orderlist bytes, mapping byte positions to entry indices

@@ -188,17 +188,20 @@ def parse_gt2_direct(sid_path):
     # Validate column count: the table region (between columns end and
     # orderlists) must accommodate at least a wave table (even number of
     # bytes). For ni=1 files, stride-based detection often overcounts.
+    songs = header['songs']
+    song_entries = songs * 3
     num_columns_detected = len(col_operands)
     instr_end = ad_operand + num_columns_detected * ni
 
     # Find first orderlist address for validation
+    first_ol = None
     ft_check = find_freq_table(binary, la)
     if ft_check:
         freq_end_check = ft_check[0] + ft_check[2] * 2
-        if freq_end_check + 6 < len(binary):
-            sl = [binary[freq_end_check + i] for i in range(3)]
-            sh = [binary[freq_end_check + 3 + i] for i in range(3)]
-            first_ol = min(sl[i] | (sh[i] << 8) for i in range(3))
+        if freq_end_check + song_entries * 2 < len(binary):
+            sl = [binary[freq_end_check + i] for i in range(song_entries)]
+            sh = [binary[freq_end_check + song_entries + i] for i in range(song_entries)]
+            first_ol = min(sl[i] | (sh[i] << 8) for i in range(song_entries))
             table_region = first_ol - instr_end
             # If table region is odd or negative, reduce column count
             while table_region < 2 or (table_region % 2 != 0 and ni == 1):
@@ -293,42 +296,40 @@ def parse_gt2_direct(sid_path):
         filter_left = read_table(fl_start - la, ft_size)
         filter_right = read_table(fl_start + ft_size - la, ft_size)
 
-        # Speed table: comes after filter right column.
-        # Format: extra_zero + mt_speedlefttbl data + extra_zero + mt_speedrighttbl data
-        # Speed table operands: LDA mt_speedlefttbl-1,Y and LDA mt_speedrighttbl-1,Y
-        # The extra zero + data starts right after filter right ends.
-        speed_start = fl_start + ft_size * 2  # after both filter columns
-        # Find speed table operands: single-ref LDA addresses past filter
-        speed_l_operand = None
-        speed_r_operand = None
-        for addr in sorted(lda_ref_counts.keys()):
-            if addr >= speed_start - 1:
-                if speed_l_operand is None:
-                    speed_l_operand = addr
-                elif speed_r_operand is None:
-                    speed_r_operand = addr
-                    break
+        # Speed table: remaining bytes after wave+pulse+filter in the table region.
+        # Format: $00 prefix + left_data + $00 prefix + right_data
+        # speed_size = (remaining_bytes - 2) / 2
+        if first_ol is not None:
+            speed_region_start = fl_start + ft_size * 2
+            speed_remaining = first_ol - speed_region_start
+            if speed_remaining >= 4:
+                speed_off = speed_region_start - la
+                if binary[speed_off] == 0x00:  # validate first $00 prefix
+                    st_size = (speed_remaining - 2) // 2
+                    if st_size > 0:
+                        second_prefix_off = speed_off + 1 + st_size
+                        if (second_prefix_off < len(binary)
+                                and binary[second_prefix_off] == 0x00):
+                            speed_left = read_table(speed_off + 1, st_size)
+                            speed_right = read_table(
+                                second_prefix_off + 1, st_size)
 
-        # Also check addresses not in lda_ref_counts (might have single refs)
-        if speed_l_operand is None:
-            for i in range(code_end - 3):
-                if binary[i] == 0xB9:
-                    addr = binary[i + 1] | (binary[i + 2] << 8)
-                    if speed_start - 1 <= addr < speed_start + 50:
-                        if speed_l_operand is None:
-                            speed_l_operand = addr
-                        elif addr != speed_l_operand and speed_r_operand is None:
-                            speed_r_operand = addr
-                            break
-
-        if speed_l_operand is not None and speed_r_operand is not None:
-            # mt_speedlefttbl = speed_l_operand + 1 (operand is -1 for Y indexing)
-            sl_start = speed_l_operand + 1
-            sr_start = speed_r_operand + 1
-            st_size = sr_start - sl_start - 1  # subtract 1 for extra zero before right
-            if st_size > 0:
-                speed_left = read_table(sl_start - la, st_size)
-                speed_right = read_table(sr_start - la, st_size)
+    # Speed table fallback: if we have wave table but no pulse/filter detected
+    # (table_operands < 4), check for speed table after wave table.
+    if st_size == 0 and first_ol is not None and wt_size > 0 and len(table_operands) < 4:
+        speed_region_start = wl_start + wt_size * 2
+        speed_remaining = first_ol - speed_region_start
+        if speed_remaining >= 4:
+            speed_off = speed_region_start - la
+            if binary[speed_off] == 0x00:  # validate first $00 prefix
+                st_size = (speed_remaining - 2) // 2
+                if st_size > 0:
+                    second_prefix_off = speed_off + 1 + st_size
+                    if (second_prefix_off < len(binary)
+                            and binary[second_prefix_off] == 0x00):
+                        speed_left = read_table(speed_off + 1, st_size)
+                        speed_right = read_table(
+                            second_prefix_off + 1, st_size)
 
     # Build result
     col_data = {}
