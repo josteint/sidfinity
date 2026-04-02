@@ -435,7 +435,22 @@ def decompile_gt2(sid_path):
                 elif name == 'speed':
                     speed_size = per_table
 
-    # Fallback: if parse_direct gives 0 for wave but we have a table region
+    # For small ni (1-3), parse_direct's operand pair detection is unreliable
+    # (addresses too close together → false positives). Use freq trace to validate.
+    if ni <= 3 and len(table_region) > 0:
+        trace_wave_size = _find_wave_size_by_freq_trace(
+            sid_path, binary, la, code_end, pos, first_note, num_notes, columns)
+        if trace_wave_size > 0 and trace_wave_size != wave_size:
+            wave_size = trace_wave_size
+            # Recompute other table sizes with corrected wave_size
+            remaining_after_wave = len(table_region) - wave_size * 2
+            pulse_size = min(pulse_size, remaining_after_wave // 2)
+            filter_size = 0
+            speed_size = 0
+            rest = remaining_after_wave - pulse_size * 2
+            if rest >= 4 and has_speed:
+                speed_size = (rest - 2) // 2
+    # Fallback if still no wave_size
     if wave_size <= 0 and len(table_region) > 0:
         wave_size = _find_wave_size_by_freq_trace(
             sid_path, binary, la, code_end, pos, first_note, num_notes, columns)
