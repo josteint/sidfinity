@@ -13,6 +13,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from gt_parser import parse_goattracker_sid, parse_psid_header, find_freq_table
 from usf import Song, Instrument, WaveTableStep, Pattern, NoteEvent
 from gt2_parse_direct import parse_gt2_direct
+from gt2_tempo import extract_default_tempo
 
 
 def gt2_to_usf(sid_path, trace_duration=10):
@@ -28,25 +29,28 @@ def gt2_to_usf(sid_path, trace_duration=10):
 
     header = parsed['header']
 
-    # Detect initial tempo from first SETTEMPO command in patterns
-    initial_tempo = 6  # GT2 default
-    for patt in parsed['patterns']:
-        for row in patt:
-            if row.get('command') == 15 and row.get('param'):
-                val = row['param']
-                if val < 0x80:  # global tempo (not channel-specific)
-                    initial_tempo = val
-                    break
-        else:
-            continue
-        break
+    # Extract DEFAULTTEMPO using robust multi-strategy approach:
+    # 1. Pattern-match in player init code
+    # 2. greloc.c formula (last instrument AD/wave_ptr)
+    # 3. Validate against siddump first-note frame
+    header_obj, binary, la = parse_psid_header(data)
+    ft = find_freq_table(binary, la)
+
+    default_tempo = 6  # fallback
+    if ft:
+        default_tempo = extract_default_tempo(
+            binary, la, ft[0],
+            ni=layout['ni'] if layout else None,
+            col_data=layout['col_data'] if layout else None,
+            sid_path=sid_path,
+        )
 
     song = Song(
         title=header['title'],
         author=header['author'],
         sid_model='6581',
         clock='PAL',
-        tempo=initial_tempo,
+        tempo=default_tempo,
     )
 
     # Read instrument data from direct parser
