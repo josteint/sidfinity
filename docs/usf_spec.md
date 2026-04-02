@@ -1,6 +1,6 @@
 # Universal Symbolic Format (USF) Specification
 
-**Version:** 0.6 (2026-04-02)
+**Version:** 0.7 (2026-04-02)
 **Status:** Draft — data roundtrip validated on 2690 GT2 files, player behavior groups detected
 
 ## Purpose
@@ -15,6 +15,40 @@ USF is the intermediate representation between any C64 SID player's native forma
 ```
 
 USF must be expressive enough to represent any feature used by any supported player. When a new player uses a feature USF can't represent, USF must be extended — and all converters updated (see Sync Rules).
+
+## Roundtrip Pipeline
+
+The full pipeline validates that USF preserves the musical content of a SID file:
+
+```
+Original SID
+    |
+    v
+siddump (libsidplayfp emulation)
+    |  register CSV: per-frame $D400-$D418 values
+    v
+sidxray decompiler (src/gt2_decompile.py, etc.)
+    |  identifies player engine, extracts instruments/patterns/orderlists
+    v
+USF (src/usf.py Song object)
+    |  intermediate representation: dataclasses, tokens, or JSON
+    v
+sidfinity_packer (src/sidfinity_packer.py)
+    |  packs USF into binary data + player assembly
+    v
+Rebuilt SID (.sid file with 6502 player)
+    |
+    v
+siddump (re-emulate rebuilt SID)
+    |  register CSV from rebuilt SID
+    v
+Register comparison (tolerant: ignores inaudible differences)
+    |  pass/fail per frame
+    v
+Audibility grade: A (identical) / B (minor) / C (audible diffs) / F (broken)
+```
+
+**Validated:** 2690 GT2 files through decompile-to-USF path. Packer roundtrip validated on subset with register comparison.
 
 ## Design Goals
 
@@ -37,15 +71,16 @@ USF must be expressive enough to represent any feature used by any supported pla
 | tempo | int | 6 | Default speed: frames per tick |
 | instruments | list[Instrument] | [] | Instrument definitions |
 | patterns | list[Pattern] | [] | Pattern definitions |
-| orderlists | list×3 of list[(pat_id, transpose)] | [[],[],[]] | Per-voice play order |
+| orderlists | list x 3 of list[(pat_id, transpose)] | [[],[],[]] | Per-voice play order |
+| orderlist_restart | list[int] x 3 | [0,0,0] | Per-voice loop-back point as pattern entry index (0-based into orderlist, not byte offset) |
 | speed_table | list[SpeedTableEntry] | [] | Shared vibrato/portamento/funktempo data |
-| shared_wave_table | list[(int,int)] | [] | Shared wave table: (left_byte, right_byte) pairs |
-| shared_pulse_table | list[(int,int)] | [] | Shared pulse table: (left_byte, right_byte) pairs |
-| shared_filter_table | list[(int,int)] | [] | Shared filter table: (left_byte, right_byte) pairs |
-| freq_lo | bytes\|None | None | Custom freq table lo (96 bytes), None=PAL |
-| freq_hi | bytes\|None | None | Custom freq table hi (96 bytes), None=PAL |
-| first_note | int | 0 | First note in freq table (GT2 FIRSTNOTE optimization) |
-| gt2_player_group | string | '' | Player behavior group: 'A', 'B', 'C', 'D' (see below) |
+| shared_wave_table | list[(int,int)] | [] | Shared wave table: packed binary (left_byte, right_byte) pairs |
+| shared_pulse_table | list[(int,int)] | [] | Shared pulse table: packed binary (left_byte, right_byte) pairs |
+| shared_filter_table | list[(int,int)] | [] | Shared filter table: packed binary (left_byte, right_byte) pairs |
+| freq_lo | bytes\|None | None | Custom freq table lo (96 bytes), None=PAL. *GT2-specific.* |
+| freq_hi | bytes\|None | None | Custom freq table hi (96 bytes), None=PAL. *GT2-specific.* |
+| first_note | int | 0 | First playable note index in freq table. GT2 FIRSTNOTE optimization: notes below this are silent. The freq table only contains entries from first_note to 95, saving memory. *GT2-specific.* |
+| gt2_player_group | string | '' | Player behavior group: 'A', 'B', 'C', 'D' (see below). *GT2-specific.* |
 
 **Player behavior group (GT2 only):** The GT2 player has 4 behavior groups that produce audibly different output from the same song data. The group determines ADSR write order, new-note register behavior, and vibrato handling. See `docs/gt2_player_versions.md` for full details.
 
@@ -56,7 +91,9 @@ USF must be expressive enough to represent any feature used by any supported pla
 | C | 2.73-2.74 | B + ghost register support |
 | D | 2.76-2.77 | C + vibrato parameter fix |
 
-**Shared tables:** GT2 uses shared wave/pulse/filter tables where multiple instruments reference positions in a single array via pointer indices (wave_ptr, pulse_ptr, filter_ptr). Instruments can share suffixes, prefixes, or even have loop commands that point into other instruments' data. The shared table preserves this layout exactly. Each entry is a (left_byte, right_byte) pair matching the GT2 binary format.
+**Shared tables (GT2-specific):** GT2 uses shared wave/pulse/filter tables where multiple instruments reference positions in a single array via pointer indices (wave_ptr, pulse_ptr, filter_ptr). Instruments can share suffixes, prefixes, or even have loop commands that point into other instruments' data. The shared table preserves this layout exactly. Each entry is a (left_byte, right_byte) pair storing the **packed binary format bytes** as they appear in the GT2 data -- not decoded USF objects. The encoding of each byte pair depends on the table type (see Wave Table, Pulse Table, Filter Table sections below for the binary layout). This means the shared tables are opaque byte arrays that the packer writes directly, while the per-instrument `wave_table`/`pulse_table`/`filter_table` lists contain decoded USF step objects used for ML training and human inspection.
+
+**orderlist_restart:** When a song loops, each voice restarts from a specific point in its orderlist. The `orderlist_restart` value is a 0-based index into the orderlist array (counting pattern entries), not a byte offset. For example, if voice 1's orderlist is `[(0,0), (1,0), (2,0)]` and `orderlist_restart[0] = 1`, the voice loops back to the second entry `(1,0)` after reaching the end.
 
 ### Instrument
 
@@ -66,20 +103,23 @@ USF must be expressive enough to represent any feature used by any supported pla
 | ad | int | 0x09 | Attack/Decay (SID $D405) |
 | sr | int | 0x00 | Sustain/Release (SID $D406) |
 | waveform | string | 'pulse' | Primary waveform: tri, saw, pulse, noise |
-| first_wave | int | -1 | First-frame waveform override (-1=derive from waveform) |
+| first_wave | int | -1 | First-frame waveform override (-1=derive from waveform). GT2: `mt_insfirstwave` byte. *GT2-specific encoding.* |
 | gate_timer | int | 2 | Hard restart lead time in frames (0-63) |
 | hr_method | string | 'gate' | HR method: none, gate, test, adsr |
 | legato | bool | False | No ADSR retrigger on new notes |
+| wave_ptr | int | 0 | Index into shared wave table (0=none, 1-based). *GT2-specific.* |
 | vib_speed_idx | int | 0 | Speed table index for instrument vibrato (0=none) |
 | vib_delay | int | 0 | Vibrato delay in frames |
-| pulse_ptr | int | 0 | Pulse table index (0=no pulse modulation) |
-| filter_ptr | int | 0 | Filter table index (0=no filter modulation) |
-| wave_table | list[WaveTableStep] | [] | Per-frame waveform program |
-| pulse_table | list[PulseTableStep] | [] | Pulse width modulation program |
-| filter_table | list[FilterTableStep] | [] | Filter modulation program |
+| pulse_ptr | int | 0 | Pulse table index (0=no pulse modulation). *GT2-specific.* |
+| filter_ptr | int | 0 | Filter table index (0=no filter modulation). *GT2-specific.* |
+| wave_table | list[WaveTableStep] | [] | Per-frame waveform program (decoded steps for ML/inspection) |
+| pulse_table | list[PulseTableStep] | [] | Pulse width modulation program (decoded steps) |
+| filter_table | list[FilterTableStep] | [] | Filter modulation program (decoded steps) |
 | pulse_width | int | 0x0808 | Initial pulse width (16-bit) |
 
-**Note:** `pulse_ptr` and `filter_ptr` are raw table indices used by the GT2 player to reference shared pulse/filter tables. They are set by pattern commands (cmd 9, cmd A) and stored per-instrument for the initial value. When USF includes inline `pulse_table`/`filter_table`, these pointers are redundant. Both representations coexist for roundtrip fidelity with GT2.
+**Note:** `wave_ptr`, `pulse_ptr`, and `filter_ptr` are raw 1-based table indices used by the GT2 player to reference shared wave/pulse/filter tables. They are set per-instrument for the initial value and can be changed at runtime by pattern commands (cmd 8, cmd 9, cmd A). When USF includes inline `wave_table`/`pulse_table`/`filter_table`, these pointers are redundant for playback but required for binary-identical GT2 roundtrip. Both representations coexist: pointers for the packer, decoded step lists for ML and inspection.
+
+**GT2-specific vs universal fields:** Fields marked *GT2-specific* exist to support lossless roundtrip with GoatTracker V2's binary format. When importing from other players (DMC, JCH), these fields use their defaults. Universal fields (ad, sr, waveform, gate_timer, hr_method, legato, wave_table, pulse_table, filter_table, pulse_width) apply to all source players.
 
 ### WaveTableStep
 
@@ -300,12 +340,12 @@ Stored as-is: array of (left, right) byte pairs.
 
 | File | Role | Status |
 |------|------|--------|
-| `src/usf.py` | Data structures, tokenize/detokenize | ✅ v0.3 |
+| `src/usf.py` | Data structures, tokenize/detokenize | ✅ v0.7 |
 | `src/gt2_to_usf.py` | GoatTracker V2 → USF | 🔧 needs table extraction |
 | `src/dmc_to_usf.py` | DMC → USF | 🔧 needs command mapping |
 | `src/usf_to_sid.py` | USF → SIDfinity .sid | 🔧 needs pulse/filter/speed/command support |
 | `src/sidfinity_packer.py` | Pack data with GT2 player | 🔧 needs pulse/filter/speed table packing |
-| `docs/usf_spec.md` | This spec | ✅ v0.3 |
+| `docs/usf_spec.md` | This spec | ✅ v0.7 |
 
 ## Sync Rules
 
@@ -327,3 +367,4 @@ When USF changes (new fields, event types, token types):
 | 0.2 | 2026-03-31 | Spec doc created. Custom freq tables, tempo pass-through. |
 | 0.3 | 2026-03-31 | Full GT2 coverage: pulse/filter/speed tables, pattern commands 0–F, instrument vibrato, legato, first_wave, wave table delay/keep_freq. |
 | 0.6 | 2026-04-02 | Player behavior groups (A-D), first_note field. GT2 player version detection. |
+| 0.7 | 2026-04-02 | Add wave_ptr to Instrument, orderlist_restart to Song, document shared table packed binary format, annotate GT2-specific vs universal fields, add Roundtrip Pipeline section, clarify first_note semantics. |
