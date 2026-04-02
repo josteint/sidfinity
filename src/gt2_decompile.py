@@ -5,9 +5,9 @@ Walks the data section in layout order (per docs/gt2_data_layout.md),
 extracting each section at its correct size. Reverses all greloc.c
 transformations to recover .sng-equivalent data.
 
-Wave table size is determined by frequency tracing: run the SID,
-capture the first note's frequency, trace it backwards through
-the freq table and wave table to find mt_notetbl's exact position.
+Table sizes are determined from parse_direct's operand analysis of
+the player code (exact). Frequency tracing is used as a fallback
+only when operand analysis fails.
 """
 
 import sys
@@ -408,44 +408,57 @@ def decompile_gt2(sid_path):
     result['table_region_start'] = pos
     result['table_region_size'] = len(table_region)
 
-    # For files with ONLY wave table (no pulse/filter/speed):
-    # table_region = wave_L + wave_R, so wave_size = len / 2
-    #
-    # For files with pulse: wave + pulse (each table = left + right)
-    # For files with filter: wave + pulse + filter
-    # For files with speed: wave + [pulse] + [filter] + speed (with $00 prefixes)
-    #
-    # Detect by checking flags from column presence:
     has_pulse = 'pulse_ptr' in columns
     has_filter = 'filter_ptr' in columns
     has_vib = 'vib_param' in columns
-    has_speed = has_vib  # speed table exists when vibrato is enabled
+    has_speed = has_vib
 
-    # === Wave table size via frequency trace ===
-    # Run the original SID and capture the first note's freq_hi.
-    # Trace backwards: fhi → absolute note → wave_right byte value →
-    # search binary to find mt_notetbl position.
+    # Get table sizes from parse_direct's operand analysis.
+    # When parse_direct reports 0 for a table that should exist (column present),
+    # calculate its size from the remaining table region after known tables.
+    wave_size = r['wave_size']
+    pulse_size = r['pulse_size'] if has_pulse else 0
+    filter_size = r['filter_size'] if has_filter else 0
+    speed_size = r['speed_size'] if has_speed else 0
 
-    wave_size = _find_wave_size_by_freq_trace(
-        sid_path, binary, la, code_end, pos, first_note, num_notes, columns)
+    # Compute expected total and check for missing table sizes
+    speed_overhead = (2 + speed_size * 2) if speed_size > 0 else 0
+    known_bytes = wave_size * 2 + pulse_size * 2 + filter_size * 2 + speed_overhead
+    remaining_after_known = len(table_region) - known_bytes
 
-    # Fallback: if trace fails, estimate wave_size from table region.
-    # Account for other tables (pulse, filter, speed) that share the region.
+    if remaining_after_known > 0:
+        # Identify which tables have 0 size but should exist
+        missing = []
+        if has_pulse and pulse_size == 0:
+            missing.append('pulse')
+        if has_filter and filter_size == 0:
+            missing.append('filter')
+        if has_speed and speed_size == 0:
+            missing.append('speed')
+
+        if missing:
+            # Speed table has 2 extra $00 prefix bytes
+            speed_prefix = 2 if 'speed' in missing else 0
+            data_for_missing = remaining_after_known - speed_prefix
+            # Each missing table has left + right of equal size
+            num_missing = len(missing)
+            per_table = data_for_missing // (num_missing * 2) if num_missing > 0 else 0
+            for name in missing:
+                if name == 'pulse':
+                    pulse_size = per_table
+                elif name == 'filter':
+                    filter_size = per_table
+                elif name == 'speed':
+                    speed_size = per_table
+
+    # Fallback: if parse_direct gives 0 for wave but we have a table region
+    if wave_size <= 0 and len(table_region) > 0:
+        wave_size = _find_wave_size_by_freq_trace(
+            sid_path, binary, la, code_end, pos, first_note, num_notes, columns)
     if wave_size <= 0:
-        other_bytes = 0
-        # Speed table: $00 prefix + data + $00 prefix + data (minimum 4 bytes if present)
-        if has_speed and len(table_region) > 4:
-            # Check if there's a $00 byte that could be a speed prefix
-            # Speed is at the END of the table region
-            # Try: assume speed has at least 1 entry (4 bytes: $00+L+$00+R)
-            other_bytes += 4
-        # Pulse and filter: each has left+right (minimum 2 bytes if present)
-        if has_pulse:
-            other_bytes += 2  # minimum pulse table
-        if has_filter:
-            other_bytes += 2  # minimum filter table
-        wave_bytes = len(table_region) - other_bytes
-        wave_size = max(1, wave_bytes // 2)
+        speed_overhead = (2 + speed_size * 2) if speed_size > 0 else 0
+        other = pulse_size * 2 + filter_size * 2 + speed_overhead
+        wave_size = max(1, (len(table_region) - other) // 2)
 
     result['wave_size'] = wave_size
     tp = 0
@@ -454,95 +467,39 @@ def decompile_gt2(sid_path):
     result['wave_right'] = bytes(table_region[tp:tp + wave_size])
     tp += wave_size
 
-    # Remaining table region after wave
-    remaining = len(table_region) - tp
+    # Pulse table
+    if has_pulse and pulse_size > 0:
+        result['pulse_left'] = bytes(table_region[tp:tp + pulse_size])
+        tp += pulse_size
+        result['pulse_right'] = bytes(table_region[tp:tp + pulse_size])
+        tp += pulse_size
+    else:
+        result['pulse_left'] = b''
+        result['pulse_right'] = b''
 
-    # Parse pulse/filter/speed from remaining bytes.
-    # Tables appear in order: pulse (if has_pulse), filter (if has_filter),
-    # speed (if has_vib/portamento, with $00 prefix per column).
-    # Each table has left + right of equal size.
-    #
-    # Strategy: count how many table types exist, then use siddump output
-    # to validate boundaries. For the common case (1-2 table types after
-    # wave), the division is straightforward.
+    # Filter table
+    if has_filter and filter_size > 0:
+        result['filter_left'] = bytes(table_region[tp:tp + filter_size])
+        tp += filter_size
+        result['filter_right'] = bytes(table_region[tp:tp + filter_size])
+        tp += filter_size
+    else:
+        result['filter_left'] = b''
+        result['filter_right'] = b''
 
-    result['pulse_left'] = b''
-    result['pulse_right'] = b''
-    result['filter_left'] = b''
-    result['filter_right'] = b''
-    result['speed_left'] = b''
-    result['speed_right'] = b''
+    # Speed table (with $00 prefix per column when data exists)
+    if has_speed and speed_size > 0:
+        tp += 1  # skip $00 prefix before speed_left
+        result['speed_left'] = bytes(table_region[tp:tp + speed_size])
+        tp += speed_size
+        tp += 1  # skip $00 prefix before speed_right
+        result['speed_right'] = bytes(table_region[tp:tp + speed_size])
+        tp += speed_size
+    else:
+        result['speed_left'] = b''
+        result['speed_right'] = b''
 
-    remaining_data = bytes(table_region[tp:])
-
-    # Count remaining table types and their layout
-    table_types = []
-    if has_pulse:
-        table_types.append('pulse')
-    if has_filter:
-        table_types.append('filter')
-    if has_speed:
-        table_types.append('speed')
-
-    if remaining > 0 and table_types:
-        # Speed table has $00 prefix per column — account for that
-        speed_prefix_bytes = 2 if has_speed else 0  # two $00 bytes (one per column)
-
-        data_bytes = remaining - speed_prefix_bytes
-        # Each table type has left + right of equal size
-        # total data_bytes = sum of (2 * table_size) for each type
-        # Without additional info, assume all remaining non-speed tables
-        # share the remaining space equally. But usually there's only
-        # one type (pulse OR filter, rarely both without the other).
-
-        if len(table_types) == 1 and table_types[0] != 'speed':
-            # Simple: one table fills the remaining space
-            tbl_size = data_bytes // 2
-            name = table_types[0]
-            result[f'{name}_left'] = remaining_data[:tbl_size]
-            result[f'{name}_right'] = remaining_data[tbl_size:tbl_size * 2]
-        elif len(table_types) == 1 and table_types[0] == 'speed':
-            # Speed only: skip $00 prefixes
-            tbl_size = data_bytes // 2
-            result['speed_left'] = remaining_data[1:1 + tbl_size]
-            result['speed_right'] = remaining_data[1 + tbl_size + 1:1 + tbl_size + 1 + tbl_size]
-        else:
-            # Multiple table types — use siddump pulse width trace to find
-            # pulse table size, then filter fills the rest before speed.
-            # For now: use equal division as approximation, then validate.
-            # TODO: use pulse width trace for precise boundary
-            non_speed_types = [t for t in table_types if t != 'speed']
-            speed_data = data_bytes if has_speed else 0
-            if has_speed:
-                # Speed table is at the END. Find it by looking for the $00 prefixes.
-                # The last section of remaining_data has: $00 + speed_left + $00 + speed_right
-                # Scan backwards for the pattern.
-                # For now, just divide equally among non-speed types.
-                pass
-
-            if non_speed_types:
-                # Divide remaining (minus speed) equally
-                non_speed_bytes = data_bytes
-                if has_speed and len(remaining_data) > 4:
-                    # Try to find speed table by looking for $00 byte followed by data
-                    # Speed table $00 prefix is distinctive
-                    for scan in range(len(remaining_data) - 4, 0, -1):
-                        if remaining_data[scan] == 0x00:
-                            # Check if this could be the second speed $00 prefix
-                            # First prefix would be at scan - speed_right_size - 1
-                            # This is heuristic — for now use equal division
-                            break
-                    non_speed_bytes = data_bytes  # fallback
-
-                per_type = non_speed_bytes // (len(non_speed_types) * 2)
-                rp = 0
-                for name in non_speed_types:
-                    result[f'{name}_left'] = remaining_data[rp:rp + per_type]
-                    rp += per_type
-                    result[f'{name}_right'] = remaining_data[rp:rp + per_type]
-                    rp += per_type
-
-    result['table_remaining'] = b''  # everything parsed
+    result['table_remaining'] = bytes(table_region[tp:])
 
     # === Step 5: Orderlists ===
     orderlists = []
@@ -596,8 +553,17 @@ if __name__ == '__main__':
     for name, vals in r['columns'].items():
         print(f"  {name}: {[f'{v:02x}' for v in vals]}")
 
-    print(f"\nWave left:  {r['wave_left'].hex()}")
-    print(f"Wave right: {r['wave_right'].hex()}")
+    print(f"\nWave left  ({len(r['wave_left'])}): {r['wave_left'].hex()}")
+    print(f"Wave right ({len(r['wave_right'])}): {r['wave_right'].hex()}")
+    if r['pulse_left']:
+        print(f"Pulse left ({len(r['pulse_left'])}): {r['pulse_left'].hex()}")
+        print(f"Pulse right({len(r['pulse_right'])}): {r['pulse_right'].hex()}")
+    if r['filter_left']:
+        print(f"Filter left ({len(r['filter_left'])}): {r['filter_left'].hex()}")
+        print(f"Filter right({len(r['filter_right'])}): {r['filter_right'].hex()}")
+    if r['speed_left']:
+        print(f"Speed left ({len(r['speed_left'])}): {r['speed_left'].hex()}")
+        print(f"Speed right({len(r['speed_right'])}): {r['speed_right'].hex()}")
 
     print(f"\nOrderlists:")
     for vi, ol in enumerate(r['orderlists'][:3]):
