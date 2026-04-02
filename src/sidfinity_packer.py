@@ -80,6 +80,8 @@ def pack_sid(
     first_note=0,
     last_note=95,
     default_tempo=6,
+    ad_param=0x0F,
+    sr_param=0x00,
 ):
     """Pack music data with the SIDfinity player into a SID file.
 
@@ -306,8 +308,8 @@ FIRSTLEGATOINSTR = {ni}
 NUMHRINSTR = {ni - 1}
 NUMNOHRINSTR = 0
 NUMLEGATOINSTR = 0
-ADPARAM = $0f
-SRPARAM = $00
+ADPARAM = ${ad_param:02x}
+SRPARAM = ${sr_param:02x}
 FIXEDPARAMS = 1
 FIRSTWAVEPARAM = $09
 GATETIMERPARAM = $02

@@ -24,6 +24,8 @@ def detect_gt2_player_group(sid_path):
         newnote_regs: 'all_regs' or 'wave_only'
         ghost_regs: True/False
         vibrato_fix: True/False
+        ad_param: int (0x00-0xFF, default 0x0F if not detected)
+        sr_param: int (0x00-0xFF, default 0x00 if not detected)
         details: dict of detection evidence
     """
     with open(sid_path, 'rb') as f:
@@ -42,6 +44,8 @@ def detect_gt2_player_group(sid_path):
     adsr_order = None
     hr_ad_offset = None
     hr_sr_offset = None
+    ad_param = None  # ADPARAM: the AD value written during hard restart
+    sr_param = None  # SRPARAM: the SR value written during hard restart
 
     hr_writes = []
     for i in range(code_end - 5):
@@ -51,10 +55,12 @@ def detect_gt2_player_group(sid_path):
                 hr_writes.append(('AD', i))
                 if hr_ad_offset is None:
                     hr_ad_offset = i
+                    ad_param = binary[i + 1]
             elif addr == 0xD406:
                 hr_writes.append(('SR', i))
                 if hr_sr_offset is None:
                     hr_sr_offset = i
+                    sr_param = binary[i + 1]
 
     if hr_writes:
         adsr_order = 'ad_first' if hr_writes[0][0] == 'AD' else 'sr_first'
@@ -192,6 +198,8 @@ def detect_gt2_player_group(sid_path):
         'newnote_regs': newnote_regs,
         'ghost_regs': ghost_regs,
         'vibrato_fix': vibrato_fix,
+        'ad_param': ad_param if ad_param is not None else 0x0F,
+        'sr_param': sr_param if sr_param is not None else 0x00,
         'details': {
             'hr_ad_offset': hr_ad_offset,
             'hr_sr_offset': hr_sr_offset,
@@ -234,7 +242,9 @@ if __name__ == '__main__':
                   f'adsr={result["adsr_order"]} '
                   f'newnote={result["newnote_regs"]} '
                   f'ghost={result["ghost_regs"]} '
-                  f'vibfix={result["vibrato_fix"]}')
+                  f'vibfix={result["vibrato_fix"]} '
+                  f'ad_param=${result["ad_param"]:02X} '
+                  f'sr_param=${result["sr_param"]:02X}')
 
     if len(files) > 10:
         print(f'\n{sum(counts.values())} GT2 files:')
