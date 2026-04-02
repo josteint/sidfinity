@@ -107,6 +107,10 @@ When the GT2 packer determines all instruments share the same gate_timer and fir
 
 The memtrace reveals this because those addresses simply don't appear in the note-trigger co-occurrence group.
 
+## Player Version Detection
+
+Different GT2 player versions produce different audio from identical song data. See `docs/gt2_player_versions.md` for the full analysis. In brief, there are 4 behavior groups (A-D) distinguished by ADSR write order, new-note register behavior, and vibrato handling. Detect the group by examining the hard restart code's STA $D405/$D406 order and the new-note JMP target.
+
 ## Tips
 
 - Run with `--duration 30` for better statistics (more note triggers = clearer co-occurrence)
