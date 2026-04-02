@@ -314,6 +314,13 @@ def pack_gt2(
     if has_speed_data:
         insertbytes(buf, speed_right)
 
+    # Safety padding: ensure empty table labels don't read into orderlist data.
+    # When pulse/filter/speed tables have 0 entries, their labels all point here.
+    # The player reads from label-1+Y — with Y=1 it reads byte 0 of this padding.
+    # $00 bytes are benign: pulse treats $00 as "set cutoff", filter as "set cutoff",
+    # and both just set values to 0 (no audible effect).
+    buf.append('                .BYTE ($00,$00,$00,$00)\n')
+
     # Orderlists
     for c in range(songs):
         for d in range(3):

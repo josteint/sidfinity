@@ -262,17 +262,17 @@ def usf_to_sid(song, output_path=None):
     for vi in range(3):
         entries = song.orderlists[vi]
         ol = bytearray()
+        entry_to_byte = {}
+        entry_idx = 0
         i = 0
         while i < len(entries):
             patt_id, transpose = entries[i]
 
-            # Count consecutive identical entries
             repeat_count = 1
             while (i + repeat_count < len(entries) and
                    entries[i + repeat_count] == entries[i]):
                 repeat_count += 1
 
-            # Emit transpose when changed (or first entry)
             prev_trans = entries[i-1][1] if i > 0 else 0
             if transpose != prev_trans:
                 if transpose >= 0:
@@ -282,14 +282,23 @@ def usf_to_sid(song, output_path=None):
 
             if repeat_count <= 2:
                 for _ in range(repeat_count):
+                    entry_to_byte[entry_idx] = len(ol)
+                    entry_idx += 1
                     ol.append(patt_id)
             else:
+                entry_to_byte[entry_idx] = len(ol)
+                entry_idx += 1
                 ol.append(patt_id)
                 ol.append(0xD0 + (repeat_count - 1))
+                for k in range(1, repeat_count):
+                    entry_to_byte[entry_idx] = entry_to_byte[entry_idx - 1]
+                    entry_idx += 1
 
             i += repeat_count
 
-        ol.extend([0xFF, 0x00])
+        restart_entry = song.orderlist_restart[vi] if hasattr(song, 'orderlist_restart') and vi < len(song.orderlist_restart) else 0
+        restart_byte = entry_to_byte.get(restart_entry, 0)
+        ol.extend([0xFF, restart_byte])
         gt2_orderlists.append(bytes(ol))
 
     # Pack (with optional custom freq table)
