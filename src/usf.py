@@ -37,12 +37,24 @@ import json
 class WaveTableStep:
     """One step in a wave table program.
 
-    GT2 wave table left column:
-      $00=no change, $01-$0F=delay N frames, $10-$DF=waveform,
-      $E0-$EF=inaudible wave, $F0-$FE=commands, $FF=jump/loop
-    GT2 wave table right column:
-      $00-$5F=relative note up, $60-$7F=relative note down (signed),
-      $80=keep freq, $81-$DF=absolute note
+    Values are stored in .sng-equivalent format (pre-transform, musical intent).
+
+    .sng left column ranges:
+      $00=no wave change, $01-$0F=delay N frames, $10-$DF=waveform,
+      $E0-$EF=inaudible/silent wave command, $F0-$FE=commands, $FF=jump/loop
+
+    .sng right column ranges:
+      $00-$5F=relative note up, $60-$7F=relative note down (signed offset+$80),
+      $80=keep freq (no change), $81-$DF=absolute note
+
+    Packed format transforms (applied by greloc.c, reversed during parse):
+      Left:  waveforms $10-$DF get +$10 added (only when NOWAVEDELAY=0)
+             silent waves $E0-$EF masked to low nibble then +$10
+      Right: non-command entries XOR $80 (flips relative/absolute sense)
+             command entries ($F0-$FE left): table index remap, no XOR
+             jump entries ($FF left): table index remap, no XOR
+
+    The encoder (usf_to_sid.py) re-applies these transforms when packing.
     """
     waveform: int = 0x41       # SID waveform byte (e.g. $41 = pulse+gate)
     note_offset: int = 0       # relative semitone offset (negative = down)
@@ -184,9 +196,10 @@ class Song:
     # Each orderlist entry: (pattern_id, transpose)
     orderlist_restart: list = field(default_factory=lambda: [0, 0, 0])  # loop-back pattern entry index per voice
     speed_table: list = field(default_factory=list)    # list of SpeedTableEntry
-    # Shared tables: list of (left_byte, right_byte) pairs.
+    # Shared tables: list of (left_byte, right_byte) pairs in .sng format.
     # Instruments reference positions via wave_ptr, pulse_ptr, filter_ptr.
-    # These are the raw GT2 table bytes — shared across instruments.
+    # Wave table values are pre-transform (.sng-equivalent); the encoder
+    # re-applies packed format transforms (left +$10, right XOR $80).
     shared_wave_table: list = field(default_factory=list)
     shared_pulse_table: list = field(default_factory=list)
     shared_filter_table: list = field(default_factory=list)

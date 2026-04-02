@@ -16,6 +16,105 @@ from gt2_parse_direct import parse_gt2_direct
 from gt2_detect_version import detect_gt2_player_group
 
 
+# ============================================================
+# Wave table transforms: packed <-> .sng format
+#
+# greloc.c applies these transforms when building the packed binary:
+#
+#   Left column (mt_wavetbl):
+#     - Waveforms $10-$DF:  +$10 added (only when NOWAVEDELAY=0)
+#     - Silent waves $E0-$EF: masked to low nibble, then +$10 (NOWAVEDELAY=0)
+#     - Delays $01-$0F, commands $F0-$FE, jumps $FF: unchanged
+#
+#   Right column (mt_notetbl):
+#     - Normal entries (left not command/jump): XOR $80
+#     - Command entries ($F0-$FE left): table index remap, no XOR
+#     - Jump entries ($FF left): table index remap, no XOR
+#
+# These functions reverse/re-apply those transforms.
+# ============================================================
+
+def detect_nowavedelay(binary, code_end):
+    """Detect NOWAVEDELAY flag from player binary.
+
+    When NOWAVEDELAY=0 (delays enabled), the player contains:
+        CMP #$10 / BCS (bytes C9 10 B0) in the wave execution code.
+    When NOWAVEDELAY=1, this sequence is absent.
+
+    Returns True if NOWAVEDELAY=1 (no delays), False if NOWAVEDELAY=0 (delays enabled).
+    """
+    for i in range(min(code_end, len(binary)) - 3):
+        if binary[i] == 0xC9 and binary[i + 1] == 0x10 and binary[i + 2] == 0xB0:
+            return False  # NOWAVEDELAY=0 (delays ARE used)
+    return True  # NOWAVEDELAY=1 (no delays)
+
+
+def unpack_wave_left(packed_left, nowavedelay):
+    """Reverse the left column transform: packed -> .sng format.
+
+    When NOWAVEDELAY=0:
+      packed $00-$0F -> .sng $00-$0F (delay values, unchanged)
+      packed $10-$1F -> .sng $E0-$EF (silent waves: (packed-$10)|$E0)
+      packed $20-$EF -> .sng $10-$DF (waveforms: packed-$10)
+      packed $F0-$FF -> .sng $F0-$FF (commands/jumps, unchanged)
+
+    When NOWAVEDELAY=1, no offset was applied, but silent waves were still
+    masked to low nibble. We can't distinguish silent waves from delays/zero
+    in this mode, so we pass through unchanged.
+    """
+    if nowavedelay:
+        # No +$10 transform was applied. Silent waves ($E0-$EF) were masked
+        # to $00-$0F but are indistinguishable from actual $00-$0F values.
+        # Pass through as-is (these files don't use delays anyway).
+        return packed_left
+    # NOWAVEDELAY=0: reverse the +$10 offset
+    if packed_left >= 0xF0:
+        return packed_left  # commands/jumps: unchanged
+    if packed_left >= 0x20:
+        return packed_left - 0x10  # waveforms: $20-$EF -> $10-$DF
+    if packed_left >= 0x10:
+        return 0xE0 | (packed_left - 0x10)  # silent: $10-$1F -> $E0-$EF
+    return packed_left  # delays $00-$0F: unchanged
+
+
+def unpack_wave_right(packed_right, packed_left):
+    """Reverse the right column transform: packed -> .sng format.
+
+    For normal entries (left not $F0-$FF): XOR $80 (self-inverse).
+    For command entries ($F0-$FE left): pass through (table indices, no XOR).
+    For jump entries ($FF left): pass through (table indices, no XOR).
+    """
+    if packed_left >= 0xF0:
+        return packed_right  # command or jump: no XOR was applied
+    return packed_right ^ 0x80
+
+
+def pack_wave_left(sng_left, nowavedelay):
+    """Apply the left column transform: .sng -> packed format.
+
+    Reverses unpack_wave_left.
+    """
+    if nowavedelay:
+        return sng_left  # no transform when NOWAVEDELAY=1
+    if sng_left >= 0xF0:
+        return sng_left  # commands/jumps: unchanged
+    if sng_left >= 0xE0 and sng_left <= 0xEF:
+        return (sng_left & 0x0F) + 0x10  # silent: $E0-$EF -> $10-$1F
+    if sng_left >= 0x10:
+        return sng_left + 0x10  # waveforms: $10-$DF -> $20-$EF
+    return sng_left  # delays $00-$0F: unchanged
+
+
+def pack_wave_right(sng_right, sng_left):
+    """Apply the right column transform: .sng -> packed format.
+
+    Reverses unpack_wave_right.
+    """
+    if sng_left >= 0xF0:
+        return sng_right  # command or jump: no XOR
+    return sng_right ^ 0x80
+
+
 def gt2_to_usf(sid_path, trace_duration=10):
     """Convert a GoatTracker V2 SID file to USF Song."""
     with open(sid_path, 'rb') as f:
@@ -34,6 +133,11 @@ def gt2_to_usf(sid_path, trace_duration=10):
     player_group = version_info['group'] if version_info else ''
 
     header_obj, binary, la = parse_psid_header(data)
+
+    # Detect NOWAVEDELAY from the player binary code
+    ft_pre = find_freq_table(binary, la)
+    code_end = ft_pre[0] if ft_pre else len(binary)
+    nowavedelay = detect_nowavedelay(binary, code_end)
 
     # Extract DEFAULTTEMPO from the binary: find LDA #xx / STA abs,X / LDA #$01
     # pattern in the init code (mt_initchn sets counter=1, tempo=DEFAULTTEMPO)
@@ -68,7 +172,7 @@ def gt2_to_usf(sid_path, trace_duration=10):
     # Table data starts at operand address — we pass it raw and let
     # the packer handle the -1 addressing.
     if layout:
-        # Populate shared wave table from raw bytes.
+        # Populate shared wave table from raw bytes, reversing packed transforms.
         # Use wave_size (not len(wave_left)) to exclude the ni padding bytes
         # that gt2_parse_direct appends past the actual table data.
         raw_wl = layout.get('wave_left', b'')
@@ -76,7 +180,11 @@ def gt2_to_usf(sid_path, trace_duration=10):
         wt_size = layout.get('wave_size', 0)
         if raw_wl and raw_wr:
             size = wt_size if wt_size > 0 else min(len(raw_wl), len(raw_wr))
-            song.shared_wave_table = [(raw_wl[i], raw_wr[i]) for i in range(size)]
+            song.shared_wave_table = [
+                (unpack_wave_left(raw_wl[i], nowavedelay),
+                 unpack_wave_right(raw_wr[i], raw_wl[i]))
+                for i in range(size)
+            ]
 
         # Populate shared pulse/filter tables using exact sizes from parser
         raw_pl = layout.get('pulse_left', b'')
@@ -130,37 +238,51 @@ def gt2_to_usf(sid_path, trace_duration=10):
         # Hard restart method
         hr = 'none' if gt_byte & 0x80 else 'gate'
 
-        # Build wave table from extracted binary data
+        # Build wave table from extracted binary data.
+        # First unpack from packed format to .sng-equivalent values,
+        # then interpret the .sng values into WaveTableStep fields.
         wt = []
-        wl = layout.get('wave_left', b'') if layout else b''
-        wr = layout.get('wave_right', b'') if layout else b''
-        if wp > 0 and wp <= len(wl):
+        raw_wl = layout.get('wave_left', b'') if layout else b''
+        raw_wr = layout.get('wave_right', b'') if layout else b''
+        if wp > 0 and wp <= len(raw_wl):
             idx = wp - 1
-            while idx < len(wl) and len(wt) < 64:
-                left = wl[idx]
-                right = wr[idx] if idx < len(wr) else 0x80
+            while idx < len(raw_wl) and len(wt) < 64:
+                packed_left = raw_wl[idx]
+                packed_right = raw_wr[idx] if idx < len(raw_wr) else 0x00
+                # Unpack to .sng format
+                left = unpack_wave_left(packed_left, nowavedelay)
+                right = unpack_wave_right(packed_right, packed_left)
 
                 if left == 0xFF:
+                    # Jump/loop — right is table index (no XOR applied)
                     if right > 0:
                         loop_target = max(0, right - wp)
                         wt.append(WaveTableStep(is_loop=True, loop_target=loop_target))
                     break
                 elif left < 0x10:
-                    if right == 0x00:
+                    # Delay or no-wave-change ($00-$0F)
+                    # .sng right: $80=keep freq, $81-$DF=absolute, $00-$7F=relative
+                    if right == 0x80:
                         wt.append(WaveTableStep(delay=left, keep_freq=True))
-                    elif right < 0x80:
-                        wt.append(WaveTableStep(delay=left, absolute_note=right))
+                    elif right > 0x80:
+                        wt.append(WaveTableStep(delay=left, absolute_note=right - 0x80))
                     else:
-                        rel = right if right < 0xC0 else right - 0x100
-                        wt.append(WaveTableStep(delay=left, note_offset=rel - 0x80))
+                        # Relative: $00-$7F, treat as signed ($00=+0, $60-$7F=negative)
+                        rel = right if right < 0x60 else right - 0x100
+                        wt.append(WaveTableStep(delay=left, note_offset=rel))
+                elif 0xF0 <= left <= 0xFE:
+                    # Wave command — right is command parameter (no XOR)
+                    wt.append(WaveTableStep(waveform=left, note_offset=right))
                 else:
-                    if right == 0x00:
+                    # Waveform ($10-$DF or $E0-$EF silent)
+                    # .sng right: $80=keep freq, $81-$DF=absolute, $00-$7F=relative
+                    if right == 0x80:
                         wt.append(WaveTableStep(waveform=left, keep_freq=True))
-                    elif right < 0x80:
-                        wt.append(WaveTableStep(waveform=left, absolute_note=right))
+                    elif right > 0x80:
+                        wt.append(WaveTableStep(waveform=left, absolute_note=right - 0x80))
                     else:
-                        rel = right if right < 0xC0 else right - 0x100
-                        wt.append(WaveTableStep(waveform=left, note_offset=rel - 0x80))
+                        rel = right if right < 0x60 else right - 0x100
+                        wt.append(WaveTableStep(waveform=left, note_offset=rel))
                 idx += 1
 
         if not wt:
