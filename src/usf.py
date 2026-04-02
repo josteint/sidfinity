@@ -197,6 +197,11 @@ class Song:
     # See docs/gt2_player_versions.md for full details.
     # Groups: A (v2.65-2.67), B (v2.68-2.72), C (v2.73-2.74), D (v2.76-2.77)
     gt2_player_group: str = ''  # 'A', 'B', 'C', 'D', or '' if unknown/not GT2
+    # Hard restart ADSR parameters (GT2-specific).
+    # ADPARAM: AD value written during hard restart (default $0F).
+    # SRPARAM: SR value written during hard restart (default $00).
+    ad_param: int = 0x0F
+    sr_param: int = 0x00
 
 
 # ============================================================
