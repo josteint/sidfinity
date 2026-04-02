@@ -8,7 +8,7 @@ import subprocess
 import glob
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from gt2_to_usf import gt2_to_usf
+from gt2_to_usf import gt2_to_usf, pack_wave_left, pack_wave_right
 from gt2_parse_direct import parse_gt2_direct
 from usf_to_sid import usf_pattern_to_gt2
 from gt2_packer import pack_gt2
@@ -117,9 +117,16 @@ def build_sid_from_usf(sid_path, song, r, flags):
         ol.extend([0xFF, restart_byte])
         gt2_orderlists.append(bytes(ol))
 
-    # Tables — from USF shared tables and speed_table
-    wave_l = bytes([l for l, _ in song.shared_wave_table]) if song.shared_wave_table else None
-    wave_r = bytes([rv for _, rv in song.shared_wave_table]) if song.shared_wave_table else None
+    # Tables — from USF shared tables (stored in .sng format) and speed_table.
+    # Re-apply packed format transforms for the wave table.
+    # Detect NOWAVEDELAY from the .sng data: any delay ($01-$0F) means delays enabled.
+    _nowavedelay = True
+    for _l, _ in song.shared_wave_table:
+        if 0 < _l < 0x10:
+            _nowavedelay = False
+            break
+    wave_l = bytes([pack_wave_left(l, _nowavedelay) for l, _ in song.shared_wave_table]) if song.shared_wave_table else None
+    wave_r = bytes([pack_wave_right(r, l) for l, r in song.shared_wave_table]) if song.shared_wave_table else None
     pulse_l = bytes([l for l, _ in song.shared_pulse_table]) if song.shared_pulse_table else None
     pulse_r = bytes([rv for _, rv in song.shared_pulse_table]) if song.shared_pulse_table else None
     filter_l = bytes([l for l, _ in song.shared_filter_table]) if song.shared_filter_table else None

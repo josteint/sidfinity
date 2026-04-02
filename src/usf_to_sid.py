@@ -9,6 +9,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import usf
 from usf import Song, Pattern, NoteEvent
 from sidfinity_packer import pack_sid
+from gt2_to_usf import pack_wave_left, pack_wave_right
 
 GT2_ENDPATT = 0x00
 GT2_FIRSTNOTE = 0x60
@@ -158,16 +159,25 @@ def usf_to_sid(song, output_path=None):
             (0x80 if inst.hr_method == 'none' else 0))
         fw_col[i] = inst.first_wave if inst.first_wave >= 0 else 0x41
 
-    # Build wave table. If raw GT2 data is available, use it directly.
-    # Otherwise rebuild from USF wave table steps.
+    # Build wave table. Shared wave table stores .sng-equivalent values;
+    # we must re-apply packed format transforms (left +$10, right XOR $80)
+    # before passing to the packer.
     wave_l = bytearray()
     wave_r = bytearray()
 
+    # Detect NOWAVEDELAY from the shared wave table: if any entry has
+    # a delay value ($01-$0F) in the left column, NOWAVEDELAY=0.
+    nowavedelay = True  # assume no delays unless we find one
+    for l, _ in song.shared_wave_table:
+        if 0 < l < 0x10:
+            nowavedelay = False
+            break
+
     # Use shared wave table if available (preserves GT2 sharing layout)
     if song.shared_wave_table:
-        for l, r in song.shared_wave_table:
-            wave_l.append(l)
-            wave_r.append(r)
+        for sng_l, sng_r in song.shared_wave_table:
+            wave_l.append(pack_wave_left(sng_l, nowavedelay))
+            wave_r.append(pack_wave_right(sng_r, sng_l))
     elif not raw.get('wave_left'):
         # Build wave table with suffix-aware deduplication.
         # GT2's greloc.c shares suffixes: if inst B's steps are a suffix of
@@ -227,19 +237,25 @@ def usf_to_sid(song, output_path=None):
             inst_wt_start = wt_offset
             for step in inst.wave_table:
                 if step.is_loop:
+                    # Jump: left=$FF, right=target index (no transform)
                     wave_l.append(0xFF)
                     wave_r.append(inst_wt_start + step.loop_target)
                 elif step.delay > 0:
-                    wave_l.append(step.delay)
-                    if step.keep_freq: wave_r.append(0x00)
-                    elif step.absolute_note >= 0: wave_r.append(step.absolute_note & 0x7F)
-                    else: wave_r.append((step.note_offset + 0x80) & 0xFF)
-                elif step.keep_freq:
-                    wave_l.append(step.waveform); wave_r.append(0x80)
-                elif step.absolute_note >= 0:
-                    wave_l.append(step.waveform); wave_r.append(step.absolute_note & 0x7F)
+                    # Delay: .sng left stays as-is (no +$10 for delays)
+                    sng_l = step.delay
+                    if step.keep_freq: sng_r = 0x80
+                    elif step.absolute_note >= 0: sng_r = 0x80 + step.absolute_note
+                    else: sng_r = step.note_offset & 0xFF
+                    wave_l.append(pack_wave_left(sng_l, nowavedelay))
+                    wave_r.append(pack_wave_right(sng_r, sng_l))
                 else:
-                    wave_l.append(step.waveform); wave_r.append((step.note_offset + 0x80) & 0xFF)
+                    # Waveform step
+                    sng_l = step.waveform
+                    if step.keep_freq: sng_r = 0x80
+                    elif step.absolute_note >= 0: sng_r = 0x80 + step.absolute_note
+                    else: sng_r = step.note_offset & 0xFF
+                    wave_l.append(pack_wave_left(sng_l, nowavedelay))
+                    wave_r.append(pack_wave_right(sng_r, sng_l))
             has_loop = any(s.is_loop for s in inst.wave_table)
             if not has_loop:
                 wave_l.append(0xFF)

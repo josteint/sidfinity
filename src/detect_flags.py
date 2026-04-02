@@ -111,15 +111,18 @@ def detect_gt2_flags(song, r=None):
         if inst.first_wave in (0, 0xFE, 0xFF):
             F['NOFIRSTWAVECMD'] = 0
 
-    # --- Scan wave table ---
+    # --- Scan wave table (.sng-equivalent values) ---
+    # Wave table left column ranges in .sng format:
+    #   $00=no change, $01-$0F=delay, $10-$DF=waveform,
+    #   $E0-$EF=silent wave, $F0-$FE=wave command, $FF=jump/loop
     for l, rv in song.shared_wave_table:
         if l == 0xFF:
             continue
         if 0 < l < 0x10:
             F['NOWAVEDELAY'] = 0
-        if 0xE0 <= l <= 0xEF:
+        if 0xF0 <= l <= 0xFE:
             F['NOWAVECMD'] = 0
-            wave_cmd = l - 0xE0
+            wave_cmd = l - 0xF0
             if wave_cmd in (1, 2, 3, 4):
                 calcspeedtest(rv)
             if wave_cmd == 9:
