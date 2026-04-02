@@ -273,6 +273,67 @@ def _find_wave_size_by_freq_trace(sid_path, binary, la, code_end, table_start_of
     return max_entry if max_entry > 0 else min(max(wp_col), max_possible_wave)
 
 
+def _pattern_stream_length(binary, off, max_bytes=512):
+    """Return the byte length of a packed GT2 pattern starting at *off*,
+    including the $00 ENDPATT terminator.
+
+    The packed pattern format uses context-dependent byte interpretation.
+    At a row-start position:
+
+        $00            -> ENDPATT (terminates pattern)
+        $01..$3F       -> instrument change, then continue same row
+        $40..$4F       -> FX + cmd (if cmd!=0: next byte = param), then note
+        $50..$5F       -> FXONLY + cmd (if cmd!=0: next byte = param), row done
+        $60..$BC       -> note, row done
+        $BD            -> REST, row done
+        $BE            -> KEYOFF, row done
+        $BF            -> KEYON, row done
+        $C0..$FF       -> packed rest (multiple rests), row done
+
+    A $00 byte is only ENDPATT when it appears at a row-start position.
+    Inside a row it can be a valid FX parameter (e.g. $43 $00 = FX cmd 3,
+    param 0).  The naive approach of scanning for the first $00 therefore
+    truncates patterns that contain such bytes, leaving orphaned data in
+    apparent gaps between patterns (cross-pattern byte sharing).
+    """
+    pos = off
+    limit = min(off + max_bytes, len(binary))
+    while pos < limit:
+        b = binary[pos]
+
+        # --- Row start: $00 is ENDPATT ---
+        if b == 0x00:
+            return pos - off + 1  # include the $00
+
+        # Instrument byte ($01..$3F): consume it, stay in same row
+        if b < 0x40:
+            pos += 1
+            if pos >= limit:
+                break
+            b = binary[pos]
+
+        # FX ($40..$4F) or FXONLY ($50..$5F)
+        if 0x40 <= b < 0x60:
+            is_fxonly = b >= 0x50
+            cmd = b & 0x0F
+            pos += 1  # consume the FX/FXONLY byte
+            if cmd != 0 and pos < limit:
+                pos += 1  # consume the param byte (can be $00!)
+            if is_fxonly:
+                continue  # row done, next byte is a new row start
+            # FX (not FXONLY): still need to read the note/rest
+            if pos >= limit:
+                break
+            b = binary[pos]
+
+        # Note ($60..$BC), REST ($BD), KEYOFF ($BE), KEYON ($BF),
+        # or packed rest ($C0..$FF): consume and row is done.
+        pos += 1
+
+    # Ran out of data without finding ENDPATT.
+    return pos - off
+
+
 def decompile_gt2(sid_path):
     """Decompile a GT2 packed SID to .sng-equivalent data.
 
@@ -561,17 +622,16 @@ def decompile_gt2(sid_path):
     result['orderlists'] = orderlists
 
     # === Step 6: Patterns ===
+    # Extract patterns using stream-aware parsing.  A naive scan for $00
+    # fails because $00 is valid as an FX parameter (e.g. $43 $00 = FX cmd 3,
+    # param 0) within the packed stream.  Only $00 at the START of a new
+    # pattern row is ENDPATT.  We must walk the byte stream exactly as the
+    # GT2 player does, tracking row boundaries via _pattern_stream_length.
     patterns = []
     for pi in range(num_patt):
         p_off = patt_addrs[pi] - la
-        patt = bytearray()
-        for j in range(300):
-            if p_off + j >= len(binary):
-                break
-            patt.append(binary[p_off + j])
-            if binary[p_off + j] == 0x00:  # ENDPATT
-                break
-        patterns.append(bytes(patt))
+        patt_len = _pattern_stream_length(binary, p_off)
+        patterns.append(bytes(binary[p_off:p_off + patt_len]))
     result['patterns'] = patterns
 
     return result
