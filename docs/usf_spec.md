@@ -1,7 +1,7 @@
 # Universal Symbolic Format (USF) Specification
 
-**Version:** 0.5 (2026-04-01)
-**Status:** Draft — validated lossless on 2680/2690 GT2 files (99.6%)
+**Version:** 0.6 (2026-04-02)
+**Status:** Draft — data roundtrip validated on 2690 GT2 files, player behavior groups detected
 
 ## Purpose
 
@@ -44,6 +44,17 @@ USF must be expressive enough to represent any feature used by any supported pla
 | shared_filter_table | list[(int,int)] | [] | Shared filter table: (left_byte, right_byte) pairs |
 | freq_lo | bytes\|None | None | Custom freq table lo (96 bytes), None=PAL |
 | freq_hi | bytes\|None | None | Custom freq table hi (96 bytes), None=PAL |
+| first_note | int | 0 | First note in freq table (GT2 FIRSTNOTE optimization) |
+| gt2_player_group | string | '' | Player behavior group: 'A', 'B', 'C', 'D' (see below) |
+
+**Player behavior group (GT2 only):** The GT2 player has 4 behavior groups that produce audibly different output from the same song data. The group determines ADSR write order, new-note register behavior, and vibrato handling. See `docs/gt2_player_versions.md` for full details.
+
+| Group | GT2 Versions | Key Behavior |
+|-------|-------------|--------------|
+| A | 2.65-2.67 | AD-before-SR writes, new-note writes all regs |
+| B | 2.68-2.72 | SR-before-AD writes, new-note writes wave-only |
+| C | 2.73-2.74 | B + ghost register support |
+| D | 2.76-2.77 | C + vibrato parameter fix |
 
 **Shared tables:** GT2 uses shared wave/pulse/filter tables where multiple instruments reference positions in a single array via pointer indices (wave_ptr, pulse_ptr, filter_ptr). Instruments can share suffixes, prefixes, or even have loop commands that point into other instruments' data. The shared table preserves this layout exactly. Each entry is a (left_byte, right_byte) pair matching the GT2 binary format.
 
@@ -315,3 +326,4 @@ When USF changes (new fields, event types, token types):
 | 0.1 | 2026-03 | Initial: notes, instruments, wave tables, orderlists |
 | 0.2 | 2026-03-31 | Spec doc created. Custom freq tables, tempo pass-through. |
 | 0.3 | 2026-03-31 | Full GT2 coverage: pulse/filter/speed tables, pattern commands 0–F, instrument vibrato, legato, first_wave, wave table delay/keep_freq. |
+| 0.6 | 2026-04-02 | Player behavior groups (A-D), first_note field. GT2 player version detection. |

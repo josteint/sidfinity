@@ -190,6 +190,11 @@ class Song:
     shared_filter_table: list = field(default_factory=list)
     freq_lo: bytes = None      # custom frequency table lo (96 bytes), or None for PAL
     freq_hi: bytes = None      # custom frequency table hi (96 bytes), or None for PAL
+    first_note: int = 0        # first note in freq table (FIRSTNOTE optimization)
+    # Player behavior group — determines how the player processes audio.
+    # See docs/gt2_player_versions.md for full details.
+    # Groups: A (v2.65-2.67), B (v2.68-2.72), C (v2.73-2.74), D (v2.76-2.77)
+    gt2_player_group: str = ''  # 'A', 'B', 'C', 'D', or '' if unknown/not GT2
 
 
 # ============================================================
