@@ -177,11 +177,11 @@ def parse_gt2_direct(sid_path):
             break
 
     # Assign remaining unidentified columns by position.
-    # After wave_ptr, pulse_ptr, filter_ptr: remaining are vib_delay, vib_param
-    # (or gate_timer, first_wave if FIXEDPARAMS=0).
+    # After wave_ptr, pulse_ptr, filter_ptr: remaining are vib_param, vib_delay
+    # (matching greloc.c order: ptr[STBL], vibdelay, gatetimer, firstwave).
     unassigned = sorted(ci for ci in range(2, len(col_operands))
                         if ci not in columns.values())
-    remaining_names = ['vib_delay', 'vib_param', 'gate_timer', 'first_wave']
+    remaining_names = ['vib_param', 'vib_delay', 'gate_timer', 'first_wave']
     for ci, name in zip(unassigned, remaining_names):
         columns[name] = ci
 
@@ -233,11 +233,7 @@ def parse_gt2_direct(sid_path):
         wave_right = read_table(wr_start - la, wt_size + ni)
 
     if len(table_operands) >= 4:
-        # Pulse table: left at pair[2]+1, size = (pair[3]+1 - pair[2]+1) / 2
-        # Because pulse_R follows pulse_L, and filter_L follows pulse_R.
-        # pair[2]+1 = mt_pulsetimetbl, pair[3]+1 = mt_filttimetbl
-        # pulse total = pair[3]+1 - (pair[2]+1) = pair[3] - pair[2]
-        # pulse_size = pulse_total / 2
+        # Pulse table: left at pair[2]+1, right follows immediately
         pl_start = table_operands[2] + 1  # mt_pulsetimetbl
         fl_start = table_operands[3] + 1  # mt_filttimetbl
         pulse_total = fl_start - pl_start
@@ -247,12 +243,69 @@ def parse_gt2_direct(sid_path):
         pulse_left = read_table(pl_start - la, pt_size + ni)
         pulse_right = read_table(pr_start - la, pt_size + ni)
 
-        # Filter table: from fl_start, extends to the end of known data
-        # We don't know the filter size precisely without another landmark.
-        # Use a reasonable default or read until the next known address.
-        # For now, use the same approach: assume filter + speed fill remaining space.
-        filter_left = read_table(fl_start - la, pt_size + ni)  # guess same size as pulse
-        filter_right = read_table(fl_start + pt_size - la, pt_size + ni)
+        # Filter table: find the right column operand.
+        # mt_filtspdtbl is accessed as LDA mt_filtspdtbl-1,Y.
+        # So we look for LDA addresses past fl_start that are referenced
+        # multiple times (filter right is accessed from multiple code paths).
+        # The filter right operand = mt_filtspdtbl - 1.
+        fr_operand = None
+        lda_ref_counts = {}
+        for i in range(code_end - 3):
+            if binary[i] == 0xB9:  # LDA abs,Y
+                addr = binary[i + 1] | (binary[i + 2] << 8)
+                if fl_start < addr < fl_start + 100:
+                    lda_ref_counts[addr] = lda_ref_counts.get(addr, 0) + 1
+
+        # The filter right operand typically has 3-4 refs (from filter code paths)
+        for addr, count in sorted(lda_ref_counts.items()):
+            if count >= 3:
+                fr_operand = addr
+                break
+
+        if fr_operand is not None:
+            ft_size = (fr_operand + 1) - fl_start  # mt_filtspdtbl = fr_operand + 1
+        else:
+            ft_size = pt_size  # fallback: same as pulse
+
+        filter_left = read_table(fl_start - la, ft_size)
+        filter_right = read_table(fl_start + ft_size - la, ft_size)
+
+        # Speed table: comes after filter right column.
+        # Format: extra_zero + mt_speedlefttbl data + extra_zero + mt_speedrighttbl data
+        # Speed table operands: LDA mt_speedlefttbl-1,Y and LDA mt_speedrighttbl-1,Y
+        # The extra zero + data starts right after filter right ends.
+        speed_start = fl_start + ft_size * 2  # after both filter columns
+        # Find speed table operands: single-ref LDA addresses past filter
+        speed_l_operand = None
+        speed_r_operand = None
+        for addr in sorted(lda_ref_counts.keys()):
+            if addr >= speed_start - 1:
+                if speed_l_operand is None:
+                    speed_l_operand = addr
+                elif speed_r_operand is None:
+                    speed_r_operand = addr
+                    break
+
+        # Also check addresses not in lda_ref_counts (might have single refs)
+        if speed_l_operand is None:
+            for i in range(code_end - 3):
+                if binary[i] == 0xB9:
+                    addr = binary[i + 1] | (binary[i + 2] << 8)
+                    if speed_start - 1 <= addr < speed_start + 50:
+                        if speed_l_operand is None:
+                            speed_l_operand = addr
+                        elif addr != speed_l_operand and speed_r_operand is None:
+                            speed_r_operand = addr
+                            break
+
+        if speed_l_operand is not None and speed_r_operand is not None:
+            # mt_speedlefttbl = speed_l_operand + 1 (operand is -1 for Y indexing)
+            sl_start = speed_l_operand + 1
+            sr_start = speed_r_operand + 1
+            st_size = sr_start - sl_start - 1  # subtract 1 for extra zero before right
+            if st_size > 0:
+                speed_left = read_table(sl_start - la, st_size)
+                speed_right = read_table(sr_start - la, st_size)
 
     # Build result
     col_data = {}
@@ -272,10 +325,13 @@ def parse_gt2_direct(sid_path):
         'wave_size': wt_size,
         'pulse_left': pulse_left,
         'pulse_right': pulse_right,
+        'pulse_size': pt_size,
         'filter_left': filter_left,
         'filter_right': filter_right,
+        'filter_size': ft_size,
         'speed_left': speed_left,
         'speed_right': speed_right,
+        'speed_size': st_size,
     }
 
 

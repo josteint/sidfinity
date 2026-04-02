@@ -92,13 +92,8 @@ def usf_pattern_to_gt2(pattern):
                 if count == 1:
                     packed.append(GT2_REST)
                     count -= 1
-                elif is_last and count > 2:
-                    # GT2 packer leaves 1 explicit $BD before ENDPATT
-                    chunk = min(count - 1, 62)
-                    packed.append(256 - chunk)
-                    count -= chunk
                 else:
-                    chunk = min(count, 62)
+                    chunk = min(count, 64)
                     packed.append(256 - chunk)
                     count -= chunk
         else:

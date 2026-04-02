@@ -58,24 +58,29 @@ def gt2_to_usf(sid_path, trace_duration=10):
     # Table data starts at operand address — we pass it raw and let
     # the packer handle the -1 addressing.
     if layout:
-        # Populate shared wave table from raw bytes
+        # Populate shared wave table from raw bytes.
+        # Use wave_size (not len(wave_left)) to exclude the ni padding bytes
+        # that gt2_parse_direct appends past the actual table data.
         raw_wl = layout.get('wave_left', b'')
         raw_wr = layout.get('wave_right', b'')
+        wt_size = layout.get('wave_size', 0)
         if raw_wl and raw_wr:
-            size = min(len(raw_wl), len(raw_wr))
+            size = wt_size if wt_size > 0 else min(len(raw_wl), len(raw_wr))
             song.shared_wave_table = [(raw_wl[i], raw_wr[i]) for i in range(size)]
 
-        # Populate shared pulse/filter tables
+        # Populate shared pulse/filter tables using exact sizes from parser
         raw_pl = layout.get('pulse_left', b'')
         raw_pr = layout.get('pulse_right', b'')
+        pt_size = layout.get('pulse_size', 0)
         if raw_pl and raw_pr:
-            size = min(len(raw_pl), len(raw_pr))
+            size = pt_size if pt_size > 0 else min(len(raw_pl), len(raw_pr))
             song.shared_pulse_table = [(raw_pl[i], raw_pr[i]) for i in range(size)]
 
         raw_fl = layout.get('filter_left', b'')
         raw_fr = layout.get('filter_right', b'')
+        ft_size = layout.get('filter_size', 0)
         if raw_fl and raw_fr:
-            size = min(len(raw_fl), len(raw_fr))
+            size = ft_size if ft_size > 0 else min(len(raw_fl), len(raw_fr))
             song.shared_filter_table = [(raw_fl[i], raw_fr[i]) for i in range(size)]
 
         song._raw_gt2 = {
@@ -83,8 +88,10 @@ def gt2_to_usf(sid_path, trace_duration=10):
             'ni': ni,
             'pulse_left': layout.get('pulse_left'),
             'pulse_right': layout.get('pulse_right'),
-            # filter and speed tables disabled — extraction sizes are wrong
-            # TODO: compute correct filter/speed table boundaries
+            'filter_left': layout.get('filter_left'),
+            'filter_right': layout.get('filter_right'),
+            'speed_left': layout.get('speed_left'),
+            'speed_right': layout.get('speed_right'),
         }
 
     for y in range(ni):
