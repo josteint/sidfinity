@@ -34,6 +34,117 @@ def find_lda_sta_pairs(binary, la, code_end):
     return pairs
 
 
+def detect_player_flags(binary, la, code_end, freq_end, ad_operand, ni):
+    """Detect GT2 player compilation flags from the binary.
+
+    Returns dict with: fixedparams, nopulse, nofilter, noinstrvib.
+    Each is True (flag=1, feature disabled) or False (flag=0, feature enabled).
+
+    Detection strategy for FIXEDPARAMS:
+    - Find channel variables written by both LDA #imm (hard restart constant)
+      and LDA instrument_col,Y (instrument column read).
+    - If any instrument-range LDA abs,Y (beyond wave_ptr) writes to a channel
+      variable that is also written by LDA #imm, FIXEDPARAMS=0 (columns exist).
+    - Otherwise FIXEDPARAMS=1 (constant gate timer, no columns).
+    """
+    max_col_addr = ad_operand + 12 * ni  # generous upper bound
+
+    # Collect LDA abs,Y -> STA abs,X pairs from instrument range.
+    # Scan up to 15 bytes ahead to find STA past conditional branches.
+    instr_sta_targets = {}  # STA target -> set of LDA source operands
+    imm_sta_targets = {}    # STA target -> set of immediate values
+
+    for i in range(code_end - 5):
+        if binary[i] == 0xB9:  # LDA abs,Y
+            src = binary[i + 1] | (binary[i + 2] << 8)
+            if ad_operand <= src < max_col_addr:
+                for j in range(i + 3, min(i + 15, code_end - 2)):
+                    if binary[j] == 0x9D:  # STA abs,X
+                        dst = binary[j + 1] | (binary[j + 2] << 8)
+                        if dst < 0xD400:  # channel variable, not SID register
+                            instr_sta_targets.setdefault(dst, set()).add(src)
+                        break
+        elif binary[i] == 0xA9:  # LDA #imm
+            imm = binary[i + 1]
+            if i + 2 < code_end - 2 and binary[i + 2] == 0x9D:  # STA abs,X
+                dst = binary[i + 3] | (binary[i + 4] << 8)
+                if dst < 0xD400:
+                    imm_sta_targets.setdefault(dst, set()).add(imm)
+
+    # FIXEDPARAMS: find a channel variable written by both LDA #imm and
+    # LDA instrument_col,Y (with col beyond wave_ptr, i.e. offset >= 3).
+    # That variable is mt_chngatetimer. If the table read exists, FIXEDPARAMS=0.
+    fixedparams = True
+    for target in imm_sta_targets:
+        if target in instr_sta_targets:
+            for src in instr_sta_targets[target]:
+                col_offset = (src - ad_operand) // ni
+                if col_offset >= 3:
+                    fixedparams = False
+                    break
+
+    # NOPULSE: check if pulse_ptr column exists.
+    # pulse_ptr writes to mt_chnpulseptr (= mt_chnwave + 1).
+    # Find mt_chnwave from the STA $D404,X chain.
+    mt_chnwave = None
+    for i in range(code_end - 5):
+        if binary[i] == 0x9D:
+            dst = binary[i + 1] | (binary[i + 2] << 8)
+            if 0xD400 <= dst <= 0xD41F and (dst - 0xD400) % 7 == 4:
+                for j in range(max(0, i - 8), i):
+                    if binary[j] == 0xBD:
+                        mt_chnwave = binary[j + 1] | (binary[j + 2] << 8)
+                        break
+                break
+
+    nopulse = True
+    if mt_chnwave is not None:
+        mt_chnpulseptr = mt_chnwave + 1
+        if mt_chnpulseptr in instr_sta_targets:
+            nopulse = False
+
+    # NOFILTER: check if any instrument-range LDA abs,Y writes to a global
+    # variable (STA abs, not STA abs,X). Filter is global in GT2.
+    nofilter = True
+    for i in range(code_end - 5):
+        if binary[i] == 0xB9:  # LDA abs,Y
+            src = binary[i + 1] | (binary[i + 2] << 8)
+            if ad_operand <= src < max_col_addr:
+                for j in range(i + 3, min(i + 12, code_end - 2)):
+                    if binary[j] == 0x8D:  # STA abs (global)
+                        dst = binary[j + 1] | (binary[j + 2] << 8)
+                        if dst < 0xD400:
+                            nofilter = False
+                    break
+
+    # NOINSTRVIB: check if vib_param/vib_delay columns are read.
+    # Count instrument-range channel variable targets beyond wave_ptr/pulse/filter.
+    noinstrvib = True
+    identified_targets = set()
+    if mt_chnwave is not None and not nopulse:
+        identified_targets.add(mt_chnwave + 1)  # pulse_ptr target
+    vib_candidate_count = 0
+    for target, srcs in instr_sta_targets.items():
+        if target in identified_targets:
+            continue
+        for src in srcs:
+            col_offset = (src - ad_operand) // ni
+            if col_offset >= 3:
+                vib_candidate_count += 1
+                break
+    # With FIXEDPARAMS=0: gate_timer adds 1 target. vib adds 2.
+    expected_non_vib = 0 if fixedparams else 1  # gate_timer target
+    if vib_candidate_count > expected_non_vib:
+        noinstrvib = False
+
+    return {
+        'fixedparams': fixedparams,
+        'nopulse': nopulse,
+        'nofilter': nofilter,
+        'noinstrvib': noinstrvib,
+    }
+
+
 def parse_gt2_direct(sid_path):
     """Parse a GT2 SID by reading operand addresses from the player code."""
     with open(sid_path, 'rb') as f:
@@ -76,9 +187,9 @@ def parse_gt2_direct(sid_path):
         return None
 
     # Step 3: Find all columns at stride ni from AD.
-    # Stop when we hit an address pair (addr and addr+1 both referenced as LDA sources) —
-    # that's the start of table data, not instrument columns.
-    # Only count LDA references (not STA) to avoid self-modifying code false positives.
+    # For ni>1, stop when we hit an address pair (both LDA refs = table data).
+    # For ni=1, stride-based counting fails (every adjacent byte looks like a
+    # column). Instead, detect player flags and compute exact column count.
     all_code_refs = set(s for s in collect_abs_addresses(binary, la, 0, code_end)
                         if s >= la + freq_end)
     lda_refs = set()
@@ -88,16 +199,35 @@ def parse_gt2_direct(sid_path):
             if addr >= la + freq_end:
                 lda_refs.add(addr)
 
-    col_operands = []
-    for k in range(15):
-        addr = ad_operand + k * ni
-        if addr not in all_code_refs:
-            break
-        # Stop at table pair: addr AND addr+1 both LDA refs.
-        # But with ni=1, consecutive columns look like pairs — skip this check.
-        if ni > 1 and (addr + 1) in lda_refs:
-            break
-        col_operands.append(addr)
+    # Detect player flags for column layout
+    flags = detect_player_flags(binary, la, code_end, freq_end, ad_operand, ni)
+
+    if ni == 1:
+        # For ni=1, compute column count from detected player flags.
+        # Column order per greloc.c: ad, sr, wave_ptr,
+        #   [pulse_ptr if !NOPULSE], [filter_ptr if !NOFILTER],
+        #   [vib_param, vib_delay if !NOINSTRVIB],
+        #   [gate_timer, first_wave if !FIXEDPARAMS]
+        num_cols = 3  # ad, sr, wave_ptr always present
+        if not flags['nopulse']:
+            num_cols += 1
+        if not flags['nofilter']:
+            num_cols += 1
+        if not flags['noinstrvib']:
+            num_cols += 2
+        if not flags['fixedparams']:
+            num_cols += 2
+        col_operands = [ad_operand + k for k in range(num_cols)]
+    else:
+        col_operands = []
+        for k in range(15):
+            addr = ad_operand + k * ni
+            if addr not in all_code_refs:
+                break
+            # Stop at table pair: addr AND addr+1 both LDA refs.
+            if (addr + 1) in lda_refs:
+                break
+            col_operands.append(addr)
 
     # Step 4: Read column data (1-based Y indexing)
     raw_cols = {}
@@ -115,102 +245,94 @@ def parse_gt2_direct(sid_path):
             if ci not in col_sta_targets:
                 col_sta_targets[ci] = (dst, mode)
 
-    columns = {'ad': 0, 'sr': 1}
+    # Step 5: Identify columns by name.
+    # For ni=1, use the flag-determined layout order directly (greloc.c order).
+    # For ni>1, use STA target matching.
+    if ni == 1:
+        col_names = ['ad', 'sr', 'wave_ptr']
+        if not flags['nopulse']:
+            col_names.append('pulse_ptr')
+        if not flags['nofilter']:
+            col_names.append('filter_ptr')
+        if not flags['noinstrvib']:
+            col_names.extend(['vib_param', 'vib_delay'])
+        if not flags['fixedparams']:
+            col_names.extend(['gate_timer', 'first_wave'])
+        columns = {name: i for i, name in enumerate(col_names)}
+    else:
+        columns = {'ad': 0, 'sr': 1}
 
-    # Identify remaining columns by their STA targets.
-    # The wave_ptr column shares its STA target with the wave table right column:
-    # both write to mt_chnwaveptr. Find which column index has same STA target
-    # as any LDA from the post-instrument area.
-    post_instr_targets = {}
-    for src, dst, mode in find_lda_sta_pairs(binary, la, code_end):
-        if (src - la) > freq_end + ni * 7 and mode == 'abs_x':
-            post_instr_targets[dst] = src
+        # Identify remaining columns by their STA targets.
+        post_instr_targets = {}
+        for src, dst, mode in find_lda_sta_pairs(binary, la, code_end):
+            if (src - la) > freq_end + ni * 7 and mode == 'abs_x':
+                post_instr_targets[dst] = src
 
-    # Wave_ptr column: the one that shares STA target $1450-equivalent with
-    # the wave table right column. Pick the LOWEST column index that matches.
-    wave_ptr_candidates = []
-    for ci, (target, mode) in col_sta_targets.items():
-        if ci <= 1:
-            continue
-        if target in post_instr_targets and mode == 'abs_x':
-            wave_ptr_candidates.append(ci)
-    if wave_ptr_candidates:
-        columns['wave_ptr'] = min(wave_ptr_candidates)
-
-    # Identify pulse_ptr: the column that writes to mt_chnpulseptr.
-    # mt_chnpulseptr = mt_chnwave + 1. Find mt_chnwave from the waveform
-    # register write chain: LDA mt_chnwave,X; AND mt_chngate,X; STA $D404,X.
-    # Then mt_chnpulseptr = mt_chnwave + 1.
-    mt_chnwave = None
-    for i in range(code_end - 5):
-        if binary[i] == 0x9D:
-            dst = binary[i + 1] | (binary[i + 2] << 8)
-            if 0xD400 <= dst <= 0xD41F and (dst - 0xD400) % 7 == 4:
-                # STA $D404,X — look back for LDA abs,X
-                for j in range(max(0, i - 8), i):
-                    if binary[j] == 0xBD:
-                        mt_chnwave = binary[j + 1] | (binary[j + 2] << 8)
-                        break
-                break
-
-    if mt_chnwave is not None:
-        mt_chnpulseptr = mt_chnwave + 1
+        # Wave_ptr: shares STA target with wave table right column.
+        wave_ptr_candidates = []
         for ci, (target, mode) in col_sta_targets.items():
-            if target == mt_chnpulseptr and mode == 'abs_x':
-                columns['pulse_ptr'] = ci
+            if ci <= 1:
+                continue
+            if target in post_instr_targets and mode == 'abs_x':
+                wave_ptr_candidates.append(ci)
+        if wave_ptr_candidates:
+            columns['wave_ptr'] = min(wave_ptr_candidates)
+
+        # Pulse_ptr: writes to mt_chnpulseptr (= mt_chnwave + 1).
+        mt_chnwave = None
+        for i in range(code_end - 5):
+            if binary[i] == 0x9D:
+                dst = binary[i + 1] | (binary[i + 2] << 8)
+                if 0xD400 <= dst <= 0xD41F and (dst - 0xD400) % 7 == 4:
+                    for j in range(max(0, i - 8), i):
+                        if binary[j] == 0xBD:
+                            mt_chnwave = binary[j + 1] | (binary[j + 2] << 8)
+                            break
+                    break
+
+        if mt_chnwave is not None:
+            mt_chnpulseptr = mt_chnwave + 1
+            for ci, (target, mode) in col_sta_targets.items():
+                if target == mt_chnpulseptr and mode == 'abs_x':
+                    columns['pulse_ptr'] = ci
+                    break
+
+        # Filter_ptr: writes to a global variable (STA abs, not abs,X).
+        for ci, (target, mode) in col_sta_targets.items():
+            if ci <= 1 or ci in columns.values():
+                continue
+            if mode == 'abs':
+                columns['filter_ptr'] = ci
                 break
 
-    # The first_wave column stores to mt_chnwave. Identify by: it's the column
-    # immediately after wave_ptr (greloc.c always emits them adjacent).
-    # Actually, just use the order: after AD, SR, wave_ptr come first_wave,
-    # pulse_ptr, filter_ptr, vib_delay, vib_param. But this varies.
-    # Safest: assign unidentified columns by their stride position.
-    # GT2 standard order: AD, SR, wave_ptr, pulse_ptr, filt_ptr, vib_param, vib_delay
-    # With FIXEDPARAMS: AD, SR, wave_ptr, first_wave, pulse_ptr, vib_delay, vib_param
-    # Identify filter_ptr: column that writes to a GLOBAL variable (STA abs, not abs,X).
-    # Filter is global in GT2 (shared across all channels).
-    for ci, (target, mode) in col_sta_targets.items():
-        if ci <= 1 or ci in columns.values():
-            continue
-        if mode == 'abs':  # STA abs (global, not per-channel)
-            columns['filter_ptr'] = ci
-            break
+        # Assign remaining unidentified columns by position.
+        unassigned = sorted(ci for ci in range(2, len(col_operands))
+                            if ci not in columns.values())
+        remaining_names = ['vib_param', 'vib_delay', 'gate_timer', 'first_wave']
+        for ci, name in zip(unassigned, remaining_names):
+            columns[name] = ci
 
-    # Assign remaining unidentified columns by position.
-    # After wave_ptr, pulse_ptr, filter_ptr: remaining are vib_param, vib_delay
-    # (matching greloc.c order: ptr[STBL], vibdelay, gatetimer, firstwave).
-    unassigned = sorted(ci for ci in range(2, len(col_operands))
-                        if ci not in columns.values())
-    remaining_names = ['vib_param', 'vib_delay', 'gate_timer', 'first_wave']
-    for ci, name in zip(unassigned, remaining_names):
-        columns[name] = ci
-
-    # Validate column count: the table region (between columns end and
-    # orderlists) must accommodate at least a wave table (even number of
-    # bytes). For ni=1 files, stride-based detection often overcounts.
-    songs = header['songs']
-    song_entries = songs * 3
-    num_columns_detected = len(col_operands)
-    instr_end = ad_operand + num_columns_detected * ni
-
-    # Find first orderlist address for validation
-    first_ol = None
-    ft_check = find_freq_table(binary, la)
-    if ft_check:
-        freq_end_check = ft_check[0] + ft_check[2] * 2
-        if freq_end_check + song_entries * 2 < len(binary):
-            sl = [binary[freq_end_check + i] for i in range(song_entries)]
-            sh = [binary[freq_end_check + song_entries + i] for i in range(song_entries)]
-            first_ol = min(sl[i] | (sh[i] << 8) for i in range(song_entries))
-            table_region = first_ol - instr_end
-            # If table region is odd or negative, reduce column count
-            while table_region < 2 or (table_region % 2 != 0 and ni == 1):
-                num_columns_detected -= 1
-                instr_end = ad_operand + num_columns_detected * ni
+    # Validate column count for ni>1: the table region must accommodate
+    # at least a wave table. For ni=1, flag detection already gives the
+    # correct count, so no validation needed.
+    if ni > 1:
+        num_columns_detected = len(col_operands)
+        instr_end = ad_operand + num_columns_detected * ni
+        ft_check = find_freq_table(binary, la)
+        if ft_check:
+            freq_end_check = ft_check[0] + ft_check[2] * 2
+            if freq_end_check + 6 < len(binary):
+                sl = [binary[freq_end_check + i] for i in range(3)]
+                sh = [binary[freq_end_check + 3 + i] for i in range(3)]
+                first_ol = min(sl[i] | (sh[i] << 8) for i in range(3))
                 table_region = first_ol - instr_end
-                if num_columns_detected < 3:
-                    break
-            col_operands = col_operands[:num_columns_detected]
+                while table_region < 2:
+                    num_columns_detected -= 1
+                    instr_end = ad_operand + num_columns_detected * ni
+                    table_region = first_ol - instr_end
+                    if num_columns_detected < 3:
+                        break
+                col_operands = col_operands[:num_columns_detected]
 
     # Step 6: Find wave table via address pairs
     instr_end = ad_operand + len(col_operands) * ni
@@ -296,40 +418,42 @@ def parse_gt2_direct(sid_path):
         filter_left = read_table(fl_start - la, ft_size)
         filter_right = read_table(fl_start + ft_size - la, ft_size)
 
-        # Speed table: remaining bytes after wave+pulse+filter in the table region.
-        # Format: $00 prefix + left_data + $00 prefix + right_data
-        # speed_size = (remaining_bytes - 2) / 2
-        if first_ol is not None:
-            speed_region_start = fl_start + ft_size * 2
-            speed_remaining = first_ol - speed_region_start
-            if speed_remaining >= 4:
-                speed_off = speed_region_start - la
-                if binary[speed_off] == 0x00:  # validate first $00 prefix
-                    st_size = (speed_remaining - 2) // 2
-                    if st_size > 0:
-                        second_prefix_off = speed_off + 1 + st_size
-                        if (second_prefix_off < len(binary)
-                                and binary[second_prefix_off] == 0x00):
-                            speed_left = read_table(speed_off + 1, st_size)
-                            speed_right = read_table(
-                                second_prefix_off + 1, st_size)
+        # Speed table: comes after filter right column.
+        # Format: extra_zero + mt_speedlefttbl data + extra_zero + mt_speedrighttbl data
+        # Speed table operands: LDA mt_speedlefttbl-1,Y and LDA mt_speedrighttbl-1,Y
+        # The extra zero + data starts right after filter right ends.
+        speed_start = fl_start + ft_size * 2  # after both filter columns
+        # Find speed table operands: single-ref LDA addresses past filter
+        speed_l_operand = None
+        speed_r_operand = None
+        for addr in sorted(lda_ref_counts.keys()):
+            if addr >= speed_start - 1:
+                if speed_l_operand is None:
+                    speed_l_operand = addr
+                elif speed_r_operand is None:
+                    speed_r_operand = addr
+                    break
 
-    # Speed table fallback: if we have wave table but no pulse/filter detected
-    # (table_operands < 4), check for speed table after wave table.
-    if st_size == 0 and first_ol is not None and wt_size > 0 and len(table_operands) < 4:
-        speed_region_start = wl_start + wt_size * 2
-        speed_remaining = first_ol - speed_region_start
-        if speed_remaining >= 4:
-            speed_off = speed_region_start - la
-            if binary[speed_off] == 0x00:  # validate first $00 prefix
-                st_size = (speed_remaining - 2) // 2
-                if st_size > 0:
-                    second_prefix_off = speed_off + 1 + st_size
-                    if (second_prefix_off < len(binary)
-                            and binary[second_prefix_off] == 0x00):
-                        speed_left = read_table(speed_off + 1, st_size)
-                        speed_right = read_table(
-                            second_prefix_off + 1, st_size)
+        # Also check addresses not in lda_ref_counts (might have single refs)
+        if speed_l_operand is None:
+            for i in range(code_end - 3):
+                if binary[i] == 0xB9:
+                    addr = binary[i + 1] | (binary[i + 2] << 8)
+                    if speed_start - 1 <= addr < speed_start + 50:
+                        if speed_l_operand is None:
+                            speed_l_operand = addr
+                        elif addr != speed_l_operand and speed_r_operand is None:
+                            speed_r_operand = addr
+                            break
+
+        if speed_l_operand is not None and speed_r_operand is not None:
+            # mt_speedlefttbl = speed_l_operand + 1 (operand is -1 for Y indexing)
+            sl_start = speed_l_operand + 1
+            sr_start = speed_r_operand + 1
+            st_size = sr_start - sl_start - 1  # subtract 1 for extra zero before right
+            if st_size > 0:
+                speed_left = read_table(sl_start - la, st_size)
+                speed_right = read_table(sr_start - la, st_size)
 
     # Build result
     col_data = {}
@@ -341,6 +465,7 @@ def parse_gt2_direct(sid_path):
         'la': la,
         'ni': ni,
         'num_columns': len(col_operands),
+        'flags': flags,
         'col_operands': {name: col_operands[ci] for name, ci in columns.items()
                          if ci < len(col_operands)},
         'col_data': col_data,
@@ -370,6 +495,10 @@ if __name__ == '__main__':
         sys.exit(1)
 
     print(f"ni={result['ni']}, columns={result['num_columns']}")
+    flags = result.get('flags', {})
+    if flags:
+        flag_strs = [f"{k}={'1' if v else '0'}" for k, v in sorted(flags.items())]
+        print(f"  flags: {', '.join(flag_strs)}")
     for name, addr in sorted(result['col_operands'].items(), key=lambda x: x[1]):
         vals = result['col_data'].get(name, [])
         hex_str = ' '.join(f'{v:02x}' for v in vals[:5])

@@ -12,7 +12,7 @@ import os
 import tempfile
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-GT2ASM = os.path.join(SCRIPT_DIR, '..', 'tmp', 'gt2asm')
+GT2ASM = os.path.join(SCRIPT_DIR, '..', 'tools', 'gt2asm')
 PLAYER_S = os.path.join(SCRIPT_DIR, 'GoatTracker_2.77', 'src', 'player.s')
 
 # Player version mapping: behavior group → GT2 version directory

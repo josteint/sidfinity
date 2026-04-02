@@ -306,22 +306,6 @@ def decompile_gt2(sid_path):
     col_start = r['col_operands']['ad'] + 1  # first byte of AD column
     col_start_off = col_start - la
 
-    # For ni=1, the stride-based column detection can overcount (wave table
-    # accesses look like columns). Validate by checking that the table region
-    # between columns end and orderlists is large enough for a wave table.
-    if ni == 1:
-        freq_end_v = ft[0] + ft[2] * 2
-        if freq_end_v + 6 < len(binary):
-            sl = [binary[freq_end_v + i] for i in range(3)]
-            sh = [binary[freq_end_v + 3 + i] for i in range(3)]
-            first_ol_v = min(sl[i] | (sh[i] << 8) for i in range(3))
-            while num_cols > 3:
-                instr_end_v = (col_start - la) + num_cols * ni
-                table_region_v = first_ol_v - la - instr_end_v
-                if table_region_v >= 2 and table_region_v % 2 == 0:
-                    break
-                num_cols -= 1
-
     # === Step 3: Walk the data section sequentially ===
     pos = code_end  # start of data
     result = {
@@ -380,14 +364,14 @@ def decompile_gt2(sid_path):
         9: ['ad', 'sr', 'wave_ptr', 'pulse_ptr', 'filter_ptr', 'vib_param', 'vib_delay', 'gate_timer', 'first_wave'],
     }
 
-    # Use gt2_parse_direct's identified columns if available and reliable (ni > 1)
-    if ni > 1 and r['col_data']:
+    # Use gt2_parse_direct's identified columns (now reliable for all ni values,
+    # including ni=1 where flag detection determines the correct layout).
+    if r['col_data']:
         col_names_for_file = list(r['col_data'].keys())[:num_cols]
     else:
-        # For ni=1 or unreliable detection: use standard configs
+        # Fallback: use standard configs by column count
         col_names_for_file = col_name_configs.get(num_cols)
         if col_names_for_file is None:
-            # Fallback: fill from full order
             full = ['ad', 'sr', 'wave_ptr', 'pulse_ptr', 'filter_ptr',
                     'vib_param', 'vib_delay', 'gate_timer', 'first_wave']
             col_names_for_file = full[:num_cols]
