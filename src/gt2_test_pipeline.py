@@ -149,12 +149,18 @@ def build_sid_from_usf(sid_path, song, r, flags):
     freq_lo = getattr(song, 'freq_lo', None)
     freq_hi = getattr(song, 'freq_hi', None)
 
+    first_note = getattr(song, 'first_note', 0)
+    last_note = first_note + 95  # default range
+    # Adjust last_note based on freq table if available
+    if first_note > 0:
+        last_note = 95  # always end at note 95
+
     return pack_gt2(
         flags=flags,
         base_addr=r['la'],
         songs=1,
-        first_note=0,
-        last_note=95,
+        first_note=first_note,
+        last_note=last_note,
         default_tempo=getattr(song, 'tempo', 6) - 1,
         num_instruments=ni,
         num_normal=num_normal,
@@ -187,6 +193,7 @@ def build_sid_from_usf(sid_path, song, r, flags):
         freq_hi=freq_hi,
         title=song.title,
         author=song.author,
+        player_group=getattr(song, 'gt2_player_group', ''),
     )
 
 
@@ -235,8 +242,17 @@ def test_single(sid_path, duration=10, verbose=False):
     if song is None:
         return {'status': 'usf_fail', 'path': sid_path}
 
-    # Detect flags
-    flags = detect_gt2_flags(song, r)
+    # Use all features enabled — safer than trying to detect which ones
+    # the original used. Unused code paths don't affect audio.
+    flags = {k: 0 for k in [
+        'NOEFFECTS','NOGATE','NOFILTER','NOFILTERMOD','NOPULSE','NOPULSEMOD',
+        'NOWAVEDELAY','NOWAVECMD','NOREPEAT','NOTRANS','NOPORTAMENTO','NOTONEPORTA',
+        'NOVIB','NOINSTRVIB','NOSETAD','NOSETSR','NOSETWAVE','NOSETWAVEPTR',
+        'NOSETPULSEPTR','NOSETFILTPTR','NOSETFILTCTRL','NOSETFILTCUTOFF',
+        'NOSETMASTERVOL','NOFUNKTEMPO','NOGLOBALTEMPO','NOCHANNELTEMPO',
+        'NOFIRSTWAVECMD','NOCALCULATEDSPEED','NONORMALSPEED','NOZEROSPEED']}
+    flags['FIXEDPARAMS'] = 0
+    flags['SIMPLEPULSE'] = 0
 
     # Build SID
     try:

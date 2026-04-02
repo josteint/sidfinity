@@ -15,6 +15,24 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 GT2ASM = '/tmp/gt2asm'
 PLAYER_S = os.path.join(SCRIPT_DIR, 'GoatTracker_2.77', 'src', 'player.s')
 
+# Player version mapping: behavior group → GT2 version directory
+PLAYER_GROUP_VERSION = {
+    'A': '2.65',   # v2.65-2.67: AD-before-SR, new-note writes all regs
+    'B': '2.68',   # v2.68-2.72: SR-before-AD, new-note writes wave-only
+    'C': '2.73',   # v2.73-2.74: B + ghost reg support
+    'D': '2.77',   # v2.76-2.77: C + vibrato param fix
+}
+
+
+def get_player_source(group=None):
+    """Get the player.s path for a given behavior group."""
+    if group and group in PLAYER_GROUP_VERSION:
+        ver = PLAYER_GROUP_VERSION[group]
+        path = os.path.join(SCRIPT_DIR, f'GoatTracker_{ver}', 'src', 'player.s')
+        if os.path.exists(path):
+            return path
+    return PLAYER_S  # fallback to latest
+
 # PAL frequency tables (default)
 FREQ_LO_PAL = bytes([
     0x17,0x27,0x39,0x4B,0x5F,0x74,0x8A,0xA1,0xBA,0xD4,0xF0,0x0E,
@@ -119,6 +137,7 @@ def pack_gt2(
     title='',
     author='',
     noauthorinfo=1,
+    player_group='',
 ):
     """Pack GT2 data using gt2asm + player.s. Returns (sid_bytes, player_size)."""
     ni = num_instruments
@@ -198,8 +217,9 @@ def pack_gt2(
         insertdefine(buf, 'FIRSTWAVEPARAM', first_wave_param)
         insertdefine(buf, 'GATETIMERPARAM', gate_timer_param)
 
-    # Insert player.s source
-    with open(PLAYER_S) as f:
+    # Insert player.s source (version selected by player_group)
+    player_src = get_player_source(player_group)
+    with open(player_src) as f:
         buf.append(f.read())
     buf.append('\n')
 

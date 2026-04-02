@@ -13,6 +13,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from gt_parser import parse_goattracker_sid, parse_psid_header, find_freq_table
 from usf import Song, Instrument, WaveTableStep, Pattern, NoteEvent
 from gt2_parse_direct import parse_gt2_direct
+from gt2_detect_version import detect_gt2_player_group
 
 
 def gt2_to_usf(sid_path, trace_duration=10):
@@ -41,12 +42,22 @@ def gt2_to_usf(sid_path, trace_duration=10):
             continue
         break
 
+    # Detect player behavior group and FIRSTNOTE
+    version_info = detect_gt2_player_group(sid_path)
+    player_group = version_info['group'] if version_info else ''
+
+    header_obj, binary, la = parse_psid_header(data)
+    ft = find_freq_table(binary, la)
+    first_note = ft[1] if ft else 0
+
     song = Song(
         title=header['title'],
         author=header['author'],
         sid_model='6581',
         clock='PAL',
         tempo=initial_tempo,
+        first_note=first_note,
+        gt2_player_group=player_group or '',
     )
 
     # Read instrument data from direct parser
