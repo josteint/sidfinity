@@ -29,24 +29,23 @@ def gt2_to_usf(sid_path, trace_duration=10):
 
     header = parsed['header']
 
-    # Detect initial tempo from first SETTEMPO command in patterns
-    initial_tempo = 6  # GT2 default
-    for patt in parsed['patterns']:
-        for row in patt:
-            if row.get('command') == 15 and row.get('param'):
-                val = row['param']
-                if val < 0x80:  # global tempo (not channel-specific)
-                    initial_tempo = val
-                    break
-        else:
-            continue
-        break
-
-    # Detect player behavior group and FIRSTNOTE
+    # Detect player behavior group, FIRSTNOTE, and DEFAULTTEMPO from binary
     version_info = detect_gt2_player_group(sid_path)
     player_group = version_info['group'] if version_info else ''
 
     header_obj, binary, la = parse_psid_header(data)
+
+    # Extract DEFAULTTEMPO from the binary: find LDA #xx / STA abs,X / LDA #$01
+    # pattern in the init code (mt_initchn sets counter=1, tempo=DEFAULTTEMPO)
+    default_tempo = 6  # GT2 default if not found
+    ft_check = find_freq_table(binary, la)
+    if ft_check:
+        for i in range(ft_check[0] - 8):
+            if (binary[i] == 0xA9 and binary[i + 2] == 0x9D and
+                    binary[i + 5] == 0xA9 and binary[i + 6] == 0x01 and
+                    binary[i + 7] == 0x9D):
+                default_tempo = binary[i + 1] + 1  # stored as tempo-1 in the binary
+                break
     ft = find_freq_table(binary, la)
     first_note = ft[1] if ft else 0
 
@@ -55,7 +54,7 @@ def gt2_to_usf(sid_path, trace_duration=10):
         author=header['author'],
         sid_model='6581',
         clock='PAL',
-        tempo=initial_tempo,
+        tempo=default_tempo,
         first_note=first_note,
         gt2_player_group=player_group or '',
     )
