@@ -45,4 +45,14 @@ cd ../..
 
 echo "Building siddump..."
 g++ $CXXFLAGS $INCFLAGS siddump.cpp libsidplayfp/build/libsidplayfp.a -o siddump
-echo "Done. Binary: tools/siddump"
+echo "  Built tools/siddump"
+
+# --- Step 5: Build gt2asm ---
+
+echo "Building gt2asm..."
+GT2ASM_DIR="../src/GoatTracker_2.77/src/asm"
+GT2ASM_SRCS="$GT2ASM_DIR/membuf.c $GT2ASM_DIR/membufio.c $GT2ASM_DIR/parse.c $GT2ASM_DIR/lexyy.c $GT2ASM_DIR/asmtab.c $GT2ASM_DIR/pc.c $GT2ASM_DIR/vec.c $GT2ASM_DIR/expr.c $GT2ASM_DIR/chnkpool.c $GT2ASM_DIR/namedbuf.c $GT2ASM_DIR/log.c"
+gcc -O2 -I "$GT2ASM_DIR" -o gt2asm gt2asm.c $GT2ASM_SRCS -lm
+echo "  Built tools/gt2asm"
+
+echo "Done."
