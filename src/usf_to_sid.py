@@ -348,6 +348,8 @@ def usf_to_sid(song, output_path=None):
         orderlists=gt2_orderlists,
         patterns=gt2_patterns,
         default_tempo=getattr(song, 'tempo', 6),
+        ad_param=getattr(song, 'ad_param', 0x0F),
+        sr_param=getattr(song, 'sr_param', 0x00),
     )
 
     if output_path:
