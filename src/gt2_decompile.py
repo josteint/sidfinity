@@ -5,9 +5,9 @@ Walks the data section in layout order (per docs/gt2_data_layout.md),
 extracting each section at its correct size. Reverses all greloc.c
 transformations to recover .sng-equivalent data.
 
-Wave table size is determined by frequency tracing: run the SID,
-capture the first note's frequency, trace it backwards through
-the freq table and wave table to find mt_notetbl's exact position.
+Table sizes are determined from parse_direct's operand analysis of
+the player code (exact). Frequency tracing is used as a fallback
+only when operand analysis fails.
 """
 
 import sys
@@ -21,33 +21,8 @@ from gt2_packer import FREQ_HI_PAL, FREQ_LO_PAL
 SIDDUMP = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'tools', 'siddump')
 
 
-def classify_instruments(gate_timer_col):
-    """Classify instruments by gate_timer flags into normal/nohr/legato groups.
-
-    greloc.c sorts instruments: normal HR first, then no-HR (bit 7 set),
-    then legato (bit 6 set). The packed binary has them in this sorted order.
-
-    Args:
-        gate_timer_col: list of gate_timer byte values, one per instrument.
-
-    Returns:
-        (num_normal, num_nohr, num_legato) tuple. These sum to len(gate_timer_col).
-    """
-    num_normal = 0
-    num_nohr = 0
-    num_legato = 0
-    for gt in gate_timer_col:
-        if gt & 0x40:
-            num_legato += 1
-        elif gt & 0x80:
-            num_nohr += 1
-        else:
-            num_normal += 1
-    return num_normal, num_nohr, num_legato
-
-
 def _find_wave_size_by_freq_trace(sid_path, binary, la, code_end, table_start_off,
-                                    first_note, num_notes, columns, songs=1):
+                                    first_note, num_notes, columns):
     """Determine wave table size by tracing the first note's frequency output.
 
     Strategy:
@@ -91,7 +66,6 @@ def _find_wave_size_by_freq_trace(sid_path, binary, la, code_end, table_start_of
     # The player accesses freq_hi at mt_freqtblhi - FIRSTNOTE + Y
     # where Y = absolute_note. We need: which Y gives this fhi value?
     freq_hi_start = code_end + num_notes  # offset in binary
-    song_entries = songs * 3
     for voice, (fhi, frame_idx) in first_notes.items():
         # Search freq_hi table for this value
         for idx in range(num_notes):
@@ -110,7 +84,7 @@ def _find_wave_size_by_freq_trace(sid_path, binary, la, code_end, table_start_of
         # Read orderlist for this voice to get first pattern ID
         freq_end = code_end + num_notes * 2
         song_lo_off = freq_end
-        song_hi_off = freq_end + song_entries
+        song_hi_off = freq_end + 3
         ol_addr = binary[song_lo_off + voice] | (binary[song_hi_off + voice] << 8)
         ol_off = ol_addr - la
 
@@ -125,9 +99,9 @@ def _find_wave_size_by_freq_trace(sid_path, binary, la, code_end, table_start_of
         first_patt_id = binary[ol_off + ol_pos]
 
         # Find pattern address from pattern table
-        patt_tbl_off = freq_end + song_entries * 2  # after song table
+        patt_tbl_off = freq_end + 6  # after song table
         num_patt_est = (columns['ad'][0] if 'ad' in columns else 0)  # rough
-        # Actually: pattern table is at freq_end + song_entries*2, we know its structure
+        # Actually: pattern table is at freq_end + 6, we know its structure
         patt_lo = binary[patt_tbl_off + first_patt_id]
         col_start_off = (la + code_end + num_notes * 2 + 6)  # approx
         # We need the column start to know pattern table size.
@@ -137,7 +111,7 @@ def _find_wave_size_by_freq_trace(sid_path, binary, la, code_end, table_start_of
         # Pattern hi bytes start at patt_tbl_off + num_patt
         # We don't know num_patt here. Let's compute from known positions.
         ad_col_off = table_start_off - len(columns) * len(columns.get('ad', []))
-        num_patt_space = ad_col_off - (freq_end + song_entries * 2)
+        num_patt_space = ad_col_off - (freq_end + 6)
         num_patt = num_patt_space // 2
 
         patt_addr = (binary[patt_tbl_off + first_patt_id] |
@@ -263,8 +237,8 @@ def _find_wave_size_by_freq_trace(sid_path, binary, la, code_end, table_start_of
     # Other tables (pulse, filter, speed) share the region with wave.
     freq_end = code_end + num_notes * 2
     song_lo_off = freq_end
-    song_hi_off = freq_end + song_entries
-    ol_addrs = [binary[song_lo_off + v] | (binary[song_hi_off + v] << 8) for v in range(song_entries)]
+    song_hi_off = freq_end + 3
+    ol_addrs = [binary[song_lo_off + v] | (binary[song_hi_off + v] << 8) for v in range(3)]
     first_ol_off = min(a - la for a in ol_addrs)
     table_region_size = first_ol_off - table_start_off
 
@@ -299,67 +273,6 @@ def _find_wave_size_by_freq_trace(sid_path, binary, la, code_end, table_start_of
     return max_entry if max_entry > 0 else min(max(wp_col), max_possible_wave)
 
 
-def _pattern_stream_length(binary, off, max_bytes=512):
-    """Return the byte length of a packed GT2 pattern starting at *off*,
-    including the $00 ENDPATT terminator.
-
-    The packed pattern format uses context-dependent byte interpretation.
-    At a row-start position:
-
-        $00            -> ENDPATT (terminates pattern)
-        $01..$3F       -> instrument change, then continue same row
-        $40..$4F       -> FX + cmd (if cmd!=0: next byte = param), then note
-        $50..$5F       -> FXONLY + cmd (if cmd!=0: next byte = param), row done
-        $60..$BC       -> note, row done
-        $BD            -> REST, row done
-        $BE            -> KEYOFF, row done
-        $BF            -> KEYON, row done
-        $C0..$FF       -> packed rest (multiple rests), row done
-
-    A $00 byte is only ENDPATT when it appears at a row-start position.
-    Inside a row it can be a valid FX parameter (e.g. $43 $00 = FX cmd 3,
-    param 0).  The naive approach of scanning for the first $00 therefore
-    truncates patterns that contain such bytes, leaving orphaned data in
-    apparent gaps between patterns (cross-pattern byte sharing).
-    """
-    pos = off
-    limit = min(off + max_bytes, len(binary))
-    while pos < limit:
-        b = binary[pos]
-
-        # --- Row start: $00 is ENDPATT ---
-        if b == 0x00:
-            return pos - off + 1  # include the $00
-
-        # Instrument byte ($01..$3F): consume it, stay in same row
-        if b < 0x40:
-            pos += 1
-            if pos >= limit:
-                break
-            b = binary[pos]
-
-        # FX ($40..$4F) or FXONLY ($50..$5F)
-        if 0x40 <= b < 0x60:
-            is_fxonly = b >= 0x50
-            cmd = b & 0x0F
-            pos += 1  # consume the FX/FXONLY byte
-            if cmd != 0 and pos < limit:
-                pos += 1  # consume the param byte (can be $00!)
-            if is_fxonly:
-                continue  # row done, next byte is a new row start
-            # FX (not FXONLY): still need to read the note/rest
-            if pos >= limit:
-                break
-            b = binary[pos]
-
-        # Note ($60..$BC), REST ($BD), KEYOFF ($BE), KEYON ($BF),
-        # or packed rest ($C0..$FF): consume and row is done.
-        pos += 1
-
-    # Ran out of data without finding ENDPATT.
-    return pos - off
-
-
 def decompile_gt2(sid_path):
     """Decompile a GT2 packed SID to .sng-equivalent data.
 
@@ -383,9 +296,6 @@ def decompile_gt2(sid_path):
     first_note = ft[1]
     num_notes = ft[2]
 
-    # Read songs count from PSID header
-    songs = header['songs']
-
     # Use gt2_parse_direct for reliable column detection
     r = parse_gt2_direct(sid_path)
     if r is None:
@@ -401,11 +311,10 @@ def decompile_gt2(sid_path):
     # between columns end and orderlists is large enough for a wave table.
     if ni == 1:
         freq_end_v = ft[0] + ft[2] * 2
-        song_entries_v = songs * 3
-        if freq_end_v + song_entries_v * 2 < len(binary):
-            sl = [binary[freq_end_v + i] for i in range(song_entries_v)]
-            sh = [binary[freq_end_v + song_entries_v + i] for i in range(song_entries_v)]
-            first_ol_v = min(sl[i] | (sh[i] << 8) for i in range(song_entries_v))
+        if freq_end_v + 6 < len(binary):
+            sl = [binary[freq_end_v + i] for i in range(3)]
+            sh = [binary[freq_end_v + 3 + i] for i in range(3)]
+            first_ol_v = min(sl[i] | (sh[i] << 8) for i in range(3))
             while num_cols > 3:
                 instr_end_v = (col_start - la) + num_cols * ni
                 table_region_v = first_ol_v - la - instr_end_v
@@ -417,7 +326,7 @@ def decompile_gt2(sid_path):
     pos = code_end  # start of data
     result = {
         'la': la, 'code_end': code_end, 'ni': ni, 'num_cols': num_cols,
-        'first_note': first_note, 'num_notes': num_notes, 'songs': songs,
+        'first_note': first_note, 'num_notes': num_notes,
     }
 
     # Freq tables
@@ -427,7 +336,7 @@ def decompile_gt2(sid_path):
     pos += num_notes
 
     # Song table — read to find orderlist addresses
-    # songs already set from PSID header above
+    songs = 1  # TODO: detect multi-song
     song_entries = songs * 3
     song_lo = [binary[pos + i] for i in range(song_entries)]
     pos += song_entries
@@ -491,17 +400,6 @@ def decompile_gt2(sid_path):
 
     result['columns'] = columns
 
-    # === Instrument classification ===
-    # Detect normal/nohr/legato counts from gate_timer column.
-    # If gate_timer column is absent (FIXEDPARAMS=1), all instruments are normal.
-    if 'gate_timer' in columns:
-        num_normal, num_nohr, num_legato = classify_instruments(columns['gate_timer'])
-    else:
-        num_normal, num_nohr, num_legato = ni, 0, 0
-    result['num_normal'] = num_normal
-    result['num_nohr'] = num_nohr
-    result['num_legato'] = num_legato
-
     # === Step 4: Tables ===
     # Everything between instrument columns end and first orderlist = tables
     # Tables go in order: wave_L, wave_R, [pulse_L, pulse_R], [filter_L, filter_R],
@@ -510,47 +408,57 @@ def decompile_gt2(sid_path):
     result['table_region_start'] = pos
     result['table_region_size'] = len(table_region)
 
-    # For files with ONLY wave table (no pulse/filter/speed):
-    # table_region = wave_L + wave_R, so wave_size = len / 2
-    #
-    # For files with pulse: wave + pulse (each table = left + right)
-    # For files with filter: wave + pulse + filter
-    # For files with speed: wave + [pulse] + [filter] + speed (with $00 prefixes)
-    #
-    # Detect by checking flags from column presence:
     has_pulse = 'pulse_ptr' in columns
     has_filter = 'filter_ptr' in columns
     has_vib = 'vib_param' in columns
-    has_speed = has_vib  # speed table exists when vibrato is enabled
+    has_speed = has_vib
 
-    # === Wave table size via frequency trace ===
-    # Run the original SID and capture the first note's freq_hi.
-    # Trace backwards: fhi → absolute note → wave_right byte value →
-    # search binary to find mt_notetbl position.
-
-    # Prefer parse_direct's operand-based wave_size (exact from code analysis).
+    # Get table sizes from parse_direct's operand analysis.
+    # When parse_direct reports 0 for a table that should exist (column present),
+    # calculate its size from the remaining table region after known tables.
     wave_size = r['wave_size']
+    pulse_size = r['pulse_size'] if has_pulse else 0
+    filter_size = r['filter_size'] if has_filter else 0
+    speed_size = r['speed_size'] if has_speed else 0
 
-    if wave_size <= 0:
+    # Compute expected total and check for missing table sizes
+    speed_overhead = (2 + speed_size * 2) if speed_size > 0 else 0
+    known_bytes = wave_size * 2 + pulse_size * 2 + filter_size * 2 + speed_overhead
+    remaining_after_known = len(table_region) - known_bytes
+
+    if remaining_after_known > 0:
+        # Identify which tables have 0 size but should exist
+        missing = []
+        if has_pulse and pulse_size == 0:
+            missing.append('pulse')
+        if has_filter and filter_size == 0:
+            missing.append('filter')
+        if has_speed and speed_size == 0:
+            missing.append('speed')
+
+        if missing:
+            # Speed table has 2 extra $00 prefix bytes
+            speed_prefix = 2 if 'speed' in missing else 0
+            data_for_missing = remaining_after_known - speed_prefix
+            # Each missing table has left + right of equal size
+            num_missing = len(missing)
+            per_table = data_for_missing // (num_missing * 2) if num_missing > 0 else 0
+            for name in missing:
+                if name == 'pulse':
+                    pulse_size = per_table
+                elif name == 'filter':
+                    filter_size = per_table
+                elif name == 'speed':
+                    speed_size = per_table
+
+    # Fallback: if parse_direct gives 0 for wave but we have a table region
+    if wave_size <= 0 and len(table_region) > 0:
         wave_size = _find_wave_size_by_freq_trace(
-            sid_path, binary, la, code_end, pos, first_note, num_notes, columns, songs)
-
-    # Fallback: if both fail, estimate wave_size from table region.
+            sid_path, binary, la, code_end, pos, first_note, num_notes, columns)
     if wave_size <= 0:
-        other_bytes = 0
-        # Speed table: $00 prefix + data + $00 prefix + data (minimum 4 bytes if present)
-        if has_speed and len(table_region) > 4:
-            # Check if there's a $00 byte that could be a speed prefix
-            # Speed is at the END of the table region
-            # Try: assume speed has at least 1 entry (4 bytes: $00+L+$00+R)
-            other_bytes += 4
-        # Pulse and filter: each has left+right (minimum 2 bytes if present)
-        if has_pulse:
-            other_bytes += 2  # minimum pulse table
-        if has_filter:
-            other_bytes += 2  # minimum filter table
-        wave_bytes = len(table_region) - other_bytes
-        wave_size = max(1, wave_bytes // 2)
+        speed_overhead = (2 + speed_size * 2) if speed_size > 0 else 0
+        other = pulse_size * 2 + filter_size * 2 + speed_overhead
+        wave_size = max(1, (len(table_region) - other) // 2)
 
     result['wave_size'] = wave_size
     tp = 0
@@ -559,47 +467,39 @@ def decompile_gt2(sid_path):
     result['wave_right'] = bytes(table_region[tp:tp + wave_size])
     tp += wave_size
 
-    # Extract pulse and filter tables using sizes from parse_direct
-    result['pulse_left'] = b''
-    result['pulse_right'] = b''
-    result['filter_left'] = b''
-    result['filter_right'] = b''
-    result['speed_left'] = b''
-    result['speed_right'] = b''
-
-    pulse_size = r['pulse_size'] if has_pulse else 0
-    filter_size = r['filter_size'] if has_filter else 0
-
+    # Pulse table
     if has_pulse and pulse_size > 0:
         result['pulse_left'] = bytes(table_region[tp:tp + pulse_size])
         tp += pulse_size
         result['pulse_right'] = bytes(table_region[tp:tp + pulse_size])
         tp += pulse_size
+    else:
+        result['pulse_left'] = b''
+        result['pulse_right'] = b''
 
+    # Filter table
     if has_filter and filter_size > 0:
         result['filter_left'] = bytes(table_region[tp:tp + filter_size])
         tp += filter_size
         result['filter_right'] = bytes(table_region[tp:tp + filter_size])
         tp += filter_size
+    else:
+        result['filter_left'] = b''
+        result['filter_right'] = b''
 
-    # Speed table: remaining bytes after wave+pulse+filter in the table region.
-    # Format: $00 prefix + left_data + $00 prefix + right_data
-    # speed_size = (remaining_bytes - 2) / 2
-    remaining = len(table_region) - tp
-    if remaining >= 4:
-        if table_region[tp] == 0x00:  # validate first $00 prefix
-            st_size = (remaining - 2) // 2
-            if st_size > 0:
-                second_prefix_pos = tp + 1 + st_size
-                if (second_prefix_pos < len(table_region)
-                        and table_region[second_prefix_pos] == 0x00):
-                    result['speed_left'] = bytes(
-                        table_region[tp + 1:tp + 1 + st_size])
-                    result['speed_right'] = bytes(
-                        table_region[second_prefix_pos + 1:
-                                     second_prefix_pos + 1 + st_size])
+    # Speed table (with $00 prefix per column when data exists)
+    if has_speed and speed_size > 0:
+        tp += 1  # skip $00 prefix before speed_left
+        result['speed_left'] = bytes(table_region[tp:tp + speed_size])
+        tp += speed_size
+        tp += 1  # skip $00 prefix before speed_right
+        result['speed_right'] = bytes(table_region[tp:tp + speed_size])
+        tp += speed_size
+    else:
+        result['speed_left'] = b''
+        result['speed_right'] = b''
 
-    result['table_remaining'] = b''  # everything parsed
+    result['table_remaining'] = bytes(table_region[tp:])
 
     # === Step 5: Orderlists ===
     orderlists = []
@@ -618,16 +518,17 @@ def decompile_gt2(sid_path):
     result['orderlists'] = orderlists
 
     # === Step 6: Patterns ===
-    # Extract patterns using stream-aware parsing.  A naive scan for $00
-    # fails because $00 is valid as an FX parameter (e.g. $43 $00 = FX cmd 3,
-    # param 0) within the packed stream.  Only $00 at the START of a new
-    # pattern row is ENDPATT.  We must walk the byte stream exactly as the
-    # GT2 player does, tracking row boundaries via _pattern_stream_length.
     patterns = []
     for pi in range(num_patt):
         p_off = patt_addrs[pi] - la
-        patt_len = _pattern_stream_length(binary, p_off)
-        patterns.append(bytes(binary[p_off:p_off + patt_len]))
+        patt = bytearray()
+        for j in range(300):
+            if p_off + j >= len(binary):
+                break
+            patt.append(binary[p_off + j])
+            if binary[p_off + j] == 0x00:  # ENDPATT
+                break
+        patterns.append(bytes(patt))
     result['patterns'] = patterns
 
     return result
@@ -643,30 +544,27 @@ if __name__ == '__main__':
         print("Failed to decompile")
         sys.exit(1)
 
-    songs = r['songs']
-    print(f"songs={songs}, ni={r['ni']}, cols={r['num_cols']}, patterns={r['num_patt']}")
+    print(f"ni={r['ni']}, cols={r['num_cols']}, patterns={r['num_patt']}")
     print(f"first_note={r['first_note']}, num_notes={r['num_notes']}")
     print(f"wave_size={r['wave_size']}")
-    print(f"pulse: {len(r['pulse_left'])}B, filter: {len(r['filter_left'])}B, speed: {len(r['speed_left'])}B")
-    print(f"instruments: normal={r['num_normal']}, nohr={r['num_nohr']}, legato={r['num_legato']}")
     print(f"table_remaining={len(r['table_remaining'])}B")
 
     print(f"\nColumns:")
     for name, vals in r['columns'].items():
         print(f"  {name}: {[f'{v:02x}' for v in vals]}")
 
-    print(f"\nWave left:  {r['wave_left'].hex()}")
-    print(f"Wave right: {r['wave_right'].hex()}")
-
+    print(f"\nWave left  ({len(r['wave_left'])}): {r['wave_left'].hex()}")
+    print(f"Wave right ({len(r['wave_right'])}): {r['wave_right'].hex()}")
+    if r['pulse_left']:
+        print(f"Pulse left ({len(r['pulse_left'])}): {r['pulse_left'].hex()}")
+        print(f"Pulse right({len(r['pulse_right'])}): {r['pulse_right'].hex()}")
+    if r['filter_left']:
+        print(f"Filter left ({len(r['filter_left'])}): {r['filter_left'].hex()}")
+        print(f"Filter right({len(r['filter_right'])}): {r['filter_right'].hex()}")
     if r['speed_left']:
-        print(f"\nSpeed left:  {r['speed_left'].hex()}")
-        print(f"Speed right: {r['speed_right'].hex()}")
+        print(f"Speed left ({len(r['speed_left'])}): {r['speed_left'].hex()}")
+        print(f"Speed right({len(r['speed_right'])}): {r['speed_right'].hex()}")
 
-    print(f"\nOrderlists ({songs} song(s), {songs * 3} channels):")
-    for si in range(songs):
-        print(f"  Song {si}:")
-        for ch in range(3):
-            vi = si * 3 + ch
-            if vi < len(r['orderlists']):
-                ol = r['orderlists'][vi]
-                print(f"    V{ch+1}: {ol.hex()}")
+    print(f"\nOrderlists:")
+    for vi, ol in enumerate(r['orderlists'][:3]):
+        print(f"  V{vi+1}: {ol.hex()}")
