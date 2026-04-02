@@ -127,59 +127,36 @@ def usf_to_sid(song, output_path=None):
     for patt in song.patterns:
         gt2_patterns.append(usf_pattern_to_gt2(patt))
 
-    # Convert instruments to column arrays
+    # Convert instruments to column arrays — built entirely from USF fields
     ni = len(song.instruments)
     if ni == 0:
         ni = 1
         song.instruments = [usf.Instrument()]
 
-    # Build instrument columns. If raw GT2 data is available, use it
-    # directly (remapped to our packer's column order). Otherwise,
-    # build from USF instrument fields.
-    raw = getattr(song, '_raw_gt2', None) or {}
-    raw_cols = raw.get('col_data', {})
+    ad_col = bytearray(ni)
+    sr_col = bytearray(ni)
+    wp_col = bytearray(ni)
+    pp_col = bytearray(ni)
+    fp_col = bytearray(ni)
+    vp_col = bytearray(ni)
+    vd_col = bytearray(ni)
+    gt_col = bytearray(ni)
+    fw_col = bytearray(ni)
 
-    def raw_col(name, default_val=0):
-        """Get raw column bytes, padded to ni."""
-        vals = raw_cols.get(name, [])
-        if vals:
-            result = list(vals[:ni])
-            while len(result) < ni:
-                result.append(default_val)
-            return bytes(result)
-        return bytes([default_val] * ni)
-
-    if raw_cols:
-        # Use raw column data directly, remapped to packer order
-        ad_col = raw_col('ad')
-        sr_col = raw_col('sr')
-        wp_col = raw_col('wave_ptr')
-        pp_col = raw_col('pulse_ptr')
-        fp_col = raw_col('filter_ptr')
-        vp_col = raw_col('vib_param')
-        vd_col = raw_col('vib_delay')
-        gt_col = raw_col('gate_timer', 0x02)  # default: gate timer 2
-        fw_col = raw_col('first_wave', 0x41)  # default: pulse+gate
-    else:
-        ad_col = bytearray(ni)
-        sr_col = bytearray(ni)
-        fw_col = bytearray(ni)
-        gt_col = bytearray(ni)
-        wp_col = bytearray(ni)
-        vp_col = bytearray(ni)
-        vd_col = bytearray(ni)
-        pp_col = bytearray(ni)
-        fp_col = bytearray(ni)
-        for i, inst in enumerate(song.instruments):
-            ad_col[i] = inst.ad
-            sr_col[i] = inst.sr
-            fw_col[i] = WAVE_MAP.get(inst.waveform, 0x41)
-            gt_col[i] = inst.gate_timer if inst.hr_method != 'none' else 0x80
-            wp_col[i] = 1 if inst.wave_table else 0
-            vp_col[i] = getattr(inst, 'vib_speed_idx', 0) or 0
-            vd_col[i] = getattr(inst, 'vib_delay', 0) or 0
-            pp_col[i] = getattr(inst, 'pulse_ptr', 0) or 0
-            fp_col[i] = getattr(inst, 'filter_ptr', 0) or 0
+    for i, inst in enumerate(song.instruments):
+        ad_col[i] = inst.ad
+        sr_col[i] = inst.sr
+        wp_col[i] = inst.wave_ptr
+        pp_col[i] = inst.pulse_ptr
+        fp_col[i] = inst.filter_ptr
+        vp_col[i] = inst.vib_speed_idx
+        vd_col[i] = inst.vib_delay
+        # Gate timer: reconstruct raw byte, or use stored raw value
+        gt_col[i] = getattr(inst, '_gate_timer_raw', None) or (
+            (inst.gate_timer & 0x3F) |
+            (0x40 if inst.legato else 0) |
+            (0x80 if inst.hr_method == 'none' else 0))
+        fw_col[i] = inst.first_wave if inst.first_wave >= 0 else 0x41
 
     # Build wave table. If raw GT2 data is available, use it directly.
     # Otherwise rebuild from USF wave table steps.
@@ -331,6 +308,10 @@ def usf_to_sid(song, output_path=None):
         for l, r in song.shared_filter_table:
             filter_l.append(l); filter_r.append(r)
 
+    # Build speed table bytes from USF speed_table entries
+    speed_l = bytes([e.left for e in song.speed_table]) if song.speed_table else None
+    speed_r = bytes([e.right for e in song.speed_table]) if song.speed_table else None
+
     sid_bytes, player_size = pack_sid(
         title=song.title,
         author=song.author,
@@ -346,14 +327,14 @@ def usf_to_sid(song, output_path=None):
         instruments_vibdelay=vd_col,
         instruments_pulseptr=pp_col,
         instruments_filtptr=fp_col,
-        wave_left=bytes(wave_l) if wave_l else raw.get('wave_left') or bytes([0]),
-        wave_right=bytes(wave_r) if wave_r else raw.get('wave_right') or bytes([0]),
-        pulse_left=bytes(pulse_l) if pulse_l else raw.get('pulse_left'),
-        pulse_right=bytes(pulse_r) if pulse_r else raw.get('pulse_right'),
-        filter_left=bytes(filter_l) if filter_l else raw.get('filter_left'),
-        filter_right=bytes(filter_r) if filter_r else raw.get('filter_right'),
-        speed_left=raw.get('speed_left'),
-        speed_right=raw.get('speed_right'),
+        wave_left=bytes(wave_l) if wave_l else bytes([0]),
+        wave_right=bytes(wave_r) if wave_r else bytes([0]),
+        pulse_left=bytes(pulse_l) if pulse_l else None,
+        pulse_right=bytes(pulse_r) if pulse_r else None,
+        filter_left=bytes(filter_l) if filter_l else None,
+        filter_right=bytes(filter_r) if filter_r else None,
+        speed_left=speed_l,
+        speed_right=speed_r,
         orderlists=gt2_orderlists,
         patterns=gt2_patterns,
         default_tempo=getattr(song, 'tempo', 6),

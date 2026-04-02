@@ -121,6 +121,7 @@ class Instrument:
     pulse_table: list = field(default_factory=list)   # list of PulseTableStep
     filter_table: list = field(default_factory=list)  # list of FilterTableStep
     pulse_width: int = 0x0808  # initial pulse width (16-bit)
+    wave_ptr: int = 0          # index into shared wave table (0=none, 1-based)
     vib_speed_idx: int = 0     # speed table index for vibrato (0=none)
     vib_delay: int = 0         # vibrato delay in frames
     pulse_ptr: int = 0         # pulse table index (0=no pulse mod)

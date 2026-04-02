@@ -21,7 +21,8 @@ def detect_gt2_flags(song, r):
               'NOFIRSTWAVECMD','NOCALCULATEDSPEED','NONORMALSPEED','NOZEROSPEED']:
         F[k] = 1
 
-    speed_left = []
+    # Speed table left column for calcspeedtest
+    speed_left = [e.left for e in song.speed_table] if song.speed_table else []
 
     def calcspeedtest(pos):
         if pos == 0:
@@ -37,7 +38,7 @@ def detect_gt2_flags(song, r):
             F['NONORMALSPEED'] = 0
 
     # --- Scan orderlists ---
-    if hasattr(song, '_raw_gt2') and song._raw_gt2 and 'col_data' in song._raw_gt2:
+    if song.orderlists:
         for vi in range(3):
             entries = song.orderlists[vi]
             for i in range(len(entries) - 2):
@@ -126,12 +127,13 @@ def detect_gt2_flags(song, r):
 
     # --- FIXEDPARAMS ---
     FIXEDPARAMS = 1
-    gt_vals = r.get('col_data', {}).get('gate_timer', [])
-    fw_vals = r.get('col_data', {}).get('first_wave', [])
-    if gt_vals and len(set(gt_vals)) > 1:
-        FIXEDPARAMS = 0
-    if fw_vals and len(set(fw_vals)) > 1:
-        FIXEDPARAMS = 0
+    if len(song.instruments) > 1:
+        gt_vals = [getattr(inst, '_gate_timer_raw', inst.gate_timer) for inst in song.instruments]
+        fw_vals = [inst.first_wave for inst in song.instruments]
+        if len(set(gt_vals)) > 1:
+            FIXEDPARAMS = 0
+        if len(set(fw_vals)) > 1:
+            FIXEDPARAMS = 0
 
     # --- SIMPLEPULSE ---
     SIMPLEPULSE = 1
