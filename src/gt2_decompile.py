@@ -5,23 +5,240 @@ Walks the data section in layout order (per docs/gt2_data_layout.md),
 extracting each section at its correct size. Reverses all greloc.c
 transformations to recover .sng-equivalent data.
 
-Key insight: the data layout is deterministic given the flags and
-column count. We don't need to guess boundaries — we walk through
-the data section sequentially.
+Wave table size is determined by frequency tracing: run the SID,
+capture the first note's frequency, trace it backwards through
+the freq table and wave table to find mt_notetbl's exact position.
 """
 
 import sys
 import os
+import subprocess
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from gt_parser import parse_psid_header, find_freq_table
+from gt2_packer import FREQ_HI_PAL, FREQ_LO_PAL
+
+SIDDUMP = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'tools', 'siddump')
+
+
+def _find_wave_size_by_freq_trace(sid_path, binary, la, code_end, table_start_off,
+                                    first_note, num_notes, columns):
+    """Determine wave table size by tracing the first note's frequency output.
+
+    Strategy:
+    1. Run siddump to get the first note's freq_hi for each voice
+    2. Look up that fhi in the PAL freq table → absolute note number
+    3. Get the stored note from the pattern data (note_byte - $60)
+    4. Determine what wave_right[0] must be to produce that freq output
+    5. Search the table region for that byte → find mt_notetbl position
+    6. wave_size = mt_notetbl - mt_wavetbl
+    """
+    # Step 1: Get first note's freq_hi from siddump
+    try:
+        r = subprocess.run([SIDDUMP, sid_path, '--duration', '3'],
+                           capture_output=True, text=True, timeout=30)
+        if r.returncode not in (0, 2):
+            return 0
+    except Exception:
+        return 0
+
+    lines = r.stdout.strip().split('\n')[2:]  # skip header
+
+    # Find first frame where any voice has fhi != 0 and wav not in (0, 9)
+    # (wav=9 is test bit during hard restart, not a real note)
+    first_notes = {}  # voice → (fhi, frame_idx)
+    for fi, line in enumerate(lines):
+        vals = [int(v, 16) for v in line.split(',')]
+        for voice in range(3):
+            if voice in first_notes:
+                continue
+            fhi = vals[voice * 7 + 1]
+            wav = vals[voice * 7 + 4]
+            if fhi > 0 and wav not in (0x00, 0x09):
+                first_notes[voice] = (fhi, fi)
+        if len(first_notes) == 3:
+            break
+
+    if not first_notes:
+        return 0
+
+    # Step 2: Find the absolute note for each voice's first fhi
+    # The player accesses freq_hi at mt_freqtblhi - FIRSTNOTE + Y
+    # where Y = absolute_note. We need: which Y gives this fhi value?
+    freq_hi_start = code_end + num_notes  # offset in binary
+    for voice, (fhi, frame_idx) in first_notes.items():
+        # Search freq_hi table for this value
+        for idx in range(num_notes):
+            if binary[freq_hi_start + idx] == fhi:
+                absolute_note = first_note + idx
+                break
+        else:
+            continue  # fhi not found in freq table
+
+        # Step 3: Get the stored note from the pattern
+        # Voice N plays pattern from orderlist entry 0.
+        # We need to find the first NOTE byte in that pattern.
+        # The pattern data is in the binary at patt_addrs[orderlist[voice][0]].
+        # For now, extract from the orderlists we already parsed.
+
+        # Read orderlist for this voice to get first pattern ID
+        freq_end = code_end + num_notes * 2
+        song_lo_off = freq_end
+        song_hi_off = freq_end + 3
+        ol_addr = binary[song_lo_off + voice] | (binary[song_hi_off + voice] << 8)
+        ol_off = ol_addr - la
+
+        # Skip transpose markers to find first pattern ID
+        ol_pos = 0
+        while ol_off + ol_pos < len(binary):
+            byte = binary[ol_off + ol_pos]
+            if byte >= 0xE0:  # transpose marker
+                ol_pos += 1
+                continue
+            break  # this is the pattern ID
+        first_patt_id = binary[ol_off + ol_pos]
+
+        # Find pattern address from pattern table
+        patt_tbl_off = freq_end + 6  # after song table
+        num_patt_est = (columns['ad'][0] if 'ad' in columns else 0)  # rough
+        # Actually: pattern table is at freq_end + 6, we know its structure
+        patt_lo = binary[patt_tbl_off + first_patt_id]
+        col_start_off = (la + code_end + num_notes * 2 + 6)  # approx
+        # We need the column start to know pattern table size.
+        # Use the ad_operand from the columns dict position:
+        # columns start at table_start_off - num_cols * ni
+        # Actually we passed table_start_off as 'pos' which is after columns.
+        # Pattern hi bytes start at patt_tbl_off + num_patt
+        # We don't know num_patt here. Let's compute from known positions.
+        ad_col_off = table_start_off - len(columns) * len(columns.get('ad', []))
+        num_patt_space = ad_col_off - (freq_end + 6)
+        num_patt = num_patt_space // 2
+
+        patt_addr = (binary[patt_tbl_off + first_patt_id] |
+                     (binary[patt_tbl_off + num_patt + first_patt_id] << 8))
+        patt_off = patt_addr - la
+
+        # Find first NOTE byte in this pattern (bytes $60-$BC are notes)
+        stored_note = None
+        p = patt_off
+        while p < len(binary):
+            byte = binary[p]
+            if byte == 0x00:
+                break  # ENDPATT
+            if 0x60 <= byte <= 0xBC:
+                stored_note = byte - 0x60
+                break
+            elif byte < 0x40:
+                p += 1  # instrument byte, skip
+                continue
+            elif byte < 0x50:
+                # FX byte: $40+cmd. If cmd != 0, next byte is param
+                cmd = byte - 0x40
+                p += 1
+                if cmd != 0:
+                    p += 1  # skip param
+                continue
+            elif byte < 0x60:
+                # FXONLY: $50+cmd
+                cmd = byte - 0x50
+                p += 1
+                if cmd != 0:
+                    p += 1
+                continue
+            elif byte == 0xBD:
+                p += 1  # REST
+                continue
+            elif byte >= 0xC0:
+                p += 1  # packed rest
+                continue
+            else:
+                p += 1
+                continue
+            # If we get here, we found a note
+            break
+
+        if stored_note is None:
+            continue  # no note in first pattern for this voice
+
+        # Step 4: What wave_right value produces absolute_note from stored_note?
+        # The first instrument for this voice: read from pattern
+        # Get wave_ptr for this instrument
+        wp_col = columns.get('wave_ptr', [])
+        # First instrument in the pattern: scan for instrument byte
+        inst_idx = 0  # default
+        p2 = patt_off
+        while p2 < patt_off + 20:
+            byte = binary[p2]
+            if byte < 0x40 and byte > 0:
+                inst_idx = byte - 1  # 1-based in pattern
+                break
+            p2 += 1
+
+        wave_ptr = wp_col[inst_idx] if inst_idx < len(wp_col) else 1
+
+        # The wave table right column at index (wave_ptr - 1) must produce
+        # Y = absolute_note from the player code:
+        #   BPL → absolute: right_value = absolute_note (bit7 clear)
+        #   BMI → relative: right_value + stored_note [+ carry] AND $7F = absolute_note
+
+        # Case 1: absolute (most common for first entry)
+        expected_right_absolute = absolute_note  # must have bit7 clear (< $80)
+
+        # Case 2: relative
+        # Relative is trickier due to carry flag. Try both.
+        diff = absolute_note - stored_note
+        expected_right_relative = (diff + 0x80) & 0xFF  # bit7 set = relative in packed format
+
+        # Step 5: Search for the expected byte in the table region
+        mt_wavetbl_off = table_start_off  # wave_left starts here
+        search_offset = wave_ptr - 1  # the entry index to check
+
+        # Try absolute first (bit7 clear, simpler)
+        found_wave_size = 0
+        if expected_right_absolute < 0x80:
+            # mt_notetbl[search_offset] should be expected_right_absolute
+            # mt_notetbl = mt_wavetbl + wave_size
+            # So binary[mt_wavetbl_off + wave_size + search_offset] = expected_right_absolute
+            for ws in range(1, len(binary) - mt_wavetbl_off - search_offset):
+                check_off = mt_wavetbl_off + ws + search_offset
+                if check_off >= len(binary):
+                    break
+                if binary[check_off] == expected_right_absolute:
+                    # Validate: wave_left[search_offset] should be a valid waveform
+                    wl_val = binary[mt_wavetbl_off + search_offset]
+                    if 0x10 <= wl_val <= 0xFF and wl_val != 0xBD:
+                        found_wave_size = ws
+                        break
+
+        # If absolute didn't work, try relative
+        if found_wave_size == 0 and (expected_right_relative & 0x80):
+            for ws in range(1, len(binary) - mt_wavetbl_off - search_offset):
+                check_off = mt_wavetbl_off + ws + search_offset
+                if check_off >= len(binary):
+                    break
+                if binary[check_off] == expected_right_relative:
+                    wl_val = binary[mt_wavetbl_off + search_offset]
+                    if 0x10 <= wl_val <= 0xFF and wl_val != 0xBD:
+                        found_wave_size = ws
+                        break
+
+        if found_wave_size > 0:
+            return found_wave_size
+
+    return 0
 
 
 def decompile_gt2(sid_path):
     """Decompile a GT2 packed SID to .sng-equivalent data.
 
-    Returns a dict with all extracted sections, sizes verified.
+    Uses gt2_parse_direct for reliable column detection, then walks
+    the data section sequentially. Wave table size is determined by
+    frequency tracing.
+
+    Returns a dict with all extracted sections.
     """
+    from gt2_parse_direct import parse_gt2_direct
+
     with open(sid_path, 'rb') as f:
         data = f.read()
 
@@ -34,71 +251,15 @@ def decompile_gt2(sid_path):
     first_note = ft[1]
     num_notes = ft[2]
 
-    # === Step 1: Identify columns from the player code ===
-    # Find AD/SR columns by their STA $D405,X / $D406,X patterns
-    ad_operand = None
-    sr_operand = None
-    for i in range(code_end - 5):
-        if binary[i] == 0xB9:  # LDA abs,Y
-            addr = binary[i + 1] | (binary[i + 2] << 8)
-            if i + 3 < code_end and binary[i + 3] == 0x9D:  # STA abs,X
-                sta_addr = binary[i + 4] | (binary[i + 5] << 8)
-                if sta_addr == 0xD405 and ad_operand is None:
-                    ad_operand = addr
-                elif sta_addr == 0xD406 and sr_operand is None:
-                    sr_operand = addr
-
-    if ad_operand is None or sr_operand is None:
+    # Use gt2_parse_direct for reliable column detection
+    r = parse_gt2_direct(sid_path)
+    if r is None:
         return None
 
-    # Determine ni from the stride between AD and SR columns
-    ni = sr_operand - ad_operand
-    if ni < 1 or ni > 63:
-        return None
-
-    # === Step 2: Count columns by walking from AD operand ===
-    # Each column is ni bytes. Walk until we hit data that's not a column.
-    # We know columns start at ad_operand+1 (the -1 indexing means operand = addr-1)
-    col_start = ad_operand + 1  # first byte of AD column
+    ni = r['ni']
+    num_cols = r['num_columns']
+    col_start = r['col_operands']['ad'] + 1  # first byte of AD column
     col_start_off = col_start - la
-
-    # Find mt_wavetbl operand from the code — this marks the end of columns.
-    # The wave exec code has: LDA mt_wavetbl-1,Y where the operand points
-    # just past the last instrument column.
-    # Strategy: find the first LDA abs,Y operand that's PAST the column area
-    # but NOT at a column stride position. Actually, the simplest approach:
-    # find the operand that's closest to col_start but past the minimum
-    # possible columns (3: ad, sr, wave_ptr).
-    min_cols_end = col_start + 3 * ni  # at least ad, sr, wave_ptr
-    wavetbl_candidates = []
-    for i in range(code_end - 3):
-        if binary[i] == 0xB9:
-            addr = binary[i + 1] | (binary[i + 2] << 8)
-            # Must be past minimum columns, aligned to ni boundary from col_start
-            if addr >= min_cols_end - 1 and addr < col_start + 20 * ni:
-                off_from_col = (addr + 1) - col_start
-                if off_from_col % ni == 0:
-                    ncols = off_from_col // ni
-                    if 3 <= ncols <= 9:
-                        wavetbl_candidates.append((addr, ncols))
-
-    # The wave table operand should have the FEWEST refs among candidates
-    # (it's accessed once in wave exec, vs columns accessed more often)
-    # Actually just pick the first valid candidate after sorting by address
-    # that has a reasonable column count
-    num_cols = 3  # minimum
-    if wavetbl_candidates:
-        # Use the candidate that gives the most columns (up to 9)
-        # while keeping the wave table within the data region
-        for addr, ncols in sorted(wavetbl_candidates, key=lambda x: -x[1]):
-            # Verify this could be a wave table start: check if the bytes
-            # after this point look like wave data (not all zeros)
-            wave_check_off = addr + 1 - la
-            if wave_check_off < len(binary) - 2:
-                b0, b1 = binary[wave_check_off], binary[wave_check_off + 1]
-                if b0 != 0 or b1 != 0:  # wave table has non-zero data
-                    num_cols = ncols
-                    break
 
     # === Step 3: Walk the data section sequentially ===
     pos = code_end  # start of data
@@ -180,45 +341,20 @@ def decompile_gt2(sid_path):
     has_vib = 'vib_param' in columns
     has_speed = has_vib  # speed table exists when vibrato is enabled
 
-    # Parse tables from the region
-    tp = 0  # position within table_region
+    # === Wave table size via frequency trace ===
+    # Run the original SID and capture the first note's freq_hi.
+    # Trace backwards: fhi → absolute note → wave_right byte value →
+    # search binary to find mt_notetbl position.
 
-    # Wave table: always present. Size = depends on what follows.
-    # If no other tables: wave_size = len(table_region) / 2
-    # If pulse follows: need to find the boundary.
-    #
-    # The SIMPLEST reliable approach: find wave_size from the code.
-    # The player has LDA mt_wavetbl-1,Y and LDA mt_notetbl-1,Y.
-    # mt_notetbl - mt_wavetbl = wave_size.
-    #
-    # Find these two operands:
-    wavetbl_op = None
-    notetbl_op = None
+    wave_size = _find_wave_size_by_freq_trace(
+        sid_path, binary, la, code_end, pos, first_note, num_notes, columns)
 
-    # mt_wavetbl-1 is the first LDA abs,Y operand that points into the table region
-    table_region_addr = la + pos  # absolute address of table region start
-    for i in range(code_end - 3):
-        if binary[i] == 0xB9:
-            addr = binary[i + 1] | (binary[i + 2] << 8)
-            if table_region_addr - 1 <= addr < table_region_addr + len(table_region):
-                if wavetbl_op is None:
-                    wavetbl_op = addr
-                elif addr > wavetbl_op and notetbl_op is None:
-                    # The notetbl operand should be AFTER wavetbl and point to the RIGHT column
-                    # It must be at least wave_min_size away from wavetbl
-                    if addr > wavetbl_op + 2:  # at least 3 entries
-                        notetbl_op = addr
-                        break
-
-    if wavetbl_op is not None and notetbl_op is not None:
-        wave_size = (notetbl_op + 1) - (wavetbl_op + 1)
-    elif wavetbl_op is not None:
-        # Fallback: assume wave takes the whole region (no other tables)
+    # Fallback: if trace fails, assume wave fills the table region
+    if wave_size <= 0:
         wave_size = len(table_region) // 2
-    else:
-        wave_size = 0
 
     result['wave_size'] = wave_size
+    tp = 0
     result['wave_left'] = bytes(table_region[tp:tp + wave_size])
     tp += wave_size
     result['wave_right'] = bytes(table_region[tp:tp + wave_size])
