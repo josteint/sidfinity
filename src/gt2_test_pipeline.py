@@ -13,8 +13,6 @@ from gt2_parse_direct import parse_gt2_direct
 from usf_to_sid import usf_pattern_to_gt2
 from gt2_packer import pack_gt2
 
-# Import detect_flags
-sys.path.insert(0, '/tmp')
 from detect_flags import detect_gt2_flags
 
 SIDDUMP = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'tools', 'siddump')
@@ -242,8 +240,9 @@ def test_single(sid_path, duration=10, verbose=False):
     if song is None:
         return {'status': 'usf_fail', 'path': sid_path}
 
-    # Use all features enabled — safer than trying to detect which ones
-    # the original used. Unused code paths don't affect audio.
+    # Start with all features enabled, then disable based on actual data.
+    # This ensures the data layout matches: tables that don't exist in the
+    # data aren't emitted by the packer (no phantom bytes to shift offsets).
     flags = {k: 0 for k in [
         'NOEFFECTS','NOGATE','NOFILTER','NOFILTERMOD','NOPULSE','NOPULSEMOD',
         'NOWAVEDELAY','NOWAVECMD','NOREPEAT','NOTRANS','NOPORTAMENTO','NOTONEPORTA',
@@ -253,6 +252,10 @@ def test_single(sid_path, duration=10, verbose=False):
         'NOFIRSTWAVECMD','NOCALCULATEDSPEED','NONORMALSPEED','NOZEROSPEED']}
     flags['FIXEDPARAMS'] = 0
     flags['SIMPLEPULSE'] = 0
+
+    # Keep all features enabled — the original GT2 packer includes ALL
+    # instrument columns and tables even when unused (zero-filled).
+    # Disabling features removes columns, shifting the wave table position.
 
     # Build SID
     try:
