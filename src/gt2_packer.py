@@ -224,11 +224,19 @@ def pack_gt2(
     buf.append('\n')
 
     # --- Insert data ---
-    # Frequency tables
+    # Frequency tables. If custom tables are provided (from decompiler),
+    # they're already sliced to the correct range — emit as-is.
+    # If using default PAL tables, slice by first_note/last_note.
     insertlabel(buf, 'mt_freqtbllo')
-    insertbytes(buf, freq_lo[first_note:last_note + 1])
+    if len(freq_lo) <= last_note - first_note + 1:
+        insertbytes(buf, freq_lo)  # already sliced
+    else:
+        insertbytes(buf, freq_lo[first_note:last_note + 1])
     insertlabel(buf, 'mt_freqtblhi')
-    insertbytes(buf, freq_hi[first_note:last_note + 1])
+    if len(freq_hi) <= last_note - first_note + 1:
+        insertbytes(buf, freq_hi)  # already sliced
+    else:
+        insertbytes(buf, freq_hi[first_note:last_note + 1])
 
     # Song table (address lo/hi for each orderlist)
     insertlabel(buf, 'mt_songtbllo')
