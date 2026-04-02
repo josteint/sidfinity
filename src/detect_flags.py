@@ -4,8 +4,24 @@ Port of greloc.c's optimization logic.
 """
 
 
-def detect_gt2_flags(song, r):
-    """Detect compilation flags from USF Song and parse_gt2_direct result.
+def _gate_timer_raw(inst):
+    """Reconstruct GT2 raw gate_timer byte from Instrument fields."""
+    raw = getattr(inst, '_gate_timer_raw', None)
+    if raw is not None:
+        return raw
+    return (
+        (inst.gate_timer & 0x3F) |
+        (0x40 if inst.legato else 0) |
+        (0x80 if inst.hr_method == 'none' else 0)
+    )
+
+
+def detect_gt2_flags(song, r=None):
+    """Detect compilation flags from USF Song object.
+
+    Args:
+        song: USF Song object with instruments, patterns, orderlists, tables.
+        r: Deprecated, ignored. Kept for backward compatibility.
 
     Returns dict of flag_name → 0 (enabled) or 1 (disabled).
     """
@@ -82,18 +98,6 @@ def detect_gt2_flags(song, r):
             elif cmd == 0:
                 F['NOEFFECTS'] = 0
 
-    # --- Column presence from parsed binary ---
-    # The number of columns in the original binary tells us which features
-    # were compiled in. This overrides the data-based detection below.
-    col_data = r.get('col_data', {}) if r else {}
-    if 'pulse_ptr' in col_data:
-        F['NOPULSE'] = 0
-    if 'filter_ptr' in col_data:
-        F['NOFILTER'] = 0
-    if 'vib_param' in col_data:
-        F['NOINSTRVIB'] = 0
-        F['NOVIB'] = 0
-
     # --- Scan instruments ---
     for inst in song.instruments:
         if inst.vib_speed_idx > 0:
@@ -140,7 +144,7 @@ def detect_gt2_flags(song, r):
     # --- FIXEDPARAMS ---
     FIXEDPARAMS = 1
     if len(song.instruments) > 1:
-        gt_vals = [getattr(inst, '_gate_timer_raw', inst.gate_timer) for inst in song.instruments]
+        gt_vals = [_gate_timer_raw(inst) for inst in song.instruments]
         fw_vals = [inst.first_wave for inst in song.instruments]
         if len(set(gt_vals)) > 1:
             FIXEDPARAMS = 0
