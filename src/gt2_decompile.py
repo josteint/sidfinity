@@ -21,6 +21,31 @@ from gt2_packer import FREQ_HI_PAL, FREQ_LO_PAL
 SIDDUMP = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'tools', 'siddump')
 
 
+def classify_instruments(gate_timer_col):
+    """Classify instruments by gate_timer flags into normal/nohr/legato groups.
+
+    greloc.c sorts instruments: normal HR first, then no-HR (bit 7 set),
+    then legato (bit 6 set). The packed binary has them in this sorted order.
+
+    Args:
+        gate_timer_col: list of gate_timer byte values, one per instrument.
+
+    Returns:
+        (num_normal, num_nohr, num_legato) tuple. These sum to len(gate_timer_col).
+    """
+    num_normal = 0
+    num_nohr = 0
+    num_legato = 0
+    for gt in gate_timer_col:
+        if gt & 0x40:
+            num_legato += 1
+        elif gt & 0x80:
+            num_nohr += 1
+        else:
+            num_normal += 1
+    return num_normal, num_nohr, num_legato
+
+
 def _find_wave_size_by_freq_trace(sid_path, binary, la, code_end, table_start_off,
                                     first_note, num_notes, columns, songs=1):
     """Determine wave table size by tracing the first note's frequency output.
@@ -466,6 +491,17 @@ def decompile_gt2(sid_path):
 
     result['columns'] = columns
 
+    # === Instrument classification ===
+    # Detect normal/nohr/legato counts from gate_timer column.
+    # If gate_timer column is absent (FIXEDPARAMS=1), all instruments are normal.
+    if 'gate_timer' in columns:
+        num_normal, num_nohr, num_legato = classify_instruments(columns['gate_timer'])
+    else:
+        num_normal, num_nohr, num_legato = ni, 0, 0
+    result['num_normal'] = num_normal
+    result['num_nohr'] = num_nohr
+    result['num_legato'] = num_legato
+
     # === Step 4: Tables ===
     # Everything between instrument columns end and first orderlist = tables
     # Tables go in order: wave_L, wave_R, [pulse_L, pulse_R], [filter_L, filter_R],
@@ -612,6 +648,7 @@ if __name__ == '__main__':
     print(f"first_note={r['first_note']}, num_notes={r['num_notes']}")
     print(f"wave_size={r['wave_size']}")
     print(f"pulse: {len(r['pulse_left'])}B, filter: {len(r['filter_left'])}B, speed: {len(r['speed_left'])}B")
+    print(f"instruments: normal={r['num_normal']}, nohr={r['num_nohr']}, legato={r['num_legato']}")
     print(f"table_remaining={len(r['table_remaining'])}B")
 
     print(f"\nColumns:")
