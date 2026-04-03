@@ -215,6 +215,7 @@ class Song:
     # SRPARAM: SR value written during hard restart (default $00).
     ad_param: int = 0x0F
     sr_param: int = 0x00
+    multiplier: int = 0        # multispeed: 0=normal, 2-8=CIA timer multiplier (2.1% of GT2 files)
 
 
 # ============================================================
