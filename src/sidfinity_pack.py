@@ -192,7 +192,7 @@ def pack_sidfinity(
     dflags = [
         f'-Dbase=${base_addr:x}',
         f'-DSIDBASE=$d400',
-        f'-DFIRSTNOTE=${first_note:x}',
+        f'-DFIRSTNOTE=$0',  # Always 0: full 96-note freq table emitted
         f'-DDEFAULTTEMPO=${default_tempo:x}',
         f'-DADPARAM=${ad_param:x}',
         f'-DSRPARAM=${sr_param:x}',
@@ -214,17 +214,14 @@ def pack_sidfinity(
 
     # --- Insert data (greloc.c order) ---
 
-    # Frequency tables
+    # Frequency tables — always emit the full 96-note PAL table (notes 0-95).
+    # Many GT2 files have FIRSTNOTE > 0 but wave table lookups can reference
+    # notes below FIRSTNOTE, causing out-of-range reads into player code.
+    # The full table is only 192 bytes — negligible cost for correctness.
     insertlabel(buf, 'mt_freqtbllo')
-    if len(freq_lo) <= last_note - first_note + 1:
-        insertbytes(buf, freq_lo)
-    else:
-        insertbytes(buf, freq_lo[first_note:last_note + 1])
+    insertbytes(buf, FREQ_LO_PAL)
     insertlabel(buf, 'mt_freqtblhi')
-    if len(freq_hi) <= last_note - first_note + 1:
-        insertbytes(buf, freq_hi)
-    else:
-        insertbytes(buf, freq_hi[first_note:last_note + 1])
+    insertbytes(buf, FREQ_HI_PAL)
 
     # Song table
     insertlabel(buf, 'mt_songtbllo')
@@ -418,7 +415,7 @@ def pack_from_decompiled(d, output_path):
     sid_bytes, player_size = pack_sidfinity(
         base_addr=d['la'],
         songs=1,
-        first_note=d['first_note'],
+        first_note=0,   # Always 0: full 96-note freq table
         last_note=95,
         default_tempo=5,
         num_instruments=ni,
@@ -436,8 +433,7 @@ def pack_from_decompiled(d, output_path):
         speed_right=d['speed_right'] or None,
         orderlists=d['orderlists'],
         patterns=d['patterns'],
-        freq_lo=d['freq_lo'],
-        freq_hi=d['freq_hi'],
+        # freq_lo/freq_hi: use default full PAL table (not decompiled slice)
         title=title,
         author=author,
     )

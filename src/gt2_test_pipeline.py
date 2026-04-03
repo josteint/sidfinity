@@ -138,7 +138,7 @@ def build_sid_from_usf(sid_path, song, r, flags):
         flags=flags,
         base_addr=r['la'],
         songs=1,
-        first_note=song.first_note,
+        first_note=0,   # Always 0: full 96-note freq table
         last_note=95,
         default_tempo=song.tempo - 1,
         num_instruments=ni,
