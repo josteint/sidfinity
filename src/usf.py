@@ -216,6 +216,7 @@ class Song:
     ad_param: int = 0x0F
     sr_param: int = 0x00
     multiplier: int = 0        # multispeed: 0=normal, 2-8=CIA timer multiplier (2.1% of GT2 files)
+    psid_flags: int = 0x0014   # PSID header flags: clock + SID model (GT2-specific)
     songs: int = 1             # number of subtunes (NUMSONGS)
     # Extra orderlists for multi-song files (songs > 1).
     # Layout: extra_orderlists[i] for i in range((songs-1)*3).
