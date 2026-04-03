@@ -2,8 +2,9 @@
 ; SIDfinity 6502 Player
 ; =============================================================================
 ; Assembler  xa65         Build  xa -o out.bin sidfinity_player.s
-; Behaviour  GT2 V2.68 Group B
-;   SR-before-AD, wave-only on new-note frame, all features compiled in.
+; Behaviour  GT2 V2.68 Group B, buffered writes
+;   All SID register writes deferred to ce_ldregs -- pulse SR AD freq wave.
+;   Matches GT2 BUFFEREDWRITES=1 write order to avoid pulse-ahead timing.
 ; =============================================================================
 
 ; ---- assemble-standalone defaults (packer overrides with -D) -----------------
@@ -662,11 +663,8 @@ ce_pnj          iny
                 tya
                 sta mt_chnpulseptr,x
 
-ce_pwr          lda mt_chnpulselo,x
-                sta SIDBASE+2,x
-                lda mt_chnpulsehi,x
-                sta SIDBASE+3,x
-
+ce_pwr                                  ; pulse shadow updated above;
+                                        ; actual SID write deferred to ce_ldregs
 ce_pskip
 
 ; =============================================================================
@@ -748,12 +746,10 @@ ce_note         cmp #REST
                 cmp #FIRSTNOHRINSTR
                 bcs ce_skhr
 
-                ; hard restart (Group B order)
+                ; hard restart (Group B) -- shadow only; SID write at ce_ldregs
                 lda #SRPARAM
-                sta SIDBASE+6,x
                 sta mt_chnsr,x
                 lda #ADPARAM
-                sta SIDBASE+5,x
                 sta mt_chnad,x
 
 ce_skhr         lda #$fe
@@ -793,9 +789,17 @@ ce_noend        tya
                 sta mt_chnpattptr,x
 
 ; =============================================================================
-; Register writes
+; Register writes -- GT2 BUFFEREDWRITES order: pulse SR AD freq wave
 ; =============================================================================
 ce_ldregs
+                lda mt_chnpulselo,x
+                sta SIDBASE+2,x
+                lda mt_chnpulsehi,x
+                sta SIDBASE+3,x
+                lda mt_chnsr,x
+                sta SIDBASE+6,x
+                lda mt_chnad,x
+                sta SIDBASE+5,x
                 lda mt_chnfreqlo,x
                 sta SIDBASE,x
                 lda mt_chnfreqhi,x
@@ -931,21 +935,19 @@ ce_nfi
                 lda #0
                 sta mt_chnwavetime,x
 
-                ; ADSR (Group B)
+                ; ADSR (Group B) -- shadow only; SID write deferred to ce_ldregs
                 ldy mt_chninstr,x
                 lda mt_inssr-1,y
-                sta SIDBASE+6,x
                 sta mt_chnsr,x
                 lda mt_insad-1,y
-                sta SIDBASE+5,x
                 sta mt_chnad,x
 
                 ; tick-0 effect
                 lda mt_chnnewparam,x
 ce_t0j1         jsr mt_t0_nop
 
-                ; Group B - wave only
-                jmp ce_ldwav
+                ; buffered writes -- write all regs at once
+                jmp ce_ldregs
 
 ce_nnn
                 lda mt_chnnewparam,x
@@ -973,11 +975,9 @@ mt_t0_34
                 sta mt_chnfx,x
                 rts
 
-mt_t0_5         sta SIDBASE+5,x
-                sta mt_chnad,x
+mt_t0_5         sta mt_chnad,x
                 rts
-mt_t0_6         sta SIDBASE+6,x
-                sta mt_chnsr,x
+mt_t0_6         sta mt_chnsr,x
                 rts
 mt_t0_7         sta mt_chnwave,x
                 rts
