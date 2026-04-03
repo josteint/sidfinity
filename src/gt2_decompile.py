@@ -648,8 +648,81 @@ def decompile_gt2(sid_path):
         if trace_wave_size > 0:
             wave_size = trace_wave_size
 
-    # Compute expected total and check for missing table sizes
+    # Validate wave_size against max wave_ptr.
+    # Wave pointers are 1-based indices into the wave table. If max(wave_ptr)
+    # exceeds wave_size, the table was truncated — scan for the correct end.
+    max_wave_ptr = max(columns.get('wave_ptr', [0]))
+    if max_wave_ptr > wave_size and len(table_region) > max_wave_ptr:
+        # Scan from max_wave_ptr-1 (0-based) for the next $FF (jump marker)
+        for scan_idx in range(max_wave_ptr - 1, min(len(table_region) // 2, max_wave_ptr + 64)):
+            if table_region[scan_idx] == 0xFF:
+                wave_size = scan_idx + 1
+                break
+        else:
+            wave_size = max_wave_ptr  # fallback: at least cover all pointers
+
+    # If wave_size was corrected upward, pulse/filter sizes from parse_direct
+    # may be wrong (they were computed with the smaller wave_size). Recalculate
+    # from the remaining space.
     speed_overhead = (2 + speed_size * 2) if speed_size > 0 else 0
+    known_bytes = wave_size * 2 + pulse_size * 2 + filter_size * 2 + speed_overhead
+    if known_bytes > len(table_region):
+        # Table sizes overflow — recalculate pulse/filter/speed from remaining space
+        remaining_for_others = len(table_region) - wave_size * 2
+        # Use max ptr values as minimum sizes
+        max_pp = max(columns.get('pulse_ptr', [0])) if has_pulse else 0
+        max_fp = max(columns.get('filter_ptr', [0])) if has_filter else 0
+
+        if has_pulse and has_filter and not has_speed:
+            # Scan pulse table data to find its boundary.
+            # Pulse table entries end with $FF (jump marker).
+            # Find the last $FF that makes sense as pulse table end.
+            pulse_start = wave_size * 2
+            pulse_size = 0
+            for scan in range(max(max_pp, 1), remaining_for_others // 2):
+                if pulse_start + scan - 1 < len(table_region) and table_region[pulse_start + scan - 1] == 0xFF:
+                    # Check if the remaining bytes can fit filter table
+                    candidate_filter = (remaining_for_others - scan * 2) // 2
+                    if candidate_filter >= max_fp:
+                        pulse_size = scan
+            if pulse_size == 0:
+                # Fallback: split evenly based on minimum requirements
+                pulse_size = max(max_pp, remaining_for_others // 4)
+            filter_size = (remaining_for_others - pulse_size * 2) // 2
+            speed_size = 0
+        elif has_pulse and has_filter and has_speed:
+            # Try to find pulse boundary, then filter, rest is speed
+            pulse_start = wave_size * 2
+            pulse_size = 0
+            for scan in range(max(max_pp, 1), remaining_for_others // 2):
+                if pulse_start + scan - 1 < len(table_region) and table_region[pulse_start + scan - 1] == 0xFF:
+                    candidate_rest = remaining_for_others - scan * 2
+                    # Filter must fit, and speed has 2-byte overhead
+                    if candidate_rest >= max_fp * 2 + 4:
+                        pulse_size = scan
+            if pulse_size == 0:
+                pulse_size = max(max_pp, 1)
+            after_pulse = remaining_for_others - pulse_size * 2
+            # Find filter boundary
+            filter_start = wave_size * 2 + pulse_size * 2
+            filter_size = 0
+            for scan in range(max(max_fp, 1), after_pulse // 2):
+                if filter_start + scan - 1 < len(table_region) and table_region[filter_start + scan - 1] == 0xFF:
+                    filter_size = scan
+            if filter_size == 0:
+                filter_size = max(max_fp, 1)
+            speed_data = after_pulse - filter_size * 2
+            speed_size = max(0, (speed_data - 2) // 2) if speed_data >= 4 else 0
+        else:
+            # Simpler cases
+            if has_pulse:
+                pulse_size = max(max_pp, (remaining_for_others - (max_fp * 2 if has_filter else 0)) // 2)
+            if has_filter:
+                filter_size = max(max_fp, (remaining_for_others - pulse_size * 2) // 2)
+            speed_size = 0
+        speed_overhead = (2 + speed_size * 2) if speed_size > 0 else 0
+
+    # Recompute after potential corrections
     known_bytes = wave_size * 2 + pulse_size * 2 + filter_size * 2 + speed_overhead
     remaining_after_known = len(table_region) - known_bytes
 

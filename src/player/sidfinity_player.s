@@ -148,6 +148,7 @@ fi_sid          sta SIDBASE,x
 
                 lda #$0f
                 sta mt_g_mvol+1
+                sta SIDBASE+$18     ; set volume immediately (match GT2 init)
                 lda #8
                 sta mt_funktbl
                 lda #5

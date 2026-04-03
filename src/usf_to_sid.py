@@ -78,7 +78,11 @@ def usf_pattern_to_gt2(pattern):
 
         rows.append(bytes(row))
 
-    # Compress consecutive rests
+    # Compress consecutive rests.
+    # Never emit a packed rest ($C0+) as the first byte of a pattern —
+    # the SIDfinity player checks mt_chnpattptr==0 to detect "need new pattern",
+    # and a packed rest at position 0 keeps pattptr at 0, causing the player
+    # to re-read the orderlist on every tick 0 during the rest.
     packed = bytearray()
     i = 0
     while i < len(rows):
@@ -89,6 +93,10 @@ def usf_pattern_to_gt2(pattern):
                 count += 1
                 i += 1
             is_last = (i >= len(rows))  # this is the last run before ENDPATT
+            # If this is at the start of the pattern, emit one explicit $BD first
+            if len(packed) == 0 and count > 1:
+                packed.append(GT2_REST)
+                count -= 1
             while count > 0:
                 if count == 1:
                     packed.append(GT2_REST)
