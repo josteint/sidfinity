@@ -184,6 +184,29 @@ def pack_sidfinity(
 
     num_patt = len(patterns)
 
+    # --- Build full freq tables from note 0 ---
+    # The player accesses freq tables at indices below FIRSTNOTE when:
+    #   - A wave table entry has a relative note offset
+    #   - No note was played yet (stored note = 0)
+    #   - The resulting absolute note < FIRSTNOTE
+    # In the original binary, bytes before the freq table happen to produce
+    # specific values. We fix this by always emitting the full PAL freq table
+    # from note 0, so all lookups are valid. This costs at most ~19 extra bytes
+    # per table (typical FIRSTNOTE is 19).
+    if first_note > 0:
+        # Build full tables: PAL values for notes 0..first_note-1,
+        # then the extracted table for first_note..last_note
+        full_lo = bytearray(FREQ_LO_PAL[:first_note]) + bytearray(freq_lo)
+        full_hi = bytearray(FREQ_HI_PAL[:first_note]) + bytearray(freq_hi)
+        # Extend to last_note+1 if needed
+        if len(full_lo) < last_note + 1:
+            full_lo.extend(FREQ_LO_PAL[len(full_lo):last_note + 1])
+        if len(full_hi) < last_note + 1:
+            full_hi.extend(FREQ_HI_PAL[len(full_hi):last_note + 1])
+        freq_lo = bytes(full_lo[:last_note + 1])
+        freq_hi = bytes(full_hi[:last_note + 1])
+        first_note = 0
+
     # --- Build xa65 command-line -D flags ---
     # The player uses #ifndef guards for these symbols, so we pass them
     # via -D to override the defaults without causing label-redefinition errors.
