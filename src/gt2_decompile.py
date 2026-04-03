@@ -511,6 +511,30 @@ def decompile_gt2(sid_path):
             nowavedelay = False
             break
 
+    # Detect BUFFEREDWRITES from player binary.
+    # Find mt_loadregswaveonly: BD xx xx 3D xx xx 9D 04 D4 60
+    # Then check if the loadregs path before it writes to $D405/$D406 via BD (LDA abs,X).
+    buffered_writes = True  # default: assume buffered (most common)
+    for i in range(code_end - 10):
+        if (binary[i] == 0xBD and binary[i+3] == 0x3D and
+                binary[i+6] == 0x9D and binary[i+7] == 0x04 and
+                binary[i+8] == 0xD4 and binary[i+9] == 0x60):
+            # Found mt_loadregswaveonly at offset i
+            # Search backwards for freq stores: BD xx xx 9D 00 D4 BD xx xx 9D 01 D4
+            for j in range(max(0, i - 30), i):
+                if (binary[j] == 0xBD and binary[j+3] == 0x9D and
+                        binary[j+4] == 0x00 and binary[j+5] == 0xD4):
+                    # Found freq_lo store. Check 30 bytes before for ADSR stores.
+                    has_adsr = False
+                    for k in range(max(0, j - 30), j):
+                        if (binary[k] == 0xBD and binary[k+3] == 0x9D and
+                                binary[k+4] in (0x05, 0x06) and binary[k+5] == 0xD4):
+                            has_adsr = True
+                            break
+                    buffered_writes = has_adsr
+                    break
+            break
+
     # Detect ADPARAM/SRPARAM using the version detector
     from gt2_detect_version import detect_gt2_player_group
     ver_info = detect_gt2_player_group(sid_path)
@@ -536,6 +560,7 @@ def decompile_gt2(sid_path):
         'first_note': first_note, 'num_notes': num_notes,
         'psid_flags': psid_flags,
         'nowavedelay': nowavedelay,
+        'buffered_writes': buffered_writes,
         'ad_param': ad_param,
         'sr_param': sr_param,
     }

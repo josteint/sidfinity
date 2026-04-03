@@ -63,8 +63,12 @@ def gt2_to_usf(sid_path):
 
     # Derive behavioral parameters from player group
     group = ver['group'] if ver else 'B'  # default to Group B (most common)
-    # BUFFEREDWRITES is the common case for GT2 — all regs written on new-note.
-    # TODO: detect BUFFEREDWRITES=0 from binary and set 'wave_only' for those files.
+    # BUFFEREDWRITES detected and stored in d['buffered_writes'].
+    # wave_only mode is correct for BW=0 + Group B+ but needs more
+    # work in the SIDfinity player to match GT2's exact frame timing.
+    # For now, use all_regs (safe default, ~99% match) for all files.
+    # TODO: fix player wave_only implementation and enable per-file.
+    bw = d.get('buffered_writes', True)
     if group == 'A':
         adsr_order = 'ad_first'
         loadregs_order = 'ad_first'
