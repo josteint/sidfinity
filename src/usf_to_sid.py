@@ -8,8 +8,8 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import usf
 from usf import Song, Pattern, NoteEvent
-from sidfinity_packer import pack_sid
-from gt2_to_usf import pack_wave_left, pack_wave_right
+from sidfinity_pack import pack_sidfinity, ALL_COLUMNS
+from gt2_to_usf import pack_wave_left, pack_wave_right, detect_nowavedelay
 
 GT2_ENDPATT = 0x00
 GT2_FIRSTNOTE = 0x60
@@ -338,21 +338,36 @@ def usf_to_sid(song, output_path=None):
     speed_l = bytes([e.left for e in song.speed_table]) if song.speed_table else None
     speed_r = bytes([e.right for e in song.speed_table]) if song.speed_table else None
 
-    sid_bytes, player_size = pack_sid(
-        title=song.title,
-        author=song.author,
+    # Build instruments dict for SIDfinity packer (all 9 columns)
+    instruments = {
+        'ad': bytes(ad_col),
+        'sr': bytes(sr_col),
+        'wave_ptr': bytes(wp_col),
+        'pulse_ptr': bytes(pp_col),
+        'filter_ptr': bytes(fp_col),
+        'vib_param': bytes(vp_col),
+        'vib_delay': bytes(vd_col),
+        'gate_timer': bytes(gt_col),
+        'first_wave': bytes(fw_col),
+    }
+
+    # Classify instruments for packer
+    num_normal = num_nohr = num_legato = 0
+    for g in gt_col:
+        if g & 0x40: num_legato += 1
+        elif g & 0x80: num_nohr += 1
+        else: num_normal += 1
+
+    sid_bytes, player_size = pack_sidfinity(
+        songs=1,
+        first_note=0,  # always full freq table
+        last_note=95,
+        default_tempo=getattr(song, 'tempo', 6) - 1,
         num_instruments=ni,
-        freq_lo=freq_lo,
-        freq_hi=freq_hi,
-        instruments_ad=ad_col,
-        instruments_sr=sr_col,
-        instruments_firstwave=fw_col,
-        instruments_gatetimer=gt_col,
-        instruments_waveptr=wp_col,
-        instruments_vibparam=vp_col,
-        instruments_vibdelay=vd_col,
-        instruments_pulseptr=pp_col,
-        instruments_filtptr=fp_col,
+        num_normal=num_normal,
+        num_nohr=num_nohr,
+        num_legato=num_legato,
+        instruments=instruments,
         wave_left=bytes(wave_l) if wave_l else bytes([0]),
         wave_right=bytes(wave_r) if wave_r else bytes([0]),
         pulse_left=bytes(pulse_l) if pulse_l else None,
@@ -363,7 +378,10 @@ def usf_to_sid(song, output_path=None):
         speed_right=speed_r,
         orderlists=gt2_orderlists,
         patterns=gt2_patterns,
-        default_tempo=getattr(song, 'tempo', 6),
+        title=song.title,
+        author=song.author,
+        psid_flags=getattr(song, 'psid_flags', 0x0014) if hasattr(song, 'psid_flags') else 0x0014,
+        nowavedelay=True,  # USF stores .sng values → packer always needs to add bias
         ad_param=getattr(song, 'ad_param', 0x0F),
         sr_param=getattr(song, 'sr_param', 0x00),
     )

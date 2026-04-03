@@ -72,6 +72,7 @@ def gt2_to_usf(sid_path):
         gt2_player_group=ver['group'] if ver else '',
         ad_param=d.get('ad_param', 0x0F),
         sr_param=d.get('sr_param', 0x00),
+        psid_flags=d.get('psid_flags', 0x0014),
     )
 
     # DEFAULTTEMPO: extract from binary
