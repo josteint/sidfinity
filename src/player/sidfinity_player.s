@@ -112,7 +112,9 @@ mt_play
                 bmi mp_run
                 jmp mt_fullinit
 mp_run
+#ifndef NOFILTER
                 jsr mt_filterexec
+#endif
                 ldx #0
                 jsr mt_execchn
                 ldx #7
@@ -187,6 +189,7 @@ fi_ch           tya
 ; =============================================================================
 ; Filter table exec (global, once per frame)
 ; =============================================================================
+#ifndef NOFILTER
 mt_filterexec
 mt_g_fstep      ldy #0
                 beq fe_out
@@ -236,6 +239,18 @@ mt_g_ftype      lda #0
 mt_g_mvol       ora #$0f
                 sta SIDBASE+$18
                 rts
+#else
+; NOFILTER: minimal — just write volume
+mt_filterexec
+mt_g_mvol       lda #$0f
+                sta SIDBASE+$18
+mt_g_fstep = mt_g_mvol
+mt_g_ftime = mt_g_mvol
+mt_g_fcut  = mt_g_mvol
+mt_g_fctrl = mt_g_mvol
+mt_g_ftype = mt_g_mvol
+                rts
+#endif
 
 ; =============================================================================
 ; Channel execution   X = 0, 7, or 14
@@ -345,10 +360,14 @@ ce_wcmd
                 bcs ce_wct0
 
                 ; commands 0-4 - continuous effects
+#ifdef NOEFFECTS
+                jmp ce_pulse
+#else
                 sta mt_chnfx,x
                 lda mt_wv_param
                 sta mt_chnparam,x
                 jmp ce_runfx
+#endif
 
 ce_wct0
                 ; commands 5-F - tick0 effects
@@ -363,6 +382,9 @@ ce_wcjsr        jsr mt_t0_nop
 
 ; wave done - no freq change, run continuous effects
 ce_wdone
+#ifdef NOEFFECTS
+                jmp ce_pulse
+#else
                 lda mt_chncounter,x
                 bne ce_wdgo
                 jmp ce_pulse
@@ -372,7 +394,9 @@ ce_runfx        ldy mt_chnparam,x
                 bne ce_rfgo
                 jmp ce_pulse
 ce_rfgo
+#endif
 
+#ifndef NOEFFECTS
                 ; load speed table entry
                 lda mt_speedlefttbl-1,y
                 bmi ce_calcspd
@@ -609,6 +633,7 @@ ce_tpsnap
                 lda #0
                 sta mt_chnvibtime,x
                 jmp ce_pulse
+#endif
 
 ; =============================================================================
 ; Pulse table execution

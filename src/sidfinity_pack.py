@@ -167,6 +167,9 @@ def pack_sidfinity(
     newnote_reg_scope='wave_only',
     ghost_regs='none',
     vibrato_param_fix=False,
+    # Feature stripping
+    has_filter=True,
+    has_effects=True,
 ):
     """Pack GT2 data using xa65 + SIDfinity player. Returns (sid_bytes, player_size)."""
     ni = num_instruments
@@ -221,6 +224,11 @@ def pack_sidfinity(
         dflags.append(f'-DGHOSTREGS=1')
     if vibrato_param_fix:
         dflags.append('-DVIBRATO_PARAM_FIX=1')
+    # Feature stripping — remove unused code to fit within frame budget
+    if not has_filter:
+        dflags.append('-DNOFILTER=1')
+    if not has_effects:
+        dflags.append('-DNOEFFECTS=1')
 
     # --- Build assembly source ---
     buf = []
