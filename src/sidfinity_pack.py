@@ -215,6 +215,8 @@ def pack_sidfinity(
         dflags.append('-DLOADREGS_AD_FIRST=1')
     if newnote_reg_scope == 'all_regs':
         dflags.append('-DNEWNOTE_ALL_REGS=1')
+    if newnote_reg_scope == 'wave_only':
+        dflags.append('-DUNBUFFERED_WRITES=1')
     if ghost_regs != 'none':
         dflags.append(f'-DGHOSTREGS=1')
     if vibrato_param_fix:
