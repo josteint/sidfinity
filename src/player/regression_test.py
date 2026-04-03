@@ -17,8 +17,6 @@ import json
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from gt2_decompile import decompile_gt2
-from sidfinity_pack import pack_from_decompiled
 from gt2_compare import compare_sids_tolerant
 
 REGISTRY_PATH = os.path.join(os.path.dirname(__file__), 'regression_registry.json')
@@ -38,13 +36,17 @@ def save_registry(entries):
 
 
 def run_pipeline(sid_path):
-    """Run the full pipeline on a SID. Returns (grade, score, comp) or None on failure."""
+    """Run the full pipeline THROUGH USF. Returns (grade, score, comp) or None on failure."""
     try:
-        d = decompile_gt2(sid_path)
-        if not d:
+        # SID → USF
+        from gt2_to_usf import gt2_to_usf
+        song = gt2_to_usf(sid_path)
+        if not song:
             return None
-        ok = pack_from_decompiled(d, TEMP_SID)
-        if not ok:
+        # USF → SID (via SIDfinity player)
+        from usf_to_sid import usf_to_sid
+        sid_bytes, _ = usf_to_sid(song, TEMP_SID)
+        if not sid_bytes:
             return None
         comp = compare_sids_tolerant(sid_path, TEMP_SID, 10)
         if not comp:
