@@ -393,6 +393,10 @@ def usf_to_sid(song, output_path=None):
         newnote_reg_scope=getattr(song, 'newnote_reg_scope', 'wave_only'),
         ghost_regs=getattr(song, 'ghost_regs', 'none'),
         vibrato_param_fix=getattr(song, 'vibrato_param_fix', False),
+        # Feature stripping — detect which features the song uses
+        has_filter=bool(song.shared_filter_table) or any(i.filter_ptr > 0 for i in song.instruments),
+        has_effects=any(i.vib_speed_idx > 0 for i in song.instruments) or
+                    any(ev.command in (1,2,3,4) for p in song.patterns for ev in p.events if ev.command is not None),
     )
 
     if output_path:
