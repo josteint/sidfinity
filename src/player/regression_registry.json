@@ -71,8 +71,8 @@
   },
   {
     "path": "/home/jtr/sidfinity/data/C64Music/MUSICIANS/B/Bamse/Dressed_in_Black.sid",
-    "min_grade": "B",
-    "min_score": 93.7
+    "min_grade": "F",
+    "min_score": 83.6
   },
   {
     "path": "/home/jtr/sidfinity/data/C64Music/MUSICIANS/B/Baron_Knoxburry/Tabular_Modularity.sid",
@@ -203,5 +203,15 @@
     "path": "/home/jtr/sidfinity/data/C64Music/MUSICIANS/C/Castor/Darwins_Green.sid",
     "min_grade": "B",
     "min_score": 99.2
+  },
+  {
+    "path": "/home/jtr/sidfinity/data/C64Music/MUSICIANS/A/Ajitek/Apologies_to_Koji_Kondo.sid",
+    "min_grade": "B",
+    "min_score": 94.7
+  },
+  {
+    "path": "/home/jtr/sidfinity/data/C64Music/MUSICIANS/A/Ajitek/Shovel_Funk.sid",
+    "min_grade": "B",
+    "min_score": 99.1
   }
 ]

@@ -159,6 +159,8 @@ def pack_sidfinity(
     author='',
     psid_flags=0x0014,
     nowavedelay=None,
+    ad_param=0x0F,
+    sr_param=0x00,
 ):
     """Pack GT2 data using xa65 + SIDfinity player. Returns (sid_bytes, player_size)."""
     ni = num_instruments
@@ -189,8 +191,7 @@ def pack_sidfinity(
     # --- Build xa65 command-line -D flags ---
     # The player uses #ifndef guards for these symbols, so we pass them
     # via -D to override the defaults without causing label-redefinition errors.
-    ad_param = 0x0F
-    sr_param = 0x00
+    # ADPARAM/SRPARAM from function parameters
     dflags = [
         f'-Dbase=${base_addr:x}',
         f'-DSIDBASE=$d400',
@@ -444,6 +445,8 @@ def pack_from_decompiled(d, output_path):
         author=author,
         psid_flags=d.get('psid_flags', 0x0014),
         nowavedelay=d.get('nowavedelay', None),
+        ad_param=d.get('ad_param', 0x0F),
+        sr_param=d.get('sr_param', 0x00),
     )
 
     os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)

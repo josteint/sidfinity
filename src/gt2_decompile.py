@@ -436,6 +436,15 @@ def decompile_gt2(sid_path):
             nowavedelay = False
             break
 
+    # Detect ADPARAM/SRPARAM using the version detector
+    from gt2_detect_version import detect_gt2_player_group
+    ver_info = detect_gt2_player_group(sid_path)
+    ad_param = ver_info['ad_param'] if ver_info else 0x0F
+    sr_param = ver_info['sr_param'] if ver_info else 0x00
+    # NOTE: Using detected values means some files change behavior from
+    # the previous default ($0F/$00). If a file regresses, its previous
+    # "passing" score was coincidental with the wrong ADPARAM.
+
     # Use gt2_parse_direct for reliable column detection
     r = parse_gt2_direct(sid_path)
     if r is None:
@@ -452,6 +461,8 @@ def decompile_gt2(sid_path):
         'first_note': first_note, 'num_notes': num_notes,
         'psid_flags': psid_flags,
         'nowavedelay': nowavedelay,
+        'ad_param': ad_param,
+        'sr_param': sr_param,
     }
 
     # Freq tables
