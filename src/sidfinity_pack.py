@@ -157,6 +157,8 @@ def pack_sidfinity(
     # PSID header
     title='',
     author='',
+    psid_flags=0x0014,
+    nowavedelay=None,  # True=no bias in data, False=has bias, None=auto-detect from data
 ):
     """Pack GT2 data using xa65 + SIDfinity player. Returns (sid_bytes, player_size)."""
     ni = num_instruments
@@ -257,11 +259,12 @@ def pack_sidfinity(
     # Wave table — SIDfinity player always has wave delay support,
     # so wave left bytes $10-$DF must have the +$10 bias applied.
     # If the original had NOWAVEDELAY=1, the packed data has no bias.
-    # Detect and apply: if no entry in $10-$1F range (delay region after bias),
-    # then the data lacks the bias.
     wl = bytearray(wave_left)
-    needs_bias = not any(0x10 <= b <= 0x1F for b in wl if b != 0xFF)
-    if needs_bias:
+    if nowavedelay is None:
+        # Auto-detect: if any byte is in the delay-after-bias range ($10-$1F),
+        # the bias was already applied. Otherwise assume it needs adding.
+        nowavedelay = not any(0x10 <= b <= 0x1F for b in wl if b != 0xFF)
+    if nowavedelay:
         for i in range(len(wl)):
             if 0x10 <= wl[i] <= 0xDF:  # waveform range (not delay, cmd, or jump)
                 wl[i] += 0x10
@@ -415,6 +418,11 @@ def pack_from_decompiled(d, output_path):
     title = d.get('title', '')
     author = d.get('author', '')
 
+    # Detect NOWAVEDELAY from the original binary: if the player code has
+    # CMP #$10 / BCS, it has wave delay support (NOWAVEDELAY=0, bias applied).
+    # If not, NOWAVEDELAY=1 (no bias, we need to add it).
+    nowavedelay = d.get('nowavedelay', None)
+
     sid_bytes, player_size = pack_sidfinity(
         base_addr=d['la'],
         songs=1,
@@ -438,6 +446,8 @@ def pack_from_decompiled(d, output_path):
         patterns=d['patterns'],
         freq_lo=d['freq_lo'],
         freq_hi=d['freq_hi'],
+        psid_flags=d.get('psid_flags', 0x0014),
+        nowavedelay=nowavedelay,
         title=title,
         author=author,
     )
