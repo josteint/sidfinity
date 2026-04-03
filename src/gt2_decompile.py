@@ -45,6 +45,8 @@ def _extract_gt2_pattern(binary, start_off):
     continuation marker: $00 = ENDPATT, anything else = more rows.
     """
     result = bytearray()
+    if start_off < 0 or start_off >= len(binary):
+        return bytes(result)
     p = start_off
     limit = min(start_off + 512, len(binary))
 
@@ -648,14 +650,15 @@ def decompile_gt2(sid_path):
     for vi in range(song_entries):
         ol_off = ol_addrs[vi] - la
         ol = bytearray()
-        for j in range(200):
-            if ol_off + j >= len(binary):
-                break
-            ol.append(binary[ol_off + j])
-            if binary[ol_off + j] == 0xFF:
-                if ol_off + j + 1 < len(binary):
-                    ol.append(binary[ol_off + j + 1])
-                break
+        if 0 <= ol_off < len(binary):
+            for j in range(200):
+                if ol_off + j >= len(binary):
+                    break
+                ol.append(binary[ol_off + j])
+                if binary[ol_off + j] == 0xFF:
+                    if ol_off + j + 1 < len(binary):
+                        ol.append(binary[ol_off + j + 1])
+                    break
         orderlists.append(bytes(ol))
     result['orderlists'] = orderlists
 
