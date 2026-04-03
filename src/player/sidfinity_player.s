@@ -641,8 +641,7 @@ ce_pulse
                 ldy mt_chnpulseptr,x
                 beq ce_pskip
 
-                ; gate timer check — skip pulse on gatetimer frame (GT2 behavior:
-                ; with PULSEOPTIMIZATION, gate timer fires before pulse execution)
+                ; gate timer check — skip pulse on gatetimer frame
                 lda mt_chncounter,x
                 cmp mt_chngatetimer,x
                 beq ce_pskip
@@ -825,11 +824,9 @@ ce_rest         lda #0
                 sta mt_chnpkrest,x
                 iny
                 lda (mt_temp1),y
-                cmp #ENDPATT
-                bne ce_noend
-                lda #0
-                sta mt_chnpattptr,x
-                jmp ce_ldregs
+                bne ce_noend         ; Z from LDA: 0=ENDPATT
+                sta mt_chnpattptr,x  ; A=0 already
+                beq ce_ldregs        ; unconditional (A=0)
 ce_noend        tya
                 sta mt_chnpattptr,x
 
@@ -947,7 +944,7 @@ ce_newn
                 sta mt_chnfx,x
                 sta mt_chnnewnote,x
 
-                ldy mt_chninstr,x
+                ; Y = instrument index from gate timer load (line 932)
                 lda mt_insvibdelay-1,y
                 sta mt_chnvibdelay,x
                 lda mt_insvibparam-1,y
@@ -958,8 +955,7 @@ ce_newn
                 cmp #3
                 beq ce_nnn
 
-                ; first-frame waveform
-                ldy mt_chninstr,x
+                ; first-frame waveform (Y still = instrument)
                 lda mt_insfirstwave-1,y
                 beq ce_skfw
                 cmp #$fe
@@ -969,31 +965,27 @@ ce_skfw
                 lda #$ff
                 sta mt_chngate,x
 
-                ; pulse ptr
-                ldy mt_chninstr,x
+                ; pulse ptr (Y still = instrument)
                 lda mt_inspulseptr-1,y
                 beq ce_npi
                 sta mt_chnpulseptr,x
                 lda #0
                 sta mt_chnpulsetime,x
 ce_npi
-                ; filter ptr
-                ldy mt_chninstr,x
+                ; filter ptr (Y still = instrument)
                 lda mt_insfiltptr-1,y
                 beq ce_nfi
                 sta mt_g_fstep+1
                 lda #0
                 sta mt_g_ftime+1
 ce_nfi
-                ; wave ptr
-                ldy mt_chninstr,x
+                ; wave ptr (Y still = instrument)
                 lda mt_inswaveptr-1,y
                 sta mt_chnwaveptr,x
                 lda #0
                 sta mt_chnwavetime,x
 
-                ; ADSR -- order determined by USF adsr_write_order field
-                ldy mt_chninstr,x
+                ; ADSR (Y still = instrument)
 #ifdef ADSR_ORDER_AD_FIRST
                 lda mt_insad-1,y
                 sta mt_chnad,x
