@@ -21,6 +21,134 @@ from gt2_packer import FREQ_HI_PAL, FREQ_LO_PAL
 SIDDUMP = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'tools', 'siddump')
 
 
+def _extract_gt2_pattern(binary, start_off):
+    """Extract a GT2 packed pattern following the original player's byte parsing.
+
+    In GT2 packed format, $00 is only ENDPATT when it appears at a row
+    boundary (the "next byte after note/rest" check).  A $00 can also appear
+    as a command parameter (e.g. FX param = 0), in which case it is NOT
+    the end marker.  Naive extraction that stops at the first $00 byte
+    will truncate patterns that have zero-valued parameters, causing the
+    player to miss notes that follow.
+
+    This parser mirrors the GT2 V2.68 player's pattern reader logic:
+      - < $40: instrument byte, then read next byte
+      - $40-$4F: FX + note follows (FX cmd = byte & 0x0F, param if cmd!=0, then note)
+      - $50-$5F: FXONLY (FX cmd = byte & 0x0F, param if cmd!=0, then done)
+      - $60-$BC: note
+      - $BD: rest
+      - $BE: keyoff
+      - $BF: keyon
+      - >= $C0: packed rest (count in low bits)
+      - $00 at row start: ENDPATT
+    After each note/rest/keyon/keyoff/FXONLY, the next byte is the row
+    continuation marker: $00 = ENDPATT, anything else = more rows.
+    """
+    result = bytearray()
+    p = start_off
+    limit = min(start_off + 512, len(binary))
+
+    while p < limit:
+        byte = binary[p]
+
+        # Row start: $00 means end of pattern
+        if byte == 0x00:
+            result.append(byte)
+            break
+
+        # Instrument byte (< $40)
+        if byte < 0x40:
+            result.append(byte)
+            p += 1
+            if p >= limit:
+                break
+            byte = binary[p]
+            # Fall through to check the next byte (FX / note / etc.)
+
+        # FX + note ($40-$4F)
+        if 0x40 <= byte <= 0x4F:
+            result.append(byte)
+            cmd = byte & 0x0F
+            p += 1
+            if cmd != 0 and p < limit:
+                result.append(binary[p])  # FX param
+                p += 1
+            # Note byte follows
+            if p < limit:
+                note_byte = binary[p]
+                result.append(note_byte)
+                p += 1
+                # After note: read continuation marker
+                if 0x60 <= note_byte <= 0xBF:
+                    if p < limit:
+                        cont = binary[p]
+                        result.append(cont)
+                        if cont == 0x00:
+                            break  # ENDPATT
+                        p += 1
+                    continue
+                elif note_byte >= 0xC0:
+                    continue  # packed rest after FX
+                else:
+                    continue  # unexpected byte as note
+            continue
+
+        # FXONLY ($50-$5F)
+        if 0x50 <= byte <= 0x5F:
+            result.append(byte)
+            cmd = byte & 0x0F
+            p += 1
+            if cmd != 0 and p < limit:
+                result.append(binary[p])  # FX param
+                p += 1
+            # No note follows; read continuation marker
+            if p < limit:
+                cont = binary[p]
+                result.append(cont)
+                if cont == 0x00:
+                    break  # ENDPATT
+                p += 1
+            continue
+
+        # Note ($60-$BC)
+        if 0x60 <= byte <= 0xBC:
+            result.append(byte)
+            p += 1
+            # Continuation marker
+            if p < limit:
+                cont = binary[p]
+                result.append(cont)
+                if cont == 0x00:
+                    break  # ENDPATT
+                p += 1
+            continue
+
+        # Rest ($BD), keyoff ($BE), keyon ($BF)
+        if 0xBD <= byte <= 0xBF:
+            result.append(byte)
+            p += 1
+            # Continuation marker
+            if p < limit:
+                cont = binary[p]
+                result.append(cont)
+                if cont == 0x00:
+                    break  # ENDPATT
+                p += 1
+            continue
+
+        # Packed rest (>= $C0)
+        if byte >= 0xC0:
+            result.append(byte)
+            p += 1
+            continue
+
+        # Fallback: unknown byte, include and advance
+        result.append(byte)
+        p += 1
+
+    return bytes(result)
+
+
 def _find_wave_size_by_freq_trace(sid_path, binary, la, code_end, table_start_off,
                                     first_note, num_notes, columns):
     """Determine wave table size by tracing the first note's frequency output.
@@ -511,14 +639,8 @@ def decompile_gt2(sid_path):
     patterns = []
     for pi in range(num_patt):
         p_off = patt_addrs[pi] - la
-        patt = bytearray()
-        for j in range(300):
-            if p_off + j >= len(binary):
-                break
-            patt.append(binary[p_off + j])
-            if binary[p_off + j] == 0x00:  # ENDPATT
-                break
-        patterns.append(bytes(patt))
+        patt = _extract_gt2_pattern(binary, p_off)
+        patterns.append(patt)
     result['patterns'] = patterns
 
     return result
