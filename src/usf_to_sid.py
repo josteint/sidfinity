@@ -159,25 +159,20 @@ def usf_to_sid(song, output_path=None):
             (0x80 if inst.hr_method == 'none' else 0))
         fw_col[i] = inst.first_wave if inst.first_wave >= 0 else 0x41
 
-    # Build wave table. Shared wave table stores .sng-equivalent values;
-    # we must re-apply packed format transforms (left +$10, right XOR $80)
-    # before passing to the packer.
+    # Build wave table. Shared wave table stores .sng-equivalent values.
+    # Pass them as-is — the SIDfinity packer handles the +$10 bias.
+    # Right column: re-apply XOR $80 since the packer expects packed right bytes.
     wave_l = bytearray()
     wave_r = bytearray()
 
-    # Detect NOWAVEDELAY from the shared wave table: if any entry has
-    # a delay value ($01-$0F) in the left column, NOWAVEDELAY=0.
-    nowavedelay = True  # assume no delays unless we find one
-    for l, _ in song.shared_wave_table:
-        if 0 < l < 0x10:
-            nowavedelay = False
-            break
-
-    # Use shared wave table if available (preserves GT2 sharing layout)
     if song.shared_wave_table:
         for sng_l, sng_r in song.shared_wave_table:
-            wave_l.append(pack_wave_left(sng_l, nowavedelay))
-            wave_r.append(pack_wave_right(sng_r, sng_l))
+            wave_l.append(sng_l)
+            # Right column: pack XOR $80 (except for commands/jumps)
+            if sng_l >= 0xF0 or sng_l == 0xFF:
+                wave_r.append(sng_r)
+            else:
+                wave_r.append(sng_r ^ 0x80)
     elif not raw.get('wave_left'):
         # Build wave table with suffix-aware deduplication.
         # GT2's greloc.c shares suffixes: if inst B's steps are a suffix of
