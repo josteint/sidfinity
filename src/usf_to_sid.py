@@ -397,6 +397,10 @@ def usf_to_sid(song, output_path=None):
         has_filter=bool(song.shared_filter_table) or any(i.filter_ptr > 0 for i in song.instruments),
         has_effects=any(i.vib_speed_idx > 0 for i in song.instruments) or
                     any(ev.command in (1,2,3,4) for p in song.patterns for ev in p.events if ev.command is not None),
+        has_orderlist_features=any(t != 0 for ol in song.orderlists for _, t in ol) or
+                               any(len(set(ol)) < len(ol) and len(ol) > 2 for ol in song.orderlists),
+        has_tick0fx=any(ev.command is not None and ev.command != 0
+                        for p in song.patterns for ev in p.events),
     )
 
     if output_path:
