@@ -398,12 +398,18 @@ def decompile_gt2(sid_path):
     has_speed = has_vib
 
     # Get table sizes from parse_direct's operand analysis.
-    # When parse_direct reports 0 for a table that should exist (column present),
-    # calculate its size from the remaining table region after known tables.
     wave_size = r['wave_size']
     pulse_size = r['pulse_size'] if has_pulse else 0
     filter_size = r['filter_size'] if has_filter else 0
     speed_size = r['speed_size'] if has_speed else 0
+
+    # For small ni, validate wave_size with frequency trace FIRST
+    # (parse_direct is unreliable for ni<=3).
+    if ni <= 3 and len(table_region) > 0:
+        trace_wave_size = _find_wave_size_by_freq_trace(
+            sid_path, binary, la, code_end, pos, first_note, num_notes, columns)
+        if trace_wave_size > 0:
+            wave_size = trace_wave_size
 
     # Compute expected total and check for missing table sizes
     speed_overhead = (2 + speed_size * 2) if speed_size > 0 else 0
@@ -435,21 +441,6 @@ def decompile_gt2(sid_path):
                 elif name == 'speed':
                     speed_size = per_table
 
-    # For small ni (1-3), parse_direct's operand pair detection is unreliable
-    # (addresses too close together → false positives). Use freq trace to validate.
-    if ni <= 3 and len(table_region) > 0:
-        trace_wave_size = _find_wave_size_by_freq_trace(
-            sid_path, binary, la, code_end, pos, first_note, num_notes, columns)
-        if trace_wave_size > 0 and trace_wave_size != wave_size:
-            wave_size = trace_wave_size
-            # Recompute other table sizes with corrected wave_size
-            remaining_after_wave = len(table_region) - wave_size * 2
-            pulse_size = min(pulse_size, remaining_after_wave // 2)
-            filter_size = 0
-            speed_size = 0
-            rest = remaining_after_wave - pulse_size * 2
-            if rest >= 4 and has_speed:
-                speed_size = (rest - 2) // 2
     # Fallback if still no wave_size
     if wave_size <= 0 and len(table_region) > 0:
         wave_size = _find_wave_size_by_freq_trace(
