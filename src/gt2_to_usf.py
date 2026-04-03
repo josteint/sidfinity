@@ -61,6 +61,31 @@ def gt2_to_usf(sid_path):
     ni = d['ni']
     columns = d['columns']
 
+    # Derive behavioral parameters from player group
+    group = ver['group'] if ver else 'B'  # default to Group B (most common)
+    # BUFFEREDWRITES is the common case for GT2 — all regs written on new-note.
+    # TODO: detect BUFFEREDWRITES=0 from binary and set 'wave_only' for those files.
+    if group == 'A':
+        adsr_order = 'ad_first'
+        loadregs_order = 'ad_first'
+        newnote_scope = 'all_regs'
+        vib_fix = False
+    elif group == 'C':
+        adsr_order = 'sr_first'
+        loadregs_order = 'ad_first'  # Group C reverted loadregs to AD-first
+        newnote_scope = 'all_regs'
+        vib_fix = False
+    elif group == 'D':
+        adsr_order = 'sr_first'
+        loadregs_order = 'sr_first'
+        newnote_scope = 'all_regs'
+        vib_fix = True
+    else:  # B or unknown
+        adsr_order = 'sr_first'
+        loadregs_order = 'sr_first'
+        newnote_scope = 'all_regs'
+        vib_fix = False
+
     # Build Song
     song = Song(
         title='',  # TODO: extract from PSID header
@@ -73,6 +98,10 @@ def gt2_to_usf(sid_path):
         ad_param=d.get('ad_param', 0x0F),
         sr_param=d.get('sr_param', 0x00),
         psid_flags=d.get('psid_flags', 0x0014),
+        adsr_write_order=adsr_order,
+        loadregs_adsr_order=loadregs_order,
+        newnote_reg_scope=newnote_scope,
+        vibrato_param_fix=vib_fix,
     )
 
     # DEFAULTTEMPO: extract from binary

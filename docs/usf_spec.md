@@ -1,7 +1,7 @@
 # Universal Symbolic Format (USF) Specification
 
-**Version:** 0.7 (2026-04-02)
-**Status:** Draft — data roundtrip validated on 2690 GT2 files, player behavior groups detected
+**Version:** 0.8 (2026-04-03)
+**Status:** Draft — 41/43 regression tests pass through USF, player behavior fields added
 
 ## Purpose
 
@@ -80,16 +80,26 @@ Audibility grade: A (identical) / B (minor) / C (audible diffs) / F (broken)
 | freq_lo | bytes\|None | None | Custom freq table lo (96 bytes), None=PAL. *GT2-specific.* |
 | freq_hi | bytes\|None | None | Custom freq table hi (96 bytes), None=PAL. *GT2-specific.* |
 | first_note | int | 0 | First playable note index in freq table. GT2 FIRSTNOTE optimization: notes below this are silent. The freq table only contains entries from first_note to 95, saving memory. *GT2-specific.* |
-| gt2_player_group | string | '' | Player behavior group: 'A', 'B', 'C', 'D' (see below). *GT2-specific.* |
+| gt2_player_group | string | '' | Player behavior group: 'A', 'B', 'C', 'D' (see below). *GT2-specific — kept for provenance, not used by player.* |
+| adsr_write_order | string | 'sr_first' | ADSR register write order during hard restart and new-note init: 'ad_first' or 'sr_first' |
+| loadregs_adsr_order | string | 'sr_first' | ADSR write order in per-frame buffered register writes: 'ad_first' or 'sr_first' |
+| newnote_reg_scope | string | 'all_regs' | Registers written on new-note frame: 'all_regs' (buffered) or 'wave_only' (non-buffered) |
+| ghost_regs | string | 'none' | Shadow register buffer mode: 'none', 'full', or 'zp' |
+| vibrato_param_fix | bool | false | Zero vibrato param when instrument has no vibrato but pattern command does |
 
-**Player behavior group (GT2 only):** The GT2 player has 4 behavior groups that produce audibly different output from the same song data. The group determines ADSR write order, new-note register behavior, and vibrato handling. See `docs/gt2_player_versions.md` for full details.
+**Player behavior fields:** These 5 fields control how the SIDfinity player processes audio. They are **generic** — not tied to any specific source format. Any transpiler (GT2, DMC, JCH) populates them based on the source player's behavior. The SIDfinity player reads them at assembly time via `-D` flags.
 
-| Group | GT2 Versions | Key Behavior |
-|-------|-------------|--------------|
-| A | 2.65-2.67 | AD-before-SR writes, new-note writes all regs |
-| B | 2.68-2.72 | SR-before-AD writes, new-note writes wave-only |
-| C | 2.73-2.74 | B + ghost register support |
-| D | 2.76-2.77 | C + vibrato parameter fix |
+| Field | What it controls | GT2 Group A | GT2 Group B | GT2 Group C | GT2 Group D |
+|-------|-----------------|-------------|-------------|-------------|-------------|
+| adsr_write_order | HR + new-note ADSR order | ad_first | sr_first | sr_first | sr_first |
+| loadregs_adsr_order | Per-frame buffered write ADSR order | ad_first | sr_first | ad_first | sr_first |
+| newnote_reg_scope | New-note frame register scope | all_regs | all_regs* | all_regs* | all_regs* |
+| ghost_regs | Shadow buffer mode | none | none | none/full/zp | none/full/zp |
+| vibrato_param_fix | Zero stale vibrato param | false | false | false | true |
+
+\* Groups B/C/D use `wave_only` when BUFFEREDWRITES=0, but most files use BUFFEREDWRITES=1 (`all_regs`). Detection of BUFFEREDWRITES is TODO.
+
+**gt2_player_group** is retained for provenance (knowing which GT2 version created the file) but the player does NOT read it — it reads the 5 behavioral fields instead. This means non-GT2 formats can set the behavioral fields directly without needing a GT2 group label.
 
 **Shared tables (GT2-specific):** GT2 uses shared wave/pulse/filter tables where multiple instruments reference positions in a single array via pointer indices (wave_ptr, pulse_ptr, filter_ptr). Instruments can share suffixes, prefixes, or even have loop commands that point into other instruments' data. The shared table preserves this layout exactly. Each entry is a (left_byte, right_byte) pair storing the **packed binary format bytes** as they appear in the GT2 data -- not decoded USF objects. The encoding of each byte pair depends on the table type (see Wave Table, Pulse Table, Filter Table sections below for the binary layout). This means the shared tables are opaque byte arrays that the packer writes directly, while the per-instrument `wave_table`/`pulse_table`/`filter_table` lists contain decoded USF step objects used for ML training and human inspection.
 
