@@ -1,0 +1,175 @@
+"""
+regression_test.py — Regression test for the SIDfinity pipeline.
+
+Maintains a list of SIDs that are known-good. Each has a minimum
+grade and score that must be maintained. When fixing a new SID,
+run this first to ensure nothing regressed, then add the new SID
+to the list.
+
+Usage:
+    python3 src/player/regression_test.py              # run all tests
+    python3 src/player/regression_test.py --add <sid>  # add a new SID after verifying it
+"""
+
+import sys
+import os
+import json
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+
+from gt2_decompile import decompile_gt2
+from sidfinity_pack import pack_from_decompiled
+from gt2_compare import compare_sids_tolerant
+
+REGISTRY_PATH = os.path.join(os.path.dirname(__file__), 'regression_registry.json')
+TEMP_SID = '/tmp/sf_regression_test.sid'
+
+
+def load_registry():
+    if os.path.exists(REGISTRY_PATH):
+        with open(REGISTRY_PATH) as f:
+            return json.load(f)
+    return []
+
+
+def save_registry(entries):
+    with open(REGISTRY_PATH, 'w') as f:
+        json.dump(entries, f, indent=2)
+
+
+def run_pipeline(sid_path):
+    """Run the full pipeline on a SID. Returns (grade, score, comp) or None on failure."""
+    try:
+        d = decompile_gt2(sid_path)
+        if not d:
+            return None
+        ok = pack_from_decompiled(d, TEMP_SID)
+        if not ok:
+            return None
+        comp = compare_sids_tolerant(sid_path, TEMP_SID, 10)
+        if not comp:
+            return None
+        return comp['grade'], comp['score'], comp
+    except Exception as e:
+        print(f'  ERROR: {e}')
+        return None
+
+
+def run_tests():
+    """Run all regression tests. Returns True if all pass."""
+    entries = load_registry()
+    if not entries:
+        print('No regression tests registered. Use --add <sid_path> to add one.')
+        return True
+
+    passed = 0
+    failed = 0
+
+    print(f'Running {len(entries)} regression tests...\n')
+
+    for entry in entries:
+        path = entry['path']
+        min_grade = entry['min_grade']
+        min_score = entry['min_score']
+        name = os.path.basename(path)
+
+        if not os.path.exists(path):
+            print(f'  SKIP  {name} (file not found)')
+            continue
+
+        result = run_pipeline(path)
+        if result is None:
+            print(f'  FAIL  {name} — pipeline error')
+            failed += 1
+            continue
+
+        grade, score, comp = result
+
+        grade_order = {'A': 0, 'B': 1, 'C': 2, 'F': 3}
+        grade_ok = grade_order.get(grade, 9) <= grade_order.get(min_grade, 9)
+        score_ok = score >= min_score - 0.5  # small tolerance
+
+        if grade_ok and score_ok:
+            print(f'  PASS  {name:40s} Grade {grade} ({score:.1f}) >= {min_grade} ({min_score:.1f})')
+            passed += 1
+        else:
+            print(f'  FAIL  {name:40s} Grade {grade} ({score:.1f}) — expected >= {min_grade} ({min_score:.1f})')
+            # Show details
+            for v in range(3):
+                vr = comp['voices'][v]
+                issues = []
+                for k in ['note_wrong', 'wave_wrong', 'env_wrong', 'freq_fine', 'pulse_diff']:
+                    if vr.get(k, 0) > 0:
+                        pct = 100 * vr[k] / comp['total']
+                        issues.append(f'{k}:{pct:.1f}%')
+                if issues:
+                    print(f'        V{v+1}: {" ".join(issues)}')
+            failed += 1
+
+    print(f'\n{passed} passed, {failed} failed out of {len(entries)} tests')
+    return failed == 0
+
+
+def add_sid(sid_path):
+    """Add a SID to the regression registry after verifying it works."""
+    if not os.path.exists(sid_path):
+        print(f'File not found: {sid_path}')
+        return False
+
+    # Resolve to absolute path
+    sid_path = os.path.abspath(sid_path)
+    name = os.path.basename(sid_path)
+
+    print(f'Testing {name}...')
+    result = run_pipeline(sid_path)
+
+    if result is None:
+        print(f'Pipeline failed for {name}')
+        return False
+
+    grade, score, comp = result
+
+    print(f'  Grade {grade}, Score {score:.1f}')
+    for v in range(3):
+        vr = comp['voices'][v]
+        ok_pct = 100 * vr['ok'] / comp['total']
+        print(f'  V{v+1}: {ok_pct:.1f}% ok')
+
+    if grade not in ('A', 'B'):
+        print(f'\n  WARNING: Grade {grade} — only Grade A/B should be added to regression tests.')
+        resp = input('  Add anyway? [y/N] ')
+        if resp.lower() != 'y':
+            return False
+
+    entries = load_registry()
+
+    # Check if already registered
+    for e in entries:
+        if os.path.basename(e['path']) == name:
+            print(f'  Already registered. Updating...')
+            e['min_grade'] = grade
+            e['min_score'] = round(score, 1)
+            save_registry(entries)
+            print(f'  Updated: Grade >= {grade}, Score >= {score:.1f}')
+            return True
+
+    entries.append({
+        'path': sid_path,
+        'min_grade': grade,
+        'min_score': round(score, 1),
+    })
+    save_registry(entries)
+    print(f'  Added: Grade >= {grade}, Score >= {score:.1f}')
+    return True
+
+
+if __name__ == '__main__':
+    if len(sys.argv) > 1 and sys.argv[1] == '--add':
+        if len(sys.argv) < 3:
+            print('Usage: regression_test.py --add <sid_path>')
+            sys.exit(1)
+        ok = add_sid(sys.argv[2])
+        sys.exit(0 if ok else 1)
+    else:
+        ok = run_tests()
+        sys.exit(0 if ok else 1)
