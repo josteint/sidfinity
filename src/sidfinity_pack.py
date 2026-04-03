@@ -170,6 +170,8 @@ def pack_sidfinity(
     # Feature stripping
     has_filter=True,
     has_effects=True,
+    has_orderlist_features=True,
+    has_tick0fx=True,
 ):
     """Pack GT2 data using xa65 + SIDfinity player. Returns (sid_bytes, player_size)."""
     ni = num_instruments
@@ -229,6 +231,10 @@ def pack_sidfinity(
         dflags.append('-DNOFILTER=1')
     if not has_effects:
         dflags.append('-DNOEFFECTS=1')
+    if not has_orderlist_features:
+        dflags.append('-DNOORDERLISTFEATURES=1')
+    if not has_tick0fx:
+        dflags.append('-DNOTICK0FX=1')
 
     # --- Build assembly source ---
     buf = []

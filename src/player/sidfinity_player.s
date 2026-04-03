@@ -370,6 +370,7 @@ ce_wcmd
 #endif
 
 ce_wct0
+#ifndef NOTICK0FX
                 ; commands 5-F - tick0 effects
                 tay
                 lda mt_t0tbl_lo,y
@@ -378,6 +379,7 @@ ce_wct0
                 sta ce_wcjsr+2
                 lda mt_wv_param
 ce_wcjsr        jsr mt_t0_nop
+#endif
                 jmp ce_pulse
 
 ; wave done - no freq change, run continuous effects
@@ -878,6 +880,7 @@ ce_ldwav
 ; Tick 0 path
 ; =============================================================================
 ce_t0
+#ifndef NOTICK0FX
                 ; setup tick-0 effect dispatch
                 ldy mt_chnnewfx,x
                 lda mt_t0tbl_lo,y
@@ -886,6 +889,7 @@ ce_t0
                 lda mt_t0tbl_hi,y
                 sta ce_t0j1+2
                 sta ce_t0j2+2
+#endif
 
                 ; need new pattern?
                 lda mt_chnpattptr,x
@@ -907,6 +911,7 @@ ce_t0
                 tay
                 lda (mt_temp1),y
 ce_nolp
+#ifndef NOORDERLISTFEATURES
                 cmp #TRANSDN
                 bcc ce_notr
                 sec
@@ -929,6 +934,7 @@ ce_notr
                 iny
                 lda (mt_temp1),y
 ce_norep
+#endif
                 sta mt_chnpattnum,x
                 iny
                 tya
@@ -1021,8 +1027,10 @@ ce_nfi
 #endif
 
                 ; tick-0 effect
+#ifndef NOTICK0FX
                 lda mt_chnnewparam,x
 ce_t0j1         jsr mt_t0_nop
+#endif
 
                 ; register writes for new-note frame
 #ifdef UNBUFFERED_WRITES
@@ -1036,10 +1044,13 @@ ce_t0j1         jsr mt_t0_nop
 #endif
 
 ce_nnn
+#ifndef NOTICK0FX
                 lda mt_chnnewparam,x
 ce_t0j2         jsr mt_t0_nop
+#endif
                 jmp ce_wave
 
+#ifndef NOTICK0FX
 ; =============================================================================
 ; Tick-0 effect handlers
 ; =============================================================================
@@ -1154,6 +1165,7 @@ mt_t0tbl_hi
                 .byte >mt_t0_d
                 .byte >mt_t0_e
                 .byte >mt_t0_f
+#endif
 
 ; =============================================================================
 ; Scratch variables
