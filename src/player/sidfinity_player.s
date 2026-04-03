@@ -615,10 +615,14 @@ ce_pulse
                 ldy mt_chnpulseptr,x
                 beq ce_pskip
 
-                ; pulse optimization
+                ; gate timer check — skip pulse on gatetimer frame (GT2 behavior:
+                ; with PULSEOPTIMIZATION, gate timer fires before pulse execution)
                 lda mt_chncounter,x
-                bne ce_pgo
-                lda mt_chnpattptr,x
+                cmp mt_chngatetimer,x
+                beq ce_pskip
+
+                ; pulse optimization — skip when counter=0 AND pattptr=0
+                ora mt_chnpattptr,x
                 beq ce_pskip
 ce_pgo
                 lda mt_chnpulsetime,x
