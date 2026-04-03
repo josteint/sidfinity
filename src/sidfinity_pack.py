@@ -254,9 +254,19 @@ def pack_sidfinity(
 
     # Tables: wave, pulse, filter, speed (always all present)
 
-    # Wave table
+    # Wave table — SIDfinity player always has wave delay support,
+    # so wave left bytes $10-$DF must have the +$10 bias applied.
+    # If the original had NOWAVEDELAY=1, the packed data has no bias.
+    # Detect and apply: if no entry in $10-$1F range (delay region after bias),
+    # then the data lacks the bias.
+    wl = bytearray(wave_left)
+    needs_bias = not any(0x10 <= b <= 0x1F for b in wl if b != 0xFF)
+    if needs_bias:
+        for i in range(len(wl)):
+            if 0x10 <= wl[i] <= 0xDF:  # waveform range (not delay, cmd, or jump)
+                wl[i] += 0x10
     insertlabel(buf, 'mt_wavetbl')
-    insertbytes(buf, wave_left)
+    insertbytes(buf, bytes(wl))
     insertlabel(buf, 'mt_notetbl')
     insertbytes(buf, wave_right)
 
