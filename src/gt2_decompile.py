@@ -21,6 +21,81 @@ from gt2_packer import FREQ_HI_PAL, FREQ_LO_PAL
 SIDDUMP = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'tools', 'siddump')
 
 
+def _detect_speed_table_from_binary(binary, la, code_end, table_region_start, table_region_end):
+    """Detect speed table presence and location from player binary code.
+
+    Speed tables are referenced by LDA mt_speedlefttbl-1,Y and
+    LDA mt_speedrighttbl-1,Y (opcode B9). The table addresses fall within
+    the table region, after wave/pulse/filter tables.
+
+    Returns (speed_left_addr, speed_right_addr, speed_size) or (None, None, 0)
+    if no speed table detected.
+    """
+    # Collect all LDA abs,Y (B9) references into the table region
+    table_start_addr = la + table_region_start
+    table_end_addr = la + table_region_end
+    lda_refs = {}
+    for i in range(code_end - 3):
+        if binary[i] == 0xB9:  # LDA abs,Y
+            addr = binary[i + 1] | (binary[i + 2] << 8)
+            if table_start_addr <= addr < table_end_addr:
+                if addr not in lda_refs:
+                    lda_refs[addr] = []
+                lda_refs[addr].append(i)
+
+    # Speed table operands: LDA mt_speedlefttbl-1,Y => stored to mt_temp2 ($FD)
+    # and LDA mt_speedrighttbl-1,Y => stored to mt_temp1 ($FC)
+    # Find pairs: B9 addr / 85 FC or B9 addr / 85 FD
+    speed_l_operand = None  # mt_speedlefttbl - 1
+    speed_r_operand = None  # mt_speedrighttbl - 1
+    for addr, offsets in sorted(lda_refs.items()):
+        for off in offsets:
+            if off + 4 < code_end:
+                if binary[off + 3] == 0x85 and binary[off + 4] == 0xFD:
+                    # STA mt_temp2 => this is mt_speedlefttbl-1
+                    if speed_l_operand is None or addr > speed_l_operand:
+                        speed_l_operand = addr
+                elif binary[off + 3] == 0x85 and binary[off + 4] == 0xFC:
+                    # STA mt_temp1 => this could be mt_speedrighttbl-1
+                    # But only if it's in the table region and after any
+                    # known speed_l_operand position
+                    if speed_r_operand is None or addr > speed_r_operand:
+                        speed_r_operand = addr
+
+    if speed_l_operand is not None and speed_r_operand is not None:
+        # mt_speedlefttbl = speed_l_operand + 1
+        # mt_speedrighttbl = speed_r_operand + 1
+        # Speed size = gap between the two tables minus the $00 prefix byte
+        sl_start = speed_l_operand + 1  # absolute address
+        sr_start = speed_r_operand + 1
+        speed_size = sr_start - sl_start - 1  # minus the $00 separator
+        if speed_size > 0 and speed_size < 64:
+            return (sl_start - la, sr_start - la, speed_size)
+
+    # Fallback: only speed_r found (NOCALCULATEDSPEED=1 case -- only speedright used)
+    if speed_r_operand is not None and speed_l_operand is None:
+        # In NOCALCULATEDSPEED=1 mode, only mt_speedrighttbl is referenced.
+        # The speed_left table is still present but not directly accessed via STA $FD.
+        # Scan for a $00 byte before speed_r_operand+1 to find speed_left.
+        sr_start = speed_r_operand + 1
+        sr_off = sr_start - la
+        # Walk backwards from sr_off-1 (the $00 separator) to find another $00
+        # which would be the prefix before speed_left
+        if sr_off > 0 and binary[sr_off - 1] == 0x00:
+            # Found $00 separator. Now find the $00 prefix before speed_left.
+            # Speed_left entries are between the two $00 bytes.
+            # Search backwards for another $00 that's at the boundary
+            for scan_back in range(sr_off - 2, max(0, sr_off - 66), -1):
+                if binary[scan_back] == 0x00:
+                    speed_size = sr_off - 1 - scan_back - 1
+                    if speed_size > 0 and speed_size < 64:
+                        sl_off = scan_back + 1
+                        return (sl_off, sr_off, speed_size)
+                    break
+
+    return (None, None, 0)
+
+
 def _extract_gt2_pattern(binary, start_off):
     """Extract a GT2 packed pattern following the original player's byte parsing.
 
@@ -547,13 +622,23 @@ def decompile_gt2(sid_path):
     has_pulse = 'pulse_ptr' in columns
     has_filter = 'filter_ptr' in columns
     has_vib = 'vib_param' in columns
-    has_speed = has_vib
+
+    # Detect speed table from binary code (not just vib_param column).
+    # Speed tables are needed for toneportamento, regular portamento, and vibrato.
+    speed_detect = _detect_speed_table_from_binary(
+        binary, la, code_end, pos, first_ol_off)
+    has_speed = has_vib or speed_detect[2] > 0
 
     # Get table sizes from parse_direct's operand analysis.
     wave_size = r['wave_size']
     pulse_size = r['pulse_size'] if has_pulse else 0
     filter_size = r['filter_size'] if has_filter else 0
     speed_size = r['speed_size'] if has_speed else 0
+
+    # If parse_direct missed the speed table but binary detection found it,
+    # use the binary-detected size.
+    if speed_size == 0 and speed_detect[2] > 0:
+        speed_size = speed_detect[2]
 
     # For small ni, validate wave_size with frequency trace FIRST
     # (parse_direct is unreliable for ni<=3).
