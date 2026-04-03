@@ -210,11 +210,34 @@ class Song:
     # See docs/gt2_player_versions.md for full details.
     # Groups: A (v2.65-2.67), B (v2.68-2.72), C (v2.73-2.74), D (v2.76-2.77)
     gt2_player_group: str = ''  # 'A', 'B', 'C', 'D', or '' if unknown/not GT2
-    # Hard restart ADSR parameters (GT2-specific).
+    # Hard restart ADSR parameters.
     # ADPARAM: AD value written during hard restart (default $0F).
     # SRPARAM: SR value written during hard restart (default $00).
     ad_param: int = 0x0F
     sr_param: int = 0x00
+    # --- Player behavior fields ---
+    # These control how the SIDfinity player processes audio. They are
+    # generic (not GT2-specific) — any source format populates them.
+    # ADSR register write order during hard restart and new-note init.
+    # 'ad_first' = write AD then SR (GT2 Group A)
+    # 'sr_first' = write SR then AD (GT2 Groups B/C/D, default)
+    adsr_write_order: str = 'sr_first'
+    # ADSR write order in per-frame buffered register writes (loadregs).
+    # Group C reverted to 'ad_first' here while keeping 'sr_first' elsewhere.
+    loadregs_adsr_order: str = 'sr_first'
+    # Which registers are written on the new-note frame.
+    # 'all_regs' = freq+pulse+ADSR+wave (GT2 with BUFFEREDWRITES, most common)
+    # 'wave_only' = only waveform+gate, defer rest to next frame (GT2 non-buffered)
+    newnote_reg_scope: str = 'all_regs'
+    # Ghost register mode: shadow buffer flushed at frame start.
+    # 'none' = direct SID writes (most files)
+    # 'full' = 25-byte shadow buffer in RAM
+    # 'zp' = shadow buffer in zero page
+    ghost_regs: str = 'none'
+    # Vibrato parameter zeroing fix. When True, zero the vibrato param
+    # when instrument has no vibrato but pattern command does.
+    # False = Groups A/B/C (stale accumulator possible), True = Group D
+    vibrato_param_fix: bool = False
     multiplier: int = 0        # multispeed: 0=normal, 2-8=CIA timer multiplier (2.1% of GT2 files)
     psid_flags: int = 0x0014   # PSID header flags: clock + SID model (GT2-specific)
     songs: int = 1             # number of subtunes (NUMSONGS)

@@ -747,11 +747,18 @@ ce_note         cmp #REST
                 cmp #FIRSTNOHRINSTR
                 bcs ce_skhr
 
-                ; hard restart (Group B) -- shadow only; SID write at ce_ldregs
+                ; hard restart -- ADSR order from USF adsr_write_order
+#ifdef ADSR_ORDER_AD_FIRST
+                lda #ADPARAM
+                sta mt_chnad,x
+                lda #SRPARAM
+                sta mt_chnsr,x
+#else
                 lda #SRPARAM
                 sta mt_chnsr,x
                 lda #ADPARAM
                 sta mt_chnad,x
+#endif
 
 ce_skhr         lda #$fe
                 sta mt_chngate,x
@@ -790,9 +797,21 @@ ce_noend        tya
                 sta mt_chnpattptr,x
 
 ; =============================================================================
-; Register writes -- GT2 BUFFEREDWRITES order: pulse SR AD freq wave
+; Register writes -- configurable ADSR order via USF behavioral fields
 ; =============================================================================
 ce_ldregs
+#ifdef LOADREGS_AD_FIRST
+                ; Group A/C loadregs order: AD SR pulse freq wave
+                lda mt_chnad,x
+                sta SIDBASE+5,x
+                lda mt_chnsr,x
+                sta SIDBASE+6,x
+                lda mt_chnpulselo,x
+                sta SIDBASE+2,x
+                lda mt_chnpulsehi,x
+                sta SIDBASE+3,x
+#else
+                ; Group B/D loadregs order: pulse SR AD freq wave
                 lda mt_chnpulselo,x
                 sta SIDBASE+2,x
                 lda mt_chnpulsehi,x
@@ -801,6 +820,7 @@ ce_ldregs
                 sta SIDBASE+6,x
                 lda mt_chnad,x
                 sta SIDBASE+5,x
+#endif
                 lda mt_chnfreqlo,x
                 sta SIDBASE,x
                 lda mt_chnfreqhi,x
@@ -936,19 +956,30 @@ ce_nfi
                 lda #0
                 sta mt_chnwavetime,x
 
-                ; ADSR (Group B) -- shadow only; SID write deferred to ce_ldregs
+                ; ADSR -- order determined by USF adsr_write_order field
                 ldy mt_chninstr,x
+#ifdef ADSR_ORDER_AD_FIRST
+                lda mt_insad-1,y
+                sta mt_chnad,x
+                lda mt_inssr-1,y
+                sta mt_chnsr,x
+#else
                 lda mt_inssr-1,y
                 sta mt_chnsr,x
                 lda mt_insad-1,y
                 sta mt_chnad,x
+#endif
 
                 ; tick-0 effect
                 lda mt_chnnewparam,x
 ce_t0j1         jsr mt_t0_nop
 
-                ; buffered writes -- write all regs at once
-                jmp ce_ldregs
+                ; register writes for new-note frame
+#ifdef NEWNOTE_ALL_REGS
+                jmp ce_ldregs       ; Group A: write all regs on new-note frame
+#else
+                jmp ce_ldwav        ; Group B+: write only wave+gate, defer rest
+#endif
 
 ce_nnn
                 lda mt_chnnewparam,x
@@ -962,6 +993,11 @@ ce_t0j2         jsr mt_t0_nop
 mt_t0_nop
                 ldy mt_chninstr,x
                 lda mt_insvibparam-1,y
+#ifdef VIBRATO_PARAM_FIX
+                bne mt_t0_nv        ; Group D: if no inst vibrato, zero param
+                lda #0
+mt_t0_nv
+#endif
                 jmp mt_t0_34
 
 mt_t0_12

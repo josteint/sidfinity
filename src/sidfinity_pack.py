@@ -161,6 +161,12 @@ def pack_sidfinity(
     nowavedelay=None,
     ad_param=0x0F,
     sr_param=0x00,
+    # Player behavior
+    adsr_write_order='sr_first',
+    loadregs_adsr_order='sr_first',
+    newnote_reg_scope='wave_only',
+    ghost_regs='none',
+    vibrato_param_fix=False,
 ):
     """Pack GT2 data using xa65 + SIDfinity player. Returns (sid_bytes, player_size)."""
     ni = num_instruments
@@ -202,6 +208,17 @@ def pack_sidfinity(
         f'-DFIRSTNOHRINSTR=${num_normal + 1:x}',
         f'-DFIRSTLEGATOINSTR=${num_normal + num_nohr + 1:x}',
     ]
+    # Player behavior flags
+    if adsr_write_order == 'ad_first':
+        dflags.append('-DADSR_ORDER_AD_FIRST=1')
+    if loadregs_adsr_order == 'ad_first':
+        dflags.append('-DLOADREGS_AD_FIRST=1')
+    if newnote_reg_scope == 'all_regs':
+        dflags.append('-DNEWNOTE_ALL_REGS=1')
+    if ghost_regs != 'none':
+        dflags.append(f'-DGHOSTREGS=1')
+    if vibrato_param_fix:
+        dflags.append('-DVIBRATO_PARAM_FIX=1')
 
     # --- Build assembly source ---
     buf = []

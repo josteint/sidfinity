@@ -387,6 +387,12 @@ def usf_to_sid(song, output_path=None):
         nowavedelay=True,  # USF stores .sng values → packer always needs to add bias
         ad_param=getattr(song, 'ad_param', 0x0F),
         sr_param=getattr(song, 'sr_param', 0x00),
+        # Player behavior fields from USF
+        adsr_write_order=getattr(song, 'adsr_write_order', 'sr_first'),
+        loadregs_adsr_order=getattr(song, 'loadregs_adsr_order', 'sr_first'),
+        newnote_reg_scope=getattr(song, 'newnote_reg_scope', 'wave_only'),
+        ghost_regs=getattr(song, 'ghost_regs', 'none'),
+        vibrato_param_fix=getattr(song, 'vibrato_param_fix', False),
     )
 
     if output_path:
