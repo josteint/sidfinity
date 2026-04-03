@@ -138,6 +138,7 @@ def pack_gt2(
     author='',
     noauthorinfo=1,
     player_group='',
+    psid_flags=0x0014,
 ):
     """Pack GT2 data using gt2asm + player.s. Returns (sid_bytes, player_size)."""
     ni = num_instruments
@@ -189,8 +190,8 @@ def pack_gt2(
     insertdefine(buf, 'ZPGHOSTREGS', 0)
     insertdefine(buf, 'FIXEDPARAMS', F.get('FIXEDPARAMS', 1))
     insertdefine(buf, 'SIMPLEPULSE', F.get('SIMPLEPULSE', 1))
-    insertdefine(buf, 'PULSEOPTIMIZATION', 0)
-    insertdefine(buf, 'REALTIMEOPTIMIZATION', 0)
+    insertdefine(buf, 'PULSEOPTIMIZATION', 1)
+    insertdefine(buf, 'REALTIMEOPTIMIZATION', 1)
     insertdefine(buf, 'NOAUTHORINFO', noauthorinfo)
 
     for flag in ['NOEFFECTS','NOGATE','NOFILTER','NOFILTERMOD','NOPULSE','NOPULSEMOD',
@@ -383,7 +384,7 @@ def pack_gt2(
     header[22:22 + len(t)] = t
     a = author.encode('latin-1', errors='replace')[:31]
     header[54:54 + len(a)] = a
-    struct.pack_into('>H', header, 0x76, 0x0014)  # PAL, 6581
+    struct.pack_into('>H', header, 0x76, psid_flags)
 
     # SID file = header + load address + binary
     sid = bytearray()
