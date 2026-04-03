@@ -157,6 +157,7 @@ def pack_sidfinity(
     # PSID header
     title='',
     author='',
+    psid_flags=0x0014,
 ):
     """Pack GT2 data using xa65 + SIDfinity player. Returns (sid_bytes, player_size)."""
     ni = num_instruments
@@ -356,7 +357,7 @@ def pack_sidfinity(
     header[22:22 + len(t)] = t
     a = author.encode('latin-1', errors='replace')[:31]
     header[54:54 + len(a)] = a
-    struct.pack_into('>H', header, 0x76, 0x0014)  # PAL, 6581
+    struct.pack_into('>H', header, 0x76, psid_flags)  # clock + SID model from original
 
     # SID file = header + load address + binary
     sid = bytearray()
@@ -436,6 +437,7 @@ def pack_from_decompiled(d, output_path):
         # freq_lo/freq_hi: use default full PAL table (not decompiled slice)
         title=title,
         author=author,
+        psid_flags=d.get('psid_flags', 0x0014),
     )
 
     os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
@@ -468,11 +470,12 @@ def test_sidfinity_pack(sid_path, duration=10):
         print(f"Failed to decompile {sid_path}")
         return None
 
-    # Read title/author from original SID
+    # Read title/author/flags from original SID
     with open(sid_path, 'rb') as f:
         sid_data = f.read()
     d['title'] = sid_data[0x16:0x36].split(b'\x00')[0].decode('latin-1', errors='replace')
     d['author'] = sid_data[0x36:0x56].split(b'\x00')[0].decode('latin-1', errors='replace')
+    d['psid_flags'] = struct.unpack_from('>H', sid_data, 0x76)[0] if len(sid_data) > 0x77 else 0x0014
 
     # Step 2: Pack with SIDfinity player
     output_path = '/tmp/sidfinity_packed.sid'
@@ -536,6 +539,7 @@ if __name__ == '__main__':
             sid_data = f.read()
         d['title'] = sid_data[0x16:0x36].split(b'\x00')[0].decode('latin-1', errors='replace')
         d['author'] = sid_data[0x36:0x56].split(b'\x00')[0].decode('latin-1', errors='replace')
+        d['psid_flags'] = struct.unpack_from('>H', sid_data, 0x76)[0] if len(sid_data) > 0x77 else 0x0014
 
         try:
             result = pack_from_decompiled(d, output_path)

@@ -138,6 +138,7 @@ def pack_gt2(
     author='',
     noauthorinfo=1,
     player_group='',
+    psid_flags=0x0014,
 ):
     """Pack GT2 data using gt2asm + player.s. Returns (sid_bytes, player_size)."""
     ni = num_instruments
@@ -203,7 +204,7 @@ def pack_gt2(
 
     insertdefine(buf, 'NUMCHANNELS', 3)
     insertdefine(buf, 'NUMSONGS', songs)
-    insertdefine(buf, 'FIRSTNOTE', 0)  # Always 0: full 96-note freq table
+    insertdefine(buf, 'FIRSTNOTE', first_note)
     insertdefine(buf, 'FIRSTNOHRINSTR', num_normal + 1)
     insertdefine(buf, 'FIRSTLEGATOINSTR', num_normal + num_nohr + 1)
     insertdefine(buf, 'NUMHRINSTR', num_normal)
@@ -224,14 +225,19 @@ def pack_gt2(
     buf.append('\n')
 
     # --- Insert data ---
-    # Frequency tables — always emit the full 96-note PAL table (notes 0-95).
-    # Many GT2 files have FIRSTNOTE > 0 but wave table lookups can reference
-    # notes below FIRSTNOTE, causing out-of-range reads into player code.
-    # The full table is only 192 bytes — negligible cost for correctness.
+    # Frequency tables. If custom tables are provided (from decompiler),
+    # they're already sliced to the correct range — emit as-is.
+    # If using default PAL tables, slice by first_note/last_note.
     insertlabel(buf, 'mt_freqtbllo')
-    insertbytes(buf, FREQ_LO_PAL)
+    if len(freq_lo) <= last_note - first_note + 1:
+        insertbytes(buf, freq_lo)  # already sliced
+    else:
+        insertbytes(buf, freq_lo[first_note:last_note + 1])
     insertlabel(buf, 'mt_freqtblhi')
-    insertbytes(buf, FREQ_HI_PAL)
+    if len(freq_hi) <= last_note - first_note + 1:
+        insertbytes(buf, freq_hi)  # already sliced
+    else:
+        insertbytes(buf, freq_hi[first_note:last_note + 1])
 
     # Song table (address lo/hi for each orderlist)
     insertlabel(buf, 'mt_songtbllo')
@@ -378,7 +384,7 @@ def pack_gt2(
     header[22:22 + len(t)] = t
     a = author.encode('latin-1', errors='replace')[:31]
     header[54:54 + len(a)] = a
-    struct.pack_into('>H', header, 0x76, 0x0014)  # PAL, 6581
+    struct.pack_into('>H', header, 0x76, psid_flags)  # clock + SID model from original
 
     # SID file = header + load address + binary
     sid = bytearray()

@@ -10,6 +10,7 @@ the player code (exact). Frequency tracing is used as a fallback
 only when operand analysis fails.
 """
 
+import struct
 import sys
 import os
 import subprocess
@@ -288,6 +289,11 @@ def decompile_gt2(sid_path):
         data = f.read()
 
     header, binary, la = parse_psid_header(data)
+
+    # Extract PSID flags field (offset 0x76, big-endian 16-bit).
+    # Encodes clock (PAL/NTSC) and SID model (6581/8580).
+    psid_flags = struct.unpack_from('>H', data, 0x76)[0] if len(data) > 0x77 else 0x0014
+
     ft = find_freq_table(binary, la)
     if ft is None:
         return None
@@ -311,6 +317,7 @@ def decompile_gt2(sid_path):
     result = {
         'la': la, 'code_end': code_end, 'ni': ni, 'num_cols': num_cols,
         'first_note': first_note, 'num_notes': num_notes,
+        'psid_flags': psid_flags,
     }
 
     # Freq tables
