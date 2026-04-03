@@ -664,8 +664,14 @@ ce_pnj          iny
                 tya
                 sta mt_chnpulseptr,x
 
-ce_pwr                                  ; pulse shadow updated above;
-                                        ; actual SID write deferred to ce_ldregs
+ce_pwr
+#ifdef UNBUFFERED_WRITES
+                ; BW=0: write pulse directly to SID
+                lda mt_chnpulselo,x
+                sta SIDBASE+2,x
+                lda mt_chnpulsehi,x
+                sta SIDBASE+3,x
+#endif
 ce_pskip
 
 ; =============================================================================
@@ -759,6 +765,13 @@ ce_note         cmp #REST
                 lda #ADPARAM
                 sta mt_chnad,x
 #endif
+#ifdef UNBUFFERED_WRITES
+                ; BW=0: write ADSR directly to SID now
+                lda mt_chnsr,x
+                sta SIDBASE+6,x
+                lda mt_chnad,x
+                sta SIDBASE+5,x
+#endif
 
 ce_skhr         lda #$fe
                 sta mt_chngate,x
@@ -797,11 +810,15 @@ ce_noend        tya
                 sta mt_chnpattptr,x
 
 ; =============================================================================
-; Register writes -- configurable ADSR order via USF behavioral fields
+; Register writes -- configurable via USF behavioral fields
 ; =============================================================================
 ce_ldregs
+#ifdef UNBUFFERED_WRITES
+                ; BW=0: loadregs writes freq + wave only.
+                ; ADSR written inline during HR/new-note. Pulse written inline during pulse exec.
+#else
 #ifdef LOADREGS_AD_FIRST
-                ; Group A/C loadregs order: AD SR pulse freq wave
+                ; BW=1 Group A/C: AD SR pulse freq wave
                 lda mt_chnad,x
                 sta SIDBASE+5,x
                 lda mt_chnsr,x
@@ -811,7 +828,7 @@ ce_ldregs
                 lda mt_chnpulsehi,x
                 sta SIDBASE+3,x
 #else
-                ; Group B/D loadregs order: pulse SR AD freq wave
+                ; BW=1 Group B/D: pulse SR AD freq wave
                 lda mt_chnpulselo,x
                 sta SIDBASE+2,x
                 lda mt_chnpulsehi,x
@@ -820,6 +837,7 @@ ce_ldregs
                 sta SIDBASE+6,x
                 lda mt_chnad,x
                 sta SIDBASE+5,x
+#endif
 #endif
                 lda mt_chnfreqlo,x
                 sta SIDBASE,x
@@ -969,16 +987,27 @@ ce_nfi
                 lda mt_insad-1,y
                 sta mt_chnad,x
 #endif
+#ifdef UNBUFFERED_WRITES
+                ; BW=0: write ADSR directly to SID now
+                lda mt_chnsr,x
+                sta SIDBASE+6,x
+                lda mt_chnad,x
+                sta SIDBASE+5,x
+#endif
 
                 ; tick-0 effect
                 lda mt_chnnewparam,x
 ce_t0j1         jsr mt_t0_nop
 
                 ; register writes for new-note frame
-#ifdef NEWNOTE_ALL_REGS
-                jmp ce_ldregs       ; Group A: write all regs on new-note frame
+#ifdef UNBUFFERED_WRITES
+                jmp ce_ldwav        ; BW=0: wave+gate only, freq deferred
 #else
-                jmp ce_ldwav        ; Group B+: write only wave+gate, defer rest
+#ifdef NEWNOTE_ALL_REGS
+                jmp ce_ldregs       ; BW=1 Group A: write all regs
+#else
+                jmp ce_ldwav        ; BW=1 Group B+: wave+gate only
+#endif
 #endif
 
 ce_nnn

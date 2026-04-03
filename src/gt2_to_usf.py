@@ -63,31 +63,29 @@ def gt2_to_usf(sid_path):
 
     # Derive behavioral parameters from player group
     group = ver['group'] if ver else 'B'  # default to Group B (most common)
-    # BUFFEREDWRITES detected and stored in d['buffered_writes'].
-    # wave_only mode is correct for BW=0 + Group B+ but needs more
-    # work in the SIDfinity player to match GT2's exact frame timing.
-    # For now, use all_regs (safe default, ~99% match) for all files.
-    # TODO: fix player wave_only implementation and enable per-file.
+    # BUFFEREDWRITES detected from binary.
+    # BW=0: ADSR/pulse written inline (directly to SID), loadregs = freq+wave only
+    # BW=1: all regs flushed via loadregs at end of channel processing
     bw = d.get('buffered_writes', True)
     if group == 'A':
         adsr_order = 'ad_first'
         loadregs_order = 'ad_first'
-        newnote_scope = 'all_regs'
+        newnote_scope = 'all_regs'  # Group A always writes freq on new-note
         vib_fix = False
     elif group == 'C':
         adsr_order = 'sr_first'
         loadregs_order = 'ad_first'  # Group C reverted loadregs to AD-first
-        newnote_scope = 'all_regs'
+        newnote_scope = 'all_regs' if bw else 'wave_only'
         vib_fix = False
     elif group == 'D':
         adsr_order = 'sr_first'
         loadregs_order = 'sr_first'
-        newnote_scope = 'all_regs'
+        newnote_scope = 'all_regs' if bw else 'wave_only'
         vib_fix = True
     else:  # B or unknown
         adsr_order = 'sr_first'
         loadregs_order = 'sr_first'
-        newnote_scope = 'all_regs'
+        newnote_scope = 'all_regs' if bw else 'wave_only'
         vib_fix = False
 
     # Build Song
