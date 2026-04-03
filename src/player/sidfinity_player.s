@@ -371,14 +371,11 @@ ce_wcmd
 
 ce_wct0
 #ifndef NOTICK0FX
-                ; commands 5-F - tick0 effects
-                tay
-                lda mt_t0tbl_lo,y
-                sta ce_wcjsr+1
-                lda mt_t0tbl_hi,y
-                sta ce_wcjsr+2
+                ; commands 5-F - tick0 effects via wave table
+                sta mt_chnnewfx,x    ; command number in A (already 0-F)
                 lda mt_wv_param
-ce_wcjsr        jsr mt_t0_nop
+                sta mt_chnnewparam,x
+                jsr mt_t0_dispatch
 #endif
                 jmp ce_pulse
 
@@ -880,16 +877,6 @@ ce_ldwav
 ; Tick 0 path
 ; =============================================================================
 ce_t0
-#ifndef NOTICK0FX
-                ; setup tick-0 effect dispatch
-                ldy mt_chnnewfx,x
-                lda mt_t0tbl_lo,y
-                sta ce_t0j1+1
-                sta ce_t0j2+1
-                lda mt_t0tbl_hi,y
-                sta ce_t0j1+2
-                sta ce_t0j2+2
-#endif
 
                 ; need new pattern?
                 lda mt_chnpattptr,x
@@ -1028,8 +1015,7 @@ ce_nfi
 
                 ; tick-0 effect
 #ifndef NOTICK0FX
-                lda mt_chnnewparam,x
-ce_t0j1         jsr mt_t0_nop
+                jsr mt_t0_dispatch
 #endif
 
                 ; register writes for new-note frame
@@ -1045,79 +1031,41 @@ ce_t0j1         jsr mt_t0_nop
 
 ce_nnn
 #ifndef NOTICK0FX
-                lda mt_chnnewparam,x
-ce_t0j2         jsr mt_t0_nop
+                jsr mt_t0_dispatch
 #endif
                 jmp ce_wave
 
 #ifndef NOTICK0FX
 ; =============================================================================
-; Tick-0 effect handlers
+; Tick-0 effect dispatch — CMP chain (no dispatch tables)
 ; =============================================================================
-
-mt_t0_nop
-                ldy mt_chninstr,x
-                lda mt_insvibparam-1,y
-#ifdef VIBRATO_PARAM_FIX
-                bne mt_t0_nv        ; Group D: if no inst vibrato, zero param
-                lda #0
-mt_t0_nv
-#endif
-                jmp mt_t0_34
-
-mt_t0_12
-                pha
-                lda #0
-                sta mt_chnvibtime,x
-                pla
-
-mt_t0_34
-                sta mt_chnparam,x
-                lda mt_chnnewfx,x
-                sta mt_chnfx,x
-                rts
-
-mt_t0_5         sta mt_chnad,x
-                rts
-mt_t0_6         sta mt_chnsr,x
-                rts
-mt_t0_7         sta mt_chnwave,x
-                rts
-mt_t0_8         sta mt_chnwaveptr,x
-                pha
-                lda #0
-                sta mt_chnwavetime,x
-                pla
-                rts
-mt_t0_9         sta mt_chnpulseptr,x
-                pha
-                lda #0
-                sta mt_chnpulsetime,x
-                pla
-                rts
-mt_t0_a         sta mt_g_fstep+1
-                pha
-                lda #0
-                sta mt_g_ftime+1
-                pla
-                rts
-mt_t0_b         sta mt_g_fctrl+1
-                cmp #0
-                bne mt_t0b2
-                sta mt_g_fstep+1
-mt_t0b2         rts
-mt_t0_c         sta mt_g_fcut+1
-                rts
-mt_t0_d         sta mt_g_mvol+1
-                rts
-mt_t0_e         tay
-                lda mt_speedlefttbl-1,y
-                sta mt_funktbl
-                lda mt_speedrighttbl-1,y
-                sta mt_funktbl+1
-                lda #0
-
-mt_t0_f         cmp #$80
+mt_t0_dispatch
+                lda mt_chnnewparam,x
+                ldy mt_chnnewfx,x
+                beq mt_t0_fx0        ; FX 0: inst vibrato reload
+                cpy #5
+                bcc mt_t0_fx14       ; FX 1-4: porta/vib param set
+                beq mt_t0_fx5        ; FX 5: set AD
+                cpy #6
+                beq mt_t0_fx6        ; FX 6: set SR
+                cpy #7
+                beq mt_t0_fx7        ; FX 7: set wave
+                cpy #8
+                beq mt_t0_fx8        ; FX 8: set wave ptr
+                cpy #9
+                beq mt_t0_fx9        ; FX 9: set pulse ptr
+                cpy #$0a
+                beq mt_t0_fxa        ; FX A: set filter ptr
+                cpy #$0b
+                beq mt_t0_fxb        ; FX B: set filter ctrl
+                cpy #$0c
+                beq mt_t0_fxc        ; FX C: set filter cutoff
+                cpy #$0d
+                beq mt_t0_fxd        ; FX D: set master vol
+                cpy #$0e
+                beq mt_t0_fxe        ; FX E: funktempo
+                                     ; FX F: set tempo (fall through)
+mt_t0_fxf       cmp #$80
                 bcs mt_t0fc
                 sta mt_chntempo
                 sta mt_chntempo+7
@@ -1127,44 +1075,53 @@ mt_t0fc         and #$7f
                 sta mt_chntempo,x
                 rts
 
-; =============================================================================
-; Jump tables
-; =============================================================================
-mt_t0tbl_lo
-                .byte <mt_t0_nop
-                .byte <mt_t0_12
-                .byte <mt_t0_12
-                .byte <mt_t0_34
-                .byte <mt_t0_34
-                .byte <mt_t0_5
-                .byte <mt_t0_6
-                .byte <mt_t0_7
-                .byte <mt_t0_8
-                .byte <mt_t0_9
-                .byte <mt_t0_a
-                .byte <mt_t0_b
-                .byte <mt_t0_c
-                .byte <mt_t0_d
-                .byte <mt_t0_e
-                .byte <mt_t0_f
+mt_t0_fx0       ldy mt_chninstr,x
+                lda mt_insvibparam-1,y
+#ifdef VIBRATO_PARAM_FIX
+                bne mt_t0_fx34
+                lda #0
+#endif
+mt_t0_fx14                           ; FX 1-4: set param + fx
+mt_t0_fx34
+                sta mt_chnparam,x
+                lda mt_chnnewfx,x
+                sta mt_chnfx,x
+                rts
 
-mt_t0tbl_hi
-                .byte >mt_t0_nop
-                .byte >mt_t0_12
-                .byte >mt_t0_12
-                .byte >mt_t0_34
-                .byte >mt_t0_34
-                .byte >mt_t0_5
-                .byte >mt_t0_6
-                .byte >mt_t0_7
-                .byte >mt_t0_8
-                .byte >mt_t0_9
-                .byte >mt_t0_a
-                .byte >mt_t0_b
-                .byte >mt_t0_c
-                .byte >mt_t0_d
-                .byte >mt_t0_e
-                .byte >mt_t0_f
+mt_t0_fx5       sta mt_chnad,x
+                rts
+mt_t0_fx6       sta mt_chnsr,x
+                rts
+mt_t0_fx7       sta mt_chnwave,x
+                rts
+mt_t0_fx8       sta mt_chnwaveptr,x
+                lda #0
+                sta mt_chnwavetime,x
+                rts
+mt_t0_fx9       sta mt_chnpulseptr,x
+                lda #0
+                sta mt_chnpulsetime,x
+                rts
+mt_t0_fxa       sta mt_g_fstep+1
+                lda #0
+                sta mt_g_ftime+1
+                rts
+mt_t0_fxb       sta mt_g_fctrl+1
+                cmp #0
+                bne mt_t0bx
+                sta mt_g_fstep+1
+mt_t0bx         rts
+mt_t0_fxc       sta mt_g_fcut+1
+                rts
+mt_t0_fxd       sta mt_g_mvol+1
+                rts
+mt_t0_fxe       tay
+                lda mt_speedlefttbl-1,y
+                sta mt_funktbl
+                lda mt_speedrighttbl-1,y
+                sta mt_funktbl+1
+                lda #0
+                beq mt_t0_fxf        ; unconditional (A=0)
 #endif
 
 ; =============================================================================
