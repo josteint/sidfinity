@@ -416,6 +416,11 @@ def decompile_gt2(sid_path):
         data = f.read()
 
     header, binary, la = parse_psid_header(data)
+
+    # Extract PSID flags (clock + SID model)
+    import struct
+    psid_flags = struct.unpack_from('>H', data, 0x76)[0] if len(data) > 0x77 else 0x0014
+
     ft = find_freq_table(binary, la)
     if ft is None:
         return None
@@ -424,21 +429,29 @@ def decompile_gt2(sid_path):
     first_note = ft[1]
     num_notes = ft[2]
 
+    # Detect NOWAVEDELAY from player binary: CMP #$10 / BCS = has delay
+    nowavedelay = True  # default: no delay feature
+    for i in range(code_end - 3):
+        if binary[i] == 0xC9 and binary[i + 1] == 0x10 and binary[i + 2] == 0xB0:
+            nowavedelay = False
+            break
+
     # Use gt2_parse_direct for reliable column detection
     r = parse_gt2_direct(sid_path)
     if r is None:
         return None
 
     ni = r['ni']
-    num_cols = min(r['num_columns'], 9)  # GT2 max is 9 columns
-    col_start = r['col_operands']['ad'] + 1  # first byte of AD column
+    num_cols = min(r['num_columns'], 9)
+    col_start = r['col_operands']['ad'] + 1
     col_start_off = col_start - la
 
-    # === Step 3: Walk the data section sequentially ===
-    pos = code_end  # start of data
+    pos = code_end
     result = {
         'la': la, 'code_end': code_end, 'ni': ni, 'num_cols': num_cols,
         'first_note': first_note, 'num_notes': num_notes,
+        'psid_flags': psid_flags,
+        'nowavedelay': nowavedelay,
     }
 
     # Freq tables

@@ -157,6 +157,8 @@ def pack_sidfinity(
     # PSID header
     title='',
     author='',
+    psid_flags=0x0014,
+    nowavedelay=None,
 ):
     """Pack GT2 data using xa65 + SIDfinity player. Returns (sid_bytes, player_size)."""
     ni = num_instruments
@@ -359,7 +361,7 @@ def pack_sidfinity(
     header[22:22 + len(t)] = t
     a = author.encode('latin-1', errors='replace')[:31]
     header[54:54 + len(a)] = a
-    struct.pack_into('>H', header, 0x76, 0x0014)  # PAL, 6581
+    struct.pack_into('>H', header, 0x76, psid_flags)  # clock + SID model from original
 
     # SID file = header + load address + binary
     sid = bytearray()
@@ -440,6 +442,8 @@ def pack_from_decompiled(d, output_path):
         freq_hi=d['freq_hi'],
         title=title,
         author=author,
+        psid_flags=d.get('psid_flags', 0x0014),
+        nowavedelay=d.get('nowavedelay', None),
     )
 
     os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
