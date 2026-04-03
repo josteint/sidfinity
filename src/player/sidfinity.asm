@@ -96,6 +96,7 @@ pv          dec chn_counter,x
             bne _rd
             jsr np
 _rd         jsr rn
+            bcs _wr             ; new note: skip wave table (match GT2 timing)
 
 _effects
             jsr wt
@@ -251,13 +252,26 @@ _chkn       cmp #$BD
             sta chn_freqhi,x
             lda #$FF
             sta chn_gate,x
+            ; New note: advance pattidx, return carry=1 (skip wave table)
             ldy chn_pattidx,x
+            iny
+            lda (ZP),y
+            beq _nn_ep
+            tya
+            sta chn_pattidx,x
+            sec                     ; signal: new note
+            rts
+_nn_ep      lda #$00
+            sta chn_pattidx,x
+            sec                     ; signal: new note
+            rts
 
 _rest       iny
             lda (ZP),y
             beq _ep
             tya
             sta chn_pattidx,x
+            clc                     ; signal: no new note
             rts
 
 _koff       lda #$FE
@@ -275,10 +289,12 @@ _pkrest     iny
             beq _ep
             tya
             sta chn_pattidx,x
+            clc                     ; signal: no new note
             rts
 
 _ep         lda #$00
             sta chn_pattidx,x
+            clc                     ; signal: no new note
             rts
 
 ; Voice index lookup
