@@ -335,10 +335,13 @@ def parse_gt2_direct(sid_path):
                 col_operands = col_operands[:num_columns_detected]
 
     # Step 6: Find wave table via address pairs
+    # Use lda_refs (brute-force byte scan) instead of all_code_refs
+    # (instruction walker) because the walker can miss operands when
+    # data bytes in the code section cause misalignment.
     instr_end = ad_operand + len(col_operands) * ni
     table_operands = []
-    for a in sorted(all_code_refs):
-        if a >= instr_end and (a + 1) in all_code_refs:
+    for a in sorted(lda_refs):
+        if a >= instr_end - 1 and (a + 1) in lda_refs:
             table_operands.append(a)
 
     wave_left = b''
