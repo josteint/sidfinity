@@ -990,8 +990,7 @@ ce_pnj          iny
 
 ce_pwr
 {pulse_inline}
-ce_pskip
-                jmp ce_pskip_gate""",
+ce_pskip""",
             provides={'ce_pulse', 'ce_pskip', 'ce_pgo', 'ce_pmod', 'ce_pset',
                       'ce_pup', 'ce_pnoc', 'ce_padv', 'ce_pnj', 'ce_pwr'},
             requires={'mt_chnpulseptr', 'mt_chncounter', 'mt_chngatetimer',
@@ -1000,18 +999,19 @@ ce_pskip
             needs={PULSE_MOD},
             byte_estimate=75,
             order_group=30,
+            fall_through_to='gate_pattern_regs',
         ))
     else:
         blocks.append(Block(
             name='pulse_stub',
             code="""\
 ce_pulse
-ce_pskip
-                jmp ce_pskip_gate""",
+ce_pskip""",
             provides={'ce_pulse', 'ce_pskip'},
             excludes={PULSE_MOD},
             byte_estimate=0,
             order_group=30,
+            fall_through_to='gate_pattern_regs',
         ))
 
     # =========================================================================
@@ -1075,7 +1075,6 @@ ce_pskip
 ; =============================================================================
 ; Gate timer check
 ; =============================================================================
-ce_pskip_gate
                 lda mt_chncounter,x
                 cmp mt_chngatetimer,x
                 beq ce_getnote
@@ -1206,7 +1205,7 @@ ce_ldwav
                 rts""",
         provides={'ce_getnote', 'ce_nopkr', 'ce_fx', 'ce_fxnp', 'ce_note',
                   'ce_koff', 'ce_kon', 'ce_skhr', 'ce_pkrn', 'ce_pkrc',
-                  'ce_rest', 'ce_noend', 'ce_ldregs', 'ce_ldwav', 'ce_pskip_gate'},
+                  'ce_rest', 'ce_noend', 'ce_ldregs', 'ce_ldwav', 'ce_pskip_gt'},
         requires={'mt_patttbllo', 'mt_patttblhi', 'mt_chnpattnum', 'mt_chnpattptr',
                   'mt_chnpkrest', 'mt_chninstr', 'mt_chnnewfx', 'mt_chnnewparam',
                   'mt_chntrans', 'mt_chnnewnote', 'mt_chngate', 'mt_chnad', 'mt_chnsr',
