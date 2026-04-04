@@ -243,21 +243,14 @@ def pack_sidfinity(
     buf = []
 
     if use_codegen and song is not None:
-        # Per-song code generation: emit only the blocks this song needs
-        import importlib
+        # V2: instruction-level per-song code generation
         _player_dir = os.path.join(SCRIPT_DIR, 'player')
         if _player_dir not in sys.path:
             sys.path.insert(0, _player_dir)
-        import codegen as _cg
-        import blocks as _bl
-        importlib.reload(_cg)  # ensure fresh module state
-        importlib.reload(_bl)
-
-        features = _cg.detect_features(song)
-        all_blocks = _bl.build_blocks(features)
-        selected = _cg.select_blocks(all_blocks, features)
-        sorted_blocks = _cg.sort_blocks(selected)
-        player_src = _bl.PREAMBLE + '\n' + _cg.emit_assembly(sorted_blocks)
+        from codegen_v2 import generate_player
+        player_src = generate_player(song)
+        # Strip dummy data labels (packer provides real ones)
+        player_src = _strip_dummy_labels(player_src)
         buf.append(player_src)
         buf.append('\n')
     else:
