@@ -172,6 +172,9 @@ def pack_sidfinity(
     has_effects=True,
     has_orderlist_features=True,
     has_tick0fx=True,
+    # Per-song code generation
+    use_codegen=False,
+    song=None,  # usf.Song for codegen feature detection
 ):
     """Pack GT2 data using xa65 + SIDfinity player. Returns (sid_bytes, player_size)."""
     ni = num_instruments
@@ -239,14 +242,31 @@ def pack_sidfinity(
     # --- Build assembly source ---
     buf = []
 
-    # Insert player source (already in xa65 format).
-    # Strip the dummy data label block (#ifndef mt_songtbllo ... #endif)
-    # because our data section will define these labels at real addresses.
-    with open(PLAYER_S) as f:
-        player_src = f.read()
-    player_src = _strip_dummy_labels(player_src)
-    buf.append(player_src)
-    buf.append('\n')
+    if use_codegen and song is not None:
+        # Per-song code generation: emit only the blocks this song needs
+        import importlib
+        _player_dir = os.path.join(SCRIPT_DIR, 'player')
+        if _player_dir not in sys.path:
+            sys.path.insert(0, _player_dir)
+        import codegen as _cg
+        import blocks as _bl
+        importlib.reload(_cg)  # ensure fresh module state
+        importlib.reload(_bl)
+
+        features = _cg.detect_features(song)
+        all_blocks = _bl.build_blocks(features)
+        selected = _cg.select_blocks(all_blocks, features)
+        sorted_blocks = _cg.sort_blocks(selected)
+        player_src = _bl.PREAMBLE + '\n' + _cg.emit_assembly(sorted_blocks)
+        buf.append(player_src)
+        buf.append('\n')
+    else:
+        # Monolithic player source (legacy path)
+        with open(PLAYER_S) as f:
+            player_src = f.read()
+        player_src = _strip_dummy_labels(player_src)
+        buf.append(player_src)
+        buf.append('\n')
 
     # --- Insert data (greloc.c order) ---
 
