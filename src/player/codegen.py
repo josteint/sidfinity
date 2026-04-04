@@ -271,6 +271,19 @@ def detect_features(song):
 # Block selector
 # =============================================================================
 
+# Labels provided externally (by the packer's data section or xa65 defines)
+EXTERNAL_LABELS = {
+    'mt_freqtbllo', 'mt_freqtblhi', 'mt_songtbllo', 'mt_songtblhi',
+    'mt_patttbllo', 'mt_patttblhi', 'mt_insad', 'mt_inssr',
+    'mt_inswaveptr', 'mt_inspulseptr', 'mt_insfiltptr', 'mt_insvibparam',
+    'mt_insvibdelay', 'mt_insgatetimer', 'mt_insfirstwave',
+    'mt_wavetbl', 'mt_notetbl', 'mt_pulsetimetbl', 'mt_pulsespdtbl',
+    'mt_filttimetbl', 'mt_filtspdtbl', 'mt_speedlefttbl', 'mt_speedrighttbl',
+    'SIDBASE', 'FIRSTNOTE', 'DEFAULTTEMPO', 'ADPARAM', 'SRPARAM',
+    'FIRSTNOHRINSTR', 'FIRSTLEGATOINSTR',
+}
+
+
 def select_blocks(blocks, features):
     """Select blocks whose feature requirements are met.
 
@@ -292,7 +305,8 @@ def select_blocks(blocks, features):
         selected.append(block)
 
     # Validate: every required label must be provided by some selected block
-    all_provides = set()
+    # or by external sources (packer data section, xa65 defines)
+    all_provides = set(EXTERNAL_LABELS)
     for block in selected:
         all_provides.update(block.provides)
     for block in selected:
@@ -300,7 +314,7 @@ def select_blocks(blocks, features):
         if missing:
             raise ValueError(
                 f"Block '{block.name}' requires labels {missing} "
-                f"not provided by any selected block")
+                f"not provided by any selected block or external source")
 
     return selected
 
