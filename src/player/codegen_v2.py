@@ -171,8 +171,8 @@ def emit_play_dispatch(ctx):
     ctx.inst('bmi', 'mp_run')
     ctx.inst('jmp', 'mt_fullinit')
     ctx.label('mp_run')
-    if ctx.has(FILTER):
-        ctx.inst('jsr', 'mt_filterexec')
+    # Always call filter exec (writes volume, aligns VBI timing)
+    ctx.inst('jsr', 'mt_filterexec')
     ctx.inst('ldx', '#0')
     ctx.inst('jsr', 'mt_execchn')
     ctx.inst('ldx', '#7')
