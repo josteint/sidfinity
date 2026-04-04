@@ -403,7 +403,7 @@ def usf_to_sid(song, output_path=None):
                         for p in song.patterns for ev in p.events),
         # Per-song code generation (not yet active — integration in progress)
         # use_codegen=True,
-        # song=song,
+        song=song,
     )
 
     if output_path:
