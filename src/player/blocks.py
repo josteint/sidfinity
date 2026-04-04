@@ -702,11 +702,17 @@ ce_v4st         sta mt_chnvibtime,x
 ce_fxd2         cmp #2
                 bne ce_fxd3
                 jmp ce_fxsub""")
-        if TONEPORTA in features:
+        if TONEPORTA in features and VIBRATO in features:
             fx_dispatch_entries.append("""\
 ce_fxd3         cmp #3
                 beq ce_fx3j
                 jmp ce_fx4
+ce_fx3j         jmp ce_fx3""")
+        elif TONEPORTA in features:
+            fx_dispatch_entries.append("""\
+ce_fxd3         cmp #3
+                beq ce_fx3j
+                jmp ce_pulse
 ce_fx3j         jmp ce_fx3""")
         elif VIBRATO in features:
             fx_dispatch_entries.append("""\

@@ -404,9 +404,7 @@ def emit_assembly(blocks, defines=None):
             lines.append(f'{name:<16s} = {value}')
         lines.append('')
 
-    # Origin
-    lines.append('                * = base')
-    lines.append('')
+    # Note: origin (* = base) comes from PREAMBLE, not here
 
     # Emit blocks
     for block in blocks:

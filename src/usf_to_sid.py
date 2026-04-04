@@ -401,6 +401,9 @@ def usf_to_sid(song, output_path=None):
                                any(len(set(ol)) < len(ol) and len(ol) > 2 for ol in song.orderlists),
         has_tick0fx=any(ev.command is not None and ev.command != 0
                         for p in song.patterns for ev in p.events),
+        # Per-song code generation (not yet active — integration in progress)
+        # use_codegen=True,
+        # song=song,
     )
 
     if output_path:
