@@ -437,8 +437,9 @@ def emit_wave_table(ctx):
     ctx.inst('sta', 'mt_chnfreqlo,x')
     ctx.inst('lda', 'mt_freqtblhi,y')
     ctx.inst('sta', 'mt_chnfreqhi,x')
-    ctx.inst('lda', '#0')
-    ctx.inst('sta', 'mt_chnvibtime,x')
+    if ctx.has(VIBRATO):
+        ctx.inst('lda', '#0')
+        ctx.inst('sta', 'mt_chnvibtime,x')
     ctx.inst('jmp', 'ce_pulse')
 
     # Wave command dispatch
@@ -1059,13 +1060,15 @@ def emit_new_note_init(ctx):
     ctx.inst('sbc', '#NOTE')
     ctx.inst('sta', 'mt_chnnote,x')
     ctx.inst('lda', '#0')
-    ctx.inst('sta', 'mt_chnfx,x')
+    if ctx.has(EFFECTS):
+        ctx.inst('sta', 'mt_chnfx,x')
     ctx.inst('sta', 'mt_chnnewnote,x')
     # Y = instrument (from gate timer load above)
-    ctx.inst('lda', 'mt_insvibdelay-1,y')
-    ctx.inst('sta', 'mt_chnvibdelay,x')
-    ctx.inst('lda', 'mt_insvibparam-1,y')
-    ctx.inst('sta', 'mt_chnparam,x')
+    if ctx.has(VIBRATO):
+        ctx.inst('lda', 'mt_insvibdelay-1,y')
+        ctx.inst('sta', 'mt_chnvibdelay,x')
+        ctx.inst('lda', 'mt_insvibparam-1,y')
+        ctx.inst('sta', 'mt_chnparam,x')
     # Toneporta skip
     if ctx.has(TONEPORTA):
         ctx.inst('lda', 'mt_chnnewfx,x')
