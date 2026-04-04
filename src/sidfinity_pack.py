@@ -242,14 +242,13 @@ def pack_sidfinity(
     # --- Build assembly source ---
     buf = []
 
-    if use_codegen and song is not None:
-        # V2: instruction-level per-song code generation
+    if False and use_codegen and song is not None:
+        # V2: instruction-level per-song code generation (disabled)
         _player_dir = os.path.join(SCRIPT_DIR, 'player')
         if _player_dir not in sys.path:
             sys.path.insert(0, _player_dir)
         from codegen_v2 import generate_player
         player_src = generate_player(song)
-        # Strip dummy data labels (packer provides real ones)
         player_src = _strip_dummy_labels(player_src)
         buf.append(player_src)
         buf.append('\n')
