@@ -242,7 +242,7 @@ def pack_sidfinity(
     # --- Build assembly source ---
     buf = []
 
-    if False and use_codegen and song is not None:
+    if use_codegen and song is not None:
         # V2: instruction-level per-song code generation (disabled)
         _player_dir = os.path.join(SCRIPT_DIR, 'player')
         if _player_dir not in sys.path:
