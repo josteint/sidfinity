@@ -874,8 +874,9 @@ def emit_pattern_reader(ctx):
     ctx.inst('cmp', '#KEYON')
     ctx.inst('beq', 'ce_kon')
     # Normal note
-    ctx.inst('clc')
-    ctx.inst('adc', 'mt_chntrans,x')
+    if ctx.has(ORDERLIST_TRANS):
+        ctx.inst('clc')
+        ctx.inst('adc', 'mt_chntrans,x')
     ctx.inst('sta', 'mt_chnnewnote,x')
     # Toneporta check
     if ctx.has(TONEPORTA):
@@ -912,28 +913,25 @@ def emit_pattern_reader(ctx):
     ctx.label('ce_skhr')
     ctx.inst('lda', '#$fe')
     ctx.inst('sta', 'mt_chngate,x')
-    ctx.inst('jmp', 'ce_rest')
-    # Keyoff/keyon
+    ctx.inst('bne', 'ce_rest', comment='unconditional (A=$fe)')
+    # Keyoff/keyon (identical: both OR $F0 and store to gate)
     ctx.label('ce_koff')
-    ctx.inst('ora', '#$f0')
-    ctx.inst('sta', 'mt_chngate,x')
-    ctx.inst('jmp', 'ce_rest')
     ctx.label('ce_kon')
     ctx.inst('ora', '#$f0')
     ctx.inst('sta', 'mt_chngate,x')
-    ctx.inst('jmp', 'ce_rest')
+    ctx.inst('bne', 'ce_rest', comment='unconditional (A=$fe/$ff)')
     # Packed rest
     ctx.label('ce_pkrn')
     ctx.inst('adc', '#0')
     ctx.inst('beq', 'ce_rest')
     ctx.inst('sta', 'mt_chnpkrest,x')
-    ctx.inst('jmp', 'ce_ldregs')
+    ctx.inst('bne', 'ce_ldregs', comment='unconditional (A!=0)')
     ctx.label('ce_pkrc')
     ctx.inst('clc')
     ctx.inst('adc', '#1')
     ctx.inst('sta', 'mt_chnpkrest,x')
     ctx.inst('beq', 'ce_rest')
-    ctx.inst('jmp', 'ce_ldregs')
+    ctx.inst('bne', 'ce_ldregs', comment='unconditional (A!=0)')
     # Rest
     ctx.label('ce_rest')
     ctx.inst('lda', '#0')
