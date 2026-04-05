@@ -455,7 +455,9 @@ def emit_wave_table(ctx):
     if ctx.has(VIBRATO):
         ctx.inst('lda', '#0')
         ctx.inst('sta', 'mt_chnvibtime,x')
-    ctx.inst('jmp', 'ce_pulse')
+    if ctx.has(WAVE_CMD) or ctx.has(EFFECTS):
+        ctx.inst('jmp', 'ce_pulse')
+    # else: falls through to ce_wdone (empty) → ce_pulse
 
     # Wave command dispatch
     if ctx.has(WAVE_CMD):
@@ -494,8 +496,7 @@ def emit_wave_table(ctx):
         ctx.inst('bne', 'ce_rfgo')
         ctx.inst('jmp', 'ce_pulse')
         ctx.label('ce_rfgo')
-    else:
-        ctx.inst('jmp', 'ce_pulse')
+    # else: fall through to ce_pulse (next section)
 
 
 # =============================================================================
@@ -1063,7 +1064,7 @@ def emit_tick0_path(ctx):
     # New note?
     ctx.inst('lda', 'mt_chnnewnote,x')
     ctx.inst('bne', 'ce_newn')
-    ctx.inst('jmp', 'ce_nnn')
+    ctx.inst('beq', 'ce_nnn', comment='unconditional (newnote=0)')
 
 
 def emit_new_note_init(ctx):
