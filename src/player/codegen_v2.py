@@ -61,6 +61,14 @@ class Ctx:
         self.blank()
         self.emit(f'; === {title} ===')
 
+    def cmp_gate_timer(self):
+        """Emit CMP for gate timer — hardcoded if uniform, variable if mixed."""
+        if self.uniform_gate_timer is not None:
+            self.inst('cmp', f'#${self.uniform_gate_timer:02x}',
+                      comment=f'hardcoded gatetimer={self.uniform_gate_timer}')
+        else:
+            self.inst('cmp', 'mt_chngatetimer,x')
+
     def source(self):
         return '\n'.join(self.lines)
 
@@ -69,6 +77,13 @@ def generate_player(song):
     """Generate xa65 assembly for this specific song. Returns source string."""
     features = detect_features(song)
     ctx = Ctx(features=features)
+
+    # Detect uniform gate timer for hardcoding (saves 2 cycles per check)
+    gt_values = set()
+    for inst in song.instruments:
+        raw = getattr(inst, '_gate_timer_raw', inst.gate_timer)
+        gt_values.add(raw & 0x3F)
+    ctx.uniform_gate_timer = gt_values.pop() if len(gt_values) == 1 else None
 
     emit_preamble(ctx)
     emit_jump_table(ctx)
@@ -756,7 +771,7 @@ def emit_pulse_table(ctx):
     ctx.inst('ldy', 'mt_chnpulseptr,x')
     ctx.inst('beq', 'ce_pskip')
     ctx.inst('lda', 'mt_chncounter,x')
-    ctx.inst('cmp', 'mt_chngatetimer,x')
+    ctx.cmp_gate_timer()
     ctx.inst('beq', 'ce_pskip')
     ctx.inst('ora', 'mt_chnpattptr,x')
     ctx.inst('beq', 'ce_pskip')
@@ -813,7 +828,7 @@ def emit_pulse_table(ctx):
 def emit_gate_timer(ctx):
     ctx.section('gate timer')
     ctx.inst('lda', 'mt_chncounter,x')
-    ctx.inst('cmp', 'mt_chngatetimer,x')
+    ctx.cmp_gate_timer()
     ctx.inst('beq', 'ce_getnote')
     ctx.inst('jmp', 'ce_ldregs')
 
@@ -850,19 +865,18 @@ def emit_pattern_reader(ctx):
     ctx.inst('lda', '(mt_temp1),y')
     ctx.inst('cmp', '#NOTE')
     ctx.inst('bcs', 'ce_note')
-    # FX
+    # FX — Covfefe trick: CMP #$50 sets carry, AND #$0F preserves it,
+    # BCS later uses it for FXONLY check. No PHA/PLA needed.
     ctx.label('ce_fx')
-    ctx.inst('pha')
-    ctx.inst('and', '#$0f')
+    ctx.inst('cmp', '#FXONLY', comment='carry set if FXONLY ($50+)')
+    ctx.inst('and', '#$0f', comment='AND preserves carry')
     ctx.inst('sta', 'mt_chnnewfx,x')
     ctx.inst('beq', 'ce_fxnp')
     ctx.inst('iny')
     ctx.inst('lda', '(mt_temp1),y')
     ctx.inst('sta', 'mt_chnnewparam,x')
     ctx.label('ce_fxnp')
-    ctx.inst('pla')
-    ctx.inst('cmp', '#FXONLY')
-    ctx.inst('bcs', 'ce_rest')
+    ctx.inst('bcs', 'ce_rest', comment='FXONLY: carry still set from CMP')
     ctx.inst('iny')
     ctx.inst('lda', '(mt_temp1),y')
     # Note
@@ -934,17 +948,16 @@ def emit_pattern_reader(ctx):
     ctx.inst('sta', 'mt_chnpkrest,x')
     ctx.inst('beq', 'ce_rest')
     ctx.inst('jmp', 'ce_ldregs')
-    # Rest
+    # Rest — Covfefe trick: BEQ skips TYA when byte is $00 (ENDPATT),
+    # so A=0 falls through to STA (stores 0 = reset pattptr)
     ctx.label('ce_rest')
     ctx.inst('lda', '#0')
     ctx.inst('sta', 'mt_chnpkrest,x')
     ctx.inst('iny')
     ctx.inst('lda', '(mt_temp1),y')
-    ctx.inst('bne', 'ce_noend')
-    ctx.inst('sta', 'mt_chnpattptr,x')
-    ctx.inst('beq', 'ce_ldregs')
-    ctx.label('ce_noend')
+    ctx.inst('beq', 'ce_pattend', comment='ENDPATT: A=0, skip TYA')
     ctx.inst('tya')
+    ctx.label('ce_pattend')
     ctx.inst('sta', 'mt_chnpattptr,x')
     # Fall through to ce_ldregs
 
