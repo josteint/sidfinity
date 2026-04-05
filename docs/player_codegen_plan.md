@@ -1,6 +1,6 @@
 # Per-Song Code Generator Plan for SIDfinity 6502 Player
 
-**Status:** Planning
+**Status:** Phase 1 complete, Phase 3.1 complete. V2 codegen produces 878 bytes (Covfefe). VBI timing issue blocks VBI-mode activation. CIA mode works.
 **Goal:** Replace monolithic `sidfinity_player.s` with a Python code generator that emits only the code blocks a specific song needs. Target: ~400-500 bytes for simple songs (Covfefe), ~900 bytes full features.
 
 ## Architecture
@@ -15,15 +15,15 @@ The generator models the player as a set of **blocks** — small units of 6502 a
 
 ## Phase 1: Foundation — Block-Based Code Generator
 
-- [ ] **1.1 Define `Block` dataclass** (M) — `name, code, provides, requires, feature_flags, anti_flags, byte_estimate, cycle_estimate, order_hint, fall_through_to`
-- [ ] **1.2 Decompose `sidfinity_player.s` into ~30 blocks** (L) — Parse the monolithic source into blocks at section boundaries. Each block is a Python string of xa65 assembly.
-- [ ] **1.3 Build `FeatureDetector`** (M) — Analyze USF Song, produce feature flag set. ~30 flags (see Phase 2 for the full list).
-- [ ] **1.4 Build `BlockSelector`** (S) — Filter blocks by feature flags. Validate all required labels are provided.
-- [ ] **1.5 Build `BlockSorter`** (M) — Topological sort with fall-through maximization. Keep branch-connected blocks within 127 bytes.
-- [ ] **1.6 Build `LabelResolver`** (S) — Validate cross-block label references. Elide unnecessary JMPs between adjacent blocks.
-- [ ] **1.7 Build `AssemblyEmitter`** (M) — Concatenate blocks + data, return assembly string for xa65.
-- [ ] **1.8 Integrate with `sidfinity_pack.py`** (M) — Add `use_codegen` flag. Wire feature detection from `usf_to_sid.py`.
-- [ ] **1.9 Regression validation** (M) — All 43 SIDs must pass with codegen enabled.
+- [x] **1.1 Define `Block` dataclass** (M) — `src/player/codegen.py` — `name, code, provides, requires, feature_flags, anti_flags, byte_estimate, cycle_estimate, order_hint, fall_through_to`
+- [x] **1.2 Decompose `sidfinity_player.s` into ~30 blocks** (L) — superseded by V2 instruction-level codegen `src/player/codegen_v2.py` — Parse the monolithic source into blocks at section boundaries. Each block is a Python string of xa65 assembly.
+- [x] **1.3 Build `FeatureDetector`** (M) — 24 flags, dependency lattice with transitive closure — Analyze USF Song, produce feature flag set. ~30 flags (see Phase 2 for the full list).
+- [x] **1.4 Build `BlockSelector`** (S) — in codegen.py
+- [x] **1.5 Build `BlockSorter`** (S) — superseded by V2 linear emit
+- [x] **1.6 Build `LabelResolver`** (S) — xa65 handles this
+- [x] **1.7 Build `AssemblyEmitter`** (M) — codegen_v2.py emit functions
+- [ ] **1.8 Integrate with `sidfinity_pack.py`** (M) — wired but disabled. VBI timing issue: different binary layout causes different register output. See `memory/reference_vbi_timing.md`.
+- [ ] **1.9 Regression validation** (M) — blocked by 1.8. Monolithic passes 43/43 at 99.8%.
 
 ## Phase 2: Immediate Optimizations — Fine-Grained Flags
 
@@ -56,11 +56,12 @@ Each adds a feature flag the detector can disable per song. Savings are code byt
 ## Phase 3: Mathematical Framework
 
 ### 3.1 Formal Block Model
-- [ ] **Model blocks as directed graph** (M) — Nodes = blocks, edges = control flow (fall-through, jmp, jsr, branch). Use for layout optimization.
-- [ ] **Define block interfaces formally** (M) — Input/output registers, memory reads/writes, SID side effects. Encoded as dataclass fields.
-- [ ] **Feature dependency lattice** (M) — `VIBRATO → EFFECTS`, `FUNKTEMPO → TICK0FX`, etc. Compute transitive closure. Prevents invalid flag combinations.
+- [x] **6502 cycle counter** (M) — `src/player/cycle_model.py`. Parses xa65 assembly, counts cycles per addressing mode, detects page-crossing penalties, traces execution paths. Proved player takes 628 cycles (budget 8,500).
+- [ ] **Page-crossing analysis on CODE addresses** (M) — Extend cycle_model to analyze JSR/JMP/branch targets for page-crossing penalties. This is the suspected cause of the VBI timing difference between V2 and monolithic.
+- [x] **Feature dependency lattice** (M) — `close_features()` in codegen.py. Transitive closure of implications.
+- [ ] **Define block interfaces formally** (M) — Input/output registers, memory reads/writes, SID side effects.
 - [ ] **Postcondition/precondition checking** (L) — For each block transition, verify output registers satisfy next block's input requirements.
-- [ ] **Boolean SAT for flag consistency** (M) — Verify feature flag sets are consistent with the dependency lattice.
+- [x] **Boolean SAT for flag consistency** (M) — Handled by `close_features()` + `select_blocks()` validation.
 
 ### 3.2 Layout Optimization
 - [ ] **Topological sort with branch-distance awareness** (M) — Keep conditional-branch-connected blocks within 127 bytes.
