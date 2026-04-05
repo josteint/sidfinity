@@ -401,6 +401,8 @@ def pack_sidfinity(
     struct.pack_into('>H', header, 12, base_addr + 3)  # play
     struct.pack_into('>H', header, 14, songs)   # songs
     struct.pack_into('>H', header, 16, 1)       # start song
+    # Speed field: 0=VBI (default), 0xFFFFFFFF=CIA for all subtunes.
+    # VBI matches original GT2 timing. CIA gives full frame budget (use for ML output).
 
     # Title/author in PSID header
     t = title.encode('latin-1', errors='replace')[:31]
