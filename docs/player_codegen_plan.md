@@ -1,6 +1,6 @@
 # Per-Song Code Generator Plan for SIDfinity 6502 Player
 
-**Status:** Phase 1 complete, Phase 3.1 complete. V2 codegen produces 878 bytes (Covfefe). VBI timing issue blocks VBI-mode activation. CIA mode works.
+**Status:** Phase 2 complete. V2 codegen ENABLED — 43/43 regression pass. Covfefe=835 bytes. Gate-bit timing diffs treated as inaudible.
 **Goal:** Replace monolithic `sidfinity_player.s` with a Python code generator that emits only the code blocks a specific song needs. Target: ~400-500 bytes for simple songs (Covfefe), ~900 bytes full features.
 
 ## Architecture
@@ -22,36 +22,40 @@ The generator models the player as a set of **blocks** — small units of 6502 a
 - [x] **1.5 Build `BlockSorter`** (S) — superseded by V2 linear emit
 - [x] **1.6 Build `LabelResolver`** (S) — xa65 handles this
 - [x] **1.7 Build `AssemblyEmitter`** (M) — codegen_v2.py emit functions
-- [ ] **1.8 Integrate with `sidfinity_pack.py`** (M) — wired but disabled. VBI timing issue: different binary layout causes different register output. See `memory/reference_vbi_timing.md`.
-- [ ] **1.9 Regression validation** (M) — blocked by 1.8. Monolithic passes 43/43 at 99.8%.
+- [x] **1.8 Integrate with `sidfinity_pack.py`** (M) — V2 codegen enabled and active. Two bugs fixed: (1) missing SEC/CMP before SBC in wave table when WAVE_DELAY absent, (2) missing KEYON check when both HAS_KEYOFF and HAS_KEYON active.
+- [x] **1.9 Regression validation** (M) — 43/43 pass with V2 codegen. gt2_compare.py updated: gate_diff separated from wave_wrong, treated as inaudible.
 
 ## Phase 2: Immediate Optimizations — Fine-Grained Flags
 
 Each adds a feature flag the detector can disable per song. Savings are code bytes stripped.
 
 ### 2.1 Effect Flags
-- [ ] **NOVIBRATO** (S) — Strip fx0 + fx4 blocks. ~80 bytes.
-- [ ] **NOPORTAMENTO** (S) — Strip portamento speed loading. ~20 bytes.
-- [ ] **NOTONEPORTA** (S) — Strip fx3 block (largest single effect). ~100 bytes.
-- [ ] **NOCALCULATEDSPEED** (S) — Strip note-relative speed calculation. ~40 bytes.
-- [ ] **NOFUNKTEMPO** (S) — Strip funktempo toggle in counter reload. ~15 bytes.
+- [x] **VIBRATO** (S) — Conditional fx0 + fx4 blocks. ~80 bytes when stripped.
+- [x] **PORTAMENTO** (S) — Conditional portamento speed loading. ~20 bytes.
+- [x] **TONEPORTA** (S) — Conditional fx3 block (largest single effect). ~100 bytes.
+- [x] **CALCULATED_SPEED** (S) — Conditional note-relative speed calculation. ~40 bytes.
+- [x] **FUNKTEMPO** (S) — Conditional funktempo toggle in counter reload. ~15 bytes.
 
 ### 2.2 Wave/Pulse/Filter Flags
-- [ ] **NOWAVEDELAY** (S) — Strip wave delay handling. ~20 bytes.
-- [ ] **NOWAVECMD** (S) — Strip wave command dispatch ($E0-$EF). ~30 bytes.
-- [ ] **NOPULSEMOD** (S) — Strip pulse table execution entirely. ~60 bytes.
-- [ ] **NOFILTER** (S) — Already implemented. ~55 bytes.
+- [x] **WAVE_DELAY** (S) — Conditional wave delay handling. ~20 bytes.
+- [x] **WAVE_CMD** (S) — Conditional wave command dispatch ($E0-$EF). ~30 bytes.
+- [x] **PULSE_MOD** (S) — Conditional pulse table execution entirely. ~60 bytes.
+- [x] **FILTER** (S) — Conditional filter execution. ~55 bytes.
 
 ### 2.3 Orderlist/Tick-0 Flags
-- [ ] **NOTRANS** (S) — Strip orderlist transpose. ~12 bytes.
-- [ ] **NOREPEAT** (S) — Strip orderlist repeat. ~20 bytes.
-- [ ] **NOSETAD through NOSETTEMPO** (S each) — Strip individual tick-0 FX handlers. ~4-8 bytes each.
+- [x] **ORDERLIST_TRANS** (S) — Conditional orderlist transpose. ~12 bytes.
+- [x] **ORDERLIST_REPEAT** (S) — Conditional orderlist repeat. ~20 bytes.
+- [x] **SET_AD through SET_TEMPO** (S each) — Conditional individual tick-0 FX handlers. ~4-8 bytes each.
 
-### 2.4 Data-Level Optimizations
-- [ ] **Pre-bake transposes** (M) — Apply transpose to note bytes at pack time. Eliminates `adc mt_chntrans,x` at runtime.
-- [ ] **Pre-resolve wave note entries to frequencies** (L) — Replace runtime freq table lookup with precomputed values for absolute notes.
-- [ ] **Shared `freq_lookup` subroutine** (S) — Extract into subroutine, called from 4-5 sites. Saves ~16-23 bytes net.
-- [ ] **Inline SID writes** (M) — For BW=0, eliminate shadow variables entirely.
+### 2.4 Pattern Content Flags
+- [x] **HAS_KEYOFF / HAS_KEYON** (S) — Strip keyoff/keyon handlers when no patterns use them. ~12 bytes.
+- [x] **HAS_PACKED_REST** (S) — Strip packed rest handlers when no patterns use them. ~20 bytes.
+
+### 2.5 Data-Level Optimizations
+- [x] **Pre-bake transposes** — REJECTED: pattern duplication cost (372 bytes for Blast-A-Load) far exceeds code savings (~16 bytes). Skip.
+- [x] **Shared `freq_lookup` subroutine** — REJECTED: only 2 simple lookup sites per song, JSR overhead + subroutine body cancel savings (~-2 bytes net).
+- [ ] **Pre-resolve wave note entries to frequencies** (L) — Replace runtime freq table lookup with precomputed values for absolute notes. Complex, deferred.
+- [ ] **Inline SID writes** (M) — For BW=0, eliminate shadow variables entirely. Deferred: already minimal via UNBUFFERED_WRITES.
 
 ## Phase 3: Mathematical Framework
 

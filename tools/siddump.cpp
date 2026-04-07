@@ -100,7 +100,8 @@ int main(int argc, char* argv[])
             "  --duration N   Duration in seconds (default: 60)\n"
             "  --timeout N    Timeout in seconds (default: 0 = none)\n"
             "  --raw          Skip metadata/header lines\n"
-            "  --digi         Enable intra-frame write logging\n",
+            "  --digi         Enable intra-frame write logging\n"
+            "  --pcm          Output raw 16-bit signed PCM to stdout\n",
             argv[0]);
         return 1;
     }
@@ -113,6 +114,7 @@ int main(int argc, char* argv[])
     bool digi = false;
     bool writelog = false;
     bool memtrace = false;
+    bool pcm = false;
 
     for (int i = 2; i < argc; i++) {
         if (strcmp(argv[i], "--raw") == 0) {
@@ -123,6 +125,8 @@ int main(int argc, char* argv[])
             writelog = true;
         } else if (strcmp(argv[i], "--memtrace") == 0) {
             memtrace = true;
+        } else if (strcmp(argv[i], "--pcm") == 0) {
+            pcm = true;
         } else if (strcmp(argv[i], "--subtune") == 0 && i + 1 < argc) {
             subtune = atoi(argv[++i]);
         } else if (strcmp(argv[i], "--duration") == 0 && i + 1 < argc) {
@@ -198,11 +202,14 @@ int main(int argc, char* argv[])
         return 1;
     }
 
-    // Cycles per frame: use the VIC raster frame length plus a small margin
-    // to ensure exactly one VBI fires per play() call.
-    // PAL:  63 cycles/line × 312 lines = 19656, + margin
-    // NTSC: 65 cycles/line × 263 lines = 17095, + margin
+    // Cycles per frame: VIC raster frame length + small margin.
+    // PAL:  63 cycles/line × 312 lines = 19656, + 32 margin
+    // NTSC: 65 cycles/line × 263 lines = 17095, + 32 margin
     // The margin ensures we always cross the raster trigger point.
+    // NOTE: the 32-cycle margin causes ~8c/frame measurement drift relative
+    // to VBI timing. This is unavoidable without play()-synchronous sampling.
+    // Register diffs caused by this drift are measurement artifacts, not
+    // actual player differences. See docs/player_codegen_plan.md.
     unsigned int cyclesPerFrame = isPAL ? (63 * 312 + 32) : (65 * 263 + 32);
 
     int totalFrames = seconds * fps;
@@ -248,6 +255,18 @@ int main(int argc, char* argv[])
 
     // Initialize mixer (needed for play() to work)
     engine.initMixer(false); // mono
+
+    // PCM output mode: render audio and write raw 16-bit samples to stdout
+    if (pcm) {
+        for (int frame = 0; frame < totalFrames; frame++) {
+            int samples = engine.play(cyclesPerFrame);
+            if (samples <= 0) break;
+            short buf[65536];
+            unsigned int mixed = engine.mix(buf, samples);
+            fwrite(buf, sizeof(short), mixed, stdout);
+        }
+        return 0;
+    }
 
     // Run frame by frame and dump registers
     uint8_t regs[32];

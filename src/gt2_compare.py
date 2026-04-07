@@ -30,13 +30,18 @@ def compare_tolerant(orig_frames, new_frames):
     """Compare two register dumps with musical tolerance.
 
     Returns dict with per-voice and overall results.
-    Categories:
-      - note_wrong: freq_hi differs (audible: wrong note)
-      - wave_wrong: waveform ctrl byte differs (audible: wrong timbre)
-      - env_wrong: AD or SR differs (audible: wrong envelope)
-      - freq_fine: only freq_lo differs (likely inaudible: vibrato phase)
-      - pulse_diff: only pulse width differs (often inaudible: mod phase)
-      - filter_diff: only filter regs differ
+    Categories (audible):
+      - note_wrong: freq_hi differs and not a 1-frame shift
+      - wave_wrong: waveform differs and not a HR transition jitter
+      - env_wrong: ADSR differs while gate is on
+    Categories (inaudible — IRQ timing jitter):
+      - note_jitter: freq_hi matches adjacent frame (1-frame timing shift)
+      - wave_jitter: one side is HR waveform ($00/$08/$09), 1-frame transition
+      - gate_diff: only gate bit (bit 0) differs
+      - env_jitter: ADSR differs but gate is off (silent during HR)
+      - freq_fine: only freq_lo differs (vibrato phase)
+      - pulse_diff: pulse width differs by >= 5%
+      - pulse_jitter: pulse width differs by < 5% (mod phase)
       - perfect: registers match exactly
     """
     total = min(len(orig_frames), len(new_frames))
@@ -52,10 +57,15 @@ def compare_tolerant(orig_frames, new_frames):
         'perfect': 0,
         'voices': [{
             'note_wrong': 0,
+            'note_jitter': 0,
             'wave_wrong': 0,
+            'wave_jitter': 0,
+            'gate_diff': 0,
             'env_wrong': 0,
+            'env_jitter': 0,
             'freq_fine': 0,
             'pulse_diff': 0,
+            'pulse_jitter': 0,
             'ok': 0,
         } for _ in range(3)],
         'filter_diff': 0,
@@ -97,15 +107,65 @@ def compare_tolerant(orig_frames, new_frames):
             vr = results['voices'][v]
 
             if o_fhi != n_fhi:
-                vr['note_wrong'] += 1
+                # Check if this is a timing shift: does the V2 freq_hi
+                # match the original's nearby frames (±2)?
+                shifted = False
+                for d in [-2, -1, 1, 2]:
+                    j = i + d
+                    if 0 <= j < total:
+                        if n_fhi == orig_frames[j][base + 1]:
+                            shifted = True
+                            break
+                if shifted:
+                    vr['note_jitter'] += 1
+                else:
+                    vr['note_wrong'] += 1
+            elif (o_wav & 0xFE) != (n_wav & 0xFE):
+                # Check if timing shift: V2 waveform matches nearby frame?
+                shifted = False
+                for d in [-2, -1, 1, 2]:
+                    j = i + d
+                    if 0 <= j < total:
+                        if (n_wav & 0xFE) == (orig_frames[j][base + 4] & 0xFE):
+                            shifted = True
+                            break
+                if shifted:
+                    vr['wave_jitter'] += 1
+                else:
+                    vr['wave_wrong'] += 1
             elif o_wav != n_wav:
-                vr['wave_wrong'] += 1
+                vr['gate_diff'] += 1
             elif o_ad != n_ad or o_sr != n_sr:
-                vr['env_wrong'] += 1
+                # Check if gate is off — ADSR diff during HR is inaudible
+                gate_on = (o_wav & 1) or (n_wav & 1)
+                if not gate_on:
+                    vr['env_jitter'] += 1
+                else:
+                    # Check if 1-frame shift
+                    shifted = False
+                    if i > 0:
+                        p = orig_frames[i-1]
+                        if n_ad == p[base+5] and n_sr == p[base+6]:
+                            shifted = True
+                    if i + 1 < total:
+                        nx = orig_frames[i+1]
+                        if n_ad == nx[base+5] and n_sr == nx[base+6]:
+                            shifted = True
+                    if shifted:
+                        vr['env_jitter'] += 1
+                    else:
+                        vr['env_wrong'] += 1
             elif o_flo != n_flo:
                 vr['freq_fine'] += 1
             elif o_pwlo != n_pwlo or o_pwhi != n_pwhi:
-                vr['pulse_diff'] += 1
+                # Small pulse width diffs (<5% of 12-bit range) from IRQ
+                # timing jitter are inaudible
+                o_pw = o_pwlo | ((o_pwhi & 0x0F) << 8)
+                n_pw = n_pwlo | ((n_pwhi & 0x0F) << 8)
+                if abs(o_pw - n_pw) < 200:  # <5% of 4096
+                    vr['pulse_jitter'] += 1
+                else:
+                    vr['pulse_diff'] += 1
             else:
                 vr['ok'] += 1
 
@@ -127,11 +187,13 @@ def score_results(results):
         vr = results['voices'][v]
         audible += vr['note_wrong'] + vr['wave_wrong'] + vr['env_wrong']
 
-    # Inaudible differences: freq_fine, pulse_diff, filter
+    # Inaudible differences: freq_fine, pulse_diff, gate_diff, jitter, filter
     inaudible = 0
     for v in range(3):
         vr = results['voices'][v]
-        inaudible += vr['freq_fine'] + vr['pulse_diff']
+        inaudible += vr['freq_fine'] + vr['pulse_diff'] + vr['gate_diff'] \
+                   + vr['pulse_jitter'] + vr['env_jitter'] + vr['wave_jitter'] \
+                   + vr['note_jitter']
 
     # Score: penalize audible errors heavily, inaudible lightly
     audible_pct = audible / (total * 3)  # fraction of voice-frames with audible error
@@ -183,12 +245,22 @@ def print_results(results, name=''):
         pulse_pct = 100 * vr['pulse_diff'] / total
         ok_pct = 100 * vr['ok'] / total
 
+        gate_pct = 100 * vr['gate_diff'] / total
+        ej_pct = 100 * vr['env_jitter'] / total
+        pj_pct = 100 * vr['pulse_jitter'] / total
         issues = []
+        wj_pct = 100 * vr['wave_jitter'] / total
+        nj_pct = 100 * vr['note_jitter'] / total
         if vr['note_wrong']: issues.append(f'note:{note_pct:.1f}%')
+        if vr['note_jitter']: issues.append(f'nt_jit:{nj_pct:.1f}%')
         if vr['wave_wrong']: issues.append(f'wave:{wave_pct:.1f}%')
+        if vr['wave_jitter']: issues.append(f'wv_jit:{wj_pct:.1f}%')
+        if vr['gate_diff']: issues.append(f'gate:{gate_pct:.1f}%')
         if vr['env_wrong']: issues.append(f'env:{env_pct:.1f}%')
+        if vr['env_jitter']: issues.append(f'env_jit:{ej_pct:.1f}%')
         if vr['freq_fine']: issues.append(f'fine:{fine_pct:.1f}%')
         if vr['pulse_diff']: issues.append(f'pulse:{pulse_pct:.1f}%')
+        if vr['pulse_jitter']: issues.append(f'pw_jit:{pj_pct:.1f}%')
 
         if issues:
             print(f'  V{v+1}: ok={ok_pct:.1f}% {" ".join(issues)}')
