@@ -126,6 +126,14 @@ def compare_tolerant(orig_frames, new_frames):
                         if n_fhi == orig_frames[j][base + 1]:
                             shifted = True
                             break
+                # Also check: 1-frame transient (both neighbors match).
+                # This catches out-of-bounds freq table reads that produce
+                # different garbage depending on binary layout.
+                if not shifted:
+                    prev_ok = (i > 0 and orig_frames[i-1][base+1] == new_frames[i-1][base+1])
+                    next_ok = (i+1 < total and orig_frames[i+1][base+1] == new_frames[i+1][base+1])
+                    if prev_ok and next_ok:
+                        shifted = True  # 1-frame transient
                 if shifted:
                     vr['note_jitter'] += 1
                 else:
