@@ -10,7 +10,7 @@
 
 Build the SIDfinity universal SID music player and ML pipeline. See `docs/PLAN.md` for the full roadmap and current status.
 
-**Current task:** Fix decompiler bugs to get from 61/103 to 90+ Grade A. Plan in `docs/next_session_plan.md` — 5 parallel tracks. Then unblock Group C (572 songs) and expand coverage.
+**Current task:** "Continue with `docs/next_session_plan.md` — launch all 5 tracks in parallel." Fix decompiler bugs to get from 61/103 to 90+ Grade A. Then unblock Group C (572 songs) and expand coverage.
 
 **What's done:** V2 per-song code generator enabled and passing 103-song regression (61 Grade A). Register-level validation (100% on 56,936 files), 642 player engines analyzed, 48 documented.
 
