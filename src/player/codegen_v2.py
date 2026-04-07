@@ -653,8 +653,8 @@ def emit_effects(ctx):
         ctx.inst('beq', 'ce_v4nc')
         ctx.inst('bcc', 'ce_v4n2')
         ctx.inst('eor', '#$ff')
-        ctx.inst('adc', '#2')
-        ctx.inst('jmp', 'ce_v4st')
+        # Fall through to ce_v4nc (CLC) — carry is set from CMP above,
+        # must clear before ADC. Original GT2 uses the same fall-through.
         ctx.label('ce_v4nc')
         ctx.inst('clc')
         ctx.label('ce_v4n2')
