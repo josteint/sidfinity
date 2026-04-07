@@ -374,8 +374,8 @@ def parse_gt2_direct(sid_path):
     wt_size = pt_size = ft_size = st_size = 0
 
     if len(table_operands) >= 2:
-        # Wave table: left at pair[0]+1, right at pair[1]+2
-        # (pair[1] is the wave RIGHT operand, pair[1]+1 is the -1 adj)
+        # Wave table: operands point to (mt_wavetbl-1) and (mt_notetbl-1).
+        # Add +1 to each to get the actual table start address.
         wl_start = table_operands[0] + 1  # mt_wavetbl
         wr_start = table_operands[1] + 2  # mt_notetbl (pair[1]+1 gives operand, +1 for -1 adj)
         wt_size = wr_start - wl_start
