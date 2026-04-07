@@ -420,11 +420,15 @@ def emit_wave_table(ctx):
     else:
         # No-bias format: $00 = no change, $01-$FE = waveform, $FF = loop marker
         # No CMP/SBC needed — saves 7 cycles per channel
-        ctx.inst('beq', 'ce_wadv', comment='$00 = no waveform change')
         if ctx.has(WAVE_CMD):
+            # Must store to mt_wv_left BEFORE the $00 branch, otherwise
+            # a stale command byte causes ce_wpost to dispatch wrong.
             ctx.inst('sta', 'mt_wv_left')
+            ctx.inst('beq', 'ce_wadv', comment='$00 = no waveform change')
             ctx.inst('cmp', '#$e0')
             ctx.inst('bcs', 'ce_wadv')
+        else:
+            ctx.inst('beq', 'ce_wadv', comment='$00 = no waveform change')
         ctx.inst('sta', 'mt_chnwave,x')
 
     # Advance pointer
