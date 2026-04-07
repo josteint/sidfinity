@@ -1261,10 +1261,14 @@ def emit_tick0_dispatch(ctx):
     if ctx.has(SET_AD):
         ctx.label('mt_t0_fx5')
         ctx.inst('sta', 'mt_chnad,x')
+        if ctx.has(UNBUFFERED_WRITES):
+            ctx.inst('sta', 'SIDBASE+5,x')  # BW=0: write directly to SID
         ctx.inst('rts')
     if ctx.has(SET_SR):
         ctx.label('mt_t0_fx6')
         ctx.inst('sta', 'mt_chnsr,x')
+        if ctx.has(UNBUFFERED_WRITES):
+            ctx.inst('sta', 'SIDBASE+6,x')  # BW=0: write directly to SID
         ctx.inst('rts')
     if ctx.has(SET_WAVE):
         ctx.label('mt_t0_fx7')
