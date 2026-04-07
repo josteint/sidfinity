@@ -10,11 +10,38 @@
 
 Build the SIDfinity universal SID music player and ML pipeline. See `docs/PLAN.md` for the full roadmap and current status.
 
-**Current task:** Finish the SIDfinity 6502 player (`src/player/sidfinity.a65`). The skeleton assembles and plays. Needs: pattern reader, orderlist sequencer, instrument loader, wave/pulse/filter table steppers, hard restart engine, vibrato/portamento. Spec is in `docs/sidfinity_player_spec.md`.
+**Current task:** Fix decompiler bugs to get from 61/103 to 90+ Grade A. Plan in `docs/next_session_plan.md` — 5 parallel tracks. Then unblock Group C (572 songs) and expand coverage.
 
-**What's done:** Register-level validation (100% on 56,936 files), 642 player engines analyzed, 48 documented, player spec written, player skeleton assembling at 364 bytes.
+**What's done:** V2 per-song code generator enabled and passing 103-song regression (61 Grade A). Register-level validation (100% on 56,936 files), 642 player engines analyzed, 48 documented.
 
-**After the player:** Build GoatTracker transpiler (GT2 data -> SIDfinity format), then DMC and JCH transpilers, then audio comparison, then ML training.
+**After decompiler fixes:** Expand to 500+ songs, then DMC and JCH transpilers, then ML training.
+
+## CRITICAL: Do Not Break These Invariants
+
+### Wave table +2 extraction offset — DO NOT CHANGE
+
+`gt2_parse_direct.py` line 380 uses `table_operands[1] + 2` for the wave_right start. This looks wrong (mathematically +1 is correct) but it compensates for the GT2 player's `INY` before note column read. The V2 codegen reads notes BEFORE INY, so the +2 extraction and pre-INY read cancel out. **Changing either one without changing the other breaks ALL songs.**
+
+Verified: changing +2 to +1 breaks 42/43 songs. The paired system is self-consistent.
+
+### Wave table bias chain — THREE interdependent transformations
+
+1. **Decompiler** extracts packed bytes (may include +$10 bias)
+2. **gt2_to_usf** subtracts bias when `nowavedelay=False`: `sng_l = packed_l - $10`
+3. **Packer** adds bias back when `nowavedelay=True` (hardcoded in usf_to_sid.py)
+4. **V2 player** without WAVE_DELAY stores directly (no subtract — needs actual SID values)
+5. **V2 player** with WAVE_DELAY does `CMP #$10; BCS; SBC #$10`
+6. **Packer** `skip_bias` flag skips step 3 for V2 without WAVE_DELAY
+
+If `nowavedelay` is wrong, the chain breaks. Do NOT change `skip_bias` without understanding the full chain. Radar_Love.sid fails because `nowavedelay` is misdetected.
+
+### Group A pulse speed — naive doubling REGRESSES songs
+
+Group A GT2 players use `ASL` to double pulse speed before adding. Naively doubling all Group A pulse_right bytes in gt2_to_usf.py regressed 12 songs. The fix needs to be conditional on the EXACT code path (ASL vs CLC, modulation vs set-pulse entries). See `docs/next_session_plan.md` Track 4.
+
+### siddump frame boundary drift — measurement artifact, not a bug
+
+siddump uses 19688 cycles/frame (19656 + 32 margin). This causes the VBI to drift relative to siddump's frame boundary. Register diffs from this drift are classified as jitter (inaudible) in gt2_compare.py. Do NOT try to "fix" these diffs by changing player cycle counts.
 
 ## Original Goal (completed)
 
