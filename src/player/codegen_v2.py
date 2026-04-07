@@ -16,7 +16,7 @@ from codegen import detect_features, close_features, \
     SET_WAVEPTR, SET_PULSEPTR, SET_FILTPTR, SET_FILTCTRL, SET_FILTCUT, \
     SET_MASTERVOL, SET_TEMPO, BUFFERED_WRITES, UNBUFFERED_WRITES, \
     ADSR_AD_FIRST, LOADREGS_AD_FIRST, NEWNOTE_ALL_REGS, VIBRATO_PARAM_FIX, \
-    NOHR_INSTR, LEGATO_INSTR
+    NOHR_INSTR, LEGATO_INSTR, HAS_KEYOFF, HAS_KEYON, HAS_PACKED_REST
 
 
 @dataclass
@@ -186,8 +186,17 @@ def emit_play_dispatch(ctx):
     ctx.inst('bmi', 'mp_run')
     ctx.inst('jmp', 'mt_fullinit')
     ctx.label('mp_run')
-    # Always call filter exec (writes volume, aligns VBI timing)
-    ctx.inst('jsr', 'mt_filterexec')
+    # Filter / volume write
+    if ctx.has(FILTER):
+        ctx.inst('jsr', 'mt_filterexec')
+    else:
+        # Inline volume write — saves JSR/RTS overhead (12 cycles)
+        ctx.label('mt_g_mvol')
+        ctx.inst('lda', '#$0f')
+        ctx.inst('sta', 'SIDBASE+$18')
+        # NOTE: 3-4 NOPs here reduce diffs from 5 to 3 by matching the original's
+        # per-frame VBI drift. But the remaining 3 diffs need per-path cycle matching
+        # (tick-0 vs normal vs gate-timer frames have different cycle counts).
     ctx.inst('ldx', '#0')
     ctx.inst('jsr', 'mt_execchn')
     ctx.inst('ldx', '#7')
@@ -221,8 +230,8 @@ def emit_full_init(ctx):
     ctx.inst('dex')
     ctx.inst('bpl', 'fi_sid')
     # Filter SMC clears
-    ctx.inst('sta', 'mt_g_fstep+1')
     if ctx.has(FILTER):
+        ctx.inst('sta', 'mt_g_fstep+1')
         ctx.inst('sta', 'mt_g_ftime+1')
         ctx.inst('sta', 'mt_g_fcut+1')
         ctx.inst('sta', 'mt_g_fctrl+1')
@@ -232,10 +241,11 @@ def emit_full_init(ctx):
     ctx.inst('sta', 'mt_g_mvol+1')
     ctx.inst('sta', 'SIDBASE+$18')
     # Funktempo defaults
-    ctx.inst('lda', '#8')
-    ctx.inst('sta', 'mt_funktbl')
-    ctx.inst('lda', '#5')
-    ctx.inst('sta', 'mt_funktbl+1')
+    if ctx.has(FUNKTEMPO):
+        ctx.inst('lda', '#8')
+        ctx.inst('sta', 'mt_funktbl')
+        ctx.inst('lda', '#5')
+        ctx.inst('sta', 'mt_funktbl+1')
     ctx.inst('lda', '#$80')
     ctx.inst('sta', 'mt_initpend')
     # Per-channel init
@@ -274,17 +284,12 @@ def emit_full_init(ctx):
 def emit_filter(ctx):
     ctx.section('filter')
     if not ctx.has(FILTER):
-        # Minimal: just volume write
-        ctx.label('mt_filterexec')
-        ctx.label('mt_g_mvol')
-        ctx.inst('lda', '#$0f')
-        ctx.inst('sta', 'SIDBASE+$18')
+        # Volume write is inlined in play dispatch — just emit equates
         ctx.equate('mt_g_fstep', 'mt_g_mvol')
         ctx.equate('mt_g_ftime', 'mt_g_mvol')
         ctx.equate('mt_g_fcut', 'mt_g_mvol')
         ctx.equate('mt_g_fctrl', 'mt_g_mvol')
         ctx.equate('mt_g_ftype', 'mt_g_mvol')
-        ctx.inst('rts')
     else:
         # Full filter table stepper
         ctx.label('mt_filterexec')
@@ -384,10 +389,15 @@ def emit_wave_table(ctx):
     ctx.inst('bne', 'ce_wgo')
     ctx.inst('jmp', 'ce_wdone')
     ctx.label('ce_wgo')
-    ctx.inst('sty', 'mt_wv_optr')
+
+    if ctx.has(WAVE_DELAY) or ctx.has(WAVE_CMD):
+        # Need mt_wv_optr for note lookup after advance (complex paths)
+        ctx.inst('sty', 'mt_wv_optr')
+
     ctx.inst('lda', 'mt_wavetbl-1,y')
 
     if ctx.has(WAVE_DELAY):
+        # Bias format: $00-$0F = delay, $10+ = waveform+bias, $E0+ = cmd
         ctx.inst('cmp', '#$10')
         ctx.inst('bcs', 'ce_wndly')
         ctx.inst('cmp', 'mt_chnwavetime,x')
@@ -400,19 +410,33 @@ def emit_wave_table(ctx):
             ctx.inst('sta', 'mt_wv_left')
         ctx.inst('jmp', 'ce_wadv')
         ctx.label('ce_wndly')
-
-    # Subtract bias, store waveform
-    ctx.inst('sbc', '#$10')
-    if ctx.has(WAVE_CMD):
-        ctx.inst('sta', 'mt_wv_left')
-        ctx.inst('cmp', '#$e0')
-        ctx.inst('bcs', 'ce_wadv')
-    ctx.inst('sta', 'mt_chnwave,x')
+        # Subtract bias (carry set from CMP)
+        ctx.inst('sbc', '#$10')
+        if ctx.has(WAVE_CMD):
+            ctx.inst('sta', 'mt_wv_left')
+            ctx.inst('cmp', '#$e0')
+            ctx.inst('bcs', 'ce_wadv')
+        ctx.inst('sta', 'mt_chnwave,x')
+    else:
+        # No-bias format: $00 = no change, $01-$FE = waveform, $FF = loop marker
+        # No CMP/SBC needed — saves 7 cycles per channel
+        ctx.inst('beq', 'ce_wadv', comment='$00 = no waveform change')
+        if ctx.has(WAVE_CMD):
+            ctx.inst('sta', 'mt_wv_left')
+            ctx.inst('cmp', '#$e0')
+            ctx.inst('bcs', 'ce_wadv')
+        ctx.inst('sta', 'mt_chnwave,x')
 
     # Advance pointer
     ctx.label('ce_wadv')
-    ctx.inst('lda', '#0')
-    ctx.inst('sta', 'mt_chnwavetime,x')
+    if ctx.has(WAVE_DELAY):
+        ctx.inst('lda', '#0')
+        ctx.inst('sta', 'mt_chnwavetime,x')
+    # Read note column BEFORE advancing — avoids Y save/restore
+    if not ctx.has(WAVE_CMD):
+        # Simple path: read note at current Y, then advance
+        ctx.inst('lda', 'mt_notetbl-1,y', comment='note at current pos')
+        ctx.inst('sta', 'mt_wv_optr', comment='stash note value')
     ctx.inst('lda', 'mt_wavetbl,y')
     ctx.inst('cmp', '#LOOPTBL')
     ctx.inst('bne', 'ce_wnj')
@@ -430,23 +454,25 @@ def emit_wave_table(ctx):
         ctx.inst('lda', 'mt_wv_left')
         ctx.inst('cmp', '#$e0')
         ctx.inst('bcs', 'ce_wcmd')
-
-    ctx.inst('ldy', 'mt_wv_optr')
-    ctx.inst('lda', 'mt_notetbl-1,y')
+        # WAVE_CMD path still uses saved Y for note
+        ctx.inst('ldy', 'mt_wv_optr')
+        ctx.inst('lda', 'mt_notetbl-1,y')
+    else:
+        # Note was stashed in mt_wv_optr before advance
+        ctx.inst('lda', 'mt_wv_optr')
     ctx.inst('beq', 'ce_wdone')
 
     # Note resolution
     ctx.inst('bpl', 'ce_wabs')
-    # Relative note
+    # Relative note (more common — falls through to freq lookup)
     ctx.inst('clc')
     ctx.inst('adc', 'mt_chnnote,x')
     ctx.inst('and', '#$7f')
     ctx.inst('jmp', 'ce_wfreq')
+    # Absolute note
     ctx.label('ce_wabs')
     ctx.inst('sta', 'mt_chnlastnote,x')
     ctx.label('ce_wfreq')
-    ctx.inst('sec')
-    ctx.inst('sbc', '#FIRSTNOTE')
     ctx.inst('tay')
     ctx.inst('lda', 'mt_freqtbllo,y')
     ctx.inst('sta', 'mt_chnfreqlo,x')
@@ -457,7 +483,7 @@ def emit_wave_table(ctx):
         ctx.inst('sta', 'mt_chnvibtime,x')
     if ctx.has(WAVE_CMD) or ctx.has(EFFECTS):
         ctx.inst('jmp', 'ce_pulse')
-    # else: falls through to ce_wdone (empty) → ce_pulse
+    # else: falls through to ce_wdone → ce_pulse
 
     # Wave command dispatch
     if ctx.has(WAVE_CMD):
@@ -848,14 +874,16 @@ def emit_pattern_reader(ctx):
     ctx.inst('sta', 'mt_temp2')
     ctx.inst('ldy', 'mt_chnpattptr,x')
     # Packed rest continuation
-    ctx.inst('lda', 'mt_chnpkrest,x')
-    ctx.inst('beq', 'ce_nopkr')
-    ctx.inst('jmp', 'ce_pkrc')
-    ctx.label('ce_nopkr')
+    if ctx.has(HAS_PACKED_REST):
+        ctx.inst('lda', 'mt_chnpkrest,x')
+        ctx.inst('beq', 'ce_nopkr')
+        ctx.inst('jmp', 'ce_pkrc')
+        ctx.label('ce_nopkr')
     # Read byte
     ctx.inst('lda', '(mt_temp1),y')
-    ctx.inst('cmp', '#FPKREST')
-    ctx.inst('bcs', 'ce_pkrn')
+    if ctx.has(HAS_PACKED_REST):
+        ctx.inst('cmp', '#FPKREST')
+        ctx.inst('bcs', 'ce_pkrn')
     ctx.inst('cmp', '#NOTE')
     ctx.inst('bcs', 'ce_note')
     ctx.inst('cmp', '#FX')
@@ -884,13 +912,20 @@ def emit_pattern_reader(ctx):
     ctx.label('ce_note')
     ctx.inst('cmp', '#REST')
     ctx.inst('beq', 'ce_rest')
-    ctx.inst('cmp', '#KEYOFF')
-    ctx.inst('beq', 'ce_koff')
-    ctx.inst('cmp', '#KEYON')
-    ctx.inst('beq', 'ce_kon')
+    if ctx.has(HAS_KEYOFF) or ctx.has(HAS_KEYON):
+        ctx.inst('cmp', '#KEYOFF')
+        if ctx.has(HAS_KEYOFF) and ctx.has(HAS_KEYON):
+            ctx.inst('bcs', 'ce_koff')  # KEYOFF=$BE, KEYON=$BF: both >= $BE
+        elif ctx.has(HAS_KEYOFF):
+            ctx.inst('beq', 'ce_koff')
+        else:
+            # Only KEYON, no KEYOFF
+            ctx.inst('cmp', '#KEYON')
+            ctx.inst('beq', 'ce_koff')
     # Normal note
-    ctx.inst('clc')
-    ctx.inst('adc', 'mt_chntrans,x')
+    if ctx.has(ORDERLIST_TRANS):
+        ctx.inst('clc')
+        ctx.inst('adc', 'mt_chntrans,x')
     ctx.inst('sta', 'mt_chnnewnote,x')
     # Toneporta check
     if ctx.has(TONEPORTA):
@@ -929,31 +964,30 @@ def emit_pattern_reader(ctx):
     ctx.inst('sta', 'mt_chngate,x')
     ctx.inst('jmp', 'ce_rest')
     # Keyoff/keyon
-    ctx.label('ce_koff')
-    ctx.inst('ora', '#$f0')
-    ctx.inst('sta', 'mt_chngate,x')
-    ctx.inst('jmp', 'ce_rest')
-    ctx.label('ce_kon')
-    ctx.inst('ora', '#$f0')
-    ctx.inst('sta', 'mt_chngate,x')
-    ctx.inst('jmp', 'ce_rest')
+    if ctx.has(HAS_KEYOFF) or ctx.has(HAS_KEYON):
+        ctx.label('ce_koff')
+        ctx.inst('ora', '#$f0')
+        ctx.inst('sta', 'mt_chngate,x')
+        ctx.inst('jmp', 'ce_rest')
     # Packed rest
-    ctx.label('ce_pkrn')
-    ctx.inst('adc', '#0')
-    ctx.inst('beq', 'ce_rest')
-    ctx.inst('sta', 'mt_chnpkrest,x')
-    ctx.inst('jmp', 'ce_ldregs')
-    ctx.label('ce_pkrc')
-    ctx.inst('clc')
-    ctx.inst('adc', '#1')
-    ctx.inst('sta', 'mt_chnpkrest,x')
-    ctx.inst('beq', 'ce_rest')
-    ctx.inst('jmp', 'ce_ldregs')
+    if ctx.has(HAS_PACKED_REST):
+        ctx.label('ce_pkrn')
+        ctx.inst('adc', '#0')
+        ctx.inst('beq', 'ce_rest')
+        ctx.inst('sta', 'mt_chnpkrest,x')
+        ctx.inst('jmp', 'ce_ldregs')
+        ctx.label('ce_pkrc')
+        ctx.inst('clc')
+        ctx.inst('adc', '#1')
+        ctx.inst('sta', 'mt_chnpkrest,x')
+        ctx.inst('beq', 'ce_rest')
+        ctx.inst('jmp', 'ce_ldregs')
     # Rest — Covfefe trick: BEQ skips TYA when byte is $00 (ENDPATT),
     # so A=0 falls through to STA (stores 0 = reset pattptr)
     ctx.label('ce_rest')
     ctx.inst('lda', '#0')
-    ctx.inst('sta', 'mt_chnpkrest,x')
+    if ctx.has(HAS_PACKED_REST):
+        ctx.inst('sta', 'mt_chnpkrest,x')
     ctx.inst('iny')
     ctx.inst('lda', '(mt_temp1),y')
     ctx.inst('beq', 'ce_pattend', comment='ENDPATT: A=0, skip TYA')
@@ -1303,8 +1337,9 @@ def emit_variables(ctx):
         ctx.data('.byte', '0')
         ctx.label('mt_fx_shi')
         ctx.data('.byte', '0')
-    ctx.label('mt_funktbl')
-    ctx.data('.byte', '8, 5')
+    if ctx.has(FUNKTEMPO):
+        ctx.label('mt_funktbl')
+        ctx.data('.byte', '8, 5')
     ctx.blank()
     # Channel variables (5 groups, stride 7)
     ctx.label('mt_chnsongptr')

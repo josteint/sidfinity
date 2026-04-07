@@ -100,7 +100,7 @@ def run_tests():
             for v in range(3):
                 vr = comp['voices'][v]
                 issues = []
-                for k in ['note_wrong', 'wave_wrong', 'env_wrong', 'freq_fine', 'pulse_diff']:
+                for k in ['note_wrong', 'note_jitter', 'wave_wrong', 'wave_jitter', 'gate_diff', 'env_wrong', 'env_jitter', 'freq_fine', 'pulse_diff', 'pulse_jitter']:
                     if vr.get(k, 0) > 0:
                         pct = 100 * vr[k] / comp['total']
                         issues.append(f'{k}:{pct:.1f}%')

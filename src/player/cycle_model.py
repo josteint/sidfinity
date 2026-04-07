@@ -335,6 +335,428 @@ def report(source, song_name=''):
 
 
 # =============================================================================
+# 6502 binary disassembler
+# =============================================================================
+
+# Opcode table: opcode -> (mnemonic, addressing_mode, bytes, cycles)
+_OPTABLE = {
+    0x00:('brk','imp',1,7), 0x01:('ora','izx',2,6), 0x05:('ora','zp',2,3),
+    0x06:('asl','zp',2,5), 0x08:('php','imp',1,3), 0x09:('ora','imm',2,2),
+    0x0A:('asl','acc',1,2), 0x0D:('ora','abs',3,4), 0x0E:('asl','abs',3,6),
+    0x10:('bpl','rel',2,2), 0x11:('ora','izy',2,5), 0x15:('ora','zpx',2,4),
+    0x16:('asl','zpx',2,6), 0x18:('clc','imp',1,2), 0x19:('ora','aby',3,4),
+    0x1D:('ora','abx',3,4), 0x1E:('asl','abx',3,7),
+    0x20:('jsr','abs',3,6), 0x21:('and','izx',2,6), 0x24:('bit','zp',2,3),
+    0x25:('and','zp',2,3), 0x26:('rol','zp',2,5), 0x28:('plp','imp',1,4),
+    0x29:('and','imm',2,2), 0x2A:('rol','acc',1,2), 0x2C:('bit','abs',3,4),
+    0x2D:('and','abs',3,4), 0x2E:('rol','abs',3,6), 0x30:('bmi','rel',2,2),
+    0x31:('and','izy',2,5), 0x35:('and','zpx',2,4), 0x38:('sec','imp',1,2),
+    0x39:('and','aby',3,4), 0x3D:('and','abx',3,4),
+    0x40:('rti','imp',1,6), 0x41:('eor','izx',2,6), 0x45:('eor','zp',2,3),
+    0x46:('lsr','zp',2,5), 0x48:('pha','imp',1,3), 0x49:('eor','imm',2,2),
+    0x4A:('lsr','acc',1,2), 0x4C:('jmp','abs',3,3), 0x4D:('eor','abs',3,4),
+    0x4E:('lsr','abs',3,6), 0x50:('bvc','rel',2,2), 0x51:('eor','izy',2,5),
+    0x55:('eor','zpx',2,4), 0x58:('cli','imp',1,2), 0x59:('eor','aby',3,4),
+    0x5D:('eor','abx',3,4),
+    0x60:('rts','imp',1,6), 0x61:('adc','izx',2,6), 0x65:('adc','zp',2,3),
+    0x66:('ror','zp',2,5), 0x68:('pla','imp',1,4), 0x69:('adc','imm',2,2),
+    0x6A:('ror','acc',1,2), 0x6C:('jmp','ind',3,5), 0x6D:('adc','abs',3,4),
+    0x6E:('ror','abs',3,6), 0x70:('bvs','rel',2,2), 0x71:('adc','izy',2,5),
+    0x75:('adc','zpx',2,4), 0x78:('sei','imp',1,2), 0x79:('adc','aby',3,4),
+    0x7D:('adc','abx',3,4),
+    0x81:('sta','izx',2,6), 0x84:('sty','zp',2,3), 0x85:('sta','zp',2,3),
+    0x86:('stx','zp',2,3), 0x88:('dey','imp',1,2), 0x8A:('txa','imp',1,2),
+    0x8C:('sty','abs',3,4), 0x8D:('sta','abs',3,4), 0x8E:('stx','abs',3,4),
+    0x90:('bcc','rel',2,2), 0x91:('sta','izy',2,6), 0x94:('sty','zpx',2,4),
+    0x95:('sta','zpx',2,4), 0x96:('stx','zpy',2,4), 0x98:('tya','imp',1,2),
+    0x99:('sta','aby',3,5), 0x9A:('txs','imp',1,2), 0x9D:('sta','abx',3,5),
+    0xA0:('ldy','imm',2,2), 0xA1:('lda','izx',2,6), 0xA2:('ldx','imm',2,2),
+    0xA4:('ldy','zp',2,3), 0xA5:('lda','zp',2,3), 0xA6:('ldx','zp',2,3),
+    0xA8:('tay','imp',1,2), 0xA9:('lda','imm',2,2), 0xAA:('tax','imp',1,2),
+    0xAC:('ldy','abs',3,4), 0xAD:('lda','abs',3,4), 0xAE:('ldx','abs',3,4),
+    0xB0:('bcs','rel',2,2), 0xB1:('lda','izy',2,5), 0xB4:('ldy','zpx',2,4),
+    0xB5:('lda','zpx',2,4), 0xB6:('ldx','zpy',2,4), 0xB8:('clv','imp',1,2),
+    0xB9:('lda','aby',3,4), 0xBA:('tsx','imp',1,2), 0xBC:('ldy','abx',3,4),
+    0xBD:('lda','abx',3,4), 0xBE:('ldx','aby',3,4),
+    0xC0:('cpy','imm',2,2), 0xC1:('cmp','izx',2,6), 0xC4:('cpy','zp',2,3),
+    0xC5:('cmp','zp',2,3), 0xC6:('dec','zp',2,5), 0xC8:('iny','imp',1,2),
+    0xC9:('cmp','imm',2,2), 0xCA:('dex','imp',1,2), 0xCC:('cpy','abs',3,4),
+    0xCD:('cmp','abs',3,4), 0xCE:('dec','abs',3,6), 0xD0:('bne','rel',2,2),
+    0xD1:('cmp','izy',2,5), 0xD5:('cmp','zpx',2,4), 0xD6:('dec','zpx',2,6),
+    0xD8:('cld','imp',1,2), 0xD9:('cmp','aby',3,4), 0xDD:('cmp','abx',3,4),
+    0xDE:('dec','abx',3,7),
+    0xE0:('cpx','imm',2,2), 0xE1:('sbc','izx',2,6), 0xE4:('cpx','zp',2,3),
+    0xE5:('sbc','zp',2,3), 0xE6:('inc','zp',2,5), 0xE8:('inx','imp',1,2),
+    0xE9:('sbc','imm',2,2), 0xEA:('nop','imp',1,2), 0xEC:('cpx','abs',3,4),
+    0xED:('sbc','abs',3,4), 0xEE:('inc','abs',3,6), 0xF0:('beq','rel',2,2),
+    0xF1:('sbc','izy',2,5), 0xF5:('sbc','zpx',2,4), 0xF6:('inc','zpx',2,6),
+    0xF8:('sed','imp',1,2), 0xF9:('sbc','aby',3,4), 0xFD:('sbc','abx',3,4),
+    0xFE:('inc','abx',3,7),
+}
+
+# Modes that get +1 on page cross (reads only, not writes/RMW)
+_READ_PAGE_CROSS = {'abx', 'aby', 'izy'}
+_WRITE_MNEMONICS = {'sta', 'stx', 'sty'}
+_RMW_MNEMONICS = {'asl', 'lsr', 'rol', 'ror', 'inc', 'dec'}
+_BRANCH_OPS = {0x10, 0x30, 0x50, 0x70, 0x90, 0xB0, 0xD0, 0xF0}
+
+
+def count_bytes(binary, base, decisions=None, stop_at_rts=True, start_pc=None):
+    """Count exact cycles for a 6502 binary path.
+
+    This is the fast, correct cycle counter for SAT/genetic optimization.
+    No parsing, no objects — just opcode table lookups on raw bytes.
+
+    Args:
+        binary: bytes of 6502 code
+        base: load address (start of binary in memory)
+        decisions: dict of address -> bool for branch decisions (True=taken).
+                   Default: all branches not taken (fall through).
+        stop_at_rts: stop at first RTS (default True)
+        start_pc: address to start execution (default: base)
+
+    Returns:
+        total cycle count (int)
+    """
+    if decisions is None:
+        decisions = {}
+
+    total = 0
+    pc = start_pc if start_pc is not None else base
+    end = base + len(binary)
+    visited = set()
+
+    while base <= pc < end:
+        if pc in visited:
+            break  # loop detected
+        visited.add(pc)
+
+        i = pc - base
+        op = binary[i]
+
+        if op not in _OPTABLE:
+            break  # unknown opcode
+
+        mnem, mode, sz, cyc = _OPTABLE[op]
+
+        if mode == 'rel':
+            # Branch instruction
+            taken = decisions.get(pc, False)
+            if taken:
+                off = binary[i + 1]
+                target = pc + 2 + (off if off < 128 else off - 256)
+                cyc = 3  # taken, same page
+                if (pc + 2) >> 8 != target >> 8:
+                    cyc = 4  # taken, page cross
+                total += cyc
+                pc = target
+            else:
+                total += 2  # not taken
+                pc += sz
+        elif op == 0x4C:  # JMP abs
+            total += 3
+            pc = binary[i + 1] | (binary[i + 2] << 8)
+        elif op == 0x6C:  # JMP (ind) — can't follow
+            total += 5
+            break
+        elif op == 0x20:  # JSR — don't follow, just count
+            total += 6
+            pc += 3
+        elif op == 0x60:  # RTS
+            total += 6
+            if stop_at_rts:
+                break
+            pc += 1
+        elif op == 0x40:  # RTI
+            total += 6
+            break
+        else:
+            # Normal instruction — check page-crossing penalty
+            if mode in _READ_PAGE_CROSS and mnem not in _WRITE_MNEMONICS and mnem not in _RMW_MNEMONICS:
+                # Potential +1 for page cross. For abs,x and abs,y:
+                # page cross happens if (base_addr & 0xFF) + index > 0xFF
+                # We can't know the index at static analysis time, so we
+                # report base cycles only. Use count_bytes_worst() for +1.
+                pass
+            total += cyc
+            pc += sz
+
+    return total
+
+
+def count_bytes_range(binary, base, start_addr, end_addrs, decisions=None):
+    """Count cycles from start_addr to any of end_addrs.
+
+    Like count_bytes but stops when PC reaches any address in end_addrs.
+    Useful for measuring a specific section (e.g., wave table only).
+    """
+    if decisions is None:
+        decisions = {}
+
+    total = 0
+    pc = start_addr
+    end = base + len(binary)
+    visited = set()
+
+    while base <= pc < end:
+        if pc in end_addrs:
+            break
+        if pc in visited:
+            break
+        visited.add(pc)
+
+        i = pc - base
+        op = binary[i]
+        if op not in _OPTABLE:
+            break
+
+        mnem, mode, sz, cyc = _OPTABLE[op]
+
+        if mode == 'rel':
+            taken = decisions.get(pc, False)
+            if taken:
+                off = binary[i + 1]
+                target = pc + 2 + (off if off < 128 else off - 256)
+                cyc = 3
+                if (pc + 2) >> 8 != target >> 8:
+                    cyc = 4
+                total += cyc
+                pc = target
+            else:
+                total += 2
+                pc += sz
+        elif op == 0x4C:
+            total += 3
+            pc = binary[i + 1] | (binary[i + 2] << 8)
+        elif op == 0x6C:
+            total += 5; break
+        elif op == 0x20:
+            total += 6; pc += 3
+        elif op == 0x60:
+            total += 6; break
+        elif op == 0x40:
+            total += 6; break
+        else:
+            total += cyc
+            pc += sz
+
+    return total
+
+
+_MODE_FMT = {
+    'imp': '', 'acc': '', 'imm': '#${:02X}', 'zp': '${:02X}', 'zpx': '${:02X},x',
+    'zpy': '${:02X},y', 'abs': '${:04X}', 'abx': '${:04X},x', 'aby': '${:04X},y',
+    'ind': '(${:04X})', 'izx': '(${:02X},x)', 'izy': '(${:02X}),y', 'rel': '${:04X}',
+}
+
+
+def disassemble(binary, base, start=None, end=None):
+    """Disassemble 6502 binary into xa65-compatible assembly with address labels.
+
+    Args:
+        binary: bytes of the 6502 binary
+        base: load address (e.g. 0xC000)
+        start: start offset within binary (default: 0)
+        end: end offset within binary (default: len(binary))
+
+    Returns:
+        str of xa65-compatible assembly. Branch/jump targets use L_XXXX labels.
+    """
+    if start is None: start = 0
+    if end is None: end = len(binary)
+
+    # First pass: collect all branch/jump targets
+    targets = set()
+    i = start
+    while i < end:
+        op = binary[i]
+        if op not in _OPTABLE:
+            i += 1
+            continue
+        mnem, mode, sz, cyc = _OPTABLE[op]
+        if i + sz > end:
+            break
+        if mode == 'rel':
+            off = binary[i + 1]
+            tgt = base + i + 2 + (off if off < 128 else off - 256)
+            targets.add(tgt)
+        elif mode == 'abs' and mnem in ('jmp', 'jsr'):
+            tgt = binary[i + 1] | (binary[i + 2] << 8)
+            if base <= tgt < base + end:
+                targets.add(tgt)
+        i += sz
+
+    # Second pass: emit assembly
+    lines = []
+    lines.append(f'                * = ${base:04X}')
+    i = start
+    while i < end:
+        addr = base + i
+        op = binary[i]
+        if op not in _OPTABLE:
+            i += 1
+            continue
+        mnem, mode, sz, cyc = _OPTABLE[op]
+        if i + sz > end:
+            break
+
+        # Label
+        if addr in targets:
+            lines.append(f'L_{addr:04X}')
+
+        # Operand
+        if mode == 'imp' or mode == 'acc':
+            operand = ''
+        elif mode == 'imm':
+            operand = f'#${binary[i + 1]:02x}'
+        elif mode in ('zp', 'zpx', 'zpy'):
+            fmt = _MODE_FMT[mode]
+            operand = fmt.format(binary[i + 1])
+        elif mode in ('abs', 'abx', 'aby', 'ind'):
+            val = binary[i + 1] | (binary[i + 2] << 8)
+            # Use label if target is in code range
+            if val in targets:
+                suffix = {'abs': '', 'abx': ',x', 'aby': ',y', 'ind': ''}
+                if mode == 'ind':
+                    operand = f'(L_{val:04X})'
+                else:
+                    operand = f'L_{val:04X}{suffix[mode]}'
+            else:
+                operand = _MODE_FMT[mode].format(val)
+        elif mode == 'izx':
+            operand = f'(${binary[i + 1]:02x},x)'
+        elif mode == 'izy':
+            operand = f'(${binary[i + 1]:02x}),y'
+        elif mode == 'rel':
+            off = binary[i + 1]
+            tgt = addr + 2 + (off if off < 128 else off - 256)
+            operand = f'L_{tgt:04X}'
+        else:
+            operand = '???'
+
+        lines.append(f'                {mnem} {operand}')
+        i += sz
+
+    return '\n'.join(lines)
+
+
+def trace_path(instructions, start_label, decisions, max_steps=200):
+    """Trace an execution path with explicit branch decisions.
+
+    NOTE: This function does NOT account for branch page-crossing penalties
+    (+1 cycle when a taken branch crosses a 256-byte page boundary).
+    For cycle-accurate counting, use count_bytes() on the assembled binary.
+    trace_path is for human-readable path analysis; count_bytes is ground truth.
+
+    Args:
+        instructions: list of Instruction objects (from analyze_source)
+        start_label: label to start tracing from
+        decisions: dict mapping label -> bool (True=taken for branches)
+                   Missing labels default to False (fall through)
+
+    Returns:
+        (path, total_cycles) where path is list of (Instruction, cycles) tuples
+    """
+    label_idx = {}
+    for i, inst in enumerate(instructions):
+        if inst.label:
+            label_idx[inst.label] = i
+
+    if start_label not in label_idx:
+        return [], 0
+
+    path = []
+    total = 0
+    i = label_idx[start_label]
+    visited = set()
+
+    for _ in range(max_steps):
+        if i >= len(instructions) or i in visited:
+            break
+        visited.add(i)
+        inst = instructions[i]
+
+        if not inst.mnemonic:
+            # Label only — don't count cycles, just advance
+            i += 1
+            continue
+
+        if inst.mnemonic == 'rts' or inst.mnemonic == 'rti':
+            path.append((inst, inst.base_cycles))
+            total += inst.base_cycles
+            break
+
+        if inst.is_branch:
+            taken = decisions.get(inst.label, decisions.get(inst.branch_target, False))
+            # Check by address label too (L_XXXX labels from disassembly)
+            # Try label at current position
+            for lbl, idx in label_idx.items():
+                if idx == i and lbl in decisions:
+                    taken = decisions[lbl]
+                    break
+            cyc = 3 if taken else 2
+            path.append((inst, cyc))
+            total += cyc
+            if taken and inst.branch_target in label_idx:
+                i = label_idx[inst.branch_target]
+            else:
+                i += 1
+            continue
+
+        if inst.mnemonic == 'jmp':
+            path.append((inst, inst.base_cycles))
+            total += inst.base_cycles
+            if inst.branch_target in label_idx:
+                i = label_idx[inst.branch_target]
+            else:
+                break
+            continue
+
+        if inst.mnemonic == 'jsr':
+            # Don't follow JSR — just count cycles and continue
+            path.append((inst, inst.base_cycles))
+            total += inst.base_cycles
+            i += 1
+            continue
+
+        path.append((inst, inst.base_cycles))
+        total += inst.base_cycles
+        i += 1
+
+    return path, total
+
+
+def compare_paths(source_a, source_b, start_label, decisions_a, decisions_b=None,
+                  name_a='A', name_b='B'):
+    """Compare cycle counts of the same logical path in two assemblies.
+
+    Prints side-by-side comparison showing where cycles differ.
+    """
+    if decisions_b is None:
+        decisions_b = decisions_a
+
+    insts_a = analyze_source(source_a)
+    insts_b = analyze_source(source_b)
+
+    path_a, total_a = trace_path(insts_a, start_label, decisions_a)
+    path_b, total_b = trace_path(insts_b, start_label, decisions_b)
+
+    print(f'=== Path comparison from {start_label} ===')
+    print(f'{name_a}: {total_a} cycles ({len(path_a)} instructions)')
+    print(f'{name_b}: {total_b} cycles ({len(path_b)} instructions)')
+    print(f'Difference: {total_b - total_a:+d} cycles')
+    print()
+
+    # Show each path
+    for name, path_list, total in [(name_a, path_a, total_a), (name_b, path_b, total_b)]:
+        print(f'--- {name} ({total}c) ---')
+        for inst, cyc in path_list:
+            lbl = f'{inst.label}:' if inst.label else ''
+            print(f'  {lbl:20s} {inst.mnemonic:4s} {inst.operand:20s} {cyc}c')
+        print()
+
+
+# =============================================================================
 # Test
 # =============================================================================
 

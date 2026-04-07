@@ -302,17 +302,23 @@ def pack_sidfinity(
 
     # Tables: wave, pulse, filter, speed (always all present)
 
-    # Wave table — SIDfinity player always has wave delay support,
-    # so wave left bytes $10-$DF must have the +$10 bias applied.
-    # If the original had NOWAVEDELAY=1 (no delay), data has no bias — add it.
-    # If NOWAVEDELAY=0 (has delay), data already has bias — leave it.
+    # Wave table bias: the +$10 bias separates waveforms ($20+) from delays ($00-$0F).
+    # V2 codegen without WAVE_DELAY: store waveforms directly (no bias), player
+    # skips the CMP/SBC, saving 7 cycles per channel per frame.
+    # Monolithic or V2 with WAVE_DELAY: always apply bias.
     wl = bytearray(wave_left)
-    apply_bias = nowavedelay if nowavedelay is not None else \
-        not any(0x10 <= b <= 0x1F for b in wl if b != 0xFF)
-    if apply_bias:
-        for i in range(len(wl)):
-            if 0x10 <= wl[i] <= 0xDF:  # waveform range (not delay, cmd, or jump)
-                wl[i] += 0x10
+    skip_bias = False
+    if use_codegen and song is not None:
+        from player.codegen import detect_features, WAVE_DELAY as _WD
+        _feats = detect_features(song)
+        skip_bias = _WD not in _feats
+    if not skip_bias:
+        apply_bias = nowavedelay if nowavedelay is not None else \
+            not any(0x10 <= b <= 0x1F for b in wl if b != 0xFF)
+        if apply_bias:
+            for i in range(len(wl)):
+                if 0x10 <= wl[i] <= 0xDF:  # waveform range (not delay, cmd, or jump)
+                    wl[i] += 0x10
     insertlabel(buf, 'mt_wavetbl')
     insertbytes(buf, bytes(wl))
     insertlabel(buf, 'mt_notetbl')

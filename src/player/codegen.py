@@ -105,6 +105,11 @@ VIBRATO_PARAM_FIX = 'VIBRATO_PARAM_FIX'
 NOHR_INSTR = 'NOHR_INSTR'
 LEGATO_INSTR = 'LEGATO_INSTR'
 
+# Pattern content flags
+HAS_KEYOFF = 'HAS_KEYOFF'
+HAS_KEYON = 'HAS_KEYON'
+HAS_PACKED_REST = 'HAS_PACKED_REST'
+
 
 # =============================================================================
 # Feature dependency lattice
@@ -218,6 +223,24 @@ def detect_features(song):
                     flags.add(VIBRATO)
             else:
                 flags.add(fx_to_flag[fx])
+
+    # Pattern content analysis
+    for patt in song.patterns:
+        for ev in patt.events:
+            if ev.type == 'off':
+                flags.add(HAS_KEYOFF)
+            elif ev.type == 'on':
+                flags.add(HAS_KEYON)
+    # Packed rest detection (check encoded pattern bytes)
+    try:
+        from usf_to_sid import usf_pattern_to_gt2
+        for patt in song.patterns:
+            encoded = usf_pattern_to_gt2(patt)
+            if any(0xC0 <= b <= 0xFE for b in encoded):
+                flags.add(HAS_PACKED_REST)
+                break
+    except ImportError:
+        flags.add(HAS_PACKED_REST)  # assume yes if can't check
 
     # Orderlists
     for ol in song.orderlists:
