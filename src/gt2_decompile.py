@@ -503,6 +503,7 @@ def decompile_gt2(sid_path):
     code_end = ft[0]
     first_note = ft[1]
     num_notes = ft[2]
+    lo_first = ft[3]
 
     # Detect NOWAVEDELAY from player binary: CMP #$10 / BCS → SBC #$10
     # Must verify BCS target is SBC #$10, not just any CMP #$10 / BCS.
@@ -599,11 +600,19 @@ def decompile_gt2(sid_path):
         'sr_param': sr_param,
     }
 
-    # Freq tables
-    result['freq_lo'] = bytes(binary[pos:pos + num_notes])
+    # Freq tables — respect lo_first flag from freq table detection.
+    # lo_first=True: binary order is [freq_lo, freq_hi] (most common)
+    # lo_first=False: binary order is [freq_hi, freq_lo]
+    first_block = bytes(binary[pos:pos + num_notes])
     pos += num_notes
-    result['freq_hi'] = bytes(binary[pos:pos + num_notes])
+    second_block = bytes(binary[pos:pos + num_notes])
     pos += num_notes
+    if lo_first:
+        result['freq_lo'] = first_block
+        result['freq_hi'] = second_block
+    else:
+        result['freq_lo'] = second_block
+        result['freq_hi'] = first_block
 
     # Song table — read to find orderlist addresses
     songs = 1  # TODO: detect multi-song
