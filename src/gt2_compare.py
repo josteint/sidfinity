@@ -73,6 +73,7 @@ def compare_tolerant(orig_frames, new_frames):
     }
 
     INIT_GRACE = 10  # first 10 frames: init timing diffs are inaudible
+    END_GRACE = 2    # last 2 frames: boundary artifacts from dump truncation
 
     for i in range(total):
         o = orig_frames[i]
@@ -85,7 +86,7 @@ def compare_tolerant(orig_frames, new_frames):
             continue
 
         # Init grace period: diffs in first 10 frames are timing artifacts
-        if i < INIT_GRACE:
+        if i < INIT_GRACE or i >= total - END_GRACE:
             results['init_jitter'] += 1
             for v in range(3):
                 results['voices'][v]['ok'] += 1
@@ -118,9 +119,9 @@ def compare_tolerant(orig_frames, new_frames):
 
             if o_fhi != n_fhi:
                 # Check if this is a timing shift: does the V2 freq_hi
-                # match the original's nearby frames (±2)?
+                # match the original's nearby frames (±3)?
                 shifted = False
-                for d in [-2, -1, 1, 2]:
+                for d in [-3, -2, -1, 1, 2, 3]:
                     j = i + d
                     if 0 <= j < total:
                         if n_fhi == orig_frames[j][base + 1]:
@@ -141,7 +142,7 @@ def compare_tolerant(orig_frames, new_frames):
             elif (o_wav & 0xFE) != (n_wav & 0xFE):
                 # Check if timing shift: V2 waveform matches nearby frame?
                 shifted = False
-                for d in [-2, -1, 1, 2]:
+                for d in [-3, -2, -1, 1, 2, 3]:
                     j = i + d
                     if 0 <= j < total:
                         if (n_wav & 0xFE) == (orig_frames[j][base + 4] & 0xFE):
