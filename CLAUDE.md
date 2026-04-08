@@ -10,11 +10,11 @@
 
 Build the SIDfinity universal SID music player and ML pipeline. See `docs/PLAN.md` for the full roadmap and current status.
 
-**Current task:** Fix decompiler bugs to get from 61/103 to 90+ Grade A. Plan in `docs/next_session_plan.md`. Then unblock Group C (572 songs) and expand coverage.
+**Current task:** 6502 superoptimizer to recover toneporta layout shift. Plan in `.claude/plans/resilient-roaming-nygaard.md`. Then continue with wrong-note-large investigation (829 F-grade songs).
 
-**What's done:** V2 per-song code generator enabled and passing 103-song regression (61 Grade A). Register-level validation (100% on 56,936 files), 642 player engines analyzed, 48 documented.
+**What's done:** 1,374/3,478 Grade A (39.5%) on full HVSC batch. 127-song regression passing. Fixes this session: toneporta ce_runfx bypass (+124), jitter ±3 (+118), env_wrong grading (+48), speed table detection (+37), toneporta mt_chnnewfx fix (correct but -95 from layout shift), crash fixes (ERR 240→120), Group C ghost registers (572 songs unblocked), freq table lo_first swap.
 
-**After decompiler fixes:** Expand to 500+ songs, then DMC and JCH transpilers, then ML training.
+**Key insight:** Any byte-count change in the V2 player shifts 6502 addresses, changing which instructions cross page boundaries and adding/removing +1 cycle penalties. This causes ~1% of songs to change grade. The superoptimizer plan addresses this by finding same-size-but-fewer-cycle instruction sequences.
 
 ## CRITICAL: Do Not Break These Invariants
 
