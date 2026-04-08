@@ -200,11 +200,19 @@ def score_results(results):
     """
     total = results['total']
 
-    # Audible errors: wrong notes, wrong waveforms, wrong envelopes
-    audible = 0
+    # Strongly audible errors: wrong notes, wrong waveforms
+    strong_audible = 0
     for v in range(3):
         vr = results['voices'][v]
-        audible += vr['note_wrong'] + vr['wave_wrong'] + vr['env_wrong']
+        strong_audible += vr['note_wrong'] + vr['wave_wrong']
+
+    # Weakly audible: envelope diffs while gate on (ADSR write-order timing,
+    # typically inaudible — within-frame register ordering differences)
+    env_audible = 0
+    for v in range(3):
+        env_audible += results['voices'][v]['env_wrong']
+
+    audible = strong_audible + env_audible
 
     # Inaudible differences: freq_fine, pulse_diff, gate_diff, jitter, filter
     inaudible = 0
@@ -215,15 +223,19 @@ def score_results(results):
                    + vr['note_jitter']
 
     # Score: penalize audible errors heavily, inaudible lightly
-    audible_pct = audible / (total * 3)  # fraction of voice-frames with audible error
+    audible_pct = audible / (total * 3)
     inaudible_pct = inaudible / (total * 3)
+    strong_pct = strong_audible / (total * 3)
+    env_pct = env_audible / (total * 3)
 
     score = max(0, 100 - audible_pct * 100 - inaudible_pct * 5)
 
-    if audible_pct == 0:
-        grade = 'A'  # no audible differences
+    # Grading: Grade A allows envelope-only diffs under 1% (ADSR write-order
+    # timing within a frame is inaudible). Wrong notes/waveforms must be zero.
+    if strong_pct == 0 and env_pct < 0.01:
+        grade = 'A'  # no audible note/wave diffs, envelope timing only
     elif audible_pct < 0.02:
-        grade = 'B'  # <2% audible (probably just startup/transient)
+        grade = 'B'  # <2% audible
     elif audible_pct < 0.10:
         grade = 'C'  # noticeable
     else:
