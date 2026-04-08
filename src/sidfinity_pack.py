@@ -319,6 +319,9 @@ def pack_sidfinity(
             for i in range(len(wl)):
                 if 0x10 <= wl[i] <= 0xDF:  # waveform range (not delay, cmd, or jump)
                     wl[i] += 0x10
+                elif 0xE0 <= wl[i] <= 0xEF:  # inaudible waveforms ($00-$0F)
+                    # .sng $Ex → packed ($x + $10): low nibble + bias
+                    wl[i] = (wl[i] & 0x0F) + 0x10
     insertlabel(buf, 'mt_wavetbl')
     insertbytes(buf, bytes(wl))
     insertlabel(buf, 'mt_notetbl')

@@ -218,6 +218,18 @@ def detect_gt2_player_group(sid_path):
                 simplepulse = 0
                 break
 
+    # --- Detect pulse speed ASL doubling ---
+    # Some players use ASL;BCC to double pulse speed before adding.
+    # Others use CLC;BPL (no doubling).
+    # Pattern: LDA abs,Y ($B9); ASL ($0A); BCC ($90)
+    pulse_speed_asl = False
+    for i in range(code_end - 5):
+        if (binary[i] == 0xB9 and              # LDA abs,Y
+                binary[i + 3] == 0x0A and       # ASL A
+                binary[i + 4] == 0x90):         # BCC
+            pulse_speed_asl = True
+            break
+
     # --- Detect vibrato param fix ---
     # In the effect 0 handler (instrument vibrato), look for:
     # LDA #$00 / JMP mt_tick0_34
@@ -270,6 +282,7 @@ def detect_gt2_player_group(sid_path):
         'vibrato_fix': vibrato_fix,
         'fixedparams': fixedparams,
         'simplepulse': simplepulse,
+        'pulse_speed_asl': pulse_speed_asl,
         'ad_param': ad_param if ad_param is not None else 0x0F,
         'sr_param': sr_param if sr_param is not None else 0x00,
         'details': {
