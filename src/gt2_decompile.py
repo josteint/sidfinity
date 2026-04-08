@@ -72,6 +72,31 @@ def _detect_speed_table_from_binary(binary, la, code_end, table_region_start, ta
         if speed_size > 0 and speed_size < 64:
             return (sl_start - la, sr_start - la, speed_size)
 
+    # Fallback: toneporta-only songs don't store to $FD/$FC. Try finding
+    # the speed table by looking for ANY pair of LDA abs,Y refs at the end
+    # of the table region with a $00 separator between them.
+    if speed_l_operand is None and speed_r_operand is None and lda_refs:
+        # Get all refs in the latter half of the table region (speed is last)
+        mid_addr = la + (table_region_start + table_region_end) // 2
+        late_refs = sorted(a for a in lda_refs if a >= mid_addr)
+        # Look for two refs with a $00 byte between them
+        for i in range(len(late_refs) - 1):
+            a1 = late_refs[i]
+            a2 = late_refs[i + 1]
+            gap = a2 - a1
+            # Check for $00 separator pattern: speed_left data + $00 + speed_right data
+            # a1 = mt_speedlefttbl - 1, a2 = mt_speedrighttbl - 1
+            sl_start = a1 + 1  # mt_speedlefttbl
+            sr_start = a2 + 1  # mt_speedrighttbl
+            size = sr_start - sl_start - 1  # minus $00 separator
+            if 1 <= size <= 32:
+                # Verify $00 separator byte
+                sep_off = sl_start + size - la
+                if 0 <= sep_off < len(binary) and binary[sep_off] == 0x00:
+                    speed_l_operand = a1
+                    speed_r_operand = a2
+                    return (sl_start - la, sr_start - la, size)
+
     # Fallback: only speed_r found (NOCALCULATEDSPEED=1 case -- only speedright used)
     if speed_r_operand is not None and speed_l_operand is None:
         # In NOCALCULATEDSPEED=1 mode, only mt_speedrighttbl is referenced.
