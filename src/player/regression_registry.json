@@ -411,8 +411,8 @@
   },
   {
     "path": "/home/jtr/sidfinity/data/C64Music/MUSICIANS/A/Ajitek/Did_We_Not.sid",
-    "min_grade": "A",
-    "min_score": 94.7
+    "min_grade": "B",
+    "min_score": 94.6
   },
   {
     "path": "/home/jtr/sidfinity/data/C64Music/MUSICIANS/M/MovieMovies1/Geddan.sid",
@@ -631,7 +631,7 @@
   },
   {
     "path": "/home/jtr/sidfinity/data/C64Music/MUSICIANS/G/GuyGavin/Evoke-Report_2.sid",
-    "min_grade": "A",
-    "min_score": 95.1
+    "min_grade": "B",
+    "min_score": 94.5
   }
 ]

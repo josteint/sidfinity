@@ -524,6 +524,13 @@ def emit_wave_table(ctx):
         ctx.label('ce_runfx')
         ctx.inst('ldy', 'mt_chnparam,x')
         ctx.inst('bne', 'ce_rfgo')
+        if ctx.has(TONEPORTA):
+            # Toneporta with param=0 means "snap to target" — don't skip
+            ctx.inst('lda', 'mt_chnfx,x')
+            ctx.inst('cmp', '#3')
+            ctx.inst('bne', 'ce_rfskip')
+            ctx.inst('jmp', 'ce_fx3')
+            ctx.label('ce_rfskip')
         ctx.inst('jmp', 'ce_pulse')
         ctx.label('ce_rfgo')
     # else: fall through to ce_pulse (next section)
