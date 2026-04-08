@@ -16,6 +16,41 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from gt_parser import parse_psid_header, find_freq_table, collect_abs_addresses
 
 
+def detect_ghost_buffer(binary, code_end):
+    """Detect ghost register buffer address from Group C copy loop.
+
+    Group C players (v2.73-2.74) write to a RAM ghost buffer instead of
+    SID $D400 directly. A copy loop copies the buffer to SID:
+      LDX #$18 / LDA ghost_buf,X / STA $D400,X / DEX / BPL
+
+    Returns the ghost buffer base address, or None if not found.
+    """
+    for i in range(code_end - 10):
+        if (binary[i] == 0xA2 and binary[i + 1] == 0x18 and      # LDX #24
+                binary[i + 2] == 0xBD and                          # LDA abs,X
+                binary[i + 5] == 0x9D and                          # STA abs,X
+                binary[i + 6] == 0x00 and binary[i + 7] == 0xD4 and  # $D400
+                binary[i + 8] == 0xCA and                          # DEX
+                binary[i + 9] == 0x10):                            # BPL
+            return binary[i + 3] | (binary[i + 4] << 8)
+    return None
+
+
+def _is_sid_reg(dst, ghost_base, reg_offset=None):
+    """Check if dst is a SID register (or ghost equivalent) and optionally matches reg offset.
+
+    Returns the register offset (0-24) or -1 if not a SID/ghost register.
+    """
+    reg = -1
+    if 0xD400 <= dst <= 0xD418:
+        reg = dst - 0xD400
+    elif ghost_base is not None and ghost_base <= dst <= ghost_base + 0x18:
+        reg = dst - ghost_base
+    if reg_offset is not None:
+        return reg if (reg >= 0 and reg % 7 == reg_offset) else -1
+    return reg
+
+
 def find_lda_sta_pairs(binary, la, code_end):
     """Find all LDA abs,Y → STA patterns in player code."""
     pairs = []
@@ -34,11 +69,14 @@ def find_lda_sta_pairs(binary, la, code_end):
     return pairs
 
 
-def detect_player_flags(binary, la, code_end, freq_end, ad_operand, ni):
+def detect_player_flags(binary, la, code_end, freq_end, ad_operand, ni, ghost_base=None):
     """Detect GT2 player compilation flags from the binary.
 
     Returns dict with: fixedparams, nopulse, nofilter, noinstrvib.
     Each is True (flag=1, feature disabled) or False (flag=0, feature enabled).
+
+    ghost_base: if not None, Group C ghost buffer base address. SID register
+    checks also match ghost_base+offset addresses.
 
     Detection strategy for FIXEDPARAMS:
     - Find channel variables written by both LDA #imm (hard restart constant)
@@ -48,6 +86,14 @@ def detect_player_flags(binary, la, code_end, freq_end, ad_operand, ni):
     - Otherwise FIXEDPARAMS=1 (constant gate timer, no columns).
     """
     max_col_addr = ad_operand + 12 * ni  # generous upper bound
+
+    def _is_channel_var(dst):
+        """Check if dst is a channel variable (not a SID register or ghost buffer)."""
+        if 0xD400 <= dst <= 0xD41F:
+            return False
+        if ghost_base is not None and ghost_base <= dst <= ghost_base + 0x1F:
+            return False
+        return True
 
     # Collect LDA abs,Y -> STA abs,X pairs from instrument range.
     # Scan up to 15 bytes ahead to find STA past conditional branches.
@@ -61,14 +107,14 @@ def detect_player_flags(binary, la, code_end, freq_end, ad_operand, ni):
                 for j in range(i + 3, min(i + 15, code_end - 2)):
                     if binary[j] == 0x9D:  # STA abs,X
                         dst = binary[j + 1] | (binary[j + 2] << 8)
-                        if dst < 0xD400:  # channel variable, not SID register
+                        if _is_channel_var(dst):
                             instr_sta_targets.setdefault(dst, set()).add(src)
                         break
         elif binary[i] == 0xA9:  # LDA #imm
             imm = binary[i + 1]
             if i + 2 < code_end - 2 and binary[i + 2] == 0x9D:  # STA abs,X
                 dst = binary[i + 3] | (binary[i + 4] << 8)
-                if dst < 0xD400:
+                if _is_channel_var(dst):
                     imm_sta_targets.setdefault(dst, set()).add(imm)
 
     # FIXEDPARAMS: find a channel variable written by both LDA #imm and
@@ -85,14 +131,14 @@ def detect_player_flags(binary, la, code_end, freq_end, ad_operand, ni):
 
     # NOPULSE: check if pulse_ptr column exists.
     # pulse_ptr writes to mt_chnpulseptr (= mt_chnwave + 1).
-    # Find mt_chnwave from the STA $D404,X chain.
+    # Find mt_chnwave from the STA $D404,X (or ghost+4,X) chain.
     # Note: the first STA $D404,X in code may be a constant store (LDA #imm)
     # rather than a channel variable load (LDA abs,X). Scan ALL occurrences.
     mt_chnwave = None
     for i in range(code_end - 5):
         if binary[i] == 0x9D:
             dst = binary[i + 1] | (binary[i + 2] << 8)
-            if 0xD400 <= dst <= 0xD41F and (dst - 0xD400) % 7 == 4:
+            if _is_sid_reg(dst, ghost_base, reg_offset=4) >= 0:
                 for j in range(max(0, i - 8), i):
                     if binary[j] == 0xBD:
                         mt_chnwave = binary[j + 1] | (binary[j + 2] << 8)
@@ -119,7 +165,7 @@ def detect_player_flags(binary, la, code_end, freq_end, ad_operand, ni):
                 j = i + 3
                 if j + 2 < code_end and binary[j] == 0x8D:
                     dst = binary[j + 1] | (binary[j + 2] << 8)
-                    if dst < 0xD400:
+                    if _is_channel_var(dst):
                         nofilter = False
 
     # NOINSTRVIB: check if vib_param/vib_delay columns are read.
@@ -164,7 +210,11 @@ def parse_gt2_direct(sid_path):
     code_end = freq_off
     freq_end = freq_off + num_notes * 2
 
+    # Detect ghost buffer for Group C players
+    ghost_base = detect_ghost_buffer(binary, code_end)
+
     # Step 1: Find AD and SR columns by SID register writes
+    # For Group C, check ghost_buf+5/+6 in addition to $D405/$D406
     ad_operand = sr_operand = None
     i = 0
     while i < code_end - 5:
@@ -174,11 +224,12 @@ def parse_gt2_direct(sid_path):
                 for j in range(i + 3, min(i + 12, code_end - 2)):
                     if binary[j] == 0x9D:  # STA abs,X
                         dst = binary[j + 1] | (binary[j + 2] << 8)
-                        if 0xD400 <= dst <= 0xD41F:
-                            reg = (dst - 0xD400) % 7
-                            if reg == 5 and ad_operand is None:
+                        reg = _is_sid_reg(dst, ghost_base)
+                        if reg >= 0:
+                            reg_mod = reg % 7
+                            if reg_mod == 5 and ad_operand is None:
                                 ad_operand = src
-                            elif reg == 6 and sr_operand is None:
+                            elif reg_mod == 6 and sr_operand is None:
                                 sr_operand = src
                         break
         i += 1
@@ -205,7 +256,7 @@ def parse_gt2_direct(sid_path):
                 lda_refs.add(addr)
 
     # Detect player flags for column layout
-    flags = detect_player_flags(binary, la, code_end, freq_end, ad_operand, ni)
+    flags = detect_player_flags(binary, la, code_end, freq_end, ad_operand, ni, ghost_base)
 
     if ni == 1:
         # For ni=1, compute column count from detected player flags.
@@ -284,12 +335,12 @@ def parse_gt2_direct(sid_path):
             columns['wave_ptr'] = min(wave_ptr_candidates)
 
         # Pulse_ptr: writes to mt_chnpulseptr (= mt_chnwave + 1).
-        # Scan ALL STA $D404,X -- the first may be a constant store (LDA #imm).
+        # Scan ALL STA $D404,X (or ghost+4,X) -- the first may be a constant store (LDA #imm).
         mt_chnwave = None
         for i in range(code_end - 5):
             if binary[i] == 0x9D:
                 dst = binary[i + 1] | (binary[i + 2] << 8)
-                if 0xD400 <= dst <= 0xD41F and (dst - 0xD400) % 7 == 4:
+                if _is_sid_reg(dst, ghost_base, reg_offset=4) >= 0:
                     for j in range(max(0, i - 8), i):
                         if binary[j] == 0xBD:
                             mt_chnwave = binary[j + 1] | (binary[j + 2] << 8)
@@ -476,6 +527,7 @@ def parse_gt2_direct(sid_path):
         'ni': ni,
         'num_columns': len(col_operands),
         'flags': flags,
+        'ghost_base': ghost_base,
         'col_operands': {name: col_operands[ci] for name, ci in columns.items()
                          if ci < len(col_operands)},
         'col_data': col_data,
