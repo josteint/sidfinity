@@ -82,7 +82,14 @@ def detect_gt2_flags(song, r=None):
                 if cmd == 11: F['NOSETFILTCTRL'] = 0
                 if cmd == 12: F['NOSETFILTCUTOFF'] = 0
                 if cmd == 13: F['NOSETMASTERVOL'] = 0
-                if cmd in (1, 2, 3, 4):
+                if cmd in (1, 2):
+                    F['NOPORTAMENTO'] = 0
+                    calcspeedtest(ev.command_val)
+                if cmd == 3:
+                    F['NOTONEPORTA'] = 0
+                    calcspeedtest(ev.command_val)
+                if cmd == 4:
+                    F['NOVIB'] = 0
                     calcspeedtest(ev.command_val)
                 if cmd == 14:
                     F['NOFUNKTEMPO'] = 0
