@@ -186,7 +186,7 @@ def detect_features(song):
         for left, right in song.shared_wave_table:
             if 0x01 <= left <= 0x0F:
                 flags.add(WAVE_DELAY)
-            if left >= 0xE0 and left != 0xFF:
+            if 0xF0 <= left <= 0xFE:
                 flags.add(WAVE_CMD)
 
     # Speed table analysis
@@ -280,10 +280,14 @@ def detect_features(song):
     # Close under implications
     flags = close_features(flags)
 
-    # Tick0 FX: if any individual tick0 handler is active, enable TICK0_FX
+    # Tick0 FX: if any individual tick0 handler is active, enable TICK0_FX.
+    # EFFECTS requires TICK0_FX because the tick-0 dispatch copies
+    # mt_chnnewfx/mt_chnnewparam to mt_chnfx/mt_chnparam. Without it,
+    # effects 1-4 (portamento, toneporta, vibrato) from pattern data
+    # never activate (mt_chnfx stays 0 from new note init).
     tick0_handlers = {SET_AD, SET_SR, SET_WAVE, SET_WAVEPTR, SET_PULSEPTR,
                       SET_FILTPTR, SET_FILTCTRL, SET_FILTCUT, SET_MASTERVOL,
-                      SET_TEMPO, FUNKTEMPO}
+                      SET_TEMPO, FUNKTEMPO, EFFECTS}
     if flags & tick0_handlers:
         flags.add(TICK0_FX)
 

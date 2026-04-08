@@ -504,12 +504,17 @@ def decompile_gt2(sid_path):
     first_note = ft[1]
     num_notes = ft[2]
 
-    # Detect NOWAVEDELAY from player binary: CMP #$10 / BCS = has delay
+    # Detect NOWAVEDELAY from player binary: CMP #$10 / BCS → SBC #$10
+    # Must verify BCS target is SBC #$10, not just any CMP #$10 / BCS.
+    # Without this, Radar_Love's tempo code (CMP #$10 / BCS) falsely triggers.
     nowavedelay = True  # default: no delay feature
     for i in range(code_end - 3):
         if binary[i] == 0xC9 and binary[i + 1] == 0x10 and binary[i + 2] == 0xB0:
-            nowavedelay = False
-            break
+            bcs_offset = binary[i + 3]
+            target = i + 4 + bcs_offset
+            if target < code_end - 1 and binary[target] == 0xE9 and binary[target + 1] == 0x10:
+                nowavedelay = False
+                break
 
     # Detect BUFFEREDWRITES from player binary.
     # Find mt_loadregswaveonly: BD xx xx 3D xx xx 9D 04 D4 60
@@ -685,6 +690,23 @@ def decompile_gt2(sid_path):
                 break
         else:
             wave_size = max_wave_ptr  # fallback: at least cover all pointers
+
+    # Validate filter_size against max filter_ptr (analogous to wave_size validation).
+    # Filter pointers are 1-based indices. If max(filter_ptr) exceeds filter_size,
+    # the table was truncated — scan for the correct end.
+    if has_filter:
+        max_filter_ptr = max(columns.get('filter_ptr', [0]))
+        if max_filter_ptr > filter_size:
+            filter_table_offset = wave_size * 2 + pulse_size * 2
+            for scan_idx in range(max_filter_ptr - 1,
+                                  min(len(table_region) // 2 - filter_table_offset,
+                                      max_filter_ptr + 64)):
+                abs_idx = filter_table_offset + scan_idx
+                if abs_idx < len(table_region) and table_region[abs_idx] == 0xFF:
+                    filter_size = scan_idx + 1
+                    break
+            else:
+                filter_size = max_filter_ptr  # fallback: cover all pointers
 
     # If wave_size was corrected upward, pulse/filter sizes from parse_direct
     # may be wrong (they were computed with the smaller wave_size). Recalculate

@@ -86,6 +86,8 @@ def detect_player_flags(binary, la, code_end, freq_end, ad_operand, ni):
     # NOPULSE: check if pulse_ptr column exists.
     # pulse_ptr writes to mt_chnpulseptr (= mt_chnwave + 1).
     # Find mt_chnwave from the STA $D404,X chain.
+    # Note: the first STA $D404,X in code may be a constant store (LDA #imm)
+    # rather than a channel variable load (LDA abs,X). Scan ALL occurrences.
     mt_chnwave = None
     for i in range(code_end - 5):
         if binary[i] == 0x9D:
@@ -95,7 +97,8 @@ def detect_player_flags(binary, la, code_end, freq_end, ad_operand, ni):
                     if binary[j] == 0xBD:
                         mt_chnwave = binary[j + 1] | (binary[j + 2] << 8)
                         break
-                break
+                if mt_chnwave is not None:
+                    break
 
     nopulse = True
     if mt_chnwave is not None:
@@ -110,12 +113,14 @@ def detect_player_flags(binary, la, code_end, freq_end, ad_operand, ni):
         if binary[i] == 0xB9:  # LDA abs,Y
             src = binary[i + 1] | (binary[i + 2] << 8)
             if ad_operand <= src < max_col_addr:
-                for j in range(i + 3, min(i + 12, code_end - 2)):
-                    if binary[j] == 0x8D:  # STA abs (global)
-                        dst = binary[j + 1] | (binary[j + 2] << 8)
-                        if dst < 0xD400:
-                            nofilter = False
-                    break
+                # Check the instruction at i+3 (right after LDA abs,Y).
+                # If it's STA abs (0x8D), the target tells us if it's a filter
+                # global variable (non-SID address) or a SID register write.
+                j = i + 3
+                if j + 2 < code_end and binary[j] == 0x8D:
+                    dst = binary[j + 1] | (binary[j + 2] << 8)
+                    if dst < 0xD400:
+                        nofilter = False
 
     # NOINSTRVIB: check if vib_param/vib_delay columns are read.
     # Count instrument-range channel variable targets beyond wave_ptr/pulse/filter.
@@ -279,6 +284,7 @@ def parse_gt2_direct(sid_path):
             columns['wave_ptr'] = min(wave_ptr_candidates)
 
         # Pulse_ptr: writes to mt_chnpulseptr (= mt_chnwave + 1).
+        # Scan ALL STA $D404,X -- the first may be a constant store (LDA #imm).
         mt_chnwave = None
         for i in range(code_end - 5):
             if binary[i] == 0x9D:
@@ -288,7 +294,8 @@ def parse_gt2_direct(sid_path):
                         if binary[j] == 0xBD:
                             mt_chnwave = binary[j + 1] | (binary[j + 2] << 8)
                             break
-                    break
+                    if mt_chnwave is not None:
+                        break
 
         if mt_chnwave is not None:
             mt_chnpulseptr = mt_chnwave + 1

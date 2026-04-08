@@ -18,19 +18,38 @@ from gt2_detect_version import detect_gt2_player_group
 
 
 def detect_nowavedelay(binary, code_end):
-    """Detect NOWAVEDELAY from the player binary (CMP #$10 / BCS pattern)."""
+    """Detect NOWAVEDELAY from the player binary.
+
+    The wave delay pattern is: CMP #$10 / BCS +offset / ... / SBC #$10
+    The BCS target must point to an SBC #$10 instruction. Without this
+    check, unrelated CMP #$10 / BCS sequences (e.g. tempo handling) cause
+    false positives -- see Radar_Love.sid.
+    """
     for i in range(code_end - 3):
         if binary[i] == 0xC9 and binary[i + 1] == 0x10 and binary[i + 2] == 0xB0:
-            return False  # has delay feature (NOWAVEDELAY=0)
+            # BCS offset is a signed relative branch from the byte AFTER the BCS operand
+            bcs_offset = binary[i + 3]
+            target = i + 4 + bcs_offset
+            if target < code_end - 1 and binary[target] == 0xE9 and binary[target + 1] == 0x10:
+                return False  # has delay feature (NOWAVEDELAY=0)
     return True  # no delay (NOWAVEDELAY=1)
 
 
 def pack_wave_left(sng_left, nowavedelay):
-    """Apply wave left transform: .sng → packed format."""
+    """Apply wave left transform: .sng → packed format.
+
+    .sng $E0-$EF encodes inaudible/silent waveforms (SID register $00-$0F).
+    With bias (nowavedelay=False): pack to $10-$1F (player SBC $10 → $00-$0F).
+    Without bias (nowavedelay=True): pack to $00-$0F (player writes directly).
+    """
     if sng_left >= 0xF0 or sng_left == 0xFF:
         return sng_left
     if nowavedelay:
-        return sng_left  # no transform
+        # No WAVE_DELAY: values written directly to SID.
+        # .sng $E0-$EF encodes low waveforms ($00-$0F) — extract actual value.
+        if 0xE0 <= sng_left <= 0xEF:
+            return sng_left & 0x0F
+        return sng_left
     if sng_left >= 0xE0:
         return (sng_left & 0x0F) + 0x10
     if sng_left >= 0x10:
@@ -139,6 +158,10 @@ def gt2_to_usf(sid_path):
         # Unpack left: reverse +$10 bias
         if packed_l >= 0xF0 or packed_l == 0xFF:
             sng_l = packed_l  # commands/jumps unchanged
+        elif not nowavedelay and 0x10 <= packed_l <= 0x1F:
+            # Packed $1x comes from .sng $Ex (inaudible waveforms: SID reg $00-$0F)
+            # pack_wave_left maps .sng $Ex → (sng & $0F) + $10, reverse is:
+            sng_l = (packed_l & 0x0F) | 0xE0
         elif not nowavedelay and 0x20 <= packed_l <= 0xEF:
             sng_l = packed_l - 0x10  # remove bias
         else:
@@ -154,8 +177,29 @@ def gt2_to_usf(sid_path):
 
     pl = d['pulse_left']
     pr = d['pulse_right']
+    simplepulse = ver.get('simplepulse', 0) if ver else 0
+    # Pulse speed ASL doubling: some original players use ASL to double the
+    # pulse speed byte before adding. Our rebuilt player uses CLC (no doubling),
+    # so we must double the speed data to compensate.
+    # Only applies to modulation entries (left < $80), never set-pulse (left >= $80).
+    pulse_asl = ver.get('pulse_speed_asl', False) if ver else False
     if pl and pr:
-        song.shared_pulse_table = [(pl[i], pr[i]) for i in range(min(len(pl), len(pr)))]
+        pulse_table = []
+        for i in range(min(len(pl), len(pr))):
+            left = pl[i]
+            right = pr[i]
+            if simplepulse == 1 and left >= 0x80 and left != 0xFF:
+                # simplepulse SET: original player writes right byte to BOTH
+                # D402 and D403. V2 player writes left->D403, right->D402.
+                # Transform: set left = $80 | right. The $80 bit keeps it as a
+                # SET command (>= $80). The low nibble matches right. SID ignores
+                # PW_HI bits 4-7, so the 12-bit effective pulse width matches.
+                left = 0x80 | right
+            if pulse_asl and left < 0x80 and left != 0x00:
+                # Double speed byte (signed): ASL = shift left 1 bit
+                right = (right * 2) & 0xFF
+            pulse_table.append((left, right))
+        song.shared_pulse_table = pulse_table
 
     fl = d['filter_left']
     fr = d['filter_right']
