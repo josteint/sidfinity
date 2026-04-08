@@ -321,9 +321,16 @@ def usf_to_sid(song, output_path=None):
         ol.extend([0xFF, restart_byte])
         gt2_orderlists.append(bytes(ol))
 
-    # Pack (with optional custom freq table)
+    # Pack (with optional custom freq table).
+    # Original tables cover [first_note..first_note+num_notes-1].
+    # V2 player uses first_note=0, so pad to full 96-note table.
     freq_lo = getattr(song, 'freq_lo', None)
     freq_hi = getattr(song, 'freq_hi', None)
+    fn = getattr(song, 'first_note', 0)
+    if freq_lo is not None and fn > 0:
+        freq_lo = bytes(fn) + freq_lo  # prepend zeros for notes below first_note
+    if freq_hi is not None and fn > 0:
+        freq_hi = bytes(fn) + freq_hi
 
     # Build pulse/filter table bytes from shared tables
     pulse_l = bytearray()
