@@ -148,6 +148,18 @@ def compare_tolerant(orig_frames, new_frames):
                         if (n_wav & 0xFE) == (orig_frames[j][base + 4] & 0xFE):
                             shifted = True
                             break
+                # Also: test bit ($08/$09) is a hard restart transient.
+                # If either side shows test bit near a gate transition, it's jitter.
+                if not shifted and ((n_wav & 0xFE) == 0x08 or (o_wav & 0xFE) == 0x08):
+                    for d in [-3, -2, -1, 1, 2, 3]:
+                        j = i + d
+                        if 0 <= j < total:
+                            if (orig_frames[j][base + 4] & 0xFE) == 0x08:
+                                shifted = True
+                                break
+                            if (new_frames[j][base + 4] & 0xFE) == 0x08:
+                                shifted = True
+                                break
                 if shifted:
                     vr['wave_jitter'] += 1
                 else:
