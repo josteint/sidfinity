@@ -38,8 +38,13 @@ def detect_gt2_player_group(sid_path):
 
     code_end = ft[0]
 
+    # Detect ghost buffer for Group C players
+    from gt2_parse_direct import detect_ghost_buffer
+    ghost_base = detect_ghost_buffer(binary, code_end)
+
     # --- Detect ADSR write order in hard restart ---
     # HR code uses LDA #ADPARAM / STA $D405,X and LDA #SRPARAM / STA $D406,X.
+    # For Group C, these write to ghost_buf+5 / ghost_buf+6 instead.
     # The key is LDA immediate (#) before STA — distinguishes HR from loadregs.
     adsr_order = None
     hr_ad_offset = None
@@ -47,16 +52,32 @@ def detect_gt2_player_group(sid_path):
     ad_param = None
     sr_param = None
 
+    def _is_ad_reg(addr):
+        """Check if addr is AD register ($D405 or ghost+5, per voice)."""
+        if 0xD400 <= addr <= 0xD418 and (addr - 0xD400) % 7 == 5:
+            return True
+        if ghost_base is not None and ghost_base <= addr <= ghost_base + 0x18:
+            return (addr - ghost_base) % 7 == 5
+        return False
+
+    def _is_sr_reg(addr):
+        """Check if addr is SR register ($D406 or ghost+6, per voice)."""
+        if 0xD400 <= addr <= 0xD418 and (addr - 0xD400) % 7 == 6:
+            return True
+        if ghost_base is not None and ghost_base <= addr <= ghost_base + 0x18:
+            return (addr - ghost_base) % 7 == 6
+        return False
+
     hr_writes = []
     for i in range(code_end - 5):
         if binary[i] == 0xA9 and binary[i + 2] == 0x9D:  # LDA #xx / STA abs,X
             addr = binary[i + 3] | (binary[i + 4] << 8)
-            if addr == 0xD405:
+            if _is_ad_reg(addr):
                 hr_writes.append(('AD', i))
                 if hr_ad_offset is None:
                     hr_ad_offset = i
                     ad_param = binary[i + 1]
-            elif addr == 0xD406:
+            elif _is_sr_reg(addr):
                 hr_writes.append(('SR', i))
                 if hr_sr_offset is None:
                     hr_sr_offset = i
@@ -88,31 +109,42 @@ def detect_gt2_player_group(sid_path):
                 jmp_targets[i] = target_off
 
     # Find the mt_loadregswaveonly entry point:
-    # LDA abs,X ($BD) / AND abs,X ($3D) / STA $D404,X ($9D $04 $D4) / RTS ($60)
+    # LDA abs,X ($BD) / AND abs,X ($3D) / STA waveform_reg,X ($9D) / RTS ($60)
+    # For Group C, waveform_reg is ghost_buf+4 instead of $D404
     loadregswaveonly_off = None
     for i in range(code_end - 10):
         if (binary[i] == 0xBD and          # LDA abs,X (mt_chnwave)
                 binary[i + 3] == 0x3D and   # AND abs,X (mt_chngate)
                 binary[i + 6] == 0x9D and   # STA abs,X
-                binary[i + 7] == 0x04 and binary[i + 8] == 0xD4 and  # $D404
                 binary[i + 9] == 0x60):     # RTS
-            loadregswaveonly_off = i
-            break
+            sta_dst = binary[i + 7] | (binary[i + 8] << 8)
+            # Check if it's STA $D404,X or STA ghost+4,X
+            is_wave_reg = (sta_dst == 0xD404)
+            if ghost_base is not None and ghost_base <= sta_dst <= ghost_base + 0x18:
+                is_wave_reg = is_wave_reg or ((sta_dst - ghost_base) % 7 == 4)
+            if is_wave_reg:
+                loadregswaveonly_off = i
+                break
 
     # Find the mt_loadregs entry point (has freq writes before the wave-only part):
-    # ... STA $D400,X / ... STA $D401,X / [mt_loadregswaveonly]
+    # ... STA freq_lo_reg,X / ... STA freq_hi_reg,X / [mt_loadregswaveonly]
+    # For Group C, freq regs are ghost_buf+0 / ghost_buf+1 instead of $D400/$D401
     loadregs_off = None
     if loadregswaveonly_off is not None:
-        # Look backwards from loadregswaveonly for STA $D401,X / STA $D400,X
+        # Look backwards from loadregswaveonly for STA freq_lo,X
         for i in range(loadregswaveonly_off - 1, max(0, loadregswaveonly_off - 20), -1):
-            if (binary[i] == 0x9D and binary[i + 1] == 0x00 and binary[i + 2] == 0xD4):
-                # Found STA $D400,X — look back further for the entry
-                # The entry is the LDA before the first STA in this block
-                for j in range(i - 1, max(0, i - 20), -1):
-                    if binary[j] == 0xBD:  # LDA abs,X (could be mt_chnad or mt_chnfreqlo)
-                        loadregs_off = j
-                        break
-                break
+            if binary[i] == 0x9D:
+                sta_dst = binary[i + 1] | (binary[i + 2] << 8)
+                is_freq_lo = (sta_dst == 0xD400)
+                if ghost_base is not None and sta_dst == ghost_base:
+                    is_freq_lo = True
+                if is_freq_lo:
+                    # Found STA freq_lo,X -- look back further for the entry
+                    for j in range(i - 1, max(0, i - 20), -1):
+                        if binary[j] == 0xBD:  # LDA abs,X
+                            loadregs_off = j
+                            break
+                    break
 
     # Now check: which JMP target does the new-note code use?
     # Find JMPs that target loadregswaveonly vs loadregs
@@ -195,28 +227,32 @@ def detect_gt2_player_group(sid_path):
                     break
 
     # --- Detect SIMPLEPULSE ---
-    # SIMPLEPULSE=1: STA $D402,X / STA $D403,X (same value written to both lo+hi)
-    #   bytes: 9D 02 D4 9D 03 D4
-    # SIMPLEPULSE=0: STA $D402,X / LDA abs,X / STA $D403,X (different lo/hi)
-    #   bytes: 9D 02 D4 BD xx xx 9D 03 D4
-    # None if NOPULSE=1 (no STA $D403,X in code at all)
+    # SIMPLEPULSE=1: STA pulse_lo,X / STA pulse_hi,X (same value written to both)
+    # SIMPLEPULSE=0: STA pulse_lo,X / LDA abs,X / STA pulse_hi,X (different lo/hi)
+    # None if NOPULSE=1 (no STA pulse_hi,X in code at all)
+    # For Group C, pulse regs are ghost_buf+2/+3 instead of $D402/$D403
     simplepulse = None
+    pulse_hi_addr = 0xD403
+    pulse_lo_addr = 0xD402
+    if ghost_base is not None:
+        pulse_hi_addr = ghost_base + 3
+        pulse_lo_addr = ghost_base + 2
 
-    # Search for STA $D403,X and check what precedes it
+    # Search for STA pulse_hi,X and check what precedes it
     for i in range(code_end - 3):
-        if binary[i] == 0x9D and binary[i + 1] == 0x03 and binary[i + 2] == 0xD4:
-            # Found STA $D403,X -- check what's immediately before
-            if (i >= 3 and binary[i - 3] == 0x9D and
-                    binary[i - 2] == 0x02 and binary[i - 1] == 0xD4):
-                # STA $D402,X immediately before -> SIMPLEPULSE=1
-                simplepulse = 1
-                break
-            if (i >= 6 and binary[i - 3] == 0xBD and
-                    binary[i - 6] == 0x9D and binary[i - 5] == 0x02 and
-                    binary[i - 4] == 0xD4):
-                # STA $D402,X / LDA abs,X / STA $D403,X -> SIMPLEPULSE=0
-                simplepulse = 0
-                break
+        if binary[i] == 0x9D:
+            sta_dst = binary[i + 1] | (binary[i + 2] << 8)
+            if sta_dst == pulse_hi_addr or (sta_dst == 0xD403 and ghost_base is None):
+                # Found STA pulse_hi,X -- check what's immediately before
+                if (i >= 3 and binary[i - 3] == 0x9D and
+                        (binary[i - 2] | (binary[i - 1] << 8)) == pulse_lo_addr):
+                    simplepulse = 1
+                    break
+                if (i >= 6 and binary[i - 3] == 0xBD and
+                        binary[i - 6] == 0x9D and
+                        (binary[i - 5] | (binary[i - 4] << 8)) == pulse_lo_addr):
+                    simplepulse = 0
+                    break
 
     # --- Detect pulse speed ASL doubling ---
     # Some players use ASL;BCC to double pulse speed before adding.

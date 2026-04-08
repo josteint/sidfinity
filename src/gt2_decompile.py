@@ -517,23 +517,52 @@ def decompile_gt2(sid_path):
                 break
 
     # Detect BUFFEREDWRITES from player binary.
-    # Find mt_loadregswaveonly: BD xx xx 3D xx xx 9D 04 D4 60
-    # Then check if the loadregs path before it writes to $D405/$D406 via BD (LDA abs,X).
+    # Find mt_loadregswaveonly: BD xx xx 3D xx xx 9D wave_reg 60
+    # Then check if the loadregs path before it writes to AD/SR regs via BD (LDA abs,X).
+    # For Group C, SID register addresses are ghost_buf+offset instead of $D400+offset.
+    from gt2_parse_direct import detect_ghost_buffer
+    ghost_base = detect_ghost_buffer(binary, code_end)
+
+    def _is_wave_reg(lo, hi):
+        if lo == 0x04 and hi == 0xD4:
+            return True
+        addr = lo | (hi << 8)
+        if ghost_base is not None and ghost_base <= addr <= ghost_base + 0x18:
+            return (addr - ghost_base) % 7 == 4
+        return False
+
+    def _is_freq_lo_reg(lo, hi):
+        if lo == 0x00 and hi == 0xD4:
+            return True
+        addr = lo | (hi << 8)
+        if ghost_base is not None and addr == ghost_base:
+            return True
+        return False
+
+    def _is_adsr_reg(lo, hi):
+        if hi == 0xD4 and lo in (0x05, 0x06):
+            return True
+        addr = lo | (hi << 8)
+        if ghost_base is not None and ghost_base <= addr <= ghost_base + 0x18:
+            return (addr - ghost_base) % 7 in (5, 6)
+        return False
+
     buffered_writes = True  # default: assume buffered (most common)
     for i in range(code_end - 10):
         if (binary[i] == 0xBD and binary[i+3] == 0x3D and
-                binary[i+6] == 0x9D and binary[i+7] == 0x04 and
-                binary[i+8] == 0xD4 and binary[i+9] == 0x60):
+                binary[i+6] == 0x9D and
+                _is_wave_reg(binary[i+7], binary[i+8]) and
+                binary[i+9] == 0x60):
             # Found mt_loadregswaveonly at offset i
-            # Search backwards for freq stores: BD xx xx 9D 00 D4 BD xx xx 9D 01 D4
+            # Search backwards for freq stores
             for j in range(max(0, i - 30), i):
                 if (binary[j] == 0xBD and binary[j+3] == 0x9D and
-                        binary[j+4] == 0x00 and binary[j+5] == 0xD4):
+                        _is_freq_lo_reg(binary[j+4], binary[j+5])):
                     # Found freq_lo store. Check 30 bytes before for ADSR stores.
                     has_adsr = False
                     for k in range(max(0, j - 30), j):
                         if (binary[k] == 0xBD and binary[k+3] == 0x9D and
-                                binary[k+4] in (0x05, 0x06) and binary[k+5] == 0xD4):
+                                _is_adsr_reg(binary[k+4], binary[k+5])):
                             has_adsr = True
                             break
                     buffered_writes = has_adsr
