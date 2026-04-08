@@ -938,11 +938,12 @@ def emit_pattern_reader(ctx):
         ctx.inst('clc')
         ctx.inst('adc', 'mt_chntrans,x')
     ctx.inst('sta', 'mt_chnnewnote,x')
-    # Toneporta check
+    # Toneporta check — BEQ to handler placed immediately before ce_rest.
+    # Same 2-byte BEQ as the original (BEQ ce_rest), zero layout shift.
     if ctx.has(TONEPORTA):
         ctx.inst('lda', 'mt_chnnewfx,x')
         ctx.inst('cmp', '#3')
-        ctx.inst('beq', 'ce_rest')
+        ctx.inst('beq', 'ce_tp_note')
     # Legato check
     if ctx.has(LEGATO_INSTR):
         ctx.inst('lda', 'mt_chninstr,x')
@@ -993,6 +994,23 @@ def emit_pattern_reader(ctx):
         ctx.inst('sta', 'mt_chnpkrest,x')
         ctx.inst('beq', 'ce_rest')
         ctx.inst('jmp', 'ce_ldregs')
+    # Toneporta note handler — immediately before ce_rest so the BEQ
+    # in the toneporta check reaches it (same distance as old BEQ ce_rest).
+    # Falls through to ce_rest after consuming the note.
+    if ctx.has(TONEPORTA):
+        ctx.label('ce_tp_note')
+        ctx.inst('lda', 'mt_chnnewnote,x')
+        ctx.inst('sec')
+        ctx.inst('sbc', '#NOTE')
+        ctx.inst('sta', 'mt_chnnote,x')
+        ctx.inst('lda', 'mt_chnnewparam,x')
+        ctx.inst('sta', 'mt_chnparam,x')
+        ctx.inst('lda', '#3')
+        ctx.inst('sta', 'mt_chnfx,x')
+        ctx.inst('lda', '#0')
+        ctx.inst('sta', 'mt_chnnewnote,x')
+        # Fall through to ce_rest (store pattptr + register writes)
+
     # Rest — Covfefe trick: BEQ skips TYA when byte is $00 (ENDPATT),
     # so A=0 falls through to STA (stores 0 = reset pattptr)
     ctx.label('ce_rest')
