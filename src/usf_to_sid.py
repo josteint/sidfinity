@@ -181,10 +181,11 @@ def usf_to_sid(song, output_path=None):
                 wave_r.append(sng_r)
             else:
                 wave_r.append(sng_r ^ 0x80)
-    elif not raw.get('wave_left'):
+    else:
         # Build wave table with suffix-aware deduplication.
         # GT2's greloc.c shares suffixes: if inst B's steps are a suffix of
         # inst A's steps, B points into A's data (no duplication).
+        nowavedelay = getattr(song, 'nowavedelay', True)
 
         def step_key(s):
             return (s.waveform, s.is_loop, s.loop_target, s.keep_freq,
@@ -363,7 +364,7 @@ def usf_to_sid(song, output_path=None):
 
     sid_bytes, player_size = pack_sidfinity(
         songs=1,
-        first_note=0,  # always full freq table
+        first_note=0,  # V2 player always uses full freq table
         last_note=95,
         default_tempo=getattr(song, 'tempo', 6) - 1,
         num_instruments=ni,
@@ -384,7 +385,7 @@ def usf_to_sid(song, output_path=None):
         title=song.title,
         author=song.author,
         psid_flags=getattr(song, 'psid_flags', 0x0014) if hasattr(song, 'psid_flags') else 0x0014,
-        nowavedelay=True,  # USF stores .sng values → packer always needs to add bias
+        nowavedelay=True,  # V2 player always has WAVE_DELAY, packer must add bias
         ad_param=getattr(song, 'ad_param', 0x0F),
         sr_param=getattr(song, 'sr_param', 0x00),
         # Player behavior fields from USF

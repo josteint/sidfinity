@@ -308,7 +308,7 @@ def detect_gt2_player_group(sid_path):
     elif adsr_order == 'sr_first':
         group = 'B'
     else:
-        group = None
+        group = 'B'  # default to most common group when HR pattern not found
 
     return {
         'group': group,
