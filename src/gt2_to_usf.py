@@ -125,6 +125,11 @@ def gt2_to_usf(sid_path):
         vibrato_param_fix=vib_fix,
     )
 
+    # Pass original frequency tables and nowavedelay through to packer
+    song.freq_lo = d.get('freq_lo')
+    song.freq_hi = d.get('freq_hi')
+    song.nowavedelay = d.get('nowavedelay', True)
+
     # DEFAULTTEMPO: extract from binary
     with open(sid_path, 'rb') as f:
         data = f.read()

@@ -881,6 +881,9 @@ def decompile_gt2(sid_path):
     orderlists = []
     for vi in range(song_entries):
         ol_off = ol_addrs[vi] - la
+        if ol_off < 0 or ol_off >= len(binary):
+            orderlists.append(b'\xff\x00')
+            continue
         ol = bytearray()
         for j in range(200):
             if ol_off + j >= len(binary):

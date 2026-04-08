@@ -206,6 +206,7 @@ class Song:
     freq_lo: bytes = None      # custom frequency table lo (96 bytes), or None for PAL
     freq_hi: bytes = None      # custom frequency table hi (96 bytes), or None for PAL
     first_note: int = 0        # first note in freq table (FIRSTNOTE optimization)
+    nowavedelay: bool = True   # True=no wave delay (direct SID values), False=has +$10 bias
     # Player behavior group — determines how the player processes audio.
     # See docs/gt2_player_versions.md for full details.
     # Groups: A (v2.65-2.67), B (v2.68-2.72), C (v2.73-2.74), D (v2.76-2.77)
