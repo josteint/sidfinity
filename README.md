@@ -71,6 +71,6 @@ deprecated/             Earlier development phases
 
 ## Acknowledgments
 
-The SIDfinity player implements algorithms from Lasse Oorni's GoatTracker V2 playroutine — wave table execution, effect dispatch, pattern reading, hard restart timing. The V2 code generator (`codegen_v2.py`) was written from scratch in Python but the player logic it generates faithfully follows Lasse's design. A copy of the original GT2 playroutine source is preserved in `deprecated/old_player/sidfinity_gt2.asm`. Lasse's license: free for any purpose, commercial or noncommercial.
+The SIDfinity player implements algorithms from Lasse Öörni's GoatTracker V2 playroutine — wave table execution, effect dispatch, pattern reading, hard restart timing. The V2 code generator (`codegen_v2.py`) was written from scratch in Python but the player logic it generates faithfully follows Lasse Öörni's design. A copy of the original GT2 playroutine source is preserved in `deprecated/old_player/sidfinity_gt2.asm`. Lasse Öörni's license: free for any purpose, commercial or noncommercial.
 
 libsidplayfp is used under its existing license for SID emulation and register dumping.
