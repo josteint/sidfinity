@@ -10,11 +10,11 @@
 
 Build the SIDfinity universal SID music player and ML pipeline. See `docs/PLAN.md` for the full roadmap and current status.
 
-**Current task:** 6502 superoptimizer to recover toneporta layout shift. Plan in `.claude/plans/resilient-roaming-nygaard.md`. Then continue with wrong-note-large investigation (829 F-grade songs).
+**Current task:** Investigate remaining 1,435 F-grade songs for new bug categories. Then ML training on 1,433 Grade A songs, then DMC/JCH transpilers.
 
-**What's done:** 1,374/3,478 Grade A (39.5%) on full HVSC batch. 127-song regression passing. Fixes this session: toneporta ce_runfx bypass (+124), jitter ±3 (+118), env_wrong grading (+48), speed table detection (+37), toneporta mt_chnnewfx fix (correct but -95 from layout shift), crash fixes (ERR 240→120), Group C ghost registers (572 songs unblocked), freq table lo_first swap.
+**What's done:** 1,433/3,478 Grade A (41.2%) on full HVSC batch. 127-song regression passing. ERR 120 (down from 240). Superoptimizer complete (Z3, GPU CUDA kernel, peephole — player code is at 6502 minimum, 34 cycles/frame saved). Toneporta fully fixed. Sequence-level jitter detection eliminates measurement artifacts from layout shifts.
 
-**Key insight:** Any byte-count change in the V2 player shifts 6502 addresses, changing which instructions cross page boundaries and adding/removing +1 cycle penalties. This causes ~1% of songs to change grade. The superoptimizer plan addresses this by finding same-size-but-fewer-cycle instruction sequences.
+**Key insight:** V2 player code blocks are at 6502 minimum cycle counts. Further Grade A gains come from fixing decompiler/player BUGS, not cycle optimization. The comparison methodology now correctly handles timing jitter from layout changes (sequence-level note matching, ±3 frame window, env_wrong tolerance, test-bit classification).
 
 ## CRITICAL: Do Not Break These Invariants
 
