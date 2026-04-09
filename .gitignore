@@ -34,3 +34,4 @@ tools/gt2asm
 tools/sidrender
 tools/gpu_6502
 tmp/
+*.exe
