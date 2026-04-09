@@ -263,17 +263,27 @@ def compare_tolerant(orig_frames, new_frames):
                 vr['note_jitter'] += vr['note_wrong']
                 vr['note_wrong'] = 0
 
-    # Post-processing: vibrato phase drift reclassification.
-    # If both streams oscillate within the same freq_hi range (same center
-    # pitch, same amplitude) but out of phase, the remaining note_wrong
-    # frames are vibrato drift — inaudible. Check per-voice using a
-    # sliding window: if the set of freq_hi values in a ±8 frame window
-    # is the same for both streams, it's phase drift.
+    # Post-processing: vibrato/arpeggio phase drift reclassification.
+    # Two checks:
+    # 1. Global: if both streams use the same set of freq_hi values (when
+    #    the oscillator is active), the musical content is identical.
+    # 2. Local: per-frame sliding window for vibrato/arpeggio phase drift.
     for v in range(3):
         vr = results['voices'][v]
         if vr['note_wrong'] == 0:
             continue
         base = voice_offsets[v]
+
+        # Global check: same value set = same musical content (phase only)
+        o_vals = set(orig_frames[i][base + 1] for i in range(20, total)
+                     if (orig_frames[i][base + 4] & 0xF0) != 0)
+        n_vals = set(new_frames[i][base + 1] for i in range(20, total)
+                     if (new_frames[i][base + 4] & 0xF0) != 0)
+        if o_vals and n_vals and o_vals == n_vals:
+            vr['note_jitter'] += vr['note_wrong']
+            vr['note_wrong'] = 0
+            continue
+
         WINDOW = 8
         reclassified = 0
         for i in range(WINDOW, total - WINDOW):

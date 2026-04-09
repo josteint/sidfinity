@@ -141,8 +141,8 @@
   },
   {
     "path": "data/C64Music/MUSICIANS/A/Ajitek/Spinner_Showdown.sid",
-    "min_grade": "C",
-    "min_score": 89.2
+    "min_grade": "B",
+    "min_score": 94.8
   },
   {
     "path": "data/C64Music/MUSICIANS/A/Ajitek/Stuart.sid",
@@ -157,7 +157,7 @@
   {
     "path": "data/C64Music/MUSICIANS/A/Ajitek/Wistleball.sid",
     "min_grade": "C",
-    "min_score": 89.4
+    "min_score": 91.8
   },
   {
     "path": "data/C64Music/MUSICIANS/A/Ajitek/Wob.sid",
@@ -787,7 +787,7 @@
   {
     "path": "data/C64Music/MUSICIANS/B/Black_Turk/Ken.sid",
     "min_grade": "C",
-    "min_score": 93.4
+    "min_score": 95.5
   },
   {
     "path": "data/C64Music/MUSICIANS/B/Black_Turk/Mini_Raiden.sid",
@@ -982,7 +982,7 @@
   {
     "path": "data/C64Music/MUSICIANS/C/Cabbage_Drop/City_Street_Night.sid",
     "min_grade": "F",
-    "min_score": 28.1
+    "min_score": 68.5
   },
   {
     "path": "data/C64Music/MUSICIANS/C/Cabbage_Drop/Goose_Egg_Night.sid",
@@ -1002,22 +1002,22 @@
   {
     "path": "data/C64Music/MUSICIANS/C/Cabbage_Drop/Meat_Goat_Beat_Goat.sid",
     "min_grade": "F",
-    "min_score": 42.0
+    "min_score": 60.6
   },
   {
     "path": "data/C64Music/MUSICIANS/C/Cabbage_Drop/Night_Tree_Forest.sid",
     "min_grade": "F",
-    "min_score": 14.6
+    "min_score": 40.0
   },
   {
     "path": "data/C64Music/MUSICIANS/C/Cabbage_Drop/Open_Tool_Shed_in_the_Sun.sid",
     "min_grade": "F",
-    "min_score": 37.9
+    "min_score": 58.4
   },
   {
     "path": "data/C64Music/MUSICIANS/C/Cabbage_Drop/Turd_Pyramid.sid",
-    "min_grade": "F",
-    "min_score": 62.5
+    "min_grade": "C",
+    "min_score": 89.9
   },
   {
     "path": "data/C64Music/MUSICIANS/C/Cadaver/Metal_Warrior_Title_Remix.sid",
@@ -1126,8 +1126,8 @@
   },
   {
     "path": "data/C64Music/MUSICIANS/C/Chiummo_Aldo/Move_Me_Like_A_Movie.sid",
-    "min_grade": "C",
-    "min_score": 89.6
+    "min_grade": "B",
+    "min_score": 95.7
   },
   {
     "path": "data/C64Music/MUSICIANS/C/Chiummo_Aldo/SNK_vs_CAPCOM_V2-Part_1.sid",
@@ -1161,8 +1161,8 @@
   },
   {
     "path": "data/C64Music/MUSICIANS/C/Chiummo_Gaetano/2xperiment.sid",
-    "min_grade": "F",
-    "min_score": 46.0
+    "min_grade": "B",
+    "min_score": 94.0
   },
   {
     "path": "data/C64Music/MUSICIANS/C/Chiummo_Gaetano/A_Walk_in_the_Countryside_3SID.sid",
@@ -1272,7 +1272,7 @@
   {
     "path": "data/C64Music/MUSICIANS/C/Corpsicle/Rage.sid",
     "min_grade": "F",
-    "min_score": 43.7
+    "min_score": 63.4
   },
   {
     "path": "data/C64Music/MUSICIANS/C/Cranksy/I_Dont_Know_What_I_Am_Doing.sid",
@@ -1421,8 +1421,8 @@
   },
   {
     "path": "data/C64Music/MUSICIANS/C/Cross_Saul/Quad.sid",
-    "min_grade": "F",
-    "min_score": 76.4
+    "min_grade": "B",
+    "min_score": 93.9
   },
   {
     "path": "data/C64Music/MUSICIANS/C/Cross_Saul/Quad_2.sid",
@@ -1436,8 +1436,8 @@
   },
   {
     "path": "data/C64Music/MUSICIANS/C/Cross_Saul/Sham_Glam.sid",
-    "min_grade": "C",
-    "min_score": 86.1
+    "min_grade": "A",
+    "min_score": 94.3
   },
   {
     "path": "data/C64Music/MUSICIANS/C/Cross_Saul/Spaceman.sid",
@@ -1816,8 +1816,8 @@
   },
   {
     "path": "data/C64Music/MUSICIANS/D/Danko_Tomas/Los_Ringos_Modulatores.sid",
-    "min_grade": "C",
-    "min_score": 93.6
+    "min_grade": "B",
+    "min_score": 95.9
   },
   {
     "path": "data/C64Music/MUSICIANS/D/Danko_Tomas/Skaaneland_2.sid",
@@ -1831,8 +1831,8 @@
   },
   {
     "path": "data/C64Music/MUSICIANS/D/Deizi/David_Whittaker_Tribute.sid",
-    "min_grade": "B",
-    "min_score": 97.7
+    "min_grade": "A",
+    "min_score": 98.8
   },
   {
     "path": "data/C64Music/MUSICIANS/D/Deizi/Disco_Band.sid",
@@ -2137,7 +2137,7 @@
   {
     "path": "data/C64Music/MUSICIANS/D/Dobek_Eric/Armourdillo_1.sid",
     "min_grade": "F",
-    "min_score": 59.0
+    "min_score": 78.4
   },
   {
     "path": "data/C64Music/MUSICIANS/D/Dobek_Eric/Athena_Title_Mix.sid",
@@ -2157,7 +2157,7 @@
   {
     "path": "data/C64Music/MUSICIANS/D/Dobek_Eric/Balloon_Park.sid",
     "min_grade": "F",
-    "min_score": 31.0
+    "min_score": 48.6
   },
   {
     "path": "data/C64Music/MUSICIANS/D/Dobek_Eric/Bass_Sample.sid",
@@ -2257,7 +2257,7 @@
   {
     "path": "data/C64Music/MUSICIANS/D/Dobek_Eric/G_U_T_Z_2.sid",
     "min_grade": "F",
-    "min_score": 25.7
+    "min_score": 43.5
   },
   {
     "path": "data/C64Music/MUSICIANS/D/Dobek_Eric/Ghouls_n_Ghosts_Alternate_21.sid",
@@ -2292,7 +2292,7 @@
   {
     "path": "data/C64Music/MUSICIANS/D/Dobek_Eric/Heehaw.sid",
     "min_grade": "F",
-    "min_score": 68.2
+    "min_score": 79.3
   },
   {
     "path": "data/C64Music/MUSICIANS/D/Dobek_Eric/Helikopter_Jagd_High_Score.sid",
@@ -2326,8 +2326,8 @@
   },
   {
     "path": "data/C64Music/MUSICIANS/D/Dobek_Eric/Last_Night_I_Had_A_Dream.sid",
-    "min_grade": "F",
-    "min_score": 80.7
+    "min_grade": "B",
+    "min_score": 94.4
   },
   {
     "path": "data/C64Music/MUSICIANS/D/Dobek_Eric/Last_Night_I_Met_an_Old_Friend.sid",
@@ -2376,8 +2376,8 @@
   },
   {
     "path": "data/C64Music/MUSICIANS/D/Dobek_Eric/Nodes_of_Yesod_3.sid",
-    "min_grade": "F",
-    "min_score": 79.4
+    "min_grade": "B",
+    "min_score": 93.6
   },
   {
     "path": "data/C64Music/MUSICIANS/D/Dobek_Eric/Nyan_Chill.sid",
@@ -2392,12 +2392,12 @@
   {
     "path": "data/C64Music/MUSICIANS/D/Dobek_Eric/Overworld_Remix.sid",
     "min_grade": "F",
-    "min_score": 39.2
+    "min_score": 76.0
   },
   {
     "path": "data/C64Music/MUSICIANS/D/Dobek_Eric/Pedro_1.sid",
-    "min_grade": "F",
-    "min_score": 76.9
+    "min_grade": "B",
+    "min_score": 93.9
   },
   {
     "path": "data/C64Music/MUSICIANS/D/Dobek_Eric/Pieces_II_Concept_One.sid",
@@ -2422,7 +2422,7 @@
   {
     "path": "data/C64Music/MUSICIANS/D/Dobek_Eric/RH_Racing_Game_Cover.sid",
     "min_grade": "F",
-    "min_score": 15.5
+    "min_score": 65.4
   },
   {
     "path": "data/C64Music/MUSICIANS/D/Dobek_Eric/Reverb_Insanity.sid",
@@ -2486,8 +2486,8 @@
   },
   {
     "path": "data/C64Music/MUSICIANS/D/Dobek_Eric/Some_Silly_Song.sid",
-    "min_grade": "F",
-    "min_score": 77.4
+    "min_grade": "B",
+    "min_score": 94.0
   },
   {
     "path": "data/C64Music/MUSICIANS/D/Dobek_Eric/Sonic_3-2_Player_Menu.sid",
@@ -2587,7 +2587,7 @@
   {
     "path": "data/C64Music/MUSICIANS/D/Dobek_Eric/Vortex_in_B.sid",
     "min_grade": "F",
-    "min_score": 68.3
+    "min_score": 80.6
   },
   {
     "path": "data/C64Music/MUSICIANS/D/Dobek_Eric/War_for_the_Worlds.sid",
@@ -2717,7 +2717,7 @@
   {
     "path": "data/C64Music/MUSICIANS/E/Emulamer/Conclusion_tune_2.sid",
     "min_grade": "F",
-    "min_score": 66.9
+    "min_score": 83.4
   },
   {
     "path": "data/C64Music/MUSICIANS/E/Emulamer/Conclusion_tune_3.sid",
@@ -2752,7 +2752,7 @@
   {
     "path": "data/C64Music/MUSICIANS/E/Emulamer/Song_25.sid",
     "min_grade": "F",
-    "min_score": 42.0
+    "min_score": 58.6
   },
   {
     "path": "data/C64Music/MUSICIANS/E/Emulamer/Undead.sid",
@@ -3052,7 +3052,7 @@
   {
     "path": "data/C64Music/MUSICIANS/F/Fegolhuzz/Fruktansvart_fula_fikon.sid",
     "min_grade": "B",
-    "min_score": 93.9
+    "min_score": 94.2
   },
   {
     "path": "data/C64Music/MUSICIANS/F/Fegolhuzz/Ghost_tune_1.sid",
@@ -3126,8 +3126,8 @@
   },
   {
     "path": "data/C64Music/MUSICIANS/F/Fegolhuzz/Nyheter.sid",
-    "min_grade": "F",
-    "min_score": 80.4
+    "min_grade": "B",
+    "min_score": 95.5
   },
   {
     "path": "data/C64Music/MUSICIANS/F/Fegolhuzz/Oldies_and_Goldies.sid",
@@ -3237,7 +3237,7 @@
   {
     "path": "data/C64Music/MUSICIANS/F/Fegolhuzz/Yes_I_Was_Drunk_Last_Night.sid",
     "min_grade": "C",
-    "min_score": 90.5
+    "min_score": 91.4
   },
   {
     "path": "data/C64Music/MUSICIANS/F/Fegolhuzz/Zone_5_tune_1.sid",
@@ -3622,7 +3622,7 @@
   {
     "path": "data/C64Music/MUSICIANS/F/Flotsam/Mission_Intergalactique.sid",
     "min_grade": "F",
-    "min_score": 56.4
+    "min_score": 75.1
   },
   {
     "path": "data/C64Music/MUSICIANS/F/Flotsam/Mission_Solaire.sid",
@@ -3741,8 +3741,8 @@
   },
   {
     "path": "data/C64Music/MUSICIANS/F/Flotsam/Vacuus.sid",
-    "min_grade": "B",
-    "min_score": 94.1
+    "min_grade": "A",
+    "min_score": 95.2
   },
   {
     "path": "data/C64Music/MUSICIANS/F/Flotsam/Vue_Depuis_la_Cuisine.sid",
@@ -3776,8 +3776,8 @@
   },
   {
     "path": "data/C64Music/MUSICIANS/F/Franz_koopa/El_Gran_arbol_de_Orugas_Moradas.sid",
-    "min_grade": "C",
-    "min_score": 93.6
+    "min_grade": "A",
+    "min_score": 98.4
   },
   {
     "path": "data/C64Music/MUSICIANS/F/Franz_koopa/El_Valle_de_Mariquitas.sid",
@@ -3827,7 +3827,7 @@
   {
     "path": "data/C64Music/MUSICIANS/F/Freedom/Amiga_Strip_Poker.sid",
     "min_grade": "F",
-    "min_score": 68.9
+    "min_score": 81.5
   },
   {
     "path": "data/C64Music/MUSICIANS/F/Freedom/Aryx.sid",
@@ -3842,12 +3842,12 @@
   {
     "path": "data/C64Music/MUSICIANS/F/Freedom/Dreamlights.sid",
     "min_grade": "F",
-    "min_score": 26.9
+    "min_score": 74.7
   },
   {
     "path": "data/C64Music/MUSICIANS/F/Freedom/Farewell.sid",
-    "min_grade": "F",
-    "min_score": 68.7
+    "min_grade": "C",
+    "min_score": 90.0
   },
   {
     "path": "data/C64Music/MUSICIANS/F/Freedom/I_Do_Love_Her_Blue_Eyes.sid",
@@ -3867,7 +3867,7 @@
   {
     "path": "data/C64Music/MUSICIANS/F/Freedom/Oldskool_Dance.sid",
     "min_grade": "F",
-    "min_score": 60.0
+    "min_score": 73.0
   },
   {
     "path": "data/C64Music/MUSICIANS/F/Freedom/Red_Hair.sid",
@@ -3932,7 +3932,7 @@
   {
     "path": "data/C64Music/MUSICIANS/G/GI-Joe/Miomodo.sid",
     "min_grade": "F",
-    "min_score": 72.0
+    "min_score": 74.8
   },
   {
     "path": "data/C64Music/MUSICIANS/G/GI-Joe/SID853o3.sid",
@@ -3987,7 +3987,7 @@
   {
     "path": "data/C64Music/MUSICIANS/G/Garvalf/La_Pierre_Precieuse.sid",
     "min_grade": "F",
-    "min_score": 34.2
+    "min_score": 59.0
   },
   {
     "path": "data/C64Music/MUSICIANS/G/Garvalf/Mere_Hiver.sid",
@@ -4192,7 +4192,7 @@
   {
     "path": "data/C64Music/MUSICIANS/H/Hairdog/Ducks_25Hz.sid",
     "min_grade": "F",
-    "min_score": 14.1
+    "min_score": 37.5
   },
   {
     "path": "data/C64Music/MUSICIANS/H/Hairdog/Eighth_Wonder.sid",
@@ -4317,7 +4317,7 @@
   {
     "path": "data/C64Music/MUSICIANS/H/Hannula_Antti/Airwolf.sid",
     "min_grade": "F",
-    "min_score": 30.6
+    "min_score": 75.4
   },
   {
     "path": "data/C64Music/MUSICIANS/H/Hannula_Antti/Anglia_Spirit_2024.sid",
@@ -4336,8 +4336,8 @@
   },
   {
     "path": "data/C64Music/MUSICIANS/H/Hannula_Antti/Brutopian_Schlager.sid",
-    "min_grade": "F",
-    "min_score": 71.7
+    "min_grade": "C",
+    "min_score": 91.5
   },
   {
     "path": "data/C64Music/MUSICIANS/H/Hannula_Antti/Loopers_Delight.sid",
@@ -4382,7 +4382,7 @@
   {
     "path": "data/C64Music/MUSICIANS/H/Hannula_Antti/Straight_Forward.sid",
     "min_grade": "F",
-    "min_score": 73.4
+    "min_score": 79.2
   },
   {
     "path": "data/C64Music/MUSICIANS/H/Hannula_Antti/Sweet_Scoundrel.sid",
@@ -4397,7 +4397,7 @@
   {
     "path": "data/C64Music/MUSICIANS/H/Hannula_Antti/Synths_and_Waves.sid",
     "min_grade": "F",
-    "min_score": 51.4
+    "min_score": 63.5
   },
   {
     "path": "data/C64Music/MUSICIANS/H/Hannula_Antti/Walking_in_the_Air.sid",
@@ -4416,8 +4416,8 @@
   },
   {
     "path": "data/C64Music/MUSICIANS/H/Haschpipan/A_Crack_in_the_Meadow.sid",
-    "min_grade": "F",
-    "min_score": 80.3
+    "min_grade": "B",
+    "min_score": 97.1
   },
   {
     "path": "data/C64Music/MUSICIANS/H/Haschpipan/Dense_Poppy_Cake.sid",
@@ -4432,7 +4432,7 @@
   {
     "path": "data/C64Music/MUSICIANS/H/Haschpipan/Strandvalen.sid",
     "min_grade": "C",
-    "min_score": 91.5
+    "min_score": 94.2
   },
   {
     "path": "data/C64Music/MUSICIANS/H/HeatWave/Inflatable_Love.sid",
@@ -4467,7 +4467,7 @@
   {
     "path": "data/C64Music/MUSICIANS/H/Hermit/Damballa.sid",
     "min_grade": "C",
-    "min_score": 91.2
+    "min_score": 91.7
   },
   {
     "path": "data/C64Music/MUSICIANS/H/Hermit/On_the_Edge.sid",
@@ -4477,7 +4477,7 @@
   {
     "path": "data/C64Music/MUSICIANS/H/Hermit/Rockall.sid",
     "min_grade": "F",
-    "min_score": 24.7
+    "min_score": 52.5
   },
   {
     "path": "data/C64Music/MUSICIANS/H/Hermit/Y-Out_Cover.sid",
@@ -4507,7 +4507,7 @@
   {
     "path": "data/C64Music/MUSICIANS/H/Highway_Guy/Rhythmic_Moping.sid",
     "min_grade": "F",
-    "min_score": 27.0
+    "min_score": 52.2
   },
   {
     "path": "data/C64Music/MUSICIANS/H/Highway_Guy/SID_Jig.sid",
@@ -4571,8 +4571,8 @@
   },
   {
     "path": "data/C64Music/MUSICIANS/H/Hoffmann_Michal/Hundred_Fucks_Resistor.sid",
-    "min_grade": "F",
-    "min_score": 81.3
+    "min_grade": "C",
+    "min_score": 91.5
   },
   {
     "path": "data/C64Music/MUSICIANS/H/Hoffmann_Michal/I_Miss_a_Woman_I_Dont_Love.sid",
@@ -4782,7 +4782,7 @@
   {
     "path": "data/C64Music/MUSICIANS/H/Holt_Hein/Ticking_Timebomb.sid",
     "min_grade": "F",
-    "min_score": 58.5
+    "min_score": 83.2
   },
   {
     "path": "data/C64Music/MUSICIANS/H/Holt_Hein/Wicked-The_Last_Cigaret.sid",
@@ -4816,8 +4816,8 @@
   },
   {
     "path": "data/C64Music/MUSICIANS/H/Hukka/Hassu.sid",
-    "min_grade": "F",
-    "min_score": 71.4
+    "min_grade": "C",
+    "min_score": 93.0
   },
   {
     "path": "data/C64Music/MUSICIANS/H/Hukka/Testi.sid",
@@ -4831,8 +4831,8 @@
   },
   {
     "path": "data/C64Music/MUSICIANS/H/Hultink_Gerard/Alcolado_4_tune_3.sid",
-    "min_grade": "B",
-    "min_score": 97.5
+    "min_grade": "A",
+    "min_score": 97.8
   },
   {
     "path": "data/C64Music/MUSICIANS/H/Hultink_Gerard/Alcolado_4_tune_4.sid",
@@ -5002,7 +5002,7 @@
   {
     "path": "data/C64Music/MUSICIANS/J/Jammer/Cheese_on_Top_of_a_Spaghetti.sid",
     "min_grade": "F",
-    "min_score": 70.4
+    "min_score": 75.1
   },
   {
     "path": "data/C64Music/MUSICIANS/J/Jammer/Come_at_Me_Bro.sid",
@@ -5147,7 +5147,7 @@
   {
     "path": "data/C64Music/MUSICIANS/J/Jammer/Persona_Non_Grata.sid",
     "min_grade": "F",
-    "min_score": 72.1
+    "min_score": 79.7
   },
   {
     "path": "data/C64Music/MUSICIANS/J/Jammer/Pitstop.sid",
@@ -5292,7 +5292,7 @@
   {
     "path": "data/C64Music/MUSICIANS/J/Jellica/1usethisone2019.sid",
     "min_grade": "F",
-    "min_score": 26.0
+    "min_score": 49.0
   },
   {
     "path": "data/C64Music/MUSICIANS/J/Jellica/1videotrivers.sid",
@@ -5322,7 +5322,7 @@
   {
     "path": "data/C64Music/MUSICIANS/J/Jellica/Essentials_tune_19.sid",
     "min_grade": "F",
-    "min_score": 42.5
+    "min_score": 68.6
   },
   {
     "path": "data/C64Music/MUSICIANS/J/Jellica/Essentials_tune_20.sid",
@@ -5351,8 +5351,8 @@
   },
   {
     "path": "data/C64Music/MUSICIANS/J/Jellica/Princess.sid",
-    "min_grade": "B",
-    "min_score": 97.1
+    "min_grade": "A",
+    "min_score": 98.8
   },
   {
     "path": "data/C64Music/MUSICIANS/J/Jellica/Retrotech_Romance_hidden_tune_1.sid",
@@ -5361,8 +5361,8 @@
   },
   {
     "path": "data/C64Music/MUSICIANS/J/Jellica/Retrotech_Romance_hidden_tune_2.sid",
-    "min_grade": "B",
-    "min_score": 97.3
+    "min_grade": "A",
+    "min_score": 98.9
   },
   {
     "path": "data/C64Music/MUSICIANS/J/Jellica/Sack.sid",
@@ -5376,8 +5376,8 @@
   },
   {
     "path": "data/C64Music/MUSICIANS/J/Jellica/Twenty_Five7.sid",
-    "min_grade": "F",
-    "min_score": 40.9
+    "min_grade": "B",
+    "min_score": 93.1
   },
   {
     "path": "data/C64Music/MUSICIANS/J/Jenny16/HoVuSaCa.sid",
@@ -5457,12 +5457,12 @@
   {
     "path": "data/C64Music/MUSICIANS/J/Juzdie/A_Night_in_Sunny_Skaane.sid",
     "min_grade": "F",
-    "min_score": 54.0
+    "min_score": 72.3
   },
   {
     "path": "data/C64Music/MUSICIANS/J/Juzdie/Able_Marble.sid",
     "min_grade": "F",
-    "min_score": 44.2
+    "min_score": 49.3
   },
   {
     "path": "data/C64Music/MUSICIANS/J/Juzdie/Bahamamas_on_My_Mind.sid",
@@ -5517,7 +5517,7 @@
   {
     "path": "data/C64Music/MUSICIANS/K/Kasmo/DTV_Mamalada.sid",
     "min_grade": "F",
-    "min_score": 37.6
+    "min_score": 58.4
   },
   {
     "path": "data/C64Music/MUSICIANS/K/Kasmo/Deep_Invasion.sid",
@@ -5886,8 +5886,8 @@
   },
   {
     "path": "data/C64Music/MUSICIANS/K/Kribust/Utsushi-e.sid",
-    "min_grade": "F",
-    "min_score": 52.0
+    "min_grade": "C",
+    "min_score": 92.2
   },
   {
     "path": "data/C64Music/MUSICIANS/K/Kribust/Victrip.sid",
@@ -6107,7 +6107,7 @@
   {
     "path": "data/C64Music/MUSICIANS/L/Linus/Ext_Volume_In.sid",
     "min_grade": "F",
-    "min_score": 24.0
+    "min_score": 46.9
   },
   {
     "path": "data/C64Music/MUSICIANS/L/Linus/Eye_of_the_Beholder.sid",
@@ -6137,7 +6137,7 @@
   {
     "path": "data/C64Music/MUSICIANS/L/Linus/Her_Web_Is_the_City_at_Night.sid",
     "min_grade": "F",
-    "min_score": 46.6
+    "min_score": 66.2
   },
   {
     "path": "data/C64Music/MUSICIANS/L/Linus/Hitchhiker_a_Passenger.sid",
@@ -6287,7 +6287,7 @@
   {
     "path": "data/C64Music/MUSICIANS/L/Linus/Once_There_Was_Only_Dark.sid",
     "min_grade": "F",
-    "min_score": 53.5
+    "min_score": 70.2
   },
   {
     "path": "data/C64Music/MUSICIANS/L/Linus/Onslaught_plus_Hokuto_Force_Coop.sid",
@@ -6397,7 +6397,7 @@
   {
     "path": "data/C64Music/MUSICIANS/L/Linus/You_Will_Be_a_Fossil_Soon.sid",
     "min_grade": "F",
-    "min_score": 28.1
+    "min_score": 39.3
   },
   {
     "path": "data/C64Music/MUSICIANS/L/Linus/Young_Adult_Dystopians.sid",
@@ -6777,7 +6777,7 @@
   {
     "path": "data/C64Music/MUSICIANS/M/Magnar/Magic_Techno.sid",
     "min_grade": "F",
-    "min_score": 65.1
+    "min_score": 84.7
   },
   {
     "path": "data/C64Music/MUSICIANS/M/Magnar/Magnum_PI.sid",
@@ -7047,7 +7047,7 @@
   {
     "path": "data/C64Music/MUSICIANS/M/Manganoid/Bow_Wow_Meaow.sid",
     "min_grade": "F",
-    "min_score": 70.5
+    "min_score": 83.6
   },
   {
     "path": "data/C64Music/MUSICIANS/M/Manganoid/Broken_Record.sid",
@@ -7117,7 +7117,7 @@
   {
     "path": "data/C64Music/MUSICIANS/M/Manganoid/Remind_Me.sid",
     "min_grade": "F",
-    "min_score": 40.2
+    "min_score": 47.1
   },
   {
     "path": "data/C64Music/MUSICIANS/M/Manganoid/Retroid.sid",
@@ -7351,13 +7351,13 @@
   },
   {
     "path": "data/C64Music/MUSICIANS/M/Mermaid/Snorkfunk.sid",
-    "min_grade": "F",
-    "min_score": 77.0
+    "min_grade": "C",
+    "min_score": 93.1
   },
   {
     "path": "data/C64Music/MUSICIANS/M/Mibri/Halloween-Main_Title.sid",
-    "min_grade": "C",
-    "min_score": 88.3
+    "min_grade": "B",
+    "min_score": 95.1
   },
   {
     "path": "data/C64Music/MUSICIANS/M/Mice/Dekadance.sid",
@@ -7591,8 +7591,8 @@
   },
   {
     "path": "data/C64Music/MUSICIANS/M/MovieMovies1/Pleasure_of_Tension.sid",
-    "min_grade": "F",
-    "min_score": 85.3
+    "min_grade": "B",
+    "min_score": 98.1
   },
   {
     "path": "data/C64Music/MUSICIANS/M/MovieMovies1/Relaxation.sid",
@@ -7716,8 +7716,8 @@
   },
   {
     "path": "data/C64Music/MUSICIANS/M/Mr_Mouse/Dare_Teen_in_a_Dough_Sign.sid",
-    "min_grade": "F",
-    "min_score": 73.3
+    "min_grade": "B",
+    "min_score": 95.5
   },
   {
     "path": "data/C64Music/MUSICIANS/M/Mr_Mouse/Extremely_Cool.sid",
@@ -7756,8 +7756,8 @@
   },
   {
     "path": "data/C64Music/MUSICIANS/M/Mr_Mouse/We_Raw_Music.sid",
-    "min_grade": "F",
-    "min_score": 81.9
+    "min_grade": "B",
+    "min_score": 97.1
   },
   {
     "path": "data/C64Music/MUSICIANS/M/Mueller_Manuel/All_I_Really_Want.sid",
@@ -7842,7 +7842,7 @@
   {
     "path": "data/C64Music/MUSICIANS/M/Mutetus/Lunta.sid",
     "min_grade": "C",
-    "min_score": 88.5
+    "min_score": 91.6
   },
   {
     "path": "data/C64Music/MUSICIANS/M/Mutetus/Mutetus_Theme.sid",
@@ -7942,7 +7942,7 @@
   {
     "path": "data/C64Music/MUSICIANS/M/Mythus/Die_Funker.sid",
     "min_grade": "F",
-    "min_score": 55.1
+    "min_score": 72.8
   },
   {
     "path": "data/C64Music/MUSICIANS/M/Mythus/Die_Funker_2021.sid",
@@ -7982,12 +7982,12 @@
   {
     "path": "data/C64Music/MUSICIANS/M/Mythus/Figurehead.sid",
     "min_grade": "F",
-    "min_score": 64.9
+    "min_score": 69.9
   },
   {
     "path": "data/C64Music/MUSICIANS/M/Mythus/Firefly.sid",
-    "min_grade": "F",
-    "min_score": 73.4
+    "min_grade": "A",
+    "min_score": 96.0
   },
   {
     "path": "data/C64Music/MUSICIANS/M/Mythus/Forever.sid",
@@ -8317,7 +8317,7 @@
   {
     "path": "data/C64Music/MUSICIANS/N/Narciso/Street_Fighter_II_Sagat.sid",
     "min_grade": "F",
-    "min_score": 66.8
+    "min_score": 67.1
   },
   {
     "path": "data/C64Music/MUSICIANS/N/Narciso/Street_Fighter_II_Vega.sid",
@@ -8446,13 +8446,13 @@
   },
   {
     "path": "data/C64Music/MUSICIANS/N/NecroPolo/Crankshaft_Pulley.sid",
-    "min_grade": "F",
-    "min_score": 74.3
+    "min_grade": "C",
+    "min_score": 94.3
   },
   {
     "path": "data/C64Music/MUSICIANS/N/NecroPolo/Destronaut_1.sid",
     "min_grade": "F",
-    "min_score": 50.2
+    "min_score": 62.3
   },
   {
     "path": "data/C64Music/MUSICIANS/N/NecroPolo/Destronaut_2.sid",
@@ -8491,8 +8491,8 @@
   },
   {
     "path": "data/C64Music/MUSICIANS/N/Nightlord/Tears_from_a_Blind_Eye.sid",
-    "min_grade": "F",
-    "min_score": 82.2
+    "min_grade": "B",
+    "min_score": 97.7
   },
   {
     "path": "data/C64Music/MUSICIANS/N/Nikitin_Oleg/Glowtones.sid",
@@ -8532,7 +8532,7 @@
   {
     "path": "data/C64Music/MUSICIANS/N/No-XS/Dervish-D.sid",
     "min_grade": "F",
-    "min_score": 80.4
+    "min_score": 80.8
   },
   {
     "path": "data/C64Music/MUSICIANS/N/No-XS/Dirty_New_Foot.sid",
@@ -8762,7 +8762,7 @@
   {
     "path": "data/C64Music/MUSICIANS/N/Nordischsound/Base_of_Love.sid",
     "min_grade": "F",
-    "min_score": 41.8
+    "min_score": 51.5
   },
   {
     "path": "data/C64Music/MUSICIANS/N/Nordischsound/Batman_Vuelve_main_theme.sid",
@@ -8786,8 +8786,8 @@
   },
   {
     "path": "data/C64Music/MUSICIANS/N/Nordischsound/Belfast_Child.sid",
-    "min_grade": "C",
-    "min_score": 88.8
+    "min_grade": "B",
+    "min_score": 93.5
   },
   {
     "path": "data/C64Music/MUSICIANS/N/Nordischsound/Billie_Jean.sid",
@@ -8812,12 +8812,12 @@
   {
     "path": "data/C64Music/MUSICIANS/N/Nordischsound/C64_Games_Medley.sid",
     "min_grade": "F",
-    "min_score": 49.3
+    "min_score": 68.7
   },
   {
     "path": "data/C64Music/MUSICIANS/N/Nordischsound/C_and_C-Act_on_Instinct.sid",
     "min_grade": "B",
-    "min_score": 98.5
+    "min_score": 98.8
   },
   {
     "path": "data/C64Music/MUSICIANS/N/Nordischsound/C_and_C_Red_Alert-Hell_March.sid",
@@ -9006,8 +9006,8 @@
   },
   {
     "path": "data/C64Music/MUSICIANS/N/Nordischsound/Der_Dritte_Raum.sid",
-    "min_grade": "C",
-    "min_score": 96.4
+    "min_grade": "B",
+    "min_score": 98.3
   },
   {
     "path": "data/C64Music/MUSICIANS/N/Nordischsound/Deus_Ex-DuClare_Chateau.sid",
@@ -9041,8 +9041,8 @@
   },
   {
     "path": "data/C64Music/MUSICIANS/N/Nordischsound/Deus_Ex-UNATCO.sid",
-    "min_grade": "F",
-    "min_score": 87.9
+    "min_grade": "B",
+    "min_score": 98.4
   },
   {
     "path": "data/C64Music/MUSICIANS/N/Nordischsound/Deus_Ex-Versalife.sid",
@@ -9072,7 +9072,7 @@
   {
     "path": "data/C64Music/MUSICIANS/N/Nordischsound/Dua_Lipa-Houdini.sid",
     "min_grade": "F",
-    "min_score": 64.5
+    "min_score": 82.1
   },
   {
     "path": "data/C64Music/MUSICIANS/N/Nordischsound/Duke_Nukem-Stalker.sid",
@@ -9172,7 +9172,7 @@
   {
     "path": "data/C64Music/MUSICIANS/N/Nordischsound/Final_Fantasy_V-Harvest.sid",
     "min_grade": "F",
-    "min_score": 46.4
+    "min_score": 67.1
   },
   {
     "path": "data/C64Music/MUSICIANS/N/Nordischsound/Final_Fantasy_VI-Intro.sid",
@@ -9232,7 +9232,7 @@
   {
     "path": "data/C64Music/MUSICIANS/N/Nordischsound/Great_Commandment.sid",
     "min_grade": "F",
-    "min_score": 48.9
+    "min_score": 66.8
   },
   {
     "path": "data/C64Music/MUSICIANS/N/Nordischsound/Halloween_Intro.sid",
@@ -9262,7 +9262,7 @@
   {
     "path": "data/C64Music/MUSICIANS/N/Nordischsound/Hillbilly_High_on_Banjo.sid",
     "min_grade": "F",
-    "min_score": 32.6
+    "min_score": 49.3
   },
   {
     "path": "data/C64Music/MUSICIANS/N/Nordischsound/Hope_in_Dystopia.sid",
@@ -9282,7 +9282,7 @@
   {
     "path": "data/C64Music/MUSICIANS/N/Nordischsound/Into_the_Hive.sid",
     "min_grade": "F",
-    "min_score": 47.0
+    "min_score": 67.8
   },
   {
     "path": "data/C64Music/MUSICIANS/N/Nordischsound/Invitation_of_a_Crazed_Moon.sid",
@@ -9292,7 +9292,7 @@
   {
     "path": "data/C64Music/MUSICIANS/N/Nordischsound/James_Bond.sid",
     "min_grade": "F",
-    "min_score": 22.3
+    "min_score": 40.5
   },
   {
     "path": "data/C64Music/MUSICIANS/N/Nordischsound/Jurassic_Park.sid",
@@ -9381,8 +9381,8 @@
   },
   {
     "path": "data/C64Music/MUSICIANS/N/Nordischsound/Mega_Man_3-Top_Man.sid",
-    "min_grade": "F",
-    "min_score": 85.9
+    "min_grade": "B",
+    "min_score": 98.0
   },
   {
     "path": "data/C64Music/MUSICIANS/N/Nordischsound/Mega_Man_II-Ending.sid",
@@ -9392,7 +9392,7 @@
   {
     "path": "data/C64Music/MUSICIANS/N/Nordischsound/Mega_Man_IV-Bright_Man.sid",
     "min_grade": "F",
-    "min_score": 62.6
+    "min_score": 76.2
   },
   {
     "path": "data/C64Music/MUSICIANS/N/Nordischsound/Megacity_Highway.sid",
@@ -9432,12 +9432,12 @@
   {
     "path": "data/C64Music/MUSICIANS/N/Nordischsound/Metroid-Kraids_Lair.sid",
     "min_grade": "F",
-    "min_score": 38.9
+    "min_score": 47.5
   },
   {
     "path": "data/C64Music/MUSICIANS/N/Nordischsound/Metroid-Norfair.sid",
     "min_grade": "F",
-    "min_score": 36.0
+    "min_score": 72.1
   },
   {
     "path": "data/C64Music/MUSICIANS/N/Nordischsound/Metroid_2-Credits.sid",
@@ -9487,12 +9487,12 @@
   {
     "path": "data/C64Music/MUSICIANS/N/Nordischsound/Movin_Cruisin.sid",
     "min_grade": "C",
-    "min_score": 94.8
+    "min_score": 96.3
   },
   {
     "path": "data/C64Music/MUSICIANS/N/Nordischsound/Nadia_The_Secret_of_Blue_Water.sid",
     "min_grade": "F",
-    "min_score": 32.7
+    "min_score": 52.0
   },
   {
     "path": "data/C64Music/MUSICIANS/N/Nordischsound/Nineteen.sid",
@@ -9562,7 +9562,7 @@
   {
     "path": "data/C64Music/MUSICIANS/N/Nordischsound/Pokemon_Title.sid",
     "min_grade": "F",
-    "min_score": 23.6
+    "min_score": 44.8
   },
   {
     "path": "data/C64Music/MUSICIANS/N/Nordischsound/Popcorn.sid",
@@ -9601,8 +9601,8 @@
   },
   {
     "path": "data/C64Music/MUSICIANS/N/Nordischsound/SID_on_Fire.sid",
-    "min_grade": "C",
-    "min_score": 88.3
+    "min_grade": "B",
+    "min_score": 94.1
   },
   {
     "path": "data/C64Music/MUSICIANS/N/Nordischsound/SIDs_in_America.sid",
@@ -9652,7 +9652,7 @@
   {
     "path": "data/C64Music/MUSICIANS/N/Nordischsound/Speedy.sid",
     "min_grade": "F",
-    "min_score": 30.0
+    "min_score": 54.7
   },
   {
     "path": "data/C64Music/MUSICIANS/N/Nordischsound/Speedy_Speedboy.sid",
@@ -9687,7 +9687,7 @@
   {
     "path": "data/C64Music/MUSICIANS/N/Nordischsound/Star_Wars-Battle_of_Hoth.sid",
     "min_grade": "F",
-    "min_score": 27.1
+    "min_score": 67.8
   },
   {
     "path": "data/C64Music/MUSICIANS/N/Nordischsound/Starfox-Corneria.sid",
@@ -9702,7 +9702,7 @@
   {
     "path": "data/C64Music/MUSICIANS/N/Nordischsound/Stay_Strong.sid",
     "min_grade": "F",
-    "min_score": 26.2
+    "min_score": 48.8
   },
   {
     "path": "data/C64Music/MUSICIANS/N/Nordischsound/Stickerbush_Symphony.sid",
@@ -9792,7 +9792,7 @@
   {
     "path": "data/C64Music/MUSICIANS/N/Nordischsound/TMNT-Big_Apple_3PM.sid",
     "min_grade": "F",
-    "min_score": 33.5
+    "min_score": 70.0
   },
   {
     "path": "data/C64Music/MUSICIANS/N/Nordischsound/TMNT-Intro.sid",
@@ -9802,7 +9802,7 @@
   {
     "path": "data/C64Music/MUSICIANS/N/Nordischsound/Take_On_Me.sid",
     "min_grade": "F",
-    "min_score": 51.9
+    "min_score": 62.0
   },
   {
     "path": "data/C64Music/MUSICIANS/N/Nordischsound/Terminator_2.sid",
@@ -9812,7 +9812,7 @@
   {
     "path": "data/C64Music/MUSICIANS/N/Nordischsound/Terranigma-Prime_Blue.sid",
     "min_grade": "F",
-    "min_score": 38.2
+    "min_score": 65.3
   },
   {
     "path": "data/C64Music/MUSICIANS/N/Nordischsound/Terranigma-Zue.sid",
@@ -9942,7 +9942,7 @@
   {
     "path": "data/C64Music/MUSICIANS/N/Nordischsound/Zelda-Dragon_Roost_Island.sid",
     "min_grade": "F",
-    "min_score": 48.1
+    "min_score": 71.2
   },
   {
     "path": "data/C64Music/MUSICIANS/N/Nordischsound/Zelda-House_Theme.sid",
@@ -9957,7 +9957,7 @@
   {
     "path": "data/C64Music/MUSICIANS/N/Nordischsound/Zelda_3-Dark_World.sid",
     "min_grade": "F",
-    "min_score": 59.2
+    "min_score": 73.9
   },
   {
     "path": "data/C64Music/MUSICIANS/N/Nordischsound/Zelda_OoT-Kokiri_Forest.sid",
@@ -9967,7 +9967,7 @@
   {
     "path": "data/C64Music/MUSICIANS/N/Nordischsound/Zelda_Wind_Waker-Great_Sea.sid",
     "min_grade": "F",
-    "min_score": 41.0
+    "min_score": 72.6
   },
   {
     "path": "data/C64Music/MUSICIANS/N/Nula/Cookie.sid",
@@ -10096,13 +10096,13 @@
   },
   {
     "path": "data/C64Music/MUSICIANS/P/Patfield_Kent/Ace_Combat_7-Charge_Assault.sid",
-    "min_grade": "C",
-    "min_score": 89.1
+    "min_grade": "B",
+    "min_score": 94.3
   },
   {
     "path": "data/C64Music/MUSICIANS/P/Patfield_Kent/Afterburner.sid",
     "min_grade": "F",
-    "min_score": 43.3
+    "min_score": 63.9
   },
   {
     "path": "data/C64Music/MUSICIANS/P/Patfield_Kent/Against_All_Odds.sid",
@@ -10271,13 +10271,13 @@
   },
   {
     "path": "data/C64Music/MUSICIANS/P/Patfield_Kent/Last_Ninja_2-Central_Park.sid",
-    "min_grade": "C",
-    "min_score": 89.5
+    "min_grade": "B",
+    "min_score": 95.6
   },
   {
     "path": "data/C64Music/MUSICIANS/P/Patfield_Kent/Lightforce_Intro.sid",
     "min_grade": "F",
-    "min_score": 56.5
+    "min_score": 68.6
   },
   {
     "path": "data/C64Music/MUSICIANS/P/Patfield_Kent/Lovely_Day.sid",
@@ -10291,8 +10291,8 @@
   },
   {
     "path": "data/C64Music/MUSICIANS/P/Patfield_Kent/Michael_Jackson_Beat_It.sid",
-    "min_grade": "F",
-    "min_score": 55.9
+    "min_grade": "B",
+    "min_score": 95.7
   },
   {
     "path": "data/C64Music/MUSICIANS/P/Patfield_Kent/Midnight_Resistance.sid",
@@ -10442,7 +10442,7 @@
   {
     "path": "data/C64Music/MUSICIANS/P/Patfield_Kent/Super_Street_Fighter_2_Ryu_Theme.sid",
     "min_grade": "F",
-    "min_score": 60.9
+    "min_score": 74.0
   },
   {
     "path": "data/C64Music/MUSICIANS/P/Patfield_Kent/Superstition-Stevie_Wonder.sid",
@@ -10697,7 +10697,7 @@
   {
     "path": "data/C64Music/MUSICIANS/P/Proton/Aint_No_Rest_for_the_Wicked.sid",
     "min_grade": "F",
-    "min_score": 58.2
+    "min_score": 69.1
   },
   {
     "path": "data/C64Music/MUSICIANS/P/Proton/Airwolf_Theme.sid",
@@ -10901,8 +10901,8 @@
   },
   {
     "path": "data/C64Music/MUSICIANS/P/Proton/Crocketts_Theme.sid",
-    "min_grade": "F",
-    "min_score": 65.1
+    "min_grade": "C",
+    "min_score": 92.4
   },
   {
     "path": "data/C64Music/MUSICIANS/P/Proton/Crosswords_Remake.sid",
@@ -10931,8 +10931,8 @@
   },
   {
     "path": "data/C64Music/MUSICIANS/P/Proton/Daah_Those_Berliner_Pilsner.sid",
-    "min_grade": "F",
-    "min_score": 87.9
+    "min_grade": "B",
+    "min_score": 97.4
   },
   {
     "path": "data/C64Music/MUSICIANS/P/Proton/Dancing_in_the_Dark.sid",
@@ -10951,8 +10951,8 @@
   },
   {
     "path": "data/C64Music/MUSICIANS/P/Proton/Deserted_Cities.sid",
-    "min_grade": "F",
-    "min_score": 74.6
+    "min_grade": "C",
+    "min_score": 91.2
   },
   {
     "path": "data/C64Music/MUSICIANS/P/Proton/Division_by_Zero.sid",
@@ -10962,7 +10962,7 @@
   {
     "path": "data/C64Music/MUSICIANS/P/Proton/Domino_Dancing.sid",
     "min_grade": "F",
-    "min_score": 36.3
+    "min_score": 58.6
   },
   {
     "path": "data/C64Music/MUSICIANS/P/Proton/Dont_You_Want_Me.sid",
@@ -11007,7 +11007,7 @@
   {
     "path": "data/C64Music/MUSICIANS/P/Proton/Englishman_in_New_York.sid",
     "min_grade": "F",
-    "min_score": 35.9
+    "min_score": 84.0
   },
   {
     "path": "data/C64Music/MUSICIANS/P/Proton/Enutcidolem.sid",
@@ -11262,7 +11262,7 @@
   {
     "path": "data/C64Music/MUSICIANS/P/Proton/Macgyver_Theme.sid",
     "min_grade": "F",
-    "min_score": 33.3
+    "min_score": 50.3
   },
   {
     "path": "data/C64Music/MUSICIANS/P/Proton/Magnetic_Fields.sid",
@@ -11347,7 +11347,7 @@
   {
     "path": "data/C64Music/MUSICIANS/P/Proton/Neverending_Story.sid",
     "min_grade": "F",
-    "min_score": 58.0
+    "min_score": 68.6
   },
   {
     "path": "data/C64Music/MUSICIANS/P/Proton/Nights_in_White_Satin.sid",
@@ -11377,7 +11377,7 @@
   {
     "path": "data/C64Music/MUSICIANS/P/Proton/Oxygene_Part_2.sid",
     "min_grade": "F",
-    "min_score": 16.2
+    "min_score": 42.5
   },
   {
     "path": "data/C64Music/MUSICIANS/P/Proton/Oxygene_Part_4.sid",
@@ -11466,8 +11466,8 @@
   },
   {
     "path": "data/C64Music/MUSICIANS/P/Proton/Robots.sid",
-    "min_grade": "F",
-    "min_score": 80.6
+    "min_grade": "C",
+    "min_score": 94.8
   },
   {
     "path": "data/C64Music/MUSICIANS/P/Proton/Rogue64_Preview.sid",
@@ -11481,13 +11481,13 @@
   },
   {
     "path": "data/C64Music/MUSICIANS/P/Proton/Run_to_the_Hills.sid",
-    "min_grade": "F",
-    "min_score": 73.9
+    "min_grade": "B",
+    "min_score": 94.1
   },
   {
     "path": "data/C64Music/MUSICIANS/P/Proton/Runaway.sid",
     "min_grade": "F",
-    "min_score": 28.5
+    "min_score": 69.6
   },
   {
     "path": "data/C64Music/MUSICIANS/P/Proton/SID_Therapy.sid",
@@ -11596,8 +11596,8 @@
   },
   {
     "path": "data/C64Music/MUSICIANS/P/Proton/Thunderstruck.sid",
-    "min_grade": "F",
-    "min_score": 81.0
+    "min_grade": "B",
+    "min_score": 93.7
   },
   {
     "path": "data/C64Music/MUSICIANS/P/Proton/Toxic_Waste.sid",
@@ -11652,7 +11652,7 @@
   {
     "path": "data/C64Music/MUSICIANS/P/Proton/Walk_of_Life.sid",
     "min_grade": "F",
-    "min_score": 26.1
+    "min_score": 46.1
   },
   {
     "path": "data/C64Music/MUSICIANS/P/Proton/We_Will_Rock_You.sid",
@@ -11677,7 +11677,7 @@
   {
     "path": "data/C64Music/MUSICIANS/P/Proton/Yakety_Sax.sid",
     "min_grade": "F",
-    "min_score": 43.1
+    "min_score": 77.9
   },
   {
     "path": "data/C64Music/MUSICIANS/P/Proton/Zadoksen_aamukahvit.sid",
@@ -11756,8 +11756,8 @@
   },
   {
     "path": "data/C64Music/MUSICIANS/R/R1sc/Lost.sid",
-    "min_grade": "C",
-    "min_score": 88.6
+    "min_grade": "B",
+    "min_score": 95.5
   },
   {
     "path": "data/C64Music/MUSICIANS/R/R1sc/Patience.sid",
@@ -11846,8 +11846,8 @@
   },
   {
     "path": "data/C64Music/MUSICIANS/R/Radiantx/Get_Back_from_Stale_Hands.sid",
-    "min_grade": "F",
-    "min_score": 34.8
+    "min_grade": "C",
+    "min_score": 84.9
   },
   {
     "path": "data/C64Music/MUSICIANS/R/Radiantx/I_took_a_trip.sid",
@@ -12006,8 +12006,8 @@
   },
   {
     "path": "data/C64Music/MUSICIANS/R/Ray_Manta/Mechanique.sid",
-    "min_grade": "C",
-    "min_score": 92.1
+    "min_grade": "A",
+    "min_score": 96.6
   },
   {
     "path": "data/C64Music/MUSICIANS/R/Ray_Manta/Random_Stockphoto_Officeworker_Zoomer.sid",
@@ -12046,8 +12046,8 @@
   },
   {
     "path": "data/C64Music/MUSICIANS/R/Rerrah/Second_Attempt.sid",
-    "min_grade": "F",
-    "min_score": 86.0
+    "min_grade": "B",
+    "min_score": 98.1
   },
   {
     "path": "data/C64Music/MUSICIANS/R/Response/25_Mg.sid",
@@ -12057,7 +12057,7 @@
   {
     "path": "data/C64Music/MUSICIANS/R/Response/Datafresh.sid",
     "min_grade": "F",
-    "min_score": 55.0
+    "min_score": 73.6
   },
   {
     "path": "data/C64Music/MUSICIANS/R/Response/Exigent_Comity.sid",
@@ -12112,7 +12112,7 @@
   {
     "path": "data/C64Music/MUSICIANS/R/Retro64/Deliverance.sid",
     "min_grade": "F",
-    "min_score": 38.0
+    "min_score": 56.5
   },
   {
     "path": "data/C64Music/MUSICIANS/R/Retro64/Delta.sid",
@@ -12126,8 +12126,8 @@
   },
   {
     "path": "data/C64Music/MUSICIANS/R/Retro64/Ocean_Loader.sid",
-    "min_grade": "F",
-    "min_score": 79.4
+    "min_grade": "B",
+    "min_score": 94.0
   },
   {
     "path": "data/C64Music/MUSICIANS/R/Richmond_Mike/Vegetables_Deluxe.sid",
@@ -12236,8 +12236,8 @@
   },
   {
     "path": "data/C64Music/MUSICIANS/R/Rock/Funkyhips.sid",
-    "min_grade": "C",
-    "min_score": 94.5
+    "min_grade": "B",
+    "min_score": 98.0
   },
   {
     "path": "data/C64Music/MUSICIANS/R/Rock/Girls_Just_Wanna_Have_Fun.sid",
@@ -12296,8 +12296,8 @@
   },
   {
     "path": "data/C64Music/MUSICIANS/R/Rock/Hullun_Jenkka.sid",
-    "min_grade": "F",
-    "min_score": 82.3
+    "min_grade": "B",
+    "min_score": 96.7
   },
   {
     "path": "data/C64Music/MUSICIANS/R/Rock/Hump.sid",
@@ -12491,8 +12491,8 @@
   },
   {
     "path": "data/C64Music/MUSICIANS/R/Rock/Jaeaekaerihumppa.sid",
-    "min_grade": "F",
-    "min_score": 83.9
+    "min_grade": "B",
+    "min_score": 97.9
   },
   {
     "path": "data/C64Music/MUSICIANS/R/Rock/Je_t_aime_ZOO_Moi.sid",
@@ -13462,7 +13462,7 @@
   {
     "path": "data/C64Music/MUSICIANS/S/Saxxon/Sparks.sid",
     "min_grade": "F",
-    "min_score": 61.9
+    "min_score": 67.7
   },
   {
     "path": "data/C64Music/MUSICIANS/S/Scan/Afrikaan_Beat.sid",
@@ -13697,7 +13697,7 @@
   {
     "path": "data/C64Music/MUSICIANS/S/Six/Feed_Six_Chickens.sid",
     "min_grade": "F",
-    "min_score": 43.3
+    "min_score": 55.6
   },
   {
     "path": "data/C64Music/MUSICIANS/S/Skam/Terror_Worldwide.sid",
@@ -13712,7 +13712,7 @@
   {
     "path": "data/C64Music/MUSICIANS/S/Skrjablin/Vodka_and_Whiskey.sid",
     "min_grade": "F",
-    "min_score": 43.3
+    "min_score": 67.9
   },
   {
     "path": "data/C64Music/MUSICIANS/S/Skrjablin/Warpdrive.sid",
@@ -13746,8 +13746,8 @@
   },
   {
     "path": "data/C64Music/MUSICIANS/S/Slash/Second_Try.sid",
-    "min_grade": "F",
-    "min_score": 59.1
+    "min_grade": "B",
+    "min_score": 96.0
   },
   {
     "path": "data/C64Music/MUSICIANS/S/Slash/Triace40.sid",
@@ -13912,7 +13912,7 @@
   {
     "path": "data/C64Music/MUSICIANS/S/Slimex/Secret_Agent.sid",
     "min_grade": "F",
-    "min_score": 62.8
+    "min_score": 81.7
   },
   {
     "path": "data/C64Music/MUSICIANS/S/Slimex/Simple_Simon.sid",
@@ -13942,7 +13942,7 @@
   {
     "path": "data/C64Music/MUSICIANS/S/Slimex/Weekend-Ninja.sid",
     "min_grade": "F",
-    "min_score": 69.6
+    "min_score": 85.3
   },
   {
     "path": "data/C64Music/MUSICIANS/S/Slimex/ZZ-Main_Title.sid",
@@ -14151,13 +14151,13 @@
   },
   {
     "path": "data/C64Music/MUSICIANS/S/Spider_Jerusalem/Die_Hose_klemmt_mein_Hoden_brennt.sid",
-    "min_grade": "C",
-    "min_score": 92.1
+    "min_grade": "B",
+    "min_score": 97.7
   },
   {
     "path": "data/C64Music/MUSICIANS/S/Spider_Jerusalem/Dirty_Cheater.sid",
     "min_grade": "F",
-    "min_score": 68.5
+    "min_score": 75.1
   },
   {
     "path": "data/C64Music/MUSICIANS/S/Spider_Jerusalem/Drum_n_Drum.sid",
@@ -14192,12 +14192,12 @@
   {
     "path": "data/C64Music/MUSICIANS/S/Spider_Jerusalem/Ghost_Town_64.sid",
     "min_grade": "F",
-    "min_score": 29.8
+    "min_score": 47.1
   },
   {
     "path": "data/C64Music/MUSICIANS/S/Spider_Jerusalem/Homage_to_Taky.sid",
-    "min_grade": "F",
-    "min_score": 59.1
+    "min_grade": "B",
+    "min_score": 93.6
   },
   {
     "path": "data/C64Music/MUSICIANS/S/Spider_Jerusalem/Hugs_from_Above.sid",
@@ -14217,7 +14217,7 @@
   {
     "path": "data/C64Music/MUSICIANS/S/Spider_Jerusalem/Lets_Visit_That_Dark_Place_Again.sid",
     "min_grade": "F",
-    "min_score": 65.2
+    "min_score": 80.2
   },
   {
     "path": "data/C64Music/MUSICIANS/S/Spider_Jerusalem/Pam_Jearl-Ten.sid",
@@ -14242,7 +14242,7 @@
   {
     "path": "data/C64Music/MUSICIANS/S/Spider_Jerusalem/Schmalztro.sid",
     "min_grade": "F",
-    "min_score": 60.2
+    "min_score": 75.5
   },
   {
     "path": "data/C64Music/MUSICIANS/S/Spider_Jerusalem/Schraeg.sid",
@@ -14267,7 +14267,7 @@
   {
     "path": "data/C64Music/MUSICIANS/S/Spider_Jerusalem/Was_Sommer_Trinken.sid",
     "min_grade": "F",
-    "min_score": 84.5
+    "min_score": 86.9
   },
   {
     "path": "data/C64Music/MUSICIANS/S/Spider_Jerusalem/Was_ist_das_fur_1_Detert_Fan.sid",
@@ -14377,7 +14377,7 @@
   {
     "path": "data/C64Music/MUSICIANS/S/SquareWave/Techno-Techno.sid",
     "min_grade": "F",
-    "min_score": 79.3
+    "min_score": 82.9
   },
   {
     "path": "data/C64Music/MUSICIANS/S/Sta64/Amelie_Poulain_Goes_Chip.sid",
@@ -14422,7 +14422,7 @@
   {
     "path": "data/C64Music/MUSICIANS/S/Steel/Mamas_Little_Boy.sid",
     "min_grade": "B",
-    "min_score": 96.8
+    "min_score": 97.0
   },
   {
     "path": "data/C64Music/MUSICIANS/S/Steel/Shadows_of_Life.sid",
@@ -14452,7 +14452,7 @@
   {
     "path": "data/C64Music/MUSICIANS/S/Stinsen/Brzl.sid",
     "min_grade": "F",
-    "min_score": 68.1
+    "min_score": 77.5
   },
   {
     "path": "data/C64Music/MUSICIANS/S/Stinsen/Cityscape_2730.sid",
@@ -14637,7 +14637,7 @@
   {
     "path": "data/C64Music/MUSICIANS/S/Stinsen/Worktunes/Safari.sid",
     "min_grade": "F",
-    "min_score": 51.7
+    "min_score": 72.9
   },
   {
     "path": "data/C64Music/MUSICIANS/S/Stinsen/Worktunes/Sniff.sid",
@@ -14802,7 +14802,7 @@
   {
     "path": "data/C64Music/MUSICIANS/T/Teffx/Rude_Buster.sid",
     "min_grade": "F",
-    "min_score": 53.6
+    "min_score": 74.8
   },
   {
     "path": "data/C64Music/MUSICIANS/T/Teffx/Terminal_Velocity.sid",
@@ -14812,7 +14812,7 @@
   {
     "path": "data/C64Music/MUSICIANS/T/Teffx/World_Revolving.sid",
     "min_grade": "F",
-    "min_score": 32.4
+    "min_score": 49.8
   },
   {
     "path": "data/C64Music/MUSICIANS/T/Tennisers/Buby.sid",
@@ -14827,7 +14827,7 @@
   {
     "path": "data/C64Music/MUSICIANS/T/Tennisers/Wewiuq.sid",
     "min_grade": "F",
-    "min_score": 30.9
+    "min_score": 43.1
   },
   {
     "path": "data/C64Music/MUSICIANS/T/Terric/Meta_Snake_2.sid",
@@ -14857,7 +14857,7 @@
   {
     "path": "data/C64Music/MUSICIANS/T/Texx_Sound/Spybreak.sid",
     "min_grade": "F",
-    "min_score": 52.0
+    "min_score": 61.7
   },
   {
     "path": "data/C64Music/MUSICIANS/T/TheK/Awakening_2021.sid",
@@ -14867,7 +14867,7 @@
   {
     "path": "data/C64Music/MUSICIANS/T/TheK/Bamse.sid",
     "min_grade": "F",
-    "min_score": 25.2
+    "min_score": 42.4
   },
   {
     "path": "data/C64Music/MUSICIANS/T/TheK/Kalles_klaettertraed.sid",
@@ -15086,8 +15086,8 @@
   },
   {
     "path": "data/C64Music/MUSICIANS/T/The_Dungeon_Master/Saggy_Tits.sid",
-    "min_grade": "F",
-    "min_score": 79.4
+    "min_grade": "B",
+    "min_score": 94.1
   },
   {
     "path": "data/C64Music/MUSICIANS/T/The_Dungeon_Master/Shubidumeow.sid",
@@ -15146,8 +15146,8 @@
   },
   {
     "path": "data/C64Music/MUSICIANS/T/The_Syndrom/Castle.sid",
-    "min_grade": "F",
-    "min_score": 61.9
+    "min_grade": "C",
+    "min_score": 90.3
   },
   {
     "path": "data/C64Music/MUSICIANS/T/Theel/Absurd_Purely_Absurd.sid",
@@ -15206,8 +15206,8 @@
   },
   {
     "path": "data/C64Music/MUSICIANS/T/Tobikomi/Say_It_to_My_Face.sid",
-    "min_grade": "C",
-    "min_score": 92.1
+    "min_grade": "B",
+    "min_score": 98.6
   },
   {
     "path": "data/C64Music/MUSICIANS/T/Tobikomi/Seven-Twenty_Baby.sid",
@@ -15667,7 +15667,7 @@
   {
     "path": "data/C64Music/MUSICIANS/V/V0yager/Rising_Tides.sid",
     "min_grade": "F",
-    "min_score": 32.6
+    "min_score": 50.8
   },
   {
     "path": "data/C64Music/MUSICIANS/V/V0yager/Stage_02.sid",
@@ -16291,8 +16291,8 @@
   },
   {
     "path": "data/C64Music/MUSICIANS/X/X-Jammer/Storm_Call.sid",
-    "min_grade": "C",
-    "min_score": 90.1
+    "min_grade": "A",
+    "min_score": 95.7
   },
   {
     "path": "data/C64Music/MUSICIANS/X/X-Jammer/Taend_ett_ljud.sid",
@@ -16381,8 +16381,8 @@
   },
   {
     "path": "data/C64Music/MUSICIANS/X/Xiny6581/Arised_Strataphorms.sid",
-    "min_grade": "F",
-    "min_score": 75.4
+    "min_grade": "B",
+    "min_score": 95.2
   },
   {
     "path": "data/C64Music/MUSICIANS/X/Xiny6581/Auf_Wiedersehen_Monty_in_Space.sid",
@@ -16486,8 +16486,8 @@
   },
   {
     "path": "data/C64Music/MUSICIANS/X/Xiny6581/Differential_Polarcube.sid",
-    "min_grade": "F",
-    "min_score": 57.3
+    "min_grade": "B",
+    "min_score": 95.6
   },
   {
     "path": "data/C64Music/MUSICIANS/X/Xiny6581/Disco_Balls_Are_not_Touching.sid",
@@ -16572,7 +16572,7 @@
   {
     "path": "data/C64Music/MUSICIANS/X/Xiny6581/GP_All_Stars.sid",
     "min_grade": "F",
-    "min_score": 58.3
+    "min_score": 70.1
   },
   {
     "path": "data/C64Music/MUSICIANS/X/Xiny6581/GabberPolyDabber.sid",
@@ -16606,8 +16606,8 @@
   },
   {
     "path": "data/C64Music/MUSICIANS/X/Xiny6581/Grannys_Toothpaste_on_Drugs.sid",
-    "min_grade": "B",
-    "min_score": 98.1
+    "min_grade": "A",
+    "min_score": 98.5
   },
   {
     "path": "data/C64Music/MUSICIANS/X/Xiny6581/Grilled_Until_Dead.sid",
@@ -16712,7 +16712,7 @@
   {
     "path": "data/C64Music/MUSICIANS/X/Xiny6581/Love_Letter_to_Katon.sid",
     "min_grade": "C",
-    "min_score": 88.1
+    "min_score": 92.3
   },
   {
     "path": "data/C64Music/MUSICIANS/X/Xiny6581/Lucretia_My_Reflection.sid",
@@ -17006,8 +17006,8 @@
   },
   {
     "path": "data/C64Music/MUSICIANS/Y/Ysyry/Do_Ya_Wanna_Funk.sid",
-    "min_grade": "F",
-    "min_score": 85.1
+    "min_grade": "B",
+    "min_score": 98.2
   },
   {
     "path": "data/C64Music/MUSICIANS/Y/Yzi/Kaiho.sid",
@@ -17046,8 +17046,8 @@
   },
   {
     "path": "data/C64Music/MUSICIANS/Z/Zabutom/Disappear.sid",
-    "min_grade": "C",
-    "min_score": 87.0
+    "min_grade": "A",
+    "min_score": 94.2
   },
   {
     "path": "data/C64Music/MUSICIANS/Z/Zabutom/Does_Karita_Know.sid",
@@ -17086,8 +17086,8 @@
   },
   {
     "path": "data/C64Music/MUSICIANS/Z/Zabutom/Main_2.sid",
-    "min_grade": "F",
-    "min_score": 71.6
+    "min_grade": "C",
+    "min_score": 85.2
   },
   {
     "path": "data/C64Music/MUSICIANS/Z/Zabutom/Misunderstandings.sid",
@@ -17262,12 +17262,12 @@
   {
     "path": "data/C64Music/MUSICIANS/Z/Zardax/Halfway_Thru.sid",
     "min_grade": "F",
-    "min_score": 13.8
+    "min_score": 43.0
   },
   {
     "path": "data/C64Music/MUSICIANS/Z/Zardax/Houses_of_Rose.sid",
     "min_grade": "F",
-    "min_score": 67.7
+    "min_score": 77.3
   },
   {
     "path": "data/C64Music/MUSICIANS/Z/Zardax/Mala_Gente.sid",
