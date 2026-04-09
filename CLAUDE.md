@@ -45,12 +45,14 @@ Build the SIDfinity universal SID music player and ML pipeline. See `docs/PLAN.m
 **Status:** 1,843/3,481 Grade A (52.9%) on full HVSC batch. 3,478-song regression suite runs in 33 seconds on 48 cores. Superoptimizer complete. Toneporta fixed. Multi-song support added. Comparison methodology handles timing jitter from layout shifts.
 
 **Next steps (in priority order):**
-1. Investigate remaining ~1,350 F-grade GT2 SIDs for new bug categories
-2. Start ML training on 1,688 Grade A songs (USF tokenization)
-3. Expand to DMC (10,738 SIDs) and JCH (3,678 SIDs) player engines
+1. Investigate remaining ~1,294 F-grade GT2 SIDs — 90% fail at init timing (frames 10-15)
+2. Fix num_columns=2 undercount for 155 Group A fixedparams=1 songs (col_data has correct data but blind use causes regressions — needs targeted validation)
+3. Start ML training on 1,843 Grade A songs (USF tokenization)
+4. Expand to DMC (10,738 SIDs) and JCH (3,678 SIDs) player engines
 
 **Key insights:**
 - V2 player code blocks are at 6502 minimum cycle counts. Further Grade A gains come from fixing decompiler/player BUGS, not cycle optimization.
+- V2 init timing is 2-7 frames behind GT2 (no channel exec during init). This is a design choice. Changing V2 init was tried: 115 regressions. The comparison init grace (10 frames) absorbs most of this, but songs with higher tempos (12+) or longer gate timers still fail.
 - Any byte-count change in the V2 player shifts 6502 addresses, causing ±1 frame timing jitter from page-crossing cycle penalties. This is handled by the comparison methodology (see below), not by avoiding code changes.
 - To investigate F-grade songs: pick the highest-scoring one, trace the first wrong frame, classify the error, fix root cause, batch test. See memory `feedback_bug_investigation.md`.
 
