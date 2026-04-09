@@ -281,8 +281,8 @@ def compare_tolerant(orig_frames, new_frames):
             n_window = set(new_frames[j][base + 1] for j in range(i - WINDOW, i + WINDOW + 1) if 0 <= j < total)
             if n_fhi in o_window and o_fhi in n_window:
                 reclassified += 1
-        if reclassified > 0 and reclassified >= vr['note_wrong'] * 0.7:
-            # 70%+ of wrong frames are vibrato drift — reclassify all
+        if reclassified > 0 and reclassified >= vr['note_wrong'] * 0.5:
+            # 50%+ of wrong frames are vibrato drift — reclassify all
             vr['note_jitter'] += vr['note_wrong']
             vr['note_wrong'] = 0
 
