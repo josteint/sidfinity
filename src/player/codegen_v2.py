@@ -392,8 +392,10 @@ def emit_wave_table(ctx):
     ctx.inst('jmp', 'ce_wdone')
     ctx.label('ce_wgo')
 
-    if ctx.has(WAVE_DELAY) or ctx.has(WAVE_CMD):
-        # Need mt_wv_optr for note lookup after advance (complex paths)
+    if ctx.has(WAVE_CMD):
+        # Need mt_wv_optr for note lookup after advance (WAVE_CMD ce_wpost path).
+        # WAVE_DELAY without WAVE_CMD doesn't need this — Y is still valid
+        # when the note column is read pre-advance at ce_wadv.
         ctx.inst('sty', 'mt_wv_optr')
 
     ctx.inst('lda', 'mt_wavetbl-1,y')
@@ -555,7 +557,10 @@ def emit_effects(ctx):
     if ctx.has(CALCULATED_SPEED):
         ctx.label('ce_calcspd')
         ctx.inst('and', '#$7f')
-        ctx.inst('sta', 'mt_fx_spd')
+        if ctx.has(VIBRATO):
+            ctx.inst('sta', 'mt_smc_fxspd+1', comment='SMC: patch CMP operand')
+        else:
+            ctx.inst('sta', 'mt_fx_spd')
         ctx.inst('lda', 'mt_speedrighttbl-1,y')
         ctx.inst('sta', 'mt_fx_shift')
         ctx.inst('ldy', 'mt_chnlastnote,x')
@@ -626,7 +631,7 @@ def emit_effects(ctx):
         ctx.inst('lda', 'mt_speedlefttbl-1,y')
         ctx.inst('bmi', 'ce_v4c')
         ctx.inst('and', '#$7f')
-        ctx.inst('sta', 'mt_fx_spd')
+        ctx.inst('sta', 'mt_smc_fxspd+1', comment='SMC: patch CMP operand')
         ctx.inst('lda', 'mt_speedrighttbl-1,y')
         ctx.inst('sta', 'mt_temp1')
         ctx.inst('lda', '#0')
@@ -634,7 +639,7 @@ def emit_effects(ctx):
         ctx.inst('jmp', 'ce_v4r')
         ctx.label('ce_v4c')
         ctx.inst('and', '#$7f')
-        ctx.inst('sta', 'mt_fx_spd')
+        ctx.inst('sta', 'mt_smc_fxspd+1', comment='SMC: patch CMP operand')
         ctx.inst('lda', 'mt_speedrighttbl-1,y')
         ctx.inst('pha')
         ctx.inst('ldy', 'mt_chnlastnote,x')
@@ -656,7 +661,9 @@ def emit_effects(ctx):
         ctx.label('ce_v4r')
         ctx.inst('lda', 'mt_chnvibtime,x')
         ctx.inst('bmi', 'ce_v4nc')
-        ctx.inst('cmp', 'mt_fx_spd')
+        ctx.label('mt_smc_fxspd')
+        ctx.inst('cmp', '#0', comment='SMC: operand patched with fx speed')
+        ctx.inst('nop', comment='pad: CMP imm is 1 byte shorter than CMP abs')
         ctx.inst('beq', 'ce_v4nc')
         ctx.inst('bcc', 'ce_v4n2')
         ctx.inst('eor', '#$ff')
@@ -1232,7 +1239,8 @@ def emit_tick0_dispatch(ctx):
         if ctx.has(SET_AD):
             ctx.inst('beq', 'mt_t0_fx5')
 
-    # FX 5-F: only active ones
+    # FX 5-F: CMP chain for active effects
+    has_fxf = ctx.has(SET_TEMPO) or ctx.has(FUNKTEMPO)
     fx_checks = [
         (6, SET_SR), (7, SET_WAVE), (8, SET_WAVEPTR),
         (9, SET_PULSEPTR), (0xa, SET_FILTPTR), (0xb, SET_FILTCTRL),
@@ -1243,8 +1251,8 @@ def emit_tick0_dispatch(ctx):
             ctx.inst('cpy', f'#${num:x}')
             ctx.inst('beq', f'mt_t0_fx{num:x}')
 
-    # FX F: set tempo (fall through) — also needed if FUNKTEMPO uses it
-    if ctx.has(SET_TEMPO) or ctx.has(FUNKTEMPO):
+    # FX F: set tempo — also needed if FUNKTEMPO uses it
+    if has_fxf:
         ctx.label('mt_t0_fxf')
         ctx.inst('cmp', '#$80')
         ctx.inst('bcs', 'mt_t0fc')
