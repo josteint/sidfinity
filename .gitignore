@@ -29,3 +29,8 @@ __pycache__/
 # Claude Code
 .claude/
 tmp/
+tools/z3_lib/
+tools/gt2asm
+tools/sidrender
+tools/gpu_6502
+tmp/

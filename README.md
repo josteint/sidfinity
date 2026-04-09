@@ -1,51 +1,74 @@
 # SIDfinity
 
-> **Note:** This README was written by AI. This project is a work in progress and little if anything is working yet.
+![alpha](https://img.shields.io/badge/status-alpha-orange)
 
-Neural net–generated C64 SID music, output as playable `.sid` files for real hardware.
+> **Note:** This README was written by Claude (Anthropic's AI assistant). The project is in alpha — things work but rough edges remain.
 
-## Abstract
+A pipeline for decompiling C64 SID music into a universal symbolic format, with the goal of training a neural net to generate new SID tunes as playable `.sid` files.
 
-SIDfinity parses existing SID tunes from the [HVSC](https://hvsc.de/) collection into a universal symbolic format (USF), trains a transformer model on that data, and generates new music packaged with a universal 6502 player. The output is a standard `.sid` file that plays on real C64 hardware or any SID emulator.
+## What it does
 
-## The Idea
-
-There are ~60,000 SID tunes in the wild, written using 642 different music engines. Each engine stores music differently — different instrument formats, pattern encodings, table structures. To train a neural net on all of them, we need a single representation that captures what every engine can express.
-
-USF (Universal Symbolic Format) is that representation. It's event-based, compact (~3000 tokens for a typical tune), and covers the full feature set of GoatTracker V2 — the most capable open-source SID tracker. Other engines (DMC, JCH, Future Composer, etc.) map into the same format.
-
-The pipeline:
+SIDfinity takes existing SID tunes from the [HVSC](https://hvsc.de/) collection (~60,000 files), decompiles them into a musical representation (notes, instruments, patterns, effects), and rebuilds them with a custom 6502 player. The rebuilt SIDs are validated frame-by-frame against the originals.
 
 ```
-  Any SID ──→ parser ──→ USF ──→ ML training data
-                                        │
-  Prompt ──→ transformer ──→ USF ──→ SIDfinity player ──→ .sid
+  GT2 SID ──→ decompile ──→ USF ──→ SIDfinity player ──→ rebuilt .sid
+       │                                                       │
+       └───────────── register comparison ─────────────────────┘
 ```
 
-## Goals
+The eventual goal is to train a transformer model on the extracted musical data to generate new C64 music.
 
-- **Parse every SID engine** into USF (642 engines, starting with GT2 and DMC)
-- **Lossless roundtrip** for at least GoatTracker: GT2 → USF → SID should produce identical register output
-- **Train a transformer** on the full HVSC as USF token sequences
-- **Generate new tunes** in the style of any composer, packaged as `.sid` files
-- **Play on real C64 hardware** via the SIDfinity universal 6502 player
+## Current state
 
-## Current State
+**GoatTracker V2 pipeline:** 1,688 out of 3,478 GT2 songs (48.5%) achieve Grade A — zero audible differences from the original. The full regression suite tests all 3,478 GT2 songs in 33 seconds on 48 cores.
 
-Very early. The USF spec covers GT2 fully. DMC parsing partially works. Register-level validation infrastructure exists (100% pass rate on HVSC for the simpler register-dump roundtrip). The GT2→USF→SID roundtrip is the next milestone.
+The pipeline correctly handles:
+- All 4 GT2 player groups (A through D, versions 2.65–2.77)
+- Ghost register mode (Group C)
+- Toneportamento, portamento, vibrato, funktempo
+- Wave/pulse/filter/speed table extraction and playback
+- Per-song V2 6502 code generation with peephole optimization
 
-## Docs
-
-- [USF Specification](docs/usf_spec.md) — the universal symbolic format
-- [Development Plan](docs/PLAN.md) — roadmap and current status
-- [SIDfinity Player Spec](docs/sidfinity_player_spec.md) — the universal 6502 player
-- [Player Engine Docs](docs/players/) — documentation for 48 major SID engines
+**Other engines:** DMC and JCH parsers exist in early form. 48 player engines are documented in `docs/players/`.
 
 ## Build
 
 ```bash
 source src/env.sh
-bash tools/build.sh
+bash tools/build.sh    # builds libsidplayfp + siddump
 ```
 
-Requires g++ (C++17), Python 3.10+. See `CLAUDE.md` for full setup.
+Requires: g++ (C++17), Python 3.10+, xa65 assembler (built in-tree).
+Optional: nvcc (CUDA 12+) for GPU optimizer, Z3 for SMT verification.
+
+Hardware: developed on 64-core EPYC with dual 3090 GPUs, but runs on any Linux machine.
+
+## Test
+
+```bash
+source src/env.sh
+python3 src/player/regression_test.py    # 3,478 songs, ~33 seconds
+```
+
+## Docs
+
+- [USF Specification](docs/usf_spec.md) — the universal symbolic format
+- [Development Plan](docs/PLAN.md) — roadmap and status
+- [GT2 Data Layout](docs/gt2_data_layout.md) — byte-level binary format
+- [Player Engine Docs](docs/players/) — documentation for 48 SID engines
+
+## Project structure
+
+```
+src/                    Pipeline source code
+  player/               V2 6502 code generator + optimization tools
+  sidxray/              Player reverse-engineering tools
+docs/                   Specifications and references
+tools/                  Build tools (xa65, siddump, libsidplayfp)
+data/                   HVSC collection (not in git)
+deprecated/             Earlier development phases
+```
+
+## License
+
+The SIDfinity player and pipeline code is original work. The GoatTracker player source (`sidfinity_gt2.asm`) is based on Lasse Oorni's GoatTracker V2 (free license). libsidplayfp is used under its existing license.
