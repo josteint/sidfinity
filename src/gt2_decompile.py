@@ -324,6 +324,8 @@ def _find_wave_size_by_freq_trace(sid_path, binary, la, code_end, table_start_of
                 ol_pos += 1
                 continue
             break  # this is the pattern ID
+        if ol_off + ol_pos >= len(binary):
+            continue  # orderlist runs past end of binary — skip this voice
         first_patt_id = binary[ol_off + ol_pos]
 
         # Find pattern address from pattern table
@@ -610,8 +612,14 @@ def decompile_gt2(sid_path):
         return None
 
     ni = r['ni']
+    if 'ad' not in r['col_operands']:
+        return None
     col_start = r['col_operands']['ad'] + 1
     col_start_off = col_start - la
+
+    # Sanity check: col_start must be within the binary
+    if col_start_off < 0 or col_start_off >= len(binary):
+        return None
 
     # Compute flag-based column count for use in alternate layout detection.
     flags = r['flags']
@@ -848,7 +856,7 @@ def decompile_gt2(sid_path):
         # Pattern table
         patt_tbl_space = col_start_off - pos
         num_patt = patt_tbl_space // 2
-        if num_patt <= 0 or num_patt > 256:
+        if num_patt <= 0 or num_patt > 256 or pos + num_patt * 2 > len(binary):
             return None
         patt_lo = [binary[pos + i] for i in range(num_patt)]
         pos += num_patt

@@ -300,19 +300,25 @@ def usf_to_sid(song, output_path=None):
                 else:
                     ol.append(0xE0 + (16 + transpose))
 
-            if repeat_count <= 2:
-                for _ in range(repeat_count):
+            # Emit repeat groups. Max single repeat byte is 0xDF (count=15),
+            # since 0xE0+ is used for transpose encoding. Chunk large repeats.
+            remaining = repeat_count
+            while remaining > 0:
+                chunk = min(remaining, 16)
+                if chunk <= 2:
+                    for _ in range(chunk):
+                        entry_to_byte[entry_idx] = len(ol)
+                        entry_idx += 1
+                        ol.append(patt_id)
+                else:
                     entry_to_byte[entry_idx] = len(ol)
                     entry_idx += 1
                     ol.append(patt_id)
-            else:
-                entry_to_byte[entry_idx] = len(ol)
-                entry_idx += 1
-                ol.append(patt_id)
-                ol.append(0xD0 + (repeat_count - 1))
-                for k in range(1, repeat_count):
-                    entry_to_byte[entry_idx] = entry_to_byte[entry_idx - 1]
-                    entry_idx += 1
+                    ol.append(0xD0 + (chunk - 1))
+                    for k in range(1, chunk):
+                        entry_to_byte[entry_idx] = entry_to_byte[entry_idx - 1]
+                        entry_idx += 1
+                remaining -= chunk
 
             i += repeat_count
 

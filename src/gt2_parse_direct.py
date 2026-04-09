@@ -284,6 +284,18 @@ def parse_gt2_direct(sid_path):
             if (addr + 1) in lda_refs:
                 break
             col_operands.append(addr)
+        # Fallback: if heuristic found no columns, compute from flags
+        if not col_operands:
+            num_cols = 3  # ad, sr, wave_ptr always present
+            if not flags['nopulse']:
+                num_cols += 1
+            if not flags['nofilter']:
+                num_cols += 1
+            if not flags['noinstrvib']:
+                num_cols += 2
+            if not flags['fixedparams']:
+                num_cols += 2
+            col_operands = [ad_operand + k * ni for k in range(num_cols)]
 
     # Step 4: Read column data (1-based Y indexing)
     raw_cols = {}
