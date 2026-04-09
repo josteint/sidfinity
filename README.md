@@ -69,6 +69,8 @@ data/                   HVSC collection (not in git)
 deprecated/             Earlier development phases
 ```
 
-## License
+## Acknowledgments
 
-The SIDfinity pipeline and tools are original work. The V2 player code generator produces 6502 assembly inspired by — but rewritten from — the GoatTracker V2 playroutine by Lasse Oorni (free license). A copy of the original GT2 source is kept in `deprecated/old_player/sidfinity_gt2.asm` for reference. libsidplayfp is used under its existing license.
+The SIDfinity player implements algorithms from Lasse Oorni's GoatTracker V2 playroutine — wave table execution, effect dispatch, pattern reading, hard restart timing. The V2 code generator (`codegen_v2.py`) was written from scratch in Python but the player logic it generates faithfully follows Lasse's design. A copy of the original GT2 playroutine source is preserved in `deprecated/old_player/sidfinity_gt2.asm`. Lasse's license: free for any purpose, commercial or noncommercial.
+
+libsidplayfp is used under its existing license for SID emulation and register dumping.

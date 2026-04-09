@@ -20,7 +20,8 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 # Tools live in the main repo root (shared across worktrees)
 REPO_ROOT = os.environ.get('SIDFINITY_ROOT', os.path.join(SCRIPT_DIR, '..')).strip()
 XA65 = os.path.join(REPO_ROOT, 'tools', 'xa65', 'xa', 'xa')
-PLAYER_S = os.path.join(SCRIPT_DIR, 'player', 'sidfinity_player.s')
+# Legacy monolithic player removed — now in deprecated/old_player/
+# PLAYER_S = os.path.join(SCRIPT_DIR, 'player', 'sidfinity_player.s')
 
 # PAL frequency tables (default)
 FREQ_LO_PAL = bytes([
@@ -242,23 +243,17 @@ def pack_sidfinity(
     # --- Build assembly source ---
     buf = []
 
-    if use_codegen and song is not None:
-        # V2: instruction-level per-song code generation (disabled)
-        _player_dir = os.path.join(SCRIPT_DIR, 'player')
-        if _player_dir not in sys.path:
-            sys.path.insert(0, _player_dir)
-        from codegen_v2 import generate_player
-        player_src = generate_player(song)
-        player_src = _strip_dummy_labels(player_src)
-        buf.append(player_src)
-        buf.append('\n')
-    else:
-        # Monolithic player source (legacy path)
-        with open(PLAYER_S) as f:
-            player_src = f.read()
-        player_src = _strip_dummy_labels(player_src)
-        buf.append(player_src)
-        buf.append('\n')
+    # V2: instruction-level per-song code generation
+    _player_dir = os.path.join(SCRIPT_DIR, 'player')
+    if _player_dir not in sys.path:
+        sys.path.insert(0, _player_dir)
+    from codegen_v2 import generate_player
+    if song is None:
+        raise ValueError('song is required for V2 code generation')
+    player_src = generate_player(song)
+    player_src = _strip_dummy_labels(player_src)
+    buf.append(player_src)
+    buf.append('\n')
 
     # --- Insert data (greloc.c order) ---
 
@@ -308,7 +303,7 @@ def pack_sidfinity(
     # Monolithic or V2 with WAVE_DELAY: always apply bias.
     wl = bytearray(wave_left)
     skip_bias = False
-    if use_codegen and song is not None:
+    if song is not None:
         from player.codegen import detect_features, WAVE_DELAY as _WD
         _feats = detect_features(song)
         skip_bias = _WD not in _feats
