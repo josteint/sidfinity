@@ -610,11 +610,43 @@ def decompile_gt2(sid_path):
         return None
 
     ni = r['ni']
-    num_cols = min(r['num_columns'], 9)
     col_start = r['col_operands']['ad'] + 1
     col_start_off = col_start - la
 
+    # Compute flag-based column count for use in alternate layout detection.
+    flags = r['flags']
+    flag_cols = 3  # ad, sr, wave_ptr always present
+    if not flags['nopulse']:
+        flag_cols += 1
+    if not flags['nofilter']:
+        flag_cols += 1
+    if not flags['noinstrvib']:
+        flag_cols += 2
+    if not flags['fixedparams']:
+        flag_cols += 2
+
     pos = code_end
+    freq_end = code_end + num_notes * 2
+
+    # Detect alternate data layout used by large-code Group A players.
+    # Standard layout: code | freq | song_table | pattern_table | instr_cols | tables | orderlists | patterns
+    # Alternate layout: code | freq | instr_cols | tables | song_table | pattern_table | orderlists | patterns
+    # Detection: if ad_operand is very close to freq_end (within ~20 bytes),
+    # instrument columns are right after freq tables (alternate layout).
+    # In standard layout, ad_operand is after song_table + pattern_table (50+ bytes gap).
+    # In standard layout, minimum gap = 6 (song table) + 2 (1 pattern lo+hi) = 8.
+    # In alternate layout, the gap is typically 4-6 (just padding/noise before
+    # the Y-1 indexed AD operand).
+    alternate_layout = (col_start_off - freq_end) < 8
+
+    # num_cols: for alternate layout, use flag-based count (parse_direct's operand
+    # scan fails because the stride-based column detection stops early).
+    # For standard layout, trust parse_direct's operand-based count.
+    if alternate_layout:
+        num_cols = min(flag_cols, 9)
+    else:
+        num_cols = min(r['num_columns'], 9)
+
     result = {
         'la': la, 'code_end': code_end, 'ni': ni, 'num_cols': num_cols,
         'first_note': first_note, 'num_notes': num_notes,
@@ -639,41 +671,7 @@ def decompile_gt2(sid_path):
         result['freq_lo'] = second_block
         result['freq_hi'] = first_block
 
-    # Song table — read to find orderlist addresses
-    songs = 1  # TODO: detect multi-song
-    song_entries = songs * 3
-    song_lo = [binary[pos + i] for i in range(song_entries)]
-    pos += song_entries
-    song_hi = [binary[pos + i] for i in range(song_entries)]
-    pos += song_entries
-
-    # Orderlist addresses (absolute)
-    ol_addrs = [song_lo[i] | (song_hi[i] << 8) for i in range(song_entries)]
-    first_ol_off = min(a - la for a in ol_addrs)
-    result['orderlist_addrs'] = ol_addrs
-
-    # Pattern table — need to know pattern count
-    # Pattern count = distance from pattern table to first non-table data / 2
-    # First non-table data = first instrument column = col_start
-    # Pattern table is at current pos, ends at col_start_off
-    patt_tbl_space = col_start_off - pos
-    num_patt = patt_tbl_space // 2
-    patt_lo = [binary[pos + i] for i in range(num_patt)]
-    pos += num_patt
-    patt_hi = [binary[pos + i] for i in range(num_patt)]
-    pos += num_patt
-
-    patt_addrs = [patt_lo[i] | (patt_hi[i] << 8) for i in range(num_patt)]
-    result['num_patt'] = num_patt
-    result['patt_addrs'] = patt_addrs
-
-    # Instrument columns — determine names from column count.
-    # GT2 column order: ad, sr, wave_ptr, [pulse_ptr], [filter_ptr],
-    #   [vib_param, vib_delay], [gate_timer, first_wave]
-    # Brackets = conditional on flags. Columns come in groups:
-    #   pulse_ptr alone, filter_ptr alone, vib_param+vib_delay together,
-    #   gate_timer+first_wave together.
-    # Standard configurations by column count:
+    # Column name configs for determining column order from count
     col_name_configs = {
         3: ['ad', 'sr', 'wave_ptr'],
         4: ['ad', 'sr', 'wave_ptr', 'pulse_ptr'],
@@ -684,31 +682,152 @@ def decompile_gt2(sid_path):
         9: ['ad', 'sr', 'wave_ptr', 'pulse_ptr', 'filter_ptr', 'vib_param', 'vib_delay', 'gate_timer', 'first_wave'],
     }
 
-    # Use gt2_parse_direct's identified columns (now reliable for all ni values,
-    # including ni=1 where flag detection determines the correct layout).
-    if r['col_data']:
-        col_names_for_file = list(r['col_data'].keys())[:num_cols]
+    def _read_columns_from_binary(pos_start):
+        """Read instrument columns from binary, return (columns_dict, pos_after)."""
+        # Use flag-based config when parse_direct's operand scan found fewer columns
+        # than the flags indicate (common in alternate layout).
+        # When parse_direct found enough columns, trust its STA-target-based naming.
+        if r['col_data'] and len(r['col_data']) >= num_cols:
+            col_names_for_file = list(r['col_data'].keys())[:num_cols]
+        else:
+            col_names_for_file = col_name_configs.get(num_cols)
+            if col_names_for_file is None:
+                full = ['ad', 'sr', 'wave_ptr', 'pulse_ptr', 'filter_ptr',
+                        'vib_param', 'vib_delay', 'gate_timer', 'first_wave']
+                col_names_for_file = full[:num_cols]
+
+        cols = {}
+        p = pos_start
+        for c in range(num_cols):
+            name = col_names_for_file[c] if c < len(col_names_for_file) else f'col{c}'
+            cols[name] = list(binary[p:p + ni])
+            p += ni
+        return cols, p
+
+    def _find_song_table_in_range(scan_start, scan_end):
+        """Find the song table (6 bytes with 3 valid orderlist addresses) in a range.
+
+        Returns (song_off, ol_addrs) or (None, None).
+        """
+        for scan in range(scan_start, min(scan_end, len(binary) - 6)):
+            sl = [binary[scan + i] for i in range(3)]
+            sh = [binary[scan + 3 + i] for i in range(3)]
+            addrs = [sl[i] | (sh[i] << 8) for i in range(3)]
+            # Valid: all addresses point into the data area (after freq tables)
+            # and are within the binary range, and are reasonably close together.
+            if all(la + freq_end < a < la + len(binary) for a in addrs):
+                spread = max(addrs) - min(addrs)
+                if spread < 500:
+                    # Orderlist addresses must be AFTER the song table + pattern table
+                    first_ol_off_cand = min(a - la for a in addrs)
+                    if first_ol_off_cand <= scan + 6:
+                        continue  # orderlists can't be before pattern table
+
+                    # Validate first orderlist byte is a pattern ID, transpose, or repeat
+                    # Pattern IDs: < 128. Transpose: $C0-$DF. Repeat/end: $E0-$FF.
+                    if first_ol_off_cand >= len(binary):
+                        continue
+                    first_byte = binary[first_ol_off_cand]
+                    if not (first_byte < 128 or first_byte >= 0xC0):
+                        continue
+
+                    # Validate pattern table: addresses between song table end and
+                    # first orderlist must form valid pattern addresses
+                    patt_tbl_off_cand = scan + 6
+                    patt_space = first_ol_off_cand - patt_tbl_off_cand
+                    num_patt_cand = patt_space // 2
+                    if num_patt_cand < 1 or num_patt_cand > 200:
+                        continue
+                    # Check that pattern addresses are within the binary
+                    valid_patts = True
+                    for pi in range(min(num_patt_cand, 10)):
+                        p_lo = binary[patt_tbl_off_cand + pi]
+                        p_hi = binary[patt_tbl_off_cand + num_patt_cand + pi]
+                        p_addr = p_lo | (p_hi << 8)
+                        p_off = p_addr - la
+                        if p_off < 0 or p_off >= len(binary):
+                            valid_patts = False
+                            break
+                    if not valid_patts:
+                        continue
+
+                    return scan, addrs
+        return None, None
+
+    songs = 1  # TODO: detect multi-song
+    song_entries = songs * 3
+
+    if alternate_layout:
+        # Alternate layout: freq | instr_cols | tables | song_table | pattern_table | orderlists | patterns
+        # Instrument columns start right after freq tables (at col_start_off).
+        columns, pos = _read_columns_from_binary(col_start_off)
+        result['columns'] = columns
+
+        # Table region: between instrument columns end and the song table.
+        # We need to find the song table by scanning forward.
+        instr_end = pos
+        song_off, ol_addrs = _find_song_table_in_range(instr_end, len(binary))
+        if song_off is None:
+            return None
+
+        first_ol_off = min(a - la for a in ol_addrs)
+        result['orderlist_addrs'] = ol_addrs
+
+        # Table region is between instrument columns end and song table
+        table_region = bytes(binary[instr_end:song_off])
+        result['table_region_start'] = instr_end
+        result['table_region_size'] = len(table_region)
+
+        # Pattern table: between song table end and first orderlist
+        patt_tbl_off = song_off + 6
+        patt_tbl_space = first_ol_off - patt_tbl_off
+        num_patt = patt_tbl_space // 2
+        patt_lo = [binary[patt_tbl_off + i] for i in range(num_patt)]
+        patt_hi = [binary[patt_tbl_off + num_patt + i] for i in range(num_patt)]
+        patt_addrs = [patt_lo[i] | (patt_hi[i] << 8) for i in range(num_patt)]
+        result['num_patt'] = num_patt
+        result['patt_addrs'] = patt_addrs
+
+        # Update pos to the start of table region for table size calculations
+        pos = instr_end
+
     else:
-        # Fallback: use standard configs by column count
-        col_names_for_file = col_name_configs.get(num_cols)
-        if col_names_for_file is None:
-            full = ['ad', 'sr', 'wave_ptr', 'pulse_ptr', 'filter_ptr',
-                    'vib_param', 'vib_delay', 'gate_timer', 'first_wave']
-            col_names_for_file = full[:num_cols]
+        # Standard layout: freq | song_table | pattern_table | instr_cols | tables | orderlists | patterns
 
-    columns = {}
-    for c in range(num_cols):
-        name = col_names_for_file[c] if c < len(col_names_for_file) else f'col{c}'
-        columns[name] = list(binary[pos:pos + ni])
-        pos += ni
+        # Song table — read to find orderlist addresses
+        song_lo = [binary[pos + i] for i in range(song_entries)]
+        pos += song_entries
+        song_hi = [binary[pos + i] for i in range(song_entries)]
+        pos += song_entries
 
-    result['columns'] = columns
+        # Orderlist addresses (absolute)
+        ol_addrs = [song_lo[i] | (song_hi[i] << 8) for i in range(song_entries)]
+        first_ol_off = min(a - la for a in ol_addrs)
+        result['orderlist_addrs'] = ol_addrs
 
-    # === Step 4: Tables ===
-    # Everything between instrument columns end and first orderlist = tables
-    # Tables go in order: wave_L, wave_R, [pulse_L, pulse_R], [filter_L, filter_R],
-    #                      [speed_zero, speed_L, speed_zero, speed_R]
-    table_region = bytes(binary[pos:first_ol_off])
+        # Pattern table — need to know pattern count
+        # Pattern count = distance from pattern table to first non-table data / 2
+        # First non-table data = first instrument column = col_start
+        # Pattern table is at current pos, ends at col_start_off
+        patt_tbl_space = col_start_off - pos
+        num_patt = patt_tbl_space // 2
+        patt_lo = [binary[pos + i] for i in range(num_patt)]
+        pos += num_patt
+        patt_hi = [binary[pos + i] for i in range(num_patt)]
+        pos += num_patt
+
+        patt_addrs = [patt_lo[i] | (patt_hi[i] << 8) for i in range(num_patt)]
+        result['num_patt'] = num_patt
+        result['patt_addrs'] = patt_addrs
+
+        # Instrument columns
+        columns, pos = _read_columns_from_binary(pos)
+        result['columns'] = columns
+
+        # Table region: between instrument columns end and first orderlist
+        table_region = bytes(binary[pos:first_ol_off])
+        result['table_region_start'] = pos
+        result['table_region_size'] = len(table_region)
     result['table_region_start'] = pos
     result['table_region_size'] = len(table_region)
 
@@ -735,7 +854,8 @@ def decompile_gt2(sid_path):
 
     # For small ni, validate wave_size with frequency trace FIRST
     # (parse_direct is unreliable for ni<=3).
-    if ni <= 3 and len(table_region) > 0:
+    # Skip for alternate layout: freq_trace assumes song table is at freq_end.
+    if ni <= 3 and len(table_region) > 0 and not alternate_layout:
         trace_wave_size = _find_wave_size_by_freq_trace(
             sid_path, binary, la, code_end, pos, first_note, num_notes, columns)
         if trace_wave_size > 0:
@@ -861,8 +981,8 @@ def decompile_gt2(sid_path):
                 elif name == 'speed':
                     speed_size = per_table
 
-    # Fallback if still no wave_size
-    if wave_size <= 0 and len(table_region) > 0:
+    # Fallback if still no wave_size (skip freq_trace for alternate layout)
+    if wave_size <= 0 and len(table_region) > 0 and not alternate_layout:
         wave_size = _find_wave_size_by_freq_trace(
             sid_path, binary, la, code_end, pos, first_note, num_notes, columns)
     if wave_size <= 0:
@@ -934,7 +1054,10 @@ def decompile_gt2(sid_path):
     patterns = []
     for pi in range(num_patt):
         p_off = patt_addrs[pi] - la
-        patt = _extract_gt2_pattern(binary, p_off)
+        if 0 <= p_off < len(binary):
+            patt = _extract_gt2_pattern(binary, p_off)
+        else:
+            patt = b'\x00'  # empty pattern for out-of-bounds addresses
         patterns.append(patt)
     result['patterns'] = patterns
 
