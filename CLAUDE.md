@@ -7,6 +7,29 @@
 - **`docs/gt2_data_layout.md`** — Byte-level GT2 data layout (read before touching the packer)
 - **`src/sidxray/METHODOLOGY.md`** — How to reverse-engineer any SID player
 
+## Working Conventions
+
+### Keep things current
+- After fixing a bug that changes the Grade A count, update the pipeline status memory and CLAUDE.md status line.
+- After finding a new measurement artifact, improve `gt2_compare.py` BEFORE investigating further — don't chase false positives.
+- Before ending a session, check if any memories have become stale or wrong. Update or remove them.
+- After adding a new tool or capability, add it to the Key Files table in this file.
+
+### Automate repeated work
+- If you do the same manual analysis 3+ times, write a reusable tool for it (like `gt2_triage.py` was born from manual F-grade sampling).
+- If you're running a multi-step pipeline by hand, make it a script.
+- Prefer 64-core parallel batch runs over sequential sampling.
+
+### Test everything
+- Run the full regression (`python3 src/player/regression_test.py`, 20 seconds) before EVERY commit that touches pipeline code.
+- If a fix causes ANY regression (even 1 song), investigate before accepting it.
+- When the Grade A count increases, rebuild the regression registry so new songs are protected.
+
+### Fix bugs, not symptoms
+- When register comparison shows differences, first determine if the difference is AUDIBLE. Use `audio_compare.py` for ground truth if unsure.
+- Don't widen comparison tolerance to hide real bugs. Only classify as jitter what is genuinely inaudible (silent voice, phase drift of same notes, ±frame timing shift).
+- Use the investigation methodology: pick ONE song, trace the EXACT wrong frame, find root cause. See memory `feedback_bug_investigation.md`.
+
 ## Project Goal
 
 Build the SIDfinity universal SID music player and ML pipeline. See `docs/PLAN.md` for the full roadmap and current status.

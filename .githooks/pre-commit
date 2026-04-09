@@ -1,0 +1,19 @@
+#!/bin/bash
+# Pre-commit hook: run regression test if pipeline code changed
+
+# Check if any pipeline source files are staged
+PIPELINE_CHANGED=$(git diff --cached --name-only | grep -E '^src/.*\.py$|^src/player/.*\.py$' | head -1)
+
+if [ -n "$PIPELINE_CHANGED" ]; then
+    echo "Pipeline code changed — running regression test..."
+    source src/env.sh 2>/dev/null
+    RESULT=$(python3 src/player/regression_test.py 2>&1 | tail -1)
+
+    if echo "$RESULT" | grep -q "0 failed"; then
+        echo "Regression: $RESULT"
+    else
+        echo "REGRESSION FAILED: $RESULT"
+        echo "Fix the regression before committing."
+        exit 1
+    fi
+fi
