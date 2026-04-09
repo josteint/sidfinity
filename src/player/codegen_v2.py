@@ -736,8 +736,7 @@ def emit_toneporta(ctx):
     ctx.inst('bne', 'ce_tpsh')
     ctx.label('ce_tpgo')
     ctx.inst('lda', 'mt_chnnote,x')
-    ctx.inst('sec')
-    ctx.inst('sbc', '#FIRSTNOTE')
+    # SEC / SBC #FIRSTNOTE removed: FIRSTNOTE=0, so SBC #0 is no-op
     ctx.inst('tay')
     ctx.inst('sec')
     ctx.inst('lda', 'mt_chnfreqlo,x')
@@ -779,8 +778,7 @@ def emit_toneporta(ctx):
     ctx.label('ce_tpsnap')
     ctx.inst('lda', 'mt_chnnote,x')
     ctx.inst('sta', 'mt_chnlastnote,x')
-    ctx.inst('sec')
-    ctx.inst('sbc', '#FIRSTNOTE')
+    # SEC / SBC #FIRSTNOTE removed: FIRSTNOTE=0, SBC #0 is no-op
     ctx.inst('tay')
     ctx.inst('lda', 'mt_freqtbllo,y')
     ctx.inst('sta', 'mt_chnfreqlo,x')
