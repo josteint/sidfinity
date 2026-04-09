@@ -20,7 +20,7 @@ The eventual goal is to train a transformer model on the extracted musical data 
 
 ## Current state
 
-**GoatTracker V2 pipeline:** 1,688 out of 3,478 GT2 songs (48.5%) achieve Grade A — zero audible differences from the original. The full regression suite tests all 3,478 GT2 songs in 33 seconds on 48 cores.
+**GoatTracker V2 pipeline:** 1,688 out of 3,478 GT2 SIDs (48.5%) achieve Grade A — zero audible differences from the original. The full regression suite tests all 3,478 GT2 SIDs in 33 seconds on 48 cores. GT2 accounts for roughly 7,000 of the ~60,000 SIDs in HVSC.
 
 The pipeline correctly handles:
 - All 4 GT2 player groups (A through D, versions 2.65–2.77)
@@ -71,4 +71,4 @@ deprecated/             Earlier development phases
 
 ## License
 
-The SIDfinity player and pipeline code is original work. The GoatTracker player source (`sidfinity_gt2.asm`) is based on Lasse Oorni's GoatTracker V2 (free license). libsidplayfp is used under its existing license.
+The SIDfinity pipeline and tools are original work. The V2 player code generator produces 6502 assembly inspired by — but rewritten from — the GoatTracker V2 playroutine by Lasse Oorni (free license). A copy of the original GT2 source is kept in `deprecated/old_player/sidfinity_gt2.asm` for reference. libsidplayfp is used under its existing license.

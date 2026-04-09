@@ -35,23 +35,28 @@ The pipeline: input (text prompt, MP3, MIDI, or style reference) -> neural net -
 
 ## Current Status (2026-04-09)
 
-### Completed
+### GT2 Pipeline: 1,688/3,478 Grade A (48.5%)
 
-1. **Register-level pipeline** - 100% lossless roundtrip validated on 56,936 PSID files
-2. **Player identification** - sidid identifies 97.8% of HVSC (59,267/60,572 files, 758 signatures)
-3. **Player documentation** - 48 major engines documented in `docs/players/` (84.8% of HVSC)
-4. **Player behavior analysis** - 642 engines analyzed via cycle-accurate write logs (1,714 sample tunes)
-   - Hard restart: 54.5% none, 31.8% gate-off, 11.8% test-bit, 2.0% ADSR-only
-   - 5.5% multispeed, median 12.5 writes/frame, median 563 cycle span
-5. **SID chip stats** - 41.5% target 8580, 40.3% target 6581, 89.3% PAL
-6. **Cycle-accurate write logging** - libsidplayfp modified to record real cycle offsets per SID write
-7. **GoatTracker V2 parser** - `src/gt_parser.py` and `src/gt_roundtrip.py`
-   - Binary section roundtrip: 5,792/7,006 clean single-SID PSID files match byte-for-byte (82.7%)
-   - 722 skip (freq table not found), 492 fail (section ordering edge cases)
-   - Extracts: player code, freq tables, song table, pattern table, instruments+tables, orderlists, patterns
-8. **SIDfinity player spec** - `docs/sidfinity_player_spec.md`
-9. **SIDfinity player prototype** - `src/player/sidfinity.asm` (64tass, 623 bytes, 3 voices working, pattern reader has bugs)
-10. **Tooling** - 64tass V1.60 and ACME V0.96 cross-assemblers built and available
+The GoatTracker V2 pipeline is the most mature:
+- **Decompiler**: extracts all GT2 data sections from packed SID binaries
+- **USF conversion**: notes, instruments, wave/pulse/filter/speed tables, orderlists
+- **V2 player**: per-song 6502 code generator with feature stripping and peephole optimization
+- **Validation**: frame-by-frame register comparison with jitter tolerance
+- **Regression**: all 3,478 GT2 SIDs tested in 33 seconds on 48 cores
+
+All 4 player groups (A–D, versions 2.65–2.77) supported, including ghost registers (Group C) and alternate data layouts (large-code Group A).
+
+### Superoptimizer: Complete
+
+Player code is at 6502 minimum cycle counts (confirmed by Z3 SMT solver and GPU brute-force search). 34 cycles/frame saved through: Z3-verified FX dispatch, FIRSTNOTE elimination, wave table STY removal, self-modifying code vibrato, peephole branch optimization, effects→pulse fall-through.
+
+### Earlier Phases (Complete)
+
+1. **Register-level pipeline** — 100% lossless roundtrip on 56,936 PSID files (now in `deprecated/`)
+2. **Player identification** — sidid identifies 97.8% of HVSC (59,267/60,572 files, 758 signatures)
+3. **Player documentation** — 48 major engines documented in `docs/players/`
+4. **Player behavior analysis** — 642 engines analyzed via cycle-accurate write logs
+5. **GT2 binary roundtrip** — 5,792/7,006 byte-for-byte matches (now in `deprecated/`)
 
 ### Step 1: GoatTracker Encoder (DONE)
 

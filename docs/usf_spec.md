@@ -1,7 +1,7 @@
 # Universal Symbolic Format (USF) Specification
 
-**Version:** 0.8 (2026-04-03)
-**Status:** Draft — 41/43 regression tests pass through USF, player behavior fields added
+**Version:** 0.9 (2026-04-09)
+**Status:** Draft — 1,688/3,478 GT2 SIDs Grade A through USF pipeline. Player behavior fields may be stripped for ML training (see CLAUDE.md).
 
 ## Purpose
 
