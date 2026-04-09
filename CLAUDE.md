@@ -11,11 +11,37 @@
 
 Build the SIDfinity universal SID music player and ML pipeline. See `docs/PLAN.md` for the full roadmap and current status.
 
-**Current task:** Investigate remaining 1,349 F-grade songs for new bug categories. Then ML training on 1,688 Grade A songs, then DMC/JCH transpilers.
+**Status:** 1,688/3,478 Grade A (48.5%) on full HVSC batch. 3,478-song regression suite runs in 33 seconds on 48 cores. Superoptimizer complete. Toneporta fixed. Comparison methodology handles timing jitter from layout shifts.
 
-**What's done:** 1,688/3,478 Grade A (48.5%) on full HVSC batch. 3,478-song regression suite (33 seconds on 48 cores). Superoptimizer complete (Z3, GPU CUDA kernel, peephole — player code is at 6502 minimum, 34 cycles/frame saved). Toneporta fully fixed. Sequence-level jitter detection eliminates measurement artifacts from layout shifts.
+**Next steps (in priority order):**
+1. Investigate remaining ~1,350 F-grade GT2 SIDs for new bug categories
+2. Start ML training on 1,688 Grade A songs (USF tokenization)
+3. Expand to DMC (10,738 SIDs) and JCH (3,678 SIDs) player engines
 
-**Key insight:** V2 player code blocks are at 6502 minimum cycle counts. Further Grade A gains come from fixing decompiler/player BUGS, not cycle optimization. The comparison methodology now correctly handles timing jitter from layout changes (sequence-level note matching, ±3 frame window, env_wrong tolerance, test-bit classification, vibrato phase drift, silent voice frequency, global value set matching).
+**Key insights:**
+- V2 player code blocks are at 6502 minimum cycle counts. Further Grade A gains come from fixing decompiler/player BUGS, not cycle optimization.
+- Any byte-count change in the V2 player shifts 6502 addresses, causing ±1 frame timing jitter from page-crossing cycle penalties. This is handled by the comparison methodology (see below), not by avoiding code changes.
+- To investigate F-grade songs: pick the highest-scoring one, trace the first wrong frame, classify the error, fix root cause, batch test. See memory `feedback_bug_investigation.md`.
+
+## Comparison Methodology (gt2_compare.py)
+
+The comparison classifies each frame difference as audible or inaudible:
+
+**Audible (counts toward grade):** `note_wrong`, `wave_wrong`
+**Weakly audible:** `env_wrong` (tolerated up to 1% for Grade A — ADSR write-order timing)
+**Inaudible:** `note_jitter`, `wave_jitter`, `gate_diff`, `env_jitter`, `freq_fine`, `pulse_diff`, `pulse_jitter`
+
+**Jitter detection layers (in order):**
+1. **±3 frame window** — rebuilt's freq_hi found in original's nearby frames
+2. **1-frame transient** — both neighbors match (isolated glitch)
+3. **Test-bit waveform** — $08/$09 near gate transitions is HR artifact
+4. **Silent voice** — freq diffs when waveform bits are all 0 (oscillator off)
+5. **Sequence-level** — same note-change-event sequence in different order (95% LCS match)
+6. **Global value set** — both streams use identical set of freq_hi values (arpeggio phase drift)
+7. **Vibrato phase drift** — ±8 frame window, both values appear in each other's window (50% threshold)
+8. **Init/end grace** — first 10 frames and last 2 frames excluded
+
+**Grading:** A = zero note_wrong + wave_wrong (env_wrong < 1%). B = < 2% audible. C = < 10%. F = >= 10%.
 
 ## CRITICAL: Do Not Break These Invariants
 
