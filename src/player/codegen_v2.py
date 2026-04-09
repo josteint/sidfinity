@@ -580,39 +580,33 @@ def emit_effects(ctx):
         ctx.inst('lda', 'mt_speedrighttbl-1,y')
         ctx.inst('sta', 'mt_temp1')
 
-    # FX dispatch
+    # FX dispatch — Z3-verified: CMP #2 / BCC fxadd / BEQ fxsub
+    # replaces CMP #1 / BNE / JMP / CMP #2 / BNE / JMP (saves 8 bytes, 8 cycles)
     ctx.label('ce_fxdisp')
     ctx.inst('lda', 'mt_chnfx,x')
     if ctx.has(VIBRATO):
         ctx.inst('beq', 'ce_fx0')
     else:
         ctx.inst('beq', 'ce_fxnop')
-    ctx.inst('cmp', '#1')
-    ctx.inst('bne', 'ce_fxd2')
-    ctx.inst('jmp', 'ce_fxadd')
-    ctx.label('ce_fxd2')
     ctx.inst('cmp', '#2')
-    ctx.inst('bne', 'ce_fxd3')
-    ctx.inst('jmp', 'ce_fxsub')
+    ctx.inst('bcc', 'ce_fxadd', comment='FX 1: carry clear → add')
+    ctx.inst('beq', 'ce_fxsub', comment='FX 2: zero → sub')
+    # FX 3 or 4 (A > 2)
     if ctx.has(TONEPORTA) and ctx.has(VIBRATO):
-        ctx.label('ce_fxd3')
         ctx.inst('cmp', '#3')
         ctx.inst('beq', 'ce_fx3j')
         ctx.inst('jmp', 'ce_fx4')
         ctx.label('ce_fx3j')
         ctx.inst('jmp', 'ce_fx3')
     elif ctx.has(TONEPORTA):
-        ctx.label('ce_fxd3')
         ctx.inst('cmp', '#3')
         ctx.inst('beq', 'ce_fx3j')
         ctx.inst('jmp', 'ce_pulse')
         ctx.label('ce_fx3j')
         ctx.inst('jmp', 'ce_fx3')
     elif ctx.has(VIBRATO):
-        ctx.label('ce_fxd3')
         ctx.inst('jmp', 'ce_fx4')
     else:
-        ctx.label('ce_fxd3')
         ctx.inst('jmp', 'ce_pulse')
 
     if not ctx.has(VIBRATO):
