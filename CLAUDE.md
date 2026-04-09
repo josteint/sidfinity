@@ -115,25 +115,59 @@ print(f'Grade: {comp[\"grade\"]} Score: {comp[\"score\"]:.1f}')
 
 ## Key Files
 
+### GT2 Pipeline (active)
 | File | Purpose |
 |------|---------|
 | `src/gt2_to_usf.py` | GT2 SID → USF converter |
 | `src/usf_to_sid.py` | USF → rebuilt SID (via V2 codegen) |
 | `src/usf.py` | Universal Symbolic Format data structures |
 | `src/gt2_decompile.py` | GT2 binary decompiler |
-| `src/gt2_parse_direct.py` | Operand-based GT2 parser |
-| `src/gt2_detect_version.py` | Player group (A/B/C/D) detection |
-| `src/gt2_compare.py` | Register-level comparison with jitter tolerance |
+| `src/gt2_parse_direct.py` | Operand-based GT2 parser (finds columns via 6502 instruction analysis) |
+| `src/gt2_detect_version.py` | Player group (A/B/C/D) + feature flag detection |
+| `src/gt2_compare.py` | Register-level comparison with 8-layer jitter tolerance |
+| `src/gt_parser.py` | Low-level GT2 binary parser (freq tables, PSID header) |
+| `src/gt2_packer.py` | GT2 freq tables + packing constants |
+| `src/detect_flags.py` | GT2 compilation flag detection (legacy packer path) |
 | `src/sidfinity_pack.py` | SIDfinity player packer (xa65 assembly) |
+
+### V2 Player Codegen + Optimization
+| File | Purpose |
+|------|---------|
 | `src/player/codegen_v2.py` | V2 per-song 6502 code generator |
 | `src/player/codegen.py` | Feature detection for codegen |
-| `src/player/peephole.py` | Post-generation branch optimizer |
-| `src/player/regression_test.py` | 3,478-song parallel regression suite |
-| `src/player/z3_6502.py` | Z3 SMT 6502 model for verification |
-| `src/player/gpu_6502.cu` | CUDA brute-force sequence optimizer |
-| `tools/siddump.cpp` | C++ register dumper (libsidplayfp) |
-| `tools/build.sh` | Build script |
-| `src/env.sh` | Environment setup |
+| `src/player/peephole.py` | Post-generation branch-over-JMP optimizer (ACTIVE) |
+| `src/player/cycle_model.py` | Static cycle counting + path tracing (estimates only) |
+| `src/player/layout_opt.py` | JMP/branch distance analysis |
+| `src/player/z3_6502.py` | Z3 SMT 6502 model for formal verification |
+| `src/player/z3_synth.py` | Z3-based instruction sequence synthesizer |
+| `src/player/gpu_6502.cu` | CUDA brute-force 6502 optimizer (dual 3090) |
+| `src/player/gpu_optimize.py` | Python interface for GPU optimizer |
+| `src/player/regression_test.py` | 3,478-song parallel regression suite (20 sec) |
+
+### Player Reverse-Engineering (sidxray)
+| File | Purpose |
+|------|---------|
+| `src/sidxray/trace.py` | Capture memory traces via `siddump --memtrace` |
+| `src/sidxray/analyze.py` | Autocorrelation, periodicity detection, tempo detection, table identification |
+| `src/sidxray/xray.py` | Data region discovery from memory access patterns |
+| `src/sidxray/gt2_detect.py` | GT2 layout detection from traces |
+| `src/sid_data_extractor.py` | Universal SID data table discovery (any player engine) |
+
+### Future Engine Support
+| File | Purpose |
+|------|---------|
+| `src/dmc_parser.py` | DMC (Demo Music Creator) SID parser |
+| `src/dmc_to_usf.py` | DMC → USF converter (partial) |
+
+### Utilities
+| File | Purpose |
+|------|---------|
+| `src/usf_text.py` | Human-readable USF text serialization |
+| `src/songlengths.py` | HVSC Songlengths.md5 database parser |
+| `tools/siddump.cpp` | C++ register dumper (libsidplayfp, `--writelog` for cycle timing) |
+| `tools/sidrender.cpp` | SID → raw PCM audio renderer |
+| `tools/build.sh` | Build script for libsidplayfp + siddump |
+| `src/env.sh` | Environment setup (PATH for tools) |
 
 ## Project Structure
 
