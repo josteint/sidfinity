@@ -45,70 +45,93 @@ def run_pipeline(sid_path):
             return None
         # USF → SID (via SIDfinity player)
         from usf_to_sid import usf_to_sid
-        sid_bytes, _ = usf_to_sid(song, TEMP_SID)
+        tmp = f'/tmp/sf_regression_{os.getpid()}.sid'
+        sid_bytes, _ = usf_to_sid(song, tmp)
         if not sid_bytes:
             return None
-        comp = compare_sids_tolerant(sid_path, TEMP_SID, 10)
+        comp = compare_sids_tolerant(sid_path, tmp, 10)
         if not comp:
             return None
         return comp['grade'], comp['score'], comp
     except Exception as e:
-        print(f'  ERROR: {e}')
         return None
 
 
+def _test_one_entry(entry):
+    """Test one registry entry. Returns (name, passed, grade, score, min_grade, min_score, details)."""
+    path = entry['path']
+    min_grade = entry['min_grade']
+    min_score = entry['min_score']
+    name = os.path.basename(path)
+
+    if not os.path.exists(path):
+        return (name, None, None, None, min_grade, min_score, 'not found')
+
+    result = run_pipeline(path)
+    if result is None:
+        return (name, False, None, None, min_grade, min_score, 'pipeline error')
+
+    grade, score, comp = result
+    grade_order = {'A': 0, 'B': 1, 'C': 2, 'F': 3}
+    grade_ok = grade_order.get(grade, 9) <= grade_order.get(min_grade, 9)
+    score_ok = score >= min_score - 0.5
+
+    if grade_ok and score_ok:
+        return (name, True, grade, score, min_grade, min_score, None)
+    else:
+        # Collect failure details
+        details = []
+        for v in range(3):
+            vr = comp['voices'][v]
+            issues = []
+            for k in ['note_wrong', 'wave_wrong', 'env_wrong']:
+                if vr.get(k, 0) > 0:
+                    issues.append(f'{k}={vr[k]}')
+            if issues:
+                details.append(f'V{v+1}: {" ".join(issues)}')
+        return (name, False, grade, score, min_grade, min_score, '; '.join(details))
+
+
 def run_tests():
-    """Run all regression tests. Returns True if all pass."""
+    """Run all regression tests in parallel. Returns True if all pass."""
+    import multiprocessing
     entries = load_registry()
     if not entries:
         print('No regression tests registered. Use --add <sid_path> to add one.')
         return True
 
+    num_workers = min(48, os.cpu_count() or 4)
+    print(f'Running {len(entries)} regression tests ({num_workers} workers)...\n')
+
+    with multiprocessing.Pool(num_workers) as pool:
+        results = pool.map(_test_one_entry, entries)
+
     passed = 0
     failed = 0
+    skipped = 0
+    failures = []
 
-    print(f'Running {len(entries)} regression tests...\n')
-
-    for entry in entries:
-        path = entry['path']
-        min_grade = entry['min_grade']
-        min_score = entry['min_score']
-        name = os.path.basename(path)
-
-        if not os.path.exists(path):
-            print(f'  SKIP  {name} (file not found)')
-            continue
-
-        result = run_pipeline(path)
-        if result is None:
-            print(f'  FAIL  {name} — pipeline error')
-            failed += 1
-            continue
-
-        grade, score, comp = result
-
-        grade_order = {'A': 0, 'B': 1, 'C': 2, 'F': 3}
-        grade_ok = grade_order.get(grade, 9) <= grade_order.get(min_grade, 9)
-        score_ok = score >= min_score - 0.5  # small tolerance
-
-        if grade_ok and score_ok:
-            print(f'  PASS  {name:40s} Grade {grade} ({score:.1f}) >= {min_grade} ({min_score:.1f})')
+    for name, ok, grade, score, min_grade, min_score, details in results:
+        if ok is None:
+            skipped += 1
+        elif ok:
             passed += 1
         else:
-            print(f'  FAIL  {name:40s} Grade {grade} ({score:.1f}) — expected >= {min_grade} ({min_score:.1f})')
-            # Show details
-            for v in range(3):
-                vr = comp['voices'][v]
-                issues = []
-                for k in ['note_wrong', 'note_jitter', 'wave_wrong', 'wave_jitter', 'gate_diff', 'env_wrong', 'env_jitter', 'freq_fine', 'pulse_diff', 'pulse_jitter']:
-                    if vr.get(k, 0) > 0:
-                        pct = 100 * vr[k] / comp['total']
-                        issues.append(f'{k}:{pct:.1f}%')
-                if issues:
-                    print(f'        V{v+1}: {" ".join(issues)}')
             failed += 1
+            failures.append((name, grade, score, min_grade, min_score, details))
 
-    print(f'\n{passed} passed, {failed} failed out of {len(entries)} tests')
+    # Print failures (keep output manageable)
+    for name, grade, score, min_grade, min_score, details in failures[:20]:
+        if grade:
+            print(f'  FAIL  {name:40s} Grade {grade} ({score:.1f}) — expected >= {min_grade} ({min_score:.1f})')
+        else:
+            print(f'  FAIL  {name:40s} — {details}')
+
+    if len(failures) > 20:
+        print(f'  ... and {len(failures) - 20} more failures')
+
+    grade_a_count = sum(1 for _, ok, grade, *_ in results if ok and grade == 'A')
+    print(f'\n{passed} passed, {failed} failed, {skipped} skipped out of {len(entries)} tests ({grade_a_count} Grade A)')
     return failed == 0
 
 
