@@ -655,6 +655,7 @@ def decompile_gt2(sid_path):
         'buffered_writes': buffered_writes,
         'ad_param': ad_param,
         'sr_param': sr_param,
+        'col_operands': r['col_operands'],
     }
 
     # Freq tables — respect lo_first flag from freq table detection.
@@ -754,7 +755,10 @@ def decompile_gt2(sid_path):
                     return scan, addrs
         return None, None
 
-    songs = 1  # TODO: detect multi-song
+    # Detect song count from PSID header and select the default subtune.
+    songs = max(1, header.get('songs', 1))
+    default_song = max(1, header.get('start_song', 1))
+    song_idx = min(default_song - 1, songs - 1)  # 0-based
     song_entries = songs * 3
 
     if alternate_layout:
@@ -779,7 +783,7 @@ def decompile_gt2(sid_path):
         result['table_region_size'] = len(table_region)
 
         # Pattern table: between song table end and first orderlist
-        patt_tbl_off = song_off + 6
+        patt_tbl_off = song_off + songs * 3 * 2
         patt_tbl_space = first_ol_off - patt_tbl_off
         num_patt = patt_tbl_space // 2
         patt_lo = [binary[patt_tbl_off + i] for i in range(num_patt)]
@@ -794,23 +798,58 @@ def decompile_gt2(sid_path):
     else:
         # Standard layout: freq | song_table | pattern_table | instr_cols | tables | orderlists | patterns
 
-        # Song table — read to find orderlist addresses
-        song_lo = [binary[pos + i] for i in range(song_entries)]
-        pos += song_entries
-        song_hi = [binary[pos + i] for i in range(song_entries)]
-        pos += song_entries
+        # Song table — try declared song count, fall back to 1 if addresses are invalid.
+        # Some multi-song SIDs have the GT2 player as one of several engines, and the
+        # PSID song count includes non-GT2 subtunes. The GT2 song table only covers
+        # the subtunes it handles (often just 1).
+        def _try_song_table(try_songs, try_idx):
+            """Read song table with try_songs songs, return (ol_addrs_3, all_addrs, pos_after, num_patt) or None."""
+            se = try_songs * 3
+            p = freq_end
+            if p + se * 2 > len(binary):
+                return None
+            s_lo = [binary[p + i] for i in range(se)]
+            p += se
+            s_hi = [binary[p + i] for i in range(se)]
+            p += se
+            all_addrs = [s_lo[i] | (s_hi[i] << 8) for i in range(se)]
+            # Validate: selected subtune addresses must be within binary
+            base = try_idx * 3
+            sel = all_addrs[base:base + 3]
+            if len(sel) < 3 or not all(la <= a < la + len(binary) for a in sel):
+                return None
+            # Pattern count must be positive and reasonable
+            n_patt = (col_start_off - p) // 2
+            if n_patt <= 0 or n_patt > 256:
+                return None
+            return (sel, all_addrs, p, n_patt)
 
-        # Orderlist addresses (absolute)
-        ol_addrs = [song_lo[i] | (song_hi[i] << 8) for i in range(song_entries)]
-        first_ol_off = min(a - la for a in ol_addrs)
-        result['orderlist_addrs'] = ol_addrs
+        parsed = _try_song_table(songs, song_idx)
+        if parsed is None and songs > 1:
+            parsed = _try_song_table(1, 0)
 
-        # Pattern table — need to know pattern count
-        # Pattern count = distance from pattern table to first non-table data / 2
-        # First non-table data = first instrument column = col_start
-        # Pattern table is at current pos, ends at col_start_off
+        if parsed is not None:
+            ol_addrs, all_ol_addrs, pos, num_patt = parsed
+            valid_addrs = [a for a in all_ol_addrs if a >= la]
+            first_ol_off = min(a - la for a in valid_addrs) if valid_addrs else col_start_off + num_cols * ni
+            result['orderlist_addrs'] = ol_addrs
+        else:
+            # Fallback: read song table as songs=1 without address validation
+            # (pre-existing behavior for songs that don't have standard layout)
+            pos = freq_end
+            song_lo = [binary[pos + i] for i in range(3)]
+            pos += 3
+            song_hi = [binary[pos + i] for i in range(3)]
+            pos += 3
+            ol_addrs = [song_lo[i] | (song_hi[i] << 8) for i in range(3)]
+            first_ol_off = min((a - la for a in ol_addrs if a >= la), default=col_start_off + num_cols * ni)
+            result['orderlist_addrs'] = ol_addrs
+
+        # Pattern table
         patt_tbl_space = col_start_off - pos
         num_patt = patt_tbl_space // 2
+        if num_patt <= 0 or num_patt > 256:
+            return None
         patt_lo = [binary[pos + i] for i in range(num_patt)]
         pos += num_patt
         patt_hi = [binary[pos + i] for i in range(num_patt)]
@@ -1033,7 +1072,7 @@ def decompile_gt2(sid_path):
 
     # === Step 5: Orderlists ===
     orderlists = []
-    for vi in range(song_entries):
+    for vi in range(3):  # 3 voices for the selected subtune
         ol_off = ol_addrs[vi] - la
         if ol_off < 0 or ol_off >= len(binary):
             orderlists.append(b'\xff\x00')

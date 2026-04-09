@@ -35,6 +35,56 @@ def detect_nowavedelay(binary, code_end):
     return True  # no delay (NOWAVEDELAY=1)
 
 
+def _detect_firstwave_source(binary, la, code_end, col_operands):
+    """Detect how the player reads first_wave from the binary.
+
+    Some GT2 player variants have the first_wave code but read from the
+    wrong column (e.g. vib_delay) when the first_wave column is absent.
+    Others hardcode LDA #$09.
+
+    Returns:
+        'vib_delay' — player reads vib_delay column as first_wave
+        'hardcoded' — player uses LDA #$09 (or similar immediate)
+        None — could not detect (no mt_chnwave found)
+    """
+    # Find mt_chnwave from LDA abs,X / AND abs,X / STA $D404,X
+    mt_chnwave = None
+    for i in range(min(code_end, len(binary)) - 5):
+        if binary[i] == 0x9D:  # STA abs,X
+            dst = binary[i + 1] | (binary[i + 2] << 8)
+            if dst == 0xD404:  # STA $D404,X (waveform SID register)
+                for j in range(max(0, i - 8), i):
+                    if binary[j] == 0xBD:  # LDA abs,X (mt_chnwave,X)
+                        mt_chnwave = binary[j + 1] | (binary[j + 2] << 8)
+                        break
+                if mt_chnwave is not None:
+                    break
+
+    if mt_chnwave is None:
+        return None
+
+    # Find STA mt_chnwave,X preceded by LDA abs,Y (table read for first_wave)
+    vd_addr = col_operands.get('vib_delay')
+    cw_lo = mt_chnwave & 0xFF
+    cw_hi = (mt_chnwave >> 8) & 0xFF
+
+    for i in range(min(code_end, len(binary)) - 3):
+        if binary[i] == 0x9D and binary[i + 1] == cw_lo and binary[i + 2] == cw_hi:
+            # Found STA mt_chnwave,X — look backwards for loading instruction
+            for j in range(i - 1, max(0, i - 12), -1):
+                if binary[j] == 0xB9:  # LDA abs,Y (instrument table read)
+                    src = binary[j + 1] | (binary[j + 2] << 8)
+                    if vd_addr is not None and src == vd_addr:
+                        return 'vib_delay'
+                    return 'hardcoded'  # reads from some other table
+                if binary[j] == 0xA9:  # LDA #imm (hardcoded)
+                    return 'hardcoded'
+                if binary[j] == 0xBD:  # LDA abs,X (not new-note path)
+                    break
+
+    return None
+
+
 def pack_wave_left(sng_left, nowavedelay):
     """Apply wave left transform: .sng → packed format.
 
@@ -217,6 +267,18 @@ def gt2_to_usf(sid_path):
         for i in range(min(len(sl), len(sr))):
             song.speed_table.append(SpeedTableEntry(left=sl[i], right=sr[i]))
 
+    # Detect first_wave source when the column is missing.
+    # Some GT2 player variants have the first_wave code but read from the
+    # vib_delay column when the first_wave column is absent. In those cases
+    # we must use the vib_delay values as first_wave.
+    fw_from_vib_delay = False
+    if 'first_wave' not in columns and 'vib_delay' in columns:
+        col_operands = d.get('col_operands', {})
+        ce = code_end if ft else len(binary)
+        fw_source = _detect_firstwave_source(binary, la, ce, col_operands)
+        if fw_source == 'vib_delay':
+            fw_from_vib_delay = True
+
     # Instruments from column data
     col_names = ['ad', 'sr', 'wave_ptr', 'pulse_ptr', 'filter_ptr',
                  'vib_param', 'vib_delay', 'gate_timer', 'first_wave']
@@ -234,7 +296,10 @@ def gt2_to_usf(sid_path):
         vp = col('vib_param')
         vd = col('vib_delay')
         gt_byte = col('gate_timer', 2)
-        fw_byte = col('first_wave', 0x09)
+        if fw_from_vib_delay:
+            fw_byte = vd  # player reads vib_delay column as first_wave
+        else:
+            fw_byte = col('first_wave', 0x09)
 
         # Waveform from first_wave byte
         if fw_byte in (0, 0xFE, 0xFF):

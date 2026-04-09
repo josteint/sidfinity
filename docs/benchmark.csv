@@ -8,3 +8,4 @@ date,grade_a,grade_b,grade_c,grade_f,grade_err,total,commit,note
 2026-04-09,1630,131,207,1463,67,3478,78a4d65,vibrato drift + full regression
 2026-04-09,1676,140,202,1393,67,3478,39cc5a8,silent voice freq inaudible
 2026-04-09,1688,176,198,1349,67,3478,6618202,global value set arpeggio
+2026-04-10,1843,164,180,1294,0,3481,pending,multi-song support + first_wave detect + repeat chunking
