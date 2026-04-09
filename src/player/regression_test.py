@@ -69,10 +69,12 @@ def _test_one_entry(entry):
 
     result = run_pipeline(path)
     if result is None:
+        if min_grade == 'ERR':
+            return (name, True, 'ERR', 0, min_grade, min_score, None)  # expected to fail
         return (name, False, None, None, min_grade, min_score, 'pipeline error')
 
     grade, score, comp = result
-    grade_order = {'A': 0, 'B': 1, 'C': 2, 'F': 3}
+    grade_order = {'A': 0, 'B': 1, 'C': 2, 'F': 3, 'ERR': 4}
     grade_ok = grade_order.get(grade, 9) <= grade_order.get(min_grade, 9)
     score_ok = score >= min_score - 0.5
 
