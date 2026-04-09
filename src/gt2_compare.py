@@ -127,6 +127,11 @@ def compare_tolerant(orig_frames, new_frames):
             vr = results['voices'][v]
 
             if o_fhi != n_fhi:
+                # If voice is silent (no waveform or gate off), freq diffs
+                # are inaudible — SID ignores frequency when oscillator is off
+                if (o_wav & 0xF0) == 0 and (n_wav & 0xF0) == 0:
+                    vr['note_jitter'] += 1
+                    continue
                 # Check if this is a timing shift: does the V2 freq_hi
                 # match the original's nearby frames (±3)?
                 shifted = False
