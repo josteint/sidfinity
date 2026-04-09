@@ -102,7 +102,7 @@ def run_tests():
         print('No regression tests registered. Use --add <sid_path> to add one.')
         return True
 
-    num_workers = min(48, os.cpu_count() or 4)
+    num_workers = os.cpu_count() or 4
     print(f'Running {len(entries)} regression tests ({num_workers} workers)...\n')
 
     with multiprocessing.Pool(num_workers) as pool:
