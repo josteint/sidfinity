@@ -70,6 +70,8 @@ class Ctx:
             self.inst('cmp', 'mt_chngatetimer,x')
 
     def source(self):
+        from peephole import peephole_optimize
+        self.lines = peephole_optimize(self.lines)
         return '\n'.join(self.lines)
 
 
