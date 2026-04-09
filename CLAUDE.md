@@ -159,6 +159,14 @@ print(f'Grade: {comp[\"grade\"]} Score: {comp[\"score\"]:.1f}')
 | `src/dmc_parser.py` | DMC (Demo Music Creator) SID parser |
 | `src/dmc_to_usf.py` | DMC → USF converter (partial) |
 
+### Analysis + Debugging
+| File | Purpose |
+|------|---------|
+| `src/audio_compare.py` | Audio A/B comparison (PCM cross-correlation + spectral similarity) |
+| `src/gt2_triage.py` | Automated F-grade categorization (64-core, ~30 seconds) |
+| `src/sidid.py` | Player engine identification wrapper (uses tools/sidid) |
+| `src/player/emu_test.py` | py65 6502 emulator test harness (step-debug V2 player) |
+
 ### Utilities
 | File | Purpose |
 |------|---------|
