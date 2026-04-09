@@ -265,7 +265,7 @@ def gt2_to_usf(sid_path):
                     elif right > 0x80:
                         wt.append(WaveTableStep(delay=left, absolute_note=right & 0x7F))
                     else:
-                        rel = right if right < 0x40 else right - 0x80
+                        rel = right if right < 0x60 else right - 0x80
                         wt.append(WaveTableStep(delay=left, note_offset=rel))
                 else:
                     if right == 0x80:
@@ -273,7 +273,7 @@ def gt2_to_usf(sid_path):
                     elif right > 0x80:
                         wt.append(WaveTableStep(waveform=left, absolute_note=right & 0x7F))
                     else:
-                        rel = right if right < 0x40 else right - 0x80
+                        rel = right if right < 0x60 else right - 0x80
                         wt.append(WaveTableStep(waveform=left, note_offset=rel))
                 idx += 1
 

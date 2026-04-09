@@ -249,7 +249,7 @@ def usf_to_sid(song, output_path=None):
                     sng_l = step.delay
                     if step.keep_freq: sng_r = 0x80
                     elif step.absolute_note >= 0: sng_r = 0x80 + step.absolute_note
-                    else: sng_r = step.note_offset & 0xFF
+                    else: sng_r = step.note_offset & 0x7F
                     wave_l.append(pack_wave_left(sng_l, nowavedelay))
                     wave_r.append(pack_wave_right(sng_r, sng_l))
                 else:
@@ -257,7 +257,7 @@ def usf_to_sid(song, output_path=None):
                     sng_l = step.waveform
                     if step.keep_freq: sng_r = 0x80
                     elif step.absolute_note >= 0: sng_r = 0x80 + step.absolute_note
-                    else: sng_r = step.note_offset & 0xFF
+                    else: sng_r = step.note_offset & 0x7F
                     wave_l.append(pack_wave_left(sng_l, nowavedelay))
                     wave_r.append(pack_wave_right(sng_r, sng_l))
             has_loop = any(s.is_loop for s in inst.wave_table)

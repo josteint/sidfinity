@@ -130,12 +130,44 @@ def detect_gt2_flags(song, r=None):
         if 0xF0 <= l <= 0xFE:
             F['NOWAVECMD'] = 0
             wave_cmd = l - 0xF0
-            if wave_cmd in (1, 2, 3, 4):
+            # Wave commands 1-4 dispatch as continuous effects (portamento/toneporta/vibrato)
+            if wave_cmd in (1, 2):
+                F['NOEFFECTS'] = 0
+                F['NOPORTAMENTO'] = 0
                 calcspeedtest(rv)
+            if wave_cmd == 3:
+                F['NOEFFECTS'] = 0
+                F['NOTONEPORTA'] = 0
+                calcspeedtest(rv)
+            if wave_cmd == 4:
+                F['NOEFFECTS'] = 0
+                F['NOVIB'] = 0
+                calcspeedtest(rv)
+            # Wave commands 5-D dispatch as tick-0 effects
+            if wave_cmd == 5: F['NOSETAD'] = 0
+            if wave_cmd == 6: F['NOSETSR'] = 0
+            if wave_cmd == 7: F['NOSETWAVE'] = 0
+            if wave_cmd == 8: F['NOSETWAVEPTR'] = 0
             if wave_cmd == 9:
+                F['NOSETPULSEPTR'] = 0
                 F['NOPULSE'] = 0
             if wave_cmd == 10:
+                F['NOSETFILTPTR'] = 0
                 F['NOFILTER'] = 0
+            if wave_cmd == 11: F['NOSETFILTCTRL'] = 0
+            if wave_cmd == 12: F['NOSETFILTCUTOFF'] = 0
+            if wave_cmd == 13: F['NOSETMASTERVOL'] = 0
+            if wave_cmd == 14:
+                F['NOFUNKTEMPO'] = 0
+                F['NOGLOBALTEMPO'] = 0
+            if wave_cmd == 15:  # $FF handled above, but $F0+$0F=$FF never reaches here
+                val = rv
+                if (val & 0x7F) < 3:
+                    F['NOFUNKTEMPO'] = 0
+                if val & 0x80:
+                    F['NOCHANNELTEMPO'] = 0
+                else:
+                    F['NOGLOBALTEMPO'] = 0
 
     # --- Scan pulse table ---
     for l, rv in song.shared_pulse_table:
