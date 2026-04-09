@@ -697,10 +697,10 @@ def emit_effects(ctx):
     ctx.inst('lda', 'mt_chnfreqhi,x')
     ctx.inst('sbc', 'mt_temp2')
     ctx.inst('sta', 'mt_chnfreqhi,x')
-    ctx.inst('jmp', 'ce_pulse')
-
     if ctx.has(TONEPORTA):
+        ctx.inst('jmp', 'ce_pulse')
         emit_toneporta(ctx)
+    # Fall through to ce_pulse (emit_pulse_table is next)
 
 
 def emit_toneporta(ctx):
@@ -794,7 +794,7 @@ def emit_toneporta(ctx):
     ctx.inst('sta', 'mt_chnfreqhi,x')
     ctx.inst('lda', '#0')
     ctx.inst('sta', 'mt_chnvibtime,x')
-    ctx.inst('jmp', 'ce_pulse')
+    # Fall through to ce_pulse (emit_pulse_table is next)
 
 
 # =============================================================================
