@@ -1,0 +1,10 @@
+date,grade_a,grade_b,grade_c,grade_f,grade_err,total,commit,note
+2026-04-08,1142,309,316,1471,240,3478,eb9342d,session start
+2026-04-08,1266,315,284,1493,120,3478,368886d,toneporta ce_runfx fix
+2026-04-08,1384,233,261,1480,120,3478,9ae9583,jitter ±3 + end grace
+2026-04-08,1432,185,261,1480,120,3478,9e3a801,env_wrong grading
+2026-04-08,1469,187,251,1451,120,3478,b35b94c,speed table detection
+2026-04-09,1434,243,250,1484,67,3478,21df369,Group A alternate layout
+2026-04-09,1630,131,207,1463,67,3478,78a4d65,vibrato drift + full regression
+2026-04-09,1676,140,202,1393,67,3478,39cc5a8,silent voice freq inaudible
+2026-04-09,1688,176,198,1349,67,3478,6618202,global value set arpeggio

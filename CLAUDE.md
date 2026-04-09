@@ -3,6 +3,8 @@
 ## Key References
 
 - **`docs/PLAN.md`** — Full roadmap
+- **`docs/decisions.md`** — Dead ends and settled architectural decisions. **Read before investigating a bug you think might have been tried before.**
+- **`docs/benchmark.csv`** — Grade A count over time. **Append a row after each batch improvement.**
 - **`docs/usf_spec.md`** — USF specification (update when USF changes, then update all converters)
 - **`docs/gt2_data_layout.md`** — Byte-level GT2 data layout (read before touching the packer)
 - **`src/sidxray/METHODOLOGY.md`** — How to reverse-engineer any SID player
@@ -24,6 +26,12 @@
 - Run the full regression (`python3 src/player/regression_test.py`, 20 seconds) before EVERY commit that touches pipeline code.
 - If a fix causes ANY regression (even 1 song), investigate before accepting it.
 - When the Grade A count increases, rebuild the regression registry so new songs are protected.
+
+### Be skeptical
+- Challenge assumptions, even ones that seem well-established. The toneporta "init timing" investigation wasted hours because we assumed the init frame was the cause — it wasn't.
+- When a theory doesn't produce results after 2-3 attempts, stop and reconsider the premise. Read `docs/decisions.md` for known dead ends.
+- When you don't know something, acknowledge it. Ask: where can we get more knowledge? Check the GT2 player source, siddump --writelog output, py65 step-debug, or audio_compare ground truth.
+- Verify claims against real data. "The player is 1 frame late" means nothing without frame-by-frame register dumps showing the exact offset.
 
 ### Fix bugs, not symptoms
 - When register comparison shows differences, first determine if the difference is AUDIBLE. Use `audio_compare.py` for ground truth if unsure.
