@@ -1,0 +1,13 @@
+The C/C++ tools in this directory link against libsidplayfp (GPL v2)
+and/or wrap GoatTracker code (GPL v2). They are therefore distributed
+under the GNU General Public License version 2.
+
+See libsidplayfp/COPYING for the full GPL v2 text.
+
+  siddump.cpp      — SID register dumper (links libsidplayfp)
+  sidrender.cpp    — SID audio renderer (links libsidplayfp)
+  test_libsid.cpp  — libsidplayfp test harness
+  gt2asm.c         — GoatTracker assembler wrapper
+  build.sh         — build script
+
+The Python pipeline code in src/ is MIT licensed (see ../LICENSE).
