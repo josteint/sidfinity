@@ -42,7 +42,7 @@
 
 Build the SIDfinity universal SID music player and ML pipeline. See `docs/PLAN.md` for the full roadmap and current status.
 
-**Status:** 1,843/3,481 Grade A (52.9%) on full HVSC batch. 3,478-song regression suite runs in 33 seconds on 48 cores. Superoptimizer complete. Toneporta fixed. Multi-song support added. Comparison methodology handles timing jitter from layout shifts.
+**Status:** 1,946/3,491 Grade A (55.7%) on full HVSC batch. 3,478-song regression suite runs in 33 seconds on 128 cores. Superoptimizer complete. Toneporta fixed. Multi-song support added. NOCALCULATEDSPEED detection added. Comparison methodology handles timing jitter from layout shifts.
 
 **Next steps (in priority order):**
 1. Investigate remaining ~1,294 F-grade GT2 SIDs — 90% fail at init timing (frames 10-15)
