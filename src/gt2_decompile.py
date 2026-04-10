@@ -294,6 +294,13 @@ def _find_wave_size_by_freq_trace(sid_path, binary, la, code_end, table_start_of
     # The player accesses freq_hi at mt_freqtblhi - FIRSTNOTE + Y
     # where Y = absolute_note. We need: which Y gives this fhi value?
     freq_hi_start = code_end + num_notes  # offset in binary
+
+    # Compute table_region_size to bound the search (wave_size <= half region)
+    freq_end_local = code_end + num_notes * 2
+    ol_addrs_local = [binary[freq_end_local + v] | (binary[freq_end_local + 3 + v] << 8) for v in range(3)]
+    first_ol_local = min((a - la for a in ol_addrs_local if a >= la), default=0)
+    table_region_size = max(first_ol_local - table_start_off, 0) if first_ol_local > 0 else 0
+
     for voice, (fhi, frame_idx) in first_notes.items():
         # Search freq_hi table for this value
         for idx in range(num_notes):
@@ -425,11 +432,14 @@ def _find_wave_size_by_freq_trace(sid_path, binary, la, code_end, table_start_of
 
         # Try absolute first (bit7 clear, simpler)
         found_wave_size = 0
+        # Bound the search: wave_size can't exceed half the table region
+        # (wave_left + wave_right = 2 * wave_size bytes total).
+        max_ws = table_region_size // 2
         if expected_right_absolute < 0x80:
             # mt_notetbl[search_offset] should be expected_right_absolute
             # mt_notetbl = mt_wavetbl + wave_size
             # So binary[mt_wavetbl_off + wave_size + search_offset] = expected_right_absolute
-            for ws in range(1, len(binary) - mt_wavetbl_off - search_offset):
+            for ws in range(1, max_ws + 1):
                 check_off = mt_wavetbl_off + ws + search_offset
                 if check_off >= len(binary):
                     break
@@ -442,7 +452,7 @@ def _find_wave_size_by_freq_trace(sid_path, binary, la, code_end, table_start_of
 
         # If absolute didn't work, try relative
         if found_wave_size == 0 and (expected_right_relative & 0x80):
-            for ws in range(1, len(binary) - mt_wavetbl_off - search_offset):
+            for ws in range(1, max_ws + 1):
                 check_off = mt_wavetbl_off + ws + search_offset
                 if check_off >= len(binary):
                     break
@@ -906,6 +916,11 @@ def decompile_gt2(sid_path):
         trace_wave_size = _find_wave_size_by_freq_trace(
             sid_path, binary, la, code_end, pos, first_note, num_notes, columns)
         if trace_wave_size > 0:
+            # Clamp: wave_size can never exceed half the table region
+            # (wave_left and wave_right each occupy wave_size bytes).
+            max_wave = len(table_region) // 2
+            if trace_wave_size > max_wave:
+                trace_wave_size = max_wave
             wave_size = trace_wave_size
 
     # Validate wave_size against max wave_ptr.
