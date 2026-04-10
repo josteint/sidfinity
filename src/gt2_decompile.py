@@ -665,12 +665,39 @@ def decompile_gt2(sid_path):
     else:
         num_cols = min(r['num_columns'], 9)
 
+    # Detect NOCALCULATEDSPEED from the player binary.
+    # When calculated speed IS supported, the mt_setspeedparam code has:
+    #   LDA mt_speedlefttbl-1,Y  (B9 lo hi)
+    #   BMI mt_calculatedspeed   (30 xx)
+    # When NOCALCULATEDSPEED=1, there is no BMI after loading the speed left
+    # table; the left byte is used directly as the speed high byte.
+    # Detection: find LDA abs,Y with the exact speed_l_operand, check if BMI
+    # follows within the next byte (it's always the very next instruction).
+    # Default: False (assume calculated speed IS supported, matching old behavior).
+    # Only set True when we can positively confirm no BMI in the binary.
+    nocalculatedspeed = False  # default: assume calculated speed supported
+    speed_l_operand = r.get('speed_l_operand')
+    if r['speed_size'] > 0 and speed_l_operand is not None:
+        # We have the exact operand address — scan for LDA with it and check for BMI.
+        op_lo = speed_l_operand & 0xFF
+        op_hi = (speed_l_operand >> 8) & 0xFF
+        found_bmi = False
+        for i in range(code_end - 4):
+            if (binary[i] == 0xB9 and binary[i + 1] == op_lo and
+                    binary[i + 2] == op_hi):
+                if binary[i + 3] == 0x30:  # BMI immediately after LDA
+                    found_bmi = True
+                    break
+        if not found_bmi:
+            nocalculatedspeed = True
+
     result = {
         'la': la, 'code_end': code_end, 'ni': ni, 'num_cols': num_cols,
         'first_note': first_note, 'num_notes': num_notes,
         'psid_flags': psid_flags,
         'nowavedelay': nowavedelay,
         'buffered_writes': buffered_writes,
+        'nocalculatedspeed': nocalculatedspeed,
         'ad_param': ad_param,
         'sr_param': sr_param,
         'col_operands': r['col_operands'],

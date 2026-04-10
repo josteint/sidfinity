@@ -190,7 +190,10 @@ def detect_features(song):
                 flags.add(WAVE_CMD)
 
     # Speed table analysis
-    if song.speed_table:
+    # Only enable CALCULATED_SPEED if the original binary actually supports it.
+    # When nocalculatedspeed is True, bit 7 in speed_left is just the sign bit
+    # of the speed high byte, not a "use calculated speed" flag.
+    if song.speed_table and not getattr(song, 'nocalculatedspeed', False):
         for entry in song.speed_table:
             if entry.left & 0x80:
                 flags.add(CALCULATED_SPEED)

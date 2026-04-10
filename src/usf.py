@@ -239,6 +239,10 @@ class Song:
     # when instrument has no vibrato but pattern command does.
     # False = Groups A/B/C (stale accumulator possible), True = Group D
     vibrato_param_fix: bool = False
+    # NOCALCULATEDSPEED: True = original binary does not support calculated speed.
+    # Speed table left byte with bit 7 set is just a regular high byte, not a
+    # "use calculated speed" flag. False = calculated speed supported (default).
+    nocalculatedspeed: bool = False
     multiplier: int = 0        # multispeed: 0=normal, 2-8=CIA timer multiplier (2.1% of GT2 files)
     psid_flags: int = 0x0014   # PSID header flags: clock + SID model (GT2-specific)
     songs: int = 1             # number of subtunes (NUMSONGS)

@@ -442,6 +442,7 @@ def parse_gt2_direct(sid_path):
     wave_left = wave_right = pulse_left = pulse_right = b''
     filter_left = filter_right = speed_left = speed_right = b''
     wt_size = pt_size = ft_size = st_size = 0
+    speed_l_operand = None
 
     if len(table_operands) >= 2:
         # Wave table: operands point to (mt_wavetbl-1) and (mt_notetbl-1).
@@ -555,6 +556,7 @@ def parse_gt2_direct(sid_path):
         'speed_left': speed_left,
         'speed_right': speed_right,
         'speed_size': st_size,
+        'speed_l_operand': speed_l_operand,
     }
 
 

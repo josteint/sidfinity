@@ -512,10 +512,12 @@ def emit_wave_table(ctx):
             ctx.inst('jmp', 'ce_pulse')
         ctx.label('ce_wct0')
         if ctx.has(TICK0_FX):
-            ctx.inst('sta', 'mt_chnnewfx,x')
+            # Don't clobber mt_chnnewfx/mt_chnnewparam — those hold the
+            # pending pattern-reader values (e.g. toneporta FX=3).
+            # Pass fx index in Y, param in A directly to mt_t0_wave.
+            ctx.inst('tay')
             ctx.inst('lda', 'mt_wv_param')
-            ctx.inst('sta', 'mt_chnnewparam,x')
-            ctx.inst('jsr', 'mt_t0_dispatch')
+            ctx.inst('jsr', 'mt_t0_wave')
         ctx.inst('jmp', 'ce_pulse')
 
     # ce_wdone — run effects or go to pulse
@@ -547,14 +549,15 @@ def emit_wave_table(ctx):
 def emit_effects(ctx):
     ctx.section('effects')
     # Speed table load
-    ctx.inst('lda', 'mt_speedlefttbl-1,y')
-    ctx.inst('bmi', 'ce_calcspd')
-    ctx.inst('sta', 'mt_temp2')
-    ctx.inst('lda', 'mt_speedrighttbl-1,y')
-    ctx.inst('sta', 'mt_temp1')
-    ctx.inst('jmp', 'ce_fxdisp')
-
     if ctx.has(CALCULATED_SPEED):
+        # Calculated speed: bit 7 of left byte means "use calculated speed"
+        ctx.inst('lda', 'mt_speedlefttbl-1,y')
+        ctx.inst('bmi', 'ce_calcspd')
+        ctx.inst('sta', 'mt_temp2')
+        ctx.inst('lda', 'mt_speedrighttbl-1,y')
+        ctx.inst('sta', 'mt_temp1')
+        ctx.inst('jmp', 'ce_fxdisp')
+
         ctx.label('ce_calcspd')
         ctx.inst('and', '#$7f')
         if ctx.has(VIBRATO):
@@ -579,11 +582,12 @@ def emit_effects(ctx):
         ctx.inst('dey')
         ctx.inst('bne', 'ce_shft')
     else:
-        ctx.label('ce_calcspd')
-        ctx.inst('and', '#$7f')
-        ctx.inst('sta', 'mt_temp2')
+        # No calculated speed: left byte is the speed high byte (no bit 7 flag).
+        # No BMI branch — all speed entries are normal speed.
         ctx.inst('lda', 'mt_speedrighttbl-1,y')
         ctx.inst('sta', 'mt_temp1')
+        ctx.inst('lda', 'mt_speedlefttbl-1,y')
+        ctx.inst('sta', 'mt_temp2')
 
     # FX dispatch — Z3-verified: CMP #2 / BCC fxadd / BEQ fxsub
     # replaces CMP #1 / BNE / JMP / CMP #2 / BNE / JMP (saves 8 bytes, 8 cycles)
@@ -628,36 +632,47 @@ def emit_effects(ctx):
         # FX 4 — vibrato
         ctx.label('ce_fx4')
         ctx.inst('ldy', 'mt_chnparam,x')
-        ctx.inst('lda', 'mt_speedlefttbl-1,y')
-        ctx.inst('bmi', 'ce_v4c')
-        ctx.inst('and', '#$7f')
-        ctx.inst('sta', 'mt_smc_fxspd+1', comment='SMC: patch CMP operand')
-        ctx.inst('lda', 'mt_speedrighttbl-1,y')
-        ctx.inst('sta', 'mt_temp1')
-        ctx.inst('lda', '#0')
-        ctx.inst('sta', 'mt_temp2')
-        ctx.inst('jmp', 'ce_v4r')
-        ctx.label('ce_v4c')
-        ctx.inst('and', '#$7f')
-        ctx.inst('sta', 'mt_smc_fxspd+1', comment='SMC: patch CMP operand')
-        ctx.inst('lda', 'mt_speedrighttbl-1,y')
-        ctx.inst('pha')
-        ctx.inst('ldy', 'mt_chnlastnote,x')
-        ctx.inst('sec')
-        ctx.inst('lda', 'mt_freqtbllo+1-FIRSTNOTE,y')
-        ctx.inst('sbc', 'mt_freqtbllo-FIRSTNOTE,y')
-        ctx.inst('sta', 'mt_temp1')
-        ctx.inst('lda', 'mt_freqtblhi+1-FIRSTNOTE,y')
-        ctx.inst('sbc', 'mt_freqtblhi-FIRSTNOTE,y')
-        ctx.inst('sta', 'mt_temp2')
-        ctx.inst('pla')
-        ctx.inst('tay')
-        ctx.inst('beq', 'ce_v4r')
-        ctx.label('ce_v4s')
-        ctx.inst('lsr', 'mt_temp2')
-        ctx.inst('ror', 'mt_temp1')
-        ctx.inst('dey')
-        ctx.inst('bne', 'ce_v4s')
+        if ctx.has(CALCULATED_SPEED):
+            # Calculated speed: BMI splits normal vs calculated paths
+            ctx.inst('lda', 'mt_speedlefttbl-1,y')
+            ctx.inst('bmi', 'ce_v4c')
+            ctx.inst('and', '#$7f')
+            ctx.inst('sta', 'mt_smc_fxspd+1', comment='SMC: patch CMP operand')
+            ctx.inst('lda', 'mt_speedrighttbl-1,y')
+            ctx.inst('sta', 'mt_temp1')
+            ctx.inst('lda', '#0')
+            ctx.inst('sta', 'mt_temp2')
+            ctx.inst('jmp', 'ce_v4r')
+            ctx.label('ce_v4c')
+            ctx.inst('and', '#$7f')
+            ctx.inst('sta', 'mt_smc_fxspd+1', comment='SMC: patch CMP operand')
+            ctx.inst('lda', 'mt_speedrighttbl-1,y')
+            ctx.inst('pha')
+            ctx.inst('ldy', 'mt_chnlastnote,x')
+            ctx.inst('sec')
+            ctx.inst('lda', 'mt_freqtbllo+1-FIRSTNOTE,y')
+            ctx.inst('sbc', 'mt_freqtbllo-FIRSTNOTE,y')
+            ctx.inst('sta', 'mt_temp1')
+            ctx.inst('lda', 'mt_freqtblhi+1-FIRSTNOTE,y')
+            ctx.inst('sbc', 'mt_freqtblhi-FIRSTNOTE,y')
+            ctx.inst('sta', 'mt_temp2')
+            ctx.inst('pla')
+            ctx.inst('tay')
+            ctx.inst('beq', 'ce_v4r')
+            ctx.label('ce_v4s')
+            ctx.inst('lsr', 'mt_temp2')
+            ctx.inst('ror', 'mt_temp1')
+            ctx.inst('dey')
+            ctx.inst('bne', 'ce_v4s')
+        else:
+            # NOCALCULATEDSPEED: left byte is vibrato speed (full byte, no
+            # bit 7 flag). temp1 = right byte, temp2 = 0 always.
+            ctx.inst('lda', '#0')
+            ctx.inst('sta', 'mt_temp2')
+            ctx.inst('lda', 'mt_speedrighttbl-1,y')
+            ctx.inst('sta', 'mt_temp1')
+            ctx.inst('lda', 'mt_speedlefttbl-1,y')
+            ctx.inst('sta', 'mt_smc_fxspd+1', comment='SMC: patch CMP operand')
         ctx.label('ce_v4r')
         ctx.inst('lda', 'mt_chnvibtime,x')
         ctx.inst('bmi', 'ce_v4nc')
@@ -712,35 +727,43 @@ def emit_toneporta(ctx):
     ctx.inst('jmp', 'ce_tpsnap')
     ctx.label('ce_fx3go')
     ctx.inst('ldy', 'mt_chnparam,x')
-    ctx.inst('lda', 'mt_speedlefttbl-1,y')
-    ctx.inst('bmi', 'ce_tpcs')
-    ctx.inst('sta', 'mt_fx_shi')
-    ctx.inst('lda', 'mt_speedrighttbl-1,y')
-    ctx.inst('sta', 'mt_fx_slo')
-    ctx.inst('jmp', 'ce_tpgo')
-    ctx.label('ce_tpcs')
-    ctx.inst('and', '#$7f')
-    ctx.inst('pha')
-    ctx.inst('lda', 'mt_speedrighttbl-1,y')
-    ctx.inst('pha')
-    ctx.inst('ldy', 'mt_chnlastnote,x')
-    ctx.inst('sec')
-    ctx.inst('lda', 'mt_freqtbllo+1-FIRSTNOTE,y')
-    ctx.inst('sbc', 'mt_freqtbllo-FIRSTNOTE,y')
-    ctx.inst('sta', 'mt_fx_slo')
-    ctx.inst('lda', 'mt_freqtblhi+1-FIRSTNOTE,y')
-    ctx.inst('sbc', 'mt_freqtblhi-FIRSTNOTE,y')
-    ctx.inst('sta', 'mt_fx_shi')
-    ctx.inst('pla')
-    ctx.inst('tay')
-    ctx.inst('pla')
-    ctx.inst('cpy', '#0')
-    ctx.inst('beq', 'ce_tpgo')
-    ctx.label('ce_tpsh')
-    ctx.inst('lsr', 'mt_fx_shi')
-    ctx.inst('ror', 'mt_fx_slo')
-    ctx.inst('dey')
-    ctx.inst('bne', 'ce_tpsh')
+    if ctx.has(CALCULATED_SPEED):
+        # Calculated speed: BMI splits normal vs calculated paths
+        ctx.inst('lda', 'mt_speedlefttbl-1,y')
+        ctx.inst('bmi', 'ce_tpcs')
+        ctx.inst('sta', 'mt_fx_shi')
+        ctx.inst('lda', 'mt_speedrighttbl-1,y')
+        ctx.inst('sta', 'mt_fx_slo')
+        ctx.inst('jmp', 'ce_tpgo')
+        ctx.label('ce_tpcs')
+        ctx.inst('and', '#$7f')
+        ctx.inst('pha')
+        ctx.inst('lda', 'mt_speedrighttbl-1,y')
+        ctx.inst('pha')
+        ctx.inst('ldy', 'mt_chnlastnote,x')
+        ctx.inst('sec')
+        ctx.inst('lda', 'mt_freqtbllo+1-FIRSTNOTE,y')
+        ctx.inst('sbc', 'mt_freqtbllo-FIRSTNOTE,y')
+        ctx.inst('sta', 'mt_fx_slo')
+        ctx.inst('lda', 'mt_freqtblhi+1-FIRSTNOTE,y')
+        ctx.inst('sbc', 'mt_freqtblhi-FIRSTNOTE,y')
+        ctx.inst('sta', 'mt_fx_shi')
+        ctx.inst('pla')
+        ctx.inst('tay')
+        ctx.inst('pla')
+        ctx.inst('cpy', '#0')
+        ctx.inst('beq', 'ce_tpgo')
+        ctx.label('ce_tpsh')
+        ctx.inst('lsr', 'mt_fx_shi')
+        ctx.inst('ror', 'mt_fx_slo')
+        ctx.inst('dey')
+        ctx.inst('bne', 'ce_tpsh')
+    else:
+        # NOCALCULATEDSPEED: left byte is speed high byte, no bit 7 flag.
+        ctx.inst('lda', 'mt_speedrighttbl-1,y')
+        ctx.inst('sta', 'mt_fx_slo')
+        ctx.inst('lda', 'mt_speedlefttbl-1,y')
+        ctx.inst('sta', 'mt_fx_shi')
     ctx.label('ce_tpgo')
     ctx.inst('lda', 'mt_chnnote,x')
     # SEC / SBC #FIRSTNOTE removed: FIRSTNOTE=0, so SBC #0 is no-op
@@ -939,12 +962,12 @@ def emit_pattern_reader(ctx):
         ctx.inst('clc')
         ctx.inst('adc', 'mt_chntrans,x')
     ctx.inst('sta', 'mt_chnnewnote,x')
-    # Toneporta check — BEQ to handler placed immediately before ce_rest.
-    # Same 2-byte BEQ as the original (BEQ ce_rest), zero layout shift.
+    # Toneporta check — skip HR, go straight to rest (like original GT2).
+    # mt_chnnewnote stays set; tick-0 emit_new_note_init handles it.
     if ctx.has(TONEPORTA):
         ctx.inst('lda', 'mt_chnnewfx,x')
         ctx.inst('cmp', '#3')
-        ctx.inst('beq', 'ce_tp_note')
+        ctx.inst('beq', 'ce_rest')
     # Legato check
     if ctx.has(LEGATO_INSTR):
         ctx.inst('lda', 'mt_chninstr,x')
@@ -995,22 +1018,6 @@ def emit_pattern_reader(ctx):
         ctx.inst('sta', 'mt_chnpkrest,x')
         ctx.inst('beq', 'ce_rest')
         ctx.inst('jmp', 'ce_ldregs')
-    # Toneporta note handler — immediately before ce_rest so the BEQ
-    # in the toneporta check reaches it (same distance as old BEQ ce_rest).
-    # Falls through to ce_rest after consuming the note.
-    if ctx.has(TONEPORTA):
-        ctx.label('ce_tp_note')
-        ctx.inst('lda', 'mt_chnnewnote,x')
-        ctx.inst('sec')
-        ctx.inst('sbc', '#NOTE')
-        ctx.inst('sta', 'mt_chnnote,x')
-        ctx.inst('lda', 'mt_chnnewparam,x')
-        ctx.inst('sta', 'mt_chnparam,x')
-        ctx.inst('lda', '#3')
-        ctx.inst('sta', 'mt_chnfx,x')
-        ctx.inst('lda', '#0')
-        ctx.inst('sta', 'mt_chnnewnote,x')
-        # Fall through to ce_rest (store pattptr + register writes)
 
     # Rest — Covfefe trick: BEQ skips TYA when byte is $00 (ENDPATT),
     # so A=0 falls through to STA (stores 0 = reset pattptr)
@@ -1222,9 +1229,15 @@ def emit_new_note_init(ctx):
 
 def emit_tick0_dispatch(ctx):
     ctx.section('tick-0 dispatch')
+    # Wave command entry: A=param, Y=fx already set by caller.
+    # JMP past the memory loads so we don't clobber mt_chnnewfx/param.
+    if ctx.has(WAVE_CMD) and ctx.has(TICK0_FX):
+        ctx.label('mt_t0_wave')
+        ctx.inst('jmp', 'mt_t0_body')
     ctx.label('mt_t0_dispatch')
     ctx.inst('lda', 'mt_chnnewparam,x')
     ctx.inst('ldy', 'mt_chnnewfx,x')
+    ctx.label('mt_t0_body')
 
     # FX 0
     if ctx.has(VIBRATO):

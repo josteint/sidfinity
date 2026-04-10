@@ -179,6 +179,7 @@ def gt2_to_usf(sid_path):
     song.freq_lo = d.get('freq_lo')
     song.freq_hi = d.get('freq_hi')
     song.nowavedelay = d.get('nowavedelay', True)
+    song.nocalculatedspeed = d.get('nocalculatedspeed', False)
 
     # DEFAULTTEMPO: extract from binary
     with open(sid_path, 'rb') as f:
