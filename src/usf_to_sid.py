@@ -32,51 +32,61 @@ def usf_pattern_to_gt2(pattern):
     prev_param = -1
 
     for event in pattern.events:
-        row = bytearray()
+        dur = getattr(event, 'duration', 1)
+        if dur < 1:
+            dur = 1
 
-        # Instrument change
-        if event.instrument >= 0 and event.instrument != prev_inst:
-            row.append(event.instrument + 1)
-            prev_inst = event.instrument
+        for tick_in_event in range(dur):
+            row = bytearray()
 
-        # Command state
-        has_cmd = event.command is not None
-        cmd_num = (event.command & 0x0F) if has_cmd else 0
-        cmd_val = (event.command_val & 0xFF) if has_cmd else 0
-        cmd_changed = has_cmd and (cmd_num != prev_cmd or cmd_val != prev_param)
+            if tick_in_event == 0:
+                # First tick: emit the actual event
 
-        if cmd_changed:
-            prev_cmd = cmd_num
-            prev_param = cmd_val
+                # Instrument change
+                if event.instrument >= 0 and event.instrument != prev_inst:
+                    row.append(event.instrument + 1)
+                    prev_inst = event.instrument
 
-        # Encode row based on type
-        if event.type == 'rest':
-            if cmd_changed:
-                row.append(0x50 + cmd_num)  # FXONLY
-                if cmd_num != 0:
-                    row.append(cmd_val)
+                # Command state
+                has_cmd = event.command is not None
+                cmd_num = (event.command & 0x0F) if has_cmd else 0
+                cmd_val = (event.command_val & 0xFF) if has_cmd else 0
+                cmd_changed = has_cmd and (cmd_num != prev_cmd or cmd_val != prev_param)
+
+                if cmd_changed:
+                    prev_cmd = cmd_num
+                    prev_param = cmd_val
+
+                if event.type == 'rest':
+                    if cmd_changed:
+                        row.append(0x50 + cmd_num)  # FXONLY
+                        if cmd_num != 0:
+                            row.append(cmd_val)
+                    else:
+                        row.append(GT2_REST)
+                elif event.type == 'note':
+                    if cmd_changed:
+                        row.append(0x40 + cmd_num)  # FX
+                        if cmd_num != 0:
+                            row.append(cmd_val)
+                    row.append(min(GT2_FIRSTNOTE + event.note, 0xBC))
+                elif event.type == 'off':
+                    if cmd_changed:
+                        row.append(0x40 + cmd_num)
+                        if cmd_num != 0:
+                            row.append(cmd_val)
+                    row.append(GT2_KEYOFF)
+                elif event.type == 'on':
+                    if cmd_changed:
+                        row.append(0x40 + cmd_num)
+                        if cmd_num != 0:
+                            row.append(cmd_val)
+                    row.append(GT2_KEYON)
             else:
+                # Subsequent ticks: emit rest (sustain the current state)
                 row.append(GT2_REST)
-        elif event.type == 'note':
-            if cmd_changed:
-                row.append(0x40 + cmd_num)  # FX
-                if cmd_num != 0:
-                    row.append(cmd_val)
-            row.append(min(GT2_FIRSTNOTE + event.note, 0xBC))
-        elif event.type == 'off':
-            if cmd_changed:
-                row.append(0x40 + cmd_num)
-                if cmd_num != 0:
-                    row.append(cmd_val)
-            row.append(GT2_KEYOFF)
-        elif event.type == 'on':
-            if cmd_changed:
-                row.append(0x40 + cmd_num)
-                if cmd_num != 0:
-                    row.append(cmd_val)
-            row.append(GT2_KEYON)
 
-        rows.append(bytes(row))
+            rows.append(bytes(row))
 
     # Compress consecutive rests.
     # Never emit a packed rest ($C0+) as the first byte of a pattern —

@@ -325,14 +325,15 @@ def gt2_to_usf(sid_path):
                         wt.append(WaveTableStep(is_loop=True, loop_target=loop_target))
                     break
                 elif left < 0x10:
-                    # .sng right: $80=keep freq, $81-$DF=absolute, $00-$7F=relative
+                    # .sng left $00=no wave change, $01-$0F=delay N frames.
+                    # Set waveform=left so the packer round-trips correctly.
                     if right == 0x80:
-                        wt.append(WaveTableStep(delay=left, keep_freq=True))
+                        wt.append(WaveTableStep(waveform=left, delay=left, keep_freq=True))
                     elif right > 0x80:
-                        wt.append(WaveTableStep(delay=left, absolute_note=right & 0x7F))
+                        wt.append(WaveTableStep(waveform=left, delay=left, absolute_note=right & 0x7F))
                     else:
                         rel = right if right < 0x60 else right - 0x80
-                        wt.append(WaveTableStep(delay=left, note_offset=rel))
+                        wt.append(WaveTableStep(waveform=left, delay=left, note_offset=rel))
                 else:
                     if right == 0x80:
                         wt.append(WaveTableStep(waveform=left, keep_freq=True))

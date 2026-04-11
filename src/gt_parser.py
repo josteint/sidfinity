@@ -112,24 +112,19 @@ def parse_psid_header(data):
     }, binary, load_addr
 
 
-def find_freq_table(binary, load_addr):
-    """Find the GoatTracker frequency table in the binary.
+def _find_freq_table_pal(binary, load_addr):
+    """Find the GoatTracker PAL frequency table in the binary.
 
     Returns (offset, first_note, num_notes, lo_first) or None.
-    lo_first indicates whether lo bytes come before hi bytes.
     """
-    # Try finding a slice of the lo table (at least 12 consecutive bytes)
-    for first_note in range(84):  # can't start later than note 84 for 12 bytes
-        for window in range(min(96 - first_note, 48), 11, -1):  # try longest match first
+    for first_note in range(84):
+        for window in range(min(96 - first_note, 48), 11, -1):
             needle = FREQ_TBL_LO[first_note:first_note + window]
             pos = binary.find(needle)
             if pos == -1:
                 continue
 
-            # Found lo bytes at pos. Check if hi bytes are adjacent.
             num_notes = window
-
-            # Try to extend the match
             while (first_note + num_notes < 96 and
                    pos + num_notes < len(binary) and
                    binary[pos + num_notes] == FREQ_TBL_LO[first_note + num_notes]):
@@ -138,24 +133,109 @@ def find_freq_table(binary, load_addr):
             # Check hi bytes right after lo
             hi_pos = pos + num_notes
             if hi_pos + num_notes <= len(binary):
-                hi_match = all(
-                    binary[hi_pos + i] == FREQ_TBL_HI[first_note + i]
-                    for i in range(num_notes)
-                )
-                if hi_match:
+                if all(binary[hi_pos + i] == FREQ_TBL_HI[first_note + i]
+                       for i in range(num_notes)):
                     return (pos, first_note, num_notes, True)
 
             # Check hi bytes right before lo
             hi_pos = pos - num_notes
             if hi_pos >= 0:
-                hi_match = all(
-                    binary[hi_pos + i] == FREQ_TBL_HI[first_note + i]
-                    for i in range(num_notes)
-                )
-                if hi_match:
+                if all(binary[hi_pos + i] == FREQ_TBL_HI[first_note + i]
+                       for i in range(num_notes)):
                     return (hi_pos, first_note, num_notes, False)
 
+            # Gap=96: full 96+96 table with detuned note 0
+            if first_note > 0:
+                table_start = pos - first_note
+                if table_start >= 0:
+                    hi_pos_full = table_start + 96
+                    if hi_pos_full + 96 <= len(binary):
+                        hi_full_match = sum(
+                            1 for i in range(96)
+                            if binary[hi_pos_full + i] == FREQ_TBL_HI[i]
+                        )
+                        if hi_full_match >= 90:
+                            return (table_start, 0, 96, True)
+
     return None
+
+
+def _find_freq_table_generic(binary, load_addr):
+    """Find a non-PAL frequency table by scanning for monotonically ascending
+    lo/hi byte blocks (NTSC, custom tunings, 48-note tables)."""
+    best = None
+
+    for N in (96, 48, 32):
+        if len(binary) < N * 2:
+            continue
+        for pos in range(len(binary) - N * 2 + 1):
+            lo_bytes = binary[pos:pos + N]
+            hi_bytes = binary[pos + N:pos + N * 2]
+
+            freq0 = lo_bytes[0] | (hi_bytes[0] << 8)
+            freqN = lo_bytes[N - 1] | (hi_bytes[N - 1] << 8)
+
+            if freq0 < 0x0080 or freq0 > 0x0800:
+                continue
+            if freqN < 0x4000 or freqN <= freq0 * 16:
+                continue
+            if hi_bytes[0] > 0x08:
+                continue
+
+            ascending = 0
+            good_ratio = 0
+            prev = freq0
+            for i in range(1, N):
+                cur = lo_bytes[i] | (hi_bytes[i] << 8)
+                if cur > prev:
+                    ascending += 1
+                    if prev > 0:
+                        ratio = cur / prev
+                        if 1.02 <= ratio <= 1.12:
+                            good_ratio += 1
+                prev = cur
+
+            if ascending < N - 2:
+                continue
+            if good_ratio < (N - 1) * 85 // 100:
+                continue
+
+            octave_ok = octave_checks = 0
+            for i in range(0, N - 12, 12):
+                f_lo = lo_bytes[i] | (hi_bytes[i] << 8)
+                f_hi = lo_bytes[i + 12] | (hi_bytes[i + 12] << 8)
+                if f_lo > 0:
+                    octave_checks += 1
+                    if 1.8 <= f_hi / f_lo <= 2.2:
+                        octave_ok += 1
+
+            if octave_checks < 2 or octave_ok < octave_checks * 80 // 100:
+                continue
+
+            if best is None or N > best[1]:
+                best = (pos, N)
+            break
+
+        if best is not None and best[1] == N:
+            break
+
+    if best is None:
+        return None
+    return (best[0], 0, best[1], True)
+
+
+def find_freq_table(binary, load_addr):
+    """Find the GoatTracker frequency table in the binary.
+
+    Tries PAL-specific matching first, then falls back to generic
+    monotonic-ascending detection for NTSC/custom tuning tables.
+
+    Returns (offset, first_note, num_notes, lo_first) or None.
+    """
+    result = _find_freq_table_pal(binary, load_addr)
+    if result is not None:
+        return result
+    return _find_freq_table_generic(binary, load_addr)
 
 
 def collect_abs_addresses(binary, load_addr, start_off, end_off):

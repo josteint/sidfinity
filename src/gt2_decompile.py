@@ -847,10 +847,10 @@ def decompile_gt2(sid_path):
         # Some multi-song SIDs have the GT2 player as one of several engines, and the
         # PSID song count includes non-GT2 subtunes. The GT2 song table only covers
         # the subtunes it handles (often just 1).
-        def _try_song_table(try_songs, try_idx):
+        def _try_song_table(try_songs, try_idx, start_off=None, strict=False):
             """Read song table with try_songs songs, return (ol_addrs_3, all_addrs, pos_after, num_patt) or None."""
             se = try_songs * 3
-            p = freq_end
+            p = start_off if start_off is not None else freq_end
             if p + se * 2 > len(binary):
                 return None
             s_lo = [binary[p + i] for i in range(se)]
@@ -867,11 +867,43 @@ def decompile_gt2(sid_path):
             n_patt = (col_start_off - p) // 2
             if n_patt <= 0 or n_patt > 256:
                 return None
+            if strict:
+                # Extra validation: each orderlist addr must have $FF terminator
+                # within 200 bytes and point past the pattern table region
+                patt_end = p + n_patt * 2
+                for addr in sel:
+                    off = addr - la
+                    if off < patt_end:
+                        return None
+                    found_ff = False
+                    for j in range(200):
+                        if off + j >= len(binary):
+                            break
+                        if binary[off + j] == 0xFF:
+                            found_ff = True
+                            break
+                    if not found_ff:
+                        return None
             return (sel, all_addrs, p, n_patt)
 
         parsed = _try_song_table(songs, song_idx)
         if parsed is None and songs > 1:
             parsed = _try_song_table(1, 0)
+
+        # If standard parsing failed, try skipping an extra note table.
+        # Some GT2 players (Group C) store a note mapping table of num_notes
+        # bytes right after freq_hi. Try advancing past it.
+        if parsed is None and num_notes > 0:
+            for extra in (num_notes, num_notes + 1):
+                trial_start = freq_end + extra
+                if trial_start >= col_start_off:
+                    break
+                parsed = _try_song_table(songs, song_idx, trial_start, strict=True)
+                if parsed is None and songs > 1:
+                    parsed = _try_song_table(1, 0, trial_start, strict=True)
+                if parsed is not None:
+                    freq_end = trial_start
+                    break
 
         if parsed is not None:
             ol_addrs, all_ol_addrs, pos, num_patt = parsed

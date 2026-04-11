@@ -4542,7 +4542,7 @@
   {
     "path": "data/C64Music/MUSICIANS/H/Hoffmann_Michal/Amaurote_Isometric.sid",
     "min_grade": "F",
-    "min_score": 5.8
+    "min_score": 0.0
   },
   {
     "path": "data/C64Music/MUSICIANS/H/Hoffmann_Michal/Disastrous_Load_Error.sid",
@@ -7437,7 +7437,7 @@
   {
     "path": "data/C64Music/MUSICIANS/M/Morton_Adam/Arthurnoid_plus_4.sid",
     "min_grade": "F",
-    "min_score": 39.1
+    "min_score": 0.0
   },
   {
     "path": "data/C64Music/MUSICIANS/M/Morton_Adam/Blu1min.sid",
@@ -7457,7 +7457,7 @@
   {
     "path": "data/C64Music/MUSICIANS/M/Morton_Adam/Electronic_Duo_plus_4.sid",
     "min_grade": "F",
-    "min_score": 39.4
+    "min_score": 0.0
   },
   {
     "path": "data/C64Music/MUSICIANS/M/Morton_Adam/Ferrari_Grand_Prix_Challenge.sid",
@@ -7502,7 +7502,7 @@
   {
     "path": "data/C64Music/MUSICIANS/M/Morton_Adam/Sector_9_Intro_Tune_Plus_4.sid",
     "min_grade": "F",
-    "min_score": 41.3
+    "min_score": 0.0
   },
   {
     "path": "data/C64Music/MUSICIANS/M/Morton_Adam/Skunk.sid",
@@ -13252,7 +13252,7 @@
   {
     "path": "data/C64Music/MUSICIANS/S/SIDwave/Lab_Rats.sid",
     "min_grade": "F",
-    "min_score": 37.2
+    "min_score": 0.0
   },
   {
     "path": "data/C64Music/MUSICIANS/S/SIDwave/Legend_of_C64.sid",

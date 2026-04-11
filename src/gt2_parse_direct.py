@@ -36,6 +36,46 @@ def detect_ghost_buffer(binary, code_end):
     return None
 
 
+def detect_zp_ghost_buffer(binary, total_len):
+    """Detect zero-page ghost register buffer for GT2 variants.
+
+    Some GT2 players write SID registers via a zero-page ghost buffer
+    instead of directly to $D400. Two copy mechanisms:
+    1. Unrolled: LDA $zp / STA $D4xx repeated for 20+ registers
+    2. Loop: LDX #$18 / LDA $zp,X / STA $D400,X / DEX / BPL
+    """
+    # Method 1: Unrolled LDA zp / STA $D4xx
+    for i in range(total_len - 10):
+        if (binary[i] == 0xA5 and binary[i + 2] == 0x8D and binary[i + 4] == 0xD4 and
+                binary[i + 5] == 0xA5 and binary[i + 7] == 0x8D and binary[i + 9] == 0xD4):
+            count = 0
+            j = i
+            zp_min = 255
+            reg_for_zp_min = None
+            while (j + 4 < total_len and binary[j] == 0xA5 and
+                   binary[j + 2] == 0x8D and binary[j + 4] == 0xD4):
+                zp = binary[j + 1]
+                reg = binary[j + 3]
+                if zp < zp_min:
+                    zp_min = zp
+                    reg_for_zp_min = reg
+                count += 1
+                j += 5
+            if count >= 20:
+                return zp_min, reg_for_zp_min
+
+    # Method 2: Loop — LDX #$18 / LDA zp,X / STA $D400,X / DEX / BPL
+    for i in range(total_len - 8):
+        if (binary[i] == 0xA2 and binary[i + 1] == 0x18 and
+                binary[i + 2] == 0xB5 and
+                binary[i + 4] == 0x9D and
+                binary[i + 5] == 0x00 and binary[i + 6] == 0xD4 and
+                binary[i + 7] == 0xCA and binary[i + 8] == 0x10):
+            return binary[i + 3], 0
+
+    return None, None
+
+
 def _is_sid_reg(dst, ghost_base, reg_offset=None):
     """Check if dst is a SID register (or ghost equivalent) and optionally matches reg offset.
 
@@ -162,19 +202,16 @@ def detect_player_flags(binary, la, code_end, freq_end, ad_operand, ni, ghost_ba
         if binary[i] == 0xB9:  # LDA abs,Y
             src = binary[i + 1] | (binary[i + 2] << 8)
             if ad_operand <= src < max_col_addr:
-                # Scan up to 8 bytes ahead for STA abs (past BEQ/BNE branches)
                 for j in range(i + 3, min(i + 8, code_end - 2)):
                     if binary[j] == 0x8D:  # STA abs
                         dst = binary[j + 1] | (binary[j + 2] << 8)
                         if _is_channel_var(dst):
-                            # Verify the target is READ somewhere (not a dead store).
-                            # Dead stores occur when NOFILTER=1: the column still
-                            # has filter_ptr data but filter processing is absent.
+                            # Verify the target is READ somewhere (not a dead store)
                             dst_lo = dst & 0xFF
                             dst_hi = (dst >> 8) & 0xFF
                             is_read = False
                             for k in range(code_end - 2):
-                                if (binary[k] in (0xAD, 0xAC, 0xAE) and  # LDA/LDY/LDX abs
+                                if (binary[k] in (0xAD, 0xAC, 0xAE) and
                                         binary[k + 1] == dst_lo and
                                         binary[k + 2] == dst_hi):
                                     is_read = True
@@ -182,7 +219,7 @@ def detect_player_flags(binary, la, code_end, freq_end, ad_operand, ni, ghost_ba
                             if is_read:
                                 nofilter = False
                         break
-                    elif binary[j] == 0x9D:  # STA abs,X (not filter)
+                    elif binary[j] == 0x9D:  # STA abs,X — not filter (per-channel)
                         break
 
     # NOINSTRVIB: check if vib_param/vib_delay columns are read.
@@ -221,35 +258,119 @@ def parse_gt2_direct(sid_path):
     header, binary, la = parse_psid_header(data)
     ft = find_freq_table(binary, la)
     if ft is None:
-        return None
-
-    freq_off, first_note, num_notes, lo_first = ft
-    code_end = freq_off
-    freq_end = freq_off + num_notes * 2
+        # No freq table — use control-flow analysis as fallback
+        try:
+            from code_flow import find_code_end as _find_code_end
+            code_end = _find_code_end(binary, la, header['init_addr'], header['play_addr'])
+            if code_end is None or code_end < 50:
+                return None
+            freq_end = code_end
+        except Exception:
+            return None
+    else:
+        freq_off, first_note, num_notes, lo_first = ft
+        code_end = freq_off
+        freq_end = freq_off + num_notes * 2
 
     # Detect ghost buffer for Group C players
     ghost_base = detect_ghost_buffer(binary, code_end)
 
-    # Step 1: Find AD and SR columns by SID register writes
-    # For Group C, check ghost_buf+5/+6 in addition to $D405/$D406
-    ad_operand = sr_operand = None
-    i = 0
-    while i < code_end - 5:
+    # Step 1: Find AD and SR instrument column operands.
+    # Three addressing variants exist:
+    #   Direct: LDA inst_col,Y → STA $D405,X
+    #   Indirect: LDA channel_var,X → STA $D405,X (then trace back to LDA abs,Y)
+    #   ZP ghost: LDA inst_col,Y → STA zp,X (via zero-page ghost buffer)
+    # Collect ALL candidates, pick first pair with valid ni (1-63).
+
+    def _find_valid_pair(ad_cands, sr_cands):
+        for ad in ad_cands:
+            for sr in sr_cands:
+                ni = sr - ad
+                if 1 <= ni <= 63:
+                    return ad, sr, ni
+        return None, None, None
+
+    # Direct path: LDA abs,Y → STA SID AD/SR
+    direct_ad = []
+    direct_sr = []
+    for i in range(code_end - 5):
         if binary[i] == 0xB9:  # LDA abs,Y
             src = binary[i + 1] | (binary[i + 2] << 8)
             if (src - la) >= freq_end:
-                for j in range(i + 3, min(i + 12, code_end - 2)):
+                for j in range(i + 3, min(i + 30, code_end - 2)):
                     if binary[j] == 0x9D:  # STA abs,X
                         dst = binary[j + 1] | (binary[j + 2] << 8)
                         reg = _is_sid_reg(dst, ghost_base)
                         if reg >= 0:
-                            reg_mod = reg % 7
-                            if reg_mod == 5 and ad_operand is None:
-                                ad_operand = src
-                            elif reg_mod == 6 and sr_operand is None:
-                                sr_operand = src
+                            if reg % 7 == 5:
+                                direct_ad.append(src)
+                            elif reg % 7 == 6:
+                                direct_sr.append(src)
                         break
-        i += 1
+
+    ad_operand, sr_operand, _ = _find_valid_pair(direct_ad, direct_sr)
+
+    # Indirect path: LDA abs,X → STA SID gives channel variables,
+    # then trace back to LDA abs,Y → STA channel_var,X
+    if ad_operand is None:
+        ad_chanvars = []
+        sr_chanvars = []
+        for i in range(code_end - 5):
+            if binary[i] == 0xBD:  # LDA abs,X
+                src = binary[i + 1] | (binary[i + 2] << 8)
+                for j in range(i + 3, min(i + 12, code_end - 2)):
+                    if binary[j] == 0x9D:
+                        dst = binary[j + 1] | (binary[j + 2] << 8)
+                        reg = _is_sid_reg(dst, ghost_base)
+                        if reg >= 0:
+                            if reg % 7 == 5:
+                                ad_chanvars.append(src)
+                            elif reg % 7 == 6:
+                                sr_chanvars.append(src)
+                        break
+
+        for ad_cv in ad_chanvars:
+            for sr_cv in sr_chanvars:
+                traced_ad = []
+                traced_sr = []
+                for i in range(code_end - 5):
+                    if binary[i] == 0xB9:
+                        src = binary[i + 1] | (binary[i + 2] << 8)
+                        for j in range(i + 3, min(i + 15, code_end - 2)):
+                            if binary[j] == 0x9D:
+                                dst = binary[j + 1] | (binary[j + 2] << 8)
+                                if dst == ad_cv:
+                                    traced_ad.append(src)
+                                elif dst == sr_cv:
+                                    traced_sr.append(src)
+                                break
+                ad_operand, sr_operand, _ = _find_valid_pair(traced_ad, traced_sr)
+                if ad_operand is not None:
+                    break
+            if ad_operand is not None:
+                break
+
+    # ZP ghost buffer fallback
+    if ad_operand is None or sr_operand is None:
+        zp_base, zp_reg = detect_zp_ghost_buffer(binary, len(binary))
+        if zp_base is not None:
+            zp_ad = []
+            zp_sr = []
+            for i in range(len(binary) - 5):
+                if binary[i] == 0xB9:  # LDA abs,Y
+                    src = binary[i + 1] | (binary[i + 2] << 8)
+                    if la <= src < la + len(binary):
+                        for j in range(i + 3, min(i + 30, len(binary) - 1)):
+                            if binary[j] == 0x95:  # STA zp,X
+                                zp = binary[j + 1]
+                                if zp_base <= zp <= zp_base + 24:
+                                    sid_reg = (zp - zp_base) + (zp_reg or 0)
+                                    if sid_reg % 7 == 5:
+                                        zp_ad.append(src)
+                                    elif sid_reg % 7 == 6:
+                                        zp_sr.append(src)
+                                break
+            ad_operand, sr_operand, _ = _find_valid_pair(zp_ad, zp_sr)
 
     if ad_operand is None or sr_operand is None:
         return None
@@ -399,27 +520,11 @@ def parse_gt2_direct(sid_path):
         for ci, name in zip(unassigned, remaining_names):
             columns[name] = ci
 
-    # Validate column count for ni>1: the table region must accommodate
-    # at least a wave table. For ni=1, flag detection already gives the
-    # correct count, so no validation needed.
-    if ni > 1:
-        num_columns_detected = len(col_operands)
-        instr_end = ad_operand + num_columns_detected * ni
-        ft_check = find_freq_table(binary, la)
-        if ft_check:
-            freq_end_check = ft_check[0] + ft_check[2] * 2
-            if freq_end_check + 6 < len(binary):
-                sl = [binary[freq_end_check + i] for i in range(3)]
-                sh = [binary[freq_end_check + 3 + i] for i in range(3)]
-                first_ol = min(sl[i] | (sh[i] << 8) for i in range(3))
-                table_region = first_ol - instr_end
-                while table_region < 2:
-                    num_columns_detected -= 1
-                    instr_end = ad_operand + num_columns_detected * ni
-                    table_region = first_ol - instr_end
-                    if num_columns_detected < 3:
-                        break
-                col_operands = col_operands[:num_columns_detected]
+    # Note: a previous validation step tried to shrink columns by reading
+    # bytes after freq_end as order list pointers, but those bytes are often
+    # speed table or instrument data, causing 465+ songs to shrink to 2 cols.
+    # The column detection loop already stops correctly via all_code_refs
+    # membership and table-pair detection.
 
     # Step 6: Find wave table via address pairs
     # Use lda_refs (brute-force byte scan) instead of all_code_refs
