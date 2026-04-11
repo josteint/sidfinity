@@ -21,6 +21,12 @@ Architectural decisions and dead ends. If you're about to try something listed h
 **Result:** The tempo change fires at frame 680 (past the 500-frame dump) for Schnitzel-Fritz. The actual bug was the `mt_chnnewfx` overwrite in the pattern reader, not cross-channel tempo propagation.
 **Lesson:** Always check WHEN an effect fires before theorizing about its impact. Use siddump to verify timing.
 
+### Multispeed filter inside N-call loop (2026-04-10)
+**Tried:** Moving `mt_filterexec` inside the DEC/BNE multispeed loop so filter runs N times per frame (matching original GT2 CIA-based player where filter is part of each play call).
+**Result:** -14 Grade A regressions (109 -> 95), zero improvements. The extra JSR inside the loop shifts binary layout, causing ±1 frame timing jitter. Filter_diff is already classified as inaudible, so running filter N times doesn't improve grades.
+**Investigation findings:** Multispeed F-grade songs are F-grade regardless of multispeed setting (general extraction bugs). B-grade songs have wave_wrong from data extraction issues, not multispeed timing. The DEC/BNE loop correctly handles note timing. Cycle budget: mult<=8 fits in VBI frame (~14400 of 19656 cycles), mult>=12 overbudgets but only affects ~15 songs.
+**Lesson:** Don't add code to the multispeed loop unless it fixes audible issues. The current approach (filter 1x, channels Nx) is the right trade-off.
+
 ## Settled Decisions
 
 ### V2 per-song codegen over monolithic player (2026-04-03)
