@@ -42,18 +42,19 @@
 
 Build the SIDfinity universal SID music player and ML pipeline. See `docs/PLAN.md` for the full roadmap and current status.
 
-**Status:** 1,946/3,491 Grade A (55.7%) on full HVSC batch. 3,478-song regression suite runs in 33 seconds on 128 cores. Superoptimizer complete. Toneporta fixed. Multi-song support added. NOCALCULATEDSPEED detection added. Comparison methodology handles timing jitter from layout shifts.
+**Status:** 2,348/7,325 Grade A (32.1%) on full HVSC GT2 scope. 7,006/7,325 (95.6%) parseable. Two paths to USF: static binary parsing (primary) and register trace analysis (universal fallback for any engine).
 
 **Next steps (in priority order):**
-1. Investigate remaining ~1,294 F-grade GT2 SIDs — 90% fail at init timing (frames 10-15)
-2. Fix num_columns=2 undercount for 155 Group A fixedparams=1 songs (col_data has correct data but blind use causes regressions — needs targeted validation)
-3. Start ML training on 1,843 Grade A songs (USF tokenization)
-4. Expand to DMC (10,738 SIDs) and JCH (3,678 SIDs) player engines
+1. Add CIA timer / multispeed support to V2 player (703 songs, 9.6% of GT2, currently 100% F-rate — see docs/investigation_tempo12_fgrade.md)
+2. Continue F-grade investigation for remaining parseable songs
+3. Start ML training on 2,348 Grade A songs (USF tokenization)
+4. Expand to DMC (10,738 SIDs) and JCH (3,678 SIDs) — `regtrace_to_usf.py` works on them with zero engine-specific code
 
 **Key insights:**
 - V2 player code blocks are at 6502 minimum cycle counts. Further Grade A gains come from fixing decompiler/player BUGS, not cycle optimization.
-- V2 init timing is 2-7 frames behind GT2 (no channel exec during init). This is a design choice. Changing V2 init was tried: 115 regressions. The comparison init grace (10 frames) absorbs most of this, but songs with higher tempos (12+) or longer gate timers still fail.
+- **Tempo >= 12 songs are multispeed (CIA timer)**, NOT init timing. They run 2-16x per frame via CIA interrupts. V2 player needs CIA timer setup to support these. (Previous claim of "init timing" was wrong.)
 - Any byte-count change in the V2 player shifts 6502 addresses, causing ±1 frame timing jitter from page-crossing cycle penalties. This is handled by the comparison methodology (see below), not by avoiding code changes.
+- Pattern bleed-through: GT2 reads past ENDPATT when FX param is 0x00. Fixed in decompiler by matching GT2's continuation marker re-read behavior.
 - To investigate F-grade songs: pick the highest-scoring one, trace the first wrong frame, classify the error, fix root cause, batch test. See memory `feedback_bug_investigation.md`.
 
 ## Comparison Methodology (gt2_compare.py)
@@ -106,12 +107,21 @@ siddump uses 19688 cycles/frame (19656 + 32 margin). This causes the VBI to drif
 ## Pipeline
 
 ```
+Path 1 (static parsing — high quality, GT2-specific):
 GT2 SID → gt2_decompile → gt2_to_usf → USF Song → usf_to_sid → rebuilt SID
                                                        ↓
                                               codegen_v2 (V2 player)
                                                        ↓
                                               sidfinity_pack (xa65 assembly)
+
+Path 2 (register trace — universal, any engine):
+ANY SID → siddump → register CSV → regtrace_to_usf → USF Song → usf_to_sid → rebuilt SID
 ```
+
+**When to use which path:**
+- Path 1: GT2 SIDs where `find_freq_table` + `parse_gt2_direct` succeed (95.6% of GT2)
+- Path 2: any SID where static parsing fails, or non-GT2 engines (DMC, JCH, Hubbard, etc.)
+- Path 2 quality is lower but works universally — good starting point for new engines
 
 **Comparison:** `gt2_compare.py` dumps both original and rebuilt SIDs via `siddump`, compares register output frame-by-frame with jitter tolerance.
 
@@ -177,13 +187,21 @@ print(f'Grade: {comp[\"grade\"]} Score: {comp[\"score\"]:.1f}')
 | `src/player/gpu_optimize.py` | Python interface for GPU optimizer |
 | `src/player/regression_test.py` | 3,478-song parallel regression suite (20 sec) |
 
+### Universal Reverse-Engineering Tools
+| File | Purpose |
+|------|---------|
+| `src/regtrace_to_usf.py` | Register trace → USF (universal path, works for ANY player engine) |
+| `src/code_flow.py` | Control-flow code_end detection (no freq table needed) |
+| `src/freq_reconstruct.py` | Reconstruct freq table from played output |
+| `src/memdiff.py` | Classify static vs dynamic memory via siddump --memdump |
+
 ### Player Reverse-Engineering (sidxray)
 | File | Purpose |
 |------|---------|
 | `src/sidxray/trace.py` | Capture memory traces via `siddump --memtrace` |
-| `src/sidxray/analyze.py` | Autocorrelation, periodicity detection, tempo detection, table identification |
+| `src/sidxray/analyze.py` | Autocorrelation, periodicity, tempo, column classification |
 | `src/sidxray/xray.py` | Data region discovery from memory access patterns |
-| `src/sidxray/gt2_detect.py` | GT2 layout detection from traces |
+| `src/sidxray/gt2_detect.py` | GT2 layout detection from traces (strict + relaxed modes) |
 | `src/sid_data_extractor.py` | Universal SID data table discovery (any player engine) |
 
 ### Future Engine Support
