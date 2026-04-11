@@ -1,0 +1,56 @@
+---
+source_url: multiple
+sources:
+  - https://github.com/cadaver/sidid
+  - https://github.com/WilfredC64/player-id
+fetched_via: direct
+fetch_date: 2026-04-11
+author: Cadaver (Lasse Oorni)
+content_date: unknown
+reliability: primary
+---
+# Rob Hubbard Player Identification Signatures
+# Source: https://github.com/cadaver/sidid (sidid.cfg)
+# and https://github.com/WilfredC64/player-id
+
+# Standard Rob Hubbard player (6 alternative signature patterns, any match = positive)
+Rob_Hubbard
+BD ?? ?? 99 ?? ?? 48 BD ?? ?? 99 ?? ?? 48 BD ?? ?? 48 BD ?? ?? 99 ?? ?? BD ?? ?? 99
+2C ?? ?? 30 ?? 70 ?? B9 ?? ?? 8D 00 D4 B9 ?? ?? 8D 01 D4 98 38
+AE ?? ?? AD ?? ?? 9D ?? ?? FE ?? ?? BC ?? ?? B1 ?? C9 FF D0 ?? A9 ?? 9D ?? ?? FE
+99 04 D4 BD ?? ?? 99 02 D4 48 BD ?? ?? 99 03 D4 48 BD ?? ?? 99 05 D4
+2C ?? ?? 70 ?? FE ?? ?? AD ?? ?? 10 ?? C8 B1 ?? 10 ?? 9D ?? ?? 4C
+0A 0A 0A AA BD ?? ?? 8D ?? ?? BD ?? ?? 2D ?? ?? 99 04 D4
+
+# Signature analysis:
+#
+# Pattern 1: BD ?? ?? 99 ?? ?? 48 BD ?? ?? 99 ?? ?? 48 ...
+#   = LDA abs,X; STA abs,Y; PHA; LDA abs,X; STA abs,Y; PHA ...
+#   This is the instrument data loading sequence — loading pulse, control, ADSR
+#   from instrument table and writing to SID registers
+#
+# Pattern 2: 2C ?? ?? 30 ?? 70 ?? B9 ?? ?? 8D 00 D4 B9 ?? ?? 8D 01 D4 98 38
+#   = BIT abs; BMI; BVS; LDA abs,Y; STA $D400; LDA abs,Y; STA $D401; TYA; SEC
+#   This is the mstatus check + frequency write sequence
+#
+# Pattern 3: AE ?? ?? AD ?? ?? 9D ?? ?? FE ?? ?? BC ?? ?? B1 ?? C9 FF D0 ?? A9 ?? 9D ?? ?? FE
+#   = LDX abs; LDA abs; STA abs,X; INC abs; LDY abs; LDA (zp),Y; CMP #$FF; BNE; LDA #0; STA abs,X; INC
+#   This is the pattern reading + end-of-pattern detection sequence
+#
+# Pattern 4: 99 04 D4 BD ?? ?? 99 02 D4 48 BD ?? ?? 99 03 D4 48 BD ?? ?? 99 05 D4
+#   = STA $D404,Y; LDA abs,X; STA $D402,Y; PHA; LDA abs,X; STA $D403,Y; PHA; LDA abs,X; STA $D405,Y
+#   Control register + pulse width + attack/decay write sequence
+#
+# Pattern 5: 2C ?? ?? 70 ?? FE ?? ?? AD ?? ?? 10 ?? C8 B1 ?? 10 ?? 9D ?? ?? 4C
+#   = BIT abs; BVS; INC abs; LDA abs; BPL; INY; LDA (zp),Y; BPL; STA abs,X; JMP
+#   Note data parsing with instrument/portamento detection
+#
+# Pattern 6: 0A 0A 0A AA BD ?? ?? 8D ?? ?? BD ?? ?? 2D ?? ?? 99 04 D4
+#   = ASL; ASL; ASL; TAX; LDA abs,X; STA abs; LDA abs,X; AND abs; STA $D404,Y
+#   Instrument number * 8, then load control register + apply append flag
+
+# Digital sample playback variant
+Rob_Hubbard_Digi
+4C ?? ?? 28 F0 && 4A 4A 4A 4A 4C ?? ?? 29 0F EE ?? ?? D0 03 EE && 8D 18 D4 AD 0D DD
+# = JMP; PLP; BEQ; &&; LSR*4; JMP; AND #$0F; INC; BNE; INC; &&; STA $D418; LDA $DD0D
+# 4-bit PCM playback via volume register, CIA timer controlled

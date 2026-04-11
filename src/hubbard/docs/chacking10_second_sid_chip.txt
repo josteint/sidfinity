@@ -1,0 +1,204 @@
+---
+source_url: local: data/chacking/chacking10.txt (C=Hacking Issue 10 archive)
+fetched_via: local read
+fetch_date: 2026-04-11
+author: Mark A. Dickenson
+content_date: 1988
+reliability: primary
+---
+========================================================================
+Second SID Chip Installation
+Copyright 1988 Mark A. Dickenson
+
+This information and software is COPYRIGHTED and made available on a 
+SHAREWARE basis.  This file can be freely copied and distributed as long 
+as it is not SOLD.  This information cannot be used to construct and sell a
+hardware device without receiving prior permission from the author. There is
+not a set fee for the use of this information.  Just send in whatever you feel
+the information is worth.
+
+If you have any gripes, complaints, suggestions, COMPLIMENTS or DONATIONS of
+any sort please send them to:
+
+ Mark Dickenson
+ 600 South West Street
+ Nevada, Missouri  64772
+
+Adding an extra SID 6581/6582 chip
+
+This is not a project to be tackled by the sqeamish or people who are deathly
+afraid of opening their computer just to take a peek inside.
+
+Now let's get rid of the nasty stuff first.  No liability is assumed with
+respect to the use of the following information.  In other words if you
+screw-up trying to install this modification, then it's your responsability.
+
+  YOU DO THIS AT YOUR OWN RISK!!!!
+
+If you do not feel up to it PLEASE take it to a Commodore repair center 
+or a repair service that can work on computers and let them do the 
+installation.  I will warn you that most Commodore Repair Centers will not or
+do not like to do this modification.  When they do, it can be expensive. If
+you belong to a Users Group, tell them about the project and ask if there is
+anyone there that could perform the operation.  This modification will NOT
+hurt the computer in any way, unless it is installed WRONG.
+
+You can make your own piggy back board or you can do what I am going to
+describe (since it is a little hard to put a schematic in a text file).
+
+You should ground yourself with a static guard wristband (such as what 
+Radio Shack sells).  Even though the chip is quite durable, just the right
+static discharge can ruin all or part of the SID chip.
+
+For those of you that are not familier with the way pins are numbered on an
+IC chip here is a short explanation.  On one end of the IC you should find a
+little notch, looking at the chip with the notch at the top the numbering goes
+this way.  The upper left corner of the chip is pin 1 and they are numbered
+consecutively, counter-clockwise around the chip. Some chips do not have a
+notch in one end, but instead dot is placed in one of the chip corners to
+designate that pin 1 starts in that location.
+
+            notch
+          ----,,----
+        1-!.       !-8
+        2-! dot    !-7
+        3-!        !-6
+        4-!        !-5
+          ----------
+
+
+I have included the information that is needed to install this modification
+on the Commodore 64, 64C and 128.  I haven't been able to look inside the
+128D, so I cannot provide the information with any accuracy.
+
+There are TWO different 64C circuit boards and both use DIFFERENT SID 
+chips.  You can tell the difference by opening the 64C.  If you see a 64-pin
+chip on the board and the board is only 5.5-6 inches wide then you have the
+narrow board 64C and must use the 9 volt 6582 SID chip.  The number of the
+chip in the 64C narrow is an 8520 and is the same as the 6582.
+
+----------------------------------
+
+Parts Commodore 64, 64C (wide) & 128
+
+1 - 6581 SID chip from Jamco or Kassara Microsystems
+1 - 2N2222 transistor  Radio Shack 276-1617
+2 - 220pf capacitors  Radio Shack 272-124
+
+-----------------------------------
+
+Parts Commodore 64C Narrow Board
+
+1 - 6582 SID Chip  From Jamco or Kassara Microsystems
+1 - 2222A transistor  Radio Shack 276-2009
+2 - .022uf capacitors  Radio Shack 272-1066
+2 - 1k ohm 1/4 watt resistors  Radio Shack 271-1321
+
+-----------------------------------
+
+Parts 64, 64C (all) & 128
+
+2 - 1k ohm 1/4 watt resistors  Radio Shack 271-1321
+1 - 1000 pf capacitor  Radio Shack 272-126 listed as .001 mf this is 
+    the same as 1000pf
+1 - 10k ohm 1/4 watt resistor  Radio Shack 271-1335
+1 - 10 uf electrolitic capacitor  Radio Shack 272-1025
+1 - 5 inch length of wire
+1 - 5 inch length of shielded cable
+1 - surface mount female RCA plug (this is what you normally find on the back
+    of your stereo.
+
+
+On the C-64 and 64C (wide) the SID is IC U18 (the IC number will be marked in
+white on the circuit board).  It is usually located in the middle of the
+circuit board, next to the metal video chip case or up between and just
+below the serial and monitor jacks.
+
+On the C-64C (narrow board) the SID chip is IC U9.  It is located in the
+middle of the board, just a little to the right of center) and called 520.
+
+On the C-128 the SID is IC U5.  It is located at the back of the circuit 
+board just to the right of the metal housing for the 40 and 80 column video
+chips.
+
+First bend out pins 23, 24 and 26 and cut them off of the 6581/6582 SID 
+chip.  These are for the two analog and one audio input lines.  They will
+cause problems if connected and since they will not be used it is best to
+remove them.
+
+Now bend out pins 1, 2, 3, 4, 8, and 27.
+
+Solder one of the 220pf capacitors (64C narrow uses .022 uf) to pins 1 
+and 2 then solder the other 220pf (64C narrow - .022uf) capacitor to pins 3
+and 4.  The capacitors control the upper and lower frequency range and
+filters of the SID chip.
+
+The reason I am using 220pf capacitors is because of problems with the 
+filters in the SID chip.  The C-64 first came out with 2200pf capacitors, but
+they were changed to 470pf.  The reason for this was because the filters of
+the SID vary from chip to chip and using 2200pf caused a lot of them to sound
+muffeled when the filters were on.  I have found that by lowering the
+capacitor value to 220 pf helps even more.  If you wish, you can use 470s if
+you feel it would be better, but DO NOT use 2200pf.
+
+The 6582 SID chip for the 64C narrow must use the .022uf capacitors, as the
+filter range is much different.
+
+Solder one end of your wire to pin 8 of the SID chip.  This is for the chip
+select line.  We will connect this to the cartridge port.  This tells the
+computer where in memory the chip resides (described later).
+
+Now solder the remaining pins (excluding the ones we have bent out 
+and/or removed 1, 2, 3, 4, 8, 23, 24, 26 and 27) to the sid chip currently in
+your computer.  You may have to bend those pins inward just a little for them
+to get a good grip on the SID chip.  Be very careful not leave the soldering
+iron on the chip TOO long as you could ruin BOTH SID chips.  I would put some
+heat sink (silicon grease) between the two chips before soldering them
+together.  This will provide better heat dispersal on the bottom chip.
+
+Now that you have the chips soldered together (place the SID chips back in 
+the socket if you removed them), solder the wire from pin 8 (on the SID chip)
+to pin 7 of the cartridge port on the back of the computer.  Set the computer
+infront of you like to are getting ready to type, with the back of the
+computer away from you.  Look at the cartridge port (located in the upper
+right corner of the circuit board).  You will see two rows of pins connecting
+the cartridge port to the circuit board.  You want the row of pins closest to
+the front of the computer.  Now, count the pins starting at the LEFT side and
+counting to the right.  You want to solder the wire from pin 8 of the extra
+SID chip to pin number 7 of the cartridge port. This is the same place on all
+of the models C-64, 64C and 128.
+
+This will tell the computer that the extra SID chip is at address $DE00 hex
+or 56832 decimal.  You will access it just like you would the regular sid
+chip but starting at this address.
+
+I am no longer describing how to connect for address $DF00.  This 
+address causes problems with the RAM Expansion Units and numerous other 
+cartridges.  From now on address $DE00 is the ONLY address for the SID chip.
+
+Now partially reassemble your computer (be careful that nothing shorts out 
+the pins still sticking out).  Turn the computer on and load the player 
+program provided and tell it to load in 'TEST'.  If you get sound then so far
+ so good.  Turn off the computer and disassemble the case.
+
+Drill a hole in the back end of the computer just large enough to anchor 
+the RCA plug.  Then solder the center wire of the shielded cable to the 
+center post of the RCA plug.  Insert the wire through the hole you have 
+just drilled and anchor the plug to the case.  Now solder the ground wire to 
+the ground tab on the RCA plug.
+
+Here comes the difficult part to explain.  This is the coupling circuit 
+for the audio output.  Here is a rough schematic.
+
+
+Pin 27 on             12volts dc, 
+9volts 64C (narrow)
+SID chip  resistor
+    !--.  10k ohm      !collector
+27!----.--/!/!/--.-----O 2n2222 or 2222A
+--'    !         !     !emitter
+       !         !     !
+       <resistor !     !
+       >1k       !     ! +
+
+===========================================================================

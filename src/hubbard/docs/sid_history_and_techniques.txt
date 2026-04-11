@@ -1,0 +1,140 @@
+---
+source_url: multiple
+sources:
+  - http://www.atlantis-prophecy.org/recollection/?load=articles&id=TheBriefHistoryofSID
+  - https://akaobi.wordpress.com/2013/09/03/introducing-rob-hubbard/
+  - https://www.c64-wiki.com/wiki/Rob_Hubbard
+  - https://www.lemon64.com/forum/viewtopic.php?t=35717
+  - https://www.lemon64.com/forum/viewtopic.php?t=8111
+  - https://www.karsmakers.nl/metal-e-zine/robb.htm
+fetched_via: compiled from multiple sources
+fetch_date: 2026-04-11
+author: unknown
+content_date: unknown
+reliability: secondary
+---
+SID Music History & Techniques — Compilation
+==============================================
+Sources:
+- http://www.atlantis-prophecy.org/recollection/?load=articles&id=TheBriefHistoryofSID
+- https://akaobi.wordpress.com/2013/09/03/introducing-rob-hubbard/ (SID Media Lab)
+- https://www.c64-wiki.com/wiki/Rob_Hubbard
+- https://www.lemon64.com/forum/viewtopic.php?t=35717 (Deconstructing SIDs)
+- https://www.lemon64.com/forum/viewtopic.php?t=8111 (Hubbard Editor thread)
+- https://www.c64.com/interviews/hubbard.html (Karsmakers interview, unreachable)
+- https://www.karsmakers.nl/metal-e-zine/robb.htm (Metal e-zine interview)
+Retrieved: 2026-04-11
+
+HUBBARD'S DATA APPROACH vs GALWAY'S
+=====================================
+From "The Brief History of SID" (Recollection article):
+
+- HUBBARD: Raw values written directly as SID chip requirements, NO intermediate
+  conversion during playback. Data IS the register values.
+- GALWAY: Data read and CONVERTED into appropriate SID values during playback.
+  More abstracted data format.
+
+This is a fundamental architectural difference. Hubbard's approach is faster
+(no conversion overhead) but less flexible. Galway's allows more compact data
+but needs more CPU time.
+
+HUBBARD'S PLAYER EFFICIENCY
+=============================
+"His player was so cleverly coded, that it needs little RAM and raster consumption
+(compared to Galway)."
+
+HUBBARD'S WORKFLOW
+===================
+1. Load previously composed tunes
+2. Swap sound patches
+3. Modify data for new composition
+(Rather than starting from scratch each time)
+
+COMPOSITION METHODS (from C64-Wiki)
+=====================================
+Three ways of working:
+1. Write directly on C64 by poking bytes using machine code monitor
+2. Pen and paper: "musical notations splattered with lots of hexadecimal numbers,
+   which related to the actual pitches and sound patches"
+3. Sit at keyboard and play until ideas come
+
+Used "a little Casio keyboard and score paper."
+
+DRIVER MODIFICATIONS
+=====================
+"Changed his music driver code fairly often to either add or delete some features."
+Optimized "for either space or processor speed" depending on the game's requirements.
+
+CHANNEL MULTIPLEXING
+=====================
+Created illusion of more than 3 channels: "If the lead line has two beats rest,
+put a fill or some effect in there."
+
+VBlank interrupt effects: "warbling chord effects" by exploiting "every VBlank interrupt"
+(= arpeggio at 50Hz)
+
+SAMPLE PLAYBACK VIA VOLUME REGISTER
+=====================================
+Exploited SID flaw: "altering the volume register produced an audible click."
+By altering this register thousands of times per second → crude PCM sample playback.
+Final driver could "play 2 samples plus a SID tune" (never used in released games).
+
+EXAMPLE DATA SEQUENCE
+======================
+From SID Media Lab:
+$87,$01,$0C,$83,$02,$30,$81,$01,$16,$01,$18,$21,$0F,$01,$10,$03,$0A,$81,$02,$30,$81,$01,$16,$03,$0A,$FF
+
+Decoded (classic driver format):
+$87 = 10000111b → bit 7 set (extra byte), length = 7
+$01 = instrument 1
+$0C = pitch C-1
+$83 = 10000011b → bit 7 set, length = 3
+$02 = instrument 2
+$30 = pitch C-4
+... etc.
+$FF = end of pattern
+
+DECONSTRUCTING SID FILES (Lemon64 thread)
+==========================================
+Key points from Lasse Öörni (Cadaver) and others:
+
+1. "SID-files are not a pre-defined music format (like MOD, S3M, XM etc) but instead
+   a program, often a player part and a data part which then generates the music."
+
+2. SID register layout per voice:
+   - Frequency: 16-bit ($d400-$d401, $d407-$d408, $d40e-$d40f)
+   - Pulse width: 12-bit ($d402-$d403, $d409-$d40a, $d410-$d411)
+   - Waveform/Control: 8-bit ($d404, $d40b, $d412)
+   - Attack/Decay: 8-bit ($d405, $d40c, $d413)
+   - Sustain/Release: 8-bit ($d406, $d40d, $d414)
+   Global:
+   - Filter cutoff: 11 bits ($d415-$d416)
+   - Resonance & routing: $d417
+   - Filter type + volume: $d418
+
+3. "The order SID registers are triggered (and how many cycles apart) can be different
+   in various players. (Particularly older ones) Sometimes you can even miss notes."
+
+4. "Reverse register writing (backward sequence) provides more stability than forward
+   sequencing."
+
+ROB HUBBARD EDITOR (Lemon64 thread)
+=====================================
+- An editor existed, built on Hubbard's sound driver (specifically the Zoolook tune)
+- Created by "Huddy and Greeny" for BZPD range
+- "Hubbard himself never used a utility, he'd edit the data directly into the source code"
+- Jeroen Kimmel (Red/Judges) "converted the Commando driver back into source and used
+  that for some of his stuff"
+- The Crazy Comets driver variant was the most widely reused
+- Another editor exists based on the "Ace 2" player (referenced via CSDb)
+- Geir Tjelta released the "Rob Hubbard Editor" in 1989
+
+TOOLS FOR ANALYSIS
+===================
+- siddump: Monitors SID register changes frame-by-frame
+- SIDin magazine: Regular playroutine dissections
+- Hermit SID-hacker: Native C64 tool for channel muting and register inspection
+- SIDdecompiler (GitHub: Galfodo/SIDdecompiler): Originally "HubbardDecompiler"
+  for Prosonix SID tracker. Produces relocatable 6502 assembly from SID files.
+  "Rob Hubbard tunes are slightly better documented than others, with non-generic
+  label names for data of known purpose."

@@ -1,0 +1,77 @@
+---
+source_url: local: /home/jtr/sidfinity/tools/sidid.cfg
+fetched_via: local read
+fetch_date: 2026-04-11
+author: Cadaver (Lasse Oorni)
+content_date: unknown
+reliability: primary
+---
+SIDID Byte Signatures for Rob Hubbard Drivers
+================================================
+Source: /home/jtr/sidfinity/tools/sidid.cfg
+Retrieved: 2026-04-11
+
+These are the byte patterns used by sidid (Cadaver's tool) to identify Rob Hubbard's
+music driver in SID files.
+
+Rob_Hubbard (main signature — 6 patterns, ALL must match)
+==========================================================
+
+Pattern 1 — Register write sequence (ghost registers → SID):
+BD ?? ?? 99 ?? ?? 48 BD ?? ?? 99 ?? ?? 48 BD ?? ?? 48 BD ?? ?? 99 ?? ?? BD ?? ?? 99
+
+Pattern 2 — Status check + frequency write:
+2C ?? ?? 30 ?? 70 ?? B9 ?? ?? 8D 00 D4 B9 ?? ?? 8D 01 D4 98 38
+
+Pattern 3 — Note fetch loop:
+AE ?? ?? AD ?? ?? 9D ?? ?? FE ?? ?? BC ?? ?? B1 ?? C9 FF D0 ?? A9 ?? 9D ?? ?? FE
+
+Pattern 4 — SID register initialization (waveform, pulse, ADSR):
+99 04 D4 BD ?? ?? 99 02 D4 48 BD ?? ?? 99 03 D4 48 BD ?? ?? 99 05 D4
+
+Pattern 5 — Instrument/effect processing:
+2C ?? ?? 70 ?? FE ?? ?? AD ?? ?? 10 ?? C8 B1 ?? 10 ?? 9D ?? ?? 4C
+
+Pattern 6 — Instrument table lookup:
+0A 0A 0A AA BD ?? ?? 8D ?? ?? BD ?? ?? 2D ?? ?? 99 04 D4
+
+Analysis of Pattern 6: "0A 0A 0A" = ASL A × 3 = multiply instrument number by 8.
+This CONFIRMS the 8-byte instrument format — instrument_number << 3 gives byte offset.
+
+(Rob_Hubbard_Digi) — PCM sample playback variant
+==================================================
+4C ?? ?? 28 F0 AND 4A 4A 4A 4A 4C ?? ?? 29 0F EE ?? ?? D0 03 EE AND 8D 18 D4 AD 0D DD
+
+Analysis: "4A 4A 4A 4A" = LSR A × 4 = shift high nybble to low nybble.
+"29 0F" = AND #$0F = mask to 4 bits.
+"8D 18 D4" = STA $D418 = write to SID volume register.
+This is the 4-bit PCM playback via volume register technique.
+
+(Giulio_Zicchi) — Zicchi variant of Hubbard driver
+====================================================
+CA 30 03 4C ?? ?? 60 A2 00 8E ?? ?? E8 8E ?? ?? 60 A0 00
+
+(Bjerregaard) — Bjerregaard variant of Hubbard driver
+=======================================================
+99 03 D4 AE ?? ?? 9D ?? ?? 68 9D ?? ?? A9 01 9D
+
+Paradroid/HubbardEd — Editor-based variant
+============================================
+B1 FC 10 1B C9 FF F0 12 C9 FE F0 0A
+
+Analysis: "(B1 FC)" = LDA ($FC),Y = indirect indexed load from pointer at $FC/$FD.
+"C9 FF" = CMP #$FF = check for end-of-pattern marker.
+"C9 FE" = CMP #$FE = check for "play once" marker.
+This matches the classic driver's pattern terminator format exactly.
+
+IMPLICATIONS FOR HUBBARD PLAYER SUPPORT
+=========================================
+1. sidid identifies ONE main Hubbard player signature (classic driver)
+   plus a digi variant and two derivative variants (Zicchi, Bjerregaard)
+2. The "new driver" (1986+) is NOT separately identified — it may share
+   enough code with the classic driver to match the same signatures,
+   OR it may not be in sidid's database
+3. To determine how many HVSC SIDs match each variant:
+   Run: python3 src/sidid.py on all HVSC Hubbard SIDs
+4. The 8-byte instrument format is confirmed by the ASL A × 3 pattern
+5. The $FF/$FE pattern terminators are confirmed by the HubbardEd signature

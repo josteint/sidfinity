@@ -1,0 +1,54 @@
+---
+source_url: http://www.sidmusic.org/sid/rhubbard.html
+fetched_via: wayback 2024-07-04
+fetch_date: 2026-04-11
+author: Rob Hubbard
+content_date: 1986
+reliability: primary
+---
+SOURCE: http://www.sidmusic.org/sid/rhubbard.html
+ARCHIVED: https://web.archive.org/web/20240704042126/http://sidmusic.org/sid/rhubbard.html
+FETCHED: 2026-04-11
+
+Interviews with Rob Hubbard (sidmusic.org)
+Includes: Commodore Zone interview (Waz and Kenz), and Happy Computer issue 7/86 interview.
+
+=== COMMODORE ZONE INTERVIEW (circa 1997-1998) ===
+
+--- TECHNICAL CONTENT ---
+
+Kenz: How did you go about composing your C64 tunes? Did you have a music editor
+that you used, as there were often rumours you used one you made yourself?
+Rob: No, I just used to an assembler and edit the source code - most
+people in those days did the same. There really wasn't time to
+sit and write an editor, as there was so much work to do.
+
+Kenz: Are there any unusual stories behind any of your C64 tunes?
+Rob: Thing On A Spring was actually something I wrote to test my first driver.
+
+Waz: The music from "I-Ball" was inspired by Cabaret Voltaire...
+Rob: Looking back I don't think the tune really worked very well, and some of
+what I was trying to do was pushing the driver too much.
+
+Kenz: Why were all those music jingles hidden in "Delta"? Was the idea to play a
+jingle when you originally collected a power-up?
+Rob: These are all small clips from Sanxion and Romeo/Juliet music.
+They were all supposed to be for short stingers such as end of level,
+extra life etc....
+
+=== HAPPY COMPUTER ISSUE 7/86 INTERVIEW (1986) ===
+
+--- TECHNICAL CONTENT ---
+
+Happy: How long does it take you to create a song?
+Rob: Normally it takes about two weeks to compose and arrange. In some special
+cases where I had to do it faster, I managed to do one in two days. That's how
+"Commando", "Zoids" and "One Man and his Droid" were created.
+
+Happy: Do you use programs like "Music Studio"?
+Rob: No. I do my music in pure machine code using an assembler. I tested those
+programs, but their possibilities are limited. "Electrosound" is the only one
+that I like.
+
+NOTE: "Electrosound" is the only third-party music program Hubbard found useful.
+All composition was done directly in machine code / assembler.

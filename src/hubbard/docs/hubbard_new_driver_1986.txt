@@ -1,0 +1,89 @@
+---
+source_url: "multiple"
+fetched_via: "compiled from multiple sources"
+fetch_date: 2026-04-11
+author: "compiled locally (no single author); individual citations in document body"
+content_date: "1986-1987 (events described); compiled 2026-04-11"
+reliability: secondary
+---
+Rob Hubbard "New Driver" (1986-1987) — What We Know
+=====================================================
+Sources: Multiple (see individual citations)
+Retrieved: 2026-04-11
+
+TIMELINE
+========
+- April 1986: New driver programmed
+- September 1987: First public release in W.A.R.
+- The "classic" driver's last use: Hollywood or Bust (early 1986)
+
+GAMES USING THE NEW DRIVER
+============================
+W.A.R., Sanxion, Delta, Ace 2, Flash Gordon, Knuckle Busters, Light Force,
+Dragon's Lair II, and all subsequent Hubbard C64 tunes through 1988.
+
+KNOWN NEW FEATURES (vs classic driver)
+========================================
+
+1. TABLE-BASED DRUMS (March 1987)
+   - Previously only Mark Cooksey and Martin Galway used table-driven drums
+   - Allows arbitrary waveform/pitch/ADSR sequences per drum sound
+   - Much more flexible than the classic driver's hardcoded drum effect
+
+2. TABLE-BASED PWM (July 1987)
+   - Table-driven pulse width modulation
+   - Allows arbitrary pulse width sequences per frame
+   - More complex sweep patterns than the classic 50%-88% oscillation
+
+3. FILTER SUPPORT
+   - The classic driver had NO filter support
+   - The new driver adds filter cutoff, resonance, and type control
+   - Sanxion loading theme was "something that simply couldn't have been done
+     in the old driver" — heavily relies on filter sweeps
+
+4. 4-BIT PCM PLAYBACK (late 1987)
+   - Unsigned 4-bit PCM samples via volume register
+   - "The first to loop in the middle" (samples could loop from an arbitrary point)
+   - Inspired by Mega Apocalypse
+   - Took only 1.5 hours to implement
+   - Used the SID volume register ($d418) flaw for playback
+
+5. CUSTOM CODE PATHS
+   - Delta "required custom code to the driver, taking 2 weeks to debug"
+   - Based on minimalist composition (Philip Glass/Koyaanisqatsi influence)
+   - Short riffs and phrases requiring special driver to avoid desync
+
+WHAT WE DON'T KNOW (gaps for reverse engineering)
+===================================================
+- Exact byte format of the new driver's instrument tables
+- Table structure for drums and PWM
+- Whether the pattern format changed from the classic driver
+- Filter control data format
+- How many bytes per instrument in the new format
+- Sequence/track data format differences
+- PCM sample data format and memory layout
+- Whether the code is still ~1000 bytes or grew significantly
+
+APPROACH FOR REVERSE ENGINEERING THE NEW DRIVER
+=================================================
+Best candidates for analysis (well-known, likely well-preserved):
+1. Sanxion (heavy filter use, new PWM — showcases new features)
+2. Delta (custom code path — complex but informative)
+3. International Karate+ (if it uses the new driver)
+4. Ace 2 (an editor was built on this driver variant)
+
+Tools:
+- SIDdecompiler (Galfodo/SIDdecompiler) — originally built FOR Hubbard tunes
+- siddump --writelog — cycle-accurate register trace
+- sidxray — our own reverse engineering toolkit
+- py65 step-debug — 6502 instruction tracing
+
+The SIDdecompiler would be the fastest path: feed it a Sanxion or Delta SID file
+and get labeled assembly output with known data structures identified.
+
+SIDID IDENTIFICATION
+=====================
+The sidid tool (by Cadaver) and player-id (by Wilfred Bos) can identify Hubbard
+driver variants. The sidid.cfg signature file contains byte patterns for different
+Hubbard driver versions. Checking our local tools/sidid installation for Hubbard
+signatures would reveal how many distinct driver variants exist in HVSC.

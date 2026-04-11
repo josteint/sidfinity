@@ -1,0 +1,222 @@
+---
+source_url: https://cadaver.github.io/rants/music.html
+fetched_via: direct
+fetch_date: 2026-04-11
+author: Lasse Öörni (Cadaver)
+content_date: unknown (cadaver.github.io, undated)
+reliability: primary
+---
+Cadaver's "Building a musicroutine" Essay
+=========================================
+Source: https://cadaver.github.io/rants/music.html
+Author: Lasse Öörni (Cadaver) — author of GoatTracker and sidid
+Retrieved: 2026-04-11
+
+COMPLETE TECHNICAL CONTENT
+==========================
+
+0. Why program an own musicroutine?
+------------------------------------
+Two motivations: (1) unique challenge requiring balance between features, memory use,
+and speed; (2) a self-written routine contains exactly the desired features, reflecting
+the programmer's optimization skills.
+
+1. The building blocks of a musicroutine
+-----------------------------------------
+Basic requirements: read note data, set notes to play, wait before next note.
+
+Advanced routines require:
+- Sequence data: pattern numbers per voice, transposition commands, repeat commands
+- Pattern data: notes, duration commands, instrument changes, additional effects
+- Per-voice control: ADSR envelopes, pulsewidth modulation, vibrato, sliding,
+  waveforms, arpeggios, hard restart, note tying
+- Filter control: cutoff, resonance, type, affected voices
+- Sound effect support with music interruption and continuation
+
+1.1. Timing, execution flow, and "ghost registers"
+----------------------------------------------------
+Music routines are frame-based, called 50 times/second on PAL. A note duration counter
+decrements each frame; when zero, the next note is fetched. Processing loops through
+three voices using index registers to avoid code duplication.
+
+KEY QUOTE: "SID registers are write-only. Therefore you need to have your own way of
+storing for example the voice frequency to be able to change it smoothly from frame to
+frame."
+
+Ghost registers store SID register values in RAM and are written to the SID at routine
+completion, producing optimal sound quality.
+
+1.2. The frequency of notes
+-----------------------------
+Frequency tables can be found in reference guides or calculated. Storing all note
+frequencies across octaves in a lookup table is recommended as fastest.
+
+KEY INSIGHT (Rob Hubbard reference): Frequency slides and vibrato appear slower in
+higher octaves since multiplication by 2 raises pitch one octave.
+
+ROB HUBBARD'S TECHNIQUE: "Taking a note's frequency and subtracting it from the
+neighbour note's (one halfstep lower) frequency and using this value as the basis for
+vibrato & slide speed. Smaller speeds achieved by bit-shifting."
+
+This is LOGARITHMIC vibrato — the vibrato depth scales with the note's frequency,
+making it sound perceptually uniform across octaves.
+
+2. Features & effects
+======================
+
+2.1 ADSR
+---------
+ADSR values from instrument data apply when notes play. Advanced routines may modify
+sustain/release register during note playback via pattern commands.
+
+2.2 Pulsewidth and pulsewidth modulation
+-----------------------------------------
+New notes initialize pulsewidth from instrument data.
+
+Modulation parameters:
+- Initial pulsewidth
+- Modulation speed
+- Pulsewidth limit low and high
+
+Advanced routines: table-based pulsewidth control with commands for adding/subtracting
+values or setting absolute values across frames.
+
+2.3 Vibrato
+-------------
+Parameters required:
+- Delay before starting
+- Speed (frequency change per frame)
+- Width (frames before direction change)
+
+Table-based implementation enables greater flexibility.
+
+CRITICAL DETAIL: "When vibrato starts, the first part of pitch going up must only be
+half as long as the rest, to make the frequency go up & down around the correct
+frequency of the note."
+
+This means the vibrato waveform is: half-up, full-down, full-up, full-down...
+rather than: full-up, full-down, full-up...
+This prevents the average pitch from drifting sharp.
+
+2.4 Slides
+-----------
+Pattern commands requiring:
+- Speed (frequency change direction and amount per frame)
+- Duration
+
+Variations include toneportamento (automatic stopping at target note).
+Duration can be determined by note length or treated as independent.
+
+2.5 Waveforms and arpeggios
+-----------------------------
+Instrument properties using tables with byte pairs:
+- Waveform register value
+- Note number (relative for arpeggios, absolute for drum sounds)
+
+Tables include jump commands and end commands.
+Pattern commands can change arpeggio table locations for different chords
+without separate instruments. Waveform value 0 = no change.
+
+2.6 Hard restart
+-----------------
+
+2.6.1 Old method (Rob Hubbard style)
+Works reliably on BOTH PAL and NTSC.
+
+Implementation:
+1. Clear waveform register's gate bit AND set ADSR to 0 a couple frames before note end
+   (e.g., when duration counter reaches 2)
+2. On new note start, write registers in order: Waveform → Attack/Decay → Sustain/Release
+3. This ensures sharpest attack
+
+2.6.2 Modern "testbit" method
+Works reliably on PAL ONLY.
+
+Implementation:
+1. Two or more frames before the next note:
+   - Set ADSR to preset values ($0000, $0f00, or $f800)
+   - Clear the gate bit
+2. On FIRST frame of new note:
+   - Write Attack/Decay and Sustain/Release values first
+   - Write $09 to Waveform register (testbit + gate)
+3. On SECOND frame:
+   - Load actual waveform value
+
+Rule: Attack/Decay and Sustain/Release must ALWAYS be written before Waveform.
+
+2.7 Tied notes
+---------------
+Change frequency without resetting gate bit, performing hard restart, or resetting
+pulsewidth. GoatTracker implements this as infinitely fast toneportamento.
+
+2.8 Filter and filter modulation
+---------------------------------
+Table-based implementation: commands like "add M to cutoff frequency for N frames."
+Either one voice controls filter at a time (via pattern command), or filter operation
+is separate from instruments, controlled only by pattern data.
+
+2.9 Sound effects
+------------------
+Two approaches:
+1. Dedicated voice for sound effects (effects = special patterns)
+2. Sound effects interrupt musical notes; music continues underneath by reading enough
+   data to maintain timing/sequencer position while skipping SID writes and effects.
+   After effect completion, music channel resets (zero waveform, stop wavetable).
+
+3. Data representation in memory
+=================================
+
+3.1 Sequence data
+------------------
+Eight-bit encoding:
+- $00-$7f: pattern numbers
+- $80-$bf: transpose command
+- $c0-$fe: repeat command
+- $ff: jump command (followed by jump position byte)
+
+3.2 Pattern data
+-----------------
+ROB HUBBARD'S APPROACH: Uses bits indicating whether additional bytes (instrument
+number, special commands) follow the note.
+
+SadoTracker byte-range encoding:
+- $00-$5f: Note numbers
+- $60-$bf: Note duration commands
+- $c0-$df: Instrument change commands
+- $e0-$ef: Arpeggio change commands
+- $f0-$fe: Other commands (tie-notes, etc.)
+- $ff: End of pattern
+
+GoatTracker format:
+- $00-$5d: Note numbers with command/data bytes
+- $5e: Keyoff (gate bit reset)
+- $5f: Rest
+- $60-$bd: Note numbers without command/data bytes
+- $be: Keyoff
+- $bf: Rest
+- $c0-$fe: Long rest ($fe = 2 rows, $fd = 3 rows, etc.)
+- $ff: End of pattern
+
+3.3 Instrument data
+--------------------
+Storage format should optimize usage speed. Memory-efficient approach: store pulsewidth
+as 8 bits with reversed nybbles, allowing single register initialization to set both
+high and low bytes simultaneously.
+
+4. Optimizing
+==============
+- Split note initialization across multiple frames (handle pattern transitions beforehand)
+- Avoid subroutine use (JSR/RTS overhead)
+- Optimize effect code maximally (multiple effects accumulate time)
+- Disable certain code during time-consuming operations:
+  skip vibrato and pulse modulation during new note fetch
+  (accept slight sound quality reduction)
+
+5. Resources
+=============
+- GoatTracker (player1.s - player2.s: many features, sound effect support in player2.s)
+- GoatTracker 2 (player1.s - player3b.s: more features, similar rastertime)
+- NinjaTracker (minimalistic, fast, wavetable-centered)
+- NinjaTracker 2 (slightly more feature-rich)
+- MiniPlayer (GitHub: cadaver/miniplayer, minimal/fast, no dedicated editor)
+- SIDin online magazine (regular playroutine dissections)

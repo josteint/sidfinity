@@ -1,0 +1,353 @@
+---
+source_url: http://www.ffd2.com/fridge/chacking/
+fetched_via: local read
+fetch_date: 2026-04-11
+author: Stephen Judd (sjudd@ffd2.com); Levente Harsfalvi; Michael Mahon (Apple II contributor)
+content_date: unknown (C=Hacking Issue 21, late 1990s)
+reliability: primary
+---
+................................ Side Hacking ................................
+
+
+Pulse Width Modulation, continued
+--------------------------------- from various
+
+The digi article in issue #20 of C=Hacking left a few loose ends, and
+generated some followups.
+
+First, Otto Jarvinen (sounddemon) emailed to say that the SID detection
+routine occasionally reported incorrect results for him, and suggested that
+a workaround was to do the detect several times.  YMMV!
+
+Second, a day or two after issue #20 was released, Levente discovered a
+brilliant way to play 6-bit PWM digis on a stock machine:
+
+--
+I couldn't resist, and tried something out (see attachment). It works!!! :-)
+
+In fact, when I wrote the last letter I didn't know that I found something
+useable, just had some ideas - I felt that I'm at the right place. When I read
+C=H 20 this morning and read your comment about the Test bit (from the PRG), I
+knew that it must work. All I had to do is then to put this idea into code.
+
+The whole idea is about starting the pulse by software, and then having the
+SID turn it back to 0 after a time.
+
+Is it possible? ...The keys are the Test bit (the SID wave counter can be
+reseted anytime), the pulse width register, the wave counter and the SIDs way
+of generating pulse wave. (Ie. the pulse wave is high, as long as the wave
+counter is less than the value in the pulse width register).
+
+
+Check this algorithm:
+
+- Init: volume at max, voice 1 sustain level max, start attack. Freq is
+selected well (=$4000), so the wave counter is incremented by 4 every
+processor clock cycles.
+
+Loop:
+- load next sample value, and put it to the pulse width low register ($d402;
+ensure that $d403 is 0).
+- Set test bit, and clear test bit (counter reset).
+- Increase sample pointer, some delay, then loop. The delay must be 64 clock
+cycles + the time while the Test bit is kept set (4 cycles if using STA $d404
+: STX $d404 immediately with pre-loaded values).
+
+What will happen? The 8-bit sample value is put directly to the pulse width
+register (MSBs of the pulse width register are cleared!...). The wave counter
+is started (release test bit), and it increases 4 by every CPU cycles (=
+counts 256 in 64 cycles). After some time, the counter will reach the value in
+the pulse width register. This happens in exactly after (8-bit sample value /
+4) cycles, because of the above. In this cycle (or the next?...) the SID turns
+its pulse output to 0. Voil�!
+
+One must just make sure that the loop length in cycles matches the above
+conditions, and then it runs like hell... Since it does exactly the same on
+the SID as the other (bit-banging) way, it just does it with some hardware
+help, there's also no problem with the 4khz maximum barrier (since the
+oscillator is reset every loop).
+
+With little enhancement, it's possible to write an about 7.5 bits player for a
+stock C64 by this method. This is what you find in the attachment... The idea
+is using all the 3 channels simultaneously. A slightly increased sample value
+is written to the three pulse width registers, so the oscillators will finish
+the duty cycle one processor cycle later, when there's a carry between
+bits(0,1) to the MSBs.
+
+The replay freq is the CPU clk / 68 (~15khz). 64 cycles (variable duty cycle)
++ 4 cycles (constant duty cycle because of the reset time - no problems with
+that, it doesn't change (just gives a small constant DC...)).
+
+By similar methods, it should be possible to write a sample player with higher
+PWM freq (with less resolution of course, but eliminating this still audible
+whistling).
+
+(I tried using the filter to reduce it, but it sounded so bad that I left it
+out. It clicked like hell. The FETs got saturated.)
+
+[Richard Atkinson suggested turning down the sustain volumes to avoid this]
+
+See the attachment, and the binary. I think the sample sounds pretty good :-).
+(The cut is from 'Greece 2000' by Three drives on a vinyl).
+
+(Another idea that popped up in my mind: since the TED sound generator can
+also be reset, I could probably translate this idea to the Plus/4 :-O ).
+
+Best regards,
+
+Levente
+
+--
+
+The binary is available at http://www.ffd2.com/fridge/chacking/ towards the
+bottom of the page.
+
+Third, I received a very interesting email from an Apple-II guy, which I'd
+like to pass on:
+
+--
+
+Hi!
+
+I found your page as I was searching for something else 6502-related,
+and was very interested.  Although I have always been aware of the
+C64, I have never really been a user--I have used Apple II's since 1980.
+
+I was particularly interested in the article on playing "digis" on the
+C64.  I became interested in playing digitized sounds on the Apple II
+in 1993, after hearing a 3-bit, 11.025 KHz PWM player.  At 3 bits, you
+can imagine how noisy speech samples were, but the overall effect
+for a 1 MHz machine with a 1-bit speaker "toggle" was amazing.  It
+made me wonder how far this PWM technique could be pushed on a
+stock, 1 MHz Apple II (not the somewhat faster, 65816-based IIgs).
+
+The short answer is, much farther than I expected!  Robin and Stephen
+accurately describe the theoretical PWM limit as 6 bit samples at
+about 16 KHz for a stock 1 MHz machine, but, as they point out,
+that is not practically realizable for a number of reasons, unless the
+play loop is completely unrolled!
+
+Furthermore, in the Apple II world, sampled sounds have acquired a
+few standardized sampling rates--mostly as a result of Mac influence,
+which was in turn influenced by CD's.  The most common rate in the
+Apple II world is 11.025 KHz, or one-fourth of the audio CD sampling
+rate.  This is commonly considered to be "AM radio quality", with a
+Nyquist bandwidth of about 5.5 KHz and a practical bandwidth of
+4+ KHz, given practical anti-aliasing filters (at the sampling end, not
+the playback end).
+
+A frequency of 11.025 KHz is, though high, still painfully audible to
+people whose ears are not zonked--a piercing "squeal" running
+through every sound.  So even though it is possible to write a
+practical 6-bit 11.025 KHz PWM player (usually called a SoftDAC
+in the Apple II world), the resulting listening experience is disappointing.
+
+So I went to work on a way to do 2x oversampling, and built a 5-bit
+22.050 KHz PWM player.  It was sad to lose a bit, but the absence
+of any audible "carrier" more than compensated for it!
+
+If you have access to an 8-bit Apple II (preferably with lower case,
+like a //e), and also preferably with a way of attaching an external
+speaker or headphones in place of the miserable 2.75" internal
+speaker, then you can easily give it a try and judge for yourself.
+
+I'm pretty proud of the novel design of the code, which I would
+characterize as "vectored" unrolled loops, one for every two
+pulse duty cycles, which I wrote a BASIC program to write
+for me--much less painful for counting cycles!
+
+The package is available on the web at:
+
+http://members.aol.com/MJMahon/index.html
+
+and is called <A HREF="http://members.aol.com/MJMahon/sound22.shk">Sound Editor v2.2</A>, since I had to "dress up" the player
+into something fun to play with.  ;-)  An earlier version of Sound Editor
+was published on SoftDisk in 1994, IIRC, but this one is a little more
+evolved.  It also introduced 2:1 ADPCM compression of 8-bit sampled
+sounds, to save disk space.  It is a lossy compression, but not very
+noticeably.  The editor package also includes those routines, in 6502
+assembly code.
+
+All of this should be trivially adaptable to the stock, 1 MHz C64, with
+very good results.  By using the filters, you could probably filter out
+the 11.025 KHz carrier and return to 6-bit accuracy!
+
+I should note that in the Apple world, sampled sounds are usually
+represented as "excess-128" codes, which means that the sign bit
+is inverted.  This actually simplifies things, since the sample value
+is within a few shifts of being the pulse width in cycles.
+
+Let me know what you think!
+
+-michael
+
+--
+
+(Always great to hear from Atari and Apple ][ folks!)
+
+And finally, I have a little mathematical analysis of PWM and how it compares
+to a "straight" digi.  Basically, I found some of the PWM explanations a
+little unconvincing in issue #20 (even though I wrote them!).  For example,
+the idea of "average voltage" seems a little funny, since every two samples
+has an "average voltage", as does every four, etc. but that set of average
+voltages would give a different sounding signal than the original (or
+more dramatically, there is an average voltage over a full second of digi
+playback, but that's not what you hear!).  So I wanted to know how a
+PWM signal _really_ compares to a straight digi playback.
+
+Another issue is changing the amplitude of a PWM digi, i.e. using two
+pulse waveforms, with one 1/16 the value of the other, to get higher
+resolution.  If you recall the discussion of digis, the resolution of a PWM
+digi depends on the number of pulse widths available, not the amplitude.
+Adding two PWM waveforms together does not change the number of pulse widths
+available, so I wanted to figure out what changing the amplitude _really_
+does to a PWM digi, and if it can really be exploited.
+
+And finally, I wanted to know about the carrier wave (that is so piercing
+at lower playback frequencies) -- and once again, how it compares with a
+standard digi (which, after all, is stair-stepping the voltages at the
+playback rate).
+
+Since the rest of this article is some Fourier analysis that 99% of people
+will have zero interest in, I'll put the conclusions here.  The first is:
+PWM digis and standard digis are essentially identical except at higher
+frequencies (except for a phase shift, which doesn't make any difference to
+your ear).  The second is: changing the amplitude of a PWM changes the 
+resolution.  More specifically, the amplitude of the pulse multiplies the
+digi sample value.  If two pulses can be synced close enough, it should
+indeed be possible to use two pulses to get a higher resolution.  Moreover,
+by modulating the amplitude of a single PWM digi, using the $d418 volume
+register -- that is, using PWM _and_ $d418 -- it should be possible to get a
+higher dynamic range, something that should be a little more achievable using
+SID (but maybe not that useful, so I didn't try it out).  And finally, a
+standard digi has zero amplitude at the carrier frequency.
+
+In other words, after a lot of effort I was able to demonstrate what everyone
+already knows.
+
+The analysis doesn't change anything from the previous articles (except
+possibly the idea for changing the PWM amplitude to get more dynamic range).
+
+And now, some Fourier analysis.  A standard digi just sets the voltage to
+the sample value s_j, for a length of time dt (dt = 1/sample rate).  The
+Fourier transform of a single sample s_j (occuring at time t_j) is
+
+
+		s_j [e^(-iw dt) - 1] * [e^(-iw t_j) / -iw]
+		 
+
+where w = angular frequency.  Since the above is a little hard to read, I'll
+say it in words.  The first term is the sample value s_j, which scales
+amplitudes at all frequencies.  The second term is due to the finite length
+of the pulse (evaluating the Fourier integral at the boundaries), and
+basically changes the phase of the transform.  The third term is like
+sin(w)/w -- a sinusoid with decreasing amplitude as frequency increases.
+So: the transform goes like sin(w)/w times the sample value, with some phase
+effects thrown in (we'll get back to these in a moment).
+
+A PWM digi sets the duty cycle of a pulse to the sample value s_j, giving
+a Fourier transform of
+
+		[e^(-iw s_j dt) - 1] * [e^(-iw t_j) / -iw]
+
+Compare this with the earlier expression, and you'll see that the sample
+value s_j has moved up in to the exponent of the "phase term" but that
+they're otherwise the same.
+
+The first thing to do is to show that both expressions, PWM and standard,
+reduce to the same thing -- that is, that a PWM and a standard digi sound
+the same!  The expressions both decrease as 1/frequency, due to the
+sin(w)/w term.  This means that at large frequencies the values become
+negligible.  (How large?  For example, if the sample frequency is just 1KHz,
+then sin(w)/w is .001 times smaller near w=1KHz (i.e. the sample frequency,
+which is twice the Nyquist limit) than it is near w=0).
+
+So now consider the phase terms for small w.  The Taylor expansion for e^x is
+
+	1 + x + x^2/2 + ...
+
+We can therefore expand the "phase terms" as
+
+	regular: e^(-iw dt) - 1 = (1 - iw*dt + w^2 dt^2/2 + ...) - 1
+				= -iw*dt + O(w^2 dt^2)
+
+	pwm: e^(-iw s_j dt) - 1 = -iw*s_j*dt + O(w^2 dt^2)
+
+where O(w^2 dt^2) is considered very small since w and dt are both small.
+Substituting the above into the original expressions gives
+
+	s_j*iw*dt [e^(-iw t_j) / iw]
+
+in both cases.  That is, we have shown that for "small" frequencies -- more
+specifically, for frequencies where (w^2*dt^2) is much smaller than (w*dt),
+which is where w*dt<1, which is frequencies less than the sample frequency,
+which is all frequencies of interest! -- PWM and standard digis are the same.
+
+The explanation lies in the phase terms.  Those "phase terms"
+
+	 [e^(iw dt) - 1]  (regular)
+
+and
+
+	 [e^(iw s_j dt) - 1]  (PWM)
+
+do more than just change the phase.  When they multiply the sin(w)/w signal,
+they take the sin(w)/w signal, change the phase, and then subtract the
+sin(w)/w signal again.  It's this difference of signals that makes things
+work out at the frequencies we care about.  PWM and standard digis are _not_
+the same, but the main differences are at higher frequencies, where the
+amplitudes are in general much smaller.
+
+But... but... what about the PWM carrier frequency?  If we take a constant
+digi, say with sample values = 1/2, the standard digi gives a constant
+voltage, whereas a PWM digi gives a square wave at the sample frequency.
+The answer comes from the "phase terms" above.  The sample frequency is
+
+	w = 2*pi/dt.
+
+Substituting this into the phase terms gives
+
+	[e^(i*2*pi) - 1]	(regular)
+
+and
+
+	[e^(i s_j 2*pi) - 1]	(PWM)
+
+The regular expression is exactly zero -- there is _nothing_ at the
+sample frequency of a regular digi.  But that's not the case for the PWM
+term, because of the s_j up in the exponent.  PWM digis have a _finite_
+amplitude at the carrier frequency.  Note that because of the sin(w)/w
+term it gets smaller as the sample frequency increases -- but it isn't zero.
+
+Finally, the phase term expansions give some insight into what happens
+when both the pulse width _and_ height are varied.  If the pulse width
+is s_j, and the height is set to h_j, then the Fourier transform becomes
+
+	h_j*s_j *iw*dt [e^(-iw t_j) / iw]
+
+That is, the amplitude multiples the width.  For the case of adding two
+PWM waves together, then, the amplitude really does effectively scale the
+sample value, and it should be possible to add one PWM value at 1/16 the
+amplitude of another to get an effective 8-bit value.
+
+What about _varying_ the amplitude of a single PWM sequence?  For a 6-bit PWM
+digi, say, the sample values s_j can go from 0 to 63.  If this is then
+multiplied by h_j=2 say, then the values become 0 2 4 ... 126 -- a 7-bit
+number where the lowest bit is always 0.  What use is that?  Well, we still
+have the h_j=1 values of 0..63, which do include the lowest bit.  So we
+can effectively change the dynamic range from 0..63 to 0..126 using just two
+amplitude values.
+
+As a practical matter, then, it might be possible to use all 15 $d018 values
+available to get a big dynamic range, and hence a better sounding digi,
+using fewer CPU cycles.  Well, ok, we're only _sort of_ changing the dynamic
+range, so I pretty much doubt the usefulness of it.  But maybe someone out
+there would like to give it a shot.
+
+All right, let's hope this closes the book on pulse width modulation for
+digi playback!
+.......
+....
+..
+.                                    C=H 20
+

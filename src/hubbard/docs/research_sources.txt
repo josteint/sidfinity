@@ -1,0 +1,112 @@
+---
+source_url: "local: src/hubbard/docs/research_sources.txt"
+fetched_via: "local read"
+fetch_date: 2026-04-11
+author: "local: compiled research index"
+content_date: "2026-04-11"
+reliability: "tertiary"
+---
+Rob Hubbard Driver Research — Source Index
+============================================
+Compiled: 2026-04-11
+
+FETCHED AND DOCUMENTED
+=======================
+
+1. Cadaver's Music Programming Essay
+   URL: https://cadaver.github.io/rants/music.html
+   File: cadaver_music_essay.txt
+   Content: Complete technical essay on building a C64 music routine. Key details
+   about hard restart (old vs testbit method), logarithmic vibrato (Hubbard's
+   technique), pulse width modulation, waveform/arpeggio tables, pattern formats
+   (Hubbard, SadoTracker, GoatTracker), sequence data, optimization strategies.
+
+2. VGMPF Wiki — Rob Hubbard (C64 Driver)
+   URL: https://www.vgmpf.com/Wiki/index.php?title=Rob_Hubbard_(C64_Driver)
+   File: vgmpf_hubbard_driver.txt
+   Content: Driver evolution timeline from 1984-1987. Feature additions per game.
+   Table-based drums/PWM dates. 4-bit PCM info. Composers who used the driver.
+
+3. C64Audio.com "Master of Magic" Blog
+   URL: https://c64audio.com/blogs/rob-hubbard-master-of-magic
+   File: c64audio_master_of_magic.txt
+   Content: Four blog posts — primarily historical/biographical. Key technical
+   insight: classic driver ended with Hollywood or Bust, new driver from April 1986.
+   NOTE: The actual book contains 6502 assembly driver excerpts not available online.
+
+4. Classic Driver Format (Monty on the Run disassembly)
+   URL: https://www.1xn.org/text/C64/rob_hubbards_music.txt
+   Also: https://codebase64.org/doku.php?id=magazines:chacking5 (C=Hacking #5)
+   File: hubbard_classic_driver_format.txt
+   Content: MOST VALUABLE SOURCE. Complete byte-level format: 8-byte instruments,
+   variable-length pattern encoding, track/sequence hierarchy, vibrato algorithm,
+   portamento, drum implementation, gate management, pulse width, execution flow.
+
+5. SID History and Community Knowledge
+   URLs: Multiple (atlantis-prophecy.org, akaobi.wordpress.com, c64-wiki.com,
+          lemon64.com forums, chipmusic.org)
+   File: sid_history_and_techniques.txt
+   Content: Hubbard's data approach (raw SID values vs Galway's conversion),
+   player efficiency, composition workflow, channel multiplexing, sample playback,
+   community editor development, analysis tools.
+
+6. New Driver (1986-1987) — Known Facts
+   File: hubbard_new_driver_1986.txt
+   Content: What we know about the post-classic driver: table-based drums/PWM,
+   filter support, PCM playback, Delta's custom code path. Gaps identified for
+   reverse engineering. Recommended analysis approach.
+
+7. SIDID Signatures
+   File: sidid_hubbard_signatures.txt
+   Content: Exact byte patterns from tools/sidid.cfg for identifying Hubbard
+   drivers. Analysis of each pattern. Confirms 8-byte instrument format and
+   $FF/$FE pattern terminators.
+
+URLS THAT COULD NOT BE FETCHED
+================================
+- https://chipmusic.org/forums/topic/1488/rob-hubbards-music-driver-c64/ (403)
+  Page 2 also 403. (Confirmed still 403 on 2026-04-11.)
+
+- https://codebase64.org/doku.php?id=magazines:chacking5 (403)
+  The C=Hacking Issue 5 article by Anthony McSweeney — the ORIGINAL documented
+  disassembly. Content was obtained indirectly from the 1xn.org mirror.
+
+- https://codebase64.org/doku.php?id=base:building_a_music_routine (403)
+
+- https://www.c64.com/interviews/hubbard.html (SSL error)
+  Interview where Hubbard discusses Delta debugging and driver evolution.
+
+- http://www.sidmusic.org/sid/rhubbard.html (connection refused)
+  Another Hubbard interview with technical details.
+
+- https://grokipedia.com/page/Rob_Hubbard (403 direct; archive.org also blocked)
+  Note: web.archive.org fetches blocked entirely for this environment.
+
+- https://c64audio.com/blogs/news/rob-hubbard-the-official-reference-explained (no tech content)
+  Promotional article for "Project Hubbard" Kickstarter — no technical specs.
+
+BOOK REFERENCE (NOT AVAILABLE ONLINE)
+=======================================
+"Master of Magic - The Official Rob Hubbard Softography" by Chris Abbott
+Available: https://c64audio.com/products/master-of-magic-softography
+Contains: 6502 assembly-language music driver excerpts from Hubbard's original code.
+This would be the definitive source for the new driver format if obtainable.
+
+KEY TOOLS FOR FURTHER REVERSE ENGINEERING
+==========================================
+1. SIDdecompiler (https://github.com/Galfodo/SIDdecompiler)
+   Originally "HubbardDecompiler" — produces labeled assembly for Hubbard tunes.
+
+2. player-id (https://github.com/WilfredC64/player-id)
+   Identifies Hubbard driver variants by byte signatures.
+
+3. Our own sidxray toolkit — can trace register accesses and detect data regions.
+
+4. siddump --writelog — cycle-accurate register dumps.
+
+NEXT STEPS
+===========
+1. Run SIDdecompiler on a Sanxion SID to get labeled disassembly of the new driver
+2. Count Hubbard SIDs in HVSC using sidid to know the total scope
+3. Compare classic vs new driver byte patterns to understand format evolution
+4. Acquire "Master of Magic" book for the authoritative driver source excerpts

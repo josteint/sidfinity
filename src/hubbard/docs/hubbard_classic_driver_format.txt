@@ -1,0 +1,265 @@
+---
+source_url: "multiple"
+  - https://www.1xn.org/text/C64/rob_hubbards_music.txt
+  - https://codebase64.org/doku.php?id=magazines:chacking5
+  - https://www.vgmpf.com/Wiki/index.php?title=Rob_Hubbard_(C64_Driver)
+  - https://www.gamejournal.it/driving-the-sid-chip-assembly-language-composition-and-sound-design-for-the-c64/
+fetched_via: "compiled from multiple sources"
+fetch_date: 2026-04-11
+author: "Anthony McSweeney (primary); compiled locally"
+content_date: "1993 (McSweeney original); supplemented 2026"
+reliability: primary
+---
+Rob Hubbard "Classic" Driver — Technical Format Reference
+==========================================================
+Source: https://www.1xn.org/text/C64/rob_hubbards_music.txt
+  (Anthony McSweeney's disassembly/documentation of the Monty on the Run driver)
+Also: https://codebase64.org/doku.php?id=magazines:chacking5 (C=Hacking Issue 5)
+Also: https://www.vgmpf.com/Wiki/index.php?title=Rob_Hubbard_(C64_Driver)
+Also: https://www.gamejournal.it/driving-the-sid-chip-assembly-language-composition-and-sound-design-for-the-c64/
+Retrieved: 2026-04-11
+
+OVERVIEW
+========
+- ~900-1000 bytes of code
+- Used in Hubbard's first ~30 games (1984-1986): Confuzion, Thing on a Spring,
+  Monty on the Run, Action Biker, Crazy Comets, Commando, Hunter Patrol, Chimera,
+  The Last V8, Battle of Britain, Human Race, Zoids, Rasputin, Master of Magic,
+  International Karate, Warhawk, Thrust, Proteus, etc.
+- Monty on the Run version loads at $8000, extends to ~$9554 (code+data+freq table)
+- 50Hz execution (PAL IRQ-driven)
+- Three SID channels, processed in a loop using index registers
+- No filter support in the classic driver
+- All data is raw SID register values (no conversion during playback)
+
+INSTRUMENT DATA FORMAT (8 bytes per instrument)
+=================================================
+Byte 0: Pulse width low byte
+Byte 1: Pulse width high byte
+Byte 2: Control register (waveform selection: $41=pulse+gate, $21=saw+gate, $11=tri+gate, $81=noise+gate, etc.)
+Byte 3: Attack/Decay ($d405/$d40c/$d413)
+Byte 4: Sustain/Release ($d406/$d40d/$d414)
+Byte 5: Vibrato depth (0 = off; higher values = less depth via bit-shifting)
+Byte 6: Pulse speed (bits 5-7 = increment/decrement rate)
+Byte 7: Effects flags:
+         Bit 0 = Drum effect
+         Bit 1 = Skydive effect (slow frequency descent)
+         Bit 2 = Octave arpeggio (toggle note and note+12 semitones)
+         Bits 3-7 = unused
+
+PATTERN DATA FORMAT (variable-length per note)
+================================================
+Each note is encoded as 2-4 bytes:
+
+Byte 1 (always present): Control/Length byte
+  Bits 0-4: Note length (0-31 frames, $00-$1F)
+  Bit 5: No-release flag (1 = don't release gate at note end)
+  Bit 6: Append/Tie flag (1 = no attack/ADSR reset, continue from previous)
+  Bit 7: Extra-byte flag (1 = second byte follows with instrument/portamento)
+
+Byte 2 (conditional, present if Byte 1 bit 7 is set):
+  If positive (bit 7 = 0): Instrument number
+  If negative (bit 7 = 1): Portamento speed
+    Bits 1-6: Speed value
+    Bit 0: Direction (0 = up, 1 = down)
+
+Byte 3 (always present): Pitch value ($00-$FF)
+  $00 = C-0, $0C = C-1, $18 = C-2, $24 = C-3, etc.
+  Values above the frequency table range can be used as pointers to
+  workspace variables for frequency modulation effects (Commando trick!)
+
+$FF = End of pattern
+
+EXAMPLE NOTE ENCODING
+=====================
+$84,$04,$24 means:
+  $84 = 10000100b → bit 7 set (extra byte follows), bits 0-4 = 4 (length = 4 frames)
+  $04 = instrument number 4
+  $24 = pitch C-3
+
+$04,$24 means:
+  $04 = 00000100b → no extra byte, length = 4 frames
+  $24 = pitch C-3 (uses current instrument)
+
+TRACK/SEQUENCE STRUCTURE
+=========================
+Three-level hierarchy:
+
+1. Module (song table):
+   - Multiple songs accessed by song index × 6
+   - Each song = 6 bytes: 3 low pointers + 3 high pointers for three tracks
+
+2. Track (sequence):
+   - Sequence of pattern numbers (1 byte each)
+   - $FF = loop back to start
+   - $FE = play once (stop)
+
+3. Pattern:
+   - Sequence of note specifications (variable-length)
+   - Terminated by $FF
+
+WORKSPACE VARIABLES (per-channel arrays, 3 bytes each)
+======================================================
+posoffset     - Current position in track sequence
+patoffset     - Current position within pattern
+lengthleft    - Remaining frames for current note
+savelnthcc    - Saved note length byte (for release timing)
+voicectrl     - Voice control register value (waveform + gate)
+notenum       - Current note number
+instrnr       - Current instrument number
+savefreqhi    - Current frequency high byte
+savefreqlo    - Current frequency low byte
+portaval      - Portamento speed value
+pulsedelay    - Pulse width modulation delay counter
+pulsedir      - Pulse width modulation direction flag
+
+Global:
+mstatus       - Music status: $40=init, $80/$C0=off, other=playing
+counter       - Master frame counter (increments every frame)
+speed         - Speed counter (frames between note fetches)
+resetspd      - Speed reset value (tempo)
+tempstore     - Temporary storage
+
+SID register offsets per channel: $00, $07, $0E
+
+VIBRATO ALGORITHM
+==================
+- Operates every frame when note length >= 8
+- Uses master frame counter: (counter & 7) maps to oscillation pattern (0,1,2,3,3,2,1,0)
+- This creates a triangle wave oscillation with 8-frame period
+
+LOGARITHMIC vibrato (Rob Hubbard's key innovation):
+1. Calculate frequency difference between current note and its lower neighbor
+2. Divide by 2^(vibrato_depth) to get vibrato amplitude
+3. Multiply by oscillation pattern value
+4. Add to base frequency
+
+Result: vibrato sounds perceptually uniform across all octaves because the modulation
+depth is proportional to the note's frequency. This was revolutionary for 1985.
+
+PORTAMENTO/SLIDE
+=================
+- Specified in pattern byte 2 (when negative)
+- Speed encoded in bits 1-6; direction in bit 0 (0=up, 1=down)
+- Applied per frame: add/subtract speed value to 16-bit frequency
+- Uses carry propagation for smooth 16-bit sliding
+
+DRUM IMPLEMENTATION
+====================
+Activated by effects byte bit 0 in instrument data.
+
+- Control register byte determines mode:
+  - $00: Noise waveform throughout entire note
+  - Other: Noise on first frame only, then switches to specified waveform
+- Pitch: Rapid frequency decrease (high byte decremented, not 16-bit)
+- ADSR: Uses fast attack/decay envelope
+- Note terminates when frequency reaches 0 or note length expires
+
+"Simmons-inspired drum": square wave for 1 frame (20ms), then white noise for 1/32nd
+of a second, then same wave falling by 15 Hz per frame.
+
+Actually: "the noise simulates the strike of a stick while the pitched waveform and
+pitch drop simulates resonance, body, and decay."
+
+SKYDIVE EFFECT
+===============
+Activated by effects byte bit 1.
+- Slow frequency descent: every 2 frames, frequency is decremented
+- Creates a "falling" pitch effect
+
+OCTAVE ARPEGGIO
+================
+Activated by effects byte bit 2.
+- Alternates between the note's pitch and pitch + 12 semitones (one octave up)
+- Toggles every frame at 50Hz
+
+PULSE WIDTH MODULATION
+=======================
+- Pulse speed byte (instrument byte 6) bits 5-7 define increment/decrement rate
+- Delay counter (per-channel) determines frame skip before modification
+- Oscillates between minimum ($08xx) and maximum ($0Exx) pulsewidth values
+- Direction flag toggles at extremities
+- Modified each frame when delay counter expires
+- Simple sweep: "sweeping from roughly 50% to 88%"
+
+GATE BIT MANAGEMENT (HARD RESTART)
+====================================
+- Gate bit (bit 0 of waveform register) set to 0 when note length counter reaches zero
+  (unless bit 5 "no-release" flag is set in length byte)
+- Attack/Decay registers zeroed when release triggered
+- This is the "old method" hard restart — works on both PAL and NTSC
+
+EXECUTION FLOW PER FRAME
+==========================
+1. Increment master counter
+2. Test mstatus bits:
+   - Bit 7 set → silence all voices, exit
+   - Bit 6 set → initialize all channels (clear offsets, set position=0)
+3. Loop for each of 3 channels:
+   a. Decrement speed counter; if not zero, skip note fetch
+   b. If speed reset needed, check if new note needed (length counter <= 0)
+   c. If new note: fetch from pattern, update instrument/pitch, handle end-of-pattern
+   d. If no new note: apply "SoundWork" processing:
+      - Release handling (gate off, ADSR zero)
+      - Vibrato modulation
+      - Pulse width modulation
+      - Portamento
+      - Effects (drum, skydive, arpeggio)
+4. Write ghost registers to SID
+5. Return
+
+COMMANDO FREQUENCY TABLE TRICK
+================================
+"A notable trick in Hubbard's player was to place the player variables right behind
+the frequency-table: by using out of range pitches those variables could then be used
+for frequency modulation effects without requiring any extra calculations."
+
+This is used at the start of the Commando main theme for the "galloping down the
+stairs" staccato effect. The pitch byte indexes past the frequency table into the
+workspace area, treating variable values as frequencies.
+
+FREQUENCY TABLE
+================
+Format: Interleaved low/high bytes for pitches C-0 through ~C-6+
+- Pitch $00 = $0116 (C-0)
+- Pitch $0C = $0173 (C-1) [one octave up]
+- Each octave doubles the frequency
+- Table contains ~95 16-bit frequency values
+- Standard SID frequency values for PAL (985248 Hz clock)
+
+"CLASSIC" vs "NEW" DRIVER
+===========================
+The classic driver was used through early 1986 (last tune: Hollywood or Bust).
+The "new driver" was programmed in April 1986, first heard in W.A.R. (September 1987).
+
+New driver additions (1986-1987):
+- Table-based drums (March 1987) — previously only Mark Cooksey and Martin Galway used tables
+- Table-based PWM (July 1987)
+- Unsigned 4-bit PCM playback — "the first to loop in the middle"
+- Filter support (later compositions like Sanxion, Delta)
+- More sophisticated instrument definitions
+
+The Sanxion loading theme "was something that simply couldn't have been done in the
+old driver" — it required the table-based and filter capabilities of the new driver.
+
+Delta "required custom code to the driver, taking 2 weeks to debug" — based on
+minimalist composition technique inspired by Philip Glass's Koyaanisqatsi.
+
+MUSICIANS WHO HACKED THE CLASSIC DRIVER
+=========================================
+- Jeroen Kimmel (Red/Judges) — "converted the Commando driver back into source"
+- Jeroen Tel
+- Neil Baldwin
+- Johannes Bjerregaard
+- Charles Deenen
+- Michael Hendriks (F.A.M.E.)
+- Future Freak
+- Giulio Zicchi
+- Thomas Petersen
+- Pablo Toledo
+
+"One story: Red got to use Hubbard's driver because White told Hubbard how to do
+NMI samples."
+
+The Crazy Comets driver variant was widely used — "you can clearly hear that in
+many tunes, many instruments are not even modified."

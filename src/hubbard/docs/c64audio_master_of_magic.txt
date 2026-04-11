@@ -1,0 +1,73 @@
+---
+source_url: https://c64audio.com/blogs/rob-hubbard-master-of-magic
+fetched_via: direct
+fetch_date: 2026-04-11
+author: Chris Abbott
+content_date: 2024 (blog posts March–September 2024; book 2023)
+reliability: primary
+---
+C64Audio.com "Master of Magic" Blog Series
+============================================
+Source: https://c64audio.com/blogs/rob-hubbard-master-of-magic
+Author: Chris Abbott
+Retrieved: 2026-04-11
+
+NOTE: "Master of Magic" is a full book by Chris Abbott containing "6502 assembly-
+language music driver excerpts from Rob Hubbard's original code." The blog posts are
+promotional excerpts that are primarily historical/biographical, NOT the technical
+driver code excerpts. The book itself would be the source for those.
+
+Book: "Master of Magic - The Official Rob Hubbard Softography"
+Available at: https://c64audio.com/products/master-of-magic-softography
+
+BLOG POST 1: "Rob Hubbard - The Beginning" (March 26, 2024)
+=============================================================
+Early biography. Hubbard taught himself 6510 assembly in 1983.
+Began with unsuccessful October 1984 mailshot to game companies.
+His breakthrough came through Mastertronic (Action Biker) and
+Incentive (Confuzion).
+
+BLOG POST 2: "Rob Hubbard - 1985 on the run" (July 8, 2024)
+==============================================================
+Prolific 1985 output chronicle.
+
+Key technical points:
+- Jason Perkins of Micro Projects found Hubbard's mailshot, leading to
+  "Thing on a Spring" which got ZZAP! 64's highest-ever music rating
+- Zoids and Master of Magic drew inspiration from Synergy's album "Audion"
+  (Larry Fast) — "turned Rob from a video game musician into a genuine
+  soundtrack composer"
+- By March 1986, Hubbard had completed all work using his "classic" driver
+
+BLOG POST 3: "The High Cs - Comets, Commando, Chimera" (September 3, 2024)
+============================================================================
+Historical context for July/August 1985 compositions.
+
+- Crazy Comets: Instrument-switching techniques perfected in "Gerry the Germ"
+- Commando: Created under time pressure for PCW show in September
+- Chimera: Fretless bass sound, mined from pre-SID back catalog
+- "Chimera benefitted from the creative and sonic development that Rob had done
+  with Zoids and Master of Magic"
+
+No technical driver details in this post.
+
+BLOG POST 4: "Rob Hubbard Thrusts into 1986" (July 13, 2024)
+==============================================================
+KEY TECHNICAL CONTENT about the driver evolution:
+
+- "Hollywood or Bust" = LAST tune done in the "classic" driver
+- Atari 8-bit work: Hubbard ported his code to Atari, exploiting the POKEY chip's
+  "distortion" feature. Lessons learned fed back into the experimental C64 driver.
+- "W.A.R." game prompted creation of "a much more serious-sounding driver"
+- NEW DRIVER programmed in April 1986 (first released September 1987)
+- Sound was "a world away from the accessible bounciness" of earlier work
+- Sanxion loading theme = "another major milestone... something that simply
+  couldn't have been done in the old driver"
+- Z80 work: David Whittaker swap arrangement (Whittaker got Atari support,
+  Hubbard got Z80 drivers)
+- 1986 represented "transformation rather than continuation"
+
+ADDITIONAL BLOG: "The EAvolution of Rob Hubbard - part 1, 1988"
+================================================================
+Source: https://c64audio.com/blogs/news/project-hubbard-1988-rob-hubbard-hits-ea-with-a-bang-and-sports
+Covers transition to Electronic Arts. Technical details about EA-era work not yet fetched.

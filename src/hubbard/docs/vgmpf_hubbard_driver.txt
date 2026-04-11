@@ -1,0 +1,76 @@
+---
+source_url: https://www.vgmpf.com/Wiki/index.php?title=Rob_Hubbard_(C64_Driver)
+fetched_via: direct
+fetch_date: 2026-04-11
+author: unknown
+content_date: unknown
+reliability: secondary
+---
+VGMPF Wiki — Rob Hubbard (C64 Driver)
+======================================
+Source: https://www.vgmpf.com/Wiki/index.php?title=Rob_Hubbard_(C64_Driver)
+Retrieved: 2026-04-11
+
+Released: Late 1984 or early 1985
+Programmer: Rob Hubbard
+Language: 6502 Assembly
+Tool: Mikro Assembler
+
+DRIVER EVOLUTION TIMELINE
+==========================
+
+1984-1985: Initial Driver
+- Logarithmic vibrato
+- Simple PWM (sweeping roughly 50% to 88%)
+- ~900-1000 bytes of code
+
+Action Biker (early 1985, 2-week project):
+- Characteristic "Simmons-inspired" drum effect:
+  Selected wave (usually square) for 1 frame (20ms),
+  then white noise for 1/32nd second,
+  then same wave falling by 15 Hz
+
+Thing on a Spring:
+- Added octave arpeggios
+- Added support for up to 16 sound effects
+- Known bug: "the first time the driver runs, the note on voice 3 is skipped"
+  (fixed early 1986)
+
+Monty on the Run:
+- Added "skydive" effect (slow pitch descent)
+- Added pitch bending (portamento)
+
+1986: Drum Evolution
+- Cycling between noise and triangle wave for drum arrangement
+
+April 1986: "New Driver" Created
+- More sophisticated sound design capabilities
+- First heard in W.A.R. (released September 1987)
+
+March 1987: Table-Based Drums
+- New methods of drums using tables
+- Previously only Mark Cooksey and Martin Galway used table-based drums
+
+July 1987: Table-Based PWM
+- Table-driven pulse width modulation
+- More complex and flexible than the hardcoded sweep
+
+Late 1987: 4-bit PCM Playback
+- Unsigned 4-bit PCM playback added to driver
+- "The first to loop in the middle"
+- Inspired by Mega Apocalypse
+- Took 1.5 hours to implement
+
+COMPOSERS WHO USED THE DRIVER
+===============================
+Giulio Zicchi, Johannes Bjerregaard, John De Margheriti, Pablo Toledo,
+Jeroen Kimmel, Jeroen Tel, Neil Baldwin, Thomas Petersen
+
+SOURCE CODE STATUS
+===================
+"Since spring 1997, he no longer has the source code to his pre-Electronic Arts driver.
+It is rumored that a housecleaner threw away his disks while he was staying at a hotel."
+
+However, documented disassembly of the Monty on the Run driver exists:
+- https://www.1xn.org/text/C64/rob_hubbards_music.txt
+- C=Hacking Issue 5 (Anthony McSweeney's documentation)

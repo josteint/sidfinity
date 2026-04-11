@@ -1,0 +1,218 @@
+---
+source_url: https://www.gamejournal.it/driving-the-sid-chip-assembly-language-composition-and-sound-design-for-the-c64/
+fetched_via: direct
+fetch_date: 2026-04-11
+author: James Newman (Bath Spa University, FHEA)
+content_date: "unknown (journal article, no publication year in text)"
+reliability: secondary
+---
+SOURCE: https://www.gamejournal.it/driving-the-sid-chip-assembly-language-composition-and-sound-design-for-the-c64/
+FETCHED DIRECTLY (live): 2026-04-11
+
+"Driving the SID Chip: Assembly Language, Composition, and Sound Design for the C64"
+By James Newman (Bath Spa University, FHEA)
+G|A|M|E Journal
+
+Keywords: SID chip; driver affordance; design potential; Rob Hubbard; Martin Galway
+
+=== ABSTRACT ===
+
+This paper argues that, more than any other device, the SID chip is responsible for
+shaping the sound of videogame music. The argument centers on the inexorable link
+between the technological and the musical: composer-coders like Rob Hubbard and Martin
+Galway developed their own bespoke low-level drivers to interface with the SID chip to
+create pseudo-polyphony through rapid arpeggiation and channel sharing, drum synthesis
+through waveform manipulation, portamento, and even sample playback. The paper analyzes
+the indivisibility of sound design, synthesis and composition in the birth of these
+musical forms and aesthetics.
+
+=== KEY TECHNICAL CLAIMS AND QUOTES ===
+
+--- SID CHIP BASICS ---
+
+The SID is built around three discrete channels/voices. Each voice is an individually
+addressable monophonic subtractive synthesizer.
+
+SID's oscillators offer four independently selectable waveforms: sawtooth, triangle,
+pulse, and noise. Crucially, waveforms are NOT tied to channels - they can be altered
+on a per-cycle basis and used to cross-modulate one another (sync- and ring-modulation).
+
+Pulse waveform: continuous duty cycle control. PWM effect described by Chris Huelsbeck
+as "the holy grail of its [the SID chip's] power."
+
+Per-channel ADSR envelopes. Attack times as short as a couple of milliseconds,
+release times approaching 30 seconds.
+
+SID interface: 29 8-bit registers. Access via BASIC PEEK/POKE or Assembly.
+
+Bob Yannes (SID designer): "I thought the sound chips on the market, including those
+in the Atari computers, were primitive and obviously had been designed by people who
+knew nothing about music."
+
+Charles Winterble (MOS Technology): "This thing is already 10 times better than
+anything else out there and 20 times better than it needs to be."
+
+--- DRIVER AS INSTRUMENT ---
+
+"I used to load up a machine code monitor and literally display the bytes in real time.
+The music was all triggered on the raster interrupt and I would start changing the numbers
+in real time to alter the synth settings and musical notes. So, I would tend to work on
+four bar chunks... and I would sit on that Hex editor, changing things."
+(Hubbard, 2002)
+
+"I was writing my own assembly-language music routines. The music routines were basically
+controlling the chip, and whatever you could do with the software to get some more sounds,
+or anything more interesting… you would write the music to take advantage of that. The two
+basically went hand in hand… You would come up with an idea for something the software
+could do, you would write that, and then write the music to take advantage of it."
+(Hubbard, 2005)
+
+--- DRIVER SIZE AND STRUCTURE ---
+
+Hubbard's early SID driver: ~900-1000 bytes. Controls:
+- Silencing and initializing the SID chip
+- Instrument settings: waveform, envelope times and levels
+- Note durations and pitches
+- Effects: portamento, vibrato, arpeggiation
+- Pulse-width depth and modulation time
+- Pattern playback (song -> tracks -> patterns -> notes)
+
+"Song" = three "tracks" (one per voice), each comprising "pattern" numbers referring to
+sequences of "notes". Note level: "notework" (pitch) and "soundwork" (effects) routines.
+Main loop runs 3 times (once per voice).
+
+Clocked at 50Hz (PAL) / 60Hz (NTSC). Single-frame precision.
+
+--- INSTRUMENT FX: DRUM SYNTHESIS ---
+
+From McSweeney (1993) on Byte 7 of instrument structure:
+
+"Bit#0 signals that this is a drum. Drums are made from a noise channel and also a fast
+frequency down, with fast decay. Bass drums use a square wave, and only the first 50th of
+a second is a noise channel. This is the tell-tale instrument that gives away a Rob
+Hubbard routine! Hihats and other drums use noise all the time."
+
+Key mechanism: ONE frame of noise waveform before switching to pulse/square. The two
+waveforms appear to sound simultaneously (noise = stick strike; pitched waveform + pitch
+drop = resonance/body/decay).
+
+Also found: Sanxion channel 3 pulse bass instrument augmented with digital noise in
+its attack. A 16th-note sequence thus creates both a synthetic bassline AND a continuous
+shaker/hi-hat sound from a single channel.
+
+--- INSTRUMENT FX: SKYDIVE AND OCTAVE ARPEGGIO ---
+
+"Bit#1 signals a 'skydive'. This is a slower frequency down, that I think sounds like
+somebody yelling as they fall out of a plane."
+(McSweeney, 1993)
+
+"Bit#2 signals an octave arpeggio. It's a very limited arpeggio routine in this song.
+Listen for the arpeggio and the skydive when combined, which is used a lot in Hubbard songs."
+(McSweeney, 1993)
+
+Skydive + octave arpeggio = "a distinctive musical and sound design trait in Hubbard's output"
+(evident in Monty on the Run, Crazy Comets, etc.)
+
+--- CHANNEL MULTIPLEXING ---
+
+"Most of it was simply done by multiplexing the three channels. If the lead line has two
+beats rest, put a fill or some effect in there."
+(Hubbard, n.d.)
+
+In Commando: channel 1 = lead melody, channel 2 = pseudo-polyphonic chordal backing
+via rapid arpeggiation, channel 3 = bassline. Drums/percussion spread across ALL three
+channels (no dedicated drum channel). Ring modulated percussion on channel 2,
+noise+toms on channel 1, snare on channel 3.
+
+--- RAPID ARPEGGIATION ---
+
+By cycling two or more notes at 50Hz, composers simulate multiple simultaneous notes.
+Rate is NOT musically derived - it's a function of the C64's processor and screen-update
+interrupt system (50Hz PAL refresh).
+
+Rapid arpeggiation + PWM = "chordal warbling" - "perhaps more than any other, characteristic
+of chip music."
+
+--- DRIVER EVOLUTION AND "PERSONALITY" ---
+
+Martin Galway: "I didn't develop pulse-width modulation until the next project, which at
+the time was called Cyclone."
+
+Hubbard on Monty on the Run: "The middle section was an excuse to use the new pitch bend
+code that I wrote for this project."
+
+Chris Abbott (C64audio.com): "Rob Hubbard sounded very different from Martin Galway
+because they had to write their own synthesizer engine, as well as the music."
+
+Galway: "I suppose I was simply wanting to use his [Hubbard's] program to get all that
+percussion. I wouldn't have minded having a go with his software and doing music in my
+style with his percussion. Perhaps we should have swapped drivers for a game just to see
+what we could have come up with."
+(Carr, 2001b)
+
+Hubbard's driver: emphasis on rhythmic elements, drums/percussion.
+Galway's driver: focus on waveform manipulation, ring modulation, PWM.
+
+--- SAMPLE PLAYBACK: HIDDEN AFFORDANCE ---
+
+Sample playback exploits a DC offset between the SID channels arising from chip design
+and fabrication. By rapidly manipulating the chip's amplitude registers, otherwise
+undesirable clicks can be generated which, clocked at the right rate with suitable data,
+create PCM-like output (Pulse Code Modulation).
+
+"The 'fourth' voice is actually a phantom that appears across at the SID's output stage
+as a result of the interaction of the other channels."
+
+The "8580" revision of SID removed the DC offset, making sample playback all but inaudible.
+"The affordance was not simply re-hidden but eradicated altogether."
+
+Galway on discovering sample playback:
+"I figured out how samples were played by hacking into someone else's code. I had no
+equipment for editing samples though, so my program synthesized the drums as a series of
+farts and burps! Later I was able to acquire some proper drum samples and by 'Game Over'
+it got quite sophisticated."
+(Galway n.d.)
+
+Hubbard: "I did write a driver that could play 2 samples plus SID, but never used it
+on a game."
+
+--- HUBBARD ON EXPERIMENTING WITH SID ---
+
+"We were always looking for ways to try to find something that the machine could do that it
+really wasn't designed to do. You'd look in the manual on the C64 and it would say things
+like… don't set this bit whatever you do and we'd say 'OK, I don't care, I'm going to try
+setting the bit and see if it does anything'. We were always looking for ways to squeeze more
+out of this thing by doing things in assembler and tweaking around."
+(Hubbard, 2002)
+
+--- LEGACY AND HARDWARE INSTRUMENTS ---
+
+Elektron SidStation Owner's Manual: "SID is the classic synthesizer that never had a case
+built around it."
+
+Modern SID instruments (Elektron SidStation, Twisted Electrons Therapsid) support
+integration with modern DAWs, but their interfaces disallow techniques available via
+1980s drivers. Frame-accurate waveform manipulation is not available in these interfaces.
+"The SID chip is, therefore, constructed as a different instrument, and the suite of
+affordances is materially altered."
+
+--- HISTORICAL NOTE ON DOCUMENTATION ---
+
+According to Yannes, the SID documentation was written before completion of SID prototypes,
+rendering it unintentionally inaccurate. Experimentation was rewarded because SID's registers
+behaved in sometimes unpredictable ways modified in combination, or in ways musicians found
+more useful than the designers expected.
+
+Commodore Programmer's Reference Guide: "Only through experimentation on your own will you
+fully appreciate the capabilities of your machine. The examples in this section of the
+Programmer's Reference Guide merely scratch the surface."
+
+=== REFERENCES CITED ===
+
+McSweeney, Anthony (1993). "Rob Hubbard's Music: Disassembled, Commented and Explained."
+  Recollection Issue 3 (= the primary technical source for driver internals)
+
+Hubbard (2002). Interview source - full technical quotes about workflow and hex editing.
+Hubbard (2005). Interview source - quotes about writing routines simultaneously with music.
+Carr, Neil (2001b). Martin Galway interview.
+Galway (n.d.). Various quotes on sample playback discovery and PWM.

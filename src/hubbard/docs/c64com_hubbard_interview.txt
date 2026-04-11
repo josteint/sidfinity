@@ -1,0 +1,32 @@
+---
+source_url: https://www.c64.com/interviews/hubbard.html
+fetched_via: wayback 2025-01-01
+fetch_date: 2026-04-11
+author: Rob Hubbard (interviewee); c64.com (publisher)
+content_date: unknown (c64.com interview, undated)
+reliability: primary
+---
+SOURCE: https://www.c64.com/interviews/hubbard.html
+ARCHIVED: https://web.archive.org/web/20250101172640/http://www.c64.com/interviews/hubbard.html
+FETCHED: 2026-04-11
+
+Interview with Rob Hubbard (c64.com)
+
+--- TECHNICAL CONTENT ONLY ---
+
+Q: One of your strengths was that you were able to make the compositions sound like there were more than three channels used. The SID was very limited, what techniques did you apply to?
+A: Most of it was simply done by multiplexing the three channels. If the lead line has two beats rest, put a fill or some effect in there. Other techniques were based on what you could do every VBlank interrupt, creating those warbling chord effects etc.
+
+Q: How often did you re-program the music drivers?
+A: I did change the music driver code fairly often to either add or delete some features, bearing in mind that your code had to be as quick as possible. Sometimes I optimized for space (code and data) and sometimes for processor speed. Later on I added the ability to play samples - you could do that on a title screen, but never in the game.
+
+Q: Talking about samples, you worked quite a lot with that at the end of your C64 career (Jordan vs Bird, Kings of the Beach etc). Was that the natural next step to create a new dimension to your C64 composing?
+A: Yes. I did write a driver that could play 2 samples plus SID, but never used it on a game.
+
+Q: How did you go about composing your C64 tunes? Did you have a music editor that you used, as there were often rumours you used one you made yourself?
+A: No, I just used an assembler and edit the source code - most people in those days did the same. There really wasn't time to sit and write an editor, as there was so much work to do.
+
+Q: Where did you search for inspiration when ideas dried up?
+A: I had 3 ways to work. Sometimes I would write directly with the C64 by poking bytes using a machine code monitor. Sometimes I would write using a pen and paper. Other times I would sit at the keyboard and play until the ideas come out.
+
+NOTE: The page references a "Continue to the second part of the interview" but part 2 was not found on the Wayback Machine.

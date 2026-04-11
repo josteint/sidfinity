@@ -1,0 +1,242 @@
+---
+source_url: "https://remix64.com/interviews/interview-jason-page.html"
+fetched_via: "direct"
+fetch_date: 2026-04-11
+author: "Neil Carr (interviewer); Jason Page (subject)"
+content_date: "2002-05-27"
+reliability: "secondary"
+---
+Remix64 Interview with Jason Page
+Source: https://remix64.com/interviews/interview-jason-page.html
+Interviewer: Neil Carr
+Date: 27 May 2002
+
+Subject: Jason Page (Handle: Jay)
+Born: 1972
+Nationality: British
+
+NOTE: Jason Page is NOT 4mat (Matt Simmonds). Jason Page worked at Graftgold
+and Sony. He created RobTracker (a C64 music player based on Hubbard's Digi
+routine) as a separate project, distinct from 4mat's GoatTracker converter.
+
+=============================================================================
+FULL INTERVIEW TEXT
+=============================================================================
+
+Neil: What other c64 musicians did you like?
+
+Jason: "Well, it has to be the old favourites, doesn't it? Rob Hubbard, Martin
+Galway, Maniacs Of noise (especially Jeroen Tel). Ratt&Ben did some good stuff
+too. Probably would have sounded even better if it was using MON's audio
+routines!"
+
+Neil: What are your favourite Sids?
+
+Jason: "Sanxion, Stormlord, Ocean loading music and Rambo spring to mind."
+
+Neil: Ok lets start from the very beginning, What initial steps did you take
+into becoming a musician on the c64?
+
+Jason: "I bought a C64, and heard Thing On A Spring. That made me realise that
+this machine was something a bit special. I had always been interested in the
+audio side of things, and as a programmer, wanted to know how someone could
+make 3 channels of SID sound so good. Programs like Sound Monitor also helped
+a lot, as it gave away a lot of techniques – such as phasing a square wave and
+so on."
+
+Neil: How did you get your first opportunity in creating music for c64 games?
+
+Jason: "Graftgold was based in my hometown of Witham in Essex. I was lucky
+enough to get a job there when I was 16. I started as a trainee programmer,
+and then started doing the music for their games also. Steve Turner used to do
+the audio for their titles before this. He's a very good guitar player, by the
+way. I think the first track I worked on was a game called Orion, written by
+Gary Foreman."
+
+Neil: How did it feel when you saw your name on the credits for a game?
+
+Jason: "It felt great, actually! It was that event that you always wanted to
+happen. Before working at Graftgold, I had been programming on the C64 for
+many years. Putting demos and music on Compunet and so on. And through all of
+this time, I just wanted my name in a game. It was like, whatever happened
+from that point, at least I could say that I was there once."
+
+Neil: What did you use to create your music on the c64?
+
+Jason: "I started with Sound Monitor and then Rock Monitor. I moved onto using
+that Maniacs Of Noise rip-off thing (can't remember the name). At Graftgold,
+I used the routine which Steve Turner wrote, and at this point, I was also
+writing my own routine in my spare time. Oh, and what was that other one which
+Demon (from Psy&Mat demo days) used? Er..ElectroSound! Yeah, I used that for
+a while too. The code for running their audio data had bugs in it though."
+
+Neil: What was your likes/dislikes regarding the sid chip?
+
+Jason: "The Filters were a little unstable, weren't they? Only having 3
+channels wasn't really an issue then, as its not as if you had a choice between
+that or something far better at the time. The thing is, that the SID chip
+doesn't sound very good at all unless the audio program does clever things
+with it. For example, the MON drum sounds were far better than anything else,
+in my opinion. This was due to them having lookup tables of pitch and waveform
+data, so the program just ran through this list very quickly. Other people were
+just flipping between a triangle waveform and white noise, which was nowhere
+near as good as the MON way of doing things. But that was the best thing about
+the SID. You could do so much with it. And you could tell if a tune was by Rob
+Hubbard or Martin Galway just by the sound of it. Not the actual notes, but
+how their audio routines were playing the SID."
+
+Neil: In your opinion what do you think was your best c64 tune?
+
+Jason: "Probably one of my Compunet demo tunes actually, but I can't remember
+any of them now. I used to just give them names like the data or time that I
+finished the tune. I think I wrote one called 1010pm and another called 1105
+?! I guess my favourite game tune was Head The Ball or the conversion of Super
+Offroad racer."
+
+Neil: Did you create music for any other platform apart from the c64?
+
+Jason: "Well, I didn't then. But since the C64, I've written music for Amiga,
+CD32, ST, Megadrive, SNES, PC, PS1 and PS2."
+
+Neil: Did you work in-house or freelance, and what would you say are the
+pro's and con's?
+
+Jason: "I worked in-house at Graftgold. But remember that I was also
+programming games at this point also, so it wasn't just the audio that I was
+taking care of. I have sort of worked freelance since the Graftgold days. The
+pro's are that you can work whenever you like. If you get inspired at 4am,
+that's fine. But, that's also one of the cons. You can't just get away from
+your work, and its easy to forget what else there is in life. Also, obviously
+with freelance work, you have to keep looking for more work, and if a company
+can get someone else to do it cheaper, you either don't bother with it, or
+drop your price to get the work."
+
+Neil: Was the money you made from making c64 music enough to live on, and did
+you consider your work more as a hobby or a real job?
+
+Jason: "Well, at the time I was still living with my parents. I don't think I
+could have afforded to move out though! Nobody really did it for the money. It
+was just for the fun of it. Because there were real hours and deadlines to work
+for, it wasn't like a hobby in that aspect. But it did (and still does) feel
+that I'm getting paid for something I used to do for nothing. Which is nice."
+
+Neil: Were you ever treated unfairly by a games company?
+
+Jason: "Not really. No more than anyone else. The thing with any creative
+industry is that its full of creative, emotional people. Who always think
+they're getting treated unfairly! This industry is also very fickle.
+Basically, don't trust anyone. And always keep as many emails as possible to
+cover your back, two years later."
+
+Neil: Who would you credit most of all for your introduction to making c64
+music, and why?
+
+Jason: "Rob Hubbard, as it was his tunes that I heard before anyone else. Note
+that its also his fault (!) that I'm still doing game music 15 years later!"
+
+Neil: If there was a tune that you would wish to call your own, what would it
+be and why?
+
+Jason: "Sanxion, because it's a great track. Who else used to stop the tape
+from loading the title screen, just to hear the track all the way through?!
+Ah...Just me..I'll shut up then."
+
+Neil: Of late we have seen a few remixes of c64 tunes on rko by yourself, why
+did you decide to make these remixes?
+
+Jason: "I've always wanted to do some, but only now have I had the time. Then,
+last year (2001), I went along to the C64 Bits Live audio event in London. I
+realised how many people still cared about the old C64 and Amiga music. I was
+amazed that people knew both of my old music and myself. So I sort of felt
+obliged to do something else for them."
+
+Neil: What equipment/software do you use to create these remixes?
+
+Jason: "Cubase VST running on a MacG3.
+SampleCell2
+Novation SuperNova
+Roland JV1080
+Emu Orbit
+Kurzweil K2000
+Mackie 24-8-2 desk"
+
+Neil: What other arrangers do you like?
+
+Jason: "Lots! Chris Abbott stands out as one of the best."
+
+Neil: The remixes you have done have been based on other artists, have you
+considered re-working your own c64 tunes?
+
+Jason: "Yes. It may happen, but it feels a bit wrong somehow. It would be more
+of a rewrite than a remix in this case. I'd rather let other people do remixes
+of my music, and I'll remix theirs. Saying that, I may be doing a Uridium2
+remix at some point (Although this was an Amiga tune). Mainly due to the fact
+that I've lost the DAT tape which had the unreleased CD32 version of the title
+music. So I'm itching to rewrite it again!"
+
+Neil: What does Jason Page do now?
+
+Jason: "He sits at his desk at work, filling in questionnaires instead of
+doing what he gets paid for! Seriously, I'm the audio manager for Sony
+Computer Entertainment Europe. I'm still programming and writing music for the
+PlayStation and PS2."
+
+Neil: Lastly, what would you like to say to the scene?
+
+Jason: "Thanks to the people who email me saying nice things about my old work.
+And I'm glad (and somewhat surprised) that so many people still care for the
+SID. It's a great."
+
+=============================================================================
+TECHNICAL OBSERVATIONS (extracted from interview)
+=============================================================================
+
+1. MON drum technique (Maniacs of Noise):
+   Jason describes MON drums as superior because they use "lookup tables of
+   pitch and waveform data, so the program just ran through this list very
+   quickly." The contrast is with simpler approaches that only flipped between
+   triangle and noise waveforms. This is the GT2/GoatTracker-style drum table
+   approach: rapid cycling through a pre-defined sequence of register values
+   for each drum frame.
+
+2. Player identity by sound, not notes:
+   "You could tell if a tune was by Rob Hubbard or Martin Galway just by the
+   sound of it. Not the actual notes, but how their audio routines were playing
+   the SID." — This confirms that the driver architecture (not just the notes
+   or instruments) imparts a characteristic sound signature.
+
+3. Jason composed using multiple drivers:
+   - Sound Monitor (early)
+   - Rock Monitor
+   - "Maniacs Of Noise rip-off thing" (Jochen Hippel's driver? or a direct MON
+     variant -- name not recalled)
+   - Steve Turner's Graftgold routine
+   - His own custom routine (written in spare time)
+   - ElectroSound (Demon/Psy&Mat era) -- noted as having bugs in the audio
+     data code
+
+4. RobTracker context:
+   The interview (2002) predates RobTracker. RobTracker was released later as
+   part of Project Hubbard. It is based on Hubbard's Digi routine ($D418
+   volume-register sample playback). See csdb_robtracker_jason_page.md for
+   technical details.
+
+=============================================================================
+RELATED INTERVIEWS (Remix64)
+=============================================================================
+
+The Remix64 interviews page lists these interviews relevant to C64 driver
+history:
+- Martin Galway: https://remix64.com/interviews/interview-martin-galway-by-claudio-sanchez.html
+- Richard Joseph: https://remix64.com/interviews/interview-richard-joseph-2002.html
+- Peter Clarke: https://remix64.com/interviews/an-interview-with-peter-clarke.html
+  (discusses Ocean Software, working with Martin Galway)
+- Neil Brennan: https://remix64.com/interviews/an-interview-with-neil-brennan.html
+  (Beam Software/Melbourne House composer AND programmer -- likely has
+  technical driver knowledge)
+- C64 Music Scene (multi-composer):
+  https://remix64.com/interviews/c64-music-scene-by-steve-drysdale.html
+  Includes Rob Hubbard, Martin Galway, Reyn Ouwehand, Chris Abbott
+
+The Rob Hubbard interview at remix64.com is primarily biographical and does
+NOT contain technical driver implementation details.

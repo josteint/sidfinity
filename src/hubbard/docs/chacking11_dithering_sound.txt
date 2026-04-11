@@ -1,0 +1,129 @@
+---
+source_url: local: data/chacking/chacking11.txt (C=Hacking Issue 11 archive)
+fetched_via: local read
+fetch_date: 2026-04-11
+author: George Taylor (yurik@io.org)
+content_date: unknown (C=Hacking Issue 11, early-to-mid 1990s)
+reliability: primary
+---
+============================================================================
+
+#(@)trick: Hi Tech Trickery: Sample Dither 
+           by George Taylor (yurik@io.org)
+
+#(A): Introduction
+
+You may know of dithering in graphics.  It is when a limited number of
+colors are used to simulate more.  This is done by randomly arranging the
+pixels so they blend at a distance, creating an average of the shades.
+Here, screen space is being averaged, and more shades are being produced.
+In playing samples, time is being averaged, and more bits are being produced.
+
+#(A): Dithering Sound
+
+Let's say we do the following:
+ 
+                lda #8
+                sta $d418       This code toggles the low bit of the output.
+                lda #9
+                sta $d418
+ 
+Over an average of time, this is the same as:
+ 
+                lda #8.5        But we can't really do this.
+                sta $d418
+ 
+This idea can be used to easily do 5 bit sound.  Basically, we take a
+5 bit sample, shift right, then add 0.  If bit 0 was high,
+it will increment the 4 bit number.  Then as this adding takes place,
+toggling bit 0, it will average out to give half a bit.
+ 
+#(A): Is There a Catch?
+ 
+There is one drawback though.  This toggling can be heard as the high
+frequency square wave it resembles.  You must use a high enough sample
+rate so this can't be heard.  Also it takes two bit toggles to create the
+5th bit, so you must double the sample rate.  In order to play 8.5, for
+example, you must play 8 and then 9, so the 8 and 9 must take half the normal
+time, or your sample will play too slow.
+One other problem is that there is the possibility of overflow.  In this
+case you can use hard clipping on the signal.  In other words, the 5 bit
+sample 31 will be played at 16, so instead play 15.
+ 
+This is actually called pulse width modulation.  It is a good example for
+illustrating sample dithering.  For example, you can play TRUE 16 bit sound,
+even with one bit. To do this, take the 16 bit sample, add a 12 bit random
+number, then play the high 4 bits of this result.  Also remember the clipping
+problem as mentioned above.
+ 
+@(A): How Is This Like Pulse Width Modulation?
+ 
+The random number range is proportional to the 16 bit sample.  If the 16 bit
+number is high, then it is very likely the 0 bit (toggle bit) is high.  It is
+the random number which allows the toggle bit to change.  So now we have 16
+bit sound with 16db signal to noise ratio.
+ 
+There are some more advanced technical issues to this.  The kind of random
+number you choose affects the results.  You need a triangle density function
+for perfect linearity (ie., for no distortion).  This is the relationship
+of random numbers in the sequence, and does not affect the probability
+distribution, which should be equal.  The choice of density function is a
+tradeoff between added noise and linearity.  I used pulse density function
+in my demo, which is non-filtered random numbers, and it's ok but I can
+still hear some noise pumping.
+
+#(A): Conclusion
+ 
+Enjoy the ditherdigi!
+ 
+#(A)5bit: Listing One:  5 bit play routine
+
+Memory map:
+3:     start page of sample
+4:     end page of sample
+5:     sample period (remmber to play twice normal speed)
+fb,fc: pointer to sample
+
+start lda 3
+      sta $fc
+      lda #0
+      sta $fb           ; initialize sample pointer
+      lda #$b
+      sta $d011         ; blank screen for better timing
+      sei               ; disable interrupts for better timing
+play  lda ($fb),y
+      lsr
+      sta $d418         ; push sample
+      ldx 5
+d     dex
+      bne d
+      pha
+      nop
+      adc #0
+      cmp #$10
+      beq s1
+      sta $d418
+      bpl s
+s1    nop
+      nop
+      nop
+s     pla
+      ldx 5
+d1    dex
+      bne d1
+      iny
+      bne play
+      inc fc
+      lda fc
+      cmp 4
+      bne play
+      lda #$1b
+      sta $d011
+      cli
+end   rts
+
+#(A): References
+
+Consult the proceedings of the ACM for further info on digi dithering.
+
+============================================================================

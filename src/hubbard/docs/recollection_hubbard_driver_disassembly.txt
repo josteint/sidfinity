@@ -1,0 +1,687 @@
+---
+source_url: "http://www.atlantis-prophecy.org/recollection/?load=online_issues&issue=2&sub=article&id=19"
+fetched_via: "wayback 2026-03-09"
+fetch_date: 2026-04-11
+author: "Anthony McSweeney"
+content_date: "1993-03-07"
+reliability: "primary"
+---
+SOURCE: http://www.atlantis-prophecy.org/recollection/?load=online_issues&issue=2&sub=article&id=19
+ARCHIVED: https://web.archive.org/web/20260309081108/https://www.atlantis-prophecy.org/recollection/?id=19&issue=2&load=online_issues&sub=article
+FETCHED: 2026-04-11
+
+"Rob Hubbard's Music: Disassembled, Commented and Explained"
+By Anthony McSweeney
+Recollection Issue 3 (Recollection calls itself issue 3 in the breadcrumb but the URL says issue=2)
+
+=== SCOPE OF THE DRIVER ===
+
+The source code presented was used (with slight modifications) in:
+Confuzion, Thing on a Spring, Monty on the Run, Action Biker, Crazy Comets,
+Commando, Hunter Patrol, Chrimera, The Last V8, Battle of Britain, Human Race,
+Zoids, Rasputin, Master of Magic, One Man & His Droid, Game Killer, Gerry the
+Germ, Geoff Capes Strongman Challenge, Phantoms of the Asteroids, Kentilla,
+Thrust, International Karate, Spellbound, Bump Set and Spike, Formula 1
+Simulator, Video Poker, Warhawk or Proteus and many more.
+
+The routine was ripped from Monty on the Run ($8000-$9554, ~900-1000 bytes).
+
+=== DRIVER ENTRY POINTS ===
+
+    jsr music+0   ; initialize (music number in accumulator)
+    jsr music+3   ; play (call at 50Hz)
+    jsr music+6   ; stop and quieten SID
+
+Runs at 50Hz (PAL VBlank). NTSC runs at 60Hz (too fast).
+
+=== DATA FORMAT: TOP-LEVEL STRUCTURE ===
+
+1. MODULE: contains one or more songs.
+   - Label 'songs': pointers to the three tracks per song.
+   - 6 bytes per song (3 x lo/hi pointer pairs).
+
+2. SONG: three tracks, one per SID channel.
+   - Track data: list of pattern numbers in play order.
+   - Track end: $ff = loop back to start, $fe = stop (play once).
+   - State variable: current POSITION (index into track).
+
+3. PATTERN: list of note specifications, terminated by $ff.
+   - When $ff reached, advance to next pattern in track.
+
+4. NOTE SPECIFICATION: up to 4 bytes.
+
+   Byte 1 (always present):
+     Bits 0-4: note length (0-31)
+     Bit 5:    no release (skip gate-off at end of note)
+     Bit 6:    append to previous note (no re-attack)
+     Bit 7:    second byte is present (instrument or portamento)
+
+   Byte 2 (optional, present if bit 7 of byte 1 is set):
+     Positive (bit 7 clear): new instrument number
+     Negative (bit 7 set):   portamento speed
+       Bits 1-6: portamento speed magnitude
+       Bit 0:    direction (0=up, 1=down)
+
+   Byte 3: pitch value
+     0 = lowest C (C-1), 12/$C = next C up, etc.
+     Values above 72 ($48) = C-6 and above are used.
+
+   Byte 4: implicit - if next byte is $ff, it is end-of-pattern.
+
+Examples:
+   $84,$04,$24         -> length=4, instrument=4, pitch=$24 (C-3)
+   $D6,$98,$25,$FF     -> length=22, append, portamento up speed=24,
+                          pitch=$25 (C#3), end of pattern
+
+=== INSTRUMENT: 8-BYTE DATA STRUCTURE ===
+
+   Byte 0: pulse width low
+   Byte 1: pulse width high  (also modified in-place by pulse routine)
+   Byte 2: control register (waveform: $01=tri, $11=tri+gate, $21=saw+gate,
+                              $41=pulse+gate, $81=noise, etc.)
+   Byte 3: attack/decay
+   Byte 4: sustain/release
+   Byte 5: vibrato depth (0 = no vibrato)
+   Byte 6: pulse speed (bits 0-4: delay/step size; bits 5-7: speed class)
+   Byte 7: instrument FX flags
+
+   Byte 7 FX flags:
+     Bit 0: DRUM
+       - Bass drum: control reg starts as noise ($80), switches to square
+         after first VBL frame. High byte of frequency decremented each frame
+         for pitch drop. Fast decay.
+       - Hihat/other: noise always (ctrl=0).
+       - "This is the tell-tale instrument that gives away a Rob Hubbard routine!"
+     Bit 1: SKYDIVE
+       - Every 2nd VBL: decrement savefreqhi (high byte of freq).
+       - Slow portamento-down from note pitch to zero.
+     Bit 2: OCTAVE ARPEGGIO
+       - Even frames: play notenum (base note).
+       - Odd frames: play notenum+12 (one octave up).
+     Bits 3-7: unused in this early version (used in later drivers for FX).
+
+=== SPEED / TIMING ===
+
+   resetspd = 1 in Monty on the Run.
+   A note of length $1f (31) lasts 64 calls = ~1.28 seconds at 50Hz.
+   "speed" variable is decremented each VBL; when it hits -1, reset to resetspd
+   and process NoteWork. Otherwise jump to SoundWork.
+
+=== PLAY LOOP STRUCTURE ===
+
+   contplay: loop X from 2 to 0 (3 channels, X=channel index)
+     1. Check speed counter - if not reset, skip NoteWork, go to vibrato
+     2. NoteWork: decrement lengthleft; if -1, fetch new note
+        - getnewnote: read posoffset[x] into track pointer
+          - $ff in track = restart (loop)
+          - $fe in track = stop
+          - else: look up pattern pointer, read note bytes
+        - Load instrument into SID registers (ctrl, pulse, ADSR)
+        - Increment patoffset[x]; check for $ff (end of pattern)
+     3. SoundWork (when no new note needed):
+        a. Release: if lengthleft==0 and no-release bit clear:
+           clear gate bit, zero ADSR
+        b. Vibrato: oscillating value from (counter & 7) -> 0,1,2,3,3,2,1,0
+           (counter XOR 7 when >= 4). Add vibrato fraction to base freq.
+           Skip vibrato if note length < 8.
+        c. PulseWork: decrement pulsedelay; when expired, add/subtract
+           pulsespeed to/from pulse width. Reverse direction at $0exx or $08xx.
+           Pulse width stored BACK in instrument bytes 0-1 (in-place update).
+        d. Portamento: add/subtract portaval (from note's 2nd byte) to
+           savefreqhi/savefreqlo each frame.
+        e. Drums: see byte 7 bit 0 above.
+        f. Skydive: see byte 7 bit 1 above.
+        g. Octave arpeggio: see byte 7 bit 2 above.
+
+=== STATE VARIABLES (per-channel, 3 entries each) ===
+
+   posoffset[3]:   position within track (index to pattern number)
+   patoffset[3]:   position within current pattern (byte offset)
+   lengthleft[3]:  frames remaining for current note
+   savelnthcc[3]:  saved first byte of note (length + flags)
+   voicectrl[3]:   saved control register value
+   notenum[3]:     current pitch value (0-indexed)
+   instrnr[3]:     current instrument number
+   savefreqhi[3]:  current frequency high byte
+   savefreqlo[3]:  current frequency low byte
+   portaval[3]:    current portamento speed/direction byte
+   pulsedelay[3]:  countdown for next pulse width update
+   pulsedir[3]:    pulse direction (0=up, 1=down)
+   currtrkhi[3]:   high byte of current track base address
+   currtrklo[3]:   low byte of current track base address
+
+=== FREQUENCY TABLE ===
+
+   frequenzlo/frequenzhi: interleaved lo/hi pairs for 96 notes (8 octaves).
+   Starting at:
+     lo=$16, hi=$01 (note 0 = C-1, ~1.02 Hz in SID terms)
+   Indexed as: note*2 -> frequenzlo[note*2], frequenzhi[note*2]
+
+=== REGISTER OFFSETS ===
+
+   regoffsets = $00, $07, $0e
+   (SID voice 1 base $d400, voice 2 $d407, voice 3 $d40e)
+
+=== MSTATUS FLAGS ===
+
+   $C0: music turning off (kill voice ctrl regs, then set $80)
+   $80: music off (do nothing)
+   $40: init song (reset all counters, set to 0 for play)
+   $00 or other: music playing
+
+=== FULL COMMENTED SOURCE CODE (Monty on the Run) ===
+
+; rob hubbard
+; monty on the run music driver
+; .org $8000
+
+; Entry points:
+;   music+0: initmusic  (lda #songnum; jsr music+0)
+;   music+3: playmusic  (jsr music+3 at 50Hz)
+;   music+6: musicoff   (jsr music+6)
+
+initmusic:
+  lda #$00         ; music num
+  ldy #$00
+  asl
+  sta tempstore
+  asl
+  clc
+  adc tempstore    ; now music num*6
+  tax
+- lda songs,x      ; copy ptrs to this
+  sta currtrkhi,y  ; music's tracks to
+  inx              ; current tracks
+  iny
+  cpy #$06
+  bne -
+  lda #$00         ; clear control regs
+  sta $d404
+  sta $d40b
+  sta $d412
+  sta $d417
+  lda #$0f         ; full volume
+  sta $d418
+  lda #$40         ; flag init music
+  sta mstatus
+  rts
+
+musicoff:
+  lda #$c0         ; flag music off
+  sta mstatus
+  rts
+
+playmusic:
+  inc counter
+  bit mstatus      ; test music status
+  bmi moff         ; $80 and $c0 is off
+  bvc contplay     ; $40 init, else play
+
+; init the song (mstatus $40)
+  lda #$00         ; init counter
+  sta counter
+  ldx #3-1
+- sta posoffset,x  ; init pos offsets
+  sta patoffset,x  ; init pat offsets
+  sta lengthleft,x ; get note right away
+  sta notenum,x
+  dex
+  bpl -
+  sta mstatus      ; signal music play
+  jmp contplay
+
+; music is off (mstatus $80 or $c0)
+moff:
+  bvc +            ; if mstatus $c0 then
+  lda #$00
+  sta $d404        ; kill voice 1,2,3
+  sta $d40b        ; control registers
+  sta $d412
+  lda #$0f         ; full volume still
+  sta $d418
+  lda #$80         ; flag no need to kill
+  sta mstatus      ; sound next time
++ jmp musicend
+
+; music is playing
+contplay:
+  ldx #3-1         ; number of channels
+  dec speed        ; check the speed
+  bpl mainloop
+  lda resetspd     ; reset speed if needed
+  sta speed
+
+mainloop:
+  lda regoffsets,x ; save offset to regs
+  sta tmpregofst   ; for this channel
+  tay
+  lda speed        ; if speed not reset
+  cmp resetspd     ; then skip notework
+  beq checknewnote
+  jmp vibrato
+
+checknewnote:
+  lda currtrkhi,x  ; put base addr.w of
+  sta $02          ; this track in $2
+  lda currtrklo,x
+  sta $03
+  dec lengthleft,x ; check whether a new
+  bmi getnewnote   ; note is needed
+  jmp soundwork    ; no new note needed
+
+; notework: a new note is needed
+getnewnote:
+  ldy posoffset,x  ; get the data from
+  lda ($02),y      ; the current position
+  cmp #$ff         ; pos $ff restarts
+  beq restart
+  cmp #$fe         ; pos $fe stops music
+  bne getnotedata
+  jmp musicend
+
+restart:
+  lda #$00         ; get note immediately
+  sta lengthleft,x ; and reset pat,pos
+  sta posoffset,x
+  sta patoffset,x
+  jmp getnewnote
+
+getnotedata:
+  tay
+  lda patptl,y     ; put base addr.w of
+  sta $04          ; the pattern in $4
+  lda patpth,y
+  sta $05
+  lda #$00         ; default no portamento
+  sta portaval,x
+  ldy patoffset,x  ; get offset into ptn
+  lda #$ff         ; default no append
+  sta appendfl
+
+; 1st byte: length (bits 0-4), bit5=norelease, bit6=append, bit7=2nd-byte-present
+  lda ($04),y      ; get length of note
+  sta savelnthcc,x
+  sta templnthcc
+  and #$1f
+  sta lengthleft,x
+  bit templnthcc   ; test for append
+  bvs appendnote
+  inc patoffset,x  ; pt to next data
+  lda templnthcc   ; 2nd byte needed?
+  bpl getpitch
+
+; 2nd byte: instrument (+ve) or portamento (-ve)
+  iny
+  lda ($04),y      ; get instr/portamento
+  bpl +
+  sta portaval,x   ; save portamento val
+  jmp ++
++ sta instrnr,x    ; save instr nr
++ inc patoffset,x
+
+; 3rd byte: pitch
+getpitch:
+  iny
+  lda ($04),y      ; get pitch of note
+  sta notenum,x
+  asl              ; pitch*2
+  tay
+  lda frequenzlo,y ; save the appropriate
+  sta tempfreq     ; base frequency
+  lda frequenzhi,y
+  ldy tmpregofst
+  sta $d401,y
+  sta savefreqhi,x
+  lda tempfreq
+  sta $d400,y
+  sta savefreqlo,x
+  jmp +
+
+appendnote:
+  dec appendfl     ; clever eh?
+
+; fetch initial values from instrument data structure
++ ldy tmpregofst
+  lda instrnr,x    ; instr num
+  stx tempstore
+  asl              ; instr num*8
+  asl
+  asl
+  tax
+  lda instr+2,x    ; get control reg val
+  sta tempctrl
+  lda instr+2,x
+  and appendfl     ; implement append (if appending, don't re-trigger gate)
+  sta $d404,y
+  lda instr+0,x    ; get pulse width lo
+  sta $d402,y
+  lda instr+1,x    ; get pulse width hi
+  sta $d403,y
+  lda instr+3,x    ; get attack/decay
+  sta $d405,y
+  lda instr+4,x    ; get sustain/release
+  sta $d406,y
+  ldx tempstore    ; save control reg val
+  lda tempctrl
+  sta voicectrl,x
+
+; 4th byte check: if $ff, end of pattern -> advance position
+  inc patoffset,x  ; preview 4th byte
+  ldy patoffset,x
+  lda ($04),y
+  cmp #$ff         ; check for eop
+  bne +
+  lda #$00         ; end of pat reached
+  sta patoffset,x  ; reset pat offset
+  inc posoffset,x  ; advance to next pat
++ jmp loopcont
+
+; soundwork: instrument and effects when no new note needed
+soundwork:
+  ldy tmpregofst
+
+; release: when note length expires, clear gate and ADSR
+  lda savelnthcc,x ; check for no-release flag
+  and #$20
+  bne vibrato
+  lda lengthleft,x ; check if length exceeded
+  bne vibrato
+  lda voicectrl,x  ; length exceeded so
+  and #$fe         ; start the release
+  sta $d404,y      ; clear gate bit
+  lda #$00
+  sta $d405,y      ; zero attack/decay
+  sta $d406,y      ; zero sustain/release
+
+; vibrato
+vibrato:
+  lda instrnr,x    ; instr num
+  asl
+  asl
+  asl              ; instr num*8
+  tay
+  sty instnumby8
+  lda instr+7,y    ; get instr fx byte
+  sta instrfx
+  lda instr+6,y    ; get pulse speed
+  sta pulsevalue
+  lda instr+5,y    ; get vibrato depth
+  sta vibrdepth
+  beq pulsework    ; no vibrato if depth=0
+
+; oscillating counter: 0,1,2,3,3,2,1,0 (8-frame cycle)
+  lda counter
+  and #7
+  cmp #4
+  bcc +
+  eor #7
++ sta oscilatval
+
+; compute vibrato: add (freq_of_note+1 - freq_of_note)/2^vibrdepth
+  lda notenum,x
+  asl              ; note*2
+  tay
+  sec
+  lda frequenzlo+2,y ; freq of note+1
+  sbc frequenzlo,y
+  sta tmpvdiflo
+  lda frequenzhi+2,y
+  sbc frequenzhi,y
+- lsr              ; divide by 2 for each vibrdepth
+  ror tmpvdiflo
+  dec vibrdepth
+  bpl -
+  sta tmpvdifhi
+  lda frequenzlo,y
+  sta tmpvfrqlo
+  lda frequenzhi,y
+  sta tmpvfrqhi
+  lda savelnthcc,x ; no vibrato if note length < 8
+  and #$1f
+  cmp #8
+  bcc +
+  ldy oscilatval
+- dey
+  bmi +
+  clc
+  lda tmpvfrqlo
+  adc tmpvdiflo
+  sta tmpvfrqlo
+  lda tmpvfrqhi
+  adc tmpvdifhi
+  sta tmpvfrqhi
+  jmp -
++ ldy tmpregofst
+  lda tmpvfrqlo
+  sta $d400,y
+  lda tmpvfrqhi
+  sta $d401,y
+
+; pulsewidth timbre
+pulsework:
+  lda pulsevalue   ; check for pulsework needed
+  beq portamento   ; skip if no pulse speed
+  ldy instnumby8
+  and #$1f
+  dec pulsedelay,x ; pulsedelay-1
+  bpl portamento
+  sta pulsedelay,x ; reset pulsedelay
+  lda pulsevalue
+  and #$e0         ; extract speed from bits 5-7
+  sta pulsespeed
+  lda pulsedir,x   ; 0=up, 1=down
+  bne pulsedown
+
+; pulse width up
+  lda pulsespeed
+  clc
+  adc instr+0,y    ; add to pulse width lo
+  pha
+  lda instr+1,y
+  adc #$00
+  and #$0f
+  pha
+  cmp #$0e         ; reached max?
+  bne dumpulse
+  inc pulsedir,x   ; reverse: go down
+  jmp dumpulse
+
+pulsedown:
+  sec
+  lda instr+0,y
+  sbc pulsespeed   ; sub from pulse width lo
+  pha
+  lda instr+1,y
+  sbc #$00
+  and #$0f
+  pha
+  cmp #$08         ; reached min?
+  bne dumpulse
+  dec pulsedir,x   ; reverse: go up
+
+dumpulse:
+  stx tempstore
+  ldx tmpregofst
+  pla
+  sta instr+1,y    ; UPDATE INSTRUMENT IN-PLACE
+  sta $d403,x      ; write to SID
+  pla
+  sta instr+0,y    ; UPDATE INSTRUMENT IN-PLACE
+  sta $d402,x
+  ldx tempstore
+
+; portamento
+portamento:
+  ldy tmpregofst
+  lda portaval,x   ; 0 = no portamento
+  beq drums
+  and #$7e         ; mask unwanted bits
+  sta tempstore
+  lda portaval,x
+  and #$01         ; bit0: 0=up, 1=down
+  beq portup
+  sec              ; portamento down
+  lda savefreqlo,x
+  sbc tempstore
+  sta savefreqlo,x
+  sta $d400,y
+  lda savefreqhi,x
+  sbc #$00
+  sta savefreqhi,x
+  sta $d401,y
+  jmp drums
+portup:
+  clc              ; portamento up
+  lda savefreqlo,x
+  adc tempstore
+  sta savefreqlo,x
+  sta $d400,y
+  lda savefreqhi,x
+  adc #$00
+  sta savefreqhi,x
+  sta $d401,y
+
+; drums (instrfx bit 0)
+drums:
+  lda instrfx
+  and #$01
+  beq skydive
+  lda savefreqhi,x ; skip if freq already 0
+  beq skydive
+  lda lengthleft,x ; skip if note finished
+  beq skydive
+  lda savelnthcc,x ; is this the FIRST frame of the note?
+  and #$1f
+  sec
+  sbc #$01
+  cmp lengthleft,x
+  ldy tmpregofst
+  bcc firstime
+  lda savefreqhi,x ; NOT first frame: decrement freq hi for pitch drop
+  dec savefreqhi,x
+  sta $d401,y
+  lda voicectrl,x  ; if ctrlreg=0, always noise
+  and #$fe
+  bne dumpctrl
+firstime:
+  lda savefreqhi,x ; first frame: use noise waveform
+  sta $d401,y
+  lda #$80         ; set noise bit
+dumpctrl:
+  sta $d404,y      ; write control reg
+
+; skydive (instrfx bit 1): slow freq decrement every 2nd frame
+skydive:
+  lda instrfx
+  and #$02
+  beq octarp
+  lda counter
+  and #$01         ; every 2nd VBL
+  beq octarp
+  lda savefreqhi,x
+  beq octarp       ; already at zero
+  dec savefreqhi,x
+  ldy tmpregofst
+  sta $d401,y
+
+; octave arpeggio (instrfx bit 2)
+octarp:
+  lda instrfx
+  and #$04
+  beq loopcont
+  lda counter
+  and #$01
+  beq +
+  lda notenum,x    ; odd frame: note+12
+  clc
+  adc #$0c
+  jmp ++
++ lda notenum,x   ; even frame: base note
++ asl
+  tay
+  lda frequenzlo,y
+  sta tempfreq
+  lda frequenzhi,y
+  ldy tmpregofst
+  sta $d401,y
+  lda tempfreq
+  sta $d400,y
+
+loopcont:
+  dex              ; next channel
+  bmi musicend
+  jmp mainloop
+
+musicend:
+  rts
+
+=== INSTRUMENT DATA (Monty on the Run) ===
+
+; 20 instruments, 8 bytes each
+instr:
+ .byt $80,$09,$41,$48,$60,$03,$81,$00  ; instr 0
+ .byt $00,$08,$81,$02,$08,$00,$00,$01  ; instr 1
+ .byt $a0,$02,$41,$09,$80,$00,$00,$00  ; instr 2
+ .byt $00,$02,$81,$09,$09,$00,$00,$05  ; instr 3: drum (bit0 set)
+ .byt $00,$08,$41,$08,$50,$02,$00,$04  ; instr 4: skydive (bit1)
+ .byt $00,$01,$41,$3f,$c0,$02,$00,$00  ; instr 5
+ .byt $00,$08,$41,$04,$40,$02,$00,$00  ; instr 6
+ .byt $00,$08,$41,$09,$00,$02,$00,$00  ; instr 7
+ .byt $00,$09,$41,$09,$70,$02,$5f,$04  ; instr 8: skydive (bit2=octarp? no, $04=bit2)
+ .byt $00,$09,$41,$4a,$69,$02,$81,$00  ; instr 9
+ .byt $00,$09,$41,$40,$6f,$00,$81,$02  ; instr 10
+ .byt $80,$07,$81,$0a,$0a,$00,$00,$01  ; instr 11: drum
+ .byt $00,$09,$41,$3f,$ff,$01,$e7,$02  ; instr 12
+ .byt $00,$08,$41,$90,$f0,$01,$e8,$02  ; instr 13
+ .byt $00,$08,$41,$06,$0a,$00,$00,$01  ; instr 14: drum
+ .byt $00,$09,$41,$19,$70,$02,$a8,$00  ; instr 15
+ .byt $00,$02,$41,$09,$90,$02,$00,$00  ; instr 16
+ .byt $00,$00,$11,$0a,$fa,$00,$00,$05  ; instr 17: drum+skydive
+ .byt $00,$08,$41,$37,$40,$02,$00,$00  ; instr 18
+ .byt $00,$08,$11,$07,$70,$02,$00,$00  ; instr 19
+
+; Control register decode ($41 = pulse+gate, $81 = noise+gate, $11 = triangle+gate, $21 = saw+gate)
+
+=== FREQUENCY TABLE ===
+
+; 96 notes, interleaved lo/hi
+; Note 0 (C-1): lo=$16, hi=$01
+; frequenzlo/frequenzhi in pairs from $8000+offset
+ .byt $16,$01  ; note 0
+ .byt $27,$01  ; note 1
+ .byt $38,$01  ; note 2
+ .byt $4b,$01,$5f,$01,$73,$01,$8a,$01,$a1,$01
+ .byt $ba,$01,$d4,$01,$f0,$01,$0e,$02
+ .byt $2d,$02,$4e,$02,$71,$02,$96,$02
+; ... continues through 8 octaves
+
+=== SONG/PATTERN DATA (Monty on the Run main theme) ===
+
+; Track 1 (channel 1): patterns 11,14,17,1a,00,27,00,28,...
+montymaintr1: .byt $11,$14,$17,$1a,$00,$27,$00,$28,...,$ff (loop)
+; Track 2 (channel 2): patterns 12,15,18,1b,2d,39,...
+; Track 3 (channel 3): patterns 13,16,19,1c,02,...
+
+; Pattern format example:
+; ptn27: .byt $1f,$4a,$ff   -> length=31, pitch=$4a, eop
+; ptn11: .byt $bf,$06,$56,$1f,$57,... -> $bf=instr 6+norelease+append+2ndbyte...
+
+=== KEY NOTES FROM ARTICLE ===
+
+1. Driver personality: "I would have given an arm or a leg for a commented Rob
+   Hubbard source code in the past."
+
+2. Drum technique: Bass drum = noise on frame 1, then square wave + pitch drop.
+   "This is the tell-tale instrument that gives away a Rob Hubbard routine!"
+
+3. Skydive effect: Slow decrement of freq hi byte every other frame.
+   Combined with octave arpeggio = very characteristic Hubbard sound.
+
+4. Pulse width stored in-place in instrument data structure and bounces
+   between $0exx and $08xx.
+
+5. Vibrato: 8-frame oscillation (0,1,2,3,3,2,1,0), modulates freq by
+   fraction of semitone distance. Only applied if note length >= 8.
+
+6. Append flag ($40 in note byte 1): suppresses re-triggering of gate and ADSR,
+   allowing note extension without re-attack.
