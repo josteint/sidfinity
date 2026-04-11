@@ -87,6 +87,10 @@ def generate_player(song):
         gt_values.add(raw & 0x3F)
     ctx.uniform_gate_timer = gt_values.pop() if len(gt_values) == 1 else None
 
+    # Multispeed support
+    ctx.multiplier = getattr(song, 'multiplier', 0)
+    ctx.cia_timer = getattr(song, '_cia_timer', None)
+
     emit_preamble(ctx)
     emit_jump_table(ctx)
     emit_init(ctx)
@@ -196,15 +200,30 @@ def emit_play_dispatch(ctx):
         ctx.label('mt_g_mvol')
         ctx.inst('lda', '#$0f')
         ctx.inst('sta', 'SIDBASE+$18')
-        # NOTE: 3-4 NOPs here reduce diffs from 5 to 3 by matching the original's
-        # per-frame VBI drift. But the remaining 3 diffs need per-path cycle matching
-        # (tick-0 vs normal vs gate-timer frames have different cycle counts).
+
+    multiplier = getattr(ctx, 'multiplier', 0)
+    if multiplier and multiplier > 1:
+        # Multispeed: execute all 3 channels N times per frame.
+        # The tempo counter decrements each call; with N calls per frame,
+        # it takes tempo/N frames to process one tick = correct timing.
+        ctx.inst('lda', f'#{multiplier}', comment=f'multispeed {multiplier}x')
+        ctx.inst('sta', 'mt_mspeed_cnt')
+        ctx.label('mt_mspeed_loop')
+
     ctx.inst('ldx', '#0')
     ctx.inst('jsr', 'mt_execchn')
     ctx.inst('ldx', '#7')
     ctx.inst('jsr', 'mt_execchn')
     ctx.inst('ldx', '#14')
-    ctx.inst('jmp', 'mt_execchn')
+    if multiplier and multiplier > 1:
+        ctx.inst('jsr', 'mt_execchn')
+        ctx.inst('dec', 'mt_mspeed_cnt')
+        ctx.inst('bne', 'mt_mspeed_loop')
+        ctx.inst('rts')
+        ctx.label('mt_mspeed_cnt')
+        ctx.data('.byte', '0')
+    else:
+        ctx.inst('jmp', 'mt_execchn')
 
 
 # =============================================================================

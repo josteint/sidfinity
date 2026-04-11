@@ -198,7 +198,38 @@ def gt2_to_usf(sid_path):
             if (binary[i] == 0xA9 and binary[i + 2] == 0x9D and
                     binary[i + 5] == 0xA9 and binary[i + 6] == 0x01 and
                     binary[i + 7] == 0x9D):
-                song.tempo = binary[i + 1] + 1
+                raw_tempo = binary[i + 1] + 1
+
+                # Detect multispeed: verify CIA timer writes ($DC04/$DC05) in binary.
+                # If multispeed, record the multiplier but keep the full tempo.
+                # The V2 player needs the full tempo because the pattern data
+                # is encoded for N ticks per CIA interrupt, not 1 tick per VBI.
+                has_cia = False
+                cia_lo = cia_hi = None
+                for ci in range(len(binary) - 3):
+                    if binary[ci] in (0x8D, 0x8E, 0x9D):  # STA/STX abs / STA abs,X
+                        cia_addr = binary[ci + 1] | (binary[ci + 2] << 8)
+                        if cia_addr == 0xDC04 and ci >= 2:
+                            cia_lo = binary[ci - 1] if binary[ci - 2] in (0xA9, 0xA2) else None
+                            has_cia = True
+                        elif cia_addr == 0xDC05 and ci >= 2:
+                            cia_hi = binary[ci - 1] if binary[ci - 2] in (0xA9, 0xA2) else None
+
+                song.tempo = raw_tempo
+                if has_cia and raw_tempo >= 12 and cia_lo is not None and cia_hi is not None:
+                    cia_val = cia_lo | (cia_hi << 8)
+                    # Validate: CIA timer should match $4CC7/multiplier (PAL)
+                    # or $42C6/multiplier (NTSC) within 5% tolerance
+                    for base in (6, 5, 4, 3):
+                        if raw_tempo % base == 0:
+                            mult = raw_tempo // base
+                            expected_pal = 0x4CC7 // mult
+                            expected_ntsc = 0x42C6 // mult
+                            if (abs(cia_val - expected_pal) < expected_pal * 0.05 or
+                                    abs(cia_val - expected_ntsc) < expected_ntsc * 0.05):
+                                song.multiplier = mult
+                                song._cia_timer = (cia_lo, cia_hi)
+                                break
                 break
 
     # Shared tables — unpack from packed format to .sng format for USF.
