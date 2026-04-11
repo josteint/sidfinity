@@ -21,7 +21,7 @@ from gt2_packer import FREQ_HI_PAL, FREQ_LO_PAL
 SIDDUMP = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'tools', 'siddump')
 
 
-def _detect_speed_table_from_binary(binary, la, code_end, table_region_start, table_region_end):
+def _detect_speed_table_from_binary(binary, la, code_end, table_region_start, table_region_end, group=None):
     """Detect speed table presence and location from player binary code.
 
     Speed tables are referenced by LDA mt_speedlefttbl-1,Y and
@@ -55,8 +55,10 @@ def _detect_speed_table_from_binary(binary, la, code_end, table_region_start, ta
                     # STA mt_temp2 => this is mt_speedlefttbl-1
                     if speed_l_operand is None or addr > speed_l_operand:
                         speed_l_operand = addr
-                elif binary[off + 3] == 0x85 and binary[off + 4] == 0xFC:
+                elif binary[off + 3] == 0x85 and binary[off + 4] in (
+                    (0xFC, 0xFE) if group == 'C' else (0xFC,)):
                     # STA mt_temp1 => this could be mt_speedrighttbl-1
+                    # Group A/B use $FC, Group C uses $FE
                     # But only if it's in the table region and after any
                     # known speed_l_operand position
                     if speed_r_operand is None or addr > speed_r_operand:
@@ -178,14 +180,16 @@ def _extract_gt2_pattern(binary, start_off):
                 note_byte = binary[p]
                 result.append(note_byte)
                 p += 1
-                # After note: read continuation marker
+                # After note: check continuation marker (but don't consume it —
+                # the GT2 player re-reads this byte as the next row's first byte,
+                # so FX params of 0x00 after it won't be misread as ENDPATT)
                 if 0x60 <= note_byte <= 0xBF:
                     if p < limit:
                         cont = binary[p]
-                        result.append(cont)
                         if cont == 0x00:
+                            result.append(cont)
                             break  # ENDPATT
-                        p += 1
+                        # Non-zero: don't append or advance — loop re-reads as next row
                     continue
                 elif note_byte >= 0xC0:
                     continue  # packed rest after FX
@@ -201,39 +205,42 @@ def _extract_gt2_pattern(binary, start_off):
             if cmd != 0 and p < limit:
                 result.append(binary[p])  # FX param
                 p += 1
-            # No note follows; read continuation marker
+            # No note follows; check continuation marker (don't consume —
+            # GT2 player re-reads this byte as the next row's first byte)
             if p < limit:
                 cont = binary[p]
-                result.append(cont)
                 if cont == 0x00:
+                    result.append(cont)
                     break  # ENDPATT
-                p += 1
+                # Non-zero: don't append or advance — loop re-reads as next row
             continue
 
         # Note ($60-$BC)
         if 0x60 <= byte <= 0xBC:
             result.append(byte)
             p += 1
-            # Continuation marker
+            # Check continuation marker (don't consume — GT2 player re-reads
+            # this byte as the next row's first byte)
             if p < limit:
                 cont = binary[p]
-                result.append(cont)
                 if cont == 0x00:
+                    result.append(cont)
                     break  # ENDPATT
-                p += 1
+                # Non-zero: don't append or advance — loop re-reads as next row
             continue
 
         # Rest ($BD), keyoff ($BE), keyon ($BF)
         if 0xBD <= byte <= 0xBF:
             result.append(byte)
             p += 1
-            # Continuation marker
+            # Check continuation marker (don't consume — GT2 player re-reads
+            # this byte as the next row's first byte)
             if p < limit:
                 cont = binary[p]
-                result.append(cont)
                 if cont == 0x00:
+                    result.append(cont)
                     break  # ENDPATT
-                p += 1
+                # Non-zero: don't append or advance — loop re-reads as next row
             continue
 
         # Packed rest (>= $C0)
@@ -953,8 +960,9 @@ def decompile_gt2(sid_path):
 
     # Detect speed table from binary code (not just vib_param column).
     # Speed tables are needed for toneportamento, regular portamento, and vibrato.
+    player_group = ver_info['group'] if ver_info else None
     speed_detect = _detect_speed_table_from_binary(
-        binary, la, code_end, pos, first_ol_off)
+        binary, la, code_end, pos, first_ol_off, group=player_group)
     has_speed = has_vib or speed_detect[2] > 0
 
     # Get table sizes from parse_direct's operand analysis.
