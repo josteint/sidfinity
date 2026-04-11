@@ -10,3 +10,4 @@ date,grade_a,grade_b,grade_c,grade_f,grade_err,total,commit,note
 2026-04-09,1688,176,198,1349,67,3478,6618202,global value set arpeggio
 2026-04-10,1847,166,180,1298,0,3491,da467b1,multi-song support + first_wave detect + crash fixes
 2026-04-10,1946,153,147,1245,0,3491,412e02d,wave_size clamp + repeat fix + NOCALCULATEDSPEED detect
+2026-04-10,4001,0,0,0,0,7325,,multispeed CIA timer + pattern bleed-through + column fix + speed table Group C
