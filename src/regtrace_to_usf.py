@@ -226,13 +226,30 @@ def extract_voice_events(frames, voice_idx, tempo=6, debug=False):
             # Use the most common freq_hi during this note (the "settled" note),
             # not the first frame's freq_hi (which may be a wave table transient).
             note_fh_counts = Counter()
+            freq16_by_fh = defaultdict(list)
             for f in range(note_start, min(end_frame, nframes)):
                 fh = frame_states[f]['freq_hi']
                 if fh > 0 and frame_states[f]['is_audible']:
                     note_fh_counts[fh] += 1
+                    freq16_by_fh[fh].append(frame_states[f]['freq16'])
             if note_fh_counts:
                 settled_fh = note_fh_counts.most_common(1)[0][0]
-                settled_note = freq_hi_to_note(settled_fh)
+                # Try full 16-bit freq matching for better freq_lo precision,
+                # but only if it picks the same freq_hi as the original.
+                # If 16-bit matching would change the high byte, fall back to
+                # freq_hi-only matching to avoid note_wrong regressions.
+                fh_freq16s = freq16_by_fh[settled_fh]
+                settled_freq16 = Counter(fh_freq16s).most_common(1)[0][0]
+                note16, _ = freq_to_note_pal(settled_freq16)
+                note_hi = freq_hi_to_note(settled_fh)
+                if (note16 >= 0 and note16 < 96 and
+                        FREQ_HI_PAL[note16] == settled_fh):
+                    # 16-bit match preserves freq_hi — use it for better freq_lo
+                    settled_note = note16
+                elif note_hi >= 0:
+                    settled_note = note_hi
+                else:
+                    settled_note = -1
                 if settled_note >= 0:
                     current_note = settled_note
 
@@ -254,6 +271,22 @@ def extract_voice_events(frames, voice_idx, tempo=6, debug=False):
         for j in range(1, look):
             fst = frame_states[i + j]
             if fst['note'] == old_note and fst['gate'] and fst['is_audible']:
+                return True
+        return False
+
+    def _is_wave_cycling(i, old_note, new_note):
+        """Check if a freq change is wave table cycling (arpeggio/octave pattern).
+
+        Returns True if old_note reappears within 4 frames while gate stays on.
+        This catches arpeggios with intervals > 2 semitones that _is_vibrato
+        misses (e.g., octave arpeggios, major chord patterns).
+        """
+        look = min(5, nframes - i)
+        for j in range(1, look):
+            fst = frame_states[i + j]
+            if not (fst['gate'] and fst['is_audible']):
+                break  # gate went off — not cycling
+            if fst['note'] == old_note:
                 return True
         return False
 
@@ -281,17 +314,30 @@ def extract_voice_events(frames, voice_idx, tempo=6, debug=False):
             else:
                 # Already in a note — check for freq change (legato/new note while gated)
                 if st['note'] != current_note:
-                    if not _is_vibrato(i, current_note, st['note']):
-                        # Real note change — close current, start new
-                        _close_note(i)
-                        in_note = True
-                        note_start = i
-                        current_note = st['note']
-                        current_ad = st['ad']
-                        current_sr = st['sr']
-                        current_wave = st['waveform']
-                        current_pw = st['pw']
-                        first_wave = -1
+                    if (_is_vibrato(i, current_note, st['note']) or
+                            _is_wave_cycling(i, current_note, st['note'])):
+                        pass  # vibrato or wave table cycling — ignore
+                    else:
+                        # Check for legato: new freq sustains for tempo//2 frames
+                        new_note = st['note']
+                        sustain_count = 0
+                        for k in range(i, min(i + tempo + 2, nframes)):
+                            if frame_states[k]['note'] == new_note and frame_states[k]['gate']:
+                                sustain_count += 1
+                            else:
+                                break
+                        if sustain_count >= max(3, tempo // 2):
+                            # Legato: sustained freq change — new note
+                            _close_note(i)
+                            in_note = True
+                            note_start = i
+                            current_note = new_note
+                            current_ad = st['ad']
+                            current_sr = st['sr']
+                            current_wave = st['waveform']
+                            current_pw = st['pw']
+                            first_wave = -1
+                        # else: unsustained non-cycling change — ignore
         else:
             if in_note:
                 _close_note(i)
@@ -672,16 +718,25 @@ def build_instruments(all_voice_events, frames=None):
     """
     combos = Counter()
     pw_info = defaultdict(list)
+    gate_off_durations = defaultdict(list)  # key -> list of gate-off frame counts
     wave_patterns = defaultdict(list)  # key -> list of per-frame patterns
 
     for voice_idx, voice_events in enumerate(all_voice_events):
-        for e in voice_events:
+        for ev_i, e in enumerate(voice_events):
             if e['type'] != 'note':
                 continue
             key = (e['ad'], e['sr'], e['waveform'])
             combos[key] += 1
             if e.get('pw', 0) > 0:
                 pw_info[key].append(e['pw'])
+
+            # Detect gate-off duration preceding this note.
+            # The off event before a note tells us how many frames gate was off
+            # (the hard-restart gap), which is the gate_timer for this instrument.
+            if ev_i > 0 and voice_events[ev_i - 1]['type'] == 'off':
+                off_dur = voice_events[ev_i - 1]['duration']
+                if 1 <= off_dur <= 15:
+                    gate_off_durations[key].append(off_dur)
 
             # Extract per-frame wave pattern from raw register data
             if frames is not None and e['duration'] >= 2:
@@ -747,13 +802,34 @@ def build_instruments(all_voice_events, frames=None):
             wave_table.append(WaveTableStep(waveform=wave_byte, note_offset=0))
             wave_table.append(WaveTableStep(is_loop=True, loop_target=0))
 
+        # Detect gate timer from observed gate-off durations for this instrument.
+        # Gate timers are the short, consistent off gaps between notes (hard restart).
+        # Musical rests are longer and less consistent.
+        gt_key = (ad, sr, waveform)
+        gt_durs = gate_off_durations.get(gt_key, [])
+        if len(gt_durs) >= 2:
+            gt_counter = Counter(gt_durs)
+            detected_gt = gt_counter.most_common(1)[0][0]
+            # If the mode is >8 frames, it's likely a musical rest pattern.
+            # Look for a shorter duration that appears at least 20% as often.
+            if detected_gt > 8:
+                total = len(gt_durs)
+                for dur in sorted(gt_counter.keys()):
+                    if dur <= 8 and gt_counter[dur] >= total * 0.2:
+                        detected_gt = dur
+                        break
+                else:
+                    detected_gt = min(8, min(gt_durs))
+        else:
+            detected_gt = 2
+
         inst = Instrument(
             id=idx,
             ad=ad,
             sr=sr,
             waveform=waveform_name,
             first_wave=fw_val if fw_val >= 0 else -1,
-            gate_timer=2,
+            gate_timer=detected_gt,
             hr_method='gate',
             pulse_width=pw,
             wave_table=wave_table,
@@ -864,6 +940,70 @@ def _build_wave_table_from_patterns(patterns, wave_byte, settled_waveform):
             WaveTableStep(is_loop=True, loop_target=1),
         ]
         return steps, -1
+
+    # Pattern 3: Cycling arpeggio — repeating (waveform, note_offset) sequence
+    # Build per-frame consensus across all patterns, then detect a repeating cycle.
+    max_frames = min(min_len, 8)
+    consensus = []
+    consensus_confidence = []
+    for f in range(max_frames):
+        pair_counts = Counter()
+        for pat in patterns:
+            if f < len(pat):
+                wb, noff = pat[f]
+                pair_counts[(wb & 0xF0, noff)] += 1
+
+        best_pair, best_count = pair_counts.most_common(1)[0]
+        confidence = best_count / len(patterns)
+        consensus.append(best_pair)
+        consensus_confidence.append(confidence)
+
+    # Try cycle periods 2, 3, 4
+    best_cycle = None
+    best_cycle_score = 0
+    for period in range(2, min(5, max_frames // 2 + 1)):
+        cycle = consensus[:period]
+        # Check: do the cycle steps have at least 2 distinct values?
+        if len(set(cycle)) < 2:
+            continue
+        # Count how many consensus frames match the cycle
+        matches = 0
+        total = 0
+        for f in range(max_frames):
+            expected = cycle[f % period]
+            if consensus[f] == expected and consensus_confidence[f] >= 0.4:
+                matches += 1
+            total += 1
+        score = matches / total if total > 0 else 0
+        # Also check agreement across patterns: for each frame position,
+        # what fraction of patterns match the cycle's expected value?
+        pattern_agreement = 0
+        pattern_total = 0
+        for f in range(min(max_frames, period * 3)):
+            expected = cycle[f % period]
+            for pat in patterns:
+                if f < len(pat):
+                    actual = (pat[f][0] & 0xF0, pat[f][1])
+                    pattern_total += 1
+                    if actual == expected:
+                        pattern_agreement += 1
+        pat_score = pattern_agreement / pattern_total if pattern_total > 0 else 0
+
+        if score >= 0.75 and pat_score >= 0.5 and score > best_cycle_score:
+            best_cycle = cycle
+            best_cycle_score = score
+
+    if best_cycle is not None:
+        steps = []
+        for wave_bits, note_off in best_cycle:
+            wb = wave_bits | 0x01  # add gate bit
+            steps.append(WaveTableStep(waveform=wb, note_offset=note_off))
+        steps.append(WaveTableStep(is_loop=True, loop_target=0))
+        fw_val = -1
+        if (best_cycle[0][0] != settled_waveform and
+                best_cycle[0][0] == 0x80):
+            fw_val = best_cycle[0][0] | 0x01
+        return steps, fw_val
 
     # No clear pattern — don't emit a wave table
     return [], -1
