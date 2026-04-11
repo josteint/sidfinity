@@ -153,20 +153,37 @@ def detect_player_flags(binary, la, code_end, freq_end, ad_operand, ni, ghost_ba
             nopulse = False
 
     # NOFILTER: check if any instrument-range LDA abs,Y writes to a global
-    # variable (STA abs, not STA abs,X). Filter is global in GT2.
+    # variable (STA abs, not STA abs,X) that is also READ elsewhere in the code.
+    # Filter is global in GT2. The store may be past a BEQ (skip when ptr=0).
+    # Dead stores (written but never read) indicate NOFILTER=1 — the filter_ptr
+    # column exists in data but the filter processing code was compiled out.
     nofilter = True
     for i in range(code_end - 5):
         if binary[i] == 0xB9:  # LDA abs,Y
             src = binary[i + 1] | (binary[i + 2] << 8)
             if ad_operand <= src < max_col_addr:
-                # Check the instruction at i+3 (right after LDA abs,Y).
-                # If it's STA abs (0x8D), the target tells us if it's a filter
-                # global variable (non-SID address) or a SID register write.
-                j = i + 3
-                if j + 2 < code_end and binary[j] == 0x8D:
-                    dst = binary[j + 1] | (binary[j + 2] << 8)
-                    if _is_channel_var(dst):
-                        nofilter = False
+                # Scan up to 8 bytes ahead for STA abs (past BEQ/BNE branches)
+                for j in range(i + 3, min(i + 8, code_end - 2)):
+                    if binary[j] == 0x8D:  # STA abs
+                        dst = binary[j + 1] | (binary[j + 2] << 8)
+                        if _is_channel_var(dst):
+                            # Verify the target is READ somewhere (not a dead store).
+                            # Dead stores occur when NOFILTER=1: the column still
+                            # has filter_ptr data but filter processing is absent.
+                            dst_lo = dst & 0xFF
+                            dst_hi = (dst >> 8) & 0xFF
+                            is_read = False
+                            for k in range(code_end - 2):
+                                if (binary[k] in (0xAD, 0xAC, 0xAE) and  # LDA/LDY/LDX abs
+                                        binary[k + 1] == dst_lo and
+                                        binary[k + 2] == dst_hi):
+                                    is_read = True
+                                    break
+                            if is_read:
+                                nofilter = False
+                        break
+                    elif binary[j] == 0x9D:  # STA abs,X (not filter)
+                        break
 
     # NOINSTRVIB: check if vib_param/vib_delay columns are read.
     # Count instrument-range channel variable targets beyond wave_ptr/pulse/filter.
