@@ -157,6 +157,13 @@ def gt2_to_usf(sid_path):
         newnote_scope = 'all_regs' if bw else 'wave_only'
         vib_fix = False
 
+    # Override with detected ADSR order when binary analysis found it
+    # (group defaults can be wrong for BUFFEREDWRITES players)
+    if ver and ver.get('adsr_order'):
+        adsr_order = ver['adsr_order']
+    if ver and ver.get('loadregs_adsr_order'):
+        loadregs_order = ver['loadregs_adsr_order']
+
     # Build Song
     song = Song(
         title='',  # TODO: extract from PSID header

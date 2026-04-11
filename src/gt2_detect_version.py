@@ -68,20 +68,82 @@ def detect_gt2_player_group(sid_path):
             return (addr - ghost_base) % 7 == 6
         return False
 
+    # Detect shadow register addresses for BUFFEREDWRITES players.
+    # In mt_loadregs with BUFFEREDWRITES: LDA mt_chnad,X / STA $D405,X / LDA mt_chnsr,X / STA $D406,X
+    # (or SR-first variant). Extract shadow addresses so we can detect HR writes to them.
+    shadow_ad_addr = None
+    shadow_sr_addr = None
+    loadregs_adsr_order = None
+    for i in range(code_end - 12):
+        if binary[i] == 0xBD and binary[i + 3] == 0x9D:  # LDA abs,X / STA abs,X
+            sta_dst = binary[i + 4] | (binary[i + 5] << 8)
+            if sta_dst == 0xD405:  # STA $D405,X (AD register)
+                shadow_ad_addr = binary[i + 1] | (binary[i + 2] << 8)
+                # Next pair should be LDA abs,X / STA $D406,X
+                if (i + 9 < code_end and binary[i + 6] == 0xBD and
+                        binary[i + 9] == 0x9D):
+                    sta2 = binary[i + 10] | (binary[i + 11] << 8)
+                    if sta2 == 0xD406:
+                        shadow_sr_addr = binary[i + 7] | (binary[i + 8] << 8)
+                        loadregs_adsr_order = 'ad_first'
+                        break
+            elif sta_dst == 0xD406:  # STA $D406,X (SR register) — sr_first loadregs
+                shadow_sr_addr = binary[i + 1] | (binary[i + 2] << 8)
+                if (i + 9 < code_end and binary[i + 6] == 0xBD and
+                        binary[i + 9] == 0x9D):
+                    sta2 = binary[i + 10] | (binary[i + 11] << 8)
+                    if sta2 == 0xD405:
+                        shadow_ad_addr = binary[i + 7] | (binary[i + 8] << 8)
+                        loadregs_adsr_order = 'sr_first'
+                        break
+
     hr_writes = []
     for i in range(code_end - 5):
         if binary[i] == 0xA9 and binary[i + 2] == 0x9D:  # LDA #xx / STA abs,X
             addr = binary[i + 3] | (binary[i + 4] << 8)
-            if _is_ad_reg(addr):
-                hr_writes.append(('AD', i))
-                if hr_ad_offset is None:
+            is_ad_direct = _is_ad_reg(addr)
+            is_sr_direct = _is_sr_reg(addr)
+            is_ad_shadow = (addr == shadow_ad_addr) if shadow_ad_addr else False
+            is_sr_shadow = (addr == shadow_sr_addr) if shadow_sr_addr else False
+
+            if is_ad_direct or is_sr_direct:
+                # Direct SID register write — always trust
+                reg = 'AD' if is_ad_direct else 'SR'
+                hr_writes.append((reg, i))
+                if reg == 'AD' and hr_ad_offset is None:
                     hr_ad_offset = i
                     ad_param = binary[i + 1]
-            elif _is_sr_reg(addr):
-                hr_writes.append(('SR', i))
-                if hr_sr_offset is None:
+                elif reg == 'SR' and hr_sr_offset is None:
                     hr_sr_offset = i
                     sr_param = binary[i + 1]
+            elif is_ad_shadow or is_sr_shadow:
+                # Shadow register write — only trust if the OTHER shadow write
+                # is adjacent (5 bytes away), forming the HR ADSR pair.
+                j = i + 5  # next instruction position
+                if j + 4 < code_end and binary[j] == 0xA9 and binary[j + 2] == 0x9D:
+                    next_addr = binary[j + 3] | (binary[j + 4] << 8)
+                    pair_ok = False
+                    if is_ad_shadow and next_addr == shadow_sr_addr:
+                        pair_ok = True
+                    elif is_sr_shadow and next_addr == shadow_ad_addr:
+                        pair_ok = True
+                    if pair_ok:
+                        reg1 = 'AD' if is_ad_shadow else 'SR'
+                        reg2 = 'SR' if is_ad_shadow else 'AD'
+                        hr_writes.append((reg1, i))
+                        hr_writes.append((reg2, j))
+                        if reg1 == 'AD' and hr_ad_offset is None:
+                            hr_ad_offset = i
+                            ad_param = binary[i + 1]
+                        elif reg1 == 'SR' and hr_sr_offset is None:
+                            hr_sr_offset = i
+                            sr_param = binary[i + 1]
+                        if reg2 == 'AD' and hr_ad_offset is None:
+                            hr_ad_offset = j
+                            ad_param = binary[j + 1]
+                        elif reg2 == 'SR' and hr_sr_offset is None:
+                            hr_sr_offset = j
+                            sr_param = binary[j + 1]
 
     if hr_writes:
         adsr_order = 'ad_first' if hr_writes[0][0] == 'AD' else 'sr_first'
@@ -299,7 +361,9 @@ def detect_gt2_player_group(sid_path):
     #   ad_first → Group A (v2.65-2.67)
     #   sr_first → Group B/C/D (v2.68+)
     # Secondary: vibrato fix (D), ghost regs (C)
-    if adsr_order == 'ad_first':
+    # IMPORTANT: ad_first detected from shadow registers (BUFFEREDWRITES) does NOT
+    # indicate Group A. Group A uses unbuffered writes exclusively.
+    if adsr_order == 'ad_first' and shadow_ad_addr is None:
         group = 'A'
     elif vibrato_fix:
         group = 'D'
@@ -313,6 +377,7 @@ def detect_gt2_player_group(sid_path):
     return {
         'group': group,
         'adsr_order': adsr_order,
+        'loadregs_adsr_order': loadregs_adsr_order,
         'newnote_regs': newnote_regs,
         'ghost_regs': ghost_regs,
         'vibrato_fix': vibrato_fix,
