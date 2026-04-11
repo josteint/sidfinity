@@ -975,6 +975,61 @@ def decompile_gt2(sid_path):
         binary, la, code_end, pos, first_ol_off, group=player_group)
     has_speed = has_vib or speed_detect[2] > 0
 
+    # Also detect speed need from pattern data: FX commands 1/2/3 (portamento)
+    # require the speed table. Parse pattern bytes following the GT2 format to
+    # correctly identify FX command positions.
+    if not has_speed and 'patt_addrs' in result:
+        for pa in result['patt_addrs']:
+            p_off = pa - la
+            if p_off < 0 or p_off >= len(binary):
+                continue
+            limit = min(p_off + 512, len(binary))
+            p = p_off
+            while p < limit:
+                byte = binary[p]
+                if byte == 0x00:  # end of pattern
+                    break
+                # Instrument byte (< $40)
+                if byte < 0x40:
+                    p += 1
+                    if p >= limit:
+                        break
+                    byte = binary[p]
+                # FX + note ($40-$4F)
+                if 0x40 <= byte <= 0x4F:
+                    cmd = byte & 0x0F
+                    if cmd in (1, 2, 3):
+                        has_speed = True
+                        break
+                    p += 1
+                    if cmd != 0 and p < limit:
+                        p += 1  # skip FX param
+                    if p < limit:
+                        p += 1  # skip note byte
+                    continue
+                # FXONLY ($50-$5F)
+                elif 0x50 <= byte <= 0x5F:
+                    cmd = byte & 0x0F
+                    if cmd in (1, 2, 3):
+                        has_speed = True
+                        break
+                    p += 1
+                    if cmd != 0 and p < limit:
+                        p += 1  # skip FX param
+                    continue
+                # Note ($60-$BC), rest ($BD), keyoff ($BE), keyon ($BF)
+                elif 0x60 <= byte <= 0xBF:
+                    p += 1
+                    continue
+                # Packed rest (>= $C0)
+                elif byte >= 0xC0:
+                    p += 1
+                    continue
+                else:
+                    p += 1
+            if has_speed:
+                break
+
     # Get table sizes from parse_direct's operand analysis.
     wave_size = r['wave_size']
     pulse_size = r['pulse_size'] if has_pulse else 0
@@ -1082,13 +1137,43 @@ def decompile_gt2(sid_path):
                 filter_size = max(max_fp, 1)
             speed_data = after_pulse - filter_size * 2
             speed_size = max(0, (speed_data - 2) // 2) if speed_data >= 4 else 0
+        elif not has_pulse and has_filter and has_speed:
+            # No pulse, but has filter and speed. Scan for filter boundary,
+            # then allocate rest to speed.
+            filter_start = wave_size * 2
+            filter_size = 0
+            for scan in range(max(max_fp, 1), remaining_for_others // 2):
+                if filter_start + scan - 1 < len(table_region) and table_region[filter_start + scan - 1] == 0xFF:
+                    candidate_rest = remaining_for_others - scan * 2
+                    if candidate_rest >= 4:  # speed needs at least 2 prefix + 2 data bytes
+                        filter_size = scan
+            if filter_size == 0:
+                filter_size = max(max_fp, 1)
+            speed_data = remaining_for_others - filter_size * 2
+            speed_size = max(0, (speed_data - 2) // 2) if speed_data >= 4 else 0
         else:
             # Simpler cases
             if has_pulse:
                 pulse_size = max(max_pp, (remaining_for_others - (max_fp * 2 if has_filter else 0)) // 2)
             if has_filter:
-                filter_size = max(max_fp, (remaining_for_others - pulse_size * 2) // 2)
-            speed_size = 0
+                remaining_after_pulse = remaining_for_others - pulse_size * 2
+                if has_speed:
+                    # Leave room for speed table (2 prefix + speed_left + speed_right)
+                    filter_size = max(max_fp, 1)
+                    speed_data = remaining_after_pulse - filter_size * 2
+                    if speed_data >= 4:
+                        speed_size = (speed_data - 2) // 2
+                    else:
+                        filter_size = max(max_fp, remaining_after_pulse // 2)
+                        speed_size = 0
+                else:
+                    filter_size = max(max_fp, remaining_after_pulse // 2)
+                    speed_size = 0
+            elif has_speed:
+                speed_data = remaining_for_others - pulse_size * 2
+                speed_size = max(0, (speed_data - 2) // 2) if speed_data >= 4 else 0
+            else:
+                speed_size = 0
         speed_overhead = (2 + speed_size * 2) if speed_size > 0 else 0
 
     # Recompute after potential corrections
@@ -1119,6 +1204,29 @@ def decompile_gt2(sid_path):
                     filter_size = per_table
                 elif name == 'speed':
                     speed_size = per_table
+
+    # Structural speed table detection: after all other tables are sized,
+    # check if remaining bytes match the speed table format:
+    #   $00 + left_data(N bytes) + $00 + right_data(N bytes)
+    # This catches songs where has_speed was not detected from vib_param
+    # or binary scan (e.g., portamento-only songs with non-standard ZP addresses).
+    if not has_speed and speed_size == 0:
+        speed_overhead = 0
+        final_known = wave_size * 2 + pulse_size * 2 + filter_size * 2
+        final_remaining = len(table_region) - final_known
+        if final_remaining >= 4:
+            tp_check = final_known
+            if tp_check < len(table_region) and table_region[tp_check] == 0x00:
+                # Found $00 prefix. Scan for a second $00 that splits two equal halves.
+                for split in range(1, min(final_remaining // 2, 128)):
+                    sep_idx = tp_check + 1 + split
+                    if sep_idx < len(table_region) and table_region[sep_idx] == 0x00:
+                        right_data = final_remaining - 1 - split - 1
+                        if right_data == split:
+                            has_speed = True
+                            speed_size = split
+                            speed_overhead = 2 + speed_size * 2
+                            break
 
     # Fallback if still no wave_size (skip freq_trace for alternate layout)
     if wave_size <= 0 and len(table_region) > 0 and not alternate_layout:
