@@ -897,6 +897,16 @@ def decompile_gt2(sid_path):
         if parsed is None and songs > 1:
             parsed = _try_song_table(1, 0)
 
+        # If song count is wrong (PSID header declares fewer subtunes than GT2 data),
+        # try larger song counts with strict validation.
+        if parsed is None:
+            for try_songs in range(2, min(songs + 5, 11)):
+                if try_songs == songs:
+                    continue
+                parsed = _try_song_table(try_songs, min(song_idx, try_songs - 1), strict=True)
+                if parsed is not None:
+                    break
+
         # If standard parsing failed, try skipping an extra note table.
         # Some GT2 players (Group C) store a note mapping table of num_notes
         # bytes right after freq_hi. Try advancing past it.
