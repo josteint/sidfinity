@@ -234,22 +234,21 @@ def extract_voice_events(frames, voice_idx, tempo=6, debug=False):
                     freq16_by_fh[fh].append(frame_states[f]['freq16'])
             if note_fh_counts:
                 settled_fh = note_fh_counts.most_common(1)[0][0]
-                # Try full 16-bit freq matching for better freq_lo precision,
-                # but only if it picks the same freq_hi as the original.
-                # If 16-bit matching would change the high byte, fall back to
-                # freq_hi-only matching to avoid note_wrong regressions.
+                # Among PAL notes that share the same freq_hi as the
+                # original, pick the one whose full 16-bit freq is
+                # closest.  This preserves freq_hi (no note_wrong risk)
+                # while minimising freq_lo error.
                 fh_freq16s = freq16_by_fh[settled_fh]
                 settled_freq16 = Counter(fh_freq16s).most_common(1)[0][0]
-                note16, _ = freq_to_note_pal(settled_freq16)
-                note_hi = freq_hi_to_note(settled_fh)
-                if (note16 >= 0 and note16 < 96 and
-                        FREQ_HI_PAL[note16] == settled_fh):
-                    # 16-bit match preserves freq_hi — use it for better freq_lo
-                    settled_note = note16
-                elif note_hi >= 0:
-                    settled_note = note_hi
+                candidates = [i for i in range(96)
+                              if FREQ_HI_PAL[i] == settled_fh]
+                if candidates:
+                    settled_note = min(
+                        candidates,
+                        key=lambda i: abs(FREQ_TABLE_PAL[i] - settled_freq16))
                 else:
-                    settled_note = -1
+                    # freq_hi not in PAL table — find nearest by freq_hi
+                    settled_note = freq_hi_to_note(settled_fh)
                 if settled_note >= 0:
                     current_note = settled_note
 
