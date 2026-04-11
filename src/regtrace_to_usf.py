@@ -705,6 +705,62 @@ def _extract_note_wave_pattern(frames, voice_idx, note_start, note_dur, settled_
     return tuple(pattern)
 
 
+def _detect_pulse_modulation(pw_sequences):
+    """Detect pulse modulation speed from per-note PW frame sequences.
+
+    Only returns a result when there is strong evidence of intentional
+    pulse modulation: consistent speed, significant PW range, enough notes.
+    """
+    if len(pw_sequences) < 3:
+        return None
+
+    all_deltas = []
+    initial_pws = []
+    pw_ranges = []
+    for seq in pw_sequences:
+        if len(seq) < 4:
+            continue
+        initial_pws.append(seq[0])
+        pw_ranges.append(max(seq) - min(seq))
+        for i in range(1, len(seq)):
+            delta = seq[i] - seq[i - 1]
+            if delta != 0:
+                all_deltas.append(delta)
+
+    if not all_deltas or len(initial_pws) < 3:
+        return None
+
+    # PW range must be significant (at least 0x100 across notes)
+    median_range = sorted(pw_ranges)[len(pw_ranges) // 2] if pw_ranges else 0
+    if median_range < 0x100:
+        return None
+
+    abs_deltas = [abs(d) for d in all_deltas]
+    delta_counter = Counter(abs_deltas)
+    most_common_abs, count = delta_counter.most_common(1)[0]
+
+    # Need at least 60% of deltas to agree on magnitude (strict)
+    if count < len(all_deltas) * 0.6:
+        return None
+    if most_common_abs == 0 or most_common_abs > 127:
+        return None
+
+    pos_count = sum(1 for d in all_deltas if d > 0)
+    neg_count = sum(1 for d in all_deltas if d < 0)
+    if pos_count == 0 and neg_count == 0:
+        return None
+
+    direction_changes = (pos_count > len(all_deltas) * 0.2 and
+                         neg_count > len(all_deltas) * 0.2)
+
+    speed = most_common_abs if pos_count >= neg_count else -most_common_abs
+    speed_byte = speed & 0xFF
+
+    initial_pw = Counter(initial_pws).most_common(1)[0][0] if initial_pws else 0x0808
+
+    return (initial_pw, speed_byte, direction_changes)
+
+
 def build_instruments(all_voice_events, frames=None):
     """Build instrument definitions from observed (ad, sr, waveform) combinations.
 
@@ -712,11 +768,12 @@ def build_instruments(all_voice_events, frames=None):
     data (ctrl + freq_hi sequences within each note). Otherwise falls back to
     simple first-wave and arpeggio detection.
 
-    Returns (instruments_list, inst_map) where inst_map maps
+    Returns (instruments_list, inst_map, shared_pulse_table) where inst_map maps
     (ad, sr, waveform) -> instrument id.
     """
     combos = Counter()
     pw_info = defaultdict(list)
+    pw_sequences = defaultdict(list)
     gate_off_durations = defaultdict(list)  # key -> list of gate-off frame counts
     wave_patterns = defaultdict(list)  # key -> list of per-frame patterns
 
@@ -728,6 +785,18 @@ def build_instruments(all_voice_events, frames=None):
             combos[key] += 1
             if e.get('pw', 0) > 0:
                 pw_info[key].append(e['pw'])
+
+            # Collect per-frame PW sequence for pulse modulation detection
+            if frames is not None and e['duration'] >= 4:
+                vi = e.get('voice_idx', voice_idx)
+                voff = VOICE_OFFSETS[vi]
+                pw_seq = []
+                for f in range(e['frame'], min(e['frame'] + e['duration'], len(frames))):
+                    pw_hi = frames[f][voff + IDX_PW_HI]
+                    pw_lo = frames[f][voff + IDX_PW_LO]
+                    pw_seq.append((pw_hi << 8) | pw_lo)
+                if len(pw_seq) >= 4:
+                    pw_sequences[key].append(pw_seq)
 
             # Detect gate-off duration preceding this note.
             # The off event before a note tells us how many frames gate was off
@@ -765,13 +834,41 @@ def build_instruments(all_voice_events, frames=None):
             if 'arpeggio' in e:
                 arp_info[key].append(tuple(tuple(s) for s in e['arpeggio']))
 
+    # Build shared pulse table from detected modulation patterns.
+    shared_pulse_table = []
+    pulse_mod_info = {}
+
+    for (ad, sr, waveform), count in sorted_combos:
+        key = (ad, sr, waveform)
+        seqs = pw_sequences.get(key, [])
+        if not seqs:
+            continue
+        mod_result = _detect_pulse_modulation(seqs)
+        if mod_result is None:
+            continue
+        initial_pw, speed_byte, direction_changes = mod_result
+        pulse_ptr = len(shared_pulse_table) + 1
+        pw_hi_nib = (initial_pw >> 8) & 0x0F
+        pw_lo_byte = initial_pw & 0xFF
+        shared_pulse_table.append((0x80 | pw_hi_nib, pw_lo_byte))
+        shared_pulse_table.append((127, speed_byte))
+        if direction_changes:
+            reverse_speed = ((256 - speed_byte) & 0xFF)
+            shared_pulse_table.append((127, reverse_speed))
+            shared_pulse_table.append((0xFF, pulse_ptr + 1))
+        else:
+            shared_pulse_table.append((0xFF, pulse_ptr))
+        pulse_mod_info[key] = (pulse_ptr, initial_pw)
+
     for idx, ((ad, sr, waveform), count) in enumerate(sorted_combos):
         waveform_name = wave_names.get(waveform, 'pulse')
 
-        # Pulse width
+        key = (ad, sr, waveform)
         pw = 0x0808
-        if pw_info[(ad, sr, waveform)]:
-            pw = Counter(pw_info[(ad, sr, waveform)]).most_common(1)[0][0]
+        if key in pulse_mod_info:
+            pw = pulse_mod_info[key][1]
+        elif pw_info[key]:
+            pw = Counter(pw_info[key]).most_common(1)[0][0]
 
         wave_byte = waveform | 0x01  # add gate bit
         wave_table = []
@@ -804,23 +901,20 @@ def build_instruments(all_voice_events, frames=None):
         # Detect gate timer from observed gate-off durations for this instrument.
         # Gate timers are the short, consistent off gaps between notes (hard restart).
         # Musical rests are longer and less consistent.
+        # Only short gaps (1-4 frames) are reliable gate timers; longer gaps are
+        # usually musical rests.  Default to 2 when no clear short gap is found.
         gt_key = (ad, sr, waveform)
         gt_durs = gate_off_durations.get(gt_key, [])
+        detected_gt = 2  # safe default — most GT2 songs use gate_timer=2
         if len(gt_durs) >= 2:
             gt_counter = Counter(gt_durs)
-            detected_gt = gt_counter.most_common(1)[0][0]
-            # If the mode is >8 frames, it's likely a musical rest pattern.
-            # Look for a shorter duration that appears at least 20% as often.
-            if detected_gt > 8:
-                total = len(gt_durs)
-                for dur in sorted(gt_counter.keys()):
-                    if dur <= 8 and gt_counter[dur] >= total * 0.2:
-                        detected_gt = dur
-                        break
-                else:
-                    detected_gt = min(8, min(gt_durs))
-        else:
-            detected_gt = 2
+            # Only consider durations 1-4 as candidate gate timers
+            short_durs = {d: c for d, c in gt_counter.items() if 1 <= d <= 4}
+            if short_durs:
+                detected_gt = max(short_durs, key=short_durs.get)
+            # else: all gaps are long musical rests — keep default of 2
+
+        p_ptr = pulse_mod_info[key][0] if key in pulse_mod_info else 0
 
         inst = Instrument(
             id=idx,
@@ -832,6 +926,7 @@ def build_instruments(all_voice_events, frames=None):
             hr_method='gate',
             pulse_width=pw,
             wave_table=wave_table,
+            pulse_ptr=p_ptr,
         )
         instruments.append(inst)
         inst_map[(ad, sr, waveform)] = idx
@@ -848,7 +943,7 @@ def build_instruments(all_voice_events, frames=None):
         ))
         inst_map[(0x09, 0x00, 0x40)] = 0
 
-    return instruments, inst_map
+    return instruments, inst_map, shared_pulse_table
 
 
 def _build_wave_table_from_patterns(patterns, wave_byte, settled_waveform):
@@ -1131,7 +1226,7 @@ def regtrace_to_usf(sid_path, duration=60, debug=False):
             e['voice_idx'] = v
 
     # Build instruments with wave table reconstruction from raw frames
-    instruments, inst_map = build_instruments(all_voice_events, frames=frames)
+    instruments, inst_map, shared_pulse_table = build_instruments(all_voice_events, frames=frames)
     if debug:
         print(f"  Detected {len(instruments)} instruments:")
         for inst in instruments:
@@ -1148,6 +1243,7 @@ def regtrace_to_usf(sid_path, duration=60, debug=False):
         tempo=tempo,
         instruments=instruments,
         nowavedelay=True,
+        shared_pulse_table=shared_pulse_table,
     )
 
     clock_flag = 0x04 if metadata.get('clock') == 'PAL' else 0x08
