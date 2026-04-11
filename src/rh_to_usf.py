@@ -179,14 +179,18 @@ def _map_instrument(rh_instr, instr_id):
     return inst
 
 
-def _map_pattern(rh_pattern, usf_pat_id, dur_scale=1):
-    """Convert a Hubbard pattern to USF Pattern."""
+def _map_pattern(rh_pattern, usf_pat_id, tempo_divisor=1):
+    """Convert a Hubbard pattern to USF Pattern.
+
+    tempo_divisor: when natural tempo < 3, we multiply tempo by M and
+    divide durations by M to maintain the same frame count.
+    """
     pat = Pattern(id=usf_pat_id)
 
     for note in rh_pattern.notes:
         if note.tie:
-            # Tied note: extend previous note
-            evt = NoteEvent(type='tie', duration=(note.duration + 1) * dur_scale)
+            dur = max(1, (note.duration + 1 + tempo_divisor - 1) // tempo_divisor)
+            evt = NoteEvent(type='tie', duration=dur)
             pat.events.append(evt)
             continue
 
@@ -197,10 +201,11 @@ def _map_pattern(rh_pattern, usf_pat_id, dur_scale=1):
                 # clamped to valid range (best effort)
                 usf_note = min(95, note.pitch)
 
+            dur = max(1, (note.duration + 1 + tempo_divisor - 1) // tempo_divisor)
             evt = NoteEvent(
                 type='note',
                 note=usf_note,
-                duration=(note.duration + 1) * dur_scale,
+                duration=dur,
                 instrument=note.instrument if note.instrument is not None else -1,
             )
 
@@ -222,7 +227,8 @@ def _map_pattern(rh_pattern, usf_pat_id, dur_scale=1):
             pat.events.append(evt)
         else:
             # No pitch = rest
-            evt = NoteEvent(type='rest', duration=(note.duration + 1) * dur_scale)
+            dur = max(1, (note.duration + 1 + tempo_divisor - 1) // tempo_divisor)
+            evt = NoteEvent(type='rest', duration=dur)
             pat.events.append(evt)
 
     return pat
@@ -271,19 +277,32 @@ def rh_to_usf(sid_path, subtune=0):
     # With tempo=6 and speed=1: U = (D+1) * 2 / 6. This loses resolution.
     # Better: use tempo = (speed+1) * 2 if speed+1 < 3, else speed+1.
     # This keeps durations as (D+1) with minimal scaling.
+    # Hubbard speed mapping to V2 tempo.
+    #
+    # Hubbard: total frames = (duration + 1) × (speed + 1)
+    # V2:      total frames = usf_duration × tempo
+    #
+    # Natural mapping: tempo = speed + 1, usf_duration = duration + 1.
+    # But V2 player has minimum working tempo of 3 (tempo 1-2 cause silence
+    # because gate timer = 2 frames conflicts with the note tick interval).
+    #
+    # Workaround for speed <= 1: double the tempo, halve the durations.
+    #   speed=1: natural tempo=2. Use tempo=4, durations = (D+1+1)//2
+    #            (round up to avoid zero-duration notes)
+    #   speed=0: natural tempo=1. Use tempo=3, durations = (D+1+2)//3
+    #
+    # This preserves total frame count within ±1 frame rounding error.
     hubbard_speed = result.speed if result.speed is not None else 1
-    frames_per_tick = hubbard_speed + 1
+    natural_tempo = hubbard_speed + 1
 
-    if frames_per_tick >= 3:
-        song.tempo = frames_per_tick
-        song._duration_scale = 1  # no scaling needed
+    if natural_tempo >= 3:
+        song.tempo = natural_tempo
+        song._tempo_divisor = 1
     else:
-        # Speed too fast for V2 player. Multiply to get above minimum.
-        # speed=1 (2 frames/tick): use tempo=6, scale durations by 3
-        # speed=0 (1 frame/tick): use tempo=6, scale durations by 6
-        multiplier = (3 + frames_per_tick - 1) // frames_per_tick  # ceil(3 / fpt)
-        song.tempo = frames_per_tick * multiplier
-        song._duration_scale = multiplier
+        # Find smallest multiplier M such that natural_tempo * M >= 3
+        M = (3 + natural_tempo - 1) // natural_tempo
+        song.tempo = natural_tempo * M
+        song._tempo_divisor = M  # divide durations by this
 
     # Hubbard hard restart: write order is Waveform → AD → SR
     song.adsr_write_order = 'ad_first'
@@ -326,12 +345,12 @@ def rh_to_usf(sid_path, subtune=0):
         song.speed_table.append(SpeedTableEntry(left=speed, right=depth))
 
     # Map patterns — build a mapping from Hubbard pattern index to USF pattern ID
-    dur_scale = getattr(song, '_duration_scale', 1)
+    tempo_div = getattr(song, '_tempo_divisor', 1)
     pat_map = {}  # rh_pattern_index → usf_pattern_id
     for rh_pat in result.patterns:
         usf_id = len(song.patterns)
         pat_map[rh_pat.index] = usf_id
-        usf_pat = _map_pattern(rh_pat, usf_id, dur_scale)
+        usf_pat = _map_pattern(rh_pat, usf_id, tempo_div)
         song.patterns.append(usf_pat)
 
     # Map orderlists from tracks
