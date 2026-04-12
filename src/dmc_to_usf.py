@@ -187,8 +187,37 @@ def dmc_to_usf(sid_path):
     layout = dmc['layout']
     instr_end_off = layout['instr_end']
 
-    # Find tune pointer table by brute-force scanning data region
-    # Look for 3 interleaved 16-bit pointers to valid track data
+    # Find tune pointer table by brute-force scanning data region.
+    # Look for 3 interleaved 16-bit pointers to valid track data.
+    # Track data = sequence of: sector refs, transpose commands, end/loop markers.
+    # We require at least 2 of 3 voices to have non-empty tracks (>= 1 sector ref)
+    # to avoid false positives in wave/pulse/filter table areas.
+    def _is_track_byte(b):
+        return (b <= max_sector_ref or
+                0x80 <= b <= 0x8F or  # transpose down
+                0xA0 <= b <= 0xAF or  # transpose up
+                b in (0xFE, 0xFF))    # end / loop
+
+    def _track_length(start_off):
+        """Count sector refs in track data starting at offset.
+
+        Returns (sector_refs, terminated) where terminated means we hit $FE/$FF.
+        Tolerates unknown bytes in the stream (V5 has speed/loop commands
+        in the $B0-$BF range that we don't fully document yet).
+        """
+        off = start_off
+        sector_refs = 0
+        steps = 0
+        while off < len(binary) and steps < 256:
+            b = binary[off]
+            if b <= max_sector_ref:
+                sector_refs += 1
+            elif b in (0xFE, 0xFF):
+                return (sector_refs, True)
+            off += 1
+            steps += 1
+        return (sector_refs, False)
+
     tpt_off = None
     for scan_off in range(instr_end_off, len(binary) - 6):
         ptrs = []
@@ -201,16 +230,14 @@ def dmc_to_usf(sid_path):
             ptrs.append(v)
         if not valid or len(set(ptrs)) < 2:
             continue
-        # All 3 pointed-to bytes must look like track data
-        track_valid = 0
-        for p in ptrs:
-            b = binary[p - la]
-            if (b <= max_sector_ref or
-                0x80 <= b <= 0x8F or  # transpose down
-                0xA0 <= b <= 0xAF or  # transpose up
-                b in (0xFE, 0xFF)):   # end / loop
-                track_valid += 1
-        if track_valid == 3:
+        # All 3 pointed-to bytes must look like track data start
+        if not all(_is_track_byte(binary[p - la]) for p in ptrs):
+            continue
+        # Verify: at least 2 voices must have sector refs AND terminate properly
+        track_info = [_track_length(p - la) for p in ptrs]
+        voices_with_content = sum(1 for refs, term in track_info if refs > 0 and term)
+        all_terminated = all(term for _, term in track_info)
+        if voices_with_content >= 2 or (voices_with_content >= 1 and all_terminated):
             tpt_off = scan_off
             break
 
@@ -227,9 +254,7 @@ def dmc_to_usf(sid_path):
                 if b <= max_sector_ref:
                     ol.append((b, trans))
                     off += 1
-                elif b == 0xFF:
-                    break
-                elif b == 0xFE:
+                elif b == 0xFF or b == 0xFE:
                     break
                 elif 0xA0 <= b <= 0xAF:
                     trans = b & 0x0F
@@ -238,6 +263,7 @@ def dmc_to_usf(sid_path):
                     trans = -(b & 0x0F)
                     off += 1
                 else:
+                    # Unknown track command ($B0-$BF range, speed cmds, etc.)
                     off += 1
             song.orderlists[vi] = ol
 

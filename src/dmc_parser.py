@@ -78,6 +78,18 @@ def detect_dmc_version(binary, freq_off):
     return 'v4'
 
 
+def _is_valid_sector_start(b):
+    """Check if byte could be the first byte of a DMC sector.
+
+    Valid starts: note ($00-$5F), duration ($60-$7C), continuation ($7D),
+    gate off ($7E), instrument ($80-$9F), glide ($A0-$BF),
+    extended command ($C0-$DF), or sector end ($7F/$FF).
+    """
+    return (b <= DMC_GLIDE_MAX or b == DMC_GATEOFF or b == DMC_CONT or
+            DMC_CMD_MIN <= b <= DMC_CMD_MAX or
+            b == DMC_SECTOR_END_V4 or b == DMC_SECTOR_END_V5)
+
+
 def find_sector_pointers(binary, load_addr, search_start, max_sectors):
     """Find sector pointer table by brute-force scanning data region.
 
@@ -97,7 +109,6 @@ def find_sector_pointers(binary, load_addr, search_start, max_sectors):
             if hi_off + n > len(binary):
                 break
 
-            # Quick check: all reconstructed addresses must be in range
             valid = 0
             total_valid = True
             addrs = []
@@ -107,16 +118,13 @@ def find_sector_pointers(binary, load_addr, search_start, max_sectors):
                     total_valid = False
                     break
                 addrs.append(addr)
-                # Check if pointed-to byte looks like sector data start
                 aoff = addr - load_addr
-                b = binary[aoff]
-                if b <= DMC_GLIDE_MAX or b == DMC_GATEOFF or b == DMC_SECTOR_END_V5:
+                if _is_valid_sector_start(binary[aoff]):
                     valid += 1
 
             if not total_valid:
                 continue
 
-            # Need high validity rate and reasonable sector count
             if valid >= n * 0.8 and valid > best_score:
                 best_score = valid
                 best = (lo_off, hi_off, n, addrs)
@@ -226,10 +234,8 @@ def find_dmc_layout(binary, load_addr):
             score = 0
             for addr in addrs:
                 off = addr - load_addr
-                if off < len(binary):
-                    b = binary[off]
-                    if b <= DMC_GLIDE_MAX or b == DMC_GATEOFF:
-                        score += 1
+                if off < len(binary) and _is_valid_sector_start(binary[off]):
+                    score += 1
 
             if score > best_score and score >= n * 0.7:
                 best_score = score
