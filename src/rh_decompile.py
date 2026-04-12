@@ -239,25 +239,32 @@ def find_seq_pointers(binary, load_addr):
 
 
 def find_speed(binary, load_addr):
-    """Find song speed (resetspd) from the player binary.
+    """Find song speed (resetspd/tempo) from the player binary.
 
-    Pattern: DEC speed / BPL xx / LDA resetspd / STA speed
-    = CE lo hi 10 xx AD lo+1 hi 8D lo hi
-    Where resetspd = speed + 1 in memory.
+    Searches for the speed counter reset pattern:
+        DEC speedcounter / BPL mainloop / LDA tempo / STA speedcounter
 
-    Returns the resetspd value (0-based speed divider), or None.
-    Tempo in frames/tick = resetspd + 1.
+    In Monty: speed and resetspd are adjacent (speed+1 = resetspd).
+    In Commando: tempoc and tempo may be several bytes apart.
+    We accept any DEC/BPL/LDA/STA where STA target == DEC target.
+
+    Returns the tempo value (0-based speed divider), or None.
+    Frames per tick = returned_value + 1.
     """
     for i in range(len(binary) - 11):
         if (binary[i] == 0xCE and binary[i + 3] == 0x10 and
                 binary[i + 5] == 0xAD and binary[i + 8] == 0x8D):
-            speed_addr = binary[i + 1] | (binary[i + 2] << 8)
-            resetspd_addr = binary[i + 6] | (binary[i + 7] << 8)
+            counter_addr = binary[i + 1] | (binary[i + 2] << 8)
+            tempo_addr = binary[i + 6] | (binary[i + 7] << 8)
             sta_addr = binary[i + 9] | (binary[i + 10] << 8)
-            if sta_addr == speed_addr and resetspd_addr == speed_addr + 1:
-                off = resetspd_addr - load_addr
+            # STA must write back to the same counter that was DECed
+            if sta_addr == counter_addr:
+                off = tempo_addr - load_addr
                 if 0 <= off < len(binary):
-                    return binary[off]
+                    val = binary[off]
+                    # Sanity check: speed values are typically 0-7
+                    if val <= 15:
+                        return val
     return None
 
 
