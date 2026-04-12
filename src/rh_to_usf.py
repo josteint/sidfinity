@@ -340,16 +340,57 @@ def rh_to_usf(sid_path, subtune=0):
             pulse_offset += len(inst.pulse_table)
             inst.pulse_table = []  # clear per-instrument list (now in shared)
 
-    # Build vibrato speed table entries
-    # Hubbard vibrato depths 1-7 map to different speed/depth combinations
+    # Build vibrato speed table entries.
+    #
+    # Hubbard's logarithmic vibrato maps to GT2's "calculated speed" mode:
+    # when speed table left byte has bit 7 set, the V2 player computes the
+    # vibrato delta from the semitone frequency gap (freq[note+1] - freq[note]),
+    # shifted right by the right byte value — identical to Hubbard's algorithm.
+    #
+    # Left byte bits 0-6 = vibrato speed (oscillation rate).
+    # Right byte = shift count (higher = gentler vibrato).
+    #
+    # Hubbard's oscillation pattern is 0,1,2,3,3,2,1,0 (8-frame cycle).
+    # GT2's calculated speed vibrato has a similar triangle oscillation.
+    # Speed controls how fast the oscillation counter advances.
+    #
+    # Hubbard depth 1 = shift by 2 (divide semitone gap by 4)
+    # Hubbard depth 2 = shift by 3 (divide by 8)
+    # Hubbard depth 3 = shift by 4 (divide by 16)
+    # General: shift count = depth + 1
     max_vib = max((inst.vib_speed_idx for inst in song.instruments), default=0)
     max_vib = min(max_vib, 7)  # cap to valid range
-    for v in range(max_vib + 1):
-        # Approximate Hubbard logarithmic vibrato as GT2 speed table entries
-        # Depth 1 = gentle, 2 = medium, 3 = strong
-        speed = min(0xFF, 0x40 + v * 0x10)
-        depth = min(0xFF, v * 0x08)
-        song.speed_table.append(SpeedTableEntry(left=speed, right=depth))
+
+    has_log_vibrato = any(inst.vib_logarithmic for inst in song.instruments)
+
+    # Speed table is 1-indexed: vib_speed_idx=1 reads entry[0], idx=2 reads entry[1].
+    # The V2 player does: LDY mt_chnparam,x / LDA mt_speedlefttbl-1,y
+    # So Y=1 → entry[0], Y=2 → entry[1], Y=N → entry[N-1].
+    # We need entries for indices 1 through max_vib.
+    # Standard PAL semitone gap at C4 (middle of range):
+    # freq[48] = $08B4, freq[49] = $0939, gap = $0085 = 133
+    C4_SEMITONE_GAP = 133
+
+    for v in range(1, max_vib + 1):
+        if has_log_vibrato:
+            # Approximate Hubbard's logarithmic vibrato with fixed deltas.
+            # Use the C4 semitone gap as reference, shifted by the depth.
+            # This won't scale with pitch (that requires V2 calculated speed
+            # which needs mt_chnlastnote set from wave table absolute notes,
+            # incompatible with Hubbard's relative wave tables).
+            # But it produces audible vibrato at a reasonable depth.
+            #
+            # Hubbard depth v: shift = v, delta = C4_gap >> v
+            delta = max(1, C4_SEMITONE_GAP >> v)
+            # V2 speed table: left = oscillation speed, right = delta (fixed)
+            # Speed 6 ≈ 8-frame cycle (Hubbard-like)
+            speed = 6
+            song.speed_table.append(SpeedTableEntry(left=speed, right=delta))
+        else:
+            # Linear vibrato (GT2 style)
+            speed = min(0xFF, 0x40 + v * 0x10)
+            depth = min(0xFF, v * 0x08)
+            song.speed_table.append(SpeedTableEntry(left=speed, right=depth))
 
     # Map patterns — build a mapping from Hubbard pattern index to USF pattern ID
     tempo_div = getattr(song, '_tempo_divisor', 1)
