@@ -183,17 +183,24 @@ def find_hex_pattern(binary, pattern, start=0):
 def find_songs(binary, load_addr):
     """Find song table using SIDdecompiler pattern.
 
-    Multi-song: LDA songs,X / STA currtrkhi,Y / INX / INY / CPY #6
-    Pattern: BD ** ** 99 ** ** E8 C8 C0 06
+    Multi-song: LDA songs,X / STA currtrkhi,Y / INX / INY / CPY #N
+    Pattern: BD ** ** 99 ** ** E8 C8 C0 NN
+    N=6 for 3 voices, N=4 for 2 voices, N=8 for extended format.
 
     Single-song fallback: LDA currtrklo,X / STA zp / LDA currtrkhi,X / STA zp / DEC
     Pattern: BD ** ** 85 ** BD ** ** 85 ** DE
+
+    Returns (songs_addr, is_multi, bytes_per_song) or (None, False, 0).
     """
-    # Multi-song pattern
-    pos = find_hex_pattern(binary, "BD****99****E8C8C006")
-    if pos >= 0:
-        songs_addr = binary[pos + 1] | (binary[pos + 2] << 8)
-        return songs_addr, True
+    # Multi-song pattern — try CPY #6 (3 voices × 2 bytes) first,
+    # then other values (CPY #4 for 2-voice songs like Human Race,
+    # CPY #8 for songs with extra data per voice like BMX Kidz)
+    for cpy_val in [0x06, 0x04, 0x08]:
+        pat = f"BD****99****E8C8C0{cpy_val:02X}"
+        pos = find_hex_pattern(binary, pat)
+        if pos >= 0:
+            songs_addr = binary[pos + 1] | (binary[pos + 2] << 8)
+            return songs_addr, True, cpy_val
 
     # Single-song fallback
     pos = find_hex_pattern(binary, "BD****85**BD****85**DE")
@@ -201,9 +208,9 @@ def find_songs(binary, load_addr):
         currtrklo = binary[pos + 1] | (binary[pos + 2] << 8)
         currtrkhi = binary[pos + 6] | (binary[pos + 7] << 8)
         if currtrkhi - currtrklo == 3:
-            return currtrklo, False
+            return currtrklo, False, 6
 
-    return None, False
+    return None, False, 0
 
 
 def find_instruments(binary, load_addr):
@@ -411,13 +418,14 @@ def decompile(sid_path, verbose=False):
     # --- Find data structures via pattern matching ---
 
     # Song table
-    songs_addr, is_multi = find_songs(binary, load_addr)
+    songs_addr, is_multi, bytes_per_song = find_songs(binary, load_addr)
     if songs_addr is None:
         print('ERROR: Could not find song table pattern', file=sys.stderr)
         return None
     result.song_table_addr = songs_addr
+    num_voices = bytes_per_song // 2  # each voice = 2 bytes (lo + hi pointer)
     if verbose:
-        print(f'Song table at ${songs_addr:04X} ({"multi" if is_multi else "single"})')
+        print(f'Song table at ${songs_addr:04X} ({"multi" if is_multi else "single"}, {num_voices} voices, {bytes_per_song} bytes/song)')
 
     # Instruments
     instr_addr = find_instruments(binary, load_addr)
@@ -466,12 +474,16 @@ def decompile(sid_path, verbose=False):
     # --- Parse songs ---
     for s in range(result.num_songs):
         if is_multi:
-            off = songs_addr - load_addr + s * 6
-            if off + 6 > len(binary):
+            off = songs_addr - load_addr + s * bytes_per_song
+            if off + bytes_per_song > len(binary):
                 break
-            lo = [binary[off + j] for j in range(3)]
-            hi = [binary[off + 3 + j] for j in range(3)]
-            track_addrs = [lo[j] | (hi[j] << 8) for j in range(3)]
+            half = bytes_per_song // 2
+            lo = [binary[off + j] for j in range(half)]
+            hi = [binary[off + half + j] for j in range(half)]
+            track_addrs = [lo[j] | (hi[j] << 8) for j in range(min(half, 3))]
+            # Pad to 3 voices if fewer (2-voice songs get an empty V3)
+            while len(track_addrs) < 3:
+                track_addrs.append(0)
         else:
             off = songs_addr - load_addr
             if off + 6 > len(binary):
@@ -483,18 +495,21 @@ def decompile(sid_path, verbose=False):
             ]
 
         # Validate track addresses are in SID range
-        valid = all(load_addr <= a < load_addr + len(binary) for a in track_addrs)
+        valid = all(a == 0 or (load_addr <= a < load_addr + len(binary)) for a in track_addrs)
         if not valid:
             if verbose:
-                print(f'Song {s}: INVALID track pointers ${track_addrs[0]:04X} ${track_addrs[1]:04X} ${track_addrs[2]:04X}')
+                print(f'Song {s}: INVALID track pointers ' +
+                      ' '.join(f'${a:04X}' for a in track_addrs))
             continue
 
         tracks = []
         for v in range(3):
-            track = decode_track(binary, load_addr, track_addrs[v])
-            tracks.append(track)
+            if track_addrs[v] == 0:
+                tracks.append([('stop', None)])  # empty voice
+            else:
+                tracks.append(decode_track(binary, load_addr, track_addrs[v]))
 
-        song = RHSong(s, songs_addr + s * 6, tracks)
+        song = RHSong(s, songs_addr + s * bytes_per_song, tracks)
         result.songs.append(song)
 
         if verbose:
