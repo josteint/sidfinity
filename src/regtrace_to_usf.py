@@ -70,9 +70,11 @@ def run_siddump(sid_path, duration=60):
     """Run siddump on a SID file and return (metadata_dict, frames_list).
 
     Each frame is a list of 25 integers (hex register values).
+    Automatically passes --force-rsid for RSID files so they are not skipped.
     """
+    cmd = [SIDDUMP, sid_path, '--duration', str(duration), '--force-rsid']
     r = subprocess.run(
-        [SIDDUMP, sid_path, '--duration', str(duration)],
+        cmd,
         capture_output=True, text=True, timeout=120
     )
     if r.returncode != 0:

@@ -101,7 +101,8 @@ int main(int argc, char* argv[])
             "  --timeout N    Timeout in seconds (default: 0 = none)\n"
             "  --raw          Skip metadata/header lines\n"
             "  --digi         Enable intra-frame write logging\n"
-            "  --pcm          Output raw 16-bit signed PCM to stdout\n",
+            "  --pcm          Output raw 16-bit signed PCM to stdout\n"
+            "  --force-rsid   Process RSID files (normally skipped)\n",
             argv[0]);
         return 1;
     }
@@ -115,6 +116,7 @@ int main(int argc, char* argv[])
     bool writelog = false;
     bool memtrace = false;
     bool pcm = false;
+    bool force_rsid = false;
 
     for (int i = 2; i < argc; i++) {
         if (strcmp(argv[i], "--raw") == 0) {
@@ -127,6 +129,8 @@ int main(int argc, char* argv[])
             memtrace = true;
         } else if (strcmp(argv[i], "--pcm") == 0) {
             pcm = true;
+        } else if (strcmp(argv[i], "--force-rsid") == 0) {
+            force_rsid = true;
         } else if (strcmp(argv[i], "--subtune") == 0 && i + 1 < argc) {
             subtune = atoi(argv[++i]);
         } else if (strcmp(argv[i], "--duration") == 0 && i + 1 < argc) {
@@ -159,8 +163,8 @@ int main(int argc, char* argv[])
         return 1;
     }
 
-    // Skip RSID files
-    if (info->compatibility() == SidTuneInfo::COMPATIBILITY_R64) {
+    // Skip RSID files (unless --force-rsid is specified)
+    if (!force_rsid && info->compatibility() == SidTuneInfo::COMPATIBILITY_R64) {
         fprintf(stderr, "Skipping RSID: %s\n", filename);
         return 3;
     }

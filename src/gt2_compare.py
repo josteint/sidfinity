@@ -14,7 +14,7 @@ SIDDUMP = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'tools'
 
 def dump_sid(path, duration=10):
     """Run siddump and return list of frame register tuples."""
-    r = subprocess.run([SIDDUMP, path, '--duration', str(duration)],
+    r = subprocess.run([SIDDUMP, path, '--duration', str(duration), '--force-rsid'],
                        capture_output=True, text=True, timeout=60)
     if r.returncode != 0:
         return None
