@@ -156,11 +156,13 @@ def _map_instrument(rh_instr, instr_id):
     inst.hr_method = 'gate'
 
     # Vibrato
-    if 0 < rh_instr.vibrato_depth <= 7:
+    if rh_instr.vibrato_depth > 0:
         # Hubbard vibrato uses logarithmic freq delta (delta scales with pitch).
-        # Classic driver uses depths 1-3. Values > 7 in later drivers
-        # may repurpose this byte for other effects — ignore those.
-        inst.vib_speed_idx = rh_instr.vibrato_depth
+        # Classic driver uses depths 1-3. Phase 4 driver may use larger values
+        # with different interpretation, but the original still produces vibrato.
+        # Cap the depth for V2 speed table compatibility (max 7 entries).
+        depth = min(rh_instr.vibrato_depth, 7)
+        inst.vib_speed_idx = depth
         inst.vib_delay = 0  # Hubbard vibrato starts immediately
         inst.vib_logarithmic = True
 
