@@ -17,6 +17,8 @@ def dmc_to_usf(sid_path):
     if dmc is None:
         raise ValueError(f"Failed to parse DMC: {sid_path}")
 
+    dmc_version = dmc.get('dmc_version', 'v4')
+
     # Also get track data
     with open(sid_path, 'rb') as f:
         raw = f.read()
@@ -27,9 +29,15 @@ def dmc_to_usf(sid_path):
     freq_lo = None
     freq_hi = None
     if ft:
-        fhi_off = ft[0]
+        freq_off, freq_order = ft
+        if freq_order == 'hi_lo':
+            fhi_off = freq_off
+            flo_off = freq_off + 96
+        else:
+            flo_off = freq_off
+            fhi_off = freq_off + 96
         freq_hi = bytes(binary[fhi_off:fhi_off + 96])
-        freq_lo = bytes(binary[fhi_off + 96:fhi_off + 192])
+        freq_lo = bytes(binary[flo_off:flo_off + 96])
 
     song = Song(
         title=dmc['header']['title'],
@@ -176,11 +184,12 @@ def dmc_to_usf(sid_path):
     # DMC stores tune pointers as an interleaved table: lo0 hi0 lo1 hi1 lo2 hi2
     # Player accesses via LDA $XXXX,Y and LDA $XXXX+1,Y with Y=0,2,4
     tpt_off = None
-    ft = find_freq_table(binary)
     if ft:
-        freq_off = ft[0]
-        fhi = freq_off if ft[1] == 'hi_lo' else freq_off + 96
-        instr_off = fhi + 0x0248
+        freq_off, freq_order = ft
+        fhi = freq_off if freq_order == 'hi_lo' else freq_off + 96
+        # Use version-aware instrument end offset
+        layout = dmc['layout']
+        instr_end_off = layout['instr_end']
         code_end = freq_off  # player code is before freq table
 
         # Collect all LDA abs,Y ($B9) in player code pointing past instruments
@@ -189,7 +198,7 @@ def dmc_to_usf(sid_path):
             if binary[i] == 0xB9:  # LDA abs,Y
                 addr = binary[i + 1] | (binary[i + 2] << 8)
                 off = addr - la
-                if instr_off <= off < len(binary):
+                if instr_end_off <= off < len(binary):
                     lda_refs.append(addr)
 
         # Find pairs where addresses differ by 1 (lo/hi table access)
