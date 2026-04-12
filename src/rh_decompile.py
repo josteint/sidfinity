@@ -105,6 +105,7 @@ class RHDecompiled:
         self.seqhi_addr = 0
         self.num_sequences = 0
         self.speed = None          # resetspd value (tempo = speed + 1)
+        self.speed_table = None    # per-song speed table (list), or None
 
 
 def load_sid(path):
@@ -238,34 +239,60 @@ def find_seq_pointers(binary, load_addr):
     return None, None
 
 
-def find_speed(binary, load_addr):
-    """Find song speed (resetspd/tempo) from the player binary.
+def find_speed(binary, load_addr, num_songs=1):
+    """Find song speed(s) from the player binary.
 
     Searches for the speed counter reset pattern:
         DEC speedcounter / BPL mainloop / LDA tempo / STA speedcounter
 
-    In Monty: speed and resetspd are adjacent (speed+1 = resetspd).
-    In Commando: tempoc and tempo may be several bytes apart.
-    We accept any DEC/BPL/LDA/STA where STA target == DEC target.
+    Also searches for per-song speed tables in the init code:
+        LDA songtempos,X / STA tempo
 
-    Returns the tempo value (0-based speed divider), or None.
-    Frames per tick = returned_value + 1.
+    Returns (default_speed, speed_table) where:
+    - default_speed: the value at the tempo variable (0-based divider), or None
+    - speed_table: list of per-song speeds if detected, or None
+    Frames per tick = speed + 1.
     """
+    tempo_addr = None
+    default_speed = None
+
+    # Find the speed counter reset pattern
     for i in range(len(binary) - 11):
         if (binary[i] == 0xCE and binary[i + 3] == 0x10 and
                 binary[i + 5] == 0xAD and binary[i + 8] == 0x8D):
             counter_addr = binary[i + 1] | (binary[i + 2] << 8)
-            tempo_addr = binary[i + 6] | (binary[i + 7] << 8)
+            t_addr = binary[i + 6] | (binary[i + 7] << 8)
             sta_addr = binary[i + 9] | (binary[i + 10] << 8)
-            # STA must write back to the same counter that was DECed
             if sta_addr == counter_addr:
-                off = tempo_addr - load_addr
+                off = t_addr - load_addr
                 if 0 <= off < len(binary):
                     val = binary[off]
-                    # Sanity check: speed values are typically 0-7
                     if val <= 15:
-                        return val
-    return None
+                        tempo_addr = t_addr
+                        default_speed = val
+                        break
+
+    # Search for per-song speed table: LDA songtempos,X / STA tempo
+    # Pattern: BD xx xx 8D yy yy where yy yy = tempo_addr
+    speed_table = None
+    if tempo_addr is not None and num_songs > 1:
+        for i in range(len(binary) - 6):
+            if (binary[i] == 0xBD and binary[i + 3] == 0x8D and
+                    (binary[i + 4] | (binary[i + 5] << 8)) == tempo_addr):
+                table_addr = binary[i + 1] | (binary[i + 2] << 8)
+                off = table_addr - load_addr
+                if 0 <= off < len(binary) and off + num_songs <= len(binary):
+                    speeds = []
+                    for s in range(num_songs):
+                        v = binary[off + s]
+                        if v > 15:
+                            break
+                        speeds.append(v)
+                    if len(speeds) == num_songs:
+                        speed_table = speeds
+                break
+
+    return default_speed, speed_table
 
 
 def find_freq_table(binary, load_addr):
@@ -422,11 +449,14 @@ def decompile(sid_path, verbose=False):
             print('Freq table: not found (custom or interleaved)')
 
     # Speed detection
-    speed = find_speed(binary, load_addr)
+    speed, speed_table = find_speed(binary, load_addr, result.num_songs)
     result.speed = speed
+    result.speed_table = speed_table
     if verbose:
         if speed is not None:
             print(f'Speed: {speed} (tempo = {speed + 1} frames/tick)')
+            if speed_table:
+                print(f'Per-song speeds: {speed_table}')
         else:
             print('Speed: not detected (defaulting to 1)')
 
@@ -444,6 +474,8 @@ def decompile(sid_path, verbose=False):
             track_addrs = [lo[j] | (hi[j] << 8) for j in range(3)]
         else:
             off = songs_addr - load_addr
+            if off + 6 > len(binary):
+                break
             track_addrs = [
                 binary[off] | (binary[off + 3] << 8),
                 binary[off + 1] | (binary[off + 4] << 8),

@@ -106,30 +106,38 @@ def _build_arpeggio_wave_table():
     ]
 
 
-def _build_pulse_table(pwm_speed):
-    """Build USF pulse table from Hubbard PWM speed byte.
+def _build_pulse_table(pwm_speed, pulse_width):
+    """Build USF pulse table from Hubbard PWM speed and initial pulse width.
 
-    Hubbard PWM oscillates between ~$0800 and ~$0E00.
+    Hubbard PWM oscillates around the initial pulse width.
     Speed byte controls rate. 0 = no modulation.
     Bit 7 of speed may indicate direction (needs verification).
-    """
-    if pwm_speed == 0:
-        return []
 
-    # The speed is applied as a signed value to pulse width each frame
-    # Positive = increase, then reverse at bounds
-    # We model this as a modulation cycle
+    The pulse table starts with a set-pulse entry to initialize the width,
+    then modulates up and down.
+    """
+    steps = []
+
+    # Set initial pulse width (high nibble in GT2 format)
+    pw_hi = (pulse_width >> 8) & 0x0F
+    pw_lo = pulse_width & 0xFF
+    steps.append(PulseTableStep(is_set=True, value=pw_hi, low_byte=pw_lo))
+
+    if pwm_speed == 0:
+        # No modulation — just hold the initial pulse width
+        steps.append(PulseTableStep(is_loop=True, loop_target=0))
+        return steps
+
     speed = pwm_speed & 0x7F
     if speed == 0:
         speed = 1
 
     # Approximate: modulate up for N frames, then down for N frames
-    half_cycle = max(1, 0x60 // speed)  # ~96 frames for full sweep at speed 1
-    return [
-        PulseTableStep(is_set=False, value=speed, duration=half_cycle),
-        PulseTableStep(is_set=False, value=-speed, duration=half_cycle),
-        PulseTableStep(is_loop=True, loop_target=0),
-    ]
+    half_cycle = max(1, 0x60 // speed)
+    steps.append(PulseTableStep(is_set=False, value=speed, duration=half_cycle))
+    steps.append(PulseTableStep(is_set=False, value=-speed, duration=half_cycle))
+    steps.append(PulseTableStep(is_loop=True, loop_target=1))  # loop to modulation
+    return steps
 
 
 def _map_instrument(rh_instr, instr_id):
@@ -180,9 +188,9 @@ def _map_instrument(rh_instr, instr_id):
             WaveTableStep(is_loop=True, loop_target=1),             # loop to keep_freq step
         ]
 
-    # PWM
-    if rh_instr.pwm_speed > 0 and not rh_instr.has_drum:
-        inst.pulse_table = _build_pulse_table(rh_instr.pwm_speed)
+    # PWM — always set initial pulse width, add modulation if speed > 0
+    if inst.waveform == 'pulse' and not rh_instr.has_drum:
+        inst.pulse_table = _build_pulse_table(rh_instr.pwm_speed, rh_instr.pulse_width)
 
     return inst
 
@@ -306,7 +314,13 @@ def rh_to_usf(sid_path, subtune=0):
     #   speed=0: natural tempo=1. Use tempo=3, durations = (D+1+2)//3
     #
     # This preserves total frame count within ±1 frame rounding error.
-    hubbard_speed = result.speed if result.speed is not None else 1
+    # Use per-song speed if available, otherwise default speed
+    if result.speed_table and subtune < len(result.speed_table):
+        hubbard_speed = result.speed_table[subtune]
+    elif result.speed is not None:
+        hubbard_speed = result.speed
+    else:
+        hubbard_speed = 1
     natural_tempo = hubbard_speed + 1
 
     if natural_tempo >= 3:
