@@ -180,45 +180,39 @@ def dmc_to_usf(sid_path):
         song.patterns.append(patt)
 
     # Convert tracks to orderlists
-    # Find tune pointer table by searching player code for LDA abs,Y pairs
-    # DMC stores tune pointers as an interleaved table: lo0 hi0 lo1 hi1 lo2 hi2
-    # Player accesses via LDA $XXXX,Y and LDA $XXXX+1,Y with Y=0,2,4
+    # DMC stores tune pointers as interleaved table: lo0 hi0 lo1 hi1 lo2 hi2
+    # 8 subtunes x 6 bytes = 48 bytes max. First subtune at offset 0.
+    # V5 allows sector refs up to $5F (96 sectors), V4 up to $3F (64 sectors).
+    max_sector_ref = 0x5F if dmc_version == 'v5' else 0x3F
+    layout = dmc['layout']
+    instr_end_off = layout['instr_end']
+
+    # Find tune pointer table by brute-force scanning data region
+    # Look for 3 interleaved 16-bit pointers to valid track data
     tpt_off = None
-    if ft:
-        freq_off, freq_order = ft
-        fhi = freq_off if freq_order == 'hi_lo' else freq_off + 96
-        # Use version-aware instrument end offset
-        layout = dmc['layout']
-        instr_end_off = layout['instr_end']
-        code_end = freq_off  # player code is before freq table
-
-        # Collect all LDA abs,Y ($B9) in player code pointing past instruments
-        lda_refs = []
-        for i in range(code_end - 2):
-            if binary[i] == 0xB9:  # LDA abs,Y
-                addr = binary[i + 1] | (binary[i + 2] << 8)
-                off = addr - la
-                if instr_end_off <= off < len(binary):
-                    lda_refs.append(addr)
-
-        # Find pairs where addresses differ by 1 (lo/hi table access)
-        lda_set = set(lda_refs)
-        for addr in sorted(lda_set):
-            if addr + 1 in lda_set:
-                off = addr - la
-                # Check if this looks like 3 interleaved 16-bit pointers
-                if off + 6 <= len(binary):
-                    ptrs = []
-                    valid = True
-                    for k in range(3):
-                        v = binary[off + k * 2] | (binary[off + k * 2 + 1] << 8)
-                        if not (la <= v < la + len(binary)):
-                            valid = False
-                            break
-                        ptrs.append(v)
-                    if valid and len(set(ptrs)) >= 2:
-                        tpt_off = off
-                        break
+    for scan_off in range(instr_end_off, len(binary) - 6):
+        ptrs = []
+        valid = True
+        for k in range(3):
+            v = binary[scan_off + k * 2] | (binary[scan_off + k * 2 + 1] << 8)
+            if not (la <= v < la + len(binary)):
+                valid = False
+                break
+            ptrs.append(v)
+        if not valid or len(set(ptrs)) < 2:
+            continue
+        # All 3 pointed-to bytes must look like track data
+        track_valid = 0
+        for p in ptrs:
+            b = binary[p - la]
+            if (b <= max_sector_ref or
+                0x80 <= b <= 0x8F or  # transpose down
+                0xA0 <= b <= 0xAF or  # transpose up
+                b in (0xFE, 0xFF)):   # end / loop
+                track_valid += 1
+        if track_valid == 3:
+            tpt_off = scan_off
+            break
 
     if tpt_off is not None:
         voice_addrs = [binary[tpt_off + i * 2] | (binary[tpt_off + i * 2 + 1] << 8)
@@ -230,7 +224,7 @@ def dmc_to_usf(sid_path):
             trans = 0
             while off < len(binary):
                 b = binary[off]
-                if b <= 0x3F:
+                if b <= max_sector_ref:
                     ol.append((b, trans))
                     off += 1
                 elif b == 0xFF:
