@@ -202,7 +202,8 @@ def find_songs(binary, load_addr):
             songs_addr = binary[pos + 1] | (binary[pos + 2] << 8)
             return songs_addr, True, cpy_val
 
-    # Single-song fallback
+    # Single-song fallback: LDA currtrklo,X / STA zp / LDA currtrkhi,X / STA zp / DEC
+    # Pattern: BD ** ** 85 ** BD ** ** 85 ** DE
     pos = find_hex_pattern(binary, "BD****85**BD****85**DE")
     if pos >= 0:
         currtrklo = binary[pos + 1] | (binary[pos + 2] << 8)
