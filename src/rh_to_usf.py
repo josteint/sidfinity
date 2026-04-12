@@ -166,11 +166,18 @@ def _map_instrument(rh_instr, instr_id):
         inst.wave_table = _build_skydive_wave_table()
     else:
         # Every instrument needs a wave table for the V2 player.
-        # Instruments without effects get a simple "set waveform and hold" table.
+        # Step 1: set waveform with relative offset 0 (sets initial freq).
+        # Step 2: keep_freq=True (don't re-write freq each frame — this is
+        #   critical for vibrato: if freq is re-written, it overwrites the
+        #   vibrato delta and the V2 player skips FX processing entirely).
+        # Step 3: loop back to step 1? No — loop back to step 1 would re-write
+        #   freq again. Loop to step 1 on keep_freq step.
+        # Correct: step 0 = set waveform+freq, step 1 = keep_freq+loop→1.
         wave_byte = rh_instr.ctrl | 0x01  # ensure gate bit set
         inst.wave_table = [
-            WaveTableStep(waveform=wave_byte, note_offset=0),
-            WaveTableStep(is_loop=True, loop_target=0),
+            WaveTableStep(waveform=wave_byte, note_offset=0),       # frame 1: set wave+freq
+            WaveTableStep(waveform=wave_byte, keep_freq=True),      # frame 2+: hold wave, no freq write
+            WaveTableStep(is_loop=True, loop_target=1),             # loop to keep_freq step
         ]
 
     # PWM
@@ -367,25 +374,25 @@ def rh_to_usf(sid_path, subtune=0):
     # The V2 player does: LDY mt_chnparam,x / LDA mt_speedlefttbl-1,y
     # So Y=1 → entry[0], Y=2 → entry[1], Y=N → entry[N-1].
     # We need entries for indices 1 through max_vib.
-    # Standard PAL semitone gap at C4 (middle of range):
-    # freq[48] = $08B4, freq[49] = $0939, gap = $0085 = 133
+    # Approximate Hubbard's logarithmic vibrato with fixed deltas.
+    # Can't use V2 calculated speed (requires mt_chnlastnote from wave table
+    # absolute notes, incompatible with Hubbard's relative wave tables).
+    #
+    # Use C4 semitone gap as reference — middle of the range.
+    # C4: freq[48]=$08B4, freq[49]=$0939, gap=$0085=133
+    # This is a compromise: too wide for low notes, too narrow for high.
+    # But the comparison classifies small freq diffs as freq_fine (inaudible),
+    # so undershooting is better than overshooting.
     C4_SEMITONE_GAP = 133
 
     for v in range(1, max_vib + 1):
         if has_log_vibrato:
-            # Approximate Hubbard's logarithmic vibrato with fixed deltas.
-            # Use the C4 semitone gap as reference, shifted by the depth.
-            # This won't scale with pitch (that requires V2 calculated speed
-            # which needs mt_chnlastnote set from wave table absolute notes,
-            # incompatible with Hubbard's relative wave tables).
-            # But it produces audible vibrato at a reasonable depth.
-            #
-            # Hubbard depth v: shift = v, delta = C4_gap >> v
+            # Hubbard depth v: delta = semitone_gap >> v
             delta = max(1, C4_SEMITONE_GAP >> v)
-            # V2 speed table: left = oscillation speed, right = delta (fixed)
-            # Speed 6 ≈ 8-frame cycle (Hubbard-like)
+            # V2 speed table: left = oscillation speed, right = delta
+            # Speed 6 gives ~8-frame vibrato cycle (close to Hubbard's)
             speed = 6
-            song.speed_table.append(SpeedTableEntry(left=speed, right=delta))
+            song.speed_table.append(SpeedTableEntry(left=speed, right=min(255, delta)))
         else:
             # Linear vibrato (GT2 style)
             speed = min(0xFF, 0x40 + v * 0x10)
