@@ -136,6 +136,8 @@ class Instrument:
     wave_ptr: int = 0          # index into shared wave table (0=none, 1-based)
     vib_speed_idx: int = 0     # speed table index for vibrato (0=none)
     vib_delay: int = 0         # vibrato delay in frames
+    vib_logarithmic: bool = False  # True=logarithmic vibrato (Hubbard-style: delta scales with pitch)
+                                   # False=linear vibrato (GT2-style: fixed delta)
     pulse_ptr: int = 0         # pulse table index (0=no pulse mod)
     filter_ptr: int = 0        # filter table index (0=no filter mod)
 
@@ -306,6 +308,7 @@ def tokenize(song):
         if inst.legato:
             tokens.append('LEG')
         if inst.vib_speed_idx > 0:
+            tokens.append('VLOG' if inst.vib_logarithmic else 'VLIN')
             tokens.append(f'VIB{inst.vib_speed_idx:X}')
         if inst.vib_delay > 0:
             tokens.append(f'VD{inst.vib_delay:X}')
@@ -448,6 +451,10 @@ def detokenize(tokens):
                     inst.gate_timer = int(t2[2:], 16)
                 elif t2 == 'LEG':
                     inst.legato = True
+                elif t2 == 'VLOG':
+                    inst.vib_logarithmic = True
+                elif t2 == 'VLIN':
+                    inst.vib_logarithmic = False
                 elif t2.startswith('VIB') and t2 != 'VIBRATO':
                     inst.vib_speed_idx = int(t2[3:], 16)
                 elif t2.startswith('VD'):

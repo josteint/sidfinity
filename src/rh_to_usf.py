@@ -149,11 +149,12 @@ def _map_instrument(rh_instr, instr_id):
 
     # Vibrato
     if 0 < rh_instr.vibrato_depth <= 7:
-        # Hubbard vibrato uses logarithmic freq delta.
+        # Hubbard vibrato uses logarithmic freq delta (delta scales with pitch).
         # Classic driver uses depths 1-3. Values > 7 in later drivers
         # may repurpose this byte for other effects — ignore those.
         inst.vib_speed_idx = rh_instr.vibrato_depth
         inst.vib_delay = 0  # Hubbard vibrato starts immediately
+        inst.vib_logarithmic = True
 
     # Effects → wave tables
     if rh_instr.has_drum:
@@ -197,9 +198,15 @@ def _map_pattern(rh_pattern, usf_pat_id, tempo_divisor=1):
         if note.pitch is not None:
             usf_note = _hubbard_pitch_to_usf_note(note.pitch)
             if usf_note < 0:
-                # Frequency table trick — treat as a note with the raw index
-                # clamped to valid range (best effort)
-                usf_note = min(95, note.pitch)
+                # Frequency table trick (pitch >= 96): indexes into player
+                # variables, producing pseudo-random FM effects. Cannot be
+                # reproduced in V2 player. Emit as rest — silence is less
+                # wrong than playing a clamped high note.
+                dur = max(1, (note.duration + 1 + tempo_divisor - 1) // tempo_divisor)
+                pat.events.append(NoteEvent(
+                    type='rest', duration=dur,
+                    instrument=note.instrument if note.instrument is not None else -1))
+                continue
 
             dur = max(1, (note.duration + 1 + tempo_divisor - 1) // tempo_divisor)
             evt = NoteEvent(
