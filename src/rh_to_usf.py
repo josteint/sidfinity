@@ -190,13 +190,19 @@ def _map_instrument(rh_instr, instr_id):
     # only set non-zero by the drum code path (verified via Sigma_Seven
     # disassembly at $82E7-$82FC).
     if rh_instr.has_drum and rh_instr.has_arpeggio:
-        # Drum + arpeggio combo: noise burst then alternating octave arpeggio
+        # Drum + arpeggio combo: noise burst then alternating arpeggio.
+        # The arpeggio interval is in fx_flags upper nibble (bits 4-7).
+        # Classic: upper nibble 0 = octave (+12 semitones).
+        # Phase 4: upper nibble N = down N semitones (negative interval).
+        # Verified: IK fx_flags=0x55 → upper=5 → original alternates note-5.
+        upper = (rh_instr.fx_flags >> 4) & 0x0F
+        arp_offset = 12 if upper == 0 else -upper
         native_wave = rh_instr.ctrl | 0x01
         inst.wave_table = [
-            WaveTableStep(waveform=0x81, note_offset=0),        # frame 1: noise burst
-            WaveTableStep(waveform=native_wave, note_offset=0),  # frame 2: base note
-            WaveTableStep(waveform=native_wave, note_offset=12), # frame 3: +1 octave
-            WaveTableStep(is_loop=True, loop_target=1),          # loop arpeggio
+            WaveTableStep(waveform=0x81, note_offset=0),           # frame 1: noise burst
+            WaveTableStep(waveform=native_wave, note_offset=0),     # frame 2: base note
+            WaveTableStep(waveform=native_wave, note_offset=arp_offset),  # frame 3: arpeggio
+            WaveTableStep(is_loop=True, loop_target=1),             # loop arpeggio
         ]
     elif rh_instr.has_drum:
         inst.wave_table = _build_drum_wave_table(rh_instr.ctrl)
