@@ -185,9 +185,21 @@ def _map_instrument(rh_instr, instr_id):
         inst.vib_logarithmic = True
 
     # Effects → wave tables
-    if rh_instr.has_drum:
+    # Hubbard effects are a pipeline: drum runs first (noise burst + freq fall),
+    # then arpeggio/skydive modify frequency. For combo instruments (e.g. FX=0x05
+    # = drum+arpeggio), the drum only affects waveform (noise on frame 1), while
+    # the arpeggio controls frequency alternation after that.
+    if rh_instr.has_drum and rh_instr.has_arpeggio:
+        # Drum + arpeggio combo: noise burst then alternating octave arpeggio
+        native_wave = rh_instr.ctrl | 0x01
+        inst.wave_table = [
+            WaveTableStep(waveform=0x81, note_offset=0),        # frame 1: noise burst
+            WaveTableStep(waveform=native_wave, note_offset=0),  # frame 2: base note
+            WaveTableStep(waveform=native_wave, note_offset=12), # frame 3: +1 octave
+            WaveTableStep(is_loop=True, loop_target=1),          # loop arpeggio
+        ]
+    elif rh_instr.has_drum:
         inst.wave_table = _build_drum_wave_table(rh_instr.ctrl)
-        # Only set waveform to noise for pure noise drums
         if (rh_instr.ctrl & 0xF0) == 0x80 or rh_instr.ctrl == 0:
             inst.waveform = 'noise'
     elif rh_instr.has_arpeggio:
