@@ -439,6 +439,16 @@ def decode_track(binary, load_addr, track_addr, num_sequences=256, max_bytes=512
             patterns.append(('loop', None))
             break
         elif b == 0xFE:
+            # $FE can mean either STOP or a 2-byte RST marker in some variants.
+            # Apply same heuristic as $FF: if followed by restart_index (<32)
+            # and then a valid pattern byte, treat as RST (skip both bytes).
+            # Otherwise treat as STOP.
+            next_off = off + i + 1
+            if (next_off + 1 < len(binary) and
+                    binary[next_off] < 32 and
+                    binary[next_off + 1] < num_sequences):
+                i += 2  # skip $FE + restart_index, continue decoding
+                continue
             patterns.append(('stop', None))
             break
         elif b >= num_sequences:

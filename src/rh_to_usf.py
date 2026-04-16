@@ -262,18 +262,53 @@ def _map_pattern(rh_pattern, usf_pat_id, tempo_divisor=1):
             pat.events.append(evt)
             continue
 
+        # Portamento notes: maintain current frequency and slide.
+        # In the Hubbard player, portamento does NOT re-trigger or jump to a
+        # new pitch — it applies a per-frame frequency delta to the running freq.
+        # The pitch byte is the target or slide speed, NOT the starting freq.
+        # Emit as TIE + portamento command so the V2 player keeps current freq
+        # and applies the slide. pitch>=96 (freq-table trick) is always TIE.
+        if note.portamento is not None:
+            speed, direction = note.portamento
+            dur = max(1, (note.duration + 1 + tempo_divisor - 1) // tempo_divisor)
+            evt = NoteEvent(type='tie', duration=dur)
+            if direction:  # down
+                evt.command = 0x02  # CMD_PORTA_DOWN
+            else:
+                evt.command = 0x01  # CMD_PORTA_UP
+            evt.command_val = speed
+            pat.events.append(evt)
+            continue
+
         if note.pitch is not None:
             usf_note = _hubbard_pitch_to_usf_note(note.pitch)
             if usf_note < 0:
-                # Frequency table trick (pitch >= 96): indexes into player
-                # variables, producing pseudo-random FM effects. Cannot be
-                # reproduced in V2 player. Emit as rest — silence is less
-                # wrong than playing a clamped high note.
-                dur = max(1, (note.duration + 1 + tempo_divisor - 1) // tempo_divisor)
-                pat.events.append(NoteEvent(
-                    type='rest', duration=dur,
-                    instrument=note.instrument if note.instrument is not None else -1))
-                continue
+                # Frequency table trick (pitch >= 96): reads memory beyond the
+                # freq table — this is a portamento continuation or special effect.
+                # Emit as TIE (maintain previous frequency). If we have freq table
+                # info, try to resolve the actual frequency; otherwise just TIE.
+                resolved = False
+                if hasattr(rh_pattern, '_freq_table_info') and rh_pattern._freq_table_info is not None:
+                    binary, load_addr, ft_addr = rh_pattern._freq_table_info
+                    byte_off = ft_addr - load_addr + note.pitch * 2
+                    if 0 <= byte_off + 1 < len(binary):
+                        freq_lo = binary[byte_off]
+                        freq_hi = binary[byte_off + 1]
+                        freq = freq_lo | (freq_hi << 8)
+                        if freq > 0:
+                            # Find closest PAL note
+                            from gt_parser import FREQ_TBL_LO, FREQ_TBL_HI
+                            best = min(range(96), key=lambda n:
+                                abs((FREQ_TBL_LO[n] | (FREQ_TBL_HI[n] << 8)) - freq))
+                            usf_note = best
+                            resolved = True
+                if not resolved:
+                    # Emit TIE (not REST) — freq-table-trick notes are
+                    # portamento/continuation slides, not silences.
+                    dur = max(1, (note.duration + 1 + tempo_divisor - 1) // tempo_divisor)
+                    pat.events.append(NoteEvent(
+                        type='tie', duration=dur))
+                    continue
 
             dur = max(1, (note.duration + 1 + tempo_divisor - 1) // tempo_divisor)
             evt = NoteEvent(
@@ -282,15 +317,6 @@ def _map_pattern(rh_pattern, usf_pat_id, tempo_divisor=1):
                 duration=dur,
                 instrument=note.instrument if note.instrument is not None else -1,
             )
-
-            # Portamento → USF command
-            if note.portamento is not None:
-                speed, direction = note.portamento
-                if direction:  # down
-                    evt.command = 0x02  # CMD_PORTA_DOWN
-                else:
-                    evt.command = 0x01  # CMD_PORTA_UP
-                evt.command_val = speed
 
             # No-release flag: in Hubbard, this means gate stays open.
             # In USF, this is the default behavior (gate clears at note end
@@ -491,8 +517,40 @@ def rh_to_usf(sid_path, subtune=None):
     song.patterns.append(Pattern(id=0, events=[NoteEvent(type='rest', duration=1)]))
 
     tempo_div = getattr(song, '_tempo_divisor', 1)
+
+    # Attach binary + freq table info to patterns for freq-trick resolution
+    # Read the binary once for all patterns
+    _binary = _load_addr = _ft_addr = None
+    try:
+        import struct as _struct
+        with open(sid_path, 'rb') as _f:
+            _raw = _f.read()
+        _data_off = _struct.unpack('>H', _raw[6:8])[0]
+        _la = _struct.unpack('>H', _raw[8:10])[0]
+        _payload = _raw[_data_off:]
+        if _la == 0:
+            _la = _struct.unpack('<H', _payload[:2])[0]
+            _binary = _payload[2:]
+        else:
+            _binary = _payload
+        _load_addr = _la
+        # Find freq table (interleaved format: lo, hi, lo, hi...)
+        # Search for the known interleaved freq bytes
+        PAL_INTERLEAVED = bytes([0x17, 0x01, 0x27, 0x01])  # C1 lo, C1 hi, C#1 lo, C#1 hi
+        pos = _binary.find(PAL_INTERLEAVED)
+        if pos >= 0:
+            _ft_addr = _la + pos
+        elif result.freq_table_addr:
+            _ft_addr = result.freq_table_addr
+    except:
+        pass
+
     pat_map = {}  # rh_pattern_index → usf_pattern_id
     for rh_pat in result.patterns:
+        if _binary is not None and _ft_addr is not None:
+            rh_pat._freq_table_info = (_binary, _load_addr, _ft_addr)
+        else:
+            rh_pat._freq_table_info = None
         usf_id = len(song.patterns)
         pat_map[rh_pat.index] = usf_id
         usf_pat = _map_pattern(rh_pat, usf_id, tempo_div)
