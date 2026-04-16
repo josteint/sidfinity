@@ -265,35 +265,41 @@ def find_speed(binary, load_addr, num_songs=1):
     default_speed = None
 
     # Find the speed counter reset pattern.
-    # Variant 1: DEC counter / BPL / LDA tempo_var / STA counter
-    #   CE lo hi 10 xx AD lo hi 8D lo hi
-    # Variant 2: DEC counter / BPL / LDA #imm / STA counter (hardcoded speed)
-    #   CE lo hi 10 xx A9 val 8D lo hi
+    # Variant 1 (preferred): DEC counter / BPL / LDA tempo_var / STA counter
+    # Variant 2 (fallback): DEC counter / BPL / LDA #imm / STA counter
+    #
+    # Search for Variant 1 first (all occurrences). Only use Variant 2
+    # if no Variant 1 found, because some songs have multiple DEC/BPL/LDA
+    # patterns for different counters (filter speed, etc.) and the LDA abs
+    # variant is more reliably the music speed counter.
+
+    # Pass 1: LDA abs variant
     for i in range(len(binary) - 11):
-        if binary[i] == 0xCE and binary[i + 3] == 0x10:
+        if (binary[i] == 0xCE and binary[i + 3] == 0x10 and
+                binary[i + 5] == 0xAD and binary[i + 8] == 0x8D):
             counter_addr = binary[i + 1] | (binary[i + 2] << 8)
+            t_addr = binary[i + 6] | (binary[i + 7] << 8)
+            sta_addr = binary[i + 9] | (binary[i + 10] << 8)
+            if sta_addr == counter_addr:
+                off = t_addr - load_addr
+                if 0 <= off < len(binary):
+                    val = binary[off]
+                    if val <= 15:
+                        tempo_addr = t_addr
+                        default_speed = val
+                        break
 
-            if binary[i + 5] == 0xAD:
-                # Variant 1: LDA abs (speed from variable)
-                t_addr = binary[i + 6] | (binary[i + 7] << 8)
-                sta_addr = binary[i + 8 + 1] | (binary[i + 8 + 2] << 8) if binary[i + 8] == 0x8D else 0
-                if sta_addr == counter_addr:
-                    off = t_addr - load_addr
-                    if 0 <= off < len(binary):
-                        val = binary[off]
-                        if val <= 15:
-                            tempo_addr = t_addr
-                            default_speed = val
-                            break
-
-            elif binary[i + 5] == 0xA9:
-                # Variant 2: LDA #imm (hardcoded speed constant)
+    # Pass 2: LDA #imm variant (only if Pass 1 found nothing)
+    if default_speed is None:
+        for i in range(len(binary) - 10):
+            if binary[i] == 0xCE and binary[i + 3] == 0x10 and binary[i + 5] == 0xA9:
+                counter_addr = binary[i + 1] | (binary[i + 2] << 8)
                 val = binary[i + 6]
                 sta_off = i + 7
                 if (sta_off + 2 < len(binary) and binary[sta_off] == 0x8D and
                         (binary[sta_off + 1] | (binary[sta_off + 2] << 8)) == counter_addr):
                     if val <= 15:
-                        tempo_addr = counter_addr  # no separate tempo var
+                        tempo_addr = counter_addr
                         default_speed = val
                         break
 
