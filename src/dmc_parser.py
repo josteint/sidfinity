@@ -160,31 +160,36 @@ def find_dmc_layout(binary, load_addr):
     instr_off = fhi_off + 0x0248
     if instr_off + instr_table_size > len(binary):
         # Fallback: search for instrument table via Y-indexed refs
+        # Allow partial tables (small packed SIDs may have fewer than 32 instruments)
         code_end = freq_off
         instr_refs = set()
         for i in range(code_end - 2):
             if binary[i] == 0xB9:  # LDA abs,Y
                 addr = binary[i+1] | (binary[i+2] << 8)
                 off = addr - load_addr
-                if freq_end < off < len(binary) - instr_table_size:
+                if freq_end < off < len(binary):
                     instr_refs.add(off)
         if instr_refs:
             instr_off = min(instr_refs)
         else:
             return None
 
-    if instr_off + instr_table_size > len(binary):
+    # Allow partial instrument tables for small packed files
+    available = len(binary) - instr_off
+    if available < instr_size:
         return None
+    actual_instr_count = min(DMC_MAX_INSTRUMENTS, available // instr_size)
+    actual_table_size = actual_instr_count * instr_size
 
     # Verify: check that instruments look valid
-    instr_region = binary[instr_off:instr_off + instr_table_size]
-    nonzero_instrs = sum(1 for i in range(DMC_MAX_INSTRUMENTS)
+    instr_region = binary[instr_off:instr_off + actual_table_size]
+    nonzero_instrs = sum(1 for i in range(actual_instr_count)
                          if any(instr_region[i*instr_size+j] != 0
                                 for j in range(instr_size)))
-    if nonzero_instrs < 2:
+    if nonzero_instrs < 1:
         return None
 
-    instr_end = instr_off + instr_table_size
+    instr_end = instr_off + actual_table_size
 
     # Find sector pointer table using two strategies:
     # 1. Code-referenced address pairs (original approach)
@@ -244,8 +249,16 @@ def find_dmc_layout(binary, load_addr):
                 num_sectors = n
 
     # Strategy 2: brute-force scan if code refs didn't find enough sectors
+    # Search progressively wider regions:
+    # 1. After instruments (standard location)
+    # 2. Between freq table and instruments (packed SIDs)
+    # 3. Entire binary (very small packed SIDs put sector ptrs in code region)
     if num_sectors == 0:
         result = find_sector_pointers(binary, load_addr, instr_end, max_sectors)
+        if result is None:
+            result = find_sector_pointers(binary, load_addr, freq_end, max_sectors)
+        if result is None:
+            result = find_sector_pointers(binary, load_addr, 0, max_sectors)
         if result:
             lo_off, hi_off, n, addrs = result
             sector_ptr_lo = load_addr + lo_off
