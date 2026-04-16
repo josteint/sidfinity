@@ -400,11 +400,21 @@ def decode_pattern(binary, load_addr, addr, max_bytes=256):
     return notes
 
 
-def decode_track(binary, load_addr, track_addr, max_patterns=512):
-    """Decode a track = sequence of pattern indices until $FF or $FE."""
+def decode_track(binary, load_addr, track_addr, num_sequences=256, max_bytes=512):
+    """Decode a track = sequence of pattern indices until $FF or $FE.
+
+    Track data bytes:
+    - $FF = loop (restart from beginning or RST point)
+    - $FE = stop (end of track)
+    - $00-$7F = pattern index (if < num_sequences)
+    - $80-$FD = RST marker (set restart point). Some variants consume 1 byte
+      (just the marker), others consume 2 bytes (marker + restart index).
+      We skip these and continue reading.
+    """
     patterns = []
     off = track_addr - load_addr
-    for i in range(max_patterns):
+    i = 0
+    while i < max_bytes:
         if off + i >= len(binary):
             break
         b = binary[off + i]
@@ -414,8 +424,16 @@ def decode_track(binary, load_addr, track_addr, max_patterns=512):
         elif b == 0xFE:
             patterns.append(('stop', None))
             break
+        elif b >= 0x80:
+            # RST marker — skip it. Check if next byte is also a RST/control
+            # byte or a valid pattern index. If next byte < num_sequences,
+            # it's likely the 2-byte RST format (marker + restart index).
+            i += 1
+            if off + i < len(binary) and binary[off + i] < 0x80:
+                i += 1  # skip the restart index byte too
         else:
             patterns.append(('pattern', b))
+            i += 1
     return patterns
 
 
