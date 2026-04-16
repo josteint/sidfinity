@@ -401,10 +401,13 @@ def decode_pattern(binary, load_addr, addr, max_bytes=256):
 
 
 def decode_track(binary, load_addr, track_addr, num_sequences=256, max_bytes=512):
-    """Decode a track = sequence of pattern indices until $FF or $FE.
+    """Decode a Hubbard track = sequence of pattern indices with RST markers.
 
     Track data bytes:
-    - $FF = loop (restart from beginning or RST point)
+    - $FF = RST restart-point marker OR loop terminator.
+      If followed by a valid pattern index (< num_sequences), it's RST:
+      skip both bytes (marker + restart offset) and continue.
+      Otherwise it's the loop point (end of track).
     - $FE = stop (end of track)
     - 0 to num_sequences-1 = pattern index
     - bytes >= num_sequences but < $FE = RST marker (set restart point).
@@ -418,6 +421,21 @@ def decode_track(binary, load_addr, track_addr, num_sequences=256, max_bytes=512
             break
         b = binary[off + i]
         if b == 0xFF:
+            # Check if this is RST (followed by valid pattern data) or loop end.
+            # RST: 0xFF is followed by a restart offset byte, then more patterns.
+            # Loop: 0xFF at the true end — followed by another 0xFF, 0xFE, or
+            # a byte >= num_sequences (no more valid patterns after it).
+            # RST heuristic: 0xFF + restart_offset (< 32) + valid_pattern.
+            # Restart offset is a track position, typically small.
+            # At the true loop end, the restart byte is typically the
+            # loop-back position (can be 0-255) but not followed by
+            # more pattern data — the next address is other data.
+            next_off = off + i + 1
+            if (next_off + 1 < len(binary) and
+                    binary[next_off] < 32 and
+                    binary[next_off + 1] < num_sequences):
+                i += 2
+                continue
             patterns.append(('loop', None))
             break
         elif b == 0xFE:
