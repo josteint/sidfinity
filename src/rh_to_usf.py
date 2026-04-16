@@ -441,15 +441,17 @@ def rh_to_usf(sid_path, subtune=None):
     # depth 1: gentle vibrato → small delta
     # depth 2-3: medium → moderate delta
     # depth 4+: strong → larger delta (Phase 4 driver)
-    # Conservative deltas — undershooting (freq_fine) is better than
-    # overshooting (note_wrong) for Grade A scores.
-    VIBRATO_DELTAS = {1: 16, 2: 16, 3: 16, 4: 16, 5: 16, 6: 16, 7: 16}
-
     for v in range(1, max_vib + 1):
         if has_log_vibrato:
-            delta = VIBRATO_DELTAS.get(v, 33)
-            speed = 6
-            song.speed_table.append(SpeedTableEntry(left=speed, right=delta))
+            # Calculated speed: bit 7 set triggers the V2 player to compute
+            # vibrato delta from the semitone gap at mt_chnlastnote.
+            # REL_LASTNOTE flag ensures mt_chnlastnote is set from mt_chnnote
+            # in the relative wave table path.
+            # Speed (bits 0-6) = oscillation rate. Right byte = shift count.
+            # Hubbard: 8-frame cycle, shift = depth.
+            speed = 0x80 | 6   # calculated speed, oscillation rate 6
+            shift = min(v + 4, 7)  # shift count = depth + 4 (V2 oscillation is wider than Hubbard's)
+            song.speed_table.append(SpeedTableEntry(left=speed, right=shift))
         else:
             # Linear vibrato (GT2 style)
             speed = min(0xFF, 0x40 + v * 0x10)

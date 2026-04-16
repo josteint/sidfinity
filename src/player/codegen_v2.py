@@ -10,7 +10,7 @@ Target: ~500 bytes for simple songs (Covfefe), ~900 bytes full features.
 
 from dataclasses import dataclass, field
 from codegen import detect_features, close_features, \
-    FILTER, EFFECTS, VIBRATO, PORTAMENTO, TONEPORTA, CALCULATED_SPEED, \
+    FILTER, EFFECTS, VIBRATO, PORTAMENTO, TONEPORTA, CALCULATED_SPEED, REL_LASTNOTE, \
     FUNKTEMPO, WAVE_DELAY, WAVE_CMD, PULSE_MOD, TICK0_FX, \
     ORDERLIST_TRANS, ORDERLIST_REPEAT, SET_AD, SET_SR, SET_WAVE, \
     SET_WAVEPTR, SET_PULSEPTR, SET_FILTPTR, SET_FILTCTRL, SET_FILTCUT, \
@@ -495,6 +495,16 @@ def emit_wave_table(ctx):
     ctx.inst('clc')
     ctx.inst('adc', 'mt_chnnote,x')
     ctx.inst('and', '#$7f')
+    if ctx.has(REL_LASTNOTE):
+        # Set mt_chnlastnote to the BASE note (mt_chnnote), not the
+        # arpeggio-modified note. This enables calculated speed vibrato
+        # for Hubbard-style instruments that use relative wave tables.
+        # For GT2 arpeggios, the base note is still correct — vibrato
+        # should oscillate around the written note, not the arpeggio step.
+        ctx.inst('pha')
+        ctx.inst('lda', 'mt_chnnote,x')
+        ctx.inst('sta', 'mt_chnlastnote,x')
+        ctx.inst('pla')
     ctx.inst('jmp', 'ce_wfreq')
     # Absolute note
     ctx.label('ce_wabs')
