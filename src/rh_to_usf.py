@@ -278,12 +278,12 @@ def _map_pattern(rh_pattern, usf_pat_id, tempo_divisor=1):
     return pat
 
 
-def rh_to_usf(sid_path, subtune=0):
+def rh_to_usf(sid_path, subtune=None):
     """Convert a Rob Hubbard SID to USF Song.
 
     Args:
         sid_path: Path to the .sid file
-        subtune: Which subtune to convert (0-based, default=0)
+        subtune: Which subtune to convert (0-based). None = use PSID start song.
 
     Returns:
         USF Song object, or None on failure.
@@ -296,11 +296,29 @@ def rh_to_usf(sid_path, subtune=0):
     if not result.songs:
         return None
 
-    if subtune >= len(result.songs):
-        # Try to use first valid song
-        subtune = 0
+    # Use PSID start song if no subtune specified
+    if subtune is None:
+        # Read start_song from PSID header (1-based)
+        import struct
+        with open(sid_path, 'rb') as f:
+            raw = f.read()
+        start_song = struct.unpack('>H', raw[16:18])[0]
+        subtune = start_song - 1  # convert to 0-based
 
-    rh_song = result.songs[subtune]
+    # Find the matching decompiled song by index
+    rh_song = None
+    for s in result.songs:
+        if s.index == subtune:
+            rh_song = s
+            break
+
+    if rh_song is None:
+        # Requested subtune not in decompiled songs — try first valid song
+        if result.songs:
+            rh_song = result.songs[0]
+            subtune = rh_song.index
+        else:
+            return None
 
     # Build USF Song
     song = Song()
