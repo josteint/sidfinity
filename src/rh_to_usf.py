@@ -185,6 +185,10 @@ def _map_instrument(rh_instr, instr_id):
     # then arpeggio/skydive modify frequency. For combo instruments (e.g. FX=0x05
     # = drum+arpeggio), the drum only affects waveform (noise on frame 1), while
     # the arpeggio controls frequency alternation after that.
+    # Hubbard arpeggio (bit 2) only activates when drum (bit 0) fires.
+    # Arpeggio alone (no drum) = steady note. The arpeggio counter is
+    # only set non-zero by the drum code path (verified via Sigma_Seven
+    # disassembly at $82E7-$82FC).
     if rh_instr.has_drum and rh_instr.has_arpeggio:
         # Drum + arpeggio combo: noise burst then alternating octave arpeggio
         native_wave = rh_instr.ctrl | 0x01
@@ -198,8 +202,6 @@ def _map_instrument(rh_instr, instr_id):
         inst.wave_table = _build_drum_wave_table(rh_instr.ctrl)
         if (rh_instr.ctrl & 0xF0) == 0x80 or rh_instr.ctrl == 0:
             inst.waveform = 'noise'
-    elif rh_instr.has_arpeggio:
-        inst.wave_table = _build_arpeggio_wave_table()
     elif rh_instr.has_skydive:
         inst.wave_table = _build_skydive_wave_table()
     else:
