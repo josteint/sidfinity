@@ -154,6 +154,11 @@ def compare_tolerant(orig_frames, new_frames):
                 else:
                     vr['note_wrong'] += 1
             elif (o_wav & 0xFE) != (n_wav & 0xFE):
+                # If both sides have gate off, waveform bits are inaudible
+                # (oscillator not driving output). Classify as wave_jitter.
+                if not (o_wav & 1) and not (n_wav & 1):
+                    vr['wave_jitter'] += 1
+                    continue
                 # Check if timing shift: V2 waveform matches nearby frame?
                 shifted = False
                 for d in [-3, -2, -1, 1, 2, 3]:
