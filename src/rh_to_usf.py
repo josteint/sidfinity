@@ -442,11 +442,11 @@ def rh_to_usf(sid_path, subtune=None):
                 idx = len(depth_to_idx) + 1
                 depth_to_idx[raw] = idx
 
-                # Shift count: depth + 4 offset compensates for V2 oscillation
-                # being wider than Hubbard's 0,1,2,3,3,2,1,0 triangle.
-                # For Phase 4 depths (8+), cap at 7 shifts (gentlest vibrato).
-                # This undershoots the original's vibrato width but avoids
-                # note_wrong from overshot oscillation crossing semitone boundaries.
+                # Shift = depth + 4 (V2 oscillation wider than Hubbard's triangle).
+                # Phase 4 depths (>7) are capped at shift=7 (gentlest vibrato).
+                # Many Phase 4 instruments repurpose byte +5 for non-vibrato
+                # functions (arpeggio tables, filter control), so aggressive
+                # vibrato from high depth values is usually wrong.
                 shift = min(raw + 4, 7)
 
                 speed = 0x80 | 6  # calculated speed, oscillation rate 6
