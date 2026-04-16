@@ -75,6 +75,7 @@ VIBRATO = 'VIBRATO'              # fx 0 (inst vibrato) + fx 4 (pattern vibrato)
 PORTAMENTO = 'PORTAMENTO'        # fx 1 (up) + fx 2 (down)
 TONEPORTA = 'TONEPORTA'          # fx 3
 CALCULATED_SPEED = 'CALCULATED_SPEED'  # speed table entries with bit 7 set
+REL_LASTNOTE = 'REL_LASTNOTE'       # also set mt_chnlastnote from relative wave table notes
 FUNKTEMPO = 'FUNKTEMPO'          # fx $0E
 WAVE_DELAY = 'WAVE_DELAY'        # wave table entries $01-$0F
 WAVE_CMD = 'WAVE_CMD'            # wave table entries >= $E0
@@ -197,6 +198,13 @@ def detect_features(song):
         for entry in song.speed_table:
             if entry.left & 0x80:
                 flags.add(CALCULATED_SPEED)
+
+    # REL_LASTNOTE: set mt_chnlastnote from relative wave table notes too.
+    # Needed for Hubbard songs where instruments use relative wave tables
+    # (not absolute arpeggios) but need calculated speed vibrato.
+    if any(getattr(inst, 'vib_logarithmic', False) for inst in song.instruments):
+        if CALCULATED_SPEED in flags:
+            flags.add(REL_LASTNOTE)
 
     # Pattern commands
     fx_used = set()

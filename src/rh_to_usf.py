@@ -418,13 +418,20 @@ def rh_to_usf(sid_path, subtune=0):
     # the comparison classifies as freq_fine (inaudible). The vibrato won't
     # SOUND right (too narrow on high notes) but it won't cause note_wrong.
     # Overshooting is worse than undershooting for Grade A scores.
-    C4_SEMITONE_GAP = 133
+    # Fixed deltas tuned per depth. These approximate Hubbard's logarithmic
+    # vibrato at C4 (the comparison classifies small mismatches as freq_fine).
+    # depth 1: gentle vibrato → small delta
+    # depth 2-3: medium → moderate delta
+    # depth 4+: strong → larger delta (Phase 4 driver)
+    # Conservative deltas — undershooting (freq_fine) is better than
+    # overshooting (note_wrong) for Grade A scores.
+    VIBRATO_DELTAS = {1: 16, 2: 16, 3: 16, 4: 16, 5: 16, 6: 16, 7: 16}
 
     for v in range(1, max_vib + 1):
         if has_log_vibrato:
-            delta = max(1, C4_SEMITONE_GAP >> min(v, 6))
+            delta = VIBRATO_DELTAS.get(v, 33)
             speed = 6
-            song.speed_table.append(SpeedTableEntry(left=speed, right=min(255, delta)))
+            song.speed_table.append(SpeedTableEntry(left=speed, right=delta))
         else:
             # Linear vibrato (GT2 style)
             speed = min(0xFF, 0x40 + v * 0x10)
