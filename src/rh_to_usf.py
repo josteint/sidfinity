@@ -99,17 +99,22 @@ def _build_drum_wave_table(ctrl_byte):
         ]
 
 
-def _build_skydive_wave_table():
+def _build_skydive_wave_table(ctrl_byte):
     """Build USF wave table for Hubbard skydive effect.
 
-    Skydive: decrements freq_hi every other frame (slow pitch descent).
-    We approximate this as a gradual downward pitch bend.
+    Skydive: decrements freq_hi after gate release (slow pitch descent).
+    During sustained notes, only vibrato plays — the skydive only activates
+    as a tail effect. Since the V2 player can't conditionally activate
+    effects on gate release, we use a steady hold (keep_freq) which lets
+    vibrato run normally. The descent tail is lost but sustained notes
+    are correct (verified: One_Man, Ninja, Chain_Reaction).
     """
-    steps = []
-    for i in range(8):
-        steps.append(WaveTableStep(waveform=0x41, note_offset=-i))
-    steps.append(WaveTableStep(is_loop=True, loop_target=7))  # hold lowest
-    return steps
+    wave_byte = ctrl_byte | 0x01
+    return [
+        WaveTableStep(waveform=wave_byte, note_offset=0),
+        WaveTableStep(waveform=wave_byte, keep_freq=True),
+        WaveTableStep(is_loop=True, loop_target=1),
+    ]
 
 
 def _build_arpeggio_wave_table():
@@ -198,18 +203,27 @@ def _map_instrument(rh_instr, instr_id):
         upper = (rh_instr.fx_flags >> 4) & 0x0F
         arp_offset = 12 if upper == 0 else -upper
         native_wave = rh_instr.ctrl | 0x01
-        inst.wave_table = [
-            WaveTableStep(waveform=0x81, note_offset=0),           # frame 1: noise burst
-            WaveTableStep(waveform=native_wave, note_offset=0),     # frame 2: base note
-            WaveTableStep(waveform=native_wave, note_offset=arp_offset),  # frame 3: arpeggio
-            WaveTableStep(is_loop=True, loop_target=1),             # loop arpeggio
-        ]
+        if rh_instr.ctrl & 0x80:
+            # Noise instrument: noise burst then arpeggio
+            inst.wave_table = [
+                WaveTableStep(waveform=0x81, note_offset=0),
+                WaveTableStep(waveform=native_wave, note_offset=0),
+                WaveTableStep(waveform=native_wave, note_offset=arp_offset),
+                WaveTableStep(is_loop=True, loop_target=1),
+            ]
+        else:
+            # Non-noise instrument: skip noise burst, just arpeggio with native wave
+            inst.wave_table = [
+                WaveTableStep(waveform=native_wave, note_offset=0),
+                WaveTableStep(waveform=native_wave, note_offset=arp_offset),
+                WaveTableStep(is_loop=True, loop_target=0),
+            ]
     elif rh_instr.has_drum:
         inst.wave_table = _build_drum_wave_table(rh_instr.ctrl)
         if (rh_instr.ctrl & 0xF0) == 0x80 or rh_instr.ctrl == 0:
             inst.waveform = 'noise'
     elif rh_instr.has_skydive:
-        inst.wave_table = _build_skydive_wave_table()
+        inst.wave_table = _build_skydive_wave_table(rh_instr.ctrl)
     else:
         # Every instrument needs a wave table for the V2 player.
         # Step 1: set waveform with relative offset 0 (sets initial freq).
@@ -470,7 +484,12 @@ def rh_to_usf(sid_path, subtune=None):
             depth = min(0xFF, v * 0x08)
             song.speed_table.append(SpeedTableEntry(left=speed, right=depth))
 
-    # Map patterns — build a mapping from Hubbard pattern index to USF pattern ID
+    # Map patterns — build a mapping from Hubbard pattern index to USF pattern ID.
+    # Start from ID 1 (not 0) because ID 0 = ENDPATT ($00) in the GT2/SIDfinity
+    # orderlist format. Orderlist byte $00 terminates pattern reading.
+    # Insert a dummy pattern at index 0 to reserve it.
+    song.patterns.append(Pattern(id=0, events=[NoteEvent(type='rest', duration=1)]))
+
     tempo_div = getattr(song, '_tempo_divisor', 1)
     pat_map = {}  # rh_pattern_index → usf_pattern_id
     for rh_pat in result.patterns:
