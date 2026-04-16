@@ -348,9 +348,15 @@ def score_results(results):
 
     score = max(0, 100 - audible_pct * 100 - inaudible_pct * 5)
 
-    # Grading: Grade A allows envelope-only diffs under 1% (ADSR write-order
-    # timing within a frame is inaudible). Wrong notes/waveforms must be zero.
-    if strong_pct == 0 and env_pct < 0.01:
+    # Grading:
+    # S = perfect (zero differences of any kind — no jitter, no env, nothing)
+    # A = no audible diffs (jitter tolerated, envelope timing < 1%)
+    # B = minor audible diffs (< 2%)
+    # C = noticeable diffs (< 10%)
+    # F = broken (>= 10%)
+    if strong_pct == 0 and env_pct == 0 and inaudible == 0:
+        grade = 'S'  # perfect — zero differences of any kind
+    elif strong_pct == 0 and env_pct < 0.01:
         grade = 'A'  # no audible note/wave diffs, envelope timing only
     elif audible_pct < 0.02:
         grade = 'B'  # <2% audible
