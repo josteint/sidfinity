@@ -201,25 +201,41 @@ def dmc_to_usf(sid_path):
     def _track_length(start_off):
         """Count sector refs in track data starting at offset.
 
-        Returns (sector_refs, terminated) where terminated means we hit $FE/$FF.
-        Tolerates unknown bytes in the stream (V5 has speed/loop commands
-        in the $B0-$BF range that we don't fully document yet).
+        Returns (sector_refs, terminated, max_ref) where:
+        - sector_refs: number of sector references found
+        - terminated: True if we hit $FE/$FF
+        - max_ref: highest sector ref seen (for validating against num_sectors)
         """
         off = start_off
         sector_refs = 0
+        max_ref = -1
         steps = 0
         while off < len(binary) and steps < 256:
             b = binary[off]
             if b <= max_sector_ref:
                 sector_refs += 1
+                if b > max_ref:
+                    max_ref = b
             elif b in (0xFE, 0xFF):
-                return (sector_refs, True)
+                return (sector_refs, True, max_ref)
             off += 1
             steps += 1
-        return (sector_refs, False)
+        return (sector_refs, False, max_ref)
+
+    # Get actual sector count for validation
+    num_sectors = dmc['num_sectors']
 
     tpt_off = None
-    for scan_off in range(instr_end_off, len(binary) - 6):
+    best_tpt = None
+    best_tpt_score = 0
+    # Scan the entire data region for tune pointer table candidates
+    # Use the sector count to validate: track data should not reference
+    # sectors beyond what exists in the sector pointer table.
+    scan_start = min(instr_end_off, layout.get('sector_ptr_lo', instr_end_off) - la) \
+                 if layout.get('sector_ptr_lo') else instr_end_off
+    scan_start = max(0, scan_start)
+
+    for scan_off in range(scan_start, len(binary) - 6):
         ptrs = []
         valid = True
         for k in range(3):
@@ -233,13 +249,28 @@ def dmc_to_usf(sid_path):
         # All 3 pointed-to bytes must look like track data start
         if not all(_is_track_byte(binary[p - la]) for p in ptrs):
             continue
-        # Verify: at least 2 voices must have sector refs AND terminate properly
+        # Verify tracks: must terminate, have sector refs, refs within bounds
         track_info = [_track_length(p - la) for p in ptrs]
-        voices_with_content = sum(1 for refs, term in track_info if refs > 0 and term)
-        all_terminated = all(term for _, term in track_info)
-        if voices_with_content >= 2 or (voices_with_content >= 1 and all_terminated):
-            tpt_off = scan_off
-            break
+        voices_with_content = sum(1 for refs, term, _ in track_info if refs > 0 and term)
+        all_terminated = all(term for _, term, _ in track_info)
+        total_refs = sum(refs for refs, _, _ in track_info)
+        max_ref_seen = max((mr for _, _, mr in track_info), default=-1)
+
+        if not (voices_with_content >= 2 or (voices_with_content >= 1 and all_terminated)):
+            continue
+
+        # Validate: sector refs should be within the actual sector count
+        refs_in_bounds = max_ref_seen < num_sectors if num_sectors > 0 and max_ref_seen >= 0 else True
+
+        # Score: prefer candidates with more sector refs, in-bounds refs, more voices
+        score = total_refs * 10 + voices_with_content * 100
+        if refs_in_bounds:
+            score += 1000  # strong bonus for in-bounds refs
+        if score > best_tpt_score:
+            best_tpt_score = score
+            best_tpt = scan_off
+
+    tpt_off = best_tpt
 
     if tpt_off is not None:
         voice_addrs = [binary[tpt_off + i * 2] | (binary[tpt_off + i * 2 + 1] << 8)
