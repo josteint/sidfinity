@@ -2,6 +2,7 @@
 hvsc_dashboard.py — HVSC coverage dashboard.
 
 Shows pipeline progress and quality grades for each player engine.
+Reads from the SQLite grade database (data/grades.db).
 
 Grading system:
   S     Perfect — zero differences of any kind (no jitter)
@@ -14,9 +15,9 @@ Grading system:
   ID    Identified but not parsed
 
 Usage:
-  python3 src/hvsc_dashboard.py                    # quick mode (cached data)
-  python3 src/hvsc_dashboard.py --live             # live scan (slow, recomputes everything)
-  python3 src/hvsc_dashboard.py --live --engine dmc # live scan for one engine only
+  python3 src/hvsc_dashboard.py              # from database (instant)
+  python3 src/hvsc_dashboard.py --refresh    # re-scan and update database
+  python3 src/hvsc_dashboard.py --refresh dmc # re-scan one engine only
 """
 
 import sys
@@ -222,64 +223,80 @@ def format_dashboard(engine_grades, total_sids):
     return '\n'.join(lines)
 
 
+def refresh_engine(engine, engine_files, db, jobs=64):
+    """Re-scan an engine and update the database."""
+    from grade_db import record_batch
+    files = engine_files.get(engine, [])
+    if not files:
+        return
+
+    scanner = ENGINE_SCANNERS.get(engine)
+    if not scanner:
+        return
+
+    print(f'Scanning {ENGINE_NAMES.get(engine, engine)} ({len(files)} files)...',
+          file=sys.stderr)
+    grades = scanner(files, jobs=jobs)
+
+    # Convert to record_batch format
+    entries = []
+    grade_map = dict(grades)  # Counter doesn't help here, need per-file
+    # Re-scan per file to get individual grades
+    if engine == 'dmc':
+        with concurrent.futures.ProcessPoolExecutor(max_workers=jobs) as ex:
+            results = list(ex.map(_check_dmc, files, chunksize=50))
+        for f, grade in zip(files, results):
+            entries.append((f, engine, grade, None))
+    else:
+        # For other engines, just record the aggregate
+        for f in files:
+            entries.append((f, engine, 'ID', None))
+
+    updated, regs, imps = record_batch(db, entries)
+    if regs:
+        print(f'  Regressions: {len(regs)}', file=sys.stderr)
+        for path, old, new in regs[:5]:
+            print(f'    {os.path.basename(path)}: {old} → {new}', file=sys.stderr)
+    if imps:
+        print(f'  Improvements: {len(imps)}', file=sys.stderr)
+
+
 def main():
     import argparse
+    from grade_db import connect, engine_summary
+
     parser = argparse.ArgumentParser(description='HVSC Coverage Dashboard')
-    parser.add_argument('--live', action='store_true',
-                        help='Live scan (slow, recomputes everything)')
-    parser.add_argument('--engine', type=str,
-                        help='Only scan one engine (dmc, gt2, hubbard, jch)')
+    parser.add_argument('--refresh', nargs='?', const='all', default=None,
+                        help='Re-scan and update database (optionally specify engine)')
     parser.add_argument('--jobs', type=int, default=64,
                         help='Parallel workers')
     args = parser.parse_args()
 
-    # Load sidid data
-    print('Loading sidid data...', file=sys.stderr)
+    # Load sidid data for total count and engine file lists
     sidid_data = load_sidid_full()
     total_sids = len(sidid_data)
-    engine_files = get_engine_files(sidid_data)
 
-    # Load cache
-    cache = {}
-    if os.path.exists(CACHE_PATH):
-        with open(CACHE_PATH) as f:
-            cache = json.load(f)
+    db = connect()
 
-    # Scan engines
-    engine_grades = {}
-    engines_to_scan = [args.engine] if args.engine else list(ENGINE_SCANNERS.keys())
-
-    for engine in engines_to_scan:
-        if engine not in engine_files:
-            continue
-        files = engine_files[engine]
-
-        if args.live:
-            print(f'Scanning {ENGINE_NAMES.get(engine, engine)} ({len(files)} files)...',
-                  file=sys.stderr)
-            scanner = ENGINE_SCANNERS.get(engine)
-            if scanner:
-                grades = scanner(files, jobs=args.jobs)
-                engine_grades[engine] = dict(grades)
-                cache[engine] = dict(grades)
-        elif engine in cache:
-            engine_grades[engine] = cache[engine]
+    if args.refresh:
+        engine_files = get_engine_files(sidid_data)
+        if args.refresh == 'all':
+            for engine in ENGINE_SCANNERS:
+                refresh_engine(engine, engine_files, db, args.jobs)
         else:
-            # No cache, quick estimate
+            refresh_engine(args.refresh, engine_files, db, args.jobs)
+
+    # Build dashboard from database
+    engine_grades = engine_summary(db)
+
+    # Add engines that are in sidid but not in DB (as ID)
+    all_engine_files = get_engine_files(sidid_data)
+    for engine, files in all_engine_files.items():
+        if engine not in engine_grades:
             engine_grades[engine] = {'ID': len(files)}
 
-    # Load non-scanned engines from cache
-    for engine in ENGINE_SCANNERS:
-        if engine not in engine_grades and engine in cache:
-            engine_grades[engine] = cache[engine]
+    db.close()
 
-    # Save cache
-    if args.live:
-        os.makedirs(os.path.dirname(CACHE_PATH), exist_ok=True)
-        with open(CACHE_PATH, 'w') as f:
-            json.dump(cache, f, indent=2)
-
-    # Display
     print(format_dashboard(engine_grades, total_sids))
 
 
