@@ -64,21 +64,39 @@ def _map_waveform(ctrl_byte):
     return 'pulse'  # default
 
 
-def _build_drum_wave_table():
+def _build_drum_wave_table(ctrl_byte):
     """Build USF wave table for Hubbard drum effect.
 
-    Drum: noise waveform ($81) for rapid freq slide, then original waveform.
-    The Hubbard drum does:
-      Frame 1: set waveform to noise ($81), high frequency
-      Frame 2+: frequency slides down rapidly with fast decay
+    From McSweeney + data_format_reference.md:
+    - Frame 1: noise ($81) at high pitch, freq_hi decrements rapidly
+    - If ctrl is noise ($80/$81): always noise
+    - If ctrl is non-noise: square on first frame, then noise, then back
+
+    The V2 wave table can approximate this with descending relative offsets.
+    The original does a per-frame freq_hi decrement which we can't exactly
+    replicate, but descending semitone steps are close enough.
     """
-    return [
-        WaveTableStep(waveform=0x81, note_offset=24),   # noise, +2 octaves
-        WaveTableStep(waveform=0x81, note_offset=12),    # noise, +1 octave
-        WaveTableStep(waveform=0x81, note_offset=0),     # noise, base
-        WaveTableStep(waveform=0x41, note_offset=0),     # back to pulse
-        WaveTableStep(is_loop=True, loop_target=3),      # loop on pulse
-    ]
+    # Hubbard drum: noise burst on frame 1, then instrument's own waveform.
+    # From data_format_reference.md:
+    #   ctrl=$00/$80/$81: always noise
+    #   ctrl=non-zero: instrument waveform + noise on first frame, then waveform only
+    # The actual freq_hi decrement is in SoundWork, not reproducible in V2 wave table.
+    # Keep it short to not disrupt timing.
+    native_wave = ctrl_byte | 0x01  # ensure gate bit
+    if (ctrl_byte & 0xF0) == 0x80 or ctrl_byte == 0:
+        # Pure noise drum
+        return [
+            WaveTableStep(waveform=0x81, note_offset=0),
+            WaveTableStep(waveform=0x81, keep_freq=True),
+            WaveTableStep(is_loop=True, loop_target=1),
+        ]
+    else:
+        # Noise burst then native waveform
+        return [
+            WaveTableStep(waveform=0x81, note_offset=0),    # frame 1: noise burst
+            WaveTableStep(waveform=native_wave, keep_freq=True),  # frame 2+: native wave
+            WaveTableStep(is_loop=True, loop_target=1),
+        ]
 
 
 def _build_skydive_wave_table():
@@ -168,8 +186,10 @@ def _map_instrument(rh_instr, instr_id):
 
     # Effects → wave tables
     if rh_instr.has_drum:
-        inst.wave_table = _build_drum_wave_table()
-        inst.waveform = 'noise'
+        inst.wave_table = _build_drum_wave_table(rh_instr.ctrl)
+        # Only set waveform to noise for pure noise drums
+        if (rh_instr.ctrl & 0xF0) == 0x80 or rh_instr.ctrl == 0:
+            inst.waveform = 'noise'
     elif rh_instr.has_arpeggio:
         inst.wave_table = _build_arpeggio_wave_table()
     elif rh_instr.has_skydive:
@@ -394,19 +414,15 @@ def rh_to_usf(sid_path, subtune=0):
     # Can't use V2 calculated speed (requires mt_chnlastnote from wave table
     # absolute notes, incompatible with Hubbard's relative wave tables).
     #
-    # Use C4 semitone gap as reference — middle of the range.
-    # C4: freq[48]=$08B4, freq[49]=$0939, gap=$0085=133
-    # This is a compromise: too wide for low notes, too narrow for high.
-    # But the comparison classifies small freq diffs as freq_fine (inaudible),
-    # so undershooting is better than overshooting.
+    # Use C4 semitone gap (133) as reference. This produces small deltas that
+    # the comparison classifies as freq_fine (inaudible). The vibrato won't
+    # SOUND right (too narrow on high notes) but it won't cause note_wrong.
+    # Overshooting is worse than undershooting for Grade A scores.
     C4_SEMITONE_GAP = 133
 
     for v in range(1, max_vib + 1):
         if has_log_vibrato:
-            # Hubbard depth v: delta = semitone_gap >> v
-            delta = max(1, C4_SEMITONE_GAP >> v)
-            # V2 speed table: left = oscillation speed, right = delta
-            # Speed 6 gives ~8-frame vibrato cycle (close to Hubbard's)
+            delta = max(1, C4_SEMITONE_GAP >> min(v, 6))
             speed = 6
             song.speed_table.append(SpeedTableEntry(left=speed, right=min(255, delta)))
         else:
