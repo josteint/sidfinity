@@ -173,15 +173,11 @@ def _map_instrument(rh_instr, instr_id):
     inst.gate_timer = 2
     inst.hr_method = 'gate'
 
-    # Vibrato
+    # Vibrato — store the raw depth. Speed table entries are built later
+    # with per-depth shift counts for both classic (1-7) and Phase 4 (8+).
     if rh_instr.vibrato_depth > 0:
-        # Hubbard vibrato uses logarithmic freq delta (delta scales with pitch).
-        # Classic driver uses depths 1-3. Phase 4 driver may use larger values
-        # with different interpretation, but the original still produces vibrato.
-        # Cap the depth for V2 speed table compatibility (max 7 entries).
-        depth = min(rh_instr.vibrato_depth, 7)
-        inst.vib_speed_idx = depth
-        inst.vib_delay = 0  # Hubbard vibrato starts immediately
+        inst._raw_vib_depth = rh_instr.vibrato_depth
+        inst.vib_delay = 0
         inst.vib_logarithmic = True
 
     # Effects → wave tables
@@ -336,8 +332,10 @@ def rh_to_usf(sid_path, subtune=None):
     song = Song()
     song.title = result.title
     song.author = result.author
-    song.sid_model = '6581'
-    song.clock = 'PAL'
+    # Read SID model and clock from PSID header flags
+    psid_flags = struct.unpack('>H', raw[0x76:0x78])[0] if len(raw) > 0x78 else 0x0014
+    song.sid_model = '8580' if (psid_flags & 0x30) == 0x20 else '6581'
+    song.clock = 'NTSC' if (psid_flags & 0x0C) == 0x08 else 'PAL'
 
     # Hubbard speed: resetspd value from the binary.
     # Each Hubbard tick = (resetspd + 1) frames.
@@ -429,43 +427,37 @@ def rh_to_usf(sid_path, subtune=None):
     #
     # Hubbard depth 1 = shift by 2 (divide semitone gap by 4)
     # Hubbard depth 2 = shift by 3 (divide by 8)
-    # Hubbard depth 3 = shift by 4 (divide by 16)
-    # General: shift count = depth + 1
-    max_vib = max((inst.vib_speed_idx for inst in song.instruments), default=0)
-    max_vib = min(max_vib, 7)  # cap to valid range
-
     has_log_vibrato = any(inst.vib_logarithmic for inst in song.instruments)
 
-    # Speed table is 1-indexed: vib_speed_idx=1 reads entry[0], idx=2 reads entry[1].
-    # The V2 player does: LDY mt_chnparam,x / LDA mt_speedlefttbl-1,y
-    # So Y=1 → entry[0], Y=2 → entry[1], Y=N → entry[N-1].
-    # We need entries for indices 1 through max_vib.
-    # Approximate Hubbard's logarithmic vibrato with fixed deltas.
-    # Can't use V2 calculated speed (requires mt_chnlastnote from wave table
-    # absolute notes, incompatible with Hubbard's relative wave tables).
-    #
-    # Use C4 semitone gap (133) as reference. This produces small deltas that
-    # the comparison classifies as freq_fine (inaudible). The vibrato won't
-    # SOUND right (too narrow on high notes) but it won't cause note_wrong.
-    # Overshooting is worse than undershooting for Grade A scores.
-    # Fixed deltas tuned per depth. These approximate Hubbard's logarithmic
-    # vibrato at C4 (the comparison classifies small mismatches as freq_fine).
-    # depth 1: gentle vibrato → small delta
-    # depth 2-3: medium → moderate delta
-    # depth 4+: strong → larger delta (Phase 4 driver)
-    for v in range(1, max_vib + 1):
-        if has_log_vibrato:
-            # Calculated speed: bit 7 set triggers the V2 player to compute
-            # vibrato delta from the semitone gap at mt_chnlastnote.
-            # REL_LASTNOTE flag ensures mt_chnlastnote is set from mt_chnnote
-            # in the relative wave table path.
-            # Speed (bits 0-6) = oscillation rate. Right byte = shift count.
-            # Hubbard: 8-frame cycle, shift = depth.
-            speed = 0x80 | 6   # calculated speed, oscillation rate 6
-            shift = min(v + 4, 7)  # shift count = depth + 4 (V2 oscillation is wider than Hubbard's)
-            song.speed_table.append(SpeedTableEntry(left=speed, right=shift))
-        else:
-            # Linear vibrato (GT2 style)
+    # Build speed table with per-depth entries for calculated speed vibrato.
+    # Each unique raw vibrato depth gets its own speed table entry with an
+    # appropriate shift count. Speed table is 1-indexed (Y=1 → entry[0]).
+    if has_log_vibrato:
+        depth_to_idx = {}
+        for inst in song.instruments:
+            raw = getattr(inst, '_raw_vib_depth', 0)
+            if raw > 0 and raw not in depth_to_idx:
+                idx = len(depth_to_idx) + 1
+                depth_to_idx[raw] = idx
+
+                # Shift count: depth + 4 offset compensates for V2 oscillation
+                # being wider than Hubbard's 0,1,2,3,3,2,1,0 triangle.
+                # For Phase 4 depths (8+), cap at 7 shifts (gentlest vibrato).
+                # This undershoots the original's vibrato width but avoids
+                # note_wrong from overshot oscillation crossing semitone boundaries.
+                shift = min(raw + 4, 7)
+
+                speed = 0x80 | 6  # calculated speed, oscillation rate 6
+                song.speed_table.append(SpeedTableEntry(left=speed, right=shift))
+
+        # Assign vib_speed_idx from the depth mapping
+        for inst in song.instruments:
+            raw = getattr(inst, '_raw_vib_depth', 0)
+            inst.vib_speed_idx = depth_to_idx.get(raw, 0)
+    else:
+        # Non-Hubbard: linear vibrato (GT2 style)
+        max_vib = max((inst.vib_speed_idx for inst in song.instruments), default=0)
+        for v in range(1, max_vib + 1):
             speed = min(0xFF, 0x40 + v * 0x10)
             depth = min(0xFF, v * 0x08)
             song.speed_table.append(SpeedTableEntry(left=speed, right=depth))
