@@ -400,7 +400,7 @@ def decode_pattern(binary, load_addr, addr, max_bytes=256):
     return notes
 
 
-def decode_track(binary, load_addr, track_addr, max_patterns=128):
+def decode_track(binary, load_addr, track_addr, max_patterns=512):
     """Decode a track = sequence of pattern indices until $FF or $FE."""
     patterns = []
     off = track_addr - load_addr
