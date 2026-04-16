@@ -272,6 +272,46 @@ def dmc_to_usf(sid_path):
 
     tpt_off = best_tpt
 
+    # Fallback: scan backwards from first sector data address
+    # DMC layout: ... track data ... tune pointer table ... sector data ... sector ptrs
+    if tpt_off is None and num_sectors > 0 and layout.get('sector_ptr_lo'):
+        sector_addrs_raw = []
+        spt_lo_off = layout['sector_ptr_lo'] - la
+        spt_hi_off = layout['sector_ptr_hi'] - la
+        for k in range(num_sectors):
+            addr = binary[spt_lo_off + k] | (binary[spt_hi_off + k] << 8)
+            sector_addrs_raw.append(addr)
+        min_sector_data = min(sector_addrs_raw) - la if sector_addrs_raw else len(binary)
+
+        for scan_off in range(max(0, min_sector_data - 48), min_sector_data):
+            ptrs = []
+            valid = True
+            for k in range(3):
+                if scan_off + k * 2 + 1 >= len(binary):
+                    valid = False; break
+                v = binary[scan_off + k * 2] | (binary[scan_off + k * 2 + 1] << 8)
+                if not (la <= v < la + len(binary)):
+                    valid = False; break
+                ptrs.append(v)
+            if not valid or len(set(ptrs)) < 2:
+                continue
+            total_refs = 0; all_term = True; max_ref = -1
+            for p in ptrs:
+                poff = p - la; refs = 0; j = 0; terminated = False
+                while poff + j < len(binary) and j < 256:
+                    b = binary[poff + j]
+                    if b <= max_sector_ref:
+                        refs += 1
+                        if b > max_ref: max_ref = b
+                    elif b in (0xFE, 0xFF):
+                        terminated = True; break
+                    j += 1
+                total_refs += refs
+                if not terminated: all_term = False
+            if total_refs > 0 and all_term and max_ref < num_sectors:
+                tpt_off = scan_off
+                break
+
     if tpt_off is not None:
         voice_addrs = [binary[tpt_off + i * 2] | (binary[tpt_off + i * 2 + 1] << 8)
                        for i in range(3)]
