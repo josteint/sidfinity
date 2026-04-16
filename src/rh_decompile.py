@@ -406,10 +406,9 @@ def decode_track(binary, load_addr, track_addr, num_sequences=256, max_bytes=512
     Track data bytes:
     - $FF = loop (restart from beginning or RST point)
     - $FE = stop (end of track)
-    - $00-$7F = pattern index (if < num_sequences)
-    - $80-$FD = RST marker (set restart point). Some variants consume 1 byte
-      (just the marker), others consume 2 bytes (marker + restart index).
-      We skip these and continue reading.
+    - 0 to num_sequences-1 = pattern index
+    - bytes >= num_sequences but < $FE = RST marker (set restart point).
+      Some variants consume 2 bytes (marker + restart index).
     """
     patterns = []
     off = track_addr - load_addr
@@ -424,12 +423,12 @@ def decode_track(binary, load_addr, track_addr, num_sequences=256, max_bytes=512
         elif b == 0xFE:
             patterns.append(('stop', None))
             break
-        elif b >= 0x80:
-            # RST marker — skip it. Check if next byte is also a RST/control
-            # byte or a valid pattern index. If next byte < num_sequences,
-            # it's likely the 2-byte RST format (marker + restart index).
+        elif b >= num_sequences:
+            # RST marker — value exceeds valid pattern range.
+            # Skip this byte. If next byte < num_sequences, it's likely
+            # the 2-byte RST format (marker + restart index).
             i += 1
-            if off + i < len(binary) and binary[off + i] < 0x80:
+            if off + i < len(binary) and binary[off + i] < num_sequences:
                 i += 1  # skip the restart index byte too
         else:
             patterns.append(('pattern', b))
@@ -549,7 +548,8 @@ def decompile(sid_path, verbose=False):
             if track_addrs[v] == 0:
                 tracks.append([('stop', None)])  # empty voice
             else:
-                tracks.append(decode_track(binary, load_addr, track_addrs[v]))
+                tracks.append(decode_track(binary, load_addr, track_addrs[v],
+                                          num_sequences=result.num_sequences))
 
         song = RHSong(s, songs_addr + s * bytes_per_song, tracks)
         result.songs.append(song)
