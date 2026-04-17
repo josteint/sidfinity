@@ -1,0 +1,840 @@
+#!/usr/bin/env python3
+"""
+rh_to_usf.py — Convert Rob Hubbard SID files to Universal Symbolic Format.
+
+Pipeline: SID → rh_decompile → decompiled data → this module → USF Song
+
+Usage:
+    python3 src/rh_to_usf.py <file.sid> [--subtune N]
+"""
+
+import sys
+import os
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
+from usf.format import (Song, Instrument, WaveTableStep, PulseTableStep,
+                         SpeedTableEntry, Pattern, NoteEvent)
+from rh_decompile import decompile, RHDecompiled
+
+
+# Hubbard pitch index to USF note mapping.
+# Hubbard uses a custom pitch index (0-based, chromatic).
+# The exact mapping depends on the freq table, but for the classic driver:
+#   pitch 0 = C-1 (very low), each +1 = one semitone up.
+# USF notes: 0=C0, 12=C1, 24=C2, ..., 95=B7
+#
+# From the McSweeney disassembly, Monty on the Run's freq table starts at
+# approximately C-1. Hubbard pitch values in practice range 0-95+.
+# We need to find the base offset by matching freq table values to known
+# PAL frequencies if available, otherwise assume pitch 0 = USF note 0 (C0).
+#
+# Most Hubbard songs use pitches in the 12-80 range (C1-G#6).
+
+def _hubbard_pitch_to_usf_note(pitch):
+    """Convert Hubbard pitch index to USF note number (0-95).
+
+    Hubbard pitch 0 = C-1 in McSweeney's notation = C0 in modern convention.
+    The freq table has 96 entries (8 octaves), indexed by pitch*2 (interleaved
+    lo/hi bytes). The values match the standard PAL freq table within ±1.
+
+    Hubbard pitch maps directly to V2/USF note number with NO offset.
+    Verified: Hubbard pitch 86 = freq $9C40 = PAL[86] exactly.
+
+    Out-of-range pitches (>=96) index into player variables after the freq
+    table — this is the "frequency table trick" used in Commando etc.
+    Returns -1 for those.
+    """
+    if pitch >= 96:
+        return -1  # frequency table trick — not a real note
+
+    return max(0, min(95, pitch))
+
+
+def _map_waveform(ctrl_byte):
+    """Map SID control register byte to USF waveform string."""
+    wave_bits = ctrl_byte & 0xF0
+    if wave_bits & 0x80:
+        return 'noise'
+    elif wave_bits & 0x40:
+        return 'pulse'
+    elif wave_bits & 0x20:
+        return 'saw'
+    elif wave_bits & 0x10:
+        return 'tri'
+    return 'pulse'  # default
+
+
+def _build_drum_wave_table(ctrl_byte):
+    """Build USF wave table for Hubbard drum effect.
+
+    From McSweeney + data_format_reference.md:
+    - Frame 1: noise ($81) at high pitch, freq_hi decrements rapidly
+    - If ctrl is noise ($80/$81): always noise
+    - If ctrl is non-noise: square on first frame, then noise, then back
+
+    The V2 wave table can approximate this with descending relative offsets.
+    The original does a per-frame freq_hi decrement which we can't exactly
+    replicate, but descending semitone steps are close enough.
+    """
+    # Hubbard drum: noise burst on frame 1, then instrument's own waveform.
+    # From data_format_reference.md:
+    #   ctrl=$00/$80/$81: always noise
+    #   ctrl=non-zero: instrument waveform + noise on first frame, then waveform only
+    # The actual freq_hi decrement is in SoundWork, not reproducible in V2 wave table.
+    # Keep it short to not disrupt timing.
+    native_wave = ctrl_byte | 0x01  # ensure gate bit
+    if (ctrl_byte & 0xF0) == 0x80 or ctrl_byte == 0:
+        # Pure noise drum
+        return [
+            WaveTableStep(waveform=0x81, note_offset=0),
+            WaveTableStep(waveform=0x81, keep_freq=True),
+            WaveTableStep(is_loop=True, loop_target=1),
+        ]
+    else:
+        # Noise burst then native waveform
+        return [
+            WaveTableStep(waveform=0x81, note_offset=0),     # frame 1: noise burst
+            WaveTableStep(waveform=native_wave, keep_freq=True),
+            WaveTableStep(is_loop=True, loop_target=1),
+        ]
+
+
+def _build_skydive_wave_table(ctrl_byte):
+    """Build USF wave table for Hubbard skydive effect.
+
+    Skydive: decrements freq_hi after gate release (slow pitch descent).
+    During sustained notes, only vibrato plays — the skydive only activates
+    as a tail effect. Since the V2 player can't conditionally activate
+    effects on gate release, we use a steady hold (keep_freq) which lets
+    vibrato run normally. The descent tail is lost but sustained notes
+    are correct (verified: One_Man, Ninja, Chain_Reaction).
+    """
+    wave_byte = ctrl_byte | 0x01
+    return [
+        WaveTableStep(waveform=wave_byte, note_offset=0),
+        WaveTableStep(waveform=wave_byte, keep_freq=True),
+        WaveTableStep(is_loop=True, loop_target=1),
+    ]
+
+
+def _build_arpeggio_wave_table():
+    """Build USF wave table for Hubbard octave arpeggio effect.
+
+    Alternates base note and base+12 (one octave up) each frame.
+    """
+    return [
+        WaveTableStep(waveform=0x41, note_offset=0),    # base
+        WaveTableStep(waveform=0x41, note_offset=12),   # +1 octave
+        WaveTableStep(is_loop=True, loop_target=0),     # loop
+    ]
+
+
+def _build_pulse_table(pwm_speed, pulse_width):
+    """Build USF pulse table from Hubbard PWM speed and initial pulse width.
+
+    Hubbard PWM oscillates around the initial pulse width.
+    Speed byte controls rate. 0 = no modulation.
+    Bit 7 of speed may indicate direction (needs verification).
+
+    The pulse table starts with a set-pulse entry to initialize the width,
+    then modulates up and down.
+    """
+    steps = []
+
+    # Set initial pulse width (high nibble in GT2 format)
+    pw_hi = (pulse_width >> 8) & 0x0F
+    pw_lo = pulse_width & 0xFF
+    steps.append(PulseTableStep(is_set=True, value=pw_hi, low_byte=pw_lo))
+
+    if pwm_speed == 0:
+        # No modulation — just hold the initial pulse width
+        steps.append(PulseTableStep(is_loop=True, loop_target=0))
+        return steps
+
+    speed = pwm_speed & 0x7F
+    if speed == 0:
+        speed = 1
+
+    # Approximate: modulate up for N frames, then down for N frames
+    half_cycle = max(1, 0x60 // speed)
+    steps.append(PulseTableStep(is_set=False, value=speed, duration=half_cycle))
+    steps.append(PulseTableStep(is_set=False, value=-speed, duration=half_cycle))
+    steps.append(PulseTableStep(is_loop=True, loop_target=1))  # loop to modulation
+    return steps
+
+
+def _map_instrument(rh_instr, instr_id, upper_nibble_arp=False):
+    """Convert a Hubbard instrument to USF Instrument.
+
+    upper_nibble_arp: True if the driver uses the upper nibble of fx_flags as
+    the arpeggio interval (Phase 4 driver). False = classic Phase 2 driver
+    where arpeggio only fires from the drum code path.
+    """
+    inst = Instrument()
+    inst.id = instr_id
+    inst.ad = rh_instr.ad
+    inst.sr = rh_instr.sr
+    inst.waveform = _map_waveform(rh_instr.ctrl)
+    inst.pulse_width = rh_instr.pulse_width
+    inst.first_wave = rh_instr.ctrl  # first-frame waveform = ctrl byte
+
+    # Hard restart: Hubbard clears gate + zeros ADSR 2 frames before note end
+    # Write order: Waveform → AD → SR
+    inst.gate_timer = 2
+    inst.hr_method = 'gate'
+
+    # Vibrato — store the raw depth. Speed table entries are built later
+    # with per-depth shift counts for both classic (1-7) and Phase 4 (8+).
+    if rh_instr.vibrato_depth > 0:
+        inst._raw_vib_depth = rh_instr.vibrato_depth
+        inst.vib_delay = 0
+        inst.vib_logarithmic = True
+
+    # Effects → wave tables
+    # Hubbard effects are a pipeline: drum runs first (noise burst + freq fall),
+    # then arpeggio/skydive modify frequency. For combo instruments (e.g. FX=0x05
+    # = drum+arpeggio), the drum only affects waveform (noise on frame 1), while
+    # the arpeggio controls frequency alternation after that.
+    # Hubbard arpeggio (bit 2) only activates when drum (bit 0) fires.
+    # Arpeggio alone (no drum) = steady note. The arpeggio counter is
+    # only set non-zero by the drum code path (verified via Sigma_Seven
+    # disassembly at $82E7-$82FC).
+    if rh_instr.has_drum and rh_instr.has_arpeggio:
+        # Drum + arpeggio combo: noise burst then alternating arpeggio.
+        # The arpeggio interval is in fx_flags upper nibble (bits 4-7).
+        # Classic: upper nibble 0 = octave (+12 semitones).
+        # Phase 4: upper nibble N = down N semitones (negative interval).
+        # Verified: IK fx_flags=0x55 → upper=5 → original alternates note-5.
+        upper = (rh_instr.fx_flags >> 4) & 0x0F
+        arp_offset = 12 if upper == 0 else -upper
+        native_wave = rh_instr.ctrl | 0x01
+        if rh_instr.ctrl & 0x80:
+            # Noise instrument: noise burst then arpeggio
+            inst.wave_table = [
+                WaveTableStep(waveform=0x81, note_offset=0),
+                WaveTableStep(waveform=native_wave, note_offset=0),
+                WaveTableStep(waveform=native_wave, note_offset=arp_offset),
+                WaveTableStep(is_loop=True, loop_target=1),
+            ]
+        else:
+            # Non-noise instrument: skip noise burst, just arpeggio with native wave
+            inst.wave_table = [
+                WaveTableStep(waveform=native_wave, note_offset=0),
+                WaveTableStep(waveform=native_wave, note_offset=arp_offset),
+                WaveTableStep(is_loop=True, loop_target=0),
+            ]
+    elif rh_instr.has_drum:
+        inst.wave_table = _build_drum_wave_table(rh_instr.ctrl)
+        if (rh_instr.ctrl & 0xF0) == 0x80 or rh_instr.ctrl == 0:
+            inst.waveform = 'noise'
+    elif rh_instr.has_arpeggio:
+        # Arpeggio-only (no drum): behavior depends on driver version.
+        #
+        # Classic/Phase 2 driver (upper_nibble_arp=False): the arpeggio counter is
+        # only set non-zero by the drum code path. When there is no drum bit,
+        # the counter stays at zero and the arpeggio branch does nothing.
+        # Result: arpeggio-only = steady note.
+        # Verified: Sigma_Seven disassembly at $82E7-$82FC, all instruments fall
+        # through to steady regardless of fx_flags upper nibble.
+        #
+        # Phase 4 driver (upper_nibble_arp=True): the arpeggio code reads
+        # fx_flags, extracts the upper nibble via 4x LSR, and uses it as the
+        # interval. Self-modifying code patches the SBC operand at runtime.
+        # upper nibble N > 0 → alternates base note and base-N semitones (down N).
+        # upper nibble 0 → special case (uses table offset Y=2), treated as +12.
+        # Verified: Las_Vegas/Kentilla disassembly at $53AF-$53E8.
+        if not upper_nibble_arp:
+            # Classic/Phase 2: arpeggio-only = steady note (same as no-effect case)
+            wave_byte = rh_instr.ctrl | 0x01
+            inst.wave_table = [
+                WaveTableStep(waveform=wave_byte, note_offset=0),
+                WaveTableStep(waveform=wave_byte, keep_freq=True),
+                WaveTableStep(is_loop=True, loop_target=1),
+            ]
+        else:
+            # Phase 4: real arpeggio using upper nibble as semitone interval
+            upper = (rh_instr.fx_flags >> 4) & 0x0F
+            arp_offset = 12 if upper == 0 else -upper
+            native_wave = rh_instr.ctrl | 0x01
+            inst.wave_table = [
+                WaveTableStep(waveform=native_wave, note_offset=0),
+                WaveTableStep(waveform=native_wave, note_offset=arp_offset),
+                WaveTableStep(is_loop=True, loop_target=0),
+            ]
+    elif rh_instr.has_skydive:
+        inst.wave_table = _build_skydive_wave_table(rh_instr.ctrl)
+    else:
+        # Every instrument needs a wave table for the V2 player.
+        # Step 1: set waveform with relative offset 0 (sets initial freq).
+        # Step 2: keep_freq=True (don't re-write freq each frame — this is
+        #   critical for vibrato: if freq is re-written, it overwrites the
+        #   vibrato delta and the V2 player skips FX processing entirely).
+        # Step 3: loop back to step 1? No — loop back to step 1 would re-write
+        #   freq again. Loop to step 1 on keep_freq step.
+        # Correct: step 0 = set waveform+freq, step 1 = keep_freq+loop→1.
+        wave_byte = rh_instr.ctrl | 0x01  # ensure gate bit set
+        inst.wave_table = [
+            WaveTableStep(waveform=wave_byte, note_offset=0),       # frame 1: set wave+freq
+            WaveTableStep(waveform=wave_byte, keep_freq=True),      # frame 2+: hold wave, no freq write
+            WaveTableStep(is_loop=True, loop_target=1),             # loop to keep_freq step
+        ]
+
+    # PWM — always set initial pulse width, add modulation if speed > 0
+    if inst.waveform == 'pulse' and not rh_instr.has_drum:
+        inst.pulse_table = _build_pulse_table(rh_instr.pwm_speed, rh_instr.pulse_width)
+
+    return inst
+
+
+def _map_pattern(rh_pattern, usf_pat_id, tempo_divisor=1):
+    """Convert a Hubbard pattern to USF Pattern.
+
+    tempo_divisor: when natural tempo < 3, we multiply tempo by M and
+    divide durations by M to maintain the same frame count.
+    """
+    pat = Pattern(id=usf_pat_id)
+
+    for note in rh_pattern.notes:
+        if note.tie:
+            dur = max(1, (note.duration + 1 + tempo_divisor - 1) // tempo_divisor)
+            evt = NoteEvent(type='tie', duration=dur)
+            pat.events.append(evt)
+            continue
+
+        # Portamento notes: maintain current frequency and slide.
+        # In the Hubbard player, portamento does NOT re-trigger or jump to a
+        # new pitch — it applies a per-frame frequency delta to the running freq.
+        # The pitch byte is the target or slide speed, NOT the starting freq.
+        # Emit as TIE + portamento command so the V2 player keeps current freq
+        # and applies the slide. pitch>=96 (freq-table trick) is always TIE.
+        if note.portamento is not None:
+            speed, direction = note.portamento
+            dur = max(1, (note.duration + 1 + tempo_divisor - 1) // tempo_divisor)
+            evt = NoteEvent(type='tie', duration=dur)
+            if direction:  # down
+                evt.command = 0x02  # CMD_PORTA_DOWN
+            else:
+                evt.command = 0x01  # CMD_PORTA_UP
+            evt.command_val = speed
+            pat.events.append(evt)
+            continue
+
+        if note.pitch is not None:
+            usf_note = _hubbard_pitch_to_usf_note(note.pitch)
+            if usf_note < 0:
+                # Frequency table trick (pitch >= 96): reads memory beyond the
+                # freq table — this is a portamento continuation or special effect.
+                # Emit as TIE (maintain previous frequency). If we have freq table
+                # info, try to resolve the actual frequency; otherwise just TIE.
+                resolved = False
+                if hasattr(rh_pattern, '_freq_table_info') and rh_pattern._freq_table_info is not None:
+                    binary, load_addr, ft_addr = rh_pattern._freq_table_info
+                    byte_off = ft_addr - load_addr + note.pitch * 2
+                    if 0 <= byte_off + 1 < len(binary):
+                        freq_lo = binary[byte_off]
+                        freq_hi = binary[byte_off + 1]
+                        freq = freq_lo | (freq_hi << 8)
+                        if freq > 0:
+                            # Find closest PAL note
+                            from gt_parser import FREQ_TBL_LO, FREQ_TBL_HI
+                            best = min(range(96), key=lambda n:
+                                abs((FREQ_TBL_LO[n] | (FREQ_TBL_HI[n] << 8)) - freq))
+                            usf_note = best
+                            resolved = True
+                if not resolved:
+                    # Emit TIE (not REST) — freq-table-trick notes are
+                    # portamento/continuation slides, not silences.
+                    dur = max(1, (note.duration + 1 + tempo_divisor - 1) // tempo_divisor)
+                    pat.events.append(NoteEvent(
+                        type='tie', duration=dur))
+                    continue
+
+            dur = max(1, (note.duration + 1 + tempo_divisor - 1) // tempo_divisor)
+            evt = NoteEvent(
+                type='note',
+                note=usf_note,
+                duration=dur,
+                instrument=note.instrument if note.instrument is not None else -1,
+            )
+
+            # No-release flag: in Hubbard, this means gate stays open.
+            # In USF, this is the default behavior (gate clears at note end
+            # unless tied). We model no-release as a legato-style tie.
+            # Actually no-release is the normal case in Hubbard (most notes
+            # have it set). The flag being CLEAR means the note gets a release.
+
+            pat.events.append(evt)
+        else:
+            # No pitch = rest
+            dur = max(1, (note.duration + 1 + tempo_divisor - 1) // tempo_divisor)
+            evt = NoteEvent(type='rest', duration=dur)
+            pat.events.append(evt)
+
+    return pat
+
+
+def rh_to_usf(sid_path, subtune=None):
+    """Convert a Rob Hubbard SID to USF Song.
+
+    Args:
+        sid_path: Path to the .sid file
+        subtune: Which subtune to convert (0-based). None = use PSID start song.
+
+    Returns:
+        USF Song object, or None on failure.
+    """
+    # Decompile
+    result = decompile(sid_path, verbose=False)
+    if result is None:
+        return None
+
+    if not result.songs:
+        return None
+
+    # Use PSID start song if no subtune specified
+    if subtune is None:
+        # Read start_song from PSID header (1-based)
+        import struct
+        with open(sid_path, 'rb') as f:
+            raw = f.read()
+        start_song = struct.unpack('>H', raw[16:18])[0]
+        subtune = start_song - 1  # convert to 0-based
+
+    # Find the matching decompiled song by index
+    rh_song = None
+    for s in result.songs:
+        if s.index == subtune:
+            rh_song = s
+            break
+
+    if rh_song is None:
+        # Requested subtune not in decompiled songs — try first valid song
+        if result.songs:
+            rh_song = result.songs[0]
+            subtune = rh_song.index
+        else:
+            return None
+
+    # Build USF Song
+    song = Song()
+    song.title = result.title
+    song.author = result.author
+    # Read SID model and clock from PSID header flags
+    psid_flags = struct.unpack('>H', raw[0x76:0x78])[0] if len(raw) > 0x78 else 0x0014
+    song.sid_model = '8580' if (psid_flags & 0x30) == 0x20 else '6581'
+    song.clock = 'NTSC' if (psid_flags & 0x0C) == 0x08 else 'PAL'
+
+    # Hubbard speed: resetspd value from the binary.
+    # Each Hubbard tick = (resetspd + 1) frames.
+    # V2 player: each note tick = tempo frames. Minimum working tempo = 3.
+    #
+    # Strategy: set USF tempo to a safe value (6), and scale note durations
+    # so total frames match. Hubbard duration D at speed S plays for
+    # (D + 1) * (S + 1) frames. USF duration U at tempo T plays for U * T frames.
+    # So U = (D + 1) * (S + 1) / T.
+    #
+    # With tempo=6 and speed=1: U = (D+1) * 2 / 6. This loses resolution.
+    # Better: use tempo = (speed+1) * 2 if speed+1 < 3, else speed+1.
+    # This keeps durations as (D+1) with minimal scaling.
+    # Hubbard speed mapping to V2 tempo.
+    #
+    # Hubbard: total frames = (duration + 1) × (speed + 1)
+    # V2:      total frames = usf_duration × tempo
+    #
+    # Natural mapping: tempo = speed + 1, usf_duration = duration + 1.
+    # But V2 player has minimum working tempo of 3 (tempo 1-2 cause silence
+    # because gate timer = 2 frames conflicts with the note tick interval).
+    #
+    # Workaround for speed <= 1: double the tempo, halve the durations.
+    #   speed=1: natural tempo=2. Use tempo=4, durations = (D+1+1)//2
+    #            (round up to avoid zero-duration notes)
+    #   speed=0: natural tempo=1. Use tempo=3, durations = (D+1+2)//3
+    #
+    # This preserves total frame count within ±1 frame rounding error.
+    # Use per-song speed if available, otherwise default speed
+    if result.speed_table and subtune < len(result.speed_table):
+        hubbard_speed = result.speed_table[subtune]
+    elif result.speed is not None:
+        hubbard_speed = result.speed
+    else:
+        hubbard_speed = 1
+    natural_tempo = hubbard_speed + 1
+
+    if natural_tempo >= 3:
+        song.tempo = natural_tempo
+        song._tempo_divisor = 1
+    else:
+        # Find smallest multiplier M such that natural_tempo * M >= 3
+        M = (3 + natural_tempo - 1) // natural_tempo
+        song.tempo = natural_tempo * M
+        song._tempo_divisor = M  # divide durations by this
+
+    # Hubbard hard restart: write order is Waveform → AD → SR
+    song.adsr_write_order = 'ad_first'
+    song.ad_param = 0x00  # Hubbard zeros ADSR during hard restart
+    song.sr_param = 0x00
+
+    # Map instruments
+    for i, rh_instr in enumerate(result.instruments):
+        inst = _map_instrument(rh_instr, i, upper_nibble_arp=result.upper_nibble_arp)
+        song.instruments.append(inst)
+
+    # Enhance drum instruments with sidxray-extracted freq_slide analysis.
+    # For each voice, extract drum sequences and check if freq_hi descends.
+    # If it does, apply freq_slide to drum instruments used on that voice.
+    try:
+        from sidxray.drum_extract import extract_drum_sequences
+
+        # Step 1: Build voice → drum instrument mapping from decompiled data
+        voice_drum_insts = {}  # voice_idx → set of instrument indices with has_drum
+        for vi in range(3):
+            track = rh_song.tracks[vi]
+            insts_on_voice = set()
+            for kind, idx in track:
+                if kind != 'pattern':
+                    continue
+                for pat in result.patterns:
+                    if pat.index == idx:
+                        for note in pat.notes:
+                            if note.instrument is not None:
+                                insts_on_voice.add(note.instrument)
+                        break
+            # Filter to drum instruments only
+            drum_insts = set()
+            for ii in insts_on_voice:
+                if ii < len(result.instruments) and result.instruments[ii].has_drum:
+                    drum_insts.add(ii)
+            if drum_insts:
+                voice_drum_insts[vi] = drum_insts
+
+        if voice_drum_insts:
+            # Step 2: Extract drum patterns from original SID
+            drum_seqs = extract_drum_sequences(sid_path, duration=5)
+
+            # Step 3: For each voice with drums, check if freq_hi descends
+            for vi, drum_inst_set in voice_drum_insts.items():
+                patterns = drum_seqs.get(vi, [])
+                if not patterns:
+                    continue
+
+                # Check the most common pattern for freq_hi descent
+                best = max(patterns, key=lambda p: p.count)
+                seq = best.sequence  # list of (ctrl, freq_hi) tuples
+
+                # Detect drum sweep: freq_hi must drop by >= 8 over the sequence
+                # AND be mostly monotonic (not vibrato oscillation).
+                # Only apply to sequences with >= 4 frames of data.
+                if len(seq) >= 5:
+                    fhi_values = [s[1] for s in seq[1:]]  # skip frame 0 (onset)
+                    total_drop = fhi_values[0] - min(fhi_values)
+                    descents = sum(1 for i in range(len(fhi_values)-1)
+                                  if fhi_values[i+1] < fhi_values[i])
+                    ascents = sum(1 for i in range(len(fhi_values)-1)
+                                 if fhi_values[i+1] > fhi_values[i])
+                    # Strict: must drop >= 8, mostly descend, few ascents
+                    if total_drop >= 8 and descents >= 3 and ascents <= 1:
+                        frames = len(fhi_values) - 1
+                        slide = max(1, min(15, total_drop // frames))
+                        # Apply freq_slide to drum instruments on this voice
+                        for ii in drum_inst_set:
+                            if ii < len(song.instruments):
+                                for step in song.instruments[ii].wave_table:
+                                    if step.keep_freq and not step.is_loop:
+                                        step.freq_slide = -slide
+    except Exception:
+        pass  # fall back to generic drum wave tables (no freq_slide)
+
+    # Build shared pulse table from per-instrument pulse tables.
+    # The V2 player uses shared tables with index pointers, not per-instrument lists.
+    pulse_offset = 1  # 1-based indexing (0 = no pulse mod)
+    for inst in song.instruments:
+        if inst.pulse_table:
+            inst.pulse_ptr = pulse_offset
+            for step in inst.pulse_table:
+                if step.is_loop:
+                    song.shared_pulse_table.append((0xFF, inst.pulse_ptr + step.loop_target - 1))
+                elif step.is_set:
+                    song.shared_pulse_table.append((0x80 | (step.value >> 4), step.low_byte))
+                else:
+                    # Modulate: left = duration (1-127), right = signed speed
+                    dur = max(1, min(127, step.duration))
+                    speed_byte = step.value & 0xFF
+                    song.shared_pulse_table.append((dur, speed_byte))
+            pulse_offset += len(inst.pulse_table)
+            inst.pulse_table = []  # clear per-instrument list (now in shared)
+
+    # Build vibrato speed table entries.
+    #
+    # Hubbard's logarithmic vibrato maps to GT2's "calculated speed" mode:
+    # when speed table left byte has bit 7 set, the V2 player computes the
+    # vibrato delta from the semitone frequency gap (freq[note+1] - freq[note]),
+    # shifted right by the right byte value — identical to Hubbard's algorithm.
+    #
+    # Left byte bits 0-6 = vibrato speed (oscillation rate).
+    # Right byte = shift count (higher = gentler vibrato).
+    #
+    # Hubbard's oscillation pattern is 0,1,2,3,3,2,1,0 (8-frame cycle).
+    # GT2's calculated speed vibrato has a similar triangle oscillation.
+    # Speed controls how fast the oscillation counter advances.
+    #
+    # Hubbard depth 1 = shift by 2 (divide semitone gap by 4)
+    # Hubbard depth 2 = shift by 3 (divide by 8)
+    has_log_vibrato = any(inst.vib_logarithmic for inst in song.instruments)
+
+    # Build speed table with per-depth entries for calculated speed vibrato.
+    # Each unique raw vibrato depth gets its own speed table entry with an
+    # appropriate shift count. Speed table is 1-indexed (Y=1 → entry[0]).
+    if has_log_vibrato:
+        depth_to_idx = {}
+        for inst in song.instruments:
+            raw = getattr(inst, '_raw_vib_depth', 0)
+            if raw > 0 and raw not in depth_to_idx:
+                idx = len(depth_to_idx) + 1
+                depth_to_idx[raw] = idx
+
+                # Shift = depth + 4 (V2 oscillation wider than Hubbard's triangle).
+                # Phase 4 depths (>7) are capped at shift=7 (gentlest vibrato).
+                # Many Phase 4 instruments repurpose byte +5 for non-vibrato
+                # functions (arpeggio tables, filter control), so aggressive
+                # vibrato from high depth values is usually wrong.
+                shift = min(raw + 4, 7)
+
+                speed = 0x80 | 6  # calculated speed, oscillation rate 6
+                song.speed_table.append(SpeedTableEntry(left=speed, right=shift))
+
+        # Assign vib_speed_idx from the depth mapping
+        for inst in song.instruments:
+            raw = getattr(inst, '_raw_vib_depth', 0)
+            inst.vib_speed_idx = depth_to_idx.get(raw, 0)
+    else:
+        # Non-Hubbard: linear vibrato (GT2 style)
+        max_vib = max((inst.vib_speed_idx for inst in song.instruments), default=0)
+        for v in range(1, max_vib + 1):
+            speed = min(0xFF, 0x40 + v * 0x10)
+            depth = min(0xFF, v * 0x08)
+            song.speed_table.append(SpeedTableEntry(left=speed, right=depth))
+
+    # Map patterns — build a mapping from Hubbard pattern index to USF pattern ID.
+    # Start from ID 1 (not 0) because ID 0 = ENDPATT ($00) in the GT2/SIDfinity
+    # orderlist format. Orderlist byte $00 terminates pattern reading.
+    # Insert a dummy pattern at index 0 to reserve it.
+    song.patterns.append(Pattern(id=0, events=[NoteEvent(type='rest', duration=1)]))
+
+    tempo_div = getattr(song, '_tempo_divisor', 1)
+
+    # Attach binary + freq table info to patterns for freq-trick resolution
+    # Read the binary once for all patterns
+    _binary = _load_addr = _ft_addr = None
+    try:
+        import struct as _struct
+        with open(sid_path, 'rb') as _f:
+            _raw = _f.read()
+        _data_off = _struct.unpack('>H', _raw[6:8])[0]
+        _la = _struct.unpack('>H', _raw[8:10])[0]
+        _payload = _raw[_data_off:]
+        if _la == 0:
+            _la = _struct.unpack('<H', _payload[:2])[0]
+            _binary = _payload[2:]
+        else:
+            _binary = _payload
+        _load_addr = _la
+        # Find freq table (interleaved format: lo, hi, lo, hi...)
+        # Search for the known interleaved freq bytes
+        PAL_INTERLEAVED = bytes([0x17, 0x01, 0x27, 0x01])  # C1 lo, C1 hi, C#1 lo, C#1 hi
+        pos = _binary.find(PAL_INTERLEAVED)
+        if pos >= 0:
+            _ft_addr = _la + pos
+        elif result.freq_table_addr:
+            _ft_addr = result.freq_table_addr
+    except:
+        pass
+
+    pat_map = {}  # rh_pattern_index → usf_pattern_id
+    for rh_pat in result.patterns:
+        if _binary is not None and _ft_addr is not None:
+            rh_pat._freq_table_info = (_binary, _load_addr, _ft_addr)
+        else:
+            rh_pat._freq_table_info = None
+        usf_id = len(song.patterns)
+        pat_map[rh_pat.index] = usf_id
+        usf_pat = _map_pattern(rh_pat, usf_id, tempo_div)
+        song.patterns.append(usf_pat)
+
+    # Map orderlists from tracks
+    for voice_idx in range(3):
+        track = rh_song.tracks[voice_idx]
+        orderlist = []
+        has_loop = False
+
+        for kind, idx in track:
+            if kind == 'pattern':
+                if idx in pat_map:
+                    orderlist.append((pat_map[idx], 0))  # (pattern_id, transpose=0)
+                # else: pattern index out of range, skip
+            elif kind == 'loop':
+                has_loop = True
+                break
+            elif kind == 'stop':
+                break
+
+        song.orderlists[voice_idx] = orderlist
+
+        # Set loop point: if track ends with LOOP ($FF), loop back to start
+        if has_loop:
+            song.orderlist_restart[voice_idx] = 0
+        else:
+            # STOP ($FE): no loop, set restart to last entry
+            song.orderlist_restart[voice_idx] = max(0, len(orderlist) - 1)
+
+    # Fix TIE-at-start: Hubbard's INIT routine pre-loads voice frequencies before
+    # playback begins, so TIE-only opening patterns sustain those initialized notes.
+    # The V2 player has no init state -- TIE with no prior note produces silence.
+    #
+    # When a voice's orderlist starts with patterns containing only TIE events,
+    # scan forward to find the first real note in subsequent patterns. Insert that
+    # note (with duration=1) at the start of the orderlist so the V2 player has
+    # an initial frequency to sustain through the TIEs.
+    #
+    # Guard: only apply the fix if the original SID's INIT actually pre-loaded
+    # a non-zero frequency AND a non-zero waveform for that voice. If INIT set
+    # freq=0 (not loaded) or waveform=0 (test bit / silent), then our TIE (which
+    # produces freq=0) already matches the original, and adding an init note
+    # would introduce incorrect audio and cause note_wrong regressions.
+    _pat_id_by_id = {p.id: p for p in song.patterns}
+
+    # Get the original SID's initial register state (after INIT runs) via siddump.
+    # Use frame 1 (the first frame after INIT has executed).
+    _orig_init_fhi = [0, 0, 0]   # freq_hi per voice (after INIT)
+    _orig_init_ctrl = [0, 0, 0]  # ctrl byte per voice (after INIT)
+    try:
+        import subprocess as _sp
+        _siddump_cwd = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        # Try with --force-rsid first (for RSID files), then without (for PSID)
+        _sd_result = _sp.run(
+            ['tools/siddump', sid_path, '--force-rsid'],
+            capture_output=True, text=True, cwd=_siddump_cwd, timeout=5
+        )
+        if 'V1_FREQ' not in _sd_result.stdout:
+            _sd_result = _sp.run(
+                ['tools/siddump', sid_path],
+                capture_output=True, text=True, cwd=_siddump_cwd, timeout=5
+            )
+        _sd_lines = _sd_result.stdout.strip().split('\n')
+        _hdr_idx = next((i for i, l in enumerate(_sd_lines) if 'V1_FREQ_LO' in l), None)
+        if _hdr_idx is not None:
+            # Scan frames 1-10 to find when INIT has stabilized (waveforms set).
+            # Frame 0 is pre-INIT; different songs take 1-5 frames to finish INIT.
+            # Use the first frame where ALL active voices have non-zero waveform bits.
+            for _frame_off in range(1, 11):
+                _fi = _hdr_idx + 1 + _frame_off
+                if _fi >= len(_sd_lines):
+                    break
+                _row = _sd_lines[_fi].split(',')
+                if len(_row) < 19:
+                    continue
+                _fhi = [int(_row[1], 16), int(_row[8], 16), int(_row[15], 16)]
+                _ctrl = [int(_row[4], 16), int(_row[11], 16), int(_row[18], 16)]
+                # Check if at least one voice has a real waveform (INIT done)
+                if any(c & 0xF0 for c in _ctrl):
+                    _orig_init_fhi = _fhi
+                    _orig_init_ctrl = _ctrl
+                    break
+    except Exception:
+        pass  # If siddump fails, skip the fix (safe default)
+
+    def _pat_all_tie(pat):
+        return pat is not None and pat.events and all(ev.type != 'note' for ev in pat.events)
+
+    def _first_note(pat):
+        for ev in (pat.events if pat else []):
+            if ev.type == 'note':
+                return (ev.note, ev.instrument)
+        return None
+
+    for voice_idx in range(3):
+        orderlist = song.orderlists[voice_idx]
+        if not orderlist:
+            continue
+        # Check first pattern is all-TIE
+        if not _pat_all_tie(_pat_id_by_id.get(orderlist[0][0])):
+            continue
+        # Guard: only fix if original INIT pre-loaded a waveform AND non-zero freq.
+        # If orig ctrl has no waveform bits or freq=0, our TIE (freq=0) already matches.
+        orig_fhi = _orig_init_fhi[voice_idx]
+        orig_ctrl = _orig_init_ctrl[voice_idx]
+        if (orig_ctrl & 0xF0) == 0 or orig_fhi == 0:
+            continue  # Original had no waveform or zero freq -- TIE is correct
+        # Count leading TIE-only patterns
+        leading = 0
+        for pid, _ in orderlist:
+            if _pat_all_tie(_pat_id_by_id.get(pid)):
+                leading += 1
+            else:
+                break
+        # Find first real note after the TIE prefix
+        init_note = None
+        init_instr = -1
+        for pid, _ in orderlist[leading:]:
+            found = _first_note(_pat_id_by_id.get(pid))
+            if found:
+                init_note, init_instr = found
+                break
+        if init_note is None:
+            continue
+        # Build a 1-tick init pattern with the found note
+        init_pid = len(song.patterns)
+        init_pat = Pattern(id=init_pid, events=[
+            NoteEvent(type='note', note=init_note, duration=1, instrument=init_instr)
+        ])
+        song.patterns.append(init_pat)
+        _pat_id_by_id[init_pid] = init_pat
+        # Prepend to orderlist; shift restart index to skip the init pattern on loops
+        song.orderlists[voice_idx] = [(init_pid, 0)] + list(orderlist)
+        song.orderlist_restart[voice_idx] += 1
+
+    return song
+
+
+def main():
+    import argparse
+    parser = argparse.ArgumentParser(description='Rob Hubbard SID → USF converter')
+    parser.add_argument('input', help='SID file to convert')
+    parser.add_argument('--subtune', type=int, default=0, help='Subtune number (0-based)')
+    parser.add_argument('--text', action='store_true', help='Output USF text format')
+    parser.add_argument('--tokens', action='store_true', help='Output token list')
+    args = parser.parse_args()
+
+    song = rh_to_usf(args.input, args.subtune)
+    if song is None:
+        print('ERROR: conversion failed', file=sys.stderr)
+        sys.exit(1)
+
+    from adapters.usf_tokens import tokenize
+    from adapters.usf_text import to_text
+
+    tokens = tokenize(song)
+
+    if args.text:
+        print(to_text(tokens))
+    elif args.tokens:
+        print(' '.join(tokens))
+    else:
+        # Summary
+        total_events = sum(len(p.events) for p in song.patterns)
+        print(f'"{song.title}" by {song.author}')
+        print(f'{len(song.instruments)} instruments, {len(song.patterns)} patterns, '
+              f'{total_events} events, {len(tokens)} tokens')
+        print(f'Orderlists: V1={len(song.orderlists[0])} V2={len(song.orderlists[1])} '
+              f'V3={len(song.orderlists[2])}')
+
+        # Show first few tokens
+        text = to_text(tokens)
+        lines = text.split('\n')
+        for line in lines[:30]:
+            print(f'  {line}')
+        if len(lines) > 30:
+            print(f'  ... ({len(lines)} lines total)')
+
+
+if __name__ == '__main__':
+    main()
