@@ -163,8 +163,13 @@ def _build_pulse_table(pwm_speed, pulse_width):
     return steps
 
 
-def _map_instrument(rh_instr, instr_id):
-    """Convert a Hubbard instrument to USF Instrument."""
+def _map_instrument(rh_instr, instr_id, upper_nibble_arp=False):
+    """Convert a Hubbard instrument to USF Instrument.
+
+    upper_nibble_arp: True if the driver uses the upper nibble of fx_flags as
+    the arpeggio interval (Phase 4 driver). False = classic Phase 2 driver
+    where arpeggio only fires from the drum code path.
+    """
     inst = Instrument()
     inst.id = instr_id
     inst.ad = rh_instr.ad
@@ -222,6 +227,40 @@ def _map_instrument(rh_instr, instr_id):
         inst.wave_table = _build_drum_wave_table(rh_instr.ctrl)
         if (rh_instr.ctrl & 0xF0) == 0x80 or rh_instr.ctrl == 0:
             inst.waveform = 'noise'
+    elif rh_instr.has_arpeggio:
+        # Arpeggio-only (no drum): behavior depends on driver version.
+        #
+        # Classic/Phase 2 driver (upper_nibble_arp=False): the arpeggio counter is
+        # only set non-zero by the drum code path. When there is no drum bit,
+        # the counter stays at zero and the arpeggio branch does nothing.
+        # Result: arpeggio-only = steady note.
+        # Verified: Sigma_Seven disassembly at $82E7-$82FC, all instruments fall
+        # through to steady regardless of fx_flags upper nibble.
+        #
+        # Phase 4 driver (upper_nibble_arp=True): the arpeggio code reads
+        # fx_flags, extracts the upper nibble via 4x LSR, and uses it as the
+        # interval. Self-modifying code patches the SBC operand at runtime.
+        # upper nibble N > 0 → alternates base note and base-N semitones (down N).
+        # upper nibble 0 → special case (uses table offset Y=2), treated as +12.
+        # Verified: Las_Vegas/Kentilla disassembly at $53AF-$53E8.
+        if not upper_nibble_arp:
+            # Classic/Phase 2: arpeggio-only = steady note (same as no-effect case)
+            wave_byte = rh_instr.ctrl | 0x01
+            inst.wave_table = [
+                WaveTableStep(waveform=wave_byte, note_offset=0),
+                WaveTableStep(waveform=wave_byte, keep_freq=True),
+                WaveTableStep(is_loop=True, loop_target=1),
+            ]
+        else:
+            # Phase 4: real arpeggio using upper nibble as semitone interval
+            upper = (rh_instr.fx_flags >> 4) & 0x0F
+            arp_offset = 12 if upper == 0 else -upper
+            native_wave = rh_instr.ctrl | 0x01
+            inst.wave_table = [
+                WaveTableStep(waveform=native_wave, note_offset=0),
+                WaveTableStep(waveform=native_wave, note_offset=arp_offset),
+                WaveTableStep(is_loop=True, loop_target=0),
+            ]
     elif rh_instr.has_skydive:
         inst.wave_table = _build_skydive_wave_table(rh_instr.ctrl)
     else:
@@ -437,7 +476,7 @@ def rh_to_usf(sid_path, subtune=None):
 
     # Map instruments
     for i, rh_instr in enumerate(result.instruments):
-        inst = _map_instrument(rh_instr, i)
+        inst = _map_instrument(rh_instr, i, upper_nibble_arp=result.upper_nibble_arp)
         song.instruments.append(inst)
 
     # Build shared pulse table from per-instrument pulse tables.

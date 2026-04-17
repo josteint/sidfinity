@@ -106,6 +106,7 @@ class RHDecompiled:
         self.num_sequences = 0
         self.speed = None          # resetspd value (tempo = speed + 1)
         self.speed_table = None    # per-song speed table (list), or None
+        self.upper_nibble_arp = False  # True if driver uses fx_flags upper nibble as arp interval (Phase 4)
 
 
 def load_sid(path):
@@ -593,7 +594,33 @@ def decompile(sid_path, verbose=False):
         else:
             print('Speed: not detected (defaulting to 1)')
 
+    # Arpeggio driver variant detection.
+    # In the classic (Phase 2) driver: arp bit (bit 2 of fx_flags) only fires
+    # when the drum code path has set the arp counter non-zero. Arpeggio-only
+    # instruments (no drum bit) produce a steady note.
+    #
+    # In the Phase 4 driver (Las_Vegas, Kentilla): the arpeggio code extracts
+    # the upper nibble of fx_flags via 4x LSR and uses it as the interval:
+    #   AND #$04  →  LDA <fx_flags>  →  LSR LSR LSR LSR  →  STA <interval>
+    # Arpeggio-only instruments with upper nibble > 0 produce real alternation.
+    #
+    # Detection: search for AND #$04 followed within ~15 bytes by at least 4 LSR ops.
+    result.upper_nibble_arp = False
+    _and4 = bytes([0x29, 0x04])
+    _search = 0
+    while True:
+        _p = binary.find(_and4, _search)
+        if _p < 0:
+            break
+        _region = binary[_p:_p + 30]
+        if sum(1 for b in _region[2:17] if b == 0x4A) >= 4:
+            result.upper_nibble_arp = True
+            break
+        _search = _p + 1
+
     if verbose:
+        _arp_desc = 'upper-nibble interval (Phase 4)' if result.upper_nibble_arp else 'counter-based (Phase 2 classic)'
+        print(f'Arpeggio driver: {_arp_desc}')
         print()
 
     # --- Parse songs ---
