@@ -63,6 +63,9 @@ class WaveTableStep:
     loop_target: int = 0       # loop destination step index (within this instrument's WT)
     delay: int = 0             # if > 0, delay N frames before applying this step
     keep_freq: bool = False    # if True, don't change frequency ($80 in right column)
+    freq_slide: int = 0        # signed per-frame freq_hi delta (-128..+127, 0=no slide)
+                               # Hubbard drums: -4 typical (rapid pitch descent)
+                               # Applied by V2 player AFTER note/freq resolution each frame
 
 
 @dataclass
@@ -319,21 +322,22 @@ def tokenize(song):
         if inst.wave_table:
             tokens.append('WT[')
             for step in inst.wave_table:
+                slide_suffix = f'/s{step.freq_slide:+d}' if step.freq_slide else ''
                 if step.is_loop:
                     tokens.append(f'L{step.loop_target}')
                 elif step.keep_freq:
                     wt = WAVEFORM_TOKENS.get(step.waveform, f'${step.waveform:02X}')
-                    tokens.append(f'{wt}~')  # ~ means keep freq
+                    tokens.append(f'{wt}~{slide_suffix}')
                 elif step.delay > 0:
-                    tokens.append(f'W{step.delay}')  # delay N frames
+                    tokens.append(f'W{step.delay}')
                 elif step.absolute_note >= 0:
                     wt = WAVEFORM_TOKENS.get(step.waveform, f'${step.waveform:02X}')
-                    tokens.append(f'{wt}={note_name(step.absolute_note)}')
+                    tokens.append(f'{wt}={note_name(step.absolute_note)}{slide_suffix}')
                 else:
                     off = step.note_offset
                     sign = '+' if off >= 0 else ''
                     wt = WAVEFORM_TOKENS.get(step.waveform, f'${step.waveform:02X}')
-                    tokens.append(f'{wt}{sign}{off}')
+                    tokens.append(f'{wt}{sign}{off}{slide_suffix}')
             tokens.append(']WT')
 
         # Pulse table
@@ -506,6 +510,11 @@ def detokenize(tokens):
                     while i < len(tokens) and tokens[i] != ']WT':
                         wt = tokens[i]
                         step = WaveTableStep()
+                        # Extract /sN freq_slide suffix if present
+                        if '/s' in wt:
+                            slide_idx = wt.index('/s')
+                            step.freq_slide = int(wt[slide_idx + 2:])
+                            wt = wt[:slide_idx]  # strip suffix for normal parsing
                         if wt.startswith('L'):
                             step.is_loop = True
                             step.loop_target = int(wt[1:])
