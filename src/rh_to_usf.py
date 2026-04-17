@@ -479,6 +479,12 @@ def rh_to_usf(sid_path, subtune=None):
         inst = _map_instrument(rh_instr, i, upper_nibble_arp=result.upper_nibble_arp)
         song.instruments.append(inst)
 
+    # TODO: Enhance drum instruments with sidxray-extracted sequences.
+    # The drum_extract module captures actual per-frame register behavior,
+    # but naive replacement of all drum wave tables causes regressions.
+    # Need per-instrument matching (which voice uses which instrument)
+    # before we can safely replace wave tables.
+
     # Build shared pulse table from per-instrument pulse tables.
     # The V2 player uses shared tables with index pointers, not per-instrument lists.
     pulse_offset = 1  # 1-based indexing (0 = no pulse mod)
