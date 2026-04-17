@@ -1,5 +1,5 @@
 """
-gt2_compare.py — Tolerant register comparison for GT2 SIDs.
+sid_compare.py — Tolerant register comparison for GT2 SIDs.
 
 Separates real bugs (wrong notes, wrong waveforms, wrong envelopes)
 from harmless timing differences (vibrato phase, pulse mod phase).
@@ -131,6 +131,12 @@ def compare_tolerant(orig_frames, new_frames):
                 # are inaudible — SID ignores frequency when oscillator is off
                 if (o_wav & 0xF0) == 0 and (n_wav & 0xF0) == 0:
                     vr['note_jitter'] += 1
+                    continue
+                # If both sides play noise ($80/$81), freq_hi controls noise
+                # shift rate, not musical pitch. Different rates are perceptually
+                # similar (both sound like "noise"). Classify as freq_fine.
+                if (o_wav & 0xF0) == 0x80 and (n_wav & 0xF0) == 0x80:
+                    vr['freq_fine'] += 1
                     continue
                 # Check if this is a timing shift: does the V2 freq_hi
                 # match the original's nearby frames (±3)?
@@ -435,7 +441,7 @@ if __name__ == '__main__':
     from gt2_parse_direct import parse_gt2_direct
 
     if len(sys.argv) < 2:
-        print("Usage: gt2_compare.py <file.sid | glob> [duration] [limit]")
+        print("Usage: sid_compare.py <file.sid | glob> [duration] [limit]")
         sys.exit(1)
 
     path = sys.argv[1]

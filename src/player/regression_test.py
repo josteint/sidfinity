@@ -17,7 +17,7 @@ import json
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from gt2_compare import compare_sids_tolerant
+from sid_compare import compare_sids_tolerant
 
 REGISTRY_PATH = os.path.join(os.path.dirname(__file__), 'regression_registry.json')
 TEMP_SID = '/tmp/sf_regression_test.sid'

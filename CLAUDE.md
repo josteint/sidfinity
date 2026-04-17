@@ -13,7 +13,7 @@
 
 ### Keep things current
 - After fixing a bug that changes the Grade A count, update the pipeline status memory and CLAUDE.md status line.
-- After finding a new measurement artifact, improve `gt2_compare.py` BEFORE investigating further — don't chase false positives.
+- After finding a new measurement artifact, improve `sid_compare.py` BEFORE investigating further — don't chase false positives.
 - Before ending a session, check if any memories have become stale or wrong. Update or remove them.
 - After adding a new tool or capability, add it to the Key Files table in this file.
 
@@ -57,7 +57,7 @@ Build the SIDfinity universal SID music player and ML pipeline. See `docs/PLAN.m
 - Pattern bleed-through: GT2 reads past ENDPATT when FX param is 0x00. Fixed in decompiler by matching GT2's continuation marker re-read behavior.
 - To investigate F-grade songs: pick the highest-scoring one, trace the first wrong frame, classify the error, fix root cause, batch test. See memory `feedback_bug_investigation.md`.
 
-## Comparison Methodology (gt2_compare.py)
+## Comparison Methodology (sid_compare.py)
 
 The comparison classifies each frame difference as audible or inaudible:
 
@@ -102,7 +102,7 @@ Group A GT2 players use `ASL` to double pulse speed before adding. Naively doubl
 
 ### siddump frame boundary drift — measurement artifact, not a bug
 
-siddump uses 19688 cycles/frame (19656 + 32 margin). This causes the VBI to drift relative to siddump's frame boundary. Register diffs from this drift are classified as jitter (inaudible) in gt2_compare.py. Do NOT try to "fix" these diffs by changing player cycle counts.
+siddump uses 19688 cycles/frame (19656 + 32 margin). This causes the VBI to drift relative to siddump's frame boundary. Register diffs from this drift are classified as jitter (inaudible) in sid_compare.py. Do NOT try to "fix" these diffs by changing player cycle counts.
 
 ## Pipeline
 
@@ -123,7 +123,7 @@ ANY SID → siddump → register CSV → regtrace_to_usf → USF Song → usf_to
 - Path 2: any SID where static parsing fails, or non-GT2 engines (DMC, JCH, Hubbard, etc.)
 - Path 2 quality is lower but works universally — good starting point for new engines
 
-**Comparison:** `gt2_compare.py` dumps both original and rebuilt SIDs via `siddump`, compares register output frame-by-frame with jitter tolerance.
+**Comparison:** `sid_compare.py` dumps both original and rebuilt SIDs via `siddump`, compares register output frame-by-frame with jitter tolerance.
 
 ## Build Environment
 
@@ -148,7 +148,7 @@ python3 -c "
 import sys; sys.path.insert(0, 'src')
 from gt2_to_usf import gt2_to_usf
 from usf_to_sid import usf_to_sid
-from gt2_compare import compare_sids_tolerant
+from sid_compare import compare_sids_tolerant
 song = gt2_to_usf('path/to/song.sid')
 usf_to_sid(song, '/tmp/rebuilt.sid')
 comp = compare_sids_tolerant('path/to/song.sid', '/tmp/rebuilt.sid', 10)
@@ -167,7 +167,7 @@ print(f'Grade: {comp[\"grade\"]} Score: {comp[\"score\"]:.1f}')
 | `src/gt2_decompile.py` | GT2 binary decompiler |
 | `src/gt2_parse_direct.py` | Operand-based GT2 parser (finds columns via 6502 instruction analysis) |
 | `src/gt2_detect_version.py` | Player group (A/B/C/D) + feature flag detection |
-| `src/gt2_compare.py` | Register-level comparison with 8-layer jitter tolerance |
+| `src/sid_compare.py` | Register-level comparison with 8-layer jitter tolerance |
 | `src/gt_parser.py` | Low-level GT2 binary parser (freq tables, PSID header) |
 | `src/gt2_packer.py` | GT2 freq tables + packing constants |
 | `src/detect_flags.py` | GT2 compilation flag detection (legacy packer path) |

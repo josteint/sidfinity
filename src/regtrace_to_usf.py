@@ -1321,7 +1321,7 @@ def main():
         print(f"Rebuilt SID: {out_path}")
 
         if args.compare:
-            from gt2_compare import compare_sids_tolerant
+            from sid_compare import compare_sids_tolerant
             comp = compare_sids_tolerant(args.sid_file, out_path,
                                           min(args.duration, 10))
             if comp:

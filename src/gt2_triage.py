@@ -46,7 +46,7 @@ def _process_one(args):
     try:
         from gt2_to_usf import gt2_to_usf
         from usf_to_sid import usf_to_sid
-        from gt2_compare import compare_tolerant, score_results, dump_sid
+        from sid_compare import compare_tolerant, score_results, dump_sid
         from gt2_detect_version import detect_gt2_player_group
         from detect_flags import detect_gt2_flags
 

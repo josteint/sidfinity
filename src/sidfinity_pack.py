@@ -522,7 +522,7 @@ def test_sidfinity_pack(sid_path, duration=10):
     """
     sys.path.insert(0, SCRIPT_DIR)
     from gt2_decompile import decompile_gt2
-    from gt2_compare import compare_sids_tolerant, print_results
+    from sid_compare import compare_sids_tolerant, print_results
 
     # Step 1: Decompile
     d = decompile_gt2(sid_path)
