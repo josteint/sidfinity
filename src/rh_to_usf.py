@@ -621,6 +621,112 @@ def rh_to_usf(sid_path, subtune=None):
             # STOP ($FE): no loop, set restart to last entry
             song.orderlist_restart[voice_idx] = max(0, len(orderlist) - 1)
 
+    # Fix TIE-at-start: Hubbard's INIT routine pre-loads voice frequencies before
+    # playback begins, so TIE-only opening patterns sustain those initialized notes.
+    # The V2 player has no init state -- TIE with no prior note produces silence.
+    #
+    # When a voice's orderlist starts with patterns containing only TIE events,
+    # scan forward to find the first real note in subsequent patterns. Insert that
+    # note (with duration=1) at the start of the orderlist so the V2 player has
+    # an initial frequency to sustain through the TIEs.
+    #
+    # Guard: only apply the fix if the original SID's INIT actually pre-loaded
+    # a non-zero frequency AND a non-zero waveform for that voice. If INIT set
+    # freq=0 (not loaded) or waveform=0 (test bit / silent), then our TIE (which
+    # produces freq=0) already matches the original, and adding an init note
+    # would introduce incorrect audio and cause note_wrong regressions.
+    _pat_id_by_id = {p.id: p for p in song.patterns}
+
+    # Get the original SID's initial register state (after INIT runs) via siddump.
+    # Use frame 1 (the first frame after INIT has executed).
+    _orig_init_fhi = [0, 0, 0]   # freq_hi per voice (after INIT)
+    _orig_init_ctrl = [0, 0, 0]  # ctrl byte per voice (after INIT)
+    try:
+        import subprocess as _sp
+        _siddump_cwd = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        # Try with --force-rsid first (for RSID files), then without (for PSID)
+        _sd_result = _sp.run(
+            ['tools/siddump', sid_path, '--force-rsid'],
+            capture_output=True, text=True, cwd=_siddump_cwd, timeout=5
+        )
+        if 'V1_FREQ' not in _sd_result.stdout:
+            _sd_result = _sp.run(
+                ['tools/siddump', sid_path],
+                capture_output=True, text=True, cwd=_siddump_cwd, timeout=5
+            )
+        _sd_lines = _sd_result.stdout.strip().split('\n')
+        _hdr_idx = next((i for i, l in enumerate(_sd_lines) if 'V1_FREQ_LO' in l), None)
+        if _hdr_idx is not None:
+            # Scan frames 1-10 to find when INIT has stabilized (waveforms set).
+            # Frame 0 is pre-INIT; different songs take 1-5 frames to finish INIT.
+            # Use the first frame where ALL active voices have non-zero waveform bits.
+            for _frame_off in range(1, 11):
+                _fi = _hdr_idx + 1 + _frame_off
+                if _fi >= len(_sd_lines):
+                    break
+                _row = _sd_lines[_fi].split(',')
+                if len(_row) < 19:
+                    continue
+                _fhi = [int(_row[1], 16), int(_row[8], 16), int(_row[15], 16)]
+                _ctrl = [int(_row[4], 16), int(_row[11], 16), int(_row[18], 16)]
+                # Check if at least one voice has a real waveform (INIT done)
+                if any(c & 0xF0 for c in _ctrl):
+                    _orig_init_fhi = _fhi
+                    _orig_init_ctrl = _ctrl
+                    break
+    except Exception:
+        pass  # If siddump fails, skip the fix (safe default)
+
+    def _pat_all_tie(pat):
+        return pat is not None and pat.events and all(ev.type != 'note' for ev in pat.events)
+
+    def _first_note(pat):
+        for ev in (pat.events if pat else []):
+            if ev.type == 'note':
+                return (ev.note, ev.instrument)
+        return None
+
+    for voice_idx in range(3):
+        orderlist = song.orderlists[voice_idx]
+        if not orderlist:
+            continue
+        # Check first pattern is all-TIE
+        if not _pat_all_tie(_pat_id_by_id.get(orderlist[0][0])):
+            continue
+        # Guard: only fix if original INIT pre-loaded a waveform AND non-zero freq.
+        # If orig ctrl has no waveform bits or freq=0, our TIE (freq=0) already matches.
+        orig_fhi = _orig_init_fhi[voice_idx]
+        orig_ctrl = _orig_init_ctrl[voice_idx]
+        if (orig_ctrl & 0xF0) == 0 or orig_fhi == 0:
+            continue  # Original had no waveform or zero freq -- TIE is correct
+        # Count leading TIE-only patterns
+        leading = 0
+        for pid, _ in orderlist:
+            if _pat_all_tie(_pat_id_by_id.get(pid)):
+                leading += 1
+            else:
+                break
+        # Find first real note after the TIE prefix
+        init_note = None
+        init_instr = -1
+        for pid, _ in orderlist[leading:]:
+            found = _first_note(_pat_id_by_id.get(pid))
+            if found:
+                init_note, init_instr = found
+                break
+        if init_note is None:
+            continue
+        # Build a 1-tick init pattern with the found note
+        init_pid = len(song.patterns)
+        init_pat = Pattern(id=init_pid, events=[
+            NoteEvent(type='note', note=init_note, duration=1, instrument=init_instr)
+        ])
+        song.patterns.append(init_pat)
+        _pat_id_by_id[init_pid] = init_pat
+        # Prepend to orderlist; shift restart index to skip the init pattern on loops
+        song.orderlists[voice_idx] = [(init_pid, 0)] + list(orderlist)
+        song.orderlist_restart[voice_idx] += 1
+
     return song
 
 
