@@ -127,6 +127,26 @@ class Instrument:
 
 
 @dataclass
+class Sample:
+    """A 4-bit audio sample for digi playback via SID volume register ($D418).
+
+    The SID's master volume register can be abused as a 4-bit DAC by rapidly
+    writing sample values to the low nibble. This technique was used by
+    Mahoney, Martin Galway, THCM, and many others for speech, drums, and
+    sampled instruments.
+
+    Data is packed 2 samples per byte (high nibble first). At 8000 Hz on PAL
+    (50 fps), each frame needs 160 samples = 80 bytes of packed data.
+    """
+    id: int = 0
+    name: str = ''
+    data: bytes = b''          # 4-bit samples packed: 2 samples per byte (high nibble first)
+    rate: int = 8000           # Playback rate in Hz (typical: 4000-8000 for C64)
+    loop_start: int = -1       # Loop point in samples (-1 = no loop)
+    loop_end: int = -1         # Loop end point in samples (-1 = end of sample)
+
+
+@dataclass
 class NoteEvent:
     """A single note/rest/control event in a pattern.
 
@@ -134,12 +154,12 @@ class NoteEvent:
     command=0 means effect 0 (instrument vibrato reload in GT2).
     These are distinct: None emits no FX byte, 0 emits $40/$50.
     """
-    type: str = 'note'         # note, rest, off, on, tie
-    note: int = 0              # note number 0-95 (C0=0, C4=48)
+    type: str = 'note'         # note, rest, off, on, tie, digi
+    note: int = 0              # note number 0-95 (C0=0, C4=48); for digi: sample_id
     duration: int = 1          # duration in ticks
     instrument: int = -1       # instrument change (-1 = no change)
     command: object = None     # pattern command 0-15, or None for no command
-    command_val: int = 0       # command parameter byte
+    command_val: int = 0       # command parameter byte (for digi: rate override, 0=use sample default)
 
 
 # Pattern command constants (match GT2)
@@ -176,6 +196,7 @@ class Song:
     sid_model: str = '6581'    # 6581 or 8580
     clock: str = 'PAL'         # PAL or NTSC
     tempo: int = 6             # default ticks per row
+    samples: list = field(default_factory=list)          # list of Sample (4-bit digi samples)
     instruments: list = field(default_factory=list)    # list of Instrument
     patterns: list = field(default_factory=list)        # list of Pattern
     orderlists: list = field(default_factory=lambda: [[], [], []])  # 3 voices

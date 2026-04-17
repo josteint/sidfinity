@@ -1176,6 +1176,74 @@ def events_to_pattern(quantized_events, inst_map):
     return note_events
 
 
+def detect_digi_playback(frames):
+    """Detect 4-bit digi/sample playback from rapid $D418 volume register changes.
+
+    When the SID volume register ($D418, low nibble) changes rapidly (every few
+    cycles/frames rather than occasional volume changes), it indicates the player
+    is using the volume register as a 4-bit DAC for sample playback.
+
+    This is a detection stub — full sample extraction (decoding the sample data,
+    detecting playback rate, identifying sample boundaries) is a future task that
+    requires cycle-level timing from siddump --writelog output.
+
+    Args:
+        frames: List of 25-element register value lists from siddump.
+
+    Returns:
+        dict with detection results:
+            'detected': bool — True if digi playback was found
+            'digi_frames': list of (start_frame, end_frame) ranges
+            'change_rate': float — average $D418 changes per frame (0 if none)
+    """
+    # TODO: Implement full digi detection. Current approach:
+    # 1. Track $D418 low nibble (volume) changes per frame
+    # 2. If volume changes on >50% of frames in a window, it's likely digi playback
+    # 3. Identify contiguous digi regions (sample start/end)
+    # 4. Future: use siddump --writelog for cycle-level timing to determine
+    #    playback rate and extract raw sample data
+    #
+    # Key heuristic: normal volume changes (fades, muting) change $D418 a few
+    # times per song. Digi playback changes it EVERY frame (or multiple times
+    # per frame with CIA timer IRQ). A sustained run of >10 consecutive frames
+    # with volume changes is almost certainly digi playback.
+
+    if not frames:
+        return {'detected': False, 'digi_frames': [], 'change_rate': 0.0}
+
+    vol_changes = 0
+    prev_vol = frames[0][IDX_FILT_MODE_VOL] & 0x0F
+    digi_regions = []
+    run_start = -1
+    run_length = 0
+
+    for i in range(1, len(frames)):
+        vol = frames[i][IDX_FILT_MODE_VOL] & 0x0F
+        if vol != prev_vol:
+            vol_changes += 1
+            if run_start < 0:
+                run_start = i - 1
+            run_length += 1
+        else:
+            if run_length >= 10:
+                digi_regions.append((run_start, i))
+            run_start = -1
+            run_length = 0
+        prev_vol = vol
+
+    if run_length >= 10:
+        digi_regions.append((run_start, len(frames)))
+
+    change_rate = vol_changes / max(1, len(frames) - 1)
+    detected = len(digi_regions) > 0
+
+    return {
+        'detected': detected,
+        'digi_frames': digi_regions,
+        'change_rate': change_rate,
+    }
+
+
 def regtrace_to_usf(sid_path, duration=60, debug=False):
     """Convert a SID file to USF Song via register trace analysis.
 
@@ -1189,9 +1257,17 @@ def regtrace_to_usf(sid_path, duration=60, debug=False):
     """
     metadata, frames = run_siddump(sid_path, duration)
 
+    # Detect digi/sample playback (rapid $D418 writes)
+    digi_info = detect_digi_playback(frames)
+
     if debug:
         print(f"Loaded {len(frames)} frames from {sid_path}")
         print(f"Metadata: {metadata}")
+        if digi_info['detected']:
+            print(f"  DIGI DETECTED: {len(digi_info['digi_frames'])} regions, "
+                  f"change rate: {digi_info['change_rate']:.2f}/frame")
+            for start, end in digi_info['digi_frames'][:5]:
+                print(f"    frames {start}-{end} ({end - start} frames)")
 
     # Detect tempo: try frame-based first (works before event extraction),
     # then refine with event-based detection after extraction.

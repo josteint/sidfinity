@@ -6,7 +6,7 @@ detokenize(tokens) -> Song
 """
 
 from usf.format import (
-    Song, Instrument, WaveTableStep, PulseTableStep, FilterTableStep,
+    Song, Instrument, Sample, WaveTableStep, PulseTableStep, FilterTableStep,
     SpeedTableEntry, Pattern, NoteEvent,
     NOTE_NAMES, WAVEFORM_NAMES, WAVEFORM_TOKENS, TOKEN_TO_WAVEFORM,
     note_name, note_from_name,
@@ -66,6 +66,22 @@ def tokenize(song):
         tokens.append(f'OLRST:{song.orderlist_restart[0]},{song.orderlist_restart[1]},{song.orderlist_restart[2]}')
     if song.songs != 1:
         tokens.append(f'SONGS{song.songs}')
+
+    # Samples (4-bit digi)
+    for samp in song.samples:
+        tokens.append('SAMP')
+        if samp.name:
+            tokens.append(f'SNAME:{samp.name}')
+        tokens.append(f'SRATE{samp.rate}')
+        if samp.loop_start >= 0:
+            tokens.append(f'SLOOP{samp.loop_start},{samp.loop_end}')
+        # Sample data as hex pairs (each byte = 2 packed 4-bit samples)
+        tokens.append('SDATA[')
+        for byte_i in range(0, len(samp.data), 16):
+            chunk = samp.data[byte_i:byte_i + 16]
+            tokens.append(''.join(f'{b:02X}' for b in chunk))
+        tokens.append(']SDATA')
+        tokens.append('/SAMP')
 
     # Instruments
     for inst in song.instruments:
@@ -210,6 +226,12 @@ def tokenize(song):
                 tokens.append('ON')
             elif event.type == 'tie':
                 tokens.append('TIE')
+            elif event.type == 'digi':
+                # DIGI<sample_id> with optional rate override in command_val
+                if event.command_val > 0:
+                    tokens.append(f'DIGI{event.note}R{event.command_val}')
+                else:
+                    tokens.append(f'DIGI{event.note}')
 
             if event.command is not None:
                 tokens.append(f'x{event.command:X}{event.command_val:02X}')
@@ -309,6 +331,31 @@ def detokenize(tokens):
             song.orderlist_restart = [int(p) for p in parts]
         elif t.startswith('SONGS') and t[5:].isdigit():
             song.songs = int(t[5:])
+        elif t == 'SAMP':
+            samp = Sample(id=len(song.samples))
+            i += 1
+            while i < len(tokens) and tokens[i] != '/SAMP':
+                t2 = tokens[i]
+                if t2.startswith('SNAME:'):
+                    samp.name = t2[6:]
+                elif t2.startswith('SRATE') and t2[5:].isdigit():
+                    samp.rate = int(t2[5:])
+                elif t2.startswith('SLOOP'):
+                    parts = t2[5:].split(',')
+                    samp.loop_start = int(parts[0])
+                    samp.loop_end = int(parts[1]) if len(parts) > 1 else -1
+                elif t2 == 'SDATA[':
+                    data_bytes = bytearray()
+                    i += 1
+                    while i < len(tokens) and tokens[i] != ']SDATA':
+                        hex_str = tokens[i]
+                        for j in range(0, len(hex_str), 2):
+                            data_bytes.append(int(hex_str[j:j+2], 16))
+                        i += 1
+                    samp.data = bytes(data_bytes)
+                i += 1
+            song.samples.append(samp)
+
         elif t == 'INST':
             inst = Instrument(id=len(song.instruments))
             i += 1
@@ -476,6 +523,18 @@ def detokenize(tokens):
                     patt.events.append(NoteEvent(type='on'))
                 elif t2 == 'TIE':
                     patt.events.append(NoteEvent(type='tie'))
+                elif t2.startswith('DIGI'):
+                    # DIGI<sample_id> or DIGI<sample_id>R<rate>
+                    rest = t2[4:]
+                    rate_override = 0
+                    if 'R' in rest:
+                        parts = rest.split('R')
+                        sample_id = int(parts[0])
+                        rate_override = int(parts[1])
+                    else:
+                        sample_id = int(rest)
+                    patt.events.append(NoteEvent(type='digi', note=sample_id,
+                                                  command_val=rate_override))
                 elif t2.startswith('x') and len(t2) >= 4:
                     # Command: x1FF = command 1, param $FF
                     if patt.events:

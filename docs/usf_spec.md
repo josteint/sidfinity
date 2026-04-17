@@ -69,6 +69,7 @@ Audibility grade: A (identical) / B (minor) / C (audible diffs) / F (broken)
 | sid_model | string | '6581' | SID chip: '6581' or '8580' |
 | clock | string | 'PAL' | Clock: 'PAL' or 'NTSC' |
 | tempo | int | 6 | Default speed: frames per tick |
+| samples | list[Sample] | [] | 4-bit digi samples for $D418 DAC playback |
 | instruments | list[Instrument] | [] | Instrument definitions |
 | patterns | list[Pattern] | [] | Pattern definitions |
 | orderlists | list x 3 of list[(pat_id, transpose)] | [[],[],[]] | Per-voice play order |
@@ -173,11 +174,26 @@ Shared table for vibrato, portamento, and funktempo. Referenced by index from in
 | left | int | 0 | Vibrato: speed (bit7=note-independent). Portamento: MSB. Funktempo: tempo1. |
 | right | int | 0 | Vibrato: depth. Portamento: LSB. Funktempo: tempo2. |
 
+### Sample
+
+4-bit audio sample for digi playback via the SID volume register ($D418 low nibble). The SID has no dedicated sample playback hardware, but the master volume register doubles as a 4-bit DAC. By writing sample values to $D418 at a high rate (typically 4000-8000 Hz via CIA timer IRQ), crude but effective sample playback is achieved. This technique was used by Mahoney, Martin Galway, THCM, and many others for speech, drums, and sampled instruments.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| id | int | 0 | Sample index |
+| name | string | '' | Sample name (e.g. 'kick', 'speech') |
+| data | bytes | b'' | 4-bit samples packed 2 per byte (high nibble first) |
+| rate | int | 8000 | Playback rate in Hz (typical: 4000-8000 for C64) |
+| loop_start | int | -1 | Loop point in samples (-1 = no loop) |
+| loop_end | int | -1 | Loop end point in samples (-1 = end of sample) |
+
+**Packing:** Each byte contains two 4-bit samples. The high nibble is the first sample, the low nibble is the second. At 8000 Hz on PAL (50 fps), each frame needs 160 samples = 80 bytes of packed data.
+
 ### NoteEvent
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| type | string | 'note' | note, rest, off, on, tie |
+| type | string | 'note' | note, rest, off, on, tie, digi |
 | note | int | 0 | Note number 0–95 (C0=0, C4=48) |
 | duration | int | 1 | Duration in ticks |
 | instrument | int | -1 | Instrument index (-1=no change) |
@@ -216,17 +232,22 @@ Shared table for vibrato, portamento, and funktempo. Referenced by index from in
 | off | Gate off — release current note. |
 | on | Gate on — retrigger without changing frequency. |
 | tie | Continue previous note without retriggering ADSR. |
+| digi | Trigger 4-bit sample playback. `note` = sample_id, `command_val` = rate override (0 = use sample default rate). Playback writes to $D418 low nibble via CIA timer IRQ. |
 
 ## Token Format
 
 ### Grammar
 
 ```
-song         := SONG header instruments speed_table? patterns orderlists /SONG
+song         := SONG header samples? instruments speed_table? patterns orderlists /SONG
 header       := sid_model clock tempo
 sid_model    := SID_6581 | SID_8580
 clock        := PAL | NTSC
 tempo        := T<1-99>
+
+samples      := sample*
+sample       := SAMP sample_params SDATA[ hex_rows ]SDATA /SAMP
+sample_params := SNAME:<name>? SRATE<hz> SLOOP<start>,<end>?
 
 instruments  := instrument*
 instrument   := INST params tables /INST
@@ -258,13 +279,14 @@ speed_table  := SPD[ <HHHH>+ ]SPD
 
 patterns     := pattern*
 pattern      := PAT<id> event* /PAT
-event        := inst_change? (note|rest|off|on|tie) command? duration?
+event        := inst_change? (note|rest|off|on|tie|digi) command? duration?
 inst_change  := I<n>
 note         := <note_name>
 rest         := .
 off          := OFF
 on           := ON
 tie          := TIE
+digi         := DIGI<sample_id>              trigger sample (optional R<rate> suffix for rate override)
 command      := x<H><HH>                    command + param
 duration     := d<n>                         (omit if 1)
 
@@ -382,3 +404,4 @@ When USF changes (new fields, event types, token types):
 | 0.6 | 2026-04-02 | Player behavior groups (A-D), first_note field. GT2 player version detection. |
 | 0.7 | 2026-04-02 | Add wave_ptr to Instrument, orderlist_restart to Song, document shared table packed binary format, annotate GT2-specific vs universal fields, add Roundtrip Pipeline section, clarify first_note semantics. |
 | 0.8 | 2026-04-17 | Add ring modulation and hard sync waveform variants (tri_ring, saw_sync, pulse_ring_sync, etc.). New tokens: TRR, SAR, PUR (ring), TRS, SAS, PUS (sync), TXS, SXS, PXS (ring+sync). |
+| 0.10 | 2026-04-17 | Add Sample dataclass and 'digi' event type for 4-bit $D418 DAC sample playback. Add SAMP/SDATA/DIGI tokens. |
