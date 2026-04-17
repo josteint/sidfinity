@@ -215,6 +215,25 @@ class Pattern:
 
 
 @dataclass
+class PaddleRoute:
+    """Route paddle input to a music parameter for real-time control.
+
+    The SID chip has two read-only paddle (potentiometer) registers:
+      $D419 (POTX) — Paddle X analog input (0-255)
+      $D41A (POTY) — Paddle Y analog input (0-255)
+
+    Some engines read these to allow real-time performance control,
+    modulating filter cutoff, tempo, or other parameters based on
+    paddle position. This is extremely niche but exists in the SID ecosystem.
+    """
+    source: str = 'potx'          # 'potx' ($D419) or 'poty' ($D41A)
+    target: str = 'filter_cutoff' # Parameter to modulate
+    voice: int = -1               # Target voice (-1=global)
+    min_val: int = 0              # Minimum output value
+    max_val: int = 255            # Maximum output value
+
+
+@dataclass
 class Song:
     """Complete song in USF."""
     title: str = ''
@@ -291,6 +310,7 @@ class Song:
     # Oscillator 3 / Envelope 3 modulation routing
     modulation_routes: list = field(default_factory=list)  # list of ModulationRoute
     voice3_as_modulator: bool = False  # True = voice 3 is used as modulation source, not audio
+    paddle_routes: list = field(default_factory=list)  # list of PaddleRoute
 
 
 # ============================================================

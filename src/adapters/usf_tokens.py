@@ -7,7 +7,7 @@ detokenize(tokens) -> Song
 
 from usf.format import (
     Song, Instrument, Sample, WaveTableStep, PulseTableStep, FilterTableStep,
-    SpeedTableEntry, ModulationRoute, Pattern, NoteEvent,
+    SpeedTableEntry, ModulationRoute, PaddleRoute, Pattern, NoteEvent,
     NOTE_NAMES, WAVEFORM_NAMES, WAVEFORM_TOKENS, TOKEN_TO_WAVEFORM,
     note_name, note_from_name,
 )
@@ -238,6 +238,14 @@ def tokenize(song):
         for l, r in song.shared_filter_table:
             tokens.append(f'{l:02X}{r:02X}')
         tokens.append(']SFT')
+
+    # Paddle routes
+    if song.paddle_routes:
+        tokens.append('PDL[')
+        for pr in song.paddle_routes:
+            # PDL:potx>filter_cutoff:v-1:0:255
+            tokens.append(f'PDL:{pr.source}>{pr.target}:v{pr.voice}:{pr.min_val}:{pr.max_val}')
+        tokens.append(']PDL')
 
     # Patterns
     for patt in song.patterns:
@@ -696,6 +704,25 @@ def detokenize(tokens):
                 s = tokens[i]
                 if len(s) == 4:
                     song.shared_filter_table.append((int(s[:2], 16), int(s[2:], 16)))
+                i += 1
+
+        elif t == 'PDL[':
+            i += 1
+            while i < len(tokens) and tokens[i] != ']PDL':
+                s = tokens[i]
+                if s.startswith('PDL:'):
+                    # PDL:potx>filter_cutoff:v-1:0:255
+                    rest = s[4:]
+                    src, rest = rest.split('>', 1)
+                    parts = rest.split(':')
+                    pr = PaddleRoute(
+                        source=src,
+                        target=parts[0],
+                        voice=int(parts[1][1:]),  # strip 'v' prefix
+                        min_val=int(parts[2]),
+                        max_val=int(parts[3]),
+                    )
+                    song.paddle_routes.append(pr)
                 i += 1
 
         elif t == '/SONG':

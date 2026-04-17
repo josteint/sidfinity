@@ -90,6 +90,7 @@ Audibility grade: A (identical) / B (minor) / C (audible diffs) / F (broken)
 | filter_cutoff_low | int | 0 | Default $D415 value (low 3 bits of filter cutoff). GT2 always 0. Demo-scene players may use non-zero for 11-bit precision. |
 | modulation_routes | list[ModulationRoute] | [] | Oscillator 3 / envelope 3 modulation routing (see below) |
 | voice3_as_modulator | bool | false | True = voice 3 is used as modulation source, not audio |
+| paddle_routes | list[PaddleRoute] | [] | Paddle/potentiometer input routing (see PaddleRoute). Extremely niche. |
 
 **Player behavior fields:** These 5 fields control how the SIDfinity player processes audio. They are **generic** — not tied to any specific source format. Any transpiler (GT2, DMC, JCH) populates them based on the source player's behavior. The SIDfinity player reads them at assembly time via `-D` flags.
 
@@ -216,6 +217,19 @@ When `voice3_as_modulator=True`, the player should not treat voice 3 as a regula
 | scale | int | 0 | Scaling factor: shift right N bits (0=no scaling, 1=divide by 2, etc.) |
 | offset | int | 0 | Signed offset added after scaling |
 | active | bool | true | Can be toggled on/off by pattern commands at runtime |
+### PaddleRoute
+
+Routes a SID paddle (potentiometer) input to a music parameter for real-time control. The SID chip has two read-only analog input registers: $D419 (POTX) and $D41A (POTY), which return 0-255 based on paddle/joystick position. Some engines read these to allow live performance modulation. This is extremely niche.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| source | string | 'potx' | Input register: 'potx' ($D419) or 'poty' ($D41A) |
+| target | string | 'filter_cutoff' | Parameter to modulate (e.g. 'filter_cutoff', 'tempo') |
+| voice | int | -1 | Target voice (-1=global, 0-2=specific voice) |
+| min_val | int | 0 | Minimum output value |
+| max_val | int | 255 | Maximum output value |
+
+Added to Song as `paddle_routes: list[PaddleRoute]` (default empty).
 
 ### NoteEvent
 
@@ -267,7 +281,7 @@ When `voice3_as_modulator=True`, the player should not treat voice 3 as a regula
 ### Grammar
 
 ```
-song         := SONG header samples? modulation? instruments speed_table? patterns orderlists /SONG
+song         := SONG header samples? modulation? paddle_routes? instruments speed_table? patterns orderlists /SONG
 header       := sid_model clock tempo filter_cutoff_low?
 sid_model    := SID_6581 | SID_8580
 clock        := PAL | NTSC
@@ -310,6 +324,9 @@ filter_table := FT[ ft_step+ ]FT
 ft_step      := L<idx> | C<HH> | C<HH>L<n> | R<HH> | m<sign><n>x<dur>
 
 speed_table  := SPD[ <HHHH>+ ]SPD
+
+paddle_routes := PDL[ paddle_entry+ ]PDL
+paddle_entry  := PDL:<source>><target>:v<voice>:<min>:<max>
 
 patterns     := pattern*
 pattern      := PAT<id> event* /PAT
@@ -439,4 +456,4 @@ When USF changes (new fields, event types, token types):
 | 0.7 | 2026-04-02 | Add wave_ptr to Instrument, orderlist_restart to Song, document shared table packed binary format, annotate GT2-specific vs universal fields, add Roundtrip Pipeline section, clarify first_note semantics. |
 | 0.8 | 2026-04-17 | Add ring modulation and hard sync waveform variants (tri_ring, saw_sync, pulse_ring_sync, etc.). New tokens: TRR, SAR, PUR (ring), TRS, SAS, PUS (sync), TXS, SXS, PXS (ring+sync). |
 | 0.9 | 2026-04-17 | Add Sample dataclass and 'digi' event type for 4-bit $D418 DAC sample playback. Add SAMP/SDATA/DIGI tokens. |
-| 0.10 | 2026-04-17 | 11-bit filter cutoff, osc3/env3 modulation routing. |
+| 0.10 | 2026-04-17 | 11-bit filter cutoff, osc3/env3 modulation routing, paddle input, phase-precise sync, external audio input. |
