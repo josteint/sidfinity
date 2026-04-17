@@ -479,11 +479,70 @@ def rh_to_usf(sid_path, subtune=None):
         inst = _map_instrument(rh_instr, i, upper_nibble_arp=result.upper_nibble_arp)
         song.instruments.append(inst)
 
-    # TODO: Enhance drum instruments with sidxray-extracted sequences.
-    # The drum_extract module captures actual per-frame register behavior,
-    # but naive replacement of all drum wave tables causes regressions.
-    # Need per-instrument matching (which voice uses which instrument)
-    # before we can safely replace wave tables.
+    # Enhance drum instruments with sidxray-extracted freq_slide analysis.
+    # For each voice, extract drum sequences and check if freq_hi descends.
+    # If it does, apply freq_slide to drum instruments used on that voice.
+    try:
+        from sidxray.drum_extract import extract_drum_sequences
+
+        # Step 1: Build voice → drum instrument mapping from decompiled data
+        voice_drum_insts = {}  # voice_idx → set of instrument indices with has_drum
+        for vi in range(3):
+            track = rh_song.tracks[vi]
+            insts_on_voice = set()
+            for kind, idx in track:
+                if kind != 'pattern':
+                    continue
+                for pat in result.patterns:
+                    if pat.index == idx:
+                        for note in pat.notes:
+                            if note.instrument is not None:
+                                insts_on_voice.add(note.instrument)
+                        break
+            # Filter to drum instruments only
+            drum_insts = set()
+            for ii in insts_on_voice:
+                if ii < len(result.instruments) and result.instruments[ii].has_drum:
+                    drum_insts.add(ii)
+            if drum_insts:
+                voice_drum_insts[vi] = drum_insts
+
+        if voice_drum_insts:
+            # Step 2: Extract drum patterns from original SID
+            drum_seqs = extract_drum_sequences(sid_path, duration=5)
+
+            # Step 3: For each voice with drums, check if freq_hi descends
+            for vi, drum_inst_set in voice_drum_insts.items():
+                patterns = drum_seqs.get(vi, [])
+                if not patterns:
+                    continue
+
+                # Check the most common pattern for freq_hi descent
+                best = max(patterns, key=lambda p: p.count)
+                seq = best.sequence  # list of (ctrl, freq_hi) tuples
+
+                # Detect drum sweep: freq_hi must drop by >= 8 over the sequence
+                # AND be mostly monotonic (not vibrato oscillation).
+                # Only apply to sequences with >= 4 frames of data.
+                if len(seq) >= 5:
+                    fhi_values = [s[1] for s in seq[1:]]  # skip frame 0 (onset)
+                    total_drop = fhi_values[0] - min(fhi_values)
+                    descents = sum(1 for i in range(len(fhi_values)-1)
+                                  if fhi_values[i+1] < fhi_values[i])
+                    ascents = sum(1 for i in range(len(fhi_values)-1)
+                                 if fhi_values[i+1] > fhi_values[i])
+                    # Strict: must drop >= 8, mostly descend, few ascents
+                    if total_drop >= 8 and descents >= 3 and ascents <= 1:
+                        frames = len(fhi_values) - 1
+                        slide = max(1, min(15, total_drop // frames))
+                        # Apply freq_slide to drum instruments on this voice
+                        for ii in drum_inst_set:
+                            if ii < len(song.instruments):
+                                for step in song.instruments[ii].wave_table:
+                                    if step.keep_freq and not step.is_loop:
+                                        step.freq_slide = -slide
+    except Exception:
+        pass  # fall back to generic drum wave tables (no freq_slide)
 
     # Build shared pulse table from per-instrument pulse tables.
     # The V2 player uses shared tables with index pointers, not per-instrument lists.
