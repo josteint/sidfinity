@@ -298,11 +298,14 @@ def gt2_to_usf(sid_path):
                 # SET command (>= $80). The low nibble matches right. SID ignores
                 # PW_HI bits 4-7, so the 12-bit effective pulse width matches.
                 left = 0x80 | right
-            if pulse_asl and left < 0x80 and left != 0x00:
-                # Double speed byte (signed): ASL = shift left 1 bit
-                right = (right * 2) & 0xFF
             pulse_table.append((left, right))
         song.shared_pulse_table = pulse_table
+    # Pulse speed ASL: pass through to codegen as a behavioral flag.
+    # The V2 player will emit ASL;BCC instead of CLC;BPL to match the
+    # original player's pulse speed doubling. Speed bytes stay UN-doubled
+    # in the pulse table — the doubling happens at runtime via ASL.
+    if pulse_asl:
+        song.pulse_speed_asl = True
 
     fl = d['filter_left']
     fr = d['filter_right']
