@@ -479,14 +479,34 @@ def rh_to_usf(sid_path, subtune=None):
         inst = _map_instrument(rh_instr, i, upper_nibble_arp=result.upper_nibble_arp)
         song.instruments.append(inst)
 
-    # Enhance drum instruments with sidxray-extracted freq_slide analysis.
-    # For each voice, extract drum sequences and check if freq_hi descends.
-    # If it does, apply freq_slide to drum instruments used on that voice.
+    # Enhance drum instruments with sidxray-extracted wave table sequences.
+    #
+    # Strategy:
+    # - SINGLE drum instrument per voice: the most common extracted pattern IS
+    #   that instrument's behavior -- replace its wave table with absolute_note steps.
+    # - MULTIPLE drum instruments per voice: correlate each instrument to its
+    #   extracted sequence using note-trigger timing. For each note trigger,
+    #   find the nearest drum hit within CORR_WINDOW frames, vote for which
+    #   canonical sequence belongs to which instrument.
+    #
+    # Safety requirements:
+    #   1. Pattern has >= 2 hits (consistent).
+    #   2. Instrument does NOT have has_arpeggio (can't use absolute_note).
+    #   3. For multi-drum: canonical must NOT also come from an arpeggio-drum
+    #      instrument on the same voice (ambiguity check).
+    #
+    # Fallback: if no wave table replacement, apply freq_slide heuristic when
+    # the extracted pattern shows a descending freq_hi sweep.
     try:
-        from sidxray.drum_extract import extract_drum_sequences
+        from sidxray.drum_extract import (
+            extract_drum_sequences, _run_siddump, _is_noise_onset,
+            _extract_sequence, _canonicalize_sequence,
+            VOICE_OFFSETS as _VOICE_OFFSETS,
+        )
+        from collections import Counter as _Counter, defaultdict as _defaultdict
 
-        # Step 1: Build voice → drum instrument mapping from decompiled data
-        voice_drum_insts = {}  # voice_idx → set of instrument indices with has_drum
+        # Step 1: Build voice -> drum instrument mapping from decompiled data
+        voice_drum_insts = {}  # voice_idx -> set of instrument indices with has_drum
         for vi in range(3):
             track = rh_song.tracks[vi]
             insts_on_voice = set()
@@ -499,7 +519,6 @@ def rh_to_usf(sid_path, subtune=None):
                             if note.instrument is not None:
                                 insts_on_voice.add(note.instrument)
                         break
-            # Filter to drum instruments only
             drum_insts = set()
             for ii in insts_on_voice:
                 if ii < len(result.instruments) and result.instruments[ii].has_drum:
@@ -508,35 +527,252 @@ def rh_to_usf(sid_path, subtune=None):
                 voice_drum_insts[vi] = drum_insts
 
         if voice_drum_insts:
-            # Step 2: Extract drum patterns from original SID
-            drum_seqs = extract_drum_sequences(sid_path, duration=5)
+            # Determine siddump duration: multi-drum voices may need longer dumps
+            # so each instrument fires at least once within the capture window.
+            has_multi_drum_voice = any(len(ds) > 1 for ds in voice_drum_insts.values())
+            dump_duration = 30 if has_multi_drum_voice else 5
 
-            # Step 3: For each voice with drums, check if freq_hi descends
+            # Step 2: Extract drum patterns from original SID
+            drum_seqs = extract_drum_sequences(sid_path, duration=dump_duration, min_hits=2)
+
+            # Get raw frame data for multi-drum correlation
+            _raw_frames = None
+            if has_multi_drum_voice:
+                try:
+                    _, _raw_frames = _run_siddump(sid_path, duration=dump_duration)
+                except Exception:
+                    pass
+
+            replaced_insts = set()
+
+            # Step 3a: For voices with EXACTLY ONE drum instrument, replace the
+            # wave table with extracted absolute_note steps.
+            inst_best_pattern = {}  # ii -> DrumPattern
             for vi, drum_inst_set in voice_drum_insts.items():
+                if len(drum_inst_set) != 1:
+                    continue
                 patterns = drum_seqs.get(vi, [])
                 if not patterns:
                     continue
-
-                # Check the most common pattern for freq_hi descent
                 best = max(patterns, key=lambda p: p.count)
-                seq = best.sequence  # list of (ctrl, freq_hi) tuples
+                if best.count < 2:
+                    continue
+                ii = next(iter(drum_inst_set))
+                if ii >= len(result.instruments):
+                    continue
+                if result.instruments[ii].has_arpeggio:
+                    continue
+                prev = inst_best_pattern.get(ii)
+                if prev is None or best.count > prev.count:
+                    inst_best_pattern[ii] = best
 
-                # Detect drum sweep: freq_hi must drop by >= 8 over the sequence
-                # AND be mostly monotonic (not vibrato oscillation).
-                # Only apply to sequences with >= 4 frames of data.
+            for ii, best in inst_best_pattern.items():
+                if ii >= len(song.instruments):
+                    continue
+                new_wave_table = []
+                for step_dict in best.wave_table_steps:
+                    if step_dict.get('is_loop'):
+                        new_wave_table.append(WaveTableStep(
+                            is_loop=True, loop_target=step_dict['loop_target']))
+                    elif step_dict.get('keep_freq'):
+                        new_wave_table.append(WaveTableStep(
+                            waveform=step_dict['waveform'], keep_freq=True))
+                    else:
+                        new_wave_table.append(WaveTableStep(
+                            waveform=step_dict['waveform'],
+                            absolute_note=step_dict['absolute_note']))
+                song.instruments[ii].wave_table = new_wave_table
+                replaced_insts.add(ii)
+
+            # Step 3b: For voices with MULTIPLE drum instruments, correlate each
+            # instrument to its extracted sequence via note-trigger timing.
+            CORR_WINDOW = 5
+
+            for vi, drum_inst_set in voice_drum_insts.items():
+                if len(drum_inst_set) <= 1:
+                    continue
+                patterns = drum_seqs.get(vi, [])
+                if not patterns or _raw_frames is None:
+                    continue
+
+                # Extract drum hit frames for this voice from raw siddump data
+                off = _VOICE_OFFSETS[vi]
+                raw_hits = []
+                for i in range(1, len(_raw_frames)):
+                    if _is_noise_onset(_raw_frames[i-1][off['ctrl']],
+                                       _raw_frames[i][off['ctrl']]):
+                        seq = _extract_sequence(_raw_frames, i, vi, 12)
+                        if len(seq) >= 2:
+                            raw_hits.append((i, seq))
+
+                if not raw_hits:
+                    continue
+
+                # Build note trigger timeline -- only triggers within the dump window
+                dump_frame_limit = dump_duration * 50  # approximate 50fps
+                track = rh_song.tracks[vi]
+                pat_by_idx = {pat.index: pat for pat in result.patterns}
+                tempo_frames = hubbard_speed + 1
+                global_frame = 0
+                note_triggers = []
+
+                for kind, pidx in track:
+                    if kind == 'pattern':
+                        pat = pat_by_idx.get(pidx)
+                        if not pat:
+                            continue
+                        cur_instr = None
+                        for note in pat.notes:
+                            if note.instrument is not None:
+                                cur_instr = note.instrument
+                            dur = (note.duration + 1) * tempo_frames
+                            if not note.tie and cur_instr is not None:
+                                if cur_instr in drum_inst_set:
+                                    if global_frame < dump_frame_limit:
+                                        note_triggers.append((global_frame, cur_instr))
+                            global_frame += dur
+                    elif kind in ('loop', 'stop'):
+                        break
+
+                if not note_triggers:
+                    continue
+
+                # Vote: for each trigger, find nearest drum hit, record its canonical
+                inst_canon_votes = _defaultdict(_Counter)
+                for note_frame, instr in note_triggers:
+                    if note_frame >= len(_raw_frames):
+                        continue
+                    best_hit = None
+                    best_dist = CORR_WINDOW + 1
+                    for hf, hseq in raw_hits:
+                        dist = abs(hf - note_frame)
+                        if dist < best_dist:
+                            best_dist = dist
+                            best_hit = (hf, hseq)
+                    if best_hit is not None:
+                        canon = _canonicalize_sequence(best_hit[1])
+                        inst_canon_votes[instr][canon] += 1
+
+                # Build canonical -> DrumPattern lookup
+                canon_to_pattern = {}
+                for pat in patterns:
+                    pat_canon = _canonicalize_sequence(pat.sequence)
+                    if pat_canon not in canon_to_pattern or pat.count > canon_to_pattern[pat_canon].count:
+                        canon_to_pattern[pat_canon] = pat
+
+                # Separate all instruments (for ambiguity detection) from
+                # eligible (non-arpeggio) instruments (safe to replace)
+                all_best_canons = {}
+                eligible_canons = {}
+                for instr_ii, votes in inst_canon_votes.items():
+                    if instr_ii in replaced_insts:
+                        continue
+                    if instr_ii >= len(result.instruments):
+                        continue
+                    if not votes:
+                        continue
+                    best_canon, best_cnt = votes.most_common(1)[0]
+                    if best_cnt < 1:
+                        continue
+                    all_best_canons[instr_ii] = best_canon
+                    if not result.instruments[instr_ii].has_arpeggio:
+                        eligible_canons[instr_ii] = best_canon
+
+                if not eligible_canons:
+                    continue
+
+                # Skip instruments whose canonical is also produced by arpeggio-drum
+                # instruments -- unreliable correlation, could be misassignment.
+                arp_canons = {
+                    canon for ii2, canon in all_best_canons.items()
+                    if result.instruments[ii2].has_arpeggio
+                }
+                unambiguous = {
+                    instr_ii: canon
+                    for instr_ii, canon in eligible_canons.items()
+                    if canon not in arp_canons
+                }
+
+                # If all eligible instruments map to the same canonical, correlation
+                # could not distinguish them. But if they ALL agree on the same pattern,
+                # apply that pattern to all of them (they're all the same drum type).
+                unique_eligible_canons = set(unambiguous.values())
+                if len(unique_eligible_canons) < 2 and len(unambiguous) > 1:
+                    # All instruments agree on one canonical -- apply it to all
+                    if not unique_eligible_canons:
+                        continue
+                    shared_canon = next(iter(unique_eligible_canons))
+                    matched_pattern = canon_to_pattern.get(shared_canon)
+                    if matched_pattern is None or matched_pattern.count < 2:
+                        continue
+                    new_wave_table = []
+                    for step_dict in matched_pattern.wave_table_steps:
+                        if step_dict.get('is_loop'):
+                            new_wave_table.append(WaveTableStep(
+                                is_loop=True, loop_target=step_dict['loop_target']))
+                        elif step_dict.get('keep_freq'):
+                            new_wave_table.append(WaveTableStep(
+                                waveform=step_dict['waveform'], keep_freq=True))
+                        else:
+                            new_wave_table.append(WaveTableStep(
+                                waveform=step_dict['waveform'],
+                                absolute_note=step_dict['absolute_note']))
+                    for instr_ii in unambiguous:
+                        if instr_ii < len(song.instruments):
+                            song.instruments[instr_ii].wave_table = list(new_wave_table)
+                            replaced_insts.add(instr_ii)
+                    continue
+
+                for instr_ii, best_canon in unambiguous.items():
+                    matched_pattern = canon_to_pattern.get(best_canon)
+                    if matched_pattern is None or matched_pattern.count < 2:
+                        continue
+                    new_wave_table = []
+                    for step_dict in matched_pattern.wave_table_steps:
+                        if step_dict.get('is_loop'):
+                            new_wave_table.append(WaveTableStep(
+                                is_loop=True, loop_target=step_dict['loop_target']))
+                        elif step_dict.get('keep_freq'):
+                            new_wave_table.append(WaveTableStep(
+                                waveform=step_dict['waveform'], keep_freq=True))
+                        else:
+                            new_wave_table.append(WaveTableStep(
+                                waveform=step_dict['waveform'],
+                                absolute_note=step_dict['absolute_note']))
+                    if instr_ii < len(song.instruments):
+                        song.instruments[instr_ii].wave_table = new_wave_table
+                        replaced_insts.add(instr_ii)
+
+            # Step 3c: Freq_slide fallback for unreplaced drum instruments.
+            # Use a short 5-second dump to avoid spurious cross-instrument matches.
+            if dump_duration > 5:
+                short_drum_seqs = extract_drum_sequences(sid_path, duration=5, min_hits=2)
+            else:
+                short_drum_seqs = drum_seqs
+
+            for vi, drum_inst_set in voice_drum_insts.items():
+                patterns = short_drum_seqs.get(vi, [])
+                if not patterns:
+                    continue
+                best = max(patterns, key=lambda p: p.count)
+                seq = best.sequence
                 if len(seq) >= 5:
-                    fhi_values = [s[1] for s in seq[1:]]  # skip frame 0 (onset)
+                    fhi_values = [s[1] for s in seq[1:]]
                     total_drop = fhi_values[0] - min(fhi_values)
                     descents = sum(1 for i in range(len(fhi_values)-1)
-                                  if fhi_values[i+1] < fhi_values[i])
+                                   if fhi_values[i+1] < fhi_values[i])
                     ascents = sum(1 for i in range(len(fhi_values)-1)
-                                 if fhi_values[i+1] > fhi_values[i])
-                    # Strict: must drop >= 8, mostly descend, few ascents
+                                  if fhi_values[i+1] > fhi_values[i])
                     if total_drop >= 8 and descents >= 3 and ascents <= 1:
-                        frames = len(fhi_values) - 1
-                        slide = max(1, min(15, total_drop // frames))
-                        # Apply freq_slide to drum instruments on this voice
+                        frames_count = len(fhi_values) - 1
+                        slide = max(1, min(15, total_drop // frames_count))
                         for ii in drum_inst_set:
+                            if ii in replaced_insts:
+                                continue
+                            if ii >= len(result.instruments):
+                                continue
+                            if result.instruments[ii].has_arpeggio:
+                                continue  # arpeggio-drum: note-relative freq
                             if ii < len(song.instruments):
                                 for step in song.instruments[ii].wave_table:
                                     if step.keep_freq and not step.is_loop:
@@ -592,14 +828,18 @@ def rh_to_usf(sid_path, subtune=None):
                 idx = len(depth_to_idx) + 1
                 depth_to_idx[raw] = idx
 
-                # Shift = depth + 4 (V2 oscillation wider than Hubbard's triangle).
-                # Phase 4 depths (>7) are capped at shift=7 (gentlest vibrato).
-                # Many Phase 4 instruments repurpose byte +5 for non-vibrato
-                # functions (arpeggio tables, filter control), so aggressive
-                # vibrato from high depth values is usually wrong.
-                shift = min(raw + 4, 7)
+                if raw <= 7:
+                    # Classic (depths 1-7): shift = depth + 4
+                    shift = min(raw + 4, 7)
+                    osc_rate = 6
+                else:
+                    # Phase 4 (8+): bits 0-2=shift, bits 3-5=counter_max
+                    shift = raw & 0x07
+                    osc_rate = (raw & 0x38) >> 3
+                    if osc_rate == 0:
+                        osc_rate = 6
 
-                speed = 0x80 | 6  # calculated speed, oscillation rate 6
+                speed = 0x80 | osc_rate
                 song.speed_table.append(SpeedTableEntry(left=speed, right=shift))
 
         # Assign vib_speed_idx from the depth mapping
