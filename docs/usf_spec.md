@@ -86,6 +86,7 @@ Audibility grade: A (identical) / B (minor) / C (audible diffs) / F (broken)
 | newnote_reg_scope | string | 'all_regs' | Registers written on new-note frame: 'all_regs' (buffered) or 'wave_only' (non-buffered) |
 | ghost_regs | string | 'none' | Shadow register buffer mode: 'none', 'full', or 'zp' |
 | vibrato_param_fix | bool | false | Zero vibrato param when instrument has no vibrato but pattern command does |
+| paddle_routes | list[PaddleRoute] | [] | Paddle/potentiometer input routing (see PaddleRoute). Extremely niche. |
 
 **Player behavior fields:** These 5 fields control how the SIDfinity player processes audio. They are **generic** — not tied to any specific source format. Any transpiler (GT2, DMC, JCH) populates them based on the source player's behavior. The SIDfinity player reads them at assembly time via `-D` flags.
 
@@ -173,6 +174,20 @@ Shared table for vibrato, portamento, and funktempo. Referenced by index from in
 | left | int | 0 | Vibrato: speed (bit7=note-independent). Portamento: MSB. Funktempo: tempo1. |
 | right | int | 0 | Vibrato: depth. Portamento: LSB. Funktempo: tempo2. |
 
+### PaddleRoute
+
+Routes a SID paddle (potentiometer) input to a music parameter for real-time control. The SID chip has two read-only analog input registers: $D419 (POTX) and $D41A (POTY), which return 0-255 based on paddle/joystick position. Some engines read these to allow live performance modulation. This is extremely niche.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| source | string | 'potx' | Input register: 'potx' ($D419) or 'poty' ($D41A) |
+| target | string | 'filter_cutoff' | Parameter to modulate (e.g. 'filter_cutoff', 'tempo') |
+| voice | int | -1 | Target voice (-1=global, 0-2=specific voice) |
+| min_val | int | 0 | Minimum output value |
+| max_val | int | 255 | Maximum output value |
+
+Added to Song as `paddle_routes: list[PaddleRoute]` (default empty).
+
 ### NoteEvent
 
 | Field | Type | Default | Description |
@@ -222,7 +237,7 @@ Shared table for vibrato, portamento, and funktempo. Referenced by index from in
 ### Grammar
 
 ```
-song         := SONG header instruments speed_table? patterns orderlists /SONG
+song         := SONG header instruments speed_table? paddle_routes? patterns orderlists /SONG
 header       := sid_model clock tempo
 sid_model    := SID_6581 | SID_8580
 clock        := PAL | NTSC
@@ -252,6 +267,9 @@ filter_table := FT[ ft_step+ ]FT
 ft_step      := L<idx> | C<HH> | R<HH> | m<sign><n>x<dur>
 
 speed_table  := SPD[ <HHHH>+ ]SPD
+
+paddle_routes := PDL[ paddle_entry+ ]PDL
+paddle_entry  := PDL:<source>><target>:v<voice>:<min>:<max>
 
 patterns     := pattern*
 pattern      := PAT<id> event* /PAT
@@ -378,3 +396,4 @@ When USF changes (new fields, event types, token types):
 | 0.3 | 2026-03-31 | Full GT2 coverage: pulse/filter/speed tables, pattern commands 0–F, instrument vibrato, legato, first_wave, wave table delay/keep_freq. |
 | 0.6 | 2026-04-02 | Player behavior groups (A-D), first_note field. GT2 player version detection. |
 | 0.7 | 2026-04-02 | Add wave_ptr to Instrument, orderlist_restart to Song, document shared table packed binary format, annotate GT2-specific vs universal fields, add Roundtrip Pipeline section, clarify first_note semantics. |
+| 0.8 | 2026-04-17 | Add PaddleRoute for paddle/potentiometer input routing ($D419/$D41A). |
