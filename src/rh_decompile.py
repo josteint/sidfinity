@@ -281,26 +281,55 @@ def find_speed(binary, load_addr, num_songs=1):
     # patterns for different counters (filter speed, etc.) and the LDA abs
     # variant is more reliably the music speed counter.
 
-    # Pass 1: LDA abs variant
-    for i in range(len(binary) - 11):
-        if (binary[i] == 0xCE and binary[i + 3] == 0x10 and
-                binary[i + 5] == 0xAD and binary[i + 8] == 0x8D):
+    # Pass 1: LDA abs variant — DEC abs ($CE) or DEC zp ($C6)
+    #
+    # CE lo hi 10 rel AD lo hi 8D lo hi   (DEC abs / BPL / LDA abs / STA abs)
+    # C6 zp    10 rel AD lo hi 85 zp      (DEC zp  / BPL / LDA abs / STA zp)
+    for i in range(len(binary) - 9):
+        if binary[i] == 0xCE and binary[i + 3] == 0x10:
+            # DEC abs — counter is a 2-byte absolute address
+            if i + 11 > len(binary):
+                continue
+            if binary[i + 5] != 0xAD or binary[i + 8] != 0x8D:
+                continue
             counter_addr = binary[i + 1] | (binary[i + 2] << 8)
             t_addr = binary[i + 6] | (binary[i + 7] << 8)
             sta_addr = binary[i + 9] | (binary[i + 10] << 8)
-            if sta_addr == counter_addr:
-                off = t_addr - load_addr
-                if 0 <= off < len(binary):
-                    val = binary[off]
-                    if val <= 15:
-                        tempo_addr = t_addr
-                        default_speed = val
-                        inner_binary_offset = i
-                        break
+            if sta_addr != counter_addr:
+                continue
+            off = t_addr - load_addr
+            if 0 <= off < len(binary):
+                val = binary[off]
+                if val <= 15:
+                    tempo_addr = t_addr
+                    default_speed = val
+                    inner_binary_offset = i
+                    break
+        elif binary[i] == 0xC6 and binary[i + 2] == 0x10:
+            # DEC zp — counter is a 1-byte zero-page address
+            if i + 9 > len(binary):
+                continue
+            if binary[i + 4] != 0xAD or binary[i + 7] != 0x85:
+                continue
+            counter_zp = binary[i + 1]
+            t_addr = binary[i + 5] | (binary[i + 6] << 8)
+            sta_zp = binary[i + 8]
+            if sta_zp != counter_zp:
+                continue
+            off = t_addr - load_addr
+            if 0 <= off < len(binary):
+                val = binary[off]
+                if val <= 15:
+                    tempo_addr = t_addr
+                    default_speed = val
+                    inner_binary_offset = i
+                    break
 
     # Pass 2: LDA #imm variant (only if Pass 1 found nothing)
+    # CE lo hi 10 rel A9 imm 8D lo hi     (DEC abs / BPL / LDA #imm / STA abs)
+    # C6 zp    10 rel A9 imm 85 zp        (DEC zp  / BPL / LDA #imm / STA zp)
     if default_speed is None:
-        for i in range(len(binary) - 10):
+        for i in range(len(binary) - 8):
             if binary[i] == 0xCE and binary[i + 3] == 0x10 and binary[i + 5] == 0xA9:
                 counter_addr = binary[i + 1] | (binary[i + 2] << 8)
                 val = binary[i + 6]
@@ -309,6 +338,17 @@ def find_speed(binary, load_addr, num_songs=1):
                         (binary[sta_off + 1] | (binary[sta_off + 2] << 8)) == counter_addr):
                     if val <= 15:
                         tempo_addr = counter_addr
+                        default_speed = val
+                        inner_binary_offset = i
+                        break
+            elif binary[i] == 0xC6 and binary[i + 2] == 0x10 and binary[i + 4] == 0xA9:
+                counter_zp = binary[i + 1]
+                val = binary[i + 5]
+                sta_off = i + 6
+                if (sta_off + 1 < len(binary) and binary[sta_off] == 0x85 and
+                        binary[sta_off + 1] == counter_zp):
+                    if val <= 15:
+                        tempo_addr = counter_zp   # zp address used as tempo_addr key
                         default_speed = val
                         inner_binary_offset = i
                         break
