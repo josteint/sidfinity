@@ -405,8 +405,12 @@ def pack_sidfinity(
     struct.pack_into('>H', header, 12, base_addr + 3)  # play
     struct.pack_into('>H', header, 14, songs)   # songs
     struct.pack_into('>H', header, 16, 1)       # start song
-    # Speed field: 0=VBI (default), 0xFFFFFFFF=CIA for all subtunes.
-    # VBI matches original GT2 timing. CIA gives full frame budget (use for ML output).
+    # Speed field: bit per subtune, 0=VBI, 1=CIA timing.
+    # When CIA timer values are known, use CIA timing — sidplayfp calls play
+    # at the CIA timer rate (N times per frame) and the play routine processes
+    # all 3 channels once per call (no internal multiplier loop).
+    if song is not None and getattr(song, 'multiplier', 0) > 1 and getattr(song, '_cia_timer', None) is not None:
+        struct.pack_into('>I', header, 18, 1)   # CIA timing for subtune 1
 
     # Title/author in PSID header
     t = title.encode('latin-1', errors='replace')[:31]
