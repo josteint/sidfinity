@@ -188,46 +188,68 @@ def detect_gt2_player_group(sid_path):
                 loadregswaveonly_off = i
                 break
 
-    # Find the mt_loadregs entry point (has freq writes before the wave-only part):
-    # ... STA freq_lo_reg,X / ... STA freq_hi_reg,X / [mt_loadregswaveonly]
-    # For Group C, freq regs are ghost_buf+0 / ghost_buf+1 instead of $D400/$D401
+    # Detect BUFFEREDWRITES by examining the code block immediately before
+    # mt_loadregswaveonly.
+    #
+    # BUFFEREDWRITES=0 (wave_only): only freq writes before waveonly
+    #   mt_loadregs: LDA freq_lo,X / STA $D400,X / LDA freq_hi,X / STA $D401,X
+    #   mt_loadregswaveonly: LDA wave,X / AND gate,X / STA $D404,X / RTS
+    #
+    # BUFFEREDWRITES=1 (all_regs): ADSR + pulse + freq writes before waveonly
+    #   mt_loadregs: LDA ad,X / STA $D405,X / LDA sr,X / STA $D406,X /
+    #                LDA pulse_lo,X / STA $D402,X / ... / LDA freq_lo,X / STA $D400,X /
+    #                LDA freq_hi,X / STA $D401,X
+    #   mt_loadregswaveonly: LDA wave,X / AND gate,X / STA $D404,X / RTS
+    #
+    # Detection: scan backward from loadregswaveonly for STA $D4xx,X (or ghost
+    # equiv) instructions that use LDA abs,X (not LDA #imm, which would be HR
+    # code).  If ADSR regs ($D405/$D406 or ghost+5/+6) are found, it's all_regs.
     loadregs_off = None
+    has_adsr_in_loadregs = False
     if loadregswaveonly_off is not None:
-        # Look backwards from loadregswaveonly for STA freq_lo,X
-        for i in range(loadregswaveonly_off - 1, max(0, loadregswaveonly_off - 20), -1):
-            if binary[i] == 0x9D:
+        def _is_sid_or_ghost_reg(addr):
+            if 0xD400 <= addr <= 0xD418:
+                return True
+            if ghost_base is not None and ghost_base <= addr <= ghost_base + 0x18:
+                return True
+            return False
+
+        def _is_adsr_reg_addr(addr):
+            if addr in (0xD405, 0xD406):
+                return True
+            if ghost_base is not None:
+                off = addr - ghost_base
+                if off in (5, 6):
+                    return True
+            return False
+
+        first_lda = None
+        for i in range(loadregswaveonly_off - 1, max(0, loadregswaveonly_off - 50), -1):
+            if i + 2 < len(binary) and binary[i] == 0x9D:
                 sta_dst = binary[i + 1] | (binary[i + 2] << 8)
-                is_freq_lo = (sta_dst == 0xD400)
-                if ghost_base is not None and sta_dst == ghost_base:
-                    is_freq_lo = True
-                if is_freq_lo:
-                    # Found STA freq_lo,X -- look back further for the entry
-                    for j in range(i - 1, max(0, i - 20), -1):
-                        if binary[j] == 0xBD:  # LDA abs,X
-                            loadregs_off = j
-                            break
-                    break
+                if _is_sid_or_ghost_reg(sta_dst):
+                    # Check that this STA is preceded by LDA abs,X ($BD),
+                    # not LDA #imm ($A9) which would be HR init code.
+                    if i >= 3 and binary[i - 3] == 0xBD:
+                        first_lda = i - 3
+                        if _is_adsr_reg_addr(sta_dst):
+                            has_adsr_in_loadregs = True
 
-    # Now check: which JMP target does the new-note code use?
-    # Find JMPs that target loadregswaveonly vs loadregs
-    if loadregswaveonly_off is not None:
-        jmp_to_waveonly = [off for off, target in jmp_targets.items()
-                          if target == loadregswaveonly_off]
-        jmp_to_loadregs = [off for off, target in jmp_targets.items()
-                          if loadregs_off and target == loadregs_off]
+        if first_lda is not None:
+            loadregs_off = first_lda
 
-        # The new-note init JMP is typically the first JMP to either target
-        # that's in the new-note code area (after note frequency setup)
-        if jmp_to_waveonly and not jmp_to_loadregs:
-            newnote_regs = 'wave_only'
-        elif jmp_to_loadregs and not jmp_to_waveonly:
+        # Determine newnote_regs based on the loadregs block structure.
+        # If the block contains ADSR writes from channel buffers (LDA abs,X),
+        # this is BUFFEREDWRITES=1 → all_regs.
+        if has_adsr_in_loadregs:
             newnote_regs = 'all_regs'
-        elif jmp_to_waveonly and jmp_to_loadregs:
-            # Both exist — the new-note one is typically earlier in the code
-            # (the later one is from the wave table execution path)
-            newnote_regs = 'wave_only'  # B+ has both paths
+        elif loadregs_off is not None:
+            # Has freq writes but no ADSR → BUFFEREDWRITES=0 → wave_only
+            # (new-note JMPs to waveonly, skipping freq writes)
+            newnote_regs = 'wave_only'
         else:
-            newnote_regs = 'all_regs'  # fallback
+            # No loadregs block found at all — can't determine
+            newnote_regs = None
 
     # --- Detect ghost register mode ---
     # Look for: LDX #$18 (24) / LDA ghostregs,X / STA SIDBASE,X / DEX / BPL

@@ -132,10 +132,19 @@ def gt2_to_usf(sid_path):
 
     # Derive behavioral parameters from player group
     group = ver['group'] if ver else 'B'  # default to Group B (most common)
-    # BUFFEREDWRITES detected from binary.
-    # BW=0: ADSR/pulse written inline (directly to SID), loadregs = freq+wave only
-    # BW=1: all regs flushed via loadregs at end of channel processing
-    bw = d.get('buffered_writes', True)
+    # newnote_regs from version detector is more reliable than decompiler's
+    # buffered_writes.  The version detector traces JMP targets from the
+    # new-note code to determine if the player uses mt_loadregs (all_regs)
+    # or mt_loadregswaveonly (wave_only).  The decompiler's heuristic has
+    # false positives: it looks backward from the wave-only routine for ADSR
+    # stores and can find them in the new-note init code even when the JMP
+    # actually targets mt_loadregswaveonly.
+    newnote_detected = ver.get('newnote_regs') if ver else None
+    # Fallback to decompiler's buffered_writes only when version detector
+    # couldn't determine the value.
+    if newnote_detected is None:
+        bw = d.get('buffered_writes', True)
+        newnote_detected = 'all_regs' if bw else 'wave_only'
     if group == 'A':
         adsr_order = 'ad_first'
         loadregs_order = 'ad_first'
@@ -144,17 +153,17 @@ def gt2_to_usf(sid_path):
     elif group == 'C':
         adsr_order = 'sr_first'
         loadregs_order = 'ad_first'  # Group C reverted loadregs to AD-first
-        newnote_scope = 'all_regs' if bw else 'wave_only'
+        newnote_scope = newnote_detected
         vib_fix = False
     elif group == 'D':
         adsr_order = 'sr_first'
         loadregs_order = 'sr_first'
-        newnote_scope = 'all_regs' if bw else 'wave_only'
+        newnote_scope = newnote_detected
         vib_fix = True
     else:  # B or unknown
         adsr_order = 'sr_first'
         loadregs_order = 'sr_first'
-        newnote_scope = 'all_regs' if bw else 'wave_only'
+        newnote_scope = newnote_detected
         vib_fix = False
 
     # Override with detected ADSR order when binary analysis found it
