@@ -253,6 +253,11 @@ def find_speed(binary, load_addr, num_songs=1):
     Searches for the speed counter reset pattern:
         DEC speedcounter / BPL mainloop / LDA tempo / STA speedcounter
 
+    Also handles double-nested counters where an outer DEC/BPL wraps the
+    inner one. When the outer counter's BPL branches to the inner counter
+    address and the outer resets with an immediate value <= 5, the two
+    counters are combined: combined_speed = (inner_speed + outer_imm) // 2.
+
     Also searches for per-song speed tables in the init code:
         LDA songtempos,X / STA tempo
 
@@ -263,6 +268,7 @@ def find_speed(binary, load_addr, num_songs=1):
     """
     tempo_addr = None
     default_speed = None
+    inner_binary_offset = None   # binary offset of the inner counter DEC instruction
 
     # Find the speed counter reset pattern.
     # Variant 1 (preferred): DEC counter / BPL / LDA tempo_var / STA counter
@@ -287,6 +293,7 @@ def find_speed(binary, load_addr, num_songs=1):
                     if val <= 15:
                         tempo_addr = t_addr
                         default_speed = val
+                        inner_binary_offset = i
                         break
 
     # Pass 2: LDA #imm variant (only if Pass 1 found nothing)
@@ -301,7 +308,56 @@ def find_speed(binary, load_addr, num_songs=1):
                     if val <= 15:
                         tempo_addr = counter_addr
                         default_speed = val
+                        inner_binary_offset = i
                         break
+
+    # Pass 3: Outer counter detection (nested double-counter).
+    #
+    # Some Hubbard songs use two nested speed counters:
+    #   outer: DEC outer_ctr / BPL -> inner / LDA #imm / STA outer_ctr / JMP past_inner
+    #   inner: DEC inner_ctr / BPL -> post / LDA tempo_var / STA inner_ctr  <- music fires
+    #
+    # When the outer counter expires it resets and jumps PAST the inner counter,
+    # skipping music updates periodically. This makes the effective tick rate
+    # approximately (inner_speed + outer_imm) / 2 frames per tick.
+    #
+    # We detect this when:
+    #   1. An inner counter was found by Pass 1 (LDA abs variant)
+    #   2. A DEC abs / BPL pattern exists whose BPL branches forward to the inner
+    #      counter's exact address
+    #   3. The outer counter resets with LDA #imm / STA outer_ctr (imm <= 5,
+    #      keeping the correction conservative to avoid touching large-divider
+    #      counters used for vibrato/filter effects)
+    if inner_binary_offset is not None:
+        inner_abs_addr = load_addr + inner_binary_offset
+        for i in range(len(binary) - 12):
+            if binary[i] != 0xCE:
+                continue
+            # DEC abs (3 bytes) / BPL rel (2 bytes) => offset 3 = 0x10
+            if binary[i + 3] != 0x10:
+                continue
+            outer_counter_addr = binary[i + 1] | (binary[i + 2] << 8)
+            bpl_rel = binary[i + 4]
+            bpl_offset = bpl_rel if bpl_rel < 128 else bpl_rel - 256
+            bpl_target = (load_addr + i + 5) + bpl_offset
+            if bpl_target != inner_abs_addr:
+                continue
+            # BPL branches exactly to the inner counter. Check reset: LDA #imm / STA outer_ctr
+            j = i + 5   # byte after BPL operand
+            if j + 4 >= len(binary):
+                continue
+            if binary[j] != 0xA9:   # LDA #imm
+                continue
+            outer_imm = binary[j + 1]
+            if binary[j + 2] != 0x8D:   # STA abs
+                continue
+            sta_outer = binary[j + 3] | (binary[j + 4] << 8)
+            if sta_outer != outer_counter_addr:
+                continue
+            # Outer counter found. Only apply when imm <= 5 (tempo range).
+            if outer_imm <= 5:
+                default_speed = (default_speed + outer_imm) // 2
+            break
 
     # Search for per-song speed table: LDA songtempos,X / STA tempo
     # Pattern: BD xx xx 8D yy yy where yy yy = tempo_addr
