@@ -47,6 +47,11 @@ class WaveTableStep:
     freq_slide: int = 0        # signed per-frame freq_hi delta (-128..+127, 0=no slide)
                                # Hubbard drums: -4 typical (rapid pitch descent)
                                # Applied by V2 player AFTER note/freq resolution each frame
+    cycle_delay: int = 0       # Sub-frame delay in CPU cycles before applying this step.
+                               # 0 = normal frame-based timing.
+                               # >0 = delay N cycles within the current frame.
+                               # Enables cycle-precise waveform changes for sync/phase tricks
+                               # (e.g., enable hard sync for exactly 200 cycles then disable).
 
 
 @dataclass
@@ -311,6 +316,7 @@ class Song:
     modulation_routes: list = field(default_factory=list)  # list of ModulationRoute
     voice3_as_modulator: bool = False  # True = voice 3 is used as modulation source, not audio
     paddle_routes: list = field(default_factory=list)  # list of PaddleRoute
+    cycle_precise: bool = False    # True = player uses cycle-counted timing for wave table steps
 
 
 # ============================================================

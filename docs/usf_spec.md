@@ -81,6 +81,7 @@ Audibility grade: A (identical) / B (minor) / C (audible diffs) / F (broken)
 | freq_lo | bytes\|None | None | Custom freq table lo (96 bytes), None=PAL. *GT2-specific.* |
 | freq_hi | bytes\|None | None | Custom freq table hi (96 bytes), None=PAL. *GT2-specific.* |
 | first_note | int | 0 | First playable note index in freq table. GT2 FIRSTNOTE optimization: notes below this are silent. The freq table only contains entries from first_note to 95, saving memory. *GT2-specific.* |
+| cycle_precise | bool | false | True = player uses cycle-counted timing for wave table steps with cycle_delay > 0. When enabled, the V2 player uses timed code (counted NOPs/loops) instead of frame-based wave table stepping. |
 | gt2_player_group | string | '' | Player behavior group: 'A', 'B', 'C', 'D' (see below). *GT2-specific — kept for provenance, not used by player.* |
 | adsr_write_order | string | 'sr_first' | ADSR register write order during hard restart and new-note init: 'ad_first' or 'sr_first' |
 | loadregs_adsr_order | string | 'sr_first' | ADSR write order in per-frame buffered register writes: 'ad_first' or 'sr_first' |
@@ -147,6 +148,8 @@ Audibility grade: A (identical) / B (minor) / C (audible diffs) / F (broken)
 | loop_target | int | 0 | Loop destination (step index within this instrument's WT) |
 | delay | int | 0 | Delay N frames before this step (GT2: $01-$0F) |
 | keep_freq | bool | False | Don't change frequency (GT2 packed: right=$00, player skips freq) |
+| freq_slide | int | 0 | Signed per-frame freq_hi delta (-128..+127, 0=no slide) |
+| cycle_delay | int | 0 | Sub-frame delay in CPU cycles before applying this step. 0=normal frame-based timing. >0=delay N cycles within the current frame. Enables cycle-precise waveform changes for sync/phase tricks. |
 
 ### PulseTableStep
 
@@ -318,6 +321,8 @@ wt_step      := L<idx>                     loop
              | <WAVE>=<note>                absolute note
              | <WAVE><sign><offset>         relative note
              | $<HH><sign><offset>          raw waveform byte + relative
+             (any wt_step may have suffix /s<signed> for freq_slide
+              and/or /c<n> for cycle_delay, e.g. $23+0/s+3/c200)
 pulse_table  := PT[ pt_step+ ]PT
 pt_step      := L<idx> | =<HHHH> | m<sign><n>x<dur>
 filter_table := FT[ ft_step+ ]FT
@@ -445,6 +450,28 @@ When USF changes (new fields, event types, token types):
 6. Update player assembly — if player needs new capabilities
 7. Run roundtrip test — verify no regression
 
+## Cycle-Precise Sync Timing
+
+The SID chip's hard sync (bit 1 of the waveform register, $02) resets the target oscillator's phase when the source oscillator completes a cycle. The musical result depends on the exact frequency ratio and timing of the sync enable.
+
+Advanced demo scene techniques exploit precise sync timing:
+- Enable sync for exactly N cycles then disable to select specific harmonic content
+- Rapid sync on/off creates metallic timbres
+- Sync combined with frequency sweeps creates unique sounds
+
+GoatTracker 2 supports sync (it is just a waveform bit) but cannot control sub-frame timing. For engines that do cycle-precise sync control, USF represents this via two fields:
+
+- **`Song.cycle_precise`** (token: `CYCPRECISE`): Signals that the song contains cycle-timed wave table steps. When false (the default), all `cycle_delay` values are ignored and the player uses normal frame-based stepping.
+- **`WaveTableStep.cycle_delay`** (token suffix: `/c<N>`): Number of CPU cycles to delay before applying this step within the current frame. Allows sub-frame waveform changes.
+
+Example wave table sequence for a sync pulse effect:
+```
+step 0: $23+0/c0      waveform=$23 (saw+sync+gate), no delay — enable sync at frame start
+step 1: $21+0/c200    waveform=$21 (saw+gate), 200 cycle delay — disable sync after 200 cycles
+```
+
+The V2 player codegen for cycle-precise timing (using counted NOPs/loops for exact cycle counts) is a future task. The current implementation is format-only: the data representation is defined, but the player does not yet emit timed code.
+
 ## Version History
 
 | Version | Date | Changes |
@@ -456,4 +483,4 @@ When USF changes (new fields, event types, token types):
 | 0.7 | 2026-04-02 | Add wave_ptr to Instrument, orderlist_restart to Song, document shared table packed binary format, annotate GT2-specific vs universal fields, add Roundtrip Pipeline section, clarify first_note semantics. |
 | 0.8 | 2026-04-17 | Add ring modulation and hard sync waveform variants (tri_ring, saw_sync, pulse_ring_sync, etc.). New tokens: TRR, SAR, PUR (ring), TRS, SAS, PUS (sync), TXS, SXS, PXS (ring+sync). |
 | 0.9 | 2026-04-17 | Add Sample dataclass and 'digi' event type for 4-bit $D418 DAC sample playback. Add SAMP/SDATA/DIGI tokens. |
-| 0.10 | 2026-04-17 | 11-bit filter cutoff, osc3/env3 modulation routing, paddle input, phase-precise sync, external audio input. |
+| 0.10 | 2026-04-17 | 11-bit filter cutoff, osc3/env3 modulation, paddle input, phase-precise sync, external audio input, digi playback. |

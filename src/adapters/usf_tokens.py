@@ -111,6 +111,8 @@ def tokenize(song):
             tokens.append(''.join(f'{b:02X}' for b in chunk))
         tokens.append(']SDATA')
         tokens.append('/SAMP')
+    if song.cycle_precise:
+        tokens.append('CYCPRECISE')
 
     # Instruments
     for inst in song.instruments:
@@ -150,6 +152,7 @@ def tokenize(song):
             tokens.append('WT[')
             for step in inst.wave_table:
                 slide_suffix = f'/s{step.freq_slide:+d}' if step.freq_slide else ''
+                cyc_suffix = f'/c{step.cycle_delay}' if step.cycle_delay else ''
                 # Always use raw hex for waveform to preserve gate/ring/sync bits
                 wt = f'${step.waveform:02X}'
                 if step.is_loop:
@@ -171,17 +174,17 @@ def tokenize(song):
                             extras += f'aN{step.absolute_note}'
                     tokens.append(f'W{step.delay}{extras}')
                 elif step.keep_freq:
-                    tokens.append(f'{wt}~{slide_suffix}')
+                    tokens.append(f'{wt}~{slide_suffix}{cyc_suffix}')
                 elif step.absolute_note >= 0:
                     if step.absolute_note <= 95:
-                        tokens.append(f'{wt}={note_name(step.absolute_note)}{slide_suffix}')
+                        tokens.append(f'{wt}={note_name(step.absolute_note)}{slide_suffix}{cyc_suffix}')
                     else:
                         # Notes > 95 can't be expressed as note names
-                        tokens.append(f'{wt}=N{step.absolute_note}{slide_suffix}')
+                        tokens.append(f'{wt}=N{step.absolute_note}{slide_suffix}{cyc_suffix}')
                 else:
                     off = step.note_offset
                     sign = '+' if off >= 0 else ''
-                    tokens.append(f'{wt}{sign}{off}{slide_suffix}')
+                    tokens.append(f'{wt}{sign}{off}{slide_suffix}{cyc_suffix}')
             tokens.append(']WT')
 
         # Pulse table
@@ -428,6 +431,8 @@ def detokenize(tokens):
                         route.offset = int(p[1:])
                 song.modulation_routes.append(route)
                 i += 1
+        elif t == 'CYCPRECISE':
+            song.cycle_precise = True
         elif t == 'INST':
             inst = Instrument(id=len(song.instruments))
             i += 1
@@ -514,6 +519,11 @@ def detokenize(tokens):
                     while i < len(tokens) and tokens[i] != ']WT':
                         wt = tokens[i]
                         step = WaveTableStep()
+                        # Extract /cN cycle_delay suffix if present (before /s check)
+                        if '/c' in wt:
+                            cyc_idx = wt.index('/c')
+                            step.cycle_delay = int(wt[cyc_idx + 2:])
+                            wt = wt[:cyc_idx]  # strip suffix for normal parsing
                         # Extract /sN freq_slide suffix if present
                         if '/s' in wt:
                             slide_idx = wt.index('/s')
