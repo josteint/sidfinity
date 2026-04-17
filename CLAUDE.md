@@ -42,7 +42,7 @@
 
 Build the SIDfinity universal SID music player and ML pipeline. See `docs/PLAN.md` for the full roadmap and current status.
 
-**Status:** 2,348/7,325 Grade A (32.1%) on full HVSC GT2 scope. 7,006/7,325 (95.6%) parseable. Two paths to USF: static binary parsing (primary) and register trace analysis (universal fallback for any engine). **Rob Hubbard pipeline:** 1S + 12A + 2B + 2C = 17/66 (26%), avg 59.5% across 66 songs (84 total with regtrace fallback). True logarithmic vibrato via REL_LASTNOTE.
+**Status:** 2,348/7,325 Grade A (32.1%) on full HVSC GT2 scope. 7,006/7,325 (95.6%) parseable. Two paths to USF: static binary parsing (primary) and register trace analysis (universal fallback for any engine). **Rob Hubbard pipeline: 1S + 12A + 1B + 4C = 18/66 (27%), avg 63.0%. True logarithmic vibrato via REL_LASTNOTE + FREQ_SLIDE.
 
 **Next steps (in priority order):**
 1. Add CIA timer / multispeed support to V2 player (703 songs, 9.6% of GT2, currently 100% F-rate — see docs/investigation_tempo12_fgrade.md)
