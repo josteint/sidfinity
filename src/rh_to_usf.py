@@ -391,13 +391,12 @@ def rh_to_usf(sid_path, subtune=None):
     if not result.songs:
         return None
 
-    # Always read raw SID bytes (needed for PSID header fields below)
-    import struct
-    with open(sid_path, 'rb') as f:
-        raw = f.read()
-
     # Use PSID start song if no subtune specified
     if subtune is None:
+        # Read start_song from PSID header (1-based)
+        import struct
+        with open(sid_path, 'rb') as f:
+            raw = f.read()
         start_song = struct.unpack('>H', raw[16:18])[0]
         subtune = start_song - 1  # convert to 0-based
 
@@ -427,14 +426,31 @@ def rh_to_usf(sid_path, subtune=None):
 
     # Hubbard speed: resetspd value from the binary.
     # Each Hubbard tick = (resetspd + 1) frames.
-    # V2 player: each note tick = tempo frames.
+    # V2 player: each note tick = tempo frames. Minimum working tempo = 3.
+    #
+    # Strategy: set USF tempo to a safe value (6), and scale note durations
+    # so total frames match. Hubbard duration D at speed S plays for
+    # (D + 1) * (S + 1) frames. USF duration U at tempo T plays for U * T frames.
+    # So U = (D + 1) * (S + 1) / T.
+    #
+    # With tempo=6 and speed=1: U = (D+1) * 2 / 6. This loses resolution.
+    # Better: use tempo = (speed+1) * 2 if speed+1 < 3, else speed+1.
+    # This keeps durations as (D+1) with minimal scaling.
+    # Hubbard speed mapping to V2 tempo.
+    #
+    # Hubbard: total frames = (duration + 1) × (speed + 1)
+    # V2:      total frames = usf_duration × tempo
     #
     # Natural mapping: tempo = speed + 1, usf_duration = duration + 1.
-    # Hubbard: total frames = (duration + 1) × (speed + 1)
-    # V2:      total frames = usf_duration × tempo  ✓
+    # But V2 player has minimum working tempo of 3 (tempo 1-2 cause silence
+    # because gate timer = 2 frames conflicts with the note tick interval).
     #
-    # The V2 player supports tempo=1 and tempo=2: gate_timer is clamped to
-    # max(0, tempo-1) in usf_to_sid.py so hard restart never fires too early.
+    # Workaround for speed <= 1: double the tempo, halve the durations.
+    #   speed=1: natural tempo=2. Use tempo=4, durations = (D+1+1)//2
+    #            (round up to avoid zero-duration notes)
+    #   speed=0: natural tempo=1. Use tempo=3, durations = (D+1+2)//3
+    #
+    # This preserves total frame count within ±1 frame rounding error.
     # Use per-song speed if available, otherwise default speed
     if result.speed_table and subtune < len(result.speed_table):
         hubbard_speed = result.speed_table[subtune]
@@ -442,8 +458,16 @@ def rh_to_usf(sid_path, subtune=None):
         hubbard_speed = result.speed
     else:
         hubbard_speed = 1
-    song.tempo = max(1, hubbard_speed + 1)
-    song._tempo_divisor = 1
+    natural_tempo = hubbard_speed + 1
+
+    if natural_tempo >= 3:
+        song.tempo = natural_tempo
+        song._tempo_divisor = 1
+    else:
+        # Find smallest multiplier M such that natural_tempo * M >= 3
+        M = (3 + natural_tempo - 1) // natural_tempo
+        song.tempo = natural_tempo * M
+        song._tempo_divisor = M  # divide durations by this
 
     # Hubbard hard restart: write order is Waveform → AD → SR
     song.adsr_write_order = 'ad_first'
@@ -455,29 +479,11 @@ def rh_to_usf(sid_path, subtune=None):
         inst = _map_instrument(rh_instr, i, upper_nibble_arp=result.upper_nibble_arp)
         song.instruments.append(inst)
 
-    # Enhance drum instruments with sidxray-extracted wave table sequences.
-    #
-    # Strategy:
-    # - If a voice uses EXACTLY ONE drum instrument, the most common extracted
-    #   drum pattern IS that instrument's behavior — safe to replace its wave
-    #   table with absolute_note steps from the extraction.
-    # - If a voice uses MULTIPLE drum instruments, correlate each instrument
-    #   to its extracted sequence using note-trigger timing: for each note
-    #   trigger, find the nearest drum hit within ±5 frames, and vote for
-    #   which canonical sequence belongs to which instrument.
-    #
-    # Safety requirements for wave table replacement:
-    #   1. Extracted pattern has >= 2 hits (consistent, not a one-off).
-    #   2. Instrument does NOT have has_arpeggio — arpeggio combos use
-    #      note-relative frequencies and can't use absolute_note steps.
-    #   3. Each instrument is only replaced ONCE — if it appears on
-    #      multiple voices, use the highest-count pattern.
-    #
-    # The wave table is built from DrumPattern.wave_table_steps which
-    # already produces WaveTableStep-compatible dicts with absolute_note.
+    # Enhance drum instruments with sidxray-extracted freq_slide analysis.
+    # For each voice, extract drum sequences and check if freq_hi descends.
+    # If it does, apply freq_slide to drum instruments used on that voice.
     try:
-        from sidxray.drum_extract import extract_drum_sequences, _run_siddump, _is_noise_onset, _extract_sequence, _canonicalize_sequence
-        from collections import Counter as _Counter, defaultdict as _defaultdict
+        from sidxray.drum_extract import extract_drum_sequences
 
         # Step 1: Build voice → drum instrument mapping from decompiled data
         voice_drum_insts = {}  # voice_idx → set of instrument indices with has_drum
@@ -502,228 +508,11 @@ def rh_to_usf(sid_path, subtune=None):
                 voice_drum_insts[vi] = drum_insts
 
         if voice_drum_insts:
-            # Determine siddump duration needed: for multi-drum-instrument voices,
-            # we may need to dump longer to find frames where each instrument fires.
-            # Check if any voice has multiple drum instruments.
-            has_multi_drum_voice = any(len(ds) > 1 for ds in voice_drum_insts.values())
-            dump_duration = 30 if has_multi_drum_voice else 5
-
             # Step 2: Extract drum patterns from original SID
-            drum_seqs = extract_drum_sequences(sid_path, duration=dump_duration, min_hits=2)
+            drum_seqs = extract_drum_sequences(sid_path, duration=5)
 
-            # Also get raw frame data for multi-drum correlation
-            _raw_frames = None
-            _VOICE_OFFSETS = None
-            if has_multi_drum_voice:
-                try:
-                    from sidxray.drum_extract import VOICE_OFFSETS as _VOICE_OFFSETS
-                    _, _raw_frames = _run_siddump(sid_path, duration=dump_duration)
-                except Exception:
-                    pass
-
-            # Track which instruments have already been replaced via wave table
-            replaced_insts = set()
-
-            # Step 3a: For voices with EXACTLY ONE drum instrument,
-            # replace the wave table with extracted absolute_note steps.
-            #
-            # Build a map: instrument_index → best pattern (highest count)
-            # across all eligible single-drum voices.
-            inst_best_pattern = {}  # ii → DrumPattern
+            # Step 3: For each voice with drums, check if freq_hi descends
             for vi, drum_inst_set in voice_drum_insts.items():
-                if len(drum_inst_set) != 1:
-                    continue  # multiple drum insts on this voice — handled in 3b
-
-                patterns = drum_seqs.get(vi, [])
-                if not patterns:
-                    continue
-
-                best = max(patterns, key=lambda p: p.count)
-                if best.count < 2:
-                    continue  # not consistent enough — skip
-
-                ii = next(iter(drum_inst_set))
-                if ii >= len(result.instruments):
-                    continue
-
-                # Skip drum+arpeggio combos: their post-noise frequency is
-                # note-relative, so absolute_note steps would be wrong.
-                if result.instruments[ii].has_arpeggio:
-                    continue
-
-                # Keep best pattern across all voices for this instrument
-                prev = inst_best_pattern.get(ii)
-                if prev is None or best.count > prev.count:
-                    inst_best_pattern[ii] = best
-
-            # Apply wave table replacement for qualifying instruments
-            for ii, best in inst_best_pattern.items():
-                if ii >= len(song.instruments):
-                    continue
-
-                # Build the new wave table from extracted steps
-                new_wave_table = []
-                for step_dict in best.wave_table_steps:
-                    if step_dict.get('is_loop'):
-                        new_wave_table.append(WaveTableStep(
-                            is_loop=True,
-                            loop_target=step_dict['loop_target'],
-                        ))
-                    elif step_dict.get('keep_freq'):
-                        new_wave_table.append(WaveTableStep(
-                            waveform=step_dict['waveform'],
-                            keep_freq=True,
-                        ))
-                    else:
-                        new_wave_table.append(WaveTableStep(
-                            waveform=step_dict['waveform'],
-                            absolute_note=step_dict['absolute_note'],
-                        ))
-
-                song.instruments[ii].wave_table = new_wave_table
-                replaced_insts.add(ii)
-
-            # Step 3b: For voices with MULTIPLE drum instruments, correlate
-            # each instrument to its extracted sequence via note-trigger timing.
-            #
-            # Method: build the note trigger timeline for the voice (from
-            # decompiled patterns), then for each note trigger, find the
-            # nearest drum hit within a ±WINDOW frame window. Vote for which
-            # canonical sequence is associated with which instrument. The
-            # instrument gets the most-voted canonical's extracted DrumPattern.
-            #
-            # The window (CORR_WINDOW=5) is tight enough to avoid capturing
-            # secondary hits from another drum instrument's noise tail, while
-            # wide enough to account for Hubbard player latency (2-4 frames).
-            CORR_WINDOW = 5
-
-            for vi, drum_inst_set in voice_drum_insts.items():
-                if len(drum_inst_set) <= 1:
-                    continue  # single-drum voices handled above
-
-                patterns = drum_seqs.get(vi, [])
-                if not patterns or _raw_frames is None or _VOICE_OFFSETS is None:
-                    continue
-
-                # Extract all drum hit frames for this voice from raw siddump data
-                off = _VOICE_OFFSETS[vi]
-                raw_hits = []
-                for i in range(1, len(_raw_frames)):
-                    if _is_noise_onset(_raw_frames[i-1][off['ctrl']],
-                                       _raw_frames[i][off['ctrl']]):
-                        seq = _extract_sequence(_raw_frames, i, vi, 12)
-                        if len(seq) >= 2:
-                            raw_hits.append((i, seq))
-
-                if not raw_hits:
-                    continue
-
-                # Build note trigger timeline for this voice
-                track = rh_song.tracks[vi]
-                pat_by_idx = {pat.index: pat for pat in result.patterns}
-                tempo_frames = hubbard_speed + 1  # frames per Hubbard tick
-                global_frame = 0
-                note_triggers = []  # (frame, instrument_index)
-
-                for kind, pidx in track:
-                    if kind == 'pattern':
-                        pat = pat_by_idx.get(pidx)
-                        if not pat:
-                            continue
-                        cur_instr = None
-                        for note in pat.notes:
-                            if note.instrument is not None:
-                                cur_instr = note.instrument
-                            dur = (note.duration + 1) * tempo_frames
-                            if not note.tie and cur_instr is not None:
-                                if cur_instr in drum_inst_set:
-                                    note_triggers.append((global_frame, cur_instr))
-                            global_frame += dur
-                    elif kind in ('loop', 'stop'):
-                        break
-
-                if not note_triggers:
-                    continue
-
-                # For each note trigger, find nearest drum hit within ±CORR_WINDOW
-                # and vote for which canonical sequence belongs to this instrument.
-                inst_canon_votes = _defaultdict(_Counter)  # inst → {canon: count}
-
-                for note_frame, instr in note_triggers:
-                    if note_frame >= len(_raw_frames):
-                        continue
-                    best_hit = None
-                    best_dist = CORR_WINDOW + 1
-                    for hf, seq in raw_hits:
-                        dist = abs(hf - note_frame)
-                        if dist < best_dist:
-                            best_dist = dist
-                            best_hit = (hf, seq)
-                    if best_hit is not None:
-                        canon = _canonicalize_sequence(best_hit[1])
-                        inst_canon_votes[instr][canon] += 1
-
-                # Build a canonical → DrumPattern lookup from extracted patterns
-                # (match by comparing canonical forms of each pattern's sequence)
-                canon_to_pattern = {}
-                for pat in patterns:
-                    pat_canon = _canonicalize_sequence(pat.sequence)
-                    # Only store if not already mapped (keep highest count)
-                    if pat_canon not in canon_to_pattern or pat.count > canon_to_pattern[pat_canon].count:
-                        canon_to_pattern[pat_canon] = pat
-
-                # Assign each drum instrument to its best-matching DrumPattern
-                for instr_ii, votes in inst_canon_votes.items():
-                    if instr_ii in replaced_insts:
-                        continue
-                    if instr_ii >= len(result.instruments):
-                        continue
-                    if result.instruments[instr_ii].has_arpeggio:
-                        continue  # skip arpeggio combos
-
-                    # Most-voted canonical for this instrument
-                    if not votes:
-                        continue
-                    best_canon, best_vote_count = votes.most_common(1)[0]
-                    if best_vote_count < 1:
-                        continue
-
-                    matched_pattern = canon_to_pattern.get(best_canon)
-                    if matched_pattern is None:
-                        continue
-
-                    if matched_pattern.count < 2:
-                        continue  # not consistent enough
-
-                    # Build the wave table from matched pattern steps
-                    new_wave_table = []
-                    for step_dict in matched_pattern.wave_table_steps:
-                        if step_dict.get('is_loop'):
-                            new_wave_table.append(WaveTableStep(
-                                is_loop=True,
-                                loop_target=step_dict['loop_target'],
-                            ))
-                        elif step_dict.get('keep_freq'):
-                            new_wave_table.append(WaveTableStep(
-                                waveform=step_dict['waveform'],
-                                keep_freq=True,
-                            ))
-                        else:
-                            new_wave_table.append(WaveTableStep(
-                                waveform=step_dict['waveform'],
-                                absolute_note=step_dict['absolute_note'],
-                            ))
-
-                    if ii < len(song.instruments):
-                        song.instruments[instr_ii].wave_table = new_wave_table
-                        replaced_insts.add(instr_ii)
-
-            # Step 3c: For all voices with drum instruments that were NOT already
-            # replaced by wave table in steps 3a/3b, fall back to freq_slide heuristic.
-            # This covers: voices where correlation failed, and single-instrument voices
-            # where the instrument was skipped (e.g. has_arpeggio=True).
-            for vi, drum_inst_set in voice_drum_insts.items():
-
                 patterns = drum_seqs.get(vi, [])
                 if not patterns:
                     continue
@@ -744,13 +533,10 @@ def rh_to_usf(sid_path, subtune=None):
                                  if fhi_values[i+1] > fhi_values[i])
                     # Strict: must drop >= 8, mostly descend, few ascents
                     if total_drop >= 8 and descents >= 3 and ascents <= 1:
-                        frames_count = len(fhi_values) - 1
-                        slide = max(1, min(15, total_drop // frames_count))
+                        frames = len(fhi_values) - 1
+                        slide = max(1, min(15, total_drop // frames))
                         # Apply freq_slide to drum instruments on this voice
-                        # that were not already replaced via wave table
                         for ii in drum_inst_set:
-                            if ii in replaced_insts:
-                                continue
                             if ii < len(song.instruments):
                                 for step in song.instruments[ii].wave_table:
                                     if step.keep_freq and not step.is_loop:
@@ -784,23 +570,15 @@ def rh_to_usf(sid_path, subtune=None):
     # vibrato delta from the semitone frequency gap (freq[note+1] - freq[note]),
     # shifted right by the right byte value — identical to Hubbard's algorithm.
     #
-    # The Hubbard vibrato_depth byte encodes two fields:
-    #   bits 0-2: shift count applied to the semitone gap delta (fine control)
-    #             0 = full gap, 1 = half gap, 2 = quarter gap, etc.
-    #   bits 3-5: oscillation counter_max (controls period and amplitude)
-    #             amplitude = (counter_max >> 1) * delta
+    # Left byte bits 0-6 = vibrato speed (oscillation rate).
+    # Right byte = shift count (higher = gentler vibrato).
     #
-    # Verified from Thrust.sid (depth=48=0x30 playing note 69/A5):
-    #   bits 0-2 = 0 → shift=0 → delta = 842 (full downward semitone gap at A5)
-    #   bits 3-5 = 6 → counter_max=6 → amplitude = 3*842 = 2526 ≈ ±10 freq_hi ✓
+    # Hubbard's oscillation pattern is 0,1,2,3,3,2,1,0 (8-frame cycle).
+    # GT2's calculated speed vibrato has a similar triangle oscillation.
+    # Speed controls how fast the oscillation counter advances.
     #
-    # V2 speed table mapping:
-    #   left byte = 0x80 | counter_max  (bit 7 = calculated speed mode)
-    #   right byte = shift count
-    #
-    # Note: V2 uses upward gap (freq[note+1]-freq[note]) while Hubbard uses
-    # downward gap (freq[note]-freq[note-1]). These differ by ~6% but are
-    # close enough for accurate reproduction.
+    # Hubbard depth 1 = shift by 2 (divide semitone gap by 4)
+    # Hubbard depth 2 = shift by 3 (divide by 8)
     has_log_vibrato = any(inst.vib_logarithmic for inst in song.instruments)
 
     # Build speed table with per-depth entries for calculated speed vibrato.
@@ -814,20 +592,14 @@ def rh_to_usf(sid_path, subtune=None):
                 idx = len(depth_to_idx) + 1
                 depth_to_idx[raw] = idx
 
-                # Decode the two fields from the Hubbard depth byte:
-                #   bits 0-2 = shift count (right-shift applied to semitone gap)
-                #   bits 3-5 = counter_max (oscillation period/amplitude control)
-                shift = raw & 0x07           # bits 0-2
-                counter_max = (raw & 0x38) >> 3  # bits 3-5
+                # Shift = depth + 4 (V2 oscillation wider than Hubbard's triangle).
+                # Phase 4 depths (>7) are capped at shift=7 (gentlest vibrato).
+                # Many Phase 4 instruments repurpose byte +5 for non-vibrato
+                # functions (arpeggio tables, filter control), so aggressive
+                # vibrato from high depth values is usually wrong.
+                shift = min(raw + 4, 7)
 
-                # If counter_max is 0, there's no oscillation — default to 6
-                # (avoids zero-amplitude vibrato for unusual depth values)
-                if counter_max == 0:
-                    counter_max = 6
-
-                # V2 player: left byte bits 0-6 = oscillation threshold (counter_max)
-                # with bit 7 set to enable calculated speed mode
-                speed = 0x80 | counter_max
+                speed = 0x80 | 6  # calculated speed, oscillation rate 6
                 song.speed_table.append(SpeedTableEntry(left=speed, right=shift))
 
         # Assign vib_speed_idx from the depth mapping
@@ -850,9 +622,8 @@ def rh_to_usf(sid_path, subtune=None):
 
     tempo_div = getattr(song, '_tempo_divisor', 1)
 
-    # Attach binary + freq table info to patterns for freq-trick resolution.
-    # Also populate song.freq_lo / song.freq_hi when a truly custom interleaved
-    # freq table was detected (deviation from PAL > 5%).
+    # Attach binary + freq table info to patterns for freq-trick resolution
+    # Read the binary once for all patterns
     _binary = _load_addr = _ft_addr = None
     try:
         import struct as _struct
@@ -867,58 +638,16 @@ def rh_to_usf(sid_path, subtune=None):
         else:
             _binary = _payload
         _load_addr = _la
-        # For freq-trick resolution: find the interleaved freq table using an
-        # ascending 16-bit pair scan starting in the C0-octave range (0x0100-0x0200).
-        # Hubbard songs use slightly different tuning (0x0115-0x0117 for pitch 0),
-        # so we do a generic scan rather than matching a fixed byte pattern.
-        # Safety: pitch>=96 reads are only resolved when the frequency is non-zero
-        # (zero means we're past the end of the actual table — emit TIE instead).
-        #
-        # Previous approach used PAL_INTERLEAVED = [0x17, 0x01, 0x27, 0x01] which
-        # never matched any Hubbard song (they use 0x16, 0x01 or 0x15, 0x01).
-        _ft_addr = None
-        best_pos = -1
-        best_len = 0
-        for _i in range(len(_binary) - 8):
-            _v = _binary[_i] | (_binary[_i + 1] << 8)
-            if 0x0100 <= _v <= 0x0200:
-                _run = 1
-                _j = _i + 2
-                while _j + 1 < len(_binary):
-                    _vn = _binary[_j] | (_binary[_j + 1] << 8)
-                    if _v > 0 and 1.03 < _vn / _v < 1.15:
-                        _run += 1
-                        _v = _vn
-                        _j += 2
-                    else:
-                        break
-                if _run > best_len:
-                    best_len = _run
-                    best_pos = _i
-        if best_len >= 12 and best_pos >= 0:
-            _ft_addr = _la + best_pos
-        elif result.freq_table_addr and not getattr(result, 'freq_table_interleaved', False):
-            # Separated-format table (non-interleaved): safe to use for freq-trick resolution
+        # Find freq table (interleaved format: lo, hi, lo, hi...)
+        # Search for the known interleaved freq bytes
+        PAL_INTERLEAVED = bytes([0x17, 0x01, 0x27, 0x01])  # C1 lo, C1 hi, C#1 lo, C#1 hi
+        pos = _binary.find(PAL_INTERLEAVED)
+        if pos >= 0:
+            _ft_addr = _la + pos
+        elif result.freq_table_addr:
             _ft_addr = result.freq_table_addr
-    except Exception:
+    except:
         pass
-
-    # Populate custom freq table when a genuinely non-PAL interleaved table was detected.
-    if getattr(result, 'freq_table_interleaved', False) and result.freq_table_addr and _binary is not None:
-        off = result.freq_table_addr - _load_addr
-        lo_bytes = []
-        hi_bytes = []
-        for n in range(96):
-            b = off + n * 2
-            if b + 1 < len(_binary):
-                lo_bytes.append(_binary[b])
-                hi_bytes.append(_binary[b + 1])
-            else:
-                from gt_parser import FREQ_TBL_LO, FREQ_TBL_HI
-                lo_bytes.append(FREQ_TBL_LO[n])
-                hi_bytes.append(FREQ_TBL_HI[n])
-        song.freq_lo = bytes(lo_bytes)
-        song.freq_hi = bytes(hi_bytes)
 
     pat_map = {}  # rh_pattern_index → usf_pattern_id
     for rh_pat in result.patterns:
@@ -977,9 +706,6 @@ def rh_to_usf(sid_path, subtune=None):
     # Use frame 1 (the first frame after INIT has executed).
     _orig_init_fhi = [0, 0, 0]   # freq_hi per voice (after INIT)
     _orig_init_ctrl = [0, 0, 0]  # ctrl byte per voice (after INIT)
-    # Per-voice first frame where INIT writes a waveform (ctrl & 0xF0 != 0).
-    # Used to measure the init timing delay and compensate via first-note duration.
-    _orig_voice_first_gate = [None, None, None]
     try:
         import subprocess as _sp
         _siddump_cwd = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -999,7 +725,6 @@ def rh_to_usf(sid_path, subtune=None):
             # Scan frames 1-10 to find when INIT has stabilized (waveforms set).
             # Frame 0 is pre-INIT; different songs take 1-5 frames to finish INIT.
             # Use the first frame where ALL active voices have non-zero waveform bits.
-            _ctrl_cols = [4, 11, 18]  # column indices for V1/V2/V3 ctrl bytes
             for _frame_off in range(1, 11):
                 _fi = _hdr_idx + 1 + _frame_off
                 if _fi >= len(_sd_lines):
@@ -1008,32 +733,12 @@ def rh_to_usf(sid_path, subtune=None):
                 if len(_row) < 19:
                     continue
                 _fhi = [int(_row[1], 16), int(_row[8], 16), int(_row[15], 16)]
-                _ctrl = [int(_row[_ctrl_cols[vi]], 16) for vi in range(3)]
+                _ctrl = [int(_row[4], 16), int(_row[11], 16), int(_row[18], 16)]
                 # Check if at least one voice has a real waveform (INIT done)
                 if any(c & 0xF0 for c in _ctrl):
                     _orig_init_fhi = _fhi
                     _orig_init_ctrl = _ctrl
                     break
-            # Now record per-voice first gate frame (scan up to 20 frames).
-            # This tells us when the original Hubbard INIT pre-loaded each voice.
-            # Note: frame_off=0 corresponds to siddump row hdr_idx+1 (the very
-            # first data row, i.e. "Frame 1" in 1-indexed output).
-            for _frame_off in range(0, 21):
-                _fi = _hdr_idx + 1 + _frame_off
-                if _fi >= len(_sd_lines):
-                    break
-                _row = _sd_lines[_fi].split(',')
-                if len(_row) < 19:
-                    continue
-                for vi in range(3):
-                    if _orig_voice_first_gate[vi] is None:
-                        _c = int(_row[_ctrl_cols[vi]], 16)
-                        # Require BOTH waveform bits (upper nibble) AND gate bit (bit 0).
-                        # Hubbard INIT pre-sets waveform bits (ctrl & 0xF0) without gate
-                        # to prime the oscillator. We want the frame where the first real
-                        # note starts (gate opened with a waveform active).
-                        if (_c & 0xF0) and (_c & 0x01):  # waveform bit + gate bit both set
-                            _orig_voice_first_gate[vi] = _frame_off
     except Exception:
         pass  # If siddump fails, skip the fix (safe default)
 
@@ -1086,52 +791,6 @@ def rh_to_usf(sid_path, subtune=None):
         # Prepend to orderlist; shift restart index to skip the init pattern on loops
         song.orderlists[voice_idx] = [(init_pid, 0)] + list(orderlist)
         song.orderlist_restart[voice_idx] += 1
-
-    # Init timing compensation: the V2 player emits its first register write at
-    # siddump frame_off = (1 + tempo), measured empirically:
-    #   frame_off=0 → siddump row hdr+1 = "Frame 1" (1-indexed printout)
-    #   Game_Killer: tempo=2, rebuilt fires at "Frame 4" = frame_off=3 = 1+tempo ✓
-    #   Human_Race:  tempo=4, rebuilt fires at "Frame 6" = frame_off=5 = 1+tempo ✓
-    #   Monty:       tempo=2, rebuilt fires at "Frame 4" = frame_off=3 = 1+tempo ✓
-    #   Commando:    tempo=3, rebuilt fires at "Frame 5" = frame_off=4 = 1+tempo ✓
-    #
-    # The Hubbard INIT routine pre-loads registers so the original SID fires at
-    # frame_off 0-1 (Frame 1-2). The gap (rebuilt_frame_off - orig_frame_off) is
-    # the init delay in frames. We compensate by reducing the first note's duration
-    # so that the V2 player finishes it (and starts the NEXT note) at the right time.
-    #
-    # The first note's duration in frames = duration × tempo. Reducing it by
-    # delay_ticks = ceil(delay_frames / tempo) means the first note finishes
-    # delay_frames sooner, aligning all subsequent notes to the original.
-    #
-    # Guard: only reduce if delay > 0 and orig first gate is known.
-    # Clamp: first note duration must remain >= 1.
-    _rebuilt_base_frame = 1 + song.tempo  # frame_off when V2 player fires first note
-    for voice_idx in range(3):
-        orig_gate = _orig_voice_first_gate[voice_idx]
-        if orig_gate is None:
-            continue  # can't measure — skip
-        delay_frames = _rebuilt_base_frame - orig_gate
-        if delay_frames <= 0:
-            continue  # no delay or rebuilt fires earlier (shouldn't happen)
-        delay_ticks = (delay_frames + song.tempo - 1) // song.tempo  # ceil divide
-
-        # Find the first note event in the voice's current orderlist
-        orderlist = song.orderlists[voice_idx]
-        found_first_note = False
-        for pid, _ in orderlist:
-            pat = _pat_id_by_id.get(pid)
-            if pat is None:
-                continue
-            for evt in pat.events:
-                if evt.type == 'note':
-                    # Reduce duration, clamp to minimum 1
-                    old_dur = evt.duration
-                    evt.duration = max(1, old_dur - delay_ticks)
-                    found_first_note = True
-                    break
-            if found_first_note:
-                break
 
     return song
 
