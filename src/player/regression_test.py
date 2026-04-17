@@ -36,13 +36,22 @@ def save_registry(entries):
 
 
 def run_pipeline(sid_path):
-    """Run the full pipeline THROUGH USF. Returns (grade, score, comp) or None on failure."""
+    """Run the full pipeline THROUGH TOKENS: SID → USF → Tokens → USF → SID → compare.
+
+    This is the definitive test: if the token roundtrip produces the same quality
+    as the direct USF path, the tokenization is lossless. Any score drop reveals
+    information lost in tokenize→detokenize.
+    """
     try:
         # SID → USF
         from gt2_to_usf import gt2_to_usf
         song = gt2_to_usf(sid_path)
         if not song:
             return None
+        # USF → Tokens → USF (the critical roundtrip)
+        from usf import tokenize, detokenize
+        tokens = tokenize(song)
+        song = detokenize(tokens)
         # USF → SID (via SIDfinity player)
         from usf_to_sid import usf_to_sid
         tmp = f'/tmp/sf_regression_{os.getpid()}.sid'
