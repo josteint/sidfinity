@@ -66,12 +66,6 @@ class WaveTableStep:
     freq_slide: int = 0        # signed per-frame freq_hi delta (-128..+127, 0=no slide)
                                # Hubbard drums: -4 typical (rapid pitch descent)
                                # Applied by V2 player AFTER note/freq resolution each frame
-    fx_command: int = -1       # wave table FX command (-1=none, 0-4=continuous FX, 5-15=tick-0)
-                               # 0=arp/vibrato, 1=porta up, 2=porta down, 3=toneporta, 4=vibrato
-                               # 5=set AD, 6=set SR, 7=set wave, 8=set waveptr, 9=set pulseptr
-                               # 10=set filtptr, 11=set filtctrl, 12=set filtcut, 13=set vol
-                               # 14=funktempo, 15=set tempo
-    fx_param: int = 0          # parameter for fx_command (speed table index for 0-4, value for 5-15)
 
 
 @dataclass
