@@ -157,11 +157,20 @@ def usf_to_sid(song, output_path=None):
         fp_col[i] = inst.filter_ptr
         vp_col[i] = inst.vib_speed_idx
         vd_col[i] = inst.vib_delay
-        # Gate timer: reconstruct raw byte, or use stored raw value
-        gt_col[i] = getattr(inst, '_gate_timer_raw', None) or (
+        # Gate timer: reconstruct raw byte, or use stored raw value.
+        # Clamp gate_timer to max(0, tempo-1) so hard restart doesn't fire on
+        # the same frame the note starts (which would silence notes at low tempo).
+        raw_gt = getattr(inst, '_gate_timer_raw', None) or (
             (inst.gate_timer & 0x3F) |
             (0x40 if inst.legato else 0) |
             (0x80 if inst.hr_method == 'none' else 0))
+        # Apply tempo-based gate_timer clamping (bits 0-5 = timer value)
+        _tempo = getattr(song, 'tempo', 6)
+        _max_gt = max(0, _tempo - 1)
+        _gt_val = raw_gt & 0x3F  # extract timer bits
+        if _gt_val > _max_gt:
+            raw_gt = (raw_gt & 0xC0) | (_max_gt & 0x3F)
+        gt_col[i] = raw_gt
         fw_col[i] = inst.first_wave if inst.first_wave >= 0 else 0x41
 
     # Build wave table. Shared wave table stores .sng-equivalent values.

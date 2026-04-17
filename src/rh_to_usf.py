@@ -426,31 +426,14 @@ def rh_to_usf(sid_path, subtune=None):
 
     # Hubbard speed: resetspd value from the binary.
     # Each Hubbard tick = (resetspd + 1) frames.
-    # V2 player: each note tick = tempo frames. Minimum working tempo = 3.
-    #
-    # Strategy: set USF tempo to a safe value (6), and scale note durations
-    # so total frames match. Hubbard duration D at speed S plays for
-    # (D + 1) * (S + 1) frames. USF duration U at tempo T plays for U * T frames.
-    # So U = (D + 1) * (S + 1) / T.
-    #
-    # With tempo=6 and speed=1: U = (D+1) * 2 / 6. This loses resolution.
-    # Better: use tempo = (speed+1) * 2 if speed+1 < 3, else speed+1.
-    # This keeps durations as (D+1) with minimal scaling.
-    # Hubbard speed mapping to V2 tempo.
-    #
-    # Hubbard: total frames = (duration + 1) × (speed + 1)
-    # V2:      total frames = usf_duration × tempo
+    # V2 player: each note tick = tempo frames.
     #
     # Natural mapping: tempo = speed + 1, usf_duration = duration + 1.
-    # But V2 player has minimum working tempo of 3 (tempo 1-2 cause silence
-    # because gate timer = 2 frames conflicts with the note tick interval).
+    # Hubbard: total frames = (duration + 1) × (speed + 1)
+    # V2:      total frames = usf_duration × tempo  ✓
     #
-    # Workaround for speed <= 1: double the tempo, halve the durations.
-    #   speed=1: natural tempo=2. Use tempo=4, durations = (D+1+1)//2
-    #            (round up to avoid zero-duration notes)
-    #   speed=0: natural tempo=1. Use tempo=3, durations = (D+1+2)//3
-    #
-    # This preserves total frame count within ±1 frame rounding error.
+    # The V2 player supports tempo=1 and tempo=2: gate_timer is clamped to
+    # max(0, tempo-1) in usf_to_sid.py so hard restart never fires too early.
     # Use per-song speed if available, otherwise default speed
     if result.speed_table and subtune < len(result.speed_table):
         hubbard_speed = result.speed_table[subtune]
@@ -458,16 +441,8 @@ def rh_to_usf(sid_path, subtune=None):
         hubbard_speed = result.speed
     else:
         hubbard_speed = 1
-    natural_tempo = hubbard_speed + 1
-
-    if natural_tempo >= 3:
-        song.tempo = natural_tempo
-        song._tempo_divisor = 1
-    else:
-        # Find smallest multiplier M such that natural_tempo * M >= 3
-        M = (3 + natural_tempo - 1) // natural_tempo
-        song.tempo = natural_tempo * M
-        song._tempo_divisor = M  # divide durations by this
+    song.tempo = max(1, hubbard_speed + 1)
+    song._tempo_divisor = 1
 
     # Hubbard hard restart: write order is Waveform → AD → SR
     song.adsr_write_order = 'ad_first'
@@ -479,9 +454,21 @@ def rh_to_usf(sid_path, subtune=None):
         inst = _map_instrument(rh_instr, i, upper_nibble_arp=result.upper_nibble_arp)
         song.instruments.append(inst)
 
-    # Enhance drum instruments with sidxray-extracted freq_slide analysis.
-    # For each voice, extract drum sequences and check if freq_hi descends.
-    # If it does, apply freq_slide to drum instruments used on that voice.
+    # Enhance drum instruments with sidxray-extracted wave table sequences.
+    #
+    # Strategy:
+    # - If a voice uses EXACTLY ONE drum instrument, the most common extracted
+    #   drum pattern IS that instrument's behavior — safe to replace its wave
+    #   table with absolute_note steps from the extraction.
+    # - If a voice uses MULTIPLE drum instruments, DON'T replace (ambiguous).
+    #   Instead fall back to the freq_slide heuristic (descending freq_hi).
+    #
+    # Safety requirements for wave table replacement:
+    #   1. Voice has exactly 1 drum instrument.
+    #   2. Extracted pattern has >= 3 hits (consistent, not a one-off).
+    #
+    # The wave table is built from DrumPattern.wave_table_steps which
+    # already produces WaveTableStep-compatible dicts with absolute_note.
     try:
         from sidxray.drum_extract import extract_drum_sequences
 
@@ -511,8 +498,83 @@ def rh_to_usf(sid_path, subtune=None):
             # Step 2: Extract drum patterns from original SID
             drum_seqs = extract_drum_sequences(sid_path, duration=5)
 
-            # Step 3: For each voice with drums, check if freq_hi descends
+            # Track which instruments have already been replaced via wave table
+            replaced_insts = set()
+
+            # Step 3a: For voices with EXACTLY ONE drum instrument,
+            # replace the wave table with extracted absolute_note steps.
+            #
+            # Safety checks before replacing:
+            #   1. Voice has exactly 1 drum instrument.
+            #   2. Extracted pattern has >= 3 hits (consistent).
+            #   3. Instrument does NOT have has_arpeggio — arpeggio combos use
+            #      note-relative frequencies and can't use absolute_note steps.
+            #   4. Each instrument is only replaced ONCE — if it appears on
+            #      multiple voices, use the highest-count pattern to avoid
+            #      the second voice overwriting the first.
+            #
+            # Build a map: instrument_index → best pattern (highest count)
+            # across all eligible single-drum voices.
+            inst_best_pattern = {}  # ii → DrumPattern
             for vi, drum_inst_set in voice_drum_insts.items():
+                if len(drum_inst_set) != 1:
+                    continue  # multiple drum insts on this voice — skip
+
+                patterns = drum_seqs.get(vi, [])
+                if not patterns:
+                    continue
+
+                best = max(patterns, key=lambda p: p.count)
+                if best.count < 3:
+                    continue  # not consistent enough — skip
+
+                ii = next(iter(drum_inst_set))
+                if ii >= len(result.instruments):
+                    continue
+
+                # Skip drum+arpeggio combos: their post-noise frequency is
+                # note-relative, so absolute_note steps would be wrong.
+                if result.instruments[ii].has_arpeggio:
+                    continue
+
+                # Keep best pattern across all voices for this instrument
+                prev = inst_best_pattern.get(ii)
+                if prev is None or best.count > prev.count:
+                    inst_best_pattern[ii] = best
+
+            # Apply wave table replacement for qualifying instruments
+            for ii, best in inst_best_pattern.items():
+                if ii >= len(song.instruments):
+                    continue
+
+                # Build the new wave table from extracted steps
+                new_wave_table = []
+                for step_dict in best.wave_table_steps:
+                    if step_dict.get('is_loop'):
+                        new_wave_table.append(WaveTableStep(
+                            is_loop=True,
+                            loop_target=step_dict['loop_target'],
+                        ))
+                    elif step_dict.get('keep_freq'):
+                        new_wave_table.append(WaveTableStep(
+                            waveform=step_dict['waveform'],
+                            keep_freq=True,
+                        ))
+                    else:
+                        new_wave_table.append(WaveTableStep(
+                            waveform=step_dict['waveform'],
+                            absolute_note=step_dict['absolute_note'],
+                        ))
+
+                song.instruments[ii].wave_table = new_wave_table
+                replaced_insts.add(ii)
+
+            # Step 3b: For all voices with drum instruments that were NOT already
+            # replaced by wave table in step 3a, fall back to freq_slide heuristic.
+            # This covers: multi-instrument voices, and single-instrument voices
+            # where the instrument was skipped (e.g. has_arpeggio=True).
+            for vi, drum_inst_set in voice_drum_insts.items():
+
                 patterns = drum_seqs.get(vi, [])
                 if not patterns:
                     continue
@@ -533,10 +595,13 @@ def rh_to_usf(sid_path, subtune=None):
                                  if fhi_values[i+1] > fhi_values[i])
                     # Strict: must drop >= 8, mostly descend, few ascents
                     if total_drop >= 8 and descents >= 3 and ascents <= 1:
-                        frames = len(fhi_values) - 1
-                        slide = max(1, min(15, total_drop // frames))
+                        frames_count = len(fhi_values) - 1
+                        slide = max(1, min(15, total_drop // frames_count))
                         # Apply freq_slide to drum instruments on this voice
+                        # that were not already replaced via wave table
                         for ii in drum_inst_set:
+                            if ii in replaced_insts:
+                                continue
                             if ii < len(song.instruments):
                                 for step in song.instruments[ii].wave_table:
                                     if step.keep_freq and not step.is_loop:

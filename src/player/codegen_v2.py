@@ -80,11 +80,14 @@ def generate_player(song):
     features = detect_features(song)
     ctx = Ctx(features=features)
 
-    # Detect uniform gate timer for hardcoding (saves 2 cycles per check)
+    # Detect uniform gate timer for hardcoding (saves 2 cycles per check).
+    # Clamp gate_timer to max(0, tempo-1): with tempo <= gate_timer, hard restart
+    # fires on the first frame of the note, silencing it entirely.
+    _max_gt = max(0, song.tempo - 1)
     gt_values = set()
     for inst in song.instruments:
         raw = getattr(inst, '_gate_timer_raw', inst.gate_timer)
-        gt_values.add(raw & 0x3F)
+        gt_values.add(min(raw & 0x3F, _max_gt))
     ctx.uniform_gate_timer = gt_values.pop() if len(gt_values) == 1 else None
 
     # Multispeed support
