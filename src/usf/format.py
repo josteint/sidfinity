@@ -47,6 +47,11 @@ class WaveTableStep:
     freq_slide: int = 0        # signed per-frame freq_hi delta (-128..+127, 0=no slide)
                                # Hubbard drums: -4 typical (rapid pitch descent)
                                # Applied by V2 player AFTER note/freq resolution each frame
+    cycle_delay: int = 0       # Sub-frame delay in CPU cycles before applying this step.
+                               # 0 = normal frame-based timing.
+                               # >0 = delay N cycles within the current frame.
+                               # Enables cycle-precise waveform changes for sync/phase tricks
+                               # (e.g., enable hard sync for exactly 200 cycles then disable).
 
 
 @dataclass
@@ -236,6 +241,10 @@ class Song:
     # Layout: extra_orderlists[i] for i in range((songs-1)*3).
     extra_orderlists: list = field(default_factory=list)
     extra_orderlist_restart: list = field(default_factory=list)
+    cycle_precise: bool = False    # True = player uses cycle-counted timing for wave table steps
+                                   # When True, WaveTableStep.cycle_delay values are meaningful and
+                                   # the V2 player would use timed code (counted NOPs/loops) instead
+                                   # of frame-based wave table stepping.
 
 
 # ============================================================
