@@ -687,8 +687,9 @@ def rh_to_usf(sid_path, subtune=None):
 
     tempo_div = getattr(song, '_tempo_divisor', 1)
 
-    # Attach binary + freq table info to patterns for freq-trick resolution
-    # Read the binary once for all patterns
+    # Attach binary + freq table info to patterns for freq-trick resolution.
+    # Also populate song.freq_lo / song.freq_hi when a truly custom interleaved
+    # freq table was detected (deviation from PAL > 5%).
     _binary = _load_addr = _ft_addr = None
     try:
         import struct as _struct
@@ -703,16 +704,39 @@ def rh_to_usf(sid_path, subtune=None):
         else:
             _binary = _payload
         _load_addr = _la
-        # Find freq table (interleaved format: lo, hi, lo, hi...)
-        # Search for the known interleaved freq bytes
+        # For freq-trick resolution: find the interleaved freq table using the
+        # known PAL interleaved start bytes. Only this exact pattern is reliable
+        # for resolving pitch >= 96 notes (Hubbard freq-table trick).
+        # Do NOT use result.freq_table_addr here — it may point to a near-PAL
+        # interleaved table that shouldn't be used for freq-trick resolution
+        # (using it would resolve high-pitch notes to wrong values for songs
+        # like Sigma_Seven where high pitches should remain as TIEs).
         PAL_INTERLEAVED = bytes([0x17, 0x01, 0x27, 0x01])  # C1 lo, C1 hi, C#1 lo, C#1 hi
         pos = _binary.find(PAL_INTERLEAVED)
         if pos >= 0:
             _ft_addr = _la + pos
-        elif result.freq_table_addr:
+        elif result.freq_table_addr and not getattr(result, 'freq_table_interleaved', False):
+            # Separated-format table (non-interleaved): safe to use for freq-trick resolution
             _ft_addr = result.freq_table_addr
-    except:
+    except Exception:
         pass
+
+    # Populate custom freq table when a genuinely non-PAL interleaved table was detected.
+    if getattr(result, 'freq_table_interleaved', False) and result.freq_table_addr and _binary is not None:
+        off = result.freq_table_addr - _load_addr
+        lo_bytes = []
+        hi_bytes = []
+        for n in range(96):
+            b = off + n * 2
+            if b + 1 < len(_binary):
+                lo_bytes.append(_binary[b])
+                hi_bytes.append(_binary[b + 1])
+            else:
+                from gt_parser import FREQ_TBL_LO, FREQ_TBL_HI
+                lo_bytes.append(FREQ_TBL_LO[n])
+                hi_bytes.append(FREQ_TBL_HI[n])
+        song.freq_lo = bytes(lo_bytes)
+        song.freq_hi = bytes(hi_bytes)
 
     pat_map = {}  # rh_pattern_index → usf_pattern_id
     for rh_pat in result.patterns:
