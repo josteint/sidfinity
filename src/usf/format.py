@@ -82,6 +82,10 @@ class FilterTableStep:
     duration: int = 1          # modulation frame count
     is_loop: bool = False
     loop_target: int = 0
+    cutoff_low: int = 0        # low 3 bits of filter cutoff ($D415, bits 0-2)
+                               # Only used when type='cutoff'. Default 0 = 8-bit resolution
+                               # (GT2 behavior). Non-zero enables full 11-bit precision
+                               # for demo-scene players that write both $D415 and $D416.
 
 
 @dataclass
@@ -229,6 +233,8 @@ class Song:
     # Speed table left byte with bit 7 set is just a regular high byte, not a
     # "use calculated speed" flag. False = calculated speed supported (default).
     nocalculatedspeed: bool = False
+    filter_cutoff_low: int = 0  # default $D415 value (low 3 bits of filter cutoff, usually 0)
+                               # GT2 always writes 0. Demo-scene players may set this globally.
     multiplier: int = 0        # multispeed: 0=normal, 2-8=CIA timer multiplier (2.1% of GT2 files)
     psid_flags: int = 0x0014   # PSID header flags: clock + SID model (GT2-specific)
     songs: int = 1             # number of subtunes (NUMSONGS)

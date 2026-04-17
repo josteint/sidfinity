@@ -1,6 +1,6 @@
 # Universal Symbolic Format (USF) Specification
 
-**Version:** 0.9 (2026-04-09)
+**Version:** 0.10 (2026-04-17)
 **Status:** Draft — 1,688/3,478 GT2 SIDs Grade A through USF pipeline. Player behavior fields may be stripped for ML training (see CLAUDE.md).
 
 ## Purpose
@@ -86,6 +86,7 @@ Audibility grade: A (identical) / B (minor) / C (audible diffs) / F (broken)
 | newnote_reg_scope | string | 'all_regs' | Registers written on new-note frame: 'all_regs' (buffered) or 'wave_only' (non-buffered) |
 | ghost_regs | string | 'none' | Shadow register buffer mode: 'none', 'full', or 'zp' |
 | vibrato_param_fix | bool | false | Zero vibrato param when instrument has no vibrato but pattern command does |
+| filter_cutoff_low | int | 0 | Default $D415 value (low 3 bits of filter cutoff). GT2 always 0. Demo-scene players may use non-zero for 11-bit precision. |
 
 **Player behavior fields:** These 5 fields control how the SIDfinity player processes audio. They are **generic** — not tied to any specific source format. Any transpiler (GT2, DMC, JCH) populates them based on the source player's behavior. The SIDfinity player reads them at assembly time via `-D` flags.
 
@@ -163,6 +164,9 @@ Audibility grade: A (identical) / B (minor) / C (audible diffs) / F (broken)
 | duration | int | 1 | Modulation frame count |
 | is_loop | bool | False | Loop command |
 | loop_target | int | 0 | Loop destination step index |
+| cutoff_low | int | 0 | Low 3 bits of filter cutoff ($D415 bits 0-2). Only meaningful when type='cutoff'. Default 0 preserves GT2 8-bit behavior. Non-zero enables full 11-bit cutoff for demo-scene players. |
+
+**11-bit filter cutoff:** The SID chip's filter cutoff spans two registers: $D415 (low 3 bits, range 0-7) and $D416 (high 8 bits, range 0-255). The full 11-bit value is `(value << 3) | cutoff_low`, giving range 0-2047. GoatTracker 2 only writes $D416 and leaves $D415 at 0. Demo-scene players may use both registers for smoother filter sweeps. When `cutoff_low=0` (default), behavior is identical to the original 8-bit resolution.
 
 ### SpeedTableEntry
 
@@ -223,10 +227,11 @@ Shared table for vibrato, portamento, and funktempo. Referenced by index from in
 
 ```
 song         := SONG header instruments speed_table? patterns orderlists /SONG
-header       := sid_model clock tempo
+header       := sid_model clock tempo filter_cutoff_low?
 sid_model    := SID_6581 | SID_8580
 clock        := PAL | NTSC
 tempo        := T<1-99>
+filter_cutoff_low := FCLW<n>           default $D415 (0-7, omit if 0)
 
 instruments  := instrument*
 instrument   := INST params tables /INST
@@ -249,7 +254,7 @@ wt_step      := L<idx>                     loop
 pulse_table  := PT[ pt_step+ ]PT
 pt_step      := L<idx> | =<HHHH> | m<sign><n>x<dur>
 filter_table := FT[ ft_step+ ]FT
-ft_step      := L<idx> | C<HH> | R<HH> | m<sign><n>x<dur>
+ft_step      := L<idx> | C<HH> | C<HH>L<n> | R<HH> | m<sign><n>x<dur>
 
 speed_table  := SPD[ <HHHH>+ ]SPD
 
@@ -378,3 +383,4 @@ When USF changes (new fields, event types, token types):
 | 0.3 | 2026-03-31 | Full GT2 coverage: pulse/filter/speed tables, pattern commands 0–F, instrument vibrato, legato, first_wave, wave table delay/keep_freq. |
 | 0.6 | 2026-04-02 | Player behavior groups (A-D), first_note field. GT2 player version detection. |
 | 0.7 | 2026-04-02 | Add wave_ptr to Instrument, orderlist_restart to Song, document shared table packed binary format, annotate GT2-specific vs universal fields, add Roundtrip Pipeline section, clarify first_note semantics. |
+| 0.8 | 2026-04-17 | 11-bit filter cutoff: add cutoff_low field to FilterTableStep, filter_cutoff_low to Song, FCLW/C..L tokens. Backwards compatible (default 0 = 8-bit GT2 behavior). |

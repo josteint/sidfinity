@@ -52,6 +52,8 @@ def tokenize(song):
         tokens.append('VIBFIX')
     if song.nocalculatedspeed:
         tokens.append('NOCALCSPD')
+    if song.filter_cutoff_low != 0:
+        tokens.append(f'FCLW{song.filter_cutoff_low}')
     if song.multiplier > 0:
         tokens.append(f'MULTI{song.multiplier}')
     if song.psid_flags != 0x0014:
@@ -149,7 +151,10 @@ def tokenize(song):
                 if step.is_loop:
                     tokens.append(f'L{step.loop_target}')
                 elif step.type == 'cutoff':
-                    tokens.append(f'C{step.value:02X}')
+                    if step.cutoff_low:
+                        tokens.append(f'C{step.value:02X}L{step.cutoff_low}')
+                    else:
+                        tokens.append(f'C{step.value:02X}')
                 elif step.type == 'modulate':
                     tokens.append(f'm{step.value:+d}x{step.duration}')
                 elif step.type == 'params':
@@ -270,6 +275,8 @@ def detokenize(tokens):
             song.vibrato_param_fix = True
         elif t == 'NOCALCSPD':
             song.nocalculatedspeed = True
+        elif t.startswith('FCLW') and t[4:].isdigit():
+            song.filter_cutoff_low = int(t[4:])
         elif t.startswith('MULTI') and t[5:].isdigit():
             song.multiplier = int(t[5:])
         elif t.startswith('PSID') and len(t) == 8:
@@ -342,12 +349,18 @@ def detokenize(tokens):
                     while i < len(tokens) and tokens[i] != ']FT':
                         ft = tokens[i]
                         step = FilterTableStep()
-                        if ft.startswith('L'):
+                        if ft.startswith('L') and ft[1:].isdigit():
                             step.is_loop = True
                             step.loop_target = int(ft[1:])
                         elif ft.startswith('C'):
                             step.type = 'cutoff'
-                            step.value = int(ft[1:], 16)
+                            # C<HH> or C<HH>L<n> (with cutoff_low)
+                            if 'L' in ft[1:]:
+                                li = ft.index('L', 1)
+                                step.value = int(ft[1:li], 16)
+                                step.cutoff_low = int(ft[li+1:])
+                            else:
+                                step.value = int(ft[1:], 16)
                         elif ft.startswith('R'):
                             step.type = 'params'
                             step.value = int(ft[1:], 16)
