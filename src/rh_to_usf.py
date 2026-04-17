@@ -335,7 +335,9 @@ def _map_pattern(rh_pattern, usf_pat_id, tempo_divisor=1):
                         freq_lo = binary[byte_off]
                         freq_hi = binary[byte_off + 1]
                         freq = freq_lo | (freq_hi << 8)
-                        if freq > 0:
+                        # Only resolve if freq is in a musically valid range.
+                        # Values below 0x0100 are garbage bytes past the table end.
+                        if freq >= 0x0100:
                             # Find closest PAL note
                             from gt_parser import FREQ_TBL_LO, FREQ_TBL_HI
                             best = min(range(96), key=lambda n:
@@ -830,8 +832,10 @@ def rh_to_usf(sid_path, subtune=None):
                 depth_to_idx[raw] = idx
 
                 if raw <= 7:
-                    # Classic (depths 1-7): shift = depth + 4
-                    shift = min(raw + 4, 7)
+                    # Classic Phase 2 (depths 1-7): Hubbard's loop `dec vib;bpl-`
+                    # runs (depth+1) iterations → shift_count = depth + 1.
+                    # Verified from Monty disassembly: vibrdepth dec loop.
+                    shift = raw + 1
                     osc_rate = 6
                 else:
                     # Phase 4 (8+): bits 0-2=shift, bits 3-5=counter_max
