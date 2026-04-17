@@ -88,6 +88,8 @@ Audibility grade: A (identical) / B (minor) / C (audible diffs) / F (broken)
 | ghost_regs | string | 'none' | Shadow register buffer mode: 'none', 'full', or 'zp' |
 | vibrato_param_fix | bool | false | Zero vibrato param when instrument has no vibrato but pattern command does |
 | filter_cutoff_low | int | 0 | Default $D415 value (low 3 bits of filter cutoff). GT2 always 0. Demo-scene players may use non-zero for 11-bit precision. |
+| modulation_routes | list[ModulationRoute] | [] | Oscillator 3 / envelope 3 modulation routing (see below) |
+| voice3_as_modulator | bool | false | True = voice 3 is used as modulation source, not audio |
 
 **Player behavior fields:** These 5 fields control how the SIDfinity player processes audio. They are **generic** — not tied to any specific source format. Any transpiler (GT2, DMC, JCH) populates them based on the source player's behavior. The SIDfinity player reads them at assembly time via `-D` flags.
 
@@ -193,6 +195,28 @@ Shared table for vibrato, portamento, and funktempo. Referenced by index from in
 
 **Packing:** Each byte contains two 4-bit samples. The high nibble is the first sample, the low nibble is the second. At 8000 Hz on PAL (50 fps), each frame needs 160 samples = 80 bytes of packed data.
 
+### ModulationRoute
+
+Routes the SID chip's oscillator 3 output ($D41B) or envelope 3 output ($D41C) to a target parameter. This is used by advanced player engines (Rob Hubbard, demo scene) that dedicate voice 3 as a modulation oscillator rather than an audio channel.
+
+**How it works on the SID chip:**
+
+- **$D41B (OSC3):** Returns the upper 8 bits of oscillator 3's current output. The waveform and frequency of voice 3 determine the shape and rate of the modulation signal. For example, setting voice 3 to triangle waveform at a low frequency creates a smooth LFO.
+- **$D41C (ENV3):** Returns the current value of voice 3's ADSR envelope generator (0-255). This can be used as a one-shot or repeating envelope-shaped modulation source.
+
+The player reads the source register each frame, applies scaling (arithmetic shift right) and a signed offset, then writes the result to the target parameter.
+
+When `voice3_as_modulator=True`, the player should not treat voice 3 as a regular music channel. Instead, it sets voice 3's frequency and waveform to produce the desired LFO shape, and reads $D41B/$D41C each frame to apply modulation.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| source | string | 'osc3' | Modulation source: 'osc3' ($D41B) or 'env3' ($D41C) |
+| target | string | 'filter_cutoff' | Target parameter: 'filter_cutoff', 'pulse_width', 'frequency', 'volume' |
+| voice | int | -1 | Target voice (0-2 for per-voice targets like pulse_width/frequency, -1 for global targets like filter_cutoff/volume) |
+| scale | int | 0 | Scaling factor: shift right N bits (0=no scaling, 1=divide by 2, etc.) |
+| offset | int | 0 | Signed offset added after scaling |
+| active | bool | true | Can be toggled on/off by pattern commands at runtime |
+
 ### NoteEvent
 
 | Field | Type | Default | Description |
@@ -243,7 +267,7 @@ Shared table for vibrato, portamento, and funktempo. Referenced by index from in
 ### Grammar
 
 ```
-song         := SONG header samples? instruments speed_table? patterns orderlists /SONG
+song         := SONG header samples? modulation? instruments speed_table? patterns orderlists /SONG
 header       := sid_model clock tempo filter_cutoff_low?
 sid_model    := SID_6581 | SID_8580
 clock        := PAL | NTSC
@@ -253,6 +277,11 @@ filter_cutoff_low := FCLW<n>           default $D415 (0-7, omit if 0)
 samples      := sample*
 sample       := SAMP sample_params SDATA[ hex_rows ]SDATA /SAMP
 sample_params := SNAME:<name>? SRATE<hz> SLOOP<start>,<end>?
+
+modulation   := V3MOD? (MOD[ mod_route+ ]MOD)?
+mod_route    := <source>:<target>(:<voice>)?(:<scale>)?(:<offset>)?(:<active>)?
+               source = MOD_OSC3 | MOD_ENV3
+               target = MOD_FILT | MOD_PW | MOD_FREQ | MOD_VOL
 
 instruments  := instrument*
 instrument   := INST params tables /INST
@@ -410,4 +439,4 @@ When USF changes (new fields, event types, token types):
 | 0.7 | 2026-04-02 | Add wave_ptr to Instrument, orderlist_restart to Song, document shared table packed binary format, annotate GT2-specific vs universal fields, add Roundtrip Pipeline section, clarify first_note semantics. |
 | 0.8 | 2026-04-17 | Add ring modulation and hard sync waveform variants (tri_ring, saw_sync, pulse_ring_sync, etc.). New tokens: TRR, SAR, PUR (ring), TRS, SAS, PUS (sync), TXS, SXS, PXS (ring+sync). |
 | 0.9 | 2026-04-17 | Add Sample dataclass and 'digi' event type for 4-bit $D418 DAC sample playback. Add SAMP/SDATA/DIGI tokens. |
-| 0.10 | 2026-04-17 | 11-bit filter cutoff: add cutoff_low field to FilterTableStep, filter_cutoff_low to Song, FCLW/C..L tokens. Backwards compatible (default 0 = 8-bit GT2 behavior). |
+| 0.10 | 2026-04-17 | 11-bit filter cutoff, osc3/env3 modulation routing. |

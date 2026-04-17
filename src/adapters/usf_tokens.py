@@ -7,7 +7,7 @@ detokenize(tokens) -> Song
 
 from usf.format import (
     Song, Instrument, Sample, WaveTableStep, PulseTableStep, FilterTableStep,
-    SpeedTableEntry, Pattern, NoteEvent,
+    SpeedTableEntry, ModulationRoute, Pattern, NoteEvent,
     NOTE_NAMES, WAVEFORM_NAMES, WAVEFORM_TOKENS, TOKEN_TO_WAVEFORM,
     note_name, note_from_name,
 )
@@ -68,6 +68,33 @@ def tokenize(song):
         tokens.append(f'OLRST:{song.orderlist_restart[0]},{song.orderlist_restart[1]},{song.orderlist_restart[2]}')
     if song.songs != 1:
         tokens.append(f'SONGS{song.songs}')
+    if song.voice3_as_modulator:
+        tokens.append('V3MOD')
+    if song.modulation_routes:
+        tokens.append('MOD[')
+        for route in song.modulation_routes:
+            # Source token
+            src_tok = 'MOD_OSC3' if route.source == 'osc3' else 'MOD_ENV3'
+            # Target token
+            tgt_map = {
+                'filter_cutoff': 'MOD_FILT',
+                'pulse_width': 'MOD_PW',
+                'frequency': 'MOD_FREQ',
+                'volume': 'MOD_VOL',
+            }
+            tgt_tok = tgt_map.get(route.target, 'MOD_FILT')
+            # Voice, scale, offset, active — compact encoding
+            parts = [src_tok, tgt_tok]
+            if route.voice >= 0:
+                parts.append(f'V{route.voice}')
+            if route.scale != 0:
+                parts.append(f'S{route.scale}')
+            if route.offset != 0:
+                parts.append(f'O{route.offset:+d}')
+            if not route.active:
+                parts.append('OFF')
+            tokens.append(':'.join(parts))
+        tokens.append(']MOD')
 
     # Samples (4-bit digi)
     for samp in song.samples:
@@ -363,6 +390,36 @@ def detokenize(tokens):
                 i += 1
             song.samples.append(samp)
 
+        elif t == 'V3MOD':
+            song.voice3_as_modulator = True
+        elif t == 'MOD[':
+            i += 1
+            while i < len(tokens) and tokens[i] != ']MOD':
+                parts = tokens[i].split(':')
+                route = ModulationRoute()
+                for p in parts:
+                    if p == 'MOD_OSC3':
+                        route.source = 'osc3'
+                    elif p == 'MOD_ENV3':
+                        route.source = 'env3'
+                    elif p == 'MOD_FILT':
+                        route.target = 'filter_cutoff'
+                    elif p == 'MOD_PW':
+                        route.target = 'pulse_width'
+                    elif p == 'MOD_FREQ':
+                        route.target = 'frequency'
+                    elif p == 'MOD_VOL':
+                        route.target = 'volume'
+                    elif p.startswith('V') and p[1:].isdigit():
+                        route.voice = int(p[1:])
+                    elif p.startswith('S') and p[1:].isdigit():
+                        route.scale = int(p[1:])
+                    elif p == 'OFF':
+                        route.active = False
+                    elif p.startswith('O'):
+                        route.offset = int(p[1:])
+                song.modulation_routes.append(route)
+                i += 1
         elif t == 'INST':
             inst = Instrument(id=len(song.instruments))
             i += 1

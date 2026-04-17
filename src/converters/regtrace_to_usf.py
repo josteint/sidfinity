@@ -1269,6 +1269,22 @@ def regtrace_to_usf(sid_path, duration=60, debug=False):
             for start, end in digi_info['digi_frames'][:5]:
                 print(f"    frames {start}-{end} ({end - start} frames)")
 
+    # TODO: Detect voice 3 modulation patterns.
+    # Voice 3 used as modulation source ($D41B osc3 / $D41C env3) exhibits:
+    #   - Voice 3 frequency changes but waveform has no gate (or gate is always on
+    #     with no note changes — acting as LFO, not musical voice)
+    #   - No audible output on voice 3 (test bit set, or volume=0, or filter routing
+    #     excludes voice 3)
+    #   - Correlated changes in other registers: filter cutoff, pulse width, or volume
+    #     track voice 3's frequency/waveform cycle
+    # Detection approach:
+    #   1. Check if voice 3 gate is rarely toggled but freq changes regularly (LFO pattern)
+    #   2. Check if voice 3 waveform is triangle/saw (typical LFO shapes) with no gate-off
+    #   3. Look for correlation between voice 3 freq and filter cutoff / pulse width changes
+    #   4. If detected, set song.voice3_as_modulator = True and populate
+    #      song.modulation_routes with ModulationRoute entries
+    # This is common in Rob Hubbard and demo scene players.
+
     # Detect tempo: try frame-based first (works before event extraction),
     # then refine with event-based detection after extraction.
     tempo_initial = detect_tempo_from_frames(frames, fps=int(metadata.get('fps', 50)))
