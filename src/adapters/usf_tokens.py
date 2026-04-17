@@ -56,6 +56,14 @@ def tokenize(song):
         tokens.append(f'MULTI{song.multiplier}')
     if song.psid_flags != 0x0014:
         tokens.append(f'PSID{song.psid_flags:04X}')
+    if song.freq_lo is not None:
+        tokens.append('FREQLO:' + ''.join(f'{b:02X}' for b in song.freq_lo))
+    if song.freq_hi is not None:
+        tokens.append('FREQHI:' + ''.join(f'{b:02X}' for b in song.freq_hi))
+    if song.orderlist_restart != [0, 0, 0]:
+        tokens.append(f'OLRST:{song.orderlist_restart[0]},{song.orderlist_restart[1]},{song.orderlist_restart[2]}')
+    if song.songs != 1:
+        tokens.append(f'SONGS{song.songs}')
 
     # Instruments
     for inst in song.instruments:
@@ -92,15 +100,30 @@ def tokenize(song):
                 wt = f'${step.waveform:02X}'
                 if step.is_loop:
                     tokens.append(f'L{step.loop_target}')
+                elif step.delay > 0:
+                    # Delay steps can carry waveform, note_offset, absolute_note, keep_freq
+                    extras = ''
+                    if step.waveform != 0x41:
+                        extras += f':{step.waveform:02X}'
+                    if step.keep_freq:
+                        extras += '~'
+                    elif step.note_offset != 0:
+                        sign = '+' if step.note_offset >= 0 else ''
+                        extras += f'n{sign}{step.note_offset}'
+                    elif step.absolute_note >= 0:
+                        if step.absolute_note <= 95:
+                            extras += f'a{note_name(step.absolute_note)}'
+                        else:
+                            extras += f'aN{step.absolute_note}'
+                    tokens.append(f'W{step.delay}{extras}')
                 elif step.keep_freq:
                     tokens.append(f'{wt}~{slide_suffix}')
-                elif step.delay > 0:
-                    if step.waveform != 0x41:
-                        tokens.append(f'W{step.delay}:{step.waveform:02X}')
-                    else:
-                        tokens.append(f'W{step.delay}')
                 elif step.absolute_note >= 0:
-                    tokens.append(f'{wt}={note_name(step.absolute_note)}{slide_suffix}')
+                    if step.absolute_note <= 95:
+                        tokens.append(f'{wt}={note_name(step.absolute_note)}{slide_suffix}')
+                    else:
+                        # Notes > 95 can't be expressed as note names
+                        tokens.append(f'{wt}=N{step.absolute_note}{slide_suffix}')
                 else:
                     off = step.note_offset
                     sign = '+' if off >= 0 else ''
@@ -165,9 +188,8 @@ def tokenize(song):
 
         current_inst = -1
         for event in patt.events:
-            if event.instrument >= 0 and event.instrument != current_inst:
+            if event.instrument >= 0:
                 tokens.append(f'I{event.instrument}')
-                current_inst = event.instrument
 
             if event.type == 'note':
                 tokens.append(note_name(event.note))
@@ -180,7 +202,7 @@ def tokenize(song):
             elif event.type == 'tie':
                 tokens.append('TIE')
 
-            if event.command is not None and event.command > 0:
+            if event.command is not None:
                 tokens.append(f'x{event.command:X}{event.command_val:02X}')
 
             if event.duration > 1:
@@ -252,6 +274,15 @@ def detokenize(tokens):
             song.multiplier = int(t[5:])
         elif t.startswith('PSID') and len(t) == 8:
             song.psid_flags = int(t[4:], 16)
+        elif t.startswith('FREQLO:'):
+            song.freq_lo = bytes(int(t[7+j*2:9+j*2], 16) for j in range(len(t[7:])//2))
+        elif t.startswith('FREQHI:'):
+            song.freq_hi = bytes(int(t[7+j*2:9+j*2], 16) for j in range(len(t[7:])//2))
+        elif t.startswith('OLRST:'):
+            parts = t[6:].split(',')
+            song.orderlist_restart = [int(p) for p in parts]
+        elif t.startswith('SONGS') and t[5:].isdigit():
+            song.songs = int(t[5:])
         elif t == 'INST':
             inst = Instrument(id=len(song.instruments))
             i += 1
@@ -340,13 +371,27 @@ def detokenize(tokens):
                         if wt.startswith('L'):
                             step.is_loop = True
                             step.loop_target = int(wt[1:])
-                        elif wt.startswith('W') and (wt[1:].isdigit() or ':' in wt):
-                            if ':' in wt:
-                                parts = wt[1:].split(':')
-                                step.delay = int(parts[0])
-                                step.waveform = int(parts[1], 16)
-                            else:
-                                step.delay = int(wt[1:])
+                        elif wt.startswith('W') and len(wt) > 1 and wt[1].isdigit():
+                            # Delay: W3, W3:0F, W3:0Fn+7, W3:01~, W3:08aC4, W3:08aN96
+                            rest = wt[1:]
+                            d_end = 0
+                            while d_end < len(rest) and rest[d_end].isdigit():
+                                d_end += 1
+                            step.delay = int(rest[:d_end])
+                            rest = rest[d_end:]
+                            if rest.startswith(':'):
+                                step.waveform = int(rest[1:3], 16)
+                                rest = rest[3:]
+                            if rest.endswith('~') or '~' in rest:
+                                step.keep_freq = True
+                                rest = rest.replace('~', '')
+                            if 'n' in rest:
+                                ni = rest.index('n')
+                                step.note_offset = int(rest[ni+1:])
+                            elif rest.startswith('aN'):
+                                step.absolute_note = int(rest[2:])
+                            elif rest.startswith('a'):
+                                step.absolute_note = note_from_name(rest[1:])
                         elif wt.endswith('~'):
                             # Keep freq: $41~ or PUL~
                             wn = wt[:-1]
@@ -356,13 +401,16 @@ def detokenize(tokens):
                                 step.waveform = WAVEFORM_NAMES.get(wn.lower() + '_gate', 0x41)
                             step.keep_freq = True
                         elif '=' in wt:
-                            # Absolute note: $81=C4 or PUL=C4
+                            # Absolute note: $81=C4 or $81=N96 (numeric > 95)
                             parts = wt.split('=')
                             if parts[0].startswith('$'):
                                 step.waveform = int(parts[0][1:], 16)
                             else:
                                 step.waveform = WAVEFORM_NAMES.get(parts[0].lower() + '_gate', 0x41)
-                            step.absolute_note = note_from_name(parts[1])
+                            if parts[1].startswith('N') and parts[1][1:].isdigit():
+                                step.absolute_note = int(parts[1][1:])
+                            else:
+                                step.absolute_note = note_from_name(parts[1])
                         elif wt.startswith('$'):
                             # Raw hex waveform: $30+0 or $30-2
                             rest = wt[1:]
