@@ -13,8 +13,8 @@ from usf.format import (
     CMD_SET_AD, CMD_SET_SR, CMD_SET_WAVE, CMD_SET_WAVEPTR, CMD_SET_PULPTR,
     CMD_SET_FILTPTR, CMD_SET_FILTCTL, CMD_SET_FILTCUT, CMD_SET_MASTERVOL,
     CMD_FUNKTEMPO, CMD_SET_TEMPO,
-    NOTE_NAMES, WAVEFORM_NAMES, WAVEFORM_TOKENS,
-    note_name, note_from_name, usf_to_json,
+    NOTE_NAMES, WAVEFORM_NAMES, WAVEFORM_TOKENS, TOKEN_TO_WAVEFORM,
+    note_name, note_from_name, waveform_from_byte, usf_to_json,
 )
 
 

@@ -117,8 +117,8 @@ def dmc_to_usf(sid_path):
 
         # Determine primary waveform from first non-loop wave table entry
         first_wave = wt[0].waveform if wt and not wt[0].is_loop else 0x41
-        wave_bits = (first_wave >> 4) & 0xF
-        waveform = {1: 'tri', 2: 'saw', 4: 'pulse', 8: 'noise'}.get(wave_bits, 'pulse')
+        from usf.format import waveform_from_byte
+        waveform = waveform_from_byte(first_wave)
 
         inst = Instrument(
             id=len(song.instruments),

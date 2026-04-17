@@ -824,7 +824,13 @@ def build_instruments(all_voice_events, frames=None):
     inst_map = {}
 
     wave_names = {0x10: 'tri', 0x20: 'saw', 0x40: 'pulse', 0x80: 'noise',
-                  0x50: 'pulse', 0x30: 'saw', 0x60: 'pulse', 0x70: 'pulse'}
+                  0x50: 'pulse', 0x30: 'saw', 0x60: 'pulse', 0x70: 'pulse',
+                  # Ring modulation (bit 2)
+                  0x14: 'tri_ring', 0x24: 'saw_ring', 0x44: 'pulse_ring',
+                  # Hard sync (bit 1)
+                  0x12: 'tri_sync', 0x22: 'saw_sync', 0x42: 'pulse_sync',
+                  # Ring + sync
+                  0x16: 'tri_ring_sync', 0x26: 'saw_ring_sync', 0x46: 'pulse_ring_sync'}
 
     # Also collect arpeggio patterns from collapse_arpeggios
     arp_info = defaultdict(list)

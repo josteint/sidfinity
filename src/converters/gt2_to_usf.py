@@ -12,7 +12,7 @@ import sys
 import os
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
-from usf.format import Song, Instrument, WaveTableStep, SpeedTableEntry, Pattern, NoteEvent
+from usf.format import Song, Instrument, WaveTableStep, SpeedTableEntry, Pattern, NoteEvent, waveform_from_byte
 from gt2_decompile import decompile_gt2
 from gt2_detect_version import detect_gt2_player_group
 
@@ -356,12 +356,11 @@ def gt2_to_usf(sid_path):
         else:
             fw_byte = col('first_wave', 0x09)
 
-        # Waveform from first_wave byte
+        # Waveform from first_wave byte (includes ring mod bit 2, sync bit 1)
         if fw_byte in (0, 0xFE, 0xFF):
             waveform = 'pulse'
         else:
-            wave_bits = (fw_byte >> 4) & 0xF
-            waveform = {1: 'tri', 2: 'saw', 4: 'pulse', 8: 'noise'}.get(wave_bits, 'pulse')
+            waveform = waveform_from_byte(fw_byte)
 
         hr = 'none' if gt_byte & 0x80 else 'gate'
 
