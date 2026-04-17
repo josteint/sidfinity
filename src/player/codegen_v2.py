@@ -205,8 +205,11 @@ def emit_play_dispatch(ctx):
         ctx.inst('sta', 'SIDBASE+$18')
 
     multiplier = getattr(ctx, 'multiplier', 0)
-    if multiplier and multiplier > 1:
-        # Multispeed: execute all 3 channels N times per frame.
+    cia_timer = getattr(ctx, 'cia_timer', None)
+    use_cia = multiplier and multiplier > 1 and cia_timer is not None
+
+    if multiplier and multiplier > 1 and not use_cia:
+        # Multispeed without CIA: execute all 3 channels N times per frame.
         # The tempo counter decrements each call; with N calls per frame,
         # it takes tempo/N frames to process one tick = correct timing.
         ctx.inst('lda', f'#{multiplier}', comment=f'multispeed {multiplier}x')
@@ -218,7 +221,7 @@ def emit_play_dispatch(ctx):
     ctx.inst('ldx', '#7')
     ctx.inst('jsr', 'mt_execchn')
     ctx.inst('ldx', '#14')
-    if multiplier and multiplier > 1:
+    if multiplier and multiplier > 1 and not use_cia:
         ctx.inst('jsr', 'mt_execchn')
         ctx.inst('dec', 'mt_mspeed_cnt')
         ctx.inst('bne', 'mt_mspeed_loop')
@@ -298,6 +301,19 @@ def emit_full_init(ctx):
     ctx.inst('lda', '#0')
     ctx.inst('sta', 'mt_chnad,x')
     ctx.inst('sta', 'mt_chnsr,x')
+
+    # CIA timer setup for multispeed (when CIA timer values are known)
+    multiplier = getattr(ctx, 'multiplier', 0)
+    cia_timer = getattr(ctx, 'cia_timer', None)
+    if multiplier and multiplier > 1 and cia_timer is not None:
+        cia_lo, cia_hi = cia_timer
+        ctx.inst('lda', f'#${cia_lo:02X}', comment=f'CIA timer lo ({multiplier}x speed)')
+        ctx.inst('sta', '$DC04')
+        ctx.inst('lda', f'#${cia_hi:02X}', comment='CIA timer hi')
+        ctx.inst('sta', '$DC05')
+        ctx.inst('lda', '#$11', comment='Start continuous timer')
+        ctx.inst('sta', '$DC0E')
+
     ctx.inst('rts')
 
 
