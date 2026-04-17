@@ -15,9 +15,9 @@ import os
 import base64
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from usf import (Song, Instrument, WaveTableStep, PulseTableStep,
-                 FilterTableStep, SpeedTableEntry, Pattern, NoteEvent,
-                 note_name, note_from_name)
+from usf.format import (Song, Instrument, WaveTableStep, PulseTableStep,
+                         FilterTableStep, SpeedTableEntry, Pattern, NoteEvent,
+                         note_name, note_from_name)
 
 
 # ============================================================
@@ -530,8 +530,8 @@ def main():
         song = gt2_to_usf(args.sid_file)
         print(f'Parsed: {args.sid_file}')
     else:
-        # Use demo song from usf.py
-        from usf import Instrument, WaveTableStep, Pattern, NoteEvent
+        # Use demo song
+        from usf.format import Instrument, WaveTableStep, Pattern, NoteEvent
         song = Song(
             title='Demo Song',
             author='SIDfinity',
