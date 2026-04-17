@@ -229,6 +229,9 @@ class Song:
     # Speed table left byte with bit 7 set is just a regular high byte, not a
     # "use calculated speed" flag. False = calculated speed supported (default).
     nocalculatedspeed: bool = False
+    # Pulse speed ASL: original player uses ASL to double pulse speed before
+    # adding to accumulator. False = CLC (no doubling, default).
+    pulse_speed_asl: bool = False
     multiplier: int = 0        # multispeed: 0=normal, 2-8=CIA timer multiplier (2.1% of GT2 files)
     psid_flags: int = 0x0014   # PSID header flags: clock + SID model (GT2-specific)
     songs: int = 1             # number of subtunes (NUMSONGS)

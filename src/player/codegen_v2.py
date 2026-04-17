@@ -11,7 +11,7 @@ Target: ~500 bytes for simple songs (Covfefe), ~900 bytes full features.
 from dataclasses import dataclass, field
 from codegen import detect_features, close_features, \
     FILTER, EFFECTS, VIBRATO, PORTAMENTO, TONEPORTA, CALCULATED_SPEED, REL_LASTNOTE, FREQ_SLIDE, \
-    FUNKTEMPO, WAVE_DELAY, WAVE_CMD, PULSE_MOD, TICK0_FX, \
+    FUNKTEMPO, WAVE_DELAY, WAVE_CMD, PULSE_MOD, PULSE_ASL, TICK0_FX, \
     ORDERLIST_TRANS, ORDERLIST_REPEAT, SET_AD, SET_SR, SET_WAVE, \
     SET_WAVEPTR, SET_PULSEPTR, SET_FILTPTR, SET_FILTCTRL, SET_FILTCUT, \
     SET_MASTERVOL, SET_TEMPO, BUFFERED_WRITES, UNBUFFERED_WRITES, \
@@ -901,8 +901,17 @@ def emit_pulse_table(ctx):
     ctx.inst('jmp', 'ce_padv')
     ctx.label('ce_pmod')
     ctx.inst('lda', 'mt_pulsespdtbl-1,y')
-    ctx.inst('clc')
-    ctx.inst('bpl', 'ce_pup')
+    if ctx.has(PULSE_ASL):
+        # Original player doubles pulse speed via ASL before adding.
+        # ASL sets carry from bit 7 (sign), BCC branches if positive.
+        # CLC clears carry before ADC in the negative path so only
+        # the doubled value is added (not doubled + 1).
+        ctx.inst('asl')
+        ctx.inst('bcc', 'ce_pup')
+        ctx.inst('clc')
+    else:
+        ctx.inst('clc')
+        ctx.inst('bpl', 'ce_pup')
     ctx.inst('dec', 'mt_chnpulsehi,x')
     ctx.label('ce_pup')
     ctx.inst('adc', 'mt_chnpulselo,x')

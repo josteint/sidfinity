@@ -81,6 +81,7 @@ FUNKTEMPO = 'FUNKTEMPO'          # fx $0E
 WAVE_DELAY = 'WAVE_DELAY'        # wave table entries $01-$0F
 WAVE_CMD = 'WAVE_CMD'            # wave table entries >= $E0
 PULSE_MOD = 'PULSE_MOD'          # any pulse table modulation
+PULSE_ASL = 'PULSE_ASL'          # pulse speed doubled via ASL (not CLC)
 TICK0_FX = 'TICK0_FX'            # any tick-0 effect handler
 ORDERLIST_TRANS = 'ORDERLIST_TRANS'  # orderlist transpose
 ORDERLIST_REPEAT = 'ORDERLIST_REPEAT'  # orderlist repeat markers
@@ -284,6 +285,8 @@ def detect_features(song):
         flags.add(NEWNOTE_ALL_REGS)
     if getattr(song, 'vibrato_param_fix', False):
         flags.add(VIBRATO_PARAM_FIX)
+    if getattr(song, 'pulse_speed_asl', False):
+        flags.add(PULSE_ASL)
 
     # Instrument classification
     for inst in song.instruments:
