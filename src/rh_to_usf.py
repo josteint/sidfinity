@@ -878,12 +878,32 @@ def rh_to_usf(sid_path, subtune=None):
         else:
             _binary = _payload
         _load_addr = _la
-        # Find freq table (interleaved format: lo, hi, lo, hi...)
-        # Search for the known interleaved freq bytes
-        PAL_INTERLEAVED = bytes([0x17, 0x01, 0x27, 0x01])  # C1 lo, C1 hi, C#1 lo, C#1 hi
-        pos = _binary.find(PAL_INTERLEAVED)
-        if pos >= 0:
-            _ft_addr = _la + pos
+        # Find interleaved freq table for freq-trick resolution (pitch >= 96).
+        # Hubbard songs use slightly different tuning (0x0115-0x0117 at pitch 0),
+        # so we scan for any ascending 16-bit pair sequence starting in 0x0100-0x0200.
+        # The old PAL_INTERLEAVED = [0x17, 0x01, 0x27, 0x01] never matched because
+        # Hubbard uses 0x16, 0x01 (verified: all 77/96 Hubbard songs use 0x16, 0x01).
+        _ft_addr = None
+        _best_pos = -1
+        _best_len = 0
+        for _i in range(len(_binary) - 8):
+            _v = _binary[_i] | (_binary[_i + 1] << 8)
+            if 0x0100 <= _v <= 0x0200:
+                _run = 1
+                _j = _i + 2
+                while _j + 1 < len(_binary):
+                    _vn = _binary[_j] | (_binary[_j + 1] << 8)
+                    if _v > 0 and 1.03 < _vn / _v < 1.15:
+                        _run += 1
+                        _v = _vn
+                        _j += 2
+                    else:
+                        break
+                if _run > _best_len:
+                    _best_len = _run
+                    _best_pos = _i
+        if _best_len >= 12 and _best_pos >= 0:
+            _ft_addr = _la + _best_pos
         elif result.freq_table_addr:
             _ft_addr = result.freq_table_addr
     except:
