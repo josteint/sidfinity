@@ -93,8 +93,8 @@ def _build_drum_wave_table(ctrl_byte):
     else:
         # Noise burst then native waveform
         return [
-            WaveTableStep(waveform=0x81, note_offset=0),    # frame 1: noise burst
-            WaveTableStep(waveform=native_wave, keep_freq=True),  # frame 2+: native wave
+            WaveTableStep(waveform=0x81, note_offset=0),     # frame 1: noise burst
+            WaveTableStep(waveform=native_wave, keep_freq=True),
             WaveTableStep(is_loop=True, loop_target=1),
         ]
 
