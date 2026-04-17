@@ -10,7 +10,7 @@ Target: ~500 bytes for simple songs (Covfefe), ~900 bytes full features.
 
 from dataclasses import dataclass, field
 from codegen import detect_features, close_features, \
-    FILTER, EFFECTS, VIBRATO, PORTAMENTO, TONEPORTA, CALCULATED_SPEED, REL_LASTNOTE, \
+    FILTER, EFFECTS, VIBRATO, PORTAMENTO, TONEPORTA, CALCULATED_SPEED, REL_LASTNOTE, FREQ_SLIDE, \
     FUNKTEMPO, WAVE_DELAY, WAVE_CMD, PULSE_MOD, TICK0_FX, \
     ORDERLIST_TRANS, ORDERLIST_REPEAT, SET_AD, SET_SR, SET_WAVE, \
     SET_WAVEPTR, SET_PULSEPTR, SET_FILTPTR, SET_FILTCTRL, SET_FILTCUT, \
@@ -489,6 +489,20 @@ def emit_wave_table(ctx):
         ctx.inst('lda', 'mt_wv_optr')
     ctx.inst('beq', 'ce_wdone')
 
+    if ctx.has(FREQ_SLIDE):
+        # Detect freq_slide: packed right $60-$7F (= .sng $E0-$FF after XOR $80)
+        # These values never occur as note indices (max absolute note = 95 = packed $5F)
+        ctx.inst('cmp', '#$60')
+        ctx.inst('bcc', 'ce_wnote')       # $01-$5F = absolute note
+        ctx.inst('cmp', '#$80')
+        ctx.inst('bcs', 'ce_wnote')       # $80-$FF = relative note
+        # $60-$7F = freq_slide: signed delta = A - $70
+        ctx.inst('sec')
+        ctx.inst('sbc', '#$70')
+        ctx.inst('sta', 'mt_chnfreqslide,x')
+        ctx.inst('jmp', 'ce_wdone')       # don't change note, just set slide
+        ctx.label('ce_wnote')
+
     # Note resolution
     ctx.inst('bpl', 'ce_wabs')
     # Relative note (more common — falls through to freq lookup)
@@ -515,9 +529,12 @@ def emit_wave_table(ctx):
     ctx.inst('sta', 'mt_chnfreqlo,x')
     ctx.inst('lda', 'mt_freqtblhi,y')
     ctx.inst('sta', 'mt_chnfreqhi,x')
-    if ctx.has(VIBRATO):
+    if ctx.has(VIBRATO) or ctx.has(FREQ_SLIDE):
         ctx.inst('lda', '#0')
-        ctx.inst('sta', 'mt_chnvibtime,x')
+        if ctx.has(VIBRATO):
+            ctx.inst('sta', 'mt_chnvibtime,x')
+        if ctx.has(FREQ_SLIDE):
+            ctx.inst('sta', 'mt_chnfreqslide,x')
     if ctx.has(WAVE_CMD) or ctx.has(EFFECTS):
         ctx.inst('jmp', 'ce_pulse')
     # else: falls through to ce_wdone → ce_pulse
@@ -1089,6 +1106,15 @@ def emit_register_writes(ctx):
             ctx.inst('sta', 'SIDBASE+6,x')
             ctx.inst('lda', 'mt_chnad,x')
             ctx.inst('sta', 'SIDBASE+5,x')
+    if ctx.has(FREQ_SLIDE):
+        # Apply per-frame freq_slide before writing to SID.
+        # mt_chnfreqslide is a signed delta added to freq_hi each frame.
+        ctx.inst('lda', 'mt_chnfreqslide,x')
+        ctx.inst('beq', 'ce_noslide')
+        ctx.inst('clc')
+        ctx.inst('adc', 'mt_chnfreqhi,x')
+        ctx.inst('sta', 'mt_chnfreqhi,x')
+        ctx.label('ce_noslide')
     ctx.inst('lda', 'mt_chnfreqlo,x')
     ctx.inst('sta', 'SIDBASE,x')
     ctx.inst('lda', 'mt_chnfreqhi,x')
@@ -1456,6 +1482,8 @@ def emit_variables(ctx):
     ctx.equate('mt_chnsr', 'mt_chnad+1')
     ctx.equate('mt_chngatetimer', 'mt_chnad+2')
     ctx.equate('mt_chnlastnote', 'mt_chnad+3')
+    if ctx.has(FREQ_SLIDE):
+        ctx.equate('mt_chnfreqslide', 'mt_chnad+4')
 
     # Dummy data labels for standalone assembly
     ctx.blank()

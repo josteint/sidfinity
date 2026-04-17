@@ -244,7 +244,12 @@ def usf_to_sid(song, output_path=None):
                 elif step.delay > 0:
                     # Delay: .sng left stays as-is (no +$10 for delays)
                     sng_l = step.delay
-                    if step.keep_freq: sng_r = 0x80
+                    freq_slide = getattr(step, 'freq_slide', 0)
+                    if freq_slide:
+                        # Freq slide: .sng right = $F0 + slide (-16..+15)
+                        # After XOR $80 → packed $60-$7F (detected by V2 player)
+                        sng_r = (0xF0 + freq_slide) & 0xFF
+                    elif step.keep_freq: sng_r = 0x80
                     elif step.absolute_note >= 0: sng_r = 0x80 + step.absolute_note
                     else: sng_r = step.note_offset & 0x7F
                     wave_l.append(pack_wave_left(sng_l, nowavedelay))
@@ -252,7 +257,12 @@ def usf_to_sid(song, output_path=None):
                 else:
                     # Waveform step
                     sng_l = step.waveform
-                    if step.keep_freq: sng_r = 0x80
+                    freq_slide = getattr(step, 'freq_slide', 0)
+                    if freq_slide:
+                        # Freq slide: .sng right = $F0 + slide (-16..+15)
+                        # After XOR $80 → packed $60-$7F (detected by V2 player)
+                        sng_r = (0xF0 + freq_slide) & 0xFF
+                    elif step.keep_freq: sng_r = 0x80
                     elif step.absolute_note >= 0: sng_r = 0x80 + step.absolute_note
                     else: sng_r = step.note_offset & 0x7F
                     wave_l.append(pack_wave_left(sng_l, nowavedelay))

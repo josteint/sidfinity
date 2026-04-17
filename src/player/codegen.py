@@ -76,6 +76,7 @@ PORTAMENTO = 'PORTAMENTO'        # fx 1 (up) + fx 2 (down)
 TONEPORTA = 'TONEPORTA'          # fx 3
 CALCULATED_SPEED = 'CALCULATED_SPEED'  # speed table entries with bit 7 set
 REL_LASTNOTE = 'REL_LASTNOTE'       # also set mt_chnlastnote from relative wave table notes
+FREQ_SLIDE = 'FREQ_SLIDE'           # wave table entries with per-frame freq_hi delta
 FUNKTEMPO = 'FUNKTEMPO'          # fx $0E
 WAVE_DELAY = 'WAVE_DELAY'        # wave table entries $01-$0F
 WAVE_CMD = 'WAVE_CMD'            # wave table entries >= $E0
@@ -177,6 +178,10 @@ def detect_features(song):
             flags.add(PULSE_MOD)
         if inst.vib_speed_idx > 0:
             flags.add(VIBRATO)
+        # Check per-instrument wave tables for freq_slide
+        for step in inst.wave_table:
+            if getattr(step, 'freq_slide', 0) != 0:
+                flags.add(FREQ_SLIDE)
 
     # Tables
     if song.shared_filter_table:
