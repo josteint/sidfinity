@@ -56,6 +56,8 @@ def tokenize(song):
         tokens.append('PULSEASL')
     if song.filter_cutoff_low != 0:
         tokens.append(f'FCLW{song.filter_cutoff_low}')
+    if song.ext_audio_in:
+        tokens.append('EXTIN')
     if song.multiplier > 0:
         tokens.append(f'MULTI{song.multiplier}')
     if song.psid_flags != 0x0014:
@@ -363,6 +365,8 @@ def detokenize(tokens):
             song.pulse_speed_asl = True
         elif t.startswith('FCLW') and t[4:].isdigit():
             song.filter_cutoff_low = int(t[4:])
+        elif t == 'EXTIN':
+            song.ext_audio_in = True
         elif t.startswith('MULTI') and t[5:].isdigit():
             song.multiplier = int(t[5:])
         elif t.startswith('PSID') and len(t) == 8:

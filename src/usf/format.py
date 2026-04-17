@@ -81,6 +81,14 @@ class FilterTableStep:
       $01-$7F=modulate for N frames (right=signed speed),
       $80-$8F=set filter params (right=resonance<<4 | routing),
       $FF=jump/loop
+
+    When type='params', value = resonance<<4 | routing, where routing is:
+      bit 0 = voice 1 filter enable
+      bit 1 = voice 2 filter enable
+      bit 2 = voice 3 filter enable
+      bit 3 = external audio input (EXT IN) filter enable
+    This maps directly to SID register $D417 (filter mode/volume):
+      bits 4-7 = resonance, bits 0-3 = filter routing.
     """
     type: str = 'cutoff'       # 'cutoff', 'modulate', 'params', 'loop'
     value: int = 0             # cutoff value, speed, or resonance<<4|routing
@@ -205,7 +213,8 @@ CMD_SET_WAVE    = 0x07   # set waveform
 CMD_SET_WAVEPTR = 0x08   # set wave table pointer
 CMD_SET_PULPTR  = 0x09   # set pulse table pointer
 CMD_SET_FILTPTR = 0x0A   # set filter table pointer
-CMD_SET_FILTCTL = 0x0B   # set filter control (resonance|routing)
+CMD_SET_FILTCTL = 0x0B   # set filter control (resonance<<4 | routing)
+                         # routing: bit0=voice1, bit1=voice2, bit2=voice3, bit3=EXT IN
 CMD_SET_FILTCUT = 0x0C   # set filter cutoff
 CMD_SET_MASTERVOL = 0x0D # set master volume ($00-$0F)
 CMD_FUNKTEMPO   = 0x0E   # funktempo (speed table index)
@@ -305,6 +314,7 @@ class Song:
     pulse_speed_asl: bool = False
     filter_cutoff_low: int = 0  # default $D415 value (low 3 bits of filter cutoff, usually 0)
                                # GT2 always writes 0. Demo-scene players may set this globally.
+    ext_audio_in: bool = False  # True if song uses external audio input (filter routing bit 3)
     multiplier: int = 0        # multispeed: 0=normal, 2-8=CIA timer multiplier (2.1% of GT2 files)
     psid_flags: int = 0x0014   # PSID header flags: clock + SID model (GT2-specific)
     songs: int = 1             # number of subtunes (NUMSONGS)

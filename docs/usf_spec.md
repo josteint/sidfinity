@@ -92,6 +92,7 @@ Audibility grade: A (identical) / B (minor) / C (audible diffs) / F (broken)
 | modulation_routes | list[ModulationRoute] | [] | Oscillator 3 / envelope 3 modulation routing (see below) |
 | voice3_as_modulator | bool | false | True = voice 3 is used as modulation source, not audio |
 | paddle_routes | list[PaddleRoute] | [] | Paddle/potentiometer input routing (see PaddleRoute). Extremely niche. |
+| ext_audio_in | bool | false | True if song uses external audio input (filter routing bit 3 set in any filter table step or pattern command 0xB) |
 
 **Player behavior fields:** These 5 fields control how the SIDfinity player processes audio. They are **generic** — not tied to any specific source format. Any transpiler (GT2, DMC, JCH) populates them based on the source player's behavior. The SIDfinity player reads them at assembly time via `-D` flags.
 
@@ -174,6 +175,13 @@ Audibility grade: A (identical) / B (minor) / C (audible diffs) / F (broken)
 | cutoff_low | int | 0 | Low 3 bits of filter cutoff ($D415 bits 0-2). Only meaningful when type='cutoff'. Default 0 preserves GT2 8-bit behavior. Non-zero enables full 11-bit cutoff for demo-scene players. |
 
 **11-bit filter cutoff:** The SID chip's filter cutoff spans two registers: $D415 (low 3 bits, range 0-7) and $D416 (high 8 bits, range 0-255). The full 11-bit value is `(value << 3) | cutoff_low`, giving range 0-2047. GoatTracker 2 only writes $D416 and leaves $D415 at 0. Demo-scene players may use both registers for smoother filter sweeps. When `cutoff_low=0` (default), behavior is identical to the original 8-bit resolution.
+
+When `type='params'`, the value byte maps to SID register $D417:
+- Bits 7-4: resonance (0-15)
+- Bit 3: external audio input (EXT IN) filter enable
+- Bit 2: voice 3 filter enable
+- Bit 1: voice 2 filter enable
+- Bit 0: voice 1 filter enable
 
 ### SpeedTableEntry
 
@@ -262,7 +270,7 @@ Added to Song as `paddle_routes: list[PaddleRoute]` (default empty).
 | 8 | x8 | Set wave ptr | wave table index |
 | 9 | x9 | Set pulse ptr | pulse table index |
 | A | xA | Set filter ptr | filter table index |
-| B | xB | Set filter ctrl | resonance(hi) \| routing(lo) |
+| B | xB | Set filter ctrl | resonance(hi) \| routing(lo). Routing: bit0=v1, bit1=v2, bit2=v3, bit3=EXT IN |
 | C | xC | Set filter cutoff | cutoff value |
 | D | xD | Set master volume | $00–$0F |
 | E | xE | Funktempo | speed table index |
