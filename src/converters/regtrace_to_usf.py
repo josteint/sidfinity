@@ -1319,6 +1319,13 @@ def regtrace_to_usf(sid_path, duration=60, debug=False):
                   f"wave={inst.waveform}{fw_str}")
 
     # Build song
+    # TODO: Extract filter data from register trace.
+    # For each frame, capture $D415 (IDX_FILT_LO, low 3 bits) and $D416
+    # (IDX_FILT_HI) writes. Build FilterTableStep sequences with cutoff_low
+    # set when non-zero. This enables full 11-bit filter cutoff resolution
+    # for demo-scene players that write both registers.
+    # Also detect a global filter_cutoff_low default if $D415 is constant.
+
     song = Song(
         title=metadata.get('title', os.path.basename(sid_path)),
         author=metadata.get('author', ''),
