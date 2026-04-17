@@ -18,15 +18,6 @@ from usf.format import (
 )
 
 
-def __getattr__(name):
-    """Lazy import for adapter functions to avoid circular imports."""
-    if name == 'tokenize':
-        from adapters.usf_tokens import tokenize
-        return tokenize
-    if name == 'detokenize':
-        from adapters.usf_tokens import detokenize
-        return detokenize
-    if name == 'to_text':
-        from adapters.usf_text import to_text
-        return to_text
-    raise AttributeError(f"module 'usf' has no attribute {name!r}")
+# Adapter functions — eager import (lazy __getattr__ fails in multiprocessing forks)
+from adapters.usf_tokens import tokenize, detokenize
+from adapters.usf_text import to_text

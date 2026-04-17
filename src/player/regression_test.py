@@ -15,7 +15,11 @@ import sys
 import os
 import json
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+_src_dir = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
+_repo_dir = os.path.abspath(os.path.join(_src_dir, '..'))
+if _src_dir not in sys.path:
+    sys.path.insert(0, _src_dir)
+os.chdir(_repo_dir)  # ensure CWD is repo root for relative paths
 
 from sid_compare import compare_sids_tolerant
 
@@ -63,11 +67,18 @@ def run_pipeline(sid_path):
             return None
         return comp['grade'], comp['score'], comp
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return None
 
 
 def _test_one_entry(entry):
     """Test one registry entry. Returns (name, passed, grade, score, min_grade, min_score, details)."""
+    # Ensure src/ is on path in worker processes
+    import sys, os
+    _sd = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
+    if _sd not in sys.path:
+        sys.path.insert(0, _sd)
     path = entry['path']
     min_grade = entry['min_grade']
     min_score = entry['min_score']
