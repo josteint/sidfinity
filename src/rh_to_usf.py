@@ -832,10 +832,8 @@ def rh_to_usf(sid_path, subtune=None):
                 depth_to_idx[raw] = idx
 
                 if raw <= 7:
-                    # Classic Phase 2 (depths 1-7): Hubbard's loop `dec vib;bpl-`
-                    # runs (depth+1) iterations → shift_count = depth + 1.
-                    # Verified from Monty disassembly: vibrdepth dec loop.
-                    shift = raw + 1
+                    # Classic (depths 1-7): shift = depth + 4
+                    shift = min(raw + 4, 7)
                     osc_rate = 6
                 else:
                     # Phase 4 (8+): bits 0-2=shift, bits 3-5=counter_max
