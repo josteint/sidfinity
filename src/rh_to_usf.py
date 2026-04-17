@@ -185,7 +185,8 @@ def _map_instrument(rh_instr, instr_id, upper_nibble_arp=False):
 
     # Vibrato — store the raw depth. Speed table entries are built later
     # with per-depth shift counts for both classic (1-7) and Phase 4 (8+).
-    if rh_instr.vibrato_depth > 0:
+    classic_arp_only = (rh_instr.has_arpeggio and not rh_instr.has_drum and not upper_nibble_arp)
+    if rh_instr.vibrato_depth > 0 and not classic_arp_only:
         inst._raw_vib_depth = rh_instr.vibrato_depth
         inst.vib_delay = 0
         inst.vib_logarithmic = True
