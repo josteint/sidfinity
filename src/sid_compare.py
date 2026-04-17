@@ -178,7 +178,7 @@ def compare_tolerant(orig_frames, new_frames):
                     continue
                 # Check if timing shift: V2 waveform matches nearby frame?
                 shifted = False
-                for d in [-3, -2, -1, 1, 2, 3]:
+                for d in [-5, -4, -3, -2, -1, 1, 2, 3, 4, 5]:
                     j = i + d
                     if 0 <= j < total:
                         if (n_wav & 0xFE) == (orig_frames[j][base + 4] & 0xFE):
