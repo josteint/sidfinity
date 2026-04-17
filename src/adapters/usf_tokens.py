@@ -223,6 +223,21 @@ def tokenize(song):
         tokens.append(f'/V{vi + 1}')
     tokens.append('/ORD')
 
+    # Extra orderlists for multi-song SIDs
+    if song.extra_orderlists:
+        tokens.append('XORD')
+        for idx, entries in enumerate(song.extra_orderlists):
+            tokens.append(f'XV{idx}')
+            restart = song.extra_orderlist_restart[idx] if idx < len(song.extra_orderlist_restart) else 0
+            if restart != 0:
+                tokens.append(f'XRST{restart}')
+            for patt_id, transpose in entries:
+                if transpose != 0:
+                    tokens.append(f'T{"+" if transpose > 0 else ""}{transpose}')
+                tokens.append(f'P{patt_id}')
+            tokens.append(f'/XV{idx}')
+        tokens.append('/XORD')
+
     tokens.append('/SONG')
     return tokens
 
@@ -487,6 +502,33 @@ def detokenize(tokens):
                     patt_id = int(t2[1:])
                     song.orderlists[vi].append((patt_id, current_trans))
                     current_trans = 0
+                i += 1
+
+        elif t == 'XORD':
+            # Extra orderlists for multi-song SIDs
+            i += 1
+            while i < len(tokens) and tokens[i] != '/XORD':
+                t2 = tokens[i]
+                if t2.startswith('XV') and t2[2:].isdigit():
+                    # Start of an extra orderlist voice
+                    current_entries = []
+                    current_restart = 0
+                    current_trans = 0
+                    i += 1
+                    xv_idx = t2  # e.g. 'XV0'
+                    while i < len(tokens) and not tokens[i].startswith('/XV'):
+                        t3 = tokens[i]
+                        if t3.startswith('XRST') and t3[4:].isdigit():
+                            current_restart = int(t3[4:])
+                        elif t3.startswith('T') and len(t3) > 1 and (t3[1] == '+' or t3[1] == '-' or t3[1:].lstrip('+-').isdigit()):
+                            current_trans = int(t3[1:])
+                        elif t3.startswith('P') and t3[1:].isdigit():
+                            patt_id = int(t3[1:])
+                            current_entries.append((patt_id, current_trans))
+                            current_trans = 0
+                        i += 1
+                    song.extra_orderlists.append(current_entries)
+                    song.extra_orderlist_restart.append(current_restart)
                 i += 1
 
         elif t == 'SPD[':

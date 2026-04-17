@@ -285,9 +285,8 @@ def usf_to_sid(song, output_path=None):
     # - Always emit transpose byte before each pattern/group
     # - 2 repeats: write pattern byte twice
     # - 3+ repeats: write pattern once + $D0+(count-1)
-    gt2_orderlists = []
-    for vi in range(3):
-        entries = song.orderlists[vi]
+    def _encode_orderlist(entries, restart_entry):
+        """Encode a USF orderlist into GT2 packed bytes."""
         ol = bytearray()
         entry_to_byte = {}
         entry_idx = 0
@@ -332,10 +331,25 @@ def usf_to_sid(song, output_path=None):
 
             i += repeat_count
 
-        restart_entry = song.orderlist_restart[vi] if hasattr(song, 'orderlist_restart') and vi < len(song.orderlist_restart) else 0
         restart_byte = entry_to_byte.get(restart_entry, 0)
         ol.extend([0xFF, restart_byte])
-        gt2_orderlists.append(bytes(ol))
+        return bytes(ol)
+
+    gt2_orderlists = []
+    for vi in range(3):
+        restart_entry = song.orderlist_restart[vi] if hasattr(song, 'orderlist_restart') and vi < len(song.orderlist_restart) else 0
+        gt2_orderlists.append(_encode_orderlist(song.orderlists[vi], restart_entry))
+
+    # Extra orderlists for multi-song SIDs
+    extra_ols = getattr(song, 'extra_orderlists', []) or []
+    if extra_ols:
+        for idx, entries in enumerate(extra_ols):
+            restart_entry = song.extra_orderlist_restart[idx] if idx < len(song.extra_orderlist_restart) else 0
+            gt2_orderlists.append(_encode_orderlist(entries, restart_entry))
+
+    # Effective song count: must match orderlists available (3 per song).
+    # If extra orderlists were lost (e.g., tokenizer roundtrip), fall back to 1.
+    effective_songs = len(gt2_orderlists) // 3
 
     # Pack (with optional custom freq table).
     # Original tables cover [first_note..first_note+num_notes-1].
@@ -386,7 +400,7 @@ def usf_to_sid(song, output_path=None):
         else: num_normal += 1
 
     sid_bytes, player_size = pack_sidfinity(
-        songs=1,
+        songs=effective_songs,
         first_note=0,  # V2 player always uses full freq table
         last_note=95,
         default_tempo=getattr(song, 'tempo', 6) - 1,
