@@ -8,7 +8,7 @@ detokenize(tokens) -> Song
 from usf.format import (
     Song, Instrument, WaveTableStep, PulseTableStep, FilterTableStep,
     SpeedTableEntry, Pattern, NoteEvent,
-    NOTE_NAMES, WAVEFORM_NAMES, WAVEFORM_TOKENS,
+    NOTE_NAMES, WAVEFORM_NAMES, WAVEFORM_TOKENS, TOKEN_TO_WAVEFORM,
     note_name, note_from_name,
 )
 
@@ -70,7 +70,14 @@ def tokenize(song):
         tokens.append('INST')
         tokens.append(f'AD{inst.ad:02X}')
         tokens.append(f'SR{inst.sr:02X}')
-        tokens.append(inst.waveform.upper()[:3])
+        # Map waveform name to token (e.g. 'pulse' -> 'PUL', 'tri_ring' -> 'TRR')
+        _wf_to_tok = {
+            'tri': 'TRI', 'saw': 'SAW', 'pulse': 'PUL', 'noise': 'NOI',
+            'tri_ring': 'TRR', 'saw_ring': 'SAR', 'pulse_ring': 'PUR',
+            'tri_sync': 'TRS', 'saw_sync': 'SAS', 'pulse_sync': 'PUS',
+            'tri_ring_sync': 'TXS', 'saw_ring_sync': 'SXS', 'pulse_ring_sync': 'PXS',
+        }
+        tokens.append(_wf_to_tok.get(inst.waveform, inst.waveform.upper()[:3]))
         tokens.append(f'HR_{inst.hr_method.upper()}')
         tokens.append(f'GT{inst.gate_timer:X}')
         if inst.legato:
@@ -292,8 +299,8 @@ def detokenize(tokens):
                     inst.ad = int(t2[2:], 16)
                 elif t2.startswith('SR'):
                     inst.sr = int(t2[2:], 16)
-                elif t2 in ('TRI', 'SAW', 'PUL', 'NOI'):
-                    inst.waveform = {'TRI': 'tri', 'SAW': 'saw', 'PUL': 'pulse', 'NOI': 'noise'}[t2]
+                elif t2 in TOKEN_TO_WAVEFORM:
+                    inst.waveform = TOKEN_TO_WAVEFORM[t2]
                 elif t2.startswith('HR_'):
                     inst.hr_method = t2[3:].lower()
                 elif t2.startswith('GT') and len(t2) <= 4:

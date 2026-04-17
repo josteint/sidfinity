@@ -247,10 +247,59 @@ NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
 WAVEFORM_NAMES = {
     'tri': 0x11, 'saw': 0x21, 'pulse': 0x41, 'noise': 0x81,
     'tri_gate': 0x11, 'saw_gate': 0x21, 'pulse_gate': 0x41, 'noise_gate': 0x81,
+    # Ring modulation (bit 2 of $D404)
+    'tri_ring': 0x15, 'saw_ring': 0x25, 'pulse_ring': 0x45,
+    'tri_ring_gate': 0x15, 'saw_ring_gate': 0x25, 'pulse_ring_gate': 0x45,
+    # Hard sync (bit 1 of $D404)
+    'tri_sync': 0x13, 'saw_sync': 0x23, 'pulse_sync': 0x43,
+    'tri_sync_gate': 0x13, 'saw_sync_gate': 0x23, 'pulse_sync_gate': 0x43,
+    # Ring + sync combined
+    'tri_ring_sync': 0x17, 'saw_ring_sync': 0x27, 'pulse_ring_sync': 0x47,
+    'tri_ring_sync_gate': 0x17, 'saw_ring_sync_gate': 0x27, 'pulse_ring_sync_gate': 0x47,
 }
 
-WAVEFORM_TOKENS = {0x10: 'TRI', 0x11: 'TRI', 0x20: 'SAW', 0x21: 'SAW',
-                   0x40: 'PUL', 0x41: 'PUL', 0x80: 'NOI', 0x81: 'NOI'}
+WAVEFORM_TOKENS = {
+    0x10: 'TRI', 0x11: 'TRI', 0x20: 'SAW', 0x21: 'SAW',
+    0x40: 'PUL', 0x41: 'PUL', 0x80: 'NOI', 0x81: 'NOI',
+    # Ring modulation variants
+    0x14: 'TRR', 0x15: 'TRR', 0x24: 'SAR', 0x25: 'SAR',
+    0x44: 'PUR', 0x45: 'PUR',
+    # Hard sync variants
+    0x12: 'TRS', 0x13: 'TRS', 0x22: 'SAS', 0x23: 'SAS',
+    0x42: 'PUS', 0x43: 'PUS',
+    # Ring + sync combined
+    0x16: 'TXS', 0x17: 'TXS', 0x26: 'SXS', 0x27: 'SXS',
+    0x46: 'PXS', 0x47: 'PXS',
+}
+
+# Reverse map: token string -> waveform name (for detokenize)
+TOKEN_TO_WAVEFORM = {
+    'TRI': 'tri', 'SAW': 'saw', 'PUL': 'pulse', 'NOI': 'noise',
+    'TRR': 'tri_ring', 'SAR': 'saw_ring', 'PUR': 'pulse_ring',
+    'TRS': 'tri_sync', 'SAS': 'saw_sync', 'PUS': 'pulse_sync',
+    'TXS': 'tri_ring_sync', 'SXS': 'saw_ring_sync', 'PXS': 'pulse_ring_sync',
+}
+
+
+def waveform_from_byte(sid_byte):
+    """Derive USF waveform name from a SID control register byte ($D404).
+
+    Extracts waveform select (bits 7-4), ring mod (bit 2), and sync (bit 1).
+    Gate (bit 0) and test (bit 3) are ignored for waveform naming.
+
+    Returns a waveform string like 'pulse', 'tri_ring', 'saw_sync', etc.
+    """
+    wave_bits = (sid_byte >> 4) & 0xF
+    ring = bool(sid_byte & 0x04)
+    sync = bool(sid_byte & 0x02)
+    base = {1: 'tri', 2: 'saw', 4: 'pulse', 8: 'noise'}.get(wave_bits, 'pulse')
+    if ring and sync:
+        return f'{base}_ring_sync'
+    elif ring:
+        return f'{base}_ring'
+    elif sync:
+        return f'{base}_sync'
+    return base
 
 
 def note_name(n):

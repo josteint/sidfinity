@@ -18,7 +18,12 @@ GT2_KEYOFF = 0xBE
 GT2_KEYON = 0xBF
 GT2_FIRSTPACKEDREST = 0xC0
 
-WAVE_MAP = {'tri': 0x11, 'saw': 0x21, 'pulse': 0x41, 'noise': 0x81}
+WAVE_MAP = {
+    'tri': 0x11, 'saw': 0x21, 'pulse': 0x41, 'noise': 0x81,
+    'tri_ring': 0x15, 'saw_ring': 0x25, 'pulse_ring': 0x45,
+    'tri_sync': 0x13, 'saw_sync': 0x23, 'pulse_sync': 0x43,
+    'tri_ring_sync': 0x17, 'saw_ring_sync': 0x27, 'pulse_ring_sync': 0x47,
+}
 
 
 def usf_pattern_to_gt2(pattern):

@@ -1,6 +1,6 @@
 # Universal Symbolic Format (USF) Specification
 
-**Version:** 0.9 (2026-04-09)
+**Version:** 0.10 (2026-04-17)
 **Status:** Draft — 1,688/3,478 GT2 SIDs Grade A through USF pipeline. Player behavior fields may be stripped for ML training (see CLAUDE.md).
 
 ## Purpose
@@ -112,7 +112,7 @@ Audibility grade: A (identical) / B (minor) / C (audible diffs) / F (broken)
 | id | int | 0 | Instrument index |
 | ad | int | 0x09 | Attack/Decay (SID $D405) |
 | sr | int | 0x00 | Sustain/Release (SID $D406) |
-| waveform | string | 'pulse' | Primary waveform: tri, saw, pulse, noise |
+| waveform | string | 'pulse' | Primary waveform: tri, saw, pulse, noise, plus ring/sync variants (tri_ring, saw_sync, pulse_ring_sync, etc.) |
 | first_wave | int | -1 | First-frame waveform override (-1=derive from waveform). GT2: `mt_insfirstwave` byte. *GT2-specific encoding.* |
 | gate_timer | int | 2 | Hard restart lead time in frames (0-63) |
 | hr_method | string | 'gate' | HR method: none, gate, test, adsr |
@@ -232,6 +232,9 @@ instruments  := instrument*
 instrument   := INST params tables /INST
 params       := AD<HH> SR<HH> waveform hr gate_timer legato? vibrato? first_wave?
 waveform     := TRI | SAW | PUL | NOI
+             | TRR | SAR | PUR             ring modulation variants
+             | TRS | SAS | PUS             hard sync variants
+             | TXS | SXS | PXS             ring + sync combined
 hr           := HR_NONE | HR_GATE | HR_TEST | HR_ADSR
 gate_timer   := GT<H>
 legato       := LEG
@@ -378,3 +381,4 @@ When USF changes (new fields, event types, token types):
 | 0.3 | 2026-03-31 | Full GT2 coverage: pulse/filter/speed tables, pattern commands 0–F, instrument vibrato, legato, first_wave, wave table delay/keep_freq. |
 | 0.6 | 2026-04-02 | Player behavior groups (A-D), first_note field. GT2 player version detection. |
 | 0.7 | 2026-04-02 | Add wave_ptr to Instrument, orderlist_restart to Song, document shared table packed binary format, annotate GT2-specific vs universal fields, add Roundtrip Pipeline section, clarify first_note semantics. |
+| 0.8 | 2026-04-17 | Add ring modulation and hard sync waveform variants (tri_ring, saw_sync, pulse_ring_sync, etc.). New tokens: TRR, SAR, PUR (ring), TRS, SAS, PUS (sync), TXS, SXS, PXS (ring+sync). |

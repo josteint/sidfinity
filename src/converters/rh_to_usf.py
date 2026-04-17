@@ -51,17 +51,12 @@ def _hubbard_pitch_to_usf_note(pitch):
 
 
 def _map_waveform(ctrl_byte):
-    """Map SID control register byte to USF waveform string."""
-    wave_bits = ctrl_byte & 0xF0
-    if wave_bits & 0x80:
-        return 'noise'
-    elif wave_bits & 0x40:
-        return 'pulse'
-    elif wave_bits & 0x20:
-        return 'saw'
-    elif wave_bits & 0x10:
-        return 'tri'
-    return 'pulse'  # default
+    """Map SID control register byte to USF waveform string.
+
+    Extracts waveform select (bits 7-4), ring mod (bit 2), and sync (bit 1).
+    """
+    from usf.format import waveform_from_byte
+    return waveform_from_byte(ctrl_byte)
 
 
 def _build_drum_wave_table(ctrl_byte):
