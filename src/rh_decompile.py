@@ -99,7 +99,6 @@ class RHDecompiled:
         self.patterns = []
         self.songs = []
         self.freq_table_addr = 0
-        self.freq_table_interleaved = False  # True if lo0,hi0,lo1,hi1,... format
         self.song_table_addr = 0
         self.instr_addr = 0
         self.seqlo_addr = 0
@@ -107,7 +106,6 @@ class RHDecompiled:
         self.num_sequences = 0
         self.speed = None          # resetspd value (tempo = speed + 1)
         self.speed_table = None    # per-song speed table (list), or None
-        self.upper_nibble_arp = False  # True if driver uses fx_flags upper nibble as arp interval
 
 
 def load_sid(path):
@@ -329,58 +327,24 @@ def find_speed(binary, load_addr, num_songs=1):
 
 
 def find_freq_table(binary, load_addr):
-    """Find frequency table by known PAL freq byte sequences.
-
-    Searches for two formats:
-    1. Separated lo/hi tables: lo-bytes then hi-bytes (standard layout)
-    2. Interleaved lo/hi pairs: lo0,hi0,lo1,hi1,... (Lightforce, Thanatos, etc.)
-
-    Returns (addr, is_interleaved) or (None, False).
-    """
-    # Standard PAL freq table lo bytes (C-1 through B-1 = octave 1)
+    """Find frequency table by known PAL freq byte sequences."""
+    # Standard PAL freq table lo bytes (C-1 through B-1)
     PAL_LO = bytes([0x17, 0x27, 0x39, 0x4b, 0x5f, 0x74, 0x8a, 0xa1, 0xba, 0xd4, 0xf0, 0x0e])
 
-    # Try full 12-byte match first, then shorter (separated format)
+    # Try full 12-byte match first, then shorter
     for window in range(12, 5, -1):
         pos = binary.find(PAL_LO[:window])
         if pos >= 0:
-            return load_addr + pos, False
+            return load_addr + pos
 
     # Also try searching for the hi bytes: 01 01 01 01 01 01 01 01 01 01 01 02
     PAL_HI = bytes([0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x02])
     pos = binary.find(PAL_HI)
     if pos >= 0:
         # Lo table is likely 96 bytes before (8 octaves * 12 notes)
-        return load_addr + pos - 96, False
+        return load_addr + pos - 96
 
-    # Try interleaved format: lo0,hi0,lo1,hi1,...
-    # Search for 4+ ascending 16-bit pairs with semitone ratio ~1.059 (±10%).
-    # A run of 4+ consecutive ascending pairs strongly indicates a freq table.
-    best_pos = -1
-    best_len = 0
-    i = 0
-    while i < len(binary) - 8:
-        v = binary[i] | (binary[i + 1] << 8)
-        if 0x0100 < v < 0xE000:
-            run_len = 1
-            j = i + 2
-            while j + 1 < len(binary):
-                vnext = binary[j] | (binary[j + 1] << 8)
-                if v > 0 and 1.03 < vnext / v < 1.15:
-                    run_len += 1
-                    v = vnext
-                    j += 2
-                else:
-                    break
-            if run_len > best_len:
-                best_len = run_len
-                best_pos = i
-        i += 1
-
-    if best_len >= 4:
-        return load_addr + best_pos, True
-
-    return None, False
+    return None
 
 
 def peek(binary, load_addr, addr):
@@ -553,15 +517,13 @@ def decompile(sid_path, verbose=False):
         print(f'Sequence pointers: lo=${seqlo:04X} hi=${seqhi:04X} ({result.num_sequences} sequences)')
 
     # Freq table (optional — not all songs use standard PAL table)
-    freq_addr, freq_interleaved = find_freq_table(binary, load_addr)
+    freq_addr = find_freq_table(binary, load_addr)
     result.freq_table_addr = freq_addr
-    result.freq_table_interleaved = freq_interleaved
     if verbose:
         if freq_addr:
-            fmt = 'interleaved lo/hi' if freq_interleaved else 'separated lo+hi'
-            print(f'Freq table at ${freq_addr:04X} ({fmt})')
+            print(f'Freq table at ${freq_addr:04X}')
         else:
-            print('Freq table: not found')
+            print('Freq table: not found (custom or interleaved)')
 
     # Speed detection
     speed, speed_table = find_speed(binary, load_addr, result.num_songs)

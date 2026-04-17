@@ -222,32 +222,6 @@ def _map_instrument(rh_instr, instr_id):
         inst.wave_table = _build_drum_wave_table(rh_instr.ctrl)
         if (rh_instr.ctrl & 0xF0) == 0x80 or rh_instr.ctrl == 0:
             inst.waveform = 'noise'
-    elif rh_instr.has_arpeggio:
-        # Arpeggio-only (no drum): behavior depends on driver version.
-        # Upper nibble of fx_flags == 0 → classic/Phase 2 driver: arpeggio counter
-        # is only activated by the drum code path, so arpeggio alone = steady note.
-        # Upper nibble > 0 → Phase 4 driver: upper nibble N is the arpeggio interval.
-        #   upper=N (N>0) → alternates base note and base-N semitones (down N).
-        # Verified: Sigma_Seven has upper nibble 0 (steady), Las_Vegas/Kentilla have
-        # upper nibble > 0 (real arpeggio alternation).
-        upper = (rh_instr.fx_flags >> 4) & 0x0F
-        if upper == 0:
-            # Classic/Phase 2: arpeggio-only = steady note (same as no-effect case)
-            wave_byte = rh_instr.ctrl | 0x01
-            inst.wave_table = [
-                WaveTableStep(waveform=wave_byte, note_offset=0),
-                WaveTableStep(waveform=wave_byte, keep_freq=True),
-                WaveTableStep(is_loop=True, loop_target=1),
-            ]
-        else:
-            # Phase 4: real arpeggio — alternates base note and base-N semitones
-            arp_offset = -upper  # negative = down N semitones
-            native_wave = rh_instr.ctrl | 0x01
-            inst.wave_table = [
-                WaveTableStep(waveform=native_wave, note_offset=0),
-                WaveTableStep(waveform=native_wave, note_offset=arp_offset),
-                WaveTableStep(is_loop=True, loop_target=0),
-            ]
     elif rh_instr.has_skydive:
         inst.wave_table = _build_skydive_wave_table(rh_instr.ctrl)
     else:
@@ -544,10 +518,9 @@ def rh_to_usf(sid_path, subtune=None):
 
     tempo_div = getattr(song, '_tempo_divisor', 1)
 
-    # Attach binary + freq table info to patterns for freq-trick resolution.
-    # Also populate song.freq_lo / song.freq_hi from the detected freq table.
+    # Attach binary + freq table info to patterns for freq-trick resolution
+    # Read the binary once for all patterns
     _binary = _load_addr = _ft_addr = None
-    _ft_interleaved = result.freq_table_interleaved
     try:
         import struct as _struct
         with open(sid_path, 'rb') as _f:
@@ -561,28 +534,16 @@ def rh_to_usf(sid_path, subtune=None):
         else:
             _binary = _payload
         _load_addr = _la
-        _ft_addr = result.freq_table_addr  # already detected by find_freq_table()
-    except Exception:
+        # Find freq table (interleaved format: lo, hi, lo, hi...)
+        # Search for the known interleaved freq bytes
+        PAL_INTERLEAVED = bytes([0x17, 0x01, 0x27, 0x01])  # C1 lo, C1 hi, C#1 lo, C#1 hi
+        pos = _binary.find(PAL_INTERLEAVED)
+        if pos >= 0:
+            _ft_addr = _la + pos
+        elif result.freq_table_addr:
+            _ft_addr = result.freq_table_addr
+    except:
         pass
-
-    if _ft_addr is not None and _binary is not None and _ft_interleaved:
-        # Interleaved format: lo0,hi0,lo1,hi1,...
-        # Extract up to 96 entries; pad with standard PAL if the table is shorter.
-        off = _ft_addr - _load_addr
-        lo_bytes = []
-        hi_bytes = []
-        for n in range(96):
-            b = off + n * 2
-            if b + 1 < len(_binary):
-                lo_bytes.append(_binary[b])
-                hi_bytes.append(_binary[b + 1])
-            else:
-                # Table shorter than 96 entries — pad with standard PAL
-                from gt_parser import FREQ_TBL_LO, FREQ_TBL_HI
-                lo_bytes.append(FREQ_TBL_LO[n])
-                hi_bytes.append(FREQ_TBL_HI[n])
-        song.freq_lo = bytes(lo_bytes)
-        song.freq_hi = bytes(hi_bytes)
 
     pat_map = {}  # rh_pattern_index → usf_pattern_id
     for rh_pat in result.patterns:
@@ -620,75 +581,6 @@ def rh_to_usf(sid_path, subtune=None):
         else:
             # STOP ($FE): no loop, set restart to last entry
             song.orderlist_restart[voice_idx] = max(0, len(orderlist) - 1)
-
-    # Fix TIE-at-start: Hubbard's INIT routine pre-loads voice frequencies before
-    # playback begins, so TIE-only opening patterns sustain those initialized notes.
-    # The V2 player has no init state — TIE with no prior note produces silence.
-    # Fix: scan forward through the orderlist to find the first real note, then
-    # prepend a new single-frame pattern with that note so the V2 player has an
-    # initial frequency to sustain through the opening TIEs.
-    _pat_id_by_id = {p.id: p for p in song.patterns}
-
-    def _pattern_is_all_tie(pat):
-        """Return True if every event in the pattern is a TIE (no real note)."""
-        if not pat.events:
-            return True
-        for ev in pat.events:
-            if ev.type == 'note':
-                return False
-        return True
-
-    def _first_note_in_pattern(pat):
-        """Return (note, instrument) of the first real note event, or None."""
-        for ev in pat.events:
-            if ev.type == 'note':
-                return (ev.note, ev.instrument)
-        return None
-
-    for voice_idx in range(3):
-        orderlist = song.orderlists[voice_idx]
-        if not orderlist:
-            continue
-
-        # Count how many leading patterns are all-TIE
-        leading_tie_count = 0
-        for pat_id, _transpose in orderlist:
-            pat = _pat_id_by_id.get(pat_id)
-            if pat is None or not _pattern_is_all_tie(pat):
-                break
-            leading_tie_count += 1
-
-        if leading_tie_count == 0:
-            continue  # Voice already has a real note in first pattern
-
-        # Scan beyond the all-TIE block to find the first real note
-        first_note = None
-        first_instr = -1
-        for pat_id, _transpose in orderlist[leading_tie_count:]:
-            pat = _pat_id_by_id.get(pat_id)
-            if pat is None:
-                continue
-            result_note = _first_note_in_pattern(pat)
-            if result_note is not None:
-                first_note, first_instr = result_note
-                break
-
-        if first_note is None:
-            continue  # No real note found anywhere — nothing to do
-
-        # Build a new 1-event pattern with just the init note (duration=1)
-        init_pat_id = len(song.patterns)
-        init_pat = Pattern(id=init_pat_id, events=[
-            NoteEvent(type='note', note=first_note, duration=1, instrument=first_instr)
-        ])
-        song.patterns.append(init_pat)
-        _pat_id_by_id[init_pat_id] = init_pat
-
-        # Prepend the init pattern to the orderlist and shift restart index
-        song.orderlists[voice_idx] = [(init_pat_id, 0)] + orderlist
-        # The restart index was computed relative to the original orderlist;
-        # shift by 1 to account for the prepended init pattern.
-        song.orderlist_restart[voice_idx] += 1
 
     return song
 
