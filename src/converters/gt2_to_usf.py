@@ -197,6 +197,10 @@ def gt2_to_usf(sid_path):
     song.nowavedelay = d.get('nowavedelay', True)
     song.nocalculatedspeed = d.get('nocalculatedspeed', False)
 
+    # Ghost registers (shadow SID buffer)
+    if ver and ver.get('ghost_regs'):
+        song.ghost_regs = 'full'
+
     # DEFAULTTEMPO: extract from binary
     with open(sid_path, 'rb') as f:
         data = f.read()
