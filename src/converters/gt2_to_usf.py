@@ -12,7 +12,7 @@ import sys
 import os
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
-from usf.format import Song, Instrument, WaveTableStep, SpeedTableEntry, Pattern, NoteEvent
+from usf.format import Song, Instrument, WaveTableStep, SpeedTableEntry, Pattern, NoteEvent, CMD_SET_FILTCTL
 from gt2_decompile import decompile_gt2
 from gt2_detect_version import detect_gt2_player_group
 
@@ -413,6 +413,22 @@ def gt2_to_usf(sid_path):
         entries, restart = _decode_orderlist(ol_bytes)
         song.orderlists[vi] = entries
         song.orderlist_restart[vi] = restart
+
+    # Detect external audio input usage (filter routing bit 3).
+    # Check shared filter table 'params' entries and pattern command 0xB.
+    for left, right in song.shared_filter_table:
+        if left >= 0x80 and left <= 0x8F:  # params entry
+            if right & 0x08:  # EXT IN bit set in routing
+                song.ext_audio_in = True
+                break
+    if not song.ext_audio_in:
+        for pat in song.patterns:
+            for ev in pat.events:
+                if ev.command == CMD_SET_FILTCTL and (ev.command_val & 0x08):
+                    song.ext_audio_in = True
+                    break
+            if song.ext_audio_in:
+                break
 
     return song
 

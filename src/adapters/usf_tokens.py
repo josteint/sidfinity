@@ -52,6 +52,8 @@ def tokenize(song):
         tokens.append('VIBFIX')
     if song.nocalculatedspeed:
         tokens.append('NOCALCSPD')
+    if song.ext_audio_in:
+        tokens.append('EXTIN')
     if song.multiplier > 0:
         tokens.append(f'MULTI{song.multiplier}')
     if song.psid_flags != 0x0014:
@@ -270,6 +272,8 @@ def detokenize(tokens):
             song.vibrato_param_fix = True
         elif t == 'NOCALCSPD':
             song.nocalculatedspeed = True
+        elif t == 'EXTIN':
+            song.ext_audio_in = True
         elif t.startswith('MULTI') and t[5:].isdigit():
             song.multiplier = int(t[5:])
         elif t.startswith('PSID') and len(t) == 8:

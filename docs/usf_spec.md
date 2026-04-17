@@ -86,6 +86,7 @@ Audibility grade: A (identical) / B (minor) / C (audible diffs) / F (broken)
 | newnote_reg_scope | string | 'all_regs' | Registers written on new-note frame: 'all_regs' (buffered) or 'wave_only' (non-buffered) |
 | ghost_regs | string | 'none' | Shadow register buffer mode: 'none', 'full', or 'zp' |
 | vibrato_param_fix | bool | false | Zero vibrato param when instrument has no vibrato but pattern command does |
+| ext_audio_in | bool | false | True if song uses external audio input (filter routing bit 3 set in any filter table step or pattern command 0xB) |
 
 **Player behavior fields:** These 5 fields control how the SIDfinity player processes audio. They are **generic** — not tied to any specific source format. Any transpiler (GT2, DMC, JCH) populates them based on the source player's behavior. The SIDfinity player reads them at assembly time via `-D` flags.
 
@@ -164,6 +165,13 @@ Audibility grade: A (identical) / B (minor) / C (audible diffs) / F (broken)
 | is_loop | bool | False | Loop command |
 | loop_target | int | 0 | Loop destination step index |
 
+When `type='params'`, the value byte maps to SID register $D417:
+- Bits 7-4: resonance (0-15)
+- Bit 3: external audio input (EXT IN) filter enable
+- Bit 2: voice 3 filter enable
+- Bit 1: voice 2 filter enable
+- Bit 0: voice 1 filter enable
+
 ### SpeedTableEntry
 
 Shared table for vibrato, portamento, and funktempo. Referenced by index from instruments and pattern commands.
@@ -201,7 +209,7 @@ Shared table for vibrato, portamento, and funktempo. Referenced by index from in
 | 8 | x8 | Set wave ptr | wave table index |
 | 9 | x9 | Set pulse ptr | pulse table index |
 | A | xA | Set filter ptr | filter table index |
-| B | xB | Set filter ctrl | resonance(hi) \| routing(lo) |
+| B | xB | Set filter ctrl | resonance(hi) \| routing(lo). Routing: bit0=v1, bit1=v2, bit2=v3, bit3=EXT IN |
 | C | xC | Set filter cutoff | cutoff value |
 | D | xD | Set master volume | $00–$0F |
 | E | xE | Funktempo | speed table index |
