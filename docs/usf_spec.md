@@ -1,6 +1,6 @@
 # Universal Symbolic Format (USF) Specification
 
-**Version:** 0.9 (2026-04-09)
+**Version:** 0.10 (2026-04-17)
 **Status:** Draft — 1,688/3,478 GT2 SIDs Grade A through USF pipeline. Player behavior fields may be stripped for ML training (see CLAUDE.md).
 
 ## Purpose
@@ -86,6 +86,8 @@ Audibility grade: A (identical) / B (minor) / C (audible diffs) / F (broken)
 | newnote_reg_scope | string | 'all_regs' | Registers written on new-note frame: 'all_regs' (buffered) or 'wave_only' (non-buffered) |
 | ghost_regs | string | 'none' | Shadow register buffer mode: 'none', 'full', or 'zp' |
 | vibrato_param_fix | bool | false | Zero vibrato param when instrument has no vibrato but pattern command does |
+| modulation_routes | list[ModulationRoute] | [] | Oscillator 3 / envelope 3 modulation routing (see below) |
+| voice3_as_modulator | bool | false | True = voice 3 is used as modulation source, not audio |
 
 **Player behavior fields:** These 5 fields control how the SIDfinity player processes audio. They are **generic** — not tied to any specific source format. Any transpiler (GT2, DMC, JCH) populates them based on the source player's behavior. The SIDfinity player reads them at assembly time via `-D` flags.
 
@@ -173,6 +175,28 @@ Shared table for vibrato, portamento, and funktempo. Referenced by index from in
 | left | int | 0 | Vibrato: speed (bit7=note-independent). Portamento: MSB. Funktempo: tempo1. |
 | right | int | 0 | Vibrato: depth. Portamento: LSB. Funktempo: tempo2. |
 
+### ModulationRoute
+
+Routes the SID chip's oscillator 3 output ($D41B) or envelope 3 output ($D41C) to a target parameter. This is used by advanced player engines (Rob Hubbard, demo scene) that dedicate voice 3 as a modulation oscillator rather than an audio channel.
+
+**How it works on the SID chip:**
+
+- **$D41B (OSC3):** Returns the upper 8 bits of oscillator 3's current output. The waveform and frequency of voice 3 determine the shape and rate of the modulation signal. For example, setting voice 3 to triangle waveform at a low frequency creates a smooth LFO.
+- **$D41C (ENV3):** Returns the current value of voice 3's ADSR envelope generator (0-255). This can be used as a one-shot or repeating envelope-shaped modulation source.
+
+The player reads the source register each frame, applies scaling (arithmetic shift right) and a signed offset, then writes the result to the target parameter.
+
+When `voice3_as_modulator=True`, the player should not treat voice 3 as a regular music channel. Instead, it sets voice 3's frequency and waveform to produce the desired LFO shape, and reads $D41B/$D41C each frame to apply modulation.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| source | string | 'osc3' | Modulation source: 'osc3' ($D41B) or 'env3' ($D41C) |
+| target | string | 'filter_cutoff' | Target parameter: 'filter_cutoff', 'pulse_width', 'frequency', 'volume' |
+| voice | int | -1 | Target voice (0-2 for per-voice targets like pulse_width/frequency, -1 for global targets like filter_cutoff/volume) |
+| scale | int | 0 | Scaling factor: shift right N bits (0=no scaling, 1=divide by 2, etc.) |
+| offset | int | 0 | Signed offset added after scaling |
+| active | bool | true | Can be toggled on/off by pattern commands at runtime |
+
 ### NoteEvent
 
 | Field | Type | Default | Description |
@@ -222,11 +246,16 @@ Shared table for vibrato, portamento, and funktempo. Referenced by index from in
 ### Grammar
 
 ```
-song         := SONG header instruments speed_table? patterns orderlists /SONG
+song         := SONG header modulation? instruments speed_table? patterns orderlists /SONG
 header       := sid_model clock tempo
 sid_model    := SID_6581 | SID_8580
 clock        := PAL | NTSC
 tempo        := T<1-99>
+
+modulation   := V3MOD? (MOD[ mod_route+ ]MOD)?
+mod_route    := <source>:<target>(:<voice>)?(:<scale>)?(:<offset>)?(:<active>)?
+               source = MOD_OSC3 | MOD_ENV3
+               target = MOD_FILT | MOD_PW | MOD_FREQ | MOD_VOL
 
 instruments  := instrument*
 instrument   := INST params tables /INST
@@ -378,3 +407,4 @@ When USF changes (new fields, event types, token types):
 | 0.3 | 2026-03-31 | Full GT2 coverage: pulse/filter/speed tables, pattern commands 0–F, instrument vibrato, legato, first_wave, wave table delay/keep_freq. |
 | 0.6 | 2026-04-02 | Player behavior groups (A-D), first_note field. GT2 player version detection. |
 | 0.7 | 2026-04-02 | Add wave_ptr to Instrument, orderlist_restart to Song, document shared table packed binary format, annotate GT2-specific vs universal fields, add Roundtrip Pipeline section, clarify first_note semantics. |
+| 0.10 | 2026-04-17 | Add ModulationRoute dataclass and voice3_as_modulator flag for oscillator 3 ($D41B) and envelope 3 ($D41C) readout support. New tokens: V3MOD, MOD_OSC3, MOD_ENV3, MOD_FILT, MOD_PW, MOD_FREQ, MOD_VOL. |

@@ -85,6 +85,28 @@ class FilterTableStep:
 
 
 @dataclass
+class ModulationRoute:
+    """Route oscillator 3 or envelope 3 output to a parameter.
+
+    The SID chip allows reading voice 3's oscillator output ($D41B) and
+    envelope output ($D41C). Advanced player engines use these as modulation
+    sources — setting voice 3's frequency and waveform to create an LFO,
+    then reading the output each frame to modulate filter cutoff, pulse
+    width, frequency, or volume on any voice.
+
+    When active, the player reads the source register each frame, applies
+    scaling (arithmetic shift right by `scale` bits) and offset, then writes
+    the result to the target parameter.
+    """
+    source: str = 'osc3'       # 'osc3' ($D41B) or 'env3' ($D41C)
+    target: str = 'filter_cutoff'  # 'filter_cutoff', 'pulse_width', 'frequency', 'volume'
+    voice: int = -1            # Target voice (0-2, -1=global for filter/volume)
+    scale: int = 0             # Scaling factor (shift right N bits, 0=no scaling)
+    offset: int = 0            # Signed offset added after scaling
+    active: bool = True        # Can be toggled by pattern commands
+
+
+@dataclass
 class SpeedTableEntry:
     """One entry in the speed table.
 
@@ -236,6 +258,9 @@ class Song:
     # Layout: extra_orderlists[i] for i in range((songs-1)*3).
     extra_orderlists: list = field(default_factory=list)
     extra_orderlist_restart: list = field(default_factory=list)
+    # Oscillator 3 / Envelope 3 modulation routing
+    modulation_routes: list = field(default_factory=list)  # list of ModulationRoute
+    voice3_as_modulator: bool = False  # True = voice 3 is used as modulation source, not audio
 
 
 # ============================================================
