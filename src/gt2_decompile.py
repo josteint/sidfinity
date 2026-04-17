@@ -1297,6 +1297,38 @@ def decompile_gt2(sid_path):
         orderlists.append(bytes(ol))
     result['orderlists'] = orderlists
 
+    # Extra orderlists for multi-song SIDs.
+    # all_ol_addrs has songs*3 addresses; we already read the 3 for the selected subtune.
+    # Now read orderlists for every OTHER subtune.
+    if 'all_ol_addrs' not in locals():
+        # alternate_layout or fallback path — no multi-song data available
+        all_ol_addrs = list(ol_addrs)  # just the 3 selected
+    actual_songs = len(all_ol_addrs) // 3
+    result['songs'] = actual_songs
+    result['all_ol_addrs'] = all_ol_addrs
+
+    extra_orderlists = []
+    for si in range(actual_songs):
+        if si == song_idx:
+            continue  # skip the primary subtune (already in result['orderlists'])
+        for vi in range(3):
+            addr = all_ol_addrs[si * 3 + vi]
+            ol_off = addr - la
+            if ol_off < 0 or ol_off >= len(binary):
+                extra_orderlists.append(b'\xff\x00')
+                continue
+            ol = bytearray()
+            for j in range(200):
+                if ol_off + j >= len(binary):
+                    break
+                ol.append(binary[ol_off + j])
+                if binary[ol_off + j] == 0xFF:
+                    if ol_off + j + 1 < len(binary):
+                        ol.append(binary[ol_off + j + 1])
+                    break
+            extra_orderlists.append(bytes(ol))
+    result['extra_orderlists'] = extra_orderlists
+
     # === Step 6: Patterns ===
     patterns = []
     for pi in range(num_patt):

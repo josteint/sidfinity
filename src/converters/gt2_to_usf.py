@@ -414,6 +414,18 @@ def gt2_to_usf(sid_path):
         song.orderlists[vi] = entries
         song.orderlist_restart[vi] = restart
 
+    # Multi-song support: populate extra orderlists for additional subtunes
+    actual_songs = d.get('songs', 1)
+    extra_ol_bytes = d.get('extra_orderlists', [])
+    if actual_songs > 1 and extra_ol_bytes:
+        song.songs = actual_songs
+        song.extra_orderlists = []
+        song.extra_orderlist_restart = []
+        for ol_bytes in extra_ol_bytes:
+            entries, restart = _decode_orderlist(ol_bytes)
+            song.extra_orderlists.append(entries)
+            song.extra_orderlist_restart.append(restart)
+
     return song
 
 
