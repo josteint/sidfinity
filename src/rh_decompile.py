@@ -108,6 +108,7 @@ class RHDecompiled:
         self.speed = None          # resetspd value (tempo = speed + 1)
         self.speed_table = None    # per-song speed table (list), or None
         self.upper_nibble_arp = False  # True if driver uses fx_flags upper nibble as arp interval (Phase 4)
+        self.voice_transpose = [0, 0, 0]  # per-voice semitone transpose offset (from ADC abs,X before freq table)
 
 
 def load_sid(path):
@@ -737,6 +738,48 @@ def decompile(sid_path, verbose=False):
         _arp_desc = 'upper-nibble interval (Phase 4)' if result.upper_nibble_arp else 'counter-based (Phase 2 classic)'
         print(f'Arpeggio driver: {_arp_desc}')
         print()
+
+    # Per-voice transpose detection.
+    # Many Hubbard players apply a per-voice semitone offset to the raw pattern
+    # pitch byte before looking up the freq table:
+    #   LDA pattern_byte → AND #$7F → CLC → ADC transpose_table,X → ASL → TAY → LDA freq,Y
+    # The transpose_table (indexed by voice X=0,1,2) shifts the note up by N semitones.
+    # Detection: find the pattern ASL (0x0A) + TAY (0xA8) + LDA abs,Y (0xB9 xx xx)
+    # then scan backwards ~25 bytes for ADC abs,X (0x7D xx xx).
+    result.voice_transpose = [0, 0, 0]
+    _asl_tay_lda = bytes([0x0A, 0xA8, 0xB9])
+    _search = 0
+    while True:
+        _p = binary.find(_asl_tay_lda, _search)
+        if _p < 0:
+            break
+        # Check that the LDA abs,Y target is within the binary (freq table reference)
+        if _p + 4 < len(binary):
+            _ft_addr = binary[_p + 3] | (binary[_p + 4] << 8)
+            if load_addr <= _ft_addr < load_addr + len(binary):
+                # Scan backward for ADC abs,X (0x7D)
+                for _j in range(max(0, _p - 25), _p):
+                    if binary[_j] == 0x7D and _j + 2 < len(binary):
+                        _tt_lo = binary[_j + 1]
+                        _tt_hi = binary[_j + 2]
+                        _tt_addr = (_tt_hi << 8) | _tt_lo
+                        _tt_off = _tt_addr - load_addr
+                        # Validate: the transpose table must be in-range
+                        # and contain reasonable semitone offsets (0-47 or 0xFF for -1)
+                        if 0 <= _tt_off + 5 < len(binary):
+                            _transpositions = [binary[_tt_off + k] for k in range(3)]
+                            # Sanity: each value should be a small positive semitone offset
+                            # (0-47) or 0xFF/-1 for one-down. Values 128+ are likely
+                            # octave flags, not semitone offsets.
+                            # Accept if at least one voice has 1-47 transpose.
+                            if any(1 <= v <= 47 for v in _transpositions):
+                                result.voice_transpose = _transpositions
+                                if verbose:
+                                    print(f'Per-voice transpose: V1={_transpositions[0]} V2={_transpositions[1]} V3={_transpositions[2]} (table@0x{_tt_addr:04X})')
+                                break
+            if result.voice_transpose != [0, 0, 0]:
+                break
+        _search = _p + 1
 
     # --- Parse songs ---
     for s in range(result.num_songs):
