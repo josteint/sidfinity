@@ -22,9 +22,15 @@ def tokenize(song):
 
     # Song header
     tokens.append('SONG')
+    if song.title:
+        tokens.append(f'TITLE:{song.title}')
+    if song.author:
+        tokens.append(f'AUTHOR:{song.author}')
     tokens.append(f'SID_{song.sid_model}')
     tokens.append(song.clock)
     tokens.append(f'T{song.tempo}')
+    if song.gt2_player_group:
+        tokens.append(f'GROUP_{song.gt2_player_group}')
     # Player behavior — all fields needed for lossless SID rebuild
     if song.first_note != 0:
         tokens.append(f'FN{song.first_note}')
@@ -68,26 +74,36 @@ def tokenize(song):
             tokens.append(f'VD{inst.vib_delay:X}')
         if inst.first_wave >= 0:
             tokens.append(f'FW{inst.first_wave:02X}')
+        if inst.pulse_width != 0x0808:
+            tokens.append(f'PW{inst.pulse_width:04X}')
+        if inst.wave_ptr > 0:
+            tokens.append(f'WP{inst.wave_ptr}')
+        if inst.pulse_ptr > 0:
+            tokens.append(f'PP{inst.pulse_ptr}')
+        if inst.filter_ptr > 0:
+            tokens.append(f'FP{inst.filter_ptr}')
 
         # Wave table
         if inst.wave_table:
             tokens.append('WT[')
             for step in inst.wave_table:
                 slide_suffix = f'/s{step.freq_slide:+d}' if step.freq_slide else ''
+                # Always use raw hex for waveform to preserve gate/ring/sync bits
+                wt = f'${step.waveform:02X}'
                 if step.is_loop:
                     tokens.append(f'L{step.loop_target}')
                 elif step.keep_freq:
-                    wt = WAVEFORM_TOKENS.get(step.waveform, f'${step.waveform:02X}')
                     tokens.append(f'{wt}~{slide_suffix}')
                 elif step.delay > 0:
-                    tokens.append(f'W{step.delay}')
+                    if step.waveform != 0x41:
+                        tokens.append(f'W{step.delay}:{step.waveform:02X}')
+                    else:
+                        tokens.append(f'W{step.delay}')
                 elif step.absolute_note >= 0:
-                    wt = WAVEFORM_TOKENS.get(step.waveform, f'${step.waveform:02X}')
                     tokens.append(f'{wt}={note_name(step.absolute_note)}{slide_suffix}')
                 else:
                     off = step.note_offset
                     sign = '+' if off >= 0 else ''
-                    wt = WAVEFORM_TOKENS.get(step.waveform, f'${step.waveform:02X}')
                     tokens.append(f'{wt}{sign}{off}{slide_suffix}')
             tokens.append(']WT')
 
@@ -125,6 +141,23 @@ def tokenize(song):
         for entry in song.speed_table:
             tokens.append(f'{entry.left:02X}{entry.right:02X}')
         tokens.append(']SPD')
+
+    # Shared tables (raw byte pairs — lossless roundtrip)
+    if song.shared_wave_table:
+        tokens.append('SWT[')
+        for l, r in song.shared_wave_table:
+            tokens.append(f'{l:02X}{r:02X}')
+        tokens.append(']SWT')
+    if song.shared_pulse_table:
+        tokens.append('SPT[')
+        for l, r in song.shared_pulse_table:
+            tokens.append(f'{l:02X}{r:02X}')
+        tokens.append(']SPT')
+    if song.shared_filter_table:
+        tokens.append('SFT[')
+        for l, r in song.shared_filter_table:
+            tokens.append(f'{l:02X}{r:02X}')
+        tokens.append(']SFT')
 
     # Patterns
     for patt in song.patterns:
@@ -183,6 +216,12 @@ def detokenize(tokens):
 
         if t == 'SONG':
             pass
+        elif t.startswith('TITLE:'):
+            song.title = t[6:]
+        elif t.startswith('AUTHOR:'):
+            song.author = t[7:]
+        elif t.startswith('GROUP_'):
+            song.gt2_player_group = t[6:]
         elif t.startswith('SID_'):
             song.sid_model = t[4:]
         elif t in ('PAL', 'NTSC'):
@@ -240,6 +279,14 @@ def detokenize(tokens):
                     inst.vib_delay = int(t2[2:], 16)
                 elif t2.startswith('FW'):
                     inst.first_wave = int(t2[2:], 16)
+                elif t2.startswith('PW') and len(t2) == 6:
+                    inst.pulse_width = int(t2[2:], 16)
+                elif t2.startswith('WP') and t2[2:].isdigit():
+                    inst.wave_ptr = int(t2[2:])
+                elif t2.startswith('PP') and t2[2:].isdigit():
+                    inst.pulse_ptr = int(t2[2:])
+                elif t2.startswith('FP') and t2[2:].isdigit():
+                    inst.filter_ptr = int(t2[2:])
                 elif t2 == 'PT[':
                     i += 1
                     while i < len(tokens) and tokens[i] != ']PT':
@@ -293,20 +340,31 @@ def detokenize(tokens):
                         if wt.startswith('L'):
                             step.is_loop = True
                             step.loop_target = int(wt[1:])
-                        elif wt.startswith('W') and wt[1:].isdigit():
-                            step.delay = int(wt[1:])
+                        elif wt.startswith('W') and (wt[1:].isdigit() or ':' in wt):
+                            if ':' in wt:
+                                parts = wt[1:].split(':')
+                                step.delay = int(parts[0])
+                                step.waveform = int(parts[1], 16)
+                            else:
+                                step.delay = int(wt[1:])
                         elif wt.endswith('~'):
-                            # Keep freq: PUL~ SAW~ etc.
+                            # Keep freq: $41~ or PUL~
                             wn = wt[:-1]
-                            step.waveform = WAVEFORM_NAMES.get(wn.lower() + '_gate', 0x41)
+                            if wn.startswith('$'):
+                                step.waveform = int(wn[1:], 16)
+                            else:
+                                step.waveform = WAVEFORM_NAMES.get(wn.lower() + '_gate', 0x41)
                             step.keep_freq = True
                         elif '=' in wt:
-                            # Absolute note: PUL=C4
+                            # Absolute note: $81=C4 or PUL=C4
                             parts = wt.split('=')
-                            step.waveform = WAVEFORM_NAMES.get(parts[0].lower() + '_gate', 0x41)
+                            if parts[0].startswith('$'):
+                                step.waveform = int(parts[0][1:], 16)
+                            else:
+                                step.waveform = WAVEFORM_NAMES.get(parts[0].lower() + '_gate', 0x41)
                             step.absolute_note = note_from_name(parts[1])
                         elif wt.startswith('$'):
-                            # Raw hex waveform: $30+0
+                            # Raw hex waveform: $30+0 or $30-2
                             rest = wt[1:]
                             for sep in ('+', '-'):
                                 if sep in rest:
@@ -315,7 +373,7 @@ def detokenize(tokens):
                                     step.note_offset = int(sep + parts[1])
                                     break
                         else:
-                            # Relative: PUL+4 or PUL-2 or PUL+0
+                            # Named waveform: PUL+4 or NOI-2
                             for wn, wv in [('PUL', 0x41), ('SAW', 0x21), ('TRI', 0x11), ('NOI', 0x81)]:
                                 if wt.startswith(wn):
                                     step.waveform = wv
@@ -386,6 +444,28 @@ def detokenize(tokens):
                 if len(s) == 4:
                     song.speed_table.append(SpeedTableEntry(
                         left=int(s[:2], 16), right=int(s[2:], 16)))
+                i += 1
+
+        elif t == 'SWT[':
+            i += 1
+            while i < len(tokens) and tokens[i] != ']SWT':
+                s = tokens[i]
+                if len(s) == 4:
+                    song.shared_wave_table.append((int(s[:2], 16), int(s[2:], 16)))
+                i += 1
+        elif t == 'SPT[':
+            i += 1
+            while i < len(tokens) and tokens[i] != ']SPT':
+                s = tokens[i]
+                if len(s) == 4:
+                    song.shared_pulse_table.append((int(s[:2], 16), int(s[2:], 16)))
+                i += 1
+        elif t == 'SFT[':
+            i += 1
+            while i < len(tokens) and tokens[i] != ']SFT':
+                s = tokens[i]
+                if len(s) == 4:
+                    song.shared_filter_table.append((int(s[:2], 16), int(s[2:], 16)))
                 i += 1
 
         elif t == '/SONG':
