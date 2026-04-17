@@ -96,9 +96,9 @@ Verified: changing +2 to +1 breaks 42/43 songs. The paired system is self-consis
 
 If `nowavedelay` is wrong, the chain breaks. Do NOT change `skip_bias` without understanding the full chain.
 
-### Group A pulse speed — naive doubling REGRESSES songs
+### Group A pulse speed — FIXED via codegen ASL;BCC
 
-Group A GT2 players use `ASL` to double pulse speed before adding. Naively doubling all Group A pulse_right bytes in gt2_to_usf.py regressed 12 songs. The fix needs to be conditional on the EXACT code path (ASL vs CLC, modulation vs set-pulse entries).
+Some GT2 players use `ASL;BCC;CLC` to double pulse speed before adding. The fix is in codegen_v2.py: when `pulse_speed_asl=True`, emit `ASL;BCC;CLC` instead of `CLC;BPL`. Speed bytes stay UN-doubled in USF — the doubling happens at runtime via ASL. Do NOT try to double speed bytes in gt2_to_usf.py — naive doubling breaks sign detection (e.g. 0x40 doubled to 0x80 changes sign, causing wrong DEC pulsehi).
 
 ### siddump frame boundary drift — measurement artifact, not a bug
 
