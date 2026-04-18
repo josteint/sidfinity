@@ -205,6 +205,15 @@ def find_songs(binary, load_addr):
             songs_addr = binary[pos + 1] | (binary[pos + 2] << 8)
             return songs_addr, True, cpy_val
 
+    # Variant: double LDA/STA + double INX (loads lo+hi pairs)
+    # Pattern: BD ** ** 99 ** ** BD ** ** 99 ** ** E8 E8 C8 C0 NN
+    for cpy_val in [0x06, 0x04, 0x08]:
+        pat = f"BD****99****BD****99****E8E8C8C0{cpy_val:02X}"
+        pos = find_hex_pattern(binary, pat)
+        if pos >= 0:
+            songs_addr = binary[pos + 1] | (binary[pos + 2] << 8)
+            return songs_addr, True, cpy_val
+
     # Single-song fallback: LDA currtrklo,X / STA zp / LDA currtrkhi,X / STA zp / DEC
     # Pattern: BD ** ** 85 ** BD ** ** 85 ** DE
     pos = find_hex_pattern(binary, "BD****85**BD****85**DE")
