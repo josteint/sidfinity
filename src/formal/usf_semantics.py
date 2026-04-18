@@ -312,12 +312,13 @@ class USFPlayer:
             return
 
         step = g.filt_step
-        if step == 0:
+        if step == 0 or step > len(self._filt_time):
             return
 
         if g.filt_time != 0:
             # Modulating
-            g.filt_cut = (g.filt_cut + self._signed8(self._filt_speed[step - 1])) & 0xFF
+            if step - 1 < len(self._filt_speed):
+                g.filt_cut = (g.filt_cut + self._signed8(self._filt_speed[step - 1])) & 0xFF
             g.filt_time -= 1
             if g.filt_time == 0:
                 # Advance
@@ -1213,6 +1214,10 @@ class USFPlayer:
             self._exec_wave_table(v)
             # Skip effects on tick-0 — counter is 0
             self._exec_pulse_table(v)
+            # Gate timer check runs even on tick-0 (counter still 0 here).
+            # With gate_timer=0, pattern reader fires on tick-0 frame.
+            if vs.counter == vs.gate_timer:
+                self._read_pattern(v)
             return
 
         if vs.counter < 0 or vs.counter > 127:
