@@ -1244,12 +1244,20 @@ class USFPlayer:
         self._init_song(subtune)
         trace = []
 
-        # siddump frame 0 = initial state after init, BEFORE the first play call.
-        # Emit one init frame (zeros + volume from init) to match.
+        # Frame timing alignment with siddump:
+        #   siddump F0 = state after mt_fullinit (counter=1, vol=15, all else 0)
+        #   siddump F1 = state after 1st actual play call (tick-0, vibrato loaded)
+        #   siddump F2 = state after 2nd play call (effects run)
+        #
+        # The first engine.play() call runs mt_fullinit (not normal play).
+        # We emit F0 as the post-init state, then play starts from F1.
         init_frame = RegisterFrame()
-        init_frame[24] = 0x0F  # $D418: volume=15 (set by init)
+        init_frame[24] = 0x0F  # volume=15 from init
         trace.append(init_frame.to_list())
+        if num_frames <= 1:
+            return trace
 
+        # F1 onwards: normal play calls
         for frame_num in range(1, num_frames):
             frame = RegisterFrame()
 
