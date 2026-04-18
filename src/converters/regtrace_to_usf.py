@@ -1260,6 +1260,82 @@ def detect_digi_playback(frames):
     }
 
 
+def _try_extract_freq_table(sid_path):
+    """Try to extract the actual frequency table from the SID binary.
+
+    Scans the binary for byte patterns matching the PAL freq table.
+    Handles separate (stride 1) and interleaved (stride 2) layouts.
+
+    Returns (freq_table_16bit, first_note) or None.
+    """
+    try:
+        with open(sid_path, 'rb') as f:
+            data = f.read()
+
+        magic = data[:4]
+        if magic not in (b'PSID', b'RSID'):
+            return None
+
+        header_len = int.from_bytes(data[6:8], 'big')
+        code = data[header_len:]
+        load_addr_h = int.from_bytes(data[8:10], 'big')
+        if load_addr_h == 0:
+            binary = code[2:]
+        else:
+            binary = code
+
+        if len(binary) < 96:
+            return None
+
+        pal_hi = FREQ_HI_PAL
+
+        best_matches = 0
+        best_result = None
+
+        for stride in [1, 2]:
+            hi_col = 1 if stride == 2 else 0
+            max_offset = len(binary) - 48 * stride
+            if max_offset < 0:
+                continue
+            for offset in range(max_offset):
+                for note_off in range(0, 48):
+                    n = min(96 - note_off, (len(binary) - offset - hi_col) // stride)
+                    if n < 24:
+                        continue
+                    matches = 0
+                    for i in range(n):
+                        bi = offset + hi_col + i * stride
+                        if bi >= len(binary):
+                            break
+                        if abs(binary[bi] - pal_hi[note_off + i]) <= 1:
+                            matches += 1
+                    if matches > best_matches and matches >= n * 0.7:
+                        best_matches = matches
+                        # Extract full table
+                        freq_table = []
+                        for i in range(n):
+                            bi_lo = offset + (0 if stride == 2 else 0) + i * stride
+                            bi_hi = offset + hi_col + i * stride
+                            if bi_hi >= len(binary) or bi_lo >= len(binary):
+                                break
+                            if stride == 2:
+                                lo = binary[bi_lo]
+                                hi = binary[bi_hi]
+                            else:
+                                hi = binary[bi_hi]
+                                # For separate tables, freq_lo is harder to locate
+                                lo = FREQ_LO_PAL[note_off + i]  # use PAL as fallback
+                            freq_table.append((hi << 8) | lo)
+                        if len(freq_table) >= 24:
+                            best_result = (freq_table, note_off)
+
+        if best_result and best_matches >= 30:
+            return best_result
+    except Exception:
+        pass
+    return None
+
+
 def regtrace_to_usf(sid_path, duration=60, debug=False):
     """Convert a SID file to USF Song via register trace analysis.
 
@@ -1272,6 +1348,39 @@ def regtrace_to_usf(sid_path, duration=60, debug=False):
         usf.Song object
     """
     metadata, frames = run_siddump(sid_path, duration)
+
+    # Try to extract the actual frequency table via taint tracking.
+    # This handles engines with custom tuning (Hubbard, etc.)
+    # When found, temporarily replace the module-level PAL tables so all
+    # note detection functions use the correct tuning.
+    global FREQ_LO_PAL, FREQ_HI_PAL, FREQ_TABLE_PAL
+    orig_lo, orig_hi, orig_table = FREQ_LO_PAL, FREQ_HI_PAL, FREQ_TABLE_PAL
+
+    custom_freq = _try_extract_freq_table(sid_path)
+    if custom_freq:
+        table, first_note = custom_freq
+        if debug:
+            print(f"  Custom freq table: {len(table)} entries, first_note={first_note}")
+        # Rebuild full 96-note table, padding with PAL for missing notes
+        full_table = list(FREQ_TABLE_PAL)  # start with PAL
+        for i in range(len(table)):
+            if first_note + i < 96:
+                full_table[first_note + i] = table[i]
+        FREQ_TABLE_PAL = full_table
+        FREQ_LO_PAL = [f & 0xFF for f in full_table]
+        FREQ_HI_PAL = [(f >> 8) & 0xFF for f in full_table]
+
+    try:
+        result = _regtrace_to_usf_inner(sid_path, metadata, frames, duration, debug)
+    finally:
+        # Restore original tables
+        FREQ_LO_PAL, FREQ_HI_PAL, FREQ_TABLE_PAL = orig_lo, orig_hi, orig_table
+
+    return result
+
+
+def _regtrace_to_usf_inner(sid_path, metadata, frames, duration, debug):
+    """Inner implementation of regtrace_to_usf (after freq table setup)."""
 
     # Detect digi/sample playback (rapid $D418 writes)
     digi_info = detect_digi_playback(frames)
