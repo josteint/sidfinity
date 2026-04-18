@@ -227,6 +227,30 @@ def find_songs(binary, load_addr):
         if currtrkhi - currtrklo == 3:
             return currtrklo, False, 6, False
 
+    # Phase 3/4 fallback: ZP pointer setup
+    # LDA table,X / STA $F0 / ... / LDA table2,X / STA $F1 / ...
+    # Pattern: BD ** ** 85 F0 BD ** ** 85 F1
+    # Track pointer tables for 3 voices at stride 7 (X=0/7/14)
+    for f0_base in range(0xF0, 0xFA, 2):  # try $F0, $F2, $F4, ...
+        pat = f"BD****85{f0_base:02X}BD****85{f0_base+1:02X}"
+        pos = find_hex_pattern(binary, pat)
+        if pos >= 0:
+            trk_lo_table = binary[pos + 1] | (binary[pos + 2] << 8)
+            trk_hi_table = binary[pos + 6] | (binary[pos + 7] << 8)
+            # This is a per-voice pointer setup, not a song table.
+            # Use trk_lo/hi tables directly. Each voice at stride 7.
+            # Build a "virtual" song table from the pointer values.
+            track_addrs = []
+            for voice_x in [0, 7, 14]:
+                lo_off = trk_lo_table - load_addr + voice_x
+                hi_off = trk_hi_table - load_addr + voice_x
+                if 0 <= lo_off < len(binary) and 0 <= hi_off < len(binary):
+                    addr = binary[lo_off] | (binary[hi_off] << 8)
+                    track_addrs.append(addr)
+            if len(track_addrs) == 3 and any(load_addr <= a < load_addr + len(binary) for a in track_addrs):
+                # Store the lo table address as "songs_addr" — it's the closest equivalent
+                return trk_lo_table, False, 6, False
+
     return None, False, 0, False
 
 
