@@ -830,11 +830,11 @@ class USFPlayer:
                     pass
             else:
                 if self._signed8(speed) < 0:
-                    vs.pulse_hi = (vs.pulse_hi - 1) & 0x0F
+                    vs.pulse_hi = (vs.pulse_hi - 1) & 0xFF
 
             total = vs.pulse_lo + (speed & 0xFF)
             if total > 0xFF:
-                vs.pulse_hi = (vs.pulse_hi + 1) & 0x0F
+                vs.pulse_hi = (vs.pulse_hi + 1) & 0xFF
             vs.pulse_lo = total & 0xFF
 
             vs.pulse_time -= 1
@@ -846,7 +846,7 @@ class USFPlayer:
         time_val = self._pulse_time[idx]
         if time_val >= 0x80:
             # Set pulse width
-            vs.pulse_hi = time_val & 0x0F
+            vs.pulse_hi = time_val  # V2 stores full byte, SID uses low nibble only
             vs.pulse_lo = self._pulse_speed[idx]
             self._pulse_advance(vs, idx)
         else:
@@ -857,10 +857,10 @@ class USFPlayer:
             if self._pulse_asl:
                 speed = (speed << 1) & 0xFF
             if self._signed8(speed) < 0:
-                vs.pulse_hi = (vs.pulse_hi - 1) & 0x0F
+                vs.pulse_hi = (vs.pulse_hi - 1) & 0xFF
             total = vs.pulse_lo + (speed & 0xFF)
             if total > 0xFF:
-                vs.pulse_hi = (vs.pulse_hi + 1) & 0x0F
+                vs.pulse_hi = (vs.pulse_hi + 1) & 0xFF
             vs.pulse_lo = total & 0xFF
             vs.pulse_time -= 1
             if vs.pulse_time == 0:
