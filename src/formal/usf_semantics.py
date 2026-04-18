@@ -290,7 +290,7 @@ class USFPlayer:
 
         for v in range(3):
             vs = VoiceState()
-            vs.counter = 1
+            vs.counter = 2  # compensate for init frame: delays first tick-0 by 1
             vs.tempo = self.song.tempo
             vs.gate = 0xFE
             vs.instrument = 1
