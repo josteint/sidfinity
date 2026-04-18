@@ -12,10 +12,12 @@ import subprocess
 SIDDUMP = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'tools', 'siddump')
 
 
-def dump_sid(path, duration=10):
+def dump_sid(path, duration=10, subtune=None):
     """Run siddump and return list of frame register tuples."""
-    r = subprocess.run([SIDDUMP, path, '--duration', str(duration), '--force-rsid'],
-                       capture_output=True, text=True, timeout=60)
+    cmd = [SIDDUMP, path, '--duration', str(duration), '--force-rsid']
+    if subtune is not None:
+        cmd.extend(['--subtune', str(subtune)])
+    r = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
     if r.returncode != 0:
         return None
     lines = r.stdout.strip().split('\n')[2:]
@@ -24,6 +26,16 @@ def dump_sid(path, duration=10):
         vals = [int(v, 16) for v in line.split(',')]
         frames.append(vals)
     return frames
+
+
+def get_num_subtunes(path):
+    """Read the number of subtunes from the PSID header."""
+    import struct
+    with open(path, 'rb') as f:
+        header = f.read(16)
+    if header[:4] not in (b'PSID', b'RSID'):
+        return 1
+    return struct.unpack('>H', header[14:16])[0]
 
 
 def compare_tolerant(orig_frames, new_frames):
@@ -414,20 +426,45 @@ def score_results(results):
 
 
 def compare_sids_tolerant(orig_path, new_path, duration=10):
-    """Full tolerant comparison between two SID files."""
-    orig = dump_sid(orig_path, duration)
-    new = dump_sid(new_path, duration)
-    if orig is None or new is None:
+    """Full tolerant comparison between two SID files.
+
+    Tests ALL subtunes. The overall grade is the WORST across all subtunes.
+    A song isn't Grade A if any subtune is broken.
+    """
+    num_orig = get_num_subtunes(orig_path)
+    num_new = get_num_subtunes(new_path)
+    num_subs = min(num_orig, num_new)
+
+    worst_grade = 'S'
+    worst_score = 100.0
+    worst_results = None
+    grade_order = {'S': 0, 'A': 1, 'B': 2, 'C': 3, 'F': 4}
+
+    for sub in range(1, num_subs + 1):
+        orig = dump_sid(orig_path, duration, subtune=sub)
+        new = dump_sid(new_path, duration, subtune=sub)
+        if orig is None or new is None:
+            continue
+
+        results = compare_tolerant(orig, new)
+        if results is None:
+            continue
+
+        score, grade = score_results(results)
+
+        if grade_order.get(grade, 9) > grade_order.get(worst_grade, 9) or \
+           (grade == worst_grade and score < worst_score):
+            worst_grade = grade
+            worst_score = score
+            worst_results = results
+
+    if worst_results is None:
         return None
 
-    results = compare_tolerant(orig, new)
-    if results is None:
-        return None
-
-    score, grade = score_results(results)
-    results['score'] = score
-    results['grade'] = grade
-    return results
+    worst_results['score'] = worst_score
+    worst_results['grade'] = worst_grade
+    worst_results['subtunes_tested'] = num_subs
+    return worst_results
 
 
 def print_results(results, name=''):
