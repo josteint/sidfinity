@@ -20,7 +20,7 @@
 4. For fast validation: use formal semantics player (15x faster than siddump)
 
 ### Meta-rule: evaluate and evolve the process itself
-When Grade A progress stalls (no improvement in current session), or after each major milestone (+100 songs):
+On compaction (the PreCompact hook will remind you):
 1. Check: are the current approaches still the highest ROI? Read `docs/benchmark.csv` — is the curve flattening?
 2. Check: are the memories accurate? Read and update `project_math_formalization.md` and `project_pipeline_status.md`
 3. Check: are there new approaches worth testing? Read `docs/formal/experiment_results.md` — any "NEEDS WORK" items worth revisiting?
