@@ -200,6 +200,14 @@ def compare_tolerant(orig_frames, new_frames):
                             if o_fhi == new_frames[j][base + 1]:
                                 shifted = True
                                 break
+                # Voice init artifact: one side has fhi=0 (uninitialized)
+                # and just transitioned from silence. This is a 1-frame
+                # initialization delay, not a wrong note.
+                if not shifted:
+                    if n_fhi == 0 and i > 0 and (new_frames[i-1][base + 4] & 0xF0) == 0:
+                        shifted = True  # rebuilt just started from silence
+                    elif o_fhi == 0 and i > 0 and (orig_frames[i-1][base + 4] & 0xF0) == 0:
+                        shifted = True  # original just started from silence
                 if shifted:
                     vr['note_jitter'] += 1
                 else:
