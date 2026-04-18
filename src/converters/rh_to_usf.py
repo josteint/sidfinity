@@ -659,6 +659,31 @@ def rh_to_usf(sid_path, subtune=None):
         usf_pat = _map_pattern(rh_pat, usf_id, tempo_div, interleaved_freq)
         song.patterns.append(usf_pat)
 
+    # Fix portamento speed table references.
+    # _map_pattern stores the raw Hubbard speed in command_val, but the V2 player
+    # expects a speed table INDEX. Collect all unique speeds, create speed table
+    # entries (left=hi, right=lo of 16-bit delta), and remap command_val to indices.
+    porta_speeds = set()
+    for pat in song.patterns:
+        for ev in pat.events:
+            if ev.command in (0x01, 0x02) and ev.command_val > 0:
+                porta_speeds.add(ev.command_val)
+    if porta_speeds:
+        speed_to_idx = {}
+        for spd in sorted(porta_speeds):
+            idx = len(song.speed_table) + 1  # 1-based
+            speed_to_idx[spd] = idx
+            # Hubbard portamento speed is a per-frame 16-bit frequency delta.
+            # Split into hi/lo bytes for the V2 speed table.
+            hi = (spd >> 8) & 0xFF
+            lo = spd & 0xFF
+            song.speed_table.append(SpeedTableEntry(left=hi, right=lo))
+        # Remap command_val from raw speed to speed table index
+        for pat in song.patterns:
+            for ev in pat.events:
+                if ev.command in (0x01, 0x02) and ev.command_val in speed_to_idx:
+                    ev.command_val = speed_to_idx[ev.command_val]
+
     # Map orderlists from tracks
     for voice_idx in range(3):
         track = rh_song.tracks[voice_idx]

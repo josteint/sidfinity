@@ -62,7 +62,7 @@ def usf_pattern_to_gt2(pattern):
                     prev_cmd = cmd_num
                     prev_param = cmd_val
 
-                if event.type == 'rest':
+                if event.type in ('rest', 'tie'):
                     if cmd_changed:
                         row.append(0x50 + cmd_num)  # FXONLY
                         if cmd_num != 0:
