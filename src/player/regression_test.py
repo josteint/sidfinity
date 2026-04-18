@@ -152,8 +152,9 @@ def run_tests():
     if len(failures) > 20:
         print(f'  ... and {len(failures) - 20} more failures')
 
+    grade_s_count = sum(1 for _, ok, grade, *_ in results if ok and grade == 'S')
     grade_a_count = sum(1 for _, ok, grade, *_ in results if ok and grade == 'A')
-    print(f'\n{passed} passed, {failed} failed, {skipped} skipped out of {len(entries)} tests ({grade_a_count} Grade A)')
+    print(f'\n{passed} passed, {failed} failed, {skipped} skipped out of {len(entries)} tests ({grade_s_count} S + {grade_a_count} A = {grade_s_count + grade_a_count})')
     return failed == 0
 
 
@@ -182,8 +183,8 @@ def add_sid(sid_path):
         ok_pct = 100 * vr['ok'] / comp['total']
         print(f'  V{v+1}: {ok_pct:.1f}% ok')
 
-    if grade not in ('A', 'B'):
-        print(f'\n  WARNING: Grade {grade} — only Grade A/B should be added to regression tests.')
+    if grade not in ('S', 'A', 'B'):
+        print(f'\n  WARNING: Grade {grade} — only Grade S/A/B should be added to regression tests.')
         resp = input('  Add anyway? [y/N] ')
         if resp.lower() != 'y':
             return False
