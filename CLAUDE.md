@@ -13,11 +13,16 @@
 
 ## Continuous Improvement Process
 
-### Before starting work
-1. Read the `project_math_formalization.md` memory — it has what works and what doesn't
-2. For Grade A improvement: start with trace equivalence mining (highest ROI, +393 songs from 3 rules)
-3. For new engines: use taint tracking + abstract interpretation (see `docs/formal/procedure.md`)
-4. For fast validation: use formal semantics player (15x faster than siddump)
+### MANDATORY before ANY pipeline work
+**STOP. Before writing or modifying any code, do these checks:**
+1. **Check if this engine has a diagnosis memory.** Search memories for `project_*_diagnosis.md`. If one exists, READ IT — it contains root cause analysis from prior sessions. Do NOT re-investigate from scratch.
+2. **Check `docs/formal/procedure.md`** for the decision framework. It tells you which tool to use for which problem. Follow it.
+3. **Check `docs/formal/experiment_results.md`** — 10 approaches were tested. 3 were proven NOT USEFUL. Don't re-try them.
+4. For Grade A improvement: start with trace equivalence mining (highest ROI, +501 songs from 4 rules)
+5. For new engines: taint tracking + abstract interpretation first, then code
+6. For fast validation: formal semantics player (15x faster than siddump)
+
+**The most common mistake:** jumping straight to manual frame-by-frame analysis instead of using the tools. The tools exist for a reason — they're faster and find root causes that staring at hex dumps won't.
 
 ### Meta-rule: evaluate and evolve the process itself
 On compaction (the PreCompact hook will remind you):
