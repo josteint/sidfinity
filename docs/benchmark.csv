@@ -14,3 +14,4 @@ date,grade_a,grade_b,grade_c,grade_f,grade_err,total,commit,note
 2026-04-10,4367,0,0,0,0,7325,,speed table + ADSR shadow register fixes
 2026-04-17,4323,0,0,0,0,7325,d44c717,GT2 regression base (Hubbard: 14A avg 66%)
 2026-04-18,4556,7325,62.2,symmetry fix in EarlyNoteStart rule (+233 Grade A)
+2026-04-17,4716,6595,71.5,symmetric FrameShift + release tolerance (+160 Grade A)

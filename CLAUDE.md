@@ -42,7 +42,7 @@
 
 Build the SIDfinity universal SID music player and ML pipeline. See `docs/PLAN.md` for the full roadmap and current status.
 
-**Status:** 4,556/7,325 Grade A (62.2%) on full HVSC GT2 scope. 6,768/7,325 (92.4%) parseable. Two paths to USF: static binary parsing (primary) and register trace analysis (universal fallback for any engine). **Rob Hubbard pipeline:** 14A + 5C = 19/66 (29%), avg 66.0% across 66 songs. **Formal methods:** EarlyNoteStart symmetry fix gained +233 Grade A songs. Formal USF semantics player at 84% note/waveform accuracy (±5 frame tolerance).
+**Status:** 4,716/6,595 Grade A (71.5%) on full HVSC GT2 scope. 6,768/7,325 (92.4%) parseable. Two paths to USF: static binary parsing (primary) and register trace analysis (universal fallback for any engine). **Rob Hubbard pipeline:** 14A + 5C = 19/66 (29%), avg 66.0% across 66 songs. Jitter rules: symmetric FrameShift, both-gates-off release tolerance, EarlyNoteStart symmetry (+160 + +233 Grade A).
 
 **Next steps (in priority order):**
 1. Add CIA timer / multispeed support to V2 player (703 songs, 9.6% of GT2, currently 100% F-rate — see docs/investigation_tempo12_fgrade.md)
@@ -66,14 +66,17 @@ The comparison classifies each frame difference as audible or inaudible:
 **Inaudible:** `note_jitter`, `wave_jitter`, `gate_diff`, `env_jitter`, `freq_fine`, `pulse_diff`, `pulse_jitter`
 
 **Jitter detection layers (in order):**
-1. **±3 frame window** — rebuilt's freq_hi found in original's nearby frames
-2. **1-frame transient** — both neighbors match (isolated glitch)
-3. **Test-bit waveform** — $08/$09 near gate transitions is HR artifact
-4. **Silent voice** — freq diffs when waveform bits are all 0 (oscillator off)
-5. **Sequence-level** — same note-change-event sequence in different order (95% LCS match)
-6. **Global value set** — both streams use identical set of freq_hi values (arpeggio phase drift)
-7. **Vibrato phase drift** — ±8 frame window, both values appear in each other's window (50% threshold)
-8. **Init/end grace** — first 10 frames and last 2 frames excluded
+1. **Silent voice** — freq diffs when waveform bits are all 0 (oscillator off)
+2. **Noise freq** — both sides play noise ($80/$81), rate diffs are inaudible
+3. **Both-gates-off release** — both sides have gate=0, freq diff is inaudible (decaying to silence)
+4. **±3 frame window (symmetric)** — freq_hi found in the other stream's nearby frames (both directions)
+5. **1-frame transient** — both neighbors match (isolated glitch)
+6. **Early note start (symmetric)** — one side fires next note while other releases, ±20 frames (both directions)
+7. **Test-bit waveform** — $08/$09 near gate transitions is HR artifact
+8. **Sequence-level** — same note-change-event sequence in different order (95% LCS match)
+9. **Global value set** — both streams use identical set of freq_hi values (arpeggio phase drift)
+10. **Vibrato phase drift** — ±8 frame window, both values appear in each other's window (50% threshold)
+11. **Init/end grace** — first 10 frames and last 2 frames excluded
 
 **Grading:** A = zero note_wrong + wave_wrong (env_wrong < 1%). B = < 2% audible. C = < 10%. F = >= 10%.
 
