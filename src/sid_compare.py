@@ -155,15 +155,23 @@ def compare_tolerant(orig_frames, new_frames):
                     next_ok = (i+1 < total and orig_frames[i+1][base+1] == new_frames[i+1][base+1])
                     if prev_ok and next_ok:
                         shifted = True  # 1-frame transient
-                # Early note start: rebuilt fires next note while original is
-                # still releasing (gate=0). If the rebuilt's freq_hi appears
-                # in the original within the next 20 frames, this is a timing
-                # shift (rebuilt early, not a wrong note).
+                # Early note start: one side fires the next note while the
+                # other is still releasing (gate=0). If the early side's
+                # freq_hi appears in the late side's next 20 frames, this
+                # is a timing shift, not a wrong note.
+                # Check both directions for symmetry (compare(A,B) == compare(B,A)).
                 if not shifted and not (o_wav & 0x01):
                     for d in range(1, 21):
                         j = i + d
                         if 0 <= j < total:
                             if n_fhi == orig_frames[j][base + 1]:
+                                shifted = True
+                                break
+                if not shifted and not (n_wav & 0x01):
+                    for d in range(1, 21):
+                        j = i + d
+                        if 0 <= j < total:
+                            if o_fhi == new_frames[j][base + 1]:
                                 shifted = True
                                 break
                 if shifted:
