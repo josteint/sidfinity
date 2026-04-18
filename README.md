@@ -1,35 +1,45 @@
 # SIDfinity
 
 ![alpha](https://img.shields.io/badge/status-alpha-orange)
+![phase](https://img.shields.io/badge/phase_1-SID_→_USF_→_SID-blue)
 
-> **Note:** This README was written by Claude (Anthropic's AI assistant). The project is in alpha — things work but rough edges remain.
+A pipeline for decompiling C64 SID music into a universal symbolic format (USF), rebuilding them with a custom 6502 player, and eventually training a neural net to generate new SID tunes as playable `.sid` files.
 
-A pipeline for decompiling C64 SID music into a universal symbolic format, with the goal of training a neural net to generate new SID tunes as playable `.sid` files.
+**Current focus (Phase 1):** get as many of the ~60,000 HVSC SIDs as possible through the pipeline at Grade A (no audible difference from the original).
 
 ## What it does
 
-SIDfinity takes existing SID tunes from the [HVSC](https://hvsc.de/) collection (~60,000 files), decompiles them into a musical representation (notes, instruments, patterns, effects), and rebuilds them with a custom 6502 player. The rebuilt SIDs are validated frame-by-frame against the originals.
+SIDfinity takes existing SID tunes from the [HVSC](https://hvsc.de/) collection, decompiles them into a musical representation (notes, instruments, patterns, effects), and rebuilds them with a custom 6502 player. The rebuilt SIDs are validated frame-by-frame against the originals.
 
 ```
-  GT2 SID ──→ decompile ──→ USF ──→ SIDfinity player ──→ rebuilt .sid
+  Any SID ──→ decompile ──→ USF ──→ SIDfinity player ──→ rebuilt .sid
        │                                                       │
        └───────────── register comparison ─────────────────────┘
 ```
 
-The eventual goal is to train a transformer model on the extracted musical data to generate new C64 music.
-
 ## Current state
 
-**GoatTracker V2 pipeline:** 1,688 out of 3,478 GT2 SIDs (48.5%) achieve Grade A — zero audible differences from the original. The full regression suite tests all 3,478 GT2 SIDs in 33 seconds on 48 cores. GT2 accounts for roughly 7,000 of the ~60,000 SIDs in HVSC.
+<!-- BEGIN DASHBOARD -->
+```
+HVSC Coverage Dashboard — 59,861 SIDs
+══════════════════════════════════════════════════════════════════════════════
 
-The pipeline correctly handles:
-- All 4 GT2 player groups (A through D, versions 2.65–2.77)
-- Ghost register mode (Group C)
-- Toneportamento, portamento, vibrato, funktempo
-- Wave/pulse/filter/speed table extraction and playback
-- Per-song V2 6502 code generation with peephole optimization
+Engine               SIDs       S     A     B     C     F  │   USF PARSE    ID
+──────────────────────────────────────────────────────────────────────────────
+GoatTracker V2       7549      45  4415     —     —     —  │  2257   537   295
+DMC                 10676       —     —     —     —     —  │ 10631     9    36
+Rob Hubbard           289       —     —     —     —     —  │     —     —   289
+JCH NewPlayer        3678       —     —     —     —     —  │     —     —  3678
+──────────────────────────────────────────────────────────────────────────────
+Unprocessed         37669   (62.9%)
+```
+<!-- END DASHBOARD -->
 
-**Other engines:** DMC and JCH parsers exist in early form. 48 player engines are documented in `docs/players/`.
+**Grading:** S = bit-identical register output. A = no audible differences. B/C/F = increasing audible errors.
+
+**GoatTracker V2** is the most mature pipeline — 4,460 out of 7,549 GT2 SIDs (59%) at Grade A or S. The pipeline handles all 4 player groups (A–D), toneportamento, vibrato, funktempo, wave/pulse/filter tables, and per-song 6502 code generation with peephole optimization.
+
+**Other engines:** DMC (10,676 SIDs) has a parser and USF converter. Rob Hubbard and JCH NewPlayer are identified but not yet fully pipelined. 48 player engines are documented in `docs/players/`.
 
 ## Build
 

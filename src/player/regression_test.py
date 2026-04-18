@@ -171,6 +171,9 @@ def run_tests():
             if regs:
                 print(f'  grades.db: {len(regs)} regressions')
         db.close()
+        # Update README dashboard
+        from update_readme import update_readme
+        update_readme()
     except Exception as e:
         pass  # don't fail regression test because of dashboard
 
