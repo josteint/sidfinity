@@ -17,6 +17,15 @@ import subprocess
 from datetime import datetime
 
 DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'data', 'grades.db')
+_PROJECT_ROOT = os.path.realpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
+
+
+def _normalize_path(path):
+    """Normalize a SID path to a canonical relative form: data/C64Music/..."""
+    real = os.path.realpath(path) if os.path.exists(path) else os.path.normpath(os.path.abspath(path))
+    if real.startswith(_PROJECT_ROOT):
+        return os.path.relpath(real, _PROJECT_ROOT)
+    return real
 
 
 def _get_commit():
@@ -60,6 +69,7 @@ def connect(db_path=None):
 
 def record(db, path, engine, grade, score=None, commit_hash=None):
     """Record a grade for a song. Updates songs table and appends to history."""
+    path = _normalize_path(path)
     now = datetime.now().isoformat(timespec='seconds')
     commit = commit_hash or _get_commit()
 
@@ -103,6 +113,7 @@ def record_batch(db, entries, commit_hash=None):
     history_rows = []
 
     for path, engine, grade, score in entries:
+        path = _normalize_path(path)
         old = old_grades.get(path)
         old_rank = GRADE_ORDER.get(old, 99)
         new_rank = GRADE_ORDER.get(grade, 99)
