@@ -8,6 +8,24 @@
 - **`docs/usf_spec.md`** — USF specification (update when USF changes, then update all converters)
 - **`docs/gt2_data_layout.md`** — Byte-level GT2 data layout (read before touching the packer)
 - **`src/sidxray/METHODOLOGY.md`** — How to reverse-engineer any SID player
+- **`docs/formal/procedure.md`** — Mathematical methods: when to use which tool, decision framework
+- **`docs/formal/experiment_results.md`** — What works and what doesn't (10 experiments tested)
+
+## Continuous Improvement Process
+
+### Before starting work
+1. Read the `project_math_formalization.md` memory — it has what works and what doesn't
+2. For Grade A improvement: start with trace equivalence mining (highest ROI, +393 songs from 3 rules)
+3. For new engines: use taint tracking + abstract interpretation (see `docs/formal/procedure.md`)
+4. For fast validation: use formal semantics player (15x faster than siddump)
+
+### Meta-rule: evaluate and evolve the process itself
+Every ~5 sessions, or when Grade A progress stalls:
+1. Check: are the current approaches still the highest ROI? Read `docs/benchmark.csv` — is the curve flattening?
+2. Check: are the memories accurate? Read and update `project_math_formalization.md` and `project_pipeline_status.md`
+3. Check: are there new approaches worth testing? Read `docs/formal/experiment_results.md` — any "NEEDS WORK" items worth revisiting?
+4. Check: should CLAUDE.md itself change? If a convention isn't being followed or a new pattern has emerged, update this file.
+5. If a tool that was "NOT USEFUL" starts seeming relevant (e.g., Z3 for non-GT2 engines), re-test it with a concrete experiment before investing.
 
 ## Working Conventions
 
