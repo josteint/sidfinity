@@ -1354,12 +1354,27 @@ def compare_with_siddump(song: Song, sid_path: str, duration: int = 10):
         vals = [int(v, 16) for v in line.split(',')]
         siddump_trace.append(vals)
 
-    # Compare
+    # Compare with ±1 frame tolerance for siddump drift.
+    # siddump uses 19688 cycles/frame (19656 + 32 margin), causing the VBI
+    # to drift relative to the frame boundary. Register writes near the
+    # boundary may appear in adjacent frames. A formal frame matches if
+    # it equals the siddump frame at i-1, i, or i+1.
     min_len = min(len(formal_trace), len(siddump_trace))
     diffs = 0
+    diffs_strict = 0
     first_diff = -1
     for i in range(min_len):
-        if formal_trace[i] != siddump_trace[i]:
+        if formal_trace[i] == siddump_trace[i]:
+            continue
+        diffs_strict += 1
+        # Check ±1 tolerance
+        matched = False
+        for d in [-1, 1]:
+            j = i + d
+            if 0 <= j < min_len and formal_trace[i] == siddump_trace[j]:
+                matched = True
+                break
+        if not matched:
             diffs += 1
             if first_diff < 0:
                 first_diff = i
@@ -1369,7 +1384,9 @@ def compare_with_siddump(song: Song, sid_path: str, duration: int = 10):
         'siddump_frames': len(siddump_trace),
         'compared': min_len,
         'diffs': diffs,
+        'diffs_strict': diffs_strict,
         'match_pct': 100.0 * (min_len - diffs) / min_len if min_len > 0 else 0,
+        'match_pct_strict': 100.0 * (min_len - diffs_strict) / min_len if min_len > 0 else 0,
         'first_diff': first_diff,
     }
 
