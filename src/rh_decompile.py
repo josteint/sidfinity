@@ -193,7 +193,8 @@ def find_songs(binary, load_addr):
     Single-song fallback: LDA currtrklo,X / STA zp / LDA currtrkhi,X / STA zp / DEC
     Pattern: BD ** ** 85 ** BD ** ** 85 ** DE
 
-    Returns (songs_addr, is_multi, bytes_per_song) or (None, False, 0).
+    Returns (songs_addr, is_multi, bytes_per_song, interleaved) or (None, False, 0, False).
+    interleaved=True for double-INX variant where lo/hi are interleaved.
     """
     # Multi-song pattern — try CPY #6 (3 voices × 2 bytes) first,
     # then other values (CPY #4 for 2-voice songs like Human Race,
@@ -203,16 +204,18 @@ def find_songs(binary, load_addr):
         pos = find_hex_pattern(binary, pat)
         if pos >= 0:
             songs_addr = binary[pos + 1] | (binary[pos + 2] << 8)
-            return songs_addr, True, cpy_val
+            return songs_addr, True, cpy_val, False
 
-    # Variant: double LDA/STA + double INX (loads lo+hi pairs)
+    # Variant: double LDA/STA + double INX (loads lo+hi pairs interleaved)
     # Pattern: BD ** ** 99 ** ** BD ** ** 99 ** ** E8 E8 C8 C0 NN
-    for cpy_val in [0x06, 0x04, 0x08]:
+    # Here CPY #N counts voices (not bytes), and each voice = 2 bytes (stride 2 in X)
+    for cpy_val in [0x06, 0x04, 0x08, 0x03]:
         pat = f"BD****99****BD****99****E8E8C8C0{cpy_val:02X}"
         pos = find_hex_pattern(binary, pat)
         if pos >= 0:
             songs_addr = binary[pos + 1] | (binary[pos + 2] << 8)
-            return songs_addr, True, cpy_val
+            # In this variant, CPY counts voice slots, bytes_per_song = cpy_val * 2
+            return songs_addr, True, cpy_val * 2, True
 
     # Single-song fallback: LDA currtrklo,X / STA zp / LDA currtrkhi,X / STA zp / DEC
     # Pattern: BD ** ** 85 ** BD ** ** 85 ** DE
@@ -221,9 +224,9 @@ def find_songs(binary, load_addr):
         currtrklo = binary[pos + 1] | (binary[pos + 2] << 8)
         currtrkhi = binary[pos + 6] | (binary[pos + 7] << 8)
         if currtrkhi - currtrklo == 3:
-            return currtrklo, False, 6
+            return currtrklo, False, 6, False
 
-    return None, False, 0
+    return None, False, 0, False
 
 
 def find_instruments(binary, load_addr):
@@ -667,14 +670,15 @@ def decompile(sid_path, verbose=False):
     # --- Find data structures via pattern matching ---
 
     # Song table
-    songs_addr, is_multi, bytes_per_song = find_songs(binary, load_addr)
+    songs_addr, is_multi, bytes_per_song, interleaved = find_songs(binary, load_addr)
     if songs_addr is None:
         print('ERROR: Could not find song table pattern', file=sys.stderr)
         return None
     result.song_table_addr = songs_addr
     num_voices = bytes_per_song // 2  # each voice = 2 bytes (lo + hi pointer)
     if verbose:
-        print(f'Song table at ${songs_addr:04X} ({"multi" if is_multi else "single"}, {num_voices} voices, {bytes_per_song} bytes/song)')
+        layout = 'interleaved' if interleaved else 'split'
+        print(f'Song table at ${songs_addr:04X} ({"multi" if is_multi else "single"}, {num_voices} voices, {bytes_per_song} bytes/song, {layout})')
 
     # Instruments
     instr_addr = find_instruments(binary, load_addr)
@@ -796,10 +800,19 @@ def decompile(sid_path, verbose=False):
             off = songs_addr - load_addr + s * bytes_per_song
             if off + bytes_per_song > len(binary):
                 break
-            half = bytes_per_song // 2
-            lo = [binary[off + j] for j in range(half)]
-            hi = [binary[off + half + j] for j in range(half)]
-            track_addrs = [lo[j] | (hi[j] << 8) for j in range(min(half, 3))]
+            if interleaved:
+                # Double-INX layout: (lo, hi, lo, hi, ...) interleaved
+                track_addrs = []
+                for j in range(num_voices):
+                    lo_byte = binary[off + j * 2] if off + j * 2 < len(binary) else 0
+                    hi_byte = binary[off + j * 2 + 1] if off + j * 2 + 1 < len(binary) else 0
+                    track_addrs.append(lo_byte | (hi_byte << 8))
+            else:
+                # Split layout: [lo0, lo1, lo2, hi0, hi1, hi2]
+                half = bytes_per_song // 2
+                lo = [binary[off + j] for j in range(half)]
+                hi = [binary[off + half + j] for j in range(half)]
+                track_addrs = [lo[j] | (hi[j] << 8) for j in range(min(half, 3))]
             # Pad to 3 voices if fewer (2-voice songs get an empty V3)
             while len(track_addrs) < 3:
                 track_addrs.append(0)
