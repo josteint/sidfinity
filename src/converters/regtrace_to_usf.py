@@ -254,12 +254,28 @@ def extract_voice_events(frames, voice_idx, tempo=6, debug=False):
                 if settled_note >= 0:
                     current_note = settled_note
 
+            # Use the settled waveform (most common across the note).
+            # Frame 0 may be a first-wave transient (noise click, etc.).
+            # The settled waveform is what the note actually sounds like.
+            wave_counts = Counter()
+            for f in range(note_start, min(end_frame, nframes)):
+                w = frame_states[f]['waveform']
+                if w != 0:
+                    wave_counts[w] += 1
+            settled_fw = first_wave  # preserve outer scope first_wave
+            if wave_counts:
+                settled_wave = wave_counts.most_common(1)[0][0]
+                frame0_wave = frame_states[note_start]['waveform'] if note_start < nframes else 0
+                if frame0_wave != 0 and frame0_wave != settled_wave and dur > 1:
+                    settled_fw = frame0_wave
+                current_wave = settled_wave
+
             events.append({
                 'type': 'note', 'note': current_note,
                 'frame': note_start, 'duration': dur,
                 'ad': current_ad, 'sr': current_sr,
                 'waveform': current_wave, 'pw': current_pw,
-                'first_wave': first_wave,
+                'first_wave': settled_fw,
             })
         in_note = False
 
