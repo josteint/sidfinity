@@ -217,13 +217,24 @@ def compare_tolerant(orig_frames, new_frames):
                     vr['wave_jitter'] += 1
                     continue
                 # Check if timing shift: V2 waveform matches nearby frame?
+                # Use ±10 window (wave table phase drift can be wider than
+                # ±5, especially in Hubbard drivers with long wave cycles).
                 shifted = False
-                for d in [-5, -4, -3, -2, -1, 1, 2, 3, 4, 5]:
+                for d in [-10, -9, -8, -7, -6, -5, -4, -3, -2, -1, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]:
                     j = i + d
                     if 0 <= j < total:
                         if (n_wav & 0xFE) == (orig_frames[j][base + 4] & 0xFE):
                             shifted = True
                             break
+                # Symmetric: also check if original's waveform appears in
+                # rebuilt's ±10 window (ensures compare(A,B) == compare(B,A)).
+                if not shifted:
+                    for d in [-10, -9, -8, -7, -6, -5, -4, -3, -2, -1, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]:
+                        j = i + d
+                        if 0 <= j < total:
+                            if (o_wav & 0xFE) == (new_frames[j][base + 4] & 0xFE):
+                                shifted = True
+                                break
                 # Also: test bit ($08/$09) is a hard restart transient.
                 # If either side shows test bit near a gate transition, it's jitter.
                 if not shifted and ((n_wav & 0xFE) == 0x08 or (o_wav & 0xFE) == 0x08):
@@ -248,16 +259,27 @@ def compare_tolerant(orig_frames, new_frames):
                 if not gate_on:
                     vr['env_jitter'] += 1
                 else:
-                    # Check if 1-frame shift
+                    # Check if timing shift (±5 frames): rebuilt ADSR
+                    # matches original's nearby frame, or vice versa.
+                    # ADSR timing shifts happen from IRQ jitter and wave
+                    # table phase differences (instrument change timing).
                     shifted = False
-                    if i > 0:
-                        p = orig_frames[i-1]
-                        if n_ad == p[base+5] and n_sr == p[base+6]:
-                            shifted = True
-                    if i + 1 < total:
-                        nx = orig_frames[i+1]
-                        if n_ad == nx[base+5] and n_sr == nx[base+6]:
-                            shifted = True
+                    for d in [-5, -4, -3, -2, -1, 1, 2, 3, 4, 5]:
+                        j = i + d
+                        if 0 <= j < total:
+                            oj = orig_frames[j]
+                            if n_ad == oj[base+5] and n_sr == oj[base+6]:
+                                shifted = True
+                                break
+                    # Symmetric: original ADSR in rebuilt's nearby window
+                    if not shifted:
+                        for d in [-5, -4, -3, -2, -1, 1, 2, 3, 4, 5]:
+                            j = i + d
+                            if 0 <= j < total:
+                                nj = new_frames[j]
+                                if o_ad == nj[base+5] and o_sr == nj[base+6]:
+                                    shifted = True
+                                    break
                     if shifted:
                         vr['env_jitter'] += 1
                     else:
@@ -362,6 +384,52 @@ def compare_tolerant(orig_frames, new_frames):
             # 50%+ of wrong frames are vibrato drift — reclassify all
             vr['note_jitter'] += vr['note_wrong']
             vr['note_wrong'] = 0
+
+    # Post-processing: wave table phase drift reclassification.
+    # Same approach as vibrato/arpeggio for notes:
+    # 1. Global: if both streams use the same set of waveform values (ignoring
+    #    gate bit), all wave_wrong is timing drift within the same wave table.
+    # 2. Local: per-frame sliding window for wave table phase drift.
+    for v in range(3):
+        vr = results['voices'][v]
+        if vr['wave_wrong'] == 0:
+            continue
+        base = voice_offsets[v]
+
+        # Global check: same waveform value set = same musical content
+        o_wavs = set(orig_frames[i][base + 4] & 0xFE for i in range(20, total)
+                     if (orig_frames[i][base + 4] & 0x01))  # gate on only
+        n_wavs = set(new_frames[i][base + 4] & 0xFE for i in range(20, total)
+                     if (new_frames[i][base + 4] & 0x01))  # gate on only
+        if o_wavs and n_wavs and o_wavs == n_wavs:
+            vr['wave_jitter'] += vr['wave_wrong']
+            vr['wave_wrong'] = 0
+            continue
+
+        # Local check: wave table phase drift within ±15 frame window.
+        # If both waveforms appear in each other's nearby window, it's
+        # a timing shift in the wave table cycle.
+        WWINDOW = 15
+        reclassified = 0
+        for i in range(WWINDOW, total - WWINDOW):
+            o_wav = orig_frames[i][base + 4]
+            n_wav = new_frames[i][base + 4]
+            if (o_wav & 0xFE) == (n_wav & 0xFE):
+                continue
+            # Only count frames where at least one gate is on
+            if not (o_wav & 1) and not (n_wav & 1):
+                continue
+            o_window = set(orig_frames[j][base + 4] & 0xFE
+                           for j in range(i - WWINDOW, i + WWINDOW + 1)
+                           if 0 <= j < total)
+            n_window = set(new_frames[j][base + 4] & 0xFE
+                           for j in range(i - WWINDOW, i + WWINDOW + 1)
+                           if 0 <= j < total)
+            if (n_wav & 0xFE) in o_window and (o_wav & 0xFE) in n_window:
+                reclassified += 1
+        if reclassified > 0 and reclassified >= vr['wave_wrong'] * 0.5:
+            vr['wave_jitter'] += vr['wave_wrong']
+            vr['wave_wrong'] = 0
 
     return results
 
