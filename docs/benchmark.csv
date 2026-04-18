@@ -16,3 +16,4 @@ date,grade_a,grade_b,grade_c,grade_f,grade_err,total,commit,note
 2026-04-18,4556,7325,62.2,symmetry fix in EarlyNoteStart rule (+233 Grade A)
 2026-04-17,4716,6595,71.5,symmetric FrameShift + release tolerance (+160 Grade A)
 2026-04-18,4967,7549,65.8,wave ±10 + ADSR ±5 + wave phase drift (+286 GT2 B→A + 9 Hubbard B→A)
+2026-04-18,5010,7549,66.4,voice init artifact tolerance (+43 GT2 B→A + 2 Hubbard B→A)
