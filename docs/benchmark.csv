@@ -15,3 +15,4 @@ date,grade_a,grade_b,grade_c,grade_f,grade_err,total,commit,note
 2026-04-17,4323,0,0,0,0,7325,d44c717,GT2 regression base (Hubbard: 14A avg 66%)
 2026-04-18,4556,7325,62.2,symmetry fix in EarlyNoteStart rule (+233 Grade A)
 2026-04-17,4716,6595,71.5,symmetric FrameShift + release tolerance (+160 Grade A)
+2026-04-18,4967,7549,65.8,wave ±10 + ADSR ±5 + wave phase drift (+286 GT2 B→A + 9 Hubbard B→A)
