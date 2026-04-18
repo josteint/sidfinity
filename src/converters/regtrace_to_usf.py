@@ -455,18 +455,23 @@ def detect_tempo_from_frames(frames, fps=50):
         return 6
 
     counter = Counter(intervals)
+    total_count = sum(counter.values())
+
+    # Divisibility scoring — find the tempo that best explains the intervals.
+    # Extended range (3-32) to handle Hubbard multispeed tempos.
     best_tempo = 6
     best_score = 0
 
-    for tempo in range(3, 17):
+    for tempo in range(3, 33):
         score = 0
         total = 0
         for dur, count in counter.items():
             weight = count
             total += weight
-            if dur % tempo == 0:
+            remainder = dur % tempo
+            if remainder == 0:
                 score += weight
-            elif dur % tempo <= 1 or (tempo - dur % tempo) <= 1:
+            elif remainder <= 1 or (tempo - remainder) <= 1:
                 score += weight * 0.5
         if total > 0:
             ratio = score / total
@@ -476,11 +481,10 @@ def detect_tempo_from_frames(frames, fps=50):
 
     # Prefer double when both score well
     double = best_tempo * 2
-    counter2 = Counter(intervals)
-    if double <= 16:
-        score_d = sum(c for d, c in counter2.items() if d % double == 0 or d % double <= 1 or (double - d % double) <= 1)
-        total_d = sum(counter2.values())
-        if total_d > 0 and score_d / total_d > 0.25:
+    if double <= 32:
+        score_d = sum(c for d, c in counter.items()
+                      if d % double == 0 or d % double <= 1 or (double - d % double) <= 1)
+        if total_count > 0 and score_d / total_count > 0.25:
             best_tempo = double
 
     return best_tempo
