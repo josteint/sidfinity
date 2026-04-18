@@ -198,6 +198,12 @@ def compare_tolerant(orig_frames, new_frames):
                 if not (o_wav & 1) and not (n_wav & 1):
                     vr['wave_jitter'] += 1
                     continue
+                # If either side is test-bit only ($08/$09), that voice is
+                # silent (oscillator held in reset). Any waveform the other
+                # side plays is inaudible. Common in Hubbard hard restart.
+                if (o_wav & 0xFE) == 0x08 or (n_wav & 0xFE) == 0x08:
+                    vr['wave_jitter'] += 1
+                    continue
                 # Check if timing shift: V2 waveform matches nearby frame?
                 shifted = False
                 for d in [-5, -4, -3, -2, -1, 1, 2, 3, 4, 5]:
