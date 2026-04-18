@@ -26,7 +26,7 @@ HVSC Coverage Dashboard — 59,861 SIDs
 
 Engine               SIDs       S     A     B     C     F  │   USF PARSE    ID
 ──────────────────────────────────────────────────────────────────────────────
-GoatTracker V2       7549      45  4415     —     —     —  │  2257   537   295
+GoatTracker V2       7549      45  4678   549   483  1360  │   173     —   261
 DMC                 10676       —     —     —     —     —  │ 10631     9    36
 Rob Hubbard           289       2    56    20    41   166  │     2     —     2
 JCH NewPlayer        3678       —     —     —     —     —  │     —     —  3678
