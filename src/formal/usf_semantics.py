@@ -407,6 +407,11 @@ class USFPlayer:
         left = self._wave_left[idx]
 
         # Process left column (.sng format)
+        # NOTE: $FF is a loop marker but only at the NEXT position.
+        # At the current position, $FF is processed as a regular byte:
+        # - With WAVE_DELAY: $FF - $10 = $EF, stored as waveform
+        # - Without WAVE_DELAY: $FF != 0, stored as waveform
+        # The loop is detected when _wave_advance peeks at the next entry.
         if left == 0:
             # $00 = no wave change — just process right column
             pass
@@ -425,9 +430,6 @@ class USFPlayer:
         elif 0xE0 <= left <= 0xEF:
             # Inaudible/silent wave: SID value = left & $0F
             vs.wave = left & 0x0F
-        elif left == 0xFF:
-            # Loop marker — handled by advance, shouldn't reach here
-            pass
         elif 0xF0 <= left <= 0xFE:
             # Wave command: left & $0F = command index, right = parameter
             right = self._wave_right[idx]
