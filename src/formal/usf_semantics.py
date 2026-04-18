@@ -1267,8 +1267,6 @@ class USFPlayer:
         trace = []
 
         # Init frame: siddump F0 = state after mt_fullinit.
-        # The first engine.play() call runs mt_fullinit, setting counter=1,
-        # volume=15, but not running the normal play loop.
         init_frame = RegisterFrame()
         init_frame[24] = 0x0F  # volume=15 from init
         trace.append(init_frame.to_list())
