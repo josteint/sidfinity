@@ -209,12 +209,14 @@ class USFPlayer:
 
         self.first_note = song.first_note
 
-        # Resolve shared tables to flat arrays for indexed access
-        self._wave_left = []
-        self._wave_right = []
-        for l, r in song.shared_wave_table:
-            self._wave_left.append(l)
-            self._wave_right.append(r)
+        # Resolve shared tables to flat arrays for indexed access.
+        # If shared_wave_table is empty but instruments have inline wave_tables,
+        # build the shared table from inline steps (matching usf_to_sid behavior).
+        if song.shared_wave_table:
+            self._wave_left = [l for l, r in song.shared_wave_table]
+            self._wave_right = [r for l, r in song.shared_wave_table]
+        else:
+            self._wave_left, self._wave_right = self._build_shared_wave_table(song)
 
         self._pulse_time = []
         self._pulse_speed = []
@@ -1308,6 +1310,55 @@ class USFPlayer:
         if 1 <= idx < len(self._instruments):
             return self._instruments[idx]
         return None
+
+    @staticmethod
+    def _build_shared_wave_table(song):
+        """Build shared wave table from per-instrument inline wave_table steps.
+
+        When shared_wave_table is empty, usf_to_sid builds it from inline
+        WaveTableStep objects. We replicate that here so the formal player
+        can read the same data.
+
+        Returns (wave_left, wave_right) as lists of bytes in .sng format.
+        """
+        wave_left = []
+        wave_right = []
+        ptr_map = {}  # inst_idx → wave_ptr (1-based)
+
+        for i, inst in enumerate(song.instruments):
+            if not inst.wave_table:
+                continue
+            ptr_map[i] = len(wave_left) + 1  # 1-based pointer
+
+            for step in inst.wave_table:
+                if step.is_loop:
+                    wave_left.append(0xFF)
+                    # Loop target: the instrument's own base + step.loop_target
+                    wave_right.append(ptr_map[i] + step.loop_target)
+                elif step.delay > 0:
+                    wave_left.append(step.delay)
+                    wave_right.append(0x00)
+                else:
+                    # Waveform + note
+                    wave_left.append(step.waveform if step.waveform else 0x00)
+                    if step.keep_freq:
+                        wave_right.append(0x80)  # .sng keep freq
+                    elif step.absolute_note >= 0:
+                        wave_right.append(0x80 + step.absolute_note)  # .sng absolute
+                    else:
+                        # Relative note offset (.sng: $00-$5F up, $60-$7F down)
+                        off = step.note_offset
+                        if off >= 0:
+                            wave_right.append(off & 0x7F)
+                        else:
+                            wave_right.append((off + 0x80) & 0xFF)
+
+        # Update instrument wave_ptrs to point into the built table
+        for i, inst in enumerate(song.instruments):
+            if i in ptr_map:
+                inst.wave_ptr = ptr_map[i]
+
+        return wave_left, wave_right
 
 
 # ============================================================
