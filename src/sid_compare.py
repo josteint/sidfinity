@@ -138,6 +138,11 @@ def compare_tolerant(orig_frames, new_frames):
                 if (o_wav & 0xF0) == 0x80 and (n_wav & 0xF0) == 0x80:
                     vr['freq_fine'] += 1
                     continue
+                # Both gates off: both sides are releasing, freq diff is
+                # inaudible (SID output is decaying to silence on both).
+                if not (o_wav & 0x01) and not (n_wav & 0x01):
+                    vr['note_jitter'] += 1
+                    continue
                 # Check if this is a timing shift: does the V2 freq_hi
                 # match the original's nearby frames (±3)?
                 shifted = False
@@ -147,6 +152,15 @@ def compare_tolerant(orig_frames, new_frames):
                         if n_fhi == orig_frames[j][base + 1]:
                             shifted = True
                             break
+                # Symmetric: also check if original's freq_hi appears in
+                # rebuilt's ±3 window (ensures compare(A,B) == compare(B,A)).
+                if not shifted:
+                    for d in [-3, -2, -1, 1, 2, 3]:
+                        j = i + d
+                        if 0 <= j < total:
+                            if o_fhi == new_frames[j][base + 1]:
+                                shifted = True
+                                break
                 # Also check: 1-frame transient (both neighbors match).
                 # This catches out-of-bounds freq table reads that produce
                 # different garbage depending on binary layout.
