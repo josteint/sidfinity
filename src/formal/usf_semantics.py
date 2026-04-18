@@ -428,8 +428,16 @@ class USFPlayer:
             # Loop marker — handled by advance, shouldn't reach here
             pass
         elif 0xF0 <= left <= 0xFE:
-            # Wave command — TODO: dispatch
-            pass
+            # Wave command: left & $0F = command index, right = parameter
+            right = self._wave_right[idx]
+            vs.wave_time = 0
+            self._wave_advance(vs, idx)
+            cmd_idx = left & 0x0F
+            # Convert right column from .sng to packed for the param
+            # Wave command params are raw values (not note indices), passed as-is
+            param = right
+            self._exec_wave_command(v, cmd_idx, param)
+            return
 
         # Read right column (.sng format) BEFORE advance
         right = self._wave_right[idx]
@@ -493,6 +501,54 @@ class USFPlayer:
                 vs.wave_ptr = self._wave_right[next_idx]
                 return
         vs.wave_ptr = next_idx + 1  # back to 1-based
+
+    def _exec_wave_command(self, v: int, cmd_idx: int, param: int):
+        """Execute a wave table command.
+
+        Commands 0-4: set running effect (same as pattern FX 0-4)
+        Commands 5+: immediate tick-0 effect (same as pattern FX 5-F)
+
+        In the V2 player (ce_wcmd):
+          cmd < 5: store to mt_chnfx/mt_chnparam, jump to ce_runfx
+          cmd >= 5: dispatch to mt_t0_wave (same handlers as tick-0 FX)
+        """
+        vs = self.voices[v]
+
+        if cmd_idx < 5:
+            # Running effect: set FX and param, effects will run next frame
+            vs.fx = cmd_idx
+            vs.param = param
+        else:
+            # Immediate effect (same as tick-0 FX 5-F)
+            if cmd_idx == 5:    # Set AD
+                vs.ad = param
+            elif cmd_idx == 6:  # Set SR
+                vs.sr = param
+            elif cmd_idx == 7:  # Set waveform
+                vs.wave = param
+            elif cmd_idx == 8:  # Set wave ptr
+                vs.wave_ptr = param
+                vs.wave_time = 0
+            elif cmd_idx == 9:  # Set pulse ptr
+                if self._has_pulse:
+                    vs.pulse_ptr = param
+                    vs.pulse_time = 0
+            elif cmd_idx == 0xA:  # Set filter ptr
+                if self._has_filter:
+                    self.glob.filt_step = param
+                    self.glob.filt_time = 0
+            elif cmd_idx == 0xB:  # Set filter control
+                self.glob.filt_ctrl = param
+            elif cmd_idx == 0xC:  # Set filter cutoff
+                self.glob.filt_cut = param
+            elif cmd_idx == 0xD:  # Set master volume
+                self.glob.master_vol = param & 0x0F
+            elif cmd_idx == 0xF:  # Set tempo
+                if param & 0x80:
+                    vs.tempo = param & 0x7F
+                else:
+                    for vv in self.voices:
+                        vv.tempo = param
 
     # --------------------------------------------------------
     # Effects execution (per-voice)
@@ -1079,7 +1135,7 @@ class USFPlayer:
 
         # Pulse
         frame[base + 2] = vs.pulse_lo
-        frame[base + 3] = vs.pulse_hi & 0x0F
+        frame[base + 3] = vs.pulse_hi
 
         # ADSR
         frame[base + 5] = vs.ad
@@ -1188,9 +1244,11 @@ class USFPlayer:
         self._init_song(subtune)
         trace = []
 
-        # Frame 0: init frame. The PSID player calls init on the first frame,
-        # then play starts on frame 1. Emit one frame of zeros to match siddump.
-        trace.append(RegisterFrame().to_list())
+        # siddump frame 0 = initial state after init, BEFORE the first play call.
+        # Emit one init frame (zeros + volume from init) to match.
+        init_frame = RegisterFrame()
+        init_frame[24] = 0x0F  # $D418: volume=15 (set by init)
+        trace.append(init_frame.to_list())
 
         for frame_num in range(1, num_frames):
             frame = RegisterFrame()
