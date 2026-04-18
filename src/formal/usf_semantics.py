@@ -1188,7 +1188,11 @@ class USFPlayer:
         self._init_song(subtune)
         trace = []
 
-        for frame_num in range(num_frames):
+        # Frame 0: init frame. The PSID player calls init on the first frame,
+        # then play starts on frame 1. Emit one frame of zeros to match siddump.
+        trace.append(RegisterFrame().to_list())
+
+        for frame_num in range(1, num_frames):
             frame = RegisterFrame()
 
             # Filter (global, runs before voices)
