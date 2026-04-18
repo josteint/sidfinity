@@ -155,6 +155,25 @@ def run_tests():
     grade_s_count = sum(1 for _, ok, grade, *_ in results if ok and grade == 'S')
     grade_a_count = sum(1 for _, ok, grade, *_ in results if ok and grade == 'A')
     print(f'\n{passed} passed, {failed} failed, {skipped} skipped out of {len(entries)} tests ({grade_s_count} S + {grade_a_count} A = {grade_s_count + grade_a_count})')
+
+    # Update grades.db with results
+    try:
+        from grade_db import connect, record_batch
+        db = connect()
+        batch = []
+        for entry, (name, ok, grade, score, *_) in zip(entries, results):
+            if grade and grade not in ('ERR',):
+                batch.append((entry['path'], 'gt2', grade, score))
+        if batch:
+            updated, regs, imps = record_batch(db, batch)
+            if imps:
+                print(f'  grades.db: {len(imps)} improvements')
+            if regs:
+                print(f'  grades.db: {len(regs)} regressions')
+        db.close()
+    except Exception as e:
+        pass  # don't fail regression test because of dashboard
+
     return failed == 0
 
 
