@@ -254,7 +254,11 @@ class USFPlayer:
         self._has_effects = bool(song.speed_table)
         self._has_vibrato = any(i.vib_speed_idx > 0 for i in song.instruments)
         self._has_pulse = bool(song.shared_pulse_table)
-        self._has_wave_delay = not song.nowavedelay
+        # WAVE_DELAY is detected from wave table content (any left byte $01-$0F),
+        # matching codegen.py's detect_features. NOT from song.nowavedelay.
+        self._has_wave_delay = any(
+            0x01 <= l <= 0x0F for l, _ in song.shared_wave_table
+        )
         self._has_freq_slide = any(
             step.freq_slide != 0
             for inst in song.instruments
@@ -408,11 +412,20 @@ class USFPlayer:
 
         # Process left column (.sng format)
         # NOTE: $FF is a loop marker but only at the NEXT position.
-        # At the current position, $FF is processed as a regular byte:
+        # At the current position, the V2 processes $FF as a regular byte:
         # - With WAVE_DELAY: $FF - $10 = $EF, stored as waveform
-        # - Without WAVE_DELAY: $FF != 0, stored as waveform
+        # - Without WAVE_DELAY: $FF stored directly as waveform
+        # - With WAVE_CMD: $FF >= $E0, caught by BCS ce_wadv (no store)
         # The loop is detected when _wave_advance peeks at the next entry.
-        if left == 0:
+        if left == 0xFF:
+            # V2 stores $FF as waveform (no bias path) or $EF (bias path).
+            # Either way, gate is usually off so this is inaudible garbage.
+            # But we must store it to keep the wave table step count in sync.
+            if self._has_wave_delay:
+                vs.wave = 0xEF  # $FF - $10 bias
+            else:
+                vs.wave = 0xFF  # stored directly
+        elif left == 0:
             # $00 = no wave change — just process right column
             pass
         elif 0x01 <= left <= 0x0F:
@@ -518,9 +531,11 @@ class USFPlayer:
         vs = self.voices[v]
 
         if cmd_idx < 5:
-            # Running effect: set FX and param, effects will run next frame
+            # Running effect: set FX and param, then run effect IMMEDIATELY
+            # (V2 player jumps to ce_runfx which runs the effect same frame)
             vs.fx = cmd_idx
             vs.param = param
+            self._exec_effects(v)
         else:
             # Immediate effect (same as tick-0 FX 5-F)
             if cmd_idx == 5:    # Set AD
