@@ -30,24 +30,25 @@ from rh_decompile import decompile, RHDecompiled
 #
 # Most Hubbard songs use pitches in the 12-80 range (C1-G#6).
 
-def _hubbard_pitch_to_usf_note(pitch):
+def _hubbard_pitch_to_usf_note(pitch, interleaved_freq=False):
     """Convert Hubbard pitch index to USF note number (0-95).
 
-    Hubbard pitch 0 = C-1 in McSweeney's notation = C0 in modern convention.
-    The freq table has 96 entries (8 octaves), indexed by pitch*2 (interleaved
-    lo/hi bytes). The values match the standard PAL freq table within ±1.
+    Classic variant: pitch IS the note number (0-95).
+    Interleaved variant (double-INX): pitch is the freq table BYTE OFFSET
+    (0, 2, 4, ...), so the note = pitch // 2.
 
-    Hubbard pitch maps directly to V2/USF note number with NO offset.
-    Verified: Hubbard pitch 86 = freq $9C40 = PAL[86] exactly.
-
-    Out-of-range pitches (>=96) index into player variables after the freq
-    table — this is the "frequency table trick" used in Commando etc.
-    Returns -1 for those.
+    Out-of-range pitches index into memory beyond the freq table —
+    this is the "frequency table trick". Returns -1 for those.
     """
-    if pitch >= 96:
-        return -1  # frequency table trick — not a real note
+    if interleaved_freq:
+        note = pitch // 2
+    else:
+        note = pitch
 
-    return max(0, min(95, pitch))
+    if note >= 96:
+        return -1
+
+    return max(0, min(95, note))
 
 
 def _map_waveform(ctrl_byte):
@@ -281,7 +282,7 @@ def _map_instrument(rh_instr, instr_id, upper_nibble_arp=False):
     return inst
 
 
-def _map_pattern(rh_pattern, usf_pat_id, tempo_divisor=1):
+def _map_pattern(rh_pattern, usf_pat_id, tempo_divisor=1, interleaved_freq=False):
     """Convert a Hubbard pattern to USF Pattern.
 
     tempo_divisor: when natural tempo < 3, we multiply tempo by M and
@@ -315,7 +316,7 @@ def _map_pattern(rh_pattern, usf_pat_id, tempo_divisor=1):
             continue
 
         if note.pitch is not None:
-            usf_note = _hubbard_pitch_to_usf_note(note.pitch)
+            usf_note = _hubbard_pitch_to_usf_note(note.pitch, interleaved_freq)
             if usf_note < 0:
                 # Frequency table trick (pitch >= 96): reads memory beyond the
                 # freq table — this is a portamento continuation or special effect.
@@ -409,6 +410,9 @@ def rh_to_usf(sid_path, subtune=None):
             subtune = rh_song.index
         else:
             return None
+
+    # Detect interleaved variant (double-INX driver)
+    interleaved_freq = getattr(result, 'seq_interleaved', False)
 
     # Build USF Song
     song = Song()
@@ -652,7 +656,7 @@ def rh_to_usf(sid_path, subtune=None):
             rh_pat._freq_table_info = None
         usf_id = len(song.patterns)
         pat_map[rh_pat.index] = usf_id
-        usf_pat = _map_pattern(rh_pat, usf_id, tempo_div)
+        usf_pat = _map_pattern(rh_pat, usf_id, tempo_div, interleaved_freq)
         song.patterns.append(usf_pat)
 
     # Map orderlists from tracks
