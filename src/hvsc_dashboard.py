@@ -73,98 +73,75 @@ def get_engine_files(sidid_data):
     return engines
 
 
-def _check_dmc(f):
-    """Check single DMC file pipeline status."""
+def _check_one(args):
+    """Check a single SID through the full pipeline. Returns (path, engine, grade, score)."""
+    f, engine = args
+    import sys, os
+    _sd = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__))))
+    if _sd not in sys.path:
+        sys.path.insert(0, _sd)
+
+    # Try engine-specific static parser first
+    song = None
     try:
-        from dmc_parser import parse_dmc_sid
-        from dmc_to_usf import dmc_to_usf
-        dmc = parse_dmc_sid(f)
-        if dmc is None:
-            return 'ID'
-        if dmc['num_sectors'] == 0 or dmc['total_notes'] == 0:
-            return 'PARSE'
-        song = dmc_to_usf(f)
-        return 'USF'
+        if engine == 'gt2':
+            from gt2_to_usf import gt2_to_usf
+            song = gt2_to_usf(f)
+        elif engine == 'dmc':
+            from converters.dmc_to_usf import dmc_to_usf
+            song = dmc_to_usf(f)
+        elif engine == 'hubbard':
+            from converters.rh_to_usf import rh_to_usf
+            song = rh_to_usf(f)
     except:
-        return 'ID'
+        pass
 
+    # Fallback: universal register trace pipeline
+    if song is None:
+        try:
+            from converters.regtrace_to_usf import regtrace_to_usf
+            song = regtrace_to_usf(f, duration=10)
+        except:
+            pass
 
-def scan_dmc(files, jobs=64):
-    """Scan DMC files and return grade distribution."""
-    with concurrent.futures.ProcessPoolExecutor(max_workers=jobs) as ex:
-        results = list(ex.map(_check_dmc, files, chunksize=50))
-    return Counter(results)
+    if song is None:
+        # Check if we can at least parse the binary
+        try:
+            if engine == 'dmc':
+                from dmc_parser import parse_dmc_sid
+                if parse_dmc_sid(f):
+                    return (f, engine, 'PARSE', None)
+        except:
+            pass
+        return (f, engine, 'ID', None)
 
-
-def scan_gt2(files, jobs=64):
-    """Scan GT2 files and return grade distribution.
-
-    Uses regression registry for cached grades, falls back to pipeline.
-    """
-    registry_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                                 'player', 'regression_registry.json')
-    # Load registry for cached grades
-    registry = {}
-    if os.path.exists(registry_path):
-        with open(registry_path) as f:
-            for entry in json.load(f):
-                p = entry.get('path', '')
-                registry[p] = entry.get('min_grade', 'F')
-
-    grades = Counter()
-    for f in files:
-        # Check registry first
-        matched = False
-        for rpath, grade in registry.items():
-            if f.endswith(rpath) or rpath in f:
-                grades[grade] += 1
-                matched = True
-                break
-        if not matched:
-            # Try parsing
-            try:
-                from gt2_to_usf import gt2_to_usf
-                song = gt2_to_usf(f)
-                if song:
-                    grades['USF'] += 1
-                else:
-                    grades['PARSE'] += 1
-            except:
-                grades['ID'] += 1
-
-    return grades
-
-
-def scan_hubbard(files, jobs=64):
-    """Scan Hubbard files — mostly at ID stage, a few through pipeline."""
-    # For now, just count. We know ~84 files, 3 Grade A, 3 Grade C from CLAUDE.md
-    grades = Counter()
+    # Try to build and compare
     try:
-        from rh_decompile import decompile_hubbard
-        for f in files:
-            try:
-                result = decompile_hubbard(f)
-                if result:
-                    grades['PARSE'] += 1
-                else:
-                    grades['ID'] += 1
-            except:
-                grades['ID'] += 1
-    except ImportError:
-        grades['ID'] = len(files)
-    return grades
+        from converters.usf_to_sid import usf_to_sid
+        from sid_compare import compare_sids_tolerant
+        tmp = f'/tmp/dashboard_{os.getpid()}.sid'
+        usf_to_sid(song, tmp)
+        comp = compare_sids_tolerant(f, tmp, 10)
+        if comp:
+            return (f, engine, comp['grade'], comp['score'])
+        return (f, engine, 'USF', None)
+    except:
+        return (f, engine, 'USF', None)
 
 
-def scan_jch(files, jobs=64):
-    """Scan JCH files — currently all at ID stage."""
-    return Counter({'ID': len(files)})
+def scan_engine(files, engine, jobs=64):
+    """Scan files for any engine through the universal pipeline."""
+    args = [(f, engine) for f in files]
+    with concurrent.futures.ProcessPoolExecutor(max_workers=jobs) as ex:
+        results = list(ex.map(_check_one, args, chunksize=10))
+    return results
 
 
 ENGINE_SCANNERS = {
-    'dmc': scan_dmc,
-    'gt2': scan_gt2,
-    'hubbard': scan_hubbard,
-    'jch': scan_jch,
+    'dmc': 'dmc',
+    'gt2': 'gt2',
+    'hubbard': 'hubbard',
+    'jch': 'jch',
 }
 
 ENGINE_NAMES = {
@@ -230,29 +207,23 @@ def refresh_engine(engine, engine_files, db, jobs=64):
     if not files:
         return
 
-    scanner = ENGINE_SCANNERS.get(engine)
-    if not scanner:
-        return
-
     print(f'Scanning {ENGINE_NAMES.get(engine, engine)} ({len(files)} files)...',
           file=sys.stderr)
-    grades = scanner(files, jobs=jobs)
+
+    results = scan_engine(files, engine, jobs=jobs)
 
     # Convert to record_batch format
-    entries = []
-    grade_map = dict(grades)  # Counter doesn't help here, need per-file
-    # Re-scan per file to get individual grades
-    if engine == 'dmc':
-        with concurrent.futures.ProcessPoolExecutor(max_workers=jobs) as ex:
-            results = list(ex.map(_check_dmc, files, chunksize=50))
-        for f, grade in zip(files, results):
-            entries.append((f, engine, grade, None))
-    else:
-        # For other engines, just record the aggregate
-        for f in files:
-            entries.append((f, engine, 'ID', None))
+    entries = [(path, eng, grade, score) for path, eng, grade, score in results]
 
     updated, regs, imps = record_batch(db, entries)
+
+    # Summary
+    grades = Counter(grade for _, _, grade, _ in results)
+    quality = sum(grades.get(g, 0) for g in ['S', 'A', 'B', 'C', 'F'])
+    print(f'  {quality} graded (S={grades.get("S",0)} A={grades.get("A",0)} '
+          f'B={grades.get("B",0)} C={grades.get("C",0)} F={grades.get("F",0)}), '
+          f'{grades.get("USF",0)} USF, {grades.get("PARSE",0)} PARSE, '
+          f'{grades.get("ID",0)} ID', file=sys.stderr)
     if regs:
         print(f'  Regressions: {len(regs)}', file=sys.stderr)
         for path, old, new in regs[:5]:
