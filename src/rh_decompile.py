@@ -245,6 +245,12 @@ def find_instruments(binary, load_addr):
     if pos >= 0:
         return binary[pos + 1] | (binary[pos + 2] << 8)
 
+    # X-indexed variant: LDA instr,X / STA $D402,X / LDA instr+1,X / STA $D403,X
+    # Pattern: BD ** ** 9D 02 D4 BD ** ** 9D 03 D4
+    pos = find_hex_pattern(binary, "BD****9D02D4BD****9D03D4")
+    if pos >= 0:
+        return binary[pos + 1] | (binary[pos + 2] << 8)
+
     return None
 
 
