@@ -105,6 +105,7 @@ class RHDecompiled:
         self.seqlo_addr = 0
         self.seqhi_addr = 0
         self.num_sequences = 0
+        self.seq_interleaved = False
         self.speed = None          # resetspd value (tempo = speed + 1)
         self.speed_table = None    # per-song speed table (list), or None
         self.upper_nibble_arp = False  # True if driver uses fx_flags upper nibble as arp interval (Phase 4)
@@ -696,9 +697,29 @@ def decompile(sid_path, verbose=False):
         return None
     result.seqlo_addr = seqlo
     result.seqhi_addr = seqhi
-    result.num_sequences = seqhi - seqlo
+    seq_interleaved = (seqhi == seqlo + 1)
+    result.seq_interleaved = seq_interleaved
+    if seq_interleaved:
+        # Interleaved: (lo, hi, lo, hi, ...) at seqlo
+        # Count valid entries until address goes out of range
+        n = 0
+        while True:
+            lo_off = seqlo - load_addr + n * 2
+            hi_off = lo_off + 1
+            if lo_off + 1 >= len(binary):
+                break
+            addr = binary[lo_off] | (binary[hi_off] << 8)
+            if not (load_addr <= addr < load_addr + len(binary)):
+                break
+            n += 1
+            if n > 255:
+                break
+        result.num_sequences = n
+    else:
+        result.num_sequences = seqhi - seqlo
     if verbose:
-        print(f'Sequence pointers: lo=${seqlo:04X} hi=${seqhi:04X} ({result.num_sequences} sequences)')
+        layout = 'interleaved' if seq_interleaved else 'split'
+        print(f'Sequence pointers: lo=${seqlo:04X} hi=${seqhi:04X} ({result.num_sequences} sequences, {layout})')
 
     # Freq table (optional — not all songs use standard PAL table)
     freq_addr, freq_interleaved = find_freq_table(binary, load_addr)
@@ -868,8 +889,12 @@ def decompile(sid_path, verbose=False):
             if verbose:
                 print(f'Pattern {idx}: index out of range (max={result.num_sequences-1})')
             continue
-        pat_lo = peek(binary, load_addr, seqlo + idx)
-        pat_hi = peek(binary, load_addr, seqhi + idx)
+        if seq_interleaved:
+            pat_lo = peek(binary, load_addr, seqlo + idx * 2)
+            pat_hi = peek(binary, load_addr, seqlo + idx * 2 + 1)
+        else:
+            pat_lo = peek(binary, load_addr, seqlo + idx)
+            pat_hi = peek(binary, load_addr, seqhi + idx)
         pat_addr = pat_lo | (pat_hi << 8)
 
         if not (load_addr <= pat_addr < load_addr + len(binary)):
