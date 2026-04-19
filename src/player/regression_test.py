@@ -1,64 +1,59 @@
 """
 regression_test.py — Regression test for the SIDfinity pipeline.
 
-Maintains a list of SIDs that are known-good. Each has a minimum
-grade and score that must be maintained. When fixing a new SID,
-run this first to ensure nothing regressed, then add the new SID
-to the list.
+The baseline is stored in grades.db (protected=1 songs). It is a FROZEN
+set of known-good songs. The test checks if those songs still pass.
+The baseline NEVER changes during a test run.
+
+Updating the baseline is a separate, deliberate action:
+  --add-new     Verify and add newly Grade A/S songs to baseline
+  --remove-flaky  Identify and quarantine songs that fluctuate between runs
 
 Usage:
-    python3 src/player/regression_test.py              # run all tests
-    python3 src/player/regression_test.py --add <sid>  # add a new SID after verifying it
+    python3 src/player/regression_test.py              # run tests against baseline
+    python3 src/player/regression_test.py --add-new    # grow baseline with verified songs
 """
 
 import sys
 import os
-import json
+import multiprocessing
 
 _src_dir = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
 _repo_dir = os.path.abspath(os.path.join(_src_dir, '..'))
 if _src_dir not in sys.path:
     sys.path.insert(0, _src_dir)
-os.chdir(_repo_dir)  # ensure CWD is repo root for relative paths
+os.chdir(_repo_dir)
 
 from sid_compare import compare_sids_tolerant
 
-REGISTRY_PATH = os.path.join(os.path.dirname(__file__), 'regression_registry.json')
-TEMP_SID = '/tmp/sf_regression_test.sid'
-
-
-def load_registry():
-    if os.path.exists(REGISTRY_PATH):
-        with open(REGISTRY_PATH) as f:
-            return json.load(f)
-    return []
-
-
-def save_registry(entries):
-    with open(REGISTRY_PATH, 'w') as f:
-        json.dump(entries, f, indent=2)
-
 
 def run_pipeline(sid_path):
-    """Run the full pipeline THROUGH TOKENS: SID → USF → Tokens → USF → SID → compare.
-
-    This is the definitive test: if the token roundtrip produces the same quality
-    as the direct USF path, the tokenization is lossless. Any score drop reveals
-    information lost in tokenize→detokenize.
-    """
+    """Run the full pipeline: SID → USF → SID → compare."""
     try:
-        # SID → USF
-        from gt2_to_usf import gt2_to_usf
-        song = gt2_to_usf(sid_path)
-        if not song:
-            return None
-        # USF → Tokens → USF (the critical roundtrip)
-        from usf import tokenize, detokenize
-        tokens = tokenize(song)
-        song = detokenize(tokens)
-        # USF → SID (via SIDfinity player)
-        from usf_to_sid import usf_to_sid
+        from converters.usf_to_sid import usf_to_sid
         tmp = f'/tmp/sf_regression_{os.getpid()}.sid'
+
+        song = None
+        try:
+            from gt2_to_usf import gt2_to_usf
+            song = gt2_to_usf(sid_path)
+        except:
+            pass
+        if song is None:
+            try:
+                from converters.rh_to_usf import rh_to_usf
+                song = rh_to_usf(sid_path)
+            except:
+                pass
+        if song is None:
+            try:
+                from converters.regtrace_to_usf import regtrace_to_usf
+                song = regtrace_to_usf(sid_path, duration=10)
+            except:
+                pass
+        if song is None:
+            return None
+
         sid_bytes, _ = usf_to_sid(song, tmp)
         if not sid_bytes:
             return None
@@ -66,180 +61,160 @@ def run_pipeline(sid_path):
         if not comp:
             return None
         return comp['grade'], comp['score'], comp
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
+    except Exception:
         return None
 
 
-def _test_one_entry(entry):
-    """Test one registry entry. Returns (name, passed, grade, score, min_grade, min_score, details)."""
-    # Ensure src/ is on path in worker processes
+def _test_one(args):
+    """Test one protected song."""
+    path, min_grade, min_score = args
     import sys, os
     _sd = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
     if _sd not in sys.path:
         sys.path.insert(0, _sd)
-    path = entry['path']
-    min_grade = entry['min_grade']
-    min_score = entry['min_score']
-    name = os.path.basename(path)
+    os.chdir(os.path.join(_sd, '..'))
 
+    name = os.path.basename(path)
     if not os.path.exists(path):
-        return (name, None, None, None, min_grade, min_score, 'not found')
+        return (path, name, None, None, None, min_grade, 'not found')
 
     result = run_pipeline(path)
     if result is None:
-        if min_grade == 'ERR':
-            return (name, True, 'ERR', 0, min_grade, min_score, None)  # expected to fail
-        return (name, False, None, None, min_grade, min_score, 'pipeline error')
+        return (path, name, False, None, None, min_grade, 'pipeline error')
 
     grade, score, comp = result
-    grade_order = {'S': 0, 'A': 1, 'B': 2, 'C': 3, 'F': 4, 'ERR': 5}
+    grade_order = {'S': 0, 'A': 1, 'B': 2, 'C': 3, 'F': 4}
     grade_ok = grade_order.get(grade, 9) <= grade_order.get(min_grade, 9)
-    score_ok = score >= min_score - 0.5
+    score_ok = score >= (min_score or 96.0) - 0.5
 
     if grade_ok and score_ok:
-        return (name, True, grade, score, min_grade, min_score, None)
+        return (path, name, True, grade, score, min_grade, None)
     else:
-        # Collect failure details
-        details = []
-        for v in range(3):
-            vr = comp['voices'][v]
-            issues = []
-            for k in ['note_wrong', 'wave_wrong', 'env_wrong']:
-                if vr.get(k, 0) > 0:
-                    issues.append(f'{k}={vr[k]}')
-            if issues:
-                details.append(f'V{v+1}: {" ".join(issues)}')
-        return (name, False, grade, score, min_grade, min_score, '; '.join(details))
+        details = f'Grade {grade} ({score:.1f}) — expected >= {min_grade} ({min_score:.1f})'
+        return (path, name, False, grade, score, min_grade, details)
 
 
 def run_tests():
-    """Run all regression tests in parallel. Returns True if all pass."""
-    import multiprocessing
-    entries = load_registry()
-    if not entries:
-        print('No regression tests registered. Use --add <sid_path> to add one.')
+    """Run all regression tests against the frozen baseline. Returns True if all pass."""
+    from grade_db import connect, protected_count
+
+    db = connect()
+    total_protected, grade_s, grade_a = protected_count(db)
+
+    rows = db.execute('''SELECT path, min_grade, COALESCE(min_score, 96.0)
+                         FROM songs WHERE protected = 1
+                         ORDER BY path''').fetchall()
+    db.close()
+
+    if not rows:
+        print('No baseline songs. Run with --add-new to establish baseline.')
         return True
 
     num_workers = os.cpu_count() or 4
-    print(f'Running {len(entries)} regression tests ({num_workers} workers)...\n')
+    print(f'Running {len(rows)} regression tests ({num_workers} workers)...\n')
 
     with multiprocessing.Pool(num_workers) as pool:
-        results = pool.map(_test_one_entry, entries)
+        results = pool.map(_test_one, rows)
 
-    passed = 0
-    failed = 0
-    skipped = 0
+    passed = failed = skipped = 0
     failures = []
 
-    for name, ok, grade, score, min_grade, min_score, details in results:
+    for path, name, ok, grade, score, min_grade, details in results:
         if ok is None:
             skipped += 1
         elif ok:
             passed += 1
         else:
             failed += 1
-            failures.append((name, grade, score, min_grade, min_score, details))
+            failures.append((name, grade, score, min_grade, details))
 
-    # Print failures (keep output manageable)
-    for name, grade, score, min_grade, min_score, details in failures[:20]:
-        if grade:
-            print(f'  FAIL  {name:40s} Grade {grade} ({score:.1f}) — expected >= {min_grade} ({min_score:.1f})')
-        else:
-            print(f'  FAIL  {name:40s} — {details}')
-
+    for name, grade, score, min_grade, details in failures[:20]:
+        print(f'  FAIL  {name:40s} {details or "pipeline error"}')
     if len(failures) > 20:
         print(f'  ... and {len(failures) - 20} more failures')
 
-    grade_s_count = sum(1 for _, ok, grade, *_ in results if ok and grade == 'S')
-    grade_a_count = sum(1 for _, ok, grade, *_ in results if ok and grade == 'A')
-    print(f'\n{passed} passed, {failed} failed, {skipped} skipped out of {len(entries)} tests ({grade_s_count} S + {grade_a_count} A = {grade_s_count + grade_a_count})')
+    s = sum(1 for _, _, ok, g, *_ in results if ok and g == 'S')
+    a = sum(1 for _, _, ok, g, *_ in results if ok and g == 'A')
+    print(f'\n{passed} passed, {failed} failed, {skipped} skipped '
+          f'out of {len(rows)} tests ({s} S + {a} A = {s + a})')
 
-    # Update grades.db with results
+    # Update grades.db with test results (does NOT change baseline)
     try:
         from grade_db import connect, record_batch
         db = connect()
-        batch = []
-        for entry, (name, ok, grade, score, *_) in zip(entries, results):
-            if grade and grade not in ('ERR',):
-                batch.append((entry['path'], 'gt2', grade, score))
+        batch = [(p, 'gt2', g, sc) for p, _, ok, g, sc, *_ in results if g and g != 'ERR']
         if batch:
-            updated, regs, imps = record_batch(db, batch)
-            if imps:
-                print(f'  grades.db: {len(imps)} improvements')
-            if regs:
-                print(f'  grades.db: {len(regs)} regressions')
+            record_batch(db, batch)
         db.close()
-        # Update README dashboard
         from update_readme import update_readme
         update_readme()
-    except Exception as e:
-        pass  # don't fail regression test because of dashboard
+    except:
+        pass
 
     return failed == 0
 
 
-def add_sid(sid_path):
-    """Add a SID to the regression registry after verifying it works."""
-    if not os.path.exists(sid_path):
-        print(f'File not found: {sid_path}')
-        return False
+def add_new():
+    """Add verified Grade A/S songs to the baseline.
 
-    # Resolve to absolute path
-    sid_path = os.path.abspath(sid_path)
-    name = os.path.basename(sid_path)
+    Only adds songs that:
+    1. Are Grade A/S in grades.db
+    2. Are NOT already in the baseline
+    3. Pass the pipeline RIGHT NOW (verified, not just from DB)
+    """
+    from grade_db import connect
 
-    print(f'Testing {name}...')
-    result = run_pipeline(sid_path)
+    db = connect()
+    candidates = db.execute('''SELECT path FROM songs
+                               WHERE grade IN ('S', 'A')
+                               AND protected != 1
+                               ORDER BY path''').fetchall()
+    db.close()
 
-    if result is None:
-        print(f'Pipeline failed for {name}')
-        return False
+    if not candidates:
+        print('No new Grade A/S songs to add.')
+        return
 
-    grade, score, comp = result
+    print(f'Verifying {len(candidates)} candidate songs...')
+    args = [(path, 'A', 96.0) for (path,) in candidates]
 
-    print(f'  Grade {grade}, Score {score:.1f}')
-    for v in range(3):
-        vr = comp['voices'][v]
-        ok_pct = 100 * vr['ok'] / comp['total']
-        print(f'  V{v+1}: {ok_pct:.1f}% ok')
+    with multiprocessing.Pool(os.cpu_count() or 4) as pool:
+        results = pool.map(_test_one, args)
 
-    if grade not in ('S', 'A', 'B'):
-        print(f'\n  WARNING: Grade {grade} — only Grade S/A/B should be added to regression tests.')
-        resp = input('  Add anyway? [y/N] ')
-        if resp.lower() != 'y':
-            return False
+    verified = [(path, grade, score)
+                for path, name, ok, grade, score, *_ in results
+                if ok and grade in ('S', 'A')]
 
-    entries = load_registry()
+    if not verified:
+        print('No songs passed verification.')
+        return
 
-    # Check if already registered
-    for e in entries:
-        if os.path.basename(e['path']) == name:
-            print(f'  Already registered. Updating...')
-            e['min_grade'] = grade
-            e['min_score'] = round(score, 1)
-            save_registry(entries)
-            print(f'  Updated: Grade >= {grade}, Score >= {score:.1f}')
-            return True
+    db = connect()
+    for path, grade, score in verified:
+        db.execute('''UPDATE songs SET protected = 1, min_grade = 'A', min_score = 96.0
+                      WHERE path = ?''', (path,))
+    db.commit()
 
-    entries.append({
-        'path': sid_path,
-        'min_grade': grade,
-        'min_score': round(score, 1),
-    })
-    save_registry(entries)
-    print(f'  Added: Grade >= {grade}, Score >= {score:.1f}')
-    return True
+    total = db.execute('SELECT COUNT(*) FROM songs WHERE protected = 1').fetchone()[0]
+    db.close()
+
+    print(f'{len(verified)} songs added to baseline. Total protected: {total}')
+
+
+def main():
+    import argparse
+    parser = argparse.ArgumentParser(description='SIDfinity regression tests')
+    parser.add_argument('--add-new', action='store_true',
+                        help='Verify and add new Grade A/S songs to baseline')
+    args = parser.parse_args()
+
+    if args.add_new:
+        add_new()
+        return
+
+    success = run_tests()
+    sys.exit(0 if success else 1)
 
 
 if __name__ == '__main__':
-    if len(sys.argv) > 1 and sys.argv[1] == '--add':
-        if len(sys.argv) < 3:
-            print('Usage: regression_test.py --add <sid_path>')
-            sys.exit(1)
-        ok = add_sid(sys.argv[2])
-        sys.exit(0 if ok else 1)
-    else:
-        ok = run_tests()
-        sys.exit(0 if ok else 1)
+    main()

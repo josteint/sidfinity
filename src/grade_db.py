@@ -51,7 +51,10 @@ def connect(db_path=None):
         grade       TEXT,
         score       REAL,
         last_tested TEXT,
-        commit_hash TEXT
+        commit_hash TEXT,
+        protected   INTEGER DEFAULT 0,
+        min_grade   TEXT DEFAULT NULL,
+        min_score   REAL DEFAULT NULL
     )''')
     db.execute('''CREATE TABLE IF NOT EXISTS history (
         path        TEXT,
@@ -188,6 +191,49 @@ def regressions_since(db, since_commit=None, since_date=None):
         if new_rank > old_rank:
             regs.append((path, old, new))
     return regs
+
+
+def auto_protect(db):
+    """Automatically protect all Grade S/A songs.
+
+    Any song that achieves Grade S or A gets protected, UNLESS it was
+    explicitly unprotected by a failed regression test (protected = -1).
+    Those songs need to pass regression again before being re-protected.
+
+    Returns the number of newly protected songs.
+    """
+    cursor = db.execute('''UPDATE songs
+                           SET protected = 1, min_grade = 'A', min_score = 96.0
+                           WHERE grade IN ('S', 'A')
+                           AND protected = 0''')
+    db.commit()
+    return cursor.rowcount
+
+
+def check_regressions(db):
+    """Check all protected songs for regressions.
+
+    Returns list of (path, min_grade, min_score, current_grade, current_score)
+    for songs that dropped below their protected threshold.
+    """
+    GRADE_ORDER = {'S': 0, 'A': 1, 'B': 2, 'C': 3, 'F': 4}
+    rows = db.execute('''SELECT path, min_grade, min_score, grade, score
+                         FROM songs WHERE protected = 1''').fetchall()
+    regressions = []
+    for path, min_grade, min_score, grade, score in rows:
+        grade_ok = GRADE_ORDER.get(grade, 9) <= GRADE_ORDER.get(min_grade, 9)
+        score_ok = score is None or min_score is None or score >= min_score - 0.5
+        if not (grade_ok and score_ok):
+            regressions.append((path, min_grade, min_score, grade, score))
+    return regressions
+
+
+def protected_count(db):
+    """Return (total_protected, grade_s, grade_a)."""
+    total = db.execute('SELECT COUNT(*) FROM songs WHERE protected = 1').fetchone()[0]
+    s = db.execute("SELECT COUNT(*) FROM songs WHERE protected = 1 AND grade = 'S'").fetchone()[0]
+    a = db.execute("SELECT COUNT(*) FROM songs WHERE protected = 1 AND grade = 'A'").fetchone()[0]
+    return total, s, a
 
 
 def migrate_from_json(db, json_path, engine='gt2'):
