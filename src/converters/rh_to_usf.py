@@ -60,36 +60,28 @@ def _map_waveform(ctrl_byte):
     return waveform_from_byte(ctrl_byte)
 
 
-def _build_drum_wave_table(ctrl_byte):
+def _build_drum_wave_table(ctrl_byte, freq_slide=0):
     """Build USF wave table for Hubbard drum effect.
 
-    From McSweeney + data_format_reference.md:
-    - Frame 1: noise ($81) at high pitch, freq_hi decrements rapidly
-    - If ctrl is noise ($80/$81): always noise
-    - If ctrl is non-noise: square on first frame, then noise, then back
+    Hubbard drums: noise waveform with optional freq_hi descent.
+    The descent rate varies per song (typically -4 to -8 per frame).
+    Use freq_slide=0 when the rate is unknown (safe default — no descent).
 
-    The V2 wave table can approximate this with descending relative offsets.
-    The original does a per-frame freq_hi decrement which we can't exactly
-    replicate, but descending semitone steps are close enough.
+    When freq_slide is provided (from binary analysis), the V2 player's
+    WaveTableStep.freq_slide handles the per-frame freq_hi delta.
     """
-    # Hubbard drum: noise burst on frame 1, then instrument's own waveform.
-    # From data_format_reference.md:
-    #   ctrl=$00/$80/$81: always noise
-    #   ctrl=non-zero: instrument waveform + noise on first frame, then waveform only
-    # The actual freq_hi decrement is in SoundWork, not reproducible in V2 wave table.
-    # Keep it short to not disrupt timing.
     native_wave = ctrl_byte | 0x01  # ensure gate bit
     if (ctrl_byte & 0xF0) == 0x80 or ctrl_byte == 0:
         # Pure noise drum
         return [
-            WaveTableStep(waveform=0x81, note_offset=0),
-            WaveTableStep(waveform=0x81, keep_freq=True),
+            WaveTableStep(waveform=0x81, note_offset=0, freq_slide=freq_slide),
+            WaveTableStep(waveform=0x81, keep_freq=True, freq_slide=freq_slide),
             WaveTableStep(is_loop=True, loop_target=1),
         ]
     else:
         # Noise burst then native waveform
         return [
-            WaveTableStep(waveform=0x81, note_offset=0),     # frame 1: noise burst
+            WaveTableStep(waveform=0x81, note_offset=0, freq_slide=freq_slide),
             WaveTableStep(waveform=native_wave, keep_freq=True),
             WaveTableStep(is_loop=True, loop_target=1),
         ]
