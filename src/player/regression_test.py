@@ -67,7 +67,8 @@ def run_pipeline(sid_path):
 
 def _test_one(args):
     """Test one protected song."""
-    path, min_grade, min_score = args
+    path, min_grade, min_score = args[0], args[1], args[2]
+    engine = args[3] if len(args) > 3 else 'gt2'
     import sys, os
     _sd = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
     if _sd not in sys.path:
@@ -76,11 +77,11 @@ def _test_one(args):
 
     name = os.path.basename(path)
     if not os.path.exists(path):
-        return (path, name, None, None, None, min_grade, 'not found')
+        return (path, name, None, None, None, min_grade, 'not found', engine)
 
     result = run_pipeline(path)
     if result is None:
-        return (path, name, False, None, None, min_grade, 'pipeline error')
+        return (path, name, False, None, None, min_grade, 'pipeline error', engine)
 
     grade, score, comp = result
     grade_order = {'S': 0, 'A': 1, 'B': 2, 'C': 3, 'F': 4}
@@ -88,30 +89,103 @@ def _test_one(args):
     score_ok = score >= (min_score or 96.0) - 0.5
 
     if grade_ok and score_ok:
-        return (path, name, True, grade, score, min_grade, None)
+        return (path, name, True, grade, score, min_grade, None, engine)
     else:
         details = f'Grade {grade} ({score:.1f}) — expected >= {min_grade} ({min_score:.1f})'
-        return (path, name, False, grade, score, min_grade, details)
+        return (path, name, False, grade, score, min_grade, details, engine)
+
+
+def _detect_scope():
+    """Detect which engines need testing based on uncommitted changes.
+
+    Checks git diff (staged + unstaged) to determine which files changed.
+    Returns a set of engine names to test, or None for ALL.
+    """
+    import subprocess
+    try:
+        r = subprocess.run(['git', 'diff', '--name-only', 'HEAD'],
+                           capture_output=True, text=True, timeout=5)
+        r2 = subprocess.run(['git', 'diff', '--name-only', '--cached'],
+                            capture_output=True, text=True, timeout=5)
+        changed = set((r.stdout + r2.stdout).strip().split('\n'))
+        changed.discard('')
+    except:
+        return None  # can't determine, test all
+
+    if not changed:
+        return None  # no changes, test all
+
+    # Files that affect ALL engines
+    global_files = {
+        'src/sid_compare.py', 'src/converters/usf_to_sid.py',
+        'src/player/codegen_v2.py', 'src/player/codegen.py',
+        'src/player/peephole.py', 'src/usf/format.py',
+        'src/sidfinity_pack.py',
+    }
+    if any(f in changed for f in global_files):
+        return None  # test all
+
+    # Engine-specific files
+    engine_map = {
+        'gt2': {'src/gt2_to_usf.py', 'src/converters/gt2_to_usf.py',
+                'src/gt2_decompile.py', 'src/gt2_parse_direct.py',
+                'src/gt2_detect_version.py', 'src/gt2_packer.py'},
+        'hubbard': {'src/rh_decompile.py', 'src/rh_to_usf.py',
+                    'src/converters/rh_to_usf.py'},
+        'dmc': {'src/dmc_parser.py', 'src/dmc_to_usf.py',
+                'src/converters/dmc_to_usf.py'},
+        'universal': {'src/regtrace_to_usf.py',
+                      'src/converters/regtrace_to_usf.py'},
+    }
+
+    engines = set()
+    for engine, files in engine_map.items():
+        if any(f in changed for f in files):
+            engines.add(engine)
+
+    if 'universal' in engines:
+        # Universal pipeline affects non-GT2 engines
+        engines.update(['hubbard', 'dmc', 'jch'])
+        engines.discard('universal')
+
+    return engines if engines else None
 
 
 def run_tests():
-    """Run all regression tests against the frozen baseline. Returns True if all pass."""
+    """Run regression tests against the frozen baseline.
+
+    Smart scoping: only tests engines affected by changed files.
+    """
     from grade_db import connect, protected_count
 
     db = connect()
     total_protected, grade_s, grade_a = protected_count(db)
 
-    rows = db.execute('''SELECT path, min_grade, COALESCE(min_score, 96.0)
-                         FROM songs WHERE protected = 1
-                         ORDER BY path''').fetchall()
+    scope = None if globals().get('_force_all') else _detect_scope()
+
+    if scope is None:
+        # Test everything
+        rows = db.execute('''SELECT path, min_grade, COALESCE(min_score, 96.0), engine
+                             FROM songs WHERE protected = 1
+                             ORDER BY path''').fetchall()
+        scope_desc = "all engines"
+    else:
+        # Filter by engine
+        placeholders = ','.join('?' * len(scope))
+        rows = db.execute(f'''SELECT path, min_grade, COALESCE(min_score, 96.0), engine
+                              FROM songs WHERE protected = 1
+                              AND engine IN ({placeholders})
+                              ORDER BY path''', list(scope)).fetchall()
+        scope_desc = ', '.join(sorted(scope))
+
     db.close()
 
     if not rows:
-        print('No baseline songs. Run with --add-new to establish baseline.')
+        print('No baseline songs in scope. Run with --add-new to establish baseline.')
         return True
 
     num_workers = os.cpu_count() or 4
-    print(f'Running {len(rows)} regression tests ({num_workers} workers)...\n')
+    print(f'Running {len(rows)} regression tests [{scope_desc}] ({num_workers} workers)...\n')
 
     with multiprocessing.Pool(num_workers) as pool:
         results = pool.map(_test_one, rows)
@@ -119,7 +193,7 @@ def run_tests():
     passed = failed = skipped = 0
     failures = []
 
-    for path, name, ok, grade, score, min_grade, details in results:
+    for path, name, ok, grade, score, min_grade, details, *_ in results:
         if ok is None:
             skipped += 1
         elif ok:
@@ -133,8 +207,8 @@ def run_tests():
     if len(failures) > 20:
         print(f'  ... and {len(failures) - 20} more failures')
 
-    s = sum(1 for _, _, ok, g, *_ in results if ok and g == 'S')
-    a = sum(1 for _, _, ok, g, *_ in results if ok and g == 'A')
+    s = sum(1 for r in results if r[2] and r[3] == 'S')
+    a = sum(1 for r in results if r[2] and r[3] == 'A')
     print(f'\n{passed} passed, {failed} failed, {skipped} skipped '
           f'out of {len(rows)} tests ({s} S + {a} A = {s + a})')
 
@@ -142,7 +216,7 @@ def run_tests():
     try:
         from grade_db import connect, record_batch
         db = connect()
-        batch = [(p, 'gt2', g, sc) for p, _, ok, g, sc, *_ in results if g and g != 'ERR']
+        batch = [(p, eng, g, sc) for p, _, ok, g, sc, _, _, eng in results if g and g != 'ERR']
         if batch:
             record_batch(db, batch)
         db.close()
@@ -206,11 +280,16 @@ def main():
     parser = argparse.ArgumentParser(description='SIDfinity regression tests')
     parser.add_argument('--add-new', action='store_true',
                         help='Verify and add new Grade A/S songs to baseline')
+    parser.add_argument('--all', action='store_true',
+                        help='Test all engines (ignore git diff scoping)')
     args = parser.parse_args()
 
     if args.add_new:
         add_new()
         return
+
+    global _force_all
+    _force_all = args.all
 
     success = run_tests()
     sys.exit(0 if success else 1)
