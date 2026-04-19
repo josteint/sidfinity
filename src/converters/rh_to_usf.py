@@ -72,17 +72,17 @@ def _build_drum_wave_table(ctrl_byte, freq_slide=0):
     """
     native_wave = ctrl_byte | 0x01  # ensure gate bit
     if (ctrl_byte & 0xF0) == 0x80 or ctrl_byte == 0:
-        # Pure noise drum
+        # Pure noise drum — descend then hold
         return [
             WaveTableStep(waveform=0x81, note_offset=0, freq_slide=freq_slide),
-            WaveTableStep(waveform=0x81, keep_freq=True, freq_slide=freq_slide),
+            WaveTableStep(waveform=0x81, keep_freq=True),  # no slide on sustain
             WaveTableStep(is_loop=True, loop_target=1),
         ]
     else:
-        # Noise burst then native waveform
+        # Noise burst with descent, then native waveform (no slide)
         return [
             WaveTableStep(waveform=0x81, note_offset=0, freq_slide=freq_slide),
-            WaveTableStep(waveform=native_wave, keep_freq=True),
+            WaveTableStep(waveform=native_wave, note_offset=0),
             WaveTableStep(is_loop=True, loop_target=1),
         ]
 
@@ -151,7 +151,7 @@ def _build_pulse_table(pwm_speed, pulse_width):
     return steps
 
 
-def _map_instrument(rh_instr, instr_id, upper_nibble_arp=False):
+def _map_instrument(rh_instr, instr_id, upper_nibble_arp=False, drum_freq_slide=0):
     """Convert a Hubbard instrument to USF Instrument.
 
     upper_nibble_arp: True if the driver uses the upper nibble of fx_flags as
@@ -212,7 +212,7 @@ def _map_instrument(rh_instr, instr_id, upper_nibble_arp=False):
                 WaveTableStep(is_loop=True, loop_target=0),
             ]
     elif rh_instr.has_drum:
-        inst.wave_table = _build_drum_wave_table(rh_instr.ctrl)
+        inst.wave_table = _build_drum_wave_table(rh_instr.ctrl, freq_slide=drum_freq_slide)
         if (rh_instr.ctrl & 0xF0) == 0x80 or rh_instr.ctrl == 0:
             inst.waveform = 'noise'
     elif rh_instr.has_arpeggio:
@@ -467,7 +467,8 @@ def rh_to_usf(sid_path, subtune=None):
 
     # Map instruments
     for i, rh_instr in enumerate(result.instruments):
-        inst = _map_instrument(rh_instr, i, upper_nibble_arp=result.upper_nibble_arp)
+        inst = _map_instrument(rh_instr, i, upper_nibble_arp=result.upper_nibble_arp,
+                               drum_freq_slide=result.drum_freq_slide)
         song.instruments.append(inst)
 
     # Enhance drum instruments with sidxray-extracted freq_slide analysis.

@@ -110,6 +110,7 @@ class RHDecompiled:
         self.speed_table = None    # per-song speed table (list), or None
         self.upper_nibble_arp = False  # True if driver uses fx_flags upper nibble as arp interval (Phase 4)
         self.voice_transpose = [0, 0, 0]  # per-voice semitone transpose offset (from ADC abs,X before freq table)
+        self.drum_freq_slide = 0   # per-frame freq_hi delta for drum effect (typically -1)
 
 
 def load_sid(path):
@@ -844,6 +845,27 @@ def decompile(sid_path, verbose=False):
             if result.voice_transpose != [0, 0, 0]:
                 break
         _search = _p + 1
+
+    # --- Drum freq_slide detection ---
+    # Find the freq_hi buffer (source of STA $D401,Y) and check for DEC
+    result.drum_freq_slide = 0
+    if any(inst.has_drum for inst in result.instruments):
+        freq_hi_buf = None
+        for i in range(len(binary) - 5):
+            if binary[i] == 0x99 and binary[i+1] == 0x01 and binary[i+2] == 0xD4:
+                for j in range(i-1, max(i-10, 0), -1):
+                    if binary[j] == 0xBD:
+                        freq_hi_buf = binary[j+1] | (binary[j+2] << 8)
+                        break
+                if freq_hi_buf:
+                    break
+        if freq_hi_buf:
+            for i in range(len(binary) - 2):
+                if binary[i] == 0xDE and binary[i+1] == (freq_hi_buf & 0xFF) and binary[i+2] == (freq_hi_buf >> 8):
+                    result.drum_freq_slide = -1
+                    if verbose:
+                        print(f'Drum descent: DEC ${freq_hi_buf:04X},X (freq_slide=-1)')
+                    break
 
     # --- Parse songs ---
     for s in range(result.num_songs):
