@@ -446,28 +446,21 @@ def rh_to_usf(sid_path, subtune=None):
     #
     # This preserves total frame count within ±1 frame rounding error.
     # Use per-song speed if available, otherwise default speed.
-    # Then try to measure the ACTUAL frames-per-tick empirically from siddump,
-    # because nested speed counters make the static detection inaccurate.
     if result.speed_table and subtune < len(result.speed_table):
         hubbard_speed = result.speed_table[subtune]
     elif result.speed is not None:
         hubbard_speed = result.speed
     else:
         hubbard_speed = 1
-
-    # Note: empirical speed measurement was tried but removed.
-    # The nested counter creates non-integer effective speeds that don't
-    # map to USF's integer tempo. See project_hubbard_nested_counters.md.
     natural_tempo = hubbard_speed + 1
 
     if natural_tempo >= 3:
         song.tempo = natural_tempo
         song._tempo_divisor = 1
     else:
-        # Find smallest multiplier M such that natural_tempo * M >= 3
         M = (3 + natural_tempo - 1) // natural_tempo
         song.tempo = natural_tempo * M
-        song._tempo_divisor = M  # divide durations by this
+        song._tempo_divisor = M
 
     # Hubbard hard restart: write order is Waveform → AD → SR
     song.adsr_write_order = 'ad_first'
@@ -479,6 +472,63 @@ def rh_to_usf(sid_path, subtune=None):
         inst = _map_instrument(rh_instr, i, upper_nibble_arp=result.upper_nibble_arp,
                                drum_freq_slide=result.drum_freq_slide)
         song.instruments.append(inst)
+
+    # Enhance bit3+skydive instruments with measured arp offset from siddump.
+    # When fx_flags has both bit 1 (skydive) and bit 3 set, the instrument
+    # produces a table-based arpeggio that alternates between the base note
+    # and a target note. Measure the actual offset from the original's trace.
+    try:
+        from sid_compare import dump_sid
+        _orig_trace = dump_sid(sid_path, 5)
+        if _orig_trace and len(_orig_trace) > 50:
+            # Read binary for freq table lookup
+            _arp_data_off = struct.unpack('>H', raw[6:8])[0]
+            _arp_la = struct.unpack('>H', raw[8:10])[0]
+            _arp_binary = raw[_arp_data_off + (2 if _arp_la == 0 else 0):]
+            _ft_pat = bytes([0x16, 0x01, 0x27, 0x01])
+            _ft_pos = _arp_binary.find(_ft_pat)
+            if _ft_pos >= 0:
+                for inst_idx, rh_instr in enumerate(result.instruments):
+                    if not (rh_instr.fx_flags & 0x0A == 0x0A):  # need both skydive + bit3
+                        continue
+                    expected_ctrl = rh_instr.ctrl & 0xFE
+                    # Find this instrument's arp offset on any voice
+                    for voice in range(3):
+                        base = voice * 7
+                        i = 15
+                        best_offset = None
+                        while i < len(_orig_trace) - 5:
+                            ctrl = _orig_trace[i][base + 4]
+                            if (ctrl & 0xFE) == expected_ctrl:
+                                section_fhis = []
+                                j = i
+                                while j < len(_orig_trace) and (
+                                    (_orig_trace[j][base+4] & 0xF0) == (rh_instr.ctrl & 0xF0)):
+                                    section_fhis.append(_orig_trace[j][base+1])
+                                    j += 1
+                                if len(section_fhis) >= 4:
+                                    unique = sorted(set(section_fhis))
+                                    if len(unique) == 2:
+                                        n1 = n2 = None
+                                        for n in range(96):
+                                            if _arp_binary[_ft_pos + n*2 + 1] == unique[0]: n1 = n
+                                            if _arp_binary[_ft_pos + n*2 + 1] == unique[1]: n2 = n
+                                        if n1 is not None and n2 is not None and n2 - n1 >= 13:
+                                            best_offset = n2 - n1
+                                i = max(i + 1, j)
+                            else:
+                                i += 1
+                        if best_offset and best_offset >= 13:
+                            # Rebuild the wave table with proper arpeggio
+                            native_wave = rh_instr.ctrl | 0x01
+                            song.instruments[inst_idx].wave_table = [
+                                WaveTableStep(waveform=native_wave, note_offset=0),
+                                WaveTableStep(waveform=native_wave, note_offset=best_offset),
+                                WaveTableStep(is_loop=True, loop_target=0),
+                            ]
+                            break  # found on one voice, apply
+    except Exception:
+        pass
 
     # Enhance drum instruments with sidxray-extracted freq_slide analysis.
     # For each voice, extract drum sequences and check if freq_hi descends.

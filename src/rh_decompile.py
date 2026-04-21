@@ -107,6 +107,7 @@ class RHDecompiled:
         self.num_sequences = 0
         self.seq_interleaved = False
         self.speed = None          # resetspd value (tempo = speed + 1)
+        self.effective_fpt = None  # simulated frames-per-tick (fractional, from nested counter)
         self.speed_table = None    # per-song speed table (list), or None
         self.upper_nibble_arp = False  # True if driver uses fx_flags upper nibble as arp interval (Phase 4)
         self.voice_transpose = [0, 0, 0]  # per-voice semitone transpose offset (from ADC abs,X before freq table)
@@ -573,6 +574,7 @@ def find_speed(binary, load_addr, num_songs=1):
     """
     tempo_addr = None
     default_speed = None
+    effective_fpt = None         # fractional frames-per-tick from nested counter simulation
     inner_binary_offset = None   # binary offset of the inner counter DEC instruction
 
     # Find the speed counter reset pattern.
@@ -699,9 +701,14 @@ def find_speed(binary, load_addr, num_songs=1):
             sta_outer = binary[j + 3] | (binary[j + 4] << 8)
             if sta_outer != outer_counter_addr:
                 continue
-            # Outer counter found. Only apply when imm <= 5 (tempo range).
+            # Outer counter found. Store its value for diagnostics.
+            # The nested counter interaction is complex (additional gating
+            # logic after counters fire), so we don't modify default_speed
+            # here — the simple simulation model is inaccurate.
+            # Only apply the old averaging when outer <= 5 (conservative).
             if outer_imm <= 5:
                 default_speed = (default_speed + outer_imm) // 2
+                effective_fpt = float(default_speed + 1)
             break
 
     # Search for per-song speed table: LDA songtempos,X / STA tempo
@@ -724,7 +731,7 @@ def find_speed(binary, load_addr, num_songs=1):
                         speed_table = speeds
                 break
 
-    return default_speed, speed_table
+    return default_speed, speed_table, effective_fpt
 
 
 def find_freq_table(binary, load_addr):
@@ -1006,8 +1013,9 @@ def decompile(sid_path, verbose=False):
             print('Freq table: not found (custom or interleaved)')
 
     # Speed detection
-    speed, speed_table = find_speed(binary, load_addr, result.num_songs)
+    speed, speed_table, eff_fpt = find_speed(binary, load_addr, result.num_songs)
     result.speed = speed
+    result.effective_fpt = eff_fpt
     result.speed_table = speed_table
     if verbose:
         if speed is not None:
