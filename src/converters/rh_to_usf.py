@@ -275,18 +275,19 @@ def _map_instrument(rh_instr, instr_id, upper_nibble_arp=False, drum_freq_slide=
 
 
 def _map_pattern(rh_pattern, usf_pat_id, tempo_divisor=1, interleaved_freq=False,
-                 pitch_offset=0):
+                 pitch_offset=0, dur_scale=1.0):
     """Convert a Hubbard pattern to USF Pattern.
 
     tempo_divisor: when natural tempo < 3, we multiply tempo by M and
     divide durations by M to maintain the same frame count.
     pitch_offset: semitones to add to each note pitch (voice transpose).
+    dur_scale: multiply (D+1) by this to correct for nested counter timing.
     """
     pat = Pattern(id=usf_pat_id)
 
     for note in rh_pattern.notes:
         if note.tie:
-            dur = max(1, (note.duration + 1 + tempo_divisor - 1) // tempo_divisor)
+            dur = max(1, round((note.duration + 1) * dur_scale)) if dur_scale is not None else max(1, (note.duration + 1 + tempo_divisor - 1) // tempo_divisor)
             evt = NoteEvent(type='tie', duration=dur)
             pat.events.append(evt)
             continue
@@ -299,7 +300,7 @@ def _map_pattern(rh_pattern, usf_pat_id, tempo_divisor=1, interleaved_freq=False
         # and applies the slide. pitch>=96 (freq-table trick) is always TIE.
         if note.portamento is not None:
             speed, direction = note.portamento
-            dur = max(1, (note.duration + 1 + tempo_divisor - 1) // tempo_divisor)
+            dur = max(1, round((note.duration + 1) * dur_scale)) if dur_scale is not None else max(1, (note.duration + 1 + tempo_divisor - 1) // tempo_divisor)
             evt = NoteEvent(type='tie', duration=dur)
             if direction:  # down
                 evt.command = 0x02  # CMD_PORTA_DOWN
@@ -335,12 +336,12 @@ def _map_pattern(rh_pattern, usf_pat_id, tempo_divisor=1, interleaved_freq=False
                 if not resolved:
                     # Emit TIE (not REST) — freq-table-trick notes are
                     # portamento/continuation slides, not silences.
-                    dur = max(1, (note.duration + 1 + tempo_divisor - 1) // tempo_divisor)
+                    dur = max(1, round((note.duration + 1) * dur_scale)) if dur_scale is not None else max(1, (note.duration + 1 + tempo_divisor - 1) // tempo_divisor)
                     pat.events.append(NoteEvent(
                         type='tie', duration=dur))
                     continue
 
-            dur = max(1, (note.duration + 1 + tempo_divisor - 1) // tempo_divisor)
+            dur = max(1, round((note.duration + 1) * dur_scale)) if dur_scale is not None else max(1, (note.duration + 1 + tempo_divisor - 1) // tempo_divisor)
             evt = NoteEvent(
                 type='note',
                 note=usf_note,
@@ -357,7 +358,7 @@ def _map_pattern(rh_pattern, usf_pat_id, tempo_divisor=1, interleaved_freq=False
             pat.events.append(evt)
         else:
             # No pitch = rest
-            dur = max(1, (note.duration + 1 + tempo_divisor - 1) // tempo_divisor)
+            dur = max(1, round((note.duration + 1) * dur_scale)) if dur_scale is not None else max(1, (note.duration + 1 + tempo_divisor - 1) // tempo_divisor)
             evt = NoteEvent(type='rest', duration=dur)
             pat.events.append(evt)
 
@@ -454,13 +455,76 @@ def rh_to_usf(sid_path, subtune=None):
         hubbard_speed = 1
     natural_tempo = hubbard_speed + 1
 
-    if natural_tempo >= 3:
+    # Measure actual frames-per-tick by running the Hubbard player in py65.
+    # The nested speed counter makes the effective tick rate differ from
+    # the static (speed+1) formula. Count inner counter reloads in 200 frames.
+    measured_fpt = None
+    try:
+        if result.play_addr != 0:
+            from formal.taint_tracker import load_sid as _taint_load, TaintMPU
+            from rh_decompile import load_sid as _rh_load
+            _mem, _init, _play, _la = _taint_load(sid_path)
+            _hdr, _bin, _la2 = _rh_load(sid_path)
+            # Find inner counter address (DEC abs / BPL / LDA abs / STA abs)
+            _counter_addr = None
+            for _i in range(len(_bin) - 11):
+                if _bin[_i] == 0xCE and _bin[_i+3] == 0x10:
+                    if _bin[_i+5] == 0xAD and _bin[_i+8] == 0x8D:
+                        _sa = _bin[_i+9] | (_bin[_i+10] << 8)
+                        _da = _bin[_i+1] | (_bin[_i+2] << 8)
+                        if _sa == _da:
+                            _ta = _bin[_i+6] | (_bin[_i+7] << 8)
+                            _to = _ta - _la2
+                            if 0 <= _to < len(_bin) and _bin[_to] <= 15:
+                                _counter_addr = _da
+                                break
+            if _counter_addr is not None:
+                _mpu = TaintMPU()
+                _mpu.memory = bytearray(_mem)
+                _mpu.memory[0xFFF0] = 0x00
+                _mpu.stPush(0xFF); _mpu.stPush(0xEF)
+                _mpu.pc = _init; _mpu.a = subtune
+                for _ in range(50000):
+                    if _mpu.ByteAt_direct(_mpu.pc) == 0x00: break
+                    _mpu.step()
+                _prev = _mpu.ByteAt_direct(_counter_addr)
+                _ticks = 0
+                _N = 200
+                for _f in range(_N):
+                    _ret = 0xFFF0 - 1
+                    _mpu.memory[0xFFF0] = 0x00
+                    _mpu.stPush(_ret >> 8); _mpu.stPush(_ret & 0xFF)
+                    _mpu.pc = _play
+                    for _ in range(30000):
+                        if _mpu.ByteAt_direct(_mpu.pc) == 0x00: break
+                        _mpu.step()
+                    _curr = _mpu.ByteAt_direct(_counter_addr)
+                    if _curr > _prev: _ticks += 1
+                    _prev = _curr
+                if _ticks > 10:
+                    measured_fpt = float(_N) / _ticks
+    except Exception:
+        pass
+
+    if measured_fpt is not None and measured_fpt >= 2.0:
+        natural_tempo = max(3, round(measured_fpt))
+
+    # When py65 measured the actual fpt, use it for precise duration scaling.
+    # USF_dur = round((D+1) * measured_fpt / tempo)
+    # When no measurement (play=0, errors), fall back to static formula.
+    if measured_fpt is not None and natural_tempo >= 3:
         song.tempo = natural_tempo
         song._tempo_divisor = 1
+        song._dur_scale = measured_fpt / natural_tempo
+    elif natural_tempo >= 3:
+        song.tempo = natural_tempo
+        song._tempo_divisor = 1
+        song._dur_scale = None  # use old integer formula
     else:
         M = (3 + natural_tempo - 1) // natural_tempo
         song.tempo = natural_tempo * M
         song._tempo_divisor = M
+        song._dur_scale = None  # use old integer formula
 
     # Hubbard hard restart: write order is Waveform → AD → SR
     song.adsr_write_order = 'ad_first'
@@ -672,6 +736,7 @@ def rh_to_usf(sid_path, subtune=None):
     song.patterns.append(Pattern(id=0, events=[NoteEvent(type='rest', duration=1)]))
 
     tempo_div = getattr(song, '_tempo_divisor', 1)
+    dur_scale = getattr(song, '_dur_scale', None)
 
     # Attach binary + freq table info to patterns for freq-trick resolution
     # Read the binary once for all patterns
@@ -721,7 +786,7 @@ def rh_to_usf(sid_path, subtune=None):
             usf_id = len(song.patterns)
             pat_maps[xpose][rh_pat.index] = usf_id
             usf_pat = _map_pattern(rh_pat, usf_id, tempo_div, interleaved_freq,
-                                   pitch_offset=xpose)
+                                   pitch_offset=xpose, dur_scale=dur_scale)
             song.patterns.append(usf_pat)
 
     # Per-voice pattern map: voice_idx → {rh_idx: usf_id}
