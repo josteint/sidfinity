@@ -274,11 +274,13 @@ def _map_instrument(rh_instr, instr_id, upper_nibble_arp=False, drum_freq_slide=
     return inst
 
 
-def _map_pattern(rh_pattern, usf_pat_id, tempo_divisor=1, interleaved_freq=False):
+def _map_pattern(rh_pattern, usf_pat_id, tempo_divisor=1, interleaved_freq=False,
+                 pitch_offset=0):
     """Convert a Hubbard pattern to USF Pattern.
 
     tempo_divisor: when natural tempo < 3, we multiply tempo by M and
     divide durations by M to maintain the same frame count.
+    pitch_offset: semitones to add to each note pitch (voice transpose).
     """
     pat = Pattern(id=usf_pat_id)
 
@@ -308,7 +310,8 @@ def _map_pattern(rh_pattern, usf_pat_id, tempo_divisor=1, interleaved_freq=False
             continue
 
         if note.pitch is not None:
-            usf_note = _hubbard_pitch_to_usf_note(note.pitch, interleaved_freq)
+            raw_pitch = note.pitch + pitch_offset if note.pitch < 96 else note.pitch
+            usf_note = _hubbard_pitch_to_usf_note(raw_pitch, interleaved_freq)
             if usf_note < 0:
                 # Frequency table trick (pitch >= 96): reads memory beyond the
                 # freq table — this is a portamento continuation or special effect.
@@ -641,16 +644,35 @@ def rh_to_usf(sid_path, subtune=None):
     except:
         pass
 
-    pat_map = {}  # rh_pattern_index → usf_pattern_id
-    for rh_pat in result.patterns:
-        if _binary is not None and _ft_addr is not None:
-            rh_pat._freq_table_info = (_binary, _load_addr, _ft_addr)
-        else:
-            rh_pat._freq_table_info = None
-        usf_id = len(song.patterns)
-        pat_map[rh_pat.index] = usf_id
-        usf_pat = _map_pattern(rh_pat, usf_id, tempo_div, interleaved_freq)
-        song.patterns.append(usf_pat)
+    # Build pattern map. When voice_transpose is non-zero, create
+    # transposed copies of patterns for each voice that needs it.
+    # pat_map[voice_idx][rh_pattern_index] → usf_pattern_id
+    voice_transpose = getattr(result, 'voice_transpose', [0, 0, 0])
+    # Clamp unreasonable values: only apply transpose in whole octaves
+    # (12, 24, 36, 48). Non-octave values are often false positives from
+    # the ADC pattern scan (the table may be for vibrato depth, not transpose).
+    voice_transpose = [t if t in (12, 24, 36, 48) else 0 for t in voice_transpose]
+    unique_transposes = sorted(set(voice_transpose))
+
+    pat_maps = {}  # transpose_value → {rh_idx: usf_id}
+    for xpose in unique_transposes:
+        pat_maps[xpose] = {}
+        for rh_pat in result.patterns:
+            if _binary is not None and _ft_addr is not None:
+                rh_pat._freq_table_info = (_binary, _load_addr, _ft_addr)
+            else:
+                rh_pat._freq_table_info = None
+            usf_id = len(song.patterns)
+            pat_maps[xpose][rh_pat.index] = usf_id
+            usf_pat = _map_pattern(rh_pat, usf_id, tempo_div, interleaved_freq,
+                                   pitch_offset=xpose)
+            song.patterns.append(usf_pat)
+
+    # Per-voice pattern map: voice_idx → {rh_idx: usf_id}
+    pat_map_per_voice = []
+    for vi in range(3):
+        xpose = voice_transpose[vi]
+        pat_map_per_voice.append(pat_maps[xpose])
 
     # Fix portamento speed table references.
     # _map_pattern stores the raw Hubbard speed in command_val, but the V2 player
@@ -681,24 +703,26 @@ def rh_to_usf(sid_path, subtune=None):
     for voice_idx in range(3):
         track = rh_song.tracks[voice_idx]
         orderlist = []
-        has_loop = False
+        loop_restart = None
 
+        pat_map = pat_map_per_voice[voice_idx]
         for kind, idx in track:
             if kind == 'pattern':
                 if idx in pat_map:
-                    orderlist.append((pat_map[idx], 0))  # (pattern_id, transpose=0)
+                    orderlist.append((pat_map[idx], 0))
                 # else: pattern index out of range, skip
             elif kind == 'loop':
-                has_loop = True
+                loop_restart = idx if idx is not None else 0
                 break
             elif kind == 'stop':
                 break
 
         song.orderlists[voice_idx] = orderlist
 
-        # Set loop point: if track ends with LOOP ($FF), loop back to start
-        if has_loop:
-            song.orderlist_restart[voice_idx] = 0
+        # Set loop point from the restart position in the track data
+        if loop_restart is not None:
+            # Clamp to valid range
+            song.orderlist_restart[voice_idx] = min(loop_restart, max(0, len(orderlist) - 1))
         else:
             # STOP ($FE): no loop, set restart to last entry
             song.orderlist_restart[voice_idx] = max(0, len(orderlist) - 1)
@@ -772,42 +796,50 @@ def rh_to_usf(sid_path, subtune=None):
         orderlist = song.orderlists[voice_idx]
         if not orderlist:
             continue
-        # Check first pattern is all-TIE
-        if not _pat_all_tie(_pat_id_by_id.get(orderlist[0][0])):
+        first_pat = _pat_id_by_id.get(orderlist[0][0])
+        if first_pat is None or not first_pat.events:
+            continue
+        # Check if first event is TIE (no prior note to sustain)
+        if first_pat.events[0].type not in ('tie', 'rest'):
             continue
         # Guard: only fix if original INIT pre-loaded a waveform AND non-zero freq.
-        # If orig ctrl has no waveform bits or freq=0, our TIE (freq=0) already matches.
         orig_fhi = _orig_init_fhi[voice_idx]
         orig_ctrl = _orig_init_ctrl[voice_idx]
         if (orig_ctrl & 0xF0) == 0 or orig_fhi == 0:
-            continue  # Original had no waveform or zero freq -- TIE is correct
-        # Count leading TIE-only patterns
-        leading = 0
-        for pid, _ in orderlist:
-            if _pat_all_tie(_pat_id_by_id.get(pid)):
-                leading += 1
-            else:
-                break
-        # Find first real note after the TIE prefix
+            continue
+        # Find first real note in this voice's patterns
         init_note = None
         init_instr = -1
-        for pid, _ in orderlist[leading:]:
+        for pid, _ in orderlist:
             found = _first_note(_pat_id_by_id.get(pid))
             if found:
                 init_note, init_instr = found
                 break
         if init_note is None:
             continue
-        # Build a 1-tick init pattern with the found note
-        init_pid = len(song.patterns)
-        init_pat = Pattern(id=init_pid, events=[
-            NoteEvent(type='note', note=init_note, duration=1, instrument=init_instr)
-        ])
-        song.patterns.append(init_pat)
-        _pat_id_by_id[init_pid] = init_pat
-        # Prepend to orderlist; shift restart index to skip the init pattern on loops
-        song.orderlists[voice_idx] = [(init_pid, 0)] + list(orderlist)
-        song.orderlist_restart[voice_idx] += 1
+        if _pat_all_tie(first_pat):
+            # All-TIE first pattern: prepend a 1-tick init pattern
+            init_pid = len(song.patterns)
+            init_pat = Pattern(id=init_pid, events=[
+                NoteEvent(type='note', note=init_note, duration=1, instrument=init_instr)
+            ])
+            song.patterns.append(init_pat)
+            _pat_id_by_id[init_pid] = init_pat
+            song.orderlists[voice_idx] = [(init_pid, 0)] + list(orderlist)
+            song.orderlist_restart[voice_idx] += 1
+        else:
+            # First pattern starts with TIE but has real notes too.
+            # Replace the leading TIE with the init note (same duration).
+            # Create a voice-specific copy to avoid affecting other voices.
+            import copy
+            new_pid = len(song.patterns)
+            new_pat = Pattern(id=new_pid, events=list(first_pat.events))
+            new_pat.events[0] = NoteEvent(
+                type='note', note=init_note, duration=first_pat.events[0].duration,
+                instrument=init_instr)
+            song.patterns.append(new_pat)
+            _pat_id_by_id[new_pid] = new_pat
+            song.orderlists[voice_idx][0] = (new_pid, orderlist[0][1])
 
     return song
 

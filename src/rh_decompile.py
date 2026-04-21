@@ -185,6 +185,207 @@ def find_hex_pattern(binary, pattern, start=0):
     return -1
 
 
+def simulate_init(binary, load_addr, init_addr, verbose=False):
+    """Simulate the init routine's static memory writes on a copy of the binary.
+
+    Some Hubbard SIDs use self-modifying code: the init routine patches player
+    code addresses (LDA #imm / STA abs pairs) and copies data blocks
+    (LDA abs,X / STA abs,X / INX / CPX #N / BNE loops) before the player runs.
+    Without simulating these, the static binary looks wrong to the decompiler.
+
+    Uses a minimal 6502 interpreter that tracks the A register and applies:
+      - LDA #imm  (A9): sets A
+      - STA abs   (8D): writes A to the in-binary address (if in range).
+        Multiple consecutive STA abs instructions share the same A value.
+      - LDA abs,X (BD) / STA abs,X (9D) / INX (E8) / CPX #N (E0 xx) / BNE (D0):
+        detects the copy-loop idiom and copies N bytes src->dst
+      - JMP abs   (4C): follows into target (one extra level via flat recursion)
+      - RTS       (60): stops
+
+    All other instructions are decoded for length only (using a compact length
+    table) so the PC advances correctly without modifying any state.
+    A-register invalidated by any instruction that logically modifies A.
+    Only modifies a copy of the binary — the original is never touched.
+    """
+    # Compact 6502 instruction length table indexed by opcode.
+    # 0 = unknown/illegal -> treat as 1 byte.
+    _LEN = [
+        #0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F
+        1, 2, 1, 1, 2, 2, 2, 2, 1, 2, 1, 1, 3, 3, 3, 3,  # 0x
+        2, 2, 1, 1, 2, 2, 2, 2, 1, 3, 1, 1, 3, 3, 3, 3,  # 1x
+        3, 2, 1, 1, 2, 2, 2, 2, 1, 2, 1, 1, 3, 3, 3, 3,  # 2x
+        2, 2, 1, 1, 2, 2, 2, 2, 1, 3, 1, 1, 3, 3, 3, 3,  # 3x
+        1, 2, 1, 1, 2, 2, 2, 2, 1, 2, 1, 1, 3, 3, 3, 3,  # 4x
+        2, 2, 1, 1, 2, 2, 2, 2, 1, 3, 1, 1, 3, 3, 3, 3,  # 5x
+        1, 2, 1, 1, 2, 2, 2, 2, 1, 2, 1, 1, 3, 3, 3, 3,  # 6x
+        2, 2, 1, 1, 2, 2, 2, 2, 1, 3, 1, 1, 3, 3, 3, 3,  # 7x
+        2, 2, 2, 2, 2, 2, 2, 2, 1, 2, 1, 1, 3, 3, 3, 3,  # 8x
+        2, 2, 1, 1, 2, 2, 2, 2, 1, 3, 1, 1, 3, 3, 3, 3,  # 9x
+        2, 2, 2, 2, 2, 2, 2, 2, 1, 2, 1, 1, 3, 3, 3, 3,  # Ax
+        2, 2, 1, 1, 2, 2, 2, 2, 1, 3, 1, 1, 3, 3, 3, 3,  # Bx
+        2, 2, 2, 2, 2, 2, 2, 2, 1, 2, 1, 1, 3, 3, 3, 3,  # Cx
+        2, 2, 1, 1, 2, 2, 2, 2, 1, 3, 1, 1, 3, 3, 3, 3,  # Dx
+        2, 2, 2, 2, 2, 2, 2, 2, 1, 2, 1, 1, 3, 3, 3, 3,  # Ex
+        2, 2, 1, 1, 2, 2, 2, 2, 1, 3, 1, 1, 3, 3, 3, 3,  # Fx
+    ]
+    # Opcodes that modify the A register (excluding LDA #imm which we handle separately)
+    _A_MODIFYING = frozenset([
+        0xAD, 0xA5, 0xB5, 0xB9, 0xA1, 0xB1,       # LDA abs/zp/zp,X/abs,Y/(ind,X)/(ind),Y
+        0x68, 0x98, 0x8A,                           # PLA, TYA, TXA
+        0x6A, 0x4A, 0x0A, 0x2A,                    # ROR/LSR/ASL/ROL A
+        0x69, 0x65, 0x6D, 0x75, 0x7D, 0x79, 0x61, 0x71,  # ADC
+        0x29, 0x25, 0x2D, 0x35, 0x3D, 0x39, 0x21, 0x31,  # AND
+        0x49, 0x45, 0x4D, 0x55, 0x5D, 0x59, 0x41, 0x51,  # EOR
+        0x09, 0x05, 0x0D, 0x15, 0x1D, 0x19, 0x01, 0x11,  # ORA
+        0xE9, 0xE5, 0xED, 0xF5, 0xFD, 0xF9, 0xE1, 0xF1,  # SBC
+    ])
+
+    work = bytearray(binary)
+    n_lda_sta = 0
+    n_copy_loops = 0
+    # Track ZP values for indirect copy detection
+    zp = bytearray(256)
+
+    def _addr_to_off(addr):
+        off = addr - load_addr
+        return off if 0 <= off < len(work) else None
+
+    def _ensure_range(addr, count):
+        """Extend work buffer if addr+count is beyond current range."""
+        nonlocal work
+        end_needed = addr + count - load_addr
+        if end_needed > len(work):
+            work.extend(b'\x00' * (end_needed - len(work)))
+
+    def _run(start_addr, max_inst=512, follow_jmp=True):
+        nonlocal n_lda_sta, n_copy_loops
+        pc = start_addr
+        reg_a = None      # current A register value (None = unknown)
+        for _ in range(max_inst):
+            off = _addr_to_off(pc)
+            if off is None:
+                break
+            op = work[off]
+
+            if op == 0xA9 and off + 1 < len(work):
+                # LDA #imm
+                reg_a = work[off + 1]
+                pc += 2
+
+            elif op == 0x8D and off + 2 < len(work):
+                # STA abs — write A to memory if A is known and address is in range.
+                # Do NOT invalidate reg_a: one LDA #imm can feed multiple STA abs.
+                dst_addr = work[off + 1] | (work[off + 2] << 8)
+                if reg_a is not None:
+                    dst_off = _addr_to_off(dst_addr)
+                    if dst_off is not None:
+                        work[dst_off] = reg_a
+                        n_lda_sta += 1
+                        if verbose:
+                            print(f'  init patch: ${dst_addr:04X} = ${reg_a:02X}')
+                pc += 3
+
+            elif (op == 0xBD and off + 10 < len(work) and  # LDA abs,X  (3 bytes)
+                  work[off + 3] == 0x9D and                 # STA abs,X  (3 bytes)
+                  work[off + 6] == 0xE8 and                 # INX        (1 byte)
+                  work[off + 7] == 0xE0 and                 # CPX #imm   (2 bytes)
+                  work[off + 9] == 0xD0):                   # BNE rel    (2 bytes)
+                # Copy-loop idiom: memcpy(dst, src, count)
+                # Total = 3+3+1+2+2 = 11 bytes
+                src_addr = work[off + 1] | (work[off + 2] << 8)
+                dst_addr = work[off + 4] | (work[off + 5] << 8)
+                count    = work[off + 8]
+                src_off  = _addr_to_off(src_addr)
+                dst_off  = _addr_to_off(dst_addr)
+                if src_off is not None and dst_off is not None:
+                    if src_off + count <= len(work) and dst_off + count <= len(work):
+                        # Read all source bytes first to handle src/dst overlap
+                        src_bytes = bytes(work[src_off:src_off + count])
+                        work[dst_off:dst_off + count] = src_bytes
+                        n_copy_loops += 1
+                        if verbose:
+                            print(f'  init copy: ${src_addr:04X} -> ${dst_addr:04X} '
+                                  f'({count} bytes)')
+                reg_a = None   # X register modified; conservatively invalidate A
+                pc += 11
+
+            elif op == 0x85 and off + 1 < len(work):
+                # STA zp — track ZP writes for indirect copy detection
+                zp_addr = work[off + 1]
+                if reg_a is not None:
+                    zp[zp_addr] = reg_a
+                pc += 2
+
+            elif (op == 0xB1 and off + 7 < len(work) and  # LDA (zp),Y
+                  work[off + 2] == 0x91 and                 # STA (zp),Y
+                  work[off + 4] == 0xC8 and                 # INY
+                  work[off + 5] == 0xD0):                    # BNE (inner loop)
+                # Indirect page copy: LDA ($FB),Y / STA ($FD),Y / INY / BNE
+                # followed by INC src_hi / INC dst_hi / DEX / BNE (outer loop)
+                src_zp = work[off + 1]
+                dst_zp = work[off + 3]
+                src_addr = zp[src_zp] | (zp[src_zp + 1] << 8)
+                dst_addr = zp[dst_zp] | (zp[dst_zp + 1] << 8)
+                # Find outer loop: scan forward for INC/INC/DEX/BNE or similar
+                # Count pages from X register (look back for LDX #imm)
+                num_pages = 1  # default
+                # Search backwards for LDX #imm (A2 xx)
+                for back in range(1, 20):
+                    boff = off - back
+                    if boff >= 0 and work[boff] == 0xA2:
+                        num_pages = work[boff + 1]
+                        break
+                count = num_pages * 256
+                src_off = _addr_to_off(src_addr)
+                if src_off is not None and src_off + count <= len(work):
+                    _ensure_range(dst_addr, count)
+                    dst_off = _addr_to_off(dst_addr)
+                    if dst_off is not None:
+                        src_bytes = bytes(work[src_off:src_off + count])
+                        work[dst_off:dst_off + count] = src_bytes
+                        n_copy_loops += 1
+                        if verbose:
+                            print(f'  init copy (indirect): ${src_addr:04X} -> '
+                                  f'${dst_addr:04X} ({count} bytes, {num_pages} pages)')
+                # Skip past inner loop (7 bytes) + outer loop (~7 bytes)
+                # Scan forward from inner BNE for outer BNE (0xD0)
+                end_off = off + 6  # past inner BNE
+                while end_off < off + 20 and end_off < len(work):
+                    if work[end_off] == 0xD0:
+                        end_off += 2  # past outer BNE + rel
+                        break
+                    end_off += _LEN[work[end_off]] or 1
+                else:
+                    end_off = off + 14
+                pc = load_addr + end_off
+                reg_a = None
+
+            elif op == 0x4C and off + 2 < len(work):
+                # JMP abs — follow (one extra level only)
+                jmp_addr = work[off + 1] | (work[off + 2] << 8)
+                if follow_jmp:
+                    _run(jmp_addr, max_inst=256, follow_jmp=False)
+                break
+
+            elif op == 0x60:
+                # RTS
+                break
+
+            else:
+                # Any other instruction: advance PC by correct instruction length.
+                # Invalidate A for any instruction that modifies it.
+                if op in _A_MODIFYING:
+                    reg_a = None
+                pc += _LEN[op] or 1
+
+    _run(init_addr)
+
+    if verbose and (n_lda_sta > 0 or n_copy_loops > 0):
+        print(f'Init simulation: {n_lda_sta} patches, {n_copy_loops} copy loops applied')
+
+    return bytes(work)
+
+
 def find_songs(binary, load_addr):
     """Find song table using SIDdecompiler pattern.
 
@@ -225,8 +426,43 @@ def find_songs(binary, load_addr):
     if pos >= 0:
         currtrklo = binary[pos + 1] | (binary[pos + 2] << 8)
         currtrkhi = binary[pos + 6] | (binary[pos + 7] << 8)
-        if currtrkhi - currtrklo == 3:
+        diff = currtrkhi - currtrklo
+        if diff == 3:
             return currtrklo, False, 6, False
+        elif diff == 1:
+            # Interleaved variant: lo/hi bytes alternate (lo0,hi0,lo1,hi1,lo2,hi2)
+            return currtrklo, False, 6, True
+
+    # Single-song: LDA lo,X / STA zp / LDA hi,X / STA zp+1 / CPX #$00
+    # Ricochet/Skate variant: CPX ($E0) follows instead of DEC
+    pos = find_hex_pattern(binary, "BD****85**BD****85**E0")
+    if pos >= 0:
+        zp1 = binary[pos + 4]
+        zp2 = binary[pos + 9]
+        if zp2 == zp1 + 1:
+            currtrklo = binary[pos + 1] | (binary[pos + 2] << 8)
+            currtrkhi = binary[pos + 6] | (binary[pos + 7] << 8)
+            diff = currtrkhi - currtrklo
+            if diff == 3:
+                return currtrklo, False, 6, False
+            elif diff == 1:
+                return currtrklo, False, 6, True
+
+    # Single-song: LDA lo,X / STA zp / LDA hi,X / STA zp+1 / LDA ... (no DEC after)
+    # Chicken_Song variant: the track pointer load is followed by more LDAs,
+    # not a DEC. Match on adjacent ZP addresses only.
+    pos = find_hex_pattern(binary, "BD****85**BD****85**BD")
+    if pos >= 0:
+        zp1 = binary[pos + 4]
+        zp2 = binary[pos + 9]
+        if zp2 == zp1 + 1:
+            currtrklo = binary[pos + 1] | (binary[pos + 2] << 8)
+            currtrkhi = binary[pos + 6] | (binary[pos + 7] << 8)
+            diff = currtrkhi - currtrklo
+            if diff == 3:
+                return currtrklo, False, 6, False
+            elif diff == 1:
+                return currtrklo, False, 6, True
 
     # Phase 3/4 fallback: ZP pointer setup
     # LDA table,X / STA $F0 / ... / LDA table2,X / STA $F1 / ...
@@ -275,6 +511,28 @@ def find_instruments(binary, load_addr):
     pos = find_hex_pattern(binary, "BD****9D02D4BD****9D03D4")
     if pos >= 0:
         return binary[pos + 1] | (binary[pos + 2] << 8)
+
+    # ADSR variant: LDA instr+3,X / STA $D405,Y / LDA instr+4,X / STA $D406,Y
+    # Some Hubbard drivers write ADSR (D405/D406) adjacent but have PW writes
+    # separated by conditional branches, so the D402/D403 pattern fails.
+    # AD is at offset +3 in the standard 8-byte instrument record.
+    pos = find_hex_pattern(binary, "BD****9905D4BD****9906D4")
+    if pos >= 0:
+        ad_addr = binary[pos + 1] | (binary[pos + 2] << 8)
+        return ad_addr - 3
+
+    # ASL*3 variant: instrument index multiplied by 8, then indexed into table.
+    # Pattern: ASL ASL ASL TAX LDA abs,X = 0A 0A 0A AA BD ** **
+    # Used by IK+ and Phantoms variants where SID writes go through a shadow
+    # buffer, so there's no direct LDA instr,X / STA $D4xx pattern.
+    # The first field accessed after ASL*3 TAX is typically the waveform
+    # (ctrl) at offset +2 in the 8-byte instrument record.
+    pos = find_hex_pattern(binary, "0A0A0AAABD****")
+    if pos >= 0:
+        field_addr = binary[pos + 5] | (binary[pos + 6] << 8)
+        # Verify: the address should be within the SID binary
+        if load_addr <= field_addr < load_addr + len(binary):
+            return field_addr - 2
 
     return None
 
@@ -636,43 +894,22 @@ def decode_track(binary, load_addr, track_addr, num_sequences=256, max_bytes=512
             break
         b = binary[off + i]
         if b == 0xFF:
-            # Check if this is RST (followed by valid pattern data) or loop end.
-            # RST: 0xFF is followed by a restart offset byte, then more patterns.
-            # Loop: 0xFF at the true end — followed by another 0xFF, 0xFE, or
-            # a byte >= num_sequences (no more valid patterns after it).
-            # RST heuristic: 0xFF + restart_offset (< 32) + valid_pattern.
-            # Restart offset is a track position, typically small.
-            # At the true loop end, the restart byte is typically the
-            # loop-back position (can be 0-255) but not followed by
-            # more pattern data — the next address is other data.
-            next_off = off + i + 1
-            if (next_off + 1 < len(binary) and
-                    binary[next_off] < 32 and
-                    binary[next_off + 1] < num_sequences):
-                i += 2
-                continue
-            patterns.append(('loop', None))
+            # $FF + restart_position = loop end.  The Hubbard driver always
+            # treats this as "jump back to position restart_position in the
+            # track".  There is no separate RST/continue concept.
+            restart_pos = binary[off + i + 1] if off + i + 1 < len(binary) else 0
+            patterns.append(('loop', restart_pos))
             break
         elif b == 0xFE:
-            # $FE can mean either STOP or a 2-byte RST marker in some variants.
-            # Apply same heuristic as $FF: if followed by restart_index (<32)
-            # and then a valid pattern byte, treat as RST (skip both bytes).
-            # Otherwise treat as STOP.
-            next_off = off + i + 1
-            if (next_off + 1 < len(binary) and
-                    binary[next_off] < 32 and
-                    binary[next_off + 1] < num_sequences):
-                i += 2  # skip $FE + restart_index, continue decoding
-                continue
+            # $FE = stop (track ends, no loop)
             patterns.append(('stop', None))
             break
         elif b >= num_sequences:
-            # RST marker — value exceeds valid pattern range.
-            # Skip this byte. If next byte < num_sequences, it's likely
-            # the 2-byte RST format (marker + restart index).
+            # Byte exceeds valid pattern range — skip it.
+            # Some variants use 2-byte markers (marker + index).
             i += 1
             if off + i < len(binary) and binary[off + i] < num_sequences:
-                i += 1  # skip the restart index byte too
+                i += 1
         else:
             patterns.append(('pattern', b))
             i += 1
@@ -698,6 +935,11 @@ def decompile(sid_path, verbose=False):
               f'Play: ${result.play_addr:04X}, Songs: {result.num_songs}')
         print(f'Binary: {len(binary)} bytes (${load_addr:04X}-${load_addr+len(binary)-1:04X})')
         print()
+
+    # --- Simulate init routine to pre-apply self-modifying code ---
+    # Some Hubbard SIDs patch player addresses and copy data blocks in init.
+    # Apply those writes to a working copy before pattern-matching data structures.
+    binary = simulate_init(binary, load_addr, result.init_addr, verbose=verbose)
 
     # --- Find data structures via pattern matching ---
 

@@ -64,8 +64,29 @@ def compare_tolerant(orig_frames, new_frames):
     voice_offsets = [0, 7, 14]
     # Filter: indices 21-24 (filt_lo, filt_hi, filt_ctrl, filt_mode_vol)
 
-    # No global phase offset — timing shifts are localized, not constant.
+    INIT_GRACE = 10  # first 10 frames: init timing diffs are inaudible
+    END_GRACE = 2    # last 2 frames: boundary artifacts from dump truncation
+
+    # Detect global phase offset per voice via cross-correlation of freq_hi.
+    # Hubbard rebuilt SIDs may start N frames late due to init delay.
+    # Test offsets -10..+10 and pick the one that minimizes freq_hi mismatches.
     phase_offsets = [0, 0, 0]
+    MAX_PHASE = 15
+    for v in range(3):
+        base = voice_offsets[v]
+        best_offset = 0
+        best_matches = 0
+        for offset in range(-MAX_PHASE, MAX_PHASE + 1):
+            matches = 0
+            for i in range(INIT_GRACE, total - END_GRACE):
+                ni = i + offset
+                if 0 <= ni < total:
+                    if orig_frames[i][base + 1] == new_frames[ni][base + 1]:
+                        matches += 1
+            if matches > best_matches:
+                best_matches = matches
+                best_offset = offset
+        phase_offsets[v] = best_offset
 
     results = {
         'total': total,
@@ -86,9 +107,6 @@ def compare_tolerant(orig_frames, new_frames):
         'filter_diff': 0,
         'init_jitter': 0,
     }
-
-    INIT_GRACE = 10  # first 10 frames: init timing diffs are inaudible
-    END_GRACE = 2    # last 2 frames: boundary artifacts from dump truncation
 
     for i in range(total):
         o = orig_frames[i]
@@ -528,7 +546,8 @@ def compare_sids_tolerant(orig_path, new_path, duration=10):
 
         score, grade = score_results(results)
 
-        if grade_order.get(grade, 9) > grade_order.get(worst_grade, 9) or \
+        if worst_results is None or \
+           grade_order.get(grade, 9) > grade_order.get(worst_grade, 9) or \
            (grade == worst_grade and score < worst_score):
             worst_grade = grade
             worst_score = score
