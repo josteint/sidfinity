@@ -445,13 +445,19 @@ def rh_to_usf(sid_path, subtune=None):
     #   speed=0: natural tempo=1. Use tempo=3, durations = (D+1+2)//3
     #
     # This preserves total frame count within ±1 frame rounding error.
-    # Use per-song speed if available, otherwise default speed
+    # Use per-song speed if available, otherwise default speed.
+    # Then try to measure the ACTUAL frames-per-tick empirically from siddump,
+    # because nested speed counters make the static detection inaccurate.
     if result.speed_table and subtune < len(result.speed_table):
         hubbard_speed = result.speed_table[subtune]
     elif result.speed is not None:
         hubbard_speed = result.speed
     else:
         hubbard_speed = 1
+
+    # Note: empirical speed measurement was tried but removed.
+    # The nested counter creates non-integer effective speeds that don't
+    # map to USF's integer tempo. See project_hubbard_nested_counters.md.
     natural_tempo = hubbard_speed + 1
 
     if natural_tempo >= 3:
