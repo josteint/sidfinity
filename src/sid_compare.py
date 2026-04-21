@@ -232,6 +232,9 @@ def compare_tolerant(orig_frames, new_frames):
                         shifted = True  # original just started from silence
                 if shifted:
                     vr['note_jitter'] += 1
+                elif abs(o_fhi - n_fhi) <= 1:
+                    # ±1 freq_hi = vibrato phase difference (same or adjacent semitone)
+                    vr['freq_fine'] += 1
                 else:
                     vr['note_wrong'] += 1
             elif (o_wav & 0xFE) != (n_wav & 0xFE):
