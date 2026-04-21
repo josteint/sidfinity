@@ -996,7 +996,7 @@ def rh_to_usf(sid_path, subtune=None):
                         _sf_best_scale = _sf_s
                 except:
                     pass
-            if _sf_best_scale is not None and _sf_best >= 90:
+            if _sf_best_scale is not None:
                 # Apply the winning scale
                 for _sf_pat in song.patterns:
                     for _sf_ev in _sf_pat.events:
