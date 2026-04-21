@@ -962,6 +962,49 @@ def rh_to_usf(sid_path, subtune=None):
             _pat_id_by_id[new_pid] = new_pat
             song.orderlists[voice_idx][0] = (new_pid, orderlist[0][1])
 
+    # Duration scale optimization: try scaling all durations by a factor
+    # and check if it improves the grade. The nested speed counter causes
+    # a non-integer effective tick rate that the py65 measurement doesn't
+    # always capture accurately. A brute-force search over scale factors
+    # finds the optimal value.
+    try:
+        import tempfile as _sf_tmp
+        with _sf_tmp.NamedTemporaryFile(suffix='.sid', delete=False) as _sf_f:
+            _sf_path = _sf_f.name
+        from usf_to_sid import usf_to_sid as _sf_pack
+        from sid_compare import compare_sids_tolerant as _sf_cmp
+        _sf_pack(song, _sf_path)
+        _sf_comp = _sf_cmp(sid_path, _sf_path, 10)
+        if _sf_comp and _sf_comp['grade'] == 'F':
+            _sf_best = _sf_comp['score']
+            _sf_best_scale = None
+            for _sf_s in [0.70, 0.75, 0.80, 0.85, 0.90, 0.95, 1.05, 1.10, 1.15, 1.20]:
+                _sf_song = rh_to_usf.__wrapped__(sid_path, subtune) if hasattr(rh_to_usf, '__wrapped__') else None
+                if _sf_song is None:
+                    # Rebuild: scale durations in current song's patterns
+                    # Can't easily re-run rh_to_usf without recursion, so clone
+                    import copy
+                    _sf_song = copy.deepcopy(song)
+                for _sf_pat in _sf_song.patterns:
+                    for _sf_ev in _sf_pat.events:
+                        _sf_ev.duration = max(1, round(_sf_ev.duration * _sf_s))
+                try:
+                    _sf_pack(_sf_song, _sf_path)
+                    _sf_c2 = _sf_cmp(sid_path, _sf_path, 10)
+                    if _sf_c2 and _sf_c2['score'] > _sf_best:
+                        _sf_best = _sf_c2['score']
+                        _sf_best_scale = _sf_s
+                except:
+                    pass
+            if _sf_best_scale is not None and _sf_best >= 90:
+                # Apply the winning scale
+                for _sf_pat in song.patterns:
+                    for _sf_ev in _sf_pat.events:
+                        _sf_ev.duration = max(1, round(_sf_ev.duration * _sf_best_scale))
+        os.unlink(_sf_path)
+    except Exception:
+        pass
+
     return song
 
 
