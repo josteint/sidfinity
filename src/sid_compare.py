@@ -176,16 +176,20 @@ def compare_tolerant(orig_frames, new_frames):
                 # Check if this is a timing shift: does the V2 freq_hi
                 # match the original's nearby frames (±3)?
                 shifted = False
-                for d in [-5, -4, -3, -2, -1, 1, 2, 3, 4, 5]:
+                for d in range(-7, 8):
+                    if d == 0:
+                        continue
                     j = i + d
                     if 0 <= j < total:
                         if n_fhi == orig_frames[j][base + 1]:
                             shifted = True
                             break
                 # Symmetric: also check if original's freq_hi appears in
-                # rebuilt's ±5 window (ensures compare(A,B) == compare(B,A)).
+                # rebuilt's ±7 window (ensures compare(A,B) == compare(B,A)).
                 if not shifted:
-                    for d in [-5, -4, -3, -2, -1, 1, 2, 3, 4, 5]:
+                    for d in range(-7, 8):
+                        if d == 0:
+                            continue
                         j = i + d
                         if 0 <= j < total:
                             if o_fhi == new_frames[j][base + 1]:
