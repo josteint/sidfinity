@@ -1051,9 +1051,6 @@ def emit_pattern_reader(ctx):
         ctx.inst('clc')
         ctx.inst('adc', 'mt_chntrans,x')
     ctx.inst('sta', 'mt_chnnewnote,x')
-    # V3: process new note IMMEDIATELY (Hubbard writes to SID in same frame).
-    # V2 defers to next tick — causes 1-tick init delay.
-    ctx.inst('jmp', 'ce_newn')
     if ctx.has(TONEPORTA):
         ctx.inst('lda', 'mt_chnnewfx,x')
         ctx.inst('cmp', '#3')
@@ -1121,7 +1118,11 @@ def emit_pattern_reader(ctx):
     ctx.inst('tya')
     ctx.label('ce_pattend')
     ctx.inst('sta', 'mt_chnpattptr,x')
-    # Fall through to ce_ldregs
+    # V3: process new note immediately (same tick) instead of deferring.
+    # Check if newnote was set during this tick's pattern read.
+    ctx.inst('lda', 'mt_chnnewnote,x')
+    ctx.inst('beq', 'ce_ldregs', comment='V3: no new note, proceed to regs')
+    ctx.inst('jmp', 'ce_newn', comment='V3: process note NOW')
 
 
 # =============================================================================
