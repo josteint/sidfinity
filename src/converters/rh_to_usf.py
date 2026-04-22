@@ -205,11 +205,14 @@ def _map_instrument(rh_instr, instr_id, upper_nibble_arp=False, drum_freq_slide=
                 WaveTableStep(is_loop=True, loop_target=1),
             ]
         else:
-            # Non-noise instrument: skip noise burst, just arpeggio with native wave
+            # Non-noise ctrl: noise burst on frame 1, then native wave arpeggio.
+            # The Hubbard drum effect ALWAYS writes $80 (noise) on the first frame
+            # (C=Hacking line 910), then switches to the instrument's ctrl byte.
             inst.wave_table = [
+                WaveTableStep(waveform=0x81, note_offset=0),
                 WaveTableStep(waveform=native_wave, note_offset=0),
                 WaveTableStep(waveform=native_wave, note_offset=arp_offset),
-                WaveTableStep(is_loop=True, loop_target=0),
+                WaveTableStep(is_loop=True, loop_target=1),
             ]
     elif rh_instr.has_drum:
         inst.wave_table = _build_drum_wave_table(rh_instr.ctrl, freq_slide=drum_freq_slide)
