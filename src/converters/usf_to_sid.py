@@ -153,6 +153,8 @@ def usf_to_sid(song, output_path=None):
     vd_col = bytearray(ni)
     gt_col = bytearray(ni)
     fw_col = bytearray(ni)
+    pwlo_col = bytearray(ni)   # V3: initial PW lo byte per instrument
+    pwhi_col = bytearray(ni)   # V3: initial PW hi byte per instrument
 
     for i, inst in enumerate(song.instruments):
         ad_col[i] = inst.ad
@@ -168,6 +170,9 @@ def usf_to_sid(song, output_path=None):
             (0x40 if inst.legato else 0) |
             (0x80 if inst.hr_method == 'none' else 0))
         fw_col[i] = inst.first_wave if inst.first_wave >= 0 else 0x41
+        # V3: initial pulse width from instrument data (Hubbard-accurate)
+        pwlo_col[i] = inst.pulse_width & 0xFF
+        pwhi_col[i] = (inst.pulse_width >> 8) & 0x0F  # SID PW hi is 4-bit
 
     # Build wave table. Shared wave table stores .sng-equivalent values.
     # Pass them as-is — the SIDfinity packer handles the +$10 bias.
@@ -384,7 +389,7 @@ def usf_to_sid(song, output_path=None):
     speed_l = bytes([e.left for e in song.speed_table]) if song.speed_table else None
     speed_r = bytes([e.right for e in song.speed_table]) if song.speed_table else None
 
-    # Build instruments dict for SIDfinity packer (all 9 columns)
+    # Build instruments dict for SIDfinity packer (9 standard + 2 V3-only columns)
     instruments = {
         'ad': bytes(ad_col),
         'sr': bytes(sr_col),
@@ -395,6 +400,9 @@ def usf_to_sid(song, output_path=None):
         'vib_delay': bytes(vd_col),
         'gate_timer': bytes(gt_col),
         'first_wave': bytes(fw_col),
+        # V3 (Hubbard) initial pulse width — emitted only when use_v3_player=True
+        'pw_lo': bytes(pwlo_col),
+        'pw_hi': bytes(pwhi_col),
     }
 
     # Classify instruments for packer

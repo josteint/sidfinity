@@ -71,11 +71,16 @@ def _strip_dummy_labels(source):
             out.append(line)
     return '\n'.join(out)
 
-# All 9 instrument column names in order
+# All instrument column names in order
+# pw_lo and pw_hi are V3-only (Hubbard): initial pulse width bytes per instrument.
+# They are emitted by the V3 packer and referenced by mt_inspwlo / mt_inspwhi.
 ALL_COLUMNS = [
     'ad', 'sr', 'wave_ptr', 'pulse_ptr', 'filter_ptr',
     'vib_param', 'vib_delay', 'gate_timer', 'first_wave',
 ]
+
+# V3-only extra columns (not emitted in V2 path)
+V3_COLUMNS = ['pw_lo', 'pw_hi']
 
 # Corresponding assembler labels
 COLUMN_LABELS = {
@@ -88,6 +93,8 @@ COLUMN_LABELS = {
     'vib_delay': 'mt_insvibdelay',
     'gate_timer': 'mt_insgatetimer',
     'first_wave': 'mt_insfirstwave',
+    'pw_lo': 'mt_inspwlo',
+    'pw_hi': 'mt_inspwhi',
 }
 
 
@@ -290,7 +297,9 @@ def pack_sidfinity(
         insertaddrhi(buf, f'mt_patt{c}')
 
     # Instrument columns — ALL 9, always present, pad missing with zeros
-    for col_name in ALL_COLUMNS:
+    _use_v3 = getattr(song, 'use_v3_player', False)
+    _all_cols = ALL_COLUMNS + (V3_COLUMNS if _use_v3 else [])
+    for col_name in _all_cols:
         label = COLUMN_LABELS[col_name]
         insertlabel(buf, label)
         col_data = instruments.get(col_name, bytes(ni))

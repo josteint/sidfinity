@@ -1298,7 +1298,17 @@ def emit_new_note_init(ctx):
     ctx.label('ce_skfw')
     ctx.inst('lda', '#$ff')
     ctx.inst('sta', 'mt_chngate,x')
-    # 5. Pulse ptr
+    # 5. Pulse ptr + initial PW write (Hubbard-accurate)
+    # Hubbard writes ins_pwl/ins_pwh to SID on every note-on (getinstr path,
+    # disassembly lines 175-178). We do the same: load PW from instrument
+    # table and write to both channel vars and SID immediately.
+    # This ensures the correct starting PW even when pulse_ptr=0 (no PWM).
+    ctx.inst('lda', 'mt_inspwlo-1,y', comment='V3: PW lo from instrument')
+    ctx.inst('sta', 'mt_chnpulselo,x')
+    ctx.inst('sta', 'SIDBASE+2,x', comment='V3: PW lo to SID immediately')
+    ctx.inst('lda', 'mt_inspwhi-1,y', comment='V3: PW hi from instrument')
+    ctx.inst('sta', 'mt_chnpulsehi,x')
+    ctx.inst('sta', 'SIDBASE+3,x', comment='V3: PW hi to SID immediately')
     if ctx.has(PULSE_MOD):
         ctx.inst('lda', 'mt_inspulseptr-1,y')
         ctx.inst('beq', 'ce_npi')
@@ -1556,7 +1566,8 @@ def emit_variables(ctx):
     for lbl in ['mt_songtbllo', 'mt_songtblhi', 'mt_patttbllo', 'mt_patttblhi',
                 'mt_insad', 'mt_inssr', 'mt_inswaveptr', 'mt_inspulseptr',
                 'mt_insfiltptr', 'mt_insvibparam', 'mt_insvibdelay',
-                'mt_insgatetimer', 'mt_insfirstwave', 'mt_wavetbl', 'mt_notetbl',
+                'mt_insgatetimer', 'mt_insfirstwave', 'mt_inspwlo', 'mt_inspwhi',
+                'mt_wavetbl', 'mt_notetbl',
                 'mt_pulsetimetbl', 'mt_pulsespdtbl', 'mt_filttimetbl',
                 'mt_filtspdtbl', 'mt_speedlefttbl', 'mt_speedrighttbl',
                 'mt_freqtbllo', 'mt_freqtblhi']:
