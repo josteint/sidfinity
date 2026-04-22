@@ -1230,6 +1230,11 @@ def emit_tick0_path(ctx):
     ctx.inst('iny')
     ctx.inst('tya')
     ctx.inst('sta', 'mt_chnsongptr,x')
+    # Set gate timer, then read first note from new pattern
+    ctx.inst('ldy', 'mt_chninstr,x')
+    ctx.inst('lda', 'mt_insgatetimer-1,y')
+    ctx.inst('sta', 'mt_chngatetimer,x')
+    ctx.inst('jmp', 'ce_getnote', comment='V3: read first note from new pattern')
     ctx.label('ce_nonew')
     # Gate timer
     ctx.inst('ldy', 'mt_chninstr,x')

@@ -205,14 +205,21 @@ def _map_instrument(rh_instr, instr_id, upper_nibble_arp=False, drum_freq_slide=
                 WaveTableStep(is_loop=True, loop_target=1),
             ]
         else:
-            # Non-noise ctrl: noise burst on frame 1, then native wave arpeggio.
-            # The Hubbard drum effect ALWAYS writes $80 (noise) on the first frame
-            # (C=Hacking line 910), then switches to the instrument's ctrl byte.
+            # Non-noise ctrl: gate+native on frame 0, noise (no gate) for frames
+            # 1-2, then native (no gate) with alternating arpeggio from frame 3+.
+            # Observed in Commando inst 7 (ctrl=0x14):
+            #   Frame 0: ctrl=0x15 (native+gate), base note
+            #   Frame 1: ctrl=0x80 (noise, no gate), +12 arpeggio note
+            #   Frame 2: ctrl=0x80 (noise, no gate), base note
+            #   Frame 3+: ctrl=0x14 (native, no gate), alternating +12/base
+            native_no_gate = rh_instr.ctrl & 0xFE  # strip gate bit
             inst.wave_table = [
-                WaveTableStep(waveform=0x81, note_offset=0),
-                WaveTableStep(waveform=native_wave, note_offset=0),
-                WaveTableStep(waveform=native_wave, note_offset=arp_offset),
-                WaveTableStep(is_loop=True, loop_target=1),
+                WaveTableStep(waveform=native_wave, note_offset=0),        # frame 0: gate ON
+                WaveTableStep(waveform=0x80, note_offset=arp_offset),      # frame 1: noise+arp
+                WaveTableStep(waveform=0x80, note_offset=0),               # frame 2: noise+base
+                WaveTableStep(waveform=native_no_gate, note_offset=arp_offset),   # frame 3+: native+arp
+                WaveTableStep(waveform=native_no_gate, note_offset=0),            # frame 4+: native+base
+                WaveTableStep(is_loop=True, loop_target=3),
             ]
     elif rh_instr.has_drum:
         inst.wave_table = _build_drum_wave_table(rh_instr.ctrl, freq_slide=drum_freq_slide)
