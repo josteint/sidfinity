@@ -420,6 +420,23 @@ def rh_to_usf(sid_path, subtune=None):
     song.clock = 'NTSC' if (psid_flags & 0x0C) == 0x08 else 'PAL'
     song.use_v3_player = True  # Hubbard songs use V3 player for accurate timing
 
+    # Use the Hubbard interleaved freq table instead of PAL.
+    # The Hubbard table has slightly different freq_lo values (~0.04% deviation).
+    # Using the exact table ensures freq_lo matches the original perfectly.
+    try:
+        _hub_ft = bytes([0x16, 0x01, 0x27, 0x01])
+        _hub_data_off = struct.unpack('>H', raw[6:8])[0]
+        _hub_la = struct.unpack('>H', raw[8:10])[0]
+        _hub_bin = raw[_hub_data_off + (2 if _hub_la == 0 else 0):]
+        _hub_pos = _hub_bin.find(_hub_ft)
+        if _hub_pos >= 0:
+            _hub_lo = bytes(_hub_bin[_hub_pos + n*2] for n in range(96))
+            _hub_hi = bytes(_hub_bin[_hub_pos + n*2 + 1] for n in range(96))
+            song.freq_lo = _hub_lo
+            song.freq_hi = _hub_hi
+    except Exception:
+        pass
+
     # Hubbard speed: resetspd value from the binary.
     # Each Hubbard tick = (resetspd + 1) frames.
     # V2 player: each note tick = tempo frames. Minimum working tempo = 3.
