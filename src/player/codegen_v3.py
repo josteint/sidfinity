@@ -184,9 +184,8 @@ def emit_init(ctx):
     ctx.inst('clc')
     ctx.inst('adc', 'mt_temp1')
     ctx.inst('sta', 'mt_songidx')
-    ctx.inst('lda', '#0')
-    ctx.inst('sta', 'mt_initpend')
-    ctx.inst('rts')
+    # V3: run fullinit immediately (no deferred init on first play call)
+    ctx.inst('jmp', 'mt_fullinit')
     ctx.label('mt_songidx')
     ctx.data('.byte', '0')
     ctx.label('mt_initpend')
@@ -1052,8 +1051,9 @@ def emit_pattern_reader(ctx):
         ctx.inst('clc')
         ctx.inst('adc', 'mt_chntrans,x')
     ctx.inst('sta', 'mt_chnnewnote,x')
-    # Toneporta check — skip HR, go straight to rest (like original GT2).
-    # mt_chnnewnote stays set; tick-0 emit_new_note_init handles it.
+    # V3: process new note IMMEDIATELY (Hubbard writes to SID in same frame).
+    # V2 defers to next tick — causes 1-tick init delay.
+    ctx.inst('jmp', 'ce_newn')
     if ctx.has(TONEPORTA):
         ctx.inst('lda', 'mt_chnnewfx,x')
         ctx.inst('cmp', '#3')
