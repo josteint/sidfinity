@@ -252,9 +252,9 @@ int main(int argc, char* argv[])
 
     // Enable memory read tracing if requested
     if (memtrace) {
-        // Trace reads from the load address to $CFFF (before I/O at $D000)
-        uint16_t loadAddr = info->loadAddr();
-        engine.enableReadTrace(true, loadAddr, 0xCFFF);
+        // Trace reads from $0000 to $FFFF (excludes I/O region $D000-$D3FF
+        // but we trace everything so high-load SIDs like $E000 are covered)
+        engine.enableReadTrace(true, 0x0000, 0xFFFF);
     }
 
     // Initialize mixer (needed for play() to work)
