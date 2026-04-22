@@ -412,10 +412,16 @@ def usf_to_sid(song, output_path=None):
         elif g & 0x80: num_nohr += 1
         else: num_normal += 1
 
+    # Use extended last_note when the freq table has been expanded beyond 96 entries.
+    # Hubbard songs with +12 arpeggio need entries up to note 107 (95+12).
+    _packed_last_note = 95
+    if freq_lo is not None and len(freq_lo) > 96:
+        _packed_last_note = len(freq_lo) - 1
+
     sid_bytes, player_size = pack_sidfinity(
         songs=effective_songs,
         first_note=0,  # V2 player always uses full freq table
-        last_note=95,
+        last_note=_packed_last_note,
         default_tempo=getattr(song, 'tempo', 6) - 1,
         num_instruments=ni,
         num_normal=num_normal,

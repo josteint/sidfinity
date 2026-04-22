@@ -432,14 +432,21 @@ def rh_to_usf(sid_path, subtune=None):
         _hub_ft = bytes([0x16, 0x01, 0x27, 0x01])
         _hub_data_off = struct.unpack('>H', raw[6:8])[0]
         _hub_la = struct.unpack('>H', raw[8:10])[0]
-        _hub_bin = raw[_hub_data_off + (2 if _hub_la == 0 else 0):]
+        _hub_payload = raw[_hub_data_off:]
+        if _hub_la == 0:
+            # Embedded load address: first 2 bytes of payload (little-endian)
+            _hub_actual_la = struct.unpack('<H', _hub_payload[:2])[0]
+            _hub_bin = _hub_payload[2:]
+        else:
+            _hub_actual_la = _hub_la
+            _hub_bin = _hub_payload
         _hub_pos = _hub_bin.find(_hub_ft)
         if _hub_pos >= 0:
             _hub_lo = bytes(_hub_bin[_hub_pos + n*2] for n in range(96))
             _hub_hi = bytes(_hub_bin[_hub_pos + n*2 + 1] for n in range(96))
             song.freq_lo = _hub_lo
             song.freq_hi = _hub_hi
-            _hub_ft_base_addr = _hub_la + _hub_pos
+            _hub_ft_base_addr = _hub_actual_la + _hub_pos
     except Exception:
         pass
 

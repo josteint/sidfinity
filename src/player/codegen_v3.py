@@ -1251,15 +1251,19 @@ def emit_new_note_init(ctx):
     if ctx.has(EFFECTS):
         ctx.inst('sta', 'mt_chnfx,x')
     ctx.inst('sta', 'mt_chnnewnote,x')
-    # Y = instrument (from gate timer load above)
-    #
     # V3: Hubbard-accurate register writes.
     # Write freq, PW, ctrl, AD, SR directly to SID on note fetch.
     # This matches the Hubbard player's getpitch+instrument setup sequence
     # (C=Hacking disassembly lines 620-674).
     #
+    # IMPORTANT: ce_newn is reached from two paths:
+    #   1. ce_t0/ce_nonew: Y = mt_chninstr,x (instrument byte), safe to use directly
+    #   2. ce_getnote/ce_rest: Y = pattern pointer, NOT instrument — must reload!
+    # Always load instrument from mt_chninstr,x explicitly to handle both paths.
+    #
     # 1. Frequency: note → freq table lookup → write to SID immediately
-    ctx.inst('sty', 'mt_temp2', comment='save instrument index')
+    ctx.inst('lda', 'mt_chninstr,x', comment='V3: load instrument (Y may be patt ptr here)')
+    ctx.inst('sta', 'mt_temp2', comment='save instrument index')
     ctx.inst('lda', 'mt_chnnote,x')
     ctx.inst('tay')
     ctx.inst('lda', 'mt_freqtbllo,y')
