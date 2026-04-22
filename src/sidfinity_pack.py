@@ -247,7 +247,11 @@ def pack_sidfinity(
     _player_dir = os.path.join(SCRIPT_DIR, 'player')
     if _player_dir not in sys.path:
         sys.path.insert(0, _player_dir)
-    from codegen_v2 import generate_player
+    _use_v3 = getattr(song, 'use_v3_player', False)
+    if _use_v3:
+        from codegen_v3 import generate_player
+    else:
+        from codegen_v2 import generate_player
     if song is None:
         raise ValueError('song is required for V2 code generation')
     player_src = generate_player(song)

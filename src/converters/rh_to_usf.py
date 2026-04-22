@@ -418,6 +418,7 @@ def rh_to_usf(sid_path, subtune=None):
     psid_flags = struct.unpack('>H', raw[0x76:0x78])[0] if len(raw) > 0x78 else 0x0014
     song.sid_model = '8580' if (psid_flags & 0x30) == 0x20 else '6581'
     song.clock = 'NTSC' if (psid_flags & 0x0C) == 0x08 else 'PAL'
+    song.use_v3_player = True  # Hubbard songs use V3 player for accurate timing
 
     # Hubbard speed: resetspd value from the binary.
     # Each Hubbard tick = (resetspd + 1) frames.
