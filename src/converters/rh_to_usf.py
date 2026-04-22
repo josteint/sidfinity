@@ -387,11 +387,12 @@ def rh_to_usf(sid_path, subtune=None):
         return None
 
     # Use PSID start song if no subtune specified
+    import struct
+    with open(sid_path, 'rb') as f:
+        raw = f.read()
+
     if subtune is None:
         # Read start_song from PSID header (1-based)
-        import struct
-        with open(sid_path, 'rb') as f:
-            raw = f.read()
         start_song = struct.unpack('>H', raw[16:18])[0]
         subtune = start_song - 1  # convert to 0-based
 
@@ -426,6 +427,7 @@ def rh_to_usf(sid_path, subtune=None):
     # Use the Hubbard interleaved freq table instead of PAL.
     # The Hubbard table has slightly different freq_lo values (~0.04% deviation).
     # Using the exact table ensures freq_lo matches the original perfectly.
+    _hub_ft_base_addr = None  # runtime addr of interleaved freq table
     try:
         _hub_ft = bytes([0x16, 0x01, 0x27, 0x01])
         _hub_data_off = struct.unpack('>H', raw[6:8])[0]
@@ -437,8 +439,69 @@ def rh_to_usf(sid_path, subtune=None):
             _hub_hi = bytes(_hub_bin[_hub_pos + n*2 + 1] for n in range(96))
             song.freq_lo = _hub_lo
             song.freq_hi = _hub_hi
+            _hub_ft_base_addr = _hub_la + _hub_pos
     except Exception:
         pass
+
+    # Arpeggio freq table extension: when instruments use note_offset > 0 in their
+    # wave tables, the V3 player adds that offset to the current note before looking
+    # up the freq table.  For a base note near 95, the result can exceed 95, which
+    # reads past the end of the 96-entry freq table.
+    #
+    # In the original Hubbard player the memory immediately after the freq table holds
+    # per-voice state variables (drum counters, arp phase).  These are initialised to 0
+    # then incremented during each play call, so "note 100" reads a live counter value.
+    #
+    # We approximate these by running py65 for one play frame after INIT and reading the
+    # freq-table memory at positions 96-107 (the first 12 extended entries).  This gives
+    # the actual values that the original player produces on the first arpeggio frame —
+    # typically 0x03 for both lo and hi bytes of the dominant voice-0 counter.
+    #
+    # Extending the freq table to 108 entries eliminates the out-of-bounds read that
+    # causes garbage frequencies (and therefore note_wrong) in the current V3 player.
+    _max_note_offset = 0
+    for _inst in result.instruments:
+        # Check decompiled instrument's own fx_flags for arpeggio
+        if _inst.has_arpeggio:
+            _max_note_offset = max(_max_note_offset, 12)
+
+    if _max_note_offset > 0 and _hub_ft_base_addr is not None and song.freq_lo is not None:
+        _ext_entries = _max_note_offset  # number of extra notes needed (12)
+        try:
+            from formal.taint_tracker import load_sid as _taint_load, TaintMPU as _TaintMPU
+            _mem2, _init2, _play2, _la2 = _taint_load(sid_path)
+            _mpu2 = _TaintMPU()
+            _mpu2.memory = bytearray(_mem2)
+            _mpu2.memory[0xFFF0] = 0x00
+            _mpu2.stPush(0xFF); _mpu2.stPush(0xEF)
+            _mpu2.pc = _init2; _mpu2.a = subtune
+            for _ in range(100000):
+                if _mpu2.ByteAt_direct(_mpu2.pc) == 0x00: break
+                _mpu2.step()
+            # Run one play frame so counters are primed
+            _ret2 = 0xFFF0 - 1
+            _mpu2.memory[0xFFF0] = 0x00
+            _mpu2.stPush(_ret2 >> 8); _mpu2.stPush(_ret2 & 0xFF)
+            _mpu2.pc = _play2
+            for _ in range(30000):
+                if _mpu2.ByteAt_direct(_mpu2.pc) == 0x00: break
+                _mpu2.step()
+            # Read extended freq table entries 96..95+ext_entries from py65 memory.
+            # The Hubbard player reads the interleaved table with base addr _hub_ft_base_addr
+            # and Y = note*2.  Entry n: lo = mem[base + n*2], hi = mem[base + n*2 + 1].
+            _ext_lo = bytearray()
+            _ext_hi = bytearray()
+            for _n in range(96, 96 + _ext_entries):
+                _lo_addr = (_hub_ft_base_addr + _n * 2) & 0xFFFF
+                _hi_addr = (_hub_ft_base_addr + _n * 2 + 1) & 0xFFFF
+                _ext_lo.append(_mpu2.memory[_lo_addr])
+                _ext_hi.append(_mpu2.memory[_hi_addr])
+            song.freq_lo = bytes(song.freq_lo) + bytes(_ext_lo)
+            song.freq_hi = bytes(song.freq_hi) + bytes(_ext_hi)
+        except Exception:
+            # Fallback: repeat note 95's frequency (safe, won't crash)
+            song.freq_lo = bytes(song.freq_lo) + bytes([song.freq_lo[95]] * _max_note_offset)
+            song.freq_hi = bytes(song.freq_hi) + bytes([song.freq_hi[95]] * _max_note_offset)
 
     # Hubbard speed: resetspd value from the binary.
     # Each Hubbard tick = (resetspd + 1) frames.
