@@ -51,7 +51,11 @@ def _fingerprint_note(note_data):
     if drum:
         wave_sig = ('drum',)
     elif arp:
-        wave_sig = ('arp', tuple(sorted(arp.params['intervals'])))
+        custom = arp.params.get('custom_notes')
+        if custom:
+            wave_sig = ('arp', tuple(sorted(custom)))
+        else:
+            wave_sig = ('arp', tuple(sorted(arp.params['intervals'])))
     elif wseq and len(wseq.params['unique_waveforms']) >= 2:
         wave_sig = ('wseq', tuple(wseq.params['unique_waveforms']))
     else:
@@ -77,8 +81,12 @@ def _wave_name(byte):
     return names.get(byte & 0xF0, 'pulse')
 
 
-def _build_wave_table(fingerprint, note_data):
-    """Build wave table steps from instrument fingerprint and note effects."""
+def _build_wave_table(fingerprint, note_data, base_note=0):
+    """Build wave table steps from instrument fingerprint and note effects.
+
+    Uses absolute_note for all freq references to avoid offset encoding issues.
+    base_note: the note index in the custom freq table for the pattern note.
+    """
     ad, sr, wave_byte, wave_sig, pulse_sig = fingerprint
     effects = {e.effect: e for e in note_data['effects']}
 
@@ -86,58 +94,50 @@ def _build_wave_table(fingerprint, note_data):
     kind = wave_sig[0]
 
     if kind == 'drum':
-        # Drum: noise burst then silence
         drum_det = effects['drum_freq_slide']
-        steps.append(WaveTableStep(waveform=0x81, note_offset=0,
+        steps.append(WaveTableStep(waveform=0x81, absolute_note=base_note,
                                    freq_slide=-1))
         steps.append(WaveTableStep(is_loop=True, loop_target=0))
 
     elif kind == 'arp':
         arp = effects['arpeggio']
-        intervals = sorted(arp.params['intervals'])
-        # Arpeggio: alternate between base (offset=0) and base+interval
+        custom_notes = arp.params.get('custom_notes')
+        if custom_notes and len(custom_notes) >= 2:
+            # custom_notes[0] = first frame's freq, rest = alternating notes
+            arp_notes = custom_notes  # already ordered: first frame first
+        else:
+            intervals = sorted(arp.params['intervals'])
+            arp_notes = [base_note] + [base_note + i for i in intervals]
+
         wseq = effects.get('waveform_sequence')
         if wseq:
-            # Use the actual waveform sequence for the first frames
             wave_list = [int(w.replace('$', '0x'), 16) for w in wseq.params['sequence']]
-            # First frame: gate on
-            steps.append(WaveTableStep(waveform=wave_list[0] | 0x01, note_offset=0))
-            # Second frame: might be different waveform + arpeggio
-            if len(intervals) == 1:
-                steps.append(WaveTableStep(waveform=wave_list[1] if len(wave_list) > 1 else wave_byte,
-                                           note_offset=intervals[0]))
-                # Sustain: alternate between base and arp
-                steps.append(WaveTableStep(waveform=wave_byte, note_offset=0))
-                steps.append(WaveTableStep(waveform=wave_byte, note_offset=intervals[0]))
-                steps.append(WaveTableStep(is_loop=True, loop_target=2))
-            else:
-                # Multi-interval arpeggio
-                for intv in intervals:
-                    steps.append(WaveTableStep(waveform=wave_byte, note_offset=intv))
-                steps.append(WaveTableStep(waveform=wave_byte, note_offset=0))
-                steps.append(WaveTableStep(is_loop=True, loop_target=1))
         else:
-            # Simple arpeggio without waveform sequence
-            steps.append(WaveTableStep(waveform=wave_byte | 0x01, note_offset=0))
-            for intv in intervals:
-                steps.append(WaveTableStep(waveform=wave_byte, note_offset=intv))
-            steps.append(WaveTableStep(is_loop=True, loop_target=0))
+            wave_list = [wave_byte | 0x01, wave_byte]
+
+        # Frame 0: first waveform + first note (gate on)
+        steps.append(WaveTableStep(waveform=wave_list[0] | 0x01,
+                                   absolute_note=arp_notes[0]))
+        # Frame 1: second waveform + second note
+        w1 = wave_list[1] if len(wave_list) > 1 else wave_byte
+        steps.append(WaveTableStep(waveform=w1, absolute_note=arp_notes[1]))
+        # Sustain loop: alternate between first and second
+        steps.append(WaveTableStep(waveform=wave_byte, absolute_note=arp_notes[0]))
+        steps.append(WaveTableStep(waveform=wave_byte, absolute_note=arp_notes[1]))
+        steps.append(WaveTableStep(is_loop=True, loop_target=2))
 
     elif kind == 'wseq':
-        # Waveform sequence without arpeggio
         wave_strs = wave_sig[1]
         for i, ws in enumerate(wave_strs):
             wb = int(ws.replace('$', '0x'), 16)
             if i == 0:
-                wb |= 0x01  # gate on
-            steps.append(WaveTableStep(waveform=wb, note_offset=0))
-        # Loop to the last (sustain) waveform
+                wb |= 0x01
+            steps.append(WaveTableStep(waveform=wb, absolute_note=base_note))
         steps.append(WaveTableStep(is_loop=True, loop_target=len(wave_strs) - 1))
 
     else:
-        # Plain: just the waveform
-        steps.append(WaveTableStep(waveform=wave_byte | 0x01, note_offset=0))
-        steps.append(WaveTableStep(waveform=wave_byte, note_offset=0))
+        steps.append(WaveTableStep(waveform=wave_byte | 0x01, absolute_note=base_note))
+        steps.append(WaveTableStep(waveform=wave_byte, absolute_note=base_note))
         steps.append(WaveTableStep(is_loop=True, loop_target=1))
 
     return steps
@@ -209,12 +209,74 @@ def _get_pulse_width(notes_for_instrument):
 
 
 def _get_note_value(note_data):
-    """Extract the note index from a note's effects."""
+    """Extract the note index from a note's effects.
+
+    Uses 'custom_note' if available (from custom freq table remapping),
+    falls back to 'note' (PAL mapping).
+    """
     effects = {e.effect: e for e in note_data['effects']}
     note_det = effects.get('note')
     if note_det:
-        return note_det.params['note']
+        return note_det.params.get('custom_note', note_det.params['note'])
     return 0
+
+
+def _remap_arpeggio_notes(analysis, freq_map, trace):
+    """Remap note indices and arpeggio intervals to the custom freq table.
+
+    Modifies analysis in-place: adds 'custom_note' and 'custom_intervals'
+    to effect params.
+    """
+    for v in range(3):
+        voice_data = analysis['voices'][v]
+        voff = v * 7
+        for nd in voice_data['notes']:
+            effects = {e.effect: e for e in nd['effects']}
+
+            # Remap base note
+            note_det = effects.get('note')
+            if note_det:
+                freq16 = note_det.params.get('freq16', 0)
+                if freq16 in freq_map:
+                    note_det.params['custom_note'] = freq_map[freq16]
+
+            # Remap arpeggio
+            arp = effects.get('arpeggio')
+            if arp:
+                # Use the arpeggio detector's note list (already clustered)
+                # Map each PAL note to the nearest custom table entry
+                start, end = nd['segment']
+                arp_freqs = set()
+                for f in range(start, min(end, trace.n_frames)):
+                    freq16 = (trace.frames[f][voff + 1] << 8) | trace.frames[f][voff]
+                    if freq16 > 0:
+                        arp_freqs.add(freq16)
+
+                # Map each unique freq to the custom table
+                # Group by custom table index (nearby freqs map to same entry)
+                custom_indices = set()
+                for freq in arp_freqs:
+                    if freq in freq_map:
+                        custom_indices.add(freq_map[freq])
+                    else:
+                        nearest = min(freq_map.keys(), key=lambda x: abs(x - freq))
+                        custom_indices.add(freq_map[nearest])
+
+                custom_notes = sorted(custom_indices)
+                if len(custom_notes) >= 2:
+                    # Use the first frame's freq as the base (not necessarily the lowest)
+                    first_freq = (trace.frames[start][voff + 1] << 8) | trace.frames[start][voff]
+                    if first_freq in freq_map:
+                        first_idx = freq_map[first_freq]
+                    else:
+                        nearest = min(freq_map.keys(), key=lambda x: abs(x - first_freq))
+                        first_idx = freq_map[nearest]
+                    # Order: first frame's note first, then others
+                    other_notes = [n for n in custom_notes if n != first_idx]
+                    arp.params['custom_notes'] = [first_idx] + other_notes
+                    arp.params['custom_intervals'] = [n - first_idx for n in other_notes]
+                    if note_det:
+                        note_det.params['custom_note'] = first_idx
 
 
 def _discover_patterns(voice_events, min_pattern_len=4):
@@ -260,6 +322,43 @@ def _discover_patterns(voice_events, min_pattern_len=4):
     return best_patterns, best_orderlist
 
 
+def _build_custom_freq_table(trace):
+    """Build a custom frequency table from all unique frequencies in the trace.
+
+    Returns (freq_lo_bytes, freq_hi_bytes, freq16_to_index_map).
+    The table is sorted by frequency, deduped, and capped at 96 entries.
+    """
+    freqs = set()
+    for f in range(trace.n_frames):
+        for voff in (0, 7, 14):
+            freq16 = (trace.frames[f][voff + 1] << 8) | trace.frames[f][voff]
+            if freq16 > 0:
+                freqs.add(freq16)
+
+    sorted_freqs = sorted(freqs)
+    if len(sorted_freqs) > 95:
+        # Keep the 95 most-used frequencies (leave room for dummy at index 0)
+        freq_counts = Counter()
+        for f in range(trace.n_frames):
+            for voff in (0, 7, 14):
+                freq16 = (trace.frames[f][voff + 1] << 8) | trace.frames[f][voff]
+                if freq16 > 0:
+                    freq_counts[freq16] += 1
+        sorted_freqs = [f for f, _ in freq_counts.most_common(95)]
+        sorted_freqs.sort()
+
+    # Pad index 0 with a dummy entry — GT2 wave table can't encode absolute_note=0
+    # (it maps to "keep freq" due to the XOR $80 packing transform)
+    sorted_freqs = [0x0001] + sorted_freqs  # dummy at index 0
+
+    freq_lo = bytes(f & 0xFF for f in sorted_freqs)
+    freq_hi = bytes((f >> 8) & 0xFF for f in sorted_freqs)
+    # Real entries start at index 1
+    freq_map = {f: i for i, f in enumerate(sorted_freqs) if f != 0x0001}
+
+    return freq_lo, freq_hi, freq_map
+
+
 def effects_to_usf(analysis, trace=None, sid_path=None):
     """Convert effect analysis to USF Song.
 
@@ -272,6 +371,13 @@ def effects_to_usf(analysis, trace=None, sid_path=None):
     """
     song = Song()
     song.nowavedelay = True
+
+    # Build custom freq table from ground truth
+    freq_map = {}  # freq16 → table index
+    if trace:
+        freq_lo, freq_hi, freq_map = _build_custom_freq_table(trace)
+        song.freq_lo = freq_lo
+        song.freq_hi = freq_hi
 
     # Metadata from PSID header
     if sid_path and os.path.exists(sid_path):
@@ -289,6 +395,10 @@ def effects_to_usf(analysis, trace=None, sid_path=None):
         song.tempo = 6
 
     # --- Step 1: Fingerprint all notes, build instrument map ---
+    # Remap arpeggio intervals using custom freq table if available
+    if freq_map and trace:
+        _remap_arpeggio_notes(analysis, freq_map, trace)
+
     fp_to_id = {}  # fingerprint → instrument_id
     fp_to_notes = {}  # fingerprint → list of note_data (for gate timer consensus)
     all_note_fps = []  # (voice, note_idx, fingerprint) for each note
@@ -313,7 +423,9 @@ def effects_to_usf(analysis, trace=None, sid_path=None):
         notes = fp_to_notes[fp]
 
         # Wave table from first note with this fingerprint
-        wave_steps = _build_wave_table(fp, notes[0])
+        # Get base note for this instrument (for absolute note encoding)
+        base = _get_note_value(notes[0])
+        wave_steps = _build_wave_table(fp, notes[0], base_note=base)
 
         # Pulse table
         pulse_steps = _build_pulse_table(fp, notes[0])
@@ -379,11 +491,15 @@ def effects_to_usf(analysis, trace=None, sid_path=None):
             inst_id = fp_to_id[fp]
             note_val = _get_note_value(nd)
 
-            # For arpeggio, use the lowest note as the base
+            # For arpeggio, use the first note (gate-on frame freq) as base
             effects = {e.effect: e for e in nd['effects']}
             arp = effects.get('arpeggio')
             if arp:
-                note_val = min(arp.params['notes'])
+                custom = arp.params.get('custom_notes')
+                if custom:
+                    note_val = custom[0]  # first = gate-on frame freq
+                else:
+                    note_val = arp.params['notes'][0]
 
             # Quantize duration to ticks
             dur_frames = nd['length']
