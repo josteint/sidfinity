@@ -408,7 +408,7 @@ def effects_to_usf(analysis, trace=None, sid_path=None):
         for ni, nd in enumerate(voice_data['notes']):
             fp = _fingerprint_note(nd)
             if fp not in fp_to_id:
-                fp_to_id[fp] = len(fp_to_id) + 1  # 1-indexed
+                fp_to_id[fp] = len(fp_to_id)  # 0-indexed (packer adds +1 when encoding)
                 fp_to_notes[fp] = []
             fp_to_notes[fp].append(nd)
             all_note_fps.append((v, ni, fp))
