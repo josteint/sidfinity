@@ -11,11 +11,19 @@ Architecture:
   - Filter data: flat stream of 4 bytes per frame
   - Player: pointer-advancing, 7 bytes per frame from instrument data
 
+Loop-aware extension (holy_grail_pack_loop):
+  - Detects trace.loop_frame and trace.loop_length
+  - Intro note streams end with $FE (switch to loop body note streams)
+  - Loop note streams end with $FD (restart loop body note streams)
+  - Player ZP extended with lp_lo/lp_hi (loop ns start, for reset)
+  - Filter data: intro_filt followed by loop_filt, player wraps loop_filt
+
 Usage:
     from ground_truth import capture_sid
-    from holy_grail_pack import holy_grail_pack
+    from holy_grail_pack import holy_grail_pack, holy_grail_pack_loop
     t = capture_sid('song.sid', subtunes=[1]).subtunes[0]
-    holy_grail_pack(t, 'song.sid', '/tmp/out.sid')
+    holy_grail_pack(t, 'song.sid', '/tmp/out.sid')           # flat, no loop
+    holy_grail_pack_loop(t, 'song.sid', '/tmp/out.sid')      # loop-aware
 """
 
 import os
@@ -47,7 +55,25 @@ ZP_VOICE = [
 ]
 # Filter ZP: $A0/$A1 = frame pointer, $A2/$A3 = frame counter (16-bit)
 
+# Loop-aware ZP layout per voice (10 bytes each)
+# np_lo, np_hi = note stream pointer (initially intro ns, then loop ns)
+# fc = frame counter within note (0-based)
+# nl = note length (frames)
+# ip_lo, ip_hi = instrument base pointer (points to length byte)
+# rp_lo, rp_hi = read pointer within instrument data (advances 7/frame)
+# lp_lo, lp_hi = loop note stream start address (for reset on loop ns end)
+ZP_VOICE_LOOP = [
+    (0x80, 0x81, 0x82, 0x83, 0x84, 0x85, 0x86, 0x87, 0x98, 0x99),
+    (0x88, 0x89, 0x8A, 0x8B, 0x8C, 0x8D, 0x8E, 0x8F, 0x9A, 0x9B),
+    (0x90, 0x91, 0x92, 0x93, 0x94, 0x95, 0x96, 0x97, 0x9C, 0x9D),
+]
+# Filter ZP (loop-aware): $A0/$A1 = frame pointer, $A2/$A3 = frame counter (16-bit)
+# $A4/$A5 = loop filter data start, $A6 = in_loop flag (0=intro, 1=loop)
+# $A7 = loop filter length lo, $A8 = loop filter length hi
+
 PLAYER_BASE = 0x1000
+# Loop-aware packer places player lower to maximize space for long songs
+PLAYER_BASE_LOOP = 0x0200
 
 
 # ---------------------------------------------------------------------------
@@ -375,6 +401,694 @@ def measure_player_size():
 # ---------------------------------------------------------------------------
 # Assembly generation
 # ---------------------------------------------------------------------------
+
+def generate_player_asm_loop():
+    """Generate the loop-aware holy grail player in xa65 assembly.
+
+    Player layout at PLAYER_BASE_LOOP:
+      jmp init
+      jmp play
+
+    Intro note streams end with $FE (switch to loop ns).
+    Loop note streams end with $FD (restart loop ns from lp_lo/lp_hi).
+    Filter: intro_filt followed by loop_filt, player wraps loop_filt.
+
+    ZP per voice (10 bytes): np, fc, nl, ip, rp, lp (loop ns start).
+    Filter ZP: $A0/$A1 = ptr, $A2/$A3 = 16-bit frame counter.
+    $A4/$A5 = loop_filt start addr, $A6/$A7 = loop_filt length (16-bit).
+    """
+    lines = []
+    L = lines.append
+
+    L(f"        * = ${PLAYER_BASE_LOOP:04X}")
+    L("        jmp init")
+    L("        jmp play")
+    L("")
+
+    # --- init ---
+    L("init")
+    L("        lda #$0F")
+    L("        sta $D418")
+    for vi in range(3):
+        np_lo, np_hi, fc, nl, ip_lo, ip_hi, rp_lo, rp_hi, lp_lo, lp_hi = ZP_VOICE_LOOP[vi]
+        # Intro note stream = ns{vi+1}i, loop note stream = ns{vi+1}l
+        L(f"        lda #<ns{vi + 1}i")
+        L(f"        sta ${np_lo:02X}")
+        L(f"        lda #>ns{vi + 1}i")
+        L(f"        sta ${np_hi:02X}")
+        L(f"        lda #<ns{vi + 1}l")
+        L(f"        sta ${lp_lo:02X}")
+        L(f"        lda #>ns{vi + 1}l")
+        L(f"        sta ${lp_hi:02X}")
+        L(f"        lda #0")
+        L(f"        sta ${nl:02X}")
+        L(f"        sta ${fc:02X}")
+    # Filter init: pointer to intro_filt
+    L("        lda #<intro_filt")
+    L("        sta $A0")
+    L("        lda #>intro_filt")
+    L("        sta $A1")
+    L("        lda #0")
+    L("        sta $A2")
+    L("        sta $A3")
+    # $A4/$A5 = loop_filt start
+    L("        lda #<loop_filt")
+    L("        sta $A4")
+    L("        lda #>loop_filt")
+    L("        sta $A5")
+    # $A6/$A7 = loop_filt length in frames (16-bit)
+    L("        lda #<loop_filt_len")
+    L("        sta $A6")
+    L("        lda #>loop_filt_len")
+    L("        sta $A7")
+    # $A8 = in_loop flag (0=intro, 1=loop)
+    L("        lda #0")
+    L("        sta $A8")
+    L("        rts")
+    L("")
+
+    # --- play ---
+    L("play")
+    for vi in range(3):
+        L(f"        jsr vplay{vi + 1}")
+    L("        jmp fplay_loop")
+    L("")
+
+    # --- per-voice loop-aware player ---
+    for vi in range(3):
+        np_lo, np_hi, fc, nl, ip_lo, ip_hi, rp_lo, rp_hi, lp_lo, lp_hi = ZP_VOICE_LOOP[vi]
+        vbase = VOICE_BASES[vi]
+        vn = f"v{vi + 1}"
+
+        L(f"; Voice {vi + 1} (loop-aware)")
+        L(f"vplay{vi + 1}")
+        # If fc >= nl, load next note
+        L(f"        lda ${fc:02X}")
+        L(f"        cmp ${nl:02X}")
+        L(f"        bcc {vn}play")
+        L(f"        jmp {vn}load")
+
+        # Play frame: read 7 bytes from rp, write ctrl first
+        L(f"{vn}play")
+        L(f"        ldy #4")
+        L(f"        lda (${rp_lo:02X}),y")
+        L(f"        sta ${vbase + 4:04X}")
+        L(f"        ldy #0")
+        L(f"        lda (${rp_lo:02X}),y")
+        L(f"        sta ${vbase + 0:04X}")
+        L(f"        iny")
+        L(f"        lda (${rp_lo:02X}),y")
+        L(f"        sta ${vbase + 1:04X}")
+        L(f"        iny")
+        L(f"        lda (${rp_lo:02X}),y")
+        L(f"        sta ${vbase + 2:04X}")
+        L(f"        iny")
+        L(f"        lda (${rp_lo:02X}),y")
+        L(f"        sta ${vbase + 3:04X}")
+        L(f"        ldy #5")
+        L(f"        lda (${rp_lo:02X}),y")
+        L(f"        sta ${vbase + 5:04X}")
+        L(f"        iny")
+        L(f"        lda (${rp_lo:02X}),y")
+        L(f"        sta ${vbase + 6:04X}")
+        # Advance rp by 7
+        L(f"        clc")
+        L(f"        lda ${rp_lo:02X}")
+        L(f"        adc #7")
+        L(f"        sta ${rp_lo:02X}")
+        L(f"        bcc {vn}nc1")
+        L(f"        inc ${rp_hi:02X}")
+        L(f"{vn}nc1")
+        L(f"        inc ${fc:02X}")
+        L(f"        rts")
+        L("")
+
+        # Load next note from note stream
+        L(f"{vn}load")
+        L(f"        ldy #0")
+        L(f"        lda (${np_lo:02X}),y")
+        # $FF = true end (silence)
+        L(f"        cmp #$FF")
+        L(f"        bne {vn}chkfe")
+        L(f"        lda #0")
+        L(f"        sta ${vbase + 4:04X}")
+        L(f"        rts")
+        # $FE = end of intro, switch to loop ns
+        L(f"{vn}chkfe")
+        L(f"        cmp #$FE")
+        L(f"        bne {vn}chkfd")
+        # Switch to loop ns: np = lp (loop ns start)
+        L(f"        lda ${lp_lo:02X}")
+        L(f"        sta ${np_lo:02X}")
+        L(f"        lda ${lp_hi:02X}")
+        L(f"        sta ${np_hi:02X}")
+        L(f"        lda #0")
+        L(f"        sta ${nl:02X}")
+        L(f"        sta ${fc:02X}")
+        L(f"        jmp {vn}load")
+        # $FD = end of loop body, restart loop ns
+        L(f"{vn}chkfd")
+        L(f"        cmp #$FD")
+        L(f"        bne {vn}ln0")
+        # Restart loop ns: np = lp (loop ns start)
+        L(f"        lda ${lp_lo:02X}")
+        L(f"        sta ${np_lo:02X}")
+        L(f"        lda ${lp_hi:02X}")
+        L(f"        sta ${np_hi:02X}")
+        L(f"        lda #0")
+        L(f"        sta ${nl:02X}")
+        L(f"        sta ${fc:02X}")
+        L(f"        jmp {vn}load")
+        # Normal note entry: [length, inst_lo, inst_hi]
+        L(f"{vn}ln0")
+        L(f"        sta ${nl:02X}")
+        L(f"        iny")
+        L(f"        lda (${np_lo:02X}),y")
+        L(f"        sta ${ip_lo:02X}")
+        L(f"        iny")
+        L(f"        lda (${np_lo:02X}),y")
+        L(f"        sta ${ip_hi:02X}")
+        # Advance np by 3
+        L(f"        clc")
+        L(f"        lda ${np_lo:02X}")
+        L(f"        adc #3")
+        L(f"        sta ${np_lo:02X}")
+        L(f"        bcc {vn}nnc")
+        L(f"        inc ${np_hi:02X}")
+        L(f"{vn}nnc")
+        # Reset fc
+        L(f"        lda #0")
+        L(f"        sta ${fc:02X}")
+        # Set rp = ip + 1 (skip length byte)
+        L(f"        clc")
+        L(f"        lda ${ip_lo:02X}")
+        L(f"        adc #1")
+        L(f"        sta ${rp_lo:02X}")
+        L(f"        lda ${ip_hi:02X}")
+        L(f"        adc #0")
+        L(f"        sta ${rp_hi:02X}")
+        # Play first frame immediately
+        L(f"        jmp {vn}play")
+        L("")
+
+    # --- loop-aware filter player ---
+    # $A0/$A1 = filter data pointer
+    # $A2/$A3 = 16-bit frame counter within current section
+    # $A4/$A5 = loop_filt start addr
+    # $A6/$A7 = loop_filt length in frames (16-bit)
+    # $A8 = in_loop flag
+    L("fplay_loop")
+    # Write 4 filter bytes at current pointer
+    L("        ldy #0")
+    L("        lda ($A0),y")
+    L("        sta $D415")
+    L("        iny")
+    L("        lda ($A0),y")
+    L("        sta $D416")
+    L("        iny")
+    L("        lda ($A0),y")
+    L("        sta $D417")
+    L("        iny")
+    L("        lda ($A0),y")
+    L("        sta $D418")
+    # Advance pointer by 4
+    L("        clc")
+    L("        lda $A0")
+    L("        adc #4")
+    L("        sta $A0")
+    L("        bcc fpnc")
+    L("        inc $A1")
+    L("fpnc")
+    # Increment 16-bit frame counter
+    L("        inc $A2")
+    L("        bne fpck")
+    L("        inc $A3")
+    L("fpck")
+    # Check if we're in loop
+    L("        lda $A8")
+    L("        bne fploop_check")
+    # In intro: check if frame counter == intro_filt_len
+    L("        lda $A2")
+    L("        cmp #<intro_filt_len")
+    L("        bne fpdone")
+    L("        lda $A3")
+    L("        cmp #>intro_filt_len")
+    L("        bne fpdone")
+    # Intro ended: switch to loop_filt
+    L("        lda $A4")
+    L("        sta $A0")
+    L("        lda $A5")
+    L("        sta $A1")
+    L("        lda #0")
+    L("        sta $A2")
+    L("        sta $A3")
+    L("        lda #1")
+    L("        sta $A8")
+    L("        rts")
+    # In loop: check if frame counter == loop_filt_len
+    L("fploop_check")
+    L("        lda $A2")
+    L("        cmp $A6")
+    L("        bne fpdone")
+    L("        lda $A3")
+    L("        cmp $A7")
+    L("        bne fpdone")
+    # Loop ended: restart loop_filt
+    L("        lda $A4")
+    L("        sta $A0")
+    L("        lda $A5")
+    L("        sta $A1")
+    L("        lda #0")
+    L("        sta $A2")
+    L("        sta $A3")
+    L("fpdone")
+    L("        rts")
+    L("")
+
+    return lines
+
+
+def measure_player_size_loop():
+    """Assemble loop-aware player with stub data to measure code size."""
+    asm_lines = generate_player_asm_loop()
+    # Add minimal stubs so assembler resolves all labels
+    asm_lines.append("intro_filt_len = 0")
+    asm_lines.append("loop_filt_len = 1")
+    for vi in range(3):
+        asm_lines.append(f"ns{vi + 1}i  .byte $FE")
+        asm_lines.append(f"ns{vi + 1}l  .byte $FD")
+    asm_lines.append("intro_filt  .byte $00,$00,$00,$0F")
+    asm_lines.append("loop_filt   .byte $00,$00,$00,$0F")
+
+    src = "\n".join(asm_lines)
+    with tempfile.NamedTemporaryFile(suffix='.s', mode='w', delete=False) as f:
+        f.write(src)
+        src_path = f.name
+    bin_path = src_path.replace('.s', '.bin')
+    try:
+        r = subprocess.run([XA65, '-o', bin_path, src_path],
+                           capture_output=True, text=True)
+        if r.returncode != 0:
+            raise RuntimeError(f"Loop player probe assembly failed:\n{r.stderr}")
+        size = os.path.getsize(bin_path)
+        # Subtract stubs
+        stub_bytes = 3 + 3 + 4 + 4  # 3 ns labels × 1 byte + 2 filt entries × 4 bytes
+        return size - stub_bytes
+    finally:
+        os.unlink(src_path)
+        if os.path.exists(bin_path):
+            os.unlink(bin_path)
+
+
+def generate_full_asm_loop(trace, max_intro_frames=None):
+    """Generate complete loop-aware xa65 assembly from a SubtuneTrace.
+
+    Requires trace.loop_frame and trace.loop_length to be set.
+
+    Data layout (to avoid SID I/O at $D400-$D7FF):
+      [player code] [intro_filt] [loop_filt] [intro inst] [loop inst]
+      [intro ns x3] [loop ns x3]
+
+    Filter data is placed immediately after the player so it stays below
+    $D400. Instrument data and note streams follow.
+
+    Args:
+        trace: SubtuneTrace with loop_frame and loop_length set
+        max_intro_frames: if set, truncate intro to this many frames so the
+                          total data fits within 64KB. If None, use all intro frames
+                          (may exceed 64KB for long songs).
+
+    Returns (asm_source_str, stats_dict).
+    """
+    if not trace.loop_frame or not trace.loop_length:
+        raise ValueError("trace must have loop_frame and loop_length set")
+
+    loop_start = trace.loop_frame
+    loop_len = trace.loop_length
+    intro_len = loop_start
+    if max_intro_frames is not None:
+        intro_len = min(intro_len, max_intro_frames)
+
+    # Extract per-voice 7-tuples for intro and loop body
+    v_intro_regs = []
+    v_loop_regs = []
+    for vi in range(3):
+        voff = VOICE_OFFSETS[vi]
+        intro_r = [tuple(f[voff:voff + 7]) for f in trace.frames[:intro_len]]
+        loop_r = [tuple(f[voff:voff + 7]) for f in trace.frames[loop_start:loop_start + loop_len]]
+        v_intro_regs.append(intro_r)
+        v_loop_regs.append(loop_r)
+
+    # Extract filter frames
+    intro_filt_frames = [tuple(f[FILTER_OFFSET:FILTER_OFFSET + 4]) for f in trace.frames[:intro_len]]
+    loop_filt_frames = [tuple(f[FILTER_OFFSET:FILTER_OFFSET + 4]) for f in trace.frames[loop_start:loop_start + loop_len]]
+
+    # Build per-voice note sequences and instrument pools (intro and loop separately)
+    intro_seqs, intro_pools = [], []
+    loop_seqs, loop_pools = [], []
+    for vi in range(3):
+        seq_i, pool_i = build_voice_data(v_intro_regs[vi])
+        seq_l, pool_l = build_voice_data(v_loop_regs[vi])
+        intro_seqs.append(seq_i)
+        intro_pools.append(pool_i)
+        loop_seqs.append(seq_l)
+        loop_pools.append(pool_l)
+
+    # Measure loop player code size
+    player_size = measure_player_size_loop()
+
+    # --- Layout: filter data comes FIRST (right after player) ---
+    # This keeps filter data below $D400 so reads don't hit SID I/O.
+    running = PLAYER_BASE_LOOP + player_size
+
+    # Flat filter data: intro_filt then loop_filt
+    intro_filt_data = bytearray()
+    for fr in intro_filt_frames:
+        for b in fr:
+            intro_filt_data.append(b)
+    intro_filt_addr = running
+    running += len(intro_filt_data)
+
+    loop_filt_data = bytearray()
+    for fr in loop_filt_frames:
+        for b in fr:
+            loop_filt_data.append(b)
+    loop_filt_addr = running
+    running += len(loop_filt_data)
+
+    filt_end_addr = running
+    assert filt_end_addr < 0xD400, (
+        f"Filter data ends at ${filt_end_addr:04X}, overlaps SID I/O at $D400! "
+        f"Reduce max_intro_frames."
+    )
+
+    # --- Instrument data follows filter ---
+    intro_inst_data = []
+    intro_inst_offsets = []
+    for vi in range(3):
+        pool = intro_pools[vi]
+        data = bytearray()
+        offsets = []
+        for idx in range(len(pool)):
+            offsets.append(running + len(data))
+            frames = list(pool.get_frames(idx))
+            enc = encode_instrument(frames)
+            data.extend(enc)
+        intro_inst_data.append(data)
+        intro_inst_offsets.append(offsets)
+        running += len(data)
+
+    loop_inst_data = []
+    loop_inst_offsets = []
+    for vi in range(3):
+        pool = loop_pools[vi]
+        data = bytearray()
+        offsets = []
+        for idx in range(len(pool)):
+            offsets.append(running + len(data))
+            frames = list(pool.get_frames(idx))
+            enc = encode_instrument(frames)
+            data.extend(enc)
+        loop_inst_data.append(data)
+        loop_inst_offsets.append(offsets)
+        running += len(data)
+
+    # Build intro note streams (end with $FE)
+    intro_ns_data = []
+    intro_ns_addrs = []
+    for vi in range(3):
+        addr = running
+        intro_ns_addrs.append(addr)
+        enc = bytearray()
+        for inst_idx, length in intro_seqs[vi]:
+            inst_addr = intro_inst_offsets[vi][inst_idx]
+            enc.append(length & 0xFF)
+            enc.append(inst_addr & 0xFF)
+            enc.append((inst_addr >> 8) & 0xFF)
+        enc.append(0xFE)  # switch to loop ns
+        intro_ns_data.append(enc)
+        running += len(enc)
+
+    # Build loop note streams (end with $FD to restart loop)
+    loop_ns_data = []
+    loop_ns_addrs = []
+    for vi in range(3):
+        addr = running
+        loop_ns_addrs.append(addr)
+        enc = bytearray()
+        for inst_idx, length in loop_seqs[vi]:
+            inst_addr = loop_inst_offsets[vi][inst_idx]
+            enc.append(length & 0xFF)
+            enc.append(inst_addr & 0xFF)
+            enc.append((inst_addr >> 8) & 0xFF)
+        enc.append(0xFD)  # restart loop ns
+        loop_ns_data.append(enc)
+        running += len(enc)
+
+    total_size = running - PLAYER_BASE_LOOP
+    end_addr = running
+
+    stats = {
+        'player_size': player_size,
+        'intro_inst_sizes': [len(d) for d in intro_inst_data],
+        'loop_inst_sizes': [len(d) for d in loop_inst_data],
+        'intro_note_sizes': [len(d) for d in intro_ns_data],
+        'loop_note_sizes': [len(d) for d in loop_ns_data],
+        'intro_filter_size': len(intro_filt_data),
+        'loop_filter_size': len(loop_filt_data),
+        'total_size': total_size,
+        'n_intro_instruments': [len(p) for p in intro_pools],
+        'n_loop_instruments': [len(p) for p in loop_pools],
+        'n_intro_notes': [len(s) for s in intro_seqs],
+        'n_loop_notes': [len(s) for s in loop_seqs],
+        'intro_len': intro_len,
+        'loop_len': loop_len,
+        'end_addr': end_addr,
+        'filt_end_addr': filt_end_addr,
+    }
+
+    # Assemble the source
+    asm_lines = generate_player_asm_loop()
+
+    # Constants for filter length comparisons
+    asm_lines.append(f"intro_filt_len = {len(intro_filt_frames)}")
+    asm_lines.append(f"loop_filt_len = {len(loop_filt_frames)}")
+    asm_lines.append("")
+
+    # Filter data FIRST (placed right after player, before instruments)
+    asm_lines.append("; Intro filter data (placed first to stay below $D400 SID I/O)")
+    asm_lines.append("intro_filt")
+    asm_lines.extend(bytes_to_asm(intro_filt_data))
+    asm_lines.append("")
+
+    asm_lines.append("; Loop filter data")
+    asm_lines.append("loop_filt")
+    asm_lines.extend(bytes_to_asm(loop_filt_data))
+    asm_lines.append("")
+
+    for vi in range(3):
+        asm_lines.append(f"; Voice {vi + 1} intro instruments "
+                         f"({len(intro_inst_data[vi])} bytes, "
+                         f"{len(intro_pools[vi])} unique)")
+        asm_lines.extend(bytes_to_asm(intro_inst_data[vi]))
+        asm_lines.append("")
+
+    for vi in range(3):
+        asm_lines.append(f"; Voice {vi + 1} loop instruments "
+                         f"({len(loop_inst_data[vi])} bytes, "
+                         f"{len(loop_pools[vi])} unique)")
+        asm_lines.extend(bytes_to_asm(loop_inst_data[vi]))
+        asm_lines.append("")
+
+    asm_lines.append("; Intro note streams")
+    for vi in range(3):
+        asm_lines.append(f"ns{vi + 1}i")
+        asm_lines.extend(bytes_to_asm(intro_ns_data[vi]))
+        asm_lines.append("")
+
+    asm_lines.append("; Loop note streams")
+    for vi in range(3):
+        asm_lines.append(f"ns{vi + 1}l")
+        asm_lines.extend(bytes_to_asm(loop_ns_data[vi]))
+        asm_lines.append("")
+
+    return "\n".join(asm_lines), stats
+
+
+def _find_max_intro_frames(trace, max_addr=0xFFFF):
+    """Binary search for the maximum intro frame count that keeps total data <= max_addr.
+
+    Uses PLAYER_BASE_LOOP as the load address.
+    Enforces two constraints:
+      1. Filter data (player + intro_filt + loop_filt) must end below $D400.
+      2. Total data must fit below max_addr.
+
+    Returns max_intro_frames (int).
+    """
+    loop_start = trace.loop_frame
+    loop_len = trace.loop_length
+
+    player_size = measure_player_size_loop()
+    loop_filt_size = loop_len * 4
+
+    # Pre-compute loop body instrument sizes (fixed regardless of intro length)
+    loop_inst_total = 0
+    loop_ns_total = 0
+    for vi in range(3):
+        voff = VOICE_OFFSETS[vi]
+        regs_l = [tuple(f[voff:voff + 7]) for f in trace.frames[loop_start:loop_start + loop_len]]
+        seq_l, pool_l = build_voice_data(regs_l)
+        loop_inst_total += sum(1 + len(pool_l.get_frames(i)) * 7 for i in range(len(pool_l)))
+        loop_ns_total += len(seq_l) * 3 + 1  # +1 for $FD terminator
+
+    # Layout: [player][intro_filt][loop_filt][intro_inst][loop_inst][intro_ns][loop_ns]
+    # Constraint 1: [player][intro_filt][loop_filt] must end before $D400
+    sid_io_limit = 0xD400 - PLAYER_BASE_LOOP - player_size - loop_filt_size
+    # Constraint 2: total must fit below max_addr
+    loop_fixed = player_size + loop_filt_size + loop_inst_total + loop_ns_total
+    available_total = max_addr - PLAYER_BASE_LOOP - loop_fixed
+
+    if sid_io_limit <= 0 or available_total <= 0:
+        return 0
+
+    # Binary search: find max intro frames satisfying both constraints
+    lo, hi = 0, min(loop_start, trace.n_frames)
+    while lo < hi:
+        mid = (lo + hi + 1) // 2
+        intro_inst_total = 0
+        intro_ns_total = 0
+        for vi in range(3):
+            voff = VOICE_OFFSETS[vi]
+            regs_i = [tuple(f[voff:voff + 7]) for f in trace.frames[:mid]]
+            seq_i, pool_i = build_voice_data(regs_i)
+            intro_inst_total += sum(1 + len(pool_i.get_frames(j)) * 7 for j in range(len(pool_i)))
+            intro_ns_total += len(seq_i) * 3 + 1  # +1 for $FE terminator
+        intro_filt_size = mid * 4
+        # Check both constraints
+        c1 = intro_filt_size <= sid_io_limit
+        c2 = (intro_filt_size + intro_inst_total + intro_ns_total) <= available_total
+        if c1 and c2:
+            lo = mid
+        else:
+            hi = mid - 1
+    return lo
+
+
+def holy_grail_pack_loop(trace, sid_path, output_path, progress=True,
+                         max_intro_frames=None):
+    """Pack a SubtuneTrace with loop support into a holy grail PSID file.
+
+    Requires trace.loop_frame and trace.loop_length to be set.
+    Intro note streams play once (ending with $FE to switch to loop),
+    then loop note streams play forever (ending with $FD to restart).
+
+    Player is placed at PLAYER_BASE_LOOP ($0200) to maximise available address space.
+    If the intro is too large for 64KB, it is automatically truncated to the maximum
+    number of frames that fit while still keeping the full loop body.
+
+    Args:
+        trace: SubtuneTrace from ground_truth.capture_sid() with loop detected
+        sid_path: original SID path (for metadata)
+        output_path: output .sid path
+        progress: print progress messages
+        max_intro_frames: explicit intro frame limit (None = auto-fit to 64KB)
+
+    Returns dict with stats.
+    """
+    if not trace.loop_frame or not trace.loop_length:
+        raise ValueError("trace must have loop_frame and loop_length (use detect_loop=True)")
+
+    if progress:
+        print(f"[HGL] Holy Grail Pack (loop-aware): {trace.n_frames} frames, "
+              f"loop at {trace.loop_frame} (len {trace.loop_length})")
+
+    # Determine intro frame limit
+    if max_intro_frames is None:
+        max_intro_frames = _find_max_intro_frames(trace)
+        if max_intro_frames < trace.loop_frame and progress:
+            print(f"[HGL] Intro truncated to {max_intro_frames} frames "
+                  f"({max_intro_frames / 50:.1f}s) to fit in 64KB "
+                  f"(full intro is {trace.loop_frame} frames = "
+                  f"{trace.loop_frame / 50:.1f}s)")
+        elif progress:
+            print(f"[HGL] Full intro: {trace.loop_frame} frames ({trace.loop_frame / 50:.1f}s)")
+
+    if progress:
+        print("[HGL] Generating loop-aware assembly...")
+    asm_src, stats = generate_full_asm_loop(trace, max_intro_frames=max_intro_frames)
+
+    if progress:
+        for vi in range(3):
+            print(f"  V{vi+1} intro: {stats['n_intro_notes'][vi]} notes, "
+                  f"{stats['n_intro_instruments'][vi]} insts, "
+                  f"{stats['intro_inst_sizes'][vi]} bytes inst + "
+                  f"{stats['intro_note_sizes'][vi]} bytes notes")
+            print(f"  V{vi+1} loop:  {stats['n_loop_notes'][vi]} notes, "
+                  f"{stats['n_loop_instruments'][vi]} insts, "
+                  f"{stats['loop_inst_sizes'][vi]} bytes inst + "
+                  f"{stats['loop_note_sizes'][vi]} bytes notes")
+        print(f"  Intro filter: {stats['intro_filter_size']} bytes")
+        print(f"  Loop filter:  {stats['loop_filter_size']} bytes")
+        print(f"  Player code: {stats['player_size']} bytes")
+        print(f"  Total data size: {stats['total_size']} bytes")
+        print(f"  End address: ${stats['end_addr']:04X}")
+
+    asm_path = output_path.replace('.sid', '.s')
+    with open(asm_path, 'w') as f:
+        f.write(asm_src)
+    if progress:
+        print(f"  Assembly written to {asm_path}")
+
+    if progress:
+        print("[HGL] Assembling...")
+    bin_path = output_path.replace('.sid', '.bin')
+    r = subprocess.run([XA65, '-o', bin_path, asm_path],
+                       capture_output=True, text=True)
+    if r.returncode != 0:
+        print(f"ASSEMBLY FAILED:\n{r.stderr[:3000]}")
+        raise RuntimeError("xa65 assembly failed")
+
+    bin_size = os.path.getsize(bin_path)
+    if progress:
+        print(f"  Binary: {bin_size} bytes")
+
+    with open(bin_path, 'rb') as f:
+        bin_data = f.read()
+
+    load_addr_bytes = struct.pack('<H', PLAYER_BASE_LOOP)
+    payload = load_addr_bytes + bin_data
+
+    init_addr = PLAYER_BASE_LOOP
+    play_addr = PLAYER_BASE_LOOP + 3
+    psid_hdr = build_psid_header(sid_path, PLAYER_BASE_LOOP, init_addr, play_addr)
+
+    with open(output_path, 'wb') as f:
+        f.write(psid_hdr)
+        f.write(payload)
+
+    sid_size = os.path.getsize(output_path)
+    if progress:
+        print(f"  PSID written: {output_path} ({sid_size} bytes)")
+
+    if progress:
+        print("[HGL] Verifying against ground truth (200 frames)...")
+    match, total, mismatches = verify_against_trace(
+        output_path, trace, max_frames=200, progress=progress
+    )
+    pct = 100.0 * match / total if total > 0 else 0.0
+    if progress:
+        print(f"  Match: {match}/{total} frames ({pct:.1f}%)")
+        if mismatches:
+            print(f"  First mismatch at frame {mismatches[0][0]}")
+
+    stats['sid_size'] = sid_size
+    stats['match_frames'] = match
+    stats['total_frames'] = total
+    stats['match_pct'] = pct
+    stats['n_mismatches'] = len(mismatches)
+
+    return stats
+
 
 def bytes_to_asm(data, indent="        "):
     """Convert bytes to xa65 .byte lines."""
@@ -726,13 +1440,16 @@ def holy_grail_pack(trace, sid_path, output_path, progress=True):
 
 if __name__ == '__main__':
     if len(sys.argv) < 3:
-        print("Usage: python3 holy_grail_pack.py <input.sid> <output.sid> [subtune] [max_frames]")
+        print("Usage: python3 holy_grail_pack.py <input.sid> <output.sid> [subtune] [max_frames] [--loop]")
         sys.exit(1)
 
     sid_in = sys.argv[1]
     sid_out = sys.argv[2]
     subtune_num = int(sys.argv[3]) if len(sys.argv) > 3 else 1
-    max_frames = int(sys.argv[4]) if len(sys.argv) > 4 else None
+    args = sys.argv[4:]
+    use_loop = '--loop' in args
+    args = [a for a in args if a != '--loop']
+    max_frames = int(args[0]) if args else None
 
     sys.path.insert(0, SCRIPT_DIR)
     from ground_truth import capture_sid
@@ -741,7 +1458,10 @@ if __name__ == '__main__':
     result = capture_sid(sid_in, subtunes=[subtune_num],
                          max_frames=max_frames, progress=True)
     trace = result.subtunes[0]
-    print(f"Captured {trace.n_frames} frames")
+    print(f"Captured {trace.n_frames} frames, loop={trace.loop_frame}")
 
-    stats = holy_grail_pack(trace, sid_in, sid_out, progress=True)
+    if use_loop and trace.loop_frame:
+        stats = holy_grail_pack_loop(trace, sid_in, sid_out, progress=True)
+    else:
+        stats = holy_grail_pack(trace, sid_in, sid_out, progress=True)
     print(f"\nResult: {stats['match_pct']:.1f}% match, {stats['sid_size']} bytes SID")
