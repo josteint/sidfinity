@@ -53,7 +53,7 @@ def simple_codegen(song, output_path, orig_sid_path=None):
         L(f'        sta ${z+5:02X}')
         L(f'        sta ${z+7:02X}')
         L(f'        lda #$FF')
-        L(f'        sta ${z+8:02X}')  # release_ctr = $FF (no release pending)
+        L(f'        sta ${z+8:02X}')  # prev_inst_id = $FF (force PW init on first note)
     L('        rts')
     L('')
 
@@ -67,7 +67,7 @@ def simple_codegen(song, output_path, orig_sid_path=None):
 
         # Hard restart: zero ADSR 3 frames before note ends
         L(f'        lda ${z:02X}')           # tick_ctr
-        L(f'        cmp #3')
+        L(f'        cmp #4')                  # check BEFORE decrement (so 3 frames remain)
         L(f'        bne v{v}nohr')
         L(f'        lda #0')
         L(f'        sta $D4{so+5:02X}')
@@ -102,7 +102,7 @@ def simple_codegen(song, output_path, orig_sid_path=None):
             L(f'        bne v{v}m')
         L(f'        sta ${z:02X}')          # tick_ctr
 
-        # instrument ID
+        # instrument ID — only reset PW if instrument changes
         L(f'        iny')
         L(f'        lda (${z+1:02X}),y')
         L(f'        tax')
@@ -110,13 +110,17 @@ def simple_codegen(song, output_path, orig_sid_path=None):
         L(f'        sta $D4{so+5:02X}')
         L(f'        lda isr,x')
         L(f'        sta $D4{so+6:02X}')
-        # PW init
+        # PW: only init if instrument changed (compare with previous)
+        L(f'        cpx ${z+8:02X}')        # compare with previous inst_id
+        L(f'        beq v{v}nopw')           # same instrument, keep PW running
+        L(f'        stx ${z+8:02X}')        # save new inst_id
         L(f'        lda ipwl,x')
         L(f'        sta $D4{so+2:02X}')
-        L(f'        sta ${z+5:02X}')        # pw_lo accumulator
+        L(f'        sta ${z+5:02X}')
         L(f'        lda ipwh,x')
         L(f'        sta $D4{so+3:02X}')
-        # PW speed
+        L(f'v{v}nopw')
+        # PW speed (always update — new instrument may have different speed)
         L(f'        lda ipws,x')
         L(f'        sta ${z+7:02X}')
         # Wave table ptr
@@ -176,13 +180,13 @@ def simple_codegen(song, output_path, orig_sid_path=None):
         L(f'        bcc v{v}pw')
         L(f'        inc ${z+4:02X}')
 
-        # PW modulation
+        # PW modulation — write THEN accumulate (init value plays first frame)
         L(f'v{v}pw')
         L(f'        lda ${z+5:02X}')
+        L(f'        sta $D4{so+2:02X}')
         L(f'        clc')
         L(f'        adc ${z+7:02X}')
         L(f'        sta ${z+5:02X}')
-        L(f'        sta $D4{so+2:02X}')
 
         L(f'v{v}done')
         L('')
