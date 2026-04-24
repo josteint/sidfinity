@@ -71,6 +71,11 @@ ZP_PW = [
 # Voice indices that use RLE pw_lo:
 PW_LO_RLE_VOICES = {1, 2}   # 0-indexed V2, V3
 
+# Extra ZP byte for irle_idx_hi (hi byte of frame index) for wide-index voices.
+# Wide voices have > 254 unique frames so need 16-bit frame table indices.
+# irle_idx_hi bytes: one per voice that needs it.
+ZP_IRLE_IDX_HI = [0xB2, 0xB3, 0xB4]  # per voice (only used when voice is wide)
+
 
 # ---------------------------------------------------------------------------
 # Data extraction helpers
@@ -147,6 +152,48 @@ def encode_instrument_rle(seq):
     return data
 
 
+def wide_remap(idx):
+    """Map flat frame index to (lo, hi) for wide-index encoding.
+
+    Page size is 254 (not 256) to reserve lo=$FF for the terminator.
+    So hi=0 -> indices 0-253, hi=1 -> indices 254-507, etc.
+    Valid lo values: 0-253 ($00-$FD). $FF is always the terminator.
+    """
+    return idx % 254, idx // 254
+
+
+def encode_instrument_rle_wide(seq):
+    """Encode as (idx_lo, idx_hi, count-1) triplets + $FF terminator.
+
+    Used for voices with > 254 unique frames (wide-index mode).
+    Page size 254: lo = idx % 254, hi = idx // 254.
+    lo=$FF ($FF) in lo position signals end of instrument.
+    Count-1 encoding: value 0 = 1 frame, 255 = 256 frames.
+    """
+    data = bytearray()
+    if not seq:
+        data.append(0xFF)
+        return data
+    curr = seq[0]
+    count = 1
+    for v in seq[1:]:
+        if v == curr and count < 256:
+            count += 1
+        else:
+            lo, hi = wide_remap(curr)
+            data.append(lo)
+            data.append(hi)
+            data.append(count - 1)
+            curr = v
+            count = 1
+    lo, hi = wide_remap(curr)
+    data.append(lo)
+    data.append(hi)
+    data.append(count - 1)
+    data.append(0xFF)
+    return data
+
+
 def encode_pw_rle_lo(pw_lo_list):
     """Encode pw_lo as (value, count-1) pairs + $FF terminator."""
     data = bytearray()
@@ -203,14 +250,19 @@ def bytes_to_asm(data, indent="        "):
     return lines
 
 
-def generate_player_asm(pw_lo_rle_voices=None):
+def generate_player_asm(pw_lo_rle_voices=None, wide_voices=None):
     """Generate the compact holy grail player.
 
     pw_lo_rle_voices: set of 0-indexed voice numbers that use RLE pw_lo.
                       Other voices use flat pw_lo stream.
+    wide_voices: set of 0-indexed voice numbers that use 16-bit frame table
+                 indices (> 254 unique frames). These store (idx_lo, idx_hi,
+                 cnt-1) triplets in the instrument RLE stream.
     """
     if pw_lo_rle_voices is None:
         pw_lo_rle_voices = PW_LO_RLE_VOICES
+    if wide_voices is None:
+        wide_voices = set()
 
     lines = []
     L = lines.append
@@ -250,17 +302,30 @@ def generate_player_asm(pw_lo_rle_voices=None):
         L(f"        bcc i{vi+1}nc")
         L(f"        inc ${np_hi:02X}")
         L(f"i{vi+1}nc")
-        # Load first RLE pair from instrument
+        # Load first RLE pair/triplet from instrument
         L(f"        ldy #0")
         L(f"        lda (${rp_lo:02X}),y")
         L(f"        sta ${irle_idx:02X}")
-        L(f"        iny")
-        L(f"        lda (${rp_lo:02X}),y")
-        L(f"        sta ${irle_cnt:02X}")
-        L(f"        clc")
-        L(f"        lda ${rp_lo:02X}")
-        L(f"        adc #2")
-        L(f"        sta ${rp_lo:02X}")
+        if vi in wide_voices:
+            irle_idx_hi = ZP_IRLE_IDX_HI[vi]
+            L(f"        iny")
+            L(f"        lda (${rp_lo:02X}),y")
+            L(f"        sta ${irle_idx_hi:02X}")
+            L(f"        iny")
+            L(f"        lda (${rp_lo:02X}),y")
+            L(f"        sta ${irle_cnt:02X}")
+            L(f"        clc")
+            L(f"        lda ${rp_lo:02X}")
+            L(f"        adc #3")
+            L(f"        sta ${rp_lo:02X}")
+        else:
+            L(f"        iny")
+            L(f"        lda (${rp_lo:02X}),y")
+            L(f"        sta ${irle_cnt:02X}")
+            L(f"        clc")
+            L(f"        lda ${rp_lo:02X}")
+            L(f"        adc #2")
+            L(f"        sta ${rp_lo:02X}")
         L(f"        bcc i{vi+1}nc2")
         L(f"        inc ${rp_hi:02X}")
         L(f"i{vi+1}nc2")
@@ -344,6 +409,8 @@ def generate_player_asm(pw_lo_rle_voices=None):
         pw_lop_lo, pw_lop_hi, pw_hi_val, _1, _2, _3 = ZP_PW[vi]
         vbase = VOICE_BASES[vi]
         vn = f"v{vi+1}"
+        is_wide = vi in wide_voices
+        irle_idx_hi = ZP_IRLE_IDX_HI[vi] if is_wide else None
 
         L(f"; Voice {vi+1}")
         L(f"vplay{vi+1}")
@@ -351,7 +418,7 @@ def generate_player_asm(pw_lo_rle_voices=None):
         # Emit current frame first, then manage RLE countdown
         L(f"        jmp {vn}emit")
 
-        # After emit, manage RLE: if irle_cnt > 0, decrement; else load next pair
+        # After emit, manage RLE: if irle_cnt > 0, decrement; else load next triplet/pair
         L(f"{vn}aftemit")
         L(f"        lda ${irle_cnt:02X}")
         L(f"        beq {vn}rle")
@@ -359,7 +426,7 @@ def generate_player_asm(pw_lo_rle_voices=None):
         L(f"        rts")
 
         L(f"{vn}rle")
-        # Load next RLE pair
+        # Load next RLE pair/triplet
         L(f"        ldy #0")
         L(f"        lda (${rp_lo:02X}),y")
         L(f"        cmp #$FF")
@@ -387,69 +454,84 @@ def generate_player_asm(pw_lo_rle_voices=None):
         L(f"        bcc {vn}npnc")
         L(f"        inc ${np_hi:02X}")
         L(f"{vn}npnc")
-        # Read first RLE pair of new instrument
+        # Read first RLE pair/triplet of new instrument
         L(f"        ldy #0")
         L(f"        lda (${rp_lo:02X}),y")
         L(f"{vn}rlego")
-        # A = frame index
+        # A = frame index lo byte
         L(f"        sta ${irle_idx:02X}")
-        L(f"        ldy #1")
-        L(f"        lda (${rp_lo:02X}),y")
-        L(f"        sta ${irle_cnt:02X}")
-        # Advance rp by 2
-        L(f"        clc")
-        L(f"        lda ${rp_lo:02X}")
-        L(f"        adc #2")
-        L(f"        sta ${rp_lo:02X}")
+        if is_wide:
+            # Read hi byte and cnt
+            L(f"        ldy #1")
+            L(f"        lda (${rp_lo:02X}),y")
+            L(f"        sta ${irle_idx_hi:02X}")
+            L(f"        ldy #2")
+            L(f"        lda (${rp_lo:02X}),y")
+            L(f"        sta ${irle_cnt:02X}")
+            # Advance rp by 3
+            L(f"        clc")
+            L(f"        lda ${rp_lo:02X}")
+            L(f"        adc #3")
+            L(f"        sta ${rp_lo:02X}")
+        else:
+            L(f"        ldy #1")
+            L(f"        lda (${rp_lo:02X}),y")
+            L(f"        sta ${irle_cnt:02X}")
+            # Advance rp by 2
+            L(f"        clc")
+            L(f"        lda ${rp_lo:02X}")
+            L(f"        adc #2")
+            L(f"        sta ${rp_lo:02X}")
         L(f"        bcc {vn}rpnc")
         L(f"        inc ${rp_hi:02X}")
         L(f"{vn}rpnc")
         L(f"        rts")
 
         L(f"{vn}emit")
-        # Emit frame: read frame table using irle_idx
-        L(f"        ldy ${irle_idx:02X}")
-        L(f"        lda ftv{vi+1}_ct,y")
-        L(f"        sta ${vbase+4:04X}")
-        L(f"        lda ftv{vi+1}_fl,y")
-        L(f"        sta ${vbase+0:04X}")
-        L(f"        lda ftv{vi+1}_fh,y")
-        L(f"        sta ${vbase+1:04X}")
-        L(f"        lda ftv{vi+1}_ad,y")
-        L(f"        sta ${vbase+5:04X}")
-        L(f"        lda ftv{vi+1}_sr,y")
-        L(f"        sta ${vbase+6:04X}")
-
-        if vi in pw_lo_rle_voices:
-            # PW_lo: advance RLE
-            # We store the RLE state in pw_lop (used as RLE pointer) plus
-            # two extra ZP bytes for (cur_pwlo_val, cur_pwlo_cnt)
-            # Use pw_lop_lo/hi as pointer into pw_lo RLE, and
-            # use ZP immediately following (pw_hi_val - 1 area? no, overlaps)
-            # Better: embed in the pw_lop pointer area
-            # Actually, we have 6 ZP bytes for PW: use (pw_lop_lo, pw_lop_hi) as
-            # the RLE read pointer, and store (cur_val, cur_cnt) in pw_hi_val-1 area.
-            # But pw_hi_val is at index 2 and we only have ZP_PW[vi] layout.
-            # Use the pw_lop_lo area as: rp_lo, rp_hi, cur_val, cur_cnt
-            # This means we need 4 ZP bytes for pw_lo RLE instead of 2.
-            # Current ZP_PW has 6 bytes; redistribute:
-            # (rp_lo, rp_hi, cur_val, cur_cnt, pw_hi_val, pw_hi_rp_lo) = only 6 bytes
-            # but pw_hi needs: pw_hi_val + pw_hi_rp_lo + pw_hi_rp_hi + pw_hi_cnt = 4 bytes
-            # Total needed: 4 + 4 = 8 bytes. We have 6. Not enough!
-            #
-            # Alternative: share the cur_val/cur_cnt with existing fields.
-            # Use ip_lo/ip_hi from voice block (ip is no longer needed since we
-            # eliminated the note-length fc/nl and ip_lo/ip_hi fields).
-            # Actually ZP_VOICE now only has 6 fields (np_lo,np_hi,rp_lo,rp_hi,irle_idx,irle_cnt).
-            # We have spare ZP space.
-            #
-            # Let me use ZP bytes AFTER the voice/PW blocks for pw_lo RLE state:
-            # V1 pw_lo flat: no extra state needed.
-            # V2 pw_lo RLE: $C0-$C3 (cur_val, cur_cnt, rp_lo, rp_hi)
-            # V3 pw_lo RLE: $C4-$C7 (cur_val, cur_cnt, rp_lo, rp_hi)
-            #
-            # For now, use hardcoded ZP for this since it's Commando-specific.
-            pass
+        if is_wide:
+            # Wide-index emit: branch on irle_idx_hi to select page
+            L(f"        ldy ${irle_idx:02X}")
+            L(f"        lda ${irle_idx_hi:02X}")
+            L(f"        bne {vn}emithi")
+            # Low page (indices 0-255)
+            L(f"        lda ftv{vi+1}_ct,y")
+            L(f"        sta ${vbase+4:04X}")
+            L(f"        lda ftv{vi+1}_fl,y")
+            L(f"        sta ${vbase+0:04X}")
+            L(f"        lda ftv{vi+1}_fh,y")
+            L(f"        sta ${vbase+1:04X}")
+            L(f"        lda ftv{vi+1}_ad,y")
+            L(f"        sta ${vbase+5:04X}")
+            L(f"        lda ftv{vi+1}_sr,y")
+            L(f"        sta ${vbase+6:04X}")
+            L(f"        jmp {vn}emitpw")
+            # High page (indices 254+): table labels with +254 offset
+            # (page size is 254, not 256, to keep lo=$FF free as terminator)
+            L(f"{vn}emithi")
+            L(f"        lda ftv{vi+1}_ct+254,y")
+            L(f"        sta ${vbase+4:04X}")
+            L(f"        lda ftv{vi+1}_fl+254,y")
+            L(f"        sta ${vbase+0:04X}")
+            L(f"        lda ftv{vi+1}_fh+254,y")
+            L(f"        sta ${vbase+1:04X}")
+            L(f"        lda ftv{vi+1}_ad+254,y")
+            L(f"        sta ${vbase+5:04X}")
+            L(f"        lda ftv{vi+1}_sr+254,y")
+            L(f"        sta ${vbase+6:04X}")
+            L(f"{vn}emitpw")
+        else:
+            # Standard single-page emit
+            L(f"        ldy ${irle_idx:02X}")
+            L(f"        lda ftv{vi+1}_ct,y")
+            L(f"        sta ${vbase+4:04X}")
+            L(f"        lda ftv{vi+1}_fl,y")
+            L(f"        sta ${vbase+0:04X}")
+            L(f"        lda ftv{vi+1}_fh,y")
+            L(f"        sta ${vbase+1:04X}")
+            L(f"        lda ftv{vi+1}_ad,y")
+            L(f"        sta ${vbase+5:04X}")
+            L(f"        lda ftv{vi+1}_sr,y")
+            L(f"        sta ${vbase+6:04X}")
 
         # Flat pw_lo:
         L(f"        ldy #0")
@@ -510,15 +592,19 @@ def encode_note_stream(note_insts, inst_abs_offsets):
     return data
 
 
-def encode_instruments_rle(pool_list):
-    """Encode instrument pool: RLE pairs per instrument (no placeholder byte).
+def encode_instruments_rle(pool_list, wide=False):
+    """Encode instrument pool: RLE pairs (or triplets for wide mode) per instrument.
 
     Each instrument is an independent RLE stream terminated by $FF.
     The note stream stores absolute addresses pointing directly to the RLE data.
+    wide=True: use 3-byte (idx_lo, idx_hi, cnt-1) triplets per run.
     """
     data = bytearray()
     for seq in pool_list:
-        rle = encode_instrument_rle(seq)
+        if wide:
+            rle = encode_instrument_rle_wide(seq)
+        else:
+            rle = encode_instrument_rle(seq)
         data.extend(rle)
     return data
 
@@ -541,6 +627,14 @@ def generate_full_asm(trace):
     """Generate complete xa65 assembly for the compact packer."""
     vdata = [build_voice_data(trace, vi) for vi in range(3)]
 
+    # Detect wide voices: any voice with > 254 unique frames needs 16-bit indices
+    wide_voices = set()
+    for vi in range(3):
+        if len(vdata[vi]['frame_table']) > 254:
+            wide_voices.add(vi)
+    if wide_voices:
+        print(f"  [HGC] Wide-index voices (>254 unique frames): {[vi+1 for vi in sorted(wide_voices)]}")
+
     # PW encoding
     pw_lo_data = []
     pw_hi_data = []
@@ -553,7 +647,7 @@ def generate_full_asm(trace):
 
     # Measure player code size
     ft_sizes = [len(vdata[vi]['frame_table']) for vi in range(3)]
-    player_code_size = _measure_player_size(ft_sizes, pw_lo_data, pw_hi_data)
+    player_code_size = _measure_player_size(ft_sizes, pw_lo_data, pw_hi_data, wide_voices)
 
     # Layout
     running = PLAYER_BASE + player_code_size
@@ -563,16 +657,20 @@ def generate_full_asm(trace):
 
     for vi in range(3):
         vd = vdata[vi]
+        is_wide = vi in wide_voices
         ft_fl, ft_fh, ft_ct, ft_ad, ft_sr = encode_frame_table_parallel(vd['frame_table'])
         running += len(ft_fl) * 5
 
-        inst_data = encode_instruments_rle(vd['pool_list'])
+        inst_data = encode_instruments_rle(vd['pool_list'], wide=is_wide)
         inst_base = running
         offsets = []
         off = 0
         for seq in vd['pool_list']:
+            if is_wide:
+                rle = encode_instrument_rle_wide(seq)
+            else:
+                rle = encode_instrument_rle(seq)
             offsets.append(inst_base + off)
-            rle = encode_instrument_rle(seq)
             off += len(rle)
         inst_offsets_list.append(offsets)
         running += len(inst_data)
@@ -591,10 +689,12 @@ def generate_full_asm(trace):
         'player_size': player_code_size,
         'total_size': total_size,
         'end_addr': running,
+        'wide_voices': sorted(wide_voices),
     }
     for vi in range(3):
         vd = vdata[vi]
-        inst_data = encode_instruments_rle(vd['pool_list'])
+        is_wide = vi in wide_voices
+        inst_data = encode_instruments_rle(vd['pool_list'], wide=is_wide)
         stats[f'v{vi+1}'] = {
             'n_frames': len(vd['frame_table']),
             'n_insts': len(vd['pool_list']),
@@ -603,15 +703,17 @@ def generate_full_asm(trace):
             'inst_bytes': len(inst_data),
             'ns_bytes': len(ns_data_list[vi]),
             'pw_bytes': len(pw_lo_data[vi]) + len(pw_hi_data[vi]),
+            'wide': is_wide,
         }
 
     # Generate assembly
-    asm_lines = generate_player_asm()
+    asm_lines = generate_player_asm(wide_voices=wide_voices)
 
     for vi in range(3):
         vd = vdata[vi]
+        is_wide = vi in wide_voices
         ft_fl, ft_fh, ft_ct, ft_ad, ft_sr = encode_frame_table_parallel(vd['frame_table'])
-        inst_data = encode_instruments_rle(vd['pool_list'])
+        inst_data = encode_instruments_rle(vd['pool_list'], wide=is_wide)
 
         asm_lines.append(f"; Voice {vi+1} frame tables")
         asm_lines.append(f"ftv{vi+1}_fl")
@@ -626,7 +728,7 @@ def generate_full_asm(trace):
         asm_lines.extend(bytes_to_asm(ft_sr))
         asm_lines.append("")
 
-        asm_lines.append(f"; Voice {vi+1} instruments (RLE)")
+        asm_lines.append(f"; Voice {vi+1} instruments (RLE{'_wide' if is_wide else ''})")
         asm_lines.extend(bytes_to_asm(inst_data))
         asm_lines.append("")
 
@@ -648,9 +750,11 @@ def generate_full_asm(trace):
     return "\n".join(asm_lines), stats
 
 
-def _measure_player_size(ft_sizes, pw_lo_data, pw_hi_data):
+def _measure_player_size(ft_sizes, pw_lo_data, pw_hi_data, wide_voices=None):
     """Assemble player with stub data to measure code size."""
-    asm_lines = generate_player_asm()
+    if wide_voices is None:
+        wide_voices = set()
+    asm_lines = generate_player_asm(wide_voices=wide_voices)
 
     def stub_table(label, n):
         n = max(n, 1)
