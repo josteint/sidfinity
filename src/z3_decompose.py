@@ -425,7 +425,7 @@ def decompose_voice_segment(trace, voice, start_frame, end_frame,
 # =============================================================================
 
 def build_sid_from_params(param_list, orig_sid_path, out_path,
-                          freq_table=None):
+                          freq_table=None, ground_truth_trace=None):
     """Generate a SID file that plays from Z3-decomposed parameters.
 
     Strategy: pre-synthesize ALL per-frame SID register writes from the
@@ -433,6 +433,9 @@ def build_sid_from_params(param_list, orig_sid_path, out_path,
     register-replay player that steps through the table one frame at a time.
     This avoids complex row-based player logic and produces a perfectly
     correct register stream from the Z3 solution.
+
+    For segments with status='unsatisfiable' (Z3 could not decompose them),
+    the raw observed register values from ground_truth_trace are used as-is.
 
     Layout:
       $1000: init  (jmp over to init code)
@@ -445,10 +448,12 @@ def build_sid_from_params(param_list, orig_sid_path, out_path,
       [freq_lo, freq_hi, pw_lo, pw_hi, ctrl, ad, sr] * 3
 
     Args:
-        param_list:     list of decomposition dicts (one per gate segment)
-        orig_sid_path:  path to original SID (used for PSID header)
-        out_path:       output SID path
-        freq_table:     optional custom 16-bit freq table
+        param_list:          list of decomposition dicts (one per gate segment)
+        orig_sid_path:       path to original SID (used for PSID header)
+        out_path:            output SID path
+        freq_table:          optional custom 16-bit freq table
+        ground_truth_trace:  SubtuneTrace — used to fill unsatisfiable segments
+                             with raw observed register values
 
     Returns:
         True on success, False on failure.
@@ -484,6 +489,15 @@ def build_sid_from_params(param_list, orig_sid_path, out_path,
         start = seg['start_frame']
         end = seg['end_frame']
         voff = voice * 7
+
+        # For unsatisfiable segments, replay raw observed registers if available
+        if seg.get('status') == 'unsatisfiable' and ground_truth_trace is not None:
+            for f_abs in range(start, min(end, total_frames)):
+                if f_abs < ground_truth_trace.n_frames:
+                    raw = ground_truth_trace.frames[f_abs]
+                    for r in range(7):
+                        frames[f_abs][voff + r] = raw[voff + r]
+            continue
 
         bn = seg.get('base_note', 48)
         offsets = seg.get('arp_offsets', [])
@@ -626,7 +640,10 @@ def build_sid_from_params(param_list, orig_sid_path, out_path,
     lines.append('')
 
     # ---- frame table ----
-    lines.append(f'*= ${DATA_ADDR:04X}')
+    # xa65 *= does NOT pad the binary — it only sets the label address.
+    # We must emit explicit fill bytes to push the program counter to DATA_ADDR
+    # so that 'frametable' is physically located at DATA_ADDR in the binary.
+    lines.append(f'.dsb ${DATA_ADDR:04X} - *, $00  ; pad to DATA_ADDR')
     lines.append('frametable:')
     for f in range(N_FRAMES):
         row = frames[f]
@@ -657,8 +674,10 @@ def build_sid_from_params(param_list, orig_sid_path, out_path,
             print(f"ERROR: xa65 output too short ({len(player_bytes)} bytes)")
             return False
 
-        actual_load = struct.unpack('<H', player_bytes[:2])[0]
-        code = player_bytes[2:]
+        # xa65 -o outputs raw binary at the assembled load address.
+        # No load address prefix is prepended — LOAD_ADDR is the origin.
+        actual_load = LOAD_ADDR
+        code = player_bytes
 
     finally:
         try:
