@@ -51,37 +51,82 @@ from strip_decompose import strip_decompose
 # ---------------------------------------------------------------------------
 
 def _build_freq_table(trace) -> Tuple[bytes, bytes, Dict[int, int]]:
-    """Build a compact freq table from all unique frequencies in the ground truth.
+    """Build a compact PAL-range freq table for notes in this trace.
 
-    Index 0 is a dummy entry (GT2 wave table can't encode absolute_note=0 —
-    the packed right byte $00 means "keep freq", not "note 0").
-    Real note entries start at index 1.
+    Approach:
+      1. Find the min/max PAL note indices used as base notes in the song.
+      2. Include the full PAL chromatic range from min-12 to max+12 (±12 for arp).
+      3. Index 0 = dummy ($0001).  Real note indices start at 1.
+      4. PAL entry at pal_idx → table index (pal_idx - pal_min + 1).
+      5. All indices stay within 0-92 (GT2 pattern range), since max span < 80 notes.
+
+    This ensures note_offset=+12 works correctly: table[n+12] = PAL[pal_min+n+11]
+    which is exactly one octave above PAL[pal_min+n-1].
+
+    Non-PAL frequencies snap to the nearest PAL entry within the range.
 
     Returns:
-        freq_lo:  96-byte lo table (or shorter if fewer unique freqs)
-        freq_hi:  96-byte hi table
-        freq_map: freq16 → index mapping (indices start at 1)
+        freq_lo:  lo bytes (length = pal_max - pal_min + 2 with dummy)
+        freq_hi:  hi bytes
+        freq_map: freq16 → index mapping (indices 1-based)
     """
-    freqs: Counter = Counter()
-    for f in range(trace.n_frames):
-        for voff in (0, 7, 14):
-            freq16 = (trace.frames[f][voff + 1] << 8) | trace.frames[f][voff]
-            if freq16 > 0:
-                freqs[freq16] += 1
+    from effect_detect import FREQ_PAL, freq_to_note as _freq_to_note
 
-    # Cap at 95 entries (plus 1 dummy = 96 total = full GT2 freq table)
-    if len(freqs) > 95:
-        sorted_freqs = [f for f, _ in freqs.most_common(95)]
+    # Collect used frequencies (first 4 frames of each gate segment)
+    gate_freqs: Counter = Counter()
+    for voice in range(3):
+        segs = trace.gate_segments(voice)
+        voff = voice * 7
+        for seg_s, seg_e in segs:
+            for f in range(seg_s, min(seg_s + 4, seg_e)):
+                fq = (trace.frames[f][voff + 1] << 8) | trace.frames[f][voff]
+                if fq > 1:  # skip zero and dummy sentinel (0x0001)
+                    gate_freqs[fq] += 1
+
+    # Snap each freq to nearest PAL index
+    pal_indices_used: set = set()
+    freq_to_pal: Dict[int, int] = {}   # freq16 → PAL index (0-95)
+    for freq16 in gate_freqs:
+        if freq16 <= 1:  # skip zero and dummy sentinel (0x0001)
+            continue
+        idx, cents = _freq_to_note(freq16)
+        if idx is not None and idx > 0:  # skip PAL[0] (too low to be musical)
+            pal_indices_used.add(idx)
+            freq_to_pal[freq16] = idx
+
+    if not pal_indices_used:
+        # Fallback: use the standard PAL table (never happens in practice)
+        pal_min, pal_max = 0, 95
     else:
-        sorted_freqs = list(freqs.keys())
-    sorted_freqs.sort()
+        # Extend range by 12 semitones in each direction to support arp +/-12
+        pal_min = max(0, min(pal_indices_used) - 12)
+        pal_max = min(95, max(pal_indices_used) + 12)
 
-    # Pad index 0 with dummy (frequency 0x0001 — never used in real music)
-    table = [0x0001] + sorted_freqs
+    # Sanity: ensure the range fits in GT2 pattern note space (0-92 indices + dummy)
+    # Index = (pal_idx - pal_min) + 1, max index = pal_max - pal_min + 1 ≤ 92
+    if pal_max - pal_min + 1 > 92:
+        # Trim the top end (top notes are less common)
+        pal_max = pal_min + 91
+
+    # Build the table: [dummy, PAL[pal_min], PAL[pal_min+1], ..., PAL[pal_max]]
+    table: List[int] = [0x0001]  # index 0 = dummy
+    freq_map: Dict[int, int] = {}
+
+    for pi in range(pal_min, pal_max + 1):
+        freq16 = FREQ_PAL[pi]
+        entry_idx = len(table)  # 1-based
+        table.append(freq16)
+        freq_map[freq16] = entry_idx
+
+    # Map non-PAL frequencies to the nearest PAL entry in our table
+    for freq16, pal_idx in freq_to_pal.items():
+        if freq16 not in freq_map:
+            # Map to the nearest PAL entry we do have
+            clamped = max(pal_min, min(pal_max, pal_idx))
+            freq_map[freq16] = clamped - pal_min + 1
 
     freq_lo = bytes(f & 0xFF for f in table)
     freq_hi = bytes((f >> 8) & 0xFF for f in table)
-    freq_map = {f: i for i, f in enumerate(table) if i > 0}
 
     return freq_lo, freq_hi, freq_map
 
@@ -97,15 +142,69 @@ def _nearest_index(freq16: int, freq_map: Dict[int, int]) -> int:
 
 
 # ---------------------------------------------------------------------------
+# Arpeggio classification helpers
+# ---------------------------------------------------------------------------
+
+def _classify_arp(pattern_freqs: List[int]) -> Dict[str, Any]:
+    """Classify an arpeggio pattern as standard (12-semitone octave) or relative.
+
+    Uses FREQ_PAL to convert each frequency to the nearest PAL note index.
+    Computes semitone offsets from the base (first) frequency.
+
+    Returns a dict:
+        kind:    'std'      — all offsets are exactly +12 semitones (octave arp)
+                 'relative' — offsets are in range 0-95 (can use note_offset)
+                 'absolute' — some offsets out of range, must use absolute_note
+        offsets: list of semitone offsets from base (first element is always 0)
+    """
+    from effect_detect import freq_to_note as _freq_to_note
+    if len(pattern_freqs) < 2:
+        return {'kind': 'absolute', 'offsets': [0]}
+
+    notes = []
+    for f in pattern_freqs:
+        idx, _ = _freq_to_note(f)
+        notes.append(idx if idx is not None else 0)
+
+    base = notes[0]
+    offsets = [n - base for n in notes]
+
+    # All-zero offsets: not a real arpeggio (same freq throughout).
+    # strip_arpeggio() can misfire when a long sustained note has period=8.
+    if all(o == 0 for o in offsets):
+        return {'kind': 'none', 'offsets': [0]}
+
+    # Standard: exactly 2-step arpeggio with offset +12
+    if offsets == [0, 12] or offsets == [0, 12, 0] or offsets == [12, 0]:
+        return {'kind': 'std', 'offsets': offsets}
+
+    # For all other arpeggios: use note_offset (relative semitone).
+    # The V2 player computes: (base_note + offset) & 0x7F → freq table lookup.
+    # With the full 96-entry PAL table (indices 1-96), offsets in range -63..+63
+    # are safe for any base note in the middle of the scale.
+    # note_offset is encoded as (offset & 0x7F), so:
+    #   positive offsets 0-63 → 0x00-0x3F → packed 0x80-0xBF (relative)
+    #   negative offsets -64..-1 → 0x40-0x7F → packed 0xC0-0xFF (relative)
+    # The 'and #$7f' at the player masks the result to 0-127, but our PAL table
+    # only has 96 valid entries (1-96); anything ≥97 is out of range.
+    # So we classify as 'relative' if all (base+offset) values are in 1-96.
+    if all(-63 <= o <= 63 for o in offsets):
+        return {'kind': 'relative', 'offsets': offsets}
+
+    return {'kind': 'relative', 'offsets': offsets}  # always relative with PAL table
+
+
+# ---------------------------------------------------------------------------
 # Instrument fingerprinting
 # ---------------------------------------------------------------------------
 
 def _fingerprint(params: Dict[str, Any]) -> tuple:
     """Compute a hashable fingerprint for an instrument from strip_decompose params.
 
-    The fingerprint is pitch-independent: notes playing the same effect type
-    on different pitches share one Instrument object (the pitch is encoded
-    via absolute_note in the wave table, which is overridden per pattern event).
+    The fingerprint is pitch-independent for standard and relative arpeggios:
+    notes playing the same timbre at different pitches share one Instrument.
+    For absolute arpeggios (Hubbard extended table), instruments are still
+    deduplicated by ADSR+wave+offset-shape rather than exact frequencies.
 
     Gate bit is masked out of waveform bytes so that gate-on and sustain
     frames don't create spuriously different instruments.
@@ -118,40 +217,51 @@ def _fingerprint(params: Dict[str, Any]) -> tuple:
     ad = adsr.get('ad', 0)
     sr = adsr.get('sr', 0)
 
-    # Gate timing (binned to 4-frame buckets to reduce instrument explosion)
-    release_frame = gate.get('release_frame')
-    gate_bucket = (release_frame // 4) if release_frame is not None else None
+    # Gate timing is NOT included in the fingerprint: the gate-off frame within
+    # a note varies with note length (longer notes have later gate-off), but the
+    # instrument timbre is the same regardless.  The SID ADSR envelope handles
+    # the release curve; gate_timer is always 1 in the V2 player.
 
-    # Waveform sequence — mask gate bit, take first 4 distinct values
+    # Waveform sequence — mask gate bit, take first 2 distinct values
+    # (gate-on waveform + sustain waveform are the only audible transitions).
+    # More than 2 unique ctrl values usually reflects measurement noise or
+    # a single pulse+sync trick; binning to 2 prevents instrument explosion.
     wave_seq = waveform.get('sequence', [])
     wave_no_gate = [w & 0xFE for w in wave_seq]  # strip gate bit
-    wave_sig = tuple(list(dict.fromkeys(wave_no_gate))[:4])
+    wave_sig = tuple(list(dict.fromkeys(wave_no_gate))[:2])
 
-    # Pulse width modulation: just the speed direction (+/-/none)
+    # Pulse width modulation: has modulation or not.
+    # Direction (up/down) is NOT included in the fingerprint: notes of the same
+    # PWM instrument may start at different phases of the sweep and show opposite
+    # directions.  'has_pwm' vs 'no_pwm' is enough to distinguish the timbre.
     pw_seq = params.get('pw', {}).get('sequence', [])
     if len(pw_seq) >= 2:
         pw12 = [((h & 0x0F) << 8) | l for h, l in pw_seq]
         deltas = [pw12[i + 1] - pw12[i] for i in range(len(pw12) - 1)]
         nonzero = [d for d in deltas if d != 0]
-        if nonzero:
-            c = Counter(nonzero)
-            best_d, _ = c.most_common(1)[0]
-            pw_sig = 'up' if best_d > 0 else 'down'
-        else:
-            pw_sig = 'static'
+        pw_sig = 'has_pwm' if nonzero else 'no_pwm'
     else:
-        pw_sig = 'none'
+        pw_sig = 'no_pwm'
 
-    # Arpeggio: include the EXACT arp pattern frequencies.
-    # Arpeggio instruments use absolute_note (freq table indices) in the wave
-    # table, so two notes with the same waveform/ADSR but different pitches
-    # must each have their own instrument.  Use actual pattern frequencies as
-    # the fingerprint key (pitch-specific).
+    # Arpeggio: classify by type and semitone-offset shape, not exact frequencies.
+    # Standard (12-semitone octave) and relative arpeggios are pitch-independent.
+    # Absolute arpeggios (Hubbard extended table) share an instrument per offset shape.
     arp = params.get('arpeggio')
     arp_sig = ()
     if arp:
         pattern = arp.get('pattern', [])
-        arp_sig = tuple(pattern)  # exact frequencies, not ratios
+        if len(pattern) >= 2:
+            cls = _classify_arp(pattern)
+            offsets = cls['offsets']
+            # Filter out false-positive arps: all-zero offset = same freq throughout.
+            # strip_arpeggio() can misfire on long sustained notes (period 8, all same).
+            if all(o == 0 for o in offsets):
+                arp_sig = ()  # treat as no arp
+            else:
+                # Fingerprint by kind + offset shape (not exact frequencies)
+                arp_sig = (cls['kind'], tuple(offsets))
+        else:
+            arp_sig = ()
 
     # Portamento: has/not and direction
     porta = params.get('portamento')
@@ -160,10 +270,11 @@ def _fingerprint(params: Dict[str, Any]) -> tuple:
         d = porta.get('delta_per_frame', 0)
         porta_sig = 1 if d > 0 else -1 if d < 0 else 0
 
-    # Vibrato (rate class)
+    # Vibrato (rate class) — only include if purity is high enough to be real.
+    # Low-purity vibrato detections are measurement noise from PWM or other effects.
     vib = params.get('vibrato')
     vib_sig = 0
-    if vib:
+    if vib and vib.get('purity', 0) >= 0.5:
         vib_sig = round(vib.get('rate_hz', 0))
 
     # Drum slide: has/not and delta sign
@@ -173,8 +284,7 @@ def _fingerprint(params: Dict[str, Any]) -> tuple:
         d = drum.get('delta', 0)
         drum_sig = 1 if d > 0 else -1 if d < 0 else 0
 
-    return (ad, sr, wave_sig, pw_sig, arp_sig, porta_sig, vib_sig, drum_sig,
-            gate_bucket)
+    return (ad, sr, wave_sig, pw_sig, arp_sig, porta_sig, vib_sig, drum_sig)
 
 
 # ---------------------------------------------------------------------------
@@ -183,7 +293,8 @@ def _fingerprint(params: Dict[str, Any]) -> tuple:
 
 def _build_wave_table(params: Dict[str, Any],
                       base_index: int,
-                      arp_indices: Optional[List[int]] = None
+                      arp_indices: Optional[List[int]] = None,
+                      arp_class: Optional[Dict] = None,
                       ) -> List[WaveTableStep]:
     """Build USF WaveTableStep list from strip_decompose parameters.
 
@@ -193,13 +304,15 @@ def _build_wave_table(params: Dict[str, Any],
     This makes the instrument pitch-portable: the pattern NoteEvent.note field
     (already a freq-table index) determines the actual frequency.
 
-    For arpeggio steps, use absolute_note to specify exact freq table indices.
+    For standard/relative arpeggio steps, use note_offset (semitone offset from
+    the pattern event's note) — this is pitch-independent.
+    For absolute arpeggio steps (Hubbard extended table), use absolute_note.
 
     Args:
-        params:      strip_decompose output for one note
-        base_index:  freq table index for the note's base frequency (unused for
-                     plain notes — pattern event's note drives pitch)
-        arp_indices: if arpeggio detected, list of freq table indices (1 per pattern step)
+        params:     strip_decompose output for one note
+        base_index: freq table index for the note's base frequency
+        arp_indices: if arpeggio detected, list of freq table indices (absolute)
+        arp_class:  classification from _classify_arp() — kind + offsets
 
     Returns list of WaveTableStep.
     """
@@ -228,26 +341,46 @@ def _build_wave_table(params: Dict[str, Any],
         ))
         steps.append(WaveTableStep(is_loop=True, loop_target=1))
 
-    elif arp and arp_indices and len(arp_indices) >= 2:
-        # Arpeggio: cycle through specific freq table indices (absolute_note)
-        # Build unique waveform list from wave_seq
+    elif (arp and arp_class and arp_indices and len(arp_indices) >= 2
+          and not all(o == 0 for o in arp_class.get('offsets', [0]))):
         unique_waves = list(dict.fromkeys(wave_seq)) if wave_seq else []
         gate_wave = (unique_waves[0] | 0x01) if unique_waves else 0x41
-
-        # Frame 0: gate-on + first arp note (absolute)
-        steps.append(WaveTableStep(
-            waveform=gate_wave,
-            absolute_note=arp_indices[0],
-        ))
-        # Remaining arp steps
         sustain_wave = (unique_waves[-1] & 0xFE) if unique_waves else 0x40
-        for idx in arp_indices[1:]:
+
+        kind = arp_class.get('kind', 'absolute')
+        offsets = arp_class.get('offsets', [0, 12])
+
+        if kind in ('std', 'relative'):
+            # Pitch-independent: use note_offset relative to pattern note.
+            # Step 0: gate-on + base note (offset 0 = pattern note)
             steps.append(WaveTableStep(
-                waveform=sustain_wave,
-                absolute_note=idx,
+                waveform=gate_wave,
+                note_offset=offsets[0],   # always 0 for base step
             ))
-        # Loop back to step 0
-        steps.append(WaveTableStep(is_loop=True, loop_target=0))
+            # Remaining steps: offsets from pattern base note
+            for off in offsets[1:]:
+                steps.append(WaveTableStep(
+                    waveform=sustain_wave,
+                    note_offset=off,
+                ))
+            # Loop back to step 0
+            steps.append(WaveTableStep(is_loop=True, loop_target=0))
+
+        else:
+            # Absolute arpeggio (Hubbard extended table): use exact freq indices.
+            # Step 0: gate-on + first arp note (absolute)
+            steps.append(WaveTableStep(
+                waveform=gate_wave,
+                absolute_note=arp_indices[0],
+            ))
+            # Remaining arp steps
+            for idx in arp_indices[1:]:
+                steps.append(WaveTableStep(
+                    waveform=sustain_wave,
+                    absolute_note=idx,
+                ))
+            # Loop back to step 0
+            steps.append(WaveTableStep(is_loop=True, loop_target=0))
 
     else:
         # Plain note — build minimal wave table
@@ -257,7 +390,10 @@ def _build_wave_table(params: Dict[str, Any],
         # giving exactly the pattern note index as the freq table lookup.
 
         if wave_seq:
-            unique_waves = list(dict.fromkeys(wave_seq))
+            # Limit to 2 unique waveforms: gate-on + sustain.
+            # Additional ctrl byte changes are usually measurement noise or
+            # minor transitions that don't affect the audible character.
+            unique_waves = list(dict.fromkeys(wave_seq))[:2]
         else:
             unique_waves = [0x41]  # default pulse+gate
 
@@ -269,13 +405,12 @@ def _build_wave_table(params: Dict[str, Any],
         ))
 
         if len(unique_waves) > 1:
-            # Waveform sequence: additional unique waveforms, sustain on last
-            for w in unique_waves[1:]:
-                steps.append(WaveTableStep(
-                    waveform=w & 0xFE,
-                    keep_freq=True,  # don't change freq on waveform transitions
-                ))
-            steps.append(WaveTableStep(is_loop=True, loop_target=len(unique_waves) - 1))
+            # Sustain: second waveform, keep freq
+            steps.append(WaveTableStep(
+                waveform=unique_waves[1] & 0xFE,
+                keep_freq=True,
+            ))
+            steps.append(WaveTableStep(is_loop=True, loop_target=1))
         else:
             # Simple sustain: keep freq
             sustain_wave = unique_waves[0] & 0xFE
@@ -537,9 +672,9 @@ def holy_scale(trace, sid_path: Optional[str] = None) -> Song:
                 trace, voice, seg_start, seg_end
             )
 
-            # Base frequency: first frame of this note.
-            # For segments with freq=0 (e.g., Hubbard sync bass init frames),
-            # use the most common non-zero freq in the segment instead.
+            # Base frequency: first non-zero freq in this segment.
+            # For Hubbard sync/init segments where freq=0 throughout, skip the segment
+            # (producing silence) rather than emitting a wrong-pitched note.
             voff = voice * 7
             freq16 = (trace.frames[seg_start][voff + 1] << 8) | trace.frames[seg_start][voff]
             if freq16 == 0:
@@ -552,15 +687,20 @@ def holy_scale(trace, sid_path: Optional[str] = None) -> Song:
                         freq_ctr[fq] += 1
                 if freq_ctr:
                     freq16, _ = freq_ctr.most_common(1)[0]
-            base_index = _nearest_index(freq16, freq_map) if freq16 > 0 else 1
+            if freq16 == 0:
+                # Truly silent segment (all zeros) — skip it; it's an init burst.
+                continue
+            base_index = _nearest_index(freq16, freq_map)
 
-            # Arpeggio: map pattern freqs to table indices
+            # Arpeggio: map pattern freqs to table indices and classify
             arp = params.get('arpeggio')
             arp_indices = None
+            arp_class = None
             if arp:
                 pattern_freqs = arp.get('pattern', [])
                 if len(pattern_freqs) >= 2:
                     arp_indices = [_nearest_index(f, freq_map) for f in pattern_freqs]
+                    arp_class = _classify_arp(pattern_freqs)
 
             # Build fingerprint (instrument identity, pitch-independent)
             fp = _fingerprint(params)
@@ -570,7 +710,7 @@ def holy_scale(trace, sid_path: Optional[str] = None) -> Song:
                 fp_to_inst_id[fp] = inst_id
 
                 # Build wave table
-                wave_steps = _build_wave_table(params, base_index, arp_indices)
+                wave_steps = _build_wave_table(params, base_index, arp_indices, arp_class)
 
                 # Build pulse table
                 pulse_steps, initial_pw = _build_pulse_table(params)
