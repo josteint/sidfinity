@@ -23,10 +23,10 @@ def simple_codegen(song, output_path, orig_sid_path=None):
     n_inst = len(instruments)
 
     BASE = 0x1000
-    # ZP per voice: 9 bytes
+    # ZP per voice: 10 bytes
     # +0 tick_ctr, +1/+2 note_ptr, +3/+4 wave_ptr, +5 pw_lo, +6 current_note,
-    # +7 pw_speed, +8 release_ctr (counts down to ADSR zero)
-    ZP = [0x80, 0x89, 0x92]
+    # +7 pw_speed, +8 prev_inst_id, +9 saved_pw_lo
+    ZP = [0x80, 0x8A, 0x94]
     SOFF = [0, 7, 14]
 
     lines = []
@@ -65,17 +65,16 @@ def simple_codegen(song, output_path, orig_sid_path=None):
 
         L(f'; --- Voice {v+1} ---')
 
-        # Hard restart: zero ADSR 3 frames before note ends
-        L(f'        lda ${z:02X}')           # tick_ctr
-        L(f'        cmp #4')                  # check BEFORE decrement (so 3 frames remain)
+        L(f'        dec ${z:02X}')
+        L(f'        beq v{v}new')
+        # Hard restart: zero ADSR when tick_ctr reaches 3 (after dec)
+        L(f'        lda ${z:02X}')
+        L(f'        cmp #3')
         L(f'        bne v{v}nohr')
         L(f'        lda #0')
         L(f'        sta $D4{so+5:02X}')
         L(f'        sta $D4{so+6:02X}')
         L(f'v{v}nohr')
-
-        L(f'        dec ${z:02X}')
-        L(f'        beq v{v}new')
         L(f'        jmp v{v}wave')
         L('')
 
@@ -110,16 +109,45 @@ def simple_codegen(song, output_path, orig_sid_path=None):
         L(f'        sta $D4{so+5:02X}')
         L(f'        lda isr,x')
         L(f'        sta $D4{so+6:02X}')
-        # PW: only init if instrument changed (compare with previous)
-        L(f'        cpx ${z+8:02X}')        # compare with previous inst_id
-        L(f'        beq v{v}nopw')           # same instrument, keep PW running
-        L(f'        stx ${z+8:02X}')        # save new inst_id
+        # PW logic: 5 cases
+        # 1) same instrument → keep running
+        # 2) first note (prev=$FF) → init from instrument
+        # 3) pulse→pulse (diff inst) → keep running
+        # 4) pulse→noise → save pw_lo, init noise PW
+        # 5) noise→pulse → restore pw_lo
+        L(f'        cpx ${z+8:02X}')          # same instrument?
+        L(f'        beq v{v}nopw')
+        L(f'        lda ${z+8:02X}')
+        L(f'        cmp #$FF')                # first note?
+        L(f'        beq v{v}pwini')
+        # Check noise transitions
+        L(f'        lda ipwh,x')
+        L(f'        cmp #$02')
+        L(f'        beq v{v}tons')
+        # New is pulse — was previous noise?
+        L(f'        lda $D4{so+3:02X}')
+        L(f'        cmp #$02')
+        L(f'        bne v{v}nopw')            # pulse→pulse: keep PW running
+        # noise→pulse: restore saved pw_lo
+        L(f'        lda ${z+9:02X}')
+        L(f'        sta ${z+5:02X}')
+        L(f'        sta $D4{so+2:02X}')
+        L(f'        lda ipwh,x')
+        L(f'        sta $D4{so+3:02X}')
+        L(f'        jmp v{v}nopw')
+        L(f'v{v}tons')
+        # pulse→noise: save pw_lo, set noise PW
+        L(f'        lda ${z+5:02X}')
+        L(f'        sta ${z+9:02X}')
+        L(f'v{v}pwini')
+        # Init PW from instrument (first note or to-noise)
         L(f'        lda ipwl,x')
         L(f'        sta $D4{so+2:02X}')
         L(f'        sta ${z+5:02X}')
         L(f'        lda ipwh,x')
         L(f'        sta $D4{so+3:02X}')
         L(f'v{v}nopw')
+        L(f'        stx ${z+8:02X}')          # update prev_inst_id
         # PW speed (always update — new instrument may have different speed)
         L(f'        lda ipws,x')
         L(f'        sta ${z+7:02X}')
