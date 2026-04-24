@@ -478,7 +478,19 @@ def emit_wave_table(ctx):
             ctx.inst('cmp', '#$e0')
             ctx.inst('bcs', 'ce_wadv')
         else:
+            # Hubbard-accurate loop: $FF is the loop marker for the CURRENT step.
+            # When the loop step is reached, reposition the pointer and consume
+            # 1 frame without writing to SID and without running effects.
+            # The SID retains the previous frame's value (no ce_wdone/vibrato).
             ctx.inst('beq', 'ce_wadv', comment='$00 = no waveform change')
+            ctx.inst('cmp', '#LOOPTBL', comment='Hubbard: current step = loop marker?')
+            ctx.inst('bne', 'ce_wnot_loop', comment='not loop: write waveform')
+            # Loop handler: reposition pointer, skip SID write AND effects.
+            ctx.label('ce_wloop')
+            ctx.inst('lda', 'mt_notetbl-1,y', comment='loop target from right col')
+            ctx.inst('sta', 'mt_chnwaveptr,x')
+            ctx.inst('jmp', 'ce_pulse', comment='no SID write, no effects — go to pulse')
+            ctx.label('ce_wnot_loop')
         ctx.inst('sta', 'mt_chnwave,x')
 
     # Advance pointer
@@ -491,12 +503,14 @@ def emit_wave_table(ctx):
         # Simple path: read note at current Y, then advance
         ctx.inst('lda', 'mt_notetbl-1,y', comment='note at current pos')
         ctx.inst('sta', 'mt_wv_optr', comment='stash note value')
-    ctx.inst('lda', 'mt_wavetbl,y')
-    ctx.inst('cmp', '#LOOPTBL')
-    ctx.inst('bne', 'ce_wnj')
-    ctx.inst('lda', 'mt_notetbl,y')
-    ctx.inst('sta', 'mt_chnwaveptr,x')
-    ctx.inst('jmp', 'ce_wpost')
+    if ctx.has(WAVE_DELAY):
+        # WAVE_DELAY: read-ahead loop detection (loop marker is next step's left col)
+        ctx.inst('lda', 'mt_wavetbl,y')
+        ctx.inst('cmp', '#LOOPTBL')
+        ctx.inst('bne', 'ce_wnj')
+        ctx.inst('lda', 'mt_notetbl,y')
+        ctx.inst('sta', 'mt_chnwaveptr,x')
+        ctx.inst('jmp', 'ce_wpost')
     ctx.label('ce_wnj')
     ctx.inst('iny')
     ctx.inst('tya')
@@ -980,8 +994,17 @@ def emit_gate_timer(ctx):
     ctx.section('gate timer')
     ctx.inst('lda', 'mt_chncounter,x')
     ctx.cmp_gate_timer()
-    ctx.inst('beq', 'ce_getnote')
+    ctx.inst('beq', 'ce_hr')
     ctx.inst('jmp', 'ce_ldregs')
+    # Hard restart: clear gate and zero ADSR one frame before tick-0.
+    # Does NOT read pattern — new note fires at tick-0 (ce_nonew → ce_getnote).
+    ctx.label('ce_hr')
+    ctx.inst('lda', '#0')
+    ctx.inst('sta', 'mt_chnad,x', comment='HR: zero stored AD')
+    ctx.inst('sta', 'mt_chnsr,x', comment='HR: zero stored SR')
+    ctx.inst('lda', '#$fe', comment='HR: gate-off mask (preserves waveform bits)')
+    ctx.inst('sta', 'mt_chngate,x')
+    ctx.inst('jmp', 'ce_ldregs', comment='HR: skip pattern read, go write SID regs')
 
 
 # =============================================================================
@@ -1236,14 +1259,11 @@ def emit_tick0_path(ctx):
     ctx.inst('sta', 'mt_chngatetimer,x')
     ctx.inst('jmp', 'ce_getnote', comment='V3: read first note from new pattern')
     ctx.label('ce_nonew')
-    # Gate timer
-    ctx.inst('ldy', 'mt_chninstr,x')
-    ctx.inst('lda', 'mt_insgatetimer-1,y')
-    ctx.inst('sta', 'mt_chngatetimer,x')
-    # New note?
-    ctx.inst('lda', 'mt_chnnewnote,x')
-    ctx.inst('bne', 'ce_newn')
-    ctx.inst('jmp', 'ce_nnn')
+    # Tick-0, pattern in progress: read next note from pattern.
+    # ce_getnote decrements pkrest if a packed rest is active;
+    # when pkrest reaches 0, ce_rest fires → ce_newn (new note at tick-0).
+    # This matches original Hubbard: new notes fire at tick-0, not gate-timer.
+    ctx.inst('jmp', 'ce_getnote')
 
 
 def emit_new_note_init(ctx):

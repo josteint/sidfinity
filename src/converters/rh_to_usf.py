@@ -166,9 +166,11 @@ def _map_instrument(rh_instr, instr_id, upper_nibble_arp=False, drum_freq_slide=
     inst.pulse_width = rh_instr.pulse_width
     inst.first_wave = rh_instr.ctrl  # first-frame waveform = ctrl byte
 
-    # Hard restart: Hubbard clears gate + zeros ADSR 2 frames before note end
-    # Write order: Waveform → AD → SR
-    inst.gate_timer = 2
+    # Hard restart: Hubbard clears gate + zeros ADSR 1 frame before note end.
+    # With reload=tempo-1=2 (DEFAULTTEMPO-1), the counter goes: 2→1→0(tick).
+    # Gate timer fires when counter==1, which is 1 frame before tick. Use 1.
+    # (Old value=2 fired immediately after reload, 2 frames too early.)
+    inst.gate_timer = 1
     inst.hr_method = 'gate'
 
     # Vibrato — store the raw depth. Speed table entries are built later
@@ -285,7 +287,7 @@ def _map_instrument(rh_instr, instr_id, upper_nibble_arp=False, drum_freq_slide=
 
 
 def _map_pattern(rh_pattern, usf_pat_id, tempo_divisor=1, interleaved_freq=False,
-                 pitch_offset=0, dur_scale=1.0):
+                 pitch_offset=0, dur_scale=1.0, ext_freq_lo=None):
     """Convert a Hubbard pattern to USF Pattern.
 
     tempo_divisor: when natural tempo < 3, we multiply tempo by M and
@@ -329,7 +331,13 @@ def _map_pattern(rh_pattern, usf_pat_id, tempo_divisor=1, interleaved_freq=False
                 # Emit as TIE (maintain previous frequency). If we have freq table
                 # info, try to resolve the actual frequency; otherwise just TIE.
                 resolved = False
-                if hasattr(rh_pattern, '_freq_table_info') and rh_pattern._freq_table_info is not None:
+                # First try: if the extended freq table covers this pitch index,
+                # emit as absolute_note. This preserves the exact Hubbard freq
+                # (arpeggio state variable trick).
+                if ext_freq_lo is not None and raw_pitch < len(ext_freq_lo):
+                    usf_note = raw_pitch  # absolute note index in extended table
+                    resolved = True
+                if not resolved and hasattr(rh_pattern, '_freq_table_info') and rh_pattern._freq_table_info is not None:
                     binary, load_addr, ft_addr = rh_pattern._freq_table_info
                     byte_off = ft_addr - load_addr + note.pitch * 2
                     if 0 <= byte_off + 1 < len(binary):
@@ -613,7 +621,12 @@ def rh_to_usf(sid_path, subtune=None):
     if measured_fpt is not None and natural_tempo >= 3:
         song.tempo = natural_tempo
         song._tempo_divisor = 1
-        song._dur_scale = measured_fpt / natural_tempo
+        # When measured_fpt / natural_tempo is within 2% of 1.0, treat as
+        # an exact integer ratio (sampling error in short measurements).
+        # Using a slightly-off scale (e.g. 0.995) causes accumulated drift
+        # over multiple song loops, making long-duration comparisons fail.
+        _ratio = measured_fpt / natural_tempo
+        song._dur_scale = None if abs(_ratio - 1.0) < 0.02 else _ratio
     elif natural_tempo >= 3:
         song.tempo = natural_tempo
         song._tempo_divisor = 1
@@ -853,9 +866,13 @@ def rh_to_usf(sid_path, subtune=None):
             _binary = _payload
         _load_addr = _la
         # Find freq table (interleaved format: lo, hi, lo, hi...)
-        # Search for the known interleaved freq bytes
-        PAL_INTERLEAVED = bytes([0x17, 0x01, 0x27, 0x01])  # C1 lo, C1 hi, C#1 lo, C#1 hi
-        pos = _binary.find(PAL_INTERLEAVED)
+        # Search for known interleaved freq bytes. Hubbard uses 0x16 (not PAL 0x17)
+        # for the first note, so try both patterns.
+        HUB_INTERLEAVED = bytes([0x16, 0x01, 0x27, 0x01])  # Hubbard C0 lo, hi, C#0 lo, hi
+        PAL_INTERLEAVED = bytes([0x17, 0x01, 0x27, 0x01])  # PAL C1 lo, C1 hi, C#1 lo, C#1 hi
+        pos = _binary.find(HUB_INTERLEAVED)
+        if pos < 0:
+            pos = _binary.find(PAL_INTERLEAVED)
         if pos >= 0:
             _ft_addr = _la + pos
         elif result.freq_table_addr:
@@ -884,7 +901,8 @@ def rh_to_usf(sid_path, subtune=None):
             usf_id = len(song.patterns)
             pat_maps[xpose][rh_pat.index] = usf_id
             usf_pat = _map_pattern(rh_pat, usf_id, tempo_div, interleaved_freq,
-                                   pitch_offset=xpose, dur_scale=dur_scale)
+                                   pitch_offset=xpose, dur_scale=dur_scale,
+                                   ext_freq_lo=song.freq_lo)
             song.patterns.append(usf_pat)
 
     # Per-voice pattern map: voice_idx → {rh_idx: usf_id}
