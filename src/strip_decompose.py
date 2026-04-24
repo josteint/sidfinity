@@ -84,8 +84,8 @@ ZP_VOICE = [
 ZP_FP_LO = 0x90
 ZP_FP_HI = 0x91
 
-# Player load address
-PLAYER_BASE = 0x1000
+# Player load address -- $0400 to maximise available RAM (avoids ZP/stack at $00-$FF)
+PLAYER_BASE = 0x0400
 
 
 # ---------------------------------------------------------------------------
@@ -515,6 +515,10 @@ def generate_player_asm(freq_table: FreqTable,
         [length_lo, length_hi, data_lo, data_hi]
     where data_ptr points to the instrument block.
 
+    Special note stream opcodes:
+        length_lo=$FF -- end of stream (silence)
+        length_lo=$FE -- loop-back: next 2 bytes are new np (lo, hi)
+
     Instrument block per note (6 bytes per frame):
         [freq_idx, ctrl, pw_lo, pw_hi, ad, sr]
     where freq_idx indexes into freq_lo_tbl / freq_hi_tbl.
@@ -535,7 +539,7 @@ def generate_player_asm(freq_table: FreqTable,
         freq_lo_tbl   N bytes
         freq_hi_tbl   N bytes
         inst_data     instrument blocks
-        ns1,ns2,ns3   note streams (4 bytes per note + $FF terminator)
+        ns1,ns2,ns3   note streams (4 bytes per note + terminator)
     """
 
     fc_lo = filter_frame[0]
@@ -614,7 +618,20 @@ def generate_player_asm(freq_table: FreqTable,
         asm.append(f"        ldy #$00")
         asm.append(f"        lda (${np_lo:02X}),y")
         asm.append(f"        cmp #$FF")
-        asm.append(f"        beq {vlabel}_done")   # end of stream
+        asm.append(f"        beq {vlabel}_done")   # $FF = end of stream (silence)
+        asm.append(f"        cmp #$FE")
+        asm.append(f"        bne {vlabel}_normal_note")   # $FE = loop-back
+
+        # $FE: load new note-stream pointer from next 2 bytes, then re-read
+        asm.append(f"        iny")
+        asm.append(f"        lda (${np_lo:02X}),y")   # new np_lo
+        asm.append(f"        tax")
+        asm.append(f"        iny")
+        asm.append(f"        lda (${np_lo:02X}),y")   # new np_hi
+        asm.append(f"        sta ${np_hi:02X}")
+        asm.append(f"        stx ${np_lo:02X}")
+        asm.append(f"        jmp {vlabel}_next_note")
+        asm.append(f"{vlabel}_normal_note")
 
         # length_lo in A, save to nl (using 16-bit length split across 2 bytes)
         asm.append(f"        sta ${nl:02X}")
@@ -759,7 +776,8 @@ class InstrumentPool:
 def strip_to_sid(sid_path: str, output_path: str,
                  subtune: int = 1,
                  max_frames: Optional[int] = None,
-                 progress: bool = True) -> Dict[str, Any]:
+                 progress: bool = True,
+                 detect_loop: bool = True) -> Dict[str, Any]:
     """Decompose a SID subtune via iterative stripping and produce a
     register-perfect, compact rebuilt SID.
 
@@ -769,6 +787,8 @@ def strip_to_sid(sid_path: str, output_path: str,
         subtune:     1-indexed subtune number
         max_frames:  override max frames (default: HVSC duration + 10%)
         progress:    print progress messages
+        detect_loop: stop early when a loop is detected (default True).
+                     Set False to capture the full max_frames duration.
 
     Returns:
         stats dict with size, match rate, and decomposition summary.
@@ -783,7 +803,7 @@ def strip_to_sid(sid_path: str, output_path: str,
         print("[SD] Capturing ground truth...")
     sid_trace = capture_sid(sid_path, subtunes=[subtune],
                             max_frames=max_frames,
-                            detect_loop=True, progress=progress)
+                            detect_loop=detect_loop, progress=progress)
     if not sid_trace.subtunes:
         raise RuntimeError(f"No subtune {subtune} captured")
     trace = sid_trace.subtunes[0]
@@ -801,7 +821,13 @@ def strip_to_sid(sid_path: str, output_path: str,
 
     # Note streams: list of (length, data_addr_placeholder) per voice
     # We'll fill data_addr after computing inst_pool layout
+    # Each entry: (length, inst_idx)
     voice_note_seqs: List[List[Tuple[int, int]]] = [[], [], []]  # (length, inst_idx)
+    # For loop support: note index in each voice's stream where loop_frame falls
+    # (the note whose seg_start <= loop_frame, or the first note with seg_start == loop_frame)
+    voice_loop_note_idx: List[Optional[int]] = [None, None, None]
+
+    loop_frame = trace.loop_frame  # may be None (no loop)
 
     for voice in range(3):
         segs = trace.gate_segments(voice)
@@ -812,6 +838,18 @@ def strip_to_sid(sid_path: str, output_path: str,
             length = seg_end - seg_start
             if length == 0:
                 continue
+
+            note_idx = len(voice_note_seqs[voice])
+
+            # Mark loop target: the note whose segment starts at or contains loop_frame
+            if loop_frame is not None and voice_loop_note_idx[voice] is None:
+                if seg_start >= loop_frame:
+                    # This note starts at or after loop_frame -- use it as loop target
+                    voice_loop_note_idx[voice] = note_idx
+                elif seg_start < loop_frame < seg_end:
+                    # loop_frame falls within this note; use the note as loop target
+                    # (slight imprecision: we loop back a few frames early, but avoids splitting)
+                    voice_loop_note_idx[voice] = note_idx
 
             # Decompose this note
             params, residual, original = strip_decompose(trace, voice, seg_start, seg_end)
@@ -839,6 +877,11 @@ def strip_to_sid(sid_path: str, output_path: str,
     if progress:
         print(f"[SD] Freq table: {len(freq_table)} unique frequencies")
         print(f"[SD] Instrument pool: {len(inst_pool)} unique instruments")
+        if loop_frame is not None:
+            for vi in range(3):
+                lni = voice_loop_note_idx[vi]
+                print(f"[SD] Voice {vi+1} loop note idx: {lni} "
+                      f"(frame {loop_frame}, total notes {len(voice_note_seqs[vi])})")
 
     # Step 3: Compute layout
     # We need to know where inst_data and note streams go.
@@ -872,6 +915,8 @@ def strip_to_sid(sid_path: str, output_path: str,
     stub += "\nfreq_lo_tbl\n        .byte $00\nfreq_hi_tbl\n        .byte $00\n"
     stub += "inst_data_start\n        .byte $00\n"
     stub += "ns1\n        .byte $FF\nns2\n        .byte $FF\nns3\n        .byte $FF\n"
+    # Stub uses $FF terminators (1 byte each = 6 stub bytes total: freq_lo, freq_hi,
+    # inst_data_start, ns1, ns2, ns3 -- each 1 byte)
 
     with tempfile.NamedTemporaryFile(suffix='.s', mode='w', delete=False) as tf:
         tf.write(stub)
@@ -915,16 +960,40 @@ def strip_to_sid(sid_path: str, output_path: str,
 
     ns_base = addr  # note streams start here
 
-    # Build note stream bytes
+    # Build note stream bytes; compute where each voice stream starts
+    # (needed to resolve loop-back addresses)
+    ns_base_per_voice = [0, 0, 0]
+    running_ns_base = ns_base
+    for vi in range(3):
+        ns_base_per_voice[vi] = running_ns_base
+        n_notes = len(voice_note_seqs[vi])
+        has_loop = (voice_loop_note_idx[vi] is not None and
+                    voice_loop_note_idx[vi] < n_notes)
+        term_size = 3 if has_loop else 1  # $FE lo hi or $FF
+        running_ns_base += n_notes * 4 + term_size
+
     ns_bytes: List[bytearray] = [bytearray(), bytearray(), bytearray()]
     for vi in range(3):
-        for length, inst_idx in voice_note_seqs[vi]:
+        loop_note = voice_loop_note_idx[vi]
+        loop_target_addr = None
+        if loop_note is not None and loop_note < len(voice_note_seqs[vi]):
+            # Address of the loop-target note = ns_base_per_voice[vi] + loop_note * 4
+            loop_target_addr = ns_base_per_voice[vi] + loop_note * 4
+
+        for note_i, (length, inst_idx) in enumerate(voice_note_seqs[vi]):
             iaddr = inst_addr_map[inst_idx]
             ns_bytes[vi].append(length & 0xFF)
             ns_bytes[vi].append(0)              # length_hi always 0 (<= 255 frames)
             ns_bytes[vi].append(iaddr & 0xFF)
             ns_bytes[vi].append((iaddr >> 8) & 0xFF)
-        ns_bytes[vi].append(0xFF)  # end-of-stream terminator
+
+        if loop_target_addr is not None:
+            # $FE lo hi -- jump back to loop start
+            ns_bytes[vi].append(0xFE)
+            ns_bytes[vi].append(loop_target_addr & 0xFF)
+            ns_bytes[vi].append((loop_target_addr >> 8) & 0xFF)
+        else:
+            ns_bytes[vi].append(0xFF)  # end-of-stream terminator
 
     # Step 4: Generate full assembly
     if progress:
@@ -1009,6 +1078,8 @@ def strip_to_sid(sid_path: str, output_path: str,
 
     stats = {
         'n_frames': trace.n_frames,
+        'loop_frame': loop_frame,
+        'loop_length': trace.loop_length,
         'n_freqs': n_freqs,
         'n_instruments': len(inst_pool),
         'total_notes': total_notes,
