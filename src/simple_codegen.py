@@ -115,6 +115,10 @@ def simple_codegen(song, output_path, orig_sid_path=None):
         L(f'        lda #0')
         L(f'        sta $D4{so+5:02X}')
         L(f'        sta $D4{so+6:02X}')
+        # Also clear gate bit (bit 0) for proper SID envelope reset
+        L(f'        lda $D4{so+4:02X}')
+        L(f'        and #$FE')
+        L(f'        sta $D4{so+4:02X}')
         L(f'v{v}nohr')
         L(f'        jmp v{v}wave')
         L('')

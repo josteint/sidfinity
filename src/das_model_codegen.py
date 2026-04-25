@@ -166,17 +166,21 @@ def build_instrument(rh_inst, inst_id):
     # --- Wave table ---
     wave = []
     if rh_inst.has_drum and rh_inst.has_arpeggio:
-        # Case 1: drum+arp — gate, noise, noise, sustain (loop at step 3)
+        # Case 1: drum+arp — noise burst + alternating arp offsets
         wave.append(WaveTableStep(waveform=ctrl | 0x01, note_offset=0))
+        wave.append(WaveTableStep(waveform=0x80, note_offset=12))
         wave.append(WaveTableStep(waveform=0x80, note_offset=0))
-        wave.append(WaveTableStep(waveform=0x80, note_offset=0))
+        wave.append(WaveTableStep(waveform=ctrl & 0xFE, note_offset=12))
         wave.append(WaveTableStep(waveform=ctrl & 0xFE, note_offset=0))
-        wave.append(WaveTableStep(is_loop=True, loop_target=3))  # loop to step 3
+        wave.append(WaveTableStep(is_loop=True, loop_target=3))
     elif rh_inst.has_drum:
-        # Case 2: drum — gate, sustain (loop at step 1)
+        # Case 2: drum without arp — noise burst, NO arp offsets
+        # ALL drum instruments have noise burst on frames 1-2
         wave.append(WaveTableStep(waveform=ctrl | 0x01, note_offset=0))
+        wave.append(WaveTableStep(waveform=0x80, note_offset=0))
+        wave.append(WaveTableStep(waveform=0x80, note_offset=0))
         wave.append(WaveTableStep(waveform=ctrl & 0xFE, note_offset=0))
-        wave.append(WaveTableStep(is_loop=True, loop_target=1))  # loop to step 1
+        wave.append(WaveTableStep(is_loop=True, loop_target=3))
     else:
         # Case 3: non-drum — gate on normally, gate off in HR zone
         # simple_codegen will use this table for wave stepping.

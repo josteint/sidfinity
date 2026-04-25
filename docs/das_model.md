@@ -69,10 +69,14 @@ This applies to both noise instruments (ctrl=$81) and non-noise (ctrl=$41, $15, 
 **Case 2: Drum without arpeggio** (has_drum AND NOT has_arpeggio):
 ```
 δ=0: ctrl | 0x01 (gate on, native waveform)
-δ≥1: ctrl & $FE (gate off, KEEP native waveform — NO noise burst)
+δ=1: $80 (noise burst)
+δ=2: $80 (noise burst)
+δ≥3: ctrl & $FE (sustain, gate off)
 ```
-The drum effect slides freq_hi down but does NOT produce a noise burst.
-The native waveform (pulse+sync, etc.) is maintained throughout.
+ALL drum instruments produce noise burst on frames 1-2, regardless of
+whether they have arpeggio. (Earlier spec incorrectly said no noise burst
+for non-arp drums — this was based on testing only the init note which
+is special.)
 
 **Case 3: Non-drum instruments** (has_drum=False):
 ```
