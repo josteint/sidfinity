@@ -171,7 +171,13 @@ def simple_codegen(song, output_path, orig_sid_path=None):
         L(f'        bne v{v}tons')             # pulse→noise
         # New is pulse — check if previous was noise via was_noise flag
         L(f'        lda ${wn:02X}')
-        L(f'        beq v{v}nopw')             # pulse→pulse: keep PW running
+        L(f'        bne v{v}frns')              # was noise → restore
+        # pulse→pulse: keep PW running ONLY if new instrument has PW modulation
+        L(f'        lda ipwslo,x')
+        L(f'        ora ipwshi,x')
+        L(f'        bne v{v}nopw')              # has modulation → keep running
+        L(f'        beq v{v}pwini')             # no modulation → reinit PW
+        L(f'v{v}frns')
         # noise→pulse: restore saved pw_lo+pw_hi
         L(f'        lda ${z+13:02X}')
         L(f'        sta ${z+5:02X}')
