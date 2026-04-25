@@ -174,16 +174,15 @@ def generate_asm(T, instruments, score):
     BASE = 0x1000
     tempo = score['tempo']
 
-    # ZP layout per voice (8 bytes)
-    # +0: tick_ctr    (frames remaining in current note)
-    # +1: note_ptr_lo
-    # +2: note_ptr_hi
-    # +3: wf_ptr_lo   (combined W+F program pointer)
-    # +4: wf_ptr_hi
-    # +5: pw_lo       (PW accumulator)
-    # +6: base_note   (current note's freq table index)
-    # +7: note_len    (total frames in current note, for E timing)
-    ZP = [0x80, 0x88, 0x90]
+    # ZP layout per voice (10 bytes)
+    # +0: tick_ctr
+    # +1/+2: ol_ptr (orderlist pointer — reads pattern addresses)
+    # +3/+4: pat_ptr (current pattern note pointer)
+    # +5/+6: wf_ptr (wave+freq program pointer)
+    # +7: pw_lo
+    # +8: base_note
+    # +9: note_len
+    ZP = [0x80, 0x8A, 0x94]
     SOFF = [0, 7, 14]
 
     a(f'        * = ${BASE:04X}')
@@ -197,15 +196,21 @@ def generate_asm(T, instruments, score):
     a('        sta $D418')
     for v in range(3):
         z = ZP[v]
-        a(f'        lda #<v{v}notes')
-        a(f'        sta ${z+1:02X}')
-        a(f'        lda #>v{v}notes')
-        a(f'        sta ${z+2:02X}')
-        a(f'        lda #1')
-        a(f'        sta ${z:02X}')     # tick_ctr=1 → triggers first note
+        # Load first pattern address from orderlist into pat_ptr
+        a(f'        lda v{v}ol')
+        a(f'        sta ${z+3:02X}')        # pat_ptr lo
+        a(f'        lda v{v}ol+1')
+        a(f'        sta ${z+4:02X}')        # pat_ptr hi
+        # ol_ptr starts at second entry (first already loaded)
+        a(f'        lda #<(v{v}ol+2)')
+        a(f'        sta ${z+1:02X}')        # ol_ptr lo
+        a(f'        lda #>(v{v}ol+2)')
+        a(f'        sta ${z+2:02X}')        # ol_ptr hi
         a(f'        lda #0')
-        a(f'        sta ${z+5:02X}')   # pw_lo=0
-        a(f'        sta ${z+7:02X}')   # note_len=0
+        a(f'        sta ${z+7:02X}')        # pw_lo=0
+        a(f'        sta ${z+9:02X}')        # note_len=0
+        a(f'        lda #1')
+        a(f'        sta ${z:02X}')          # tick_ctr=1 → triggers first note
     a('        rts')
     a('')
 
@@ -220,17 +225,32 @@ def generate_asm(T, instruments, score):
         # Step 1: tick counter
         a(f'        dec ${z:02X}')
         a(f'        bne v{v}eval')
-        # tick_ctr hit 0 → load new note
+        # tick_ctr hit 0 → load new note from pattern
+        a(f'v{v}rd')
         a(f'        ldy #0')
-        a(f'        lda (${z+1:02X}),y')       # note byte
-        a(f'        cmp #$FF')
+        a(f'        lda (${z+3:02X}),y')       # read note from pat_ptr
+        a(f'        cmp #$FE')                  # end of pattern marker
         a(f'        bne v{v}nt')
-        a(f'        jmp v{v}done')             # end of song
-        a(f'v{v}nt')
-        a(f'        sta ${z+6:02X}')            # base_note
+        # End of pattern → read next pattern address from orderlist
+        a(f'        ldy #0')
+        a(f'        lda (${z+1:02X}),y')        # pattern addr lo from ol_ptr
+        a(f'        sta ${z+3:02X}')
         a(f'        iny')
-        a(f'        lda (${z+1:02X}),y')        # duration (in ticks)
-        # Convert ticks to frames: frames = duration * tempo
+        a(f'        lda (${z+1:02X}),y')        # pattern addr hi
+        a(f'        sta ${z+4:02X}')
+        # Advance ol_ptr by 2
+        a(f'        clc')
+        a(f'        lda ${z+1:02X}')
+        a(f'        adc #2')
+        a(f'        sta ${z+1:02X}')
+        a(f'        bcc v{v}rd')
+        a(f'        inc ${z+2:02X}')
+        a(f'        jmp v{v}rd')                # re-read from new pattern
+        a(f'v{v}nt')
+        a(f'        sta ${z+8:02X}')            # base_note
+        a(f'        iny')
+        a(f'        lda (${z+3:02X}),y')        # duration (in ticks)
+        # Convert ticks to frames
         if tempo == 1:
             pass
         else:
@@ -240,11 +260,11 @@ def generate_asm(T, instruments, score):
             a(f'        adc #{tempo}')
             a(f'        dex')
             a(f'        bne v{v}mul')
-        a(f'        sta ${z:02X}')              # tick_ctr = total frames
-        a(f'        sta ${z+7:02X}')            # note_len = total frames
-        # Read instrument ID, set up ADSR and PW init
+        a(f'        sta ${z:02X}')              # tick_ctr
+        a(f'        sta ${z+9:02X}')            # note_len
+        # Read instrument ID
         a(f'        iny')
-        a(f'        lda (${z+1:02X}),y')
+        a(f'        lda (${z+3:02X}),y')
         a(f'        tax')
         a(f'        lda i_ad,x')
         a(f'        sta $D4{so+5:02X}')
@@ -252,92 +272,87 @@ def generate_asm(T, instruments, score):
         a(f'        sta $D4{so+6:02X}')
         a(f'        lda i_pwlo,x')
         a(f'        sta $D4{so+2:02X}')
-        a(f'        sta ${z+5:02X}')
+        a(f'        sta ${z+7:02X}')
         a(f'        lda i_pwhi,x')
         a(f'        sta $D4{so+3:02X}')
         # Set WF program pointer
         a(f'        lda i_wflo,x')
-        a(f'        sta ${z+3:02X}')
+        a(f'        sta ${z+5:02X}')
         a(f'        lda i_wfhi,x')
-        a(f'        sta ${z+4:02X}')
-        # Advance note pointer by 3
+        a(f'        sta ${z+6:02X}')
+        # Advance pat_ptr by 3
         a(f'        clc')
-        a(f'        lda ${z+1:02X}')
+        a(f'        lda ${z+3:02X}')
         a(f'        adc #3')
-        a(f'        sta ${z+1:02X}')
+        a(f'        sta ${z+3:02X}')
         a(f'        bcc v{v}eval')
-        a(f'        inc ${z+2:02X}')
+        a(f'        inc ${z+4:02X}')
         a('')
 
         # Steps 2-5: evaluate W, F, P, E
         a(f'v{v}eval')
 
-        # E: check ADSR zeroing (adsr_zero_delta frames before end)
-        # remaining = tick_ctr (already decremented)
-        # We check tick_ctr against a per-instrument delta.
-        # For simplicity: use a fixed delta from instrument table.
-        a(f'        lda ${z:02X}')              # remaining frames
-        a(f'        cmp #3')                     # TODO: read from instrument
+        # E: ADSR zeroing
+        a(f'        lda ${z:02X}')
+        a(f'        cmp #3')
         a(f'        bne v{v}noz')
         a(f'        lda #0')
         a(f'        sta $D4{so+5:02X}')
         a(f'        sta $D4{so+6:02X}')
         a(f'v{v}noz')
 
-        # W+F: read combined program entry (waveform byte, note offset)
+        # W+F: read from wf_ptr (+5/+6)
         a(f'        ldy #0')
-        a(f'        lda (${z+3:02X}),y')        # waveform byte
-        a(f'        cmp #$FF')                   # loop marker?
+        a(f'        lda (${z+5:02X}),y')        # waveform byte
+        a(f'        cmp #$FF')
         a(f'        bne v{v}wok')
-        # Loop: read 2-byte target address
         a(f'        iny')
-        a(f'        lda (${z+3:02X}),y')
+        a(f'        lda (${z+5:02X}),y')
         a(f'        tax')
         a(f'        iny')
-        a(f'        lda (${z+3:02X}),y')
-        a(f'        sta ${z+4:02X}')
-        a(f'        stx ${z+3:02X}')
+        a(f'        lda (${z+5:02X}),y')
+        a(f'        sta ${z+6:02X}')
+        a(f'        stx ${z+5:02X}')
         a(f'        ldy #0')
-        a(f'        lda (${z+3:02X}),y')        # re-read from loop target
+        a(f'        lda (${z+5:02X}),y')
 
         a(f'v{v}wok')
-        # E: gate off check
-        a(f'        pha')                         # save waveform
+        # E: gate off
+        a(f'        pha')
         a(f'        lda ${z:02X}')
-        a(f'        cmp #3')                      # gate_off_delta
+        a(f'        cmp #3')
         a(f'        bcs v{v}gon')
         a(f'        pla')
-        a(f'        and #$FE')                    # clear gate bit
+        a(f'        and #$FE')
         a(f'        jmp v{v}wrt')
         a(f'v{v}gon')
         a(f'        pla')
         a(f'v{v}wrt')
-        a(f'        sta $D4{so+4:02X}')          # write ctrl
+        a(f'        sta $D4{so+4:02X}')
 
-        # F: read note offset, compute freq
+        # F: note offset + base_note → freq lookup
         a(f'        iny')
-        a(f'        lda (${z+3:02X}),y')          # note offset
+        a(f'        lda (${z+5:02X}),y')
         a(f'        clc')
-        a(f'        adc ${z+6:02X}')              # + base_note
+        a(f'        adc ${z+8:02X}')            # base_note at +8
         a(f'        tax')
         a(f'        lda ftlo,x')
         a(f'        sta $D4{so:02X}')
         a(f'        lda fthi,x')
         a(f'        sta $D4{so+1:02X}')
 
-        # Advance WF pointer by 2
+        # Advance wf_ptr by 2
         a(f'        clc')
-        a(f'        lda ${z+3:02X}')
-        a(f'        adc #2')
-        a(f'        sta ${z+3:02X}')
-        a(f'        bcc v{v}pw')
-        a(f'        inc ${z+4:02X}')
-
-        # P: write PW then accumulate
-        a(f'v{v}pw')
         a(f'        lda ${z+5:02X}')
+        a(f'        adc #2')
+        a(f'        sta ${z+5:02X}')
+        a(f'        bcc v{v}pw')
+        a(f'        inc ${z+6:02X}')
+
+        # P: write PW
+        a(f'v{v}pw')
+        a(f'        lda ${z+7:02X}')
         a(f'        sta $D4{so+2:02X}')
-        # TODO: add pw_speed accumulation
 
         a(f'v{v}done')
         a('')
@@ -414,17 +429,32 @@ def generate_asm(T, instruments, score):
         a(f'        .byte $FF,<wf{iid}lp,>wf{iid}lp')
         a('')
 
-    # --- DATA: Note streams ---
+    # --- DATA: Patterns (shared, each stored once) ---
+    all_pat_indices = set()
     for v in range(3):
-        a(f'v{v}notes')
+        all_pat_indices.update(score['voices'][v]['orderlist'])
+
+    for pat_idx in sorted(all_pat_indices):
+        # Find which voice has this pattern
+        for v in range(3):
+            if pat_idx in score['voices'][v]['patterns']:
+                notes = score['voices'][v]['patterns'][pat_idx]
+                break
+        a(f'pat{pat_idx}')
+        for note in notes:
+            a(f'        .byte ${note["pitch"] & 0xFF:02X},'
+              f'${note["duration"] & 0xFF:02X},'
+              f'${note["instrument"] & 0xFF:02X}')
+        a(f'        .byte $FE')  # end of pattern marker
+    a('')
+
+    # --- DATA: Orderlists (sequence of pattern addresses per voice) ---
+    for v in range(3):
+        a(f'v{v}ol')
         voice = score['voices'][v]
         for pat_idx in voice['orderlist']:
-            notes = voice['patterns'][pat_idx]
-            for note in notes:
-                a(f'        .byte ${note["pitch"] & 0xFF:02X},'
-                  f'${note["duration"] & 0xFF:02X},'
-                  f'${note["instrument"] & 0xFF:02X}')
-        a(f'        .byte $FF')
+            a(f'        .byte <pat{pat_idx},>pat{pat_idx}')
+        # TODO: loop support
     a('')
 
     return '\n'.join(L)
