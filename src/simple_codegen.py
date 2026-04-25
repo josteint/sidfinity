@@ -32,6 +32,11 @@ ZP layout per voice (16 bytes at $80/$90/$A0):
   +13 saved_pw_lo
   +14 saved_pw_hi
   +15 prev_inst_id
+
+Per-voice was_noise flags (1 byte each) at $B0, $B1, $B2:
+  Set to 1 when the current instrument is noise, 0 otherwise.
+  Used to detect noise→pulse transitions without reading SID PH register
+  (which could falsely match pulse+sync instruments that happen to have pw_hi=$02).
 """
 
 import os
@@ -54,6 +59,8 @@ def simple_codegen(song, output_path, orig_sid_path=None):
     # ZP per voice: 16 bytes
     ZP = [0x80, 0x90, 0xA0]
     SOFF = [0, 7, 14]
+    # was_noise flag per voice: 1 byte each at $B0, $B1, $B2
+    WN = [0xB0, 0xB1, 0xB2]
 
     lines = []
     L = lines.append
@@ -69,6 +76,7 @@ def simple_codegen(song, output_path, orig_sid_path=None):
     L('        sta $D418')
     for v in range(3):
         z = ZP[v]
+        wn = WN[v]
         L(f'        lda #<v{v}pat')
         L(f'        sta ${z+1:02X}')
         L(f'        lda #>v{v}pat')
@@ -81,6 +89,7 @@ def simple_codegen(song, output_path, orig_sid_path=None):
         L(f'        sta ${z+9:02X}')          # pw_dir=0 (up)
         L(f'        sta ${z+7:02X}')          # pw_speed_lo=0
         L(f'        sta ${z+10:02X}')         # pw_speed_hi=0
+        L(f'        sta ${wn:02X}')           # was_noise=0
         L(f'        lda #$FF')
         L(f'        sta ${z+11:02X}')         # pw_min=$FF (no flip)
         L(f'        sta ${z+12:02X}')         # pw_max=$FF (no flip)
@@ -92,6 +101,7 @@ def simple_codegen(song, output_path, orig_sid_path=None):
     L('play')
     for v in range(3):
         z = ZP[v]
+        wn = WN[v]
         so = SOFF[v]
 
         L(f'; --- Voice {v+1} ---')
@@ -147,19 +157,21 @@ def simple_codegen(song, output_path, orig_sid_path=None):
         # 3) pulse→pulse (diff inst, neither is noise) → keep PW running
         # 4) pulse→noise → save pw_lo+pw_hi, load noise PW
         # 5) noise→pulse → restore pw_lo+pw_hi
+        #
+        # Noise detection uses inoise[x] (1 if first waveform has bit 7 set),
+        # NOT ipwh (which is $02 for both noise AND pulse+sync instruments).
+        # was_noise flag ($B0/$B1/$B2) tracks whether previous instrument was noise.
         L(f'        cpx ${z+15:02X}')          # same instrument?
         L(f'        beq v{v}nopw')
         L(f'        lda ${z+15:02X}')
         L(f'        cmp #$FF')
         L(f'        beq v{v}pwini')             # first note → init
-        # Check if new instrument is noise (ipwh=$02 means noise PW $0200)
-        L(f'        lda ipwh,x')
-        L(f'        cmp #$02')
-        L(f'        beq v{v}tons')             # pulse→noise
-        # New is pulse — check if previous was noise: D4{so+3} == $02
-        L(f'        lda $D4{so+3:02X}')
-        L(f'        cmp #$02')
-        L(f'        bne v{v}nopw')             # pulse→pulse: keep PW running
+        # Check if new instrument is noise (inoise table: 1=noise, 0=pulse)
+        L(f'        lda inoise,x')
+        L(f'        bne v{v}tons')             # pulse→noise
+        # New is pulse — check if previous was noise via was_noise flag
+        L(f'        lda ${wn:02X}')
+        L(f'        beq v{v}nopw')             # pulse→pulse: keep PW running
         # noise→pulse: restore saved pw_lo+pw_hi
         L(f'        lda ${z+13:02X}')
         L(f'        sta ${z+5:02X}')
@@ -176,6 +188,8 @@ def simple_codegen(song, output_path, orig_sid_path=None):
         L(f'        sta ${z+11:02X}')
         L(f'        lda ipwmax,x')
         L(f'        sta ${z+12:02X}')
+        L(f'        lda #0')
+        L(f'        sta ${wn:02X}')            # was_noise=0 (now in pulse)
         L(f'        jmp v{v}pwdone')
         L(f'v{v}tons')
         # pulse→noise: save pw_lo+pw_hi
@@ -184,7 +198,11 @@ def simple_codegen(song, output_path, orig_sid_path=None):
         L(f'        lda ${z+8:02X}')
         L(f'        sta ${z+14:02X}')
         L(f'v{v}pwini')
-        # Init PW from instrument (first note or to-noise)
+        # Init PW from instrument (first note or to-noise).
+        # Always update was_noise based on current instrument — this handles
+        # both the first-note-is-noise case (prev=$FF path) and pulse→noise.
+        L(f'        lda inoise,x')
+        L(f'        sta ${wn:02X}')            # was_noise = inoise[x]
         L(f'        lda ipwl,x')
         L(f'        sta ${z+5:02X}')
         L(f'        sta $D4{so+2:02X}')
@@ -374,6 +392,20 @@ def simple_codegen(song, output_path, orig_sid_path=None):
     L('        .byte ' + ','.join(f'${inst.pulse_width & 0xFF:02X}' for inst in instruments))
     L('ipwh')
     L('        .byte ' + ','.join(f'${(inst.pulse_width >> 8) & 0x0F:02X}' for inst in instruments))
+
+    # Noise-instrument flag: 1 if the instrument's first waveform has bit 7 set (noise), else 0.
+    # Used to detect pulse→noise and noise→pulse transitions correctly.
+    # Checking ipwh==$02 is WRONG: pulse+sync instruments (ctrl=$43) also have pw_hi=$02.
+    noise_flags = []
+    for inst in instruments:
+        is_noise = 0
+        if inst.wave_table:
+            first_step = next((s for s in inst.wave_table if not s.is_loop), None)
+            if first_step is not None and (first_step.waveform & 0x80):
+                is_noise = 1
+        noise_flags.append(is_noise)
+    L('inoise')
+    L('        .byte ' + ','.join(f'${n:02X}' for n in noise_flags))
 
     # PW speed (16-bit) and boundary parameters.
     # PulseTableStep encoding:
