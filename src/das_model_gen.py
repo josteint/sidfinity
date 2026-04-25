@@ -174,15 +174,19 @@ def generate_asm(T, instruments, score):
     BASE = 0x1000
     tempo = score['tempo']
 
-    # ZP layout per voice (10 bytes)
+    # ZP layout per voice (14 bytes)
     # +0: tick_ctr
-    # +1/+2: ol_ptr (orderlist pointer — reads pattern addresses)
-    # +3/+4: pat_ptr (current pattern note pointer)
-    # +5/+6: wf_ptr (wave+freq program pointer)
+    # +1/+2: ol_ptr
+    # +3/+4: pat_ptr
+    # +5/+6: wf_ptr
     # +7: pw_lo
     # +8: base_note
     # +9: note_len
-    ZP = [0x80, 0x8A, 0x94]
+    # +10: pw_speed  (unsigned, from instrument)
+    # +11: pw_hi     (PW high byte accumulator)
+    # +12: pw_max    ($00=no modulation, $FF=linear, else=bidir max)
+    # +13: pw_dir    (0=up, 1=down — bidirectional only)
+    ZP = [0x80, 0x8E, 0x9C]
     SOFF = [0, 7, 14]
 
     a(f'        * = ${BASE:04X}')
@@ -209,6 +213,10 @@ def generate_asm(T, instruments, score):
         a(f'        lda #0')
         a(f'        sta ${z+7:02X}')        # pw_lo=0
         a(f'        sta ${z+9:02X}')        # note_len=0
+        a(f'        sta ${z+10:02X}')       # pw_speed=0
+        a(f'        sta ${z+11:02X}')       # pw_hi=0
+        a(f'        sta ${z+12:02X}')       # pw_max=0
+        a(f'        sta ${z+13:02X}')       # pw_dir=0 (up)
         a(f'        lda #1')
         a(f'        sta ${z:02X}')          # tick_ctr=1 → triggers first note
     a('        rts')
@@ -275,6 +283,12 @@ def generate_asm(T, instruments, score):
         a(f'        sta ${z+7:02X}')
         a(f'        lda i_pwhi,x')
         a(f'        sta $D4{so+3:02X}')
+        a(f'        sta ${z+11:02X}')       # pw_hi accumulator
+        # PW modulation params from instrument
+        a(f'        lda i_pws,x')
+        a(f'        sta ${z+10:02X}')       # pw_speed
+        a(f'        lda i_pwmax,x')
+        a(f'        sta ${z+12:02X}')       # pw_max (0=linear/none)
         # Set WF program pointer
         a(f'        lda i_wflo,x')
         a(f'        sta ${z+5:02X}')
@@ -349,10 +363,57 @@ def generate_asm(T, instruments, score):
         a(f'        bcc v{v}pw')
         a(f'        inc ${z+6:02X}')
 
-        # P: write PW
+        # P: PW modulation — write first, then accumulate
         a(f'v{v}pw')
         a(f'        lda ${z+7:02X}')
-        a(f'        sta $D4{so+2:02X}')
+        a(f'        sta $D4{so+2:02X}')       # write pw_lo to SID
+        a(f'        lda ${z+11:02X}')
+        a(f'        sta $D4{so+3:02X}')       # write pw_hi to SID
+        # Check if modulation active
+        a(f'        lda ${z+12:02X}')         # pw_max
+        a(f'        beq v{v}done')             # $00 = no modulation
+        a(f'        cmp #$FF')
+        a(f'        beq v{v}lin')              # $FF = linear (8-bit only)
+        # --- Bidirectional 16-bit ---
+        a(f'        lda ${z+13:02X}')         # pw_dir
+        a(f'        bne v{v}dn')
+        # UP: pw += speed (16-bit)
+        a(f'        clc')
+        a(f'        lda ${z+7:02X}')
+        a(f'        adc ${z+10:02X}')
+        a(f'        sta ${z+7:02X}')
+        a(f'        bcc v{v}ncu')
+        a(f'        inc ${z+11:02X}')
+        a(f'v{v}ncu')
+        # Check max
+        a(f'        lda ${z+11:02X}')
+        a(f'        cmp ${z+12:02X}')         # pw_hi >= pw_max?
+        a(f'        bcc v{v}done')
+        a(f'        lda #1')
+        a(f'        sta ${z+13:02X}')         # flip to DOWN
+        a(f'        jmp v{v}done')
+        # DOWN: pw -= speed (16-bit)
+        a(f'v{v}dn')
+        a(f'        sec')
+        a(f'        lda ${z+7:02X}')
+        a(f'        sbc ${z+10:02X}')
+        a(f'        sta ${z+7:02X}')
+        a(f'        bcs v{v}ncd')
+        a(f'        dec ${z+11:02X}')
+        a(f'v{v}ncd')
+        # Check min (hardcoded $08 for Commando — TODO: make per-instrument)
+        a(f'        lda ${z+11:02X}')
+        a(f'        cmp #$08')                # pw_min
+        a(f'        bcs v{v}done')
+        a(f'        lda #0')
+        a(f'        sta ${z+13:02X}')         # flip to UP
+        a(f'        jmp v{v}done')
+        # --- Linear 8-bit ---
+        a(f'v{v}lin')
+        a(f'        clc')
+        a(f'        lda ${z+7:02X}')
+        a(f'        adc ${z+10:02X}')
+        a(f'        sta ${z+7:02X}')
 
         a(f'v{v}done')
         a('')
@@ -378,6 +439,19 @@ def generate_asm(T, instruments, score):
     a('        .byte ' + ','.join(f'${i["P"]["init_pw"] & 0xFF:02X}' for i in instruments))
     a('i_pwhi')
     a('        .byte ' + ','.join(f'${(i["P"]["init_pw"] >> 8) & 0x0F:02X}' for i in instruments))
+    a('i_pws')
+    a('        .byte ' + ','.join(f'${i["P"]["speed"]:02X}' for i in instruments))
+    a('i_pwmax')
+    # $00=no modulation, $FF=linear 8-bit, else=bidirectional max boundary
+    pwmax_vals = []
+    for i in instruments:
+        if i['P']['speed'] == 0:
+            pwmax_vals.append(0x00)
+        elif i['P']['mode'] == 'linear':
+            pwmax_vals.append(0xFF)
+        else:
+            pwmax_vals.append(i['P']['max_hi'])
+    a('        .byte ' + ','.join(f'${v:02X}' for v in pwmax_vals))
     a('i_wflo')
     a('        .byte ' + ','.join(f'<wf{i["id"]}' for i in instruments))
     a('i_wfhi')
