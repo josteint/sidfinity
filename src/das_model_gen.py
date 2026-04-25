@@ -174,7 +174,7 @@ def generate_asm(T, instruments, score):
     BASE = 0x1000
     tempo = score['tempo']
 
-    # ZP layout per voice (14 bytes)
+    # ZP layout per voice (15 bytes)
     # +0: tick_ctr
     # +1/+2: ol_ptr
     # +3/+4: pat_ptr
@@ -182,11 +182,12 @@ def generate_asm(T, instruments, score):
     # +7: pw_lo
     # +8: base_note
     # +9: note_len
-    # +10: pw_speed  (unsigned, from instrument)
-    # +11: pw_hi     (PW high byte accumulator)
-    # +12: pw_max    ($00=no modulation, $FF=linear, else=bidir max)
-    # +13: pw_dir    (0=up, 1=down — bidirectional only)
-    ZP = [0x80, 0x8E, 0x9C]
+    # +10: pw_speed
+    # +11: pw_hi
+    # +12: pw_max    ($00=no mod, $FF=linear, else=bidir max)
+    # +13: pw_dir    (0=up, 1=down)
+    # +14: prev_inst (previous instrument ID, $FF=none)
+    ZP = [0x80, 0x8F, 0x9E]
     SOFF = [0, 7, 14]
 
     a(f'        * = ${BASE:04X}')
@@ -217,6 +218,8 @@ def generate_asm(T, instruments, score):
         a(f'        sta ${z+11:02X}')       # pw_hi=0
         a(f'        sta ${z+12:02X}')       # pw_max=0
         a(f'        sta ${z+13:02X}')       # pw_dir=0 (up)
+        a(f'        lda #$FF')
+        a(f'        sta ${z+14:02X}')       # prev_inst=$FF (force init on first note)
         a(f'        lda #1')
         a(f'        sta ${z:02X}')          # tick_ctr=1 → triggers first note
     a('        rts')
@@ -278,17 +281,24 @@ def generate_asm(T, instruments, score):
         a(f'        sta $D4{so+5:02X}')
         a(f'        lda i_sr,x')
         a(f'        sta $D4{so+6:02X}')
+        # PW: only init if instrument changed
+        a(f'        cpx ${z+14:02X}')       # same instrument?
+        a(f'        beq v{v}skpw')           # yes → keep PW running
+        a(f'        stx ${z+14:02X}')       # save new inst id
         a(f'        lda i_pwlo,x')
         a(f'        sta $D4{so+2:02X}')
         a(f'        sta ${z+7:02X}')
         a(f'        lda i_pwhi,x')
         a(f'        sta $D4{so+3:02X}')
-        a(f'        sta ${z+11:02X}')       # pw_hi accumulator
-        # PW modulation params from instrument
+        a(f'        sta ${z+11:02X}')
+        a(f'        lda #0')
+        a(f'        sta ${z+13:02X}')       # reset pw_dir to UP
+        a(f'v{v}skpw')
+        # Always load PW speed/max (even if same inst — harmless)
         a(f'        lda i_pws,x')
-        a(f'        sta ${z+10:02X}')       # pw_speed
+        a(f'        sta ${z+10:02X}')
         a(f'        lda i_pwmax,x')
-        a(f'        sta ${z+12:02X}')       # pw_max (0=linear/none)
+        a(f'        sta ${z+12:02X}')
         # Set WF program pointer
         a(f'        lda i_wflo,x')
         a(f'        sta ${z+5:02X}')
