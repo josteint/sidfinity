@@ -352,6 +352,17 @@ def _generate_player_asm(filter_regs: Tuple[int, int, int, int]) -> str:
     # --- play body ---
     asm.append("_play_body")
 
+    # Disable BASIC ROM ($A000-$BFFF) so that our note stream / instrument
+    # data in RAM is accessible.
+    # psiddrv sets $01=$37 (LORAM+HIRAM+CHAREN) before calling play, which
+    # maps BASIC ROM over $A000-$BFFF.  $36 = HIRAM+CHAREN (no LORAM):
+    #   - BASIC ROM disabled → $A000-$BFFF is RAM  ✓
+    #   - KERNAL ROM kept   → $E000-$FFFF vectors OK ✓
+    #   - I/O kept          → SID at $D400 accessible ✓
+    # psiddrv restores $01 after play returns, so this is safe.
+    asm.append("        lda #$36")
+    asm.append("        sta $01")
+
     for vi in range(3):
         np_lo, np_hi, fc, nl, ip_lo, ip_hi, rp_lo, rp_hi = ZP_VOICE[vi]
         vsid = VOICE_SID[vi]
