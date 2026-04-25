@@ -195,7 +195,27 @@ NoteEvent = {
 }
 ```
 
-The engine converts ticks to frames: `frames = duration * tempo`
+The engine converts ticks to frames:
+
+```
+tick_length = speed + 1          (e.g., speed=2 → 3 frames per tick)
+note_frames = (duration + 1) × tick_length
+
+Example: dur=1, speed=2 → (1+1) × 3 = 6 frames
+         dur=3, speed=2 → (3+1) × 3 = 12 frames
+         dur=5, speed=2 → (5+1) × 3 = 18 frames
+```
+
+The "+1" on duration is because the Hubbard counter loads D and
+decrements to -1 (going through 0), giving D+1 ticks total.
+
+For engines with funktempo (alternating tick lengths):
+```
+tick_lengths = [A, B]            (cyclic sequence)
+note_frames = sum of next (D+1) entries from tick_lengths[]
+```
+
+Normal tempo is tick_lengths = [N] (single-element sequence).
 
 ## 4. Universal Engine
 
