@@ -56,24 +56,35 @@ Two components:
 waveform_steps = [(wave_byte, duration), ...]
 ```
 
-For drum instruments (has_drum=True, has_arpeggio=True):
+**Case 1: Drum + arpeggio** (has_drum AND has_arpeggio):
 ```
-δ=0: ctrl with gate (attack frame)
-δ=1: $80 (noise burst)
-δ=2: $80 (noise burst)  
-δ≥3: ctrl without gate (sustain) — LOOPS HERE
+δ=0: ctrl | 0x01 (gate on, native waveform)
+δ=1: $80 (noise burst, gate off)
+δ=2: $80 (noise burst, gate off)
+δ≥3: ctrl & $FE (sustain, gate off) — LOOPS HERE
 ```
+The noise burst occurs regardless of the instrument's native waveform.
+This applies to both noise instruments (ctrl=$81) and non-noise (ctrl=$41, $15, $21).
 
-For non-drum instruments:
+**Case 2: Drum without arpeggio** (has_drum AND NOT has_arpeggio):
 ```
-δ=0..L-hr-1: ctrl with gate ON (bit 0 = 1)
-δ=L-hr..L-1: ctrl with gate OFF (bit 0 = 0, hard restart)
+δ=0: ctrl | 0x01 (gate on, native waveform)
+δ≥1: ctrl & $FE (gate off, KEEP native waveform — NO noise burst)
+```
+The drum effect slides freq_hi down but does NOT produce a noise burst.
+The native waveform (pulse+sync, etc.) is maintained throughout.
+
+**Case 3: Non-drum instruments** (has_drum=False):
+```
+δ=0..L-hr-1: ctrl | 0x01 (gate ON for most of note)
+δ=L-hr..L-1: ctrl & $FE (gate OFF, hard restart)
 ```
 where hr = hard_restart frames (typically 3).
 
-**Key insight**: for non-drum instruments, gate stays ON for most of the
-note. Gate OFF only happens during hard restart. The waveform byte itself
-doesn't change — only the gate bit toggles.
+**Key insight**: the gate bit is ON for most of the note in non-drum
+instruments. The waveform byte doesn't change — only the gate bit
+toggles at hard restart. The noise burst in drum instruments only
+occurs when the instrument's native waveform IS noise ($80/$81).
 
 ### 2.2 Freq Program F
 
