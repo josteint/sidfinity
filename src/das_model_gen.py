@@ -199,6 +199,7 @@ def generate_asm(T, instruments, score):
     a('init')
     a('        lda #$0F')
     a('        sta $D418')
+    # (global arp counter removed — per-step F offsets used instead)
     for v in range(3):
         z = ZP[v]
         # Load first pattern address from orderlist into pat_ptr
@@ -354,11 +355,11 @@ def generate_asm(T, instruments, score):
         a(f'v{v}wrt')
         a(f'        sta $D4{so+4:02X}')
 
-        # F: note offset + base_note → freq lookup
+        # F: note offset from WF program (interleaved with W)
         a(f'        iny')
-        a(f'        lda (${z+5:02X}),y')
+        a(f'        lda (${z+5:02X}),y')          # F offset
         a(f'        clc')
-        a(f'        adc ${z+8:02X}')            # base_note at +8
+        a(f'        adc ${z+8:02X}')              # + base_note
         a(f'        tax')
         a(f'        lda ftlo,x')
         a(f'        sta $D4{so:02X}')
