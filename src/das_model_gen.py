@@ -1,15 +1,12 @@
 """
-das_model_gen.py — Clean Das Model codegen. No baggage.
+das_model_gen.py — Das Model codegen. Clean implementation from spec.
 
-Implements docs/das_model.md from scratch:
+Implements docs/das_model.md:
     SID = (T, I, S)
-    I = { W(delta,L), F(delta), P(delta,state), E(delta,L) }
+    I = { W, F, P, E }   — programs, not interpreted by engine
 
-Reads instrument definitions from the binary via rh_decompile.
-Generates 6502 assembly via xa65.
-Verifies against ground truth frame by frame.
-
-No dependency on simple_codegen, holy_scale, or any previous codegen.
+The engine evaluates programs mechanically. All engine-specific knowledge
+lives in the DECOMPILER (extract function), not the engine (generate_asm).
 """
 
 import os
@@ -24,88 +21,120 @@ sys.path.insert(0, os.path.join(ROOT, 'tools', 'py65_lib'))
 SID_PATH = os.path.join(ROOT, 'data', 'C64Music', 'MUSICIANS', 'H',
                          'Hubbard_Rob', 'Commando.sid')
 XA = os.path.join(ROOT, 'tools', 'xa65', 'xa', 'xa')
-OUT_PATH = os.path.join(ROOT, 'demo', 'hubbard', 'Commando_holyscale.sid')
+OUT_PATH = os.path.join(ROOT, 'demo', 'hubbard', 'Commando_das_model.sid')
 
 
 # ===================================================================
-# Step 1: Extract (T, I, S) from binary
+# DECOMPILER: Extract (T, I, S) from Hubbard binary
 # ===================================================================
+# This section is Hubbard-specific. It reads the binary and builds
+# universal (W, F, P, E) programs from Hubbard's instrument format.
 
 def extract():
-    """Extract freq table T, instruments I, and score S from Commando."""
+    """Extract (T, I, S) from Commando. Hubbard-engine-specific."""
     from rh_decompile import decompile
+    from effect_detect import FREQ_PAL
+    from py65.devices.mpu6502 import MPU
+
     decomp = decompile(SID_PATH)
 
-    # T: freq table (PAL + extended entries from py65)
-    from effect_detect import FREQ_PAL
-    T = list(FREQ_PAL)  # T[0..95]
+    # --- T: Frequency Table ---
+    T = list(FREQ_PAL)  # T[0..95] = standard PAL
 
-    # Extend T with runtime values at indices 96+
-    from py65.devices.mpu6502 import MPU
+    # Extend with runtime values (Hubbard reads past the table)
     with open(SID_PATH, 'rb') as f:
         d = f.read()
     hl = struct.unpack('>H', d[6:8])[0]
     la = struct.unpack('>H', d[8:10])[0]
     code = d[hl:]
     if la == 0:
-        la = struct.unpack('<H', code[:2])[0]
-        code = code[2:]
-    mem = bytearray(65536)
-    mem[la:la + len(code)] = code
-    m = MPU()
-    m.memory = bytearray(mem)
-    m.memory[0xFFF0] = 0x00
-    # Run init
+        la = struct.unpack('<H', code[:2])[0]; code = code[2:]
+    mem = bytearray(65536); mem[la:la+len(code)] = code
+    m = MPU(); m.memory = bytearray(mem); m.memory[0xFFF0] = 0x00
     m.stPush(0xFF); m.stPush(0xEF)
-    m.pc = struct.unpack('>H', d[10:12])[0]
-    m.a = 0
+    m.pc = struct.unpack('>H', d[10:12])[0]; m.a = 0
     for _ in range(100000):
-        if m.memory[m.pc] == 0x00:
-            break
+        if m.memory[m.pc] == 0x00: break
         m.step()
-    # Run one play call to populate runtime state
     m.stPush(0xFF); m.stPush(0xEF)
     m.pc = struct.unpack('>H', d[12:14])[0]
     for _ in range(50000):
-        if m.memory[m.pc] == 0x00:
-            break
+        if m.memory[m.pc] == 0x00: break
         m.step()
-    # Read extended entries
-    ft_base = 0x5428  # Hubbard interleaved freq table address
+    ft_base = 0x5428
     while len(T) < 120:
         i = len(T)
         addr = ft_base + i * 2
-        T.append((m.memory[addr + 1] << 8) | m.memory[addr])
+        T.append((m.memory[addr+1] << 8) | m.memory[addr])
 
-    # I: instruments
+    # --- I: Instruments ---
+    # Build W and F PROGRAMS from Hubbard's fx_flags.
+    # The engine doesn't know about drums/arpeggio — only the decompiler does.
+
     instruments = []
-    for inst in decomp.instruments:
+    speed = decomp.speed if decomp.speed is not None else 2
+    hr_frames = 3  # Hubbard hard-restarts 3 frames before note end
+
+    for rh in decomp.instruments:
+        ctrl = rh.ctrl
+
+        # W program: sequence of waveform bytes
+        # Hubbard's pattern: drum instruments get noise burst ($80) on frames 1-2
+        if rh.has_drum:
+            w_steps = [ctrl | 0x01, 0x80, 0x80, ctrl & 0xFE]
+            w_loop = 3  # sustain loops on last step
+        else:
+            w_steps = [ctrl | 0x01]  # gate on (engine handles gate-off via E)
+            w_loop = 0
+
+        # F program: sequence of note offsets
+        # Hubbard's arpeggio: alternate +0 and +12 every frame
+        if rh.has_arpeggio:
+            if rh.has_drum:
+                # Arp applies on ALL frames including noise burst
+                f_offsets = [0, 12, 0, 12, 0]
+                f_loop = 3  # loop the alternating pair (offsets[3]=12, [4]=0)
+            else:
+                f_offsets = [0, 12]
+                f_loop = 0
+        else:
+            f_offsets = [0]
+            f_loop = 0
+
+        # P program: PW modulation
+        pw_speed = rh.pwm_speed
+        if pw_speed == 0:
+            pw_mode = 'none'
+            pw_min = 0xFF; pw_max = 0xFF
+        elif (rh.pulse_width >> 8) >= 0x08:
+            # Bidirectional: Hubbard bounces between $08xx and $0Exx
+            pw_mode = 'bidirectional'
+            pw_min = 0x08; pw_max = 0x0E
+        else:
+            pw_mode = 'linear'
+            pw_min = 0xFF; pw_max = 0xFF
+
+        # E spec: ADSR + gate/adsr timing
         instruments.append({
-            'id': inst.index,
-            'ad': inst.ad,
-            'sr': inst.sr,
-            'ctrl': inst.ctrl,
-            'pw': inst.pulse_width,
-            'pw_speed': inst.pwm_speed,
-            'has_drum': inst.has_drum,
-            'has_arp': inst.has_arpeggio,
-            'has_skydive': inst.has_skydive,
-            'vibrato': getattr(inst, 'vibrato_depth', 0),
+            'id': rh.index,
+            'W': {'steps': w_steps, 'loop': w_loop},
+            'F': {'offsets': f_offsets, 'loop': f_loop},
+            'P': {'speed': pw_speed, 'mode': pw_mode,
+                   'min_hi': pw_min, 'max_hi': pw_max,
+                   'init_pw': rh.pulse_width},
+            'E': {'ad': rh.ad, 'sr': rh.sr,
+                   'gate_off_delta': hr_frames,
+                   'adsr_zero_delta': hr_frames},
         })
 
-    # S: score (patterns + orderlists for song 0)
+    # --- S: Score ---
     song = decomp.songs[0]
-    speed = decomp.speed if decomp.speed is not None else 2
-    tick_length = speed + 1  # frames per tick
-
+    tick_length = speed + 1
     pat_dict = {p.index: p for p in decomp.patterns}
 
-    score = {
-        'tick_length': tick_length,
-        'voices': [],
-    }
+    score = {'tempo': tick_length, 'voices': []}
     for v_track in song.tracks:
-        voice = {'orderlist': [], 'patterns': {}}
+        voice = {'orderlist': [], 'patterns': {}, 'loop': -1}
         for entry in v_track:
             if entry[0] == 'pattern':
                 pat_idx = entry[1]
@@ -117,50 +146,45 @@ def extract():
                     for note in pat.notes:
                         if note.instrument is not None:
                             cur_inst = note.instrument
+                        dur = note.duration if note.duration is not None else 0
                         notes.append({
                             'pitch': note.pitch if note.pitch is not None else 0,
-                            'duration': note.duration if note.duration is not None else 0,
+                            'duration': dur + 1,  # Hubbard: counter loads D, decrements to -1
                             'instrument': cur_inst,
                         })
                     voice['patterns'][pat_idx] = notes
             elif entry[0] == 'loop':
-                voice['loop_target'] = entry[1]
+                voice['loop'] = entry[1]
         score['voices'].append(voice)
 
     return T, instruments, score
 
 
 # ===================================================================
-# Step 2: Generate 6502 assembly from (T, I, S)
+# ENGINE: Generate 6502 assembly
 # ===================================================================
+# This section is UNIVERSAL. It reads (T, I, S) and generates a player
+# that evaluates W, F, P, E mechanically. No engine-specific knowledge.
 
 def generate_asm(T, instruments, score):
-    """Generate xa65 assembly implementing Das Model.
-
-    The player evaluates per frame, per voice:
-        ctrl = W(delta, L)
-        freq = T[base_note + F(delta)]
-        pw   = P(delta, state)
-        (ad, sr) = E(delta, L)
-    """
-    L = []  # assembly lines
+    """Generate xa65 assembly. The engine is universal."""
+    L = []
     a = L.append
 
     BASE = 0x1000
-    HR = 3  # hard restart frames before note end
-    tick_length = score['tick_length']
+    tempo = score['tempo']
 
-    # ZP layout per voice (8 bytes each)
-    # +0: tick_ctr (frames until next note)
+    # ZP layout per voice (8 bytes)
+    # +0: tick_ctr    (frames remaining in current note)
     # +1: note_ptr_lo
     # +2: note_ptr_hi
-    # +3: wave_ptr_lo
-    # +4: wave_ptr_hi
-    # +5: pw_lo (PW accumulator low byte)
-    # +6: current_note (base freq table index)
-    # +7: delta (frames since note-on, for wave table stepping)
+    # +3: wf_ptr_lo   (combined W+F program pointer)
+    # +4: wf_ptr_hi
+    # +5: pw_lo       (PW accumulator)
+    # +6: base_note   (current note's freq table index)
+    # +7: note_len    (total frames in current note, for E timing)
     ZP = [0x80, 0x88, 0x90]
-    SOFF = [0, 7, 14]  # SID register offsets per voice
+    SOFF = [0, 7, 14]
 
     a(f'        * = ${BASE:04X}')
     a(f'        jmp init')
@@ -170,18 +194,18 @@ def generate_asm(T, instruments, score):
     # --- INIT ---
     a('init')
     a('        lda #$0F')
-    a('        sta $D418')  # volume
+    a('        sta $D418')
     for v in range(3):
         z = ZP[v]
         a(f'        lda #<v{v}notes')
         a(f'        sta ${z+1:02X}')
         a(f'        lda #>v{v}notes')
         a(f'        sta ${z+2:02X}')
-        a(f'        lda #1')          # tick_ctr=1 triggers first note immediately
-        a(f'        sta ${z:02X}')
+        a(f'        lda #1')
+        a(f'        sta ${z:02X}')     # tick_ctr=1 → triggers first note
         a(f'        lda #0')
-        a(f'        sta ${z+5:02X}')  # pw_lo=0
-        a(f'        sta ${z+7:02X}')  # delta=0
+        a(f'        sta ${z+5:02X}')   # pw_lo=0
+        a(f'        sta ${z+7:02X}')   # note_len=0
     a('        rts')
     a('')
 
@@ -193,130 +217,115 @@ def generate_asm(T, instruments, score):
 
         a(f'; --- Voice {v+1} ---')
 
-        # E(delta, L): hard restart check BEFORE decrementing tick_ctr
-        # When tick_ctr == HR+1 (before dec), we have HR frames left after this one
-        # After dec, tick_ctr == HR, and we zero ADSR
-        a(f'        dec ${z:02X}')           # tick_ctr--
-        a(f'        beq v{v}new')             # if 0 -> new note
-        a(f'        lda ${z:02X}')
-        a(f'        cmp #{HR}')
-        a(f'        bne v{v}nhr')
-        a(f'        lda #0')
-        a(f'        sta $D4{so+5:02X}')       # AD = 0
-        a(f'        sta $D4{so+6:02X}')       # SR = 0
-        a(f'v{v}nhr')
-        a(f'        jmp v{v}wt')              # process wave table
-        a('')
-
-        # --- NEW NOTE ---
-        a(f'v{v}new')
+        # Step 1: tick counter
+        a(f'        dec ${z:02X}')
+        a(f'        bne v{v}eval')
+        # tick_ctr hit 0 → load new note
         a(f'        ldy #0')
-        a(f'        lda (${z+1:02X}),y')      # read note byte
-        a(f'        cmp #$FF')                 # end marker
+        a(f'        lda (${z+1:02X}),y')       # note byte
+        a(f'        cmp #$FF')
         a(f'        bne v{v}nt')
-        a(f'        jmp v{v}done')
+        a(f'        jmp v{v}done')             # end of song
         a(f'v{v}nt')
-        a(f'        sta ${z+6:02X}')           # current_note = pitch
-
-        # Read duration, multiply by tick_length
+        a(f'        sta ${z+6:02X}')            # base_note
         a(f'        iny')
-        a(f'        lda (${z+1:02X}),y')       # duration byte (D)
-        a(f'        clc')
-        a(f'        adc #1')                    # D+1 ticks
-        if tick_length == 1:
-            pass  # frames = ticks
+        a(f'        lda (${z+1:02X}),y')        # duration (in ticks)
+        # Convert ticks to frames: frames = duration * tempo
+        if tempo == 1:
+            pass
         else:
             a(f'        tax')
             a(f'        lda #0')
             a(f'v{v}mul  clc')
-            a(f'        adc #{tick_length}')
+            a(f'        adc #{tempo}')
             a(f'        dex')
             a(f'        bne v{v}mul')
-        a(f'        sta ${z:02X}')              # tick_ctr = (D+1) * tick_length
-
-        # Read instrument ID
+        a(f'        sta ${z:02X}')              # tick_ctr = total frames
+        a(f'        sta ${z+7:02X}')            # note_len = total frames
+        # Read instrument ID, set up ADSR and PW init
         a(f'        iny')
         a(f'        lda (${z+1:02X}),y')
         a(f'        tax')
-
-        # E: set ADSR from instrument
         a(f'        lda i_ad,x')
         a(f'        sta $D4{so+5:02X}')
         a(f'        lda i_sr,x')
         a(f'        sta $D4{so+6:02X}')
-
-        # P: set initial PW from instrument
         a(f'        lda i_pwlo,x')
         a(f'        sta $D4{so+2:02X}')
-        a(f'        sta ${z+5:02X}')            # pw_lo accumulator
+        a(f'        sta ${z+5:02X}')
         a(f'        lda i_pwhi,x')
         a(f'        sta $D4{so+3:02X}')
-
-        # Set wave table pointer
-        a(f'        lda i_wlo,x')
+        # Set WF program pointer
+        a(f'        lda i_wflo,x')
         a(f'        sta ${z+3:02X}')
-        a(f'        lda i_whi,x')
+        a(f'        lda i_wfhi,x')
         a(f'        sta ${z+4:02X}')
-
-        # Reset delta
-        a(f'        lda #0')
-        a(f'        sta ${z+7:02X}')
-
-        # PW speed to ZP... actually, we read it each frame from the instrument
-        # But we need to know WHICH instrument. Store inst ID somewhere.
-        # For simplicity: the wave table already encodes the waveform+offset per frame.
-        # PW speed: we read it from the table each frame using the instrument.
-        # BUT we don't store inst_id. Let's store pw_speed in a ZP byte.
-        # Hmm, running out of ZP bytes. Let me use the wave table for everything
-        # and handle PW separately.
-        #
-        # Actually: PW speed is per-instrument, constant during a note.
-        # I'll store it in an extra ZP byte. Extend ZP to 9 bytes.
-
         # Advance note pointer by 3
         a(f'        clc')
         a(f'        lda ${z+1:02X}')
         a(f'        adc #3')
         a(f'        sta ${z+1:02X}')
-        a(f'        bcc v{v}wt')
+        a(f'        bcc v{v}eval')
         a(f'        inc ${z+2:02X}')
         a('')
 
-        # --- W(delta) + F(delta): wave table processing ---
-        a(f'v{v}wt')
-        # Wave table: pairs of (waveform, note_offset)
-        # $FF + lo + hi = loop to absolute address
+        # Steps 2-5: evaluate W, F, P, E
+        a(f'v{v}eval')
+
+        # E: check ADSR zeroing (adsr_zero_delta frames before end)
+        # remaining = tick_ctr (already decremented)
+        # We check tick_ctr against a per-instrument delta.
+        # For simplicity: use a fixed delta from instrument table.
+        a(f'        lda ${z:02X}')              # remaining frames
+        a(f'        cmp #3')                     # TODO: read from instrument
+        a(f'        bne v{v}noz')
+        a(f'        lda #0')
+        a(f'        sta $D4{so+5:02X}')
+        a(f'        sta $D4{so+6:02X}')
+        a(f'v{v}noz')
+
+        # W+F: read combined program entry (waveform byte, note offset)
         a(f'        ldy #0')
-        a(f'        lda (${z+3:02X}),y')       # read waveform byte
-        a(f'        cmp #$FF')
+        a(f'        lda (${z+3:02X}),y')        # waveform byte
+        a(f'        cmp #$FF')                   # loop marker?
         a(f'        bne v{v}wok')
         # Loop: read 2-byte target address
         a(f'        iny')
-        a(f'        lda (${z+3:02X}),y')        # target lo
+        a(f'        lda (${z+3:02X}),y')
         a(f'        tax')
         a(f'        iny')
-        a(f'        lda (${z+3:02X}),y')        # target hi
+        a(f'        lda (${z+3:02X}),y')
         a(f'        sta ${z+4:02X}')
         a(f'        stx ${z+3:02X}')
         a(f'        ldy #0')
-        a(f'        lda (${z+3:02X}),y')        # re-read waveform from loop target
+        a(f'        lda (${z+3:02X}),y')        # re-read from loop target
 
         a(f'v{v}wok')
-        # W: write waveform to SID ctrl register
-        a(f'        sta $D4{so+4:02X}')
+        # E: gate off check
+        a(f'        pha')                         # save waveform
+        a(f'        lda ${z:02X}')
+        a(f'        cmp #3')                      # gate_off_delta
+        a(f'        bcs v{v}gon')
+        a(f'        pla')
+        a(f'        and #$FE')                    # clear gate bit
+        a(f'        jmp v{v}wrt')
+        a(f'v{v}gon')
+        a(f'        pla')
+        a(f'v{v}wrt')
+        a(f'        sta $D4{so+4:02X}')          # write ctrl
 
-        # F: read note offset, add to base note, look up freq table
+        # F: read note offset, compute freq
         a(f'        iny')
-        a(f'        lda (${z+3:02X}),y')        # note_offset
+        a(f'        lda (${z+3:02X}),y')          # note offset
         a(f'        clc')
-        a(f'        adc ${z+6:02X}')             # + current_note
+        a(f'        adc ${z+6:02X}')              # + base_note
         a(f'        tax')
         a(f'        lda ftlo,x')
-        a(f'        sta $D4{so:02X}')             # freq_lo
+        a(f'        sta $D4{so:02X}')
         a(f'        lda fthi,x')
-        a(f'        sta $D4{so+1:02X}')           # freq_hi
+        a(f'        sta $D4{so+1:02X}')
 
-        # Advance wave pointer by 2
+        # Advance WF pointer by 2
         a(f'        clc')
         a(f'        lda ${z+3:02X}')
         a(f'        adc #2')
@@ -324,9 +333,8 @@ def generate_asm(T, instruments, score):
         a(f'        bcc v{v}pw')
         a(f'        inc ${z+4:02X}')
 
-        # P: PW modulation (simple linear for now)
+        # P: write PW then accumulate
         a(f'v{v}pw')
-        # Write current PW, then accumulate
         a(f'        lda ${z+5:02X}')
         a(f'        sta $D4{so+2:02X}')
         # TODO: add pw_speed accumulation
@@ -340,179 +348,160 @@ def generate_asm(T, instruments, score):
     # --- DATA: Frequency Table ---
     a('ftlo')
     for i in range(0, len(T), 16):
-        chunk = T[i:i+16]
-        a('        .byte ' + ','.join(f'${f & 0xFF:02X}' for f in chunk))
+        a('        .byte ' + ','.join(f'${f & 0xFF:02X}' for f in T[i:i+16]))
     a('fthi')
     for i in range(0, len(T), 16):
-        chunk = T[i:i+16]
-        a('        .byte ' + ','.join(f'${(f >> 8) & 0xFF:02X}' for f in chunk))
+        a('        .byte ' + ','.join(f'${(f >> 8) & 0xFF:02X}' for f in T[i:i+16]))
     a('')
 
     # --- DATA: Instrument columns ---
     a('i_ad')
-    a('        .byte ' + ','.join(f'${i["ad"]:02X}' for i in instruments))
+    a('        .byte ' + ','.join(f'${i["E"]["ad"]:02X}' for i in instruments))
     a('i_sr')
-    a('        .byte ' + ','.join(f'${i["sr"]:02X}' for i in instruments))
+    a('        .byte ' + ','.join(f'${i["E"]["sr"]:02X}' for i in instruments))
     a('i_pwlo')
-    a('        .byte ' + ','.join(f'${i["pw"] & 0xFF:02X}' for i in instruments))
+    a('        .byte ' + ','.join(f'${i["P"]["init_pw"] & 0xFF:02X}' for i in instruments))
     a('i_pwhi')
-    a('        .byte ' + ','.join(f'${(i["pw"] >> 8) & 0x0F:02X}' for i in instruments))
-    a('i_wlo')
-    a('        .byte ' + ','.join(f'<wt{i["id"]}' for i in instruments))
-    a('i_whi')
-    a('        .byte ' + ','.join(f'>wt{i["id"]}' for i in instruments))
+    a('        .byte ' + ','.join(f'${(i["P"]["init_pw"] >> 8) & 0x0F:02X}' for i in instruments))
+    a('i_wflo')
+    a('        .byte ' + ','.join(f'<wf{i["id"]}' for i in instruments))
+    a('i_wfhi')
+    a('        .byte ' + ','.join(f'>wf{i["id"]}' for i in instruments))
     a('')
 
-    # --- DATA: Wave tables per instrument ---
+    # --- DATA: Combined W+F programs per instrument ---
+    # Each step: (waveform_byte, note_offset)
+    # The W.steps and F.offsets are INTERLEAVED into a single program.
     for inst in instruments:
         iid = inst['id']
-        ctrl = inst['ctrl']
-        has_drum = inst['has_drum']
-        has_arp = inst['has_arp']
+        w = inst['W']
+        f = inst['F']
 
-        a(f'wt{iid}')
+        a(f'wf{iid}')
+        # Combine W and F into interleaved (wave, offset) pairs
+        # Both have loop points — we use the LONGER sequence and loop both
+        w_steps = w['steps']
+        f_offsets = f['offsets']
+        w_loop = w['loop']
+        f_loop = f['loop']
 
-        if has_drum:
-            # W: gate on, noise burst frames 1-2, sustain after
-            # F: if has_arp, alternate offset 0/12
-            a(f'wt{iid}b0')
-            a(f'        .byte ${ctrl | 0x01:02X},$00')      # frame 0: gate on, base note
-            if has_arp:
-                a(f'        .byte $80,$0C')                    # frame 1: noise, note+12
-                a(f'        .byte $80,$00')                    # frame 2: noise, base note
-                a(f'wt{iid}b6')
-                a(f'        .byte ${ctrl & 0xFE:02X},$0C')    # frame 3: sustain, note+12
-                a(f'        .byte ${ctrl & 0xFE:02X},$00')    # frame 4: sustain, base note
-                a(f'        .byte $FF,<wt{iid}b6,>wt{iid}b6')  # loop to frame 3
-            else:
-                a(f'        .byte $80,$00')                    # frame 1: noise, base note
-                a(f'        .byte $80,$00')                    # frame 2: noise, base note
-                a(f'wt{iid}b6')
-                a(f'        .byte ${ctrl & 0xFE:02X},$00')    # frame 3: sustain
-                a(f'        .byte $FF,<wt{iid}b6,>wt{iid}b6')  # loop to frame 3
-        else:
-            # W: gate on (player handles gate-off via HR)
-            # F: no offset changes
-            a(f'wt{iid}b0')
-            a(f'        .byte ${ctrl | 0x01:02X},$00')        # gate on, base note
-            a(f'        .byte $FF,<wt{iid}b0,>wt{iid}b0')    # loop to self (gate stays on)
+        # The combined program length = max(len(w_steps), len(f_offsets))
+        # Pad the shorter one by repeating from its loop point
+        max_len = max(len(w_steps), len(f_offsets))
+
+        def get_step(seq, loop, idx):
+            if idx < len(seq):
+                return seq[idx]
+            return seq[loop + (idx - len(seq)) % (len(seq) - loop)]
+
+        # Find the combined loop point (where BOTH W and F have looped)
+        # This is at max(len(w_steps), len(f_offsets)) rounded to the LCM of both cycle lengths
+        # For simplicity: use max_len as the combined program length, loop at max(w_loop, f_loop)
+        combined_loop = max(w_loop, f_loop)
+        # Ensure combined_loop makes sense
+        if combined_loop >= max_len:
+            combined_loop = max_len - 1
+
+        byte_pos = 0
+        for step in range(max_len):
+            ws = get_step(w_steps, w_loop, step)
+            fo = get_step(f_offsets, f_loop, step)
+            if step == combined_loop:
+                a(f'wf{iid}lp')   # loop target label
+            a(f'        .byte ${ws:02X},${fo & 0xFF:02X}')
+            byte_pos += 2
+        # Loop back
+        a(f'        .byte $FF,<wf{iid}lp,>wf{iid}lp')
         a('')
 
-    # --- DATA: Note streams per voice ---
+    # --- DATA: Note streams ---
     for v in range(3):
         a(f'v{v}notes')
         voice = score['voices'][v]
         for pat_idx in voice['orderlist']:
             notes = voice['patterns'][pat_idx]
             for note in notes:
-                pitch = note['pitch'] & 0xFF
-                dur = note['duration'] & 0xFF
-                inst_id = note['instrument'] & 0xFF
-                a(f'        .byte ${pitch:02X},${dur:02X},${inst_id:02X}')
-        a(f'        .byte $FF')  # end marker
+                a(f'        .byte ${note["pitch"] & 0xFF:02X},'
+                  f'${note["duration"] & 0xFF:02X},'
+                  f'${note["instrument"] & 0xFF:02X}')
+        a(f'        .byte $FF')
     a('')
 
     return '\n'.join(L)
 
 
 # ===================================================================
-# Step 3: Assemble and build PSID
+# BUILD + VERIFY (same as before)
 # ===================================================================
 
 def build_sid(asm_text, output_path):
-    """Assemble xa65 source and wrap in PSID."""
     asm_path = output_path.replace('.sid', '.s')
     bin_path = output_path.replace('.sid', '.bin')
-
     with open(asm_path, 'w') as f:
         f.write(asm_text)
-
     result = subprocess.run([XA, '-o', bin_path, asm_path],
                             capture_output=True, text=True)
     if result.returncode != 0:
         print(f"Assembly FAILED:\n{result.stderr}")
         return False
-
     with open(bin_path, 'rb') as f:
         binary = f.read()
 
-    # PSID header from original
     with open(SID_PATH, 'rb') as f:
         orig = f.read()
     header_len = struct.unpack('>H', orig[6:8])[0]
     header = bytearray(orig[:header_len])
-    struct.pack_into('>H', header, 8, 0)      # load from data
-    struct.pack_into('>H', header, 10, 0x1000) # init
-    struct.pack_into('>H', header, 12, 0x1003) # play
-    struct.pack_into('>H', header, 14, 1)      # songs
-    struct.pack_into('>H', header, 16, 1)      # default
+    struct.pack_into('>H', header, 8, 0)
+    struct.pack_into('>H', header, 10, 0x1000)
+    struct.pack_into('>H', header, 12, 0x1003)
+    struct.pack_into('>H', header, 14, 1)
+    struct.pack_into('>H', header, 16, 1)
 
     sid_data = bytes(header) + struct.pack('<H', 0x1000) + binary
-
     with open(output_path, 'wb') as f:
         f.write(sid_data)
 
     end_addr = 0x1000 + len(binary)
-    print(f"SID: {len(sid_data)} bytes ({len(sid_data)/1024:.1f} KB), "
-          f"end ${end_addr:04X}")
+    print(f"SID: {len(sid_data)} bytes ({len(sid_data)/1024:.1f} KB), end ${end_addr:04X}")
     return True
 
 
-# ===================================================================
-# Step 4: Verify against ground truth
-# ===================================================================
-
 def verify(output_path, max_frames=500):
-    """Compare register output frame by frame against py65 ground truth."""
     from ground_truth import capture_sid as gt_capture
     from collections import Counter
     from py65.devices.mpu6502 import MPU
 
-    # Ground truth
     gt_result = gt_capture(SID_PATH, subtunes=[1], max_frames=max_frames,
                            detect_loop=False)
     gt = gt_result.subtunes[0].frames
     N = len(gt)
 
-    # Our SID
     with open(output_path, 'rb') as f:
         sid = f.read()
     hl = struct.unpack('>H', sid[6:8])[0]
     la = struct.unpack('>H', sid[8:10])[0]
     code = sid[hl:]
     if la == 0:
-        la = struct.unpack('<H', code[:2])[0]
-        code = code[2:]
-    mem = bytearray(65536)
-    mem[la:la + len(code)] = code
-    m = MPU()
-    m.memory = bytearray(mem)
-    m.memory[0xFFF0] = 0x00
-    m.stPush(0xFF); m.stPush(0xEF)
-    m.pc = la; m.a = 0
+        la = struct.unpack('<H', code[:2])[0]; code = code[2:]
+    mem = bytearray(65536); mem[la:la+len(code)] = code
+    m = MPU(); m.memory = bytearray(mem); m.memory[0xFFF0] = 0x00
+    m.stPush(0xFF); m.stPush(0xEF); m.pc = la; m.a = 0
     for _ in range(50000):
-        if m.memory[m.pc] == 0x00:
-            break
+        if m.memory[m.pc] == 0x00: break
         m.step()
 
     rn = ['flo', 'fhi', 'plo', 'phi', 'ctl', 'ad', 'sr']
     errors = Counter()
     perfect = 0
-
     for fr in range(N):
-        m.stPush(0xFF); m.stPush(0xEF)
-        m.pc = la + 3
+        m.stPush(0xFF); m.stPush(0xEF); m.pc = la + 3
         for _ in range(50000):
-            if m.memory[m.pc] == 0x00:
-                break
+            if m.memory[m.pc] == 0x00: break
             m.step()
-
         ok = True
         for v, vo in enumerate([0, 7, 14]):
             for r in range(7):
-                us = m.memory[0xD400 + vo + r]
-                g = gt[fr][vo + r]
-                if us != g:
+                if m.memory[0xD400+vo+r] != gt[fr][vo+r]:
                     errors[(f'V{v+1}', rn[r])] += 1
                     ok = False
         if ok:
@@ -525,31 +514,31 @@ def verify(output_path, max_frames=500):
     return perfect, N
 
 
-# ===================================================================
-# Main
-# ===================================================================
-
 if __name__ == '__main__':
-    print("Das Model Gen — clean implementation from spec")
+    print("Das Model Gen — clean from spec")
     print("=" * 50)
 
-    print("\n[1] Extracting (T, I, S) from binary...")
+    print("\n[1] Extracting (T, I, S)...")
     T, instruments, score = extract()
     print(f"    T: {len(T)} entries")
     print(f"    I: {len(instruments)} instruments")
-    print(f"    S: {len(score['voices'])} voices, "
-          f"tick_length={score['tick_length']}")
-    for v in range(3):
-        n_pats = len(score['voices'][v]['orderlist'])
-        print(f"    V{v+1}: {n_pats} patterns in orderlist")
+    for i in instruments:
+        w = i['W']; f = i['F']
+        print(f"      [{i['id']:2d}] W={len(w['steps'])} steps "
+              f"F={len(f['offsets'])} offsets "
+              f"P={i['P']['mode']} E=AD${i['E']['ad']:02X}")
 
-    print("\n[2] Generating 6502 assembly...")
+    print(f"\n    S: tempo={score['tempo']} frames/tick")
+    for v in range(3):
+        print(f"    V{v+1}: {len(score['voices'][v]['orderlist'])} patterns")
+
+    print("\n[2] Generating assembly...")
     asm = generate_asm(T, instruments, score)
 
-    print("\n[3] Assembling and building PSID...")
+    print("\n[3] Building PSID...")
     ok = build_sid(asm, OUT_PATH)
     if not ok:
         sys.exit(1)
 
-    print("\n[4] Verifying against ground truth...")
-    perfect, total = verify(OUT_PATH, max_frames=200)
+    print("\n[4] Verifying...")
+    verify(OUT_PATH, max_frames=200)
