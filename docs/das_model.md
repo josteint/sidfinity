@@ -1,278 +1,215 @@
 # Das Model — Formal Specification
 
-## Overview
+## 1. Overview
 
 Every SID performance is determined by three components:
 
 ```
 SID = (T, I, S)
 
-T : FreqTable     — maps note indices to SID frequency values
-I : Instrument[]   — behavioral rules that produce register values
-S : Score          — what instrument plays what note at what time
+T : Frequency Table
+I : Instrument[]
+S : Score
 ```
 
-The universal engine evaluates these to produce SID register writes.
+A universal engine evaluates these to produce SID register writes.
+The engine is fixed — it never changes. All musical variation comes
+from T, I, and S.
 
-## 1. Frequency Table
+## 2. Frequency Table
 
 ```
 T : [0..N] → uint16
-
-T[n] = (freq_hi[n] << 8) | freq_lo[n]
 ```
 
-Standard PAL table has N=95 (96 entries). Some engines extend beyond
-(Hubbard reads runtime state at indices 96+).
+A lookup array mapping note indices to 16-bit SID frequency values.
+The engine indexes into T to get frequency register values.
+The table contents are song-specific (extracted from the binary).
 
-## 2. Instruments
+## 3. Instruments
 
-An instrument defines RULES (programs) for how each SID register
-behaves relative to δ (frames since note-on):
+An instrument is a collection of PROGRAMS that the engine executes
+per frame. The engine does not interpret these programs — it
+evaluates them mechanically.
 
 ```
-Instrument I = {
-    W : WaveProgram       — waveform per frame
-    F : FreqProgram       — frequency behavior per frame
-    P : PulseProgram      — pulse width modulation rule
-    E : EnvelopeSpec      — ADSR + hard restart
+Instrument = {
+    W : WaveProgram
+    F : FreqProgram
+    P : PulseProgram
+    E : EnvelopeSpec
 }
 ```
 
-### 2.1 Wave Program W
+### 3.1 Wave Program (W)
 
-W depends on BOTH δ (frame within note) and L (total note length):
-
-```
-W(δ, L) determines the SID control register ($D404) value.
-```
-
-Two components:
-1. **Waveform sequence** — the upper bits (waveform select, ring, sync)
-2. **Gate bit** — bit 0, depends on envelope timing
-
-**Waveform sequence** (a finite program with loop):
-```
-waveform_steps = [(wave_byte, duration), ...]
-```
-
-**Case 1: Drum + arpeggio** (has_drum AND has_arpeggio):
-```
-δ=0: ctrl | 0x01 (gate on, native waveform)
-δ=1: $80 (noise burst, gate off)
-δ=2: $80 (noise burst, gate off)
-δ≥3: ctrl & $FE (sustain, gate off) — LOOPS HERE
-```
-The noise burst occurs regardless of the instrument's native waveform.
-This applies to both noise instruments (ctrl=$81) and non-noise (ctrl=$41, $15, $21).
-
-**Case 2: Drum without arpeggio** (has_drum AND NOT has_arpeggio):
-```
-δ=0: ctrl | 0x01 (gate on, native waveform)
-δ=1: $80 (noise burst)
-δ=2: $80 (noise burst)
-δ≥3: ctrl & $FE (sustain, gate off)
-```
-ALL drum instruments produce noise burst on frames 1-2, regardless of
-whether they have arpeggio. (Earlier spec incorrectly said no noise burst
-for non-arp drums — this was based on testing only the init note which
-is special.)
-
-**Case 3: Non-drum instruments** (has_drum=False):
-```
-δ=0..L-hr-1: ctrl | 0x01 (gate ON for most of note)
-δ=L-hr..L-1: ctrl & $FE (gate OFF, hard restart)
-```
-where hr = hard_restart frames (typically 3).
-
-**Key insight**: the gate bit is ON for most of the note in non-drum
-instruments. The waveform byte doesn't change — only the gate bit
-toggles at hard restart. The noise burst in drum instruments only
-occurs when the instrument's native waveform IS noise ($80/$81).
-
-### 2.2 Freq Program F
-
-Determines the frequency written to SID each frame. Two modes:
-
-**Mode 'table'**: frequency from table lookup with offset
-```
-F_table = (offsets[], loop_target)
-
-freq(δ, base_note) = T[base_note + offsets[δ_wrapped]]
-```
-
-Example: octave arpeggio → offsets = [0, 12], loop_target = 0
-
-**Mode 'slide'**: frequency modified directly each frame
-```
-F_slide = (initial_offset, delta_per_frame)
-
-freq_hi(δ, base_note) = T[base_note].hi + delta_per_frame * δ
-freq_lo(δ, base_note) = T[base_note].lo
-```
-
-Example: drum slide → delta_per_frame = -1
-
-### 2.3 Pulse Program P
-
-The pulse width rule. The engine maintains per-voice PW STATE;
-the instrument defines the RULE applied to that state each frame.
+A finite sequence of waveform bytes with a loop point.
 
 ```
-PulseProgram = {
-    speed     : int16      — per-frame PW delta (0 = no modulation)
-    mode      : enum       — 'none' | 'linear' | 'bidirectional'
-    min_hi    : uint8      — lower boundary for pw_hi (bidirectional mode)
-    max_hi    : uint8      — upper boundary for pw_hi (bidirectional mode)
-    init      : uint16     — initial PW value on first note with this instrument
+W = {
+    steps : uint8[]       — one SID control byte ($D404 value) per frame
+    loop  : uint          — index to loop back to after last step
+}
+```
+
+The engine writes `W.steps[step]` to the SID control register each frame,
+advancing `step` by one. When `step` reaches `len(steps)`, it resets to
+`loop`.
+
+The engine does not interpret the waveform byte. It does not know about
+gate bits, noise bursts, or waveform types. It writes the byte as-is.
+
+### 3.2 Freq Program (F)
+
+A finite sequence of note offsets with a loop point.
+
+```
+F = {
+    offsets : int8[]      — note offset per frame (added to base note)
+    loop   : uint         — index to loop back to after last offset
+}
+```
+
+Each frame, the engine computes: `freq = T[base_note + F.offsets[step]]`
+and writes freq_lo and freq_hi to SID registers $D400/$D401.
+
+The engine does not know about arpeggio, vibrato, or portamento.
+It adds the offset and does the table lookup.
+
+### 3.3 Pulse Program (P)
+
+Defines how pulse width evolves per frame. The engine maintains a
+per-voice PW accumulator that carries across notes.
+
+```
+P = {
+    speed    : int16      — per-frame PW delta (0 = no modulation)
+    mode     : enum       — 'none' | 'linear' | 'bidirectional'
+    min_hi   : uint8      — lower boundary (bidirectional only)
+    max_hi   : uint8      — upper boundary (bidirectional only)
+    init_pw  : uint16     — initial PW value for this instrument
 }
 ```
 
 Engine execution per frame:
 ```
 if mode == 'none':
-    pw unchanged
+    (no change)
 elif mode == 'linear':
-    pw_lo += speed_lo        (8-bit wrap, pw_hi unchanged)
+    pw_lo = (pw_lo + speed_lo) & $FF     — 8-bit wrap, pw_hi unchanged
 elif mode == 'bidirectional':
     if direction == UP:
-        pw += speed          (16-bit add)
-        if pw_hi >= max_hi:
-            pw_hi = max_hi
-            direction = DOWN
+        pw += speed                       — 16-bit add
+        if pw_hi >= max_hi: direction = DOWN
     else:
-        pw -= speed          (16-bit subtract)
-        if pw_hi <= min_hi:
-            pw_hi = min_hi
-            direction = UP
-    write pw_lo to $D402+voice_offset
-    write pw_hi to $D403+voice_offset
+        pw -= speed                       — 16-bit subtract
+        if pw_hi <= min_hi: direction = UP
+write pw_lo, pw_hi to SID $D402/$D403
 ```
 
-PW STATE carries across notes on the same voice.
-On instrument change:
-- Same PW mode: state continues
-- To noise instrument: save pw state, load instrument init
-- From noise instrument: restore saved pw state
-- To different PW mode: load instrument init
+PW state (accumulator, direction) persists across notes on the same voice.
+On instrument change: init_pw is loaded only if the PW mode changes.
 
-### 2.4 Envelope Spec E
+### 3.4 Envelope Spec (E)
 
 ```
-EnvelopeSpec = {
-    ad              : uint8    — attack/decay register value
-    sr              : uint8    — sustain/release register value
-    hard_restart    : uint8    — frames before note end to zero AD/SR (typically 3)
+E = {
+    ad            : uint8    — attack/decay register value
+    sr            : uint8    — sustain/release register value
+    gate_off_delta : uint8   — frames before note end to turn gate off (0 = never)
+    adsr_zero_delta : uint8  — frames before note end to zero AD/SR (0 = never)
 }
 ```
 
 Engine execution:
 ```
-E(δ, note_length) =
-    if δ < note_length - hard_restart:
-        write ad to $D405, sr to $D406
-    else:
-        write $00 to $D405, $00 to $D406
+let remaining = note_end_frame - current_frame
+
+if remaining == adsr_zero_delta:
+    write $00 to AD register, $00 to SR register
+elif note is active:
+    write E.ad to AD register, E.sr to SR register
+
+if remaining == gate_off_delta:
+    clear bit 0 of the ctrl register (gate off)
 ```
 
-## 3. Score
+The engine does not know about "hard restart." It zeroes ADSR and clears
+gate at the frame offsets specified by the instrument.
+
+## 4. Score
 
 ```
 Score = {
+    tempo  : uint8          — frames per tick
     voices : Voice[3]
-    tempo  : uint8              — frames per tick
 }
 
 Voice = {
     events : NoteEvent[]
-    loop   : uint               — event index to loop back to
+    loop   : uint           — event index to loop back to (-1 = no loop)
 }
 
 NoteEvent = {
-    note       : uint8          — frequency table index (base pitch)
-    duration   : uint8          — length in ticks
-    instrument : uint8          — instrument index
+    note       : uint8     — frequency table index (base pitch)
+    duration   : uint8     — length in ticks
+    instrument : uint8     — instrument index
 }
 ```
 
-The engine converts ticks to frames:
+The engine converts ticks to frames: `note_frames = duration * tempo`
+
+## 5. Universal Engine
+
+The engine evaluates SID = (T, I, S) per frame. For each voice:
 
 ```
-tick_length = speed + 1          (e.g., speed=2 → 3 frames per tick)
-note_frames = (duration + 1) × tick_length
+1. tick_counter--
+   if tick_counter == 0:
+       load next NoteEvent from Score
+       set tick_counter = duration * tempo
+       set base_note = event.note
+       load instrument I[event.instrument]
+       reset W.step and F.step to 0
 
-Example: dur=1, speed=2 → (1+1) × 3 = 6 frames
-         dur=3, speed=2 → (3+1) × 3 = 12 frames
-         dur=5, speed=2 → (5+1) × 3 = 18 frames
+2. W: write W.steps[step] to $D404+voice_offset
+      advance step (loop if past end)
+      
+      if remaining frames == E.gate_off_delta:
+          clear bit 0 of $D404+voice_offset
+
+3. F: freq = T[base_note + F.offsets[step]]
+      write freq_lo to $D400, freq_hi to $D401
+      advance step (loop if past end)
+
+4. P: apply pulse program to accumulator
+      write pw_lo to $D402, pw_hi to $D403
+
+5. E: if remaining frames == E.adsr_zero_delta:
+          write $00 to $D405, $00 to $D406
+      else:
+          write E.ad to $D405, E.sr to $D406
 ```
 
-The "+1" on duration is because the Hubbard counter loads D and
-decrements to -1 (going through 0), giving D+1 ticks total.
+That is the complete engine. It has no knowledge of any specific
+SID player engine, effect type, or musical concept. It reads programs
+and data, evaluates them mechanically, and writes SID registers.
 
-For engines with funktempo (alternating tick lengths):
-```
-tick_lengths = [A, B]            (cyclic sequence)
-note_frames = sum of next (D+1) entries from tick_lengths[]
-```
+## 6. Instrument Extraction
 
-Normal tempo is tick_lengths = [N] (single-element sequence).
+Instruments are created by per-engine DECOMPILERS that read the
+original SID binary and translate engine-specific parameters into
+(W, F, P, E) programs.
 
-## 4. Universal Engine
+For example, a Hubbard decompiler reads fx_flags and builds:
+- W program with noise burst frames if the flags indicate drum+arp
+- F program with +12 offsets if the flags indicate octave arpeggio
+- P program with the instrument's PW speed and boundaries
+- E spec with the instrument's AD/SR and the engine's HR timing
 
-Per frame, for each voice v:
+A GT2 decompiler would read wave/pulse/filter tables and build
+different W/F/P/E programs from those.
 
-```
-1. Advance tick counter; if expired, load next NoteEvent
-2. Let δ = current frame - note_start_frame
-3. Let I = instruments[current_event.instrument]
-4. Let n = current_event.note
-
-5. ctrl = I.W(δ)                                    → write $D404+v*7
-6. freq = I.F(δ, n, T)                              → write $D400+v*7, $D401+v*7
-7. pw   = engine.apply_pulse(I.P, voice_state[v])   → write $D402+v*7, $D403+v*7
-8. (ad, sr) = I.E(δ, note_frames)                   → write $D405+v*7, $D406+v*7
-```
-
-## 5. Commando Instruments (Hubbard Engine)
-
-Source: binary at $5000, decompiled by rh_decompile.py
-
-### fx_flags interpretation:
-```
-Bit 0: drum      — noise burst on frame 0, freq_hi slides down
-Bit 1: skydive   — freq_hi decreases by 1 every 2 frames (after gate off)
-Bit 2: arpeggio  — octave arpeggio: alternate note+0 and note+12 every frame
-Bit 3: table_arp — wave program uses arpeggio table stepping (post-1986 feature)
-```
-
-### Commando's 13 instruments:
-
-```
- #  AD   SR   ctrl  PW     speed  fx   W(δ)                           F(δ)
- 0  $29  $5F  $41   $0900  $E0    $00  gate→sustain                   table[+0] (vibrato depth 2)
- 1  $06  $4B  $41   $0180  $00    $05  gate→noise→noise→sustain       table[+0,+12] arp
- 2  $09  $9F  $41   $0180  $16    $08  gate→sustain                   table[+0]
- 3  $0A  $09  $81   $0200  $00    $05  gate→noise→noise→sustain       table[+0,+12] arp (noise waveform)
- 4  $0F  $C4  $43   $0200  $00    $03  gate→noise→noise→sustain       slide(-1) + skydive
- 5  $05  $A9  $41   $0880  $02    $0D  gate→noise→noise→sustain       table[+0,+12] arp + table_arp
- 6  $38  $7A  $41   $0800  $E0    $00  gate→sustain                   table[+0] (vibrato depth 2)
- 7  $0D  $FB  $15   $0180  $00    $05  gate→noise→noise→sustain       table[+0,+12] arp (tri+pulse)
- 8  $49  $5B  $41   $0800  $03    $08  gate→sustain                   table[+0] (vibrato depth 2)
- 9  $04  $6F  $21   $0800  $00    $05  gate→noise→noise→sustain       table[+0,+12] arp (sawtooth)
-10  $09  $6B  $41   $0300  $01    $0D  gate→noise→noise→sustain       table[+0,+12] arp + table_arp
-11  $07  $09  $43   $0200  $00    $01  gate→noise→noise→sustain       slide(-1) drum
-12  $09  $0A  $41   $0800  $00    $01  gate→noise→noise→sustain       slide(-1) drum
-```
-
-### Pulse modulation parameters (Commando player constants):
-```
-Bidirectional mode boundaries: min_phi=$08, max_phi=$0E
-Speed is per-instrument: $E0 (insts 0,6), $16 (inst 2), $02 (inst 5), $03 (inst 8), $01 (inst 10)
-```
-
-### Frequency table:
-```
-T[0..95]  = standard PAL C64 frequency table
-T[96..107] = Hubbard runtime state (read via py65 after init+play)
-             T[100] = $0303 (used by octave arpeggio from note 88)
-```
+The decompiler is engine-specific. The instrument format is universal.
+The engine evaluates any instrument the same way, regardless of which
+decompiler created it.
