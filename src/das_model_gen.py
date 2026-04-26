@@ -88,15 +88,18 @@ def extract():
             w_loop = 0
 
         # Arp: Hubbard uses global frame counter bit 0 to alternate +0/+12
-        # This is NOT a per-step program — it's global phase
         arp_offset = 12 if rh.has_arpeggio else 0
 
-        # P program: PW modulation
-        # fx_flags bit 3 determines PW MODE (not table arp — that's post-1986):
-        #   bit3=1: simple unidirectional increment (add pw_delta to pw_lo each frame)
-        #   bit3=0: oscillating bidirectional sweep (bounce between min/max)
-        pw_speed = rh.pwm_speed
+        # fx_flags
         flags = rh.fx_flags if rh.fx_flags is not None else 0
+
+        # Skydive (fx_flags bit 1): freq_hi += 2 every odd frame after 3 frames.
+        # In Commando, only inst 4 has it, but notes are too short (dur=2, 6 frames)
+        # for the >= 3 frame condition to trigger. Skydive is effectively inactive.
+
+        # P program: PW modulation
+        # fx_flags bit 3 determines PW MODE (not table arp — that's post-1986)
+        pw_speed = rh.pwm_speed
         pw_simple = (flags >> 3) & 1  # bit 3
         if pw_speed == 0:
             pw_mode = 'none'
