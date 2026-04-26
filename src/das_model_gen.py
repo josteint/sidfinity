@@ -138,12 +138,12 @@ def extract():
                             cur_inst = note.instrument
                         dur = note.duration if note.duration is not None else 0
                         if note.pitch is None:
-                            # TIE: extend previous note's duration
-                            if notes:
-                                notes[-1]['duration'] += dur + 1
-                            continue
+                            # TIE: use previous note's pitch (preserves hard restart timing)
+                            pitch = notes[-1]['pitch'] if notes else 0
+                        else:
+                            pitch = note.pitch
                         notes.append({
-                            'pitch': note.pitch,
+                            'pitch': pitch,
                             'duration': dur + 1,  # Hubbard: counter loads D, decrements to -1
                             'instrument': cur_inst,
                         })
