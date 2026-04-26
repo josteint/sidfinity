@@ -87,19 +87,9 @@ def extract():
             w_steps = [ctrl | 0x01]  # gate on (engine handles gate-off via E)
             w_loop = 0
 
-        # F program: sequence of note offsets
-        # Hubbard's arpeggio: alternate +0 and +12 every frame
-        if rh.has_arpeggio:
-            if rh.has_drum:
-                # Arp applies on ALL frames including noise burst
-                f_offsets = [0, 12, 0, 12, 0]
-                f_loop = 3  # loop the alternating pair (offsets[3]=12, [4]=0)
-            else:
-                f_offsets = [0, 12]
-                f_loop = 0
-        else:
-            f_offsets = [0]
-            f_loop = 0
+        # Arp: Hubbard uses global frame counter bit 0 to alternate +0/+12
+        # This is NOT a per-step program — it's global phase
+        arp_offset = 12 if rh.has_arpeggio else 0
 
         # P program: PW modulation
         pw_speed = rh.pwm_speed
@@ -118,7 +108,7 @@ def extract():
         instruments.append({
             'id': rh.index,
             'W': {'steps': w_steps, 'loop': w_loop},
-            'F': {'offsets': f_offsets, 'loop': f_loop},
+            'arp_offset': arp_offset,
             'P': {'speed': pw_speed, 'mode': pw_mode,
                    'min_hi': pw_min, 'max_hi': pw_max,
                    'init_pw': rh.pulse_width},
@@ -147,8 +137,13 @@ def extract():
                         if note.instrument is not None:
                             cur_inst = note.instrument
                         dur = note.duration if note.duration is not None else 0
+                        if note.pitch is None:
+                            # TIE: extend previous note's duration
+                            if notes:
+                                notes[-1]['duration'] += dur + 1
+                            continue
                         notes.append({
-                            'pitch': note.pitch if note.pitch is not None else 0,
+                            'pitch': note.pitch,
                             'duration': dur + 1,  # Hubbard: counter loads D, decrements to -1
                             'instrument': cur_inst,
                         })
@@ -178,7 +173,7 @@ def generate_asm(T, instruments, score):
     # +0: tick_ctr
     # +1/+2: ol_ptr
     # +3/+4: pat_ptr
-    # +5/+6: wf_ptr
+    # +5/+6: w_ptr (wave program, 1 byte/step)
     # +7: pw_lo
     # +8: base_note
     # +9: note_len
@@ -189,6 +184,7 @@ def generate_asm(T, instruments, score):
     # +14: prev_inst (previous instrument ID, $FF=none)
     ZP = [0x80, 0x8F, 0x9E]
     SOFF = [0, 7, 14]
+    FRAME_CTR = 0xAD  # global frame counter (all voices share)
 
     a(f'        * = ${BASE:04X}')
     a(f'        jmp init')
@@ -199,7 +195,8 @@ def generate_asm(T, instruments, score):
     a('init')
     a('        lda #$0F')
     a('        sta $D418')
-    # (global arp counter removed — per-step F offsets used instead)
+    a(f'        lda #$FF')
+    a(f'        sta ${FRAME_CTR:02X}')   # global frame counter (INC on first play → 0)
     for v in range(3):
         z = ZP[v]
         # Load first pattern address from orderlist into pat_ptr
@@ -228,6 +225,7 @@ def generate_asm(T, instruments, score):
 
     # --- PLAY ---
     a('play')
+    a(f'        inc ${FRAME_CTR:02X}')   # global frame counter (like Hubbard's $5525)
     for v in range(3):
         z = ZP[v]
         so = SOFF[v]
@@ -300,10 +298,10 @@ def generate_asm(T, instruments, score):
         a(f'        sta ${z+10:02X}')
         a(f'        lda i_pwmax,x')
         a(f'        sta ${z+12:02X}')
-        # Set WF program pointer
-        a(f'        lda i_wflo,x')
+        # Set W program pointer
+        a(f'        lda i_wlo,x')
         a(f'        sta ${z+5:02X}')
-        a(f'        lda i_wfhi,x')
+        a(f'        lda i_whi,x')
         a(f'        sta ${z+6:02X}')
         # Advance pat_ptr by 3
         a(f'        clc')
@@ -326,7 +324,7 @@ def generate_asm(T, instruments, score):
         a(f'        sta $D4{so+6:02X}')
         a(f'v{v}noz')
 
-        # W+F: read from wf_ptr (+5/+6)
+        # W: read waveform from w_ptr (+5/+6), 1 byte per step
         a(f'        ldy #0')
         a(f'        lda (${z+5:02X}),y')        # waveform byte
         a(f'        cmp #$FF')
@@ -355,24 +353,29 @@ def generate_asm(T, instruments, score):
         a(f'v{v}wrt')
         a(f'        sta $D4{so+4:02X}')
 
-        # F: note offset from WF program (interleaved with W)
-        a(f'        iny')
-        a(f'        lda (${z+5:02X}),y')          # F offset
+        # Advance w_ptr by 1 (wave-only, not interleaved)
+        a(f'        inc ${z+5:02X}')
+        a(f'        bne v{v}freq')
+        a(f'        inc ${z+6:02X}')
+
+        # F: freq from base_note + arp offset (global phase)
+        a(f'v{v}freq')
+        a(f'        ldx ${z+8:02X}')              # base_note
+        a(f'        ldy ${z+14:02X}')             # instrument ID (prev_inst)
+        a(f'        lda i_arp,y')                 # arp_offset (0 or 12)
+        a(f'        beq v{v}frok')                # no arp → use base_note
+        a(f'        lda ${FRAME_CTR:02X}')        # global frame counter
+        a(f'        and #$01')                    # bit 0
+        a(f'        beq v{v}frok')                # even frame → base_note
+        a(f'        txa')
         a(f'        clc')
-        a(f'        adc ${z+8:02X}')              # + base_note
+        a(f'        adc i_arp,y')                 # base_note + arp_offset
         a(f'        tax')
+        a(f'v{v}frok')
         a(f'        lda ftlo,x')
         a(f'        sta $D4{so:02X}')
         a(f'        lda fthi,x')
         a(f'        sta $D4{so+1:02X}')
-
-        # Advance wf_ptr by 2
-        a(f'        clc')
-        a(f'        lda ${z+5:02X}')
-        a(f'        adc #2')
-        a(f'        sta ${z+5:02X}')
-        a(f'        bcc v{v}pw')
-        a(f'        inc ${z+6:02X}')
 
         # P: PW modulation — write first, then accumulate
         a(f'v{v}pw')
@@ -463,55 +466,28 @@ def generate_asm(T, instruments, score):
         else:
             pwmax_vals.append(i['P']['max_hi'])
     a('        .byte ' + ','.join(f'${v:02X}' for v in pwmax_vals))
-    a('i_wflo')
-    a('        .byte ' + ','.join(f'<wf{i["id"]}' for i in instruments))
-    a('i_wfhi')
-    a('        .byte ' + ','.join(f'>wf{i["id"]}' for i in instruments))
+    a('i_arp')
+    a('        .byte ' + ','.join(f'${i["arp_offset"]:02X}' for i in instruments))
+    a('i_wlo')
+    a('        .byte ' + ','.join(f'<w{i["id"]}' for i in instruments))
+    a('i_whi')
+    a('        .byte ' + ','.join(f'>w{i["id"]}' for i in instruments))
     a('')
 
-    # --- DATA: Combined W+F programs per instrument ---
-    # Each step: (waveform_byte, note_offset)
-    # The W.steps and F.offsets are INTERLEAVED into a single program.
+    # --- DATA: Wave programs per instrument (1 byte per step) ---
     for inst in instruments:
         iid = inst['id']
         w = inst['W']
-        f = inst['F']
-
-        a(f'wf{iid}')
-        # Combine W and F into interleaved (wave, offset) pairs
-        # Both have loop points — we use the LONGER sequence and loop both
         w_steps = w['steps']
-        f_offsets = f['offsets']
         w_loop = w['loop']
-        f_loop = f['loop']
 
-        # The combined program length = max(len(w_steps), len(f_offsets))
-        # Pad the shorter one by repeating from its loop point
-        max_len = max(len(w_steps), len(f_offsets))
-
-        def get_step(seq, loop, idx):
-            if idx < len(seq):
-                return seq[idx]
-            return seq[loop + (idx - len(seq)) % (len(seq) - loop)]
-
-        # Find the combined loop point (where BOTH W and F have looped)
-        # This is at max(len(w_steps), len(f_offsets)) rounded to the LCM of both cycle lengths
-        # For simplicity: use max_len as the combined program length, loop at max(w_loop, f_loop)
-        combined_loop = max(w_loop, f_loop)
-        # Ensure combined_loop makes sense
-        if combined_loop >= max_len:
-            combined_loop = max_len - 1
-
-        byte_pos = 0
-        for step in range(max_len):
-            ws = get_step(w_steps, w_loop, step)
-            fo = get_step(f_offsets, f_loop, step)
-            if step == combined_loop:
-                a(f'wf{iid}lp')   # loop target label
-            a(f'        .byte ${ws:02X},${fo & 0xFF:02X}')
-            byte_pos += 2
-        # Loop back
-        a(f'        .byte $FF,<wf{iid}lp,>wf{iid}lp')
+        a(f'w{iid}')
+        for step, ws in enumerate(w_steps):
+            if step == w_loop:
+                a(f'w{iid}lp')   # loop target label
+            a(f'        .byte ${ws:02X}')
+        # Loop back marker
+        a(f'        .byte $FF,<w{iid}lp,>w{iid}lp')
         a('')
 
     # --- DATA: Patterns (shared, each stored once) ---
@@ -638,9 +614,9 @@ if __name__ == '__main__':
     print(f"    T: {len(T)} entries")
     print(f"    I: {len(instruments)} instruments")
     for i in instruments:
-        w = i['W']; f = i['F']
+        w = i['W']
         print(f"      [{i['id']:2d}] W={len(w['steps'])} steps "
-              f"F={len(f['offsets'])} offsets "
+              f"arp={i['arp_offset']} "
               f"P={i['P']['mode']} E=AD${i['E']['ad']:02X}")
 
     print(f"\n    S: tempo={score['tempo']} frames/tick")

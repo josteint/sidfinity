@@ -5,6 +5,8 @@
 init
         lda #$0F
         sta $D418
+        lda #$FF
+        sta $AD
         lda v0ol
         sta $83
         lda v0ol+1
@@ -65,6 +67,7 @@ init
         rts
 
 play
+        inc $AD
 ; --- Voice 1 ---
         dec $80
         bne v0eval
@@ -121,9 +124,9 @@ v0skpw
         sta $8A
         lda i_pwmax,x
         sta $8C
-        lda i_wflo,x
+        lda i_wlo,x
         sta $85
-        lda i_wfhi,x
+        lda i_whi,x
         sta $86
         clc
         lda $83
@@ -165,21 +168,26 @@ v0gon
         pla
 v0wrt
         sta $D404
-        iny
-        lda ($85),y
+        inc $85
+        bne v0freq
+        inc $86
+v0freq
+        ldx $88
+        ldy $8E
+        lda i_arp,y
+        beq v0frok
+        lda $AD
+        and #$01
+        beq v0frok
+        txa
         clc
-        adc $88
+        adc i_arp,y
         tax
+v0frok
         lda ftlo,x
         sta $D400
         lda fthi,x
         sta $D401
-        clc
-        lda $85
-        adc #2
-        sta $85
-        bcc v0pw
-        inc $86
 v0pw
         lda $87
         sta $D402
@@ -281,9 +289,9 @@ v1skpw
         sta $99
         lda i_pwmax,x
         sta $9B
-        lda i_wflo,x
+        lda i_wlo,x
         sta $94
-        lda i_wfhi,x
+        lda i_whi,x
         sta $95
         clc
         lda $92
@@ -325,21 +333,26 @@ v1gon
         pla
 v1wrt
         sta $D40B
-        iny
-        lda ($94),y
+        inc $94
+        bne v1freq
+        inc $95
+v1freq
+        ldx $97
+        ldy $9D
+        lda i_arp,y
+        beq v1frok
+        lda $AD
+        and #$01
+        beq v1frok
+        txa
         clc
-        adc $97
+        adc i_arp,y
         tax
+v1frok
         lda ftlo,x
         sta $D407
         lda fthi,x
         sta $D408
-        clc
-        lda $94
-        adc #2
-        sta $94
-        bcc v1pw
-        inc $95
 v1pw
         lda $96
         sta $D409
@@ -441,9 +454,9 @@ v2skpw
         sta $A8
         lda i_pwmax,x
         sta $AA
-        lda i_wflo,x
+        lda i_wlo,x
         sta $A3
-        lda i_wfhi,x
+        lda i_whi,x
         sta $A4
         clc
         lda $A1
@@ -485,21 +498,26 @@ v2gon
         pla
 v2wrt
         sta $D412
-        iny
-        lda ($A3),y
+        inc $A3
+        bne v2freq
+        inc $A4
+v2freq
+        ldx $A6
+        ldy $AC
+        lda i_arp,y
+        beq v2frok
+        lda $AD
+        and #$01
+        beq v2frok
+        txa
         clc
-        adc $A6
+        adc i_arp,y
         tax
+v2frok
         lda ftlo,x
         sta $D40E
         lda fthi,x
         sta $D40F
-        clc
-        lda $A3
-        adc #2
-        sta $A3
-        bcc v2pw
-        inc $A4
 v2pw
         lda $A5
         sta $D410
@@ -578,108 +596,104 @@ i_pws
         .byte $E0,$00,$16,$00,$00,$02,$E0,$00,$03,$00,$01,$00,$00
 i_pwmax
         .byte $0E,$00,$FF,$00,$00,$0E,$0E,$00,$0E,$00,$FF,$00,$00
-i_wflo
-        .byte <wf0,<wf1,<wf2,<wf3,<wf4,<wf5,<wf6,<wf7,<wf8,<wf9,<wf10,<wf11,<wf12
-i_wfhi
-        .byte >wf0,>wf1,>wf2,>wf3,>wf4,>wf5,>wf6,>wf7,>wf8,>wf9,>wf10,>wf11,>wf12
+i_arp
+        .byte $00,$0C,$00,$0C,$00,$0C,$00,$0C,$00,$0C,$0C,$00,$00
+i_wlo
+        .byte <w0,<w1,<w2,<w3,<w4,<w5,<w6,<w7,<w8,<w9,<w10,<w11,<w12
+i_whi
+        .byte >w0,>w1,>w2,>w3,>w4,>w5,>w6,>w7,>w8,>w9,>w10,>w11,>w12
 
-wf0
-wf0lp
-        .byte $41,$00
-        .byte $FF,<wf0lp,>wf0lp
+w0
+w0lp
+        .byte $41
+        .byte $FF,<w0lp,>w0lp
 
-wf1
-        .byte $41,$00
-        .byte $80,$0C
-        .byte $80,$00
-wf1lp
-        .byte $40,$0C
-        .byte $40,$00
-        .byte $FF,<wf1lp,>wf1lp
+w1
+        .byte $41
+        .byte $80
+        .byte $80
+w1lp
+        .byte $40
+        .byte $FF,<w1lp,>w1lp
 
-wf2
-wf2lp
-        .byte $41,$00
-        .byte $FF,<wf2lp,>wf2lp
+w2
+w2lp
+        .byte $41
+        .byte $FF,<w2lp,>w2lp
 
-wf3
-        .byte $81,$00
-        .byte $80,$0C
-        .byte $80,$00
-wf3lp
-        .byte $80,$0C
-        .byte $80,$00
-        .byte $FF,<wf3lp,>wf3lp
+w3
+        .byte $81
+        .byte $80
+        .byte $80
+w3lp
+        .byte $80
+        .byte $FF,<w3lp,>w3lp
 
-wf4
-        .byte $43,$00
-        .byte $80,$00
-        .byte $80,$00
-wf4lp
-        .byte $42,$00
-        .byte $FF,<wf4lp,>wf4lp
+w4
+        .byte $43
+        .byte $80
+        .byte $80
+w4lp
+        .byte $42
+        .byte $FF,<w4lp,>w4lp
 
-wf5
-        .byte $41,$00
-        .byte $80,$0C
-        .byte $80,$00
-wf5lp
-        .byte $40,$0C
-        .byte $40,$00
-        .byte $FF,<wf5lp,>wf5lp
+w5
+        .byte $41
+        .byte $80
+        .byte $80
+w5lp
+        .byte $40
+        .byte $FF,<w5lp,>w5lp
 
-wf6
-wf6lp
-        .byte $41,$00
-        .byte $FF,<wf6lp,>wf6lp
+w6
+w6lp
+        .byte $41
+        .byte $FF,<w6lp,>w6lp
 
-wf7
-        .byte $15,$00
-        .byte $80,$0C
-        .byte $80,$00
-wf7lp
-        .byte $14,$0C
-        .byte $14,$00
-        .byte $FF,<wf7lp,>wf7lp
+w7
+        .byte $15
+        .byte $80
+        .byte $80
+w7lp
+        .byte $14
+        .byte $FF,<w7lp,>w7lp
 
-wf8
-wf8lp
-        .byte $41,$00
-        .byte $FF,<wf8lp,>wf8lp
+w8
+w8lp
+        .byte $41
+        .byte $FF,<w8lp,>w8lp
 
-wf9
-        .byte $21,$00
-        .byte $80,$0C
-        .byte $80,$00
-wf9lp
-        .byte $20,$0C
-        .byte $20,$00
-        .byte $FF,<wf9lp,>wf9lp
+w9
+        .byte $21
+        .byte $80
+        .byte $80
+w9lp
+        .byte $20
+        .byte $FF,<w9lp,>w9lp
 
-wf10
-        .byte $41,$00
-        .byte $80,$0C
-        .byte $80,$00
-wf10lp
-        .byte $40,$0C
-        .byte $40,$00
-        .byte $FF,<wf10lp,>wf10lp
+w10
+        .byte $41
+        .byte $80
+        .byte $80
+w10lp
+        .byte $40
+        .byte $FF,<w10lp,>w10lp
 
-wf11
-        .byte $43,$00
-        .byte $80,$00
-        .byte $80,$00
-wf11lp
-        .byte $42,$00
-        .byte $FF,<wf11lp,>wf11lp
+w11
+        .byte $43
+        .byte $80
+        .byte $80
+w11lp
+        .byte $42
+        .byte $FF,<w11lp,>w11lp
 
-wf12
-        .byte $41,$00
-        .byte $80,$00
-        .byte $80,$00
-wf12lp
-        .byte $40,$00
-        .byte $FF,<wf12lp,>wf12lp
+w12
+        .byte $41
+        .byte $80
+        .byte $80
+w12lp
+        .byte $40
+        .byte $FF,<w12lp,>w12lp
 
 pat1
         .byte $15,$06,$02
@@ -759,8 +773,7 @@ pat7
         .byte $41,$08,$00
         .byte $40,$08,$00
         .byte $41,$08,$00
-        .byte $40,$08,$00
-        .byte $00,$02,$00
+        .byte $40,$0A,$00
         .byte $3B,$02,$00
         .byte $3B,$04,$00
         .byte $3B,$04,$00
@@ -784,8 +797,7 @@ pat7
         .byte $44,$08,$00
         .byte $43,$08,$00
         .byte $44,$08,$00
-        .byte $43,$08,$00
-        .byte $00,$02,$00
+        .byte $43,$0A,$00
         .byte $3E,$02,$00
         .byte $3E,$04,$00
         .byte $3E,$04,$00
@@ -811,8 +823,7 @@ pat8
         .byte $68,$02,$04
         .byte $34,$04,$01
         .byte $34,$04,$01
-        .byte $34,$08,$01
-        .byte $00,$08,$01
+        .byte $34,$10,$01
         .byte $68,$02,$04
         .byte $68,$02,$04
         .byte $68,$02,$04
@@ -821,14 +832,12 @@ pat8
         .byte $34,$04,$01
         .byte $35,$06,$01
         .byte $34,$06,$01
-        .byte $32,$04,$01
-        .byte $00,$02,$01
+        .byte $32,$06,$01
         .byte $34,$02,$01
         .byte $34,$04,$01
         .byte $34,$04,$01
         .byte $34,$04,$01
-        .byte $34,$08,$01
-        .byte $00,$08,$01
+        .byte $34,$10,$01
         .byte $FE
 pat9
         .byte $32,$04,$03
@@ -881,8 +890,7 @@ pat10
         .byte $68,$02,$04
         .byte $37,$04,$01
         .byte $37,$04,$01
-        .byte $37,$08,$01
-        .byte $00,$08,$01
+        .byte $37,$10,$01
         .byte $68,$02,$04
         .byte $68,$02,$04
         .byte $68,$02,$04
@@ -891,14 +899,12 @@ pat10
         .byte $37,$04,$01
         .byte $38,$06,$01
         .byte $37,$06,$01
-        .byte $35,$04,$01
-        .byte $00,$02,$01
+        .byte $35,$06,$01
         .byte $37,$02,$01
         .byte $37,$04,$01
         .byte $37,$04,$01
         .byte $37,$04,$01
-        .byte $37,$08,$01
-        .byte $00,$08,$01
+        .byte $37,$10,$01
         .byte $FE
 pat11
         .byte $1A,$06,$02
@@ -1255,8 +1261,7 @@ pat27
         .byte $48,$04,$00
         .byte $4C,$08,$00
         .byte $4C,$08,$00
-        .byte $4A,$20,$00
-        .byte $00,$02,$00
+        .byte $4A,$22,$00
         .byte $4C,$02,$00
         .byte $4C,$02,$00
         .byte $40,$02,$00
@@ -1308,8 +1313,7 @@ pat30
         .byte $49,$02,$00
         .byte $FE
 pat31
-        .byte $68,$08,$07
-        .byte $00,$10,$07
+        .byte $68,$18,$07
         .byte $2C,$04,$0C
         .byte $2C,$04,$0C
         .byte $FE
