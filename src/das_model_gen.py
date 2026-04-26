@@ -92,17 +92,23 @@ def extract():
         arp_offset = 12 if rh.has_arpeggio else 0
 
         # P program: PW modulation
+        # fx_flags bit 3 determines PW MODE (not table arp — that's post-1986):
+        #   bit3=1: simple unidirectional increment (add pw_delta to pw_lo each frame)
+        #   bit3=0: oscillating bidirectional sweep (bounce between min/max)
         pw_speed = rh.pwm_speed
+        flags = rh.fx_flags if rh.fx_flags is not None else 0
+        pw_simple = (flags >> 3) & 1  # bit 3
         if pw_speed == 0:
             pw_mode = 'none'
             pw_min = 0xFF; pw_max = 0xFF
-        elif (rh.pulse_width >> 8) >= 0x08:
-            # Bidirectional: Hubbard bounces between $08xx and $0Exx
-            pw_mode = 'bidirectional'
-            pw_min = 0x08; pw_max = 0x0E
-        else:
+        elif pw_simple:
+            # Simple increment: pw_lo += pw_speed each frame, 8-bit wrap
             pw_mode = 'linear'
             pw_min = 0xFF; pw_max = 0xFF
+        else:
+            # Oscillating: bounce pw between $08xx and $0Exx
+            pw_mode = 'bidirectional'
+            pw_min = 0x08; pw_max = 0x0E
 
         # E spec: ADSR + gate/adsr timing
         instruments.append({
@@ -378,7 +384,16 @@ def generate_asm(T, instruments, score):
         a(f'        sta $D4{so+1:02X}')
 
         # P: PW modulation — write first, then accumulate
+        # Skip PW entirely on note-start frame (Hubbard behavior: PW code
+        # doesn't run on the tick that loads a new note). Except first note
+        # (frame_ctr==0) where we need the first accumulation.
         a(f'v{v}pw')
+        a(f'        lda ${FRAME_CTR:02X}')
+        a(f'        beq v{v}nsk')
+        a(f'        lda ${z:02X}')
+        a(f'        cmp ${z+9:02X}')
+        a(f'        beq v{v}done')
+        a(f'v{v}nsk')
         a(f'        lda ${z+7:02X}')
         a(f'        sta $D4{so+2:02X}')       # write pw_lo to SID
         a(f'        lda ${z+11:02X}')
@@ -399,10 +414,10 @@ def generate_asm(T, instruments, score):
         a(f'        bcc v{v}ncu')
         a(f'        inc ${z+11:02X}')
         a(f'v{v}ncu')
-        # Check max
+        # Check max: flip when pw_hi == pw_max EXACTLY (Hubbard uses BNE)
         a(f'        lda ${z+11:02X}')
-        a(f'        cmp ${z+12:02X}')         # pw_hi >= pw_max?
-        a(f'        bcc v{v}done')
+        a(f'        cmp ${z+12:02X}')         # pw_hi == pw_max?
+        a(f'        bne v{v}done')            # only flip at exact boundary
         a(f'        lda #1')
         a(f'        sta ${z+13:02X}')         # flip to DOWN
         a(f'        jmp v{v}done')
@@ -415,10 +430,10 @@ def generate_asm(T, instruments, score):
         a(f'        bcs v{v}ncd')
         a(f'        dec ${z+11:02X}')
         a(f'v{v}ncd')
-        # Check min (hardcoded $08 for Commando — TODO: make per-instrument)
+        # Check min: flip when pw_hi == $08 EXACTLY (Hubbard uses BNE, not BCS)
         a(f'        lda ${z+11:02X}')
         a(f'        cmp #$08')                # pw_min
-        a(f'        bcs v{v}done')
+        a(f'        bne v{v}done')            # only flip at exact boundary
         a(f'        lda #0')
         a(f'        sta ${z+13:02X}')         # flip to UP
         a(f'        jmp v{v}done')

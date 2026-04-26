@@ -189,6 +189,12 @@ v0frok
         lda fthi,x
         sta $D401
 v0pw
+        lda $AD
+        beq v0nsk
+        lda $80
+        cmp $89
+        beq v0done
+v0nsk
         lda $87
         sta $D402
         lda $8B
@@ -208,7 +214,7 @@ v0pw
 v0ncu
         lda $8B
         cmp $8C
-        bcc v0done
+        bne v0done
         lda #1
         sta $8D
         jmp v0done
@@ -222,7 +228,7 @@ v0dn
 v0ncd
         lda $8B
         cmp #$08
-        bcs v0done
+        bne v0done
         lda #0
         sta $8D
         jmp v0done
@@ -354,6 +360,12 @@ v1frok
         lda fthi,x
         sta $D408
 v1pw
+        lda $AD
+        beq v1nsk
+        lda $8F
+        cmp $98
+        beq v1done
+v1nsk
         lda $96
         sta $D409
         lda $9A
@@ -373,7 +385,7 @@ v1pw
 v1ncu
         lda $9A
         cmp $9B
-        bcc v1done
+        bne v1done
         lda #1
         sta $9C
         jmp v1done
@@ -387,7 +399,7 @@ v1dn
 v1ncd
         lda $9A
         cmp #$08
-        bcs v1done
+        bne v1done
         lda #0
         sta $9C
         jmp v1done
@@ -519,6 +531,12 @@ v2frok
         lda fthi,x
         sta $D40F
 v2pw
+        lda $AD
+        beq v2nsk
+        lda $9E
+        cmp $A7
+        beq v2done
+v2nsk
         lda $A5
         sta $D410
         lda $A9
@@ -538,7 +556,7 @@ v2pw
 v2ncu
         lda $A9
         cmp $AA
-        bcc v2done
+        bne v2done
         lda #1
         sta $AB
         jmp v2done
@@ -552,7 +570,7 @@ v2dn
 v2ncd
         lda $A9
         cmp #$08
-        bcs v2done
+        bne v2done
         lda #0
         sta $AB
         jmp v2done
@@ -595,7 +613,7 @@ i_pwhi
 i_pws
         .byte $E0,$00,$16,$00,$00,$02,$E0,$00,$03,$00,$01,$00,$00
 i_pwmax
-        .byte $0E,$00,$FF,$00,$00,$0E,$0E,$00,$0E,$00,$FF,$00,$00
+        .byte $0E,$00,$FF,$00,$00,$FF,$0E,$00,$FF,$00,$FF,$00,$00
 i_arp
         .byte $00,$0C,$00,$0C,$00,$0C,$00,$0C,$00,$0C,$0C,$00,$00
 i_wlo
