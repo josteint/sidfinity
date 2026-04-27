@@ -260,6 +260,11 @@ v0lin
         adc $8A
         sta $87
 v0done
+        ldy $8E
+        lda $87
+        sta i_pwlo,y
+        lda $8B
+        sta i_pwhi,y
 
 ; --- Voice 2 ---
         dec $90
@@ -446,6 +451,11 @@ v1lin
         adc $9A
         sta $97
 v1done
+        ldy $9E
+        lda $97
+        sta i_pwlo,y
+        lda $9B
+        sta i_pwhi,y
 
 ; --- Voice 3 ---
         dec $A0
@@ -632,6 +642,11 @@ v2lin
         adc $AA
         sta $A7
 v2done
+        ldy $AE
+        lda $A7
+        sta i_pwlo,y
+        lda $AB
+        sta i_pwhi,y
 
         rts
 

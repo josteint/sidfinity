@@ -475,7 +475,15 @@ def generate_asm(T, instruments, score):
         a(f'        adc ${z+10:02X}')
         a(f'        sta ${z+7:02X}')
 
+        # Write accumulated PW back to instrument table (Hubbard's shared mutable state)
+        # When another voice (or this voice after instrument switch) loads the same
+        # instrument, it reads the accumulated value, not the initial default.
         a(f'v{v}done')
+        a(f'        ldy ${z+14:02X}')         # prev_inst (current instrument ID)
+        a(f'        lda ${z+7:02X}')           # pw_lo
+        a(f'        sta i_pwlo,y')
+        a(f'        lda ${z+11:02X}')          # pw_hi
+        a(f'        sta i_pwhi,y')
         a('')
 
     a('        rts')
