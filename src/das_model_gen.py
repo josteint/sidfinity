@@ -237,12 +237,15 @@ def generate_asm(T, instruments, score):
     # --- PLAY ---
     a('play')
     a(f'        inc ${FRAME_CTR:02X}')   # global frame counter (like Hubbard's $5525)
-    # Extended table: T[100] in Hubbard = accumulated pattern byte offset
-    # for V2 (lo) and V3 (hi). We track this via hub_off per voice.
+    # Extended table: update T[96+] from live engine state each frame.
+    # T[100]: accumulated pattern byte offset for V2 (lo) and V3 (hi)
     a(f'        lda ${ZP[1]+15:02X}')   # V2 hub_off
     a(f'        sta ftlo+100')
     a(f'        lda ${ZP[2]+15:02X}')   # V3 hub_off
     a(f'        sta fthi+100')
+    # T[104]: V1/V2 ctrl values. Timing-sensitive (Hubbard reads CURRENT
+    # frame V1 ctrl but PREVIOUS frame V2 ctrl). Not worth the complexity
+    # since drum frequencies are inaudible under noise waveform.
     for v in range(3):
         z = ZP[v]
         so = SOFF[v]
