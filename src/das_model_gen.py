@@ -235,6 +235,11 @@ def generate_asm(T, instruments, score):
     # --- PLAY ---
     a('play')
     a(f'        inc ${FRAME_CTR:02X}')   # global frame counter (like Hubbard's $5525)
+    # Extended table (T[96+]): Hubbard reads past freq table into engine state.
+    # T[100] = V2/V3 pat_ptr lo bytes. These depend on engine memory layout
+    # which differs from ours (our data is at different addresses).
+    # Live-memory approach produces WRONG values. Accepted as fundamental
+    # limitation: ~3% V1 fhi error from static T[100].
     for v in range(3):
         z = ZP[v]
         so = SOFF[v]
