@@ -246,7 +246,11 @@ def generate_asm(T, instruments, score):
     # T[104]: V1/V2 ctrl values. Timing-sensitive (Hubbard reads CURRENT
     # frame V1 ctrl but PREVIOUS frame V2 ctrl). Not worth the complexity
     # since drum frequencies are inaudible under noise waveform.
-    for v in range(3):
+    # Hubbard processes voices in REVERSE ORDER: V3 → V2 → V1.
+    # This affects oscillator phase for ring modulation (V1 uses V3's phase).
+    # V3 written first means V3's oscillator phase is set early in the frame,
+    # then V1's ring mod reads it late — matching the original's timing.
+    for v in [2, 1, 0]:
         z = ZP[v]
         so = SOFF[v]
 
