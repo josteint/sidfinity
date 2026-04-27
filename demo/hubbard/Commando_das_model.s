@@ -6,7 +6,7 @@ init
         lda #$0F
         sta $D418
         lda #$FF
-        sta $AD
+        sta $B0
         lda v0ol
         sta $83
         lda v0ol+1
@@ -22,60 +22,72 @@ init
         sta $8B
         sta $8C
         sta $8D
+        sta $8F
         lda #$FF
         sta $8E
         lda #1
         sta $80
         lda v1ol
-        sta $92
-        lda v1ol+1
         sta $93
+        lda v1ol+1
+        sta $94
         lda #<(v1ol+2)
-        sta $90
-        lda #>(v1ol+2)
         sta $91
+        lda #>(v1ol+2)
+        sta $92
         lda #0
-        sta $96
-        sta $98
+        sta $97
         sta $99
         sta $9A
         sta $9B
         sta $9C
-        lda #$FF
         sta $9D
-        lda #1
-        sta $8F
-        lda v2ol
-        sta $A1
-        lda v2ol+1
-        sta $A2
-        lda #<(v2ol+2)
         sta $9F
+        lda #$FF
+        sta $9E
+        lda #1
+        sta $90
+        lda v2ol
+        sta $A3
+        lda v2ol+1
+        sta $A4
+        lda #<(v2ol+2)
+        sta $A1
         lda #>(v2ol+2)
-        sta $A0
+        sta $A2
         lda #0
-        sta $A5
         sta $A7
-        sta $A8
         sta $A9
         sta $AA
         sta $AB
-        lda #$FF
         sta $AC
+        sta $AD
+        sta $AF
+        lda #$FF
+        sta $AE
         lda #1
-        sta $9E
+        sta $A0
         rts
 
 play
-        inc $AD
+        inc $B0
+        lda $9F
+        sta ftlo+100
+        lda $AF
+        sta fthi+100
 ; --- Voice 1 ---
         dec $80
-        bne v0eval
+        beq v0rd
+        jmp v0eval
 v0rd
         ldy #0
         lda ($83),y
         cmp #$FE
         bne v0nt
+        lda #0
+        sta $8F
+        lda #$FF
+        sta $8E
         ldy #0
         lda ($81),y
         sta $83
@@ -111,6 +123,10 @@ v0mul  clc
         cpx $8E
         beq v0skpw
         stx $8E
+        lda $8F
+        clc
+        adc #3
+        sta $8F
         lda i_pwlo,x
         sta $D402
         sta $87
@@ -119,7 +135,13 @@ v0mul  clc
         sta $8B
         lda #0
         sta $8D
+        jmp v0hbd
 v0skpw
+        lda $8F
+        clc
+        adc #2
+        sta $8F
+v0hbd
         lda i_pws,x
         sta $8A
         lda i_pwmax,x
@@ -176,7 +198,7 @@ v0freq
         ldy $8E
         lda i_arp,y
         beq v0frok
-        lda $AD
+        lda $B0
         and #$01
         beq v0frok
         txa
@@ -189,7 +211,7 @@ v0frok
         lda fthi,x
         sta $D401
 v0pw
-        lda $AD
+        lda $B0
         beq v0nsk
         lda $80
         cmp $89
@@ -240,74 +262,89 @@ v0lin
 v0done
 
 ; --- Voice 2 ---
-        dec $8F
-        bne v1eval
+        dec $90
+        beq v1rd
+        jmp v1eval
 v1rd
         ldy #0
-        lda ($92),y
+        lda ($93),y
         cmp #$FE
         bne v1nt
+        lda #0
+        sta $9F
+        lda #$FF
+        sta $9E
         ldy #0
-        lda ($90),y
-        sta $92
-        iny
-        lda ($90),y
+        lda ($91),y
         sta $93
+        iny
+        lda ($91),y
+        sta $94
         clc
-        lda $90
+        lda $91
         adc #2
-        sta $90
+        sta $91
         bcc v1rd
-        inc $91
+        inc $92
         jmp v1rd
 v1nt
-        sta $97
+        sta $98
         iny
-        lda ($92),y
+        lda ($93),y
         tax
         lda #0
 v1mul  clc
         adc #3
         dex
         bne v1mul
-        sta $8F
-        sta $98
+        sta $90
+        sta $99
         iny
-        lda ($92),y
+        lda ($93),y
         tax
         lda i_ad,x
         sta $D40C
         lda i_sr,x
         sta $D40D
-        cpx $9D
+        cpx $9E
         beq v1skpw
-        stx $9D
+        stx $9E
+        lda $9F
+        clc
+        adc #3
+        sta $9F
         lda i_pwlo,x
         sta $D409
-        sta $96
+        sta $97
         lda i_pwhi,x
         sta $D40A
-        sta $9A
-        lda #0
-        sta $9C
-v1skpw
-        lda i_pws,x
-        sta $99
-        lda i_pwmax,x
         sta $9B
-        lda i_wlo,x
-        sta $94
-        lda i_whi,x
-        sta $95
+        lda #0
+        sta $9D
+        jmp v1hbd
+v1skpw
+        lda $9F
         clc
-        lda $92
+        adc #2
+        sta $9F
+v1hbd
+        lda i_pws,x
+        sta $9A
+        lda i_pwmax,x
+        sta $9C
+        lda i_wlo,x
+        sta $95
+        lda i_whi,x
+        sta $96
+        clc
+        lda $93
         adc #3
-        sta $92
+        sta $93
         bcc v1eval
-        inc $93
+        inc $94
 
 v1eval
-        lda $8F
+        lda $90
         cmp #3
         bne v1noz
         lda #0
@@ -315,21 +352,21 @@ v1eval
         sta $D40D
 v1noz
         ldy #0
-        lda ($94),y
+        lda ($95),y
         cmp #$FF
         bne v1wok
         iny
-        lda ($94),y
+        lda ($95),y
         tax
         iny
-        lda ($94),y
-        sta $95
-        stx $94
+        lda ($95),y
+        sta $96
+        stx $95
         ldy #0
-        lda ($94),y
+        lda ($95),y
 v1wok
         pha
-        lda $8F
+        lda $90
         cmp #3
         bcs v1gon
         pla
@@ -339,15 +376,15 @@ v1gon
         pla
 v1wrt
         sta $D40B
-        inc $94
-        bne v1freq
         inc $95
+        bne v1freq
+        inc $96
 v1freq
-        ldx $97
-        ldy $9D
+        ldx $98
+        ldy $9E
         lda i_arp,y
         beq v1frok
-        lda $AD
+        lda $B0
         and #$01
         beq v1frok
         txa
@@ -360,125 +397,140 @@ v1frok
         lda fthi,x
         sta $D408
 v1pw
-        lda $AD
+        lda $B0
         beq v1nsk
-        lda $8F
-        cmp $98
+        lda $90
+        cmp $99
         beq v1done
 v1nsk
-        lda $96
+        lda $97
         sta $D409
-        lda $9A
-        sta $D40A
         lda $9B
+        sta $D40A
+        lda $9C
         beq v1done
         cmp #$FF
         beq v1lin
-        lda $9C
+        lda $9D
         bne v1dn
         clc
-        lda $96
-        adc $99
-        sta $96
+        lda $97
+        adc $9A
+        sta $97
         bcc v1ncu
-        inc $9A
+        inc $9B
 v1ncu
-        lda $9A
-        cmp $9B
+        lda $9B
+        cmp $9C
         bne v1done
         lda #1
-        sta $9C
+        sta $9D
         jmp v1done
 v1dn
         sec
-        lda $96
-        sbc $99
-        sta $96
+        lda $97
+        sbc $9A
+        sta $97
         bcs v1ncd
-        dec $9A
+        dec $9B
 v1ncd
-        lda $9A
+        lda $9B
         cmp #$08
         bne v1done
         lda #0
-        sta $9C
+        sta $9D
         jmp v1done
 v1lin
         clc
-        lda $96
-        adc $99
-        sta $96
+        lda $97
+        adc $9A
+        sta $97
 v1done
 
 ; --- Voice 3 ---
-        dec $9E
-        bne v2eval
+        dec $A0
+        beq v2rd
+        jmp v2eval
 v2rd
         ldy #0
-        lda ($A1),y
+        lda ($A3),y
         cmp #$FE
         bne v2nt
+        lda #0
+        sta $AF
+        lda #$FF
+        sta $AE
         ldy #0
-        lda ($9F),y
-        sta $A1
-        iny
-        lda ($9F),y
-        sta $A2
-        clc
-        lda $9F
-        adc #2
-        sta $9F
-        bcc v2rd
-        inc $A0
-        jmp v2rd
-v2nt
-        sta $A6
+        lda ($A1),y
+        sta $A3
         iny
         lda ($A1),y
+        sta $A4
+        clc
+        lda $A1
+        adc #2
+        sta $A1
+        bcc v2rd
+        inc $A2
+        jmp v2rd
+v2nt
+        sta $A8
+        iny
+        lda ($A3),y
         tax
         lda #0
 v2mul  clc
         adc #3
         dex
         bne v2mul
-        sta $9E
-        sta $A7
+        sta $A0
+        sta $A9
         iny
-        lda ($A1),y
+        lda ($A3),y
         tax
         lda i_ad,x
         sta $D413
         lda i_sr,x
         sta $D414
-        cpx $AC
+        cpx $AE
         beq v2skpw
-        stx $AC
+        stx $AE
+        lda $AF
+        clc
+        adc #3
+        sta $AF
         lda i_pwlo,x
         sta $D410
-        sta $A5
+        sta $A7
         lda i_pwhi,x
         sta $D411
-        sta $A9
-        lda #0
         sta $AB
+        lda #0
+        sta $AD
+        jmp v2hbd
 v2skpw
-        lda i_pws,x
-        sta $A8
-        lda i_pwmax,x
-        sta $AA
-        lda i_wlo,x
-        sta $A3
-        lda i_whi,x
-        sta $A4
+        lda $AF
         clc
-        lda $A1
+        adc #2
+        sta $AF
+v2hbd
+        lda i_pws,x
+        sta $AA
+        lda i_pwmax,x
+        sta $AC
+        lda i_wlo,x
+        sta $A5
+        lda i_whi,x
+        sta $A6
+        clc
+        lda $A3
         adc #3
-        sta $A1
+        sta $A3
         bcc v2eval
-        inc $A2
+        inc $A4
 
 v2eval
-        lda $9E
+        lda $A0
         cmp #3
         bne v2noz
         lda #0
@@ -486,21 +538,21 @@ v2eval
         sta $D414
 v2noz
         ldy #0
-        lda ($A3),y
+        lda ($A5),y
         cmp #$FF
         bne v2wok
         iny
-        lda ($A3),y
+        lda ($A5),y
         tax
         iny
-        lda ($A3),y
-        sta $A4
-        stx $A3
+        lda ($A5),y
+        sta $A6
+        stx $A5
         ldy #0
-        lda ($A3),y
+        lda ($A5),y
 v2wok
         pha
-        lda $9E
+        lda $A0
         cmp #3
         bcs v2gon
         pla
@@ -510,15 +562,15 @@ v2gon
         pla
 v2wrt
         sta $D412
-        inc $A3
+        inc $A5
         bne v2freq
-        inc $A4
+        inc $A6
 v2freq
-        ldx $A6
-        ldy $AC
+        ldx $A8
+        ldy $AE
         lda i_arp,y
         beq v2frok
-        lda $AD
+        lda $B0
         and #$01
         beq v2frok
         txa
@@ -531,54 +583,54 @@ v2frok
         lda fthi,x
         sta $D40F
 v2pw
-        lda $AD
+        lda $B0
         beq v2nsk
-        lda $9E
-        cmp $A7
+        lda $A0
+        cmp $A9
         beq v2done
 v2nsk
-        lda $A5
+        lda $A7
         sta $D410
-        lda $A9
+        lda $AB
         sta $D411
-        lda $AA
+        lda $AC
         beq v2done
         cmp #$FF
         beq v2lin
-        lda $AB
+        lda $AD
         bne v2dn
         clc
-        lda $A5
-        adc $A8
-        sta $A5
+        lda $A7
+        adc $AA
+        sta $A7
         bcc v2ncu
-        inc $A9
+        inc $AB
 v2ncu
-        lda $A9
-        cmp $AA
+        lda $AB
+        cmp $AC
         bne v2done
         lda #1
-        sta $AB
+        sta $AD
         jmp v2done
 v2dn
         sec
-        lda $A5
-        sbc $A8
-        sta $A5
+        lda $A7
+        sbc $AA
+        sta $A7
         bcs v2ncd
-        dec $A9
+        dec $AB
 v2ncd
-        lda $A9
+        lda $AB
         cmp #$08
         bne v2done
         lda #0
-        sta $AB
+        sta $AD
         jmp v2done
 v2lin
         clc
-        lda $A5
-        adc $A8
-        sta $A5
+        lda $A7
+        adc $AA
+        sta $A7
 v2done
 
         rts

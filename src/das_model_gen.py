@@ -178,7 +178,7 @@ def generate_asm(T, instruments, score):
     BASE = 0x1000
     tempo = score['tempo']
 
-    # ZP layout per voice (15 bytes)
+    # ZP layout per voice (16 bytes)
     # +0: tick_ctr
     # +1/+2: ol_ptr
     # +3/+4: pat_ptr
@@ -191,9 +191,10 @@ def generate_asm(T, instruments, score):
     # +12: pw_max    ($00=no mod, $FF=linear, else=bidir max)
     # +13: pw_dir    (0=up, 1=down)
     # +14: prev_inst (previous instrument ID, $FF=none)
-    ZP = [0x80, 0x8F, 0x9E]
+    # +15: hub_off   (Hubbard pattern byte offset — tracks T[100] extended table)
+    ZP = [0x80, 0x90, 0xA0]
     SOFF = [0, 7, 14]
-    FRAME_CTR = 0xAD  # global frame counter (all voices share)
+    FRAME_CTR = 0xB0  # global frame counter (all voices share)
 
     a(f'        * = ${BASE:04X}')
     a(f'        jmp init')
@@ -225,6 +226,7 @@ def generate_asm(T, instruments, score):
         a(f'        sta ${z+11:02X}')       # pw_hi=0
         a(f'        sta ${z+12:02X}')       # pw_max=0
         a(f'        sta ${z+13:02X}')       # pw_dir=0 (up)
+        a(f'        sta ${z+15:02X}')       # hub_off=0
         a(f'        lda #$FF')
         a(f'        sta ${z+14:02X}')       # prev_inst=$FF (force init on first note)
         a(f'        lda #1')
@@ -235,11 +237,12 @@ def generate_asm(T, instruments, score):
     # --- PLAY ---
     a('play')
     a(f'        inc ${FRAME_CTR:02X}')   # global frame counter (like Hubbard's $5525)
-    # Extended table (T[96+]): Hubbard reads past freq table into engine state.
-    # T[100] = V2/V3 pat_ptr lo bytes. These depend on engine memory layout
-    # which differs from ours (our data is at different addresses).
-    # Live-memory approach produces WRONG values. Accepted as fundamental
-    # limitation: ~3% V1 fhi error from static T[100].
+    # Extended table: T[100] in Hubbard = accumulated pattern byte offset
+    # for V2 (lo) and V3 (hi). We track this via hub_off per voice.
+    a(f'        lda ${ZP[1]+15:02X}')   # V2 hub_off
+    a(f'        sta ftlo+100')
+    a(f'        lda ${ZP[2]+15:02X}')   # V3 hub_off
+    a(f'        sta fthi+100')
     for v in range(3):
         z = ZP[v]
         so = SOFF[v]
@@ -248,7 +251,8 @@ def generate_asm(T, instruments, score):
 
         # Step 1: tick counter
         a(f'        dec ${z:02X}')
-        a(f'        bne v{v}eval')
+        a(f'        beq v{v}rd')
+        a(f'        jmp v{v}eval')
         # tick_ctr hit 0 → load new note from pattern
         a(f'v{v}rd')
         a(f'        ldy #0')
@@ -256,6 +260,10 @@ def generate_asm(T, instruments, score):
         a(f'        cmp #$FE')                  # end of pattern marker
         a(f'        bne v{v}nt')
         # End of pattern → read next pattern address from orderlist
+        a(f'        lda #0')
+        a(f'        sta ${z+15:02X}')            # reset hub_off at pattern boundary
+        a(f'        lda #$FF')
+        a(f'        sta ${z+14:02X}')            # force inst reload (first note = 3 bytes)
         a(f'        ldy #0')
         a(f'        lda (${z+1:02X}),y')        # pattern addr lo from ol_ptr
         a(f'        sta ${z+3:02X}')
@@ -298,6 +306,11 @@ def generate_asm(T, instruments, score):
         a(f'        cpx ${z+14:02X}')       # same instrument?
         a(f'        beq v{v}skpw')           # yes → keep PW running
         a(f'        stx ${z+14:02X}')       # save new inst id
+        # hub_off += 3 (Hubbard: inst change = 3-byte note)
+        a(f'        lda ${z+15:02X}')
+        a(f'        clc')
+        a(f'        adc #3')
+        a(f'        sta ${z+15:02X}')
         a(f'        lda i_pwlo,x')
         a(f'        sta $D4{so+2:02X}')
         a(f'        sta ${z+7:02X}')
@@ -306,7 +319,14 @@ def generate_asm(T, instruments, score):
         a(f'        sta ${z+11:02X}')
         a(f'        lda #0')
         a(f'        sta ${z+13:02X}')       # reset pw_dir to UP
+        a(f'        jmp v{v}hbd')
         a(f'v{v}skpw')
+        # hub_off += 2 (Hubbard: same inst = 2-byte note)
+        a(f'        lda ${z+15:02X}')
+        a(f'        clc')
+        a(f'        adc #2')
+        a(f'        sta ${z+15:02X}')
+        a(f'v{v}hbd')
         # Always load PW speed/max (even if same inst — harmless)
         a(f'        lda i_pws,x')
         a(f'        sta ${z+10:02X}')
