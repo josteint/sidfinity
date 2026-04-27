@@ -158,13 +158,22 @@ v2hbd
         inc $A4
 
 v2eval
-        lda $A0
-        cmp #3
-        bne v2noz
-        lda #0
-        sta $D413
-        sta $D414
-v2noz
+        ldx $A8
+        ldy $AE
+        lda i_arp,y
+        beq v2frok
+        lda $B0
+        and #$01
+        beq v2frok
+        txa
+        clc
+        adc i_arp,y
+        tax
+v2frok
+        lda fthi,x
+        sta $D40F
+        lda ftlo,x
+        sta $D40E
         ldy #0
         lda ($A5),y
         cmp #$FF
@@ -191,25 +200,8 @@ v2gon
 v2wrt
         sta $D412
         inc $A5
-        bne v2freq
+        bne v2pw
         inc $A6
-v2freq
-        ldx $A8
-        ldy $AE
-        lda i_arp,y
-        beq v2frok
-        lda $B0
-        and #$01
-        beq v2frok
-        txa
-        clc
-        adc i_arp,y
-        tax
-v2frok
-        lda ftlo,x
-        sta $D40E
-        lda fthi,x
-        sta $D40F
 v2pw
         lda $B0
         beq v2nsk
@@ -265,6 +257,13 @@ v2done
         sta i_pwlo,y
         lda $AB
         sta i_pwhi,y
+        lda $A0
+        cmp #3
+        bne v2noz
+        lda #0
+        sta $D413
+        sta $D414
+v2noz
 
 ; --- Voice 2 ---
         dec $90
@@ -349,13 +348,22 @@ v1hbd
         inc $94
 
 v1eval
-        lda $90
-        cmp #3
-        bne v1noz
-        lda #0
-        sta $D40C
-        sta $D40D
-v1noz
+        ldx $98
+        ldy $9E
+        lda i_arp,y
+        beq v1frok
+        lda $B0
+        and #$01
+        beq v1frok
+        txa
+        clc
+        adc i_arp,y
+        tax
+v1frok
+        lda fthi,x
+        sta $D408
+        lda ftlo,x
+        sta $D407
         ldy #0
         lda ($95),y
         cmp #$FF
@@ -382,25 +390,8 @@ v1gon
 v1wrt
         sta $D40B
         inc $95
-        bne v1freq
+        bne v1pw
         inc $96
-v1freq
-        ldx $98
-        ldy $9E
-        lda i_arp,y
-        beq v1frok
-        lda $B0
-        and #$01
-        beq v1frok
-        txa
-        clc
-        adc i_arp,y
-        tax
-v1frok
-        lda ftlo,x
-        sta $D407
-        lda fthi,x
-        sta $D408
 v1pw
         lda $B0
         beq v1nsk
@@ -456,6 +447,13 @@ v1done
         sta i_pwlo,y
         lda $9B
         sta i_pwhi,y
+        lda $90
+        cmp #3
+        bne v1noz
+        lda #0
+        sta $D40C
+        sta $D40D
+v1noz
 
 ; --- Voice 1 ---
         dec $80
@@ -540,13 +538,22 @@ v0hbd
         inc $84
 
 v0eval
-        lda $80
-        cmp #3
-        bne v0noz
-        lda #0
-        sta $D405
-        sta $D406
-v0noz
+        ldx $88
+        ldy $8E
+        lda i_arp,y
+        beq v0frok
+        lda $B0
+        and #$01
+        beq v0frok
+        txa
+        clc
+        adc i_arp,y
+        tax
+v0frok
+        lda fthi,x
+        sta $D401
+        lda ftlo,x
+        sta $D400
         ldy #0
         lda ($85),y
         cmp #$FF
@@ -573,25 +580,8 @@ v0gon
 v0wrt
         sta $D404
         inc $85
-        bne v0freq
+        bne v0pw
         inc $86
-v0freq
-        ldx $88
-        ldy $8E
-        lda i_arp,y
-        beq v0frok
-        lda $B0
-        and #$01
-        beq v0frok
-        txa
-        clc
-        adc i_arp,y
-        tax
-v0frok
-        lda ftlo,x
-        sta $D400
-        lda fthi,x
-        sta $D401
 v0pw
         lda $B0
         beq v0nsk
@@ -647,6 +637,13 @@ v0done
         sta i_pwlo,y
         lda $8B
         sta i_pwhi,y
+        lda $80
+        cmp #3
+        bne v0noz
+        lda #0
+        sta $D405
+        sta $D406
+v0noz
 
         rts
 

@@ -353,19 +353,28 @@ def generate_asm(T, instruments, score):
         a(f'        inc ${z+4:02X}')
         a('')
 
-        # Steps 2-5: evaluate W, F, P, E
+        # Steps 2-5: evaluate F, W, P, E (Hubbard order: freq → ctrl → pw → adsr)
         a(f'v{v}eval')
 
-        # E: ADSR zeroing
-        a(f'        lda ${z:02X}')
-        a(f'        cmp #3')
-        a(f'        bne v{v}noz')
-        a(f'        lda #0')
-        a(f'        sta $D4{so+5:02X}')
-        a(f'        sta $D4{so+6:02X}')
-        a(f'v{v}noz')
+        # F: freq FIRST (set frequency before gate — Hubbard writes freq before ctrl)
+        a(f'        ldx ${z+8:02X}')              # base_note
+        a(f'        ldy ${z+14:02X}')             # instrument ID (prev_inst)
+        a(f'        lda i_arp,y')                 # arp_offset (0 or 12)
+        a(f'        beq v{v}frok')                # no arp → use base_note
+        a(f'        lda ${FRAME_CTR:02X}')        # global frame counter
+        a(f'        and #$01')                    # bit 0
+        a(f'        beq v{v}frok')                # even frame → base_note
+        a(f'        txa')
+        a(f'        clc')
+        a(f'        adc i_arp,y')                 # base_note + arp_offset
+        a(f'        tax')
+        a(f'v{v}frok')
+        a(f'        lda fthi,x')
+        a(f'        sta $D4{so+1:02X}')
+        a(f'        lda ftlo,x')
+        a(f'        sta $D4{so:02X}')
 
-        # W: read waveform from w_ptr (+5/+6), 1 byte per step
+        # W: read waveform from w_ptr, write ctrl AFTER freq (gate on sees correct freq)
         a(f'        ldy #0')
         a(f'        lda (${z+5:02X}),y')        # waveform byte
         a(f'        cmp #$FF')
@@ -381,7 +390,7 @@ def generate_asm(T, instruments, score):
         a(f'        lda (${z+5:02X}),y')
 
         a(f'v{v}wok')
-        # E: gate off
+        # Gate off check
         a(f'        pha')
         a(f'        lda ${z:02X}')
         a(f'        cmp #3')
@@ -394,29 +403,10 @@ def generate_asm(T, instruments, score):
         a(f'v{v}wrt')
         a(f'        sta $D4{so+4:02X}')
 
-        # Advance w_ptr by 1 (wave-only, not interleaved)
+        # Advance w_ptr by 1
         a(f'        inc ${z+5:02X}')
-        a(f'        bne v{v}freq')
+        a(f'        bne v{v}pw')
         a(f'        inc ${z+6:02X}')
-
-        # F: freq from base_note + arp offset (global phase)
-        a(f'v{v}freq')
-        a(f'        ldx ${z+8:02X}')              # base_note
-        a(f'        ldy ${z+14:02X}')             # instrument ID (prev_inst)
-        a(f'        lda i_arp,y')                 # arp_offset (0 or 12)
-        a(f'        beq v{v}frok')                # no arp → use base_note
-        a(f'        lda ${FRAME_CTR:02X}')        # global frame counter
-        a(f'        and #$01')                    # bit 0
-        a(f'        beq v{v}frok')                # even frame → base_note
-        a(f'        txa')
-        a(f'        clc')
-        a(f'        adc i_arp,y')                 # base_note + arp_offset
-        a(f'        tax')
-        a(f'v{v}frok')
-        a(f'        lda ftlo,x')
-        a(f'        sta $D4{so:02X}')
-        a(f'        lda fthi,x')
-        a(f'        sta $D4{so+1:02X}')
 
         # P: PW modulation — write first, then accumulate
         # Skip PW entirely on note-start frame (Hubbard behavior: PW code
@@ -483,11 +473,21 @@ def generate_asm(T, instruments, score):
         # When another voice (or this voice after instrument switch) loads the same
         # instrument, it reads the accumulated value, not the initial default.
         a(f'v{v}done')
+        # PW writeback (shared mutable instrument table)
         a(f'        ldy ${z+14:02X}')         # prev_inst (current instrument ID)
         a(f'        lda ${z+7:02X}')           # pw_lo
         a(f'        sta i_pwlo,y')
         a(f'        lda ${z+11:02X}')          # pw_hi
         a(f'        sta i_pwhi,y')
+
+        # E: ADSR zeroing LAST (Hubbard order: freq → ctrl → pw → adsr)
+        a(f'        lda ${z:02X}')
+        a(f'        cmp #3')
+        a(f'        bne v{v}noz')
+        a(f'        lda #0')
+        a(f'        sta $D4{so+5:02X}')
+        a(f'        sta $D4{so+6:02X}')
+        a(f'v{v}noz')
         a('')
 
     a('        rts')
