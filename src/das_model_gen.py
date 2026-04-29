@@ -487,10 +487,10 @@ def generate_asm(T, instruments, score):
         a(f'        lda (${z+5:02X}),y')
 
         a(f'v{v}wok')
-        # Gate off check
+        # Gate off check: gate off when tick_ctr <= 3 (Hubbard uses cmp #4)
         a(f'        pha')
         a(f'        lda ${z:02X}')
-        a(f'        cmp #3')
+        a(f'        cmp #4')
         a(f'        bcs v{v}gon')
         a(f'        pla')
         a(f'        and #$FE')
@@ -580,7 +580,7 @@ def generate_asm(T, instruments, score):
         a(f'        lda ${z+11:02X}')          # pw_hi
         a(f'        sta i_pwhi,y')
 
-        # E: ADSR zeroing LAST (Hubbard order: freq → ctrl → pw → adsr)
+        # E: ADSR zeroing at tick_ctr==3 (same frame as gate-off starts)
         a(f'        lda ${z:02X}')
         a(f'        cmp #3')
         a(f'        bne v{v}noz')

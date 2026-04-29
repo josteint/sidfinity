@@ -245,7 +245,7 @@ v2wrd
 v2wok
         pha
         lda $A0
-        cmp #3
+        cmp #4
         bcs v2gon
         pla
         and #$FE
@@ -523,7 +523,7 @@ v1wrd
 v1wok
         pha
         lda $90
-        cmp #3
+        cmp #4
         bcs v1gon
         pla
         and #$FE
@@ -823,7 +823,7 @@ v0wrd
 v0wok
         pha
         lda $80
-        cmp #3
+        cmp #4
         bcs v0gon
         pla
         and #$FE
