@@ -421,23 +421,20 @@ def generate_asm(T, instruments, score):
         # Skip PW entirely on note-start frame (Hubbard behavior: PW code
         # doesn't run on the tick that loads a new note). Except first note
         # (frame_ctr==0) where we need the first accumulation.
+        # PW: accumulate-then-write (Hubbard order).
+        # On note-start: skip accumulation, just write current value.
         a(f'v{v}pw')
-        a(f'        lda ${FRAME_CTR:02X}')
-        a(f'        beq v{v}nsk')
-        a(f'        lda ${z:02X}')
-        a(f'        cmp ${z+9:02X}')
-        a(f'        beq v{v}done')
-        a(f'v{v}nsk')
-        a(f'        lda ${z+7:02X}')
-        a(f'        sta $D4{so+2:02X}')       # write pw_lo to SID
-        a(f'        lda ${z+11:02X}')
-        a(f'        sta $D4{so+3:02X}')       # write pw_hi to SID
+        a(f'        lda ${z:02X}')            # tick_ctr
+        a(f'        cmp ${z+9:02X}')          # == note_len? (just loaded)
+        a(f'        beq v{v}pwwr')            # note-start → skip accum, just write
+        # Hubbard order: ACCUMULATE first, then WRITE to SID.
+        # The SID sees the POST-accumulation value (same value stored in inst table).
         # Check if modulation active
         a(f'        lda ${z+12:02X}')         # pw_max
-        a(f'        beq v{v}done')             # $00 = no modulation
+        a(f'        beq v{v}pwwr')             # $00 = no modulation → just write
         a(f'        cmp #$FF')
         a(f'        beq v{v}lin')              # $FF = linear (8-bit only)
-        # --- Bidirectional 16-bit ---
+        # --- Bidirectional 16-bit: accumulate ---
         a(f'        lda ${z+13:02X}')         # pw_dir
         a(f'        bne v{v}dn')
         # UP: pw += speed (16-bit)
@@ -451,10 +448,10 @@ def generate_asm(T, instruments, score):
         # Check max: flip when pw_hi == pw_max EXACTLY (Hubbard uses BNE)
         a(f'        lda ${z+11:02X}')
         a(f'        cmp ${z+12:02X}')         # pw_hi == pw_max?
-        a(f'        bne v{v}done')            # only flip at exact boundary
+        a(f'        bne v{v}pwwr')            # not at boundary → write
         a(f'        lda #1')
         a(f'        sta ${z+13:02X}')         # flip to DOWN
-        a(f'        jmp v{v}done')
+        a(f'        jmp v{v}pwwr')
         # DOWN: pw -= speed (16-bit)
         a(f'v{v}dn')
         a(f'        sec')
@@ -464,19 +461,25 @@ def generate_asm(T, instruments, score):
         a(f'        bcs v{v}ncd')
         a(f'        dec ${z+11:02X}')
         a(f'v{v}ncd')
-        # Check min: flip when pw_hi == $08 EXACTLY (Hubbard uses BNE, not BCS)
+        # Check min: flip when pw_hi == $08 EXACTLY (Hubbard uses BNE)
         a(f'        lda ${z+11:02X}')
         a(f'        cmp #$08')                # pw_min
-        a(f'        bne v{v}done')            # only flip at exact boundary
+        a(f'        bne v{v}pwwr')            # not at boundary → write
         a(f'        lda #0')
         a(f'        sta ${z+13:02X}')         # flip to UP
-        a(f'        jmp v{v}done')
-        # --- Linear 8-bit ---
+        a(f'        jmp v{v}pwwr')
+        # --- Linear 8-bit: accumulate ---
         a(f'v{v}lin')
         a(f'        clc')
         a(f'        lda ${z+7:02X}')
         a(f'        adc ${z+10:02X}')
         a(f'        sta ${z+7:02X}')
+        # --- WRITE pw to SID AFTER accumulation ---
+        a(f'v{v}pwwr')
+        a(f'        lda ${z+7:02X}')
+        a(f'        sta $D4{so+2:02X}')       # write pw_lo to SID (post-accum)
+        a(f'        lda ${z+11:02X}')
+        a(f'        sta $D4{so+3:02X}')       # write pw_hi to SID (post-accum)
 
         # Write accumulated PW back to instrument table (Hubbard's shared mutable state)
         # When another voice (or this voice after instrument switch) loads the same

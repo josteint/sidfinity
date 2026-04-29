@@ -207,18 +207,11 @@ v2wrt
         bne v2pw
         inc $A6
 v2pw
-        lda $B0
-        beq v2nsk
         lda $A0
         cmp $A9
-        beq v2done
-v2nsk
-        lda $A7
-        sta $D410
-        lda $AB
-        sta $D411
+        beq v2pwwr
         lda $AC
-        beq v2done
+        beq v2pwwr
         cmp #$FF
         beq v2lin
         lda $AD
@@ -232,10 +225,10 @@ v2nsk
 v2ncu
         lda $AB
         cmp $AC
-        bne v2done
+        bne v2pwwr
         lda #1
         sta $AD
-        jmp v2done
+        jmp v2pwwr
 v2dn
         sec
         lda $A7
@@ -246,15 +239,20 @@ v2dn
 v2ncd
         lda $AB
         cmp #$08
-        bne v2done
+        bne v2pwwr
         lda #0
         sta $AD
-        jmp v2done
+        jmp v2pwwr
 v2lin
         clc
         lda $A7
         adc $AA
         sta $A7
+v2pwwr
+        lda $A7
+        sta $D410
+        lda $AB
+        sta $D411
 v2done
         ldy $AE
         lda $A7
@@ -447,18 +445,11 @@ v1wrt
         bne v1pw
         inc $96
 v1pw
-        lda $B0
-        beq v1nsk
         lda $90
         cmp $99
-        beq v1done
-v1nsk
-        lda $97
-        sta $D409
-        lda $9B
-        sta $D40A
+        beq v1pwwr
         lda $9C
-        beq v1done
+        beq v1pwwr
         cmp #$FF
         beq v1lin
         lda $9D
@@ -472,10 +463,10 @@ v1nsk
 v1ncu
         lda $9B
         cmp $9C
-        bne v1done
+        bne v1pwwr
         lda #1
         sta $9D
-        jmp v1done
+        jmp v1pwwr
 v1dn
         sec
         lda $97
@@ -486,15 +477,20 @@ v1dn
 v1ncd
         lda $9B
         cmp #$08
-        bne v1done
+        bne v1pwwr
         lda #0
         sta $9D
-        jmp v1done
+        jmp v1pwwr
 v1lin
         clc
         lda $97
         adc $9A
         sta $97
+v1pwwr
+        lda $97
+        sta $D409
+        lda $9B
+        sta $D40A
 v1done
         ldy $9E
         lda $97
@@ -672,18 +668,11 @@ v0wrt
         bne v0pw
         inc $86
 v0pw
-        lda $B0
-        beq v0nsk
         lda $80
         cmp $89
-        beq v0done
-v0nsk
-        lda $87
-        sta $D402
-        lda $8B
-        sta $D403
+        beq v0pwwr
         lda $8C
-        beq v0done
+        beq v0pwwr
         cmp #$FF
         beq v0lin
         lda $8D
@@ -697,10 +686,10 @@ v0nsk
 v0ncu
         lda $8B
         cmp $8C
-        bne v0done
+        bne v0pwwr
         lda #1
         sta $8D
-        jmp v0done
+        jmp v0pwwr
 v0dn
         sec
         lda $87
@@ -711,15 +700,20 @@ v0dn
 v0ncd
         lda $8B
         cmp #$08
-        bne v0done
+        bne v0pwwr
         lda #0
         sta $8D
-        jmp v0done
+        jmp v0pwwr
 v0lin
         clc
         lda $87
         adc $8A
         sta $87
+v0pwwr
+        lda $87
+        sta $D402
+        lda $8B
+        sta $D403
 v0done
         ldy $8E
         lda $87
