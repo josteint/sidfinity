@@ -250,6 +250,12 @@ def generate_asm(T, instruments, score):
     # This affects oscillator phase for ring modulation (V1 uses V3's phase).
     # V3 written first means V3's oscillator phase is set early in the frame,
     # then V1's ring mod reads it late — matching the original's timing.
+    # Ω: cycle timing from Hubbard's engine (measured via py65 trace).
+    # Eval-path and note-load-path have different cycle budgets.
+    # Delays are inserted at the correct branch points.
+    omega_eval_nops = {2: 4, 1: 50, 0: 35}   # NOPs in eval path per voice
+    omega_note_nops = {2: 0, 1: 0, 0: 0}     # NOPs in note_load path per voice
+
     for v in [2, 1, 0]:
         z = ZP[v]
         so = SOFF[v]
@@ -259,6 +265,9 @@ def generate_asm(T, instruments, score):
         # Step 1: tick counter
         a(f'        dec ${z:02X}')
         a(f'        beq v{v}rd')
+        # Ω eval-path delay: pad to match Hubbard's cycle budget
+        for _ in range(omega_eval_nops[v]):
+            a(f'        nop')
         a(f'        jmp v{v}eval')
         # tick_ctr hit 0 → load new note from pattern
         a(f'v{v}rd')
