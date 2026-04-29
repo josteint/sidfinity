@@ -253,7 +253,11 @@ def generate_asm(T, instruments, score):
     # Ω: cycle timing from Hubbard's engine (measured via py65 trace).
     # Eval-path and note-load-path have different cycle budgets.
     # Delays are inserted at the correct branch points.
-    omega_eval_nops = {2: 4, 1: 50, 0: 35}   # NOPs in eval path per voice
+    # Ω calibrated from actual CPU cycles (py65 processorCycles):
+    # V3 eval: orig=133cy, ours=173cy without NOPs → already late, remove padding
+    # V2 eval: orig=348cy avg, match with 35 NOPs (70cy)
+    # V1 eval: orig=604cy avg, match with 57 NOPs (114cy)
+    omega_eval_nops = {2: 0, 1: 35, 0: 57}   # NOPs in eval path per voice
     omega_note_nops = {2: 0, 1: 0, 0: 0}     # NOPs in note_load path per voice
 
     for v in [2, 1, 0]:

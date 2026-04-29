@@ -78,10 +78,6 @@ play
 ; --- Voice 3 ---
         dec $A0
         beq v2rd
-        nop
-        nop
-        nop
-        nop
         jmp v2eval
 v2rd
         ldy #0
@@ -305,21 +301,6 @@ v2noz
         nop
         nop
         nop
-        nop
-        nop
-        nop
-        nop
-        nop
-        nop
-        nop
-        nop
-        nop
-        nop
-        nop
-        nop
-        nop
-        nop
-        nop
         jmp v1eval
 v1rd
         ldy #0
@@ -508,6 +489,28 @@ v1noz
 ; --- Voice 1 ---
         dec $80
         beq v0rd
+        nop
+        nop
+        nop
+        nop
+        nop
+        nop
+        nop
+        nop
+        nop
+        nop
+        nop
+        nop
+        nop
+        nop
+        nop
+        nop
+        nop
+        nop
+        nop
+        nop
+        nop
+        nop
         nop
         nop
         nop
