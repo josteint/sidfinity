@@ -207,6 +207,7 @@ def generate_asm(T, instruments, score):
     a('        sta $D418')
     a(f'        lda #$FF')
     a(f'        sta ${FRAME_CTR:02X}')   # global frame counter (INC on first play → 0)
+    # T[104] = $4315 (V1/V2 initial ctrl) — already correct in static freq table
     for v in range(3):
         z = ZP[v]
         # Load first pattern address from orderlist into pat_ptr
@@ -357,6 +358,12 @@ def generate_asm(T, instruments, score):
         a(f'        sta ${z+5:02X}')
         a(f'        lda i_whi,x')
         a(f'        sta ${z+6:02X}')
+        # Write freq from note pitch (note-load always writes, even for non-arp)
+        a(f'        ldx ${z+8:02X}')              # base_note
+        a(f'        lda fthi,x')
+        a(f'        sta $D4{so+1:02X}')
+        a(f'        lda ftlo,x')
+        a(f'        sta $D4{so:02X}')
         # Advance pat_ptr by 3
         a(f'        clc')
         a(f'        lda ${z+3:02X}')
@@ -369,11 +376,13 @@ def generate_asm(T, instruments, score):
         # Steps 2-5: evaluate F, W, P, E (Hubbard order: freq → ctrl → pw → adsr)
         a(f'v{v}eval')
 
-        # F: freq FIRST (set frequency before gate — Hubbard writes freq before ctrl)
-        a(f'        ldx ${z+8:02X}')              # base_note
+        # F: freq — Hubbard ONLY writes freq when arp is active (bit 2 set).
+        # Non-arp instruments keep their freq from note-load. Skipping the
+        # write saves ~20 cycles and avoids redundant SID register access.
         a(f'        ldy ${z+14:02X}')             # instrument ID (prev_inst)
         a(f'        lda i_arp,y')                 # arp_offset (0 or 12)
-        a(f'        beq v{v}frok')                # no arp → use base_note
+        a(f'        beq v{v}wrd')                 # no arp → SKIP freq write entirely
+        a(f'        ldx ${z+8:02X}')              # base_note
         a(f'        lda ${FRAME_CTR:02X}')        # global frame counter
         a(f'        and #$01')                    # bit 0
         a(f'        beq v{v}frok')                # even frame → base_note
@@ -388,6 +397,7 @@ def generate_asm(T, instruments, score):
         a(f'        sta $D4{so:02X}')
 
         # W: read waveform from w_ptr, write ctrl AFTER freq (gate on sees correct freq)
+        a(f'v{v}wrd')
         a(f'        ldy #0')
         a(f'        lda (${z+5:02X}),y')        # waveform byte
         a(f'        cmp #$FF')
@@ -504,6 +514,7 @@ def generate_asm(T, instruments, score):
         a(f'        sta $D4{so+5:02X}')
         a(f'        sta $D4{so+6:02X}')
         a(f'v{v}noz')
+        # T[104] is static ($4315) — correct in freq table from extract()
         a('')
 
     a('        rts')

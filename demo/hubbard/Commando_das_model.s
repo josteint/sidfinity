@@ -150,6 +150,11 @@ v2hbd
         sta $A5
         lda i_whi,x
         sta $A6
+        ldx $A8
+        lda fthi,x
+        sta $D40F
+        lda ftlo,x
+        sta $D40E
         clc
         lda $A3
         adc #3
@@ -158,10 +163,10 @@ v2hbd
         inc $A4
 
 v2eval
-        ldx $A8
         ldy $AE
         lda i_arp,y
-        beq v2frok
+        beq v2wrd
+        ldx $A8
         lda $B0
         and #$01
         beq v2frok
@@ -174,6 +179,7 @@ v2frok
         sta $D40F
         lda ftlo,x
         sta $D40E
+v2wrd
         ldy #0
         lda ($A5),y
         cmp #$FF
@@ -373,6 +379,11 @@ v1hbd
         sta $95
         lda i_whi,x
         sta $96
+        ldx $98
+        lda fthi,x
+        sta $D408
+        lda ftlo,x
+        sta $D407
         clc
         lda $93
         adc #3
@@ -381,10 +392,10 @@ v1hbd
         inc $94
 
 v1eval
-        ldx $98
         ldy $9E
         lda i_arp,y
-        beq v1frok
+        beq v1wrd
+        ldx $98
         lda $B0
         and #$01
         beq v1frok
@@ -397,6 +408,7 @@ v1frok
         sta $D408
         lda ftlo,x
         sta $D407
+v1wrd
         ldy #0
         lda ($95),y
         cmp #$FF
@@ -618,6 +630,11 @@ v0hbd
         sta $85
         lda i_whi,x
         sta $86
+        ldx $88
+        lda fthi,x
+        sta $D401
+        lda ftlo,x
+        sta $D400
         clc
         lda $83
         adc #3
@@ -626,10 +643,10 @@ v0hbd
         inc $84
 
 v0eval
-        ldx $88
         ldy $8E
         lda i_arp,y
-        beq v0frok
+        beq v0wrd
+        ldx $88
         lda $B0
         and #$01
         beq v0frok
@@ -642,6 +659,7 @@ v0frok
         sta $D401
         lda ftlo,x
         sta $D400
+v0wrd
         ldy #0
         lda ($85),y
         cmp #$FF
