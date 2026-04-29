@@ -165,7 +165,7 @@ v2hbd
 v2eval
         ldy $AE
         lda i_arp,y
-        beq v2wrd
+        beq v2vib
         ldx $A8
         lda $B0
         and #$01
@@ -175,6 +175,55 @@ v2eval
         adc i_arp,y
         tax
 v2frok
+        lda fthi,x
+        sta $D40F
+        lda ftlo,x
+        sta $D40E
+        jmp v2wrd
+v2vib
+        lda i_vib,y
+        beq v2wrd
+        lda $A9
+        sec
+        sbc $A0
+        cmp #6
+        bcc v2wrd
+        lda $B0
+        and #$07
+        cmp #4
+        bcc v2vdok
+        eor #$07
+v2vdok
+        pha
+        ldx $A8
+        lda fthi+1,x
+        sec
+        sbc fthi,x
+        sta $B1
+        ldy $AE
+        ldx i_vib,y
+v2vsr
+        lsr $B1
+        dex
+        bne v2vsr
+        pla
+        beq v2vwr
+        tax
+        lda #0
+v2vmul
+        clc
+        adc $B1
+        dex
+        bne v2vmul
+        ldx $A8
+        clc
+        adc fthi,x
+        sta $D40F
+        lda ftlo,x
+        sta $D40E
+        jmp v2wrd
+v2vwr
+        ldx $A8
         lda fthi,x
         sta $D40F
         lda ftlo,x
@@ -394,7 +443,7 @@ v1hbd
 v1eval
         ldy $9E
         lda i_arp,y
-        beq v1wrd
+        beq v1vib
         ldx $98
         lda $B0
         and #$01
@@ -404,6 +453,55 @@ v1eval
         adc i_arp,y
         tax
 v1frok
+        lda fthi,x
+        sta $D408
+        lda ftlo,x
+        sta $D407
+        jmp v1wrd
+v1vib
+        lda i_vib,y
+        beq v1wrd
+        lda $99
+        sec
+        sbc $90
+        cmp #6
+        bcc v1wrd
+        lda $B0
+        and #$07
+        cmp #4
+        bcc v1vdok
+        eor #$07
+v1vdok
+        pha
+        ldx $98
+        lda fthi+1,x
+        sec
+        sbc fthi,x
+        sta $B1
+        ldy $9E
+        ldx i_vib,y
+v1vsr
+        lsr $B1
+        dex
+        bne v1vsr
+        pla
+        beq v1vwr
+        tax
+        lda #0
+v1vmul
+        clc
+        adc $B1
+        dex
+        bne v1vmul
+        ldx $98
+        clc
+        adc fthi,x
+        sta $D408
+        lda ftlo,x
+        sta $D407
+        jmp v1wrd
+v1vwr
+        ldx $98
         lda fthi,x
         sta $D408
         lda ftlo,x
@@ -645,7 +743,7 @@ v0hbd
 v0eval
         ldy $8E
         lda i_arp,y
-        beq v0wrd
+        beq v0vib
         ldx $88
         lda $B0
         and #$01
@@ -655,6 +753,55 @@ v0eval
         adc i_arp,y
         tax
 v0frok
+        lda fthi,x
+        sta $D401
+        lda ftlo,x
+        sta $D400
+        jmp v0wrd
+v0vib
+        lda i_vib,y
+        beq v0wrd
+        lda $89
+        sec
+        sbc $80
+        cmp #6
+        bcc v0wrd
+        lda $B0
+        and #$07
+        cmp #4
+        bcc v0vdok
+        eor #$07
+v0vdok
+        pha
+        ldx $88
+        lda fthi+1,x
+        sec
+        sbc fthi,x
+        sta $B1
+        ldy $8E
+        ldx i_vib,y
+v0vsr
+        lsr $B1
+        dex
+        bne v0vsr
+        pla
+        beq v0vwr
+        tax
+        lda #0
+v0vmul
+        clc
+        adc $B1
+        dex
+        bne v0vmul
+        ldx $88
+        clc
+        adc fthi,x
+        sta $D401
+        lda ftlo,x
+        sta $D400
+        jmp v0wrd
+v0vwr
+        ldx $88
         lda fthi,x
         sta $D401
         lda ftlo,x
@@ -784,6 +931,8 @@ i_pwmax
         .byte $0E,$00,$FF,$00,$00,$FF,$0E,$00,$FF,$00,$FF,$00,$00
 i_arp
         .byte $00,$0C,$00,$0C,$00,$0C,$00,$0C,$00,$0C,$0C,$00,$00
+i_vib
+        .byte $02,$00,$00,$00,$00,$00,$02,$00,$02,$00,$00,$01,$00
 i_wlo
         .byte <w0,<w1,<w2,<w3,<w4,<w5,<w6,<w7,<w8,<w9,<w10,<w11,<w12
 i_whi

@@ -93,9 +93,13 @@ def extract():
         # fx_flags
         flags = rh.fx_flags if rh.fx_flags is not None else 0
 
-        # Skydive (fx_flags bit 1): freq_hi += 2 every odd frame after 3 frames.
-        # In Commando, only inst 4 has it, but notes are too short (dur=2, 6 frames)
-        # for the >= 3 frame condition to trigger. Skydive is effectively inactive.
+        # Vibrato: byte+5 of instrument table = vibrato depth scaler.
+        # When nonzero, a triangle-wave LFO modulates frequency.
+        # LFO: (frame_counter & 7) → 0,1,2,3,3,2,1,0 (period 8 frames)
+        # Delta: freq[pitch+1] - freq[pitch], right-shifted byte5 times
+        # Applied: base_freq + delta * depth, after 6 frames into note
+        # rh_decompile.py stores this as vibrato_depth (data[5]).
+        vibrato_scale = rh.vibrato_depth if hasattr(rh, 'vibrato_depth') else 0
 
         # P program: PW modulation
         # fx_flags bit 3 determines PW MODE (not table arp — that's post-1986)
@@ -114,10 +118,13 @@ def extract():
             pw_min = 0x08; pw_max = 0x0E
 
         # E spec: ADSR + gate/adsr timing
+        # Vibrato only effective for non-arp instruments (arp overwrites freq).
+        eff_vibrato = vibrato_scale if not rh.has_arpeggio else 0
         instruments.append({
             'id': rh.index,
             'W': {'steps': w_steps, 'loop': w_loop},
             'arp_offset': arp_offset,
+            'vibrato_scale': eff_vibrato,
             'P': {'speed': pw_speed, 'mode': pw_mode,
                    'min_hi': pw_min, 'max_hi': pw_max,
                    'init_pw': rh.pulse_width},
@@ -195,6 +202,7 @@ def generate_asm(T, instruments, score):
     ZP = [0x80, 0x90, 0xA0]
     SOFF = [0, 7, 14]
     FRAME_CTR = 0xB0  # global frame counter (all voices share)
+    VIB_TMP = 0xB1    # vibrato temp: delta (freq_hi difference, 1 byte)
 
     a(f'        * = ${BASE:04X}')
     a(f'        jmp init')
@@ -376,12 +384,13 @@ def generate_asm(T, instruments, score):
         # Steps 2-5: evaluate F, W, P, E (Hubbard order: freq → ctrl → pw → adsr)
         a(f'v{v}eval')
 
-        # F: freq — Hubbard ONLY writes freq when arp is active (bit 2 set).
-        # Non-arp instruments keep their freq from note-load. Skipping the
-        # write saves ~20 cycles and avoids redundant SID register access.
+        # F: freq — arp instruments alternate +0/+12 every frame.
+        # Non-arp instruments: check for vibrato modulation.
+        # Vibrato: triangle LFO (period 8), delta from freq table, applied after 6 frames.
         a(f'        ldy ${z+14:02X}')             # instrument ID (prev_inst)
         a(f'        lda i_arp,y')                 # arp_offset (0 or 12)
-        a(f'        beq v{v}wrd')                 # no arp → SKIP freq write entirely
+        a(f'        beq v{v}vib')                 # no arp → check vibrato
+        # ARP path
         a(f'        ldx ${z+8:02X}')              # base_note
         a(f'        lda ${FRAME_CTR:02X}')        # global frame counter
         a(f'        and #$01')                    # bit 0
@@ -391,6 +400,71 @@ def generate_asm(T, instruments, score):
         a(f'        adc i_arp,y')                 # base_note + arp_offset
         a(f'        tax')
         a(f'v{v}frok')
+        a(f'        lda fthi,x')
+        a(f'        sta $D4{so+1:02X}')
+        a(f'        lda ftlo,x')
+        a(f'        sta $D4{so:02X}')
+        a(f'        jmp v{v}wrd')
+
+        # VIBRATO path (non-arp instruments only)
+        # Only fires when i_vib[inst] != 0 AND note has played >= 6 frames.
+        # frames_elapsed = note_len - tick_ctr (both are 1-based counts)
+        # LFO depth: (frame_ctr & 7) → triangle 0,1,2,3,3,2,1,0
+        # delta = freq_hi[pitch+1] - freq_hi[pitch], right-shifted vibrato_scale times
+        # base_freq + delta * depth → write to SID
+        a(f'v{v}vib')
+        a(f'        lda i_vib,y')                 # vibrato scale (0=none)
+        a(f'        beq v{v}wrd')                 # no vibrato → skip freq write entirely
+        # Check note age: frames_elapsed = note_len - tick_ctr, need >= 6
+        a(f'        lda ${z+9:02X}')              # note_len
+        a(f'        sec')
+        a(f'        sbc ${z:02X}')                # - tick_ctr → frames elapsed
+        a(f'        cmp #6')                      # < 6 frames?
+        a(f'        bcc v{v}wrd')                 # too early → skip freq write
+        # Compute LFO depth: (frame_ctr & 7) → mirror if >= 4 → 0,1,2,3,3,2,1,0
+        a(f'        lda ${FRAME_CTR:02X}')
+        a(f'        and #$07')
+        a(f'        cmp #4')
+        a(f'        bcc v{v}vdok')                # < 4 → depth is the raw value
+        a(f'        eor #$07')                    # mirror: 4→3, 5→2, 6→1, 7→0
+        a(f'v{v}vdok')
+        a(f'        pha')                         # push depth
+        # Compute freq_hi delta = fthi[pitch+1] - fthi[pitch]
+        a(f'        ldx ${z+8:02X}')              # base_note
+        a(f'        lda fthi+1,x')
+        a(f'        sec')
+        a(f'        sbc fthi,x')
+        a(f'        sta ${VIB_TMP:02X}')          # save delta
+        # Right-shift delta by vibrato_scale (1, 2, or 3 times).
+        # Use X as loop counter (VIB_TMP holds delta, Y must not clobber inst id).
+        a(f'        ldy ${z+14:02X}')             # instrument ID again
+        a(f'        ldx i_vib,y')                 # X = vibrato_scale (loop count)
+        a(f'v{v}vsr')
+        a(f'        lsr ${VIB_TMP:02X}')          # delta >>= 1
+        a(f'        dex')
+        a(f'        bne v{v}vsr')                 # repeat until scale==0
+        # Multiply: acc = delta * depth (depth is on stack)
+        # depth=0 means LFO at zero → write unmodulated freq (same as note-load)
+        a(f'        pla')                          # pop depth
+        a(f'        beq v{v}vwr')                 # depth=0 → write plain base freq
+        a(f'        tax')                          # X = depth (loop counter)
+        a(f'        lda #0')                       # acc = 0
+        a(f'v{v}vmul')
+        a(f'        clc')
+        a(f'        adc ${VIB_TMP:02X}')           # acc += delta
+        a(f'        dex')
+        a(f'        bne v{v}vmul')
+        # acc = delta * depth. Add to base freq_hi (reload base_note from ZP)
+        a(f'        ldx ${z+8:02X}')              # base_note
+        a(f'        clc')
+        a(f'        adc fthi,x')
+        a(f'        sta $D4{so+1:02X}')           # write modulated freq_hi
+        a(f'        lda ftlo,x')
+        a(f'        sta $D4{so:02X}')             # write base freq_lo (unmodified)
+        a(f'        jmp v{v}wrd')
+        # depth=0: write plain freq (no modulation this frame)
+        a(f'v{v}vwr')
+        a(f'        ldx ${z+8:02X}')              # base_note
         a(f'        lda fthi,x')
         a(f'        sta $D4{so+1:02X}')
         a(f'        lda ftlo,x')
@@ -553,6 +627,8 @@ def generate_asm(T, instruments, score):
     a('        .byte ' + ','.join(f'${v:02X}' for v in pwmax_vals))
     a('i_arp')
     a('        .byte ' + ','.join(f'${i["arp_offset"]:02X}' for i in instruments))
+    a('i_vib')
+    a('        .byte ' + ','.join(f'${i["vibrato_scale"]:02X}' for i in instruments))
     a('i_wlo')
     a('        .byte ' + ','.join(f'<w{i["id"]}' for i in instruments))
     a('i_whi')
