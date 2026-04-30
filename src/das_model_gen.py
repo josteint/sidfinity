@@ -503,6 +503,18 @@ def generate_asm(T, instruments, score):
         a(f'        pla')
         a(f'v{v}wrt')
         a(f'        sta $D4{so+4:02X}')
+        # Update extended table T[104]: V1 ctrl → ftlo[104], V2 ctrl → fthi[104].
+        # Hubbard's memory layout puts ctrl_byte[V1] at $54F8 = T[104].lo.
+        # We simulate this by writing the instrument's original ctrl (with gate set)
+        # to the freq table after each voice's ctrl write.
+        if v == 0:  # V1 → ftlo[104]
+            a(f'        ldy ${z+14:02X}')         # instrument ID
+            a(f'        lda i_wfirst,y')           # first W step = original ctrl (gate set)
+            a(f'        sta ftlo+104')
+        elif v == 1:  # V2 → fthi[104]
+            a(f'        ldy ${z+14:02X}')
+            a(f'        lda i_wfirst,y')
+            a(f'        sta fthi+104')
 
         # Advance w_ptr by 1
         a(f'        inc ${z+5:02X}')
@@ -633,6 +645,8 @@ def generate_asm(T, instruments, score):
     a('        .byte ' + ','.join(f'${i["arp_offset"]:02X}' for i in instruments))
     a('i_vib')
     a('        .byte ' + ','.join(f'${i["vibrato_scale"]:02X}' for i in instruments))
+    a('i_wfirst')  # first W step per instrument = original ctrl with gate set
+    a('        .byte ' + ','.join(f'${i["W"]["steps"][0]:02X}' for i in instruments))
     a('i_wlo')
     a('        .byte ' + ','.join(f'<w{i["id"]}' for i in instruments))
     a('i_whi')

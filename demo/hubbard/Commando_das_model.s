@@ -530,6 +530,9 @@ v1gon
         pla
 v1wrt
         sta $D40B
+        ldy $9E
+        lda i_wfirst,y
+        sta fthi+104
         inc $95
         bne v1pw
         inc $96
@@ -829,6 +832,9 @@ v0gon
         pla
 v0wrt
         sta $D404
+        ldy $8E
+        lda i_wfirst,y
+        sta ftlo+104
         inc $85
         bne v0pw
         inc $86
@@ -930,6 +936,8 @@ i_arp
         .byte $00,$0C,$00,$0C,$00,$0C,$00,$0C,$00,$0C,$0C,$00,$00
 i_vib
         .byte $02,$00,$00,$00,$00,$00,$02,$00,$02,$00,$00,$01,$00
+i_wfirst
+        .byte $41,$41,$41,$81,$43,$41,$41,$15,$41,$21,$41,$43,$41
 i_wlo
         .byte <w0,<w1,<w2,<w3,<w4,<w5,<w6,<w7,<w8,<w9,<w10,<w11,<w12
 i_whi
