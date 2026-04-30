@@ -416,12 +416,14 @@ def generate_asm(T, instruments, score):
         a(f'v{v}vib')
         a(f'        lda i_vib,y')                 # vibrato scale (0=none)
         a(f'        beq v{v}wrd')                 # no vibrato → skip freq write entirely
-        # Check note age: frames_elapsed = note_len - tick_ctr, need >= 6
-        a(f'        lda ${z+9:02X}')              # note_len
-        a(f'        sec')
-        a(f'        sbc ${z:02X}')                # - tick_ctr → frames elapsed
-        a(f'        cmp #6')                      # < 6 frames?
-        a(f'        bcc v{v}wrd')                 # too early → skip freq write
+        # Check: note duration_field >= 6 (ticks, NOT frames).
+        # Hubbard checks the raw duration from the pattern, not frames elapsed.
+        # Short notes (< 6 ticks) never get vibrato.
+        # note_len = duration * tempo. So duration = note_len / tempo.
+        # Check: note_len >= 6 * tempo (= {6 * tempo} for this song).
+        a(f'        lda ${z+9:02X}')              # note_len (frames)
+        a(f'        cmp #{6 * tempo}')            # < 6 ticks worth of frames?
+        a(f'        bcc v{v}wrd')                 # short note → no vibrato
         # Compute LFO depth: (frame_ctr & 7) → mirror if >= 4 → 0,1,2,3,3,2,1,0
         a(f'        lda ${FRAME_CTR:02X}')
         a(f'        and #$07')

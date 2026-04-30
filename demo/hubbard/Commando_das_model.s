@@ -184,9 +184,7 @@ v2vib
         lda i_vib,y
         beq v2wrd
         lda $A9
-        sec
-        sbc $A0
-        cmp #6
+        cmp #18
         bcc v2wrd
         lda $B0
         and #$07
@@ -463,9 +461,7 @@ v1vib
         lda i_vib,y
         beq v1wrd
         lda $99
-        sec
-        sbc $90
-        cmp #6
+        cmp #18
         bcc v1wrd
         lda $B0
         and #$07
@@ -764,9 +760,7 @@ v0vib
         lda i_vib,y
         beq v0wrd
         lda $89
-        sec
-        sbc $80
-        cmp #6
+        cmp #18
         bcc v0wrd
         lda $B0
         and #$07
