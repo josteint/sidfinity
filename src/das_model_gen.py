@@ -373,6 +373,7 @@ def generate_asm(T, instruments, score):
         a(f'        sta $D4{so+1:02X}')
         a(f'        lda ftlo,x')
         a(f'        sta $D4{so:02X}')
+        # Ctrl written by W program in eval (step 0 on note-load frame)
         # Advance pat_ptr by 3
         a(f'        clc')
         a(f'        lda ${z+3:02X}')
@@ -385,9 +386,18 @@ def generate_asm(T, instruments, score):
         # Steps 2-5: evaluate F, W, P, E (Hubbard order: freq → ctrl → pw → adsr)
         a(f'v{v}eval')
 
+        # EFFECTS SKIP: On note-load frames, Hubbard skips freq effects
+        # (arp, vibrato) but ctrl (W program) and PW still need to run.
+        # We skip ONLY the freq section on note-load frames.
+
+        # F: freq — skip on note-load frames (Hubbard jumps past effects after note read).
+        # Note-load already wrote freq from pitch. Eval-only frames apply arp/vibrato.
+        a(f'        lda ${z:02X}')                # tick_ctr
+        a(f'        cmp ${z+9:02X}')              # == note_len? (just loaded)
+        a(f'        beq v{v}wrd')                 # note-load → skip freq effects, go to W program
+
         # F: freq — arp instruments alternate +0/+12 every frame.
         # Non-arp instruments: check for vibrato modulation.
-        # Vibrato: triangle LFO (period 8), delta from freq table, applied after 6 frames.
         a(f'        ldy ${z+14:02X}')             # instrument ID (prev_inst)
         a(f'        lda i_arp,y')                 # arp_offset (0 or 12)
         a(f'        beq v{v}vib')                 # no arp → check vibrato

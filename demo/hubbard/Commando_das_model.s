@@ -163,6 +163,9 @@ v2hbd
         inc $A4
 
 v2eval
+        lda $A0
+        cmp $A9
+        beq v2wrd
         ldy $AE
         lda i_arp,y
         beq v2vib
@@ -440,6 +443,9 @@ v1hbd
         inc $94
 
 v1eval
+        lda $90
+        cmp $99
+        beq v1wrd
         ldy $9E
         lda i_arp,y
         beq v1vib
@@ -742,6 +748,9 @@ v0hbd
         inc $84
 
 v0eval
+        lda $80
+        cmp $89
+        beq v0wrd
         ldy $8E
         lda i_arp,y
         beq v0vib
