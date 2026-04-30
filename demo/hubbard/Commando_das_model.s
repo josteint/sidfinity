@@ -202,6 +202,7 @@ v2vdok
         sta $B1
         ldy $AE
         ldx i_vib,y
+        inx
 v2vsr
         lsr $B1
         dex
@@ -480,6 +481,7 @@ v1vdok
         sta $B1
         ldy $9E
         ldx i_vib,y
+        inx
 v1vsr
         lsr $B1
         dex
@@ -780,6 +782,7 @@ v0vdok
         sta $B1
         ldy $8E
         ldx i_vib,y
+        inx
 v0vsr
         lsr $B1
         dex

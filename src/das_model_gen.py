@@ -215,7 +215,8 @@ def generate_asm(T, instruments, score):
     a('        sta $D418')
     a(f'        lda #$FF')
     a(f'        sta ${FRAME_CTR:02X}')   # global frame counter (INC on first play → 0)
-    # T[104] = $4315 (V1/V2 initial ctrl) — already correct in static freq table
+    # T[104] = $4315 from py65 capture (V1/V2 ctrl). Correct after frame 0.
+    # First 6 frames have $0000 in original (state not set yet) — accepted.
     for v in range(3):
         z = ZP[v]
         # Load first pattern address from orderlist into pat_ptr
@@ -435,10 +436,11 @@ def generate_asm(T, instruments, score):
         a(f'        sec')
         a(f'        sbc fthi,x')
         a(f'        sta ${VIB_TMP:02X}')          # save delta
-        # Right-shift delta by vibrato_scale (1, 2, or 3 times).
-        # Use X as loop counter (VIB_TMP holds delta, Y must not clobber inst id).
+        # Right-shift delta by vibrato_scale+1 times (Hubbard's DEC/BPL loop
+        # includes the zero iteration: depth=1 → 2 shifts, depth=2 → 3 shifts).
         a(f'        ldy ${z+14:02X}')             # instrument ID again
-        a(f'        ldx i_vib,y')                 # X = vibrato_scale (loop count)
+        a(f'        ldx i_vib,y')                 # X = vibrato_scale
+        a(f'        inx')                         # +1 (DEC/BPL includes zero iteration)
         a(f'v{v}vsr')
         a(f'        lsr ${VIB_TMP:02X}')          # delta >>= 1
         a(f'        dex')
