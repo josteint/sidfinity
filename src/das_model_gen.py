@@ -154,15 +154,24 @@ def extract():
                         if note.instrument is not None:
                             cur_inst = note.instrument
                         dur = note.duration if note.duration is not None else 0
-                        if note.pitch is None:
-                            # TIE: use previous note's pitch (preserves hard restart timing)
+                        is_tie = note.tie
+                        if note.pitch is None or is_tie:
+                            # TIE: use previous note's pitch; no freq write, no gate
                             pitch = notes[-1]['pitch'] if notes else 0
                         else:
                             pitch = note.pitch
+                        # has_inst_byte: whether the original Hubbard note had an instrument byte
+                        # This determines hub_off advance (3 bytes if yes, 2 if no)
+                        # Encode: bit7 of stored inst = 0 means has_inst_byte, 1 means no_inst_byte
+                        has_inst_byte = (note.instrument is not None)
+                        # Bit7=1 → no inst byte (hub_off += 2)
+                        # Bit6=1 → tie note (no freq write, ctrl without gate)
+                        stored_inst = cur_inst | (0 if has_inst_byte else 0x80) | (0x40 if is_tie else 0)
                         notes.append({
                             'pitch': pitch,
                             'duration': dur + 1,  # Hubbard: counter loads D, decrements to -1
-                            'instrument': cur_inst,
+                            'instrument': stored_inst,
+                            'tie': is_tie,
                         })
                     voice['patterns'][pat_idx] = notes
             elif entry[0] == 'loop':
@@ -187,24 +196,27 @@ def generate_asm(T, instruments, score):
     tempo = score['tempo']
 
     # ZP layout per voice (17 bytes)
-    # +0: tick_ctr
-    # +1/+2: ol_ptr
-    # +3/+4: pat_ptr
-    # +5/+6: w_ptr (wave program, 1 byte/step)
-    # +7: pw_lo
-    # +8: base_note
-    # +9: note_len
-    # +10: pw_speed
-    # +11: pw_hi
-    # +12: pw_max    ($00=no mod, $FF=linear, else=bidir max)
-    # +13: pw_dir    (0=up, 1=down)
-    # +14: prev_inst (previous instrument ID, $FF=none)
-    # +15: hub_off   (Hubbard pattern byte offset — tracks T[100] extended table)
-    # +16: fhi_state (freq_hi internal state for bit0 — DEC'd each sustain frame)
+    # +0: tick_ctr      (frame countdown; 0 = load new note)
+    # +1/+2: ol_ptr     (orderlist pointer lo/hi)
+    # +3/+4: pat_ptr    (pattern pointer lo/hi)
+    # +5: pw_period     (bidirectional PW sub-counter, signed; DEC each frame)
+    # +6: dur_thresh    (dur_field * tempo; note-start when tick_ctr > dur_thresh)
+    # +7: pw_lo         (current PW lo byte)
+    # +8: base_note     (current pitch index)
+    # +9: note_len      (tick_ctr value at note-load = (dur_field+1)*tempo)
+    # +10: pw_speed     (PW add/step amount per tick)
+    # +11: pw_hi        (current PW hi byte)
+    # +12: pw_max       ($00=no mod, $FF=uni/linear, else=bidir max boundary)
+    # +13: pw_dir       (0=rising, nonzero=falling)
+    # +14: prev_inst    (current instrument ID)
+    # +15: hub_off      (note_idx — tracks T[100] extended table lookup)
+    # +16: fhi_state    (freq_hi state for bit0 skydive — written then DEC'd)
     ZP = [0x80, 0x91, 0xA2]
     SOFF = [0, 7, 14]
-    FRAME_CTR = 0xB3  # global frame counter (all voices share)
-    VIB_TMP = 0xB4    # vibrato temp: delta (freq_hi difference, 1 byte)
+    FRAME_CTR = 0xB3  # global frame counter
+    CTRL_V1   = 0xB4  # V1 ctrl byte (for T[104].lo update)
+    CTRL_V2   = 0xB5  # V2 ctrl byte (for T[104].hi update)
+    VIB_TMP   = 0xB6  # vibrato: delta accumulator
 
     a(f'        * = ${BASE:04X}')
     a(f'        jmp init')
@@ -217,21 +229,22 @@ def generate_asm(T, instruments, score):
     a('        sta $D418')
     a(f'        lda #$FF')
     a(f'        sta ${FRAME_CTR:02X}')   # global frame counter (INC on first play → 0)
-    # T[104] = $4315 from py65 capture (V1/V2 ctrl). Correct after frame 0.
-    # First 6 frames have $0000 in original (state not set yet) — accepted.
+    a(f'        lda #0')
+    a(f'        sta ${CTRL_V1:02X}')    # T[104].lo = V1 ctrl = 0 initially
+    a(f'        sta ${CTRL_V2:02X}')    # T[104].hi = V2 ctrl = 0 initially
     for v in range(3):
         z = ZP[v]
-        # Load first pattern address from orderlist into pat_ptr
         a(f'        lda v{v}ol')
         a(f'        sta ${z+3:02X}')        # pat_ptr lo
         a(f'        lda v{v}ol+1')
         a(f'        sta ${z+4:02X}')        # pat_ptr hi
-        # ol_ptr starts at second entry (first already loaded)
         a(f'        lda #<(v{v}ol+2)')
         a(f'        sta ${z+1:02X}')        # ol_ptr lo
         a(f'        lda #>(v{v}ol+2)')
         a(f'        sta ${z+2:02X}')        # ol_ptr hi
         a(f'        lda #0')
+        a(f'        sta ${z+5:02X}')        # pw_period=0
+        a(f'        sta ${z+6:02X}')        # dur_thresh=0
         a(f'        sta ${z+7:02X}')        # pw_lo=0
         a(f'        sta ${z+9:02X}')        # note_len=0
         a(f'        sta ${z+10:02X}')       # pw_speed=0
@@ -239,8 +252,9 @@ def generate_asm(T, instruments, score):
         a(f'        sta ${z+12:02X}')       # pw_max=0
         a(f'        sta ${z+13:02X}')       # pw_dir=0 (up)
         a(f'        sta ${z+15:02X}')       # hub_off=0
+        a(f'        sta ${z+16:02X}')       # fhi_state=0
         a(f'        lda #$FF')
-        a(f'        sta ${z+14:02X}')       # prev_inst=$FF (force init on first note)
+        a(f'        sta ${z+14:02X}')       # prev_inst=$FF
         a(f'        lda #1')
         a(f'        sta ${z:02X}')          # tick_ctr=1 → triggers first note
     a('        rts')
@@ -248,73 +262,78 @@ def generate_asm(T, instruments, score):
 
     # --- PLAY ---
     a('play')
-    a(f'        inc ${FRAME_CTR:02X}')   # global frame counter (like Hubbard's $5525)
-    # Extended table: update T[96+] from live engine state each frame.
-    # T[100]: accumulated pattern byte offset for V2 (lo) and V3 (hi)
-    a(f'        lda ${ZP[1]+15:02X}')   # V2 hub_off
+    a(f'        inc ${FRAME_CTR:02X}')   # global frame counter
+    # T[104]: lo=V1 ctrl_byte, hi=V2 ctrl_byte (Hubbard's contiguous memory layout).
+    # These are ctrl values from the PREVIOUS frame's note-loads.
+    a(f'        lda ${CTRL_V1:02X}')
+    a(f'        sta ftlo+104')
+    a(f'        lda ${CTRL_V2:02X}')
+    a(f'        sta fthi+104')
+    # T[100]: lo=V2 note_idx (hub_off), hi=V3 note_idx.
+    # Updated at start of frame from previous frame's hub_off values.
+    # V3 and V2 are processed before V1, so when V1 reads T[100], we need
+    # the CURRENT frame's hub_off. We re-update T[100] between V2 and V1.
+    a(f'        lda ${ZP[1]+15:02X}')   # V2 hub_off (from last frame)
     a(f'        sta ftlo+100')
     a(f'        lda ${ZP[2]+15:02X}')   # V3 hub_off
     a(f'        sta fthi+100')
-    # T[104]: V1/V2 ctrl values. Timing-sensitive (Hubbard reads CURRENT
-    # frame V1 ctrl but PREVIOUS frame V2 ctrl). Not worth the complexity
-    # since drum frequencies are inaudible under noise waveform.
-    # Hubbard processes voices in REVERSE ORDER: V3 → V2 → V1.
-    # This affects oscillator phase for ring modulation (V1 uses V3's phase).
-    # V3 written first means V3's oscillator phase is set early in the frame,
-    # then V1's ring mod reads it late — matching the original's timing.
-    # Ω: cycle timing from Hubbard's engine (measured via py65 trace).
-    # Eval-path and note-load-path have different cycle budgets.
-    # Delays are inserted at the correct branch points.
-    # Ω calibrated from actual CPU cycles (py65 processorCycles):
-    # V3 eval: orig=133cy, ours=173cy without NOPs → already late, remove padding
-    # V2 eval: orig=348cy avg, match with 35 NOPs (70cy)
-    # V1 eval: orig=604cy avg, match with 57 NOPs (114cy)
-    omega_eval_nops = {2: 0, 1: 35, 0: 57}   # NOPs in eval path per voice
-    omega_note_nops = {2: 0, 1: 0, 0: 0}     # NOPs in note_load path per voice
 
     for v in [2, 1, 0]:
         z = ZP[v]
         so = SOFF[v]
 
+        # After V2 processes (and before V1), update T[100] and T[104].
+        # T[100]: V2/V3 hub_off (note_idx) — needed for V1 arpeggio freq lookup
+        # T[104]: CTRL_V1/CTRL_V2 — updated after V2 note-load (ctrl_byte changes)
+        # This ensures V1's arpeggio sees V2's CURRENT ctrl and note_idx values.
+        if v == 0:
+            a(f'; --- Update T[100] and T[104] before V1 ---')
+            a(f'        lda ${ZP[1]+15:02X}')   # V2 hub_off (may have been updated this frame)
+            a(f'        sta ftlo+100')
+            a(f'        lda ${ZP[2]+15:02X}')   # V3 hub_off
+            a(f'        sta fthi+100')
+            a(f'        lda ${CTRL_V1:02X}')    # V1 ctrl (from V1's previous note-load)
+            a(f'        sta ftlo+104')
+            a(f'        lda ${CTRL_V2:02X}')    # V2 ctrl (from V2's note-load this frame)
+            a(f'        sta fthi+104')
+
         a(f'; --- Voice {v+1} ---')
 
-        # Step 1: tick counter
+        # Tick counter decrement
         a(f'        dec ${z:02X}')
         a(f'        beq v{v}rd')
-        # Ω eval-path delay: pad to match Hubbard's cycle budget
-        for _ in range(omega_eval_nops[v]):
-            a(f'        nop')
         a(f'        jmp v{v}eval')
-        # tick_ctr hit 0 → load new note from pattern
+
+        # ---- NOTE LOAD PATH ----
         a(f'v{v}rd')
         a(f'        ldy #0')
-        a(f'        lda (${z+3:02X}),y')       # read note from pat_ptr
-        a(f'        cmp #$FE')                  # end of pattern marker
+        a(f'        lda (${z+3:02X}),y')       # read pitch from pat_ptr
+        a(f'        cmp #$FE')                  # end of pattern marker?
         a(f'        bne v{v}nt')
-        # End of pattern → read next pattern address from orderlist
+        # End of pattern: load next pattern from orderlist
         a(f'        lda #0')
         a(f'        sta ${z+15:02X}')            # reset hub_off at pattern boundary
         a(f'        lda #$FF')
-        a(f'        sta ${z+14:02X}')            # force inst reload (first note = 3 bytes)
+        a(f'        sta ${z+14:02X}')            # force inst reload
         a(f'        ldy #0')
-        a(f'        lda (${z+1:02X}),y')        # pattern addr lo from ol_ptr
+        a(f'        lda (${z+1:02X}),y')
         a(f'        sta ${z+3:02X}')
         a(f'        iny')
-        a(f'        lda (${z+1:02X}),y')        # pattern addr hi
+        a(f'        lda (${z+1:02X}),y')
         a(f'        sta ${z+4:02X}')
-        # Advance ol_ptr by 2
         a(f'        clc')
         a(f'        lda ${z+1:02X}')
         a(f'        adc #2')
         a(f'        sta ${z+1:02X}')
         a(f'        bcc v{v}rd')
         a(f'        inc ${z+2:02X}')
-        a(f'        jmp v{v}rd')                # re-read from new pattern
+        a(f'        jmp v{v}rd')
         a(f'v{v}nt')
-        a(f'        sta ${z+8:02X}')            # base_note
+        # Got a note: pitch in A
+        a(f'        sta ${z+8:02X}')            # base_note = pitch
         a(f'        iny')
-        a(f'        lda (${z+3:02X}),y')        # duration (in ticks)
-        # Convert ticks to frames
+        a(f'        lda (${z+3:02X}),y')        # duration field (= dur_field+1)
+        # Convert to frames: tick_ctr = duration * tempo
         if tempo == 1:
             pass
         else:
@@ -324,335 +343,353 @@ def generate_asm(T, instruments, score):
             a(f'        adc #{tempo}')
             a(f'        dex')
             a(f'        bne v{v}mul')
-        a(f'        sta ${z:02X}')              # tick_ctr
-        a(f'        sta ${z+9:02X}')            # note_len
-        # Read instrument ID
+        a(f'        sta ${z:02X}')              # tick_ctr = dur * tempo
+        a(f'        sta ${z+9:02X}')            # note_len = same
+        # dur_thresh = tick_ctr - tempo = dur_field * tempo (threshold for note-start check)
+        a(f'        sec')
+        a(f'        sbc #{tempo}')
+        a(f'        sta ${z+6:02X}')            # dur_thresh
+        # Read instrument byte
+        # Bit7 = no_inst_byte flag (hub_off += 2 if set, else 3)
+        # Bit6 = tie flag (hub_off += 1, no freq write, ctrl without gate)
+        # Bits 0-5 = instrument ID (0-12)
         a(f'        iny')
-        a(f'        lda (${z+3:02X}),y')
-        a(f'        tax')
-        # Hubbard note-load order: freq → ctrl → pw → adsr
-        # Step 1: FREQ
-        a(f'        stx ${VIB_TMP:02X}')    # save inst ID in temp (don't clobber prev_inst yet)
-        a(f'        ldx ${z+8:02X}')        # base_note
-        a(f'        lda fthi,x')
-        a(f'        sta $D4{so+1:02X}')
-        a(f'        sta ${z+16:02X}')       # fhi_state = fthi[base_note] (for bit0)
-        a(f'        lda ftlo,x')
-        a(f'        sta $D4{so:02X}')
-        # Step 2: CTRL (gate ON) — BEFORE adsr (sidplayfp ADSR needs gate before AD/SR change)
-        a(f'        ldx ${VIB_TMP:02X}')    # inst ID from temp
-        a(f'        lda i_wfirst,x')        # first W step = ctrl with gate
-        a(f'        sta $D4{so+4:02X}')
-        # Step 3: PW — only init if instrument changed
-        a(f'        cpx ${z+14:02X}')       # compare new inst with prev_inst
-        a(f'        beq v{v}skpw')           # same → keep PW running
-        a(f'        stx ${z+14:02X}')       # save new inst id
-        # hub_off += 3 (Hubbard: inst change = 3-byte note)
+        a(f'        lda (${z+3:02X}),y')        # instrument byte (may have bit7/bit6 flags)
+        a(f'        sta ${VIB_TMP:02X}')        # save raw inst byte
+        a(f'        and #$3F')                  # mask to 6 bits (clear bit7+bit6)
+        a(f'        tax')                        # X = clean instrument ID (0-12)
+        a(f'        stx ${z+14:02X}')           # save clean inst ID
+        # Check bit6 (tie flag) first: tie → hub_off += 1 only
+        a(f'        lda ${VIB_TMP:02X}')
+        a(f'        and #$40')
+        a(f'        bne v{v}hubt')              # tie → add 1
+        # Not tie: check bit7 (no_inst_byte flag)
+        a(f'        lda ${VIB_TMP:02X}')
+        a(f'        bmi v{v}hub2')              # bit7 set → no inst byte → add 2
+        # has inst byte: hub_off += 3
         a(f'        lda ${z+15:02X}')
         a(f'        clc')
         a(f'        adc #3')
         a(f'        sta ${z+15:02X}')
-        a(f'        lda i_pwlo,x')
-        a(f'        sta $D4{so+2:02X}')
-        a(f'        sta ${z+7:02X}')
-        a(f'        lda i_pwhi,x')
-        a(f'        sta $D4{so+3:02X}')
-        a(f'        sta ${z+11:02X}')
-        a(f'        lda #0')
-        a(f'        sta ${z+13:02X}')       # reset pw_dir to UP
-        a(f'        jmp v{v}hbd')
-        a(f'v{v}skpw')
-        # hub_off += 2 (Hubbard: same inst = 2-byte note)
-        a(f'        stx ${z+14:02X}')       # save inst id (same as before but needed)
+        a(f'        jmp v{v}hubx')
+        a(f'v{v}hub2')
+        # no inst byte: hub_off += 2
         a(f'        lda ${z+15:02X}')
         a(f'        clc')
         a(f'        adc #2')
         a(f'        sta ${z+15:02X}')
-        a(f'v{v}hbd')
-        # Step 4: ADSR — LAST (Hubbard order)
+        a(f'        jmp v{v}hubx')
+        a(f'v{v}hubt')
+        # tie note: hub_off += 1
+        a(f'        lda ${z+15:02X}')
+        a(f'        clc')
+        a(f'        adc #1')
+        a(f'        sta ${z+15:02X}')
+        a(f'v{v}hubx')
+        # Check bit6 (tie flag) — tie: skip freq write, ctrl without gate
+        a(f'        lda ${VIB_TMP:02X}')
+        a(f'        and #$40')
+        a(f'        bne v{v}tie')               # tie → jump to tie path
+        # NORMAL NOTE: write freq_hi then freq_lo (Hubbard order)
+        a(f'        lda ${z+8:02X}')            # base_note
+        a(f'        tay')
+        a(f'        lda fthi,y')
+        a(f'        sta $D4{so+1:02X}')          # write freq_hi
+        a(f'        sta ${z+16:02X}')            # fhi_state = fthi[base_note]
+        a(f'        lda ftlo,y')
+        a(f'        sta $D4{so:02X}')            # write freq_lo
+        # CTRL: write instrument ctrl with gate on (normal path)
+        a(f'        lda i_ctrl,x')              # instrument ctrl (gate already set)
+        # Save UNGATED ctrl for T[104] tracking (Hubbard saves ctrl_byte BEFORE gate masking)
+        if v == 0:   # V1 ctrl → CTRL_V1
+            a(f'        sta ${CTRL_V1:02X}')
+        elif v == 1: # V2 ctrl → CTRL_V2
+            a(f'        sta ${CTRL_V2:02X}')
+        a(f'        sta $D4{so+4:02X}')          # write ctrl to SID (gate on for normal)
+        a(f'        jmp v{v}pw0')               # skip to PW (past tie path)
+        a(f'v{v}tie')
+        # TIE NOTE: no freq write; write ctrl WITHOUT gate
+        a(f'        lda i_ctrl,x')
+        # Save UNGATED ctrl for T[104] tracking (same: save before masking)
+        if v == 0:
+            a(f'        sta ${CTRL_V1:02X}')
+        elif v == 1:
+            a(f'        sta ${CTRL_V2:02X}')
+        a(f'        and #$FE')                  # clear gate bit
+        a(f'        sta $D4{so+4:02X}')          # write ctrl to SID (gate off for tie)
+        a(f'v{v}pw0')
+        # PW: always write pw_lo, pw_hi at note-load (Hubbard always writes PW)
+        # pw_lo: read from pw_live[inst] — per-instrument mutable accumulator
+        #         (Hubbard stores pw accumulator in-place in instrument table)
+        a(f'        lda pw_live,x')
+        a(f'        sta $D4{so+2:02X}')          # write pw_lo
+        a(f'        sta ${z+7:02X}')             # sync ZP+7 with instrument's live pw_lo
+        # Write pw_hi from i_pwhi[inst]
+        a(f'        lda i_pwhi,x')
+        a(f'        sta $D4{so+3:02X}')          # write pw_hi
+        a(f'        sta ${z+11:02X}')
+        # ADSR: write ad then sr (Hubbard order: ctrl→pw→adsr)
         a(f'        lda i_ad,x')
         a(f'        sta $D4{so+5:02X}')
         a(f'        lda i_sr,x')
         a(f'        sta $D4{so+6:02X}')
-        # Always load PW speed/max
+        # Load PW params for eval path
         a(f'        lda i_pws,x')
         a(f'        sta ${z+10:02X}')
         a(f'        lda i_pwmax,x')
         a(f'        sta ${z+12:02X}')
-        # Set W program pointer
-        a(f'        lda i_wlo,x')
-        a(f'        sta ${z+5:02X}')
-        a(f'        lda i_whi,x')
-        a(f'        sta ${z+6:02X}')
-        # Advance pat_ptr by 3
+        # Advance pat_ptr by 3 (pitch+dur+inst)
         a(f'        clc')
         a(f'        lda ${z+3:02X}')
         a(f'        adc #3')
         a(f'        sta ${z+3:02X}')
-        a(f'        bcc v{v}eval')
+        a(f'        bcc v{v}nd1')
         a(f'        inc ${z+4:02X}')
+        a(f'v{v}nd1')
+        a(f'        jmp v{v}done')              # skip eval entirely after note-load
         a('')
 
-        # Steps 2-5: evaluate F, W, P, E (Hubbard order: freq → ctrl → pw → adsr)
+        # ---- EVAL PATH: effects only (vibrato, PW, skydive, arpeggio) ----
         a(f'v{v}eval')
 
-        # EFFECTS SKIP: On note-load frames, Hubbard skips freq effects
-        # (arp, vibrato) but ctrl (W program) and PW still need to run.
-        # We skip ONLY the freq section on note-load frames.
-
-        # F: freq — skip on note-load frames (Hubbard jumps past effects after note read).
-        # Note-load already wrote freq from pitch. Eval-only frames apply arp/vibrato.
-        a(f'        lda ${z:02X}')                # tick_ctr
-        a(f'        cmp ${z+9:02X}')              # == note_len? (just loaded)
-        a(f'        bne v{v}efx')                 # not note-load → run effects
-        a(f'        jmp v{v}wrd')                 # note-load → skip to W program
+        # GATE-OFF: fires exactly once per note, when tick_ctr == tempo
+        # Corresponds to Hubbard's sustain_voice duration==0 path.
+        a(f'        lda ${z:02X}')              # tick_ctr
+        a(f'        cmp #{tempo}')             # == tempo? (gate-off tick)
+        a(f'        bne v{v}efx')              # not gate-off frame
+        # Gate-off: write ctrl&$FE, AD=0, SR=0
+        a(f'        ldy ${z+14:02X}')          # current instrument
+        a(f'        lda i_ctrl,y')
+        a(f'        and #$FE')
+        a(f'        sta $D4{so+4:02X}')         # ctrl with gate cleared
+        a(f'        lda #0')
+        a(f'        sta $D4{so+5:02X}')         # AD = 0
+        a(f'        sta $D4{so+6:02X}')         # SR = 0
         a(f'v{v}efx')
 
-        # MULTI-WRITE EFFECT CHAIN: vibrato writes freq FIRST, then arp OVERWRITES.
-        # Both write to SID. The intermediate vibrato write briefly changes the
-        # oscillator rate, affecting the waveform. This matches Hubbard's engine
-        # where vibrato, bit0, and arp all write freq independently.
-
-        # Step 1: VIBRATO (writes freq if instrument has vibrato)
-        a(f'        ldy ${z+14:02X}')             # instrument ID (prev_inst)
-        a(f'        lda i_vib,y')                 # vibrato scale (0=none)
-        a(f'        beq v{v}arp')                 # no vibrato → skip to arp
-
-        # VIBRATO: writes freq to SID (may be overwritten by arp below).
-        # Runs for ALL instruments with vibrato, including arp instruments.
-        # Check: note duration_field >= 6 (ticks) and vibrato_scale != 0.
-        a(f'        lda ${z+9:02X}')              # note_len (frames)
-        a(f'        cmp #{6 * tempo}')            # < 6 ticks worth of frames?
-        a(f'        bcc v{v}arp')                 # short note → skip vibrato, try arp
-        # Compute LFO depth: (frame_ctr & 7) → mirror if >= 4 → 0,1,2,3,3,2,1,0
+        # VIBRATO: writes freq_lo and freq_hi if instrument has vibrato
+        a(f'        ldy ${z+14:02X}')           # instrument ID
+        a(f'        lda i_vib,y')              # vibrato scale (0=none)
+        a(f'        beq v{v}bit0')             # no vibrato → skip to skydive
+        # Check: note_len >= 6 ticks (6*tempo frames)
+        # If short note: still write base freq (Hubbard always writes freq when vib active)
+        a(f'        lda ${z+9:02X}')           # note_len
+        a(f'        cmp #{6 * tempo}')
+        a(f'        bcs v{v}vlong')            # long note → compute modulated vibrato
+        # Short note: write SWAPPED freq bytes (Hubbard vibrato quirk)
+        # Hubbard vibrato reads lo_cur = _rb($5429+y) = fthi[note] → D400
+        #                and hi_cur = _rb($5428+y) = ftlo[note] → D401
+        a(f'        ldx ${z+8:02X}')
+        a(f'        lda fthi,x')
+        a(f'        sta $D4{so:02X}')          # fthi → D400 (freq_lo reg) — SWAPPED!
+        a(f'        lda ftlo,x')
+        a(f'        sta $D4{so+1:02X}')        # ftlo → D401 (freq_hi reg) — SWAPPED!
+        a(f'        jmp v{v}bit0')
+        a(f'v{v}vlong')
+        # Compute LFO step: (frame_ctr & 7) → triangle 0,1,2,3,3,2,1,0
         a(f'        lda ${FRAME_CTR:02X}')
         a(f'        and #$07')
         a(f'        cmp #4')
-        a(f'        bcc v{v}vdok')                # < 4 → depth is the raw value
-        a(f'        eor #$07')                    # mirror: 4→3, 5→2, 6→1, 7→0
+        a(f'        bcc v{v}vdok')
+        a(f'        eor #$07')                 # mirror: 4→3, 5→2, 6→1, 7→0
         a(f'v{v}vdok')
-        a(f'        pha')                         # push depth
-        # Compute freq_hi delta = fthi[pitch+1] - fthi[pitch]
-        a(f'        ldx ${z+8:02X}')              # base_note
+        a(f'        pha')                      # save depth (vib_step)
+        # Compute semitone delta: fthi[pitch+1] - fthi[pitch]
+        a(f'        ldx ${z+8:02X}')
         a(f'        lda fthi+1,x')
         a(f'        sec')
         a(f'        sbc fthi,x')
-        a(f'        sta ${VIB_TMP:02X}')          # save delta
-        # Right-shift delta by vibrato_scale+1 times (Hubbard's DEC/BPL loop
-        # includes the zero iteration: depth=1 → 2 shifts, depth=2 → 3 shifts).
-        a(f'        ldy ${z+14:02X}')             # instrument ID again
-        a(f'        ldx i_vib,y')                 # X = vibrato_scale
-        a(f'        inx')                         # +1 (DEC/BPL includes zero iteration)
+        a(f'        sta ${VIB_TMP:02X}')
+        # Right-shift delta by (vib_scale+1)
+        a(f'        ldy ${z+14:02X}')
+        a(f'        ldx i_vib,y')
+        a(f'        inx')
         a(f'v{v}vsr')
-        a(f'        lsr ${VIB_TMP:02X}')          # delta >>= 1
+        a(f'        lsr ${VIB_TMP:02X}')
         a(f'        dex')
-        a(f'        bne v{v}vsr')                 # repeat until scale==0
-        # Multiply: acc = delta * depth (depth is on stack)
-        # depth=0 means LFO at zero → write unmodulated freq (same as note-load)
-        a(f'        pla')                          # pop depth
-        a(f'        beq v{v}vwr')                 # depth=0 → write plain base freq
-        a(f'        tax')                          # X = depth (loop counter)
-        a(f'        lda #0')                       # acc = 0
+        a(f'        bne v{v}vsr')
+        # Multiply delta * depth (vib_step times)
+        a(f'        pla')                      # pop depth (vib_step)
+        a(f'        beq v{v}vwr')             # vib_step=0 → write plain base freq
+        a(f'        tax')
+        a(f'        lda #0')
         a(f'v{v}vmul')
         a(f'        clc')
-        a(f'        adc ${VIB_TMP:02X}')           # acc += delta
+        a(f'        adc ${VIB_TMP:02X}')
         a(f'        dex')
         a(f'        bne v{v}vmul')
-        # acc = delta * depth. Add to base freq_hi (reload base_note from ZP)
-        a(f'        ldx ${z+8:02X}')              # base_note
+        # Add to base freq_hi — write flo first, fhi second (matches Hubbard vibrato order)
+        a(f'        ldx ${z+8:02X}')
         a(f'        clc')
         a(f'        adc fthi,x')
-        a(f'        sta $D4{so+1:02X}')           # write modulated freq_hi
+        a(f'        sta ${VIB_TMP:02X}')       # stash modulated freq_hi
         a(f'        lda ftlo,x')
-        a(f'        sta $D4{so:02X}')             # write base freq_lo (unmodified)
-        a(f'        jmp v{v}arp')                 # vibrato wrote freq → now check arp
-        # depth=0: write plain base freq (no vibrato modulation this frame)
+        a(f'        sta $D4{so:02X}')          # write base freq_lo first
+        a(f'        lda ${VIB_TMP:02X}')
+        a(f'        sta $D4{so+1:02X}')        # then write modulated freq_hi
+        a(f'        jmp v{v}bit0')
         a(f'v{v}vwr')
-        a(f'        ldx ${z+8:02X}')              # base_note
+        # vib_step=0: write plain base freq (flo first, fhi second)
+        a(f'        ldx ${z+8:02X}')
+        a(f'        lda ftlo,x')
+        a(f'        sta $D4{so:02X}')          # write freq_lo first
+        a(f'        lda fthi,x')
+        a(f'        sta $D4{so+1:02X}')        # then freq_hi
+        # fall through to bit0
+
+        # BIT0 SKYDIVE: decrement freq_hi each sustain frame, write to SID
+        # Note-start path (first tick period): write old fhi, write $80 to ctrl
+        # NOT-start path (subsequent ticks): write old fhi, DEC, write ctrl&$FE or new fhi+$80
+        a(f'v{v}bit0')
+        a(f'        ldy ${z+14:02X}')
+        a(f'        lda i_bit0,y')
+        a(f'        beq v{v}arpc')             # no bit0 → skip to arp
+        # Skip skydive when in last tick period (Hubbard: duration==0 → return)
+        # This covers gate-off frame (tick_ctr==tempo) and frames after (tick_ctr<tempo)
+        a(f'        lda ${z:02X}')             # tick_ctr
+        a(f'        cmp #{tempo+1}')           # tick_ctr <= tempo?
+        a(f'        bcc v{v}arpc')             # yes (tick_ctr < tempo+1) → skip skydive
+        a(f'        lda ${z+16:02X}')          # fhi_state
+        a(f'        beq v{v}arpc')             # fhi_state==0 → skip
+        # Note-start vs NOT-start:
+        # note-start: tick_ctr > dur_thresh (still in first tick period)
+        a(f'        lda ${z+6:02X}')           # dur_thresh
+        a(f'        cmp ${z:02X}')             # compare dur_thresh with tick_ctr
+        a(f'        bcs v{v}bns')              # dur_thresh >= tick_ctr → NOT-start
+        # NOTE-START PATH: write old fhi + $80 to ctrl
+        a(f'        lda ${z+16:02X}')          # old freq_hi (unchanged)
+        a(f'        sta $D4{so+1:02X}')
+        a(f'        lda #$80')
+        a(f'        sta $D4{so+4:02X}')
+        a(f'        jmp v{v}arpc')
+        # NOT-START PATH: write old fhi, DEC, check ctrl
+        a(f'v{v}bns')
+        a(f'        lda ${z+16:02X}')          # old fhi
+        a(f'        sta $D4{so+1:02X}')         # write old freq_hi
+        a(f'        dec ${z+16:02X}')           # DEC fhi_state
+        a(f'        lda i_ctrl,y')             # instrument ctrl
+        a(f'        and #$FE')                 # clear gate
+        a(f'        bne v{v}bcm')             # ctrl&$FE != 0 → write ctrl_masked
+        # ctrl&$FE == 0: write new freq_hi + $80
+        a(f'        lda ${z+16:02X}')          # new (decremented) fhi
+        a(f'        sta $D4{so+1:02X}')
+        a(f'        lda #$80')
+        a(f'v{v}bcm')
+        a(f'        sta $D4{so+4:02X}')
+
+        # FREQ TABLE ARPEGGIO (bit2): alternate base pitch and base+12 each frame
+        a(f'v{v}arpc')
+        a(f'        ldy ${z+14:02X}')
+        a(f'        lda i_arp,y')              # arp_offset (0 or 12)
+        a(f'        beq v{v}pw')               # no arp → skip to PW
+        a(f'        ldx ${z+8:02X}')           # base_note
+        a(f'        lda ${FRAME_CTR:02X}')
+        a(f'        and #$01')
+        a(f'        beq v{v}frok')             # even frame → base_note
+        a(f'        txa')
+        a(f'        clc')
+        a(f'        adc i_arp,y')              # base_note + arp_offset
+        a(f'        tax')
+        a(f'v{v}frok')
         a(f'        lda fthi,x')
         a(f'        sta $D4{so+1:02X}')
         a(f'        lda ftlo,x')
         a(f'        sta $D4{so:02X}')
-        # Fall through to bit0
 
-        # Step 2: BIT0 — write fhi_state + ctrl(gate clear) to SID
-        # Hubbard's skydive: each sustain frame, DEC freq_hi state, write to SID.
-        # Arp later overwrites freq, but the intermediate write hits the SID.
-        a(f'v{v}arp')  # label shared — bit0 runs then falls through to arp
-        a(f'        ldy ${z+14:02X}')             # instrument ID
-        a(f'        lda i_bit0,y')                # has bit0? (0 or 1)
-        a(f'        beq v{v}arpc')                # no bit0 → skip to arp check
-        a(f'        lda ${z+16:02X}')             # fhi_state
-        a(f'        beq v{v}arpc')                # fhi_state == 0 → skip
-        a(f'        sta $D4{so+1:02X}')           # write OLD fhi_state to SID freq_hi
-        a(f'        dec ${z+16:02X}')             # DEC fhi_state (for next frame)
-        # Write ctrl with gate cleared
-        a(f'        lda i_wfirst,y')              # instrument ctrl (with gate)
-        a(f'        and #$FE')                    # clear gate bit
-        a(f'        sta $D4{so+4:02X}')           # write to SID ctrl (will be overwritten by W program)
-
-        # Step 3: ARP (writes freq, overwriting vibrato+bit0 if active)
-        a(f'v{v}arpc')
-        a(f'        ldy ${z+14:02X}')             # instrument ID
-        a(f'        lda i_arp,y')                 # arp_offset (0 or 12)
-        a(f'        beq v{v}wrd')                 # no arp → skip to W program
-        a(f'        ldx ${z+8:02X}')              # base_note
-        a(f'        lda ${FRAME_CTR:02X}')        # global frame counter
-        a(f'        and #$01')                    # bit 0
-        a(f'        beq v{v}frok')                # even frame → base_note
-        a(f'        txa')
-        a(f'        clc')
-        a(f'        adc i_arp,y')                 # base_note + arp_offset
-        a(f'        tax')
-        a(f'v{v}frok')
-        a(f'        lda fthi,x')
-        a(f'        sta $D4{so+1:02X}')           # overwrite freq_hi (may overwrite vibrato)
-        a(f'        lda ftlo,x')
-        a(f'        sta $D4{so:02X}')             # overwrite freq_lo
-
-        # W: read waveform from w_ptr, write ctrl AFTER freq
-        a(f'v{v}wrd')
-        a(f'        ldy #0')
-        a(f'        lda (${z+5:02X}),y')        # waveform byte
-        a(f'        cmp #$FF')
-        a(f'        bne v{v}wok')
-        a(f'        iny')
-        a(f'        lda (${z+5:02X}),y')
-        a(f'        tax')
-        a(f'        iny')
-        a(f'        lda (${z+5:02X}),y')
-        a(f'        sta ${z+6:02X}')
-        a(f'        stx ${z+5:02X}')
-        a(f'        ldy #0')
-        a(f'        lda (${z+5:02X}),y')
-
-        a(f'v{v}wok')
-        # Gate off check: gate off when tick_ctr <= 3 (Hubbard uses cmp #4)
-        a(f'        pha')
-        a(f'        lda ${z:02X}')
-        a(f'        cmp #4')
-        a(f'        bcs v{v}gon')
-        a(f'        pla')
-        a(f'        and #$FE')
-        a(f'        jmp v{v}wrt')
-        a(f'v{v}gon')
-        a(f'        pla')
-        a(f'v{v}wrt')
-        a(f'        sta $D4{so+4:02X}')
-        # Update extended table T[104]: V1 ctrl → ftlo[104], V2 ctrl → fthi[104].
-        # Hubbard's memory layout puts ctrl_byte[V1] at $54F8 = T[104].lo.
-        # We simulate this by writing the instrument's original ctrl (with gate set)
-        # to the freq table after each voice's ctrl write.
-        if v == 0:  # V1 → ftlo[104]
-            a(f'        ldy ${z+14:02X}')         # instrument ID
-            a(f'        lda i_wfirst,y')           # first W step = original ctrl (gate set)
-            a(f'        sta ftlo+104')
-        elif v == 1:  # V2 → fthi[104]
-            a(f'        ldy ${z+14:02X}')
-            a(f'        lda i_wfirst,y')
-            a(f'        sta fthi+104')
-
-        # Advance w_ptr by 1
-        a(f'        inc ${z+5:02X}')
-        a(f'        bne v{v}pw')
-        a(f'        inc ${z+6:02X}')
-
-        # P: PW modulation — write first, then accumulate
-        # Skip PW entirely on note-start frame (Hubbard behavior: PW code
-        # doesn't run on the tick that loads a new note). Except first note
-        # (frame_ctr==0) where we need the first accumulation.
-        # PW: accumulate-then-write (Hubbard order).
-        # On note-start: skip accumulation, just write current value.
+        # PW MODULATION: only write when modulation fires
+        # PW_UNI (bit3 of fx → pw_max==$FF): add pw_speed to pw_lo each frame
+        # BIDIR (pw_max != $00 and != $FF): fire when pw_period sub-counter expires
+        # None (pw_max==$00): no write
         a(f'v{v}pw')
-        a(f'        lda ${z:02X}')            # tick_ctr
-        a(f'        cmp ${z+9:02X}')          # == note_len? (just loaded)
-        a(f'        beq v{v}pwwr')            # note-start → skip accum, just write
-        # Hubbard order: ACCUMULATE first, then WRITE to SID.
-        # The SID sees the POST-accumulation value (same value stored in inst table).
-        # Check if modulation active
-        a(f'        lda ${z+12:02X}')         # pw_max
-        a(f'        beq v{v}pwwr')             # $00 = no modulation → just write
+        a(f'        lda ${z+12:02X}')          # pw_max
+        a(f'        beq v{v}done')             # $00 = no modulation
         a(f'        cmp #$FF')
-        a(f'        beq v{v}lin')              # $FF = linear (8-bit only)
-        # --- Bidirectional 16-bit: accumulate ---
-        a(f'        lda ${z+13:02X}')         # pw_dir
+        a(f'        beq v{v}lin')              # $FF = linear/uni
+        # --- BIDIR: fire when pw_period expires ---
+        a(f'        dec ${z+5:02X}')           # DEC pw_period
+        a(f'        bpl v{v}done')             # still positive → no fire
+        # Reload pw_period from pw_speed low 5 bits (= pwm & $1F)
+        a(f'        lda ${z+10:02X}')          # pw_speed (= pwm byte)
+        a(f'        and #$1F')
+        a(f'        sta ${z+5:02X}')           # reload pw_period
+        # Step size = pw_speed high 3 bits (= pwm & $E0)
+        a(f'        lda ${z+10:02X}')
+        a(f'        and #$E0')
+        a(f'        sta ${VIB_TMP:02X}')       # step
+        a(f'        lda ${z+13:02X}')          # pw_dir (0=up, nonzero=down)
         a(f'        bne v{v}dn')
-        # UP: pw += speed (16-bit)
+        # RISING: pw += step
         a(f'        clc')
         a(f'        lda ${z+7:02X}')
-        a(f'        adc ${z+10:02X}')
+        a(f'        adc ${VIB_TMP:02X}')
         a(f'        sta ${z+7:02X}')
         a(f'        bcc v{v}ncu')
         a(f'        inc ${z+11:02X}')
-        a(f'v{v}ncu')
-        # Check max: flip when pw_hi == pw_max EXACTLY (Hubbard uses BNE)
         a(f'        lda ${z+11:02X}')
-        a(f'        cmp ${z+12:02X}')         # pw_hi == pw_max?
-        a(f'        bne v{v}pwwr')            # not at boundary → write
-        a(f'        lda #1')
-        a(f'        sta ${z+13:02X}')         # flip to DOWN
+        a(f'        and #$0F')                 # 12-bit PW
+        a(f'        sta ${z+11:02X}')
+        a(f'v{v}ncu')
+        a(f'        lda ${z+11:02X}')
+        a(f'        cmp ${z+12:02X}')          # == pw_max?
+        a(f'        bne v{v}pwwr')
+        a(f'        inc ${z+13:02X}')          # flip to falling
         a(f'        jmp v{v}pwwr')
-        # DOWN: pw -= speed (16-bit)
+        # FALLING: pw -= step
         a(f'v{v}dn')
         a(f'        sec')
         a(f'        lda ${z+7:02X}')
-        a(f'        sbc ${z+10:02X}')
+        a(f'        sbc ${VIB_TMP:02X}')
         a(f'        sta ${z+7:02X}')
         a(f'        bcs v{v}ncd')
         a(f'        dec ${z+11:02X}')
         a(f'v{v}ncd')
-        # Check min: flip when pw_hi == $08 EXACTLY (Hubbard uses BNE)
         a(f'        lda ${z+11:02X}')
-        a(f'        cmp #$08')                # pw_min
-        a(f'        bne v{v}pwwr')            # not at boundary → write
-        a(f'        lda #0')
-        a(f'        sta ${z+13:02X}')         # flip to UP
+        a(f'        cmp #$08')
+        a(f'        bne v{v}pwwr')
+        a(f'        dec ${z+13:02X}')          # flip to rising (any nonzero→one less)
         a(f'        jmp v{v}pwwr')
-        # --- Linear 8-bit: accumulate ---
+        # --- LINEAR/UNI: add pw_speed to pw_lo each frame ---
         a(f'v{v}lin')
         a(f'        clc')
         a(f'        lda ${z+7:02X}')
         a(f'        adc ${z+10:02X}')
         a(f'        sta ${z+7:02X}')
-        # --- WRITE pw to SID AFTER accumulation ---
+        # Write pw_lo to SID (note: uni only writes pw_lo, not pw_hi)
+        a(f'        sta $D4{so+2:02X}')
+        # Also update pw_live[inst] so per-instrument accumulator is maintained
+        a(f'        ldy ${z+14:02X}')         # inst ID
+        a(f'        sta pw_live,y')
+        a(f'        jmp v{v}done')
+        # BIDIR: write both pw_lo and pw_hi to SID
         a(f'v{v}pwwr')
         a(f'        lda ${z+7:02X}')
-        a(f'        sta $D4{so+2:02X}')       # write pw_lo to SID (post-accum)
+        a(f'        sta $D4{so+2:02X}')
         a(f'        lda ${z+11:02X}')
-        a(f'        sta $D4{so+3:02X}')       # write pw_hi to SID (post-accum)
-
-        # Write accumulated PW back to instrument table (Hubbard's shared mutable state)
-        # When another voice (or this voice after instrument switch) loads the same
-        # instrument, it reads the accumulated value, not the initial default.
-        a(f'v{v}done')
-        # PW writeback (shared mutable instrument table)
-        a(f'        ldy ${z+14:02X}')         # prev_inst (current instrument ID)
-        a(f'        lda ${z+7:02X}')           # pw_lo
+        a(f'        sta $D4{so+3:02X}')
+        # Write accumulated PW back to instrument table (shared mutable state)
+        # (Hubbard's self-modifying code stores pw in instrument table)
+        a(f'        ldy ${z+14:02X}')
+        a(f'        lda ${z+7:02X}')
         a(f'        sta i_pwlo,y')
-        a(f'        lda ${z+11:02X}')          # pw_hi
+        a(f'        lda ${z+11:02X}')
         a(f'        sta i_pwhi,y')
 
-        # E: ADSR zeroing at tick_ctr==3 (same frame as gate-off starts)
-        a(f'        lda ${z:02X}')
-        a(f'        cmp #3')
-        a(f'        bne v{v}noz')
-        a(f'        lda #0')
-        a(f'        sta $D4{so+5:02X}')
-        a(f'        sta $D4{so+6:02X}')
-        a(f'v{v}noz')
-        # T[104] is static ($4315) — correct in freq table from extract()
+        a(f'v{v}done')
         a('')
 
     a('        rts')
     a('')
 
     # --- DATA: Frequency Table ---
+    # Override T[104] to start at 0 (dynamic, updated by CTRL_V1/V2)
+    T_out = list(T)
+    T_out[104] = 0   # will be updated at runtime from CTRL_V1/CTRL_V2
     a('ftlo')
-    for i in range(0, len(T), 16):
-        a('        .byte ' + ','.join(f'${f & 0xFF:02X}' for f in T[i:i+16]))
+    for i in range(0, len(T_out), 16):
+        a('        .byte ' + ','.join(f'${f & 0xFF:02X}' for f in T_out[i:i+16]))
     a('fthi')
-    for i in range(0, len(T), 16):
-        a('        .byte ' + ','.join(f'${(f >> 8) & 0xFF:02X}' for f in T[i:i+16]))
+    for i in range(0, len(T_out), 16):
+        a('        .byte ' + ','.join(f'${(f >> 8) & 0xFF:02X}' for f in T_out[i:i+16]))
     a('')
 
     # --- DATA: Instrument columns ---
@@ -665,9 +702,10 @@ def generate_asm(T, instruments, score):
     a('i_pwhi')
     a('        .byte ' + ','.join(f'${(i["P"]["init_pw"] >> 8) & 0x0F:02X}' for i in instruments))
     a('i_pws')
+    # pw_speed = raw pwm byte (contains both period and step)
     a('        .byte ' + ','.join(f'${i["P"]["speed"]:02X}' for i in instruments))
     a('i_pwmax')
-    # $00=no modulation, $FF=linear 8-bit, else=bidirectional max boundary
+    # $00=no modulation, $FF=linear/uni, else=bidir max (pw_hi boundary)
     pwmax_vals = []
     for i in instruments:
         if i['P']['speed'] == 0:
@@ -681,39 +719,22 @@ def generate_asm(T, instruments, score):
     a('        .byte ' + ','.join(f'${i["arp_offset"]:02X}' for i in instruments))
     a('i_vib')
     a('        .byte ' + ','.join(f'${i["vibrato_scale"]:02X}' for i in instruments))
-    a('i_bit0')  # fx_flags bit 0 (drum/skydive: writes freq_hi + ctrl on sustain)
+    a('i_bit0')
     a('        .byte ' + ','.join(f'${1 if i["has_bit0"] else 0:02X}' for i in instruments))
-    a('i_wfirst')  # first W step per instrument = original ctrl with gate set
+    a('i_ctrl')  # instrument ctrl WITH gate (written at note-load and gate-off)
     a('        .byte ' + ','.join(f'${i["W"]["steps"][0]:02X}' for i in instruments))
-    a('i_wlo')
-    a('        .byte ' + ','.join(f'<w{i["id"]}' for i in instruments))
-    a('i_whi')
-    a('        .byte ' + ','.join(f'>w{i["id"]}' for i in instruments))
+    # pw_live: mutable per-instrument pw_lo accumulator (starts as copy of i_pwlo)
+    # Updated by linear PW eval path; read at note-load for same-instrument case
+    a('pw_live')
+    a('        .byte ' + ','.join(f'${i["P"]["init_pw"] & 0xFF:02X}' for i in instruments))
     a('')
 
-    # --- DATA: Wave programs per instrument (1 byte per step) ---
-    for inst in instruments:
-        iid = inst['id']
-        w = inst['W']
-        w_steps = w['steps']
-        w_loop = w['loop']
-
-        a(f'w{iid}')
-        for step, ws in enumerate(w_steps):
-            if step == w_loop:
-                a(f'w{iid}lp')   # loop target label
-            a(f'        .byte ${ws:02X}')
-        # Loop back marker
-        a(f'        .byte $FF,<w{iid}lp,>w{iid}lp')
-        a('')
-
-    # --- DATA: Patterns (shared, each stored once) ---
+    # --- DATA: Patterns (pitch, duration, instrument — 3 bytes each) ---
     all_pat_indices = set()
     for v in range(3):
         all_pat_indices.update(score['voices'][v]['orderlist'])
 
     for pat_idx in sorted(all_pat_indices):
-        # Find which voice has this pattern
         for v in range(3):
             if pat_idx in score['voices'][v]['patterns']:
                 notes = score['voices'][v]['patterns'][pat_idx]
@@ -723,16 +744,15 @@ def generate_asm(T, instruments, score):
             a(f'        .byte ${note["pitch"] & 0xFF:02X},'
               f'${note["duration"] & 0xFF:02X},'
               f'${note["instrument"] & 0xFF:02X}')
-        a(f'        .byte $FE')  # end of pattern marker
+        a(f'        .byte $FE')
     a('')
 
-    # --- DATA: Orderlists (sequence of pattern addresses per voice) ---
+    # --- DATA: Orderlists ---
     for v in range(3):
         a(f'v{v}ol')
         voice = score['voices'][v]
         for pat_idx in voice['orderlist']:
             a(f'        .byte <pat{pat_idx},>pat{pat_idx}')
-        # TODO: loop support
     a('')
 
     return '\n'.join(L)
