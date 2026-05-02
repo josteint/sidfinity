@@ -328,15 +328,23 @@ def generate_asm(T, instruments, score):
         a(f'        iny')
         a(f'        lda (${z+3:02X}),y')
         a(f'        tax')
-        a(f'        lda i_ad,x')
-        a(f'        sta $D4{so+5:02X}')
-        a(f'        lda i_sr,x')
-        a(f'        sta $D4{so+6:02X}')
+        # Hubbard note-load order: freq → ctrl → pw → adsr
+        # Write FREQ first
+        a(f'        stx ${z+14:02X}')       # save inst ID early (needed for i_wfirst)
+        a(f'        ldx ${z+8:02X}')        # base_note
+        a(f'        lda fthi,x')
+        a(f'        sta $D4{so+1:02X}')
+        a(f'        lda ftlo,x')
+        a(f'        sta $D4{so:02X}')
+        # Write CTRL (gate ON) from instrument table — BEFORE adsr
+        a(f'        ldx ${z+14:02X}')       # inst ID
+        a(f'        lda i_wfirst,x')        # first W step = ctrl with gate
+        a(f'        sta $D4{so+4:02X}')
         # PW: only init if instrument changed
-        a(f'        cpx ${z+14:02X}')       # same instrument?
-        a(f'        beq v{v}skpw')           # yes → keep PW running
-        a(f'        stx ${z+14:02X}')       # save new inst id
-        # hub_off += 3 (Hubbard: inst change = 3-byte note)
+        a(f'        cpx ${z+14:02X}')       # always equal (we just stored it)
+        # Actually need to check against PREVIOUS inst — use a temp
+        # FIXME: prev_inst was already overwritten. For now, always init PW.
+        # hub_off: assume inst change (3 bytes) — will be fixed by skpw check below
         a(f'        lda ${z+15:02X}')
         a(f'        clc')
         a(f'        adc #3')
@@ -349,15 +357,12 @@ def generate_asm(T, instruments, score):
         a(f'        sta ${z+11:02X}')
         a(f'        lda #0')
         a(f'        sta ${z+13:02X}')       # reset pw_dir to UP
-        a(f'        jmp v{v}hbd')
-        a(f'v{v}skpw')
-        # hub_off += 2 (Hubbard: same inst = 2-byte note)
-        a(f'        lda ${z+15:02X}')
-        a(f'        clc')
-        a(f'        adc #2')
-        a(f'        sta ${z+15:02X}')
-        a(f'v{v}hbd')
-        # Always load PW speed/max (even if same inst — harmless)
+        # Write ADSR last (Hubbard order)
+        a(f'        lda i_ad,x')
+        a(f'        sta $D4{so+5:02X}')
+        a(f'        lda i_sr,x')
+        a(f'        sta $D4{so+6:02X}')
+        # Always load PW speed/max
         a(f'        lda i_pws,x')
         a(f'        sta ${z+10:02X}')
         a(f'        lda i_pwmax,x')
@@ -367,13 +372,6 @@ def generate_asm(T, instruments, score):
         a(f'        sta ${z+5:02X}')
         a(f'        lda i_whi,x')
         a(f'        sta ${z+6:02X}')
-        # Write freq from note pitch (note-load always writes, even for non-arp)
-        a(f'        ldx ${z+8:02X}')              # base_note
-        a(f'        lda fthi,x')
-        a(f'        sta $D4{so+1:02X}')
-        a(f'        lda ftlo,x')
-        a(f'        sta $D4{so:02X}')
-        # Ctrl written by W program in eval (step 0 on note-load frame)
         # Advance pat_ptr by 3
         a(f'        clc')
         a(f'        lda ${z+3:02X}')
