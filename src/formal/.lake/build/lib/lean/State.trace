@@ -1,0 +1,32 @@
+{"synthetic": false,
+ "schemaVersion": "2025-09-10",
+ "outputs":
+ {"o": ["2a00cc7264e4e628.olean"],
+  "i": "121e63909ee5e8db.ilean",
+  "c": "c90b5867cd29419c.c"},
+ "log":
+ [{"message":
+   ".> LEAN_PATH=/home/jtr/sidfinity/src/formal/.lake/build/lib/lean /home/jtr/.elan/toolchains/leanprover--lean4---v4.29.1/bin/lean /home/jtr/sidfinity/src/formal/State.lean -o /home/jtr/sidfinity/src/formal/.lake/build/lib/lean/State.olean -i /home/jtr/sidfinity/src/formal/.lake/build/lib/lean/State.ilean -c /home/jtr/sidfinity/src/formal/.lake/build/ir/State.c --setup /home/jtr/sidfinity/src/formal/.lake/build/ir/State.setup.json --json",
+   "level": "trace"}],
+ "inputs":
+ [["State:deps",
+   [["deps",
+     [["dasmodel/DasModel:extraDep",
+       [["@dasmodel:extraDep", "00000000000006bb"]]],
+      ["imports",
+       [["SID transitive imports (legacy)", "00000000000006bb"],
+        ["SID:importAllArts", "9128f4f5b27dc490"]]]]],
+    ["libs",
+     [["import dynlibs", "00000000000006bb"],
+      ["package external libraries", "00000000000006bb"],
+      ["module dynlibs", "00000000000006bb"],
+      ["module plugins", "00000000000006bb"]]]]],
+  ["Lean 4.29.1, commit f72c35b3f637c8c6571d353742168ab66cc22c00",
+   "fa77a35a41db35c0"],
+  ["/home/jtr/sidfinity/src/formal/State.lean", "f00c2278fb44344d"],
+  ["options", [["-DautoImplicit=false", "4a85acb881fd49d0"]]],
+  ["isModule: false", "feefd2a0d3a1847e"],
+  ["Module.name: State", "48b091d848266f00"],
+  ["Package.id?: (some dasmodel)", "3436f0ec7352345a"],
+  ["Module.leanArgs: #[]", "00000000000006bb"]],
+ "depHash": "d0bc705b3bd1acbc"}

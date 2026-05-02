@@ -40,11 +40,11 @@ structure CtrlBits where
   noise    : Bool  -- bit 7
 
 def CtrlBits.toByte (c : CtrlBits) : Byte :=
-  ⟨(if c.gate then 1 else 0) + (if c.sync then 2 else 0) +
+  let val := (if c.gate then 1 else 0) + (if c.sync then 2 else 0) +
    (if c.ring then 4 else 0) + (if c.test then 8 else 0) +
    (if c.triangle then 16 else 0) + (if c.sawtooth then 32 else 0) +
-   (if c.pulse then 64 else 0) + (if c.noise then 128 else 0),
-   by omega⟩
+   (if c.pulse then 64 else 0) + (if c.noise then 128 else 0)
+  ⟨val % 256, by omega⟩
 
 -- A single instruction: write a value to a SID register
 structure SIDWrite where
@@ -245,7 +245,7 @@ theorem compile_deterministic (s : Song) :
 -- Validity: a stream is well-formed SID music if every write
 -- targets a valid register and the writes form recognizable
 -- musical patterns (not arbitrary register noise).
-def is_valid_write (w : SIDWrite) : Prop := True  -- all registers are valid
+def is_valid_write (_w : SIDWrite) : Prop := True  -- all registers are valid
 
 def is_valid_frame (f : FrameStream) : Prop :=
   ∀ w ∈ f, is_valid_write w
@@ -261,5 +261,3 @@ def is_valid (stream : SongStream) : Prop :=
 -- If yes, the decompiler is correct for this song.
 -- This is NOT a Lean theorem — it's a test run in Python.
 -- But Lean guarantees that `compile` is well-defined.
-
-end

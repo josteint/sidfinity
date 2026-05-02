@@ -57,4 +57,3 @@ def EngineState.init (nInstruments : Nat) : EngineState :=
   , ctrlByte := fun _ => ⟨0, by omega⟩
   }
 
-end

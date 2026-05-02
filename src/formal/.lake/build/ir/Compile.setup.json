@@ -1,0 +1,11 @@
+{"plugins": [],
+ "package": "dasmodel",
+ "options": {"autoImplicit": false},
+ "name": "Compile",
+ "isModule": false,
+ "importArts":
+ {"State": ["/home/jtr/sidfinity/src/formal/.lake/build/lib/lean/State.olean"],
+  "SID": ["/home/jtr/sidfinity/src/formal/.lake/build/lib/lean/SID.olean"],
+  "Effects":
+  ["/home/jtr/sidfinity/src/formal/.lake/build/lib/lean/Effects.olean"]},
+ "dynlibs": []}
