@@ -221,9 +221,11 @@ structure Song where
 -/
 
 -- Compilation: Song → SongStream
--- (This is what das_model_gen.py does — generates 6502 code that produces the stream)
--- For now, just the type signature:
-noncomputable def compile (s : Song) : SongStream := sorry
+-- Implemented in Compile.lean as `compileFrames`.
+-- This stub delegates to it with a default frame count.
+-- The real compile needs the song length (from songlengths database).
+noncomputable def compile (s : Song) (nFrames : Nat := 11779) : SongStream := sorry
+-- TODO: replace with `compileFrames s nFrames` once Compile is imported
 
 /-
   Decompilation is NOT part of the formal spec.
