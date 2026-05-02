@@ -216,7 +216,10 @@ def generate_asm(T, instruments, score):
     FRAME_CTR = 0xB3  # global frame counter
     CTRL_V1   = 0xB4  # V1 ctrl byte (for T[104].lo update)
     CTRL_V2   = 0xB5  # V2 ctrl byte (for T[104].hi update)
-    VIB_TMP   = 0xB6  # vibrato: delta accumulator
+    VIB_TMP   = 0xB6  # vibrato: 16-bit diff low byte (= delta_lo after shift)
+    VIB_TMP2  = 0xB7  # vibrato: 16-bit diff high byte (= delta_hi after shift)
+    VIB_TGLO  = 0xB8  # vibrato: target_lo accumulator (= ftlo[pitch] + delta_hi*step)
+    VIB_TGHI  = 0xB9  # vibrato: target_hi accumulator (= fthi[pitch] + delta_lo*step)
 
     a(f'        * = ${BASE:04X}')
     a(f'        jmp init')
@@ -419,10 +422,14 @@ def generate_asm(T, instruments, score):
         a(f'        sta $D4{so+4:02X}')          # write ctrl to SID (gate off for tie)
         a(f'v{v}pw0')
         # PW: always write pw_lo, pw_hi at note-load (Hubbard always writes PW)
-        # pw_lo: read from pw_live[inst] — per-instrument mutable accumulator
-        #         (Hubbard stores pw accumulator in-place in instrument table)
-        a(f'        lda pw_live,x')
-        a(f'        sta $D4{so+2:02X}')          # write pw_lo
+        # pw_lo: read from i_pwlo[inst] — the single mutable pw_lo accumulator.
+        # Both BIDIR and LINEAR PW update i_pwlo in-place (matching the original
+        # Hubbard self-modifying code which stores pw in the instrument table).
+        # Note: pw_hi must be read AFTER pw_lo (D402 then D403 at note-load,
+        # but the SID comparator checks write ORDER — Hubbard writes ctrl first,
+        # then pw_lo, then pw_hi at note load per the 6502 disassembly).
+        a(f'        lda i_pwlo,x')
+        a(f'        sta $D4{so+2:02X}')          # write pw_lo (from mutable table)
         a(f'        sta ${z+7:02X}')             # sync ZP+7 with instrument's live pw_lo
         # Write pw_hi from i_pwhi[inst]
         a(f'        lda i_pwhi,x')
@@ -446,6 +453,19 @@ def generate_asm(T, instruments, score):
         a(f'        bcc v{v}nd1')
         a(f'        inc ${z+4:02X}')
         a(f'v{v}nd1')
+        # Peek at next byte: if $FE (end of pattern), pre-reset hub_off.
+        # Original Hubbard peeks ahead at end of _read_next_note and proactively
+        # resets note_idx to 0 (plus advances seq_idx). The DM normally resets
+        # hub_off when it reads $FE on the NEXT note-load tick — one tick late.
+        # Pre-resetting here makes hub_off (used for T[100] arpeggio lookup) match
+        # the original note_idx values frame-accurately.
+        a(f'        ldy #0')
+        a(f'        lda (${z+3:02X}),y')        # peek at next pattern byte
+        a(f'        cmp #$FE')
+        a(f'        bne v{v}npe')               # not end → skip pre-reset
+        a(f'        lda #0')
+        a(f'        sta ${z+15:02X}')            # pre-reset hub_off (mirrors GT peek)
+        a(f'v{v}npe')
         a(f'        jmp v{v}done')              # skip eval entirely after note-load
         a('')
 
@@ -471,70 +491,97 @@ def generate_asm(T, instruments, score):
         a(f'        ldy ${z+14:02X}')           # instrument ID
         a(f'        lda i_vib,y')              # vibrato scale (0=none)
         a(f'        beq v{v}bit0')             # no vibrato → skip to skydive
-        # Check: note_len >= 6 ticks (6*tempo frames)
-        # If short note: still write base freq (Hubbard always writes freq when vib active)
-        a(f'        lda ${z+9:02X}')           # note_len
-        a(f'        cmp #{6 * tempo}')
-        a(f'        bcs v{v}vlong')            # long note → compute modulated vibrato
-        # Short note: write SWAPPED freq bytes (Hubbard vibrato quirk)
-        # Hubbard vibrato reads lo_cur = _rb($5429+y) = fthi[note] → D400
-        #                and hi_cur = _rb($5428+y) = ftlo[note] → D401
+        # Check: dur_field >= 6 ticks (vibrato applies to long notes only)
+        # DM stores note_len = (dur_field+1)*tempo, so condition becomes:
+        # note_len >= 7*tempo ↔ (dur_field+1)*tempo >= 7*tempo ↔ dur_field >= 6
+        a(f'        lda ${z+9:02X}')           # note_len = (dur_field+1)*tempo
+        a(f'        cmp #{7 * tempo}')
+        a(f'        bcs v{v}vlong')            # dur_field >= 6 → compute modulated vibrato
+        # Short note (dur_field < 6): write SWAPPED freq bytes.
+        # GT _apply_vibrato for dur_field < 6: target_lo=lo_cur, target_hi=hi_cur,
+        # but lo_cur = _rb($5429+y) = ftlo[pitch] (odd offset) and
+        # hi_cur = _rb($5428+y) = fthi[pitch] (even offset).
+        # The memory layout at $5428: interleaved as [fthi[0], ftlo[0], fthi[1], ftlo[1]...]
+        # so lo_cur=ftlo[pitch]→D400, hi_cur=fthi[pitch]→D401.
+        # HOWEVER: in the actual 6502 code this is a SWAP: fthi→D400 (freq_lo), ftlo→D401 (freq_hi).
+        # This was verified empirically: removing the swap breaks F775.
         a(f'        ldx ${z+8:02X}')
         a(f'        lda fthi,x')
-        a(f'        sta $D4{so:02X}')          # fthi → D400 (freq_lo reg) — SWAPPED!
+        a(f'        sta $D4{so:02X}')          # fthi → D400 (freq_lo reg) — SWAPPED
         a(f'        lda ftlo,x')
-        a(f'        sta $D4{so+1:02X}')        # ftlo → D401 (freq_hi reg) — SWAPPED!
+        a(f'        sta $D4{so+1:02X}')        # ftlo → D401 (freq_hi reg) — SWAPPED
         a(f'        jmp v{v}bit0')
         a(f'v{v}vlong')
-        # Compute LFO step: (frame_ctr & 7) → triangle 0,1,2,3,3,2,1,0
+        # Long note (dur_field >= 6): compute 16-bit swapped-byte vibrato delta.
+        # GT _apply_vibrato memory layout (Commando $5428+):
+        #   _rb($5428+2*p) = ftlo[p]  (even offset = low byte of FREQ_PAL entry)
+        #   _rb($5429+2*p) = fthi[p]  (odd offset  = high byte of FREQ_PAL entry)
+        # GT names: hi_cur=_rb($5428+y)=ftlo[p], lo_cur=_rb($5429+y)=fthi[p]
+        # 16-bit diff = (hi_cur<<8|lo_cur) = (ftlo[p]<<8|fthi[p]) treated as big-endian
+        # diff = (ftlo[p+1]<<8|fthi[p+1]) - (ftlo[p]<<8|fthi[p])
+        # → diff_lo (low byte)  = fthi[p+1] - fthi[p] (with borrow)
+        #   diff_hi (high byte) = ftlo[p+1] - ftlo[p] - borrow
+        # After shift by (vib_depth+1): delta_hi = diff>>8, delta_lo = diff & $FF
+        # Base: target_lo = lo_cur = fthi[pitch], target_hi = hi_cur = ftlo[pitch]
+        # Accumulate vib_step times: target_lo += delta_hi (carry → target_hi += delta_lo)
+        # Write D400=target_lo (= fthi+...), D401=target_hi (= ftlo+...)
+        #
+        # Compute vib_step from frame counter triangle (0,1,2,3,3,2,1,0)
         a(f'        lda ${FRAME_CTR:02X}')
         a(f'        and #$07')
         a(f'        cmp #4')
         a(f'        bcc v{v}vdok')
         a(f'        eor #$07')                 # mirror: 4→3, 5→2, 6→1, 7→0
         a(f'v{v}vdok')
-        a(f'        pha')                      # save depth (vib_step)
-        # Compute semitone delta: fthi[pitch+1] - fthi[pitch]
-        a(f'        ldx ${z+8:02X}')
-        a(f'        lda fthi+1,x')
+        a(f'        tax')                       # X = vib_step
+        # Compute 16-bit diff in (ftlo[p]<<8|fthi[p]) big-endian representation:
+        # diff_lo = fthi[p+1] - fthi[p], diff_hi = ftlo[p+1] - ftlo[p] - borrow
+        a(f'        ldy ${z+8:02X}')           # pitch
+        a(f'        lda fthi+1,y')             # fthi[pitch+1] = lo_next
         a(f'        sec')
-        a(f'        sbc fthi,x')
-        a(f'        sta ${VIB_TMP:02X}')
-        # Right-shift delta by (vib_scale+1)
-        a(f'        ldy ${z+14:02X}')
-        a(f'        ldx i_vib,y')
-        a(f'        inx')
+        a(f'        sbc fthi,y')               # - fthi[pitch] = lo_cur → diff_lo
+        a(f'        sta ${VIB_TMP:02X}')        # VIB_TMP = diff_lo
+        a(f'        lda ftlo+1,y')             # ftlo[pitch+1] = hi_next
+        a(f'        sbc ftlo,y')               # - ftlo[pitch] - borrow → diff_hi
+        a(f'        sta ${VIB_TMP2:02X}')       # VIB_TMP2 = diff_hi
+        # Right-shift 16-bit diff by (vib_depth+1): LSR diff_hi, ROR diff_lo
+        a(f'        lda ${z+14:02X}')          # instrument ID
+        a(f'        tay')
+        a(f'        lda i_vib,y')              # vib_depth
+        a(f'        tay')
+        a(f'        iny')                      # shift count = vib_depth+1
         a(f'v{v}vsr')
-        a(f'        lsr ${VIB_TMP:02X}')
-        a(f'        dex')
+        a(f'        lsr ${VIB_TMP2:02X}')       # LSR high byte
+        a(f'        ror ${VIB_TMP:02X}')        # ROR low byte
+        a(f'        dey')
         a(f'        bne v{v}vsr')
-        # Multiply delta * depth (vib_step times)
-        a(f'        pla')                      # pop depth (vib_step)
-        a(f'        beq v{v}vwr')             # vib_step=0 → write plain base freq
-        a(f'        tax')
-        a(f'        lda #0')
+        # After shift: VIB_TMP2=delta_hi (adds to target_lo), VIB_TMP=delta_lo (adds to target_hi)
+        # Initialize target: target_lo = fthi[pitch] = lo_cur, target_hi = ftlo[pitch] = hi_cur
+        a(f'        ldy ${z+8:02X}')           # pitch
+        a(f'        lda fthi,y')               # = lo_cur
+        a(f'        sta ${VIB_TGLO:02X}')       # target_lo = fthi[pitch]
+        a(f'        lda ftlo,y')               # = hi_cur
+        a(f'        sta ${VIB_TGHI:02X}')       # target_hi = ftlo[pitch]
+        # Accumulate delta vib_step times (X = vib_step, saved above)
+        a(f'        cpx #0')
+        a(f'        beq v{v}vwr')             # vib_step=0 → write base freq as-is
         a(f'v{v}vmul')
+        # 16-bit add: target_lo += delta_hi (with carry into target_hi += delta_lo)
         a(f'        clc')
-        a(f'        adc ${VIB_TMP:02X}')
+        a(f'        lda ${VIB_TGLO:02X}')
+        a(f'        adc ${VIB_TMP2:02X}')      # target_lo += delta_hi
+        a(f'        sta ${VIB_TGLO:02X}')
+        a(f'        lda ${VIB_TGHI:02X}')
+        a(f'        adc ${VIB_TMP:02X}')       # target_hi += delta_lo + carry
+        a(f'        sta ${VIB_TGHI:02X}')
         a(f'        dex')
         a(f'        bne v{v}vmul')
-        # Add to base freq_hi — write flo first, fhi second (matches Hubbard vibrato order)
-        a(f'        ldx ${z+8:02X}')
-        a(f'        clc')
-        a(f'        adc fthi,x')
-        a(f'        sta ${VIB_TMP:02X}')       # stash modulated freq_hi
-        a(f'        lda ftlo,x')
-        a(f'        sta $D4{so:02X}')          # write base freq_lo first
-        a(f'        lda ${VIB_TMP:02X}')
-        a(f'        sta $D4{so+1:02X}')        # then write modulated freq_hi
-        a(f'        jmp v{v}bit0')
         a(f'v{v}vwr')
-        # vib_step=0: write plain base freq (flo first, fhi second)
-        a(f'        ldx ${z+8:02X}')
-        a(f'        lda ftlo,x')
-        a(f'        sta $D4{so:02X}')          # write freq_lo first
-        a(f'        lda fthi,x')
-        a(f'        sta $D4{so+1:02X}')        # then freq_hi
+        # Write D400=target_lo, D401=target_hi
+        a(f'        lda ${VIB_TGLO:02X}')
+        a(f'        sta $D4{so:02X}')          # D400+so = freq_lo
+        a(f'        lda ${VIB_TGHI:02X}')
+        a(f'        sta $D4{so+1:02X}')        # D401+so = freq_hi
         # fall through to bit0
 
         # BIT0 SKYDIVE: decrement freq_hi each sustain frame, write to SID
@@ -656,16 +703,19 @@ def generate_asm(T, instruments, score):
         a(f'        sta ${z+7:02X}')
         # Write pw_lo to SID (note: uni only writes pw_lo, not pw_hi)
         a(f'        sta $D4{so+2:02X}')
-        # Also update pw_live[inst] so per-instrument accumulator is maintained
+        # Also update i_pwlo[inst] so per-instrument accumulator is maintained
+        # (Linear and bidir both use the same i_pwlo table, matching Hubbard's
+        # single in-place instrument table update)
         a(f'        ldy ${z+14:02X}')         # inst ID
-        a(f'        sta pw_live,y')
+        a(f'        sta i_pwlo,y')
         a(f'        jmp v{v}done')
         # BIDIR: write both pw_lo and pw_hi to SID
+        # Original Hubbard writes pw_hi FIRST then pw_lo (STA D403 before D402)
         a(f'v{v}pwwr')
-        a(f'        lda ${z+7:02X}')
-        a(f'        sta $D4{so+2:02X}')
         a(f'        lda ${z+11:02X}')
-        a(f'        sta $D4{so+3:02X}')
+        a(f'        sta $D4{so+3:02X}')           # pw_hi first (matches original order)
+        a(f'        lda ${z+7:02X}')
+        a(f'        sta $D4{so+2:02X}')           # pw_lo second
         # Write accumulated PW back to instrument table (shared mutable state)
         # (Hubbard's self-modifying code stores pw in instrument table)
         a(f'        ldy ${z+14:02X}')
@@ -723,10 +773,9 @@ def generate_asm(T, instruments, score):
     a('        .byte ' + ','.join(f'${1 if i["has_bit0"] else 0:02X}' for i in instruments))
     a('i_ctrl')  # instrument ctrl WITH gate (written at note-load and gate-off)
     a('        .byte ' + ','.join(f'${i["W"]["steps"][0]:02X}' for i in instruments))
-    # pw_live: mutable per-instrument pw_lo accumulator (starts as copy of i_pwlo)
-    # Updated by linear PW eval path; read at note-load for same-instrument case
-    a('pw_live')
-    a('        .byte ' + ','.join(f'${i["P"]["init_pw"] & 0xFF:02X}' for i in instruments))
+    # Note: i_pwlo is the MUTABLE pw_lo accumulator for all instruments.
+    # Both BIDIR and LINEAR PW update i_pwlo in-place (single unified table).
+    # pw_live table removed — i_pwlo serves both note-load and eval paths.
     a('')
 
     # --- DATA: Patterns (pitch, duration, instrument — 3 bytes each) ---

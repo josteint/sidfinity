@@ -178,7 +178,7 @@ v2tie
         and #$FE
         sta $D412
 v2pw0
-        lda pw_live,x
+        lda i_pwlo,x
         sta $D410
         sta $A9
         lda i_pwhi,x
@@ -199,6 +199,13 @@ v2pw0
         bcc v2nd1
         inc $A6
 v2nd1
+        ldy #0
+        lda ($A5),y
+        cmp #$FE
+        bne v2npe
+        lda #0
+        sta $B1
+v2npe
         jmp v2done
 
 v2eval
@@ -217,7 +224,7 @@ v2efx
         lda i_vib,y
         beq v2bit0
         lda $AB
-        cmp #18
+        cmp #21
         bcs v2vlong
         ldx $AA
         lda fthi,x
@@ -232,42 +239,46 @@ v2vlong
         bcc v2vdok
         eor #$07
 v2vdok
-        pha
-        ldx $AA
-        lda fthi+1,x
-        sec
-        sbc fthi,x
-        sta $B6
-        ldy $B0
-        ldx i_vib,y
-        inx
-v2vsr
-        lsr $B6
-        dex
-        bne v2vsr
-        pla
-        beq v2vwr
         tax
-        lda #0
+        ldy $AA
+        lda fthi+1,y
+        sec
+        sbc fthi,y
+        sta $B6
+        lda ftlo+1,y
+        sbc ftlo,y
+        sta $B7
+        lda $B0
+        tay
+        lda i_vib,y
+        tay
+        iny
+v2vsr
+        lsr $B7
+        ror $B6
+        dey
+        bne v2vsr
+        ldy $AA
+        lda fthi,y
+        sta $B8
+        lda ftlo,y
+        sta $B9
+        cpx #0
+        beq v2vwr
 v2vmul
         clc
+        lda $B8
+        adc $B7
+        sta $B8
+        lda $B9
         adc $B6
+        sta $B9
         dex
         bne v2vmul
-        ldx $AA
-        clc
-        adc fthi,x
-        sta $B6
-        lda ftlo,x
-        sta $D40E
-        lda $B6
-        sta $D40F
-        jmp v2bit0
 v2vwr
-        ldx $AA
-        lda ftlo,x
+        lda $B8
         sta $D40E
-        lda fthi,x
+        lda $B9
         sta $D40F
 v2bit0
         ldy $B0
@@ -365,13 +376,13 @@ v2lin
         sta $A9
         sta $D410
         ldy $B0
-        sta pw_live,y
+        sta i_pwlo,y
         jmp v2done
 v2pwwr
-        lda $A9
-        sta $D410
         lda $AD
         sta $D411
+        lda $A9
+        sta $D410
         ldy $B0
         lda $A9
         sta i_pwlo,y
@@ -468,7 +479,7 @@ v1tie
         and #$FE
         sta $D40B
 v1pw0
-        lda pw_live,x
+        lda i_pwlo,x
         sta $D409
         sta $98
         lda i_pwhi,x
@@ -489,6 +500,13 @@ v1pw0
         bcc v1nd1
         inc $95
 v1nd1
+        ldy #0
+        lda ($94),y
+        cmp #$FE
+        bne v1npe
+        lda #0
+        sta $A0
+v1npe
         jmp v1done
 
 v1eval
@@ -507,7 +525,7 @@ v1efx
         lda i_vib,y
         beq v1bit0
         lda $9A
-        cmp #18
+        cmp #21
         bcs v1vlong
         ldx $99
         lda fthi,x
@@ -522,42 +540,46 @@ v1vlong
         bcc v1vdok
         eor #$07
 v1vdok
-        pha
-        ldx $99
-        lda fthi+1,x
-        sec
-        sbc fthi,x
-        sta $B6
-        ldy $9F
-        ldx i_vib,y
-        inx
-v1vsr
-        lsr $B6
-        dex
-        bne v1vsr
-        pla
-        beq v1vwr
         tax
-        lda #0
+        ldy $99
+        lda fthi+1,y
+        sec
+        sbc fthi,y
+        sta $B6
+        lda ftlo+1,y
+        sbc ftlo,y
+        sta $B7
+        lda $9F
+        tay
+        lda i_vib,y
+        tay
+        iny
+v1vsr
+        lsr $B7
+        ror $B6
+        dey
+        bne v1vsr
+        ldy $99
+        lda fthi,y
+        sta $B8
+        lda ftlo,y
+        sta $B9
+        cpx #0
+        beq v1vwr
 v1vmul
         clc
+        lda $B8
+        adc $B7
+        sta $B8
+        lda $B9
         adc $B6
+        sta $B9
         dex
         bne v1vmul
-        ldx $99
-        clc
-        adc fthi,x
-        sta $B6
-        lda ftlo,x
-        sta $D407
-        lda $B6
-        sta $D408
-        jmp v1bit0
 v1vwr
-        ldx $99
-        lda ftlo,x
+        lda $B8
         sta $D407
-        lda fthi,x
+        lda $B9
         sta $D408
 v1bit0
         ldy $9F
@@ -655,13 +677,13 @@ v1lin
         sta $98
         sta $D409
         ldy $9F
-        sta pw_live,y
+        sta i_pwlo,y
         jmp v1done
 v1pwwr
-        lda $98
-        sta $D409
         lda $9C
         sta $D40A
+        lda $98
+        sta $D409
         ldy $9F
         lda $98
         sta i_pwlo,y
@@ -767,7 +789,7 @@ v0tie
         and #$FE
         sta $D404
 v0pw0
-        lda pw_live,x
+        lda i_pwlo,x
         sta $D402
         sta $87
         lda i_pwhi,x
@@ -788,6 +810,13 @@ v0pw0
         bcc v0nd1
         inc $84
 v0nd1
+        ldy #0
+        lda ($83),y
+        cmp #$FE
+        bne v0npe
+        lda #0
+        sta $8F
+v0npe
         jmp v0done
 
 v0eval
@@ -806,7 +835,7 @@ v0efx
         lda i_vib,y
         beq v0bit0
         lda $89
-        cmp #18
+        cmp #21
         bcs v0vlong
         ldx $88
         lda fthi,x
@@ -821,42 +850,46 @@ v0vlong
         bcc v0vdok
         eor #$07
 v0vdok
-        pha
-        ldx $88
-        lda fthi+1,x
-        sec
-        sbc fthi,x
-        sta $B6
-        ldy $8E
-        ldx i_vib,y
-        inx
-v0vsr
-        lsr $B6
-        dex
-        bne v0vsr
-        pla
-        beq v0vwr
         tax
-        lda #0
+        ldy $88
+        lda fthi+1,y
+        sec
+        sbc fthi,y
+        sta $B6
+        lda ftlo+1,y
+        sbc ftlo,y
+        sta $B7
+        lda $8E
+        tay
+        lda i_vib,y
+        tay
+        iny
+v0vsr
+        lsr $B7
+        ror $B6
+        dey
+        bne v0vsr
+        ldy $88
+        lda fthi,y
+        sta $B8
+        lda ftlo,y
+        sta $B9
+        cpx #0
+        beq v0vwr
 v0vmul
         clc
+        lda $B8
+        adc $B7
+        sta $B8
+        lda $B9
         adc $B6
+        sta $B9
         dex
         bne v0vmul
-        ldx $88
-        clc
-        adc fthi,x
-        sta $B6
-        lda ftlo,x
-        sta $D400
-        lda $B6
-        sta $D401
-        jmp v0bit0
 v0vwr
-        ldx $88
-        lda ftlo,x
+        lda $B8
         sta $D400
-        lda fthi,x
+        lda $B9
         sta $D401
 v0bit0
         ldy $8E
@@ -954,13 +987,13 @@ v0lin
         sta $87
         sta $D402
         ldy $8E
-        sta pw_live,y
+        sta i_pwlo,y
         jmp v0done
 v0pwwr
-        lda $87
-        sta $D402
         lda $8B
         sta $D403
+        lda $87
+        sta $D402
         ldy $8E
         lda $87
         sta i_pwlo,y
@@ -1009,8 +1042,6 @@ i_bit0
         .byte $00,$01,$00,$01,$01,$01,$00,$01,$00,$01,$01,$01,$01
 i_ctrl
         .byte $41,$41,$41,$81,$43,$41,$41,$15,$41,$21,$41,$43,$41
-pw_live
-        .byte $00,$80,$80,$00,$00,$80,$00,$80,$00,$00,$00,$00,$00
 
 pat1
         .byte $15,$06,$02
