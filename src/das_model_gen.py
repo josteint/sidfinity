@@ -316,6 +316,14 @@ def generate_asm(T, instruments, score):
     a(f'        sta ftlo+116')
     a(f'        lda ${ZP[1]+13:02X}')   # V2 pw_dir (from last frame)
     a(f'        sta fthi+116')
+    # T[105]: hi=V1 base_note (from V1's LAST note-load, carries over from previous frame).
+    # V3 uses T[105] for vibrato when pitch=104. After V1 loads a new note in frame N,
+    # the updated pitch must be visible to V3 in frame N+1 BEFORE V3 processes.
+    # Updating T[105].hi here (at start of frame, before V3 runs) ensures V3 sees
+    # V1's current pitch from the previous frame's V1 note-load. The "before V2" update
+    # block below also sets fthi[105] but runs AFTER V3 has already computed vibrato.
+    a(f'        lda ${ZP[0]+8:02X}')    # V1 base_note (from last note-load)
+    a(f'        sta fthi+105')
 
     for v in [2, 1, 0]:
         z = ZP[v]
@@ -566,7 +574,8 @@ def generate_asm(T, instruments, score):
         a(f'        jmp v{v}done')              # skip eval entirely after note-load
         a('')
 
-        # ---- EVAL PATH: effects only (vibrato, PW, skydive, arpeggio) ----
+        # ---- EVAL PATH: effects only (vibrato, PW, drum slide, skydive, arpeggio) ----
+        # GT _apply_effects order: vibrato → PW → drum_slide → skydive → arp_freq
         a(f'v{v}eval')
 
         # GATE-OFF: fires exactly once per note, when tick_ctr == tempo
@@ -592,7 +601,7 @@ def generate_asm(T, instruments, score):
         a(f'        ldy ${z+14:02X}')           # instrument ID
         a(f'        lda i_vib,y')              # vibrato scale (0=none)
         a(f'        bne v{v}vibdo')            # has vibrato → continue
-        a(f'        jmp v{v}drm')             # no vibrato → skip to drum/skydive (long branch)
+        a(f'        jmp v{v}epw')             # no vibrato → skip to PW (long branch)
         a(f'v{v}vibdo')
         # Check: dur_field >= 6 ticks (vibrato applies to long notes only)
         # DM stores note_len = (dur_field+1)*tempo, so condition becomes:
@@ -612,7 +621,7 @@ def generate_asm(T, instruments, score):
         a(f'        sta $D4{so:02X}')          # fthi → D400 (freq_lo) — Hubbard swapped order
         a(f'        lda ftlo,x')
         a(f'        sta $D4{so+1:02X}')        # ftlo → D401 (freq_hi) — Hubbard swapped order
-        a(f'        jmp v{v}drm')             # → drum slide section
+        a(f'        jmp v{v}epw')             # → PW section (GT order: vibrato → PW → ...)
         a(f'v{v}vlong')
         # Long note (dur_field >= 6): compute 16-bit swapped-byte vibrato delta.
         # GT _apply_vibrato memory layout (Commando $5428+):
@@ -684,7 +693,101 @@ def generate_asm(T, instruments, score):
         a(f'        sta $D4{so:02X}')          # D400+so = freq_lo
         a(f'        lda ${VIB_TGHI:02X}')
         a(f'        sta $D4{so+1:02X}')        # D401+so = freq_hi
-        # fall through to drum slide
+        # fall through to PW (GT order: vibrato → PW → drum slide → skydive → arp)
+
+        # PW MODULATION: GT order is AFTER vibrato, BEFORE drum slide/skydive/arp.
+        # PW_UNI (bit3 of fx → pw_max==$FF): add pw_speed to pw_lo each frame
+        # BIDIR (pw_max != $00 and != $FF): fire when pw_period sub-counter expires
+        # None (pw_max==$00): no write
+        a(f'v{v}epw')
+        a(f'        lda ${z+12:02X}')          # pw_max
+        a(f'        bne v{v}pwgo')             # != 0 → has modulation
+        a(f'        jmp v{v}drm')             # $00 = no modulation → fall to drum slide
+        a(f'v{v}pwgo')
+        a(f'        cmp #$FF')
+        a(f'        beq v{v}lin')              # $FF = linear/uni
+        # --- BIDIR: fire when pw_period expires ---
+        a(f'        dec ${z+5:02X}')           # DEC pw_period
+        a(f'        bpl v{v}drm')             # still positive → no fire → drum slide
+        # Reload pw_period from pw_speed low 5 bits (= pwm & $1F)
+        a(f'        lda ${z+10:02X}')          # pw_speed (= pwm byte)
+        a(f'        and #$1F')
+        a(f'        sta ${z+5:02X}')           # reload pw_period
+        # Step size = pw_speed high 3 bits (= pwm & $E0)
+        a(f'        lda ${z+10:02X}')
+        a(f'        and #$E0')
+        a(f'        sta ${VIB_TMP:02X}')       # step
+        # Load shared PW state from instrument table (so cascading works across voices)
+        # Hubbard stores pw in instrument table; reads before update ensure V3→V2→V1
+        # each see the accumulation of previous voices' updates.
+        a(f'        ldy ${z+14:02X}')          # inst ID
+        a(f'        lda i_pwlo,y')             # read shared pw_lo accumulator
+        a(f'        sta ${z+7:02X}')            # sync ZP+7
+        a(f'        lda i_pwhi,y')             # read shared pw_hi accumulator
+        a(f'        sta ${z+11:02X}')           # sync ZP+11
+        a(f'        lda ${z+13:02X}')          # pw_dir (0=up, nonzero=down)
+        a(f'        bne v{v}dn')
+        # RISING: pw += step
+        a(f'        clc')
+        a(f'        lda ${z+7:02X}')
+        a(f'        adc ${VIB_TMP:02X}')
+        a(f'        sta ${z+7:02X}')
+        a(f'        bcc v{v}ncu')
+        a(f'        inc ${z+11:02X}')
+        a(f'        lda ${z+11:02X}')
+        a(f'        and #$0F')                 # 12-bit PW
+        a(f'        sta ${z+11:02X}')
+        a(f'v{v}ncu')
+        a(f'        lda ${z+11:02X}')
+        a(f'        cmp ${z+12:02X}')          # == pw_max?
+        a(f'        bne v{v}pwwr')
+        a(f'        inc ${z+13:02X}')          # flip to falling
+        a(f'        jmp v{v}pwwr')
+        # FALLING: pw -= step
+        a(f'v{v}dn')
+        a(f'        sec')
+        a(f'        lda ${z+7:02X}')
+        a(f'        sbc ${VIB_TMP:02X}')
+        a(f'        sta ${z+7:02X}')
+        a(f'        bcs v{v}ncd')
+        a(f'        dec ${z+11:02X}')
+        a(f'        lda ${z+11:02X}')
+        a(f'        and #$0F')                 # 12-bit PW wrap (mirrors Hubbard AND #$0F)
+        a(f'        sta ${z+11:02X}')
+        a(f'v{v}ncd')
+        a(f'        lda ${z+11:02X}')
+        a(f'        cmp #$08')
+        a(f'        bne v{v}pwwr')
+        a(f'        dec ${z+13:02X}')          # flip to rising (any nonzero→one less)
+        a(f'        jmp v{v}pwwr')
+        # --- LINEAR/UNI: add pw_speed to pw_lo each frame ---
+        # Read from shared i_pwlo[inst] so all voices sharing the same instrument
+        # cascade correctly (V3's update is seen by V2, V2's by V1).
+        a(f'v{v}lin')
+        a(f'        ldy ${z+14:02X}')          # inst ID
+        a(f'        lda i_pwlo,y')             # read shared accumulator
+        a(f'        clc')
+        a(f'        adc ${z+10:02X}')          # add pw_speed
+        a(f'        sta ${z+7:02X}')           # sync ZP+7
+        # Write pw_lo to SID (note: uni only writes pw_lo, not pw_hi)
+        a(f'        sta $D4{so+2:02X}')
+        # Update shared instrument table accumulator
+        a(f'        sta i_pwlo,y')
+        a(f'        jmp v{v}drm')             # linear PW done → fall to drum slide
+        # BIDIR: write both pw_lo and pw_hi to SID
+        # Original Hubbard writes pw_hi FIRST then pw_lo (STA D403 before D402)
+        a(f'v{v}pwwr')
+        a(f'        lda ${z+11:02X}')
+        a(f'        sta $D4{so+3:02X}')           # pw_hi first (matches original order)
+        a(f'        lda ${z+7:02X}')
+        a(f'        sta $D4{so+2:02X}')           # pw_lo second
+        # Write accumulated PW back to instrument table (shared mutable state)
+        # (Hubbard's self-modifying code stores pw in instrument table)
+        a(f'        lda ${z+7:02X}')
+        a(f'        sta i_pwlo,y')            # Y still = inst from earlier load
+        a(f'        lda ${z+11:02X}')
+        a(f'        sta i_pwhi,y')
+        # fall through to drum slide (GT order: PW → drum slide → skydive → arp)
 
         # DRUM SLIDE: per-frame freq delta from portamento/drum-trigger byte.
         # drum_trig byte: delta = byte & $7E (bits 6-1), direction = byte & $01
@@ -777,7 +880,7 @@ def generate_asm(T, instruments, score):
         a(f'v{v}arpc')
         a(f'        ldy ${z+14:02X}')
         a(f'        lda i_arp,y')              # arp_offset (0 or 12)
-        a(f'        beq v{v}pw')               # no arp → skip to PW
+        a(f'        beq v{v}done')             # no arp → done
         a(f'        ldx ${z+8:02X}')           # base_note
         a(f'        lda ${FRAME_CTR:02X}')
         a(f'        and #$01')
@@ -791,99 +894,7 @@ def generate_asm(T, instruments, score):
         a(f'        sta $D4{so+1:02X}')
         a(f'        lda ftlo,x')
         a(f'        sta $D4{so:02X}')
-
-        # PW MODULATION: only write when modulation fires
-        # PW_UNI (bit3 of fx → pw_max==$FF): add pw_speed to pw_lo each frame
-        # BIDIR (pw_max != $00 and != $FF): fire when pw_period sub-counter expires
-        # None (pw_max==$00): no write
-        a(f'v{v}pw')
-        a(f'        lda ${z+12:02X}')          # pw_max
-        a(f'        bne v{v}pwgo')             # != 0 → has modulation
-        a(f'        jmp v{v}done')             # $00 = no modulation (long branch)
-        a(f'v{v}pwgo')
-        a(f'        cmp #$FF')
-        a(f'        beq v{v}lin')              # $FF = linear/uni
-        # --- BIDIR: fire when pw_period expires ---
-        a(f'        dec ${z+5:02X}')           # DEC pw_period
-        a(f'        bpl v{v}done')             # still positive → no fire
-        # Reload pw_period from pw_speed low 5 bits (= pwm & $1F)
-        a(f'        lda ${z+10:02X}')          # pw_speed (= pwm byte)
-        a(f'        and #$1F')
-        a(f'        sta ${z+5:02X}')           # reload pw_period
-        # Step size = pw_speed high 3 bits (= pwm & $E0)
-        a(f'        lda ${z+10:02X}')
-        a(f'        and #$E0')
-        a(f'        sta ${VIB_TMP:02X}')       # step
-        # Load shared PW state from instrument table (so cascading works across voices)
-        # Hubbard stores pw in instrument table; reads before update ensure V3→V2→V1
-        # each see the accumulation of previous voices' updates.
-        a(f'        ldy ${z+14:02X}')          # inst ID
-        a(f'        lda i_pwlo,y')             # read shared pw_lo accumulator
-        a(f'        sta ${z+7:02X}')            # sync ZP+7
-        a(f'        lda i_pwhi,y')             # read shared pw_hi accumulator
-        a(f'        sta ${z+11:02X}')           # sync ZP+11
-        a(f'        lda ${z+13:02X}')          # pw_dir (0=up, nonzero=down)
-        a(f'        bne v{v}dn')
-        # RISING: pw += step
-        a(f'        clc')
-        a(f'        lda ${z+7:02X}')
-        a(f'        adc ${VIB_TMP:02X}')
-        a(f'        sta ${z+7:02X}')
-        a(f'        bcc v{v}ncu')
-        a(f'        inc ${z+11:02X}')
-        a(f'        lda ${z+11:02X}')
-        a(f'        and #$0F')                 # 12-bit PW
-        a(f'        sta ${z+11:02X}')
-        a(f'v{v}ncu')
-        a(f'        lda ${z+11:02X}')
-        a(f'        cmp ${z+12:02X}')          # == pw_max?
-        a(f'        bne v{v}pwwr')
-        a(f'        inc ${z+13:02X}')          # flip to falling
-        a(f'        jmp v{v}pwwr')
-        # FALLING: pw -= step
-        a(f'v{v}dn')
-        a(f'        sec')
-        a(f'        lda ${z+7:02X}')
-        a(f'        sbc ${VIB_TMP:02X}')
-        a(f'        sta ${z+7:02X}')
-        a(f'        bcs v{v}ncd')
-        a(f'        dec ${z+11:02X}')
-        a(f'        lda ${z+11:02X}')
-        a(f'        and #$0F')                 # 12-bit PW wrap (mirrors Hubbard AND #$0F)
-        a(f'        sta ${z+11:02X}')
-        a(f'v{v}ncd')
-        a(f'        lda ${z+11:02X}')
-        a(f'        cmp #$08')
-        a(f'        bne v{v}pwwr')
-        a(f'        dec ${z+13:02X}')          # flip to rising (any nonzero→one less)
-        a(f'        jmp v{v}pwwr')
-        # --- LINEAR/UNI: add pw_speed to pw_lo each frame ---
-        # Read from shared i_pwlo[inst] so all voices sharing the same instrument
-        # cascade correctly (V3's update is seen by V2, V2's by V1).
-        a(f'v{v}lin')
-        a(f'        ldy ${z+14:02X}')          # inst ID
-        a(f'        lda i_pwlo,y')             # read shared accumulator
-        a(f'        clc')
-        a(f'        adc ${z+10:02X}')          # add pw_speed
-        a(f'        sta ${z+7:02X}')           # sync ZP+7
-        # Write pw_lo to SID (note: uni only writes pw_lo, not pw_hi)
-        a(f'        sta $D4{so+2:02X}')
-        # Update shared instrument table accumulator
-        a(f'        sta i_pwlo,y')
-        a(f'        jmp v{v}done')
-        # BIDIR: write both pw_lo and pw_hi to SID
-        # Original Hubbard writes pw_hi FIRST then pw_lo (STA D403 before D402)
-        a(f'v{v}pwwr')
-        a(f'        lda ${z+11:02X}')
-        a(f'        sta $D4{so+3:02X}')           # pw_hi first (matches original order)
-        a(f'        lda ${z+7:02X}')
-        a(f'        sta $D4{so+2:02X}')           # pw_lo second
-        # Write accumulated PW back to instrument table (shared mutable state)
-        # (Hubbard's self-modifying code stores pw in instrument table)
-        a(f'        lda ${z+7:02X}')
-        a(f'        sta i_pwlo,y')            # Y still = inst from earlier load
-        a(f'        lda ${z+11:02X}')
-        a(f'        sta i_pwhi,y')
+        # fall through to done
 
         a(f'v{v}done')
         a('')

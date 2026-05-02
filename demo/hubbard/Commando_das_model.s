@@ -105,6 +105,8 @@ play
         sta ftlo+116
         lda $A1
         sta fthi+116
+        lda $88
+        sta fthi+105
 ; --- Voice 3 ---
         dec $A8
         beq v2rd
@@ -247,7 +249,7 @@ v2efx
         ldy $B6
         lda i_vib,y
         bne v2vibdo
-        jmp v2drm
+        jmp v2epw
 v2vibdo
         lda $B1
         cmp #21
@@ -257,7 +259,7 @@ v2vibdo
         sta $D40E
         lda ftlo,x
         sta $D40F
-        jmp v2drm
+        jmp v2epw
 v2vlong
         lda $BC
         and #$07
@@ -306,6 +308,77 @@ v2vwr
         sta $D40E
         lda $C2
         sta $D40F
+v2epw
+        lda $B4
+        bne v2pwgo
+        jmp v2drm
+v2pwgo
+        cmp #$FF
+        beq v2lin
+        dec $AD
+        bpl v2drm
+        lda $B2
+        and #$1F
+        sta $AD
+        lda $B2
+        and #$E0
+        sta $BF
+        ldy $B6
+        lda i_pwlo,y
+        sta $AF
+        lda i_pwhi,y
+        sta $B3
+        lda $B5
+        bne v2dn
+        clc
+        lda $AF
+        adc $BF
+        sta $AF
+        bcc v2ncu
+        inc $B3
+        lda $B3
+        and #$0F
+        sta $B3
+v2ncu
+        lda $B3
+        cmp $B4
+        bne v2pwwr
+        inc $B5
+        jmp v2pwwr
+v2dn
+        sec
+        lda $AF
+        sbc $BF
+        sta $AF
+        bcs v2ncd
+        dec $B3
+        lda $B3
+        and #$0F
+        sta $B3
+v2ncd
+        lda $B3
+        cmp #$08
+        bne v2pwwr
+        dec $B5
+        jmp v2pwwr
+v2lin
+        ldy $B6
+        lda i_pwlo,y
+        clc
+        adc $B2
+        sta $AF
+        sta $D410
+        sta i_pwlo,y
+        jmp v2drm
+v2pwwr
+        lda $B3
+        sta $D411
+        lda $AF
+        sta $D410
+        lda $AF
+        sta i_pwlo,y
+        lda $B3
+        sta i_pwhi,y
 v2drm
         lda $B9
         and #$7F
@@ -370,7 +443,7 @@ v2bcm
 v2arpc
         ldy $B6
         lda i_arp,y
-        beq v2pw
+        beq v2done
         ldx $B0
         lda $BC
         and #$01
@@ -384,77 +457,6 @@ v2frok
         sta $D40F
         lda ftlo,x
         sta $D40E
-v2pw
-        lda $B4
-        bne v2pwgo
-        jmp v2done
-v2pwgo
-        cmp #$FF
-        beq v2lin
-        dec $AD
-        bpl v2done
-        lda $B2
-        and #$1F
-        sta $AD
-        lda $B2
-        and #$E0
-        sta $BF
-        ldy $B6
-        lda i_pwlo,y
-        sta $AF
-        lda i_pwhi,y
-        sta $B3
-        lda $B5
-        bne v2dn
-        clc
-        lda $AF
-        adc $BF
-        sta $AF
-        bcc v2ncu
-        inc $B3
-        lda $B3
-        and #$0F
-        sta $B3
-v2ncu
-        lda $B3
-        cmp $B4
-        bne v2pwwr
-        inc $B5
-        jmp v2pwwr
-v2dn
-        sec
-        lda $AF
-        sbc $BF
-        sta $AF
-        bcs v2ncd
-        dec $B3
-        lda $B3
-        and #$0F
-        sta $B3
-v2ncd
-        lda $B3
-        cmp #$08
-        bne v2pwwr
-        dec $B5
-        jmp v2pwwr
-v2lin
-        ldy $B6
-        lda i_pwlo,y
-        clc
-        adc $B2
-        sta $AF
-        sta $D410
-        sta i_pwlo,y
-        jmp v2done
-v2pwwr
-        lda $B3
-        sta $D411
-        lda $AF
-        sta $D410
-        lda $AF
-        sta i_pwlo,y
-        lda $B3
-        sta i_pwhi,y
 v2done
 
 ; --- Update T[98], T[99], T[105], T[106], T[107] before V2 (after V3) ---
@@ -620,7 +622,7 @@ v1efx
         ldy $A2
         lda i_vib,y
         bne v1vibdo
-        jmp v1drm
+        jmp v1epw
 v1vibdo
         lda $9D
         cmp #21
@@ -630,7 +632,7 @@ v1vibdo
         sta $D407
         lda ftlo,x
         sta $D408
-        jmp v1drm
+        jmp v1epw
 v1vlong
         lda $BC
         and #$07
@@ -679,6 +681,77 @@ v1vwr
         sta $D407
         lda $C2
         sta $D408
+v1epw
+        lda $A0
+        bne v1pwgo
+        jmp v1drm
+v1pwgo
+        cmp #$FF
+        beq v1lin
+        dec $99
+        bpl v1drm
+        lda $9E
+        and #$1F
+        sta $99
+        lda $9E
+        and #$E0
+        sta $BF
+        ldy $A2
+        lda i_pwlo,y
+        sta $9B
+        lda i_pwhi,y
+        sta $9F
+        lda $A1
+        bne v1dn
+        clc
+        lda $9B
+        adc $BF
+        sta $9B
+        bcc v1ncu
+        inc $9F
+        lda $9F
+        and #$0F
+        sta $9F
+v1ncu
+        lda $9F
+        cmp $A0
+        bne v1pwwr
+        inc $A1
+        jmp v1pwwr
+v1dn
+        sec
+        lda $9B
+        sbc $BF
+        sta $9B
+        bcs v1ncd
+        dec $9F
+        lda $9F
+        and #$0F
+        sta $9F
+v1ncd
+        lda $9F
+        cmp #$08
+        bne v1pwwr
+        dec $A1
+        jmp v1pwwr
+v1lin
+        ldy $A2
+        lda i_pwlo,y
+        clc
+        adc $9E
+        sta $9B
+        sta $D409
+        sta i_pwlo,y
+        jmp v1drm
+v1pwwr
+        lda $9F
+        sta $D40A
+        lda $9B
+        sta $D409
+        lda $9B
+        sta i_pwlo,y
+        lda $9F
+        sta i_pwhi,y
 v1drm
         lda $A5
         and #$7F
@@ -743,7 +816,7 @@ v1bcm
 v1arpc
         ldy $A2
         lda i_arp,y
-        beq v1pw
+        beq v1done
         ldx $9C
         lda $BC
         and #$01
@@ -757,77 +830,6 @@ v1frok
         sta $D408
         lda ftlo,x
         sta $D407
-v1pw
-        lda $A0
-        bne v1pwgo
-        jmp v1done
-v1pwgo
-        cmp #$FF
-        beq v1lin
-        dec $99
-        bpl v1done
-        lda $9E
-        and #$1F
-        sta $99
-        lda $9E
-        and #$E0
-        sta $BF
-        ldy $A2
-        lda i_pwlo,y
-        sta $9B
-        lda i_pwhi,y
-        sta $9F
-        lda $A1
-        bne v1dn
-        clc
-        lda $9B
-        adc $BF
-        sta $9B
-        bcc v1ncu
-        inc $9F
-        lda $9F
-        and #$0F
-        sta $9F
-v1ncu
-        lda $9F
-        cmp $A0
-        bne v1pwwr
-        inc $A1
-        jmp v1pwwr
-v1dn
-        sec
-        lda $9B
-        sbc $BF
-        sta $9B
-        bcs v1ncd
-        dec $9F
-        lda $9F
-        and #$0F
-        sta $9F
-v1ncd
-        lda $9F
-        cmp #$08
-        bne v1pwwr
-        dec $A1
-        jmp v1pwwr
-v1lin
-        ldy $A2
-        lda i_pwlo,y
-        clc
-        adc $9E
-        sta $9B
-        sta $D409
-        sta i_pwlo,y
-        jmp v1done
-v1pwwr
-        lda $9F
-        sta $D40A
-        lda $9B
-        sta $D409
-        lda $9B
-        sta i_pwlo,y
-        lda $9F
-        sta i_pwhi,y
 v1done
 
 ; --- Update T[100] and T[104] before V1 ---
@@ -981,7 +983,7 @@ v0efx
         ldy $8E
         lda i_vib,y
         bne v0vibdo
-        jmp v0drm
+        jmp v0epw
 v0vibdo
         lda $89
         cmp #21
@@ -991,7 +993,7 @@ v0vibdo
         sta $D400
         lda ftlo,x
         sta $D401
-        jmp v0drm
+        jmp v0epw
 v0vlong
         lda $BC
         and #$07
@@ -1040,6 +1042,77 @@ v0vwr
         sta $D400
         lda $C2
         sta $D401
+v0epw
+        lda $8C
+        bne v0pwgo
+        jmp v0drm
+v0pwgo
+        cmp #$FF
+        beq v0lin
+        dec $85
+        bpl v0drm
+        lda $8A
+        and #$1F
+        sta $85
+        lda $8A
+        and #$E0
+        sta $BF
+        ldy $8E
+        lda i_pwlo,y
+        sta $87
+        lda i_pwhi,y
+        sta $8B
+        lda $8D
+        bne v0dn
+        clc
+        lda $87
+        adc $BF
+        sta $87
+        bcc v0ncu
+        inc $8B
+        lda $8B
+        and #$0F
+        sta $8B
+v0ncu
+        lda $8B
+        cmp $8C
+        bne v0pwwr
+        inc $8D
+        jmp v0pwwr
+v0dn
+        sec
+        lda $87
+        sbc $BF
+        sta $87
+        bcs v0ncd
+        dec $8B
+        lda $8B
+        and #$0F
+        sta $8B
+v0ncd
+        lda $8B
+        cmp #$08
+        bne v0pwwr
+        dec $8D
+        jmp v0pwwr
+v0lin
+        ldy $8E
+        lda i_pwlo,y
+        clc
+        adc $8A
+        sta $87
+        sta $D402
+        sta i_pwlo,y
+        jmp v0drm
+v0pwwr
+        lda $8B
+        sta $D403
+        lda $87
+        sta $D402
+        lda $87
+        sta i_pwlo,y
+        lda $8B
+        sta i_pwhi,y
 v0drm
         lda $91
         and #$7F
@@ -1104,7 +1177,7 @@ v0bcm
 v0arpc
         ldy $8E
         lda i_arp,y
-        beq v0pw
+        beq v0done
         ldx $88
         lda $BC
         and #$01
@@ -1118,77 +1191,6 @@ v0frok
         sta $D401
         lda ftlo,x
         sta $D400
-v0pw
-        lda $8C
-        bne v0pwgo
-        jmp v0done
-v0pwgo
-        cmp #$FF
-        beq v0lin
-        dec $85
-        bpl v0done
-        lda $8A
-        and #$1F
-        sta $85
-        lda $8A
-        and #$E0
-        sta $BF
-        ldy $8E
-        lda i_pwlo,y
-        sta $87
-        lda i_pwhi,y
-        sta $8B
-        lda $8D
-        bne v0dn
-        clc
-        lda $87
-        adc $BF
-        sta $87
-        bcc v0ncu
-        inc $8B
-        lda $8B
-        and #$0F
-        sta $8B
-v0ncu
-        lda $8B
-        cmp $8C
-        bne v0pwwr
-        inc $8D
-        jmp v0pwwr
-v0dn
-        sec
-        lda $87
-        sbc $BF
-        sta $87
-        bcs v0ncd
-        dec $8B
-        lda $8B
-        and #$0F
-        sta $8B
-v0ncd
-        lda $8B
-        cmp #$08
-        bne v0pwwr
-        dec $8D
-        jmp v0pwwr
-v0lin
-        ldy $8E
-        lda i_pwlo,y
-        clc
-        adc $8A
-        sta $87
-        sta $D402
-        sta i_pwlo,y
-        jmp v0done
-v0pwwr
-        lda $8B
-        sta $D403
-        lda $87
-        sta $D402
-        lda $87
-        sta i_pwlo,y
-        lda $8B
-        sta i_pwhi,y
 v0done
 
         rts
