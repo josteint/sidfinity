@@ -118,13 +118,14 @@ def extract():
             pw_min = 0x08; pw_max = 0x0E
 
         # E spec: ADSR + gate/adsr timing
-        # Vibrato only effective for non-arp instruments (arp overwrites freq).
-        eff_vibrato = vibrato_scale if not rh.has_arpeggio else 0
+        # Vibrato runs for ALL instruments (even arp) — intermediate write affects SID
+        has_bit0 = bool(flags & 1)
         instruments.append({
             'id': rh.index,
             'W': {'steps': w_steps, 'loop': w_loop},
             'arp_offset': arp_offset,
-            'vibrato_scale': eff_vibrato,
+            'vibrato_scale': vibrato_scale,
+            'has_bit0': has_bit0,
             'P': {'speed': pw_speed, 'mode': pw_mode,
                    'min_hi': pw_min, 'max_hi': pw_max,
                    'init_pw': rh.pulse_width},
@@ -185,7 +186,7 @@ def generate_asm(T, instruments, score):
     BASE = 0x1000
     tempo = score['tempo']
 
-    # ZP layout per voice (16 bytes)
+    # ZP layout per voice (17 bytes)
     # +0: tick_ctr
     # +1/+2: ol_ptr
     # +3/+4: pat_ptr
@@ -199,10 +200,11 @@ def generate_asm(T, instruments, score):
     # +13: pw_dir    (0=up, 1=down)
     # +14: prev_inst (previous instrument ID, $FF=none)
     # +15: hub_off   (Hubbard pattern byte offset — tracks T[100] extended table)
-    ZP = [0x80, 0x90, 0xA0]
+    # +16: fhi_state (freq_hi internal state for bit0 — DEC'd each sustain frame)
+    ZP = [0x80, 0x91, 0xA2]
     SOFF = [0, 7, 14]
-    FRAME_CTR = 0xB0  # global frame counter (all voices share)
-    VIB_TMP = 0xB1    # vibrato temp: delta (freq_hi difference, 1 byte)
+    FRAME_CTR = 0xB3  # global frame counter (all voices share)
+    VIB_TMP = 0xB4    # vibrato temp: delta (freq_hi difference, 1 byte)
 
     a(f'        * = ${BASE:04X}')
     a(f'        jmp init')
@@ -334,6 +336,7 @@ def generate_asm(T, instruments, score):
         a(f'        ldx ${z+8:02X}')        # base_note
         a(f'        lda fthi,x')
         a(f'        sta $D4{so+1:02X}')
+        a(f'        sta ${z+16:02X}')       # fhi_state = fthi[base_note] (for bit0)
         a(f'        lda ftlo,x')
         a(f'        sta $D4{so:02X}')
         # Step 2: CTRL (gate ON) — BEFORE adsr (sidplayfp ADSR needs gate before AD/SR change)
@@ -401,7 +404,9 @@ def generate_asm(T, instruments, score):
         # Note-load already wrote freq from pitch. Eval-only frames apply arp/vibrato.
         a(f'        lda ${z:02X}')                # tick_ctr
         a(f'        cmp ${z+9:02X}')              # == note_len? (just loaded)
-        a(f'        beq v{v}wrd')                 # note-load → skip freq effects, go to W program
+        a(f'        bne v{v}efx')                 # not note-load → run effects
+        a(f'        jmp v{v}wrd')                 # note-load → skip to W program
+        a(f'v{v}efx')
 
         # MULTI-WRITE EFFECT CHAIN: vibrato writes freq FIRST, then arp OVERWRITES.
         # Both write to SID. The intermediate vibrato write briefly changes the
@@ -468,10 +473,26 @@ def generate_asm(T, instruments, score):
         a(f'        sta $D4{so+1:02X}')
         a(f'        lda ftlo,x')
         a(f'        sta $D4{so:02X}')
-        # Fall through to arp
+        # Fall through to bit0
 
-        # Step 2: ARP (writes freq, overwriting vibrato if both are active)
-        a(f'v{v}arp')
+        # Step 2: BIT0 — write fhi_state + ctrl(gate clear) to SID
+        # Hubbard's skydive: each sustain frame, DEC freq_hi state, write to SID.
+        # Arp later overwrites freq, but the intermediate write hits the SID.
+        a(f'v{v}arp')  # label shared — bit0 runs then falls through to arp
+        a(f'        ldy ${z+14:02X}')             # instrument ID
+        a(f'        lda i_bit0,y')                # has bit0? (0 or 1)
+        a(f'        beq v{v}arpc')                # no bit0 → skip to arp check
+        a(f'        lda ${z+16:02X}')             # fhi_state
+        a(f'        beq v{v}arpc')                # fhi_state == 0 → skip
+        a(f'        sta $D4{so+1:02X}')           # write OLD fhi_state to SID freq_hi
+        a(f'        dec ${z+16:02X}')             # DEC fhi_state (for next frame)
+        # Write ctrl with gate cleared
+        a(f'        lda i_wfirst,y')              # instrument ctrl (with gate)
+        a(f'        and #$FE')                    # clear gate bit
+        a(f'        sta $D4{so+4:02X}')           # write to SID ctrl (will be overwritten by W program)
+
+        # Step 3: ARP (writes freq, overwriting vibrato+bit0 if active)
+        a(f'v{v}arpc')
         a(f'        ldy ${z+14:02X}')             # instrument ID
         a(f'        lda i_arp,y')                 # arp_offset (0 or 12)
         a(f'        beq v{v}wrd')                 # no arp → skip to W program
@@ -660,6 +681,8 @@ def generate_asm(T, instruments, score):
     a('        .byte ' + ','.join(f'${i["arp_offset"]:02X}' for i in instruments))
     a('i_vib')
     a('        .byte ' + ','.join(f'${i["vibrato_scale"]:02X}' for i in instruments))
+    a('i_bit0')  # fx_flags bit 0 (drum/skydive: writes freq_hi + ctrl on sustain)
+    a('        .byte ' + ','.join(f'${1 if i["has_bit0"] else 0:02X}' for i in instruments))
     a('i_wfirst')  # first W step per instrument = original ctrl with gate set
     a('        .byte ' + ','.join(f'${i["W"]["steps"][0]:02X}' for i in instruments))
     a('i_wlo')
