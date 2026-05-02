@@ -162,16 +162,34 @@ def extract():
                             pitch = note.pitch
                         # has_inst_byte: whether the original Hubbard note had an instrument byte
                         # This determines hub_off advance (3 bytes if yes, 2 if no)
-                        # Encode: bit7 of stored inst = 0 means has_inst_byte, 1 means no_inst_byte
+                        # Portamento notes have inst=None but use 3 bytes in Hubbard format
+                        # (pitch byte + portamento byte = 2 bytes, no separate instrument byte).
+                        # In Hubbard's format, portamento notes do NOT have an extra inst byte.
                         has_inst_byte = (note.instrument is not None)
                         # Bit7=1 → no inst byte (hub_off += 2)
                         # Bit6=1 → tie note (no freq write, ctrl without gate)
+                        # no_release encoded only in drum_trig bit7 (not in stored_inst)
+                        no_release = hasattr(note, 'no_release') and bool(note.no_release)
                         stored_inst = cur_inst | (0 if has_inst_byte else 0x80) | (0x40 if is_tie else 0)
+                        # drum_trig: portamento notes set a per-frame freq slide.
+                        # Encoded as raw byte: (speed << 1) | direction, where:
+                        #   delta = drum_trig & 0x7E (bits 6-1)
+                        #   direction = drum_trig & 0x01 (0=up, 1=down)
+                        drum_trig_byte = 0
+                        if hasattr(note, 'portamento') and note.portamento is not None:
+                            speed, direction = note.portamento
+                            drum_trig_byte = ((speed & 0x3F) << 1) | (direction & 1)
+                        # Encode no_release flag in bit7 of drum_trig.
+                        # Drum slide uses bits 0-6 only (delta=bits6-1, dir=bit0).
+                        # Bit7=1 means: skip gate-off at note end (GT no_release flag).
+                        if no_release:
+                            drum_trig_byte |= 0x80
                         notes.append({
                             'pitch': pitch,
                             'duration': dur + 1,  # Hubbard: counter loads D, decrements to -1
                             'instrument': stored_inst,
                             'tie': is_tie,
+                            'drum_trig': drum_trig_byte,
                         })
                     voice['patterns'][pat_idx] = notes
             elif entry[0] == 'loop':
@@ -195,7 +213,7 @@ def generate_asm(T, instruments, score):
     BASE = 0x1000
     tempo = score['tempo']
 
-    # ZP layout per voice (17 bytes)
+    # ZP layout per voice (20 bytes)
     # +0: tick_ctr      (frame countdown; 0 = load new note)
     # +1/+2: ol_ptr     (orderlist pointer lo/hi)
     # +3/+4: pat_ptr    (pattern pointer lo/hi)
@@ -211,15 +229,20 @@ def generate_asm(T, instruments, score):
     # +14: prev_inst    (current instrument ID)
     # +15: hub_off      (note_idx — tracks T[100] extended table lookup)
     # +16: fhi_state    (freq_hi state for bit0 skydive — written then DEC'd)
-    ZP = [0x80, 0x91, 0xA2]
+    # +17: drum_trig    (portamento/drum-slide byte; 0=none; delta=byte&$7E dir=byte&$01)
+    # +18: acc_flo      (accumulated freq_lo for drum slide; set at note-load, updated by drum slide)
+    # +19: acc_fhi      (accumulated freq_hi for drum slide; set at note-load, updated by drum slide)
+    ZP = [0x80, 0x94, 0xA8]   # 20 bytes each: 0x80-0x93, 0x94-0xA7, 0xA8-0xBB
     SOFF = [0, 7, 14]
-    FRAME_CTR = 0xB3  # global frame counter
-    CTRL_V1   = 0xB4  # V1 ctrl byte (for T[104].lo update)
-    CTRL_V2   = 0xB5  # V2 ctrl byte (for T[104].hi update)
-    VIB_TMP   = 0xB6  # vibrato: 16-bit diff low byte (= delta_lo after shift)
-    VIB_TMP2  = 0xB7  # vibrato: 16-bit diff high byte (= delta_hi after shift)
-    VIB_TGLO  = 0xB8  # vibrato: target_lo accumulator (= ftlo[pitch] + delta_hi*step)
-    VIB_TGHI  = 0xB9  # vibrato: target_hi accumulator (= fthi[pitch] + delta_lo*step)
+    FRAME_CTR = 0xBC  # global frame counter
+    CTRL_V1   = 0xBD  # V1 ctrl byte (for T[104].lo update)
+    CTRL_V2   = 0xBE  # V2 ctrl byte (for T[104].hi update)
+    VIB_TMP   = 0xBF  # vibrato: 16-bit diff low byte (= delta_lo after shift)
+    VIB_TMP2  = 0xC0  # vibrato: 16-bit diff high byte (= delta_hi after shift)
+    VIB_TGLO  = 0xC1  # vibrato: target_lo accumulator (= ftlo[pitch] + delta_hi*step)
+    VIB_TGHI  = 0xC2  # vibrato: target_hi accumulator (= fthi[pitch] + delta_lo*step)
+    CTRL_V3   = 0xC3  # V3 ctrl byte (for T[105].lo update)
+    SEQ_IDX   = [0xC4, 0xC5, 0xC6]  # seq_idx per voice (for T[98-100] aliasing)
 
     a(f'        * = ${BASE:04X}')
     a(f'        jmp init')
@@ -235,6 +258,9 @@ def generate_asm(T, instruments, score):
     a(f'        lda #0')
     a(f'        sta ${CTRL_V1:02X}')    # T[104].lo = V1 ctrl = 0 initially
     a(f'        sta ${CTRL_V2:02X}')    # T[104].hi = V2 ctrl = 0 initially
+    a(f'        sta ${CTRL_V3:02X}')    # T[105].lo = V3 ctrl = 0 initially
+    for v in range(3):
+        a(f'        sta ${SEQ_IDX[v]:02X}')  # seq_idx[{v}] = 0
     for v in range(3):
         z = ZP[v]
         a(f'        lda v{v}ol')
@@ -256,8 +282,10 @@ def generate_asm(T, instruments, score):
         a(f'        sta ${z+13:02X}')       # pw_dir=0 (up)
         a(f'        sta ${z+15:02X}')       # hub_off=0
         a(f'        sta ${z+16:02X}')       # fhi_state=0
-        a(f'        lda #$FF')
-        a(f'        sta ${z+14:02X}')       # prev_inst=$FF
+        a(f'        sta ${z+17:02X}')       # drum_trig=0
+        a(f'        sta ${z+18:02X}')       # acc_flo=0
+        a(f'        sta ${z+19:02X}')       # acc_fhi=0
+        a(f'        sta ${z+14:02X}')       # prev_inst=0 (initial instrument = 0, matches HubbardEmu init)
         a(f'        lda #1')
         a(f'        sta ${z:02X}')          # tick_ctr=1 → triggers first note
     a('        rts')
@@ -280,10 +308,53 @@ def generate_asm(T, instruments, score):
     a(f'        sta ftlo+100')
     a(f'        lda ${ZP[2]+15:02X}')   # V3 hub_off
     a(f'        sta fthi+100')
+    # T[116]: lo=pw_dir[0] (V1), hi=pw_dir[1] (V2).
+    # pw_dir is at $5510,X in Hubbard's memory layout.
+    # $5510 = T[116].lo, $5511 = T[116].hi.
+    # Updated at start of each frame from previous frame's pw_dir values.
+    a(f'        lda ${ZP[0]+13:02X}')   # V1 pw_dir (from last frame)
+    a(f'        sta ftlo+116')
+    a(f'        lda ${ZP[1]+13:02X}')   # V2 pw_dir (from last frame)
+    a(f'        sta fthi+116')
 
     for v in [2, 1, 0]:
         z = ZP[v]
         so = SOFF[v]
+
+        # After V3 processes (and before V2), update T[105].
+        # T[105]: lo=V3 ctrl_byte (CTRL_V3, updated after V3 note-load),
+        #         hi=V1 base_note (ZP[0]+8, persists from V1's last note-load).
+        # V3 runs first; by the time V2 processes, V3 has updated CTRL_V3.
+        # V1 base_note from previous frame persists (V1 hasn't run yet this frame).
+        if v == 1:
+            a(f'; --- Update T[98], T[99], T[105], T[106], T[107] before V2 (after V3) ---')
+            # T[98]: lo=seq_idx[0] (V1), hi=seq_idx[1] (V2) — for V2 arp at pitch 98
+            a(f'        lda ${SEQ_IDX[0]:02X}')    # V1 seq_idx
+            a(f'        sta ftlo+98')
+            a(f'        lda ${SEQ_IDX[1]:02X}')    # V2 seq_idx
+            a(f'        sta fthi+98')
+            # T[99]: lo=seq_idx[2] (V3), hi=hub_off[0] (V1 note_idx)
+            a(f'        lda ${SEQ_IDX[2]:02X}')    # V3 seq_idx
+            a(f'        sta ftlo+99')
+            a(f'        lda ${ZP[0]+15:02X}')    # V1 hub_off (note_idx)
+            a(f'        sta fthi+99')
+            # T[105]: lo=V3 ctrl_byte (CTRL_V3), hi=V1 base_note
+            a(f'        lda ${CTRL_V3:02X}')    # V3 ctrl
+            a(f'        sta ftlo+105')
+            a(f'        lda ${ZP[0]+8:02X}')    # V1 base_note
+            a(f'        sta fthi+105')
+            # T[106]: lo=V2 base_note (ZP[1]+8), hi=V3 base_note (ZP[2]+8)
+            # V3 base_note may have been updated this frame (V3 ran first)
+            a(f'        lda ${ZP[1]+8:02X}')    # V2 base_note (from previous frame)
+            a(f'        sta ftlo+106')
+            a(f'        lda ${ZP[2]+8:02X}')    # V3 base_note (current — V3 ran first)
+            a(f'        sta fthi+106')
+            # T[107]: lo=instr_num[0] (V1 instrument), hi=instr_num[1] (V2 instrument)
+            # V1 and V2 instruments from previous frame (neither has run yet this frame)
+            a(f'        lda ${ZP[0]+14:02X}')   # V1 instrument (prev_inst)
+            a(f'        sta ftlo+107')
+            a(f'        lda ${ZP[1]+14:02X}')   # V2 instrument
+            a(f'        sta fthi+107')
 
         # After V2 processes (and before V1), update T[100] and T[104].
         # T[100]: V2/V3 hub_off (note_idx) — needed for V1 arpeggio freq lookup
@@ -316,8 +387,11 @@ def generate_asm(T, instruments, score):
         # End of pattern: load next pattern from orderlist
         a(f'        lda #0')
         a(f'        sta ${z+15:02X}')            # reset hub_off at pattern boundary
-        a(f'        lda #$FF')
-        a(f'        sta ${z+14:02X}')            # force inst reload
+        # NOTE: Do NOT reset ZP+14 (instrument). Hubbard's engine persists the
+        # instrument across pattern boundaries — the instrument from the last note
+        # of the previous pattern carries forward into the new pattern.
+        # Note: SEQ_IDX[v] was already pre-incremented in the peek-ahead section
+        # of the previous note-load. No second increment needed here.
         a(f'        ldy #0')
         a(f'        lda (${z+1:02X}),y')
         a(f'        sta ${z+3:02X}')
@@ -356,27 +430,31 @@ def generate_asm(T, instruments, score):
         # Bit7 = no_inst_byte flag (hub_off += 2 if set, else 3)
         # Bit6 = tie flag (hub_off += 1, no freq write, ctrl without gate)
         # Bits 0-5 = instrument ID (0-12)
+        # CRITICAL: only update ZP+14 (prev_inst) when bit7=0 (has_inst_byte).
+        # When bit7=1 (no_inst_byte), the instrument persists from the previous note.
+        # In Hubbard's engine, the instrument is NOT reset at pattern boundaries.
         a(f'        iny')
         a(f'        lda (${z+3:02X}),y')        # instrument byte (may have bit7/bit6 flags)
         a(f'        sta ${VIB_TMP:02X}')        # save raw inst byte
-        a(f'        and #$3F')                  # mask to 6 bits (clear bit7+bit6)
-        a(f'        tax')                        # X = clean instrument ID (0-12)
-        a(f'        stx ${z+14:02X}')           # save clean inst ID
         # Check bit6 (tie flag) first: tie → hub_off += 1 only
-        a(f'        lda ${VIB_TMP:02X}')
         a(f'        and #$40')
         a(f'        bne v{v}hubt')              # tie → add 1
         # Not tie: check bit7 (no_inst_byte flag)
         a(f'        lda ${VIB_TMP:02X}')
-        a(f'        bmi v{v}hub2')              # bit7 set → no inst byte → add 2
-        # has inst byte: hub_off += 3
+        a(f'        bmi v{v}hub2')              # bit7 set → no inst byte → add 2 (NO inst update)
+        # Has inst byte: update ZP+14 with new instrument, then hub_off += 3
+        a(f'        and #$3F')                  # mask to 6 bits (clear bit7+bit6)
+        a(f'        tax')                        # X = clean instrument ID (0-12)
+        a(f'        stx ${z+14:02X}')           # save clean inst ID (only when has_inst_byte)
         a(f'        lda ${z+15:02X}')
         a(f'        clc')
         a(f'        adc #3')
         a(f'        sta ${z+15:02X}')
         a(f'        jmp v{v}hubx')
         a(f'v{v}hub2')
-        # no inst byte: hub_off += 2
+        # no inst byte: hub_off += 2 (instrument PERSISTS in ZP+14)
+        # X = previous ZP+14 value (for lda i_ctrl,x etc. below)
+        a(f'        ldx ${z+14:02X}')           # load persisted instrument ID into X
         a(f'        lda ${z+15:02X}')
         a(f'        clc')
         a(f'        adc #2')
@@ -384,6 +462,8 @@ def generate_asm(T, instruments, score):
         a(f'        jmp v{v}hubx')
         a(f'v{v}hubt')
         # tie note: hub_off += 1
+        # X = persisted instrument (for i_ctrl,x etc.)
+        a(f'        ldx ${z+14:02X}')           # load persisted instrument ID into X
         a(f'        lda ${z+15:02X}')
         a(f'        clc')
         a(f'        adc #1')
@@ -401,23 +481,32 @@ def generate_asm(T, instruments, score):
         a(f'        sta ${z+16:02X}')            # fhi_state = fthi[base_note]
         a(f'        lda ftlo,y')
         a(f'        sta $D4{so:02X}')            # write freq_lo
+        # Initialize drum slide accumulators from note-load freq
+        # GT uses internal freq_lo/freq_hi (not SID regs) for drum slide
+        a(f'        sta ${z+18:02X}')            # acc_flo = ftlo[pitch]
+        a(f'        lda fthi,y')
+        a(f'        sta ${z+19:02X}')            # acc_fhi = fthi[pitch]
         # CTRL: write instrument ctrl with gate on (normal path)
         a(f'        lda i_ctrl,x')              # instrument ctrl (gate already set)
-        # Save UNGATED ctrl for T[104] tracking (Hubbard saves ctrl_byte BEFORE gate masking)
+        # Save UNGATED ctrl for T[104]/T[105] tracking (Hubbard saves ctrl_byte BEFORE gate masking)
         if v == 0:   # V1 ctrl → CTRL_V1
             a(f'        sta ${CTRL_V1:02X}')
         elif v == 1: # V2 ctrl → CTRL_V2
             a(f'        sta ${CTRL_V2:02X}')
+        elif v == 2: # V3 ctrl → CTRL_V3 (for T[105].lo)
+            a(f'        sta ${CTRL_V3:02X}')
         a(f'        sta $D4{so+4:02X}')          # write ctrl to SID (gate on for normal)
         a(f'        jmp v{v}pw0')               # skip to PW (past tie path)
         a(f'v{v}tie')
         # TIE NOTE: no freq write; write ctrl WITHOUT gate
         a(f'        lda i_ctrl,x')
-        # Save UNGATED ctrl for T[104] tracking (same: save before masking)
+        # Save UNGATED ctrl for T[104]/T[105] tracking (same: save before masking)
         if v == 0:
             a(f'        sta ${CTRL_V1:02X}')
         elif v == 1:
             a(f'        sta ${CTRL_V2:02X}')
+        elif v == 2:
+            a(f'        sta ${CTRL_V3:02X}')
         a(f'        and #$FE')                  # clear gate bit
         a(f'        sta $D4{so+4:02X}')          # write ctrl to SID (gate off for tie)
         a(f'v{v}pw0')
@@ -445,10 +534,17 @@ def generate_asm(T, instruments, score):
         a(f'        sta ${z+10:02X}')
         a(f'        lda i_pwmax,x')
         a(f'        sta ${z+12:02X}')
-        # Advance pat_ptr by 3 (pitch+dur+inst)
+        # Read drum_trig byte (4th byte: portamento/drum-slide value, 0=none)
+        # Y was corrupted by `tay` (set to pitch value) in the normal note path,
+        # and was 2 (byte offset) in the tie path. Use explicit ldy #3 to ensure
+        # correct offset regardless of which path was taken.
+        a(f'        ldy #3')
+        a(f'        lda (${z+3:02X}),y')        # drum_trig byte
+        a(f'        sta ${z+17:02X}')            # store drum_trig in ZP+17
+        # Advance pat_ptr by 4 (pitch+dur+inst+drum_trig)
         a(f'        clc')
         a(f'        lda ${z+3:02X}')
-        a(f'        adc #3')
+        a(f'        adc #4')
         a(f'        sta ${z+3:02X}')
         a(f'        bcc v{v}nd1')
         a(f'        inc ${z+4:02X}')
@@ -465,6 +561,7 @@ def generate_asm(T, instruments, score):
         a(f'        bne v{v}npe')               # not end → skip pre-reset
         a(f'        lda #0')
         a(f'        sta ${z+15:02X}')            # pre-reset hub_off (mirrors GT peek)
+        a(f'        inc ${SEQ_IDX[v]:02X}')     # pre-increment seq_idx (mirrors GT seq_idx++ on peek)
         a(f'v{v}npe')
         a(f'        jmp v{v}done')              # skip eval entirely after note-load
         a('')
@@ -477,6 +574,10 @@ def generate_asm(T, instruments, score):
         a(f'        lda ${z:02X}')              # tick_ctr
         a(f'        cmp #{tempo}')             # == tempo? (gate-off tick)
         a(f'        bne v{v}efx')              # not gate-off frame
+        # Check no_release flag (bit7 of drum_trig ZP+17)
+        # GT: if note_byte & 0x20 → skip gate-off (no release)
+        a(f'        lda ${z+17:02X}')          # drum_trig byte (bit7 = no_release)
+        a(f'        bmi v{v}efx')             # bit7=1 → no_release → skip gate-off
         # Gate-off: write ctrl&$FE, AD=0, SR=0
         a(f'        ldy ${z+14:02X}')          # current instrument
         a(f'        lda i_ctrl,y')
@@ -490,27 +591,28 @@ def generate_asm(T, instruments, score):
         # VIBRATO: writes freq_lo and freq_hi if instrument has vibrato
         a(f'        ldy ${z+14:02X}')           # instrument ID
         a(f'        lda i_vib,y')              # vibrato scale (0=none)
-        a(f'        beq v{v}bit0')             # no vibrato → skip to skydive
+        a(f'        bne v{v}vibdo')            # has vibrato → continue
+        a(f'        jmp v{v}drm')             # no vibrato → skip to drum/skydive (long branch)
+        a(f'v{v}vibdo')
         # Check: dur_field >= 6 ticks (vibrato applies to long notes only)
         # DM stores note_len = (dur_field+1)*tempo, so condition becomes:
         # note_len >= 7*tempo ↔ (dur_field+1)*tempo >= 7*tempo ↔ dur_field >= 6
         a(f'        lda ${z+9:02X}')           # note_len = (dur_field+1)*tempo
         a(f'        cmp #{7 * tempo}')
         a(f'        bcs v{v}vlong')            # dur_field >= 6 → compute modulated vibrato
-        # Short note (dur_field < 6): write SWAPPED freq bytes.
-        # GT _apply_vibrato for dur_field < 6: target_lo=lo_cur, target_hi=hi_cur,
-        # but lo_cur = _rb($5429+y) = ftlo[pitch] (odd offset) and
-        # hi_cur = _rb($5428+y) = fthi[pitch] (even offset).
-        # The memory layout at $5428: interleaved as [fthi[0], ftlo[0], fthi[1], ftlo[1]...]
-        # so lo_cur=ftlo[pitch]→D400, hi_cur=fthi[pitch]→D401.
-        # HOWEVER: in the actual 6502 code this is a SWAP: fthi→D400 (freq_lo), ftlo→D401 (freq_hi).
-        # This was verified empirically: removing the swap breaks F775.
+        # Short note (dur_field < 6): write SWAPPED base freq.
+        # Hubbard vibrato code treats freq table bytes as big-endian pairs:
+        # hi_cur=_rb($5428+pitch*2)=ftlo[pitch], lo_cur=_rb($5429+pitch*2)=fthi[pitch]
+        # For short note: target_lo=lo_cur=fthi[pitch] → D400 (freq_lo register)
+        #                 target_hi=hi_cur=ftlo[pitch] → D401 (freq_hi register)
+        # This is SWAPPED from normal note-load (where fthi→D401, ftlo→D400).
+        # Verified: GT writes fthi[pitch]→D400 and ftlo[pitch]→D401 for short vibrato.
         a(f'        ldx ${z+8:02X}')
         a(f'        lda fthi,x')
-        a(f'        sta $D4{so:02X}')          # fthi → D400 (freq_lo reg) — SWAPPED
+        a(f'        sta $D4{so:02X}')          # fthi → D400 (freq_lo) — Hubbard swapped order
         a(f'        lda ftlo,x')
-        a(f'        sta $D4{so+1:02X}')        # ftlo → D401 (freq_hi reg) — SWAPPED
-        a(f'        jmp v{v}bit0')
+        a(f'        sta $D4{so+1:02X}')        # ftlo → D401 (freq_hi) — Hubbard swapped order
+        a(f'        jmp v{v}drm')             # → drum slide section
         a(f'v{v}vlong')
         # Long note (dur_field >= 6): compute 16-bit swapped-byte vibrato delta.
         # GT _apply_vibrato memory layout (Commando $5428+):
@@ -582,6 +684,53 @@ def generate_asm(T, instruments, score):
         a(f'        sta $D4{so:02X}')          # D400+so = freq_lo
         a(f'        lda ${VIB_TGHI:02X}')
         a(f'        sta $D4{so+1:02X}')        # D401+so = freq_hi
+        # fall through to drum slide
+
+        # DRUM SLIDE: per-frame freq delta from portamento/drum-trigger byte.
+        # drum_trig byte: delta = byte & $7E (bits 6-1), direction = byte & $01
+        # direction 1=down (freq -= delta), 0=up (freq += delta)
+        # Mirrors Hubbard $52B6-$52F9 (_apply_drum_slide).
+        #
+        # CRITICAL: GT applies drum slide to INTERNAL freq state (freq_lo/freq_hi),
+        # NOT to the current SID register values (which may have been modified by vibrato).
+        # The internal state (acc_flo/acc_fhi) is initialized from ftlo/fthi at note-load
+        # and updated only by drum slide. Vibrato writes to SID but does NOT update the
+        # internal state. After drum slide, the result is written to SID (overwriting vibrato).
+        # This ensures drum slide is independent of vibrato.
+        a(f'v{v}drm')
+        a(f'        lda ${z+17:02X}')          # drum_trig byte (bits 0-6 = slide, bit7 = no_release)
+        a(f'        and #$7F')                  # mask no_release bit (only check slide bits)
+        a(f'        beq v{v}bit0')             # slide bits = 0 → no drum slide
+        a(f'        and #$01')                 # direction bit
+        a(f'        bne v{v}drmd')             # nonzero → slide down
+        # SLIDE UP: acc_flo += delta, propagate carry to acc_fhi
+        a(f'        lda ${z+17:02X}')
+        a(f'        and #$7E')                 # delta = bits 6-1
+        a(f'        sta ${VIB_TMP:02X}')        # save delta
+        a(f'        clc')
+        a(f'        lda ${z+18:02X}')          # acc_flo (internal drum slide state)
+        a(f'        adc ${VIB_TMP:02X}')        # acc_flo += delta
+        a(f'        sta ${z+18:02X}')          # update acc_flo
+        a(f'        sta $D4{so:02X}')          # write to freq_lo SID reg (overwrites vibrato)
+        a(f'        lda ${z+19:02X}')          # acc_fhi
+        a(f'        adc #0')                   # propagate carry
+        a(f'        sta ${z+19:02X}')          # update acc_fhi
+        a(f'        sta $D4{so+1:02X}')        # write to freq_hi SID reg
+        a(f'        jmp v{v}bit0')
+        # SLIDE DOWN: acc_flo -= delta, propagate borrow to acc_fhi
+        a(f'v{v}drmd')
+        a(f'        lda ${z+17:02X}')
+        a(f'        and #$7E')                 # delta = bits 6-1
+        a(f'        sta ${VIB_TMP:02X}')        # save delta
+        a(f'        sec')
+        a(f'        lda ${z+18:02X}')          # acc_flo
+        a(f'        sbc ${VIB_TMP:02X}')        # acc_flo -= delta
+        a(f'        sta ${z+18:02X}')          # update acc_flo
+        a(f'        sta $D4{so:02X}')          # write to freq_lo SID reg (overwrites vibrato)
+        a(f'        lda ${z+19:02X}')          # acc_fhi
+        a(f'        sbc #0')                   # propagate borrow
+        a(f'        sta ${z+19:02X}')          # update acc_fhi
+        a(f'        sta $D4{so+1:02X}')        # write to freq_hi SID reg
         # fall through to bit0
 
         # BIT0 SKYDIVE: decrement freq_hi each sustain frame, write to SID
@@ -649,7 +798,9 @@ def generate_asm(T, instruments, score):
         # None (pw_max==$00): no write
         a(f'v{v}pw')
         a(f'        lda ${z+12:02X}')          # pw_max
-        a(f'        beq v{v}done')             # $00 = no modulation
+        a(f'        bne v{v}pwgo')             # != 0 → has modulation
+        a(f'        jmp v{v}done')             # $00 = no modulation (long branch)
+        a(f'v{v}pwgo')
         a(f'        cmp #$FF')
         a(f'        beq v{v}lin')              # $FF = linear/uni
         # --- BIDIR: fire when pw_period expires ---
@@ -663,6 +814,14 @@ def generate_asm(T, instruments, score):
         a(f'        lda ${z+10:02X}')
         a(f'        and #$E0')
         a(f'        sta ${VIB_TMP:02X}')       # step
+        # Load shared PW state from instrument table (so cascading works across voices)
+        # Hubbard stores pw in instrument table; reads before update ensure V3→V2→V1
+        # each see the accumulation of previous voices' updates.
+        a(f'        ldy ${z+14:02X}')          # inst ID
+        a(f'        lda i_pwlo,y')             # read shared pw_lo accumulator
+        a(f'        sta ${z+7:02X}')            # sync ZP+7
+        a(f'        lda i_pwhi,y')             # read shared pw_hi accumulator
+        a(f'        sta ${z+11:02X}')           # sync ZP+11
         a(f'        lda ${z+13:02X}')          # pw_dir (0=up, nonzero=down)
         a(f'        bne v{v}dn')
         # RISING: pw += step
@@ -689,6 +848,9 @@ def generate_asm(T, instruments, score):
         a(f'        sta ${z+7:02X}')
         a(f'        bcs v{v}ncd')
         a(f'        dec ${z+11:02X}')
+        a(f'        lda ${z+11:02X}')
+        a(f'        and #$0F')                 # 12-bit PW wrap (mirrors Hubbard AND #$0F)
+        a(f'        sta ${z+11:02X}')
         a(f'v{v}ncd')
         a(f'        lda ${z+11:02X}')
         a(f'        cmp #$08')
@@ -696,17 +858,17 @@ def generate_asm(T, instruments, score):
         a(f'        dec ${z+13:02X}')          # flip to rising (any nonzero→one less)
         a(f'        jmp v{v}pwwr')
         # --- LINEAR/UNI: add pw_speed to pw_lo each frame ---
+        # Read from shared i_pwlo[inst] so all voices sharing the same instrument
+        # cascade correctly (V3's update is seen by V2, V2's by V1).
         a(f'v{v}lin')
+        a(f'        ldy ${z+14:02X}')          # inst ID
+        a(f'        lda i_pwlo,y')             # read shared accumulator
         a(f'        clc')
-        a(f'        lda ${z+7:02X}')
-        a(f'        adc ${z+10:02X}')
-        a(f'        sta ${z+7:02X}')
+        a(f'        adc ${z+10:02X}')          # add pw_speed
+        a(f'        sta ${z+7:02X}')           # sync ZP+7
         # Write pw_lo to SID (note: uni only writes pw_lo, not pw_hi)
         a(f'        sta $D4{so+2:02X}')
-        # Also update i_pwlo[inst] so per-instrument accumulator is maintained
-        # (Linear and bidir both use the same i_pwlo table, matching Hubbard's
-        # single in-place instrument table update)
-        a(f'        ldy ${z+14:02X}')         # inst ID
+        # Update shared instrument table accumulator
         a(f'        sta i_pwlo,y')
         a(f'        jmp v{v}done')
         # BIDIR: write both pw_lo and pw_hi to SID
@@ -718,9 +880,8 @@ def generate_asm(T, instruments, score):
         a(f'        sta $D4{so+2:02X}')           # pw_lo second
         # Write accumulated PW back to instrument table (shared mutable state)
         # (Hubbard's self-modifying code stores pw in instrument table)
-        a(f'        ldy ${z+14:02X}')
         a(f'        lda ${z+7:02X}')
-        a(f'        sta i_pwlo,y')
+        a(f'        sta i_pwlo,y')            # Y still = inst from earlier load
         a(f'        lda ${z+11:02X}')
         a(f'        sta i_pwhi,y')
 
@@ -792,7 +953,8 @@ def generate_asm(T, instruments, score):
         for note in notes:
             a(f'        .byte ${note["pitch"] & 0xFF:02X},'
               f'${note["duration"] & 0xFF:02X},'
-              f'${note["instrument"] & 0xFF:02X}')
+              f'${note["instrument"] & 0xFF:02X},'
+              f'${note.get("drum_trig", 0) & 0xFF:02X}')
         a(f'        .byte $FE')
     a('')
 

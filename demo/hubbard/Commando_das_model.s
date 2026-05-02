@@ -6,10 +6,14 @@ init
         lda #$0F
         sta $D418
         lda #$FF
-        sta $B3
+        sta $BC
         lda #0
-        sta $B4
-        sta $B5
+        sta $BD
+        sta $BE
+        sta $C3
+        sta $C4
+        sta $C5
+        sta $C6
         lda v0ol
         sta $83
         lda v0ol+1
@@ -29,190 +33,210 @@ init
         sta $8D
         sta $8F
         sta $90
-        lda #$FF
+        sta $91
+        sta $92
+        sta $93
         sta $8E
         lda #1
         sta $80
         lda v1ol
-        sta $94
-        lda v1ol+1
-        sta $95
-        lda #<(v1ol+2)
-        sta $92
-        lda #>(v1ol+2)
-        sta $93
-        lda #0
-        sta $96
         sta $97
+        lda v1ol+1
         sta $98
+        lda #<(v1ol+2)
+        sta $95
+        lda #>(v1ol+2)
+        sta $96
+        lda #0
+        sta $99
         sta $9A
         sta $9B
-        sta $9C
         sta $9D
         sta $9E
+        sta $9F
         sta $A0
         sta $A1
-        lda #$FF
-        sta $9F
-        lda #1
-        sta $91
-        lda v2ol
-        sta $A5
-        lda v2ol+1
-        sta $A6
-        lda #<(v2ol+2)
         sta $A3
-        lda #>(v2ol+2)
         sta $A4
-        lda #0
+        sta $A5
+        sta $A6
         sta $A7
-        sta $A8
-        sta $A9
+        sta $A2
+        lda #1
+        sta $94
+        lda v2ol
         sta $AB
+        lda v2ol+1
         sta $AC
+        lda #<(v2ol+2)
+        sta $A9
+        lda #>(v2ol+2)
+        sta $AA
+        lda #0
         sta $AD
         sta $AE
         sta $AF
         sta $B1
         sta $B2
-        lda #$FF
-        sta $B0
+        sta $B3
+        sta $B4
+        sta $B5
+        sta $B7
+        sta $B8
+        sta $B9
+        sta $BA
+        sta $BB
+        sta $B6
         lda #1
-        sta $A2
+        sta $A8
         rts
 
 play
-        inc $B3
-        lda $B4
+        inc $BC
+        lda $BD
         sta ftlo+104
-        lda $B5
+        lda $BE
         sta fthi+104
-        lda $A0
+        lda $A3
         sta ftlo+100
-        lda $B1
+        lda $B7
         sta fthi+100
+        lda $8D
+        sta ftlo+116
+        lda $A1
+        sta fthi+116
 ; --- Voice 3 ---
-        dec $A2
+        dec $A8
         beq v2rd
         jmp v2eval
 v2rd
         ldy #0
-        lda ($A5),y
+        lda ($AB),y
         cmp #$FE
         bne v2nt
         lda #0
-        sta $B1
-        lda #$FF
-        sta $B0
+        sta $B7
         ldy #0
-        lda ($A3),y
-        sta $A5
+        lda ($A9),y
+        sta $AB
         iny
-        lda ($A3),y
-        sta $A6
+        lda ($A9),y
+        sta $AC
         clc
-        lda $A3
+        lda $A9
         adc #2
-        sta $A3
+        sta $A9
         bcc v2rd
-        inc $A4
+        inc $AA
         jmp v2rd
 v2nt
-        sta $AA
+        sta $B0
         iny
-        lda ($A5),y
+        lda ($AB),y
         tax
         lda #0
 v2mul  clc
         adc #3
         dex
         bne v2mul
-        sta $A2
-        sta $AB
+        sta $A8
+        sta $B1
         sec
         sbc #3
-        sta $A8
+        sta $AE
         iny
-        lda ($A5),y
-        sta $B6
-        and #$3F
-        tax
-        stx $B0
-        lda $B6
+        lda ($AB),y
+        sta $BF
         and #$40
         bne v2hubt
-        lda $B6
+        lda $BF
         bmi v2hub2
-        lda $B1
+        and #$3F
+        tax
+        stx $B6
+        lda $B7
         clc
         adc #3
-        sta $B1
+        sta $B7
         jmp v2hubx
 v2hub2
-        lda $B1
+        ldx $B6
+        lda $B7
         clc
         adc #2
-        sta $B1
+        sta $B7
         jmp v2hubx
 v2hubt
-        lda $B1
+        ldx $B6
+        lda $B7
         clc
         adc #1
-        sta $B1
+        sta $B7
 v2hubx
-        lda $B6
+        lda $BF
         and #$40
         bne v2tie
-        lda $AA
+        lda $B0
         tay
         lda fthi,y
         sta $D40F
-        sta $B2
+        sta $B8
         lda ftlo,y
         sta $D40E
+        sta $BA
+        lda fthi,y
+        sta $BB
         lda i_ctrl,x
+        sta $C3
         sta $D412
         jmp v2pw0
 v2tie
         lda i_ctrl,x
+        sta $C3
         and #$FE
         sta $D412
 v2pw0
         lda i_pwlo,x
         sta $D410
-        sta $A9
+        sta $AF
         lda i_pwhi,x
         sta $D411
-        sta $AD
+        sta $B3
         lda i_ad,x
         sta $D413
         lda i_sr,x
         sta $D414
         lda i_pws,x
-        sta $AC
+        sta $B2
         lda i_pwmax,x
-        sta $AE
+        sta $B4
+        ldy #3
+        lda ($AB),y
+        sta $B9
         clc
-        lda $A5
-        adc #3
-        sta $A5
+        lda $AB
+        adc #4
+        sta $AB
         bcc v2nd1
-        inc $A6
+        inc $AC
 v2nd1
         ldy #0
-        lda ($A5),y
+        lda ($AB),y
         cmp #$FE
         bne v2npe
         lda #0
-        sta $B1
+        sta $B7
+        inc $C6
 v2npe
         jmp v2done
 
 v2eval
-        lda $A2
+        lda $A8
         cmp #3
         bne v2efx
-        ldy $B0
+        lda $B9
+        bmi v2efx
+        ldy $B6
         lda i_ctrl,y
         and #$FE
         sta $D412
@@ -220,101 +244,135 @@ v2eval
         sta $D413
         sta $D414
 v2efx
-        ldy $B0
+        ldy $B6
         lda i_vib,y
-        beq v2bit0
-        lda $AB
+        bne v2vibdo
+        jmp v2drm
+v2vibdo
+        lda $B1
         cmp #21
         bcs v2vlong
-        ldx $AA
+        ldx $B0
         lda fthi,x
         sta $D40E
         lda ftlo,x
         sta $D40F
-        jmp v2bit0
+        jmp v2drm
 v2vlong
-        lda $B3
+        lda $BC
         and #$07
         cmp #4
         bcc v2vdok
         eor #$07
 v2vdok
         tax
-        ldy $AA
+        ldy $B0
         lda fthi+1,y
         sec
         sbc fthi,y
-        sta $B6
+        sta $BF
         lda ftlo+1,y
         sbc ftlo,y
-        sta $B7
-        lda $B0
+        sta $C0
+        lda $B6
         tay
         lda i_vib,y
         tay
         iny
 v2vsr
-        lsr $B7
-        ror $B6
+        lsr $C0
+        ror $BF
         dey
         bne v2vsr
-        ldy $AA
+        ldy $B0
         lda fthi,y
-        sta $B8
+        sta $C1
         lda ftlo,y
-        sta $B9
+        sta $C2
         cpx #0
         beq v2vwr
 v2vmul
         clc
-        lda $B8
-        adc $B7
-        sta $B8
-        lda $B9
-        adc $B6
-        sta $B9
+        lda $C1
+        adc $C0
+        sta $C1
+        lda $C2
+        adc $BF
+        sta $C2
         dex
         bne v2vmul
 v2vwr
-        lda $B8
+        lda $C1
         sta $D40E
+        lda $C2
+        sta $D40F
+v2drm
         lda $B9
+        and #$7F
+        beq v2bit0
+        and #$01
+        bne v2drmd
+        lda $B9
+        and #$7E
+        sta $BF
+        clc
+        lda $BA
+        adc $BF
+        sta $BA
+        sta $D40E
+        lda $BB
+        adc #0
+        sta $BB
+        sta $D40F
+        jmp v2bit0
+v2drmd
+        lda $B9
+        and #$7E
+        sta $BF
+        sec
+        lda $BA
+        sbc $BF
+        sta $BA
+        sta $D40E
+        lda $BB
+        sbc #0
+        sta $BB
         sta $D40F
 v2bit0
-        ldy $B0
+        ldy $B6
         lda i_bit0,y
         beq v2arpc
-        lda $A2
+        lda $A8
         cmp #4
         bcc v2arpc
-        lda $B2
+        lda $B8
         beq v2arpc
-        lda $A8
-        cmp $A2
+        lda $AE
+        cmp $A8
         bcs v2bns
-        lda $B2
+        lda $B8
         sta $D40F
         lda #$80
         sta $D412
         jmp v2arpc
 v2bns
-        lda $B2
+        lda $B8
         sta $D40F
-        dec $B2
+        dec $B8
         lda i_ctrl,y
         and #$FE
         bne v2bcm
-        lda $B2
+        lda $B8
         sta $D40F
         lda #$80
 v2bcm
         sta $D412
 v2arpc
-        ldy $B0
+        ldy $B6
         lda i_arp,y
         beq v2pw
-        ldx $AA
-        lda $B3
+        ldx $B0
+        lda $BC
         and #$01
         beq v2frok
         txa
@@ -327,193 +385,231 @@ v2frok
         lda ftlo,x
         sta $D40E
 v2pw
-        lda $AE
-        beq v2done
+        lda $B4
+        bne v2pwgo
+        jmp v2done
+v2pwgo
         cmp #$FF
         beq v2lin
-        dec $A7
+        dec $AD
         bpl v2done
-        lda $AC
+        lda $B2
         and #$1F
-        sta $A7
-        lda $AC
+        sta $AD
+        lda $B2
         and #$E0
-        sta $B6
-        lda $AF
+        sta $BF
+        ldy $B6
+        lda i_pwlo,y
+        sta $AF
+        lda i_pwhi,y
+        sta $B3
+        lda $B5
         bne v2dn
         clc
-        lda $A9
-        adc $B6
-        sta $A9
+        lda $AF
+        adc $BF
+        sta $AF
         bcc v2ncu
-        inc $AD
-        lda $AD
+        inc $B3
+        lda $B3
         and #$0F
-        sta $AD
+        sta $B3
 v2ncu
-        lda $AD
-        cmp $AE
+        lda $B3
+        cmp $B4
         bne v2pwwr
-        inc $AF
+        inc $B5
         jmp v2pwwr
 v2dn
         sec
-        lda $A9
-        sbc $B6
-        sta $A9
+        lda $AF
+        sbc $BF
+        sta $AF
         bcs v2ncd
-        dec $AD
+        dec $B3
+        lda $B3
+        and #$0F
+        sta $B3
 v2ncd
-        lda $AD
+        lda $B3
         cmp #$08
         bne v2pwwr
-        dec $AF
+        dec $B5
         jmp v2pwwr
 v2lin
+        ldy $B6
+        lda i_pwlo,y
         clc
-        lda $A9
-        adc $AC
-        sta $A9
+        adc $B2
+        sta $AF
         sta $D410
-        ldy $B0
         sta i_pwlo,y
         jmp v2done
 v2pwwr
-        lda $AD
+        lda $B3
         sta $D411
-        lda $A9
+        lda $AF
         sta $D410
-        ldy $B0
-        lda $A9
+        lda $AF
         sta i_pwlo,y
-        lda $AD
+        lda $B3
         sta i_pwhi,y
 v2done
 
+; --- Update T[98], T[99], T[105], T[106], T[107] before V2 (after V3) ---
+        lda $C4
+        sta ftlo+98
+        lda $C5
+        sta fthi+98
+        lda $C6
+        sta ftlo+99
+        lda $8F
+        sta fthi+99
+        lda $C3
+        sta ftlo+105
+        lda $88
+        sta fthi+105
+        lda $9C
+        sta ftlo+106
+        lda $B0
+        sta fthi+106
+        lda $8E
+        sta ftlo+107
+        lda $A2
+        sta fthi+107
 ; --- Voice 2 ---
-        dec $91
+        dec $94
         beq v1rd
         jmp v1eval
 v1rd
         ldy #0
-        lda ($94),y
+        lda ($97),y
         cmp #$FE
         bne v1nt
         lda #0
-        sta $A0
-        lda #$FF
-        sta $9F
+        sta $A3
         ldy #0
-        lda ($92),y
-        sta $94
+        lda ($95),y
+        sta $97
         iny
-        lda ($92),y
-        sta $95
+        lda ($95),y
+        sta $98
         clc
-        lda $92
+        lda $95
         adc #2
-        sta $92
+        sta $95
         bcc v1rd
-        inc $93
+        inc $96
         jmp v1rd
 v1nt
-        sta $99
+        sta $9C
         iny
-        lda ($94),y
+        lda ($97),y
         tax
         lda #0
 v1mul  clc
         adc #3
         dex
         bne v1mul
-        sta $91
-        sta $9A
+        sta $94
+        sta $9D
         sec
         sbc #3
-        sta $97
+        sta $9A
         iny
-        lda ($94),y
-        sta $B6
-        and #$3F
-        tax
-        stx $9F
-        lda $B6
+        lda ($97),y
+        sta $BF
         and #$40
         bne v1hubt
-        lda $B6
+        lda $BF
         bmi v1hub2
-        lda $A0
+        and #$3F
+        tax
+        stx $A2
+        lda $A3
         clc
         adc #3
-        sta $A0
+        sta $A3
         jmp v1hubx
 v1hub2
-        lda $A0
+        ldx $A2
+        lda $A3
         clc
         adc #2
-        sta $A0
+        sta $A3
         jmp v1hubx
 v1hubt
-        lda $A0
+        ldx $A2
+        lda $A3
         clc
         adc #1
-        sta $A0
+        sta $A3
 v1hubx
-        lda $B6
+        lda $BF
         and #$40
         bne v1tie
-        lda $99
+        lda $9C
         tay
         lda fthi,y
         sta $D408
-        sta $A1
+        sta $A4
         lda ftlo,y
         sta $D407
+        sta $A6
+        lda fthi,y
+        sta $A7
         lda i_ctrl,x
-        sta $B5
+        sta $BE
         sta $D40B
         jmp v1pw0
 v1tie
         lda i_ctrl,x
-        sta $B5
+        sta $BE
         and #$FE
         sta $D40B
 v1pw0
         lda i_pwlo,x
         sta $D409
-        sta $98
+        sta $9B
         lda i_pwhi,x
         sta $D40A
-        sta $9C
+        sta $9F
         lda i_ad,x
         sta $D40C
         lda i_sr,x
         sta $D40D
         lda i_pws,x
-        sta $9B
+        sta $9E
         lda i_pwmax,x
-        sta $9D
+        sta $A0
+        ldy #3
+        lda ($97),y
+        sta $A5
         clc
-        lda $94
-        adc #3
-        sta $94
+        lda $97
+        adc #4
+        sta $97
         bcc v1nd1
-        inc $95
+        inc $98
 v1nd1
         ldy #0
-        lda ($94),y
+        lda ($97),y
         cmp #$FE
         bne v1npe
         lda #0
-        sta $A0
+        sta $A3
+        inc $C5
 v1npe
         jmp v1done
 
 v1eval
-        lda $91
+        lda $94
         cmp #3
         bne v1efx
-        ldy $9F
+        lda $A5
+        bmi v1efx
+        ldy $A2
         lda i_ctrl,y
         and #$FE
         sta $D40B
@@ -521,101 +617,135 @@ v1eval
         sta $D40C
         sta $D40D
 v1efx
-        ldy $9F
+        ldy $A2
         lda i_vib,y
-        beq v1bit0
-        lda $9A
+        bne v1vibdo
+        jmp v1drm
+v1vibdo
+        lda $9D
         cmp #21
         bcs v1vlong
-        ldx $99
+        ldx $9C
         lda fthi,x
         sta $D407
         lda ftlo,x
         sta $D408
-        jmp v1bit0
+        jmp v1drm
 v1vlong
-        lda $B3
+        lda $BC
         and #$07
         cmp #4
         bcc v1vdok
         eor #$07
 v1vdok
         tax
-        ldy $99
+        ldy $9C
         lda fthi+1,y
         sec
         sbc fthi,y
-        sta $B6
+        sta $BF
         lda ftlo+1,y
         sbc ftlo,y
-        sta $B7
-        lda $9F
+        sta $C0
+        lda $A2
         tay
         lda i_vib,y
         tay
         iny
 v1vsr
-        lsr $B7
-        ror $B6
+        lsr $C0
+        ror $BF
         dey
         bne v1vsr
-        ldy $99
+        ldy $9C
         lda fthi,y
-        sta $B8
+        sta $C1
         lda ftlo,y
-        sta $B9
+        sta $C2
         cpx #0
         beq v1vwr
 v1vmul
         clc
-        lda $B8
-        adc $B7
-        sta $B8
-        lda $B9
-        adc $B6
-        sta $B9
+        lda $C1
+        adc $C0
+        sta $C1
+        lda $C2
+        adc $BF
+        sta $C2
         dex
         bne v1vmul
 v1vwr
-        lda $B8
+        lda $C1
         sta $D407
-        lda $B9
+        lda $C2
+        sta $D408
+v1drm
+        lda $A5
+        and #$7F
+        beq v1bit0
+        and #$01
+        bne v1drmd
+        lda $A5
+        and #$7E
+        sta $BF
+        clc
+        lda $A6
+        adc $BF
+        sta $A6
+        sta $D407
+        lda $A7
+        adc #0
+        sta $A7
+        sta $D408
+        jmp v1bit0
+v1drmd
+        lda $A5
+        and #$7E
+        sta $BF
+        sec
+        lda $A6
+        sbc $BF
+        sta $A6
+        sta $D407
+        lda $A7
+        sbc #0
+        sta $A7
         sta $D408
 v1bit0
-        ldy $9F
+        ldy $A2
         lda i_bit0,y
         beq v1arpc
-        lda $91
+        lda $94
         cmp #4
         bcc v1arpc
-        lda $A1
+        lda $A4
         beq v1arpc
-        lda $97
-        cmp $91
+        lda $9A
+        cmp $94
         bcs v1bns
-        lda $A1
+        lda $A4
         sta $D408
         lda #$80
         sta $D40B
         jmp v1arpc
 v1bns
-        lda $A1
+        lda $A4
         sta $D408
-        dec $A1
+        dec $A4
         lda i_ctrl,y
         and #$FE
         bne v1bcm
-        lda $A1
+        lda $A4
         sta $D408
         lda #$80
 v1bcm
         sta $D40B
 v1arpc
-        ldy $9F
+        ldy $A2
         lda i_arp,y
         beq v1pw
-        ldx $99
-        lda $B3
+        ldx $9C
+        lda $BC
         and #$01
         beq v1frok
         txa
@@ -628,77 +758,86 @@ v1frok
         lda ftlo,x
         sta $D407
 v1pw
-        lda $9D
-        beq v1done
+        lda $A0
+        bne v1pwgo
+        jmp v1done
+v1pwgo
         cmp #$FF
         beq v1lin
-        dec $96
+        dec $99
         bpl v1done
-        lda $9B
-        and #$1F
-        sta $96
-        lda $9B
-        and #$E0
-        sta $B6
         lda $9E
+        and #$1F
+        sta $99
+        lda $9E
+        and #$E0
+        sta $BF
+        ldy $A2
+        lda i_pwlo,y
+        sta $9B
+        lda i_pwhi,y
+        sta $9F
+        lda $A1
         bne v1dn
         clc
-        lda $98
-        adc $B6
-        sta $98
+        lda $9B
+        adc $BF
+        sta $9B
         bcc v1ncu
-        inc $9C
-        lda $9C
+        inc $9F
+        lda $9F
         and #$0F
-        sta $9C
+        sta $9F
 v1ncu
-        lda $9C
-        cmp $9D
+        lda $9F
+        cmp $A0
         bne v1pwwr
-        inc $9E
+        inc $A1
         jmp v1pwwr
 v1dn
         sec
-        lda $98
-        sbc $B6
-        sta $98
+        lda $9B
+        sbc $BF
+        sta $9B
         bcs v1ncd
-        dec $9C
+        dec $9F
+        lda $9F
+        and #$0F
+        sta $9F
 v1ncd
-        lda $9C
+        lda $9F
         cmp #$08
         bne v1pwwr
-        dec $9E
+        dec $A1
         jmp v1pwwr
 v1lin
+        ldy $A2
+        lda i_pwlo,y
         clc
-        lda $98
-        adc $9B
-        sta $98
+        adc $9E
+        sta $9B
         sta $D409
-        ldy $9F
         sta i_pwlo,y
         jmp v1done
 v1pwwr
-        lda $9C
+        lda $9F
         sta $D40A
-        lda $98
+        lda $9B
         sta $D409
-        ldy $9F
-        lda $98
+        lda $9B
         sta i_pwlo,y
-        lda $9C
+        lda $9F
         sta i_pwhi,y
 v1done
 
 ; --- Update T[100] and T[104] before V1 ---
-        lda $A0
+        lda $A3
         sta ftlo+100
-        lda $B1
+        lda $B7
         sta fthi+100
-        lda $B4
+        lda $BD
         sta ftlo+104
-        lda $B5
+        lda $BE
         sta fthi+104
 ; --- Voice 1 ---
         dec $80
@@ -711,8 +850,6 @@ v0rd
         bne v0nt
         lda #0
         sta $8F
-        lda #$FF
-        sta $8E
         ldy #0
         lda ($81),y
         sta $83
@@ -743,33 +880,34 @@ v0mul  clc
         sta $86
         iny
         lda ($83),y
-        sta $B6
+        sta $BF
+        and #$40
+        bne v0hubt
+        lda $BF
+        bmi v0hub2
         and #$3F
         tax
         stx $8E
-        lda $B6
-        and #$40
-        bne v0hubt
-        lda $B6
-        bmi v0hub2
         lda $8F
         clc
         adc #3
         sta $8F
         jmp v0hubx
 v0hub2
+        ldx $8E
         lda $8F
         clc
         adc #2
         sta $8F
         jmp v0hubx
 v0hubt
+        ldx $8E
         lda $8F
         clc
         adc #1
         sta $8F
 v0hubx
-        lda $B6
+        lda $BF
         and #$40
         bne v0tie
         lda $88
@@ -779,13 +917,16 @@ v0hubx
         sta $90
         lda ftlo,y
         sta $D400
+        sta $92
+        lda fthi,y
+        sta $93
         lda i_ctrl,x
-        sta $B4
+        sta $BD
         sta $D404
         jmp v0pw0
 v0tie
         lda i_ctrl,x
-        sta $B4
+        sta $BD
         and #$FE
         sta $D404
 v0pw0
@@ -803,9 +944,12 @@ v0pw0
         sta $8A
         lda i_pwmax,x
         sta $8C
+        ldy #3
+        lda ($83),y
+        sta $91
         clc
         lda $83
-        adc #3
+        adc #4
         sta $83
         bcc v0nd1
         inc $84
@@ -816,6 +960,7 @@ v0nd1
         bne v0npe
         lda #0
         sta $8F
+        inc $C4
 v0npe
         jmp v0done
 
@@ -823,6 +968,8 @@ v0eval
         lda $80
         cmp #3
         bne v0efx
+        lda $91
+        bmi v0efx
         ldy $8E
         lda i_ctrl,y
         and #$FE
@@ -833,7 +980,9 @@ v0eval
 v0efx
         ldy $8E
         lda i_vib,y
-        beq v0bit0
+        bne v0vibdo
+        jmp v0drm
+v0vibdo
         lda $89
         cmp #21
         bcs v0vlong
@@ -842,9 +991,9 @@ v0efx
         sta $D400
         lda ftlo,x
         sta $D401
-        jmp v0bit0
+        jmp v0drm
 v0vlong
-        lda $B3
+        lda $BC
         and #$07
         cmp #4
         bcc v0vdok
@@ -855,41 +1004,73 @@ v0vdok
         lda fthi+1,y
         sec
         sbc fthi,y
-        sta $B6
+        sta $BF
         lda ftlo+1,y
         sbc ftlo,y
-        sta $B7
+        sta $C0
         lda $8E
         tay
         lda i_vib,y
         tay
         iny
 v0vsr
-        lsr $B7
-        ror $B6
+        lsr $C0
+        ror $BF
         dey
         bne v0vsr
         ldy $88
         lda fthi,y
-        sta $B8
+        sta $C1
         lda ftlo,y
-        sta $B9
+        sta $C2
         cpx #0
         beq v0vwr
 v0vmul
         clc
-        lda $B8
-        adc $B7
-        sta $B8
-        lda $B9
-        adc $B6
-        sta $B9
+        lda $C1
+        adc $C0
+        sta $C1
+        lda $C2
+        adc $BF
+        sta $C2
         dex
         bne v0vmul
 v0vwr
-        lda $B8
+        lda $C1
         sta $D400
-        lda $B9
+        lda $C2
+        sta $D401
+v0drm
+        lda $91
+        and #$7F
+        beq v0bit0
+        and #$01
+        bne v0drmd
+        lda $91
+        and #$7E
+        sta $BF
+        clc
+        lda $92
+        adc $BF
+        sta $92
+        sta $D400
+        lda $93
+        adc #0
+        sta $93
+        sta $D401
+        jmp v0bit0
+v0drmd
+        lda $91
+        and #$7E
+        sta $BF
+        sec
+        lda $92
+        sbc $BF
+        sta $92
+        sta $D400
+        lda $93
+        sbc #0
+        sta $93
         sta $D401
 v0bit0
         ldy $8E
@@ -925,7 +1106,7 @@ v0arpc
         lda i_arp,y
         beq v0pw
         ldx $88
-        lda $B3
+        lda $BC
         and #$01
         beq v0frok
         txa
@@ -939,7 +1120,9 @@ v0frok
         sta $D400
 v0pw
         lda $8C
-        beq v0done
+        bne v0pwgo
+        jmp v0done
+v0pwgo
         cmp #$FF
         beq v0lin
         dec $85
@@ -949,12 +1132,17 @@ v0pw
         sta $85
         lda $8A
         and #$E0
-        sta $B6
+        sta $BF
+        ldy $8E
+        lda i_pwlo,y
+        sta $87
+        lda i_pwhi,y
+        sta $8B
         lda $8D
         bne v0dn
         clc
         lda $87
-        adc $B6
+        adc $BF
         sta $87
         bcc v0ncu
         inc $8B
@@ -970,10 +1158,13 @@ v0ncu
 v0dn
         sec
         lda $87
-        sbc $B6
+        sbc $BF
         sta $87
         bcs v0ncd
         dec $8B
+        lda $8B
+        and #$0F
+        sta $8B
 v0ncd
         lda $8B
         cmp #$08
@@ -981,12 +1172,12 @@ v0ncd
         dec $8D
         jmp v0pwwr
 v0lin
+        ldy $8E
+        lda i_pwlo,y
         clc
-        lda $87
         adc $8A
         sta $87
         sta $D402
-        ldy $8E
         sta i_pwlo,y
         jmp v0done
 v0pwwr
@@ -994,7 +1185,6 @@ v0pwwr
         sta $D403
         lda $87
         sta $D402
-        ldy $8E
         lda $87
         sta i_pwlo,y
         lda $8B
@@ -1044,636 +1234,636 @@ i_ctrl
         .byte $41,$41,$41,$81,$43,$41,$41,$15,$41,$21,$41,$43,$41
 
 pat1
-        .byte $15,$06,$02
-        .byte $21,$02,$82
-        .byte $2E,$04,$03
-        .byte $15,$04,$02
-        .byte $15,$08,$82
-        .byte $2E,$04,$03
-        .byte $1F,$02,$02
-        .byte $21,$02,$82
+        .byte $15,$06,$02,$00
+        .byte $21,$02,$82,$00
+        .byte $2E,$04,$03,$00
+        .byte $15,$04,$02,$00
+        .byte $15,$08,$82,$00
+        .byte $2E,$04,$03,$00
+        .byte $1F,$02,$02,$00
+        .byte $21,$02,$82,$00
         .byte $FE
 pat2
-        .byte $16,$06,$02
-        .byte $22,$02,$82
-        .byte $2E,$04,$03
-        .byte $16,$04,$02
-        .byte $16,$08,$82
-        .byte $2E,$04,$03
-        .byte $21,$02,$02
-        .byte $22,$02,$82
+        .byte $16,$06,$02,$00
+        .byte $22,$02,$82,$00
+        .byte $2E,$04,$03,$00
+        .byte $16,$04,$02,$00
+        .byte $16,$08,$82,$00
+        .byte $2E,$04,$03,$00
+        .byte $21,$02,$02,$00
+        .byte $22,$02,$82,$00
         .byte $FE
 pat3
-        .byte $10,$06,$02
-        .byte $1C,$02,$82
-        .byte $2E,$04,$03
-        .byte $10,$04,$02
-        .byte $10,$08,$82
-        .byte $2E,$04,$03
-        .byte $1A,$02,$02
-        .byte $1C,$02,$82
+        .byte $10,$06,$02,$00
+        .byte $1C,$02,$82,$00
+        .byte $2E,$04,$03,$00
+        .byte $10,$04,$02,$00
+        .byte $10,$08,$82,$00
+        .byte $2E,$04,$03,$00
+        .byte $1A,$02,$02,$00
+        .byte $1C,$02,$82,$00
         .byte $FE
 pat4
-        .byte $18,$06,$02
-        .byte $24,$02,$82
-        .byte $2E,$04,$03
-        .byte $18,$04,$02
-        .byte $18,$08,$82
-        .byte $2E,$04,$03
-        .byte $22,$02,$02
-        .byte $24,$02,$82
+        .byte $18,$06,$02,$00
+        .byte $24,$02,$82,$00
+        .byte $2E,$04,$03,$00
+        .byte $18,$04,$02,$00
+        .byte $18,$08,$82,$00
+        .byte $2E,$04,$03,$00
+        .byte $22,$02,$02,$00
+        .byte $24,$02,$82,$00
         .byte $FE
 pat5
-        .byte $19,$06,$02
-        .byte $25,$02,$82
-        .byte $2E,$04,$03
-        .byte $19,$04,$02
-        .byte $19,$08,$82
-        .byte $2E,$04,$03
-        .byte $24,$02,$02
-        .byte $25,$02,$82
+        .byte $19,$06,$02,$00
+        .byte $25,$02,$82,$00
+        .byte $2E,$04,$03,$00
+        .byte $19,$04,$02,$00
+        .byte $19,$08,$82,$00
+        .byte $2E,$04,$03,$00
+        .byte $24,$02,$02,$00
+        .byte $25,$02,$82,$00
         .byte $FE
 pat6
-        .byte $13,$06,$02
-        .byte $1F,$02,$82
-        .byte $2E,$04,$03
-        .byte $13,$04,$02
-        .byte $13,$08,$82
-        .byte $2E,$04,$03
-        .byte $1C,$02,$02
-        .byte $1C,$02,$82
+        .byte $13,$06,$02,$00
+        .byte $1F,$02,$82,$00
+        .byte $2E,$04,$03,$00
+        .byte $13,$04,$02,$00
+        .byte $13,$08,$82,$00
+        .byte $2E,$04,$03,$00
+        .byte $1C,$02,$02,$00
+        .byte $1C,$02,$82,$00
         .byte $FE
 pat7
-        .byte $32,$02,$03
-        .byte $39,$02,$00
-        .byte $39,$04,$80
-        .byte $39,$04,$80
-        .byte $39,$04,$80
-        .byte $39,$08,$80
-        .byte $39,$06,$80
-        .byte $39,$04,$80
-        .byte $40,$02,$80
-        .byte $40,$04,$80
-        .byte $40,$04,$80
-        .byte $40,$04,$80
-        .byte $40,$08,$80
-        .byte $2C,$08,$0C
-        .byte $41,$08,$00
-        .byte $40,$08,$80
-        .byte $41,$08,$80
-        .byte $40,$08,$80
-        .byte $40,$02,$C0
-        .byte $3B,$02,$80
-        .byte $3B,$04,$80
-        .byte $3B,$04,$80
-        .byte $3B,$04,$80
-        .byte $3B,$08,$80
-        .byte $2C,$08,$0C
-        .byte $32,$02,$03
-        .byte $3C,$02,$00
-        .byte $3C,$04,$80
-        .byte $3C,$04,$80
-        .byte $3C,$04,$80
-        .byte $3C,$08,$80
-        .byte $3C,$06,$80
-        .byte $3C,$04,$80
-        .byte $43,$02,$80
-        .byte $43,$04,$80
-        .byte $43,$04,$80
-        .byte $43,$04,$80
-        .byte $43,$08,$80
-        .byte $2C,$08,$0C
-        .byte $44,$08,$00
-        .byte $43,$08,$80
-        .byte $44,$08,$80
-        .byte $43,$08,$80
-        .byte $43,$02,$C0
-        .byte $3E,$02,$80
-        .byte $3E,$04,$80
-        .byte $3E,$04,$80
-        .byte $3E,$04,$80
-        .byte $3E,$08,$80
-        .byte $2F,$04,$0C
-        .byte $2C,$02,$8C
-        .byte $2C,$02,$8C
+        .byte $32,$02,$03,$00
+        .byte $39,$02,$00,$00
+        .byte $39,$04,$80,$00
+        .byte $39,$04,$80,$00
+        .byte $39,$04,$80,$00
+        .byte $39,$08,$80,$00
+        .byte $39,$06,$80,$00
+        .byte $39,$04,$80,$00
+        .byte $40,$02,$80,$00
+        .byte $40,$04,$80,$00
+        .byte $40,$04,$80,$00
+        .byte $40,$04,$80,$00
+        .byte $40,$08,$80,$00
+        .byte $2C,$08,$0C,$00
+        .byte $41,$08,$00,$00
+        .byte $40,$08,$80,$00
+        .byte $41,$08,$80,$00
+        .byte $40,$08,$80,$00
+        .byte $40,$02,$C0,$00
+        .byte $3B,$02,$80,$00
+        .byte $3B,$04,$80,$00
+        .byte $3B,$04,$80,$00
+        .byte $3B,$04,$80,$00
+        .byte $3B,$08,$80,$00
+        .byte $2C,$08,$0C,$00
+        .byte $32,$02,$03,$00
+        .byte $3C,$02,$00,$00
+        .byte $3C,$04,$80,$00
+        .byte $3C,$04,$80,$00
+        .byte $3C,$04,$80,$00
+        .byte $3C,$08,$80,$00
+        .byte $3C,$06,$80,$00
+        .byte $3C,$04,$80,$00
+        .byte $43,$02,$80,$00
+        .byte $43,$04,$80,$00
+        .byte $43,$04,$80,$00
+        .byte $43,$04,$80,$00
+        .byte $43,$08,$80,$00
+        .byte $2C,$08,$0C,$00
+        .byte $44,$08,$00,$00
+        .byte $43,$08,$80,$00
+        .byte $44,$08,$80,$00
+        .byte $43,$08,$80,$00
+        .byte $43,$02,$C0,$00
+        .byte $3E,$02,$80,$00
+        .byte $3E,$04,$80,$00
+        .byte $3E,$04,$80,$00
+        .byte $3E,$04,$80,$00
+        .byte $3E,$08,$80,$00
+        .byte $2F,$04,$0C,$00
+        .byte $2C,$02,$8C,$00
+        .byte $2C,$02,$8C,$00
         .byte $FE
 pat8
-        .byte $68,$02,$04
-        .byte $68,$02,$84
-        .byte $68,$02,$84
-        .byte $68,$02,$84
-        .byte $34,$04,$01
-        .byte $34,$04,$81
-        .byte $35,$06,$81
-        .byte $34,$06,$81
-        .byte $32,$04,$81
-        .byte $68,$02,$04
-        .byte $68,$02,$84
-        .byte $68,$02,$84
-        .byte $68,$02,$84
-        .byte $34,$04,$01
-        .byte $34,$04,$81
-        .byte $34,$08,$81
-        .byte $34,$08,$C1
-        .byte $68,$02,$04
-        .byte $68,$02,$84
-        .byte $68,$02,$84
-        .byte $68,$02,$84
-        .byte $34,$04,$01
-        .byte $34,$04,$81
-        .byte $35,$06,$81
-        .byte $34,$06,$81
-        .byte $32,$04,$81
-        .byte $32,$02,$C1
-        .byte $34,$02,$01
-        .byte $34,$04,$81
-        .byte $34,$04,$81
-        .byte $34,$04,$81
-        .byte $34,$08,$81
-        .byte $34,$08,$C1
+        .byte $68,$02,$04,$00
+        .byte $68,$02,$84,$00
+        .byte $68,$02,$84,$00
+        .byte $68,$02,$84,$00
+        .byte $34,$04,$01,$00
+        .byte $34,$04,$81,$00
+        .byte $35,$06,$81,$00
+        .byte $34,$06,$81,$00
+        .byte $32,$04,$81,$00
+        .byte $68,$02,$04,$00
+        .byte $68,$02,$84,$00
+        .byte $68,$02,$84,$00
+        .byte $68,$02,$84,$00
+        .byte $34,$04,$01,$00
+        .byte $34,$04,$81,$00
+        .byte $34,$08,$81,$00
+        .byte $34,$08,$C1,$00
+        .byte $68,$02,$04,$00
+        .byte $68,$02,$84,$00
+        .byte $68,$02,$84,$00
+        .byte $68,$02,$84,$00
+        .byte $34,$04,$01,$00
+        .byte $34,$04,$81,$00
+        .byte $35,$06,$81,$00
+        .byte $34,$06,$81,$00
+        .byte $32,$04,$81,$00
+        .byte $32,$02,$C1,$00
+        .byte $34,$02,$01,$00
+        .byte $34,$04,$81,$00
+        .byte $34,$04,$81,$00
+        .byte $34,$04,$81,$00
+        .byte $34,$08,$81,$00
+        .byte $34,$08,$C1,$00
         .byte $FE
 pat9
-        .byte $32,$04,$03
-        .byte $32,$04,$83
-        .byte $39,$04,$00
-        .byte $39,$04,$80
-        .byte $39,$02,$80
-        .byte $39,$02,$80
-        .byte $39,$04,$80
-        .byte $3B,$04,$80
-        .byte $3C,$04,$80
-        .byte $3E,$02,$80
-        .byte $3E,$02,$80
-        .byte $3E,$04,$80
-        .byte $3E,$04,$80
-        .byte $3E,$04,$80
-        .byte $3E,$08,$80
-        .byte $2C,$04,$0C
-        .byte $3E,$02,$00
-        .byte $40,$02,$80
-        .byte $41,$02,$80
-        .byte $41,$02,$80
-        .byte $40,$04,$80
-        .byte $3E,$04,$80
-        .byte $3C,$04,$80
-        .byte $3B,$04,$80
-        .byte $39,$04,$80
-        .byte $38,$08,$80
-        .byte $32,$02,$03
-        .byte $39,$02,$00
-        .byte $39,$04,$80
-        .byte $39,$04,$80
-        .byte $3B,$04,$80
-        .byte $39,$08,$80
-        .byte $2C,$08,$0C
+        .byte $32,$04,$03,$00
+        .byte $32,$04,$83,$00
+        .byte $39,$04,$00,$00
+        .byte $39,$04,$80,$00
+        .byte $39,$02,$80,$00
+        .byte $39,$02,$80,$00
+        .byte $39,$04,$80,$00
+        .byte $3B,$04,$80,$00
+        .byte $3C,$04,$80,$00
+        .byte $3E,$02,$80,$00
+        .byte $3E,$02,$80,$00
+        .byte $3E,$04,$80,$00
+        .byte $3E,$04,$80,$00
+        .byte $3E,$04,$80,$00
+        .byte $3E,$08,$80,$00
+        .byte $2C,$04,$0C,$00
+        .byte $3E,$02,$00,$00
+        .byte $40,$02,$80,$00
+        .byte $41,$02,$80,$00
+        .byte $41,$02,$80,$00
+        .byte $40,$04,$80,$00
+        .byte $3E,$04,$80,$00
+        .byte $3C,$04,$80,$00
+        .byte $3B,$04,$80,$00
+        .byte $39,$04,$80,$00
+        .byte $38,$08,$80,$00
+        .byte $32,$02,$03,$00
+        .byte $39,$02,$00,$00
+        .byte $39,$04,$80,$00
+        .byte $39,$04,$80,$00
+        .byte $3B,$04,$80,$00
+        .byte $39,$08,$80,$00
+        .byte $2C,$08,$0C,$00
         .byte $FE
 pat10
-        .byte $68,$02,$04
-        .byte $68,$02,$84
-        .byte $68,$02,$84
-        .byte $68,$02,$84
-        .byte $37,$04,$01
-        .byte $37,$04,$81
-        .byte $38,$06,$81
-        .byte $37,$06,$81
-        .byte $35,$04,$81
-        .byte $68,$02,$04
-        .byte $68,$02,$84
-        .byte $68,$02,$84
-        .byte $68,$02,$84
-        .byte $37,$04,$01
-        .byte $37,$04,$81
-        .byte $37,$08,$81
-        .byte $37,$08,$C1
-        .byte $68,$02,$04
-        .byte $68,$02,$84
-        .byte $68,$02,$84
-        .byte $68,$02,$84
-        .byte $37,$04,$01
-        .byte $37,$04,$81
-        .byte $38,$06,$81
-        .byte $37,$06,$81
-        .byte $35,$04,$81
-        .byte $35,$02,$C1
-        .byte $37,$02,$01
-        .byte $37,$04,$81
-        .byte $37,$04,$81
-        .byte $37,$04,$81
-        .byte $37,$08,$81
-        .byte $37,$08,$C1
+        .byte $68,$02,$04,$00
+        .byte $68,$02,$84,$00
+        .byte $68,$02,$84,$00
+        .byte $68,$02,$84,$00
+        .byte $37,$04,$01,$00
+        .byte $37,$04,$81,$00
+        .byte $38,$06,$81,$00
+        .byte $37,$06,$81,$00
+        .byte $35,$04,$81,$00
+        .byte $68,$02,$04,$00
+        .byte $68,$02,$84,$00
+        .byte $68,$02,$84,$00
+        .byte $68,$02,$84,$00
+        .byte $37,$04,$01,$00
+        .byte $37,$04,$81,$00
+        .byte $37,$08,$81,$00
+        .byte $37,$08,$C1,$00
+        .byte $68,$02,$04,$00
+        .byte $68,$02,$84,$00
+        .byte $68,$02,$84,$00
+        .byte $68,$02,$84,$00
+        .byte $37,$04,$01,$00
+        .byte $37,$04,$81,$00
+        .byte $38,$06,$81,$00
+        .byte $37,$06,$81,$00
+        .byte $35,$04,$81,$00
+        .byte $35,$02,$C1,$00
+        .byte $37,$02,$01,$00
+        .byte $37,$04,$81,$00
+        .byte $37,$04,$81,$00
+        .byte $37,$04,$81,$00
+        .byte $37,$08,$81,$00
+        .byte $37,$08,$C1,$00
         .byte $FE
 pat11
-        .byte $1A,$06,$02
-        .byte $26,$02,$82
-        .byte $2E,$04,$03
-        .byte $1A,$04,$02
-        .byte $1A,$08,$82
-        .byte $2E,$04,$03
-        .byte $24,$02,$02
-        .byte $26,$02,$82
+        .byte $1A,$06,$02,$00
+        .byte $26,$02,$82,$00
+        .byte $2E,$04,$03,$00
+        .byte $1A,$04,$02,$00
+        .byte $1A,$08,$82,$00
+        .byte $2E,$04,$03,$00
+        .byte $24,$02,$02,$00
+        .byte $26,$02,$82,$00
         .byte $FE
 pat12
-        .byte $3C,$02,$05
-        .byte $3B,$04,$85
-        .byte $3A,$02,$85
-        .byte $39,$04,$85
-        .byte $3C,$02,$85
-        .byte $3B,$04,$85
-        .byte $3A,$02,$85
-        .byte $39,$04,$85
-        .byte $3C,$02,$85
-        .byte $3B,$04,$85
-        .byte $3A,$02,$85
-        .byte $39,$04,$85
-        .byte $3C,$02,$85
-        .byte $3B,$04,$85
-        .byte $3A,$02,$85
-        .byte $39,$04,$85
-        .byte $3C,$02,$85
-        .byte $3B,$04,$85
-        .byte $39,$02,$85
-        .byte $41,$04,$85
-        .byte $40,$04,$85
-        .byte $41,$02,$85
-        .byte $40,$04,$85
-        .byte $3F,$02,$85
-        .byte $3E,$04,$85
-        .byte $41,$02,$85
-        .byte $40,$04,$85
-        .byte $3F,$02,$85
-        .byte $3E,$04,$85
-        .byte $41,$04,$85
-        .byte $40,$04,$85
-        .byte $3B,$02,$85
-        .byte $3A,$04,$85
-        .byte $39,$02,$85
-        .byte $38,$04,$85
-        .byte $3B,$02,$85
-        .byte $3A,$04,$85
-        .byte $39,$02,$85
-        .byte $38,$04,$85
-        .byte $3C,$04,$85
-        .byte $3B,$04,$85
+        .byte $3C,$02,$05,$00
+        .byte $3B,$04,$85,$00
+        .byte $3A,$02,$85,$00
+        .byte $39,$04,$85,$00
+        .byte $3C,$02,$85,$00
+        .byte $3B,$04,$85,$00
+        .byte $3A,$02,$85,$00
+        .byte $39,$04,$85,$00
+        .byte $3C,$02,$85,$00
+        .byte $3B,$04,$85,$00
+        .byte $3A,$02,$85,$00
+        .byte $39,$04,$85,$00
+        .byte $3C,$02,$85,$00
+        .byte $3B,$04,$85,$00
+        .byte $3A,$02,$85,$00
+        .byte $39,$04,$85,$00
+        .byte $3C,$02,$85,$00
+        .byte $3B,$04,$85,$00
+        .byte $39,$02,$85,$00
+        .byte $41,$04,$85,$00
+        .byte $40,$04,$85,$00
+        .byte $41,$02,$85,$00
+        .byte $40,$04,$85,$00
+        .byte $3F,$02,$85,$00
+        .byte $3E,$04,$85,$00
+        .byte $41,$02,$85,$00
+        .byte $40,$04,$85,$00
+        .byte $3F,$02,$85,$00
+        .byte $3E,$04,$85,$00
+        .byte $41,$04,$85,$00
+        .byte $40,$04,$85,$00
+        .byte $3B,$02,$85,$00
+        .byte $3A,$04,$85,$00
+        .byte $39,$02,$85,$00
+        .byte $38,$04,$85,$00
+        .byte $3B,$02,$85,$00
+        .byte $3A,$04,$85,$00
+        .byte $39,$02,$85,$00
+        .byte $38,$04,$85,$00
+        .byte $3C,$04,$85,$00
+        .byte $3B,$04,$85,$00
         .byte $FE
 pat13
-        .byte $12,$06,$02
-        .byte $1E,$02,$82
-        .byte $2E,$04,$03
-        .byte $12,$04,$02
-        .byte $12,$08,$82
-        .byte $2E,$04,$03
-        .byte $1C,$02,$02
-        .byte $1E,$02,$82
+        .byte $12,$06,$02,$00
+        .byte $1E,$02,$82,$00
+        .byte $2E,$04,$03,$00
+        .byte $12,$04,$02,$00
+        .byte $12,$08,$82,$00
+        .byte $2E,$04,$03,$00
+        .byte $1C,$02,$02,$00
+        .byte $1E,$02,$82,$00
         .byte $FE
 pat14
-        .byte $19,$06,$02
-        .byte $25,$02,$82
-        .byte $2E,$04,$03
-        .byte $19,$04,$02
-        .byte $19,$08,$82
-        .byte $2E,$04,$03
-        .byte $23,$02,$02
-        .byte $25,$02,$82
+        .byte $19,$06,$02,$00
+        .byte $25,$02,$82,$00
+        .byte $2E,$04,$03,$00
+        .byte $19,$04,$02,$00
+        .byte $19,$08,$82,$00
+        .byte $2E,$04,$03,$00
+        .byte $23,$02,$02,$00
+        .byte $25,$02,$82,$00
         .byte $FE
 pat15
-        .byte $42,$0C,$06
-        .byte $42,$04,$86
-        .byte $40,$08,$86
-        .byte $3D,$04,$86
-        .byte $3B,$04,$86
-        .byte $3B,$04,$86
-        .byte $3A,$04,$86
-        .byte $3A,$04,$86
-        .byte $2C,$04,$0C
-        .byte $2C,$04,$8C
-        .byte $3A,$02,$06
-        .byte $3A,$02,$86
-        .byte $3B,$04,$86
-        .byte $3D,$04,$86
-        .byte $3D,$0C,$86
-        .byte $3D,$04,$86
-        .byte $40,$06,$86
-        .byte $3D,$06,$86
-        .byte $3B,$04,$86
-        .byte $3D,$08,$86
-        .byte $3D,$10,$86
-        .byte $2C,$04,$0C
-        .byte $2C,$04,$8C
+        .byte $42,$0C,$06,$00
+        .byte $42,$04,$86,$CF
+        .byte $40,$08,$86,$00
+        .byte $3D,$04,$86,$00
+        .byte $3B,$04,$86,$00
+        .byte $3B,$04,$86,$BF
+        .byte $3A,$04,$86,$00
+        .byte $3A,$04,$86,$00
+        .byte $2C,$04,$0C,$00
+        .byte $2C,$04,$8C,$00
+        .byte $3A,$02,$06,$00
+        .byte $3A,$02,$86,$00
+        .byte $3B,$04,$86,$00
+        .byte $3D,$04,$86,$00
+        .byte $3D,$0C,$86,$00
+        .byte $3D,$04,$86,$00
+        .byte $40,$06,$86,$00
+        .byte $3D,$06,$86,$00
+        .byte $3B,$04,$86,$A8
+        .byte $3D,$08,$86,$00
+        .byte $3D,$10,$86,$51
+        .byte $2C,$04,$0C,$00
+        .byte $2C,$04,$8C,$00
         .byte $FE
 pat16
-        .byte $3C,$02,$06
-        .byte $3B,$04,$86
-        .byte $3A,$02,$86
-        .byte $39,$04,$86
-        .byte $3C,$02,$86
-        .byte $3B,$04,$86
-        .byte $3A,$02,$86
-        .byte $39,$04,$86
-        .byte $3C,$04,$86
-        .byte $3E,$04,$86
+        .byte $3C,$02,$06,$00
+        .byte $3B,$04,$86,$00
+        .byte $3A,$02,$86,$00
+        .byte $39,$04,$86,$00
+        .byte $3C,$02,$86,$00
+        .byte $3B,$04,$86,$00
+        .byte $3A,$02,$86,$00
+        .byte $39,$04,$86,$00
+        .byte $3C,$04,$86,$00
+        .byte $3E,$04,$86,$00
         .byte $FE
 pat17
-        .byte $3E,$08,$06
-        .byte $2C,$04,$0C
-        .byte $3E,$02,$06
-        .byte $3E,$02,$86
-        .byte $40,$06,$86
-        .byte $3E,$06,$86
-        .byte $3C,$04,$86
-        .byte $3E,$08,$86
-        .byte $2F,$04,$0C
-        .byte $2C,$0C,$8C
-        .byte $2F,$04,$8C
-        .byte $2C,$04,$8C
+        .byte $3E,$08,$06,$00
+        .byte $2C,$04,$0C,$00
+        .byte $3E,$02,$06,$00
+        .byte $3E,$02,$86,$00
+        .byte $40,$06,$86,$00
+        .byte $3E,$06,$86,$00
+        .byte $3C,$04,$86,$A8
+        .byte $3E,$08,$86,$00
+        .byte $2F,$04,$0C,$00
+        .byte $2C,$0C,$8C,$00
+        .byte $2F,$04,$8C,$00
+        .byte $2C,$04,$8C,$00
         .byte $FE
 pat18
-        .byte $40,$08,$06
-        .byte $2C,$04,$0C
-        .byte $40,$02,$06
-        .byte $40,$02,$86
-        .byte $42,$06,$86
-        .byte $40,$06,$86
-        .byte $3E,$04,$86
-        .byte $40,$08,$86
-        .byte $2F,$04,$0C
-        .byte $2C,$0C,$8C
-        .byte $2F,$04,$8C
-        .byte $2C,$04,$8C
-        .byte $40,$08,$06
-        .byte $2C,$04,$0C
-        .byte $40,$02,$06
-        .byte $40,$02,$86
-        .byte $42,$06,$86
-        .byte $40,$06,$86
-        .byte $3E,$04,$86
-        .byte $40,$06,$86
-        .byte $42,$06,$86
-        .byte $44,$04,$86
-        .byte $42,$06,$86
-        .byte $44,$06,$86
-        .byte $45,$04,$86
+        .byte $40,$08,$06,$00
+        .byte $2C,$04,$0C,$00
+        .byte $40,$02,$06,$00
+        .byte $40,$02,$86,$00
+        .byte $42,$06,$86,$00
+        .byte $40,$06,$86,$00
+        .byte $3E,$04,$86,$A8
+        .byte $40,$08,$86,$00
+        .byte $2F,$04,$0C,$00
+        .byte $2C,$0C,$8C,$00
+        .byte $2F,$04,$8C,$00
+        .byte $2C,$04,$8C,$00
+        .byte $40,$08,$06,$00
+        .byte $2C,$04,$0C,$00
+        .byte $40,$02,$06,$00
+        .byte $40,$02,$86,$00
+        .byte $42,$06,$86,$00
+        .byte $40,$06,$86,$00
+        .byte $3E,$04,$86,$A8
+        .byte $40,$06,$86,$00
+        .byte $42,$06,$86,$00
+        .byte $44,$04,$86,$00
+        .byte $42,$06,$86,$00
+        .byte $44,$06,$86,$00
+        .byte $45,$04,$86,$00
         .byte $FE
 pat19
-        .byte $58,$04,$07
-        .byte $51,$04,$87
-        .byte $39,$04,$01
-        .byte $39,$04,$81
-        .byte $39,$06,$81
-        .byte $39,$06,$81
-        .byte $37,$06,$81
-        .byte $39,$02,$81
-        .byte $39,$04,$81
-        .byte $39,$04,$81
-        .byte $37,$04,$81
-        .byte $39,$02,$81
-        .byte $37,$02,$81
-        .byte $39,$04,$81
-        .byte $58,$04,$07
-        .byte $51,$04,$87
+        .byte $58,$04,$07,$00
+        .byte $51,$04,$87,$00
+        .byte $39,$04,$01,$00
+        .byte $39,$04,$81,$00
+        .byte $39,$06,$81,$00
+        .byte $39,$06,$81,$00
+        .byte $37,$06,$81,$00
+        .byte $39,$02,$81,$00
+        .byte $39,$04,$81,$00
+        .byte $39,$04,$81,$00
+        .byte $37,$04,$81,$00
+        .byte $39,$02,$81,$00
+        .byte $37,$02,$81,$00
+        .byte $39,$04,$81,$00
+        .byte $58,$04,$07,$00
+        .byte $51,$04,$87,$00
         .byte $FE
 pat20
-        .byte $55,$04,$07
-        .byte $4E,$04,$87
-        .byte $31,$04,$01
-        .byte $31,$04,$81
-        .byte $31,$06,$81
-        .byte $31,$06,$81
-        .byte $2F,$06,$81
-        .byte $31,$02,$81
-        .byte $31,$04,$81
-        .byte $31,$04,$81
-        .byte $2F,$04,$81
-        .byte $31,$02,$81
-        .byte $2F,$02,$81
-        .byte $31,$04,$81
-        .byte $55,$04,$07
-        .byte $4E,$04,$87
+        .byte $55,$04,$07,$00
+        .byte $4E,$04,$87,$00
+        .byte $31,$04,$01,$00
+        .byte $31,$04,$81,$00
+        .byte $31,$06,$81,$00
+        .byte $31,$06,$81,$00
+        .byte $2F,$06,$81,$00
+        .byte $31,$02,$81,$00
+        .byte $31,$04,$81,$00
+        .byte $31,$04,$81,$00
+        .byte $2F,$04,$81,$00
+        .byte $31,$02,$81,$00
+        .byte $2F,$02,$81,$00
+        .byte $31,$04,$81,$00
+        .byte $55,$04,$07,$00
+        .byte $4E,$04,$87,$00
         .byte $FE
 pat21
-        .byte $5D,$04,$07
-        .byte $56,$04,$87
-        .byte $32,$04,$01
-        .byte $32,$04,$81
-        .byte $32,$06,$81
-        .byte $32,$06,$81
-        .byte $30,$06,$81
-        .byte $32,$02,$81
-        .byte $32,$04,$81
-        .byte $32,$04,$81
-        .byte $30,$04,$81
-        .byte $32,$02,$81
-        .byte $30,$02,$81
-        .byte $32,$04,$81
-        .byte $5D,$04,$07
-        .byte $56,$04,$87
+        .byte $5D,$04,$07,$00
+        .byte $56,$04,$87,$00
+        .byte $32,$04,$01,$00
+        .byte $32,$04,$81,$00
+        .byte $32,$06,$81,$00
+        .byte $32,$06,$81,$00
+        .byte $30,$06,$81,$00
+        .byte $32,$02,$81,$00
+        .byte $32,$04,$81,$00
+        .byte $32,$04,$81,$00
+        .byte $30,$04,$81,$00
+        .byte $32,$02,$81,$00
+        .byte $30,$02,$81,$00
+        .byte $32,$04,$81,$00
+        .byte $5D,$04,$07,$00
+        .byte $56,$04,$87,$00
         .byte $FE
 pat22
-        .byte $5F,$04,$07
-        .byte $58,$04,$87
-        .byte $34,$04,$01
-        .byte $34,$04,$81
-        .byte $34,$06,$81
-        .byte $34,$06,$81
-        .byte $32,$06,$81
-        .byte $34,$02,$81
-        .byte $34,$04,$81
-        .byte $34,$04,$81
-        .byte $32,$04,$81
-        .byte $34,$02,$81
-        .byte $32,$02,$81
-        .byte $34,$04,$81
-        .byte $5F,$04,$07
-        .byte $58,$04,$87
+        .byte $5F,$04,$07,$00
+        .byte $58,$04,$87,$00
+        .byte $34,$04,$01,$00
+        .byte $34,$04,$81,$00
+        .byte $34,$06,$81,$00
+        .byte $34,$06,$81,$00
+        .byte $32,$06,$81,$00
+        .byte $34,$02,$81,$00
+        .byte $34,$04,$81,$00
+        .byte $34,$04,$81,$00
+        .byte $32,$04,$81,$00
+        .byte $34,$02,$81,$00
+        .byte $32,$02,$81,$00
+        .byte $34,$04,$81,$00
+        .byte $5F,$04,$07,$00
+        .byte $58,$04,$87,$00
         .byte $FE
 pat23
-        .byte $46,$02,$05
-        .byte $46,$02,$85
-        .byte $46,$02,$85
-        .byte $46,$02,$85
-        .byte $46,$02,$85
-        .byte $46,$02,$85
-        .byte $44,$02,$85
-        .byte $46,$02,$85
-        .byte $46,$02,$85
-        .byte $44,$02,$85
-        .byte $46,$04,$85
-        .byte $46,$02,$85
-        .byte $46,$02,$85
-        .byte $44,$02,$85
-        .byte $44,$02,$85
+        .byte $46,$02,$05,$00
+        .byte $46,$02,$85,$00
+        .byte $46,$02,$85,$00
+        .byte $46,$02,$85,$00
+        .byte $46,$02,$85,$00
+        .byte $46,$02,$85,$00
+        .byte $44,$02,$85,$00
+        .byte $46,$02,$85,$00
+        .byte $46,$02,$85,$00
+        .byte $44,$02,$85,$00
+        .byte $46,$04,$85,$00
+        .byte $46,$02,$85,$00
+        .byte $46,$02,$85,$00
+        .byte $44,$02,$85,$00
+        .byte $44,$02,$85,$00
         .byte $FE
 pat24
-        .byte $43,$02,$05
-        .byte $43,$02,$85
-        .byte $43,$02,$85
-        .byte $43,$02,$85
-        .byte $43,$02,$85
-        .byte $43,$02,$85
-        .byte $41,$02,$85
-        .byte $43,$02,$85
-        .byte $43,$02,$85
-        .byte $41,$02,$85
-        .byte $43,$04,$85
-        .byte $43,$02,$85
-        .byte $43,$02,$85
-        .byte $41,$02,$85
-        .byte $41,$02,$85
+        .byte $43,$02,$05,$00
+        .byte $43,$02,$85,$00
+        .byte $43,$02,$85,$00
+        .byte $43,$02,$85,$00
+        .byte $43,$02,$85,$00
+        .byte $43,$02,$85,$00
+        .byte $41,$02,$85,$00
+        .byte $43,$02,$85,$00
+        .byte $43,$02,$85,$00
+        .byte $41,$02,$85,$00
+        .byte $43,$04,$85,$00
+        .byte $43,$02,$85,$00
+        .byte $43,$02,$85,$00
+        .byte $41,$02,$85,$00
+        .byte $41,$02,$85,$00
         .byte $FE
 pat25
-        .byte $27,$02,$05
-        .byte $27,$02,$85
-        .byte $27,$02,$85
-        .byte $27,$02,$85
-        .byte $2C,$04,$0C
-        .byte $25,$02,$05
-        .byte $27,$04,$85
-        .byte $25,$02,$85
-        .byte $27,$02,$85
-        .byte $27,$02,$85
-        .byte $2F,$04,$0C
-        .byte $2C,$04,$8C
+        .byte $27,$02,$05,$00
+        .byte $27,$02,$85,$00
+        .byte $27,$02,$85,$00
+        .byte $27,$02,$85,$00
+        .byte $2C,$04,$0C,$00
+        .byte $25,$02,$05,$00
+        .byte $27,$04,$85,$00
+        .byte $25,$02,$85,$00
+        .byte $27,$02,$85,$00
+        .byte $27,$02,$85,$00
+        .byte $2F,$04,$0C,$00
+        .byte $2C,$04,$8C,$00
         .byte $FE
 pat26
-        .byte $37,$08,$06
-        .byte $37,$08,$86
-        .byte $39,$18,$86
-        .byte $37,$04,$86
-        .byte $39,$04,$86
-        .byte $3E,$04,$86
-        .byte $3C,$04,$86
-        .byte $39,$08,$86
-        .byte $3C,$08,$86
-        .byte $3C,$08,$86
-        .byte $3E,$18,$86
-        .byte $3E,$04,$86
-        .byte $43,$04,$86
-        .byte $42,$04,$86
-        .byte $3E,$04,$86
-        .byte $39,$08,$86
-        .byte $37,$08,$86
-        .byte $37,$08,$86
-        .byte $39,$18,$86
-        .byte $3F,$08,$86
-        .byte $3E,$04,$86
-        .byte $3C,$04,$86
-        .byte $39,$08,$86
-        .byte $3E,$08,$86
-        .byte $3E,$08,$86
-        .byte $3C,$18,$86
-        .byte $3E,$04,$86
-        .byte $40,$04,$86
-        .byte $43,$04,$86
-        .byte $42,$04,$86
-        .byte $43,$04,$86
-        .byte $45,$04,$86
-        .byte $43,$08,$86
-        .byte $43,$08,$86
-        .byte $45,$08,$86
-        .byte $45,$02,$86
-        .byte $45,$04,$86
-        .byte $45,$02,$86
-        .byte $45,$02,$86
-        .byte $45,$04,$86
-        .byte $43,$02,$86
-        .byte $45,$04,$86
-        .byte $43,$02,$86
-        .byte $42,$04,$86
-        .byte $43,$02,$86
-        .byte $42,$04,$86
-        .byte $40,$04,$86
-        .byte $3E,$04,$86
-        .byte $3E,$02,$86
-        .byte $3E,$04,$86
-        .byte $3C,$02,$86
-        .byte $3E,$04,$86
-        .byte $3C,$02,$86
-        .byte $3B,$04,$86
-        .byte $3C,$02,$86
-        .byte $3B,$04,$86
-        .byte $39,$04,$86
-        .byte $37,$04,$86
-        .byte $39,$02,$86
-        .byte $39,$04,$86
-        .byte $37,$02,$86
-        .byte $39,$04,$86
-        .byte $3B,$02,$86
-        .byte $3C,$04,$86
-        .byte $3E,$02,$86
-        .byte $40,$04,$86
-        .byte $42,$04,$86
-        .byte $43,$04,$86
+        .byte $37,$08,$06,$80
+        .byte $37,$08,$86,$A8
+        .byte $39,$18,$86,$00
+        .byte $37,$04,$86,$00
+        .byte $39,$04,$86,$00
+        .byte $3E,$04,$86,$00
+        .byte $3C,$04,$86,$00
+        .byte $39,$08,$86,$00
+        .byte $3C,$08,$86,$80
+        .byte $3C,$08,$86,$AA
+        .byte $3E,$18,$86,$00
+        .byte $3E,$04,$86,$00
+        .byte $43,$04,$86,$00
+        .byte $42,$04,$86,$00
+        .byte $3E,$04,$86,$00
+        .byte $39,$08,$86,$00
+        .byte $37,$08,$86,$80
+        .byte $37,$08,$86,$90
+        .byte $39,$18,$86,$00
+        .byte $3F,$08,$86,$A9
+        .byte $3E,$04,$86,$00
+        .byte $3C,$04,$86,$00
+        .byte $39,$08,$86,$00
+        .byte $3E,$08,$86,$80
+        .byte $3E,$08,$86,$A9
+        .byte $3C,$18,$86,$00
+        .byte $3E,$04,$86,$00
+        .byte $40,$04,$86,$00
+        .byte $43,$04,$86,$00
+        .byte $42,$04,$86,$00
+        .byte $43,$04,$86,$00
+        .byte $45,$04,$86,$00
+        .byte $43,$08,$86,$80
+        .byte $43,$08,$86,$B4
+        .byte $45,$08,$86,$00
+        .byte $45,$02,$86,$00
+        .byte $45,$04,$86,$00
+        .byte $45,$02,$86,$00
+        .byte $45,$02,$86,$00
+        .byte $45,$04,$86,$00
+        .byte $43,$02,$86,$00
+        .byte $45,$04,$86,$00
+        .byte $43,$02,$86,$00
+        .byte $42,$04,$86,$00
+        .byte $43,$02,$86,$00
+        .byte $42,$04,$86,$00
+        .byte $40,$04,$86,$00
+        .byte $3E,$04,$86,$00
+        .byte $3E,$02,$86,$00
+        .byte $3E,$04,$86,$00
+        .byte $3C,$02,$86,$00
+        .byte $3E,$04,$86,$00
+        .byte $3C,$02,$86,$00
+        .byte $3B,$04,$86,$00
+        .byte $3C,$02,$86,$00
+        .byte $3B,$04,$86,$00
+        .byte $39,$04,$86,$00
+        .byte $37,$04,$86,$00
+        .byte $39,$02,$86,$00
+        .byte $39,$04,$86,$00
+        .byte $37,$02,$86,$00
+        .byte $39,$04,$86,$00
+        .byte $3B,$02,$86,$00
+        .byte $3C,$04,$86,$00
+        .byte $3E,$02,$86,$00
+        .byte $40,$04,$86,$00
+        .byte $42,$04,$86,$00
+        .byte $43,$04,$86,$00
         .byte $FE
 pat27
-        .byte $47,$08,$80
-        .byte $47,$08,$80
-        .byte $45,$18,$80
-        .byte $43,$04,$80
-        .byte $45,$04,$80
-        .byte $48,$02,$80
-        .byte $48,$02,$80
-        .byte $45,$04,$80
-        .byte $4A,$02,$80
-        .byte $4A,$02,$80
-        .byte $48,$04,$80
-        .byte $4C,$08,$80
-        .byte $4C,$08,$80
-        .byte $4A,$20,$80
-        .byte $4A,$02,$C0
-        .byte $4C,$02,$80
-        .byte $4C,$02,$80
-        .byte $40,$02,$80
-        .byte $4D,$02,$80
-        .byte $40,$02,$80
-        .byte $48,$02,$80
-        .byte $4A,$02,$80
+        .byte $47,$08,$80,$80
+        .byte $47,$08,$80,$B1
+        .byte $45,$18,$80,$00
+        .byte $43,$04,$80,$00
+        .byte $45,$04,$80,$00
+        .byte $48,$02,$80,$00
+        .byte $48,$02,$80,$00
+        .byte $45,$04,$80,$00
+        .byte $4A,$02,$80,$00
+        .byte $4A,$02,$80,$00
+        .byte $48,$04,$80,$00
+        .byte $4C,$08,$80,$80
+        .byte $4C,$08,$80,$D1
+        .byte $4A,$20,$80,$00
+        .byte $4A,$02,$C0,$00
+        .byte $4C,$02,$80,$00
+        .byte $4C,$02,$80,$00
+        .byte $40,$02,$80,$00
+        .byte $4D,$02,$80,$00
+        .byte $40,$02,$80,$00
+        .byte $48,$02,$80,$00
+        .byte $4A,$02,$80,$00
         .byte $FE
 pat28
-        .byte $4C,$02,$80
-        .byte $4C,$02,$80
-        .byte $40,$04,$80
-        .byte $4A,$04,$80
-        .byte $40,$02,$80
-        .byte $48,$04,$80
-        .byte $40,$02,$80
-        .byte $47,$04,$80
-        .byte $48,$02,$80
-        .byte $40,$02,$80
-        .byte $48,$02,$80
-        .byte $4A,$02,$80
+        .byte $4C,$02,$80,$00
+        .byte $4C,$02,$80,$00
+        .byte $40,$04,$80,$00
+        .byte $4A,$04,$80,$00
+        .byte $40,$02,$80,$00
+        .byte $48,$04,$80,$00
+        .byte $40,$02,$80,$00
+        .byte $47,$04,$80,$00
+        .byte $48,$02,$80,$00
+        .byte $40,$02,$80,$00
+        .byte $48,$02,$80,$00
+        .byte $4A,$02,$80,$00
         .byte $FE
 pat29
-        .byte $4C,$02,$80
-        .byte $4C,$02,$80
-        .byte $40,$04,$80
-        .byte $4B,$04,$80
-        .byte $40,$02,$80
-        .byte $49,$04,$80
-        .byte $40,$02,$80
-        .byte $47,$04,$80
-        .byte $49,$02,$80
-        .byte $40,$02,$80
-        .byte $49,$02,$80
-        .byte $4B,$02,$80
+        .byte $4C,$02,$80,$00
+        .byte $4C,$02,$80,$00
+        .byte $40,$04,$80,$00
+        .byte $4B,$04,$80,$00
+        .byte $40,$02,$80,$00
+        .byte $49,$04,$80,$00
+        .byte $40,$02,$80,$00
+        .byte $47,$04,$80,$00
+        .byte $49,$02,$80,$00
+        .byte $40,$02,$80,$00
+        .byte $49,$02,$80,$00
+        .byte $4B,$02,$80,$00
         .byte $FE
 pat30
-        .byte $49,$02,$80
-        .byte $49,$02,$80
-        .byte $3D,$04,$80
-        .byte $47,$04,$80
-        .byte $3D,$02,$80
-        .byte $46,$04,$80
-        .byte $3D,$02,$80
-        .byte $44,$04,$80
-        .byte $42,$02,$80
-        .byte $3D,$02,$80
-        .byte $47,$02,$80
-        .byte $49,$02,$80
+        .byte $49,$02,$80,$00
+        .byte $49,$02,$80,$00
+        .byte $3D,$04,$80,$00
+        .byte $47,$04,$80,$00
+        .byte $3D,$02,$80,$00
+        .byte $46,$04,$80,$00
+        .byte $3D,$02,$80,$00
+        .byte $44,$04,$80,$00
+        .byte $42,$02,$80,$00
+        .byte $3D,$02,$80,$00
+        .byte $47,$02,$80,$00
+        .byte $49,$02,$80,$00
         .byte $FE
 pat31
-        .byte $68,$08,$07
-        .byte $68,$10,$C7
-        .byte $2C,$04,$0C
-        .byte $2C,$04,$8C
+        .byte $68,$08,$07,$00
+        .byte $68,$10,$C7,$00
+        .byte $2C,$04,$0C,$00
+        .byte $2C,$04,$8C,$00
         .byte $FE
 
 v0ol
