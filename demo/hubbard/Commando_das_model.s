@@ -116,16 +116,18 @@ v2mul  clc
         iny
         lda ($A3),y
         tax
-        stx $AE
+        stx $B1
         ldx $A8
         lda fthi,x
         sta $D40F
         lda ftlo,x
         sta $D40E
-        ldx $AE
+        ldx $B1
         lda i_wfirst,x
         sta $D412
         cpx $AE
+        beq v2skpw
+        stx $AE
         lda $AF
         clc
         adc #3
@@ -138,6 +140,14 @@ v2mul  clc
         sta $AB
         lda #0
         sta $AD
+        jmp v2hbd
+v2skpw
+        stx $AE
+        lda $AF
+        clc
+        adc #2
+        sta $AF
+v2hbd
         lda i_ad,x
         sta $D413
         lda i_sr,x
@@ -391,16 +401,18 @@ v1mul  clc
         iny
         lda ($93),y
         tax
-        stx $9E
+        stx $B1
         ldx $98
         lda fthi,x
         sta $D408
         lda ftlo,x
         sta $D407
-        ldx $9E
+        ldx $B1
         lda i_wfirst,x
         sta $D40B
         cpx $9E
+        beq v1skpw
+        stx $9E
         lda $9F
         clc
         adc #3
@@ -413,6 +425,14 @@ v1mul  clc
         sta $9B
         lda #0
         sta $9D
+        jmp v1hbd
+v1skpw
+        stx $9E
+        lda $9F
+        clc
+        adc #2
+        sta $9F
+v1hbd
         lda i_ad,x
         sta $D40C
         lda i_sr,x
@@ -691,16 +711,18 @@ v0mul  clc
         iny
         lda ($83),y
         tax
-        stx $8E
+        stx $B1
         ldx $88
         lda fthi,x
         sta $D401
         lda ftlo,x
         sta $D400
-        ldx $8E
+        ldx $B1
         lda i_wfirst,x
         sta $D404
         cpx $8E
+        beq v0skpw
+        stx $8E
         lda $8F
         clc
         adc #3
@@ -713,6 +735,14 @@ v0mul  clc
         sta $8B
         lda #0
         sta $8D
+        jmp v0hbd
+v0skpw
+        stx $8E
+        lda $8F
+        clc
+        adc #2
+        sta $8F
+v0hbd
         lda i_ad,x
         sta $D405
         lda i_sr,x
