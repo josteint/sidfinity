@@ -8,4 +8,4 @@ package dasmodel where
 
 @[default_target]
 lean_lib DasModel where
-  roots := #[`SID, `State, `Effects, `Compile]
+  roots := #[`SID, `State, `Effects, `Compile, `Properties]

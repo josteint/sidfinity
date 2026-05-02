@@ -221,11 +221,8 @@ structure Song where
 -/
 
 -- Compilation: Song → SongStream
--- Implemented in Compile.lean as `compileFrames`.
--- This stub delegates to it with a default frame count.
--- The real compile needs the song length (from songlengths database).
-noncomputable def compile (s : Song) (nFrames : Nat := 11779) : SongStream := sorry
--- TODO: replace with `compileFrames s nFrames` once Compile is imported
+-- The actual implementation is `compileFrames` in Compile.lean.
+-- We declare the type here; Compile.lean provides the definition.
 
 /-
   Decompilation is NOT part of the formal spec.
@@ -239,10 +236,7 @@ noncomputable def compile (s : Song) (nFrames : Nat := 11779) : SongStream := so
   The decompiler doesn't need to be formalized — only `compile` does.
 -/
 
--- The core theorem: compile is deterministic and total.
--- Given the same Song, compile always produces the same stream.
-theorem compile_deterministic (s : Song) :
-    compile s = compile s := by rfl
+-- Theorems are in Properties.lean (avoids circular imports)
 
 -- Validity: a stream is well-formed SID music if every write
 -- targets a valid register and the writes form recognizable

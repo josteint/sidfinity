@@ -1,14 +1,13 @@
 {"synthetic": false,
  "schemaVersion": "2025-09-10",
  "outputs":
- {"o": ["92dfd7eb9d9f19fa.olean"],
-  "i": "5889bc65862664da.ilean",
+ {"o": ["9ca7dc9cb8a5e2d0.olean"],
+  "i": "170dd2904d59f7ad.ilean",
   "c": "998d5d63812a3189.c"},
  "log":
  [{"message":
    ".> LEAN_PATH=/home/jtr/sidfinity/src/formal/.lake/build/lib/lean /home/jtr/.elan/toolchains/leanprover--lean4---v4.29.1/bin/lean /home/jtr/sidfinity/src/formal/SID.lean -o /home/jtr/sidfinity/src/formal/.lake/build/lib/lean/SID.olean -i /home/jtr/sidfinity/src/formal/.lake/build/lib/lean/SID.ilean -c /home/jtr/sidfinity/src/formal/.lake/build/ir/SID.c --setup /home/jtr/sidfinity/src/formal/.lake/build/ir/SID.setup.json --json",
-   "level": "trace"},
-  {"message": "SID.lean:227:18: declaration uses `sorry`", "level": "warning"}],
+   "level": "trace"}],
  "inputs":
  [["SID:deps",
    [["deps",
@@ -22,10 +21,10 @@
       ["module plugins", "00000000000006bb"]]]]],
   ["Lean 4.29.1, commit f72c35b3f637c8c6571d353742168ab66cc22c00",
    "fa77a35a41db35c0"],
-  ["/home/jtr/sidfinity/src/formal/SID.lean", "7af14fb931569eb9"],
+  ["/home/jtr/sidfinity/src/formal/SID.lean", "06541997ecac1b39"],
   ["options", [["-DautoImplicit=false", "4a85acb881fd49d0"]]],
   ["isModule: false", "feefd2a0d3a1847e"],
   ["Module.name: SID", "25355fbb8c084c7d"],
   ["Package.id?: (some dasmodel)", "3436f0ec7352345a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "ed133190ebaa5c46"}
+ "depHash": "3faba5ccc7a667ef"}
