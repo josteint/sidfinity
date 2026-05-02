@@ -12,3 +12,6 @@ lean_lib DasModel where
 
 lean_exe dasmodel where
   root := `Main
+
+lean_exe commando where
+  root := `CommandoData
