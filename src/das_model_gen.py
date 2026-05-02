@@ -403,44 +403,22 @@ def generate_asm(T, instruments, score):
         a(f'        cmp ${z+9:02X}')              # == note_len? (just loaded)
         a(f'        beq v{v}wrd')                 # note-load → skip freq effects, go to W program
 
-        # F: freq — arp instruments alternate +0/+12 every frame.
-        # Non-arp instruments: check for vibrato modulation.
-        a(f'        ldy ${z+14:02X}')             # instrument ID (prev_inst)
-        a(f'        lda i_arp,y')                 # arp_offset (0 or 12)
-        a(f'        beq v{v}vib')                 # no arp → check vibrato
-        # ARP path
-        a(f'        ldx ${z+8:02X}')              # base_note
-        a(f'        lda ${FRAME_CTR:02X}')        # global frame counter
-        a(f'        and #$01')                    # bit 0
-        a(f'        beq v{v}frok')                # even frame → base_note
-        a(f'        txa')
-        a(f'        clc')
-        a(f'        adc i_arp,y')                 # base_note + arp_offset
-        a(f'        tax')
-        a(f'v{v}frok')
-        a(f'        lda fthi,x')
-        a(f'        sta $D4{so+1:02X}')
-        a(f'        lda ftlo,x')
-        a(f'        sta $D4{so:02X}')
-        a(f'        jmp v{v}wrd')
+        # MULTI-WRITE EFFECT CHAIN: vibrato writes freq FIRST, then arp OVERWRITES.
+        # Both write to SID. The intermediate vibrato write briefly changes the
+        # oscillator rate, affecting the waveform. This matches Hubbard's engine
+        # where vibrato, bit0, and arp all write freq independently.
 
-        # VIBRATO path (non-arp instruments only)
-        # Only fires when i_vib[inst] != 0 AND note has played >= 6 frames.
-        # frames_elapsed = note_len - tick_ctr (both are 1-based counts)
-        # LFO depth: (frame_ctr & 7) → triangle 0,1,2,3,3,2,1,0
-        # delta = freq_hi[pitch+1] - freq_hi[pitch], right-shifted vibrato_scale times
-        # base_freq + delta * depth → write to SID
-        a(f'v{v}vib')
+        # Step 1: VIBRATO (writes freq if instrument has vibrato)
+        a(f'        ldy ${z+14:02X}')             # instrument ID (prev_inst)
         a(f'        lda i_vib,y')                 # vibrato scale (0=none)
-        a(f'        beq v{v}wrd')                 # no vibrato → skip freq write entirely
-        # Check: note duration_field >= 6 (ticks, NOT frames).
-        # Hubbard checks the raw duration from the pattern, not frames elapsed.
-        # Short notes (< 6 ticks) never get vibrato.
-        # note_len = duration * tempo. So duration = note_len / tempo.
-        # Check: note_len >= 6 * tempo (= {6 * tempo} for this song).
+        a(f'        beq v{v}arp')                 # no vibrato → skip to arp
+
+        # VIBRATO: writes freq to SID (may be overwritten by arp below).
+        # Runs for ALL instruments with vibrato, including arp instruments.
+        # Check: note duration_field >= 6 (ticks) and vibrato_scale != 0.
         a(f'        lda ${z+9:02X}')              # note_len (frames)
         a(f'        cmp #{6 * tempo}')            # < 6 ticks worth of frames?
-        a(f'        bcc v{v}wrd')                 # short note → no vibrato
+        a(f'        bcc v{v}arp')                 # short note → skip vibrato, try arp
         # Compute LFO depth: (frame_ctr & 7) → mirror if >= 4 → 0,1,2,3,3,2,1,0
         a(f'        lda ${FRAME_CTR:02X}')
         a(f'        and #$07')
@@ -482,16 +460,36 @@ def generate_asm(T, instruments, score):
         a(f'        sta $D4{so+1:02X}')           # write modulated freq_hi
         a(f'        lda ftlo,x')
         a(f'        sta $D4{so:02X}')             # write base freq_lo (unmodified)
-        a(f'        jmp v{v}wrd')
-        # depth=0: write plain freq (no modulation this frame)
+        a(f'        jmp v{v}arp')                 # vibrato wrote freq → now check arp
+        # depth=0: write plain base freq (no vibrato modulation this frame)
         a(f'v{v}vwr')
         a(f'        ldx ${z+8:02X}')              # base_note
         a(f'        lda fthi,x')
         a(f'        sta $D4{so+1:02X}')
         a(f'        lda ftlo,x')
         a(f'        sta $D4{so:02X}')
+        # Fall through to arp
 
-        # W: read waveform from w_ptr, write ctrl AFTER freq (gate on sees correct freq)
+        # Step 2: ARP (writes freq, overwriting vibrato if both are active)
+        a(f'v{v}arp')
+        a(f'        ldy ${z+14:02X}')             # instrument ID
+        a(f'        lda i_arp,y')                 # arp_offset (0 or 12)
+        a(f'        beq v{v}wrd')                 # no arp → skip to W program
+        a(f'        ldx ${z+8:02X}')              # base_note
+        a(f'        lda ${FRAME_CTR:02X}')        # global frame counter
+        a(f'        and #$01')                    # bit 0
+        a(f'        beq v{v}frok')                # even frame → base_note
+        a(f'        txa')
+        a(f'        clc')
+        a(f'        adc i_arp,y')                 # base_note + arp_offset
+        a(f'        tax')
+        a(f'v{v}frok')
+        a(f'        lda fthi,x')
+        a(f'        sta $D4{so+1:02X}')           # overwrite freq_hi (may overwrite vibrato)
+        a(f'        lda ftlo,x')
+        a(f'        sta $D4{so:02X}')             # overwrite freq_lo
+
+        # W: read waveform from w_ptr, write ctrl AFTER freq
         a(f'v{v}wrd')
         a(f'        ldy #0')
         a(f'        lda (${z+5:02X}),y')        # waveform byte

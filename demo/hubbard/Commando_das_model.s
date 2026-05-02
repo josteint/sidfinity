@@ -172,28 +172,11 @@ v2eval
         cmp $A9
         beq v2wrd
         ldy $AE
-        lda i_arp,y
-        beq v2vib
-        ldx $A8
-        lda $B0
-        and #$01
-        beq v2frok
-        txa
-        clc
-        adc i_arp,y
-        tax
-v2frok
-        lda fthi,x
-        sta $D40F
-        lda ftlo,x
-        sta $D40E
-        jmp v2wrd
-v2vib
         lda i_vib,y
-        beq v2wrd
+        beq v2arp
         lda $A9
         cmp #18
-        bcc v2wrd
+        bcc v2arp
         lda $B0
         and #$07
         cmp #4
@@ -228,9 +211,26 @@ v2vmul
         sta $D40F
         lda ftlo,x
         sta $D40E
-        jmp v2wrd
+        jmp v2arp
 v2vwr
         ldx $A8
+        lda fthi,x
+        sta $D40F
+        lda ftlo,x
+        sta $D40E
+v2arp
+        ldy $AE
+        lda i_arp,y
+        beq v2wrd
+        ldx $A8
+        lda $B0
+        and #$01
+        beq v2frok
+        txa
+        clc
+        adc i_arp,y
+        tax
+v2frok
         lda fthi,x
         sta $D40F
         lda ftlo,x
@@ -457,28 +457,11 @@ v1eval
         cmp $99
         beq v1wrd
         ldy $9E
-        lda i_arp,y
-        beq v1vib
-        ldx $98
-        lda $B0
-        and #$01
-        beq v1frok
-        txa
-        clc
-        adc i_arp,y
-        tax
-v1frok
-        lda fthi,x
-        sta $D408
-        lda ftlo,x
-        sta $D407
-        jmp v1wrd
-v1vib
         lda i_vib,y
-        beq v1wrd
+        beq v1arp
         lda $99
         cmp #18
-        bcc v1wrd
+        bcc v1arp
         lda $B0
         and #$07
         cmp #4
@@ -513,9 +496,26 @@ v1vmul
         sta $D408
         lda ftlo,x
         sta $D407
-        jmp v1wrd
+        jmp v1arp
 v1vwr
         ldx $98
+        lda fthi,x
+        sta $D408
+        lda ftlo,x
+        sta $D407
+v1arp
+        ldy $9E
+        lda i_arp,y
+        beq v1wrd
+        ldx $98
+        lda $B0
+        and #$01
+        beq v1frok
+        txa
+        clc
+        adc i_arp,y
+        tax
+v1frok
         lda fthi,x
         sta $D408
         lda ftlo,x
@@ -767,28 +767,11 @@ v0eval
         cmp $89
         beq v0wrd
         ldy $8E
-        lda i_arp,y
-        beq v0vib
-        ldx $88
-        lda $B0
-        and #$01
-        beq v0frok
-        txa
-        clc
-        adc i_arp,y
-        tax
-v0frok
-        lda fthi,x
-        sta $D401
-        lda ftlo,x
-        sta $D400
-        jmp v0wrd
-v0vib
         lda i_vib,y
-        beq v0wrd
+        beq v0arp
         lda $89
         cmp #18
-        bcc v0wrd
+        bcc v0arp
         lda $B0
         and #$07
         cmp #4
@@ -823,9 +806,26 @@ v0vmul
         sta $D401
         lda ftlo,x
         sta $D400
-        jmp v0wrd
+        jmp v0arp
 v0vwr
         ldx $88
+        lda fthi,x
+        sta $D401
+        lda ftlo,x
+        sta $D400
+v0arp
+        ldy $8E
+        lda i_arp,y
+        beq v0wrd
+        ldx $88
+        lda $B0
+        and #$01
+        beq v0frok
+        txa
+        clc
+        adc i_arp,y
+        tax
+v0frok
         lda fthi,x
         sta $D401
         lda ftlo,x
