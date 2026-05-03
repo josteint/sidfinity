@@ -168,15 +168,17 @@ end CodeBuilder
 private def emitInit (cb : CodeBuilder) (song : Song) : CodeBuilder := Id.run do
   let mut cb := cb.label "init"
 
-  -- Set volume
-  cb := cb.emitInst (I.lda_imm 0x0F)
-  cb := cb.emitInst (I.sta_abs (SID_BASE + 0x18))
-
-  -- Clear SID ctrl registers
+  -- Match Hubbard's init sequence:
+  -- (sidplayfp pre-writes Vol=$0F before calling init)
+  -- Then init: V1ctl=0, V2ctl=0 (twice), V3ctl=0, Vol=$0F again
   cb := cb.emitInst (I.lda_imm 0x00)
-  cb := cb.emitInst (I.sta_abs (SID_BASE + 4))
-  cb := cb.emitInst (I.sta_abs (SID_BASE + 11))
-  cb := cb.emitInst (I.sta_abs (SID_BASE + 18))
+  cb := cb.emitInst (I.sta_abs (SID_BASE + 4))    -- V1ctl=0
+  cb := cb.emitInst (I.sta_abs (SID_BASE + 11))   -- V2ctl=0
+  cb := cb.emitInst (I.sta_abs (SID_BASE + 4))    -- V1ctl=0 (duplicate, matches Hubbard)
+  cb := cb.emitInst (I.sta_abs (SID_BASE + 11))   -- V2ctl=0 (duplicate)
+  cb := cb.emitInst (I.sta_abs (SID_BASE + 18))   -- V3ctl=0
+  cb := cb.emitInst (I.lda_imm 0x0F)
+  cb := cb.emitInst (I.sta_abs (SID_BASE + 0x18)) -- Vol=$0F
 
   -- Init voice state: set duration to 0 (force note load on first play)
   -- Also set orderlist position to 0 and load first pattern pointer
@@ -237,10 +239,12 @@ def emitExecVoice (cb : CodeBuilder) (song : Song) : CodeBuilder := Id.run do
   -- Order: gate-off → vibrato → PW → freq_slide+ctrl → arpeggio
   cb := cb.emitInst (I.stx_zp 0xFA)              -- save voice index
 
-  -- 1. GATE-OFF CHECK (if dur==0: clear gate, zero ADSR, skip effects)
+  -- 1. GATE-OFF CHECK (fire when v_dur == gateOffFrames, i.e., 3 frames before end)
+  -- Only fires once per note (the exact moment v_dur crosses threshold)
   cb := cb.emitLdaAbsX "v_dur"
-  cb := cb.emitBranch .BNE "effects_start"
-  -- Gate off
+  cb := cb.emitInst (I.cmp_imm 3)                  -- compare with gateOffFrames=3
+  cb := cb.emitBranch .BNE "effects_start"          -- not equal → skip gate-off
+  -- Gate off + zero ADSR
   cb := cb.emitLdaAbsX "v_sidoff"
   cb := cb.emitInst I.tay
   cb := cb.emitLdaAbsX "v_ctrl"
@@ -476,11 +480,22 @@ def emitSustainEffects (cb : CodeBuilder) (song : Song) : CodeBuilder := Id.run 
   cb := cb.emitJmpLabel .JMP "no_slide"
   cb := cb.label "dur_ok"
 
-  -- Check note age: dur_field - 1 vs countdown
-  -- (Simple version — multiplying by tempo caused runaway DEC)
+  -- Check note age: (dur_field - 1) * tempo vs countdown
+  -- Hubbard countdown is in ticks; ours is in frames. Multiply threshold by tempo.
   cb := cb.emitInst I.sec
   cb := cb.emitLdaAbsX "v_durfield"
   cb := cb.emitInst (I.sbc_imm 1)                 -- A = dur_field - 1
+  -- Multiply by tempo (3 for Commando)
+  if song.tickLength == 3 then
+    cb := cb.emitInst (I.sta_zp 0xF1)             -- save (dur_field-1)
+    cb := cb.emitInst I.asl_a                      -- ×2
+    cb := cb.emitInst I.clc
+    cb := cb.emitInst (I.adc_zp 0xF1)             -- ×3
+  else if song.tickLength == 2 then
+    cb := cb.emitInst I.asl_a                      -- ×2
+  else if song.tickLength == 4 then
+    cb := cb.emitInst I.asl_a
+    cb := cb.emitInst I.asl_a
   cb := cb.emitInst ⟨.CMP, .absX 0⟩               -- cmp countdown
   cb := { cb with absFixups :=
     { byteIdx := cb.bytes.size - 2, targetLabel := "v_dur" } :: cb.absFixups }
@@ -687,12 +702,12 @@ def emitNoteLoadPath (cb : CodeBuilder) (song : Song) : CodeBuilder := Id.run do
   cb := cb.emitLdaAbsX "v_sidoff"
   cb := cb.emitInst I.tay                        -- Y = SID offset
 
-  -- Frequency
+  -- Frequency (Hubbard order: freq_hi BEFORE freq_lo)
   cb := cb.emitInst (I.ldx_zp 0xFE)              -- X = pitch
-  cb := cb.emitLdaAbsX "freq_lo"
-  cb := cb.emitInst (I.sta_absY (SID_BASE + 0))
   cb := cb.emitLdaAbsX "freq_hi"
   cb := cb.emitInst (I.sta_absY (SID_BASE + 1))
+  cb := cb.emitLdaAbsX "freq_lo"
+  cb := cb.emitInst (I.sta_absY (SID_BASE + 0))
 
   -- Save pitch and freq_hi for effects
   cb := cb.emitInst (I.ldx_zp 0xFA)               -- X = voice
