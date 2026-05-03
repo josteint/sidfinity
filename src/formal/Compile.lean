@@ -18,7 +18,8 @@ private def getInst (song : Song) (idx : Nat) : Instrument :=
     waveform := [⟨0, by omega⟩], waveLoop := 0,
     effectChain := { vibrato := none, freqSlide := none, arpeggio := none },
     pw := { mode := .linear, speed := ⟨0, by omega⟩,
-            minHi := ⟨0, by omega⟩, maxHi := ⟨0, by omega⟩, period := ⟨0, by omega⟩ },
+            minHi := ⟨0, by omega⟩, maxHi := ⟨0, by omega⟩, period := ⟨0, by omega⟩,
+            initLo := ⟨0, by omega⟩, initHi := ⟨0, by omega⟩ },
     hardRestart := { gateOffFrames := 3, adsrZeroFrame := 0 },
     ad := ⟨0, by omega⟩, sr := ⟨0, by omega⟩,
     writeOrder := .freqCtrlPwAdsr, digi := none }
@@ -60,10 +61,11 @@ def noteLoad (song : Song) (voice : Fin 3) (vs : VoiceState) (_es : EngineState)
     let (flo, fhi) := lookupFreq song note.pitch.val
     let tickCtr := note.duration.val * song.tickLength
     let ctrl := inst.waveform.head?.getD ⟨0, by omega⟩
-    -- Determine PW from shared mutable table (or init value)
+    -- Determine PW from shared mutable table (or instrument init value)
     let pwLo := match _es.pwLive[note.instrument]? with
       | some v => v
-      | none => ⟨0, by omega⟩
+      | none => inst.pw.initLo
+    let pwHi := inst.pw.initHi
     -- Build writes in Hubbard order: freq → ctrl → pw → adsr
     -- The order IS the music (affects SID ADSR internal state)
     let writes : FrameStream :=
@@ -71,7 +73,7 @@ def noteLoad (song : Song) (voice : Fin 3) (vs : VoiceState) (_es : EngineState)
         ⟨.freqLo voice, flo⟩,
         ⟨.ctrl voice, ctrl⟩,
         ⟨.pwLo voice, pwLo⟩,
-        ⟨.pwHi voice, ⟨0, by omega⟩⟩,
+        ⟨.pwHi voice, pwHi⟩,
         ⟨.ad voice, inst.ad⟩,
         ⟨.sr voice, inst.sr⟩ ]
     -- Update state
@@ -80,7 +82,9 @@ def noteLoad (song : Song) (voice : Fin 3) (vs : VoiceState) (_es : EngineState)
         tickCtr := tickCtr,
         noteLen := tickCtr,
         noteIdx := vs.noteIdx + 1,
-        wPtr := 0,
+        wPtr := 1,  -- waveform[0] consumed by noteLoad
+        pwLo := pwLo,
+        pwHi := pwHi,
         basePitch := note.pitch,
         fhiState := fhi,
         prevInst := some note.instrument }
@@ -122,8 +126,7 @@ def evalFrame (song : Song) (voice : Fin 3) (vs : VoiceState) (es : EngineState)
   -- Combine: effect chain → ctrl → PW → ADSR (Hubbard order)
   let allWrites := effectWrites ++ [ctrlWrite] ++ pwWrites ++ adsrWrites
   let vs4 := { vs3 with
-    wPtr := newWPtr,
-    tickCtr := if vs.tickCtr > 0 then vs.tickCtr - 1 else 0 }
+    wPtr := newWPtr }
   (allWrites, vs4)
 
 /-
@@ -131,8 +134,11 @@ def evalFrame (song : Song) (voice : Fin 3) (vs : VoiceState) (es : EngineState)
 -/
 def processVoice (song : Song) (voice : Fin 3) (vs : VoiceState) (es : EngineState) :
     FrameStream × VoiceState :=
+  -- Hubbard: DEC duration / BMI noteLoad
+  -- DEC 0 → $FF (N set → BMI taken). Equivalent: check tickCtr==0 BEFORE DEC.
+  -- DEC 1 → $00 (N clear → sustain).
   if vs.tickCtr == 0 then noteLoad song voice vs es
-  else evalFrame song voice vs es
+  else evalFrame song voice { vs with tickCtr := vs.tickCtr - 1 } es
 
 /-
   Process one frame: all voices in the specified order.
@@ -155,12 +161,24 @@ def processFrame (song : Song) (es : EngineState) : FrameStream × EngineState :
   Song × frame count → complete instruction stream.
   Pure, deterministic, total (for finite nFrames).
 -/
+-- Init writes: clear SID registers (what sidplayfp does before first play)
+def initWrites : FrameStream :=
+  [ ⟨.modeVol, ⟨0x0F, by omega⟩⟩,    -- Vol = $0F
+    ⟨.ctrl ⟨0, by omega⟩, ⟨0, by omega⟩⟩,  -- V1 ctrl = $00
+    ⟨.ctrl ⟨1, by omega⟩, ⟨0, by omega⟩⟩,  -- V2 ctrl = $00
+    ⟨.ctrl ⟨0, by omega⟩, ⟨0, by omega⟩⟩,  -- V1 ctrl = $00 (again)
+    ⟨.ctrl ⟨1, by omega⟩, ⟨0, by omega⟩⟩,  -- V2 ctrl = $00 (again)
+    ⟨.ctrl ⟨2, by omega⟩, ⟨0, by omega⟩⟩,  -- V3 ctrl = $00
+    ⟨.modeVol, ⟨0x0F, by omega⟩⟩ ]   -- Vol = $0F (again)
+
 def compileFrames (song : Song) (nFrames : Nat) : SongStream :=
-  let initState := EngineState.init song.instruments.length
+  let initState := EngineState.init song.instruments
   let (stream, _) := (List.range nFrames).foldl
     (fun (acc : SongStream × EngineState) _ =>
       let (prevStream, es) := acc
       let (frameWrites, newEs) := processFrame song es
-      (prevStream ++ [frameWrites], newEs))
+      -- Prepend init writes to frame 0
+      let writes := if prevStream.isEmpty then initWrites ++ frameWrites else frameWrites
+      (prevStream ++ [writes], newEs))
     ([], initState)
   stream

@@ -123,6 +123,7 @@ theorem processVoice_noteload (song : Song) (voice : Fin 3) (vs : VoiceState)
 
 theorem processVoice_eval (song : Song) (voice : Fin 3) (vs : VoiceState)
     (es : EngineState) (h : vs.tickCtr ≠ 0) :
-    processVoice song voice vs es = evalFrame song voice vs es := by
+    processVoice song voice vs es =
+      evalFrame song voice { vs with tickCtr := vs.tickCtr - 1 } es := by
   unfold processVoice
   simp [h]

@@ -7,91 +7,91 @@ def commandoFreqTable : FreqTable := { entries := [(⟨22, by omega⟩, ⟨1, by
 def cI0 : Instrument := {
   waveform := [⟨65, by omega⟩], waveLoop := 0,
   effectChain := { vibrato := some { shape := .triangle, period := 8, depthShift := 2, onset := 6, unipolar := true }, freqSlide := none, arpeggio := none },
-  pw := { mode := .bidirectional, speed := ⟨224, by omega⟩, minHi := ⟨8, by omega⟩, maxHi := ⟨14, by omega⟩, period := ⟨0, by omega⟩ },
+  pw := { mode := .bidirectional, speed := ⟨224, by omega⟩, minHi := ⟨8, by omega⟩, maxHi := ⟨14, by omega⟩, period := ⟨0, by omega⟩, initLo := ⟨0, by omega⟩, initHi := ⟨9, by omega⟩ },
   hardRestart := { gateOffFrames := 3, adsrZeroFrame := 0 },
   ad := ⟨41, by omega⟩, sr := ⟨95, by omega⟩, writeOrder := .freqCtrlPwAdsr, digi := none }
 
 def cI1 : Instrument := {
   waveform := [⟨65, by omega⟩, ⟨128, by omega⟩, ⟨128, by omega⟩, ⟨64, by omega⟩], waveLoop := 3,
   effectChain := { vibrato := none, freqSlide := some { perFrame := true, direction := true, amount := ⟨1, by omega⟩ }, arpeggio := some { intervals := [0, 12], phase := .global, rate := 1 } },
-  pw := { mode := .linear, speed := ⟨0, by omega⟩, minHi := ⟨0, by omega⟩, maxHi := ⟨0, by omega⟩, period := ⟨0, by omega⟩ },
+  pw := { mode := .linear, speed := ⟨0, by omega⟩, minHi := ⟨0, by omega⟩, maxHi := ⟨0, by omega⟩, period := ⟨0, by omega⟩, initLo := ⟨128, by omega⟩, initHi := ⟨1, by omega⟩ },
   hardRestart := { gateOffFrames := 3, adsrZeroFrame := 0 },
   ad := ⟨6, by omega⟩, sr := ⟨75, by omega⟩, writeOrder := .freqCtrlPwAdsr, digi := none }
 
 def cI2 : Instrument := {
   waveform := [⟨65, by omega⟩], waveLoop := 0,
   effectChain := { vibrato := none, freqSlide := none, arpeggio := none },
-  pw := { mode := .linear, speed := ⟨22, by omega⟩, minHi := ⟨0, by omega⟩, maxHi := ⟨0, by omega⟩, period := ⟨0, by omega⟩ },
+  pw := { mode := .linear, speed := ⟨22, by omega⟩, minHi := ⟨0, by omega⟩, maxHi := ⟨0, by omega⟩, period := ⟨0, by omega⟩, initLo := ⟨128, by omega⟩, initHi := ⟨1, by omega⟩ },
   hardRestart := { gateOffFrames := 3, adsrZeroFrame := 0 },
   ad := ⟨9, by omega⟩, sr := ⟨159, by omega⟩, writeOrder := .freqCtrlPwAdsr, digi := none }
 
 def cI3 : Instrument := {
   waveform := [⟨129, by omega⟩, ⟨128, by omega⟩, ⟨128, by omega⟩, ⟨128, by omega⟩], waveLoop := 3,
   effectChain := { vibrato := none, freqSlide := some { perFrame := true, direction := true, amount := ⟨1, by omega⟩ }, arpeggio := some { intervals := [0, 12], phase := .global, rate := 1 } },
-  pw := { mode := .linear, speed := ⟨0, by omega⟩, minHi := ⟨0, by omega⟩, maxHi := ⟨0, by omega⟩, period := ⟨0, by omega⟩ },
+  pw := { mode := .linear, speed := ⟨0, by omega⟩, minHi := ⟨0, by omega⟩, maxHi := ⟨0, by omega⟩, period := ⟨0, by omega⟩, initLo := ⟨0, by omega⟩, initHi := ⟨2, by omega⟩ },
   hardRestart := { gateOffFrames := 3, adsrZeroFrame := 0 },
   ad := ⟨10, by omega⟩, sr := ⟨9, by omega⟩, writeOrder := .freqCtrlPwAdsr, digi := none }
 
 def cI4 : Instrument := {
   waveform := [⟨67, by omega⟩, ⟨128, by omega⟩, ⟨128, by omega⟩, ⟨66, by omega⟩], waveLoop := 3,
   effectChain := { vibrato := none, freqSlide := some { perFrame := true, direction := true, amount := ⟨1, by omega⟩ }, arpeggio := none },
-  pw := { mode := .linear, speed := ⟨0, by omega⟩, minHi := ⟨0, by omega⟩, maxHi := ⟨0, by omega⟩, period := ⟨0, by omega⟩ },
+  pw := { mode := .linear, speed := ⟨0, by omega⟩, minHi := ⟨0, by omega⟩, maxHi := ⟨0, by omega⟩, period := ⟨0, by omega⟩, initLo := ⟨0, by omega⟩, initHi := ⟨2, by omega⟩ },
   hardRestart := { gateOffFrames := 3, adsrZeroFrame := 0 },
   ad := ⟨15, by omega⟩, sr := ⟨196, by omega⟩, writeOrder := .freqCtrlPwAdsr, digi := none }
 
 def cI5 : Instrument := {
   waveform := [⟨65, by omega⟩, ⟨128, by omega⟩, ⟨128, by omega⟩, ⟨64, by omega⟩], waveLoop := 3,
   effectChain := { vibrato := none, freqSlide := some { perFrame := true, direction := true, amount := ⟨1, by omega⟩ }, arpeggio := some { intervals := [0, 12], phase := .global, rate := 1 } },
-  pw := { mode := .linear, speed := ⟨2, by omega⟩, minHi := ⟨0, by omega⟩, maxHi := ⟨0, by omega⟩, period := ⟨0, by omega⟩ },
+  pw := { mode := .linear, speed := ⟨2, by omega⟩, minHi := ⟨0, by omega⟩, maxHi := ⟨0, by omega⟩, period := ⟨0, by omega⟩, initLo := ⟨128, by omega⟩, initHi := ⟨8, by omega⟩ },
   hardRestart := { gateOffFrames := 3, adsrZeroFrame := 0 },
   ad := ⟨5, by omega⟩, sr := ⟨169, by omega⟩, writeOrder := .freqCtrlPwAdsr, digi := none }
 
 def cI6 : Instrument := {
   waveform := [⟨65, by omega⟩], waveLoop := 0,
   effectChain := { vibrato := some { shape := .triangle, period := 8, depthShift := 2, onset := 6, unipolar := true }, freqSlide := none, arpeggio := none },
-  pw := { mode := .bidirectional, speed := ⟨224, by omega⟩, minHi := ⟨8, by omega⟩, maxHi := ⟨14, by omega⟩, period := ⟨0, by omega⟩ },
+  pw := { mode := .bidirectional, speed := ⟨224, by omega⟩, minHi := ⟨8, by omega⟩, maxHi := ⟨14, by omega⟩, period := ⟨0, by omega⟩, initLo := ⟨0, by omega⟩, initHi := ⟨8, by omega⟩ },
   hardRestart := { gateOffFrames := 3, adsrZeroFrame := 0 },
   ad := ⟨56, by omega⟩, sr := ⟨122, by omega⟩, writeOrder := .freqCtrlPwAdsr, digi := none }
 
 def cI7 : Instrument := {
   waveform := [⟨21, by omega⟩, ⟨128, by omega⟩, ⟨128, by omega⟩, ⟨20, by omega⟩], waveLoop := 3,
   effectChain := { vibrato := some { shape := .triangle, period := 8, depthShift := 1, onset := 6, unipolar := true }, freqSlide := some { perFrame := true, direction := true, amount := ⟨1, by omega⟩ }, arpeggio := some { intervals := [0, 12], phase := .global, rate := 1 } },
-  pw := { mode := .linear, speed := ⟨0, by omega⟩, minHi := ⟨0, by omega⟩, maxHi := ⟨0, by omega⟩, period := ⟨0, by omega⟩ },
+  pw := { mode := .linear, speed := ⟨0, by omega⟩, minHi := ⟨0, by omega⟩, maxHi := ⟨0, by omega⟩, period := ⟨0, by omega⟩, initLo := ⟨128, by omega⟩, initHi := ⟨1, by omega⟩ },
   hardRestart := { gateOffFrames := 3, adsrZeroFrame := 0 },
   ad := ⟨13, by omega⟩, sr := ⟨251, by omega⟩, writeOrder := .freqCtrlPwAdsr, digi := none }
 
 def cI8 : Instrument := {
   waveform := [⟨65, by omega⟩], waveLoop := 0,
   effectChain := { vibrato := some { shape := .triangle, period := 8, depthShift := 2, onset := 6, unipolar := true }, freqSlide := none, arpeggio := none },
-  pw := { mode := .linear, speed := ⟨3, by omega⟩, minHi := ⟨0, by omega⟩, maxHi := ⟨0, by omega⟩, period := ⟨0, by omega⟩ },
+  pw := { mode := .linear, speed := ⟨3, by omega⟩, minHi := ⟨0, by omega⟩, maxHi := ⟨0, by omega⟩, period := ⟨0, by omega⟩, initLo := ⟨0, by omega⟩, initHi := ⟨8, by omega⟩ },
   hardRestart := { gateOffFrames := 3, adsrZeroFrame := 0 },
   ad := ⟨73, by omega⟩, sr := ⟨91, by omega⟩, writeOrder := .freqCtrlPwAdsr, digi := none }
 
 def cI9 : Instrument := {
   waveform := [⟨33, by omega⟩, ⟨128, by omega⟩, ⟨128, by omega⟩, ⟨32, by omega⟩], waveLoop := 3,
   effectChain := { vibrato := some { shape := .triangle, period := 8, depthShift := 3, onset := 6, unipolar := true }, freqSlide := some { perFrame := true, direction := true, amount := ⟨1, by omega⟩ }, arpeggio := some { intervals := [0, 12], phase := .global, rate := 1 } },
-  pw := { mode := .linear, speed := ⟨0, by omega⟩, minHi := ⟨0, by omega⟩, maxHi := ⟨0, by omega⟩, period := ⟨0, by omega⟩ },
+  pw := { mode := .linear, speed := ⟨0, by omega⟩, minHi := ⟨0, by omega⟩, maxHi := ⟨0, by omega⟩, period := ⟨0, by omega⟩, initLo := ⟨0, by omega⟩, initHi := ⟨8, by omega⟩ },
   hardRestart := { gateOffFrames := 3, adsrZeroFrame := 0 },
   ad := ⟨4, by omega⟩, sr := ⟨111, by omega⟩, writeOrder := .freqCtrlPwAdsr, digi := none }
 
 def cI10 : Instrument := {
   waveform := [⟨65, by omega⟩, ⟨128, by omega⟩, ⟨128, by omega⟩, ⟨64, by omega⟩], waveLoop := 3,
   effectChain := { vibrato := some { shape := .triangle, period := 8, depthShift := 2, onset := 6, unipolar := true }, freqSlide := some { perFrame := true, direction := true, amount := ⟨1, by omega⟩ }, arpeggio := some { intervals := [0, 12], phase := .global, rate := 1 } },
-  pw := { mode := .linear, speed := ⟨1, by omega⟩, minHi := ⟨0, by omega⟩, maxHi := ⟨0, by omega⟩, period := ⟨0, by omega⟩ },
+  pw := { mode := .linear, speed := ⟨1, by omega⟩, minHi := ⟨0, by omega⟩, maxHi := ⟨0, by omega⟩, period := ⟨0, by omega⟩, initLo := ⟨0, by omega⟩, initHi := ⟨3, by omega⟩ },
   hardRestart := { gateOffFrames := 3, adsrZeroFrame := 0 },
   ad := ⟨9, by omega⟩, sr := ⟨107, by omega⟩, writeOrder := .freqCtrlPwAdsr, digi := none }
 
 def cI11 : Instrument := {
   waveform := [⟨67, by omega⟩, ⟨128, by omega⟩, ⟨128, by omega⟩, ⟨66, by omega⟩], waveLoop := 3,
   effectChain := { vibrato := some { shape := .triangle, period := 8, depthShift := 1, onset := 6, unipolar := true }, freqSlide := some { perFrame := true, direction := true, amount := ⟨1, by omega⟩ }, arpeggio := none },
-  pw := { mode := .linear, speed := ⟨0, by omega⟩, minHi := ⟨0, by omega⟩, maxHi := ⟨0, by omega⟩, period := ⟨0, by omega⟩ },
+  pw := { mode := .linear, speed := ⟨0, by omega⟩, minHi := ⟨0, by omega⟩, maxHi := ⟨0, by omega⟩, period := ⟨0, by omega⟩, initLo := ⟨0, by omega⟩, initHi := ⟨2, by omega⟩ },
   hardRestart := { gateOffFrames := 3, adsrZeroFrame := 0 },
   ad := ⟨7, by omega⟩, sr := ⟨9, by omega⟩, writeOrder := .freqCtrlPwAdsr, digi := none }
 
 def cI12 : Instrument := {
   waveform := [⟨65, by omega⟩, ⟨128, by omega⟩, ⟨128, by omega⟩, ⟨64, by omega⟩], waveLoop := 3,
   effectChain := { vibrato := none, freqSlide := some { perFrame := true, direction := true, amount := ⟨1, by omega⟩ }, arpeggio := none },
-  pw := { mode := .linear, speed := ⟨0, by omega⟩, minHi := ⟨0, by omega⟩, maxHi := ⟨0, by omega⟩, period := ⟨0, by omega⟩ },
+  pw := { mode := .linear, speed := ⟨0, by omega⟩, minHi := ⟨0, by omega⟩, maxHi := ⟨0, by omega⟩, period := ⟨0, by omega⟩, initLo := ⟨0, by omega⟩, initHi := ⟨8, by omega⟩ },
   hardRestart := { gateOffFrames := 3, adsrZeroFrame := 0 },
   ad := ⟨9, by omega⟩, sr := ⟨10, by omega⟩, writeOrder := .freqCtrlPwAdsr, digi := none }
 
@@ -175,8 +175,11 @@ def showWrite (w : SIDWrite) : String :=
     | .filtLo => "Flo" | .filtHi => "Fhi" | .filtCtrl => "Fctl" | .modeVol => "Vol"
   s!"{rn}=${w.val.val}"
 
-def main : IO Unit := do
-  let stream := compileFrames commandoSong 10
+def commandoMain : IO Unit := do
+  let nFrames := match (← IO.getEnv "NFRAMES") with
+    | some s => s.toNat!
+    | none => 10
+  let stream := compileFrames commandoSong nFrames
   IO.println s!"Lean Das Model compiler — Commando ({stream.length} frames)"
   for i in [:stream.length] do
     match stream[i]? with

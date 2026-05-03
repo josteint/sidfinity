@@ -56,7 +56,8 @@ def testSong : Song :=
       }
     }
     pw := { mode := .linear, speed := ⟨0x16, by omega⟩,
-            minHi := ⟨0, by omega⟩, maxHi := ⟨0, by omega⟩, period := ⟨0, by omega⟩ }
+            minHi := ⟨0, by omega⟩, maxHi := ⟨0, by omega⟩, period := ⟨0, by omega⟩,
+            initLo := ⟨0, by omega⟩, initHi := ⟨0, by omega⟩ }
     hardRestart := { gateOffFrames := 3, adsrZeroFrame := 0 }
     ad := ⟨0x0D, by omega⟩
     sr := ⟨0xFB, by omega⟩

@@ -127,6 +127,8 @@ structure PWSpec where
   minHi    : Byte          -- boundary for bidirectional
   maxHi    : Byte
   period   : Byte          -- sub-counter period for bidirectional
+  initLo   : Byte          -- initial PW lo value
+  initHi   : Byte          -- initial PW hi value
 
 -- Filter specification
 inductive FilterMode where

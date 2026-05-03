@@ -35,7 +35,7 @@ structure EngineState where
 
 -- Initial state: all voices ready to load first note
 def VoiceState.init : VoiceState :=
-  { tickCtr := 1          -- triggers note load on first frame
+  { tickCtr := 0          -- triggers note load on first frame (Hubbard: DEC 0 → $FF → BMI)
   , noteLen := 0
   , patIdx := 0
   , noteIdx := 0
@@ -50,10 +50,10 @@ def VoiceState.init : VoiceState :=
   , basePitch := ⟨0, by omega⟩
   }
 
-def EngineState.init (nInstruments : Nat) : EngineState :=
+def EngineState.init (instruments : List Instrument) : EngineState :=
   { frameCtr := ⟨255, by omega⟩  -- INC on first frame → 0
   , voices := fun _ => VoiceState.init
-  , pwLive := List.replicate nInstruments ⟨0, by omega⟩
+  , pwLive := instruments.map fun i => i.pw.initLo
   , ctrlByte := fun _ => ⟨0, by omega⟩
   }
 
