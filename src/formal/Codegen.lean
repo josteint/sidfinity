@@ -506,41 +506,15 @@ def emitSustainEffects (cb : CodeBuilder) (song : Song) : CodeBuilder := Id.run 
   cb := cb.emitBranch .BCC "slide_path_b"          -- dur_field-1 < countdown → Path B
 
   -- PATH A: DEC freq_hi, write OLD, write ctrl (gate cleared)
-  -- Step waveform program to get ctrl byte
+  -- Use i_ctrl[inst] (static instrument ctrl byte), NOT waveform program
+  -- Hubbard reads $54F8,X which is the cached instrument ctrl byte
   cb := cb.emitInst (I.ldx_zp 0xFA)
   cb := cb.emitLdaAbsX "v_inst"
   cb := cb.emitInst I.tay
-  cb := cb.emitLdaAbsX "v_wptr"
-  cb := cb.emitInst I.clc
-  cb := cb.emitInst ⟨.ADC, .absY 0⟩               -- wPtr + wave_base[inst]
+  cb := cb.emitInst ⟨.LDA, .absY 0⟩               -- i_ctrl[inst]
   cb := { cb with absFixups :=
-    { byteIdx := cb.bytes.size - 2, targetLabel := "i_wavebase" } :: cb.absFixups }
-  cb := cb.emitInst I.tax
-  cb := cb.emitLdaAbsX "wave_data"                 -- ctrl byte from waveform
+    { byteIdx := cb.bytes.size - 2, targetLabel := "i_ctrl" } :: cb.absFixups }
   cb := cb.emitInst (I.sta_zp 0xFB)               -- save ctrl
-
-  -- Advance wPtr
-  cb := cb.emitInst (I.ldx_zp 0xFA)
-  cb := cb.emitLdaAbsX "v_wptr"
-  cb := cb.emitInst I.clc
-  cb := cb.emitInst (I.adc_imm 1)
-  cb := cb.emitInst I.pha
-  cb := cb.emitLdaAbsX "v_inst"
-  cb := cb.emitInst I.tay
-  cb := cb.emitInst I.pla
-  cb := cb.emitInst ⟨.CMP, .absY 0⟩               -- cmp wave_len[inst]
-  cb := { cb with absFixups :=
-    { byteIdx := cb.bytes.size - 2, targetLabel := "i_wavelen" } :: cb.absFixups }
-  cb := cb.emitBranch .BCC "wptr_ok_a"
-  cb := cb.emitInst ⟨.LDA, .absY 0⟩               -- wave_loop[inst]
-  cb := { cb with absFixups :=
-    { byteIdx := cb.bytes.size - 2, targetLabel := "i_waveloop" } :: cb.absFixups }
-  cb := cb.label "wptr_ok_a"
-  cb := cb.emitStaAbsX "v_wptr"
-
-  -- Store ctrl
-  cb := cb.emitInst (I.lda_zp 0xFB)
-  cb := cb.emitStaAbsX "v_ctrl"
 
   -- DEC fhi, write OLD value to SID
   cb := cb.emitLdaAbsX "v_fhi"                     -- A = old fhi
