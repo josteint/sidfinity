@@ -494,7 +494,6 @@ def emitSustainEffects (cb : CodeBuilder) (song : Song) : CodeBuilder := Id.run 
   -- Step waveform program to get ctrl byte
   cb := cb.emitInst (I.ldx_zp 0xFA)
   cb := cb.emitLdaAbsX "v_inst"
-  cb := cb.emitInst I.pha                          -- save inst on stack
   cb := cb.emitInst I.tay
   cb := cb.emitLdaAbsX "v_wptr"
   cb := cb.emitInst I.clc
