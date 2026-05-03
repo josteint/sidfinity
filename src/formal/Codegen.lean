@@ -646,7 +646,8 @@ def emitNoteLoadPath (cb : CodeBuilder) (song : Song) : CodeBuilder := Id.run do
   cb := cb.emitInst (I.lda_zp 0xFF)
   cb := cb.emitStaAbsX "v_durfield"
 
-  -- Compute duration counter: dur * tickLength
+  -- Compute duration counter: dur * tickLength - 1
+  -- (Empirically — matches Hubbard's 7-frame note timing for dur=2 tempo=3)
   cb := cb.emitInst (I.lda_zp 0xFF)
   if song.tickLength == 1 then
     pure ()
@@ -660,6 +661,9 @@ def emitNoteLoadPath (cb : CodeBuilder) (song : Song) : CodeBuilder := Id.run do
     for _ in [:song.tickLength - 1] do
       cb := cb.emitInst I.clc
       cb := cb.emitInst (I.adc_zp 0xFF)
+  -- Subtract 1 to match Hubbard timing
+  cb := cb.emitInst I.sec
+  cb := cb.emitInst (I.sbc_imm 1)
   cb := cb.emitStaAbsX "v_dur"
 
   -- Store instrument index in voice state
