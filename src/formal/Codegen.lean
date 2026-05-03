@@ -646,8 +646,7 @@ def emitNoteLoadPath (cb : CodeBuilder) (song : Song) : CodeBuilder := Id.run do
   cb := cb.emitInst (I.lda_zp 0xFF)
   cb := cb.emitStaAbsX "v_durfield"
 
-  -- Compute duration counter: dur * tickLength - 1
-  -- (Empirically — matches Hubbard's 7-frame note timing for dur=2 tempo=3)
+  -- Compute duration counter: dur * tickLength - 1 (empirically matches Hubbard timing)
   cb := cb.emitInst (I.lda_zp 0xFF)
   if song.tickLength == 1 then
     pure ()
@@ -661,7 +660,6 @@ def emitNoteLoadPath (cb : CodeBuilder) (song : Song) : CodeBuilder := Id.run do
     for _ in [:song.tickLength - 1] do
       cb := cb.emitInst I.clc
       cb := cb.emitInst (I.adc_zp 0xFF)
-  -- Subtract 1 to match Hubbard timing
   cb := cb.emitInst I.sec
   cb := cb.emitInst (I.sbc_imm 1)
   cb := cb.emitStaAbsX "v_dur"
@@ -681,11 +679,27 @@ def emitNoteLoadPath (cb : CodeBuilder) (song : Song) : CodeBuilder := Id.run do
   cb := cb.emitInst I.tay                        -- Y = SID offset
 
   -- Frequency (Hubbard order: freq_hi BEFORE freq_lo)
+  -- Special case: pitch 104 reads V1/V2 ctrl bytes (Hubbard quirk)
+  cb := cb.emitInst (I.lda_zp 0xFE)              -- pitch
+  cb := cb.emitInst (I.cmp_imm 104)
+  cb := cb.emitBranch .BNE "freq_normal"
+  -- pitch 104: flo=v_ctrl[0], fhi=v_ctrl[1]
+  cb := cb.emitInst (I.lda_abs 0)                 -- v_ctrl[1] (placeholder)
+  cb := { cb with absFixups :=
+    { byteIdx := cb.bytes.size - 2, targetLabel := "v_ctrl_1" } :: cb.absFixups }
+  cb := cb.emitInst (I.sta_absY (SID_BASE + 1))   -- fhi
+  cb := cb.emitInst (I.lda_abs 0)                 -- v_ctrl[0]
+  cb := { cb with absFixups :=
+    { byteIdx := cb.bytes.size - 2, targetLabel := "v_ctrl_0" } :: cb.absFixups }
+  cb := cb.emitInst (I.sta_absY (SID_BASE + 0))   -- flo
+  cb := cb.emitJmpLabel .JMP "freq_done"
+  cb := cb.label "freq_normal"
   cb := cb.emitInst (I.ldx_zp 0xFE)              -- X = pitch
   cb := cb.emitLdaAbsX "freq_hi"
   cb := cb.emitInst (I.sta_absY (SID_BASE + 1))
   cb := cb.emitLdaAbsX "freq_lo"
   cb := cb.emitInst (I.sta_absY (SID_BASE + 0))
+  cb := cb.label "freq_done"
 
   -- Save pitch and freq_hi for effects
   cb := cb.emitInst (I.ldx_zp 0xFA)               -- X = voice
@@ -922,7 +936,12 @@ def generateSID (song : Song) (debug : Bool := false) : Bytes := Id.run do
   cb := cb.label "v_olpos"
   cb := cb.emitData [0, 0, 0]
   cb := cb.label "v_ctrl"
-  cb := cb.emitData [0, 0, 0]
+  cb := cb.label "v_ctrl_0"
+  cb := cb.emitByte 0
+  cb := cb.label "v_ctrl_1"
+  cb := cb.emitByte 0
+  cb := cb.label "v_ctrl_2"
+  cb := cb.emitByte 0
   cb := cb.label "v_wptr"
   cb := cb.emitData [0, 0, 0]
   cb := cb.label "v_inst"
