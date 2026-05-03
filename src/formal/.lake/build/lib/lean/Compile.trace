@@ -1,9 +1,9 @@
 {"synthetic": false,
  "schemaVersion": "2025-09-10",
  "outputs":
- {"o": ["add271c7f1e4fc6c.olean"],
-  "i": "32783bc642d0bf22.ilean",
-  "c": "71b87a00c2ff86b7.c"},
+ {"o": ["beb23ba2f686c2ca.olean"],
+  "i": "2b588ca6bd9b810d.ilean",
+  "c": "f557451bfbd01134.c"},
  "log":
  [{"message":
    ".> LEAN_PATH=/home/jtr/sidfinity/src/formal/.lake/build/lib/lean /home/jtr/.elan/toolchains/leanprover--lean4---v4.29.1/bin/lean /home/jtr/sidfinity/src/formal/Compile.lean -o /home/jtr/sidfinity/src/formal/.lake/build/lib/lean/Compile.olean -i /home/jtr/sidfinity/src/formal/.lake/build/lib/lean/Compile.ilean -c /home/jtr/sidfinity/src/formal/.lake/build/ir/Compile.c --setup /home/jtr/sidfinity/src/formal/.lake/build/ir/Compile.setup.json --json",
@@ -15,11 +15,11 @@
        [["@dasmodel:extraDep", "00000000000006bb"]]],
       ["imports",
        [["SID transitive imports (legacy)", "00000000000006bb"],
-        ["SID:importAllArts", "b3d8546f35228907"],
-        ["State transitive imports (legacy)", "67032454345c2498"],
-        ["State:importAllArts", "9cd12e1d50e7c234"],
-        ["Effects transitive imports (legacy)", "d0f612aecb5c97f4"],
-        ["Effects:importAllArts", "0d6fcf1d7f466232"]]]]],
+        ["SID:importAllArts", "af55aa997d4c81e4"],
+        ["State transitive imports (legacy)", "40049f76b4dae96c"],
+        ["State:importAllArts", "1b5070adc1ae58d4"],
+        ["Effects transitive imports (legacy)", "640e805890f0c23f"],
+        ["Effects:importAllArts", "6e784bc6687392e9"]]]]],
     ["libs",
      [["import dynlibs", "00000000000006bb"],
       ["package external libraries", "00000000000006bb"],
@@ -27,10 +27,10 @@
       ["module plugins", "00000000000006bb"]]]]],
   ["Lean 4.29.1, commit f72c35b3f637c8c6571d353742168ab66cc22c00",
    "fa77a35a41db35c0"],
-  ["/home/jtr/sidfinity/src/formal/Compile.lean", "03db8aeb85b06f00"],
+  ["/home/jtr/sidfinity/src/formal/Compile.lean", "62fc60742af76771"],
   ["options", [["-DautoImplicit=false", "4a85acb881fd49d0"]]],
   ["isModule: false", "feefd2a0d3a1847e"],
   ["Module.name: Compile", "67fe33a79e43a639"],
   ["Package.id?: (some dasmodel)", "3436f0ec7352345a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "7b028a109e6f7a8f"}
+ "depHash": "a3f050c8d69e9617"}

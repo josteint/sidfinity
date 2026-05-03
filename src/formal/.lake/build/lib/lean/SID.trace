@@ -1,8 +1,8 @@
 {"synthetic": false,
  "schemaVersion": "2025-09-10",
  "outputs":
- {"o": ["9ca7dc9cb8a5e2d0.olean"],
-  "i": "170dd2904d59f7ad.ilean",
+ {"o": ["b7566829237fb869.olean"],
+  "i": "b0d09c584b441584.ilean",
   "c": "998d5d63812a3189.c"},
  "log":
  [{"message":
@@ -21,10 +21,10 @@
       ["module plugins", "00000000000006bb"]]]]],
   ["Lean 4.29.1, commit f72c35b3f637c8c6571d353742168ab66cc22c00",
    "fa77a35a41db35c0"],
-  ["/home/jtr/sidfinity/src/formal/SID.lean", "06541997ecac1b39"],
+  ["/home/jtr/sidfinity/src/formal/SID.lean", "c3551c9776d45610"],
   ["options", [["-DautoImplicit=false", "4a85acb881fd49d0"]]],
   ["isModule: false", "feefd2a0d3a1847e"],
   ["Module.name: SID", "25355fbb8c084c7d"],
   ["Package.id?: (some dasmodel)", "3436f0ec7352345a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "3faba5ccc7a667ef"}
+ "depHash": "60585056cf1f202d"}

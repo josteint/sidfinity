@@ -1,0 +1,21 @@
+{"synthetic": false,
+ "schemaVersion": "2025-09-10",
+ "outputs": "21d30cbe0988446f",
+ "log":
+ [{"message":
+   ".> /home/jtr/.elan/toolchains/leanprover--lean4---v4.29.1/bin/clang -o /home/jtr/sidfinity/src/formal/.lake/build/bin/validate /home/jtr/sidfinity/src/formal/.lake/build/ir/ValidateModel.c.o.export /home/jtr/sidfinity/src/formal/.lake/build/ir/SID.c.o.export /home/jtr/sidfinity/src/formal/.lake/build/ir/CPU6502.c.o.export -L /home/jtr/.elan/toolchains/leanprover--lean4---v4.29.1/lib/lean --sysroot /home/jtr/.elan/toolchains/leanprover--lean4---v4.29.1 -L /home/jtr/.elan/toolchains/leanprover--lean4---v4.29.1/lib -L /home/jtr/.elan/toolchains/leanprover--lean4---v4.29.1/lib/glibc -lc -lc_nonshared -Wl,--as-needed -l:ld.so -Wl,--no-as-needed -lpthread_nonshared -Wl,--as-needed -Wl,-Bstatic -lgmp -lunwind -luv -Wl,-Bdynamic -Wl,--no-as-needed -fuse-ld=lld -Wl,--start-group -lleancpp -lLean -Wl,--end-group -lStd -Wl,--start-group -lInit -lleanrt -Wl,--end-group -Wl,-Bstatic -lc++ -lc++abi -Wl,-Bdynamic -lLake -Wl,--as-needed -lgmp -luv -lpthread -ldl -lrt -Wl,--no-as-needed -Wl,--gc-sections -lm -ldl -pthread",
+   "level": "trace"}],
+ "inputs":
+ [["linkObjs",
+   [["/home/jtr/sidfinity/src/formal/.lake/build/ir/ValidateModel.c.o.export",
+     "5d7dd13f2b633222"],
+    ["/home/jtr/sidfinity/src/formal/.lake/build/ir/SID.c.o.export",
+     "0bc021faaa99bea9"],
+    ["/home/jtr/sidfinity/src/formal/.lake/build/ir/CPU6502.c.o.export",
+     "029dddd6aec60835"]]],
+  ["linkLibs", "00000000000006bb"],
+  ["Lean 4.29.1, commit f72c35b3f637c8c6571d353742168ab66cc22c00",
+   "fa77a35a41db35c0"],
+  ["traceArgs: #[]", "00000000000006bb"],
+  ["x86_64-unknown-linux-gnu", "53a0e8937c307c28"]],
+ "depHash": "5f1beebff5e79457"}

@@ -768,7 +768,7 @@ LEAN_EXPORT lean_object* lp_dasmodel_evalPW(lean_object* x_1, lean_object* x_2, 
 _start:
 {
 uint8_t x_4; lean_object* x_5; lean_object* x_6; lean_object* x_7; lean_object* x_8; uint8_t x_9; 
-x_4 = lean_ctor_get_uint8(x_1, sizeof(void*)*4);
+x_4 = lean_ctor_get_uint8(x_1, sizeof(void*)*6);
 x_5 = lean_ctor_get(x_1, 0);
 x_6 = lean_ctor_get(x_1, 1);
 x_7 = lean_ctor_get(x_1, 2);

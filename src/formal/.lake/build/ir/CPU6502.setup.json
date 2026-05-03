@@ -1,0 +1,8 @@
+{"plugins": [],
+ "package": "dasmodel",
+ "options": {"autoImplicit": false},
+ "name": "CPU6502",
+ "isModule": false,
+ "importArts":
+ {"SID": ["/home/jtr/sidfinity/src/formal/.lake/build/lib/lean/SID.olean"]},
+ "dynlibs": []}

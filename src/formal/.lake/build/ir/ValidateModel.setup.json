@@ -1,0 +1,10 @@
+{"plugins": [],
+ "package": "dasmodel",
+ "options": {"autoImplicit": false},
+ "name": "ValidateModel",
+ "isModule": false,
+ "importArts":
+ {"SID": ["/home/jtr/sidfinity/src/formal/.lake/build/lib/lean/SID.olean"],
+  "CPU6502":
+  ["/home/jtr/sidfinity/src/formal/.lake/build/lib/lean/CPU6502.olean"]},
+ "dynlibs": []}

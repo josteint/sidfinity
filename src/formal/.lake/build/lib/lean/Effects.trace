@@ -1,9 +1,9 @@
 {"synthetic": false,
  "schemaVersion": "2025-09-10",
  "outputs":
- {"o": ["97807bb5d3c701cc.olean"],
+ {"o": ["12109abc8abebae3.olean"],
   "i": "644349e150f55fdf.ilean",
-  "c": "ca24168c620ce3e5.c"},
+  "c": "0974f7fb9d3ff4eb.c"},
  "log":
  [{"message":
    ".> LEAN_PATH=/home/jtr/sidfinity/src/formal/.lake/build/lib/lean /home/jtr/.elan/toolchains/leanprover--lean4---v4.29.1/bin/lean /home/jtr/sidfinity/src/formal/Effects.lean -o /home/jtr/sidfinity/src/formal/.lake/build/lib/lean/Effects.olean -i /home/jtr/sidfinity/src/formal/.lake/build/lib/lean/Effects.ilean -c /home/jtr/sidfinity/src/formal/.lake/build/ir/Effects.c --setup /home/jtr/sidfinity/src/formal/.lake/build/ir/Effects.setup.json --json",
@@ -15,9 +15,9 @@
        [["@dasmodel:extraDep", "00000000000006bb"]]],
       ["imports",
        [["SID transitive imports (legacy)", "00000000000006bb"],
-        ["SID:importAllArts", "b3d8546f35228907"],
-        ["State transitive imports (legacy)", "67032454345c2498"],
-        ["State:importAllArts", "9cd12e1d50e7c234"]]]]],
+        ["SID:importAllArts", "af55aa997d4c81e4"],
+        ["State transitive imports (legacy)", "40049f76b4dae96c"],
+        ["State:importAllArts", "1b5070adc1ae58d4"]]]]],
     ["libs",
      [["import dynlibs", "00000000000006bb"],
       ["package external libraries", "00000000000006bb"],
@@ -31,4 +31,4 @@
   ["Module.name: Effects", "8fab871f6cddeee0"],
   ["Package.id?: (some dasmodel)", "3436f0ec7352345a"],
   ["Module.leanArgs: #[]", "00000000000006bb"]],
- "depHash": "2ae8401a6349af40"}
+ "depHash": "c0ceba54dfce9ecd"}

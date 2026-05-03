@@ -1,6 +1,6 @@
 {"synthetic": false,
  "schemaVersion": "2025-09-10",
- "outputs": "3b90b75f124b494d.o",
+ "outputs": "235037422b9359a7.o",
  "log":
  [{"message":
    ".> /home/jtr/.elan/toolchains/leanprover--lean4---v4.29.1/bin/clang -c -o /home/jtr/sidfinity/src/formal/.lake/build/ir/State.c.o.export /home/jtr/sidfinity/src/formal/.lake/build/ir/State.c -I /home/jtr/.elan/toolchains/leanprover--lean4---v4.29.1/include -fstack-clash-protection -fdata-sections -ffunction-sections -fPIC -fvisibility=hidden -Wno-unused-command-line-argument --sysroot /home/jtr/.elan/toolchains/leanprover--lean4---v4.29.1 -nostdinc -isystem /home/jtr/.elan/toolchains/leanprover--lean4---v4.29.1/include/clang -O3 -DNDEBUG -DLEAN_EXPORTING",
@@ -8,11 +8,11 @@
  "inputs":
  [["State:c",
    [["/home/jtr/sidfinity/src/formal/.lake/build/ir/State.c",
-     "c90b5867cd29419c"],
+     "fef450e805b33483"],
     ["Lean 4.29.1, commit f72c35b3f637c8c6571d353742168ab66cc22c00",
      "fa77a35a41db35c0"]]],
   ["Lean 4.29.1, commit f72c35b3f637c8c6571d353742168ab66cc22c00",
    "fa77a35a41db35c0"],
   ["traceArgs: #[-O3, -DNDEBUG, -DLEAN_EXPORTING]", "c1efb66122fb2b9a"],
   ["x86_64-unknown-linux-gnu", "53a0e8937c307c28"]],
- "depHash": "e5918b2e2a200ab1"}
+ "depHash": "cbd4bad9ba51d5e2"}

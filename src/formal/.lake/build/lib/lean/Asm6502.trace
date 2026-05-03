@@ -1,0 +1,30 @@
+{"synthetic": false,
+ "schemaVersion": "2025-09-10",
+ "outputs":
+ {"o": ["7cafce7c025d213b.olean"],
+  "i": "9b37ae2606adf8f9.ilean",
+  "c": "d9d0bf45093f44c1.c"},
+ "log":
+ [{"message":
+   ".> LEAN_PATH=/home/jtr/sidfinity/src/formal/.lake/build/lib/lean /home/jtr/.elan/toolchains/leanprover--lean4---v4.29.1/bin/lean /home/jtr/sidfinity/src/formal/Asm6502.lean -o /home/jtr/sidfinity/src/formal/.lake/build/lib/lean/Asm6502.olean -i /home/jtr/sidfinity/src/formal/.lake/build/lib/lean/Asm6502.ilean -c /home/jtr/sidfinity/src/formal/.lake/build/ir/Asm6502.c --setup /home/jtr/sidfinity/src/formal/.lake/build/ir/Asm6502.setup.json --json",
+   "level": "trace"}],
+ "inputs":
+ [["Asm6502:deps",
+   [["deps",
+     [["dasmodel/DasModel:extraDep",
+       [["@dasmodel:extraDep", "00000000000006bb"]]],
+      ["imports", "00000000000006bb"]]],
+    ["libs",
+     [["import dynlibs", "00000000000006bb"],
+      ["package external libraries", "00000000000006bb"],
+      ["module dynlibs", "00000000000006bb"],
+      ["module plugins", "00000000000006bb"]]]]],
+  ["Lean 4.29.1, commit f72c35b3f637c8c6571d353742168ab66cc22c00",
+   "fa77a35a41db35c0"],
+  ["/home/jtr/sidfinity/src/formal/Asm6502.lean", "f4b49d3fcdbf6e66"],
+  ["options", [["-DautoImplicit=false", "4a85acb881fd49d0"]]],
+  ["isModule: false", "feefd2a0d3a1847e"],
+  ["Module.name: Asm6502", "9266112a258af10b"],
+  ["Package.id?: (some dasmodel)", "3436f0ec7352345a"],
+  ["Module.leanArgs: #[]", "00000000000006bb"]],
+ "depHash": "674008e0580b839a"}
