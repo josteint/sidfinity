@@ -468,9 +468,14 @@ def emitSustainEffects (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.r
   cb := cb.emitJmpLabel .JMP "no_slide"
   cb := cb.label "fhi_ok"
 
-  -- Guard: skip if countdown == 0
+  -- Guard: skip slide entirely once we are at/past the gate-off frame.
+  -- das_model uses `cmp #4 / bcc skip` on its dur*3 countdown; ours is
+  -- (dur-1) so the equivalent threshold is v_dur < 3 (gate-off fires at
+  -- v_dur == 2). This matches Hubbard's behavior of leaving the voice
+  -- alone once release starts.
   cb := cb.emitLdaAbsX "v_dur"
-  cb := cb.emitBranch .BNE "dur_ok"
+  cb := cb.emitInst (I.cmp_imm 3)
+  cb := cb.emitBranch .BCS "dur_ok"
   cb := cb.emitJmpLabel .JMP "no_slide"
   cb := cb.label "dur_ok"
 
