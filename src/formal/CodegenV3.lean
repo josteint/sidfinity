@@ -679,11 +679,14 @@ def emitNoteLoadPath (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.run
   cb := cb.emitInst (I.ldx_zp 0xFA)               -- X = voice
   cb := cb.emitInst (I.lda_zp 0xFE)               -- pitch
   cb := cb.emitStaAbsX "v_pitch"
-  -- v_fhi: for pitch != 104 read freq_hi; for pitch 104 (percussion) use 0
+  -- v_fhi: for pitch != 104 read freq_hi; for pitch 104 use v_ctrl[1] (matches SID fhi write)
   cb := cb.emitInst (I.lda_zp 0xFE)               -- pitch
   cb := cb.emitInst (I.cmp_imm 104)
   cb := cb.emitBranch .BNE "vfhi_normal"
-  cb := cb.emitInst (I.lda_imm 0)                 -- pitch 104: v_fhi = 0
+  -- pitch 104: v_fhi = v_ctrl[1] (same as fhi we just wrote to SID)
+  cb := cb.emitInst (I.lda_abs 0)                 -- v_ctrl[1] (placeholder)
+  cb := { cb with absFixups :=
+    { byteIdx := cb.bytes.size - 2, targetLabel := "v_ctrl_1" } :: cb.absFixups }
   cb := cb.emitJmpLabel .JMP "vfhi_done"
   cb := cb.label "vfhi_normal"
   cb := cb.emitInst (I.ldx_zp 0xFE)               -- X = pitch
