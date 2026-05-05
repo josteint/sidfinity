@@ -203,27 +203,28 @@ private def emitPlay (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.run
   -- Increment global frame counter (for arpeggio phase)
   cb := cb.emitInst (I.inc_zp 0x50)
 
-  -- Dynamic freq table updates (Hubbard "T[N]" aliasing). Only T[100] for now,
-  -- which is what V1's arp lands on when base pitch is 88 (pat19 lead).
-  -- T[100]_lo <- v_huboff[V2], T[100]_hi <- v_huboff[V3]
-  cb := cb.emitInst (I.lda_abs 0)                   -- v_huboff[1]
-  cb := { cb with absFixups :=
-    { byteIdx := cb.bytes.size - 2, targetLabel := "v_huboff_v2" } :: cb.absFixups }
-  cb := cb.emitInst (I.sta_abs 0)
-  cb := { cb with absFixups :=
-    { byteIdx := cb.bytes.size - 2, targetLabel := "freq_lo_100" } :: cb.absFixups }
-  cb := cb.emitInst (I.lda_abs 0)                   -- v_huboff[2]
-  cb := { cb with absFixups :=
-    { byteIdx := cb.bytes.size - 2, targetLabel := "v_huboff_v3" } :: cb.absFixups }
-  cb := cb.emitInst (I.sta_abs 0)
-  cb := { cb with absFixups :=
-    { byteIdx := cb.bytes.size - 2, targetLabel := "freq_hi_100" } :: cb.absFixups }
-
-  -- Process voices in song order
+  -- Process voices in song order. Insert dynamic-table updates at the right
+  -- inter-voice boundary so the next voice sees the latest state. das_model
+  -- updates T[100] between V2 and V1 (= between our voiceOrder positions
+  -- corresponding to voices 1 and 0).
   let nVoices := song.voiceOrder.length
   for h : i in [:nVoices] do
     match song.voiceOrder[i]? with
     | some v =>
+      -- Before voice 0 (V1), update T[100]: lo <- V2.huboff, hi <- V3.huboff
+      if v.val == 0 then
+        cb := cb.emitInst (I.lda_abs 0)
+        cb := { cb with absFixups :=
+          { byteIdx := cb.bytes.size - 2, targetLabel := "v_huboff_v2" } :: cb.absFixups }
+        cb := cb.emitInst (I.sta_abs 0)
+        cb := { cb with absFixups :=
+          { byteIdx := cb.bytes.size - 2, targetLabel := "freq_lo_100" } :: cb.absFixups }
+        cb := cb.emitInst (I.lda_abs 0)
+        cb := { cb with absFixups :=
+          { byteIdx := cb.bytes.size - 2, targetLabel := "v_huboff_v3" } :: cb.absFixups }
+        cb := cb.emitInst (I.sta_abs 0)
+        cb := { cb with absFixups :=
+          { byteIdx := cb.bytes.size - 2, targetLabel := "freq_hi_100" } :: cb.absFixups }
       cb := cb.emitInst (I.ldx_imm v.val.toUInt8)
       if i + 1 < nVoices then
         cb := cb.emitJmpLabel .JSR "exec_voice"
