@@ -295,25 +295,26 @@ def emitVibrato (cb : CodeBuilder) (_song : USFSong) : CodeBuilder := Id.run do
   cb := cb.emitInst (I.sta_zp 0xF5)               -- $F5 = delta_hi
   cb := cb.emitLdaAbsY "freq_lo"                   -- next_flo
   cb := cb.emitInst (I.sbc_zp 0xF8)               -- delta_lo = next_flo - base_flo
-  -- Right-shift (vib_depth+1) times
-  -- Loop: LSR delta_lo / ROR delta_hi, decrement depth counter
+  -- Right-shift exactly semitoneShift times (das_model: iny + dey/bne so loops
+  -- i_vib+1 times; our semitoneShift already encodes that +1 from extraction).
   cb := cb.label "vib_shift"
   cb := cb.emitInst I.lsr_a                        -- shift A (delta_lo) right
   cb := cb.emitInst ⟨.ROR, .zp 0xF5⟩              -- rotate into delta_hi
   cb := cb.emitInst (I.dec_zp 0xF7)               -- dec vib_depth counter
-  cb := cb.emitBranch .BPL "vib_shift"             -- loop while >= 0
+  cb := cb.emitBranch .BNE "vib_shift"             -- loop while != 0
 
   cb := cb.emitInst (I.sta_zp 0xF4)               -- $F4 = shifted delta_lo
   -- $F5 = shifted delta_hi
 
   -- Start from base freq, add delta × LFO step
   -- vibrato_freq = base_freq + delta * step
-  -- Check onset: durationFrames >= 18 for vibrato to be active
-  -- (USF v3: durations are in frames; Hubbard's "6 ticks" = 18 frames at tempo=3)
+  -- Check onset: durationFrames >= 21 for vibrato to be active.
+  -- das_model: cmp #21 against dur*3 (= durationFrames in our units).
+  -- Notes shorter than 7 ticks skip vibrato and just write base freq.
   cb := cb.emitInst (I.ldx_zp 0xFA)
   cb := cb.emitLdaAbsX "v_durfield"
-  cb := cb.emitInst (I.cmp_imm 18)
-  cb := cb.emitBranch .BCS "vib_onset_ok"          -- dur >= 18 frames: vibrato active
+  cb := cb.emitInst (I.cmp_imm 21)
+  cb := cb.emitBranch .BCS "vib_onset_ok"          -- dur >= 21 frames: vibrato active
   -- dur < 6: write base freq directly
   cb := cb.emitJmpLabel .JMP "vib_write_base"
   cb := cb.label "vib_onset_ok"
