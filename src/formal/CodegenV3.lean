@@ -203,6 +203,22 @@ private def emitPlay (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.run
   -- Increment global frame counter (for arpeggio phase)
   cb := cb.emitInst (I.inc_zp 0x50)
 
+  -- Dynamic freq table updates (Hubbard "T[N]" aliasing). Only T[100] for now,
+  -- which is what V1's arp lands on when base pitch is 88 (pat19 lead).
+  -- T[100]_lo <- v_huboff[V2], T[100]_hi <- v_huboff[V3]
+  cb := cb.emitInst (I.lda_abs 0)                   -- v_huboff[1]
+  cb := { cb with absFixups :=
+    { byteIdx := cb.bytes.size - 2, targetLabel := "v_huboff_v2" } :: cb.absFixups }
+  cb := cb.emitInst (I.sta_abs 0)
+  cb := { cb with absFixups :=
+    { byteIdx := cb.bytes.size - 2, targetLabel := "freq_lo_100" } :: cb.absFixups }
+  cb := cb.emitInst (I.lda_abs 0)                   -- v_huboff[2]
+  cb := { cb with absFixups :=
+    { byteIdx := cb.bytes.size - 2, targetLabel := "v_huboff_v3" } :: cb.absFixups }
+  cb := cb.emitInst (I.sta_abs 0)
+  cb := { cb with absFixups :=
+    { byteIdx := cb.bytes.size - 2, targetLabel := "freq_hi_100" } :: cb.absFixups }
+
   -- Process voices in song order
   let nVoices := song.voiceOrder.length
   for h : i in [:nVoices] do
@@ -628,7 +644,45 @@ def emitNoteLoadPath (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.run
 
   cb := cb.emitInst I.iny
   cb := cb.emitInst ⟨.LDA, .indY 0xFC⟩
-  cb := cb.emitInst (I.sta_zp 0xFB)              -- $FB = instrument
+  cb := cb.emitInst (I.sta_zp 0xFB)              -- $FB = raw inst byte (with bits 6/7 flags)
+
+  -- Hubbard hub_off counter: per-voice byte that increments per note based
+  -- on the inst-byte flag bits. T[100] in the freq table is fed from
+  -- V2.huboff and V3.huboff each frame; gives V1's arp pitch 88+12=100
+  -- audible content.
+  --   bit 6 (legato): +1
+  --   bit 7 only (no new inst): +2
+  --   neither: +3
+  -- Compute hub_off increment based on flag bits in raw inst byte ($FB):
+  --   bit 6 set → +1 (legato)
+  --   bit 7 only → +2 (no new instrument)
+  --   neither → +3 (full new note)
+  cb := cb.emitInst (I.lda_zp 0xFB)              -- raw inst byte
+  cb := cb.emitInst (I.and_imm 0xC0)             -- mask flag bits
+  cb := cb.emitBranch .BNE "huboff_has_flag"
+  -- No flag bits: +3
+  cb := cb.emitInst (I.lda_imm 3)
+  cb := cb.emitJmpLabel .JMP "huboff_inc"
+  cb := cb.label "huboff_has_flag"
+  -- At least one flag bit set. Check bit 6 (legato).
+  cb := cb.emitInst (I.lda_zp 0xFB)
+  cb := cb.emitInst (I.and_imm 0x40)
+  cb := cb.emitBranch .BEQ "huboff_tied"          -- bit 6 not set → bit 7 only → +2
+  cb := cb.emitInst (I.lda_imm 1)                -- bit 6 set → +1
+  cb := cb.emitJmpLabel .JMP "huboff_inc"
+  cb := cb.label "huboff_tied"
+  cb := cb.emitInst (I.lda_imm 2)
+  cb := cb.label "huboff_inc"
+  cb := cb.emitInst (I.sta_zp 0xF8)              -- save increment
+  cb := cb.emitInst I.clc
+  cb := cb.emitLdaAbsX "v_huboff"
+  cb := cb.emitInst (I.adc_zp 0xF8)
+  cb := cb.emitStaAbsX "v_huboff"
+
+  -- Mask off flag bits so $FB holds clean inst index (0-63) for table lookups
+  cb := cb.emitInst (I.lda_zp 0xFB)
+  cb := cb.emitInst (I.and_imm 0x3F)
+  cb := cb.emitInst (I.sta_zp 0xFB)
 
   -- Advance pattern pointer by 3
   cb := cb.emitInst I.clc
@@ -749,6 +803,10 @@ def emitNoteLoadPath (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.run
   cb := cb.label "advance_order"
   cb := cb.emitInst (I.ldx_zp 0xFA)              -- X = voice index
 
+  -- Reset hub_off counter when pattern ends (das_model: at $FE marker)
+  cb := cb.emitInst (I.lda_imm 0)
+  cb := cb.emitStaAbsX "v_huboff"
+
   -- Read pattern index from orderlist
   -- Each voice has its own orderlist. We store per-voice orderlist pointers.
   cb := cb.emitLdaAbsX "v_olpos"
@@ -812,11 +870,13 @@ def generateSID (song : USFSong) (debug : Bool := false) : Bytes := Id.run do
   -- Frequency table: entry 104 is dynamic (ctrl byte, 0 at init)
   cb := cb.label "freq_lo"
   for hi : i in [:song.freqTable.entries.length] do
+    if i == 100 then cb := cb.label "freq_lo_100"
     match song.freqTable.entries[i]? with
     | some p => cb := cb.emitByte (if i == 104 then 0 else p.1.val.toUInt8)
     | none => cb := cb.emitByte 0
   cb := cb.label "freq_hi"
   for hi : i in [:song.freqTable.entries.length] do
+    if i == 100 then cb := cb.label "freq_hi_100"
     match song.freqTable.entries[i]? with
     | some p => cb := cb.emitByte (if i == 104 then 0 else p.2.val.toUInt8)
     | none => cb := cb.emitByte 0
@@ -972,6 +1032,15 @@ def generateSID (song : USFSong) (debug : Bool := false) : Bytes := Id.run do
   cb := cb.emitData [0, 0, 0]
   cb := cb.label "v_pwdir"
   cb := cb.emitData [0, 0, 0]
+  -- Per-voice hub_off counter (Hubbard quirk: feeds dynamic T[100] etc.).
+  -- Increment on note-load, reset on pattern end.
+  cb := cb.label "v_huboff"
+  cb := cb.label "v_huboff_v1"
+  cb := cb.emitByte 0
+  cb := cb.label "v_huboff_v2"
+  cb := cb.emitByte 0
+  cb := cb.label "v_huboff_v3"
+  cb := cb.emitByte 0
   -- Constants
   cb := cb.label "v_sidoff"
   cb := cb.emitData [0, 7, 14]
