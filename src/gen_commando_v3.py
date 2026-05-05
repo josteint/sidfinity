@@ -11,10 +11,21 @@ def hex_byte(n):
 
 
 def gen_freq_table(T):
+    """Emit 128 entries: standard PAL 0-95, plus engine-extracted 96-127.
+    Pitch 104 is special-cased in player (dynamic ctrl byte alias).
+    """
     pairs = []
-    for i in range(96):
-        flo = T[i] & 0xFF
-        fhi = (T[i] >> 8) & 0xFF
+    for i in range(128):
+        if i < len(T):
+            flo = T[i] & 0xFF
+            fhi = (T[i] >> 8) & 0xFF
+        else:
+            flo = 0
+            fhi = 0
+        # Zero out pitch 104 (decompiler marks it as percussion .dynamicCtrl)
+        if i == 104:
+            flo = 0
+            fhi = 0
         pairs.append(f"({hex_byte(flo)}, {hex_byte(fhi)})")
     return "[" + ", ".join(pairs) + "]"
 

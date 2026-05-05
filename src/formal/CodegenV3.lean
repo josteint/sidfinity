@@ -632,7 +632,7 @@ def emitNoteLoadPath (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.run
   cb := cb.emitInst (I.lda_zp 0xFF)
   cb := cb.emitStaAbsX "v_durfield"
 
-  -- USF v3: durationFrames is already in frames. Subtract 1 for DEC-first model.
+  -- USF v3: durationFrames is in frames. Subtract 1 for DEC-first model.
   cb := cb.emitInst (I.lda_zp 0xFF)
   cb := cb.emitInst I.sec
   cb := cb.emitInst (I.sbc_imm 1)
@@ -679,9 +679,16 @@ def emitNoteLoadPath (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.run
   cb := cb.emitInst (I.ldx_zp 0xFA)               -- X = voice
   cb := cb.emitInst (I.lda_zp 0xFE)               -- pitch
   cb := cb.emitStaAbsX "v_pitch"
-  -- Reload freq_hi for v_fhi (need pitch in X again)
+  -- v_fhi: for pitch != 104 read freq_hi; for pitch 104 (percussion) use 0
+  cb := cb.emitInst (I.lda_zp 0xFE)               -- pitch
+  cb := cb.emitInst (I.cmp_imm 104)
+  cb := cb.emitBranch .BNE "vfhi_normal"
+  cb := cb.emitInst (I.lda_imm 0)                 -- pitch 104: v_fhi = 0
+  cb := cb.emitJmpLabel .JMP "vfhi_done"
+  cb := cb.label "vfhi_normal"
   cb := cb.emitInst (I.ldx_zp 0xFE)               -- X = pitch
   cb := cb.emitLdaAbsX "freq_hi"
+  cb := cb.label "vfhi_done"
   cb := cb.emitInst (I.ldx_zp 0xFA)               -- X = voice
   cb := cb.emitStaAbsX "v_fhi"
 
