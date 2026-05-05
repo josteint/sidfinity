@@ -124,10 +124,16 @@ def gen_note(note, tempo):
     # Pattern byte stores the RAW value; codegen masks for table indexing.
     inst = inst_raw & 0xFF
     tie = note.get('tie', False)
+    # no_release is encoded in bit 7 of drum_trig (das_model_gen.py:197).
+    # Hubbard's no_release flag suppresses HR/re-trigger; the gate stays on
+    # across the note. Audio-wise this is identical to a tie note — the
+    # next event isn't a fresh attack, so render it via the .tie path so
+    # we don't write Fhi/Flo or pulse a new gate-on.
+    no_release = bool(note.get('drum_trig', 0) & 0x80)
     # Frame count = dur * tempo (frames per tick). Tempo varies per subtune
     # in Hubbard games — comes from speed_table[subtune]+1.
     frames = dur * tempo
-    if tie:
+    if tie or no_release:
         kind = '.tie'
     elif pitch == 104:
         kind = '.percussion .dynamicCtrl'
