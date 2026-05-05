@@ -439,23 +439,23 @@ def emitVibrato (cb : CodeBuilder) (_song : USFSong) : CodeBuilder := Id.run do
   cb := cb.emitLdaAbsY "freq_hi"
   cb := cb.emitInst (I.sta_zp 0xF9)               -- $F9 = base_fhi
   cb := cb.emitInst I.iny                          -- Y = pitch+1
-  -- Compute 16-bit delta: freq[pitch+1] - freq[pitch]
+  -- Compute 16-bit delta: freq[pitch+1] - freq[pitch].
+  -- 6502 16-bit subtraction: lo first (sets borrow), then hi.
   cb := cb.emitInst I.sec
-  cb := cb.emitLdaAbsY "freq_hi"                   -- next_fhi
-  cb := cb.emitInst (I.sbc_zp 0xF9)               -- delta_hi = next_fhi - base_fhi
-  cb := cb.emitInst (I.sta_zp 0xF5)               -- $F5 = delta_hi
   cb := cb.emitLdaAbsY "freq_lo"                   -- next_flo
   cb := cb.emitInst (I.sbc_zp 0xF8)               -- delta_lo = next_flo - base_flo
-  -- Right-shift exactly semitoneShift times (das_model: iny + dey/bne so loops
-  -- i_vib+1 times; our semitoneShift already encodes that +1 from extraction).
+  cb := cb.emitInst (I.sta_zp 0xF4)               -- $F4 = delta_lo
+  cb := cb.emitLdaAbsY "freq_hi"                   -- next_fhi
+  cb := cb.emitInst (I.sbc_zp 0xF9)               -- delta_hi = next_fhi - base_fhi - borrow
+  cb := cb.emitInst (I.sta_zp 0xF5)               -- $F5 = delta_hi
+  -- Right-shift the 16-bit delta semitoneShift times (das_model: lsr hi /
+  -- ror lo, repeated). Our semitoneShift already encodes das_model's i_vib+1.
   cb := cb.label "vib_shift"
-  cb := cb.emitInst I.lsr_a                        -- shift A (delta_lo) right
-  cb := cb.emitInst ⟨.ROR, .zp 0xF5⟩              -- rotate into delta_hi
+  cb := cb.emitInst ⟨.LSR, .zp 0xF5⟩              -- LSR delta_hi
+  cb := cb.emitInst ⟨.ROR, .zp 0xF4⟩              -- ROR delta_lo (rotate carry in from hi)
   cb := cb.emitInst (I.dec_zp 0xF7)               -- dec vib_depth counter
   cb := cb.emitBranch .BNE "vib_shift"             -- loop while != 0
-
-  cb := cb.emitInst (I.sta_zp 0xF4)               -- $F4 = shifted delta_lo
-  -- $F5 = shifted delta_hi
+  -- $F4 = shifted delta_lo, $F5 = shifted delta_hi
 
   -- Start from base freq, add delta × LFO step
   -- vibrato_freq = base_freq + delta * step
@@ -475,21 +475,20 @@ def emitVibrato (cb : CodeBuilder) (_song : USFSong) : CodeBuilder := Id.run do
   cb := cb.emitInst I.dey                          -- Y--
   cb := cb.emitBranch .BMI "vib_write_base"        -- step was 0: no addition
 
-  -- Add delta × step to base freq
-  -- Start: target = base freq
+  -- Add delta × step to base freq. Y is currently step-1 (post-DEY above).
+  -- Loop runs exactly `step` times: das_model counts 0 < X <= step iterations.
   cb := cb.emitInst (I.lda_zp 0xF8)               -- base_flo
   cb := cb.emitInst (I.sta_zp 0xF2)               -- $F2 = target_lo
   cb := cb.emitInst (I.lda_zp 0xF9)               -- base_fhi
   cb := cb.emitInst (I.sta_zp 0xF3)               -- $F3 = target_hi
-  cb := cb.emitInst I.iny                          -- restore Y (was DEY'd, now = step-1)
 
   cb := cb.label "vib_add_loop"
   cb := cb.emitInst I.clc
   cb := cb.emitInst (I.lda_zp 0xF2)
-  cb := cb.emitInst (I.adc_zp 0xF5)               -- target_lo += delta_hi (Hubbard swaps lo/hi)
+  cb := cb.emitInst (I.adc_zp 0xF4)               -- target_lo += delta_lo
   cb := cb.emitInst (I.sta_zp 0xF2)
   cb := cb.emitInst (I.lda_zp 0xF3)
-  cb := cb.emitInst (I.adc_zp 0xF4)               -- target_hi += delta_lo
+  cb := cb.emitInst (I.adc_zp 0xF5)               -- target_hi += delta_hi + carry
   cb := cb.emitInst (I.sta_zp 0xF3)
   cb := cb.emitInst I.dey
   cb := cb.emitBranch .BPL "vib_add_loop"
