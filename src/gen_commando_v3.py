@@ -201,38 +201,75 @@ def main():
     quirks = """{
     preserveNoteFlags := true
     voiceScratch := [
-      { name := "hub_off", initial := ⟨0, by omega⟩ }
+      { name := "hub_off", initial := ⟨0, by omega⟩ },   -- slot 0
+      { name := "seq_idx", initial := ⟨0, by omega⟩ }    -- slot 1
     ]
     noteLoadOps := [
-      -- Hubbard hub_off: bit 6 -> +1, bit 7 -> +2, neither -> +3
+      -- hub_off (slot 0): bit 6 -> +1, bit 7 -> +2, neither -> +3
       .addByFlag 0 [
         (⟨0x40, by omega⟩, ⟨0x40, by omega⟩, ⟨1, by omega⟩),
         (⟨0x80, by omega⟩, ⟨0x80, by omega⟩, ⟨2, by omega⟩),
         (⟨0x00, by omega⟩, ⟨0x00, by omega⟩, ⟨3, by omega⟩)
-      ]
+      ],
+      -- Eager pattern-end behaviors (das_model v2nd1):
+      -- when next byte is the EOP marker, reset hub_off and inc seq_idx
+      .resetIfNextEnds 0,
+      .incIfNextEnds   1 ⟨1, by omega⟩
     ]
     patternEndOps := [
-      .reset 0
+      -- Also (redundantly) on next note's advance_order
+      .reset 0,
+      .increment 1 ⟨1, by omega⟩
     ]
     dynamicFreqEntries := [
-      -- T[100]: V2.hub_off (lo), V3.hub_off (hi). Updated at frame start
-      -- (so V3 sees prev-frame values) and again right before V1 runs (so
-      -- V1 sees latest post-V2 values).
+      -- ===== Frame-start updates =====
+      -- T[100]: V2.hub_off (lo), V3.hub_off (hi)
       { freqSlot := 100,
         loSource := .scratch ⟨1, by omega⟩ 0,
         hiSource := .scratch ⟨2, by omega⟩ 0,
         phase    := .atFrameStart },
-      { freqSlot := 100,
-        loSource := .scratch ⟨1, by omega⟩ 0,
-        hiSource := .scratch ⟨2, by omega⟩ 0,
-        phase    := .beforeVoice ⟨0, by omega⟩ },
-
-      -- T[104]: V1.ctrl (lo), V2.ctrl (hi). Hubbard's percussion noise feed.
-      -- Replaces our previous pitch-104 special case.
+      -- T[104]: V1.ctrl (lo), V2.ctrl (hi). Hubbard percussion noise feed.
       { freqSlot := 104,
         loSource := .voiceCtrl ⟨0, by omega⟩,
         hiSource := .voiceCtrl ⟨1, by omega⟩,
         phase    := .atFrameStart },
+
+      -- ===== Between V3 and V2 (= beforeVoice 1) =====
+      -- T[98]: V1.seq_idx (lo), V2.seq_idx (hi)
+      { freqSlot := 98,
+        loSource := .scratch ⟨0, by omega⟩ 1,
+        hiSource := .scratch ⟨1, by omega⟩ 1,
+        phase    := .beforeVoice ⟨1, by omega⟩ },
+      -- T[99]: V3.seq_idx (lo), V1.hub_off (hi)
+      { freqSlot := 99,
+        loSource := .scratch ⟨2, by omega⟩ 1,
+        hiSource := .scratch ⟨0, by omega⟩ 0,
+        phase    := .beforeVoice ⟨1, by omega⟩ },
+      -- T[105]: V3.ctrl (lo), V1.pitch (hi)
+      { freqSlot := 105,
+        loSource := .voiceCtrl ⟨2, by omega⟩,
+        hiSource := .voicePitch ⟨0, by omega⟩,
+        phase    := .beforeVoice ⟨1, by omega⟩ },
+      -- T[106]: V2.pitch (lo), V3.pitch (hi)
+      { freqSlot := 106,
+        loSource := .voicePitch ⟨1, by omega⟩,
+        hiSource := .voicePitch ⟨2, by omega⟩,
+        phase    := .beforeVoice ⟨1, by omega⟩ },
+      -- T[107]: V1.inst (lo), V2.inst (hi)
+      --   At this phase V1 hasn't loaded yet so v_inst[V1] is "prev_inst";
+      --   V2 may or may not have loaded depending on its own scheduling.
+      { freqSlot := 107,
+        loSource := .voiceInst ⟨0, by omega⟩,
+        hiSource := .voiceInst ⟨1, by omega⟩,
+        phase    := .beforeVoice ⟨1, by omega⟩ },
+
+      -- ===== Between V2 and V1 (= beforeVoice 0) =====
+      -- T[100]: re-update so V1 sees latest V2.hub_off this frame
+      { freqSlot := 100,
+        loSource := .scratch ⟨1, by omega⟩ 0,
+        hiSource := .scratch ⟨2, by omega⟩ 0,
+        phase    := .beforeVoice ⟨0, by omega⟩ },
+      -- T[104]: re-update similarly
       { freqSlot := 104,
         loSource := .voiceCtrl ⟨0, by omega⟩,
         hiSource := .voiceCtrl ⟨1, by omega⟩,
