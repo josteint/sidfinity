@@ -416,6 +416,10 @@ def emitVibrato (cb : CodeBuilder) (_song : USFSong) : CodeBuilder := Id.run do
   cb := cb.emitInst ⟨.LDA, .absY 0⟩               -- i_vib[inst] (vib_depth, 0=none)
   cb := { cb with absFixups :=
     { byteIdx := cb.bytes.size - 2, targetLabel := "i_vib" } :: cb.absFixups }
+  -- CLC here so the no-vibrato path enters PWM with C=0 (matching Hubbard's
+  -- behavior where V3-style instruments hit linear PWM without leaking the
+  -- prior gate-check carry). CLC doesn't touch Z so BNE below still works.
+  cb := cb.emitInst I.clc
   cb := cb.emitBranch .BNE "has_vib"
   cb := cb.emitJmpLabel .JMP "no_vib"
   cb := cb.label "has_vib"
@@ -532,8 +536,12 @@ def emitSustainEffects (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.r
   cb := cb.emitInst ⟨.LDA, .absY 0⟩               -- pw_mode[inst]
   cb := { cb with absFixups :=
     { byteIdx := cb.bytes.size - 2, targetLabel := "i_pwmode" } :: cb.absFixups }
-  cb := cb.emitInst (I.cmp_imm 2)
-  cb := cb.emitBranch .BNE "pw_linear"
+  -- Mode encoding (bit 7) lets us branch via BMI without disturbing C.
+  -- Hubbard's linear-PW path (no CLC before ADC) deliberately leaks the
+  -- carry from vibrato's last high-byte ADC into PWM speed, giving an
+  -- occasional +1 to PW lo on vibrato-overflow frames. Preserve C from
+  -- vibrato all the way to the ADC at line below.
+  cb := cb.emitBranch .BMI "pw_linear"             -- bit 7 set → linear
   cb := cb.emitJmpLabel .JMP "pw_bidir"
   cb := cb.label "pw_linear"
 
@@ -545,8 +553,9 @@ def emitSustainEffects (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.r
   cb := cb.emitLdaAbsX "v_inst"
   cb := cb.emitInst I.tay                          -- Y = inst (preserved across PW)
 
-  -- LINEAR PW
-  cb := cb.emitInst I.clc
+  -- LINEAR PW. NOTE: no CLC — we deliberately use C from vibrato's last
+  -- high-byte ADC, matching Hubbard's $5237 path. This is what makes orig
+  -- PW lo occasionally +speed+1 instead of +speed.
   cb := cb.emitLdaAbsY "i_pwlo"
   cb := cb.emitInst (I.adc_zp 0xF9)
   cb := cb.emitStaAbsY "i_pwlo"
@@ -1065,11 +1074,12 @@ def generateSID (song : USFSong) (debug : Bool := false) : Bytes := Id.run do
       | .bidirectional sp _ _ => sp.val.toUInt8
       | .table _ => 0)
   cb := cb.label "i_pwmode"
+  -- Bit 7 = linear (so BMI selects it without touching C; see emitSustainEffects).
   cb := cb.emitData (song.instruments.map fun i => match i.pwMod with
     | none => (0 : UInt8)
     | some pm => match pm.mode with
-      | .linear _ => 1
-      | .bidirectional _ _ _ => 2
+      | .linear _ => 0x80
+      | .bidirectional _ _ _ => 0x01
       | .table _ => 0)
   cb := cb.label "i_pwmin"
   cb := cb.emitData (song.instruments.map fun i => match i.pwMod with
