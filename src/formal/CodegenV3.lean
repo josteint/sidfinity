@@ -791,6 +791,10 @@ def emitNoteLoadPath (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.run
 
   -- Mask off flag bits so $FB holds clean inst index for table lookups (only
   -- if quirks asked to preserve them; otherwise pattern data already clean).
+  -- For tie notes (pitch=$FD), DON'T update v_inst[X] either - v_inst keeps
+  -- the previous note's inst index so subsequent SID writes use the correct
+  -- instrument's i_ctrl/i_ad/i_sr/i_pwlo values. das_model's v_hubt/v_hub2
+  -- paths reuse the previous inst ($A2/$B6) for the same reason.
   if song.engineQuirks.preserveNoteFlags then
     cb := cb.emitInst (I.lda_zp 0xFB)
     cb := cb.emitInst (I.and_imm 0x3F)
@@ -829,9 +833,16 @@ def emitNoteLoadPath (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.run
   cb := cb.emitInst (I.sbc_imm 1)
   cb := cb.emitStaAbsX "v_dur"
 
-  -- Store NEW instrument index in voice state
+  -- Store NEW instrument index in voice state. EXCEPT for tie notes (pitch
+  -- $FD) which keep the previous v_inst so downstream SID writes use the
+  -- correct instrument's tables. das_model's v_hubt/v_hub2 paths do the
+  -- same (don't update $A2/$B6 for tie/legato notes).
+  cb := cb.emitInst (I.lda_zp 0xFE)              -- pitch
+  cb := cb.emitInst (I.cmp_imm 0xFD)
+  cb := cb.emitBranch .BEQ "skip_v_inst_update"
   cb := cb.emitInst (I.lda_zp 0xFB)
   cb := cb.emitStaAbsX "v_inst"
+  cb := cb.label "skip_v_inst_update"
 
   -- Reset waveform pointer to 0
   -- First sustain frame will re-read waveform[0] (same as noteLoad ctrl)
@@ -843,14 +854,13 @@ def emitNoteLoadPath (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.run
   cb := cb.emitLdaAbsX "v_sidoff"
   cb := cb.emitInst I.tay                        -- Y = SID offset
 
-  -- TIE-NOTE HANDLING: pitch byte $FD means "continue previous note" - skip
-  -- all SID register writes (no freq, ctrl, PW, ADSR re-init). This is what
-  -- das_model does for rh_decompile's "pure tie" (b0 bit 6 only) notes.
+  -- TIE-NOTE HANDLING: pitch byte $FD means "no new pitch" (legato).
+  -- Skip the freq write + v_pitch/v_fhi updates, but still do Ctrl (with
+  -- gate cleared by das_model's i_ctrl & FE convention - we'll handle that
+  -- by using v_inst[voice] which has the previous inst).
   cb := cb.emitInst (I.lda_zp 0xFE)
   cb := cb.emitInst (I.cmp_imm 0xFD)
-  cb := cb.emitBranch .BNE "tie_no"
-  cb := cb.emitJmpLabel .JMP "noteload_done"     -- skip the rest of note_load
-  cb := cb.label "tie_no"
+  cb := cb.emitBranch .BEQ "tie_skip_pitch"
 
   -- Frequency lookup (Hubbard order: freq_hi BEFORE freq_lo). For dynamic
   -- table slots (e.g. T[104]), the freq_lo/freq_hi tables already hold the
@@ -870,8 +880,14 @@ def emitNoteLoadPath (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.run
   cb := cb.emitInst (I.ldx_zp 0xFA)               -- X = voice
   cb := cb.emitStaAbsX "v_fhi"
 
-  -- Instrument lookups: X = instrument
-  cb := cb.emitInst (I.ldx_zp 0xFB)              -- X = instrument
+  cb := cb.label "tie_skip_pitch"
+  -- Instrument lookups: X = instrument from v_inst (which we deliberately
+  -- DON'T update for tie notes - so this gets the previous note's inst,
+  -- giving the right ctrl/pw/adsr table values).
+  cb := cb.emitInst (I.ldx_zp 0xFA)              -- X = voice
+  cb := cb.emitLdaAbsX "v_inst"                  -- A = v_inst[voice]
+  cb := cb.emitInst (I.sta_zp 0xFB)              -- $FB = effective inst
+  cb := cb.emitInst I.tax                         -- X = inst
 
   -- Ctrl
   cb := cb.emitLdaAbsX "i_ctrl"
