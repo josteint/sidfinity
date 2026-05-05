@@ -843,6 +843,15 @@ def emitNoteLoadPath (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.run
   cb := cb.emitLdaAbsX "v_sidoff"
   cb := cb.emitInst I.tay                        -- Y = SID offset
 
+  -- TIE-NOTE HANDLING: pitch byte $FD means "continue previous note" - skip
+  -- all SID register writes (no freq, ctrl, PW, ADSR re-init). This is what
+  -- das_model does for rh_decompile's "pure tie" (b0 bit 6 only) notes.
+  cb := cb.emitInst (I.lda_zp 0xFE)
+  cb := cb.emitInst (I.cmp_imm 0xFD)
+  cb := cb.emitBranch .BNE "tie_no"
+  cb := cb.emitJmpLabel .JMP "noteload_done"     -- skip the rest of note_load
+  cb := cb.label "tie_no"
+
   -- Frequency lookup (Hubbard order: freq_hi BEFORE freq_lo). For dynamic
   -- table slots (e.g. T[104]), the freq_lo/freq_hi tables already hold the
   -- per-frame updated values (see engineQuirks.dynamicFreqEntries).
@@ -891,6 +900,7 @@ def emitNoteLoadPath (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.run
   cb := cb.emitInst (I.ldx_zp 0xFA)              -- X = voice index
   cb := cb.emitStaAbsX "v_ctrl"
 
+  cb := cb.label "noteload_done"
   cb := cb.emitInst I.rts
 
   -- === ADVANCE ORDERLIST ===
