@@ -8,7 +8,7 @@ package dasmodel where
 
 @[default_target]
 lean_lib DasModel where
-  roots := #[`SID, `State, `Effects, `Compile, `Properties, `Asm6502, `PSIDFile, `Codegen, `CommandoData, `CPU6502]
+  roots := #[`SID, `State, `Effects, `Compile, `Properties, `Asm6502, `PSIDFile, `Codegen, `CommandoData, `CPU6502, `USFv3, `CommandoV3]
 
 lean_exe dasmodel where
   root := `Main
