@@ -114,7 +114,7 @@ def gen_instrument(idx, inst):
 }}"""
 
 
-def gen_note(note):
+def gen_note(note, tempo):
     pitch = note['pitch']
     dur = note['duration']
     inst_raw = note['instrument']
@@ -124,10 +124,9 @@ def gen_note(note):
     # Pattern byte stores the RAW value; codegen masks for table indexing.
     inst = inst_raw & 0xFF
     tie = note.get('tie', False)
-    # Frame count = dur * 3 (Commando tempo), -1 for our DEC-first model
-    # Actually, USF should NOT have engine-specific adjustments. Just use frames.
-    # The codegen will handle the DEC-first model internally.
-    frames = dur * 3
+    # Frame count = dur * tempo (frames per tick). Tempo varies per subtune
+    # in Hubbard games — comes from speed_table[subtune]+1.
+    frames = dur * tempo
     if tie:
         kind = '.tie'
     elif pitch == 104:
@@ -141,8 +140,8 @@ def gen_note(note):
     return f"{{ kind := {kind}, durationFrames := {frames}, instrument := {inst} }}"
 
 
-def gen_pattern(idx, notes):
-    note_strs = [gen_note(n) for n in notes]
+def gen_pattern(idx, notes, tempo):
+    note_strs = [gen_note(n, tempo) for n in notes]
     return f"def cv3P{idx} : USFPattern := {{ notes := [{', '.join(note_strs)}] }}"
 
 
@@ -172,8 +171,9 @@ def main():
             if pat_idx not in all_pats:
                 all_pats[pat_idx] = pat_notes
 
+    tempo = score['tempo']
     for idx in sorted(all_pats.keys()):
-        out.append(gen_pattern(idx, all_pats[idx]))
+        out.append(gen_pattern(idx, all_pats[idx], tempo))
         out.append("")
 
     # Voices (orderlist)

@@ -75,7 +75,13 @@ def extract(subtune=0):
     # The engine doesn't know about drums/arpeggio — only the decompiler does.
 
     instruments = []
-    speed = decomp.speed if decomp.speed is not None else 2
+    # Per-subtune speed if available; else fall back to default.
+    if decomp.speed_table is not None and subtune < len(decomp.speed_table):
+        speed = decomp.speed_table[subtune]
+    elif decomp.speed is not None:
+        speed = decomp.speed
+    else:
+        speed = 2
     hr_frames = 3  # Hubbard hard-restarts 3 frames before note end
 
     for rh in decomp.instruments:

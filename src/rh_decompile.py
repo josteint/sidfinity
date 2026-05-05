@@ -713,6 +713,10 @@ def find_speed(binary, load_addr, num_songs=1):
 
     # Search for per-song speed table: LDA songtempos,X / STA tempo
     # Pattern: BD xx xx 8D yy yy where yy yy = tempo_addr
+    # Note: in some Hubbard games (e.g. Commando), only the music subtunes
+    # (typically 3-4) are stored as valid speeds; later table entries are
+    # used for SFX subtunes with different semantics or just data. So we
+    # accept whatever prefix of valid speeds we find (>= 1 entry).
     speed_table = None
     if tempo_addr is not None and num_songs > 1:
         for i in range(len(binary) - 6):
@@ -720,14 +724,20 @@ def find_speed(binary, load_addr, num_songs=1):
                     (binary[i + 4] | (binary[i + 5] << 8)) == tempo_addr):
                 table_addr = binary[i + 1] | (binary[i + 2] << 8)
                 off = table_addr - load_addr
-                if 0 <= off < len(binary) and off + num_songs <= len(binary):
+                if 0 <= off < len(binary):
                     speeds = []
                     for s in range(num_songs):
+                        if off + s >= len(binary):
+                            break
                         v = binary[off + s]
                         if v > 15:
                             break
                         speeds.append(v)
-                    if len(speeds) == num_songs:
+                    if len(speeds) >= 1:
+                        # Pad missing entries with default_speed so callers
+                        # can index by subtune number without bounds checks.
+                        while len(speeds) < num_songs:
+                            speeds.append(default_speed if default_speed is not None else 2)
                         speed_table = speeds
                 break
 
@@ -881,17 +891,17 @@ def decode_pattern(binary, load_addr, addr, max_bytes=256):
 
 
 def decode_track(binary, load_addr, track_addr, num_sequences=256, max_bytes=512):
-    """Decode a Hubbard track = sequence of pattern indices with RST markers.
+    """Decode a Hubbard track = sequence of pattern indices.
 
-    Track data bytes:
-    - $FF = RST restart-point marker OR loop terminator.
-      If followed by a valid pattern index (< num_sequences), it's RST:
-      skip both bytes (marker + restart offset) and continue.
-      Otherwise it's the loop point (end of track).
-    - $FE = stop (end of track)
-    - 0 to num_sequences-1 = pattern index
-    - bytes >= num_sequences but < $FE = RST marker (set restart point).
-      Some variants consume 2 bytes (marker + restart index).
+    Per Hubbard's driver (Commando $5086-$50A4):
+    - $FF in the orderlist resets the position to 0 (loop to start of track).
+      The engine does NOT read a restart_position byte after FF — the byte
+      after FF is dead data.
+    - $FE = stop (track ends, no loop). Engine handles via JSR $5003.
+    - 0 to num_sequences-1 = pattern index.
+    - bytes >= num_sequences and < $FE: treated as bogus pattern indices in
+      Commando but other Hubbard tunes use them as transpose markers; we
+      consume one extra byte heuristically and continue.
     """
     patterns = []
     off = track_addr - load_addr
@@ -901,11 +911,8 @@ def decode_track(binary, load_addr, track_addr, num_sequences=256, max_bytes=512
             break
         b = binary[off + i]
         if b == 0xFF:
-            # $FF + restart_position = loop end.  The Hubbard driver always
-            # treats this as "jump back to position restart_position in the
-            # track".  There is no separate RST/continue concept.
-            restart_pos = binary[off + i + 1] if off + i + 1 < len(binary) else 0
-            patterns.append(('loop', restart_pos))
+            # Loop back to position 0 of this track.
+            patterns.append(('loop', 0))
             break
         elif b == 0xFE:
             # $FE = stop (track ends, no loop)
