@@ -639,7 +639,10 @@ def emitNoteLoadPath (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.run
   cb := cb.emitInst (I.sbc_imm 1)
   cb := cb.emitStaAbsX "v_dur"
 
-  -- Store instrument index in voice state
+  -- Save OLD instrument index to $F7 (for "same instrument" PW continuity check below)
+  cb := cb.emitLdaAbsX "v_inst"
+  cb := cb.emitInst (I.sta_zp 0xF7)
+  -- Store NEW instrument index in voice state
   cb := cb.emitInst (I.lda_zp 0xFB)
   cb := cb.emitStaAbsX "v_inst"
 
@@ -705,22 +708,34 @@ def emitNoteLoadPath (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.run
   -- Save ctrl for sustain path
   cb := cb.emitInst I.pha
 
-  -- PW: write to SID and save to voice state
+  -- PW: if same instrument as previous note, continue current PW state (Hubbard
+  -- doesn't reset PW counter on retrigger when instrument unchanged). Otherwise
+  -- reset v_pwlo/v_pwhi/v_pwdir to instrument's init values. Always write the
+  -- (possibly continued) v_pwlo/v_pwhi to the SID register.
+  -- $F7 = old inst, $FB = new inst (still in zp from earlier)
+  cb := cb.emitInst (I.lda_zp 0xF7)               -- old inst
+  cb := cb.emitInst ⟨.CMP, .zp 0xFB⟩              -- vs new inst
+  cb := cb.emitBranch .BEQ "pw_keep"
+  -- Different instrument: reset PW state from new instrument's init
+  -- (X is currently new inst from line 700)
   cb := cb.emitLdaAbsX "i_pwlo"
-  cb := cb.emitInst (I.sta_absY (SID_BASE + 2))
-  cb := cb.emitInst I.pha                          -- save pwlo
+  cb := cb.emitInst (I.sta_zp 0xF8)               -- scratch: new pwlo
   cb := cb.emitLdaAbsX "i_pwhi"
-  cb := cb.emitInst (I.sta_absY (SID_BASE + 3))
-  cb := cb.emitInst I.pha                          -- save pwhi
-  -- Save to voice state (need voice index)
+  cb := cb.emitInst (I.sta_zp 0xF9)               -- scratch: new pwhi
   cb := cb.emitInst (I.ldx_zp 0xFA)               -- X = voice
-  cb := cb.emitInst I.pla                          -- pwhi
-  cb := cb.emitStaAbsX "v_pwhi"
-  cb := cb.emitInst I.pla                          -- pwlo
+  cb := cb.emitInst (I.lda_zp 0xF8)
   cb := cb.emitStaAbsX "v_pwlo"
-  -- Reset PW direction to 0 (up)
+  cb := cb.emitInst (I.lda_zp 0xF9)
+  cb := cb.emitStaAbsX "v_pwhi"
   cb := cb.emitInst (I.lda_imm 0)
   cb := cb.emitStaAbsX "v_pwdir"
+  cb := cb.label "pw_keep"
+  -- Always write current v_pwlo/v_pwhi to SID (refreshes register on retrigger)
+  cb := cb.emitInst (I.ldx_zp 0xFA)               -- X = voice
+  cb := cb.emitLdaAbsX "v_pwlo"
+  cb := cb.emitInst (I.sta_absY (SID_BASE + 2))
+  cb := cb.emitLdaAbsX "v_pwhi"
+  cb := cb.emitInst (I.sta_absY (SID_BASE + 3))
   -- Restore X = instrument for ADSR lookups
   cb := cb.emitInst (I.ldx_zp 0xFB)
 
