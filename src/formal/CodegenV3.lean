@@ -954,7 +954,7 @@ def emitNoteLoadPath (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.run
   -- Read pattern index at orderlist[olpos]
   cb := cb.emitInst ⟨.LDA, .indY 0xFC⟩           -- A = pattern index
   cb := cb.emitInst (I.cmp_imm 0xFF)
-  cb := cb.emitBranch .BEQ "song_end"             -- $FF = end of orderlist
+  cb := cb.emitBranch .BEQ "ol_end_or_loop"       -- $FF = end of orderlist
 
   -- Look up pattern data address from pattern pointer table
   cb := cb.emitInst I.tay                          -- Y = pattern index
@@ -968,6 +968,16 @@ def emitNoteLoadPath (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.run
 
   -- Jump back to note_load to read the first note
   cb := cb.emitJmpLabel .JMP "note_load"
+
+  -- Orderlist hit $FF marker: peek next byte for loop point.
+  -- $FF in next byte = song actually ends; else byte = new olpos.
+  cb := cb.label "ol_end_or_loop"
+  cb := cb.emitInst I.iny                         -- Y = position of loop byte
+  cb := cb.emitInst ⟨.LDA, .indY 0xFC⟩
+  cb := cb.emitInst (I.cmp_imm 0xFF)
+  cb := cb.emitBranch .BEQ "song_end"
+  cb := cb.emitStaAbsX "v_olpos"                   -- loop back: olpos = loop byte
+  cb := cb.emitJmpLabel .JMP "advance_order"
 
   -- Song end: set long duration to stop
   cb := cb.label "song_end"
@@ -1119,7 +1129,10 @@ def generateSID (song : USFSong) (debug : Bool := false) : Bytes := Id.run do
   cb := cb.label "patt_ptr_hi"
   cb := cb.emitData patPtrHi
 
-  -- Orderlist data per voice + build pointer tables
+  -- Orderlist data per voice + build pointer tables.
+  -- Layout: [entries..., $FF, loopPoint_or_FF].
+  -- When advance_order reads $FF, it consults the next byte: if $FF, song
+  -- ends; otherwise that byte is the new orderlist position (loop back).
   let mut olLo : List UInt8 := []
   let mut olHi : List UInt8 := []
   for vi in [:song.voices.length] do
@@ -1129,7 +1142,11 @@ def generateSID (song : USFSong) (debug : Bool := false) : Bytes := Id.run do
       olLo := olLo ++ [addr.toUInt8]
       olHi := olHi ++ [(addr >>> 8).toUInt8]
       cb := cb.emitData (voiceSpec.orderlist.map (·.toUInt8))
-      cb := cb.emitByte 0xFF   -- end marker
+      cb := cb.emitByte 0xFF
+      let loopByte : UInt8 := match voiceSpec.loopPoint with
+        | some p => p.toUInt8
+        | none   => 0xFF
+      cb := cb.emitByte loopByte
     | none =>
       olLo := olLo ++ [0]
       olHi := olHi ++ [0]

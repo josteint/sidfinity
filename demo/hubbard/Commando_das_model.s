@@ -255,9 +255,9 @@ v2vibdo
         cmp #21
         bcs v2vlong
         ldx $B0
-        lda fthi,x
-        sta $D40E
         lda ftlo,x
+        sta $D40E
+        lda fthi,x
         sta $D40F
         jmp v2epw
 v2vlong
@@ -269,12 +269,12 @@ v2vlong
 v2vdok
         tax
         ldy $B0
-        lda fthi+1,y
-        sec
-        sbc fthi,y
-        sta $BF
         lda ftlo+1,y
+        sec
         sbc ftlo,y
+        sta $BF
+        lda fthi+1,y
+        sbc fthi,y
         sta $C0
         lda $B6
         tay
@@ -287,19 +287,19 @@ v2vsr
         dey
         bne v2vsr
         ldy $B0
-        lda fthi,y
-        sta $C1
         lda ftlo,y
+        sta $C1
+        lda fthi,y
         sta $C2
         cpx #0
         beq v2vwr
 v2vmul
         clc
         lda $C1
-        adc $C0
+        adc $BF
         sta $C1
         lda $C2
-        adc $BF
+        adc $C0
         sta $C2
         dex
         bne v2vmul
@@ -628,9 +628,9 @@ v1vibdo
         cmp #21
         bcs v1vlong
         ldx $9C
-        lda fthi,x
-        sta $D407
         lda ftlo,x
+        sta $D407
+        lda fthi,x
         sta $D408
         jmp v1epw
 v1vlong
@@ -642,12 +642,12 @@ v1vlong
 v1vdok
         tax
         ldy $9C
-        lda fthi+1,y
-        sec
-        sbc fthi,y
-        sta $BF
         lda ftlo+1,y
+        sec
         sbc ftlo,y
+        sta $BF
+        lda fthi+1,y
+        sbc fthi,y
         sta $C0
         lda $A2
         tay
@@ -660,19 +660,19 @@ v1vsr
         dey
         bne v1vsr
         ldy $9C
-        lda fthi,y
-        sta $C1
         lda ftlo,y
+        sta $C1
+        lda fthi,y
         sta $C2
         cpx #0
         beq v1vwr
 v1vmul
         clc
         lda $C1
-        adc $C0
+        adc $BF
         sta $C1
         lda $C2
-        adc $BF
+        adc $C0
         sta $C2
         dex
         bne v1vmul
@@ -989,9 +989,9 @@ v0vibdo
         cmp #21
         bcs v0vlong
         ldx $88
-        lda fthi,x
-        sta $D400
         lda ftlo,x
+        sta $D400
+        lda fthi,x
         sta $D401
         jmp v0epw
 v0vlong
@@ -1003,12 +1003,12 @@ v0vlong
 v0vdok
         tax
         ldy $88
-        lda fthi+1,y
-        sec
-        sbc fthi,y
-        sta $BF
         lda ftlo+1,y
+        sec
         sbc ftlo,y
+        sta $BF
+        lda fthi+1,y
+        sbc fthi,y
         sta $C0
         lda $8E
         tay
@@ -1021,19 +1021,19 @@ v0vsr
         dey
         bne v0vsr
         ldy $88
-        lda fthi,y
-        sta $C1
         lda ftlo,y
+        sta $C1
+        lda fthi,y
         sta $C2
         cpx #0
         beq v0vwr
 v0vmul
         clc
         lda $C1
-        adc $C0
+        adc $BF
         sta $C1
         lda $C2
-        adc $BF
+        adc $C0
         sta $C2
         dex
         bne v0vmul

@@ -30,8 +30,11 @@ OUT_PATH = os.path.join(ROOT, 'demo', 'hubbard', 'Commando_das_model.sid')
 # This section is Hubbard-specific. It reads the binary and builds
 # universal (W, F, P, E) programs from Hubbard's instrument format.
 
-def extract():
-    """Extract (T, I, S) from Commando. Hubbard-engine-specific."""
+def extract(subtune=0):
+    """Extract (T, I, S) from Commando. Hubbard-engine-specific.
+
+    subtune: 0-indexed subtune number (default 0 = first subtune = PSID subtune 1).
+    """
     from rh_decompile import decompile
     from effect_detect import FREQ_PAL
     from py65.devices.mpu6502 import MPU
@@ -81,8 +84,8 @@ def extract():
         # W program: sequence of waveform bytes
         # Hubbard's pattern: drum instruments get noise burst ($80) on frames 1-2
         if rh.has_drum:
-            w_steps = [ctrl | 0x01, 0x80, 0x80, ctrl & 0xFE]
-            w_loop = 3  # sustain loops on last step
+            w_steps = [ctrl | 0x01, 0x80, 0x80, 0x80, ctrl & 0xFE]
+            w_loop = 4  # sustain loops on last step
         else:
             w_steps = [ctrl | 0x01]  # gate on (engine handles gate-off via E)
             w_loop = 0
@@ -135,7 +138,9 @@ def extract():
         })
 
     # --- S: Score ---
-    song = decomp.songs[0]
+    if subtune >= len(decomp.songs):
+        raise ValueError(f"subtune {subtune} out of range (have {len(decomp.songs)} songs)")
+    song = decomp.songs[subtune]
     tick_length = speed + 1
     pat_dict = {p.index: p for p in decomp.patterns}
 
@@ -609,33 +614,25 @@ def generate_asm(T, instruments, score):
         a(f'        lda ${z+9:02X}')           # note_len = (dur_field+1)*tempo
         a(f'        cmp #{7 * tempo}')
         a(f'        bcs v{v}vlong')            # dur_field >= 6 → compute modulated vibrato
-        # Short note (dur_field < 6): write SWAPPED base freq.
-        # Hubbard vibrato code treats freq table bytes as big-endian pairs:
-        # hi_cur=_rb($5428+pitch*2)=ftlo[pitch], lo_cur=_rb($5429+pitch*2)=fthi[pitch]
-        # For short note: target_lo=lo_cur=fthi[pitch] → D400 (freq_lo register)
-        #                 target_hi=hi_cur=ftlo[pitch] → D401 (freq_hi register)
-        # This is SWAPPED from normal note-load (where fthi→D401, ftlo→D400).
-        # Verified: GT writes fthi[pitch]→D400 and ftlo[pitch]→D401 for short vibrato.
+        # Short note (dur_field < 6): write base freq (normal order).
+        # sidplayfp ground truth confirms: D400 = ftlo[pitch] (freq_lo), D401 = fthi[pitch] (freq_hi).
+        # Previous belief that writes were "swapped" was wrong — GT writes normal order.
         a(f'        ldx ${z+8:02X}')
-        a(f'        lda fthi,x')
-        a(f'        sta $D4{so:02X}')          # fthi → D400 (freq_lo) — Hubbard swapped order
         a(f'        lda ftlo,x')
-        a(f'        sta $D4{so+1:02X}')        # ftlo → D401 (freq_hi) — Hubbard swapped order
+        a(f'        sta $D4{so:02X}')          # ftlo → D400 (freq_lo)
+        a(f'        lda fthi,x')
+        a(f'        sta $D4{so+1:02X}')        # fthi → D401 (freq_hi)
         a(f'        jmp v{v}epw')             # → PW section (GT order: vibrato → PW → ...)
         a(f'v{v}vlong')
-        # Long note (dur_field >= 6): compute 16-bit swapped-byte vibrato delta.
-        # GT _apply_vibrato memory layout (Commando $5428+):
-        #   _rb($5428+2*p) = ftlo[p]  (even offset = low byte of FREQ_PAL entry)
-        #   _rb($5429+2*p) = fthi[p]  (odd offset  = high byte of FREQ_PAL entry)
-        # GT names: hi_cur=_rb($5428+y)=ftlo[p], lo_cur=_rb($5429+y)=fthi[p]
-        # 16-bit diff = (hi_cur<<8|lo_cur) = (ftlo[p]<<8|fthi[p]) treated as big-endian
-        # diff = (ftlo[p+1]<<8|fthi[p+1]) - (ftlo[p]<<8|fthi[p])
-        # → diff_lo (low byte)  = fthi[p+1] - fthi[p] (with borrow)
-        #   diff_hi (high byte) = ftlo[p+1] - ftlo[p] - borrow
-        # After shift by (vib_depth+1): delta_hi = diff>>8, delta_lo = diff & $FF
-        # Base: target_lo = lo_cur = fthi[pitch], target_hi = hi_cur = ftlo[pitch]
-        # Accumulate vib_step times: target_lo += delta_hi (carry → target_hi += delta_lo)
-        # Write D400=target_lo (= fthi+...), D401=target_hi (= ftlo+...)
+        # Long note (dur_field >= 6): compute normal 16-bit vibrato delta.
+        # sidplayfp ground truth confirms:
+        #   diff = freq[pitch+1] - freq[pitch]  (normal 16-bit unsigned subtraction)
+        #   diff_lo = ftlo[pitch+1] - ftlo[pitch]  (lo byte of freq)
+        #   diff_hi = fthi[pitch+1] - fthi[pitch] - borrow
+        # After right-shift by (vib_depth+1): delta_lo = (diff >> shift) & 0xFF, delta_hi = (diff >> shift) >> 8
+        # Base: tg_lo = ftlo[pitch], tg_hi = fthi[pitch]
+        # Accumulate vib_step times: tg_lo += delta_lo (carry → tg_hi += delta_hi + carry)
+        # Write D400 = tg_lo (freq_lo), D401 = tg_hi (freq_hi) — normal SID order
         #
         # Compute vib_step from frame counter triangle (0,1,2,3,3,2,1,0)
         a(f'        lda ${FRAME_CTR:02X}')
@@ -645,15 +642,14 @@ def generate_asm(T, instruments, score):
         a(f'        eor #$07')                 # mirror: 4→3, 5→2, 6→1, 7→0
         a(f'v{v}vdok')
         a(f'        tax')                       # X = vib_step
-        # Compute 16-bit diff in (ftlo[p]<<8|fthi[p]) big-endian representation:
-        # diff_lo = fthi[p+1] - fthi[p], diff_hi = ftlo[p+1] - ftlo[p] - borrow
+        # Compute normal 16-bit diff: diff_lo = ftlo[p+1]-ftlo[p], diff_hi = fthi[p+1]-fthi[p]-borrow
         a(f'        ldy ${z+8:02X}')           # pitch
-        a(f'        lda fthi+1,y')             # fthi[pitch+1] = lo_next
+        a(f'        lda ftlo+1,y')             # ftlo[pitch+1]
         a(f'        sec')
-        a(f'        sbc fthi,y')               # - fthi[pitch] = lo_cur → diff_lo
+        a(f'        sbc ftlo,y')               # - ftlo[pitch] → diff_lo
         a(f'        sta ${VIB_TMP:02X}')        # VIB_TMP = diff_lo
-        a(f'        lda ftlo+1,y')             # ftlo[pitch+1] = hi_next
-        a(f'        sbc ftlo,y')               # - ftlo[pitch] - borrow → diff_hi
+        a(f'        lda fthi+1,y')             # fthi[pitch+1]
+        a(f'        sbc fthi,y')               # - fthi[pitch] - borrow → diff_hi
         a(f'        sta ${VIB_TMP2:02X}')       # VIB_TMP2 = diff_hi
         # Right-shift 16-bit diff by (vib_depth+1): LSR diff_hi, ROR diff_lo
         a(f'        lda ${z+14:02X}')          # instrument ID
@@ -662,37 +658,37 @@ def generate_asm(T, instruments, score):
         a(f'        tay')
         a(f'        iny')                      # shift count = vib_depth+1
         a(f'v{v}vsr')
-        a(f'        lsr ${VIB_TMP2:02X}')       # LSR high byte
-        a(f'        ror ${VIB_TMP:02X}')        # ROR low byte
+        a(f'        lsr ${VIB_TMP2:02X}')       # LSR diff_hi (high byte)
+        a(f'        ror ${VIB_TMP:02X}')        # ROR diff_lo (low byte)
         a(f'        dey')
         a(f'        bne v{v}vsr')
-        # After shift: VIB_TMP2=delta_hi (adds to target_lo), VIB_TMP=delta_lo (adds to target_hi)
-        # Initialize target: target_lo = fthi[pitch] = lo_cur, target_hi = ftlo[pitch] = hi_cur
+        # After shift: VIB_TMP=delta_lo, VIB_TMP2=delta_hi
+        # Initialize target: tg_lo = ftlo[pitch], tg_hi = fthi[pitch]
         a(f'        ldy ${z+8:02X}')           # pitch
-        a(f'        lda fthi,y')               # = lo_cur
-        a(f'        sta ${VIB_TGLO:02X}')       # target_lo = fthi[pitch]
-        a(f'        lda ftlo,y')               # = hi_cur
-        a(f'        sta ${VIB_TGHI:02X}')       # target_hi = ftlo[pitch]
+        a(f'        lda ftlo,y')               # ftlo[pitch] = freq low byte
+        a(f'        sta ${VIB_TGLO:02X}')       # VIB_TGLO = tg_lo
+        a(f'        lda fthi,y')               # fthi[pitch] = freq high byte
+        a(f'        sta ${VIB_TGHI:02X}')       # VIB_TGHI = tg_hi
         # Accumulate delta vib_step times (X = vib_step, saved above)
         a(f'        cpx #0')
         a(f'        beq v{v}vwr')             # vib_step=0 → write base freq as-is
         a(f'v{v}vmul')
-        # 16-bit add: target_lo += delta_hi (with carry into target_hi += delta_lo)
+        # 16-bit add: tg_lo += delta_lo (carry → tg_hi += delta_hi + carry)
         a(f'        clc')
         a(f'        lda ${VIB_TGLO:02X}')
-        a(f'        adc ${VIB_TMP2:02X}')      # target_lo += delta_hi
+        a(f'        adc ${VIB_TMP:02X}')       # tg_lo += delta_lo
         a(f'        sta ${VIB_TGLO:02X}')
         a(f'        lda ${VIB_TGHI:02X}')
-        a(f'        adc ${VIB_TMP:02X}')       # target_hi += delta_lo + carry
+        a(f'        adc ${VIB_TMP2:02X}')      # tg_hi += delta_hi + carry
         a(f'        sta ${VIB_TGHI:02X}')
         a(f'        dex')
         a(f'        bne v{v}vmul')
         a(f'v{v}vwr')
-        # Write D400=target_lo, D401=target_hi
+        # Write D400 = tg_lo (freq_lo), D401 = tg_hi (freq_hi)
         a(f'        lda ${VIB_TGLO:02X}')
-        a(f'        sta $D4{so:02X}')          # D400+so = freq_lo
+        a(f'        sta $D4{so:02X}')          # D400+so = freq_lo = tg_lo
         a(f'        lda ${VIB_TGHI:02X}')
-        a(f'        sta $D4{so+1:02X}')        # D401+so = freq_hi
+        a(f'        sta $D4{so+1:02X}')        # D401+so = freq_hi = tg_hi
         # fall through to PW (GT order: vibrato → PW → drum slide → skydive → arp)
 
         # PW MODULATION: GT order is AFTER vibrato, BEFORE drum slide/skydive/arp.

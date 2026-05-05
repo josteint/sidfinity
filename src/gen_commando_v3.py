@@ -147,9 +147,15 @@ def gen_pattern(idx, notes):
 
 
 def main():
-    T, instruments, score = extract()
+    # Subtune (0-indexed). Default 0 = first subtune = PSID subtune 1 (game music).
+    subtune = 0
+    if len(sys.argv) > 1:
+        subtune = int(sys.argv[1])
+
+    T, instruments, score = extract(subtune=subtune)
 
     out = ["-- Auto-generated USF v3 Commando data",
+           f"-- Subtune: {subtune} (0-indexed; PSID subtune {subtune + 1})",
            "import USFv3", ""]
 
     out.append(f"def commandoV3FreqTable : USFFreqTable := {{ entries := {gen_freq_table(T)} }}")

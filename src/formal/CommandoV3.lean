@@ -1,4 +1,5 @@
 -- Auto-generated USF v3 Commando data
+-- Subtune: 0 (0-indexed; PSID subtune 1)
 import USFv3
 
 def commandoV3FreqTable : USFFreqTable := { entries := [(⟨22, by omega⟩, ⟨1, by omega⟩), (⟨39, by omega⟩, ⟨1, by omega⟩), (⟨56, by omega⟩, ⟨1, by omega⟩), (⟨75, by omega⟩, ⟨1, by omega⟩), (⟨95, by omega⟩, ⟨1, by omega⟩), (⟨115, by omega⟩, ⟨1, by omega⟩), (⟨138, by omega⟩, ⟨1, by omega⟩), (⟨161, by omega⟩, ⟨1, by omega⟩), (⟨186, by omega⟩, ⟨1, by omega⟩), (⟨212, by omega⟩, ⟨1, by omega⟩), (⟨240, by omega⟩, ⟨1, by omega⟩), (⟨14, by omega⟩, ⟨2, by omega⟩), (⟨45, by omega⟩, ⟨2, by omega⟩), (⟨78, by omega⟩, ⟨2, by omega⟩), (⟨113, by omega⟩, ⟨2, by omega⟩), (⟨150, by omega⟩, ⟨2, by omega⟩), (⟨189, by omega⟩, ⟨2, by omega⟩), (⟨231, by omega⟩, ⟨2, by omega⟩), (⟨19, by omega⟩, ⟨3, by omega⟩), (⟨66, by omega⟩, ⟨3, by omega⟩), (⟨116, by omega⟩, ⟨3, by omega⟩), (⟨169, by omega⟩, ⟨3, by omega⟩), (⟨224, by omega⟩, ⟨3, by omega⟩), (⟨27, by omega⟩, ⟨4, by omega⟩), (⟨90, by omega⟩, ⟨4, by omega⟩), (⟨155, by omega⟩, ⟨4, by omega⟩), (⟨226, by omega⟩, ⟨4, by omega⟩), (⟨44, by omega⟩, ⟨5, by omega⟩), (⟨123, by omega⟩, ⟨5, by omega⟩), (⟨206, by omega⟩, ⟨5, by omega⟩), (⟨39, by omega⟩, ⟨6, by omega⟩), (⟨133, by omega⟩, ⟨6, by omega⟩), (⟨232, by omega⟩, ⟨6, by omega⟩), (⟨81, by omega⟩, ⟨7, by omega⟩), (⟨193, by omega⟩, ⟨7, by omega⟩), (⟨55, by omega⟩, ⟨8, by omega⟩), (⟨180, by omega⟩, ⟨8, by omega⟩), (⟨55, by omega⟩, ⟨9, by omega⟩), (⟨196, by omega⟩, ⟨9, by omega⟩), (⟨87, by omega⟩, ⟨10, by omega⟩), (⟨245, by omega⟩, ⟨10, by omega⟩), (⟨156, by omega⟩, ⟨11, by omega⟩), (⟨78, by omega⟩, ⟨12, by omega⟩), (⟨9, by omega⟩, ⟨13, by omega⟩), (⟨208, by omega⟩, ⟨13, by omega⟩), (⟨163, by omega⟩, ⟨14, by omega⟩), (⟨130, by omega⟩, ⟨15, by omega⟩), (⟨110, by omega⟩, ⟨16, by omega⟩), (⟨104, by omega⟩, ⟨17, by omega⟩), (⟨110, by omega⟩, ⟨18, by omega⟩), (⟨136, by omega⟩, ⟨19, by omega⟩), (⟨175, by omega⟩, ⟨20, by omega⟩), (⟨235, by omega⟩, ⟨21, by omega⟩), (⟨57, by omega⟩, ⟨23, by omega⟩), (⟨156, by omega⟩, ⟨24, by omega⟩), (⟨19, by omega⟩, ⟨26, by omega⟩), (⟨161, by omega⟩, ⟨27, by omega⟩), (⟨70, by omega⟩, ⟨29, by omega⟩), (⟨4, by omega⟩, ⟨31, by omega⟩), (⟨220, by omega⟩, ⟨32, by omega⟩), (⟨208, by omega⟩, ⟨34, by omega⟩), (⟨220, by omega⟩, ⟨36, by omega⟩), (⟨16, by omega⟩, ⟨39, by omega⟩), (⟨94, by omega⟩, ⟨41, by omega⟩), (⟨214, by omega⟩, ⟨43, by omega⟩), (⟨114, by omega⟩, ⟨46, by omega⟩), (⟨56, by omega⟩, ⟨49, by omega⟩), (⟨38, by omega⟩, ⟨52, by omega⟩), (⟨66, by omega⟩, ⟨55, by omega⟩), (⟨140, by omega⟩, ⟨58, by omega⟩), (⟨8, by omega⟩, ⟨62, by omega⟩), (⟨184, by omega⟩, ⟨65, by omega⟩), (⟨160, by omega⟩, ⟨69, by omega⟩), (⟨184, by omega⟩, ⟨73, by omega⟩), (⟨32, by omega⟩, ⟨78, by omega⟩), (⟨188, by omega⟩, ⟨82, by omega⟩), (⟨172, by omega⟩, ⟨87, by omega⟩), (⟨228, by omega⟩, ⟨92, by omega⟩), (⟨112, by omega⟩, ⟨98, by omega⟩), (⟨76, by omega⟩, ⟨104, by omega⟩), (⟨132, by omega⟩, ⟨110, by omega⟩), (⟨24, by omega⟩, ⟨117, by omega⟩), (⟨16, by omega⟩, ⟨124, by omega⟩), (⟨112, by omega⟩, ⟨131, by omega⟩), (⟨64, by omega⟩, ⟨139, by omega⟩), (⟨112, by omega⟩, ⟨147, by omega⟩), (⟨64, by omega⟩, ⟨156, by omega⟩), (⟨120, by omega⟩, ⟨165, by omega⟩), (⟨88, by omega⟩, ⟨175, by omega⟩), (⟨200, by omega⟩, ⟨185, by omega⟩), (⟨224, by omega⟩, ⟨196, by omega⟩), (⟨152, by omega⟩, ⟨208, by omega⟩), (⟨8, by omega⟩, ⟨221, by omega⟩), (⟨48, by omega⟩, ⟨234, by omega⟩), (⟨32, by omega⟩, ⟨248, by omega⟩), (⟨46, by omega⟩, ⟨253, by omega⟩), (⟨0, by omega⟩, ⟨7, by omega⟩), (⟨14, by omega⟩, ⟨0, by omega⟩), (⟨0, by omega⟩, ⟨0, by omega⟩), (⟨0, by omega⟩, ⟨3, by omega⟩), (⟨3, by omega⟩, ⟨3, by omega⟩), (⟨3, by omega⟩, ⟨1, by omega⟩), (⟨5, by omega⟩, ⟨131, by omega⟩), (⟨129, by omega⟩, ⟨133, by omega⟩), (⟨0, by omega⟩, ⟨0, by omega⟩), (⟨65, by omega⟩, ⟨88, by omega⟩), (⟨104, by omega⟩, ⟨21, by omega⟩), (⟨7, by omega⟩, ⟨4, by omega⟩), (⟨2, by omega⟩, ⟨255, by omega⟩), (⟨131, by omega⟩, ⟨88, by omega⟩), (⟨0, by omega⟩, ⟨21, by omega⟩), (⟨0, by omega⟩, ⟨0, by omega⟩), (⟨0, by omega⟩, ⟨0, by omega⟩), (⟨0, by omega⟩, ⟨0, by omega⟩), (⟨0, by omega⟩, ⟨0, by omega⟩), (⟨0, by omega⟩, ⟨0, by omega⟩), (⟨0, by omega⟩, ⟨0, by omega⟩), (⟨0, by omega⟩, ⟨2, by omega⟩), (⟨2, by omega⟩, ⟨3, by omega⟩), (⟨2, by omega⟩, ⟨2, by omega⟩), (⟨0, by omega⟩, ⟨0, by omega⟩), (⟨0, by omega⟩, ⟨0, by omega⟩), (⟨0, by omega⟩, ⟨0, by omega⟩), (⟨0, by omega⟩, ⟨0, by omega⟩), (⟨0, by omega⟩, ⟨0, by omega⟩), (⟨0, by omega⟩, ⟨0, by omega⟩), (⟨0, by omega⟩, ⟨0, by omega⟩), (⟨0, by omega⟩, ⟨0, by omega⟩)] }
@@ -29,8 +30,8 @@ def cv3I1 : USFInstrument := {
   ad := ⟨6, by omega⟩
   sr := ⟨75, by omega⟩
   initFreqMod := .normal
-  waveformProgram := [⟨65, by omega⟩, ⟨128, by omega⟩, ⟨128, by omega⟩, ⟨64, by omega⟩]
-  waveLoop := 3
+  waveformProgram := [⟨65, by omega⟩, ⟨128, by omega⟩, ⟨128, by omega⟩, ⟨128, by omega⟩, ⟨64, by omega⟩]
+  waveLoop := 4
   waveStepEvery := 1
   pwMod := none
   vibrato := none
@@ -67,8 +68,8 @@ def cv3I3 : USFInstrument := {
   ad := ⟨10, by omega⟩
   sr := ⟨9, by omega⟩
   initFreqMod := .normal
-  waveformProgram := [⟨129, by omega⟩, ⟨128, by omega⟩, ⟨128, by omega⟩, ⟨128, by omega⟩]
-  waveLoop := 3
+  waveformProgram := [⟨129, by omega⟩, ⟨128, by omega⟩, ⟨128, by omega⟩, ⟨128, by omega⟩, ⟨128, by omega⟩]
+  waveLoop := 4
   waveStepEvery := 1
   pwMod := none
   vibrato := none
@@ -86,8 +87,8 @@ def cv3I4 : USFInstrument := {
   ad := ⟨15, by omega⟩
   sr := ⟨196, by omega⟩
   initFreqMod := .normal
-  waveformProgram := [⟨67, by omega⟩, ⟨128, by omega⟩, ⟨128, by omega⟩, ⟨66, by omega⟩]
-  waveLoop := 3
+  waveformProgram := [⟨67, by omega⟩, ⟨128, by omega⟩, ⟨128, by omega⟩, ⟨128, by omega⟩, ⟨66, by omega⟩]
+  waveLoop := 4
   waveStepEvery := 1
   pwMod := none
   vibrato := none
@@ -105,8 +106,8 @@ def cv3I5 : USFInstrument := {
   ad := ⟨5, by omega⟩
   sr := ⟨169, by omega⟩
   initFreqMod := .normal
-  waveformProgram := [⟨65, by omega⟩, ⟨128, by omega⟩, ⟨128, by omega⟩, ⟨64, by omega⟩]
-  waveLoop := 3
+  waveformProgram := [⟨65, by omega⟩, ⟨128, by omega⟩, ⟨128, by omega⟩, ⟨128, by omega⟩, ⟨64, by omega⟩]
+  waveLoop := 4
   waveStepEvery := 1
   pwMod := some { mode := .linear ⟨2, by omega⟩, stepEvery := 1, startDelay := 0 }
   vibrato := none
@@ -143,8 +144,8 @@ def cv3I7 : USFInstrument := {
   ad := ⟨13, by omega⟩
   sr := ⟨251, by omega⟩
   initFreqMod := .normal
-  waveformProgram := [⟨21, by omega⟩, ⟨128, by omega⟩, ⟨128, by omega⟩, ⟨20, by omega⟩]
-  waveLoop := 3
+  waveformProgram := [⟨21, by omega⟩, ⟨128, by omega⟩, ⟨128, by omega⟩, ⟨128, by omega⟩, ⟨20, by omega⟩]
+  waveLoop := 4
   waveStepEvery := 1
   pwMod := none
   vibrato := some { shape := .triangle, periodFrames := 8, semitoneShift := 2, onsetFrames := 6, rampUpFrames := 0, unipolar := true }
@@ -181,8 +182,8 @@ def cv3I9 : USFInstrument := {
   ad := ⟨4, by omega⟩
   sr := ⟨111, by omega⟩
   initFreqMod := .normal
-  waveformProgram := [⟨33, by omega⟩, ⟨128, by omega⟩, ⟨128, by omega⟩, ⟨32, by omega⟩]
-  waveLoop := 3
+  waveformProgram := [⟨33, by omega⟩, ⟨128, by omega⟩, ⟨128, by omega⟩, ⟨128, by omega⟩, ⟨32, by omega⟩]
+  waveLoop := 4
   waveStepEvery := 1
   pwMod := none
   vibrato := some { shape := .triangle, periodFrames := 8, semitoneShift := 4, onsetFrames := 6, rampUpFrames := 0, unipolar := true }
@@ -200,8 +201,8 @@ def cv3I10 : USFInstrument := {
   ad := ⟨9, by omega⟩
   sr := ⟨107, by omega⟩
   initFreqMod := .normal
-  waveformProgram := [⟨65, by omega⟩, ⟨128, by omega⟩, ⟨128, by omega⟩, ⟨64, by omega⟩]
-  waveLoop := 3
+  waveformProgram := [⟨65, by omega⟩, ⟨128, by omega⟩, ⟨128, by omega⟩, ⟨128, by omega⟩, ⟨64, by omega⟩]
+  waveLoop := 4
   waveStepEvery := 1
   pwMod := some { mode := .linear ⟨1, by omega⟩, stepEvery := 1, startDelay := 0 }
   vibrato := some { shape := .triangle, periodFrames := 8, semitoneShift := 3, onsetFrames := 6, rampUpFrames := 0, unipolar := true }
@@ -219,8 +220,8 @@ def cv3I11 : USFInstrument := {
   ad := ⟨7, by omega⟩
   sr := ⟨9, by omega⟩
   initFreqMod := .normal
-  waveformProgram := [⟨67, by omega⟩, ⟨128, by omega⟩, ⟨128, by omega⟩, ⟨66, by omega⟩]
-  waveLoop := 3
+  waveformProgram := [⟨67, by omega⟩, ⟨128, by omega⟩, ⟨128, by omega⟩, ⟨128, by omega⟩, ⟨66, by omega⟩]
+  waveLoop := 4
   waveStepEvery := 1
   pwMod := none
   vibrato := some { shape := .triangle, periodFrames := 8, semitoneShift := 2, onsetFrames := 6, rampUpFrames := 0, unipolar := true }
@@ -238,8 +239,8 @@ def cv3I12 : USFInstrument := {
   ad := ⟨9, by omega⟩
   sr := ⟨10, by omega⟩
   initFreqMod := .normal
-  waveformProgram := [⟨65, by omega⟩, ⟨128, by omega⟩, ⟨128, by omega⟩, ⟨64, by omega⟩]
-  waveLoop := 3
+  waveformProgram := [⟨65, by omega⟩, ⟨128, by omega⟩, ⟨128, by omega⟩, ⟨128, by omega⟩, ⟨64, by omega⟩]
+  waveLoop := 4
   waveStepEvery := 1
   pwMod := none
   vibrato := none
