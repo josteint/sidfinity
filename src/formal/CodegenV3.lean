@@ -844,46 +844,21 @@ def emitNoteLoadPath (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.run
   cb := cb.emitLdaAbsX "v_sidoff"
   cb := cb.emitInst I.tay                        -- Y = SID offset
 
-  -- Frequency (Hubbard order: freq_hi BEFORE freq_lo)
-  -- Special case: pitch 104 reads V1/V2 ctrl bytes (Hubbard quirk)
-  cb := cb.emitInst (I.lda_zp 0xFE)              -- pitch
-  cb := cb.emitInst (I.cmp_imm 104)
-  cb := cb.emitBranch .BNE "freq_normal"
-  -- pitch 104: flo=v_ctrl[0], fhi=v_ctrl[1]
-  cb := cb.emitInst (I.lda_abs 0)                 -- v_ctrl[1] (placeholder)
-  cb := { cb with absFixups :=
-    { byteIdx := cb.bytes.size - 2, targetLabel := "v_ctrl_1" } :: cb.absFixups }
-  cb := cb.emitInst (I.sta_absY (SID_BASE + 1))   -- fhi
-  cb := cb.emitInst (I.lda_abs 0)                 -- v_ctrl[0]
-  cb := { cb with absFixups :=
-    { byteIdx := cb.bytes.size - 2, targetLabel := "v_ctrl_0" } :: cb.absFixups }
-  cb := cb.emitInst (I.sta_absY (SID_BASE + 0))   -- flo
-  cb := cb.emitJmpLabel .JMP "freq_done"
-  cb := cb.label "freq_normal"
+  -- Frequency lookup (Hubbard order: freq_hi BEFORE freq_lo). For dynamic
+  -- table slots (e.g. T[104]), the freq_lo/freq_hi tables already hold the
+  -- per-frame updated values (see engineQuirks.dynamicFreqEntries).
   cb := cb.emitInst (I.ldx_zp 0xFE)              -- X = pitch
   cb := cb.emitLdaAbsX "freq_hi"
   cb := cb.emitInst (I.sta_absY (SID_BASE + 1))
   cb := cb.emitLdaAbsX "freq_lo"
   cb := cb.emitInst (I.sta_absY (SID_BASE + 0))
-  cb := cb.label "freq_done"
 
   -- Save pitch and freq_hi for effects
   cb := cb.emitInst (I.ldx_zp 0xFA)               -- X = voice
   cb := cb.emitInst (I.lda_zp 0xFE)               -- pitch
   cb := cb.emitStaAbsX "v_pitch"
-  -- v_fhi: for pitch != 104 read freq_hi; for pitch 104 use v_ctrl[1] (matches SID fhi write)
-  cb := cb.emitInst (I.lda_zp 0xFE)               -- pitch
-  cb := cb.emitInst (I.cmp_imm 104)
-  cb := cb.emitBranch .BNE "vfhi_normal"
-  -- pitch 104: v_fhi = v_ctrl[1] (same as fhi we just wrote to SID)
-  cb := cb.emitInst (I.lda_abs 0)                 -- v_ctrl[1] (placeholder)
-  cb := { cb with absFixups :=
-    { byteIdx := cb.bytes.size - 2, targetLabel := "v_ctrl_1" } :: cb.absFixups }
-  cb := cb.emitJmpLabel .JMP "vfhi_done"
-  cb := cb.label "vfhi_normal"
   cb := cb.emitInst (I.ldx_zp 0xFE)               -- X = pitch
   cb := cb.emitLdaAbsX "freq_hi"
-  cb := cb.label "vfhi_done"
   cb := cb.emitInst (I.ldx_zp 0xFA)               -- X = voice
   cb := cb.emitStaAbsX "v_fhi"
 

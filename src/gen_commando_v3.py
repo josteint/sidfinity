@@ -215,11 +215,27 @@ def main():
       .reset 0
     ]
     dynamicFreqEntries := [
-      -- T[100]: V2.hub_off (lo), V3.hub_off (hi). Updated right before V1
-      -- runs so V1 sees the latest values.
+      -- T[100]: V2.hub_off (lo), V3.hub_off (hi). Updated at frame start
+      -- (so V3 sees prev-frame values) and again right before V1 runs (so
+      -- V1 sees latest post-V2 values).
       { freqSlot := 100,
         loSource := .scratch ⟨1, by omega⟩ 0,
         hiSource := .scratch ⟨2, by omega⟩ 0,
+        phase    := .atFrameStart },
+      { freqSlot := 100,
+        loSource := .scratch ⟨1, by omega⟩ 0,
+        hiSource := .scratch ⟨2, by omega⟩ 0,
+        phase    := .beforeVoice ⟨0, by omega⟩ },
+
+      -- T[104]: V1.ctrl (lo), V2.ctrl (hi). Hubbard's percussion noise feed.
+      -- Replaces our previous pitch-104 special case.
+      { freqSlot := 104,
+        loSource := .voiceCtrl ⟨0, by omega⟩,
+        hiSource := .voiceCtrl ⟨1, by omega⟩,
+        phase    := .atFrameStart },
+      { freqSlot := 104,
+        loSource := .voiceCtrl ⟨0, by omega⟩,
+        hiSource := .voiceCtrl ⟨1, by omega⟩,
         phase    := .beforeVoice ⟨0, by omega⟩ }
     ]
   }"""
