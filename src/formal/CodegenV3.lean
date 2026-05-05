@@ -307,11 +307,12 @@ def emitVibrato (cb : CodeBuilder) (_song : USFSong) : CodeBuilder := Id.run do
 
   -- Start from base freq, add delta × LFO step
   -- vibrato_freq = base_freq + delta * step
-  -- Check onset: dur_field >= 6 for vibrato to be active
+  -- Check onset: durationFrames >= 18 for vibrato to be active
+  -- (USF v3: durations are in frames; Hubbard's "6 ticks" = 18 frames at tempo=3)
   cb := cb.emitInst (I.ldx_zp 0xFA)
   cb := cb.emitLdaAbsX "v_durfield"
-  cb := cb.emitInst (I.cmp_imm 6)
-  cb := cb.emitBranch .BCS "vib_onset_ok"          -- dur >= 6: vibrato active
+  cb := cb.emitInst (I.cmp_imm 18)
+  cb := cb.emitBranch .BCS "vib_onset_ok"          -- dur >= 18 frames: vibrato active
   -- dur < 6: write base freq directly
   cb := cb.emitJmpLabel .JMP "vib_write_base"
   cb := cb.label "vib_onset_ok"
@@ -475,9 +476,12 @@ def emitSustainEffects (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.r
   -- Check note age: (dur_field - 1) * tempo vs countdown
   -- Hubbard countdown is in ticks; ours is in frames. Multiply threshold by tempo.
   cb := cb.emitInst I.sec
+  -- USF v3: v_durfield is in FRAMES. Hubbard guard "dur_ticks - 1 < countdown_frames"
+  -- equates to: skip until countdown <= (dur_ticks - 1)*tempo = (durationFrames/tempo - 1)*tempo
+  -- For Commando tempo=3: skip until countdown <= durationFrames - tempo = durationFrames - 3.
+  -- So compare (durationFrames - tempo) with countdown.
   cb := cb.emitLdaAbsX "v_durfield"
-  cb := cb.emitInst (I.sbc_imm 1)                 -- A = dur_field - 1
-  -- v_durfield is now in FRAMES (USF v3), so no multiplication needed
+  cb := cb.emitInst (I.sbc_imm 3)                 -- A = durationFrames - 3 (== (ticks-1)*tempo for tempo=3)
   cb := cb.emitInst ⟨.CMP, .absX 0⟩               -- cmp countdown
   cb := { cb with absFixups :=
     { byteIdx := cb.bytes.size - 2, targetLabel := "v_dur" } :: cb.absFixups }
