@@ -196,6 +196,34 @@ def main():
     voice_refs = ', '.join(f'cv3V{i}' for i in range(len(score['voices'])))
     pat_list = ', '.join(pat_refs)
 
+    # Engine quirks for Commando (Hubbard player). Encoded as DATA so the
+    # universal codegen can emit code mechanically. See docs/usf_v3_engine_quirks.md.
+    quirks = """{
+    preserveNoteFlags := true
+    voiceScratch := [
+      { name := "hub_off", initial := ⟨0, by omega⟩ }
+    ]
+    noteLoadOps := [
+      -- Hubbard hub_off: bit 6 -> +1, bit 7 -> +2, neither -> +3
+      .addByFlag 0 [
+        (⟨0x40, by omega⟩, ⟨0x40, by omega⟩, ⟨1, by omega⟩),
+        (⟨0x80, by omega⟩, ⟨0x80, by omega⟩, ⟨2, by omega⟩),
+        (⟨0x00, by omega⟩, ⟨0x00, by omega⟩, ⟨3, by omega⟩)
+      ]
+    ]
+    patternEndOps := [
+      .reset 0
+    ]
+    dynamicFreqEntries := [
+      -- T[100]: V2.hub_off (lo), V3.hub_off (hi). Updated right before V1
+      -- runs so V1 sees the latest values.
+      { freqSlot := 100,
+        loSource := .scratch ⟨1, by omega⟩ 0,
+        hiSource := .scratch ⟨2, by omega⟩ 0,
+        phase    := .beforeVoice ⟨0, by omega⟩ }
+    ]
+  }"""
+
     out.append(f"""def commandoV3 : USFSong := {{
   freqTable := commandoV3FreqTable
   instruments := [{inst_refs}]
@@ -204,6 +232,7 @@ def main():
   voiceOrder := [⟨2, by omega⟩, ⟨1, by omega⟩, ⟨0, by omega⟩]
   filter := none
   playRate := .vbi
+  engineQuirks := {quirks}
   title := "Commando"
   author := "Rob Hubbard"
   released := "1985 Elite"

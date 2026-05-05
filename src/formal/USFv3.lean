@@ -189,6 +189,71 @@ structure USFFilterSpec where
   deriving Repr
 
 -- ==========================================================================
+-- Engine quirks (data-driven, kept out of the core music semantics)
+-- ==========================================================================
+
+-- A reference to a byte produced by some piece of voice/voice-state at the
+-- moment a dynamic freq-table entry is updated.
+inductive USFDynRef where
+  | constant   : USFByte → USFDynRef
+  | scratch    : (voice : Fin 3) → (slot : Nat) → USFDynRef
+                              -- v_scratch[voice][slot]
+  | voiceCtrl  : Fin 3 → USFDynRef
+                              -- v_ctrl[voice] (voice's last-loaded ctrl byte)
+  | voicePitch : Fin 3 → USFDynRef
+                              -- v_pitch[voice]
+  | voiceInst  : Fin 3 → USFDynRef
+                              -- v_inst[voice] (= "prev_inst" if voice hasn't
+                              -- loaded yet this frame; current inst otherwise)
+  deriving Repr
+
+inductive USFUpdatePhase where
+  | atFrameStart                       -- top of play(), before any voice runs
+  | beforeVoice : Fin 3 → USFUpdatePhase
+                                       -- right before voice N exec runs
+                                       -- (= das_model's "between V_prev and V_N")
+  deriving Repr
+
+structure USFDynamicFreqEntry where
+  freqSlot   : Nat                  -- index into freq table to write
+  loSource   : USFDynRef
+  hiSource   : USFDynRef
+  phase      : USFUpdatePhase
+  deriving Repr
+
+structure USFVoiceScratch where
+  name    : String           -- documentation only ("hub_off", "seq_idx", ...)
+  initial : USFByte          -- value at song-init
+  deriving Repr
+
+inductive USFNoteLoadOp where
+  | addConst         : Nat → USFByte → USFNoteLoadOp
+  | addByFlag        : Nat → List (USFByte × USFByte × USFByte) → USFNoteLoadOp
+                          -- (flag_mask, flag_value, delta) entries; first match wins
+  | setConst         : Nat → USFByte → USFNoteLoadOp
+  -- Eager pattern-end detection: AFTER pattern-pointer advance, peek next pitch
+  -- byte; if it's the end-of-pattern marker ($00), apply this op.
+  | resetIfNextEnds  : Nat → USFNoteLoadOp
+  | incIfNextEnds    : Nat → USFByte → USFNoteLoadOp
+  deriving Repr
+
+inductive USFPatternEndOp where
+  -- Triggered at advance_order time (when note_load reads $00 as pitch byte).
+  | reset     : Nat → USFPatternEndOp
+  | increment : Nat → USFByte → USFPatternEndOp
+  deriving Repr
+
+structure USFEngineQuirks where
+  voiceScratch       : List USFVoiceScratch     := []
+  noteLoadOps        : List USFNoteLoadOp       := []
+  patternEndOps      : List USFPatternEndOp     := []
+  dynamicFreqEntries : List USFDynamicFreqEntry := []
+  -- Whether to keep the inst-byte's bits 6/7 in pattern data (consumed by
+  -- noteLoadOps via flag-conditional ops). When false, codegen masks at emit.
+  preserveNoteFlags  : Bool                     := false
+  deriving Repr
+
+-- ==========================================================================
 -- Song-level
 -- ==========================================================================
 
@@ -197,10 +262,11 @@ inductive USFPlayRate where
   | cia : UInt16 → USFPlayRate       -- play every N CPU cycles via CIA timer
   deriving Repr
 
--- Standard PAL frequency table (96 entries, pitch 0-95)
--- No "extended" entries — those become NoteKind.percussion
+-- Frequency table. Standard PAL has 96 entries (pitch 0-95). Songs may
+-- include extra extended slots (96+) which can be either static values or
+-- dynamic feeds (see engineQuirks.dynamicFreqEntries).
 structure USFFreqTable where
-  entries : List (USFByte × USFByte)  -- exactly 96 (lo, hi) pairs
+  entries : List (USFByte × USFByte)  -- (lo, hi) pairs
   deriving Repr
 
 structure USFSong where
@@ -211,6 +277,7 @@ structure USFSong where
   voiceOrder   : List (Fin 3)          -- processing order (e.g., [2,1,0])
   filter       : Option USFFilterSpec  -- if Some: filter is active
   playRate     : USFPlayRate           -- VBI or CIA timer
+  engineQuirks : USFEngineQuirks := {} -- engine-specific state/dynamic-table behaviors
   -- Metadata
   title        : String
   author       : String

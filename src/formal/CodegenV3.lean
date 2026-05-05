@@ -157,6 +157,152 @@ end CodeBuilder
 -- All voice state is in absolute tables indexed by X.
 -- SID writes use Y = SID offset (loaded from v_sidoff[X]).
 
+-- ==========================================================================
+-- Engine-quirks emit helpers (data-driven)
+-- ==========================================================================
+-- Naming convention for labels:
+--   v_scratch_s{slot}_v{voice}  - one byte per (slot, voice)
+--   v_scratch_s{slot}           - 3-byte array (start = voice 0)
+--   freq_lo_{slot}, freq_hi_{slot}  - alias labels into the freq table
+
+-- Emit LDA A from a USFDynRef. Uses absolute addressing only (no X/Y needed).
+private def emitDynRefLoad (cb : CodeBuilder) (ref : USFDynRef) : CodeBuilder :=
+  match ref with
+  | .constant b =>
+    cb.emitInst (I.lda_imm b.val.toUInt8)
+  | .scratch v slot =>
+    let label := s!"v_scratch_s{slot}_v{v.val}"
+    let cb := cb.emitInst (I.lda_abs 0)
+    { cb with absFixups :=
+      { byteIdx := cb.bytes.size - 2, targetLabel := label } :: cb.absFixups }
+  | .voiceCtrl v =>
+    let label := s!"v_ctrl_{v.val}"
+    let cb := cb.emitInst (I.lda_abs 0)
+    { cb with absFixups :=
+      { byteIdx := cb.bytes.size - 2, targetLabel := label } :: cb.absFixups }
+  | .voicePitch v =>
+    let label := s!"v_pitch_v{v.val}"
+    let cb := cb.emitInst (I.lda_abs 0)
+    { cb with absFixups :=
+      { byteIdx := cb.bytes.size - 2, targetLabel := label } :: cb.absFixups }
+  | .voiceInst v =>
+    let label := s!"v_inst_v{v.val}"
+    let cb := cb.emitInst (I.lda_abs 0)
+    { cb with absFixups :=
+      { byteIdx := cb.bytes.size - 2, targetLabel := label } :: cb.absFixups }
+
+-- Emit STA A to a freq table slot (lo or hi half).
+private def emitFreqSlotStore (cb : CodeBuilder) (whichLo : Bool) (slot : Nat) : CodeBuilder :=
+  let label := if whichLo then s!"freq_lo_{slot}" else s!"freq_hi_{slot}"
+  let cb := cb.emitInst (I.sta_abs 0)
+  { cb with absFixups :=
+    { byteIdx := cb.bytes.size - 2, targetLabel := label } :: cb.absFixups }
+
+-- Emit code for one dynamic freq entry (load lo source -> STA freq_lo_slot, ditto hi).
+private def emitDynamicFreqEntry (cb : CodeBuilder) (e : USFDynamicFreqEntry) : CodeBuilder :=
+  let cb := emitDynRefLoad cb e.loSource
+  let cb := emitFreqSlotStore cb true e.freqSlot
+  let cb := emitDynRefLoad cb e.hiSource
+  emitFreqSlotStore cb false e.freqSlot
+
+-- Emit dynamic freq updates for entries matching a particular phase.
+private def emitDynamicUpdatesForPhase (cb : CodeBuilder) (entries : List USFDynamicFreqEntry)
+    (phase : USFUpdatePhase) : CodeBuilder := Id.run do
+  let mut cb := cb
+  for e in entries do
+    let phaseMatches := match e.phase, phase with
+      | .atFrameStart, .atFrameStart => true
+      | .beforeVoice a, .beforeVoice b => a.val == b.val
+      | _, _ => false
+    if phaseMatches then
+      cb := emitDynamicFreqEntry cb e
+  return cb
+
+-- Emit a per-voice noteLoadOp (X must be voice index, $FB has raw inst byte).
+-- For "*IfNextEnds" ops, caller must set up Y=0 and have $FC pointing to next note.
+private def emitNoteLoadOp (cb : CodeBuilder) (op : USFNoteLoadOp) (opIdx : Nat) : CodeBuilder :=
+  match op with
+  | .addConst slot delta =>
+    let label := s!"v_scratch_s{slot}"
+    let cb := cb.emitInst I.clc
+    let cb := cb.emitLdaAbsX label
+    let cb := cb.emitInst (I.adc_imm delta.val.toUInt8)
+    cb.emitStaAbsX label
+  | .setConst slot value =>
+    let cb := cb.emitInst (I.lda_imm value.val.toUInt8)
+    cb.emitStaAbsX s!"v_scratch_s{slot}"
+  | .addByFlag slot rules => Id.run do
+    let doneLabel := s!"nload_op{opIdx}_done"
+    let mut cb := cb
+    cb := cb.emitInst (I.lda_imm 0)             -- default: A=0 (no-op delta)
+    cb := cb.emitInst (I.sta_zp 0xF8)           -- $F8 = chosen delta
+    let mut ruleIdx := 0
+    for ⟨mask, value, delta⟩ in rules do
+      let nextLabel := s!"nload_op{opIdx}_r{ruleIdx + 1}"
+      cb := cb.emitInst (I.lda_zp 0xFB)
+      cb := cb.emitInst (I.and_imm mask.val.toUInt8)
+      cb := cb.emitInst ⟨.CMP, .imm value.val.toUInt8⟩
+      cb := cb.emitBranch .BNE nextLabel
+      cb := cb.emitInst (I.lda_imm delta.val.toUInt8)
+      cb := cb.emitInst (I.sta_zp 0xF8)
+      cb := cb.emitJmpLabel .JMP doneLabel
+      cb := cb.label nextLabel
+      ruleIdx := ruleIdx + 1
+    cb := cb.label doneLabel
+    let label := s!"v_scratch_s{slot}"
+    cb := cb.emitInst I.clc
+    cb := cb.emitLdaAbsX label
+    cb := cb.emitInst (I.adc_zp 0xF8)
+    cb := cb.emitStaAbsX label
+    return cb
+  | .resetIfNextEnds slot => Id.run do
+    let skipLabel := s!"nload_op{opIdx}_noreset"
+    let mut cb := cb
+    cb := cb.emitInst (I.ldy_imm 0)
+    cb := cb.emitInst ⟨.LDA, .indY 0xFC⟩
+    cb := cb.emitBranch .BNE skipLabel
+    cb := cb.emitInst (I.lda_imm 0)
+    cb := cb.emitStaAbsX s!"v_scratch_s{slot}"
+    return cb.label skipLabel
+  | .incIfNextEnds slot delta => Id.run do
+    let skipLabel := s!"nload_op{opIdx}_noinc"
+    let mut cb := cb
+    cb := cb.emitInst (I.ldy_imm 0)
+    cb := cb.emitInst ⟨.LDA, .indY 0xFC⟩
+    cb := cb.emitBranch .BNE skipLabel
+    cb := cb.emitInst I.clc
+    cb := cb.emitLdaAbsX s!"v_scratch_s{slot}"
+    cb := cb.emitInst (I.adc_imm delta.val.toUInt8)
+    cb := cb.emitStaAbsX s!"v_scratch_s{slot}"
+    return cb.label skipLabel
+
+-- Emit all noteLoadOps in sequence. Most ops act on $FB raw inst byte.
+-- The "*IfNextEnds" ops are usually emitted AFTER pattern-pointer advance.
+-- For now we emit them all together; caller responsibility to call this AFTER
+-- pattern advance.
+private def emitNoteLoadOps (cb : CodeBuilder) (ops : List USFNoteLoadOp) : CodeBuilder := Id.run do
+  let mut cb := cb
+  let mut idx := 0
+  for op in ops do
+    cb := emitNoteLoadOp cb op idx
+    idx := idx + 1
+  return cb
+
+-- Emit pattern-end ops (X must be voice index).
+private def emitPatternEndOp (cb : CodeBuilder) (op : USFPatternEndOp) : CodeBuilder :=
+  match op with
+  | .reset slot =>
+    let cb := cb.emitInst (I.lda_imm 0)
+    cb.emitStaAbsX s!"v_scratch_s{slot}"
+  | .increment slot delta =>
+    let cb := cb.emitInst I.clc
+    let cb := cb.emitLdaAbsX s!"v_scratch_s{slot}"
+    let cb := cb.emitInst (I.adc_imm delta.val.toUInt8)
+    cb.emitStaAbsX s!"v_scratch_s{slot}"
+
+private def emitPatternEndOps (cb : CodeBuilder) (ops : List USFPatternEndOp) : CodeBuilder :=
+  ops.foldl (fun acc op => emitPatternEndOp acc op) cb
+
 private def emitInit (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.run do
   let mut cb := cb.label "init"
 
@@ -203,28 +349,16 @@ private def emitPlay (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.run
   -- Increment global frame counter (for arpeggio phase)
   cb := cb.emitInst (I.inc_zp 0x50)
 
-  -- Process voices in song order. Insert dynamic-table updates at the right
-  -- inter-voice boundary so the next voice sees the latest state. das_model
-  -- updates T[100] between V2 and V1 (= between our voiceOrder positions
-  -- corresponding to voices 1 and 0).
+  -- Apply dynamic freq-table updates with phase = atFrameStart
+  cb := emitDynamicUpdatesForPhase cb song.engineQuirks.dynamicFreqEntries .atFrameStart
+
+  -- Process voices in song order. Apply per-voice phase updates BEFORE each
+  -- voice runs (so the voice sees the latest state from previous voices).
   let nVoices := song.voiceOrder.length
   for h : i in [:nVoices] do
     match song.voiceOrder[i]? with
     | some v =>
-      -- Before voice 0 (V1), update T[100]: lo <- V2.huboff, hi <- V3.huboff
-      if v.val == 0 then
-        cb := cb.emitInst (I.lda_abs 0)
-        cb := { cb with absFixups :=
-          { byteIdx := cb.bytes.size - 2, targetLabel := "v_huboff_v2" } :: cb.absFixups }
-        cb := cb.emitInst (I.sta_abs 0)
-        cb := { cb with absFixups :=
-          { byteIdx := cb.bytes.size - 2, targetLabel := "freq_lo_100" } :: cb.absFixups }
-        cb := cb.emitInst (I.lda_abs 0)
-        cb := { cb with absFixups :=
-          { byteIdx := cb.bytes.size - 2, targetLabel := "v_huboff_v3" } :: cb.absFixups }
-        cb := cb.emitInst (I.sta_abs 0)
-        cb := { cb with absFixups :=
-          { byteIdx := cb.bytes.size - 2, targetLabel := "freq_hi_100" } :: cb.absFixups }
+      cb := emitDynamicUpdatesForPhase cb song.engineQuirks.dynamicFreqEntries (.beforeVoice v)
       cb := cb.emitInst (I.ldx_imm v.val.toUInt8)
       if i + 1 < nVoices then
         cb := cb.emitJmpLabel .JSR "exec_voice"
@@ -645,45 +779,23 @@ def emitNoteLoadPath (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.run
 
   cb := cb.emitInst I.iny
   cb := cb.emitInst ⟨.LDA, .indY 0xFC⟩
-  cb := cb.emitInst (I.sta_zp 0xFB)              -- $FB = raw inst byte (with bits 6/7 flags)
+  cb := cb.emitInst (I.sta_zp 0xFB)              -- $FB = raw inst byte (with bits 6/7 flags if preserved)
 
-  -- Hubbard hub_off counter: per-voice byte that increments per note based
-  -- on the inst-byte flag bits. T[100] in the freq table is fed from
-  -- V2.huboff and V3.huboff each frame; gives V1's arp pitch 88+12=100
-  -- audible content.
-  --   bit 6 (legato): +1
-  --   bit 7 only (no new inst): +2
-  --   neither: +3
-  -- Compute hub_off increment based on flag bits in raw inst byte ($FB):
-  --   bit 6 set → +1 (legato)
-  --   bit 7 only → +2 (no new instrument)
-  --   neither → +3 (full new note)
-  cb := cb.emitInst (I.lda_zp 0xFB)              -- raw inst byte
-  cb := cb.emitInst (I.and_imm 0xC0)             -- mask flag bits
-  cb := cb.emitBranch .BNE "huboff_has_flag"
-  -- No flag bits: +3
-  cb := cb.emitInst (I.lda_imm 3)
-  cb := cb.emitJmpLabel .JMP "huboff_inc"
-  cb := cb.label "huboff_has_flag"
-  -- At least one flag bit set. Check bit 6 (legato).
-  cb := cb.emitInst (I.lda_zp 0xFB)
-  cb := cb.emitInst (I.and_imm 0x40)
-  cb := cb.emitBranch .BEQ "huboff_tied"          -- bit 6 not set → bit 7 only → +2
-  cb := cb.emitInst (I.lda_imm 1)                -- bit 6 set → +1
-  cb := cb.emitJmpLabel .JMP "huboff_inc"
-  cb := cb.label "huboff_tied"
-  cb := cb.emitInst (I.lda_imm 2)
-  cb := cb.label "huboff_inc"
-  cb := cb.emitInst (I.sta_zp 0xF8)              -- save increment
-  cb := cb.emitInst I.clc
-  cb := cb.emitLdaAbsX "v_huboff"
-  cb := cb.emitInst (I.adc_zp 0xF8)
-  cb := cb.emitStaAbsX "v_huboff"
+  -- Engine-quirks note-load operations (data-driven from song.engineQuirks).
+  -- These act on per-voice scratch slots and may peek $FB raw inst byte.
+  -- The "*IfNextEnds" ops happen later (after pattern advance) - we filter here.
+  let preAdvanceOps := song.engineQuirks.noteLoadOps.filter fun op => match op with
+    | .resetIfNextEnds _ => false
+    | .incIfNextEnds _ _ => false
+    | _                  => true
+  cb := emitNoteLoadOps cb preAdvanceOps
 
-  -- Mask off flag bits so $FB holds clean inst index (0-63) for table lookups
-  cb := cb.emitInst (I.lda_zp 0xFB)
-  cb := cb.emitInst (I.and_imm 0x3F)
-  cb := cb.emitInst (I.sta_zp 0xFB)
+  -- Mask off flag bits so $FB holds clean inst index for table lookups (only
+  -- if quirks asked to preserve them; otherwise pattern data already clean).
+  if song.engineQuirks.preserveNoteFlags then
+    cb := cb.emitInst (I.lda_zp 0xFB)
+    cb := cb.emitInst (I.and_imm 0x3F)
+    cb := cb.emitInst (I.sta_zp 0xFB)
 
   -- Advance pattern pointer by 3
   cb := cb.emitInst I.clc
@@ -700,6 +812,13 @@ def emitNoteLoadPath (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.run
   cb := cb.emitStaAbsX "v_pattlo"
   cb := cb.emitInst (I.lda_zp 0xFD)
   cb := cb.emitStaAbsX "v_patthi"
+
+  -- Engine-quirks lookahead ops: peek next note byte, fire if end-of-pattern.
+  let postAdvanceOps := song.engineQuirks.noteLoadOps.filter fun op => match op with
+    | .resetIfNextEnds _ => true
+    | .incIfNextEnds _ _ => true
+    | _                  => false
+  cb := emitNoteLoadOps cb postAdvanceOps
 
   -- Save raw duration field for freq slide guard
   cb := cb.emitInst (I.lda_zp 0xFF)
@@ -804,9 +923,8 @@ def emitNoteLoadPath (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.run
   cb := cb.label "advance_order"
   cb := cb.emitInst (I.ldx_zp 0xFA)              -- X = voice index
 
-  -- Reset hub_off counter when pattern ends (das_model: at $FE marker)
-  cb := cb.emitInst (I.lda_imm 0)
-  cb := cb.emitStaAbsX "v_huboff"
+  -- Engine-quirks pattern-end ops (data-driven from song.engineQuirks)
+  cb := emitPatternEndOps cb song.engineQuirks.patternEndOps
 
   -- Read pattern index from orderlist
   -- Each voice has its own orderlist. We store per-voice orderlist pointers.
@@ -869,17 +987,19 @@ def generateSID (song : USFSong) (debug : Bool := false) : Bytes := Id.run do
 
   -- Frequency table (split lo/hi)
   -- Frequency table: entry 104 is dynamic (ctrl byte, 0 at init)
+  -- Compute set of freq slots that are dynamic (referenced by engineQuirks)
+  let dynSlots : List Nat := song.engineQuirks.dynamicFreqEntries.map (·.freqSlot)
   cb := cb.label "freq_lo"
   for hi : i in [:song.freqTable.entries.length] do
-    if i == 100 then cb := cb.label "freq_lo_100"
+    if dynSlots.contains i then cb := cb.label s!"freq_lo_{i}"
     match song.freqTable.entries[i]? with
-    | some p => cb := cb.emitByte (if i == 104 then 0 else p.1.val.toUInt8)
+    | some p => cb := cb.emitByte (if dynSlots.contains i then 0 else p.1.val.toUInt8)
     | none => cb := cb.emitByte 0
   cb := cb.label "freq_hi"
   for hi : i in [:song.freqTable.entries.length] do
-    if i == 100 then cb := cb.label "freq_hi_100"
+    if dynSlots.contains i then cb := cb.label s!"freq_hi_{i}"
     match song.freqTable.entries[i]? with
-    | some p => cb := cb.emitByte (if i == 104 then 0 else p.2.val.toUInt8)
+    | some p => cb := cb.emitByte (if dynSlots.contains i then 0 else p.2.val.toUInt8)
     | none => cb := cb.emitByte 0
 
   -- Waveform data: all instruments' waveform steps concatenated
@@ -1020,9 +1140,19 @@ def generateSID (song : USFSong) (debug : Bool := false) : Bytes := Id.run do
   cb := cb.label "v_wptr"
   cb := cb.emitData [0, 0, 0]
   cb := cb.label "v_inst"
-  cb := cb.emitData [0, 0, 0]
+  cb := cb.label "v_inst_v0"
+  cb := cb.emitByte 0
+  cb := cb.label "v_inst_v1"
+  cb := cb.emitByte 0
+  cb := cb.label "v_inst_v2"
+  cb := cb.emitByte 0
   cb := cb.label "v_pitch"
-  cb := cb.emitData [0, 0, 0]
+  cb := cb.label "v_pitch_v0"
+  cb := cb.emitByte 0
+  cb := cb.label "v_pitch_v1"
+  cb := cb.emitByte 0
+  cb := cb.label "v_pitch_v2"
+  cb := cb.emitByte 0
   cb := cb.label "v_fhi"
   cb := cb.emitData [0, 0, 0]
   cb := cb.label "v_durfield"
@@ -1033,15 +1163,21 @@ def generateSID (song : USFSong) (debug : Bool := false) : Bytes := Id.run do
   cb := cb.emitData [0, 0, 0]
   cb := cb.label "v_pwdir"
   cb := cb.emitData [0, 0, 0]
-  -- Per-voice hub_off counter (Hubbard quirk: feeds dynamic T[100] etc.).
-  -- Increment on note-load, reset on pattern end.
-  cb := cb.label "v_huboff"
-  cb := cb.label "v_huboff_v1"
-  cb := cb.emitByte 0
-  cb := cb.label "v_huboff_v2"
-  cb := cb.emitByte 0
-  cb := cb.label "v_huboff_v3"
-  cb := cb.emitByte 0
+  -- Per-voice scratch slots from engineQuirks.voiceScratch.
+  -- Each scratch slot allocates 3 bytes (one per voice), with v_scratch_s{N}
+  -- (start of array) and v_scratch_s{N}_v{V} (per-voice byte) labels.
+  for hi : si in [:song.engineQuirks.voiceScratch.length] do
+    match song.engineQuirks.voiceScratch[si]? with
+    | some scratch =>
+      let init := scratch.initial.val.toUInt8
+      cb := cb.label s!"v_scratch_s{si}"
+      cb := cb.label s!"v_scratch_s{si}_v0"
+      cb := cb.emitByte init
+      cb := cb.label s!"v_scratch_s{si}_v1"
+      cb := cb.emitByte init
+      cb := cb.label s!"v_scratch_s{si}_v2"
+      cb := cb.emitByte init
+    | none => pure ()
   -- Constants
   cb := cb.label "v_sidoff"
   cb := cb.emitData [0, 7, 14]
