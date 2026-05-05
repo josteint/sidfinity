@@ -383,7 +383,9 @@ def emitSustainEffects (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.r
   cb := { cb with absFixups :=
     { byteIdx := cb.bytes.size - 2, targetLabel := "i_pwmode" } :: cb.absFixups }
   cb := cb.emitInst (I.cmp_imm 2)
-  cb := cb.emitBranch .BEQ "pw_bidir"
+  cb := cb.emitBranch .BNE "pw_linear"
+  cb := cb.emitJmpLabel .JMP "pw_bidir"
+  cb := cb.label "pw_linear"
 
   -- PW state is per-INSTRUMENT (mutable i_pwlo/i_pwhi/i_pwdir tables),
   -- not per-voice. das_model: when a voice retriggers a previously-used

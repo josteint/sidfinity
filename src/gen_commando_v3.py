@@ -118,8 +118,10 @@ def gen_note(note):
     pitch = note['pitch']
     dur = note['duration']
     inst_raw = note['instrument']
-    # Strip high bit (bit 7 = no new instrument flag)
-    inst = inst_raw & 0x7F
+    # das_model: bits 6 AND 7 are flags. The actual instrument index is in
+    # bits 0-5. Mask with $3F. (Bit 7 = "reuse instrument", bit 6 = legato/tie
+    # in das_model semantics, but for USF v3 we just pin the inst index.)
+    inst = inst_raw & 0x3F
     tie = note.get('tie', False)
     # Frame count = dur * 3 (Commando tempo), -1 for our DEC-first model
     # Actually, USF should NOT have engine-specific adjustments. Just use frames.
