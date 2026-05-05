@@ -889,11 +889,24 @@ def emitNoteLoadPath (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.run
   cb := cb.emitInst (I.sta_zp 0xFB)              -- $FB = effective inst
   cb := cb.emitInst I.tax                         -- X = inst
 
-  -- Ctrl
+  -- Ctrl: tie notes (pitch=$FD) write i_ctrl & $FE to SID so gate stays
+  -- cleared (das_model's v_tie). The RAW i_ctrl (gate-on) is what gets
+  -- saved to v_ctrl[X] for the sustain path & dynamic T[104] update -
+  -- mirrors das_model saving raw to $C3/$A4 etc. before AND #$FE.
   cb := cb.emitLdaAbsX "i_ctrl"
+  cb := cb.emitInst I.pha                         -- save RAW ctrl (for sustain v_ctrl)
+  cb := cb.emitInst (I.sta_zp 0xF7)               -- and to scratch for SID write
+  cb := cb.emitInst (I.lda_zp 0xFE)               -- pitch
+  cb := cb.emitInst (I.cmp_imm 0xFD)
+  cb := cb.emitBranch .BNE "ctrl_no_tie"
+  cb := cb.emitInst (I.lda_zp 0xF7)
+  cb := cb.emitInst (I.and_imm 0xFE)              -- tie: clear gate for SID
+  cb := cb.emitInst (I.sta_zp 0xF7)
+  cb := cb.label "ctrl_no_tie"
+  cb := cb.emitInst (I.lda_zp 0xF7)
   cb := cb.emitInst (I.sta_absY (SID_BASE + 4))
-  -- Save ctrl for sustain path
-  cb := cb.emitInst I.pha
+  -- Note: A no longer holds the saved value; the PHA above saved the raw ctrl.
+  -- The PLA further down (line ~916) restores raw ctrl into v_ctrl[X].
 
   -- PW: i_pwlo/i_pwhi are mutable per-instrument running counters.
   -- Write the current state to SID. No reset on retrigger - the instrument's
