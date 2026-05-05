@@ -234,7 +234,7 @@ def emitExecVoice (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.run do
   -- 1. GATE-OFF CHECK (fire when v_dur == gateOffFrames, i.e., 3 frames before end)
   -- Only fires once per note (the exact moment v_dur crosses threshold)
   cb := cb.emitLdaAbsX "v_dur"
-  cb := cb.emitInst (I.cmp_imm 3)                  -- compare with gateOffFrames=3
+  cb := cb.emitInst (I.cmp_imm 2)                  -- compare with gateOffFrames=3, -1 for our DEC-first v_dur
   cb := cb.emitBranch .BNE "effects_start"          -- not equal → skip gate-off
   -- Gate off + zero ADSR
   cb := cb.emitLdaAbsX "v_sidoff"
@@ -481,7 +481,7 @@ def emitSustainEffects (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.r
   -- For Commando tempo=3: skip until countdown <= durationFrames - tempo = durationFrames - 3.
   -- So compare (durationFrames - tempo) with countdown.
   cb := cb.emitLdaAbsX "v_durfield"
-  cb := cb.emitInst (I.sbc_imm 3)                 -- A = durationFrames - 3 (== (ticks-1)*tempo for tempo=3)
+  cb := cb.emitInst (I.sbc_imm 4)                 -- A = durationFrames - 4 (empirically tuned for Hubbard)
   cb := cb.emitInst ⟨.CMP, .absX 0⟩               -- cmp countdown
   cb := { cb with absFixups :=
     { byteIdx := cb.bytes.size - 2, targetLabel := "v_dur" } :: cb.absFixups }
