@@ -384,66 +384,75 @@ def emitSustainEffects (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.r
   cb := cb.emitInst (I.cmp_imm 2)
   cb := cb.emitBranch .BEQ "pw_bidir"
 
+  -- PW state is per-INSTRUMENT (mutable i_pwlo/i_pwhi/i_pwdir tables),
+  -- not per-voice. das_model: when a voice retriggers a previously-used
+  -- instrument (e.g. V3 cycles inst 2 -> 3 -> 2), the PW counter resumes
+  -- from where that instrument left off. v_inst[X] gives Y = inst index.
+  cb := cb.emitInst (I.ldx_zp 0xFA)               -- X = voice
+  cb := cb.emitLdaAbsX "v_inst"
+  cb := cb.emitInst I.tay                          -- Y = inst (preserved across PW)
+
   -- LINEAR PW
   cb := cb.emitInst I.clc
-  cb := cb.emitLdaAbsX "v_pwlo"
+  cb := cb.emitLdaAbsY "i_pwlo"
   cb := cb.emitInst (I.adc_zp 0xF9)
-  cb := cb.emitStaAbsX "v_pwlo"
+  cb := cb.emitStaAbsY "i_pwlo"
+  cb := cb.emitInst (I.sta_zp 0xF8)               -- save new pwlo
   cb := cb.emitLdaAbsX "v_sidoff"
-  cb := cb.emitInst I.tay
-  cb := cb.emitLdaAbsX "v_pwlo"
+  cb := cb.emitInst I.tay                          -- Y = sidoff (clobbers inst Y)
+  cb := cb.emitInst (I.lda_zp 0xF8)
   cb := cb.emitInst (I.sta_absY (SID_BASE + 2))
   cb := cb.emitJmpLabel .JMP "pw_done"
 
   -- BIDIRECTIONAL PW
   cb := cb.label "pw_bidir"
-  cb := cb.emitLdaAbsX "v_pwdir"
+  cb := cb.emitLdaAbsY "i_pwdir"
   cb := cb.emitBranch .BNE "pw_bidir_down"
-  -- Up
+  -- Up: i_pwlo += speed, i_pwhi += carry, mask hi to 4 bits
   cb := cb.emitInst I.clc
-  cb := cb.emitLdaAbsX "v_pwlo"
+  cb := cb.emitLdaAbsY "i_pwlo"
   cb := cb.emitInst (I.adc_zp 0xF9)
-  cb := cb.emitStaAbsX "v_pwlo"
-  cb := cb.emitLdaAbsX "v_pwhi"
+  cb := cb.emitStaAbsY "i_pwlo"
+  cb := cb.emitLdaAbsY "i_pwhi"
   cb := cb.emitInst (I.adc_imm 0)
   cb := cb.emitInst (I.and_imm 0x0F)
-  cb := cb.emitStaAbsX "v_pwhi"
-  cb := cb.emitLdaAbsX "v_inst"
-  cb := cb.emitInst I.tay
-  cb := cb.emitLdaAbsX "v_pwhi"
+  cb := cb.emitStaAbsY "i_pwhi"
+  -- Compare i_pwhi with i_pwmax, flip direction if equal
   cb := cb.emitInst ⟨.CMP, .absY 0⟩
   cb := { cb with absFixups :=
     { byteIdx := cb.bytes.size - 2, targetLabel := "i_pwmax" } :: cb.absFixups }
   cb := cb.emitBranch .BNE "pw_bidir_write"
   cb := cb.emitInst (I.lda_imm 1)
-  cb := cb.emitStaAbsX "v_pwdir"
+  cb := cb.emitStaAbsY "i_pwdir"
   cb := cb.emitJmpLabel .JMP "pw_bidir_write"
-  -- Down
+  -- Down: i_pwlo -= speed, i_pwhi -= borrow, mask hi to 4 bits
   cb := cb.label "pw_bidir_down"
   cb := cb.emitInst I.sec
-  cb := cb.emitLdaAbsX "v_pwlo"
+  cb := cb.emitLdaAbsY "i_pwlo"
   cb := cb.emitInst (I.sbc_zp 0xF9)
-  cb := cb.emitStaAbsX "v_pwlo"
-  cb := cb.emitLdaAbsX "v_pwhi"
+  cb := cb.emitStaAbsY "i_pwlo"
+  cb := cb.emitLdaAbsY "i_pwhi"
   cb := cb.emitInst (I.sbc_imm 0)
   cb := cb.emitInst (I.and_imm 0x0F)
-  cb := cb.emitStaAbsX "v_pwhi"
-  cb := cb.emitLdaAbsX "v_inst"
-  cb := cb.emitInst I.tay
-  cb := cb.emitLdaAbsX "v_pwhi"
+  cb := cb.emitStaAbsY "i_pwhi"
+  -- Compare i_pwhi with i_pwmin (hardcoded $08 in Hubbard, but we honor i_pwmin)
   cb := cb.emitInst ⟨.CMP, .absY 0⟩
   cb := { cb with absFixups :=
     { byteIdx := cb.bytes.size - 2, targetLabel := "i_pwmin" } :: cb.absFixups }
   cb := cb.emitBranch .BNE "pw_bidir_write"
   cb := cb.emitInst (I.lda_imm 0)
-  cb := cb.emitStaAbsX "v_pwdir"
-  -- Write PW to SID
+  cb := cb.emitStaAbsY "i_pwdir"
+  -- Write PW to SID. Y is currently inst; switch to sidoff.
   cb := cb.label "pw_bidir_write"
+  cb := cb.emitLdaAbsY "i_pwlo"
+  cb := cb.emitInst (I.sta_zp 0xF8)               -- save pwlo
+  cb := cb.emitLdaAbsY "i_pwhi"
+  cb := cb.emitInst (I.sta_zp 0xF7)               -- save pwhi (was old-inst slot, no longer needed here)
   cb := cb.emitLdaAbsX "v_sidoff"
   cb := cb.emitInst I.tay
-  cb := cb.emitLdaAbsX "v_pwlo"
+  cb := cb.emitInst (I.lda_zp 0xF8)
   cb := cb.emitInst (I.sta_absY (SID_BASE + 2))
-  cb := cb.emitLdaAbsX "v_pwhi"
+  cb := cb.emitInst (I.lda_zp 0xF7)
   cb := cb.emitInst (I.sta_absY (SID_BASE + 3))
   cb := cb.label "pw_done"
 
@@ -644,9 +653,6 @@ def emitNoteLoadPath (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.run
   cb := cb.emitInst (I.sbc_imm 1)
   cb := cb.emitStaAbsX "v_dur"
 
-  -- Save OLD instrument index to $F7 (for "same instrument" PW continuity check below)
-  cb := cb.emitLdaAbsX "v_inst"
-  cb := cb.emitInst (I.sta_zp 0xF7)
   -- Store NEW instrument index in voice state
   cb := cb.emitInst (I.lda_zp 0xFB)
   cb := cb.emitStaAbsX "v_inst"
@@ -713,36 +719,15 @@ def emitNoteLoadPath (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.run
   -- Save ctrl for sustain path
   cb := cb.emitInst I.pha
 
-  -- PW: if same instrument as previous note, continue current PW state (Hubbard
-  -- doesn't reset PW counter on retrigger when instrument unchanged). Otherwise
-  -- reset v_pwlo/v_pwhi/v_pwdir to instrument's init values. Always write the
-  -- (possibly continued) v_pwlo/v_pwhi to the SID register.
-  -- $F7 = old inst, $FB = new inst (still in zp from earlier)
-  cb := cb.emitInst (I.lda_zp 0xF7)               -- old inst
-  cb := cb.emitInst ⟨.CMP, .zp 0xFB⟩              -- vs new inst
-  cb := cb.emitBranch .BEQ "pw_keep"
-  -- Different instrument: reset PW state from new instrument's init
-  -- (X is currently new inst from line 700)
+  -- PW: i_pwlo/i_pwhi are mutable per-instrument running counters.
+  -- Write the current state to SID. No reset on retrigger - the instrument's
+  -- counter persists across notes (and across other voices using the same
+  -- instrument), matching Hubbard's i_pwlo,X-as-state convention.
+  -- (X = NEW inst from line 700; Y = sidoff from earlier.)
   cb := cb.emitLdaAbsX "i_pwlo"
-  cb := cb.emitInst (I.sta_zp 0xF8)               -- scratch: new pwlo
-  cb := cb.emitLdaAbsX "i_pwhi"
-  cb := cb.emitInst (I.sta_zp 0xF9)               -- scratch: new pwhi
-  cb := cb.emitInst (I.ldx_zp 0xFA)               -- X = voice
-  cb := cb.emitInst (I.lda_zp 0xF8)
-  cb := cb.emitStaAbsX "v_pwlo"
-  cb := cb.emitInst (I.lda_zp 0xF9)
-  cb := cb.emitStaAbsX "v_pwhi"
-  cb := cb.emitInst (I.lda_imm 0)
-  cb := cb.emitStaAbsX "v_pwdir"
-  cb := cb.label "pw_keep"
-  -- Always write current v_pwlo/v_pwhi to SID (refreshes register on retrigger)
-  cb := cb.emitInst (I.ldx_zp 0xFA)               -- X = voice
-  cb := cb.emitLdaAbsX "v_pwlo"
   cb := cb.emitInst (I.sta_absY (SID_BASE + 2))
-  cb := cb.emitLdaAbsX "v_pwhi"
+  cb := cb.emitLdaAbsX "i_pwhi"
   cb := cb.emitInst (I.sta_absY (SID_BASE + 3))
-  -- Restore X = instrument for ADSR lookups
-  cb := cb.emitInst (I.ldx_zp 0xFB)
 
   -- ADSR
   cb := cb.emitLdaAbsX "i_ad"
@@ -887,6 +872,10 @@ def generateSID (song : USFSong) (debug : Bool := false) : Bytes := Id.run do
   cb := cb.emitData (song.instruments.map fun i => match i.pwMod with
     | some { mode := .bidirectional _ _ maxHi, .. } => maxHi.val.toUInt8
     | _ => 0)
+  -- Mutable per-instrument PW direction (0 = up, 1 = down). Persists across
+  -- voices so that re-triggering an instrument resumes its bidirectional state.
+  cb := cb.label "i_pwdir"
+  cb := cb.emitData (song.instruments.map fun _ => (0 : UInt8))
   -- Vibrato depth (0 = none, 1-3 = depth shift)
   cb := cb.label "i_vib"
   cb := cb.emitData (song.instruments.map fun i =>
