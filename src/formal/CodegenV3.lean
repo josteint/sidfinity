@@ -234,7 +234,7 @@ def emitExecVoice (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.run do
   -- 1. GATE-OFF CHECK (fire when v_dur == gateOffFrames, i.e., 3 frames before end)
   -- Only fires once per note (the exact moment v_dur crosses threshold)
   cb := cb.emitLdaAbsX "v_dur"
-  cb := cb.emitInst (I.cmp_imm 2)                  -- compare with gateOffFrames=3, -1 for our DEC-first v_dur
+  cb := cb.emitInst (I.cmp_imm 2)                  -- empirically tuned (was 3 in original)
   cb := cb.emitBranch .BNE "effects_start"          -- not equal → skip gate-off
   -- Gate off + zero ADSR
   cb := cb.emitLdaAbsX "v_sidoff"
@@ -245,7 +245,8 @@ def emitExecVoice (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.run do
   cb := cb.emitInst (I.lda_imm 0x00)
   cb := cb.emitInst (I.sta_absY (SID_BASE + 5))
   cb := cb.emitInst (I.sta_absY (SID_BASE + 6))
-  cb := cb.emitInst I.rts                          -- skip effects on gate-off frame
+  -- Fall through to effects: Hubbard runs PW/vibrato/etc. inline with gate-off,
+  -- not as an early-out (writelog shows PWlo update on gate-off frame).
 
   cb := cb.label "effects_start"
 

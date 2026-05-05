@@ -101,6 +101,8 @@ int main(int argc, char* argv[])
             "  --timeout N    Timeout in seconds (default: 0 = none)\n"
             "  --raw          Skip metadata/header lines\n"
             "  --digi         Enable intra-frame write logging\n"
+            "  --writelog     Append full register write stream with cycle timing (ground truth)\n"
+            "  --memtrace     Append memory access trace\n"
             "  --pcm          Output raw 16-bit signed PCM to stdout\n"
             "  --force-rsid   Process RSID files (normally skipped)\n",
             argv[0]);
