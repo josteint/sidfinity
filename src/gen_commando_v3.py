@@ -134,6 +134,10 @@ def gen_note(note, tempo):
     # Frame count = dur * tempo (frames per tick). Tempo varies per subtune
     # in Hubbard games — comes from speed_table[subtune]+1.
     frames = dur * tempo
+    # Portamento byte: drum_trig has porta speed << 1 in bits 1-6 and
+    # direction in bit 0; bit 7 was the no_release flag (extracted above).
+    # Strip bit 7, leave the porta payload.
+    porta = note.get('drum_trig', 0) & 0x7F
     if tie:
         kind = '.tie'
     elif pitch == 104:
@@ -144,7 +148,7 @@ def gen_note(note, tempo):
         # Other extended pitches — for now treat as dynamicCtrl too
         # (Hubbard's pitch 100, 116 etc.)
         kind = '.percussion .dynamicCtrl'
-    return f"{{ kind := {kind}, durationFrames := {frames}, instrument := {inst} }}"
+    return f"{{ kind := {kind}, durationFrames := {frames}, instrument := {inst}, porta := {porta} }}"
 
 
 def gen_pattern(idx, notes, tempo):

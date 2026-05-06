@@ -406,9 +406,52 @@ def emitExecVoice (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.run do
 
   cb := cb.label "effects_start"
 
+  -- 2a. PORTAMENTO. When v_porta[X] is non-zero, slide the per-voice freq
+  -- accumulator each frame and write it directly to the SID, jumping past
+  -- vibrato (orig disables vibrato modulation while a porta slide is in
+  -- progress — the freq evolution is purely linear). Hubbard porta byte:
+  -- bits 1-6 = step size, bit 0 = direction (0 = up, 1 = down).
+  cb := cb.emitLdaAbsX "v_porta"
+  cb := cb.emitBranch .BNE "porta_active"
+  cb := cb.emitJmpLabel .JMP "no_porta"
+  cb := cb.label "porta_active"
+  cb := cb.emitInst (I.and_imm 0x7E)             -- step size in lo-byte units
+  cb := cb.emitInst (I.sta_zp 0xF6)              -- $F6 = step
+  cb := cb.emitLdaAbsX "v_porta"
+  cb := cb.emitInst (I.and_imm 0x01)             -- direction bit
+  cb := cb.emitBranch .BNE "porta_down"
+  -- Up: v_porta_lo += step, v_porta_hi += carry
+  cb := cb.emitInst I.clc
+  cb := cb.emitLdaAbsX "v_porta_lo"
+  cb := cb.emitInst (I.adc_zp 0xF6)
+  cb := cb.emitStaAbsX "v_porta_lo"
+  cb := cb.emitLdaAbsX "v_porta_hi"
+  cb := cb.emitInst (I.adc_imm 0)
+  cb := cb.emitStaAbsX "v_porta_hi"
+  cb := cb.emitJmpLabel .JMP "porta_write"
+  cb := cb.label "porta_down"
+  cb := cb.emitInst I.sec
+  cb := cb.emitLdaAbsX "v_porta_lo"
+  cb := cb.emitInst (I.sbc_zp 0xF6)
+  cb := cb.emitStaAbsX "v_porta_lo"
+  cb := cb.emitLdaAbsX "v_porta_hi"
+  cb := cb.emitInst (I.sbc_imm 0)
+  cb := cb.emitStaAbsX "v_porta_hi"
+  cb := cb.label "porta_write"
+  cb := cb.emitLdaAbsX "v_sidoff"
+  cb := cb.emitInst I.tay
+  cb := cb.emitInst (I.ldx_zp 0xFA)
+  cb := cb.emitLdaAbsX "v_porta_lo"
+  cb := cb.emitInst (I.sta_absY (SID_BASE + 0))
+  cb := cb.emitLdaAbsX "v_porta_hi"
+  cb := cb.emitInst (I.sta_absY (SID_BASE + 1))
+  cb := cb.emitJmpLabel .JMP "porta_done"
+  cb := cb.label "no_porta"
+
   -- 2. VIBRATO (in separate function to avoid Lean elaborator depth limit)
   cb := emitVibrato cb song
 
+  cb := cb.label "porta_done"
   -- 3+ continues below
   cb := emitSustainEffects cb song
   return cb
@@ -798,6 +841,12 @@ def emitNoteLoadPath (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.run
   cb := cb.emitInst ⟨.LDA, .indY 0xFC⟩
   cb := cb.emitInst (I.sta_zp 0xFB)              -- $FB = raw inst byte (with bits 6/7 flags if preserved)
 
+  -- 4th byte: portamento descriptor (0 if none). Save to v_porta[X].
+  cb := cb.emitInst I.iny
+  cb := cb.emitInst ⟨.LDA, .indY 0xFC⟩
+  cb := cb.emitInst (I.ldx_zp 0xFA)
+  cb := cb.emitStaAbsX "v_porta"
+
   -- Engine-quirks note-load operations (data-driven from song.engineQuirks).
   -- These act on per-voice scratch slots and may peek $FB raw inst byte.
   -- The "*IfNextEnds" ops happen later (after pattern advance) - we filter here.
@@ -826,10 +875,10 @@ def emitNoteLoadPath (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.run
     cb := cb.emitInst (I.and_imm 0x1F)
     cb := cb.emitInst (I.sta_zp 0xFB)
 
-  -- Advance pattern pointer by 3
+  -- Advance pattern pointer by 4 (pitch, dur, inst, porta)
   cb := cb.emitInst I.clc
   cb := cb.emitInst (I.lda_zp 0xFC)
-  cb := cb.emitInst (I.adc_imm 3)
+  cb := cb.emitInst (I.adc_imm 4)
   cb := cb.emitInst (I.sta_zp 0xFC)
   cb := cb.emitInst (I.lda_zp 0xFD)
   cb := cb.emitInst (I.adc_imm 0)
@@ -896,6 +945,25 @@ def emitNoteLoadPath (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.run
   cb := cb.emitInst (I.sta_absY (SID_BASE + 1))
   cb := cb.emitLdaAbsX "freq_lo"
   cb := cb.emitInst (I.sta_absY (SID_BASE + 0))
+  -- Initialise the porta accumulator to the base freq for this pitch so
+  -- the per-frame slide starts from the right place. (Done unconditionally;
+  -- if v_porta = 0 the sustain-path slide is skipped anyway.) Care: Y must
+  -- still hold v_sidoff[voice] when we leave — downstream STA absY writes
+  -- depend on it.
+  cb := cb.emitLdaAbsX "freq_lo"                  -- X = pitch (set at line 943)
+  cb := cb.emitInst (I.sta_zp 0xF8)               -- $F8 = freq_lo scratch
+  cb := cb.emitLdaAbsX "freq_hi"
+  cb := cb.emitInst (I.sta_zp 0xF9)               -- $F9 = freq_hi scratch
+  cb := cb.emitInst (I.ldx_zp 0xFA)               -- X = voice
+  cb := cb.emitInst (I.lda_zp 0xF8)
+  cb := cb.emitStaAbsX "v_porta_lo"
+  cb := cb.emitInst (I.lda_zp 0xF9)
+  cb := cb.emitStaAbsX "v_porta_hi"
+  -- Restore Y = v_sidoff for downstream STA absY writes.
+  cb := cb.emitLdaAbsX "v_sidoff"                 -- X = voice still
+  cb := cb.emitInst I.tay
+  -- And X = pitch for the freq_hi lookup that follows.
+  cb := cb.emitInst (I.ldx_zp 0xFE)
 
   -- Save pitch and freq_hi for effects
   cb := cb.emitInst (I.ldx_zp 0xFA)               -- X = voice
@@ -1147,6 +1215,10 @@ def generateSID (song : USFSong) (debug : Bool := false) : Bytes := Id.run do
       cb := cb.emitByte pitchByte
       cb := cb.emitByte note.durationFrames.toUInt8
       cb := cb.emitByte note.instrument.toUInt8
+      -- 4th byte: portamento descriptor. 0 = none. Bits 1-6 = step size,
+      -- bit 0 = direction (1 = down). Codegen reads at note-load and runs
+      -- a per-frame freq slide while non-zero.
+      cb := cb.emitByte note.porta.toUInt8
     cb := cb.emitByte 0x00
 
   cb := cb.label "patt_ptr_lo"
@@ -1222,6 +1294,16 @@ def generateSID (song : USFSong) (debug : Bool := false) : Bytes := Id.run do
   -- When set, the next HR check skips itself, leaving the gate on so the
   -- following note inherits it (Hubbard portamento/legato).
   cb := cb.label "v_no_release"
+  cb := cb.emitData [(0 : UInt8), 0, 0]
+  -- Per-voice portamento state. v_porta = porta descriptor byte (Hubbard
+  -- format: bits 1-6 = step size, bit 0 = direction). v_porta_lo/hi = the
+  -- 16-bit current freq accumulator that the slide modifies each frame.
+  -- All initialised to 0 (= no porta).
+  cb := cb.label "v_porta"
+  cb := cb.emitData [(0 : UInt8), 0, 0]
+  cb := cb.label "v_porta_lo"
+  cb := cb.emitData [(0 : UInt8), 0, 0]
+  cb := cb.label "v_porta_hi"
   cb := cb.emitData [(0 : UInt8), 0, 0]
   -- Per-voice scratch slots from engineQuirks.voiceScratch.
   -- Each scratch slot allocates 3 bytes (one per voice), with v_scratch_s{N}

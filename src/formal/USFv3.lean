@@ -157,6 +157,10 @@ structure USFNoteEvent where
   kind            : USFNoteKind
   durationFrames  : Nat              -- TOTAL frames this note holds the voice
   instrument      : Nat              -- index into instrument table
+  -- Portamento byte (Hubbard format): 0 = no portamento; otherwise bits 1-6
+  -- encode the per-frame freq delta and bit 0 encodes direction (1 = down).
+  -- Codegen interprets as: delta = byte AND $7E, direction = byte AND $01.
+  porta           : Nat := 0
   deriving Repr
 
 structure USFPattern where
