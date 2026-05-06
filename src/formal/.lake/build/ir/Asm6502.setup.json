@@ -1,7 +1,0 @@
-{"plugins": [],
- "package": "dasmodel",
- "options": {"autoImplicit": false},
- "name": "Asm6502",
- "isModule": false,
- "importArts": {},
- "dynlibs": []}
