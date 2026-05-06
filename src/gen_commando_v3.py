@@ -157,15 +157,21 @@ def gen_pattern(idx, notes, tempo):
 
 
 def main():
-    # Subtune (0-indexed). Default 0 = first subtune = PSID subtune 1 (game music).
-    subtune = 0
+    # Subtune list. Default = 3 music subtunes (game, title, intro). Pass
+    # comma-separated indices to override, e.g. `gen_commando_v3.py 0,1,2`.
+    subtune_indices = [0, 1, 2]
     if len(sys.argv) > 1:
-        subtune = int(sys.argv[1])
+        subtune_indices = [int(x) for x in sys.argv[1].split(',')]
 
-    T, instruments, score = extract(subtune=subtune)
+    # Extract per subtune. The first subtune supplies the shared freq table
+    # and instruments (which are the same across all Hubbard subtunes that
+    # share his player engine).
+    extracts = [extract(subtune=s) for s in subtune_indices]
+    T, instruments, _ = extracts[0]
 
     out = ["-- Auto-generated USF v3 Commando data",
-           f"-- Subtune: {subtune} (0-indexed; PSID subtune {subtune + 1})",
+           f"-- Subtunes: {subtune_indices} (0-indexed; PSID subtunes "
+           f"{[s+1 for s in subtune_indices]})",
            "import USFv3", ""]
 
     out.append(f"def commandoV3FreqTable : USFFreqTable := {{ entries := {gen_freq_table(T)} }}")
@@ -175,28 +181,63 @@ def main():
         out.append(gen_instrument(i, inst))
         out.append("")
 
-    # Collect all patterns from all voices (deduped)
-    all_pats = {}
-    for v in score['voices']:
-        for pat_idx, pat_notes in v['patterns'].items():
-            if pat_idx not in all_pats:
-                all_pats[pat_idx] = pat_notes
+    # Collect patterns across all subtunes. Each pattern's durationFrames is
+    # pre-multiplied by ITS subtune's tempo, so a pattern shared between two
+    # subtunes at different tempos would need different durations — we
+    # error if that happens. For Commando subtunes 0/1/2 there's no overlap
+    # (they each use disjoint pattern ranges).
+    all_pats = {}                # pat_idx -> (notes, tempo)
+    for (_, _, score) in extracts:
+        tempo = score['tempo']
+        for v in score['voices']:
+            for pat_idx, pat_notes in v['patterns'].items():
+                if pat_idx in all_pats:
+                    existing_notes, existing_tempo = all_pats[pat_idx]
+                    if existing_tempo != tempo:
+                        raise SystemExit(
+                            f"pattern {pat_idx} shared between subtunes with "
+                            f"different tempos ({existing_tempo} vs {tempo}); "
+                            f"need tick-based durations to handle this"
+                        )
+                else:
+                    all_pats[pat_idx] = (pat_notes, tempo)
 
-    tempo = score['tempo']
     for idx in sorted(all_pats.keys()):
-        out.append(gen_pattern(idx, all_pats[idx], tempo))
+        notes, tempo = all_pats[idx]
+        out.append(gen_pattern(idx, notes, tempo))
         out.append("")
 
-    # Voices (orderlist)
+    # Per-subtune voices (orderlists). Each subtune contributes 3 voices.
     voice_defs = []
-    for vi, v in enumerate(score['voices']):
-        ol = '[' + ', '.join(str(p) for p in v['orderlist']) + ']'
-        loop_pt = v.get('loop')
-        loop_str = f'some {loop_pt}' if loop_pt is not None else 'none'
-        voice_defs.append(
-            f"def cv3V{vi} : USFVoice := {{ orderlist := {ol}, loopPoint := {loop_str} }}"
-        )
+    voice_global_idx = 0
+    subtune_voices = []  # list of (start_idx, count) per subtune
+    for si, (_, _, score) in enumerate(extracts):
+        start = voice_global_idx
+        for v in score['voices']:
+            ol = '[' + ', '.join(str(p) for p in v['orderlist']) + ']'
+            loop_pt = v.get('loop')
+            # rh_decompile uses -1 to mean "no loop / song stops"; USF schema
+            # represents that as `none`.
+            loop_str = (
+                f'some {loop_pt}' if loop_pt is not None and loop_pt >= 0
+                else 'none'
+            )
+            voice_defs.append(
+                f"def cv3V{voice_global_idx} : USFVoice := {{ orderlist := {ol}, loopPoint := {loop_str} }}"
+            )
+            voice_global_idx += 1
+        subtune_voices.append((start, voice_global_idx - start))
     out.extend(voice_defs)
+    out.append("")
+
+    # Subtune defs: each USFSubtune wraps 3 voices + tempo.
+    subtune_defs = []
+    for si, ((start, count), (_, _, score)) in enumerate(zip(subtune_voices, extracts)):
+        v_refs = ', '.join(f'cv3V{i}' for i in range(start, start + count))
+        subtune_defs.append(
+            f"def cv3S{si} : USFSubtune := {{ voices := [{v_refs}], tempo := {score['tempo']} }}"
+        )
+    out.extend(subtune_defs)
     out.append("")
 
     # Pattern list (ordered by index, with empty placeholders for missing indices)
@@ -210,7 +251,7 @@ def main():
 
     # Final song
     inst_refs = ', '.join(f'cv3I{i}' for i in range(len(instruments)))
-    voice_refs = ', '.join(f'cv3V{i}' for i in range(len(score['voices'])))
+    subtune_refs = ', '.join(f'cv3S{i}' for i in range(len(extracts)))
     pat_list = ', '.join(pat_refs)
 
     # Engine quirks for Commando (Hubbard player). Encoded as DATA so the
@@ -297,8 +338,8 @@ def main():
     out.append(f"""def commandoV3 : USFSong := {{
   freqTable := commandoV3FreqTable
   instruments := [{inst_refs}]
-  voices := [{voice_refs}]
   patterns := [{pat_list}]
+  subtunes := [{subtune_refs}]
   voiceOrder := [⟨2, by omega⟩, ⟨1, by omega⟩, ⟨0, by omega⟩]
   filter := none
   playRate := .vbi

@@ -172,6 +172,14 @@ structure USFVoice where
   loopPoint  : Option Nat            -- orderlist position to loop back to
   deriving Repr
 
+-- A subtune is a complete song variant: its own per-voice orderlist and tempo,
+-- but shares the parent USFSong's instruments/patterns/freq table. PSID's
+-- "songs" maps 1:1 onto USFSubtune entries; init's A register selects which.
+structure USFSubtune where
+  voices : List USFVoice             -- length 1-3
+  tempo  : Nat                       -- frames per tick
+  deriving Repr
+
 -- ==========================================================================
 -- Filter (song-level resource)
 -- ==========================================================================
@@ -276,8 +284,8 @@ structure USFFreqTable where
 structure USFSong where
   freqTable    : USFFreqTable
   instruments  : List USFInstrument
-  voices       : List USFVoice         -- length 1-3 (which SID voices used)
   patterns     : List USFPattern
+  subtunes     : List USFSubtune       -- ≥1 per-subtune voice/tempo blocks
   voiceOrder   : List (Fin 3)          -- processing order (e.g., [2,1,0])
   filter       : Option USFFilterSpec  -- if Some: filter is active
   playRate     : USFPlayRate           -- VBI or CIA timer
@@ -287,3 +295,10 @@ structure USFSong where
   author       : String
   released     : String
   deriving Repr
+
+-- Convenience accessor for the first subtune's voices (used by callsites that
+-- haven't been updated to handle multiple subtunes yet).
+def USFSong.voices (s : USFSong) : List USFVoice :=
+  match s.subtunes with
+  | first :: _ => first.voices
+  | []         => []

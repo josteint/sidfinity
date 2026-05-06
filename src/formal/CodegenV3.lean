@@ -306,6 +306,32 @@ private def emitPatternEndOps (cb : CodeBuilder) (ops : List USFPatternEndOp) : 
 private def emitInit (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.run do
   let mut cb := cb.label "init"
 
+  -- Subtune dispatch: PSID's init A register holds the 0-based subtune
+  -- index. Bound-clamp to [0..numSubtunes-1] (= clamp to subtune 0 if out
+  -- of range), then copy that subtune's 3 voice-orderlist start addresses
+  -- from the static ol_subtune_lo/hi tables into the runtime ol_lo/hi[3].
+  cb := cb.emitInst (I.cmp_imm song.subtunes.length.toUInt8)
+  cb := cb.emitBranch .BCC "subtune_in_range"
+  cb := cb.emitInst (I.lda_imm 0)
+  cb := cb.label "subtune_in_range"
+  -- Y = A * 3 (= byte offset into the subtune-major tables).
+  cb := cb.emitInst (I.sta_zp 0xFB)               -- save subtune
+  cb := cb.emitInst I.asl_a                        -- A = 2*subtune
+  cb := cb.emitInst I.clc
+  cb := cb.emitInst (I.adc_zp 0xFB)               -- A = 3*subtune
+  cb := cb.emitInst I.tay
+  -- Copy 3 bytes ol_subtune_*[Y..Y+2] → ol_*[0..2]. X iterates 0..2.
+  cb := cb.emitInst (I.ldx_imm 0)
+  cb := cb.label "subtune_copy"
+  cb := cb.emitLdaAbsY "ol_subtune_lo"
+  cb := cb.emitStaAbsX "ol_lo"
+  cb := cb.emitLdaAbsY "ol_subtune_hi"
+  cb := cb.emitStaAbsX "ol_hi"
+  cb := cb.emitInst I.iny
+  cb := cb.emitInst I.inx
+  cb := cb.emitInst ⟨.CPX, .imm 3⟩
+  cb := cb.emitBranch .BNE "subtune_copy"
+
   -- Match Hubbard's init sequence:
   -- (sidplayfp pre-writes Vol=$0F before calling init)
   -- Then init: V1ctl=0, V2ctl=0 (twice), V3ctl=0, Vol=$0F again
@@ -1238,27 +1264,37 @@ def generateSID (song : USFSong) (debug : Bool := false) : Bytes := Id.run do
   cb := cb.label "patt_ptr_hi"
   cb := cb.emitData patPtrHi
 
-  -- Orderlist data per voice + build pointer tables.
-  -- Layout: [entries..., $FF, loopPoint_or_FF].
+  -- Orderlist data per (subtune, voice) + build pointer tables.
+  -- Layout for each orderlist: [entries..., $FF, loopPoint_or_FF].
   -- When advance_order reads $FF, it consults the next byte: if $FF, song
   -- ends; otherwise that byte is the new orderlist position (loop back).
-  let mut olLo : List UInt8 := []
-  let mut olHi : List UInt8 := []
-  for vi in [:song.voices.length] do
-    match song.voices[vi]? with
-    | some voiceSpec =>
-      let addr := cb.currentAddr
-      olLo := olLo ++ [addr.toUInt8]
-      olHi := olHi ++ [(addr >>> 8).toUInt8]
-      cb := cb.emitData (voiceSpec.orderlist.map (·.toUInt8))
-      cb := cb.emitByte 0xFF
-      let loopByte : UInt8 := match voiceSpec.loopPoint with
-        | some p => p.toUInt8
-        | none   => 0xFF
-      cb := cb.emitByte loopByte
-    | none =>
-      olLo := olLo ++ [0]
-      olHi := olHi ++ [0]
+  --
+  -- For multi-subtune support we emit a subtune-major flat table:
+  -- ol_subtune_lo/hi has len(subtunes)*3 bytes (3 voice ptrs per subtune).
+  -- Init copies the requested subtune's 3 bytes into the runtime ol_lo/hi
+  -- (which retains the per-voice 3-byte layout the rest of the codegen
+  -- uses).
+  let mut olSubtuneLo : List UInt8 := []
+  let mut olSubtuneHi : List UInt8 := []
+  for st in song.subtunes do
+    for vi in [:3] do
+      match st.voices[vi]? with
+      | some voiceSpec =>
+        let addr := cb.currentAddr
+        olSubtuneLo := olSubtuneLo ++ [addr.toUInt8]
+        olSubtuneHi := olSubtuneHi ++ [(addr >>> 8).toUInt8]
+        cb := cb.emitData (voiceSpec.orderlist.map (·.toUInt8))
+        cb := cb.emitByte 0xFF
+        let loopByte : UInt8 := match voiceSpec.loopPoint with
+          | some p => p.toUInt8
+          | none   => 0xFF
+        cb := cb.emitByte loopByte
+      | none =>
+        olSubtuneLo := olSubtuneLo ++ [0]
+        olSubtuneHi := olSubtuneHi ++ [0]
+  -- Active per-voice orderlist pointers (init copies one subtune's block here).
+  let olLo : List UInt8 := [0, 0, 0]
+  let olHi : List UInt8 := [0, 0, 0]
 
   -- Voice state variables (3 bytes each, indexed by voice 0/1/2)
   cb := cb.label "v_dur"
@@ -1345,6 +1381,19 @@ def generateSID (song : USFSong) (debug : Bool := false) : Bytes := Id.run do
   cb := cb.emitData olLo
   cb := cb.label "ol_hi"
   cb := cb.emitData olHi
+  -- Subtune-major orderlist pointer tables. Each subtune contributes 3
+  -- bytes (voice 0/1/2 orderlist start). Init reads the requested subtune
+  -- index from A, computes the byte offset (= subtune * 3), and copies
+  -- 3 bytes from each into ol_lo/ol_hi.
+  cb := cb.label "ol_subtune_lo"
+  cb := cb.emitData olSubtuneLo
+  cb := cb.label "ol_subtune_hi"
+  cb := cb.emitData olSubtuneHi
+  -- Per-subtune tempo (frames per tick). Currently unused at runtime
+  -- because pattern durations are pre-multiplied; included for future
+  -- tick-based support and so the data is preserved through the pipeline.
+  cb := cb.label "tempo_subtune"
+  cb := cb.emitData (song.subtunes.map (·.tempo.toUInt8))
 
   -- Resolve all forward references
   cb := cb.resolve
@@ -1352,6 +1401,8 @@ def generateSID (song : USFSong) (debug : Bool := false) : Bytes := Id.run do
   let header : PSIDHeader := {
     initAddr := base
     playAddr := base + 3
+    songs := song.subtunes.length.toUInt16
+    startSong := 1
     title := "Commando"
     author := "Rob Hubbard"
     released := "1985 Elite"
