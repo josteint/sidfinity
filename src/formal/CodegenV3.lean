@@ -567,8 +567,12 @@ def emitSustainEffects (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.r
   cb := cb.emitJmpLabel .JMP "pw_done"
 
   -- BIDIRECTIONAL PW
+  -- v_pwdir is PER-VOICE (Hubbard $5510,X) — direction persists across notes
+  -- on the same voice even when the instrument changes. Y is currently the
+  -- instrument index (used for pwlo/pwhi/min/max lookup); X is the voice
+  -- index (used for the direction flag).
   cb := cb.label "pw_bidir"
-  cb := cb.emitLdaAbsY "i_pwdir"
+  cb := cb.emitLdaAbsX "v_pwdir"
   cb := cb.emitBranch .BNE "pw_bidir_down"
   -- Up: i_pwlo += speed, i_pwhi += carry, mask hi to 4 bits
   cb := cb.emitInst I.clc
@@ -585,7 +589,7 @@ def emitSustainEffects (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.r
     { byteIdx := cb.bytes.size - 2, targetLabel := "i_pwmax" } :: cb.absFixups }
   cb := cb.emitBranch .BNE "pw_bidir_write"
   cb := cb.emitInst (I.lda_imm 1)
-  cb := cb.emitStaAbsY "i_pwdir"
+  cb := cb.emitStaAbsX "v_pwdir"
   cb := cb.emitJmpLabel .JMP "pw_bidir_write"
   -- Down: i_pwlo -= speed, i_pwhi -= borrow, mask hi to 4 bits
   cb := cb.label "pw_bidir_down"
@@ -603,7 +607,7 @@ def emitSustainEffects (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.r
     { byteIdx := cb.bytes.size - 2, targetLabel := "i_pwmin" } :: cb.absFixups }
   cb := cb.emitBranch .BNE "pw_bidir_write"
   cb := cb.emitInst (I.lda_imm 0)
-  cb := cb.emitStaAbsY "i_pwdir"
+  cb := cb.emitStaAbsX "v_pwdir"
   -- Write PW to SID. Y is currently inst; switch to sidoff.
   cb := cb.label "pw_bidir_write"
   cb := cb.emitLdaAbsY "i_pwlo"
@@ -1089,10 +1093,12 @@ def generateSID (song : USFSong) (debug : Bool := false) : Bytes := Id.run do
   cb := cb.emitData (song.instruments.map fun i => match i.pwMod with
     | some { mode := .bidirectional _ _ maxHi, .. } => maxHi.val.toUInt8
     | _ => 0)
-  -- Mutable per-instrument PW direction (0 = up, 1 = down). Persists across
-  -- voices so that re-triggering an instrument resumes its bidirectional state.
-  cb := cb.label "i_pwdir"
-  cb := cb.emitData (song.instruments.map fun _ => (0 : UInt8))
+  -- Mutable per-VOICE PW direction (0 = up, 1 = down). Hubbard's $5510,X
+  -- where X is voice index — direction persists across instrument changes
+  -- on the same voice (so a voice that was descending on one bidir
+  -- instrument continues descending on the next). 3 voices.
+  cb := cb.label "v_pwdir"
+  cb := cb.emitData [(0 : UInt8), 0, 0]
   -- Vibrato depth (0 = none, 1-3 = depth shift)
   cb := cb.label "i_vib"
   cb := cb.emitData (song.instruments.map fun i =>
