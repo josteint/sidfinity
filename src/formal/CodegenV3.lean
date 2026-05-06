@@ -387,6 +387,11 @@ def emitExecVoice (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.run do
   cb := cb.emitLdaAbsX "v_dur"
   cb := cb.emitInst (I.cmp_imm 2)                  -- empirically tuned (was 3 in original)
   cb := cb.emitBranch .BNE "effects_start"          -- not equal → skip gate-off
+  -- Skip HR if current note has no_release flag set: gate stays on into the
+  -- next note so the SID envelope doesn't retrigger across the boundary
+  -- (Hubbard portamento/legato semantics).
+  cb := cb.emitLdaAbsX "v_no_release"
+  cb := cb.emitBranch .BNE "effects_start"
   -- Gate off + zero ADSR
   cb := cb.emitLdaAbsX "v_sidoff"
   cb := cb.emitInst I.tay
@@ -802,6 +807,14 @@ def emitNoteLoadPath (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.run
     | _                  => true
   cb := emitNoteLoadOps cb preAdvanceOps
 
+  -- Extract per-note no_release flag (bit 5 of inst byte, set by
+  -- gen_commando_v3 when Hubbard's no_release was true). HR-fire later
+  -- will skip itself if this is set, so the gate stays on into the next
+  -- note (Hubbard's portamento/legato semantics).
+  cb := cb.emitInst (I.lda_zp 0xFB)
+  cb := cb.emitInst (I.and_imm 0x20)
+  cb := cb.emitInst (I.ldx_zp 0xFA)
+  cb := cb.emitStaAbsX "v_no_release"
   -- Mask off flag bits so $FB holds clean inst index for table lookups (only
   -- if quirks asked to preserve them; otherwise pattern data already clean).
   -- For tie notes (pitch=$FD), DON'T update v_inst[X] either - v_inst keeps
@@ -810,7 +823,7 @@ def emitNoteLoadPath (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.run
   -- paths reuse the previous inst ($A2/$B6) for the same reason.
   if song.engineQuirks.preserveNoteFlags then
     cb := cb.emitInst (I.lda_zp 0xFB)
-    cb := cb.emitInst (I.and_imm 0x3F)
+    cb := cb.emitInst (I.and_imm 0x1F)
     cb := cb.emitInst (I.sta_zp 0xFB)
 
   -- Advance pattern pointer by 3
@@ -1093,12 +1106,8 @@ def generateSID (song : USFSong) (debug : Bool := false) : Bytes := Id.run do
   cb := cb.emitData (song.instruments.map fun i => match i.pwMod with
     | some { mode := .bidirectional _ _ maxHi, .. } => maxHi.val.toUInt8
     | _ => 0)
-  -- Mutable per-VOICE PW direction (0 = up, 1 = down). Hubbard's $5510,X
-  -- where X is voice index — direction persists across instrument changes
-  -- on the same voice (so a voice that was descending on one bidir
-  -- instrument continues descending on the next). 3 voices.
-  cb := cb.label "v_pwdir"
-  cb := cb.emitData [(0 : UInt8), 0, 0]
+  -- (v_pwdir lives below in the v_* mutable storage block; per-VOICE,
+  -- not per-instrument — Hubbard $5510,X.)
   -- Vibrato depth (0 = none, 1-3 = depth shift)
   cb := cb.label "i_vib"
   cb := cb.emitData (song.instruments.map fun i =>
@@ -1209,6 +1218,11 @@ def generateSID (song : USFSong) (debug : Bool := false) : Bytes := Id.run do
   cb := cb.emitData [0, 0, 0]
   cb := cb.label "v_pwdir"
   cb := cb.emitData [0, 0, 0]
+  -- Per-voice no_release flag: bit 5 of the raw inst byte at note-load.
+  -- When set, the next HR check skips itself, leaving the gate on so the
+  -- following note inherits it (Hubbard portamento/legato).
+  cb := cb.label "v_no_release"
+  cb := cb.emitData [(0 : UInt8), 0, 0]
   -- Per-voice scratch slots from engineQuirks.voiceScratch.
   -- Each scratch slot allocates 3 bytes (one per voice), with v_scratch_s{N}
   -- (start of array) and v_scratch_s{N}_v{V} (per-voice byte) labels.

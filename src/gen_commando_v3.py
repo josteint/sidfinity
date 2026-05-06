@@ -122,18 +122,19 @@ def gen_note(note, tempo):
     # runtime for hub_off counter (+1 for bit6 legato, +2 for bit7 tie, +3
     # for full new note). The actual instrument index is bits 0-5.
     # Pattern byte stores the RAW value; codegen masks for table indexing.
-    inst = inst_raw & 0xFF
-    tie = note.get('tie', False)
     # no_release is encoded in bit 7 of drum_trig (das_model_gen.py:197).
-    # Hubbard's no_release flag suppresses HR/re-trigger; the gate stays on
-    # across the note. Audio-wise this is identical to a tie note — the
-    # next event isn't a fresh attack, so render it via the .tie path so
-    # we don't write Fhi/Flo or pulse a new gate-on.
+    # Hubbard's no_release flag suppresses HR at the end of THIS note; the
+    # next note inherits the still-on gate so the SID envelope doesn't
+    # retrigger across the boundary. We piggyback the flag on bit 5 of the
+    # raw instrument byte (bits 0-3 are the index, 6/7 are the legato/tie
+    # flags). Codegen masks it out for table lookup and uses it to skip HR.
     no_release = bool(note.get('drum_trig', 0) & 0x80)
+    inst = (inst_raw & 0xFF) | (0x20 if no_release else 0)
+    tie = note.get('tie', False)
     # Frame count = dur * tempo (frames per tick). Tempo varies per subtune
     # in Hubbard games — comes from speed_table[subtune]+1.
     frames = dur * tempo
-    if tie or no_release:
+    if tie:
         kind = '.tie'
     elif pitch == 104:
         kind = '.percussion .dynamicCtrl'
