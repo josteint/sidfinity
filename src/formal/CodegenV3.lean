@@ -864,6 +864,15 @@ def emitNoteLoadPath (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.run
   cb := cb.emitInst (I.and_imm 0x20)
   cb := cb.emitInst (I.ldx_zp 0xFA)
   cb := cb.emitStaAbsX "v_no_release"
+  -- Extract per-note "no instrument byte" flag (bit 7 of inst byte).
+  -- Hubbard sets this when the pattern omits the inst byte (the note
+  -- inherits the previous note's instrument). Cur_inst persists in
+  -- v_inst[X] across notes AND across patterns at runtime — extract-time
+  -- pattern data alone can't know what the previous instrument was, so we
+  -- have to honour bit 7 here and skip the v_inst update.
+  cb := cb.emitInst (I.lda_zp 0xFB)
+  cb := cb.emitInst (I.and_imm 0x80)
+  cb := cb.emitStaAbsX "v_no_inst_byte"
   -- Mask off flag bits so $FB holds clean inst index for table lookups (only
   -- if quirks asked to preserve them; otherwise pattern data already clean).
   -- For tie notes (pitch=$FD), DON'T update v_inst[X] either - v_inst keeps
@@ -908,13 +917,16 @@ def emitNoteLoadPath (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.run
   cb := cb.emitInst (I.sbc_imm 1)
   cb := cb.emitStaAbsX "v_dur"
 
-  -- Store NEW instrument index in voice state. EXCEPT for tie notes (pitch
-  -- $FD) which keep the previous v_inst so downstream SID writes use the
-  -- correct instrument's tables. das_model's v_hubt/v_hub2 paths do the
-  -- same (don't update $A2/$B6 for tie/legato notes).
+  -- Store NEW instrument index in voice state. SKIP for:
+  --   (a) tie notes (pitch=$FD) — keep previous instrument
+  --   (b) "no inst byte" notes (bit 7 of raw inst byte) — Hubbard inherits
+  --       previous v_inst across patterns; the pattern data lies (says 0)
+  --       because das_model_gen resets cur_inst per pattern.
   cb := cb.emitInst (I.lda_zp 0xFE)              -- pitch
   cb := cb.emitInst (I.cmp_imm 0xFD)
   cb := cb.emitBranch .BEQ "skip_v_inst_update"
+  cb := cb.emitLdaAbsX "v_no_inst_byte"
+  cb := cb.emitBranch .BNE "skip_v_inst_update"
   cb := cb.emitInst (I.lda_zp 0xFB)
   cb := cb.emitStaAbsX "v_inst"
   cb := cb.label "skip_v_inst_update"
@@ -1294,6 +1306,12 @@ def generateSID (song : USFSong) (debug : Bool := false) : Bytes := Id.run do
   -- When set, the next HR check skips itself, leaving the gate on so the
   -- following note inherits it (Hubbard portamento/legato).
   cb := cb.label "v_no_release"
+  cb := cb.emitData [(0 : UInt8), 0, 0]
+  -- Per-voice "no instrument byte" flag (bit 7 of pattern inst byte).
+  -- Set on note-load when the pattern note omits the instrument; v_inst
+  -- update skips itself, so the previous instrument's tables continue to
+  -- drive Ctrl/PW/ADSR.
+  cb := cb.label "v_no_inst_byte"
   cb := cb.emitData [(0 : UInt8), 0, 0]
   -- Per-voice portamento state. v_porta = porta descriptor byte (Hubbard
   -- format: bits 1-6 = step size, bit 0 = direction). v_porta_lo/hi = the
