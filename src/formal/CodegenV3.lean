@@ -437,6 +437,307 @@ def emitPlay (cb : CodeBuilder) (song : USFSong) : CodeBuilder :=
   let cb := emitPlayVoiceLoop cb song
   cb
 
+-- ==========================================================================
+-- emitNoteLoadPath sub-blocks. Same plain-let / no-Id-monad style as
+-- emitInit and emitPlay so per-block fixupsInBounds preservation proofs
+-- in PropertiesV3 stay tractable. Every block matches one section of
+-- the original Id.run do body byte-for-byte.
+-- ==========================================================================
+
+/-- Note-load entry: label "note_load", save voice index to $FA, load
+    pattern pointer (v_pattlo / v_patthi) into $FC/$FD. -/
+def emitNL_Header (cb : CodeBuilder) : CodeBuilder :=
+  let cb := cb.label "note_load"
+  let cb := cb.emitInst (I.stx_zp 0xFA)
+  let cb := cb.emitLdaAbsX "v_pattlo"
+  let cb := cb.emitInst (I.sta_zp 0xFC)
+  let cb := cb.emitLdaAbsX "v_patthi"
+  let cb := cb.emitInst (I.sta_zp 0xFD)
+  cb
+
+/-- Pattern-pointer-zero check: if zero, jump to advance_order to load
+    the orderlist's first pattern. (Far branch via JMP because
+    advance_order may be > +127 bytes away.) -/
+def emitNL_PtrCheck (cb : CodeBuilder) : CodeBuilder :=
+  let cb := cb.emitInst (I.ora_zp 0xFC)
+  let cb := cb.emitBranch .BNE "ptr_ok"
+  let cb := cb.emitJmpLabel .JMP "advance_order"
+  let cb := cb.label "ptr_ok"
+  cb
+
+/-- Read pitch byte from (FC),0. End-of-pattern check ($00) far-jumps to
+    advance_order. -/
+def emitNL_ReadPitch (cb : CodeBuilder) : CodeBuilder :=
+  let cb := cb.emitInst (I.ldy_imm 0x00)
+  let cb := cb.emitInst ⟨.LDA, .indY 0xFC⟩
+  let cb := cb.emitBranch .BNE "has_note"
+  let cb := cb.emitJmpLabel .JMP "advance_order"
+  let cb := cb.label "has_note"
+  let cb := cb.emitInst (I.sta_zp 0xFE)
+  cb
+
+/-- Read duration ($FF), inst byte ($FB), and porta byte (v_porta[X])
+    from (FC),1..3. -/
+def emitNL_ReadDurInstPorta (cb : CodeBuilder) : CodeBuilder :=
+  let cb := cb.emitInst I.iny
+  let cb := cb.emitInst ⟨.LDA, .indY 0xFC⟩
+  let cb := cb.emitInst (I.sta_zp 0xFF)
+  let cb := cb.emitInst I.iny
+  let cb := cb.emitInst ⟨.LDA, .indY 0xFC⟩
+  let cb := cb.emitInst (I.sta_zp 0xFB)
+  let cb := cb.emitInst I.iny
+  let cb := cb.emitInst ⟨.LDA, .indY 0xFC⟩
+  let cb := cb.emitInst (I.ldx_zp 0xFA)
+  let cb := cb.emitStaAbsX "v_porta"
+  cb
+
+/-- Pre-advance noteLoadOps: filter out the *IfNextEnds variants (those
+    fire AFTER pattern advance) and emit the rest. -/
+def emitNL_PreAdvanceOps (cb : CodeBuilder) (song : USFSong) : CodeBuilder :=
+  let preOps := song.engineQuirks.noteLoadOps.filter fun op => match op with
+    | .resetIfNextEnds _ => false
+    | .incIfNextEnds _ _ => false
+    | _                  => true
+  emitNoteLoadOps cb preOps
+
+/-- Extract per-note no_release (bit 5) and no_inst_byte (bit 7) flags
+    from the raw inst byte at $FB into the v_no_release / v_no_inst_byte
+    arrays. -/
+def emitNL_ExtractFlags (cb : CodeBuilder) : CodeBuilder :=
+  let cb := cb.emitInst (I.lda_zp 0xFB)
+  let cb := cb.emitInst (I.and_imm 0x20)
+  let cb := cb.emitInst (I.ldx_zp 0xFA)
+  let cb := cb.emitStaAbsX "v_no_release"
+  let cb := cb.emitInst (I.lda_zp 0xFB)
+  let cb := cb.emitInst (I.and_imm 0x80)
+  let cb := cb.emitStaAbsX "v_no_inst_byte"
+  cb
+
+/-- Mask off flag bits in $FB so it holds a clean inst index (only when
+    `preserveNoteFlags` is set; otherwise pattern data is already clean). -/
+def emitNL_PreserveMask (cb : CodeBuilder) (song : USFSong) : CodeBuilder :=
+  if song.engineQuirks.preserveNoteFlags then
+    let cb := cb.emitInst (I.lda_zp 0xFB)
+    let cb := cb.emitInst (I.and_imm 0x1F)
+    cb.emitInst (I.sta_zp 0xFB)
+  else
+    cb
+
+/-- Advance the pattern pointer at $FC/$FD by 4 (pitch + dur + inst +
+    porta), then write back to v_pattlo / v_patthi. -/
+def emitNL_AdvancePtr (cb : CodeBuilder) : CodeBuilder :=
+  let cb := cb.emitInst I.clc
+  let cb := cb.emitInst (I.lda_zp 0xFC)
+  let cb := cb.emitInst (I.adc_imm 4)
+  let cb := cb.emitInst (I.sta_zp 0xFC)
+  let cb := cb.emitInst (I.lda_zp 0xFD)
+  let cb := cb.emitInst (I.adc_imm 0)
+  let cb := cb.emitInst (I.sta_zp 0xFD)
+  let cb := cb.emitInst (I.ldx_zp 0xFA)
+  let cb := cb.emitInst (I.lda_zp 0xFC)
+  let cb := cb.emitStaAbsX "v_pattlo"
+  let cb := cb.emitInst (I.lda_zp 0xFD)
+  let cb := cb.emitStaAbsX "v_patthi"
+  cb
+
+/-- Post-advance lookahead noteLoadOps (the *IfNextEnds variants). -/
+def emitNL_PostAdvanceOps (cb : CodeBuilder) (song : USFSong) : CodeBuilder :=
+  let postOps := song.engineQuirks.noteLoadOps.filter fun op => match op with
+    | .resetIfNextEnds _ => true
+    | .incIfNextEnds _ _ => true
+    | _                  => false
+  emitNoteLoadOps cb postOps
+
+/-- Save raw duration field for the freq-slide guard, then compute
+    (durationFrames - 1) and store as v_dur (DEC-first model). -/
+def emitNL_DurField (cb : CodeBuilder) : CodeBuilder :=
+  let cb := cb.emitInst (I.lda_zp 0xFF)
+  let cb := cb.emitStaAbsX "v_durfield"
+  let cb := cb.emitInst (I.lda_zp 0xFF)
+  let cb := cb.emitInst I.sec
+  let cb := cb.emitInst (I.sbc_imm 1)
+  let cb := cb.emitStaAbsX "v_dur"
+  cb
+
+/-- Update v_inst[X] = inst, skipping for tie notes (pitch=$FD) and
+    no_inst_byte notes (bit 7 set in raw inst byte). -/
+def emitNL_UpdateVInst (cb : CodeBuilder) : CodeBuilder :=
+  let cb := cb.emitInst (I.lda_zp 0xFE)
+  let cb := cb.emitInst (I.cmp_imm 0xFD)
+  let cb := cb.emitBranch .BEQ "skip_v_inst_update"
+  let cb := cb.emitLdaAbsX "v_no_inst_byte"
+  let cb := cb.emitBranch .BNE "skip_v_inst_update"
+  let cb := cb.emitInst (I.lda_zp 0xFB)
+  let cb := cb.emitStaAbsX "v_inst"
+  let cb := cb.label "skip_v_inst_update"
+  cb
+
+/-- Reset waveform pointer (v_wptr[X] = 0) and load Y with v_sidoff[X]
+    for downstream STA absY writes. -/
+def emitNL_ResetAndSidoff (cb : CodeBuilder) : CodeBuilder :=
+  let cb := cb.emitInst (I.lda_imm 0)
+  let cb := cb.emitStaAbsX "v_wptr"
+  let cb := cb.emitLdaAbsX "v_sidoff"
+  let cb := cb.emitInst I.tay
+  cb
+
+/-- Tie-note check: if pitch == $FD, skip past the freq writes (jump to
+    "tie_skip_pitch"). -/
+def emitNL_TieCheck (cb : CodeBuilder) : CodeBuilder :=
+  let cb := cb.emitInst (I.lda_zp 0xFE)
+  let cb := cb.emitInst (I.cmp_imm 0xFD)
+  let cb := cb.emitBranch .BEQ "tie_skip_pitch"
+  cb
+
+/-- Frequency lookup + write to SID (Hubbard order: hi before lo). X = pitch. -/
+def emitNL_FreqWrite (cb : CodeBuilder) : CodeBuilder :=
+  let cb := cb.emitInst (I.ldx_zp 0xFE)
+  let cb := cb.emitLdaAbsX "freq_hi"
+  let cb := cb.emitInst (I.sta_absY (SID_BASE + 1))
+  let cb := cb.emitLdaAbsX "freq_lo"
+  let cb := cb.emitInst (I.sta_absY (SID_BASE + 0))
+  cb
+
+/-- Initialise the porta accumulator (v_porta_lo/hi[X]) from the base
+    frequency for the new pitch. -/
+def emitNL_PortaInit (cb : CodeBuilder) : CodeBuilder :=
+  let cb := cb.emitLdaAbsX "freq_lo"
+  let cb := cb.emitInst (I.sta_zp 0xF8)
+  let cb := cb.emitLdaAbsX "freq_hi"
+  let cb := cb.emitInst (I.sta_zp 0xF9)
+  let cb := cb.emitInst (I.ldx_zp 0xFA)
+  let cb := cb.emitInst (I.lda_zp 0xF8)
+  let cb := cb.emitStaAbsX "v_porta_lo"
+  let cb := cb.emitInst (I.lda_zp 0xF9)
+  let cb := cb.emitStaAbsX "v_porta_hi"
+  cb
+
+/-- Restore Y = v_sidoff[X], X = pitch (set up after PortaInit
+    clobbered both registers). -/
+def emitNL_RestoreXY (cb : CodeBuilder) : CodeBuilder :=
+  let cb := cb.emitLdaAbsX "v_sidoff"
+  let cb := cb.emitInst I.tay
+  let cb := cb.emitInst (I.ldx_zp 0xFE)
+  cb
+
+/-- Save pitch (-> v_pitch[voice]) and freq_hi[pitch] (-> v_fhi[voice])
+    for use by sustain-path effects. Voice index restored to X afterwards. -/
+def emitNL_SavePitchFhi (cb : CodeBuilder) : CodeBuilder :=
+  let cb := cb.emitInst (I.ldx_zp 0xFA)
+  let cb := cb.emitInst (I.lda_zp 0xFE)
+  let cb := cb.emitStaAbsX "v_pitch"
+  let cb := cb.emitInst (I.ldx_zp 0xFE)
+  let cb := cb.emitLdaAbsX "freq_hi"
+  let cb := cb.emitInst (I.ldx_zp 0xFA)
+  let cb := cb.emitStaAbsX "v_fhi"
+  cb
+
+/-- Tie-note merge label + load effective inst from v_inst[voice] into
+    A, $FB, and X. -/
+def emitNL_TieSkipLabel (cb : CodeBuilder) : CodeBuilder :=
+  let cb := cb.label "tie_skip_pitch"
+  let cb := cb.emitInst (I.ldx_zp 0xFA)
+  let cb := cb.emitLdaAbsX "v_inst"
+  let cb := cb.emitInst (I.sta_zp 0xFB)
+  let cb := cb.emitInst I.tax
+  cb
+
+/-- Ctrl byte write: tie notes write `i_ctrl & $FE` to clear the gate;
+    non-tie writes raw i_ctrl. The raw ctrl is PHA'd for the sustain-
+    path v_ctrl save further down. -/
+def emitNL_CtrlWrite (cb : CodeBuilder) : CodeBuilder :=
+  let cb := cb.emitLdaAbsX "i_ctrl"
+  let cb := cb.emitInst I.pha
+  let cb := cb.emitInst (I.sta_zp 0xF7)
+  let cb := cb.emitInst (I.lda_zp 0xFE)
+  let cb := cb.emitInst (I.cmp_imm 0xFD)
+  let cb := cb.emitBranch .BNE "ctrl_no_tie"
+  let cb := cb.emitInst (I.lda_zp 0xF7)
+  let cb := cb.emitInst (I.and_imm 0xFE)
+  let cb := cb.emitInst (I.sta_zp 0xF7)
+  let cb := cb.label "ctrl_no_tie"
+  let cb := cb.emitInst (I.lda_zp 0xF7)
+  let cb := cb.emitInst (I.sta_absY (SID_BASE + 4))
+  cb
+
+/-- Write i_pwlo/i_pwhi (pulse width) and i_ad/i_sr (ADSR) to SID. -/
+def emitNL_PWADSRWrite (cb : CodeBuilder) : CodeBuilder :=
+  let cb := cb.emitLdaAbsX "i_pwlo"
+  let cb := cb.emitInst (I.sta_absY (SID_BASE + 2))
+  let cb := cb.emitLdaAbsX "i_pwhi"
+  let cb := cb.emitInst (I.sta_absY (SID_BASE + 3))
+  let cb := cb.emitLdaAbsX "i_ad"
+  let cb := cb.emitInst (I.sta_absY (SID_BASE + 5))
+  let cb := cb.emitLdaAbsX "i_sr"
+  let cb := cb.emitInst (I.sta_absY (SID_BASE + 6))
+  cb
+
+/-- PLA the raw ctrl saved earlier, store to v_ctrl[voice], emit the
+    "noteload_done" label and RTS. -/
+def emitNL_SaveCtrlAndReturn (cb : CodeBuilder) : CodeBuilder :=
+  let cb := cb.emitInst I.pla
+  let cb := cb.emitInst (I.ldx_zp 0xFA)
+  let cb := cb.emitStaAbsX "v_ctrl"
+  let cb := cb.label "noteload_done"
+  let cb := cb.emitInst I.rts
+  cb
+
+/-- "advance_order" entry: reload X = voice index, then run engine-
+    quirks pattern-end ops (data-driven from song.engineQuirks). -/
+def emitNL_AdvanceOrderHeader (cb : CodeBuilder) (song : USFSong) : CodeBuilder :=
+  let cb := cb.label "advance_order"
+  let cb := cb.emitInst (I.ldx_zp 0xFA)
+  let cb := emitPatternEndOps cb song.engineQuirks.patternEndOps
+  cb
+
+/-- Load orderlist pointer from per-voice ol_lo/ol_hi tables, position
+    Y at v_olpos[X]. Result: (FC),Y points at the next pattern index. -/
+def emitNL_LookupOL (cb : CodeBuilder) : CodeBuilder :=
+  let cb := cb.emitLdaAbsX "v_olpos"
+  let cb := cb.emitInst I.tay
+  let cb := cb.emitLdaAbsX "ol_lo"
+  let cb := cb.emitInst (I.sta_zp 0xFC)
+  let cb := cb.emitLdaAbsX "ol_hi"
+  let cb := cb.emitInst (I.sta_zp 0xFD)
+  cb
+
+/-- Read pattern index from orderlist; if $FF, jump to ol_end_or_loop.
+    Otherwise look up its address in patt_ptr_lo/hi, store back to
+    v_pattlo/hi, INC v_olpos, and JMP back to note_load. -/
+def emitNL_ReadAndDispatch (cb : CodeBuilder) : CodeBuilder :=
+  let cb := cb.emitInst ⟨.LDA, .indY 0xFC⟩
+  let cb := cb.emitInst (I.cmp_imm 0xFF)
+  let cb := cb.emitBranch .BEQ "ol_end_or_loop"
+  let cb := cb.emitInst I.tay
+  let cb := cb.emitLdaAbsY "patt_ptr_lo"
+  let cb := cb.emitStaAbsX "v_pattlo"
+  let cb := cb.emitLdaAbsY "patt_ptr_hi"
+  let cb := cb.emitStaAbsX "v_patthi"
+  let cb := cb.emitIncAbsX "v_olpos"
+  let cb := cb.emitJmpLabel .JMP "note_load"
+  cb
+
+/-- Orderlist hit $FF marker: peek next byte for loop point. $FF =
+    actual song end (jump to song_end); else byte = new olpos. -/
+def emitNL_OLEndOrLoop (cb : CodeBuilder) : CodeBuilder :=
+  let cb := cb.label "ol_end_or_loop"
+  let cb := cb.emitInst I.iny
+  let cb := cb.emitInst ⟨.LDA, .indY 0xFC⟩
+  let cb := cb.emitInst (I.cmp_imm 0xFF)
+  let cb := cb.emitBranch .BEQ "song_end"
+  let cb := cb.emitStaAbsX "v_olpos"
+  let cb := cb.emitJmpLabel .JMP "advance_order"
+  cb
+
+/-- Song-end stop block: set v_dur = $7F (large) so the voice never
+    expires again, and RTS. -/
+def emitNL_SongEnd (cb : CodeBuilder) : CodeBuilder :=
+  let cb := cb.label "song_end"
+  let cb := cb.emitInst (I.lda_imm 0x7F)
+  let cb := cb.emitStaAbsX "v_dur"
+  let cb := cb.emitInst I.rts
+  cb
+
 mutual
 def emitExecVoice (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.run do
   let mut cb := cb.label "exec_voice"
@@ -873,295 +1174,36 @@ def emitSustainEffects (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.r
   cb := emitNoteLoadPath cb song
   return cb
 
-def emitNoteLoadPath (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.run do
-  let mut cb := cb
-
+def emitNoteLoadPath (cb : CodeBuilder) (song : USFSong) : CodeBuilder :=
   -- === NOTE LOAD ===
-  cb := cb.label "note_load"
-
-  -- Save voice index to $FA (scratch, used throughout)
-  cb := cb.emitInst (I.stx_zp 0xFA)
-
-  -- Load pattern pointer into $FC/$FD
-  cb := cb.emitLdaAbsX "v_pattlo"
-  cb := cb.emitInst (I.sta_zp 0xFC)
-  cb := cb.emitLdaAbsX "v_patthi"
-  cb := cb.emitInst (I.sta_zp 0xFD)
-
-  -- Check if pointer is zero (first call, not yet initialized) — far branch
-  cb := cb.emitInst (I.ora_zp 0xFC)
-  cb := cb.emitBranch .BNE "ptr_ok"
-  cb := cb.emitJmpLabel .JMP "advance_order"
-  cb := cb.label "ptr_ok"
-
-  -- Read note: pitch at ($FC),0 / duration at ($FC),1 / instrument at ($FC),2
-  cb := cb.emitInst (I.ldy_imm 0x00)
-  cb := cb.emitInst ⟨.LDA, .indY 0xFC⟩
-  -- End of pattern check — far branch
-  cb := cb.emitBranch .BNE "has_note"
-  cb := cb.emitJmpLabel .JMP "advance_order"
-  cb := cb.label "has_note"
-  cb := cb.emitInst (I.sta_zp 0xFE)              -- $FE = pitch
-
-  cb := cb.emitInst I.iny
-  cb := cb.emitInst ⟨.LDA, .indY 0xFC⟩
-  cb := cb.emitInst (I.sta_zp 0xFF)              -- $FF = duration
-
-  cb := cb.emitInst I.iny
-  cb := cb.emitInst ⟨.LDA, .indY 0xFC⟩
-  cb := cb.emitInst (I.sta_zp 0xFB)              -- $FB = raw inst byte (with bits 6/7 flags if preserved)
-
-  -- 4th byte: portamento descriptor (0 if none). Save to v_porta[X].
-  cb := cb.emitInst I.iny
-  cb := cb.emitInst ⟨.LDA, .indY 0xFC⟩
-  cb := cb.emitInst (I.ldx_zp 0xFA)
-  cb := cb.emitStaAbsX "v_porta"
-
-  -- Engine-quirks note-load operations (data-driven from song.engineQuirks).
-  -- These act on per-voice scratch slots and may peek $FB raw inst byte.
-  -- The "*IfNextEnds" ops happen later (after pattern advance) - we filter here.
-  let preAdvanceOps := song.engineQuirks.noteLoadOps.filter fun op => match op with
-    | .resetIfNextEnds _ => false
-    | .incIfNextEnds _ _ => false
-    | _                  => true
-  cb := emitNoteLoadOps cb preAdvanceOps
-
-  -- Extract per-note no_release flag (bit 5 of inst byte, set by
-  -- gen_commando_v3 when Hubbard's no_release was true). HR-fire later
-  -- will skip itself if this is set, so the gate stays on into the next
-  -- note (Hubbard's portamento/legato semantics).
-  cb := cb.emitInst (I.lda_zp 0xFB)
-  cb := cb.emitInst (I.and_imm 0x20)
-  cb := cb.emitInst (I.ldx_zp 0xFA)
-  cb := cb.emitStaAbsX "v_no_release"
-  -- Extract per-note "no instrument byte" flag (bit 7 of inst byte).
-  -- Hubbard sets this when the pattern omits the inst byte (the note
-  -- inherits the previous note's instrument). Cur_inst persists in
-  -- v_inst[X] across notes AND across patterns at runtime — extract-time
-  -- pattern data alone can't know what the previous instrument was, so we
-  -- have to honour bit 7 here and skip the v_inst update.
-  cb := cb.emitInst (I.lda_zp 0xFB)
-  cb := cb.emitInst (I.and_imm 0x80)
-  cb := cb.emitStaAbsX "v_no_inst_byte"
-  -- Mask off flag bits so $FB holds clean inst index for table lookups (only
-  -- if quirks asked to preserve them; otherwise pattern data already clean).
-  -- For tie notes (pitch=$FD), DON'T update v_inst[X] either - v_inst keeps
-  -- the previous note's inst index so subsequent SID writes use the correct
-  -- instrument's i_ctrl/i_ad/i_sr/i_pwlo values. das_model's v_hubt/v_hub2
-  -- paths reuse the previous inst ($A2/$B6) for the same reason.
-  if song.engineQuirks.preserveNoteFlags then
-    cb := cb.emitInst (I.lda_zp 0xFB)
-    cb := cb.emitInst (I.and_imm 0x1F)
-    cb := cb.emitInst (I.sta_zp 0xFB)
-
-  -- Advance pattern pointer by 4 (pitch, dur, inst, porta)
-  cb := cb.emitInst I.clc
-  cb := cb.emitInst (I.lda_zp 0xFC)
-  cb := cb.emitInst (I.adc_imm 4)
-  cb := cb.emitInst (I.sta_zp 0xFC)
-  cb := cb.emitInst (I.lda_zp 0xFD)
-  cb := cb.emitInst (I.adc_imm 0)
-  cb := cb.emitInst (I.sta_zp 0xFD)
-
-  -- Save pattern pointer back to voice state
-  cb := cb.emitInst (I.ldx_zp 0xFA)              -- X = voice index
-  cb := cb.emitInst (I.lda_zp 0xFC)
-  cb := cb.emitStaAbsX "v_pattlo"
-  cb := cb.emitInst (I.lda_zp 0xFD)
-  cb := cb.emitStaAbsX "v_patthi"
-
-  -- Engine-quirks lookahead ops: peek next note byte, fire if end-of-pattern.
-  let postAdvanceOps := song.engineQuirks.noteLoadOps.filter fun op => match op with
-    | .resetIfNextEnds _ => true
-    | .incIfNextEnds _ _ => true
-    | _                  => false
-  cb := emitNoteLoadOps cb postAdvanceOps
-
-  -- Save raw duration field for freq slide guard
-  cb := cb.emitInst (I.lda_zp 0xFF)
-  cb := cb.emitStaAbsX "v_durfield"
-
-  -- USF v3: durationFrames is in frames. Subtract 1 for DEC-first model.
-  cb := cb.emitInst (I.lda_zp 0xFF)
-  cb := cb.emitInst I.sec
-  cb := cb.emitInst (I.sbc_imm 1)
-  cb := cb.emitStaAbsX "v_dur"
-
-  -- Store NEW instrument index in voice state. SKIP for:
-  --   (a) tie notes (pitch=$FD) — keep previous instrument
-  --   (b) "no inst byte" notes (bit 7 of raw inst byte) — Hubbard inherits
-  --       previous v_inst across patterns; the pattern data lies (says 0)
-  --       because das_model_gen resets cur_inst per pattern.
-  cb := cb.emitInst (I.lda_zp 0xFE)              -- pitch
-  cb := cb.emitInst (I.cmp_imm 0xFD)
-  cb := cb.emitBranch .BEQ "skip_v_inst_update"
-  cb := cb.emitLdaAbsX "v_no_inst_byte"
-  cb := cb.emitBranch .BNE "skip_v_inst_update"
-  cb := cb.emitInst (I.lda_zp 0xFB)
-  cb := cb.emitStaAbsX "v_inst"
-  cb := cb.label "skip_v_inst_update"
-
-  -- Reset waveform pointer to 0
-  -- First sustain frame will re-read waveform[0] (same as noteLoad ctrl)
-  -- then advance to 1. This costs 1 frame delay but is simple and safe.
-  cb := cb.emitInst (I.lda_imm 0)
-  cb := cb.emitStaAbsX "v_wptr"
-
-  -- Write SID registers: freq, ctrl, pw, adsr
-  cb := cb.emitLdaAbsX "v_sidoff"
-  cb := cb.emitInst I.tay                        -- Y = SID offset
-
-  -- TIE-NOTE HANDLING: pitch byte $FD means "no new pitch" (legato).
-  -- Skip the freq write + v_pitch/v_fhi updates, but still do Ctrl (with
-  -- gate cleared by das_model's i_ctrl & FE convention - we'll handle that
-  -- by using v_inst[voice] which has the previous inst).
-  cb := cb.emitInst (I.lda_zp 0xFE)
-  cb := cb.emitInst (I.cmp_imm 0xFD)
-  cb := cb.emitBranch .BEQ "tie_skip_pitch"
-
-  -- Frequency lookup (Hubbard order: freq_hi BEFORE freq_lo). For dynamic
-  -- table slots (e.g. T[104]), the freq_lo/freq_hi tables already hold the
-  -- per-frame updated values (see engineQuirks.dynamicFreqEntries).
-  cb := cb.emitInst (I.ldx_zp 0xFE)              -- X = pitch
-  cb := cb.emitLdaAbsX "freq_hi"
-  cb := cb.emitInst (I.sta_absY (SID_BASE + 1))
-  cb := cb.emitLdaAbsX "freq_lo"
-  cb := cb.emitInst (I.sta_absY (SID_BASE + 0))
-  -- Initialise the porta accumulator to the base freq for this pitch so
-  -- the per-frame slide starts from the right place. (Done unconditionally;
-  -- if v_porta = 0 the sustain-path slide is skipped anyway.) Care: Y must
-  -- still hold v_sidoff[voice] when we leave — downstream STA absY writes
-  -- depend on it.
-  cb := cb.emitLdaAbsX "freq_lo"                  -- X = pitch (set at line 943)
-  cb := cb.emitInst (I.sta_zp 0xF8)               -- $F8 = freq_lo scratch
-  cb := cb.emitLdaAbsX "freq_hi"
-  cb := cb.emitInst (I.sta_zp 0xF9)               -- $F9 = freq_hi scratch
-  cb := cb.emitInst (I.ldx_zp 0xFA)               -- X = voice
-  cb := cb.emitInst (I.lda_zp 0xF8)
-  cb := cb.emitStaAbsX "v_porta_lo"
-  cb := cb.emitInst (I.lda_zp 0xF9)
-  cb := cb.emitStaAbsX "v_porta_hi"
-  -- Restore Y = v_sidoff for downstream STA absY writes.
-  cb := cb.emitLdaAbsX "v_sidoff"                 -- X = voice still
-  cb := cb.emitInst I.tay
-  -- And X = pitch for the freq_hi lookup that follows.
-  cb := cb.emitInst (I.ldx_zp 0xFE)
-
-  -- Save pitch and freq_hi for effects
-  cb := cb.emitInst (I.ldx_zp 0xFA)               -- X = voice
-  cb := cb.emitInst (I.lda_zp 0xFE)               -- pitch
-  cb := cb.emitStaAbsX "v_pitch"
-  cb := cb.emitInst (I.ldx_zp 0xFE)               -- X = pitch
-  cb := cb.emitLdaAbsX "freq_hi"
-  cb := cb.emitInst (I.ldx_zp 0xFA)               -- X = voice
-  cb := cb.emitStaAbsX "v_fhi"
-
-  cb := cb.label "tie_skip_pitch"
-  -- Instrument lookups: X = instrument from v_inst (which we deliberately
-  -- DON'T update for tie notes - so this gets the previous note's inst,
-  -- giving the right ctrl/pw/adsr table values).
-  cb := cb.emitInst (I.ldx_zp 0xFA)              -- X = voice
-  cb := cb.emitLdaAbsX "v_inst"                  -- A = v_inst[voice]
-  cb := cb.emitInst (I.sta_zp 0xFB)              -- $FB = effective inst
-  cb := cb.emitInst I.tax                         -- X = inst
-
-  -- Ctrl: tie notes (pitch=$FD) write i_ctrl & $FE to SID so gate stays
-  -- cleared (das_model's v_tie). The RAW i_ctrl (gate-on) is what gets
-  -- saved to v_ctrl[X] for the sustain path & dynamic T[104] update -
-  -- mirrors das_model saving raw to $C3/$A4 etc. before AND #$FE.
-  cb := cb.emitLdaAbsX "i_ctrl"
-  cb := cb.emitInst I.pha                         -- save RAW ctrl (for sustain v_ctrl)
-  cb := cb.emitInst (I.sta_zp 0xF7)               -- and to scratch for SID write
-  cb := cb.emitInst (I.lda_zp 0xFE)               -- pitch
-  cb := cb.emitInst (I.cmp_imm 0xFD)
-  cb := cb.emitBranch .BNE "ctrl_no_tie"
-  cb := cb.emitInst (I.lda_zp 0xF7)
-  cb := cb.emitInst (I.and_imm 0xFE)              -- tie: clear gate for SID
-  cb := cb.emitInst (I.sta_zp 0xF7)
-  cb := cb.label "ctrl_no_tie"
-  cb := cb.emitInst (I.lda_zp 0xF7)
-  cb := cb.emitInst (I.sta_absY (SID_BASE + 4))
-  -- Note: A no longer holds the saved value; the PHA above saved the raw ctrl.
-  -- The PLA further down (line ~916) restores raw ctrl into v_ctrl[X].
-
-  -- PW: i_pwlo/i_pwhi are mutable per-instrument running counters.
-  -- Write the current state to SID. No reset on retrigger - the instrument's
-  -- counter persists across notes (and across other voices using the same
-  -- instrument), matching Hubbard's i_pwlo,X-as-state convention.
-  -- (X = NEW inst from line 700; Y = sidoff from earlier.)
-  cb := cb.emitLdaAbsX "i_pwlo"
-  cb := cb.emitInst (I.sta_absY (SID_BASE + 2))
-  cb := cb.emitLdaAbsX "i_pwhi"
-  cb := cb.emitInst (I.sta_absY (SID_BASE + 3))
-
-  -- ADSR
-  cb := cb.emitLdaAbsX "i_ad"
-  cb := cb.emitInst (I.sta_absY (SID_BASE + 5))
-  cb := cb.emitLdaAbsX "i_sr"
-  cb := cb.emitInst (I.sta_absY (SID_BASE + 6))
-
-  -- Store ctrl in voice state for sustain path
-  cb := cb.emitInst I.pla                         -- ctrl from stack
-  cb := cb.emitInst (I.ldx_zp 0xFA)              -- X = voice index
-  cb := cb.emitStaAbsX "v_ctrl"
-
-  cb := cb.label "noteload_done"
-  cb := cb.emitInst I.rts
-
+  let cb := emitNL_Header cb
+  let cb := emitNL_PtrCheck cb
+  let cb := emitNL_ReadPitch cb
+  let cb := emitNL_ReadDurInstPorta cb
+  let cb := emitNL_PreAdvanceOps cb song
+  let cb := emitNL_ExtractFlags cb
+  let cb := emitNL_PreserveMask cb song
+  let cb := emitNL_AdvancePtr cb
+  let cb := emitNL_PostAdvanceOps cb song
+  let cb := emitNL_DurField cb
+  let cb := emitNL_UpdateVInst cb
+  let cb := emitNL_ResetAndSidoff cb
+  let cb := emitNL_TieCheck cb
+  let cb := emitNL_FreqWrite cb
+  let cb := emitNL_PortaInit cb
+  let cb := emitNL_RestoreXY cb
+  let cb := emitNL_SavePitchFhi cb
+  let cb := emitNL_TieSkipLabel cb
+  let cb := emitNL_CtrlWrite cb
+  let cb := emitNL_PWADSRWrite cb
+  let cb := emitNL_SaveCtrlAndReturn cb
   -- === ADVANCE ORDERLIST ===
-  cb := cb.label "advance_order"
-  cb := cb.emitInst (I.ldx_zp 0xFA)              -- X = voice index
-
-  -- Engine-quirks pattern-end ops (data-driven from song.engineQuirks)
-  cb := emitPatternEndOps cb song.engineQuirks.patternEndOps
-
-  -- Read pattern index from orderlist
-  -- Each voice has its own orderlist. We store per-voice orderlist pointers.
-  cb := cb.emitLdaAbsX "v_olpos"
-  cb := cb.emitInst I.tay                         -- Y = orderlist position
-
-  -- Look up the orderlist entry: need voice-specific orderlist base address
-  -- We'll use per-voice orderlist pointer tables (ol_lo, ol_hi)
-  cb := cb.emitLdaAbsX "ol_lo"
-  cb := cb.emitInst (I.sta_zp 0xFC)
-  cb := cb.emitLdaAbsX "ol_hi"
-  cb := cb.emitInst (I.sta_zp 0xFD)
-
-  -- Read pattern index at orderlist[olpos]
-  cb := cb.emitInst ⟨.LDA, .indY 0xFC⟩           -- A = pattern index
-  cb := cb.emitInst (I.cmp_imm 0xFF)
-  cb := cb.emitBranch .BEQ "ol_end_or_loop"       -- $FF = end of orderlist
-
-  -- Look up pattern data address from pattern pointer table
-  cb := cb.emitInst I.tay                          -- Y = pattern index
-  cb := cb.emitLdaAbsY "patt_ptr_lo"
-  cb := cb.emitStaAbsX "v_pattlo"
-  cb := cb.emitLdaAbsY "patt_ptr_hi"
-  cb := cb.emitStaAbsX "v_patthi"
-
-  -- Advance orderlist position
-  cb := cb.emitIncAbsX "v_olpos"
-
-  -- Jump back to note_load to read the first note
-  cb := cb.emitJmpLabel .JMP "note_load"
-
-  -- Orderlist hit $FF marker: peek next byte for loop point.
-  -- $FF in next byte = song actually ends; else byte = new olpos.
-  cb := cb.label "ol_end_or_loop"
-  cb := cb.emitInst I.iny                         -- Y = position of loop byte
-  cb := cb.emitInst ⟨.LDA, .indY 0xFC⟩
-  cb := cb.emitInst (I.cmp_imm 0xFF)
-  cb := cb.emitBranch .BEQ "song_end"
-  cb := cb.emitStaAbsX "v_olpos"                   -- loop back: olpos = loop byte
-  cb := cb.emitJmpLabel .JMP "advance_order"
-
-  -- Song end: set long duration to stop
-  cb := cb.label "song_end"
-  cb := cb.emitInst (I.lda_imm 0x7F)
-  cb := cb.emitStaAbsX "v_dur"
-  cb := cb.emitInst I.rts
-
-  return cb
+  let cb := emitNL_AdvanceOrderHeader cb song
+  let cb := emitNL_LookupOL cb
+  let cb := emitNL_ReadAndDispatch cb
+  let cb := emitNL_OLEndOrLoop cb
+  let cb := emitNL_SongEnd cb
+  cb
 
 end  -- mutual
 
