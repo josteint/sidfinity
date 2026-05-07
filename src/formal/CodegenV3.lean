@@ -142,6 +142,26 @@ def emitStaAbsY (cb : CodeBuilder) (target : String) : CodeBuilder :=
 def emitLdaAbsYL (cb : CodeBuilder) (target : String) : CodeBuilder :=
   cb.emitLdaAbsY target
 
+-- Emit LDA abs ($AD) with forward ref and record fixup
+def emitLdaAbs (cb : CodeBuilder) (target : String) : CodeBuilder :=
+  let fixup : AbsFixup := { byteIdx := cb.bytes.size + 1, targetLabel := target }
+  { cb with bytes := cb.bytes ++ #[0xAD, 0, 0], absFixups := fixup :: cb.absFixups }
+
+-- Emit STA abs ($8D) with forward ref and record fixup
+def emitStaAbs (cb : CodeBuilder) (target : String) : CodeBuilder :=
+  let fixup : AbsFixup := { byteIdx := cb.bytes.size + 1, targetLabel := target }
+  { cb with bytes := cb.bytes ++ #[0x8D, 0, 0], absFixups := fixup :: cb.absFixups }
+
+-- Emit CMP abs,X ($DD) with forward ref and record fixup
+def emitCmpAbsX (cb : CodeBuilder) (target : String) : CodeBuilder :=
+  let fixup : AbsFixup := { byteIdx := cb.bytes.size + 1, targetLabel := target }
+  { cb with bytes := cb.bytes ++ #[0xDD, 0, 0], absFixups := fixup :: cb.absFixups }
+
+-- Emit CMP abs,Y ($D9) with forward ref and record fixup
+def emitCmpAbsY (cb : CodeBuilder) (target : String) : CodeBuilder :=
+  let fixup : AbsFixup := { byteIdx := cb.bytes.size + 1, targetLabel := target }
+  { cb with bytes := cb.bytes ++ #[0xD9, 0, 0], absFixups := fixup :: cb.absFixups }
+
 -- Add a manual abs fixup for the last emitted 3-byte instruction
 def addAbsFixup (cb : CodeBuilder) (target : String) : CodeBuilder :=
   { cb with absFixups :=
@@ -166,57 +186,41 @@ end CodeBuilder
 --   freq_lo_{slot}, freq_hi_{slot}  - alias labels into the freq table
 
 -- Emit LDA A from a USFDynRef. Uses absolute addressing only (no X/Y needed).
-private def emitDynRefLoad (cb : CodeBuilder) (ref : USFDynRef) : CodeBuilder :=
+def emitDynRefLoad (cb : CodeBuilder) (ref : USFDynRef) : CodeBuilder :=
   match ref with
-  | .constant b =>
-    cb.emitInst (I.lda_imm b.val.toUInt8)
-  | .scratch v slot =>
-    let label := s!"v_scratch_s{slot}_v{v.val}"
-    let cb := cb.emitInst (I.lda_abs 0)
-    { cb with absFixups :=
-      { byteIdx := cb.bytes.size - 2, targetLabel := label } :: cb.absFixups }
-  | .voiceCtrl v =>
-    let label := s!"v_ctrl_{v.val}"
-    let cb := cb.emitInst (I.lda_abs 0)
-    { cb with absFixups :=
-      { byteIdx := cb.bytes.size - 2, targetLabel := label } :: cb.absFixups }
-  | .voicePitch v =>
-    let label := s!"v_pitch_v{v.val}"
-    let cb := cb.emitInst (I.lda_abs 0)
-    { cb with absFixups :=
-      { byteIdx := cb.bytes.size - 2, targetLabel := label } :: cb.absFixups }
-  | .voiceInst v =>
-    let label := s!"v_inst_v{v.val}"
-    let cb := cb.emitInst (I.lda_abs 0)
-    { cb with absFixups :=
-      { byteIdx := cb.bytes.size - 2, targetLabel := label } :: cb.absFixups }
+  | .constant b   => cb.emitInst (I.lda_imm b.val.toUInt8)
+  | .scratch v slot => cb.emitLdaAbs s!"v_scratch_s{slot}_v{v.val}"
+  | .voiceCtrl v    => cb.emitLdaAbs s!"v_ctrl_{v.val}"
+  | .voicePitch v   => cb.emitLdaAbs s!"v_pitch_v{v.val}"
+  | .voiceInst v    => cb.emitLdaAbs s!"v_inst_v{v.val}"
 
 -- Emit STA A to a freq table slot (lo or hi half).
-private def emitFreqSlotStore (cb : CodeBuilder) (whichLo : Bool) (slot : Nat) : CodeBuilder :=
-  let label := if whichLo then s!"freq_lo_{slot}" else s!"freq_hi_{slot}"
-  let cb := cb.emitInst (I.sta_abs 0)
-  { cb with absFixups :=
-    { byteIdx := cb.bytes.size - 2, targetLabel := label } :: cb.absFixups }
+def emitFreqSlotStore (cb : CodeBuilder) (whichLo : Bool) (slot : Nat) : CodeBuilder :=
+  cb.emitStaAbs (if whichLo then s!"freq_lo_{slot}" else s!"freq_hi_{slot}")
 
 -- Emit code for one dynamic freq entry (load lo source -> STA freq_lo_slot, ditto hi).
-private def emitDynamicFreqEntry (cb : CodeBuilder) (e : USFDynamicFreqEntry) : CodeBuilder :=
+def emitDynamicFreqEntry (cb : CodeBuilder) (e : USFDynamicFreqEntry) : CodeBuilder :=
   let cb := emitDynRefLoad cb e.loSource
   let cb := emitFreqSlotStore cb true e.freqSlot
   let cb := emitDynRefLoad cb e.hiSource
   emitFreqSlotStore cb false e.freqSlot
 
+/-- True iff the entry's phase matches the requested update phase. -/
+def phaseMatches (entryPhase requested : USFUpdatePhase) : Bool :=
+  match entryPhase, requested with
+  | .atFrameStart, .atFrameStart   => true
+  | .beforeVoice a, .beforeVoice b => a.val == b.val
+  | _, _                            => false
+
+/-- Emit code for one entry if its phase matches; otherwise no-op. -/
+def emitDynamicEntryIfPhase (phase : USFUpdatePhase) (cb : CodeBuilder)
+    (e : USFDynamicFreqEntry) : CodeBuilder :=
+  if phaseMatches e.phase phase then emitDynamicFreqEntry cb e else cb
+
 -- Emit dynamic freq updates for entries matching a particular phase.
-private def emitDynamicUpdatesForPhase (cb : CodeBuilder) (entries : List USFDynamicFreqEntry)
-    (phase : USFUpdatePhase) : CodeBuilder := Id.run do
-  let mut cb := cb
-  for e in entries do
-    let phaseMatches := match e.phase, phase with
-      | .atFrameStart, .atFrameStart => true
-      | .beforeVoice a, .beforeVoice b => a.val == b.val
-      | _, _ => false
-    if phaseMatches then
-      cb := emitDynamicFreqEntry cb e
-  return cb
+def emitDynamicUpdatesForPhase (cb : CodeBuilder)
+    (entries : List USFDynamicFreqEntry) (phase : USFUpdatePhase) : CodeBuilder :=
+  entries.foldl (emitDynamicEntryIfPhase phase) cb
 
 -- Emit a per-voice noteLoadOp (X must be voice index, $FB has raw inst byte).
 -- For "*IfNextEnds" ops, caller must set up Y=0 and have $FC pointing to next note.
@@ -391,29 +395,47 @@ def emitInit (cb : CodeBuilder) (song : USFSong) : CodeBuilder :=
   let cb := emitInitFrameCounter cb
   cb
 
-private def emitPlay (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.run do
-  let mut cb := cb.label "play"
+-- emitPlay sub-blocks. Same plain-let / no-Id-monad style as emitInit
+-- so the per-block preservation proofs in PropertiesV3 stay tractable.
 
-  -- Increment global frame counter (for arpeggio phase)
-  cb := cb.emitInst (I.inc_zp 0x50)
+/-- Header: label "play" + INC the global frame counter at $50. -/
+def emitPlayHeader (cb : CodeBuilder) : CodeBuilder :=
+  let cb := cb.label "play"
+  let cb := cb.emitInst (I.inc_zp 0x50)
+  cb
 
-  -- Apply dynamic freq-table updates with phase = atFrameStart
-  cb := emitDynamicUpdatesForPhase cb song.engineQuirks.dynamicFreqEntries .atFrameStart
+/-- Per-voice step inside the loop: apply per-voice dynamic-freq updates,
+    load X with the voice index, then JSR (or tail-JMP for the last
+    voice — `idxAndLast.snd` is true on the last iteration). Used as
+    the body of a `foldl`. -/
+def emitPlayVoiceStep (song : USFSong) (cb : CodeBuilder)
+    (idxAndLast : Nat × Bool) : CodeBuilder :=
+  match song.voiceOrder[idxAndLast.fst]? with
+  | none   => cb
+  | some v =>
+    let cb := emitDynamicUpdatesForPhase cb
+                song.engineQuirks.dynamicFreqEntries (.beforeVoice v)
+    let cb := cb.emitInst (I.ldx_imm v.val.toUInt8)
+    if idxAndLast.snd then
+      cb.emitJmpLabel .JMP "exec_voice"   -- tail call on the last voice
+    else
+      cb.emitJmpLabel .JSR "exec_voice"
 
-  -- Process voices in song order. Apply per-voice phase updates BEFORE each
-  -- voice runs (so the voice sees the latest state from previous voices).
+/-- Loop body: process every voice in song order. The last voice tail-
+    JMPs into exec_voice; the others JSR. Iteration is over
+    `List.range nVoices` so the existing `foldl` preservation lemma
+    applies directly (no `Std.Range.forIn` machinery to reason about). -/
+def emitPlayVoiceLoop (cb : CodeBuilder) (song : USFSong) : CodeBuilder :=
   let nVoices := song.voiceOrder.length
-  for h : i in [:nVoices] do
-    match song.voiceOrder[i]? with
-    | some v =>
-      cb := emitDynamicUpdatesForPhase cb song.engineQuirks.dynamicFreqEntries (.beforeVoice v)
-      cb := cb.emitInst (I.ldx_imm v.val.toUInt8)
-      if i + 1 < nVoices then
-        cb := cb.emitJmpLabel .JSR "exec_voice"
-      else
-        cb := cb.emitJmpLabel .JMP "exec_voice"   -- tail call
-    | none => pure ()
-  return cb
+  let indices := (List.range nVoices).map (fun i => (i, i + 1 == nVoices))
+  indices.foldl (emitPlayVoiceStep song) cb
+
+def emitPlay (cb : CodeBuilder) (song : USFSong) : CodeBuilder :=
+  let cb := emitPlayHeader cb
+  let cb := emitDynamicUpdatesForPhase cb
+              song.engineQuirks.dynamicFreqEntries .atFrameStart
+  let cb := emitPlayVoiceLoop cb song
+  cb
 
 mutual
 def emitExecVoice (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.run do

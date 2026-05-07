@@ -288,6 +288,26 @@ theorem emitIncAbsX_preserves_fixupsInBounds
     fixupsInBounds (cb.emitIncAbsX target) :=
   absFixup_emit_preserves cb 0xFE target h
 
+theorem emitLdaAbs_preserves_fixupsInBounds
+    (cb : CodeBuilder) (target : String) (h : fixupsInBounds cb) :
+    fixupsInBounds (cb.emitLdaAbs target) :=
+  absFixup_emit_preserves cb 0xAD target h
+
+theorem emitStaAbs_preserves_fixupsInBounds
+    (cb : CodeBuilder) (target : String) (h : fixupsInBounds cb) :
+    fixupsInBounds (cb.emitStaAbs target) :=
+  absFixup_emit_preserves cb 0x8D target h
+
+theorem emitCmpAbsX_preserves_fixupsInBounds
+    (cb : CodeBuilder) (target : String) (h : fixupsInBounds cb) :
+    fixupsInBounds (cb.emitCmpAbsX target) :=
+  absFixup_emit_preserves cb 0xDD target h
+
+theorem emitCmpAbsY_preserves_fixupsInBounds
+    (cb : CodeBuilder) (target : String) (h : fixupsInBounds cb) :
+    fixupsInBounds (cb.emitCmpAbsY target) :=
+  absFixup_emit_preserves cb 0xD9 target h
+
 -- ==========================================================================
 -- 5. Loop-fold preservation
 -- ==========================================================================
@@ -438,6 +458,108 @@ theorem emitInitFrameCounter_preserves_fixupsInBounds
   emitInst_preserves_fixupsInBounds _ I.rts
     (emitInst_preserves_fixupsInBounds _ (I.sta_zp 0x50)
       (emitInst_preserves_fixupsInBounds _ (I.lda_imm 0xFF) h))
+
+-- ==========================================================================
+-- 8. Helper lemmas for dynamic-freq updates (used by emitPlay/emitNoteload)
+-- ==========================================================================
+
+/-- `emitDynRefLoad` either emits `LDA #imm` (for the `.constant` case) or
+    `LDA abs` with a fixup (for the four address-resolved cases). All
+    five cases preserve `fixupsInBounds`. -/
+theorem emitDynRefLoad_preserves_fixupsInBounds
+    (cb : CodeBuilder) (ref : USFDynRef) (h : fixupsInBounds cb) :
+    fixupsInBounds (emitDynRefLoad cb ref) := by
+  unfold emitDynRefLoad
+  match ref with
+  | .constant b   => exact emitInst_preserves_fixupsInBounds _ _ h
+  | .scratch v slot => exact emitLdaAbs_preserves_fixupsInBounds _ _ h
+  | .voiceCtrl v    => exact emitLdaAbs_preserves_fixupsInBounds _ _ h
+  | .voicePitch v   => exact emitLdaAbs_preserves_fixupsInBounds _ _ h
+  | .voiceInst v    => exact emitLdaAbs_preserves_fixupsInBounds _ _ h
+
+/-- `emitFreqSlotStore` is just `emitStaAbs` with a label name picked
+    from `whichLo`. -/
+theorem emitFreqSlotStore_preserves_fixupsInBounds
+    (cb : CodeBuilder) (whichLo : Bool) (slot : Nat) (h : fixupsInBounds cb) :
+    fixupsInBounds (emitFreqSlotStore cb whichLo slot) :=
+  emitStaAbs_preserves_fixupsInBounds _ _ h
+
+/-- `emitDynamicFreqEntry` is a 4-step `let` chain: load lo, store lo,
+    load hi, store hi. Composed from the helpers above. -/
+theorem emitDynamicFreqEntry_preserves_fixupsInBounds
+    (cb : CodeBuilder) (e : USFDynamicFreqEntry) (h : fixupsInBounds cb) :
+    fixupsInBounds (emitDynamicFreqEntry cb e) :=
+  emitFreqSlotStore_preserves_fixupsInBounds _ false e.freqSlot
+    (emitDynRefLoad_preserves_fixupsInBounds _ e.hiSource
+      (emitFreqSlotStore_preserves_fixupsInBounds _ true e.freqSlot
+        (emitDynRefLoad_preserves_fixupsInBounds _ e.loSource h)))
+
+/-- `emitDynamicEntryIfPhase` either emits the entry or no-ops. -/
+theorem emitDynamicEntryIfPhase_preserves_fixupsInBounds
+    (phase : USFUpdatePhase) (cb : CodeBuilder) (e : USFDynamicFreqEntry)
+    (h : fixupsInBounds cb) :
+    fixupsInBounds (emitDynamicEntryIfPhase phase cb e) := by
+  unfold emitDynamicEntryIfPhase
+  split
+  · exact emitDynamicFreqEntry_preserves_fixupsInBounds _ _ h
+  · exact h
+
+/-- `emitDynamicUpdatesForPhase` is a `foldl` over the entries list with
+    `emitDynamicEntryIfPhase` as the per-element step. -/
+theorem emitDynamicUpdatesForPhase_preserves_fixupsInBounds
+    (cb : CodeBuilder) (entries : List USFDynamicFreqEntry)
+    (phase : USFUpdatePhase) (h : fixupsInBounds cb) :
+    fixupsInBounds (emitDynamicUpdatesForPhase cb entries phase) := by
+  unfold emitDynamicUpdatesForPhase
+  exact List.foldl_preserves_fixupsInBounds entries _
+    (fun cb e h => emitDynamicEntryIfPhase_preserves_fixupsInBounds phase cb e h) cb h
+
+-- ==========================================================================
+-- 9. emitPlay: header / per-voice loop step / loop / composed
+-- ==========================================================================
+
+/-- Header of `emitPlay` (label "play" + INC frame counter at $50). -/
+theorem emitPlayHeader_preserves_fixupsInBounds
+    (cb : CodeBuilder) (h : fixupsInBounds cb) :
+    fixupsInBounds (emitPlayHeader cb) :=
+  emitInst_preserves_fixupsInBounds _ (I.inc_zp 0x50)
+    (label_preserves_fixupsInBounds _ "play" h)
+
+/-- Per-iteration step of the voice loop. Branches on
+    `song.voiceOrder[i]?` and on the `isLast` flag, but every reachable
+    arm is a chain of preservation-friendly emit ops. -/
+theorem emitPlayVoiceStep_preserves_fixupsInBounds
+    (song : USFSong) (cb : CodeBuilder) (idxAndLast : Nat × Bool)
+    (h : fixupsInBounds cb) :
+    fixupsInBounds (emitPlayVoiceStep song cb idxAndLast) := by
+  unfold emitPlayVoiceStep
+  split
+  · exact h
+  · split
+    · exact emitJmpLabel_preserves_fixupsInBounds _ .JMP _
+        (emitInst_preserves_fixupsInBounds _ _
+          (emitDynamicUpdatesForPhase_preserves_fixupsInBounds _ _ _ h))
+    · exact emitJmpLabel_preserves_fixupsInBounds _ .JSR _
+        (emitInst_preserves_fixupsInBounds _ _
+          (emitDynamicUpdatesForPhase_preserves_fixupsInBounds _ _ _ h))
+
+/-- Voice loop: foldl over `(List.range nVoices).map` of per-iteration
+    steps, each preserving the invariant. -/
+theorem emitPlayVoiceLoop_preserves_fixupsInBounds
+    (cb : CodeBuilder) (song : USFSong) (h : fixupsInBounds cb) :
+    fixupsInBounds (emitPlayVoiceLoop cb song) := by
+  unfold emitPlayVoiceLoop
+  exact List.foldl_preserves_fixupsInBounds _ _
+    (fun cb x h => emitPlayVoiceStep_preserves_fixupsInBounds song cb x h) cb h
+
+/-- The headline result for `emitPlay`: header + atFrameStart updates +
+    voice loop. -/
+theorem emitPlay_preserves_fixupsInBounds
+    (cb : CodeBuilder) (song : USFSong) (h : fixupsInBounds cb) :
+    fixupsInBounds (emitPlay cb song) :=
+  emitPlayVoiceLoop_preserves_fixupsInBounds _ song
+    (emitDynamicUpdatesForPhase_preserves_fixupsInBounds _ _ _
+      (emitPlayHeader_preserves_fixupsInBounds _ h))
 
 /-- The headline result: `emitInit` preserves `fixupsInBounds`. Composed
     from the five sub-block lemmas above. The proof itself is a
