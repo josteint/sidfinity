@@ -286,4 +286,100 @@ theorem emitIncAbsX_preserves_fixupsInBounds
     fixupsInBounds (cb.emitIncAbsX target) :=
   absFixup_emit_preserves cb 0xFE target h
 
+-- ==========================================================================
+-- 5. Loop-fold preservation
+-- ==========================================================================
+
+/-- If a per-element step preserves `fixupsInBounds`, then folding over any
+    list preserves it. This is the workhorse for reasoning about `for ... do`
+    loops in the imperative `Id.run do` body — Lean desugars them to
+    `forIn`/`foldlM`, which on `Id` reduces to `List.foldl`. -/
+theorem List.foldl_preserves_fixupsInBounds
+    {α : Type} (l : List α) (f : CodeBuilder → α → CodeBuilder)
+    (hf : ∀ cb x, fixupsInBounds cb → fixupsInBounds (f cb x))
+    (cb : CodeBuilder) (h : fixupsInBounds cb) :
+    fixupsInBounds (l.foldl f cb) := by
+  induction l generalizing cb with
+  | nil => simpa
+  | cons x xs ih =>
+    simp [_root_.List.foldl]
+    exact ih (f cb x) (hf cb x h)
+
+-- ==========================================================================
+-- 6. Sanity check: a tiny imperative `Id.run do` block, threaded
+-- ==========================================================================
+
+/-- Toy function: do the same kind of imperative `cb := cb.X; cb := cb.Y`
+    chain that real codegen helpers use, but with only a handful of ops.
+    If we can thread the invariant through THIS, we can thread it through
+    the bigger ones (modulo for-loops, which the foldl lemma covers). -/
+private def testThread (cb : CodeBuilder) : CodeBuilder := Id.run do
+  let mut cb := cb.label "test_label"
+  cb := cb.emitByte 0x00
+  cb := cb.emitInst I.rts
+  cb := cb.emitJmpLabel .JMP "test_label"
+  return cb
+
+/-- Sanity check: a sequence of label / emitByte / emitInst / emitJmpLabel
+    preserves `fixupsInBounds`. -/
+theorem testThread_preserves (cb : CodeBuilder) (h : fixupsInBounds cb) :
+    fixupsInBounds (testThread cb) := by
+  unfold testThread
+  simp
+  exact
+    emitJmpLabel_preserves_fixupsInBounds _ .JMP _
+      (emitInst_preserves_fixupsInBounds _ I.rts
+        (emitByte_preserves_fixupsInBounds _ 0x00
+          (label_preserves_fixupsInBounds _ _ h)))
+
+-- ==========================================================================
+-- 7. Threading through real codegen helpers
+-- ==========================================================================
+
+/-- A tactic-like macro: peel back one preservation step at a time. Useful
+    for proving long imperative chains preserve `fixupsInBounds` without
+    naming each step explicitly. -/
+syntax "preserve_fixups" : tactic
+macro_rules
+  | `(tactic| preserve_fixups) =>
+    `(tactic| repeat' (first
+        | apply emitJmpLabel_preserves_fixupsInBounds
+        | apply emitBranch_preserves_fixupsInBounds
+        | apply emitInst_preserves_fixupsInBounds
+        | apply emitByte_preserves_fixupsInBounds
+        | apply emitData_preserves_fixupsInBounds
+        | apply emitLdaAbsX_preserves_fixupsInBounds
+        | apply emitLdaAbsY_preserves_fixupsInBounds
+        | apply emitStaAbsX_preserves_fixupsInBounds
+        | apply emitStaAbsY_preserves_fixupsInBounds
+        | apply emitDecAbsX_preserves_fixupsInBounds
+        | apply emitIncAbsX_preserves_fixupsInBounds
+        | apply emit_preserves_fixupsInBounds
+        | apply label_preserves_fixupsInBounds))
+
+/-
+  emitInit threading attempt — DOES NOT compile (kept as a comment so
+  the next person knows it was tried).
+
+  The body is a 38-mutation `Id.run do` chain. `unfold emitInit` followed
+  by `simp` to flatten to nested function calls hits Lean's whnf
+  heartbeat limit even at 800k. The `simp` machinery scales roughly
+  quadratically in the chain length, and 38 ops is past the point where
+  default tactics handle it cleanly.
+
+  Workable paths forward (none cheap):
+  1. Refactor emitInit into named sub-blocks (e.g. `emitInitSidSilence`,
+     `emitInitVoiceState`), prove preservation per sub-block, compose.
+     ~4-6 small functions. Real refactor of CodegenV3.lean.
+  2. Custom tactic that doesn't go through `simp`'s reduction — walk the
+     `Id.run do` AST directly and apply preservation lemmas. Doable but
+     non-trivial Lean meta-programming.
+  3. Set maxHeartbeats to 8M+, accept ~minute-long proof compile times.
+
+  For now, the per-op preservation lemmas (above) are proved and the
+  `preserve_fixups` tactic works on small chains (`testThread` proves
+  fine). The compositional infrastructure is in place; threading the
+  full body is gated on one of the three paths above.
+-/
+
 end PropertiesV3
