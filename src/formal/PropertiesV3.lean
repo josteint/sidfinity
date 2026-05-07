@@ -561,6 +561,416 @@ theorem emitPlay_preserves_fixupsInBounds
     (emitDynamicUpdatesForPhase_preserves_fixupsInBounds _ _ _
       (emitPlayHeader_preserves_fixupsInBounds _ h))
 
+-- ==========================================================================
+-- 10. emitNoteLoadPath helpers: emitFlagRule / emitNoteLoadOp(s) /
+--     emitPatternEndOp(s)
+-- ==========================================================================
+
+/-- One iteration of the `.addByFlag` rule loop: 7 emit ops + 1 label. -/
+theorem emitFlagRule_preserves_fixupsInBounds
+    (opIdx : Nat) (doneLabel : String) (cb : CodeBuilder)
+    (ruleAndIdx : (USFByte × USFByte × USFByte) × Nat) (h : fixupsInBounds cb) :
+    fixupsInBounds (emitFlagRule opIdx doneLabel cb ruleAndIdx) :=
+  label_preserves_fixupsInBounds _ _
+    (emitJmpLabel_preserves_fixupsInBounds _ .JMP _
+      (emitInst_preserves_fixupsInBounds _ _
+        (emitInst_preserves_fixupsInBounds _ _
+          (emitBranch_preserves_fixupsInBounds _ .BNE _
+            (emitInst_preserves_fixupsInBounds _ _
+              (emitInst_preserves_fixupsInBounds _ _
+                (emitInst_preserves_fixupsInBounds _ _ h)))))))
+
+/-- All five `USFNoteLoadOp` constructors preserve the invariant. The
+    `.addByFlag` case folds `emitFlagRule` over the indexed rule list. -/
+theorem emitNoteLoadOp_preserves_fixupsInBounds
+    (cb : CodeBuilder) (op : USFNoteLoadOp) (opIdx : Nat) (h : fixupsInBounds cb) :
+    fixupsInBounds (emitNoteLoadOp cb op opIdx) := by
+  unfold emitNoteLoadOp
+  match op with
+  | .addConst slot delta =>
+    exact emitStaAbsX_preserves_fixupsInBounds _ _
+      (emitInst_preserves_fixupsInBounds _ _
+        (emitLdaAbsX_preserves_fixupsInBounds _ _
+          (emitInst_preserves_fixupsInBounds _ _ h)))
+  | .setConst slot value =>
+    exact emitStaAbsX_preserves_fixupsInBounds _ _
+      (emitInst_preserves_fixupsInBounds _ _ h)
+  | .addByFlag slot rules =>
+    exact emitStaAbsX_preserves_fixupsInBounds _ _
+      (emitInst_preserves_fixupsInBounds _ _
+        (emitLdaAbsX_preserves_fixupsInBounds _ _
+          (emitInst_preserves_fixupsInBounds _ _
+            (label_preserves_fixupsInBounds _ _
+              (List.foldl_preserves_fixupsInBounds _ _
+                (fun cb r h => emitFlagRule_preserves_fixupsInBounds opIdx _ cb r h)
+                _
+                (emitInst_preserves_fixupsInBounds _ _
+                  (emitInst_preserves_fixupsInBounds _ _ h)))))))
+  | .resetIfNextEnds slot =>
+    exact label_preserves_fixupsInBounds _ _
+      (emitStaAbsX_preserves_fixupsInBounds _ _
+        (emitInst_preserves_fixupsInBounds _ _
+          (emitBranch_preserves_fixupsInBounds _ .BNE _
+            (emitInst_preserves_fixupsInBounds _ _
+              (emitInst_preserves_fixupsInBounds _ _ h)))))
+  | .incIfNextEnds slot delta =>
+    exact label_preserves_fixupsInBounds _ _
+      (emitStaAbsX_preserves_fixupsInBounds _ _
+        (emitInst_preserves_fixupsInBounds _ _
+          (emitLdaAbsX_preserves_fixupsInBounds _ _
+            (emitInst_preserves_fixupsInBounds _ _
+              (emitBranch_preserves_fixupsInBounds _ .BNE _
+                (emitInst_preserves_fixupsInBounds _ _
+                  (emitInst_preserves_fixupsInBounds _ _ h)))))))
+
+/-- `emitNoteLoadOps` is a foldl over the indexed op list. -/
+theorem emitNoteLoadOps_preserves_fixupsInBounds
+    (cb : CodeBuilder) (ops : List USFNoteLoadOp) (h : fixupsInBounds cb) :
+    fixupsInBounds (emitNoteLoadOps cb ops) := by
+  unfold emitNoteLoadOps
+  exact List.foldl_preserves_fixupsInBounds _ _
+    (fun cb opAndIdx h => emitNoteLoadOp_preserves_fixupsInBounds cb opAndIdx.1 opAndIdx.2 h)
+    cb h
+
+/-- Both `USFPatternEndOp` constructors preserve the invariant. -/
+theorem emitPatternEndOp_preserves_fixupsInBounds
+    (cb : CodeBuilder) (op : USFPatternEndOp) (h : fixupsInBounds cb) :
+    fixupsInBounds (emitPatternEndOp cb op) := by
+  unfold emitPatternEndOp
+  match op with
+  | .reset slot =>
+    exact emitStaAbsX_preserves_fixupsInBounds _ _
+      (emitInst_preserves_fixupsInBounds _ _ h)
+  | .increment slot delta =>
+    exact emitStaAbsX_preserves_fixupsInBounds _ _
+      (emitInst_preserves_fixupsInBounds _ _
+        (emitLdaAbsX_preserves_fixupsInBounds _ _
+          (emitInst_preserves_fixupsInBounds _ _ h)))
+
+/-- `emitPatternEndOps` is already in `foldl` form. -/
+theorem emitPatternEndOps_preserves_fixupsInBounds
+    (cb : CodeBuilder) (ops : List USFPatternEndOp) (h : fixupsInBounds cb) :
+    fixupsInBounds (emitPatternEndOps cb ops) := by
+  unfold emitPatternEndOps
+  exact List.foldl_preserves_fixupsInBounds _ _
+    (fun cb op h => emitPatternEndOp_preserves_fixupsInBounds cb op h) cb h
+
+-- ==========================================================================
+-- 11. emitNoteLoadPath sub-blocks (26 of them)
+-- ==========================================================================
+
+theorem emitNL_Header_preserves_fixupsInBounds
+    (cb : CodeBuilder) (h : fixupsInBounds cb) :
+    fixupsInBounds (emitNL_Header cb) :=
+  emitInst_preserves_fixupsInBounds _ _
+    (emitLdaAbsX_preserves_fixupsInBounds _ _
+      (emitInst_preserves_fixupsInBounds _ _
+        (emitLdaAbsX_preserves_fixupsInBounds _ _
+          (emitInst_preserves_fixupsInBounds _ _
+            (label_preserves_fixupsInBounds _ _ h)))))
+
+theorem emitNL_PtrCheck_preserves_fixupsInBounds
+    (cb : CodeBuilder) (h : fixupsInBounds cb) :
+    fixupsInBounds (emitNL_PtrCheck cb) :=
+  label_preserves_fixupsInBounds _ _
+    (emitJmpLabel_preserves_fixupsInBounds _ .JMP _
+      (emitBranch_preserves_fixupsInBounds _ .BNE _
+        (emitInst_preserves_fixupsInBounds _ _ h)))
+
+theorem emitNL_ReadPitch_preserves_fixupsInBounds
+    (cb : CodeBuilder) (h : fixupsInBounds cb) :
+    fixupsInBounds (emitNL_ReadPitch cb) :=
+  emitInst_preserves_fixupsInBounds _ _
+    (label_preserves_fixupsInBounds _ _
+      (emitJmpLabel_preserves_fixupsInBounds _ .JMP _
+        (emitBranch_preserves_fixupsInBounds _ .BNE _
+          (emitInst_preserves_fixupsInBounds _ _
+            (emitInst_preserves_fixupsInBounds _ _ h)))))
+
+theorem emitNL_ReadDurInstPorta_preserves_fixupsInBounds
+    (cb : CodeBuilder) (h : fixupsInBounds cb) :
+    fixupsInBounds (emitNL_ReadDurInstPorta cb) :=
+  emitStaAbsX_preserves_fixupsInBounds _ _
+    (emitInst_preserves_fixupsInBounds _ _
+      (emitInst_preserves_fixupsInBounds _ _
+        (emitInst_preserves_fixupsInBounds _ _
+          (emitInst_preserves_fixupsInBounds _ _
+            (emitInst_preserves_fixupsInBounds _ _
+              (emitInst_preserves_fixupsInBounds _ _
+                (emitInst_preserves_fixupsInBounds _ _
+                  (emitInst_preserves_fixupsInBounds _ _
+                    (emitInst_preserves_fixupsInBounds _ _ h)))))))))
+
+theorem emitNL_PreAdvanceOps_preserves_fixupsInBounds
+    (cb : CodeBuilder) (song : USFSong) (h : fixupsInBounds cb) :
+    fixupsInBounds (emitNL_PreAdvanceOps cb song) := by
+  unfold emitNL_PreAdvanceOps
+  exact emitNoteLoadOps_preserves_fixupsInBounds _ _ h
+
+theorem emitNL_ExtractFlags_preserves_fixupsInBounds
+    (cb : CodeBuilder) (h : fixupsInBounds cb) :
+    fixupsInBounds (emitNL_ExtractFlags cb) :=
+  emitStaAbsX_preserves_fixupsInBounds _ _
+    (emitInst_preserves_fixupsInBounds _ _
+      (emitInst_preserves_fixupsInBounds _ _
+        (emitStaAbsX_preserves_fixupsInBounds _ _
+          (emitInst_preserves_fixupsInBounds _ _
+            (emitInst_preserves_fixupsInBounds _ _
+              (emitInst_preserves_fixupsInBounds _ _ h))))))
+
+theorem emitNL_PreserveMask_preserves_fixupsInBounds
+    (cb : CodeBuilder) (song : USFSong) (h : fixupsInBounds cb) :
+    fixupsInBounds (emitNL_PreserveMask cb song) := by
+  unfold emitNL_PreserveMask
+  split
+  · exact emitInst_preserves_fixupsInBounds _ _
+      (emitInst_preserves_fixupsInBounds _ _
+        (emitInst_preserves_fixupsInBounds _ _ h))
+  · exact h
+
+theorem emitNL_AdvancePtr_preserves_fixupsInBounds
+    (cb : CodeBuilder) (h : fixupsInBounds cb) :
+    fixupsInBounds (emitNL_AdvancePtr cb) :=
+  emitStaAbsX_preserves_fixupsInBounds _ _
+    (emitInst_preserves_fixupsInBounds _ _
+      (emitStaAbsX_preserves_fixupsInBounds _ _
+        (emitInst_preserves_fixupsInBounds _ _
+          (emitInst_preserves_fixupsInBounds _ _
+            (emitInst_preserves_fixupsInBounds _ _
+              (emitInst_preserves_fixupsInBounds _ _
+                (emitInst_preserves_fixupsInBounds _ _
+                  (emitInst_preserves_fixupsInBounds _ _
+                    (emitInst_preserves_fixupsInBounds _ _
+                      (emitInst_preserves_fixupsInBounds _ _
+                        (emitInst_preserves_fixupsInBounds _ _ h)))))))))))
+
+theorem emitNL_PostAdvanceOps_preserves_fixupsInBounds
+    (cb : CodeBuilder) (song : USFSong) (h : fixupsInBounds cb) :
+    fixupsInBounds (emitNL_PostAdvanceOps cb song) := by
+  unfold emitNL_PostAdvanceOps
+  exact emitNoteLoadOps_preserves_fixupsInBounds _ _ h
+
+theorem emitNL_DurField_preserves_fixupsInBounds
+    (cb : CodeBuilder) (h : fixupsInBounds cb) :
+    fixupsInBounds (emitNL_DurField cb) :=
+  emitStaAbsX_preserves_fixupsInBounds _ _
+    (emitInst_preserves_fixupsInBounds _ _
+      (emitInst_preserves_fixupsInBounds _ _
+        (emitInst_preserves_fixupsInBounds _ _
+          (emitStaAbsX_preserves_fixupsInBounds _ _
+            (emitInst_preserves_fixupsInBounds _ _ h)))))
+
+theorem emitNL_UpdateVInst_preserves_fixupsInBounds
+    (cb : CodeBuilder) (h : fixupsInBounds cb) :
+    fixupsInBounds (emitNL_UpdateVInst cb) :=
+  label_preserves_fixupsInBounds _ _
+    (emitStaAbsX_preserves_fixupsInBounds _ _
+      (emitInst_preserves_fixupsInBounds _ _
+        (emitBranch_preserves_fixupsInBounds _ .BNE _
+          (emitLdaAbsX_preserves_fixupsInBounds _ _
+            (emitBranch_preserves_fixupsInBounds _ .BEQ _
+              (emitInst_preserves_fixupsInBounds _ _
+                (emitInst_preserves_fixupsInBounds _ _ h)))))))
+
+theorem emitNL_ResetAndSidoff_preserves_fixupsInBounds
+    (cb : CodeBuilder) (h : fixupsInBounds cb) :
+    fixupsInBounds (emitNL_ResetAndSidoff cb) :=
+  emitInst_preserves_fixupsInBounds _ _
+    (emitLdaAbsX_preserves_fixupsInBounds _ _
+      (emitStaAbsX_preserves_fixupsInBounds _ _
+        (emitInst_preserves_fixupsInBounds _ _ h)))
+
+theorem emitNL_TieCheck_preserves_fixupsInBounds
+    (cb : CodeBuilder) (h : fixupsInBounds cb) :
+    fixupsInBounds (emitNL_TieCheck cb) :=
+  emitBranch_preserves_fixupsInBounds _ .BEQ _
+    (emitInst_preserves_fixupsInBounds _ _
+      (emitInst_preserves_fixupsInBounds _ _ h))
+
+theorem emitNL_FreqWrite_preserves_fixupsInBounds
+    (cb : CodeBuilder) (h : fixupsInBounds cb) :
+    fixupsInBounds (emitNL_FreqWrite cb) := by
+  unfold emitNL_FreqWrite
+  apply emitInst_preserves_fixupsInBounds
+  apply emitLdaAbsX_preserves_fixupsInBounds
+  apply emitInst_preserves_fixupsInBounds
+  apply emitLdaAbsX_preserves_fixupsInBounds
+  apply emitInst_preserves_fixupsInBounds
+  exact h
+
+theorem emitNL_PortaInit_preserves_fixupsInBounds
+    (cb : CodeBuilder) (h : fixupsInBounds cb) :
+    fixupsInBounds (emitNL_PortaInit cb) :=
+  emitStaAbsX_preserves_fixupsInBounds _ _
+    (emitInst_preserves_fixupsInBounds _ _
+      (emitStaAbsX_preserves_fixupsInBounds _ _
+        (emitInst_preserves_fixupsInBounds _ _
+          (emitInst_preserves_fixupsInBounds _ _
+            (emitInst_preserves_fixupsInBounds _ _
+              (emitLdaAbsX_preserves_fixupsInBounds _ _
+                (emitInst_preserves_fixupsInBounds _ _
+                  (emitLdaAbsX_preserves_fixupsInBounds _ _ h))))))))
+
+theorem emitNL_RestoreXY_preserves_fixupsInBounds
+    (cb : CodeBuilder) (h : fixupsInBounds cb) :
+    fixupsInBounds (emitNL_RestoreXY cb) :=
+  emitInst_preserves_fixupsInBounds _ _
+    (emitInst_preserves_fixupsInBounds _ _
+      (emitLdaAbsX_preserves_fixupsInBounds _ _ h))
+
+theorem emitNL_SavePitchFhi_preserves_fixupsInBounds
+    (cb : CodeBuilder) (h : fixupsInBounds cb) :
+    fixupsInBounds (emitNL_SavePitchFhi cb) :=
+  emitStaAbsX_preserves_fixupsInBounds _ _
+    (emitInst_preserves_fixupsInBounds _ _
+      (emitLdaAbsX_preserves_fixupsInBounds _ _
+        (emitInst_preserves_fixupsInBounds _ _
+          (emitStaAbsX_preserves_fixupsInBounds _ _
+            (emitInst_preserves_fixupsInBounds _ _
+              (emitInst_preserves_fixupsInBounds _ _ h))))))
+
+theorem emitNL_TieSkipLabel_preserves_fixupsInBounds
+    (cb : CodeBuilder) (h : fixupsInBounds cb) :
+    fixupsInBounds (emitNL_TieSkipLabel cb) :=
+  emitInst_preserves_fixupsInBounds _ _
+    (emitInst_preserves_fixupsInBounds _ _
+      (emitLdaAbsX_preserves_fixupsInBounds _ _
+        (emitInst_preserves_fixupsInBounds _ _
+          (label_preserves_fixupsInBounds _ _ h))))
+
+theorem emitNL_CtrlWrite_preserves_fixupsInBounds
+    (cb : CodeBuilder) (h : fixupsInBounds cb) :
+    fixupsInBounds (emitNL_CtrlWrite cb) := by
+  unfold emitNL_CtrlWrite
+  apply emitInst_preserves_fixupsInBounds
+  apply emitInst_preserves_fixupsInBounds
+  apply label_preserves_fixupsInBounds
+  apply emitInst_preserves_fixupsInBounds
+  apply emitInst_preserves_fixupsInBounds
+  apply emitInst_preserves_fixupsInBounds
+  apply emitBranch_preserves_fixupsInBounds
+  apply emitInst_preserves_fixupsInBounds
+  apply emitInst_preserves_fixupsInBounds
+  apply emitInst_preserves_fixupsInBounds
+  apply emitInst_preserves_fixupsInBounds
+  apply emitLdaAbsX_preserves_fixupsInBounds
+  exact h
+
+theorem emitNL_PWADSRWrite_preserves_fixupsInBounds
+    (cb : CodeBuilder) (h : fixupsInBounds cb) :
+    fixupsInBounds (emitNL_PWADSRWrite cb) := by
+  unfold emitNL_PWADSRWrite
+  apply emitInst_preserves_fixupsInBounds
+  apply emitLdaAbsX_preserves_fixupsInBounds
+  apply emitInst_preserves_fixupsInBounds
+  apply emitLdaAbsX_preserves_fixupsInBounds
+  apply emitInst_preserves_fixupsInBounds
+  apply emitLdaAbsX_preserves_fixupsInBounds
+  apply emitInst_preserves_fixupsInBounds
+  apply emitLdaAbsX_preserves_fixupsInBounds
+  exact h
+
+theorem emitNL_SaveCtrlAndReturn_preserves_fixupsInBounds
+    (cb : CodeBuilder) (h : fixupsInBounds cb) :
+    fixupsInBounds (emitNL_SaveCtrlAndReturn cb) :=
+  emitInst_preserves_fixupsInBounds _ _
+    (label_preserves_fixupsInBounds _ _
+      (emitStaAbsX_preserves_fixupsInBounds _ _
+        (emitInst_preserves_fixupsInBounds _ _
+          (emitInst_preserves_fixupsInBounds _ _ h))))
+
+theorem emitNL_AdvanceOrderHeader_preserves_fixupsInBounds
+    (cb : CodeBuilder) (song : USFSong) (h : fixupsInBounds cb) :
+    fixupsInBounds (emitNL_AdvanceOrderHeader cb song) :=
+  emitPatternEndOps_preserves_fixupsInBounds _ _
+    (emitInst_preserves_fixupsInBounds _ _
+      (label_preserves_fixupsInBounds _ _ h))
+
+theorem emitNL_LookupOL_preserves_fixupsInBounds
+    (cb : CodeBuilder) (h : fixupsInBounds cb) :
+    fixupsInBounds (emitNL_LookupOL cb) := by
+  unfold emitNL_LookupOL
+  apply emitInst_preserves_fixupsInBounds
+  apply emitLdaAbsX_preserves_fixupsInBounds
+  apply emitInst_preserves_fixupsInBounds
+  apply emitLdaAbsX_preserves_fixupsInBounds
+  apply emitInst_preserves_fixupsInBounds
+  apply emitLdaAbsX_preserves_fixupsInBounds
+  exact h
+
+theorem emitNL_ReadAndDispatch_preserves_fixupsInBounds
+    (cb : CodeBuilder) (h : fixupsInBounds cb) :
+    fixupsInBounds (emitNL_ReadAndDispatch cb) :=
+  emitJmpLabel_preserves_fixupsInBounds _ .JMP _
+    (emitIncAbsX_preserves_fixupsInBounds _ _
+      (emitStaAbsX_preserves_fixupsInBounds _ _
+        (emitLdaAbsY_preserves_fixupsInBounds _ _
+          (emitStaAbsX_preserves_fixupsInBounds _ _
+            (emitLdaAbsY_preserves_fixupsInBounds _ _
+              (emitInst_preserves_fixupsInBounds _ _
+                (emitBranch_preserves_fixupsInBounds _ .BEQ _
+                  (emitInst_preserves_fixupsInBounds _ _
+                    (emitInst_preserves_fixupsInBounds _ _ h)))))))))
+
+theorem emitNL_OLEndOrLoop_preserves_fixupsInBounds
+    (cb : CodeBuilder) (h : fixupsInBounds cb) :
+    fixupsInBounds (emitNL_OLEndOrLoop cb) :=
+  emitJmpLabel_preserves_fixupsInBounds _ .JMP _
+    (emitStaAbsX_preserves_fixupsInBounds _ _
+      (emitBranch_preserves_fixupsInBounds _ .BEQ _
+        (emitInst_preserves_fixupsInBounds _ _
+          (emitInst_preserves_fixupsInBounds _ _
+            (emitInst_preserves_fixupsInBounds _ _
+              (label_preserves_fixupsInBounds _ _ h))))))
+
+theorem emitNL_SongEnd_preserves_fixupsInBounds
+    (cb : CodeBuilder) (h : fixupsInBounds cb) :
+    fixupsInBounds (emitNL_SongEnd cb) :=
+  emitInst_preserves_fixupsInBounds _ _
+    (emitStaAbsX_preserves_fixupsInBounds _ _
+      (emitInst_preserves_fixupsInBounds _ _
+        (label_preserves_fixupsInBounds _ _ h)))
+
+-- ==========================================================================
+-- 12. emitNoteLoadPath: composition of all 26 sub-blocks
+-- ==========================================================================
+
+/-- The headline result for `emitNoteLoadPath`. Each `let cb := ...`
+    in the body corresponds to one application of a sub-block
+    preservation lemma. If any sub-block ever stops preserving
+    `fixupsInBounds` — say, because someone adds an emit op that
+    doesn't track its fixup correctly — this theorem stops compiling
+    and the regression is blocked at `lake build` time. -/
+theorem emitNoteLoadPath_preserves_fixupsInBounds
+    (cb : CodeBuilder) (song : USFSong) (h : fixupsInBounds cb) :
+    fixupsInBounds (emitNoteLoadPath cb song) :=
+  emitNL_SongEnd_preserves_fixupsInBounds _
+    (emitNL_OLEndOrLoop_preserves_fixupsInBounds _
+      (emitNL_ReadAndDispatch_preserves_fixupsInBounds _
+        (emitNL_LookupOL_preserves_fixupsInBounds _
+          (emitNL_AdvanceOrderHeader_preserves_fixupsInBounds _ song
+            (emitNL_SaveCtrlAndReturn_preserves_fixupsInBounds _
+              (emitNL_PWADSRWrite_preserves_fixupsInBounds _
+                (emitNL_CtrlWrite_preserves_fixupsInBounds _
+                  (emitNL_TieSkipLabel_preserves_fixupsInBounds _
+                    (emitNL_SavePitchFhi_preserves_fixupsInBounds _
+                      (emitNL_RestoreXY_preserves_fixupsInBounds _
+                        (emitNL_PortaInit_preserves_fixupsInBounds _
+                          (emitNL_FreqWrite_preserves_fixupsInBounds _
+                            (emitNL_TieCheck_preserves_fixupsInBounds _
+                              (emitNL_ResetAndSidoff_preserves_fixupsInBounds _
+                                (emitNL_UpdateVInst_preserves_fixupsInBounds _
+                                  (emitNL_DurField_preserves_fixupsInBounds _
+                                    (emitNL_PostAdvanceOps_preserves_fixupsInBounds _ song
+                                      (emitNL_AdvancePtr_preserves_fixupsInBounds _
+                                        (emitNL_PreserveMask_preserves_fixupsInBounds _ song
+                                          (emitNL_ExtractFlags_preserves_fixupsInBounds _
+                                            (emitNL_PreAdvanceOps_preserves_fixupsInBounds _ song
+                                              (emitNL_ReadDurInstPorta_preserves_fixupsInBounds _
+                                                (emitNL_ReadPitch_preserves_fixupsInBounds _
+                                                  (emitNL_PtrCheck_preserves_fixupsInBounds _
+                                                    (emitNL_Header_preserves_fixupsInBounds _ h)))))))))))))))))))))))))
+
 /-- The headline result: `emitInit` preserves `fixupsInBounds`. Composed
     from the five sub-block lemmas above. The proof itself is a
     five-step chain — each `let cb := ...` in `emitInit` corresponds to
