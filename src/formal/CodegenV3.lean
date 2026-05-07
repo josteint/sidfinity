@@ -222,9 +222,29 @@ def emitDynamicUpdatesForPhase (cb : CodeBuilder)
     (entries : List USFDynamicFreqEntry) (phase : USFUpdatePhase) : CodeBuilder :=
   entries.foldl (emitDynamicEntryIfPhase phase) cb
 
+/-- One iteration of the `.addByFlag` rule loop: test (FB & mask == value),
+    if so write delta to $F8 and JMP to doneLabel; else fall through past
+    the per-rule label to the next rule. Refactored from the inline
+    `for ⟨mask, value, delta⟩ in rules do ...` body so that
+    `List.foldl_preserves_fixupsInBounds` can be applied directly. -/
+def emitFlagRule (opIdx : Nat) (doneLabel : String) (cb : CodeBuilder)
+    (ruleAndIdx : (USFByte × USFByte × USFByte) × Nat) : CodeBuilder :=
+  let nextLabel := s!"nload_op{opIdx}_r{ruleAndIdx.2 + 1}"
+  let mask  := ruleAndIdx.1.1
+  let value := ruleAndIdx.1.2.1
+  let delta := ruleAndIdx.1.2.2
+  let cb := cb.emitInst (I.lda_zp 0xFB)
+  let cb := cb.emitInst (I.and_imm mask.val.toUInt8)
+  let cb := cb.emitInst ⟨.CMP, .imm value.val.toUInt8⟩
+  let cb := cb.emitBranch .BNE nextLabel
+  let cb := cb.emitInst (I.lda_imm delta.val.toUInt8)
+  let cb := cb.emitInst (I.sta_zp 0xF8)
+  let cb := cb.emitJmpLabel .JMP doneLabel
+  cb.label nextLabel
+
 -- Emit a per-voice noteLoadOp (X must be voice index, $FB has raw inst byte).
 -- For "*IfNextEnds" ops, caller must set up Y=0 and have $FC pointing to next note.
-private def emitNoteLoadOp (cb : CodeBuilder) (op : USFNoteLoadOp) (opIdx : Nat) : CodeBuilder :=
+def emitNoteLoadOp (cb : CodeBuilder) (op : USFNoteLoadOp) (opIdx : Nat) : CodeBuilder :=
   match op with
   | .addConst slot delta =>
     let label := s!"v_scratch_s{slot}"
@@ -235,65 +255,45 @@ private def emitNoteLoadOp (cb : CodeBuilder) (op : USFNoteLoadOp) (opIdx : Nat)
   | .setConst slot value =>
     let cb := cb.emitInst (I.lda_imm value.val.toUInt8)
     cb.emitStaAbsX s!"v_scratch_s{slot}"
-  | .addByFlag slot rules => Id.run do
+  | .addByFlag slot rules =>
     let doneLabel := s!"nload_op{opIdx}_done"
-    let mut cb := cb
-    cb := cb.emitInst (I.lda_imm 0)             -- default: A=0 (no-op delta)
-    cb := cb.emitInst (I.sta_zp 0xF8)           -- $F8 = chosen delta
-    let mut ruleIdx := 0
-    for ⟨mask, value, delta⟩ in rules do
-      let nextLabel := s!"nload_op{opIdx}_r{ruleIdx + 1}"
-      cb := cb.emitInst (I.lda_zp 0xFB)
-      cb := cb.emitInst (I.and_imm mask.val.toUInt8)
-      cb := cb.emitInst ⟨.CMP, .imm value.val.toUInt8⟩
-      cb := cb.emitBranch .BNE nextLabel
-      cb := cb.emitInst (I.lda_imm delta.val.toUInt8)
-      cb := cb.emitInst (I.sta_zp 0xF8)
-      cb := cb.emitJmpLabel .JMP doneLabel
-      cb := cb.label nextLabel
-      ruleIdx := ruleIdx + 1
-    cb := cb.label doneLabel
     let label := s!"v_scratch_s{slot}"
-    cb := cb.emitInst I.clc
-    cb := cb.emitLdaAbsX label
-    cb := cb.emitInst (I.adc_zp 0xF8)
-    cb := cb.emitStaAbsX label
-    return cb
-  | .resetIfNextEnds slot => Id.run do
+    let cb := cb.emitInst (I.lda_imm 0)         -- default: A=0 (no-op delta)
+    let cb := cb.emitInst (I.sta_zp 0xF8)       -- $F8 = chosen delta
+    let indexed := rules.zip (List.range rules.length)
+    let cb := indexed.foldl (emitFlagRule opIdx doneLabel) cb
+    let cb := cb.label doneLabel
+    let cb := cb.emitInst I.clc
+    let cb := cb.emitLdaAbsX label
+    let cb := cb.emitInst (I.adc_zp 0xF8)
+    cb.emitStaAbsX label
+  | .resetIfNextEnds slot =>
     let skipLabel := s!"nload_op{opIdx}_noreset"
-    let mut cb := cb
-    cb := cb.emitInst (I.ldy_imm 0)
-    cb := cb.emitInst ⟨.LDA, .indY 0xFC⟩
-    cb := cb.emitBranch .BNE skipLabel
-    cb := cb.emitInst (I.lda_imm 0)
-    cb := cb.emitStaAbsX s!"v_scratch_s{slot}"
-    return cb.label skipLabel
-  | .incIfNextEnds slot delta => Id.run do
+    let cb := cb.emitInst (I.ldy_imm 0)
+    let cb := cb.emitInst ⟨.LDA, .indY 0xFC⟩
+    let cb := cb.emitBranch .BNE skipLabel
+    let cb := cb.emitInst (I.lda_imm 0)
+    let cb := cb.emitStaAbsX s!"v_scratch_s{slot}"
+    cb.label skipLabel
+  | .incIfNextEnds slot delta =>
     let skipLabel := s!"nload_op{opIdx}_noinc"
-    let mut cb := cb
-    cb := cb.emitInst (I.ldy_imm 0)
-    cb := cb.emitInst ⟨.LDA, .indY 0xFC⟩
-    cb := cb.emitBranch .BNE skipLabel
-    cb := cb.emitInst I.clc
-    cb := cb.emitLdaAbsX s!"v_scratch_s{slot}"
-    cb := cb.emitInst (I.adc_imm delta.val.toUInt8)
-    cb := cb.emitStaAbsX s!"v_scratch_s{slot}"
-    return cb.label skipLabel
+    let cb := cb.emitInst (I.ldy_imm 0)
+    let cb := cb.emitInst ⟨.LDA, .indY 0xFC⟩
+    let cb := cb.emitBranch .BNE skipLabel
+    let cb := cb.emitInst I.clc
+    let cb := cb.emitLdaAbsX s!"v_scratch_s{slot}"
+    let cb := cb.emitInst (I.adc_imm delta.val.toUInt8)
+    let cb := cb.emitStaAbsX s!"v_scratch_s{slot}"
+    cb.label skipLabel
 
 -- Emit all noteLoadOps in sequence. Most ops act on $FB raw inst byte.
 -- The "*IfNextEnds" ops are usually emitted AFTER pattern-pointer advance.
--- For now we emit them all together; caller responsibility to call this AFTER
--- pattern advance.
-private def emitNoteLoadOps (cb : CodeBuilder) (ops : List USFNoteLoadOp) : CodeBuilder := Id.run do
-  let mut cb := cb
-  let mut idx := 0
-  for op in ops do
-    cb := emitNoteLoadOp cb op idx
-    idx := idx + 1
-  return cb
+def emitNoteLoadOps (cb : CodeBuilder) (ops : List USFNoteLoadOp) : CodeBuilder :=
+  (ops.zip (List.range ops.length)).foldl
+    (fun cb opAndIdx => emitNoteLoadOp cb opAndIdx.1 opAndIdx.2) cb
 
 -- Emit pattern-end ops (X must be voice index).
-private def emitPatternEndOp (cb : CodeBuilder) (op : USFPatternEndOp) : CodeBuilder :=
+def emitPatternEndOp (cb : CodeBuilder) (op : USFPatternEndOp) : CodeBuilder :=
   match op with
   | .reset slot =>
     let cb := cb.emitInst (I.lda_imm 0)
@@ -304,7 +304,7 @@ private def emitPatternEndOp (cb : CodeBuilder) (op : USFPatternEndOp) : CodeBui
     let cb := cb.emitInst (I.adc_imm delta.val.toUInt8)
     cb.emitStaAbsX s!"v_scratch_s{slot}"
 
-private def emitPatternEndOps (cb : CodeBuilder) (ops : List USFPatternEndOp) : CodeBuilder :=
+def emitPatternEndOps (cb : CodeBuilder) (ops : List USFPatternEndOp) : CodeBuilder :=
   ops.foldl (fun acc op => emitPatternEndOp acc op) cb
 
 -- emitInit factored into named sub-blocks. Each sub-block is small enough
