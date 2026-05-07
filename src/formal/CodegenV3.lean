@@ -303,71 +303,93 @@ private def emitPatternEndOp (cb : CodeBuilder) (op : USFPatternEndOp) : CodeBui
 private def emitPatternEndOps (cb : CodeBuilder) (ops : List USFPatternEndOp) : CodeBuilder :=
   ops.foldl (fun acc op => emitPatternEndOp acc op) cb
 
-private def emitInit (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.run do
-  let mut cb := cb.label "init"
+-- emitInit factored into named sub-blocks. Each sub-block is small enough
+-- (3-9 ops) that PropertiesV3 can prove `fixupsInBounds`-preservation
+-- against it without hitting Lean's whnf heartbeat budget — the
+-- bottleneck that stopped a single monolithic proof from compiling.
+-- Composition of the sub-blocks reproduces the original semantics.
 
-  -- Subtune dispatch: PSID's init A register holds the 0-based subtune
-  -- index. Bound-clamp to [0..numSubtunes-1] (= clamp to subtune 0 if out
-  -- of range), then copy that subtune's 3 voice-orderlist start addresses
-  -- from the static ol_subtune_lo/hi tables into the runtime ol_lo/hi[3].
-  cb := cb.emitInst (I.cmp_imm song.subtunes.length.toUInt8)
-  cb := cb.emitBranch .BCC "subtune_in_range"
-  cb := cb.emitInst (I.lda_imm 0)
-  cb := cb.label "subtune_in_range"
-  -- Y = A * 3 (= byte offset into the subtune-major tables).
-  cb := cb.emitInst (I.sta_zp 0xFB)               -- save subtune
-  cb := cb.emitInst I.asl_a                        -- A = 2*subtune
-  cb := cb.emitInst I.clc
-  cb := cb.emitInst (I.adc_zp 0xFB)               -- A = 3*subtune
-  cb := cb.emitInst I.tay
-  -- Copy 3 bytes ol_subtune_*[Y..Y+2] → ol_*[0..2]. X iterates 0..2.
-  cb := cb.emitInst (I.ldx_imm 0)
-  cb := cb.label "subtune_copy"
-  cb := cb.emitLdaAbsY "ol_subtune_lo"
-  cb := cb.emitStaAbsX "ol_lo"
-  cb := cb.emitLdaAbsY "ol_subtune_hi"
-  cb := cb.emitStaAbsX "ol_hi"
-  cb := cb.emitInst I.iny
-  cb := cb.emitInst I.inx
-  cb := cb.emitInst ⟨.CPX, .imm 3⟩
-  cb := cb.emitBranch .BNE "subtune_copy"
+-- The sub-blocks are written as plain `let` chains rather than
+-- `Id.run do` + `let mut`. They produce the same nested function-call
+-- term, but `unfold` exposes that term *directly* — no `simp` reduction
+-- of the `Id` monad needed. This is what makes the per-block
+-- preservation proofs in PropertiesV3 fit inside the default heartbeat
+-- budget.
 
-  -- Match Hubbard's init sequence:
-  -- (sidplayfp pre-writes Vol=$0F before calling init)
-  -- Then init: V1ctl=0, V2ctl=0 (twice), V3ctl=0, Vol=$0F again
-  cb := cb.emitInst (I.lda_imm 0x00)
-  cb := cb.emitInst (I.sta_abs (SID_BASE + 4))    -- V1ctl=0
-  cb := cb.emitInst (I.sta_abs (SID_BASE + 11))   -- V2ctl=0
-  cb := cb.emitInst (I.sta_abs (SID_BASE + 4))    -- V1ctl=0 (duplicate, matches Hubbard)
-  cb := cb.emitInst (I.sta_abs (SID_BASE + 11))   -- V2ctl=0 (duplicate)
-  cb := cb.emitInst (I.sta_abs (SID_BASE + 18))   -- V3ctl=0
-  cb := cb.emitInst (I.lda_imm 0x0F)
-  cb := cb.emitInst (I.sta_abs (SID_BASE + 0x18)) -- Vol=$0F
+/-- Subtune dispatch part 1: bound-clamp subtune index in A, save and
+    multiply by 3 to get a byte offset into the subtune-major tables. -/
+def emitInitSubtuneClamp (cb : CodeBuilder) (song : USFSong) : CodeBuilder :=
+  let cb := cb.emitInst (I.cmp_imm song.subtunes.length.toUInt8)
+  let cb := cb.emitBranch .BCC "subtune_in_range"
+  let cb := cb.emitInst (I.lda_imm 0)
+  let cb := cb.label "subtune_in_range"
+  let cb := cb.emitInst (I.sta_zp 0xFB)               -- save subtune
+  let cb := cb.emitInst I.asl_a                        -- A = 2*subtune
+  let cb := cb.emitInst I.clc
+  let cb := cb.emitInst (I.adc_zp 0xFB)               -- A = 3*subtune
+  let cb := cb.emitInst I.tay
+  cb
 
-  -- Init voice state: set duration to 0 (force note load on first play)
-  -- Also set orderlist position to 0 and load first pattern pointer
-  cb := cb.emitInst (I.ldx_imm 0x02)
-  cb := cb.label "init_loop"
-  -- duration = 0
-  cb := cb.emitInst (I.lda_imm 0x00)
-  cb := cb.emitStaAbsX "v_dur"
-  cb := cb.emitStaAbsX "v_olpos"
-  cb := cb.emitStaAbsX "v_wptr"
-  -- Load first pattern index from orderlist
-  -- We need the orderlist pointer for this voice
-  -- For init, we just set pattlo/hi to the first pattern's data address
-  -- This will be handled by the noteload path on first play call
-  cb := cb.emitStaAbsX "v_pattlo"
-  cb := cb.emitStaAbsX "v_patthi"
-  cb := cb.emitInst I.dex
-  cb := cb.emitBranch .BPL "init_loop"
+/-- Subtune dispatch part 2: copy 3 bytes ol_subtune_*[Y..Y+2] →
+    ol_*[0..2]. X iterates 0..2 in an asm-level loop. -/
+def emitInitSubtuneCopy (cb : CodeBuilder) : CodeBuilder :=
+  let cb := cb.emitInst (I.ldx_imm 0)
+  let cb := cb.label "subtune_copy"
+  let cb := cb.emitLdaAbsY "ol_subtune_lo"
+  let cb := cb.emitStaAbsX "ol_lo"
+  let cb := cb.emitLdaAbsY "ol_subtune_hi"
+  let cb := cb.emitStaAbsX "ol_hi"
+  let cb := cb.emitInst I.iny
+  let cb := cb.emitInst I.inx
+  let cb := cb.emitInst ⟨.CPX, .imm 3⟩
+  let cb := cb.emitBranch .BNE "subtune_copy"
+  cb
 
-  -- Init frame counter to $FF (first INC → 0, matching Hubbard's reset)
-  cb := cb.emitInst (I.lda_imm 0xFF)
-  cb := cb.emitInst (I.sta_zp 0x50)
+/-- Match Hubbard's SID-silence init sequence: write 0 to all three
+    voices' control registers (V2 twice, matching Hubbard exactly), then
+    Vol=$0F. -/
+def emitInitSidSilence (cb : CodeBuilder) : CodeBuilder :=
+  let cb := cb.emitInst (I.lda_imm 0x00)
+  let cb := cb.emitInst (I.sta_abs (SID_BASE + 4))    -- V1ctl=0
+  let cb := cb.emitInst (I.sta_abs (SID_BASE + 11))   -- V2ctl=0
+  let cb := cb.emitInst (I.sta_abs (SID_BASE + 4))    -- V1ctl=0 (duplicate, matches Hubbard)
+  let cb := cb.emitInst (I.sta_abs (SID_BASE + 11))   -- V2ctl=0 (duplicate)
+  let cb := cb.emitInst (I.sta_abs (SID_BASE + 18))   -- V3ctl=0
+  let cb := cb.emitInst (I.lda_imm 0x0F)
+  let cb := cb.emitInst (I.sta_abs (SID_BASE + 0x18)) -- Vol=$0F
+  cb
 
-  cb := cb.emitInst I.rts
-  return cb
+/-- Voice-state init: zero v_dur/olpos/wptr/pattlo/patthi for all three
+    voices via an asm-level loop on X. Forces note-load on first play. -/
+def emitInitVoiceState (cb : CodeBuilder) : CodeBuilder :=
+  let cb := cb.emitInst (I.ldx_imm 0x02)
+  let cb := cb.label "init_loop"
+  let cb := cb.emitInst (I.lda_imm 0x00)
+  let cb := cb.emitStaAbsX "v_dur"
+  let cb := cb.emitStaAbsX "v_olpos"
+  let cb := cb.emitStaAbsX "v_wptr"
+  let cb := cb.emitStaAbsX "v_pattlo"
+  let cb := cb.emitStaAbsX "v_patthi"
+  let cb := cb.emitInst I.dex
+  let cb := cb.emitBranch .BPL "init_loop"
+  cb
+
+/-- Frame counter to $FF (first INC → 0, matches Hubbard) and RTS back
+    to PSID. -/
+def emitInitFrameCounter (cb : CodeBuilder) : CodeBuilder :=
+  let cb := cb.emitInst (I.lda_imm 0xFF)
+  let cb := cb.emitInst (I.sta_zp 0x50)
+  let cb := cb.emitInst I.rts
+  cb
+
+def emitInit (cb : CodeBuilder) (song : USFSong) : CodeBuilder :=
+  let cb := cb.label "init"
+  let cb := emitInitSubtuneClamp cb song
+  let cb := emitInitSubtuneCopy cb
+  let cb := emitInitSidSilence cb
+  let cb := emitInitVoiceState cb
+  let cb := emitInitFrameCounter cb
+  cb
 
 private def emitPlay (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.run do
   let mut cb := cb.label "play"

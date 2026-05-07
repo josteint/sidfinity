@@ -4,15 +4,17 @@
   Goal: catch regressions at compile time. If any of these properties stop
   holding, `lake build` fails and we know something important changed shape.
 
-  Three layers:
+  Layers:
   1. Boundary serialisation primitives (sizes, endianness, magic bytes).
   2. PSID file structure (header is always prepended).
   3. CodeBuilder invariants (fixups stay in-bounds across emit ops).
+  4. Sub-block preservation through `emitInit` (the first real codegen
+     helper threaded end-to-end).
 
-  Layer 3 is the one that *would* catch a real codegen regression: if some
-  new emit function fails to grow `bytes` enough to hold its fixup target,
-  the invariant breaks at compile time rather than producing a corrupt SID
-  at run time.
+  Layers 3 and 4 are the ones that catch real codegen regressions: if
+  some new emit function fails to grow `bytes` enough to hold its fixup
+  target, the invariant breaks at compile time rather than producing a
+  corrupt SID at run time.
 
   What's still NOT here (left as future work, with honest reasons):
   - "After note-load, Y holds v_sidoff[X]" — register-state Hoare-logic
@@ -336,50 +338,126 @@ theorem testThread_preserves (cb : CodeBuilder) (h : fixupsInBounds cb) :
 -- 7. Threading through real codegen helpers
 -- ==========================================================================
 
-/-- A tactic-like macro: peel back one preservation step at a time. Useful
-    for proving long imperative chains preserve `fixupsInBounds` without
-    naming each step explicitly. -/
-syntax "preserve_fixups" : tactic
-macro_rules
-  | `(tactic| preserve_fixups) =>
-    `(tactic| repeat' (first
-        | apply emitJmpLabel_preserves_fixupsInBounds
-        | apply emitBranch_preserves_fixupsInBounds
-        | apply emitInst_preserves_fixupsInBounds
-        | apply emitByte_preserves_fixupsInBounds
-        | apply emitData_preserves_fixupsInBounds
-        | apply emitLdaAbsX_preserves_fixupsInBounds
-        | apply emitLdaAbsY_preserves_fixupsInBounds
-        | apply emitStaAbsX_preserves_fixupsInBounds
-        | apply emitStaAbsY_preserves_fixupsInBounds
-        | apply emitDecAbsX_preserves_fixupsInBounds
-        | apply emitIncAbsX_preserves_fixupsInBounds
-        | apply emit_preserves_fixupsInBounds
-        | apply label_preserves_fixupsInBounds))
+-- emitInit was refactored from a 38-mutation `Id.run do` monolith into
+-- five named sub-blocks (CodegenV3.emitInitSubtuneClamp,
+-- emitInitSubtuneCopy, emitInitSidSilence, emitInitVoiceState,
+-- emitInitFrameCounter), each written as a plain `let` chain rather
+-- than `Id.run do` + `let mut`. We then prove preservation per
+-- sub-block and compose. This is path (a) from the previous attempt's
+-- write-up; paths (b) custom meta tactic and (c) crank heartbeats are
+-- still on the table for the other long helpers (emitPlay, emitNoteload).
+--
+-- Two design choices made the proofs fit in default heartbeats:
+--
+-- (1) The sub-blocks are plain `let` chains, not `Id.run do`. `Id.run`
+--     reduction over mutable bindings is a major cost source for `simp`
+--     and the unifier; plain `let` lets `unfold` expose the term
+--     directly without the `Id` monad in the way.
+--
+-- (2) The proofs are written as explicit term-level chains, not tactic
+--     scripts. A `repeat' (first | apply ... | apply ... | ...)` macro
+--     looks tidy but forces Lean to retry up to 13 lemmas at every
+--     step, multiplying the unifier's whnf cost. Spelling out the
+--     nested `emitFoo_preserves_fixupsInBounds _ _ (emitBar_... _)`
+--     chain is wordier but compiles in well under a second.
 
-/-
-  emitInit threading attempt — DOES NOT compile (kept as a comment so
-  the next person knows it was tried).
+-- Per-sub-block proofs are written as explicit term-level chains rather
+-- than going through the `preserve_fixups` macro. The macro uses
+-- `repeat' (first | apply ...)` which forces Lean to retry up to 13
+-- preservation lemmas per step; that dispatch cost compounds and hits
+-- the whnf heartbeat budget. Explicit term-level proofs avoid the
+-- search entirely — Lean just type-checks one nested application.
 
-  The body is a 38-mutation `Id.run do` chain. `unfold emitInit` followed
-  by `simp` to flatten to nested function calls hits Lean's whnf
-  heartbeat limit even at 800k. The `simp` machinery scales roughly
-  quadratically in the chain length, and 38 ops is past the point where
-  default tactics handle it cleanly.
+/-- Preservation through `emitInitSubtuneClamp` (9 ops). -/
+theorem emitInitSubtuneClamp_preserves_fixupsInBounds
+    (cb : CodeBuilder) (song : USFSong) (h : fixupsInBounds cb) :
+    fixupsInBounds (emitInitSubtuneClamp cb song) :=
+  emitInst_preserves_fixupsInBounds _ I.tay
+    (emitInst_preserves_fixupsInBounds _ (I.adc_zp 0xFB)
+      (emitInst_preserves_fixupsInBounds _ I.clc
+        (emitInst_preserves_fixupsInBounds _ I.asl_a
+          (emitInst_preserves_fixupsInBounds _ (I.sta_zp 0xFB)
+            (label_preserves_fixupsInBounds _ "subtune_in_range"
+              (emitInst_preserves_fixupsInBounds _ (I.lda_imm 0)
+                (emitBranch_preserves_fixupsInBounds _ .BCC "subtune_in_range"
+                  (emitInst_preserves_fixupsInBounds _
+                    (I.cmp_imm song.subtunes.length.toUInt8) h))))))))
 
-  Workable paths forward (none cheap):
-  1. Refactor emitInit into named sub-blocks (e.g. `emitInitSidSilence`,
-     `emitInitVoiceState`), prove preservation per sub-block, compose.
-     ~4-6 small functions. Real refactor of CodegenV3.lean.
-  2. Custom tactic that doesn't go through `simp`'s reduction — walk the
-     `Id.run do` AST directly and apply preservation lemmas. Doable but
-     non-trivial Lean meta-programming.
-  3. Set maxHeartbeats to 8M+, accept ~minute-long proof compile times.
+/-- Preservation through `emitInitSubtuneCopy` (10 ops). The block
+    contains a `BNE subtune_copy` referring to a label that's part of
+    this same block — that's fine for the in-bounds invariant, which
+    only cares about the fixup's `byteIdx` versus `bytes.size`. -/
+theorem emitInitSubtuneCopy_preserves_fixupsInBounds
+    (cb : CodeBuilder) (h : fixupsInBounds cb) :
+    fixupsInBounds (emitInitSubtuneCopy cb) :=
+  emitBranch_preserves_fixupsInBounds _ .BNE "subtune_copy"
+    (emitInst_preserves_fixupsInBounds _ ⟨.CPX, .imm 3⟩
+      (emitInst_preserves_fixupsInBounds _ I.inx
+        (emitInst_preserves_fixupsInBounds _ I.iny
+          (emitStaAbsX_preserves_fixupsInBounds _ "ol_hi"
+            (emitLdaAbsY_preserves_fixupsInBounds _ "ol_subtune_hi"
+              (emitStaAbsX_preserves_fixupsInBounds _ "ol_lo"
+                (emitLdaAbsY_preserves_fixupsInBounds _ "ol_subtune_lo"
+                  (label_preserves_fixupsInBounds _ "subtune_copy"
+                    (emitInst_preserves_fixupsInBounds _ (I.ldx_imm 0) h)))))))))
 
-  For now, the per-op preservation lemmas (above) are proved and the
-  `preserve_fixups` tactic works on small chains (`testThread` proves
-  fine). The compositional infrastructure is in place; threading the
-  full body is gated on one of the three paths above.
--/
+/-- Preservation through `emitInitSidSilence` (8 ops, all plain
+    instructions — no fixups added by this block). -/
+theorem emitInitSidSilence_preserves_fixupsInBounds
+    (cb : CodeBuilder) (h : fixupsInBounds cb) :
+    fixupsInBounds (emitInitSidSilence cb) :=
+  emitInst_preserves_fixupsInBounds _ (I.sta_abs (SID_BASE + 0x18))
+    (emitInst_preserves_fixupsInBounds _ (I.lda_imm 0x0F)
+      (emitInst_preserves_fixupsInBounds _ (I.sta_abs (SID_BASE + 18))
+        (emitInst_preserves_fixupsInBounds _ (I.sta_abs (SID_BASE + 11))
+          (emitInst_preserves_fixupsInBounds _ (I.sta_abs (SID_BASE + 4))
+            (emitInst_preserves_fixupsInBounds _ (I.sta_abs (SID_BASE + 11))
+              (emitInst_preserves_fixupsInBounds _ (I.sta_abs (SID_BASE + 4))
+                (emitInst_preserves_fixupsInBounds _ (I.lda_imm 0x00) h)))))))
+
+/-- Preservation through `emitInitVoiceState` (10 ops: ldx, label, lda,
+    five `sta abs,X`, dex, branch BPL). -/
+theorem emitInitVoiceState_preserves_fixupsInBounds
+    (cb : CodeBuilder) (h : fixupsInBounds cb) :
+    fixupsInBounds (emitInitVoiceState cb) :=
+  emitBranch_preserves_fixupsInBounds _ .BPL "init_loop"
+    (emitInst_preserves_fixupsInBounds _ I.dex
+      (emitStaAbsX_preserves_fixupsInBounds _ "v_patthi"
+        (emitStaAbsX_preserves_fixupsInBounds _ "v_pattlo"
+          (emitStaAbsX_preserves_fixupsInBounds _ "v_wptr"
+            (emitStaAbsX_preserves_fixupsInBounds _ "v_olpos"
+              (emitStaAbsX_preserves_fixupsInBounds _ "v_dur"
+                (emitInst_preserves_fixupsInBounds _ (I.lda_imm 0x00)
+                  (label_preserves_fixupsInBounds _ "init_loop"
+                    (emitInst_preserves_fixupsInBounds _ (I.ldx_imm 0x02) h)))))))))
+
+/-- Preservation through `emitInitFrameCounter` (3 ops: lda, sta_zp, rts). -/
+theorem emitInitFrameCounter_preserves_fixupsInBounds
+    (cb : CodeBuilder) (h : fixupsInBounds cb) :
+    fixupsInBounds (emitInitFrameCounter cb) :=
+  emitInst_preserves_fixupsInBounds _ I.rts
+    (emitInst_preserves_fixupsInBounds _ (I.sta_zp 0x50)
+      (emitInst_preserves_fixupsInBounds _ (I.lda_imm 0xFF) h))
+
+/-- The headline result: `emitInit` preserves `fixupsInBounds`. Composed
+    from the five sub-block lemmas above. The proof itself is a
+    five-step chain — each `let cb := ...` in `emitInit` corresponds to
+    one application of a sub-block preservation lemma.
+
+    What this catches: if a future edit to any `emitInit*` sub-block
+    introduces an emit op that records a fixup at a `byteIdx` past the
+    end of `bytes`, this theorem stops compiling and the regression is
+    blocked at `lake build` time. -/
+theorem emitInit_preserves_fixupsInBounds
+    (cb : CodeBuilder) (song : USFSong) (h : fixupsInBounds cb) :
+    fixupsInBounds (emitInit cb song) := by
+  unfold emitInit
+  exact
+    emitInitFrameCounter_preserves_fixupsInBounds _
+      (emitInitVoiceState_preserves_fixupsInBounds _
+        (emitInitSidSilence_preserves_fixupsInBounds _
+          (emitInitSubtuneCopy_preserves_fixupsInBounds _
+            (emitInitSubtuneClamp_preserves_fixupsInBounds _ song
+              (label_preserves_fixupsInBounds _ _ h)))))
 
 end PropertiesV3
