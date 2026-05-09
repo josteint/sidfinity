@@ -384,6 +384,122 @@ def estimate_table_sizes(tables: dict[int, 'TableHypothesis'],
     return out
 
 
+@dataclass
+class PointerTablePair:
+    """Two parallel tables that together form 16-bit pointers, stored
+    to consecutive zeropage bytes. Found by detecting the canonical
+    `LDA T_lo,Y; STA $zp; LDA T_hi,Y; STA $zp+1` pattern in code."""
+    lo_table: int          # base of low-byte table
+    hi_table: int          # base of high-byte table
+    zp_lo: int             # zeropage byte where pointer's low byte lives
+    code_site: int         # address of the first LDA in the pattern
+    indexed: str           # 'X', 'Y', or '' (absolute, no index)
+    deref_targets: list[int] = field(default_factory=list)  # addresses observed via the pointer
+
+
+# Opcodes: STA zeropage = $85, STA zp,X = $95
+_STA_ZP = {0x85, 0x95}
+_LDA_ABS_VARIANTS = {0xAD, 0xBD, 0xB9}  # abs, abs,X, abs,Y
+
+
+def detect_pointer_tables(payload: bytes, load_addr: int,
+                          init_addr: int, play_addr: int) -> list[PointerTablePair]:
+    """Walk code looking for the LDA-STA-LDA-STA pointer-construction
+    pattern. Each match yields a candidate pointer table pair.
+
+    The pattern is sensitive to instructions in between (TAY, TXA, CLC,
+    etc.) but we keep it simple: linear scan of basic blocks, looking
+    for two LDA-abs-with-index → STA-zp pairs where the two STA targets
+    are consecutive zeropage bytes."""
+    results: list[PointerTablePair] = []
+    visited: set[int] = set()
+    n = len(payload)
+    worklist = []
+    for addr in (init_addr, play_addr):
+        off = addr - load_addr
+        if 0 <= off < n:
+            worklist.append(off)
+
+    # We track per-basic-block: list of (instr_pos, op, operand) for
+    # STA-ZP and LDA-abs instructions, then post-process.
+    # Simpler: walk code linearly, maintain a sliding window of recent
+    # (LDA T, STA zp) pairs, and try to pair zp with zp+1 across them.
+    while worklist:
+        pos = worklist.pop()
+        if pos in visited or not (0 <= pos < n):
+            continue
+        # Walk linearly through the basic block from `pos` until we hit
+        # a control-flow instruction; record LDA→STA pairs in this BB.
+        bb_pairs = []  # list of (lda_pos, lda_op, lda_target, lda_idx, sta_zp)
+        cur = pos
+        # Walk while linear
+        while cur < n:
+            if cur in visited:
+                break
+            visited.add(cur)
+            op = payload[cur]
+            ilen = _INST_LEN[op]
+            if cur + ilen > n:
+                break
+
+            # Look for LDA abs(,X)(,Y) followed by STA zp
+            if op in _LDA_ABS_VARIANTS:
+                tgt = payload[cur + 1] | (payload[cur + 2] << 8)
+                idx = 'X' if op == 0xBD else ('Y' if op == 0xB9 else '')
+                # Peek next instruction
+                next_pos = cur + ilen
+                if next_pos < n:
+                    next_op = payload[next_pos]
+                    if next_op in _STA_ZP:
+                        zp = payload[next_pos + 1]
+                        bb_pairs.append((cur, op, tgt, idx, zp))
+
+            # Control flow ends the basic block
+            if op in (0x60, 0x40, 0x00):  # RTS/RTI/BRK
+                break
+            if op == 0x4C:  # JMP abs
+                tgt = payload[cur + 1] | (payload[cur + 2] << 8)
+                t_off = tgt - load_addr
+                if 0 <= t_off < n:
+                    worklist.append(t_off)
+                break
+            if op == 0x6C:
+                break
+            if op == 0x20:  # JSR
+                tgt = payload[cur + 1] | (payload[cur + 2] << 8)
+                t_off = tgt - load_addr
+                if 0 <= t_off < n:
+                    worklist.append(t_off)
+                cur = cur + ilen
+                continue
+            if op in _BRANCHES:
+                offset = payload[cur + 1]
+                if offset >= 0x80:
+                    offset -= 0x100
+                t_off = cur + ilen + offset
+                if 0 <= t_off < n:
+                    worklist.append(t_off)
+                cur = cur + ilen  # fall-through
+                continue
+            cur = cur + ilen
+
+        # Post-process this basic block's LDA→STA pairs: find pairs
+        # whose STA zp values are consecutive (zp and zp+1).
+        for i in range(len(bb_pairs)):
+            for j in range(i + 1, len(bb_pairs)):
+                lda_pos_i, _op_i, tgt_i, idx_i, zp_i = bb_pairs[i]
+                lda_pos_j, _op_j, tgt_j, idx_j, zp_j = bb_pairs[j]
+                if zp_j == zp_i + 1 and idx_i == idx_j:
+                    # Match — pointer pair (low at $zp_i, high at $zp_j)
+                    results.append(PointerTablePair(
+                        lo_table=tgt_i, hi_table=tgt_j,
+                        zp_lo=zp_i, code_site=load_addr + lda_pos_i,
+                        indexed=idx_i,
+                    ))
+
+    return results
+
+
 def trace_sid_dataflow(payload: bytes, load_addr: int,
                        init_addr: int, play_addr: int) -> dict[int, set[str]]:
     """For each data-table base address referenced by code, identify
@@ -518,6 +634,45 @@ def main():
 
     sizes = estimate_table_sizes(tables, counts, code_offs,
                                  h['load_addr'], h['load_end'])
+
+    # Pointer-table detection
+    ptr_pairs = detect_pointer_tables(payload, h['load_addr'],
+                                      h['init_addr'], h['play_addr'])
+    if ptr_pairs:
+        # Deduplicate by (lo_table, hi_table)
+        seen = set()
+        unique = []
+        for p in ptr_pairs:
+            k = (p.lo_table, p.hi_table)
+            if k not in seen:
+                seen.add(k)
+                unique.append(p)
+        print(f'\nPointer tables detected (LDA T_lo,Y; STA $zp; LDA T_hi,Y; STA $zp+1):')
+        print(f'  {"lo_tbl":>6} {"hi_tbl":>6} {"idx":>3} {"zp":>5} '
+              f'{"site":>6} notes')
+        print('  ' + '-' * 70)
+        for p in unique:
+            note = []
+            # Annotate with the role from tables, if any
+            if p.lo_table in tables and tables[p.lo_table].role_guess != '?':
+                note.append(f'lo_role={tables[p.lo_table].role_guess}')
+            if p.hi_table in tables and tables[p.hi_table].role_guess != '?':
+                note.append(f'hi_role={tables[p.hi_table].role_guess}')
+            # Common case: hi_tbl - lo_tbl tells us the table size
+            tbl_size = p.hi_table - p.lo_table
+            if 0 < tbl_size < 256:
+                note.append(f'count_hint={tbl_size}')
+            print(f'  ${p.lo_table:04X}  ${p.hi_table:04X}    {p.indexed:>1}  '
+                  f'${p.zp_lo:02X}  ${p.code_site:04X}  {" ".join(note)}')
+            # Promote roles for these tables
+            if p.lo_table in tables:
+                tables[p.lo_table].role_guess = (
+                    f'ptr_lo→${p.zp_lo:02X}' if tables[p.lo_table].role_guess == '?'
+                    else tables[p.lo_table].role_guess + f',ptr_lo→${p.zp_lo:02X}')
+            if p.hi_table in tables:
+                tables[p.hi_table].role_guess = (
+                    f'ptr_hi→${p.zp_lo+1:02X}' if tables[p.hi_table].role_guess == '?'
+                    else tables[p.hi_table].role_guess + f',ptr_hi→${p.zp_lo+1:02X}')
 
     print(f'\nDiscovered {len(tables)} candidate tables / fields '
           f'(grouped into {len(set(s["cluster_id"] for s in sizes.values()))} clusters):')
