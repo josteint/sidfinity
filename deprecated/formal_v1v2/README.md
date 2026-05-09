@@ -20,6 +20,7 @@ plus shared infra `Asm6502.lean`, `PSIDFile.lean`, `SID.lean`).
 | `ValidateModel.lean` | V1 model validator |
 | `VerifyMain.lean` | V1 verification main |
 | `CompareMain.lean` | V1 SID-vs-SID comparator |
+| `SidSemantics.lean` | Per-tick voice DAC model + soundness proofs for two `sid_compare.py` tolerance rules (silent voice, test bit). Built to certify the **register-snapshot** comparison in `sid_compare.py`. Deprecated because the project shifted to **writelog (instruction-stream)** comparison via Das Model v2 — register-snapshot tolerance rules are not the layer we want to certify. The chip facts proved here (no waveform → DAC = 0; test bit pins accumulator + LFSR) are still true and could be reused if a future writelog-tolerance rule needs them. |
 
 Resurrect anything from here only if there's a concrete reason. The V3
 pipeline in `src/formal/` is the canonical implementation.
