@@ -271,6 +271,9 @@ def infer_tables(refs: list[DataRef], counts: dict[int, int],
 def role_from_sid_register(reg_low: int) -> str:
     """SID register offset → likely role of data being written to it."""
     voice_off = reg_low % 7
+    if reg_low == 0x18: return 'volume'
+    if reg_low in (0x15, 0x16): return 'filter_cutoff'
+    if reg_low == 0x17: return 'filter_ctrl'
     if voice_off == 0: return 'freq_lo'
     if voice_off == 1: return 'freq_hi'
     if voice_off == 2: return 'pulse_lo'
@@ -278,10 +281,98 @@ def role_from_sid_register(reg_low: int) -> str:
     if voice_off == 4: return 'ctrl'
     if voice_off == 5: return 'attack_decay'
     if voice_off == 6: return 'sustain_release'
-    if reg_low == 0x18: return 'volume'
-    if reg_low in (0x15, 0x16): return 'filter_cutoff'
-    if reg_low == 0x17: return 'filter_ctrl'
     return f'sid_${reg_low:02X}'
+
+
+def trace_sid_dataflow(payload: bytes, load_addr: int,
+                       init_addr: int, play_addr: int) -> dict[int, set[str]]:
+    """For each data-table base address referenced by code, identify
+    which SID registers receive values loaded from that table.
+
+    Method: re-walk control flow tracking the "current source" of A
+    through linear code. When A is loaded from table T (LDA T,X / T,Y
+    / T), record T as source. When A is stored to a SID register R via
+    STA, attribute R to T. Resets on flow boundaries (branch / call /
+    AND/ORA/EOR/ADC/SBC/etc. that mix in other sources are conservative
+    "still T" — we accept that the data still came from T modulo
+    arithmetic).
+
+    Returns: {table_base_addr: {role_label, ...}} where each label is
+    the SID register the data feeds.
+    """
+    sources: dict[int, set[str]] = defaultdict(set)
+    visited: set[int] = set()
+    # State per code position: address of last LDA-from-table source
+    # (None if A's source is not a table).
+    worklist: list[tuple[int, int | None]] = []
+    for addr in (init_addr, play_addr):
+        off = addr - load_addr
+        if 0 <= off < len(payload):
+            worklist.append((off, None))
+    n = len(payload)
+    sid_lo, sid_hi = SID_BASE, SID_END
+
+    # Visited as (pos, a_source) — different sources may produce different
+    # downstream attribution. To keep the walk bounded, collapse to just
+    # `pos in visited` after first visit (loses some precision; acceptable).
+    while worklist:
+        pos, src = worklist.pop()
+        if pos in visited or not (0 <= pos < n):
+            continue
+        visited.add(pos)
+        op = payload[pos]
+        ilen = _INST_LEN[op]
+        if pos + ilen > n:
+            continue
+
+        # LDA / LDX / LDY abs / abs,X / abs,Y → A (or X/Y) source becomes target table
+        if op in (0xAD, 0xBD, 0xB9):  # LDA abs / abs,X / abs,Y
+            tgt = payload[pos + 1] | (payload[pos + 2] << 8)
+            new_src = tgt if (load_addr <= tgt <= load_addr + n - 1) else None
+            src = new_src
+        elif op == 0xA9:  # LDA #imm
+            src = None
+        elif op in (0xAA, 0xA8):  # TAX, TAY — A's source still drives downstream
+            pass
+        elif op in (0xAE, 0xBE, 0xAC, 0xBC):  # LDX/LDY abs(,Y)/(,X) — clobbers index, not A
+            pass
+        # STA abs / abs,X / abs,Y → if target is SID register, attribute
+        elif op in (0x8D, 0x9D, 0x99) and src is not None:
+            tgt = payload[pos + 1] | (payload[pos + 2] << 8)
+            if sid_lo <= tgt <= sid_hi:
+                role = role_from_sid_register(tgt - sid_lo)
+                sources[src].add(role)
+
+        # Control flow (same as trace_code_with_refs)
+        if op in (0x60, 0x40, 0x00):
+            continue
+        if op == 0x4C:
+            tgt = payload[pos + 1] | (payload[pos + 2] << 8)
+            t_off = tgt - load_addr
+            if 0 <= t_off < n:
+                worklist.append((t_off, src))
+            continue
+        if op == 0x6C:
+            continue
+        if op == 0x20:
+            tgt = payload[pos + 1] | (payload[pos + 2] << 8)
+            t_off = tgt - load_addr
+            if 0 <= t_off < n:
+                worklist.append((t_off, src))
+            worklist.append((pos + ilen, src))
+            continue
+        if op in _BRANCHES:
+            offset = payload[pos + 1]
+            if offset >= 0x80:
+                offset -= 0x100
+            t_off = pos + ilen + offset
+            if 0 <= t_off < n:
+                worklist.append((t_off, src))
+            worklist.append((pos + ilen, src))
+            continue
+        worklist.append((pos + ilen, src))
+
+    return sources
 
 
 def main():
@@ -318,16 +409,24 @@ def main():
 
     # Tables hypothesised from indexed reads/writes in code
     tables = infer_tables(refs, counts, h['load_addr'], h['load_end'])
+
+    # Role inference via SID-register dataflow
+    sid_flow = trace_sid_dataflow(payload, h['load_addr'], h['init_addr'], h['play_addr'])
+    for base, t in tables.items():
+        if base in sid_flow:
+            t.role_guess = ','.join(sorted(sid_flow[base]))
+
     print(f'\nDiscovered {len(tables)} candidate tables (indexed reads/writes inside payload):')
-    print(f'{"base":>6}  {"idx":>3}  {"reads":>5}  {"writes":>6}  {"runtime":>10}  notes')
-    print('-' * 90)
+    print(f'{"base":>6}  {"idx":>3}  {"reads":>5}  {"writes":>6}  {"runtime":>10}  role  notes')
+    print('-' * 100)
     for base in sorted(tables):
         t = tables[base]
         notes = []
         if t.runtime_count == 0:
             notes.append('NEVER ACCESSED IN TRACE')
         print(f'  ${base:04X}    {t.indexed_by:>1}  {len(t.read_sites):>5}  '
-              f'{len(t.write_sites):>6}  {t.runtime_count:>10,}  {" ".join(notes)}')
+              f'{len(t.write_sites):>6}  {t.runtime_count:>10,}  '
+              f'{t.role_guess:<24}  {" ".join(notes)}')
 
     # Coverage estimate
     code_bytes_in_payload = code_offs
