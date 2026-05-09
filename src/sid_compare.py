@@ -158,7 +158,13 @@ def compare_tolerant(orig_frames, new_frames):
 
             if o_fhi != n_fhi:
                 # If voice is silent (no waveform or gate off), freq diffs
-                # are inaudible — SID ignores frequency when oscillator is off
+                # are inaudible — SID ignores frequency when oscillator is off.
+                #
+                # Soundness: src/formal/SidSemantics.lean theorem
+                # `silent_voice_freq_inaudible`. The Lean model proves that
+                # when ctrl bits 4-7 are all 0, the voice DAC output is 0
+                # regardless of freq accumulator state. Frame-level claim
+                # follows via `silent_voice_frame_zero`.
                 if (o_wav & 0xF0) == 0 and (n_wav & 0xF0) == 0:
                     vr['note_jitter'] += 1
                     continue
