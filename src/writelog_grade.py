@@ -58,6 +58,46 @@ def _split_frame(line: str) -> tuple[str, str]:
     return line, ''
 
 
+# Per-register audibility mask: bits that the SID hardware actually USES.
+# Bits NOT in the mask are ignored by the chip (writes still happen but
+# don't affect audio). Two SIDs that differ only in masked-out bits are
+# guaranteed audibly identical.
+#
+# Source: SID datasheet (MOS 6581/8580), confirmed by reSID emulation.
+#
+# This is a small, well-known set — extending it requires careful checking
+# (and ideally a Lean-proven theorem; see deprecated/formal_v1v2/SidSemantics
+# for the start of that direction).
+_AUDIBLE_BITS = {
+    # Voice 1/2/3 pulse_hi: SID uses only low 4 bits of $D403/$D40A/$D411
+    # (pulse width is 12-bit; pulse_hi contributes bits 8-11).
+    3:  0x0F,    # V1 pulse_hi
+    10: 0x0F,    # V2 pulse_hi
+    17: 0x0F,    # V3 pulse_hi
+    # Filter cutoff lo: SID uses only low 3 bits of $D415 (cutoff is 11-bit).
+    21: 0x07,
+}
+
+
+def _mask_snapshot(snap_csv: str) -> str:
+    """Apply audibility masks to the 25-byte snapshot CSV."""
+    parts = snap_csv.split(',')
+    if len(parts) != 25:
+        return snap_csv
+    out = []
+    for i, p in enumerate(parts):
+        try:
+            v = int(p, 16)
+        except ValueError:
+            out.append(p)
+            continue
+        mask = _AUDIBLE_BITS.get(i)
+        if mask is not None:
+            v &= mask
+        out.append(f'{v:02X}')
+    return ','.join(out)
+
+
 @dataclass
 class GradeReport:
     """Result of comparing two writelogs."""
@@ -133,16 +173,19 @@ def grade(orig_sid: str, rebuilt_sid: str, duration: int = 30,
         o_snap, o_writes = _split_frame(orig_frames[i])
         n_snap, n_writes = _split_frame(new_frames[i])
 
-        if o_snap == n_snap:
+        # Apply audibility masks before comparison
+        o_masked = _mask_snapshot(o_snap)
+        n_masked = _mask_snapshot(n_snap)
+        if o_masked == n_masked:
             snap_matched += 1
         else:
             if first_div_idx is None:
                 first_div_idx = i
                 first_div_orig = orig_frames[i]
                 first_div_new = new_frames[i]
-            # Tally per-register divergences
-            o_regs = o_snap.split(',')
-            n_regs = n_snap.split(',')
+            # Tally per-register divergences (after masking)
+            o_regs = o_masked.split(',')
+            n_regs = n_masked.split(',')
             for r, (a, b) in enumerate(zip(o_regs, n_regs)):
                 if a != b:
                     diverging_regs[r] = diverging_regs.get(r, 0) + 1

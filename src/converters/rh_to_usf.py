@@ -780,7 +780,15 @@ def rh_to_usf(sid_path, subtune=None):
                 if step.is_loop:
                     song.shared_pulse_table.append((0xFF, inst.pulse_ptr + step.loop_target - 1))
                 elif step.is_set:
-                    song.shared_pulse_table.append((0x80 | (step.value >> 4), step.low_byte))
+                    # `step.value` is the PW HIGH NIBBLE (already 0..15 from
+                    # _build_pulse_table). The "set absolute" entry encodes
+                    # bit 7 as the marker plus the 4-bit PW hi in bits 0-3,
+                    # which the V2/V3 player stores directly to mt_chnpulsehi
+                    # (SID hardware uses only the low 4 bits of $D403).
+                    # Earlier `>> 4` was wrong: it shifted an already-masked
+                    # 4-bit value to zero, producing $80 effective-PW-hi=0
+                    # for every instrument and silencing pulse voices.
+                    song.shared_pulse_table.append((0x80 | (step.value & 0x0F), step.low_byte))
                 else:
                     # Modulate: left = duration (1-127), right = signed speed
                     dur = max(1, min(127, step.duration))
