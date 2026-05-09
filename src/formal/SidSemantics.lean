@@ -41,12 +41,37 @@ opaque sawSample      : (freqAccum : UInt32) → DacSample
 opaque pulseSample    : (freqAccum : UInt32) → (pulseWidth : UInt16) → DacSample
 opaque noiseSample    : (lfsr : UInt32) → DacSample
 
+/-! ## Test bit (ctrl bit 3): hardware reset of accumulator and LFSR.
+
+When the test bit is set, the SID hardware:
+  - holds the 24-bit frequency accumulator at 0,
+  - forces the noise LFSR to all-1s ($7F_FFFF in 23-bit form).
+
+These are well-documented hardware effects (SID datasheet; reSID
+emulator). The next two helpers model them: regardless of what the
+*input* freq accumulator or LFSR is, the *effective* value used by
+the waveform generators is the pinned one when test bit is set. -/
+
+/-- Effective frequency accumulator: 0 when test bit is set,
+    otherwise the input. -/
+def effectiveFreqAccum (ctrl : UInt8) (freqAccum : UInt32) : UInt32 :=
+  if ctrl &&& 0x08 ≠ 0 then 0 else freqAccum
+
+/-- Effective noise LFSR: all-1s when test bit is set, otherwise
+    the input. (The exact reset pattern is `0x7FFFFF` for the SID's
+    23-bit LFSR; we use `0xFFFFFFFF` here since our model treats it
+    as an opaque 32-bit input to `noiseSample`.) -/
+def effectiveLfsr (ctrl : UInt8) (lfsr : UInt32) : UInt32 :=
+  if ctrl &&& 0x08 ≠ 0 then 0xFFFFFFFF else lfsr
+
 /-- One voice's DAC output for one phi2 tick.
 
     `ctrl` is the voice control register. Bits 4-7 select waveforms
     (TRI / SAW / PULSE / NOISE). When all four are zero, the waveform
     mux outputs 0 — this is the property that makes the silent-voice
-    tolerance rule sound.
+    tolerance rule sound. Bit 3 is the test bit: when set, the
+    frequency accumulator and noise LFSR are reset (modelled via
+    `effectiveFreqAccum` / `effectiveLfsr` above).
 
     When one or more waveforms are selected, the SID hardware AND's
     them together (a documented quirk of the chip). -/
@@ -59,12 +84,16 @@ def voiceDacSample
     -- No waveform selected → the mux output is 0.
     0
   else
+    -- Apply the test-bit override to the inputs that drive the
+    -- waveform generators.
+    let acc := effectiveFreqAccum ctrl freqAccum
+    let lfsr' := effectiveLfsr ctrl lfsr
     -- AND together the selected waveforms; default 0xFFF for unselected
     -- ones so the AND leaves them transparent.
-    let tri := if wavMask &&& 1 ≠ 0 then triangleSample freqAccum ringSrc else 0xFFF
-    let saw := if wavMask &&& 2 ≠ 0 then sawSample freqAccum else 0xFFF
-    let pul := if wavMask &&& 4 ≠ 0 then pulseSample freqAccum pulseWidth else 0xFFF
-    let nse := if wavMask &&& 8 ≠ 0 then noiseSample lfsr else 0xFFF
+    let tri := if wavMask &&& 1 ≠ 0 then triangleSample acc ringSrc else 0xFFF
+    let saw := if wavMask &&& 2 ≠ 0 then sawSample acc else 0xFFF
+    let pul := if wavMask &&& 4 ≠ 0 then pulseSample acc pulseWidth else 0xFFF
+    let nse := if wavMask &&& 8 ≠ 0 then noiseSample lfsr' else 0xFFF
     tri &&& saw &&& pul &&& nse
 
 /-! ## The silent-voice rule, proved sound. -/
@@ -98,6 +127,35 @@ theorem silent_voice_freq_inaudible
       = voiceDacSample ctrl freqAccum2 pulseWidth2 ringSrc2 lfsr2 := by
   rw [silent_voice_zero_dac _ _ _ _ _ h_silent,
       silent_voice_zero_dac _ _ _ _ _ h_silent]
+
+/-! ## The test-bit rule, proved sound. -/
+
+/-- **Soundness of the test-bit rule.**
+
+    When the test bit is set, the freq accumulator and noise LFSR are
+    pinned by hardware. The DAC output therefore depends only on
+    `ctrl`, `pulseWidth`, and `ringSrc` — *not* on the input
+    `freqAccum` or `lfsr`. Two voice states differing only in those
+    two inputs produce identical DAC output.
+
+    This corresponds to the broader chip-level fact behind multiple
+    sid_compare rules that mention "test bit" / "oscillator held in
+    reset" (lines ~252 and ~278). The Python rules are narrower than
+    the chip claim — they only fire when ctrl is exactly $08 / $09 —
+    but the underlying hardware reasoning is what this theorem
+    formalises. -/
+theorem test_bit_freq_and_noise_inaudible
+    (ctrl : UInt8) (pulseWidth : UInt16) (ringSrc : UInt32)
+    (freqAccum1 freqAccum2 : UInt32) (lfsr1 lfsr2 : UInt32)
+    (h_test : ctrl &&& 0x08 ≠ 0) :
+    voiceDacSample ctrl freqAccum1 pulseWidth ringSrc lfsr1
+      = voiceDacSample ctrl freqAccum2 pulseWidth ringSrc lfsr2 := by
+  unfold voiceDacSample effectiveFreqAccum effectiveLfsr
+  -- Both sides go through the same reduction: test-bit branch pins
+  -- both `acc` to 0 and both `lfsr'` to all-1s, regardless of inputs.
+  split
+  · rfl   -- waveform mask = 0 case: both sides are 0 by silent_voice
+  · simp
 
 /-! ## Aggregate claim: across a whole frame, silent voice contributes 0. -/
 
