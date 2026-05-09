@@ -30,22 +30,31 @@ OUT_PATH = os.path.join(ROOT, 'demo', 'hubbard', 'Commando_das_model.sid')
 # This section is Hubbard-specific. It reads the binary and builds
 # universal (W, F, P, E) programs from Hubbard's instrument format.
 
-def extract(subtune=0):
-    """Extract (T, I, S) from Commando. Hubbard-engine-specific.
+def extract(subtune=0, sid_path=None, ft_base=None):
+    """Extract (T, I, S) from a Hubbard-engine SID.
 
     subtune: 0-indexed subtune number (default 0 = first subtune = PSID subtune 1).
+    sid_path: SID file to extract from. Defaults to Commando (SID_PATH).
+    ft_base:  Base address of the freq table for extended-table runtime
+              values. Defaults to 0x5428 (Commando-specific). Pass the
+              discovered freq_table_addr for other songs.
     """
     from rh_decompile import decompile
     from effect_detect import FREQ_PAL
     from py65.devices.mpu6502 import MPU
 
-    decomp = decompile(SID_PATH)
+    if sid_path is None:
+        sid_path = SID_PATH
+    if ft_base is None:
+        ft_base = 0x5428
+
+    decomp = decompile(sid_path)
 
     # --- T: Frequency Table ---
     T = list(FREQ_PAL)  # T[0..95] = standard PAL
 
     # Extend with runtime values (Hubbard reads past the table)
-    with open(SID_PATH, 'rb') as f:
+    with open(sid_path, 'rb') as f:
         d = f.read()
     hl = struct.unpack('>H', d[6:8])[0]
     la = struct.unpack('>H', d[8:10])[0]
@@ -64,7 +73,6 @@ def extract(subtune=0):
     for _ in range(50000):
         if m.memory[m.pc] == 0x00: break
         m.step()
-    ft_base = 0x5428
     while len(T) < 120:
         i = len(T)
         addr = ft_base + i * 2
@@ -986,7 +994,13 @@ def generate_asm(T, instruments, score):
 # BUILD + VERIFY (same as before)
 # ===================================================================
 
-def build_sid(asm_text, output_path):
+def build_sid(asm_text, output_path, source_sid_path=None):
+    """Assemble asm_text and emit a SID at output_path. PSID header is
+    cloned from source_sid_path (default = Commando) for title/author/
+    flags, then load/init/play overridden to point at the new code at
+    $1000."""
+    if source_sid_path is None:
+        source_sid_path = SID_PATH
     asm_path = output_path.replace('.sid', '.s')
     bin_path = output_path.replace('.sid', '.bin')
     with open(asm_path, 'w') as f:
@@ -999,7 +1013,7 @@ def build_sid(asm_text, output_path):
     with open(bin_path, 'rb') as f:
         binary = f.read()
 
-    with open(SID_PATH, 'rb') as f:
+    with open(source_sid_path, 'rb') as f:
         orig = f.read()
     header_len = struct.unpack('>H', orig[6:8])[0]
     header = bytearray(orig[:header_len])
