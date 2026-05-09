@@ -284,6 +284,106 @@ def role_from_sid_register(reg_low: int) -> str:
     return f'sid_${reg_low:02X}'
 
 
+def estimate_table_sizes(tables: dict[int, 'TableHypothesis'],
+                          counts: dict[int, int],
+                          code_offsets: set[int],
+                          load_addr: int, load_end: int) -> dict[int, dict]:
+    """For each table base, estimate its size using:
+      - Upper bound: distance to the next non-overlapping data region or
+        the next reachable code byte.
+      - Lower bound: max offset at which the table was actually accessed
+        in the runtime trace (gives us "at least this big").
+      - Field-cluster detection: bases within 16 bytes of each other are
+        grouped as a single struct. The struct's record size is the
+        cluster's span; the record count is what `lower_bound / span`
+        suggests.
+
+    Returns dict keyed by base addr with:
+      {'upper': int, 'lower': int, 'cluster_id': int, 'record_size': int|None,
+       'record_count': int|None}
+    """
+    bases = sorted(tables.keys())
+    out: dict[int, dict] = {}
+
+    # Form clusters: consecutive bases ≤ 16 bytes apart are one cluster.
+    CLUSTER_GAP = 16
+    cluster_id = 0
+    cluster_of: dict[int, int] = {}
+    cluster_members: dict[int, list[int]] = defaultdict(list)
+    if bases:
+        cluster_of[bases[0]] = 0
+        cluster_members[0].append(bases[0])
+        for i in range(1, len(bases)):
+            if bases[i] - bases[i-1] <= CLUSTER_GAP:
+                cluster_of[bases[i]] = cluster_id
+            else:
+                cluster_id += 1
+                cluster_of[bases[i]] = cluster_id
+            cluster_members[cluster_of[bases[i]]].append(bases[i])
+
+    # For each cluster, determine the cluster's span (last_base - first_base + 1
+    # = field-record-size estimate) and the cluster's upper bound (until next
+    # cluster's first base or next code byte).
+    cluster_first: dict[int, int] = {}
+    cluster_last: dict[int, int] = {}
+    for cid, members in cluster_members.items():
+        cluster_first[cid] = min(members)
+        cluster_last[cid] = max(members)
+
+    sorted_clusters = sorted(cluster_members.keys(),
+                             key=lambda c: cluster_first[c])
+
+    for ci, cid in enumerate(sorted_clusters):
+        first = cluster_first[cid]
+        last = cluster_last[cid]
+        # Upper bound: next cluster's first OR next code byte after `last`
+        next_cluster_first = (cluster_first[sorted_clusters[ci+1]]
+                              if ci + 1 < len(sorted_clusters) else load_end + 1)
+        # Find next code byte ≥ last+1
+        next_code_addr = None
+        for pos in range(last - load_addr + 1, len(code_offsets) + (load_end - load_addr) + 1):
+            if pos in code_offsets and load_addr + pos > last:
+                next_code_addr = load_addr + pos
+                break
+        # Both upper bounds, take the smaller (= more restrictive)
+        ub_addr = next_cluster_first
+        if next_code_addr is not None and next_code_addr < ub_addr:
+            ub_addr = next_code_addr
+        # Cluster's "table region" = first..ub_addr-1
+        cluster_span = ub_addr - first
+
+        # Record size estimate (only meaningful for multi-base clusters):
+        #   = (last - first + 1)  → the byte distance covered by the field bases
+        record_size = (last - first + 1) if len(cluster_members[cid]) > 1 else None
+
+        # Record count from runtime accesses: max accessed offset within
+        # the cluster region, divided by record_size (or just max offset+1
+        # if single-base table).
+        max_offset = -1
+        for off in range(cluster_span):
+            if counts.get(first + off, 0) > 0:
+                max_offset = off
+        runtime_extent = max_offset + 1 if max_offset >= 0 else 0
+
+        if record_size and record_size > 0:
+            record_count = runtime_extent // record_size + (1 if runtime_extent % record_size else 0)
+        else:
+            record_count = runtime_extent
+
+        for base in cluster_members[cid]:
+            out[base] = {
+                'upper': cluster_span,
+                'lower': max(0, runtime_extent - (base - first)),
+                'cluster_id': cid,
+                'cluster_first': first,
+                'cluster_span': cluster_span,
+                'record_size': record_size,
+                'record_count': record_count,
+            }
+
+    return out
+
+
 def trace_sid_dataflow(payload: bytes, load_addr: int,
                        init_addr: int, play_addr: int) -> dict[int, set[str]]:
     """For each data-table base address referenced by code, identify
@@ -416,17 +516,29 @@ def main():
         if base in sid_flow:
             t.role_guess = ','.join(sorted(sid_flow[base]))
 
-    print(f'\nDiscovered {len(tables)} candidate tables (indexed reads/writes inside payload):')
-    print(f'{"base":>6}  {"idx":>3}  {"reads":>5}  {"writes":>6}  {"runtime":>10}  role  notes')
-    print('-' * 100)
+    sizes = estimate_table_sizes(tables, counts, code_offs,
+                                 h['load_addr'], h['load_end'])
+
+    print(f'\nDiscovered {len(tables)} candidate tables / fields '
+          f'(grouped into {len(set(s["cluster_id"] for s in sizes.values()))} clusters):')
+    print(f'{"base":>6} {"idx":>3} {"role":<22} {"upper":>5} {"lower":>5} '
+          f'{"recsz":>5} {"count":>5} notes')
+    print('-' * 105)
+    last_cid = None
     for base in sorted(tables):
         t = tables[base]
+        s = sizes[base]
+        if s['cluster_id'] != last_cid:
+            print(f'  --- cluster {s["cluster_id"]}: span ${s["cluster_first"]:04X}+{s["cluster_span"]} bytes '
+                  f'({"struct of size " + str(s["record_size"]) + " × " + str(s["record_count"]) + " records" if s["record_size"] else "single table of " + str(s["record_count"]) + " bytes"}) ---')
+            last_cid = s['cluster_id']
         notes = []
         if t.runtime_count == 0:
-            notes.append('NEVER ACCESSED IN TRACE')
-        print(f'  ${base:04X}    {t.indexed_by:>1}  {len(t.read_sites):>5}  '
-              f'{len(t.write_sites):>6}  {t.runtime_count:>10,}  '
-              f'{t.role_guess:<24}  {" ".join(notes)}')
+            notes.append('NEVER_ACCESSED')
+        print(f'  ${base:04X}    {t.indexed_by:>1}  {t.role_guess:<22} '
+              f'{s["upper"]:>5} {s["lower"]:>5} '
+              f'{s["record_size"] if s["record_size"] else "":>5} '
+              f'{s["record_count"]:>5} {" ".join(notes)}')
 
     # Coverage estimate
     code_bytes_in_payload = code_offs
