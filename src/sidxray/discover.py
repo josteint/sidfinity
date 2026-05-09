@@ -500,6 +500,64 @@ def detect_pointer_tables(payload: bytes, load_addr: int,
     return results
 
 
+def materialize_pointers(payload: bytes, load_addr: int,
+                          ptr_pair: PointerTablePair, count: int) -> list[int]:
+    """Read `count` 16-bit pointers from the payload using the given
+    lo/hi table bases. Returns a list of `count` absolute addresses."""
+    out = []
+    lo_off = ptr_pair.lo_table - load_addr
+    hi_off = ptr_pair.hi_table - load_addr
+    for i in range(count):
+        if lo_off + i >= len(payload) or hi_off + i >= len(payload):
+            break
+        lo = payload[lo_off + i]
+        hi = payload[hi_off + i]
+        out.append(lo | (hi << 8))
+    return out
+
+
+@dataclass
+class PatternRegion:
+    """A region of pattern data, found by dereferencing a pointer table."""
+    start: int             # pointer value (absolute address)
+    end: int               # exclusive — start of next pattern, or load_end+1
+    length: int            # bytes
+    pattern_index: int     # which pointer index points to this start
+
+
+def find_pattern_regions(payload: bytes, load_addr: int, load_end: int,
+                          ptr_pair: PointerTablePair, count: int,
+                          counts: dict[int, int]) -> list[PatternRegion]:
+    """Materialize pointers and pair them with extents.
+
+    Each pointer addresses a distinct pattern. Sort the pointer values;
+    consecutive sorted starts bound each pattern. The final pattern
+    extends to the next non-pattern boundary (next code byte or
+    load_end). We also cross-check against runtime accesses: a pattern
+    region whose bytes were never read is suspect (might be a phantom
+    pointer).
+    """
+    raw = materialize_pointers(payload, load_addr, ptr_pair, count)
+    # Filter to pointers that land in payload
+    valid_starts = [(i, p) for i, p in enumerate(raw) if load_addr <= p <= load_end]
+    # Sort by address while remembering original index
+    sorted_starts = sorted(valid_starts, key=lambda x: x[1])
+    regions: list[PatternRegion] = []
+    addrs = [p for _, p in sorted_starts]
+
+    for i, (orig_idx, start) in enumerate(sorted_starts):
+        # Next region's start, or load_end+1
+        if i + 1 < len(sorted_starts):
+            end = sorted_starts[i + 1][1]
+        else:
+            end = load_end + 1
+        regions.append(PatternRegion(
+            start=start, end=end, length=end - start,
+            pattern_index=orig_idx,
+        ))
+    return regions
+
+
 def trace_sid_dataflow(payload: bytes, load_addr: int,
                        init_addr: int, play_addr: int) -> dict[int, set[str]]:
     """For each data-table base address referenced by code, identify
@@ -636,8 +694,9 @@ def main():
                                  h['load_addr'], h['load_end'])
 
     # Pointer-table detection
-    ptr_pairs = detect_pointer_tables(payload, h['load_addr'],
-                                      h['init_addr'], h['play_addr'])
+    ptr_pairs_all = detect_pointer_tables(payload, h['load_addr'],
+                                          h['init_addr'], h['play_addr'])
+    ptr_pairs = ptr_pairs_all  # alias for back-compat with later block
     if ptr_pairs:
         # Deduplicate by (lo_table, hi_table)
         seen = set()
@@ -673,6 +732,44 @@ def main():
                 tables[p.hi_table].role_guess = (
                     f'ptr_hi→${p.zp_lo+1:02X}' if tables[p.hi_table].role_guess == '?'
                     else tables[p.hi_table].role_guess + f',ptr_hi→${p.zp_lo+1:02X}')
+
+    # Pattern data discovery via pointer dereferencing
+    # Use the pointer table with the largest count_hint (likely the
+    # sequence/pattern pointer table)
+    if ptr_pairs:
+        # Pick pair with the largest plausible count_hint
+        best_pair = None
+        best_count = 0
+        for p in ptr_pairs:
+            c = p.hi_table - p.lo_table
+            if 0 < c < 256 and c > best_count:
+                best_pair = p
+                best_count = c
+        if best_pair:
+            regions = find_pattern_regions(
+                payload, h['load_addr'], h['load_end'],
+                best_pair, best_count, counts)
+            uniq_regions = {(r.start, r.end): r for r in regions}.values()
+            sorted_regions = sorted(uniq_regions, key=lambda r: r.start)
+            print(f'\nPattern data via dereferencing pointer pair '
+                  f'(${best_pair.lo_table:04X}/${best_pair.hi_table:04X}, '
+                  f'{best_count} entries):')
+            print(f'  {best_count} pointers → {len(sorted_regions)} unique pattern regions')
+            print(f'  total pattern bytes: {sum(r.length for r in sorted_regions)}')
+            print(f'  range: ${min(r.start for r in sorted_regions):04X}'
+                  f'-${max(r.end - 1 for r in sorted_regions):04X}')
+            # Cross-check: how many pattern bytes were accessed in trace
+            covered = sum(1 for r in sorted_regions for a in range(r.start, r.end)
+                          if counts.get(a, 0) > 0)
+            covered_total = sum(r.length for r in sorted_regions)
+            print(f'  bytes accessed in trace: {covered}/{covered_total} '
+                  f'({100*covered/covered_total:.1f}%)')
+            print(f'  pattern length distribution:')
+            lengths = sorted(set(r.length for r in sorted_regions))
+            from collections import Counter
+            length_dist = Counter(r.length for r in sorted_regions)
+            for L in sorted(length_dist):
+                print(f'    {L:>4} bytes × {length_dist[L]} pattern(s)')
 
     print(f'\nDiscovered {len(tables)} candidate tables / fields '
           f'(grouped into {len(set(s["cluster_id"] for s in sizes.values()))} clusters):')
