@@ -24,6 +24,17 @@
 
 **The most common mistake:** jumping straight to manual frame-by-frame analysis instead of using the tools. The tools exist for a reason — they're faster and find root causes that staring at hex dumps won't.
 
+### CURRENT STRATEGIC DIRECTION (2026-05): generalize das_model_gen via discovery
+- Goal: most Hubbard SIDs sound right (audibly identical) when rebuilt → USF.
+- Baseline measured 2026-05-09: `rh_to_usf` + Python `codegen_v3` produces **0/285 Grade A** on Hubbard SIDs via writelog comparison. Even Commando is 1.0% match through that path.
+- The byte-perfect Commando we have comes from `das_model_gen.extract` → `CommandoV3.lean` → Lean `CodegenV3.lean`. That path is **correct** but Commando-hardcoded.
+- Direction: **generalize `das_model_gen.extract`** to take any Hubbard SID + landmarks. Use `src/sidxray/discover.py` to find landmarks rh_decompile misses (freq table coverage went from 14% → 87.4% via discovery alone).
+- Do **NOT** grind `rh_to_usf` bug-by-bug. That path is deeply broken (0/285) and would take months to fix incrementally.
+- Do **NOT** propose writelog-replay as a shortcut. User explicitly rejected; defeats USF/ML purpose.
+- Use `src/writelog_grade.py` for verdicts (NOT `src/sid_compare.py` — it has false-A bugs). Calibrated thresholds: A ≥ 98% snapshot match (acknowledged-heuristic until Lean comparator built).
+- Use `src/batch_grade_hubbard.py` to re-measure all 285 Hubbard SIDs after every meaningful change.
+- See memory `project_hubbard_strategy_2026_05.md` for the full plan.
+
 ### Meta-rule: evaluate and evolve the process itself
 On compaction (the PreCompact hook will remind you):
 1. Check: are the current approaches still the highest ROI? Read `docs/benchmark.csv` — is the curve flattening?
