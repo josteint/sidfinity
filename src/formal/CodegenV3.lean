@@ -991,6 +991,23 @@ def emitSustainEffects (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.r
   -- instrument index (used for pwlo/pwhi/min/max lookup); X is the voice
   -- index (used for the direction flag).
   cb := cb.label "pw_bidir"
+  -- Hubbard's bidirectional PWM period sub-counter (hubbard_emu.py
+  -- _apply_pw lines 819-830 in src/hubbard_emu.py).
+  -- pwm_speed encodes BOTH period and step:
+  --   lower 5 bits (pwm_speed & $1F) = period reload value
+  --   upper 3 bits (pwm_speed & $E0) = step size
+  -- DEC v_pwperiod,X; BPL pw_done  — skip step if period not yet expired.
+  -- Then reload v_pwperiod from speed & $1F and mask $F9 down to the step.
+  -- Commando's instruments have period=0 so this collapses to "step every
+  -- frame with step=$E0" — same as the old code path.
+  cb := cb.emitDecAbsX "v_pwperiod"
+  cb := cb.emitBranch .BPL "pw_done"
+  cb := cb.emitInst (I.lda_zp 0xF9)              -- pwm_speed (full byte)
+  cb := cb.emitInst (I.and_imm 0x1F)             -- period reload value
+  cb := cb.emitStaAbsX "v_pwperiod"
+  cb := cb.emitInst (I.lda_zp 0xF9)
+  cb := cb.emitInst (I.and_imm 0xE0)             -- step size
+  cb := cb.emitInst (I.sta_zp 0xF9)              -- replace speed-in-F9 with step
   cb := cb.emitLdaAbsX "v_pwdir"
   cb := cb.emitBranch .BNE "pw_bidir_down"
   -- Up: i_pwlo += speed, i_pwhi += carry, mask hi to 4 bits
@@ -1423,6 +1440,15 @@ def generateSID (song : USFSong) (debug : Bool := false) : Bytes := Id.run do
   cb := cb.label "v_pwhi"
   cb := cb.emitData [0, 0, 0]
   cb := cb.label "v_pwdir"
+  cb := cb.emitData [0, 0, 0]
+  -- Per-voice PWM period sub-counter. Decremented each frame; when it
+  -- goes negative the bidirectional PW step fires and the counter
+  -- reloads from `pwm_speed & $1F` (lower 5 bits = period reload
+  -- value). Upper 3 bits of pwm_speed are the step size used on the
+  -- frames where period fires. Commando's instruments all have
+  -- period=0 so the new logic collapses to the old "step every frame"
+  -- behavior for it.
+  cb := cb.label "v_pwperiod"
   cb := cb.emitData [0, 0, 0]
   -- Per-voice no_release flag: bit 5 of the raw inst byte at note-load.
   -- When set, the next HR check skips itself, leaving the gate on so the
