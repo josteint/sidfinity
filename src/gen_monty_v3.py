@@ -10,7 +10,7 @@ Discovered freq_table_addr for Monty: $8400 (via src/sidxray/discover.py).
 """
 import sys
 sys.path.insert(0, 'src')
-from das_model_gen import extract
+from das_model_gen_monty import extract
 
 
 def hex_byte(n):
@@ -187,7 +187,7 @@ def main():
     out = ["-- Auto-generated USF v3 Monty on the Run data",
            f"-- Subtunes: {subtune_indices} (0-indexed; PSID subtunes "
            f"{[s+1 for s in subtune_indices]})",
-           "import USFv3", ""]
+           "import MontyUSFv3", ""]
 
     out.append(f"def montyV3FreqTable : USFFreqTable := {{ entries := {gen_freq_table(T)} }}")
     out.append("")

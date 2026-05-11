@@ -14,13 +14,14 @@
   not configurable. Sufficient for all tracker music (PSID, single-speed).
 -/
 
-import SID
-import Asm6502
-import PSIDFile
-import USFv3
-import CommandoV3
+import MontySID
+import MontyAsm6502
+import MontyPSIDFile
+import MontyUSFv3
+-- (CommandoV3 import removed: this is Monty's own codegen clone.
+--  Monty data is supplied externally via SidgenMontyMain.)
 
-namespace V3
+namespace MV3
 
 def SID_BASE : UInt16 := 0xD400
 
@@ -672,6 +673,19 @@ def emitNL_PWADSRWrite (cb : CodeBuilder) : CodeBuilder :=
   let cb := cb.emitInst (I.sta_absY (SID_BASE + 6))
   cb
 
+/-- Initialise the per-voice PWM period sub-counter from the instrument's
+    pwm_speed byte. Hubbard observation: without this, V3 player fires
+    its first bidirectional PW step at frame 2 instead of waiting the
+    full period. Commando's bidirectional instruments all have
+    `pwm_speed & 0x1F = 0` so the init value is 0 — preserving its
+    byte-perfect behavior. -/
+def emitNL_PwperiodInit (cb : CodeBuilder) : CodeBuilder :=
+  let cb := cb.emitLdaAbsX "i_pwspeed"     -- X = inst here
+  let cb := cb.emitInst (I.and_imm 0x1F)   -- mask to period bits
+  let cb := cb.emitInst (I.ldx_zp 0xFA)    -- X = voice
+  let cb := cb.emitStaAbsX "v_pwperiod"
+  cb
+
 /-- PLA the raw ctrl saved earlier, store to v_ctrl[voice], emit the
     "noteload_done" label and RTS. -/
 def emitNL_SaveCtrlAndReturn (cb : CodeBuilder) : CodeBuilder :=
@@ -991,6 +1005,23 @@ def emitSustainEffects (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.r
   -- instrument index (used for pwlo/pwhi/min/max lookup); X is the voice
   -- index (used for the direction flag).
   cb := cb.label "pw_bidir"
+  -- Hubbard's bidirectional PWM period sub-counter (hubbard_emu.py
+  -- _apply_pw lines 819-830 in src/hubbard_emu.py).
+  -- pwm_speed encodes BOTH period and step:
+  --   lower 5 bits (pwm_speed & $1F) = period reload value
+  --   upper 3 bits (pwm_speed & $E0) = step size
+  -- DEC v_pwperiod,X; BPL pw_done  — skip step if period not yet expired.
+  -- Then reload v_pwperiod from speed & $1F and mask $F9 down to the step.
+  -- Commando's instruments have period=0 so this collapses to "step every
+  -- frame with step=$E0" — same as the old code path.
+  cb := cb.emitDecAbsX "v_pwperiod"
+  cb := cb.emitBranch .BPL "pw_done"
+  cb := cb.emitInst (I.lda_zp 0xF9)              -- pwm_speed (full byte)
+  cb := cb.emitInst (I.and_imm 0x1F)             -- period reload value
+  cb := cb.emitStaAbsX "v_pwperiod"
+  cb := cb.emitInst (I.lda_zp 0xF9)
+  cb := cb.emitInst (I.and_imm 0xE0)             -- step size
+  cb := cb.emitInst (I.sta_zp 0xF9)              -- replace speed-in-F9 with step
   cb := cb.emitLdaAbsX "v_pwdir"
   cb := cb.emitBranch .BNE "pw_bidir_down"
   -- Up: i_pwlo += speed, i_pwhi += carry, mask hi to 4 bits
@@ -1196,6 +1227,13 @@ def emitNoteLoadPath (cb : CodeBuilder) (song : USFSong) : CodeBuilder :=
   let cb := emitNL_TieSkipLabel cb
   let cb := emitNL_CtrlWrite cb
   let cb := emitNL_PWADSRWrite cb
+  -- NOTE: tried adding emitNL_PwperiodInit here (load pwm_speed & \$1F
+  -- to v_pwperiod on note-load). It made V3_pulse_hi divergence WORSE
+  -- (135→327) and V2_pulse_hi (364→394). The simpler "leave at 0
+  -- from data section init" behaves better empirically. Reason not yet
+  -- understood — Monty's V3 PWM pacing in the original is slower than
+  -- either choice predicts. Left the emitNL_PwperiodInit helper in
+  -- place above for future experiments.
   let cb := emitNL_SaveCtrlAndReturn cb
   -- === ADVANCE ORDERLIST ===
   let cb := emitNL_AdvanceOrderHeader cb song
@@ -1424,6 +1462,15 @@ def generateSID (song : USFSong) (debug : Bool := false) : Bytes := Id.run do
   cb := cb.emitData [0, 0, 0]
   cb := cb.label "v_pwdir"
   cb := cb.emitData [0, 0, 0]
+  -- Per-voice PWM period sub-counter. Decremented each frame; when it
+  -- goes negative the bidirectional PW step fires and the counter
+  -- reloads from `pwm_speed & $1F` (lower 5 bits = period reload
+  -- value). Upper 3 bits of pwm_speed are the step size used on the
+  -- frames where period fires. Commando's instruments all have
+  -- period=0 so the new logic collapses to the old "step every frame"
+  -- behavior for it.
+  cb := cb.label "v_pwperiod"
+  cb := cb.emitData [0, 0, 0]
   -- Per-voice no_release flag: bit 5 of the raw inst byte at note-load.
   -- When set, the next HR check skips itself, leaving the gate on so the
   -- following note inherits it (Hubbard portamento/legato).
@@ -1499,13 +1546,8 @@ def writeFile (path : String) (data : Bytes) : IO Unit := do
   let handle ← IO.FS.Handle.mk path .write
   handle.write ⟨data⟩
 
-def sidgenMainV3 : IO Unit := do
-  let sid := generateSID commandoV3
-  writeFile "commando_v3.sid" sid
-  IO.println s!"Generated commando_v3.sid ({sid.size} bytes)"
-  IO.println s!"  Freq table: {commandoV3.freqTable.entries.length} entries"
-  IO.println s!"  Instruments: {commandoV3.instruments.length}"
-  IO.println s!"  Patterns: {commandoV3.patterns.length}"
-  IO.println s!"  Voices: {commandoV3.voices.length}"
+-- (Original `sidgenMainV3` referenced commandoV3 from CommandoV3.lean —
+--  not applicable in the cloned Monty codegen. SidgenMontyMain.lean
+--  provides its own main using `montyV3` from MontyV3.lean.)
 
-end V3
+end MV3

@@ -1,7 +1,7 @@
-import CodegenV3
+import MontyCodegenV3
 import MontyV3
 
-open V3
+open MV3
 
 def main : IO Unit := do
   let sid := generateSID montyV3
