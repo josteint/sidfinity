@@ -1467,17 +1467,21 @@ def generateSID (song : USFSong) (debug : Bool := false) : Bytes := Id.run do
   cb := cb.emitData [0, 0, 0]
   cb := cb.label "v_pwhi"
   cb := cb.emitData [0, 0, 0]
+  -- pulsedir init values extracted from the Monty binary at $84E8..$84EA
+  -- (NOT the ACME disassembly source's `!by $00,$00,$00` — that's wrong).
+  -- V1=$01 (down), V2=$00 (up), V3=$00 (up).
   cb := cb.label "v_pwdir"
-  cb := cb.emitData [0, 0, 0]
+  cb := cb.emitData [1, 0, 0]
   -- Per-voice PWM period sub-counter. Decremented each frame; when it
   -- goes negative the bidirectional PW step fires and the counter
   -- reloads from `pwm_speed & $1F` (lower 5 bits = period reload
   -- value). Upper 3 bits of pwm_speed are the step size used on the
-  -- frames where period fires. Commando's instruments all have
-  -- period=0 so the new logic collapses to the old "step every frame"
-  -- behavior for it.
+  -- frames where period fires.
+  -- pulsedelay init values extracted from the Monty binary at $84E5..$84E7
+  -- (NOT the ACME `!by $00,$00,$00` — wrong). V1=$00, V2=$01, V3=$1D.
+  -- These cause V3's first PWM step to fire at frame 31 (not frame 2).
   cb := cb.label "v_pwperiod"
-  cb := cb.emitData [0, 0, 0]
+  cb := cb.emitData [0, 1, 0x1D]
   -- Per-voice no_release flag: bit 5 of the raw inst byte at note-load.
   -- When set, the next HR check skips itself, leaving the gate on so the
   -- following note inherits it (Hubbard portamento/legato).

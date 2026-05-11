@@ -176,11 +176,12 @@ def main():
         subtune_indices = [int(x) for x in sys.argv[1].split(',')]
 
     # Extract per subtune from Monty (not Commando). Discovery-derived
-    # ft_base override. PWM bounds observed from original SID's siddump:
-    # V2 pulse_hi bounces between $0B and $0E in the first ~40 frames,
-    # not Commando's $08/$0E.
+    # ft_base override. PWM bounds are HARDCODED in Hubbard's player
+    # (cmp #$08 / cmp #$0E in pulsework — see ACME disassembly), not
+    # per-instrument. The earlier $0B observation was just the warm-up
+    # phase before V2 stepped all the way down to $08 (around frame 51).
     extracts = [extract(subtune=s, sid_path=MONTY_SID, ft_base=MONTY_FT_BASE,
-                         default_pw_min=0x0B, default_pw_max=0x0E)
+                         default_pw_min=0x08, default_pw_max=0x0E)
                 for s in subtune_indices]
     T, instruments, _ = extracts[0]
 
