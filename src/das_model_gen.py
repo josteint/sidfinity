@@ -30,7 +30,8 @@ OUT_PATH = os.path.join(ROOT, 'demo', 'hubbard', 'Commando_das_model.sid')
 # This section is Hubbard-specific. It reads the binary and builds
 # universal (W, F, P, E) programs from Hubbard's instrument format.
 
-def extract(subtune=0, sid_path=None, ft_base=None):
+def extract(subtune=0, sid_path=None, ft_base=None,
+            default_pw_min=0x08, default_pw_max=0x0E):
     """Extract (T, I, S) from a Hubbard-engine SID.
 
     subtune: 0-indexed subtune number (default 0 = first subtune = PSID subtune 1).
@@ -38,6 +39,11 @@ def extract(subtune=0, sid_path=None, ft_base=None):
     ft_base:  Base address of the freq table for extended-table runtime
               values. Defaults to 0x5428 (Commando-specific). Pass the
               discovered freq_table_addr for other songs.
+    default_pw_min, default_pw_max:
+              PWM bidirectional-mode bounds for the pulse_hi byte.
+              Defaults match Commando ($08/$0E). Other Hubbard songs
+              use different bounds — observe pw_hi range in the original
+              SID's siddump output and pass appropriate values.
     """
     from rh_decompile import decompile
     from effect_detect import FREQ_PAL
@@ -130,9 +136,12 @@ def extract(subtune=0, sid_path=None, ft_base=None):
             pw_mode = 'linear'
             pw_min = 0xFF; pw_max = 0xFF
         else:
-            # Oscillating: bounce pw between $08xx and $0Exx
+            # Oscillating: bounce pw between default_pw_min and default_pw_max
+            # in pulse_hi. Defaults are Commando's $08/$0E; pass explicit
+            # values for other songs via extract(default_pw_min=..., ...).
             pw_mode = 'bidirectional'
-            pw_min = 0x08; pw_max = 0x0E
+            pw_min = default_pw_min
+            pw_max = default_pw_max
 
         # E spec: ADSR + gate/adsr timing
         # Vibrato runs for ALL instruments (even arp) — intermediate write affects SID

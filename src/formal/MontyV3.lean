@@ -14,7 +14,7 @@ def mv3I0 : USFInstrument := {
   waveformProgram := [⟨65, by omega⟩]
   waveLoop := 0
   waveStepEvery := 1
-  pwMod := some { mode := .bidirectional ⟨129, by omega⟩ ⟨8, by omega⟩ ⟨14, by omega⟩, stepEvery := 1, startDelay := 0 }
+  pwMod := some { mode := .bidirectional ⟨129, by omega⟩ ⟨11, by omega⟩ ⟨14, by omega⟩, stepEvery := 1, startDelay := 0 }
   vibrato := some { shape := .triangle, periodFrames := 8, semitoneShift := 4, onsetFrames := 6, rampUpFrames := 0, unipolar := true }
   freqSlide := none
   arpeggio := none
@@ -166,7 +166,7 @@ def mv3I8 : USFInstrument := {
   waveformProgram := [⟨65, by omega⟩]
   waveLoop := 0
   waveStepEvery := 1
-  pwMod := some { mode := .bidirectional ⟨95, by omega⟩ ⟨8, by omega⟩ ⟨14, by omega⟩, stepEvery := 1, startDelay := 0 }
+  pwMod := some { mode := .bidirectional ⟨95, by omega⟩ ⟨11, by omega⟩ ⟨14, by omega⟩, stepEvery := 1, startDelay := 0 }
   vibrato := some { shape := .triangle, periodFrames := 8, semitoneShift := 3, onsetFrames := 6, rampUpFrames := 0, unipolar := true }
   freqSlide := none
   arpeggio := some { intervals := [0, 12], stepEvery := 1, phaseSource := .global, startDelay := 0 }
@@ -185,7 +185,7 @@ def mv3I9 : USFInstrument := {
   waveformProgram := [⟨65, by omega⟩]
   waveLoop := 0
   waveStepEvery := 1
-  pwMod := some { mode := .bidirectional ⟨129, by omega⟩ ⟨8, by omega⟩ ⟨14, by omega⟩, stepEvery := 1, startDelay := 0 }
+  pwMod := some { mode := .bidirectional ⟨129, by omega⟩ ⟨11, by omega⟩ ⟨14, by omega⟩, stepEvery := 1, startDelay := 0 }
   vibrato := some { shape := .triangle, periodFrames := 8, semitoneShift := 3, onsetFrames := 6, rampUpFrames := 0, unipolar := true }
   freqSlide := none
   arpeggio := none
@@ -204,7 +204,7 @@ def mv3I10 : USFInstrument := {
   waveformProgram := [⟨65, by omega⟩]
   waveLoop := 0
   waveStepEvery := 1
-  pwMod := some { mode := .bidirectional ⟨129, by omega⟩ ⟨8, by omega⟩ ⟨14, by omega⟩, stepEvery := 1, startDelay := 0 }
+  pwMod := some { mode := .bidirectional ⟨129, by omega⟩ ⟨11, by omega⟩ ⟨14, by omega⟩, stepEvery := 1, startDelay := 0 }
   vibrato := none
   freqSlide := none
   arpeggio := none
@@ -242,7 +242,7 @@ def mv3I12 : USFInstrument := {
   waveformProgram := [⟨65, by omega⟩]
   waveLoop := 0
   waveStepEvery := 1
-  pwMod := some { mode := .bidirectional ⟨231, by omega⟩ ⟨8, by omega⟩ ⟨14, by omega⟩, stepEvery := 1, startDelay := 0 }
+  pwMod := some { mode := .bidirectional ⟨231, by omega⟩ ⟨11, by omega⟩ ⟨14, by omega⟩, stepEvery := 1, startDelay := 0 }
   vibrato := some { shape := .triangle, periodFrames := 8, semitoneShift := 2, onsetFrames := 6, rampUpFrames := 0, unipolar := true }
   freqSlide := none
   arpeggio := none
@@ -261,7 +261,7 @@ def mv3I13 : USFInstrument := {
   waveformProgram := [⟨65, by omega⟩]
   waveLoop := 0
   waveStepEvery := 1
-  pwMod := some { mode := .bidirectional ⟨232, by omega⟩ ⟨8, by omega⟩ ⟨14, by omega⟩, stepEvery := 1, startDelay := 0 }
+  pwMod := some { mode := .bidirectional ⟨232, by omega⟩ ⟨11, by omega⟩ ⟨14, by omega⟩, stepEvery := 1, startDelay := 0 }
   vibrato := some { shape := .triangle, periodFrames := 8, semitoneShift := 2, onsetFrames := 6, rampUpFrames := 0, unipolar := true }
   freqSlide := none
   arpeggio := none
@@ -299,7 +299,7 @@ def mv3I15 : USFInstrument := {
   waveformProgram := [⟨65, by omega⟩]
   waveLoop := 0
   waveStepEvery := 1
-  pwMod := some { mode := .bidirectional ⟨168, by omega⟩ ⟨8, by omega⟩ ⟨14, by omega⟩, stepEvery := 1, startDelay := 0 }
+  pwMod := some { mode := .bidirectional ⟨168, by omega⟩ ⟨11, by omega⟩ ⟨14, by omega⟩, stepEvery := 1, startDelay := 0 }
   vibrato := some { shape := .triangle, periodFrames := 8, semitoneShift := 3, onsetFrames := 6, rampUpFrames := 0, unipolar := true }
   freqSlide := none
   arpeggio := none
