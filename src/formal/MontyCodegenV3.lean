@@ -1227,13 +1227,11 @@ def emitNoteLoadPath (cb : CodeBuilder) (song : USFSong) : CodeBuilder :=
   let cb := emitNL_TieSkipLabel cb
   let cb := emitNL_CtrlWrite cb
   let cb := emitNL_PWADSRWrite cb
-  -- NOTE: tried adding emitNL_PwperiodInit here (load pwm_speed & \$1F
-  -- to v_pwperiod on note-load). It made V3_pulse_hi divergence WORSE
-  -- (135→327) and V2_pulse_hi (364→394). The simpler "leave at 0
-  -- from data section init" behaves better empirically. Reason not yet
-  -- understood — Monty's V3 PWM pacing in the original is slower than
-  -- either choice predicts. Left the emitNL_PwperiodInit helper in
-  -- place above for future experiments.
+  -- Init wiring (emitNL_PwperiodInit) temporarily disabled — when
+  -- enabled, V3's PWM cadence DOUBLES to ~70 frames between steps
+  -- (vs orig's ~35). Cause not yet identified; period reload after
+  -- first step appears to read wrong value. Without init, V3 cadence
+  -- matches orig but is phase-shifted by 32 frames (= the period).
   let cb := emitNL_SaveCtrlAndReturn cb
   -- === ADVANCE ORDERLIST ===
   let cb := emitNL_AdvanceOrderHeader cb song
