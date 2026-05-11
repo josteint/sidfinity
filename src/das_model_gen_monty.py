@@ -146,12 +146,14 @@ def extract(subtune=0, sid_path=None, ft_base=None,
         # E spec: ADSR + gate/adsr timing
         # Vibrato runs for ALL instruments (even arp) — intermediate write affects SID
         has_bit0 = bool(flags & 1)
+        has_skydive = bool(flags & 2)   # bit 1 in Hubbard instrfx
         instruments.append({
             'id': rh.index,
             'W': {'steps': w_steps, 'loop': w_loop},
             'arp_offset': arp_offset,
             'vibrato_scale': vibrato_scale,
             'has_bit0': has_bit0,
+            'has_skydive': has_skydive,
             'P': {'speed': pw_speed, 'mode': pw_mode,
                    'min_hi': pw_min, 'max_hi': pw_max,
                    'init_pw': rh.pulse_width},

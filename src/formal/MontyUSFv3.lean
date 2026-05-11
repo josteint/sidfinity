@@ -135,6 +135,12 @@ structure USFInstrument where
 
   -- Filter routing
   filterEnabled : Bool              -- this instrument routes through global filter
+
+  -- Hubbard skydive (bit 1 of instrfx in the original player): every ODD
+  -- frame_counter, if v_fhi != 0, DEC v_fhi and write the OLD value to SID
+  -- freq_hi. Distinct from drums (which is currently implemented via
+  -- freqSlide): skydive runs every OTHER frame and does not touch ctrl.
+  skydive       : Bool
   deriving Repr
 
 -- ==========================================================================

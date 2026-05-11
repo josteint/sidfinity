@@ -21,6 +21,7 @@ def mv3I0 : USFInstrument := {
   effectOrder := [.vibrato, .pwMod, .gateCheck]
   release := { framesBeforeEnd := 3, zeroAdsr := true, noRelease := false }
   filterEnabled := false
+  skydive := false
 }
 
 def mv3I1 : USFInstrument := {
@@ -40,6 +41,7 @@ def mv3I1 : USFInstrument := {
   effectOrder := [.pwMod, .freqSlide, .gateCheck]
   release := { framesBeforeEnd := 3, zeroAdsr := true, noRelease := false }
   filterEnabled := false
+  skydive := false
 }
 
 def mv3I2 : USFInstrument := {
@@ -59,6 +61,7 @@ def mv3I2 : USFInstrument := {
   effectOrder := [.pwMod, .gateCheck]
   release := { framesBeforeEnd := 3, zeroAdsr := true, noRelease := false }
   filterEnabled := false
+  skydive := false
 }
 
 def mv3I3 : USFInstrument := {
@@ -78,6 +81,7 @@ def mv3I3 : USFInstrument := {
   effectOrder := [.pwMod, .freqSlide, .arpeggio, .gateCheck]
   release := { framesBeforeEnd := 3, zeroAdsr := true, noRelease := false }
   filterEnabled := false
+  skydive := false
 }
 
 def mv3I4 : USFInstrument := {
@@ -97,6 +101,7 @@ def mv3I4 : USFInstrument := {
   effectOrder := [.vibrato, .pwMod, .arpeggio, .gateCheck]
   release := { framesBeforeEnd := 3, zeroAdsr := true, noRelease := false }
   filterEnabled := false
+  skydive := false
 }
 
 def mv3I5 : USFInstrument := {
@@ -116,6 +121,7 @@ def mv3I5 : USFInstrument := {
   effectOrder := [.vibrato, .pwMod, .gateCheck]
   release := { framesBeforeEnd := 3, zeroAdsr := true, noRelease := false }
   filterEnabled := false
+  skydive := false
 }
 
 def mv3I6 : USFInstrument := {
@@ -135,6 +141,7 @@ def mv3I6 : USFInstrument := {
   effectOrder := [.vibrato, .pwMod, .gateCheck]
   release := { framesBeforeEnd := 3, zeroAdsr := true, noRelease := false }
   filterEnabled := false
+  skydive := false
 }
 
 def mv3I7 : USFInstrument := {
@@ -154,6 +161,7 @@ def mv3I7 : USFInstrument := {
   effectOrder := [.vibrato, .pwMod, .gateCheck]
   release := { framesBeforeEnd := 3, zeroAdsr := true, noRelease := false }
   filterEnabled := false
+  skydive := false
 }
 
 def mv3I8 : USFInstrument := {
@@ -173,6 +181,7 @@ def mv3I8 : USFInstrument := {
   effectOrder := [.vibrato, .pwMod, .arpeggio, .gateCheck]
   release := { framesBeforeEnd := 3, zeroAdsr := true, noRelease := false }
   filterEnabled := false
+  skydive := false
 }
 
 def mv3I9 : USFInstrument := {
@@ -192,6 +201,7 @@ def mv3I9 : USFInstrument := {
   effectOrder := [.vibrato, .pwMod, .gateCheck]
   release := { framesBeforeEnd := 3, zeroAdsr := true, noRelease := false }
   filterEnabled := false
+  skydive := false
 }
 
 def mv3I10 : USFInstrument := {
@@ -211,6 +221,7 @@ def mv3I10 : USFInstrument := {
   effectOrder := [.pwMod, .gateCheck]
   release := { framesBeforeEnd := 3, zeroAdsr := true, noRelease := false }
   filterEnabled := false
+  skydive := true
 }
 
 def mv3I11 : USFInstrument := {
@@ -230,6 +241,7 @@ def mv3I11 : USFInstrument := {
   effectOrder := [.pwMod, .freqSlide, .gateCheck]
   release := { framesBeforeEnd := 3, zeroAdsr := true, noRelease := false }
   filterEnabled := false
+  skydive := false
 }
 
 def mv3I12 : USFInstrument := {
@@ -249,6 +261,7 @@ def mv3I12 : USFInstrument := {
   effectOrder := [.vibrato, .pwMod, .gateCheck]
   release := { framesBeforeEnd := 3, zeroAdsr := true, noRelease := false }
   filterEnabled := false
+  skydive := true
 }
 
 def mv3I13 : USFInstrument := {
@@ -268,6 +281,7 @@ def mv3I13 : USFInstrument := {
   effectOrder := [.vibrato, .pwMod, .gateCheck]
   release := { framesBeforeEnd := 3, zeroAdsr := true, noRelease := false }
   filterEnabled := false
+  skydive := true
 }
 
 def mv3I14 : USFInstrument := {
@@ -287,6 +301,7 @@ def mv3I14 : USFInstrument := {
   effectOrder := [.pwMod, .freqSlide, .gateCheck]
   release := { framesBeforeEnd := 3, zeroAdsr := true, noRelease := false }
   filterEnabled := false
+  skydive := false
 }
 
 def mv3I15 : USFInstrument := {
@@ -306,6 +321,7 @@ def mv3I15 : USFInstrument := {
   effectOrder := [.vibrato, .pwMod, .gateCheck]
   release := { framesBeforeEnd := 3, zeroAdsr := true, noRelease := false }
   filterEnabled := false
+  skydive := false
 }
 
 def mv3I16 : USFInstrument := {
@@ -325,6 +341,7 @@ def mv3I16 : USFInstrument := {
   effectOrder := [.vibrato, .pwMod, .gateCheck]
   release := { framesBeforeEnd := 3, zeroAdsr := true, noRelease := false }
   filterEnabled := false
+  skydive := false
 }
 
 def mv3I17 : USFInstrument := {
@@ -344,6 +361,7 @@ def mv3I17 : USFInstrument := {
   effectOrder := [.pwMod, .freqSlide, .arpeggio, .gateCheck]
   release := { framesBeforeEnd := 3, zeroAdsr := true, noRelease := false }
   filterEnabled := false
+  skydive := false
 }
 
 def mv3I18 : USFInstrument := {
@@ -363,6 +381,7 @@ def mv3I18 : USFInstrument := {
   effectOrder := [.vibrato, .pwMod, .gateCheck]
   release := { framesBeforeEnd := 3, zeroAdsr := true, noRelease := false }
   filterEnabled := false
+  skydive := false
 }
 
 def mv3I19 : USFInstrument := {
@@ -382,6 +401,7 @@ def mv3I19 : USFInstrument := {
   effectOrder := [.vibrato, .pwMod, .gateCheck]
   release := { framesBeforeEnd := 3, zeroAdsr := true, noRelease := false }
   filterEnabled := false
+  skydive := false
 }
 
 def mv3P0 : USFPattern := { notes := [{ kind := .pitched ⟨55, by omega⟩, durationFrames := 8, instrument := 0, porta := 0 }, { kind := .pitched ⟨62, by omega⟩, durationFrames := 4, instrument := 128, porta := 0 }, { kind := .pitched ⟨62, by omega⟩, durationFrames := 4, instrument := 128, porta := 0 }, { kind := .pitched ⟨61, by omega⟩, durationFrames := 8, instrument := 128, porta := 0 }, { kind := .pitched ⟨62, by omega⟩, durationFrames := 8, instrument := 128, porta := 0 }, { kind := .pitched ⟨67, by omega⟩, durationFrames := 8, instrument := 128, porta := 0 }, { kind := .pitched ⟨62, by omega⟩, durationFrames := 8, instrument := 128, porta := 0 }, { kind := .pitched ⟨61, by omega⟩, durationFrames := 8, instrument := 128, porta := 0 }, { kind := .pitched ⟨62, by omega⟩, durationFrames := 8, instrument := 128, porta := 0 }, { kind := .pitched ⟨55, by omega⟩, durationFrames := 8, instrument := 128, porta := 0 }, { kind := .pitched ⟨62, by omega⟩, durationFrames := 4, instrument := 128, porta := 0 }, { kind := .pitched ⟨62, by omega⟩, durationFrames := 4, instrument := 128, porta := 0 }, { kind := .pitched ⟨61, by omega⟩, durationFrames := 8, instrument := 128, porta := 0 }, { kind := .pitched ⟨62, by omega⟩, durationFrames := 8, instrument := 128, porta := 0 }, { kind := .pitched ⟨67, by omega⟩, durationFrames := 8, instrument := 128, porta := 0 }, { kind := .pitched ⟨66, by omega⟩, durationFrames := 8, instrument := 128, porta := 0 }, { kind := .pitched ⟨67, by omega⟩, durationFrames := 8, instrument := 128, porta := 0 }, { kind := .pitched ⟨69, by omega⟩, durationFrames := 8, instrument := 128, porta := 0 }, { kind := .pitched ⟨70, by omega⟩, durationFrames := 8, instrument := 128, porta := 0 }, { kind := .pitched ⟨72, by omega⟩, durationFrames := 4, instrument := 128, porta := 0 }, { kind := .pitched ⟨70, by omega⟩, durationFrames := 4, instrument := 128, porta := 0 }, { kind := .pitched ⟨69, by omega⟩, durationFrames := 8, instrument := 128, porta := 0 }, { kind := .pitched ⟨67, by omega⟩, durationFrames := 8, instrument := 128, porta := 0 }, { kind := .pitched ⟨75, by omega⟩, durationFrames := 8, instrument := 128, porta := 0 }, { kind := .pitched ⟨77, by omega⟩, durationFrames := 4, instrument := 128, porta := 0 }, { kind := .pitched ⟨75, by omega⟩, durationFrames := 4, instrument := 128, porta := 0 }, { kind := .pitched ⟨74, by omega⟩, durationFrames := 8, instrument := 128, porta := 0 }, { kind := .pitched ⟨72, by omega⟩, durationFrames := 8, instrument := 128, porta := 0 }] }

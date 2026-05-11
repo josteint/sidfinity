@@ -41,6 +41,7 @@ def gen_freq_table(T):
 def gen_instrument(idx, inst):
     pw = inst['P']
     bit0 = inst.get('has_bit0', False)
+    sky = inst.get('has_skydive', False)
     arp_off = inst.get('arp_offset', 0)
     vib = inst.get('vibrato_scale', 0)
     w = inst['W']
@@ -119,6 +120,7 @@ def gen_instrument(idx, inst):
   effectOrder := {eff_order}
   release := {{ framesBeforeEnd := 3, zeroAdsr := true, noRelease := false }}
   filterEnabled := false
+  skydive := {str(sky).lower()}
 }}"""
 
 

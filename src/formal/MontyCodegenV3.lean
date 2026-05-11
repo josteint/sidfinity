@@ -1162,6 +1162,34 @@ def emitSustainEffects (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.r
   cb := cb.label "slide_done"
   cb := cb.label "no_slide"
 
+  -- 4b. SKYDIVE (bit 1 of original Hubbard instrfx).
+  -- Hubbard's pulsework → drums → skydive → octarp order. Skydive runs
+  -- every OTHER frame (when frame_counter & 1 != 0), guarded by v_fhi != 0:
+  --   LDA savefreqhi,x; BEQ skip; DEC savefreqhi,x; STA $d401,y
+  -- The SID write uses the OLD value (LDA before DEC). Skydive does NOT
+  -- touch ctrl (unlike drums which writes $80 noise on onset). This block
+  -- only fires when i_skydive[v_inst] is set.
+  cb := cb.emitInst (I.ldx_zp 0xFA)
+  cb := cb.emitLdaAbsX "v_inst"
+  cb := cb.emitInst I.tay
+  cb := cb.emitInst ⟨.LDA, .absY 0⟩               -- i_skydive[inst]
+  cb := { cb with absFixups :=
+    { byteIdx := cb.bytes.size - 2, targetLabel := "i_skydive" } :: cb.absFixups }
+  cb := cb.emitBranch .BEQ "no_sky"
+  cb := cb.emitInst (I.lda_zp 0x50)               -- frame counter
+  cb := cb.emitInst (I.and_imm 0x01)
+  cb := cb.emitBranch .BEQ "no_sky"               -- even counter: skip
+  cb := cb.emitInst (I.ldx_zp 0xFA)
+  cb := cb.emitLdaAbsX "v_fhi"
+  cb := cb.emitBranch .BEQ "no_sky"               -- v_fhi == 0: skip
+  cb := cb.emitInst (I.sta_zp 0xF8)               -- save OLD v_fhi
+  cb := cb.emitDecAbsX "v_fhi"                     -- v_fhi -= 1
+  cb := cb.emitLdaAbsX "v_sidoff"
+  cb := cb.emitInst I.tay                          -- Y = SID offset
+  cb := cb.emitInst (I.lda_zp 0xF8)               -- reload OLD
+  cb := cb.emitInst (I.sta_absY (SID_BASE + 1))   -- write OLD to freq_hi
+  cb := cb.label "no_sky"
+
   -- 5. ARPEGGIO
   cb := cb.emitInst (I.ldx_zp 0xFA)
   cb := cb.emitLdaAbsX "v_inst"
@@ -1366,6 +1394,10 @@ def generateSID (song : USFSong) (debug : Bool := false) : Bytes := Id.run do
     match i.freqSlide with
     | some _ => (1 : UInt8)
     | none => 0)
+  -- Skydive flag (Hubbard fx_flags bit 1): every-other-frame freq_hi DEC.
+  cb := cb.label "i_skydive"
+  cb := cb.emitData (song.instruments.map fun i =>
+    if i.skydive then (1 : UInt8) else 0)
 
   -- Pattern data: [pitch, duration, instrument]* per pattern, 0x00 = end
   -- For now, encode percussion .dynamicCtrl as pitch=104 to match old player behavior
