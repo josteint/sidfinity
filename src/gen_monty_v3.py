@@ -19,7 +19,12 @@ def hex_byte(n):
 
 def gen_freq_table(T):
     """Emit 128 entries: standard PAL 0-95, plus engine-extracted 96-127.
-    Pitch 104 is special-cased in player (dynamic ctrl byte alias).
+
+    Note: Commando's gen_commando_v3.py zeros pitch 104 because Commando
+    uses freq-table slot 104 as a hidden register (dynamic ctrl byte
+    alias updated each frame via engineQuirks.dynamicFreqEntries).
+    Monty does NOT do this — its pitch 104 is a real freq lookup
+    ($4141 in the original SID). We keep the real value here.
     """
     pairs = []
     for i in range(128):
@@ -27,10 +32,6 @@ def gen_freq_table(T):
             flo = T[i] & 0xFF
             fhi = (T[i] >> 8) & 0xFF
         else:
-            flo = 0
-            fhi = 0
-        # Zero out pitch 104 (decompiler marks it as percussion .dynamicCtrl)
-        if i == 104:
             flo = 0
             fhi = 0
         pairs.append(f"({hex_byte(flo)}, {hex_byte(fhi)})")
@@ -265,85 +266,36 @@ def main():
     subtune_refs = ', '.join(f'mv3S{i}' for i in range(len(extracts)))
     pat_list = ', '.join(pat_refs)
 
-    # Engine quirks for Monty (same Hubbard engine as Commando) (Hubbard player). Encoded as DATA so the
-    # universal codegen can emit code mechanically. See docs/usf_v3_engine_quirks.md.
+    # Engine quirks for Monty. Same Hubbard engine as Commando, so:
+    #   - voiceScratch / noteLoadOps / patternEndOps stay: these encode
+    #     Hubbard's variable-length pattern decoding (hub_off counter
+    #     advances 1/2/3 bytes per note based on flags). Removing them
+    #     breaks pattern-byte advancement on ALL Hubbard SIDs.
+    #   - dynamicFreqEntries DROPPED: these are Commando-specific
+    #     (use freq-table slots 98..107 as hidden registers for
+    #     per-voice state). Monty doesn't do this; keeping them would
+    #     overwrite Monty's real freq value at slot 104 ($4141) with
+    #     ctrl bytes every frame.
     quirks = """{
     preserveNoteFlags := true
     voiceScratch := [
-      { name := "hub_off", initial := ⟨0, by omega⟩ },   -- slot 0
-      { name := "seq_idx", initial := ⟨0, by omega⟩ }    -- slot 1
+      { name := "hub_off", initial := ⟨0, by omega⟩ },
+      { name := "seq_idx", initial := ⟨0, by omega⟩ }
     ]
     noteLoadOps := [
-      -- hub_off (slot 0): bit 6 -> +1, bit 7 -> +2, neither -> +3
       .addByFlag 0 [
         (⟨0x40, by omega⟩, ⟨0x40, by omega⟩, ⟨1, by omega⟩),
         (⟨0x80, by omega⟩, ⟨0x80, by omega⟩, ⟨2, by omega⟩),
         (⟨0x00, by omega⟩, ⟨0x00, by omega⟩, ⟨3, by omega⟩)
       ],
-      -- Eager pattern-end behaviors (das_model v2nd1):
-      -- when next byte is the EOP marker, reset hub_off and inc seq_idx
       .resetIfNextEnds 0,
       .incIfNextEnds   1 ⟨1, by omega⟩
     ]
     patternEndOps := [
-      -- Also (redundantly) on next note's advance_order
       .reset 0,
       .increment 1 ⟨1, by omega⟩
     ]
-    dynamicFreqEntries := [
-      -- ===== Frame-start updates =====
-      -- T[100]: V2.hub_off (lo), V3.hub_off (hi)
-      { freqSlot := 100,
-        loSource := .scratch ⟨1, by omega⟩ 0,
-        hiSource := .scratch ⟨2, by omega⟩ 0,
-        phase    := .atFrameStart },
-      -- T[104]: V1.ctrl (lo), V2.ctrl (hi). Hubbard percussion noise feed.
-      { freqSlot := 104,
-        loSource := .voiceCtrl ⟨0, by omega⟩,
-        hiSource := .voiceCtrl ⟨1, by omega⟩,
-        phase    := .atFrameStart },
-
-      -- ===== Between V3 and V2 (= beforeVoice 1) =====
-      -- T[98]: V1.seq_idx (lo), V2.seq_idx (hi)
-      { freqSlot := 98,
-        loSource := .scratch ⟨0, by omega⟩ 1,
-        hiSource := .scratch ⟨1, by omega⟩ 1,
-        phase    := .beforeVoice ⟨1, by omega⟩ },
-      -- T[99]: V3.seq_idx (lo), V1.hub_off (hi)
-      { freqSlot := 99,
-        loSource := .scratch ⟨2, by omega⟩ 1,
-        hiSource := .scratch ⟨0, by omega⟩ 0,
-        phase    := .beforeVoice ⟨1, by omega⟩ },
-      -- T[105]: V3.ctrl (lo), V1.pitch (hi)
-      { freqSlot := 105,
-        loSource := .voiceCtrl ⟨2, by omega⟩,
-        hiSource := .voicePitch ⟨0, by omega⟩,
-        phase    := .beforeVoice ⟨1, by omega⟩ },
-      -- T[106]: V2.pitch (lo), V3.pitch (hi)
-      { freqSlot := 106,
-        loSource := .voicePitch ⟨1, by omega⟩,
-        hiSource := .voicePitch ⟨2, by omega⟩,
-        phase    := .beforeVoice ⟨1, by omega⟩ },
-      -- T[107]: V1.inst (lo), V2.inst (hi)
-      --   At this phase V1 hasn't loaded yet so v_inst[V1] is "prev_inst";
-      --   V2 may or may not have loaded depending on its own scheduling.
-      { freqSlot := 107,
-        loSource := .voiceInst ⟨0, by omega⟩,
-        hiSource := .voiceInst ⟨1, by omega⟩,
-        phase    := .beforeVoice ⟨1, by omega⟩ },
-
-      -- ===== Between V2 and V1 (= beforeVoice 0) =====
-      -- T[100]: re-update so V1 sees latest V2.hub_off this frame
-      { freqSlot := 100,
-        loSource := .scratch ⟨1, by omega⟩ 0,
-        hiSource := .scratch ⟨2, by omega⟩ 0,
-        phase    := .beforeVoice ⟨0, by omega⟩ },
-      -- T[104]: re-update similarly
-      { freqSlot := 104,
-        loSource := .voiceCtrl ⟨0, by omega⟩,
-        hiSource := .voiceCtrl ⟨1, by omega⟩,
-        phase    := .beforeVoice ⟨0, by omega⟩ }
-    ]
+    dynamicFreqEntries := []
   }"""
 
     out.append(f"""def montyV3 : USFSong := {{

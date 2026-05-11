@@ -2,7 +2,7 @@
 -- Subtunes: [0] (0-indexed; PSID subtunes [1])
 import USFv3
 
-def montyV3FreqTable : USFFreqTable := { entries := [(⟨22, by omega⟩, ⟨1, by omega⟩), (⟨39, by omega⟩, ⟨1, by omega⟩), (⟨56, by omega⟩, ⟨1, by omega⟩), (⟨75, by omega⟩, ⟨1, by omega⟩), (⟨95, by omega⟩, ⟨1, by omega⟩), (⟨115, by omega⟩, ⟨1, by omega⟩), (⟨138, by omega⟩, ⟨1, by omega⟩), (⟨161, by omega⟩, ⟨1, by omega⟩), (⟨186, by omega⟩, ⟨1, by omega⟩), (⟨212, by omega⟩, ⟨1, by omega⟩), (⟨240, by omega⟩, ⟨1, by omega⟩), (⟨14, by omega⟩, ⟨2, by omega⟩), (⟨45, by omega⟩, ⟨2, by omega⟩), (⟨78, by omega⟩, ⟨2, by omega⟩), (⟨113, by omega⟩, ⟨2, by omega⟩), (⟨150, by omega⟩, ⟨2, by omega⟩), (⟨189, by omega⟩, ⟨2, by omega⟩), (⟨231, by omega⟩, ⟨2, by omega⟩), (⟨19, by omega⟩, ⟨3, by omega⟩), (⟨66, by omega⟩, ⟨3, by omega⟩), (⟨116, by omega⟩, ⟨3, by omega⟩), (⟨169, by omega⟩, ⟨3, by omega⟩), (⟨224, by omega⟩, ⟨3, by omega⟩), (⟨27, by omega⟩, ⟨4, by omega⟩), (⟨90, by omega⟩, ⟨4, by omega⟩), (⟨155, by omega⟩, ⟨4, by omega⟩), (⟨226, by omega⟩, ⟨4, by omega⟩), (⟨44, by omega⟩, ⟨5, by omega⟩), (⟨123, by omega⟩, ⟨5, by omega⟩), (⟨206, by omega⟩, ⟨5, by omega⟩), (⟨39, by omega⟩, ⟨6, by omega⟩), (⟨133, by omega⟩, ⟨6, by omega⟩), (⟨232, by omega⟩, ⟨6, by omega⟩), (⟨81, by omega⟩, ⟨7, by omega⟩), (⟨193, by omega⟩, ⟨7, by omega⟩), (⟨55, by omega⟩, ⟨8, by omega⟩), (⟨180, by omega⟩, ⟨8, by omega⟩), (⟨55, by omega⟩, ⟨9, by omega⟩), (⟨196, by omega⟩, ⟨9, by omega⟩), (⟨87, by omega⟩, ⟨10, by omega⟩), (⟨245, by omega⟩, ⟨10, by omega⟩), (⟨156, by omega⟩, ⟨11, by omega⟩), (⟨78, by omega⟩, ⟨12, by omega⟩), (⟨9, by omega⟩, ⟨13, by omega⟩), (⟨208, by omega⟩, ⟨13, by omega⟩), (⟨163, by omega⟩, ⟨14, by omega⟩), (⟨130, by omega⟩, ⟨15, by omega⟩), (⟨110, by omega⟩, ⟨16, by omega⟩), (⟨104, by omega⟩, ⟨17, by omega⟩), (⟨110, by omega⟩, ⟨18, by omega⟩), (⟨136, by omega⟩, ⟨19, by omega⟩), (⟨175, by omega⟩, ⟨20, by omega⟩), (⟨235, by omega⟩, ⟨21, by omega⟩), (⟨57, by omega⟩, ⟨23, by omega⟩), (⟨156, by omega⟩, ⟨24, by omega⟩), (⟨19, by omega⟩, ⟨26, by omega⟩), (⟨161, by omega⟩, ⟨27, by omega⟩), (⟨70, by omega⟩, ⟨29, by omega⟩), (⟨4, by omega⟩, ⟨31, by omega⟩), (⟨220, by omega⟩, ⟨32, by omega⟩), (⟨208, by omega⟩, ⟨34, by omega⟩), (⟨220, by omega⟩, ⟨36, by omega⟩), (⟨16, by omega⟩, ⟨39, by omega⟩), (⟨94, by omega⟩, ⟨41, by omega⟩), (⟨214, by omega⟩, ⟨43, by omega⟩), (⟨114, by omega⟩, ⟨46, by omega⟩), (⟨56, by omega⟩, ⟨49, by omega⟩), (⟨38, by omega⟩, ⟨52, by omega⟩), (⟨66, by omega⟩, ⟨55, by omega⟩), (⟨140, by omega⟩, ⟨58, by omega⟩), (⟨8, by omega⟩, ⟨62, by omega⟩), (⟨184, by omega⟩, ⟨65, by omega⟩), (⟨160, by omega⟩, ⟨69, by omega⟩), (⟨184, by omega⟩, ⟨73, by omega⟩), (⟨32, by omega⟩, ⟨78, by omega⟩), (⟨188, by omega⟩, ⟨82, by omega⟩), (⟨172, by omega⟩, ⟨87, by omega⟩), (⟨228, by omega⟩, ⟨92, by omega⟩), (⟨112, by omega⟩, ⟨98, by omega⟩), (⟨76, by omega⟩, ⟨104, by omega⟩), (⟨132, by omega⟩, ⟨110, by omega⟩), (⟨24, by omega⟩, ⟨117, by omega⟩), (⟨16, by omega⟩, ⟨124, by omega⟩), (⟨112, by omega⟩, ⟨131, by omega⟩), (⟨64, by omega⟩, ⟨139, by omega⟩), (⟨112, by omega⟩, ⟨147, by omega⟩), (⟨64, by omega⟩, ⟨156, by omega⟩), (⟨120, by omega⟩, ⟨165, by omega⟩), (⟨88, by omega⟩, ⟨175, by omega⟩), (⟨200, by omega⟩, ⟨185, by omega⟩), (⟨224, by omega⟩, ⟨196, by omega⟩), (⟨152, by omega⟩, ⟨208, by omega⟩), (⟨8, by omega⟩, ⟨221, by omega⟩), (⟨48, by omega⟩, ⟨234, by omega⟩), (⟨32, by omega⟩, ⟨248, by omega⟩), (⟨46, by omega⟩, ⟨253, by omega⟩), (⟨0, by omega⟩, ⟨7, by omega⟩), (⟨14, by omega⟩, ⟨0, by omega⟩), (⟨0, by omega⟩, ⟨0, by omega⟩), (⟨0, by omega⟩, ⟨3, by omega⟩), (⟨3, by omega⟩, ⟨3, by omega⟩), (⟨31, by omega⟩, ⟨31, by omega⟩), (⟨31, by omega⟩, ⟨191, by omega⟩), (⟨191, by omega⟩, ⟨191, by omega⟩), (⟨0, by omega⟩, ⟨0, by omega⟩), (⟨65, by omega⟩, ⟨86, by omega⟩), (⟨104, by omega⟩, ⟨19, by omega⟩), (⟨6, by omega⟩, ⟨12, by omega⟩), (⟨8, by omega⟩, ⟨255, by omega⟩), (⟨191, by omega⟩, ⟨64, by omega⟩), (⟨0, by omega⟩, ⟨65, by omega⟩), (⟨255, by omega⟩, ⟨0, by omega⟩), (⟨118, by omega⟩, ⟨0, by omega⟩), (⟨8, by omega⟩, ⟨62, by omega⟩), (⟨2, by omega⟩, ⟨0, by omega⟩), (⟨1, by omega⟩, ⟨29, by omega⟩), (⟨1, by omega⟩, ⟨0, by omega⟩), (⟨0, by omega⟩, ⟨1, by omega⟩), (⟨1, by omega⟩, ⟨128, by omega⟩), (⟨0, by omega⟩, ⟨156, by omega⟩), (⟨0, by omega⟩, ⟨0, by omega⟩), (⟨0, by omega⟩, ⟨0, by omega⟩), (⟨0, by omega⟩, ⟨0, by omega⟩), (⟨0, by omega⟩, ⟨0, by omega⟩), (⟨0, by omega⟩, ⟨0, by omega⟩), (⟨0, by omega⟩, ⟨0, by omega⟩), (⟨0, by omega⟩, ⟨0, by omega⟩), (⟨0, by omega⟩, ⟨0, by omega⟩)] }
+def montyV3FreqTable : USFFreqTable := { entries := [(⟨22, by omega⟩, ⟨1, by omega⟩), (⟨39, by omega⟩, ⟨1, by omega⟩), (⟨56, by omega⟩, ⟨1, by omega⟩), (⟨75, by omega⟩, ⟨1, by omega⟩), (⟨95, by omega⟩, ⟨1, by omega⟩), (⟨115, by omega⟩, ⟨1, by omega⟩), (⟨138, by omega⟩, ⟨1, by omega⟩), (⟨161, by omega⟩, ⟨1, by omega⟩), (⟨186, by omega⟩, ⟨1, by omega⟩), (⟨212, by omega⟩, ⟨1, by omega⟩), (⟨240, by omega⟩, ⟨1, by omega⟩), (⟨14, by omega⟩, ⟨2, by omega⟩), (⟨45, by omega⟩, ⟨2, by omega⟩), (⟨78, by omega⟩, ⟨2, by omega⟩), (⟨113, by omega⟩, ⟨2, by omega⟩), (⟨150, by omega⟩, ⟨2, by omega⟩), (⟨189, by omega⟩, ⟨2, by omega⟩), (⟨231, by omega⟩, ⟨2, by omega⟩), (⟨19, by omega⟩, ⟨3, by omega⟩), (⟨66, by omega⟩, ⟨3, by omega⟩), (⟨116, by omega⟩, ⟨3, by omega⟩), (⟨169, by omega⟩, ⟨3, by omega⟩), (⟨224, by omega⟩, ⟨3, by omega⟩), (⟨27, by omega⟩, ⟨4, by omega⟩), (⟨90, by omega⟩, ⟨4, by omega⟩), (⟨155, by omega⟩, ⟨4, by omega⟩), (⟨226, by omega⟩, ⟨4, by omega⟩), (⟨44, by omega⟩, ⟨5, by omega⟩), (⟨123, by omega⟩, ⟨5, by omega⟩), (⟨206, by omega⟩, ⟨5, by omega⟩), (⟨39, by omega⟩, ⟨6, by omega⟩), (⟨133, by omega⟩, ⟨6, by omega⟩), (⟨232, by omega⟩, ⟨6, by omega⟩), (⟨81, by omega⟩, ⟨7, by omega⟩), (⟨193, by omega⟩, ⟨7, by omega⟩), (⟨55, by omega⟩, ⟨8, by omega⟩), (⟨180, by omega⟩, ⟨8, by omega⟩), (⟨55, by omega⟩, ⟨9, by omega⟩), (⟨196, by omega⟩, ⟨9, by omega⟩), (⟨87, by omega⟩, ⟨10, by omega⟩), (⟨245, by omega⟩, ⟨10, by omega⟩), (⟨156, by omega⟩, ⟨11, by omega⟩), (⟨78, by omega⟩, ⟨12, by omega⟩), (⟨9, by omega⟩, ⟨13, by omega⟩), (⟨208, by omega⟩, ⟨13, by omega⟩), (⟨163, by omega⟩, ⟨14, by omega⟩), (⟨130, by omega⟩, ⟨15, by omega⟩), (⟨110, by omega⟩, ⟨16, by omega⟩), (⟨104, by omega⟩, ⟨17, by omega⟩), (⟨110, by omega⟩, ⟨18, by omega⟩), (⟨136, by omega⟩, ⟨19, by omega⟩), (⟨175, by omega⟩, ⟨20, by omega⟩), (⟨235, by omega⟩, ⟨21, by omega⟩), (⟨57, by omega⟩, ⟨23, by omega⟩), (⟨156, by omega⟩, ⟨24, by omega⟩), (⟨19, by omega⟩, ⟨26, by omega⟩), (⟨161, by omega⟩, ⟨27, by omega⟩), (⟨70, by omega⟩, ⟨29, by omega⟩), (⟨4, by omega⟩, ⟨31, by omega⟩), (⟨220, by omega⟩, ⟨32, by omega⟩), (⟨208, by omega⟩, ⟨34, by omega⟩), (⟨220, by omega⟩, ⟨36, by omega⟩), (⟨16, by omega⟩, ⟨39, by omega⟩), (⟨94, by omega⟩, ⟨41, by omega⟩), (⟨214, by omega⟩, ⟨43, by omega⟩), (⟨114, by omega⟩, ⟨46, by omega⟩), (⟨56, by omega⟩, ⟨49, by omega⟩), (⟨38, by omega⟩, ⟨52, by omega⟩), (⟨66, by omega⟩, ⟨55, by omega⟩), (⟨140, by omega⟩, ⟨58, by omega⟩), (⟨8, by omega⟩, ⟨62, by omega⟩), (⟨184, by omega⟩, ⟨65, by omega⟩), (⟨160, by omega⟩, ⟨69, by omega⟩), (⟨184, by omega⟩, ⟨73, by omega⟩), (⟨32, by omega⟩, ⟨78, by omega⟩), (⟨188, by omega⟩, ⟨82, by omega⟩), (⟨172, by omega⟩, ⟨87, by omega⟩), (⟨228, by omega⟩, ⟨92, by omega⟩), (⟨112, by omega⟩, ⟨98, by omega⟩), (⟨76, by omega⟩, ⟨104, by omega⟩), (⟨132, by omega⟩, ⟨110, by omega⟩), (⟨24, by omega⟩, ⟨117, by omega⟩), (⟨16, by omega⟩, ⟨124, by omega⟩), (⟨112, by omega⟩, ⟨131, by omega⟩), (⟨64, by omega⟩, ⟨139, by omega⟩), (⟨112, by omega⟩, ⟨147, by omega⟩), (⟨64, by omega⟩, ⟨156, by omega⟩), (⟨120, by omega⟩, ⟨165, by omega⟩), (⟨88, by omega⟩, ⟨175, by omega⟩), (⟨200, by omega⟩, ⟨185, by omega⟩), (⟨224, by omega⟩, ⟨196, by omega⟩), (⟨152, by omega⟩, ⟨208, by omega⟩), (⟨8, by omega⟩, ⟨221, by omega⟩), (⟨48, by omega⟩, ⟨234, by omega⟩), (⟨32, by omega⟩, ⟨248, by omega⟩), (⟨46, by omega⟩, ⟨253, by omega⟩), (⟨0, by omega⟩, ⟨7, by omega⟩), (⟨14, by omega⟩, ⟨0, by omega⟩), (⟨0, by omega⟩, ⟨0, by omega⟩), (⟨0, by omega⟩, ⟨3, by omega⟩), (⟨3, by omega⟩, ⟨3, by omega⟩), (⟨31, by omega⟩, ⟨31, by omega⟩), (⟨31, by omega⟩, ⟨191, by omega⟩), (⟨191, by omega⟩, ⟨191, by omega⟩), (⟨65, by omega⟩, ⟨65, by omega⟩), (⟨65, by omega⟩, ⟨86, by omega⟩), (⟨104, by omega⟩, ⟨19, by omega⟩), (⟨6, by omega⟩, ⟨12, by omega⟩), (⟨8, by omega⟩, ⟨255, by omega⟩), (⟨191, by omega⟩, ⟨64, by omega⟩), (⟨0, by omega⟩, ⟨65, by omega⟩), (⟨255, by omega⟩, ⟨0, by omega⟩), (⟨118, by omega⟩, ⟨0, by omega⟩), (⟨8, by omega⟩, ⟨62, by omega⟩), (⟨2, by omega⟩, ⟨0, by omega⟩), (⟨1, by omega⟩, ⟨29, by omega⟩), (⟨1, by omega⟩, ⟨0, by omega⟩), (⟨0, by omega⟩, ⟨1, by omega⟩), (⟨1, by omega⟩, ⟨128, by omega⟩), (⟨0, by omega⟩, ⟨156, by omega⟩), (⟨0, by omega⟩, ⟨0, by omega⟩), (⟨0, by omega⟩, ⟨0, by omega⟩), (⟨0, by omega⟩, ⟨0, by omega⟩), (⟨0, by omega⟩, ⟨0, by omega⟩), (⟨0, by omega⟩, ⟨0, by omega⟩), (⟨0, by omega⟩, ⟨0, by omega⟩), (⟨0, by omega⟩, ⟨0, by omega⟩), (⟨0, by omega⟩, ⟨0, by omega⟩)] }
 
 def mv3I0 : USFInstrument := {
   initCtrl := ⟨65, by omega⟩
@@ -517,80 +517,23 @@ def montyV3 : USFSong := {
   engineQuirks := {
     preserveNoteFlags := true
     voiceScratch := [
-      { name := "hub_off", initial := ⟨0, by omega⟩ },   -- slot 0
-      { name := "seq_idx", initial := ⟨0, by omega⟩ }    -- slot 1
+      { name := "hub_off", initial := ⟨0, by omega⟩ },
+      { name := "seq_idx", initial := ⟨0, by omega⟩ }
     ]
     noteLoadOps := [
-      -- hub_off (slot 0): bit 6 -> +1, bit 7 -> +2, neither -> +3
       .addByFlag 0 [
         (⟨0x40, by omega⟩, ⟨0x40, by omega⟩, ⟨1, by omega⟩),
         (⟨0x80, by omega⟩, ⟨0x80, by omega⟩, ⟨2, by omega⟩),
         (⟨0x00, by omega⟩, ⟨0x00, by omega⟩, ⟨3, by omega⟩)
       ],
-      -- Eager pattern-end behaviors (das_model v2nd1):
-      -- when next byte is the EOP marker, reset hub_off and inc seq_idx
       .resetIfNextEnds 0,
       .incIfNextEnds   1 ⟨1, by omega⟩
     ]
     patternEndOps := [
-      -- Also (redundantly) on next note's advance_order
       .reset 0,
       .increment 1 ⟨1, by omega⟩
     ]
-    dynamicFreqEntries := [
-      -- ===== Frame-start updates =====
-      -- T[100]: V2.hub_off (lo), V3.hub_off (hi)
-      { freqSlot := 100,
-        loSource := .scratch ⟨1, by omega⟩ 0,
-        hiSource := .scratch ⟨2, by omega⟩ 0,
-        phase    := .atFrameStart },
-      -- T[104]: V1.ctrl (lo), V2.ctrl (hi). Hubbard percussion noise feed.
-      { freqSlot := 104,
-        loSource := .voiceCtrl ⟨0, by omega⟩,
-        hiSource := .voiceCtrl ⟨1, by omega⟩,
-        phase    := .atFrameStart },
-
-      -- ===== Between V3 and V2 (= beforeVoice 1) =====
-      -- T[98]: V1.seq_idx (lo), V2.seq_idx (hi)
-      { freqSlot := 98,
-        loSource := .scratch ⟨0, by omega⟩ 1,
-        hiSource := .scratch ⟨1, by omega⟩ 1,
-        phase    := .beforeVoice ⟨1, by omega⟩ },
-      -- T[99]: V3.seq_idx (lo), V1.hub_off (hi)
-      { freqSlot := 99,
-        loSource := .scratch ⟨2, by omega⟩ 1,
-        hiSource := .scratch ⟨0, by omega⟩ 0,
-        phase    := .beforeVoice ⟨1, by omega⟩ },
-      -- T[105]: V3.ctrl (lo), V1.pitch (hi)
-      { freqSlot := 105,
-        loSource := .voiceCtrl ⟨2, by omega⟩,
-        hiSource := .voicePitch ⟨0, by omega⟩,
-        phase    := .beforeVoice ⟨1, by omega⟩ },
-      -- T[106]: V2.pitch (lo), V3.pitch (hi)
-      { freqSlot := 106,
-        loSource := .voicePitch ⟨1, by omega⟩,
-        hiSource := .voicePitch ⟨2, by omega⟩,
-        phase    := .beforeVoice ⟨1, by omega⟩ },
-      -- T[107]: V1.inst (lo), V2.inst (hi)
-      --   At this phase V1 hasn't loaded yet so v_inst[V1] is "prev_inst";
-      --   V2 may or may not have loaded depending on its own scheduling.
-      { freqSlot := 107,
-        loSource := .voiceInst ⟨0, by omega⟩,
-        hiSource := .voiceInst ⟨1, by omega⟩,
-        phase    := .beforeVoice ⟨1, by omega⟩ },
-
-      -- ===== Between V2 and V1 (= beforeVoice 0) =====
-      -- T[100]: re-update so V1 sees latest V2.hub_off this frame
-      { freqSlot := 100,
-        loSource := .scratch ⟨1, by omega⟩ 0,
-        hiSource := .scratch ⟨2, by omega⟩ 0,
-        phase    := .beforeVoice ⟨0, by omega⟩ },
-      -- T[104]: re-update similarly
-      { freqSlot := 104,
-        loSource := .voiceCtrl ⟨0, by omega⟩,
-        hiSource := .voiceCtrl ⟨1, by omega⟩,
-        phase    := .beforeVoice ⟨0, by omega⟩ }
-    ]
+    dynamicFreqEntries := []
   }
   title := "Monty on the Run"
   author := "Rob Hubbard"

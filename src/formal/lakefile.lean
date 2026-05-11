@@ -8,10 +8,13 @@ package dasmodel where
 
 @[default_target]
 lean_lib DasModel where
-  roots := #[`SID, `Asm6502, `PSIDFile, `USFv3, `CommandoV3, `MontyV3, `CodegenV3, `PropertiesV3]
+  roots := #[`SID, `Asm6502, `PSIDFile, `USFv3, `CommandoV3, `MontyV3, `BatchV3, `CodegenV3, `PropertiesV3]
 
 lean_exe sidgen_v3 where
   root := `SidgenV3Main
 
 lean_exe sidgen_monty where
   root := `SidgenMontyMain
+
+lean_exe sidgen_batch where
+  root := `SidgenBatchMain
