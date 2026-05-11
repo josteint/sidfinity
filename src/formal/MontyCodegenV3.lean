@@ -1227,11 +1227,20 @@ def emitNoteLoadPath (cb : CodeBuilder) (song : USFSong) : CodeBuilder :=
   let cb := emitNL_TieSkipLabel cb
   let cb := emitNL_CtrlWrite cb
   let cb := emitNL_PWADSRWrite cb
-  -- Init wiring (emitNL_PwperiodInit) temporarily disabled — when
-  -- enabled, V3's PWM cadence DOUBLES to ~70 frames between steps
-  -- (vs orig's ~35). Cause not yet identified; period reload after
-  -- first step appears to read wrong value. Without init, V3 cadence
-  -- matches orig but is phase-shifted by 32 frames (= the period).
+  -- v_pwperiod init is OFF in note-load. Why: py65 trace
+  -- (/tmp/trace_pwperiod.py) showed that with the init wired, the
+  -- second note-load (at frame 65 in Monty's V3 first-pattern
+  -- sequence) re-writes \$1F into v_pwperiod[V3], wiping the
+  -- 32-frame countdown midway through. Hubbard's actual player
+  -- doesn't reset pw_period on note-load — the counter runs
+  -- continuously across notes, only reloaded by its own logic when
+  -- the period expires.
+  -- The right fix is to init pw_period ONCE per song-init (PSID init
+  -- entry), not per note. Approximate Hubbard init value unknown
+  -- (must disassemble Monty's player to find what gets written to
+  -- pw_period during init). Without the init, V3's PWM cadence is
+  -- correct (~35 frames between steps) but phase-shifted by 32
+  -- frames vs the original — first step at frame 2 instead of 34.
   let cb := emitNL_SaveCtrlAndReturn cb
   -- === ADVANCE ORDERLIST ===
   let cb := emitNL_AdvanceOrderHeader cb song
