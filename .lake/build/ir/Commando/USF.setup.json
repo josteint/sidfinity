@@ -1,0 +1,7 @@
+{"plugins": [],
+ "package": "sidfinity",
+ "options": {"autoImplicit": false},
+ "name": "Commando.USF",
+ "isModule": false,
+ "importArts": {},
+ "dynlibs": []}

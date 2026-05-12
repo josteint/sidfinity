@@ -1,0 +1,7 @@
+{"plugins": [],
+ "package": "sidfinity",
+ "options": {"autoImplicit": false},
+ "name": "Monty.USF",
+ "isModule": false,
+ "importArts": {},
+ "dynlibs": []}

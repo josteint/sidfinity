@@ -1,0 +1,51 @@
+{"synthetic": false,
+ "schemaVersion": "2025-09-10",
+ "outputs":
+ {"o": ["07afdad185968ba0.olean"],
+  "i": "fe7e71829cbd2968.ilean",
+  "c": "53a5bce2c231a592.c"},
+ "log":
+ [{"message":
+   ".> LEAN_PATH=/home/jtr/sidfinity/.lake/build/lib/lean /home/jtr/.elan/toolchains/leanprover--lean4---v4.29.1/bin/lean /home/jtr/sidfinity/pipelines/commando/codegen/Commando/Codegen.lean -o /home/jtr/sidfinity/.lake/build/lib/lean/Commando/Codegen.olean -i /home/jtr/sidfinity/.lake/build/lib/lean/Commando/Codegen.ilean -c /home/jtr/sidfinity/.lake/build/ir/Commando/Codegen.c --setup /home/jtr/sidfinity/.lake/build/ir/Commando/Codegen.setup.json --json",
+   "level": "trace"},
+  {"message":
+   "pipelines/commando/codegen/Commando/Codegen.lean:1213:34: unused variable `debug`\n\nNote: This linter can be disabled with `set_option linter.unusedVariables false`",
+   "level": "warning"},
+  {"message":
+   "pipelines/commando/codegen/Commando/Codegen.lean:1233:6: unused variable `hi`\n\nNote: This linter can be disabled with `set_option linter.unusedVariables false`",
+   "level": "warning"},
+  {"message":
+   "pipelines/commando/codegen/Commando/Codegen.lean:1239:6: unused variable `hi`\n\nNote: This linter can be disabled with `set_option linter.unusedVariables false`",
+   "level": "warning"},
+  {"message":
+   "pipelines/commando/codegen/Commando/Codegen.lean:1450:6: unused variable `hi`\n\nNote: This linter can be disabled with `set_option linter.unusedVariables false`",
+   "level": "warning"}],
+ "inputs":
+ [["Commando.Codegen:deps",
+   [["deps",
+     [["sidfinity/Commando:extraDep",
+       [["@sidfinity:extraDep", "00000000000006bb"]]],
+      ["imports",
+       [["Commando.SID transitive imports (legacy)", "00000000000006bb"],
+        ["Commando.SID:importAllArts", "93da55e086829fa7"],
+        ["Commando.Asm6502 transitive imports (legacy)", "00000000000006bb"],
+        ["Commando.Asm6502:importAllArts", "f861767c5b0bdb11"],
+        ["Commando.PSIDFile transitive imports (legacy)", "d8d37577f828b90d"],
+        ["Commando.PSIDFile:importAllArts", "5fda5f5853097e61"],
+        ["Commando.USF transitive imports (legacy)", "00000000000006bb"],
+        ["Commando.USF:importAllArts", "d9528512b1a3db00"]]]]],
+    ["libs",
+     [["import dynlibs", "00000000000006bb"],
+      ["package external libraries", "00000000000006bb"],
+      ["module dynlibs", "00000000000006bb"],
+      ["module plugins", "00000000000006bb"]]]]],
+  ["Lean 4.29.1, commit f72c35b3f637c8c6571d353742168ab66cc22c00",
+   "fa77a35a41db35c0"],
+  ["/home/jtr/sidfinity/pipelines/commando/codegen/Commando/Codegen.lean",
+   "4315cbccb12ca692"],
+  ["options", [["-DautoImplicit=false", "4a85acb881fd49d0"]]],
+  ["isModule: false", "feefd2a0d3a1847e"],
+  ["Module.name: Commando.Codegen", "c346d0329b917ae3"],
+  ["Package.id?: (some sidfinity)", "ce9551a6e6e61de2"],
+  ["Module.leanArgs: #[]", "00000000000006bb"]],
+ "depHash": "1318dbb6138bb764"}

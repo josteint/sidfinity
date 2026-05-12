@@ -1,0 +1,51 @@
+{"synthetic": false,
+ "schemaVersion": "2025-09-10",
+ "outputs":
+ {"o": ["acdee11fc27b4dc1.olean"],
+  "i": "27d27367d0ca5e89.ilean",
+  "c": "4070950ada80c919.c"},
+ "log":
+ [{"message":
+   ".> LEAN_PATH=/home/jtr/sidfinity/.lake/build/lib/lean /home/jtr/.elan/toolchains/leanprover--lean4---v4.29.1/bin/lean /home/jtr/sidfinity/pipelines/monty/codegen/Monty/Codegen.lean -o /home/jtr/sidfinity/.lake/build/lib/lean/Monty/Codegen.olean -i /home/jtr/sidfinity/.lake/build/lib/lean/Monty/Codegen.ilean -c /home/jtr/sidfinity/.lake/build/ir/Monty/Codegen.c --setup /home/jtr/sidfinity/.lake/build/ir/Monty/Codegen.setup.json --json",
+   "level": "trace"},
+  {"message":
+   "pipelines/monty/codegen/Monty/Codegen.lean:1311:34: unused variable `debug`\n\nNote: This linter can be disabled with `set_option linter.unusedVariables false`",
+   "level": "warning"},
+  {"message":
+   "pipelines/monty/codegen/Monty/Codegen.lean:1334:6: unused variable `hi`\n\nNote: This linter can be disabled with `set_option linter.unusedVariables false`",
+   "level": "warning"},
+  {"message":
+   "pipelines/monty/codegen/Monty/Codegen.lean:1341:6: unused variable `hi`\n\nNote: This linter can be disabled with `set_option linter.unusedVariables false`",
+   "level": "warning"},
+  {"message":
+   "pipelines/monty/codegen/Monty/Codegen.lean:1571:6: unused variable `hi`\n\nNote: This linter can be disabled with `set_option linter.unusedVariables false`",
+   "level": "warning"}],
+ "inputs":
+ [["Monty.Codegen:deps",
+   [["deps",
+     [["sidfinity/Monty:extraDep",
+       [["@sidfinity:extraDep", "00000000000006bb"]]],
+      ["imports",
+       [["Monty.SID transitive imports (legacy)", "00000000000006bb"],
+        ["Monty.SID:importAllArts", "e45eeb011d38a49a"],
+        ["Monty.Asm6502 transitive imports (legacy)", "00000000000006bb"],
+        ["Monty.Asm6502:importAllArts", "14b83f75312b9bfd"],
+        ["Monty.PSIDFile transitive imports (legacy)", "d5eb41d0a12acd5b"],
+        ["Monty.PSIDFile:importAllArts", "ba02d1eb7d6531f3"],
+        ["Monty.USF transitive imports (legacy)", "00000000000006bb"],
+        ["Monty.USF:importAllArts", "a95679b72f108074"]]]]],
+    ["libs",
+     [["import dynlibs", "00000000000006bb"],
+      ["package external libraries", "00000000000006bb"],
+      ["module dynlibs", "00000000000006bb"],
+      ["module plugins", "00000000000006bb"]]]]],
+  ["Lean 4.29.1, commit f72c35b3f637c8c6571d353742168ab66cc22c00",
+   "fa77a35a41db35c0"],
+  ["/home/jtr/sidfinity/pipelines/monty/codegen/Monty/Codegen.lean",
+   "50b09d2b93beca89"],
+  ["options", [["-DautoImplicit=false", "4a85acb881fd49d0"]]],
+  ["isModule: false", "feefd2a0d3a1847e"],
+  ["Module.name: Monty.Codegen", "717a80f9af7a887b"],
+  ["Package.id?: (some sidfinity)", "ce9551a6e6e61de2"],
+  ["Module.leanArgs: #[]", "00000000000006bb"]],
+ "depHash": "d59ced613ddc6e2f"}

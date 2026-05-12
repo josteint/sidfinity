@@ -1,0 +1,8 @@
+{"plugins": [],
+ "package": "sidfinity",
+ "options": {"autoImplicit": false},
+ "name": "Monty.SongData",
+ "isModule": false,
+ "importArts":
+ {"Monty.USF": ["/home/jtr/sidfinity/.lake/build/lib/lean/Monty/USF.olean"]},
+ "dynlibs": []}

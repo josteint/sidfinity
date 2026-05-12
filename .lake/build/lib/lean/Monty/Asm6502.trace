@@ -1,0 +1,31 @@
+{"synthetic": false,
+ "schemaVersion": "2025-09-10",
+ "outputs":
+ {"o": ["27c9af46f575fff7.olean"],
+  "i": "16f700af5dfbf810.ilean",
+  "c": "4795ae55f3ad2621.c"},
+ "log":
+ [{"message":
+   ".> LEAN_PATH=/home/jtr/sidfinity/.lake/build/lib/lean /home/jtr/.elan/toolchains/leanprover--lean4---v4.29.1/bin/lean /home/jtr/sidfinity/pipelines/monty/codegen/Monty/Asm6502.lean -o /home/jtr/sidfinity/.lake/build/lib/lean/Monty/Asm6502.olean -i /home/jtr/sidfinity/.lake/build/lib/lean/Monty/Asm6502.ilean -c /home/jtr/sidfinity/.lake/build/ir/Monty/Asm6502.c --setup /home/jtr/sidfinity/.lake/build/ir/Monty/Asm6502.setup.json --json",
+   "level": "trace"}],
+ "inputs":
+ [["Monty.Asm6502:deps",
+   [["deps",
+     [["sidfinity/Monty:extraDep",
+       [["@sidfinity:extraDep", "00000000000006bb"]]],
+      ["imports", "00000000000006bb"]]],
+    ["libs",
+     [["import dynlibs", "00000000000006bb"],
+      ["package external libraries", "00000000000006bb"],
+      ["module dynlibs", "00000000000006bb"],
+      ["module plugins", "00000000000006bb"]]]]],
+  ["Lean 4.29.1, commit f72c35b3f637c8c6571d353742168ab66cc22c00",
+   "fa77a35a41db35c0"],
+  ["/home/jtr/sidfinity/pipelines/monty/codegen/Monty/Asm6502.lean",
+   "f4b49d3fcdbf6e66"],
+  ["options", [["-DautoImplicit=false", "4a85acb881fd49d0"]]],
+  ["isModule: false", "feefd2a0d3a1847e"],
+  ["Module.name: Monty.Asm6502", "d0ebab75b0612490"],
+  ["Package.id?: (some sidfinity)", "ce9551a6e6e61de2"],
+  ["Module.leanArgs: #[]", "00000000000006bb"]],
+ "depHash": "53e383b1cac1912f"}

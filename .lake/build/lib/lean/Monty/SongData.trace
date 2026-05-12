@@ -1,0 +1,33 @@
+{"synthetic": false,
+ "schemaVersion": "2025-09-10",
+ "outputs":
+ {"o": ["381bac11579f6dac.olean"],
+  "i": "67739e257354d58c.ilean",
+  "c": "f9aef6fb221a7d20.c"},
+ "log":
+ [{"message":
+   ".> LEAN_PATH=/home/jtr/sidfinity/.lake/build/lib/lean /home/jtr/.elan/toolchains/leanprover--lean4---v4.29.1/bin/lean /home/jtr/sidfinity/pipelines/monty/codegen/Monty/SongData.lean -o /home/jtr/sidfinity/.lake/build/lib/lean/Monty/SongData.olean -i /home/jtr/sidfinity/.lake/build/lib/lean/Monty/SongData.ilean -c /home/jtr/sidfinity/.lake/build/ir/Monty/SongData.c --setup /home/jtr/sidfinity/.lake/build/ir/Monty/SongData.setup.json --json",
+   "level": "trace"}],
+ "inputs":
+ [["Monty.SongData:deps",
+   [["deps",
+     [["sidfinity/Monty:extraDep",
+       [["@sidfinity:extraDep", "00000000000006bb"]]],
+      ["imports",
+       [["Monty.USF transitive imports (legacy)", "00000000000006bb"],
+        ["Monty.USF:importAllArts", "a95679b72f108074"]]]]],
+    ["libs",
+     [["import dynlibs", "00000000000006bb"],
+      ["package external libraries", "00000000000006bb"],
+      ["module dynlibs", "00000000000006bb"],
+      ["module plugins", "00000000000006bb"]]]]],
+  ["Lean 4.29.1, commit f72c35b3f637c8c6571d353742168ab66cc22c00",
+   "fa77a35a41db35c0"],
+  ["/home/jtr/sidfinity/pipelines/monty/codegen/Monty/SongData.lean",
+   "9829e47ad38d9b19"],
+  ["options", [["-DautoImplicit=false", "4a85acb881fd49d0"]]],
+  ["isModule: false", "feefd2a0d3a1847e"],
+  ["Module.name: Monty.SongData", "6cc4d4d4fbfe2b05"],
+  ["Package.id?: (some sidfinity)", "ce9551a6e6e61de2"],
+  ["Module.leanArgs: #[]", "00000000000006bb"]],
+ "depHash": "9001e8c774feeea1"}

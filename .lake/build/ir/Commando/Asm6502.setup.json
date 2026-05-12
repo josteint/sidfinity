@@ -1,0 +1,7 @@
+{"plugins": [],
+ "package": "sidfinity",
+ "options": {"autoImplicit": false},
+ "name": "Commando.Asm6502",
+ "isModule": false,
+ "importArts": {},
+ "dynlibs": []}

@@ -1,0 +1,9 @@
+{"plugins": [],
+ "package": "sidfinity",
+ "options": {"autoImplicit": false},
+ "name": "Commando.SongData",
+ "isModule": false,
+ "importArts":
+ {"Commando.USF":
+  ["/home/jtr/sidfinity/.lake/build/lib/lean/Commando/USF.olean"]},
+ "dynlibs": []}

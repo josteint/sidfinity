@@ -1,0 +1,15 @@
+{"plugins": [],
+ "package": "sidfinity",
+ "options": {"autoImplicit": false},
+ "name": "Commando.Codegen",
+ "isModule": false,
+ "importArts":
+ {"Commando.USF":
+  ["/home/jtr/sidfinity/.lake/build/lib/lean/Commando/USF.olean"],
+  "Commando.SID":
+  ["/home/jtr/sidfinity/.lake/build/lib/lean/Commando/SID.olean"],
+  "Commando.PSIDFile":
+  ["/home/jtr/sidfinity/.lake/build/lib/lean/Commando/PSIDFile.olean"],
+  "Commando.Asm6502":
+  ["/home/jtr/sidfinity/.lake/build/lib/lean/Commando/Asm6502.olean"]},
+ "dynlibs": []}

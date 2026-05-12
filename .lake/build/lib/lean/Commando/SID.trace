@@ -1,0 +1,31 @@
+{"synthetic": false,
+ "schemaVersion": "2025-09-10",
+ "outputs":
+ {"o": ["247f6efb9f35b287.olean"],
+  "i": "ed9dda3ab2925965.ilean",
+  "c": "fa7f4ccb794ba188.c"},
+ "log":
+ [{"message":
+   ".> LEAN_PATH=/home/jtr/sidfinity/.lake/build/lib/lean /home/jtr/.elan/toolchains/leanprover--lean4---v4.29.1/bin/lean /home/jtr/sidfinity/pipelines/commando/codegen/Commando/SID.lean -o /home/jtr/sidfinity/.lake/build/lib/lean/Commando/SID.olean -i /home/jtr/sidfinity/.lake/build/lib/lean/Commando/SID.ilean -c /home/jtr/sidfinity/.lake/build/ir/Commando/SID.c --setup /home/jtr/sidfinity/.lake/build/ir/Commando/SID.setup.json --json",
+   "level": "trace"}],
+ "inputs":
+ [["Commando.SID:deps",
+   [["deps",
+     [["sidfinity/Commando:extraDep",
+       [["@sidfinity:extraDep", "00000000000006bb"]]],
+      ["imports", "00000000000006bb"]]],
+    ["libs",
+     [["import dynlibs", "00000000000006bb"],
+      ["package external libraries", "00000000000006bb"],
+      ["module dynlibs", "00000000000006bb"],
+      ["module plugins", "00000000000006bb"]]]]],
+  ["Lean 4.29.1, commit f72c35b3f637c8c6571d353742168ab66cc22c00",
+   "fa77a35a41db35c0"],
+  ["/home/jtr/sidfinity/pipelines/commando/codegen/Commando/SID.lean",
+   "c3551c9776d45610"],
+  ["options", [["-DautoImplicit=false", "4a85acb881fd49d0"]]],
+  ["isModule: false", "feefd2a0d3a1847e"],
+  ["Module.name: Commando.SID", "8be2aee50d9b599a"],
+  ["Package.id?: (some sidfinity)", "ce9551a6e6e61de2"],
+  ["Module.leanArgs: #[]", "00000000000006bb"]],
+ "depHash": "3cfee48e6cc72aac"}

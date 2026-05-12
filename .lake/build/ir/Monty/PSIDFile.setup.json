@@ -1,0 +1,9 @@
+{"plugins": [],
+ "package": "sidfinity",
+ "options": {"autoImplicit": false},
+ "name": "Monty.PSIDFile",
+ "isModule": false,
+ "importArts":
+ {"Monty.Asm6502":
+  ["/home/jtr/sidfinity/.lake/build/lib/lean/Monty/Asm6502.olean"]},
+ "dynlibs": []}

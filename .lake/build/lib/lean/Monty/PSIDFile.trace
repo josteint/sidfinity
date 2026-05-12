@@ -1,0 +1,33 @@
+{"synthetic": false,
+ "schemaVersion": "2025-09-10",
+ "outputs":
+ {"o": ["453048be5c8c2ab4.olean"],
+  "i": "0589940eeba8d19d.ilean",
+  "c": "4bcc64a6ccab33e6.c"},
+ "log":
+ [{"message":
+   ".> LEAN_PATH=/home/jtr/sidfinity/.lake/build/lib/lean /home/jtr/.elan/toolchains/leanprover--lean4---v4.29.1/bin/lean /home/jtr/sidfinity/pipelines/monty/codegen/Monty/PSIDFile.lean -o /home/jtr/sidfinity/.lake/build/lib/lean/Monty/PSIDFile.olean -i /home/jtr/sidfinity/.lake/build/lib/lean/Monty/PSIDFile.ilean -c /home/jtr/sidfinity/.lake/build/ir/Monty/PSIDFile.c --setup /home/jtr/sidfinity/.lake/build/ir/Monty/PSIDFile.setup.json --json",
+   "level": "trace"}],
+ "inputs":
+ [["Monty.PSIDFile:deps",
+   [["deps",
+     [["sidfinity/Monty:extraDep",
+       [["@sidfinity:extraDep", "00000000000006bb"]]],
+      ["imports",
+       [["Monty.Asm6502 transitive imports (legacy)", "00000000000006bb"],
+        ["Monty.Asm6502:importAllArts", "14b83f75312b9bfd"]]]]],
+    ["libs",
+     [["import dynlibs", "00000000000006bb"],
+      ["package external libraries", "00000000000006bb"],
+      ["module dynlibs", "00000000000006bb"],
+      ["module plugins", "00000000000006bb"]]]]],
+  ["Lean 4.29.1, commit f72c35b3f637c8c6571d353742168ab66cc22c00",
+   "fa77a35a41db35c0"],
+  ["/home/jtr/sidfinity/pipelines/monty/codegen/Monty/PSIDFile.lean",
+   "303b25a1638b13dc"],
+  ["options", [["-DautoImplicit=false", "4a85acb881fd49d0"]]],
+  ["isModule: false", "feefd2a0d3a1847e"],
+  ["Module.name: Monty.PSIDFile", "ac344626a3545b4e"],
+  ["Package.id?: (some sidfinity)", "ce9551a6e6e61de2"],
+  ["Module.leanArgs: #[]", "00000000000006bb"]],
+ "depHash": "3ac1f436238a32ad"}
