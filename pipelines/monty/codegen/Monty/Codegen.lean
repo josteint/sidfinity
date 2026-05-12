@@ -18,12 +18,9 @@ import Monty.SID
 import Monty.Asm6502
 import Monty.PSIDFile
 import Monty.USF
--- (CommandoV3 import removed: this is Monty's own codegen clone.
---  Monty data is supplied externally via SidgenMontyMain.)
+import Monty.Constants
 
 namespace MV3
-
-def SID_BASE : UInt16 := 0xD400
 
 -- ==========================================================================
 -- Code builder with label/fixup support

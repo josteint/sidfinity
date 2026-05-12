@@ -1,9 +1,0 @@
-{"plugins": [],
- "package": "sidfinity",
- "options": {"autoImplicit": false},
- "name": "Commando.PSIDFile",
- "isModule": false,
- "importArts":
- {"Commando.Asm6502":
-  ["/home/jtr/sidfinity/.lake/build/lib/lean/Commando/Asm6502.olean"]},
- "dynlibs": []}

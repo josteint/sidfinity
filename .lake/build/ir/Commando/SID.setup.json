@@ -1,7 +1,0 @@
-{"plugins": [],
- "package": "sidfinity",
- "options": {"autoImplicit": false},
- "name": "Commando.SID",
- "isModule": false,
- "importArts": {},
- "dynlibs": []}

@@ -14,8 +14,8 @@ package sidfinity where
 lean_lib Commando where
   srcDir := "pipelines/commando/codegen"
   roots  := #[`Commando.SID, `Commando.Asm6502, `Commando.PSIDFile,
-              `Commando.USF, `Commando.SongData, `Commando.Codegen,
-              `Commando.Properties]
+              `Commando.USF, `Commando.Constants, `Commando.SongData,
+              `Commando.Codegen, `Commando.Properties]
 
 lean_exe sidgen_commando where
   srcDir := "pipelines/commando/codegen"
@@ -31,8 +31,8 @@ lean_exe sidgen_commando where
 lean_lib Monty where
   srcDir := "pipelines/monty/codegen"
   roots  := #[`Monty.SID, `Monty.Asm6502, `Monty.PSIDFile,
-              `Monty.USF, `Monty.SongData, `Monty.Codegen,
-              `Monty.Properties]
+              `Monty.USF, `Monty.Constants, `Monty.SongData,
+              `Monty.Codegen, `Monty.Properties]
 
 lean_exe sidgen_monty where
   srcDir := "pipelines/monty/codegen"

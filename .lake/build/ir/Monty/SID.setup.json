@@ -1,7 +1,0 @@
-{"plugins": [],
- "package": "sidfinity",
- "options": {"autoImplicit": false},
- "name": "Monty.SID",
- "isModule": false,
- "importArts": {},
- "dynlibs": []}

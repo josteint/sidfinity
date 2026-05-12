@@ -27,7 +27,7 @@
 ### CURRENT STRATEGIC DIRECTION (2026-05): generalize das_model_gen via discovery
 - Goal: most Hubbard SIDs sound right (audibly identical) when rebuilt → USF.
 - Baseline measured 2026-05-09: `rh_to_usf` + Python `codegen_v3` produces **0/285 Grade A** on Hubbard SIDs via writelog comparison. Even Commando is 1.0% match through that path.
-- The byte-perfect Commando we have comes from `das_model_gen.extract` → `CommandoV3.lean` → Lean `CodegenV3.lean`. That path is **correct** but Commando-hardcoded.
+- The byte-perfect Commando we have comes from `pipelines/commando/extract/engine_model.extract` → `pipelines/commando/codegen/Commando/SongData.lean` → `pipelines/commando/codegen/Commando/Codegen.lean`. That path is **correct** but Commando-hardcoded; Monty has its own clone at `pipelines/monty/`.
 - Direction: **generalize `das_model_gen.extract`** to take any Hubbard SID + landmarks. Use `src/sidxray/discover.py` to find landmarks rh_decompile misses (freq table coverage went from 14% → 87.4% via discovery alone).
 - Do **NOT** grind `rh_to_usf` bug-by-bug. That path is deeply broken (0/285) and would take months to fix incrementally.
 - Do **NOT** propose writelog-replay as a shortcut. User explicitly rejected; defeats USF/ML purpose.
@@ -141,7 +141,7 @@ Some GT2 players use `ASL;BCC;CLC` to double pulse speed before adding. The fix 
 
 siddump uses 19688 cycles/frame (19656 + 32 margin). This causes the VBI to drift relative to siddump's frame boundary. Register diffs from this drift are classified as jitter (inaudible) in sid_compare.py. Do NOT try to "fix" these diffs by changing player cycle counts.
 
-## Pipeline
+## Pipelines
 
 ```
 Path 1 (static parsing — high quality, GT2-specific):
@@ -153,14 +153,23 @@ GT2 SID → gt2_decompile → gt2_to_usf → USF Song → usf_to_sid → rebuilt
 
 Path 2 (register trace — universal, any engine):
 ANY SID → siddump → register CSV → regtrace_to_usf → USF Song → usf_to_sid → rebuilt SID
+
+Path 3 (Hubbard engine, structured — produces byte-perfect SIDs):
+SID binary → decompile → engine_model (extract) → emit_usf → SongData.lean
+           → Codegen.lean (USFSong → 6502 player) → rebuilt SID
 ```
 
 **When to use which path:**
 - Path 1: GT2 SIDs where `find_freq_table` + `parse_gt2_direct` succeed (95.6% of GT2)
-- Path 2: any SID where static parsing fails, or non-GT2 engines (DMC, JCH, Hubbard, etc.)
-- Path 2 quality is lower but works universally — good starting point for new engines
+- Path 2: any SID where static parsing fails, or non-GT2 engines as a starting point
+- Path 3: Hubbard's early-era engine. Two pipelines live here:
+  - `pipelines/commando/` — Commando (byte-perfect, locked md5 `1964b77e...`)
+  - `pipelines/monty/` — Monty on the Run (Grade A 98.8%, py65 0-divergence)
+  Each is fully self-contained: `extract/` (Python) + `codegen/` (Lean). See each
+  pipeline's README.md for run instructions.
 
-**Comparison:** `sid_compare.py` dumps both original and rebuilt SIDs via `siddump`, compares register output frame-by-frame with jitter tolerance.
+**Comparison:** `sid_compare.py` (jitter-tolerant) and `src/writelog_grade.py` (siddump
+writelog match) both compare original vs rebuilt frame-by-frame.
 
 ## Build Environment
 

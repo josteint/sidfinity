@@ -18,10 +18,9 @@ import Commando.SID
 import Commando.Asm6502
 import Commando.PSIDFile
 import Commando.USF
+import Commando.Constants
 
 namespace V3
-
-def SID_BASE : UInt16 := 0xD400
 
 -- ==========================================================================
 -- Code builder with label/fixup support
