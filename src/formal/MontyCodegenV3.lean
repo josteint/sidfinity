@@ -622,11 +622,31 @@ def emitNL_RestoreXY (cb : CodeBuilder) : CodeBuilder :=
   cb
 
 /-- Save pitch (-> v_pitch[voice]) and freq_hi[pitch] (-> v_fhi[voice])
-    for use by sustain-path effects. Voice index restored to X afterwards. -/
+    for use by sustain-path effects. Voice index restored to X afterwards.
+
+    Hubbard quirk: in the original player, V1/V2/V3 `notenum` storage
+    overlaps the freq table at offsets equivalent to pitches 105.hi,
+    106.lo, 106.hi. After STA v_pitch,X we mirror the pitch into those
+    freq table slots so V2's vibrato (which reads pitch 105.hi for
+    delta_hi computation) sees V1's current notenum. -/
 def emitNL_SavePitchFhi (cb : CodeBuilder) : CodeBuilder :=
   let cb := cb.emitInst (I.ldx_zp 0xFA)
   let cb := cb.emitInst (I.lda_zp 0xFE)
   let cb := cb.emitStaAbsX "v_pitch"
+  -- A still = pitch. Branch on X to mirror into the right freq table slot.
+  let cb := cb.emitInst ⟨.CPX, .imm 0⟩
+  let cb := cb.emitBranch .BNE "alias_v1_v2"
+  let cb := cb.emitStaAbs "freq_hi_105"
+  let cb := cb.emitJmpLabel .JMP "alias_done"
+  let cb := cb.label "alias_v1_v2"
+  let cb := cb.emitInst ⟨.CPX, .imm 1⟩
+  let cb := cb.emitBranch .BNE "alias_v2"
+  let cb := cb.emitStaAbs "freq_lo_106"
+  let cb := cb.emitJmpLabel .JMP "alias_done"
+  let cb := cb.label "alias_v2"
+  let cb := cb.emitStaAbs "freq_hi_106"
+  let cb := cb.label "alias_done"
+  -- Continue: load freq_hi[pitch] -> v_fhi[voice]
   let cb := cb.emitInst (I.ldx_zp 0xFE)
   let cb := cb.emitLdaAbsX "freq_hi"
   let cb := cb.emitInst (I.ldx_zp 0xFA)
@@ -1303,15 +1323,21 @@ def generateSID (song : USFSong) (debug : Bool := false) : Bytes := Id.run do
   -- Frequency table: entry 104 is dynamic (ctrl byte, 0 at init)
   -- Compute set of freq slots that are dynamic (referenced by engineQuirks)
   let dynSlots : List Nat := song.engineQuirks.dynamicFreqEntries.map (·.freqSlot)
+  -- Hubbard notenum / freq table overlap: slots 105 (hi) and 106 (lo, hi)
+  -- physically alias V1/V2/V3 notenum in the original player. Emit labels
+  -- so emitNL_SavePitchFhi can mirror v_pitch writes into the freq table.
   cb := cb.label "freq_lo"
   for hi : i in [:song.freqTable.entries.length] do
     if dynSlots.contains i then cb := cb.label s!"freq_lo_{i}"
+    if i == 106 then cb := cb.label "freq_lo_106"
     match song.freqTable.entries[i]? with
     | some p => cb := cb.emitByte (if dynSlots.contains i then 0 else p.1.val.toUInt8)
     | none => cb := cb.emitByte 0
   cb := cb.label "freq_hi"
   for hi : i in [:song.freqTable.entries.length] do
     if dynSlots.contains i then cb := cb.label s!"freq_hi_{i}"
+    if i == 105 then cb := cb.label "freq_hi_105"
+    if i == 106 then cb := cb.label "freq_hi_106"
     match song.freqTable.entries[i]? with
     | some p => cb := cb.emitByte (if dynSlots.contains i then 0 else p.2.val.toUInt8)
     | none => cb := cb.emitByte 0
