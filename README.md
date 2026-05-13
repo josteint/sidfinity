@@ -42,8 +42,8 @@ The architectural bet: **engine quirks live as *data*, not as code branches**.
 
 What's universal:
 
-- **One format**, USF (Universal Symbolic Format). It describes notes, patterns, instruments, effects in engine-neutral terms. The schema lives in [`src/formal/USFv3.lean`](src/formal/USFv3.lean).
-- **One codegen**. [`src/formal/CodegenV3.lean`](src/formal/CodegenV3.lean) reads any USF song and emits 6502. There are no `if engine == Hubbard:` branches anywhere.
+- **One format**, USF (Universal Symbolic Format). It describes notes, patterns, instruments, effects in engine-neutral terms. The schema lives in [`pipelines/commando/codegen/Commando/USF.lean`](pipelines/commando/codegen/Commando/USF.lean) (each pipeline currently has its own clone).
+- **One codegen per engine**. Each pipeline's `Codegen.lean` reads its USF song and emits 6502. There are no `if engine == Hubbard:` branches anywhere; engine-specific behaviour lives in the USF data + per-pipeline codegen, not in shared conditionals.
 
 What's per-engine:
 
@@ -64,74 +64,99 @@ The schema and codegen are written in [Lean 4](https://lean-lang.org/) for two r
 
 ## Where we are
 
-**Validated end-to-end on one engine, one song.** Rob Hubbard's *Commando* — all three music subtunes (game, title, intro) — round-trips into a single multi-subtune `.sid` file that's audibly indistinguishable from the original. Verified by ear and by frame-by-frame register comparison.
+**Validated end-to-end on two songs, same engine family.**
 
-Concrete demo: [`demo/hubbard/Commando_v3pipe_all.sid`](demo/hubbard/Commando_v3pipe_all.sid). Play it in [VICE](https://vice-emu.sourceforge.io/) or [`sidplayfp`](https://github.com/libsidplayfp/libsidplayfp) and switch between subtunes 1, 2, and 3.
+- Rob Hubbard's *Commando* — all three music subtunes — round-trips into a single multi-subtune SID file that's audibly indistinguishable from the original. Frame-by-frame register comparison is byte-perfect against the original via siddump writelog. Rebuild md5 `1964b77e8b542a5187fdd0a6db2d0186` is locked in.
+- Rob Hubbard's *Monty on the Run* — the three music tracks — Grade A (98.8% snapshot match in siddump, **zero divergence over 1500 frames in py65**). The remaining gap is libsidplayfp emulator-internals (CIA timer, cycle-exact bus contention), not codegen bugs.
 
-Getting that one song clean took finding five universal-Hubbard quirks (the four listed above, plus a `no_release`-flag-suppresses-HR-at-note-end behaviour and a portamento freq slide) and encoding them into `CodegenV3.lean`. None of them are Commando-specific; they should apply to every Hubbard song. Whether they actually do is the next thing to test.
+Adding Monty required cloning the entire pipeline (per [`pipelines/README.md`](pipelines/README.md)'s rationale) and discovering three more Hubbard quirks beyond Commando's: the skydive effect (fx_flags bit 1), pulsedelay/pulsedir initial state extracted from the binary (not the ACME source's `!by $00,$00,$00`), and a notenum/freq-table memory overlap that causes V2's vibrato to read V1's current notenum.
+
+Getting Commando clean took finding five universal-Hubbard quirks; Monty added three more. None of those eight are SID-specific — they should apply to every Hubbard song in the early-engine family. Whether they actually do is what a third Hubbard SID would tell us.
 
 **An older GT2-only pipeline alongside.** Before V3 we built a separate Python pipeline targeted at GoatTracker V2 specifically. It reaches **4,968 Grade A** on GT2 SIDs with engine-specific code — works at scale, useful as a baseline, but doesn't share the V3 architecture and won't generalise. Long term we'd like to retire it; short term it's the only thing that handles GT2 at all.
 
 ### Honest limitations
 
-- **The "universal codegen" claim is unproven for any engine other than Hubbard.** Until V3 runs on a second engine and Just Works, the bet hasn't paid out. We've discovered five universal-Hubbard quirks; we don't know how many universal-GT2 quirks exist, or universal-JCH, or whether `USFEngineQuirks` is expressive enough to encode them all.
-- **Even within Hubbard, only one tune has been validated.** *Monty on the Run* is the next planned check. If it needs codegen changes, the architecture is leakier than we hope.
-- **Subtunes 4–19 of Commando aren't round-tripping yet.** Most are sound effects that take a different code path in Hubbard's player; the others reuse music patterns at conflicting tempos and need a tick-based duration model we haven't built.
-- **Lean discipline catches a lot of bugs at compile time, but the substantive proofs (round-trip soundness, schema completeness) aren't written.** That's a fair chunk of unrealised value.
-- **Audio comparison via `siddump` has frame-boundary jitter** that masks some real differences. Ear remains the final test, which doesn't scale.
+- **The "universal codegen" claim is unproven outside the Hubbard early-engine family.** Until V3 runs on a non-Hubbard engine and Just Works, the architectural bet hasn't paid out. We've discovered eight Hubbard quirks across two songs; we don't know how many universal-GT2 quirks exist, or universal-JCH, or whether the schema is expressive enough to encode them all.
+- **Even within Hubbard, the two pipelines are clones, not a shared codegen.** Sharing them is gated on a third Hubbard song being wired through, so the abstraction is exercised by three cases instead of two.
+- **Subtunes 4+ of either game aren't round-tripping.** Most are sound effects that take a different code path in Hubbard's player; the others reuse music patterns at conflicting tempos and need a tick-based duration model we haven't built.
+- **Lean discipline catches a lot of bugs at compile time** (per-pipeline `Properties.lean`), **but the substantive proofs (round-trip soundness, schema completeness) aren't written.** Maybe 30% of Lean's potential value realised.
+- **Audio comparison via `siddump` has frame-boundary jitter** that masks real differences. Ear remains the final test, which doesn't scale.
 
 ### What's next, by leverage-per-effort
 
-1. **Validate V3 on a second Hubbard tune** (Monty on the Run). Cheap; either falsifies the architecture or strengthens it.
-2. **Auto-extract `engineQuirks` from a player binary.** Right now we hand-write the quirks block per engine after RE'ing the player. If we had a tool that infers them from the binary (symbolic execution, abstract interpretation), adding an engine drops from "weeks" to "hours". This is the single highest-leverage item for HVSC scale.
-3. **Property tests on `CodegenV3`.** Cheap discipline win; catches "I forgot to handle this quirk variant" earlier.
-4. **Eventually: formal round-trip soundness proof for tracker music.** Months of work, but would let us convert HVSC at scale with machine-checked confidence rather than per-song listening.
+1. **A third Hubbard SID through the existing pipeline structure.** Cheap; the right point to validate before merging the two clones into one. Likely candidate: Sanxion, Skate Crazy, or BMX Kidz.
+2. **Merge Commando + Monty into one parameterised pipeline.** Trade some duplication for a single source of truth — once we know the abstraction handles three engines, not two.
+3. **Auto-extract Hubbard quirks from any binary.** Right now we hand-discover quirks per song via py65 tracing. A tool that infers them (symbolic execution, abstract interpretation) drops "weeks per SID" to "hours". Highest-leverage item for HVSC scale.
+4. **Property tests on the codegen.** Cheap discipline win — `Properties.lean` exists per pipeline but the theorem set is thin. Catches "I forgot to handle this quirk variant" earlier.
+5. **Eventually: formal round-trip soundness proof for tracker music.** Months of work, but would let us convert HVSC at scale with machine-checked confidence rather than per-song listening.
 
-## Pipeline (V3)
+## Pipelines (V3)
 
-For Commando today, the active transformations are:
+Each Hubbard SID has a dedicated, self-contained pipeline under
+[`pipelines/`](pipelines/). Two are live today; see each one's `README.md`
+for run instructions and current grade.
 
-| File | What it does |
+| Pipeline | Status | Run |
+|---|---|---|
+| [`pipelines/commando/`](pipelines/commando/) | Byte-perfect (siddump writelog), md5 `1964b77e...` locked | `lake build sidgen_commando && ./.lake/build/bin/sidgen_commando` |
+| [`pipelines/monty/`](pipelines/monty/) | Grade A (98.8% siddump snapshot, 0-divergence under py65) | `lake build sidgen_monty && ./.lake/build/bin/sidgen_monty` |
+
+Per pipeline:
+
+| Step | File |
 |---|---|
-| `src/rh_decompile.py` | Parse Hubbard binary → instruments, patterns, songs, freq table, per-subtune speed |
-| `src/das_model_gen.py` | Lift implicit Hubbard player behaviour into explicit data |
-| `src/gen_commando_v3.py` | Hubbard data → USF v3, attach `engineQuirks` block, emit Lean source |
-| `src/formal/CodegenV3.lean` | Universal 6502 player codegen — reads any USF song |
-| `src/formal/SidgenV3Main.lean` | Entry point; packs the result into a PSID |
+| 1. Parse Hubbard binary | `extract/decompile.py` |
+| 2. Lift to engine model `(T, I, S)` | `extract/engine_model.py` |
+| 3. Emit USF as Lean source | `extract/emit_usf.py` (or CLI: `python -m pipelines.<engine>.extract`) |
+| 4. Generate 6502 player + PSID wrap | `codegen/<Engine>/Codegen.lean` |
+| 5. Entry point (Lake exe) | `codegen/<Engine>/Main.lean` |
 
-Static infrastructure: `src/formal/USFv3.lean` (the schema), `src/formal/CommandoV3.lean` (USF data, generated by step 3), `src/formal/{Asm6502,PSIDFile,SID}.lean` (6502 / PSID helpers).
+Static infrastructure per pipeline: `codegen/<Engine>/{USF,SID,Asm6502,PSIDFile,Constants}.lean` and the auto-generated `SongData.lean`.
 
-For a different engine, only the first three files change. The Lean side stays put — that's the architectural bet.
+Today the two pipelines are clones, not a single shared codegen. The plan is to merge once a third Hubbard SID is wired through to validate the abstraction. See [`pipelines/README.md`](pipelines/README.md) for the design rationale.
 
 ## Build
 
 ```bash
-source src/env.sh
-bash tools/build.sh                  # libsidplayfp + siddump (one-time)
+source src/env.sh                              # PATH for siddump etc.
+bash tools/build.sh                            # libsidplayfp + siddump (one-time)
 
-cd src/formal && lake build sidgen_v3
-./.lake/build/bin/sidgen_v3          # writes src/formal/commando_v3.sid
+# Extract — Python; writes codegen/SongData.lean
+python -m pipelines.commando.extract           # all three Commando subtunes
+python -m pipelines.monty.extract 0,1,2        # all three Monty music subtunes
+
+# Codegen — Lean; writes <engine>.sid at repo root
+lake build sidgen_commando sidgen_monty
+./.lake/build/bin/sidgen_commando              # → commando.sid
+./.lake/build/bin/sidgen_monty                 # → monty.sid
+
+# Tests
+PYTHONPATH=tools/py_test_lib python -m pytest pipelines/        # extract smoke tests
+PYTHONPATH=tools/py_test_lib python -m mypy pipelines/.../extract  # type-check
+lake build                                                       # builds Properties.lean (compile-time theorems)
 ```
 
-Requires: g++ (C++17), Python 3.10+, Lean 4 / lake, xa65 assembler.
+Requires: g++ (C++17), Python 3.10+, Lean 4 / Lake, xa65 assembler.
 Optional: CUDA / Z3 (only used by V2 pipeline tools).
 
 ## Layout
 
 ```
-src/
-  rh_decompile.py        Hubbard SID parser
-  das_model_gen.py       Hubbard adapter (extract instruments/patterns/songs)
-  gen_commando_v3.py     Hubbard → USF v3 → CommandoV3.lean
-  gt2_*.py, dmc_*.py     V2 pipeline (GT2, DMC engines)
-  player/                V2 6502 code generator + optimisation tools
-  sidxray/               Player reverse-engineering tools
-  formal/                Lean V3 pipeline
-demo/hubbard/            Reference + generated Commando SIDs
-docs/                    Specs (USF, GT2 data layout, player engine notes)
-tools/                   Build tools (xa65, siddump, libsidplayfp)
-data/                    HVSC collection (not in git)
-deprecated/              Earlier pipeline iterations + dead experiments
+pipelines/                Per-engine V3 pipelines (see pipelines/README.md)
+  commando/               Rob Hubbard's Commando
+  monty/                  Rob Hubbard's Monty on the Run
+src/                      V2 pipeline + shared utilities
+  rh_decompile.py         Hubbard SID parser (also cloned into each pipeline)
+  gt2_*.py, dmc_*.py      V2 pipeline (GT2, DMC engines)
+  player/                 V2 6502 code generator + optimisation tools
+  sidxray/                Player reverse-engineering tools
+  formal/                 Research utilities (Z3, abstract interp, etc.)
+demo/                     Demo artefacts; build_das_model_<engine>.py emits readable asm
+docs/                     Specs (USF, GT2 data layout, player engine notes)
+tools/                    Build tools (xa65, siddump, libsidplayfp) + in-tree pytest/mypy
+data/                     HVSC collection (not in git)
+deprecated/               Earlier pipeline iterations + dead experiments
 ```
 
 ## Docs

@@ -16,7 +16,45 @@ sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.join(ROOT, 'src'))
 sys.path.insert(0, os.path.join(ROOT, 'tools', 'py65_lib'))
 
-from pipelines.monty.extract.engine_model import extract
+from pipelines.monty.extract.engine_model import extract as _extract_typed
+
+
+def extract():
+    """Legacy dict/tuple-shaped wrapper around the new dataclass extract.
+
+    This demo file pre-dates the dataclass refactor and was written against
+    the old `(T, instruments, score)` tuple-of-dicts. Rather than rewrite the
+    debug-asm emitter, we adapt the modern `ExtractedSong` back to the legacy
+    shape here. Note the Monty-specific `has_skydive` field is also exposed
+    for any asm path that wants it.
+    """
+    song = _extract_typed()
+    instruments = [{
+        'id': i.id,
+        'W': {'steps': i.waveform.steps, 'loop': i.waveform.loop},
+        'P': {'speed': i.pwm.speed, 'mode': i.pwm.mode,
+              'min_hi': i.pwm.min_hi, 'max_hi': i.pwm.max_hi,
+              'init_pw': i.pwm.init_pw},
+        'E': {'ad': i.envelope.ad, 'sr': i.envelope.sr,
+              'gate_off_delta': i.envelope.gate_off_delta,
+              'adsr_zero_delta': i.envelope.adsr_zero_delta},
+        'arp_offset': i.arp_offset,
+        'vibrato_scale': i.vibrato_scale,
+        'has_bit0': i.has_bit0,
+        'has_skydive': i.has_skydive,
+    } for i in song.instruments]
+    score = {
+        'tempo': song.score.tempo,
+        'voices': [{
+            'orderlist': v.orderlist,
+            'patterns': {pi: [{'pitch': n.pitch, 'duration': n.duration,
+                                'instrument': n.instrument, 'tie': n.tie,
+                                'drum_trig': n.drum_trig} for n in notes]
+                          for pi, notes in v.patterns.items()},
+            'loop': v.loop,
+        } for v in song.score.voices],
+    }
+    return song.freq_table, instruments, score
 
 SID_PATH = os.path.join(ROOT, 'data', 'C64Music', 'MUSICIANS', 'H',
                          'Hubbard_Rob', 'Monty_on_the_Run.sid')

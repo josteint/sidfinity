@@ -49,3 +49,4 @@ tools/gpu_6502
 tmp/
 *.exe
 tools/py65_lib/
+tools/py_test_lib/

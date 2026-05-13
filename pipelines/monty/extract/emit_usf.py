@@ -177,14 +177,18 @@ MONTY_SID = '/home/jtr/sidfinity/data/C64Music/MUSICIANS/H/Hubbard_Rob/Monty_on_
 MONTY_FT_BASE = 0x8400  # discovered via src/sidxray/discover.py
 
 
-def main() -> None:
-    logging.basicConfig(level=logging.INFO, format='%(message)s')
+def main(argv: list[str] | None = None) -> None:
+    if not logging.getLogger().handlers:
+        logging.basicConfig(level=logging.INFO, format='%(message)s')
+
+    if argv is None:
+        argv = sys.argv[1:]
 
     # Subtune list. Default = subtune 0 only (the title music PSID
     # start_song points at). Pass comma-separated indices to override.
     subtune_indices: list[int] = [0]
-    if len(sys.argv) > 1:
-        subtune_indices = [int(x) for x in sys.argv[1].split(',')]
+    if argv:
+        subtune_indices = [int(x) for x in argv[0].split(',')]
 
     # Extract per subtune from Monty (not Commando). Discovery-derived
     # ft_base override. PWM bounds are HARDCODED in Hubbard's player

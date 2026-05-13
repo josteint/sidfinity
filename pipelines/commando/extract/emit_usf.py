@@ -171,7 +171,8 @@ def gen_pattern(idx: int, notes: list[Note], tempo: int) -> str:
 
 
 def main(argv: Optional[list[str]] = None) -> None:
-    logging.basicConfig(level=logging.INFO, format='%(message)s')
+    if not logging.getLogger().handlers:
+        logging.basicConfig(level=logging.INFO, format='%(message)s')
 
     if argv is None:
         argv = sys.argv[1:]

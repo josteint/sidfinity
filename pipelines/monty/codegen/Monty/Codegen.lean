@@ -1,17 +1,32 @@
 /-
-  CodegenV3.lean — Universal player codegen consuming USF v3.
+  Monty.Codegen — Player codegen for Rob Hubbard's Monty on the Run,
+  consuming a `USFSong` and emitting a `ByteArray` PSID. Verified status:
+  Grade A 98.8% snapshot match in siddump; 0 register-divergence across
+  1500 frames in py65.
 
-  Reads a USFSong and produces a valid .sid file containing a 6502 player
-  plus song data. The player handles all USF v3 abstractions universally:
-  - NoteKind (pitched/percussion/rest/tie)
-  - Per-frame durations (no tick math)
-  - Effect chain order from instrument.effectOrder
-  - stepEvery counters per effect
-  - startDelay timing per effect
-  - Release spec (framesBeforeEnd, zeroAdsr, noRelease)
+  Cloned from Commando.Codegen. Differences from that codegen, ALL
+  Monty-specific, are flagged inline:
+  - Skydive emit block (between freqSlide and arpeggio) — gated on
+    `i_skydive[inst]`.
+  - v_pitch alias-store in `emitNL_SavePitchFhi` — mirrors V1/V2/V3
+    notenum writes into freq table slots 105.hi / 106.lo / 106.hi to
+    replicate Hubbard's notenum/freq-table memory overlap.
+  - PWM init data (v_pwperiod = [0,1,$1D], v_pwdir = [1,0,0]) extracted
+    from the original binary at $84E5..$84EA.
+  - HR threshold = 1 (vs Commando's 2) — different engine timing.
 
-  Frame-accurate: cycle ordering within a frame is deterministic per effect,
-  not configurable. Sufficient for all tracker music (PSID, single-speed).
+  ─── Table of contents ────────────────────────────────────────────────
+  §1  CodeBuilder + assembly helpers
+  §2  USFNoteLoadOp emission
+  §3  init — subtune dispatch, SID silence, voice-state init
+  §4  play — frame counter + per-voice loop dispatch
+  §5  note_load — emitNL_* sub-blocks (incl. v_pitch alias-store for
+                  Hubbard's notenum overlap)
+  §6  sustain effects — vibrato, PW, freqSlide, *SKYDIVE*, arpeggio,
+                        gate check
+  §7  Data tables                        (freq, instruments inc. i_skydive)
+  §8  generateSID                        (top-level orchestration)
+  ──────────────────────────────────────────────────────────────────────
 -/
 
 import Monty.SID

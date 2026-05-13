@@ -1,17 +1,31 @@
 /-
-  CodegenV3.lean — Universal player codegen consuming USF v3.
+  Commando.Codegen — Player codegen for Rob Hubbard's Commando, consuming
+  a `USFSong` and emitting a `ByteArray` PSID. Locked invariant: the
+  resulting `commando.sid` has md5 `1964b77e8b542a5187fdd0a6db2d0186` and
+  matches the original frame-for-frame in siddump's writelog.
 
-  Reads a USFSong and produces a valid .sid file containing a 6502 player
-  plus song data. The player handles all USF v3 abstractions universally:
-  - NoteKind (pitched/percussion/rest/tie)
+  The player handles all USF v3 abstractions:
+  - NoteKind (pitched / percussion / rest / tie)
   - Per-frame durations (no tick math)
-  - Effect chain order from instrument.effectOrder
+  - Effect chain order from `instrument.effectOrder`
   - stepEvery counters per effect
   - startDelay timing per effect
-  - Release spec (framesBeforeEnd, zeroAdsr, noRelease)
+  - Release spec (framesBeforeEnd / zeroAdsr / noRelease)
 
-  Frame-accurate: cycle ordering within a frame is deterministic per effect,
-  not configurable. Sufficient for all tracker music (PSID, single-speed).
+  Frame-accurate: cycle ordering within a frame is deterministic per
+  effect, not configurable. Sufficient for all tracker music.
+
+  ─── Table of contents ────────────────────────────────────────────────
+  §1  CodeBuilder + assembly helpers     (CodeBuilder, emitInst*, labels)
+  §2  USFNoteLoadOp emission             (engine-quirk DSL)
+  §3  init — subtune dispatch, SID silence, voice-state init
+  §4  play — frame counter + per-voice loop dispatch
+  §5  note_load — emitNL_* sub-blocks (header, ptr check, read pitch,
+                  read dur/inst/porta, advance ops, freq write, …)
+  §6  sustain effects — vibrato, PW, freqSlide, arpeggio, gate check
+  §7  Data tables                        (freq, instruments, patterns, voices)
+  §8  generateSID                        (top-level orchestration + PSID wrap)
+  ──────────────────────────────────────────────────────────────────────
 -/
 
 import Commando.SID

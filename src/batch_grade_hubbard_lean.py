@@ -275,7 +275,7 @@ def process_one(sid_path: str) -> dict:
 
         # 2. Extract (T, I, S)
         out['phase'] = 'extract'
-        from das_model_gen import extract
+        from pipelines.commando.extract.engine_model import extract
         T, instrs, score = extract(subtune=0,
                                     sid_path=sid_path,
                                     ft_base=lm.freq_table_addr)

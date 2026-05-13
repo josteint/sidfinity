@@ -40,14 +40,16 @@ def _process_one(sid_path: str) -> dict:
 
         # Phase 2: extract (T, I, S)
         out['phase'] = 'extract'
-        from das_model_gen import extract
+        from pipelines.commando.extract.engine_model import extract
         T, instrs, score = extract(subtune=0,
                                     sid_path=sid_path,
                                     ft_base=lm.freq_table_addr)
 
         # Phase 3: generate_asm + build_sid
         out['phase'] = 'asm'
-        from das_model_gen import generate_asm, build_sid
+        # generate_asm/build_sid were moved to demo/hubbard/build_das_model_commando.py;
+        # import them from there if this batch tool is resurrected. Currently broken.
+        raise NotImplementedError("batch_dasmodel_hubbard needs porting to the demo/ asm path")
         asm = generate_asm(T, instrs, score)
         rebuilt = f'/tmp/dasm_batch_{os.getpid()}.sid'
         ok = build_sid(asm, rebuilt, source_sid_path=sid_path)

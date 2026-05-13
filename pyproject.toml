@@ -20,6 +20,10 @@ filterwarnings = [
 python_version = "3.11"
 warn_unused_ignores = true
 strict_optional = true
+# Repo-local libs not in the pipelines we type-check.
+[[tool.mypy.overrides]]
+module = ["effect_detect", "py65", "py65.*", "ground_truth"]
+ignore_missing_imports = true
 # Per-pipeline strict typing where the dataclass refactor has landed.
 [[tool.mypy.overrides]]
 module = "pipelines.commando.extract.*"
