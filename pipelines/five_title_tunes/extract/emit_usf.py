@@ -186,7 +186,7 @@ def main(argv: list[str] | None = None) -> None:
 
     # Subtune list. Default = subtune 0 only (the title music PSID
     # start_song points at). Pass comma-separated indices to override.
-    subtune_indices: list[int] = [0, 1, 2, 3, 4]
+    subtune_indices: list[int] = [0]
     if argv:
         subtune_indices = [int(x) for x in argv[0].split(',')]
 
