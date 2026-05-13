@@ -50,3 +50,4 @@ tmp/
 *.exe
 tools/py65_lib/
 tools/py_test_lib/
+*.sid
