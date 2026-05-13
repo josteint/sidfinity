@@ -1,0 +1,16 @@
+# Tests
+
+Pytest smoke tests for the FiveTt4 extract path: instrument count, skydive
+detection, PW bound check, error handling. From the repo root:
+
+```bash
+PYTHONPATH=tools/py_test_lib python -m pytest pipelines/five_tt_4/tests/
+```
+
+pytest + mypy live in-tree (`tools/py_test_lib/`, gitignored). If missing:
+
+```bash
+pip install --target=tools/py_test_lib pytest mypy
+```
+
+For codegen invariants (compile-time theorems), see `../codegen/FiveTt4/Properties.lean` — Lake runs those automatically on build.
