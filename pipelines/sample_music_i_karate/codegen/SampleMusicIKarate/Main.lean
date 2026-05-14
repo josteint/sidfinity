@@ -5,7 +5,8 @@ open SampleMusicIKarateNS
 
 def main : IO Unit := do
   let sid := generateSID sample_music_i_karateV3
-  let handle ← IO.FS.Handle.mk "sample_music_i_karate.sid" .write
+  IO.FS.createDirAll "pipelines/sample_music_i_karate/build"
+  let handle ← IO.FS.Handle.mk "pipelines/sample_music_i_karate/build/sample_music_i_karate.sid" .write
   handle.write ⟨sid⟩
   IO.println s!"Generated sample_music_i_karate.sid ({sid.size} bytes)"
   IO.println s!"  Freq table: {sample_music_i_karateV3.freqTable.entries.length} entries"

@@ -5,7 +5,8 @@ open ConfuzionNS
 
 def main : IO Unit := do
   let sid := generateSID confuzionV3
-  let handle ← IO.FS.Handle.mk "confuzion.sid" .write
+  IO.FS.createDirAll "pipelines/confuzion/build"
+  let handle ← IO.FS.Handle.mk "pipelines/confuzion/build/confuzion.sid" .write
   handle.write ⟨sid⟩
   IO.println s!"Generated confuzion.sid ({sid.size} bytes)"
   IO.println s!"  Freq table: {confuzionV3.freqTable.entries.length} entries"

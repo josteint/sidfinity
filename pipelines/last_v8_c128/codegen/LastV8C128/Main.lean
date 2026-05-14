@@ -5,7 +5,8 @@ open LastV8C128NS
 
 def main : IO Unit := do
   let sid := generateSID last_v8_c128V3
-  let handle ← IO.FS.Handle.mk "last_v8_c128.sid" .write
+  IO.FS.createDirAll "pipelines/last_v8_c128/build"
+  let handle ← IO.FS.Handle.mk "pipelines/last_v8_c128/build/last_v8_c128.sid" .write
   handle.write ⟨sid⟩
   IO.println s!"Generated last_v8_c128.sid ({sid.size} bytes)"
   IO.println s!"  Freq table: {last_v8_c128V3.freqTable.entries.length} entries"

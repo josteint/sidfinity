@@ -5,7 +5,8 @@ open DevilsGalopNS
 
 def main : IO Unit := do
   let sid := generateSID devils_galopV3
-  let handle ← IO.FS.Handle.mk "devils_galop.sid" .write
+  IO.FS.createDirAll "pipelines/devils_galop/build"
+  let handle ← IO.FS.Handle.mk "pipelines/devils_galop/build/devils_galop.sid" .write
   handle.write ⟨sid⟩
   IO.println s!"Generated devils_galop.sid ({sid.size} bytes)"
   IO.println s!"  Freq table: {devils_galopV3.freqTable.entries.length} entries"

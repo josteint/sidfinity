@@ -87,7 +87,7 @@ python -m pipelines.five_title_tunes.extract.emit_usf
 # Build the rebuild
 lake build sidgen_five_title_tunes
 ./.lake/build/bin/sidgen_five_title_tunes
-# → five_title_tunes.sid at repo root
+# → pipelines/five_title_tunes/build/five_title_tunes.sid
 ```
 
 ## Why no Grade A/B/C

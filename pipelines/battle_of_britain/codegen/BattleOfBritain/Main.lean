@@ -5,7 +5,8 @@ open BattleOfBritainNS
 
 def main : IO Unit := do
   let sid := generateSID battle_of_britainV3
-  let handle ← IO.FS.Handle.mk "battle_of_britain.sid" .write
+  IO.FS.createDirAll "pipelines/battle_of_britain/build"
+  let handle ← IO.FS.Handle.mk "pipelines/battle_of_britain/build/battle_of_britain.sid" .write
   handle.write ⟨sid⟩
   IO.println s!"Generated battle_of_britain.sid ({sid.size} bytes)"
   IO.println s!"  Freq table: {battle_of_britainV3.freqTable.entries.length} entries"

@@ -5,7 +5,8 @@ open ThingOnASpringNS
 
 def main : IO Unit := do
   let sid := generateSID thing_on_a_springV3
-  let handle ← IO.FS.Handle.mk "thing_on_a_spring.sid" .write
+  IO.FS.createDirAll "pipelines/thing_on_a_spring/build"
+  let handle ← IO.FS.Handle.mk "pipelines/thing_on_a_spring/build/thing_on_a_spring.sid" .write
   handle.write ⟨sid⟩
   IO.println s!"Generated thing_on_a_spring.sid ({sid.size} bytes)"
   IO.println s!"  Freq table: {thing_on_a_springV3.freqTable.entries.length} entries"

@@ -5,7 +5,8 @@ open ActionBikerNS
 
 def main : IO Unit := do
   let sid := generateSID action_bikerV3
-  let handle ← IO.FS.Handle.mk "action_biker.sid" .write
+  IO.FS.createDirAll "pipelines/action_biker/build"
+  let handle ← IO.FS.Handle.mk "pipelines/action_biker/build/action_biker.sid" .write
   handle.write ⟨sid⟩
   IO.println s!"Generated action_biker.sid ({sid.size} bytes)"
   IO.println s!"  Freq table: {action_bikerV3.freqTable.entries.length} entries"

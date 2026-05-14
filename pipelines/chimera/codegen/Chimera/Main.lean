@@ -5,7 +5,8 @@ open ChimeraNS
 
 def main : IO Unit := do
   let sid := generateSID chimeraV3
-  let handle ← IO.FS.Handle.mk "chimera.sid" .write
+  IO.FS.createDirAll "pipelines/chimera/build"
+  let handle ← IO.FS.Handle.mk "pipelines/chimera/build/chimera.sid" .write
   handle.write ⟨sid⟩
   IO.println s!"Generated chimera.sid ({sid.size} bytes)"
   IO.println s!"  Freq table: {chimeraV3.freqTable.entries.length} entries"

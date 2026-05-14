@@ -126,10 +126,10 @@ bash tools/build.sh                            # libsidplayfp + siddump (one-tim
 python -m pipelines.commando.extract           # all three Commando subtunes
 python -m pipelines.monty.extract 0,1,2        # all three Monty music subtunes
 
-# Codegen — Lean; writes <engine>.sid at repo root
+# Codegen — Lean; writes pipelines/<engine>/build/<engine>.sid
 lake build sidgen_commando sidgen_monty
-./.lake/build/bin/sidgen_commando              # → commando.sid
-./.lake/build/bin/sidgen_monty                 # → monty.sid
+./.lake/build/bin/sidgen_commando              # → pipelines/commando/build/commando.sid
+./.lake/build/bin/sidgen_monty                 # → pipelines/monty/build/monty.sid
 
 # Tests
 PYTHONPATH=tools/py_test_lib python -m pytest pipelines/        # extract smoke tests

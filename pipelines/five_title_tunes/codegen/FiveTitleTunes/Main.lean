@@ -5,7 +5,8 @@ open FiveTitleTunesNS
 
 def main : IO Unit := do
   let sid := generateSID fiveTtV3
-  let handle ← IO.FS.Handle.mk "five_title_tunes.sid" .write
+  IO.FS.createDirAll "pipelines/five_title_tunes/build"
+  let handle ← IO.FS.Handle.mk "pipelines/five_title_tunes/build/five_title_tunes.sid" .write
   handle.write ⟨sid⟩
   IO.println s!"Generated five_title_tunes.sid ({sid.size} bytes)"
   IO.println s!"  Freq table: {fiveTtV3.freqTable.entries.length} entries"

@@ -48,6 +48,7 @@ Build and run:
 ```bash
 lake build sidgen_monty
 ./.lake/build/bin/sidgen_monty
+# → pipelines/monty/build/monty.sid
 ```
 
 Grade against the original:
@@ -55,7 +56,7 @@ Grade against the original:
 ```bash
 python src/writelog_grade.py \
     data/C64Music/MUSICIANS/H/Hubbard_Rob/Monty_on_the_Run.sid \
-    monty.sid
+    pipelines/monty/build/monty.sid
 # Expected: Grade A, snapshots 98.8% (1482/1500)
 ```
 

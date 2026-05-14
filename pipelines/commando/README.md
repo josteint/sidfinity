@@ -43,20 +43,21 @@ Regenerate `SongData.lean` from the original (re-runs extraction):
 python -m pipelines.commando.extract.emit_usf
 ```
 
-Build the Lean exe and produce `commando.sid`:
+Build the Lean exe and produce the rebuild:
 
 ```bash
 lake build sidgen_commando
 ./.lake/build/bin/sidgen_commando
+# → pipelines/commando/build/commando.sid
 ```
 
 Verify byte-perfect:
 
 ```bash
-md5sum commando.sid  # expect 1964b77e8b542a5187fdd0a6db2d0186
+md5sum pipelines/commando/build/commando.sid  # expect 1964b77e8b542a5187fdd0a6db2d0186
 python src/writelog_grade.py \
     data/C64Music/MUSICIANS/H/Hubbard_Rob/Commando.sid \
-    commando.sid
+    pipelines/commando/build/commando.sid
 ```
 
 ## What "byte-perfect" means

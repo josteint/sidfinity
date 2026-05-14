@@ -55,10 +55,10 @@ From the repo root:
 python -m pipelines.commando.extract.emit_usf
 python -m pipelines.monty.extract.emit_usf 0,1,2
 
-# Codegen — Lean; writes <engine>.sid
+# Codegen — Lean; writes pipelines/<engine>/build/<engine>.sid
 lake build sidgen_commando sidgen_monty
-./.lake/build/bin/sidgen_commando      # → commando.sid
-./.lake/build/bin/sidgen_monty         # → monty.sid
+./.lake/build/bin/sidgen_commando      # → pipelines/commando/build/commando.sid
+./.lake/build/bin/sidgen_monty         # → pipelines/monty/build/monty.sid
 
 # Tests
 pytest pipelines/                       # extract smoke tests

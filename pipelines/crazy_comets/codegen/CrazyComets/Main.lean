@@ -5,7 +5,8 @@ open CrazyCometsNS
 
 def main : IO Unit := do
   let sid := generateSID crazy_cometsV3
-  let handle ← IO.FS.Handle.mk "crazy_comets.sid" .write
+  IO.FS.createDirAll "pipelines/crazy_comets/build"
+  let handle ← IO.FS.Handle.mk "pipelines/crazy_comets/build/crazy_comets.sid" .write
   handle.write ⟨sid⟩
   IO.println s!"Generated crazy_comets.sid ({sid.size} bytes)"
   IO.println s!"  Freq table: {crazy_cometsV3.freqTable.entries.length} entries"

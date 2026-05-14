@@ -5,7 +5,8 @@ open MV3
 
 def main : IO Unit := do
   let sid := generateSID montyV3
-  let handle ← IO.FS.Handle.mk "monty.sid" .write
+  IO.FS.createDirAll "pipelines/monty/build"
+  let handle ← IO.FS.Handle.mk "pipelines/monty/build/monty.sid" .write
   handle.write ⟨sid⟩
   IO.println s!"Generated monty.sid ({sid.size} bytes)"
   IO.println s!"  Freq table: {montyV3.freqTable.entries.length} entries"

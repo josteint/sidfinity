@@ -126,7 +126,7 @@ def main() -> int:
             results.append((pname, 'exe missing after build'))
             continue
         proc = run([str(exe)], check=False)
-        rebuild = REPO / f'{pname}.sid'
+        rebuild = REPO / f'pipelines/{pname}/build/{pname}.sid'
         if proc.returncode != 0 or not rebuild.exists():
             results.append((pname, f'exe failed: {proc.stderr.strip()[:120]}'))
             continue

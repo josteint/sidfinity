@@ -5,7 +5,8 @@ open GremlinsNS
 
 def main : IO Unit := do
   let sid := generateSID gremlinsV3
-  let handle ← IO.FS.Handle.mk "gremlins.sid" .write
+  IO.FS.createDirAll "pipelines/gremlins/build"
+  let handle ← IO.FS.Handle.mk "pipelines/gremlins/build/gremlins.sid" .write
   handle.write ⟨sid⟩
   IO.println s!"Generated gremlins.sid ({sid.size} bytes)"
   IO.println s!"  Freq table: {gremlinsV3.freqTable.entries.length} entries"

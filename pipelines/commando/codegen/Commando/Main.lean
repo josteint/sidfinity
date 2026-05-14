@@ -5,7 +5,8 @@ open V3
 
 def main : IO Unit := do
   let sid := generateSID commandoV3
-  let handle ← IO.FS.Handle.mk "commando.sid" .write
+  IO.FS.createDirAll "pipelines/commando/build"
+  let handle ← IO.FS.Handle.mk "pipelines/commando/build/commando.sid" .write
   handle.write ⟨sid⟩
   IO.println s!"Generated commando.sid ({sid.size} bytes)"
   IO.println s!"  Freq table: {commandoV3.freqTable.entries.length} entries"

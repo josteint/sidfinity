@@ -5,7 +5,8 @@ open RasputinNS
 
 def main : IO Unit := do
   let sid := generateSID rasputinV3
-  let handle ← IO.FS.Handle.mk "rasputin.sid" .write
+  IO.FS.createDirAll "pipelines/rasputin/build"
+  let handle ← IO.FS.Handle.mk "pipelines/rasputin/build/rasputin.sid" .write
   handle.write ⟨sid⟩
   IO.println s!"Generated rasputin.sid ({sid.size} bytes)"
   IO.println s!"  Freq table: {rasputinV3.freqTable.entries.length} entries"

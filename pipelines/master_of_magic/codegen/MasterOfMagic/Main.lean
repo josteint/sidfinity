@@ -5,7 +5,8 @@ open MasterOfMagicNS
 
 def main : IO Unit := do
   let sid := generateSID master_of_magicV3
-  let handle ← IO.FS.Handle.mk "master_of_magic.sid" .write
+  IO.FS.createDirAll "pipelines/master_of_magic/build"
+  let handle ← IO.FS.Handle.mk "pipelines/master_of_magic/build/master_of_magic.sid" .write
   handle.write ⟨sid⟩
   IO.println s!"Generated master_of_magic.sid ({sid.size} bytes)"
   IO.println s!"  Freq table: {master_of_magicV3.freqTable.entries.length} entries"
