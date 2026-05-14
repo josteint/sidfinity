@@ -215,34 +215,17 @@ lean_exe sidgen_thing_on_a_spring where
   root   := `ThingOnASpring.Main
 
 
--- 5 Title Tunes — ONE shared codegen lib, five SongData files (one per sub),
--- five lean_exes (one per sub) all linking the same lib. See
--- pipelines/five_title_tunes/README.md.
+-- 5 Title Tunes — extract splits parent into 5 sub-binaries, merges them
+-- into ONE USFSong with 5 USFSubtune records (idiomatic, matches how
+-- Commando + Monty look in USF). One lean_lib, one lean_exe.
 
 lean_lib FiveTitleTunes where
   srcDir := "pipelines/five_title_tunes/codegen"
   roots  := #[`FiveTitleTunes.SID, `FiveTitleTunes.Asm6502, `FiveTitleTunes.PSIDFile,
               `FiveTitleTunes.USF, `FiveTitleTunes.Constants,
-              `FiveTitleTunes.Sub0, `FiveTitleTunes.Sub1, `FiveTitleTunes.Sub2,
-              `FiveTitleTunes.Sub3, `FiveTitleTunes.Sub4,
+              `FiveTitleTunes.SongData,
               `FiveTitleTunes.Codegen, `FiveTitleTunes.Properties]
 
-lean_exe sidgen_five_tt_0 where
+lean_exe sidgen_five_title_tunes where
   srcDir := "pipelines/five_title_tunes/codegen"
-  root   := `FiveTitleTunes.Sub0Main
-
-lean_exe sidgen_five_tt_1 where
-  srcDir := "pipelines/five_title_tunes/codegen"
-  root   := `FiveTitleTunes.Sub1Main
-
-lean_exe sidgen_five_tt_2 where
-  srcDir := "pipelines/five_title_tunes/codegen"
-  root   := `FiveTitleTunes.Sub2Main
-
-lean_exe sidgen_five_tt_3 where
-  srcDir := "pipelines/five_title_tunes/codegen"
-  root   := `FiveTitleTunes.Sub3Main
-
-lean_exe sidgen_five_tt_4 where
-  srcDir := "pipelines/five_title_tunes/codegen"
-  root   := `FiveTitleTunes.Sub4Main
+  root   := `FiveTitleTunes.Main
