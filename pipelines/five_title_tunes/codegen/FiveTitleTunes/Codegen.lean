@@ -805,7 +805,7 @@ def emitExecVoice (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.run do
   -- frame too early and the PWM cycle got chopped, producing a "fuzzy"
   -- bass tone vs the original's well-defined one.
   cb := cb.emitLdaAbsX "v_dur"
-  cb := cb.emitInst (I.cmp_imm 0)
+  cb := cb.emitInst (I.cmp_imm 4)
   cb := cb.emitBranch .BNE "effects_start"          -- not equal → skip gate-off
   -- Skip HR if current note has no_release flag set: gate stays on into the
   -- next note so the SID envelope doesn't retrigger across the boundary
