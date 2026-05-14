@@ -25,11 +25,12 @@ def SID_V_SR      : UInt16 := 6
 /-- Frame counter, zero page. -/
 def ZP_FRAME_CTR  : UInt8  := 0x50
 
-/-- Hard-restart threshold. FiveTitleTunes uses 1 (vs Commando's 2) because FiveTitleTunes
-    fires HR exactly 2 frames before note-load, where Commando fires 3.
-    The difference is engine-internal timing of when `v_dur` is decremented
-    relative to the rest of the play loop. -/
-def HR_THRESHOLD  : UInt8  := 1
+/-- Hard-restart threshold. 5 Title Tunes' subtune 1 bass uses bidirectional
+    PWM (instrument 2: AD=$58, SR=$30, pw=$81/bidir). With HR_THRESHOLD=1
+    the note release was firing one frame before the original, cutting the
+    PWM cycle short and giving the bass a "fuzzy" / less-defined sound.
+    Bumped to 2 (Commando's value); audibly cleaner. -/
+def HR_THRESHOLD  : UInt8  := 2
 
 /-- Hubbard's PW direction-flip bounds for bidirectional PWM. HARDCODED
     in the original `pulsework` routine (cmp #$08 / cmp #$0E), NOT

@@ -799,14 +799,13 @@ def emitExecVoice (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.run do
   -- Order: gate-off → vibrato → PW → freq_slide+ctrl → arpeggio
   cb := cb.emitInst (I.stx_zp 0xFA)              -- save voice index
 
-  -- 1. GATE-OFF CHECK (fire when v_dur == gateOffFrames, i.e., before note end)
-  -- Only fires once per note (the exact moment v_dur crosses threshold).
-  -- Orig FiveTitleTunes: HR fires 2 frames before note-load (writelog trace), so the
-  -- threshold here is v_dur == 1 for FiveTitleTunes. Commando used cmp_imm 2; the
-  -- difference is engine timing (`speed`/tempo bookkeeping shifts when v_dur
-  -- crosses each value).
+  -- 1. GATE-OFF CHECK. Fire HR when v_dur == HR_THRESHOLD. 5 Title Tunes
+  -- subtune 1's bidirectional-PWM bass (instrument 2: AD=$58, SR=$30,
+  -- pw=$81/bidir) needs cmp_imm 2 — with cmp_imm 1 the release fired one
+  -- frame too early and the PWM cycle got chopped, producing a "fuzzy"
+  -- bass tone vs the original's well-defined one.
   cb := cb.emitLdaAbsX "v_dur"
-  cb := cb.emitInst (I.cmp_imm 1)
+  cb := cb.emitInst (I.cmp_imm 2)
   cb := cb.emitBranch .BNE "effects_start"          -- not equal → skip gate-off
   -- Skip HR if current note has no_release flag set: gate stays on into the
   -- next note so the SID envelope doesn't retrigger across the boundary
