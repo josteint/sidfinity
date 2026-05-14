@@ -215,58 +215,34 @@ lean_exe sidgen_thing_on_a_spring where
   root   := `ThingOnASpring.Main
 
 
--- 5 Title Tunes — 5 sub-binaries (see pipelines/five_title_tunes/README.md)
+-- 5 Title Tunes — ONE shared codegen lib, five SongData files (one per sub),
+-- five lean_exes (one per sub) all linking the same lib. See
+-- pipelines/five_title_tunes/README.md.
 
-lean_lib FiveTt0 where
-  srcDir := "pipelines/five_tt_0/codegen"
-  roots  := #[`FiveTt0.SID, `FiveTt0.Asm6502, `FiveTt0.PSIDFile,
-              `FiveTt0.USF, `FiveTt0.Constants, `FiveTt0.SongData,
-              `FiveTt0.Codegen, `FiveTt0.Properties]
+lean_lib FiveTitleTunes where
+  srcDir := "pipelines/five_title_tunes/codegen"
+  roots  := #[`FiveTitleTunes.SID, `FiveTitleTunes.Asm6502, `FiveTitleTunes.PSIDFile,
+              `FiveTitleTunes.USF, `FiveTitleTunes.Constants,
+              `FiveTitleTunes.Sub0, `FiveTitleTunes.Sub1, `FiveTitleTunes.Sub2,
+              `FiveTitleTunes.Sub3, `FiveTitleTunes.Sub4,
+              `FiveTitleTunes.Codegen, `FiveTitleTunes.Properties]
 
 lean_exe sidgen_five_tt_0 where
-  srcDir := "pipelines/five_tt_0/codegen"
-  root   := `FiveTt0.Main
-
-
-lean_lib FiveTt1 where
-  srcDir := "pipelines/five_tt_1/codegen"
-  roots  := #[`FiveTt1.SID, `FiveTt1.Asm6502, `FiveTt1.PSIDFile,
-              `FiveTt1.USF, `FiveTt1.Constants, `FiveTt1.SongData,
-              `FiveTt1.Codegen, `FiveTt1.Properties]
+  srcDir := "pipelines/five_title_tunes/codegen"
+  root   := `FiveTitleTunes.Sub0Main
 
 lean_exe sidgen_five_tt_1 where
-  srcDir := "pipelines/five_tt_1/codegen"
-  root   := `FiveTt1.Main
-
-
-lean_lib FiveTt2 where
-  srcDir := "pipelines/five_tt_2/codegen"
-  roots  := #[`FiveTt2.SID, `FiveTt2.Asm6502, `FiveTt2.PSIDFile,
-              `FiveTt2.USF, `FiveTt2.Constants, `FiveTt2.SongData,
-              `FiveTt2.Codegen, `FiveTt2.Properties]
+  srcDir := "pipelines/five_title_tunes/codegen"
+  root   := `FiveTitleTunes.Sub1Main
 
 lean_exe sidgen_five_tt_2 where
-  srcDir := "pipelines/five_tt_2/codegen"
-  root   := `FiveTt2.Main
-
-
-lean_lib FiveTt3 where
-  srcDir := "pipelines/five_tt_3/codegen"
-  roots  := #[`FiveTt3.SID, `FiveTt3.Asm6502, `FiveTt3.PSIDFile,
-              `FiveTt3.USF, `FiveTt3.Constants, `FiveTt3.SongData,
-              `FiveTt3.Codegen, `FiveTt3.Properties]
+  srcDir := "pipelines/five_title_tunes/codegen"
+  root   := `FiveTitleTunes.Sub2Main
 
 lean_exe sidgen_five_tt_3 where
-  srcDir := "pipelines/five_tt_3/codegen"
-  root   := `FiveTt3.Main
-
-
-lean_lib FiveTt4 where
-  srcDir := "pipelines/five_tt_4/codegen"
-  roots  := #[`FiveTt4.SID, `FiveTt4.Asm6502, `FiveTt4.PSIDFile,
-              `FiveTt4.USF, `FiveTt4.Constants, `FiveTt4.SongData,
-              `FiveTt4.Codegen, `FiveTt4.Properties]
+  srcDir := "pipelines/five_title_tunes/codegen"
+  root   := `FiveTitleTunes.Sub3Main
 
 lean_exe sidgen_five_tt_4 where
-  srcDir := "pipelines/five_tt_4/codegen"
-  root   := `FiveTt4.Main
+  srcDir := "pipelines/five_title_tunes/codegen"
+  root   := `FiveTitleTunes.Sub4Main
