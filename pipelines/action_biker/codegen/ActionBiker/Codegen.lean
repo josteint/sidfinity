@@ -1208,10 +1208,10 @@ def emitSustainEffects (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.r
   cb := cb.label "fhi_ok"
 
   -- Guard: skip slide entirely once we are at/past the gate-off frame.
-  -- das_model uses `cmp #4 / bcc skip` on its dur*3 countdown; ours is
-  -- (dur-1) so the equivalent threshold is v_dur < 3 (gate-off fires at
-  -- v_dur == 2). In tick mode the units are ticks, not frames, so we
-  -- need a tighter threshold (v_dur < 1 = skip on the last tick only).
+  -- Empirically v_dur < 3 (frame mode) gives best grade — tighter or
+  -- looser thresholds regress. The original engine only skips at
+  -- v_dur == 0, but our frame-model timing offset means the last few
+  -- frames need to be suppressed to match.
   let dur_guard : UInt8 := if song.engineQuirks.framesPerTick != 0 then 1 else 3
   cb := cb.emitLdaAbsX "v_dur"
   cb := cb.emitInst (I.cmp_imm dur_guard)
