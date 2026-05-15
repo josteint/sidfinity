@@ -20,6 +20,13 @@ structure PSIDHeader where
   title      : String := ""
   author     : String := ""
   released   : String := ""
+  -- Confuzion-specific: when loadAddr=0 (embedded form), the actual load
+  -- address goes here. Falls back to initAddr if 0, which preserves
+  -- existing pipelines where load==init (e.g. the $1000 rebuild base).
+  embeddedLoad : UInt16 := 0
+  -- PSID v2 flags (offset 118-119): bits 2-3 = clock, bits 4-5 = SID model.
+  -- $0014 = PAL + 6581, the standard for 1985 Hubbard.
+  flags : UInt16 := 0
 
 -- Write a big-endian UInt16
 def writeBE16 (v : UInt16) : Bytes :=
@@ -57,16 +64,19 @@ def serializeHeader (h : PSIDHeader) : Bytes :=
   ++ padString h.author 32            -- offset 54: author
   ++ padString h.released 32          -- offset 86: released
   -- v2 fields (offset 118-123)
-  ++ #[0, 0]                          -- flags (6581)
-  ++ #[0, 0]                          -- start page
-  ++ #[0, 0]                          -- page length / reserved
+  ++ writeBE16 h.flags                -- offset 118: flags (clock + SID model)
+  ++ #[0, 0]                          -- offset 120: start page / page length
+  ++ #[0, 0]                          -- offset 122: reserved
 
 -- Build a complete .sid file
 -- payload: the 6502 code + data that will be loaded at loadAddr
 def buildSID (h : PSIDHeader) (payload : Bytes) : Bytes :=
   let header := serializeHeader h
-  -- When loadAddr in header is 0, first 2 bytes of data are the load address
+  -- When loadAddr in header is 0, first 2 bytes of data are the load address.
+  -- Use embeddedLoad if explicitly set; else fall back to initAddr (the
+  -- original behavior, valid for pipelines where load==init).
   if h.loadAddr == 0 then
-    header ++ rawWord h.initAddr ++ payload  -- prepend actual load address
+    let actualLoad := if h.embeddedLoad == 0 then h.initAddr else h.embeddedLoad
+    header ++ rawWord actualLoad ++ payload
   else
     header ++ payload
