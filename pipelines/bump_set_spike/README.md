@@ -14,15 +14,30 @@ in yet.
 | Codegen base | Commando (Bump Set Spike is the same 1985-86 Hubbard engine family) |
 | Engine quirks wired in | freq table base $B3FF + hardcoded PWM bounds + 22 instruments correctly extracted |
 | Grade against original | **F** (writelog 0.1% snapshot match, 1/1500) |
+| Per-voice progress | V3_PW_LO frame 1 matches; vibrato active and matches V3 freq on frames {0,2,10,15} of the first 22 |
 
 Extract is verified correct: freq table extracts `freq[0] = $0116`
 matching binary at `$B3FF`; instrument 0 extracts `PW=$0800 ctrl=$41
 AD=$0F SR=$0C` matching binary at `$B513`. After switching codegen
-base from Monty to Commando, V3_PW_LO at frame 1 ($C0) now matches
-the original. The remaining gap is mostly **vibrato and portamento
-freq modulation** — V1/V2/V3 freq diverge from the original at frame 1
-because Commando's codegen doesn't reproduce Bump Set Spike's
-specific triangle-vibrato math at $B1B6..$B287 in the disassembly.
+base from Monty to Commando + activating vibrato:
+
+- V3_PW_LO frame 1 → $C0 matches original.
+- V3 freq frame 0 → $03A9 matches (note load).
+- V3 freq frame 2 → $03B5 matches (vibrato peak).
+- V3 freq frames {10, 15} match by phase coincidence.
+
+The remaining gap is the **vibrato LFO shape mismatch**:
+- Original is a per-voice walking counter with stateful direction
+  flag (initial value $02 from binary at `$B4E3,X`), bipolar
+  centering: `freq = freq[note] - delta*(limit/2) + delta*counter`.
+- Codegen uses Commando's hardcoded triangle from the global frame
+  counter (`counter & 7 → 0,1,2,3,3,2,1,0`), unipolar:
+  `freq = freq[note] + delta*step`.
+
+This produces *visually* similar modulation but with wrong phase and
+amplitude, so the writelog snapshot grade still F. Matching exactly
+requires per-voice vibrato state in the codegen (new zp slots,
+walking-counter emit code) — see "Pushing toward Grade A" below.
 
 ## Layout
 
