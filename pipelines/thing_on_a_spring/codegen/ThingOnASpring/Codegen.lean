@@ -403,7 +403,12 @@ def emitInit (cb : CodeBuilder) (song : USFSong) : CodeBuilder :=
   let cb := cb.label "init"
   let cb := emitInitSubtuneClamp cb song
   let cb := emitInitSubtuneCopy cb
-  let cb := emitInitSidSilence cb
+  -- NOTE: SID-silence block omitted vs Monty/Commando.
+  -- Thing on a Spring's init ($CECB) is just "LDA #$40 / STA $C497 / RTS" — it
+  -- does NOT zero V1/V2/V3 ctrl. All voices stay at their power-on $00 ctrl
+  -- until the first play() call writes them via note-load. Keeping the
+  -- silence here adds 5 spurious SID writes (V1ctl, V2ctl, V1ctl, V2ctl,
+  -- V3ctl) on frame 0 that the original doesn't produce.
   let cb := emitInitVoiceState cb
   let cb := emitInitFrameCounter cb
   cb
