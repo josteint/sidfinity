@@ -1637,6 +1637,7 @@ def generateSID (song : USFSong) (debug : Bool := false) : Bytes := Id.run do
     playAddr := base + 3
     songs := song.subtunes.length.toUInt16
     startSong := 1
+    speed := 0x00000001  -- match original BoB PSID (bit 0 = CIA timer)
     title := "Battle of Britain"
     author := "Rob Hubbard"
     released := "1986 PSS"
