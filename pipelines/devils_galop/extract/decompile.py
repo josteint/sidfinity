@@ -866,6 +866,16 @@ def decode_pattern(binary, load_addr, addr, max_bytes=256):
         has_modifier = bool(b0 & 0x80)
         pos += 1
 
+        # Devils Galop engine quirk: the note-load path's BVS branch
+        # ($13BD) is taken BEFORE the bit-7 check ($13C5), so a tie note
+        # consumes ONLY the flag byte regardless of whether bit 7 is set.
+        # The bit-7 modifier byte and the pitch byte are NOT read by the
+        # engine when bit 6 (tie) is set. Other Hubbard variants may
+        # differ; this matches Devils Galop's $0A18 driver.
+        if note.tie:
+            notes.append(note)
+            continue
+
         if has_modifier:
             b1 = binary[off + pos]
             note.raw_bytes.append(b1)
@@ -878,12 +888,11 @@ def decode_pattern(binary, load_addr, addr, max_bytes=256):
                 note.instrument = b1
             pos += 1
 
-        # Pitch byte — present unless this is a pure tie (no modifier)
-        if not (note.tie and not has_modifier):
-            if off + pos < len(binary):
-                note.pitch = binary[off + pos]
-                note.raw_bytes.append(note.pitch)
-                pos += 1
+        # Pitch byte — present for every non-tie note
+        if off + pos < len(binary):
+            note.pitch = binary[off + pos]
+            note.raw_bytes.append(note.pitch)
+            pos += 1
 
         notes.append(note)
 

@@ -602,12 +602,32 @@ def emitNL_TieCheck (cb : CodeBuilder) : CodeBuilder :=
   let cb := cb.emitBranch .BEQ "tie_skip_pitch"
   cb
 
-/-- Frequency lookup + write to SID (Hubbard order: hi before lo). X = pitch. -/
+/-- Emit a "drum_priority" gate prefix: BIT abs (drum_priority) ; BPL +3.
+    If `drum_priority` byte has bit 7 clear ($00..$7F), BPL is taken and
+    the next instruction (assumed to be a 3-byte STA) is skipped. If bit
+    7 is set ($FF), BPL is not taken and the STA executes. Models the
+    original engine's $178B gate which suppresses V3's first-frame SID
+    writes (drum_priority is $00 at song init, then $FF after every voice
+    iteration — so only V3's very first iteration is gated). -/
+def emitDrumPrioGate (cb : CodeBuilder) : CodeBuilder :=
+  let fixup : AbsFixup :=
+    { byteIdx := cb.bytes.size + 1, targetLabel := "drum_priority" }
+  let cb := { cb with
+    bytes := cb.bytes ++ #[0x2C, 0, 0,  -- BIT abs (drum_priority)
+                           0x10, 0x03], -- BPL +3
+    absFixups := fixup :: cb.absFixups }
+  cb
+
+/-- Frequency lookup + write to SID (Hubbard order: hi before lo). X = pitch.
+    Each STA is preceded by the drum_priority gate so V3's first-frame
+    SID writes are suppressed (mirrors original engine's $178B behavior). -/
 def emitNL_FreqWrite (cb : CodeBuilder) : CodeBuilder :=
   let cb := cb.emitInst (I.ldx_zp 0xFE)
   let cb := cb.emitLdaAbsX "freq_hi"
+  let cb := emitDrumPrioGate cb
   let cb := cb.emitInst (I.sta_absY (SID_BASE + 1))
   let cb := cb.emitLdaAbsX "freq_lo"
+  let cb := emitDrumPrioGate cb
   let cb := cb.emitInst (I.sta_absY (SID_BASE + 0))
   cb
 
@@ -690,18 +710,25 @@ def emitNL_CtrlWrite (cb : CodeBuilder) : CodeBuilder :=
   let cb := cb.emitInst (I.sta_zp 0xF7)
   let cb := cb.label "ctrl_no_tie"
   let cb := cb.emitInst (I.lda_zp 0xF7)
+  let cb := emitDrumPrioGate cb
   let cb := cb.emitInst (I.sta_absY (SID_BASE + 4))
   cb
 
-/-- Write i_pwlo/i_pwhi (pulse width) and i_ad/i_sr (ADSR) to SID. -/
+/-- Write i_pwlo/i_pwhi (pulse width) and i_ad/i_sr (ADSR) to SID. Each
+    STA is gated on drum_priority so V3's first-frame inst-record write
+    is suppressed (mirrors original engine's $178B gate). -/
 def emitNL_PWADSRWrite (cb : CodeBuilder) : CodeBuilder :=
   let cb := cb.emitLdaAbsX "i_pwlo"
+  let cb := emitDrumPrioGate cb
   let cb := cb.emitInst (I.sta_absY (SID_BASE + 2))
   let cb := cb.emitLdaAbsX "i_pwhi"
+  let cb := emitDrumPrioGate cb
   let cb := cb.emitInst (I.sta_absY (SID_BASE + 3))
   let cb := cb.emitLdaAbsX "i_ad"
+  let cb := emitDrumPrioGate cb
   let cb := cb.emitInst (I.sta_absY (SID_BASE + 5))
   let cb := cb.emitLdaAbsX "i_sr"
+  let cb := emitDrumPrioGate cb
   let cb := cb.emitInst (I.sta_absY (SID_BASE + 6))
   cb
 
@@ -718,13 +745,16 @@ def emitNL_PwperiodInit (cb : CodeBuilder) : CodeBuilder :=
   let cb := cb.emitStaAbsX "v_pwperiod"
   cb
 
-/-- PLA the raw ctrl saved earlier, store to v_ctrl[voice], emit the
-    "noteload_done" label and RTS. -/
+/-- PLA the raw ctrl saved earlier, store to v_ctrl[voice], set
+    drum_priority = $FF so subsequent voices' SID writes go through,
+    then emit the "noteload_done" label and RTS. -/
 def emitNL_SaveCtrlAndReturn (cb : CodeBuilder) : CodeBuilder :=
   let cb := cb.emitInst I.pla
   let cb := cb.emitInst (I.ldx_zp 0xFA)
   let cb := cb.emitStaAbsX "v_ctrl"
   let cb := cb.label "noteload_done"
+  let cb := cb.emitInst (I.lda_imm 0xFF)
+  let cb := cb.emitStaAbs "drum_priority"
   let cb := cb.emitInst I.rts
   cb
 
@@ -1199,12 +1229,15 @@ def emitSustainEffects (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.r
   cb := cb.label "no_slide"
 
   -- 4b. SKYDIVE (bit 1 of original Hubbard instrfx).
-  -- Hubbard's pulsework → drums → skydive → octarp order. Skydive runs
-  -- every OTHER frame (when frame_counter & 1 != 0), guarded by v_fhi != 0:
+  -- Hubbard's pulsework → drums → skydive → octarp order. Devils Galop's
+  -- engine runs skydive on EVERY play call (in the effects path at $15B5).
+  -- The cloned-from-Monty codegen previously gated skydive on
+  -- `frame_counter & 1` (every other frame), which halved Devils Galop's
+  -- skydive decrement rate — V1/V2 freq drift over long skydive sections.
+  -- Guard is now just `v_fhi != 0`:
   --   LDA savefreqhi,x; BEQ skip; DEC savefreqhi,x; STA $d401,y
   -- The SID write uses the OLD value (LDA before DEC). Skydive does NOT
-  -- touch ctrl (unlike drums which writes $80 noise on onset). This block
-  -- only fires when i_skydive[v_inst] is set.
+  -- touch ctrl. This block only fires when i_skydive[v_inst] is set.
   cb := cb.emitInst (I.ldx_zp 0xFA)
   cb := cb.emitLdaAbsX "v_inst"
   cb := cb.emitInst I.tay
@@ -1212,9 +1245,6 @@ def emitSustainEffects (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.r
   cb := { cb with absFixups :=
     { byteIdx := cb.bytes.size - 2, targetLabel := "i_skydive" } :: cb.absFixups }
   cb := cb.emitBranch .BEQ "no_sky"
-  cb := cb.emitInst (I.lda_zp 0x50)               -- frame counter
-  cb := cb.emitInst (I.and_imm 0x01)
-  cb := cb.emitBranch .BEQ "no_sky"               -- even counter: skip
   cb := cb.emitInst (I.ldx_zp 0xFA)
   cb := cb.emitLdaAbsX "v_fhi"
   cb := cb.emitBranch .BEQ "no_sky"               -- v_fhi == 0: skip
@@ -1263,6 +1293,12 @@ def emitSustainEffects (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.r
   cb := cb.emitInst (I.sta_absY (SID_BASE + 0))   -- freq_lo
 
   cb := cb.label "sustain_done"
+  -- Set drum_priority = $FF so subsequent voices' SID writes go through.
+  -- Init leaves drum_priority = $00; the first voice on the first frame
+  -- (V3) reads $00 from the gate prefix in note-load and skips its
+  -- inst-record SID writes (mirroring original $178B behavior at $1413).
+  cb := cb.emitInst (I.lda_imm 0xFF)
+  cb := cb.emitStaAbs "drum_priority"
   cb := cb.emitInst I.rts
 
   -- Continue with note load path (split for Lean elaborator depth)
@@ -1440,6 +1476,15 @@ def generateSID (song : USFSong) (debug : Bool := false) : Bytes := Id.run do
   cb := cb.label "i_skydive"
   cb := cb.emitData (song.instruments.map fun i =>
     if i.skydive then (1 : UInt8) else 0)
+
+  -- "drum_priority" gate byte (mirrors original Hubbard $178B). Init
+  -- value $00 → the first voice's first-frame SID writes are skipped
+  -- via the BIT/BPL prefix emitted by emitDrumPrioGate. After each
+  -- voice's exec_voice tail (noteload_done / sustain_done), this byte
+  -- is set to $FF so subsequent voices write normally. $FF persists
+  -- across frames, so only V3 frame 0 sees $00.
+  cb := cb.label "drum_priority"
+  cb := cb.emitByte 0x00
 
   -- Pattern data: [pitch, duration, instrument]* per pattern, 0x00 = end
   -- For now, encode percussion .dynamicCtrl as pitch=104 to match old player behavior
@@ -1621,9 +1666,9 @@ def generateSID (song : USFSong) (debug : Bool := false) : Bytes := Id.run do
     playAddr := base + 3
     songs := song.subtunes.length.toUInt16
     startSong := 1
-    title := "Commando"
+    title := "Devils Galop"
     author := "Rob Hubbard"
-    released := "1985 Elite"
+    released := "1985 Rob Hubbard"
   }
   return buildSID header cb.bytes
 

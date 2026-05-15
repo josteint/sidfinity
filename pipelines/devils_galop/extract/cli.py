@@ -24,7 +24,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="python -m pipelines.devils_galop.extract",
         description=(
-            "Read the original DevilsGalop on the Run SID, extract one or more "
+            "Read the original Devils Galop SID, extract one or more "
             "subtunes, and write SongData.lean for the Lean codegen."
         ),
     )

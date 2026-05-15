@@ -117,7 +117,10 @@ def extract(
             if m.memory[m.pc] == 0x00:
                 break
             m.step()
-        while len(T) < 120:
+        # Devils Galop's freq table at $1694 is 96 semitones (192 bytes).
+        # The Monty-cloned default of 120 entries over-reads into the
+        # runtime variable region that starts at $1754; stop at 96.
+        while len(T) < 96:
             i = len(T)
             addr = ft_base + i * 2
             T.append((m.memory[addr + 1] << 8) | m.memory[addr])
@@ -149,7 +152,11 @@ def extract(
                 w_loop = 0
 
             # Arp: Hubbard uses global frame counter bit 0 to alternate +0/+12
-            arp_offset = 12 if rh.has_arpeggio else 0
+            # Devils Galop's arpeggio adds 24 semitones (2 octaves), not 12.
+            # The original engine code at $15D8 reads ADC #$18 ($18 = 24).
+            # Action Biker / Commando / Monty use 12. Hubbard's per-song
+            # value lives in the arp ADC immediate at the arpeggio block.
+            arp_offset = 24 if rh.has_arpeggio else 0
 
             # fx_flags
             flags = rh.fx_flags if rh.fx_flags is not None else 0

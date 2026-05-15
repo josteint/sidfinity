@@ -1,4 +1,4 @@
-"""Generate USF v3 DevilsGalop on the Run data as a Lean file.
+"""Generate USF v3 Devils Galop data as a Lean file.
 
 Pipeline structure identical to the Commando emit_usf; only the SID source
 path, freq table base, and Lean output paths differ.
@@ -175,6 +175,63 @@ def gen_pattern(idx: int, notes: list[Note], tempo: int) -> str:
 
 DEVILS_GALOP_SID = '/home/jtr/sidfinity/data/C64Music/MUSICIANS/H/Hubbard_Rob/Devils_Galop.sid'
 DEVILS_GALOP_FT_BASE = 0x1694  # discovered via src/sidxray/discover.py
+DEVILS_GALOP_FT_LEN  = 96  # 96 real semitones; pitches >= 96 are aliased reads
+
+# Devils Galop's variable region starts at $1754 (= $1694 + 96*2). Each
+# aliased pitch P >= 96 reads bytes at $1694 + P*2 and $1694 + P*2 + 1.
+# Vibrato also reads pitch P+1 for delta, so we need to feed P AND P+1.
+# Mapping byte offset (from $1754) → USFDynRef literal.
+_VAR_MAP: dict[int, str] = {
+    # $1754-$1756 sid_base[V1,V2,V3] (constants 0,7,14 — codegen treats these
+    # as static, so leave them out; aliasing onto them would already match).
+    0x1764 - 0x1694: '.voiceCtrl ⟨0, by omega⟩',  # v_ctrl[V1]
+    0x1765 - 0x1694: '.voiceCtrl ⟨1, by omega⟩',  # v_ctrl[V2]
+    0x1766 - 0x1694: '.voiceCtrl ⟨2, by omega⟩',  # v_ctrl[V3]
+    0x1767 - 0x1694: '.voicePitch ⟨0, by omega⟩', # v_pitch[V1]
+    0x1768 - 0x1694: '.voicePitch ⟨1, by omega⟩', # v_pitch[V2]
+    0x1769 - 0x1694: '.voicePitch ⟨2, by omega⟩', # v_pitch[V3]
+    0x176A - 0x1694: '.voiceInst ⟨0, by omega⟩',  # v_inst[V1]
+    0x176B - 0x1694: '.voiceInst ⟨1, by omega⟩',  # v_inst[V2]
+    0x176C - 0x1694: '.voiceInst ⟨2, by omega⟩',  # v_inst[V3]
+}
+
+
+def _detect_dynamic_freq_entries(extracts: list[ExtractedSong]) -> str:
+    """Scan extracted patterns for pitches >= 96 (aliased reads into the
+    Devils Galop variable region). For each unique aliased pitch P used by
+    voice V, emit dynamicFreqEntries for slots P and P+1, sourced from
+    the appropriate v_ctrl/v_pitch/v_inst at phase beforeVoice V.
+
+    Returns a Lean list literal (e.g. "[ ... ]").
+    """
+    seen: set[tuple[int, int]] = set()  # (voice, pitch)
+    for ex in extracts:
+        for vi, v in enumerate(ex.score.voices):
+            for notes in v.patterns.values():
+                for n in notes:
+                    if n.pitch >= DEVILS_GALOP_FT_LEN:
+                        seen.add((vi, n.pitch))
+
+    if not seen:
+        return "[]"
+
+    entries: list[str] = []
+    for vi, pitch in sorted(seen):
+        for slot in (pitch, pitch + 1):
+            byte_lo = slot * 2          # offset of lo byte in freq table
+            byte_hi = slot * 2 + 1
+            ref_lo = _VAR_MAP.get(byte_lo)
+            ref_hi = _VAR_MAP.get(byte_hi)
+            if ref_lo is None or ref_hi is None:
+                # Unmapped variable slot — leave it as-is (initial 0).
+                continue
+            entries.append(
+                f"  {{ freqSlot := {slot}, "
+                f"loSource := {ref_lo}, "
+                f"hiSource := {ref_hi}, "
+                f"phase := .beforeVoice ⟨{vi}, by omega⟩ }}"
+            )
+    return "[\n      " + ",\n      ".join(entries) + "\n    ]"
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -210,7 +267,7 @@ def main(argv: list[str] | None = None) -> None:
     instruments = first.instruments
 
     out = [
-        "-- Auto-generated USF v3 DevilsGalop on the Run data",
+        "-- Auto-generated USF v3 Devils Galop data",
         f"-- Subtunes: {subtune_indices} (0-indexed; PSID subtunes "
         f"{[s + 1 for s in subtune_indices]})",
         "import DevilsGalop.USF",
@@ -302,16 +359,18 @@ def main(argv: list[str] | None = None) -> None:
     subtune_refs = ', '.join(f'mv3S{i}' for i in range(len(extracts)))
     pat_list = ', '.join(pat_refs)
 
-    # Engine quirks for DevilsGalop. Same Hubbard engine as Commando, so:
-    #   - voiceScratch / noteLoadOps / patternEndOps stay: these encode
-    #     Hubbard's variable-length pattern decoding (hub_off counter
-    #     advances 1/2/3 bytes per note based on flags). Removing them
-    #     breaks pattern-byte advancement on ALL Hubbard SIDs.
-    #   - dynamicFreqEntries DROPPED: these are Commando-specific
-    #     (use freq-table slots 98..107 as hidden registers for
-    #     per-voice state). DevilsGalop doesn't do this; keeping them would
-    #     overwrite DevilsGalop's real freq value at slot 104 ($4141) with
-    #     ctrl bytes every frame.
+    # Engine quirks for DevilsGalop. Same Hubbard engine family as Commando.
+    #   - voiceScratch / noteLoadOps / patternEndOps encode Hubbard's
+    #     variable-length pattern decoding (hub_off counter advances 1/2/3
+    #     bytes per note based on flags).
+    #   - dynamicFreqEntries: Devils Galop deliberately uses pitch 104
+    #     (only V2 uses it, 8 occurrences) — that pitch reads $1764/$1765
+    #     in the original engine, which alias to v_ctrl[V1]/v_ctrl[V2].
+    #     V2's vibrato also reads pitch 105's "next semitone" ($1766/$1767
+    #     = v_ctrl[V3]/v_pitch[V1]) for delta. The vibrato runs at
+    #     beforeVoice 1 (just before V2 executes), so we mirror those
+    #     four runtime bytes into freq slots 104 and 105 at that phase.
+    dyn_entries = _detect_dynamic_freq_entries(extracts)
     quirks = """{
     preserveNoteFlags := true
     voiceScratch := [
@@ -331,7 +390,7 @@ def main(argv: list[str] | None = None) -> None:
       .reset 0,
       .increment 1 ⟨1, by omega⟩
     ]
-    dynamicFreqEntries := []
+    dynamicFreqEntries := """ + dyn_entries + """
   }"""
 
     out.append(f"""def devils_galopV3 : USFSong := {{
@@ -343,9 +402,9 @@ def main(argv: list[str] | None = None) -> None:
   filter := none
   playRate := .vbi
   engineQuirks := {quirks}
-  title := "DevilsGalop on the Run"
+  title := "Devils Galop"
   author := "Rob Hubbard"
-  released := "1985 Gremlin Graphics"
+  released := "1985 Rob Hubbard"
 }}""")
 
     # Output path is repo-root-relative, computed from this file's location.

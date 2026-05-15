@@ -1,5 +1,7 @@
-"""DevilsGalop on the Run pipeline: independent clone of the Commando pipeline,
-extended with Hubbard quirks specific to early-era DevilsGalop.
+"""Devils Galop pipeline: clone of the Commando/Monty pipeline scaffold
+for Rob Hubbard's *Devils Galop* (1985).
 
-Grade A (98.8% siddump snapshot match, 0-divergence under py65).
+Layout matches the Commando pipeline. See pipelines/devils_galop/README.md
+and docs/hubbard_devils_galop_disassembly.s for engine notes and current
+status.
 """
