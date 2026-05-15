@@ -8,6 +8,7 @@ verification status.
 |---|---|---|
 | Rob Hubbard (Commando) | [`commando/`](./commando/) | siddump byte-perfect, md5 locked |
 | Rob Hubbard (Monty on the Run) | [`monty/`](./monty/) | siddump Grade A 98.8%; py65 0-divergence |
+| Rob Hubbard (Bump Set Spike) | [`bump_set_spike/`](./bump_set_spike/) | scaffold only (builds end-to-end; codegen not yet adapted; Grade F) |
 
 ## Shape of a pipeline
 

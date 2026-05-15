@@ -61,6 +61,17 @@ lean_exe sidgen_battle_of_britain where
   root   := `BattleOfBritain.Main
 
 
+lean_lib BumpSetSpike where
+  srcDir := "pipelines/bump_set_spike/codegen"
+  roots  := #[`BumpSetSpike.SID, `BumpSetSpike.Asm6502, `BumpSetSpike.PSIDFile,
+              `BumpSetSpike.USF, `BumpSetSpike.Constants, `BumpSetSpike.SongData,
+              `BumpSetSpike.Codegen, `BumpSetSpike.Properties]
+
+lean_exe sidgen_bump_set_spike where
+  srcDir := "pipelines/bump_set_spike/codegen"
+  root   := `BumpSetSpike.Main
+
+
 lean_lib Chimera where
   srcDir := "pipelines/chimera/codegen"
   roots  := #[`Chimera.SID, `Chimera.Asm6502, `Chimera.PSIDFile,
