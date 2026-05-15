@@ -269,6 +269,13 @@ structure USFEngineQuirks where
   -- Whether to keep the inst-byte's bits 6/7 in pattern data (consumed by
   -- noteLoadOps via flag-conditional ops). When false, codegen masks at emit.
   preserveNoteFlags  : Bool                     := false
+  -- Initial v_dur value at song start. 0 = first play frame fires the
+  -- first note (default). 1 = first play frame is sustain-only (no
+  -- note load); first note fires on play frame 1. Action Biker's
+  -- engine has a tick-divider that gates note-load to every Nth frame
+  -- starting from frame 1, so it needs initialDur=1 for frame-aligned
+  -- output. See docs/hubbard_action_biker_disassembly.s ($C040 gate).
+  initialDur         : UInt8                    := 0
   deriving Repr
 
 -- ==========================================================================

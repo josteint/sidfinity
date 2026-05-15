@@ -376,17 +376,30 @@ def emitInitSidSilence (cb : CodeBuilder) : CodeBuilder :=
   let cb := cb.emitInst (I.sta_abs (SID_BASE + 0x18)) -- Vol=$0F
   cb
 
-/-- Voice-state init: zero v_dur/olpos/wptr/pattlo/patthi for all three
-    voices via an asm-level loop on X. Forces note-load on first play. -/
-def emitInitVoiceState (cb : CodeBuilder) : CodeBuilder :=
+/-- Voice-state init: zero olpos/wptr/pattlo/patthi for all three voices
+    and set v_dur to `engineQuirks.initialDur`. With initialDur=0 the
+    first play frame's DEC v_dur takes the BMI branch and fires the
+    first note immediately. With initialDur=1 the first play frame is
+    sustain-only (no note load); first note fires on play frame 1.
+    See docs/hubbard_action_biker_disassembly.s for the engine-level
+    rationale (the $C3E7 tick divider). -/
+def emitInitVoiceState (cb : CodeBuilder) (song : USFSong) : CodeBuilder :=
   let cb := cb.emitInst (I.ldx_imm 0x02)
   let cb := cb.label "init_loop"
   let cb := cb.emitInst (I.lda_imm 0x00)
-  let cb := cb.emitStaAbsX "v_dur"
   let cb := cb.emitStaAbsX "v_olpos"
   let cb := cb.emitStaAbsX "v_wptr"
   let cb := cb.emitStaAbsX "v_pattlo"
   let cb := cb.emitStaAbsX "v_patthi"
+  -- v_dur uses initialDur (default 0). For songs with non-zero
+  -- initialDur we load the value once into A and store it; for
+  -- initialDur=0 the LDA #0 above already left A=0 so we just STA.
+  let cb := if song.engineQuirks.initialDur == 0
+            then cb.emitStaAbsX "v_dur"
+            else
+              let cb := cb.emitInst (I.lda_imm song.engineQuirks.initialDur)
+              let cb := cb.emitStaAbsX "v_dur"
+              cb.emitInst (I.lda_imm 0)  -- restore A=0 for next iteration
   let cb := cb.emitInst I.dex
   let cb := cb.emitBranch .BPL "init_loop"
   cb
@@ -404,7 +417,7 @@ def emitInit (cb : CodeBuilder) (song : USFSong) : CodeBuilder :=
   let cb := emitInitSubtuneClamp cb song
   let cb := emitInitSubtuneCopy cb
   let cb := emitInitSidSilence cb
-  let cb := emitInitVoiceState cb
+  let cb := emitInitVoiceState cb song
   let cb := emitInitFrameCounter cb
   cb
 

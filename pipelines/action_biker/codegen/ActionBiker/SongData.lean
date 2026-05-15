@@ -342,6 +342,7 @@ def action_bikerV3 : USFSong := {
   playRate := .vbi
   engineQuirks := {
     preserveNoteFlags := true
+    initialDur := 1
     voiceScratch := [
       { name := "hub_off", initial := ⟨0, by omega⟩ },
       { name := "seq_idx", initial := ⟨0, by omega⟩ }
