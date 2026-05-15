@@ -227,45 +227,51 @@ def main(argv: list[str] | None = None) -> None:
         out.append(gen_instrument(i, inst))
         out.append("")
 
-    # Collect patterns across all subtunes. Each pattern's durationFrames is
-    # pre-multiplied by ITS subtune's tempo, so a pattern shared between two
-    # subtunes at different tempos would need different durations — we
-    # error if that happens. For Commando subtunes 0/1/2 there's no overlap
-    # (they each use disjoint pattern ranges).
-    all_pats: dict[int, tuple[list[Note], int]] = {}  # pat_idx -> (notes, tempo)
+    # Collect patterns across all subtunes. durationFrames is pre-multiplied
+    # by ITS subtune's tempo (since the runtime decodes a single byte and
+    # doesn't multiply). A pattern shared between subtunes with different
+    # tempos therefore needs to be emitted twice with different frame counts.
+    # We key on (rh_pat_idx, tempo) and assign a fresh contiguous USF pattern
+    # index to each unique pair, then remap each subtune's orderlist to point
+    # at the right copy.
+    pat_unique: dict[tuple[int, int], int] = {}  # (rh_idx, tempo) -> usf_idx
+    pat_definitions: list[tuple[int, list[Note], int]] = []  # in emit order
+    # Per-subtune (rh_idx -> usf_idx) remap for orderlist rewriting.
+    subtune_pat_remap: list[dict[int, int]] = []
+
     for es in extracts:
         tempo = es.score.tempo
+        remap: dict[int, int] = {}
         for v in es.score.voices:
-            for pat_idx, pat_notes in v.patterns.items():
-                if pat_idx in all_pats:
-                    _existing_notes, existing_tempo = all_pats[pat_idx]
-                    if existing_tempo != tempo:
-                        raise ValueError(
-                            f"pattern {pat_idx} shared between subtunes with "
-                            f"different tempos ({existing_tempo} vs {tempo}); "
-                            f"need tick-based durations to handle this"
-                        )
-                else:
-                    all_pats[pat_idx] = (pat_notes, tempo)
+            for rh_idx, pat_notes in v.patterns.items():
+                key = (rh_idx, tempo)
+                if key not in pat_unique:
+                    usf_idx = len(pat_unique)
+                    pat_unique[key] = usf_idx
+                    pat_definitions.append((usf_idx, pat_notes, tempo))
+                remap[rh_idx] = pat_unique[key]
+        subtune_pat_remap.append(remap)
 
-    for idx in sorted(all_pats.keys()):
-        notes, tempo = all_pats[idx]
-        out.append(gen_pattern(idx, notes, tempo))
+    for usf_idx, notes, tempo in pat_definitions:
+        out.append(gen_pattern(usf_idx, notes, tempo))
         out.append("")
 
     # Per-subtune voices (orderlists). Each subtune contributes 2 voices
     # (V1+V2). Human Race is a 2-voice engine — its V3 slot is reserved for
     # SFX; emitting it would write to SID voice 3 every frame and clobber
     # the original's silence there. We drop voices with empty orderlists.
+    # Orderlist entries are remapped through subtune_pat_remap so each
+    # subtune references its own (tempo-specific) pattern copies.
     voice_defs: list[str] = []
     voice_global_idx = 0
     subtune_voices: list[tuple[int, int]] = []  # (start_idx, count) per subtune
-    for es in extracts:
+    for si, es in enumerate(extracts):
+        remap = subtune_pat_remap[si]
         start = voice_global_idx
         for v in es.score.voices:
             if not v.orderlist:
                 continue
-            ol = '[' + ', '.join(str(p) for p in v.orderlist) + ']'
+            ol = '[' + ', '.join(str(remap[p]) for p in v.orderlist) + ']'
             loop_pt = v.loop
             # rh_decompile uses -1 to mean "no loop / song stops"; USF schema
             # represents that as `none`.
@@ -293,14 +299,9 @@ def main(argv: list[str] | None = None) -> None:
     out.extend(subtune_defs)
     out.append("")
 
-    # Pattern list (ordered by index, with empty placeholders for missing indices)
-    max_pat = max(all_pats.keys()) + 1
-    pat_refs: list[str] = []
-    for i in range(max_pat):
-        if i in all_pats:
-            pat_refs.append(f'mv3P{i}')
-        else:
-            pat_refs.append('{ notes := [] }')
+    # Pattern list: contiguous 0..N-1 since we assign sequential usf indices.
+    n_patterns = len(pat_definitions)
+    pat_refs = [f'mv3P{i}' for i in range(n_patterns)]
 
     # Final song
     inst_refs = ', '.join(f'mv3I{i}' for i in range(len(instruments)))
@@ -365,7 +366,7 @@ def main(argv: list[str] | None = None) -> None:
 
     logger.info(
         "Wrote %d instruments, %d patterns, %d voices to %s",
-        len(instruments), len(all_pats), len(first.score.voices), out_path,
+        len(instruments), n_patterns, len(first.score.voices), out_path,
     )
 
 

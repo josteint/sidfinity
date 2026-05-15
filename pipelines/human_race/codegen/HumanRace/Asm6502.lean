@@ -100,6 +100,7 @@ def opcode (m : Mnemonic) (mode : AddrMode) : Option UInt8 :=
   -- CMP
   | .CMP, .imm _   => some 0xC9
   | .CMP, .zp _    => some 0xC5
+  | .CMP, .abs _   => some 0xCD
   | .CMP, .absX _  => some 0xDD
   | .CMP, .absY _  => some 0xD9
   -- CPX

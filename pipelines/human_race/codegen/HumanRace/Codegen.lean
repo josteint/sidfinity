@@ -399,12 +399,25 @@ def emitInitFrameCounter (cb : CodeBuilder) : CodeBuilder :=
   let cb := cb.emitInst I.rts
   cb
 
+/-- Copy `vib_threshold[subtune]` (pre-computed = 9 * subtune.tempo)
+    into the runtime `v_vib_threshold` byte. The vibrato gate
+    needs to know the current subtune's tempo to correctly skip
+    short notes (raw_dur < 8 ticks → v_durfield < 9*tempo). -/
+def emitInitVibThreshold (cb : CodeBuilder) : CodeBuilder :=
+  let cb := cb.emitInst (I.ldx_zp 0xFB)               -- X = subtune index
+  let cb := cb.emitLdaAbsX "vib_threshold"
+  let cb := cb.emitInst (I.sta_abs 0)                 -- placeholder addr; fixed up below
+  let cb := { cb with absFixups :=
+    { byteIdx := cb.bytes.size - 2, targetLabel := "v_vib_threshold" } :: cb.absFixups }
+  cb
+
 def emitInit (cb : CodeBuilder) (song : USFSong) : CodeBuilder :=
   let cb := cb.label "init"
   let cb := emitInitSubtuneClamp cb song
   let cb := emitInitSubtuneCopy cb
   let cb := emitInitSidSilence cb
   let cb := emitInitVoiceState cb
+  let cb := emitInitVibThreshold cb
   let cb := emitInitFrameCounter cb
   cb
 
@@ -932,18 +945,17 @@ def emitVibrato (cb : CodeBuilder) (_song : USFSong) : CodeBuilder := Id.run do
 
   -- Start from base freq, add delta × LFO step
   -- vibrato_freq = base_freq + delta * step
-  -- Hubbard gates vibrato amplitude on (raw_flags & $1F) >= 8 (ticks),
-  -- using the RAW pattern byte's low 5 bits (i.e. (dur_ticks+1)
-  -- minus the +1 offset is irrelevant — Hubbard uses dur_ticks directly).
+  -- Hubbard gates vibrato amplitude on (raw_flags & $1F) >= 8 (ticks).
   -- Extract stores v_durfield = (raw_dur + 1) * tempo. The Hubbard test
-  -- `raw_dur >= 8` therefore maps to `v_durfield >= (8+1)*tempo = 36`
-  -- for Human Race (tempo = 4). Without this, durationFrames in the
-  -- 9..35 range gets vibrato wrongly applied — produces an audible
-  -- $06-per-frame pitch wobble on the V1 bass that the original holds steady.
+  -- `raw_dur >= 8` therefore maps to `v_durfield >= 9*tempo`, which we
+  -- compare against the per-subtune `v_vib_threshold` byte (initialized
+  -- by emitInitVibThreshold).
   cb := cb.emitInst (I.ldx_zp 0xFA)
   cb := cb.emitLdaAbsX "v_durfield"
-  cb := cb.emitInst (I.cmp_imm 36)
-  cb := cb.emitBranch .BCS "vib_onset_ok"          -- v_durfield >= 36: vibrato active
+  cb := cb.emitInst ⟨.CMP, .abs 0⟩
+  cb := { cb with absFixups :=
+    { byteIdx := cb.bytes.size - 2, targetLabel := "v_vib_threshold" } :: cb.absFixups }
+  cb := cb.emitBranch .BCS "vib_onset_ok"          -- v_durfield >= 9*tempo: vibrato active
   -- dur < 6: write base freq directly
   cb := cb.emitJmpLabel .JMP "vib_write_base"
   cb := cb.label "vib_onset_ok"
@@ -1617,6 +1629,14 @@ def generateSID (song : USFSong) (debug : Bool := false) : Bytes := Id.run do
   -- tick-based support and so the data is preserved through the pipeline.
   cb := cb.label "tempo_subtune"
   cb := cb.emitData (song.subtunes.map (·.tempo.toUInt8))
+  -- Per-subtune vibrato amplitude threshold = 9 * tempo. Looked up at
+  -- init time, copied to v_vib_threshold for play to consult. See
+  -- emitInitVibThreshold + the CMP in emitVibrato.
+  cb := cb.label "vib_threshold"
+  cb := cb.emitData (song.subtunes.map (fun s => (9 * s.tempo).toUInt8))
+  -- Runtime byte: current subtune's vibrato threshold (initialized in init).
+  cb := cb.label "v_vib_threshold"
+  cb := cb.emitByte 0
 
   -- Resolve all forward references
   cb := cb.resolve
