@@ -806,12 +806,15 @@ def emitExecVoice (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.run do
 
   -- 1. GATE-OFF CHECK (fire when v_dur == gateOffFrames, i.e., before note end)
   -- Only fires once per note (the exact moment v_dur crosses threshold).
-  -- Orig Chimera: HR fires 2 frames before note-load (writelog trace), so the
-  -- threshold here is v_dur == 1 for Chimera. Commando used cmp_imm 2; the
-  -- difference is engine timing (`speed`/tempo bookkeeping shifts when v_dur
-  -- crosses each value).
+  -- Original Chimera disassembly at $C356-$C375: HR fires when the duration
+  -- *tick* counter $C631,X hits 0 (i.e., one note-load tick before the
+  -- note advance). In codegen units, v_dur counts FRAMES not ticks; with
+  -- tempo=3 a 1-tick note has durationFrames=3 → v_dur=2 after note_load,
+  -- counts down 2→1→0→-1 (note_load). The orig's "tick==0" corresponds
+  -- to "v_dur==0" in this scheme — the very last frame before note_load.
+  -- Was `cmp 1` (off by one — fired HR a frame early), now `cmp 0`.
   cb := cb.emitLdaAbsX "v_dur"
-  cb := cb.emitInst (I.cmp_imm 1)
+  cb := cb.emitInst (I.cmp_imm 0)
   cb := cb.emitBranch .BNE "effects_start"          -- not equal → skip gate-off
   -- Skip HR if current note has no_release flag set: gate stays on into the
   -- next note so the SID envelope doesn't retrigger across the boundary
