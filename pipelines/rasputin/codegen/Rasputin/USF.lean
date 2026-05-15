@@ -269,6 +269,13 @@ structure USFEngineQuirks where
   -- Whether to keep the inst-byte's bits 6/7 in pattern data (consumed by
   -- noteLoadOps via flag-conditional ops). When false, codegen masks at emit.
   preserveNoteFlags  : Bool                     := false
+  -- Sub-frame divider for engines whose play loop sits out 1-in-(N+1)
+  -- real frames for SFX (Rasputin: see docs/hubbard_rasputin_disassembly.s
+  -- $C012). When `some N`, codegen prepends a DEC/BPL/reload/RTS prelude
+  -- so the music body runs on N of every (N+1) real frames. `none` (the
+  -- default) preserves the Commando/Monty/ActionBiker behavior where
+  -- every call advances music.
+  subFrameDivider    : Option USFByte           := none
   deriving Repr
 
 -- ==========================================================================

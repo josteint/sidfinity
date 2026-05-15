@@ -165,6 +165,11 @@ def emitStaAbs (cb : CodeBuilder) (target : String) : CodeBuilder :=
   let fixup : AbsFixup := { byteIdx := cb.bytes.size + 1, targetLabel := target }
   { cb with bytes := cb.bytes ++ #[0x8D, 0, 0], absFixups := fixup :: cb.absFixups }
 
+-- Emit DEC abs ($CE) with forward ref and record fixup
+def emitDecAbs (cb : CodeBuilder) (target : String) : CodeBuilder :=
+  let fixup : AbsFixup := { byteIdx := cb.bytes.size + 1, targetLabel := target }
+  { cb with bytes := cb.bytes ++ #[0xCE, 0, 0], absFixups := fixup :: cb.absFixups }
+
 -- Emit CMP abs,X ($DD) with forward ref and record fixup
 def emitCmpAbsX (cb : CodeBuilder) (target : String) : CodeBuilder :=
   let fixup : AbsFixup := { byteIdx := cb.bytes.size + 1, targetLabel := target }
@@ -411,9 +416,39 @@ def emitInit (cb : CodeBuilder) (song : USFSong) : CodeBuilder :=
 -- emitPlay sub-blocks. Same plain-let / no-Id-monad style as emitInit
 -- so the per-block preservation proofs in PropertiesV3 stay tractable.
 
-/-- Header: label "play" + INC the global frame counter at $50. -/
-def emitPlayHeader (cb : CodeBuilder) : CodeBuilder :=
-  let cb := cb.label "play"
+/-- Sub-frame divider prelude (Rasputin-style outer counter). When
+    `subFrameDivider = some N`, sit out 1-in-(N+1) play calls:
+        play:
+            DEC sub_ctr
+            BPL play_music
+            LDA #N
+            STA sub_ctr
+            RTS
+        play_music:
+            ...
+    The "play" label is anchored at the DEC so init+PSID still vector
+    here. When the divider is `none`, the label moves to the music
+    body itself (emitPlayHeader) — no overhead for Commando/Monty. -/
+def emitPlaySubFramePrelude (cb : CodeBuilder) (song : USFSong) : CodeBuilder :=
+  match song.engineQuirks.subFrameDivider with
+  | none => cb
+  | some n =>
+    let nByte := n.val.toUInt8
+    let cb := cb.label "play"
+    let cb := cb.emitDecAbs "sub_ctr"
+    let cb := cb.emitBranch .BPL "play_music"
+    let cb := cb.emitInst (I.lda_imm nByte)
+    let cb := cb.emitStaAbs "sub_ctr"
+    let cb := cb.emitInst I.rts
+    cb
+
+/-- Header: label "play" (or "play_music" if a sub-frame prelude
+    already claimed "play") + INC the global frame counter at $50. -/
+def emitPlayHeader (cb : CodeBuilder) (song : USFSong) : CodeBuilder :=
+  let cb :=
+    match song.engineQuirks.subFrameDivider with
+    | none   => cb.label "play"
+    | some _ => cb.label "play_music"
   let cb := cb.emitInst (I.inc_zp 0x50)
   cb
 
@@ -444,7 +479,8 @@ def emitPlayVoiceLoop (cb : CodeBuilder) (song : USFSong) : CodeBuilder :=
   indices.foldl (emitPlayVoiceStep song) cb
 
 def emitPlay (cb : CodeBuilder) (song : USFSong) : CodeBuilder :=
-  let cb := emitPlayHeader cb
+  let cb := emitPlaySubFramePrelude cb song
+  let cb := emitPlayHeader cb song
   let cb := emitDynamicUpdatesForPhase cb
               song.engineQuirks.dynamicFreqEntries .atFrameStart
   let cb := emitPlayVoiceLoop cb song
@@ -1592,6 +1628,16 @@ def generateSID (song : USFSong) (debug : Bool := false) : Bytes := Id.run do
       cb := cb.label s!"v_scratch_s{si}_v2"
       cb := cb.emitByte init
     | none => pure ()
+  -- Sub-frame divider counter. Lives at "sub_ctr". When the engine has
+  -- a sub-frame divider quirk set, the play prelude DECs this, RTSs
+  -- on underflow, and reloads from #N. Initialized to N so the first
+  -- (N+1) play calls produce N music ticks followed by 1 SFX-only RTS.
+  match song.engineQuirks.subFrameDivider with
+  | none   => pure ()
+  | some n =>
+    cb := cb.label "sub_ctr"
+    cb := cb.emitByte n.val.toUInt8
+
   -- Constants
   cb := cb.label "v_sidoff"
   cb := cb.emitData [0, 7, 14]

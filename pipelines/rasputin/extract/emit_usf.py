@@ -312,11 +312,21 @@ def main(argv: list[str] | None = None) -> None:
     #     per-voice state). Rasputin doesn't do this; keeping them would
     #     overwrite Rasputin's real freq value at slot 104 ($4141) with
     #     ctrl bytes every frame.
-    quirks = """{
+    #   - subFrameDivider: Rasputin's outer counter ($C53A/$C539 in the
+    #     disassembly) sits out 1-in-(N+1) real frames for SFX. Read
+    #     from the post-init binary state (after FE-marker overrides)
+    #     by engine_model. The codegen prepends a DEC/BPL/reload/RTS
+    #     prelude to play that reproduces this skip.
+    sfx_div = getattr(first.score, 'sub_frame_divider', None)
+    if sfx_div is not None and sfx_div > 0:
+        sfx_div_clause = f"subFrameDivider := some ⟨{sfx_div & 0xFF}, by omega⟩"
+    else:
+        sfx_div_clause = "subFrameDivider := none"
+    quirks = f"""{{
     preserveNoteFlags := true
     voiceScratch := [
-      { name := "hub_off", initial := ⟨0, by omega⟩ },
-      { name := "seq_idx", initial := ⟨0, by omega⟩ }
+      {{ name := "hub_off", initial := ⟨0, by omega⟩ }},
+      {{ name := "seq_idx", initial := ⟨0, by omega⟩ }}
     ]
     noteLoadOps := [
       .addByFlag 0 [
@@ -332,7 +342,8 @@ def main(argv: list[str] | None = None) -> None:
       .increment 1 ⟨1, by omega⟩
     ]
     dynamicFreqEntries := []
-  }"""
+    {sfx_div_clause}
+  }}"""
 
     out.append(f"""def rasputinV3 : USFSong := {{
   freqTable := rasputinV3FreqTable

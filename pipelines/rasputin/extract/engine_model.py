@@ -259,22 +259,25 @@ def extract(
         # outer divider for this subtune.
         inner_reload = m.memory[0xC53B]   # per-voice tick reload
         outer_reload = m.memory[0xC539]   # sub-frame divider reload
-        # Real frames per note-load tick.
-        #   music plays N of every (N+1) real frames (N=outer_reload),
-        #   note-load fires every (M+1) music frames (M=inner_reload).
-        # ⇒ note-load period in real frames = (M+1) × (N+1) / N
-        if outer_reload == 0:
-            outer_reload = 1   # avoid div by zero; degenerate to no SFX skip
-        from fractions import Fraction
-        fpt = Fraction((inner_reload + 1) * (outer_reload + 1), outer_reload)
-        # Round to nearest integer for USF (which uses integer frame counts).
-        tick_length = int(fpt + Fraction(1, 2))
+        # The rebuilt player now mirrors the outer sub-frame divider via
+        # USFEngineQuirks.subFrameDivider (codegen prepends a
+        # DEC/BPL/reload/RTS prelude to play). That means v_dur in the
+        # rebuilt player ticks only on MUSIC frames, so durationFrames
+        # must be in music frames (NOT real frames including SFX skips).
+        #
+        # Music frames per note tick = inner_reload + 1.
+        tick_length = inner_reload + 1
         logger.debug(
-            "Rasputin tempo: inner=%d outer=%d → fpt=%s → tick_length=%d",
-            inner_reload, outer_reload, fpt, tick_length,
+            "Rasputin tempo: inner=%d outer=%d → tick_length=%d music frames "
+            "(SFX skip done by codegen via subFrameDivider=%d)",
+            inner_reload, outer_reload, tick_length, outer_reload,
         )
 
+        # Stash for emit_usf to emit into USFEngineQuirks.subFrameDivider.
+        # Carried through ExtractedSong by setting an attribute on score
+        # (the Score dataclass doesn't have a slot, so set after).
         score = Score(tempo=tick_length, voices=[])
+        score.sub_frame_divider = int(outer_reload)   # type: ignore[attr-defined]
         for v_track in song.tracks:
             voice = Voice(orderlist=[], patterns={}, loop=-1)
             for entry in v_track:
