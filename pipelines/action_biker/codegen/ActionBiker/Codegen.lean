@@ -875,9 +875,11 @@ def emitExecVoice (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.run do
   -- crosses each value).
   cb := cb.emitLdaAbsX "v_dur"
   -- Tick model fires HR when post-DEC v_dur == 0 (matches original's
-  -- $C145: BNE skip-HR). Frame model fires at v_dur == 1 (one frame
-  -- earlier to compensate for the tempo bookkeeping shift).
-  cb := cb.emitInst (I.cmp_imm (if song.engineQuirks.framesPerTick != 0 then 0 else 1))
+  -- $C145: BNE skip-HR). Frame model fires at v_dur == 2 to give a
+  -- 3-frame gap between HR and the next note (matching original's
+  -- gate-off tick + next-note-load tick spacing in Hubbard's 3-frame
+  -- tempo).
+  cb := cb.emitInst (I.cmp_imm (if song.engineQuirks.framesPerTick != 0 then 0 else 2))
   cb := cb.emitBranch .BNE "effects_start"          -- not equal → skip gate-off
   -- Skip HR if current note has no_release flag set: gate stays on into the
   -- next note so the SID envelope doesn't retrigger across the boundary
@@ -948,7 +950,7 @@ def emitExecVoice (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.run do
   cb := emitSustainEffects cb song
   return cb
 
-def emitVibrato (cb : CodeBuilder) (_song : USFSong) : CodeBuilder := Id.run do
+def emitVibrato (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.run do
   let mut cb := cb
   -- If vib_depth > 0: compute LFO, modulate freq, write freq_lo/freq_hi to SID
   cb := cb.emitLdaAbsX "v_inst"
@@ -1003,13 +1005,18 @@ def emitVibrato (cb : CodeBuilder) (_song : USFSong) : CodeBuilder := Id.run do
 
   -- Start from base freq, add delta × LFO step
   -- vibrato_freq = base_freq + delta * step
-  -- Check onset: durationFrames >= 21 for vibrato to be active.
-  -- das_model: cmp #21 against dur*3 (= durationFrames in our units).
-  -- Notes shorter than 7 ticks skip vibrato and just write base freq.
+  -- Onset guard: original Action Biker ($C1B5) skips vibrato when
+  -- raw_dur < 8 (ticks). raw_dur in original = pattern byte AND $1F;
+  -- our v_durfield = pattern byte = (raw_dur+1)*tempo in frame mode,
+  -- = raw_dur+1 in tick mode. So:
+  --   - frame mode (tempo 3): skip if v_durfield < 9*3 = 27
+  --   - tick mode:            skip if v_durfield < 9
   cb := cb.emitInst (I.ldx_zp 0xFA)
   cb := cb.emitLdaAbsX "v_durfield"
-  cb := cb.emitInst (I.cmp_imm 21)
-  cb := cb.emitBranch .BCS "vib_onset_ok"          -- dur >= 21 frames: vibrato active
+  let vib_onset_threshold : UInt8 :=
+    if song.engineQuirks.framesPerTick != 0 then 9 else 27
+  cb := cb.emitInst (I.cmp_imm vib_onset_threshold)
+  cb := cb.emitBranch .BCS "vib_onset_ok"          -- dur >= 27 frames: vibrato active
   -- dur < 6: write base freq directly
   cb := cb.emitJmpLabel .JMP "vib_write_base"
   cb := cb.label "vib_onset_ok"
