@@ -14,30 +14,46 @@ in yet.
 | Codegen base | Commando (Bump Set Spike is the same 1985-86 Hubbard engine family) |
 | Engine quirks wired in | freq table base $B3FF + hardcoded PWM bounds + 22 instruments correctly extracted |
 | Grade against original | **F** (writelog 0.1% snapshot match, 1/1500) |
-| Per-voice progress | V3_PW_LO frame 1 matches; vibrato active and matches V3 freq on frames {0,2,10,15} of the first 22 |
+| Per-voice progress (first 23 frames) | V1 freq: 19/23, V2 freq: 11/23, V3 freq: 15/23 |
 
 Extract is verified correct: freq table extracts `freq[0] = $0116`
 matching binary at `$B3FF`; instrument 0 extracts `PW=$0800 ctrl=$41
-AD=$0F SR=$0C` matching binary at `$B513`. After switching codegen
-base from Monty to Commando + activating vibrato:
+AD=$0F SR=$0C` matching binary at `$B513`. Three sequential codegen
+upgrades:
 
-- V3_PW_LO frame 1 → $C0 matches original.
-- V3 freq frame 0 → $03A9 matches (note load).
-- V3 freq frame 2 → $03B5 matches (vibrato peak).
-- V3 freq frames {10, 15} match by phase coincidence.
+1. **Switched codegen base from Monty to Commando** (Bump Set Spike
+   is the same 1985-86 Hubbard engine family). V3_PW_LO frame 1
+   ($C0) now matches.
+2. **Decoded packed vibrato byte + relaxed onset threshold.** BSS's
+   vib byte is `frame_limit<<3 | shift`, not a raw shift count;
+   onset is "dur ≥ 1" not "dur ≥ 21". Activates vibrato.
+3. **Per-voice walking-counter vibrato model** (replaces Commando's
+   hardcoded triangle from the global frame counter). New zp arrays
+   `v_vib_counter` (init `[2,2,2]` from binary `$B4E3,X`) and
+   `v_vib_dir` (init `[0,0,0]`); new `i_viblimit` table per
+   instrument; ascending/descending walk with bipolar centering
+   `freq = freq[note] - delta*(limit/2) + delta*counter`. Skips
+   the post-clamp DEC at `$B203` to match BSS's empirically-observed
+   peak-hold behavior.
 
-The remaining gap is the **vibrato LFO shape mismatch**:
-- Original is a per-voice walking counter with stateful direction
-  flag (initial value $02 from binary at `$B4E3,X`), bipolar
-  centering: `freq = freq[note] - delta*(limit/2) + delta*counter`.
-- Codegen uses Commando's hardcoded triangle from the global frame
-  counter (`counter & 7 → 0,1,2,3,3,2,1,0`), unipolar:
-  `freq = freq[note] + delta*step`.
+Result on the first 23 frames of subtune 0:
 
-This produces *visually* similar modulation but with wrong phase and
-amplitude, so the writelog snapshot grade still F. Matching exactly
-requires per-voice vibrato state in the codegen (new zp slots,
-walking-counter emit code) — see "Pushing toward Grade A" below.
+| Voice freq | matches |
+|---|---|
+| V1 | 19 / 23 |
+| V2 | 11 / 23 |
+| V3 | 15 / 23 (frames 0-9 all perfect) |
+
+V3 vibrato pattern matches the original's `A9, B5, B5, AF, A9, A3,
+A3, A9, AF, B5` exactly. Drift on V2 / late-V3 is mostly the next
+note triggering at slightly different cycle times (cycle-precise
+note onset is bounded by Bump Set Spike's tempo-divider polarity
+and per-note-tempo counter, both still inherited from Commando).
+
+The whole-snapshot writelog grade is still F (2/1500) because the
+PW and ctrl registers diverge for similar reasons — V3 PW frame 2
+is `$00C0` in the original but `$0100` in the rebuild because the
+PWM block uses Commando's stepping model, not BSS's.
 
 ## Layout
 
