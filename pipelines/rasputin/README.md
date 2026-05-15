@@ -1,36 +1,50 @@
 # Rasputin on the Run pipeline
 
-End-to-end rebuild of Rob Hubbard's *Rasputin on the Run* (1985) SID. Same shape
-as the Commando pipeline; cloned and extended for Rasputin's engine quirks
-(skydive effect, pulsedelay/pulsedir initial state, notenum/freq-table
-overlap aliasing, different HR threshold).
+End-to-end rebuild of Rob Hubbard's *Rasputin on the Run* (1985) SID.
+Same shape as the Commando pipeline; the bulk-clone scaffold from
+commit cbb86f6 plus several Rasputin-specific engine fixes documented
+below.
+
+See `docs/hubbard_rasputin_disassembly.s` for a 1008-line hand-annotated
+6502 disassembly that documents the engine's outer/inner counter pair,
+the `$FE`/`$FD`/`$FF` orderlist markers, and the fx_flags bit layout
+(bit 0 = skydive, bit 1 = waveform shimmer, bit 2 = arpeggio +0/+12,
+bit 3 = PWM linear vs bidirectional).
 
 ## Status
 
 | Metric | Value |
 |---|---|
-| Subtunes rebuilt | 3 (the music tracks; PSID #1–#3 in the original) |
-| Verification | siddump 98.8% snapshot match; py65 0-divergence over 1500 frames |
-| Grade | A |
+| Subtunes rebuilt | 1 (PSID #1, the title music) |
+| Verification | siddump writelog grade |
+| Grade | D (67.0%, 1005/1500 snapshots matching) |
 
-The remaining ~1.2% siddump gap is `libsidplayfp` emulator subtleties
-(CIA timer, cycle-exact bus contention) that don't affect what the SID
-chip outputs.
+The remaining ~33% snapshot gap is mostly cycle-accuracy drift: our V2
+player codegen emits straightforward LDA/STA sequences that run ~600+
+cycles longer per frame than Hubbard's hand-tuned engine, so a few SID
+register writes per note land in the next snapshot frame. The actual
+SID output is correct semantically — the sequence of (freq, ctrl, pw,
+ad/sr) writes matches, but the timing within each PAL frame doesn't.
+Closing to Grade A would require cycle-tuned codegen or a more
+jitter-tolerant grader.
 
-The original PSID claims 19 subtunes; the other 16 are sound effects
-this pipeline doesn't ship.
+The original PSID claims 19 subtunes; PSID #2 is a second music track
+(same engine, A=1 to `init`) and the remaining 16 are sound effects
+that share register space with the music engine (A=2..17 trigger the
+`$CFA1` SFX-init path). This pipeline only rebuilds the title music.
 
 ## Layout
 
-Identical to Commando — see `pipelines/commando/README.md` for the layout
-explanation. The Rasputin-specific differences are inside the codegen:
+Identical to Commando — see `pipelines/commando/README.md` for the
+layout explanation. The Rasputin-specific differences:
 
 | File | Rasputin-only addition |
 |---|---|
-| `codegen/Rasputin/USF.lean` | `skydive : Bool` field on `USFInstrument` |
-| `codegen/Rasputin/Codegen.lean` | Skydive emit block; v_pitch alias-store into freq table; PWM init data extracted from binary; HR threshold = 1 |
-| `extract/engine_model.py` | Extracts `has_skydive` from fx_flags bit 1 |
-| `extract/emit_usf.py` | Emits `skydive := true/false` for each instrument |
+| `codegen/Rasputin/USF.lean` | `shimmer : Bool` field + `subFrameDivider : Option USFByte` in `USFEngineQuirks` |
+| `codegen/Rasputin/Codegen.lean` | Sub-frame divider play prelude (DEC/BPL/reload/RTS for 1-in-(N+1) SFX-only frames); waveform shimmer emit block (EOR ctrl `$18` every 2 music frames); skydive Path-A threshold `v_durfield - 3`; arpeggio reads bit 1 (not bit 0) of frame counter |
+| `extract/decompile.py` | `$FE` orderlist marker treated as speed-change (consume next byte, continue) not "stop"; `$FD` as song-end |
+| `extract/engine_model.py` | Tempo derived from py65 post-init steady-state ($C53B inner + $C539 outer); `subFrameDivider` stashed on Score for emit_usf |
+| `extract/emit_usf.py` | Emits `shimmer := true/false`; injects `subFrameDivider := some ⟨N, by omega⟩` into engineQuirks |
 
 ## How to run
 
@@ -53,10 +67,10 @@ lake build sidgen_rasputin
 Grade against the original:
 
 ```bash
-python src/writelog_grade.py \
+python3 src/writelog_grade.py \
     data/C64Music/MUSICIANS/H/Hubbard_Rob/Rasputin.sid \
-    rasputin.sid
-# Expected: Grade A, snapshots 98.8% (1482/1500)
+    pipelines/rasputin/build/rasputin.sid
+# Expected: Grade D, snapshots 67.0% (1005/1500)
 ```
 
 ## Why a separate pipeline from Commando
