@@ -1251,9 +1251,15 @@ def emitSustainEffects (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.r
   cb := cb.label "has_arp"
   cb := cb.emitInst (I.sta_zp 0xF8)               -- $F8 = arp_offset
   cb := cb.emitInst (I.lda_zp 0x50)               -- frame counter
-  cb := cb.emitInst (I.and_imm 0x01)              -- bit 0
-  cb := cb.emitBranch .BEQ "arp_base"
-  -- Odd frame: pitch + arp_offset
+  -- Chimera's $C536-$C53B uses (frame & 7) for arp phase: ONE-of-8 frames
+  -- plays the base note, SEVEN-of-8 play base + arp_offset (= +12 semis).
+  -- This produces a fast "rising tail" arp, audibly distinct from the
+  -- alternating every-frame arp (frame & 1) used by some other Hubbard
+  -- engines. The Monty clone defaulted to (frame & 1); changed to
+  -- (frame & 7) to match docs/hubbard_chimera_disassembly.s $C52F-$C55D.
+  cb := cb.emitInst (I.and_imm 0x07)              -- (frame & 7)
+  cb := cb.emitBranch .BEQ "arp_base"             -- phase 0 → base note
+  -- Phase 1..7: pitch + arp_offset (+12)
   cb := cb.emitInst I.clc
   cb := cb.emitLdaAbsX "v_pitch"
   cb := cb.emitInst (I.adc_zp 0xF8)
