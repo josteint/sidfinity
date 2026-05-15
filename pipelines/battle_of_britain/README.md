@@ -16,7 +16,7 @@ the original.
 | Emits PSID | ✅ correct title/author/released/flags |
 | Tests | ✅ `pytest pipelines/battle_of_britain/tests/` (6 passing) |
 | Disassembly | ✅ `disassembly.s` (747 lines, fully annotated) |
-| **siddump writelog match** | **❌ Grade F (0/1500 snapshots)** — codegen emits Monty's player, not BoB's |
+| **siddump writelog match** | **Grade F, 27.7% (415/1500 snapshots)** — first 60 frames match exactly; remaining gap is cycle-precision drift in V1/V2 vibrato + porta |
 
 ## Layout
 
@@ -81,53 +81,63 @@ pytest pipelines/battle_of_britain/tests/
 
 ## What's done vs. what's left
 
-**Done — this is enough to compile, emit a valid PSID, and have a
-faithful disassembly to drive the next iteration:**
+**Done — pipeline structurally complete, frame 0 byte-correct, first
+~60 frames cycle-accurate:**
 
 - Full hand-annotated 6502 disassembly of the original (`disassembly.s`).
 - PSID header fields match the original (title, author, released, PAL/6581
-  flags = `$14`).
-- Freq table truncated to BoB's real 96-entry size (`$8326-$83E5`).
+  flags = `$14`, **CIA timer speed flag `$01`** matching BoB).
+- Freq table truncated to BoB's real 96-entry size (`$8326-$83E5`); freq
+  values verified against binary at `$836E` etc.
+- Pattern terminator changed from `$00` to `$FF` (so legitimate semitone
+  0 — used in V2 pattern 21 first note — can be encoded).
+- `v_inst[V1/V2/V3]` seeded with `[9, 10, 2]` from BoB binary at `$83FC`
+  (BoB's init doesn't zero v_inst; the binary's "uninitialised" state
+  is load-bearing for V1's first-frame tie).
+- Frame counter `$50` seeded with `$DC` to match BoB's `$841F` binary
+  initial value (vibrato LFO phase aligns with the original).
 - Extract pipeline lifts BoB's 19 instruments and 3 voices, with skydive
   detection (instruments 4 + 18) and Hubbard PW bounds (`$08`/`$0E`).
 - Six smoke tests guard the extract shape against regressions.
 - Build artefacts land in `pipelines/battle_of_britain/build/`.
 
-**Not done — these are required for siddump writelog match:**
+**Remaining gap — cycle-precision drift, not missing effects:**
 
-- **Codegen.lean still emits Monty's player engine.** BoB's engine has
-  effects Monty doesn't (per the disassembly): glissando, slow-drift on
-  long notes (fx bit 1), octave arpeggio (fx bit 2), simple PW slide
-  (fx bit 3). The current codegen ignores all four; that's the bulk of
-  the F-grade gap.
-- **USF schema doesn't model BoB's glissando byte.** `$841A,X` encodes
-  `{enable:bit7, magnitude:bits1-6, direction:bit0}` on the second
-  pattern byte. `USF.lean` needs a `freqSlide` extension (or a new
-  effect type) before the codegen can emit it.
-- **Engine address scheme differs.** BoB lives at `$8000-$8FFF` with
-  init at `$8EAA`, play at `$8006`. The codegen defaults to a `$1000`
-  base for the synthesized player. Functionally OK for the player
-  itself (sidplayfp doesn't care where it sits), but means there's no
-  byte-perfect equivalence to the original binary.
-- **Pulsedelay / pulsedir init bytes are placeholders.** The Codegen
-  comment references "Monty's $84E5..$84EA"; BoB's equivalents are at
-  `$840B..$840D` (pwm_counter) and `$840E..$8410` (pwm_dir = `$01,$00,
-  $00`). Will need re-pointing once Codegen models BoB's effects.
+The first 60 frames now match orig exactly. Beyond that, V1/V2 freq
+registers drift by 1 LFO/porta step (delta of $02 or $04 between orig
+and rebuild) at sporadic frames, then re-converge. Root cause: when
+sidplayfp calls play multiple times per PAL frame (CIA timer mode), the
+"extra" play call's phase depends on play's cycle count. Codegen's play
+is more complex than BoB's, so the extra-call phase drifts by 1 frame
+every ~30 PAL frames. Each phase shift propagates ~1 register diff
+through the writelog snapshot for a frame, then re-aligns.
+
+Example (V2 porta = $04 per call): at frame 40 orig writes V2_freq_lo=$40
+(porta step "missed" this frame), rebuild writes $44 (porta step fires).
+At frame 41 they re-converge.
+
+**This isn't a single-fix problem.** Reaching Grade A here needs either:
+- **(a)** Cycle-equivalent play implementation (encode BoB's $8000-region
+  6502 assembly directly into Codegen as `cb.emitData [...]` rather than
+  synthesizing a new engine from USF — a real engineering project, but
+  the disassembly already documents what needs to be encoded), or
+- **(b)** Accept cycle-precision drift as inherent to the USF abstraction
+  and pursue audibility match instead of writelog match. Bulk of frame
+  diffs are 1-bit-of-LSB type — likely inaudible.
 
 ## Roadmap to Grade A
 
-Approximate order of effort:
-
-1. **Extend USF schema** (`USF.lean`) with a `glissando` effect type
-   covering BoB's per-note `$841A,X` byte semantics, and an octave-arp
-   variant for fx bit 2.
-2. **Codegen for the four BoB effects** in `Codegen.lean`: glissando
-   (mutates `v_flo`/`v_fhi`), slow drift, octave arp, simple PW slide.
-3. **Verify against the disassembly** — the engine emitted by Codegen
-   should produce the same SID writes per frame as the original
-   $8000-region player does (per `disassembly.s`).
-4. **Re-grade with `writelog_grade.py`** until Grade A or until
-   remaining differences are emulator-only (CIA/bus contention).
+1. **Pick path (a) or (b).** Path (a) is the rigorous "byte-perfect-ish"
+   route Commando took. Path (b) requires an audibility-based grader
+   (compare PCM waveforms, not register writes).
+2. **If path (a):** port the 831 instruction-bytes from `disassembly.s`
+   into a Lean `emitBoBEngine` block in Codegen.lean. Replace the
+   synthesized USF engine with the original. Wire data tables (freq,
+   instruments, patterns, orderlists) so addresses align with what the
+   ported player expects (`$8326` freq, `$8420` instruments, etc.).
+3. **If path (b):** build `audio_grade.py` using `tools/sidrender` +
+   PCM cross-correlation. Threshold at e.g. 95% similarity for A.
+4. **Re-grade** until target met.
 
 ## Why a separate pipeline from Monty
 
