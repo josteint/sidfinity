@@ -984,7 +984,7 @@ def emitVibrato (cb : CodeBuilder) (_song : USFSong) : CodeBuilder := Id.run do
   cb := cb.emitBranch .BPL "vib_add_loop"
 
   -- Write computed freq to SID
-  cb := cb.emitInst (I.ldx_zp 0xFA)
+  -- (X is already $FA from line 955; the add loop only touches Y/A/zp.)
   cb := cb.emitLdaAbsX "v_sidoff"
   cb := cb.emitInst I.tay
   cb := cb.emitInst (I.lda_zp 0xF2)
@@ -995,7 +995,8 @@ def emitVibrato (cb : CodeBuilder) (_song : USFSong) : CodeBuilder := Id.run do
 
   -- Write base freq (no vibrato modulation)
   cb := cb.label "vib_write_base"
-  cb := cb.emitInst (I.ldx_zp 0xFA)
+  -- (X is already $FA when entering this label from either fall-through
+  --  from the BMI exit of the add loop's setup, or the BCS-skip at vib gate.)
   cb := cb.emitLdaAbsX "v_sidoff"
   cb := cb.emitInst I.tay
   cb := cb.emitInst (I.lda_zp 0xF8)               -- base_flo
@@ -1035,7 +1036,7 @@ def emitSustainEffects (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.r
   -- not per-voice. das_model: when a voice retriggers a previously-used
   -- instrument (e.g. V3 cycles inst 2 -> 3 -> 2), the PW counter resumes
   -- from where that instrument left off. v_inst[X] gives Y = inst index.
-  cb := cb.emitInst (I.ldx_zp 0xFA)               -- X = voice
+  -- (X is already $FA here — no LDX between line 1014 and this point.)
   cb := cb.emitLdaAbsX "v_inst"
   cb := cb.emitInst I.tay                          -- Y = inst (preserved across PW)
 
@@ -1130,7 +1131,7 @@ def emitSustainEffects (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.r
   -- If bit0=1: check guards (fhi≠0, countdown≠0), then check note age.
   -- Path A (note not at start): DEC fhi, write OLD fhi, write ctrl (gate cleared)
   -- Path B (note at start): write fhi (no DEC), write ctrl=$80 (noise)
-  cb := cb.emitInst (I.ldx_zp 0xFA)
+  -- (X is already $FA — all PW paths preserve X.)
   cb := cb.emitLdaAbsX "v_inst"
   cb := cb.emitInst I.tay
   cb := cb.emitInst ⟨.LDA, .absY 0⟩               -- i_bit0[inst]
@@ -1178,7 +1179,7 @@ def emitSustainEffects (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.r
   -- PATH A: DEC freq_hi, write OLD, write ctrl (gate cleared)
   -- Use i_ctrl[inst] (static instrument ctrl byte), NOT waveform program
   -- Hubbard reads $54F8,X which is the cached instrument ctrl byte
-  cb := cb.emitInst (I.ldx_zp 0xFA)
+  -- (X is already $FA from line 1133; intervening ops only touch A/Y.)
   cb := cb.emitLdaAbsX "v_inst"
   cb := cb.emitInst I.tay
   cb := cb.emitInst ⟨.LDA, .absY 0⟩               -- i_ctrl[inst]
@@ -1203,7 +1204,7 @@ def emitSustainEffects (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.r
 
   -- PATH B: no DEC, write fhi + ctrl=$80
   cb := cb.label "slide_path_b"
-  cb := cb.emitInst (I.ldx_zp 0xFA)
+  -- (X is already $FA when entered via BCC at line 1176; X not touched in between.)
   cb := cb.emitLdaAbsX "v_fhi"
   cb := cb.emitLdaAbsX "v_sidoff"
   cb := cb.emitInst I.tay
@@ -1243,7 +1244,7 @@ def emitSustainEffects (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.r
   cb := cb.emitInst (I.lda_zp 0x50)               -- frame counter
   cb := cb.emitInst (I.and_imm 0x01)
   cb := cb.emitBranch .BEQ "no_sky"               -- even counter: skip
-  cb := cb.emitInst (I.ldx_zp 0xFA)
+  -- (X is already $FA from line 1230; no instructions in between touch X.)
   cb := cb.emitLdaAbsX "v_fhi"
   cb := cb.emitBranch .BEQ "no_sky"               -- v_fhi == 0: skip
   cb := cb.emitInst (I.sta_zp 0xF8)               -- save OLD v_fhi
