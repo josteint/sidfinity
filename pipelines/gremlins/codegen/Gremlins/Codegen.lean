@@ -1541,19 +1541,17 @@ def generateSID (song : USFSong) (debug : Bool := false) : Bytes := Id.run do
   cb := cb.emitData [0, 0, 0]
   cb := cb.label "v_pwhi"
   cb := cb.emitData [0, 0, 0]
-  -- pulsedir init values extracted from the Gremlins binary at $84E8..$84EA
-  -- (NOT the ACME disassembly source's `!by $00,$00,$00` — that's wrong).
-  -- V1=$01 (down), V2=$00 (up), V3=$00 (up).
+  -- Per-voice PWM direction flag, init read from the Gremlins binary's
+  -- BSS area at $16E8..$16EA (verified 2026-05-15): V1=$01 (down),
+  -- V2=$00 (up), V3=$01 (down).
   cb := cb.label "v_pwdir"
   cb := cb.emitData [1, 0, 1]
   -- Per-voice PWM period sub-counter. Decremented each frame; when it
   -- goes negative the bidirectional PW step fires and the counter
-  -- reloads from `pwm_speed & $1F` (lower 5 bits = period reload
-  -- value). Upper 3 bits of pwm_speed are the step size used on the
-  -- frames where period fires.
-  -- pulsedelay init values extracted from the Gremlins binary at $84E5..$84E7
-  -- (NOT the ACME `!by $00,$00,$00` — wrong). V1=$00, V2=$01, V3=$1D.
-  -- These cause V3's first PWM step to fire at frame 31 (not frame 2).
+  -- reloads from `pwm_speed & $1F`. Upper 3 bits of pwm_speed are the
+  -- step size used on the frames where period fires.
+  -- Init values read from the Gremlins binary at $16E5..$16E7
+  -- (verified 2026-05-15): V1=V2=V3=$01.
   cb := cb.label "v_pwperiod"
   cb := cb.emitData [1, 1, 1]
   -- Per-voice no_release flag: bit 5 of the raw inst byte at note-load.
