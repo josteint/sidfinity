@@ -391,10 +391,13 @@ def emitInitVoiceState (cb : CodeBuilder) : CodeBuilder :=
   let cb := cb.emitBranch .BPL "init_loop"
   cb
 
-/-- Frame counter to $FF (first INC → 0, matches Hubbard) and RTS back
-    to PSID. -/
+/-- Frame counter init. BoB's binary pre-loads $841F = $DC; init does
+    NOT zero it. The triangle-LFO vibrato phase depends on the absolute
+    value of this counter (frame_counter & $07), so to match BoB's
+    writelog we need to seed the same value here. First play INCs to
+    $DD; frame 0 → $DD, frame 1 → $DE, frame 2 → $DF (LFO 7 → folded 0). -/
 def emitInitFrameCounter (cb : CodeBuilder) : CodeBuilder :=
-  let cb := cb.emitInst (I.lda_imm 0xFF)
+  let cb := cb.emitInst (I.lda_imm 0xDC)
   let cb := cb.emitInst (I.sta_zp 0x50)
   let cb := cb.emitInst I.rts
   cb
