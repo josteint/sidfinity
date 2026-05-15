@@ -11,12 +11,34 @@ Monty pipelines.
 |---|---|
 | Subtunes rebuilt | 2 (PSID #1 + #2, the two music tracks; subtunes 2-16 are SFX, not shipped) |
 | Build | end-to-end clean: `python -m pipelines.crazy_comets.extract.emit_usf 0,1` → `lake build sidgen_crazy_comets` → SID at `pipelines/crazy_comets/build/crazy_comets.sid` |
-| Grade | F (58/1500 snapshots, 3.9%) — starting state, not byte-faithful |
+| Grade | C (1314/1500 snapshots, 87.6%) — V1 89.5% / V2 98.5% / V3 99.4% per voice |
 
-This is the **bring-up state** of the pipeline: scaffolding is in place,
-the Hubbard binary parses, the Lean codegen produces a SID, and grading
-runs. The rebuild does not yet match the original musically — see
-**Known divergences** below.
+## Recent progress
+
+Started at Grade F 3.9% on bulk-clone scaffold. Reached Grade C 87.6%
+via four targeted fixes derived from the annotated disassembly:
+
+1. **`initialDur := 1`** (3.9% → 7.4%). Crazy Comets's tick divider
+   ($54FA/$54FB at $5054-$5061) gates note-load to every 3rd frame
+   starting from frame 1. Seeding v_dur=1 in init makes the first DEC
+   take the sustain branch so note-load fires on play-frame 1 like
+   orig.
+
+2. **Binary-loaded effect cache** (7.4% → 61.8%). Hubbard's first-frame
+   init at $5016 zeroes v_olpos/v_patpos/v_dur/v_pitch but NOT v_inst
+   or v_fhi — the binary's load image (v_inst=[$01,$13,$10],
+   v_fhi=[$00,$01,$06]) flows into frame-0 effects. Seeded these in
+   Codegen.lean's data section.
+
+3. **HR threshold v_dur==2** (61.8% → 72.5%). Crazy Comets's 3-frame
+   tick divider means Hubbard's "v_dur==0 in ticks" maps to
+   "v_dur==2 in our per-frame v_dur" — HR fires 3 frames before
+   note-load, not 2.
+
+4. **Skydive duration gate** (72.5% → 87.6%). Hubbard's $532A slow
+   freq-down also requires `(v_flags & $1F) >= $11` (note duration
+   ≥ 17 ticks). The codegen's skydive block was firing on short
+   notes that should hold steady; added CMP #51 (= 17 × tempo).
 
 The original PSID claims 17 subtunes; the other 15 are sound effects
 this pipeline doesn't ship yet (the SFX engine at $539B + sub_5514 is
@@ -64,48 +86,44 @@ source src/env.sh
 python3 src/writelog_grade.py \
     data/C64Music/MUSICIANS/H/Hubbard_Rob/Crazy_Comets.sid \
     pipelines/crazy_comets/build/crazy_comets.sid
-# Currently: Grade F, snapshots 58/1500 (3.9%)
+# Currently: Grade C, snapshots 1314/1500 (87.6%)
 ```
 
-## Known divergences (work items)
+## Remaining divergences (work items)
 
-The Codegen.lean is a near-copy of Commando's (~200 lines diff out of
-1638). Crazy Comets's player at $500C..$540C extends Action Biker's
-engine in three structural ways that the codegen does not yet model;
-this is where most of the F-grade frame-by-frame mismatch comes from.
+V2 (98.5%) and V3 (99.4%) are essentially solved. V1 (89.5%) carries
+all remaining gap and is dominated by FREQ_LO/FREQ_HI write-timing
+drift (one-frame phase offset in some vibrato/arpeggio sequences).
+Candidate root causes, lowest-risk first:
 
-1. **Arpeggio / freq-slide block at $52A7.** New per-voice state at
-   `$5501,X` (v_freq_lo) and `$5504,X` (arp_dir flags) drives a
-   per-frame additive freq slide. Bit 0 of `$5504,X` picks direction
-   (ADD/SUB); bits 1-6 are step amount ×2. The slide is enabled by an
-   optional second pattern byte with bit 7 set on note-load (where
-   Action Biker would have placed an inst-change byte). Not in the
-   codegen.
+1. **Drum-slide ($52EE) duration gate.** Symmetric to the skydive
+   fix we just applied: Hubbard's drum-slide block reads v_flags,
+   v_fhi, v_dur sentinel checks but our codegen's freqSlide block
+   ignores the raw-duration field. Add `v_durfield >= 51` (= 17 × 3)
+   to the bit0 path at line 1126.
 
-2. **fx-flags bit 1 slow freq-down ($532A).** When the instrument's
-   `fx_flags` bit 1 is set, the note's original duration is >= $11,
-   and the global frame counter's bit 0 is set, decrement v_fhi by 1.
-   Half-speed companion to the drum slide. Not in the codegen.
+2. **Arpeggio at $52A7 (NEW vs Action Biker).** Per-voice state at
+   `$5501,X` / `$5504,X` drives a per-frame additive freq slide. Set
+   from optional 2nd pattern byte with bit 7 set on note-load. The
+   codegen's pattern extraction (extract/decompile.py) may swallow
+   that byte as an inst-change byte, mis-numbering instruments later.
 
-3. **fx-flags bit 2 octave-arp ($534F).** Alternates between
-   freq\[pitch\] and freq\[pitch+12\] every other frame — a coarse
-   two-note octave trill. Not in the codegen.
+3. **fx-flags bit 2 octave-arp at $534F.** Alternates freq[pitch] and
+   freq[pitch+12] every other frame. The codegen has arpeggio with
+   intervals=[0,12] but does not gate on a duration threshold; orig
+   may have an analogous gate.
 
-Also non-trivial but lower priority:
+Out-of-scope for the music subtunes 0/1 but documented for completeness:
 
 4. **Dual-engine init dispatch.** `init` at $6100 compares A to 2:
-   `A < 2` → music engine (`$5000` → `$60A7`); `A >= 2` → SFX engine
-   (`$5009` → `$60DE` then `$5003` → `$60D8`). Only the music path is
-   handled today; SFX subtunes are silent.
+   `A < 2` → music engine; `A >= 2` → SFX engine. Only the music path
+   is wired; SFX subtunes 2-16 are silent.
 
 5. **Mid-PWM "monotonic" path at $5222.** `fx_flags` bit 3 = simple
-   `pw_lo += vib_period | $40` with no bounds check or direction
-   flip (the normal $5240+ PWM applies the $08/$0E bounds). Not in
-   the codegen.
+   `pw_lo += vib_period | $40` with no bounds. Not in the codegen.
 
 6. **SFX engine ($539B-$540C + sub_5514).** Self-modifies opcode at
-   $53C5 between `INC` and `DEC` based on descriptor flags, bulk-copies
-   14 descriptor bytes into $D400.. as voicing seed, toggles V1/V2
+   $53C5, bulk-copies 14 descriptor bytes into $D400.., toggles V1/V2
    gates each step. Disjoint from the music engine and unimplemented.
 
 See `docs/hubbard_crazy_comets_disassembly.s` HIGH-LEVEL FLOW for the
