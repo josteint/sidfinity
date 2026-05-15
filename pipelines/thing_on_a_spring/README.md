@@ -10,29 +10,26 @@ Same shape as the Commando / Monty pipelines.
 | Subtunes extracted | 1 (the title music — PSID #1, 0-indexed 0) |
 | Lean build | green (`lake build sidgen_thing_on_a_spring`) |
 | Codegen runs | yes, produces `build/thing_on_a_spring.sid` |
-| Grade vs original | **F — 4.8% snapshots (72/1500)** |
-
-**The scaffold is in place, but the codegen does NOT yet match this
-engine.** The extract + codegen were cloned from Monty's pipeline (which
-graded A) with the SID path + freq-table base swapped to Thing on a Spring's
-values, but Thing on a Spring's player has structural differences from
-Monty's that haven't been ported across. The README in this repo's
-history claimed Grade A 98.8%; that claim is stale.
+| Grade vs original | **B — 96.0% snapshots (1440/1500)** |
 
 Reference disassembly: `docs/hubbard_thing_on_a_spring_disassembly.s`.
+
+60 frames out of 1500 still diverge — mostly V1/V3 freq-hi on a few
+short runs (F767-773, F1185-1191, F872-877, F1194-1199). To reach
+Grade A (≥98%) those need engine-trace investigation; everything else
+about the song now matches frame-for-frame.
 
 ## Layout
 
 Identical to Commando — see `pipelines/commando/README.md` for the layout
-explanation. The Thing-on-a-Spring-specific differences (vs Monty) currently
-live as:
+explanation. The Thing-on-a-Spring-specific differences (vs Monty):
 
 | File | Thing-on-a-Spring-only change |
 |---|---|
-| `extract/emit_usf.py` | `THING_ON_A_SPRING_SID` path; `THING_ON_A_SPRING_FT_BASE = $C3A9` |
-| `extract/engine_model.py` | Path swap only |
-| `codegen/ThingOnASpring/Codegen.lean` | ≈73 lines of cosmetic diff vs Monty |
-| `codegen/ThingOnASpring/USF.lean` | identical to Monty (incl. `skydive` field) |
+| `extract/emit_usf.py` | `ft_base = $C3A9`; pitches 96..127 emitted as `.pitched` (not `.percussion .dynamicCtrl` — the freq table at $C3A9 overlaps the voice-offset table at $C469 and those slots are real pitched lookups in the engine) |
+| `extract/engine_model.py` | `arp_offset = 24` (engine adds 2 octaves, not 1) |
+| `codegen/ThingOnASpring/Codegen.lean` | (1) init: no SID-silence (engine's init only sets $C497); (2) `v_dur` init = 1 + `v_inst` init = [14, 5, 6] from binary $C47F-$C481 → frame-0 effects-only path matches engine's tempo gate; (3) freqSlide thresholds: skip-when v_dur < 2 and Path-B-when v_dur ≥ durfield-3 (engine's exact switch points); (4) skydive (fx_flags bit 1) is INC v_fhi + write OLD, not DEC, and runs every frame (no $50-bit-0 gate) |
+| `codegen/ThingOnASpring/USF.lean` | identical to Monty |
 
 ## How to run
 
@@ -47,63 +44,31 @@ python3 src/writelog_grade.py \
     pipelines/thing_on_a_spring/build/thing_on_a_spring.sid
 ```
 
-## Engine differences from Monty / Commando (from the disassembly)
+## Remaining gap to Grade A
 
-These are the load-bearing reasons the Monty-clone codegen doesn't byte-match.
-Numbers/labels are from `docs/hubbard_thing_on_a_spring_disassembly.s`.
+60 mismatching frames (4.0%) cluster in a handful of short runs:
 
-1. **SFX overlay player at `$C326`**. Subtune 0 plays the main song;
-   subtunes 1..16 are sound effects that run a *separate* 2-voice engine
-   over V1+V2 while the main player skips its SID writes (via the
-   `$C4A0` gate at `$C310`). The current codegen has no concept of this
-   overlay — it emits Monty's 3-voice song player only. Subtune 0 alone
-   is enough for the title music, but the main player's per-voice loop
-   itself still checks `$C4A0` BMI/BPL on every freq/ctrl/PW write,
-   which Monty's main player does not.
+| Run | Length | Pattern |
+|---|---|---|
+| F767-F773, F1185-F1191 | 7 frames each | V1 freq-lo flips $7D ↔ $46 |
+| F776-F781, F1194-F1199 | 6 frames each | (same pattern) |
+| F864-F868, F872-F877 | ~6 frames | V1 freq-lo/hi small drift |
 
-2. **Freq table is 96 semitones × 2 bytes at `$C3A9`**, not Monty's
-   layout. The discovery base is correct in `emit_usf.py`, but downstream
-   code expects Monty's semantics.
+The recurring V1 flo=$7D vs $46 pattern looks like the arpeggio
+pitch-selection picking the wrong octave on specific notes. To diagnose
+further: trace V1 across one of those runs with py65 and compare
+`v_pitch`/`v_inst` against the engine's `$C47F`/`$C47C`.
 
-3. **fx flags semantics (`$CD31,Y`)**:
-   - bit 0 → freq-hi DOWN-sweep with test-bit ($80) ctrl retrigger near
-     mid-note (drum sound).
-   - bit 1 → freq-hi UP-sweep (no ctrl retrigger).
-   - bit 2 → +24-semitone arpeggio on odd-numbered `$C49D` frames (two
-     octaves up — *not* Commando's +12).
+## Engine reference
 
-4. **Self-modifying code at `$C35F`**. `sub_C4A9` patches the opcode
-   byte to `$EE` (INC) or `$CE` (DEC) based on SFX flags bits 4-5,
-   choosing whether the SFX walks step UP or DOWN per tick. Only matters
-   for SFX subtunes; can be left as a doc note for now.
-
-5. **Instrument layout (8-byte stride at `$CD2A`, 15 records)**:
-   `+0 PW_LO  +1 PW_HI  +2 CTRL  +3 AD  +4 SR  +5 vib_divider
-    +6 pulse_delta_packed  +7 fx_flags`. The pulse-delta byte packs
-   amount (high 3 bits) + pwcnt-reload (low 5 bits) — see `$C22F`.
-
-6. **PWM bounds**. Standard Hubbard `$08` / `$0E` direction flip on
-   PW_HI (see `reference_hubbard_pwm_bounds.md`). Mutation is IN-PLACE
-   on `$CD2A` / `$CD2B` per-instrument bytes — same as Commando.
-
-7. **Hard-restart threshold**. The release path at `$C173` fires when
-   `v_notelen == 0` *and* note byte bit 5 (no_release) clear. The
-   README's old claim of "HR threshold = 1" doesn't match — it's "= 0".
-
-## Next steps
-
-To get this to Grade A on subtune 0:
-
-1. Diff `Codegen.lean` against Monty's and find which assumptions (HR
-   threshold, fx-flag bit semantics, freq-table size, voice state
-   addresses) no longer hold for this engine.
-2. Verify the `$C4A0` SFX-active gate is *always* true on subtune 0
-   (since no SFX is active) — if so, the gate writes can be omitted in
-   the rebuilt player, but the address layout still has to match.
-3. Compare frame 0 register writes against `siddump --writelog` output
-   from the original to identify which extracted instrument values are
-   wrong. (Currently frame 0 emits 21 SID writes — the original emits
-   only `$D418 = $0F` and a freq pair at frame ≈9800 cycles.)
+The hand-annotated disassembly at
+`docs/hubbard_thing_on_a_spring_disassembly.s` documents the full
+engine: subtune dispatch, main player tempo gate ($C494/$C495), per-voice
+SID-write gating via $C4A0, SFX overlay engine at $C326 (currently not
+rebuilt — only subtune 0 is supported), instrument table layout
+(8 bytes × 15 records at $CD2A), and the self-modifying INC/DEC trick
+at $C35F. See it before changing any of the codegen's engine-specific
+constants.
 
 ## Why a separate pipeline from Monty
 
