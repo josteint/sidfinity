@@ -1,5 +1,8 @@
-"""OneManAndHisDroid on the Run pipeline: independent clone of the Commando pipeline,
-extended with Hubbard quirks specific to early-era OneManAndHisDroid.
+"""One Man and his Droid pipeline: independent clone of the Commando/Monty
+pipelines, extended with Hubbard quirks specific to the OMHD engine
+(secondary drum/sample engine at $139F, pitchbend extension byte,
+linear-PWM fx_flag, octave-trill arpeggio).
 
-Grade A (98.8% siddump snapshot match, 0-divergence under py65).
+Current grade: D (37.5% snapshot match). See README.md for what
+remains to bring it to A.
 """

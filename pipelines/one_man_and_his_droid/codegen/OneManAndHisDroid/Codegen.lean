@@ -1148,7 +1148,7 @@ def emitSustainEffects (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.r
   -- For Commando tempo=3: skip until countdown <= durationFrames - tempo = durationFrames - 3.
   -- So compare (durationFrames - tempo) with countdown.
   cb := cb.emitLdaAbsX "v_durfield"
-  cb := cb.emitInst (I.sbc_imm 4)                 -- A = durationFrames - 4 (empirically tuned for Hubbard)
+  cb := cb.emitInst (I.sbc_imm 3)                 -- A = durationFrames - 3 (OMHD: Path B for 1 frame only, then Path A — matches tick-based gate at original $130F).
   cb := cb.emitInst ⟨.CMP, .absX 0⟩               -- cmp countdown
   cb := { cb with absFixups :=
     { byteIdx := cb.bytes.size - 2, targetLabel := "v_dur" } :: cb.absFixups }
@@ -1238,9 +1238,9 @@ def emitSustainEffects (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.r
   cb := cb.label "has_arp"
   cb := cb.emitInst (I.sta_zp 0xF8)               -- $F8 = arp_offset
   cb := cb.emitInst (I.lda_zp 0x50)               -- frame counter
-  cb := cb.emitInst (I.and_imm 0x01)              -- bit 0
-  cb := cb.emitBranch .BEQ "arp_base"
-  -- Odd frame: pitch + arp_offset
+  cb := cb.emitInst (I.and_imm 0x04)              -- bit 2 → 8-frame period (4 on, 4 off)
+  cb := cb.emitBranch .BNE "arp_base"             -- bit 2 set → base pitch (matches OMHD $1364)
+  -- Bit 2 clear (frames 0-3, 8-11, ...): pitch + arp_offset (octave up)
   cb := cb.emitInst I.clc
   cb := cb.emitLdaAbsX "v_pitch"
   cb := cb.emitInst (I.adc_zp 0xF8)

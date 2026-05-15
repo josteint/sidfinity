@@ -1,9 +1,9 @@
-"""Generate USF v3 OneManAndHisDroid on the Run data as a Lean file.
+"""Generate USF v3 One Man and his Droid data as a Lean file.
 
-Pipeline structure identical to the Commando emit_usf; only the SID source
-path, freq table base, and Lean output paths differ.
+Pipeline structure identical to the Commando/Monty emit_usf; only the SID
+source path, freq table base, and Lean output paths differ.
 
-Discovered freq_table_addr for OneManAndHisDroid: $8400 (via src/sidxray/discover.py).
+OMHD freq_table_addr: $1422 (verified from hubbard_one_man_and_his_droid_disassembly.s).
 """
 
 from __future__ import annotations
@@ -124,7 +124,8 @@ def gen_instrument(idx: int, inst: Instrument) -> str:
   effectOrder := {eff_order}
   release := {{ framesBeforeEnd := 3, zeroAdsr := true, noRelease := false }}
   filterEnabled := false
-  skydive := {str(sky).lower()}
+  skydive := false  -- TEMP: codegen's skydive lacks OMHD's orig_dur>=16 / v_dur<24 gates.
+                    -- Original fx_flags bit 1: raw (sky={str(sky).lower()}); see disassembly $132C.
 }}"""
 
 
@@ -210,7 +211,7 @@ def main(argv: list[str] | None = None) -> None:
     instruments = first.instruments
 
     out = [
-        "-- Auto-generated USF v3 OneManAndHisDroid on the Run data",
+        "-- Auto-generated USF v3 One Man and his Droid data",
         f"-- Subtunes: {subtune_indices} (0-indexed; PSID subtunes "
         f"{[s + 1 for s in subtune_indices]})",
         "import OneManAndHisDroid.USF",
@@ -343,9 +344,9 @@ def main(argv: list[str] | None = None) -> None:
   filter := none
   playRate := .vbi
   engineQuirks := {quirks}
-  title := "OneManAndHisDroid on the Run"
+  title := "One Man and his Droid"
   author := "Rob Hubbard"
-  released := "1985 Gremlin Graphics"
+  released := "1985 Mastertronic"
 }}""")
 
     # Output path is repo-root-relative, computed from this file's location.

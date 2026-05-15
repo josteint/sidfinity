@@ -1,4 +1,4 @@
--- Auto-generated USF v3 OneManAndHisDroid on the Run data
+-- Auto-generated USF v3 One Man and his Droid data
 -- Subtunes: [0] (0-indexed; PSID subtunes [1])
 import OneManAndHisDroid.USF
 
@@ -21,7 +21,8 @@ def mv3I0 : USFInstrument := {
   effectOrder := [.vibrato, .pwMod, .gateCheck]
   release := { framesBeforeEnd := 3, zeroAdsr := true, noRelease := false }
   filterEnabled := false
-  skydive := true
+  skydive := false  -- TEMP: codegen's skydive lacks OMHD's orig_dur>=16 / v_dur<24 gates.
+                    -- Original fx_flags bit 1: raw (sky=true); see disassembly $132C.
 }
 
 def mv3I1 : USFInstrument := {
@@ -41,7 +42,8 @@ def mv3I1 : USFInstrument := {
   effectOrder := [.vibrato, .pwMod, .gateCheck]
   release := { framesBeforeEnd := 3, zeroAdsr := true, noRelease := false }
   filterEnabled := false
-  skydive := true
+  skydive := false  -- TEMP: codegen's skydive lacks OMHD's orig_dur>=16 / v_dur<24 gates.
+                    -- Original fx_flags bit 1: raw (sky=true); see disassembly $132C.
 }
 
 def mv3I2 : USFInstrument := {
@@ -61,7 +63,8 @@ def mv3I2 : USFInstrument := {
   effectOrder := [.pwMod, .freqSlide, .arpeggio, .gateCheck]
   release := { framesBeforeEnd := 3, zeroAdsr := true, noRelease := false }
   filterEnabled := false
-  skydive := false
+  skydive := false  -- TEMP: codegen's skydive lacks OMHD's orig_dur>=16 / v_dur<24 gates.
+                    -- Original fx_flags bit 1: raw (sky=false); see disassembly $132C.
 }
 
 def mv3I3 : USFInstrument := {
@@ -81,7 +84,8 @@ def mv3I3 : USFInstrument := {
   effectOrder := [.pwMod, .freqSlide, .arpeggio, .gateCheck]
   release := { framesBeforeEnd := 3, zeroAdsr := true, noRelease := false }
   filterEnabled := false
-  skydive := false
+  skydive := false  -- TEMP: codegen's skydive lacks OMHD's orig_dur>=16 / v_dur<24 gates.
+                    -- Original fx_flags bit 1: raw (sky=false); see disassembly $132C.
 }
 
 def mv3I4 : USFInstrument := {
@@ -101,7 +105,8 @@ def mv3I4 : USFInstrument := {
   effectOrder := [.vibrato, .pwMod, .freqSlide, .arpeggio, .gateCheck]
   release := { framesBeforeEnd := 3, zeroAdsr := true, noRelease := false }
   filterEnabled := false
-  skydive := false
+  skydive := false  -- TEMP: codegen's skydive lacks OMHD's orig_dur>=16 / v_dur<24 gates.
+                    -- Original fx_flags bit 1: raw (sky=false); see disassembly $132C.
 }
 
 def mv3I5 : USFInstrument := {
@@ -121,7 +126,8 @@ def mv3I5 : USFInstrument := {
   effectOrder := [.pwMod, .arpeggio, .gateCheck]
   release := { framesBeforeEnd := 3, zeroAdsr := true, noRelease := false }
   filterEnabled := false
-  skydive := false
+  skydive := false  -- TEMP: codegen's skydive lacks OMHD's orig_dur>=16 / v_dur<24 gates.
+                    -- Original fx_flags bit 1: raw (sky=false); see disassembly $132C.
 }
 
 def mv3I6 : USFInstrument := {
@@ -141,7 +147,8 @@ def mv3I6 : USFInstrument := {
   effectOrder := [.pwMod, .arpeggio, .gateCheck]
   release := { framesBeforeEnd := 3, zeroAdsr := true, noRelease := false }
   filterEnabled := false
-  skydive := false
+  skydive := false  -- TEMP: codegen's skydive lacks OMHD's orig_dur>=16 / v_dur<24 gates.
+                    -- Original fx_flags bit 1: raw (sky=false); see disassembly $132C.
 }
 
 def mv3I7 : USFInstrument := {
@@ -161,7 +168,8 @@ def mv3I7 : USFInstrument := {
   effectOrder := [.pwMod, .arpeggio, .gateCheck]
   release := { framesBeforeEnd := 3, zeroAdsr := true, noRelease := false }
   filterEnabled := false
-  skydive := false
+  skydive := false  -- TEMP: codegen's skydive lacks OMHD's orig_dur>=16 / v_dur<24 gates.
+                    -- Original fx_flags bit 1: raw (sky=false); see disassembly $132C.
 }
 
 def mv3I8 : USFInstrument := {
@@ -181,7 +189,8 @@ def mv3I8 : USFInstrument := {
   effectOrder := [.vibrato, .pwMod, .gateCheck]
   release := { framesBeforeEnd := 3, zeroAdsr := true, noRelease := false }
   filterEnabled := false
-  skydive := true
+  skydive := false  -- TEMP: codegen's skydive lacks OMHD's orig_dur>=16 / v_dur<24 gates.
+                    -- Original fx_flags bit 1: raw (sky=true); see disassembly $132C.
 }
 
 def mv3I9 : USFInstrument := {
@@ -201,7 +210,8 @@ def mv3I9 : USFInstrument := {
   effectOrder := [.pwMod, .arpeggio, .gateCheck]
   release := { framesBeforeEnd := 3, zeroAdsr := true, noRelease := false }
   filterEnabled := false
-  skydive := false
+  skydive := false  -- TEMP: codegen's skydive lacks OMHD's orig_dur>=16 / v_dur<24 gates.
+                    -- Original fx_flags bit 1: raw (sky=false); see disassembly $132C.
 }
 
 def mv3I10 : USFInstrument := {
@@ -221,7 +231,8 @@ def mv3I10 : USFInstrument := {
   effectOrder := [.pwMod, .arpeggio, .gateCheck]
   release := { framesBeforeEnd := 3, zeroAdsr := true, noRelease := false }
   filterEnabled := false
-  skydive := false
+  skydive := false  -- TEMP: codegen's skydive lacks OMHD's orig_dur>=16 / v_dur<24 gates.
+                    -- Original fx_flags bit 1: raw (sky=false); see disassembly $132C.
 }
 
 def mv3I11 : USFInstrument := {
@@ -241,7 +252,8 @@ def mv3I11 : USFInstrument := {
   effectOrder := [.vibrato, .pwMod, .arpeggio, .gateCheck]
   release := { framesBeforeEnd := 3, zeroAdsr := true, noRelease := false }
   filterEnabled := false
-  skydive := false
+  skydive := false  -- TEMP: codegen's skydive lacks OMHD's orig_dur>=16 / v_dur<24 gates.
+                    -- Original fx_flags bit 1: raw (sky=false); see disassembly $132C.
 }
 
 def mv3I12 : USFInstrument := {
@@ -261,7 +273,8 @@ def mv3I12 : USFInstrument := {
   effectOrder := [.pwMod, .freqSlide, .arpeggio, .gateCheck]
   release := { framesBeforeEnd := 3, zeroAdsr := true, noRelease := false }
   filterEnabled := false
-  skydive := false
+  skydive := false  -- TEMP: codegen's skydive lacks OMHD's orig_dur>=16 / v_dur<24 gates.
+                    -- Original fx_flags bit 1: raw (sky=false); see disassembly $132C.
 }
 
 def mv3I13 : USFInstrument := {
@@ -281,7 +294,8 @@ def mv3I13 : USFInstrument := {
   effectOrder := [.vibrato, .pwMod, .gateCheck]
   release := { framesBeforeEnd := 3, zeroAdsr := true, noRelease := false }
   filterEnabled := false
-  skydive := false
+  skydive := false  -- TEMP: codegen's skydive lacks OMHD's orig_dur>=16 / v_dur<24 gates.
+                    -- Original fx_flags bit 1: raw (sky=false); see disassembly $132C.
 }
 
 def mv3I14 : USFInstrument := {
@@ -301,7 +315,8 @@ def mv3I14 : USFInstrument := {
   effectOrder := [.vibrato, .pwMod, .gateCheck]
   release := { framesBeforeEnd := 3, zeroAdsr := true, noRelease := false }
   filterEnabled := false
-  skydive := false
+  skydive := false  -- TEMP: codegen's skydive lacks OMHD's orig_dur>=16 / v_dur<24 gates.
+                    -- Original fx_flags bit 1: raw (sky=false); see disassembly $132C.
 }
 
 def mv3P0 : USFPattern := { notes := [{ kind := .tie, durationFrames := 64, instrument := 192, porta := 0 }] }
@@ -415,7 +430,7 @@ def one_man_and_his_droidV3 : USFSong := {
     ]
     dynamicFreqEntries := []
   }
-  title := "OneManAndHisDroid on the Run"
+  title := "One Man and his Droid"
   author := "Rob Hubbard"
-  released := "1985 Gremlin Graphics"
+  released := "1985 Mastertronic"
 }
