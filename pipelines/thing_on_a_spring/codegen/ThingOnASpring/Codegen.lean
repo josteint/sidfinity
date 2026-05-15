@@ -1136,26 +1136,26 @@ def emitSustainEffects (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.r
   cb := cb.emitJmpLabel .JMP "no_slide"
   cb := cb.label "fhi_ok"
 
-  -- Guard: skip slide entirely once we are at/past the gate-off frame.
-  -- das_model uses `cmp #4 / bcc skip` on its dur*3 countdown; ours is
-  -- (dur-1) so the equivalent threshold is v_dur < 3 (gate-off fires at
-  -- v_dur == 2). This matches Hubbard's behavior of leaving the voice
-  -- alone once release starts.
+  -- Guard: skip slide entirely once the note's v_notelen would have
+  -- reached 0 in the engine. Engine's drum exits via `LDA $C473; BEQ`.
+  -- For Thing-on-a-Spring (durationFrames = (L+1)*tempo): v_notelen hits 0
+  -- when v_dur reaches `tempo-1` (with tempo=2 → v_dur=1). So skip
+  -- slide when v_dur < 2 (i.e., on the engine-exit frames).
   cb := cb.emitLdaAbsX "v_dur"
-  cb := cb.emitInst (I.cmp_imm 3)
+  cb := cb.emitInst (I.cmp_imm 2)
   cb := cb.emitBranch .BCS "dur_ok"
   cb := cb.emitJmpLabel .JMP "no_slide"
   cb := cb.label "dur_ok"
 
-  -- Check note age: (dur_field - 1) * tempo vs countdown
-  -- Hubbard countdown is in ticks; ours is in frames. Multiply threshold by tempo.
+  -- Check note age: Path B (retrigger) fires for the FIRST tempo-gate
+  -- period after note-load, then Path A (DEC + write) for subsequent
+  -- periods. Engine switches at v_notelen == length-1, i.e., one tempo
+  -- DEC after load. For Thing on a Spring with durationFrames=(L+1)*tempo,
+  -- that's v_dur == durationFrames - 1 - tempo = durationFrames - 3.
+  -- So Path B when v_dur >= durationFrames - 3 (durfield-3 < v_dur).
   cb := cb.emitInst I.sec
-  -- USF v3: v_durfield is in FRAMES. Hubbard guard "dur_ticks - 1 < countdown_frames"
-  -- equates to: skip until countdown <= (dur_ticks - 1)*tempo = (durationFrames/tempo - 1)*tempo
-  -- For Commando tempo=3: skip until countdown <= durationFrames - tempo = durationFrames - 3.
-  -- So compare (durationFrames - tempo) with countdown.
   cb := cb.emitLdaAbsX "v_durfield"
-  cb := cb.emitInst (I.sbc_imm 4)                 -- A = durationFrames - 4 (empirically tuned for Hubbard)
+  cb := cb.emitInst (I.sbc_imm 3)                 -- threshold for Path A vs Path B
   cb := cb.emitInst ⟨.CMP, .absX 0⟩               -- cmp countdown
   cb := { cb with absFixups :=
     { byteIdx := cb.bytes.size - 2, targetLabel := "v_dur" } :: cb.absFixups }
