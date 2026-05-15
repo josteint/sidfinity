@@ -1529,13 +1529,21 @@ def generateSID (song : USFSong) (debug : Bool := false) : Bytes := Id.run do
   cb := cb.emitByte 0
   cb := cb.label "v_wptr"
   cb := cb.emitData [0, 0, 0]
+  -- v_inst initial values: NOT zeroed by Hubbard's init at $60A7; the
+  -- binary preserves real values at $54E5-$54E7. The codegen's effects
+  -- loop on frame 0 (with initialDur=1) runs against these instruments,
+  -- so seeding them from the binary makes frame-0 effect writes match.
+  -- Binary: V1=$01, V2=$13, V3=$10 (see disassembly).
   cb := cb.label "v_inst"
   cb := cb.label "v_inst_v0"
-  cb := cb.emitByte 0
+  cb := cb.emitByte 0x01
   cb := cb.label "v_inst_v1"
-  cb := cb.emitByte 0
+  cb := cb.emitByte 0x13
   cb := cb.label "v_inst_v2"
-  cb := cb.emitByte 0
+  cb := cb.emitByte 0x10
+  -- v_pitch initial values: zero. Hubbard's $5016 first-frame init zeroes
+  -- $54E2-$54E4 (v_pitch). So on frame 0 the engine's effects loop reads
+  -- v_pitch=0 even though the binary may have non-zero values there.
   cb := cb.label "v_pitch"
   cb := cb.label "v_pitch_v0"
   cb := cb.emitByte 0
@@ -1543,17 +1551,18 @@ def generateSID (song : USFSong) (debug : Bool := false) : Bytes := Id.run do
   cb := cb.emitByte 0
   cb := cb.label "v_pitch_v2"
   cb := cb.emitByte 0
+  -- v_fhi initial values: also unzeroed; binary V1=$00, V2=$01, V3=$06.
   cb := cb.label "v_fhi"
-  cb := cb.emitData [0, 0, 0]
+  cb := cb.emitData [0x00, 0x01, 0x06]
   cb := cb.label "v_durfield"
   cb := cb.emitData [0, 0, 0]
   cb := cb.label "v_pwlo"
   cb := cb.emitData [0, 0, 0]
   cb := cb.label "v_pwhi"
   cb := cb.emitData [0, 0, 0]
-  -- pulsedir init values extracted from the CrazyComets binary at $84E8..$84EA
-  -- (NOT the ACME disassembly source's `!by $00,$00,$00` — that's wrong).
-  -- V1=$01 (down), V2=$00 (up), V3=$00 (up).
+  -- pulsedir init values extracted from the Crazy Comets binary at
+  -- $54F7-$54F9 (= v_pwm_dir,X; NOT zeroed by init's $60A7).
+  -- V1=$00 (up), V2=$00 (up), V3=$01 (down).
   cb := cb.label "v_pwdir"
   cb := cb.emitData [0, 0, 1]
   -- Per-voice PWM period sub-counter. Decremented each frame; when it
@@ -1561,9 +1570,11 @@ def generateSID (song : USFSong) (debug : Bool := false) : Bytes := Id.run do
   -- reloads from `pwm_speed & $1F` (lower 5 bits = period reload
   -- value). Upper 3 bits of pwm_speed are the step size used on the
   -- frames where period fires.
-  -- pulsedelay init values extracted from the CrazyComets binary at $84E5..$84E7
-  -- (NOT the ACME `!by $00,$00,$00` — wrong). V1=$00, V2=$01, V3=$1D.
-  -- These cause V3's first PWM step to fire at frame 31 (not frame 2).
+  -- pulsedelay init values: Crazy Comets binary at $54F4-$54F6
+  -- (= v_pwm_cnt,X) holds [$00, $00, $00] — all-zero in the binary,
+  -- so the first PWM step for each voice fires immediately on the
+  -- frame where vib_period elapses. (Differs from Commando whose
+  -- equivalent counter starts at V3=$1D, delaying the first step.)
   cb := cb.label "v_pwperiod"
   cb := cb.emitData [0, 0, 0]
   -- Per-voice no_release flag: bit 5 of the raw inst byte at note-load.
