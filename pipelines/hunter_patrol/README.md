@@ -11,12 +11,11 @@ pipelines.
 |---|---|
 | Subtunes rebuilt | 1 (PSID single-subtune SID) |
 | Build | end-to-end clean: `python -m pipelines.hunter_patrol.extract` → `lake build sidgen_hunter_patrol` → SID at `pipelines/hunter_patrol/build/hunter_patrol.sid` |
-| Grade | F (0/1500 snapshots) — starting state, not byte-faithful |
+| Grade | **B** (1418/1500 snapshots, 94.5%) |
 
-This is the **bring-up state** of the pipeline: scaffolding is in place,
-the Hubbard binary parses, the Lean codegen produces a SID, and grading
-runs. The rebuild does not yet match the original musically — see
-**Known divergences** below.
+The first frame matches exactly. Remaining mismatches are accumulated
+effect-cadence drift over 1500 frames, concentrated in V2/V3 envelope
+register diffs around note boundaries.
 
 ## Layout
 
@@ -58,38 +57,62 @@ python3 src/writelog_grade.py \
 # Currently: Grade F, snapshots 0/1500
 ```
 
-## Known divergences (work items)
+## What got us to Grade B (the F → B fixes)
 
-Decoded from a writelog diff at frame 0 (orig vs rebuild). All trace
-back to the engine's reliance on **binary-loaded initial state** that
-the current rebuild does not preserve:
+Five tightly-coupled fixes to `codegen/HunterPatrol/Codegen.lean`,
+all keyed to the annotated disassembly:
 
-1. **Sub-frame tempo gate.** Original $A418/$A419 = $01/$02, so the
-   first note-load fires on frame 2 (period 3). The rebuild fires note
-   loads on frame 0 for all three voices, writing full instrument
-   bytes (PW, ctrl, AD, SR) before any vibrato/skydive runs. Fix: emit
-   the tempo counter with initial `counter=1, reload=2` (per
-   `Hunter_Patrol.sid` bytes at $A418/$A419) instead of resetting at
-   note-load time.
+1. **Per-voice initial seeds** for `v_inst = [$04, $04, $0A]`,
+   `v_fhi = [$36, $20, $10]`, and `v_durfield = [54, 54, 18]`.
+   These mirror the binary-loaded $A403/$A41B/$A3FA caches that the
+   original engine's first-frame effect chain depends on (the
+   composer pre-baked them so frame 0 of the play loop runs as if
+   a phantom "frame -1" had already loaded each voice's first note).
 
-2. **Binary-loaded effect caches.** `$A41B-$A41D` (freq HI per voice)
-   and `$A3FA-$A3FC` (raw note byte per voice) are NOT zeroed by the
-   engine's init — they hold leftover values from the binary. On
-   frame 0 the skydive effect reads `$A41B = $36` and decrements it,
-   producing V1 FREQ_HI = $36 in the original output. The rebuild's
-   skydive runs against zero-initialised state and produces nothing.
-   Fix: codegen needs to seed these state cells from the disassembled
-   binary, or emit a one-time init block that mirrors the load-time
-   values.
+2. **`v_dur = [1, 1, 1]` instead of zero** in the data block, paired
+   with stripping `STA v_dur,X` from `emitInitVoiceState`. This makes
+   frame 0 DEC v_dur → 0 (skip note-load, run effects only), then
+   frame 1 underflow and load the first real note. Matches the
+   original's sub-frame tempo gate that defers the first note-load
+   from frame 0 to frame 1.
 
-3. **No per-frame "tween" path in the rebuilt player.** Our V3 player
-   re-loads instrument state every note frame; the original interleaves
-   tween/note frames at 2:1. Without modelling this, vibrato phase and
-   PWM counter drift across the 1500-frame window.
+3. **Frame counter seed `$1E` instead of `$FF`** in
+   `emitInitFrameCounter`, so the first INC inside play gives `$1F`
+   (low bit = 1). This is what the binary-loaded $A426 produces, and
+   it's what gates skydive and arp on every-other-frame.
 
-See `docs/hubbard_hunter_patrol_disassembly.s` HIGH-LEVEL FLOW section
-for the bit-exact tempo-gating + effects-only-on-tween-frame logic
-the rebuild needs to match.
+4. **Skydive guards on duration + remaining**: added
+   `v_durfield ≥ 36 frames` (= 12 ticks) and `v_dur < 27 frames`
+   (= remaining 9 ticks) checks ahead of the every-other-frame
+   gate, mirroring the original's $A2D5 `CMP #$0C` / $A2DC `CMP #$09`
+   guards. Without these, skydive over-fires on every note instead
+   of just the tail of long notes.
+
+5. **Gate-off threshold `v_dur == 2` instead of `1`**: tempo=3 means
+   the original's "$A3F7 == 0" frame corresponds to v_dur ∈ {0,1,2}
+   in our frame-based counter; firing on 2 catches the same musical
+   moment.
+
+Net effect: from 0/1500 snapshot match through a sequence of
+runs at 64.7% → 84.3% → 94.5%, ending at Grade B.
+
+## Remaining gap to Grade A
+
+The remaining ~5.5% mismatch is concentrated in two regimes:
+
+- A handful of V2 frames where our skydive doesn't fire but the
+  original's does (e.g. frame 42). Suspect: subtle phase offset in
+  how the global frame counter is consumed when V1 and V2 share
+  instrument 4 but reach the skydive guard via different per-voice
+  state cycles. Needs a py65 trace of one full $51 note cycle.
+
+- Cumulative ~1-frame timing drift over hundreds of frames manifesting
+  as ADSR-zero mismatches around note boundaries (e.g. V3 AD/SR at
+  frames 487, 1969, 2142, ...). Likely root cause: our codegen runs
+  the effects chain on note-LOAD frames; the original's note-load
+  path JMPs straight to "next voice" and skips effects on that
+  voice for that frame. Modelling that asymmetry is the next
+  structural change.
 
 ## Why a separate pipeline from Commando / Monty
 

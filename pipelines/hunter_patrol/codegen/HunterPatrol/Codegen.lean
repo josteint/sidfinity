@@ -377,13 +377,25 @@ def emitInitSidSilence (cb : CodeBuilder) : CodeBuilder :=
   let cb := cb.emitInst (I.sta_abs (SID_BASE + 0x18)) -- Vol=$0F
   cb
 
-/-- Voice-state init: zero v_dur/olpos/wptr/pattlo/patthi for all three
-    voices via an asm-level loop on X. Forces note-load on first play. -/
+/-- Voice-state init: zero v_olpos/wptr/pattlo/patthi for all three voices
+    via an asm-level loop on X.
+
+    Hunter Patrol specific: we leave v_dur/v_inst/v_fhi/v_durfield/v_pitch
+    UNTOUCHED here so the static initial bytes in the data table take effect.
+    Those bytes mirror the binary-loaded state at $A403-$A405, $A41B-$A41D,
+    $A3FA-$A3FC, and the value of $A418 — see docs/hubbard_hunter_patrol_disassembly.s.
+
+    Why: Hunter Patrol's play frame 0 is a "tween" frame (the original engine's
+    sub-frame counter $A418 starts at 1, $A419=2, so frame 0 takes the no-load
+    branch). The effect chain on frame 0 reads $A41B (freq_hi cache),
+    $A403 (per-voice instrument) and $A3FA (raw note byte for duration gating),
+    and those are NOT zeroed by the original init either — they hold their
+    binary-loaded values. To match frame 0 we must seed the equivalent
+    v_state cells before play runs. -/
 def emitInitVoiceState (cb : CodeBuilder) : CodeBuilder :=
   let cb := cb.emitInst (I.ldx_imm 0x02)
   let cb := cb.label "init_loop"
   let cb := cb.emitInst (I.lda_imm 0x00)
-  let cb := cb.emitStaAbsX "v_dur"
   let cb := cb.emitStaAbsX "v_olpos"
   let cb := cb.emitStaAbsX "v_wptr"
   let cb := cb.emitStaAbsX "v_pattlo"
@@ -392,10 +404,11 @@ def emitInitVoiceState (cb : CodeBuilder) : CodeBuilder :=
   let cb := cb.emitBranch .BPL "init_loop"
   cb
 
-/-- Frame counter to $FF (first INC → 0, matches Hubbard) and RTS back
-    to PSID. -/
+/-- Frame counter to $1E to match the binary-loaded $A426 in Hunter Patrol's
+    original — first play INC's it to $1F, giving (& $01) = 1 on frame 0 so
+    skydive / arpeggio fire as expected on the very first tween frame. -/
 def emitInitFrameCounter (cb : CodeBuilder) : CodeBuilder :=
-  let cb := cb.emitInst (I.lda_imm 0xFF)
+  let cb := cb.emitInst (I.lda_imm 0x1E)
   let cb := cb.emitInst (I.sta_zp 0x50)
   let cb := cb.emitInst I.rts
   cb
@@ -802,12 +815,15 @@ def emitExecVoice (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.run do
 
   -- 1. GATE-OFF CHECK (fire when v_dur == gateOffFrames, i.e., before note end)
   -- Only fires once per note (the exact moment v_dur crosses threshold).
-  -- Orig HunterPatrol: HR fires 2 frames before note-load (writelog trace), so the
-  -- threshold here is v_dur == 1 for HunterPatrol. Commando used cmp_imm 2; the
-  -- difference is engine timing (`speed`/tempo bookkeeping shifts when v_dur
-  -- crosses each value).
+  -- Hunter Patrol: tempo=3, so the original's "last note frame" (when
+  -- $A3F7 == 0) corresponds to v_dur ∈ {2, 1, 0} in our frame-based
+  -- units. Original L_A117 zeroes V_AD/V_SR+gate exactly when $A3F7==0
+  -- and re-applies the same writes on the next 2 frames (it's idempotent
+  -- because all writes are constants). We fire on v_dur == 2 to match
+  -- the EARLIEST of those three frames; later writes are subsumed by
+  -- the original's no-op repeats of the same constants.
   cb := cb.emitLdaAbsX "v_dur"
-  cb := cb.emitInst (I.cmp_imm 1)
+  cb := cb.emitInst (I.cmp_imm 2)
   cb := cb.emitBranch .BNE "effects_start"          -- not equal → skip gate-off
   -- Skip HR if current note has no_release flag set: gate stays on into the
   -- next note so the SID envelope doesn't retrigger across the boundary
@@ -1201,7 +1217,12 @@ def emitSustainEffects (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.r
 
   -- 4b. SKYDIVE (bit 1 of original Hubbard instrfx).
   -- Hubbard's pulsework → drums → skydive → octarp order. Skydive runs
-  -- every OTHER frame (when frame_counter & 1 != 0), guarded by v_fhi != 0:
+  -- every OTHER frame (when frame_counter & 1 != 0), guarded by v_fhi != 0.
+  -- It also has TWO duration guards from the original at $A2D5 / $A2DC:
+  --   * note must be LONG: raw_duration_ticks >= 12 (= 36 frames @ tempo 3)
+  --   * note must be NEAR END: remaining_ticks < 9 (= remaining frames < 27)
+  -- The "tail-of-long-notes-only" guard is what makes skydive a sweep
+  -- rather than a constant drift on every note.
   --   LDA savefreqhi,x; BEQ skip; DEC savefreqhi,x; STA $d401,y
   -- The SID write uses the OLD value (LDA before DEC). Skydive does NOT
   -- touch ctrl (unlike drums which writes $80 noise on onset). This block
@@ -1213,6 +1234,12 @@ def emitSustainEffects (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.r
   cb := { cb with absFixups :=
     { byteIdx := cb.bytes.size - 2, targetLabel := "i_skydive" } :: cb.absFixups }
   cb := cb.emitBranch .BEQ "no_sky"
+  cb := cb.emitLdaAbsX "v_durfield"                -- raw note duration in FRAMES
+  cb := cb.emitInst (I.cmp_imm 36)
+  cb := cb.emitBranch .BCC "no_sky"               -- < 36 frames: not a "long" note
+  cb := cb.emitLdaAbsX "v_dur"                     -- remaining frames
+  cb := cb.emitInst (I.cmp_imm 27)
+  cb := cb.emitBranch .BCS "no_sky"               -- remaining >= 27: still early in note
   cb := cb.emitInst (I.lda_zp 0x50)               -- frame counter
   cb := cb.emitInst (I.and_imm 0x01)
   cb := cb.emitBranch .BEQ "no_sky"               -- even counter: skip
@@ -1502,9 +1529,29 @@ def generateSID (song : USFSong) (debug : Bool := false) : Bytes := Id.run do
   let olLo : List UInt8 := [0, 0, 0]
   let olHi : List UInt8 := [0, 0, 0]
 
-  -- Voice state variables (3 bytes each, indexed by voice 0/1/2)
+  -- Voice state variables (3 bytes each, indexed by voice 0/1/2).
+  --
+  -- Hunter Patrol specific initial seeds: these mirror the binary-loaded
+  -- values the original engine relies on at frame 0 (the "tween" frame).
+  -- See docs/hubbard_hunter_patrol_disassembly.s for the full byte map.
+  --
+  --   v_dur     = 1 each: makes frame 0 DEC v_dur → 0 (BPL skip note load),
+  --               frame 1 DEC → $FF (BMI load). This delays our first
+  --               note-load to frame 1, matching the original.
+  --   v_inst    = [$04, $04, $0A]: per-voice "current instrument" mirrors
+  --               binary-loaded $A403/$A404/$A405. V1/V2 use instr 4 (the
+  --               vibrato'd skydiving lead); V3 uses instr 10 (drum/arp).
+  --   v_fhi     = [$36, $20, $10]: mirrors binary-loaded $A41B/$A41C/$A41D.
+  --               Skydive decrements v_fhi and writes the OLD value to
+  --               V_FREQ_HI on frame 0; without these seeds we'd write $00.
+  --   v_durfield = [54, 54, 18]: mirrors duration (in frames) of the first
+  --               note each voice would have loaded — V1/V2 first note is
+  --               $51 (low5=17 → 18 ticks → 54 frames @ tempo=3), V3 is
+  --               $85 (low5=5 → 6 ticks → 18 frames). Vibrato is gated by
+  --               v_durfield ≥ 21 frames, so this lets V1/V2 vibrato on
+  --               frame 0 even though no real note has been loaded yet.
   cb := cb.label "v_dur"
-  cb := cb.emitData [0, 0, 0]
+  cb := cb.emitData [1, 1, 1]
   cb := cb.label "v_pattlo"
   cb := cb.emitData [0, 0, 0]
   cb := cb.label "v_patthi"
@@ -1522,11 +1569,11 @@ def generateSID (song : USFSong) (debug : Bool := false) : Bytes := Id.run do
   cb := cb.emitData [0, 0, 0]
   cb := cb.label "v_inst"
   cb := cb.label "v_inst_v0"
-  cb := cb.emitByte 0
+  cb := cb.emitByte 0x04
   cb := cb.label "v_inst_v1"
-  cb := cb.emitByte 0
+  cb := cb.emitByte 0x04
   cb := cb.label "v_inst_v2"
-  cb := cb.emitByte 0
+  cb := cb.emitByte 0x0A
   cb := cb.label "v_pitch"
   cb := cb.label "v_pitch_v0"
   cb := cb.emitByte 0
@@ -1535,9 +1582,9 @@ def generateSID (song : USFSong) (debug : Bool := false) : Bytes := Id.run do
   cb := cb.label "v_pitch_v2"
   cb := cb.emitByte 0
   cb := cb.label "v_fhi"
-  cb := cb.emitData [0, 0, 0]
+  cb := cb.emitData [0x36, 0x20, 0x10]
   cb := cb.label "v_durfield"
-  cb := cb.emitData [0, 0, 0]
+  cb := cb.emitData [54, 54, 18]
   cb := cb.label "v_pwlo"
   cb := cb.emitData [0, 0, 0]
   cb := cb.label "v_pwhi"
