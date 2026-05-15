@@ -210,6 +210,7 @@ def sta_absY (addr : UInt16) : Instruction := ⟨.STA, .absY addr⟩
 def inc_zp (addr : UInt8) : Instruction := ⟨.INC, .zp addr⟩
 def dec_zp (addr : UInt8) : Instruction := ⟨.DEC, .zp addr⟩
 def cmp_imm (v : UInt8) : Instruction := ⟨.CMP, .imm v⟩
+def cmp_zp  (addr : UInt8) : Instruction := ⟨.CMP, .zp addr⟩
 def adc_imm (v : UInt8) : Instruction := ⟨.ADC, .imm v⟩
 def sbc_imm (v : UInt8) : Instruction := ⟨.SBC, .imm v⟩
 def sbc_zp (addr : UInt8) : Instruction := ⟨.SBC, .zp addr⟩

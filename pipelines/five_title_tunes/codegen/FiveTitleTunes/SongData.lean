@@ -824,11 +824,11 @@ def ft3V12 : USFVoice := { orderlist := [72, 72, 72, 73, 73, 74, 74, 74, 74, 74,
 def ft3V13 : USFVoice := { orderlist := [77], loopPoint := some 0 }
 def ft3V14 : USFVoice := { orderlist := [78, 78, 79, 79, 79, 79, 79, 79, 79, 79, 80, 80, 79, 79, 81, 81, 79, 79, 79, 79, 79, 79, 80, 80, 79, 79, 81, 81, 79, 79, 79, 79, 79, 79, 80, 80, 79, 79, 81, 81, 79, 79, 79, 79, 79, 79, 80, 80, 79, 79, 81, 81, 79, 79, 79, 79, 79, 79, 80, 80, 79, 79, 81, 81, 79, 79, 79, 79, 79, 79, 80, 80, 79, 79, 81, 81, 79, 79], loopPoint := some 0 }
 
-def ft3S0 : USFSubtune := { voices := [ft3V0, ft3V1, ft3V2], tempo := 4 }
-def ft3S1 : USFSubtune := { voices := [ft3V3, ft3V4, ft3V5], tempo := 2 }
-def ft3S2 : USFSubtune := { voices := [ft3V6, ft3V7, ft3V8], tempo := 3 }
-def ft3S3 : USFSubtune := { voices := [ft3V9, ft3V10, ft3V11], tempo := 3 }
-def ft3S4 : USFSubtune := { voices := [ft3V12, ft3V13, ft3V14], tempo := 2 }
+def ft3S0 : USFSubtune := { voices := [ft3V0, ft3V1, ft3V2], tempo := 4, hrThreshold := 4 }
+def ft3S1 : USFSubtune := { voices := [ft3V3, ft3V4, ft3V5], tempo := 2, hrThreshold := 2 }
+def ft3S2 : USFSubtune := { voices := [ft3V6, ft3V7, ft3V8], tempo := 3, hrThreshold := 2 }
+def ft3S3 : USFSubtune := { voices := [ft3V9, ft3V10, ft3V11], tempo := 3, hrThreshold := 10 }
+def ft3S4 : USFSubtune := { voices := [ft3V12, ft3V13, ft3V14], tempo := 2, hrThreshold := 4 }
 
 def fiveTtV3 : USFSong := {
   freqTable := fiveTtV3FreqTable

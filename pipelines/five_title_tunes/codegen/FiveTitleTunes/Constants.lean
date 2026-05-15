@@ -25,6 +25,11 @@ def SID_V_SR      : UInt16 := 6
 /-- Frame counter, zero page. -/
 def ZP_FRAME_CTR  : UInt8  := 0x50
 
+/-- Current subtune's hard-restart threshold, zero page. Loaded once
+    in init from `hr_threshold_subtune[subtune]`; HR check reads it via
+    `cmp ZP_HR_THRESH`. Each subtune tunes its own staccato character. -/
+def ZP_HR_THRESH  : UInt8  := 0x51
+
 /-- Hard-restart threshold. 5 Title Tunes' subtune 1 bass uses bidirectional
     PWM (instrument 2: AD=$58, SR=$30, pw=$81/bidir). With HR_THRESHOLD=1
     the note release was firing one frame before the original, cutting the

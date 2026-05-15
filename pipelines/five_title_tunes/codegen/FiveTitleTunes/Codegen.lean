@@ -399,10 +399,19 @@ def emitInitFrameCounter (cb : CodeBuilder) : CodeBuilder :=
   let cb := cb.emitInst I.rts
   cb
 
+/-- Read this subtune's HR threshold from the per-subtune table and stash
+    it in zp $51 (`ZP_HR_THRESH`) for the play-loop's gate-off check. -/
+def emitInitHrThreshold (cb : CodeBuilder) : CodeBuilder :=
+  let cb := cb.emitInst (I.ldx_zp 0xFB)               -- X = saved subtune
+  let cb := cb.emitLdaAbsX "hr_threshold_subtune"
+  let cb := cb.emitInst (I.sta_zp ZP_HR_THRESH)
+  cb
+
 def emitInit (cb : CodeBuilder) (song : USFSong) : CodeBuilder :=
   let cb := cb.label "init"
   let cb := emitInitSubtuneClamp cb song
   let cb := emitInitSubtuneCopy cb
+  let cb := emitInitHrThreshold cb
   let cb := emitInitSidSilence cb
   let cb := emitInitVoiceState cb
   let cb := emitInitFrameCounter cb
@@ -799,13 +808,14 @@ def emitExecVoice (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.run do
   -- Order: gate-off → vibrato → PW → freq_slide+ctrl → arpeggio
   cb := cb.emitInst (I.stx_zp 0xFA)              -- save voice index
 
-  -- 1. GATE-OFF CHECK. Fire HR when v_dur == HR_THRESHOLD. 5 Title Tunes
-  -- subtune 1's bidirectional-PWM bass (instrument 2: AD=$58, SR=$30,
-  -- pw=$81/bidir) needs cmp_imm 2 — with cmp_imm 1 the release fired one
-  -- frame too early and the PWM cycle got chopped, producing a "fuzzy"
-  -- bass tone vs the original's well-defined one.
+  -- 1. GATE-OFF CHECK. Fire HR when v_dur == per-subtune HR threshold.
+  -- The threshold is loaded from `hr_threshold_subtune[subtune]` into
+  -- zp $51 (`ZP_HR_THRESH`) at init. Each sub-binary in the original
+  -- 5 Title Tunes had a different HR character, so a single hardcoded
+  -- value won't fit all 5 subtunes — sub 1 wants 4 (PWM bass needs full
+  -- cycle), sub 2 wants 2 (more staccato), etc.
   cb := cb.emitLdaAbsX "v_dur"
-  cb := cb.emitInst (I.cmp_imm 4)
+  cb := cb.emitInst (I.cmp_zp ZP_HR_THRESH)
   cb := cb.emitBranch .BNE "effects_start"          -- not equal → skip gate-off
   -- Skip HR if current note has no_release flag set: gate stays on into the
   -- next note so the SID envelope doesn't retrigger across the boundary
@@ -1603,6 +1613,12 @@ def generateSID (song : USFSong) (baseAddr : UInt16 := 0x1000) (debug : Bool := 
   -- tick-based support and so the data is preserved through the pipeline.
   cb := cb.label "tempo_subtune"
   cb := cb.emitData (song.subtunes.map (·.tempo.toUInt8))
+  -- Per-subtune HR threshold. Indexed by current subtune in init; the
+  -- selected value lives in zp $51 (`ZP_HR_THRESH`) until the subtune
+  -- is changed. Each value tunes how staccato that subtune's notes
+  -- sound (low = more staccato, high = more legato).
+  cb := cb.label "hr_threshold_subtune"
+  cb := cb.emitData (song.subtunes.map (·.hrThreshold))
 
   -- Resolve all forward references
   cb := cb.resolve

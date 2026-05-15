@@ -208,11 +208,17 @@ def main(argv: Optional[list[str]] = None) -> None:
                    f"{{ orderlist := {ol}, loopPoint := {loop_str} }}")
     out.append("")
 
-    # 5 Subtunes, each wrapping 3 voices + per-sub tempo
+    # 5 Subtunes, each wrapping 3 voices + per-sub tempo + HR threshold.
+    # HR thresholds were dialed in by ear, comparing rebuilt subtunes
+    # against the original sub-binaries one at a time. Each sub-binary
+    # in the original has its own HR character (different cmp #N value
+    # in its gate-off check), so a single shared threshold misfits some.
+    HR_THRESHOLDS = [4, 2, 2, 10, 4]
     for si in range(N_SUBS):
         v_refs = ', '.join(f'ft3V{i}' for i in range(si * 3, si * 3 + 3))
         out.append(f"def ft3S{si} : USFSubtune := "
-                   f"{{ voices := [{v_refs}], tempo := {subtune_tempos[si]} }}")
+                   f"{{ voices := [{v_refs}], tempo := {subtune_tempos[si]}, "
+                   f"hrThreshold := {HR_THRESHOLDS[si]} }}")
     out.append("")
 
     # Pattern list (ordered, with empty placeholders for missing indices)

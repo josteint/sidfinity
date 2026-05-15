@@ -184,6 +184,10 @@ structure USFVoice where
 structure USFSubtune where
   voices : List USFVoice             -- length 1-3
   tempo  : Nat                       -- frames per tick
+  -- HR threshold: HR fires when v_dur reaches this value during the
+  -- per-voice countdown. Allows per-subtune note staccato/legato
+  -- character. Default 4 matches what 5 Title Tunes' subtune 1 wants.
+  hrThreshold : UInt8 := 4
   deriving Repr
 
 -- ==========================================================================
