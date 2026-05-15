@@ -10,15 +10,19 @@ in yet.
 
 | Metric | Value |
 |---|---|
-| Scaffold builds end-to-end | yes (`lake build sidgen_bump_set_spike` produces a 3779-byte SID) |
-| Engine adapted to Bump Set Spike | **no** (codegen still treats data as Monty) |
-| Grade against original | **F** (writelog ~0.1% snapshot match, 1/1500) |
+| Scaffold builds end-to-end | yes (`lake build sidgen_bump_set_spike` produces a 3675-byte SID) |
+| Codegen base | Commando (Bump Set Spike is the same 1985-86 Hubbard engine family) |
+| Engine quirks wired in | freq table base $B3FF + hardcoded PWM bounds + 22 instruments correctly extracted |
+| Grade against original | **F** (writelog 0.1% snapshot match, 1/1500) |
 
-The freq-table extraction is correct (`freq[0] = $0116` matches the binary
-at `$B3FF`). The rest of the extract path inherits Monty's assumptions
-about instrument structure, fx-flag semantics, and orderlist layout —
-which differ from Bump Set Spike's binary. See `disassembly.s` and
-`docs/hubbard_bump_set_spike_disassembly.s` for the engine details.
+Extract is verified correct: freq table extracts `freq[0] = $0116`
+matching binary at `$B3FF`; instrument 0 extracts `PW=$0800 ctrl=$41
+AD=$0F SR=$0C` matching binary at `$B513`. After switching codegen
+base from Monty to Commando, V3_PW_LO at frame 1 ($C0) now matches
+the original. The remaining gap is mostly **vibrato and portamento
+freq modulation** — V1/V2/V3 freq diverge from the original at frame 1
+because Commando's codegen doesn't reproduce Bump Set Spike's
+specific triangle-vibrato math at $B1B6..$B287 in the disassembly.
 
 ## Layout
 
@@ -82,6 +86,21 @@ driven by a per-instrument flag byte. The differences from Monty:
 
 Until the codegen mirrors items 1–6, the rebuild will diverge from the
 original at the very first note.
+
+## Pushing toward Grade A — what's left
+
+Empirically the highest-impact missing item is the **vibrato** at
+`$B1B6..$B287`. Voice 3 at frame 0 plays note 21 (freq $03A9); frames
+1-7 modulate to {$03B5, $03B5, $03AF, $03A9, $03A3, $03A3, $03A9}, a
+triangle vibrato of amplitude $0C around the centre $03A9. Bump Set
+Spike's vibrato config byte is at instrument byte 5 (vib=$1B for
+inst 2 → frame_limit=3, shift=3, base delta = (freq[note] -
+freq[note-1]) >> 3 = $06). Commando's codegen produces no such
+modulation, so V3_FREQ_LO diverges in 1438 of the 1500 frames.
+
+Item 2 (per-note tempo divider) and item 5 (fx-flag bit remapping)
+likely also each impact hundreds of frames; expect Grade A to require
+all six engine adaptations.
 
 ## Why a separate pipeline from Monty
 
