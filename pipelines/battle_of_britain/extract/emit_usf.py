@@ -23,16 +23,17 @@ def hex_byte(n: int) -> str:
 
 
 def gen_freq_table(T: list[int]) -> str:
-    """Emit 128 entries: standard PAL 0-95, plus engine-extracted 96-127.
+    """Emit 96 entries (BoB's real freq table at $8326-$83E5).
 
-    Note: Commando's gen_commando_v3.py zeros pitch 104 because Commando
-    uses freq-table slot 104 as a hidden register (dynamic ctrl byte
-    alias updated each frame via engineQuirks.dynamicFreqEntries).
-    BattleOfBritain does NOT do this — its pitch 104 is a real freq lookup
-    ($4141 in the original SID). We keep the real value here.
+    The engine_model extractor reads slightly past the table boundary
+    into the SID-base table at $83E6 and scratch state; we truncate to
+    the engine's actual indexable range (96 semitones).
+
+    Commando emits 128 entries and zeros pitch 104 because it uses
+    freq-table slot 104 as a hidden register; BoB doesn't do that.
     """
     pairs = []
-    for i in range(128):
+    for i in range(96):
         if i < len(T):
             flo = T[i] & 0xFF
             fhi = (T[i] >> 8) & 0xFF

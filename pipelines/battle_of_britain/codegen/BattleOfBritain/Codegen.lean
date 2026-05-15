@@ -478,11 +478,14 @@ def emitNL_PtrCheck (cb : CodeBuilder) : CodeBuilder :=
   let cb := cb.label "ptr_ok"
   cb
 
-/-- Read pitch byte from (FC),0. End-of-pattern check ($00) far-jumps to
+/-- Read pitch byte from (FC),0. End-of-pattern marker is $FF (not $00,
+    so that legitimate semitone 0 — present in BoB's V2 pattern 21 first
+    note — can be represented). When the byte is $FF, far-jump to
     advance_order. -/
 def emitNL_ReadPitch (cb : CodeBuilder) : CodeBuilder :=
   let cb := cb.emitInst (I.ldy_imm 0x00)
   let cb := cb.emitInst ⟨.LDA, .indY 0xFC⟩
+  let cb := cb.emitInst (I.cmp_imm 0xFF)
   let cb := cb.emitBranch .BNE "has_note"
   let cb := cb.emitJmpLabel .JMP "advance_order"
   let cb := cb.label "has_note"
@@ -1462,7 +1465,7 @@ def generateSID (song : USFSong) (debug : Bool := false) : Bytes := Id.run do
       -- bit 0 = direction (1 = down). Codegen reads at note-load and runs
       -- a per-frame freq slide while non-zero.
       cb := cb.emitByte note.porta.toUInt8
-    cb := cb.emitByte 0x00
+    cb := cb.emitByte 0xFF
 
   cb := cb.label "patt_ptr_lo"
   cb := cb.emitData patPtrLo
@@ -1519,13 +1522,22 @@ def generateSID (song : USFSong) (debug : Bool := false) : Bytes := Id.run do
   cb := cb.emitByte 0
   cb := cb.label "v_wptr"
   cb := cb.emitData [0, 0, 0]
+  -- Initial per-voice instrument index. BoB's binary pre-loads these
+  -- at $83FC..$83FE; init does NOT zero them. V1's first pattern note
+  -- is a tie ($5F) whose tie-path code re-applies v_inst[V1] to the SID
+  -- without writing a new pitch — so we need to seed inst 9 here or
+  -- V1's frame 0 plays the wrong instrument.
+  -- BoB binary: v_inst[V1]=$09, v_inst[V2]=$0A, v_inst[V3]=$02.
+  -- V2/V3 are overwritten on their first note (both have new-inst
+  -- bytes) so only V1's seed actually shows up at the SID; the others
+  -- match what BoB's RAM happens to hold pre-first-note.
   cb := cb.label "v_inst"
   cb := cb.label "v_inst_v0"
-  cb := cb.emitByte 0
+  cb := cb.emitByte 9
   cb := cb.label "v_inst_v1"
-  cb := cb.emitByte 0
+  cb := cb.emitByte 10
   cb := cb.label "v_inst_v2"
-  cb := cb.emitByte 0
+  cb := cb.emitByte 2
   cb := cb.label "v_pitch"
   cb := cb.label "v_pitch_v0"
   cb := cb.emitByte 0
@@ -1621,9 +1633,10 @@ def generateSID (song : USFSong) (debug : Bool := false) : Bytes := Id.run do
     playAddr := base + 3
     songs := song.subtunes.length.toUInt16
     startSong := 1
-    title := "Commando"
+    title := "Battle of Britain"
     author := "Rob Hubbard"
-    released := "1985 Elite"
+    released := "1986 PSS"
+    flags := 0x0014  -- PAL clock + 6581 SID
   }
   return buildSID header cb.bytes
 
