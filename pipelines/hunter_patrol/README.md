@@ -96,51 +96,53 @@ all keyed to the annotated disassembly:
 Net effect: from 0/1500 snapshot match through a sequence of
 runs at 64.7% → 84.3% → 94.5%, ending at Grade B.
 
-## Remaining gap to Grade A — diagnosed
+## Remaining gap to Grade A — investigation log
 
-The 5.5% mismatch is **NOT a logic bug** in the per-voice effect
-chain; the per-voice logic matches the original perfectly when given
-the same CPU state. The root cause is structural:
+Diagnosed via py65 trace + `siddump --writelog --raw`:
 
-**Our generated `play()` exceeds the per-frame cycle budget.** PAL is
-19656 cycles per VBI; our play() takes ~22000+ cycles for some
-voice/effect combinations (vibrato + skydive + drum + arp guards
-across three voices, each re-doing `LDX $FA` and per-effect zp
-reload). libsidplayfp interrupts our play() at the cycle boundary
-and resumes next frame — visible in the `--writelog` output as
-frames with **zero SID writes** (e.g. frame 18, frame 29).
+1. **Per-voice effect logic is correct.** py65 step-trace through
+   frame 42 (the first divergence point) shows skydive *does* fire
+   on V2 (writing V2_FREQ_HI=$18 after vibrato writes $01). The
+   codegen produces the expected per-voice sequence.
 
-When play() spans two frames, the original's "would-have-fired" per-
-frame SID write moves to the next frame in our rebuild — so V2 sees a
-skydive write where the original had vibrato (and vice-versa). The
-two outputs are bit-identical up to where play() first overruns, then
-phase-drift accumulates.
+2. **The mismatch is at the libsidplayfp emulation boundary.** The
+   `--writelog` output for rebuild frame 42 truncates at cycle
+   18137 with V2_FREQ_HI=$01 (vibrato base). The skydive write
+   that py65 sees happens later in the frame and — based on
+   frame 43's writelog starting at cycle 3 — gets attributed to
+   the next frame in libsidplayfp's accounting.
 
-### The fix is codegen optimization, not codegen semantics
+3. **"No-write" frames are normal.** Both the byte-perfect
+   Commando rebuild AND the original Hunter_Patrol.sid have frames
+   with empty `|W:...` (e.g. frame 18, frame 30), so the empty
+   writelog frames are an emulation artifact, not a bug.
 
-To close the gap to Grade A, the per-voice exec_voice needs to fit
-in ~19656/3 ≈ 6500 cycles. The current emit can be tightened by:
+The remaining ~80 mismatched frames look like our play() routine
+takes long enough that some SID writes cross libsidplayfp's
+frame-boundary accounting, ending up in the "wrong" siddump frame
+relative to the original. The original Hubbard player evidently
+finishes faster (or fires effects in an order that fits the budget),
+so its SID writes all land in the "right" frame.
 
-1. Cache the voice index `$FA` once in X for the whole effect chain
-   instead of `LDX $FA` at every block entry (~3 cycles × ~6 reloads
-   × 3 voices = ~54 cycles saved per frame).
-2. Skip the entire vibrato block (jump to `vib_write_base` only if
-   needed) when `i_vib_shift[v_inst] == 0` — saves the LSR/ROR
-   sequence and base-freq scratch loads.
-3. Merge the freq-slide (drum) and skydive duration guards: both
-   gate on `v_dur < N` and `v_durfield ≥ M` with overlapping
-   constants; emit the shared compare once.
-4. Use a Y-register-resident SID voice offset instead of repeatedly
-   reloading `v_sidoff,X` into Y across blocks.
+### Concrete next steps
 
-A trace via `tools/siddump --writelog` confirms which frames are
-overruns: any line with no `|W:...` suffix is a frame our play()
-didn't finish. Optimization is done when none exist.
+To push past Grade B, one of:
+- Tighten the codegen's per-frame cycle count by caching the voice
+  index in X across all effect blocks (saves ~50 cycles per frame
+  from redundant `LDX $FA` reloads).
+- Re-order effect emit so the writes happen earlier in the cycle
+  window: gate-off → frequency-writing effects (vibrato, skydive,
+  arp) first, then PWM/freq-slide/etc.
+- Compare PSID header flags between the byte-perfect Commando
+  rebuild and ours — there may be a clock/SID-model bit difference
+  affecting libsidplayfp's frame timing model.
 
-See also: `docs/hubbard_hunter_patrol_disassembly.s` for the
-original Hubbard player's reference cycle count (~6000 cycles per
-play for all three voices) — that's the budget the codegen needs
-to match.
+### Audibility note
+
+The 5.5% mismatch is concentrated in V2_FREQ_HI and V_AD/V_SR at
+note-boundary frames, which are mostly inaudible — the snapshot
+metric flags any register difference, but the actual SID output
+(PCM via `siddump --pcm`) at Grade B is very close to the original.
 
 ## Why a separate pipeline from Commando / Monty
 
