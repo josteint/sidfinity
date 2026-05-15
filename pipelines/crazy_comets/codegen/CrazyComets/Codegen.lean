@@ -811,12 +811,12 @@ def emitExecVoice (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.run do
 
   -- 1. GATE-OFF CHECK (fire when v_dur == gateOffFrames, i.e., before note end)
   -- Only fires once per note (the exact moment v_dur crosses threshold).
-  -- Orig CrazyComets: HR fires 2 frames before note-load (writelog trace), so the
-  -- threshold here is v_dur == 1 for CrazyComets. Commando used cmp_imm 2; the
-  -- difference is engine timing (`speed`/tempo bookkeeping shifts when v_dur
-  -- crosses each value).
+  -- Crazy Comets has a 3-frame tick divider ($54FA/$54FB), so Hubbard's
+  -- "v_dur == 0 in ticks" → HR fires 3 frames before next note-load in
+  -- our per-frame v_dur. Verified by writelog trace at V1 frame 318
+  -- (HR) → frame 321 (note-load) = 3-frame gap.
   cb := cb.emitLdaAbsX "v_dur"
-  cb := cb.emitInst (I.cmp_imm 1)
+  cb := cb.emitInst (I.cmp_imm 2)
   cb := cb.emitBranch .BNE "effects_start"          -- not equal → skip gate-off
   -- Skip HR if current note has no_release flag set: gate stays on into the
   -- next note so the SID envelope doesn't retrigger across the boundary
