@@ -96,23 +96,51 @@ all keyed to the annotated disassembly:
 Net effect: from 0/1500 snapshot match through a sequence of
 runs at 64.7% → 84.3% → 94.5%, ending at Grade B.
 
-## Remaining gap to Grade A
+## Remaining gap to Grade A — diagnosed
 
-The remaining ~5.5% mismatch is concentrated in two regimes:
+The 5.5% mismatch is **NOT a logic bug** in the per-voice effect
+chain; the per-voice logic matches the original perfectly when given
+the same CPU state. The root cause is structural:
 
-- A handful of V2 frames where our skydive doesn't fire but the
-  original's does (e.g. frame 42). Suspect: subtle phase offset in
-  how the global frame counter is consumed when V1 and V2 share
-  instrument 4 but reach the skydive guard via different per-voice
-  state cycles. Needs a py65 trace of one full $51 note cycle.
+**Our generated `play()` exceeds the per-frame cycle budget.** PAL is
+19656 cycles per VBI; our play() takes ~22000+ cycles for some
+voice/effect combinations (vibrato + skydive + drum + arp guards
+across three voices, each re-doing `LDX $FA` and per-effect zp
+reload). libsidplayfp interrupts our play() at the cycle boundary
+and resumes next frame — visible in the `--writelog` output as
+frames with **zero SID writes** (e.g. frame 18, frame 29).
 
-- Cumulative ~1-frame timing drift over hundreds of frames manifesting
-  as ADSR-zero mismatches around note boundaries (e.g. V3 AD/SR at
-  frames 487, 1969, 2142, ...). Likely root cause: our codegen runs
-  the effects chain on note-LOAD frames; the original's note-load
-  path JMPs straight to "next voice" and skips effects on that
-  voice for that frame. Modelling that asymmetry is the next
-  structural change.
+When play() spans two frames, the original's "would-have-fired" per-
+frame SID write moves to the next frame in our rebuild — so V2 sees a
+skydive write where the original had vibrato (and vice-versa). The
+two outputs are bit-identical up to where play() first overruns, then
+phase-drift accumulates.
+
+### The fix is codegen optimization, not codegen semantics
+
+To close the gap to Grade A, the per-voice exec_voice needs to fit
+in ~19656/3 ≈ 6500 cycles. The current emit can be tightened by:
+
+1. Cache the voice index `$FA` once in X for the whole effect chain
+   instead of `LDX $FA` at every block entry (~3 cycles × ~6 reloads
+   × 3 voices = ~54 cycles saved per frame).
+2. Skip the entire vibrato block (jump to `vib_write_base` only if
+   needed) when `i_vib_shift[v_inst] == 0` — saves the LSR/ROR
+   sequence and base-freq scratch loads.
+3. Merge the freq-slide (drum) and skydive duration guards: both
+   gate on `v_dur < N` and `v_durfield ≥ M` with overlapping
+   constants; emit the shared compare once.
+4. Use a Y-register-resident SID voice offset instead of repeatedly
+   reloading `v_sidoff,X` into Y across blocks.
+
+A trace via `tools/siddump --writelog` confirms which frames are
+overruns: any line with no `|W:...` suffix is a frame our play()
+didn't finish. Optimization is done when none exist.
+
+See also: `docs/hubbard_hunter_patrol_disassembly.s` for the
+original Hubbard player's reference cycle count (~6000 cycles per
+play for all three voices) — that's the budget the codegen needs
+to match.
 
 ## Why a separate pipeline from Commando / Monty
 
