@@ -57,7 +57,8 @@ def serializeHeader (h : PSIDHeader) : Bytes :=
   ++ padString h.author 32            -- offset 54: author
   ++ padString h.released 32          -- offset 86: released
   -- v2 fields (offset 118-123)
-  ++ #[0, 0]                          -- flags (6581)
+  -- flags: bit2=1 (PAL clock), bit4=1 (6581 model) → $0014 BE = 00 14
+  ++ #[0, 0x14]                       -- flags (PAL + 6581)
   ++ #[0, 0]                          -- start page
   ++ #[0, 0]                          -- page length / reserved
 
