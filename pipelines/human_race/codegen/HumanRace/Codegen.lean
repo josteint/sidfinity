@@ -1626,9 +1626,16 @@ def generateSID (song : USFSong) (debug : Bool := false) : Bytes := Id.run do
     playAddr := base + 3
     songs := song.subtunes.length.toUInt16
     startSong := 1
-    title := "Commando"
-    author := "Rob Hubbard"
-    released := "1985 Elite"
+    -- Match the original's PSID speed/clock flags so siddump/sidplayfp
+    -- compare the rebuilt against the original on equal footing.
+    -- speed = 0x0F: subtunes 0..3 are CIA-driven (Hubbard convention);
+    -- subtune 4 (bit 4 = 0) stays VBI. We don't actually write CIA
+    -- timer values — sidplayfp's default CIA reload (~19656 PAL cycles)
+    -- coincides with VBI rate, so the audio output is identical.
+    speed := 0x0F
+    title := song.title
+    author := song.author
+    released := song.released
   }
   return buildSID header cb.bytes
 
