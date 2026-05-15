@@ -12,25 +12,33 @@ quirks documented in `docs/hubbard_one_man_and_his_droid_disassembly.s`.
 | Other subtunes | 13 drum/SFX patterns played through the secondary drum engine ($139F+) — not currently rebuilt |
 | Build | `lake build sidgen_one_man_and_his_droid` succeeds |
 | Extract | 15 instruments, 38 patterns, 3 voices, tempo=2 |
-| Verification | `writelog_grade.py` ≈ Grade D, snapshots 37.5% (563/1500) |
+| Verification | `writelog_grade.py` ≈ Grade B, snapshots 93.8% (1407/1500) |
 
-Significant divergence remains; the codegen was cloned from Monty and
-not yet tuned to OMHD-specific behaviour. Likely culprits to investigate
-(in priority order):
+What's tuned to OMHD already:
+- Octave-trill arpeggio period (8 frames via `$50 AND #$04`,
+  matching disassembly $1362 — was 2 frames in Monty clone).
+- Skydive emission gated on `durationFrames >= 34` AND `v_dur < 48`
+  (= OMHD's orig_dur >= 16 ticks AND v_dur < 24 ticks at tempo=2).
+- freqSlide Path B→A transition tuned with `sbc_imm 3` to match
+  OMHD's tick-based gate at $130F.
 
-1. Drum/percussion engine at `$139F`. OMHD has a *secondary* sample
-   engine that hijacks V1+V2 freq writes from $1600 recipe tables;
-   the Monty-derived codegen does not model it. This alone is
-   responsible for most of the freq_hi divergence on V1/V2.
-2. Pattern byte format: OMHD uses bit 7 of the extension byte to
-   distinguish a PITCHBEND descriptor (stored at $1517,X) from an
-   instrument index. The current extractor treats the high byte as
-   `porta` but the runtime semantics in `Codegen.lean` were copied
-   from Monty's tie-flag handling.
-3. fx_flags bit 3 = LINEAR PWM (one-way ramp) vs bouncing PWM
-   ($08/$0E bounds). OMHD instruments 0 and 1 use linear PWM.
-4. Octave-trill arpeggio (fx_flags bit 2): 4-frame on / 4-frame off
-   toggle between pitch and pitch+12 — distinctive Hubbard sound.
+Remaining gaps to Grade A:
+1. **LFO triangle phase**: vibrato's LFO occasionally drifts by 1 frame
+   between rebuild and original (e.g., at f54 of pitch 67). Both engines
+   appear to use `$151C AND #$07` as LFO source, but the original
+   inserts extra plateaus on certain frames suggesting either a
+   sub-frame counter or a `$151C`-modifying path we haven't located.
+2. **PWM accumulation drift**: V1/V2 pulse_lo diverge by ~$68 over
+   many frames. Linear PWM carry-leak from vibrato's last ADC is
+   modeled (Hubbard's intentional +1), but cycle-accurate match is
+   still off.
+3. **Drum/sample engine** at $139F: 13 drum patterns (subtunes 1-13)
+   still not rebuilt. The codegen would need new sub-engine support.
+4. **Pattern byte format**: OMHD's bit-7-of-extension-byte =
+   pitchbend descriptor (stored at $1517,X). Not yet handled in codegen.
+
+Tempo=2 is hardcoded for the duration gates (`>= 34`, `< 48`).
+Future cleanup: parameterise from `song.tempo`.
 
 ## Layout
 
