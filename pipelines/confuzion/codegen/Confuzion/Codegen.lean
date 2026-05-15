@@ -1322,122 +1322,120 @@ end  -- mutual
 
 
 def generateSID (song : USFSong) (debug : Bool := false) : Bytes := Id.run do
-  -- Byte-perfect rebuild of Rob Hubbard's Confuzion (1985 Incentive).
+  -- Confuzion player codegen, written as a true USF pipeline (no hardcoded
+  -- binary-layout literals from the original SID).
   --
-  -- Step 1: full binary verbatim.
-  -- Step 2: instrument table from song.instruments.
-  -- Step 3: freq table from song.freqTable.
-  -- Step 4 (this version):
-  --   - $0BF1-$0BF6 orderlist pointers from the layout's orderlistAddrs
-  --   - $0BF7-$0C32 pattern_lo / pattern_hi tables from layout's patternAddrs
-  --   - $0C33-$0D23 voice orderlists (V1, V2, V3) from song.subtunes[0]
-  --   - $0D24-$1145 patterns from song.patterns, in the layout order
-  --     (matching the original's non-sequential placement)
-  --   The dead-pattern padding bytes at $0F63 (1 byte) and $0FE7-$0FEC
-  --   (6 bytes) are emitted as literals — these are pattern_lo/hi slots
-  --   16-20 and 25 that point into ($00 ($FF for one)) padding between
-  --   live patterns; the orderlists never reference them.
+  -- Design:
+  --   - baseAddr = $1000 (clean, not the original $0858).
+  --   - $1000 JMP init, $1003 JMP play (PSID entry-point trampoline).
+  --   - Engine code emitted via Asm6502.lean instructions; labels resolved
+  --     at the end by `cb.resolve`.
+  --   - All addresses (state-array bases, table starts, orderlist/pattern
+  --     placement) derived from cumulative emit positions — none hardcoded.
+  --   - USFSong drives content (freqTable, instruments, subtunes, patterns).
   --
-  -- Verbatim regions remaining (for future steps):
-  --   - $0BBD-$0BBF voice SID-base offsets (3 bytes; literal constants)
-  --   - $0BC0-$0BF0 voice state RAM seed (49 bytes; includes $0BC2=$1B
-  --     master vol offset and $0BE9=$02 tick reload — to be lifted into
-  --     USFSong metadata in Step 5).
+  -- This is the SKELETON. init = silence SID + RTS; play = RTS. Subsequent
+  -- commits build out the per-voice loop, note-load, effects.
   let _ := debug
-  -- Engine code: $0858-$0AFC (play, init, sub_08A3, L_08B9, sub_08CB).
-  let engineCode : List UInt8 := [
-    0xA5, 0xA2, 0x48, 0xA9, 0x00, 0x85, 0xA2, 0x20, 0xCB, 0x08, 0xEE, 0x5C, 0x08, 0x68, 0x85, 0xA2,
-    0x60, 0x8E, 0x9C, 0x08, 0x8E, 0xFA, 0x0A, 0xA9, 0xEA, 0x8D, 0xB9, 0x08, 0x8E, 0xC2, 0x08, 0xA2,
-    0x02, 0xA9, 0x00, 0x8D, 0x5C, 0x08, 0xF0, 0x07, 0x78, 0xA2, 0x02, 0xA9, 0x00, 0x85, 0xA2, 0x9D,
-    0xC1, 0x0B, 0x9D, 0xC4, 0x0B, 0x9D, 0xC7, 0x0B, 0x9D, 0xD0, 0x0B, 0xCA, 0x10, 0xF1, 0x8E, 0xEB,
-    0x0B, 0x20, 0xA3, 0x08, 0x58, 0x60, 0xA9, 0x00, 0x8D, 0xEB, 0x0B, 0xA2, 0x17, 0x9D, 0x00, 0xD4,
-    0xCA, 0x10, 0xFA, 0x60, 0x78, 0xA9, 0xCB, 0x8D, 0x14, 0x03, 0xA9, 0x08, 0x8D, 0x15, 0x03, 0x58,
-    0x60, 0x78, 0xA9, 0x00, 0x8D, 0xEB, 0x0B, 0x8D, 0x18, 0xD4, 0x58, 0x4C, 0xFA, 0x0A, 0x8D, 0x18,
-    0xD4, 0x58, 0x60, 0xAD, 0xEB, 0x0B, 0xD0, 0x03, 0x4C, 0xFA, 0x0A, 0xA2, 0x02, 0xCE, 0xE8, 0x0B,
-    0x10, 0x06, 0xAD, 0xE9, 0x0B, 0x8D, 0xE8, 0x0B, 0xBD, 0xBD, 0x0B, 0x8D, 0xC0, 0x0B, 0xA8, 0xAD,
-    0xE8, 0x0B, 0xCD, 0xE9, 0x0B, 0xD0, 0x15, 0xBD, 0xF1, 0x0B, 0x85, 0xFB, 0xBD, 0xF4, 0x0B, 0x85,
-    0xFC, 0xDE, 0xC7, 0x0B, 0x30, 0x09, 0x4C, 0xE2, 0x09, 0x4C, 0xF4, 0x0A, 0x4C, 0x01, 0x0A, 0xBC,
-    0xC1, 0x0B, 0xB1, 0xFB, 0xC9, 0xFF, 0xD0, 0x11, 0xA9, 0x00, 0x9D, 0xC7, 0x0B, 0x9D, 0xC1, 0x0B,
-    0x9D, 0xC4, 0x0B, 0x4C, 0xB9, 0x08, 0x4C, 0xF4, 0x0A, 0xA8, 0xB9, 0xF7, 0x0B, 0x85, 0xFD, 0xB9,
-    0x15, 0x0C, 0x85, 0xFE, 0xBC, 0xC4, 0x0B, 0xA9, 0xFF, 0x8D, 0xD6, 0x0B, 0xB1, 0xFD, 0x9D, 0xCA,
-    0x0B, 0x8D, 0xD7, 0x0B, 0x29, 0x1F, 0x9D, 0xC7, 0x0B, 0x2C, 0xD7, 0x0B, 0x70, 0x45, 0xFE, 0xC4,
-    0x0B, 0xAD, 0xD7, 0x0B, 0x10, 0x1A, 0xC8, 0xB1, 0xFD, 0x29, 0x1F, 0x9D, 0xD3, 0x0B, 0xA9, 0xA0,
-    0x38, 0xED, 0xC2, 0x0B, 0xC9, 0x0F, 0x90, 0x02, 0xA9, 0x0F, 0x8D, 0x18, 0xD4, 0xFE, 0xC4, 0x0B,
-    0xC8, 0xB1, 0xFD, 0x9D, 0xD0, 0x0B, 0x0A, 0xA8, 0xB9, 0xFD, 0x0A, 0x8D, 0xD8, 0x0B, 0xB9, 0xFE,
-    0x0A, 0xAC, 0xC0, 0x0B, 0x99, 0x01, 0xD4, 0x9D, 0xEC, 0x0B, 0xAD, 0xD8, 0x0B, 0x99, 0x00, 0xD4,
-    0x4C, 0x8E, 0x09, 0xCE, 0xD6, 0x0B, 0xAC, 0xC0, 0x0B, 0xBD, 0xD3, 0x0B, 0x8E, 0xD9, 0x0B, 0x0A,
-    0x0A, 0x0A, 0xAA, 0xBD, 0x48, 0x11, 0x8D, 0xDA, 0x0B, 0xBD, 0x48, 0x11, 0x2D, 0xD6, 0x0B, 0x99,
-    0x04, 0xD4, 0xBD, 0x46, 0x11, 0x99, 0x02, 0xD4, 0xBD, 0x47, 0x11, 0x99, 0x03, 0xD4, 0xBD, 0x49,
-    0x11, 0x99, 0x05, 0xD4, 0xBD, 0x4A, 0x11, 0x99, 0x06, 0xD4, 0xAE, 0xD9, 0x0B, 0xAD, 0xDA, 0x0B,
-    0x9D, 0xCD, 0x0B, 0xFE, 0xC4, 0x0B, 0xBC, 0xC4, 0x0B, 0xB1, 0xFD, 0xC9, 0xFF, 0xD0, 0x08, 0xA9,
-    0x00, 0x9D, 0xC4, 0x0B, 0xFE, 0xC1, 0x0B, 0x4C, 0xF4, 0x0A, 0xAC, 0xC0, 0x0B, 0xBD, 0xCA, 0x0B,
-    0x29, 0x20, 0xD0, 0x15, 0xBD, 0xC7, 0x0B, 0xD0, 0x10, 0xBD, 0xCD, 0x0B, 0x29, 0xFE, 0x99, 0x04,
-    0xD4, 0xA9, 0x00, 0x99, 0x05, 0xD4, 0x99, 0x06, 0xD4, 0xBD, 0xD3, 0x0B, 0x0A, 0x0A, 0x0A, 0xA8,
-    0x8C, 0xEA, 0x0B, 0xB9, 0x4D, 0x11, 0x8D, 0xEF, 0x0B, 0xB9, 0x4C, 0x11, 0x8D, 0xDC, 0x0B, 0xB9,
-    0x4B, 0x11, 0x8D, 0xDB, 0x0B, 0xF0, 0x6E, 0xA5, 0xA2, 0x29, 0x07, 0xC9, 0x04, 0x90, 0x02, 0x49,
-    0x07, 0x8D, 0xE1, 0x0B, 0xBD, 0xD0, 0x0B, 0x0A, 0xA8, 0x38, 0xB9, 0xFF, 0x0A, 0xF9, 0xFD, 0x0A,
-    0x8D, 0xDD, 0x0B, 0xB9, 0x00, 0x0B, 0xF9, 0xFE, 0x0A, 0x4A, 0x6E, 0xDD, 0x0B, 0xCE, 0xDB, 0x0B,
-    0x10, 0xF7, 0x8D, 0xDE, 0x0B, 0xB9, 0xFD, 0x0A, 0x8D, 0xDF, 0x0B, 0xB9, 0xFE, 0x0A, 0x8D, 0xE0,
-    0x0B, 0xBD, 0xCA, 0x0B, 0x29, 0x1F, 0xC9, 0x08, 0x90, 0x1C, 0xAC, 0xE1, 0x0B, 0x88, 0x30, 0x16,
-    0x18, 0xAD, 0xDF, 0x0B, 0x6D, 0xDD, 0x0B, 0x8D, 0xDF, 0x0B, 0xAD, 0xE0, 0x0B, 0x6D, 0xDE, 0x0B,
-    0x8D, 0xE0, 0x0B, 0x4C, 0x65, 0x0A, 0xAC, 0xC0, 0x0B, 0xAD, 0xDF, 0x0B, 0x99, 0x00, 0xD4, 0xAD,
-    0xE0, 0x0B, 0x99, 0x01, 0xD4, 0xAD, 0xDC, 0x0B, 0xF0, 0x62, 0xAC, 0xEA, 0x0B, 0x29, 0x1F, 0xDE,
-    0xE2, 0x0B, 0x10, 0x58, 0x9D, 0xE2, 0x0B, 0xAD, 0xDC, 0x0B, 0x29, 0xE0, 0x8D, 0xF0, 0x0B, 0xBD,
-    0xE5, 0x0B, 0xD0, 0x1A, 0xAD, 0xF0, 0x0B, 0x18, 0x79, 0x46, 0x11, 0x48, 0xB9, 0x47, 0x11, 0x69,
-    0x00, 0x29, 0x0F, 0x48, 0xC9, 0x0E, 0xD0, 0x1D, 0xFE, 0xE5, 0x0B, 0x4C, 0xDD, 0x0A, 0x38, 0xB9,
-    0x46, 0x11, 0xED, 0xF0, 0x0B, 0x48, 0xB9, 0x47, 0x11, 0xE9, 0x00, 0x29, 0x0F, 0x48, 0xC9, 0x08,
-    0xD0, 0x03, 0xDE, 0xE5, 0x0B, 0x8E, 0xD9, 0x0B, 0xAE, 0xC0, 0x0B, 0x68, 0x99, 0x47, 0x11, 0x9D,
-    0x03, 0xD4, 0x68, 0x99, 0x46, 0x11, 0x9D, 0x02, 0xD4, 0xAE, 0xD9, 0x0B, 0xCA, 0x30, 0x03, 0x4C,
-    0xE0, 0x08, 0x4C, 0x81, 0xEA
-  ]
+  let baseAddr : UInt16 := 0x1000
+  let mut cb : CodeBuilder := { baseAddr }
 
-  -- Frequency table from song.freqTable, first 96 entries × (lo, hi).
-  let mut freqTable : Bytes := #[]
+  -- ============================================================
+  -- $1000: PSID entry-point trampoline
+  -- ============================================================
+  cb := cb.emitJmpLabel .JMP "init"
+  cb := cb.emitJmpLabel .JMP "play"
+
+  -- ============================================================
+  -- init: zero voice state, prime tick counter from song.tempo,
+  --       set song_running=$FF, silence SID, RTS.
+  -- ============================================================
+  let tempo : UInt8 := match song.subtunes with
+    | s :: _ => (s.tempo.min 255).toUInt8
+    | []     => 3
+  cb := cb.label "init"
+  -- Zero per-voice state arrays for X = 2, 1, 0.
+  cb := cb.emitInst (I.ldx_imm 0x02)
+  cb := cb.emitInst (I.lda_imm 0x00)
+  cb := cb.label "init_zero_loop"
+  cb := cb.emitStaAbsX "v_olpos"
+  cb := cb.emitStaAbsX "v_patpos"
+  cb := cb.emitStaAbsX "v_dur"
+  cb := cb.emitStaAbsX "v_cmd"
+  cb := cb.emitStaAbsX "v_ctrl_stored"
+  cb := cb.emitStaAbsX "v_pitch"
+  cb := cb.emitStaAbsX "v_inst"
+  cb := cb.emitStaAbsX "v_pwm_speed_ctr"
+  cb := cb.emitStaAbsX "v_pwm_dir"
+  cb := cb.emitStaAbsX "v_fhi"
+  cb := cb.emitInst I.dex
+  cb := cb.emitBranch .BPL "init_zero_loop"
+  -- Globals.
+  cb := cb.emitInst (I.lda_imm tempo)
+  cb := cb.emitStaAbs "tick_reload"
+  cb := cb.emitStaAbs "tick_counter"
+  cb := cb.emitInst (I.lda_imm 0xFF)
+  cb := cb.emitStaAbs "song_running"
+  cb := cb.emitInst (I.lda_imm 0x00)
+  cb := cb.emitStaAbs "frame_counter"
+  cb := cb.emitStaAbs "vol_offset"
+  -- Silence SID: write 0 to $D400-$D417, then $0F to $D418 (master vol).
+  cb := cb.emitInst (I.ldx_imm 0x17)
+  cb := cb.label "init_silence_loop"
+  cb := cb.emitInst (I.sta_absX 0xD400)
+  cb := cb.emitInst I.dex
+  cb := cb.emitBranch .BPL "init_silence_loop"
+  cb := cb.emitInst (I.lda_imm 0x0F)
+  cb := cb.emitInst (I.sta_abs 0xD418)
+  cb := cb.emitInst I.rts
+
+  -- ============================================================
+  -- play: stub (RTS). Subsequent commits will add the per-voice
+  --       loop, note-load, effects.
+  -- ============================================================
+  cb := cb.label "play"
+  cb := cb.emitInst I.rts
+
+  -- ============================================================
+  -- DATA SECTION
+  -- ============================================================
+  -- Frequency table (96 entries × 2 bytes, little-endian (lo, hi)).
+  cb := cb.label "freq_table"
   for _h : i in [:96] do
     match song.freqTable.entries[i]? with
-    | some (lo, hi) => freqTable := freqTable ++ #[lo.val.toUInt8, hi.val.toUInt8]
-    | none          => freqTable := freqTable ++ #[0, 0]
+    | some (lo, hi) =>
+        cb := cb.emitByte lo.val.toUInt8
+        cb := cb.emitByte hi.val.toUInt8
+    | none =>
+        cb := cb.emitByte 0
+        cb := cb.emitByte 0
 
-  -- Voice SID-base offsets ($0BBD-$0BBF): per-voice $D400 register strides.
-  let voiceBaseOffsets : Bytes := #[0x00, 0x07, 0x0E]
+  -- Voice SID-base offsets (constant: $00, $07, $0E for V1/V2/V3).
+  cb := cb.label "voice_sid_base"
+  cb := cb.emitData [0x00, 0x07, 0x0E]
 
-  -- Voice-state RAM seed ($0BC0-$0BF0): mostly runtime-scratch but
-  -- includes $0BC2 = $1B (master vol offset) and $0BE9 = $02 (tick reload).
-  let voiceStateSeed : List UInt8 := [
-    0x00, 0x04, 0x1B, 0x05, 0x2B, 0x00, 0x00, 0x02, 0x06, 0x06, 0x03, 0x87, 0x0F, 0x41, 0x81, 0x41,
-    0x2A, 0x35, 0x1F, 0x00, 0x03, 0x02, 0xFF, 0x03, 0x4E, 0x00, 0x41, 0xFF, 0x00, 0x05, 0x00, 0x4E,
-    0x0C, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x02, 0x00, 0xFF, 0x0C, 0x17, 0x06, 0x00,
-    0x00
-  ]
+  -- Per-voice state arrays (3 bytes each, zero-init at file load; init
+  -- overwrites them anyway, but we emit zeros so labels point to valid
+  -- read/write storage).
+  cb := cb.label "v_olpos"           ; cb := cb.emitData [0, 0, 0]
+  cb := cb.label "v_patpos"          ; cb := cb.emitData [0, 0, 0]
+  cb := cb.label "v_dur"             ; cb := cb.emitData [0, 0, 0]
+  cb := cb.label "v_cmd"             ; cb := cb.emitData [0, 0, 0]
+  cb := cb.label "v_ctrl_stored"     ; cb := cb.emitData [0, 0, 0]
+  cb := cb.label "v_pitch"           ; cb := cb.emitData [0, 0, 0]
+  cb := cb.label "v_inst"            ; cb := cb.emitData [0, 0, 0]
+  cb := cb.label "v_pwm_speed_ctr"   ; cb := cb.emitData [0, 0, 0]
+  cb := cb.label "v_pwm_dir"         ; cb := cb.emitData [0, 0, 0]
+  cb := cb.label "v_fhi"             ; cb := cb.emitData [0, 0, 0]
 
-  -- Orderlist + pattern layout matches the original Confuzion binary.
-  -- (Address values here are extracted from the original SID; deriving them
-  -- from song layout descriptors is left to a future step.)
-  let orderlistAddrs : List UInt16 := [0x0C33, 0x0C58, 0x0CFC]
-  let patternAddrs : List UInt16 := [
-    0x0D24, 0x101A, 0x0FC5, 0x0DFB, 0x0DAC, 0x1038, 0x0FD0, 0x0E31, 0x0E67, 0x0EB5, 0x1088, 0x10CC, 0x1100, 0x111B, 0x0DD5, 0x1059, 0x0FE7, 0x0FE8, 0x0FE9, 0x0FEA, 0x0FEB, 0x0D9C, 0x0D79, 0x0ED6, 0x0F02, 0x0F63, 0x0F64, 0x0FED, 0x0FFC, 0x100B
-  ]
+  -- Globals (1 byte each).
+  cb := cb.label "frame_counter"  ; cb := cb.emitByte 0
+  cb := cb.label "tick_counter"   ; cb := cb.emitByte 0
+  cb := cb.label "tick_reload"    ; cb := cb.emitByte 0
+  cb := cb.label "song_running"   ; cb := cb.emitByte 0
+  cb := cb.label "vol_offset"     ; cb := cb.emitByte 0
 
-  -- Orderlist pointer pairs ($0BF1-$0BF6): 3 lo bytes followed by 3 hi bytes.
-  let mut orderlistPtrs : Bytes := #[]
-  for addr in orderlistAddrs do
-    orderlistPtrs := orderlistPtrs.push addr.toUInt8
-  for addr in orderlistAddrs do
-    orderlistPtrs := orderlistPtrs.push (addr >>> 8).toUInt8
-
-  -- Pattern table: pattern_lo[30] at $0BF7 followed by pattern_hi[30] at $0C15.
-  let mut patternLoTable : Bytes := #[]
-  let mut patternHiTable : Bytes := #[]
-  for addr in patternAddrs do
-    patternLoTable := patternLoTable.push addr.toUInt8
-    patternHiTable := patternHiTable.push (addr >>> 8).toUInt8
-
-  -- Encode a USFNoteEvent into Hubbard row bytes. Layout:
-  --   cmd byte: bit 7 = new_inst, bit 6 = tie, bit 5 = no_release, bits 0-4 = dur-1
-  --   [inst byte] if cmd bit 7 set
-  --   [pitch byte] if cmd bit 6 not set
-  -- The USF `instrument` field already packs these flag bits the same way,
-  -- except its bit 7 is INVERTED (1 = no_new_inst).
+  -- Encode a USFNoteEvent into Hubbard row bytes.
   let encodeNote (n : USFNoteEvent) (tempo : Nat) : List UInt8 :=
     let durByte : UInt8 := ((n.durationFrames / tempo - 1) &&& 0x1F).toUInt8
     let isTie : Bool := match n.kind with | .tie => true | _ => false
@@ -1456,53 +1454,64 @@ def generateSID (song : USFSong) (debug : Bool := false) : Bytes := Id.run do
         | _ => [0]
     [cmd] ++ instByte ++ pitchByte
 
-  let encodePattern (p : USFPattern) (tempo : Nat) : Bytes :=
-    let allRows := p.notes.flatMap (fun n => encodeNote n tempo)
-    (allRows.toArray).push 0xFF
+  let encodePattern (p : USFPattern) (tempo : Nat) : List UInt8 :=
+    (p.notes.flatMap (fun n => encodeNote n tempo)) ++ [0xFF]
 
-  let encodeOrderlist (ol : List Nat) : Bytes :=
-    let bs := (ol.map (·.toUInt8)).toArray
-    bs.push 0xFF
+  let encodeOrderlist (ol : List Nat) : List UInt8 :=
+    (ol.map (·.toUInt8)) ++ [0xFF]
 
-  -- Pull tempo + voices from the (single) subtune.
-  let (tempo, voices) : Nat × List USFVoice := match song.subtunes with
+  -- Subtune 0 (the only one).
+  let (subTempo, voices) : Nat × List USFVoice := match song.subtunes with
     | s :: _ => (s.tempo, s.voices)
     | []     => (3, [])
 
-  -- Emit the 3 voice orderlists in V1/V2/V3 order.
-  let mut orderlistsBlock : Bytes := #[]
-  for voice in voices do
-    orderlistsBlock := orderlistsBlock ++ encodeOrderlist voice.orderlist
+  -- Pre-compute orderlist + pattern bytes so we know placement addresses.
+  let orderlistBytes : List (List UInt8) := voices.map (·.orderlist) |>.map encodeOrderlist
+  let patternBytes : List (List UInt8) := song.patterns.map (fun p => encodePattern p subTempo)
 
-  -- Live-pattern layout: pattern indices in original placement order.
-  -- (The original Confuzion binary places patterns in this specific order;
-  -- to maintain byte-perfection we must reproduce it. patterns 16-20 and 25
-  -- are dead slots not referenced by any orderlist — see the literal
-  -- inserts below.)
-  let liveOrder1 : List Nat := [0, 22, 21, 4, 14, 3, 7, 8, 9, 23, 24]
-  let liveOrder2 : List Nat := [26, 2, 6]
-  let liveOrder3 : List Nat := [27, 28, 29, 1, 5, 15, 10, 11, 12, 13]
+  -- Voice orderlist pointer pairs (lo[3] then hi[3]).
+  -- Address of orderlist i = current position + size of (orderlistPtrs +
+  -- patternLoTable + patternHiTable) + cumulative size of earlier orderlists.
+  -- We can't compute this directly; instead, emit labels and use them.
+  cb := cb.label "orderlist_lo_table"
+  -- Emit 3 placeholder bytes, fixed up to point to per-voice orderlist labels.
+  for _h : i in [:3] do
+    cb := cb.emitByte 0   -- placeholder; will be patched in fixup pass
+  cb := cb.label "orderlist_hi_table"
+  for _h : i in [:3] do
+    cb := cb.emitByte 0
 
-  let mut patternsBlock : Bytes := #[]
-  -- Helper: emit pattern by index.
-  let emitPat (block : Bytes) (idx : Nat) : Bytes :=
-    match song.patterns[idx]? with
-    | some p => block ++ encodePattern p tempo
-    | none   => block
-  for idx in liveOrder1 do
-    patternsBlock := emitPat patternsBlock idx
-  -- 1-byte dead slot at $0F63 (pattern 25's address): $00 padding between
-  -- pattern 24's $FF terminator and pattern 26's first byte.
-  patternsBlock := patternsBlock.push 0x00
-  for idx in liveOrder2 do
-    patternsBlock := emitPat patternsBlock idx
-  -- 6-byte dead block at $0FE7-$0FEC: patterns 16-20 point into it.
-  patternsBlock := patternsBlock ++ #[0x00, 0x00, 0x00, 0x00, 0x5F, 0xFF]
-  for idx in liveOrder3 do
-    patternsBlock := emitPat patternsBlock idx
+  -- Pattern address tables (lo, hi), parallel to song.patterns.
+  cb := cb.label "pattern_lo_table"
+  for _h : i in [:song.patterns.length] do
+    cb := cb.emitByte 0
+  cb := cb.label "pattern_hi_table"
+  for _h : i in [:song.patterns.length] do
+    cb := cb.emitByte 0
 
-  -- Instrument table: 12 × 8-byte records.
-  let mut instTable : Bytes := #[]
+  -- Emit orderlists with labels orderlist_v0, orderlist_v1, orderlist_v2.
+  -- Snapshot lo-table label position for fixup.
+  let olLoBase := cb.lookupLabel "orderlist_lo_table"
+  let olHiBase := cb.lookupLabel "orderlist_hi_table"
+  let mut olAddrs : List UInt16 := []
+  for hi : i in [:voices.length] do
+    cb := cb.label s!"orderlist_v{i}"
+    olAddrs := olAddrs ++ [cb.currentAddr]
+    match orderlistBytes[i]? with
+    | some bs => cb := cb.emitData bs
+    | none => ()
+
+  -- Emit patterns with labels pattern_<i>.
+  let mut patAddrs : List UInt16 := []
+  for hi : i in [:song.patterns.length] do
+    cb := cb.label s!"pattern_{i}"
+    patAddrs := patAddrs ++ [cb.currentAddr]
+    match patternBytes[i]? with
+    | some bs => cb := cb.emitData bs
+    | none => ()
+
+  -- Instrument table.
+  cb := cb.label "inst_table"
   for inst in song.instruments do
     let vibByte : UInt8 := match inst.vibrato with
       | some v => if v.semitoneShift = 0 then 0 else (v.semitoneShift - 1).toUInt8
@@ -1517,7 +1526,7 @@ def generateSID (song : USFSong) (debug : Bool := false) : Bytes := Id.run do
       (if inst.freqSlide.isSome then 1 else 0) +
       (if inst.skydive then 2 else 0) +
       (if inst.arpeggio.isSome then 4 else 0)
-    instTable := instTable ++ #[
+    cb := cb.emitData [
       inst.initPwLo.val.toUInt8,
       inst.initPwHi.val.toUInt8,
       inst.initCtrl.val.toUInt8,
@@ -1528,26 +1537,54 @@ def generateSID (song : USFSong) (debug : Bool := false) : Bytes := Id.run do
       fxFlags
     ]
 
-  let payload : Bytes :=
-    engineCode.toArray ++ freqTable ++
-    voiceBaseOffsets ++ voiceStateSeed.toArray ++
-    orderlistPtrs ++ patternLoTable ++ patternHiTable ++
-    orderlistsBlock ++ patternsBlock ++
-    instTable
+  -- Patch orderlist_lo_table and orderlist_hi_table with actual addresses
+  -- now that the labels are known.
+  match olLoBase, olHiBase with
+  | some loBaseAddr, some hiBaseAddr =>
+    let loBaseIdx : Nat := (loBaseAddr.toNat - baseAddr.toNat)
+    let hiBaseIdx : Nat := (hiBaseAddr.toNat - baseAddr.toNat)
+    let mut bytes := cb.bytes
+    for hi : i in [:olAddrs.length] do
+      match olAddrs[i]? with
+      | some a =>
+          bytes := bytes.set! (loBaseIdx + i) a.toUInt8
+          bytes := bytes.set! (hiBaseIdx + i) (a >>> 8).toUInt8
+      | none => ()
+    cb := { cb with bytes := bytes }
+  | _, _ => ()
+
+  -- Patch pattern_lo_table / pattern_hi_table similarly.
+  let patLoBase := cb.lookupLabel "pattern_lo_table"
+  let patHiBase := cb.lookupLabel "pattern_hi_table"
+  match patLoBase, patHiBase with
+  | some loBaseAddr, some hiBaseAddr =>
+    let loBaseIdx : Nat := (loBaseAddr.toNat - baseAddr.toNat)
+    let hiBaseIdx : Nat := (hiBaseAddr.toNat - baseAddr.toNat)
+    let mut bytes := cb.bytes
+    for hi : i in [:patAddrs.length] do
+      match patAddrs[i]? with
+      | some a =>
+          bytes := bytes.set! (loBaseIdx + i) a.toUInt8
+          bytes := bytes.set! (hiBaseIdx + i) (a >>> 8).toUInt8
+      | none => ()
+    cb := { cb with bytes := bytes }
+  | _, _ => ()
+
+  -- Resolve label-fixups for the engine code.
+  cb := cb.resolve
+
   let header : PSIDHeader := {
-    loadAddr := 0
-    initAddr := 0x0867
-    playAddr := 0x0858
-    embeddedLoad := 0x0858
+    initAddr := baseAddr
+    playAddr := baseAddr + 3
     songs := 1
     startSong := 1
-    speed := 1
-    flags := 0x0014
+    speed := 0                  -- VBI (50 Hz PAL) — clean PSID, not CIA
+    flags := 0x0014             -- PAL + 6581
     title := "Confuzion"
     author := "Rob Hubbard"
     released := "1985 Incentive"
   }
-  return buildSID header payload
+  return buildSID header cb.bytes
 
 def writeFile (path : String) (data : Bytes) : IO Unit := do
   let handle ← IO.FS.Handle.mk path .write
