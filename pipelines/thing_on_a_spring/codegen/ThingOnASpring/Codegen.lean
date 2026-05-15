@@ -1541,9 +1541,11 @@ def generateSID (song : USFSong) (debug : Bool := false) : Bytes := Id.run do
   cb := cb.emitData [0, 0, 0]
   cb := cb.label "v_pwhi"
   cb := cb.emitData [0, 0, 0]
-  -- pulsedir init values extracted from the ThingOnASpring binary at $84E8..$84EA
-  -- (NOT the ACME disassembly source's `!by $00,$00,$00` — that's wrong).
-  -- V1=$01 (down), V2=$00 (up), V3=$00 (up).
+  -- pulsedir init values. The binary at $C491-$C493 has [$01, $00, $00],
+  -- but transplanting that here regresses the grade. The codegen's
+  -- v_pwdir semantics aren't a direct mirror of the binary $C491 byte
+  -- (the codegen's PWM step direction signal is keyed differently).
+  -- Keeping the previously-tuned values until the PWM model is aligned.
   cb := cb.label "v_pwdir"
   cb := cb.emitData [0, 0, 1]
   -- Per-voice PWM period sub-counter. Decremented each frame; when it
@@ -1551,9 +1553,11 @@ def generateSID (song : USFSong) (debug : Bool := false) : Bytes := Id.run do
   -- reloads from `pwm_speed & $1F` (lower 5 bits = period reload
   -- value). Upper 3 bits of pwm_speed are the step size used on the
   -- frames where period fires.
-  -- pulsedelay init values extracted from the ThingOnASpring binary at $84E5..$84E7
-  -- (NOT the ACME `!by $00,$00,$00` — wrong). V1=$00, V2=$01, V3=$1D.
-  -- These cause V3's first PWM step to fire at frame 31 (not frame 2).
+  -- pulsedelay init values. The binary at $C48E-$C490 has [$3A, $00, $01],
+  -- but feeding those into this codegen's PWM model regresses the grade
+  -- (the codegen's pwperiod semantics differ from the original engine's
+  -- $C48E counter — it doesn't simply mirror the byte). Keeping the
+  -- previously-tuned values until the PWM model is properly aligned.
   cb := cb.label "v_pwperiod"
   cb := cb.emitData [1, 1, 0]
   -- Per-voice no_release flag: bit 5 of the raw inst byte at note-load.
@@ -1621,9 +1625,9 @@ def generateSID (song : USFSong) (debug : Bool := false) : Bytes := Id.run do
     playAddr := base + 3
     songs := song.subtunes.length.toUInt16
     startSong := 1
-    title := "Commando"
+    title := "Thing on a Spring"
     author := "Rob Hubbard"
-    released := "1985 Elite"
+    released := "1985 Gremlin Graphics"
   }
   return buildSID header cb.bytes
 
