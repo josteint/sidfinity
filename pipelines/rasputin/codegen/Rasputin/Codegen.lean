@@ -1184,7 +1184,7 @@ def emitSustainEffects (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.r
   -- For Commando tempo=3: skip until countdown <= durationFrames - tempo = durationFrames - 3.
   -- So compare (durationFrames - tempo) with countdown.
   cb := cb.emitLdaAbsX "v_durfield"
-  cb := cb.emitInst (I.sbc_imm 2)                 -- A = durationFrames - 2 (Rasputin tempo=2: Path A starts after tick 1 = 2 music frames)
+  cb := cb.emitInst (I.sbc_imm 3)                 -- A = durationFrames - 3 (Rasputin tempo=2: Path A starts at music frame 3 of the note to match orig snapshot cadence)
   cb := cb.emitInst ⟨.CMP, .absX 0⟩               -- cmp countdown
   cb := { cb with absFixups :=
     { byteIdx := cb.bytes.size - 2, targetLabel := "v_dur" } :: cb.absFixups }
@@ -1633,13 +1633,18 @@ def generateSID (song : USFSong) (debug : Bool := false) : Bytes := Id.run do
     | none => pure ()
   -- Sub-frame divider counter. Lives at "sub_ctr". When the engine has
   -- a sub-frame divider quirk set, the play prelude DECs this, RTSs
-  -- on underflow, and reloads from #N. Initialized to N so the first
-  -- (N+1) play calls produce N music ticks followed by 1 SFX-only RTS.
+  -- on underflow, and reloads from #N. Initialized to N+1 so the first
+  -- (N+2) play calls produce (N+1) music ticks followed by 1 SFX-only
+  -- RTS — an extra music frame at the very start to mirror Rasputin's
+  -- frame-0 behavior where $C53A=$05 from the binary is decremented
+  -- once (BPL music) and then the V3 orderlist's $FE marker overrides
+  -- it to the steady-state value mid-frame. Without this we'd start
+  -- the SFX cadence one frame too early relative to the original.
   match song.engineQuirks.subFrameDivider with
   | none   => pure ()
   | some n =>
     cb := cb.label "sub_ctr"
-    cb := cb.emitByte n.val.toUInt8
+    cb := cb.emitByte (n.val.toUInt8 + 1)
 
   -- Constants
   cb := cb.label "v_sidoff"
