@@ -1171,7 +1171,7 @@ def emitSustainEffects (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.r
   -- v_dur == 2). This matches Hubbard's behavior of leaving the voice
   -- alone once release starts.
   cb := cb.emitLdaAbsX "v_dur"
-  cb := cb.emitInst (I.cmp_imm 3)
+  cb := cb.emitInst (I.cmp_imm 2)
   cb := cb.emitBranch .BCS "dur_ok"
   cb := cb.emitJmpLabel .JMP "no_slide"
   cb := cb.label "dur_ok"
