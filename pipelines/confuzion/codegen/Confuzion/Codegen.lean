@@ -1323,21 +1323,16 @@ end  -- mutual
 def generateSID (song : USFSong) (debug : Bool := false) : Bytes := Id.run do
   -- Byte-perfect rebuild of Rob Hubbard's Confuzion (1985 Incentive).
   --
-  -- Strategy: emit the original binary $0858-$11A5 (2382 bytes) verbatim as
-  -- the foundation; subsequent iterations will swap regions for USF-derived
-  -- emission. Step 1 (this version): full binary verbatim. Validates the
-  -- load-address / PSID-header / build-chain infrastructure and produces a
-  -- SID byte-identical to the original.
-  --
-  -- Roadmap to true USF round-trip (each step is a separate commit):
-  --   Step 2: $1146-$11A5 (instruments) from song.instruments
-  --   Step 3: $0AFD-$0BBC (freq table) from song.freqTable
-  --   Step 4: $0BF1-$1145 (orderlist ptrs + pattern tables + pattern bytes)
-  --           from song.subtunes / song.patterns
-  --   Step 5: $0BC2 (master vol offset) and $0BE9 (speed) from song metadata
-  let _ := song
+  -- Step 1 (commit Confuzion: byte-perfect baseline rebuild at $0858):
+  --   the entire 2382-byte binary emitted verbatim from a Lean literal.
+  -- Step 2 (this version):
+  --   $1146-$11A5 (instrument table, 96 bytes = 12 × 8) is now derived
+  --   from song.instruments. The prefix ($0858-$1145, 2286 bytes) is
+  --   still verbatim — to be replaced in subsequent steps.
   let _ := debug
-  let originalBinary : List UInt8 := [
+  -- Prefix: $0858-$1145 (engine + freq table + voice state seed +
+  -- orderlist pointers + pattern tables + orderlists + pattern bytes).
+  let prefixBinary : List UInt8 := [
     0xA5, 0xA2, 0x48, 0xA9, 0x00, 0x85, 0xA2, 0x20, 0xCB, 0x08, 0xEE, 0x5C, 0x08, 0x68, 0x85, 0xA2,
     0x60, 0x8E, 0x9C, 0x08, 0x8E, 0xFA, 0x0A, 0xA9, 0xEA, 0x8D, 0xB9, 0x08, 0x8E, 0xC2, 0x08, 0xA2,
     0x02, 0xA9, 0x00, 0x8D, 0x5C, 0x08, 0xF0, 0x07, 0x78, 0xA2, 0x02, 0xA9, 0x00, 0x85, 0xA2, 0x9D,
@@ -1480,15 +1475,47 @@ def generateSID (song : USFSong) (debug : Bool := false) : Bytes := Id.run do
     0x03, 0x1A, 0x07, 0x1A, 0x07, 0x17, 0x0B, 0x18, 0x03, 0x18, 0x0F, 0x18, 0x0B, 0x1F, 0x03, 0x1F,
     0x0F, 0x1F, 0xFF, 0x0B, 0x1D, 0x83, 0x07, 0x39, 0x03, 0x39, 0x07, 0x39, 0x43, 0x23, 0x39, 0x07,
     0x3B, 0x0F, 0x37, 0x43, 0x8B, 0x02, 0x1C, 0x83, 0x07, 0x37, 0x07, 0x37, 0x07, 0x34, 0x0B, 0x37,
-    0x23, 0x36, 0x2F, 0x36, 0x87, 0x02, 0x1A, 0x07, 0x18, 0x07, 0x17, 0x07, 0x15, 0xFF, 0x00, 0x02,
-    0x41, 0x07, 0x4F, 0x04, 0x00, 0x00, 0x00, 0x08, 0x81, 0x03, 0x00, 0x00, 0x00, 0x00, 0x80, 0x03,
-    0x41, 0x08, 0x39, 0x00, 0x00, 0x00, 0x00, 0x02, 0x81, 0x09, 0x09, 0x00, 0x00, 0x00, 0x00, 0x08,
-    0x41, 0x19, 0x5F, 0x02, 0x41, 0x00, 0x00, 0x02, 0x11, 0x09, 0xA9, 0x01, 0x00, 0x00, 0x00, 0x08,
-    0x41, 0x02, 0x08, 0x00, 0x00, 0x01, 0x00, 0x08, 0x41, 0x16, 0x3F, 0x05, 0x00, 0x00, 0x80, 0x06,
-    0x21, 0x0A, 0x8F, 0x00, 0x00, 0x00, 0x00, 0x02, 0x81, 0x09, 0x99, 0x00, 0x00, 0x00, 0x80, 0x03,
-    0x41, 0x03, 0x30, 0x04, 0x00, 0x00, 0x80, 0x01, 0x41, 0x11, 0x00, 0x04, 0x00, 0x00
+    0x23, 0x36, 0x2F, 0x36, 0x87, 0x02, 0x1A, 0x07, 0x18, 0x07, 0x17, 0x07, 0x15, 0xFF
   ]
-  let payload : Bytes := originalBinary.toArray
+  -- Instrument table: 12 × 8-byte records. Hubbard layout:
+  --   +0 pulse_lo   +1 pulse_hi   +2 ctrl        +3 AD   +4 SR
+  --   +5 vib_depth  +6 PWM packed +7 fx_flags
+  --
+  -- USF mappings:
+  --   vib_depth = (semitoneShift - 1) when vibrato is set, else 0.
+  --     (The engine's LSR/ROR loop runs `vib_depth + 1` iterations, so
+  --     the stored byte is one less than USF's shift count.)
+  --   PWM packed: extract stores the full original byte (with step in
+  --     the upper 3 bits and speed in the lower 5) into pwMod's
+  --     `speed` field. When pwMod is none, byte is 0 (engine skips PWM).
+  --   fx_flags = bit 0 (freqSlide) | bit 1 (skydive) | bit 2 (arpeggio).
+  let mut instTable : Bytes := #[]
+  for inst in song.instruments do
+    let vibByte : UInt8 := match inst.vibrato with
+      | some v => if v.semitoneShift = 0 then 0 else (v.semitoneShift - 1).toUInt8
+      | none => 0
+    let pwmByte : UInt8 := match inst.pwMod with
+      | some pm => match pm.mode with
+        | .linear s => s.val.toUInt8
+        | .bidirectional s _ _ => s.val.toUInt8
+        | .table _ => 0
+      | none => 0
+    let fxFlags : UInt8 :=
+      (if inst.freqSlide.isSome then 1 else 0) +
+      (if inst.skydive then 2 else 0) +
+      (if inst.arpeggio.isSome then 4 else 0)
+    instTable := instTable ++ #[
+      inst.initPwLo.val.toUInt8,
+      inst.initPwHi.val.toUInt8,
+      inst.initCtrl.val.toUInt8,
+      inst.ad.val.toUInt8,
+      inst.sr.val.toUInt8,
+      vibByte,
+      pwmByte,
+      fxFlags
+    ]
+
+  let payload : Bytes := prefixBinary.toArray ++ instTable
   let header : PSIDHeader := {
     loadAddr := 0
     initAddr := 0x0867
