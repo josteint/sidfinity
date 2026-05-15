@@ -1,72 +1,86 @@
-# Confuzion on the Run pipeline
+# Confuzion pipeline
 
-End-to-end rebuild of Rob Hubbard's *Confuzion on the Run* (1985) SID. Same shape
-as the Commando pipeline; cloned and extended for Confuzion's engine quirks
-(skydive effect, pulsedelay/pulsedir initial state, notenum/freq-table
-overlap aliasing, different HR threshold).
+Rebuild of Rob Hubbard's *Confuzion* (1985 Incentive) SID. Scaffold
+cloned from the Monty / Action Biker pipelines via
+`tools/clone_hubbard_pipeline.py`; needs per-SID investigation to reach
+Grade A.
 
 ## Status
 
 | Metric | Value |
 |---|---|
-| Subtunes rebuilt | 3 (the music tracks; PSID #1–#3 in the original) |
-| Verification | siddump 98.8% snapshot match; py65 0-divergence over 1500 frames |
-| Grade | A |
+| Subtunes rebuilt | 1 (PSID claims 1; the original is a single-shot tune with no orderlist loop) |
+| Grade | F (3.3%, 49/1500 snapshots) |
+| Build / run | Lake build OK; `sidgen_confuzion` produces a valid SID |
+| Extract | OK — 12 instruments, 25 patterns, 3 voices |
 
-The remaining ~1.2% siddump gap is `libsidplayfp` emulator subtleties
-(CIA timer, cycle-exact bus contention) that don't affect what the SID
-chip outputs.
+The grade is low because the Codegen.lean inherited from
+Action Biker/Monty produces a *Commando-style* player binary that
+doesn't match Confuzion's structurally different engine (see below).
+The extract path works, the build chain works, but the generated player
+diverges almost everywhere on the freq registers.
 
-The original PSID claims 19 subtunes; the other 16 are sound effects
-this pipeline doesn't ship.
+## What's different about Confuzion (vs Commando/Monty)
 
-## Layout
+Documented in detail in `docs/hubbard_confuzion_disassembly.s`. The
+load-bearing differences that the current codegen does NOT yet handle:
 
-Identical to Commando — see `pipelines/commando/README.md` for the layout
-explanation. The Confuzion-specific differences are inside the codegen:
-
-| File | Confuzion-only addition |
-|---|---|
-| `codegen/Confuzion/USF.lean` | `skydive : Bool` field on `USFInstrument` |
-| `codegen/Confuzion/Codegen.lean` | Skydive emit block; v_pitch alias-store into freq table; PWM init data extracted from binary; HR threshold = 1 |
-| `extract/engine_model.py` | Extracts `has_skydive` from fx_flags bit 1 |
-| `extract/emit_usf.py` | Emits `skydive := true/false` for each instrument |
+| Aspect | Commando/Monty | Confuzion |
+|---|---|---|
+| Load address | `$C000` | `$0858` |
+| Player style | Pure PSID subroutine | Raster-IRQ player with init that self-modifies CLI/JMP/SEI sites to become PSID-callable |
+| Init/play overlap | None | Play's `STA $a2`-RTS and init's `LDX #$60` share bytes at `$0867-$0868` (Hubbard space trick) |
+| Frame counter | Static word | Self-modifying immediate operand at `$085C` (incremented every play) |
+| Tick gate | `$C3E7`/`$C3E8` | `$0BE8`/`$0BE9` (same shape, different addresses) |
+| Orderlist looping | Yes (`$FE` rewind marker) | None — first voice to hit `$FF` triggers song-end mute |
+| HR threshold | 1 frame (Action Biker) / 3 (Commando) | 0 (immediate gate kill + envelope zero at duration end) |
+| Master volume | Static `$0F` | `clamp($A0 - $0BC2, $0F)` with `$0BC2 = $1B` baseline |
+| Freq table | `$5428` (Commando) | `$0AFD` (already wired through `CONFUZION_FT_BASE` in `extract/emit_usf.py`) |
+| PWM bounds | `$08`/`$0E` | `$08`/`$0E` (matches) |
+| Skydive / drum / table-arp | Various | None — Confuzion is a stripped-down classic engine |
 
 ## How to run
 
-Regenerate `SongData.lean` from the original — by default rebuilds subtune 0
-(the title music PSID #1). Pass comma-separated 0-indexed subtune numbers
-to override:
+Regenerate `SongData.lean` from the original SID:
 
 ```bash
-python -m pipelines.confuzion.extract.emit_usf            # subtune 0 only
-python -m pipelines.confuzion.extract.emit_usf 0,1,2       # all three music tracks
+python3 -m pipelines.confuzion.extract.emit_usf
 ```
 
 Build and run:
 
 ```bash
+source src/env.sh
 lake build sidgen_confuzion
-./.lake/build/bin/sidgen_confuzion
+./.lake/build/bin/sidgen_confuzion         # writes pipelines/confuzion/build/confuzion.sid
 ```
 
 Grade against the original:
 
 ```bash
-python src/writelog_grade.py \
+python3 src/writelog_grade.py \
     data/C64Music/MUSICIANS/H/Hubbard_Rob/Confuzion.sid \
-    confuzion.sid
-# Expected: Grade A, snapshots 98.8% (1482/1500)
+    pipelines/confuzion/build/confuzion.sid
+# Current: Grade F, 3.3% snapshot match (49/1500)
 ```
 
-## Why a separate pipeline from Commando
+## Path to Grade A
 
-Two Hubbard SIDs from the same player era still differ in load-bearing
-ways (PW bounds, pulsedelay init, fx-flag semantics). Cloning the
-pipeline rather than parameterising it kept the Commando byte-perfect
-invariant safe while Confuzion was being developed. The two pipelines can
-be merged once a third Hubbard SID is wired through to validate the
-abstraction.
+Two approaches, ordered by effort:
 
-See also: `~/.claude/projects/-home-jtr-sidfinity/memory/project_hubbard_notenum_overlap.md`
-and `reference_hubbard_pwm_bounds.md` for the load-bearing quirks.
+1. **Adapt the inherited codegen** — disable Monty-isms (skydive,
+   notenum aliasing) and add Confuzion-specific behaviors (HR threshold
+   0, master volume fade-down formula, single-shot orderlist). Goal:
+   match what the Confuzion engine *would* produce as a register stream,
+   accepting that the rebuilt binary lives at `$C000` not `$0858`.
+   Grades on snapshot match, not bytes.
+
+2. **Faithful byte-perfect rebuild** — emit the actual Confuzion
+   binary at `$0858`, including the self-modifying init patch sequence
+   and the raster-IRQ structure. Much more work; produces a binary that
+   could in principle match Confuzion frame-for-frame like Commando does.
+
+The annotated disassembly in `docs/hubbard_confuzion_disassembly.s`
+is the reference for either path.
+
+See also: `docs/hubbard_1985_status.md` for cross-pipeline context.
