@@ -400,15 +400,20 @@ def emitInitFrameCounter (cb : CodeBuilder) : CodeBuilder :=
   cb
 
 /-- Copy `vib_threshold[subtune]` (pre-computed = 9 * subtune.tempo)
-    into the runtime `v_vib_threshold` byte. The vibrato gate
-    needs to know the current subtune's tempo to correctly skip
-    short notes (raw_dur < 8 ticks → v_durfield < 9*tempo). -/
+    into the runtime `v_vib_threshold` byte, and `gate_off_thresh[subtune]`
+    (pre-computed = subtune.tempo - 1, the post-DEC v_dur at which orig
+    fires gate-off — equivalent to "the first frame of the last tick"
+    in tick-based scheduling) into `v_gate_off_thresh`. -/
 def emitInitVibThreshold (cb : CodeBuilder) : CodeBuilder :=
   let cb := cb.emitInst (I.ldx_zp 0xFB)               -- X = subtune index
   let cb := cb.emitLdaAbsX "vib_threshold"
-  let cb := cb.emitInst (I.sta_abs 0)                 -- placeholder addr; fixed up below
+  let cb := cb.emitInst (I.sta_abs 0)
   let cb := { cb with absFixups :=
     { byteIdx := cb.bytes.size - 2, targetLabel := "v_vib_threshold" } :: cb.absFixups }
+  let cb := cb.emitLdaAbsX "gate_off_thresh"
+  let cb := cb.emitInst (I.sta_abs 0)
+  let cb := { cb with absFixups :=
+    { byteIdx := cb.bytes.size - 2, targetLabel := "v_gate_off_thresh" } :: cb.absFixups }
   cb
 
 def emitInit (cb : CodeBuilder) (song : USFSong) : CodeBuilder :=
@@ -812,14 +817,14 @@ def emitExecVoice (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.run do
   -- Order: gate-off → vibrato → PW → freq_slide+ctrl → arpeggio
   cb := cb.emitInst (I.stx_zp 0xFA)              -- save voice index
 
-  -- 1. GATE-OFF CHECK (fire when v_dur == gateOffFrames, i.e., before note end)
-  -- Only fires once per note (the exact moment v_dur crosses threshold).
-  -- Orig HumanRace: HR fires 2 frames before note-load (writelog trace), so the
-  -- threshold here is v_dur == 1 for HumanRace. Commando used cmp_imm 2; the
-  -- difference is engine timing (`speed`/tempo bookkeeping shifts when v_dur
-  -- crosses each value).
+  -- 1. GATE-OFF CHECK (fire when v_dur == v_gate_off_thresh, i.e., the
+  -- first frame of the last tick — matches Hubbard's tick-based gate-off
+  -- where v_dur (in ticks) reaches 0). The threshold is tempo-1 and is
+  -- copied at init time from the per-subtune gate_off_thresh table.
   cb := cb.emitLdaAbsX "v_dur"
-  cb := cb.emitInst (I.cmp_imm 1)
+  cb := cb.emitInst ⟨.CMP, .abs 0⟩
+  cb := { cb with absFixups :=
+    { byteIdx := cb.bytes.size - 2, targetLabel := "v_gate_off_thresh" } :: cb.absFixups }
   cb := cb.emitBranch .BNE "effects_start"          -- not equal → skip gate-off
   -- Skip HR if current note has no_release flag set: gate stays on into the
   -- next note so the SID envelope doesn't retrigger across the boundary
@@ -1634,8 +1639,14 @@ def generateSID (song : USFSong) (debug : Bool := false) : Bytes := Id.run do
   -- emitInitVibThreshold + the CMP in emitVibrato.
   cb := cb.label "vib_threshold"
   cb := cb.emitData (song.subtunes.map (fun s => (9 * s.tempo).toUInt8))
-  -- Runtime byte: current subtune's vibrato threshold (initialized in init).
+  -- Per-subtune gate-off threshold = tempo - 1 (the post-DEC v_dur
+  -- value at which gate-off fires, equivalent to Hubbard's tick==0).
+  cb := cb.label "gate_off_thresh"
+  cb := cb.emitData (song.subtunes.map (fun s => (s.tempo - 1).toUInt8))
+  -- Runtime bytes copied per-subtune by init.
   cb := cb.label "v_vib_threshold"
+  cb := cb.emitByte 0
+  cb := cb.label "v_gate_off_thresh"
   cb := cb.emitByte 0
 
   -- Resolve all forward references
