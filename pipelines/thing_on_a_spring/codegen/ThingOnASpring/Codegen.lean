@@ -376,13 +376,15 @@ def emitInitSidSilence (cb : CodeBuilder) : CodeBuilder :=
   let cb := cb.emitInst (I.sta_abs (SID_BASE + 0x18)) -- Vol=$0F
   cb
 
-/-- Voice-state init: zero v_dur/olpos/wptr/pattlo/patthi for all three
-    voices via an asm-level loop on X. Forces note-load on first play. -/
+/-- Voice-state init: zero v_olpos/v_wptr/v_pattlo/v_patthi for all three
+    voices via an asm-level loop on X. Note: v_dur is NOT zeroed here —
+    it's initialised to 1 in the data section so that frame 0's DEC
+    produces 0 (positive) and falls into sustain, running effects using
+    the v_inst init values. This matches the engine's tempo gate. -/
 def emitInitVoiceState (cb : CodeBuilder) : CodeBuilder :=
   let cb := cb.emitInst (I.ldx_imm 0x02)
   let cb := cb.label "init_loop"
   let cb := cb.emitInst (I.lda_imm 0x00)
-  let cb := cb.emitStaAbsX "v_dur"
   let cb := cb.emitStaAbsX "v_olpos"
   let cb := cb.emitStaAbsX "v_wptr"
   let cb := cb.emitStaAbsX "v_pattlo"
@@ -1507,8 +1509,14 @@ def generateSID (song : USFSong) (debug : Bool := false) : Bytes := Id.run do
   let olHi : List UInt8 := [0, 0, 0]
 
   -- Voice state variables (3 bytes each, indexed by voice 0/1/2)
+  -- v_dur := 1 on frame 0's DEC gives 0 (not $FF), BPL → sustain path,
+  -- which runs effects using the v_inst init values below. This mirrors
+  -- the engine's tempo gate ($C494 = $01 → DEC → $00 → BNE != $C495 →
+  -- effects-only). Frame 1's DEC then wraps 0→$FF and note-load fires —
+  -- aligned with the engine (note durations were already pre-multiplied
+  -- by tempo, so the playable duration is unaffected).
   cb := cb.label "v_dur"
-  cb := cb.emitData [0, 0, 0]
+  cb := cb.emitData [1, 1, 1]
   cb := cb.label "v_pattlo"
   cb := cb.emitData [0, 0, 0]
   cb := cb.label "v_patthi"
@@ -1524,13 +1532,20 @@ def generateSID (song : USFSong) (debug : Bool := false) : Bytes := Id.run do
   cb := cb.emitByte 0
   cb := cb.label "v_wptr"
   cb := cb.emitData [0, 0, 0]
+  -- v_inst init from the Thing-on-a-Spring binary at $C47F-$C481:
+  -- V1=$0E (inst 14, has vibrato+arp), V2=$05 (inst 5, no effects),
+  -- V3=$06 (inst 6, drum freq-slide with 9-frame onset delay).
+  -- The engine's first-frame setup does NOT zero $C47F, so the binary
+  -- values drive the effects loop on frame 0 before any note-load
+  -- updates v_inst. This is what makes the original write ONLY V1 freq
+  -- on frame 0 (V2/V3's instruments have no active effects yet).
   cb := cb.label "v_inst"
   cb := cb.label "v_inst_v0"
-  cb := cb.emitByte 0
+  cb := cb.emitByte 14
   cb := cb.label "v_inst_v1"
-  cb := cb.emitByte 0
+  cb := cb.emitByte 5
   cb := cb.label "v_inst_v2"
-  cb := cb.emitByte 0
+  cb := cb.emitByte 6
   cb := cb.label "v_pitch"
   cb := cb.label "v_pitch_v0"
   cb := cb.emitByte 0
