@@ -804,23 +804,33 @@ def emitExecVoice (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.run do
   -- Order: gate-off → vibrato → PW → freq_slide+ctrl → arpeggio
   cb := cb.emitInst (I.stx_zp 0xFA)              -- save voice index
 
-  -- 1. GATE-OFF CHECK (fire when v_dur == gateOffFrames, i.e., before note end)
-  -- Only fires once per note (the exact moment v_dur crosses threshold).
-  -- Original Chimera disassembly at $C356-$C375: HR fires when the duration
-  -- *tick* counter $C631,X hits 0 (i.e., one note-load tick before the
-  -- note advance). In codegen units, v_dur counts FRAMES not ticks; with
-  -- tempo=3 a 1-tick note has durationFrames=3 → v_dur=2 after note_load,
-  -- counts down 2→1→0→-1 (note_load). The orig's "tick==0" corresponds
-  -- to "v_dur==0" in this scheme — the very last frame before note_load.
-  -- Was `cmp 1` (off by one — fired HR a frame early), now `cmp 0`.
+  -- 1. GATE-OFF CHECK (fire when v_dur == 0, the last frame before note-load).
+  -- Original Chimera \$C356-\$C375 runs this only on the note-load TICK that
+  -- skipped advancement (DEC \$C631 stayed >= 0), gated by `\$C631 != 0`.
+  -- In codegen v_dur counts FRAMES, so the orig's gate is "last frame
+  -- before note_load" = v_dur == 0. But ALSO skip when:
+  --   (a) v_no_release is set (portamento/legato across notes), or
+  --   (b) the instrument has fx_flags bit 0 (drums) — those instruments
+  --       handle their own gate-off inside the drum block at lines
+  --       1100+ ("FREQ SLIDE (bit0) + CTRL WRITE"). Without this guard
+  --       the universal gate-off fires on the same frame as the drum
+  --       block's onset path, producing ctrl=$40 (gate off) where orig
+  --       had ctrl=$41 (gate still on, drum guard fails because
+  --       \$C631=0). See docs/hubbard_chimera_disassembly.s \$C4CE.
   cb := cb.emitLdaAbsX "v_dur"
   cb := cb.emitInst (I.cmp_imm 0)
   cb := cb.emitBranch .BNE "effects_start"          -- not equal → skip gate-off
-  -- Skip HR if current note has no_release flag set: gate stays on into the
-  -- next note so the SID envelope doesn't retrigger across the boundary
-  -- (Hubbard portamento/legato semantics).
   cb := cb.emitLdaAbsX "v_no_release"
   cb := cb.emitBranch .BNE "effects_start"
+  -- Skip universal gate-off when instrument has drum bit 0 — drum block
+  -- handles gate-off when v_fhi and \$C631 are both non-zero, and skips
+  -- when either is zero, leaving the gate untouched (matching orig).
+  cb := cb.emitLdaAbsX "v_inst"
+  cb := cb.emitInst I.tay
+  cb := cb.emitInst ⟨.LDA, .absY 0⟩                 -- i_bit0[inst]
+  cb := { cb with absFixups :=
+    { byteIdx := cb.bytes.size - 2, targetLabel := "i_bit0" } :: cb.absFixups }
+  cb := cb.emitBranch .BNE "effects_start"          -- has drum bit 0 → skip universal HR
   -- Gate off + zero ADSR
   cb := cb.emitLdaAbsX "v_sidoff"
   cb := cb.emitInst I.tay
