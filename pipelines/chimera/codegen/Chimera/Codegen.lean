@@ -376,17 +376,22 @@ def emitInitSidSilence (cb : CodeBuilder) : CodeBuilder :=
   let cb := cb.emitInst (I.sta_abs (SID_BASE + 0x18)) -- Vol=$0F
   cb
 
-/-- Voice-state init: zero v_dur/olpos/wptr/pattlo/patthi for all three
-    voices via an asm-level loop on X. Forces note-load on first play. -/
+/-- Voice-state init: zero v_olpos/wptr/pattlo/patthi for all three voices,
+    set v_dur to 2 (= Chimera tempo - 1). Chimera's engine has a sub-frame
+    tick gate ($C652/$C653 in the original) that defers note-load by
+    (tempo) frames; setting v_dur=2 here makes the first DEC chain
+    produce 2 sustain frames followed by note_load on frame 3. Matches
+    the original's "no instrument load on frames 0-1" writelog signature. -/
 def emitInitVoiceState (cb : CodeBuilder) : CodeBuilder :=
   let cb := cb.emitInst (I.ldx_imm 0x02)
   let cb := cb.label "init_loop"
   let cb := cb.emitInst (I.lda_imm 0x00)
-  let cb := cb.emitStaAbsX "v_dur"
   let cb := cb.emitStaAbsX "v_olpos"
   let cb := cb.emitStaAbsX "v_wptr"
   let cb := cb.emitStaAbsX "v_pattlo"
   let cb := cb.emitStaAbsX "v_patthi"
+  let cb := cb.emitInst (I.lda_imm 0x02)
+  let cb := cb.emitStaAbsX "v_dur"
   let cb := cb.emitInst I.dex
   let cb := cb.emitBranch .BPL "init_loop"
   cb
@@ -1219,7 +1224,12 @@ def emitSustainEffects (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.r
   cb := cb.emitLdaAbsX "v_fhi"
   cb := cb.emitBranch .BEQ "no_sky"               -- v_fhi == 0: skip
   cb := cb.emitInst (I.sta_zp 0xF8)               -- save OLD v_fhi
-  cb := cb.emitDecAbsX "v_fhi"                     -- v_fhi -= 1
+  -- Chimera's $C526 does INC v_fhi (not DEC as in Monty's clone). The SID
+  -- write uses the OLD value (preserved in $F8 from before the INC),
+  -- while in-memory v_fhi rises by 1 each fire — net effect: freq_hi
+  -- climbs by 1 every other frame. See docs/hubbard_chimera_disassembly.s
+  -- $C50A-$C52F.
+  cb := cb.emitIncAbsX "v_fhi"                     -- v_fhi += 1
   cb := cb.emitLdaAbsX "v_sidoff"
   cb := cb.emitInst I.tay                          -- Y = SID offset
   cb := cb.emitInst (I.lda_zp 0xF8)               -- reload OLD
