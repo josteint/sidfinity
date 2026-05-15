@@ -25,6 +25,17 @@ def SID_V_SR      : UInt16 := 6
 /-- Frame counter, zero page. -/
 def ZP_FRAME_CTR  : UInt8  := 0x50
 
+/-- Tick divider: counter byte (decremented each frame; reloaded to
+    `framesPerTick - 1` when it goes negative). Only used when
+    `engineQuirks.framesPerTick > 0`. -/
+def ZP_TICK_CTR   : UInt8  := 0x52
+
+/-- Tick divider: "is this frame a tick frame?" flag. Set to $80 by
+    play header on tick frames, $00 on non-tick frames. exec_voice
+    reads this to decide whether to DEC v_dur (tick frames) or skip
+    straight to effects (non-tick frames). -/
+def ZP_TICK_ACTIVE : UInt8  := 0x53
+
 /-- Hard-restart threshold. ActionBiker uses 1 (vs Commando's 2) because ActionBiker
     fires HR exactly 2 frames before note-load, where Commando fires 3.
     The difference is engine-internal timing of when `v_dur` is decremented

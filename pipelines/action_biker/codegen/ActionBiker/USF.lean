@@ -276,6 +276,14 @@ structure USFEngineQuirks where
   -- starting from frame 1, so it needs initialDur=1 for frame-aligned
   -- output. See docs/hubbard_action_biker_disassembly.s ($C040 gate).
   initialDur         : UInt8                    := 0
+  -- Frames per tick. 0 = no tick divider (current default; v_dur
+  -- decrements every frame). >0 = a tick counter gates DEC v_dur,
+  -- note-load and HR to every Nth frame. Effects (vibrato, PW, etc.)
+  -- still run every frame. Pattern data's durationFrames is interpreted
+  -- as durationTicks when this is set. Action Biker uses 3 (every 3rd
+  -- frame is a tick; matches the $C3E7 / $C3E8 = $02 reload pattern in
+  -- docs/hubbard_action_biker_disassembly.s).
+  framesPerTick      : UInt8                    := 0
   deriving Repr
 
 -- ==========================================================================

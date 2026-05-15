@@ -404,6 +404,25 @@ def emitInitVoiceState (cb : CodeBuilder) (song : USFSong) : CodeBuilder :=
   let cb := cb.emitBranch .BPL "init_loop"
   cb
 
+/-- Tick divider init. When `framesPerTick > 0`, set the tick counter
+    to (framesPerTick - 1) so the first DEC produces a wrap on the
+    appropriate frame. Default initial value matches Hubbard's binary
+    state of $C3E7 = 1 for framesPerTick=3 (DEC on frame 0 produces 0
+    → not negative → effects only; DEC on frame 1 produces $FF → wrap
+    → tick fires, first note loads). -/
+def emitInitTickDivider (cb : CodeBuilder) (song : USFSong) : CodeBuilder :=
+  let fpt := song.engineQuirks.framesPerTick
+  if fpt == 0 then cb
+  else
+    -- Initial tick counter = framesPerTick - 2 so first wrap is on frame 1.
+    -- (For fpt=3: init=1; frame 0 DEC=0, frame 1 DEC=$FF→wrap.)
+    let initVal : UInt8 := if fpt >= 2 then fpt - 2 else 0
+    let cb := cb.emitInst (I.lda_imm initVal)
+    let cb := cb.emitInst (I.sta_zp ZP_TICK_CTR)
+    let cb := cb.emitInst (I.lda_imm 0)
+    let cb := cb.emitInst (I.sta_zp ZP_TICK_ACTIVE)
+    cb
+
 /-- Frame counter to $FF (first INC → 0, matches Hubbard) and RTS back
     to PSID. -/
 def emitInitFrameCounter (cb : CodeBuilder) : CodeBuilder :=
@@ -418,17 +437,37 @@ def emitInit (cb : CodeBuilder) (song : USFSong) : CodeBuilder :=
   let cb := emitInitSubtuneCopy cb
   let cb := emitInitSidSilence cb
   let cb := emitInitVoiceState cb song
+  let cb := emitInitTickDivider cb song
   let cb := emitInitFrameCounter cb
   cb
 
 -- emitPlay sub-blocks. Same plain-let / no-Id-monad style as emitInit
 -- so the per-block preservation proofs in PropertiesV3 stay tractable.
 
-/-- Header: label "play" + INC the global frame counter at $50. -/
-def emitPlayHeader (cb : CodeBuilder) : CodeBuilder :=
+/-- Header: label "play" + INC the global frame counter at $50.
+    When `framesPerTick > 0`, also runs the tick divider: DEC the tick
+    counter, set tick_active = $80 if it just wrapped (and reload),
+    else $00. exec_voice reads tick_active to decide whether to DEC
+    v_dur (ticks) or skip directly to effects. -/
+def emitPlayHeader (cb : CodeBuilder) (song : USFSong) : CodeBuilder :=
   let cb := cb.label "play"
   let cb := cb.emitInst (I.inc_zp 0x50)
-  cb
+  let fpt := song.engineQuirks.framesPerTick
+  if fpt == 0 then cb
+  else
+    let cb := cb.emitInst (I.dec_zp ZP_TICK_CTR)
+    let cb := cb.emitBranch .BPL "tick_divider_inactive"
+    -- wrapped: reload counter, set active flag
+    let cb := cb.emitInst (I.lda_imm (fpt - 1))
+    let cb := cb.emitInst (I.sta_zp ZP_TICK_CTR)
+    let cb := cb.emitInst (I.lda_imm 0x80)
+    let cb := cb.emitInst (I.sta_zp ZP_TICK_ACTIVE)
+    let cb := cb.emitJmpLabel .JMP "tick_divider_done"
+    let cb := cb.label "tick_divider_inactive"
+    let cb := cb.emitInst (I.lda_imm 0)
+    let cb := cb.emitInst (I.sta_zp ZP_TICK_ACTIVE)
+    let cb := cb.label "tick_divider_done"
+    cb
 
 /-- Per-voice step inside the loop: apply per-voice dynamic-freq updates,
     load X with the voice index, then JSR (or tail-JMP for the last
@@ -457,7 +496,7 @@ def emitPlayVoiceLoop (cb : CodeBuilder) (song : USFSong) : CodeBuilder :=
   indices.foldl (emitPlayVoiceStep song) cb
 
 def emitPlay (cb : CodeBuilder) (song : USFSong) : CodeBuilder :=
-  let cb := emitPlayHeader cb
+  let cb := emitPlayHeader cb song
   let cb := emitDynamicUpdatesForPhase cb
               song.engineQuirks.dynamicFreqEntries .atFrameStart
   let cb := emitPlayVoiceLoop cb song
@@ -575,7 +614,12 @@ def emitNL_PostAdvanceOps (cb : CodeBuilder) (song : USFSong) : CodeBuilder :=
   emitNoteLoadOps cb postOps
 
 /-- Save raw duration field for the freq-slide guard, then compute
-    (durationFrames - 1) and store as v_dur (DEC-first model). -/
+    v_dur = duration - 1 (the DEC-first model: counter loads D-1 and
+    decrements through 0 to $FF, with $FF triggering note_load). For
+    the frame model, "duration" is durationFrames. For the tick model
+    (`framesPerTick > 0`), it's durationTicks; the v_dur DEC is gated
+    by the tick divider so the effective decrement rate is 1 per tick
+    rather than 1 per frame. -/
 def emitNL_DurField (cb : CodeBuilder) : CodeBuilder :=
   let cb := cb.emitInst (I.lda_zp 0xFF)
   let cb := cb.emitStaAbsX "v_durfield"
@@ -802,6 +846,17 @@ def emitExecVoice (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.run do
   let mut cb := cb.label "exec_voice"
   -- X = voice index (0/1/2) on entry, preserved throughout
 
+  -- Tick divider gate (only when framesPerTick > 0). On non-tick
+  -- frames, skip DEC v_dur and HR check; jump straight to effects
+  -- (vibrato/PW still run every frame).
+  if song.engineQuirks.framesPerTick != 0 then
+    cb := cb.emitInst (I.lda_zp ZP_TICK_ACTIVE)
+    cb := cb.emitBranch .BNE "tick_active_path"
+    -- non-tick frame: save voice idx, jump to effects
+    cb := cb.emitInst (I.stx_zp 0xFA)
+    cb := cb.emitJmpLabel .JMP "effects_start"
+    cb := cb.label "tick_active_path"
+
   -- DEC v_dur[X] — if negative, load new note (far branch)
   cb := cb.emitDecAbsX "v_dur"
   cb := cb.emitBranch .BPL "sustain"              -- not expired → sustain
@@ -819,7 +874,10 @@ def emitExecVoice (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.run do
   -- difference is engine timing (`speed`/tempo bookkeeping shifts when v_dur
   -- crosses each value).
   cb := cb.emitLdaAbsX "v_dur"
-  cb := cb.emitInst (I.cmp_imm 1)
+  -- Tick model fires HR when post-DEC v_dur == 0 (matches original's
+  -- $C145: BNE skip-HR). Frame model fires at v_dur == 1 (one frame
+  -- earlier to compensate for the tempo bookkeeping shift).
+  cb := cb.emitInst (I.cmp_imm (if song.engineQuirks.framesPerTick != 0 then 0 else 1))
   cb := cb.emitBranch .BNE "effects_start"          -- not equal → skip gate-off
   -- Skip HR if current note has no_release flag set: gate stays on into the
   -- next note so the SID envelope doesn't retrigger across the boundary
@@ -1145,23 +1203,25 @@ def emitSustainEffects (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.r
   -- Guard: skip slide entirely once we are at/past the gate-off frame.
   -- das_model uses `cmp #4 / bcc skip` on its dur*3 countdown; ours is
   -- (dur-1) so the equivalent threshold is v_dur < 3 (gate-off fires at
-  -- v_dur == 2). This matches Hubbard's behavior of leaving the voice
-  -- alone once release starts.
+  -- v_dur == 2). In tick mode the units are ticks, not frames, so we
+  -- need a tighter threshold (v_dur < 1 = skip on the last tick only).
+  let dur_guard : UInt8 := if song.engineQuirks.framesPerTick != 0 then 1 else 3
   cb := cb.emitLdaAbsX "v_dur"
-  cb := cb.emitInst (I.cmp_imm 3)
+  cb := cb.emitInst (I.cmp_imm dur_guard)
   cb := cb.emitBranch .BCS "dur_ok"
   cb := cb.emitJmpLabel .JMP "no_slide"
   cb := cb.label "dur_ok"
 
-  -- Check note age: (dur_field - 1) * tempo vs countdown
-  -- Hubbard countdown is in ticks; ours is in frames. Multiply threshold by tempo.
+  -- Check note age: (dur_field - 1) * tempo vs countdown.
+  -- Frame mode: v_durfield in FRAMES; threshold = durationFrames - 4
+  --   (= durationFrames - tempo - 1 ≈ "release-period start in frames").
+  -- Tick mode: v_durfield in TICKS; threshold = durationTicks - 2
+  --   (≈ "last 2 ticks of note"); guards path A onset to match Hubbard's
+  --   freqSlide.startDelay roughly.
+  let slide_age_offset : UInt8 := if song.engineQuirks.framesPerTick != 0 then 2 else 4
   cb := cb.emitInst I.sec
-  -- USF v3: v_durfield is in FRAMES. Hubbard guard "dur_ticks - 1 < countdown_frames"
-  -- equates to: skip until countdown <= (dur_ticks - 1)*tempo = (durationFrames/tempo - 1)*tempo
-  -- For Commando tempo=3: skip until countdown <= durationFrames - tempo = durationFrames - 3.
-  -- So compare (durationFrames - tempo) with countdown.
   cb := cb.emitLdaAbsX "v_durfield"
-  cb := cb.emitInst (I.sbc_imm 4)                 -- A = durationFrames - 4 (empirically tuned for Hubbard)
+  cb := cb.emitInst (I.sbc_imm slide_age_offset)
   cb := cb.emitInst ⟨.CMP, .absX 0⟩               -- cmp countdown
   cb := { cb with absFixups :=
     { byteIdx := cb.bytes.size - 2, targetLabel := "v_dur" } :: cb.absFixups }

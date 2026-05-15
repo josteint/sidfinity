@@ -136,17 +136,17 @@ def gen_note(note: Note, tempo: int) -> str:
     # runtime for hub_off counter (+1 for bit6 legato, +2 for bit7 tie, +3
     # for full new note). The actual instrument index is bits 0-5.
     # Pattern byte stores the RAW value; codegen masks for table indexing.
-    # no_release is encoded in bit 7 of drum_trig (das_model_gen.py:197).
-    # Hubbard's no_release flag suppresses HR at the end of THIS note; the
-    # next note inherits the still-on gate so the SID envelope doesn't
-    # retrigger across the boundary. We piggyback the flag on bit 5 of the
-    # raw instrument byte (bits 0-3 are the index, 6/7 are the legato/tie
-    # flags). Codegen masks it out for table lookup and uses it to skip HR.
     no_release = bool(note.drum_trig & 0x80)
     inst = (inst_raw & 0xFF) | (0x20 if no_release else 0)
     tie = note.tie
-    # Frame count = dur * tempo (frames per tick). Tempo varies per subtune
-    # in Hubbard games — comes from speed_table[subtune]+1.
+    # Frame count = dur * tempo (frames per tick). The codegen for this
+    # pipeline uses the frame model (framesPerTick = 0) — pattern data
+    # stores pre-multiplied frames and v_dur decrements every frame.
+    # The tick divider mechanism exists in codegen (framesPerTick > 0)
+    # but the effect-chain guards (vibrato onset, freq-slide age, PWM
+    # period) are tuned for frame units, so tick mode currently grades
+    # worse for Action Biker. See git history for the tick-mode
+    # experiment (commit graph around the Action Biker fix series).
     frames = dur * tempo
     # Portamento byte: drum_trig has porta speed << 1 in bits 1-6 and
     # direction in bit 0; bit 7 was the no_release flag (extracted above).
@@ -315,6 +315,7 @@ def main(argv: list[str] | None = None) -> None:
     quirks = """{
     preserveNoteFlags := true
     initialDur := 1
+    framesPerTick := 0
     voiceScratch := [
       { name := "hub_off", initial := ⟨0, by omega⟩ },
       { name := "seq_idx", initial := ⟨0, by omega⟩ }
