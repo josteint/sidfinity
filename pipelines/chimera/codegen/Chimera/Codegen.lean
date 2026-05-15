@@ -1032,6 +1032,13 @@ def emitSustainEffects (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.r
   cb := cb.emitJmpLabel .JMP "pw_bidir"
   cb := cb.label "pw_linear"
 
+  -- (Linear PW dirty-C quirk note: orig's \$C40F ADC inherits C from
+  -- \$C3D3 CMP #\$08 OR the vibrato accumulation's final ADC, depending
+  -- on whether the vibrato phase had iterations to accumulate. Pattern:
+  -- phase=0 → skip accumulation → C=1; phase != 0 → C=0. We've left
+  -- this unmodeled. Net effect: V3 PW_lo is off by ±1 every other
+  -- frame. Inaudible — see hubbard_chimera_disassembly.s \$C3D3..\$C402.)
+
   -- PW state is per-INSTRUMENT (mutable i_pwlo/i_pwhi/i_pwdir tables),
   -- not per-voice. das_model: when a voice retriggers a previously-used
   -- instrument (e.g. V3 cycles inst 2 -> 3 -> 2), the PW counter resumes
