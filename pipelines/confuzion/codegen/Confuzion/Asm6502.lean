@@ -92,6 +92,9 @@ def opcode (m : Mnemonic) (mode : AddrMode) : Option UInt8 :=
   -- AND
   | .AND, .imm _   => some 0x29
   | .AND, .zp _    => some 0x25
+  | .AND, .abs _   => some 0x2D
+  | .AND, .absX _  => some 0x3D
+  | .AND, .absY _  => some 0x39
   -- ORA
   | .ORA, .imm _   => some 0x09
   | .ORA, .zp _    => some 0x05
@@ -100,6 +103,7 @@ def opcode (m : Mnemonic) (mode : AddrMode) : Option UInt8 :=
   -- CMP
   | .CMP, .imm _   => some 0xC9
   | .CMP, .zp _    => some 0xC5
+  | .CMP, .abs _   => some 0xCD
   | .CMP, .absX _  => some 0xDD
   | .CMP, .absY _  => some 0xD9
   -- CPX
@@ -110,9 +114,11 @@ def opcode (m : Mnemonic) (mode : AddrMode) : Option UInt8 :=
   | .INC, .zp _    => some 0xE6
   | .INC, .zpX _   => some 0xF6
   | .INC, .abs _   => some 0xEE
+  | .INC, .absX _  => some 0xFE
   | .DEC, .zp _    => some 0xC6
   | .DEC, .zpX _   => some 0xD6
   | .DEC, .abs _   => some 0xCE
+  | .DEC, .absX _  => some 0xDE
   -- INX/DEX/INY/DEY
   | .INX, .impl    => some 0xE8
   | .DEX, .impl    => some 0xCA
@@ -139,6 +145,7 @@ def opcode (m : Mnemonic) (mode : AddrMode) : Option UInt8 :=
   | .BVS, .rel _   => some 0x70
   -- JMP/JSR/RTS
   | .JMP, .abs _   => some 0x4C
+  | .JMP, .ind _   => some 0x6C
   | .JSR, .abs _   => some 0x20
   | .RTS, .impl    => some 0x60
   | .RTI, .impl    => some 0x40
@@ -247,6 +254,17 @@ def ldy_zp (addr : UInt8) : Instruction := ⟨.LDY, .zp addr⟩
 def eor_imm (v : UInt8) : Instruction := ⟨.EOR, .imm v⟩
 def asl_a : Instruction := ⟨.ASL, .acc⟩
 def lsr_a : Instruction := ⟨.LSR, .acc⟩
+def bit_abs (addr : UInt16) : Instruction := ⟨.BIT, .abs addr⟩
+def bit_zp (addr : UInt8) : Instruction := ⟨.BIT, .zp addr⟩
+def cmp_zp (addr : UInt8) : Instruction := ⟨.CMP, .zp addr⟩
+def cmp_abs (addr : UInt16) : Instruction := ⟨.CMP, .abs addr⟩
+def lda_indY (zpAddr : UInt8) : Instruction := ⟨.LDA, .indY zpAddr⟩
+def sta_indY (zpAddr : UInt8) : Instruction := ⟨.STA, .indY zpAddr⟩
+def inc_abs (addr : UInt16) : Instruction := ⟨.INC, .abs addr⟩
+def dec_abs (addr : UInt16) : Instruction := ⟨.DEC, .abs addr⟩
+def inc_absX (addr : UInt16) : Instruction := ⟨.INC, .absX addr⟩
+def dec_absX (addr : UInt16) : Instruction := ⟨.DEC, .absX addr⟩
+def jmp_ind (addr : UInt16) : Instruction := ⟨.JMP, .ind addr⟩
 end I
 
 -- Raw byte emission (for inline data)

@@ -35,6 +35,8 @@ import Confuzion.PSIDFile
 import Confuzion.USF
 import Confuzion.Constants
 
+set_option maxRecDepth 4096
+
 namespace ConfuzionNS
 
 -- ==========================================================================
@@ -70,7 +72,11 @@ def emit (cb : CodeBuilder) (bs : Bytes) : CodeBuilder :=
 def emitInst (cb : CodeBuilder) (inst : Instruction) : CodeBuilder :=
   match assembleInst inst with
   | some bs => cb.emit bs
-  | none    => cb
+  | none    =>
+    -- Emit a 3-byte $FF $FF $FF marker so the failure is visible in any
+    -- disassembly AND keeps subsequent addAbsFixup byteIdx arithmetic stable.
+    -- (Silent failure here cost real debug time once already.)
+    cb.emit #[0xFF, 0xFF, 0xFF]
 
 def label (cb : CodeBuilder) (name : String) : CodeBuilder :=
   { cb with labels := (name, cb.currentAddr) :: cb.labels }
@@ -117,7 +123,13 @@ def emitIncAbsX (cb : CodeBuilder) (target : String) : CodeBuilder :=
   let fixup : AbsFixup := { byteIdx := cb.bytes.size + 1, targetLabel := target }
   { cb with bytes := cb.bytes ++ #[0xFE, 0, 0], absFixups := fixup :: cb.absFixups }
 
--- Resolve all fixups
+-- Resolve all fixups.
+--
+-- Out-of-range relative branches are clamped to $7F (positive overflow) /
+-- $80 (negative overflow). Both are unmistakable in disassembly — and we
+-- emit a marker $EA $EA into the bytes BEFORE the BPL/BNE/etc so any test
+-- that reaches the instruction crashes loudly. Cheaper to crash than to
+-- chase silent ±127 wraparound bugs.
 def resolve (cb : CodeBuilder) : CodeBuilder := Id.run do
   let mut bytes := cb.bytes
   for f in cb.fixups do
@@ -126,8 +138,15 @@ def resolve (cb : CodeBuilder) : CodeBuilder := Id.run do
       if f.isRelative then
         let target : Int := targetAddr.toNat
         let source : Int := f.instrAddr.toNat + 2
-        let offset := ((target - source) % 256).toNat.toUInt8
-        bytes := bytes.set! f.byteIdx offset
+        let delta : Int := target - source
+        if delta < -128 ∨ delta > 127 then
+          -- Out of range. Stuff a $00 (BRK) at the operand so an emulator
+          -- that ever reaches this point halts; this is much louder than
+          -- silent wraparound.
+          bytes := bytes.set! f.byteIdx 0x00
+        else
+          let offset := ((delta % 256).toNat).toUInt8
+          bytes := bytes.set! f.byteIdx offset
       else
         bytes := bytes.set! f.byteIdx targetAddr.toUInt8
         bytes := bytes.set! (f.byteIdx + 1) (targetAddr >>> 8).toUInt8
@@ -1322,39 +1341,45 @@ end  -- mutual
 
 
 def generateSID (song : USFSong) (debug : Bool := false) : Bytes := Id.run do
-  -- Confuzion player codegen, written as a true USF pipeline (no hardcoded
-  -- binary-layout literals from the original SID).
+  -- Confuzion player codegen (true USF pipeline; no hardcoded layout).
   --
-  -- Design:
-  --   - baseAddr = $1000 (clean, not the original $0858).
-  --   - $1000 JMP init, $1003 JMP play (PSID entry-point trampoline).
-  --   - Engine code emitted via Asm6502.lean instructions; labels resolved
-  --     at the end by `cb.resolve`.
-  --   - All addresses (state-array bases, table starts, orderlist/pattern
-  --     placement) derived from cumulative emit positions — none hardcoded.
-  --   - USFSong drives content (freqTable, instruments, subtunes, patterns).
+  --   baseAddr     = $1000
+  --   $1000        JMP init
+  --   $1003        JMP play
+  --   init         zero voice state, silence SID, $D418 = $0F, RTS
+  --   play         frame_counter++, tick_counter--, per-voice loop
+  --                with note-load gate, note-load path. Effects (vibrato +
+  --                PWM) and sustain-HR are STUBS in this commit — to be
+  --                filled in.
   --
-  -- This is the SKELETON. init = silence SID + RTS; play = RTS. Subsequent
-  -- commits build out the per-voice loop, note-load, effects.
+  --   ZP scratch:  $F8 voice_idx_save, $F9 voice_sid_base_cur,
+  --                $FB:$FC orderlist pointer, $FD:$FE pattern pointer
+  --
+  --   Data tables (column-major):
+  --     freq_lo / freq_hi  (96 entries each)
+  --     inst_pulse_lo / inst_pulse_hi / inst_ctrl / inst_ad / inst_sr /
+  --       inst_vib / inst_pwm / inst_fx_flags  (N entries each)
+  --     orderlist_lo_table / orderlist_hi_table  (3 entries each)
+  --     pattern_lo_table / pattern_hi_table  (N entries each)
+  --   followed by per-voice orderlist data + per-pattern row bytes.
   let _ := debug
   let baseAddr : UInt16 := 0x1000
   let mut cb : CodeBuilder := { baseAddr }
 
   -- ============================================================
-  -- $1000: PSID entry-point trampoline
+  -- $1000: PSID trampoline
   -- ============================================================
   cb := cb.emitJmpLabel .JMP "init"
   cb := cb.emitJmpLabel .JMP "play"
 
   -- ============================================================
-  -- init: zero voice state, prime tick counter from song.tempo,
-  --       set song_running=$FF, silence SID, RTS.
+  -- init
   -- ============================================================
   let tempo : UInt8 := match song.subtunes with
     | s :: _ => (s.tempo.min 255).toUInt8
     | []     => 3
   cb := cb.label "init"
-  -- Zero per-voice state arrays for X = 2, 1, 0.
+  -- Zero per-voice state.
   cb := cb.emitInst (I.ldx_imm 0x02)
   cb := cb.emitInst (I.lda_imm 0x00)
   cb := cb.label "init_zero_loop"
@@ -1379,7 +1404,7 @@ def generateSID (song : USFSong) (debug : Bool := false) : Bytes := Id.run do
   cb := cb.emitInst (I.lda_imm 0x00)
   cb := cb.emitStaAbs "frame_counter"
   cb := cb.emitStaAbs "vol_offset"
-  -- Silence SID: write 0 to $D400-$D417, then $0F to $D418 (master vol).
+  -- Silence SID ($D400-$D417 ← 0), set master vol ($D418 ← $0F).
   cb := cb.emitInst (I.ldx_imm 0x17)
   cb := cb.label "init_silence_loop"
   cb := cb.emitInst (I.sta_absX 0xD400)
@@ -1390,33 +1415,179 @@ def generateSID (song : USFSong) (debug : Bool := false) : Bytes := Id.run do
   cb := cb.emitInst I.rts
 
   -- ============================================================
-  -- play: stub (RTS). Subsequent commits will add the per-voice
-  --       loop, note-load, effects.
+  -- play
   -- ============================================================
   cb := cb.label "play"
+  -- Bump global frame counter (used by vibrato LFO later).
+  cb := cb.emitInst (I.inc_abs 0) ; cb := cb.addAbsFixup "frame_counter"
+  -- Check song_running. If zero, song ended → just RTS.
+  cb := cb.emitLdaAbs "song_running"
+  cb := cb.emitBranch .BNE "play_running"
+  cb := cb.emitInst I.rts
+  cb := cb.label "play_running"
+  -- Tick: DEC tick_counter; if went negative, reload from tick_reload.
+  cb := cb.emitInst (I.dec_abs 0) ; cb := cb.addAbsFixup "tick_counter"
+  cb := cb.emitBranch .BPL "no_tick_reload"
+  cb := cb.emitLdaAbs "tick_reload"
+  cb := cb.emitStaAbs "tick_counter"
+  cb := cb.label "no_tick_reload"
+  -- Per-voice loop: X = 2 (V3) down to 0 (V1).
+  cb := cb.emitInst (I.ldx_imm 0x02)
+  cb := cb.label "voice_loop"
+  -- $F9 = voice SID base offset for this voice.
+  cb := cb.emitLdaAbsX "voice_sid_base"
+  cb := cb.emitInst (I.sta_zp 0xF9)
+  -- Note-load gate: only on the tick frame (just reloaded).
+  -- (Branch range hop: BNE/BPL can't reach the far "no_note_load" label
+  -- ~200 bytes ahead, so use invert-and-JMP.)
+  cb := cb.emitLdaAbs "tick_counter"
+  cb := cb.emitInst (I.cmp_abs 0) ; cb := cb.addAbsFixup "tick_reload"
+  cb := cb.emitBranch .BEQ "on_tick_frame"
+  cb := cb.emitJmpLabel .JMP "no_note_load"
+  cb := cb.label "on_tick_frame"
+  -- Tick frame: load orderlist pointer for this voice.
+  cb := cb.emitLdaAbsX "orderlist_lo_table"
+  cb := cb.emitInst (I.sta_zp 0xFB)
+  cb := cb.emitLdaAbsX "orderlist_hi_table"
+  cb := cb.emitInst (I.sta_zp 0xFC)
+  -- DEC v_dur,X; if still ≥0, skip note load (effects-only).
+  cb := cb.emitDecAbsX "v_dur"
+  cb := cb.emitBranch .BMI "load_new_note"
+  cb := cb.emitJmpLabel .JMP "no_note_load"
+  -- Duration ended → load new note.
+  cb := cb.label "load_new_note"
+  cb := cb.emitLdaAbsX "v_olpos"
+  cb := cb.emitInst I.tay
+  cb := cb.emitInst (I.lda_indY 0xFB)        -- pattern number (or $FF)
+  cb := cb.emitInst (I.cmp_imm 0xFF)
+  cb := cb.emitBranch .BNE "got_pattern"
+  cb := cb.emitJmpLabel .JMP "song_end_mute"
+  cb := cb.label "got_pattern"
+  cb := cb.emitInst I.tay
+  cb := cb.emitLdaAbsY "pattern_lo_table"
+  cb := cb.emitInst (I.sta_zp 0xFD)
+  cb := cb.emitLdaAbsY "pattern_hi_table"
+  cb := cb.emitInst (I.sta_zp 0xFE)
+  cb := cb.emitLdaAbsX "v_patpos"
+  cb := cb.emitInst I.tay
+  cb := cb.emitInst (I.lda_indY 0xFD)        -- cmd byte
+  cb := cb.emitStaAbsX "v_cmd"
+  cb := cb.emitInst (I.and_imm 0x1F)
+  cb := cb.emitStaAbsX "v_dur"
+  -- Default gate mask = $FF (preserve all bits); tie path will flip to $FE.
+  cb := cb.emitInst (I.lda_imm 0xFF)
+  cb := cb.emitStaAbs "gate_mask"
+  -- Save voice_idx to $F8 (we'll clobber X to index instrument records).
+  cb := cb.emitInst (I.stx_zp 0xF8)
+  -- Test bit 6 (tie).
+  cb := cb.emitLdaAbsX "v_cmd"
+  cb := cb.emitInst (I.and_imm 0x40)
+  cb := cb.emitBranch .BNE "tie_path"
+  -- Not tied: advance past cmd byte.
+  cb := cb.emitIncAbsX "v_patpos"
+  cb := cb.emitInst I.iny                    -- pattern offset: Y was v_patpos (old); now points to next byte
+  cb := cb.emitLdaAbsX "v_cmd"
+  cb := cb.emitBranch .BPL "no_new_inst"
+  -- Bit 7 set: new instrument byte follows.
+  cb := cb.emitInst (I.lda_indY 0xFD)
+  cb := cb.emitInst (I.and_imm 0x1F)
+  cb := cb.emitStaAbsX "v_inst"
+  cb := cb.emitIncAbsX "v_patpos"
+  cb := cb.emitInst I.iny
+  cb := cb.label "no_new_inst"
+  -- Read pitch byte.
+  cb := cb.emitInst (I.lda_indY 0xFD)
+  cb := cb.emitStaAbsX "v_pitch"
+  cb := cb.emitIncAbsX "v_patpos"
+  -- Write freq to SID. A = pitch.
+  cb := cb.emitInst I.tay                    -- Y = pitch (freq table index)
+  cb := cb.emitLdaAbsY "freq_lo"
+  cb := cb.emitInst I.pha                    -- save freq_lo on stack
+  cb := cb.emitLdaAbsY "freq_hi"
+  cb := cb.emitInst (I.ldy_zp 0xF9)          -- Y = voice_sid_base
+  cb := cb.emitInst (I.sta_absY 0xD401)      -- freq_hi → SID
+  cb := cb.emitStaAbsX "v_fhi"               -- backup freq_hi
+  cb := cb.emitInst I.pla                    -- recover freq_lo
+  cb := cb.emitInst (I.sta_absY 0xD400)      -- freq_lo → SID
+  cb := cb.emitJmpLabel .JMP "write_inst"
+  -- Tie path: gate_mask = $FE; advance past cmd byte only (no inst, no pitch).
+  cb := cb.label "tie_path"
+  cb := cb.emitInst (I.dec_abs 0) ; cb := cb.addAbsFixup "gate_mask"
+  cb := cb.emitIncAbsX "v_patpos"
+  cb := cb.label "write_inst"
+  -- Write instrument's ctrl/AD/SR/pulse to SID. v_inst,X = inst index (0..11).
+  -- Save voice_idx (already in $F8). X ← v_inst,X for column-major access.
+  cb := cb.emitLdaAbsX "v_inst"
+  cb := cb.emitInst I.tax                    -- X = inst index
+  cb := cb.emitInst (I.ldy_zp 0xF9)          -- Y = voice_sid_base
+  cb := cb.emitLdaAbsX "inst_ctrl"
+  cb := cb.emitInst (I.sta_zp 0xFA)          -- temp save raw ctrl
+  cb := cb.emitInst (⟨.AND, .abs 0⟩) ; cb := cb.addAbsFixup "gate_mask"
+  cb := cb.emitInst (I.sta_absY 0xD404)      -- ctrl → SID
+  cb := cb.emitLdaAbsX "inst_pulse_lo"
+  cb := cb.emitInst (I.sta_absY 0xD402)
+  cb := cb.emitLdaAbsX "inst_pulse_hi"
+  cb := cb.emitInst (I.sta_absY 0xD403)
+  cb := cb.emitLdaAbsX "inst_ad"
+  cb := cb.emitInst (I.sta_absY 0xD405)
+  cb := cb.emitLdaAbsX "inst_sr"
+  cb := cb.emitInst (I.sta_absY 0xD406)
+  -- Restore voice_idx → X.
+  cb := cb.emitInst (I.ldx_zp 0xF8)
+  cb := cb.emitInst (I.lda_zp 0xFA)
+  cb := cb.emitStaAbsX "v_ctrl_stored"
+  -- End-of-pattern check: if next byte at v_patpos is $FF, wrap.
+  cb := cb.emitLdaAbsX "v_patpos"
+  cb := cb.emitInst I.tay
+  cb := cb.emitInst (I.lda_indY 0xFD)
+  cb := cb.emitInst (I.cmp_imm 0xFF)
+  cb := cb.emitBranch .BNE "no_pattern_wrap"
+  cb := cb.emitInst (I.lda_imm 0x00)
+  cb := cb.emitStaAbsX "v_patpos"
+  cb := cb.emitIncAbsX "v_olpos"
+  cb := cb.label "no_pattern_wrap"
+  cb := cb.emitJmpLabel .JMP "next_voice"
+
+  -- ----- sustain / no-note-load path (STUB) -----
+  cb := cb.label "no_note_load"
+  -- TODO: HR gate kill, vibrato, PWM. For now, just continue to next voice.
+  -- (Will be filled in by subsequent commits.)
+  cb := cb.label "next_voice"
+  cb := cb.emitInst I.dex
+  -- Branch-range hop: voice_loop is ~200 bytes back, beyond BPL's ±127. So
+  -- skip-on-done + abs-JMP to voice_loop.
+  cb := cb.emitBranch .BMI "play_done"
+  cb := cb.emitJmpLabel .JMP "voice_loop"
+  cb := cb.label "play_done"
+  cb := cb.emitInst I.rts
+
+  -- ----- song end mute -----
+  cb := cb.label "song_end_mute"
+  cb := cb.emitInst (I.lda_imm 0x00)
+  cb := cb.emitStaAbs "song_running"
+  cb := cb.emitInst (I.sta_abs 0xD418)
   cb := cb.emitInst I.rts
 
   -- ============================================================
-  -- DATA SECTION
+  -- DATA SECTION (column-major)
   -- ============================================================
-  -- Frequency table (96 entries × 2 bytes, little-endian (lo, hi)).
-  cb := cb.label "freq_table"
+  -- Frequency table — split into freq_lo[96] and freq_hi[96].
+  cb := cb.label "freq_lo"
   for _h : i in [:96] do
     match song.freqTable.entries[i]? with
-    | some (lo, hi) =>
-        cb := cb.emitByte lo.val.toUInt8
-        cb := cb.emitByte hi.val.toUInt8
-    | none =>
-        cb := cb.emitByte 0
-        cb := cb.emitByte 0
+    | some (lo, _) => cb := cb.emitByte lo.val.toUInt8
+    | none         => cb := cb.emitByte 0
+  cb := cb.label "freq_hi"
+  for _h : i in [:96] do
+    match song.freqTable.entries[i]? with
+    | some (_, hi) => cb := cb.emitByte hi.val.toUInt8
+    | none         => cb := cb.emitByte 0
 
-  -- Voice SID-base offsets (constant: $00, $07, $0E for V1/V2/V3).
+  -- Voice SID-base offsets.
   cb := cb.label "voice_sid_base"
   cb := cb.emitData [0x00, 0x07, 0x0E]
 
-  -- Per-voice state arrays (3 bytes each, zero-init at file load; init
-  -- overwrites them anyway, but we emit zeros so labels point to valid
-  -- read/write storage).
+  -- Per-voice state arrays (3 bytes each).
   cb := cb.label "v_olpos"           ; cb := cb.emitData [0, 0, 0]
   cb := cb.label "v_patpos"          ; cb := cb.emitData [0, 0, 0]
   cb := cb.label "v_dur"             ; cb := cb.emitData [0, 0, 0]
@@ -1428,14 +1599,56 @@ def generateSID (song : USFSong) (debug : Bool := false) : Bytes := Id.run do
   cb := cb.label "v_pwm_dir"         ; cb := cb.emitData [0, 0, 0]
   cb := cb.label "v_fhi"             ; cb := cb.emitData [0, 0, 0]
 
-  -- Globals (1 byte each).
+  -- Globals.
   cb := cb.label "frame_counter"  ; cb := cb.emitByte 0
   cb := cb.label "tick_counter"   ; cb := cb.emitByte 0
   cb := cb.label "tick_reload"    ; cb := cb.emitByte 0
   cb := cb.label "song_running"   ; cb := cb.emitByte 0
   cb := cb.label "vol_offset"     ; cb := cb.emitByte 0
+  cb := cb.label "gate_mask"      ; cb := cb.emitByte 0xFF
 
-  -- Encode a USFNoteEvent into Hubbard row bytes.
+  -- Instrument table (column-major). One byte per instrument per column.
+  let nInsts := song.instruments.length
+  cb := cb.label "inst_pulse_lo"
+  for inst in song.instruments do
+    cb := cb.emitByte inst.initPwLo.val.toUInt8
+  cb := cb.label "inst_pulse_hi"
+  for inst in song.instruments do
+    cb := cb.emitByte inst.initPwHi.val.toUInt8
+  cb := cb.label "inst_ctrl"
+  for inst in song.instruments do
+    cb := cb.emitByte inst.initCtrl.val.toUInt8
+  cb := cb.label "inst_ad"
+  for inst in song.instruments do
+    cb := cb.emitByte inst.ad.val.toUInt8
+  cb := cb.label "inst_sr"
+  for inst in song.instruments do
+    cb := cb.emitByte inst.sr.val.toUInt8
+  cb := cb.label "inst_vib"
+  for inst in song.instruments do
+    let vibByte : UInt8 := match inst.vibrato with
+      | some v => if v.semitoneShift = 0 then 0 else (v.semitoneShift - 1).toUInt8
+      | none => 0
+    cb := cb.emitByte vibByte
+  cb := cb.label "inst_pwm"
+  for inst in song.instruments do
+    let pwmByte : UInt8 := match inst.pwMod with
+      | some pm => match pm.mode with
+        | .linear s => s.val.toUInt8
+        | .bidirectional s _ _ => s.val.toUInt8
+        | .table _ => 0
+      | none => 0
+    cb := cb.emitByte pwmByte
+  cb := cb.label "inst_fx_flags"
+  for inst in song.instruments do
+    let fxFlags : UInt8 :=
+      (if inst.freqSlide.isSome then 1 else 0) +
+      (if inst.skydive then 2 else 0) +
+      (if inst.arpeggio.isSome then 4 else 0)
+    cb := cb.emitByte fxFlags
+  let _ := nInsts
+
+  -- USF→Hubbard row-byte encoder.
   let encodeNote (n : USFNoteEvent) (tempo : Nat) : List UInt8 :=
     let durByte : UInt8 := ((n.durationFrames / tempo - 1) &&& 0x1F).toUInt8
     let isTie : Bool := match n.kind with | .tie => true | _ => false
@@ -1453,133 +1666,88 @@ def generateSID (song : USFSong) (debug : Bool := false) : Bytes := Id.run do
         | .pitched p => [p.val.toUInt8]
         | _ => [0]
     [cmd] ++ instByte ++ pitchByte
-
   let encodePattern (p : USFPattern) (tempo : Nat) : List UInt8 :=
     (p.notes.flatMap (fun n => encodeNote n tempo)) ++ [0xFF]
-
   let encodeOrderlist (ol : List Nat) : List UInt8 :=
     (ol.map (·.toUInt8)) ++ [0xFF]
 
-  -- Subtune 0 (the only one).
+  -- Pre-compute encoded blobs so we know placement.
   let (subTempo, voices) : Nat × List USFVoice := match song.subtunes with
     | s :: _ => (s.tempo, s.voices)
     | []     => (3, [])
+  let orderlistBlobs : List (List UInt8) := voices.map (fun v => encodeOrderlist v.orderlist)
+  let patternBlobs : List (List UInt8) := song.patterns.map (fun p => encodePattern p subTempo)
 
-  -- Pre-compute orderlist + pattern bytes so we know placement addresses.
-  let orderlistBytes : List (List UInt8) := voices.map (·.orderlist) |>.map encodeOrderlist
-  let patternBytes : List (List UInt8) := song.patterns.map (fun p => encodePattern p subTempo)
-
-  -- Voice orderlist pointer pairs (lo[3] then hi[3]).
-  -- Address of orderlist i = current position + size of (orderlistPtrs +
-  -- patternLoTable + patternHiTable) + cumulative size of earlier orderlists.
-  -- We can't compute this directly; instead, emit labels and use them.
+  -- Address-table placeholders (3 lo + 3 hi for orderlists; N lo + N hi for patterns).
+  -- Will be back-patched once we've placed the actual data.
   cb := cb.label "orderlist_lo_table"
-  -- Emit 3 placeholder bytes, fixed up to point to per-voice orderlist labels.
-  for _h : i in [:3] do
-    cb := cb.emitByte 0   -- placeholder; will be patched in fixup pass
+  for _h : _ in [:3] do cb := cb.emitByte 0
   cb := cb.label "orderlist_hi_table"
-  for _h : i in [:3] do
-    cb := cb.emitByte 0
-
-  -- Pattern address tables (lo, hi), parallel to song.patterns.
+  for _h : _ in [:3] do cb := cb.emitByte 0
   cb := cb.label "pattern_lo_table"
-  for _h : i in [:song.patterns.length] do
-    cb := cb.emitByte 0
+  for _h : _ in [:song.patterns.length] do cb := cb.emitByte 0
   cb := cb.label "pattern_hi_table"
-  for _h : i in [:song.patterns.length] do
-    cb := cb.emitByte 0
+  for _h : _ in [:song.patterns.length] do cb := cb.emitByte 0
 
-  -- Emit orderlists with labels orderlist_v0, orderlist_v1, orderlist_v2.
-  -- Snapshot lo-table label position for fixup.
-  let olLoBase := cb.lookupLabel "orderlist_lo_table"
-  let olHiBase := cb.lookupLabel "orderlist_hi_table"
+  -- Emit orderlists.
   let mut olAddrs : List UInt16 := []
-  for hi : i in [:voices.length] do
+  for _h : i in [:voices.length] do
     cb := cb.label s!"orderlist_v{i}"
     olAddrs := olAddrs ++ [cb.currentAddr]
-    match orderlistBytes[i]? with
+    match orderlistBlobs[i]? with
     | some bs => cb := cb.emitData bs
     | none => ()
 
-  -- Emit patterns with labels pattern_<i>.
+  -- Emit patterns.
   let mut patAddrs : List UInt16 := []
-  for hi : i in [:song.patterns.length] do
+  for _h : i in [:song.patterns.length] do
     cb := cb.label s!"pattern_{i}"
     patAddrs := patAddrs ++ [cb.currentAddr]
-    match patternBytes[i]? with
+    match patternBlobs[i]? with
     | some bs => cb := cb.emitData bs
     | none => ()
 
-  -- Instrument table.
-  cb := cb.label "inst_table"
-  for inst in song.instruments do
-    let vibByte : UInt8 := match inst.vibrato with
-      | some v => if v.semitoneShift = 0 then 0 else (v.semitoneShift - 1).toUInt8
-      | none => 0
-    let pwmByte : UInt8 := match inst.pwMod with
-      | some pm => match pm.mode with
-        | .linear s => s.val.toUInt8
-        | .bidirectional s _ _ => s.val.toUInt8
-        | .table _ => 0
-      | none => 0
-    let fxFlags : UInt8 :=
-      (if inst.freqSlide.isSome then 1 else 0) +
-      (if inst.skydive then 2 else 0) +
-      (if inst.arpeggio.isSome then 4 else 0)
-    cb := cb.emitData [
-      inst.initPwLo.val.toUInt8,
-      inst.initPwHi.val.toUInt8,
-      inst.initCtrl.val.toUInt8,
-      inst.ad.val.toUInt8,
-      inst.sr.val.toUInt8,
-      vibByte,
-      pwmByte,
-      fxFlags
-    ]
+  -- Resolve all code-side label fixups first so the address-table backpatch
+  -- can rely on the final byte layout being settled.
+  cb := cb.resolve
 
-  -- Patch orderlist_lo_table and orderlist_hi_table with actual addresses
-  -- now that the labels are known.
-  match olLoBase, olHiBase with
-  | some loBaseAddr, some hiBaseAddr =>
-    let loBaseIdx : Nat := (loBaseAddr.toNat - baseAddr.toNat)
-    let hiBaseIdx : Nat := (hiBaseAddr.toNat - baseAddr.toNat)
+  -- Back-patch the orderlist_lo/hi_table entries.
+  match cb.lookupLabel "orderlist_lo_table", cb.lookupLabel "orderlist_hi_table" with
+  | some loBase, some hiBase =>
+    let loIdx : Nat := loBase.toNat - baseAddr.toNat
+    let hiIdx : Nat := hiBase.toNat - baseAddr.toNat
     let mut bytes := cb.bytes
     for hi : i in [:olAddrs.length] do
       match olAddrs[i]? with
       | some a =>
-          bytes := bytes.set! (loBaseIdx + i) a.toUInt8
-          bytes := bytes.set! (hiBaseIdx + i) (a >>> 8).toUInt8
+          bytes := bytes.set! (loIdx + i) a.toUInt8
+          bytes := bytes.set! (hiIdx + i) (a >>> 8).toUInt8
       | none => ()
     cb := { cb with bytes := bytes }
   | _, _ => ()
 
-  -- Patch pattern_lo_table / pattern_hi_table similarly.
-  let patLoBase := cb.lookupLabel "pattern_lo_table"
-  let patHiBase := cb.lookupLabel "pattern_hi_table"
-  match patLoBase, patHiBase with
-  | some loBaseAddr, some hiBaseAddr =>
-    let loBaseIdx : Nat := (loBaseAddr.toNat - baseAddr.toNat)
-    let hiBaseIdx : Nat := (hiBaseAddr.toNat - baseAddr.toNat)
+  -- Back-patch the pattern_lo/hi_table entries.
+  match cb.lookupLabel "pattern_lo_table", cb.lookupLabel "pattern_hi_table" with
+  | some loBase, some hiBase =>
+    let loIdx : Nat := loBase.toNat - baseAddr.toNat
+    let hiIdx : Nat := hiBase.toNat - baseAddr.toNat
     let mut bytes := cb.bytes
     for hi : i in [:patAddrs.length] do
       match patAddrs[i]? with
       | some a =>
-          bytes := bytes.set! (loBaseIdx + i) a.toUInt8
-          bytes := bytes.set! (hiBaseIdx + i) (a >>> 8).toUInt8
+          bytes := bytes.set! (loIdx + i) a.toUInt8
+          bytes := bytes.set! (hiIdx + i) (a >>> 8).toUInt8
       | none => ()
     cb := { cb with bytes := bytes }
   | _, _ => ()
-
-  -- Resolve label-fixups for the engine code.
-  cb := cb.resolve
 
   let header : PSIDHeader := {
     initAddr := baseAddr
     playAddr := baseAddr + 3
     songs := 1
     startSong := 1
-    speed := 0                  -- VBI (50 Hz PAL) — clean PSID, not CIA
-    flags := 0x0014             -- PAL + 6581
+    speed := 0
+    flags := 0x0014
     title := "Confuzion"
     author := "Rob Hubbard"
     released := "1985 Incentive"
