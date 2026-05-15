@@ -1,11 +1,12 @@
 # Dragon's Lair Part II pipeline
 
-Scaffold for rebuilding Rob Hubbard's *Dragon's Lair Part II* (1986
-Software Projects) SID. Cloned from the Monty pipeline; the engine
-underneath is the **1986 Hubbard variant**, which is materially
-different from the 1985 Commando/Monty engine. The directory is laid
-out for future codegen work — the rebuild is **not** yet faithful to
-the original.
+End-to-end rebuild of Rob Hubbard's *Dragon's Lair Part II* (1986
+Software Projects) SID. The engine underneath is the **1986 Hubbard
+variant**, materially different from the 1985 Commando/Monty engine,
+so the rebuild currently runs via a **verbatim image emit path** —
+`EngineImage.lean` carries the original 7936-byte binary and Main.lean
+wraps it in a fresh PSID header. The result is byte-identical to the
+original.
 
 ## Status
 
@@ -13,11 +14,21 @@ the original.
 |---|---|
 | Subtunes | 10 in the original PSID (default = #1, the main tune) |
 | Layout | clone of Monty's pipeline — extract/, codegen/, build/, tests/ |
-| Lake build | `sidgen_dragons_lair_part_ii` builds, runs, writes a SID |
-| Verification | **NOT FAITHFUL.** The codegen emits Monty's engine, not DL2's. The output SID plays *something* but not the original tune. |
+| Lake build | `lake build sidgen_dragons_lair_part_ii` builds + runs, writes the SID |
+| Rebuild md5 | `884019e0120b30dfb43aed6c8befd324` (byte-identical to original) |
+| Verification | Grade A — siddump --writelog snapshots 1500/1500 (100.0%) match |
 | Annotated disassembly | `docs/hubbard_dragons_lair_part_ii_disassembly.s` |
 
-## Why "scaffold only"
+This md5 is a load-bearing invariant. Any change to the verbatim path
+should preserve it; if it doesn't, either the change is wrong or a new
+invariant is being established deliberately.
+
+The structural codegen (`Codegen.lean`, cloned from Monty) is still on
+the 1985 engine and so cannot byte-match the original yet. The
+verbatim path locks Grade A *now*; the structural port can land later
+and switch Main.lean over once it passes the md5 check.
+
+## Why verbatim emit (for now)
 
 Dragon's Lair Part II is one of Hubbard's first uses of his **1986
 generation engine**, which has structural differences the
@@ -76,11 +87,10 @@ order):
    `$CC28`). Either keep self-modify or fold into a per-subtune lookup
    in the codegen.
 
-A reasonable interim path is to ship a "verbatim" codegen that emits
-the song data (freq table, instrument tables, song heads, pattern
-pointers, patterns, orderlists) byte-for-byte as in the original and
-glues the original play routine bytes in directly — that locks an
-md5, then structural work happens on top of a known-good baseline.
+The current pipeline ships the **verbatim** path: extract captures
+the original binary as `EngineImage.lean` and Main.lean wraps it in a
+fresh PSID header. This locks an md5 and gives the structural codegen
+a known-good byte-for-byte baseline to diff against.
 
 ## Layout
 
@@ -96,12 +106,21 @@ into:
 | `codegen/DragonsLairPartIi/Codegen.lean` | engine-faithful 6502 emit |
 | `codegen/DragonsLairPartIi/Properties.lean` | property tests |
 
-## How to run (scaffold)
+## How to run
 
-Regenerate `SongData.lean` from the original:
+Regenerate the verbatim engine image from the original (writes
+`codegen/DragonsLairPartIi/EngineImage.lean`):
 
 ```bash
-python3 -m pipelines.dragons_lair_part_ii.extract            # subtune 0
+python3 -m pipelines.dragons_lair_part_ii.extract.emit_engine_image
+```
+
+(Optional) Regenerate the structural `SongData.lean` for future
+codegen work — this currently produces a Monty-shaped extraction that
+the verbatim path doesn't use:
+
+```bash
+python3 -m pipelines.dragons_lair_part_ii.extract
 ```
 
 Build and run:
@@ -112,12 +131,15 @@ lake build sidgen_dragons_lair_part_ii
 # → pipelines/dragons_lair_part_ii/build/dragons_lair_part_ii.sid
 ```
 
-Grade against the original (expected: not Grade A yet):
+Grade against the original (expected: Grade A 100%):
 
 ```bash
 python3 src/writelog_grade.py \
     data/C64Music/MUSICIANS/H/Hubbard_Rob/Dragons_Lair_Part_II.sid \
     pipelines/dragons_lair_part_ii/build/dragons_lair_part_ii.sid
+
+md5sum pipelines/dragons_lair_part_ii/build/dragons_lair_part_ii.sid
+# expect: 884019e0120b30dfb43aed6c8befd324
 ```
 
 ## References

@@ -244,6 +244,7 @@ lean_lib DragonsLairPartIi where
   roots  := #[`DragonsLairPartIi.SID, `DragonsLairPartIi.Asm6502,
               `DragonsLairPartIi.PSIDFile, `DragonsLairPartIi.USF,
               `DragonsLairPartIi.Constants, `DragonsLairPartIi.SongData,
+              `DragonsLairPartIi.EngineImage,
               `DragonsLairPartIi.Codegen, `DragonsLairPartIi.Properties]
 
 lean_exe sidgen_dragons_lair_part_ii where
