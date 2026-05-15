@@ -203,8 +203,8 @@ def extract(
             # USF.skydive mapping the inherited Monty code had — that
             # was reading shimmer as if it were skydive and producing
             # a spurious second downward slide on shimmer instruments.
-            has_bit0 = bool(flags & 1)        # bit 0 = real skydive
-            has_skydive = False               # bit 1 (shimmer) — TODO via waveformProgram
+            has_bit0 = bool(flags & 1)        # bit 0 = real skydive (→ freqSlide)
+            has_skydive = bool(flags & 2)     # bit 1 = waveform shimmer (legacy attribute name)
             instruments.append(Instrument(
                 id=rh.index,
                 waveform=Waveform(steps=w_steps, loop=w_loop),

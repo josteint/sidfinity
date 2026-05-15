@@ -136,11 +136,14 @@ structure USFInstrument where
   -- Filter routing
   filterEnabled : Bool              -- this instrument routes through global filter
 
-  -- Hubbard skydive (bit 1 of instrfx in the original player): every ODD
-  -- frame_counter, if v_fhi != 0, DEC v_fhi and write the OLD value to SID
-  -- freq_hi. Distinct from drums (which is currently implemented via
-  -- freqSlide): skydive runs every OTHER frame and does not touch ctrl.
-  skydive       : Bool
+  -- Hubbard waveform shimmer (Rasputin bit 1 of fx_flags, see
+  -- docs/hubbard_rasputin_disassembly.s $C35A). Every other music
+  -- frame: EOR v_ctrl with $18 (toggle test + triangle bits) and
+  -- rewrite ctrl to SID. The codegen still uses the legacy label
+  -- name `i_skydive` for the data table to minimise diff churn;
+  -- semantics are now shimmer, not skydive (real skydive lives in
+  -- has_bit0 → freqSlide).
+  shimmer       : Bool
   deriving Repr
 
 -- ==========================================================================

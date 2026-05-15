@@ -1234,32 +1234,33 @@ def emitSustainEffects (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.r
   cb := cb.label "slide_done"
   cb := cb.label "no_slide"
 
-  -- 4b. SKYDIVE (bit 1 of original Hubbard instrfx).
-  -- Hubbard's pulsework → drums → skydive → octarp order. Skydive runs
-  -- every OTHER frame (when frame_counter & 1 != 0), guarded by v_fhi != 0:
-  --   LDA savefreqhi,x; BEQ skip; DEC savefreqhi,x; STA $d401,y
-  -- The SID write uses the OLD value (LDA before DEC). Skydive does NOT
-  -- touch ctrl (unlike drums which writes $80 noise on onset). This block
-  -- only fires when i_skydive[v_inst] is set.
+  -- 4b. WAVEFORM SHIMMER (Rasputin fx_flags bit 1, $C35A in the
+  -- disassembly). Every other music frame, EOR v_ctrl with $18
+  -- (toggle test bit + triangle bit) and rewrite ctrl to SID.
+  -- Guard: skip when v_dur is 0. Only fires when i_shimmer[v_inst]
+  -- is set. The data label keeps its legacy name `i_skydive` to
+  -- minimise churn in the regenerated SongData.lean / RAM layout;
+  -- semantics are shimmer, not skydive.
   cb := cb.emitInst (I.ldx_zp 0xFA)
   cb := cb.emitLdaAbsX "v_inst"
   cb := cb.emitInst I.tay
-  cb := cb.emitInst ⟨.LDA, .absY 0⟩               -- i_skydive[inst]
+  cb := cb.emitInst ⟨.LDA, .absY 0⟩               -- i_shimmer[inst]
   cb := { cb with absFixups :=
     { byteIdx := cb.bytes.size - 2, targetLabel := "i_skydive" } :: cb.absFixups }
   cb := cb.emitBranch .BEQ "no_sky"
   cb := cb.emitInst (I.lda_zp 0x50)               -- frame counter
   cb := cb.emitInst (I.and_imm 0x01)
-  cb := cb.emitBranch .BEQ "no_sky"               -- even counter: skip
+  cb := cb.emitBranch .BEQ "no_sky"               -- even counter: skip (toggle on odd, phase-matched to original)
   cb := cb.emitInst (I.ldx_zp 0xFA)
-  cb := cb.emitLdaAbsX "v_fhi"
-  cb := cb.emitBranch .BEQ "no_sky"               -- v_fhi == 0: skip
-  cb := cb.emitInst (I.sta_zp 0xF8)               -- save OLD v_fhi
-  cb := cb.emitDecAbsX "v_fhi"                     -- v_fhi -= 1
+  cb := cb.emitLdaAbsX "v_dur"
+  cb := cb.emitBranch .BEQ "no_sky"               -- v_dur == 0: note over, skip
+  cb := cb.emitLdaAbsX "v_ctrl"
+  cb := cb.emitInst (I.eor_imm 0x18)               -- toggle bits 3+4
+  cb := cb.emitStaAbsX "v_ctrl"                    -- update cached ctrl
   cb := cb.emitLdaAbsX "v_sidoff"
   cb := cb.emitInst I.tay                          -- Y = SID offset
-  cb := cb.emitInst (I.lda_zp 0xF8)               -- reload OLD
-  cb := cb.emitInst (I.sta_absY (SID_BASE + 1))   -- write OLD to freq_hi
+  cb := cb.emitLdaAbsX "v_ctrl"
+  cb := cb.emitInst (I.sta_absY (SID_BASE + 4))   -- write to SID ctrl
   cb := cb.label "no_sky"
 
   -- 5. ARPEGGIO
@@ -1476,9 +1477,12 @@ def generateSID (song : USFSong) (debug : Bool := false) : Bytes := Id.run do
     | some _ => (1 : UInt8)
     | none => 0)
   -- Skydive flag (Hubbard fx_flags bit 1): every-other-frame freq_hi DEC.
+  -- `i_shimmer` data table (legacy label name "i_skydive" preserved).
+  -- 1 byte per instrument: 1 = bit 1 of fx_flags set (waveform shimmer),
+  -- 0 = no shimmer.
   cb := cb.label "i_skydive"
   cb := cb.emitData (song.instruments.map fun i =>
-    if i.skydive then (1 : UInt8) else 0)
+    if i.shimmer then (1 : UInt8) else 0)
 
   -- Pattern data: [pitch, duration, instrument]* per pattern, 0x00 = end
   -- For now, encode percussion .dynamicCtrl as pitch=104 to match old player behavior

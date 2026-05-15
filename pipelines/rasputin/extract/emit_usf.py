@@ -124,7 +124,7 @@ def gen_instrument(idx: int, inst: Instrument) -> str:
   effectOrder := {eff_order}
   release := {{ framesBeforeEnd := 3, zeroAdsr := true, noRelease := false }}
   filterEnabled := false
-  skydive := {str(sky).lower()}
+  shimmer := {str(sky).lower()}
 }}"""
 
 
