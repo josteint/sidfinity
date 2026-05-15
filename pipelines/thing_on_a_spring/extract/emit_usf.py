@@ -154,13 +154,15 @@ def gen_note(note: Note, tempo: int) -> str:
     porta = note.drum_trig & 0x7F
     if tie:
         kind = '.tie'
-    elif pitch == 104:
-        kind = '.percussion .dynamicCtrl'
-    elif pitch < 96:
+    elif pitch < 128:
+        # Thing on a Spring: pitches 96..127 read from "freq table slots"
+        # that overlap engine data ($C469 voice-offset table and beyond).
+        # These ARE valid freq lookups in the engine — e.g. pitch 96 reads
+        # ($00, $07) = freq $0700 for V2's second note. The Commando-era
+        # comment about pitch 104 being a dynamic-ctrl alias does NOT
+        # apply here; we keep all 128 entries as real pitched lookups.
         kind = f'.pitched {hex_byte(pitch)}'
     else:
-        # Other extended pitches — for now treat as dynamicCtrl too
-        # (Hubbard's pitch 100, 116 etc.)
         kind = '.percussion .dynamicCtrl'
     return (
         f"{{ kind := {kind}, durationFrames := {frames}, "
