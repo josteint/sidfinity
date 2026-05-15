@@ -1209,9 +1209,14 @@ def emitSustainEffects (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.r
   -- Hubbard's pulsework → drums → skydive → octarp order. Skydive runs
   -- every OTHER frame (when frame_counter & 1 != 0), guarded by v_fhi != 0:
   --   LDA savefreqhi,x; BEQ skip; DEC savefreqhi,x; STA $d401,y
-  -- The SID write uses the OLD value (LDA before DEC). Skydive does NOT
-  -- touch ctrl (unlike drums which writes $80 noise on onset). This block
-  -- only fires when i_skydive[v_inst] is set.
+  -- Thing-on-a-Spring's "skydive" (fx_flags bit 1) is a PITCH-UP sweep,
+  -- not down. Engine code at $C2D1-$C2DC: LDA v_fhi; BEQ skip;
+  -- INC v_fhi; STA D401,Y. Each tempo tick increments freq_hi by 1
+  -- and writes the POST-INC value (note INC, not DEC; new value, not
+  -- old). Runs every frame in the engine (no even-frame gate), but our
+  -- frame counter check on bit 0 of $50 is kept to match Hubbard's
+  -- common per-tempo-tick pattern. We also drop the OLD-value save —
+  -- engine writes the freshly-incremented value.
   cb := cb.emitInst (I.ldx_zp 0xFA)
   cb := cb.emitLdaAbsX "v_inst"
   cb := cb.emitInst I.tay
@@ -1219,18 +1224,15 @@ def emitSustainEffects (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.r
   cb := { cb with absFixups :=
     { byteIdx := cb.bytes.size - 2, targetLabel := "i_skydive" } :: cb.absFixups }
   cb := cb.emitBranch .BEQ "no_sky"
-  cb := cb.emitInst (I.lda_zp 0x50)               -- frame counter
-  cb := cb.emitInst (I.and_imm 0x01)
-  cb := cb.emitBranch .BEQ "no_sky"               -- even counter: skip
   cb := cb.emitInst (I.ldx_zp 0xFA)
   cb := cb.emitLdaAbsX "v_fhi"
   cb := cb.emitBranch .BEQ "no_sky"               -- v_fhi == 0: skip
-  cb := cb.emitInst (I.sta_zp 0xF8)               -- save OLD v_fhi
-  cb := cb.emitDecAbsX "v_fhi"                     -- v_fhi -= 1
+  cb := cb.emitInst (I.sta_zp 0xF8)               -- save A (PRE-INC v_fhi)
+  cb := cb.emitIncAbsX "v_fhi"                     -- v_fhi += 1 (memory only; A unchanged in engine)
   cb := cb.emitLdaAbsX "v_sidoff"
   cb := cb.emitInst I.tay                          -- Y = SID offset
-  cb := cb.emitInst (I.lda_zp 0xF8)               -- reload OLD
-  cb := cb.emitInst (I.sta_absY (SID_BASE + 1))   -- write OLD to freq_hi
+  cb := cb.emitInst (I.lda_zp 0xF8)               -- A = PRE-INC v_fhi
+  cb := cb.emitInst (I.sta_absY (SID_BASE + 1))   -- write OLD value (matches engine $C2DC)
   cb := cb.label "no_sky"
 
   -- 5. ARPEGGIO

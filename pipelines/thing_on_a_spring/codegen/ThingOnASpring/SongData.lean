@@ -297,7 +297,7 @@ def mv3I14 : USFInstrument := {
   pwMod := some { mode := .bidirectional ⟨65, by omega⟩ ⟨8, by omega⟩ ⟨14, by omega⟩, stepEvery := 1, startDelay := 0 }
   vibrato := some { shape := .triangle, periodFrames := 8, semitoneShift := 3, onsetFrames := 6, rampUpFrames := 0, unipolar := true }
   freqSlide := none
-  arpeggio := some { intervals := [0, 12], stepEvery := 1, phaseSource := .global, startDelay := 0 }
+  arpeggio := some { intervals := [0, 24], stepEvery := 1, phaseSource := .global, startDelay := 0 }
   effectOrder := [.vibrato, .pwMod, .arpeggio, .gateCheck]
   release := { framesBeforeEnd := 3, zeroAdsr := true, noRelease := false }
   filterEnabled := false

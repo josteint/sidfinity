@@ -148,8 +148,12 @@ def extract(
                 w_steps = [ctrl | 0x01]  # gate on (engine handles gate-off via E)
                 w_loop = 0
 
-            # Arp: Hubbard uses global frame counter bit 0 to alternate +0/+12
-            arp_offset = 12 if rh.has_arpeggio else 0
+            # Arp: Thing-on-a-Spring uses +24 semitones (2 octaves), not +12.
+            # Engine code: $C2ED: LDA v_pitch; CLC; ADC #$18 (=24).
+            # The Commando/Monty default of +12 was wrong for this engine
+            # and caused V1's arp pitches to play one octave too low,
+            # producing 24-frame snapshot drift around F186-F209.
+            arp_offset = 24 if rh.has_arpeggio else 0
 
             # fx_flags
             flags = rh.fx_flags if rh.fx_flags is not None else 0
