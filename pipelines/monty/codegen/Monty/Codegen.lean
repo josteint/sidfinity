@@ -399,22 +399,8 @@ def emitInitFrameCounter (cb : CodeBuilder) : CodeBuilder :=
   let cb := cb.emitInst I.rts
   cb
 
-/-- Bank out BASIC ROM so $A000-$BFFF reads as RAM. Required when our
-    binary spans into that region (base $8000 + ~8.5KB ends in $A1xx).
-    Without this, CPU writes to data tables in $A000+ succeed but
-    subsequent reads return BASIC ROM bytes, so init's table copies
-    appear to do nothing. Preserves A (= subtune index passed in by
-    sidplayfp) via X. -/
-def emitInitBankOutBasic (cb : CodeBuilder) : CodeBuilder :=
-  let cb := cb.emitInst I.tax                          -- X = A (save subtune)
-  let cb := cb.emitInst (I.lda_imm 0x36)              -- HIRAM=1, LORAM=0
-  let cb := cb.emitInst (I.sta_zp 0x01)               -- bank BASIC out
-  let cb := cb.emitInst I.txa                          -- A = subtune (restore)
-  cb
-
 def emitInit (cb : CodeBuilder) (song : USFSong) : CodeBuilder :=
   let cb := cb.label "init"
-  let cb := emitInitBankOutBasic cb
   let cb := emitInitSubtuneClamp cb song
   let cb := emitInitSubtuneCopy cb
   let cb := emitInitSidSilence cb
@@ -425,13 +411,9 @@ def emitInit (cb : CodeBuilder) (song : USFSong) : CodeBuilder :=
 -- emitPlay sub-blocks. Same plain-let / no-Id-monad style as emitInit
 -- so the per-block preservation proofs in PropertiesV3 stay tractable.
 
-/-- Header: label "play" + INC the global frame counter at $50.
-    Re-banks BASIC ROM out in case sidplayfp restored $01 between
-    init and play (seen with base $8000 + binary > 8KB). -/
+/-- Header: label "play" + INC the global frame counter at $50. -/
 def emitPlayHeader (cb : CodeBuilder) : CodeBuilder :=
   let cb := cb.label "play"
-  let cb := cb.emitInst (I.lda_imm 0x36)              -- HIRAM=1, LORAM=0
-  let cb := cb.emitInst (I.sta_zp 0x01)               -- bank BASIC out
   let cb := cb.emitInst (I.inc_zp 0x50)
   cb
 
@@ -1339,24 +1321,16 @@ end  -- mutual
 -- ==========================================================================
 
 def generateSID (song : USFSong) (debug : Bool := false) : Bytes := Id.run do
-  let base : UInt16 := 0x8000
+  let base : UInt16 := 0x1000
   let mut cb : CodeBuilder := { baseAddr := base }
 
-  -- Jump table at $8000-$8005
+  -- Jump table
   cb := cb.emitJmpLabel .JMP "init"
   cb := cb.emitJmpLabel .JMP "play"
 
-  -- Hubbard's original Monty puts the play routine at $8012, with
-  -- $8006-$8011 occupied by 12 leftover bytes from his source
-  -- (RTS RTS BRK JMP $0089 + 6 zero pad bytes — unused entry points).
-  -- Reproduce them verbatim so the bytes at those addresses match the
-  -- original PSID, and so the play label resolves to $8012.
-  cb := cb.emitData [0x60, 0x60, 0x00, 0x4C, 0x89, 0x00,
-                     0x00, 0x00, 0x00, 0x00, 0x00, 0x00]
-
-  -- Player code: play first (anchored at $8012), then init after
-  cb := emitPlay cb song
+  -- Player code
   cb := emitInit cb song
+  cb := emitPlay cb song
   cb := emitExecVoice cb song
 
   -- === DATA TABLES ===
@@ -1643,8 +1617,8 @@ def generateSID (song : USFSong) (debug : Bool := false) : Bytes := Id.run do
   cb := cb.resolve
 
   let header : PSIDHeader := {
-    initAddr := base                  -- $8000: JMP init
-    playAddr := base + 0x12           -- $8012: play routine itself
+    initAddr := base
+    playAddr := base + 3
     songs := song.subtunes.length.toUInt16
     startSong := 1
     title := "Monty on the Run"
