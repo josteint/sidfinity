@@ -1621,9 +1621,9 @@ def generateSID (song : USFSong) (debug : Bool := false) : Bytes := Id.run do
     playAddr := base + 3
     songs := song.subtunes.length.toUInt16
     startSong := 1
-    title := "Commando"
+    title := "Chimera"
     author := "Rob Hubbard"
-    released := "1985 Elite"
+    released := "1985 Firebird"
   }
   return buildSID header cb.bytes
 
