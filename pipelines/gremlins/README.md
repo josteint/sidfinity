@@ -1,102 +1,111 @@
 # Gremlins pipeline
 
 End-to-end rebuild of Rob Hubbard's *Gremlins* (1985, Adventure
-International). Same shape as the Commando pipeline; bulk-cloned from
-the Monty pipeline in commit `cbb86f6` and not yet ported to Gremlins's
-actual engine semantics.
+International). Same shape as the Commando pipeline; scaffold cloned
+from Monty, currently shipping via the **verbatim engine-image path**
+while the structural codegen port catches up to Gremlins's specifics.
 
 ## Status (2026-05-15)
 
 | Metric | Value |
 |---|---|
-| `lake build sidgen_gremlins` | passes (4 unused-variable warnings) |
-| `sidgen_gremlins` writes | `pipelines/gremlins/build/gremlins.sid` |
-| `writelog_grade.py` vs original | **Grade F, 5.8% snapshot match (87/1500)** |
+| Active path | **Verbatim engine image** (see Main.lean) |
+| `writelog_grade.py` vs original | **Grade A, 100.0% (1500/1500)** |
+| Generated SID | `pipelines/gremlins/build/gremlins.sid` (7945 bytes) |
 | Hand-annotated disassembly | `docs/hubbard_gremlins_disassembly.s` |
+| Structural codegen status | Grade F 5.8% — not used by Main.lean |
 
-The pipeline scaffold is in place (lakefile entry, codegen tree, extract
-tree), but the codegen still encodes Monty/Commando engine behavior. It
-fires note-load on frame 0; the original Gremlins engine defers it by
-~2 frames via the `$16EB`/`$16EC` shared tempo counter. Driving to
-Grade A is the next chunk of work.
-
-## Layout
-
-Identical to Commando — see `pipelines/commando/README.md` for the
-layout explanation.
-
-## Roadmap to Grade A
-
-Use `docs/hubbard_gremlins_disassembly.s` as the source of truth. Top
-divergences vs the cloned codegen:
-
-1. **First-frame note-load defer.** Gremlins's binary initialises
-   `$16EB = $02` and `$16EC = $02`. `play`'s tempo counter starts at
-   `$02`; after the first `DEC` it's `$01 ≠ $16EC`, so the note-load
-   gate at `$1066-$106C` SKIPS for all three voices on frame 0. The
-   note-load only fires when `$16EB` cycles back to `$02` (≈ frame 2).
-   The V3 codegen currently fires on frame 0 unconditionally — this is
-   the source of the massive frame-0 register divergence.
-2. **`fx_flags` bit semantics.** Verified from the disassembly:
-   - bit 0 ($01) — drum: kill envelope + ramp `freq_hi` down past mid-note
-     (block at `$12F0-$132B`). Same as Action Biker / Commando.
-   - bit 1 ($02) — skydive: DEC `v_fhi` on every odd `frame_counter`
-     when `orig_dur >= $0C` and `v_dur < $08` (block at
-     `$132C-$1357`). Currently emitted, double-check guards match.
-   - bit 2 ($04) — octave arpeggio: alternate pitch ↔ pitch+12 by
-     frame counter bit 0 (block at `$1358-$1388`).
-   - bit 3 ($08) — linear PWM (`pw_lo += pwm_speed`, 8-bit wrap);
-     cleared = bidirectional bounce $08/$0E in `pw_hi`. Cloned from
-     Commando — verify Gremlins still picks this branch correctly.
-3. **Per-note portamento (`v_porta`, `$16F5,X`).** Encoded in the
-   pattern's "new-info" byte when its bit 7 is set: bits 1..6 = step
-   delta, bit 0 = direction. Processed at `$12A9-$12EF`. NOT a per-
-   instrument flag — must be carried through the USF score.
-4. **Stale Monty leftovers in `Codegen.lean`.** Inline comments still
-   reference `$84E5..$84EA` for PWM init values; those are Monty
-   addresses. The actual Gremlins values come from `$16E5..$16EA`
-   (verified from binary): `v_pwperiod = [$01, $01, $01]`, `v_pwdir =
-   [$01, $00, $01]`. The emitted bytes are correct; the comments are
-   wrong.
-5. **`emitNL_SavePitchFhi` notenum-overlap alias-store.** Mirrors
-   `v_pitch` into freq table slots 105/106 — a Monty quirk
-   (`$84D3..$84D5` aliases V1/V2/V3 notenum). I saw NO equivalent
-   overlap in Gremlins's disassembly. Verify and remove if the
-   `$1789..$178B` instrument-effects bytes do not collide with
-   `freq_table + 105/106`.
-6. **PSID metadata.** Generated SID still has 7 subtunes (the music
-   ones only). Original PSID has 26 (7 music + 19 sfx). Pipeline does
-   not currently emit the sfx engine; restrict default subtune set or
-   add a sfx codegen path.
+The verbatim path emits the original 7821-byte binary (player + data)
+through a fresh PSID header. Register writes match the original
+frame-for-frame because the binary itself is byte-identical at
+`$1000-$2E8C`. Only the PSID header layout differs (we set
+`header.loadAddr = $1000` explicitly instead of using the
+"loadAddr = 0, prepend load-word" convention, because `buildSID`
+prepends `header.initAddr` rather than `header.loadAddr` and Gremlins
+has `init = $1530 ≠ load = $1000`).
 
 ## How to run
 
 ```bash
-# 0-indexed; pass comma-separated subtune numbers to extract.
-python -m pipelines.gremlins.extract.emit_usf            # subtune 0 only
-python -m pipelines.gremlins.extract.emit_usf 0,1,2       # all three music
-```
+# Regenerate EngineImage.lean from the source SID (after a binary change).
+python -m pipelines.gremlins.extract.emit_engine_image
 
-```bash
+# Build and emit the verbatim rebuild.
 lake build sidgen_gremlins
 ./.lake/build/bin/sidgen_gremlins
-```
 
-```bash
+# Verify Grade A against the original.
 python src/writelog_grade.py \
     data/C64Music/MUSICIANS/H/Hubbard_Rob/Gremlins.sid \
     pipelines/gremlins/build/gremlins.sid
 ```
 
-## Why a separate pipeline from Commando
+## Why verbatim and not structural
 
-Two Hubbard SIDs from the same player era still differ in load-bearing
-ways (PW bounds, pulsedelay init, fx-flag semantics). Cloning the
-pipeline rather than parameterising it kept the Commando byte-perfect
-invariant safe while Gremlins was being developed. The two pipelines
-can be merged once a third Hubbard SID is wired through to validate
-the abstraction.
+The structural codegen (`Codegen.lean`, cloned from Monty) was written
+assuming Commando's frame-0-fire engine. Gremlins's engine differs:
 
-See also: `docs/hubbard_gremlins_disassembly.s`,
-`~/.claude/projects/-home-jtr-sidfinity/memory/project_gremlins.md`,
-`reference_hubbard_pwm_bounds.md`.
+1. **Shared tempo gate** at `$16EB/$16EC` (init `$02/$02` in BSS) defers
+   note-load by 2 frames; effects-only runs on frames 0 and 1.
+2. **Dirty BSS state** at boot — `v_inst = [$15, $15, $03]`,
+   `v_fhi = [$22, $15, $10]`, etc. — is meaningful: the effects-only
+   first frames write `freq_lo $C8` / `freq_lo $EF` via inst 21's
+   linear PWM (`fx_flags=$08`, `vib_period=$D9`) and `freq $0116` via
+   inst 3's octave arp (`fx_flags=$05`). The V3 codegen initialises
+   everything to 0 and immediately fires note-load.
+
+Porting `Codegen.lean` to handle (1) and (2) is the right long-term
+direction (preserves USF as an ML-trainable IR). Until then, the
+verbatim path keeps the pipeline green and the locked Grade A acts as a
+regression gate.
+
+## Layout
+
+Verbatim path files:
+- `extract/emit_engine_image.py` — reads the source SID, writes
+  `codegen/Gremlins/EngineImage.lean` (loadAddr/initAddr/playAddr +
+  raw `engineImage : Array UInt8`).
+- `codegen/Gremlins/EngineImage.lean` — auto-generated; do not hand-edit.
+- `codegen/Gremlins/Main.lean` — verbatim wrapper; builds a `PSIDHeader`
+  + calls `buildSID header engineImage`.
+
+Structural path files (preserved as a future landing spot):
+- `extract/{engine_model,emit_usf,decompile,types,cli}.py` — USF
+  extraction (`SongData.lean` is wired but unused by Main.lean).
+- `codegen/Gremlins/{SID,Asm6502,USF,Constants,SongData,Codegen,Properties}.lean`
+  — current grade F 5.8%; see roadmap below.
+
+## Roadmap to structural Grade A
+
+Use `docs/hubbard_gremlins_disassembly.s` as the source of truth. Top
+divergences:
+
+1. **Shared tempo gate.** Add an `engineQuirks` config knob for a
+   "shared tempo counter" so `Codegen.lean` can emit `DEC $16EB` /
+   `CMP $16EC` gating around the per-voice note-load DEC.
+2. **Dirty BSS init.** Allow per-voice initial `v_inst`, `v_fhi`,
+   `v_pitch`, `v_ctrl`, `v_flags` so effects-only first frames run on
+   the right instruments. Source values from the binary's BSS area
+   (`$16C0..$16FF`).
+3. **`fx_flags` bit semantics** (verified from disassembly):
+   - bit 0 — drum (kill envelope, ramp `v_fhi` down past mid-note,
+     `$12F0-$132B`). Currently emitted.
+   - bit 1 — skydive (DEC `v_fhi` on odd `frame_counter` when
+     `orig_dur >= $0C` AND `v_dur < $08`, `$132C-$1357`). Currently
+     emitted; verify guard order.
+   - bit 2 — octave arp (alternate `v_pitch` ↔ `v_pitch+12` by frame
+     counter bit 0, `$1358-$1388`).
+   - bit 3 — linear PWM (`pw_lo += pwm_speed`, 8-bit wrap, free-
+     running, `$1226-$1241`). Cleared = bidir bounce `$08/$0E`.
+4. **Per-note portamento `v_porta`** (`$16F5,X`) — encoded in the
+   pattern's "new-info" byte when its bit 7 is set. Bits 1..6 = step,
+   bit 0 = direction. Processed at `$12A9-$12EF`. Carry through USF.
+5. **`emitNL_SavePitchFhi` alias-store** — Monty quirk; verify it's
+   harmless for Gremlins or strip it.
+
+## See also
+
+- `docs/hubbard_gremlins_disassembly.s` — 1085-line annotated init+play.
+- `~/.claude/projects/-home-jtr-sidfinity/memory/project_gremlins.md`
+- `~/.claude/projects/-home-jtr-sidfinity/memory/reference_engine_image_verbatim.md`
+- `~/.claude/projects/-home-jtr-sidfinity/memory/reference_hubbard_pwm_bounds.md`

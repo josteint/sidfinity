@@ -120,7 +120,8 @@ lean_lib Gremlins where
   srcDir := "pipelines/gremlins/codegen"
   roots  := #[`Gremlins.SID, `Gremlins.Asm6502, `Gremlins.PSIDFile,
               `Gremlins.USF, `Gremlins.Constants, `Gremlins.SongData,
-              `Gremlins.Codegen, `Gremlins.Properties]
+              `Gremlins.Codegen, `Gremlins.Properties,
+              `Gremlins.EngineImage]
 
 lean_exe sidgen_gremlins where
   srcDir := "pipelines/gremlins/codegen"
