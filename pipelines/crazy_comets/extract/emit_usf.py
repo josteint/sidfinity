@@ -314,6 +314,7 @@ def main(argv: list[str] | None = None) -> None:
     #     ctrl bytes every frame.
     quirks = """{
     preserveNoteFlags := true
+    initialDur := 1
     voiceScratch := [
       { name := "hub_off", initial := ⟨0, by omega⟩ },
       { name := "seq_idx", initial := ⟨0, by omega⟩ }

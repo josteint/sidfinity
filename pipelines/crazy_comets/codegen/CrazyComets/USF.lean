@@ -269,6 +269,14 @@ structure USFEngineQuirks where
   -- Whether to keep the inst-byte's bits 6/7 in pattern data (consumed by
   -- noteLoadOps via flag-conditional ops). When false, codegen masks at emit.
   preserveNoteFlags  : Bool                     := false
+  -- Initial v_dur at song start. 0 = first play frame fires the first
+  -- note (default). 1 = first play frame is sustain-only (no note load);
+  -- first note fires on play frame 1. Crazy Comets's engine has a tick
+  -- divider ($54FA/$54FB at $5054-$5061) that gates note-load every Nth
+  -- frame starting from frame 1; the codegen doesn't model the gate, so
+  -- initialDur=1 fakes it by making the first DEC v_dur take BPL.
+  -- See docs/hubbard_crazy_comets_disassembly.s.
+  initialDur         : UInt8                    := 0
   deriving Repr
 
 -- ==========================================================================
