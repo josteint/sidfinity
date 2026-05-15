@@ -932,13 +932,18 @@ def emitVibrato (cb : CodeBuilder) (_song : USFSong) : CodeBuilder := Id.run do
 
   -- Start from base freq, add delta × LFO step
   -- vibrato_freq = base_freq + delta * step
-  -- Check onset: durationFrames >= 21 for vibrato to be active.
-  -- das_model: cmp #21 against dur*3 (= durationFrames in our units).
-  -- Notes shorter than 7 ticks skip vibrato and just write base freq.
+  -- Hubbard gates vibrato amplitude on (raw_flags & $1F) >= 8 (ticks),
+  -- using the RAW pattern byte's low 5 bits (i.e. (dur_ticks+1)
+  -- minus the +1 offset is irrelevant — Hubbard uses dur_ticks directly).
+  -- Extract stores v_durfield = (raw_dur + 1) * tempo. The Hubbard test
+  -- `raw_dur >= 8` therefore maps to `v_durfield >= (8+1)*tempo = 36`
+  -- for Human Race (tempo = 4). Without this, durationFrames in the
+  -- 9..35 range gets vibrato wrongly applied — produces an audible
+  -- $06-per-frame pitch wobble on the V1 bass that the original holds steady.
   cb := cb.emitInst (I.ldx_zp 0xFA)
   cb := cb.emitLdaAbsX "v_durfield"
-  cb := cb.emitInst (I.cmp_imm 21)
-  cb := cb.emitBranch .BCS "vib_onset_ok"          -- dur >= 21 frames: vibrato active
+  cb := cb.emitInst (I.cmp_imm 36)
+  cb := cb.emitBranch .BCS "vib_onset_ok"          -- v_durfield >= 36: vibrato active
   -- dur < 6: write base freq directly
   cb := cb.emitJmpLabel .JMP "vib_write_base"
   cb := cb.label "vib_onset_ok"

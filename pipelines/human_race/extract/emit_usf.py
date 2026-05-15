@@ -253,13 +253,18 @@ def main(argv: list[str] | None = None) -> None:
         out.append(gen_pattern(idx, notes, tempo))
         out.append("")
 
-    # Per-subtune voices (orderlists). Each subtune contributes 3 voices.
+    # Per-subtune voices (orderlists). Each subtune contributes 2 voices
+    # (V1+V2). Human Race is a 2-voice engine — its V3 slot is reserved for
+    # SFX; emitting it would write to SID voice 3 every frame and clobber
+    # the original's silence there. We drop voices with empty orderlists.
     voice_defs: list[str] = []
     voice_global_idx = 0
     subtune_voices: list[tuple[int, int]] = []  # (start_idx, count) per subtune
     for es in extracts:
         start = voice_global_idx
         for v in es.score.voices:
+            if not v.orderlist:
+                continue
             ol = '[' + ', '.join(str(p) for p in v.orderlist) + ']'
             loop_pt = v.loop
             # rh_decompile uses -1 to mean "no loop / song stops"; USF schema
@@ -277,7 +282,7 @@ def main(argv: list[str] | None = None) -> None:
     out.extend(voice_defs)
     out.append("")
 
-    # Subtune defs: each USFSubtune wraps 3 voices + tempo.
+    # Subtune defs: each USFSubtune wraps the (variable, post-filter) voices + tempo.
     subtune_defs: list[str] = []
     for si, ((start, count), es) in enumerate(zip(subtune_voices, extracts)):
         v_refs = ', '.join(f'mv3V{i}' for i in range(start, start + count))
@@ -339,7 +344,7 @@ def main(argv: list[str] | None = None) -> None:
   instruments := [{inst_refs}]
   patterns := [{pat_list}]
   subtunes := [{subtune_refs}]
-  voiceOrder := [⟨2, by omega⟩, ⟨1, by omega⟩, ⟨0, by omega⟩]
+  voiceOrder := [⟨1, by omega⟩, ⟨0, by omega⟩]
   filter := none
   playRate := .vbi
   engineQuirks := {quirks}
