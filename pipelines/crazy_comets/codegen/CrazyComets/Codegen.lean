@@ -1226,6 +1226,12 @@ def emitSustainEffects (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.r
   cb := cb.emitInst (I.and_imm 0x01)
   cb := cb.emitBranch .BEQ "no_sky"               -- even counter: skip
   cb := cb.emitInst (I.ldx_zp 0xFA)
+  -- Hubbard's $532A gates the slow freq-down on (v_flags & $1F) >= $11
+  -- (note duration in ticks >= 17). Our v_durfield is in FRAMES; for
+  -- Crazy Comets tempo=3 that's 51 frames. Skip if v_durfield < 51.
+  cb := cb.emitLdaAbsX "v_durfield"
+  cb := cb.emitInst (I.cmp_imm 51)
+  cb := cb.emitBranch .BCC "no_sky"
   cb := cb.emitLdaAbsX "v_fhi"
   cb := cb.emitBranch .BEQ "no_sky"               -- v_fhi == 0: skip
   cb := cb.emitInst (I.sta_zp 0xF8)               -- save OLD v_fhi
