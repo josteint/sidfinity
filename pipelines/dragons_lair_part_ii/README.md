@@ -28,6 +28,24 @@ the 1985 engine and so cannot byte-match the original yet. The
 verbatim path locks Grade A *now*; the structural port can land later
 and switch Main.lean over once it passes the md5 check.
 
+### Structural extraction status (in-progress)
+
+- ✅ `extract/dl2_decompile.py` — pulls every load-bearing data
+  structure out of the 1986 engine binary: 97-entry freq table, 28
+  instruments × 16 bytes (two tables), per-subtune speed/phase, song
+  heads, pattern pointer table (130 entries, not 128), and all 53
+  referenced patterns with 1/2/3-byte row decoding + round-trip
+  self-check.
+- ✅ `extract/dl2_to_usf.py` — maps the decompiled structure onto the
+  Lean `USFSong` schema (idiomatic-USF mapping for everything that
+  has a clean equivalent; 1986-engine fx_flag routing left as `none`
+  for the per-instrument behavior fields).
+- ✅ `extract/emit_usf_dl2.py` — writes `SongData.lean` matching the
+  schema in `USF.lean`. Compiles cleanly.
+- ⏳ `Codegen.lean` 1986-engine port — the major remaining task; once
+  `generateSID` from the structural USF can produce the locked md5,
+  Main.lean switches off the verbatim path.
+
 ## Why verbatim emit (for now)
 
 Dragon's Lair Part II is one of Hubbard's first uses of his **1986
@@ -108,19 +126,19 @@ into:
 
 ## How to run
 
-Regenerate the verbatim engine image from the original (writes
-`codegen/DragonsLairPartIi/EngineImage.lean`):
-
-```bash
-python3 -m pipelines.dragons_lair_part_ii.extract.emit_engine_image
-```
-
-(Optional) Regenerate the structural `SongData.lean` for future
-codegen work — this currently produces a Monty-shaped extraction that
-the verbatim path doesn't use:
+Regenerate everything (structural `SongData.lean` + verbatim
+`EngineImage.lean`) in one go:
 
 ```bash
 python3 -m pipelines.dragons_lair_part_ii.extract
+```
+
+Just one piece:
+
+```bash
+python3 -m pipelines.dragons_lair_part_ii.extract.dl2_decompile   # decompile summary
+python3 -m pipelines.dragons_lair_part_ii.extract.emit_usf_dl2     # write SongData.lean
+python3 -m pipelines.dragons_lair_part_ii.extract.emit_engine_image  # write EngineImage.lean
 ```
 
 Build and run:

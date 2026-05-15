@@ -1,15 +1,19 @@
-"""Command-line entry point for the DragonsLairPartIi extract pipeline.
+"""Command-line entry point for the Dragon's Lair Part II extract pipeline.
 
 Usage:
-    python -m pipelines.dragons_lair_part_ii.extract                   # alias for `cli`
-    python -m pipelines.dragons_lair_part_ii.extract.cli               # explicit
-    python -m pipelines.dragons_lair_part_ii.extract.cli 0,1,2         # all three music subtunes
-    python -m pipelines.dragons_lair_part_ii.extract.cli -v 0          # subtune 0, debug-level logs
+    python -m pipelines.dragons_lair_part_ii.extract        # full structural emit
+    python -m pipelines.dragons_lair_part_ii.extract -v     # with debug logging
+    # alternate paths (call directly when you want only one piece):
+    python -m pipelines.dragons_lair_part_ii.extract.dl2_decompile
+    python -m pipelines.dragons_lair_part_ii.extract.emit_engine_image
+    python -m pipelines.dragons_lair_part_ii.extract.emit_usf_dl2
 
-Options:
-    subtunes           Comma-separated 0-indexed subtune numbers (default 0)
-    -v, --verbose      Enable DEBUG-level logging during extraction
-    -h, --help         Show this help and exit
+This runs **both** emitters: the structural USF emitter
+(`emit_usf_dl2`) which writes `SongData.lean`, and the verbatim
+engine-image emitter (`emit_engine_image`) which writes
+`EngineImage.lean`. Main.lean currently reads only `EngineImage.lean`;
+`SongData.lean` is a structural checkpoint for the in-progress
+structural codegen.
 """
 from __future__ import annotations
 
@@ -17,22 +21,17 @@ import argparse
 import logging
 import sys
 
-from . import emit_usf
+from . import emit_engine_image, emit_usf_dl2
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="python -m pipelines.dragons_lair_part_ii.extract",
         description=(
-            "Read the original DragonsLairPartIi on the Run SID, extract one or more "
-            "subtunes, and write SongData.lean for the Lean codegen."
+            "Read the original Dragon's Lair Part II SID and write both "
+            "SongData.lean (structural USF) and EngineImage.lean (verbatim "
+            "binary) for the Lean codegen."
         ),
-    )
-    parser.add_argument(
-        "subtunes",
-        nargs="?",
-        default="0",
-        help="Comma-separated 0-indexed subtune list (default: 0).",
     )
     parser.add_argument(
         "-v", "--verbose",
@@ -45,7 +44,8 @@ def main(argv: list[str] | None = None) -> int:
         level=logging.DEBUG if args.verbose else logging.INFO,
         format="%(message)s",
     )
-    emit_usf.main([args.subtunes])
+    emit_usf_dl2.main()
+    emit_engine_image.main()
     return 0
 
 
