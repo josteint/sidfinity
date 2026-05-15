@@ -841,10 +841,20 @@ def emitExecVoice (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.run do
 
 def emitVibrato (cb : CodeBuilder) (_song : USFSong) : CodeBuilder := Id.run do
   let mut cb := cb
-  -- If vib_depth > 0: compute LFO, modulate freq, write freq_lo/freq_hi to SID
+  -- Bump Set Spike vibrato model (mirrors disassembly $B1B6..$B287):
+  --   1. Read i_vib[inst] (shift count). If 0 → skip vibrato.
+  --   2. Walk per-voice counter v_vib_counter,X using v_vib_dir,X
+  --      (0=ascending, $FF=descending). Counter walks 0..frame_limit..0,
+  --      flipping direction at each end. Initial counter value $02 (from
+  --      binary at $B4E3,X).
+  --   3. delta = (freq[pitch+1] - freq[pitch]) >> shift  (close enough to
+  --      BSS's freq[note] - freq[note-1] for chromatic tables).
+  --   4. base_centered = freq[pitch] - delta * (frame_limit / 2).
+  --   5. output_freq = base_centered + delta * counter.
+  --   6. Write to V freq.
   cb := cb.emitLdaAbsX "v_inst"
   cb := cb.emitInst I.tay                          -- Y = instrument
-  cb := cb.emitInst ⟨.LDA, .absY 0⟩               -- i_vib[inst] (vib_depth, 0=none)
+  cb := cb.emitInst ⟨.LDA, .absY 0⟩               -- i_vib[inst] (shift, 0=none)
   cb := { cb with absFixups :=
     { byteIdx := cb.bytes.size - 2, targetLabel := "i_vib" } :: cb.absFixups }
   -- CLC here so the no-vibrato path enters PWM with C=0 (matching Hubbard's
@@ -854,19 +864,39 @@ def emitVibrato (cb : CodeBuilder) (_song : USFSong) : CodeBuilder := Id.run do
   cb := cb.emitBranch .BNE "has_vib"
   cb := cb.emitJmpLabel .JMP "no_vib"
   cb := cb.label "has_vib"
-  cb := cb.emitInst (I.sta_zp 0xF7)               -- $F7 = vib_depth
+  cb := cb.emitInst (I.sta_zp 0xF7)               -- $F7 = shift count
 
-  -- Triangle LFO: frame_counter & 7 → 0,1,2,3,3,2,1,0
-  cb := cb.emitInst (I.lda_zp 0x50)               -- frame counter
-  cb := cb.emitInst (I.and_imm 0x07)              -- 0-7
-  cb := cb.emitInst (I.cmp_imm 4)
-  cb := cb.emitBranch .BCC "vib_phase_ok"          -- < 4: keep
-  cb := cb.emitInst (I.eor_imm 0x07)              -- >= 4: flip → 3,2,1,0
-  cb := cb.label "vib_phase_ok"
-  cb := cb.emitInst (I.sta_zp 0xF6)               -- $F6 = LFO step (0-3)
+  -- Read i_viblimit[inst] → $F6 = frame_limit. (Y still = inst from above.)
+  cb := cb.emitInst ⟨.LDA, .absY 0⟩
+  cb := { cb with absFixups :=
+    { byteIdx := cb.bytes.size - 2, targetLabel := "i_viblimit" } :: cb.absFixups }
+  cb := cb.emitInst (I.sta_zp 0xF6)               -- $F6 = frame_limit
 
-  -- Compute delta: (freq[pitch+1] - freq[pitch]) >> (vib_depth+1)
-  -- Look up freq[pitch] and freq[pitch+1]
+  -- Walk per-voice counter (BSS $B1E3-$B204). X = $FA = voice index.
+  cb := cb.emitInst (I.ldx_zp 0xFA)
+  cb := cb.emitLdaAbsX "v_vib_dir"
+  cb := cb.emitBranch .BPL "vib_ascend"           -- dir=0 → ascend
+  -- Descending: DEC counter; if !=0 fall through; else flip dir to 0.
+  cb := cb.emitDecAbsX "v_vib_counter"
+  cb := cb.emitBranch .BNE "vib_walk_done"
+  cb := cb.emitIncAbsX "v_vib_dir"                -- $FF + 1 = $00 → ascending
+  cb := cb.emitJmpLabel .JMP "vib_walk_done"
+  cb := cb.label "vib_ascend"
+  -- Ascending: INC counter; if counter <= limit fall through; else clamp+flip.
+  cb := cb.emitIncAbsX "v_vib_counter"
+  cb := cb.emitInst (I.lda_zp 0xF6)               -- A = frame_limit
+  cb := cb.emitInst ⟨.CMP, .absX 0⟩               -- CMP v_vib_counter,X
+  cb := { cb with absFixups :=
+    { byteIdx := cb.bytes.size - 2, targetLabel := "v_vib_counter" } :: cb.absFixups }
+  cb := cb.emitBranch .BCS "vib_walk_done"        -- limit >= counter: ok
+  cb := cb.emitInst ⟨.STA, .absX 0⟩               -- STA v_vib_counter,X (clamp)
+  cb := { cb with absFixups :=
+    { byteIdx := cb.bytes.size - 2, targetLabel := "v_vib_counter" } :: cb.absFixups }
+  cb := cb.emitDecAbsX "v_vib_dir"                -- $00 - 1 = $FF → descending
+  cb := cb.emitDecAbsX "v_vib_counter"            -- back off counter by 1
+  cb := cb.label "vib_walk_done"
+
+  -- Compute delta: (freq[pitch+1] - freq[pitch]) >> shift
   cb := cb.emitLdaAbsX "v_pitch"
   cb := cb.emitInst I.tay                          -- Y = pitch
   cb := cb.emitLdaAbsY "freq_lo"
@@ -874,8 +904,6 @@ def emitVibrato (cb : CodeBuilder) (_song : USFSong) : CodeBuilder := Id.run do
   cb := cb.emitLdaAbsY "freq_hi"
   cb := cb.emitInst (I.sta_zp 0xF9)               -- $F9 = base_fhi
   cb := cb.emitInst I.iny                          -- Y = pitch+1
-  -- Compute 16-bit delta: freq[pitch+1] - freq[pitch].
-  -- 6502 16-bit subtraction: lo first (sets borrow), then hi.
   cb := cb.emitInst I.sec
   cb := cb.emitLdaAbsY "freq_lo"                   -- next_flo
   cb := cb.emitInst (I.sbc_zp 0xF8)               -- delta_lo = next_flo - base_flo
@@ -883,75 +911,84 @@ def emitVibrato (cb : CodeBuilder) (_song : USFSong) : CodeBuilder := Id.run do
   cb := cb.emitLdaAbsY "freq_hi"                   -- next_fhi
   cb := cb.emitInst (I.sbc_zp 0xF9)               -- delta_hi = next_fhi - base_fhi - borrow
   cb := cb.emitInst (I.sta_zp 0xF5)               -- $F5 = delta_hi
-  -- Right-shift the 16-bit delta semitoneShift times (das_model: lsr hi /
-  -- ror lo, repeated). Our semitoneShift already encodes das_model's i_vib+1.
   cb := cb.label "vib_shift"
   cb := cb.emitInst ⟨.LSR, .zp 0xF5⟩              -- LSR delta_hi
-  cb := cb.emitInst ⟨.ROR, .zp 0xF4⟩              -- ROR delta_lo (rotate carry in from hi)
-  cb := cb.emitInst (I.dec_zp 0xF7)               -- dec vib_depth counter
-  cb := cb.emitBranch .BNE "vib_shift"             -- loop while != 0
-  -- $F4 = shifted delta_lo, $F5 = shifted delta_hi
+  cb := cb.emitInst ⟨.ROR, .zp 0xF4⟩              -- ROR delta_lo
+  cb := cb.emitInst (I.dec_zp 0xF7)               -- dec shift counter
+  cb := cb.emitBranch .BNE "vib_shift"
 
-  -- Start from base freq, add delta × LFO step
-  -- vibrato_freq = base_freq + delta * step
-  -- Bump Set Spike's vibrato onset is "dur >= 1" (disassembly $B254-$B25B:
-  -- LDA $B4CC,X / AND #$1F / CMP #$01 / BCC skip). Commando uses #21 here
-  -- because its v_durfield is in dur*3 units and Commando notes start vibrato
-  -- after 7 ticks; Bump Set Spike always starts vibrato on the second frame
-  -- of any audible note.
+  -- Vibrato onset gate (BSS $B254..$B25B: skip when v_durfield == 0).
   cb := cb.emitInst (I.ldx_zp 0xFA)
   cb := cb.emitLdaAbsX "v_durfield"
   cb := cb.emitInst (I.cmp_imm 1)
-  cb := cb.emitBranch .BCS "vib_onset_ok"          -- dur >= 1: vibrato active
-  -- dur == 0: write base freq directly
+  cb := cb.emitBranch .BCS "vib_onset_ok"
   cb := cb.emitJmpLabel .JMP "vib_write_base"
   cb := cb.label "vib_onset_ok"
 
-  -- Load LFO step, DEY to check if 0
-  cb := cb.emitInst (I.ldy_zp 0xF6)               -- Y = step
-  cb := cb.emitInst I.dey                          -- Y--
-  cb := cb.emitBranch .BMI "vib_write_base"        -- step was 0: no addition
-
-  -- Add delta × step to base freq. Y is currently step-1 (post-DEY above).
-  -- Loop runs exactly `step` times: das_model counts 0 < X <= step iterations.
-  cb := cb.emitInst (I.lda_zp 0xF8)               -- base_flo
+  -- Initialise target accumulator = base freq.
+  cb := cb.emitInst (I.lda_zp 0xF8)
   cb := cb.emitInst (I.sta_zp 0xF2)               -- $F2 = target_lo
-  cb := cb.emitInst (I.lda_zp 0xF9)               -- base_fhi
+  cb := cb.emitInst (I.lda_zp 0xF9)
   cb := cb.emitInst (I.sta_zp 0xF3)               -- $F3 = target_hi
 
-  cb := cb.label "vib_add_loop"
-  cb := cb.emitInst I.clc
+  -- Centering: target -= delta, repeated (frame_limit / 2) times.
+  -- BSS $B236-$B252. Y starts at frame_limit >> 1.
+  cb := cb.emitInst (I.lda_zp 0xF6)               -- A = frame_limit
+  cb := cb.emitInst ⟨.LSR, .acc⟩                  -- A >>= 1
+  cb := cb.emitInst I.tay                          -- Y = limit/2
+  cb := cb.label "vib_center_loop"
+  cb := cb.emitInst I.dey
+  cb := cb.emitBranch .BMI "vib_center_done"
+  cb := cb.emitInst I.sec
   cb := cb.emitInst (I.lda_zp 0xF2)
-  cb := cb.emitInst (I.adc_zp 0xF4)               -- target_lo += delta_lo
+  cb := cb.emitInst (I.sbc_zp 0xF4)               -- target_lo -= delta_lo
   cb := cb.emitInst (I.sta_zp 0xF2)
   cb := cb.emitInst (I.lda_zp 0xF3)
-  cb := cb.emitInst (I.adc_zp 0xF5)               -- target_hi += delta_hi + carry
+  cb := cb.emitInst (I.sbc_zp 0xF5)               -- target_hi -= delta_hi (+ borrow)
   cb := cb.emitInst (I.sta_zp 0xF3)
-  cb := cb.emitInst I.dey
-  cb := cb.emitBranch .BPL "vib_add_loop"
+  cb := cb.emitJmpLabel .JMP "vib_center_loop"
+  cb := cb.label "vib_center_done"
 
-  -- Write computed freq to SID
+  -- Add: target += delta, repeated `counter` times. BSS $B25D-$B276.
+  -- Y starts at v_vib_counter,X.
+  cb := cb.emitInst (I.ldx_zp 0xFA)
+  cb := cb.emitLdaAbsX "v_vib_counter"
+  cb := cb.emitInst I.tay
+  cb := cb.label "vib_add_loop"
+  cb := cb.emitInst I.dey
+  cb := cb.emitBranch .BMI "vib_add_done"
+  cb := cb.emitInst I.clc
+  cb := cb.emitInst (I.lda_zp 0xF2)
+  cb := cb.emitInst (I.adc_zp 0xF4)
+  cb := cb.emitInst (I.sta_zp 0xF2)
+  cb := cb.emitInst (I.lda_zp 0xF3)
+  cb := cb.emitInst (I.adc_zp 0xF5)
+  cb := cb.emitInst (I.sta_zp 0xF3)
+  cb := cb.emitJmpLabel .JMP "vib_add_loop"
+  cb := cb.label "vib_add_done"
+
+  -- Write computed freq to SID.
   cb := cb.emitInst (I.ldx_zp 0xFA)
   cb := cb.emitLdaAbsX "v_sidoff"
   cb := cb.emitInst I.tay
   cb := cb.emitInst (I.lda_zp 0xF2)
-  cb := cb.emitInst (I.sta_absY (SID_BASE + 0))   -- freq_lo
+  cb := cb.emitInst (I.sta_absY (SID_BASE + 0))
   cb := cb.emitInst (I.lda_zp 0xF3)
-  cb := cb.emitInst (I.sta_absY (SID_BASE + 1))   -- freq_hi
+  cb := cb.emitInst (I.sta_absY (SID_BASE + 1))
   cb := cb.emitJmpLabel .JMP "no_vib"
 
-  -- Write base freq (no vibrato modulation)
+  -- Write base freq (no vibrato modulation; durfield was 0).
   cb := cb.label "vib_write_base"
   cb := cb.emitInst (I.ldx_zp 0xFA)
   cb := cb.emitLdaAbsX "v_sidoff"
   cb := cb.emitInst I.tay
-  cb := cb.emitInst (I.lda_zp 0xF8)               -- base_flo
+  cb := cb.emitInst (I.lda_zp 0xF8)
   cb := cb.emitInst (I.sta_absY (SID_BASE + 0))
-  cb := cb.emitInst (I.lda_zp 0xF9)               -- base_fhi
+  cb := cb.emitInst (I.lda_zp 0xF9)
   cb := cb.emitInst (I.sta_absY (SID_BASE + 1))
 
   cb := cb.label "no_vib"
-  cb := cb.emitInst (I.ldx_zp 0xFA)               -- restore X = voice
+  cb := cb.emitInst (I.ldx_zp 0xFA)
   return cb
 
 def emitSustainEffects (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.run do
@@ -1321,6 +1358,14 @@ def generateSID (song : USFSong) (debug : Bool := false) : Bytes := Id.run do
     | some spec => spec.semitoneShift.toUInt8
     | none => 0)
 
+  -- Vibrato frame_limit: from periodFrames / 2 (counter walks 0..limit..0,
+  -- so visible LFO period = 2 * limit). 0 = no vibrato (matches i_vib).
+  cb := cb.label "i_viblimit"
+  cb := cb.emitData (song.instruments.map fun i =>
+    match i.vibrato with
+    | some spec => (spec.periodFrames / 2).toUInt8
+    | none => 0)
+
   -- Arpeggio offset (0 = none, 12 = octave, etc.)
   cb := cb.label "i_arp"
   cb := cb.emitData (song.instruments.map fun i =>
@@ -1437,6 +1482,15 @@ def generateSID (song : USFSong) (debug : Bool := false) : Bytes := Id.run do
   cb := cb.label "v_pwhi"
   cb := cb.emitData [0, 0, 0]
   cb := cb.label "v_pwdir"
+  cb := cb.emitData [0, 0, 0]
+  -- Per-voice vibrato walking counter + direction flag (Bump Set Spike
+  -- $B4E3,X and $B50A,X). Initial counter value $02 matches the binary —
+  -- it makes V3's first vibrato frame hit counter=3=limit, peaking the LFO.
+  -- Direction: 0=ascending, $FF=descending (BSS DECs to flip 0->$FF,
+  -- INCs to flip $FF->0).
+  cb := cb.label "v_vib_counter"
+  cb := cb.emitData [2, 2, 2]
+  cb := cb.label "v_vib_dir"
   cb := cb.emitData [0, 0, 0]
   -- Per-voice no_release flag: bit 5 of the raw inst byte at note-load.
   -- When set, the next HR check skips itself, leaving the gate on so the
