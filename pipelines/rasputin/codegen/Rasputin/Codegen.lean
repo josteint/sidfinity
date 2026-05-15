@@ -1274,7 +1274,10 @@ def emitSustainEffects (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.r
   cb := cb.label "has_arp"
   cb := cb.emitInst (I.sta_zp 0xF8)               -- $F8 = arp_offset
   cb := cb.emitInst (I.lda_zp 0x50)               -- frame counter
-  cb := cb.emitInst (I.and_imm 0x01)              -- bit 0
+  -- Rasputin: arpeggio alternates pitch/+12 on bit 1 of the frame
+  -- counter ($C549), not bit 0 — see disassembly $C388 (AND #$02).
+  -- Net effect: octave changes every 2 frames, not every frame.
+  cb := cb.emitInst (I.and_imm 0x02)
   cb := cb.emitBranch .BEQ "arp_base"
   -- Odd frame: pitch + arp_offset
   cb := cb.emitInst I.clc
