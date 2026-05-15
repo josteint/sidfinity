@@ -932,13 +932,16 @@ def emitVibrato (cb : CodeBuilder) (_song : USFSong) : CodeBuilder := Id.run do
 
   -- Start from base freq, add delta × LFO step
   -- vibrato_freq = base_freq + delta * step
-  -- Check onset: durationFrames >= 21 for vibrato to be active.
-  -- das_model: cmp #21 against dur*3 (= durationFrames in our units).
-  -- Notes shorter than 7 ticks skip vibrato and just write base freq.
+  -- OMHD's vibrato gate ($11F7): raw D >= 8 (i.e., v_flags & $1F >= 8).
+  -- Extractor stores duration as D+1 ticks. durationFrames = (D+1) * tempo.
+  -- For tempo=2: raw D >= 8 ⟺ durationFrames >= 18.
+  -- Critical: codegen must use the SAME threshold as OMHD or the
+  -- carry-out of CMP differs, causing PWM linear leak to misalign on
+  -- notes with D ∈ [8, 9].
   cb := cb.emitInst (I.ldx_zp 0xFA)
   cb := cb.emitLdaAbsX "v_durfield"
-  cb := cb.emitInst (I.cmp_imm 21)
-  cb := cb.emitBranch .BCS "vib_onset_ok"          -- dur >= 21 frames: vibrato active
+  cb := cb.emitInst (I.cmp_imm 18)
+  cb := cb.emitBranch .BCS "vib_onset_ok"          -- durFrames >= 18: vibrato active
   -- dur < 6: write base freq directly
   cb := cb.emitJmpLabel .JMP "vib_write_base"
   cb := cb.label "vib_onset_ok"
