@@ -496,12 +496,13 @@ def emitVibrato (cb : CodeBuilder) : CodeBuilder :=
   let cb := { cb with bytes := cb.bytes ++ #[0xB9, 0, 0],
                       absFixups := fixup7 :: cb.absFixups }
   let cb := cb.emitInst (I.sbc_zp 0xF9)   -- A = delta_hi (with borrow from delta_lo SBC)
-  -- Right-shift delta by vib_depth bits (loop)
+  -- Right-shift delta by (vib_depth+1) bits (loop; original uses BPL so
+  -- loops while countdown ≥ 0, i.e., depth+1 total shifts not depth).
   let cb := cb.label "vib_shift"
   let cb := cb.emitInst ⟨.LSR, .acc⟩      -- LSR A (delta_hi)
   let cb := cb.emitInst ⟨.ROR, .zp 0xF4⟩ -- ROR delta_lo
   let cb := cb.emitInst (I.dec_zp 0xF7)   -- dec countdown
-  let cb := cb.emitBranch .BNE "vib_shift"
+  let cb := cb.emitBranch .BPL "vib_shift" -- loop while countdown >= 0 (original: BPL)
   let cb := cb.emitInst (I.sta_zp 0xF3)   -- $F3 = shifted delta_hi
   -- Skip vibrato accumulation on very short notes (orig dur < 4)
   let cb := cb.emitInst (I.ldx_zp 0xFA)
@@ -971,6 +972,9 @@ def emitNoteLoad (cb : CodeBuilder) : CodeBuilder :=
   -- Tie path: DEC gate_mask ($FF → $FE = clear gate bit)
   let cb := cb.label "is_tie"
   let cb := cb.emitInst (I.dec_zp 0xF6)
+  -- TIE: advance patpos past the flags byte (same as $C149 in original).
+  -- The pitch byte is NOT consumed; next note-load will read it as a flags byte.
+  let cb := cb.emitIncAbsX "v_patpos"
   -- Write instrument table to SID (ctrl with gate mask, pw, ad, sr)
   let cb := cb.label "write_inst_to_sid"
   -- Peek next byte; if $FF, pattern ended → advance_ol
