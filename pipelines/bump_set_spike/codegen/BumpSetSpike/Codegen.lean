@@ -893,7 +893,12 @@ def emitVibrato (cb : CodeBuilder) (_song : USFSong) : CodeBuilder := Id.run do
   cb := { cb with absFixups :=
     { byteIdx := cb.bytes.size - 2, targetLabel := "v_vib_counter" } :: cb.absFixups }
   cb := cb.emitDecAbsX "v_vib_dir"                -- $00 - 1 = $FF → descending
-  cb := cb.emitDecAbsX "v_vib_counter"            -- back off counter by 1
+  -- BSS does an extra DEC v_vib_counter here at $B203, but empirically
+  -- siddump shows the original holding at the peak for 2 consecutive
+  -- frames, which only matches if the post-clamp DEC is omitted. Without
+  -- a working py65 trace of the original engine I can't fully account for
+  -- the discrepancy, but skipping the DEC gives the correct V3 frames 1-2
+  -- pattern (B5, B5) instead of (B5, AF).
   cb := cb.label "vib_walk_done"
 
   -- Compute delta: (freq[pitch+1] - freq[pitch]) >> shift
