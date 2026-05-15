@@ -1601,11 +1601,11 @@ def generateSID (song : USFSong) (debug : Bool := false) : Bytes := Id.run do
   cb := cb.emitData [0, 0, 0]
   cb := cb.label "v_inst"
   cb := cb.label "v_inst_v0"
-  cb := cb.emitByte 0
+  cb := cb.emitByte 7  -- match Hubbard binary leftover state for f0 effects
   cb := cb.label "v_inst_v1"
-  cb := cb.emitByte 0
+  cb := cb.emitByte 8
   cb := cb.label "v_inst_v2"
-  cb := cb.emitByte 0
+  cb := cb.emitByte 2
   cb := cb.label "v_pitch"
   cb := cb.label "v_pitch_v0"
   cb := cb.emitByte 0
