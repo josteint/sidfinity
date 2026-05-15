@@ -185,8 +185,26 @@ def extract(
 
             # E spec: ADSR + gate/adsr timing
             # Vibrato runs for ALL instruments (even arp) — intermediate write affects SID
-            has_bit0 = bool(flags & 1)
-            has_skydive = bool(flags & 2)   # bit 1 in Hubbard instrfx
+            #
+            # FX_FLAGS LAYOUT IN RASPUTIN (verified against the binary in
+            # docs/hubbard_rasputin_disassembly.s — different from Commando
+            # and from the labels in decompile.py):
+            #   bit 0 ($C31E) = SKYDIVE: DEC v_fhi each frame after tick 1,
+            #                   write OLD value, mask gate off, ctrl→$80
+            #                   once v_fhi hits zero.
+            #   bit 1 ($C35A) = WAVEFORM SHIMMER: EOR v_ctrl with #$18
+            #                   every 2 frames (no USF support yet).
+            #   bit 2 ($C37E) = ARPEGGIO: +0/+12 pitch alternation on
+            #                   bit 1 of $C549 (global frame counter).
+            #   bit 3 ($C254) = PWM MODE: 1 = linear, 0 = bidirectional.
+            #
+            # Map bit 0 → has_bit0 (which already triggers a downward
+            # freqSlide that approximates skydive). Drop the bit-1 →
+            # USF.skydive mapping the inherited Monty code had — that
+            # was reading shimmer as if it were skydive and producing
+            # a spurious second downward slide on shimmer instruments.
+            has_bit0 = bool(flags & 1)        # bit 0 = real skydive
+            has_skydive = False               # bit 1 (shimmer) — TODO via waveformProgram
             instruments.append(Instrument(
                 id=rh.index,
                 waveform=Waveform(steps=w_steps, loop=w_loop),

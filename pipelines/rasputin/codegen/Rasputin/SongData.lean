@@ -101,7 +101,7 @@ def mv3I4 : USFInstrument := {
   effectOrder := [.pwMod, .freqSlide, .arpeggio, .gateCheck]
   release := { framesBeforeEnd := 3, zeroAdsr := true, noRelease := false }
   filterEnabled := false
-  skydive := true
+  skydive := false
 }
 
 def mv3I5 : USFInstrument := {
@@ -221,7 +221,7 @@ def mv3I10 : USFInstrument := {
   effectOrder := [.pwMod, .gateCheck]
   release := { framesBeforeEnd := 3, zeroAdsr := true, noRelease := false }
   filterEnabled := false
-  skydive := true
+  skydive := false
 }
 
 def mv3I11 : USFInstrument := {
