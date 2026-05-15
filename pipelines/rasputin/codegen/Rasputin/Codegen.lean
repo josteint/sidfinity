@@ -1184,7 +1184,7 @@ def emitSustainEffects (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.r
   -- For Commando tempo=3: skip until countdown <= durationFrames - tempo = durationFrames - 3.
   -- So compare (durationFrames - tempo) with countdown.
   cb := cb.emitLdaAbsX "v_durfield"
-  cb := cb.emitInst (I.sbc_imm 4)                 -- A = durationFrames - 4 (empirically tuned for Hubbard)
+  cb := cb.emitInst (I.sbc_imm 2)                 -- A = durationFrames - 2 (Rasputin tempo=2: Path A starts after tick 1 = 2 music frames)
   cb := cb.emitInst ⟨.CMP, .absX 0⟩               -- cmp countdown
   cb := { cb with absFixups :=
     { byteIdx := cb.bytes.size - 2, targetLabel := "v_dur" } :: cb.absFixups }
