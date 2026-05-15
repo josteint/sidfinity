@@ -229,3 +229,23 @@ lean_lib FiveTitleTunes where
 lean_exe sidgen_five_title_tunes where
   srcDir := "pipelines/five_title_tunes/codegen"
   root   := `FiveTitleTunes.Main
+
+
+-- Dragon's Lair Part II — 1986-era Hubbard engine (DIFFERENT from the
+-- 1985 Commando/Monty engine: dual 8-byte instrument tables, $C505
+-- state byte, $FE/$FF orderlist markers). Scaffold cloned from Monty;
+-- the codegen still uses Monty's engine semantics and so the rebuild
+-- isn't yet faithful to the original. See
+-- pipelines/dragons_lair_part_ii/README.md and
+-- docs/hubbard_dragons_lair_part_ii_disassembly.s.
+
+lean_lib DragonsLairPartIi where
+  srcDir := "pipelines/dragons_lair_part_ii/codegen"
+  roots  := #[`DragonsLairPartIi.SID, `DragonsLairPartIi.Asm6502,
+              `DragonsLairPartIi.PSIDFile, `DragonsLairPartIi.USF,
+              `DragonsLairPartIi.Constants, `DragonsLairPartIi.SongData,
+              `DragonsLairPartIi.Codegen, `DragonsLairPartIi.Properties]
+
+lean_exe sidgen_dragons_lair_part_ii where
+  srcDir := "pipelines/dragons_lair_part_ii/codegen"
+  root   := `DragonsLairPartIi.Main
