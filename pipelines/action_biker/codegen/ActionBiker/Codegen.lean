@@ -1620,10 +1620,10 @@ def generateSID (song : USFSong) (debug : Bool := false) : Bytes := Id.run do
     initAddr := base
     playAddr := base + 3
     songs := song.subtunes.length.toUInt16
-    startSong := 1
-    title := "Commando"
+    startSong := 2  -- Action Biker's PSID defaults to subtune 2 (the main theme)
+    title := "Action Biker"
     author := "Rob Hubbard"
-    released := "1985 Elite"
+    released := "1985 Mastertronic"
   }
   return buildSID header cb.bytes
 
