@@ -894,14 +894,16 @@ def emitVibrato (cb : CodeBuilder) (_song : USFSong) : CodeBuilder := Id.run do
 
   -- Start from base freq, add delta × LFO step
   -- vibrato_freq = base_freq + delta * step
-  -- Check onset: durationFrames >= 21 for vibrato to be active.
-  -- das_model: cmp #21 against dur*3 (= durationFrames in our units).
-  -- Notes shorter than 7 ticks skip vibrato and just write base freq.
+  -- Bump Set Spike's vibrato onset is "dur >= 1" (disassembly $B254-$B25B:
+  -- LDA $B4CC,X / AND #$1F / CMP #$01 / BCC skip). Commando uses #21 here
+  -- because its v_durfield is in dur*3 units and Commando notes start vibrato
+  -- after 7 ticks; Bump Set Spike always starts vibrato on the second frame
+  -- of any audible note.
   cb := cb.emitInst (I.ldx_zp 0xFA)
   cb := cb.emitLdaAbsX "v_durfield"
-  cb := cb.emitInst (I.cmp_imm 21)
-  cb := cb.emitBranch .BCS "vib_onset_ok"          -- dur >= 21 frames: vibrato active
-  -- dur < 6: write base freq directly
+  cb := cb.emitInst (I.cmp_imm 1)
+  cb := cb.emitBranch .BCS "vib_onset_ok"          -- dur >= 1: vibrato active
+  -- dur == 0: write base freq directly
   cb := cb.emitJmpLabel .JMP "vib_write_base"
   cb := cb.label "vib_onset_ok"
 

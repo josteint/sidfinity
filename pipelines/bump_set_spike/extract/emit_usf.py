@@ -72,9 +72,19 @@ def gen_instrument(idx: int, inst: Instrument) -> str:
     if vib == 0:
         vibspec = 'none'
     else:
+        # Bump Set Spike's vib byte (instrument byte 5) is packed:
+        #   bits 6:3 = frame_limit  → LFO period = 2 * frame_limit (counter walks 0..limit..0)
+        #   bits 2:0 = shift count  → delta = (freq[note] - freq[note-1]) >> shift
+        # See disassembly $B1D4..$B1E0. Earlier (Monty/Commando) extracts used
+        # `vib + 1` as semitoneShift directly, which is correct only when the
+        # data byte is a raw shift count — for Bump Set Spike that produces
+        # a 28-bit shift → delta=0 → vibrato silent.
+        frame_limit = (vib >> 3) & 0x0F
+        shift = vib & 0x07
+        period_frames = 2 * frame_limit if frame_limit > 0 else 8
         vibspec = (
-            f"some {{ shape := .triangle, periodFrames := 8, "
-            f"semitoneShift := {vib + 1}, onsetFrames := 6, "
+            f"some {{ shape := .triangle, periodFrames := {period_frames}, "
+            f"semitoneShift := {shift}, onsetFrames := 6, "
             f"rampUpFrames := 0, unipolar := true }}"
         )
 

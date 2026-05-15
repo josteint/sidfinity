@@ -53,7 +53,7 @@ def mv3I2 : USFInstrument := {
   waveLoop := 0
   waveStepEvery := 1
   pwMod := some { mode := .bidirectional ⟨64, by omega⟩ ⟨8, by omega⟩ ⟨14, by omega⟩, stepEvery := 1, startDelay := 0 }
-  vibrato := some { shape := .triangle, periodFrames := 8, semitoneShift := 28, onsetFrames := 6, rampUpFrames := 0, unipolar := true }
+  vibrato := some { shape := .triangle, periodFrames := 6, semitoneShift := 3, onsetFrames := 6, rampUpFrames := 0, unipolar := true }
   freqSlide := none
   arpeggio := none
   effectOrder := [.vibrato, .pwMod, .gateCheck]
@@ -129,7 +129,7 @@ def mv3I6 : USFInstrument := {
   waveLoop := 0
   waveStepEvery := 1
   pwMod := some { mode := .bidirectional ⟨17, by omega⟩ ⟨8, by omega⟩ ⟨14, by omega⟩, stepEvery := 1, startDelay := 0 }
-  vibrato := some { shape := .triangle, periodFrames := 8, semitoneShift := 27, onsetFrames := 6, rampUpFrames := 0, unipolar := true }
+  vibrato := some { shape := .triangle, periodFrames := 6, semitoneShift := 2, onsetFrames := 6, rampUpFrames := 0, unipolar := true }
   freqSlide := none
   arpeggio := none
   effectOrder := [.vibrato, .pwMod, .gateCheck]
@@ -148,7 +148,7 @@ def mv3I7 : USFInstrument := {
   waveLoop := 0
   waveStepEvery := 1
   pwMod := some { mode := .bidirectional ⟨32, by omega⟩ ⟨8, by omega⟩ ⟨14, by omega⟩, stepEvery := 1, startDelay := 0 }
-  vibrato := some { shape := .triangle, periodFrames := 8, semitoneShift := 36, onsetFrames := 6, rampUpFrames := 0, unipolar := true }
+  vibrato := some { shape := .triangle, periodFrames := 8, semitoneShift := 3, onsetFrames := 6, rampUpFrames := 0, unipolar := true }
   freqSlide := none
   arpeggio := none
   effectOrder := [.vibrato, .pwMod, .gateCheck]
@@ -167,7 +167,7 @@ def mv3I8 : USFInstrument := {
   waveLoop := 0
   waveStepEvery := 1
   pwMod := some { mode := .bidirectional ⟨32, by omega⟩ ⟨8, by omega⟩ ⟨14, by omega⟩, stepEvery := 1, startDelay := 0 }
-  vibrato := some { shape := .triangle, periodFrames := 8, semitoneShift := 43, onsetFrames := 6, rampUpFrames := 0, unipolar := true }
+  vibrato := some { shape := .triangle, periodFrames := 10, semitoneShift := 2, onsetFrames := 6, rampUpFrames := 0, unipolar := true }
   freqSlide := none
   arpeggio := none
   effectOrder := [.vibrato, .pwMod, .gateCheck]
@@ -224,7 +224,7 @@ def mv3I11 : USFInstrument := {
   waveLoop := 0
   waveStepEvery := 1
   pwMod := some { mode := .bidirectional ⟨48, by omega⟩ ⟨8, by omega⟩ ⟨14, by omega⟩, stepEvery := 1, startDelay := 0 }
-  vibrato := some { shape := .triangle, periodFrames := 8, semitoneShift := 36, onsetFrames := 6, rampUpFrames := 0, unipolar := true }
+  vibrato := some { shape := .triangle, periodFrames := 8, semitoneShift := 3, onsetFrames := 6, rampUpFrames := 0, unipolar := true }
   freqSlide := none
   arpeggio := none
   effectOrder := [.vibrato, .pwMod, .gateCheck]
@@ -262,7 +262,7 @@ def mv3I13 : USFInstrument := {
   waveLoop := 0
   waveStepEvery := 1
   pwMod := some { mode := .bidirectional ⟨128, by omega⟩ ⟨8, by omega⟩ ⟨14, by omega⟩, stepEvery := 1, startDelay := 0 }
-  vibrato := some { shape := .triangle, periodFrames := 8, semitoneShift := 34, onsetFrames := 6, rampUpFrames := 0, unipolar := true }
+  vibrato := some { shape := .triangle, periodFrames := 8, semitoneShift := 1, onsetFrames := 6, rampUpFrames := 0, unipolar := true }
   freqSlide := none
   arpeggio := none
   effectOrder := [.vibrato, .pwMod, .gateCheck]
@@ -319,7 +319,7 @@ def mv3I16 : USFInstrument := {
   waveLoop := 0
   waveStepEvery := 1
   pwMod := some { mode := .bidirectional ⟨32, by omega⟩ ⟨8, by omega⟩ ⟨14, by omega⟩, stepEvery := 1, startDelay := 0 }
-  vibrato := some { shape := .triangle, periodFrames := 8, semitoneShift := 27, onsetFrames := 6, rampUpFrames := 0, unipolar := true }
+  vibrato := some { shape := .triangle, periodFrames := 6, semitoneShift := 2, onsetFrames := 6, rampUpFrames := 0, unipolar := true }
   freqSlide := none
   arpeggio := none
   effectOrder := [.vibrato, .pwMod, .gateCheck]
@@ -357,7 +357,7 @@ def mv3I18 : USFInstrument := {
   waveLoop := 0
   waveStepEvery := 1
   pwMod := some { mode := .bidirectional ⟨176, by omega⟩ ⟨8, by omega⟩ ⟨14, by omega⟩, stepEvery := 1, startDelay := 0 }
-  vibrato := some { shape := .triangle, periodFrames := 8, semitoneShift := 26, onsetFrames := 6, rampUpFrames := 0, unipolar := true }
+  vibrato := some { shape := .triangle, periodFrames := 6, semitoneShift := 1, onsetFrames := 6, rampUpFrames := 0, unipolar := true }
   freqSlide := none
   arpeggio := none
   effectOrder := [.vibrato, .pwMod, .gateCheck]
