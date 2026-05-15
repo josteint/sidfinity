@@ -893,15 +893,20 @@ def decode_pattern(binary, load_addr, addr, max_bytes=256):
 def decode_track(binary, load_addr, track_addr, num_sequences=256, max_bytes=512):
     """Decode a Hubbard track = sequence of pattern indices.
 
-    Per Hubbard's driver (Commando $5086-$50A4):
-    - $FF in the orderlist resets the position to 0 (loop to start of track).
-      The engine does NOT read a restart_position byte after FF — the byte
-      after FF is dead data.
-    - $FE = stop (track ends, no loop). Engine handles via JSR $5003.
+    Per Rasputin's player (see docs/hubbard_rasputin_disassembly.s $C094-$C0CD):
+    - $FF in the orderlist = loop back to position 0 of this track.
+    - $FE = speed-change marker. The byte AFTER $FE is loaded into
+      $C539+$C53A (the outer sub-frame divider reload), overriding the
+      binary's default $C539=$05. Parsing continues past the speed byte.
+    - $FD = song-end marker. JSR's $CF8D which sets $C53D = $C0 → silence
+      and stop. Treated like a stop sentinel for the orderlist.
     - 0 to num_sequences-1 = pattern index.
-    - bytes >= num_sequences and < $FE: treated as bogus pattern indices in
-      Commando but other Hubbard tunes use them as transpose markers; we
-      consume one extra byte heuristically and continue.
+
+    Returns a list of tuples:
+    - ('pattern', n)  → play pattern n
+    - ('speed', v)    → set the outer sub-frame divider reload to v
+    - ('loop', 0)     → restart this voice's orderlist
+    - ('stop', None)  → song-end (no further notes)
     """
     patterns = []
     off = track_addr - load_addr
@@ -911,16 +916,20 @@ def decode_track(binary, load_addr, track_addr, num_sequences=256, max_bytes=512
             break
         b = binary[off + i]
         if b == 0xFF:
-            # Loop back to position 0 of this track.
             patterns.append(('loop', 0))
             break
         elif b == 0xFE:
-            # $FE = stop (track ends, no loop)
+            # Consume the speed byte that follows.
+            i += 1
+            if off + i < len(binary):
+                patterns.append(('speed', binary[off + i]))
+                i += 1
+            continue
+        elif b == 0xFD:
             patterns.append(('stop', None))
             break
         elif b >= num_sequences:
             # Byte exceeds valid pattern range — skip it.
-            # Some variants use 2-byte markers (marker + index).
             i += 1
             if off + i < len(binary) and binary[off + i] < num_sequences:
                 i += 1

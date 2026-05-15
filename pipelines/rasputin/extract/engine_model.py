@@ -216,8 +216,45 @@ def extract(
                 f"(have {len(decomp.songs)} songs)"
             )
         song = decomp.songs[subtune]
-        tick_length = speed + 1
         pat_dict = {p.index: p for p in decomp.patterns}
+
+        # Rasputin tempo derivation.
+        #
+        # The Rasputin engine has TWO time-base counters (see
+        # docs/hubbard_rasputin_disassembly.s):
+        #   - outer ($C53A/$C539): sub-frame divider. When it wraps, the
+        #     play loop jumps to $C3C5 (SFX-only) → music does NOT advance.
+        #     So music plays N out of every (N+1) real frames, where
+        #     N = outer_reload.
+        #   - inner ($C536/$C53B): per-voice tick. Decremented once per
+        #     music frame; when it wraps, note-load fires on the next
+        #     music frame. Reload value = $C537,subtune.
+        #
+        # decomp.speed picked up the outer counter's binary default ($05),
+        # NOT the per-voice tick reload. Override by reading the correct
+        # cells out of the py65 simulation we just ran.
+        #
+        # First-FE-marker handling: V3's orderlist (and others) frequently
+        # begin with $FE <speed> which immediately overwrites $C539. The
+        # play simulation above runs for 50k cycles which is enough to
+        # consume those leading markers, so $C539 reflects the steady-state
+        # outer divider for this subtune.
+        inner_reload = m.memory[0xC53B]   # per-voice tick reload
+        outer_reload = m.memory[0xC539]   # sub-frame divider reload
+        # Real frames per note-load tick.
+        #   music plays N of every (N+1) real frames (N=outer_reload),
+        #   note-load fires every (M+1) music frames (M=inner_reload).
+        # ⇒ note-load period in real frames = (M+1) × (N+1) / N
+        if outer_reload == 0:
+            outer_reload = 1   # avoid div by zero; degenerate to no SFX skip
+        from fractions import Fraction
+        fpt = Fraction((inner_reload + 1) * (outer_reload + 1), outer_reload)
+        # Round to nearest integer for USF (which uses integer frame counts).
+        tick_length = int(fpt + Fraction(1, 2))
+        logger.debug(
+            "Rasputin tempo: inner=%d outer=%d → fpt=%s → tick_length=%d",
+            inner_reload, outer_reload, fpt, tick_length,
+        )
 
         score = Score(tempo=tick_length, voices=[])
         for v_track in song.tracks:
@@ -278,6 +315,17 @@ def extract(
                         voice.patterns[pat_idx] = notes
                 elif entry[0] == 'loop':
                     voice.loop = entry[1]
+                elif entry[0] == 'speed':
+                    # $FE-marker runtime speed override. We've already
+                    # baked the steady-state value into the score tempo
+                    # above by reading $C539 post-simulation; no per-note
+                    # state needed here. Future enhancement: support
+                    # mid-orderlist speed changes for tunes that alternate.
+                    pass
+                elif entry[0] == 'stop':
+                    # $FD-marker: song-end. Stop appending; voice plays
+                    # its current orderlist contents once and ends.
+                    break
             score.voices.append(voice)
 
         logger.debug("extract: %d instruments, %d voices, tempo=%d",
