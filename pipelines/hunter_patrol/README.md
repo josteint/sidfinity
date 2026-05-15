@@ -11,11 +11,20 @@ pipelines.
 |---|---|
 | Subtunes rebuilt | 1 (PSID single-subtune SID) |
 | Build | end-to-end clean: `python -m pipelines.hunter_patrol.extract` → `lake build sidgen_hunter_patrol` → SID at `pipelines/hunter_patrol/build/hunter_patrol.sid` |
-| Grade | **B** (1418/1500 snapshots, 94.5%) |
+| Grade | **B** (1432/1500 snapshots, 95.5%) |
 
-The first frame matches exactly. Remaining mismatches are accumulated
-effect-cadence drift over 1500 frames, concentrated in V2/V3 envelope
-register diffs around note boundaries.
+For calibration: the byte-perfect Commando rebuild only scores 96.4% on
+the same `writelog_grade` metric — emulation-jitter alone costs ~3.5%
+even when the rebuild is bit-identical to its reference. So 95.5% on
+Hunter Patrol is within ~1% of what a perfect rebuild would score.
+
+The first 41 frames match exactly. Remaining mismatches are
+concentrated in V2 freq writes (53 FREQ_LO + 34 FREQ_HI). The
+underlying cause is a per-voice LFO-phase asymmetry that's
+reproducible in the original SID but couldn't be tracked down to
+a specific 6502-level mechanism: the original's V1 and V2 vibrato
+write different LFO-phase'd freqs on certain frames despite
+sharing instrument 4 and reading the same $A426 frame counter.
 
 ## Layout
 
