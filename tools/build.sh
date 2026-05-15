@@ -47,7 +47,13 @@ echo "Building siddump..."
 g++ $CXXFLAGS $INCFLAGS siddump.cpp libsidplayfp/build/libsidplayfp.a -o siddump
 echo "  Built tools/siddump"
 
-# --- Step 5: Build gt2asm ---
+# --- Step 5: Build sidrender ---
+
+echo "Building sidrender..."
+g++ $CXXFLAGS $INCFLAGS sidrender.cpp libsidplayfp/build/libsidplayfp.a -o sidrender
+echo "  Built tools/sidrender"
+
+# --- Step 6: Build gt2asm ---
 
 echo "Building gt2asm..."
 GT2ASM_DIR="../src/GoatTracker_2.77/src/asm"

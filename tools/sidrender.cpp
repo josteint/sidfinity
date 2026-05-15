@@ -41,6 +41,7 @@ int main(int argc, char* argv[])
             "  --subtune N    Select subtune (default: start song)\n"
             "  --duration N   Duration in seconds (default: 10)\n"
             "  --timeout N    Timeout in seconds (default: 0 = none)\n"
+            "  --force-rsid   Render RSID-classified PSIDs (default: skip them)\n"
             "\nOutputs raw 16-bit signed LE mono PCM at 48kHz to stdout.\n",
             argv[0]);
         return 1;
@@ -50,6 +51,7 @@ int main(int argc, char* argv[])
     int subtune = 0;
     int seconds = 10;
     int timeout = 0;
+    bool force_rsid = false;
 
     for (int i = 2; i < argc; i++) {
         if (strcmp(argv[i], "--subtune") == 0 && i + 1 < argc) {
@@ -58,6 +60,8 @@ int main(int argc, char* argv[])
             seconds = atoi(argv[++i]);
         } else if (strcmp(argv[i], "--timeout") == 0 && i + 1 < argc) {
             timeout = atoi(argv[++i]);
+        } else if (strcmp(argv[i], "--force-rsid") == 0) {
+            force_rsid = true;
         }
     }
 
@@ -78,7 +82,7 @@ int main(int argc, char* argv[])
         return 1;
     }
 
-    if (info->compatibility() == SidTuneInfo::COMPATIBILITY_R64) {
+    if (!force_rsid && info->compatibility() == SidTuneInfo::COMPATIBILITY_R64) {
         fprintf(stderr, "Skipping RSID: %s\n", filename);
         return 3;
     }

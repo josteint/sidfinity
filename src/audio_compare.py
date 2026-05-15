@@ -21,8 +21,13 @@ SIDRENDER = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file_
 
 
 def render_sid(sid_path, duration=10, subtune=0):
-    """Render a SID file to a numpy int16 array via sidrender."""
-    cmd = [SIDRENDER, sid_path, "--duration", str(duration)]
+    """Render a SID file to a numpy int16 array via sidrender.
+
+    `--force-rsid` is always passed so PSID-with-IRQ files (load $9F80
+    init only, like Hubbard's 1985 Firebird releases) render instead of
+    being skipped as R64."""
+    cmd = [SIDRENDER, os.path.abspath(sid_path), "--duration", str(duration),
+           "--force-rsid"]
     if subtune:
         cmd += ["--subtune", str(subtune)]
     result = subprocess.run(cmd, capture_output=True, timeout=duration + 30)

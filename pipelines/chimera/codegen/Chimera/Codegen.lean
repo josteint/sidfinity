@@ -1520,22 +1520,34 @@ def generateSID (song : USFSong) (debug : Bool := false) : Bytes := Id.run do
   cb := cb.emitData [0, 0, 0]
   cb := cb.label "v_olpos"
   cb := cb.emitData [0, 0, 0]
+  -- v_ctrl initial values: Chimera's binary at $C637,X = $41,$41,$41 (pulse+gate
+  -- ctrl values for all three voices). The engine never zeroes v_ctrl at init,
+  -- so frame 0 reads these binary defaults when fx_flags bit 0 (drums) or the
+  -- HR sustain path needs the previous ctrl. Without these, the codegen would
+  -- read 0 and produce silent voices on the first drum/HR-sustain frame.
   cb := cb.label "v_ctrl"
   cb := cb.label "v_ctrl_0"
-  cb := cb.emitByte 0
+  cb := cb.emitByte 0x41
   cb := cb.label "v_ctrl_1"
-  cb := cb.emitByte 0
+  cb := cb.emitByte 0x41
   cb := cb.label "v_ctrl_2"
-  cb := cb.emitByte 0
+  cb := cb.emitByte 0x41
   cb := cb.label "v_wptr"
   cb := cb.emitData [0, 0, 0]
+  -- v_inst initial values: Chimera's binary at $C63D,X = $04,$0E,$02. The engine
+  -- inherits these on first frame before any note-load runs, so the very first
+  -- effects-loop pass uses inst 4 (V1), inst 14 (V2), inst 2 (V3). Init never
+  -- zeroes v_inst, so these are the values the original chip sees on frame 0.
+  -- See docs/hubbard_chimera_disassembly.s $C210-$C229 (first-frame setup
+  -- explicitly zeroes $C62B/$C62E/$C631/$C63A only — $C63D and $C637 keep
+  -- their binary values).
   cb := cb.label "v_inst"
   cb := cb.label "v_inst_v0"
-  cb := cb.emitByte 0
+  cb := cb.emitByte 0x04
   cb := cb.label "v_inst_v1"
-  cb := cb.emitByte 0
+  cb := cb.emitByte 0x0E
   cb := cb.label "v_inst_v2"
-  cb := cb.emitByte 0
+  cb := cb.emitByte 0x02
   cb := cb.label "v_pitch"
   cb := cb.label "v_pitch_v0"
   cb := cb.emitByte 0
@@ -1569,8 +1581,14 @@ def generateSID (song : USFSong) (debug : Bool := false) : Bytes := Id.run do
   -- Per-voice no_release flag: bit 5 of the raw inst byte at note-load.
   -- When set, the next HR check skips itself, leaving the gate on so the
   -- following note inherits it (Hubbard portamento/legato).
+  -- Initial values 1 for all voices so the gate-off check is suppressed
+  -- on the very first frame — Chimera's engine runs effects-only for
+  -- the first 2 frames (tick gate at $C652/$C653 fails) and never
+  -- enters the sustain HR-gate-off path before the first note_load
+  -- arrives on frame 3. Each note_load rewrites v_no_release from the
+  -- pattern flag's bit 5, so this initial 1 is consumed harmlessly.
   cb := cb.label "v_no_release"
-  cb := cb.emitData [(0 : UInt8), 0, 0]
+  cb := cb.emitData [(1 : UInt8), 1, 1]
   -- Per-voice "no instrument byte" flag (bit 7 of pattern inst byte).
   -- Set on note-load when the pattern note omits the instrument; v_inst
   -- update skips itself, so the previous instrument's tables continue to
