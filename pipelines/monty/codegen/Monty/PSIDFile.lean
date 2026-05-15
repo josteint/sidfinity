@@ -20,6 +20,11 @@ structure PSIDHeader where
   title      : String := ""
   author     : String := ""
   released   : String := ""
+  -- PSID v2 flags (offset 118). Bit 2 = PAL clock, bit 4 = 6581 SID
+  -- model. Hubbard's originals declare both (= 0x14); leaving this
+  -- zero means "unknown clock, unknown SID model" which most players
+  -- handle but isn't byte-equivalent to the original PSID.
+  flags      : UInt16 := 0
 
 -- Write a big-endian UInt16
 def writeBE16 (v : UInt16) : Bytes :=
@@ -57,9 +62,9 @@ def serializeHeader (h : PSIDHeader) : Bytes :=
   ++ padString h.author 32            -- offset 54: author
   ++ padString h.released 32          -- offset 86: released
   -- v2 fields (offset 118-123)
-  ++ #[0, 0]                          -- flags (6581)
-  ++ #[0, 0]                          -- start page
-  ++ #[0, 0]                          -- page length / reserved
+  ++ writeBE16 h.flags                -- offset 118: flags (clock + SID model)
+  ++ #[0, 0]                          -- offset 120: start page
+  ++ #[0, 0]                          -- offset 122: page length / reserved
 
 -- Build a complete .sid file
 -- payload: the 6502 code + data that will be loaded at loadAddr
