@@ -1212,6 +1212,22 @@ def emitSustainEffects (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.r
   cb := { cb with absFixups :=
     { byteIdx := cb.bytes.size - 2, targetLabel := "i_skydive" } :: cb.absFixups }
   cb := cb.emitBranch .BEQ "no_sky"
+  -- OMHD's bit 1 alt slide gate ($1338): orig_dur (raw, in ticks) >= 16.
+  -- Extractor stores duration as ticks-counter-load = D+1. durationFrames =
+  -- (D+1) * tempo. For OMHD tempo=2, raw D >= 16 ⟺ durationFrames >= 34.
+  cb := cb.emitLdaAbsX "v_durfield"
+  cb := cb.emitInst (I.cmp_imm 34)
+  cb := cb.emitBranch .BCS "sky_dur_ok"
+  cb := cb.emitJmpLabel .JMP "no_sky"
+  cb := cb.label "sky_dur_ok"
+  -- OMHD's bit 1 second gate ($133F): v_dur (in ticks) < 24. Alt slide
+  -- fires only in the *tail* of long notes. In codegen frames at tempo=2,
+  -- v_dur < 24 ticks ⟺ v_dur < 48 frames.
+  cb := cb.emitLdaAbsX "v_dur"
+  cb := cb.emitInst (I.cmp_imm 48)
+  cb := cb.emitBranch .BCC "sky_vdur_ok"
+  cb := cb.emitJmpLabel .JMP "no_sky"
+  cb := cb.label "sky_vdur_ok"
   cb := cb.emitInst (I.lda_zp 0x50)               -- frame counter
   cb := cb.emitInst (I.and_imm 0x01)
   cb := cb.emitBranch .BEQ "no_sky"               -- even counter: skip

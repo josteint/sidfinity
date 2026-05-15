@@ -124,8 +124,7 @@ def gen_instrument(idx: int, inst: Instrument) -> str:
   effectOrder := {eff_order}
   release := {{ framesBeforeEnd := 3, zeroAdsr := true, noRelease := false }}
   filterEnabled := false
-  skydive := false  -- TEMP: codegen's skydive lacks OMHD's orig_dur>=16 / v_dur<24 gates.
-                    -- Original fx_flags bit 1: raw (sky={str(sky).lower()}); see disassembly $132C.
+  skydive := {str(sky).lower()}
 }}"""
 
 
