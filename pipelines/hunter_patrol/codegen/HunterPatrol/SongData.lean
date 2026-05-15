@@ -1,4 +1,4 @@
--- Auto-generated USF v3 HunterPatrol on the Run data
+-- Auto-generated USF v3 Hunter Patrol data
 -- Subtunes: [0] (0-indexed; PSID subtunes [1])
 import HunterPatrol.USF
 
@@ -417,7 +417,7 @@ def hunter_patrolV3 : USFSong := {
     ]
     dynamicFreqEntries := []
   }
-  title := "HunterPatrol on the Run"
+  title := "Hunter Patrol"
   author := "Rob Hubbard"
-  released := "1985 Gremlin Graphics"
+  released := "1985 Mastertronic"
 }

@@ -24,7 +24,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="python -m pipelines.hunter_patrol.extract",
         description=(
-            "Read the original HunterPatrol on the Run SID, extract one or more "
+            "Read the original Hunter Patrol SID, extract one or more "
             "subtunes, and write SongData.lean for the Lean codegen."
         ),
     )

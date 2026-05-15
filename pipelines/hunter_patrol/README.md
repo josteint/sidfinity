@@ -1,46 +1,44 @@
-# HunterPatrol on the Run pipeline
+# Hunter Patrol pipeline
 
-End-to-end rebuild of Rob Hubbard's *HunterPatrol on the Run* (1985) SID. Same shape
-as the Commando pipeline; cloned and extended for HunterPatrol's engine quirks
-(skydive effect, pulsedelay/pulsedir initial state, notenum/freq-table
-overlap aliasing, different HR threshold).
+End-to-end rebuild of Rob Hubbard's *Hunter Patrol* (1985 Mastertronic) SID.
+Original is parsed, lifted into structured USF, then re-emitted as a fresh
+PSID driven by our own V3 player. Same shape as the Commando and Monty
+pipelines.
 
 ## Status
 
 | Metric | Value |
 |---|---|
-| Subtunes rebuilt | 3 (the music tracks; PSID #1–#3 in the original) |
-| Verification | siddump 98.8% snapshot match; py65 0-divergence over 1500 frames |
-| Grade | A |
+| Subtunes rebuilt | 1 (PSID single-subtune SID) |
+| Build | end-to-end clean: `python -m pipelines.hunter_patrol.extract` → `lake build sidgen_hunter_patrol` → SID at `pipelines/hunter_patrol/build/hunter_patrol.sid` |
+| Grade | F (0/1500 snapshots) — starting state, not byte-faithful |
 
-The remaining ~1.2% siddump gap is `libsidplayfp` emulator subtleties
-(CIA timer, cycle-exact bus contention) that don't affect what the SID
-chip outputs.
-
-The original PSID claims 19 subtunes; the other 16 are sound effects
-this pipeline doesn't ship.
+This is the **bring-up state** of the pipeline: scaffolding is in place,
+the Hubbard binary parses, the Lean codegen produces a SID, and grading
+runs. The rebuild does not yet match the original musically — see
+**Known divergences** below.
 
 ## Layout
 
-Identical to Commando — see `pipelines/commando/README.md` for the layout
-explanation. The HunterPatrol-specific differences are inside the codegen:
+Identical to Commando — see `pipelines/commando/README.md` for the
+layout walkthrough. Hunter-Patrol-specific bits live in:
 
-| File | HunterPatrol-only addition |
+| File | Hunter-Patrol-only content |
 |---|---|
-| `codegen/HunterPatrol/USF.lean` | `skydive : Bool` field on `USFInstrument` |
-| `codegen/HunterPatrol/Codegen.lean` | Skydive emit block; v_pitch alias-store into freq table; PWM init data extracted from binary; HR threshold = 1 |
-| `extract/engine_model.py` | Extracts `has_skydive` from fx_flags bit 1 |
-| `extract/emit_usf.py` | Emits `skydive := true/false` for each instrument |
+| `extract/engine_model.py` | `SID_PATH` points at `Hunter_Patrol.sid`; `has_skydive` propagated from fx_flags bit 1 |
+| `extract/emit_usf.py` | `HUNTER_PATROL_FT_BASE = 0xA32D` (freq table); 1-subtune defaults; `engineQuirks.dynamicFreqEntries = []` (Hunter Patrol doesn't alias freq slots) |
+| `codegen/HunterPatrol/USF.lean` | `skydive` field on `USFInstrument` |
+| `codegen/HunterPatrol/Codegen.lean` | Skydive emit; PWM bounds $08/$0E |
+
+The annotated disassembly that drives engine understanding is at
+`docs/hubbard_hunter_patrol_disassembly.s`.
 
 ## How to run
 
-Regenerate `SongData.lean` from the original — by default rebuilds subtune 0
-(the title music PSID #1). Pass comma-separated 0-indexed subtune numbers
-to override:
+Regenerate `SongData.lean` from the original:
 
 ```bash
-python -m pipelines.hunter_patrol.extract.emit_usf            # subtune 0 only
-python -m pipelines.hunter_patrol.extract.emit_usf 0,1,2       # all three music tracks
+python -m pipelines.hunter_patrol.extract              # subtune 0 (the only one)
 ```
 
 Build and run:
@@ -53,20 +51,54 @@ lake build sidgen_hunter_patrol
 Grade against the original:
 
 ```bash
-python src/writelog_grade.py \
+source src/env.sh
+python3 src/writelog_grade.py \
     data/C64Music/MUSICIANS/H/Hubbard_Rob/Hunter_Patrol.sid \
-    hunter_patrol.sid
-# Expected: Grade A, snapshots 98.8% (1482/1500)
+    pipelines/hunter_patrol/build/hunter_patrol.sid
+# Currently: Grade F, snapshots 0/1500
 ```
 
-## Why a separate pipeline from Commando
+## Known divergences (work items)
 
-Two Hubbard SIDs from the same player era still differ in load-bearing
-ways (PW bounds, pulsedelay init, fx-flag semantics). Cloning the
-pipeline rather than parameterising it kept the Commando byte-perfect
-invariant safe while HunterPatrol was being developed. The two pipelines can
-be merged once a third Hubbard SID is wired through to validate the
-abstraction.
+Decoded from a writelog diff at frame 0 (orig vs rebuild). All trace
+back to the engine's reliance on **binary-loaded initial state** that
+the current rebuild does not preserve:
+
+1. **Sub-frame tempo gate.** Original $A418/$A419 = $01/$02, so the
+   first note-load fires on frame 2 (period 3). The rebuild fires note
+   loads on frame 0 for all three voices, writing full instrument
+   bytes (PW, ctrl, AD, SR) before any vibrato/skydive runs. Fix: emit
+   the tempo counter with initial `counter=1, reload=2` (per
+   `Hunter_Patrol.sid` bytes at $A418/$A419) instead of resetting at
+   note-load time.
+
+2. **Binary-loaded effect caches.** `$A41B-$A41D` (freq HI per voice)
+   and `$A3FA-$A3FC` (raw note byte per voice) are NOT zeroed by the
+   engine's init — they hold leftover values from the binary. On
+   frame 0 the skydive effect reads `$A41B = $36` and decrements it,
+   producing V1 FREQ_HI = $36 in the original output. The rebuild's
+   skydive runs against zero-initialised state and produces nothing.
+   Fix: codegen needs to seed these state cells from the disassembled
+   binary, or emit a one-time init block that mirrors the load-time
+   values.
+
+3. **No per-frame "tween" path in the rebuilt player.** Our V3 player
+   re-loads instrument state every note frame; the original interleaves
+   tween/note frames at 2:1. Without modelling this, vibrato phase and
+   PWM counter drift across the 1500-frame window.
+
+See `docs/hubbard_hunter_patrol_disassembly.s` HIGH-LEVEL FLOW section
+for the bit-exact tempo-gating + effects-only-on-tween-frame logic
+the rebuild needs to match.
+
+## Why a separate pipeline from Commando / Monty
+
+Hubbard's 1985 player ships in three subtly-incompatible binaries
+across these three SIDs: PWM bounds, fx-flag semantics, first-frame
+init quirks, and (for Hunter Patrol) load-bearing binary-loaded state
+all differ. Cloning the pipeline rather than parameterising it keeps
+the byte-perfect Commando invariant locked while Hunter Patrol is
+being brought up. The three can be merged once Hunter Patrol grades A.
 
 See also: `~/.claude/projects/-home-jtr-sidfinity/memory/project_hubbard_notenum_overlap.md`
-and `reference_hubbard_pwm_bounds.md` for the load-bearing quirks.
+and `reference_hubbard_pwm_bounds.md`.

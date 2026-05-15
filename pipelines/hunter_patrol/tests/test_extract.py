@@ -1,4 +1,4 @@
-"""Smoke tests for the HunterPatrol on the Run extract pipeline.
+"""Smoke tests for the Hunter Patrol extract pipeline.
 
 Run from repo root:  pytest pipelines/hunter_patrol/tests/
 """
@@ -11,23 +11,25 @@ def test_extract_returns_song_with_expected_shape() -> None:
     song = extract(subtune=0)
     assert song.freq_table is not None
     assert len(song.freq_table) >= 96
-    assert len(song.instruments) == 20      # HunterPatrol has 20 distinct instruments
-    assert song.score.tempo > 0
+    # Hunter Patrol's instrument table at $A427 holds 15 non-zero records.
+    assert len(song.instruments) == 15
+    # Tempo is the engine's $A419+1 = 2+1 = 3 frames per tick.
+    assert song.score.tempo == 3
     assert len(song.score.voices) == 3
 
 
 def test_skydive_instruments_are_detected() -> None:
-    """HunterPatrol's instruments 10, 12, 13 have fx_flags bit 1 set (skydive)."""
+    """Hunter Patrol only uses skydive on instrument 4 (fx_flags bit 1)."""
     song = extract(subtune=0)
     skydive_ids = {i.id for i in song.instruments if i.has_skydive}
-    assert skydive_ids == {10, 12, 13}, (
-        f"expected skydive on instruments 10/12/13, got {skydive_ids}"
+    assert skydive_ids == {4}, (
+        f"expected skydive on instrument 4, got {skydive_ids}"
     )
 
 
 def test_pw_bounds_are_hubbard_hardcoded() -> None:
     """Hubbard's pulsework uses cmp #$08 / #$0E for bidir PWM bounds —
-    every HunterPatrol extraction must default to those values."""
+    every Hunter Patrol extraction must default to those values."""
     song = extract(subtune=0)
     for inst in song.instruments:
         if inst.pwm.mode == 'bidirectional':
@@ -36,14 +38,18 @@ def test_pw_bounds_are_hubbard_hardcoded() -> None:
 
 
 def test_subtune_out_of_range_raises_value_error() -> None:
+    """Hunter Patrol's PSID declares a single subtune. Anything ≥ 1 must fail."""
     import pytest
     with pytest.raises(ValueError, match=r"subtune"):
-        extract(subtune=99)
+        extract(subtune=1)
 
 
-def test_three_music_subtunes_extract() -> None:
-    for s in (0, 1, 2):
-        song = extract(subtune=s)
-        assert len(song.score.voices) == 3
-        for voice in song.score.voices:
-            assert len(voice.orderlist) > 0
+def test_v1_v2_orderlists_are_paired() -> None:
+    """V1 and V2 in Hunter Patrol play paired (off-by-one) patterns —
+    a classic Hubbard harmony layout. V2 patterns = V1 patterns + 1."""
+    song = extract(subtune=0)
+    v1 = song.score.voices[0].orderlist
+    v2 = song.score.voices[1].orderlist
+    assert len(v1) == len(v2)
+    for a, b in zip(v1, v2):
+        assert b == a + 1, f"V1={v1!r}, V2={v2!r}"

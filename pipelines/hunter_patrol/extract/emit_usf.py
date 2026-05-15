@@ -1,9 +1,11 @@
-"""Generate USF v3 HunterPatrol on the Run data as a Lean file.
+"""Generate USF v3 Hunter Patrol data as a Lean file.
 
 Pipeline structure identical to the Commando emit_usf; only the SID source
 path, freq table base, and Lean output paths differ.
 
-Discovered freq_table_addr for HunterPatrol: $8400 (via src/sidxray/discover.py).
+Hunter Patrol's freq table lives at $A32D (load $A000, freq table is
+referenced by the `LDA $A32D,Y` / `LDA $A32E,Y` instructions in play —
+see docs/hubbard_hunter_patrol_disassembly.s).
 """
 
 from __future__ import annotations
@@ -210,7 +212,7 @@ def main(argv: list[str] | None = None) -> None:
     instruments = first.instruments
 
     out = [
-        "-- Auto-generated USF v3 HunterPatrol on the Run data",
+        "-- Auto-generated USF v3 Hunter Patrol data",
         f"-- Subtunes: {subtune_indices} (0-indexed; PSID subtunes "
         f"{[s + 1 for s in subtune_indices]})",
         "import HunterPatrol.USF",
@@ -343,9 +345,9 @@ def main(argv: list[str] | None = None) -> None:
   filter := none
   playRate := .vbi
   engineQuirks := {quirks}
-  title := "HunterPatrol on the Run"
+  title := "Hunter Patrol"
   author := "Rob Hubbard"
-  released := "1985 Gremlin Graphics"
+  released := "1985 Mastertronic"
 }}""")
 
     # Output path is repo-root-relative, computed from this file's location.

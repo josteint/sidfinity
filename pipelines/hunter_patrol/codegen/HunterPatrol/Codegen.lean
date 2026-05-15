@@ -1,11 +1,12 @@
 /-
-  HunterPatrol.Codegen — Player codegen for Rob Hubbard's HunterPatrol on the Run,
-  consuming a `USFSong` and emitting a `ByteArray` PSID. Verified status:
-  Grade A 98.8% snapshot match in siddump; 0 register-divergence across
-  1500 frames in py65.
+  HunterPatrol.Codegen — Player codegen for Rob Hubbard's Hunter Patrol
+  (1985 Mastertronic), consuming a `USFSong` and emitting a `ByteArray`
+  PSID. Bring-up state: builds end-to-end, currently Grade F against the
+  original — see `pipelines/hunter_patrol/README.md` for divergence
+  work items.
 
   Cloned from Commando.Codegen. Differences from that codegen, ALL
-  HunterPatrol-specific, are flagged inline:
+  Hunter-Patrol-specific, are flagged inline:
   - Skydive emit block (between freqSlide and arpeggio) — gated on
     `i_skydive[inst]`.
   - v_pitch alias-store in `emitNL_SavePitchFhi` — mirrors V1/V2/V3
