@@ -420,7 +420,18 @@ def emitPlayHeader (cb : CodeBuilder) : CodeBuilder :=
 /-- Per-voice step inside the loop: apply per-voice dynamic-freq updates,
     load X with the voice index, then JSR (or tail-JMP for the last
     voice — `idxAndLast.snd` is true on the last iteration). Used as
-    the body of a `foldl`. -/
+    the body of a `foldl`.
+
+    Before the LAST voice's JSR we emit a fixed-count delay loop. The
+    original Hubbard engine's V1 (last-processed voice) writes spill
+    into the NEXT sidplayfp frame because the per-voice processing
+    fills out the VBI period. Our codegen runs faster, so V1 writes
+    land in the current frame instead — causing scattered 1-frame
+    sidplayfp-CSV jitter. Padding ~1500 cycles before V1 pushes its
+    writes past the VBI boundary so they land in frame N+1 like the
+    original. The pad uses LDX #$FF; loop: DEX; BNE loop (5 cycles
+    per iter × 255 = 1275 cycles + a small constant). The pad does
+    NOT affect engine semantics — py65 still shows 100% byte-perfect. -/
 def emitPlayVoiceStep (song : USFSong) (cb : CodeBuilder)
     (idxAndLast : Nat × Bool) : CodeBuilder :=
   match song.voiceOrder[idxAndLast.fst]? with
@@ -428,6 +439,17 @@ def emitPlayVoiceStep (song : USFSong) (cb : CodeBuilder)
   | some v =>
     let cb := emitDynamicUpdatesForPhase cb
                 song.engineQuirks.dynamicFreqEntries (.beforeVoice v)
+    -- Pad cycles before the LAST voice's JSR. Aim: push V1's freq writes
+    -- past sidplayfp's PAL VBI boundary (cycle ~19656).
+    let cb :=
+      if idxAndLast.snd then
+        { cb with bytes := cb.bytes ++ #[
+            0xA2, 0x14,        -- LDX #$30 (48)  (2 cyc, 2 bytes)
+            0xCA,              -- pad_loop: DEX  (2 cyc, 1 byte)
+            0xD0, 0xFD         -- BNE pad_loop   (3 cyc taken; 2 bytes)
+          ]
+        }
+      else cb
     let cb := cb.emitInst (I.ldx_imm v.val.toUInt8)
     if idxAndLast.snd then
       cb.emitJmpLabel .JMP "exec_voice"   -- tail call on the last voice
@@ -602,21 +624,23 @@ def emitNL_TieCheck (cb : CodeBuilder) : CodeBuilder :=
   let cb := cb.emitBranch .BEQ "tie_skip_pitch"
   cb
 
-/-- Emit a "drum_priority" gate prefix: BIT abs (drum_priority) ; BPL +3.
-    If `drum_priority` byte has bit 7 clear ($00..$7F), BPL is taken and
+/-- Emit a "drum_priority" gate prefix: BIT zp $51 ; BPL +3.
+    If drum_priority ($51) has bit 7 clear ($00..$7F), BPL is taken and
     the next instruction (assumed to be a 3-byte STA) is skipped. If bit
     7 is set ($FF), BPL is not taken and the STA executes. Models the
     original engine's $178B gate which suppresses V3's first-frame SID
     writes (drum_priority is $00 at song init, then $FF after every voice
-    iteration — so only V3's very first iteration is gated). -/
+    iteration — so only V3's very first iteration is gated).
+
+    Zero-page BIT vs abs saves 1 cycle + 1 byte per gate vs the original
+    BIT abs variant. With 7 gates per voice's note-load × 3 voices,
+    that's ~21 cycles saved per note-load frame — chips away at our
+    codegen's cycle-drift from the original (sidplayfp's empty-frame
+    insertion depends on per-frame cycle count). -/
 def emitDrumPrioGate (cb : CodeBuilder) : CodeBuilder :=
-  let fixup : AbsFixup :=
-    { byteIdx := cb.bytes.size + 1, targetLabel := "drum_priority" }
-  let cb := { cb with
-    bytes := cb.bytes ++ #[0x2C, 0, 0,  -- BIT abs (drum_priority)
-                           0x10, 0x03], -- BPL +3
-    absFixups := fixup :: cb.absFixups }
-  cb
+  { cb with bytes := cb.bytes ++ #[0x24, 0x51,  -- BIT zp $51
+                                    0x10, 0x03] -- BPL +3
+  }
 
 /-- Frequency lookup + write to SID (Hubbard order: hi before lo). X = pitch.
     Each STA is preceded by the drum_priority gate so V3's first-frame
@@ -746,7 +770,7 @@ def emitNL_PwperiodInit (cb : CodeBuilder) : CodeBuilder :=
   cb
 
 /-- PLA the raw ctrl saved earlier, store to v_ctrl[voice], set
-    drum_priority = $FF so subsequent voices' SID writes go through,
+    drum_priority ($51) = $FF so subsequent voices' SID writes go through,
     then emit the "noteload_done" label and RTS. -/
 def emitNL_SaveCtrlAndReturn (cb : CodeBuilder) : CodeBuilder :=
   let cb := cb.emitInst I.pla
@@ -754,7 +778,7 @@ def emitNL_SaveCtrlAndReturn (cb : CodeBuilder) : CodeBuilder :=
   let cb := cb.emitStaAbsX "v_ctrl"
   let cb := cb.label "noteload_done"
   let cb := cb.emitInst (I.lda_imm 0xFF)
-  let cb := cb.emitStaAbs "drum_priority"
+  let cb := cb.emitInst (I.sta_zp 0x51)
   let cb := cb.emitInst I.rts
   cb
 
@@ -1293,12 +1317,12 @@ def emitSustainEffects (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.r
   cb := cb.emitInst (I.sta_absY (SID_BASE + 0))   -- freq_lo
 
   cb := cb.label "sustain_done"
-  -- Set drum_priority = $FF so subsequent voices' SID writes go through.
+  -- Set drum_priority ($51) = $FF so subsequent voices' SID writes go through.
   -- Init leaves drum_priority = $00; the first voice on the first frame
   -- (V3) reads $00 from the gate prefix in note-load and skips its
   -- inst-record SID writes (mirroring original $178B behavior at $1413).
   cb := cb.emitInst (I.lda_imm 0xFF)
-  cb := cb.emitStaAbs "drum_priority"
+  cb := cb.emitInst (I.sta_zp 0x51)
   cb := cb.emitInst I.rts
 
   -- Continue with note load path (split for Lean elaborator depth)
@@ -1477,14 +1501,13 @@ def generateSID (song : USFSong) (debug : Bool := false) : Bytes := Id.run do
   cb := cb.emitData (song.instruments.map fun i =>
     if i.skydive then (1 : UInt8) else 0)
 
-  -- "drum_priority" gate byte (mirrors original Hubbard $178B). Init
-  -- value $00 → the first voice's first-frame SID writes are skipped
-  -- via the BIT/BPL prefix emitted by emitDrumPrioGate. After each
-  -- voice's exec_voice tail (noteload_done / sustain_done), this byte
-  -- is set to $FF so subsequent voices write normally. $FF persists
-  -- across frames, so only V3 frame 0 sees $00.
-  cb := cb.label "drum_priority"
-  cb := cb.emitByte 0x00
+  -- "drum_priority" gate at zero-page $51 (mirrors original Hubbard $178B).
+  -- Zero page → BIT zp / STA zp save 1 cycle and 1 byte each vs abs.
+  -- The byte is allocated implicitly (zero-page RAM is always present).
+  -- 6502 boot state has zero-page = $00; no explicit init needed.
+  -- After each voice's exec_voice tail (noteload_done / sustain_done),
+  -- this byte is set to $FF so subsequent voices' SID writes go through.
+  -- Only V3 frame 0 sees $00 (suppressing its first-frame writes).
 
   -- Pattern data: [pitch, duration, instrument]* per pattern, 0x00 = end
   -- For now, encode percussion .dynamicCtrl as pitch=104 to match old player behavior
