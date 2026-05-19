@@ -293,4 +293,20 @@ def allCommandoInsts2 : List USFInstrument2 :=
    cv3I6_v2,  cv3I7_v2,  cv3I8_v2,  cv3I9_v2,  cv3I10_v2, cv3I11_v2,
    cv3I12_v2]
 
+-- ============================================================================
+-- cv3I_test — synthetic minimal instrument used by Phase 2 proof of concept.
+-- No modulations: only `.const` and `.pitchFreqLo/Hi` with empty FreqGenSpec.
+-- Exercises the simplest possible round-trip through the codegen.
+-- ctrl=$41 (pulse + gate), pw=$0900, AD=$29, SR=$5F, HR threshold=3.
+-- HR ctrl = $41 & $FE = $40.
+-- ============================================================================
+def cv3I_test : USFInstrument2 := {
+  events :=
+    initFrameAndHR 0x41 0x00 0x09 0x29 0x5F 0x40 3
+    ++ [
+      ⟨F 0, .freqLo, .pitchFreqLo {}⟩,
+      ⟨F 0, .freqHi, .pitchFreqHi {}⟩,
+    ]
+}
+
 end USF2
