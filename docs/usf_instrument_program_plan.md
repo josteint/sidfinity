@@ -53,31 +53,46 @@ engine-specific knowledge into the codegen, which is plumbing.
 
 ## Phase 1 — Schema design
 
-- [ ] **1.1** Draft the `InstSource` enumeration. First-pass vocabulary:
-  - `const : USFByte`
-  - `pitchFreqLo`, `pitchFreqHi` — freq_table[pitch] lookup
-  - `vibrato { shape, period, depth, onset }` — produces an LFO-modulated
-    freq. Either-or: emit as a `function`-primitive, or precompute
-    per-frame values and emit as constants.
-  - `pwBidir { lo, hi, speed }` — bidirectional PWM bouncing pw_hi
-    between `lo` and `hi` at `speed` increments per frame.
-  - `freqSlide { delta, startDelay, stopAtZero }` — additive freq slide
-    (Hubbard "skydive" is this).
-  - `arpeggio { intervals, stepEvery }` — pitch rotation.
-  - `otherVoiceCtrl  : Fin 3` — cross-voice reference (Hubbard drum).
-  - `otherVoicePitch : Fin 3`
-  - `otherVoiceInst  : Fin 3`
-  - `prevValue` — the freq/pw/etc. value this register held last frame.
-- [ ] **1.2** Draft `FrameEvent { atFrame, register, source }`.
-- [ ] **1.3** Draft `USFInstrument2 { events : List FrameEvent, loopFrom : Option Nat }`.
-- [ ] **1.4** Encode all 13 Commando instruments by hand from the
-      annotated disassembly. Reality-check: do all of them fit cleanly
-      in this grammar, or do we discover new primitives needed?
-- [ ] **1.5** Document the FrameEvent → 6502 emit rules for each source
-      primitive (e.g. `vibrato` → `LDA frame_ctr; AND #$07; ...`).
-      Side-effect-free: an instrument's events should describe pure
-      writes; no implicit state beyond `atFrame`, `pitch`, and the
-      named cross-voice sources.
+- [x] **1.1 / 1.2 / 1.3** Schema landed in
+      `pipelines/commando/codegen/Commando/USF2.lean`. Grammar:
+      - `InstSource` has 9 constructors: `const`, `pitchFreqLo/Hi`
+        (with `USFFreqGenSpec` carrying optional vibrato + freqSlide
+        + arpeggio), `pulseModLo/Hi` (linear or bidirectional),
+        `waveProgStep` (ctrl sequencer with loop), and three
+        `otherVoice{Ctrl,Pitch,Inst}` cross-voice runtime refs.
+      - `EventTrigger`: `atFrame n`, `everyFrameFrom n`,
+        `atFrameBeforeNoteEnd n`.
+      - `FrameEvent { trigger, register, source }`.
+      - `USFInstrument2 { events, noRelease, filterEnabled }`. No
+        engineQuirks / voiceScratch / preserveNoteFlags / dynamicFreqEntries.
+- [x] **1.4** All 13 Commando instruments hand-encoded in
+      `pipelines/commando/codegen/Commando/CommandoInsts2.lean`. Builds
+      cleanly via `lake build Commando.CommandoInsts2`. Reality
+      check observations:
+      - Every instrument fit the grammar — no new primitives needed.
+      - Lo/hi freq events are duplicated (two events per freq write)
+        with identical spec; could fold if we let one event target two
+        regs, but the duplication is tolerable and keeps the schema
+        simple. Defer.
+      - HR ctrl-write is sometimes redundant when the waveform program
+        has the gate already off at HR time. Per-inst optimisation;
+        decide at codegen time, not in the data.
+      - `noRelease` is actually a *per-note* attribute (set by the
+        Hubbard pattern flag bit 5), not per-instrument. Currently
+        on `USFInstrument2`; should move to the per-note level
+        when patterns get redesigned in a later phase. Logged as a
+        Phase 2+ refinement.
+      - Commando's "noise drum" is NOT a `cv3I*` literal — it lives in
+        patterns via the current `.percussion .dynamicCtrl` hack
+        hardcoded to pitch 104. Phase 5 introduces a real drum
+        instrument using `otherVoiceCtrl` events.
+- [x] **1.5** `docs/usf2_emit_rules.md` — codegen contract for every
+      source primitive. Documents the runtime layout the codegen
+      assumes (per-voice `v_pitch / v_ctrl / v_inst / v_dur /
+      v_frame / v_pwmod`, freq tables), and the 6502 sketch for each
+      InstSource constructor and each EventTrigger. The contract is
+      the "side-effect-free" property at the end: every source is a
+      pure function of (pitch, frame_offset, named cross-voice refs).
 
 ## Phase 2 — Single-instrument proof on Commando
 
@@ -244,7 +259,7 @@ single source of truth — no parallel TODO lists.
 
 | Phase | Started | Completed | Commit |
 |---|---|---|---|
-| 0     |         |           |        |
+| 0     | 2026-05-19 | 2026-05-19 | 5577782 |
 | 1     |         |           |        |
 | 2     |         |           |        |
 | 3     |         |           |        |

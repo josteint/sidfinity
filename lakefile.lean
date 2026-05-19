@@ -14,7 +14,8 @@ package sidfinity where
 lean_lib Commando where
   srcDir := "pipelines/commando/codegen"
   roots  := #[`Commando.SID, `Commando.Asm6502, `Commando.PSIDFile,
-              `Commando.USF, `Commando.Constants, `Commando.SongData,
+              `Commando.USF, `Commando.USF2, `Commando.CommandoInsts2,
+              `Commando.Constants, `Commando.SongData,
               `Commando.Codegen, `Commando.Properties]
 
 lean_exe sidgen_commando where
