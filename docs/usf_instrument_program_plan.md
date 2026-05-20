@@ -210,16 +210,24 @@ the one the plan sketch anticipated:
       play-call attributed: 1270/1500 = 84.7 %; all 230 diffs are the
       drum).
 
-- [ ] **5b — the noise drum (inst 4)**. NOT just a cross-voice
-      instrument — it is a separate sub-engine (`_drum_engine` /
-      `_drum_init` in src/hubbard_emu.py, $53A5-$5427 + $5531): its own
-      state machine, a drum pattern table at $55F9+, and — the key
-      cross-voice part — `drum_enable`, which SUPPRESSES the melodic
-      voices' note-start + effect writes whenever the drum is active.
-      Needs implementing first in `song_interp.py` (the reference does
-      not have it yet — that is why song_interp itself is 1270/1500 vs
-      the original), then ported to `usf2_codegen.py`. This is the last
-      ~15 % and a Phase-4-sized effort of its own.
+- [ ] **5b — inst 4 ("the drum")**. FINDING that overturns the plan's
+      premise: Commando's drum *sub-engine* (`_drum_engine`, $53A5-$5427)
+      is **never triggered** in subtune 0 — `drum_state` ($5527) stays
+      $FF for all 1500 frames; nothing in the play routine ever writes
+      it a runnable value. There is no drum sub-engine to implement.
+
+      The "noise drum" is inst 4 — an ordinary instrument played at
+      **pitch 104**, past the 96-entry freq table. Its note-start freq
+      lookup ($5428 + 104*2 = $54F8) reads player-state memory —
+      specifically `ctrl_byte` of other voices. The same off-table
+      space-saving trick as inst 7's arp; the gritty texture is
+      Hubbard's freq table being too short, not a percussion engine.
+
+      So 5b = handle inst 4's off-table reads + its `inc_by2` effect —
+      a bounded task, NOT a Phase-4-sized sub-engine. The one subtlety:
+      inst 4 reads `ctrl_byte` of voices 0/1 at a precise mid-frame
+      moment (before those voices update it), so exact reproduction
+      needs cross-voice read-timing modelled in song_interp + codegen.
 
 ## Phase 6 — Migration of other pipelines
 
