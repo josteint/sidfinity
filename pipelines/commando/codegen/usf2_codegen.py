@@ -43,7 +43,7 @@ LOAD = 0x1000
 
 # Effects implemented by the 6502 engine so far (verification enables
 # exactly this subset in song_interp).
-ENGINE_FX = {'skydive'}
+ENGINE_FX = {'skydive', 'arp'}
 
 # ---------------------------------------------------------------------------
 # 6502 engine. A faithful implementation of song_interp.py's frame loop.
@@ -245,31 +245,68 @@ hr_writes:
 
 ; do_effects - per-frame effects (engine order vibrato,pwm,skydive,arp).
 do_effects:
+        jsr fx_skydive
+        jmp fx_arp
+
+; fx_skydive - bit0. freq_hi slide + ctrl, see song_interp._skydive.
+fx_skydive:
         ldy instoff
         lda insttab+6,y
-        and #$01             ; bit0 = freqSlide (skydive)
-        beq de_ret
+        and #$01
+        beq fxs_ret
         lda v_dur,x
-        beq de_ret           ; duration_ctr == 0
+        beq fxs_ret          ; duration_ctr == 0
         lda v_slide,x
-        beq de_ret           ; slide value dead
+        beq fxs_ret          ; slide value dead
         ldy sidoff
         lda v_slide,x
         sta $d401,y          ; freq_hi = slide value
         lda v_tick,x
-        beq sky_ns
+        beq fxs_ns
         ldy instoff
         lda insttab+5,y      ; not-start ctrl = hr_ctrl
-        bne sky_w
+        bne fxs_w
         lda #$80
-sky_w:  ldy sidoff
+fxs_w:  ldy sidoff
         sta $d404,y
         dec v_slide,x
         rts
-sky_ns: lda #$80             ; note-start subphase ctrl = $80
+fxs_ns: lda #$80             ; note-start subphase ctrl = $80
         ldy sidoff
         sta $d404,y
-de_ret: rts
+fxs_ret: rts
+
+; fx_arp - bit2. alternate pitch / pitch+12 by frame parity, write freq.
+; idx >= 96 (off-table, inst 7) is deferred.
+fx_arp:
+        ldy instoff
+        lda insttab+6,y
+        and #$04
+        beq fxa_ret
+        lda frame_ctr
+        and #$01
+        beq fxa_even
+        lda v_pitch,x
+        clc
+        adc #$0c
+        jmp fxa_idx
+fxa_even:
+        lda v_pitch,x
+fxa_idx:
+        cmp #96
+        bcs fxa_ret          ; off-table -> deferred
+        asl
+        tay
+        lda freqtab,y
+        sta f_lo
+        lda freqtab+1,y
+        sta f_hi
+        ldy sidoff
+        lda f_hi
+        sta $d401,y
+        lda f_lo
+        sta $d400,y
+fxa_ret: rts
 
 sidtab: .byt 0, 7, 14
 """
@@ -392,6 +429,8 @@ def verify(sid_path: str, enabled: set, subtune: int = 0,
     si.fx_pwm = 'pwm' in enabled
     si.fx_skydive = 'skydive' in enabled
     si.fx_arp = 'arp' in enabled
+    # the engine does not yet do the off-table (inst 7) arpeggio
+    si.fx_arp_offtable = 'arp_offtable' in enabled
 
     match = 0
     first = None

@@ -94,6 +94,9 @@ class SongInterp:
         self.fx_pwm = True
         self.fx_skydive = True
         self.fx_arp = True
+        # the off-table (cross-voice) arpeggio — inst 7's reads past the
+        # freq table — can be toggled off separately from the in-table arp.
+        self.fx_arp_offtable = True
 
     # ------------------------------------------------------------------
     # note advancement
@@ -274,6 +277,8 @@ class SongInterp:
         if idx < 96:
             af = self.freq_table[idx]
             return [(R_FREQ_HI, (af >> 8) & 0xFF), (R_FREQ_LO, af & 0xFF)]
+        if not self.fx_arp_offtable:
+            return []
         # Off the 96-entry freq table: the lookup reads player-state
         # bytes. Hubbard's space-saving trick — see the disassembly /
         # feedback_deconstruct_not_reproduce. Reproduced cleanly here by
