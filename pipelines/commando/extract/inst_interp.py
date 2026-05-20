@@ -45,18 +45,43 @@ def subtune_resetspd(subtune: int, binary: bytes, load_addr: int) -> int:
     return binary[SPEED_TABLE + subtune - load_addr]
 
 
+def _vibrato_writes(depth: int, pitch: int, frame_ctr: int, dur_field: int,
+                    freq_table: list[int]) -> list[tuple[int, int]]:
+    """Vibrato — authoritative semantics from the disassembly $51C1-$522D.
+
+    A triangle LFO over 8 frames (step 0,1,2,3,3,2,1,0) scales a delta of
+    `(freq16[pitch+1] - freq16[pitch]) >> (depth+1)`, added `step` times
+    to the base freq. Gated off entirely when the note's dur field < 6
+    (then it just rewrites the base freq). Writes freq_lo, freq_hi."""
+    step = frame_ctr & 0x07
+    if step >= 4:
+        step ^= 0x07
+    f_cur = freq_table[pitch]
+    f_next = freq_table[pitch + 1]
+    delta = ((f_next - f_cur) & 0xFFFF) >> (depth + 1)
+    target = f_cur
+    if dur_field >= 6:
+        for _ in range(step):
+            target = (target + delta) & 0xFFFF
+    return [(R_FREQ_LO, target & 0xFF), (R_FREQ_HI, (target >> 8) & 0xFF)]
+
+
 def render_note(model: InstrumentModel, pitch: int, n_frames: int,
                 freq_table: list[int], frame_ctr0: int = 0,
-                skydive_hold: int = 2) -> list[list[tuple[int, int]]]:
+                skydive_hold: int = 2,
+                pw_seed: tuple[int, int] | None = None
+                ) -> list[list[tuple[int, int]]]:
     """Render the per-frame (reg, val) writes for one note of `model`.
 
-    Handles freqSlide (skydive) and arpeggio. Vibrato / PWM raise
-    NotImplementedError so a caller cannot silently get a wrong answer.
+    Handles freqSlide (skydive), arpeggio, vibrato and linear PWM.
+    Bidirectional PWM and inc_by2 raise NotImplementedError.
 
-    `frame_ctr0` is the engine's global frame counter at note start —
-    the arpeggio alternates pitch / pitch+interval on its parity.
-    `skydive_hold` is the subtune's resetspd (see subtune_resetspd)."""
-    if model.vibrato or model.pwm or model.inc_by2:
+    `frame_ctr0` is the engine's global frame counter at note start
+    (vibrato + arpeggio phase). `skydive_hold` is the subtune's resetspd.
+    `pw_seed` is the (pw_lo, pw_hi) accumulator value at note start —
+    PWM bytes are free-running engine state, so for a PWM instrument the
+    note-start frame writes this seed rather than a constant."""
+    if (model.pwm and model.pwm.mode == 'bidirectional') or model.inc_by2:
         raise NotImplementedError(
             f'inst {model.inst}: interp does not yet handle '
             f'{model.summary()}')
@@ -64,19 +89,30 @@ def render_note(model: InstrumentModel, pitch: int, n_frames: int,
     base = freq_table[pitch]
     base_lo, base_hi = base & 0xFF, (base >> 8) & 0xFF
 
+    # The HR (gate-off) block fires when `duration` hits 0, which is one
+    # tick — resetspd+1 frames — before the note segment ends.
+    tempo = skydive_hold + 1
+    hr_frame = n_frames - tempo
+    dur_field = n_frames // tempo - 1        # ticks the note lasts, minus 1
+
+    # PWM bytes are accumulator state: a PWM instrument's note-start
+    # frame writes the live accumulator, seeded here from pw_seed.
+    if model.pwm and pw_seed is not None:
+        pw_lo = pw_seed[0]
+    else:
+        pw_lo = model.init_pw_lo
+    pw_hi = model.init_pw_hi
+
     frames: list[list[tuple[int, int]]] = []
     # frame 0 — note-start init block, in the engine's write order
     # (freq_hi, freq_lo, then ctrl, pw_lo, pw_hi, ad, sr).
     frames.append([
         (R_FREQ_HI, base_hi), (R_FREQ_LO, base_lo),
         (R_CTRL, model.init_ctrl),
-        (R_PW_LO, model.init_pw_lo), (R_PW_HI, model.init_pw_hi),
+        (R_PW_LO, pw_lo), (R_PW_HI, pw_hi),
         (R_AD, model.init_ad), (R_SR, model.init_sr),
     ])
 
-    # The HR (gate-off) block fires when `duration` hits 0, which is one
-    # tick — resetspd+1 frames — before the note segment ends.
-    hr_frame = n_frames - (skydive_hold + 1)
     slide_v = base_hi
     slide_dead = False
 
@@ -86,6 +122,16 @@ def render_note(model: InstrumentModel, pitch: int, n_frames: int,
         # hard-restart block fires before the per-frame effects
         if k == hr_frame:
             w += [(R_CTRL, model.hr_ctrl), (R_AD, 0), (R_SR, 0)]
+
+        # vibrato runs first in the engine's effect order
+        if model.vibrato:
+            w += _vibrato_writes(model.vibrato.depth, pitch,
+                                 frame_ctr0 + k, dur_field, freq_table)
+
+        # linear PWM — pw_lo accumulates by `speed` every effect frame
+        if model.pwm and model.pwm.mode == 'linear':
+            pw_lo = (pw_lo + model.pwm.speed) & 0xFF
+            w.append((R_PW_LO, pw_lo))
 
         # skydive effect — the engine guards it on `duration != 0`, and
         # `duration` reaches 0 exactly at the HR frame and stays there,
@@ -122,6 +168,13 @@ def render_note(model: InstrumentModel, pitch: int, n_frames: int,
 # Verification
 # ---------------------------------------------------------------------------
 
+def _pw_seed(o) -> tuple[int, int]:
+    """The (pw_lo, pw_hi) values the engine wrote on the note-start frame
+    — the live PWM accumulator at note start."""
+    d = {r: v for r, v in o.writes[0]}
+    return (d.get(R_PW_LO, 0), d.get(R_PW_HI, 0))
+
+
 def verify(model: InstrumentModel, occs, freq_table, resetspd) -> dict:
     """Render every captured occurrence and diff against the real capture.
     `resetspd` maps subtune -> resetspd (the skydive hold)."""
@@ -136,7 +189,8 @@ def verify(model: InstrumentModel, occs, freq_table, resetspd) -> dict:
             continue
         try:
             pred = render_note(model, o.pitch, o.n_frames, freq_table,
-                               o.frame_ctr0, resetspd[o.subtune])
+                               o.frame_ctr0, resetspd[o.subtune],
+                               _pw_seed(o))
         except NotImplementedError:
             return {'status': 'unimplemented', 'summary': model.summary()}
         if all(pred[k] == o.writes[k] for k in range(o.n_frames)):
@@ -149,7 +203,7 @@ def verify(model: InstrumentModel, occs, freq_table, resetspd) -> dict:
 
 def _first_diff(model, o, freq_table, resetspd) -> str:
     pred = render_note(model, o.pitch, o.n_frames, freq_table, o.frame_ctr0,
-                       resetspd[o.subtune])
+                       resetspd[o.subtune], _pw_seed(o))
     from pipelines.commando.extract.inst_program import REG_NAMES
     for k in range(o.n_frames):
         if pred[k] != o.writes[k]:
