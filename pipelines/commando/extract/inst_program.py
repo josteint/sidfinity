@@ -181,10 +181,16 @@ def capture(sid_path: str = SID_PATH, n_frames: int = 1500,
 
 def _segment(frames) -> list[NoteOccurrence]:
     """Cut the per-frame stream into NoteOccurrences. A new occurrence
-    starts on a voice the frame its `note_idx` changes."""
+    starts on a voice the frame its `note_idx` changes.
+
+    `prev_note_idx` is seeded with frame 0's note_idx so no occurrence is
+    opened for the song-start warmup — the frames before the first real
+    note loads (still cold-start pitch 0 / stale instrument) belong to no
+    note and are discarded."""
     occurrences: list[NoteOccurrence] = []
     open_occ: list[Optional[NoteOccurrence]] = [None, None, None]
-    prev_note_idx = [None, None, None]
+    prev_note_idx = ([frames[0][0][v]['note_idx'] for v in range(3)]
+                     if frames else [None, None, None])
 
     for fi, (state, voice_writes) in enumerate(frames):
         for v in range(3):
