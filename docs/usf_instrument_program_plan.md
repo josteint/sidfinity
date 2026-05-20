@@ -196,26 +196,30 @@ continuing Phase 2.3's "Python codegen first" deviation; the Lean
 playable SID that is 79 % writelog-identical to Hubbard's original, the
 entire remaining gap being the Phase-5 drum + cross-voice arp.
 
-## Phase 5 — The hard case: cross-voice alias (drum)
+## Phase 5 — The hard case: cross-voice
 
-- [ ] **5.1** Implement `InstSource.otherVoiceCtrl` / `otherVoicePitch`
-      in `Codegen2`. Each requires the codegen to know the runtime
-      address of `v_ctrl[N]` / `v_pitch[N]` and emit a direct LDA
-      against that — no freq-table-aliasing trick.
-- [ ] **5.2** Auto-extract Commando's drum instrument (the one with 25
-      `.dynamicCtrl` occurrences in the current patterns). The
-      extractor should detect: "this instrument's freq_lo each frame
-      equals `v_ctrl[V1]` at the moment of write."
-- [ ] **5.3** Codegen emits the equivalent 6502 directly: e.g.
-      `LDA v_ctrl_v1; STA $D40E; LDA v_ctrl_v2; STA $D40F`.
-- [ ] **5.4** Run full Commando. Diff writelogs. Expected: identical
-      to original.
-- [ ] **5.5** If divergence remains: investigate. Possible causes:
-      cycle-timing of when v_ctrl is captured (Hubbard's aliased read
-      reads CURRENT v_ctrl; our LDA might read same; but if our
-      voice-processing order differs, the captured value could differ).
-      Fix by adjusting either the source primitive's "read phase" or
-      the codegen's per-voice scheduling.
+Phase 5 reshaped against reality. Two genuinely cross-voice things, not
+the one the plan sketch anticipated:
+
+- [x] **5a — inst 7's off-table arpeggio** (commit 3647892). inst 7's
+      octave arp reads `freq_table[pitch+12]` which, at pitch 88, runs
+      past the 96-entry table into other voices' `note_idx`. The codegen
+      bakes Hubbard's note_idx into the note stream and the engine reads
+      voices 1/2's `v_hubidx` directly. Result: the rebuilt SID is
+      byte-exact with the original on every melodic voice (py65,
+      play-call attributed: 1270/1500 = 84.7 %; all 230 diffs are the
+      drum).
+
+- [ ] **5b — the noise drum (inst 4)**. NOT just a cross-voice
+      instrument — it is a separate sub-engine (`_drum_engine` /
+      `_drum_init` in src/hubbard_emu.py, $53A5-$5427 + $5531): its own
+      state machine, a drum pattern table at $55F9+, and — the key
+      cross-voice part — `drum_enable`, which SUPPRESSES the melodic
+      voices' note-start + effect writes whenever the drum is active.
+      Needs implementing first in `song_interp.py` (the reference does
+      not have it yet — that is why song_interp itself is 1270/1500 vs
+      the original), then ported to `usf2_codegen.py`. This is the last
+      ~15 % and a Phase-4-sized effort of its own.
 
 ## Phase 6 — Migration of other pipelines
 
