@@ -43,7 +43,7 @@ LOAD = 0x1000
 
 # Effects implemented by the 6502 engine so far (verification enables
 # exactly this subset in song_interp).
-ENGINE_FX = {'skydive', 'arp', 'vibrato', 'pwm'}
+ENGINE_FX = {'skydive', 'arp', 'vibrato', 'pwm', 'arp_offtable'}
 
 # ---------------------------------------------------------------------------
 # 6502 engine. A faithful implementation of song_interp.py's frame loop.
@@ -90,6 +90,7 @@ pw_idx    = $73
 v_pwdir   = $74
 v_pwperiod = $77
 pwm_tmp   = $7a
+v_hubidx  = $7c
 
 * = $1000
         jmp init
@@ -202,6 +203,9 @@ ln_ok:  sta v_pitch,x
         iny
         lda (notep),y
         sta v_instr,x
+        iny
+        lda (notep),y
+        sta v_hubidx,x       ; note byte 3 = Hubbard note_idx
         lda #0
         sta v_tick,x
         lda v_nptr_lo,x
@@ -475,7 +479,18 @@ fxa_even:
         lda v_pitch,x
 fxa_idx:
         cmp #96
-        bcs fxa_ret          ; off-table -> deferred
+        bcc fxa_in
+        ; off-table - the lookup runs into player state. idx 100
+        ; (inst 7 at pitch 88) reads note_idx of voices 1 and 2.
+        cmp #100
+        bne fxa_ret
+        ldy sidoff
+        lda v_hubidx+2       ; note_idx[V3] -> freq_hi
+        sta $d401,y
+        lda v_hubidx+1       ; note_idx[V2] -> freq_lo
+        sta $d400,y
+        rts
+fxa_in:
         asl
         tay
         lda freqtab,y
@@ -499,16 +514,23 @@ sidtab: .byt 0, 7, 14
 
 def _flatten_voice(voice):
     """Expand a Voice's orderlist into a flat note stream. Returns
-    (notes, loop_note_index)."""
+    (notes, loop_note_index). Each note record is 4 bytes: pitch,
+    durfield, instrument, hub_note_idx — the last being Hubbard's
+    byte offset into the pattern (read by inst 7's off-table arp)."""
     notes = []
     loop_idx = 0
     for oi, pat_idx in enumerate(voice.orderlist):
         if oi == voice.loop:
             loop_idx = len(notes)
-        for n in voice.patterns.get(pat_idx, []):
-            flags = 1 if n.tie else 0
+        pat_notes = voice.patterns.get(pat_idx, [])
+        hidx = 0
+        for j, n in enumerate(pat_notes):
+            nbytes = (1 if n.tie
+                      else 2 if (n.instrument & 0x80) else 3)
+            base = 0 if j == 0 else hidx
+            hidx = 0 if j == len(pat_notes) - 1 else base + nbytes
             notes.append((n.pitch & 0xFF, (n.duration - 1) & 0xFF,
-                          n.instrument & 0xFF, flags))
+                          n.instrument & 0xFF, hidx & 0xFF))
     return notes, loop_idx
 
 
