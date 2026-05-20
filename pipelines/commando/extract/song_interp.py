@@ -87,9 +87,13 @@ class SongInterp:
         self.speed_ctr = 0
         self.frame_no = -1
         # when False, per-frame effects are skipped — leaves just the
-        # note-start + HR backbone (used to verify a codegen stage that
-        # has not implemented effects yet).
+        # note-start + HR backbone. The per-effect flags let a codegen
+        # stage be verified against exactly the effects it implements.
         self.effects_on = True
+        self.fx_vibrato = True
+        self.fx_pwm = True
+        self.fx_skydive = True
+        self.fx_arp = True
 
     # ------------------------------------------------------------------
     # note advancement
@@ -205,19 +209,19 @@ class SongInterp:
         w: list[tuple[int, int]] = []
 
         vib_carry = 0
-        if m.vibrato:
+        if m.vibrato and self.fx_vibrato:
             vw, vib_carry = _vibrato(m.vibrato.depth, rt.pitch,
                                      self.frame_ctr, rt.dur_field,
                                      self.freq_table)
             w += vw
 
-        if m.pwm:
+        if m.pwm and self.fx_pwm:
             w += self._pwm(v, m, vib_carry)
 
-        if m.freq_slide:
+        if m.freq_slide and self.fx_skydive:
             w += self._skydive(v, m)
 
-        if m.arpeggio:
+        if m.arpeggio and self.fx_arp:
             w += self._arp(v, m)
 
         return w

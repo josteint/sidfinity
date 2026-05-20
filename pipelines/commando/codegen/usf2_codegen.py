@@ -9,15 +9,13 @@ tables after the engine code.
 No engineQuirks, no dynamicFreqEntries: the engine knowledge lives here
 in the codegen (plumbing); the data stays abstract.
 
-Built incrementally. THIS STAGE: the note backbone — init, frame/tick
-loop, note advancement, note-start + HR register writes. Per-frame
-effects (vibrato, skydive, arpeggio, PWM) are added in following
-stages; until then the rebuilt SID's note-start frames are correct but
-the sustained frames are bare.
+Built incrementally. Implemented so far: the note backbone (init,
+frame/tick loop, note advancement, note-start + HR writes) and the
+skydive (freqSlide) effect. Still to add: arpeggio, vibrato, PWM.
 
 Usage:
-    python3 pipelines/commando/codegen/usf2_codegen.py            # build /tmp/usf2_commando.sid
-    python3 pipelines/commando/codegen/usf2_codegen.py --verify   # build + check note backbone
+    python3 pipelines/commando/codegen/usf2_codegen.py
+    python3 pipelines/commando/codegen/usf2_codegen.py --verify
 """
 
 from __future__ import annotations
@@ -43,27 +41,33 @@ OUT_SID = '/tmp/usf2_commando.sid'
 
 LOAD = 0x1000
 
+# Effects implemented by the 6502 engine so far (verification enables
+# exactly this subset in song_interp).
+ENGINE_FX = {'skydive'}
+
 # ---------------------------------------------------------------------------
-# 6502 engine — note backbone (no per-frame effects yet).
-# A faithful implementation of song_interp.py's frame loop. Data labels
-# (sidtab, nstreamLo/Hi, loopLo/Hi, insttab, freqtab, voice note streams)
-# are appended by the codegen.
+# 6502 engine. A faithful implementation of song_interp.py's frame loop.
+# Data labels (sidtab, nstreamLo/Hi, loopLo/Hi, insttab, freqtab, voice
+# note streams) are appended by the codegen.
+#
+# instrument table row (16 bytes): init_ctrl, init_pw_lo, init_pw_hi,
+# init_ad, init_sr, hr_ctrl, fx_flags, then 9 effect-param bytes.
+# fx_flags bit0 = freqSlide (skydive).
 # ---------------------------------------------------------------------------
 
 ENGINE = r"""
-; ==== zero page ====
 frame_ctr = $40
 speed_ctr = $41
 is_tick   = $42
 sidoff    = $43
-v_dur     = $44      ; ,x   3 bytes
-v_instr   = $47      ; ,x
-v_pitch   = $4a      ; ,x
-v_nptr_lo = $4d      ; ,x
-v_nptr_hi = $50      ; ,x
-v_loop_lo = $53      ; ,x
-v_loop_hi = $56      ; ,x
-notep     = $59      ; 2-byte working pointer
+v_dur     = $44
+v_instr   = $47
+v_pitch   = $4a
+v_nptr_lo = $4d
+v_nptr_hi = $50
+v_loop_lo = $53
+v_loop_hi = $56
+notep     = $59
 i_ctrl    = $5b
 i_pwlo    = $5c
 i_pwhi    = $5d
@@ -71,16 +75,18 @@ i_ad      = $5e
 i_sr      = $5f
 f_lo      = $60
 f_hi      = $61
+instoff   = $62
+v_slide   = $63
+v_tick    = $66
 
 * = $1000
         jmp init
         jmp play
 
-; -------------------------------------------------------------------
 init:
         ldx #2
 ini1:   lda #0
-        sta v_dur,x          ; dur 0 -> first tick loads note 0
+        sta v_dur,x
         lda nstreamLo,x
         sta v_nptr_lo,x
         lda nstreamHi,x
@@ -94,7 +100,7 @@ ini1:   lda #0
         lda #0
         sta speed_ctr
         lda #$ff
-        sta frame_ctr        ; play's INC makes frame 0 -> 0
+        sta frame_ctr
         ldx #$18
 ini2:   lda #0
         sta $d400,x
@@ -104,7 +110,6 @@ ini2:   lda #0
         sta $d418
         rts
 
-; -------------------------------------------------------------------
 play:
         inc frame_ctr
         dec speed_ctr
@@ -123,24 +128,35 @@ pvloop: jsr proc_voice
         bpl pvloop
         rts
 
-; -------------------------------------------------------------------
 proc_voice:
         lda sidtab,x
         sta sidoff
+        jsr calc_instoff
         lda is_tick
-        beq pv_done          ; not a tick -> (effects later) nothing
+        beq pv_fx
         dec v_dur,x
-        bpl pv_sustain
+        bpl pv_sus
         jsr load_note
+        jsr calc_instoff
         jmp note_start
-pv_sustain:
+pv_sus:
+        inc v_tick,x
         lda v_dur,x
-        bne pv_done          ; still sustaining
-        jmp hr_writes        ; duration hit 0 -> hard restart
-pv_done:
+        bne pv_fx
+        jsr hr_writes
+pv_fx:
+        jmp do_effects
+
+calc_instoff:
+        lda v_instr,x
+        and #$3f
+        asl
+        asl
+        asl
+        asl
+        sta instoff
         rts
 
-; -------------------------------------------------------------------
 ; load_note - read next note at v_nptr,x then advance v_nptr by 4.
 ; a $FF pitch is the loop marker.
 load_note:
@@ -152,7 +168,7 @@ load_note:
         lda (notep),y
         cmp #$ff
         bne ln_ok
-        lda v_loop_lo,x      ; loop
+        lda v_loop_lo,x
         sta v_nptr_lo,x
         sta notep
         lda v_loop_hi,x
@@ -167,7 +183,9 @@ ln_ok:  sta v_pitch,x
         iny
         lda (notep),y
         sta v_instr,x
-        lda v_nptr_lo,x      ; advance by 4
+        lda #0
+        sta v_tick,x
+        lda v_nptr_lo,x
         clc
         adc #4
         sta v_nptr_lo,x
@@ -176,16 +194,9 @@ ln_ok:  sta v_pitch,x
 ln_done:
         rts
 
-; -------------------------------------------------------------------
 ; note_start - write the note-start register block for voice X.
 note_start:
-        lda v_instr,x
-        and #$3f
-        asl
-        asl
-        asl
-        asl                  ; instr*16
-        tay
+        ldy instoff
         lda insttab+0,y
         sta i_ctrl
         lda insttab+1,y
@@ -203,6 +214,7 @@ note_start:
         sta f_lo
         lda freqtab+1,y
         sta f_hi
+        sta v_slide,x
         ldy sidoff
         lda f_hi
         sta $d401,y
@@ -220,23 +232,44 @@ note_start:
         sta $d406,y
         rts
 
-; -------------------------------------------------------------------
 ; hr_writes - hard-restart block, ctrl=hr_ctrl ad=0 sr=0.
 hr_writes:
-        lda v_instr,x
-        and #$3f
-        asl
-        asl
-        asl
-        asl
-        tay
-        lda insttab+5,y      ; hr_ctrl
+        ldy instoff
+        lda insttab+5,y
         ldy sidoff
         sta $d404,y
         lda #0
         sta $d405,y
         sta $d406,y
         rts
+
+; do_effects - per-frame effects (engine order vibrato,pwm,skydive,arp).
+do_effects:
+        ldy instoff
+        lda insttab+6,y
+        and #$01             ; bit0 = freqSlide (skydive)
+        beq de_ret
+        lda v_dur,x
+        beq de_ret           ; duration_ctr == 0
+        lda v_slide,x
+        beq de_ret           ; slide value dead
+        ldy sidoff
+        lda v_slide,x
+        sta $d401,y          ; freq_hi = slide value
+        lda v_tick,x
+        beq sky_ns
+        ldy instoff
+        lda insttab+5,y      ; not-start ctrl = hr_ctrl
+        bne sky_w
+        lda #$80
+sky_w:  ldy sidoff
+        sta $d404,y
+        dec v_slide,x
+        rts
+sky_ns: lda #$80             ; note-start subphase ctrl = $80
+        ldy sidoff
+        sta $d404,y
+de_ret: rts
 
 sidtab: .byt 0, 7, 14
 """
@@ -248,8 +281,7 @@ sidtab: .byt 0, 7, 14
 
 def _flatten_voice(voice):
     """Expand a Voice's orderlist into a flat note stream. Returns
-    (notes, loop_note_index) — notes is a list of (pitch,durfield,instr,
-    flags); loop_note_index is the flat index the $FF marker jumps to."""
+    (notes, loop_note_index)."""
     notes = []
     loop_idx = 0
     for oi, pat_idx in enumerate(voice.orderlist):
@@ -262,31 +294,33 @@ def _flatten_voice(voice):
     return notes, loop_idx
 
 
+def _fx_flags(m) -> int:
+    return ((1 if m.freq_slide else 0) | (2 if m.inc_by2 else 0)
+            | (4 if m.arpeggio else 0) | (8 if m.vibrato else 0)
+            | (16 if m.pwm else 0))
+
+
 def _emit_data(score, models, freq_table) -> str:
-    """Emit the xa65 data section: pointer tables, instruments, freq
-    table, and the three voices' note streams."""
+    """Emit the xa65 data section."""
     lines = []
 
-    # instrument table — 16 bytes per instrument
     lines.append('insttab:')
     for m in models:
         row = [m.init_ctrl, m.init_pw_lo, m.init_pw_hi, m.init_ad,
-               m.init_sr, m.hr_ctrl] + [0] * 10
+               m.init_sr, m.hr_ctrl, _fx_flags(m)] + [0] * 9
         lines.append('        .byt ' + ','.join(f'${b:02X}' for b in row))
 
-    # freq table — 96 entries, interleaved lo,hi
     lines.append('freqtab:')
     for i in range(96):
         f = freq_table[i]
         lines.append(f'        .byt ${f & 0xFF:02X},${(f >> 8) & 0xFF:02X}')
 
-    # per-voice note streams + pointer tables
     streams = [_flatten_voice(v) for v in score.voices]
-    for vi, (notes, loop_idx) in enumerate(streams):
+    for vi, (notes, _loop) in enumerate(streams):
         lines.append(f'nstream{vi}:')
         for (p, d, ins, fl) in notes:
             lines.append(f'        .byt ${p:02X},${d:02X},${ins:02X},${fl:02X}')
-        lines.append(f'        .byt $FF,$00,$00,$00   ; loop marker')
+        lines.append('        .byt $FF,$00,$00,$00   ; loop marker')
 
     lines.append('nstreamLo: .byt <nstream0,<nstream1,<nstream2')
     lines.append('nstreamHi: .byt >nstream0,>nstream1,>nstream2')
@@ -323,19 +357,18 @@ def build(subtune: int = 0, out_path: str = OUT_SID) -> str:
     with open(obj, 'rb') as f:
         code = f.read()
 
-    # PSID v2 header (124 bytes)
     h = bytearray(b'PSID')
     h += struct.pack('>HH', 2, 124)
-    h += struct.pack('>H', LOAD)            # load addr
-    h += struct.pack('>H', LOAD)            # init
-    h += struct.pack('>H', LOAD + 3)        # play
-    h += struct.pack('>H', 1)               # songs
-    h += struct.pack('>H', 1)               # start song
-    h += struct.pack('>I', 0)               # speed
+    h += struct.pack('>H', LOAD)
+    h += struct.pack('>H', LOAD)
+    h += struct.pack('>H', LOAD + 3)
+    h += struct.pack('>H', 1)
+    h += struct.pack('>H', 1)
+    h += struct.pack('>I', 0)
     h += (b'USF2 Commando' + b'\0' * 32)[:32]
     h += (b'Rob Hubbard' + b'\0' * 32)[:32]
     h += (b'2026' + b'\0' * 32)[:32]
-    h += struct.pack('>H', 0x0014)          # PAL + 6581
+    h += struct.pack('>H', 0x0014)
     h += struct.pack('>BBH', 0, 0, 0)
     assert len(h) == 124
 
@@ -344,29 +377,42 @@ def build(subtune: int = 0, out_path: str = OUT_SID) -> str:
     return out_path
 
 
-def verify_backbone(sid_path: str, subtune: int = 0,
-                    n_frames: int = 1500) -> None:
-    """Check the rebuilt SID's note backbone against song_interp with
-    effects disabled — same notes, same frames, same note-start/HR
-    writes. (Per-frame effects are not emitted by this codegen stage.)"""
+# ---------------------------------------------------------------------------
+# verification — rebuilt SID vs song_interp with a matching effect subset
+# ---------------------------------------------------------------------------
+
+def verify(sid_path: str, enabled: set, subtune: int = 0,
+           n_frames: int = 1500) -> None:
     from pipelines.commando.extract.inst_program import capture, REG_NAMES
     from pipelines.commando.extract.song_interp import SongInterp
 
     cap = capture(sid_path, n_frames=n_frames, subtune=subtune)
     si = SongInterp(SID_PATH, subtune)
-    si.effects_on = False
+    si.fx_vibrato = 'vibrato' in enabled
+    si.fx_pwm = 'pwm' in enabled
+    si.fx_skydive = 'skydive' in enabled
+    si.fx_arp = 'arp' in enabled
 
     match = 0
     first = None
+    by_voice: dict[tuple, int] = {}
     for k in range(n_frames):
         want = si.step()
         got = cap.raw_frames[k]
         if got == want:
             match += 1
-        elif first is None:
+            continue
+        if first is None:
             first = (k, want, got)
-    print(f'note backbone: {match}/{n_frames} frames exact '
+        diff = set(want) ^ set(got)
+        vs = tuple(sorted({['V1', 'V2', 'V3'][o // 7] for o, _ in diff}))
+        by_voice[vs] = by_voice.get(vs, 0) + 1
+
+    feats = '+'.join(sorted(enabled)) or 'backbone'
+    print(f'vs song_interp [{feats}]: {match}/{n_frames} frames exact '
           f'({100.0 * match / n_frames:.1f}%)')
+    for vs, c in sorted(by_voice.items(), key=lambda x: -x[1]):
+        print(f'  {",".join(vs)}: {c}')
     if first:
         k, want, got = first
 
@@ -375,16 +421,15 @@ def verify_backbone(sid_path: str, subtune: int = 0,
                 f'{["V1","V2","V3"][o // 7]}.{REG_NAMES[o % 7]}={v:02X}'
                 for o, v in fw) or '-'
         print(f'  first diff at frame {k}:')
-        print(f'    song_interp(no fx): {fmt(want)}')
-        print(f'    rebuilt SID       : {fmt(got)}')
+        print(f'    song_interp: {fmt(want)}')
+        print(f'    rebuilt SID: {fmt(got)}')
 
 
 def main(argv: list[str]) -> None:
     path = build()
-    size = os.path.getsize(path)
-    print(f'built {path}  ({size} bytes)')
+    print(f'built {path}  ({os.path.getsize(path)} bytes)')
     if '--verify' in argv:
-        verify_backbone(path)
+        verify(path, ENGINE_FX)
 
 
 if __name__ == '__main__':
