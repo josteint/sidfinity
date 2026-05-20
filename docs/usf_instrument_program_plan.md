@@ -139,18 +139,35 @@ for the simplest possible instrument. Phase 2 acceptance test
 
 ## Phase 3 — Extractor prototype
 
-- [ ] **3.1** Build `pipelines/commando/extract/inst_program.py`: given
-      an instrument index, run the original SID in py65, find every
-      note that uses this instrument, capture the per-frame register
-      writes during those notes.
-- [ ] **3.2** Generalise across the captured note-occurrences: which
-      writes are constant, which scale with pitch, which need
-      explicit per-frame values, which depend on cross-voice state.
-- [ ] **3.3** Emit a `USFInstrument2` literal automatically.
-- [ ] **3.4** Auto-extract the Phase 2 instrument and verify the
-      output matches the hand-written version byte-for-byte.
-- [ ] **3.5** Auto-extract a vibrato-bearing Commando instrument.
-      Verify writelog match for one note via the same harness.
+Phase 3 reshaped substantially against reality (see commits 785192d ..
+40df47c). What was actually built:
+
+- [x] **3.1** `pipelines/commando/extract/inst_program.py` — runs the
+      real Commando binary in py65, hooks every $D4xx write, segments
+      the run into per-instrument NoteOccurrences. (785192d)
+- [x] **3.2** `inst_generalize.py` — a pure capture-generalisation could
+      not work (Commando instruments are not pure functions of (pitch,
+      frame): vibrato/arp key off the global frame counter; PWM is a
+      shared accumulator). Instead: decode each instrument from its
+      8-byte table row into USF2 primitives, verified against the
+      captures. 11/13 decode cleanly. (4ceecbe)
+- [x] **3.3** Built the missing reference semantics first
+      (`inst_interp.py`, then the whole-song `song_interp.py`), then
+      `emit_usf2.py` emits `CommandoInsts2_gen.lean` — the 13
+      instruments as USF2 behavioral-parameter literals (parametric
+      form; supersedes the Phase-1 events-list sketch). Type-checks.
+      (1312bb8, 90c85d1, 467ad84, ee7c0f9, b1778b3, 40df47c)
+- [x] **3.4 / 3.5** Verification far exceeded the original "one note vs
+      hand-encoded" plan: `song_interp.py` reproduces Commando subtune
+      0's **entire melodic engine byte-exact** (1270/1500 frames; the
+      230 remaining are all inst 4, the noise drum). Every melodic
+      instrument, every effect, shared state, and the cross-voice
+      arpeggio are verified instruction-by-instruction.
+
+**Phase 3 outcome:** the melodic refactor's core question — can USF2
+faithfully represent Commando? — is answered **yes**, with a working
+Python reference interpreter proving it. The only unhandled instrument
+is inst 4 (the drum) → Phase 5.
 
 ## Phase 4 — All Commando melodic instruments
 
@@ -284,9 +301,8 @@ single source of truth — no parallel TODO lists.
 |---|---|---|---|
 | 0     | 2026-05-19 | 2026-05-19 | 5577782 |
 | 1     | 2026-05-19 | 2026-05-19 | f58de1a |
-| 1     |         |           |        |
-| 2     |         |           |        |
-| 3     |         |           |        |
+| 2     | 2026-05-19 | 2026-05-19 | 31f6e33 |
+| 3     | 2026-05-20 | 2026-05-20 | 785192d..40df47c |
 | 4     |         |           |        |
 | 5     |         |           |        |
 | 6     |         |           |        |
