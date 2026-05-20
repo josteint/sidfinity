@@ -54,6 +54,8 @@ class VoiceRT:
     slide_v: int = 0                 # skydive's running freq_hi ($551A)
     slide_dead: bool = False
     started: bool = False            # a note has been loaded at least once
+    hub_note_idx: int = 0            # Hubbard's byte offset into the pattern
+                                     # ($54EF,X) — read by off-table arps
 
 
 class SongInterp:
@@ -113,6 +115,16 @@ class SongInterp:
         pat_idx = voice.orderlist[rt.orderlist_pos]
         notes = voice.patterns.get(pat_idx, [])
         note = notes[rt.note_pos]
+
+        # Track Hubbard's note_idx — the byte offset into the pattern.
+        # Each note consumes 1 byte (tie), 2 (no instrument byte) or 3
+        # (with instrument byte); note_idx points past the current note,
+        # and resets to 0 at the pattern's $FF end marker.
+        nbytes = (1 if note.tie
+                  else 2 if (note.instrument & 0x80) else 3)
+        base = 0 if rt.note_pos == 0 else rt.hub_note_idx
+        rt.hub_note_idx = (0 if rt.note_pos == len(notes) - 1
+                           else base + nbytes)
 
         rt.dur_field = note.duration - 1          # Score stores ticks = field+1
         rt.duration_ctr = rt.dur_field
@@ -250,11 +262,30 @@ class SongInterp:
         rt = self.voices[v]
         parity = self.frame_ctr & 1
         idx = rt.pitch + m.arpeggio.intervals[parity]
-        if idx >= 96:
-            # off-table read into player state — deferred (inst 7).
-            return []
-        af = self.freq_table[idx]
-        return [(R_FREQ_HI, (af >> 8) & 0xFF), (R_FREQ_LO, af & 0xFF)]
+        if idx < 96:
+            af = self.freq_table[idx]
+            return [(R_FREQ_HI, (af >> 8) & 0xFF), (R_FREQ_LO, af & 0xFF)]
+        # Off the 96-entry freq table: the lookup reads player-state
+        # bytes. Hubbard's space-saving trick — see the disassembly /
+        # feedback_deconstruct_not_reproduce. Reproduced cleanly here by
+        # reading the corresponding engine state directly.
+        addr = 0x5428 + idx * 2
+        return [(R_FREQ_HI, self._read_state(addr + 1)),
+                (R_FREQ_LO, self._read_state(addr))]
+
+    def _read_state(self, addr: int) -> int:
+        """The player-state byte at `addr` — the bytes an off-table arp
+        lookup lands on (the freq table at $5428 is only 96 entries; the
+        engine state immediately follows it)."""
+        if 0x54E8 <= addr <= 0x54EA:            # v_sid_off[0..2]
+            return (0, 7, 14)[addr - 0x54E8]
+        if 0x54EC <= addr <= 0x54EE:            # seq_idx[0..2]
+            return self.voices[addr - 0x54EC].orderlist_pos & 0xFF
+        if 0x54EF <= addr <= 0x54F1:            # note_idx[0..2]
+            return self.voices[addr - 0x54EF].hub_note_idx & 0xFF
+        if 0x54F2 <= addr <= 0x54F4:            # duration[0..2]
+            return self.voices[addr - 0x54F2].duration_ctr & 0xFF
+        return 0                                # $54EB scratch / other
 
 
 # ----------------------------------------------------------------------
