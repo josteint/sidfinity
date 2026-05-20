@@ -40,6 +40,7 @@ VS_DUR     = 0x54F2   # duration countdown
 VS_NOTEIDX = 0x54EF   # index of the current note within its pattern
 VS_PITCH   = 0x54FB   # current pitch (semitone)
 VS_INSTR   = 0x54FE   # current instrument number
+G_FRAMECTR = 0x5525   # global frame counter (vibrato / arpeggio phase)
 
 # Per-voice SID register block: V1 = $D400..$D406, V2 = $D407..$D40D,
 # V3 = $D40E..$D414. Within a voice: freq_lo/hi, pw_lo/hi, ctrl, ad, sr.
@@ -64,7 +65,9 @@ class NoteOccurrence:
     instrument: int                       # VS_INSTR masked to 0x3F
     raw_instr: int                        # VS_INSTR including flag bits
     pitch: int
-    start_frame: int
+    start_frame: int                      # play() index the note loaded on
+    frame_ctr0: int = 0                   # global frame counter at note start
+    subtune: int = 0                      # subtune this occurrence is from
     writes: list[list[tuple[int, int]]] = field(default_factory=list)
 
     @property
@@ -165,6 +168,7 @@ def capture(sid_path: str = SID_PATH, n_frames: int = 1500,
             'pitch':    m.memory[VS_PITCH + v],
             'instr':    m.memory[VS_INSTR + v],
         } for v in range(3)]
+        frame_ctr = m.memory[G_FRAMECTR]
 
         # Split this frame's writes per voice (regs 0..6 within the voice).
         voice_writes: list[list[tuple[int, int]]] = [[], [], []]
@@ -172,9 +176,11 @@ def capture(sid_path: str = SID_PATH, n_frames: int = 1500,
             v, r = divmod(off, 7)
             if v < 3:
                 voice_writes[v].append((r, val))
-        frames.append((state, voice_writes))
+        frames.append((state, voice_writes, frame_ctr))
 
     occurrences = _segment(frames)
+    for o in occurrences:
+        o.subtune = subtune
     return CaptureResult(sid_path=sid_path, n_frames=n_frames,
                          occurrences=occurrences)
 
@@ -192,7 +198,7 @@ def _segment(frames) -> list[NoteOccurrence]:
     prev_note_idx = ([frames[0][0][v]['note_idx'] for v in range(3)]
                      if frames else [None, None, None])
 
-    for fi, (state, voice_writes) in enumerate(frames):
+    for fi, (state, voice_writes, frame_ctr) in enumerate(frames):
         for v in range(3):
             ni = state[v]['note_idx']
             if ni != prev_note_idx[v]:
@@ -206,14 +212,14 @@ def _segment(frames) -> list[NoteOccurrence]:
                     raw_instr=raw,
                     pitch=state[v]['pitch'],
                     start_frame=fi,
+                    frame_ctr0=frame_ctr,
                 )
                 prev_note_idx[v] = ni
             if open_occ[v] is not None:
                 open_occ[v].writes.append(voice_writes[v])
 
-    for v in range(3):
-        if open_occ[v] is not None:
-            occurrences.append(open_occ[v])
+    # The occurrences still open when the capture window ends are
+    # truncated mid-note — drop them rather than emit a short fragment.
     return occurrences
 
 
