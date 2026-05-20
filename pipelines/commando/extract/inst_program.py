@@ -80,6 +80,9 @@ class CaptureResult:
     sid_path: str
     n_frames: int
     occurrences: list[NoteOccurrence]
+    # raw_frames[k] = the full ordered (reg_offset 0..20, value) write list
+    # the engine produced on play() call k — every voice + drum, unsplit.
+    raw_frames: list[list[tuple[int, int]]] = field(default_factory=list)
 
     def for_instrument(self, inst_idx: int) -> list[NoteOccurrence]:
         return [o for o in self.occurrences if o.instrument == inst_idx]
@@ -158,6 +161,7 @@ def capture(sid_path: str = SID_PATH, n_frames: int = 1500,
     # Per-frame run. Snapshot voice state AFTER each play() so the
     # note-load that play() performed this frame is visible.
     frames: list[tuple[list[dict], list[list[tuple[int, int]]]]] = []
+    raw_frames: list[list[tuple[int, int]]] = []
     for _ in range(n_frames):
         frame_writes.clear()
         call(play_addr, budget=100000)
@@ -170,6 +174,7 @@ def capture(sid_path: str = SID_PATH, n_frames: int = 1500,
         } for v in range(3)]
         frame_ctr = m.memory[G_FRAMECTR]
 
+        raw_frames.append(list(frame_writes))
         # Split this frame's writes per voice (regs 0..6 within the voice).
         voice_writes: list[list[tuple[int, int]]] = [[], [], []]
         for off, val in frame_writes:
@@ -182,7 +187,7 @@ def capture(sid_path: str = SID_PATH, n_frames: int = 1500,
     for o in occurrences:
         o.subtune = subtune
     return CaptureResult(sid_path=sid_path, n_frames=n_frames,
-                         occurrences=occurrences)
+                         occurrences=occurrences, raw_frames=raw_frames)
 
 
 def _segment(frames) -> list[NoteOccurrence]:
