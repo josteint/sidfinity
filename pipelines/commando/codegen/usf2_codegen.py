@@ -43,7 +43,7 @@ LOAD = 0x1000
 
 # Effects implemented by the 6502 engine so far (verification enables
 # exactly this subset in song_interp).
-ENGINE_FX = {'skydive', 'arp', 'vibrato'}
+ENGINE_FX = {'skydive', 'arp', 'vibrato', 'pwm'}
 
 # ---------------------------------------------------------------------------
 # 6502 engine. A faithful implementation of song_interp.py's frame loop.
@@ -86,6 +86,10 @@ vtarg_lo  = $6f
 vtarg_hi  = $70
 vdepthctr = $71
 vib_carry = $72
+pw_idx    = $73
+v_pwdir   = $74
+v_pwperiod = $77
+pwm_tmp   = $7a
 
 * = $1000
         jmp init
@@ -95,6 +99,8 @@ init:
         ldx #2
 ini1:   lda #0
         sta v_dur,x
+        sta v_pwdir,x
+        sta v_pwperiod,x
         lda nstreamLo,x
         sta v_nptr_lo,x
         lda nstreamHi,x
@@ -162,10 +168,11 @@ calc_instoff:
         lda v_instr,x
         and #$3f
         asl
+        sta pw_idx           ; inst*2  (index into pwacc)
         asl
         asl
         asl
-        sta instoff
+        sta instoff          ; inst*16 (index into insttab)
         rts
 
 ; load_note - read next note at v_nptr,x then advance v_nptr by 4.
@@ -226,14 +233,15 @@ ns_full:
         ldy instoff
         lda insttab+0,y
         sta i_ctrl
-        lda insttab+1,y
-        sta i_pwlo
-        lda insttab+2,y
-        sta i_pwhi
         lda insttab+3,y
         sta i_ad
         lda insttab+4,y
         sta i_sr
+        ldy pw_idx           ; pw_lo/pw_hi come from the live accumulator
+        lda pwacc,y
+        sta i_pwlo
+        lda pwacc+1,y
+        sta i_pwhi
         lda v_pitch,x
         asl
         tay
@@ -271,9 +279,93 @@ hr_writes:
 
 ; do_effects - per-frame effects (engine order vibrato,pwm,skydive,arp).
 do_effects:
+        lda #0
+        sta vib_carry
         jsr fx_vibrato
+        jsr fx_pwm
         jsr fx_skydive
         jmp fx_arp
+
+; fx_pwm - bit4. linear or bidirectional PWM. The pw accumulators
+; (pwacc) are per-instrument shared state - see song_interp._pwm.
+fx_pwm:
+        ldy instoff
+        lda insttab+8,y      ; pwm_mode  0=none 1=linear 2=bidir
+        bne fxp_on
+        rts
+fxp_on:
+        cmp #$01
+        bne fxp_bidir
+        ldy instoff
+        lda insttab+9,y      ; linear - pw_lo += speed + vib_carry
+        sta pwm_tmp
+        ldy pw_idx
+        lda pwacc,y
+        clc
+        adc pwm_tmp
+        clc
+        adc vib_carry
+        sta pwacc,y
+        ldy sidoff
+        sta $d402,y
+        rts
+fxp_bidir:
+        dec v_pwperiod,x
+        bpl fxp_ret          ; period counter not expired
+        ldy instoff
+        lda insttab+10,y     ; reload period
+        sta v_pwperiod,x
+        lda v_pwdir,x
+        bne fxp_fall
+        ldy instoff          ; rising
+        lda insttab+9,y      ; step
+        sta pwm_tmp
+        ldy pw_idx
+        lda pwacc,y
+        clc
+        adc pwm_tmp
+        sta pwacc,y
+        lda pwacc+1,y
+        adc #$00
+        and #$0f
+        sta pwacc+1,y
+        ldy instoff
+        cmp insttab+12,y     ; hi_bound
+        bne fxp_wr
+        lda #$01
+        sta v_pwdir,x
+        jmp fxp_wr
+fxp_fall:
+        ldy instoff
+        lda insttab+9,y      ; step
+        sta pwm_tmp
+        ldy pw_idx
+        lda pwacc,y
+        sec
+        sbc pwm_tmp
+        sta pwacc,y
+        lda pwacc+1,y
+        sbc #$00
+        and #$0f
+        sta pwacc+1,y
+        ldy instoff
+        cmp insttab+11,y     ; lo_bound
+        bne fxp_wr
+        lda #$00
+        sta v_pwdir,x
+fxp_wr:
+        ldy pw_idx
+        lda pwacc+1,y
+        sta pwm_tmp
+        lda pwacc,y
+        sta pwm_tmp+1
+        ldy sidoff
+        lda pwm_tmp
+        sta $d403,y          ; pw_hi
+        lda pwm_tmp+1
+        sta $d402,y          ; pw_lo
+fxp_ret:
+        rts
 
 ; fx_vibrato - bit3. triangle LFO on freq, disassembly $51C1-$522D.
 ; leaves vib_carry = the 6502 carry the section hands to the PWM add.
@@ -448,6 +540,12 @@ def _emit_data(score, models, freq_table) -> str:
                m.init_sr, m.hr_ctrl, _fx_flags(m), vib_depth,
                pwm_mode, pwm_a, pwm_period, pwm_lo, pwm_hi, 0, 0, 0]
         lines.append('        .byt ' + ','.join(f'${b:02X}' for b in row))
+
+    # pwacc - per-instrument pw_lo/pw_hi accumulators (shared by every
+    # voice playing the instrument), seeded from the table pw values.
+    lines.append('pwacc:')
+    for m in models:
+        lines.append(f'        .byt ${m.init_pw_lo:02X},${m.init_pw_hi:02X}')
 
     # full table (>=96 entries) — vibrato reads freqtab[pitch+1] which
     # can run one past the 96 musical notes.
