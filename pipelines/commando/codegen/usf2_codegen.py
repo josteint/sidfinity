@@ -43,7 +43,7 @@ LOAD = 0x1000
 
 # Effects implemented by the 6502 engine so far (verification enables
 # exactly this subset in song_interp).
-ENGINE_FX = {'skydive', 'arp'}
+ENGINE_FX = {'skydive', 'arp', 'vibrato'}
 
 # ---------------------------------------------------------------------------
 # 6502 engine. A faithful implementation of song_interp.py's frame loop.
@@ -78,6 +78,14 @@ f_hi      = $61
 instoff   = $62
 v_slide   = $63
 v_tick    = $66
+v_durfield = $69
+vib_step  = $6c
+vdelta_lo = $6d
+vdelta_hi = $6e
+vtarg_lo  = $6f
+vtarg_hi  = $70
+vdepthctr = $71
+vib_carry = $72
 
 * = $1000
         jmp init
@@ -143,6 +151,9 @@ pv_sus:
         inc v_tick,x
         lda v_dur,x
         bne pv_fx
+        lda v_instr,x
+        and #$40
+        bne pv_fx            ; tie note - skip the hard restart
         jsr hr_writes
 pv_fx:
         jmp do_effects
@@ -180,6 +191,7 @@ ln_ok:  sta v_pitch,x
         iny
         lda (notep),y
         sta v_dur,x
+        sta v_durfield,x
         iny
         lda (notep),y
         sta v_instr,x
@@ -192,10 +204,25 @@ ln_ok:  sta v_pitch,x
         bcc ln_done
         inc v_nptr_hi,x
 ln_done:
+        lda v_pitch,x        ; seed the skydive slide value (all notes)
+        asl
+        tay
+        lda freqtab+1,y
+        sta v_slide,x
         rts
 
 ; note_start - write the note-start register block for voice X.
+; a tie note writes only ctrl = init_ctrl & $FE (gate off, no retrigger).
 note_start:
+        lda v_instr,x
+        and #$40
+        beq ns_full
+        ldy instoff
+        lda insttab+5,y      ; hr_ctrl = init_ctrl & $FE
+        ldy sidoff
+        sta $d404,y
+        rts
+ns_full:
         ldy instoff
         lda insttab+0,y
         sta i_ctrl
@@ -214,7 +241,6 @@ note_start:
         sta f_lo
         lda freqtab+1,y
         sta f_hi
-        sta v_slide,x
         ldy sidoff
         lda f_hi
         sta $d401,y
@@ -245,8 +271,71 @@ hr_writes:
 
 ; do_effects - per-frame effects (engine order vibrato,pwm,skydive,arp).
 do_effects:
+        jsr fx_vibrato
         jsr fx_skydive
         jmp fx_arp
+
+; fx_vibrato - bit3. triangle LFO on freq, disassembly $51C1-$522D.
+; leaves vib_carry = the 6502 carry the section hands to the PWM add.
+fx_vibrato:
+        ldy instoff
+        lda insttab+6,y
+        and #$08
+        bne fxv_go
+        rts
+fxv_go:
+        lda frame_ctr
+        and #$07
+        cmp #$04
+        bcc fxv_s1
+        eor #$07
+fxv_s1: sta vib_step
+        ldy instoff
+        lda insttab+7,y      ; vib_depth
+        sta vdepthctr
+        lda v_pitch,x
+        asl
+        tay                  ; Y = pitch*2
+        sec
+        lda freqtab+2,y      ; freq16[pitch+1] - freq16[pitch]
+        sbc freqtab+0,y
+        sta vdelta_lo
+        lda freqtab+3,y
+        sbc freqtab+1,y      ; A = diff_hi
+fxv_sh: lsr                  ; shift A,vdelta_lo right depth+1 times
+        ror vdelta_lo
+        dec vdepthctr
+        bpl fxv_sh
+        sta vdelta_hi
+        lda freqtab+0,y      ; target = freq16[pitch]
+        sta vtarg_lo
+        lda freqtab+1,y
+        sta vtarg_hi
+        lda v_durfield,x
+        cmp #$06
+        bcc fxv_wr           ; dur < 6 -> no add (carry left = 0)
+        ldy vib_step
+        beq fxv_wr           ; step 0 -> no add (carry left = 1)
+fxv_add:
+        clc
+        lda vtarg_lo
+        adc vdelta_lo
+        sta vtarg_lo
+        lda vtarg_hi
+        adc vdelta_hi
+        sta vtarg_hi
+        dey
+        bne fxv_add
+fxv_wr:
+        lda #0               ; capture carry-out for the PWM ADC
+        adc #0
+        sta vib_carry
+        ldy sidoff
+        lda vtarg_lo
+        sta $d400,y
+        lda vtarg_hi
+        sta $d401,y
+        rts
 
 ; fx_skydive - bit0. freq_hi slide + ctrl, see song_interp._skydive.
 fx_skydive:
@@ -341,15 +430,29 @@ def _emit_data(score, models, freq_table) -> str:
     """Emit the xa65 data section."""
     lines = []
 
+    # instrument row (16 bytes): init_ctrl, init_pw_lo, init_pw_hi,
+    # init_ad, init_sr, hr_ctrl, fx_flags, vib_depth, pwm_mode,
+    # pwm_a (speed/step), pwm_period, pwm_lo, pwm_hi, then 3 spare.
     lines.append('insttab:')
     for m in models:
+        vib_depth = m.vibrato.depth if m.vibrato else 0
+        pwm_mode = pwm_a = pwm_period = pwm_lo = pwm_hi = 0
+        if m.pwm:
+            if m.pwm.mode == 'linear':
+                pwm_mode, pwm_a = 1, m.pwm.speed
+            else:
+                pwm_mode, pwm_a = 2, m.pwm.step
+                pwm_period, pwm_lo, pwm_hi = (m.pwm.period, m.pwm.lo_bound,
+                                              m.pwm.hi_bound)
         row = [m.init_ctrl, m.init_pw_lo, m.init_pw_hi, m.init_ad,
-               m.init_sr, m.hr_ctrl, _fx_flags(m)] + [0] * 9
+               m.init_sr, m.hr_ctrl, _fx_flags(m), vib_depth,
+               pwm_mode, pwm_a, pwm_period, pwm_lo, pwm_hi, 0, 0, 0]
         lines.append('        .byt ' + ','.join(f'${b:02X}' for b in row))
 
+    # full table (>=96 entries) — vibrato reads freqtab[pitch+1] which
+    # can run one past the 96 musical notes.
     lines.append('freqtab:')
-    for i in range(96):
-        f = freq_table[i]
+    for f in freq_table:
         lines.append(f'        .byt ${f & 0xFF:02X},${(f >> 8) & 0xFF:02X}')
 
     streams = [_flatten_voice(v) for v in score.voices]
