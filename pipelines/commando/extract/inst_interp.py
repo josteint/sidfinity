@@ -45,25 +45,45 @@ def subtune_resetspd(subtune: int, binary: bytes, load_addr: int) -> int:
     return binary[SPEED_TABLE + subtune - load_addr]
 
 
-def _vibrato_writes(depth: int, pitch: int, frame_ctr: int, dur_field: int,
-                    freq_table: list[int]) -> list[tuple[int, int]]:
+def _vibrato(depth: int, pitch: int, frame_ctr: int, dur_field: int,
+             freq_table: list[int]) -> tuple[list[tuple[int, int]], int]:
     """Vibrato — authoritative semantics from the disassembly $51C1-$522D.
+    Returns (writes, carry_out).
 
     A triangle LFO over 8 frames (step 0,1,2,3,3,2,1,0) scales a delta of
     `(freq16[pitch+1] - freq16[pitch]) >> (depth+1)`, added `step` times
-    to the base freq. Gated off entirely when the note's dur field < 6
-    (then it just rewrites the base freq). Writes freq_lo, freq_hi."""
+    to the base freq (16-bit). Gated off when the note's dur field < 6
+    (then it just rewrites the base freq). Writes freq_lo, freq_hi.
+
+    carry_out is the 6502 carry the vibrato section leaves in the C flag
+    for the linear-PWM `ADC` that immediately follows it — the engine
+    omits a CLC there, so the PWM step inherits this carry. Determined
+    by the disassembly: when the add loop is skipped the carry is the
+    result of `CMP #$06` (0 if dur<6, 1 if dur>=6 with step 0); when the
+    loop runs it is the carry-out of the last hi-byte ADC."""
     step = frame_ctr & 0x07
     if step >= 4:
         step ^= 0x07
     f_cur = freq_table[pitch]
     f_next = freq_table[pitch + 1]
     delta = ((f_next - f_cur) & 0xFFFF) >> (depth + 1)
-    target = f_cur
-    if dur_field >= 6:
+    delta_lo = delta & 0xFF
+    delta_hi = (delta >> 8) & 0xFF
+    target_lo = f_cur & 0xFF
+    target_hi = (f_cur >> 8) & 0xFF
+    if dur_field < 6:
+        carry = 0
+    elif step == 0:
+        carry = 1
+    else:
+        carry = 0
         for _ in range(step):
-            target = (target + delta) & 0xFFFF
-    return [(R_FREQ_LO, target & 0xFF), (R_FREQ_HI, (target >> 8) & 0xFF)]
+            lo = target_lo + delta_lo                  # CLC; ADC delta_lo
+            target_lo = lo & 0xFF
+            hi = target_hi + delta_hi + (lo >> 8)      # ADC delta_hi
+            target_hi = hi & 0xFF
+            carry = hi >> 8
+    return [(R_FREQ_LO, target_lo), (R_FREQ_HI, target_hi)], carry
 
 
 def render_note(model: InstrumentModel, pitch: int, n_frames: int,
@@ -124,13 +144,17 @@ def render_note(model: InstrumentModel, pitch: int, n_frames: int,
             w += [(R_CTRL, model.hr_ctrl), (R_AD, 0), (R_SR, 0)]
 
         # vibrato runs first in the engine's effect order
+        vib_carry = 0
         if model.vibrato:
-            w += _vibrato_writes(model.vibrato.depth, pitch,
-                                 frame_ctr0 + k, dur_field, freq_table)
+            vw, vib_carry = _vibrato(model.vibrato.depth, pitch,
+                                     frame_ctr0 + k, dur_field, freq_table)
+            w += vw
 
-        # linear PWM — pw_lo accumulates by `speed` every effect frame
+        # linear PWM — pw_lo accumulates by `speed` every effect frame.
+        # The engine's `ADC` has no preceding CLC, so it also adds the
+        # carry the vibrato section left behind.
         if model.pwm and model.pwm.mode == 'linear':
-            pw_lo = (pw_lo + model.pwm.speed) & 0xFF
+            pw_lo = (pw_lo + model.pwm.speed + vib_carry) & 0xFF
             w.append((R_PW_LO, pw_lo))
 
         # skydive effect — the engine guards it on `duration != 0`, and
