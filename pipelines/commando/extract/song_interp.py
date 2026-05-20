@@ -56,6 +56,9 @@ class VoiceRT:
     started: bool = False            # a note has been loaded at least once
     hub_note_idx: int = 0            # Hubbard's byte offset into the pattern
                                      # ($54EF,X) — read by off-table arps
+    ctrl_byte: int = 0               # the instrument ctrl saved at note start
+                                     # ($54F8,X) — read by off-table note-starts
+    no_release: bool = False         # note_byte bit5 — suppresses the HR
 
 
 class SongInterp:
@@ -142,9 +145,19 @@ class SongInterp:
         rt.instr = note.instrument & 0x3F
         rt.pitch = note.pitch
         rt.tie = note.tie
+        # no_release (note_byte bit5) suppresses the hard restart;
+        # engine_model stores it in drum_trig bit7.
+        rt.no_release = bool(note.drum_trig & 0x80)
         rt.frame_in_note = 0
         rt.tick_in_note = 0
-        rt.slide_v = (self.freq_table[note.pitch] >> 8) & 0xFF
+        # the skydive freq_hi value is only re-seeded on a non-tie note
+        # (the engine skips the freq write entirely for a tie, so the
+        # slide value carries over from the previous note).
+        if not note.tie:
+            if note.pitch >= 96:
+                rt.slide_v = self._read_state(0x5429 + note.pitch * 2)
+            else:
+                rt.slide_v = (self.freq_table[note.pitch] >> 8) & 0xFF
         rt.slide_dead = False
 
     # ------------------------------------------------------------------
@@ -180,7 +193,8 @@ class SongInterp:
 
         w: list[tuple[int, int]] = []
         # hard restart: the gate-off block, on the tick `duration` hits 0
-        if is_tick and rt.duration_ctr == 0 and not rt.tie:
+        # (suppressed by no_release, NOT by tie)
+        if is_tick and rt.duration_ctr == 0 and not rt.no_release:
             m = self.models[rt.instr]
             w += [(R_CTRL, m.hr_ctrl), (R_AD, 0), (R_SR, 0)]
         if self.effects_on:
@@ -190,17 +204,32 @@ class SongInterp:
     def _note_start_writes(self, v: int) -> list[tuple[int, int]]:
         rt = self.voices[v]
         m = self.models[rt.instr]
-        f = self.freq_table[rt.pitch]
         if rt.tie:
-            # tie: gate stays off, no fresh freq — ctrl only
-            return [(R_CTRL, m.init_ctrl & 0xFE)]
+            # tie: the engine skips only the freq write — it still does
+            # the instrument write (ctrl gated off, pw, ad, sr).
+            rt.ctrl_byte = m.init_ctrl
+            pw = self.pw_acc[rt.instr]
+            return [(R_CTRL, m.init_ctrl & 0xFE),
+                    (R_PW_LO, pw[0]), (R_PW_HI, pw[1]),
+                    (R_AD, m.init_ad), (R_SR, m.init_sr)]
+        # freq: an off-table pitch (>=96, e.g. inst 4 at 104) reads
+        # player state — the freq read happens BEFORE ctrl_byte is
+        # updated below, matching the engine's ordering.
+        if rt.pitch >= 96:
+            flo = self._read_state(0x5428 + rt.pitch * 2)
+            fhi = self._read_state(0x5429 + rt.pitch * 2)
+        else:
+            f = self.freq_table[rt.pitch]
+            flo, fhi = f & 0xFF, (f >> 8) & 0xFF
         pw = self.pw_acc[rt.instr]
-        return [
-            (R_FREQ_HI, (f >> 8) & 0xFF), (R_FREQ_LO, f & 0xFF),
+        w = [
+            (R_FREQ_HI, fhi), (R_FREQ_LO, flo),
             (R_CTRL, m.init_ctrl),
             (R_PW_LO, pw[0]), (R_PW_HI, pw[1]),
             (R_AD, m.init_ad), (R_SR, m.init_sr),
         ]
+        rt.ctrl_byte = m.init_ctrl
+        return w
 
     # ------------------------------------------------------------------
     # effects — engine order: vibrato, PWM, skydive, arpeggio
@@ -224,10 +253,24 @@ class SongInterp:
         if m.freq_slide and self.fx_skydive:
             w += self._skydive(v, m)
 
+        if m.inc_by2 and self.fx_skydive:
+            w += self._inc_by2(v)
+
         if m.arpeggio and self.fx_arp:
             w += self._arp(v, m)
 
         return w
+
+    def _inc_by2(self, v: int) -> list[tuple[int, int]]:
+        """fx bit1 — on odd frames (dur field >= 3, slide value != 0)
+        write the old slide value and bump it by 2 (disassembly
+        $5336-$535D). Runs after the skydive, sharing slide_v."""
+        rt = self.voices[v]
+        if rt.dur_field < 3 or not (self.frame_ctr & 1) or rt.slide_v == 0:
+            return []
+        old = rt.slide_v
+        rt.slide_v = (rt.slide_v + 2) & 0xFF
+        return [(R_FREQ_HI, old)]
 
     def _pwm(self, v: int, m: InstrumentModel,
              vib_carry: int) -> list[tuple[int, int]]:
@@ -299,6 +342,14 @@ class SongInterp:
             return self.voices[addr - 0x54EF].hub_note_idx & 0xFF
         if 0x54F2 <= addr <= 0x54F4:            # duration[0..2]
             return self.voices[addr - 0x54F2].duration_ctr & 0xFF
+        if 0x54F5 <= addr <= 0x54F7:            # note_byte[0..2]
+            v = addr - 0x54F5
+            return ((self.voices[v].dur_field
+                     | (0x40 if self.voices[v].tie else 0)) & 0xFF)
+        if 0x54F8 <= addr <= 0x54FA:            # ctrl_byte[0..2]
+            return self.voices[addr - 0x54F8].ctrl_byte & 0xFF
+        if 0x54FB <= addr <= 0x54FD:            # pitch[0..2]
+            return self.voices[addr - 0x54FB].pitch & 0xFF
         return 0                                # $54EB scratch / other
 
 
