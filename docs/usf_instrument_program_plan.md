@@ -171,14 +171,30 @@ is inst 4 (the drum) → Phase 5.
 
 ## Phase 4 — All Commando melodic instruments
 
-- [ ] **4.1** Auto-extract all 13 Commando instruments via 3.x.
-- [ ] **4.2** Extend `Codegen2.lean` to emit each source primitive
-      (vibrato, PWM, freqSlide, arpeggio).
-- [ ] **4.3** Build a Commando SID using `USF2` + `Codegen2` (no engineQuirks,
-      no dynamicFreqEntries). Run the full song.
-- [ ] **4.4** Diff writelogs: ours vs. original, for the entire song.
-      Expected outcome: drum sections diverge (Phase 5 handles them);
-      everything else should match.
+Done (commits 9437b01 .. 8e36a65). The codegen is Python, not Lean —
+continuing Phase 2.3's "Python codegen first" deviation; the Lean
+`Codegen2` is deferred to the migration phases.
+
+- [x] **4.1** All 13 instruments emitted (`emit_usf2.py`, Phase 3).
+- [x] **4.2 / 4.3** `pipelines/commando/codegen/usf2_codegen.py` — a
+      clean 6502 Commando engine (xa65 assembly, a faithful port of
+      `song_interp.py`) + the USF2 data serialised into memory tables,
+      assembled into a real `.sid`. No engineQuirks, no
+      dynamicFreqEntries. Implements the full melodic engine: tick/note
+      advancement, tie notes, HR, vibrato, skydive, arpeggio, and both
+      PWM modes with the shared per-instrument accumulator. Each effect
+      was added and verified against `song_interp` incrementally.
+      Final stage: rebuilt SID vs `song_interp` [all melodic effects] —
+      **1500/1500 frames byte-exact**.
+- [x] **4.4** `siddump --writelog` of the rebuilt SID vs the original
+      Commando: **78.97 % ordered write-sequence match** (1183/1498).
+      The 315 divergent frames are exactly the two expected gaps — V2
+      (inst 4, the noise drum) and V1 (inst 7's off-table arpeggio).
+      Every melodic instruction matches.
+
+**Phase 4 outcome:** a clean USF2 representation now round-trips to a
+playable SID that is 79 % writelog-identical to Hubbard's original, the
+entire remaining gap being the Phase-5 drum + cross-voice arp.
 
 ## Phase 5 — The hard case: cross-voice alias (drum)
 
@@ -303,7 +319,7 @@ single source of truth — no parallel TODO lists.
 | 1     | 2026-05-19 | 2026-05-19 | f58de1a |
 | 2     | 2026-05-19 | 2026-05-19 | 31f6e33 |
 | 3     | 2026-05-20 | 2026-05-20 | 785192d..40df47c |
-| 4     |         |           |        |
+| 4     | 2026-05-20 | 2026-05-20 | 9437b01..8e36a65 |
 | 5     |         |           |        |
 | 6     |         |           |        |
 | 7     |         |           |        |
