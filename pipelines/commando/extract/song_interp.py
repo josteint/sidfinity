@@ -86,6 +86,10 @@ class SongInterp:
         self.frame_ctr = -1              # INC'd to 0 on the first frame
         self.speed_ctr = 0
         self.frame_no = -1
+        # when False, per-frame effects are skipped — leaves just the
+        # note-start + HR backbone (used to verify a codegen stage that
+        # has not implemented effects yet).
+        self.effects_on = True
 
     # ------------------------------------------------------------------
     # note advancement
@@ -172,7 +176,8 @@ class SongInterp:
         if is_tick and rt.duration_ctr == 0 and not rt.tie:
             m = self.models[rt.instr]
             w += [(R_CTRL, m.hr_ctrl), (R_AD, 0), (R_SR, 0)]
-        w += self._effects(v)
+        if self.effects_on:
+            w += self._effects(v)
         return w
 
     def _note_start_writes(self, v: int) -> list[tuple[int, int]]:
