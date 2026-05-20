@@ -91,6 +91,8 @@ v_pwdir   = $74
 v_pwperiod = $77
 pwm_tmp   = $7a
 v_hubidx  = $7c
+v_norel   = $7f
+v_ctrlbyte = $82
 
 * = $1000
         jmp init
@@ -158,9 +160,8 @@ pv_sus:
         inc v_tick,x
         lda v_dur,x
         bne pv_fx
-        lda v_instr,x
-        and #$40
-        bne pv_fx            ; tie note - skip the hard restart
+        lda v_norel,x
+        bne pv_fx            ; no_release - skip the hard restart
         jsr hr_writes
 pv_fx:
         jmp do_effects
@@ -197,9 +198,14 @@ load_note:
         lda (notep),y
 ln_ok:  sta v_pitch,x
         iny
-        lda (notep),y
+        lda (notep),y        ; byte 1 = durfield | no_release<<7
+        pha
+        and #$1f
         sta v_dur,x
         sta v_durfield,x
+        pla
+        and #$80
+        sta v_norel,x
         iny
         lda (notep),y
         sta v_instr,x
@@ -215,25 +221,12 @@ ln_ok:  sta v_pitch,x
         bcc ln_done
         inc v_nptr_hi,x
 ln_done:
-        lda v_pitch,x        ; seed the skydive slide value (all notes)
-        asl
-        tay
-        lda freqtab+1,y
-        sta v_slide,x
         rts
 
 ; note_start - write the note-start register block for voice X.
-; a tie note writes only ctrl = init_ctrl & $FE (gate off, no retrigger).
+; common fields (ctrl/ad/sr from insttab, pw from the accumulator) are
+; loaded into temps first; then tie vs full diverge.
 note_start:
-        lda v_instr,x
-        and #$40
-        beq ns_full
-        ldy instoff
-        lda insttab+5,y      ; hr_ctrl = init_ctrl & $FE
-        ldy sidoff
-        sta $d404,y
-        rts
-ns_full:
         ldy instoff
         lda insttab+0,y
         sta i_ctrl
@@ -241,18 +234,43 @@ ns_full:
         sta i_ad
         lda insttab+4,y
         sta i_sr
-        ldy pw_idx           ; pw_lo/pw_hi come from the live accumulator
+        ldy pw_idx
         lda pwacc,y
         sta i_pwlo
         lda pwacc+1,y
         sta i_pwhi
+        lda v_instr,x
+        and #$40
+        beq ns_full
+        ; tie - ctrl gated off, pw, ad, sr; no freq, no slide re-seed.
+        lda i_ctrl
+        sta v_ctrlbyte,x
+        and #$fe
+        ldy sidoff
+        sta $d404,y
+        jmp ns_pwadsr
+ns_full:
+        ; freq - pitch 104 (inst 4) reads off-table into ctrl_byte
         lda v_pitch,x
+        cmp #104
+        beq ns_offtab
         asl
         tay
         lda freqtab,y
         sta f_lo
         lda freqtab+1,y
         sta f_hi
+        jmp ns_havefreq
+ns_offtab:
+        lda v_ctrlbyte+0     ; $54F8 = ctrl_byte[0]
+        sta f_lo
+        lda v_ctrlbyte+1     ; $54F9 = ctrl_byte[1]
+        sta f_hi
+ns_havefreq:
+        lda f_hi
+        sta v_slide,x        ; seed the skydive slide value
+        lda i_ctrl
+        sta v_ctrlbyte,x     ; update ctrl_byte AFTER the off-table read
         ldy sidoff
         lda f_hi
         sta $d401,y
@@ -260,6 +278,8 @@ ns_full:
         sta $d400,y
         lda i_ctrl
         sta $d404,y
+ns_pwadsr:
+        ldy sidoff
         lda i_pwlo
         sta $d402,y
         lda i_pwhi
@@ -288,7 +308,31 @@ do_effects:
         jsr fx_vibrato
         jsr fx_pwm
         jsr fx_skydive
+        jsr fx_incby2
         jmp fx_arp
+
+; fx_incby2 - bit1. odd-frame +2 on the shared slide value, write old.
+fx_incby2:
+        ldy instoff
+        lda insttab+6,y
+        and #$02
+        beq fxi_ret
+        lda v_durfield,x
+        cmp #3
+        bcc fxi_ret
+        lda frame_ctr
+        and #$01
+        beq fxi_ret
+        lda v_slide,x
+        beq fxi_ret
+        ldy sidoff
+        lda v_slide,x
+        sta $d401,y          ; write OLD slide value
+        lda v_slide,x
+        clc
+        adc #$02
+        sta v_slide,x
+fxi_ret: rts
 
 ; fx_pwm - bit4. linear or bidirectional PWM. The pw accumulators
 ; (pwacc) are per-instrument shared state - see song_interp._pwm.
@@ -529,7 +573,9 @@ def _flatten_voice(voice):
                       else 2 if (n.instrument & 0x80) else 3)
             base = 0 if j == 0 else hidx
             hidx = 0 if j == len(pat_notes) - 1 else base + nbytes
-            notes.append((n.pitch & 0xFF, (n.duration - 1) & 0xFF,
+            # byte 1 = durfield (0..31) | no_release in bit7
+            durf = ((n.duration - 1) & 0x1F) | (n.drum_trig & 0x80)
+            notes.append((n.pitch & 0xFF, durf,
                           n.instrument & 0xFF, hidx & 0xFF))
     return notes, loop_idx
 
