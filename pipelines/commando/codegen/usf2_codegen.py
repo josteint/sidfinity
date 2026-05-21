@@ -103,16 +103,39 @@ v_ended    = $92
 end_phase  = $95
 cur_resetspd = $96
 sub_tmp    = $97
+is_sfx     = $98
+sfx_idx    = $99
+sfx_rec    = $9a
+sfx_index  = $9c
+sfx_stepctr = $9d
+sfx_v1gate = $9e
+sfx_v2gate = $9f
+sfx_done   = $a0
+sfx_started = $a1
+sfx_y      = $a2
+sfx_flags  = $a3
+sfx_tmp    = $a4
 
 * = $1000
         jmp init
         jmp play
 
-; init - A = subtune number. Selects that subtune's orderlists, loop
-; points and tempo, re-seeds the per-instrument PWM accumulators, and
-; resets every per-voice variable.
+; init - A = subtune number. A under 3 is a music subtune; A 3 and up
+; is a sound effect (A-3 = the SFX index).
 init:
+        cmp #$03
+        bcc init_music
+        sec
+        sbc #$03
+        sta sfx_idx
+        lda #$01
+        sta is_sfx
+        jmp init_sfx
+init_music:
         sta sub_tmp          ; A = subtune
+        lda #$00
+        sta is_sfx
+        lda sub_tmp
         asl                  ; subtune*2
         clc
         adc sub_tmp          ; subtune*3 = base index into the 9-entry
@@ -162,6 +185,12 @@ ini2:   lda #0
         rts
 
 play:
+        inc freqtab+253      ; mirror Hubbard's INC $5525 (the SFX
+                             ; sweep can read this byte as a frequency)
+        lda is_sfx
+        beq pl_music
+        jmp sfx_play
+pl_music:
         lda end_phase
         beq pl_run
         cmp #$01
@@ -822,6 +851,164 @@ bsb1:   lda v_seqidx,x
         tax
         rts
 
+; ============================ sound effects ===========================
+; A SFX is a 2-voice register snapshot plus a freq-table pitch sweep,
+; driven by a 32-byte record (sfxdata). See pipelines/commando/extract/
+; sfx.py for the engine derivation.
+
+; init_sfx - set up sound effect sfx_idx. Builds the record pointer,
+; patches the live freq-table bytes the sweep overflows into, and
+; resets the sweep state.
+init_sfx:
+        lda #$00
+        sta sfx_rec+1
+        lda sfx_idx
+        asl
+        rol sfx_rec+1
+        asl
+        rol sfx_rec+1
+        asl
+        rol sfx_rec+1
+        asl
+        rol sfx_rec+1
+        asl
+        rol sfx_rec+1        ; sfx_idx*32 - A is the low byte
+        clc
+        adc #<sfxdata
+        sta sfx_rec
+        lda sfx_rec+1
+        adc #>sfxdata
+        sta sfx_rec+1
+        lda #$80
+        sta freqtab+241      ; the sweep reads $5519 here - mode byte $80
+        lda sfx_idx
+        sta freqtab+255      ; $5527 - the SFX index
+        lda #$ff
+        sta freqtab+256      ; $5528 - drum_enable
+        ldy #14
+        lda (sfx_rec),y      ; record 14 - sweep start index
+        sta sfx_index
+        lda #$00
+        sta sfx_stepctr
+        sta sfx_done
+        sta sfx_started
+        ldy #4
+        lda (sfx_rec),y      ; record 4 - V1 ctrl, the live V1 gate
+        sta sfx_v1gate
+        ldy #11
+        lda (sfx_rec),y      ; record 11 - V2 ctrl, the live V2 gate
+        sta sfx_v2gate
+        ldx #$18
+isfxclr: lda #$00
+        sta $d400,x
+        dex
+        bpl isfxclr
+        lda #$0f
+        sta $d418
+        rts
+
+; sfx_play - one frame of the sound-effect engine. The first frame
+; gates the voices off and writes the 14-byte register snapshot;
+; thereafter it steps the freq-table sweep.
+sfx_play:
+        lda sfx_started
+        bne sfxp_run
+        lda #$01
+        sta sfx_started
+        lda #$00
+        sta $d404            ; play-path clear - gate V1,V2,V3 off
+        sta $d40b
+        sta $d412
+        sta $d404            ; the trigger gates V1,V2 again
+        sta $d40b
+        ldy #$00
+sfxp_cpy: lda (sfx_rec),y    ; records 0..13 - V1+V2 register snapshot
+        sta $d400,y
+        iny
+        cpy #$0e
+        bne sfxp_cpy
+sfxp_run:
+        lda sfx_done
+        bne sfxp_ret
+        dec sfx_stepctr
+        bpl sfxp_ret
+        ldy #16
+        lda (sfx_rec),y      ; record 16 - step rate
+        sta sfx_stepctr
+        jsr sfx_step
+sfxp_ret:
+        rts
+
+; sfx_step - one sweep step. Writes V1/V2 freq from the freq table and
+; advances the index; ends the SFX when the index reaches the end.
+sfx_step:
+        ldy #15
+        lda (sfx_rec),y      ; record 15 - end index
+        cmp sfx_index
+        bne sfxs_go
+        lda #$00             ; reached the end - gate off, done
+        sta $d404
+        sta $d40b
+        lda #$01
+        sta sfx_done
+        rts
+sfxs_go:
+        lda sfx_index
+        asl
+        sta sfx_y            ; sfx_y = (index*2) & $FF
+        ldy #17
+        lda (sfx_rec),y      ; record 17 - flags
+        sta sfx_flags
+        and #$04
+        bne sfxs_gates       ; bit2 - skip both freq writes
+        lda sfx_flags
+        and #$02
+        bne sfxs_v2          ; bit1 - skip the V1 freq write
+        ldy sfx_y
+        lda freqtab,y
+        sta $d400
+        lda freqtab+1,y
+        sta $d401
+sfxs_v2:
+        ldy #18
+        lda (sfx_rec),y      ; record 18 - V2 byte offset
+        sta sfx_tmp
+        lda sfx_y
+        sec
+        sbc sfx_tmp
+        tay                  ; Y = (sfx_y - v2offset) & $FF
+        lda freqtab,y
+        sta $d407
+        lda freqtab+1,y
+        sta $d408
+sfxs_gates:
+        ldy #19
+        lda (sfx_rec),y      ; record 19 - gate-toggle flags
+        sta sfx_tmp
+        and #$80
+        beq sfxs_g2          ; bit7 - retrigger the V1 gate
+        lda sfx_v1gate
+        eor #$01
+        sta sfx_v1gate
+        sta $d404
+sfxs_g2:
+        lda sfx_tmp
+        and #$40
+        beq sfxs_adv         ; bit6 - retrigger the V2 gate
+        lda sfx_v2gate
+        eor #$01
+        sta sfx_v2gate
+        sta $d40b
+sfxs_adv:
+        lda sfx_flags
+        and #$01
+        beq sfxs_down        ; bit0 - 1 sweeps up, 0 sweeps down
+        inc sfx_index
+        rts
+sfxs_down:
+        dec sfx_index
+        rts
+
 sidtab: .byt 0, 7, 14
 """
 
@@ -862,13 +1049,13 @@ def _fx_flags(m) -> int:
             | (16 if m.pwm else 0))
 
 
-def _emit_data(scores, models, freq_table, resetspds) -> str:
+def _emit_data(scores, models, freq_bytes, resetspds, sfx_list) -> str:
     """Emit the xa65 data section for a multi-subtune build.
 
-    `scores` is one Score per packed subtune. Instruments, the freq
-    table and the pattern pool are shared across subtunes; the
-    orderlists, loop points and tempo are per-subtune, selected by
-    `init` from the subOrder* / subResetspd tables."""
+    `scores` is one Score per packed music subtune; `sfx_list` is the
+    16 sound effects. Instruments, the freq table and the pattern pool
+    are shared; orderlists, loop points and tempo are per-subtune,
+    selected by `init` from the subOrder* / subResetspd tables."""
     lines = []
 
     # instrument row (16 bytes): init_ctrl, init_pw_lo, init_pw_hi,
@@ -898,11 +1085,13 @@ def _emit_data(scores, models, freq_table, resetspds) -> str:
         lines.append(f'        .byt ${m.init_pw_lo:02X},${m.init_pw_hi:02X}')
     lines.append('pwacc: .byt ' + ','.join(['0'] * (2 * len(models))))
 
-    # full table (>=96 entries) — vibrato reads freqtab[pitch+1] which
-    # can run one past the 96 musical notes.
+    # the freq table, emitted as raw bytes — the music reads it as
+    # 16-bit entries, the SFX sweep walks it byte-wise and overflows
+    # past the musical notes into the engine-state region.
     lines.append('freqtab:')
-    for f in freq_table:
-        lines.append(f'        .byt ${f & 0xFF:02X},${(f >> 8) & 0xFF:02X}')
+    for i in range(0, len(freq_bytes), 16):
+        chunk = freq_bytes[i:i + 16]
+        lines.append('        .byt ' + ','.join(f'${b:02X}' for b in chunk))
 
     # patterns — Hubbard's compact layout kept structured: each unique
     # pattern is emitted once and orderlists reference it by a dense
@@ -961,6 +1150,22 @@ def _emit_data(scores, models, freq_table, resetspds) -> str:
     # filled live by build_statebuf, with the unmapped gap bytes left 0.
     lines.append('statebuf: .byt 0,7,14')
     lines.append('        .byt ' + ','.join(['0'] * 93))
+
+    # sound-effect records — 32 bytes each: V1[7], V2[7], start, end,
+    # rate, flags (bit0 direction, bit1 skip-V1, bit2 skip-both),
+    # v2_byte_offset, gate (bit7/6 toggle V1/V2). See sfx_play.
+    lines.append('sfxdata:')
+    for sf in sfx_list:
+        flags = ((1 if sf.direction == 'up' else 0)
+                 | (2 if sf.skip_v1 else 0)
+                 | (4 if sf.skip_both else 0))
+        gate = ((0x80 if sf.toggle_v1 else 0)
+                | (0x40 if sf.toggle_v2 else 0))
+        rec = (list(sf.v1) + list(sf.v2)
+               + [sf.start_index, sf.end_index, sf.rate, flags,
+                  sf.v2_byte_offset, gate])
+        rec += [0] * (32 - len(rec))
+        lines.append('        .byt ' + ','.join(f'${b:02X}' for b in rec))
     return '\n'.join(lines)
 
 
@@ -970,16 +1175,18 @@ def _emit_data(scores, models, freq_table, resetspds) -> str:
 
 def build(subtunes=(0, 1, 2), out_path: str = OUT_SID) -> str:
     from src.hubbard_emu import load_sid
+    from pipelines.commando.extract.sfx import extract_sfx
     _, binary, load = load_sid(SID_PATH)
     models = decode_all(SID_PATH)
     songs = [extract(subtune=s) for s in subtunes]
     scores = [sg.score for sg in songs]
-    freq_table = songs[0].freq_table          # the freq table is global
     resetspds = [subtune_resetspd(s, binary, load) for s in subtunes]
+    sfx_list, freq_bytes = extract_sfx(SID_PATH)
 
     asm = (f'PWLEN = {2 * len(models) - 1}\n'
            + ENGINE + '\n'
-           + _emit_data(scores, models, freq_table, resetspds) + '\n')
+           + _emit_data(scores, models, freq_bytes, resetspds, sfx_list)
+           + '\n')
 
     src = '/tmp/usf2_commando.s'
     obj = '/tmp/usf2_commando.bin'
@@ -1002,7 +1209,7 @@ def build(subtunes=(0, 1, 2), out_path: str = OUT_SID) -> str:
     h += struct.pack('>H', LOAD)
     h += struct.pack('>H', LOAD)
     h += struct.pack('>H', LOAD + 3)
-    h += struct.pack('>H', len(subtunes))  # songs — one per packed subtune
+    h += struct.pack('>H', len(subtunes) + 16)  # music subtunes + 16 SFX
     h += struct.pack('>H', 1)              # startSong
     h += struct.pack('>I', 0)
     h += orig_hdr[22:118]                  # name + author + released (3x32)
