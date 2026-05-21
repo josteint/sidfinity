@@ -226,14 +226,31 @@ the one the plan sketch anticipated:
       do not re-seed the skydive value; the hard restart is gated by
       `no_release` (note byte bit5), not by `tie`.
 
+- [x] **5c — full-song closure** (commits 60cee46 .. 2e5d869).
+      The 1500-frame check was not the whole song — one full pass is
+      11808 frames. Verifying the full song surfaced four more issues,
+      each fixed in song_interp (the reference) then the codegen:
+      - instrument carry across pattern boundaries — engine_model resets
+        the carried instrument per pattern; Hubbard's `instr_num` is a
+        per-voice variable that persists. (the f8448 desync.)
+      - the general off-table arpeggio — only `idx==100` was handled;
+        an arp index past the freq table reads engine state at
+        `$54E8+`, modelled cleanly via a state mirror (`statebuf`).
+      - the drum-slide (per-note portamento) — effect #3, never
+        implemented.
+      - the seq_idx pre-increment and off-table vibrato — the engine
+        bumps `seq_idx` on a pattern's last note; vibrato of an
+        off-table-pitch instrument reads live engine state, not the
+        static freq table.
+
 **Phase 5 outcome:** the rebuilt SID reproduces the original Commando
-subtune 0 **100 % — 1500/1500 frames byte-exact** (py65, play-call
-attributed). siddump --writelog reads 97.2 %; the 2.8 % is purely
-frame-attribution drift from the clean engine's different per-frame
-cycle count. The USF refactor is **complete for Commando**: a clean,
-engine-agnostic USF2 representation round-trips to a playable SID
-byte-identical to Hubbard's original — no engineQuirks, no
-dynamicFreqEntries.
+subtune 0 **100 % over the entire song** — 25000 frames (>2 full
+passes), every register write, every frame, py65 play-call attributed.
+song_interp (the reference interpreter) and the codegen each match the
+original 100 %, and match each other 100 %. The USF refactor is
+**complete for Commando**: a clean, engine-agnostic USF2 representation
+round-trips to a playable SID that reproduces Hubbard's original
+instruction stream exactly — no engineQuirks, no dynamicFreqEntries.
 
 ## Phase 6 — Migration of other pipelines
 
@@ -338,6 +355,6 @@ single source of truth — no parallel TODO lists.
 | 2     | 2026-05-19 | 2026-05-19 | 31f6e33 |
 | 3     | 2026-05-20 | 2026-05-20 | 785192d..40df47c |
 | 4     | 2026-05-20 | 2026-05-20 | 9437b01..8e36a65 |
-| 5     | 2026-05-20 | 2026-05-20 | 3647892..cbcb1c1 |
+| 5     | 2026-05-20 | 2026-05-21 | 3647892..2e5d869 |
 | 6     |         |           |        |
 | 7     |         |           |        |
