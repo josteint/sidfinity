@@ -52,6 +52,10 @@ class VoiceRT:
     frame_in_note: int = -1          # frames since the note loaded (0 = load)
     tick_in_note: int = 0            # decrementing ticks since the note loaded
     slide_v: int = 0                 # skydive's running freq_hi ($551A)
+    slide_lo: int = 0                # the running freq_lo ($551D) — the
+                                     # drum-slide's low byte (paired w/ slide_v)
+    drum_trig: int = 0               # the note's drum/porta trigger byte
+                                     # ($5520,X) — bits 1-6 delta, bit0 dir
     slide_dead: bool = False
     started: bool = False            # a note has been loaded at least once
     hub_note_idx: int = 0            # Hubbard's byte offset into the pattern
@@ -95,6 +99,7 @@ class SongInterp:
         self.effects_on = True
         self.fx_vibrato = True
         self.fx_pwm = True
+        self.fx_drum_slide = True
         self.fx_skydive = True
         self.fx_arp = True
         # the off-table (cross-voice) arpeggio — inst 7's reads past the
@@ -154,16 +159,24 @@ class SongInterp:
         # no_release (note_byte bit5) suppresses the hard restart;
         # engine_model stores it in drum_trig bit7.
         rt.no_release = bool(note.drum_trig & 0x80)
+        # the drum/porta trigger byte ($5520,X) — reset every note load,
+        # set from the note. bit7 is no_release (handled above); the
+        # drum slide keys off the payload (bits 0-6) only.
+        rt.drum_trig = note.drum_trig
         rt.frame_in_note = 0
         rt.tick_in_note = 0
-        # the skydive freq_hi value is only re-seeded on a non-tie note
-        # (the engine skips the freq write entirely for a tie, so the
-        # slide value carries over from the previous note).
+        # the running freq_hi/freq_lo ($551A/$551D) are only re-seeded on
+        # a non-tie note (the engine skips the freq write entirely for a
+        # tie, so the slide values carry over from the previous note).
+        # They feed both the skydive and the drum slide.
         if not note.tie:
             if note.pitch >= 96:
                 rt.slide_v = self._read_state(0x5429 + note.pitch * 2, v)
+                rt.slide_lo = self._read_state(0x5428 + note.pitch * 2, v)
             else:
-                rt.slide_v = (self.freq_table[note.pitch] >> 8) & 0xFF
+                f = self.freq_table[note.pitch]
+                rt.slide_v = (f >> 8) & 0xFF
+                rt.slide_lo = f & 0xFF
         rt.slide_dead = False
 
     # ------------------------------------------------------------------
@@ -238,7 +251,7 @@ class SongInterp:
         return w
 
     # ------------------------------------------------------------------
-    # effects — engine order: vibrato, PWM, skydive, arpeggio
+    # effects — engine order: vibrato, PWM, drum-slide, skydive, arpeggio
     # ------------------------------------------------------------------
 
     def _effects(self, v: int) -> list[tuple[int, int]]:
@@ -255,6 +268,9 @@ class SongInterp:
 
         if m.pwm and self.fx_pwm:
             w += self._pwm(v, m, vib_carry)
+
+        if self.fx_drum_slide:
+            w += self._drum_slide(v)
 
         if m.freq_slide and self.fx_skydive:
             w += self._skydive(v, m)
@@ -302,6 +318,29 @@ class SongInterp:
             if pw[1] == m.pwm.lo_bound:
                 self.pw_dir[v] = 0
         return [(R_PW_HI, pw[1]), (R_PW_LO, pw[0])]
+
+    def _drum_slide(self, v: int) -> list[tuple[int, int]]:
+        """Per-note portamento ($52B3-$52F9) — effect #3, after PWM and
+        before the skydive. If the note carries a drum/porta trigger,
+        slide the running freq ($551D/$551A) by `delta` each frame.
+
+        The trigger byte's bit7 is no_release (engine_model packs it
+        there); the real engine keys this effect off a marker byte whose
+        bits 0-6 are the porta payload, so mask bit7 off before testing."""
+        rt = self.voices[v]
+        dt = rt.drum_trig & 0x7F
+        if dt == 0:
+            return []
+        delta = dt & 0x7E                      # $52BB: AND #$7E
+        if dt & 0x01:                          # $52C3: AND #$01 — slide down
+            lo = rt.slide_lo - delta
+            rt.slide_lo = lo & 0xFF
+            rt.slide_v = (rt.slide_v - (1 if lo < 0 else 0)) & 0xFF
+        else:                                  # slide up
+            lo = rt.slide_lo + delta
+            rt.slide_lo = lo & 0xFF
+            rt.slide_v = (rt.slide_v + (1 if lo > 0xFF else 0)) & 0xFF
+        return [(R_FREQ_LO, rt.slide_lo), (R_FREQ_HI, rt.slide_v)]
 
     def _skydive(self, v: int, m: InstrumentModel) -> list[tuple[int, int]]:
         rt = self.voices[v]
