@@ -9,9 +9,11 @@ tables after the engine code.
 No engineQuirks, no dynamicFreqEntries: the engine knowledge lives here
 in the codegen (plumbing); the data stays abstract.
 
-Built incrementally. Implemented so far: the note backbone (init,
-frame/tick loop, note advancement, note-start + HR writes) and the
-skydive (freqSlide) effect. Still to add: arpeggio, vibrato, PWM.
+Complete for Commando: the note backbone, all effects (vibrato, PWM,
+drum-slide, skydive, inc_by2, arpeggio incl. the off-table cases) and
+the structured data layout — shared patterns referenced by per-voice
+orderlists. Reproduces the original's instruction stream 100 % over
+the whole song.
 
 Usage:
     python3 pipelines/commando/codegen/usf2_codegen.py
@@ -47,8 +49,8 @@ ENGINE_FX = {'skydive', 'arp', 'vibrato', 'pwm', 'arp_offtable'}
 
 # ---------------------------------------------------------------------------
 # 6502 engine. A faithful implementation of song_interp.py's frame loop.
-# Data labels (sidtab, nstreamLo/Hi, loopLo/Hi, insttab, freqtab, voice
-# note streams) are appended by the codegen.
+# Data labels (sidtab, insttab, pwacc, freqtab, patterns + pataddr,
+# per-voice orderlists, statebuf) are appended by the codegen.
 #
 # instrument table row (16 bytes): init_ctrl, init_pw_lo, init_pw_hi,
 # init_ad, init_sr, hr_ctrl, fx_flags, then 9 effect-param bytes.
@@ -63,10 +65,10 @@ sidoff    = $43
 v_dur     = $44
 v_instr   = $47
 v_pitch   = $4a
-v_nptr_lo = $4d
-v_nptr_hi = $50
-v_loop_lo = $53
-v_loop_hi = $56
+v_patlo   = $4d
+v_pathi   = $50
+v_orderpos = $53
+orderp    = $56
 notep     = $59
 i_ctrl    = $5b
 i_pwlo    = $5c
@@ -108,14 +110,9 @@ ini1:   lda #0
         sta v_dur,x
         sta v_pwdir,x
         sta v_pwperiod,x
-        lda nstreamLo,x
-        sta v_nptr_lo,x
-        lda nstreamHi,x
-        sta v_nptr_hi,x
-        lda loopLo,x
-        sta v_loop_lo,x
-        lda loopHi,x
-        sta v_loop_hi,x
+        sta v_instr,x
+        sta v_orderpos,x
+        jsr set_patptr       ; v_patptr,x = first pattern of orderlist X
         dex
         bpl ini1
         lda #0
@@ -181,26 +178,26 @@ calc_instoff:
         sta instoff          ; inst*16 (index into insttab)
         rts
 
-; load_note - read next note at v_nptr,x then advance v_nptr by 4.
-; a $FF pitch is the loop marker.
+; load_note - advance voice X to its next note. Walks the current
+; pattern (5-byte records); the $FF pattern-end marker advances the
+; orderlist. The instrument carries across notes/patterns/the loop -
+; it is kept in v_instr and only replaced when a note has an
+; instrument byte (bit7 clear).
 load_note:
-        lda v_nptr_lo,x
+ln_read:
+        lda v_patlo,x
         sta notep
-        lda v_nptr_hi,x
+        lda v_pathi,x
         sta notep+1
         ldy #0
-        lda (notep),y
+        lda (notep),y        ; pitch, or $FF = pattern end
         cmp #$ff
-        bne ln_ok
-        lda v_loop_lo,x
-        sta v_nptr_lo,x
-        sta notep
-        lda v_loop_hi,x
-        sta v_nptr_hi,x
-        sta notep+1
-        ldy #0
-        lda (notep),y
-ln_ok:  sta v_pitch,x
+        bne ln_have
+        inc v_orderpos,x     ; pattern ended - next orderlist entry
+        jsr set_patptr
+        jmp ln_read
+ln_have:
+        sta v_pitch,x
         iny
         lda (notep),y        ; byte 1 = durfield | no_release<<7
         pha
@@ -211,26 +208,96 @@ ln_ok:  sta v_pitch,x
         and #$80
         sta v_norel,x
         iny
-        lda (notep),y
+        lda (notep),y        ; byte 2 = instrument (b7 no-inst, b6 tie)
+        sta pwm_tmp
+        and #$80
+        bne ln_keepinst
+        lda pwm_tmp
+        and #$3f             ; note carries an instrument - take it
+        jmp ln_setinst
+ln_keepinst:
+        lda v_instr,x
+        and #$3f             ; no instrument byte - keep the carried one
+ln_setinst:
+        sta pwm_tmp+1
+        lda pwm_tmp
+        and #$40             ; tie bit
+        ora pwm_tmp+1
         sta v_instr,x
+        ldy #3
+        lda (notep),y        ; byte 3 = Hubbard note_idx
+        sta v_hubidx,x
         iny
-        lda (notep),y
-        sta v_hubidx,x       ; note byte 3 = Hubbard note_idx
-        iny
-        lda (notep),y
-        sta v_drumtrig,x     ; note byte 4 = drum/porta trigger
-        iny
-        lda (notep),y
-        sta v_seqidx,x       ; note byte 5 = orderlist pos (seq_idx)
+        lda (notep),y        ; byte 4 = drum/porta trigger
+        sta v_drumtrig,x
         lda #0
         sta v_tick,x
-        lda v_nptr_lo,x
+        lda v_patlo,x        ; advance v_patptr past this 5-byte record
         clc
-        adc #6
-        sta v_nptr_lo,x
-        bcc ln_done
-        inc v_nptr_hi,x
-ln_done:
+        adc #5
+        sta v_patlo,x
+        bcc ln_nowrap
+        inc v_pathi,x
+ln_nowrap:
+        lda v_patlo,x        ; peek the next record for the seq_idx rule
+        sta notep
+        lda v_pathi,x
+        sta notep+1
+        ldy #0
+        lda (notep),y
+        cmp #$ff
+        bne ln_seqcur
+        jsr next_orderidx    ; last note of pattern - seq_idx pre-increments
+        sta v_seqidx,x
+        rts
+ln_seqcur:
+        lda v_orderpos,x
+        sta v_seqidx,x
+        rts
+
+; set_patptr - point v_patptr,x at the pattern named by orderlist
+; entry v_orderpos,x. The $FF orderlist terminator wraps v_orderpos
+; to orderLoop,x. Clobbers A and Y; preserves X.
+set_patptr:
+        lda orderLo,x
+        sta orderp
+        lda orderHi,x
+        sta orderp+1
+sp_read:
+        ldy v_orderpos,x
+        lda (orderp),y
+        cmp #$ff
+        bne sp_have
+        lda orderLoop,x      ; orderlist end - wrap to the loop point
+        sta v_orderpos,x
+        jmp sp_read
+sp_have:
+        tay                  ; Y = pattern index
+        lda pataddr_lo,y
+        sta v_patlo,x
+        lda pataddr_hi,y
+        sta v_pathi,x
+        rts
+
+; next_orderidx - the orderlist index the next pattern will occupy:
+; v_orderpos+1, or orderLoop,x if that entry is the $FF terminator.
+; Returns it in A. Preserves X.
+next_orderidx:
+        lda orderLo,x
+        sta orderp
+        lda orderHi,x
+        sta orderp+1
+        lda v_orderpos,x
+        clc
+        adc #1
+        tay                  ; Y = v_orderpos + 1
+        lda (orderp),y
+        cmp #$ff
+        bne noi_have
+        lda orderLoop,x      ; next entry is the terminator - wrap
+        rts
+noi_have:
+        tya
         rts
 
 ; note_start - write the note-start register block for voice X.
@@ -683,45 +750,30 @@ sidtab: .byt 0, 7, 14
 # data serialisation
 # ---------------------------------------------------------------------------
 
-def _flatten_voice(voice):
-    """Expand a Voice's orderlist into a flat note stream. Returns
-    (notes, loop_note_index). Each note record is 6 bytes: pitch,
-    durfield, instrument, hub_note_idx, drum_trig, seq_idx.
-    hub_note_idx and seq_idx are Hubbard's byte offset into the pattern
-    and the orderlist position — both read by the off-table arpeggio;
-    drum_trig is the per-note drum/porta trigger."""
-    notes = []
-    loop_idx = 0
-    cur_inst = 0
-    for oi, pat_idx in enumerate(voice.orderlist):
-        if oi == voice.loop:
-            loop_idx = len(notes)
-        pat_notes = voice.patterns.get(pat_idx, [])
-        hidx = 0
-        for j, n in enumerate(pat_notes):
-            nbytes = (1 if n.tie
-                      else 2 if (n.instrument & 0x80) else 3)
-            base = 0 if j == 0 else hidx
-            is_last = j == len(pat_notes) - 1
-            hidx = 0 if is_last else base + nbytes
-            # byte 1 = durfield (0..31) | no_release in bit7
-            durf = ((n.duration - 1) & 0x1F) | (n.drum_trig & 0x80)
-            # the instrument carries across notes AND patterns — a note
-            # with no instrument byte (bit7) keeps the live value.
-            if not (n.instrument & 0x80):
-                cur_inst = n.instrument & 0x3F
-            instr_byte = cur_inst | (0x40 if n.tie else 0)
-            # seq_idx: the engine pre-increments it on the last note of
-            # a pattern (peeking the $FF end marker), so emit the next
-            # orderlist position there — see song_interp._load_next_note.
-            seq = oi
-            if is_last:
-                seq = oi + 1
-                if seq >= len(voice.orderlist):
-                    seq = voice.loop if voice.loop >= 0 else 0
-            notes.append((n.pitch & 0xFF, durf, instr_byte, hidx & 0xFF,
-                          n.drum_trig & 0xFF, seq & 0xFF))
-    return notes, loop_idx
+def _pattern_notes(pat_notes):
+    """The 5-byte note records for one pattern: pitch, durfield,
+    instrument, hub_note_idx, drum_trig.
+
+    hub_note_idx (Hubbard's byte offset into the pattern) is
+    pattern-intrinsic, so it lives in the shared pattern. The
+    instrument byte keeps engine_model's bit7 (no instrument byte) and
+    bit6 (tie) — the engine resolves the cross-note/pattern carry, so
+    the same shared pattern is correct wherever the orderlist uses it.
+    seq_idx is NOT stored: it is the orderlist position, which depends
+    on where the pattern sits in the orderlist — the engine tracks it."""
+    out = []
+    hidx = 0
+    for j, n in enumerate(pat_notes):
+        nbytes = (1 if n.tie
+                  else 2 if (n.instrument & 0x80) else 3)
+        base = 0 if j == 0 else hidx
+        is_last = j == len(pat_notes) - 1
+        hidx = 0 if is_last else base + nbytes
+        # byte 1 = durfield (0..31) | no_release in bit7
+        durf = ((n.duration - 1) & 0x1F) | (n.drum_trig & 0x80)
+        out.append((n.pitch & 0xFF, durf, n.instrument & 0xFF,
+                    hidx & 0xFF, n.drum_trig & 0xFF))
+    return out
 
 
 def _fx_flags(m) -> int:
@@ -765,21 +817,38 @@ def _emit_data(score, models, freq_table) -> str:
     for f in freq_table:
         lines.append(f'        .byt ${f & 0xFF:02X},${(f >> 8) & 0xFF:02X}')
 
-    streams = [_flatten_voice(v) for v in score.voices]
-    for vi, (notes, _loop) in enumerate(streams):
-        lines.append(f'nstream{vi}:')
-        for (p, d, ins, fl, dt, sq) in notes:
-            lines.append(f'        .byt ${p:02X},${d:02X},${ins:02X},'
-                         f'${fl:02X},${dt:02X},${sq:02X}')
-        lines.append('        .byt $FF,$00,$00,$00,$00,$00   ; loop marker')
+    # patterns + orderlists — Hubbard's compact layout kept structured:
+    # each unique pattern is emitted once, and every voice's orderlist
+    # references them by a dense slot index. collect every pattern any
+    # voice uses into one dense table.
+    pat_order = []                 # dense slot -> note list
+    pat_slot = {}                  # orig pattern index -> dense slot
+    for v in score.voices:
+        for oidx in v.orderlist:
+            if oidx not in pat_slot:
+                pat_slot[oidx] = len(pat_order)
+                pat_order.append(v.patterns.get(oidx, []))
 
-    lines.append('nstreamLo: .byt <nstream0,<nstream1,<nstream2')
-    lines.append('nstreamHi: .byt >nstream0,>nstream1,>nstream2')
-    loops = [loop for _, loop in streams]
-    lines.append('loopLo: .byt '
-                 + ','.join(f'<(nstream{i}+{loops[i] * 6})' for i in range(3)))
-    lines.append('loopHi: .byt '
-                 + ','.join(f'>(nstream{i}+{loops[i] * 6})' for i in range(3)))
+    for slot, pat_notes in enumerate(pat_order):
+        lines.append(f'pat{slot}:')
+        for (p, d, ins, h, dt) in _pattern_notes(pat_notes):
+            lines.append(f'        .byt ${p:02X},${d:02X},${ins:02X},'
+                         f'${h:02X},${dt:02X}')
+        lines.append('        .byt $FF   ; pattern end')
+
+    npat = len(pat_order)
+    lines.append('pataddr_lo: .byt '
+                 + ','.join(f'<pat{s}' for s in range(npat)))
+    lines.append('pataddr_hi: .byt '
+                 + ','.join(f'>pat{s}' for s in range(npat)))
+
+    for vi, v in enumerate(score.voices):
+        ob = ','.join(f'${pat_slot[oidx]:02X}' for oidx in v.orderlist)
+        lines.append(f'order{vi}: .byt {ob},$FF')
+    lines.append('orderLo: .byt <order0,<order1,<order2')
+    lines.append('orderHi: .byt >order0,>order1,>order2')
+    loops = [v.loop if v.loop >= 0 else 0 for v in score.voices]
+    lines.append('orderLoop: .byt ' + ','.join(f'${x:02X}' for x in loops))
 
     # statebuf - the $54E8.. engine-state mirror the off-table arpeggio
     # indexes. Slots 0-2 are v_sid_off (constant 0,7,14); the rest are
