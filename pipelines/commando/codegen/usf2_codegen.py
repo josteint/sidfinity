@@ -101,12 +101,41 @@ v_seqidx   = $8b
 vfreq      = $8e
 v_ended    = $92
 end_phase  = $95
+cur_resetspd = $96
+sub_tmp    = $97
 
 * = $1000
         jmp init
         jmp play
 
+; init - A = subtune number. Selects that subtune's orderlists, loop
+; points and tempo, re-seeds the per-instrument PWM accumulators, and
+; resets every per-voice variable.
 init:
+        sta sub_tmp          ; A = subtune
+        asl                  ; subtune*2
+        clc
+        adc sub_tmp          ; subtune*3 = base index into the 9-entry
+        tay                  ; per-subtune orderlist tables
+        ldx #0
+inisel: lda subOrderLo,y
+        sta orderLo,x
+        lda subOrderHi,y
+        sta orderHi,x
+        lda subOrderLoop,y
+        sta orderLoop,x
+        iny
+        inx
+        cpx #3
+        bne inisel
+        ldy sub_tmp          ; this subtune's tempo
+        lda subResetspd,y
+        sta cur_resetspd
+        ldx #PWLEN           ; re-seed the PWM accumulators from pwseed
+inipw:  lda pwseed,x
+        sta pwacc,x
+        dex
+        bpl inipw
         ldx #2
 ini1:   lda #0
         sta v_dur,x
@@ -149,7 +178,7 @@ pl_run:
         inc frame_ctr
         dec speed_ctr
         bpl notick
-        lda #RESETSPD
+        lda cur_resetspd
         sta speed_ctr
         lda #1
         sta is_tick
@@ -833,8 +862,13 @@ def _fx_flags(m) -> int:
             | (16 if m.pwm else 0))
 
 
-def _emit_data(score, models, freq_table) -> str:
-    """Emit the xa65 data section."""
+def _emit_data(scores, models, freq_table, resetspds) -> str:
+    """Emit the xa65 data section for a multi-subtune build.
+
+    `scores` is one Score per packed subtune. Instruments, the freq
+    table and the pattern pool are shared across subtunes; the
+    orderlists, loop points and tempo are per-subtune, selected by
+    `init` from the subOrder* / subResetspd tables."""
     lines = []
 
     # instrument row (16 bytes): init_ctrl, init_pw_lo, init_pw_hi,
@@ -856,11 +890,13 @@ def _emit_data(score, models, freq_table) -> str:
                pwm_mode, pwm_a, pwm_period, pwm_lo, pwm_hi, 0, 0, 0]
         lines.append('        .byt ' + ','.join(f'${b:02X}' for b in row))
 
-    # pwacc - per-instrument pw_lo/pw_hi accumulators (shared by every
-    # voice playing the instrument), seeded from the table pw values.
-    lines.append('pwacc:')
+    # pwseed - the per-instrument pw_lo/pw_hi seeds. pwacc is the live
+    # accumulator (shared by every voice playing the instrument); init
+    # copies pwseed -> pwacc so each subtune starts fresh.
+    lines.append('pwseed:')
     for m in models:
         lines.append(f'        .byt ${m.init_pw_lo:02X},${m.init_pw_hi:02X}')
+    lines.append('pwacc: .byt ' + ','.join(['0'] * (2 * len(models))))
 
     # full table (>=96 entries) — vibrato reads freqtab[pitch+1] which
     # can run one past the 96 musical notes.
@@ -868,17 +904,18 @@ def _emit_data(score, models, freq_table) -> str:
     for f in freq_table:
         lines.append(f'        .byt ${f & 0xFF:02X},${(f >> 8) & 0xFF:02X}')
 
-    # patterns + orderlists — Hubbard's compact layout kept structured:
-    # each unique pattern is emitted once, and every voice's orderlist
-    # references them by a dense slot index. collect every pattern any
-    # voice uses into one dense table.
+    # patterns — Hubbard's compact layout kept structured: each unique
+    # pattern is emitted once and orderlists reference it by a dense
+    # slot. pattern indices are global, so the pool is shared by all
+    # packed subtunes.
     pat_order = []                 # dense slot -> note list
     pat_slot = {}                  # orig pattern index -> dense slot
-    for v in score.voices:
-        for oidx in v.orderlist:
-            if oidx not in pat_slot:
-                pat_slot[oidx] = len(pat_order)
-                pat_order.append(v.patterns.get(oidx, []))
+    for score in scores:
+        for v in score.voices:
+            for oidx in v.orderlist:
+                if oidx not in pat_slot:
+                    pat_slot[oidx] = len(pat_order)
+                    pat_order.append(v.patterns.get(oidx, []))
 
     for slot, pat_notes in enumerate(pat_order):
         lines.append(f'pat{slot}:')
@@ -893,15 +930,31 @@ def _emit_data(score, models, freq_table) -> str:
     lines.append('pataddr_hi: .byt '
                  + ','.join(f'>pat{s}' for s in range(npat)))
 
-    for vi, v in enumerate(score.voices):
-        ob = ','.join(f'${pat_slot[oidx]:02X}' for oidx in v.orderlist)
-        # $FF = loop to orderLoop; $FE = end of song (no loop)
-        term = '$FE' if v.stop else '$FF'
-        lines.append(f'order{vi}: .byt {ob},{term}')
-    lines.append('orderLo: .byt <order0,<order1,<order2')
-    lines.append('orderHi: .byt >order0,>order1,>order2')
-    loops = [v.loop if v.loop >= 0 else 0 for v in score.voices]
-    lines.append('orderLoop: .byt ' + ','.join(f'${x:02X}' for x in loops))
+    # per-subtune orderlists ($FF = loop to orderLoop, $FE = end of song)
+    for si, score in enumerate(scores):
+        for vi, v in enumerate(score.voices):
+            ob = ','.join(f'${pat_slot[oidx]:02X}' for oidx in v.orderlist)
+            term = '$FE' if v.stop else '$FF'
+            lines.append(f'order_{si}_{vi}: .byt {ob},{term}')
+
+    # subOrder* — 3 entries per subtune (one per voice); init copies the
+    # selected subtune's row into the live orderLo/Hi/Loop arrays.
+    los, his, loops = [], [], []
+    for si, score in enumerate(scores):
+        for vi, v in enumerate(score.voices):
+            los.append(f'<order_{si}_{vi}')
+            his.append(f'>order_{si}_{vi}')
+            loops.append(f'${(v.loop if v.loop >= 0 else 0):02X}')
+    lines.append('subOrderLo: .byt ' + ','.join(los))
+    lines.append('subOrderHi: .byt ' + ','.join(his))
+    lines.append('subOrderLoop: .byt ' + ','.join(loops))
+    lines.append('subResetspd: .byt '
+                 + ','.join(f'${r:02X}' for r in resetspds))
+
+    # live per-voice orderlist selection (filled by init)
+    lines.append('orderLo: .byt 0,0,0')
+    lines.append('orderHi: .byt 0,0,0')
+    lines.append('orderLoop: .byt 0,0,0')
 
     # statebuf - the $54E8.. engine-state mirror the off-table arpeggio
     # indexes. Slots 0-2 are v_sid_off (constant 0,7,14); the rest are
@@ -915,16 +968,18 @@ def _emit_data(score, models, freq_table) -> str:
 # build
 # ---------------------------------------------------------------------------
 
-def build(subtune: int = 0, out_path: str = OUT_SID) -> str:
-    song = extract(subtune=subtune)
-    models = decode_all(SID_PATH)
+def build(subtunes=(0, 1, 2), out_path: str = OUT_SID) -> str:
     from src.hubbard_emu import load_sid
     _, binary, load = load_sid(SID_PATH)
-    resetspd = subtune_resetspd(subtune, binary, load)
+    models = decode_all(SID_PATH)
+    songs = [extract(subtune=s) for s in subtunes]
+    scores = [sg.score for sg in songs]
+    freq_table = songs[0].freq_table          # the freq table is global
+    resetspds = [subtune_resetspd(s, binary, load) for s in subtunes]
 
-    asm = (f'RESETSPD = {resetspd}\n'
+    asm = (f'PWLEN = {2 * len(models) - 1}\n'
            + ENGINE + '\n'
-           + _emit_data(song.score, models, song.freq_table) + '\n')
+           + _emit_data(scores, models, freq_table, resetspds) + '\n')
 
     src = '/tmp/usf2_commando.s'
     obj = '/tmp/usf2_commando.bin'
@@ -947,7 +1002,7 @@ def build(subtune: int = 0, out_path: str = OUT_SID) -> str:
     h += struct.pack('>H', LOAD)
     h += struct.pack('>H', LOAD)
     h += struct.pack('>H', LOAD + 3)
-    h += struct.pack('>H', 1)              # songs — this build holds one subtune
+    h += struct.pack('>H', len(subtunes))  # songs — one per packed subtune
     h += struct.pack('>H', 1)              # startSong
     h += struct.pack('>I', 0)
     h += orig_hdr[22:118]                  # name + author + released (3x32)
