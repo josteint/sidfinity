@@ -66,6 +66,8 @@ class VoiceRT:
     ctrl_byte: int = 0               # the instrument ctrl saved at note start
                                      # ($54F8,X) — read by off-table note-starts
     no_release: bool = False         # note_byte bit5 — suppresses the HR
+    ended: bool = False              # the voice hit the $FE end marker —
+                                     # it no longer reads notes or runs
 
 
 class SongInterp:
@@ -96,6 +98,9 @@ class SongInterp:
         self.frame_ctr = -1              # INC'd to 0 on the first frame
         self.speed_ctr = 0
         self.frame_no = -1
+        # end-of-song: 0 running, 1 = all voices ended (gate-off pending),
+        # 2 = gated off, silent.
+        self.end_phase = 0
         # when False, per-frame effects are skipped — leaves just the
         # note-start + HR backbone. The per-effect flags let a codegen
         # stage be verified against exactly the effects it implements.
@@ -132,6 +137,9 @@ class SongInterp:
             rt.note_pos = 0
             rt.orderlist_pos += 1
             if rt.orderlist_pos >= len(voice.orderlist):
+                if voice.stop:
+                    rt.ended = True       # $FE — end of song, no loop
+                    return
                 rt.orderlist_pos = voice.loop if voice.loop >= 0 else 0
 
         pat_idx = voice.orderlist[rt.orderlist_pos]
@@ -169,7 +177,13 @@ class SongInterp:
         # carry it here at the orderlist level instead.
         if not (note.instrument & 0x80):
             rt.instr = note.instrument & 0x3F
-        rt.pitch = note.pitch
+        # a tie note carries the live pitch — it does NOT re-pitch. The
+        # decoder defaults a tie's pitch to the previous note in the same
+        # pattern (0 for a tie that is a pattern's first note), so only a
+        # non-tie note may set rt.pitch — a tie keeps whatever is playing,
+        # which carries the pitch correctly across pattern boundaries.
+        if not note.tie:
+            rt.pitch = note.pitch
         rt.tie = note.tie
         # no_release (note_byte bit5) suppresses the hard restart;
         # engine_model stores it in drum_trig bit7.
@@ -203,6 +217,16 @@ class SongInterp:
         self.frame_no += 1
         self.frame_ctr = 0 if self.frame_no == 0 else (self.frame_ctr + 1) & 0xFF
 
+        # end-of-song: the frame after every voice hits $FE, the engine
+        # gates all three voices off once (ctrl=0, in V1..V3 order); then
+        # it produces nothing.
+        if self.end_phase == 1:
+            self.end_phase = 2
+            return [(0 * 7 + R_CTRL, 0), (1 * 7 + R_CTRL, 0),
+                    (2 * 7 + R_CTRL, 0)]
+        if self.end_phase == 2:
+            return []
+
         # speed counter: a tick fires when it reloads
         self.speed_ctr -= 1
         if self.speed_ctr < 0:
@@ -213,14 +237,20 @@ class SongInterp:
         for v in (2, 1, 0):                       # engine processes V3,V2,V1
             writes += [(v * 7 + r, val)
                        for r, val in self._process_voice(v, is_tick)]
+        if self.end_phase == 0 and all(rt.ended for rt in self.voices):
+            self.end_phase = 1
         return writes
 
     def _process_voice(self, v: int, is_tick: bool) -> list[tuple[int, int]]:
         rt = self.voices[v]
+        if rt.ended:
+            return []
         if is_tick:
             rt.duration_ctr -= 1
             if rt.duration_ctr < 0:
                 self._load_next_note(v)
+                if rt.ended:
+                    return []
                 return self._note_start_writes(v)      # no effects on load
             rt.tick_in_note += 1
         rt.frame_in_note += 1

@@ -288,6 +288,12 @@ def extract(
                         voice.patterns[pat_idx] = notes
                 elif entry[0] == 'loop':
                     voice.loop = entry[1]
+                elif entry[0] == 'stop':
+                    # $FE — the track ends here, no loop. The engine's
+                    # $5086 reader does JSR $5003 / JMP $53A5 and the
+                    # voice stops reading notes (see the subtune-2
+                    # end-of-song construct).
+                    voice.stop = True
             score.voices.append(voice)
 
         logger.debug("extracted score: tempo=%d voices=%d", score.tempo, len(score.voices))

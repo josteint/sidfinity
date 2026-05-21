@@ -80,6 +80,8 @@ class Voice:
     orderlist: list[int] = field(default_factory=list)
     patterns: dict[int, list[Note]] = field(default_factory=dict)
     loop: int = -1
+    stop: bool = False          # the orderlist ends with $FE (end-of-song,
+                                # no loop) rather than $FF (loop to `loop`)
 
 
 @dataclass

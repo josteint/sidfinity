@@ -99,6 +99,8 @@ v_drumtrig = $85
 v_slidelo  = $88
 v_seqidx   = $8b
 vfreq      = $8e
+v_ended    = $92
+end_phase  = $95
 
 * = $1000
         jmp init
@@ -112,10 +114,12 @@ ini1:   lda #0
         sta v_pwperiod,x
         sta v_instr,x
         sta v_orderpos,x
+        sta v_ended,x
         jsr set_patptr       ; v_patptr,x = first pattern of orderlist X
         dex
         bpl ini1
         lda #0
+        sta end_phase
         sta speed_ctr
         lda #$ff
         sta frame_ctr
@@ -129,6 +133,19 @@ ini2:   lda #0
         rts
 
 play:
+        lda end_phase
+        beq pl_run
+        cmp #$01
+        bne pl_silent        ; end_phase 2 - song over, write nothing
+        lda #$02             ; end_phase 1 - gate every voice off, once
+        sta end_phase
+        lda #$00
+        sta $d404            ; V1 ctrl
+        sta $d40b            ; V2 ctrl
+        sta $d412            ; V3 ctrl
+pl_silent:
+        rts
+pl_run:
         inc frame_ctr
         dec speed_ctr
         bpl notick
@@ -144,9 +161,22 @@ voices:
 pvloop: jsr proc_voice
         dex
         bpl pvloop
+        ; end-of-song - once all three voices have hit $FE, arm the
+        ; one-shot gate-off for the next frame.
+        lda v_ended+0
+        and v_ended+1
+        and v_ended+2
+        beq pl_done
+        lda end_phase
+        bne pl_done
+        lda #$01
+        sta end_phase
+pl_done:
         rts
 
 proc_voice:
+        lda v_ended,x
+        bne pv_endret        ; voice hit $FE - it no longer plays
         lda sidtab,x
         sta sidoff
         jsr calc_instoff
@@ -155,6 +185,8 @@ proc_voice:
         dec v_dur,x
         bpl pv_sus
         jsr load_note
+        lda v_ended,x        ; load_note may have hit the $FE marker
+        bne pv_endret
         jsr calc_instoff
         jmp note_start
 pv_sus:
@@ -166,6 +198,8 @@ pv_sus:
         jsr hr_writes
 pv_fx:
         jmp do_effects
+pv_endret:
+        rts
 
 calc_instoff:
         lda v_instr,x
@@ -195,9 +229,14 @@ ln_read:
         bne ln_have
         inc v_orderpos,x     ; pattern ended - next orderlist entry
         jsr set_patptr
+        lda v_ended,x        ; set_patptr may have hit the $FE marker
+        bne ln_endret
         jmp ln_read
+ln_endret:
+        rts
 ln_have:
-        sta v_pitch,x
+        sta f_lo             ; stash byte 0 (pitch) - stored below only
+                             ; if this is not a tie note
         iny
         lda (notep),y        ; byte 1 = durfield | no_release<<7
         pha
@@ -210,6 +249,12 @@ ln_have:
         iny
         lda (notep),y        ; byte 2 = instrument (b7 no-inst, b6 tie)
         sta pwm_tmp
+        and #$40             ; a tie note keeps the live pitch; only a
+        bne ln_keeppitch     ; non-tie note sets a new one
+        lda f_lo
+        sta v_pitch,x
+ln_keeppitch:
+        lda pwm_tmp
         and #$80
         bne ln_keepinst
         lda pwm_tmp
@@ -256,8 +301,9 @@ ln_seqcur:
         rts
 
 ; set_patptr - point v_patptr,x at the pattern named by orderlist
-; entry v_orderpos,x. The $FF orderlist terminator wraps v_orderpos
-; to orderLoop,x. Clobbers A and Y; preserves X.
+; entry v_orderpos,x. The $FF terminator wraps v_orderpos to
+; orderLoop,x; the $FE terminator ends the voice (v_ended). Clobbers
+; A and Y; preserves X.
 set_patptr:
         lda orderLo,x
         sta orderp
@@ -266,11 +312,16 @@ set_patptr:
 sp_read:
         ldy v_orderpos,x
         lda (orderp),y
-        cmp #$ff
-        bne sp_have
-        lda orderLoop,x      ; orderlist end - wrap to the loop point
+        cmp #$fe
+        bcc sp_have          ; below $FE - a real pattern index
+        beq sp_stop          ; $FE - end of song
+        lda orderLoop,x      ; $FF - wrap to the loop point
         sta v_orderpos,x
         jmp sp_read
+sp_stop:
+        lda #$ff
+        sta v_ended,x
+        rts
 sp_have:
         tay                  ; Y = pattern index
         lda pataddr_lo,y
@@ -292,9 +343,9 @@ next_orderidx:
         adc #1
         tay                  ; Y = v_orderpos + 1
         lda (orderp),y
-        cmp #$ff
-        bne noi_have
-        lda orderLoop,x      ; next entry is the terminator - wrap
+        cmp #$fe
+        bcc noi_have
+        lda orderLoop,x      ; next entry is a terminator ($FE/$FF) - wrap
         rts
 noi_have:
         tya
@@ -844,7 +895,9 @@ def _emit_data(score, models, freq_table) -> str:
 
     for vi, v in enumerate(score.voices):
         ob = ','.join(f'${pat_slot[oidx]:02X}' for oidx in v.orderlist)
-        lines.append(f'order{vi}: .byt {ob},$FF')
+        # $FF = loop to orderLoop; $FE = end of song (no loop)
+        term = '$FE' if v.stop else '$FF'
+        lines.append(f'order{vi}: .byt {ob},{term}')
     lines.append('orderLo: .byt <order0,<order1,<order2')
     lines.append('orderHi: .byt >order0,>order1,>order2')
     loops = [v.loop if v.loop >= 0 else 0 for v in score.voices]
