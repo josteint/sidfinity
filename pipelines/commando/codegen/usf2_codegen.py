@@ -883,17 +883,21 @@ def build(subtune: int = 0, out_path: str = OUT_SID) -> str:
     with open(obj, 'rb') as f:
         code = f.read()
 
+    # name / author / released come verbatim from the original SID —
+    # this is the same tune, so it carries the same identifying
+    # metadata (PSID header bytes 22..118).
+    with open(SID_PATH, 'rb') as f:
+        orig_hdr = f.read(124)
+
     h = bytearray(b'PSID')
     h += struct.pack('>HH', 2, 124)
     h += struct.pack('>H', LOAD)
     h += struct.pack('>H', LOAD)
     h += struct.pack('>H', LOAD + 3)
-    h += struct.pack('>H', 1)
-    h += struct.pack('>H', 1)
+    h += struct.pack('>H', 1)              # songs — this build holds one subtune
+    h += struct.pack('>H', 1)              # startSong
     h += struct.pack('>I', 0)
-    h += (b'USF2 Commando' + b'\0' * 32)[:32]
-    h += (b'Rob Hubbard' + b'\0' * 32)[:32]
-    h += (b'2026' + b'\0' * 32)[:32]
+    h += orig_hdr[22:118]                  # name + author + released (3x32)
     h += struct.pack('>H', 0x0014)
     h += struct.pack('>BBH', 0, 0, 0)
     assert len(h) == 124
