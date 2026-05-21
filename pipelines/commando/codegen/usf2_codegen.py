@@ -563,6 +563,7 @@ def _flatten_voice(voice):
     byte offset into the pattern (read by inst 7's off-table arp)."""
     notes = []
     loop_idx = 0
+    cur_inst = 0
     for oi, pat_idx in enumerate(voice.orderlist):
         if oi == voice.loop:
             loop_idx = len(notes)
@@ -575,8 +576,13 @@ def _flatten_voice(voice):
             hidx = 0 if j == len(pat_notes) - 1 else base + nbytes
             # byte 1 = durfield (0..31) | no_release in bit7
             durf = ((n.duration - 1) & 0x1F) | (n.drum_trig & 0x80)
+            # the instrument carries across notes AND patterns — a note
+            # with no instrument byte (bit7) keeps the live value.
+            if not (n.instrument & 0x80):
+                cur_inst = n.instrument & 0x3F
+            instr_byte = cur_inst | (0x40 if n.tie else 0)
             notes.append((n.pitch & 0xFF, durf,
-                          n.instrument & 0xFF, hidx & 0xFF))
+                          instr_byte, hidx & 0xFF))
     return notes, loop_idx
 
 

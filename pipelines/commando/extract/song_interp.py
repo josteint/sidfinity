@@ -142,7 +142,13 @@ class SongInterp:
 
         rt.dur_field = note.duration - 1          # Score stores ticks = field+1
         rt.duration_ctr = rt.dur_field
-        rt.instr = note.instrument & 0x3F
+        # The instrument carries across notes AND patterns: a note with
+        # no instrument byte (bit7 of the stored value) keeps the live
+        # value. engine_model resets its per-pattern decode to 0, which
+        # is wrong for a pattern whose first note omits the byte — so
+        # carry it here at the orderlist level instead.
+        if not (note.instrument & 0x80):
+            rt.instr = note.instrument & 0x3F
         rt.pitch = note.pitch
         rt.tie = note.tie
         # no_release (note_byte bit5) suppresses the hard restart;
