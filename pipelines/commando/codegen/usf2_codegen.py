@@ -93,6 +93,8 @@ pwm_tmp   = $7a
 v_hubidx  = $7c
 v_norel   = $7f
 v_ctrlbyte = $82
+v_drumtrig = $85
+v_slidelo  = $88
 
 * = $1000
         jmp init
@@ -212,11 +214,14 @@ ln_ok:  sta v_pitch,x
         iny
         lda (notep),y
         sta v_hubidx,x       ; note byte 3 = Hubbard note_idx
+        iny
+        lda (notep),y
+        sta v_drumtrig,x     ; note byte 4 = drum/porta trigger
         lda #0
         sta v_tick,x
         lda v_nptr_lo,x
         clc
-        adc #4
+        adc #5
         sta v_nptr_lo,x
         bcc ln_done
         inc v_nptr_hi,x
@@ -268,7 +273,9 @@ ns_offtab:
         sta f_hi
 ns_havefreq:
         lda f_hi
-        sta v_slide,x        ; seed the skydive slide value
+        sta v_slide,x        ; seed the skydive/drum-slide freq_hi
+        lda f_lo
+        sta v_slidelo,x      ; seed the drum-slide freq_lo
         lda i_ctrl
         sta v_ctrlbyte,x     ; update ctrl_byte AFTER the off-table read
         ldy sidoff
@@ -301,15 +308,53 @@ hr_writes:
         sta $d406,y
         rts
 
-; do_effects - per-frame effects (engine order vibrato,pwm,skydive,arp).
+; do_effects - effects in engine order vibrato,pwm,drumslide,skydive,arp.
 do_effects:
         lda #0
         sta vib_carry
         jsr fx_vibrato
         jsr fx_pwm
+        jsr fx_drumslide
         jsr fx_skydive
         jsr fx_incby2
         jmp fx_arp
+
+; fx_drumslide - per-note portamento (\$52B3-\$52F9), effect #3. A note
+; carrying a drum/porta trigger slides the running freq (v_slidelo /
+; v_slide = \$551D/\$551A) by delta=trig&\$7E each frame, dir=trig&\$01.
+; bit7 of the trigger is no_release - mask it off before the run test.
+fx_drumslide:
+        lda v_drumtrig,x
+        and #$7f
+        beq fxd_ret
+        and #$7e             ; delta
+        sta pwm_tmp
+        lda v_drumtrig,x
+        and #$01
+        bne fxd_down
+        lda v_slidelo,x      ; slide up
+        clc
+        adc pwm_tmp
+        sta v_slidelo,x
+        lda v_slide,x
+        adc #$00
+        sta v_slide,x
+        jmp fxd_wr
+fxd_down:
+        lda v_slidelo,x      ; slide down
+        sec
+        sbc pwm_tmp
+        sta v_slidelo,x
+        lda v_slide,x
+        sbc #$00
+        sta v_slide,x
+fxd_wr:
+        ldy sidoff
+        lda v_slidelo,x
+        sta $d400,y          ; freq_lo
+        lda v_slide,x
+        sta $d401,y          ; freq_hi
+fxd_ret: rts
 
 ; fx_incby2 - bit1. odd-frame +2 on the shared slide value, write old.
 fx_incby2:
@@ -558,9 +603,10 @@ sidtab: .byt 0, 7, 14
 
 def _flatten_voice(voice):
     """Expand a Voice's orderlist into a flat note stream. Returns
-    (notes, loop_note_index). Each note record is 4 bytes: pitch,
-    durfield, instrument, hub_note_idx — the last being Hubbard's
-    byte offset into the pattern (read by inst 7's off-table arp)."""
+    (notes, loop_note_index). Each note record is 5 bytes: pitch,
+    durfield, instrument, hub_note_idx, drum_trig. hub_note_idx is
+    Hubbard's byte offset into the pattern (read by inst 7's off-table
+    arp); drum_trig is the per-note drum/porta trigger."""
     notes = []
     loop_idx = 0
     cur_inst = 0
@@ -581,8 +627,8 @@ def _flatten_voice(voice):
             if not (n.instrument & 0x80):
                 cur_inst = n.instrument & 0x3F
             instr_byte = cur_inst | (0x40 if n.tie else 0)
-            notes.append((n.pitch & 0xFF, durf,
-                          instr_byte, hidx & 0xFF))
+            notes.append((n.pitch & 0xFF, durf, instr_byte,
+                          hidx & 0xFF, n.drum_trig & 0xFF))
     return notes, loop_idx
 
 
@@ -630,17 +676,18 @@ def _emit_data(score, models, freq_table) -> str:
     streams = [_flatten_voice(v) for v in score.voices]
     for vi, (notes, _loop) in enumerate(streams):
         lines.append(f'nstream{vi}:')
-        for (p, d, ins, fl) in notes:
-            lines.append(f'        .byt ${p:02X},${d:02X},${ins:02X},${fl:02X}')
-        lines.append('        .byt $FF,$00,$00,$00   ; loop marker')
+        for (p, d, ins, fl, dt) in notes:
+            lines.append(f'        .byt ${p:02X},${d:02X},${ins:02X},'
+                         f'${fl:02X},${dt:02X}')
+        lines.append('        .byt $FF,$00,$00,$00,$00   ; loop marker')
 
     lines.append('nstreamLo: .byt <nstream0,<nstream1,<nstream2')
     lines.append('nstreamHi: .byt >nstream0,>nstream1,>nstream2')
     loops = [loop for _, loop in streams]
     lines.append('loopLo: .byt '
-                 + ','.join(f'<(nstream{i}+{loops[i] * 4})' for i in range(3)))
+                 + ','.join(f'<(nstream{i}+{loops[i] * 5})' for i in range(3)))
     lines.append('loopHi: .byt '
-                 + ','.join(f'>(nstream{i}+{loops[i] * 4})' for i in range(3)))
+                 + ','.join(f'>(nstream{i}+{loops[i] * 5})' for i in range(3)))
     return '\n'.join(lines)
 
 
