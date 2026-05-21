@@ -95,6 +95,7 @@ v_norel   = $7f
 v_ctrlbyte = $82
 v_drumtrig = $85
 v_slidelo  = $88
+v_seqidx   = $8b
 
 * = $1000
         jmp init
@@ -217,11 +218,14 @@ ln_ok:  sta v_pitch,x
         iny
         lda (notep),y
         sta v_drumtrig,x     ; note byte 4 = drum/porta trigger
+        iny
+        lda (notep),y
+        sta v_seqidx,x       ; note byte 5 = orderlist pos (seq_idx)
         lda #0
         sta v_tick,x
         lda v_nptr_lo,x
         clc
-        adc #5
+        adc #6
         sta v_nptr_lo,x
         bcc ln_done
         inc v_nptr_hi,x
@@ -319,9 +323,9 @@ do_effects:
         jsr fx_incby2
         jmp fx_arp
 
-; fx_drumslide - per-note portamento (\$52B3-\$52F9), effect #3. A note
+; fx_drumslide - per-note portamento ($52B3-$52F9), effect #3. A note
 ; carrying a drum/porta trigger slides the running freq (v_slidelo /
-; v_slide = \$551D/\$551A) by delta=trig&\$7E each frame, dir=trig&\$01.
+; v_slide = $551D/$551A) by delta=trig&$7E each frame, dir=trig&$01.
 ; bit7 of the trigger is no_release - mask it off before the run test.
 fx_drumslide:
         lda v_drumtrig,x
@@ -550,8 +554,11 @@ fxs_ns: lda #$80             ; note-start subphase ctrl = $80
         sta $d404,y
 fxs_ret: rts
 
-; fx_arp - bit2. alternate pitch / pitch+12 by frame parity, write freq.
-; idx >= 96 (off-table, inst 7) is deferred.
+; fx_arp - bit2 arpeggio. alternate pitch / pitch+12 by frame parity.
+; idx under 96 is a normal freq-table lookup. idx 96 and up is
+; off-table - in the original the lookup overflows the 96-entry freq
+; table into engine state; reproduced cleanly here via statebuf, a
+; mirror of the $54E8.. state region assembled on demand.
 fx_arp:
         ldy instoff
         lda insttab+6,y
@@ -569,15 +576,20 @@ fxa_even:
 fxa_idx:
         cmp #96
         bcc fxa_in
-        ; off-table - the lookup runs into player state. idx 100
-        ; (inst 7 at pitch 88) reads note_idx of voices 1 and 2.
-        cmp #100
-        bne fxa_ret
+        sec
+        sbc #96
+        cmp #48
+        bcs fxa_ret          ; beyond the mirrored state - reads zero
+        asl                  ; (idx-96)*2 = statebuf offset
+        tay
+        jsr build_statebuf
+        lda statebuf+0,y     ; addr   -> freq_lo
+        pha
+        lda statebuf+1,y     ; addr+1 -> freq_hi
         ldy sidoff
-        lda v_hubidx+2       ; note_idx[V3] -> freq_hi
-        sta $d401,y
-        lda v_hubidx+1       ; note_idx[V2] -> freq_lo
-        sta $d400,y
+        sta $d401,y          ; freq_hi written first
+        pla
+        sta $d400,y          ; then freq_lo
         rts
 fxa_in:
         asl
@@ -593,6 +605,42 @@ fxa_in:
         sta $d400,y
 fxa_ret: rts
 
+; build_statebuf - assemble the $54E8.. engine-state mirror that the
+; off-table arpeggio indexes. Slots 0-2 (v_sid_off) and the gaps are
+; pre-set in the data; this fills the live per-voice slots. The values
+; are read live (after PWM has run) - matching song_interp. Preserves
+; X and Y so the caller keeps the voice index / statebuf offset.
+build_statebuf:
+        txa
+        pha
+        lda sidoff
+        sta statebuf+3       ; $54EB scratch = current voice sid offset
+        ldx #2
+bsb1:   lda v_seqidx,x
+        sta statebuf+4,x     ; $54EC seq_idx
+        lda v_hubidx,x
+        sta statebuf+7,x     ; $54EF note_idx
+        lda v_dur,x
+        sta statebuf+10,x    ; $54F2 duration
+        lda v_ctrlbyte,x
+        sta statebuf+16,x    ; $54F8 ctrl_byte
+        lda v_pitch,x
+        sta statebuf+19,x    ; $54FB pitch
+        lda v_instr,x
+        and #$3f
+        sta statebuf+22,x    ; $54FE instr_num
+        lda v_pwdir,x
+        sta statebuf+40,x    ; $5510 pw_dir
+        lda v_instr,x
+        and #$40             ; tie -> bit6
+        ora v_durfield,x
+        sta statebuf+13,x    ; $54F5 note_byte
+        dex
+        bpl bsb1
+        pla
+        tax
+        rts
+
 sidtab: .byt 0, 7, 14
 """
 
@@ -603,10 +651,11 @@ sidtab: .byt 0, 7, 14
 
 def _flatten_voice(voice):
     """Expand a Voice's orderlist into a flat note stream. Returns
-    (notes, loop_note_index). Each note record is 5 bytes: pitch,
-    durfield, instrument, hub_note_idx, drum_trig. hub_note_idx is
-    Hubbard's byte offset into the pattern (read by inst 7's off-table
-    arp); drum_trig is the per-note drum/porta trigger."""
+    (notes, loop_note_index). Each note record is 6 bytes: pitch,
+    durfield, instrument, hub_note_idx, drum_trig, seq_idx.
+    hub_note_idx and seq_idx are Hubbard's byte offset into the pattern
+    and the orderlist position — both read by the off-table arpeggio;
+    drum_trig is the per-note drum/porta trigger."""
     notes = []
     loop_idx = 0
     cur_inst = 0
@@ -628,7 +677,7 @@ def _flatten_voice(voice):
                 cur_inst = n.instrument & 0x3F
             instr_byte = cur_inst | (0x40 if n.tie else 0)
             notes.append((n.pitch & 0xFF, durf, instr_byte,
-                          hidx & 0xFF, n.drum_trig & 0xFF))
+                          hidx & 0xFF, n.drum_trig & 0xFF, oi & 0xFF))
     return notes, loop_idx
 
 
@@ -676,18 +725,24 @@ def _emit_data(score, models, freq_table) -> str:
     streams = [_flatten_voice(v) for v in score.voices]
     for vi, (notes, _loop) in enumerate(streams):
         lines.append(f'nstream{vi}:')
-        for (p, d, ins, fl, dt) in notes:
+        for (p, d, ins, fl, dt, sq) in notes:
             lines.append(f'        .byt ${p:02X},${d:02X},${ins:02X},'
-                         f'${fl:02X},${dt:02X}')
-        lines.append('        .byt $FF,$00,$00,$00,$00   ; loop marker')
+                         f'${fl:02X},${dt:02X},${sq:02X}')
+        lines.append('        .byt $FF,$00,$00,$00,$00,$00   ; loop marker')
 
     lines.append('nstreamLo: .byt <nstream0,<nstream1,<nstream2')
     lines.append('nstreamHi: .byt >nstream0,>nstream1,>nstream2')
     loops = [loop for _, loop in streams]
     lines.append('loopLo: .byt '
-                 + ','.join(f'<(nstream{i}+{loops[i] * 5})' for i in range(3)))
+                 + ','.join(f'<(nstream{i}+{loops[i] * 6})' for i in range(3)))
     lines.append('loopHi: .byt '
-                 + ','.join(f'>(nstream{i}+{loops[i] * 5})' for i in range(3)))
+                 + ','.join(f'>(nstream{i}+{loops[i] * 6})' for i in range(3)))
+
+    # statebuf - the $54E8.. engine-state mirror the off-table arpeggio
+    # indexes. Slots 0-2 are v_sid_off (constant 0,7,14); the rest are
+    # filled live by build_statebuf, with the unmapped gap bytes left 0.
+    lines.append('statebuf: .byt 0,7,14')
+    lines.append('        .byt ' + ','.join(['0'] * 93))
     return '\n'.join(lines)
 
 
