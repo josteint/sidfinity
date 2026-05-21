@@ -115,6 +115,7 @@ sfx_started = $a1
 sfx_y      = $a2
 sfx_flags  = $a3
 sfx_tmp    = $a4
+v_notesleft = $a5
 
 * = $1000
         jmp init
@@ -270,93 +271,9 @@ calc_instoff:
         sta instoff          ; inst*16 (index into insttab)
         rts
 
-; load_note - advance voice X to its next note. Walks the current
-; pattern (5-byte records); the $FF pattern-end marker advances the
-; orderlist. The instrument carries across notes/patterns/the loop -
-; it is kept in v_instr and only replaced when a note has an
-; instrument byte (bit7 clear).
-load_note:
-ln_read:
-        lda v_patlo,x
-        sta notep
-        lda v_pathi,x
-        sta notep+1
-        ldy #0
-        lda (notep),y        ; pitch, or $FF = pattern end
-        cmp #$ff
-        bne ln_have
-        inc v_orderpos,x     ; pattern ended - next orderlist entry
-        jsr set_patptr
-        lda v_ended,x        ; set_patptr may have hit the $FE marker
-        bne ln_endret
-        jmp ln_read
-ln_endret:
-        rts
-ln_have:
-        sta f_lo             ; stash byte 0 (pitch) - stored below only
-                             ; if this is not a tie note
-        iny
-        lda (notep),y        ; byte 1 = durfield | no_release<<7
-        pha
-        and #$1f
-        sta v_dur,x
-        sta v_durfield,x
-        pla
-        and #$80
-        sta v_norel,x
-        iny
-        lda (notep),y        ; byte 2 = instrument (b7 no-inst, b6 tie)
-        sta pwm_tmp
-        and #$40             ; a tie note keeps the live pitch; only a
-        bne ln_keeppitch     ; non-tie note sets a new one
-        lda f_lo
-        sta v_pitch,x
-ln_keeppitch:
-        lda pwm_tmp
-        and #$80
-        bne ln_keepinst
-        lda pwm_tmp
-        and #$3f             ; note carries an instrument - take it
-        jmp ln_setinst
-ln_keepinst:
-        lda v_instr,x
-        and #$3f             ; no instrument byte - keep the carried one
-ln_setinst:
-        sta pwm_tmp+1
-        lda pwm_tmp
-        and #$40             ; tie bit
-        ora pwm_tmp+1
-        sta v_instr,x
-        ldy #3
-        lda (notep),y        ; byte 3 = Hubbard note_idx
-        sta v_hubidx,x
-        iny
-        lda (notep),y        ; byte 4 = drum/porta trigger
-        sta v_drumtrig,x
-        lda #0
-        sta v_tick,x
-        lda v_patlo,x        ; advance v_patptr past this 5-byte record
-        clc
-        adc #5
-        sta v_patlo,x
-        bcc ln_nowrap
-        inc v_pathi,x
-ln_nowrap:
-        lda v_patlo,x        ; peek the next record for the seq_idx rule
-        sta notep
-        lda v_pathi,x
-        sta notep+1
-        ldy #0
-        lda (notep),y
-        cmp #$ff
-        bne ln_seqcur
-        jsr next_orderidx    ; last note of pattern - seq_idx pre-increments
-        sta v_seqidx,x
-        rts
-ln_seqcur:
-        lda v_orderpos,x
-        sta v_seqidx,x
-        rts
+; load_note is supplied by the note codec (see note_codec.py) — the
+; engine calls it; the codec owns the pattern byte format and its
+; decoder. set_patptr / next_orderidx below are codec-agnostic.
 
 ; set_patptr - point v_patptr,x at the pattern named by orderlist
 ; entry v_orderpos,x. The $FF terminator wraps v_orderpos to
@@ -386,6 +303,22 @@ sp_have:
         sta v_patlo,x
         lda pataddr_hi,y
         sta v_pathi,x
+        ; every pattern starts with a 1-byte note count - read it and
+        ; step v_patptr past it, then reset the per-voice read cursor.
+        lda v_patlo,x
+        sta notep
+        lda v_pathi,x
+        sta notep+1
+        ldy #0
+        lda (notep),y
+        sta v_notesleft,x
+        inc v_patlo,x
+        bne sp_nc
+        inc v_pathi,x
+sp_nc:
+        lda #0
+        sta v_bitcnt,x       ; codec cursor state
+        sta v_hubidx,x       ; note_idx restarts at 0 in a new pattern
         rts
 
 ; next_orderidx - the orderlist index the next pattern will occupy:
@@ -1017,45 +950,20 @@ sidtab: .byt 0, 7, 14
 # data serialisation
 # ---------------------------------------------------------------------------
 
-def _pattern_notes(pat_notes):
-    """The 5-byte note records for one pattern: pitch, durfield,
-    instrument, hub_note_idx, drum_trig.
-
-    hub_note_idx (Hubbard's byte offset into the pattern) is
-    pattern-intrinsic, so it lives in the shared pattern. The
-    instrument byte keeps engine_model's bit7 (no instrument byte) and
-    bit6 (tie) — the engine resolves the cross-note/pattern carry, so
-    the same shared pattern is correct wherever the orderlist uses it.
-    seq_idx is NOT stored: it is the orderlist position, which depends
-    on where the pattern sits in the orderlist — the engine tracks it."""
-    out = []
-    hidx = 0
-    for j, n in enumerate(pat_notes):
-        nbytes = (1 if n.tie
-                  else 2 if (n.instrument & 0x80) else 3)
-        base = 0 if j == 0 else hidx
-        is_last = j == len(pat_notes) - 1
-        hidx = 0 if is_last else base + nbytes
-        # byte 1 = durfield (0..31) | no_release in bit7
-        durf = ((n.duration - 1) & 0x1F) | (n.drum_trig & 0x80)
-        out.append((n.pitch & 0xFF, durf, n.instrument & 0xFF,
-                    hidx & 0xFF, n.drum_trig & 0xFF))
-    return out
-
-
 def _fx_flags(m) -> int:
     return ((1 if m.freq_slide else 0) | (2 if m.inc_by2 else 0)
             | (4 if m.arpeggio else 0) | (8 if m.vibrato else 0)
             | (16 if m.pwm else 0))
 
 
-def _emit_data(scores, models, freq_bytes, resetspds, sfx_list) -> str:
+def _emit_data(scores, models, freq_bytes, resetspds, sfx_list, codec) -> str:
     """Emit the xa65 data section for a multi-subtune build.
 
     `scores` is one Score per packed music subtune; `sfx_list` is the
-    16 sound effects. Instruments, the freq table and the pattern pool
-    are shared; orderlists, loop points and tempo are per-subtune,
-    selected by `init` from the subOrder* / subResetspd tables."""
+    16 sound effects; `codec` is the note packer. Instruments, the freq
+    table and the pattern pool are shared; orderlists, loop points and
+    tempo are per-subtune, selected by `init` from the subOrder* /
+    subResetspd tables."""
     lines = []
 
     # instrument row (16 bytes): init_ctrl, init_pw_lo, init_pw_hi,
@@ -1093,10 +1001,10 @@ def _emit_data(scores, models, freq_bytes, resetspds, sfx_list) -> str:
         chunk = freq_bytes[i:i + 16]
         lines.append('        .byt ' + ','.join(f'${b:02X}' for b in chunk))
 
-    # patterns — Hubbard's compact layout kept structured: each unique
-    # pattern is emitted once and orderlists reference it by a dense
-    # slot. pattern indices are global, so the pool is shared by all
-    # packed subtunes.
+    # patterns — each unique pattern emitted once; orderlists reference
+    # them by a dense slot. pattern indices are global, so the pool is
+    # shared by all packed subtunes. The note codec serialises each
+    # pattern (byte 0 = note count); the format is the codec's choice.
     pat_order = []                 # dense slot -> note list
     pat_slot = {}                  # orig pattern index -> dense slot
     for score in scores:
@@ -1106,12 +1014,14 @@ def _emit_data(scores, models, freq_bytes, resetspds, sfx_list) -> str:
                     pat_slot[oidx] = len(pat_order)
                     pat_order.append(v.patterns.get(oidx, []))
 
-    for slot, pat_notes in enumerate(pat_order):
+    pat_bytes, codec_extra = codec.encode(pat_order)
+    for slot, blob in enumerate(pat_bytes):
         lines.append(f'pat{slot}:')
-        for (p, d, ins, h, dt) in _pattern_notes(pat_notes):
-            lines.append(f'        .byt ${p:02X},${d:02X},${ins:02X},'
-                         f'${h:02X},${dt:02X}')
-        lines.append('        .byt $FF   ; pattern end')
+        for i in range(0, len(blob), 16):
+            chunk = blob[i:i + 16]
+            lines.append('        .byt ' + ','.join(f'${b:02X}' for b in chunk))
+    if codec_extra:
+        lines.append(codec_extra)
 
     npat = len(pat_order)
     lines.append('pataddr_lo: .byt '
@@ -1173,9 +1083,12 @@ def _emit_data(scores, models, freq_bytes, resetspds, sfx_list) -> str:
 # build
 # ---------------------------------------------------------------------------
 
-def build(subtunes=(0, 1, 2), out_path: str = OUT_SID) -> str:
+def build(subtunes=(0, 1, 2), out_path: str = OUT_SID, codec=None) -> str:
     from src.hubbard_emu import load_sid
     from pipelines.commando.extract.sfx import extract_sfx
+    from pipelines.commando.codegen.note_codec import BitPackCodec
+    if codec is None:
+        codec = BitPackCodec()
     _, binary, load = load_sid(SID_PATH)
     models = decode_all(SID_PATH)
     songs = [extract(subtune=s) for s in subtunes]
@@ -1183,9 +1096,13 @@ def build(subtunes=(0, 1, 2), out_path: str = OUT_SID) -> str:
     resetspds = [subtune_resetspd(s, binary, load) for s in subtunes]
     sfx_list, freq_bytes = extract_sfx(SID_PATH)
 
+    # asm layout: equates, then the generic engine, then the codec's
+    # note reader, then the data section.
     asm = (f'PWLEN = {2 * len(models) - 1}\n'
+           + codec.zp_asm + '\n'
            + ENGINE + '\n'
-           + _emit_data(scores, models, freq_bytes, resetspds, sfx_list)
+           + codec.note_asm + '\n'
+           + _emit_data(scores, models, freq_bytes, resetspds, sfx_list, codec)
            + '\n')
 
     src = '/tmp/usf2_commando.s'
