@@ -45,15 +45,18 @@ def subtune_resetspd(subtune: int, binary: bytes, load_addr: int) -> int:
     return binary[SPEED_TABLE + subtune - load_addr]
 
 
-def _vibrato(depth: int, pitch: int, frame_ctr: int, dur_field: int,
-             freq_table: list[int]) -> tuple[list[tuple[int, int]], int]:
+def _vibrato(depth: int, f_cur: int, f_next: int, frame_ctr: int,
+             dur_field: int) -> tuple[list[tuple[int, int]], int]:
     """Vibrato — authoritative semantics from the disassembly $51C1-$522D.
     Returns (writes, carry_out).
 
     A triangle LFO over 8 frames (step 0,1,2,3,3,2,1,0) scales a delta of
-    `(freq16[pitch+1] - freq16[pitch]) >> (depth+1)`, added `step` times
-    to the base freq (16-bit). Gated off when the note's dur field < 6
-    (then it just rewrites the base freq). Writes freq_lo, freq_hi.
+    `(f_next - f_cur) >> (depth+1)`, added `step` times to the base freq
+    (16-bit). `f_cur`/`f_next` are the 16-bit freq for the note's pitch
+    and pitch+1 — the caller resolves these (an off-table pitch reads
+    engine state, not the freq table). Gated off when the note's dur
+    field < 6 (then it just rewrites the base freq). Writes freq_lo,
+    freq_hi.
 
     carry_out is the 6502 carry the vibrato section leaves in the C flag
     for the linear-PWM `ADC` that immediately follows it — the engine
@@ -64,8 +67,6 @@ def _vibrato(depth: int, pitch: int, frame_ctr: int, dur_field: int,
     step = frame_ctr & 0x07
     if step >= 4:
         step ^= 0x07
-    f_cur = freq_table[pitch]
-    f_next = freq_table[pitch + 1]
     delta = ((f_next - f_cur) & 0xFFFF) >> (depth + 1)
     delta_lo = delta & 0xFF
     delta_hi = (delta >> 8) & 0xFF
@@ -146,8 +147,9 @@ def render_note(model: InstrumentModel, pitch: int, n_frames: int,
         # vibrato runs first in the engine's effect order
         vib_carry = 0
         if model.vibrato:
-            vw, vib_carry = _vibrato(model.vibrato.depth, pitch,
-                                     frame_ctr0 + k, dur_field, freq_table)
+            vw, vib_carry = _vibrato(model.vibrato.depth,
+                                     freq_table[pitch], freq_table[pitch + 1],
+                                     frame_ctr0 + k, dur_field)
             w += vw
 
         # linear PWM — pw_lo accumulates by `speed` every effect frame.

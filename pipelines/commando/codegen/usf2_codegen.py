@@ -96,6 +96,7 @@ v_ctrlbyte = $82
 v_drumtrig = $85
 v_slidelo  = $88
 v_seqidx   = $8b
+vfreq      = $8e
 
 * = $1000
         jmp init
@@ -482,23 +483,21 @@ fxv_s1: sta vib_step
         ldy instoff
         lda insttab+7,y      ; vib_depth
         sta vdepthctr
-        lda v_pitch,x
-        asl
-        tay                  ; Y = pitch*2
+        jsr vib_loadfreq     ; vfreq = freq16[pitch], freq16[pitch+1]
         sec
-        lda freqtab+2,y      ; freq16[pitch+1] - freq16[pitch]
-        sbc freqtab+0,y
+        lda vfreq+2          ; freq16[pitch+1] - freq16[pitch]
+        sbc vfreq+0
         sta vdelta_lo
-        lda freqtab+3,y
-        sbc freqtab+1,y      ; A = diff_hi
+        lda vfreq+3
+        sbc vfreq+1          ; A = diff_hi
 fxv_sh: lsr                  ; shift A,vdelta_lo right depth+1 times
         ror vdelta_lo
         dec vdepthctr
         bpl fxv_sh
         sta vdelta_hi
-        lda freqtab+0,y      ; target = freq16[pitch]
+        lda vfreq+0          ; target = freq16[pitch]
         sta vtarg_lo
-        lda freqtab+1,y
+        lda vfreq+1
         sta vtarg_hi
         lda v_durfield,x
         cmp #$06
@@ -524,6 +523,41 @@ fxv_wr:
         sta $d400,y
         lda vtarg_hi
         sta $d401,y
+        rts
+
+; vib_loadfreq - fill vfreq (4 bytes) with freq16[pitch] and
+; freq16[pitch+1]. In-table pitches read the freq table; an off-table
+; pitch (96 and up) reads the engine-state mirror - the original's
+; vibrato overflows the 96-entry freq table the same way.
+vib_loadfreq:
+        lda v_pitch,x
+        cmp #96
+        bcs vlf_off
+        asl
+        tay
+        lda freqtab+0,y
+        sta vfreq+0
+        lda freqtab+1,y
+        sta vfreq+1
+        lda freqtab+2,y
+        sta vfreq+2
+        lda freqtab+3,y
+        sta vfreq+3
+        rts
+vlf_off:
+        sec
+        sbc #96
+        asl                  ; (pitch-96)*2 = statebuf offset
+        tay
+        jsr build_statebuf
+        lda statebuf+0,y
+        sta vfreq+0
+        lda statebuf+1,y
+        sta vfreq+1
+        lda statebuf+2,y
+        sta vfreq+2
+        lda statebuf+3,y
+        sta vfreq+3
         rts
 
 ; fx_skydive - bit0. freq_hi slide + ctrl, see song_interp._skydive.
@@ -668,7 +702,8 @@ def _flatten_voice(voice):
             nbytes = (1 if n.tie
                       else 2 if (n.instrument & 0x80) else 3)
             base = 0 if j == 0 else hidx
-            hidx = 0 if j == len(pat_notes) - 1 else base + nbytes
+            is_last = j == len(pat_notes) - 1
+            hidx = 0 if is_last else base + nbytes
             # byte 1 = durfield (0..31) | no_release in bit7
             durf = ((n.duration - 1) & 0x1F) | (n.drum_trig & 0x80)
             # the instrument carries across notes AND patterns — a note
@@ -676,8 +711,16 @@ def _flatten_voice(voice):
             if not (n.instrument & 0x80):
                 cur_inst = n.instrument & 0x3F
             instr_byte = cur_inst | (0x40 if n.tie else 0)
-            notes.append((n.pitch & 0xFF, durf, instr_byte,
-                          hidx & 0xFF, n.drum_trig & 0xFF, oi & 0xFF))
+            # seq_idx: the engine pre-increments it on the last note of
+            # a pattern (peeking the $FF end marker), so emit the next
+            # orderlist position there — see song_interp._load_next_note.
+            seq = oi
+            if is_last:
+                seq = oi + 1
+                if seq >= len(voice.orderlist):
+                    seq = voice.loop if voice.loop >= 0 else 0
+            notes.append((n.pitch & 0xFF, durf, instr_byte, hidx & 0xFF,
+                          n.drum_trig & 0xFF, seq & 0xFF))
     return notes, loop_idx
 
 

@@ -60,6 +60,9 @@ class VoiceRT:
     started: bool = False            # a note has been loaded at least once
     hub_note_idx: int = 0            # Hubbard's byte offset into the pattern
                                      # ($54EF,X) — read by off-table arps
+    seq_idx: int = 0                 # the engine's $54EC,X — orderlist
+                                     # position, pre-incremented on the
+                                     # last note of a pattern
     ctrl_byte: int = 0               # the instrument ctrl saved at note start
                                      # ($54F8,X) — read by off-table note-starts
     no_release: bool = False         # note_byte bit5 — suppresses the HR
@@ -142,8 +145,20 @@ class SongInterp:
         nbytes = (1 if note.tie
                   else 2 if (note.instrument & 0x80) else 3)
         base = 0 if rt.note_pos == 0 else rt.hub_note_idx
-        rt.hub_note_idx = (0 if rt.note_pos == len(notes) - 1
-                           else base + nbytes)
+        is_last = rt.note_pos == len(notes) - 1
+        rt.hub_note_idx = 0 if is_last else base + nbytes
+        # seq_idx mirrors the engine's $54EC,X. The engine pre-increments
+        # it when the LAST note of a pattern loads (it peeks the $FF end
+        # marker and bumps seq_idx + resets note_idx then). orderlist_pos
+        # itself does not advance until the next load, so track seq_idx
+        # separately — the off-table arp reads it.
+        if is_last:
+            nxt = rt.orderlist_pos + 1
+            if nxt >= len(voice.orderlist):
+                nxt = voice.loop if voice.loop >= 0 else 0
+            rt.seq_idx = nxt
+        else:
+            rt.seq_idx = rt.orderlist_pos
 
         rt.dur_field = note.duration - 1          # Score stores ticks = field+1
         rt.duration_ctr = rt.dur_field
@@ -261,9 +276,10 @@ class SongInterp:
 
         vib_carry = 0
         if m.vibrato and self.fx_vibrato:
-            vw, vib_carry = _vibrato(m.vibrato.depth, rt.pitch,
-                                     self.frame_ctr, rt.dur_field,
-                                     self.freq_table)
+            vw, vib_carry = _vibrato(m.vibrato.depth,
+                                     self._freq16(rt.pitch, v),
+                                     self._freq16(rt.pitch + 1, v),
+                                     self.frame_ctr, rt.dur_field)
             w += vw
 
         if m.pwm and self.fx_pwm:
@@ -375,6 +391,16 @@ class SongInterp:
         return [(R_FREQ_HI, self._read_state(addr + 1, v)),
                 (R_FREQ_LO, self._read_state(addr, v))]
 
+    def _freq16(self, pitch: int, v: int) -> int:
+        """The 16-bit freq for `pitch`. In-table pitches (<96) come from
+        the freq table; an off-table pitch reads engine state (the same
+        $5428-overflow the off-table arp/note-start use) — needed for
+        the vibrato of an instrument played past the 96 musical notes."""
+        if pitch < 96:
+            return self.freq_table[pitch]
+        addr = 0x5428 + pitch * 2
+        return self._read_state(addr, v) | (self._read_state(addr + 1, v) << 8)
+
     def _read_state(self, addr: int, v: int) -> int:
         """The player-state byte at `addr` — what an off-table lookup
         (an arp with idx>=96, or a pitch-104 note-start) lands on past
@@ -386,7 +412,7 @@ class SongInterp:
         if addr == 0x54EB:                      # scratch = current voice sid_off
             return (0, 7, 14)[v]
         if 0x54EC <= addr <= 0x54EE:            # seq_idx[0..2]
-            return self.voices[addr - 0x54EC].orderlist_pos & 0xFF
+            return self.voices[addr - 0x54EC].seq_idx & 0xFF
         if 0x54EF <= addr <= 0x54F1:            # note_idx[0..2]
             return self.voices[addr - 0x54EF].hub_note_idx & 0xFF
         if 0x54F2 <= addr <= 0x54F4:            # duration[0..2]
