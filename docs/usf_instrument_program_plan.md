@@ -254,6 +254,12 @@ instruction stream exactly — no engineQuirks, no dynamicFreqEntries.
 
 ## Phase 6 — Migration of other pipelines
 
+**Before migrating any engine's effects, read
+`docs/usf_representation_principle.md` in full.** Each new engine's
+vibrato/PWM/arp/etc. must land as *points in the existing parameter
+space*, not as new opaque `*Kind` variants. That document is the
+binding rule for every effect representation decision in this phase.
+
 - [ ] **6.1** Migrate **Devils Galop** (2 dynamicFreqEntries, 1
       aliased pitch — simplest cross-voice case).
 - [ ] **6.2** Migrate Hubbard pipelines with no aliasing (Action Biker,
@@ -274,9 +280,15 @@ instruction stream exactly — no engineQuirks, no dynamicFreqEntries.
 
 ## Phase 7 — ML-readiness verification
 
+The gate for this phase is the four tests in
+`docs/usf_representation_principle.md` §8 — completeness, no escape
+hatch, interpolation sanity, cross-engine reuse. 7.1 below is test 2 of
+that gate.
+
 - [ ] **7.1** Grep all `pipelines/*/codegen/*/SongData.lean` files for
       any field that references runtime addresses, engine variables,
-      or per-frame state. Expectation: nothing matches.
+      or per-frame state — and for any `*Kind: int` / `*Ptr` /
+      engine-library index field. Expectation: nothing matches.
 - [ ] **7.2** Document the final `InstSource` vocabulary as the
       "instrument primitive set" — this is what an ML model treats
       as its action space when generating instruments.

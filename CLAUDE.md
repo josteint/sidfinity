@@ -2,6 +2,7 @@
 
 ## Key References
 
+- **`docs/usf_representation_principle.md`** — How USF must represent instruments/effects to be good ML training data. **Load-bearing. Read in full — not a summary — before designing or changing any USF instrument/effect representation.**
 - **`docs/PLAN.md`** — Full roadmap
 - **`docs/decisions.md`** — Dead ends and settled architectural decisions. **Read before investigating a bug you think might have been tried before.**
 - **`docs/benchmark.csv`** — Grade A count over time. **Append a row after each batch improvement.**
