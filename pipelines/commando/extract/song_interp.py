@@ -161,7 +161,7 @@ class SongInterp:
         # slide value carries over from the previous note).
         if not note.tie:
             if note.pitch >= 96:
-                rt.slide_v = self._read_state(0x5429 + note.pitch * 2)
+                rt.slide_v = self._read_state(0x5429 + note.pitch * 2, v)
             else:
                 rt.slide_v = (self.freq_table[note.pitch] >> 8) & 0xFF
         rt.slide_dead = False
@@ -222,8 +222,8 @@ class SongInterp:
         # player state — the freq read happens BEFORE ctrl_byte is
         # updated below, matching the engine's ordering.
         if rt.pitch >= 96:
-            flo = self._read_state(0x5428 + rt.pitch * 2)
-            fhi = self._read_state(0x5429 + rt.pitch * 2)
+            flo = self._read_state(0x5428 + rt.pitch * 2, v)
+            fhi = self._read_state(0x5429 + rt.pitch * 2, v)
         else:
             f = self.freq_table[rt.pitch]
             flo, fhi = f & 0xFF, (f >> 8) & 0xFF
@@ -333,15 +333,19 @@ class SongInterp:
         # feedback_deconstruct_not_reproduce. Reproduced cleanly here by
         # reading the corresponding engine state directly.
         addr = 0x5428 + idx * 2
-        return [(R_FREQ_HI, self._read_state(addr + 1)),
-                (R_FREQ_LO, self._read_state(addr))]
+        return [(R_FREQ_HI, self._read_state(addr + 1, v)),
+                (R_FREQ_LO, self._read_state(addr, v))]
 
-    def _read_state(self, addr: int) -> int:
-        """The player-state byte at `addr` — the bytes an off-table arp
-        lookup lands on (the freq table at $5428 is only 96 entries; the
-        engine state immediately follows it)."""
+    def _read_state(self, addr: int, v: int) -> int:
+        """The player-state byte at `addr` — what an off-table lookup
+        (an arp with idx>=96, or a pitch-104 note-start) lands on past
+        the 96-entry freq table. `v` is the voice whose effect is
+        running — needed for the $54EB scratch, which holds the
+        currently-processing voice's SID offset."""
         if 0x54E8 <= addr <= 0x54EA:            # v_sid_off[0..2]
             return (0, 7, 14)[addr - 0x54E8]
+        if addr == 0x54EB:                      # scratch = current voice sid_off
+            return (0, 7, 14)[v]
         if 0x54EC <= addr <= 0x54EE:            # seq_idx[0..2]
             return self.voices[addr - 0x54EC].orderlist_pos & 0xFF
         if 0x54EF <= addr <= 0x54F1:            # note_idx[0..2]
@@ -349,14 +353,17 @@ class SongInterp:
         if 0x54F2 <= addr <= 0x54F4:            # duration[0..2]
             return self.voices[addr - 0x54F2].duration_ctr & 0xFF
         if 0x54F5 <= addr <= 0x54F7:            # note_byte[0..2]
-            v = addr - 0x54F5
-            return ((self.voices[v].dur_field
-                     | (0x40 if self.voices[v].tie else 0)) & 0xFF)
+            rv = self.voices[addr - 0x54F5]
+            return (rv.dur_field | (0x40 if rv.tie else 0)) & 0xFF
         if 0x54F8 <= addr <= 0x54FA:            # ctrl_byte[0..2]
             return self.voices[addr - 0x54F8].ctrl_byte & 0xFF
         if 0x54FB <= addr <= 0x54FD:            # pitch[0..2]
             return self.voices[addr - 0x54FB].pitch & 0xFF
-        return 0                                # $54EB scratch / other
+        if 0x54FE <= addr <= 0x5500:            # instr_num[0..2]
+            return self.voices[addr - 0x54FE].instr & 0xFF
+        if 0x5510 <= addr <= 0x5512:            # pw_dir[0..2]
+            return self.pw_dir[addr - 0x5510] & 0xFF
+        return 0
 
 
 # ----------------------------------------------------------------------
