@@ -147,9 +147,14 @@ class InstrumentModel:
 # Decode
 # ---------------------------------------------------------------------------
 
-def decode_instrument(inst: int, binary: bytes, load_addr: int) -> InstrumentModel:
-    """Decode instrument `inst` from its 8-byte table row."""
-    off = INSTR_TABLE_BASE + inst * INSTR_SIZE - load_addr
+def decode_instrument(inst: int, binary: bytes, load_addr: int,
+                      base: int = INSTR_TABLE_BASE) -> InstrumentModel:
+    """Decode instrument `inst` from its 8-byte table row at `base`.
+
+    The 8-byte row layout (pw_lo, pw_hi, ctrl, ad, sr, vib_depth,
+    pwm_speed, fx_flags) is shared across the whole Hubbard '85 engine
+    family; only the table address differs per engine."""
+    off = base + inst * INSTR_SIZE - load_addr
     pw_lo, pw_hi, ctrl, ad, sr, vib_depth, pwm_speed, fx = binary[off:off + 8]
 
     vibrato = VibratoSpec(depth=vib_depth) if vib_depth != 0 else None
@@ -185,11 +190,15 @@ def decode_instrument(inst: int, binary: bytes, load_addr: int) -> InstrumentMod
     )
 
 
-def decode_all(sid_path: str) -> list[InstrumentModel]:
+def decode_all(sid_path: str, base: int = INSTR_TABLE_BASE,
+               count: int = N_INSTRUMENTS) -> list[InstrumentModel]:
+    """Decode `count` instruments from the 8-byte table at `base`.
+    Defaults are Commando's; other Hubbard '85 engines pass their own
+    instrument-table address and count."""
     from src.hubbard_emu import load_sid
     _, binary, load_addr = load_sid(sid_path)
-    return [decode_instrument(i, binary, load_addr)
-            for i in range(N_INSTRUMENTS)]
+    return [decode_instrument(i, binary, load_addr, base)
+            for i in range(count)]
 
 
 # ---------------------------------------------------------------------------
