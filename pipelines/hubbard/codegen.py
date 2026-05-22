@@ -1276,9 +1276,12 @@ def build(config, out_path: str = OUT_SID, codec=None) -> str:
     h += struct.pack('>H', LOAD)
     h += struct.pack('>H', LOAD)
     h += struct.pack('>H', LOAD + 3)
-    h += struct.pack('>H',
-                     len(config.subtunes) + (16 if config.has_sfx else 0))
-    h += struct.pack('>H', 1)              # startSong
+    songs = len(config.subtunes) + (16 if config.has_sfx else 0)
+    orig_start = (orig_hdr[0x10] << 8) | orig_hdr[0x11]
+    h += struct.pack('>H', songs)
+    # startSong (default subtune) — preserve the original's, clamped to
+    # the subtunes we actually shipped.
+    h += struct.pack('>H', min(max(orig_start, 1), songs))
     h += struct.pack('>I', 0)
     h += orig_hdr[22:118]                  # name + author + released (3x32)
     h += struct.pack('>H', 0x0014)
