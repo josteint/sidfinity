@@ -38,4 +38,6 @@ ACTION_BIKER = EngineConfig(
     subtunes=(0, 1, 2),
     arp_interval=12,
     has_sfx=False,
+    speed_ctr_init=1,           # $C3E7 starts $01 — first note-load on frame 1
+    first_frame_gate_off=True,  # $C28E clears V1/V2/V3 ctrl in play frame 0
 )

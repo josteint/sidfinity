@@ -44,3 +44,9 @@ class EngineConfig:
     # the $FE orderlist marker freezes the voice (holds the last note,
     # keeps effects, never gates off) rather than ending the song.
     freeze_on_stop: bool = False
+    # initial speed counter — 1 defers the first tick (and the first
+    # note-load) to play frame 1 (Action Biker's $C3E7/$C3E8 gate).
+    speed_ctr_init: int = 0
+    # write ctrl=0 to all three voices on play frame 0 (engines whose
+    # first-frame setup runs in play, not init).
+    first_frame_gate_off: bool = False

@@ -185,6 +185,7 @@ iniov:  lda ovseed,x
         bpl iniov
         lda #0
         sta end_phase
+        lda #SPEED_CTR_INIT
         sta speed_ctr
         lda #$ff
         sta frame_ctr
@@ -218,6 +219,14 @@ pl_silent:
         rts
 pl_run:
         inc frame_ctr
+        bne pl_nogate
+        lda #FIRST_FRAME_GATE_OFF
+        beq pl_nogate
+        lda #0
+        sta $d404
+        sta $d40b
+        sta $d412
+pl_nogate:
         dec speed_ctr
         bpl notick
         lda cur_resetspd
@@ -1190,6 +1199,8 @@ def build(config, out_path: str = OUT_SID, codec=None) -> str:
            f'DUR_BITS = {codec.dur_bits}\n'
            f'INST_BITS = {codec.inst_bits}\n'
            f'FREEZE_ON_STOP = {1 if config.freeze_on_stop else 0}\n'
+           f'SPEED_CTR_INIT = {config.speed_ctr_init}\n'
+           f'FIRST_FRAME_GATE_OFF = {1 if config.first_frame_gate_off else 0}\n'
            + codec.zp_asm + '\n'
            + ENGINE + '\n'
            + codec.note_asm + '\n'

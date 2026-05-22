@@ -110,7 +110,7 @@ class SongInterp:
             self.pw_period[vi] = binary[fb + 229 + vi]
             self.pw_dir[vi] = binary[fb + 232 + vi]
         self.frame_ctr = -1              # INC'd to 0 on the first frame
-        self.speed_ctr = 0
+        self.speed_ctr = config.speed_ctr_init
         self.frame_no = -1
         # end-of-song: 0 running, 1 = all voices ended (gate-off pending),
         # 2 = gated off, silent.
@@ -259,6 +259,9 @@ class SongInterp:
         is_tick = (self.speed_ctr == self.resetspd)
 
         writes: list[tuple[int, int]] = []
+        if self.frame_no == 0 and self.config.first_frame_gate_off:
+            writes = [(0 * 7 + R_CTRL, 0), (1 * 7 + R_CTRL, 0),
+                      (2 * 7 + R_CTRL, 0)]
         for v in (2, 1, 0):                       # engine processes V3,V2,V1
             w = self._process_voice(v, is_tick)
             if w is None:          # a frozen voice aborted (JMP $837d)
