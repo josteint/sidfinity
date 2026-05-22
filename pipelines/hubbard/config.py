@@ -31,6 +31,7 @@ class EngineConfig:
     resetspd: Callable              # resetspd(subtune, binary, load) -> int
     subtunes: tuple = (0,)          # music subtunes to pack
     arp_interval: int = 12          # arpeggio interval in semitones
+    vib_onset: int = 6              # min note dur for vibrato to apply
     has_sfx: bool = False           # engine has a sound-effect sub-engine
     extract_sfx: Optional[Callable] = None   # extract_sfx(path) -> (list, ...)
     # fx-bit1 "inc-by-2" slide — Commando ramps +2 on odd frames; Devils

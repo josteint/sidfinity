@@ -113,6 +113,7 @@ sfx_y      = $a2
 sfx_flags  = $a3
 sfx_tmp    = $a4
 v_notesleft = $a5
+drum_prio   = $b2
 
 * = $1000
         jmp init
@@ -133,6 +134,8 @@ init_music:
         sta sub_tmp          ; A = subtune
         lda #$00
         sta is_sfx
+        lda #DRUM_PRIO_INIT  ; $178B drum-priority gate
+        sta drum_prio
         lda sub_tmp
         asl                  ; subtune*2
         clc
@@ -215,6 +218,8 @@ notick: lda #0
 voices:
         ldx #2
 pvloop: jsr proc_voice
+        lda #$ff
+        sta drum_prio
         dex
         bpl pvloop
         ; end-of-song - once all three voices have hit $FE, arm the
@@ -244,6 +249,8 @@ proc_voice:
         lda v_ended,x        ; load_note may have hit the $FE marker
         bne pv_endret
         jsr calc_instoff
+        bit drum_prio
+        bpl pv_endret        ; gate clear -> suppress note-start
         jmp note_start
 pv_sus:
         inc v_tick,x
@@ -478,6 +485,7 @@ fx_incby2:
         bcc fxi_ret
         lda frame_ctr
         and #$01
+        ora #INCBY2_ALWAYS   ; 1 -> runs every frame
         beq fxi_ret
         lda v_slide,x
         beq fxi_ret
@@ -486,7 +494,7 @@ fx_incby2:
         sta $d401,y          ; write OLD slide value
         lda v_slide,x
         clc
-        adc #$02
+        adc #INCBY2_STEP
         sta v_slide,x
 fxi_ret: rts
 
@@ -606,8 +614,9 @@ fxv_sh: lsr                  ; shift A,vdelta_lo right depth+1 times
         lda vfreq+1
         sta vtarg_hi
         lda v_durfield,x
-        cmp #$06
-        bcc fxv_wr           ; dur < 6 -> no add (carry left = 0)
+        ldy instoff
+        cmp insttab+13,y     ; onset_dur (per-instrument)
+        bcc fxv_wr           ; dur < onset -> no add (carry left = 0)
         ldy vib_step
         beq fxv_wr           ; step 0 -> no add (carry left = 1)
 fxv_add:
@@ -969,6 +978,7 @@ def _emit_data(scores, models, freq_bytes, resetspds, sfx_list, codec) -> str:
     lines.append('insttab:')
     for m in models:
         vib_depth = m.vibrato.depth if m.vibrato else 0
+        vib_onset = m.vibrato.onset_dur if m.vibrato else 6
         pwm_mode = pwm_a = pwm_period = pwm_lo = pwm_hi = 0
         if m.pwm:
             if m.pwm.mode == 'linear':
@@ -979,7 +989,8 @@ def _emit_data(scores, models, freq_bytes, resetspds, sfx_list, codec) -> str:
                                               m.pwm.hi_bound)
         row = [m.init_ctrl, m.init_pw_lo, m.init_pw_hi, m.init_ad,
                m.init_sr, m.hr_ctrl, _fx_flags(m), vib_depth,
-               pwm_mode, pwm_a, pwm_period, pwm_lo, pwm_hi, 0, 0, 0]
+               pwm_mode, pwm_a, pwm_period, pwm_lo, pwm_hi,
+               vib_onset, 0, 0]
         lines.append('        .byt ' + ','.join(f'${b:02X}' for b in row))
 
     # pwseed - the per-instrument pw_lo/pw_hi seeds. pwacc is the live
@@ -1087,7 +1098,8 @@ def build(config, out_path: str = OUT_SID, codec=None) -> str:
         codec = BitPackCodec()
     _, binary, load = load_sid(config.sid_path)
     models = decode_all(config.sid_path, config.instr_base,
-                        config.instr_count, config.arp_interval)
+                        config.instr_count, config.arp_interval,
+                        config.vib_onset)
     scores = [config.extract(subtune=s).score for s in config.subtunes]
     resetspds = [config.resetspd(s, binary, load) for s in config.subtunes]
     # the freq table - raw bytes from the engine's freq-table base
@@ -1099,6 +1111,9 @@ def build(config, out_path: str = OUT_SID, codec=None) -> str:
     # note reader, then the data section.
     asm = (f'PWLEN = {2 * len(models) - 1}\n'
            f'ARP_OFS = {config.arp_interval}\n'
+           f'INCBY2_STEP = {config.incby2_step & 0xFF}\n'
+           f'INCBY2_ALWAYS = {1 if config.incby2_every_frame else 0}\n'
+           f'DRUM_PRIO_INIT = {0 if config.suppress_first_notestart else 255}\n'
            + codec.zp_asm + '\n'
            + ENGINE + '\n'
            + codec.note_asm + '\n'

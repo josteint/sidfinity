@@ -46,7 +46,8 @@ def subtune_resetspd(subtune: int, binary: bytes, load_addr: int) -> int:
 
 
 def _vibrato(depth: int, f_cur: int, f_next: int, frame_ctr: int,
-             dur_field: int) -> tuple[list[tuple[int, int]], int]:
+             dur_field: int,
+             onset_dur: int = 6) -> tuple[list[tuple[int, int]], int]:
     """Vibrato — authoritative semantics from the disassembly $51C1-$522D.
     Returns (writes, carry_out).
 
@@ -72,7 +73,7 @@ def _vibrato(depth: int, f_cur: int, f_next: int, frame_ctr: int,
     delta_hi = (delta >> 8) & 0xFF
     target_lo = f_cur & 0xFF
     target_hi = (f_cur >> 8) & 0xFF
-    if dur_field < 6:
+    if dur_field < onset_dur:
         carry = 0
     elif step == 0:
         carry = 1

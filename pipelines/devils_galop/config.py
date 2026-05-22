@@ -32,6 +32,7 @@ DEVILS_GALOP = EngineConfig(
     resetspd=_resetspd,
     subtunes=(0,),
     arp_interval=24,
+    vib_onset=8,                # vibrato gate CMP #$08 (Commando uses 6)
     has_sfx=False,
     incby2_step=-1,             # init patches INC $1783,X -> DEC
     incby2_every_frame=True,    # the slide runs every frame, not odd-only

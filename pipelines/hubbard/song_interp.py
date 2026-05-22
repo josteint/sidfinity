@@ -82,7 +82,7 @@ class SongInterp:
         self.score = song.score
         self.models: list[InstrumentModel] = decode_all(
             config.sid_path, config.instr_base, config.instr_count,
-            config.arp_interval)
+            config.arp_interval, config.vib_onset)
 
         _, binary, load = load_sid(config.sid_path)
         self.resetspd = config.resetspd(subtune, binary, load)
@@ -319,7 +319,8 @@ class SongInterp:
             vw, vib_carry = _vibrato(m.vibrato.depth,
                                      self._freq16(rt.pitch, v),
                                      self._freq16(rt.pitch + 1, v),
-                                     self.frame_ctr, rt.dur_field)
+                                     self.frame_ctr, rt.dur_field,
+                                     m.vibrato.onset_dur)
             w += vw
 
         if m.pwm and self.fx_pwm:
