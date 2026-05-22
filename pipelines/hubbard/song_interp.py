@@ -278,14 +278,21 @@ class SongInterp:
             # $FE freeze: duration_ctr keeps cycling as a signed byte.
             # On a tick it underflows negative -> the voice tries to
             # advance, hits $FE and aborts the frame (JMP $837d); while
-            # non-negative the voice sustains and runs its effects.
+            # non-negative the voice sustains, runs the hard restart at
+            # the cycle zero-crossing, and runs its effects.
+            w: list[tuple[int, int]] = []
             if is_tick:
                 rt.duration_ctr = (rt.duration_ctr - 1) & 0xFF
                 if rt.duration_ctr & 0x80:
                     return None
                 rt.tick_in_note += 1
+                if rt.duration_ctr == 0 and not rt.no_release:
+                    m = self.models[rt.instr]
+                    w += [(R_CTRL, m.hr_ctrl), (R_AD, 0), (R_SR, 0)]
             rt.frame_in_note += 1
-            return self._effects(v) if self.effects_on else []
+            if self.effects_on:
+                w += self._effects(v)
+            return w
         if is_tick:
             rt.duration_ctr -= 1
             if rt.duration_ctr < 0:
