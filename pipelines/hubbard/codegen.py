@@ -27,19 +27,16 @@ import struct
 import subprocess
 import sys
 
-ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(
-    os.path.abspath(__file__)))))
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(
+    os.path.abspath(__file__))))
 sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.join(ROOT, 'src'))
 sys.path.insert(0, os.path.join(ROOT, 'tools', 'py65_lib'))
 
-from pipelines.commando.extract.engine_model import extract  # noqa: E402
 from pipelines.hubbard.inst_generalize import decode_all  # noqa: E402
-from pipelines.hubbard.inst_interp import subtune_resetspd  # noqa: E402
 
-SID_PATH = os.path.join(ROOT, 'demo', 'hubbard', 'Commando_original.sid')
 XA = os.path.join(ROOT, 'tools', 'xa65', 'xa', 'xa')
-OUT_SID = '/tmp/usf2_commando.sid'
+OUT_SID = '/tmp/usf2_build.sid'
 
 LOAD = 0x1000
 
@@ -712,7 +709,7 @@ fx_arp:
         beq fxa_even
         lda v_pitch,x
         clc
-        adc #$0c
+        adc #ARP_OFS
         jmp fxa_idx
 fxa_even:
         lda v_pitch,x
@@ -1083,22 +1080,25 @@ def _emit_data(scores, models, freq_bytes, resetspds, sfx_list, codec) -> str:
 # build
 # ---------------------------------------------------------------------------
 
-def build(subtunes=(0, 1, 2), out_path: str = OUT_SID, codec=None) -> str:
+def build(config, out_path: str = OUT_SID, codec=None) -> str:
     from src.hubbard_emu import load_sid
-    from pipelines.commando.extract.sfx import extract_sfx
     from pipelines.hubbard.note_codec import BitPackCodec
     if codec is None:
         codec = BitPackCodec()
-    _, binary, load = load_sid(SID_PATH)
-    models = decode_all(SID_PATH)
-    songs = [extract(subtune=s) for s in subtunes]
-    scores = [sg.score for sg in songs]
-    resetspds = [subtune_resetspd(s, binary, load) for s in subtunes]
-    sfx_list, freq_bytes = extract_sfx(SID_PATH)
+    _, binary, load = load_sid(config.sid_path)
+    models = decode_all(config.sid_path, config.instr_base,
+                        config.instr_count, config.arp_interval)
+    scores = [config.extract(subtune=s).score for s in config.subtunes]
+    resetspds = [config.resetspd(s, binary, load) for s in config.subtunes]
+    # the freq table - raw bytes from the engine's freq-table base
+    freq_bytes = bytes(binary[config.freq_table_base - load + i]
+                       for i in range(320))
+    sfx_list = config.extract_sfx(config.sid_path)[0] if config.has_sfx else []
 
     # asm layout: equates, then the generic engine, then the codec's
     # note reader, then the data section.
     asm = (f'PWLEN = {2 * len(models) - 1}\n'
+           f'ARP_OFS = {config.arp_interval}\n'
            + codec.zp_asm + '\n'
            + ENGINE + '\n'
            + codec.note_asm + '\n'
@@ -1118,7 +1118,7 @@ def build(subtunes=(0, 1, 2), out_path: str = OUT_SID, codec=None) -> str:
     # name / author / released come verbatim from the original SID —
     # this is the same tune, so it carries the same identifying
     # metadata (PSID header bytes 22..118).
-    with open(SID_PATH, 'rb') as f:
+    with open(config.sid_path, 'rb') as f:
         orig_hdr = f.read(124)
 
     h = bytearray(b'PSID')
@@ -1126,7 +1126,8 @@ def build(subtunes=(0, 1, 2), out_path: str = OUT_SID, codec=None) -> str:
     h += struct.pack('>H', LOAD)
     h += struct.pack('>H', LOAD)
     h += struct.pack('>H', LOAD + 3)
-    h += struct.pack('>H', len(subtunes) + 16)  # music subtunes + 16 SFX
+    h += struct.pack('>H',
+                     len(config.subtunes) + (16 if config.has_sfx else 0))
     h += struct.pack('>H', 1)              # startSong
     h += struct.pack('>I', 0)
     h += orig_hdr[22:118]                  # name + author + released (3x32)
@@ -1191,7 +1192,8 @@ def verify(sid_path: str, enabled: set, subtune: int = 0,
 
 
 def main(argv: list[str]) -> None:
-    path = build()
+    from pipelines.commando.config import COMMANDO
+    path = build(COMMANDO)
     print(f'built {path}  ({os.path.getsize(path)} bytes)')
     if '--verify' in argv:
         verify(path, ENGINE_FX)
