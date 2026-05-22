@@ -68,6 +68,8 @@ class VoiceRT:
     no_release: bool = False         # note_byte bit5 — suppresses the HR
     ended: bool = False              # the voice hit the $FE end marker —
                                      # it no longer reads notes or runs
+    frozen: bool = False             # $FE under freeze_on_stop — the voice
+                                     # holds + keeps effects, never gates off
 
 
 class SongInterp:
@@ -153,7 +155,11 @@ class SongInterp:
             rt.orderlist_pos += 1
             if rt.orderlist_pos >= len(voice.orderlist):
                 if voice.stop:
-                    rt.ended = True       # $FE — end of song, no loop
+                    # $FE: freeze (hold + keep effects) or end, per engine
+                    if self.config.freeze_on_stop:
+                        rt.frozen = True
+                    else:
+                        rt.ended = True
                     return
                 rt.orderlist_pos = voice.loop if voice.loop >= 0 else 0
 
@@ -254,9 +260,14 @@ class SongInterp:
 
         writes: list[tuple[int, int]] = []
         for v in (2, 1, 0):                       # engine processes V3,V2,V1
+            rt = self.voices[v]
+            if is_tick and rt.frozen:
+                break          # a frozen voice aborts the tick (JMP $837d)
             writes += [(v * 7 + r, val)
                        for r, val in self._process_voice(v, is_tick)]
             self.drum_prio = 0xFF
+            if is_tick and rt.frozen:
+                break          # _load_next_note hit $FE this tick
         if self.end_phase == 0 and all(rt.ended for rt in self.voices):
             self.end_phase = 1
         return writes
@@ -265,11 +276,11 @@ class SongInterp:
         rt = self.voices[v]
         if rt.ended:
             return []
-        if is_tick:
+        if is_tick and not rt.frozen:
             rt.duration_ctr -= 1
             if rt.duration_ctr < 0:
                 self._load_next_note(v)
-                if rt.ended:
+                if rt.ended or rt.frozen:
                     return []
                 ns = self._note_start_writes(v)        # no effects on load
                 return ns if (self.drum_prio & 0x80) else []

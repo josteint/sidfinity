@@ -40,5 +40,6 @@ MONTY = EngineConfig(
     arp_interval=12,
     vib_onset=8,                # vibrato gate CMP #$08 at $8201
     incby2_step=-1,             # fx bit1 = DEC v_freq_hi on odd frames ($831A)
+    freeze_on_stop=True,        # $FE freezes voices (hold + effects, no gate-off)
     has_sfx=False,
 )

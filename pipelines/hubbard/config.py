@@ -41,3 +41,6 @@ class EngineConfig:
     # the $178B drum-priority gate suppresses the very first voice's
     # first-frame note-start SID writes (Devils Galop only).
     suppress_first_notestart: bool = False
+    # the $FE orderlist marker freezes the voice (holds the last note,
+    # keeps effects, never gates off) rather than ending the song.
+    freeze_on_stop: bool = False
