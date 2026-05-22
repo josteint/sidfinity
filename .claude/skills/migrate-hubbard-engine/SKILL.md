@@ -142,6 +142,14 @@ byte-exact:
 The SFX sub-engine is SID-synthesis and fully frame-verifiable — it is
 **not** digi. Do not skip it.
 
+Caveat — **off-table SFX sweeps**: a SFX whose freq-table sweep runs
+past the 96 musical entries reads engine state as "frequency" (the
+same off-table trick the music uses). For those the codegen's SFX
+engine state must be readable at the matching freq-table off-table
+offsets — see Commando's `inc freqtab+253`. Most SFX stay in-table and
+just work; the off-table ones need the SFX state laid out to match the
+engine's memory map (Monty SFX 11/13 are an open example).
+
 ## Gotchas
 
 - **xa65**: no colons (`:`) or backslashes (`\`) inside `;` comments —
