@@ -1208,6 +1208,76 @@ def _emit_data(scores, models, freq_bytes, resetspds, voice_starts,
 # build
 # ---------------------------------------------------------------------------
 
+def _sfx_state_in_freqtab(asm: str, ofs: int) -> str:
+    """Relocate the SFX engine state into the freq-table off-table
+    region, for engines whose SFX pitch sweep overruns the 96-entry
+    table and reads engine state as 'frequency' (Monty: $84FB+).
+
+    The shared SFX player is Commando's — zp state plus a few bytes
+    mirrored at Commando's scattered freq-table offsets. This rewires
+    it so the SFX-state block sits at ofs..ofs+5 and the post-update
+    sweep index is mirrored there each step, so the overrun reads live
+    state byte-exact. Commando keeps the original wiring (ofs None)."""
+    # 1. init_sfx — write the SFX-state block at this engine's offsets:
+    #    +0 disable=0, +1 SFX index, +2 static $ff, +3 sweep index,
+    #    +4 step rate, +5 end index.
+    o2 = ("        lda #$80\n"
+          "        sta freqtab+241      ; the sweep reads $5519 here -"
+          " mode byte $80\n"
+          "        lda sfx_idx\n"
+          "        sta freqtab+255      ; $5527 - the SFX index\n"
+          "        lda #$ff\n"
+          "        sta freqtab+256      ; $5528 - drum_enable\n"
+          "        ldy #14\n"
+          "        lda (sfx_rec),y      ; record 14 - sweep start index\n"
+          "        sta sfx_index\n")
+    n2 = ("        lda #$00\n"
+          f"        sta freqtab+{ofs}        ; SFX-disable flag\n"
+          "        lda sfx_idx\n"
+          f"        sta freqtab+{ofs + 1}        ; SFX index\n"
+          "        lda #$ff\n"
+          f"        sta freqtab+{ofs + 2}        ; static byte\n"
+          "        ldy #16\n"
+          "        lda (sfx_rec),y      ; record 16 - step rate\n"
+          f"        sta freqtab+{ofs + 4}        ; step counter\n"
+          "        ldy #15\n"
+          "        lda (sfx_rec),y      ; record 15 - end index\n"
+          f"        sta freqtab+{ofs + 5}        ; end index\n"
+          "        ldy #14\n"
+          "        lda (sfx_rec),y      ; record 14 - sweep start index\n"
+          "        sta sfx_index\n"
+          f"        sta freqtab+{ofs + 3}        ; sweep index (initial)\n")
+    assert o2 in asm, 'sfx fix: init_sfx block not found'
+    asm = asm.replace(o2, n2, 1)
+
+    # 2. sfxs_go — mirror the POST-update sweep index to freqtab+ofs+3
+    #    before the sweep reads it (the engine advances its index in
+    #    memory, then reads the freq table, so the overrun read of the
+    #    index byte sees the new value).
+    o3 = ("        lda (sfx_rec),y      ; record 17 - flags\n"
+          "        sta sfx_flags\n"
+          "        and #$04\n")
+    n3 = ("        lda (sfx_rec),y      ; record 17 - flags\n"
+          "        sta sfx_flags\n"
+          "        and #$01\n"
+          "        beq sfxm_dn\n"
+          "        lda sfx_index\n"
+          "        clc\n"
+          "        adc #$01\n"
+          "        jmp sfxm_st\n"
+          "sfxm_dn:\n"
+          "        lda sfx_index\n"
+          "        sec\n"
+          "        sbc #$01\n"
+          "sfxm_st:\n"
+          f"        sta freqtab+{ofs + 3}\n"
+          "        lda sfx_flags\n"
+          "        and #$04\n")
+    assert o3 in asm, 'sfx fix: sfxs_go block not found'
+    asm = asm.replace(o3, n3, 1)
+    return asm
+
+
 def build(config, out_path: str = OUT_SID, codec=None) -> str:
     from src.hubbard_emu import load_sid
     from pipelines.hubbard.note_codec import BitPackCodec
@@ -1254,6 +1324,13 @@ def build(config, out_path: str = OUT_SID, codec=None) -> str:
            + _emit_data(scores, models, freq_bytes, resetspds, voice_starts,
                         sfx_list, pat_slot, pat_bytes, codec_extra)
            + '\n')
+
+    # the SFX-readable frame counter — Commando's $5525 is freqtab+253;
+    # other engines INC a different freq-table byte.
+    asm = asm.replace('inc freqtab+253',
+                      f'inc freqtab+{config.sfx_framectr_ofs}')
+    if config.sfx_state_ofs is not None:
+        asm = _sfx_state_in_freqtab(asm, config.sfx_state_ofs)
 
     src = '/tmp/usf2_commando.s'
     obj = '/tmp/usf2_commando.bin'

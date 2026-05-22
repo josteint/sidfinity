@@ -44,4 +44,6 @@ MONTY = EngineConfig(
     freeze_on_stop=True,        # $FE freezes voices (hold + effects, no gate-off)
     has_sfx=True,               # 16 SFX at $9454 ($8506 SFX init)
     extract_sfx=extract_sfx,
+    sfx_state_ofs=251,          # SFX engine state at $84FB (freqtab+251)
+    sfx_framectr_ofs=250,       # SFX-readable frame counter at $84FA
 )

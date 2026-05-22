@@ -59,3 +59,10 @@ class EngineConfig:
     # if set, the $FE marker ends the song by writing this byte to
     # every voice register, then silence (Action Biker's $C2DC, $80).
     stop_fill: Optional[int] = None
+    # freq-table offset where the SFX engine keeps its state block, for
+    # engines whose SFX sweep overruns the table into engine state
+    # (Monty: $84FB = freqtab+251). None = Commando's scattered layout.
+    sfx_state_ofs: Optional[int] = None
+    # freq-table offset of the SFX-readable frame counter INC'd each
+    # play call (Commando $5525 = freqtab+253; Monty $84FA = +250).
+    sfx_framectr_ofs: int = 253
