@@ -50,3 +50,9 @@ class EngineConfig:
     # write ctrl=0 to all three voices on play frame 0 (engines whose
     # first-frame setup runs in play, not init).
     first_frame_gate_off: bool = False
+    # per-subtune voice-loop start index (Action Biker subtune 0 skips
+    # V3 — $C3F2). Empty = every subtune starts at V3 (index 2).
+    voice_starts: tuple = ()
+    # if set, the $FE marker ends the song by writing this byte to
+    # every voice register, then silence (Action Biker's $C2DC, $80).
+    stop_fill: Optional[int] = None

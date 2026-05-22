@@ -116,6 +116,8 @@ v_notesleft = $a5
 drum_prio   = $b2
 pv_abort    = $b3
 v_frozen    = $b4
+voice_start = $b7
+first_frame = $b8
 
 * = $1000
         jmp init
@@ -157,6 +159,8 @@ inisel: lda subOrderLo,y
         ldy sub_tmp          ; this subtune's tempo
         lda subResetspd,y
         sta cur_resetspd
+        lda subVoiceStart,y  ; per-subtune voice-loop start
+        sta voice_start
         ldx #PWLEN           ; re-seed the PWM accumulators from pwseed
 inipw:  lda pwseed,x
         sta pwacc,x
@@ -181,12 +185,16 @@ iniov:  lda ovseed,x
         sta v_pwperiod,x
         lda ovseed+6,x
         sta v_pwdir,x
+        lda ovseed+9,x
+        sta v_instr,x
         dex
         bpl iniov
         lda #0
         sta end_phase
         lda #SPEED_CTR_INIT
         sta speed_ctr
+        lda #1
+        sta first_frame
         lda #$ff
         sta frame_ctr
         ldx #$18
@@ -219,7 +227,10 @@ pl_silent:
         rts
 pl_run:
         inc frame_ctr
-        bne pl_nogate
+        lda first_frame
+        beq pl_nogate
+        lda #0
+        sta first_frame
         lda #FIRST_FRAME_GATE_OFF
         beq pl_nogate
         lda #0
@@ -239,7 +250,7 @@ notick: lda #0
 voices:
         lda #0
         sta pv_abort
-        ldx #2
+        ldx voice_start
 pvloop: jsr proc_voice
         lda pv_abort
         bne pl_done
@@ -349,10 +360,29 @@ sp_stop:
         lda #$ff
         ldy #FREEZE_ON_STOP
         bne sps_freeze
+        ldy #STOP_IS_FILL
+        bne sps_fill
         sta v_ended,x
         rts
 sps_freeze:
         sta v_frozen,x
+        rts
+; sps_fill - the $FE stop_fill end. Writes STOP_FILL to every voice
+; register, mark the song silent, and abort the frame ($C2DC).
+sps_fill:
+        stx sub_tmp
+        ldx #20
+        lda #STOP_FILL
+sps_fl: sta $d400,x
+        dex
+        bpl sps_fl
+        lda #$02
+        sta end_phase
+        lda #1
+        sta pv_abort
+        ldx sub_tmp
+        lda #$ff
+        sta v_ended,x
         rts
 sp_have:
         tay                  ; Y = pattern index
@@ -1035,8 +1065,8 @@ def _pattern_pool(scores):
     return pat_order, pat_slot
 
 
-def _emit_data(scores, models, freq_bytes, resetspds, sfx_list,
-               pat_slot, pat_bytes, codec_extra) -> str:
+def _emit_data(scores, models, freq_bytes, resetspds, voice_starts,
+               sfx_list, pat_slot, pat_bytes, codec_extra) -> str:
     """Emit the xa65 data section for a multi-subtune build.
 
     `scores` is one Score per packed music subtune; `sfx_list` is the
@@ -1091,9 +1121,10 @@ def _emit_data(scores, models, freq_bytes, resetspds, sfx_list,
     # The engine's per-voice variables sit past the 96-entry freq table;
     # init copies these load-time bytes into the zero-page mirrors so an
     # off-table read (or a counter's first DEC) sees the right value.
-    ov = ([freq_bytes[208 + i] for i in range(3)]      # v_ctrl   $84D0,x
-          + [freq_bytes[229 + i] for i in range(3)]    # pwm_period $84E5,x
-          + [freq_bytes[232 + i] for i in range(3)])   # pwm_dir  $84E8,x
+    ov = ([freq_bytes[208 + i] for i in range(3)]      # v_ctrl     freq+208
+          + [freq_bytes[229 + i] for i in range(3)]    # pwm_period freq+229
+          + [freq_bytes[232 + i] for i in range(3)]    # pwm_dir    freq+232
+          + [freq_bytes[214 + i] for i in range(3)])   # v_instr    freq+214
     lines.append('ovseed: .byt ' + ','.join(f'${b:02X}' for b in ov))
 
     # patterns — each unique pattern emitted once; orderlists reference
@@ -1134,6 +1165,8 @@ def _emit_data(scores, models, freq_bytes, resetspds, sfx_list,
     lines.append('subOrderLoop: .byt ' + ','.join(loops))
     lines.append('subResetspd: .byt '
                  + ','.join(f'${r:02X}' for r in resetspds))
+    lines.append('subVoiceStart: .byt '
+                 + ','.join(f'${v:02X}' for v in voice_starts))
 
     # live per-voice orderlist selection (filled by init)
     lines.append('orderLo: .byt 0,0,0')
@@ -1179,6 +1212,8 @@ def build(config, out_path: str = OUT_SID, codec=None) -> str:
                         config.vib_onset)
     scores = [config.extract(subtune=s).score for s in config.subtunes]
     resetspds = [config.resetspd(s, binary, load) for s in config.subtunes]
+    voice_starts = [config.voice_starts[s] if config.voice_starts else 2
+                    for s in config.subtunes]
     # the freq table - raw bytes from the engine's freq-table base
     freq_bytes = bytes(binary[config.freq_table_base - load + i]
                        for i in range(320))
@@ -1201,11 +1236,13 @@ def build(config, out_path: str = OUT_SID, codec=None) -> str:
            f'FREEZE_ON_STOP = {1 if config.freeze_on_stop else 0}\n'
            f'SPEED_CTR_INIT = {config.speed_ctr_init}\n'
            f'FIRST_FRAME_GATE_OFF = {1 if config.first_frame_gate_off else 0}\n'
+           f'STOP_IS_FILL = {1 if config.stop_fill is not None else 0}\n'
+           f'STOP_FILL = {config.stop_fill or 0}\n'
            + codec.zp_asm + '\n'
            + ENGINE + '\n'
            + codec.note_asm + '\n'
-           + _emit_data(scores, models, freq_bytes, resetspds, sfx_list,
-                        pat_slot, pat_bytes, codec_extra)
+           + _emit_data(scores, models, freq_bytes, resetspds, voice_starts,
+                        sfx_list, pat_slot, pat_bytes, codec_extra)
            + '\n')
 
     src = '/tmp/usf2_commando.s'

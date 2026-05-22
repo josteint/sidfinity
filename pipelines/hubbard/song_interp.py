@@ -79,6 +79,9 @@ class SongInterp:
         from src.hubbard_emu import load_sid
 
         self.config = config
+        self.subtune = subtune
+        self.voice_start = (config.voice_starts[subtune]
+                            if config.voice_starts else 2)
         song = config.extract(subtune=subtune)
         self.freq_table = song.freq_table
         self.score = song.score
@@ -107,6 +110,7 @@ class SongInterp:
         fb = config.freq_table_base - load
         for vi in range(3):
             self.voices[vi].ctrl_byte = binary[fb + 208 + vi]
+            self.voices[vi].instr = binary[fb + 214 + vi]
             self.pw_period[vi] = binary[fb + 229 + vi]
             self.pw_dir[vi] = binary[fb + 232 + vi]
         self.frame_ctr = -1              # INC'd to 0 on the first frame
@@ -115,6 +119,9 @@ class SongInterp:
         # end-of-song: 0 running, 1 = all voices ended (gate-off pending),
         # 2 = gated off, silent.
         self.end_phase = 0
+        # $FE stop_fill end (Action Biker): one $80-fill, then silent.
+        self.fill_pending = False
+        self.filled = False
         # $178B drum-priority gate (Devils Galop) — 0 suppresses the
         # first voice's first-frame note-start; $FF after each voice.
         self.drum_prio = 0x00 if config.suppress_first_notestart else 0xFF
@@ -155,9 +162,12 @@ class SongInterp:
             rt.orderlist_pos += 1
             if rt.orderlist_pos >= len(voice.orderlist):
                 if voice.stop:
-                    # $FE: freeze (hold + keep effects) or end, per engine
+                    # $FE: freeze, $80-fill end, or plain end, per engine
                     if self.config.freeze_on_stop:
                         rt.frozen = True
+                    elif self.config.stop_fill is not None:
+                        self.fill_pending = True
+                        rt.ended = True
                     else:
                         rt.ended = True
                     return
@@ -251,6 +261,8 @@ class SongInterp:
                     (2 * 7 + R_CTRL, 0)]
         if self.end_phase == 2:
             return []
+        if self.filled:
+            return []
 
         # speed counter: a tick fires when it reloads
         self.speed_ctr -= 1
@@ -262,12 +274,15 @@ class SongInterp:
         if self.frame_no == 0 and self.config.first_frame_gate_off:
             writes = [(0 * 7 + R_CTRL, 0), (1 * 7 + R_CTRL, 0),
                       (2 * 7 + R_CTRL, 0)]
-        for v in (2, 1, 0):                       # engine processes V3,V2,V1
+        for v in range(self.voice_start, -1, -1):  # V3,V2,V1 (or V2,V1)
             w = self._process_voice(v, is_tick)
             if w is None:          # a frozen voice aborted (JMP $837d)
                 break
             writes += [(v * 7 + r, val) for r, val in w]
             self.drum_prio = 0xFF
+        if self.fill_pending and not self.filled:
+            self.filled = True
+            return [(r, self.config.stop_fill) for r in range(20, -1, -1)]
         if self.end_phase == 0 and all(rt.ended for rt in self.voices):
             self.end_phase = 1
         return writes

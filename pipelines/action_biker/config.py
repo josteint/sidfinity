@@ -37,7 +37,10 @@ ACTION_BIKER = EngineConfig(
     resetspd=_resetspd,
     subtunes=(0, 1, 2),
     arp_interval=12,
+    vib_onset=8,                # vibrato gate CMP #$08 at $C1B5
     has_sfx=False,
     speed_ctr_init=1,           # $C3E7 starts $01 — first note-load on frame 1
     first_frame_gate_off=True,  # $C28E clears V1/V2/V3 ctrl in play frame 0
+    voice_starts=(1, 2, 2),     # subtune 0 starts at V2 ($C3F2), skipping V3
+    stop_fill=0x80,             # $FE ends the song writing $80 everywhere ($C2DC)
 )
