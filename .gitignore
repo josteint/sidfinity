@@ -51,3 +51,6 @@ tmp/
 tools/py65_lib/
 tools/py_test_lib/
 *.sid
+
+# verify.py capture cache (regenerated on demand)
+.verify_cache.pkl
