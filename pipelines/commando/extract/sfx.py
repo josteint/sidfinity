@@ -199,7 +199,7 @@ class SfxInterp:
 
 def verify(sid_path: str, n_frames: int = 200) -> None:
     """Run all 16 SFX through the interpreter, diff vs the py65 capture."""
-    from pipelines.commando.extract.inst_program import capture, REG_NAMES
+    from pipelines.hubbard.inst_program import capture, REG_NAMES
 
     sfx, freq_bytes = extract_sfx(sid_path)
     all_ok = True
@@ -234,7 +234,7 @@ def verify(sid_path: str, n_frames: int = 200) -> None:
 
 
 def main(argv: list[str]) -> None:
-    from pipelines.commando.extract.inst_program import SID_PATH
+    from pipelines.hubbard.inst_program import SID_PATH
     verify(SID_PATH, int(argv[0]) if argv else 200)
 
 

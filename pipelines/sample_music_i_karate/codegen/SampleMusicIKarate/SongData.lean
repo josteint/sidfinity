@@ -1,4 +1,4 @@
--- Auto-generated USF v3 SampleMusicIKarate on the Run data
+-- Auto-generated USF v3 Sample Music from I. Karate data
 -- Subtunes: [0] (0-indexed; PSID subtunes [1])
 import SampleMusicIKarate.USF
 
@@ -477,7 +477,7 @@ def sample_music_i_karateV3 : USFSong := {
     ]
     dynamicFreqEntries := []
   }
-  title := "SampleMusicIKarate on the Run"
+  title := "Sample Music from I. Karate"
   author := "Rob Hubbard"
-  released := "1985 Gremlin Graphics"
+  released := "1985 Rob Hubbard"
 }

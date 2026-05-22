@@ -1,11 +1,13 @@
 /-
-  SampleMusicIKarate.Codegen — Player codegen for Rob Hubbard's SampleMusicIKarate on the Run,
-  consuming a `USFSong` and emitting a `ByteArray` PSID. Verified status:
-  Grade A 98.8% snapshot match in siddump; 0 register-divergence across
-  1500 frames in py65.
+  SampleMusicIKarate.Codegen — Player codegen for Rob Hubbard's
+  Sample Music from I. Karate (1985), consuming a `USFSong` and emitting a
+  `ByteArray` PSID. Status: scaffolding; rebuild currently grades F because
+  the codegen body is still the Action Biker clone. Engine reference:
+  docs/hubbard_sample_music_karate_disassembly.s.
 
-  Cloned from Commando.Codegen. Differences from that codegen, ALL
-  SampleMusicIKarate-specific, are flagged inline:
+  Cloned from Commando.Codegen via Action Biker. Differences originally
+  flagged inline as SampleMusicIKarate-specific are inherited from the
+  Action Biker template and have NOT been re-validated for I. Karate:
   - Skydive emit block (between freqSlide and arpeggio) — gated on
     `i_skydive[inst]`.
   - v_pitch alias-store in `emitNL_SavePitchFhi` — mirrors V1/V2/V3
@@ -1621,9 +1623,9 @@ def generateSID (song : USFSong) (debug : Bool := false) : Bytes := Id.run do
     playAddr := base + 3
     songs := song.subtunes.length.toUInt16
     startSong := 1
-    title := "Commando"
-    author := "Rob Hubbard"
-    released := "1985 Elite"
+    title := song.title
+    author := song.author
+    released := song.released
   }
   return buildSID header cb.bytes
 

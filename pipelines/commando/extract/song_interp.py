@@ -33,10 +33,10 @@ sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.join(ROOT, 'src'))
 sys.path.insert(0, os.path.join(ROOT, 'tools', 'py65_lib'))
 
-from pipelines.commando.extract.inst_generalize import (  # noqa: E402
+from pipelines.hubbard.inst_generalize import (  # noqa: E402
     R_AD, R_CTRL, R_FREQ_HI, R_FREQ_LO, R_PW_HI, R_PW_LO, R_SR,
     InstrumentModel, decode_all)
-from pipelines.commando.extract.inst_interp import _vibrato  # noqa: E402
+from pipelines.hubbard.inst_interp import _vibrato  # noqa: E402
 
 
 @dataclass
@@ -75,7 +75,7 @@ class SongInterp:
 
     def __init__(self, sid_path: str, subtune: int = 0):
         from pipelines.commando.extract.engine_model import extract
-        from pipelines.commando.extract.inst_interp import subtune_resetspd
+        from pipelines.hubbard.inst_interp import subtune_resetspd
         from src.hubbard_emu import load_sid
 
         song = extract(subtune=subtune)
@@ -150,8 +150,12 @@ class SongInterp:
         # Each note consumes 1 byte (tie), 2 (no instrument byte) or 3
         # (with instrument byte); note_idx points past the current note,
         # and resets to 0 at the pattern's $FF end marker.
-        nbytes = (1 if note.tie
-                  else 2 if (note.instrument & 0x80) else 3)
+        # Hubbard's note is 1 byte (tie), 2 (no extra byte), or 3 (an
+        # extra byte — present when the note changes instrument OR
+        # carries a portamento). note_idx advances by this much.
+        has_porta = (note.drum_trig & 0x7F) != 0
+        has_b1 = (not (note.instrument & 0x80)) or has_porta
+        nbytes = 1 if note.tie else (3 if has_b1 else 2)
         base = 0 if rt.note_pos == 0 else rt.hub_note_idx
         is_last = rt.note_pos == len(notes) - 1
         rt.hub_note_idx = 0 if is_last else base + nbytes
@@ -471,7 +475,7 @@ def verify(sid_path: str, subtune: int, n_frames: int) -> dict:
     Also tallies, per failing frame, which voices carry the diff — so a
     failure confined to a voice playing the drum or inst 7's off-table
     arp (both deferred) can be told apart from a real interpreter bug."""
-    from pipelines.commando.extract.inst_program import capture
+    from pipelines.hubbard.inst_program import capture
 
     cap = capture(sid_path, n_frames=n_frames, subtune=subtune)
     si = SongInterp(sid_path, subtune)
@@ -496,7 +500,7 @@ def verify(sid_path: str, subtune: int, n_frames: int) -> dict:
 
 
 def main(argv: list[str]) -> None:
-    from pipelines.commando.extract.inst_program import SID_PATH, REG_NAMES
+    from pipelines.hubbard.inst_program import SID_PATH, REG_NAMES
 
     subtune = int(argv[0]) if argv else 0
     n_frames = int(argv[1]) if len(argv) > 1 else 1500

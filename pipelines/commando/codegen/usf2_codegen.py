@@ -34,8 +34,8 @@ sys.path.insert(0, os.path.join(ROOT, 'src'))
 sys.path.insert(0, os.path.join(ROOT, 'tools', 'py65_lib'))
 
 from pipelines.commando.extract.engine_model import extract  # noqa: E402
-from pipelines.commando.extract.inst_generalize import decode_all  # noqa: E402
-from pipelines.commando.extract.inst_interp import subtune_resetspd  # noqa: E402
+from pipelines.hubbard.inst_generalize import decode_all  # noqa: E402
+from pipelines.hubbard.inst_interp import subtune_resetspd  # noqa: E402
 
 SID_PATH = os.path.join(ROOT, 'demo', 'hubbard', 'Commando_original.sid')
 XA = os.path.join(ROOT, 'tools', 'xa65', 'xa', 'xa')
@@ -1086,7 +1086,7 @@ def _emit_data(scores, models, freq_bytes, resetspds, sfx_list, codec) -> str:
 def build(subtunes=(0, 1, 2), out_path: str = OUT_SID, codec=None) -> str:
     from src.hubbard_emu import load_sid
     from pipelines.commando.extract.sfx import extract_sfx
-    from pipelines.commando.codegen.note_codec import BitPackCodec
+    from pipelines.hubbard.note_codec import BitPackCodec
     if codec is None:
         codec = BitPackCodec()
     _, binary, load = load_sid(SID_PATH)
@@ -1145,7 +1145,7 @@ def build(subtunes=(0, 1, 2), out_path: str = OUT_SID, codec=None) -> str:
 
 def verify(sid_path: str, enabled: set, subtune: int = 0,
            n_frames: int = 1500) -> None:
-    from pipelines.commando.extract.inst_program import capture, REG_NAMES
+    from pipelines.hubbard.inst_program import capture, REG_NAMES
     from pipelines.commando.extract.song_interp import SongInterp
 
     cap = capture(sid_path, n_frames=n_frames, subtune=subtune)

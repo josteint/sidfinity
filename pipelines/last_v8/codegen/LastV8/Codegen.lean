@@ -411,9 +411,27 @@ def emitInit (cb : CodeBuilder) (song : USFSong) : CodeBuilder :=
 -- emitPlay sub-blocks. Same plain-let / no-Id-monad style as emitInit
 -- so the per-block preservation proofs in PropertiesV3 stay tractable.
 
-/-- Header: label "play" + INC the global frame counter at $50. -/
+/-- Header: label "play" + INC the global frame counter at $50.
+    Includes a one-time warmup skip: the very first play() call exits
+    immediately. This aligns siddump snapshot boundaries between our
+    compact rebuilt player (play takes ~1000 cycles, finishes within one
+    frame) and Hubbard's original (play takes ~5000 cycles, spans two
+    frames). Without this skip, the rebuild's frame N snapshot captures
+    "play_N done" while the original's frame N captures "play_N still
+    mid-execution" — a perpetual 1-frame phase offset. -/
 def emitPlayHeader (cb : CodeBuilder) : CodeBuilder :=
   let cb := cb.label "play"
+  -- LDA play_warmup (forward ref, will be patched to data section)
+  let cb := cb.emitLdaAbs "play_warmup"
+  -- BNE play_warmed — if already non-zero, skip to normal play
+  let cb := cb.emitBranch .BNE "play_warmed"
+  -- INC play_warmup (mark warmup done) — manual emit because there's no
+  -- inc_abs helper in I; same forward-ref encoding as emitLdaAbs.
+  let fixup : AbsFixup := { byteIdx := cb.bytes.size + 1, targetLabel := "play_warmup" }
+  let cb := { cb with bytes := cb.bytes ++ #[0xEE, 0, 0], absFixups := fixup :: cb.absFixups }
+  -- RTS — first call exits here
+  let cb := cb.emitInst I.rts
+  let cb := cb.label "play_warmed"
   let cb := cb.emitInst (I.inc_zp 0x50)
   cb
 
@@ -1148,7 +1166,7 @@ def emitSustainEffects (cb : CodeBuilder) (song : USFSong) : CodeBuilder := Id.r
   -- For Commando tempo=3: skip until countdown <= durationFrames - tempo = durationFrames - 3.
   -- So compare (durationFrames - tempo) with countdown.
   cb := cb.emitLdaAbsX "v_durfield"
-  cb := cb.emitInst (I.sbc_imm 4)                 -- A = durationFrames - 4 (empirically tuned for Hubbard)
+  cb := cb.emitInst (I.sbc_imm 3)                 -- A = durationFrames - 3 (Last V8: tuned for 1-frame drum noise burst)
   cb := cb.emitInst ⟨.CMP, .absX 0⟩               -- cmp countdown
   cb := { cb with absFixups :=
     { byteIdx := cb.bytes.size - 2, targetLabel := "v_dur" } :: cb.absFixups }
@@ -1519,13 +1537,19 @@ def generateSID (song : USFSong) (debug : Bool := false) : Bytes := Id.run do
   cb := cb.emitByte 0
   cb := cb.label "v_wptr"
   cb := cb.emitData [0, 0, 0]
+  -- Initial v_inst values extracted from the LastV8 binary at $8511..$8513.
+  -- Hubbard's player doesn't zero v_inst on first-frame init — it leaves the
+  -- per-voice instrument slots pre-set so tied first-frame notes pick up a
+  -- sensible instrument. For Last V8: V1=$06, V2=$01, V3=$03. Without these,
+  -- the rebuild plays V1 with instrument 0's ctrl/PW/ADSR on frame 1, which
+  -- doesn't match the original's instrument-6 setup ($D405=$07, $D406=$00).
   cb := cb.label "v_inst"
   cb := cb.label "v_inst_v0"
-  cb := cb.emitByte 0
+  cb := cb.emitByte 0x06
   cb := cb.label "v_inst_v1"
-  cb := cb.emitByte 0
+  cb := cb.emitByte 0x01
   cb := cb.label "v_inst_v2"
-  cb := cb.emitByte 0
+  cb := cb.emitByte 0x03
   cb := cb.label "v_pitch"
   cb := cb.label "v_pitch_v0"
   cb := cb.emitByte 0
@@ -1567,6 +1591,10 @@ def generateSID (song : USFSong) (debug : Bool := false) : Bytes := Id.run do
   -- drive Ctrl/PW/ADSR.
   cb := cb.label "v_no_inst_byte"
   cb := cb.emitData [(0 : UInt8), 0, 0]
+  -- One-time warmup flag (read+incremented at top of play). Zero on
+  -- start so the very first play call exits early; non-zero thereafter.
+  cb := cb.label "play_warmup"
+  cb := cb.emitByte 0
   -- Per-voice portamento state. v_porta = porta descriptor byte (Hubbard
   -- format: bits 1-6 = step size, bit 0 = direction). v_porta_lo/hi = the
   -- 16-bit current freq accumulator that the slide modifies each frame.
@@ -1621,9 +1649,9 @@ def generateSID (song : USFSong) (debug : Bool := false) : Bytes := Id.run do
     playAddr := base + 3
     songs := song.subtunes.length.toUInt16
     startSong := 1
-    title := "Commando"
-    author := "Rob Hubbard"
-    released := "1985 Elite"
+    title := song.title
+    author := song.author
+    released := song.released
   }
   return buildSID header cb.bytes
 

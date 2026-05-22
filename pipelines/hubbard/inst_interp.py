@@ -27,10 +27,10 @@ from __future__ import annotations
 import os
 import sys
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(
-    os.path.dirname(os.path.abspath(__file__))))))
+sys.path.insert(0, os.path.dirname(os.path.dirname(
+    os.path.dirname(os.path.abspath(__file__)))))
 
-from pipelines.commando.extract.inst_generalize import (  # noqa: E402
+from pipelines.hubbard.inst_generalize import (  # noqa: E402
     HR_FRAMES, InstrumentModel, R_AD, R_CTRL, R_FREQ_HI, R_FREQ_LO,
     R_PW_HI, R_PW_LO, R_SR, decode_all)
 
@@ -230,7 +230,7 @@ def verify(model: InstrumentModel, occs, freq_table, resetspd) -> dict:
 def _first_diff(model, o, freq_table, resetspd) -> str:
     pred = render_note(model, o.pitch, o.n_frames, freq_table, o.frame_ctr0,
                        resetspd[o.subtune], _pw_seed(o))
-    from pipelines.commando.extract.inst_program import REG_NAMES
+    from pipelines.hubbard.inst_program import REG_NAMES
     for k in range(o.n_frames):
         if pred[k] != o.writes[k]:
             def fmt(fw):
@@ -242,8 +242,8 @@ def _first_diff(model, o, freq_table, resetspd) -> str:
 
 def main(argv: list[str]) -> None:
     from pipelines.commando.extract.engine_model import extract
-    from pipelines.commando.extract.inst_program import SID_PATH
-    from pipelines.commando.extract.inst_generalize import capture_all_subtunes
+    from pipelines.hubbard.inst_program import SID_PATH
+    from pipelines.hubbard.inst_generalize import capture_all_subtunes
     from src.hubbard_emu import load_sid
 
     freq_table = extract().freq_table

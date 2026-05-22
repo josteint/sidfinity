@@ -1,459 +1,155 @@
--- Auto-generated USF v3 MasterOfMagic on the Run data
--- Subtunes: [0] (0-indexed; PSID subtunes [1])
-import MasterOfMagic.USF
+-- Master of Magic song data (subtune 0 = PSID track #1)
+-- Extracted directly from demo/hubbard/Master_of_Magic_original.sid
+-- Binary: $BFF8-$CBE7, load addr $BFF8
+import MasterOfMagic.Codegen
 
-def master_of_magicV3FreqTable : USFFreqTable := { entries := [(⟨22, by omega⟩, ⟨1, by omega⟩), (⟨39, by omega⟩, ⟨1, by omega⟩), (⟨56, by omega⟩, ⟨1, by omega⟩), (⟨75, by omega⟩, ⟨1, by omega⟩), (⟨95, by omega⟩, ⟨1, by omega⟩), (⟨115, by omega⟩, ⟨1, by omega⟩), (⟨138, by omega⟩, ⟨1, by omega⟩), (⟨161, by omega⟩, ⟨1, by omega⟩), (⟨186, by omega⟩, ⟨1, by omega⟩), (⟨212, by omega⟩, ⟨1, by omega⟩), (⟨240, by omega⟩, ⟨1, by omega⟩), (⟨14, by omega⟩, ⟨2, by omega⟩), (⟨45, by omega⟩, ⟨2, by omega⟩), (⟨78, by omega⟩, ⟨2, by omega⟩), (⟨113, by omega⟩, ⟨2, by omega⟩), (⟨150, by omega⟩, ⟨2, by omega⟩), (⟨189, by omega⟩, ⟨2, by omega⟩), (⟨231, by omega⟩, ⟨2, by omega⟩), (⟨19, by omega⟩, ⟨3, by omega⟩), (⟨66, by omega⟩, ⟨3, by omega⟩), (⟨116, by omega⟩, ⟨3, by omega⟩), (⟨169, by omega⟩, ⟨3, by omega⟩), (⟨224, by omega⟩, ⟨3, by omega⟩), (⟨27, by omega⟩, ⟨4, by omega⟩), (⟨90, by omega⟩, ⟨4, by omega⟩), (⟨155, by omega⟩, ⟨4, by omega⟩), (⟨226, by omega⟩, ⟨4, by omega⟩), (⟨44, by omega⟩, ⟨5, by omega⟩), (⟨123, by omega⟩, ⟨5, by omega⟩), (⟨206, by omega⟩, ⟨5, by omega⟩), (⟨39, by omega⟩, ⟨6, by omega⟩), (⟨133, by omega⟩, ⟨6, by omega⟩), (⟨232, by omega⟩, ⟨6, by omega⟩), (⟨81, by omega⟩, ⟨7, by omega⟩), (⟨193, by omega⟩, ⟨7, by omega⟩), (⟨55, by omega⟩, ⟨8, by omega⟩), (⟨180, by omega⟩, ⟨8, by omega⟩), (⟨55, by omega⟩, ⟨9, by omega⟩), (⟨196, by omega⟩, ⟨9, by omega⟩), (⟨87, by omega⟩, ⟨10, by omega⟩), (⟨245, by omega⟩, ⟨10, by omega⟩), (⟨156, by omega⟩, ⟨11, by omega⟩), (⟨78, by omega⟩, ⟨12, by omega⟩), (⟨9, by omega⟩, ⟨13, by omega⟩), (⟨208, by omega⟩, ⟨13, by omega⟩), (⟨163, by omega⟩, ⟨14, by omega⟩), (⟨130, by omega⟩, ⟨15, by omega⟩), (⟨110, by omega⟩, ⟨16, by omega⟩), (⟨104, by omega⟩, ⟨17, by omega⟩), (⟨110, by omega⟩, ⟨18, by omega⟩), (⟨136, by omega⟩, ⟨19, by omega⟩), (⟨175, by omega⟩, ⟨20, by omega⟩), (⟨235, by omega⟩, ⟨21, by omega⟩), (⟨57, by omega⟩, ⟨23, by omega⟩), (⟨156, by omega⟩, ⟨24, by omega⟩), (⟨19, by omega⟩, ⟨26, by omega⟩), (⟨161, by omega⟩, ⟨27, by omega⟩), (⟨70, by omega⟩, ⟨29, by omega⟩), (⟨4, by omega⟩, ⟨31, by omega⟩), (⟨220, by omega⟩, ⟨32, by omega⟩), (⟨208, by omega⟩, ⟨34, by omega⟩), (⟨220, by omega⟩, ⟨36, by omega⟩), (⟨16, by omega⟩, ⟨39, by omega⟩), (⟨94, by omega⟩, ⟨41, by omega⟩), (⟨214, by omega⟩, ⟨43, by omega⟩), (⟨114, by omega⟩, ⟨46, by omega⟩), (⟨56, by omega⟩, ⟨49, by omega⟩), (⟨38, by omega⟩, ⟨52, by omega⟩), (⟨66, by omega⟩, ⟨55, by omega⟩), (⟨140, by omega⟩, ⟨58, by omega⟩), (⟨8, by omega⟩, ⟨62, by omega⟩), (⟨184, by omega⟩, ⟨65, by omega⟩), (⟨160, by omega⟩, ⟨69, by omega⟩), (⟨184, by omega⟩, ⟨73, by omega⟩), (⟨32, by omega⟩, ⟨78, by omega⟩), (⟨188, by omega⟩, ⟨82, by omega⟩), (⟨172, by omega⟩, ⟨87, by omega⟩), (⟨228, by omega⟩, ⟨92, by omega⟩), (⟨112, by omega⟩, ⟨98, by omega⟩), (⟨76, by omega⟩, ⟨104, by omega⟩), (⟨132, by omega⟩, ⟨110, by omega⟩), (⟨24, by omega⟩, ⟨117, by omega⟩), (⟨16, by omega⟩, ⟨124, by omega⟩), (⟨112, by omega⟩, ⟨131, by omega⟩), (⟨64, by omega⟩, ⟨139, by omega⟩), (⟨112, by omega⟩, ⟨147, by omega⟩), (⟨64, by omega⟩, ⟨156, by omega⟩), (⟨120, by omega⟩, ⟨165, by omega⟩), (⟨88, by omega⟩, ⟨175, by omega⟩), (⟨200, by omega⟩, ⟨185, by omega⟩), (⟨224, by omega⟩, ⟨196, by omega⟩), (⟨152, by omega⟩, ⟨208, by omega⟩), (⟨8, by omega⟩, ⟨221, by omega⟩), (⟨48, by omega⟩, ⟨234, by omega⟩), (⟨32, by omega⟩, ⟨248, by omega⟩), (⟨46, by omega⟩, ⟨253, by omega⟩), (⟨0, by omega⟩, ⟨7, by omega⟩), (⟨14, by omega⟩, ⟨0, by omega⟩), (⟨0, by omega⟩, ⟨0, by omega⟩), (⟨0, by omega⟩, ⟨0, by omega⟩), (⟨0, by omega⟩, ⟨0, by omega⟩), (⟨0, by omega⟩, ⟨0, by omega⟩), (⟨0, by omega⟩, ⟨15, by omega⟩), (⟨79, by omega⟩, ⟨15, by omega⟩), (⟨17, by omega⟩, ⟨21, by omega⟩), (⟨65, by omega⟩, ⟨0, by omega⟩), (⟨0, by omega⟩, ⟨0, by omega⟩), (⟨7, by omega⟩, ⟨14, by omega⟩), (⟨3, by omega⟩, ⟨255, by omega⟩), (⟨15, by omega⟩, ⟨22, by omega⟩), (⟨0, by omega⟩, ⟨17, by omega⟩), (⟨0, by omega⟩, ⟨0, by omega⟩), (⟨2, by omega⟩, ⟨0, by omega⟩), (⟨22, by omega⟩, ⟨1, by omega⟩), (⟨0, by omega⟩, ⟨1, by omega⟩), (⟨0, by omega⟩, ⟨0, by omega⟩), (⟨1, by omega⟩, ⟨0, by omega⟩), (⟨1, by omega⟩, ⟨0, by omega⟩), (⟨1, by omega⟩, ⟨56, by omega⟩), (⟨0, by omega⟩, ⟨0, by omega⟩), (⟨0, by omega⟩, ⟨0, by omega⟩), (⟨0, by omega⟩, ⟨0, by omega⟩), (⟨0, by omega⟩, ⟨0, by omega⟩), (⟨0, by omega⟩, ⟨0, by omega⟩), (⟨0, by omega⟩, ⟨0, by omega⟩), (⟨0, by omega⟩, ⟨0, by omega⟩), (⟨0, by omega⟩, ⟨0, by omega⟩), (⟨0, by omega⟩, ⟨0, by omega⟩)] }
+open MasterOfMagicNS
 
-def mv3I0 : USFInstrument := {
-  initCtrl := ⟨65, by omega⟩
-  initPwLo := ⟨0, by omega⟩
-  initPwHi := ⟨2, by omega⟩
-  ad := ⟨73, by omega⟩
-  sr := ⟨108, by omega⟩
-  initFreqMod := .normal
-  waveformProgram := [⟨65, by omega⟩]
-  waveLoop := 0
-  waveStepEvery := 1
-  pwMod := none
-  vibrato := some { shape := .triangle, periodFrames := 8, semitoneShift := 3, onsetFrames := 6, rampUpFrames := 0, unipolar := true }
-  freqSlide := none
-  arpeggio := none
-  effectOrder := [.vibrato, .pwMod, .gateCheck]
-  release := { framesBeforeEnd := 3, zeroAdsr := true, noRelease := false }
-  filterEnabled := false
-  skydive := false
-}
+def master_of_magicV3 : MoMSong := {
+  -- Frequency table at $C32F: 96 semitones × 2 bytes (lo, hi)
+  freqLo := [22, 39, 56, 75, 95, 115, 138, 161, 186, 212, 240, 14, 45, 78, 113, 150, 189, 231, 19, 66, 116, 169, 224, 27, 90, 155, 226, 44, 123, 206, 39, 133, 232, 81, 193, 55, 180, 55, 196, 87, 245, 156, 78, 9, 208, 163, 130, 110, 104, 110, 136, 175, 235, 57, 156, 19, 161, 70, 4, 220, 208, 220, 16, 94, 214, 114, 56, 38, 66, 140, 8, 184, 160, 184, 32, 188, 172, 228, 112, 76, 132, 24, 16, 112, 64, 112, 64, 120, 88, 200, 224, 152, 8, 48, 32, 46]
+  freqHi := [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 6, 6, 6, 7, 7, 8, 8, 9, 9, 10, 10, 11, 12, 13, 13, 14, 15, 16, 17, 18, 19, 20, 21, 23, 24, 26, 27, 29, 31, 32, 34, 36, 39, 41, 43, 46, 49, 52, 55, 58, 62, 65, 69, 73, 78, 82, 87, 92, 98, 104, 110, 117, 124, 131, 139, 147, 156, 165, 175, 185, 196, 208, 221, 234, 248, 253]
 
-def mv3I1 : USFInstrument := {
-  initCtrl := ⟨65, by omega⟩
-  initPwLo := ⟨160, by omega⟩
-  initPwHi := ⟨7, by omega⟩
-  ad := ⟨89, by omega⟩
-  sr := ⟨108, by omega⟩
-  initFreqMod := .normal
-  waveformProgram := [⟨65, by omega⟩]
-  waveLoop := 0
-  waveStepEvery := 1
-  pwMod := none
-  vibrato := some { shape := .triangle, periodFrames := 8, semitoneShift := 3, onsetFrames := 6, rampUpFrames := 0, unipolar := true }
-  freqSlide := none
-  arpeggio := none
-  effectOrder := [.vibrato, .pwMod, .gateCheck]
-  release := { framesBeforeEnd := 3, zeroAdsr := true, noRelease := false }
-  filterEnabled := false
-  skydive := false
-}
+  -- Instrument table at $C427: 17 instruments × 8 bytes
+  -- Fields: pw_lo, pw_hi, ctrl, AD, SR, vib_depth, vib_period, fx_flags
+  instruments := [
+    { pwLo := 0,   pwHi := 2,  ctrl := 65,  ad := 73,  sr := 108, vibDepth := 2, vibPeriod := 0,   fxFlags := 0 },  -- inst0
+    { pwLo := 160, pwHi := 7,  ctrl := 65,  ad := 89,  sr := 108, vibDepth := 2, vibPeriod := 0,   fxFlags := 0 },  -- inst1
+    { pwLo := 0,   pwHi := 1,  ctrl := 65,  ad := 120, sr := 140, vibDepth := 3, vibPeriod := 0,   fxFlags := 0 },  -- inst2
+    { pwLo := 16,  pwHi := 1,  ctrl := 65,  ad := 11,  sr := 0,   vibDepth := 0, vibPeriod := 16,  fxFlags := 8 },  -- inst3  (bit3=simple PWM)
+    { pwLo := 0,   pwHi := 1,  ctrl := 129, ad := 10,  sr := 9,   vibDepth := 0, vibPeriod := 0,   fxFlags := 5 },  -- inst4  (bit0=skydive, bit2=table-arp)
+    { pwLo := 0,   pwHi := 1,  ctrl := 65,  ad := 121, sr := 192, vibDepth := 2, vibPeriod := 0,   fxFlags := 0 },  -- inst5
+    { pwLo := 0,   pwHi := 8,  ctrl := 65,  ad := 9,   sr := 48,  vibDepth := 2, vibPeriod := 0,   fxFlags := 4 },  -- inst6  (bit2=table-arp)
+    { pwLo := 0,   pwHi := 8,  ctrl := 17,  ad := 15,  sr := 15,  vibDepth := 0, vibPeriod := 0,   fxFlags := 5 },  -- inst7  (bit0=skydive, bit2=table-arp)
+    { pwLo := 0,   pwHi := 8,  ctrl := 17,  ad := 11,  sr := 0,   vibDepth := 0, vibPeriod := 0,   fxFlags := 4 },  -- inst8  (bit2=table-arp)
+    { pwLo := 0,   pwHi := 8,  ctrl := 17,  ad := 10,  sr := 160, vibDepth := 2, vibPeriod := 0,   fxFlags := 0 },  -- inst9
+    { pwLo := 128, pwHi := 9,  ctrl := 65,  ad := 120, sr := 80,  vibDepth := 2, vibPeriod := 65,  fxFlags := 0 },  -- inst10
+    { pwLo := 0,   pwHi := 2,  ctrl := 65,  ad := 8,   sr := 6,   vibDepth := 0, vibPeriod := 0,   fxFlags := 1 },  -- inst11 (bit0=skydive)
+    { pwLo := 112, pwHi := 4,  ctrl := 65,  ad := 12,  sr := 32,  vibDepth := 1, vibPeriod := 121, fxFlags := 10 }, -- inst12 (bit1=slow-descent, bit3=simple PWM)
+    { pwLo := 128, pwHi := 9,  ctrl := 65,  ad := 15,  sr := 240, vibDepth := 0, vibPeriod := 65,  fxFlags := 0 },  -- inst13
+    { pwLo := 0,   pwHi := 8,  ctrl := 21,  ad := 10,  sr := 9,   vibDepth := 0, vibPeriod := 0,   fxFlags := 5 },  -- inst14 (bit0=skydive, bit2=table-arp)
+    { pwLo := 0,   pwHi := 8,  ctrl := 65,  ad := 3,   sr := 80,  vibDepth := 0, vibPeriod := 0,   fxFlags := 4 },  -- inst15 (bit2=table-arp)
+    { pwLo := 0,   pwHi := 8,  ctrl := 21,  ad := 5,   sr := 10,  vibDepth := 0, vibPeriod := 0,   fxFlags := 5 }   -- inst16 (bit0=skydive, bit2=table-arp)
+  ]
 
-def mv3I2 : USFInstrument := {
-  initCtrl := ⟨65, by omega⟩
-  initPwLo := ⟨0, by omega⟩
-  initPwHi := ⟨1, by omega⟩
-  ad := ⟨120, by omega⟩
-  sr := ⟨140, by omega⟩
-  initFreqMod := .normal
-  waveformProgram := [⟨65, by omega⟩]
-  waveLoop := 0
-  waveStepEvery := 1
-  pwMod := none
-  vibrato := some { shape := .triangle, periodFrames := 8, semitoneShift := 4, onsetFrames := 6, rampUpFrames := 0, unipolar := true }
-  freqSlide := none
-  arpeggio := none
-  effectOrder := [.vibrato, .pwMod, .gateCheck]
-  release := { framesBeforeEnd := 3, zeroAdsr := true, noRelease := false }
-  filterEnabled := false
-  skydive := false
-}
+  -- Orderlist for subtune 0, voice 1 ($C519, 72 bytes)
+  olV1 := [0, 0, 0, 0, 27, 29, 29, 5, 6, 5, 6, 5, 10, 11, 11, 12, 12, 13, 15, 17, 17, 18, 18, 19, 20, 20, 20, 20, 23, 25, 27, 29, 29, 29, 1, 2, 2, 3, 30, 30, 32, 5, 6, 5, 10, 19, 18, 18, 15, 17, 17, 20, 20, 20, 20, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255]
 
-def mv3I3 : USFInstrument := {
-  initCtrl := ⟨65, by omega⟩
-  initPwLo := ⟨16, by omega⟩
-  initPwHi := ⟨1, by omega⟩
-  ad := ⟨11, by omega⟩
-  sr := ⟨0, by omega⟩
-  initFreqMod := .normal
-  waveformProgram := [⟨65, by omega⟩]
-  waveLoop := 0
-  waveStepEvery := 1
-  pwMod := some { mode := .linear ⟨16, by omega⟩, stepEvery := 1, startDelay := 0 }
-  vibrato := none
-  freqSlide := none
-  arpeggio := none
-  effectOrder := [.pwMod, .gateCheck]
-  release := { framesBeforeEnd := 3, zeroAdsr := true, noRelease := false }
-  filterEnabled := false
-  skydive := false
-}
+  -- Orderlist for subtune 0, voice 2 ($C561, 176 bytes)
+  olV2 := [9, 9, 9, 9, 9, 9, 9, 9, 22, 22, 22, 22, 9, 9, 34, 34, 9, 9, 34, 34, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 34, 34, 9, 9, 9, 9, 9, 9, 9, 34, 34, 9, 9, 34, 34, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 22, 22, 22, 22, 22, 22, 22, 22, 22, 22, 22, 22, 22, 22, 22, 22, 9, 9, 9, 9, 9, 22, 9, 9, 9, 9, 9, 22, 9, 9, 9, 9, 22, 22, 22, 22, 22, 22, 9, 9, 9, 9, 31, 31, 31, 31, 9, 9, 9, 9, 9, 9, 22, 22, 9, 9, 9, 9, 31, 31, 31, 31, 22, 22, 22, 22, 31, 31, 31, 31, 31, 31, 31, 31, 9, 22, 9, 22, 9, 9, 9, 9, 9, 9, 9, 9, 22, 22, 22, 22, 22, 22, 22, 22, 22, 22, 22, 22, 22, 22, 22, 22, 35, 35, 35, 35, 35, 35, 35, 35, 0, 0, 0, 0, 0, 0, 0, 0, 255]
 
-def mv3I4 : USFInstrument := {
-  initCtrl := ⟨129, by omega⟩
-  initPwLo := ⟨0, by omega⟩
-  initPwHi := ⟨1, by omega⟩
-  ad := ⟨10, by omega⟩
-  sr := ⟨9, by omega⟩
-  initFreqMod := .normal
-  waveformProgram := [⟨129, by omega⟩, ⟨128, by omega⟩, ⟨128, by omega⟩, ⟨128, by omega⟩, ⟨128, by omega⟩]
-  waveLoop := 4
-  waveStepEvery := 1
-  pwMod := none
-  vibrato := none
-  freqSlide := some { kind := .monotonic (-1), stepEvery := 1, startDelay := 9, stopAtZero := true }
-  arpeggio := some { intervals := [0, 12], stepEvery := 1, phaseSource := .global, startDelay := 0 }
-  effectOrder := [.pwMod, .freqSlide, .arpeggio, .gateCheck]
-  release := { framesBeforeEnd := 3, zeroAdsr := true, noRelease := false }
-  filterEnabled := false
-  skydive := false
-}
+  -- Orderlist for subtune 0, voice 3 ($C611, 125 bytes)
+  olV3 := [0, 0, 0, 0, 28, 7, 7, 7, 7, 4, 4, 7, 7, 4, 4, 7, 7, 4, 4, 7, 7, 8, 8, 8, 8, 7, 7, 4, 4, 14, 16, 16, 4, 4, 7, 7, 4, 4, 7, 7, 8, 8, 8, 8, 8, 8, 8, 8, 7, 7, 7, 7, 21, 21, 24, 26, 28, 7, 7, 7, 7, 7, 7, 4, 4, 7, 7, 8, 8, 14, 14, 33, 4, 4, 7, 7, 4, 4, 7, 7, 8, 8, 8, 8, 7, 7, 7, 7, 8, 8, 8, 8, 8, 8, 8, 8, 16, 16, 4, 4, 7, 7, 4, 4, 7, 7, 21, 21, 36, 36, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255]
 
-def mv3I5 : USFInstrument := {
-  initCtrl := ⟨65, by omega⟩
-  initPwLo := ⟨0, by omega⟩
-  initPwHi := ⟨1, by omega⟩
-  ad := ⟨121, by omega⟩
-  sr := ⟨192, by omega⟩
-  initFreqMod := .normal
-  waveformProgram := [⟨65, by omega⟩]
-  waveLoop := 0
-  waveStepEvery := 1
-  pwMod := none
-  vibrato := some { shape := .triangle, periodFrames := 8, semitoneShift := 3, onsetFrames := 6, rampUpFrames := 0, unipolar := true }
-  freqSlide := none
-  arpeggio := none
-  effectOrder := [.vibrato, .pwMod, .gateCheck]
-  release := { framesBeforeEnd := 3, zeroAdsr := true, noRelease := false }
-  filterEnabled := false
-  skydive := false
-}
+  -- Pattern pointer lo/hi tables ($C4C7/$C4F0, 41 entries)
+  patPtrLo := [191, 198, 248, 42, 90, 28, 58, 104, 118, 249, 74, 164, 180, 196, 132, 212, 146, 239, 51, 120, 182, 161, 13, 204, 3, 54, 108, 163, 201, 239, 17, 33, 98, 195, 53, 73, 85, 104, 91, 194, 201]
+  patPtrHi := [198, 198, 198, 199, 203, 200, 200, 203, 203, 202, 200, 200, 200, 200, 203, 200, 203, 200, 201, 201, 201, 203, 203, 201, 202, 202, 202, 202, 202, 202, 199, 203, 199, 199, 203, 203, 203, 199, 199, 198, 198]
 
-def mv3I6 : USFInstrument := {
-  initCtrl := ⟨65, by omega⟩
-  initPwLo := ⟨0, by omega⟩
-  initPwHi := ⟨8, by omega⟩
-  ad := ⟨9, by omega⟩
-  sr := ⟨48, by omega⟩
-  initFreqMod := .normal
-  waveformProgram := [⟨65, by omega⟩]
-  waveLoop := 0
-  waveStepEvery := 1
-  pwMod := none
-  vibrato := some { shape := .triangle, periodFrames := 8, semitoneShift := 3, onsetFrames := 6, rampUpFrames := 0, unipolar := true }
-  freqSlide := none
-  arpeggio := some { intervals := [0, 12], stepEvery := 1, phaseSource := .global, startDelay := 0 }
-  effectOrder := [.vibrato, .pwMod, .arpeggio, .gateCheck]
-  release := { framesBeforeEnd := 3, zeroAdsr := true, noRelease := false }
-  filterEnabled := false
-  skydive := false
-}
+  -- Pattern raw bytes (41 patterns, each $FF-terminated)
+  patterns := [
+    -- pat0 @ $C6BF
+    [95, 79, 255],
+    -- pat1 @ $C6C6
+    [131, 10, 72, 3, 60, 3, 70, 3, 69, 3, 67, 3, 60, 3, 70, 3, 60, 3, 69, 3, 60, 3, 65, 3, 60, 3, 67, 3, 55, 3, 65, 3, 64, 3, 62, 3, 55, 3, 65, 3, 55, 3, 64, 3, 55, 3, 60, 3, 55, 255],
+    -- pat2 @ $C6F8
+    [3, 74, 3, 62, 3, 71, 3, 62, 3, 69, 3, 71, 3, 72, 3, 62, 3, 71, 3, 62, 3, 67, 3, 62, 255],
+    -- pat3 @ $C72A
+    [3, 75, 3, 63, 3, 73, 3, 72, 3, 70, 3, 63, 3, 73, 3, 63, 3, 72, 3, 63, 3, 68, 3, 63, 3, 70, 3, 58, 3, 68, 3, 67, 3, 65, 3, 58, 3, 68, 3, 58, 3, 67, 3, 58, 3, 63, 3, 58, 255],
+    -- pat4 @ $CB5A
+    [143, 3, 24, 135, 4, 46, 135, 3, 36, 7, 29, 7, 31, 255],
+    -- pat5 @ $C81C
+    [135, 5, 60, 3, 58, 3, 57, 7, 55, 7, 58, 7, 57, 7, 53, 7, 55, 7, 51, 3, 50, 3, 51, 7, 53, 7, 51, 7, 48, 255],
+    -- pat6 @ $C83A
+    [143, 6, 79, 15, 77, 7, 74, 7, 75, 15, 74, 15, 72, 15, 71, 255],
+    -- pat7 @ $CB68
+    [143, 3, 19, 135, 4, 46, 135, 3, 31, 7, 24, 7, 26, 255],
+    -- pat8 @ $CB76
+    [143, 3, 27, 135, 4, 46, 135, 3, 39, 7, 32, 7, 34, 255],
+    -- pat9 @ $CAF9
+    [135, 7, 31, 135, 8, 60, 7, 48, 135, 7, 31, 135, 8, 60, 3, 48, 131, 7, 31, 255],
+    -- pat10 @ $C84A
+    [135, 5, 55, 7, 52, 3, 50, 3, 52, 7, 53, 7, 52, 7, 48, 7, 47, 135, 1, 62, 3, 57, 3, 59, 7, 60, 7, 59, 7, 62, 7, 63, 131, 9, 79, 3, 75, 7, 74, 7, 77, 7, 75, 7, 72, 7, 70, 3, 79, 3, 75, 7, 74, 7, 77, 7, 75, 7, 74, 7, 63, 135, 10, 67, 3, 62, 3, 63, 7, 65, 7, 63, 7, 60, 7, 58, 131, 9, 79, 3, 75, 7, 74, 7, 77, 7, 75, 7, 72, 255],
+    -- pat11 @ $C8A4
+    [135, 10, 65, 3, 65, 3, 62, 7, 60, 7, 63, 7, 62, 7, 58, 255],
+    -- pat12 @ $C8B4
+    [135, 6, 79, 3, 79, 3, 75, 7, 74, 7, 77, 7, 75, 7, 72, 255],
+    -- pat13 @ $C8C4
+    [7, 74, 131, 1, 50, 3, 51, 7, 50, 7, 48, 7, 50, 7, 46, 255],
+    -- pat14 @ $CB84
+    [143, 3, 22, 135, 4, 46, 135, 3, 34, 7, 27, 7, 29, 255],
+    -- pat15 @ $C8D4
+    [143, 6, 51, 7, 51, 7, 51, 15, 50, 63, 48, 15, 48, 143, 6, 55, 7, 55, 7, 55, 15, 53, 63, 52, 15, 52, 255],
+    -- pat16 @ $CB92
+    [143, 3, 27, 143, 4, 46, 143, 3, 22, 31, 24, 143, 4, 50, 255],
+    -- pat17 @ $C8EF
+    [135, 5, 72, 3, 70, 3, 69, 7, 67, 7, 70, 2, 69, 1, 70, 2, 69, 7, 65, 7, 67, 7, 63, 3, 62, 3, 63, 7, 65, 2, 63, 1, 65, 2, 63, 7, 60, 135, 5, 62, 131, 9, 86, 3, 83, 7, 81, 7, 84, 7, 83, 7, 79, 7, 86, 7, 83, 3, 81, 3, 83, 7, 84, 7, 83, 7, 79, 255],
+    -- pat18 @ $C933
+    [135, 6, 82, 135, 10, 75, 7, 77, 3, 75, 3, 74, 7, 72, 3, 74, 3, 75, 31, 70, 67, 129, 6, 46, 1, 51, 1, 58, 1, 63, 1, 70, 1, 75, 135, 6, 82, 135, 10, 75, 7, 77, 3, 75, 3, 74, 7, 72, 3, 74, 3, 75, 31, 79, 67, 129, 6, 46, 1, 51, 1, 58, 1, 63, 1, 70, 1, 75, 255],
+    -- pat19 @ $C978
+    [135, 6, 79, 131, 7, 67, 3, 68, 7, 67, 7, 65, 7, 67, 7, 68, 7, 62, 131, 1, 62, 3, 63, 7, 62, 7, 60, 7, 62, 7, 63, 7, 55, 131, 7, 55, 3, 56, 7, 55, 7, 53, 7, 55, 7, 56, 7, 50, 131, 1, 50, 3, 51, 7, 50, 7, 48, 7, 47, 7, 43, 255],
+    -- pat20 @ $C9B6
+    [191, 12, 79, 15, 79, 23, 80, 7, 74, 7, 79, 7, 80, 31, 80, 15, 73, 63, 79, 15, 79, 255],
+    -- pat21 @ $CBA1
+    [191, 13, 24, 15, 24, 63, 19, 15, 19, 63, 17, 15, 17, 63, 19, 15, 19, 63, 27, 15, 27, 63, 29, 15, 29, 63, 25, 15, 25, 63, 19, 15, 19, 255],
+    -- pat22 @ $CB0D
+    [135, 7, 31, 135, 14, 72, 7, 48, 135, 7, 31, 135, 14, 72, 3, 48, 131, 7, 31, 255],
+    -- pat23 @ $C9CC
+    [135, 8, 72, 3, 70, 3, 69, 7, 67, 7, 70, 7, 69, 7, 65, 7, 67, 7, 63, 3, 62, 3, 63, 7, 65, 7, 63, 7, 60, 15, 62, 15, 60, 135, 3, 60, 7, 62, 15, 63, 15, 65, 15, 62, 15, 60, 15, 56, 15, 58, 63, 55, 15, 55, 255],
+    -- pat24 @ $CA03
+    [159, 8, 36, 7, 60, 3, 58, 3, 57, 7, 55, 7, 58, 7, 57, 7, 53, 7, 55, 7, 51, 3, 50, 3, 51, 7, 53, 7, 51, 7, 48, 143, 3, 43, 15, 44, 15, 46, 15, 43, 15, 53, 15, 49, 15, 51, 63, 48, 15, 48, 255],
+    -- pat25 @ $CA36
+    [159, 3, 31, 135, 15, 79, 3, 77, 3, 76, 7, 74, 7, 77, 7, 76, 7, 72, 7, 74, 7, 71, 3, 69, 3, 71, 7, 72, 7, 71, 7, 67, 135, 3, 55, 7, 57, 15, 58, 15, 60, 15, 57, 15, 55, 15, 51, 15, 53, 63, 50, 15, 50, 255],
+    -- pat26 @ $CA6C
+    [135, 15, 67, 3, 65, 3, 64, 7, 62, 7, 65, 7, 64, 7, 60, 7, 62, 7, 59, 3, 57, 3, 59, 7, 60, 7, 59, 7, 55, 143, 3, 45, 15, 47, 7, 48, 7, 50, 15, 51, 15, 53, 15, 50, 15, 48, 15, 44, 15, 46, 63, 43, 15, 43, 255],
+    -- pat27 @ $CAA3
+    [143, 3, 48, 7, 46, 7, 45, 15, 43, 15, 46, 7, 45, 3, 46, 3, 45, 15, 41, 15, 43, 15, 39, 7, 38, 7, 39, 15, 41, 7, 39, 3, 41, 3, 39, 15, 36, 255],
+    -- pat28 @ $CAC9
+    [143, 3, 41, 7, 39, 7, 38, 15, 36, 15, 39, 7, 38, 3, 39, 3, 38, 15, 34, 15, 36, 15, 32, 7, 31, 7, 32, 15, 34, 7, 32, 3, 34, 3, 32, 15, 29, 255],
+    -- pat29 @ $CAEF
+    [191, 0, 43, 47, 43, 63, 43, 47, 43, 255],
+    -- pat30 @ $C711
+    [3, 70, 3, 58, 3, 68, 3, 67, 3, 65, 3, 58, 3, 68, 3, 58, 3, 67, 3, 58, 3, 63, 3, 58, 255],
+    -- pat31 @ $CB21
+    [135, 7, 31, 135, 8, 70, 7, 58, 135, 7, 31, 135, 8, 70, 3, 58, 131, 7, 31, 255],
+    -- pat32 @ $C762
+    [135, 4, 40, 131, 9, 91, 3, 92, 3, 91, 3, 55, 3, 89, 3, 55, 3, 91, 3, 55, 3, 93, 3, 55, 3, 86, 3, 55, 3, 86, 3, 87, 3, 86, 3, 55, 3, 84, 3, 55, 3, 86, 3, 55, 3, 87, 3, 55, 3, 79, 3, 55, 3, 79, 3, 80, 3, 79, 3, 55, 3, 77, 3, 55, 3, 79, 3, 55, 3, 80, 3, 55, 3, 74, 3, 55, 3, 74, 3, 75, 3, 74, 3, 55, 3, 72, 3, 55, 3, 71, 3, 55, 3, 67, 3, 55, 255],
+    -- pat33 @ $C7C3
+    [151, 3, 19, 131, 9, 79, 3, 80, 3, 79, 3, 55, 3, 77, 3, 55, 3, 79, 3, 55, 3, 80, 3, 55, 3, 74, 3, 55, 3, 74, 3, 75, 3, 74, 3, 55, 3, 72, 3, 55, 3, 74, 3, 55, 3, 75, 3, 55, 3, 67, 3, 55, 3, 67, 3, 68, 3, 67, 3, 55, 3, 65, 3, 55, 3, 67, 3, 55, 3, 68, 3, 55, 3, 62, 3, 55, 3, 62, 3, 63, 3, 59, 3, 55, 3, 55, 3, 55, 255],
+    -- pat34 @ $CB35
+    [135, 7, 31, 135, 16, 91, 7, 91, 135, 7, 31, 135, 16, 91, 3, 91, 131, 7, 31, 255],
+    -- pat35 @ $CB49
+    [71, 135, 14, 72, 7, 48, 71, 7, 72, 7, 48, 255],
+    -- pat36 @ $CB55
+    [63, 24, 15, 24, 255],
+    -- pat37 @ $C768
+    [3, 92, 3, 91, 3, 55, 3, 89, 3, 55, 3, 91, 3, 55, 3, 93, 3, 55, 3, 86, 3, 55, 3, 86, 3, 87, 3, 86, 3, 55, 3, 84, 3, 55, 3, 86, 3, 55, 3, 87, 3, 55, 3, 79, 3, 55, 3, 79, 3, 80, 3, 79, 3, 55, 3, 77, 3, 55, 3, 79, 3, 55, 3, 80, 3, 55, 3, 74, 3, 55, 3, 74, 3, 75, 3, 74, 3, 55, 3, 72, 3, 55, 3, 71, 3, 55, 3, 67, 3, 55, 255],
+    -- pat38 @ $C75B
+    [135, 4, 40, 131, 11, 91, 255],
+    -- pat39 @ $C6C2
+    [131, 7, 72, 255],
+    -- pat40 @ $C6C9
+    [3, 60, 3, 70, 3, 69, 3, 67, 3, 60, 3, 70, 3, 60, 3, 69, 3, 60, 3, 65, 3, 60, 3, 67, 3, 55, 3, 65, 3, 64, 3, 62, 3, 55, 3, 65, 3, 55, 3, 64, 3, 55, 3, 60, 3, 55, 255]
+  ]
 
-def mv3I7 : USFInstrument := {
-  initCtrl := ⟨17, by omega⟩
-  initPwLo := ⟨0, by omega⟩
-  initPwHi := ⟨8, by omega⟩
-  ad := ⟨15, by omega⟩
-  sr := ⟨15, by omega⟩
-  initFreqMod := .normal
-  waveformProgram := [⟨17, by omega⟩, ⟨128, by omega⟩, ⟨128, by omega⟩, ⟨128, by omega⟩, ⟨16, by omega⟩]
-  waveLoop := 4
-  waveStepEvery := 1
-  pwMod := none
-  vibrato := none
-  freqSlide := some { kind := .monotonic (-1), stepEvery := 1, startDelay := 9, stopAtZero := true }
-  arpeggio := some { intervals := [0, 12], stepEvery := 1, phaseSource := .global, startDelay := 0 }
-  effectOrder := [.pwMod, .freqSlide, .arpeggio, .gateCheck]
-  release := { framesBeforeEnd := 3, zeroAdsr := true, noRelease := false }
-  filterEnabled := false
-  skydive := false
-}
+  -- Load-time binary state (from $C3EF region in original binary)
+  -- v_inst[0..2]: slot 0=V1=$07, slot 1=V2=$0E, slot 2=V3=$03
+  initVInst    := (7, 14, 3)
+  -- v_pitch[0..2]: V1=$18, V2=$30, V3=$18
+  initVPitch   := (24, 48, 24)
+  -- v_fhi[0..2]: V1=$00, V2=$00, V3=$04
+  initVFhi     := (0, 0, 4)
+  -- v_pwm_step[0..2]: V1=$01, V2=$00, V3=$00
+  initVPwmStep := (1, 0, 0)
+  -- v_pwm_dir[0..2]: V1=$01, V2=$00, V3=$01
+  initVPwmDir  := (1, 0, 1)
+  -- v_ctrl[0..2]: V1=$11, V2=$15, V3=$41
+  initVCtrl    := (17, 21, 65)
 
-def mv3I8 : USFInstrument := {
-  initCtrl := ⟨17, by omega⟩
-  initPwLo := ⟨0, by omega⟩
-  initPwHi := ⟨8, by omega⟩
-  ad := ⟨11, by omega⟩
-  sr := ⟨0, by omega⟩
-  initFreqMod := .normal
-  waveformProgram := [⟨17, by omega⟩]
-  waveLoop := 0
-  waveStepEvery := 1
-  pwMod := none
-  vibrato := none
-  freqSlide := none
-  arpeggio := some { intervals := [0, 12], stepEvery := 1, phaseSource := .global, startDelay := 0 }
-  effectOrder := [.pwMod, .arpeggio, .gateCheck]
-  release := { framesBeforeEnd := 3, zeroAdsr := true, noRelease := false }
-  filterEnabled := false
-  skydive := false
-}
+  -- Global tick reload ($C41B): 1 = fire note-load on every frame per voice
+  tickReload := 1
 
-def mv3I9 : USFInstrument := {
-  initCtrl := ⟨17, by omega⟩
-  initPwLo := ⟨0, by omega⟩
-  initPwHi := ⟨8, by omega⟩
-  ad := ⟨10, by omega⟩
-  sr := ⟨160, by omega⟩
-  initFreqMod := .normal
-  waveformProgram := [⟨17, by omega⟩]
-  waveLoop := 0
-  waveStepEvery := 1
-  pwMod := none
-  vibrato := some { shape := .triangle, periodFrames := 8, semitoneShift := 3, onsetFrames := 6, rampUpFrames := 0, unipolar := true }
-  freqSlide := none
-  arpeggio := none
-  effectOrder := [.vibrato, .pwMod, .gateCheck]
-  release := { framesBeforeEnd := 3, zeroAdsr := true, noRelease := false }
-  filterEnabled := false
-  skydive := false
-}
-
-def mv3I10 : USFInstrument := {
-  initCtrl := ⟨65, by omega⟩
-  initPwLo := ⟨128, by omega⟩
-  initPwHi := ⟨9, by omega⟩
-  ad := ⟨120, by omega⟩
-  sr := ⟨80, by omega⟩
-  initFreqMod := .normal
-  waveformProgram := [⟨65, by omega⟩]
-  waveLoop := 0
-  waveStepEvery := 1
-  pwMod := some { mode := .bidirectional ⟨65, by omega⟩ ⟨8, by omega⟩ ⟨14, by omega⟩, stepEvery := 1, startDelay := 0 }
-  vibrato := some { shape := .triangle, periodFrames := 8, semitoneShift := 3, onsetFrames := 6, rampUpFrames := 0, unipolar := true }
-  freqSlide := none
-  arpeggio := none
-  effectOrder := [.vibrato, .pwMod, .gateCheck]
-  release := { framesBeforeEnd := 3, zeroAdsr := true, noRelease := false }
-  filterEnabled := false
-  skydive := false
-}
-
-def mv3I11 : USFInstrument := {
-  initCtrl := ⟨65, by omega⟩
-  initPwLo := ⟨0, by omega⟩
-  initPwHi := ⟨2, by omega⟩
-  ad := ⟨8, by omega⟩
-  sr := ⟨6, by omega⟩
-  initFreqMod := .normal
-  waveformProgram := [⟨65, by omega⟩, ⟨128, by omega⟩, ⟨128, by omega⟩, ⟨128, by omega⟩, ⟨64, by omega⟩]
-  waveLoop := 4
-  waveStepEvery := 1
-  pwMod := none
-  vibrato := none
-  freqSlide := some { kind := .monotonic (-1), stepEvery := 1, startDelay := 9, stopAtZero := true }
-  arpeggio := none
-  effectOrder := [.pwMod, .freqSlide, .gateCheck]
-  release := { framesBeforeEnd := 3, zeroAdsr := true, noRelease := false }
-  filterEnabled := false
-  skydive := false
-}
-
-def mv3I12 : USFInstrument := {
-  initCtrl := ⟨65, by omega⟩
-  initPwLo := ⟨112, by omega⟩
-  initPwHi := ⟨4, by omega⟩
-  ad := ⟨12, by omega⟩
-  sr := ⟨32, by omega⟩
-  initFreqMod := .normal
-  waveformProgram := [⟨65, by omega⟩]
-  waveLoop := 0
-  waveStepEvery := 1
-  pwMod := some { mode := .linear ⟨121, by omega⟩, stepEvery := 1, startDelay := 0 }
-  vibrato := some { shape := .triangle, periodFrames := 8, semitoneShift := 2, onsetFrames := 6, rampUpFrames := 0, unipolar := true }
-  freqSlide := none
-  arpeggio := none
-  effectOrder := [.vibrato, .pwMod, .gateCheck]
-  release := { framesBeforeEnd := 3, zeroAdsr := true, noRelease := false }
-  filterEnabled := false
-  skydive := true
-}
-
-def mv3I13 : USFInstrument := {
-  initCtrl := ⟨65, by omega⟩
-  initPwLo := ⟨128, by omega⟩
-  initPwHi := ⟨9, by omega⟩
-  ad := ⟨15, by omega⟩
-  sr := ⟨240, by omega⟩
-  initFreqMod := .normal
-  waveformProgram := [⟨65, by omega⟩]
-  waveLoop := 0
-  waveStepEvery := 1
-  pwMod := some { mode := .bidirectional ⟨65, by omega⟩ ⟨8, by omega⟩ ⟨14, by omega⟩, stepEvery := 1, startDelay := 0 }
-  vibrato := none
-  freqSlide := none
-  arpeggio := none
-  effectOrder := [.pwMod, .gateCheck]
-  release := { framesBeforeEnd := 3, zeroAdsr := true, noRelease := false }
-  filterEnabled := false
-  skydive := false
-}
-
-def mv3I14 : USFInstrument := {
-  initCtrl := ⟨21, by omega⟩
-  initPwLo := ⟨0, by omega⟩
-  initPwHi := ⟨8, by omega⟩
-  ad := ⟨10, by omega⟩
-  sr := ⟨9, by omega⟩
-  initFreqMod := .normal
-  waveformProgram := [⟨21, by omega⟩, ⟨128, by omega⟩, ⟨128, by omega⟩, ⟨128, by omega⟩, ⟨20, by omega⟩]
-  waveLoop := 4
-  waveStepEvery := 1
-  pwMod := none
-  vibrato := none
-  freqSlide := some { kind := .monotonic (-1), stepEvery := 1, startDelay := 9, stopAtZero := true }
-  arpeggio := some { intervals := [0, 12], stepEvery := 1, phaseSource := .global, startDelay := 0 }
-  effectOrder := [.pwMod, .freqSlide, .arpeggio, .gateCheck]
-  release := { framesBeforeEnd := 3, zeroAdsr := true, noRelease := false }
-  filterEnabled := false
-  skydive := false
-}
-
-def mv3I15 : USFInstrument := {
-  initCtrl := ⟨65, by omega⟩
-  initPwLo := ⟨0, by omega⟩
-  initPwHi := ⟨8, by omega⟩
-  ad := ⟨3, by omega⟩
-  sr := ⟨80, by omega⟩
-  initFreqMod := .normal
-  waveformProgram := [⟨65, by omega⟩]
-  waveLoop := 0
-  waveStepEvery := 1
-  pwMod := none
-  vibrato := none
-  freqSlide := none
-  arpeggio := some { intervals := [0, 12], stepEvery := 1, phaseSource := .global, startDelay := 0 }
-  effectOrder := [.pwMod, .arpeggio, .gateCheck]
-  release := { framesBeforeEnd := 3, zeroAdsr := true, noRelease := false }
-  filterEnabled := false
-  skydive := false
-}
-
-def mv3I16 : USFInstrument := {
-  initCtrl := ⟨21, by omega⟩
-  initPwLo := ⟨0, by omega⟩
-  initPwHi := ⟨8, by omega⟩
-  ad := ⟨5, by omega⟩
-  sr := ⟨10, by omega⟩
-  initFreqMod := .normal
-  waveformProgram := [⟨21, by omega⟩, ⟨128, by omega⟩, ⟨128, by omega⟩, ⟨128, by omega⟩, ⟨20, by omega⟩]
-  waveLoop := 4
-  waveStepEvery := 1
-  pwMod := none
-  vibrato := none
-  freqSlide := some { kind := .monotonic (-1), stepEvery := 1, startDelay := 9, stopAtZero := true }
-  arpeggio := some { intervals := [0, 12], stepEvery := 1, phaseSource := .global, startDelay := 0 }
-  effectOrder := [.pwMod, .freqSlide, .arpeggio, .gateCheck]
-  release := { framesBeforeEnd := 3, zeroAdsr := true, noRelease := false }
-  filterEnabled := false
-  skydive := false
-}
-
-def mv3P0 : USFPattern := { notes := [{ kind := .tie, durationFrames := 64, instrument := 192, porta := 0 }, { kind := .tie, durationFrames := 32, instrument := 192, porta := 0 }] }
-
-def mv3P1 : USFPattern := { notes := [{ kind := .pitched ⟨72, by omega⟩, durationFrames := 8, instrument := 10, porta := 0 }, { kind := .pitched ⟨60, by omega⟩, durationFrames := 8, instrument := 138, porta := 0 }, { kind := .pitched ⟨70, by omega⟩, durationFrames := 8, instrument := 138, porta := 0 }, { kind := .pitched ⟨69, by omega⟩, durationFrames := 8, instrument := 138, porta := 0 }, { kind := .pitched ⟨67, by omega⟩, durationFrames := 8, instrument := 138, porta := 0 }, { kind := .pitched ⟨60, by omega⟩, durationFrames := 8, instrument := 138, porta := 0 }, { kind := .pitched ⟨70, by omega⟩, durationFrames := 8, instrument := 138, porta := 0 }, { kind := .pitched ⟨60, by omega⟩, durationFrames := 8, instrument := 138, porta := 0 }, { kind := .pitched ⟨69, by omega⟩, durationFrames := 8, instrument := 138, porta := 0 }, { kind := .pitched ⟨60, by omega⟩, durationFrames := 8, instrument := 138, porta := 0 }, { kind := .pitched ⟨65, by omega⟩, durationFrames := 8, instrument := 138, porta := 0 }, { kind := .pitched ⟨60, by omega⟩, durationFrames := 8, instrument := 138, porta := 0 }, { kind := .pitched ⟨67, by omega⟩, durationFrames := 8, instrument := 138, porta := 0 }, { kind := .pitched ⟨55, by omega⟩, durationFrames := 8, instrument := 138, porta := 0 }, { kind := .pitched ⟨65, by omega⟩, durationFrames := 8, instrument := 138, porta := 0 }, { kind := .pitched ⟨64, by omega⟩, durationFrames := 8, instrument := 138, porta := 0 }, { kind := .pitched ⟨62, by omega⟩, durationFrames := 8, instrument := 138, porta := 0 }, { kind := .pitched ⟨55, by omega⟩, durationFrames := 8, instrument := 138, porta := 0 }, { kind := .pitched ⟨65, by omega⟩, durationFrames := 8, instrument := 138, porta := 0 }, { kind := .pitched ⟨55, by omega⟩, durationFrames := 8, instrument := 138, porta := 0 }, { kind := .pitched ⟨64, by omega⟩, durationFrames := 8, instrument := 138, porta := 0 }, { kind := .pitched ⟨55, by omega⟩, durationFrames := 8, instrument := 138, porta := 0 }, { kind := .pitched ⟨60, by omega⟩, durationFrames := 8, instrument := 138, porta := 0 }, { kind := .pitched ⟨55, by omega⟩, durationFrames := 8, instrument := 138, porta := 0 }] }
-
-def mv3P2 : USFPattern := { notes := [{ kind := .pitched ⟨74, by omega⟩, durationFrames := 8, instrument := 128, porta := 0 }, { kind := .pitched ⟨62, by omega⟩, durationFrames := 8, instrument := 128, porta := 0 }, { kind := .pitched ⟨71, by omega⟩, durationFrames := 8, instrument := 128, porta := 0 }, { kind := .pitched ⟨62, by omega⟩, durationFrames := 8, instrument := 128, porta := 0 }, { kind := .pitched ⟨69, by omega⟩, durationFrames := 8, instrument := 128, porta := 0 }, { kind := .pitched ⟨71, by omega⟩, durationFrames := 8, instrument := 128, porta := 0 }, { kind := .pitched ⟨72, by omega⟩, durationFrames := 8, instrument := 128, porta := 0 }, { kind := .pitched ⟨62, by omega⟩, durationFrames := 8, instrument := 128, porta := 0 }, { kind := .pitched ⟨71, by omega⟩, durationFrames := 8, instrument := 128, porta := 0 }, { kind := .pitched ⟨62, by omega⟩, durationFrames := 8, instrument := 128, porta := 0 }, { kind := .pitched ⟨67, by omega⟩, durationFrames := 8, instrument := 128, porta := 0 }, { kind := .pitched ⟨62, by omega⟩, durationFrames := 8, instrument := 128, porta := 0 }] }
-
-def mv3P3 : USFPattern := { notes := [{ kind := .pitched ⟨75, by omega⟩, durationFrames := 8, instrument := 128, porta := 0 }, { kind := .pitched ⟨63, by omega⟩, durationFrames := 8, instrument := 128, porta := 0 }, { kind := .pitched ⟨73, by omega⟩, durationFrames := 8, instrument := 128, porta := 0 }, { kind := .pitched ⟨72, by omega⟩, durationFrames := 8, instrument := 128, porta := 0 }, { kind := .pitched ⟨70, by omega⟩, durationFrames := 8, instrument := 128, porta := 0 }, { kind := .pitched ⟨63, by omega⟩, durationFrames := 8, instrument := 128, porta := 0 }, { kind := .pitched ⟨73, by omega⟩, durationFrames := 8, instrument := 128, porta := 0 }, { kind := .pitched ⟨63, by omega⟩, durationFrames := 8, instrument := 128, porta := 0 }, { kind := .pitched ⟨72, by omega⟩, durationFrames := 8, instrument := 128, porta := 0 }, { kind := .pitched ⟨63, by omega⟩, durationFrames := 8, instrument := 128, porta := 0 }, { kind := .pitched ⟨68, by omega⟩, durationFrames := 8, instrument := 128, porta := 0 }, { kind := .pitched ⟨63, by omega⟩, durationFrames := 8, instrument := 128, porta := 0 }, { kind := .pitched ⟨70, by omega⟩, durationFrames := 8, instrument := 128, porta := 0 }, { kind := .pitched ⟨58, by omega⟩, durationFrames := 8, instrument := 128, porta := 0 }, { kind := .pitched ⟨68, by omega⟩, durationFrames := 8, instrument := 128, porta := 0 }, { kind := .pitched ⟨67, by omega⟩, durationFrames := 8, instrument := 128, porta := 0 }, { kind := .pitched ⟨65, by omega⟩, durationFrames := 8, instrument := 128, porta := 0 }, { kind := .pitched ⟨58, by omega⟩, durationFrames := 8, instrument := 128, porta := 0 }, { kind := .pitched ⟨68, by omega⟩, durationFrames := 8, instrument := 128, porta := 0 }, { kind := .pitched ⟨58, by omega⟩, durationFrames := 8, instrument := 128, porta := 0 }, { kind := .pitched ⟨67, by omega⟩, durationFrames := 8, instrument := 128, porta := 0 }, { kind := .pitched ⟨58, by omega⟩, durationFrames := 8, instrument := 128, porta := 0 }, { kind := .pitched ⟨63, by omega⟩, durationFrames := 8, instrument := 128, porta := 0 }, { kind := .pitched ⟨58, by omega⟩, durationFrames := 8, instrument := 128, porta := 0 }] }
-
-def mv3P4 : USFPattern := { notes := [{ kind := .pitched ⟨24, by omega⟩, durationFrames := 32, instrument := 3, porta := 0 }, { kind := .pitched ⟨46, by omega⟩, durationFrames := 16, instrument := 4, porta := 0 }, { kind := .pitched ⟨36, by omega⟩, durationFrames := 16, instrument := 3, porta := 0 }, { kind := .pitched ⟨29, by omega⟩, durationFrames := 16, instrument := 131, porta := 0 }, { kind := .pitched ⟨31, by omega⟩, durationFrames := 16, instrument := 131, porta := 0 }] }
-
-def mv3P5 : USFPattern := { notes := [{ kind := .pitched ⟨60, by omega⟩, durationFrames := 16, instrument := 5, porta := 0 }, { kind := .pitched ⟨58, by omega⟩, durationFrames := 8, instrument := 133, porta := 0 }, { kind := .pitched ⟨57, by omega⟩, durationFrames := 8, instrument := 133, porta := 0 }, { kind := .pitched ⟨55, by omega⟩, durationFrames := 16, instrument := 133, porta := 0 }, { kind := .pitched ⟨58, by omega⟩, durationFrames := 16, instrument := 133, porta := 0 }, { kind := .pitched ⟨57, by omega⟩, durationFrames := 16, instrument := 133, porta := 0 }, { kind := .pitched ⟨53, by omega⟩, durationFrames := 16, instrument := 133, porta := 0 }, { kind := .pitched ⟨55, by omega⟩, durationFrames := 16, instrument := 133, porta := 0 }, { kind := .pitched ⟨51, by omega⟩, durationFrames := 16, instrument := 133, porta := 0 }, { kind := .pitched ⟨50, by omega⟩, durationFrames := 8, instrument := 133, porta := 0 }, { kind := .pitched ⟨51, by omega⟩, durationFrames := 8, instrument := 133, porta := 0 }, { kind := .pitched ⟨53, by omega⟩, durationFrames := 16, instrument := 133, porta := 0 }, { kind := .pitched ⟨51, by omega⟩, durationFrames := 16, instrument := 133, porta := 0 }, { kind := .pitched ⟨48, by omega⟩, durationFrames := 16, instrument := 133, porta := 0 }] }
-
-def mv3P6 : USFPattern := { notes := [{ kind := .pitched ⟨79, by omega⟩, durationFrames := 32, instrument := 6, porta := 0 }, { kind := .pitched ⟨77, by omega⟩, durationFrames := 32, instrument := 134, porta := 0 }, { kind := .pitched ⟨74, by omega⟩, durationFrames := 16, instrument := 134, porta := 0 }, { kind := .pitched ⟨75, by omega⟩, durationFrames := 16, instrument := 134, porta := 0 }, { kind := .pitched ⟨74, by omega⟩, durationFrames := 32, instrument := 134, porta := 0 }, { kind := .pitched ⟨72, by omega⟩, durationFrames := 32, instrument := 134, porta := 0 }, { kind := .pitched ⟨71, by omega⟩, durationFrames := 32, instrument := 134, porta := 0 }] }
-
-def mv3P7 : USFPattern := { notes := [{ kind := .pitched ⟨19, by omega⟩, durationFrames := 32, instrument := 3, porta := 0 }, { kind := .pitched ⟨46, by omega⟩, durationFrames := 16, instrument := 4, porta := 0 }, { kind := .pitched ⟨31, by omega⟩, durationFrames := 16, instrument := 3, porta := 0 }, { kind := .pitched ⟨24, by omega⟩, durationFrames := 16, instrument := 131, porta := 0 }, { kind := .pitched ⟨26, by omega⟩, durationFrames := 16, instrument := 131, porta := 0 }] }
-
-def mv3P8 : USFPattern := { notes := [{ kind := .pitched ⟨27, by omega⟩, durationFrames := 32, instrument := 3, porta := 0 }, { kind := .pitched ⟨46, by omega⟩, durationFrames := 16, instrument := 4, porta := 0 }, { kind := .pitched ⟨39, by omega⟩, durationFrames := 16, instrument := 3, porta := 0 }, { kind := .pitched ⟨32, by omega⟩, durationFrames := 16, instrument := 131, porta := 0 }, { kind := .pitched ⟨34, by omega⟩, durationFrames := 16, instrument := 131, porta := 0 }] }
-
-def mv3P9 : USFPattern := { notes := [{ kind := .pitched ⟨31, by omega⟩, durationFrames := 16, instrument := 7, porta := 0 }, { kind := .pitched ⟨60, by omega⟩, durationFrames := 16, instrument := 8, porta := 0 }, { kind := .pitched ⟨48, by omega⟩, durationFrames := 16, instrument := 136, porta := 0 }, { kind := .pitched ⟨31, by omega⟩, durationFrames := 16, instrument := 7, porta := 0 }, { kind := .pitched ⟨60, by omega⟩, durationFrames := 16, instrument := 8, porta := 0 }, { kind := .pitched ⟨48, by omega⟩, durationFrames := 8, instrument := 136, porta := 0 }, { kind := .pitched ⟨31, by omega⟩, durationFrames := 8, instrument := 7, porta := 0 }] }
-
-def mv3P10 : USFPattern := { notes := [{ kind := .pitched ⟨55, by omega⟩, durationFrames := 16, instrument := 5, porta := 0 }, { kind := .pitched ⟨52, by omega⟩, durationFrames := 16, instrument := 133, porta := 0 }, { kind := .pitched ⟨50, by omega⟩, durationFrames := 8, instrument := 133, porta := 0 }, { kind := .pitched ⟨52, by omega⟩, durationFrames := 8, instrument := 133, porta := 0 }, { kind := .pitched ⟨53, by omega⟩, durationFrames := 16, instrument := 133, porta := 0 }, { kind := .pitched ⟨52, by omega⟩, durationFrames := 16, instrument := 133, porta := 0 }, { kind := .pitched ⟨48, by omega⟩, durationFrames := 16, instrument := 133, porta := 0 }, { kind := .pitched ⟨47, by omega⟩, durationFrames := 16, instrument := 133, porta := 0 }, { kind := .pitched ⟨62, by omega⟩, durationFrames := 16, instrument := 1, porta := 0 }, { kind := .pitched ⟨57, by omega⟩, durationFrames := 8, instrument := 129, porta := 0 }, { kind := .pitched ⟨59, by omega⟩, durationFrames := 8, instrument := 129, porta := 0 }, { kind := .pitched ⟨60, by omega⟩, durationFrames := 16, instrument := 129, porta := 0 }, { kind := .pitched ⟨59, by omega⟩, durationFrames := 16, instrument := 129, porta := 0 }, { kind := .pitched ⟨62, by omega⟩, durationFrames := 16, instrument := 129, porta := 0 }, { kind := .pitched ⟨63, by omega⟩, durationFrames := 16, instrument := 129, porta := 0 }, { kind := .pitched ⟨79, by omega⟩, durationFrames := 8, instrument := 9, porta := 0 }, { kind := .pitched ⟨75, by omega⟩, durationFrames := 8, instrument := 137, porta := 0 }, { kind := .pitched ⟨74, by omega⟩, durationFrames := 16, instrument := 137, porta := 0 }, { kind := .pitched ⟨77, by omega⟩, durationFrames := 16, instrument := 137, porta := 0 }, { kind := .pitched ⟨75, by omega⟩, durationFrames := 16, instrument := 137, porta := 0 }, { kind := .pitched ⟨72, by omega⟩, durationFrames := 16, instrument := 137, porta := 0 }, { kind := .pitched ⟨70, by omega⟩, durationFrames := 16, instrument := 137, porta := 0 }, { kind := .pitched ⟨79, by omega⟩, durationFrames := 8, instrument := 137, porta := 0 }, { kind := .pitched ⟨75, by omega⟩, durationFrames := 8, instrument := 137, porta := 0 }, { kind := .pitched ⟨74, by omega⟩, durationFrames := 16, instrument := 137, porta := 0 }, { kind := .pitched ⟨77, by omega⟩, durationFrames := 16, instrument := 137, porta := 0 }, { kind := .pitched ⟨75, by omega⟩, durationFrames := 16, instrument := 137, porta := 0 }, { kind := .pitched ⟨74, by omega⟩, durationFrames := 16, instrument := 137, porta := 0 }, { kind := .pitched ⟨63, by omega⟩, durationFrames := 16, instrument := 137, porta := 0 }, { kind := .pitched ⟨67, by omega⟩, durationFrames := 16, instrument := 10, porta := 0 }, { kind := .pitched ⟨62, by omega⟩, durationFrames := 8, instrument := 138, porta := 0 }, { kind := .pitched ⟨63, by omega⟩, durationFrames := 8, instrument := 138, porta := 0 }, { kind := .pitched ⟨65, by omega⟩, durationFrames := 16, instrument := 138, porta := 0 }, { kind := .pitched ⟨63, by omega⟩, durationFrames := 16, instrument := 138, porta := 0 }, { kind := .pitched ⟨60, by omega⟩, durationFrames := 16, instrument := 138, porta := 0 }, { kind := .pitched ⟨58, by omega⟩, durationFrames := 16, instrument := 138, porta := 0 }, { kind := .pitched ⟨79, by omega⟩, durationFrames := 8, instrument := 9, porta := 0 }, { kind := .pitched ⟨75, by omega⟩, durationFrames := 8, instrument := 137, porta := 0 }, { kind := .pitched ⟨74, by omega⟩, durationFrames := 16, instrument := 137, porta := 0 }, { kind := .pitched ⟨77, by omega⟩, durationFrames := 16, instrument := 137, porta := 0 }, { kind := .pitched ⟨75, by omega⟩, durationFrames := 16, instrument := 137, porta := 0 }, { kind := .pitched ⟨72, by omega⟩, durationFrames := 16, instrument := 137, porta := 0 }] }
-
-def mv3P11 : USFPattern := { notes := [{ kind := .pitched ⟨65, by omega⟩, durationFrames := 16, instrument := 10, porta := 0 }, { kind := .pitched ⟨65, by omega⟩, durationFrames := 8, instrument := 138, porta := 0 }, { kind := .pitched ⟨62, by omega⟩, durationFrames := 8, instrument := 138, porta := 0 }, { kind := .pitched ⟨60, by omega⟩, durationFrames := 16, instrument := 138, porta := 0 }, { kind := .pitched ⟨63, by omega⟩, durationFrames := 16, instrument := 138, porta := 0 }, { kind := .pitched ⟨62, by omega⟩, durationFrames := 16, instrument := 138, porta := 0 }, { kind := .pitched ⟨58, by omega⟩, durationFrames := 16, instrument := 138, porta := 0 }] }
-
-def mv3P12 : USFPattern := { notes := [{ kind := .pitched ⟨79, by omega⟩, durationFrames := 16, instrument := 6, porta := 0 }, { kind := .pitched ⟨79, by omega⟩, durationFrames := 8, instrument := 134, porta := 0 }, { kind := .pitched ⟨75, by omega⟩, durationFrames := 8, instrument := 134, porta := 0 }, { kind := .pitched ⟨74, by omega⟩, durationFrames := 16, instrument := 134, porta := 0 }, { kind := .pitched ⟨77, by omega⟩, durationFrames := 16, instrument := 134, porta := 0 }, { kind := .pitched ⟨75, by omega⟩, durationFrames := 16, instrument := 134, porta := 0 }, { kind := .pitched ⟨72, by omega⟩, durationFrames := 16, instrument := 134, porta := 0 }] }
-
-def mv3P13 : USFPattern := { notes := [{ kind := .pitched ⟨74, by omega⟩, durationFrames := 16, instrument := 128, porta := 0 }, { kind := .pitched ⟨50, by omega⟩, durationFrames := 8, instrument := 1, porta := 0 }, { kind := .pitched ⟨51, by omega⟩, durationFrames := 8, instrument := 129, porta := 0 }, { kind := .pitched ⟨50, by omega⟩, durationFrames := 16, instrument := 129, porta := 0 }, { kind := .pitched ⟨48, by omega⟩, durationFrames := 16, instrument := 129, porta := 0 }, { kind := .pitched ⟨50, by omega⟩, durationFrames := 16, instrument := 129, porta := 0 }, { kind := .pitched ⟨46, by omega⟩, durationFrames := 16, instrument := 129, porta := 0 }] }
-
-def mv3P14 : USFPattern := { notes := [{ kind := .pitched ⟨22, by omega⟩, durationFrames := 32, instrument := 3, porta := 0 }, { kind := .pitched ⟨46, by omega⟩, durationFrames := 16, instrument := 4, porta := 0 }, { kind := .pitched ⟨34, by omega⟩, durationFrames := 16, instrument := 3, porta := 0 }, { kind := .pitched ⟨27, by omega⟩, durationFrames := 16, instrument := 131, porta := 0 }, { kind := .pitched ⟨29, by omega⟩, durationFrames := 16, instrument := 131, porta := 0 }] }
-
-def mv3P15 : USFPattern := { notes := [{ kind := .pitched ⟨51, by omega⟩, durationFrames := 32, instrument := 6, porta := 0 }, { kind := .pitched ⟨51, by omega⟩, durationFrames := 16, instrument := 134, porta := 0 }, { kind := .pitched ⟨51, by omega⟩, durationFrames := 16, instrument := 134, porta := 0 }, { kind := .pitched ⟨50, by omega⟩, durationFrames := 32, instrument := 134, porta := 0 }, { kind := .pitched ⟨48, by omega⟩, durationFrames := 64, instrument := 166, porta := 0 }, { kind := .pitched ⟨48, by omega⟩, durationFrames := 32, instrument := 134, porta := 0 }, { kind := .pitched ⟨55, by omega⟩, durationFrames := 32, instrument := 6, porta := 0 }, { kind := .pitched ⟨55, by omega⟩, durationFrames := 16, instrument := 134, porta := 0 }, { kind := .pitched ⟨55, by omega⟩, durationFrames := 16, instrument := 134, porta := 0 }, { kind := .pitched ⟨53, by omega⟩, durationFrames := 32, instrument := 134, porta := 0 }, { kind := .pitched ⟨52, by omega⟩, durationFrames := 64, instrument := 166, porta := 0 }, { kind := .pitched ⟨52, by omega⟩, durationFrames := 32, instrument := 134, porta := 0 }] }
-
-def mv3P16 : USFPattern := { notes := [{ kind := .pitched ⟨27, by omega⟩, durationFrames := 32, instrument := 3, porta := 0 }, { kind := .pitched ⟨46, by omega⟩, durationFrames := 32, instrument := 4, porta := 0 }, { kind := .pitched ⟨22, by omega⟩, durationFrames := 32, instrument := 3, porta := 0 }, { kind := .pitched ⟨24, by omega⟩, durationFrames := 64, instrument := 131, porta := 0 }, { kind := .pitched ⟨50, by omega⟩, durationFrames := 32, instrument := 4, porta := 0 }] }
-
-def mv3P17 : USFPattern := { notes := [{ kind := .pitched ⟨72, by omega⟩, durationFrames := 16, instrument := 5, porta := 0 }, { kind := .pitched ⟨70, by omega⟩, durationFrames := 8, instrument := 133, porta := 0 }, { kind := .pitched ⟨69, by omega⟩, durationFrames := 8, instrument := 133, porta := 0 }, { kind := .pitched ⟨67, by omega⟩, durationFrames := 16, instrument := 133, porta := 0 }, { kind := .pitched ⟨70, by omega⟩, durationFrames := 16, instrument := 133, porta := 0 }, { kind := .pitched ⟨69, by omega⟩, durationFrames := 6, instrument := 133, porta := 0 }, { kind := .pitched ⟨70, by omega⟩, durationFrames := 4, instrument := 133, porta := 0 }, { kind := .pitched ⟨69, by omega⟩, durationFrames := 6, instrument := 133, porta := 0 }, { kind := .pitched ⟨65, by omega⟩, durationFrames := 16, instrument := 133, porta := 0 }, { kind := .pitched ⟨67, by omega⟩, durationFrames := 16, instrument := 133, porta := 0 }, { kind := .pitched ⟨63, by omega⟩, durationFrames := 16, instrument := 133, porta := 0 }, { kind := .pitched ⟨62, by omega⟩, durationFrames := 8, instrument := 133, porta := 0 }, { kind := .pitched ⟨63, by omega⟩, durationFrames := 8, instrument := 133, porta := 0 }, { kind := .pitched ⟨65, by omega⟩, durationFrames := 16, instrument := 133, porta := 0 }, { kind := .pitched ⟨63, by omega⟩, durationFrames := 6, instrument := 133, porta := 0 }, { kind := .pitched ⟨65, by omega⟩, durationFrames := 4, instrument := 133, porta := 0 }, { kind := .pitched ⟨63, by omega⟩, durationFrames := 6, instrument := 133, porta := 0 }, { kind := .pitched ⟨60, by omega⟩, durationFrames := 16, instrument := 133, porta := 0 }, { kind := .pitched ⟨62, by omega⟩, durationFrames := 16, instrument := 5, porta := 0 }, { kind := .pitched ⟨86, by omega⟩, durationFrames := 8, instrument := 9, porta := 0 }, { kind := .pitched ⟨83, by omega⟩, durationFrames := 8, instrument := 137, porta := 0 }, { kind := .pitched ⟨81, by omega⟩, durationFrames := 16, instrument := 137, porta := 0 }, { kind := .pitched ⟨84, by omega⟩, durationFrames := 16, instrument := 137, porta := 0 }, { kind := .pitched ⟨83, by omega⟩, durationFrames := 16, instrument := 137, porta := 0 }, { kind := .pitched ⟨79, by omega⟩, durationFrames := 16, instrument := 137, porta := 0 }, { kind := .pitched ⟨86, by omega⟩, durationFrames := 16, instrument := 137, porta := 0 }, { kind := .pitched ⟨83, by omega⟩, durationFrames := 16, instrument := 137, porta := 0 }, { kind := .pitched ⟨81, by omega⟩, durationFrames := 8, instrument := 137, porta := 0 }, { kind := .pitched ⟨83, by omega⟩, durationFrames := 8, instrument := 137, porta := 0 }, { kind := .pitched ⟨84, by omega⟩, durationFrames := 16, instrument := 137, porta := 0 }, { kind := .pitched ⟨83, by omega⟩, durationFrames := 16, instrument := 137, porta := 0 }, { kind := .pitched ⟨79, by omega⟩, durationFrames := 16, instrument := 137, porta := 0 }] }
-
-def mv3P18 : USFPattern := { notes := [{ kind := .pitched ⟨82, by omega⟩, durationFrames := 16, instrument := 6, porta := 0 }, { kind := .pitched ⟨75, by omega⟩, durationFrames := 16, instrument := 10, porta := 0 }, { kind := .pitched ⟨77, by omega⟩, durationFrames := 16, instrument := 138, porta := 0 }, { kind := .pitched ⟨75, by omega⟩, durationFrames := 8, instrument := 138, porta := 0 }, { kind := .pitched ⟨74, by omega⟩, durationFrames := 8, instrument := 138, porta := 0 }, { kind := .pitched ⟨72, by omega⟩, durationFrames := 16, instrument := 138, porta := 0 }, { kind := .pitched ⟨74, by omega⟩, durationFrames := 8, instrument := 138, porta := 0 }, { kind := .pitched ⟨75, by omega⟩, durationFrames := 8, instrument := 138, porta := 0 }, { kind := .pitched ⟨70, by omega⟩, durationFrames := 64, instrument := 138, porta := 0 }, { kind := .tie, durationFrames := 8, instrument := 202, porta := 0 }, { kind := .pitched ⟨46, by omega⟩, durationFrames := 4, instrument := 6, porta := 0 }, { kind := .pitched ⟨51, by omega⟩, durationFrames := 4, instrument := 134, porta := 0 }, { kind := .pitched ⟨58, by omega⟩, durationFrames := 4, instrument := 134, porta := 0 }, { kind := .pitched ⟨63, by omega⟩, durationFrames := 4, instrument := 134, porta := 0 }, { kind := .pitched ⟨70, by omega⟩, durationFrames := 4, instrument := 134, porta := 0 }, { kind := .pitched ⟨75, by omega⟩, durationFrames := 4, instrument := 134, porta := 0 }, { kind := .pitched ⟨82, by omega⟩, durationFrames := 16, instrument := 6, porta := 0 }, { kind := .pitched ⟨75, by omega⟩, durationFrames := 16, instrument := 10, porta := 0 }, { kind := .pitched ⟨77, by omega⟩, durationFrames := 16, instrument := 138, porta := 0 }, { kind := .pitched ⟨75, by omega⟩, durationFrames := 8, instrument := 138, porta := 0 }, { kind := .pitched ⟨74, by omega⟩, durationFrames := 8, instrument := 138, porta := 0 }, { kind := .pitched ⟨72, by omega⟩, durationFrames := 16, instrument := 138, porta := 0 }, { kind := .pitched ⟨74, by omega⟩, durationFrames := 8, instrument := 138, porta := 0 }, { kind := .pitched ⟨75, by omega⟩, durationFrames := 8, instrument := 138, porta := 0 }, { kind := .pitched ⟨79, by omega⟩, durationFrames := 64, instrument := 138, porta := 0 }, { kind := .tie, durationFrames := 8, instrument := 202, porta := 0 }, { kind := .pitched ⟨46, by omega⟩, durationFrames := 4, instrument := 6, porta := 0 }, { kind := .pitched ⟨51, by omega⟩, durationFrames := 4, instrument := 134, porta := 0 }, { kind := .pitched ⟨58, by omega⟩, durationFrames := 4, instrument := 134, porta := 0 }, { kind := .pitched ⟨63, by omega⟩, durationFrames := 4, instrument := 134, porta := 0 }, { kind := .pitched ⟨70, by omega⟩, durationFrames := 4, instrument := 134, porta := 0 }, { kind := .pitched ⟨75, by omega⟩, durationFrames := 4, instrument := 134, porta := 0 }] }
-
-def mv3P19 : USFPattern := { notes := [{ kind := .pitched ⟨79, by omega⟩, durationFrames := 16, instrument := 6, porta := 0 }, { kind := .pitched ⟨67, by omega⟩, durationFrames := 8, instrument := 7, porta := 0 }, { kind := .pitched ⟨68, by omega⟩, durationFrames := 8, instrument := 135, porta := 0 }, { kind := .pitched ⟨67, by omega⟩, durationFrames := 16, instrument := 135, porta := 0 }, { kind := .pitched ⟨65, by omega⟩, durationFrames := 16, instrument := 135, porta := 0 }, { kind := .pitched ⟨67, by omega⟩, durationFrames := 16, instrument := 135, porta := 0 }, { kind := .pitched ⟨68, by omega⟩, durationFrames := 16, instrument := 135, porta := 0 }, { kind := .pitched ⟨62, by omega⟩, durationFrames := 16, instrument := 135, porta := 0 }, { kind := .pitched ⟨62, by omega⟩, durationFrames := 8, instrument := 1, porta := 0 }, { kind := .pitched ⟨63, by omega⟩, durationFrames := 8, instrument := 129, porta := 0 }, { kind := .pitched ⟨62, by omega⟩, durationFrames := 16, instrument := 129, porta := 0 }, { kind := .pitched ⟨60, by omega⟩, durationFrames := 16, instrument := 129, porta := 0 }, { kind := .pitched ⟨62, by omega⟩, durationFrames := 16, instrument := 129, porta := 0 }, { kind := .pitched ⟨63, by omega⟩, durationFrames := 16, instrument := 129, porta := 0 }, { kind := .pitched ⟨55, by omega⟩, durationFrames := 16, instrument := 129, porta := 0 }, { kind := .pitched ⟨55, by omega⟩, durationFrames := 8, instrument := 7, porta := 0 }, { kind := .pitched ⟨56, by omega⟩, durationFrames := 8, instrument := 135, porta := 0 }, { kind := .pitched ⟨55, by omega⟩, durationFrames := 16, instrument := 135, porta := 0 }, { kind := .pitched ⟨53, by omega⟩, durationFrames := 16, instrument := 135, porta := 0 }, { kind := .pitched ⟨55, by omega⟩, durationFrames := 16, instrument := 135, porta := 0 }, { kind := .pitched ⟨56, by omega⟩, durationFrames := 16, instrument := 135, porta := 0 }, { kind := .pitched ⟨50, by omega⟩, durationFrames := 16, instrument := 135, porta := 0 }, { kind := .pitched ⟨50, by omega⟩, durationFrames := 8, instrument := 1, porta := 0 }, { kind := .pitched ⟨51, by omega⟩, durationFrames := 8, instrument := 129, porta := 0 }, { kind := .pitched ⟨50, by omega⟩, durationFrames := 16, instrument := 129, porta := 0 }, { kind := .pitched ⟨48, by omega⟩, durationFrames := 16, instrument := 129, porta := 0 }, { kind := .pitched ⟨47, by omega⟩, durationFrames := 16, instrument := 129, porta := 0 }, { kind := .pitched ⟨43, by omega⟩, durationFrames := 16, instrument := 129, porta := 0 }] }
-
-def mv3P20 : USFPattern := { notes := [{ kind := .pitched ⟨79, by omega⟩, durationFrames := 64, instrument := 44, porta := 0 }, { kind := .pitched ⟨79, by omega⟩, durationFrames := 32, instrument := 140, porta := 0 }, { kind := .pitched ⟨80, by omega⟩, durationFrames := 48, instrument := 140, porta := 0 }, { kind := .pitched ⟨74, by omega⟩, durationFrames := 16, instrument := 140, porta := 0 }, { kind := .pitched ⟨79, by omega⟩, durationFrames := 16, instrument := 140, porta := 0 }, { kind := .pitched ⟨80, by omega⟩, durationFrames := 16, instrument := 140, porta := 0 }, { kind := .pitched ⟨80, by omega⟩, durationFrames := 64, instrument := 140, porta := 0 }, { kind := .pitched ⟨73, by omega⟩, durationFrames := 32, instrument := 140, porta := 0 }, { kind := .pitched ⟨79, by omega⟩, durationFrames := 64, instrument := 172, porta := 0 }, { kind := .pitched ⟨79, by omega⟩, durationFrames := 32, instrument := 140, porta := 0 }] }
-
-def mv3P21 : USFPattern := { notes := [{ kind := .pitched ⟨24, by omega⟩, durationFrames := 64, instrument := 45, porta := 0 }, { kind := .pitched ⟨24, by omega⟩, durationFrames := 32, instrument := 141, porta := 0 }, { kind := .pitched ⟨19, by omega⟩, durationFrames := 64, instrument := 173, porta := 0 }, { kind := .pitched ⟨19, by omega⟩, durationFrames := 32, instrument := 141, porta := 0 }, { kind := .pitched ⟨17, by omega⟩, durationFrames := 64, instrument := 173, porta := 0 }, { kind := .pitched ⟨17, by omega⟩, durationFrames := 32, instrument := 141, porta := 0 }, { kind := .pitched ⟨19, by omega⟩, durationFrames := 64, instrument := 173, porta := 0 }, { kind := .pitched ⟨19, by omega⟩, durationFrames := 32, instrument := 141, porta := 0 }, { kind := .pitched ⟨27, by omega⟩, durationFrames := 64, instrument := 173, porta := 0 }, { kind := .pitched ⟨27, by omega⟩, durationFrames := 32, instrument := 141, porta := 0 }, { kind := .pitched ⟨29, by omega⟩, durationFrames := 64, instrument := 173, porta := 0 }, { kind := .pitched ⟨29, by omega⟩, durationFrames := 32, instrument := 141, porta := 0 }, { kind := .pitched ⟨25, by omega⟩, durationFrames := 64, instrument := 173, porta := 0 }, { kind := .pitched ⟨25, by omega⟩, durationFrames := 32, instrument := 141, porta := 0 }, { kind := .pitched ⟨19, by omega⟩, durationFrames := 64, instrument := 173, porta := 0 }, { kind := .pitched ⟨19, by omega⟩, durationFrames := 32, instrument := 141, porta := 0 }] }
-
-def mv3P22 : USFPattern := { notes := [{ kind := .pitched ⟨31, by omega⟩, durationFrames := 16, instrument := 7, porta := 0 }, { kind := .pitched ⟨72, by omega⟩, durationFrames := 16, instrument := 14, porta := 0 }, { kind := .pitched ⟨48, by omega⟩, durationFrames := 16, instrument := 142, porta := 0 }, { kind := .pitched ⟨31, by omega⟩, durationFrames := 16, instrument := 7, porta := 0 }, { kind := .pitched ⟨72, by omega⟩, durationFrames := 16, instrument := 14, porta := 0 }, { kind := .pitched ⟨48, by omega⟩, durationFrames := 8, instrument := 142, porta := 0 }, { kind := .pitched ⟨31, by omega⟩, durationFrames := 8, instrument := 7, porta := 0 }] }
-
-def mv3P23 : USFPattern := { notes := [{ kind := .pitched ⟨72, by omega⟩, durationFrames := 16, instrument := 8, porta := 0 }, { kind := .pitched ⟨70, by omega⟩, durationFrames := 8, instrument := 136, porta := 0 }, { kind := .pitched ⟨69, by omega⟩, durationFrames := 8, instrument := 136, porta := 0 }, { kind := .pitched ⟨67, by omega⟩, durationFrames := 16, instrument := 136, porta := 0 }, { kind := .pitched ⟨70, by omega⟩, durationFrames := 16, instrument := 136, porta := 0 }, { kind := .pitched ⟨69, by omega⟩, durationFrames := 16, instrument := 136, porta := 0 }, { kind := .pitched ⟨65, by omega⟩, durationFrames := 16, instrument := 136, porta := 0 }, { kind := .pitched ⟨67, by omega⟩, durationFrames := 16, instrument := 136, porta := 0 }, { kind := .pitched ⟨63, by omega⟩, durationFrames := 16, instrument := 136, porta := 0 }, { kind := .pitched ⟨62, by omega⟩, durationFrames := 8, instrument := 136, porta := 0 }, { kind := .pitched ⟨63, by omega⟩, durationFrames := 8, instrument := 136, porta := 0 }, { kind := .pitched ⟨65, by omega⟩, durationFrames := 16, instrument := 136, porta := 0 }, { kind := .pitched ⟨63, by omega⟩, durationFrames := 16, instrument := 136, porta := 0 }, { kind := .pitched ⟨60, by omega⟩, durationFrames := 16, instrument := 136, porta := 0 }, { kind := .pitched ⟨62, by omega⟩, durationFrames := 32, instrument := 136, porta := 0 }, { kind := .pitched ⟨60, by omega⟩, durationFrames := 32, instrument := 136, porta := 0 }, { kind := .pitched ⟨60, by omega⟩, durationFrames := 16, instrument := 3, porta := 0 }, { kind := .pitched ⟨62, by omega⟩, durationFrames := 16, instrument := 131, porta := 0 }, { kind := .pitched ⟨63, by omega⟩, durationFrames := 32, instrument := 131, porta := 0 }, { kind := .pitched ⟨65, by omega⟩, durationFrames := 32, instrument := 131, porta := 0 }, { kind := .pitched ⟨62, by omega⟩, durationFrames := 32, instrument := 131, porta := 0 }, { kind := .pitched ⟨60, by omega⟩, durationFrames := 32, instrument := 131, porta := 0 }, { kind := .pitched ⟨56, by omega⟩, durationFrames := 32, instrument := 131, porta := 0 }, { kind := .pitched ⟨58, by omega⟩, durationFrames := 32, instrument := 131, porta := 0 }, { kind := .pitched ⟨55, by omega⟩, durationFrames := 64, instrument := 163, porta := 0 }, { kind := .pitched ⟨55, by omega⟩, durationFrames := 32, instrument := 131, porta := 0 }] }
-
-def mv3P24 : USFPattern := { notes := [{ kind := .pitched ⟨36, by omega⟩, durationFrames := 64, instrument := 8, porta := 0 }, { kind := .pitched ⟨60, by omega⟩, durationFrames := 16, instrument := 136, porta := 0 }, { kind := .pitched ⟨58, by omega⟩, durationFrames := 8, instrument := 136, porta := 0 }, { kind := .pitched ⟨57, by omega⟩, durationFrames := 8, instrument := 136, porta := 0 }, { kind := .pitched ⟨55, by omega⟩, durationFrames := 16, instrument := 136, porta := 0 }, { kind := .pitched ⟨58, by omega⟩, durationFrames := 16, instrument := 136, porta := 0 }, { kind := .pitched ⟨57, by omega⟩, durationFrames := 16, instrument := 136, porta := 0 }, { kind := .pitched ⟨53, by omega⟩, durationFrames := 16, instrument := 136, porta := 0 }, { kind := .pitched ⟨55, by omega⟩, durationFrames := 16, instrument := 136, porta := 0 }, { kind := .pitched ⟨51, by omega⟩, durationFrames := 16, instrument := 136, porta := 0 }, { kind := .pitched ⟨50, by omega⟩, durationFrames := 8, instrument := 136, porta := 0 }, { kind := .pitched ⟨51, by omega⟩, durationFrames := 8, instrument := 136, porta := 0 }, { kind := .pitched ⟨53, by omega⟩, durationFrames := 16, instrument := 136, porta := 0 }, { kind := .pitched ⟨51, by omega⟩, durationFrames := 16, instrument := 136, porta := 0 }, { kind := .pitched ⟨48, by omega⟩, durationFrames := 16, instrument := 136, porta := 0 }, { kind := .pitched ⟨43, by omega⟩, durationFrames := 32, instrument := 3, porta := 0 }, { kind := .pitched ⟨44, by omega⟩, durationFrames := 32, instrument := 131, porta := 0 }, { kind := .pitched ⟨46, by omega⟩, durationFrames := 32, instrument := 131, porta := 0 }, { kind := .pitched ⟨43, by omega⟩, durationFrames := 32, instrument := 131, porta := 0 }, { kind := .pitched ⟨53, by omega⟩, durationFrames := 32, instrument := 131, porta := 0 }, { kind := .pitched ⟨49, by omega⟩, durationFrames := 32, instrument := 131, porta := 0 }, { kind := .pitched ⟨51, by omega⟩, durationFrames := 32, instrument := 131, porta := 0 }, { kind := .pitched ⟨48, by omega⟩, durationFrames := 64, instrument := 163, porta := 0 }, { kind := .pitched ⟨48, by omega⟩, durationFrames := 32, instrument := 131, porta := 0 }] }
-
-def mv3P25 : USFPattern := { notes := [{ kind := .pitched ⟨31, by omega⟩, durationFrames := 64, instrument := 3, porta := 0 }, { kind := .pitched ⟨79, by omega⟩, durationFrames := 16, instrument := 15, porta := 0 }, { kind := .pitched ⟨77, by omega⟩, durationFrames := 8, instrument := 143, porta := 0 }, { kind := .pitched ⟨76, by omega⟩, durationFrames := 8, instrument := 143, porta := 0 }, { kind := .pitched ⟨74, by omega⟩, durationFrames := 16, instrument := 143, porta := 0 }, { kind := .pitched ⟨77, by omega⟩, durationFrames := 16, instrument := 143, porta := 0 }, { kind := .pitched ⟨76, by omega⟩, durationFrames := 16, instrument := 143, porta := 0 }, { kind := .pitched ⟨72, by omega⟩, durationFrames := 16, instrument := 143, porta := 0 }, { kind := .pitched ⟨74, by omega⟩, durationFrames := 16, instrument := 143, porta := 0 }, { kind := .pitched ⟨71, by omega⟩, durationFrames := 16, instrument := 143, porta := 0 }, { kind := .pitched ⟨69, by omega⟩, durationFrames := 8, instrument := 143, porta := 0 }, { kind := .pitched ⟨71, by omega⟩, durationFrames := 8, instrument := 143, porta := 0 }, { kind := .pitched ⟨72, by omega⟩, durationFrames := 16, instrument := 143, porta := 0 }, { kind := .pitched ⟨71, by omega⟩, durationFrames := 16, instrument := 143, porta := 0 }, { kind := .pitched ⟨67, by omega⟩, durationFrames := 16, instrument := 143, porta := 0 }, { kind := .pitched ⟨55, by omega⟩, durationFrames := 16, instrument := 3, porta := 0 }, { kind := .pitched ⟨57, by omega⟩, durationFrames := 16, instrument := 131, porta := 0 }, { kind := .pitched ⟨58, by omega⟩, durationFrames := 32, instrument := 131, porta := 0 }, { kind := .pitched ⟨60, by omega⟩, durationFrames := 32, instrument := 131, porta := 0 }, { kind := .pitched ⟨57, by omega⟩, durationFrames := 32, instrument := 131, porta := 0 }, { kind := .pitched ⟨55, by omega⟩, durationFrames := 32, instrument := 131, porta := 0 }, { kind := .pitched ⟨51, by omega⟩, durationFrames := 32, instrument := 131, porta := 0 }, { kind := .pitched ⟨53, by omega⟩, durationFrames := 32, instrument := 131, porta := 0 }, { kind := .pitched ⟨50, by omega⟩, durationFrames := 64, instrument := 163, porta := 0 }, { kind := .pitched ⟨50, by omega⟩, durationFrames := 32, instrument := 131, porta := 0 }] }
-
-def mv3P26 : USFPattern := { notes := [{ kind := .pitched ⟨67, by omega⟩, durationFrames := 16, instrument := 15, porta := 0 }, { kind := .pitched ⟨65, by omega⟩, durationFrames := 8, instrument := 143, porta := 0 }, { kind := .pitched ⟨64, by omega⟩, durationFrames := 8, instrument := 143, porta := 0 }, { kind := .pitched ⟨62, by omega⟩, durationFrames := 16, instrument := 143, porta := 0 }, { kind := .pitched ⟨65, by omega⟩, durationFrames := 16, instrument := 143, porta := 0 }, { kind := .pitched ⟨64, by omega⟩, durationFrames := 16, instrument := 143, porta := 0 }, { kind := .pitched ⟨60, by omega⟩, durationFrames := 16, instrument := 143, porta := 0 }, { kind := .pitched ⟨62, by omega⟩, durationFrames := 16, instrument := 143, porta := 0 }, { kind := .pitched ⟨59, by omega⟩, durationFrames := 16, instrument := 143, porta := 0 }, { kind := .pitched ⟨57, by omega⟩, durationFrames := 8, instrument := 143, porta := 0 }, { kind := .pitched ⟨59, by omega⟩, durationFrames := 8, instrument := 143, porta := 0 }, { kind := .pitched ⟨60, by omega⟩, durationFrames := 16, instrument := 143, porta := 0 }, { kind := .pitched ⟨59, by omega⟩, durationFrames := 16, instrument := 143, porta := 0 }, { kind := .pitched ⟨55, by omega⟩, durationFrames := 16, instrument := 143, porta := 0 }, { kind := .pitched ⟨45, by omega⟩, durationFrames := 32, instrument := 3, porta := 0 }, { kind := .pitched ⟨47, by omega⟩, durationFrames := 32, instrument := 131, porta := 0 }, { kind := .pitched ⟨48, by omega⟩, durationFrames := 16, instrument := 131, porta := 0 }, { kind := .pitched ⟨50, by omega⟩, durationFrames := 16, instrument := 131, porta := 0 }, { kind := .pitched ⟨51, by omega⟩, durationFrames := 32, instrument := 131, porta := 0 }, { kind := .pitched ⟨53, by omega⟩, durationFrames := 32, instrument := 131, porta := 0 }, { kind := .pitched ⟨50, by omega⟩, durationFrames := 32, instrument := 131, porta := 0 }, { kind := .pitched ⟨48, by omega⟩, durationFrames := 32, instrument := 131, porta := 0 }, { kind := .pitched ⟨44, by omega⟩, durationFrames := 32, instrument := 131, porta := 0 }, { kind := .pitched ⟨46, by omega⟩, durationFrames := 32, instrument := 131, porta := 0 }, { kind := .pitched ⟨43, by omega⟩, durationFrames := 64, instrument := 163, porta := 0 }, { kind := .pitched ⟨43, by omega⟩, durationFrames := 32, instrument := 131, porta := 0 }] }
-
-def mv3P27 : USFPattern := { notes := [{ kind := .pitched ⟨48, by omega⟩, durationFrames := 32, instrument := 3, porta := 0 }, { kind := .pitched ⟨46, by omega⟩, durationFrames := 16, instrument := 131, porta := 0 }, { kind := .pitched ⟨45, by omega⟩, durationFrames := 16, instrument := 131, porta := 0 }, { kind := .pitched ⟨43, by omega⟩, durationFrames := 32, instrument := 131, porta := 0 }, { kind := .pitched ⟨46, by omega⟩, durationFrames := 32, instrument := 131, porta := 0 }, { kind := .pitched ⟨45, by omega⟩, durationFrames := 16, instrument := 131, porta := 0 }, { kind := .pitched ⟨46, by omega⟩, durationFrames := 8, instrument := 131, porta := 0 }, { kind := .pitched ⟨45, by omega⟩, durationFrames := 8, instrument := 131, porta := 0 }, { kind := .pitched ⟨41, by omega⟩, durationFrames := 32, instrument := 131, porta := 0 }, { kind := .pitched ⟨43, by omega⟩, durationFrames := 32, instrument := 131, porta := 0 }, { kind := .pitched ⟨39, by omega⟩, durationFrames := 32, instrument := 131, porta := 0 }, { kind := .pitched ⟨38, by omega⟩, durationFrames := 16, instrument := 131, porta := 0 }, { kind := .pitched ⟨39, by omega⟩, durationFrames := 16, instrument := 131, porta := 0 }, { kind := .pitched ⟨41, by omega⟩, durationFrames := 32, instrument := 131, porta := 0 }, { kind := .pitched ⟨39, by omega⟩, durationFrames := 16, instrument := 131, porta := 0 }, { kind := .pitched ⟨41, by omega⟩, durationFrames := 8, instrument := 131, porta := 0 }, { kind := .pitched ⟨39, by omega⟩, durationFrames := 8, instrument := 131, porta := 0 }, { kind := .pitched ⟨36, by omega⟩, durationFrames := 32, instrument := 131, porta := 0 }] }
-
-def mv3P28 : USFPattern := { notes := [{ kind := .pitched ⟨41, by omega⟩, durationFrames := 32, instrument := 3, porta := 0 }, { kind := .pitched ⟨39, by omega⟩, durationFrames := 16, instrument := 131, porta := 0 }, { kind := .pitched ⟨38, by omega⟩, durationFrames := 16, instrument := 131, porta := 0 }, { kind := .pitched ⟨36, by omega⟩, durationFrames := 32, instrument := 131, porta := 0 }, { kind := .pitched ⟨39, by omega⟩, durationFrames := 32, instrument := 131, porta := 0 }, { kind := .pitched ⟨38, by omega⟩, durationFrames := 16, instrument := 131, porta := 0 }, { kind := .pitched ⟨39, by omega⟩, durationFrames := 8, instrument := 131, porta := 0 }, { kind := .pitched ⟨38, by omega⟩, durationFrames := 8, instrument := 131, porta := 0 }, { kind := .pitched ⟨34, by omega⟩, durationFrames := 32, instrument := 131, porta := 0 }, { kind := .pitched ⟨36, by omega⟩, durationFrames := 32, instrument := 131, porta := 0 }, { kind := .pitched ⟨32, by omega⟩, durationFrames := 32, instrument := 131, porta := 0 }, { kind := .pitched ⟨31, by omega⟩, durationFrames := 16, instrument := 131, porta := 0 }, { kind := .pitched ⟨32, by omega⟩, durationFrames := 16, instrument := 131, porta := 0 }, { kind := .pitched ⟨34, by omega⟩, durationFrames := 32, instrument := 131, porta := 0 }, { kind := .pitched ⟨32, by omega⟩, durationFrames := 16, instrument := 131, porta := 0 }, { kind := .pitched ⟨34, by omega⟩, durationFrames := 8, instrument := 131, porta := 0 }, { kind := .pitched ⟨32, by omega⟩, durationFrames := 8, instrument := 131, porta := 0 }, { kind := .pitched ⟨29, by omega⟩, durationFrames := 32, instrument := 131, porta := 0 }] }
-
-def mv3P29 : USFPattern := { notes := [{ kind := .pitched ⟨43, by omega⟩, durationFrames := 64, instrument := 32, porta := 0 }, { kind := .pitched ⟨43, by omega⟩, durationFrames := 32, instrument := 160, porta := 0 }, { kind := .pitched ⟨43, by omega⟩, durationFrames := 64, instrument := 160, porta := 0 }, { kind := .pitched ⟨43, by omega⟩, durationFrames := 32, instrument := 160, porta := 0 }] }
-
-def mv3P30 : USFPattern := { notes := [{ kind := .pitched ⟨70, by omega⟩, durationFrames := 8, instrument := 128, porta := 0 }, { kind := .pitched ⟨58, by omega⟩, durationFrames := 8, instrument := 128, porta := 0 }, { kind := .pitched ⟨68, by omega⟩, durationFrames := 8, instrument := 128, porta := 0 }, { kind := .pitched ⟨67, by omega⟩, durationFrames := 8, instrument := 128, porta := 0 }, { kind := .pitched ⟨65, by omega⟩, durationFrames := 8, instrument := 128, porta := 0 }, { kind := .pitched ⟨58, by omega⟩, durationFrames := 8, instrument := 128, porta := 0 }, { kind := .pitched ⟨68, by omega⟩, durationFrames := 8, instrument := 128, porta := 0 }, { kind := .pitched ⟨58, by omega⟩, durationFrames := 8, instrument := 128, porta := 0 }, { kind := .pitched ⟨67, by omega⟩, durationFrames := 8, instrument := 128, porta := 0 }, { kind := .pitched ⟨58, by omega⟩, durationFrames := 8, instrument := 128, porta := 0 }, { kind := .pitched ⟨63, by omega⟩, durationFrames := 8, instrument := 128, porta := 0 }, { kind := .pitched ⟨58, by omega⟩, durationFrames := 8, instrument := 128, porta := 0 }] }
-
-def mv3P31 : USFPattern := { notes := [{ kind := .pitched ⟨31, by omega⟩, durationFrames := 16, instrument := 7, porta := 0 }, { kind := .pitched ⟨70, by omega⟩, durationFrames := 16, instrument := 8, porta := 0 }, { kind := .pitched ⟨58, by omega⟩, durationFrames := 16, instrument := 136, porta := 0 }, { kind := .pitched ⟨31, by omega⟩, durationFrames := 16, instrument := 7, porta := 0 }, { kind := .pitched ⟨70, by omega⟩, durationFrames := 16, instrument := 8, porta := 0 }, { kind := .pitched ⟨58, by omega⟩, durationFrames := 8, instrument := 136, porta := 0 }, { kind := .pitched ⟨31, by omega⟩, durationFrames := 8, instrument := 7, porta := 0 }] }
-
-def mv3P32 : USFPattern := { notes := [{ kind := .pitched ⟨40, by omega⟩, durationFrames := 16, instrument := 4, porta := 0 }, { kind := .pitched ⟨91, by omega⟩, durationFrames := 8, instrument := 9, porta := 0 }, { kind := .pitched ⟨92, by omega⟩, durationFrames := 8, instrument := 137, porta := 0 }, { kind := .pitched ⟨91, by omega⟩, durationFrames := 8, instrument := 137, porta := 0 }, { kind := .pitched ⟨55, by omega⟩, durationFrames := 8, instrument := 137, porta := 0 }, { kind := .pitched ⟨89, by omega⟩, durationFrames := 8, instrument := 137, porta := 0 }, { kind := .pitched ⟨55, by omega⟩, durationFrames := 8, instrument := 137, porta := 0 }, { kind := .pitched ⟨91, by omega⟩, durationFrames := 8, instrument := 137, porta := 0 }, { kind := .pitched ⟨55, by omega⟩, durationFrames := 8, instrument := 137, porta := 0 }, { kind := .pitched ⟨93, by omega⟩, durationFrames := 8, instrument := 137, porta := 0 }, { kind := .pitched ⟨55, by omega⟩, durationFrames := 8, instrument := 137, porta := 0 }, { kind := .pitched ⟨86, by omega⟩, durationFrames := 8, instrument := 137, porta := 0 }, { kind := .pitched ⟨55, by omega⟩, durationFrames := 8, instrument := 137, porta := 0 }, { kind := .pitched ⟨86, by omega⟩, durationFrames := 8, instrument := 137, porta := 0 }, { kind := .pitched ⟨87, by omega⟩, durationFrames := 8, instrument := 137, porta := 0 }, { kind := .pitched ⟨86, by omega⟩, durationFrames := 8, instrument := 137, porta := 0 }, { kind := .pitched ⟨55, by omega⟩, durationFrames := 8, instrument := 137, porta := 0 }, { kind := .pitched ⟨84, by omega⟩, durationFrames := 8, instrument := 137, porta := 0 }, { kind := .pitched ⟨55, by omega⟩, durationFrames := 8, instrument := 137, porta := 0 }, { kind := .pitched ⟨86, by omega⟩, durationFrames := 8, instrument := 137, porta := 0 }, { kind := .pitched ⟨55, by omega⟩, durationFrames := 8, instrument := 137, porta := 0 }, { kind := .pitched ⟨87, by omega⟩, durationFrames := 8, instrument := 137, porta := 0 }, { kind := .pitched ⟨55, by omega⟩, durationFrames := 8, instrument := 137, porta := 0 }, { kind := .pitched ⟨79, by omega⟩, durationFrames := 8, instrument := 137, porta := 0 }, { kind := .pitched ⟨55, by omega⟩, durationFrames := 8, instrument := 137, porta := 0 }, { kind := .pitched ⟨79, by omega⟩, durationFrames := 8, instrument := 137, porta := 0 }, { kind := .pitched ⟨80, by omega⟩, durationFrames := 8, instrument := 137, porta := 0 }, { kind := .pitched ⟨79, by omega⟩, durationFrames := 8, instrument := 137, porta := 0 }, { kind := .pitched ⟨55, by omega⟩, durationFrames := 8, instrument := 137, porta := 0 }, { kind := .pitched ⟨77, by omega⟩, durationFrames := 8, instrument := 137, porta := 0 }, { kind := .pitched ⟨55, by omega⟩, durationFrames := 8, instrument := 137, porta := 0 }, { kind := .pitched ⟨79, by omega⟩, durationFrames := 8, instrument := 137, porta := 0 }, { kind := .pitched ⟨55, by omega⟩, durationFrames := 8, instrument := 137, porta := 0 }, { kind := .pitched ⟨80, by omega⟩, durationFrames := 8, instrument := 137, porta := 0 }, { kind := .pitched ⟨55, by omega⟩, durationFrames := 8, instrument := 137, porta := 0 }, { kind := .pitched ⟨74, by omega⟩, durationFrames := 8, instrument := 137, porta := 0 }, { kind := .pitched ⟨55, by omega⟩, durationFrames := 8, instrument := 137, porta := 0 }, { kind := .pitched ⟨74, by omega⟩, durationFrames := 8, instrument := 137, porta := 0 }, { kind := .pitched ⟨75, by omega⟩, durationFrames := 8, instrument := 137, porta := 0 }, { kind := .pitched ⟨74, by omega⟩, durationFrames := 8, instrument := 137, porta := 0 }, { kind := .pitched ⟨55, by omega⟩, durationFrames := 8, instrument := 137, porta := 0 }, { kind := .pitched ⟨72, by omega⟩, durationFrames := 8, instrument := 137, porta := 0 }, { kind := .pitched ⟨55, by omega⟩, durationFrames := 8, instrument := 137, porta := 0 }, { kind := .pitched ⟨71, by omega⟩, durationFrames := 8, instrument := 137, porta := 0 }, { kind := .pitched ⟨55, by omega⟩, durationFrames := 8, instrument := 137, porta := 0 }, { kind := .pitched ⟨67, by omega⟩, durationFrames := 8, instrument := 137, porta := 0 }, { kind := .pitched ⟨55, by omega⟩, durationFrames := 8, instrument := 137, porta := 0 }] }
-
-def mv3P33 : USFPattern := { notes := [{ kind := .pitched ⟨19, by omega⟩, durationFrames := 48, instrument := 3, porta := 0 }, { kind := .pitched ⟨79, by omega⟩, durationFrames := 8, instrument := 9, porta := 0 }, { kind := .pitched ⟨80, by omega⟩, durationFrames := 8, instrument := 137, porta := 0 }, { kind := .pitched ⟨79, by omega⟩, durationFrames := 8, instrument := 137, porta := 0 }, { kind := .pitched ⟨55, by omega⟩, durationFrames := 8, instrument := 137, porta := 0 }, { kind := .pitched ⟨77, by omega⟩, durationFrames := 8, instrument := 137, porta := 0 }, { kind := .pitched ⟨55, by omega⟩, durationFrames := 8, instrument := 137, porta := 0 }, { kind := .pitched ⟨79, by omega⟩, durationFrames := 8, instrument := 137, porta := 0 }, { kind := .pitched ⟨55, by omega⟩, durationFrames := 8, instrument := 137, porta := 0 }, { kind := .pitched ⟨80, by omega⟩, durationFrames := 8, instrument := 137, porta := 0 }, { kind := .pitched ⟨55, by omega⟩, durationFrames := 8, instrument := 137, porta := 0 }, { kind := .pitched ⟨74, by omega⟩, durationFrames := 8, instrument := 137, porta := 0 }, { kind := .pitched ⟨55, by omega⟩, durationFrames := 8, instrument := 137, porta := 0 }, { kind := .pitched ⟨74, by omega⟩, durationFrames := 8, instrument := 137, porta := 0 }, { kind := .pitched ⟨75, by omega⟩, durationFrames := 8, instrument := 137, porta := 0 }, { kind := .pitched ⟨74, by omega⟩, durationFrames := 8, instrument := 137, porta := 0 }, { kind := .pitched ⟨55, by omega⟩, durationFrames := 8, instrument := 137, porta := 0 }, { kind := .pitched ⟨72, by omega⟩, durationFrames := 8, instrument := 137, porta := 0 }, { kind := .pitched ⟨55, by omega⟩, durationFrames := 8, instrument := 137, porta := 0 }, { kind := .pitched ⟨74, by omega⟩, durationFrames := 8, instrument := 137, porta := 0 }, { kind := .pitched ⟨55, by omega⟩, durationFrames := 8, instrument := 137, porta := 0 }, { kind := .pitched ⟨75, by omega⟩, durationFrames := 8, instrument := 137, porta := 0 }, { kind := .pitched ⟨55, by omega⟩, durationFrames := 8, instrument := 137, porta := 0 }, { kind := .pitched ⟨67, by omega⟩, durationFrames := 8, instrument := 137, porta := 0 }, { kind := .pitched ⟨55, by omega⟩, durationFrames := 8, instrument := 137, porta := 0 }, { kind := .pitched ⟨67, by omega⟩, durationFrames := 8, instrument := 137, porta := 0 }, { kind := .pitched ⟨68, by omega⟩, durationFrames := 8, instrument := 137, porta := 0 }, { kind := .pitched ⟨67, by omega⟩, durationFrames := 8, instrument := 137, porta := 0 }, { kind := .pitched ⟨55, by omega⟩, durationFrames := 8, instrument := 137, porta := 0 }, { kind := .pitched ⟨65, by omega⟩, durationFrames := 8, instrument := 137, porta := 0 }, { kind := .pitched ⟨55, by omega⟩, durationFrames := 8, instrument := 137, porta := 0 }, { kind := .pitched ⟨67, by omega⟩, durationFrames := 8, instrument := 137, porta := 0 }, { kind := .pitched ⟨55, by omega⟩, durationFrames := 8, instrument := 137, porta := 0 }, { kind := .pitched ⟨68, by omega⟩, durationFrames := 8, instrument := 137, porta := 0 }, { kind := .pitched ⟨55, by omega⟩, durationFrames := 8, instrument := 137, porta := 0 }, { kind := .pitched ⟨62, by omega⟩, durationFrames := 8, instrument := 137, porta := 0 }, { kind := .pitched ⟨55, by omega⟩, durationFrames := 8, instrument := 137, porta := 0 }, { kind := .pitched ⟨62, by omega⟩, durationFrames := 8, instrument := 137, porta := 0 }, { kind := .pitched ⟨63, by omega⟩, durationFrames := 8, instrument := 137, porta := 0 }, { kind := .pitched ⟨59, by omega⟩, durationFrames := 8, instrument := 137, porta := 0 }, { kind := .pitched ⟨55, by omega⟩, durationFrames := 8, instrument := 137, porta := 0 }, { kind := .pitched ⟨55, by omega⟩, durationFrames := 8, instrument := 137, porta := 0 }, { kind := .pitched ⟨55, by omega⟩, durationFrames := 8, instrument := 137, porta := 0 }] }
-
-def mv3P34 : USFPattern := { notes := [{ kind := .pitched ⟨31, by omega⟩, durationFrames := 16, instrument := 7, porta := 0 }, { kind := .pitched ⟨91, by omega⟩, durationFrames := 16, instrument := 16, porta := 0 }, { kind := .pitched ⟨91, by omega⟩, durationFrames := 16, instrument := 144, porta := 0 }, { kind := .pitched ⟨31, by omega⟩, durationFrames := 16, instrument := 7, porta := 0 }, { kind := .pitched ⟨91, by omega⟩, durationFrames := 16, instrument := 16, porta := 0 }, { kind := .pitched ⟨91, by omega⟩, durationFrames := 8, instrument := 144, porta := 0 }, { kind := .pitched ⟨31, by omega⟩, durationFrames := 8, instrument := 7, porta := 0 }] }
-
-def mv3P35 : USFPattern := { notes := [{ kind := .tie, durationFrames := 16, instrument := 192, porta := 0 }, { kind := .pitched ⟨72, by omega⟩, durationFrames := 16, instrument := 14, porta := 0 }, { kind := .pitched ⟨48, by omega⟩, durationFrames := 16, instrument := 142, porta := 0 }, { kind := .tie, durationFrames := 16, instrument := 206, porta := 0 }, { kind := .pitched ⟨72, by omega⟩, durationFrames := 16, instrument := 142, porta := 0 }, { kind := .pitched ⟨48, by omega⟩, durationFrames := 16, instrument := 142, porta := 0 }] }
-
-def mv3P36 : USFPattern := { notes := [{ kind := .pitched ⟨24, by omega⟩, durationFrames := 64, instrument := 160, porta := 0 }, { kind := .pitched ⟨24, by omega⟩, durationFrames := 32, instrument := 128, porta := 0 }] }
-
-def mv3V0 : USFVoice := { orderlist := [0, 0, 0, 0, 27, 29, 29, 5, 6, 5, 6, 5, 10, 11, 11, 12, 12, 13, 15, 17, 17, 18, 18, 19, 20, 20, 20, 20, 23, 25, 27, 29, 29, 29, 1, 2, 2, 3, 30, 30, 32, 5, 6, 5, 10, 19, 18, 18, 15, 17, 17, 20, 20, 20, 20, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], loopPoint := some 0 }
-def mv3V1 : USFVoice := { orderlist := [9, 9, 9, 9, 9, 9, 9, 9, 22, 22, 22, 22, 9, 9, 34, 34, 9, 9, 34, 34, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 34, 34, 9, 9, 9, 9, 9, 9, 9, 34, 34, 9, 9, 34, 34, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 22, 22, 22, 22, 22, 22, 22, 22, 22, 22, 22, 22, 22, 22, 22, 22, 9, 9, 9, 9, 9, 22, 9, 9, 9, 9, 9, 22, 9, 9, 9, 9, 22, 22, 22, 22, 22, 22, 9, 9, 9, 9, 31, 31, 31, 31, 9, 9, 9, 9, 9, 9, 22, 22, 9, 9, 9, 9, 31, 31, 31, 31, 22, 22, 22, 22, 31, 31, 31, 31, 31, 31, 31, 31, 9, 22, 9, 22, 9, 9, 9, 9, 9, 9, 9, 9, 22, 22, 22, 22, 22, 22, 22, 22, 22, 22, 22, 22, 22, 22, 22, 22, 35, 35, 35, 35, 35, 35, 35, 35, 0, 0, 0, 0, 0, 0, 0, 0], loopPoint := some 0 }
-def mv3V2 : USFVoice := { orderlist := [0, 0, 0, 0, 28, 7, 7, 7, 7, 4, 4, 7, 7, 4, 4, 7, 7, 4, 4, 7, 7, 8, 8, 8, 8, 7, 7, 4, 4, 14, 16, 16, 4, 4, 7, 7, 4, 4, 7, 7, 8, 8, 8, 8, 8, 8, 8, 8, 7, 7, 7, 7, 21, 21, 24, 26, 28, 7, 7, 7, 7, 7, 7, 4, 4, 7, 7, 8, 8, 14, 14, 33, 4, 4, 7, 7, 4, 4, 7, 7, 8, 8, 8, 8, 7, 7, 7, 7, 8, 8, 8, 8, 8, 8, 8, 8, 16, 16, 4, 4, 7, 7, 4, 4, 7, 7, 21, 21, 36, 36, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], loopPoint := some 0 }
-
-def mv3S0 : USFSubtune := { voices := [mv3V0, mv3V1, mv3V2], tempo := 2 }
-
-def master_of_magicV3 : USFSong := {
-  freqTable := master_of_magicV3FreqTable
-  instruments := [mv3I0, mv3I1, mv3I2, mv3I3, mv3I4, mv3I5, mv3I6, mv3I7, mv3I8, mv3I9, mv3I10, mv3I11, mv3I12, mv3I13, mv3I14, mv3I15, mv3I16]
-  patterns := [mv3P0, mv3P1, mv3P2, mv3P3, mv3P4, mv3P5, mv3P6, mv3P7, mv3P8, mv3P9, mv3P10, mv3P11, mv3P12, mv3P13, mv3P14, mv3P15, mv3P16, mv3P17, mv3P18, mv3P19, mv3P20, mv3P21, mv3P22, mv3P23, mv3P24, mv3P25, mv3P26, mv3P27, mv3P28, mv3P29, mv3P30, mv3P31, mv3P32, mv3P33, mv3P34, mv3P35, mv3P36]
-  subtunes := [mv3S0]
-  voiceOrder := [⟨2, by omega⟩, ⟨1, by omega⟩, ⟨0, by omega⟩]
-  filter := none
-  playRate := .vbi
-  engineQuirks := {
-    preserveNoteFlags := true
-    voiceScratch := [
-      { name := "hub_off", initial := ⟨0, by omega⟩ },
-      { name := "seq_idx", initial := ⟨0, by omega⟩ }
-    ]
-    noteLoadOps := [
-      .addByFlag 0 [
-        (⟨0x40, by omega⟩, ⟨0x40, by omega⟩, ⟨1, by omega⟩),
-        (⟨0x80, by omega⟩, ⟨0x80, by omega⟩, ⟨2, by omega⟩),
-        (⟨0x00, by omega⟩, ⟨0x00, by omega⟩, ⟨3, by omega⟩)
-      ],
-      .resetIfNextEnds 0,
-      .incIfNextEnds   1 ⟨1, by omega⟩
-    ]
-    patternEndOps := [
-      .reset 0,
-      .increment 1 ⟨1, by omega⟩
-    ]
-    dynamicFreqEntries := []
-  }
-  title := "MasterOfMagic on the Run"
-  author := "Rob Hubbard"
-  released := "1985 Gremlin Graphics"
+  -- PSID metadata
+  title    := "The Master of Magic"
+  author   := "Rob Hubbard"
+  released := "1985 MAD/Mastertronic"
 }

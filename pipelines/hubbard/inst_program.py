@@ -14,9 +14,9 @@ instrument against `siddump --writelog`, which remains the authority
 (see docs/usf_instrument_program_plan.md and feedback_ground_truth).
 
 Usage:
-    python3 -m pipelines.commando.extract.inst_program            # summary table
-    python3 -m pipelines.commando.extract.inst_program 12         # dump inst 12
-    python3 -m pipelines.commando.extract.inst_program 12 600     # ... 600 frames
+    python3 -m pipelines.hubbard.inst_program            # summary table
+    python3 -m pipelines.hubbard.inst_program 12         # dump inst 12
+    python3 -m pipelines.hubbard.inst_program 12 600     # ... 600 frames
 """
 
 from __future__ import annotations
@@ -28,7 +28,7 @@ from dataclasses import dataclass, field
 from typing import Optional
 
 ROOT = os.path.dirname(
-    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.join(ROOT, 'tools', 'py65_lib'))
 
 # Default canary: the Commando SID Phase 0 captured its baseline from.

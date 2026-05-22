@@ -1,368 +1,327 @@
-"""Generate USF v3 LastV8C128 on the Run data as a Lean file.
+"""Emit ``codegen/LastV8C128/SongData.lean`` from the parsed engine model.
 
-Pipeline structure identical to the Commando emit_usf; only the SID source
-path, freq table base, and Lean output paths differ.
-
-Discovered freq_table_addr for LastV8C128: $8400 (via src/sidxray/discover.py).
+The Lean SongData here is *not* a USF song — it's a faithful dump of
+what we know about the binary so the codegen has something concrete to
+reference. The schema is defined in ``codegen/LastV8C128/SongData.lean``
+(after this script runs) and matches the Lean ``EngineModel`` record.
 """
 
 from __future__ import annotations
 
+import argparse
 import logging
-import os
 import sys
+from pathlib import Path
 
 from .engine_model import extract
-from .types import ExtractedSong, Instrument, Note
+from .types import (
+    EngineModel,
+    Instrument,
+    MusicSubtune,
+    Orderlist,
+    Pattern,
+    PatternEvent,
+    SampleRecord,
+    SubtuneRoute,
+)
 
 logger = logging.getLogger(__name__)
 
 
-def hex_byte(n: int) -> str:
-    return f"⟨{n & 0xFF}, by omega⟩"
+PIPELINE_DIR = Path(__file__).resolve().parents[1]
+OUT_PATH = PIPELINE_DIR / 'codegen' / 'LastV8C128' / 'SongData.lean'
 
 
-def gen_freq_table(T: list[int]) -> str:
-    """Emit 128 entries: standard PAL 0-95, plus engine-extracted 96-127.
-
-    Note: Commando's gen_commando_v3.py zeros pitch 104 because Commando
-    uses freq-table slot 104 as a hidden register (dynamic ctrl byte
-    alias updated each frame via engineQuirks.dynamicFreqEntries).
-    LastV8C128 does NOT do this — its pitch 104 is a real freq lookup
-    ($4141 in the original SID). We keep the real value here.
-    """
-    pairs = []
-    for i in range(128):
-        if i < len(T):
-            flo = T[i] & 0xFF
-            fhi = (T[i] >> 8) & 0xFF
-        else:
-            flo = 0
-            fhi = 0
-        pairs.append(f"({hex_byte(flo)}, {hex_byte(fhi)})")
-    return "[" + ", ".join(pairs) + "]"
+def _lean_subtune_route(r: SubtuneRoute) -> str:
+    return f'  {{ subtune := {r.subtune}, kind := "{r.kind}" }}'
 
 
-def gen_instrument(idx: int, inst: Instrument) -> str:
-    pw = inst.pwm
-    bit0 = inst.has_bit0
-    sky = inst.has_skydive
-    arp_off = inst.arp_offset
-    vib = inst.vibrato_scale
-    waveform = inst.waveform.steps
-    loop = inst.waveform.loop
-    init_pw = pw.init_pw
-    init_lo = init_pw & 0xFF
-    init_hi = (init_pw >> 8) & 0x0F
-
-    if pw.speed == 0:
-        pwmod = 'none'
-    elif pw.mode == 'linear':
-        pwmod = (
-            f"some {{ mode := .linear {hex_byte(pw.speed)}, "
-            f"stepEvery := 1, startDelay := 0 }}"
-        )
-    else:
-        pwmod = (
-            f"some {{ mode := .bidirectional {hex_byte(pw.speed)} "
-            f"{hex_byte(pw.min_hi)} {hex_byte(pw.max_hi)}, "
-            f"stepEvery := 1, startDelay := 0 }}"
-        )
-
-    if vib == 0:
-        vibspec = 'none'
-    else:
-        vibspec = (
-            f"some {{ shape := .triangle, periodFrames := 8, "
-            f"semitoneShift := {vib + 1}, onsetFrames := 6, "
-            f"rampUpFrames := 0, unipolar := true }}"
-        )
-
-    if bit0:
-        slidespec = (
-            "some { kind := .monotonic (-1), stepEvery := 1, "
-            "startDelay := 9, stopAtZero := true }"
-        )
-    else:
-        slidespec = 'none'
-
-    if arp_off > 0:
-        arpspec = (
-            f"some {{ intervals := [0, {arp_off}], stepEvery := 1, "
-            f"phaseSource := .global, startDelay := 0 }}"
-        )
-    else:
-        arpspec = 'none'
-
-    eff_parts = []
-    if vib > 0:
-        eff_parts.append('.vibrato')
-    eff_parts.append('.pwMod')
-    if bit0:
-        eff_parts.append('.freqSlide')
-    if arp_off > 0:
-        eff_parts.append('.arpeggio')
-    eff_parts.append('.gateCheck')
-    eff_order = '[' + ', '.join(eff_parts) + ']'
-
-    waveform_lit = '[' + ', '.join(hex_byte(b) for b in waveform) + ']'
-
-    return f"""def mv3I{idx} : USFInstrument := {{
-  initCtrl := {hex_byte(waveform[0])}
-  initPwLo := {hex_byte(init_lo)}
-  initPwHi := {hex_byte(init_hi)}
-  ad := {hex_byte(inst.envelope.ad)}
-  sr := {hex_byte(inst.envelope.sr)}
-  initFreqMod := .normal
-  waveformProgram := {waveform_lit}
-  waveLoop := {loop}
-  waveStepEvery := 1
-  pwMod := {pwmod}
-  vibrato := {vibspec}
-  freqSlide := {slidespec}
-  arpeggio := {arpspec}
-  effectOrder := {eff_order}
-  release := {{ framesBeforeEnd := 3, zeroAdsr := true, noRelease := false }}
-  filterEnabled := false
-  skydive := {str(sky).lower()}
-}}"""
-
-
-def gen_note(note: Note, tempo: int) -> str:
-    pitch = note.pitch
-    dur = note.duration
-    inst_raw = note.instrument
-    # das_model: bits 6 AND 7 are flags. Preserve them - they're needed at
-    # runtime for hub_off counter (+1 for bit6 legato, +2 for bit7 tie, +3
-    # for full new note). The actual instrument index is bits 0-5.
-    # Pattern byte stores the RAW value; codegen masks for table indexing.
-    # no_release is encoded in bit 7 of drum_trig (das_model_gen.py:197).
-    # Hubbard's no_release flag suppresses HR at the end of THIS note; the
-    # next note inherits the still-on gate so the SID envelope doesn't
-    # retrigger across the boundary. We piggyback the flag on bit 5 of the
-    # raw instrument byte (bits 0-3 are the index, 6/7 are the legato/tie
-    # flags). Codegen masks it out for table lookup and uses it to skip HR.
-    no_release = bool(note.drum_trig & 0x80)
-    inst = (inst_raw & 0xFF) | (0x20 if no_release else 0)
-    tie = note.tie
-    # Frame count = dur * tempo (frames per tick). Tempo varies per subtune
-    # in Hubbard games — comes from speed_table[subtune]+1.
-    frames = dur * tempo
-    # Portamento byte: drum_trig has porta speed << 1 in bits 1-6 and
-    # direction in bit 0; bit 7 was the no_release flag (extracted above).
-    # Strip bit 7, leave the porta payload.
-    porta = note.drum_trig & 0x7F
-    if tie:
-        kind = '.tie'
-    elif pitch == 104:
-        kind = '.percussion .dynamicCtrl'
-    elif pitch < 96:
-        kind = f'.pitched {hex_byte(pitch)}'
-    else:
-        # Other extended pitches — for now treat as dynamicCtrl too
-        # (Hubbard's pitch 100, 116 etc.)
-        kind = '.percussion .dynamicCtrl'
+def _lean_sample(s: SampleRecord) -> str:
     return (
-        f"{{ kind := {kind}, durationFrames := {frames}, "
-        f"instrument := {inst}, porta := {porta} }}"
+        f'  {{ subtune := {s.subtune}'
+        f', startAddr := 0x{s.start:04X}'
+        f', endAddr := 0x{s.end:04X}'
+        f', rateConstant := 0x{s.rate_constant:02X} }}'
     )
 
 
-def gen_pattern(idx: int, notes: list[Note], tempo: int) -> str:
-    note_strs = [gen_note(n, tempo) for n in notes]
-    return f"def mv3P{idx} : USFPattern := {{ notes := [{', '.join(note_strs)}] }}"
+def _lean_freq_table(pairs: list[tuple[int, int]]) -> str:
+    items = [f'  ({lo}, {hi})' for (lo, hi) in pairs]
+    return '[\n' + ',\n'.join(items) + '\n]'
 
 
-LAST_V8_C128_SID = '/home/jtr/sidfinity/data/C64Music/MUSICIANS/H/Hubbard_Rob/Last_V8_C128_version.sid'
-LAST_V8_C128_FT_BASE = 0x843B  # discovered via src/sidxray/discover.py
+def _opt(v: int | None) -> str:
+    return 'none' if v is None else f'some {v}'
 
 
-def main(argv: list[str] | None = None) -> None:
-    if not logging.getLogger().handlers:
-        logging.basicConfig(level=logging.INFO, format='%(message)s')
-
-    if argv is None:
-        argv = sys.argv[1:]
-
-    # Subtune list. Default = subtune 0 only (the title music PSID
-    # start_song points at). Pass comma-separated indices to override.
-    subtune_indices: list[int] = [0]
-    if argv:
-        subtune_indices = [int(x) for x in argv[0].split(',')]
-
-    # Extract per subtune from LastV8C128 (not Commando). Discovery-derived
-    # ft_base override. PWM bounds are HARDCODED in Hubbard's player
-    # (cmp #$08 / cmp #$0E in pulsework — see ACME disassembly), not
-    # per-instrument. The earlier $0B observation was just the warm-up
-    # phase before V2 stepped all the way down to $08 (around frame 51).
-    extracts: list[ExtractedSong] = [
-        extract(
-            subtune=s,
-            sid_path=LAST_V8_C128_SID,
-            ft_base=LAST_V8_C128_FT_BASE,
-            default_pw_min=0x08,
-            default_pw_max=0x0E,
-        )
-        for s in subtune_indices
-    ]
-    first = extracts[0]
-    T = first.freq_table
-    instruments = first.instruments
-
-    out = [
-        "-- Auto-generated USF v3 LastV8C128 on the Run data",
-        f"-- Subtunes: {subtune_indices} (0-indexed; PSID subtunes "
-        f"{[s + 1 for s in subtune_indices]})",
-        "import LastV8C128.USF",
-        "",
-    ]
-
-    out.append(
-        f"def last_v8_c128V3FreqTable : USFFreqTable := "
-        f"{{ entries := {gen_freq_table(T)} }}"
+def _lean_event(ev: PatternEvent) -> str:
+    if ev.kind == 'tie':
+        return (f'  PatternEvent.tie {ev.hold} '
+                f'{"true" if ev.no_release else "false"}')
+    return (
+        f'  PatternEvent.note '
+        f'⟨{ev.hold}, '
+        f'{"true" if ev.no_release else "false"}, '
+        f'{ev.pitch}, '
+        f'{_opt(ev.instrument)}, '
+        f'{_opt(ev.arp_mode)}⟩'
     )
-    out.append("")
 
-    for i, inst in enumerate(instruments):
-        out.append(gen_instrument(i, inst))
-        out.append("")
 
-    # Collect patterns across all subtunes. Each pattern's durationFrames is
-    # pre-multiplied by ITS subtune's tempo, so a pattern shared between two
-    # subtunes at different tempos would need different durations — we
-    # error if that happens. For Commando subtunes 0/1/2 there's no overlap
-    # (they each use disjoint pattern ranges).
-    all_pats: dict[int, tuple[list[Note], int]] = {}  # pat_idx -> (notes, tempo)
-    for es in extracts:
-        tempo = es.score.tempo
-        for v in es.score.voices:
-            for pat_idx, pat_notes in v.patterns.items():
-                if pat_idx in all_pats:
-                    _existing_notes, existing_tempo = all_pats[pat_idx]
-                    if existing_tempo != tempo:
-                        raise ValueError(
-                            f"pattern {pat_idx} shared between subtunes with "
-                            f"different tempos ({existing_tempo} vs {tempo}); "
-                            f"need tick-based durations to handle this"
-                        )
-                else:
-                    all_pats[pat_idx] = (pat_notes, tempo)
-
-    for idx in sorted(all_pats.keys()):
-        notes, tempo = all_pats[idx]
-        out.append(gen_pattern(idx, notes, tempo))
-        out.append("")
-
-    # Per-subtune voices (orderlists). Each subtune contributes 3 voices.
-    voice_defs: list[str] = []
-    voice_global_idx = 0
-    subtune_voices: list[tuple[int, int]] = []  # (start_idx, count) per subtune
-    for es in extracts:
-        start = voice_global_idx
-        for v in es.score.voices:
-            ol = '[' + ', '.join(str(p) for p in v.orderlist) + ']'
-            loop_pt = v.loop
-            # rh_decompile uses -1 to mean "no loop / song stops"; USF schema
-            # represents that as `none`.
-            loop_str = (
-                f'some {loop_pt}' if loop_pt is not None and loop_pt >= 0
-                else 'none'
-            )
-            voice_defs.append(
-                f"def mv3V{voice_global_idx} : USFVoice := "
-                f"{{ orderlist := {ol}, loopPoint := {loop_str} }}"
-            )
-            voice_global_idx += 1
-        subtune_voices.append((start, voice_global_idx - start))
-    out.extend(voice_defs)
-    out.append("")
-
-    # Subtune defs: each USFSubtune wraps 3 voices + tempo.
-    subtune_defs: list[str] = []
-    for si, ((start, count), es) in enumerate(zip(subtune_voices, extracts)):
-        v_refs = ', '.join(f'mv3V{i}' for i in range(start, start + count))
-        subtune_defs.append(
-            f"def mv3S{si} : USFSubtune := "
-            f"{{ voices := [{v_refs}], tempo := {es.score.tempo} }}"
-        )
-    out.extend(subtune_defs)
-    out.append("")
-
-    # Pattern list (ordered by index, with empty placeholders for missing indices)
-    max_pat = max(all_pats.keys()) + 1
-    pat_refs: list[str] = []
-    for i in range(max_pat):
-        if i in all_pats:
-            pat_refs.append(f'mv3P{i}')
-        else:
-            pat_refs.append('{ notes := [] }')
-
-    # Final song
-    inst_refs = ', '.join(f'mv3I{i}' for i in range(len(instruments)))
-    subtune_refs = ', '.join(f'mv3S{i}' for i in range(len(extracts)))
-    pat_list = ', '.join(pat_refs)
-
-    # Engine quirks for LastV8C128. Same Hubbard engine as Commando, so:
-    #   - voiceScratch / noteLoadOps / patternEndOps stay: these encode
-    #     Hubbard's variable-length pattern decoding (hub_off counter
-    #     advances 1/2/3 bytes per note based on flags). Removing them
-    #     breaks pattern-byte advancement on ALL Hubbard SIDs.
-    #   - dynamicFreqEntries DROPPED: these are Commando-specific
-    #     (use freq-table slots 98..107 as hidden registers for
-    #     per-voice state). LastV8C128 doesn't do this; keeping them would
-    #     overwrite LastV8C128's real freq value at slot 104 ($4141) with
-    #     ctrl bytes every frame.
-    quirks = """{
-    preserveNoteFlags := true
-    voiceScratch := [
-      { name := "hub_off", initial := ⟨0, by omega⟩ },
-      { name := "seq_idx", initial := ⟨0, by omega⟩ }
-    ]
-    noteLoadOps := [
-      .addByFlag 0 [
-        (⟨0x40, by omega⟩, ⟨0x40, by omega⟩, ⟨1, by omega⟩),
-        (⟨0x80, by omega⟩, ⟨0x80, by omega⟩, ⟨2, by omega⟩),
-        (⟨0x00, by omega⟩, ⟨0x00, by omega⟩, ⟨3, by omega⟩)
-      ],
-      .resetIfNextEnds 0,
-      .incIfNextEnds   1 ⟨1, by omega⟩
-    ]
-    patternEndOps := [
-      .reset 0,
-      .increment 1 ⟨1, by omega⟩
-    ]
-    dynamicFreqEntries := []
-  }"""
-
-    out.append(f"""def last_v8_c128V3 : USFSong := {{
-  freqTable := last_v8_c128V3FreqTable
-  instruments := [{inst_refs}]
-  patterns := [{pat_list}]
-  subtunes := [{subtune_refs}]
-  voiceOrder := [⟨2, by omega⟩, ⟨1, by omega⟩, ⟨0, by omega⟩]
-  filter := none
-  playRate := .vbi
-  engineQuirks := {quirks}
-  title := "LastV8C128 on the Run"
-  author := "Rob Hubbard"
-  released := "1985 Gremlin Graphics"
-}}""")
-
-    # Output path is repo-root-relative, computed from this file's location.
-    repo_root = os.path.abspath(
-        os.path.join(os.path.dirname(__file__), '..', '..', '..')
+def _lean_pattern(p: Pattern) -> str:
+    body = ',\n'.join(_lean_event(ev) for ev in p.events) if p.events else ''
+    events = f'[\n{body}\n  ]' if body else '[]'
+    return (
+        f'  {{ index := {p.index}, '
+        f'addr := 0x{p.addr:04X}, '
+        f'events := {events} }}'
     )
-    out_path = os.path.join(
-        repo_root, 'pipelines/last_v8_c128/codegen/LastV8C128/SongData.lean'
-    )
-    with open(out_path, 'w') as f:
-        f.write('\n'.join(out) + '\n')
 
-    logger.info(
-        "Wrote %d instruments, %d patterns, %d voices to %s",
-        len(instruments), len(all_pats), len(first.score.voices), out_path,
+
+def _lean_orderlist(o: Orderlist) -> str:
+    indices = ', '.join(str(i) for i in o.indices)
+    return (
+        f'    {{ voice := {o.voice}, addr := 0x{o.addr:04X}, '
+        f'indices := [{indices}], terminator := "{o.terminator}" }}'
     )
+
+
+def _lean_instrument(i: Instrument) -> str:
+    return (
+        f'  {{ id := {i.id}, '
+        f'pulseWidth := 0x{i.pulse_width:04X}, '
+        f'ctrl := 0x{i.ctrl:02X}, '
+        f'ad := 0x{i.ad:02X}, '
+        f'sr := 0x{i.sr:02X}, '
+        f'vibShift := 0x{i.vib_shift:02X}, '
+        f'pwm := 0x{i.pwm:02X}, '
+        f'fxFlags := 0x{i.fx_flags:02X} }}'
+    )
+
+
+def _lean_music_subtune(s: MusicSubtune) -> str:
+    voices = ',\n'.join(_lean_orderlist(v) for v in s.voices)
+    return (
+        f'  {{ subtune := {s.subtune},\n'
+        f'    voices := [\n{voices}\n    ]\n  }}'
+    )
+
+
+def render(model: EngineModel) -> str:
+    h = model.header
+    out: list[str] = []
+    out.append('-- Auto-generated from pipelines/last_v8_c128/extract/emit_usf.py')
+    out.append('-- DO NOT EDIT — regenerate via:')
+    out.append('--     python -m pipelines.last_v8_c128.extract')
+    out.append('')
+    out.append('namespace LastV8C128NS')
+    out.append('')
+
+    out.append('/-- RSID header fields, copied verbatim from the original binary. -/')
+    out.append('structure Header where')
+    out.append('  magic     : String')
+    out.append('  loadAddr  : UInt16')
+    out.append('  initAddr  : UInt16')
+    out.append('  playAddr  : UInt16')
+    out.append('  songs     : UInt8')
+    out.append('  startSong : UInt8')
+    out.append('  name      : String')
+    out.append('  author    : String')
+    out.append('  released  : String')
+    out.append('  deriving Repr')
+    out.append('')
+
+    out.append('/-- One per subtune (0-indexed). `kind` ∈ {"music","sample","sfx"}. -/')
+    out.append('structure SubtuneRoute where')
+    out.append('  subtune : Nat')
+    out.append('  kind    : String')
+    out.append('  deriving Repr')
+    out.append('')
+
+    out.append('/-- One sample played by the relocated $C000 player. -/')
+    out.append('structure SampleRecord where')
+    out.append('  subtune       : Nat')
+    out.append('  startAddr     : UInt16')
+    out.append('  endAddr       : UInt16')
+    out.append('  rateConstant  : UInt8')
+    out.append('  deriving Repr')
+    out.append('')
+
+    out.append('/-- Where the static tables of the tracker driver live. -/')
+    out.append('structure MusicTables where')
+    out.append('  freqTable      : UInt16')
+    out.append('  instrumentTable: UInt16')
+    out.append('  sfxTable       : UInt16')
+    out.append('  orderlistPtrs  : UInt16')
+    out.append('  patternPtrLo   : UInt16')
+    out.append('  patternPtrHi   : UInt16')
+    out.append('  deriving Repr')
+    out.append('')
+
+    out.append('/-- The fields of a "note" pattern event. -/')
+    out.append('structure NoteInfo where')
+    out.append('  hold       : Nat')
+    out.append('  noRelease  : Bool')
+    out.append('  pitch      : Nat')
+    out.append('  instrument : Option Nat')
+    out.append('  arpMode    : Option Nat')
+    out.append('  deriving Repr')
+    out.append('')
+    out.append('/-- A pattern event: a held note or a tie. -/')
+    out.append('inductive PatternEvent where')
+    out.append('  | note (info : NoteInfo)             : PatternEvent')
+    out.append('  | tie  (hold : Nat) (noRel : Bool)   : PatternEvent')
+    out.append('  deriving Repr')
+    out.append('')
+
+    out.append('structure Pattern where')
+    out.append('  index   : Nat')
+    out.append('  addr    : UInt16')
+    out.append('  events  : List PatternEvent')
+    out.append('  deriving Repr')
+    out.append('')
+
+    out.append('structure Orderlist where')
+    out.append('  voice      : Nat')
+    out.append('  addr       : UInt16')
+    out.append('  indices    : List Nat')
+    out.append('  terminator : String')
+    out.append('  deriving Repr')
+    out.append('')
+
+    out.append('/-- 8-byte instrument record from $85A1. -/')
+    out.append('structure Instrument where')
+    out.append('  id          : Nat')
+    out.append('  pulseWidth  : UInt16')
+    out.append('  ctrl        : UInt8')
+    out.append('  ad          : UInt8')
+    out.append('  sr          : UInt8')
+    out.append('  vibShift    : UInt8')
+    out.append('  pwm         : UInt8')
+    out.append('  fxFlags     : UInt8')
+    out.append('  deriving Repr')
+    out.append('')
+
+    out.append('structure MusicSubtune where')
+    out.append('  subtune : Nat')
+    out.append('  voices  : List Orderlist')
+    out.append('  deriving Repr')
+    out.append('')
+
+    out.append('structure EngineModel where')
+    out.append('  header         : Header')
+    out.append('  relocatorSrc   : UInt16')
+    out.append('  relocatorLen   : UInt16')
+    out.append('  relocatorDst   : UInt16')
+    out.append('  routes         : List SubtuneRoute')
+    out.append('  samples        : List SampleRecord')
+    out.append('  music          : MusicTables')
+    out.append('  freqTable      : List (UInt8 × UInt8)')
+    out.append('  patterns       : List Pattern')
+    out.append('  musicSubtunes  : List MusicSubtune')
+    out.append('  instruments    : List Instrument')
+    out.append('  deriving Repr')
+    out.append('')
+
+    out.append('def lastV8C128Model : EngineModel :=')
+    out.append('  let h : Header := {')
+    out.append(f'    magic     := "{h.magic}"')
+    out.append(f'    loadAddr  := 0x{h.load_addr:04X}')
+    out.append(f'    initAddr  := 0x{h.init_addr:04X}')
+    out.append(f'    playAddr  := 0x{h.play_addr:04X}')
+    out.append(f'    songs     := {h.songs}')
+    out.append(f'    startSong := {h.start_song}')
+    out.append(f'    name      := {_lean_str(h.name)}')
+    out.append(f'    author    := {_lean_str(h.author)}')
+    out.append(f'    released  := {_lean_str(h.released)}')
+    out.append('  }')
+    out.append('  let routes : List SubtuneRoute := [')
+    out.append(',\n'.join(_lean_subtune_route(r) for r in model.routes))
+    out.append('  ]')
+    out.append('  let samples : List SampleRecord := [')
+    out.append(',\n'.join(_lean_sample(s) for s in model.samples))
+    out.append('  ]')
+    out.append('  let m : MusicTables := {')
+    out.append(f'    freqTable       := 0x{model.music.freq_table_addr:04X}')
+    out.append(f'    instrumentTable := 0x{model.music.instrument_table_addr:04X}')
+    out.append(f'    sfxTable        := 0x{model.music.sfx_table_addr:04X}')
+    out.append(f'    orderlistPtrs   := 0x{model.music.orderlist_ptrs_addr:04X}')
+    out.append(f'    patternPtrLo    := 0x{model.music.pattern_ptr_lo_addr:04X}')
+    out.append(f'    patternPtrHi    := 0x{model.music.pattern_ptr_hi_addr:04X}')
+    out.append('  }')
+    out.append('  let patterns : List Pattern := [')
+    out.append(',\n'.join(_lean_pattern(p) for p in model.patterns))
+    out.append('  ]')
+    out.append('  let musicSubtunes : List MusicSubtune := [')
+    out.append(',\n'.join(_lean_music_subtune(s) for s in model.music_subtunes))
+    out.append('  ]')
+    out.append('  let instruments : List Instrument := [')
+    out.append(',\n'.join(_lean_instrument(i) for i in model.instruments))
+    out.append('  ]')
+    out.append('  {')
+    out.append('    header         := h')
+    out.append(f'    relocatorSrc   := 0x{model.relocator_src:04X}')
+    out.append(f'    relocatorLen   := 0x{model.relocator_len:04X}')
+    out.append(f'    relocatorDst   := 0x{model.relocator_dst:04X}')
+    out.append('    routes         := routes')
+    out.append('    samples        := samples')
+    out.append('    music          := m')
+    out.append('    freqTable      := ' + _lean_freq_table(model.freq_table))
+    out.append('    patterns       := patterns')
+    out.append('    musicSubtunes  := musicSubtunes')
+    out.append('    instruments    := instruments')
+    out.append('  }')
+    out.append('')
+    out.append('end LastV8C128NS')
+    out.append('')
+    return '\n'.join(out)
+
+
+def _lean_str(s: str) -> str:
+    # Lean string literals: double-quote, escape backslash and quotes.
+    return '"' + s.replace('\\', '\\\\').replace('"', '\\"') + '"'
+
+
+def main(argv: list[str] | None = None) -> int:
+    p = argparse.ArgumentParser(
+        prog='python -m pipelines.last_v8_c128.extract',
+        description=(
+            'Parse the original Last V8 (C128) RSID, identify the dual-engine '
+            'layout, and write SongData.lean for the Lean codegen.'
+        ),
+    )
+    p.add_argument('subtunes', nargs='?', default=None,
+                   help='accepted for parity with sibling pipelines; '
+                        'ignored — this pipeline emits the whole model.')
+    p.add_argument('-v', '--verbose', action='store_true')
+    args = p.parse_args(argv)
+
+    logging.basicConfig(
+        level=logging.DEBUG if args.verbose else logging.INFO,
+        format='%(message)s',
+    )
+
+    model = extract()
+    text = render(model)
+    OUT_PATH.parent.mkdir(parents=True, exist_ok=True)
+    OUT_PATH.write_text(text)
+    logger.info('wrote %s', OUT_PATH.relative_to(PIPELINE_DIR.parent))
+    logger.info('  routes:  %s',
+                ', '.join(f'{r.subtune}={r.kind}' for r in model.routes))
+    logger.info('  samples: %d (addrs %s)',
+                len(model.samples),
+                ', '.join(f'${s.start:04X}-${s.end:04X}' for s in model.samples))
+    logger.info('  instruments: %d (referenced: %s)',
+                len(model.instruments),
+                sorted({ev.instrument for p in model.patterns for ev in p.events
+                        if ev.instrument is not None}))
+    logger.info('  patterns: %d', len(model.patterns))
+    for s in model.music_subtunes:
+        lens = ' '.join(f'V{v.voice}={len(v.indices)}({v.terminator})'
+                        for v in s.voices)
+        logger.info('  music subtune %d: %s', s.subtune, lens)
+    return 0
 
 
 if __name__ == '__main__':
-    main()
+    sys.exit(main())

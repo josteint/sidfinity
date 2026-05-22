@@ -1,10 +1,13 @@
 # Tests
 
-Pytest smoke tests for the LastV8C128 extract path: instrument count, skydive
-detection, PW bound check, error handling. From the repo root:
+Pytest smoke tests for the Last V8 (C128) extract path: RSID header,
+subtune routing, sample records, relocator window, freq table.
+
+From the repo root:
 
 ```bash
-PYTHONPATH=tools/py_test_lib python -m pytest pipelines/last_v8_c128/tests/
+PYTHONPATH=tools/py_test_lib tools/py_test_lib/bin/pytest \
+    pipelines/last_v8_c128/tests/ -q
 ```
 
 pytest + mypy live in-tree (`tools/py_test_lib/`, gitignored). If missing:
@@ -13,4 +16,6 @@ pytest + mypy live in-tree (`tools/py_test_lib/`, gitignored). If missing:
 pip install --target=tools/py_test_lib pytest mypy
 ```
 
-For codegen invariants (compile-time theorems), see `../codegen/LastV8C128/Properties.lean` — Lake runs those automatically on build.
+For codegen invariants (compile-time theorems), see
+`../codegen/LastV8C128/Properties.lean` — Lake runs those automatically
+on build.

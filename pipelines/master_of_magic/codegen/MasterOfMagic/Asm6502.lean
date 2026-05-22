@@ -110,9 +110,11 @@ def opcode (m : Mnemonic) (mode : AddrMode) : Option UInt8 :=
   | .INC, .zp _    => some 0xE6
   | .INC, .zpX _   => some 0xF6
   | .INC, .abs _   => some 0xEE
+  | .INC, .absX _  => some 0xFE
   | .DEC, .zp _    => some 0xC6
   | .DEC, .zpX _   => some 0xD6
   | .DEC, .abs _   => some 0xCE
+  | .DEC, .absX _  => some 0xDE
   -- INX/DEX/INY/DEY
   | .INX, .impl    => some 0xE8
   | .DEX, .impl    => some 0xCA
@@ -247,6 +249,12 @@ def ldy_zp (addr : UInt8) : Instruction := ⟨.LDY, .zp addr⟩
 def eor_imm (v : UInt8) : Instruction := ⟨.EOR, .imm v⟩
 def asl_a : Instruction := ⟨.ASL, .acc⟩
 def lsr_a : Instruction := ⟨.LSR, .acc⟩
+def cpy_imm (v : UInt8) : Instruction := ⟨.CPY, .imm v⟩
+def inc_abs (addr : UInt16) : Instruction := ⟨.INC, .abs addr⟩
+def and_zp (addr : UInt8) : Instruction := ⟨.AND, .zp addr⟩
+def cmp_zp (addr : UInt8) : Instruction := ⟨.CMP, .zp addr⟩
+def bit_zp (addr : UInt8) : Instruction := ⟨.BIT, .zp addr⟩
+def asl_abs (addr : UInt16) : Instruction := ⟨.ASL, .abs addr⟩
 end I
 
 -- Raw byte emission (for inline data)

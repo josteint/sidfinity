@@ -343,9 +343,9 @@ def main(argv: list[str] | None = None) -> None:
   filter := none
   playRate := .vbi
   engineQuirks := {quirks}
-  title := "LastV8 on the Run"
+  title := "The Last V8"
   author := "Rob Hubbard"
-  released := "1985 Gremlin Graphics"
+  released := "1985 MAD/Mastertronic"
 }}""")
 
     # Output path is repo-root-relative, computed from this file's location.

@@ -1,4 +1,4 @@
-"""Generate USF v3 SampleMusicIKarate on the Run data as a Lean file.
+"""Generate USF v3 Sample Music from I. Karate data as a Lean file.
 
 Pipeline structure identical to the Commando emit_usf; only the SID source
 path, freq table base, and Lean output paths differ.
@@ -210,7 +210,7 @@ def main(argv: list[str] | None = None) -> None:
     instruments = first.instruments
 
     out = [
-        "-- Auto-generated USF v3 SampleMusicIKarate on the Run data",
+        "-- Auto-generated USF v3 Sample Music from I. Karate data",
         f"-- Subtunes: {subtune_indices} (0-indexed; PSID subtunes "
         f"{[s + 1 for s in subtune_indices]})",
         "import SampleMusicIKarate.USF",
@@ -343,9 +343,9 @@ def main(argv: list[str] | None = None) -> None:
   filter := none
   playRate := .vbi
   engineQuirks := {quirks}
-  title := "SampleMusicIKarate on the Run"
+  title := "Sample Music from I. Karate"
   author := "Rob Hubbard"
-  released := "1985 Gremlin Graphics"
+  released := "1985 Rob Hubbard"
 }}""")
 
     # Output path is repo-root-relative, computed from this file's location.

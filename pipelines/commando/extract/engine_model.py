@@ -21,7 +21,7 @@ import struct
 import sys
 from typing import Optional
 
-from .types import (
+from pipelines.hubbard.types import (
     Envelope,
     ExtractedSong,
     Instrument,

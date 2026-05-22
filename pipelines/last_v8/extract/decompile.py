@@ -1124,8 +1124,29 @@ def decompile(sid_path, verbose=False):
                         print(f'Drum descent: DEC ${freq_hi_buf:04X},X (freq_slide=-1)')
                     break
 
+    # --- Cap num_songs by data-structure boundaries ---
+    # The PSID header's `songs` count is unreliable: many Hubbard SIDs claim
+    # more subtunes than the music engine actually supports (the extras are
+    # sound effects or digi samples handled by separate code paths). The
+    # song table sits in a small region bounded by the next discovered
+    # landmark (typically the pattern pointer lo table). If `songs_addr <
+    # seqlo`, the gap between them is the maximum number of song-table bytes,
+    # which divides cleanly by `bytes_per_song`. Last V8: songs_addr=$8797,
+    # seqlo=$87A9, gap=18 = exactly 3 songs of 6 bytes (matches the 3 music
+    # subtunes; subtunes 3..16 are digi+sfx, not real songs).
+    effective_num_songs = result.num_songs
+    if (songs_addr is not None and seqlo is not None
+            and songs_addr < seqlo
+            and bytes_per_song > 0):
+        max_from_table = (seqlo - songs_addr) // bytes_per_song
+        if 0 < max_from_table < effective_num_songs:
+            if verbose:
+                print(f'Capping num_songs {effective_num_songs} → {max_from_table} '
+                      f'(song table ${songs_addr:04X}..${seqlo:04X} = {max_from_table} entries)')
+            effective_num_songs = max_from_table
+
     # --- Parse songs ---
-    for s in range(result.num_songs):
+    for s in range(effective_num_songs):
         if is_multi:
             off = songs_addr - load_addr + s * bytes_per_song
             if off + bytes_per_song > len(binary):

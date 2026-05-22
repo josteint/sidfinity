@@ -1,1 +1,1 @@
-"""LastV8C128 extraction: original SID binary → USF Lean source."""
+"""Extract: parse the Last V8 (C128) RSID into a structured engine model."""

@@ -1,4 +1,4 @@
-"""Command-line entry point for the MasterOfMagic extract pipeline.
+"""Command-line entry point for the Master of Magic extract pipeline.
 
 Usage:
     python -m pipelines.master_of_magic.extract                   # alias for `cli`
@@ -24,7 +24,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="python -m pipelines.master_of_magic.extract",
         description=(
-            "Read the original MasterOfMagic on the Run SID, extract one or more "
+            "Read the original Master of Magic SID, extract one or more "
             "subtunes, and write SongData.lean for the Lean codegen."
         ),
     )

@@ -1,4 +1,4 @@
-"""Command-line entry point for the SampleMusicIKarate extract pipeline.
+"""Command-line entry point for the Sample Music from I. Karate extract pipeline.
 
 Usage:
     python -m pipelines.sample_music_i_karate.extract                   # alias for `cli`
@@ -24,7 +24,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="python -m pipelines.sample_music_i_karate.extract",
         description=(
-            "Read the original SampleMusicIKarate on the Run SID, extract one or more "
+            "Read the original Sample Music from I. Karate SID, extract one or more "
             "subtunes, and write SongData.lean for the Lean codegen."
         ),
     )

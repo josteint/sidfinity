@@ -27,7 +27,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__)))))
 sys.path.insert(0, ROOT)
 
-from pipelines.commando.extract.inst_generalize import (  # noqa: E402
+from pipelines.hubbard.inst_generalize import (  # noqa: E402
     InstrumentModel, decode_all)
 
 OUT_PATH = os.path.join(ROOT, 'pipelines', 'commando', 'codegen', 'Commando',

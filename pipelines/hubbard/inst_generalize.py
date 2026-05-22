@@ -38,12 +38,12 @@ import sys
 from dataclasses import dataclass, field
 from typing import Optional
 
-ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(
-    os.path.abspath(__file__)))))
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(
+    os.path.abspath(__file__))))
 sys.path.insert(0, os.path.join(ROOT, 'src'))
 sys.path.insert(0, os.path.join(ROOT, 'tools', 'py65_lib'))
 
-from pipelines.commando.extract.inst_program import (  # noqa: E402
+from pipelines.hubbard.inst_program import (  # noqa: E402
     CaptureResult, NoteOccurrence, capture)
 
 # Instrument table: 13 rows of 8 bytes at $5591 (Commando).
@@ -394,7 +394,7 @@ def capture_all_subtunes(sid_path: str, n_frames: int
 
 def main(argv: list[str]) -> None:
     from pipelines.commando.extract.engine_model import extract
-    from pipelines.commando.extract.inst_program import SID_PATH
+    from pipelines.hubbard.inst_program import SID_PATH
 
     freq_table = extract().freq_table
     n_frames = int(argv[1]) if len(argv) > 1 else 4000

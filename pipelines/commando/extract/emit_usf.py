@@ -13,7 +13,7 @@ import sys
 from typing import Optional
 
 from .engine_model import extract
-from .types import ExtractedSong, Instrument, Note
+from pipelines.hubbard.types import ExtractedSong, Instrument, Note
 
 logger = logging.getLogger(__name__)
 

@@ -1,4 +1,4 @@
-"""Smoke tests for the MasterOfMagic on the Run extract pipeline.
+"""Smoke tests for the Master of Magic extract pipeline.
 
 Run from repo root:  pytest pipelines/master_of_magic/tests/
 """
@@ -11,23 +11,32 @@ def test_extract_returns_song_with_expected_shape() -> None:
     song = extract(subtune=0)
     assert song.freq_table is not None
     assert len(song.freq_table) >= 96
-    assert len(song.instruments) == 20      # MasterOfMagic has 20 distinct instruments
+    assert len(song.instruments) == 17      # MoM has 17 distinct instruments
     assert song.score.tempo > 0
     assert len(song.score.voices) == 3
 
 
 def test_skydive_instruments_are_detected() -> None:
-    """MasterOfMagic's instruments 10, 12, 13 have fx_flags bit 1 set (skydive)."""
+    """fx_flags bit 1 = skydive in Master of Magic. Only inst 12 has it set."""
     song = extract(subtune=0)
     skydive_ids = {i.id for i in song.instruments if i.has_skydive}
-    assert skydive_ids == {10, 12, 13}, (
-        f"expected skydive on instruments 10/12/13, got {skydive_ids}"
+    assert skydive_ids == {12}, (
+        f"expected skydive on instrument 12, got {skydive_ids}"
+    )
+
+
+def test_drum_instruments_are_detected() -> None:
+    """fx_flags bit 0 = drum/skydive sweep. MoM uses it on inst 4, 7, 11, 14, 16."""
+    song = extract(subtune=0)
+    drum_ids = {i.id for i in song.instruments if i.has_bit0}
+    assert drum_ids == {4, 7, 11, 14, 16}, (
+        f"expected bit0 on instruments 4/7/11/14/16, got {drum_ids}"
     )
 
 
 def test_pw_bounds_are_hubbard_hardcoded() -> None:
     """Hubbard's pulsework uses cmp #$08 / #$0E for bidir PWM bounds —
-    every MasterOfMagic extraction must default to those values."""
+    every Master of Magic extraction must default to those values."""
     song = extract(subtune=0)
     for inst in song.instruments:
         if inst.pwm.mode == 'bidirectional':
