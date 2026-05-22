@@ -96,14 +96,17 @@ class SongInterp:
         self.pw_period = [0, 0, 0]
 
         self.voices = [VoiceRT(), VoiceRT(), VoiceRT()]
-        # seed v_ctrl from the freq-table overlap. The engine's per-voice
-        # variables sit past the 96-entry freq table; v_ctrl[v] aliases
-        # freq entry 104+v. An off-table pitch-104 note loads freq from
-        # this region before the voice's own v_ctrl is written, so the
-        # seed (the binary's load-time bytes there) is what it reads.
-        ctrl_off = config.freq_table_base + 104 * 2 - load
+        # seed the engine variables that live in the freq-table overlap.
+        # The per-voice state region starts directly past the 96-entry
+        # freq table; an off-table read (or the first DEC of a counter)
+        # lands here before the variable is written, so the seed is the
+        # binary's load-time bytes. Offsets from the freq-table base:
+        #   +208 v_ctrl,x   +229 pwm_period,x   +232 pwm_dir,x
+        fb = config.freq_table_base - load
         for vi in range(3):
-            self.voices[vi].ctrl_byte = binary[ctrl_off + vi]
+            self.voices[vi].ctrl_byte = binary[fb + 208 + vi]
+            self.pw_period[vi] = binary[fb + 229 + vi]
+            self.pw_dir[vi] = binary[fb + 232 + vi]
         self.frame_ctr = -1              # INC'd to 0 on the first frame
         self.speed_ctr = 0
         self.frame_no = -1
