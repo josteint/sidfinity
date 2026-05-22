@@ -279,14 +279,19 @@ binding rule for every effect representation decision in this phase.
       of the one parametric vibrato, NOT a `vibratoKind`; the
       round-trip test pinned the value. Commit 84908ff. This is the
       worked template for 6.2+.
-- [ ] **6.2** Migrate the remaining Hubbard engines (Action Biker,
-      Chimera, Monty, Human Race, Hunter Patrol, Thing on a Spring,
-      One Man and His Droid). Each: write `pipelines/<engine>/
-      config.py`, wire its engine_model, build on the shared core,
-      then trace the per-engine deltas one diff at a time — each delta
-      a config field, never a `*Kind`. NOTE: "no aliasing" does not
-      mean zero deltas — Devils Galop was the "simplest" case and
-      still needed three. Expect a short delta hunt per engine.
+- [ ] **6.2** Migrate the remaining Hubbard engines. Each: write
+      `pipelines/<engine>/config.py`, wire its engine_model, build on
+      the shared core, then trace the per-engine deltas one diff at a
+      time — each a config field, never a `*Kind`. NOTE: "no aliasing"
+      does not mean zero deltas — Devils Galop was the "simplest" case
+      and still needed three. Expect a short delta hunt per engine.
+      - [x] **Monty on the Run** — done, codegen 100% byte-exact on
+        all 3 subtunes (commit 70b3e1b). Drove four shared-core wins:
+        the adaptive note codec, column-major instrument tables, the
+        freq-table-overlap variable seeding, and the `$FE` freeze
+        model — all config-gated, all reusable.
+      - [ ] Action Biker, Chimera, Human Race, Hunter Patrol,
+        Thing on a Spring, One Man and His Droid (6 remaining).
 - [ ] **6.3** Migrate remaining D/F pipelines (Last V8, Rasputin,
       Battle of Britain, Bump Set Spike, Master of Magic, Gremlins).
 - [ ] **6.4 / 6.5 — schema cleanup (NEEDS RESCOPING).** Written
