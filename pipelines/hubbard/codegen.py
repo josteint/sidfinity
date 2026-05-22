@@ -171,6 +171,15 @@ ini1:   lda #0
         jsr set_patptr       ; v_patptr,x = first pattern of orderlist X
         dex
         bpl ini1
+        ldx #2               ; seed the freq-table-overlap variables
+iniov:  lda ovseed,x
+        sta v_ctrlbyte,x
+        lda ovseed+3,x
+        sta v_pwperiod,x
+        lda ovseed+6,x
+        sta v_pwdir,x
+        dex
+        bpl iniov
         lda #0
         sta end_phase
         sta speed_ctr
@@ -1027,6 +1036,15 @@ def _emit_data(scores, models, freq_bytes, resetspds, sfx_list,
     for i in range(0, len(freq_bytes), 16):
         chunk = freq_bytes[i:i + 16]
         lines.append('        .byt ' + ','.join(f'${b:02X}' for b in chunk))
+
+    # the overlap seed — v_ctrl / pwm_period / pwm_dir initial values.
+    # The engine's per-voice variables sit past the 96-entry freq table;
+    # init copies these load-time bytes into the zero-page mirrors so an
+    # off-table read (or a counter's first DEC) sees the right value.
+    ov = ([freq_bytes[208 + i] for i in range(3)]      # v_ctrl   $84D0,x
+          + [freq_bytes[229 + i] for i in range(3)]    # pwm_period $84E5,x
+          + [freq_bytes[232 + i] for i in range(3)])   # pwm_dir  $84E8,x
+    lines.append('ovseed: .byt ' + ','.join(f'${b:02X}' for b in ov))
 
     # patterns — each unique pattern emitted once; orderlists reference
     # them by a dense slot. pattern indices are global, so the pool is
