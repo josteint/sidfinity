@@ -294,8 +294,13 @@ binding rule for every effect representation decision in this phase.
         subtunes (commit 86171fc). Per-engine deltas: deferred first
         note-load, play-frame-0 gate-off, per-subtune voice-loop start,
         the `$FE` `$80`-fill song-end. All config fields.
-      - [ ] Chimera, Human Race, Hunter Patrol, Thing on a Spring,
-        One Man and His Droid (5 remaining).
+      - [x] **Chimera** — done, codegen 100% byte-exact on both music
+        subtunes (commit 18cce55). Drove the IRQ-driven capture fix
+        (PSID play 0 → follow $0314/$0315), the configurable arp
+        period, linear_pw_or, incby2_onset, and the dur_field +
+        slide_v overlap seeds. SFX/digi subtunes not migrated.
+      - [ ] Human Race, Hunter Patrol, Thing on a Spring,
+        One Man and His Droid (4 remaining).
 - [ ] **6.3** Migrate remaining D/F pipelines (Last V8, Rasputin,
       Battle of Britain, Bump Set Spike, Master of Magic, Gremlins).
 - [ ] **6.4 / 6.5 — schema cleanup (NEEDS RESCOPING).** Written
