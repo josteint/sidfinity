@@ -4,13 +4,14 @@ Hubbard '85 core (pipelines/hubbard/).
 Rob Hubbard's *Monty on the Run* (1985) — the same engine family as
 Commando and Devils Galop. 3 music subtunes, 20 instruments, freq
 table at $8400, instrument records at $93B4. The 16 PSID sound effects
-are not shipped yet (has_sfx=False).
+(subtunes 3-18) are shipped — see extract/sfx.py.
 """
 
 import os
 
 from pipelines.hubbard.config import EngineConfig
 from pipelines.monty.extract.engine_model import extract
+from pipelines.monty.extract.sfx import extract_sfx
 
 # config.py -> monty -> pipelines -> repo root  (3 dirnames)
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(
@@ -41,5 +42,6 @@ MONTY = EngineConfig(
     vib_onset=8,                # vibrato gate CMP #$08 at $8201
     incby2_step=-1,             # fx bit1 = DEC v_freq_hi on odd frames ($831A)
     freeze_on_stop=True,        # $FE freezes voices (hold + effects, no gate-off)
-    has_sfx=False,
+    has_sfx=True,               # 16 SFX at $9454 ($8506 SFX init)
+    extract_sfx=extract_sfx,
 )
