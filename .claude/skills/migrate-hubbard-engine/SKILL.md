@@ -144,11 +144,12 @@ The SFX sub-engine is SID-synthesis and fully frame-verifiable — it is
 
 Caveat — **off-table SFX sweeps**: a SFX whose freq-table sweep runs
 past the 96 musical entries reads engine state as "frequency" (the
-same off-table trick the music uses). For those the codegen's SFX
-engine state must be readable at the matching freq-table off-table
-offsets — see Commando's `inc freqtab+253`. Most SFX stay in-table and
-just work; the off-table ones need the SFX state laid out to match the
-engine's memory map (Monty SFX 11/13 are an open example).
+same off-table trick the music uses). Most SFX stay in-table and just
+work; an off-table one needs the codegen's SFX state to sit in the
+freq-table off-table region so the sweep reads it live — set
+`sfx_state_ofs` (the SFX-state block's freq-table offset) and
+`sfx_framectr_ofs` (the SFX-readable frame counter's offset). The USF
+`SoundEffect` records stay untouched — this is codegen plumbing.
 
 ## Gotchas
 
