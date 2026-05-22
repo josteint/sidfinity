@@ -260,23 +260,43 @@ vibrato/PWM/arp/etc. must land as *points in the existing parameter
 space*, not as new opaque `*Kind` variants. That document is the
 binding rule for every effect representation decision in this phase.
 
-- [ ] **6.1** Migrate **Devils Galop** (2 dynamicFreqEntries, 1
-      aliased pitch — simplest cross-voice case).
-- [ ] **6.2** Migrate Hubbard pipelines with no aliasing (Action Biker,
+- [x] **6.0 — consolidation.** The Hubbard engines are near-clones, so
+      Phase 6 first built a shared core instead of cloning per engine:
+      `pipelines/hubbard/` (types, inst_program, inst_generalize,
+      inst_interp, note_codec, song_interp, codegen, config). Each
+      engine is now a thin `EngineConfig` at
+      `pipelines/<engine>/config.py`. Commando became a config,
+      verified unchanged (19/19 byte-exact). Commits ae181ca, 5a90f28,
+      93e22b3.
+- [x] **6.1** Migrate **Devils Galop** — DONE. codegen 20000/20000
+      byte-exact over the whole song; song_interp 100%; Commando still
+      19/19. `pipelines/devils_galop/config.py` + its engine_model on
+      the shared core. Three per-engine deltas, all config fields:
+      inc_by2 ramp (`incby2_step`/`incby2_every_frame`), the $178B
+      drum-priority gate (`suppress_first_notestart`), vibrato onset
+      8 vs 6 (`vib_onset` → `VibratoSpec.onset_dur`). The vibrato
+      onset was handled per the representation principle — a parameter
+      of the one parametric vibrato, NOT a `vibratoKind`; the
+      round-trip test pinned the value. Commit 84908ff. This is the
+      worked template for 6.2+.
+- [ ] **6.2** Migrate the remaining Hubbard engines (Action Biker,
       Chimera, Monty, Human Race, Hunter Patrol, Thing on a Spring,
-      One Man and His Droid). These should be straightforward since
-      they have 0 dynamicFreqEntries — just need clean instrument
-      programs.
+      One Man and His Droid). Each: write `pipelines/<engine>/
+      config.py`, wire its engine_model, build on the shared core,
+      then trace the per-engine deltas one diff at a time — each delta
+      a config field, never a `*Kind`. NOTE: "no aliasing" does not
+      mean zero deltas — Devils Galop was the "simplest" case and
+      still needed three. Expect a short delta hunt per engine.
 - [ ] **6.3** Migrate remaining D/F pipelines (Last V8, Rasputin,
-      Battle of Britain, Bump Set Spike, Master of Magic, Gremlins) —
-      whatever's left after parallel-thread cleanup of those.
-- [ ] **6.4** Remove `USFEngineQuirks` from the `USF.lean` schema
-      entirely. Drop `dynamicFreqEntries`, `voiceScratch`,
-      `noteLoadOps`, `patternEndOps`, `preserveNoteFlags`. Drop
-      `.percussion` from `USFNoteKind`.
-- [ ] **6.5** Delete `USF.lean`, rename `USF2.lean` to `USF.lean`.
-      Same for `SongData.lean` / `Codegen.lean`. CLAUDE.md +
-      `docs/PLAN.md` updated.
+      Battle of Britain, Bump Set Spike, Master of Magic, Gremlins).
+- [ ] **6.4 / 6.5 — schema cleanup (NEEDS RESCOPING).** Written
+      against the old Lean `USF.lean` / `SongData.lean` / `Codegen.lean`
+      schema. The 6.0 consolidation made the pipeline Python and
+      `pipelines/hubbard/` already replaced the clone-per-engine
+      structure, so the concrete files and steps here are obsolete.
+      The *goal* stands — one clean USF schema, no `USFEngineQuirks`,
+      no engine-library indices, no `dynamicFreqEntries` — but rescope
+      these two steps once 6.2/6.3 are done.
 
 ## Phase 7 — ML-readiness verification
 
