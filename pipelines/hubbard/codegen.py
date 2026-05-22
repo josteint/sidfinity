@@ -249,8 +249,6 @@ proc_voice:
         lda v_ended,x        ; load_note may have hit the $FE marker
         bne pv_endret
         jsr calc_instoff
-        bit drum_prio
-        bpl pv_endret        ; gate clear -> suppress note-start
         jmp note_start
 pv_sus:
         inc v_tick,x
@@ -369,6 +367,8 @@ note_start:
         lda i_ctrl
         sta v_ctrlbyte,x
         and #$fe
+        bit drum_prio
+        bpl ns_pwadsr        ; suppressed -> skip the write
         ldy sidoff
         sta $d404,y
         jmp ns_pwadsr
@@ -396,6 +396,8 @@ ns_havefreq:
         sta v_slidelo,x      ; seed the drum-slide freq_lo
         lda i_ctrl
         sta v_ctrlbyte,x     ; update ctrl_byte AFTER the off-table read
+        bit drum_prio
+        bpl ns_pwadsr        ; suppressed -> skip the writes
         ldy sidoff
         lda f_hi
         sta $d401,y
@@ -404,6 +406,8 @@ ns_havefreq:
         lda i_ctrl
         sta $d404,y
 ns_pwadsr:
+        bit drum_prio
+        bpl ns_pwret         ; suppressed -> skip the writes
         ldy sidoff
         lda i_pwlo
         sta $d402,y
@@ -413,6 +417,7 @@ ns_pwadsr:
         sta $d405,y
         lda i_sr
         sta $d406,y
+ns_pwret:
         rts
 
 ; hr_writes - hard-restart block, ctrl=hr_ctrl ad=0 sr=0.
