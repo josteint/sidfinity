@@ -58,14 +58,23 @@ class BitPackCodec:
     as it decodes (cumulative 1/2/3 Hubbard-byte-lengths)."""
 
     name = 'bitpack'
+    dur_bits = 3          # index width — set by encode() from the data
+    inst_bits = 4         # instrument-field width — set by encode()
 
     def encode(self, patterns):
-        # one global duration table — 3-bit index, so at most 8 values
+        # one global duration table — the index width adapts to the
+        # engine: 3 bits (Commando, <=8 values) up to 5 (<=32). The raw
+        # duration field is 5-bit, so 32 is the hard ceiling.
         durs = sorted({n.duration for p in patterns for n in p})
-        if len(durs) > 8:
-            raise ValueError(f'{len(durs)} distinct durations — the 3-bit '
-                             f'duration index allows at most 8')
+        self.dur_bits = max(3, (len(durs) - 1).bit_length()) if durs else 3
+        if self.dur_bits > 5:
+            raise ValueError(f'{len(durs)} distinct durations exceed the '
+                             f'5-bit duration index')
         dur_index = {d: i for i, d in enumerate(durs)}
+        # instrument field — width adapts to the engine's count
+        insts = [n.instrument & 0x3F for p in patterns for n in p
+                 if not (n.instrument & 0x80)]
+        self.inst_bits = max(4, max(insts).bit_length()) if insts else 4
 
         pat_bytes = []
         for notes in patterns:
@@ -74,7 +83,7 @@ class BitPackCodec:
                 no_release = (n.drum_trig >> 7) & 1
                 bw.write(1 if n.tie else 0, 1)
                 bw.write(no_release, 1)
-                bw.write(dur_index[n.duration], 3)
+                bw.write(dur_index[n.duration], self.dur_bits)
                 if n.tie:
                     continue
                 if n.pitch >= 128:
@@ -83,10 +92,8 @@ class BitPackCodec:
                 # instrument — present only when the note changes it
                 if not (n.instrument & 0x80):
                     inst = n.instrument & 0x3F
-                    if inst >= 16:
-                        raise ValueError(f'instrument {inst} exceeds 4 bits')
                     bw.write(1, 1)
-                    bw.write(inst, 4)
+                    bw.write(inst, self.inst_bits)
                 else:
                     bw.write(0, 1)
                 # portamento — present only when the note carries one
@@ -99,7 +106,7 @@ class BitPackCodec:
             data = bw.to_bytes()
             pat_bytes.append([len(notes) & 0xFF] + data)
 
-        durtab = durs + [0] * (8 - len(durs))
+        durtab = durs + [0] * ((1 << self.dur_bits) - len(durs))
         extra = ('durtab: .byt '
                  + ','.join(f'${d & 0xFF:02X}' for d in durtab))
         return pat_bytes, extra
@@ -141,7 +148,7 @@ ln_decode:
         sta ln_tie
         jsr getflag           ; no_release
         sta v_norel,x
-        lda #3                ; dur - 3-bit index into durtab
+        lda #DUR_BITS         ; dur - index into durtab
         sta rb_n
         jsr readbits
         tay
@@ -158,7 +165,7 @@ ln_decode:
         sta v_pitch,x
         jsr getflag           ; instrument changed?
         beq ln_noinst
-        lda #4
+        lda #INST_BITS
         sta rb_n
         jsr readbits          ; new instrument (tie bit clear)
         sta v_instr,x

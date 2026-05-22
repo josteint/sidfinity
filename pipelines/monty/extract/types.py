@@ -71,6 +71,7 @@ class Voice:
     orderlist: list[int] = field(default_factory=list)
     patterns: dict[int, list[Note]] = field(default_factory=dict)
     loop: int = -1
+    stop: bool = False
 
 
 @dataclass

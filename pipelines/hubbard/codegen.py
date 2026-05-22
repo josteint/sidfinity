@@ -967,7 +967,21 @@ def _fx_flags(m) -> int:
             | (16 if m.pwm else 0))
 
 
-def _emit_data(scores, models, freq_bytes, resetspds, sfx_list, codec) -> str:
+def _pattern_pool(scores):
+    """Dense, globally-shared pattern pool. Returns (pat_order, pat_slot):
+    pat_order[slot] = note list; pat_slot[orig pattern index] = slot."""
+    pat_order, pat_slot = [], {}
+    for score in scores:
+        for v in score.voices:
+            for oidx in v.orderlist:
+                if oidx not in pat_slot:
+                    pat_slot[oidx] = len(pat_order)
+                    pat_order.append(v.patterns.get(oidx, []))
+    return pat_order, pat_slot
+
+
+def _emit_data(scores, models, freq_bytes, resetspds, sfx_list,
+               pat_slot, pat_bytes, codec_extra) -> str:
     """Emit the xa65 data section for a multi-subtune build.
 
     `scores` is one Score per packed music subtune; `sfx_list` is the
@@ -1018,16 +1032,6 @@ def _emit_data(scores, models, freq_bytes, resetspds, sfx_list, codec) -> str:
     # them by a dense slot. pattern indices are global, so the pool is
     # shared by all packed subtunes. The note codec serialises each
     # pattern (byte 0 = note count); the format is the codec's choice.
-    pat_order = []                 # dense slot -> note list
-    pat_slot = {}                  # orig pattern index -> dense slot
-    for score in scores:
-        for v in score.voices:
-            for oidx in v.orderlist:
-                if oidx not in pat_slot:
-                    pat_slot[oidx] = len(pat_order)
-                    pat_order.append(v.patterns.get(oidx, []))
-
-    pat_bytes, codec_extra = codec.encode(pat_order)
     for slot, blob in enumerate(pat_bytes):
         lines.append(f'pat{slot}:')
         for i in range(0, len(blob), 16):
@@ -1036,7 +1040,7 @@ def _emit_data(scores, models, freq_bytes, resetspds, sfx_list, codec) -> str:
     if codec_extra:
         lines.append(codec_extra)
 
-    npat = len(pat_order)
+    npat = len(pat_bytes)
     lines.append('pataddr_lo: .byt '
                  + ','.join(f'<pat{s}' for s in range(npat)))
     lines.append('pataddr_hi: .byt '
@@ -1114,15 +1118,23 @@ def build(config, out_path: str = OUT_SID, codec=None) -> str:
 
     # asm layout: equates, then the generic engine, then the codec's
     # note reader, then the data section.
+    # encode the pattern pool up front — the codec's note_asm needs
+    # DUR_BITS, which encode() determines from the data.
+    pat_order, pat_slot = _pattern_pool(scores)
+    pat_bytes, codec_extra = codec.encode(pat_order)
+
     asm = (f'PWLEN = {2 * len(models) - 1}\n'
            f'ARP_OFS = {config.arp_interval}\n'
            f'INCBY2_STEP = {config.incby2_step & 0xFF}\n'
            f'INCBY2_ALWAYS = {1 if config.incby2_every_frame else 0}\n'
            f'DRUM_PRIO_INIT = {0 if config.suppress_first_notestart else 255}\n'
+           f'DUR_BITS = {codec.dur_bits}\n'
+           f'INST_BITS = {codec.inst_bits}\n'
            + codec.zp_asm + '\n'
            + ENGINE + '\n'
            + codec.note_asm + '\n'
-           + _emit_data(scores, models, freq_bytes, resetspds, sfx_list, codec)
+           + _emit_data(scores, models, freq_bytes, resetspds, sfx_list,
+                        pat_slot, pat_bytes, codec_extra)
            + '\n')
 
     src = '/tmp/usf2_commando.s'
