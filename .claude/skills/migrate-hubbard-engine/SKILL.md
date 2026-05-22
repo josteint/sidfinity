@@ -145,6 +145,27 @@ same way (song_interp `__init__` + codegen `iniov`).
   (the showcase pair: `<Engine>_original.sid` + `<Engine>.sid`).
 - Update `project_<engine>.md`, `project_usf2_refactor.md`, `MEMORY.md`
   and `docs/usf_instrument_program_plan.md` (the Phase 6.2 checklist).
+- **Evolve this skill** — see below.
+
+## Evolve this skill
+
+This skill is the distilled procedure, not holy writ — it captures what
+the first five engines taught. Each new engine may teach more. Before
+you finish, update this `SKILL.md` and commit it alongside the engine's
+commits:
+
+- A new per-engine difference became an `EngineConfig` field → add it to
+  the delta catalog **with its disassembly signature** (the catalog is
+  only useful if it says how to *recognise* the delta).
+- You hit a new gotcha — an assembler quirk, a capture edge case, an
+  engine variant — → add it to Gotchas.
+- An engine read an uninitialised per-voice variable from a new
+  freq-table-overlap offset → record the offset.
+- The procedure misled you or a step was unclear → fix the wording.
+- A field or file got renamed → correct every mention.
+
+The skill should be strictly better after every engine than before it.
+If it isn't evolving, it is quietly going stale.
 
 ## Reference
 
