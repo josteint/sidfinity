@@ -27,8 +27,8 @@ import os
 import sys
 from dataclasses import dataclass, field
 
-ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(
-    os.path.abspath(__file__)))))
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(
+    os.path.abspath(__file__))))
 sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.join(ROOT, 'src'))
 sys.path.insert(0, os.path.join(ROOT, 'tools', 'py65_lib'))
@@ -73,18 +73,19 @@ class VoiceRT:
 class SongInterp:
     """Whole-song interpreter for one Commando subtune."""
 
-    def __init__(self, sid_path: str, subtune: int = 0):
-        from pipelines.commando.extract.engine_model import extract
-        from pipelines.hubbard.inst_interp import subtune_resetspd
+    def __init__(self, config, subtune: int = 0):
         from src.hubbard_emu import load_sid
 
-        song = extract(subtune=subtune)
+        self.config = config
+        song = config.extract(subtune=subtune)
         self.freq_table = song.freq_table
         self.score = song.score
-        self.models: list[InstrumentModel] = decode_all(sid_path)
+        self.models: list[InstrumentModel] = decode_all(
+            config.sid_path, config.instr_base, config.instr_count,
+            config.arp_interval)
 
-        _, binary, load = load_sid(sid_path)
-        self.resetspd = subtune_resetspd(subtune, binary, load)
+        _, binary, load = load_sid(config.sid_path)
+        self.resetspd = config.resetspd(subtune, binary, load)
 
         # per-instrument PWM accumulator (the shared instrument-table pw
         # bytes) — seeded from each instrument's table values.
@@ -469,7 +470,7 @@ class SongInterp:
 # verification
 # ----------------------------------------------------------------------
 
-def verify(sid_path: str, subtune: int, n_frames: int) -> dict:
+def verify(config, subtune: int, n_frames: int) -> dict:
     """Run the interpreter and the py65 capture; diff per frame.
 
     Also tallies, per failing frame, which voices carry the diff — so a
@@ -477,8 +478,8 @@ def verify(sid_path: str, subtune: int, n_frames: int) -> dict:
     arp (both deferred) can be told apart from a real interpreter bug."""
     from pipelines.hubbard.inst_program import capture
 
-    cap = capture(sid_path, n_frames=n_frames, subtune=subtune)
-    si = SongInterp(sid_path, subtune)
+    cap = capture(config.sid_path, n_frames=n_frames, subtune=subtune)
+    si = SongInterp(config, subtune)
 
     match = 0
     first_fail = None
@@ -500,11 +501,12 @@ def verify(sid_path: str, subtune: int, n_frames: int) -> dict:
 
 
 def main(argv: list[str]) -> None:
-    from pipelines.hubbard.inst_program import SID_PATH, REG_NAMES
+    from pipelines.hubbard.inst_program import REG_NAMES
+    from pipelines.commando.config import COMMANDO
 
     subtune = int(argv[0]) if argv else 0
     n_frames = int(argv[1]) if len(argv) > 1 else 1500
-    res = verify(SID_PATH, subtune, n_frames)
+    res = verify(COMMANDO, subtune, n_frames)
     print(f'subtune {subtune}: {res["match"]}/{res["frames"]} frames '
           f'exact ({res["pct"]:.1f}%)')
     if res['by_voices']:

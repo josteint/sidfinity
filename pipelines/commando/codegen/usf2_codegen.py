@@ -1146,10 +1146,11 @@ def build(subtunes=(0, 1, 2), out_path: str = OUT_SID, codec=None) -> str:
 def verify(sid_path: str, enabled: set, subtune: int = 0,
            n_frames: int = 1500) -> None:
     from pipelines.hubbard.inst_program import capture, REG_NAMES
-    from pipelines.commando.extract.song_interp import SongInterp
+    from pipelines.hubbard.song_interp import SongInterp
+    from pipelines.commando.config import COMMANDO
 
     cap = capture(sid_path, n_frames=n_frames, subtune=subtune)
-    si = SongInterp(SID_PATH, subtune)
+    si = SongInterp(COMMANDO, subtune)
     si.fx_vibrato = 'vibrato' in enabled
     si.fx_pwm = 'pwm' in enabled
     si.fx_skydive = 'skydive' in enabled
