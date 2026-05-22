@@ -290,8 +290,12 @@ binding rule for every effect representation decision in this phase.
         the adaptive note codec, column-major instrument tables, the
         freq-table-overlap variable seeding, and the `$FE` freeze
         model — all config-gated, all reusable.
-      - [ ] Action Biker, Chimera, Human Race, Hunter Patrol,
-        Thing on a Spring, One Man and His Droid (6 remaining).
+      - [x] **Action Biker** — done, codegen 100% byte-exact on all 3
+        subtunes (commit 86171fc). Per-engine deltas: deferred first
+        note-load, play-frame-0 gate-off, per-subtune voice-loop start,
+        the `$FE` `$80`-fill song-end. All config fields.
+      - [ ] Chimera, Human Race, Hunter Patrol, Thing on a Spring,
+        One Man and His Droid (5 remaining).
 - [ ] **6.3** Migrate remaining D/F pipelines (Last V8, Rasputin,
       Battle of Britain, Bump Set Spike, Master of Magic, Gremlins).
 - [ ] **6.4 / 6.5 — schema cleanup (NEEDS RESCOPING).** Written
