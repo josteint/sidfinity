@@ -33,3 +33,10 @@ class EngineConfig:
     arp_interval: int = 12          # arpeggio interval in semitones
     has_sfx: bool = False           # engine has a sound-effect sub-engine
     extract_sfx: Optional[Callable] = None   # extract_sfx(path) -> (list, ...)
+    # fx-bit1 "inc-by-2" slide — Commando ramps +2 on odd frames; Devils
+    # Galop's init patches INC->DEC, so it ramps -1 every frame.
+    incby2_step: int = 2
+    incby2_every_frame: bool = False
+    # the $178B drum-priority gate suppresses the very first voice's
+    # first-frame note-start SID writes (Devils Galop only).
+    suppress_first_notestart: bool = False

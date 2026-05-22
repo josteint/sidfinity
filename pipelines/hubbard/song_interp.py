@@ -102,6 +102,9 @@ class SongInterp:
         # end-of-song: 0 running, 1 = all voices ended (gate-off pending),
         # 2 = gated off, silent.
         self.end_phase = 0
+        # $178B drum-priority gate (Devils Galop) — 0 suppresses the
+        # first voice's first-frame note-start; $FF after each voice.
+        self.drum_prio = 0x00 if config.suppress_first_notestart else 0xFF
         # when False, per-frame effects are skipped — leaves just the
         # note-start + HR backbone. The per-effect flags let a codegen
         # stage be verified against exactly the effects it implements.
@@ -242,6 +245,7 @@ class SongInterp:
         for v in (2, 1, 0):                       # engine processes V3,V2,V1
             writes += [(v * 7 + r, val)
                        for r, val in self._process_voice(v, is_tick)]
+            self.drum_prio = 0xFF
         if self.end_phase == 0 and all(rt.ended for rt in self.voices):
             self.end_phase = 1
         return writes
@@ -256,7 +260,8 @@ class SongInterp:
                 self._load_next_note(v)
                 if rt.ended:
                     return []
-                return self._note_start_writes(v)      # no effects on load
+                ns = self._note_start_writes(v)        # no effects on load
+                return ns if (self.drum_prio & 0x80) else []
             rt.tick_in_note += 1
         rt.frame_in_note += 1
 
@@ -339,10 +344,12 @@ class SongInterp:
         write the old slide value and bump it by 2 (disassembly
         $5336-$535D). Runs after the skydive, sharing slide_v."""
         rt = self.voices[v]
-        if rt.dur_field < 3 or not (self.frame_ctr & 1) or rt.slide_v == 0:
+        if rt.dur_field < 3 or rt.slide_v == 0:
+            return []
+        if not self.config.incby2_every_frame and not (self.frame_ctr & 1):
             return []
         old = rt.slide_v
-        rt.slide_v = (rt.slide_v + 2) & 0xFF
+        rt.slide_v = (rt.slide_v + self.config.incby2_step) & 0xFF
         return [(R_FREQ_HI, old)]
 
     def _pwm(self, v: int, m: InstrumentModel,
