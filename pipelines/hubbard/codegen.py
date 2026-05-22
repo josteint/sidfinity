@@ -274,12 +274,9 @@ pv_endret:
 calc_instoff:
         lda v_instr,x
         and #$3f
+        sta instoff          ; instrument number (column-table index)
         asl
         sta pw_idx           ; inst*2  (index into pwacc)
-        asl
-        asl
-        asl
-        sta instoff          ; inst*16 (index into insttab)
         rts
 
 ; load_note is supplied by the note codec (see note_codec.py) — the
@@ -358,11 +355,11 @@ noi_have:
 ; loaded into temps first; then tie vs full diverge.
 note_start:
         ldy instoff
-        lda insttab+0,y
+        lda it_ctrl,y
         sta i_ctrl
-        lda insttab+3,y
+        lda it_ad,y
         sta i_ad
-        lda insttab+4,y
+        lda it_sr,y
         sta i_sr
         ldy pw_idx
         lda pwacc,y
@@ -432,7 +429,7 @@ ns_pwret:
 ; hr_writes - hard-restart block, ctrl=hr_ctrl ad=0 sr=0.
 hr_writes:
         ldy instoff
-        lda insttab+5,y
+        lda it_hrctrl,y
         ldy sidoff
         sta $d404,y
         lda #0
@@ -491,7 +488,7 @@ fxd_ret: rts
 ; fx_incby2 - bit1. odd-frame +2 on the shared slide value, write old.
 fx_incby2:
         ldy instoff
-        lda insttab+6,y
+        lda it_fx,y
         and #$02
         beq fxi_ret
         lda v_durfield,x
@@ -516,14 +513,14 @@ fxi_ret: rts
 ; (pwacc) are per-instrument shared state - see song_interp._pwm.
 fx_pwm:
         ldy instoff
-        lda insttab+8,y      ; pwm_mode  0=none 1=linear 2=bidir
+        lda it_pwmode,y      ; pwm_mode  0=none 1=linear 2=bidir
         bne fxp_on
         rts
 fxp_on:
         cmp #$01
         bne fxp_bidir
         ldy instoff
-        lda insttab+9,y      ; linear - pw_lo += speed + vib_carry
+        lda it_pwa,y      ; linear - pw_lo += speed + vib_carry
         sta pwm_tmp
         ldy pw_idx
         lda pwacc,y
@@ -539,12 +536,12 @@ fxp_bidir:
         dec v_pwperiod,x
         bpl fxp_ret          ; period counter not expired
         ldy instoff
-        lda insttab+10,y     ; reload period
+        lda it_pwperiod,y     ; reload period
         sta v_pwperiod,x
         lda v_pwdir,x
         bne fxp_fall
         ldy instoff          ; rising
-        lda insttab+9,y      ; step
+        lda it_pwa,y      ; step
         sta pwm_tmp
         ldy pw_idx
         lda pwacc,y
@@ -556,14 +553,14 @@ fxp_bidir:
         and #$0f
         sta pwacc+1,y
         ldy instoff
-        cmp insttab+12,y     ; hi_bound
+        cmp it_pwhi,y     ; hi_bound
         bne fxp_wr
         lda #$01
         sta v_pwdir,x
         jmp fxp_wr
 fxp_fall:
         ldy instoff
-        lda insttab+9,y      ; step
+        lda it_pwa,y      ; step
         sta pwm_tmp
         ldy pw_idx
         lda pwacc,y
@@ -575,7 +572,7 @@ fxp_fall:
         and #$0f
         sta pwacc+1,y
         ldy instoff
-        cmp insttab+11,y     ; lo_bound
+        cmp it_pwlo,y     ; lo_bound
         bne fxp_wr
         lda #$00
         sta v_pwdir,x
@@ -597,7 +594,7 @@ fxp_ret:
 ; leaves vib_carry = the 6502 carry the section hands to the PWM add.
 fx_vibrato:
         ldy instoff
-        lda insttab+6,y
+        lda it_fx,y
         and #$08
         bne fxv_go
         rts
@@ -609,7 +606,7 @@ fxv_go:
         eor #$07
 fxv_s1: sta vib_step
         ldy instoff
-        lda insttab+7,y      ; vib_depth
+        lda it_vibdepth,y      ; vib_depth
         sta vdepthctr
         jsr vib_loadfreq     ; vfreq = freq16[pitch], freq16[pitch+1]
         sec
@@ -629,7 +626,7 @@ fxv_sh: lsr                  ; shift A,vdelta_lo right depth+1 times
         sta vtarg_hi
         lda v_durfield,x
         ldy instoff
-        cmp insttab+13,y     ; onset_dur (per-instrument)
+        cmp it_onset,y     ; onset_dur (per-instrument)
         bcc fxv_wr           ; dur < onset -> no add (carry left = 0)
         ldy vib_step
         beq fxv_wr           ; step 0 -> no add (carry left = 1)
@@ -692,7 +689,7 @@ vlf_off:
 ; fx_skydive - bit0. freq_hi slide + ctrl, see song_interp._skydive.
 fx_skydive:
         ldy instoff
-        lda insttab+6,y
+        lda it_fx,y
         and #$01
         beq fxs_ret
         lda v_dur,x
@@ -705,7 +702,7 @@ fx_skydive:
         lda v_tick,x
         beq fxs_ns
         ldy instoff
-        lda insttab+5,y      ; not-start ctrl = hr_ctrl
+        lda it_hrctrl,y      ; not-start ctrl = hr_ctrl
         bne fxs_w
         lda #$80
 fxs_w:  ldy sidoff
@@ -724,7 +721,7 @@ fxs_ret: rts
 ; mirror of the $54E8.. state region assembled on demand.
 fx_arp:
         ldy instoff
-        lda insttab+6,y
+        lda it_fx,y
         and #$04
         beq fxa_ret
         lda frame_ctr
@@ -1000,10 +997,10 @@ def _emit_data(scores, models, freq_bytes, resetspds, sfx_list,
     subResetspd tables."""
     lines = []
 
-    # instrument row (16 bytes): init_ctrl, init_pw_lo, init_pw_hi,
-    # init_ad, init_sr, hr_ctrl, fx_flags, vib_depth, pwm_mode,
-    # pwm_a (speed/step), pwm_period, pwm_lo, pwm_hi, then 3 spare.
-    lines.append('insttab:')
+    # instrument data — column-major: one table per field, indexed by
+    # the instrument NUMBER. Row-major (inst*16) overflowed the 8-bit
+    # index past 15 instruments (Monty has 20).
+    irows = []
     for m in models:
         vib_depth = m.vibrato.depth if m.vibrato else 0
         vib_onset = m.vibrato.onset_dur if m.vibrato else 6
@@ -1015,11 +1012,15 @@ def _emit_data(scores, models, freq_bytes, resetspds, sfx_list,
                 pwm_mode, pwm_a = 2, m.pwm.step
                 pwm_period, pwm_lo, pwm_hi = (m.pwm.period, m.pwm.lo_bound,
                                               m.pwm.hi_bound)
-        row = [m.init_ctrl, m.init_pw_lo, m.init_pw_hi, m.init_ad,
-               m.init_sr, m.hr_ctrl, _fx_flags(m), vib_depth,
-               pwm_mode, pwm_a, pwm_period, pwm_lo, pwm_hi,
-               vib_onset, 0, 0]
-        lines.append('        .byt ' + ','.join(f'${b:02X}' for b in row))
+        irows.append([m.init_ctrl, 0, 0, m.init_ad, m.init_sr, m.hr_ctrl,
+                      _fx_flags(m), vib_depth, pwm_mode, pwm_a,
+                      pwm_period, pwm_lo, pwm_hi, vib_onset])
+    for idx, name in ((0, 'it_ctrl'), (3, 'it_ad'), (4, 'it_sr'),
+                      (5, 'it_hrctrl'), (6, 'it_fx'), (7, 'it_vibdepth'),
+                      (8, 'it_pwmode'), (9, 'it_pwa'), (10, 'it_pwperiod'),
+                      (11, 'it_pwlo'), (12, 'it_pwhi'), (13, 'it_onset')):
+        lines.append(f'{name}: .byt '
+                     + ','.join(f'${r[idx]:02X}' for r in irows))
 
     # pwseed - the per-instrument pw_lo/pw_hi seeds. pwacc is the live
     # accumulator (shared by every voice playing the instrument); init
