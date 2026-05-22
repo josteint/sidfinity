@@ -38,5 +38,7 @@ MONTY = EngineConfig(
     resetspd=_resetspd,
     subtunes=(0, 1, 2),
     arp_interval=12,
+    vib_onset=8,                # vibrato gate CMP #$08 at $8201
+    incby2_step=-1,             # fx bit1 = DEC v_freq_hi on odd frames ($831A)
     has_sfx=False,
 )
