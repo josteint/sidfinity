@@ -150,7 +150,8 @@ class InstrumentModel:
 def decode_instrument(inst: int, binary: bytes, load_addr: int,
                       base: int = INSTR_TABLE_BASE,
                       arp_interval: int = 12,
-                      vib_onset: int = 6) -> InstrumentModel:
+                      vib_onset: int = 6,
+                      arp_period: int = 2) -> InstrumentModel:
     """Decode instrument `inst` from its 8-byte table row at `base`.
 
     The 8-byte row layout (pw_lo, pw_hi, ctrl, ad, sr, vib_depth,
@@ -163,7 +164,8 @@ def decode_instrument(inst: int, binary: bytes, load_addr: int,
     vibrato = (VibratoSpec(depth=vib_depth, onset_dur=vib_onset)
                if vib_depth != 0 else None)
 
-    arpeggio = ArpSpec(intervals=(0, arp_interval)) if (fx & 0x04) else None
+    arpeggio = (ArpSpec(intervals=(0,) + (arp_interval,) * (arp_period - 1))
+                if (fx & 0x04) else None)
 
     pwm = None
     pw_lo_kind = pw_hi_kind = 'const'
@@ -197,14 +199,15 @@ def decode_instrument(inst: int, binary: bytes, load_addr: int,
 def decode_all(sid_path: str, base: int = INSTR_TABLE_BASE,
                count: int = N_INSTRUMENTS,
                arp_interval: int = 12,
-               vib_onset: int = 6) -> list[InstrumentModel]:
+               vib_onset: int = 6,
+               arp_period: int = 2) -> list[InstrumentModel]:
     """Decode `count` instruments from the 8-byte table at `base`.
     Defaults are Commando's; other Hubbard '85 engines pass their own
     instrument-table address, count and arpeggio interval."""
     from src.hubbard_emu import load_sid
     _, binary, load_addr = load_sid(sid_path)
     return [decode_instrument(i, binary, load_addr, base, arp_interval,
-                              vib_onset)
+                              vib_onset, arp_period)
             for i in range(count)]
 
 

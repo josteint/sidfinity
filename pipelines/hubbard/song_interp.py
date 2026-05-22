@@ -87,7 +87,7 @@ class SongInterp:
         self.score = song.score
         self.models: list[InstrumentModel] = decode_all(
             config.sid_path, config.instr_base, config.instr_count,
-            config.arp_interval, config.vib_onset)
+            config.arp_interval, config.vib_onset, config.arp_period)
 
         _, binary, load = load_sid(config.sid_path)
         self.resetspd = config.resetspd(subtune, binary, load)
@@ -110,6 +110,7 @@ class SongInterp:
         fb = config.freq_table_base - load
         for vi in range(3):
             self.voices[vi].ctrl_byte = binary[fb + 208 + vi]
+            self.voices[vi].dur_field = binary[fb + 205 + vi]
             self.voices[vi].instr = binary[fb + 214 + vi]
             self.pw_period[vi] = binary[fb + 229 + vi]
             self.pw_dir[vi] = binary[fb + 232 + vi]
@@ -417,7 +418,8 @@ class SongInterp:
              vib_carry: int) -> list[tuple[int, int]]:
         pw = self.pw_acc[m.inst]
         if m.pwm.mode == 'linear':
-            pw[0] = (pw[0] + m.pwm.speed + vib_carry) & 0xFF
+            pw[0] = (((pw[0] + m.pwm.speed + vib_carry) & 0xFF)
+                     | self.config.linear_pw_or)
             return [(R_PW_LO, pw[0])]
         # bidirectional: per-voice period counter; step on underflow
         self.pw_period[v] -= 1
@@ -479,7 +481,7 @@ class SongInterp:
 
     def _arp(self, v: int, m: InstrumentModel) -> list[tuple[int, int]]:
         rt = self.voices[v]
-        parity = self.frame_ctr & 1
+        parity = self.frame_ctr % len(m.arpeggio.intervals)
         idx = rt.pitch + m.arpeggio.intervals[parity]
         if idx < 96:
             af = self.freq_table[idx]

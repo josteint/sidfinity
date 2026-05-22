@@ -158,6 +158,14 @@ def capture(sid_path: str = SID_PATH, n_frames: int = 1500,
     # init() — A = subtune number (0-indexed), per PSID convention.
     call(init_addr, acc=subtune)
 
+    # IRQ-driven SID (PSID play address 0): the tune installs its own
+    # handler via the KERNAL IRQ vector at $0314/$0315. Call that
+    # handler each frame — it JSRs the real play routine and exits via
+    # JMP $EA31 into unmapped ($00-filled) memory, which the BRK
+    # sentinel in call() catches.
+    if play_addr == 0:
+        play_addr = mem[0x0314] | (mem[0x0315] << 8)
+
     # Per-frame run. Snapshot voice state AFTER each play() so the
     # note-load that play() performed this frame is visible.
     frames: list[tuple[list[dict], list[list[tuple[int, int]]]]] = []

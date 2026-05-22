@@ -187,6 +187,8 @@ iniov:  lda ovseed,x
         sta v_pwdir,x
         lda ovseed+9,x
         sta v_instr,x
+        lda ovseed+12,x
+        sta v_durfield,x
         dex
         bpl iniov
         lda #0
@@ -607,6 +609,7 @@ fxp_on:
         adc pwm_tmp
         clc
         adc vib_carry
+        ora #LINEAR_PW_OR
         sta pwacc,y
         ldy sidoff
         sta $d402,y
@@ -804,7 +807,7 @@ fx_arp:
         and #$04
         beq fxa_ret
         lda frame_ctr
-        and #$01
+        and #ARP_MASK
         beq fxa_even
         lda v_pitch,x
         clc
@@ -1124,7 +1127,8 @@ def _emit_data(scores, models, freq_bytes, resetspds, voice_starts,
     ov = ([freq_bytes[208 + i] for i in range(3)]      # v_ctrl     freq+208
           + [freq_bytes[229 + i] for i in range(3)]    # pwm_period freq+229
           + [freq_bytes[232 + i] for i in range(3)]    # pwm_dir    freq+232
-          + [freq_bytes[214 + i] for i in range(3)])   # v_instr    freq+214
+          + [freq_bytes[214 + i] for i in range(3)]    # v_instr    freq+214
+          + [freq_bytes[205 + i] for i in range(3)])   # v_durfield freq+205
     lines.append('ovseed: .byt ' + ','.join(f'${b:02X}' for b in ov))
 
     # patterns — each unique pattern emitted once; orderlists reference
@@ -1209,7 +1213,7 @@ def build(config, out_path: str = OUT_SID, codec=None) -> str:
     _, binary, load = load_sid(config.sid_path)
     models = decode_all(config.sid_path, config.instr_base,
                         config.instr_count, config.arp_interval,
-                        config.vib_onset)
+                        config.vib_onset, config.arp_period)
     scores = [config.extract(subtune=s).score for s in config.subtunes]
     resetspds = [config.resetspd(s, binary, load) for s in config.subtunes]
     voice_starts = [config.voice_starts[s] if config.voice_starts else 2
@@ -1228,6 +1232,8 @@ def build(config, out_path: str = OUT_SID, codec=None) -> str:
 
     asm = (f'PWLEN = {2 * len(models) - 1}\n'
            f'ARP_OFS = {config.arp_interval}\n'
+           f'ARP_MASK = {config.arp_period - 1}\n'
+           f'LINEAR_PW_OR = {config.linear_pw_or}\n'
            f'INCBY2_STEP = {config.incby2_step & 0xFF}\n'
            f'INCBY2_ALWAYS = {1 if config.incby2_every_frame else 0}\n'
            f'DRUM_PRIO_INIT = {0 if config.suppress_first_notestart else 255}\n'
