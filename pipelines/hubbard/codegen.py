@@ -114,6 +114,8 @@ sfx_flags  = $a3
 sfx_tmp    = $a4
 v_notesleft = $a5
 drum_prio   = $b2
+pv_abort    = $b3
+v_frozen    = $b4
 
 * = $1000
         jmp init
@@ -168,6 +170,7 @@ ini1:   lda #0
         sta v_instr,x
         sta v_orderpos,x
         sta v_ended,x
+        sta v_frozen,x
         jsr set_patptr       ; v_patptr,x = first pattern of orderlist X
         dex
         bpl ini1
@@ -225,8 +228,12 @@ pl_run:
 notick: lda #0
         sta is_tick
 voices:
+        lda #0
+        sta pv_abort
         ldx #2
 pvloop: jsr proc_voice
+        lda pv_abort
+        bne pl_done
         lda #$ff
         sta drum_prio
         dex
@@ -247,6 +254,8 @@ pl_done:
 proc_voice:
         lda v_ended,x
         bne pv_endret        ; voice hit $FE - it no longer plays
+        lda v_frozen,x
+        bne pv_frozen        ; voice hit $FE under freeze_on_stop
         lda sidtab,x
         sta sidoff
         jsr calc_instoff
@@ -257,6 +266,8 @@ proc_voice:
         jsr load_note
         lda v_ended,x        ; load_note may have hit the $FE marker
         bne pv_endret
+        lda v_frozen,x       ; load_note may have hit the $FE freeze
+        bne pvf_abort
         jsr calc_instoff
         jmp note_start
 pv_sus:
@@ -268,6 +279,30 @@ pv_sus:
         jsr hr_writes
 pv_fx:
         jmp do_effects
+; a $FE-frozen voice. v_dur cycles as a signed byte; while it is
+; negative the voice tries to advance, hits $FE and aborts the frame.
+; otherwise it sustains, hard-restarts at zero-crossing and runs fx.
+pv_frozen:
+        lda sidtab,x
+        sta sidoff
+        jsr calc_instoff
+        lda is_tick
+        beq pvf_fx
+        dec v_dur,x
+        lda v_dur,x
+        bmi pvf_abort
+        inc v_tick,x
+        lda v_dur,x
+        bne pvf_fx
+        lda v_norel,x
+        bne pvf_fx
+        jsr hr_writes
+pvf_fx:
+        jmp do_effects
+pvf_abort:
+        lda #1
+        sta pv_abort
+        rts
 pv_endret:
         rts
 
@@ -303,7 +338,12 @@ sp_read:
         jmp sp_read
 sp_stop:
         lda #$ff
+        ldy #FREEZE_ON_STOP
+        bne sps_freeze
         sta v_ended,x
+        rts
+sps_freeze:
+        sta v_frozen,x
         rts
 sp_have:
         tay                  ; Y = pattern index
@@ -1149,6 +1189,7 @@ def build(config, out_path: str = OUT_SID, codec=None) -> str:
            f'DRUM_PRIO_INIT = {0 if config.suppress_first_notestart else 255}\n'
            f'DUR_BITS = {codec.dur_bits}\n'
            f'INST_BITS = {codec.inst_bits}\n'
+           f'FREEZE_ON_STOP = {1 if config.freeze_on_stop else 0}\n'
            + codec.zp_asm + '\n'
            + ENGINE + '\n'
            + codec.note_asm + '\n'

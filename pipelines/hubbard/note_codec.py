@@ -135,6 +135,8 @@ ln_chk:
         jsr set_patptr
         lda v_ended,x
         bne ln_ret
+        lda v_frozen,x
+        bne ln_ret
         jmp ln_chk
 ln_ret:
         rts
