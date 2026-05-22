@@ -122,6 +122,26 @@ binary's load-time bytes. The shared core seeds these from
 new engine reads another uninitialised per-voice variable, seed it the
 same way (song_interp `__init__` + codegen `iniov`).
 
+## Step 4 — ship the SFX sub-engine
+
+We ship **everything**, music and sound effects. A Hubbard engine
+typically has more PSID subtunes than music: a sound-effect sub-engine
+(Commando: 16 SFX at subtunes 3-18). Once the music subtunes are
+byte-exact:
+
+- The shared codegen already contains the Commando-style SFX player —
+  a 2-voice SID-register snapshot plus a freq-table pitch sweep.
+- Write `pipelines/<engine>/extract/sfx.py` modelled on
+  `pipelines/commando/extract/sfx.py`: decode the engine's 16-byte SFX
+  records (find the SFX-table address and the record layout in the
+  disassembly's SFX section). If the engine's SFX sub-engine is
+  structurally Commando's, only the addresses differ.
+- Set `has_sfx=True` and `extract_sfx=...` in the config.
+- Verify all subtunes — music **and** the 16 SFX — byte-exact.
+
+The SFX sub-engine is SID-synthesis and fully frame-verifiable — it is
+**not** digi. Do not skip it.
+
 ## Gotchas
 
 - **xa65**: no colons (`:`) or backslashes (`\`) inside `;` comments —
@@ -129,11 +149,14 @@ same way (song_interp `__init__` + codegen `iniov`).
 - **IRQ-driven SID** (PSID play address 0): the music runs from a raster
   IRQ; `inst_program.capture` already follows the `$0314/$0315` vector
   after init. Nothing to do — but expect the original's play to be 0.
-- **digi / SFX subtunes** ($D418, cycle-timed playback): out of scope.
-  The frame-granular capture cannot verify them. Migrate only the music
-  subtunes; leave SFX unshipped.
+- **digi** — genuine cycle-timed `$D418` sample playback, usually a
+  separate digi player (e.g. Chimera's `$C000` routine): this is the
+  one real boundary. The frame-granular capture cannot verify
+  cycle-timed playback. If an engine's extra subtunes are *digi*, leave
+  those unshipped — but the ordinary SFX sub-engine (Step 4) is **not**
+  digi and must be shipped.
 
-## Step 4 — verify and finish
+## Step 5 — verify and finish
 
 - `verify_all` (`pipelines/hubbard/verify.py`) over Commando + every
   done engine + the new one: the new engine must be ALL EXACT, and the
