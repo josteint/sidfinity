@@ -112,6 +112,7 @@ class SongInterp:
             self.voices[vi].ctrl_byte = binary[fb + 208 + vi]
             self.voices[vi].dur_field = binary[fb + 205 + vi]
             self.voices[vi].instr = binary[fb + 214 + vi]
+            self.voices[vi].slide_v = binary[fb + 239 + vi]
             self.pw_period[vi] = binary[fb + 229 + vi]
             self.pw_dir[vi] = binary[fb + 232 + vi]
         self.frame_ctr = -1              # INC'd to 0 on the first frame
@@ -406,7 +407,7 @@ class SongInterp:
         write the old slide value and bump it by 2 (disassembly
         $5336-$535D). Runs after the skydive, sharing slide_v."""
         rt = self.voices[v]
-        if rt.dur_field < 3 or rt.slide_v == 0:
+        if rt.dur_field < self.config.incby2_onset or rt.slide_v == 0:
             return []
         if not self.config.incby2_every_frame and not (self.frame_ctr & 1):
             return []

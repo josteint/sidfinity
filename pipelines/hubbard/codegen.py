@@ -189,6 +189,8 @@ iniov:  lda ovseed,x
         sta v_instr,x
         lda ovseed+12,x
         sta v_durfield,x
+        lda ovseed+15,x
+        sta v_slide,x
         dex
         bpl iniov
         lda #0
@@ -573,7 +575,7 @@ fx_incby2:
         and #$02
         beq fxi_ret
         lda v_durfield,x
-        cmp #3
+        cmp #INCBY2_ONSET
         bcc fxi_ret
         lda frame_ctr
         and #$01
@@ -1128,7 +1130,8 @@ def _emit_data(scores, models, freq_bytes, resetspds, voice_starts,
           + [freq_bytes[229 + i] for i in range(3)]    # pwm_period freq+229
           + [freq_bytes[232 + i] for i in range(3)]    # pwm_dir    freq+232
           + [freq_bytes[214 + i] for i in range(3)]    # v_instr    freq+214
-          + [freq_bytes[205 + i] for i in range(3)])   # v_durfield freq+205
+          + [freq_bytes[205 + i] for i in range(3)]    # v_durfield freq+205
+          + [freq_bytes[239 + i] for i in range(3)])   # v_slide    freq+239
     lines.append('ovseed: .byt ' + ','.join(f'${b:02X}' for b in ov))
 
     # patterns — each unique pattern emitted once; orderlists reference
@@ -1236,6 +1239,7 @@ def build(config, out_path: str = OUT_SID, codec=None) -> str:
            f'LINEAR_PW_OR = {config.linear_pw_or}\n'
            f'INCBY2_STEP = {config.incby2_step & 0xFF}\n'
            f'INCBY2_ALWAYS = {1 if config.incby2_every_frame else 0}\n'
+           f'INCBY2_ONSET = {config.incby2_onset}\n'
            f'DRUM_PRIO_INIT = {0 if config.suppress_first_notestart else 255}\n'
            f'DUR_BITS = {codec.dur_bits}\n'
            f'INST_BITS = {codec.inst_bits}\n'

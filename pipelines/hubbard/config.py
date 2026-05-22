@@ -40,6 +40,7 @@ class EngineConfig:
     # Galop's init patches INC->DEC, so it ramps -1 every frame.
     incby2_step: int = 2
     incby2_every_frame: bool = False
+    incby2_onset: int = 3           # min note dur for the fx-bit-1 slide
     # the $178B drum-priority gate suppresses the very first voice's
     # first-frame note-start SID writes (Devils Galop only).
     suppress_first_notestart: bool = False

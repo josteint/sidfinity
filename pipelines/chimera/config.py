@@ -44,6 +44,7 @@ CHIMERA = EngineConfig(
     arp_period=8,       # arp frame & 7 — base 1-of-8, +12 7-of-8 ($C539)
     linear_pw_or=0x40,  # linear PW does ORA #$40 on pw_lo ($C412)
     incby2_step=1,      # fx bit 1 does INC v_fhi (+1, $C526)
+    incby2_onset=0x11,  # fx bit 1 needs dur field >= $11
     has_sfx=False,
     vib_onset=8,        # vibrato gate CMP #$08 at $C3D3
     speed_ctr_init=2,   # $C652/$C653 tick gate defers note-load 2 frames
