@@ -158,12 +158,22 @@ freq-table off-table region so the sweep reads it live — set
 - **IRQ-driven SID** (PSID play address 0): the music runs from a raster
   IRQ; `inst_program.capture` already follows the `$0314/$0315` vector
   after init. Nothing to do — but expect the original's play to be 0.
-- **digi** — genuine cycle-timed `$D418` sample playback, usually a
-  separate digi player (e.g. Chimera's `$C000` routine): this is the
-  one real boundary. The frame-granular capture cannot verify
-  cycle-timed playback. If an engine's extra subtunes are *digi*, leave
-  those unshipped — but the ordinary SFX sub-engine (Step 4) is **not**
-  digi and must be shipped.
+- **digi** — genuine cycle-timed sample playback (e.g. Chimera's
+  `$C000` 1-bit wavetoggle, or `$D418` 4-bit PCM). The frame-granular
+  `inst_program.capture` cannot verify it. **Digi is no longer a
+  boundary** — see [[reference_digi_pipeline]] for the USF2 digi
+  pipeline (D0..D3c done on Chimera): extract → Sample/FLAC sidecar
+  → `pack_digi` → SID, verified cycle-strict via
+  `siddump --writelog`. For a new engine whose extra subtunes are
+  digi: model the extractor (engine-specific tables + sample
+  format) on `pipelines/chimera/extract/digi.py`, reuse
+  `pipelines/hubbard/{sample,flac_io,digi_pack,verify_cycle}.py`,
+  and write a combined build alongside the music codegen on the
+  pattern of `pipelines/chimera/codegen/build_with_digi.py`. Until
+  the digi engine code itself is regenerated from USF (D5,
+  config-driven on the shared core), each engine ships a small
+  wrapper that uses its dispatcher + player bytes verbatim with the
+  music-init/play jsrs retargeted.
 
 ## Step 5 — verify and finish
 
