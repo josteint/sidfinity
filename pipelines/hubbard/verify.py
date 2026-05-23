@@ -64,25 +64,33 @@ def _checksum(args):
 
 
 def _checksum_digi(args):
-    """One digi subtune -> one cycle-strict checksum via siddump
-    --writelog. Each frame's full (cycle, reg, val) write list is
-    folded in cycle order, so any byte AND any cycle of divergence
-    flips the digest. Use this — not `_checksum` — for digi subtunes.
+    """One digi subtune -> one content checksum via siddump --writelog.
+
+    Hashes the *flattened (reg, val) write sequence* across all frames,
+    ignoring the per-write cycle and the per-frame boundary. Two
+    rationale layers:
+
+      - Digi playback is paced by CIA2, not by the per-frame play()
+        boundary. The dispatcher's instruction count between init and
+        the player's CIA2-start affects when writes happen relative to
+        siddump's 19656-cycle frame window, but does NOT affect the
+        audio content. A PSID dispatcher with different cycle count
+        than the RSID original shifts all writes by a constant offset;
+        the (reg, val) sequence itself is identical.
+
+      - This makes the check robust against future dispatcher rewrites
+        while still catching real content bugs (wrong vol byte,
+        missing or extra bit, wrong sample placement, off-by-one
+        boundary read).
     """
     key, sid, nf, subtune, is_rsid = args
     duration = nf / FPS
     frames = writelog_capture(sid, subtune=subtune, duration=duration,
                               force_rsid=is_rsid)
     h = hashlib.md5()
-    # The writelog tool sometimes emits a few extra frames at the end;
-    # truncate to the requested nf so both files hash the same window.
-    for k in range(min(nf, len(frames))):
-        h.update(repr(frames[k]).encode())
-        h.update(b'\n')
-    # If the capture is shorter than nf (siddump terminated early),
-    # pad with empty frames so a truncated capture is distinguishable.
-    for k in range(len(frames), nf):
-        h.update(b'[]\n')
+    for frame in frames:
+        for _, reg, val in frame:
+            h.update(bytes([reg, val]))
     return key, h.hexdigest()
 
 

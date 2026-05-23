@@ -22,7 +22,9 @@ from src.usf2 import (
     UsfFile, MusicSubtune, DigiSubtune, parse_file, validate,
 )
 from pipelines.hubbard.codegen import _Inputs, _emit_sid, LOAD
-from pipelines.hubbard.engine_constants import ENGINE_CONSTANTS, DigiCode
+from pipelines.hubbard.engine_constants import (
+    ENGINE_CONSTANTS, DigiCode, chimera_psid_dispatcher,
+)
 from pipelines.hubbard.flac_io import read_sample
 from pipelines.hubbard.digi_pack import pack_digi
 from pipelines.hubbard.inst_generalize import (
@@ -253,33 +255,26 @@ def _inputs_from_usf(usf: UsfFile) -> _Inputs:
 # ---------------------------------------------------------------------------
 
 def _build_digi_region(usf: UsfFile, digi_subs: list[DigiSubtune],
-                       digi_code: DigiCode, usf_dir: str) -> tuple[bytes, int]:
+                       digi_code: DigiCode, usf_dir: str
+                       ) -> tuple[bytes, int, int]:
     """Build the bytes of the digi region — dispatcher + tables +
     samples + player — placed at their fixed engine addresses.
 
-    Returns (region_bytes, region_base). The region is contiguous from
-    `region_base` to `region_base + len(region_bytes)` and covers the
-    dispatcher, the bank table, the validation table, the
-    `keep_screen`/`pace` slots, all sample byte streams, and the digi
-    player. Per-subtune `pace` and `bank` slots are filled from each
-    Sample's `extras`.
+    Returns `(region_bytes, region_base, play_addr)`. `play_addr` is
+    the PSID `play` entry inside the dispatcher (used by the header).
     """
-    # The region spans dispatcher_base..(end of digi player). Build a
-    # bytearray that long, write each segment at its address-relative
-    # offset.
     base = digi_code.dispatcher_base                       # e.g. $9F80
     end  = digi_code.player_base + len(digi_code.player)   # one past last byte
 
-    # The dispatcher's `jsr $C200` / `jsr $C206` originally targeted the
-    # in-original music engine. We retarget to OUR music (built by
-    # _emit_sid at LOAD).
-    dispatcher = bytearray(digi_code.dispatcher)
-    dispatcher[digi_code.music_init_patch_off:
-               digi_code.music_init_patch_off + 3] = bytes(
-        [0x20, LOAD & 0xFF, (LOAD >> 8) & 0xFF])
-    dispatcher[digi_code.music_play_patch_off:
-               digi_code.music_play_patch_off + 3] = bytes(
-        [0x20, (LOAD + 3) & 0xFF, ((LOAD + 3) >> 8) & 0xFF])
+    # Generate the PSID dispatcher with addresses substituted for our
+    # music engine and the digi player.
+    disp = chimera_psid_dispatcher(
+        music_init=LOAD, music_play=LOAD + 3,
+        digi_player=digi_code.player_base, base=base)
+    dispatcher = disp['bytes']
+    play_addr = base + disp['play_off']
+    pace_table_addr = base + disp['pace_table_off']
+    bank_table_addr = base + disp['bank_table_off']
 
     region = bytearray(end - base)
     region[0:len(dispatcher)] = dispatcher
@@ -311,14 +306,11 @@ def _build_digi_region(usf: UsfFile, digi_subs: list[DigiSubtune],
             'boundary_vol': sample.extras.get('boundary_vol', '00'),
         })
 
-    # Per-subtune dispatcher tables at $9FE2 (pace) and $9FE4 (bank-hi).
-    # The dispatcher does `lda $9FE2,X` and `lda $9FE4,X` where X is the
-    # SFX index (subtune - n_music_subtunes).
-    pace_base = digi_code.dispatcher_base + 0x62             # $9FE2
-    bank_base = digi_code.dispatcher_base + 0x64             # $9FE4
+    # Per-subtune dispatcher tables — the PSID dispatcher's pace_table /
+    # bank_table slots reported by `chimera_psid_dispatcher`.
     for s in samples:
-        region[pace_base - base + s['st_idx']] = s['pace']
-        region[bank_base - base + s['st_idx']] = s['bank']
+        region[pace_table_addr - base + s['st_idx']] = s['pace']
+        region[bank_table_addr - base + s['st_idx']] = s['bank']
 
     # Bank table at $A000 + bank*4 = {src_lo, src_hi, end_lo, end_hi}.
     bt_off = digi_code.bank_table_base - base
@@ -359,7 +351,7 @@ def _build_digi_region(usf: UsfFile, digi_subs: list[DigiSubtune],
         if 0 <= s['end'] - base < len(region):
             region[s['end'] - base] = boundary_vol
 
-    return bytes(region), base
+    return bytes(region), base, play_addr
 
 
 def _emit_combined_sid(inputs: _Inputs, usf: UsfFile, digi_subs: list,
@@ -380,7 +372,7 @@ def _emit_combined_sid(inputs: _Inputs, usf: UsfFile, digi_subs: list,
     # _emit_sid wrote a PSID. Strip its 124-byte header.
     music_body = music_blob[124:]                  # music bytes at $LOAD
 
-    digi_region, digi_base = _build_digi_region(
+    digi_region, digi_base, play_addr = _build_digi_region(
         usf, digi_subs, digi_code, usf_dir)
 
     music_end = LOAD + len(music_body)
@@ -391,16 +383,18 @@ def _emit_combined_sid(inputs: _Inputs, usf: UsfFile, digi_subs: list,
     gap = bytes(digi_base - music_end)
     binary = music_body + gap + digi_region
 
-    # RSID v2 header: load=$0000 (inline), init=dispatcher_base, play=0
+    # PSID v2 header: load=$0000 (inline), init=dispatcher_base,
+    # play=play_addr (regenerated PSID dispatcher's play entry).
+    # No more RSID; no KERNAL dep at playback.
     n_music = len(inputs.subtunes)
     songs = n_music + len(digi_subs)
     start_song = min(max(inputs.start_song, 1), songs)
 
-    h = bytearray(b'RSID')
+    h = bytearray(b'PSID')
     h += struct.pack('>HH', 2, 124)
     h += struct.pack('>H', 0x0000)             # load = inline-encoded
     h += struct.pack('>H', digi_code.dispatcher_base)
-    h += struct.pack('>H', 0x0000)             # play = IRQ-driven
+    h += struct.pack('>H', play_addr)
     h += struct.pack('>H', songs)
     h += struct.pack('>H', start_song)
     h += struct.pack('>I', 0)
