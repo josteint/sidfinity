@@ -1,0 +1,326 @@
+# USF v2 — file format specification
+
+USF v2 is the on-disk format for the project's *Universal Symbolic
+Format* representation of SID music. One `.usf` file holds everything
+except sample audio; samples live in sibling `.flac` files.
+
+The format is the load-bearing input to the codegen. The codegen MUST
+NOT peek at any other source — `usf + flacs → sid` is the whole input.
+
+## Goals
+
+- Single source of truth for one tune.
+- Human-readable, human-editable in any text editor.
+- Footgun-minimal: a small edit either keeps the song consistent or
+  fails parse with a precise error.
+- Round-trip stable: `parse → write` is byte-identical.
+- Engine-agnostic structure; engine-specific fields live in
+  `params:` and named effect tokens.
+
+## Files
+
+For tune `Chimera`:
+
+```
+Chimera.usf
+Chimera.sample2.flac           ; only present if subtune 2 is digi
+Chimera.sample3.flac           ; only present if subtune 3 is digi
+```
+
+- The `.usf` file is UTF-8.
+- Sample files use the convention `<basename>.sample<N>.flac` where
+  `N` is the PSID subtune index (0-indexed).
+- Sample sidecars carry per-sample metadata in Vorbis comments
+  (see `docs/usf_digi_plan.md`).
+
+## Lexical conventions
+
+- Comments start with `;` and run to end of line. They are lossy —
+  the writer does not preserve them across a parse/serialize round
+  trip.
+- Whitespace and blank lines are not significant beyond separating
+  tokens.
+- Identifiers: `[A-Za-z_][A-Za-z0-9_]*`.
+- Integers: bare decimal (`12`), or `$`-prefixed hex (`$40`). Never
+  `0x40`.
+- Strings: double-quoted, e.g. `"Rob Hubbard"`. Used only for PSID
+  metadata fields where the content is free-form.
+- Block delimiters: `{` and `}`.
+- List delimiters: `[` and `]`, comma-separated.
+
+## Top-level structure
+
+```
+version: 2
+engine: chimera
+
+psid {
+  title:      "Chimera"
+  author:     "Rob Hubbard"
+  released:   "1985 Firebird"
+  clock:      PAL
+  sid:        6581
+  start_song: 1
+}
+
+params {
+  arp_interval:   12
+  arp_period:     8
+  linear_pw_or:   $40
+  vib_onset:      8
+  speed_ctr_init: 2
+  incby2_step:    1
+  incby2_onset:   $11
+}
+
+init {
+  voice 1 { ctrl: $41  dur_field: $00  pwm_period: $80  pwm_dir: up  instr: i1 }
+  voice 2 { ... }
+  voice 3 { ... }
+}
+
+instrument 1 lead { ... }
+instrument 2 bass { ... }
+instrument 3       { ... }     ; unnamed, referenced as i3
+
+subtune 0 music { ... }
+subtune 1 music { ... }
+subtune 2 digi  { sample: Chimera.sample2.flac }
+subtune 3 digi  { sample: Chimera.sample3.flac }
+```
+
+Top-level entries appear in this order. The parser enforces it.
+
+## `version`
+
+```
+version: 2
+```
+
+The first non-comment token of the file. The parser rejects any
+version it does not implement, with a clear message.
+
+## `engine`
+
+```
+engine: chimera
+```
+
+A bare identifier naming the engine pipeline (e.g. `chimera`,
+`commando`, `monty`, `devils_galop`, `action_biker`). The codegen
+uses this to pick its engine asm + EngineConfig defaults.
+
+## `psid` block
+
+PSID/RSID metadata reproduced in the rebuilt SID file. Fields:
+
+| field        | type    | meaning                                  |
+|--------------|---------|------------------------------------------|
+| `title`      | string  | song title                               |
+| `author`     | string  | composer                                 |
+| `released`   | string  | release info (year + label)              |
+| `clock`      | keyword | `PAL`, `NTSC`, `both`, or `unknown`      |
+| `sid`        | keyword | `6581`, `8580`, `both`, or `unknown`     |
+| `start_song` | integer | 1-indexed default subtune                |
+
+## `params` block
+
+Engine-specific configuration. Field set depends on the engine but
+every field is a value, never a `*Kind` enum (see
+`docs/usf_representation_principle.md`). Examples for Hubbard '85:
+
+- `arp_interval`, `arp_period` — arpeggio offset + cycle length
+- `vib_onset` — minimum note duration for vibrato to engage
+- `linear_pw_or` — OR mask applied to pw_lo in linear-PW mode
+- `incby2_step`, `incby2_onset`, `incby2_every_frame` — fx-bit-1 slide
+- `speed_ctr_init` — initial tick counter (defers first note-load)
+- `first_frame_gate_off` — boolean, frame-0 voice clear
+- `freeze_on_stop` — boolean, `$FE` semantics
+- `stop_fill` — byte to write on song end, or `none`
+
+Boolean values: `true` / `false`.
+
+## `init` block
+
+Per-voice initial state. Each voice gets a brace-block of named
+fields:
+
+```
+init {
+  voice 1 {
+    ctrl:       $41    ; SID V1 ctrl byte at engine init
+    dur_field:  $00    ; vibrato carry path initial duration
+    pwm_period: $80    ; PWM accumulator
+    pwm_dir:    up     ; PWM direction: up / down
+    instr:      i1     ; instrument id this voice starts with
+    slide_v:    $00    ; cached freq-hi for skydive effect
+  }
+  voice 2 { ... }
+  voice 3 { ... }
+}
+```
+
+This replaces the original engine's freq-table-overlap-as-state-
+storage trick. The codegen places the values wherever convenient in
+the output binary.
+
+## `instrument N name { ... }`
+
+```
+instrument 1 lead {
+  waveform: $41 $49
+  loop:     1
+  pwm:      mode=linear speed=0 init=$800 min_hi=0 max_hi=0
+  adsr:     $09 $A9
+  arp:      offsets=[0, 12] period=2
+  vibrato:  scale=0
+  envelope: gate_off_delta=0 adsr_zero_delta=0
+}
+```
+
+- `N` is the instrument id (1-indexed, no zero-padding — `i1` not `i01`).
+- `name` is optional; if present, the instrument is referenceable as
+  `i:name` anywhere `i N` is expected. Names: `[A-Za-z_][A-Za-z0-9_]*`.
+- Fields:
+  - `waveform`: a sequence of ctrl bytes (the wave-table program).
+  - `loop`: zero-based index into `waveform` where the program loops.
+  - `pwm`: `mode=` is one of `linear`, `bidirectional`, `none`.
+    `speed`, `init`, `min_hi`, `max_hi` parametric.
+  - `adsr`: two bytes — attack/decay + sustain/release.
+  - `arp`: `offsets=[...]` (list of semitone offsets including the
+    base 0), `period=` (cycle length).
+  - `vibrato`: `scale=` (depth).
+  - `envelope`: hard-restart timing fields.
+
+Field set is engine-determined. Fields not relevant to an engine
+omit cleanly.
+
+## `subtune N kind { ... }`
+
+`kind` is `music`, `digi`, or `sfx`. The parser knows what shape to
+expect downstream.
+
+### `subtune N music`
+
+```
+subtune 0 music {
+  tempo: 4
+
+  voice 1 { ... }
+  voice 2 { ... }
+  voice 3 { ... }
+}
+```
+
+- `tempo` is the frames-per-tick value.
+- Three voices required. Each voice is a brace-block.
+
+### Voice block
+
+```
+voice 1 {
+  orderlist: 0 1 0 2 loop@2
+
+  pattern 0 length=32 { ... }
+  pattern 1 length=16 { ... }
+}
+```
+
+- `orderlist`: a sequence of pattern ids. A `loop@N` token gives the
+  position to jump to after the orderlist ends (0-indexed). A trailing
+  `stop` (no `loop@`) indicates an end-of-song with no loop.
+- `pattern N length=L`: pattern id `N`, total tick length `L`. The
+  parser validates that the contained notes' durations sum to L.
+
+### Pattern body — note rows
+
+Each non-blank line inside a pattern body is a note row:
+
+```
+pattern 0 length=32 {
+  C-5  4  i:lead
+  D-5  2  i:lead  tie
+  E-5  8  i:lead  fx:drum
+  ---  18
+}
+```
+
+Columns (whitespace-separated):
+
+1. **Pitch**: a note name `C-5`, `D#5`, `F-3`, etc. Sharps use `#`.
+   Octaves are 0-7. Rest is `---`.
+2. **Duration**: positive integer (ticks).
+3. **Instrument ref**: `iN` (numeric) or `i:name` (named). Optional —
+   absent on rest rows.
+4. **Effect flags** (zero or more): `tie`, `fx:drum`, `fx:arp`,
+   `fx:vibrato`, `fx:pwm`, `fx:incby2`, etc. Engine-bit names. The
+   parser interns them as string flags; the codegen translates to
+   engine bits.
+
+A line with no pitch (`---`) and no instrument is a rest of the given
+duration.
+
+### `subtune N digi`
+
+```
+subtune 2 digi {
+  sample: Chimera.sample2.flac
+}
+```
+
+The sample reference is a relative filename. The parser checks the
+file exists in the same directory and that its Vorbis-comment engine
+field matches the parent USF's `engine:`.
+
+### `subtune N sfx`
+
+(Reserved for Commando-style 16-byte SFX records — covered in a
+follow-up spec when SFX is migrated to USF v2. For now, an `sfx`
+subtune block contains engine-specific fields TBD.)
+
+## Validation layers
+
+Layer 1 — parse: grammar check, produces a typed AST or precise
+syntax error (line, column, expected vs got).
+
+Layer 2 — references: every `iN` / `i:name` in a pattern resolves to
+a defined `instrument`. Every orderlist entry resolves to a defined
+`pattern` in the same voice. Every `sample:` resolves to an
+existing FLAC sidecar.
+
+Layer 3 — lengths: per-pattern, durations sum to declared `length=`.
+
+Layer 4 — sidecar fingerprint: each `.flac`'s Vorbis comments are
+internally consistent (native_bits, method, engine all populated)
+and `engine` matches the USF's `engine:`.
+
+Layer 5 (`usf lint`) — soft warnings: instrument defined but never
+used; orderlist position 0 referenced only once (might be a typo);
+durations way out of distribution; etc. Opt-in.
+
+Layers 1-4 must pass before codegen runs. Layer 5 is informational.
+
+## Round-trip invariant
+
+For any well-formed `Chimera.usf`, `write(parse(text)) == text` as
+bytes. The writer:
+
+- Emits fields in a fixed order within each block.
+- Uses a canonical layout (one space after `:`, aligned columns in
+  pattern bodies where feasible).
+- Always emits `length=` on every pattern.
+- Always emits `loop@N` even when N == 0.
+- Never invents fields the parser would not produce.
+
+## Things the format deliberately does NOT have
+
+- Count fields. The parser derives `n_voices`, `n_patterns`,
+  `n_subtunes`, `n_instruments` from the data.
+- Implicit defaults that mask typos. Unknown tokens are errors.
+- A `kind:` field on instruments. Instrument behavior is fully
+  parametric.
+- `0x` hex (only `$`), `0` octal, scientific notation.
+- Per-tick `@offset` markers (creates redundancy footgun).
+- A cross-voice alignment check (free by default; lockstep would
+  reject most polyrhythmic SID music).
+- Comment preservation across round-trips.

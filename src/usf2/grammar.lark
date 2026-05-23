@@ -1,0 +1,121 @@
+// USF v2 grammar — see docs/usf_v2_format.md for the contract.
+//
+// Lark grammar (LALR friendly). Whitespace and comments are ignored
+// between tokens. Top-level order is enforced by the start rule.
+
+start: version_decl engine_decl psid_block params_block init_block instrument_block* subtune_block*
+
+version_decl: "version" ":" INT
+engine_decl:  "engine" ":" CNAME
+
+// ----- psid -----
+psid_block: "psid" "{" psid_field+ "}"
+psid_field: "title" ":" STRING       -> psid_title
+          | "author" ":" STRING      -> psid_author
+          | "released" ":" STRING    -> psid_released
+          | "clock" ":" CNAME        -> psid_clock
+          | "sid" ":" INT            -> psid_sid
+          | "start_song" ":" INT     -> psid_start_song
+
+// ----- params -----
+params_block: "params" "{" params_field* "}"
+params_field: CNAME ":" param_value
+param_value: number          -> param_number
+           | CNAME           -> param_keyword
+           | bool            -> param_bool
+
+// ----- init -----
+init_block: "init" "{" init_voice+ "}"
+init_voice: "voice" INT "{" init_field+ "}"
+init_field: CNAME ":" init_value
+init_value: number           -> init_number
+          | CNAME            -> init_keyword
+          | instr_ref        -> init_instr
+
+// ----- instruments -----
+instrument_block: "instrument" INT instrument_name? "{" instrument_field+ "}"
+instrument_name:  CNAME
+instrument_field: "waveform" ":" byte_list                              -> inst_waveform
+                | "loop" ":" INT                                        -> inst_loop
+                | "pwm" ":" pwm_args                                    -> inst_pwm
+                | "adsr" ":" byte byte                                  -> inst_adsr
+                | "arp" ":" arp_args                                    -> inst_arp
+                | "vibrato" ":" vib_args                                -> inst_vibrato
+                | "envelope" ":" env_args                               -> inst_envelope
+
+pwm_args: pwm_kv+
+pwm_kv: "mode" "=" CNAME           -> pwm_mode
+      | "speed" "=" INT            -> pwm_speed
+      | "init" "=" number          -> pwm_init
+      | "min_hi" "=" INT           -> pwm_min_hi
+      | "max_hi" "=" INT           -> pwm_max_hi
+
+arp_args: arp_kv+
+arp_kv: "offsets" "=" "[" (signed_int ("," signed_int)*)? "]"   -> arp_offsets
+      | "period" "=" INT                                          -> arp_period
+
+vib_args: vib_kv+
+vib_kv: "scale" "=" INT             -> vib_scale
+
+env_args: env_kv+
+env_kv: "gate_off_delta" "=" INT       -> env_gate_off_delta
+      | "adsr_zero_delta" "=" INT      -> env_adsr_zero_delta
+
+// ----- subtunes -----
+subtune_block: "subtune" INT subtune_kind "{" subtune_body "}"
+subtune_kind: "music"        -> kind_music
+            | "digi"         -> kind_digi
+            | "sfx"          -> kind_sfx
+
+subtune_body: music_body
+            | digi_body
+
+// music
+music_body: "tempo" ":" INT voice_block voice_block voice_block
+
+voice_block: "voice" INT "{" "orderlist" ":" orderlist pattern_block* "}"
+orderlist: orderlist_entry+ orderlist_terminator?
+orderlist_entry: INT
+orderlist_terminator: "loop" "@" INT      -> ol_loop
+                    | "stop"              -> ol_stop
+
+pattern_block: "pattern" INT "length" "=" INT "{" note_row* "}"
+
+note_row: pitch INT instr_ref? fx_flag*
+pitch: NOTE_NAME      -> pitch_named
+     | "---"          -> pitch_rest
+fx_flag: "tie"                  -> fx_tie
+       | "fx" ":" CNAME         -> fx_named
+
+// digi
+digi_body: "sample" ":" SAMPLE_PATH
+
+// ----- common -----
+instr_ref: INSTR_ID             -> instr_id
+         | INSTR_NAME           -> instr_name
+
+INSTR_ID.3:   "i" /[0-9]+/
+INSTR_NAME.3: "i:" /[A-Za-z_][A-Za-z0-9_]*/
+
+byte_list: byte+
+byte: number
+number: INT       -> dec_number
+      | HEX       -> hex_number
+signed_int: number
+          | "-" number          -> neg_number
+bool: "true"      -> bool_true
+    | "false"     -> bool_false
+
+// ----- tokens -----
+HEX: "$" /[0-9a-fA-F]+/
+NOTE_NAME.2: /[A-G][#-][0-7]/
+SAMPLE_PATH.2: /[A-Za-z0-9_.][A-Za-z0-9_.\-]*\.flac/
+
+%import common.CNAME
+%import common.INT
+%import common.ESCAPED_STRING -> STRING
+%import common.WS
+%ignore WS
+
+COMMENT: ";" /[^\n]*/
+%ignore COMMENT
