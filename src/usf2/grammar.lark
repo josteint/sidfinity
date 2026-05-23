@@ -42,6 +42,10 @@ instrument_field: "waveform" ":" byte_list                              -> inst_
                 | "arp" ":" arp_args                                    -> inst_arp
                 | "vibrato" ":" vib_args                                -> inst_vibrato
                 | "envelope" ":" env_args                               -> inst_envelope
+                | "fx" ":" inst_fx_flag+                                -> inst_fx
+
+inst_fx_flag: "freq_slide"           -> inst_fx_freq_slide
+            | "inc_by2"              -> inst_fx_inc_by2
 
 pwm_args: pwm_kv+
 pwm_kv: "mode" "=" CNAME           -> pwm_mode
@@ -85,6 +89,8 @@ note_row: pitch INT instr_ref? fx_flag*
 pitch: NOTE_NAME      -> pitch_named
      | "---"          -> pitch_rest
 fx_flag: "tie"                  -> fx_tie
+       | "no_release"           -> fx_no_release
+       | "porta" "=" INT        -> fx_porta
        | "fx" ":" CNAME         -> fx_named
 
 // digi

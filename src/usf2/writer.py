@@ -135,6 +135,13 @@ def _write_instrument(i: Instrument) -> list[str]:
     lines.append(
         f'  envelope: gate_off_delta={i.envelope.gate_off_delta} '
         f'adsr_zero_delta={i.envelope.adsr_zero_delta}')
+    fx_flags = []
+    if i.freq_slide:
+        fx_flags.append('freq_slide')
+    if i.inc_by2:
+        fx_flags.append('inc_by2')
+    if fx_flags:
+        lines.append(f'  fx:       {" ".join(fx_flags)}')
     lines.append('}')
     return lines
 

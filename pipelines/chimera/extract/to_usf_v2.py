@@ -28,6 +28,7 @@ from src.usf2 import (
     NoteRow, Pitch, InstrumentRef, write_file, validate,
 )
 from pipelines.hubbard.flac_io import write_sample
+from pipelines.hubbard.inst_generalize import decode_all
 from pipelines.chimera.extract.digi import extract_digi, to_sample
 
 
@@ -77,8 +78,13 @@ def _row_from_note(note) -> NoteRow:
     flags: list[str] = []
     if note.tie:
         flags.append('tie')
-    if note.drum_trig:
-        flags.append('fx:drum')
+    # drum_trig is a multi-bit field: bit 7 = no_release, bits 0-6 =
+    # portamento amount. Decompose so the USF stays semantic.
+    if note.drum_trig & 0x80:
+        flags.append('no_release')
+    porta_amt = note.drum_trig & 0x7F
+    if porta_amt:
+        flags.append(f'porta={porta_amt}')
     return NoteRow(pitch=pitch, duration=note.duration,
                    instr=instr, fx_flags=tuple(flags))
 
@@ -115,26 +121,50 @@ def _convert_score(subtune_id: int, score) -> MusicSubtune:
 # period" to "offsets list + per-instrument period."
 # ---------------------------------------------------------------------------
 
-def _convert_instrument(inst, arp_period: int) -> Instrument:
+def _convert_instrument(model, arp_period: int) -> Instrument:
+    """Convert an `InstrumentModel` (from `decode_all`, the engine-aware
+    decoder) into the USF v2 `Instrument`. Source preserves the full
+    fx_flags semantics (freq_slide, inc_by2, arp-enable, pwm-mode)."""
+    # PWM init bytes are SID writes that happen on every note start
+    # regardless of whether the PWM accumulator is active — preserve
+    # them even when mode='none'.
+    init_pw = (model.init_pw_hi << 8) | model.init_pw_lo
+    if model.pwm is None:
+        pwm = PwmConfig(mode='none', speed=0, init=init_pw)
+    elif model.pwm.mode == 'linear':
+        pwm = PwmConfig(
+            mode='linear', speed=model.pwm.speed, init=init_pw,
+            min_hi=model.pwm.lo_bound, max_hi=model.pwm.hi_bound,
+        )
+    else:
+        pwm = PwmConfig(
+            mode='bidirectional',
+            speed=(model.pwm.period | model.pwm.step), init=init_pw,
+            min_hi=model.pwm.lo_bound, max_hi=model.pwm.hi_bound,
+        )
+
+    # Arp: only emit a non-trivial offsets list when arp is actually
+    # enabled (fx bit 2). Otherwise emit [0] so the round-trip carries
+    # "no arpeggio" cleanly.
+    if model.arpeggio is not None:
+        offsets = list(model.arpeggio.intervals)
+    else:
+        offsets = [0]
+
+    vibrato_scale = model.vibrato.depth if model.vibrato else 0
+
     return Instrument(
-        id=inst.id + 1,                                       # USF 1-indexed
+        id=model.inst + 1,                                  # USF 1-indexed
         name=None,
-        waveform=list(inst.waveform.steps),
-        loop=inst.waveform.loop,
-        pwm=PwmConfig(
-            mode=inst.pwm.mode,
-            speed=inst.pwm.speed,
-            init=inst.pwm.init_pw,
-            min_hi=inst.pwm.min_hi,
-            max_hi=inst.pwm.max_hi,
-        ),
-        adsr=(inst.envelope.ad, inst.envelope.sr),
-        arp=ArpConfig(offsets=[0, inst.arp_offset], period=arp_period),
-        vibrato=VibratoConfig(scale=inst.vibrato_scale),
-        envelope=EnvelopeConfig(
-            gate_off_delta=inst.envelope.gate_off_delta,
-            adsr_zero_delta=inst.envelope.adsr_zero_delta,
-        ),
+        waveform=[model.init_ctrl],
+        loop=0,
+        pwm=pwm,
+        adsr=(model.init_ad, model.init_sr),
+        arp=ArpConfig(offsets=offsets, period=arp_period),
+        vibrato=VibratoConfig(scale=vibrato_scale),
+        envelope=EnvelopeConfig(gate_off_delta=0, adsr_zero_delta=0),
+        freq_slide=model.freq_slide,
+        inc_by2=model.inc_by2,
     )
 
 
@@ -228,9 +258,12 @@ def chimera_to_usf_v2(config) -> UsfFile:
     init = _derive_init_state(binary, config.freq_table_base, load,
                               config.instr_count)
 
-    first_song = config.extract(subtune=config.subtunes[0])
-    instruments = [_convert_instrument(i, config.arp_period)
-                   for i in first_song.instruments]
+    # Use the engine-aware decoder for the full set of per-instrument
+    # flags (freq_slide, inc_by2, etc.).
+    models = decode_all(config.sid_path, config.instr_base,
+                        config.instr_count, config.arp_interval,
+                        config.vib_onset, config.arp_period)
+    instruments = [_convert_instrument(m, config.arp_period) for m in models]
 
     music_subtunes = []
     for st in config.subtunes:

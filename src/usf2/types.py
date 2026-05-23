@@ -180,6 +180,13 @@ class Instrument:
     arp: ArpConfig = field(default_factory=ArpConfig)
     vibrato: VibratoConfig = field(default_factory=VibratoConfig)
     envelope: EnvelopeConfig = field(default_factory=EnvelopeConfig)
+    # Per-instrument behavioral flags. Hubbard '85 has 4 such bits
+    # in the engine's fx_flags byte: bit 0 (freq_slide / skydive),
+    # bit 1 (inc_by2 / freq-hi ramp), bit 2 (arpeggio enabled), bit 3
+    # (pwm mode = linear). Bits 2 and 3 are derived from arp.offsets
+    # and pwm.mode; the other two are stored explicitly.
+    freq_slide: bool = False
+    inc_by2: bool = False
 
 
 # ---------------------------------------------------------------------------

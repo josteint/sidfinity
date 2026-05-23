@@ -1278,11 +1278,52 @@ def _sfx_state_in_freqtab(asm: str, ofs: int) -> str:
     return asm
 
 
-def build(config, out_path: str = OUT_SID, codec=None) -> str:
+from dataclasses import dataclass as _dataclass
+from typing import Optional as _Optional
+
+
+@_dataclass
+class _Inputs:
+    """Everything `_emit_sid` needs, decoupled from the source.
+
+    `_inputs_from_config` builds this by reading `config.sid_path`.
+    `_inputs_from_usf` (in build_from_usf.py) builds it from a `.usf`
+    file plus per-engine constants. Both feed `_emit_sid` which is
+    pure: it knows nothing about how the inputs were derived.
+    """
+    # PSID header metadata
+    title: bytes              # exact 32-byte bytes (latin-1) for header
+    author: bytes
+    released: bytes
+    start_song: int           # 1-indexed
+    # Engine equates / asm flags
+    arp_interval: int
+    arp_period: int
+    linear_pw_or: int
+    incby2_step: int
+    incby2_every_frame: bool
+    incby2_onset: int
+    suppress_first_notestart: bool
+    freeze_on_stop: bool
+    speed_ctr_init: int
+    first_frame_gate_off: bool
+    stop_fill: _Optional[int]
+    sfx_framectr_ofs: int
+    sfx_state_ofs: _Optional[int]
+    has_sfx: bool
+    # Per-engine data
+    subtunes: tuple
+    models: list                   # list[InstrumentModel]
+    scores: list                   # list[Score]
+    resetspds: list                # list[int]
+    voice_starts: list             # list[int]
+    freq_bytes: bytes              # 320 bytes
+    sfx_list: list
+
+
+def _inputs_from_config(config) -> _Inputs:
+    """Build inputs from a legacy `EngineConfig` (reads the binary)."""
     from src.hubbard_emu import load_sid
-    from pipelines.hubbard.note_codec import BitPackCodec
-    if codec is None:
-        codec = BitPackCodec()
     _, binary, load = load_sid(config.sid_path)
     models = decode_all(config.sid_path, config.instr_base,
                         config.instr_count, config.arp_interval,
@@ -1291,46 +1332,72 @@ def build(config, out_path: str = OUT_SID, codec=None) -> str:
     resetspds = [config.resetspd(s, binary, load) for s in config.subtunes]
     voice_starts = [config.voice_starts[s] if config.voice_starts else 2
                     for s in config.subtunes]
-    # the freq table - raw bytes from the engine's freq-table base
     freq_bytes = bytes(binary[config.freq_table_base - load + i]
                        for i in range(320))
     sfx_list = config.extract_sfx(config.sid_path)[0] if config.has_sfx else []
 
-    # asm layout: equates, then the generic engine, then the codec's
-    # note reader, then the data section.
-    # encode the pattern pool up front — the codec's note_asm needs
-    # DUR_BITS, which encode() determines from the data.
-    pat_order, pat_slot = _pattern_pool(scores)
+    with open(config.sid_path, 'rb') as f:
+        orig_hdr = f.read(124)
+
+    return _Inputs(
+        title=orig_hdr[22:54],
+        author=orig_hdr[54:86],
+        released=orig_hdr[86:118],
+        start_song=(orig_hdr[0x10] << 8) | orig_hdr[0x11],
+        arp_interval=config.arp_interval,
+        arp_period=config.arp_period,
+        linear_pw_or=config.linear_pw_or,
+        incby2_step=config.incby2_step,
+        incby2_every_frame=config.incby2_every_frame,
+        incby2_onset=config.incby2_onset,
+        suppress_first_notestart=config.suppress_first_notestart,
+        freeze_on_stop=config.freeze_on_stop,
+        speed_ctr_init=config.speed_ctr_init,
+        first_frame_gate_off=config.first_frame_gate_off,
+        stop_fill=config.stop_fill,
+        sfx_framectr_ofs=config.sfx_framectr_ofs,
+        sfx_state_ofs=config.sfx_state_ofs,
+        has_sfx=config.has_sfx,
+        subtunes=config.subtunes,
+        models=models, scores=scores, resetspds=resetspds,
+        voice_starts=voice_starts, freq_bytes=freq_bytes,
+        sfx_list=sfx_list,
+    )
+
+
+def _emit_sid(inputs: _Inputs, out_path: str, codec) -> str:
+    """Emit a SID file from a fully-prepared `_Inputs`. No I/O of the
+    original binary; everything needed is in `inputs`."""
+    pat_order, pat_slot = _pattern_pool(inputs.scores)
     pat_bytes, codec_extra = codec.encode(pat_order)
 
-    asm = (f'PWLEN = {2 * len(models) - 1}\n'
-           f'ARP_OFS = {config.arp_interval}\n'
-           f'ARP_MASK = {config.arp_period - 1}\n'
-           f'LINEAR_PW_OR = {config.linear_pw_or}\n'
-           f'INCBY2_STEP = {config.incby2_step & 0xFF}\n'
-           f'INCBY2_ALWAYS = {1 if config.incby2_every_frame else 0}\n'
-           f'INCBY2_ONSET = {config.incby2_onset}\n'
-           f'DRUM_PRIO_INIT = {0 if config.suppress_first_notestart else 255}\n'
+    asm = (f'PWLEN = {2 * len(inputs.models) - 1}\n'
+           f'ARP_OFS = {inputs.arp_interval}\n'
+           f'ARP_MASK = {inputs.arp_period - 1}\n'
+           f'LINEAR_PW_OR = {inputs.linear_pw_or}\n'
+           f'INCBY2_STEP = {inputs.incby2_step & 0xFF}\n'
+           f'INCBY2_ALWAYS = {1 if inputs.incby2_every_frame else 0}\n'
+           f'INCBY2_ONSET = {inputs.incby2_onset}\n'
+           f'DRUM_PRIO_INIT = {0 if inputs.suppress_first_notestart else 255}\n'
            f'DUR_BITS = {codec.dur_bits}\n'
            f'INST_BITS = {codec.inst_bits}\n'
-           f'FREEZE_ON_STOP = {1 if config.freeze_on_stop else 0}\n'
-           f'SPEED_CTR_INIT = {config.speed_ctr_init}\n'
-           f'FIRST_FRAME_GATE_OFF = {1 if config.first_frame_gate_off else 0}\n'
-           f'STOP_IS_FILL = {1 if config.stop_fill is not None else 0}\n'
-           f'STOP_FILL = {config.stop_fill or 0}\n'
+           f'FREEZE_ON_STOP = {1 if inputs.freeze_on_stop else 0}\n'
+           f'SPEED_CTR_INIT = {inputs.speed_ctr_init}\n'
+           f'FIRST_FRAME_GATE_OFF = {1 if inputs.first_frame_gate_off else 0}\n'
+           f'STOP_IS_FILL = {1 if inputs.stop_fill is not None else 0}\n'
+           f'STOP_FILL = {inputs.stop_fill or 0}\n'
            + codec.zp_asm + '\n'
            + ENGINE + '\n'
            + codec.note_asm + '\n'
-           + _emit_data(scores, models, freq_bytes, resetspds, voice_starts,
-                        sfx_list, pat_slot, pat_bytes, codec_extra)
+           + _emit_data(inputs.scores, inputs.models, inputs.freq_bytes,
+                        inputs.resetspds, inputs.voice_starts,
+                        inputs.sfx_list, pat_slot, pat_bytes, codec_extra)
            + '\n')
 
-    # the SFX-readable frame counter — Commando's $5525 is freqtab+253;
-    # other engines INC a different freq-table byte.
     asm = asm.replace('inc freqtab+253',
-                      f'inc freqtab+{config.sfx_framectr_ofs}')
-    if config.sfx_state_ofs is not None:
-        asm = _sfx_state_in_freqtab(asm, config.sfx_state_ofs)
+                      f'inc freqtab+{inputs.sfx_framectr_ofs}')
+    if inputs.sfx_state_ofs is not None:
+        asm = _sfx_state_in_freqtab(asm, inputs.sfx_state_ofs)
 
     src = '/tmp/usf2_commando.s'
     obj = '/tmp/usf2_commando.bin'
@@ -1342,32 +1409,34 @@ def build(config, out_path: str = OUT_SID, codec=None) -> str:
     with open(obj, 'rb') as f:
         code = f.read()
 
-    # name / author / released come verbatim from the original SID —
-    # this is the same tune, so it carries the same identifying
-    # metadata (PSID header bytes 22..118).
-    with open(config.sid_path, 'rb') as f:
-        orig_hdr = f.read(124)
-
+    # PSID header
+    songs = len(inputs.subtunes) + (16 if inputs.has_sfx else 0)
     h = bytearray(b'PSID')
     h += struct.pack('>HH', 2, 124)
     h += struct.pack('>H', LOAD)
     h += struct.pack('>H', LOAD)
     h += struct.pack('>H', LOAD + 3)
-    songs = len(config.subtunes) + (16 if config.has_sfx else 0)
-    orig_start = (orig_hdr[0x10] << 8) | orig_hdr[0x11]
     h += struct.pack('>H', songs)
-    # startSong (default subtune) — preserve the original's, clamped to
-    # the subtunes we actually shipped.
-    h += struct.pack('>H', min(max(orig_start, 1), songs))
+    h += struct.pack('>H', min(max(inputs.start_song, 1), songs))
     h += struct.pack('>I', 0)
-    h += orig_hdr[22:118]                  # name + author + released (3x32)
+    # 3 × 32-byte latin-1 fields. Pad/truncate to exactly 32 each.
+    for s in (inputs.title, inputs.author, inputs.released):
+        h += s[:32].ljust(32, b'\x00')
     h += struct.pack('>H', 0x0014)
     h += struct.pack('>BBH', 0, 0, 0)
-    assert len(h) == 124
+    assert len(h) == 124, len(h)
 
     with open(out_path, 'wb') as f:
         f.write(bytes(h) + code)
     return out_path
+
+
+def build(config, out_path: str = OUT_SID, codec=None) -> str:
+    from pipelines.hubbard.note_codec import BitPackCodec
+    if codec is None:
+        codec = BitPackCodec()
+    inputs = _inputs_from_config(config)
+    return _emit_sid(inputs, out_path, codec)
 
 
 # ---------------------------------------------------------------------------
