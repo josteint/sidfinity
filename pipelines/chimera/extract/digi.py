@@ -54,8 +54,8 @@ class ChimeraDigi:
     """One Chimera digi subtune as extracted from the binary.
 
     Engine-specific fields preserved for traceability (`pace`, `bank`,
-    `src`, `end`, `keep_screen`, `vol_envelope`) — the codegen consumes
-    these to re-emit the original engine packing.
+    `src`, `end`, `keep_screen`, `vol_envelope`, `boundary_vol`) — the
+    codegen consumes these to re-emit the original engine packing.
     """
 
     subtune: int           # PSID subtune (2 or 3)
@@ -67,6 +67,11 @@ class ChimeraDigi:
     raw_bytes: bytes       # the [src, end) blob
     bits: list[int]        # decoded 1-bit audio stream (0 / 1)
     vol_envelope: list[int]  # raw vol bytes (one per 17-byte group)
+    boundary_vol: int        # byte at `end` — the player reads it as a
+                             # final vol update before exiting (a small
+                             # quirk of the loop's $F9-wrap edge case).
+                             # Carries through the USF so cycle-strict
+                             # writelog match holds at the very last frame.
 
 
 def _load_sid(sid_path: str) -> tuple[int, bytes]:
@@ -120,6 +125,7 @@ def extract_digi(sid_path: str, subtune: int) -> ChimeraDigi:
     keep_screen = bool(b(0xA108))
 
     raw = bytes(body[src - load : end - load])
+    boundary_vol = body[end - load]  # the byte AT `end`; player reads it on exit
 
     bits: list[int] = []
     vol_env: list[int] = []
@@ -136,6 +142,7 @@ def extract_digi(sid_path: str, subtune: int) -> ChimeraDigi:
         subtune=subtune, pace=pace, bank=bank, src=src, end=end,
         keep_screen=keep_screen,
         raw_bytes=raw, bits=bits, vol_envelope=vol_env,
+        boundary_vol=boundary_vol,
     )
 
 
@@ -160,6 +167,7 @@ def to_sample(digi: ChimeraDigi) -> Sample:
             'end': f'{digi.end:04X}',
             'keep_screen': '1' if digi.keep_screen else '0',
             'per_byte_repeat': '16',
+            'boundary_vol': f'{digi.boundary_vol:02X}',
             'vol_envelope': ','.join(f'{v:02X}' for v in digi.vol_envelope),
         },
     )

@@ -26,6 +26,28 @@ from typing import Optional
 
 
 @dataclass
+class DigiCode:
+    """Per-engine digi code: dispatcher (at the PSID init address) +
+    digi player (called by the dispatcher). The dispatcher's two
+    "jsr music_init / jsr music_play" addresses are patched at
+    codegen time to point at our music engine.
+
+    All addresses are engine-fixed; the codegen places these bytes
+    verbatim at the recorded base addresses."""
+    dispatcher_base: int        # where the dispatcher lives (PSID init)
+    dispatcher: bytes
+    music_init_patch_off: int   # offset in dispatcher of `jsr music_init`
+    music_play_patch_off: int   # offset in dispatcher of `jsr music_play`
+    player_base: int            # where the digi player lives
+    player: bytes
+    # Bank table base — the engine's `lda $A000,X` (where X = bank*4)
+    # reads {src_lo, src_hi, end_lo, end_hi}. Same memory area carries
+    # the validation table at +$10B and a few state bytes (keep_screen,
+    # pace placeholder) at +$108 / +$10A.
+    bank_table_base: int        # e.g. $A000
+
+
+@dataclass
 class EngineConstants:
     instr_base: int
     instr_count: int
@@ -35,6 +57,13 @@ class EngineConstants:
     has_sfx: bool = False
     sfx_state_ofs: Optional[int] = None
     sfx_framectr_ofs: int = 253
+    # Digi support — None when the engine has no digi sub-engine.
+    # Required when any subtune is `digi`.
+    digi: Optional[DigiCode] = None
+    # True if the rebuilt SID must be RSID (KERNAL-mapped, IRQ exit
+    # via $EA31). Chimera is RSID; the standard Hubbard '85 music
+    # engines are PSID. Determines the file's magic + flags.
+    is_rsid: bool = False
 
 
 # ---------------------------------------------------------------------------
@@ -59,6 +88,38 @@ _CHIMERA_FREQ_HEX = (
 CHIMERA_FREQ_BYTES = bytes.fromhex(_CHIMERA_FREQ_HEX.replace(' ', ''))
 assert len(CHIMERA_FREQ_BYTES) == 320, len(CHIMERA_FREQ_BYTES)
 
+CHIMERA_DIGI_DISPATCHER = bytes.fromhex(
+    "c902b0684878a99f8d1503a9a08d1403a2008e0edce88e1ad0682000c258ea60"
+    "ee19d02006c24c31ea000000000000004878a9318d1403a9ea8d1503a2018e0e"
+    "dcca8e1ad0ea6838e902aaa9358501bde29f8d0aa1bde49f8597a93785014c00"
+    "c000b070020100000000000048a90085fda2009d00d4e8e019d0f8684cb09f00"
+)
+assert len(CHIMERA_DIGI_DISPATCHER) == 128
+
+CHIMERA_DIGI_PLAYER = bytes.fromhex(
+    "4c06c04c32c1a5f748a5f848a5f948a5fa4878a93e25018501ad11d08d30c1a2"
+    "00ac03a1c000d0062009c14ceac0bd0ba1c597f00ae888d0f52009c14ceac0ad"
+    "0aa18dacc0a5970a0aaabd00a085fbbd01a085fcbd02a085f7bd03a085f8a9ff"
+    "8d02d48d03d48d04dd8d05dda000a9f08d06d4ad08a1d005a9008d11d0a9118d"
+    "0eddeaeaeaeaeaea4ccfc0e6fbd002e6fca6fce4f89009a6fbe4f790034ceac0"
+    "a9088596b1fb85fead04ddc9b0b0f9a9118d0edd06fe9004a949d002a9418d04"
+    "d4c696d0e3c6f9d0c2e6fbd002e6fcb1fbc9109002a90f38e5fd3002d002a901"
+    "8d18d4a91085f94c8bc0a9008d18d4ad30c18d11d0a903050185016885fa6885"
+    "f96885f86885f75860a92a8d08d4a9f08d0dd4a90f8d18d4a9118d0bd4a0ffa2"
+    "ffcad0fd88d0f8a9008d0bd48d18d4609b"
+)
+assert len(CHIMERA_DIGI_PLAYER) == 305
+
+CHIMERA_DIGI = DigiCode(
+    dispatcher_base=0x9F80,
+    dispatcher=CHIMERA_DIGI_DISPATCHER,
+    music_init_patch_off=0x9F9A - 0x9F80,    # `jsr $C200` -> patch to music init
+    music_play_patch_off=0x9FA3 - 0x9F80,    # `jsr $C206` -> patch to music play
+    player_base=0xC000,
+    player=CHIMERA_DIGI_PLAYER,
+    bank_table_base=0xA000,
+)
+
 CHIMERA = EngineConstants(
     instr_base=0xC662,
     instr_count=19,
@@ -66,6 +127,8 @@ CHIMERA = EngineConstants(
     freq_bytes=CHIMERA_FREQ_BYTES,
     voice_starts={},        # Chimera has no per-subtune voice-start override
     has_sfx=False,
+    digi=CHIMERA_DIGI,
+    is_rsid=True,
 )
 
 

@@ -16,12 +16,15 @@ entirely in the USF + sidecar FLACs.
 from __future__ import annotations
 
 import os
+import struct
 
 from src.usf2 import (
     UsfFile, MusicSubtune, DigiSubtune, parse_file, validate,
 )
-from pipelines.hubbard.codegen import _Inputs, _emit_sid
-from pipelines.hubbard.engine_constants import ENGINE_CONSTANTS
+from pipelines.hubbard.codegen import _Inputs, _emit_sid, LOAD
+from pipelines.hubbard.engine_constants import ENGINE_CONSTANTS, DigiCode
+from pipelines.hubbard.flac_io import read_sample
+from pipelines.hubbard.digi_pack import pack_digi
 from pipelines.hubbard.inst_generalize import (
     InstrumentModel, ArpSpec, VibratoSpec, PwmSpec,
 )
@@ -245,13 +248,201 @@ def _inputs_from_usf(usf: UsfFile) -> _Inputs:
     )
 
 
+# ---------------------------------------------------------------------------
+# Combined music + digi build (for engines with digi subtunes, e.g. Chimera)
+# ---------------------------------------------------------------------------
+
+def _build_digi_region(usf: UsfFile, digi_subs: list[DigiSubtune],
+                       digi_code: DigiCode, usf_dir: str) -> tuple[bytes, int]:
+    """Build the bytes of the digi region — dispatcher + tables +
+    samples + player — placed at their fixed engine addresses.
+
+    Returns (region_bytes, region_base). The region is contiguous from
+    `region_base` to `region_base + len(region_bytes)` and covers the
+    dispatcher, the bank table, the validation table, the
+    `keep_screen`/`pace` slots, all sample byte streams, and the digi
+    player. Per-subtune `pace` and `bank` slots are filled from each
+    Sample's `extras`.
+    """
+    # The region spans dispatcher_base..(end of digi player). Build a
+    # bytearray that long, write each segment at its address-relative
+    # offset.
+    base = digi_code.dispatcher_base                       # e.g. $9F80
+    end  = digi_code.player_base + len(digi_code.player)   # one past last byte
+
+    # The dispatcher's `jsr $C200` / `jsr $C206` originally targeted the
+    # in-original music engine. We retarget to OUR music (built by
+    # _emit_sid at LOAD).
+    dispatcher = bytearray(digi_code.dispatcher)
+    dispatcher[digi_code.music_init_patch_off:
+               digi_code.music_init_patch_off + 3] = bytes(
+        [0x20, LOAD & 0xFF, (LOAD >> 8) & 0xFF])
+    dispatcher[digi_code.music_play_patch_off:
+               digi_code.music_play_patch_off + 3] = bytes(
+        [0x20, (LOAD + 3) & 0xFF, ((LOAD + 3) >> 8) & 0xFF])
+
+    region = bytearray(end - base)
+    region[0:len(dispatcher)] = dispatcher
+    # Place the digi player at its base.
+    player_off = digi_code.player_base - base
+    region[player_off:player_off + len(digi_code.player)] = digi_code.player
+
+    # Process digi subtunes: each carries a pace + bank in its FLAC's
+    # Vorbis comments (via the extractor's `to_sample`).
+    samples = []
+    for st_idx, sub in enumerate(digi_subs):
+        sample_path = os.path.join(usf_dir, sub.sample)
+        sample = read_sample(sample_path)
+        pace = int(sample.extras['pace'], 16)
+        bank = int(sample.extras['bank'], 16)
+        src = int(sample.extras['src'], 16)
+        end_addr = int(sample.extras['end'], 16)
+        keep_screen = sample.extras.get('keep_screen', '0') == '1'
+        packed = pack_digi(sample)
+        if end_addr - src != len(packed):
+            raise ValueError(
+                f'subtune {sub.id}: sample claims ${src:04X}-${end_addr:04X} '
+                f'({end_addr - src} bytes) but packed bytes are '
+                f'{len(packed)}')
+        samples.append({
+            'st_idx': st_idx, 'pace': pace, 'bank': bank,
+            'src': src, 'end': end_addr, 'keep_screen': keep_screen,
+            'packed': packed,
+            'boundary_vol': sample.extras.get('boundary_vol', '00'),
+        })
+
+    # Per-subtune dispatcher tables at $9FE2 (pace) and $9FE4 (bank-hi).
+    # The dispatcher does `lda $9FE2,X` and `lda $9FE4,X` where X is the
+    # SFX index (subtune - n_music_subtunes).
+    pace_base = digi_code.dispatcher_base + 0x62             # $9FE2
+    bank_base = digi_code.dispatcher_base + 0x64             # $9FE4
+    for s in samples:
+        region[pace_base - base + s['st_idx']] = s['pace']
+        region[bank_base - base + s['st_idx']] = s['bank']
+
+    # Bank table at $A000 + bank*4 = {src_lo, src_hi, end_lo, end_hi}.
+    bt_off = digi_code.bank_table_base - base
+    for s in samples:
+        e = bt_off + s['bank'] * 4
+        region[e + 0] = s['src'] & 0xFF
+        region[e + 1] = (s['src'] >> 8) & 0xFF
+        region[e + 2] = s['end'] & 0xFF
+        region[e + 3] = (s['end'] >> 8) & 0xFF
+
+    # $A103 = sample-table length (number of banks the player accepts).
+    region[(digi_code.bank_table_base + 0x103) - base] = len(samples)
+    # $A108 = keep-screen flag. Use the first subtune's value (the
+    # engine's design assumes it's constant per tune).
+    if samples:
+        region[(digi_code.bank_table_base + 0x108) - base] = \
+            1 if samples[0]['keep_screen'] else 0
+        # $A10A = pace placeholder (the dispatcher writes the real one
+        # here at runtime). Set to the first subtune's pace.
+        region[(digi_code.bank_table_base + 0x10A) - base] = samples[0]['pace']
+    # $A10B+ = bank-validation table (the player linearly scans this
+    # at startup to confirm the requested bank is registered). Entries
+    # are ordered bank-ascending, which matches the original SIDs
+    # we've seen — the cycle count of the scan depends on the order,
+    # so cycle-strict reproduction requires we match it.
+    for i, s in enumerate(sorted(samples, key=lambda x: x['bank'])):
+        region[(digi_code.bank_table_base + 0x10B + i) - base] = s['bank']
+
+    # Sample bytes at their claimed addresses.
+    for s in samples:
+        sb = s['src'] - base
+        region[sb:sb + len(s['packed'])] = s['packed']
+        # The digi player reads one byte PAST `end` on its last loop
+        # iteration ($F9 wrap reads a final vol byte before the bounds
+        # check exits) — preserve that byte from the original so the
+        # very last $D418 write matches cycle-strict.
+        boundary_vol = int(s.get('boundary_vol', '00'), 16)
+        if 0 <= s['end'] - base < len(region):
+            region[s['end'] - base] = boundary_vol
+
+    return bytes(region), base
+
+
+def _emit_combined_sid(inputs: _Inputs, usf: UsfFile, digi_subs: list,
+                       digi_code: DigiCode, out_path: str, usf_dir: str,
+                       codec) -> str:
+    """Emit a combined RSID containing music engine + digi engine +
+    samples. Music at LOAD ($1000 by default), digi at its engine-fixed
+    addresses ($9F80 dispatcher + $C000 player for Chimera). Inline-load
+    encoded in the binary so the file can be RSID-style with two
+    segments and a zero gap.
+    """
+    # Build the music binary the same way _emit_sid would, but then
+    # extract just the data (no PSID header — we build a different one).
+    tmp_music = out_path + '.music.tmp'
+    _emit_sid(inputs, tmp_music, codec)
+    music_blob = open(tmp_music, 'rb').read()
+    os.unlink(tmp_music)
+    # _emit_sid wrote a PSID. Strip its 124-byte header.
+    music_body = music_blob[124:]                  # music bytes at $LOAD
+
+    digi_region, digi_base = _build_digi_region(
+        usf, digi_subs, digi_code, usf_dir)
+
+    music_end = LOAD + len(music_body)
+    if music_end > digi_base:
+        raise ValueError(
+            f'music engine at ${LOAD:04X}-${music_end - 1:04X} overlaps '
+            f'the digi region starting at ${digi_base:04X}')
+    gap = bytes(digi_base - music_end)
+    binary = music_body + gap + digi_region
+
+    # RSID v2 header: load=$0000 (inline), init=dispatcher_base, play=0
+    n_music = len(inputs.subtunes)
+    songs = n_music + len(digi_subs)
+    start_song = min(max(inputs.start_song, 1), songs)
+
+    h = bytearray(b'RSID')
+    h += struct.pack('>HH', 2, 124)
+    h += struct.pack('>H', 0x0000)             # load = inline-encoded
+    h += struct.pack('>H', digi_code.dispatcher_base)
+    h += struct.pack('>H', 0x0000)             # play = IRQ-driven
+    h += struct.pack('>H', songs)
+    h += struct.pack('>H', start_song)
+    h += struct.pack('>I', 0)
+    for s in (inputs.title, inputs.author, inputs.released):
+        h += s[:32].ljust(32, b'\x00')
+    h += struct.pack('>H', 0x0014)             # flags (PAL + 6581)
+    h += struct.pack('>BBH', 0, 0, 0)
+    assert len(h) == 124, len(h)
+
+    with open(out_path, 'wb') as f:
+        f.write(bytes(h))
+        f.write(struct.pack('<H', LOAD))       # inline load addr
+        f.write(binary)
+    return out_path
+
+
+# ---------------------------------------------------------------------------
+# Public API
+# ---------------------------------------------------------------------------
+
 def build_from_usf(usf_path: str, out_path: str, codec=None) -> str:
     """Read `usf_path` + its sample sidecars, produce a SID at `out_path`.
-    No access to the original SID — this is the principled path."""
+    No access to the original SID — this is the principled path. Routes
+    to the music-only or combined music+digi build based on whether the
+    USF has any digi subtunes."""
     from pipelines.hubbard.note_codec import BitPackCodec
     if codec is None:
         codec = BitPackCodec()
     usf = parse_file(usf_path)
-    validate(usf, usf_dir=os.path.dirname(os.path.abspath(usf_path)))
+    usf_dir = os.path.dirname(os.path.abspath(usf_path))
+    validate(usf, usf_dir=usf_dir)
     inputs = _inputs_from_usf(usf)
-    return _emit_sid(inputs, out_path, codec)
+
+    digi_subs = [s for s in usf.subtunes if isinstance(s, DigiSubtune)]
+    digi_subs.sort(key=lambda s: s.id)
+    if not digi_subs:
+        return _emit_sid(inputs, out_path, codec)
+
+    ec = ENGINE_CONSTANTS[usf.engine]
+    if ec.digi is None:
+        raise ValueError(
+            f'engine {usf.engine!r} has no DigiCode but USF declares '
+            f'digi subtunes')
+    return _emit_combined_sid(inputs, usf, digi_subs, ec.digi,
+                              out_path, usf_dir, codec)
