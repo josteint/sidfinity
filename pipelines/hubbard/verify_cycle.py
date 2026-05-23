@@ -35,8 +35,13 @@ def writelog_capture(sid_path: str, subtune: int = 0,
                      duration: float = 2.0,
                      force_rsid: bool = False) -> list[Frame]:
     """Run `siddump --writelog` and parse the per-frame cycle-timed
-    register writes. `subtune` is 0-indexed (siddump's convention)."""
-    cmd = [SIDDUMP, sid_path, '--subtune', str(subtune),
+    register writes.
+
+    `subtune` is 0-indexed (PSID/`inst_program.capture` convention): 0 =
+    the first subtune. Internally we add 1 to match siddump's 1-indexed
+    `--subtune` argument (where 0 is a sentinel for `startSong`).
+    """
+    cmd = [SIDDUMP, sid_path, '--subtune', str(subtune + 1),
            '--duration', str(duration), '--writelog', '--raw']
     if force_rsid:
         cmd.append('--force-rsid')
