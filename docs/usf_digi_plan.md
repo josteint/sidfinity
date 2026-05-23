@@ -15,19 +15,31 @@ places.
 | sample data | the waveform blob | a payload, NOT tokenizable |
 | engine mechanism | 1-bit MSB-first packing, CIA-timed `$D404` toggle | the codegen |
 
-**v0: inline base64.** The sample blob lives in the USF text, base64-
-encoded. Simple, self-contained, gets the first round-trip working.
+**Storage: FLAC with Vorbis comments, as a sidecar file alongside
+the USF.** The sample data lives in the FLAC; the USF text carries
+the symbolic descriptor plus a reference to the file. Lossless,
+arbitrary sample rates, rich metadata via Vorbis comments, ~5–10×
+smaller than WAV, universally readable.
 
-**v1 (later): content-addressed store.** Samples keyed by SHA-256 in a
-shared store; the USF carries `digi(ref=<hash>, rate=…)`. Digi SFX get
-reused across a game's tunes — content-addressing dedups, and the
-symbolic stream stays clean for the tokenizer (one `digi` token, the
-waveform as a separate modality, exactly how multimodal ML references
-assets).
+The FLAC stores the **engine-agnostic decoded sample** at the native
+sample rate (the bit/nibble stream, padded to 8-bit if native bit
+depth is < 8). The original engine packing is engine mechanism, re-
+encoded by the codegen on emit.
 
-**Store the engine-agnostic decoded sample**, not the raw packing.
-For 1-bit digi that's the bit/±1 stream; for 4-bit, the nibble stream.
-The packing is engine mechanism, re-encoded by the codegen.
+Vorbis comments — the standardised tags:
+
+- `native_bits` — original bit depth (`1`, `4`, `8`).
+- `method` — playback method (`d404_1bit_wavetoggle`,
+  `d418_4bit_pcm`, …).
+- `timer_source` — `cia1` / `cia2` / `raster`.
+- `engine` — the originating engine (`chimera`, …).
+- per-engine extras (the per-byte repeat, the pacing value, …).
+
+Filename convention: `<usf_basename>.sample<N>.flac` next to the
+USF file. The USF text references each sample by id and the loader
+resolves to the sibling filename. Content-addressing (dedup keyed by
+SHA-256) is a possible later optimisation once the corpus is large
+enough that duplicate samples across tunes matter.
 
 ## Verification — the foundation
 
@@ -54,9 +66,11 @@ where it actually matters.
 
 ### D2 — USF representation
 - A `Sample` (and/or `DigiSample`) type in `usf.py` + `usf_text.py`
-  serialization (base64-inline for v0).
-- The symbolic digi descriptor: rate, bit depth, sample reference,
-  envelope, the per-byte repeat.
+  serialization — references a sidecar FLAC by id, NOT inline.
+- A small read/write helper for FLAC + Vorbis comments (likely
+  `soundfile` + `mutagen`, or a thin subprocess wrapper around `flac`).
+- The symbolic digi descriptor in the USF: rate, bit depth, sample
+  reference, envelope, the per-byte repeat.
 
 ### D3 — digi codegen
 - Emit a digi-player routine: the CIA-timed 1-bit busy-wait loop,
@@ -85,6 +99,6 @@ where it actually matters.
 - **`sei`-blocked one-shot routine**: the codegen's existing per-frame
   play model doesn't fit a blocking digi routine. D3 introduces the
   digi-subtune dispatch.
-- **Tokenizer impact of v0 inline base64**: tolerable while we have a
-  handful of digi tunes; migrate to v1 (content-addressed) before any
-  serious ML training pass over a digi-heavy corpus.
+- **FLAC tooling**: pin a Python lib (probably `soundfile` for
+  the audio, `mutagen` for Vorbis comments) so the read/write path is
+  one well-supported dependency, not a fragile subprocess dance.
