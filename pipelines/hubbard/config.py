@@ -66,3 +66,12 @@ class EngineConfig:
     # freq-table offset of the SFX-readable frame counter INC'd each
     # play call (Commando $5525 = freqtab+253; Monty $84FA = +250).
     sfx_framectr_ofs: int = 253
+    # PSID subtune indices whose subtune is a digi sample, not a music
+    # tune or a SID-synthesis SFX. Verified cycle-strict via siddump
+    # --writelog (not the frame-granular py65 capture). Chimera: (2, 3).
+    digi_subtunes: tuple = ()
+    # the rebuilt SID is RSID (KERNAL-mapped, IRQ-driven). Used by
+    # writelog capture (siddump requires --force-rsid) and any future
+    # build that emits the RSID header. Chimera is RSID; the standard
+    # Hubbard engines are PSID.
+    is_rsid: bool = False

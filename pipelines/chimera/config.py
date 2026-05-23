@@ -48,4 +48,6 @@ CHIMERA = EngineConfig(
     has_sfx=False,
     vib_onset=8,        # vibrato gate CMP #$08 at $C3D3
     speed_ctr_init=2,   # $C652/$C653 tick gate defers note-load 2 frames
+    digi_subtunes=(2, 3),  # 1-bit wavetoggle samples via $C000 player
+    is_rsid=True,          # IRQ-driven, KERNAL ROM required
 )
