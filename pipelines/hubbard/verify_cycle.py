@@ -1,0 +1,121 @@
+"""verify_cycle.py — cycle-accurate verification via siddump --writelog.
+
+py65's `inst_program.capture` is frame-granular and physically cannot
+see cycle-timed playback (and would blow its step budget on a blocking
+digi routine). This harness drives `siddump --writelog`, the cycle-
+timed `(cycle, reg, val)` write stream from libsidplayfp — the
+project's ground truth for anything below the frame boundary.
+
+Two comparisons are useful:
+
+- `compare_writeset` — per frame, compare the ordered list of
+  `(reg, val)` writes, ignoring the cycle within the frame. Matches
+  what the frame-granular py65 capture does, and is the right
+  comparison for music (where intra-frame cycle differences between
+  the original and the rebuild are inaudible).
+
+- `compare_strict` — full `(cycle, reg, val)` equality. The right
+  comparison for digi, where the cycle IS the signal.
+"""
+
+from __future__ import annotations
+
+import os
+import subprocess
+
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(
+    os.path.abspath(__file__))))
+SIDDUMP = os.path.join(ROOT, 'tools', 'siddump')
+
+# A frame's writes: ordered list of (cycle_in_frame, reg, val).
+Frame = list[tuple[int, int, int]]
+
+
+def writelog_capture(sid_path: str, subtune: int = 0,
+                     duration: float = 2.0,
+                     force_rsid: bool = False) -> list[Frame]:
+    """Run `siddump --writelog` and parse the per-frame cycle-timed
+    register writes. `subtune` is 0-indexed (siddump's convention)."""
+    cmd = [SIDDUMP, sid_path, '--subtune', str(subtune),
+           '--duration', str(duration), '--writelog', '--raw']
+    if force_rsid:
+        cmd.append('--force-rsid')
+    r = subprocess.run(cmd, capture_output=True, text=True)
+    frames: list[Frame] = []
+    for line in r.stdout.splitlines():
+        if '|W:' not in line:
+            continue
+        _, w = line.split('|W:', 1)
+        toks = w.strip().split(':')
+        writes: Frame = []
+        for i in range(0, len(toks) - 2, 3):
+            try:
+                writes.append((int(toks[i]), int(toks[i + 1], 16),
+                               int(toks[i + 2], 16)))
+            except ValueError:
+                # malformed write — skip; siddump shouldn't emit them
+                # but defend against truncation.
+                pass
+        frames.append(writes)
+    return frames
+
+
+def compare_writeset(a: list[Frame], b: list[Frame]) -> dict:
+    """Per-frame compare ignoring intra-frame cycle. Matches the
+    frame-granular py65 capture's semantics."""
+    n = min(len(a), len(b))
+    match = 0
+    first_diff = None
+    for k in range(n):
+        sa = [(r, v) for _, r, v in a[k]]
+        sb = [(r, v) for _, r, v in b[k]]
+        if sa == sb:
+            match += 1
+        elif first_diff is None:
+            first_diff = (k, sa, sb)
+    return {'frames': n, 'match': match, 'first_diff': first_diff,
+            'len_a': len(a), 'len_b': len(b)}
+
+
+def compare_strict(a: list[Frame], b: list[Frame]) -> dict:
+    """Cycle-exact comparison: every (cycle, reg, val) tuple identical.
+    The right comparison for digi."""
+    n = min(len(a), len(b))
+    match = 0
+    first_diff = None
+    for k in range(n):
+        if a[k] == b[k]:
+            match += 1
+        elif first_diff is None:
+            first_diff = (k, a[k], b[k])
+    return {'frames': n, 'match': match, 'first_diff': first_diff,
+            'len_a': len(a), 'len_b': len(b)}
+
+
+def cycle_drift(a: list[Frame], b: list[Frame]) -> dict:
+    """For frames whose write SETS agree, characterise the cycle drift
+    between matching writes — answers 'how cycle-close are these two
+    renderings, frame by frame?' Useful for calibrating what 'cycle-
+    exact' really needs to mean for digi vs music."""
+    n = min(len(a), len(b))
+    drifts: list[int] = []
+    set_matched = 0
+    for k in range(n):
+        sa = [(r, v) for _, r, v in a[k]]
+        sb = [(r, v) for _, r, v in b[k]]
+        if sa != sb or len(a[k]) != len(b[k]):
+            continue
+        set_matched += 1
+        for (ca, _, _), (cb, _, _) in zip(a[k], b[k]):
+            drifts.append(cb - ca)
+    if not drifts:
+        return {'set_matched_frames': set_matched, 'writes': 0}
+    abs_d = sorted(abs(d) for d in drifts)
+    return {
+        'set_matched_frames': set_matched,
+        'writes': len(drifts),
+        'max_abs_drift': abs_d[-1],
+        'p99_abs_drift': abs_d[max(0, int(0.99 * len(abs_d)) - 1)],
+        'p50_abs_drift': abs_d[len(abs_d) // 2],
+        'mean_signed_drift': sum(drifts) / len(drifts),
+    }
