@@ -615,10 +615,35 @@ COMMANDO = EngineConstants(
 )
 
 
+HUMAN_RACE_FREQ_STATE = bytes.fromhex(
+    "0007000000000000000000000000000000000000000000020000000000000000"
+    "000000000000000000000003030302030100c000000000000000000000000000"
+    "08413c9f0381000008414c9f0281000001110e000000000009410a0900e10000"
+    "02810a090000050008110a0f0000050008410609000001000841040a02000500"
+)
+assert len(HUMAN_RACE_FREQ_STATE) == 128
+
+HUMAN_RACE_FREQ_BYTES = HUBBARD_85_PAL_FREQ_TABLE + HUMAN_RACE_FREQ_STATE
+assert len(HUMAN_RACE_FREQ_BYTES) == 320
+
+HUMAN_RACE = EngineConstants(
+    instr_base=0x0DE3,
+    instr_count=23,
+    freq_table_base=0x0CE4,
+    freq_bytes=HUMAN_RACE_FREQ_BYTES,
+    # HR uses V1+V2 for music; V3 is silent across all subtunes.
+    voice_starts={0: 1, 1: 1, 2: 1, 3: 1, 4: 1},
+    has_sfx=False,
+    digi=None,
+    is_rsid=False,
+)
+
+
 ENGINE_CONSTANTS: dict[str, EngineConstants] = {
     'chimera': CHIMERA,
     'devils_galop': DEVILS_GALOP,
     'action_biker': ACTION_BIKER,
     'monty': MONTY,
     'commando': COMMANDO,
+    'human_race': HUMAN_RACE,
 }

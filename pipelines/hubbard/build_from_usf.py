@@ -278,6 +278,7 @@ def _inputs_from_usf(usf: UsfFile) -> _Inputs:
         freeze_on_stop=get('freeze_on_stop', False),
         speed_ctr_init=get('speed_ctr_init', 0),
         first_frame_gate_off=get('first_frame_gate_off', False),
+        seed_overlap=get('seed_overlap', True),
         # `has_stop_fill` distinguishes "stop_fill = 0 (write zeros)"
         # from "no stop_fill (don't write anything)". Earlier USFs
         # without this field default to None (no fill).

@@ -80,7 +80,9 @@ def _row_from_note(note) -> NoteRow:
 
 
 def _convert_voice(voice_idx: int, voice) -> VoiceBlock:
-    if voice.stop:
+    if voice.stop or not voice.orderlist:
+        # Empty orderlists encode as `stop=True` (codegen emits a bare
+        # $FE terminator). HR's V3 is silent across all subtunes.
         ol = Orderlist(entries=list(voice.orderlist), stop=True)
     else:
         loop_to = voice.loop if voice.loop >= 0 else 0
@@ -211,6 +213,7 @@ def _params_from_config(config) -> Params:
         'suppress_first_notestart':  config.suppress_first_notestart,
         'freeze_on_stop':            config.freeze_on_stop,
         'first_frame_gate_off':      config.first_frame_gate_off,
+        'seed_overlap':              config.seed_overlap,
         'stop_fill':                 (config.stop_fill
                                       if config.stop_fill is not None
                                       else 0),
@@ -323,4 +326,5 @@ def _basename_for(engine_name: str) -> str:
         'devils_galop': 'Devils_Galop',
         'action_biker': 'Action_Biker',
         'monty': 'Monty_on_the_Run',
+        'human_race': 'Human_Race',
     }.get(engine_name, engine_name.title())

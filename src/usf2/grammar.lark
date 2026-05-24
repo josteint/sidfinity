@@ -80,6 +80,7 @@ music_body: "tempo" ":" INT voice_block voice_block voice_block
 
 voice_block: "voice" INT "{" "orderlist" ":" orderlist pattern_block* "}"
 orderlist: orderlist_entry+ orderlist_terminator?
+         | orderlist_terminator
 orderlist_entry: INT
 orderlist_terminator: "loop" "@" INT      -> ol_loop
                     | "stop"              -> ol_stop
