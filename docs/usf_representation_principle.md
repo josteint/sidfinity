@@ -192,6 +192,12 @@ where cycle IS the signal, the test is cycle-strict writelog comparison
 (`_checksum_digi`'s test) — same instrument-level audibility, just
 without the cycle-shift artifact from a regenerated dispatcher.
 
+When the test needs to attribute writes to a specific voice or 6502
+routine (e.g. to isolate a single-voice effect from a multi-voice
+frame), use `src/usf2/audit.py` — it captures `(frame, PC, reg, val)`
+per SID write, filters to one voice, and optionally cross-references
+each PC against a disassembly file.
+
 The failure this rule guards against is **over-splitting**: naively
 minting one variant per byte-different routine you discover. That hands
 you twelve "kinds" that are mostly the same triangle — opaque *and*

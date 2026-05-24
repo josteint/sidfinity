@@ -241,6 +241,7 @@ print(f'Grade: {comp[\"grade\"]} Score: {comp[\"score\"]:.1f}')
 | `src/code_flow.py` | Control-flow code_end detection (no freq table needed) |
 | `src/freq_reconstruct.py` | Reconstruct freq table from played output |
 | `src/memdiff.py` | Classify static vs dynamic memory via siddump --memdump |
+| `src/usf2/audit.py` | PC-traced per-voice SID-write capture for Rule 1 collapse audits (voice attribution + disasm cross-ref) |
 
 ### Player Reverse-Engineering (sidxray)
 | File | Purpose |
