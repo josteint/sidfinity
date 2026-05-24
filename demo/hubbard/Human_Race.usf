@@ -18,8 +18,8 @@ params {
   freeze_on_stop: false
   has_stop_fill: false
   incby2_every_frame: false
-  incby2_onset: $03
-  incby2_step: 2
+  incby2_onset: $11
+  incby2_step: 1
   linear_pw_or: $00
   seed_overlap: false
   speed_ctr_init: 0

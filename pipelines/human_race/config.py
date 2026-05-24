@@ -45,6 +45,14 @@ HUMAN_RACE = EngineConfig(
     # (drumarp-only) subtune 3 frames 512-555. Shared-core default is
     # 2 (Commando's alternate-every-frame); HR is period 8.
     arp_period=8,
+    # HR's `fx_skydive` (bit 1) increments v_fhi by 1 on odd frames
+    # after the note has been held long enough ((v_flags & $1F) >= $11
+    # = 17). Confirmed via src/usf2/audit.py on V1 inst 21
+    # (skydive+PWmode) subtune 4 frames 575-604: $0CAA writes old v_fhi
+    # then INC v_fhi on odd frames. Same shape as shared-core
+    # `fx_incby2`; Commando defaults are step=2 onset=3.
+    incby2_step=1,
+    incby2_onset=17,
     has_sfx=False,
     # HR's vibrato gate is `v_flags & $1F >= 8` ($0B50). Our extractor
     # stores playback duration (encoded + 1), so the equivalent test
