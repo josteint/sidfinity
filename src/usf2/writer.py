@@ -193,8 +193,22 @@ def _write_subtune(s) -> list[str]:
     if isinstance(s, DigiSubtune):
         return [f'subtune {s.id} digi {{', f'  sample: {s.sample}', '}']
     if isinstance(s, SfxSubtune):
-        # SFX schema TBD; emit empty body for now.
-        return [f'subtune {s.id} sfx {{', '}']
+        lines = [f'subtune {s.id} sfx {{']
+        lines.append('  v1: ' + ' '.join(_hex(b) for b in s.v1))
+        lines.append('  v2: ' + ' '.join(_hex(b) for b in s.v2))
+        lines.append(
+            f'  sweep: start={_hex(s.start_index)} end={_hex(s.end_index)} '
+            f'rate={s.rate} direction={s.direction}')
+        lines.append(f'  v2_offset: {_hex(s.v2_offset)}')
+        flags = []
+        if s.toggle_v1: flags.append('toggle_v1')
+        if s.toggle_v2: flags.append('toggle_v2')
+        if s.skip_v1:   flags.append('skip_v1')
+        if s.skip_both: flags.append('skip_both')
+        if flags:
+            lines.append('  flags: ' + ' '.join(flags))
+        lines.append('}')
+        return lines
     raise TypeError(f'unknown subtune type: {type(s).__name__}')
 
 

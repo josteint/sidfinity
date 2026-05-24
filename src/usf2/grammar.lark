@@ -73,6 +73,7 @@ subtune_kind: "music"        -> kind_music
 
 subtune_body: music_body
             | digi_body
+            | sfx_body
 
 // music
 music_body: "tempo" ":" INT voice_block voice_block voice_block
@@ -95,6 +96,24 @@ fx_flag: "tie"                  -> fx_tie
 
 // digi
 digi_body: "sample" ":" SAMPLE_PATH
+
+// sfx — Hubbard '85 sound-effect record
+sfx_body: sfx_field+
+sfx_field: "v1" ":" byte byte byte byte byte byte           -> sfx_v1
+         | "v2" ":" byte byte byte byte byte byte           -> sfx_v2
+         | "sweep" ":" sfx_sweep_kv+                         -> sfx_sweep
+         | "v2_offset" ":" byte                              -> sfx_v2_offset
+         | "flags" ":" sfx_flag+                             -> sfx_flags
+
+sfx_sweep_kv: "start" "=" byte             -> sfx_sweep_start
+            | "end" "=" byte               -> sfx_sweep_end
+            | "rate" "=" INT               -> sfx_sweep_rate
+            | "direction" "=" CNAME        -> sfx_sweep_direction
+
+sfx_flag: "toggle_v1"   -> sfx_flag_toggle_v1
+        | "toggle_v2"   -> sfx_flag_toggle_v2
+        | "skip_v1"     -> sfx_flag_skip_v1
+        | "skip_both"   -> sfx_flag_skip_both
 
 // ----- common -----
 instr_ref: INSTR_ID             -> instr_id

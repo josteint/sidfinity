@@ -19,8 +19,9 @@ import os
 import struct
 
 from src.usf2 import (
-    UsfFile, MusicSubtune, DigiSubtune, parse_file, validate,
+    UsfFile, MusicSubtune, DigiSubtune, SfxSubtune, parse_file, validate,
 )
+from pipelines.hubbard.sfx import SoundEffect
 from pipelines.hubbard.codegen import _Inputs, _emit_sid, LOAD
 from pipelines.hubbard.engine_constants import (
     ENGINE_CONSTANTS, DigiCode, chimera_psid_dispatcher,
@@ -167,6 +168,37 @@ def _score_from_subtune(sub: MusicSubtune) -> Score:
 
 
 # ---------------------------------------------------------------------------
+# SfxSubtune → engine SoundEffect — the inverse of `_convert_sfx` in
+# to_usf_v2.py. Reassembles the 7-byte v1/v2 voice register lists (the
+# freq_lo byte is re-derived from start_index / gate-flags-plus-offset).
+# ---------------------------------------------------------------------------
+
+def _soundeffect_from_usf(s: SfxSubtune, idx: int) -> SoundEffect:
+    # Reconstruct the engine's gate byte at v2[0] — bit 7 toggle_v1,
+    # bit 6 toggle_v2, bits 0-5 v2_offset. This matches `decode_sfx`'s
+    # forward decomposition in pipelines/hubbard/sfx.py.
+    gate_byte = ((0x80 if s.toggle_v1 else 0)
+                 | (0x40 if s.toggle_v2 else 0)
+                 | (s.v2_offset & 0x3F))
+    v1_full = [s.start_index] + list(s.v1)         # 7 bytes
+    v2_full = [gate_byte] + list(s.v2)             # 7 bytes
+    return SoundEffect(
+        index=idx,
+        v1=v1_full,
+        v2=v2_full,
+        start_index=s.start_index,
+        end_index=s.end_index,
+        rate=s.rate,
+        direction=s.direction,
+        skip_v1=s.skip_v1,
+        skip_both=s.skip_both,
+        v2_byte_offset=s.v2_offset,
+        toggle_v1=s.toggle_v1,
+        toggle_v2=s.toggle_v2,
+    )
+
+
+# ---------------------------------------------------------------------------
 # Freq bytes: 320 bytes that go at freqtab. First 192 = standard PAL
 # musical freq table (engine constant). Bytes at +205, +208, +214,
 # +229, +232, +239 come from USF init. Remaining engine state may also
@@ -223,6 +255,12 @@ def _inputs_from_usf(usf: UsfFile) -> _Inputs:
     resetspds = [s.tempo - 1 for s in music_subs]
     voice_starts = [ec.voice_starts.get(s.id, 2) for s in music_subs]
 
+    # SFX subtunes — reconstruct engine SoundEffect records in PSID-id order
+    sfx_subs = sorted(
+        (s for s in usf.subtunes if isinstance(s, SfxSubtune)),
+        key=lambda s: s.id)
+    sfx_list = [_soundeffect_from_usf(s, idx) for idx, s in enumerate(sfx_subs)]
+
     freq_bytes = _freq_bytes_from_usf(usf, ec)
 
     return _Inputs(
@@ -250,7 +288,7 @@ def _inputs_from_usf(usf: UsfFile) -> _Inputs:
         subtunes=subtune_ids,
         models=models, scores=scores, resetspds=resetspds,
         voice_starts=voice_starts, freq_bytes=freq_bytes,
-        sfx_list=[],                # SFX from USF: TBD (not Chimera)
+        sfx_list=sfx_list,
     )
 
 

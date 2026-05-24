@@ -286,6 +286,74 @@ class _T(Transformer):
     def digi_body(self, items):
         return ('digi', {'sample': str(items[0])})
 
+    # ----- sfx body -----
+    def sfx_v1(self, items):
+        return ('v1', tuple(int(x) for x in items))
+
+    def sfx_v2(self, items):
+        return ('v2', tuple(int(x) for x in items))
+
+    def sfx_sweep_start(self, items):
+        return ('start_index', int(items[0]))
+
+    def sfx_sweep_end(self, items):
+        return ('end_index', int(items[0]))
+
+    def sfx_sweep_rate(self, items):
+        return ('rate', int(items[0]))
+
+    def sfx_sweep_direction(self, items):
+        return ('direction', str(items[0]))
+
+    def sfx_sweep_kv(self, items):
+        return items[0]
+
+    def sfx_sweep(self, items):
+        return ('_sweep', dict(items))
+
+    def sfx_v2_offset(self, items):
+        return ('v2_offset', int(items[0]))
+
+    def sfx_flag_toggle_v1(self, _):
+        return 'toggle_v1'
+
+    def sfx_flag_toggle_v2(self, _):
+        return 'toggle_v2'
+
+    def sfx_flag_skip_v1(self, _):
+        return 'skip_v1'
+
+    def sfx_flag_skip_both(self, _):
+        return 'skip_both'
+
+    def sfx_flag(self, items):
+        return items[0]
+
+    def sfx_flags(self, items):
+        flags = {'toggle_v1': False, 'toggle_v2': False,
+                 'skip_v1': False, 'skip_both': False}
+        for name in items:
+            flags[name] = True
+        return ('_flags', flags)
+
+    def sfx_field(self, items):
+        return items[0]
+
+    def sfx_body(self, items):
+        sweep_dict = {}
+        flag_dict = {}
+        out = {}
+        for key, val in items:
+            if key == '_sweep':
+                sweep_dict = val
+            elif key == '_flags':
+                flag_dict = val
+            else:
+                out[key] = val
+        out.update(sweep_dict)
+        out.update(flag_dict)
+        return ('sfx', out)
+
     def subtune_block(self, items):
         sub_id = int(items[0])
         kind = items[1]
@@ -299,7 +367,8 @@ class _T(Transformer):
         elif kind == 'digi':
             return DigiSubtune(id=sub_id, sample=body_data['sample'])
         else:
-            return SfxSubtune(id=sub_id, fields={})
+            # sfx — body_data is the decomposed SFX record
+            return SfxSubtune(id=sub_id, **body_data)
 
     # ----- voice / orderlist / patterns -----
     def ol_loop(self, items):

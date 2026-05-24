@@ -130,9 +130,37 @@ class DigiSubtune:
 
 @dataclass
 class SfxSubtune:
-    """An SFX subtune — engine-specific record. Schema TBD per engine."""
+    """A Hubbard '85 sound-effect subtune.
+
+    The engine's SFX record is a 2-voice SID-register snapshot + a
+    freq-table pitch sweep. The 16-byte raw record is decomposed into
+    these semantic fields:
+
+    `v1` and `v2` are 6 bytes each — freq_hi, pw_lo, pw_hi, ctrl, ad,
+    sr. The v1.freq_lo byte is aliased with `start_index`, so it's
+    derived not stored. The v2.freq_lo byte is aliased with the gate
+    flags + `v2_offset`, so it's also derived.
+
+    `start_index` / `end_index` index into the engine's freq table for
+    the sweep. `rate` is 0-15 (the sweep advances every `rate+1`
+    frames). `direction` is 'up' or 'down'. `v2_offset` is 0-63 —
+    V2's freq-table offset relative to V1's sweep index.
+
+    Flags (booleans): `toggle_v1`, `toggle_v2` retrigger each voice's
+    gate per sweep step; `skip_v1`, `skip_both` suppress freq writes.
+    """
     id: int
-    fields: dict = field(default_factory=dict)
+    v1: tuple = (0, 0, 0, 0, 0, 0)       # freq_hi, pw_lo, pw_hi, ctrl, ad, sr
+    v2: tuple = (0, 0, 0, 0, 0, 0)
+    start_index: int = 0
+    end_index: int = 0
+    rate: int = 0                         # 0..15
+    direction: str = 'down'               # 'up' or 'down'
+    v2_offset: int = 0                    # 0..63
+    toggle_v1: bool = False
+    toggle_v2: bool = False
+    skip_v1: bool = False
+    skip_both: bool = False
     kind: str = 'sfx'
 
 

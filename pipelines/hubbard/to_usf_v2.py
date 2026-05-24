@@ -28,8 +28,8 @@ from src.hubbard_emu import load_sid
 from src.usf2 import (
     UsfFile, PsidMeta, Params, InitState, InitVoice,
     Instrument, PwmConfig, ArpConfig, VibratoConfig, EnvelopeConfig,
-    MusicSubtune, DigiSubtune, VoiceBlock, Orderlist, Pattern,
-    NoteRow, Pitch, InstrumentRef, write_file, validate,
+    MusicSubtune, DigiSubtune, SfxSubtune, VoiceBlock, Orderlist,
+    Pattern, NoteRow, Pitch, InstrumentRef, write_file, validate,
 )
 from pipelines.hubbard.inst_generalize import decode_all
 
@@ -219,6 +219,32 @@ def _params_from_config(config) -> Params:
 
 
 # ---------------------------------------------------------------------------
+# SFX conversion — Hubbard '85 SoundEffect → USF v2 SfxSubtune
+#
+# The SoundEffect's `v1` and `v2` are 7-byte lists (freq_lo, freq_hi,
+# pw_lo, pw_hi, ctrl, ad, sr). In USF v2 we drop the freq_lo bytes —
+# v1.freq_lo is aliased with start_index, v2.freq_lo is aliased with
+# the gate flags + v2_offset. Both are derived at codegen time.
+# ---------------------------------------------------------------------------
+
+def _convert_sfx(sfx, sfx_id: int) -> SfxSubtune:
+    return SfxSubtune(
+        id=sfx_id,
+        v1=tuple(sfx.v1[1:7]),          # freq_hi, pw_lo, pw_hi, ctrl, ad, sr
+        v2=tuple(sfx.v2[1:7]),
+        start_index=sfx.start_index,
+        end_index=sfx.end_index,
+        rate=sfx.rate,
+        direction=sfx.direction,
+        v2_offset=sfx.v2_byte_offset,
+        toggle_v1=sfx.toggle_v1,
+        toggle_v2=sfx.toggle_v2,
+        skip_v1=sfx.skip_v1,
+        skip_both=sfx.skip_both,
+    )
+
+
+# ---------------------------------------------------------------------------
 # Top-level adapter
 # ---------------------------------------------------------------------------
 
@@ -243,7 +269,16 @@ def to_usf_v2(config, extra_subtunes: list | None = None) -> UsfFile:
         song = config.extract(subtune=st)
         music_subtunes.append(_convert_score(st, song.score))
 
-    subtunes = music_subtunes + list(extra_subtunes or [])
+    # SFX subtunes — Hubbard '85 SFX records (Commando-style). PSID
+    # subtunes len(config.subtunes)..len(config.subtunes)+15.
+    sfx_subtunes = []
+    if config.has_sfx and config.extract_sfx is not None:
+        sfx_list, _ = config.extract_sfx(config.sid_path)
+        for offset, sfx in enumerate(sfx_list):
+            sfx_id = len(config.subtunes) + offset
+            sfx_subtunes.append(_convert_sfx(sfx, sfx_id))
+
+    subtunes = music_subtunes + sfx_subtunes + list(extra_subtunes or [])
 
     return UsfFile(
         version=2, engine=config.name,

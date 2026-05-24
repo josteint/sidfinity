@@ -565,9 +565,60 @@ ACTION_BIKER = EngineConstants(
 )
 
 
+MONTY_FREQ_STATE = bytes.fromhex(
+    "00070e00040204220a22011301251725414141462643100210ff25080041ff00"
+    "7600083e0200011d010000000180003e093408c4260000000080fa00ffff3000"
+    "301414811550a9008d04d48d0bd48dff84adfc84290f8dfc840a0a0a0aa8b954"
+    "948d0585b955948dfe84b963948d0085b95c948d0285293f8d0185b959948d03"
+)
+assert len(MONTY_FREQ_STATE) == 128
+
+MONTY_FREQ_BYTES = HUBBARD_85_PAL_FREQ_TABLE + MONTY_FREQ_STATE
+assert len(MONTY_FREQ_BYTES) == 320
+
+MONTY = EngineConstants(
+    instr_base=0x93B4,
+    instr_count=20,
+    freq_table_base=0x8400,
+    freq_bytes=MONTY_FREQ_BYTES,
+    voice_starts={},
+    has_sfx=True,
+    sfx_state_ofs=251,
+    sfx_framectr_ofs=250,
+    digi=None,
+    is_rsid=False,
+)
+
+
+COMMANDO_FREQ_STATE = bytes.fromhex(
+    "00070e0000000000000000000000000000000000000000090200000000000000"
+    "0000000000000000000000000203020200c000000000000000000000000000ff"
+    "000000000000000000a9008d04d48d0bd48d2a55ad2755290f8d27550a0a0a0a"
+    "a8b9f9558d3055b9fa558d2955b908568d2b55b901568d2d55293f8d2c55b9fe"
+)
+assert len(COMMANDO_FREQ_STATE) == 128
+
+COMMANDO_FREQ_BYTES = HUBBARD_85_PAL_FREQ_TABLE + COMMANDO_FREQ_STATE
+assert len(COMMANDO_FREQ_BYTES) == 320
+
+COMMANDO = EngineConstants(
+    instr_base=0x5591,
+    instr_count=13,
+    freq_table_base=0x5428,
+    freq_bytes=COMMANDO_FREQ_BYTES,
+    voice_starts={},
+    has_sfx=True,
+    sfx_state_ofs=None,
+    sfx_framectr_ofs=253,
+    digi=None,
+    is_rsid=False,
+)
+
+
 ENGINE_CONSTANTS: dict[str, EngineConstants] = {
     'chimera': CHIMERA,
     'devils_galop': DEVILS_GALOP,
     'action_biker': ACTION_BIKER,
-    # Add other engines as they migrate onto the USF-only path.
+    'monty': MONTY,
+    'commando': COMMANDO,
 }
