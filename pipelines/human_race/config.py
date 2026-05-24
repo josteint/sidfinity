@@ -41,6 +41,10 @@ HUMAN_RACE = EngineConfig(
     subtunes=(0, 1, 2, 3, 4),
     arp_interval=12,
     has_sfx=False,
+    # HR's vibrato gate is `v_flags & $1F >= 8` ($0B50). Our extractor
+    # stores playback duration (encoded + 1), so the equivalent test
+    # is `playback_dur >= 9`. Hence vib_onset=9, not 8.
+    vib_onset=9,
     # Human Race uses only V1+V2 for music; V3 is silent across all
     # subtunes. The per-voice loop starts at V2 (index 1), processing
     # V2 then V1 (decrementing), skipping V3.
