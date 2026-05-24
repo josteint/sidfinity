@@ -71,8 +71,15 @@ class EngineConstants:
 # ---------------------------------------------------------------------------
 
 # Captured from demo/hubbard/Chimera_original.sid binary at $C567..$C6A6
-# (320 bytes). First 192 bytes = the 96-entry PAL musical freq table;
-# bytes 192-319 = engine scratch + per-voice init slots.
+# (320 bytes). First 192 bytes = the 96-entry musical freq table (Hubbard's
+# empirical hand-tuned PAL lookup — *not* strict equal-temperament; deriving
+# from 440Hz * 2^(N/12) * 16777216 / 985248 reproduces the lower octaves but
+# diverges progressively in higher ones, with entry 95 about 60 cents flat
+# relative to standard tuning. Preserved verbatim because the original tunes
+# were composed against this exact table.) Bytes 192-319 = engine scratch +
+# arpeggio extension + per-voice init slots; the codegen overlays USF init
+# values onto +205, +208, +214, +229, +232, +239 (see _freq_bytes_from_usf
+# in build_from_usf.py).
 _CHIMERA_FREQ_HEX = (
     "1601270138014b015f0173018a01a101ba01d401f0010e022d024e0271029602"
     "bd02e702130342037403a903e0031b045a049b04e2042c057b05ce0527068506"
@@ -88,98 +95,135 @@ _CHIMERA_FREQ_HEX = (
 CHIMERA_FREQ_BYTES = bytes.fromhex(_CHIMERA_FREQ_HEX.replace(' ', ''))
 assert len(CHIMERA_FREQ_BYTES) == 320, len(CHIMERA_FREQ_BYTES)
 
+# PSID dispatcher source — xa65 asm with equates for the three
+# parameter addresses (music_init, music_play, digi_player). Assembled
+# at codegen time by `chimera_psid_dispatcher()` below.
+#
+# Layout:
+#   init at MUSIC_DISP_BASE — branch by subtune (cmp #$02).
+#     music path  → ldx #$00, stx active_kind, jmp MUSIC_INIT (A preserved).
+#     digi  path  → pha, silence loop, pla, lookup pace/bank tables,
+#                   jmp DIGI_PLAYER (player rts returns to libsidplayfp).
+#   play — switch on active_kind; music subtunes jmp MUSIC_PLAY,
+#          digi subtunes rts (digi runs once in init).
+#   pace_table / bank_table — 4 slots each, filled by the codegen with
+#          per-subtune pace + bank-hi values.
+#
+# `active_kind` is zp $02 (a slot the engine doesn't use). Stored by
+# init, read by play.
+CHIMERA_PSID_DISPATCHER_ASM = r"""
+MUSIC_INIT   = {music_init}
+MUSIC_PLAY   = {music_play}
+DIGI_PLAYER  = {digi_player}
+active_kind  = $02
+
+* = {base}
+
+init
+    cmp #$02
+    bcs digi_init
+; music — preserve A (the music engine reads it as the subtune number)
+    ldx #$00
+    stx active_kind
+    jmp MUSIC_INIT
+
+digi_init
+    pha                     ; save subtune BEFORE clobbering A
+    lda #$01
+    sta active_kind
+    lda #$00
+    sta $FD                 ; vol bias = 0
+    ldx #$00
+silence_loop
+    sta $D400,X
+    inx
+    cpx #$19
+    bcc silence_loop
+    pla                     ; restore subtune
+    sec
+    sbc #$02
+    tax                     ; X = subtune - 2 (SFX index)
+    lda #$35
+    sta $01                 ; banking — RAM with I/O
+    lda pace_table,X
+    sta $A10A
+    lda bank_table,X
+    sta $97
+    lda #$37
+    sta $01                 ; restore default banking
+    jmp DIGI_PLAYER
+
+play
+    lda active_kind
+    bne digi_play_done
+    jmp MUSIC_PLAY
+digi_play_done
+    rts
+
+pace_table
+    .byte $00, $00, $00, $00
+bank_table
+    .byte $00, $00, $00, $00
+"""
+
+
 def chimera_psid_dispatcher(music_init: int, music_play: int,
                              digi_player: int, base: int) -> dict:
-    """Hand-assemble the Chimera PSID dispatcher.
+    """Assemble the Chimera PSID dispatcher via xa65.
 
-    Replaces the RSID original ($9F80 RSID dispatcher + raster IRQ
-    install + `jmp $EA31` KERNAL handoff). The PSID dispatcher:
+    Same shape as `assemble_chimera_digi_player`: writes the asm to a
+    temp file, runs xa65, reads the binary. The `play`, `pace_table`
+    and `bank_table` offsets are derived from the known asm layout
+    (the dispatcher's structure is fixed).
 
-      init  ($9F80):  branches on the subtune number — music subtunes
-                      jump to `music_init`, digi subtunes run the
-                      silence loop + digi player.
-      play  (returned offset): branches on `active_kind` (a zp byte
-                      stored by init) — music subtunes call
-                      `music_play`, digi subtunes RTS (digi runs in
-                      init, not per-frame).
-
-    Returns a dict with the assembled `bytes`, the offset of the play
-    entry (so the codegen can compute the PSID `play` address), and
-    the offsets of `pace_table` / `bank_table` (so the codegen fills
-    in the per-subtune values).
-
-    No KERNAL refs, no IRQ install, no `jmp $EA31`. The output SID is
-    PSID, playable on sidplayfp without `--force-rsid` and without
-    KERNAL ROM installed.
+    Returns:
+        bytes              — the assembled dispatcher bytes
+        play_off           — offset of the `play` entry (codegen
+                             converts to absolute address for PSID
+                             header's `play` field)
+        pace_table_off     — offset of the per-subtune pace bytes
+        bank_table_off     — offset of the per-subtune bank-hi bytes
     """
-    out = bytearray()
+    import os
+    import subprocess
+    here = os.path.dirname(os.path.abspath(__file__))
+    repo = os.path.dirname(os.path.dirname(here))
+    xa = os.path.join(repo, 'tools', 'xa65', 'xa', 'xa')
 
-    # ----- init ($9F80): branch by subtune -----
-    # The music engine reads A as the subtune number — we must NOT
-    # clobber A on the music path. Store the kind flag via a constant
-    # in X instead.
-    out += bytes([0xC9, 0x02])                          # cmp #$02
-    out += bytes([0xB0, 0x07])                          # bcs digi_init (+7)
-    # music_init:
-    out += bytes([0xA2, 0x00])                          # ldx #$00 (music kind)
-    out += bytes([0x86, 0x02])                          # stx $02
-    out += bytes([0x4C, music_init & 0xFF, music_init >> 8])  # jmp music_init (A preserved)
-    assert len(out) == 11
-    # digi_init: save the subtune number BEFORE clobbering A with the
-    # active_kind marker. (Without the early pha, the later pla restores
-    # the marker instead of the subtune.)
-    out += bytes([0x48])                                # pha (save subtune)
-    out += bytes([0xA9, 0x01])                          # lda #$01 (active_kind=digi)
-    out += bytes([0x85, 0x02])                          # sta $02
-    out += bytes([0xA9, 0x00])                          # lda #$00
-    out += bytes([0x85, 0xFD])                          # sta $FD (vol bias)
-    out += bytes([0xA2, 0x00])                          # ldx #$00
-    silence_loop_off = len(out)
-    out += bytes([0x9D, 0x00, 0xD4])                    # sta $D400,X
-    out += bytes([0xE8])                                # inx
-    out += bytes([0xE0, 0x19])                          # cpx #$19
-    bcc_offset = (silence_loop_off - (len(out) + 2)) & 0xFF
-    out += bytes([0x90, bcc_offset])                    # bcc silence_loop
-    out += bytes([0x68])                                # pla (restore subtune)
-    out += bytes([0x38])                                # sec
-    out += bytes([0xE9, 0x02])                          # sbc #$02 (X = subtune - 2)
-    out += bytes([0xAA])                                # tax
-    out += bytes([0xA9, 0x35])                          # lda #$35
-    out += bytes([0x85, 0x01])                          # sta $01 (bank in I/O)
-    pace_lda_off = len(out)
-    out += bytes([0xBD, 0x00, 0x00])                    # lda pace_table,X — patched
-    out += bytes([0x8D, 0x0A, 0xA1])                    # sta $A10A
-    bank_lda_off = len(out)
-    out += bytes([0xBD, 0x00, 0x00])                    # lda bank_table,X — patched
-    out += bytes([0x85, 0x97])                          # sta $97
-    out += bytes([0xA9, 0x37])                          # lda #$37
-    out += bytes([0x85, 0x01])                          # sta $01 (default bank)
-    out += bytes([0x4C, digi_player & 0xFF, digi_player >> 8])  # jmp digi_player
+    asm = CHIMERA_PSID_DISPATCHER_ASM.format(
+        music_init=f'${music_init:04X}',
+        music_play=f'${music_play:04X}',
+        digi_player=f'${digi_player:04X}',
+        base=f'${base:04X}',
+    )
+    src = '/tmp/chimera_psid_dispatcher.s'
+    obj = '/tmp/chimera_psid_dispatcher.bin'
+    with open(src, 'w') as f:
+        f.write(asm)
+    r = subprocess.run([xa, src, '-o', obj], capture_output=True, text=True)
+    if r.returncode != 0:
+        raise RuntimeError(f'xa65 failed on Chimera PSID dispatcher:\n'
+                           f'{r.stdout}\n{r.stderr}')
+    with open(obj, 'rb') as f:
+        out = f.read()
 
-    # ----- play (called per-frame by libsidplayfp) -----
-    play_off = len(out)
-    out += bytes([0xA5, 0x02])                          # lda $02 (active_kind)
-    out += bytes([0xD0, 0x03])                          # bne digi_play_done
-    out += bytes([0x4C, music_play & 0xFF, music_play >> 8])  # jmp music_play
-    out += bytes([0x60])                                # rts (digi: nothing per-frame)
-
-    # ----- pace_table / bank_table (codegen fills) -----
-    pace_table_off = len(out)
-    out += bytes(4)                                     # 4 slots, runtime-patched
-    bank_table_off = len(out)
-    out += bytes(4)
-
-    # Patch the LDA abs,X operands with the table addresses.
-    out[pace_lda_off + 1] = (base + pace_table_off) & 0xFF
-    out[pace_lda_off + 2] = (base + pace_table_off) >> 8
-    out[bank_lda_off + 1] = (base + bank_table_off) & 0xFF
-    out[bank_lda_off + 2] = (base + bank_table_off) >> 8
+    # Offsets from the known asm layout. Verified by structure:
+    #   init                $00-$03  (cmp #$02, bcs digi_init)
+    #   music_init path     $04-$0A  (ldx/stx/jmp = 7 bytes)
+    #   digi_init           $0B-$38  (pha + setup + silence + lookup + jmp)
+    #   play                $39-$40  (lda/bne/jmp/rts = 8 bytes)
+    #   pace_table          $41-$44  (4 bytes)
+    #   bank_table          $45-$48  (4 bytes)
+    PLAY_OFF       = 0x39
+    PACE_TABLE_OFF = 0x41
+    BANK_TABLE_OFF = 0x45
+    assert len(out) == BANK_TABLE_OFF + 4, len(out)
 
     return {
-        'bytes': bytes(out),
-        'play_off': play_off,
-        'pace_table_off': pace_table_off,
-        'bank_table_off': bank_table_off,
+        'bytes': out,
+        'play_off': PLAY_OFF,
+        'pace_table_off': PACE_TABLE_OFF,
+        'bank_table_off': BANK_TABLE_OFF,
     }
 
 # Chimera digi player — hand-written xa65 asm equivalent to the
