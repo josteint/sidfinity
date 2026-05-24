@@ -179,8 +179,18 @@ musical idea differently across games to save bytes; that difference is
 space-saving *mechanism*, and mechanism is exactly what you deconstruct
 away (see the memory `feedback_deconstruct_not_reproduce`). A new
 parameter — still less a new `shape` value — is justified **only** when
-the resulting *modulation* differs audibly or structurally, never when
-only the 6502 differs.
+the resulting *SID writeset* (per-frame ordered `(reg, val)` writes)
+differs, never when only the 6502 machine code differs.
+
+**The concrete test is writelog comparison.** The SID is deterministic
+from its register state: identical writeset, identical sound. For
+non-digi music, two implementations are "the same musical concept" iff
+their per-frame `(reg, val)` write sequences match across the song
+(`compare_writeset` in `pipelines/hubbard/verify_cycle.py`). For digi,
+where cycle IS the signal, the test is cycle-strict writelog comparison
+(`compare_strict`) or flat-write-sequence equality
+(`_checksum_digi`'s test) — same instrument-level audibility, just
+without the cycle-shift artifact from a regenerated dispatcher.
 
 The failure this rule guards against is **over-splitting**: naively
 minting one variant per byte-different routine you discover. That hands
@@ -232,19 +242,28 @@ four falsifiable tests. Together they are the ML-readiness gate for any
 effect representation.
 
 1. **Completeness.** Every real instance of the effect round-trips:
-   `parameters → engine → the exact instruction stream`. (The 100%
-   full-song Commando verification is precisely this proof for the
-   current effect set — it demonstrates the parameter set is expressive
-   *enough*.)
+   `parameters → engine → the exact instruction stream`. `verify_all`
+   running each engine's full subtune set is precisely this proof for
+   the engines on the principled path — it demonstrates the parameter
+   set is expressive *enough* for them.
 
-2. **No escape hatch.** A grep of the serialized USF finds no
-   `*Kind: int`, no `*Ptr`, no engine-library index field. (This is the
-   plan's Phase 7.1, sharpened to a hard gate.)
+2. **No escape hatch.** No field in the serialized USF acts as an
+   engine-library index. A grep for the obvious shapes (`*Kind: int`,
+   `*Ptr`, `*_idx: int`) catches the most blatant slips, but the
+   discipline is human schema review — a field can be named musically
+   and still smuggle engine-defined values. Cross-engine cardinality
+   analysis (group field values by engine, flag fields with disjoint
+   value sets per engine) catches more.
 
 3. **Interpolation sanity.** Take two real instances of the effect,
-   average their parameters, and render. The result must be a plausible
-   instance of the effect — not garbage. If averaging two valid points
-   produces nonsense, the basis is not musical or not smooth, and it
+   average their parameters, and render or imagine. The result should
+   be a plausible instance — interpolation along truly parametric
+   fields produces sensible musical intermediates. The test is
+   judgmental for purely integer parameters (averaging+rounding is
+   meaningful but not unique) and undefined for genuine categoricals
+   (averaging `triangle` and `square` doesn't give `quadrangle`). It
+   bites hardest when you can't even *describe* what the interpolated
+   point would mean musically — then the basis isn't parametric and
    must be refactored.
 
 4. **Cross-engine reuse.** When another engine is migrated, its
@@ -257,11 +276,10 @@ effect representation.
 
 ## 9. The honest caveat
 
-Any specific parameter set is provisional. The current `VibratoSpec`
-(and `ArpSpec`, `PwmSpec`, and the rest) was reverse-engineered to be
-sufficient *for Commando*, and proven so by the 100% round-trip — but
-proven only for Commando. Other engines will probably require these
-sets to grow.
+Any specific parameter set is provisional. Each parameter set is
+reverse-engineered to be sufficient for the engines migrated so far
+and proven so by the round-trip verification of those engines. New
+engines will probably require these sets to grow.
 
 The rule for growth is the whole of this document compressed to one
 line: **a parameter set may grow along the musical axis — a new shape,
