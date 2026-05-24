@@ -40,6 +40,11 @@ HUMAN_RACE = EngineConfig(
     resetspd=_resetspd,
     subtunes=(0, 1, 2, 3, 4),
     arp_interval=12,
+    # HR's `fx_arp` cycles 1 frame base + 7 frames +octave, keyed on
+    # `frame_ctr & 7`. Confirmed via src/usf2/audit.py on V1 inst 16
+    # (drumarp-only) subtune 3 frames 512-555. Shared-core default is
+    # 2 (Commando's alternate-every-frame); HR is period 8.
+    arp_period=8,
     has_sfx=False,
     # HR's vibrato gate is `v_flags & $1F >= 8` ($0B50). Our extractor
     # stores playback duration (encoded + 1), so the equivalent test
