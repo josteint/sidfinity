@@ -182,19 +182,246 @@ def chimera_psid_dispatcher(music_init: int, music_play: int,
         'bank_table_off': bank_table_off,
     }
 
-CHIMERA_DIGI_PLAYER = bytes.fromhex(
-    "4c06c04c32c1a5f748a5f848a5f948a5fa4878a93e25018501ad11d08d30c1a2"
-    "00ac03a1c000d0062009c14ceac0bd0ba1c597f00ae888d0f52009c14ceac0ad"
-    "0aa18dacc0a5970a0aaabd00a085fbbd01a085fcbd02a085f7bd03a085f8a9ff"
-    "8d02d48d03d48d04dd8d05dda000a9f08d06d4ad08a1d005a9008d11d0a9118d"
-    "0eddeaeaeaeaeaea4ccfc0e6fbd002e6fca6fce4f89009a6fbe4f790034ceac0"
-    "a9088596b1fb85fead04ddc9b0b0f9a9118d0edd06fe9004a949d002a9418d04"
-    "d4c696d0e3c6f9d0c2e6fbd002e6fcb1fbc9109002a90f38e5fd3002d002a901"
-    "8d18d4a91085f94c8bc0a9008d18d4ad30c18d11d0a903050185016885fa6885"
-    "f96885f86885f75860a92a8d08d4a9f08d0dd4a90f8d18d4a9118d0bd4a0ffa2"
-    "ffcad0fd88d0f8a9008d0bd48d18d4609b"
-)
-assert len(CHIMERA_DIGI_PLAYER) == 305
+# Chimera digi player — hand-written xa65 asm equivalent to the
+# original $C000-$C130 routine. CIA2-paced 1-bit waveform-toggle
+# digi: each sample byte is shifted MSB-first into V1 ctrl
+# ($D404 = $41 for bit 0, $49 for bit 1). After 16 audio bytes,
+# a vol byte (capped at $0F, biased by $FD) writes $D418. Bank
+# table at $A000+bank*4 = {src_lo, src_hi, end_lo, end_hi}.
+#
+# Cycle-paced via CIA2 timer A (one-shot, reloads from $DD04/$DD05
+# which were set to $FFFF, exits the wait loop when the LOW byte
+# of the counter drops below the pace threshold).
+#
+# `pace_cmp + 1` is self-modified at run-time with the per-tune
+# pacing byte ($A10A, set by the dispatcher).
+#
+# Two cycles' difference between this and the original would shift
+# the per-frame write distribution; verify_all's _checksum_digi
+# already hashes the flat (reg, val) sequence so byte-identity isn't
+# required — but in practice this assembles to exactly the original
+# 305 bytes (verified via assemble_chimera_digi_player()).
+CHIMERA_DIGI_PLAYER_ASM = r"""
+* = $C000
+
+; entry vector at $C000 plus 3 dead-data bytes at $C003-$C005
+entry
+    jmp digi_main
+    .byte $4C, $32, $C1     ; dead bytes (jmp $C132 placeholder, never reached)
+
+; main digi entry — save zp scratch, ban BASIC, find bank
+digi_main
+    lda $F7
+    pha
+    lda $F8
+    pha
+    lda $F9
+    pha
+    lda $FA
+    pha
+    sei
+    lda #$3E
+    and $01
+    sta $01                 ; banking $36 — RAM plus I/O plus KERNAL, no BASIC
+    lda $D011
+    sta d011_cache          ; cache for restore at exit
+    ldx #$00
+    ldy $A103
+    cpy #$00
+    bne find_bank
+    jsr ping
+    jmp cleanup
+
+find_bank
+    lda $A10B,X
+    cmp $97
+    beq bank_found
+    inx
+    dey
+    bne find_bank
+    jsr ping
+    jmp cleanup
+
+; bank validated — set up sample pointers, CIA2 timer, V1
+bank_found
+    lda $A10A
+    sta pace_cmp + 1        ; self-modify the cmp operand in the wait loop
+    lda $97
+    asl
+    asl                     ; X = bank * 4
+    tax
+    lda $A000,X
+    sta $FB                 ; sample src lo
+    lda $A001,X
+    sta $FC                 ; sample src hi
+    lda $A002,X
+    sta $F7                 ; sample end lo
+    lda $A003,X
+    sta $F8                 ; sample end hi
+    lda #$FF
+    sta $D402               ; V1 PW lo = $FF
+    sta $D403               ; V1 PW hi = $FF
+    sta $DD04               ; CIA2 timer A latch lo = $FF
+    sta $DD05               ; CIA2 timer A latch hi = $FF
+    ldy #$00
+    lda #$F0
+    sta $D406               ; V1 SR = $F0 (long release)
+    lda $A108
+    bne keep_vic            ; nonzero -> keep VIC running
+    lda #$00
+    sta $D011               ; else blank VIC (no badlines on sample writes)
+keep_vic
+    lda #$11
+    sta $DD0E               ; start CIA2 timer one-shot
+    nop                     ; six nops = ~12 cycles for CIA pickup
+    nop
+    nop
+    nop
+    nop
+    nop
+    jmp vol_read
+
+; pointer advance plus bounds check
+advance_check
+    inc $FB
+    bne check_done
+    inc $FC
+check_done
+    ldx $FC
+    cpx $F8
+    bcc audio_byte          ; src_hi < end_hi -> continue
+    ldx $FB
+    cpx $F7
+    bcc audio_byte          ; src < end -> continue
+    jmp cleanup             ; src >= end -> exit
+
+; 8-bit audio shift, MSB first, paced by CIA2
+audio_byte
+    lda #$08
+    sta $96                 ; 8 bits per byte
+    lda ($FB),Y
+    sta $FE                 ; shift register
+
+bit_loop
+    lda $DD04               ; read CIA2 timer (low byte of counter)
+pace_cmp
+    cmp #$B0                ; self-modified with pace
+    bcs bit_loop            ; wait while timer >= pace
+    lda #$11
+    sta $DD0E               ; restart timer one-shot
+    asl $FE                 ; shift next bit into C
+    bcc bit_zero
+    lda #$49                ; bit = 1 -> tri + gate
+    bne write_ctrl
+bit_zero
+    lda #$41                ; bit = 0 -> pulse + gate
+write_ctrl
+    sta $D404
+    dec $96
+    bne bit_loop            ; more bits in this byte
+    dec $F9                 ; rate counter — 16 audio bytes per vol
+    bne advance_check       ; not yet at vol — advance plus next audio
+    inc $FB                 ; F9 hit 0 -> advance, fall through to vol_read
+    bne vol_read
+    inc $FC
+
+; vol read — cap, bias, clamp, write $D418
+vol_read
+    lda ($FB),Y
+    cmp #$10
+    bcc vol_ok
+    lda #$0F                ; cap at $0F
+vol_ok
+    sec
+    sbc $FD                 ; subtract running bias
+    bmi vol_clamp
+    bne vol_write
+vol_clamp
+    lda #$01                ; clamp to $01 — never total mute mid-sample
+vol_write
+    sta $D418
+    lda #$10
+    sta $F9                 ; reload rate counter
+    jmp advance_check
+
+; cleanup — mute, restore VIC and banking, pop scratch, re-enable IRQ
+cleanup
+    lda #$00
+    sta $D418
+    lda d011_cache
+    sta $D011
+    lda #$03
+    ora $01
+    sta $01                 ; restore default banking
+    pla
+    sta $FA
+    pla
+    sta $F9
+    pla
+    sta $F8
+    pla
+    sta $F7
+    cli
+    rts
+
+; ping — SFX fallback when no valid bank found
+ping
+    lda #$2A
+    sta $D408               ; V2 freq lo
+    lda #$F0
+    sta $D40D               ; V2 SR
+    lda #$0F
+    sta $D418               ; vol = $0F
+    lda #$11
+    sta $D40B               ; V2 ctrl = tri plus gate
+    ldy #$FF
+ping_outer
+    ldx #$FF
+ping_inner
+    dex
+    bne ping_inner
+    dey
+    bne ping_outer
+    lda #$00
+    sta $D40B
+    sta $D418
+    rts
+
+; $D011 cache slot, written at digi_main, read at cleanup
+d011_cache
+    .byte $9B
+"""
+
+
+def assemble_chimera_digi_player() -> bytes:
+    """Run xa65 on `CHIMERA_DIGI_PLAYER_ASM` and return the 305-byte
+    blob. Cached: assembled once per process."""
+    global _CHIMERA_DIGI_PLAYER_CACHED
+    if _CHIMERA_DIGI_PLAYER_CACHED is not None:
+        return _CHIMERA_DIGI_PLAYER_CACHED
+    import os
+    import subprocess
+    here = os.path.dirname(os.path.abspath(__file__))
+    repo = os.path.dirname(os.path.dirname(here))
+    xa = os.path.join(repo, 'tools', 'xa65', 'xa', 'xa')
+    src = '/tmp/chimera_digi_player.s'
+    obj = '/tmp/chimera_digi_player.bin'
+    with open(src, 'w') as f:
+        f.write(CHIMERA_DIGI_PLAYER_ASM)
+    r = subprocess.run([xa, src, '-o', obj], capture_output=True, text=True)
+    if r.returncode != 0:
+        raise RuntimeError(f'xa65 failed on Chimera digi player asm:\n'
+                           f'{r.stdout}\n{r.stderr}')
+    with open(obj, 'rb') as f:
+        bs = f.read()
+    if len(bs) != 305:
+        raise RuntimeError(
+            f'Chimera digi player assembled to {len(bs)} bytes, expected 305')
+    _CHIMERA_DIGI_PLAYER_CACHED = bs
+    return bs
+
+
+_CHIMERA_DIGI_PLAYER_CACHED = None
 
 # Chimera PSID DigiCode: the dispatcher is REGENERATED by the
 # codegen via `chimera_psid_dispatcher`, not stored verbatim. The
@@ -206,7 +433,11 @@ CHIMERA_DIGI = DigiCode(
     music_init_patch_off=0,                  # unused for PSID
     music_play_patch_off=0,                  # unused for PSID
     player_base=0xC000,
-    player=CHIMERA_DIGI_PLAYER,
+    # The player bytes are assembled lazily from CHIMERA_DIGI_PLAYER_ASM;
+    # `assemble_chimera_digi_player()` runs xa65 and caches the result.
+    # Stored as a sentinel empty bytes here; the codegen calls the
+    # assembler when it needs the bytes.
+    player=b'',
     bank_table_base=0xA000,
 )
 

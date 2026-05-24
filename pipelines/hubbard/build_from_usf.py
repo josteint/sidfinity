@@ -24,6 +24,7 @@ from src.usf2 import (
 from pipelines.hubbard.codegen import _Inputs, _emit_sid, LOAD
 from pipelines.hubbard.engine_constants import (
     ENGINE_CONSTANTS, DigiCode, chimera_psid_dispatcher,
+    assemble_chimera_digi_player,
 )
 from pipelines.hubbard.flac_io import read_sample
 from pipelines.hubbard.digi_pack import pack_digi
@@ -264,7 +265,10 @@ def _build_digi_region(usf: UsfFile, digi_subs: list[DigiSubtune],
     the PSID `play` entry inside the dispatcher (used by the header).
     """
     base = digi_code.dispatcher_base                       # e.g. $9F80
-    end  = digi_code.player_base + len(digi_code.player)   # one past last byte
+    # The Chimera player is assembled lazily from its xa65 asm source
+    # (regenerated, not lifted verbatim from the original SID).
+    player_bytes = assemble_chimera_digi_player()
+    end  = digi_code.player_base + len(player_bytes)       # one past last byte
 
     # Generate the PSID dispatcher with addresses substituted for our
     # music engine and the digi player.
@@ -280,7 +284,7 @@ def _build_digi_region(usf: UsfFile, digi_subs: list[DigiSubtune],
     region[0:len(dispatcher)] = dispatcher
     # Place the digi player at its base.
     player_off = digi_code.player_base - base
-    region[player_off:player_off + len(digi_code.player)] = digi_code.player
+    region[player_off:player_off + len(player_bytes)] = player_bytes
 
     # Process digi subtunes: each carries a pace + bank in its FLAC's
     # Vorbis comments (via the extractor's `to_sample`).
