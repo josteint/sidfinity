@@ -1,0 +1,53 @@
+"""The Human Race EngineConfig — Human Race on the shared Hubbard '85
+core (pipelines/hubbard/).
+
+Rob Hubbard's *The Human Race* (1985 Mastertronic). Load $0980, init
+$0980 (trampoline to $1A9C), play $0986. 5 PSID subtunes, all music
+(V3 unused — only V1 + V2 carry music for the PSID).
+
+Instruments at $0DE3 (8-byte records, 23 instruments), freq table
+at $0CE4 (96+ semitone entries). See docs/hubbard_human_race_disassembly.s.
+"""
+
+import os
+
+from pipelines.human_race.extract.engine_model import extract
+from pipelines.hubbard.config import EngineConfig
+
+# config.py -> human_race -> pipelines -> repo root  (3 dirnames)
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(
+    os.path.abspath(__file__))))
+
+SID = os.path.join(ROOT, 'demo', 'hubbard', 'Human_Race_original.sid')
+
+
+def _extract(subtune=0):
+    return extract(subtune=subtune, sid_path=SID)
+
+
+def _resetspd(subtune, binary, load):
+    """Tick divider — one less than the score's frames-per-tick."""
+    return _extract(subtune).score.tempo - 1
+
+
+HUMAN_RACE = EngineConfig(
+    name='human_race',
+    sid_path=SID,
+    instr_base=0x0DE3,
+    instr_count=23,
+    freq_table_base=0x0CE4,
+    extract=_extract,
+    resetspd=_resetspd,
+    subtunes=(0, 1, 2, 3, 4),
+    arp_interval=12,
+    has_sfx=False,
+    # Human Race uses only V1+V2 for music; V3 is silent across all
+    # subtunes. The per-voice loop starts at V2 (index 1), processing
+    # V2 then V1 (decrementing), skipping V3.
+    voice_starts=(1, 1, 1, 1, 1),
+    # Human Race's engine init at $1A9C zeros per-voice state at
+    # runtime; it does NOT read load-time bytes from the freq-table
+    # overlap region. Disable seeding to avoid leaking those bytes as
+    # spurious initial values for v_inst etc.
+    seed_overlap=False,
+)

@@ -1071,7 +1071,8 @@ def _pattern_pool(scores):
 
 
 def _emit_data(scores, models, freq_bytes, resetspds, voice_starts,
-               sfx_list, pat_slot, pat_bytes, codec_extra) -> str:
+               sfx_list, pat_slot, pat_bytes, codec_extra,
+               seed_overlap: bool = True) -> str:
     """Emit the xa65 data section for a multi-subtune build.
 
     `scores` is one Score per packed music subtune; `sfx_list` is the
@@ -1126,12 +1127,17 @@ def _emit_data(scores, models, freq_bytes, resetspds, voice_starts,
     # The engine's per-voice variables sit past the 96-entry freq table;
     # init copies these load-time bytes into the zero-page mirrors so an
     # off-table read (or a counter's first DEC) sees the right value.
-    ov = ([freq_bytes[208 + i] for i in range(3)]      # v_ctrl     freq+208
-          + [freq_bytes[229 + i] for i in range(3)]    # pwm_period freq+229
-          + [freq_bytes[232 + i] for i in range(3)]    # pwm_dir    freq+232
-          + [freq_bytes[214 + i] for i in range(3)]    # v_instr    freq+214
-          + [freq_bytes[205 + i] for i in range(3)]    # v_durfield freq+205
-          + [freq_bytes[239 + i] for i in range(3)])   # v_slide    freq+239
+    # `seed_overlap=False` zeros the seed for engines that init their
+    # per-voice state at runtime (Human Race's $1A9C init).
+    if seed_overlap:
+        ov = ([freq_bytes[208 + i] for i in range(3)]      # v_ctrl     freq+208
+              + [freq_bytes[229 + i] for i in range(3)]    # pwm_period freq+229
+              + [freq_bytes[232 + i] for i in range(3)]    # pwm_dir    freq+232
+              + [freq_bytes[214 + i] for i in range(3)]    # v_instr    freq+214
+              + [freq_bytes[205 + i] for i in range(3)]    # v_durfield freq+205
+              + [freq_bytes[239 + i] for i in range(3)])   # v_slide    freq+239
+    else:
+        ov = [0] * 18
     lines.append('ovseed: .byt ' + ','.join(f'${b:02X}' for b in ov))
 
     # patterns — each unique pattern emitted once; orderlists reference
@@ -1152,12 +1158,19 @@ def _emit_data(scores, models, freq_bytes, resetspds, voice_starts,
     lines.append('pataddr_hi: .byt '
                  + ','.join(f'>pat{s}' for s in range(npat)))
 
-    # per-subtune orderlists ($FF = loop to orderLoop, $FE = end of song)
+    # per-subtune orderlists ($FF = loop to orderLoop, $FE = end of song).
+    # An empty orderlist (e.g. Human Race's unused V3) emits just $FE —
+    # set_patptr will see the song-end terminator at the first read and
+    # set v_ended on the voice, leaving it silent. $FF here would loop
+    # forever (the only entry is the terminator).
     for si, score in enumerate(scores):
         for vi, v in enumerate(score.voices):
-            ob = ','.join(f'${pat_slot[oidx]:02X}' for oidx in v.orderlist)
-            term = '$FE' if v.stop else '$FF'
-            lines.append(f'order_{si}_{vi}: .byt {ob},{term}')
+            if v.orderlist:
+                term = '$FE' if v.stop else '$FF'
+                ob = ','.join(f'${pat_slot[oidx]:02X}' for oidx in v.orderlist)
+                lines.append(f'order_{si}_{vi}: .byt {ob},{term}')
+            else:
+                lines.append(f'order_{si}_{vi}: .byt $FE')
 
     # subOrder* — 3 entries per subtune (one per voice); init copies the
     # selected subtune's row into the live orderLo/Hi/Loop arrays.
@@ -1319,6 +1332,7 @@ class _Inputs:
     voice_starts: list             # list[int]
     freq_bytes: bytes              # 320 bytes
     sfx_list: list
+    seed_overlap: bool = True
 
 
 def _inputs_from_config(config) -> _Inputs:
@@ -1358,6 +1372,7 @@ def _inputs_from_config(config) -> _Inputs:
         sfx_framectr_ofs=config.sfx_framectr_ofs,
         sfx_state_ofs=config.sfx_state_ofs,
         has_sfx=config.has_sfx,
+        seed_overlap=config.seed_overlap,
         subtunes=config.subtunes,
         models=models, scores=scores, resetspds=resetspds,
         voice_starts=voice_starts, freq_bytes=freq_bytes,
@@ -1391,7 +1406,8 @@ def _emit_sid(inputs: _Inputs, out_path: str, codec) -> str:
            + codec.note_asm + '\n'
            + _emit_data(inputs.scores, inputs.models, inputs.freq_bytes,
                         inputs.resetspds, inputs.voice_starts,
-                        inputs.sfx_list, pat_slot, pat_bytes, codec_extra)
+                        inputs.sfx_list, pat_slot, pat_bytes, codec_extra,
+                        seed_overlap=inputs.seed_overlap)
            + '\n')
 
     asm = asm.replace('inc freqtab+253',

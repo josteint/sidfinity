@@ -75,3 +75,9 @@ class EngineConfig:
     # build that emits the RSID header. Chimera is RSID; the standard
     # Hubbard engines are PSID.
     is_rsid: bool = False
+    # True if the engine reads its per-voice init state from the freq-
+    # table overlap region (+205, +208, +214, +229, +232, +239 past the
+    # 96-entry table). All standard Hubbard '85 engines do this; Human
+    # Race is the exception — its engine init at $1A9C zeros v_inst etc.
+    # at runtime, so seeding from the overlap bytes leaks wrong values.
+    seed_overlap: bool = True
