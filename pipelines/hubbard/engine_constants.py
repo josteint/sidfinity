@@ -70,30 +70,58 @@ class EngineConstants:
 # Chimera — first engine on the USF-only path
 # ---------------------------------------------------------------------------
 
-# Captured from demo/hubbard/Chimera_original.sid binary at $C567..$C6A6
-# (320 bytes). First 192 bytes = the 96-entry musical freq table (Hubbard's
-# empirical hand-tuned PAL lookup — *not* strict equal-temperament; deriving
-# from 440Hz * 2^(N/12) * 16777216 / 985248 reproduces the lower octaves but
-# diverges progressively in higher ones, with entry 95 about 60 cents flat
-# relative to standard tuning. Preserved verbatim because the original tunes
-# were composed against this exact table.) Bytes 192-319 = engine scratch +
-# arpeggio extension + per-voice init slots; the codegen overlays USF init
-# values onto +205, +208, +214, +229, +232, +239 (see _freq_bytes_from_usf
-# in build_from_usf.py).
-_CHIMERA_FREQ_HEX = (
+# Hubbard '85's 96-entry PAL musical freq table — the lookup that
+# converts a note number (0..95) to a 16-bit SID freq register.
+#
+# This is empirical / hand-tuned, NOT strict equal-temperament:
+# deriving from 440Hz * 2^(N/12) * 16777216 / 985248 reproduces the
+# lower octaves but diverges progressively in higher ones, with entry
+# 95 about 60 cents flat relative to standard tuning. Preserved
+# verbatim because the original tunes were composed against this
+# exact table.
+#
+# Verified byte-identical across all migrated Hubbard '85 engines
+# (Commando, Devils Galop, Monty, Action Biker, Chimera). Each
+# engine's full 320-byte region is `HUBBARD_85_PAL_FREQ_TABLE` plus
+# 128 bytes of per-engine scratch + arpeggio extension + per-voice
+# init slots.
+HUBBARD_85_PAL_FREQ_TABLE = bytes.fromhex(
     "1601270138014b015f0173018a01a101ba01d401f0010e022d024e0271029602"
     "bd02e702130342037403a903e0031b045a049b04e2042c057b05ce0527068506"
-    "e8065107c1073708b4083709c40957"   "0af50a9c0b4e0c090dd00da30e820f6e10"
+    "e8065107c1073708b4083709c409570af50a9c0b4e0c090dd00da30e820f6e10"
     "68116e128813af14eb1539179c18131aa11b461d041fdc20d022dc2410275e29"
     "d62b722e3831263442378c3a083eb841a045b849204ebc52ac57e45c70624c68"
     "846e1875107c7083408b7093409c78a558afc8b9e0c498d008dd30ea20f82efd"
+)
+assert len(HUBBARD_85_PAL_FREQ_TABLE) == 192, len(HUBBARD_85_PAL_FREQ_TABLE)
+
+
+# Per-engine state region (bytes 192..319 of the freq-table memory
+# range). Engine scratch + arpeggio extension + per-voice init slots.
+# The codegen overlays USF `init:` values onto +205, +208, +214, +229,
+# +232, +239 (see `_freq_bytes_from_usf` in build_from_usf.py).
+CHIMERA_FREQ_STATE = bytes.fromhex(
     "00070e00000101530000000707005757414141430000040e02ff002600410000"
     "010017010100000000000002027000340003268ca90000000500794207416986"
     "0204080008410c00000004c801410da00302080002810f0a000005e503410060"
     "00010d0008417989024100000841080a000001000511bf00000005000510bf05"
 )
-CHIMERA_FREQ_BYTES = bytes.fromhex(_CHIMERA_FREQ_HEX.replace(' ', ''))
-assert len(CHIMERA_FREQ_BYTES) == 320, len(CHIMERA_FREQ_BYTES)
+assert len(CHIMERA_FREQ_STATE) == 128
+
+CHIMERA_FREQ_BYTES = HUBBARD_85_PAL_FREQ_TABLE + CHIMERA_FREQ_STATE
+assert len(CHIMERA_FREQ_BYTES) == 320
+
+
+DEVILS_GALOP_FREQ_STATE = bytes.fromhex(
+    "00070e0000000000000000000000000000000000000000000200000000000000"
+    "0000000000000000000000000100c0000000000000ffff000000000000000000"
+    "0000000000800241176502410000084108080000010008410939004100000281"
+    "080a00000140014149870200000008410200000000000841030a000001800841"
+)
+assert len(DEVILS_GALOP_FREQ_STATE) == 128
+
+DEVILS_GALOP_FREQ_BYTES = HUBBARD_85_PAL_FREQ_TABLE + DEVILS_GALOP_FREQ_STATE
+assert len(DEVILS_GALOP_FREQ_BYTES) == 320
 
 # PSID dispatcher source — xa65 asm with equates for the three
 # parameter addresses (music_init, music_play, digi_player). Assembled
@@ -501,7 +529,45 @@ CHIMERA = EngineConstants(
 # Registry — pipelines/hubbard/build_from_usf.py looks up by engine name.
 # ---------------------------------------------------------------------------
 
+DEVILS_GALOP = EngineConstants(
+    instr_base=0x183B,
+    instr_count=13,
+    freq_table_base=0x1694,
+    freq_bytes=DEVILS_GALOP_FREQ_BYTES,
+    voice_starts={},
+    has_sfx=False,
+    digi=None,
+    is_rsid=False,
+)
+
+
+ACTION_BIKER_FREQ_STATE = bytes.fromhex(
+    "00070e0002020b1d1d091000001f2f834121413e3c1f070802ff83850241ff00"
+    "1200102700000000000000010238012722060040500002e4ecf4c4c4c4617ce2"
+    "c4c4c4e4ecf4c4c4c4151719c5c5c51b65b6acaec2d6ea2a7ecbfe12263a3c50"
+    "64788ca0b4c8dc4df05ffdc04683c2014049d12e8b80bf525558c5c5c5c8c8c8"
+)
+assert len(ACTION_BIKER_FREQ_STATE) == 128
+
+ACTION_BIKER_FREQ_BYTES = HUBBARD_85_PAL_FREQ_TABLE + ACTION_BIKER_FREQ_STATE
+assert len(ACTION_BIKER_FREQ_BYTES) == 320
+
+ACTION_BIKER = EngineConstants(
+    instr_base=0xCB5B,
+    instr_count=12,
+    freq_table_base=0xC2FC,
+    freq_bytes=ACTION_BIKER_FREQ_BYTES,
+    # Action Biker subtune 0 starts at V2 (skipping V3); subtunes 1/2 at V3.
+    voice_starts={0: 1, 1: 2, 2: 2},
+    has_sfx=False,
+    digi=None,
+    is_rsid=False,
+)
+
+
 ENGINE_CONSTANTS: dict[str, EngineConstants] = {
     'chimera': CHIMERA,
+    'devils_galop': DEVILS_GALOP,
+    'action_biker': ACTION_BIKER,
     # Add other engines as they migrate onto the USF-only path.
 }

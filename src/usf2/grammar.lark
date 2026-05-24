@@ -20,7 +20,7 @@ psid_field: "title" ":" STRING       -> psid_title
 // ----- params -----
 params_block: "params" "{" params_field* "}"
 params_field: CNAME ":" param_value
-param_value: number          -> param_number
+param_value: signed_int      -> param_number
            | CNAME           -> param_keyword
            | bool            -> param_bool
 
@@ -114,7 +114,7 @@ bool: "true"      -> bool_true
 
 // ----- tokens -----
 HEX: "$" /[0-9a-fA-F]+/
-NOTE_NAME.2: /[A-G][#-][0-7]/
+NOTE_NAME.2: /[A-G][#-][0-9]/
 SAMPLE_PATH.2: /[A-Za-z0-9_.][A-Za-z0-9_.\-]*\.flac/
 
 %import common.CNAME

@@ -248,7 +248,9 @@ pattern 0 length=32 {
 Columns (whitespace-separated):
 
 1. **Pitch**: a note name `C-5`, `D#5`, `F-3`, etc. Sharps use `#`.
-   Octaves are 0-7. Rest is `---`.
+   Octaves are 0-9 (engines may use off-table arpeggio extensions
+   that index past the 96-entry musical freq table; those land in
+   octave 8+). Rest is `---`.
 2. **Duration**: positive integer (ticks).
 3. **Instrument ref**: `iN` (numeric) or `i:name` (named). Optional —
    absent on rest rows.

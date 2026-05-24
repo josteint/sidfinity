@@ -240,7 +240,10 @@ def _inputs_from_usf(usf: UsfFile) -> _Inputs:
         freeze_on_stop=get('freeze_on_stop', False),
         speed_ctr_init=get('speed_ctr_init', 0),
         first_frame_gate_off=get('first_frame_gate_off', False),
-        stop_fill=get('stop_fill', None),
+        # `has_stop_fill` distinguishes "stop_fill = 0 (write zeros)"
+        # from "no stop_fill (don't write anything)". Earlier USFs
+        # without this field default to None (no fill).
+        stop_fill=(get('stop_fill', 0) if get('has_stop_fill', False) else None),
         sfx_framectr_ofs=ec.sfx_framectr_ofs,
         sfx_state_ofs=ec.sfx_state_ofs,
         has_sfx=ec.has_sfx,
