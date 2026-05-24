@@ -1333,6 +1333,7 @@ class _Inputs:
     freq_bytes: bytes              # 320 bytes
     sfx_list: list
     seed_overlap: bool = True
+    psid_speed: int = 0       # PSID v2 speed bitmask (bit N = subtune N+1)
 
 
 def _inputs_from_config(config) -> _Inputs:
@@ -1353,11 +1354,14 @@ def _inputs_from_config(config) -> _Inputs:
     with open(config.sid_path, 'rb') as f:
         orig_hdr = f.read(124)
 
+    psid_speed = int.from_bytes(orig_hdr[0x12:0x16], 'big')
+
     return _Inputs(
         title=orig_hdr[22:54],
         author=orig_hdr[54:86],
         released=orig_hdr[86:118],
         start_song=(orig_hdr[0x10] << 8) | orig_hdr[0x11],
+        psid_speed=psid_speed,
         arp_interval=config.arp_interval,
         arp_period=config.arp_period,
         linear_pw_or=config.linear_pw_or,
@@ -1434,7 +1438,7 @@ def _emit_sid(inputs: _Inputs, out_path: str, codec) -> str:
     h += struct.pack('>H', LOAD + 3)
     h += struct.pack('>H', songs)
     h += struct.pack('>H', min(max(inputs.start_song, 1), songs))
-    h += struct.pack('>I', 0)
+    h += struct.pack('>I', inputs.psid_speed)
     # 3 × 32-byte latin-1 fields. Pad/truncate to exactly 32 each.
     for s in (inputs.title, inputs.author, inputs.released):
         h += s[:32].ljust(32, b'\x00')

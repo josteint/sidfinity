@@ -184,8 +184,10 @@ def _read_psid_meta(sid_path: str) -> PsidMeta:
     clock = {0: 'unknown', 1: 'PAL', 2: 'NTSC', 3: 'both'}[(flags >> 2) & 3]
     sid = {0: 0, 1: 6581, 2: 8580, 3: 0}[(flags >> 4) & 3]
     start_song = int.from_bytes(raw[16:18], 'big')
+    speed = int.from_bytes(raw[18:22], 'big')
     return PsidMeta(title=title, author=author, released=released,
-                    clock=clock, sid=sid, start_song=start_song)
+                    clock=clock, sid=sid, start_song=start_song,
+                    speed=speed)
 
 
 # ---------------------------------------------------------------------------

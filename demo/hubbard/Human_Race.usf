@@ -8,6 +8,7 @@ psid {
   clock:      PAL
   sid:        6581
   start_song: 1
+  speed:      $0000000F
 }
 
 params {

@@ -102,6 +102,9 @@ class _T(Transformer):
     def psid_start_song(self, items):
         return ('start_song', int(items[0]))
 
+    def psid_speed(self, items):
+        return ('speed', int(items[0]))
+
     def psid_field(self, items):
         return items[0]
 

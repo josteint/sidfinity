@@ -258,6 +258,11 @@ class PsidMeta:
     clock: str = 'PAL'           # 'PAL' | 'NTSC' | 'both' | 'unknown'
     sid: int = 6581              # 6581 | 8580 (0 = unknown, both = ?)
     start_song: int = 1
+    # PSID v2 speed field: 32-bit bitmask, bit N = subtune (N+1)'s
+    # play() dispatch. 0 = VBI (50/60 Hz), 1 = CIA1 timer (typically
+    # the same rate unless the init routine reprograms it). Subtunes
+    # past bit 31 inherit bit 31. Default 0 = all VBI.
+    speed: int = 0
 
 
 # ---------------------------------------------------------------------------

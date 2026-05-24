@@ -16,6 +16,7 @@ psid_field: "title" ":" STRING       -> psid_title
           | "clock" ":" CNAME        -> psid_clock
           | "sid" ":" INT            -> psid_sid
           | "start_song" ":" INT     -> psid_start_song
+          | "speed" ":" number       -> psid_speed
 
 // ----- params -----
 params_block: "params" "{" params_field* "}"

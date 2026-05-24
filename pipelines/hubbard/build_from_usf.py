@@ -279,6 +279,7 @@ def _inputs_from_usf(usf: UsfFile) -> _Inputs:
         speed_ctr_init=get('speed_ctr_init', 0),
         first_frame_gate_off=get('first_frame_gate_off', False),
         seed_overlap=get('seed_overlap', True),
+        psid_speed=usf.psid.speed,
         # `has_stop_fill` distinguishes "stop_fill = 0 (write zeros)"
         # from "no stop_fill (don't write anything)". Earlier USFs
         # without this field default to None (no fill).
@@ -443,7 +444,7 @@ def _emit_combined_sid(inputs: _Inputs, usf: UsfFile, digi_subs: list,
     h += struct.pack('>H', play_addr)
     h += struct.pack('>H', songs)
     h += struct.pack('>H', start_song)
-    h += struct.pack('>I', 0)
+    h += struct.pack('>I', inputs.psid_speed)
     for s in (inputs.title, inputs.author, inputs.released):
         h += s[:32].ljust(32, b'\x00')
     h += struct.pack('>H', 0x0014)             # flags (PAL + 6581)

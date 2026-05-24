@@ -64,7 +64,7 @@ def _format_pitch(p: Pitch) -> str:
 # ---------------------------------------------------------------------------
 
 def _write_psid(p: PsidMeta) -> list[str]:
-    return [
+    lines = [
         'psid {',
         f'  title:      "{p.title}"',
         f'  author:     "{p.author}"',
@@ -72,8 +72,11 @@ def _write_psid(p: PsidMeta) -> list[str]:
         f'  clock:      {p.clock}',
         f'  sid:        {p.sid}',
         f'  start_song: {p.start_song}',
-        '}',
     ]
+    if p.speed:
+        lines.append(f'  speed:      ${p.speed:08X}')
+    lines.append('}')
+    return lines
 
 
 def _write_params(p: Params) -> list[str]:
