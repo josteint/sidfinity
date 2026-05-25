@@ -1180,3 +1180,127 @@ subtune 0 music {
     }
   }
 }
+
+subtune 1 sfx {
+  v1: $04 $80 $00 $41 $0A $00
+  v2: $0D $00 $02 $57 $0C $00
+  sweep: start=$21 end=$28 rate=10 direction=up
+  v2_offset: $00
+  flags: skip_both
+}
+
+subtune 2 sfx {
+  v1: $10 $00 $04 $11 $0F $00
+  v2: $07 $80 $00 $11 $0F $00
+  sweep: start=$60 end=$16 rate=3 direction=down
+  v2_offset: $08
+}
+
+subtune 3 sfx {
+  v1: $24 $00 $04 $00 $0A $00
+  v2: $09 $00 $02 $15 $0B $00
+  sweep: start=$10 end=$20 rate=4 direction=up
+  v2_offset: $08
+  flags: skip_both
+}
+
+subtune 4 sfx {
+  v1: $F9 $80 $00 $81 $95 $00
+  v2: $00 $00 $02 $81 $AD $40
+  sweep: start=$2A end=$5F rate=3 direction=up
+  v2_offset: $28
+}
+
+subtune 5 sfx {
+  v1: $06 $80 $00 $41 $0C $00
+  v2: $14 $14 $02 $13 $0D $00
+  sweep: start=$40 end=$60 rate=2 direction=up
+  v2_offset: $02
+  flags: skip_v1
+}
+
+subtune 6 sfx {
+  v1: $33 $80 $02 $41 $0B $00
+  v2: $32 $80 $02 $41 $0B $00
+  sweep: start=$70 end=$40 rate=1 direction=down
+  v2_offset: $00
+  flags: skip_both
+}
+
+subtune 7 sfx {
+  v1: $54 $00 $08 $11 $04 $F0
+  v2: $49 $00 $08 $11 $04 $F0
+  sweep: start=$32 end=$59 rate=0 direction=up
+  v2_offset: $02
+  flags: toggle_v1 toggle_v2 skip_both
+}
+
+subtune 8 sfx {
+  v1: $06 $40 $00 $81 $0A $00
+  v2: $18 $00 $08 $81 $09 $00
+  sweep: start=$1A end=$32 rate=0 direction=up
+  v2_offset: $00
+  flags: skip_both
+}
+
+subtune 9 sfx {
+  v1: $00 $00 $04 $51 $0F $70
+  v2: $27 $00 $08 $51 $0F $70
+  sweep: start=$20 end=$00 rate=4 direction=down
+  v2_offset: $00
+}
+
+subtune 10 sfx {
+  v1: $3D $80 $08 $41 $88 $17
+  v2: $36 $00 $08 $41 $88 $17
+  sweep: start=$10 end=$2F rate=6 direction=up
+  v2_offset: $00
+  flags: toggle_v1 toggle_v2 skip_both
+}
+
+subtune 11 sfx {
+  v1: $00 $00 $00 $81 $0B $00
+  v2: $27 $40 $08 $13 $0B $00
+  sweep: start=$20 end=$5F rate=0 direction=up
+  v2_offset: $3F
+}
+
+subtune 12 sfx {
+  v1: $44 $00 $05 $41 $05 $F0
+  v2: $3C $00 $08 $41 $09 $80
+  sweep: start=$40 end=$41 rate=1 direction=up
+  v2_offset: $3A
+  flags: skip_both
+}
+
+subtune 13 sfx {
+  v1: $30 $00 $08 $43 $03 $F0
+  v2: $27 $40 $08 $15 $05 $F0
+  sweep: start=$1A end=$5F rate=6 direction=up
+  v2_offset: $01
+  flags: toggle_v1 toggle_v2
+}
+
+subtune 14 sfx {
+  v1: $34 $80 $04 $41 $03 $F0
+  v2: $3C $00 $03 $41 $03 $F0
+  sweep: start=$4E end=$51 rate=2 direction=up
+  v2_offset: $00
+  flags: skip_both
+}
+
+subtune 15 sfx {
+  v1: $44 $00 $07 $11 $0A $00
+  v2: $1D $00 $02 $15 $0C $D0
+  sweep: start=$05 end=$4F rate=15 direction=up
+  v2_offset: $04
+  flags: toggle_v1 skip_v1
+}
+
+subtune 16 sfx {
+  v1: $44 $00 $01 $41 $0A $00
+  v2: $1D $00 $02 $15 $0C $00
+  sweep: start=$51 end=$38 rate=6 direction=down
+  v2_offset: $00
+  flags: toggle_v1 toggle_v2 skip_both
+}

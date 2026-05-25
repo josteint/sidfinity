@@ -19,6 +19,7 @@ Fx flag layout:
 import os
 
 from pipelines.thing_on_a_spring.extract.engine_model import extract
+from pipelines.thing_on_a_spring.extract.sfx import extract_sfx
 from pipelines.hubbard.config import EngineConfig
 
 # config.py -> thing_on_a_spring -> pipelines -> repo root  (3 dirnames)
@@ -56,5 +57,7 @@ THING_ON_A_SPRING = EngineConfig(
     incby2_step=1,
     incby2_every_frame=True,
     incby2_onset=0,
-    has_sfx=False,
+    # 16 SFX overlays at $CDA2 — same 16-byte record format as Commando.
+    has_sfx=True,
+    extract_sfx=extract_sfx,
 )
