@@ -338,4 +338,9 @@ def _basename_for(engine_name: str) -> str:
         'hunter_patrol': 'Hunter_Patrol',
         'thing_on_a_spring': 'Thing_on_a_Spring',
         'one_man_and_his_droid': 'One_Man_and_his_Droid',
+        'five_tt_sub0': '5_Title_Tunes_0',
+        'five_tt_sub1': '5_Title_Tunes_1',
+        'five_tt_sub2': '5_Title_Tunes_2',
+        'five_tt_sub3': '5_Title_Tunes_3',
+        'five_tt_sub4': '5_Title_Tunes_4',
     }.get(engine_name, engine_name.title())

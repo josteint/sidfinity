@@ -789,6 +789,66 @@ ONE_MAN_AND_HIS_DROID = EngineConstants(
 )
 
 
+def _five_title_tunes_freq_bytes(sub_idx: int) -> bytes:
+    """Compute freq_bytes for a 5 Title Tunes sub-engine on demand.
+
+    Each sub has its own freq table at its own address — but all are
+    near-PAL, so the first 192 bytes match `HUBBARD_85_PAL_FREQ_TABLE`.
+    The 128-byte state region is read from the sub's standalone PSID
+    (written by `tools/split_multi_binary.py` into
+    `pipelines/five_title_tunes/work_subs/`).
+    """
+    import os
+    import sys
+    ROOT = os.path.dirname(os.path.dirname(os.path.dirname(
+        os.path.abspath(__file__))))
+    sys.path.insert(0, os.path.join(ROOT, 'src'))
+    from hubbard_emu import load_sid
+
+    # Per-sub freq table base address (in sub_N.sid's address space).
+    FT_BASE = {0: 0x0F6A, 1: 0x1C07, 2: 0x2360, 3: 0x2BA0, 4: 0x34C3}
+
+    sub_path = os.path.join(ROOT, 'pipelines', 'five_title_tunes',
+                            'work_subs', f'sub_{sub_idx}.sid')
+    if not os.path.exists(sub_path):
+        # Try to (re)generate via the splitter.
+        import subprocess
+        parent = os.path.join(ROOT, 'data', 'C64Music', 'MUSICIANS', 'H',
+                              'Hubbard_Rob', '5_Title_Tunes.sid')
+        os.makedirs(os.path.dirname(sub_path), exist_ok=True)
+        subprocess.run(
+            ['python3', os.path.join(ROOT, 'tools', 'split_multi_binary.py'),
+             parent, os.path.dirname(sub_path)], check=True)
+
+    _, binary, load = load_sid(sub_path)
+    state_start = FT_BASE[sub_idx] - load + 192
+    state = bytes(binary[state_start:state_start + 128])
+    if len(state) < 128:
+        state = state + bytes(128 - len(state))
+    assert len(state) == 128, f"sub {sub_idx} state len={len(state)}"
+    return HUBBARD_85_PAL_FREQ_TABLE + state
+
+
+# 5 Title Tunes — five Hubbard '85 sub-engines. Each is its own
+# EngineConstants; the v2 byte-exact compound build registers all 5
+# via the names 'five_tt_sub0'..'five_tt_sub4'.
+FIVE_TITLE_TUNES_SUBS = {}
+for _i in range(5):
+    _ib = {0: 0x1065, 1: 0x1D02, 2: 0x245B, 3: 0x2C9B, 4: 0x35BE}[_i]
+    _ftb = {0: 0x0F6A, 1: 0x1C07, 2: 0x2360, 3: 0x2BA0, 4: 0x34C3}[_i]
+    _ic = {0: 8, 1: 12, 2: 12, 3: 12, 4: 12}[_i]
+    FIVE_TITLE_TUNES_SUBS[_i] = EngineConstants(
+        instr_base=_ib,
+        instr_count=_ic,
+        freq_table_base=_ftb,
+        freq_bytes=_five_title_tunes_freq_bytes(_i),
+        voice_starts={},
+        has_sfx=False,
+        digi=None,
+        is_rsid=False,
+    )
+
+
 ENGINE_CONSTANTS: dict[str, EngineConstants] = {
     'chimera': CHIMERA,
     'devils_galop': DEVILS_GALOP,
@@ -799,4 +859,9 @@ ENGINE_CONSTANTS: dict[str, EngineConstants] = {
     'hunter_patrol': HUNTER_PATROL,
     'thing_on_a_spring': THING_ON_A_SPRING,
     'one_man_and_his_droid': ONE_MAN_AND_HIS_DROID,
+    'five_tt_sub0': FIVE_TITLE_TUNES_SUBS[0],
+    'five_tt_sub1': FIVE_TITLE_TUNES_SUBS[1],
+    'five_tt_sub2': FIVE_TITLE_TUNES_SUBS[2],
+    'five_tt_sub3': FIVE_TITLE_TUNES_SUBS[3],
+    'five_tt_sub4': FIVE_TITLE_TUNES_SUBS[4],
 }
