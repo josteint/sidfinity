@@ -24,13 +24,25 @@ _SEED_OFS = {'v_ctrl': 208, 'pwm_period': 229, 'pwm_dir': 232,
              'v_instr': 214, 'v_durfield': 205, 'v_slide': 239}
 
 
-def _ovseed_from_freq_bytes(freq_bytes: bytes) -> bytes:
-    """Extract the 18-byte ovseed from a sub's freq_bytes."""
+def _ovseed_from_freq_bytes(freq_bytes: bytes, inst_offset: int = 0) -> bytes:
+    """Extract the 18-byte ovseed from a sub's freq_bytes. `inst_offset`
+    shifts the per-voice v_instr bytes by the sub's instrument-table
+    offset — in the unified build each sub's instruments live at
+    different positions in the global concatenated table, so the
+    initial v_instr values (which are sub-local indices in the raw
+    binary) must be re-numbered to point at the same instrument in
+    the merged table."""
     out = []
     for field in ('v_ctrl', 'pwm_period', 'pwm_dir',
                   'v_instr', 'v_durfield', 'v_slide'):
         for i in range(3):
-            out.append(freq_bytes[_SEED_OFS[field] + i])
+            b = freq_bytes[_SEED_OFS[field] + i]
+            if field == 'v_instr':
+                # Renumber: keep flag bits (high 2), shift inst idx.
+                flags = b & 0xC0
+                idx = b & 0x3F
+                b = flags | ((idx + inst_offset) & 0x3F)
+            out.append(b)
     return bytes(out)
 
 
@@ -98,8 +110,9 @@ def build_unified_inputs() -> _Inputs:
     per_subtune_incby2_late_gate = [
         cfg.incby2_late_gate if cfg.incby2_late_gate is not None else 0xFF
         for cfg in ALL_TUNES]
-    per_subtune_ovseed = [_ovseed_from_freq_bytes(si.freq_bytes)
-                          for si in sub_inputs]
+    per_subtune_ovseed = [
+        _ovseed_from_freq_bytes(si.freq_bytes, inst_offset=inst_offsets[i])
+        for i, si in enumerate(sub_inputs)]
 
     # Concatenate per-sub resetspd and voice_starts (each sub has 1 sub).
     resetspds = [si.resetspds[0] for si in sub_inputs]
