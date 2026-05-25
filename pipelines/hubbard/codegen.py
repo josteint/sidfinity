@@ -26,6 +26,7 @@ import os
 import struct
 import subprocess
 import sys
+from dataclasses import dataclass, field
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__))))
@@ -43,6 +44,131 @@ LOAD = 0x1000
 # Effects implemented by the 6502 engine so far (verification enables
 # exactly this subset in song_interp).
 ENGINE_FX = {'skydive', 'arp', 'vibrato', 'pwm', 'arp_offtable'}
+
+
+# ---------------------------------------------------------------------------
+# build_statebuf — engine state-region mirror for off-table arpeggio
+# ---------------------------------------------------------------------------
+#
+# The drum arpeggio (fx bit 2) computes `arp_pitch = v_pitch + 12`
+# every frame the pitch passes through the +12 phase. For arp_pitch
+# >= 96 the look-up `freq_table[arp_pitch*2]` reads PAST the 96-entry
+# table into engine state. This is Hubbard's "off-table arpeggio" —
+# a deliberate trick that produces characteristic percussive freqs
+# from live engine state.
+#
+# Each Hubbard '85 engine has its own state-region layout (Commando
+# at $54E8, HR at $0DA4, ...). To reproduce the original write set,
+# the rebuild's `statebuf` must mirror the same byte at each off-
+# table offset. `StatebufLayout` captures the layout as data; one
+# shared emitter generates the `build_statebuf` asm.
+#
+# Reading the layout: each engine's `statebuf+N` should hold whatever
+# byte the original engine has at "state-region offset N" when the
+# off-table read happens. Slots fall into two camps:
+#
+#   - `scalars`: written once at the top of build_statebuf (constants
+#     or scalar zp vars like `sidoff`).
+#   - `per_voice`: written inside a `ldx #n-1; ...; dex; bpl` loop;
+#     the slot's `offset` is the base, with offset+X storing the X-th
+#     voice's value.
+
+@dataclass
+class StatebufSlot:
+    offset: int
+    kind: str            # 'var' | 'var_and' | 'note_byte' | 'const' | 'zp'
+    var: str = ''        # zp name for 'var' / 'var_and'
+    mask: int = 0xFF     # AND mask for 'var_and'
+    value: int = 0       # byte value for 'const'
+
+
+@dataclass
+class StatebufLayout:
+    n_voices: int = 3
+    scalars: list = field(default_factory=list)     # list[StatebufSlot]
+    per_voice: list = field(default_factory=list)   # list[StatebufSlot]
+
+
+# Commando's layout — the historic hand-written `build_statebuf` body.
+# Action Biker, Devils Galop, Monty and Chimera all share this layout
+# (they're the same engine family with the same state-region offsets).
+COMMANDO_STATEBUF_LAYOUT = StatebufLayout(
+    n_voices=3,
+    scalars=[
+        StatebufSlot(offset=3, kind='zp', var='sidoff'),
+    ],
+    per_voice=[
+        StatebufSlot(offset=4,  kind='var',     var='v_seqidx'),
+        StatebufSlot(offset=7,  kind='var',     var='v_hubidx'),
+        StatebufSlot(offset=10, kind='var',     var='v_dur'),
+        StatebufSlot(offset=13, kind='note_byte'),
+        StatebufSlot(offset=16, kind='var',     var='v_ctrlbyte'),
+        StatebufSlot(offset=19, kind='var',     var='v_pitch'),
+        StatebufSlot(offset=22, kind='var_and', var='v_instr', mask=0x3f),
+        StatebufSlot(offset=40, kind='var',     var='v_pwdir'),
+    ],
+)
+
+
+def _emit_build_statebuf(layout: StatebufLayout) -> str:
+    """Emit the `build_statebuf:` routine from a StatebufLayout.
+
+    Saves X (the caller's voice index), runs the scalars once, then
+    the per-voice loop with X = n_voices-1 down to 0, then restores X.
+    """
+    lines = ['build_statebuf:', '        txa', '        pha']
+    for s in layout.scalars:
+        if s.kind == 'const':
+            lines.append(f'        lda #${s.value:02X}')
+        elif s.kind == 'zp':
+            lines.append(f'        lda {s.var}')
+        else:
+            raise ValueError(f'scalar slot kind {s.kind!r} not supported')
+        lines.append(f'        sta statebuf+{s.offset}')
+
+    if layout.per_voice:
+        lines.append(f'        ldx #{layout.n_voices - 1}')
+        lines.append('bsb1:')
+        for s in layout.per_voice:
+            if s.kind == 'var':
+                lines.append(f'        lda {s.var},x')
+                lines.append(f'        sta statebuf+{s.offset},x')
+            elif s.kind == 'var_and':
+                lines.append(f'        lda {s.var},x')
+                lines.append(f'        and #${s.mask:02X}')
+                lines.append(f'        sta statebuf+{s.offset},x')
+            elif s.kind == 'note_byte':
+                lines.append(f'        lda v_instr,x')
+                lines.append(f'        and #$40')
+                lines.append(f'        ora v_durfield,x')
+                lines.append(f'        sta statebuf+{s.offset},x')
+            else:
+                raise ValueError(f'per-voice slot kind {s.kind!r} not supported')
+        lines.append('        dex')
+        lines.append('        bpl bsb1')
+
+    lines += ['        pla', '        tax', '        rts']
+    return '\n'.join(lines)
+
+
+def _statebuf_init_bytes(layout: StatebufLayout) -> str:
+    """The `statebuf:` data block — 96 bytes, with the per-voice
+    sidoff constants seeded where Commando expects them ($00, $07,
+    $0E for V1, V2, V3) and zeros for everything else. For engines
+    with different scalar constants, those are reflected here."""
+    bytes_ = [0] * 96
+    # The classic seed: 0, 7, 14 for V1, V2, V3. Engines override via
+    # `scalars` entries with kind='const' (e.g. HR puts sidoff
+    # constants at offsets 0 and 1 explicitly).
+    bytes_[0] = 0
+    bytes_[1] = 7
+    if layout.n_voices >= 3:
+        bytes_[2] = 14
+    # Apply any const scalars from the layout.
+    for s in layout.scalars:
+        if s.kind == 'const' and s.offset < len(bytes_):
+            bytes_[s.offset] = s.value
+    return ','.join(str(b) for b in bytes_)
 
 # ---------------------------------------------------------------------------
 # 6502 engine. A faithful implementation of song_interp.py's frame loop.
@@ -849,41 +975,10 @@ fxa_in:
         sta $d400,y
 fxa_ret: rts
 
-; build_statebuf - assemble the $54E8.. engine-state mirror that the
-; off-table arpeggio indexes. Slots 0-2 (v_sid_off) and the gaps are
-; pre-set in the data; this fills the live per-voice slots. The values
-; are read live (after PWM has run) - matching song_interp. Preserves
-; X and Y so the caller keeps the voice index / statebuf offset.
-build_statebuf:
-        txa
-        pha
-        lda sidoff
-        sta statebuf+3       ; $54EB scratch = current voice sid offset
-        ldx #2
-bsb1:   lda v_seqidx,x
-        sta statebuf+4,x     ; $54EC seq_idx
-        lda v_hubidx,x
-        sta statebuf+7,x     ; $54EF note_idx
-        lda v_dur,x
-        sta statebuf+10,x    ; $54F2 duration
-        lda v_ctrlbyte,x
-        sta statebuf+16,x    ; $54F8 ctrl_byte
-        lda v_pitch,x
-        sta statebuf+19,x    ; $54FB pitch
-        lda v_instr,x
-        and #$3f
-        sta statebuf+22,x    ; $54FE instr_num
-        lda v_pwdir,x
-        sta statebuf+40,x    ; $5510 pw_dir
-        lda v_instr,x
-        and #$40             ; tie -> bit6
-        ora v_durfield,x
-        sta statebuf+13,x    ; $54F5 note_byte
-        dex
-        bpl bsb1
-        pla
-        tax
-        rts
+; build_statebuf - assemble the off-table-arpeggio state mirror.
+; Generated per-engine from StatebufLayout (see codegen.py); the
+; concrete body is substituted in at codegen time.
+; %%BUILD_STATEBUF%%
 
 ; ============================ sound effects ===========================
 ; A SFX is a 2-voice register snapshot plus a freq-table pitch sweep,
@@ -1072,7 +1167,8 @@ def _pattern_pool(scores):
 
 def _emit_data(scores, models, freq_bytes, resetspds, voice_starts,
                sfx_list, pat_slot, pat_bytes, codec_extra,
-               seed_overlap: bool = True) -> str:
+               seed_overlap: bool = True,
+               state_layout: StatebufLayout = COMMANDO_STATEBUF_LAYOUT) -> str:
     """Emit the xa65 data section for a multi-subtune build.
 
     `scores` is one Score per packed music subtune; `sfx_list` is the
@@ -1193,11 +1289,12 @@ def _emit_data(scores, models, freq_bytes, resetspds, voice_starts,
     lines.append('orderHi: .byt 0,0,0')
     lines.append('orderLoop: .byt 0,0,0')
 
-    # statebuf - the $54E8.. engine-state mirror the off-table arpeggio
-    # indexes. Slots 0-2 are v_sid_off (constant 0,7,14); the rest are
-    # filled live by build_statebuf, with the unmapped gap bytes left 0.
-    lines.append('statebuf: .byt 0,7,14')
-    lines.append('        .byt ' + ','.join(['0'] * 93))
+    # statebuf - the engine-state mirror the off-table arpeggio indexes.
+    # Initial bytes hold any const scalars (Commando's per-voice sidoff
+    # 0,7,14 lives here; HR's sidoffs 0,7 likewise). The rest is filled
+    # live by build_statebuf, with unmapped gap bytes left at their
+    # init value (usually 0).
+    lines.append(f'statebuf: .byt {_statebuf_init_bytes(state_layout)}')
 
     # sound-effect records — 32 bytes each: V1[7], V2[7], start, end,
     # rate, flags (bit0 direction, bit1 skip-V1, bit2 skip-both),
@@ -1291,7 +1388,7 @@ def _sfx_state_in_freqtab(asm: str, ofs: int) -> str:
     return asm
 
 
-from dataclasses import dataclass as _dataclass
+from dataclasses import dataclass as _dataclass, field as _field
 from typing import Optional as _Optional
 
 
@@ -1334,6 +1431,7 @@ class _Inputs:
     sfx_list: list
     seed_overlap: bool = True
     psid_speed: int = 0       # PSID v2 speed bitmask (bit N = subtune N+1)
+    state_layout: StatebufLayout = _field(default_factory=lambda: COMMANDO_STATEBUF_LAYOUT)
 
 
 def _inputs_from_config(config) -> _Inputs:
@@ -1412,13 +1510,20 @@ def _emit_sid(inputs: _Inputs, out_path: str, codec) -> str:
            + _emit_data(inputs.scores, inputs.models, inputs.freq_bytes,
                         inputs.resetspds, inputs.voice_starts,
                         inputs.sfx_list, pat_slot, pat_bytes, codec_extra,
-                        seed_overlap=inputs.seed_overlap)
+                        seed_overlap=inputs.seed_overlap,
+                        state_layout=inputs.state_layout)
            + '\n')
 
     asm = asm.replace('inc freqtab+253',
                       f'inc freqtab+{inputs.sfx_framectr_ofs}')
     if inputs.sfx_state_ofs is not None:
         asm = _sfx_state_in_freqtab(asm, inputs.sfx_state_ofs)
+
+    # Substitute the per-engine build_statebuf body for the sentinel
+    # in the ENGINE template. The layout differs per engine — see
+    # StatebufLayout / COMMANDO_STATEBUF_LAYOUT / HR's layout.
+    asm = asm.replace('; %%BUILD_STATEBUF%%',
+                      _emit_build_statebuf(inputs.state_layout))
 
     src = '/tmp/usf2_commando.s'
     obj = '/tmp/usf2_commando.bin'

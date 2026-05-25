@@ -64,6 +64,11 @@ class EngineConstants:
     # via $EA31). Chimera is RSID; the standard Hubbard '85 music
     # engines are PSID. Determines the file's magic + flags.
     is_rsid: bool = False
+    # Off-table arpeggio state-region layout. None = use the codegen's
+    # default (Commando-shaped 3-voice layout, shared by Commando,
+    # Monty, Devils Galop, Action Biker, Chimera). HR has its own
+    # 2-voice layout with different offsets.
+    state_layout: Optional[object] = None
 
 
 # ---------------------------------------------------------------------------
@@ -615,6 +620,28 @@ COMMANDO = EngineConstants(
 )
 
 
+# Human Race's off-table arp state layout. HR's state region at
+# $0DA4 has interleaved per-voice arrays (2 voices, 1 scratch byte
+# between each pair), so the offsets are spaced +3 per logical
+# array. Mapping to our shared codegen zp:
+#   $0DA4..$0DA5 -> sidoff constants [V1=0, V2=7]   (offset 0,1)
+#   $0DAD..$0DAE -> v_dur                          (offset 9)
+# Only mirror what the off-table arp at the observed pitches reads;
+# unmapped offsets stay at the statebuf data-block init value (0).
+from pipelines.hubbard.codegen import StatebufLayout, StatebufSlot
+
+HUMAN_RACE_STATE_LAYOUT = StatebufLayout(
+    n_voices=2,
+    scalars=[
+        StatebufSlot(offset=0, kind='const', value=0x00),
+        StatebufSlot(offset=1, kind='const', value=0x07),
+    ],
+    per_voice=[
+        StatebufSlot(offset=9, kind='var', var='v_dur'),
+    ],
+)
+
+
 HUMAN_RACE_FREQ_STATE = bytes.fromhex(
     "0007000000000000000000000000000000000000000000020000000000000000"
     "000000000000000000000003030302030100c000000000000000000000000000"
@@ -636,6 +663,7 @@ HUMAN_RACE = EngineConstants(
     has_sfx=False,
     digi=None,
     is_rsid=False,
+    state_layout=HUMAN_RACE_STATE_LAYOUT,
 )
 
 

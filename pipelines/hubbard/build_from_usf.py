@@ -291,6 +291,7 @@ def _inputs_from_usf(usf: UsfFile) -> _Inputs:
         models=models, scores=scores, resetspds=resetspds,
         voice_starts=voice_starts, freq_bytes=freq_bytes,
         sfx_list=sfx_list,
+        **({'state_layout': ec.state_layout} if ec.state_layout is not None else {}),
     )
 
 
