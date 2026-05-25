@@ -41,6 +41,17 @@ class EngineConfig:
     incby2_step: int = 2
     incby2_every_frame: bool = False
     incby2_onset: int = 3           # min note dur for the fx-bit-1 slide
+    # "Late-in-note" gate: if set, the slide only fires when the v_dur
+    # countdown is < incby2_late_gate frames. Hunter Patrol uses this
+    # (gate=9) — its skydive runs only in the tail of long notes.
+    # None = no late gate (the slide fires for the whole note).
+    incby2_late_gate: Optional[int] = None
+    # Initial value of the music frame counter. After init the codegen
+    # writes this to zp `frame_ctr`; the first play() call INCs it.
+    # Default $FF gives frame_ctr=0 on frame 0 (the song_interp model).
+    # Hunter Patrol's binary ships $A426=$1E, giving frame_ctr=$1F on
+    # frame 0 — an OFF parity from the default that arp/skydive observe.
+    frame_ctr_init: int = 0xFF
     # the $178B drum-priority gate suppresses the very first voice's
     # first-frame note-start SID writes (Devils Galop only).
     suppress_first_notestart: bool = False

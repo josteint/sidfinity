@@ -280,6 +280,9 @@ def _inputs_from_usf(usf: UsfFile) -> _Inputs:
         first_frame_gate_off=get('first_frame_gate_off', False),
         seed_overlap=get('seed_overlap', True),
         psid_speed=usf.psid.speed,
+        frame_ctr_init=get('frame_ctr_init', 0xFF),
+        incby2_late_gate=(get('incby2_late_gate', -1)
+                          if get('has_incby2_late_gate', False) else None),
         # `has_stop_fill` distinguishes "stop_fill = 0 (write zeros)"
         # from "no stop_fill (don't write anything)". Earlier USFs
         # without this field default to None (no fill).
@@ -292,6 +295,7 @@ def _inputs_from_usf(usf: UsfFile) -> _Inputs:
         voice_starts=voice_starts, freq_bytes=freq_bytes,
         sfx_list=sfx_list,
         **({'state_layout': ec.state_layout} if ec.state_layout is not None else {}),
+        **({'seed_offsets': ec.seed_offsets} if ec.seed_offsets is not None else {}),
     )
 
 

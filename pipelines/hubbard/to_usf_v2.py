@@ -216,6 +216,11 @@ def _params_from_config(config) -> Params:
         'freeze_on_stop':            config.freeze_on_stop,
         'first_frame_gate_off':      config.first_frame_gate_off,
         'seed_overlap':              config.seed_overlap,
+        'frame_ctr_init':            config.frame_ctr_init,
+        'incby2_late_gate':          (config.incby2_late_gate
+                                      if config.incby2_late_gate is not None
+                                      else -1),
+        'has_incby2_late_gate':      (config.incby2_late_gate is not None),
         'stop_fill':                 (config.stop_fill
                                       if config.stop_fill is not None
                                       else 0),
@@ -329,4 +334,5 @@ def _basename_for(engine_name: str) -> str:
         'action_biker': 'Action_Biker',
         'monty': 'Monty_on_the_Run',
         'human_race': 'Human_Race',
+        'hunter_patrol': 'Hunter_Patrol',
     }.get(engine_name, engine_name.title())

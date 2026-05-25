@@ -66,9 +66,15 @@ class EngineConstants:
     is_rsid: bool = False
     # Off-table arpeggio state-region layout. None = use the codegen's
     # default (Commando-shaped 3-voice layout, shared by Commando,
-    # Monty, Devils Galop, Action Biker, Chimera). HR has its own
-    # 2-voice layout with different offsets.
+    # Monty, Devils Galop, Action Biker, Chimera). Human Race has its
+    # own 2-voice layout with different offsets.
     state_layout: Optional[object] = None
+    # Per-engine offsets within the freq-table region where the six
+    # per-voice state variables live. None = Commando defaults
+    # (v_ctrl=208, pwm_period=229, pwm_dir=232, v_instr=214,
+    # v_durfield=205, v_slide=239). Hunter Patrol's v_slide is at
+    # 238 instead of 239 — one byte earlier in the state region.
+    seed_offsets: Optional[dict] = None
 
 
 # ---------------------------------------------------------------------------
@@ -667,6 +673,39 @@ HUMAN_RACE = EngineConstants(
 )
 
 
+HUNTER_PATROL_FREQ_STATE = bytes.fromhex(
+    "00070e0000000001010a03030151510111118100002f04040aff016e0281ff00"
+    "02001801010000000000000102203620104cbc6e00000002001eaa0341294004"
+    "40084004412840040000ba014119800007080002810a0a0000050000110aa002"
+    "00020001411940021008000841050a0000010000810ab0000000000841043002"
+)
+assert len(HUNTER_PATROL_FREQ_STATE) == 128
+
+HUNTER_PATROL_FREQ_BYTES = HUBBARD_85_PAL_FREQ_TABLE + HUNTER_PATROL_FREQ_STATE
+assert len(HUNTER_PATROL_FREQ_BYTES) == 320
+
+HUNTER_PATROL = EngineConstants(
+    instr_base=0xA427,
+    instr_count=32,
+    freq_table_base=0xA32D,
+    freq_bytes=HUNTER_PATROL_FREQ_BYTES,
+    voice_starts={},          # all 3 voices active; defaults to V3-start
+    has_sfx=False,
+    digi=None,
+    is_rsid=False,
+    # v_fhi is at $A41B = freq_table_base + 238 (one byte earlier
+    # than Commando's +239). Other vars are at the Commando defaults.
+    seed_offsets={
+        'v_ctrl':     208,
+        'pwm_period': 229,
+        'pwm_dir':    232,
+        'v_instr':    214,
+        'v_durfield': 205,
+        'v_slide':    238,
+    },
+)
+
+
 ENGINE_CONSTANTS: dict[str, EngineConstants] = {
     'chimera': CHIMERA,
     'devils_galop': DEVILS_GALOP,
@@ -674,4 +713,5 @@ ENGINE_CONSTANTS: dict[str, EngineConstants] = {
     'monty': MONTY,
     'commando': COMMANDO,
     'human_race': HUMAN_RACE,
+    'hunter_patrol': HUNTER_PATROL,
 }

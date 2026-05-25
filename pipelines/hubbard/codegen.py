@@ -325,7 +325,7 @@ iniov:  lda ovseed,x
         sta speed_ctr
         lda #1
         sta first_frame
-        lda #$ff
+        lda #FRAME_CTR_INIT
         sta frame_ctr
         ldx #$18
 ini2:   lda #0
@@ -694,7 +694,10 @@ fxd_wr:
         sta $d401,y          ; freq_hi
 fxd_ret: rts
 
-; fx_incby2 - bit1. odd-frame +2 on the shared slide value, write old.
+; fx_incby2 - bit1. odd-frame slide on v_slide, write OLD value then
+; step. The optional %%INCBY2_LATE_GATE%% sentinel below is replaced
+; at codegen time with a `v_dur >= N -> skip` check for engines like
+; Hunter Patrol whose skydive only fires in the tail of long notes.
 fx_incby2:
         ldy instoff
         lda it_fx,y
@@ -703,6 +706,7 @@ fx_incby2:
         lda v_durfield,x
         cmp #INCBY2_ONSET
         bcc fxi_ret
+; %%INCBY2_LATE_GATE%%
         lda frame_ctr
         and #$01
         ora #INCBY2_ALWAYS   ; 1 -> runs every frame
@@ -1168,7 +1172,8 @@ def _pattern_pool(scores):
 def _emit_data(scores, models, freq_bytes, resetspds, voice_starts,
                sfx_list, pat_slot, pat_bytes, codec_extra,
                seed_overlap: bool = True,
-               state_layout: StatebufLayout = COMMANDO_STATEBUF_LAYOUT) -> str:
+               state_layout: StatebufLayout = COMMANDO_STATEBUF_LAYOUT,
+               seed_offsets: _Optional[dict] = None) -> str:
     """Emit the xa65 data section for a multi-subtune build.
 
     `scores` is one Score per packed music subtune; `sfx_list` is the
@@ -1226,12 +1231,24 @@ def _emit_data(scores, models, freq_bytes, resetspds, voice_starts,
     # `seed_overlap=False` zeros the seed for engines that init their
     # per-voice state at runtime (Human Race's $1A9C init).
     if seed_overlap:
-        ov = ([freq_bytes[208 + i] for i in range(3)]      # v_ctrl     freq+208
-              + [freq_bytes[229 + i] for i in range(3)]    # pwm_period freq+229
-              + [freq_bytes[232 + i] for i in range(3)]    # pwm_dir    freq+232
-              + [freq_bytes[214 + i] for i in range(3)]    # v_instr    freq+214
-              + [freq_bytes[205 + i] for i in range(3)]    # v_durfield freq+205
-              + [freq_bytes[239 + i] for i in range(3)])   # v_slide    freq+239
+        # The 6 per-voice state vars live inside the freq-table region.
+        # Each engine has the same set of vars but at engine-specific
+        # offsets — Commando defaults; Hunter Patrol's v_slide is at
+        # +238 instead of +239 (one byte earlier within the state).
+        so = seed_offsets or {
+            'v_ctrl':     208,
+            'pwm_period': 229,
+            'pwm_dir':    232,
+            'v_instr':    214,
+            'v_durfield': 205,
+            'v_slide':    239,
+        }
+        ov = ([freq_bytes[so['v_ctrl']     + i] for i in range(3)]
+              + [freq_bytes[so['pwm_period'] + i] for i in range(3)]
+              + [freq_bytes[so['pwm_dir']    + i] for i in range(3)]
+              + [freq_bytes[so['v_instr']    + i] for i in range(3)]
+              + [freq_bytes[so['v_durfield'] + i] for i in range(3)]
+              + [freq_bytes[so['v_slide']    + i] for i in range(3)])
     else:
         ov = [0] * 18
     lines.append('ovseed: .byt ' + ','.join(f'${b:02X}' for b in ov))
@@ -1432,6 +1449,9 @@ class _Inputs:
     seed_overlap: bool = True
     psid_speed: int = 0       # PSID v2 speed bitmask (bit N = subtune N+1)
     state_layout: StatebufLayout = _field(default_factory=lambda: COMMANDO_STATEBUF_LAYOUT)
+    seed_offsets: _Optional[dict] = None     # per-engine ovseed offsets
+    frame_ctr_init: int = 0xFF                # initial zp frame_ctr
+    incby2_late_gate: _Optional[int] = None   # fx_incby2 v_dur < N gate
 
 
 def _inputs_from_config(config) -> _Inputs:
@@ -1475,6 +1495,8 @@ def _inputs_from_config(config) -> _Inputs:
         sfx_state_ofs=config.sfx_state_ofs,
         has_sfx=config.has_sfx,
         seed_overlap=config.seed_overlap,
+        frame_ctr_init=config.frame_ctr_init,
+        incby2_late_gate=config.incby2_late_gate,
         subtunes=config.subtunes,
         models=models, scores=scores, resetspds=resetspds,
         voice_starts=voice_starts, freq_bytes=freq_bytes,
@@ -1490,6 +1512,7 @@ def _emit_sid(inputs: _Inputs, out_path: str, codec) -> str:
 
     asm = (f'PWLEN = {2 * len(inputs.models) - 1}\n'
            f'N_MUSIC = {len(inputs.subtunes)}\n'
+           f'FRAME_CTR_INIT = {inputs.frame_ctr_init}\n'
            f'ARP_OFS = {inputs.arp_interval}\n'
            f'ARP_MASK = {inputs.arp_period - 1}\n'
            f'LINEAR_PW_OR = {inputs.linear_pw_or}\n'
@@ -1511,7 +1534,8 @@ def _emit_sid(inputs: _Inputs, out_path: str, codec) -> str:
                         inputs.resetspds, inputs.voice_starts,
                         inputs.sfx_list, pat_slot, pat_bytes, codec_extra,
                         seed_overlap=inputs.seed_overlap,
-                        state_layout=inputs.state_layout)
+                        state_layout=inputs.state_layout,
+                        seed_offsets=inputs.seed_offsets)
            + '\n')
 
     asm = asm.replace('inc freqtab+253',
@@ -1521,9 +1545,20 @@ def _emit_sid(inputs: _Inputs, out_path: str, codec) -> str:
 
     # Substitute the per-engine build_statebuf body for the sentinel
     # in the ENGINE template. The layout differs per engine — see
-    # StatebufLayout / COMMANDO_STATEBUF_LAYOUT / HR's layout.
+    # StatebufLayout / COMMANDO_STATEBUF_LAYOUT / Human Race's layout.
     asm = asm.replace('; %%BUILD_STATEBUF%%',
                       _emit_build_statebuf(inputs.state_layout))
+
+    # Substitute the optional "late-in-note" gate inside fx_incby2.
+    # Hunter Patrol's skydive only fires once the v_dur countdown
+    # drops below 9 frames; other engines have no such gate.
+    late_gate_asm = ''
+    if inputs.incby2_late_gate is not None:
+        late_gate_asm = (
+            f'        lda v_dur,x\n'
+            f'        cmp #{inputs.incby2_late_gate}\n'
+            f'        bcs fxi_ret          ; v_dur >= late_gate -> skip')
+    asm = asm.replace('; %%INCBY2_LATE_GATE%%', late_gate_asm)
 
     src = '/tmp/usf2_commando.s'
     obj = '/tmp/usf2_commando.bin'
