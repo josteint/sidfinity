@@ -34,7 +34,7 @@ Engine classification comes from `sidid` plus a probe with our `rh_decompile`
 
 | Year | Title | Engine | Pipeline status | Path |
 |---|---|---|---|---|
-| 1984 | Up, up & Away! | Companion |  | `data/C64Music/MUSICIANS/H/Hubbard_Rob/Up_up_and_Away.sid` |
+| 1984 | Up, up & Away! | Companion | byte-exact (5/5) — pipelines/companion/ | `data/C64Music/MUSICIANS/H/Hubbard_Rob/Up_up_and_Away.sid` |
 | 1985 | 5 Title Tunes | classic | byte-exact unified single-engine (5/5) | `data/C64Music/MUSICIANS/H/Hubbard_Rob/5_Title_Tunes.sid` |
 | 1985 | Action Biker | classic | byte-exact (3/3) | `data/C64Music/MUSICIANS/H/Hubbard_Rob/Action_Biker.sid` |
 | 1985 | Battle of Britain | classic |  | `data/C64Music/MUSICIANS/H/Hubbard_Rob/Battle_of_Britain.sid` |
