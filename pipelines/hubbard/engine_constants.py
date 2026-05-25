@@ -734,7 +734,9 @@ THING_ON_A_SPRING = EngineConstants(
     freq_table_base=0xC3A9,
     freq_bytes=THING_ON_A_SPRING_FREQ_BYTES,
     voice_starts={},          # all 3 voices active
-    has_sfx=False,
+    # 16 SFX overlays at $CDA2 — same 16-byte format as Commando.
+    # PSID exposes them as subtunes 1..16 (subtune 0 is the music).
+    has_sfx=True,
     digi=None,
     is_rsid=False,
     # Thing on a Spring uses pitch 100 in V2's pattern data; the
