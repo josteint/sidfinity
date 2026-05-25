@@ -14,10 +14,11 @@ SID-register-write stream matches the original — through the pipeline
 SID → extract → USF2 → codegen → rebuilt SID, on the shared Hubbard '85
 core at `pipelines/hubbard/`.
 
-Five engines are already done this way. The engine is a thin
-`EngineConfig`; the shared core (song_interp + codegen) is engine-
-agnostic. There is **no cloning** — every per-engine difference is a
-config field.
+Seven engines are already done this way (Commando, Devils Galop,
+Monty, Action Biker, Chimera, Human Race, Hunter Patrol). The engine
+is a thin `EngineConfig`; the shared core (song_interp + codegen) is
+engine-agnostic. There is **no cloning** — every per-engine
+difference is a config field.
 
 ## The principle — do not violate this
 
@@ -75,28 +76,43 @@ instruments' ctrl/ad/sr/fx/vib/arp/pwm should look plausible). A wrong
 ## Step 3 — build + trace loop
 
 The per-iteration snippet (capture each SID **once**, then compare —
-never call `capture()` inside a per-frame loop):
+never call `capture()` inside a per-frame loop). Use `subtune_frames`
+to get the canonical per-subtune window (`verify_all` uses the same
+function); never hardcode a frame count:
 
 ```python
 import sys; sys.path.insert(0,'.'); sys.path.insert(0,'tools/py65_lib'); sys.path.insert(0,'src')
-from pipelines.hubbard.codegen import build
+from pipelines.hubbard.build_from_usf import build_from_usf
 from pipelines.hubbard.inst_program import capture, REG_NAMES
+from pipelines.hubbard.verify import subtune_frames
 from pipelines.<engine>.config import CFG
-build(CFG, out_path='/tmp/<engine>.sid')
+from pipelines.<engine>.extract.to_usf_v2 import write_<engine>_usf
+write_<engine>_usf(CFG, 'demo/hubbard')
+build_from_usf('demo/hubbard/<Engine>.usf', 'demo/hubbard/<Engine>.sid')
 def fmt(fw): return ' '.join(f'{["V1","V2","V3"][p//7]}.{REG_NAMES[p%7]}={v:02X}' for p,v in fw) or '-'
-for st in CFG.subtunes:
-    o=capture(CFG.sid_path,n_frames=6000,subtune=st)
-    r=capture('/tmp/<engine>.sid',n_frames=6000,subtune=st)
-    first=next((k for k in range(6000) if o.raw_frames[k]!=r.raw_frames[k]),None)
-    print(f'subtune {st}: first diff f{first}')
-    if first is not None and st==CFG.subtunes[0]:
-        for k in range(first,first+3):
-            print(' orig',fmt(o.raw_frames[k])); print(' reb ',fmt(r.raw_frames[k]))
+nfs = subtune_frames(CFG, passes=1.1)
+for st, nf in zip(CFG.subtunes, nfs):
+    o = capture(CFG.sid_path, n_frames=nf, subtune=st)
+    r = capture('demo/hubbard/<Engine>.sid', n_frames=nf, subtune=st)
+    first = next((k for k in range(nf) if o.raw_frames[k] != r.raw_frames[k]), None)
+    matches = sum(1 for k in range(nf) if o.raw_frames[k] == r.raw_frames[k])
+    print(f'subtune {st}: {matches}/{nf} match, first_div={first}')
+    if first is not None and st == CFG.subtunes[0]:
+        for k in range(first, min(nf, first + 3)):
+            print(' orig', fmt(o.raw_frames[k])); print(' reb ', fmt(r.raw_frames[k]))
 ```
 
 At each first-diff, read the disassembly and pick the delta. Then
 `song_interp` and the codegen must agree — if both are wrong by the same
 amount it is the model (song_interp), not the codegen.
+
+**Suspect the NEW code first** when a diff appears: the extractor, the
+engine's `EngineConfig`, the `EngineConstants` entry. Those are what
+you just touched. Only after you've verified those does it make sense
+to suspect the shared core — see the catalog below for the latent-bug
+sites HR / Hunter Patrol migrations have uncovered (`N_MUSIC`, PSID
+speed, `seed_offsets`, `state_layout`, empty orderlists). Each new
+engine may surface one more.
 
 ## The delta catalog — config fields and their disassembly signatures
 
@@ -104,23 +120,31 @@ amount it is the model (song_interp), not the codegen.
 |---|---|
 | `speed_ctr_init` | first note-load deferred N frames — the tick counter starts at N; the first N frames are effects-only |
 | `first_frame_gate_off` | play frame 0 writes ctrl=0 to all 3 voices (first-frame setup runs in *play*, not init) |
-| `vib_onset` | vibrato dur-field gate — the `CMP #$xx` guarding the vibrato accumulate |
+| `vib_onset` | vibrato dur-field gate — the `CMP #$xx` guarding the vibrato accumulate. **Note**: our `v_durfield` = `raw_byte & $1F` (no +1 adjustment); set the value to match the original's `CMP` operand directly |
 | `arp_interval` | arpeggio semitone offset (usually 12) |
 | `arp_period` | arp cycle length — `frame & N` in the arp block means `arp_period = N+1` |
-| `incby2_step` / `incby2_every_frame` / `incby2_onset` | fx-bit-1 freq-hi slide — step (+2/+1/-1), every-frame vs odd-frame, min dur field |
+| `incby2_step` / `incby2_every_frame` / `incby2_onset` | fx-bit-1 freq-hi slide — step (+2 / +1 / -1), every-frame vs odd-frame, min dur field |
+| `incby2_late_gate` | fx-bit-1 slide also gated on `v_dur < N` (only fires in the tail of long notes — Hunter Patrol's pattern). None = no late gate |
+| `frame_ctr_init` | engine binary's load-time value at the music frame counter (e.g. Hunter Patrol's `$A426=$1E`). Default $FF gives `frame_ctr=$00` on frame 0; engines that ship other values flip arp / skydive parity if not overridden |
 | `linear_pw_or` | `ORA #$xx` applied to pw_lo in the linear-PW kick |
 | `freeze_on_stop` | `$FE` freezes the voice (holds the note, keeps effects, never gates off) |
 | `stop_fill` | `$FE` ends the song by writing this byte to every voice register, then silence |
 | `voice_starts` | per-subtune voice-loop start index (a subtune that skips V3) |
 | `suppress_first_notestart` | a drum-priority gate suppresses voice 0's first-frame note-start |
+| `seed_offsets` (on `EngineConstants`) | per-engine offsets where the 6 per-voice state vars live within the freq-table region. Default = Commando's (v_ctrl=208, pwm_period=229, pwm_dir=232, v_instr=214, v_durfield=205, v_slide=239). Hunter Patrol's v_slide is at 238. If a new engine's v_fhi / state lives at a different offset, override |
+| `state_layout` (on `EngineConstants`) | off-table arpeggio statebuf layout (`StatebufLayout`). Default = Commando's 3-voice layout shared by Commando / Monty / Action Biker / Devils Galop / Chimera. Human Race has its own 2-voice layout |
 
 **Overlap seeds.** Engines that run effects before the first note-load
 (deferred note-load, or a first-note tie) read per-voice state from the
-binary's load-time bytes. The shared core seeds these from
-`freq_table_base + offset`: `v_durfield` +205, `v_ctrl` +208,
-`v_instr` +214, `pwm_period` +229, `pwm_dir` +232, `v_slide` +239. If a
-new engine reads another uninitialised per-voice variable, seed it the
-same way (song_interp `__init__` + codegen `iniov`).
+binary's load-time bytes. The defaults are Commando's offsets (see
+`seed_offsets` row in the catalog above); if a new engine has any
+variable at a different offset, override `seed_offsets` in its
+`EngineConstants` entry. Hunter Patrol differs only in v_slide
+(+238 vs Commando's +239) — it kept the other five identical.
+
+If the engine doesn't seed from the binary at all (Human Race's init
+zeros the per-voice state at runtime), set `seed_overlap=False`
+instead; that zeros the `ovseed` block entirely.
 
 ## Step 4 — ship the SFX sub-engine
 

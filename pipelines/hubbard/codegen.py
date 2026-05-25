@@ -588,10 +588,13 @@ note_start:
         sta $d404,y
         jmp ns_pwadsr
 ns_full:
-        ; freq - pitch 104 (inst 4) reads off-table into ctrl_byte
+        ; freq - pitch >= 96 reads off-table into the engine state
+        ; region. The shared `statebuf` mirrors the per-engine layout
+        ; (see StatebufLayout); off-table notes read it the same way
+        ; fx_arp does for the +12 / +24 octave cases.
         lda v_pitch,x
-        cmp #104
-        beq ns_offtab
+        cmp #96
+        bcs ns_offtab
         asl
         tay
         lda freqtab,y
@@ -600,9 +603,21 @@ ns_full:
         sta f_hi
         jmp ns_havefreq
 ns_offtab:
-        lda v_ctrlbyte+0     ; $54F8 = ctrl_byte[0]
+        sec
+        sbc #96
+        cmp #48
+        bcs ns_offzero       ; pitch beyond the 48-byte mirrored state
+        asl                  ; (pitch-96)*2 = statebuf offset
+        tay
+        jsr build_statebuf
+        lda statebuf+0,y
         sta f_lo
-        lda v_ctrlbyte+1     ; $54F9 = ctrl_byte[1]
+        lda statebuf+1,y
+        sta f_hi
+        jmp ns_havefreq
+ns_offzero:
+        lda #0
+        sta f_lo
         sta f_hi
 ns_havefreq:
         lda f_hi

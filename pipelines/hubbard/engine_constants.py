@@ -706,6 +706,29 @@ HUNTER_PATROL = EngineConstants(
 )
 
 
+THING_ON_A_SPRING_FREQ_STATE = bytes.fromhex(
+    "00070e002a4c2c0007070701015705054141414558280e0506ff05300041ff41"
+    "6f008c3a00010100000001010170003aaf030440e700ffff22003200008181a0"
+    "a9008d04d48d0bd48da2c4ad9fc4290f8d9fc40a0a0a0aa8b9a2cd8da8c4b9a3"
+    "cd8da1c4b9b1cd8da3c4b9aacd8da5c4293f8da4c4b9a7cd8da6c4b9aecd8da7"
+)
+assert len(THING_ON_A_SPRING_FREQ_STATE) == 128
+
+THING_ON_A_SPRING_FREQ_BYTES = HUBBARD_85_PAL_FREQ_TABLE + THING_ON_A_SPRING_FREQ_STATE
+assert len(THING_ON_A_SPRING_FREQ_BYTES) == 320
+
+THING_ON_A_SPRING = EngineConstants(
+    instr_base=0xCD2A,
+    instr_count=15,
+    freq_table_base=0xC3A9,
+    freq_bytes=THING_ON_A_SPRING_FREQ_BYTES,
+    voice_starts={},          # all 3 voices active
+    has_sfx=False,
+    digi=None,
+    is_rsid=False,
+)
+
+
 ENGINE_CONSTANTS: dict[str, EngineConstants] = {
     'chimera': CHIMERA,
     'devils_galop': DEVILS_GALOP,
@@ -714,4 +737,5 @@ ENGINE_CONSTANTS: dict[str, EngineConstants] = {
     'commando': COMMANDO,
     'human_race': HUMAN_RACE,
     'hunter_patrol': HUNTER_PATROL,
+    'thing_on_a_spring': THING_ON_A_SPRING,
 }
