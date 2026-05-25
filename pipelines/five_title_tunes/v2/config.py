@@ -106,24 +106,31 @@ def _make_config(i: int, **deltas) -> EngineConfig:
 
 
 # Sub 0 — title tune 1. Tempo 4, 32 sequences, 8 instruments.
-# Tempo 4 means first note-load is deferred 3 frames (speed counter
-# starts at 3, decrements each frame; note-load fires when it underflows).
-TUNE0 = _make_config(0, instr_count=8, speed_ctr_init=3)
+# Tempo 4 means first note-load is deferred 3 frames.
+# Arp mask = $01 → arp_period = 2 ($0F3C `AND #$01`).
+TUNE0 = _make_config(0, instr_count=8, speed_ctr_init=3, arp_period=2)
 
 # Sub 1 — title tune 2. Tempo 2, 12 sequences. Has CMP #$10/#$18
-# pattern (Hunter-Patrol-style fx-bit-1 late-gate).
+# pattern (Hunter-Patrol-style fx-bit-1 late-gate). 1-frame deferred
+# init (orig frame 0 writes only V1+V2+V3 freq=$0116; frame 1 = full).
 TUNE1 = _make_config(1, instr_count=12,
+                     speed_ctr_init=1, arp_period=2,
                      incby2_onset=0x10, incby2_late_gate=0x18)
 
 # Sub 2 — title tune 3. Tempo 3, 16 sequences. Hunter-Patrol pattern.
-TUNE2 = _make_config(2, instr_count=12,
+# No speed_ctr_init delay — this sub's init does its own first-frame setup.
+TUNE2 = _make_config(2, instr_count=12, arp_period=2,
                      incby2_onset=0x10, incby2_late_gate=0x18)
 
-# Sub 3 — title tune 4. Tempo 3, 15 sequences. Chimera-style.
-TUNE3 = _make_config(3, instr_count=12)
+# Sub 3 — title tune 4. Tempo 3, 15 sequences. Chimera-style. 1-frame
+# deferred init (orig: frame 0 = V1+V2 freq=$0116, frame 1 = full).
+TUNE3 = _make_config(3, instr_count=12,
+                     speed_ctr_init=1, arp_period=2)
 
 # Sub 4 — title tune 5. Tempo 2, 11 sequences. Hunter-Patrol pattern.
+# 1-frame deferred init.
 TUNE4 = _make_config(4, instr_count=12,
+                     speed_ctr_init=1, arp_period=2,
                      incby2_onset=0x10, incby2_late_gate=0x18)
 
 ALL_TUNES = (TUNE0, TUNE1, TUNE2, TUNE3, TUNE4)
