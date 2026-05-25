@@ -864,4 +864,19 @@ ENGINE_CONSTANTS: dict[str, EngineConstants] = {
     'five_tt_sub2': FIVE_TITLE_TUNES_SUBS[2],
     'five_tt_sub3': FIVE_TITLE_TUNES_SUBS[3],
     'five_tt_sub4': FIVE_TITLE_TUNES_SUBS[4],
+    # Unified 5 Title Tunes — ONE engine playing all 5 subtunes. Uses
+    # sub_1's freq_bytes (its state region is the only one whose
+    # off-table arpeggio bytes are actually read at runtime; the other
+    # subs never reach pitch >= 96). Per-subtune state seeding is
+    # handled via per_subtune_ovseed at runtime.
+    'five_title_tunes': EngineConstants(
+        instr_base=0x1000,                          # bookkeeping only
+        instr_count=56,                              # 8+12+12+12+12 absolute
+        freq_table_base=0x1000,                      # bookkeeping only
+        freq_bytes=FIVE_TITLE_TUNES_SUBS[1].freq_bytes,
+        voice_starts={},                             # per-subtune via params
+        has_sfx=False,
+        digi=None,
+        is_rsid=False,
+    ),
 }

@@ -224,6 +224,29 @@ def _freq_bytes_from_usf(usf: UsfFile, engine_const) -> bytes:
 # USF → _Inputs
 # ---------------------------------------------------------------------------
 
+def _ovseed_from_init_state(init, instr_count: int) -> bytes:
+    """Convert a USF `InitState` back into the 18-byte ovseed
+    (the inverse of `_init_state_from_ovseed` in
+    pipelines/five_title_tunes/v2/write_unified_usf.py).
+    Layout: v_ctrl[3] pwm_period[3] pwm_dir[3] v_instr[3]
+            v_durfield[3] v_slide[3]."""
+    if init is None or not init.voices:
+        return bytes(18)
+    ovseed = bytearray(18)
+    for v in init.voices:
+        i = v.id - 1
+        if not 0 <= i < 3:
+            continue
+        ovseed[0 + i] = v.ctrl
+        ovseed[3 + i] = v.pwm_period
+        ovseed[6 + i] = 0x00 if v.pwm_dir == 'up' else 0xFF
+        instr_byte = (v.instr.id - 1) & 0x3F if v.instr is not None else 0
+        ovseed[9 + i] = instr_byte
+        ovseed[12 + i] = v.dur_field
+        ovseed[15 + i] = v.slide_v
+    return bytes(ovseed)
+
+
 def _inputs_from_usf(usf: UsfFile) -> _Inputs:
     """Build codegen `_Inputs` purely from a parsed UsfFile + the
     per-engine constants. No binary or sid_path access."""
@@ -254,6 +277,36 @@ def _inputs_from_usf(usf: UsfFile) -> _Inputs:
     scores = [_score_from_subtune(s) for s in music_subs]
     resetspds = [s.tempo - 1 for s in music_subs]
     voice_starts = [ec.voice_starts.get(s.id, 2) for s in music_subs]
+
+    # Per-subtune overrides — populated from each subtune's `params` and
+    # `init` blocks (USF v2 unified-engine extension). When ANY music
+    # subtune carries these, the codegen switches to per-subtune-table
+    # mode; existing engines (which don't emit these blocks) fall
+    # through with all lists = None.
+    has_per_subtune = any(
+        s.params is not None or s.init is not None for s in music_subs)
+    per_subtune_speed_ctr_init = None
+    per_subtune_incby2_step = None
+    per_subtune_incby2_late_gate = None
+    per_subtune_ovseed = None
+    if has_per_subtune:
+        per_subtune_speed_ctr_init = []
+        per_subtune_incby2_step = []
+        per_subtune_incby2_late_gate = []
+        per_subtune_ovseed = []
+        for s in music_subs:
+            sp = s.params.fields if s.params is not None else {}
+            per_subtune_speed_ctr_init.append(sp.get('speed_ctr_init', 0))
+            per_subtune_incby2_step.append(sp.get('incby2_step', 2) & 0xFF)
+            per_subtune_incby2_late_gate.append(
+                sp.get('incby2_late_gate', 0xFF) & 0xFF)
+            per_subtune_ovseed.append(
+                _ovseed_from_init_state(s.init, len(usf.instruments)))
+            # Per-subtune tick divider / voice start may override too.
+            if 'tick_divider' in sp:
+                resetspds[len(per_subtune_ovseed) - 1] = sp['tick_divider']
+            if 'voice_start' in sp:
+                voice_starts[len(per_subtune_ovseed) - 1] = sp['voice_start']
 
     # SFX subtunes — reconstruct engine SoundEffect records in PSID-id order
     sfx_subs = sorted(
@@ -300,6 +353,10 @@ def _inputs_from_usf(usf: UsfFile) -> _Inputs:
         **({'ns_offtab_decr_offset': ec.ns_offtab_decr_offset}
            if getattr(ec, 'ns_offtab_decr_offset', None) is not None else {}),
         hubidx_wrap_at_patend=getattr(ec, 'hubidx_wrap_at_patend', True),
+        per_subtune_speed_ctr_init=per_subtune_speed_ctr_init,
+        per_subtune_incby2_step=per_subtune_incby2_step,
+        per_subtune_incby2_late_gate=per_subtune_incby2_late_gate,
+        per_subtune_ovseed=per_subtune_ovseed,
     )
 
 

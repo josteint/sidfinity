@@ -343,4 +343,5 @@ def _basename_for(engine_name: str) -> str:
         'five_tt_sub2': '5_Title_Tunes_2',
         'five_tt_sub3': '5_Title_Tunes_3',
         'five_tt_sub4': '5_Title_Tunes_4',
+        'five_title_tunes': '5_Title_Tunes',
     }.get(engine_name, engine_name.title())
