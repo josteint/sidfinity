@@ -1534,9 +1534,15 @@ def _inputs_from_config(config) -> _Inputs:
     )
 
 
-def _emit_sid(inputs: _Inputs, out_path: str, codec) -> str:
+def _emit_sid(inputs: _Inputs, out_path: str, codec,
+              load_addr: int = LOAD) -> str:
     """Emit a SID file from a fully-prepared `_Inputs`. No I/O of the
-    original binary; everything needed is in `inputs`."""
+    original binary; everything needed is in `inputs`.
+
+    `load_addr` overrides the default $1000 load address — set by the
+    compound-PSID build (5 Title Tunes) which packs 5 engines at
+    non-overlapping addresses.
+    """
     pat_order, pat_slot = _pattern_pool(inputs.scores)
     pat_bytes, codec_extra = codec.encode(pat_order)
 
@@ -1614,6 +1620,10 @@ def _emit_sid(inputs: _Inputs, out_path: str, codec) -> str:
             f'        sta statebuf+{ofs},x')
     asm = asm.replace('; %%NS_OFFTAB_DECR%%', offtab_decr_asm)
 
+    # Relocate the engine to the requested load address — the ENGINE
+    # template has `* = $1000` hardcoded; rewrite it to load_addr.
+    asm = asm.replace('* = $1000', f'* = ${load_addr:04X}')
+
     src = '/tmp/usf2_commando.s'
     obj = '/tmp/usf2_commando.bin'
     with open(src, 'w') as f:
@@ -1628,9 +1638,9 @@ def _emit_sid(inputs: _Inputs, out_path: str, codec) -> str:
     songs = len(inputs.subtunes) + (len(inputs.sfx_list) if inputs.has_sfx else 0)
     h = bytearray(b'PSID')
     h += struct.pack('>HH', 2, 124)
-    h += struct.pack('>H', LOAD)
-    h += struct.pack('>H', LOAD)
-    h += struct.pack('>H', LOAD + 3)
+    h += struct.pack('>H', load_addr)
+    h += struct.pack('>H', load_addr)
+    h += struct.pack('>H', load_addr + 3)
     h += struct.pack('>H', songs)
     h += struct.pack('>H', min(max(inputs.start_song, 1), songs))
     h += struct.pack('>I', inputs.psid_speed)
