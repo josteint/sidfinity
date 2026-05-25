@@ -113,10 +113,20 @@ class VoiceBlock:
 
 @dataclass
 class MusicSubtune:
-    """A 3-voice music subtune."""
+    """A 3-voice music subtune.
+
+    `params` is an optional per-subtune parameter override. When the
+    engine has subtunes that vary in engine-level parameters (e.g. 5
+    Title Tunes' 5 sub-engines have different speed_ctr_init,
+    incby2_step, late_gate values), each subtune carries its own
+    params block. The codegen builds per-subtune tables and the engine
+    looks up by current subtune index instead of using compile-time
+    constants. When None (most engines), top-level Params applies.
+    """
     id: int
     tempo: int
     voices: list[VoiceBlock] = field(default_factory=list)
+    params: 'Params | None' = None
     kind: str = 'music'
 
 

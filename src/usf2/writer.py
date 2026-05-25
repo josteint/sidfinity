@@ -189,6 +189,10 @@ def _write_subtune(s) -> list[str]:
     if isinstance(s, MusicSubtune):
         lines = [f'subtune {s.id} music {{']
         lines.append(f'  tempo: {s.tempo}')
+        if s.params is not None and s.params.fields:
+            # Indent the per-subtune params block under the subtune.
+            for line in _write_params(s.params):
+                lines.append('  ' + line)
         for v in s.voices:
             lines.extend(_write_voice(v))
         lines.append('}')
