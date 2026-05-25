@@ -1468,6 +1468,7 @@ class _Inputs:
     seed_offsets: _Optional[dict] = None     # per-engine ovseed offsets
     frame_ctr_init: int = 0xFF                # initial zp frame_ctr
     incby2_late_gate: _Optional[int] = None   # fx_incby2 v_dur < N gate
+    arp_phase_invert: bool = False            # swap base/+OFS sense in fx_arp
     # Engines whose off-table note-start reads pattern-position state
     # (Thing on a Spring) need the current voice's v_hubidx slot in
     # statebuf decremented by 1 to match the engine's v_patpos value
@@ -1510,6 +1511,7 @@ def _inputs_from_config(config) -> _Inputs:
         psid_speed=psid_speed,
         arp_interval=config.arp_interval,
         arp_period=config.arp_period,
+        arp_phase_invert=config.arp_phase_invert,
         linear_pw_or=config.linear_pw_or,
         incby2_step=config.incby2_step,
         incby2_every_frame=config.incby2_every_frame,
@@ -1578,6 +1580,13 @@ def _emit_sid(inputs: _Inputs, out_path: str, codec) -> str:
     asm = asm.replace('; %%BUILD_STATEBUF%%',
                       _emit_build_statebuf(inputs.state_layout))
 
+    # When arp_phase_invert, flip the sense of fx_arp's branch: the
+    # "frame_ctr & ARP_MASK == 0" path becomes the +ARP_OFS one
+    # instead of the base one (One Man and his Droid uses
+    # `frame_ctr & $04 == 0` → +12, the inverse of every other engine).
+    if inputs.arp_phase_invert:
+        asm = asm.replace('beq fxa_even', 'bne fxa_even')
+
     # Substitute the optional "late-in-note" gate inside fx_incby2.
     # Hunter Patrol's skydive only fires once the v_dur countdown
     # drops below 9 frames; other engines have no such gate.
@@ -1616,7 +1625,7 @@ def _emit_sid(inputs: _Inputs, out_path: str, codec) -> str:
         code = f.read()
 
     # PSID header
-    songs = len(inputs.subtunes) + (16 if inputs.has_sfx else 0)
+    songs = len(inputs.subtunes) + (len(inputs.sfx_list) if inputs.has_sfx else 0)
     h = bytearray(b'PSID')
     h += struct.pack('>HH', 2, 124)
     h += struct.pack('>H', LOAD)

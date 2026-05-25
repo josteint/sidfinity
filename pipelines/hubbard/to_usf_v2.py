@@ -206,6 +206,7 @@ def _params_from_config(config) -> Params:
     return Params(fields={
         'arp_interval':              config.arp_interval,
         'arp_period':                config.arp_period,
+        'arp_phase_invert':          config.arp_phase_invert,
         'linear_pw_or':              config.linear_pw_or,
         'vib_onset':                 config.vib_onset,
         'speed_ctr_init':            config.speed_ctr_init,
@@ -336,4 +337,5 @@ def _basename_for(engine_name: str) -> str:
         'human_race': 'Human_Race',
         'hunter_patrol': 'Hunter_Patrol',
         'thing_on_a_spring': 'Thing_on_a_Spring',
+        'one_man_and_his_droid': 'One_Man_and_his_Droid',
     }.get(engine_name, engine_name.title())

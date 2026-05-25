@@ -270,6 +270,7 @@ def _inputs_from_usf(usf: UsfFile) -> _Inputs:
         start_song=usf.psid.start_song,
         arp_interval=get('arp_interval', 12),
         arp_period=get('arp_period', 2),
+        arp_phase_invert=get('arp_phase_invert', False),
         linear_pw_or=get('linear_pw_or', 0),
         incby2_step=get('incby2_step', 2),
         incby2_every_frame=get('incby2_every_frame', False),

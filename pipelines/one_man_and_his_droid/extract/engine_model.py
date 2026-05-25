@@ -278,6 +278,8 @@ def extract(
                         voice.patterns[pat_idx] = notes
                 elif entry[0] == 'loop':
                     voice.loop = entry[1]
+                elif entry[0] == 'stop':
+                    voice.stop = True
             score.voices.append(voice)
 
         logger.debug("extract: %d instruments, %d voices, tempo=%d",

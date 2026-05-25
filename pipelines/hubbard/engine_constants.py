@@ -753,6 +753,32 @@ THING_ON_A_SPRING = EngineConstants(
 )
 
 
+ONE_MAN_AND_HIS_DROID_FREQ_STATE = bytes.fromhex(
+    "00070e0000000000000000000000000000000000000000000200000000000000"
+    "0000000000000000000000000100c000000000000000000000000000ff000000"
+    "000000000000a9008d04d48d0bd48d2115ad1e15290f8d1e150a0a0a0aa8b900"
+    "168d2715b901168d2015b90f168d2215b908168d2415293f8d2315b905168d25"
+)
+assert len(ONE_MAN_AND_HIS_DROID_FREQ_STATE) == 128
+
+ONE_MAN_AND_HIS_DROID_FREQ_BYTES = (HUBBARD_85_PAL_FREQ_TABLE
+                                    + ONE_MAN_AND_HIS_DROID_FREQ_STATE)
+assert len(ONE_MAN_AND_HIS_DROID_FREQ_BYTES) == 320
+
+ONE_MAN_AND_HIS_DROID = EngineConstants(
+    instr_base=0x1588,
+    instr_count=32,
+    freq_table_base=0x1422,
+    freq_bytes=ONE_MAN_AND_HIS_DROID_FREQ_BYTES,
+    voice_starts={},          # 3 voices active in subtune 0
+    # 13 drum/SFX overlays at $1600. PSID exposes them as subtunes
+    # 1..13 (subtune 0 is the music).
+    has_sfx=True,
+    digi=None,
+    is_rsid=False,
+)
+
+
 ENGINE_CONSTANTS: dict[str, EngineConstants] = {
     'chimera': CHIMERA,
     'devils_galop': DEVILS_GALOP,
@@ -762,4 +788,5 @@ ENGINE_CONSTANTS: dict[str, EngineConstants] = {
     'human_race': HUMAN_RACE,
     'hunter_patrol': HUNTER_PATROL,
     'thing_on_a_spring': THING_ON_A_SPRING,
+    'one_man_and_his_droid': ONE_MAN_AND_HIS_DROID,
 }

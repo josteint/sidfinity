@@ -32,6 +32,11 @@ class EngineConfig:
     subtunes: tuple = (0,)          # music subtunes to pack
     arp_interval: int = 12          # arpeggio interval in semitones
     arp_period: int = 2             # arp cycle length: phase 0 = base note
+    # When True, swap the "base vs +ARP_OFS" sense in fx_arp:
+    # `frame_ctr & ARP_MASK == 0` → +ARP_OFS (instead of base).
+    # One Man and his Droid uses `frame_ctr & $04 == 0` → +12, the
+    # inverse of every other engine. Default False.
+    arp_phase_invert: bool = False
     linear_pw_or: int = 0           # OR mask on linear-PW pw_lo (Chimera $40)
     vib_onset: int = 6              # min note dur for vibrato to apply
     has_sfx: bool = False           # engine has a sound-effect sub-engine
