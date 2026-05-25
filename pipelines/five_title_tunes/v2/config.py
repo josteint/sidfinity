@@ -115,7 +115,7 @@ TUNE0 = _make_config(0, instr_count=8, speed_ctr_init=3, arp_period=2)
 # init (orig frame 0 writes only V1+V2+V3 freq=$0116; frame 1 = full).
 TUNE1 = _make_config(1, instr_count=12,
                      speed_ctr_init=1, arp_period=2,
-                     incby2_onset=0x10, incby2_late_gate=0x18)
+                     incby2_step=-1, incby2_onset=0x10, incby2_late_gate=0x18)
 
 # Sub 2 — title tune 3. Tempo 3, 16 sequences. Hunter-Patrol pattern.
 # No speed_ctr_init delay — this sub's init does its own first-frame setup.

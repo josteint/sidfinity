@@ -169,17 +169,20 @@ def decode_instrument(inst: int, binary: bytes, load_addr: int,
 
     pwm = None
     pw_lo_kind = pw_hi_kind = 'const'
-    if pwm_speed != 0:
-        if fx & 0x08:                                   # bit 3 -> linear
-            pwm = PwmSpec(mode='linear', speed=pwm_speed,
-                          seed_lo=pw_lo, seed_hi=pw_hi)
-            pw_lo_kind = 'accumulator'
-        else:                                           # bidirectional
-            pwm = PwmSpec(mode='bidirectional',
-                          period=pwm_speed & 0x1F,
-                          step=pwm_speed & 0xE0,
-                          seed_lo=pw_lo, seed_hi=pw_hi)
-            pw_lo_kind = pw_hi_kind = 'accumulator'
+    if fx & 0x08:                                       # bit 3 -> linear
+        # Linear-PW path runs unconditionally — engine still writes
+        # pw_lo each frame when pwm_speed=0 (just adds 0). Without
+        # this, sub-engines with linear+speed=0 instruments lose
+        # their per-frame pw_lo writes (5TT sub_0 inst 7).
+        pwm = PwmSpec(mode='linear', speed=pwm_speed,
+                      seed_lo=pw_lo, seed_hi=pw_hi)
+        pw_lo_kind = 'accumulator'
+    elif pwm_speed != 0:                                # bidirectional
+        pwm = PwmSpec(mode='bidirectional',
+                      period=pwm_speed & 0x1F,
+                      step=pwm_speed & 0xE0,
+                      seed_lo=pw_lo, seed_hi=pw_hi)
+        pw_lo_kind = pw_hi_kind = 'accumulator'
 
     return InstrumentModel(
         inst=inst,
