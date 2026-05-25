@@ -75,6 +75,17 @@ class EngineConstants:
     # v_durfield=205, v_slide=239). Hunter Patrol's v_slide is at
     # 238 instead of 239 — one byte earlier in the state region.
     seed_offsets: Optional[dict] = None
+    # For engines whose off-table note-start reads pattern-position
+    # state, the current voice's v_hubidx slot in statebuf must be
+    # decremented by 1 to match the engine's v_patpos value at the
+    # freq-read moment. Offset = where v_hubidx lives in state_layout
+    # (Commando default = 7). Thing on a Spring sets this; others
+    # leave it None.
+    ns_offtab_decr_offset: Optional[int] = None
+    # Whether the note codec resets v_hubidx at pattern end. True =
+    # Commando family default; False = Thing on a Spring (v_patpos
+    # only wraps on the NEXT note-load frame via the $C160 read).
+    hubidx_wrap_at_patend: bool = True
 
 
 # ---------------------------------------------------------------------------
@@ -726,6 +737,17 @@ THING_ON_A_SPRING = EngineConstants(
     has_sfx=False,
     digi=None,
     is_rsid=False,
+    # Thing on a Spring uses pitch 100 in V2's pattern data; the
+    # engine's $C100: LDA $C3A9,Y reads $C471 (= v_patpos[V2]) as
+    # the off-table freq value. Our codec's v_hubidx lags v_patpos
+    # by 1 at the freq-read moment (orig advances mid-load; ours
+    # advances at end), so subtract 1 from the current voice's
+    # v_hubidx slot before reading statebuf.
+    ns_offtab_decr_offset=7,
+    # The engine doesn't wrap v_patpos until $C160's $FF read, so
+    # v_hubidx must stay at its post-cumulative value through the
+    # sustain frames at end of pattern.
+    hubidx_wrap_at_patend=False,
 )
 
 

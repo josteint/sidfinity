@@ -208,11 +208,22 @@ ln_addnb:
         clc
         adc v_hubidx,x
         sta v_hubidx,x
-        ; seq_idx - pre-increment on the pattern's last note
+        ; seq_idx - pre-increment on the pattern's last note. The
+        ; v_hubidx wrap-to-0 at pattern end is conditional: Commando
+        ; / Monty / Action Biker / etc. expect v_hubidx to wrap here
+        ; so the off-table arp reads the right values during the
+        ; sustain frames between the last note and the next pattern
+        ; load. Thing on a Spring is the exception — its engine
+        ; doesn't wrap v_patpos until $C160 fires (on the NEXT note-
+        ; load frame), so v_hubidx should stay at the post-cumulative
+        ; value. Controlled by HUBIDX_WRAP_AT_PATEND (0 = no wrap).
         lda v_notesleft,x
         bne ln_seqcur
+        lda #HUBIDX_WRAP_AT_PATEND
+        beq ln_no_wrap
         lda #0
-        sta v_hubidx,x        ; note_idx wraps to 0 at the pattern end
+        sta v_hubidx,x
+ln_no_wrap:
         jsr next_orderidx
         sta v_seqidx,x
         rts

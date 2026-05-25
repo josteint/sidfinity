@@ -610,6 +610,7 @@ ns_offtab:
         asl                  ; (pitch-96)*2 = statebuf offset
         tay
         jsr build_statebuf
+        ; %%NS_OFFTAB_DECR%%
         lda statebuf+0,y
         sta f_lo
         lda statebuf+1,y
@@ -1467,6 +1468,18 @@ class _Inputs:
     seed_offsets: _Optional[dict] = None     # per-engine ovseed offsets
     frame_ctr_init: int = 0xFF                # initial zp frame_ctr
     incby2_late_gate: _Optional[int] = None   # fx_incby2 v_dur < N gate
+    # Engines whose off-table note-start reads pattern-position state
+    # (Thing on a Spring) need the current voice's v_hubidx slot in
+    # statebuf decremented by 1 to match the engine's v_patpos value
+    # at the freq-read moment (which is BEFORE the post-pitch INC).
+    # Offset = where v_hubidx lives in the engine's state_layout
+    # (Commando default = 7).
+    ns_offtab_decr_offset: _Optional[int] = None
+    # Whether load_note resets v_hubidx to 0 at the last note of a
+    # pattern. Default True (matches Commando family). Thing on a
+    # Spring's engine doesn't reset v_patpos until the $C160 read,
+    # which fires on the NEXT note-load frame.
+    hubidx_wrap_at_patend: bool = True
 
 
 def _inputs_from_config(config) -> _Inputs:
@@ -1528,6 +1541,7 @@ def _emit_sid(inputs: _Inputs, out_path: str, codec) -> str:
     asm = (f'PWLEN = {2 * len(inputs.models) - 1}\n'
            f'N_MUSIC = {len(inputs.subtunes)}\n'
            f'FRAME_CTR_INIT = {inputs.frame_ctr_init}\n'
+           f'HUBIDX_WRAP_AT_PATEND = {1 if inputs.hubidx_wrap_at_patend else 0}\n'
            f'ARP_OFS = {inputs.arp_interval}\n'
            f'ARP_MASK = {inputs.arp_period - 1}\n'
            f'LINEAR_PW_OR = {inputs.linear_pw_or}\n'
@@ -1574,6 +1588,22 @@ def _emit_sid(inputs: _Inputs, out_path: str, codec) -> str:
             f'        cmp #{inputs.incby2_late_gate}\n'
             f'        bcs fxi_ret          ; v_dur >= late_gate -> skip')
     asm = asm.replace('; %%INCBY2_LATE_GATE%%', late_gate_asm)
+
+    # Off-table note-start: for engines whose off-table reads
+    # pattern-position state, decrement the current voice's v_hubidx
+    # slot in statebuf by 1 to match the engine's v_patpos at the
+    # freq-read moment (orig advances mid-load; ours advances at end).
+    # Only Thing on a Spring sets this for now.
+    offtab_decr_asm = ''
+    if inputs.ns_offtab_decr_offset is not None:
+        ofs = inputs.ns_offtab_decr_offset
+        # Caller's voice index is in X here (build_statebuf preserves X).
+        offtab_decr_asm = (
+            f'        sec\n'
+            f'        lda statebuf+{ofs},x\n'
+            f'        sbc #1\n'
+            f'        sta statebuf+{ofs},x')
+    asm = asm.replace('; %%NS_OFFTAB_DECR%%', offtab_decr_asm)
 
     src = '/tmp/usf2_commando.s'
     obj = '/tmp/usf2_commando.bin'

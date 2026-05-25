@@ -296,6 +296,9 @@ def _inputs_from_usf(usf: UsfFile) -> _Inputs:
         sfx_list=sfx_list,
         **({'state_layout': ec.state_layout} if ec.state_layout is not None else {}),
         **({'seed_offsets': ec.seed_offsets} if ec.seed_offsets is not None else {}),
+        **({'ns_offtab_decr_offset': ec.ns_offtab_decr_offset}
+           if getattr(ec, 'ns_offtab_decr_offset', None) is not None else {}),
+        hubidx_wrap_at_patend=getattr(ec, 'hubidx_wrap_at_patend', True),
     )
 
 
