@@ -281,14 +281,18 @@ class _T(Transformer):
         return items[0]
 
     def music_body(self, items):
-        # 'tempo' ':' INT params_block? voice voice voice
+        # 'tempo' ':' INT params_block? init_block? voice voice voice
         tempo = int(items[0])
         rest = list(items[1:])
         params = None
+        init = None
         if rest and isinstance(rest[0], Params):
             params = rest.pop(0)
+        if rest and isinstance(rest[0], InitState):
+            init = rest.pop(0)
         voices = rest
-        return ('music', {'tempo': tempo, 'voices': voices, 'params': params})
+        return ('music', {'tempo': tempo, 'voices': voices,
+                          'params': params, 'init': init})
 
     def digi_body(self, items):
         return ('digi', {'sample': str(items[0])})
@@ -372,7 +376,8 @@ class _T(Transformer):
             return MusicSubtune(
                 id=sub_id, tempo=body_data['tempo'],
                 voices=body_data['voices'],
-                params=body_data.get('params'))
+                params=body_data.get('params'),
+                init=body_data.get('init'))
         elif kind == 'digi':
             return DigiSubtune(id=sub_id, sample=body_data['sample'])
         else:

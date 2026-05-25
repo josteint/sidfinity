@@ -127,6 +127,13 @@ class MusicSubtune:
     tempo: int
     voices: list[VoiceBlock] = field(default_factory=list)
     params: 'Params | None' = None
+    # Per-subtune init override. When set, overrides the top-level
+    # `init` for this subtune (the codegen emits subOvseed_<sub> from
+    # each subtune's init, and at runtime copies the selected one into
+    # the engine's ovseed block). Used by unified-engine builds
+    # (5 Title Tunes) where each sub's per-voice load-time state
+    # differs. When None (most engines), top-level init applies.
+    init: 'InitState | None' = None
     kind: str = 'music'
 
 

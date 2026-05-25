@@ -193,6 +193,10 @@ def _write_subtune(s) -> list[str]:
             # Indent the per-subtune params block under the subtune.
             for line in _write_params(s.params):
                 lines.append('  ' + line)
+        if s.init is not None:
+            # Indent the per-subtune init block under the subtune.
+            for line in _write_init(s.init):
+                lines.append('  ' + line)
         for v in s.voices:
             lines.extend(_write_voice(v))
         lines.append('}')

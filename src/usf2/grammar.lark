@@ -77,7 +77,7 @@ subtune_body: music_body
             | sfx_body
 
 // music
-music_body: "tempo" ":" INT params_block? voice_block voice_block voice_block
+music_body: "tempo" ":" INT params_block? init_block? voice_block voice_block voice_block
 
 voice_block: "voice" INT "{" "orderlist" ":" orderlist pattern_block* "}"
 orderlist: orderlist_entry+ orderlist_terminator?
