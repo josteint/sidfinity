@@ -123,13 +123,13 @@ first_frame = $b8
         jmp init
         jmp play
 
-; init - A = subtune number. A under 3 is a music subtune; A 3 and up
-; is a sound effect (A-3 = the SFX index).
+; init - A = subtune number. A under N_MUSIC is a music subtune; A
+; N_MUSIC and up is a sound effect (A-N_MUSIC = the SFX index).
 init:
-        cmp #$03
+        cmp #N_MUSIC
         bcc init_music
         sec
-        sbc #$03
+        sbc #N_MUSIC
         sta sfx_idx
         lda #$01
         sta is_sfx
@@ -1391,6 +1391,7 @@ def _emit_sid(inputs: _Inputs, out_path: str, codec) -> str:
     pat_bytes, codec_extra = codec.encode(pat_order)
 
     asm = (f'PWLEN = {2 * len(inputs.models) - 1}\n'
+           f'N_MUSIC = {len(inputs.subtunes)}\n'
            f'ARP_OFS = {inputs.arp_interval}\n'
            f'ARP_MASK = {inputs.arp_period - 1}\n'
            f'LINEAR_PW_OR = {inputs.linear_pw_or}\n'
