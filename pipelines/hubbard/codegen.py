@@ -311,6 +311,7 @@ ini1:   lda #0
         jsr set_patptr       ; v_patptr,x = first pattern of orderlist X
         dex
         bpl ini1
+        ; %%OVSEED_COPY%%    ; runtime copy of subOvseed_<sub> -> ovseed
         ldx #2               ; seed the freq-table-overlap variables
 iniov:  lda ovseed,x
         sta v_ctrlbyte,x
@@ -1199,7 +1200,8 @@ def _emit_data(scores, models, freq_bytes, resetspds, voice_starts,
                seed_offsets: _Optional[dict] = None,
                per_subtune_speed_ctr_init: _Optional[list] = None,
                per_subtune_incby2_step: _Optional[list] = None,
-               per_subtune_incby2_late_gate: _Optional[list] = None) -> str:
+               per_subtune_incby2_late_gate: _Optional[list] = None,
+               per_subtune_ovseed: _Optional[list] = None) -> str:
     """Emit the xa65 data section for a multi-subtune build.
 
     `scores` is one Score per packed music subtune; `sfx_list` is the
@@ -1343,6 +1345,23 @@ def _emit_data(scores, models, freq_bytes, resetspds, voice_starts,
                      + ','.join(f'${b & 0xFF:02X}' for b in ibs))
         lines.append('subIncBy2LateGate: .byt '
                      + ','.join(f'${b & 0xFF:02X}' for b in ibg))
+
+    # Per-subtune ovseed (per-voice initial state). When provided, init
+    # copies the selected sub's 18-byte ovseed into `ovseed` before the
+    # iniov loop runs. This is for unified engines (5 Title Tunes) where
+    # the 5 sub-engines have different load-time per-voice state values.
+    if per_subtune_ovseed is not None:
+        assert all(len(o) == 18 for o in per_subtune_ovseed), \
+            'each per_subtune_ovseed entry must be 18 bytes'
+        for i, ov_bytes in enumerate(per_subtune_ovseed):
+            lines.append(f'subOvseed_{i}: .byt '
+                         + ','.join(f'${b & 0xFF:02X}' for b in ov_bytes))
+        lines.append('subOvseedLo: .byt '
+                     + ','.join(f'<subOvseed_{i}'
+                                 for i in range(len(per_subtune_ovseed))))
+        lines.append('subOvseedHi: .byt '
+                     + ','.join(f'>subOvseed_{i}'
+                                 for i in range(len(per_subtune_ovseed))))
 
     # live per-voice orderlist selection (filled by init)
     lines.append('orderLo: .byt 0,0,0')
@@ -1520,6 +1539,13 @@ class _Inputs:
     per_subtune_speed_ctr_init: _Optional[list] = None
     per_subtune_incby2_step: _Optional[list] = None
     per_subtune_incby2_late_gate: _Optional[list] = None
+    # Per-subtune ovseed: each entry is 18 bytes — the 6 freq-table-
+    # overlap state vars × 3 voices, in v_ctrl/pwm_period/pwm_dir/
+    # v_instr/v_durfield/v_slide order. When set, init copies the
+    # selected sub's bytes into the `ovseed` data block before the
+    # iniov loop. Used by unified-engine builds (5 Title Tunes) where
+    # each sub's per-voice load-time state differs.
+    per_subtune_ovseed: _Optional[list] = None
 
 
 def _inputs_from_config(config) -> _Inputs:
@@ -1614,7 +1640,8 @@ def _emit_sid(inputs: _Inputs, out_path: str, codec,
                         seed_offsets=inputs.seed_offsets,
                         per_subtune_speed_ctr_init=inputs.per_subtune_speed_ctr_init,
                         per_subtune_incby2_step=inputs.per_subtune_incby2_step,
-                        per_subtune_incby2_late_gate=inputs.per_subtune_incby2_late_gate)
+                        per_subtune_incby2_late_gate=inputs.per_subtune_incby2_late_gate,
+                        per_subtune_ovseed=inputs.per_subtune_ovseed)
            + '\n')
 
     asm = asm.replace('inc freqtab+253',
@@ -1656,6 +1683,22 @@ def _emit_sid(inputs: _Inputs, out_path: str, codec,
             '        sta cur_incby2_step\n'
             '        lda subIncBy2LateGate,y\n'
             '        sta cur_incby2_late_gate')
+        # Per-subtune ovseed copy — runs BEFORE the iniov loop, so init's
+        # per-voice state seeding sees the correct per-subtune bytes.
+        ov_copy_asm = ''
+        if inputs.per_subtune_ovseed is not None:
+            ov_copy_asm = (
+                '        ldy sub_tmp\n'
+                '        lda subOvseedLo,y\n'
+                '        sta sfx_rec\n'
+                '        lda subOvseedHi,y\n'
+                '        sta sfx_rec+1\n'
+                '        ldy #17\n'
+                'ovcopy: lda (sfx_rec),y\n'
+                '        sta ovseed,y\n'
+                '        dey\n'
+                '        bpl ovcopy')
+        asm = asm.replace('; %%OVSEED_COPY%%', ov_copy_asm)
         # fx_incby2: switch the slide-step `adc #INCBY2_STEP` to use the
         # zp slot loaded above.
         asm = asm.replace(
@@ -1678,6 +1721,9 @@ def _emit_sid(inputs: _Inputs, out_path: str, codec,
                 f'        cmp #{inputs.incby2_late_gate}\n'
                 f'        bcs fxi_ret          ; v_dur >= late_gate -> skip')
         asm = asm.replace('; %%INCBY2_LATE_GATE%%', late_gate_asm)
+        # Engines without per-subtune ovseed don't copy anything — the
+        # codegen-baked `ovseed` constants are read directly.
+        asm = asm.replace('; %%OVSEED_COPY%%', '')
 
     # Off-table note-start: for engines whose off-table reads
     # pattern-position state, decrement the current voice's v_hubidx
