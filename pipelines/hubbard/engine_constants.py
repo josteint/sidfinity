@@ -776,6 +776,16 @@ ONE_MAN_AND_HIS_DROID = EngineConstants(
     has_sfx=True,
     digi=None,
     is_rsid=False,
+    # The drum engine's V2 freq sweep wraps Y into the engine's
+    # SFX-state block at $151D..$1522 (= freqtab+251..256). Use the
+    # shared `_sfx_state_in_freqtab` mechanism (originally written
+    # for Monty) to rewire init_sfx + sfxs_go so the SFX state
+    # block sits at +251 and the per-step sweep index is mirrored
+    # to +254 — matching the engine's exact byte layout.
+    sfx_state_ofs=251,
+    # The global frame counter lives at $151C = freqtab+$FA (= 250),
+    # not Commando's $5525 (= +253).
+    sfx_framectr_ofs=250,
 )
 
 
