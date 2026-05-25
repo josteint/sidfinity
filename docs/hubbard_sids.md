@@ -35,26 +35,26 @@ Engine classification comes from `sidid` plus a probe with our `rh_decompile`
 | Year | Title | Engine | Pipeline status | Path |
 |---|---|---|---|---|
 | 1984 | Up, up & Away! | Companion |  | `data/C64Music/MUSICIANS/H/Hubbard_Rob/Up_up_and_Away.sid` |
-| 1985 | 5 Title Tunes | classic |  | `data/C64Music/MUSICIANS/H/Hubbard_Rob/5_Title_Tunes.sid` |
-| 1985 | Action Biker | classic |  | `data/C64Music/MUSICIANS/H/Hubbard_Rob/Action_Biker.sid` |
+| 1985 | 5 Title Tunes | classic | byte-exact unified single-engine (5/5) | `data/C64Music/MUSICIANS/H/Hubbard_Rob/5_Title_Tunes.sid` |
+| 1985 | Action Biker | classic | byte-exact (3/3) | `data/C64Music/MUSICIANS/H/Hubbard_Rob/Action_Biker.sid` |
 | 1985 | Battle of Britain | classic |  | `data/C64Music/MUSICIANS/H/Hubbard_Rob/Battle_of_Britain.sid` |
-| 1985 | Chimera | classic |  | `data/C64Music/MUSICIANS/H/Hubbard_Rob/Chimera.sid` |
-| 1985 | Commando | classic | pipelines/commando/ — byte-perfect | `data/C64Music/MUSICIANS/H/Hubbard_Rob/Commando.sid` |
+| 1985 | Chimera | classic | byte-exact music (4/4) + cycle-strict digi | `data/C64Music/MUSICIANS/H/Hubbard_Rob/Chimera.sid` |
+| 1985 | Commando | classic | byte-exact (19/19) | `data/C64Music/MUSICIANS/H/Hubbard_Rob/Commando.sid` |
 | 1985 | Commodore 64 Music Examples | Companion |  | `data/C64Music/MUSICIANS/H/Hubbard_Rob/Commodore_64_Music_Examples.sid` |
 | 1985 | Confuzion | classic |  | `data/C64Music/MUSICIANS/H/Hubbard_Rob/Confuzion.sid` |
 | 1985 | Crazy Comets | classic |  | `data/C64Music/MUSICIANS/H/Hubbard_Rob/Crazy_Comets.sid` |
-| 1985 | Devils Galop | classic |  | `data/C64Music/MUSICIANS/H/Hubbard_Rob/Devils_Galop.sid` |
+| 1985 | Devils Galop | classic | byte-exact (1/1) | `data/C64Music/MUSICIANS/H/Hubbard_Rob/Devils_Galop.sid` |
 | 1985 | Gremlins | classic |  | `data/C64Music/MUSICIANS/H/Hubbard_Rob/Gremlins.sid` |
-| 1985 | Hunter Patrol | classic |  | `data/C64Music/MUSICIANS/H/Hubbard_Rob/Hunter_Patrol.sid` |
-| 1985 | Monty on the Run | classic | pipelines/monty/ — Grade A 98.8% | `data/C64Music/MUSICIANS/H/Hubbard_Rob/Monty_on_the_Run.sid` |
-| 1985 | One Man and his Droid | classic |  | `data/C64Music/MUSICIANS/H/Hubbard_Rob/One_Man_and_his_Droid.sid` |
+| 1985 | Hunter Patrol | classic | byte-exact (1/1) | `data/C64Music/MUSICIANS/H/Hubbard_Rob/Hunter_Patrol.sid` |
+| 1985 | Monty on the Run | classic | byte-exact (19/19, 3 music + 16 SFX) | `data/C64Music/MUSICIANS/H/Hubbard_Rob/Monty_on_the_Run.sid` |
+| 1985 | One Man and his Droid | classic | byte-exact (14/14, 1 music + 13 SFX) | `data/C64Music/MUSICIANS/H/Hubbard_Rob/One_Man_and_his_Droid.sid` |
 | 1985 | Rasputin | classic |  | `data/C64Music/MUSICIANS/H/Hubbard_Rob/Rasputin.sid` |
 | 1985 | Sample Music from I. Karate | classic |  | `data/C64Music/MUSICIANS/H/Hubbard_Rob/Sample_Music_from_I_Karate.sid` |
-| 1985 | The Human Race | classic |  | `data/C64Music/MUSICIANS/H/Hubbard_Rob/Human_Race.sid` |
+| 1985 | The Human Race | classic | byte-exact (5/5) | `data/C64Music/MUSICIANS/H/Hubbard_Rob/Human_Race.sid` |
 | 1985 | The Last V8 | classic |  | `data/C64Music/MUSICIANS/H/Hubbard_Rob/Last_V8.sid` |
 | 1985 | The Last V8 (C128 version) | classic |  | `data/C64Music/MUSICIANS/H/Hubbard_Rob/Last_V8_C128_version.sid` |
 | 1985 | The Master of Magic | classic |  | `data/C64Music/MUSICIANS/H/Hubbard_Rob/Master_of_Magic.sid` |
-| 1985 | Thing on a Spring | classic |  | `data/C64Music/MUSICIANS/H/Hubbard_Rob/Thing_on_a_Spring.sid` |
+| 1985 | Thing on a Spring | classic | byte-exact (17/17, 1 music + 16 SFX) | `data/C64Music/MUSICIANS/H/Hubbard_Rob/Thing_on_a_Spring.sid` |
 | 1986 | Bump Set Spike | classic |  | `data/C64Music/MUSICIANS/H/Hubbard_Rob/Bump_Set_Spike.sid` |
 | 1986 | Dragon's Lair Part II | classic |  | `data/C64Music/MUSICIANS/H/Hubbard_Rob/Dragons_Lair_Part_II.sid` |
 | 1986 | Flash Gordon | classic |  | `data/C64Music/MUSICIANS/H/Hubbard_Rob/Flash_Gordon.sid` |
