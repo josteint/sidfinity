@@ -53,6 +53,10 @@ HUMAN_RACE = EngineConfig(
     # `fx_incby2`; Commando defaults are step=2 onset=3.
     incby2_step=1,
     incby2_onset=17,
+    # HR's linear PWM (fx_flags bit 3, $0B8F) ORs the running pw_lo
+    # with $40 each frame ("force bit 6 — PW>=$40 always"). Commando's
+    # shared default is 0; HR uses $40.
+    linear_pw_or=0x40,
     has_sfx=False,
     # HR's vibrato gate is `v_flags & $1F >= 8` ($0B50). Our extractor
     # stores playback duration (encoded + 1), so the equivalent test

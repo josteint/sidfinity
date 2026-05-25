@@ -20,7 +20,7 @@ params {
   incby2_every_frame: false
   incby2_onset: $11
   incby2_step: 1
-  linear_pw_or: $00
+  linear_pw_or: $40
   seed_overlap: false
   speed_ctr_init: 0
   stop_fill: $00
