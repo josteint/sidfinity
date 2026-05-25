@@ -244,6 +244,13 @@ pv_abort    = $b3
 v_frozen    = $b4
 voice_start = $b7
 first_frame = $b8
+; Per-subtune engine-param zp slots (used only when the codegen emits
+; the per-subtune-params variant — see PER_SUBTUNE_ENGINE_PARAMS).
+; `cur_incby2_step` is the slide step added per frame (8-bit signed:
+; +2 = $02, -1 = $FF, etc.). `cur_incby2_late_gate` is the v_dur
+; threshold below which the fx-bit-1 slide fires; $FF = "no gate".
+cur_incby2_step  = $b9
+cur_incby2_late_gate = $ba
 
 * = $1000
         jmp init
@@ -1189,7 +1196,10 @@ def _emit_data(scores, models, freq_bytes, resetspds, voice_starts,
                sfx_list, pat_slot, pat_bytes, codec_extra,
                seed_overlap: bool = True,
                state_layout: StatebufLayout = COMMANDO_STATEBUF_LAYOUT,
-               seed_offsets: _Optional[dict] = None) -> str:
+               seed_offsets: _Optional[dict] = None,
+               per_subtune_speed_ctr_init: _Optional[list] = None,
+               per_subtune_incby2_step: _Optional[list] = None,
+               per_subtune_incby2_late_gate: _Optional[list] = None) -> str:
     """Emit the xa65 data section for a multi-subtune build.
 
     `scores` is one Score per packed music subtune; `sfx_list` is the
@@ -1316,6 +1326,23 @@ def _emit_data(scores, models, freq_bytes, resetspds, voice_starts,
                  + ','.join(f'${r:02X}' for r in resetspds))
     lines.append('subVoiceStart: .byt '
                  + ','.join(f'${v:02X}' for v in voice_starts))
+
+    # Per-subtune engine-param tables — only emitted when any one is
+    # provided; the engine then reads from them at init (see _emit_sid's
+    # `uses_psp` branch). Each list MUST be len(scores).
+    if (per_subtune_speed_ctr_init is not None
+            or per_subtune_incby2_step is not None
+            or per_subtune_incby2_late_gate is not None):
+        n = len(scores)
+        sci = per_subtune_speed_ctr_init or [0] * n
+        ibs = per_subtune_incby2_step or [0] * n
+        ibg = per_subtune_incby2_late_gate or [0xFF] * n
+        lines.append('subSpeedCtrInit: .byt '
+                     + ','.join(f'${b & 0xFF:02X}' for b in sci))
+        lines.append('subIncBy2Step: .byt '
+                     + ','.join(f'${b & 0xFF:02X}' for b in ibs))
+        lines.append('subIncBy2LateGate: .byt '
+                     + ','.join(f'${b & 0xFF:02X}' for b in ibg))
 
     # live per-voice orderlist selection (filled by init)
     lines.append('orderLo: .byt 0,0,0')
@@ -1481,6 +1508,18 @@ class _Inputs:
     # Spring's engine doesn't reset v_patpos until the $C160 read,
     # which fires on the NEXT note-load frame.
     hubidx_wrap_at_patend: bool = True
+    # Per-subtune engine-param overrides (5 Title Tunes unified path).
+    # When any of these lists is set, the codegen emits per-subtune
+    # tables (subSpeedCtrInit / subIncBy2Step / subIncBy2LateGate) and
+    # the engine's init loads cur_incby2_step / cur_incby2_late_gate
+    # zp slots from them. SPEED_CTR_INIT becomes a table read at init
+    # time too. Use `incby2_late_gate=$FF` per sub to mean "no gate".
+    # Each list MUST be len(subtunes); the value at index i applies
+    # when subtune i plays. When all three are None, the codegen
+    # emits the existing compile-time-constant code (no change).
+    per_subtune_speed_ctr_init: _Optional[list] = None
+    per_subtune_incby2_step: _Optional[list] = None
+    per_subtune_incby2_late_gate: _Optional[list] = None
 
 
 def _inputs_from_config(config) -> _Inputs:
@@ -1572,7 +1611,10 @@ def _emit_sid(inputs: _Inputs, out_path: str, codec,
                         inputs.sfx_list, pat_slot, pat_bytes, codec_extra,
                         seed_overlap=inputs.seed_overlap,
                         state_layout=inputs.state_layout,
-                        seed_offsets=inputs.seed_offsets)
+                        seed_offsets=inputs.seed_offsets,
+                        per_subtune_speed_ctr_init=inputs.per_subtune_speed_ctr_init,
+                        per_subtune_incby2_step=inputs.per_subtune_incby2_step,
+                        per_subtune_incby2_late_gate=inputs.per_subtune_incby2_late_gate)
            + '\n')
 
     asm = asm.replace('inc freqtab+253',
@@ -1593,16 +1635,49 @@ def _emit_sid(inputs: _Inputs, out_path: str, codec,
     if inputs.arp_phase_invert:
         asm = asm.replace('beq fxa_even', 'bne fxa_even')
 
-    # Substitute the optional "late-in-note" gate inside fx_incby2.
-    # Hunter Patrol's skydive only fires once the v_dur countdown
-    # drops below 9 frames; other engines have no such gate.
-    late_gate_asm = ''
-    if inputs.incby2_late_gate is not None:
+    # Per-subtune engine params (5 Title Tunes unified path). When ANY
+    # of the per_subtune_* lists is set, replace the compile-time SPEED
+    # CTR / INCBY2 STEP / late-gate code with per-subtune-table reads.
+    uses_psp = (
+        inputs.per_subtune_speed_ctr_init is not None
+        or inputs.per_subtune_incby2_step is not None
+        or inputs.per_subtune_incby2_late_gate is not None)
+
+    if uses_psp:
+        # SPEED_CTR_INIT load: replace `lda #SPEED_CTR_INIT; sta speed_ctr`
+        # with a per-subtune table read. The init block also primes the
+        # cur_incby2_* zp slots that fx_incby2 reads at runtime.
+        asm = asm.replace(
+            '        lda #SPEED_CTR_INIT\n        sta speed_ctr',
+            '        ldy sub_tmp\n'
+            '        lda subSpeedCtrInit,y\n'
+            '        sta speed_ctr\n'
+            '        lda subIncBy2Step,y\n'
+            '        sta cur_incby2_step\n'
+            '        lda subIncBy2LateGate,y\n'
+            '        sta cur_incby2_late_gate')
+        # fx_incby2: switch the slide-step `adc #INCBY2_STEP` to use the
+        # zp slot loaded above.
+        asm = asm.replace(
+            '        adc #INCBY2_STEP',
+            '        adc cur_incby2_step')
+        # Late-gate sentinel: always emit the runtime check; subs with
+        # no gate use cur_incby2_late_gate = $FF (v_dur never reaches).
         late_gate_asm = (
             f'        lda v_dur,x\n'
-            f'        cmp #{inputs.incby2_late_gate}\n'
+            f'        cmp cur_incby2_late_gate\n'
             f'        bcs fxi_ret          ; v_dur >= late_gate -> skip')
-    asm = asm.replace('; %%INCBY2_LATE_GATE%%', late_gate_asm)
+        asm = asm.replace('; %%INCBY2_LATE_GATE%%', late_gate_asm)
+    else:
+        # Existing per-engine compile-time path (unchanged for the 9
+        # already-migrated engines).
+        late_gate_asm = ''
+        if inputs.incby2_late_gate is not None:
+            late_gate_asm = (
+                f'        lda v_dur,x\n'
+                f'        cmp #{inputs.incby2_late_gate}\n'
+                f'        bcs fxi_ret          ; v_dur >= late_gate -> skip')
+        asm = asm.replace('; %%INCBY2_LATE_GATE%%', late_gate_asm)
 
     # Off-table note-start: for engines whose off-table reads
     # pattern-position state, decrement the current voice's v_hubidx
