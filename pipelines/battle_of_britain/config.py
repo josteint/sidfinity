@@ -40,5 +40,9 @@ CFG = EngineConfig(
     resetspd=_resetspd,
     subtunes=(0,),
     arp_interval=12,
+    arp_period=8,
     frame_ctr_init=0xDC,
+    incby2_step=-1,
+    incby2_onset=12,
+    vib_onset=8,
 )

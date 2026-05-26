@@ -13,7 +13,7 @@ psid {
 
 params {
   arp_interval: 12
-  arp_period: 2
+  arp_period: 8
   arp_phase_invert: false
   first_frame_gate_off: false
   frame_ctr_init: 220
@@ -22,14 +22,14 @@ params {
   has_stop_fill: false
   incby2_every_frame: false
   incby2_late_gate: -1
-  incby2_onset: $03
-  incby2_step: 2
+  incby2_onset: $0C
+  incby2_step: -1
   linear_pw_or: $00
   seed_overlap: true
   speed_ctr_init: 0
   stop_fill: $00
   suppress_first_notestart: false
-  vib_onset: 6
+  vib_onset: 8
 }
 
 init {
@@ -43,7 +43,7 @@ instrument 1 {
   loop:     0
   pwm:      mode=linear speed=16 init=$0359 min_hi=8 max_hi=14
   adsr:     $58 $52
-  arp:      offsets=[0] period=2
+  arp:      offsets=[0] period=8
   vibrato:  scale=3
   envelope: gate_off_delta=0 adsr_zero_delta=0
 }
@@ -53,7 +53,7 @@ instrument 2 {
   loop:     0
   pwm:      mode=linear speed=16 init=$0248 min_hi=8 max_hi=14
   adsr:     $58 $62
-  arp:      offsets=[0] period=2
+  arp:      offsets=[0] period=8
   vibrato:  scale=4
   envelope: gate_off_delta=0 adsr_zero_delta=0
 }
@@ -63,7 +63,7 @@ instrument 3 {
   loop:     0
   pwm:      mode=linear speed=17 init=$0322 min_hi=8 max_hi=14
   adsr:     $0A $00
-  arp:      offsets=[0] period=2
+  arp:      offsets=[0] period=8
   vibrato:  scale=0
   envelope: gate_off_delta=0 adsr_zero_delta=0
 }
@@ -73,7 +73,7 @@ instrument 4 {
   loop:     0
   pwm:      mode=none speed=0 init=$0200 min_hi=0 max_hi=0
   adsr:     $0C $0A
-  arp:      offsets=[0, 12] period=2
+  arp:      offsets=[0, 12, 12, 12, 12, 12, 12, 12] period=8
   vibrato:  scale=0
   envelope: gate_off_delta=0 adsr_zero_delta=0
   fx:       freq_slide
@@ -84,7 +84,7 @@ instrument 5 {
   loop:     0
   pwm:      mode=none speed=0 init=$0000 min_hi=0 max_hi=0
   adsr:     $0F $F0
-  arp:      offsets=[0] period=2
+  arp:      offsets=[0] period=8
   vibrato:  scale=2
   envelope: gate_off_delta=0 adsr_zero_delta=0
   fx:       inc_by2
@@ -95,7 +95,7 @@ instrument 6 {
   loop:     0
   pwm:      mode=none speed=0 init=$0800 min_hi=0 max_hi=0
   adsr:     $58 $00
-  arp:      offsets=[0, 12] period=2
+  arp:      offsets=[0, 12, 12, 12, 12, 12, 12, 12] period=8
   vibrato:  scale=0
   envelope: gate_off_delta=0 adsr_zero_delta=0
 }
@@ -105,7 +105,7 @@ instrument 7 {
   loop:     0
   pwm:      mode=bidirectional speed=129 init=$0C80 min_hi=8 max_hi=14
   adsr:     $57 $00
-  arp:      offsets=[0] period=2
+  arp:      offsets=[0] period=8
   vibrato:  scale=0
   envelope: gate_off_delta=0 adsr_zero_delta=0
 }
@@ -115,7 +115,7 @@ instrument 8 {
   loop:     0
   pwm:      mode=bidirectional speed=129 init=$0A80 min_hi=8 max_hi=14
   adsr:     $57 $00
-  arp:      offsets=[0] period=2
+  arp:      offsets=[0] period=8
   vibrato:  scale=0
   envelope: gate_off_delta=0 adsr_zero_delta=0
 }
@@ -125,7 +125,7 @@ instrument 9 {
   loop:     0
   pwm:      mode=bidirectional speed=225 init=$0AA0 min_hi=8 max_hi=14
   adsr:     $0F $FF
-  arp:      offsets=[0] period=2
+  arp:      offsets=[0] period=8
   vibrato:  scale=2
   envelope: gate_off_delta=0 adsr_zero_delta=0
 }
@@ -135,7 +135,7 @@ instrument 10 {
   loop:     0
   pwm:      mode=bidirectional speed=129 init=$0980 min_hi=8 max_hi=14
   adsr:     $00 $70
-  arp:      offsets=[0] period=2
+  arp:      offsets=[0] period=8
   vibrato:  scale=2
   envelope: gate_off_delta=0 adsr_zero_delta=0
 }
@@ -145,7 +145,7 @@ instrument 11 {
   loop:     0
   pwm:      mode=bidirectional speed=65 init=$0CC0 min_hi=8 max_hi=14
   adsr:     $00 $70
-  arp:      offsets=[0] period=2
+  arp:      offsets=[0] period=8
   vibrato:  scale=2
   envelope: gate_off_delta=0 adsr_zero_delta=0
 }
@@ -155,7 +155,7 @@ instrument 12 {
   loop:     0
   pwm:      mode=none speed=0 init=$0800 min_hi=0 max_hi=0
   adsr:     $0B $D8
-  arp:      offsets=[0, 12] period=2
+  arp:      offsets=[0, 12, 12, 12, 12, 12, 12, 12] period=8
   vibrato:  scale=0
   envelope: gate_off_delta=0 adsr_zero_delta=0
   fx:       freq_slide
@@ -166,7 +166,7 @@ instrument 13 {
   loop:     0
   pwm:      mode=none speed=0 init=$0800 min_hi=0 max_hi=0
   adsr:     $09 $09
-  arp:      offsets=[0] period=2
+  arp:      offsets=[0] period=8
   vibrato:  scale=0
   envelope: gate_off_delta=0 adsr_zero_delta=0
   fx:       freq_slide
@@ -177,7 +177,7 @@ instrument 14 {
   loop:     0
   pwm:      mode=none speed=0 init=$0200 min_hi=0 max_hi=0
   adsr:     $0F $DF
-  arp:      offsets=[0] period=2
+  arp:      offsets=[0] period=8
   vibrato:  scale=0
   envelope: gate_off_delta=0 adsr_zero_delta=0
 }
@@ -187,7 +187,7 @@ instrument 15 {
   loop:     0
   pwm:      mode=bidirectional speed=225 init=$0DE0 min_hi=8 max_hi=14
   adsr:     $00 $FF
-  arp:      offsets=[0] period=2
+  arp:      offsets=[0] period=8
   vibrato:  scale=0
   envelope: gate_off_delta=0 adsr_zero_delta=0
 }
@@ -197,7 +197,7 @@ instrument 16 {
   loop:     0
   pwm:      mode=bidirectional speed=225 init=$0980 min_hi=8 max_hi=14
   adsr:     $00 $FF
-  arp:      offsets=[0] period=2
+  arp:      offsets=[0] period=8
   vibrato:  scale=0
   envelope: gate_off_delta=0 adsr_zero_delta=0
 }
@@ -207,7 +207,7 @@ instrument 17 {
   loop:     0
   pwm:      mode=none speed=0 init=$0380 min_hi=0 max_hi=0
   adsr:     $48 $60
-  arp:      offsets=[0, 12] period=2
+  arp:      offsets=[0, 12, 12, 12, 12, 12, 12, 12] period=8
   vibrato:  scale=0
   envelope: gate_off_delta=0 adsr_zero_delta=0
 }
@@ -217,7 +217,7 @@ instrument 18 {
   loop:     0
   pwm:      mode=none speed=0 init=$0180 min_hi=0 max_hi=0
   adsr:     $09 $60
-  arp:      offsets=[0, 12] period=2
+  arp:      offsets=[0, 12, 12, 12, 12, 12, 12, 12] period=8
   vibrato:  scale=0
   envelope: gate_off_delta=0 adsr_zero_delta=0
 }
@@ -227,7 +227,7 @@ instrument 19 {
   loop:     0
   pwm:      mode=none speed=0 init=$0000 min_hi=0 max_hi=0
   adsr:     $0F $FF
-  arp:      offsets=[0] period=2
+  arp:      offsets=[0] period=8
   vibrato:  scale=1
   envelope: gate_off_delta=0 adsr_zero_delta=0
   fx:       inc_by2
