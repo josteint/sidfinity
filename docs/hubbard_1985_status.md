@@ -24,7 +24,7 @@ music-subtune list derived from HVSC Songlengths (any subtune ≥ 30 sec).
 | Sample Music from I.Karate | 0 | `pipelines/sample_music_i_karate/` | F (0%) |
 | Human Race | 0,1,2,3,4 | `pipelines/human_race/` | **extract error** — pattern shared across subtunes at different tempos |
 | Last V8 | 0 | `pipelines/last_v8/` | **lake build error** |
-| Last V8 (C128) | 0 | `pipelines/last_v8_c128/` | **lake build error** |
+| Last V8 (C128) | 0..2 | `pipelines/last_v8_c128/` | **scaffold + tombstone** — real extract (RSID, dual-engine: tracker + relocated sample player); codegen emits a 1-byte RTS; disassembly at `docs/hubbard_last_v8_c128_disassembly.s` |
 | Master of Magic | 0 | `pipelines/master_of_magic/` | F (2.8%) |
 | Thing on a Spring | 0 | `pipelines/thing_on_a_spring/` | F (4.8%) |
 

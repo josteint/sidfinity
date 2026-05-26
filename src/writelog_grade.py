@@ -40,9 +40,13 @@ SIDDUMP = '/home/jtr/sidfinity/tools/siddump'
 
 
 def _run_siddump(sid_path: str, duration: int = 30) -> list[str]:
-    """Run siddump --writelog --raw on a SID; return list of frame lines."""
+    """Run siddump --writelog --raw on a SID; return list of frame lines.
+
+    --force-rsid is always passed so RSID files are accepted; siddump
+    treats it as a no-op for PSID files."""
     out = subprocess.run(
-        [SIDDUMP, sid_path, '--writelog', '--duration', str(duration), '--raw'],
+        [SIDDUMP, sid_path, '--writelog', '--force-rsid',
+         '--duration', str(duration), '--raw'],
         capture_output=True, text=True, timeout=60,
     )
     if out.returncode != 0:
