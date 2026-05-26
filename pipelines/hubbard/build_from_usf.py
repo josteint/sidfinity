@@ -372,7 +372,8 @@ def _inputs_from_usf(usf: UsfFile) -> _Inputs:
 # ---------------------------------------------------------------------------
 
 def _build_digi_region(usf: UsfFile, digi_subs: list[DigiSubtune],
-                       digi_code: DigiCode, usf_dir: str
+                       digi_code: DigiCode, usf_dir: str,
+                       music_load: int | None = None
                        ) -> tuple[bytes, int, int]:
     """Build the bytes of the digi region — dispatcher + tables +
     samples + player — placed at their fixed engine addresses.
@@ -388,9 +389,13 @@ def _build_digi_region(usf: UsfFile, digi_subs: list[DigiSubtune],
     end  = digi_code.player_base + len(player_bytes)       # one past last byte
 
     # Generate the PSID dispatcher with addresses substituted for our
-    # music engine and the digi player.
-    music_load = (digi_code.music_load_addr
-                  if digi_code.music_load_addr is not None else LOAD)
+    # music engine and the digi player. `music_load` is passed by the
+    # caller (auto-packing); fall back to digi_code.music_load_addr or
+    # LOAD when called from contexts that don't know the music engine
+    # address yet.
+    if music_load is None:
+        music_load = (digi_code.music_load_addr
+                      if digi_code.music_load_addr is not None else LOAD)
     disp = chimera_psid_dispatcher(
         music_init=music_load, music_play=music_load + 3,
         digi_player=digi_code.player_base, base=base)
@@ -493,19 +498,35 @@ def _emit_combined_sid(inputs: _Inputs, usf: UsfFile, digi_subs: list,
     shrinks the gap to a few hundred bytes — matching the original
     Chimera SID's ~12 KB footprint.
     """
-    music_load = (digi_code.music_load_addr
-                  if digi_code.music_load_addr is not None else LOAD)
-    # Build the music binary the same way _emit_sid would, but then
-    # extract just the data (no PSID header — we build a different one).
+    # Auto-pack music against dispatcher when music_load_addr is None:
+    # measure music size at LOAD, then compute the tight music_load
+    # before building the digi region (the dispatcher's JMP MUSIC_INIT
+    # must match the final music_load address). Iterate in case the
+    # assembled size shifts with the load address (page-crossing
+    # penalties etc.); typically converges in 1-2 iterations.
     tmp_music = out_path + '.music.tmp'
+    if digi_code.music_load_addr is not None:
+        music_load = digi_code.music_load_addr
+    else:
+        _emit_sid(inputs, tmp_music, codec, load_addr=LOAD)
+        size = os.path.getsize(tmp_music) - 124
+        music_load = digi_code.dispatcher_base - size
+        for _ in range(4):
+            _emit_sid(inputs, tmp_music, codec, load_addr=music_load)
+            new_size = os.path.getsize(tmp_music) - 124
+            new_load = digi_code.dispatcher_base - new_size
+            if new_load == music_load:
+                break
+            music_load = new_load
+
+    digi_region, digi_base, play_addr = _build_digi_region(
+        usf, digi_subs, digi_code, usf_dir, music_load=music_load)
+
     _emit_sid(inputs, tmp_music, codec, load_addr=music_load)
     music_blob = open(tmp_music, 'rb').read()
     os.unlink(tmp_music)
     # _emit_sid wrote a PSID. Strip its 124-byte header.
     music_body = music_blob[124:]                  # music bytes at $music_load
-
-    digi_region, digi_base, play_addr = _build_digi_region(
-        usf, digi_subs, digi_code, usf_dir)
 
     music_end = music_load + len(music_body)
     if music_end > digi_base:

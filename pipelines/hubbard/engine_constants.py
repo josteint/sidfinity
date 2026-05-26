@@ -211,8 +211,13 @@ silence_loop
     sta $A10A
     lda bank_table,X
     sta $97
-    lda #$37
-    sta $01                 ; restore default banking
+    lda #$36
+    sta $01                 ; banking $36 — no BASIC, so $A000-$BFFF is
+                            ; RAM. (Was $37 = default banking, which leaves
+                            ; BASIC mapped over $A000-$BFFF and turns the
+                            ; JMP into ROM bytes if DIGI_PLAYER lives in
+                            ; that range. The player itself ANDs $01 with
+                            ; $3E so $36 & $3E = $36 — same target state.)
     jmp DIGI_PLAYER
 
 play
@@ -539,20 +544,18 @@ CHIMERA_DIGI = DigiCode(
     dispatcher=b'',                          # regenerated at codegen time
     music_init_patch_off=0,                  # unused for PSID
     music_play_patch_off=0,                  # unused for PSID
-    player_base=0xC000,
+    player_base=0xB093,
     # The player bytes are assembled lazily from CHIMERA_DIGI_PLAYER_ASM;
     # `assemble_chimera_digi_player()` runs xa65 and caches the result.
     # Stored as a sentinel empty bytes here; the codegen calls the
     # assembler when it needs the bytes.
     player=b'',
     bank_table_base=0xA000,
-    # Pack the music engine just below the dispatcher so the combined
-    # PSID stays small. Music engine + data is ~4.8 KB; $8C00 puts
-    # it at $8C00..$9EE5 with ~155 bytes of slack before the $9F80
-    # dispatcher. The original Chimera SID loads at $9F80 (entire
-    # file 12,314 bytes); the codegen's default LOAD=$1000 zero-fills
-    # the gap below $9F80 and balloons the file to 45 KB.
-    music_load_addr=0x8C00,
+    # Set to None — the combined builder auto-packs the music engine
+    # against the dispatcher (two-pass measure + rebuild), so the gap
+    # is exactly zero regardless of how the music engine size evolves.
+    # Set to an explicit address if you need a fixed layout.
+    music_load_addr=None,
 )
 
 CHIMERA = EngineConstants(
