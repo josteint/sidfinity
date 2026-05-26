@@ -36,7 +36,7 @@ Engine classification comes from `sidid` plus a probe with our `rh_decompile`
 |---|---|---|---|---|
 | 1984 | Up, up & Away! | Companion | byte-exact (5/5) — pipelines/companion/ | `data/C64Music/MUSICIANS/H/Hubbard_Rob/Up_up_and_Away.sid` |
 | 1985 | 5 Title Tunes | classic | byte-exact unified single-engine (5/5) | `data/C64Music/MUSICIANS/H/Hubbard_Rob/5_Title_Tunes.sid` |
-| 1985 | Action Biker | classic | byte-exact 1/3 ($D400-$D418 snapshot); subtunes 1+2 miss end-of-song filter cleanup | `data/C64Music/MUSICIANS/H/Hubbard_Rob/Action_Biker.sid` |
+| 1985 | Action Biker | classic | byte-exact (3/3, $D400-$D418 snapshot) | `data/C64Music/MUSICIANS/H/Hubbard_Rob/Action_Biker.sid` |
 | 1985 | Battle of Britain | classic | byte-exact (1/1) | `data/C64Music/MUSICIANS/H/Hubbard_Rob/Battle_of_Britain.sid` |
 | 1985 | Chimera | classic | byte-exact music (4/4) + cycle-strict digi | `data/C64Music/MUSICIANS/H/Hubbard_Rob/Chimera.sid` |
 | 1985 | Commando | classic | byte-exact (19/19) | `data/C64Music/MUSICIANS/H/Hubbard_Rob/Commando.sid` |

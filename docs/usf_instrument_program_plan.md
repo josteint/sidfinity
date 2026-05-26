@@ -323,10 +323,11 @@ binding rule for every effect representation decision in this phase.
       $C46D INC on the same tick as the pattern's last note load.
       Confuzion + Thing on a Spring now byte-exact under the strict
       $D400-$D418 snapshot check. See `project_hubbard_song_end_fade.md`.
-- [ ] **6.2.2** Implement Action Biker's end-of-song filter cleanup
-      ($D415/$D416/$D417=$80). Affects subtunes 1+2 (1/3). Inaudible
-      diff — no voice gated on at song end — but a real register
-      mismatch the snapshot check catches.
+- [x] **6.2.2** Action Biker's end-of-song filter cleanup
+      ($D415/$D416/$D417=$80) — done, commit 2104958. The codegen's
+      sps_fill loop now uses `LDX #23` (covering $D400-$D417, 24 regs)
+      to match the engine's `LDX #$17; STA $D400,X` at $C2E1-$C2E7.
+      Action Biker now byte-exact 3/3 under the strict snapshot check.
 - [ ] **6.3** Migrate remaining D/F pipelines (Last V8, Rasputin,
       Bump Set Spike, Master of Magic, Gremlins).
 - [ ] **6.4 / 6.5 — schema cleanup (NEEDS RESCOPING).** Written
