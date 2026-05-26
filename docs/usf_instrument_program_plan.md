@@ -309,10 +309,22 @@ binding rule for every effect representation decision in this phase.
         and added `arp_period=8` / `incby2_step=-1`/`onset=12` /
         `vib_onset=8` / `frame_ctr_init=$DC` to its config — no new
         shared-core fields.
-      - [x] **Confuzion** — done, byte-exact (1/1, 13998 frames).
-        Stripped Hubbard '85 runtime: only vibrato + bidirectional
-        PWM, no fx-bit dispatch. Two config knobs only: `vib_onset=8`,
-        `speed_ctr_init=2`. Zero shared-core changes.
+      - [x] **Confuzion** — done, byte-exact (1/1, 13998 frames at
+        voice + filter level). Stripped Hubbard '85 runtime: only
+        vibrato + bidirectional PWM, no fx-bit dispatch. Two config
+        knobs only: `vib_onset=8`, `speed_ctr_init=2`. Zero shared-core
+        changes.
+- [ ] **6.2.1** Implement Hubbard's song-end $D418 fade in codegen
+      (surfaced by commit 667176a expanding verify from voice regs
+      to $D400-$D418 snapshot comparison). Affects Confuzion (0/1)
+      and Thing on a Spring music (16/17). Other engines probably
+      have the same fade but their verify windows don't reach it.
+      Need a deeper trace of one engine to find the fade-arm trigger
+      and counter increment. See `project_hubbard_song_end_fade.md`.
+- [ ] **6.2.2** Implement Action Biker's end-of-song filter cleanup
+      ($D415/$D416/$D417=$80). Affects subtunes 1+2 (1/3). Inaudible
+      diff — no voice gated on at song end — but a real register
+      mismatch the snapshot check catches.
 - [ ] **6.3** Migrate remaining D/F pipelines (Last V8, Rasputin,
       Bump Set Spike, Master of Magic, Gremlins).
 - [ ] **6.4 / 6.5 — schema cleanup (NEEDS RESCOPING).** Written
