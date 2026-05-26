@@ -50,15 +50,18 @@ def _file_md5(path: str) -> str:
 
 
 def _checksum(args):
-    """One subtune -> one checksum. Capture it, then fold each frame's
-    ordered (register, value) writes into a running md5 — folded in
-    frame order, so a reordered or duplicated frame changes the digest
-    (a plain XOR would not — XOR is commutative)."""
+    """One subtune -> one checksum. The comparison is on the SID's
+    END-OF-FRAME REGISTER STATE — every byte of $D400..$D418 at the
+    boundary of each play() call. Snapshots fold in writes from init
+    and every play call up to that frame, so a register the play loop
+    doesn't re-assert (e.g. $D418 set once in init) still gets
+    compared. Two captures match exactly when the SID sees identical
+    state at the same frame boundary."""
     key, sid, nf, subtune = args
     cap = capture(sid, n_frames=nf, subtune=subtune)
     h = hashlib.md5()
-    for k in range(nf):
-        h.update(repr(cap.raw_frames[k]).encode())
+    for snap in cap.snapshots:
+        h.update(snap)
         h.update(b'\n')                       # frame delimiter
     return key, h.hexdigest()
 

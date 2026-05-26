@@ -42,10 +42,16 @@ VS_PITCH   = 0x54FB   # current pitch (semitone)
 VS_INSTR   = 0x54FE   # current instrument number
 G_FRAMECTR = 0x5525   # global frame counter (vibrato / arpeggio phase)
 
-# Per-voice SID register block: V1 = $D400..$D406, V2 = $D407..$D40D,
-# V3 = $D40E..$D414. Within a voice: freq_lo/hi, pw_lo/hi, ctrl, ad, sr.
+# SID write-affecting register block: $D400..$D418.
+#  - Per-voice ($D400..$D414): V1 = +0..+6, V2 = +7..+13, V3 = +14..+20.
+#    Within a voice: freq_lo/hi, pw_lo/hi, ctrl, ad, sr.
+#  - Filter + master ($D415..$D418): cutoff lo/hi, res+routing, mode/vol.
+# $D419..$D41C are read-only (paddles + V3 osc/env output) — writes are
+# ignored by the SID, so excluded from capture.
 SID_BASE = 0xD400
+SID_REG_COUNT = 25  # $D400..$D418 inclusive
 REG_NAMES = ['freq_lo', 'freq_hi', 'pw_lo', 'pw_hi', 'ctrl', 'ad', 'sr']
+GLOBAL_REG_NAMES = ['flt_lo', 'flt_hi', 'flt_ctrl', 'mode_vol']  # $D415..$D418
 
 
 # ---------------------------------------------------------------------------
@@ -80,9 +86,15 @@ class CaptureResult:
     sid_path: str
     n_frames: int
     occurrences: list[NoteOccurrence]
-    # raw_frames[k] = the full ordered (reg_offset 0..20, value) write list
-    # the engine produced on play() call k — every voice + drum, unsplit.
+    # raw_frames[k] = the full ordered (reg_offset 0..SID_REG_COUNT-1, value)
+    # write list the engine produced on play() call k — every voice + filter
+    # + master VOL, unsplit.
     raw_frames: list[list[tuple[int, int]]] = field(default_factory=list)
+    # snapshots[k] = the SID register state ($D400..$D418, 25 bytes) at
+    # the END of play() call k. Folds the writes from init AND every play
+    # call up to and including frame k, so it captures master-VOL / filter
+    # state established in init that the play loop doesn't re-assert.
+    snapshots: list[bytes] = field(default_factory=list)
 
     def for_instrument(self, inst_idx: int) -> list[NoteOccurrence]:
         return [o for o in self.occurrences if o.instrument == inst_idx]
@@ -136,7 +148,8 @@ def capture(sid_path: str = SID_PATH, n_frames: int = 1500,
         frame_writes.append((address - SID_BASE, value))
         return None
 
-    mem.subscribe_to_write(range(SID_BASE, SID_BASE + 21), on_sid_write)
+    mem.subscribe_to_write(range(SID_BASE, SID_BASE + SID_REG_COUNT),
+                           on_sid_write)
 
     m = MPU()
     m.memory = mem
@@ -158,6 +171,15 @@ def capture(sid_path: str = SID_PATH, n_frames: int = 1500,
     # init() — A = subtune number (0-indexed), per PSID convention.
     call(init_addr, acc=subtune)
 
+    # Init's writes establish the SID's baseline state (typically
+    # $D418=$0F and any preset filter / per-voice config). Fold them
+    # into a running snapshot so later per-frame snapshots include
+    # any register the play() loop doesn't re-assert.
+    sid_state = bytearray(SID_REG_COUNT)
+    for off, val in frame_writes:
+        if 0 <= off < SID_REG_COUNT:
+            sid_state[off] = val
+
     # IRQ-driven SID (PSID play address 0): the tune installs its own
     # handler via the KERNAL IRQ vector at $0314/$0315. Call that
     # handler each frame — it JSRs the real play routine and exits via
@@ -170,9 +192,14 @@ def capture(sid_path: str = SID_PATH, n_frames: int = 1500,
     # note-load that play() performed this frame is visible.
     frames: list[tuple[list[dict], list[list[tuple[int, int]]]]] = []
     raw_frames: list[list[tuple[int, int]]] = []
+    snapshots: list[bytes] = []
     for _ in range(n_frames):
         frame_writes.clear()
         call(play_addr, budget=100000)
+        for off, val in frame_writes:
+            if 0 <= off < SID_REG_COUNT:
+                sid_state[off] = val
+        snapshots.append(bytes(sid_state))
 
         state = [{
             'dur':      m.memory[VS_DUR + v],
@@ -194,7 +221,7 @@ def capture(sid_path: str = SID_PATH, n_frames: int = 1500,
     occurrences = _segment(frames)
     for o in occurrences:
         o.subtune = subtune
-    return CaptureResult(sid_path=sid_path, n_frames=n_frames,
+    return CaptureResult(sid_path=sid_path, n_frames=n_frames, snapshots=snapshots,
                          occurrences=occurrences, raw_frames=raw_frames)
 
 
