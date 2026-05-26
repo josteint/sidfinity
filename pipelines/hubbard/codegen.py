@@ -244,6 +244,12 @@ pv_abort    = $b3
 v_frozen    = $b4
 voice_start = $b7
 first_frame = $b8
+; Master-volume fade counter — incremented on the configured voice's
+; pattern-end (never wraps on song-loop). Read by the bit-7-style
+; master VOL write on instrument-change notes:
+;   $D418 = clamp(MASTER_VOL_BASE - vol_progress, 0..$0F)
+; Only emitted when MASTER_VOL_FADE = 1.
+vol_progress = $b9
 ; Per-subtune engine-param zp slots (used only when the codegen emits
 ; the per-subtune-params variant — see PER_SUBTUNE_ENGINE_PARAMS).
 ; `cur_incby2_step` is the slide step added per frame (8-bit signed:
@@ -329,6 +335,9 @@ iniov:  lda ovseed,x
         bpl iniov
         lda #0
         sta end_phase
+        sta vol_progress     ; reset master-vol fade counter (no-op when
+                             ; MASTER_VOL_FADE = 0; the VOL write that
+                             ; reads it is also gated)
         lda #SPEED_CTR_INIT
         sta speed_ctr
         lda #1
@@ -340,7 +349,11 @@ ini2:   lda #0
         sta $d400,x
         dex
         bpl ini2
-        lda #$0f
+        lda #MASTER_VOL_INIT  ; $D418 init value — most engines write $0F
+                              ; here, but engines with MASTER_VOL_FADE
+                              ; leave it at $00 because the original
+                              ; engine doesn't write $D418 until the
+                              ; first instrument-change note.
         sta $d418
         rts
 
@@ -1546,6 +1559,13 @@ class _Inputs:
     # iniov loop. Used by unified-engine builds (5 Title Tunes) where
     # each sub's per-voice load-time state differs.
     per_subtune_ovseed: _Optional[list] = None
+    # Master-volume fade — see EngineConfig.master_vol_subtrahend_voice.
+    # When set (0/1/2), codegen maintains a vol_progress counter that
+    # increments on the named voice's pattern-end (never wraps) and
+    # writes $D418 = clamp(master_vol_base - counter, 0..$0F) on every
+    # instrument-change note. None disables.
+    master_vol_subtrahend_voice: _Optional[int] = None
+    master_vol_base: int = 0xA0
 
 
 def _inputs_from_config(config) -> _Inputs:
@@ -1596,6 +1616,8 @@ def _inputs_from_config(config) -> _Inputs:
         models=models, scores=scores, resetspds=resetspds,
         voice_starts=voice_starts, freq_bytes=freq_bytes,
         sfx_list=sfx_list,
+        master_vol_subtrahend_voice=config.master_vol_subtrahend_voice,
+        master_vol_base=config.master_vol_base,
     )
 
 
@@ -1629,6 +1651,7 @@ def _emit_sid(inputs: _Inputs, out_path: str, codec,
            f'FIRST_FRAME_GATE_OFF = {1 if inputs.first_frame_gate_off else 0}\n'
            f'STOP_IS_FILL = {1 if inputs.stop_fill is not None else 0}\n'
            f'STOP_FILL = {inputs.stop_fill or 0}\n'
+           f'MASTER_VOL_INIT = {0x00 if inputs.master_vol_subtrahend_voice is not None else 0x0F}\n'
            + codec.zp_asm + '\n'
            + ENGINE + '\n'
            + codec.note_asm + '\n'
@@ -1740,6 +1763,32 @@ def _emit_sid(inputs: _Inputs, out_path: str, codec,
             f'        sbc #1\n'
             f'        sta statebuf+{ofs},x')
     asm = asm.replace('; %%NS_OFFTAB_DECR%%', offtab_decr_asm)
+
+    # Master-volume fade: when set, emit (a) a per-voice gate that INCs
+    # vol_progress on the configured voice's pattern-end, and (b) the
+    # $D418 = clamp(BASE - vol_progress, 0..$0F) write on every
+    # instrument-change note. The two sentinels live in note_codec.py's
+    # load_note; both expand to empty strings when the feature is off,
+    # leaving previously-byte-exact engines unaffected.
+    vol_inc_asm = ''
+    vol_write_asm = ''
+    if inputs.master_vol_subtrahend_voice is not None:
+        v = inputs.master_vol_subtrahend_voice
+        vol_inc_asm = (
+            f'        cpx #{v}\n'
+            f'        bne vp_skip\n'
+            f'        inc vol_progress\n'
+            f'vp_skip:')
+        vol_write_asm = (
+            f'        lda #${inputs.master_vol_base:02X}\n'
+            f'        sec\n'
+            f'        sbc vol_progress\n'
+            f'        cmp #$0f\n'
+            f'        bcc mvw_lt\n'
+            f'        lda #$0f\n'
+            f'mvw_lt: sta $d418')
+    asm = asm.replace('; %%VOL_PROGRESS_INC%%', vol_inc_asm)
+    asm = asm.replace('; %%MASTER_VOL_WRITE%%', vol_write_asm)
 
     # Relocate the engine to the requested load address — the ENGINE
     # template has `* = $1000` hardcoded; rewrite it to load_addr.

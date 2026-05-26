@@ -60,4 +60,11 @@ THING_ON_A_SPRING = EngineConfig(
     # 16 SFX overlays at $CDA2 — same 16-byte record format as Commando.
     has_sfx=True,
     extract_sfx=extract_sfx,
+    # Song-end fade: engine writes $D418 = clamp($47 - V3_orderpos, 0..$0F)
+    # on every instrument-change note ($C0C0-$C0CC). V3's pattern-end
+    # counter ($C46F = $C46D + V3) drives the fade — same mechanism as
+    # Confuzion but with V3 (not V2) and a different base ($47 vs $A0).
+    # See [[project_hubbard_song_end_fade]].
+    master_vol_subtrahend_voice=2,
+    master_vol_base=0x47,
 )

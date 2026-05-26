@@ -97,3 +97,16 @@ class EngineConfig:
     # Race is the exception — its engine init at $1A9C zeros v_inst etc.
     # at runtime, so seeding from the overlap bytes leaks wrong values.
     seed_overlap: bool = True
+    # Master-volume fade driven by a voice's pattern-progress counter.
+    # When `master_vol_subtrahend_voice` is set (0=V1, 1=V2, 2=V3), the
+    # codegen maintains an 8-bit counter that ticks +1 each time that
+    # voice's orderlist position advances (i.e. on every pattern-end);
+    # the counter NEVER wraps on song-loop. On every instrument-change
+    # note (any voice) the codegen emits `STA $D418, clamp(base-counter,
+    # 0..$0F)`. This reproduces Hubbard's late-song fade-out, where
+    # `clamp($A0 - V2_orderpos, 0..$0F)` drops below $0F once V2 has
+    # advanced past the master_vol_base ($A0) - $0F = $91 patterns.
+    # Confuzion uses this with `subtrahend_voice=1, base=$A0`. See
+    # [[project_hubbard_song_end_fade]] in memory for the analysis.
+    master_vol_subtrahend_voice: Optional[int] = None
+    master_vol_base: int = 0xA0

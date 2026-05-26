@@ -42,4 +42,12 @@ CFG = EngineConfig(
     arp_interval=12,
     vib_onset=8,
     speed_ctr_init=2,
+    # Song-end fade: the engine's bit-7 instrument-change note path
+    # writes $D418 = clamp($A0 - $0BC2, 0..$0F), where $0BC2 = V2's
+    # orderlist position (an absolute counter that doesn't reset on
+    # song-loop). Once V2 has advanced past $91 patterns the formula
+    # drops below $0F and the master VOL fades to $00 over the next
+    # ~22 seconds. See [[project_hubbard_song_end_fade]].
+    master_vol_subtrahend_voice=1,
+    master_vol_base=0xA0,
 )

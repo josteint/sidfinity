@@ -19,12 +19,15 @@ params {
   frame_ctr_init: 255
   freeze_on_stop: false
   has_incby2_late_gate: false
+  has_master_vol_fade: true
   has_stop_fill: false
   incby2_every_frame: false
   incby2_late_gate: -1
   incby2_onset: $03
   incby2_step: 2
   linear_pw_or: $00
+  master_vol_base: 160
+  master_vol_subtrahend_voice: 1
   seed_overlap: true
   speed_ctr_init: 2
   stop_fill: $00

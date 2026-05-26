@@ -226,6 +226,12 @@ def _params_from_config(config) -> Params:
                                       if config.stop_fill is not None
                                       else 0),
         'has_stop_fill':             (config.stop_fill is not None),
+        'master_vol_subtrahend_voice': (config.master_vol_subtrahend_voice
+                                        if config.master_vol_subtrahend_voice
+                                        is not None else -1),
+        'has_master_vol_fade':       (config.master_vol_subtrahend_voice
+                                      is not None),
+        'master_vol_base':           config.master_vol_base,
     })
 
 

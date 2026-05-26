@@ -357,6 +357,10 @@ def _inputs_from_usf(usf: UsfFile) -> _Inputs:
         per_subtune_incby2_step=per_subtune_incby2_step,
         per_subtune_incby2_late_gate=per_subtune_incby2_late_gate,
         per_subtune_ovseed=per_subtune_ovseed,
+        master_vol_subtrahend_voice=(get('master_vol_subtrahend_voice', -1)
+                                     if get('has_master_vol_fade', False)
+                                     else None),
+        master_vol_base=get('master_vol_base', 0xA0),
     )
 
 

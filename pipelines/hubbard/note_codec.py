@@ -132,6 +132,10 @@ ln_chk:
         lda v_notesleft,x
         bne ln_decode
         inc v_orderpos,x       ; pattern exhausted - next orderlist entry
+        ; %%VOL_PROGRESS_INC%%   ; engines with MASTER_VOL_FADE INC
+                                 ; vol_progress on the configured voice's
+                                 ; pattern-end (8-bit wrap, no reset on
+                                 ; song-loop — that's the point).
         jsr set_patptr
         lda v_ended,x
         bne ln_ret
@@ -172,6 +176,10 @@ ln_decode:
         sta rb_n
         jsr readbits          ; new instrument (tie bit clear)
         sta v_instr,x
+        ; %%MASTER_VOL_WRITE%%   ; engines with MASTER_VOL_FADE write
+                                 ; $D418 = clamp(BASE - vol_progress, $0F)
+                                 ; here, mirroring the engine's bit-7
+                                 ; instrument-change-byte path.
         inc ln_hasb1
         jmp ln_porta
 ln_noinst:
