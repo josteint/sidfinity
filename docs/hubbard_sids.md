@@ -41,7 +41,7 @@ Engine classification comes from `sidid` plus a probe with our `rh_decompile`
 | 1985 | Chimera | classic | byte-exact music (4/4) + cycle-strict digi | `data/C64Music/MUSICIANS/H/Hubbard_Rob/Chimera.sid` |
 | 1985 | Commando | classic | byte-exact (19/19) | `data/C64Music/MUSICIANS/H/Hubbard_Rob/Commando.sid` |
 | 1985 | Commodore 64 Music Examples | Companion |  | `data/C64Music/MUSICIANS/H/Hubbard_Rob/Commodore_64_Music_Examples.sid` |
-| 1985 | Confuzion | classic |  | `data/C64Music/MUSICIANS/H/Hubbard_Rob/Confuzion.sid` |
+| 1985 | Confuzion | classic | byte-exact (1/1) | `data/C64Music/MUSICIANS/H/Hubbard_Rob/Confuzion.sid` |
 | 1985 | Crazy Comets | classic |  | `data/C64Music/MUSICIANS/H/Hubbard_Rob/Crazy_Comets.sid` |
 | 1985 | Devils Galop | classic | byte-exact (1/1) | `data/C64Music/MUSICIANS/H/Hubbard_Rob/Devils_Galop.sid` |
 | 1985 | Gremlins | classic |  | `data/C64Music/MUSICIANS/H/Hubbard_Rob/Gremlins.sid` |

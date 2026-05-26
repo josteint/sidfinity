@@ -309,6 +309,10 @@ binding rule for every effect representation decision in this phase.
         and added `arp_period=8` / `incby2_step=-1`/`onset=12` /
         `vib_onset=8` / `frame_ctr_init=$DC` to its config — no new
         shared-core fields.
+      - [x] **Confuzion** — done, byte-exact (1/1, 13998 frames).
+        Stripped Hubbard '85 runtime: only vibrato + bidirectional
+        PWM, no fx-bit dispatch. Two config knobs only: `vib_onset=8`,
+        `speed_ctr_init=2`. Zero shared-core changes.
 - [ ] **6.3** Migrate remaining D/F pipelines (Last V8, Rasputin,
       Bump Set Spike, Master of Magic, Gremlins).
 - [ ] **6.4 / 6.5 — schema cleanup (NEEDS RESCOPING).** Written
