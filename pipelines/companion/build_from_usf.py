@@ -15,7 +15,7 @@ import os
 import struct
 
 from src.usf2 import UsfFile, MusicSubtune, parse_file
-from pipelines.companion.extract import SubtuneData, VoiceState
+from pipelines.companion.extract import SubtuneData, VoiceState, VoicePadding
 from pipelines.companion import codegen as cg
 
 
@@ -68,14 +68,15 @@ def _voice_state_from_init(iv, instr) -> VoiceState:
 def _orderlist_bytes_from_voice_block(vb) -> bytes:
     """Reconstruct the engine orderlist bytes for one voice.
 
-    Layout: <pattern rows> + $8D (= the `stop` terminator) + <trailing>.
-    Companion voices have a single pattern and a single orderlist entry.
+    Layout: <pattern rows> + $8D (the `stop` terminator). Post-$8D
+    ringoff bytes are NOT here — they come from the codegen laying
+    out subsequent data adjacent in memory.
     """
     if not vb.patterns:
         raise ValueError(f'voice {vb.id} has no patterns')
     pat = vb.patterns[0]
     body = bytes(_byte_from_row(r) for r in pat.rows)
-    return body + bytes([0x8D]) + vb.trailing
+    return body + bytes([0x8D])
 
 
 def _subtune_from_music(ms: MusicSubtune,
@@ -94,6 +95,9 @@ def _subtune_from_music(ms: MusicSubtune,
         init_pwm_ctr_2=p['init_pwm_ctr_2'],
         vol_filter=p['vol_filter'],
         filter_cutoff_hi=p['filter_cutoff_hi'],
+        v1_padding=VoicePadding(p.get('v1_pad_count', 0), p.get('v1_pad_byte', 0)),
+        v2_padding=VoicePadding(p.get('v2_pad_count', 0), p.get('v2_pad_byte', 0)),
+        v3_padding=VoicePadding(p.get('v3_pad_count', 0), p.get('v3_pad_byte', 0)),
         orderlist_v1=_orderlist_bytes_from_voice_block(ms.voices[0]),
         orderlist_v2=_orderlist_bytes_from_voice_block(ms.voices[1]),
         orderlist_v3=_orderlist_bytes_from_voice_block(ms.voices[2]),

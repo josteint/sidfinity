@@ -79,8 +79,7 @@ subtune_body: music_body
 // music
 music_body: "tempo" ":" INT params_block? init_block? voice_block voice_block voice_block
 
-voice_block: "voice" INT "{" "orderlist" ":" orderlist pattern_block* trailing_block? "}"
-trailing_block: "trailing" ":" byte_list
+voice_block: "voice" INT "{" "orderlist" ":" orderlist pattern_block* "}"
 orderlist: orderlist_entry+ orderlist_terminator?
          | orderlist_terminator
 orderlist_entry: INT

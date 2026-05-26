@@ -181,6 +181,12 @@ subtune 0 music {
     init_pwm_ctr_2: 255
     init_tempo_counter: 12
     note_load_tick: 13
+    v1_pad_byte: 255
+    v1_pad_count: 8
+    v2_pad_byte: 255
+    v2_pad_count: 8
+    v3_pad_byte: 0
+    v3_pad_count: 8
     vol_filter: 15
   }
   init {
@@ -391,9 +397,6 @@ subtune 0 music {
       E-5    1
       E-5    1
     }
-    trailing:
-      $FF $FF $FF $FF $FF $FF $FF $FF $3B $3B $3B $3B $3B $3B $8C $47
-      $47 $47 $47 $47 $46 $46 $46 $46 $45 $45 $45 $45 $45 $45 $45 $45
   }
   voice 2 {
     orderlist: 1 stop
@@ -598,9 +601,6 @@ subtune 0 music {
       C#5    1
       C#5    1
     }
-    trailing:
-      $FF $FF $FF $FF $FF $FF $FF $FF $A7 $A7 $B7 $A7 $A7 $A7 $B7 $A7
-      $A7 $A7 $B7 $A7 $A7 $A7 $B7 $A7 $A5 $A5 $B5 $A5 $A5 $A5 $B5 $A5
   }
   voice 3 {
     orderlist: 1 stop
@@ -805,9 +805,6 @@ subtune 0 music {
       A-2    1
       A-2    1
     }
-    trailing:
-      $00 $00 $00 $00 $00 $00 $00 $00 $00 $00 $00 $0C $40 $07 $85 $00
-      $00 $00 $08 $40 $07 $85 $00 $00 $00 $01 $40 $09 $57 $09 $0D $0C
   }
 }
 
@@ -820,6 +817,12 @@ subtune 1 music {
     init_pwm_ctr_2: 255
     init_tempo_counter: 11
     note_load_tick: 12
+    v1_pad_byte: 0
+    v1_pad_count: 15
+    v2_pad_byte: 0
+    v2_pad_count: 15
+    v3_pad_byte: 0
+    v3_pad_count: 15
     vol_filter: 15
   }
   init {
@@ -879,9 +882,6 @@ subtune 1 music {
       E-4    1
       E-4    1
     }
-    trailing:
-      $00 $00 $00 $00 $00 $00 $00 $00 $00 $00 $00 $00 $00 $00 $00 $54
-      $D4 $54 $54 $57 $57 $C7 $C7 $49 $49 $50 $D0 $50 $D0 $52 $52 $55
   }
   voice 2 {
     orderlist: 1 stop
@@ -935,9 +935,6 @@ subtune 1 music {
       C-5    1
       C-5    1
     }
-    trailing:
-      $00 $00 $00 $00 $00 $00 $00 $00 $00 $00 $00 $00 $00 $00 $00 $8C
-      $8C $30 $30 $30 $30 $8C $8C $25 $25 $25 $25 $8C $8C $2A $2A $2A
   }
   voice 3 {
     orderlist: 1 stop
@@ -991,9 +988,6 @@ subtune 1 music {
       C-3    1
       C-3    1
     }
-    trailing:
-      $00 $00 $00 $00 $00 $00 $00 $00 $00 $00 $00 $00 $00 $00 $00 $00
-      $00 $00 $0C $10 $00 $F5 $00 $00 $00 $08 $10 $00 $F5 $00 $00 $00
   }
 }
 
@@ -1006,6 +1000,12 @@ subtune 2 music {
     init_pwm_ctr_2: 0
     init_tempo_counter: 11
     note_load_tick: 12
+    v1_pad_byte: 0
+    v1_pad_count: 0
+    v2_pad_byte: 0
+    v2_pad_count: 0
+    v3_pad_byte: 0
+    v3_pad_count: 0
     vol_filter: 31
   }
   init {
@@ -1048,9 +1048,6 @@ subtune 2 music {
       C-5    1
       C-5    1
     }
-    trailing:
-      $44 $44 $44 $C4 $44 $44 $44 $C3 $C4 $45 $45 $45 $45 $45 $45 $C5
-      $C4 $45 $C5 $C4 $C5 $44 $C4 $C3 $42 $42 $C2 $C5 $44 $44 $44 $8D
   }
   voice 2 {
     orderlist: 1 stop
@@ -1087,9 +1084,6 @@ subtune 2 music {
       E-4    1
       E-4    1
     }
-    trailing:
-      $20 $C0 $20 $C0 $20 $C0 $20 $C0 $20 $C0 $20 $C0 $20 $C0 $20 $C0
-      $20 $C0 $24 $B4 $25 $B5 $26 $B6 $27 $B7 $27 $B7 $20 $20 $20 $8D
   }
   voice 3 {
     orderlist: 1 stop
@@ -1126,9 +1120,6 @@ subtune 2 music {
       C-2    1
       C-2    1
     }
-    trailing:
-      $00 $00 $00 $0C $40 $07 $85 $00 $00 $00 $08 $40 $07 $85 $00 $00
-      $00 $01 $40 $09 $67 $06 $0C $0B $00 $C2 $20 $C2 $40 $C2 $00 $00
   }
 }
 
@@ -1141,6 +1132,12 @@ subtune 3 music {
     init_pwm_ctr_2: 255
     init_tempo_counter: 5
     note_load_tick: 6
+    v1_pad_byte: 0
+    v1_pad_count: 0
+    v2_pad_byte: 0
+    v2_pad_count: 0
+    v3_pad_byte: 0
+    v3_pad_count: 0
     vol_filter: 15
   }
   init {
@@ -1183,9 +1180,6 @@ subtune 3 music {
       A#3    1
       A#3    1
     }
-    trailing:
-      $35 $35 $35 $B5 $36 $36 $36 $B6 $35 $35 $35 $B5 $36 $36 $36 $B6
-      $35 $35 $35 $B5 $36 $36 $36 $B6 $35 $35 $35 $35 $35 $35 $35 $8D
   }
   voice 2 {
     orderlist: 1 stop
@@ -1222,9 +1216,6 @@ subtune 3 music {
       F-3    1
       F-3    1
     }
-    trailing:
-      $2A $2A $2A $AA $2A $2A $2A $AA $2A $2A $2A $AA $2A $2A $2A $AA
-      $2A $2A $2A $AA $2A $2A $2A $AA $2A $2A $2A $2A $2A $2A $2A $8D
   }
   voice 3 {
     orderlist: 1 stop
@@ -1261,9 +1252,6 @@ subtune 3 music {
       A#2    1
       A#2    1
     }
-    trailing:
-      $00 $00 $00 $0A $40 $29 $85 $00 $00 $00 $08 $20 $27 $45 $00 $00
-      $00 $09 $20 $27 $47 $03 $06 $05 $20 $C5 $40 $C5 $60 $C5 $FF $FF
   }
 }
 
@@ -1276,6 +1264,12 @@ subtune 4 music {
     init_pwm_ctr_2: 0
     init_tempo_counter: 8
     note_load_tick: 9
+    v1_pad_byte: 0
+    v1_pad_count: 0
+    v2_pad_byte: 0
+    v2_pad_count: 0
+    v3_pad_byte: 255
+    v3_pad_count: 8
     vol_filter: 15
   }
   init {
@@ -1358,9 +1352,6 @@ subtune 4 music {
       G-3    1
       G-3    1
     }
-    trailing:
-      $8C $8C $8C $8C $8C $8C $8C $8C $32 $37 $3B $42 $47 $4B $52 $57
-      $5B $57 $52 $4B $47 $42 $3B $37 $34 $39 $41 $44 $49 $51 $54 $59
   }
   voice 2 {
     orderlist: 1 stop
@@ -1437,9 +1428,6 @@ subtune 4 music {
       D-3    1
       D-3    1
     }
-    trailing:
-      $8C $8C $8C $8C $8C $8C $8C $8C $27 $27 $A7 $A7 $22 $A2 $24 $A4
-      $27 $27 $27 $A7 $22 $A2 $24 $A4 $29 $29 $A9 $A9 $24 $A4 $26 $A6
   }
   voice 3 {
     orderlist: 1 stop
@@ -1516,8 +1504,5 @@ subtune 4 music {
       G-2    1
       G-2    1
     }
-    trailing:
-      $FF $FF $FF $FF $FF $FF $FF $FF $00 $00 $00 $07 $40 $07 $85 $00
-      $00 $00 $08 $10 $09 $F5 $00 $00 $80 $09 $40 $09 $57 $05 $09 $08
   }
 }

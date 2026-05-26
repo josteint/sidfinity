@@ -23,6 +23,18 @@ class VoiceState:
 
 
 @dataclass
+class VoicePadding:
+    """Per-voice engine-layout padding: the original binary allocates a
+    fixed-size slot for each voice's orderlist; if the orderlist (plus
+    its $8D terminator) is shorter than the slot, the remaining bytes
+    are filler.  The engine reads past $8D and consumes these bytes
+    silently (after V3's $8D fires vol=0). For byte-exact rebuild we
+    must reproduce them — parametrically, as (count, byte_value)."""
+    count: int
+    byte: int
+
+
+@dataclass
 class SubtuneData:
     """All per-subtune data extracted from the SID binary."""
     index: int
@@ -36,6 +48,9 @@ class SubtuneData:
     init_pwm_ctr_2: int          # $C6DF — second byte (also $FF or $00)
     vol_filter: int              # value written to $D418
     filter_cutoff_hi: int        # value written to $D416
+    v1_padding: VoicePadding
+    v2_padding: VoicePadding
+    v3_padding: VoicePadding
     orderlist_v1: bytes
     orderlist_v2: bytes
     orderlist_v3: bytes
@@ -66,37 +81,44 @@ def _parse_voice_state(template: bytes, offset: int) -> VoiceState:
     )
 
 
-def _extract_orderlist(code: bytes, load: int, start: int,
-                       extra_bytes: int = 32) -> bytes:
-    """Read orderlist bytes starting at `start`, including the $8D
-    terminator and `extra_bytes` past it.
+def _extract_orderlist(code: bytes, load: int, start: int) -> bytes:
+    """Read orderlist bytes starting at `start`, up to and including
+    the first $8D terminator.
 
-    The original engine doesn't stop reading at $8D — V3's $8D
-    kills the volume but the engine keeps advancing all voices'
-    orderlist positions, reading "garbage" bytes that happen to be
-    adjacent data in the binary. For byte-exact verification within
-    the HVSC song-length window we need to replicate those garbage
-    bytes in our rebuild's orderlists. Extra 32 bytes covers the
-    1.1x-songlength tail for every subtune (longest tail is sub 0
-    with ~19 frames * 1 byte per step past $8D).
+    The Companion engine continues reading past $8D (it doesn't check
+    song_alive), but those post-terminator bytes are NOT part of this
+    voice's data — they're whatever happens to be adjacent in memory.
+    The codegen reproduces that adjacency by laying each subtune out
+    as `[V1 ord][V2 ord][V3 ord][template]`, so engine reads past any
+    voice's $8D naturally fall into the next chunk.
     """
     out = bytearray()
-    found_8d = False
     for i in range(512):
         if start - load + i >= len(code):
             break
         b = code[start - load + i]
         out.append(b)
-        if found_8d:
-            if len(out) >= terminator_len + extra_bytes:
-                return bytes(out)
-        elif b == 0x8D:
-            found_8d = True
-            terminator_len = len(out)
-    if not found_8d:
+        if b == 0x8D:
+            return bytes(out)
+    raise ValueError(
+        f'orderlist at ${start:04X}: no $8D terminator in 512 bytes')
+
+
+def _extract_padding(code: bytes, load: int, ord_end_addr: int,
+                     next_addr: int) -> VoicePadding:
+    """Measure the engine-layout padding between this voice's
+    orderlist terminator and the next adjacent chunk. The padding
+    is a uniform byte (verified by sampling); we record (count, byte).
+    """
+    n = next_addr - ord_end_addr
+    if n <= 0:
+        return VoicePadding(count=0, byte=0)
+    bs = bytes(code[ord_end_addr - load + i] for i in range(n))
+    if len(set(bs)) > 1:
         raise ValueError(
-            f'orderlist at ${start:04X}: no $8D terminator in 512 bytes')
-    return bytes(out)
+            f'padding at ${ord_end_addr:04X}..${next_addr:04X} is not uniform: '
+            f'{bs.hex()}')
+    return VoicePadding(count=n, byte=bs[0])
 
 
 def extract_subtune(sub_idx: int) -> SubtuneData:
@@ -119,6 +141,10 @@ def extract_subtune(sub_idx: int) -> SubtuneData:
     v2_ord = (tmpl[27] << 8) | tmpl[26]
     v3_ord = (tmpl[29] << 8) | tmpl[28]
 
+    ord_v1 = _extract_orderlist(code, load, v1_ord)
+    ord_v2 = _extract_orderlist(code, load, v2_ord)
+    ord_v3 = _extract_orderlist(code, load, v3_ord)
+
     return SubtuneData(
         index=sub_idx,
         v1_state=v1, v2_state=v2, v3_state=v3,
@@ -129,9 +155,12 @@ def extract_subtune(sub_idx: int) -> SubtuneData:
         init_pwm_ctr_2=tmpl[31],
         vol_filter=CFG.vol_filter[sub_idx],
         filter_cutoff_hi=CFG.filter_cutoff_hi[sub_idx],
-        orderlist_v1=_extract_orderlist(code, load, v1_ord),
-        orderlist_v2=_extract_orderlist(code, load, v2_ord),
-        orderlist_v3=_extract_orderlist(code, load, v3_ord),
+        v1_padding=_extract_padding(code, load, v1_ord + len(ord_v1), v2_ord),
+        v2_padding=_extract_padding(code, load, v2_ord + len(ord_v2), v3_ord),
+        v3_padding=_extract_padding(code, load, v3_ord + len(ord_v3), template_addr),
+        orderlist_v1=ord_v1,
+        orderlist_v2=ord_v2,
+        orderlist_v3=ord_v3,
     )
 
 

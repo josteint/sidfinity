@@ -56,22 +56,16 @@ g_song_alive = $C7A1
 
 ; ----- init -----
 init:   sta sub_idx
-        ; Copy 32-byte per-subtune template to v_state.
-        ; We use self-modifying code to compute the right template base.
-        ; Template base = templates + (sub_idx * 32).
-        asl
-        asl
-        asl
-        asl
-        asl                ; A = subtune * 32
-        clc
-        adc #<templates
+        ; Each subtune's 32-byte template lives adjacent to its V3
+        ; orderlist (per-subtune block layout). We dispatch by the
+        ; subtune-indexed tmpl_lo/tmpl_hi tables.
+        ldx sub_idx
+        lda tmpl_lo,x
         sta tcopy_src+1
-        lda #0
-        adc #>templates
+        lda tmpl_hi,x
         sta tcopy_src+2
         ldx #0
-tcopy_src: lda templates,x  ; OPERAND patched by code above
+tcopy_src: lda $FFFF,x      ; OPERAND patched above to template base ($FFFF placeholder forces 3-byte absolute encoding so the patch lands on the operand bytes — xa65 would shrink $00xx to 2-byte zp,x form)
         sta v_state,x
         inx
         cpx #32
@@ -235,11 +229,22 @@ pend_done:
 
 
 def _emit_data(subtunes: list[SubtuneData], freq_hi: bytes, freq_lo: bytes) -> str:
-    """Emit the data section: freq tables, per-subtune templates,
-    per-subtune orderlists, dispatch tables."""
+    """Emit the data section.
+
+    Layout — chosen so the engine's "keep reading past $8D" behavior
+    reproduces the original byte stream from the per-subtune block
+    layout alone (no per-voice trailing bytes needed in the USF):
+
+        freq_hi (128) + freq_lo (128)
+        sub_<i>_v1_ord  ──┐  reading past V1's $8D falls into V2
+        sub_<i>_v2_ord  ──┤  reading past V2's $8D falls into V3
+        sub_<i>_v3_ord  ──┤  reading past V3's $8D falls into template
+        tmpl_<i>        ──┘  template is the per-voice init bytes
+        ... repeat for each subtune ...
+        dispatch tables (orderlist + template addresses, filter, vol)
+    """
     lines = []
 
-    # Freq tables
     lines.append('freq_hi:')
     for i in range(0, 128, 16):
         chunk = freq_hi[i:i + 16]
@@ -249,11 +254,15 @@ def _emit_data(subtunes: list[SubtuneData], freq_hi: bytes, freq_lo: bytes) -> s
         chunk = freq_lo[i:i + 16]
         lines.append('        .byt ' + ','.join(f'${b:02X}' for b in chunk))
 
-    # Per-subtune templates — each 32 bytes. Layout matches the
-    # original $C4F0/$C1C0/etc. format we extracted.
-    lines.append('templates:')
+    def hex16(bs):
+        out = []
+        for i in range(0, len(bs), 16):
+            chunk = bs[i:i + 16]
+            out.append('        .byt ' + ','.join(f'${b & 0xFF:02X}' for b in chunk))
+        return out
+
     for s in subtunes:
-        b = [
+        tmpl = bytes([
             s.v1_state.pos, s.v1_state.gate_off_flag,
             s.v1_state.pw_lo, s.v1_state.pw_hi,
             s.v1_state.ctrl_noGate, s.v1_state.ad, s.v1_state.sr,
@@ -264,36 +273,35 @@ def _emit_data(subtunes: list[SubtuneData], freq_hi: bytes, freq_lo: bytes) -> s
             s.v3_state.pw_lo, s.v3_state.pw_hi,
             s.v3_state.ctrl_noGate, s.v3_state.ad, s.v3_state.sr,
             s.gate_off_tick, s.note_load_tick, s.init_tempo_counter,
-            # Bytes 24..29: original engine used these as orderlist
-            # base addresses (self-modifying code). We use zp pointers
-            # instead, so leave these zero.
+            # 6 zero bytes — original engine kept self-modifying-code
+            # orderlist address bytes here; we use zp pointers, so 0.
             0, 0, 0, 0, 0, 0,
-            # Bytes 30..31: initial PWM counter values. Original has
-            # either $FF $FF (PW sweep skips frame 0) or $00 $00
-            # (PW sweep fires on frame 0).
             s.init_pwm_ctr, s.init_pwm_ctr_2,
-        ]
-        assert len(b) == 32
-        lines.append('        ; subtune ' + str(s.index))
-        for i in range(0, 32, 16):
-            chunk = b[i:i + 16]
-            lines.append('        .byt ' + ','.join(f'${x & 0xFF:02X}' for x in chunk))
+        ])
+        assert len(tmpl) == 32
 
-    # Per-subtune orderlists with named labels.
-    for s in subtunes:
-        for voice_idx, ord_bytes in enumerate([s.orderlist_v1, s.orderlist_v2, s.orderlist_v3], 1):
-            lines.append(f'ord_s{s.index}_v{voice_idx}:')
-            for i in range(0, len(ord_bytes), 16):
-                chunk = ord_bytes[i:i + 16]
-                lines.append('        .byt ' + ','.join(f'${b:02X}' for b in chunk))
+        def pad(p):
+            return [p.byte] * p.count if p.count else []
 
-    # Dispatch tables.
+        lines.append(f'; ----- subtune {s.index} block -----')
+        lines.append(f'ord_s{s.index}_v1:')
+        lines.extend(hex16(bytes(s.orderlist_v1) + bytes(pad(s.v1_padding))))
+        lines.append(f'ord_s{s.index}_v2:')
+        lines.extend(hex16(bytes(s.orderlist_v2) + bytes(pad(s.v2_padding))))
+        lines.append(f'ord_s{s.index}_v3:')
+        lines.extend(hex16(bytes(s.orderlist_v3) + bytes(pad(s.v3_padding))))
+        lines.append(f'tmpl_s{s.index}:')
+        lines.extend(hex16(tmpl))
+
+    lines.append('; ----- dispatch tables -----')
     lines.append('ord_v1_lo: .byt ' + ','.join(f'<ord_s{i}_v1' for i in range(5)))
     lines.append('ord_v1_hi: .byt ' + ','.join(f'>ord_s{i}_v1' for i in range(5)))
     lines.append('ord_v2_lo: .byt ' + ','.join(f'<ord_s{i}_v2' for i in range(5)))
     lines.append('ord_v2_hi: .byt ' + ','.join(f'>ord_s{i}_v2' for i in range(5)))
     lines.append('ord_v3_lo: .byt ' + ','.join(f'<ord_s{i}_v3' for i in range(5)))
     lines.append('ord_v3_hi: .byt ' + ','.join(f'>ord_s{i}_v3' for i in range(5)))
+    lines.append('tmpl_lo:   .byt ' + ','.join(f'<tmpl_s{i}'   for i in range(5)))
+    lines.append('tmpl_hi:   .byt ' + ','.join(f'>tmpl_s{i}'   for i in range(5)))
     lines.append('sub_fcHi:  .byt ' + ','.join(f'${s.filter_cutoff_hi:02X}' for s in subtunes))
     lines.append('sub_vol:   .byt ' + ','.join(f'${s.vol_filter:02X}' for s in subtunes))
 

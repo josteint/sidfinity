@@ -423,19 +423,8 @@ class _T(Transformer):
     def voice_block(self, items):
         voice_id = int(items[0])
         orderlist = items[1]
-        rest = list(items[2:])
-        trailing = b''
-        # `trailing_block` rule returns bytes; it always lands at the tail.
-        if rest and isinstance(rest[-1], (bytes, bytearray)):
-            trailing = bytes(rest.pop())
-        patterns = rest
-        return VoiceBlock(id=voice_id, orderlist=orderlist,
-                          patterns=patterns, trailing=trailing)
-
-    def trailing_block(self, items):
-        # items[0] = the byte_list which is already a list[int] from byte_list rule
-        bs = items[0] if items else []
-        return bytes(bs)
+        patterns = list(items[2:])
+        return VoiceBlock(id=voice_id, orderlist=orderlist, patterns=patterns)
 
     # ----- notes + pitches + instrument refs + fx -----
     def pitch_named(self, items):

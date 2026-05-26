@@ -19,9 +19,16 @@ USF representation choices (no schema-level engine flavoring):
   pre-$8D byte sequence as note rows. The `stop` terminator stands
   in for the $8D byte the engine reads to gate off + (V3 only) end
   the song.
-- Each voice has a `trailing` byte array — the bytes the engine
-  reads past $8D ("garbage" / engine ringoff). Kept separate from
-  the music so the pattern stays clean.
+
+The Companion engine keeps reading past `$8D`, gathering bytes
+adjacent in memory (it doesn't check song_alive). Those bytes are
+*not* music and not in the USF — they're a deterministic function
+of the codegen's binary layout. Specifically: the codegen lays out
+each subtune as `[V1 ord][V2 ord][V3 ord][template]`, mirroring the
+original's adjacency. Past V1's `$8D` falls into V2's first bytes;
+past V2's falls into V3's; past V3's falls into the per-subtune
+init template (encoded directly from the USF `init { ... }` block).
+Engine mechanism stays in the engine; the USF stays clean.
 
 Note byte → NoteRow mapping:
   byte 0x00..0x7F (valid semitone)    → Pitch + no flags
@@ -108,22 +115,18 @@ def _instrument_from_voice_state(inst_id: int, vs: VoiceState) -> Instrument:
 
 def _voice_orderlist_bytes_to_voice_block(
         voice_id: int, ord_bytes: bytes) -> VoiceBlock:
-    """Split orderlist bytes into pattern rows + trailing bytes.
-
-    `ord_bytes` contains the orderlist contents extracted from the SID
-    binary, including the $8D terminator and the post-$8D garbage.
-    Rows are the bytes BEFORE the $8D; trailing is the bytes AFTER.
+    """Take the bytes BEFORE the $8D terminator as the pattern rows.
+    Post-$8D bytes are engine ringoff (not music) and the codegen
+    reproduces them deterministically from the binary layout — they
+    don't go into the USF.
     """
     end_idx = ord_bytes.index(0x8D)
-    pre = ord_bytes[:end_idx]
-    post = ord_bytes[end_idx + 1:]
-    rows = [_row_from_byte(b) for b in pre]
+    rows = [_row_from_byte(b) for b in ord_bytes[:end_idx]]
     pattern = Pattern(id=1, length=len(rows), rows=rows)
     return VoiceBlock(
         id=voice_id,
         orderlist=Orderlist(entries=[1], stop=True),
         patterns=[pattern],
-        trailing=bytes(post),
     )
 
 
@@ -136,6 +139,16 @@ def _params_for_subtune(s: SubtuneData) -> Params:
         'init_pwm_ctr_2': s.init_pwm_ctr_2,
         'vol_filter': s.vol_filter,
         'filter_cutoff_hi': s.filter_cutoff_hi,
+        # Per-voice engine layout — the Companion engine reads past
+        # each voice's $8D into the bytes the original binary
+        # happened to place adjacently. (count, byte) is enough
+        # because the padding is always a uniform fill.
+        'v1_pad_count': s.v1_padding.count,
+        'v1_pad_byte':  s.v1_padding.byte,
+        'v2_pad_count': s.v2_padding.count,
+        'v2_pad_byte':  s.v2_padding.byte,
+        'v3_pad_count': s.v3_padding.count,
+        'v3_pad_byte':  s.v3_padding.byte,
     })
 
 
