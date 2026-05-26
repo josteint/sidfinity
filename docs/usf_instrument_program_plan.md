@@ -299,10 +299,18 @@ binding rule for every effect representation decision in this phase.
         (PSID play 0 → follow $0314/$0315), the configurable arp
         period, linear_pw_or, incby2_onset, and the dur_field +
         slide_v overlap seeds. SFX/digi subtunes not migrated.
-      - [ ] Human Race, Hunter Patrol, Thing on a Spring,
-        One Man and His Droid (4 remaining).
+      - [x] **Human Race**, **Hunter Patrol**, **Thing on a Spring**,
+        **One Man and his Droid** — all done. See the project memories
+        for per-engine deltas (frame_ctr_init, off-table arp layout,
+        ns_offtab_decr_offset, arp_phase_invert).
+      - [x] **Battle of Britain** — done, byte-exact (1/1, 12705
+        frames). Surfaced a tie-preserves-slide bug in note_codec
+        (engine BVS $80C0 jumps over v_slide clear AND load on ties)
+        and added `arp_period=8` / `incby2_step=-1`/`onset=12` /
+        `vib_onset=8` / `frame_ctr_init=$DC` to its config — no new
+        shared-core fields.
 - [ ] **6.3** Migrate remaining D/F pipelines (Last V8, Rasputin,
-      Battle of Britain, Bump Set Spike, Master of Magic, Gremlins).
+      Bump Set Spike, Master of Magic, Gremlins).
 - [ ] **6.4 / 6.5 — schema cleanup (NEEDS RESCOPING).** Written
       against the old Lean `USF.lean` / `SongData.lean` / `Codegen.lean`
       schema. The 6.0 consolidation made the pipeline Python and
