@@ -314,13 +314,15 @@ binding rule for every effect representation decision in this phase.
         vibrato + bidirectional PWM, no fx-bit dispatch. Two config
         knobs only: `vib_onset=8`, `speed_ctr_init=2`. Zero shared-core
         changes.
-- [ ] **6.2.1** Implement Hubbard's song-end $D418 fade in codegen
-      (surfaced by commit 667176a expanding verify from voice regs
-      to $D400-$D418 snapshot comparison). Affects Confuzion (0/1)
-      and Thing on a Spring music (16/17). Other engines probably
-      have the same fade but their verify windows don't reach it.
-      Need a deeper trace of one engine to find the fade-arm trigger
-      and counter increment. See `project_hubbard_song_end_fade.md`.
+- [x] **6.2.1** Implement Hubbard's song-end $D418 fade in codegen
+      (commit 52f0e8a). The fade is the engine's
+      `clamp(BASE - voice_orderpos, 0..$0F)` formula on instrument-
+      change or every-note loads (per-engine `master_vol_trigger`).
+      New config: `master_vol_subtrahend_voice`, `master_vol_base`,
+      `master_vol_trigger`. Peek-ahead INC matches the engine's
+      $C46D INC on the same tick as the pattern's last note load.
+      Confuzion + Thing on a Spring now byte-exact under the strict
+      $D400-$D418 snapshot check. See `project_hubbard_song_end_fade.md`.
 - [ ] **6.2.2** Implement Action Biker's end-of-song filter cleanup
       ($D415/$D416/$D417=$80). Affects subtunes 1+2 (1/3). Inaudible
       diff — no voice gated on at song end — but a real register
