@@ -335,9 +335,13 @@ iniov:  lda ovseed,x
         bpl iniov
         lda #0
         sta end_phase
-        sta vol_progress     ; reset master-vol fade counter (no-op when
-                             ; MASTER_VOL_FADE = 0; the VOL write that
-                             ; reads it is also gated)
+        ; %%VOL_PROGRESS_INIT%%   ; engines with MASTER_VOL_FADE reset
+                                  ; the vol_progress counter here; for
+                                  ; other engines this expands to nothing
+                                  ; so the binary doesn't grow (address-
+                                  ; shifting changes broke Monty st 0 +
+                                  ; SFX subtunes when this was emitted
+                                  ; unconditionally).
         lda #SPEED_CTR_INIT
         sta speed_ctr
         lda #1
@@ -519,10 +523,14 @@ sps_freeze:
         sta v_frozen,x
         rts
 ; sps_fill - the $FE stop_fill end. Writes STOP_FILL to every voice
-; register, mark the song silent, and abort the frame ($C2DC).
+; register PLUS filter cutoff lo/hi + res-routing ($D400-$D417, 24
+; regs), matching Action Biker's $C2E1-$C2E7 `LDX #$17; STA $D400,X`
+; loop. $D418 (master VOL) is left alone — the engine's loop stops
+; at $D417. `LDX #imm` is 2 bytes regardless of value, so this change
+; doesn't shift any other addresses.
 sps_fill:
         stx sub_tmp
-        ldx #20
+        ldx #23
         lda #STOP_FILL
 sps_fl: sta $d400,x
         dex
@@ -1801,10 +1809,14 @@ def _emit_sid(inputs: _Inputs, out_path: str, codec,
             vol_write_every_note_asm = vol_write_template.format(label='mvw_lt')
         else:
             vol_write_inst_change_asm = vol_write_template.format(label='mvw_lt')
+    vol_init_asm = ('        sta vol_progress'
+                    if inputs.master_vol_subtrahend_voice is not None
+                    else '')
     asm = asm.replace('; %%VOL_PROGRESS_INC%%', vol_inc_asm)
     asm = asm.replace('; %%MASTER_VOL_WRITE%%', vol_write_inst_change_asm)
     asm = asm.replace('; %%MASTER_VOL_EVERY_NOTE%%',
                       vol_write_every_note_asm)
+    asm = asm.replace('; %%VOL_PROGRESS_INIT%%', vol_init_asm)
 
     # Relocate the engine to the requested load address — the ENGINE
     # template has `* = $1000` hardcoded; rewrite it to load_addr.
