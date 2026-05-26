@@ -132,10 +132,6 @@ ln_chk:
         lda v_notesleft,x
         bne ln_decode
         inc v_orderpos,x       ; pattern exhausted - next orderlist entry
-        ; %%VOL_PROGRESS_INC%%   ; engines with MASTER_VOL_FADE INC
-                                 ; vol_progress on the configured voice's
-                                 ; pattern-end (8-bit wrap, no reset on
-                                 ; song-loop — that's the point).
         jsr set_patptr
         lda v_ended,x
         bne ln_ret
@@ -201,6 +197,22 @@ ln_tienote:
         ora #$40
         sta v_instr,x
 ln_decoded:
+        ; %%MASTER_VOL_EVERY_NOTE%% ; for engines whose master_VOL fires
+                                    ; on every note load including ties
+                                    ; (TOAS at $C0C0-$C0CC fires after
+                                    ; the dur read with no tie/non-tie
+                                    ; branch). Empty for trigger=
+                                    ; 'inst_change' (Confuzion fires in
+                                    ; the inst-change branch only).
+        ; %%VOL_PROGRESS_INC%%   ; engines with MASTER_VOL_FADE peek-ahead:
+                                 ; if v_notesleft just hit 0 (i.e. THIS was
+                                 ; the LAST note of the pattern), INC
+                                 ; vol_progress now — matches the engine's
+                                 ; $C15A-$C167 peek-the-next-byte-for-$FF
+                                 ; logic. Runs AFTER this note's master_VOL
+                                 ; write (which uses the OLD value), so the
+                                 ; first note of the next pattern reads the
+                                 ; new (incremented) value.
         lda #0
         sta v_tick,x
         ; note_idx += Hubbard byte length (1 tie / 3 extra byte / 2)

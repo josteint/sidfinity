@@ -67,4 +67,5 @@ THING_ON_A_SPRING = EngineConfig(
     # See [[project_hubbard_song_end_fade]].
     master_vol_subtrahend_voice=2,
     master_vol_base=0x47,
+    master_vol_trigger='every_note',
 )

@@ -1566,6 +1566,7 @@ class _Inputs:
     # instrument-change note. None disables.
     master_vol_subtrahend_voice: _Optional[int] = None
     master_vol_base: int = 0xA0
+    master_vol_trigger: str = 'inst_change'
 
 
 def _inputs_from_config(config) -> _Inputs:
@@ -1618,6 +1619,7 @@ def _inputs_from_config(config) -> _Inputs:
         sfx_list=sfx_list,
         master_vol_subtrahend_voice=config.master_vol_subtrahend_voice,
         master_vol_base=config.master_vol_base,
+        master_vol_trigger=config.master_vol_trigger,
     )
 
 
@@ -1771,24 +1773,38 @@ def _emit_sid(inputs: _Inputs, out_path: str, codec,
     # load_note; both expand to empty strings when the feature is off,
     # leaving previously-byte-exact engines unaffected.
     vol_inc_asm = ''
-    vol_write_asm = ''
+    vol_write_inst_change_asm = ''
+    vol_write_every_note_asm = ''
     if inputs.master_vol_subtrahend_voice is not None:
         v = inputs.master_vol_subtrahend_voice
+        # Peek-ahead semantics: INC vol_progress when the current voice's
+        # v_notesleft has just decremented to 0 — i.e. THIS load was the
+        # pattern's last note. Matches the engine's $C15A-$C167 path
+        # which INCs $C46D on the same tick the last note is loaded
+        # (engine peeks one byte ahead and finds the $FF terminator).
         vol_inc_asm = (
             f'        cpx #{v}\n'
             f'        bne vp_skip\n'
+            f'        lda v_notesleft,x\n'
+            f'        bne vp_skip\n'
             f'        inc vol_progress\n'
             f'vp_skip:')
-        vol_write_asm = (
+        vol_write_template = (
             f'        lda #${inputs.master_vol_base:02X}\n'
             f'        sec\n'
             f'        sbc vol_progress\n'
             f'        cmp #$0f\n'
-            f'        bcc mvw_lt\n'
+            f'        bcc {{label}}\n'
             f'        lda #$0f\n'
-            f'mvw_lt: sta $d418')
+            f'{{label}}: sta $d418')
+        if inputs.master_vol_trigger == 'every_note':
+            vol_write_every_note_asm = vol_write_template.format(label='mvw_lt')
+        else:
+            vol_write_inst_change_asm = vol_write_template.format(label='mvw_lt')
     asm = asm.replace('; %%VOL_PROGRESS_INC%%', vol_inc_asm)
-    asm = asm.replace('; %%MASTER_VOL_WRITE%%', vol_write_asm)
+    asm = asm.replace('; %%MASTER_VOL_WRITE%%', vol_write_inst_change_asm)
+    asm = asm.replace('; %%MASTER_VOL_EVERY_NOTE%%',
+                      vol_write_every_note_asm)
 
     # Relocate the engine to the requested load address — the ENGINE
     # template has `* = $1000` hardcoded; rewrite it to load_addr.

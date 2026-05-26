@@ -27,6 +27,7 @@ params {
   linear_pw_or: $00
   master_vol_base: 71
   master_vol_subtrahend_voice: 2
+  master_vol_trigger_every_note: true
   seed_overlap: true
   speed_ctr_init: 1
   stop_fill: $00

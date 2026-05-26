@@ -361,6 +361,8 @@ def _inputs_from_usf(usf: UsfFile) -> _Inputs:
                                      if get('has_master_vol_fade', False)
                                      else None),
         master_vol_base=get('master_vol_base', 0xA0),
+        master_vol_trigger=('every_note' if get(
+            'master_vol_trigger_every_note', False) else 'inst_change'),
     )
 
 

@@ -232,6 +232,8 @@ def _params_from_config(config) -> Params:
         'has_master_vol_fade':       (config.master_vol_subtrahend_voice
                                       is not None),
         'master_vol_base':           config.master_vol_base,
+        'master_vol_trigger_every_note': (config.master_vol_trigger
+                                          == 'every_note'),
     })
 
 

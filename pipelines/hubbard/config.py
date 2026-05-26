@@ -110,3 +110,10 @@ class EngineConfig:
     # [[project_hubbard_song_end_fade]] in memory for the analysis.
     master_vol_subtrahend_voice: Optional[int] = None
     master_vol_base: int = 0xA0
+    # WHEN the master_VOL clamp+write fires:
+    # - 'inst_change'  → only on notes that change instrument (Confuzion's
+    #                    bit-7 path at $094C BPL skip).
+    # - 'every_note'   → on every non-tie note load (TOAS's unconditional
+    #                    master_VOL block at $C0C0-$C0CC after every dur
+    #                    read in the new-note path).
+    master_vol_trigger: str = 'inst_change'
