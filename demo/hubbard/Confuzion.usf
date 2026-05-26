@@ -33,6 +33,7 @@ params {
   speed_ctr_init: 2
   stop_fill: $00
   suppress_first_notestart: false
+  tie_preserves_slide: true
   vib_onset: 8
 }
 

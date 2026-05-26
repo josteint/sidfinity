@@ -117,3 +117,14 @@ class EngineConfig:
     #                    master_VOL block at $C0C0-$C0CC after every dur
     #                    read in the new-note path).
     master_vol_trigger: str = 'inst_change'
+    # When True, the codegen's note_codec emits the v_drumtrig clear
+    # ONLY in the non-tie path of ln_decode — matching Confuzion's
+    # `$807C: STA $841A,X` which the tie's `BVS $80C0` jumps over.
+    # When False, the clear is unconditional at the top of ln_decode
+    # (pre-9828b37 behaviour). False is the safer default because some
+    # engines (Monty, Chimera) emit pattern bytes that our extract
+    # decodes as porta but the engine doesn't run a per-note slide on,
+    # and the OLD unconditional-clear behaviour matched their output;
+    # only Confuzion / Battle of Britain (and any future engine that
+    # explicitly preserves the slide across ties) should set this.
+    tie_preserves_slide: bool = False

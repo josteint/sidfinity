@@ -45,4 +45,7 @@ CFG = EngineConfig(
     incby2_step=-1,
     incby2_onset=12,
     vib_onset=8,
+    # Engine's tie path (BVS $80C0) jumps over the v_slide clear at
+    # $807C — preserves slide set on the head note across ties.
+    tie_preserves_slide=True,
 )

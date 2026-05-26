@@ -234,6 +234,7 @@ def _params_from_config(config) -> Params:
         'master_vol_base':           config.master_vol_base,
         'master_vol_trigger_every_note': (config.master_vol_trigger
                                           == 'every_note'),
+        'tie_preserves_slide':       config.tie_preserves_slide,
     })
 
 

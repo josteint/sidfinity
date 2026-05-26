@@ -144,6 +144,12 @@ ln_ret:
 ln_decode:
         dec v_notesleft,x
         lda #0
+        ; %%CLEAR_DRUMTRIG_UNCOND%% ; engines without tie-preserves-slide
+                                    ; clear v_drumtrig here (pre-9828b37
+                                    ; behaviour, default). Engines with
+                                    ; tie-preserves-slide leave this
+                                    ; empty and clear later in the
+                                    ; non-tie branch instead.
         sta ln_hasb1
         jsr getflag           ; tie
         sta ln_tie
@@ -160,8 +166,11 @@ ln_decode:
         sta v_durfield,x
         lda ln_tie
         bne ln_tienote
-        lda #0                ; non-tie clears v_drumtrig (engine's
-        sta v_drumtrig,x      ; $807C-$807E - tie path skips this)
+        ; %%CLEAR_DRUMTRIG_NONTIE%% ; engines with tie-preserves-slide
+                                    ; clear v_drumtrig here only (the
+                                    ; tie path falls through unchanged).
+                                    ; Engines without the feature did
+                                    ; the clear unconditionally above.
         lda #7                ; pitch
         sta rb_n
         jsr readbits

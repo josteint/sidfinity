@@ -18,16 +18,21 @@ params {
   frame_ctr_init: 255
   freeze_on_stop: false
   has_incby2_late_gate: true
+  has_master_vol_fade: false
   has_stop_fill: false
   incby2_every_frame: false
   incby2_late_gate: 24
   incby2_onset: $10
   incby2_step: -1
   linear_pw_or: $00
+  master_vol_base: 160
+  master_vol_subtrahend_voice: -1
+  master_vol_trigger_every_note: false
   seed_overlap: true
   speed_ctr_init: 0
   stop_fill: $00
   suppress_first_notestart: false
+  tie_preserves_slide: false
   vib_onset: 8
 }
 
@@ -207,7 +212,7 @@ instrument 16 {
 instrument 17 {
   waveform: $80
   loop:     0
-  pwm:      mode=none speed=0 init=$6011 min_hi=0 max_hi=0
+  pwm:      mode=linear speed=0 init=$6011 min_hi=8 max_hi=14
   adsr:     $08 $15
   arp:      offsets=[0] period=5
   vibrato:  scale=13
@@ -267,7 +272,7 @@ instrument 22 {
 instrument 23 {
   waveform: $00
   loop:     0
-  pwm:      mode=none speed=0 init=$5700 min_hi=0 max_hi=0
+  pwm:      mode=linear speed=0 init=$5700 min_hi=8 max_hi=14
   adsr:     $06 $15
   arp:      offsets=[0, 12, 12, 12, 12] period=5
   vibrato:  scale=15
@@ -288,7 +293,7 @@ instrument 24 {
 instrument 25 {
   waveform: $00
   loop:     0
-  pwm:      mode=none speed=0 init=$2000 min_hi=0 max_hi=0
+  pwm:      mode=linear speed=0 init=$2000 min_hi=8 max_hi=14
   adsr:     $00 $81
   arp:      offsets=[0, 12, 12, 12, 12] period=5
   vibrato:  scale=11
@@ -309,7 +314,7 @@ instrument 26 {
 instrument 27 {
   waveform: $00
   loop:     0
-  pwm:      mode=none speed=0 init=$2020 min_hi=0 max_hi=0
+  pwm:      mode=linear speed=0 init=$2020 min_hi=8 max_hi=14
   adsr:     $00 $81
   arp:      offsets=[0, 12, 12, 12, 12] period=5
   vibrato:  scale=11
@@ -330,7 +335,7 @@ instrument 28 {
 instrument 29 {
   waveform: $00
   loop:     0
-  pwm:      mode=none speed=0 init=$2009 min_hi=0 max_hi=0
+  pwm:      mode=linear speed=0 init=$2009 min_hi=8 max_hi=14
   adsr:     $08 $81
   arp:      offsets=[0, 12, 12, 12, 12] period=5
   vibrato:  scale=14
@@ -351,7 +356,7 @@ instrument 30 {
 instrument 31 {
   waveform: $00
   loop:     0
-  pwm:      mode=none speed=0 init=$200A min_hi=0 max_hi=0
+  pwm:      mode=linear speed=0 init=$200A min_hi=8 max_hi=14
   adsr:     $08 $41
   arp:      offsets=[0, 12, 12, 12, 12] period=5
   vibrato:  scale=14

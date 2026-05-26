@@ -1575,6 +1575,7 @@ class _Inputs:
     master_vol_subtrahend_voice: _Optional[int] = None
     master_vol_base: int = 0xA0
     master_vol_trigger: str = 'inst_change'
+    tie_preserves_slide: bool = False
 
 
 def _inputs_from_config(config) -> _Inputs:
@@ -1628,6 +1629,7 @@ def _inputs_from_config(config) -> _Inputs:
         master_vol_subtrahend_voice=config.master_vol_subtrahend_voice,
         master_vol_base=config.master_vol_base,
         master_vol_trigger=config.master_vol_trigger,
+        tie_preserves_slide=config.tie_preserves_slide,
     )
 
 
@@ -1817,6 +1819,21 @@ def _emit_sid(inputs: _Inputs, out_path: str, codec,
     asm = asm.replace('; %%MASTER_VOL_EVERY_NOTE%%',
                       vol_write_every_note_asm)
     asm = asm.replace('; %%VOL_PROGRESS_INIT%%', vol_init_asm)
+
+    # tie_preserves_slide selects WHERE the v_drumtrig clear lives in
+    # ln_decode. False (default): unconditional at the top (pre-9828b37
+    # behaviour — works for Monty / Chimera / others). True: only in the
+    # non-tie path (matches Confuzion / BoB's `BVS skip` over the
+    # v_slide clear). Both placements emit exactly `sta v_drumtrig,x`
+    # (2 bytes) so swapping doesn't shift any addresses.
+    if inputs.tie_preserves_slide:
+        clear_uncond = ''
+        clear_nontie = '        sta v_drumtrig,x'
+    else:
+        clear_uncond = '        sta v_drumtrig,x'
+        clear_nontie = ''
+    asm = asm.replace('; %%CLEAR_DRUMTRIG_UNCOND%%', clear_uncond)
+    asm = asm.replace('; %%CLEAR_DRUMTRIG_NONTIE%%', clear_nontie)
 
     # Relocate the engine to the requested load address — the ENGINE
     # template has `* = $1000` hardcoded; rewrite it to load_addr.

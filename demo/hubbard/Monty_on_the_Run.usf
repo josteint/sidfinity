@@ -13,16 +13,26 @@ psid {
 params {
   arp_interval: 12
   arp_period: 2
+  arp_phase_invert: false
   first_frame_gate_off: false
+  frame_ctr_init: 255
   freeze_on_stop: true
+  has_incby2_late_gate: false
+  has_master_vol_fade: false
   has_stop_fill: false
   incby2_every_frame: false
+  incby2_late_gate: -1
   incby2_onset: $03
   incby2_step: -1
   linear_pw_or: $00
+  master_vol_base: 160
+  master_vol_subtrahend_voice: -1
+  master_vol_trigger_every_note: false
+  seed_overlap: true
   speed_ctr_init: 0
   stop_fill: $00
   suppress_first_notestart: false
+  tie_preserves_slide: false
   vib_onset: 8
 }
 

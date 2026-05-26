@@ -50,4 +50,8 @@ CFG = EngineConfig(
     # ~22 seconds. See [[project_hubbard_song_end_fade]].
     master_vol_subtrahend_voice=1,
     master_vol_base=0xA0,
+    # Engine's tie path ($807A BVS $80C0) jumps over the v_slide clear
+    # at $807C — so a tie note must preserve whatever slide was set on
+    # the head note. Without this the slide is lost on the first tie.
+    tie_preserves_slide=True,
 )
