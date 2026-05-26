@@ -225,10 +225,12 @@ class SongInterp:
         # no_release (note_byte bit5) suppresses the hard restart;
         # engine_model stores it in drum_trig bit7.
         rt.no_release = bool(note.drum_trig & 0x80)
-        # the drum/porta trigger byte ($5520,X) — reset every note load,
-        # set from the note. bit7 is no_release (handled above); the
-        # drum slide keys off the payload (bits 0-6) only.
-        rt.drum_trig = note.drum_trig
+        # the drum/porta trigger byte ($5520,X) — set from the note.
+        # The engine's tie path (BVS $80C0) JUMPS OVER the v_slide clear
+        # AND the v_slide load, so a tie note never modifies the running
+        # slide. Preserve the prior note's drum_trig (= v_slide) on tie.
+        if not note.tie:
+            rt.drum_trig = note.drum_trig
         rt.frame_in_note = 0
         rt.tick_in_note = 0
         # the running freq_hi/freq_lo ($551A/$551D) are only re-seeded on

@@ -849,6 +849,29 @@ for _i in range(5):
     )
 
 
+BATTLE_OF_BRITAIN_FREQ_STATE = bytes.fromhex(
+    "00070e00090a322f2f140606021f1f034141413c3921090a02ff03510041ff81"
+    "4100932303000001010000000148221d07d046510000000080dc590341585203"
+    "100848024158620410082203410a000011080002810c0a0000050000110ff002"
+    "00020008415800000004800c415700008100800a415700008100a00a410fff02"
+)
+assert len(BATTLE_OF_BRITAIN_FREQ_STATE) == 128
+
+BATTLE_OF_BRITAIN_FREQ_BYTES = HUBBARD_85_PAL_FREQ_TABLE + BATTLE_OF_BRITAIN_FREQ_STATE
+assert len(BATTLE_OF_BRITAIN_FREQ_BYTES) == 320
+
+BATTLE_OF_BRITAIN = EngineConstants(
+    instr_base=0x8420,
+    instr_count=19,
+    freq_table_base=0x8326,
+    freq_bytes=BATTLE_OF_BRITAIN_FREQ_BYTES,
+    voice_starts={},
+    has_sfx=False,
+    digi=None,
+    is_rsid=False,
+)
+
+
 ENGINE_CONSTANTS: dict[str, EngineConstants] = {
     'chimera': CHIMERA,
     'devils_galop': DEVILS_GALOP,
@@ -859,6 +882,7 @@ ENGINE_CONSTANTS: dict[str, EngineConstants] = {
     'hunter_patrol': HUNTER_PATROL,
     'thing_on_a_spring': THING_ON_A_SPRING,
     'one_man_and_his_droid': ONE_MAN_AND_HIS_DROID,
+    'battle_of_britain': BATTLE_OF_BRITAIN,
     'five_tt_sub0': FIVE_TITLE_TUNES_SUBS[0],
     'five_tt_sub1': FIVE_TITLE_TUNES_SUBS[1],
     'five_tt_sub2': FIVE_TITLE_TUNES_SUBS[2],

@@ -276,6 +276,8 @@ def extract(
                                 drum_trig=drum_trig_byte,
                             ))
                         voice.patterns[pat_idx] = notes
+                elif entry[0] == 'stop':
+                    voice.stop = True
                 elif entry[0] == 'loop':
                     voice.loop = entry[1]
             score.voices.append(voice)

@@ -144,7 +144,6 @@ ln_ret:
 ln_decode:
         dec v_notesleft,x
         lda #0
-        sta v_drumtrig,x      ; defaults - no portamento
         sta ln_hasb1
         jsr getflag           ; tie
         sta ln_tie
@@ -161,6 +160,8 @@ ln_decode:
         sta v_durfield,x
         lda ln_tie
         bne ln_tienote
+        lda #0                ; non-tie clears v_drumtrig (engine's
+        sta v_drumtrig,x      ; $807C-$807E - tie path skips this)
         lda #7                ; pitch
         sta rb_n
         jsr readbits
