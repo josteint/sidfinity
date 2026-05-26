@@ -31,7 +31,7 @@ sys.path.insert(0, os.path.join(ROOT, 'tools', 'py65_lib'))
 
 SID_PATH = os.path.join(
     ROOT, 'data', 'C64Music', 'MUSICIANS', 'H',
-    'Hubbard_Rob', 'Confuzion.sid',
+    'Hubbard_Rob', 'Battle_of_Britain.sid',
 )
 
 logger = logging.getLogger(__name__)
@@ -54,7 +54,7 @@ def extract(
     """Extract an :class:`ExtractedSong` from a Hubbard-engine SID.
 
     subtune: 0-indexed subtune number (default 0 = first subtune = PSID subtune 1).
-    sid_path: SID file to extract from. Defaults to Confuzion (SID_PATH).
+    sid_path: SID file to extract from. Defaults to BattleOfBritain (SID_PATH).
     ft_base:  Base address of the freq table for extended-table runtime
               values. Defaults to 0x5428 (Commando-specific). Pass the
               discovered freq_table_addr for other songs.
@@ -276,6 +276,8 @@ def extract(
                                 drum_trig=drum_trig_byte,
                             ))
                         voice.patterns[pat_idx] = notes
+                elif entry[0] == 'stop':
+                    voice.stop = True
                 elif entry[0] == 'loop':
                     voice.loop = entry[1]
             score.voices.append(voice)

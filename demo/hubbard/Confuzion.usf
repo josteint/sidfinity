@@ -1,0 +1,713 @@
+version: 2
+engine: confuzion
+
+psid {
+  title:      "Confuzion"
+  author:     "Rob Hubbard"
+  released:   "1985 Incentive"
+  clock:      PAL
+  sid:        6581
+  start_song: 1
+  speed:      $00000001
+}
+
+params {
+  arp_interval: 12
+  arp_period: 2
+  arp_phase_invert: false
+  first_frame_gate_off: false
+  frame_ctr_init: 255
+  freeze_on_stop: false
+  has_incby2_late_gate: false
+  has_stop_fill: false
+  incby2_every_frame: false
+  incby2_late_gate: -1
+  incby2_onset: $03
+  incby2_step: 2
+  linear_pw_or: $00
+  seed_overlap: true
+  speed_ctr_init: 2
+  stop_fill: $00
+  suppress_first_notestart: false
+  vib_onset: 8
+}
+
+init {
+  voice 1 { ctrl: $41  dur_field: $03  pwm_period: $00  pwm_dir: up  instr: i1  slide_v: $0C }
+  voice 2 { ctrl: $81  dur_field: $87  pwm_period: $00  pwm_dir: up  instr: i4  slide_v: $17 }
+  voice 3 { ctrl: $41  dur_field: $0F  pwm_period: $00  pwm_dir: up  instr: i3  slide_v: $06 }
+}
+
+instrument 1 {
+  waveform: $41
+  loop:     0
+  pwm:      mode=none speed=0 init=$0200 min_hi=0 max_hi=0
+  adsr:     $07 $4F
+  arp:      offsets=[0] period=2
+  vibrato:  scale=4
+  envelope: gate_off_delta=0 adsr_zero_delta=0
+}
+
+instrument 2 {
+  waveform: $81
+  loop:     0
+  pwm:      mode=none speed=0 init=$0800 min_hi=0 max_hi=0
+  adsr:     $03 $00
+  arp:      offsets=[0] period=2
+  vibrato:  scale=0
+  envelope: gate_off_delta=0 adsr_zero_delta=0
+}
+
+instrument 3 {
+  waveform: $41
+  loop:     0
+  pwm:      mode=none speed=0 init=$0380 min_hi=0 max_hi=0
+  adsr:     $08 $39
+  arp:      offsets=[0] period=2
+  vibrato:  scale=0
+  envelope: gate_off_delta=0 adsr_zero_delta=0
+}
+
+instrument 4 {
+  waveform: $81
+  loop:     0
+  pwm:      mode=none speed=0 init=$0200 min_hi=0 max_hi=0
+  adsr:     $09 $09
+  arp:      offsets=[0] period=2
+  vibrato:  scale=0
+  envelope: gate_off_delta=0 adsr_zero_delta=0
+}
+
+instrument 5 {
+  waveform: $41
+  loop:     0
+  pwm:      mode=bidirectional speed=65 init=$0800 min_hi=8 max_hi=14
+  adsr:     $19 $5F
+  arp:      offsets=[0] period=2
+  vibrato:  scale=2
+  envelope: gate_off_delta=0 adsr_zero_delta=0
+}
+
+instrument 6 {
+  waveform: $11
+  loop:     0
+  pwm:      mode=none speed=0 init=$0200 min_hi=0 max_hi=0
+  adsr:     $09 $A9
+  arp:      offsets=[0] period=2
+  vibrato:  scale=1
+  envelope: gate_off_delta=0 adsr_zero_delta=0
+}
+
+instrument 7 {
+  waveform: $41
+  loop:     0
+  pwm:      mode=none speed=0 init=$0800 min_hi=0 max_hi=0
+  adsr:     $02 $08
+  arp:      offsets=[0] period=2
+  vibrato:  scale=0
+  envelope: gate_off_delta=0 adsr_zero_delta=0
+  fx:       freq_slide
+}
+
+instrument 8 {
+  waveform: $41
+  loop:     0
+  pwm:      mode=none speed=0 init=$0800 min_hi=0 max_hi=0
+  adsr:     $16 $3F
+  arp:      offsets=[0] period=2
+  vibrato:  scale=5
+  envelope: gate_off_delta=0 adsr_zero_delta=0
+}
+
+instrument 9 {
+  waveform: $21
+  loop:     0
+  pwm:      mode=none speed=0 init=$0680 min_hi=0 max_hi=0
+  adsr:     $0A $8F
+  arp:      offsets=[0] period=2
+  vibrato:  scale=0
+  envelope: gate_off_delta=0 adsr_zero_delta=0
+}
+
+instrument 10 {
+  waveform: $81
+  loop:     0
+  pwm:      mode=none speed=0 init=$0200 min_hi=0 max_hi=0
+  adsr:     $09 $99
+  arp:      offsets=[0] period=2
+  vibrato:  scale=0
+  envelope: gate_off_delta=0 adsr_zero_delta=0
+}
+
+instrument 11 {
+  waveform: $41
+  loop:     0
+  pwm:      mode=none speed=0 init=$0380 min_hi=0 max_hi=0
+  adsr:     $03 $30
+  arp:      offsets=[0] period=2
+  vibrato:  scale=4
+  envelope: gate_off_delta=0 adsr_zero_delta=0
+}
+
+instrument 12 {
+  waveform: $41
+  loop:     0
+  pwm:      mode=none speed=0 init=$0180 min_hi=0 max_hi=0
+  adsr:     $11 $00
+  arp:      offsets=[0] period=2
+  vibrato:  scale=4
+  envelope: gate_off_delta=0 adsr_zero_delta=0
+}
+
+subtune 0 music {
+  tempo: 3
+  voice 1 {
+    orderlist: 0 21 3 7 8 9 4 4 14 0 21 3 7 8 9 4 4 14 0 21 4 4 14 0 21 0 22 23 24 24 24 24 20 20 20 20 loop@0
+    pattern 0 length=160 {
+      C-0   12  tie
+      G-4    4  i1  no_release
+      A-4    4  no_release
+      C-5    4  no_release
+      D-5    4  no_release
+      E-5   12  no_release
+      D-5    8
+      C-5    4  no_release
+      D-5    8
+      C-5    2  no_release
+      D-5    2  no_release
+      C-5   12
+      A-4    4  no_release
+      A-4    1
+      G#4    1
+      G-4    1
+      F#4    1
+      F-4    1
+      E-4    1
+      D#4    1
+      D-4    1
+      C#4    1
+      C-4    1
+      B-3    1
+      A#3    1
+      A#3    4  tie
+      C-5    4
+      C-5    8
+      C-5    8
+      A-4    8
+      G-4    4  no_release
+      A-4    4  no_release
+      G#4    1
+      G-4    1
+      F#4    1
+      F-4    1
+      E-4    1
+      D#4    1
+      D#4    2  tie
+      D-4    4  no_release
+      E-4    4  no_release
+      G-4    4  no_release
+      A-4    8
+    }
+    pattern 3 length=256 {
+      E-4   12  i9
+      A-4    4  no_release
+      A-4   16  no_release
+      A-4   16
+      A-4    8  tie
+      A-4    8
+      A-4    4  no_release
+      G-4    8
+      D-4    4  no_release
+      D-4   16  no_release
+      D-4   16
+      D-4    8  tie
+      E-4    4
+      E-4    4
+      F-4    4  no_release
+      D-4    4  no_release
+      A-3    4  no_release
+      D-4    4  no_release
+      D-4   16
+      D-4    8  tie
+      B-3    4
+      B-3    8
+      C-4    4
+      C-4    8
+      E-4   12  no_release
+      D-4    4
+      D-4   16  no_release
+      D-4   32  tie
+    }
+    pattern 4 length=128 {
+      E-4    4  i5  no_release
+      C-4    4  no_release
+      A-3    4
+      E-4    8  no_release
+      C-4    4  no_release
+      A-3    4  no_release
+      D-4    8
+      B-3    8  no_release
+      A-3    4  no_release
+      G-3   16
+      F#4    4  no_release
+      D-4    4  no_release
+      B-3    4
+      F#4    8  no_release
+      D-4    8
+      E-4   12
+      G#5    8  i6
+      A-5    8
+      B-5    8
+    }
+    pattern 7 length=224 {
+      C-0    8  tie
+      B-4    4
+      B-4   12
+      B-4    8
+      B-4    8  no_release
+      C-5    4  no_release
+      A-4    4  no_release
+      A-4   16
+      A-4    8  tie
+      A-4    4
+      A-4   12
+      A-4    8
+      A-4    4  no_release
+      B-4    4  no_release
+      A-4    4  no_release
+      G-4    4  no_release
+      G-4   16
+      G-4   12  tie
+      G-4    4
+      G-4    4
+      F#4    8
+      E-4    4
+      F#4   16
+      E-4   16
+      D#4    4
+      E-4    8
+      F#4    4  no_release
+      F#4   16  no_release
+    }
+    pattern 8 length=256 {
+      G-4    8
+      G-4    4  tie
+      D-4    4  i1  no_release
+      E-4    4  no_release
+      G-4    4  no_release
+      A-4    4  no_release
+      B-4   12  no_release
+      A-4    8
+      G-4    4  no_release
+      A-4    8
+      G-4    2  no_release
+      A-4    2  no_release
+      G-4   12  no_release
+      E-4    4
+      E-5    8  i6  no_release
+      C-6    8  no_release
+      B-5    8
+      B-5    4  tie
+      G-3    8  i1
+      G-3    4
+      F#3    4
+      F#3    4
+      E-3   16
+      E-5    4  no_release
+      D-5    4  no_release
+      B-4    4  no_release
+      A-4    4  no_release
+      B-4   16
+      B-4    4  tie
+      A-4    4
+      B-4    4
+      A-4    4
+      A-4    4  no_release
+      G-4    8
+      G-4    4
+      E-5    8  i6  no_release
+      C-6    8  no_release
+      B-5   32
+    }
+    pattern 9 length=160 {
+      C-0   12  tie
+      C-5    4  i8
+      C-5    4
+      C-5    8
+      C-5    4  tie
+      C-5    4  no_release
+      D-5    8
+      B-4   16  no_release
+      B-4    4  tie
+      B-4   12  tie
+      B-4    4
+      B-4    8
+      G-4    8
+      B-4   12
+      A-4    4  no_release
+      A-4   16  no_release
+      A-4   16
+      A-4   16  tie
+    }
+    pattern 14 length=160 {
+      C-5    8  i5
+      C-5    8
+      C-5   12
+      C-5    8
+      B-4   24
+      B-4    4  tie
+      C-5    8
+      C-5    8
+      C-5   12
+      D-5   12  no_release
+      E-5    4  no_release
+      D-5    4  no_release
+      D-5   24
+      D-5    4  tie
+      D-5    4
+      D-5    4  no_release
+      C-5    4  no_release
+      B-4    4  no_release
+      A-4    4
+    }
+    pattern 20 length=32 {
+      C-0   32  tie
+    }
+    pattern 21 length=96 {
+      A-4    4  no_release
+      B-4    8
+      G-4   16
+      G-4    4  tie
+      E-4    4  no_release
+      D-4    8
+      D-4   16
+      D-4    4  tie
+      D-4   32  tie
+    }
+    pattern 22 length=96 {
+      A-4    4  no_release
+      B-4    8
+      G-4    8
+      D-4    4
+      D-4    4
+      D-4    4
+      D-4    4  no_release
+      A-3    4
+      A-3    8
+      A-3    4  no_release
+      E-3    4
+      E-3    8
+      E-3    4  no_release
+      D-3    4  no_release
+      E-3    4  no_release
+      D-3    4  no_release
+      D-3   16
+    }
+    pattern 23 length=256 {
+      C-0   16  tie
+      C-5    4
+      C-5    8
+      C-5   12
+      D-5    8
+      D-5   16  tie
+      A-5    8
+      A-5    4  tie
+      F#5   12
+      F#5    8  tie
+      E-5    8
+      E-5    4  tie
+      F#5   12
+      F#5    8  tie
+      D-5    4  no_release
+      C-5    8
+      A-4   16
+      A-4    4  tie
+      G-4    4  no_release
+      A-4    8
+      G-4   16
+      G-4    4  tie
+      E-4   12
+      D-4    4  no_release
+      D-4   32
+      D-4   16  tie
+    }
+    pattern 24 length=128 {
+      D-6    4  i11
+      D-6    4  i12
+      D-6    4  i11
+      D-6    4  i12
+      D-6    4  i12
+      D-6    4  i11
+      D-6    4  i12
+      D-6    4  i11
+      E-6    4  i11
+      E-6    4  i12
+      E-6    4  i11
+      E-6    4  i12
+      E-6    4  i12
+      E-6    4  i11
+      E-6    4  i12
+      E-6    4  i11
+      D-6    4  i11
+      D-6    4  i12
+      D-6    4  i11
+      D-6    4  i12
+      D-6    4  i12
+      D-6    4  i11
+      D-6    4  i11
+      D-6    4  i11
+      E-6    4  i11
+      E-6    4  i11
+      E-6    4  i11
+      D-6    4  i11
+      D-6    4  i12
+      D-6    4  i11
+      D-6    4  i12
+      D-6    4  i11
+    }
+  }
+  voice 2 {
+    orderlist: 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 2 2 2 2 2 2 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 6 27 28 29 29 27 28 29 29 27 28 29 29 27 28 29 29 20 20 20 20 loop@0
+    pattern 2 length=32 {
+      F#7    8  i2
+      F#7    8
+      F#7    8
+      F-4    8  i4
+    }
+    pattern 6 length=32 {
+      F#7    4  i2
+      F#7    4
+      F-4    4  i4
+      F#7    4  i2
+      F#7    4  i2
+      F#7    4
+      F-4    4  i4
+      F#7    4  i2
+    }
+    pattern 20 length=32 {
+      C-0   32  tie
+    }
+    pattern 27 length=32 {
+      A-2    8  i3
+      F-4    4  i4
+      A-2    4  i3
+      A-2    8
+      F-4    8  i4
+    }
+    pattern 28 length=32 {
+      G-2    8  i3
+      F-4    4  i4
+      G-2    4  i3
+      G-2    8
+      F-4    8  i4
+    }
+    pattern 29 length=32 {
+      D-2    8  i3
+      F-4    4  i4
+      D-2    4  i3
+      D-2    8
+      F-4    8  i4
+    }
+  }
+  voice 3 {
+    orderlist: 1 1 10 11 12 12 13 5 5 15 1 1 10 11 12 12 13 5 5 15 1 1 5 5 15 1 1 1 1 1 1 26 26 26 26 20 20 20 20 loop@0
+    pattern 1 length=128 {
+      A-2   12  i3
+      A-2    4
+      A-2    8
+      B-2    4
+      G-2    4
+      G-2   12
+      G-2    4
+      G-2   16
+      D-2   12
+      D-2    4
+      D-2   16
+      D-2   12
+      D-2    4
+      D-2   16
+    }
+    pattern 5 length=128 {
+      A-2   12
+      E-2    4
+      A-2    4
+      E-2    8
+      E-2    4
+      G-2   12
+      G-2    4
+      G-2   16
+      F#2   12
+      D-2    4
+      F#2    4
+      D-2    8
+      D-2    4
+      E-2   12
+      E-2    4
+      E-2   16
+    }
+    pattern 10 length=256 {
+      A-2   12
+      E-2    4
+      D-2    4
+      C-2    8
+      A-1   12
+      A-1    4  tie
+      E-2    4
+      D-2    8
+      C-2    8
+      G-2   12
+      D-2    4
+      C-2    4
+      B-1    8
+      G-1   12
+      G-1    4  tie
+      D-2    4
+      C-2    8
+      B-1    8
+      D-2   12
+      D-2    8
+      D-2    4
+      E-2    4
+      F-2    8
+      E-2    4
+      D-2    4
+      D-2    8
+      E-2    4
+      F-2    8
+      G-2   12
+      G-2    4
+      G-2   16
+      G-2    8  tie
+      D-2    4
+      G-2   12
+      D-2    8
+    }
+    pattern 11 length=224 {
+      E-2   12
+      E-2    4
+      E-2    8
+      G-2    8
+      D-2   12
+      D-2    4
+      D-2   16
+      D-2   12
+      D-2    4
+      D-2    8
+      B-1    8
+      C-2   12
+      C-2    4
+      C-2   16
+      C-2   12
+      C-2    4
+      C-2   16
+      B-1   12
+      B-1    4
+      B-1   16
+      B-1    8
+      B-1    4  tie
+      B-2    8
+      A-2    4
+      G-2    4
+      F#2    4
+    }
+    pattern 12 length=128 {
+      E-2   12
+      E-2    4
+      E-2   16
+      D-2   12
+      D-2    4
+      D-2    8
+      B-1    8
+      C-2   12
+      C-2    4
+      C-2   16
+      G-2   12
+      G-2    4
+      G-2   16
+    }
+    pattern 13 length=160 {
+      F-2   12
+      A-4    4  i8
+      A-4    4
+      A-4    8
+      A-4    4  tie
+      A-4    4  no_release
+      B-4    8
+      G-4   16
+      G-4    4  tie
+      E-2   12  i3
+      G-4    4  i8
+      G-4    8
+      E-4    8
+      G-4   12
+      F#4    4  no_release
+      F#4   16  no_release
+      D-2    8  i3
+      C-2    8
+      B-1    8
+      A-1    8
+    }
+    pattern 15 length=160 {
+      F-2    8
+      C-2    4
+      D-2    4
+      F-2    4
+      C-2    4
+      F-2    4
+      F-2    4
+      E-2   12
+      E-2    4
+      E-2   16
+      F-2    8
+      C-2    4
+      D-2    4
+      F-2    4
+      C-2    4
+      F-2    4
+      E-2    4
+      D-2   12
+      D-2    4
+      D-2   16
+      D-2   12
+      D-2    4
+      D-2   16
+    }
+    pattern 20 length=32 {
+      C-0   32  tie
+    }
+    pattern 26 length=128 {
+      B-5    4  i11
+      B-5    4  i12
+      B-5    4  i11
+      B-5    4  i12
+      B-5    4  i12
+      B-5    4  i11
+      B-5    4  i12
+      B-5    4  i11
+      A-5    4  i11
+      A-5    4  i12
+      A-5    4  i11
+      A-5    4  i12
+      A-5    4  i12
+      A-5    4  i11
+      A-5    4  i12
+      A-5    4  i11
+      A-5    4  i11
+      A-5    4  i12
+      A-5    4  i11
+      A-5    4  i12
+      A-5    4  i12
+      A-5    4  i11
+      A-5    4  i11
+      A-5    4  i11
+      A-5    4  i11
+      A-5    4  i11
+      A-5    4  i11
+      A-5    4  i11
+      A-5    4  i12
+      A-5    4  i11
+      A-5    4  i12
+      A-5    4  i11
+    }
+  }
+}

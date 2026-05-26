@@ -872,6 +872,29 @@ BATTLE_OF_BRITAIN = EngineConstants(
 )
 
 
+CONFUZION_FREQ_STATE = bytes.fromhex(
+    "00070e00041b052b000002060603870f4181412a351f000302ff034e0041ff00"
+    "05004e0c03000000000000020200ff0c170600003358fc0c0c0c241ac5fbac38"
+    "d03167b588cc001bd559e7e8e9eaeb9c79d6026364edfc0b0d100f0d0d100f0e"
+    "0e0e101011110d100f0f0f0f0f0d0d0e0f0f0f0f0f1000150307080904040e00"
+)
+assert len(CONFUZION_FREQ_STATE) == 128
+
+CONFUZION_FREQ_BYTES = HUBBARD_85_PAL_FREQ_TABLE + CONFUZION_FREQ_STATE
+assert len(CONFUZION_FREQ_BYTES) == 320
+
+CONFUZION = EngineConstants(
+    instr_base=0x1146,
+    instr_count=12,
+    freq_table_base=0x0AFD,
+    freq_bytes=CONFUZION_FREQ_BYTES,
+    voice_starts={},
+    has_sfx=False,
+    digi=None,
+    is_rsid=False,
+)
+
+
 ENGINE_CONSTANTS: dict[str, EngineConstants] = {
     'chimera': CHIMERA,
     'devils_galop': DEVILS_GALOP,
@@ -883,6 +906,7 @@ ENGINE_CONSTANTS: dict[str, EngineConstants] = {
     'thing_on_a_spring': THING_ON_A_SPRING,
     'one_man_and_his_droid': ONE_MAN_AND_HIS_DROID,
     'battle_of_britain': BATTLE_OF_BRITAIN,
+    'confuzion': CONFUZION,
     'five_tt_sub0': FIVE_TITLE_TUNES_SUBS[0],
     'five_tt_sub1': FIVE_TITLE_TUNES_SUBS[1],
     'five_tt_sub2': FIVE_TITLE_TUNES_SUBS[2],

@@ -1,6 +1,6 @@
-"""Dataclasses for Confuzion's extracted (T, instruments, score) representation.
+"""Dataclasses for BattleOfBritain's extracted (T, instruments, score) representation.
 
-Mirrors Commando's shape with one Confuzion-specific addition: each instrument
+Mirrors Commando's shape with one BattleOfBritain-specific addition: each instrument
 carries a `has_skydive` flag (fx_flags bit 1) so the emitter can propagate
 the engine quirk into the Lean source.
 """
@@ -50,7 +50,7 @@ class Instrument:
     arp_offset: int = 0
     vibrato_scale: int = 0
     has_bit0: bool = False
-    has_skydive: bool = False  # Confuzion extension: fx_flags bit 1
+    has_skydive: bool = False  # BattleOfBritain extension: fx_flags bit 1
 
 
 @dataclass
@@ -71,6 +71,7 @@ class Voice:
     orderlist: list[int] = field(default_factory=list)
     patterns: dict[int, list[Note]] = field(default_factory=dict)
     loop: int = -1
+    stop: bool = False
 
 
 @dataclass
