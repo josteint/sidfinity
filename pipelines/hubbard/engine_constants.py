@@ -45,6 +45,18 @@ class DigiCode:
     # the validation table at +$10B and a few state bytes (keep_screen,
     # pace placeholder) at +$108 / +$10A.
     bank_table_base: int        # e.g. $A000
+    # Where the *music* engine loads in the combined music+digi SID.
+    # Default `None` keeps the codegen's global LOAD ($1000) and the
+    # combined emitter zero-fills the gap between $1000+music_end and
+    # the digi dispatcher (Chimera's $9F80) — that's ~36 KB of zeros
+    # in the file. Setting this to a value close to (but not
+    # overlapping) the dispatcher_base packs the file tight: e.g.
+    # `music_load_addr=$9C00` puts music at $9C00..$9E62 (~610 bytes)
+    # with a small gap to dispatcher at $9F80. The PSID still works
+    # the same — `init`/`play` are the dispatcher's addresses, the
+    # dispatcher's `jsr music_init`/`jsr music_play` are patched to
+    # the new music load addr.
+    music_load_addr: Optional[int] = None
 
 
 @dataclass
@@ -533,6 +545,13 @@ CHIMERA_DIGI = DigiCode(
     # assembler when it needs the bytes.
     player=b'',
     bank_table_base=0xA000,
+    # Pack the music engine just below the dispatcher so the combined
+    # PSID stays small. Music engine + data is ~4.8 KB; $8C00 puts
+    # it at $8C00..$9EE5 with ~155 bytes of slack before the $9F80
+    # dispatcher. The original Chimera SID loads at $9F80 (entire
+    # file 12,314 bytes); the codegen's default LOAD=$1000 zero-fills
+    # the gap below $9F80 and balloons the file to 45 KB.
+    music_load_addr=0x8C00,
 )
 
 CHIMERA = EngineConstants(

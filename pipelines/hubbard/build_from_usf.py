@@ -388,8 +388,10 @@ def _build_digi_region(usf: UsfFile, digi_subs: list[DigiSubtune],
 
     # Generate the PSID dispatcher with addresses substituted for our
     # music engine and the digi player.
+    music_load = (digi_code.music_load_addr
+                  if digi_code.music_load_addr is not None else LOAD)
     disp = chimera_psid_dispatcher(
-        music_init=LOAD, music_play=LOAD + 3,
+        music_init=music_load, music_play=music_load + 3,
         digi_player=digi_code.player_base, base=base)
     dispatcher = disp['bytes']
     play_addr = base + disp['play_off']
@@ -477,28 +479,37 @@ def _build_digi_region(usf: UsfFile, digi_subs: list[DigiSubtune],
 def _emit_combined_sid(inputs: _Inputs, usf: UsfFile, digi_subs: list,
                        digi_code: DigiCode, out_path: str, usf_dir: str,
                        codec) -> str:
-    """Emit a combined RSID containing music engine + digi engine +
-    samples. Music at LOAD ($1000 by default), digi at its engine-fixed
-    addresses ($9F80 dispatcher + $C000 player for Chimera). Inline-load
-    encoded in the binary so the file can be RSID-style with two
-    segments and a zero gap.
+    """Emit a combined PSID containing music engine + digi engine +
+    samples. Music at `digi_code.music_load_addr` (or LOAD if None);
+    digi at the engine-fixed addresses ($9F80 dispatcher + $C000
+    player for Chimera). The combined file uses inline-load encoding
+    so the bytes are one contiguous segment between music_load_addr
+    and the digi region's end, with a zero-fill gap between them.
+
+    The default music_load=$1000 puts the music engine 36 KB below
+    the dispatcher, ballooning the file to ~45 KB. Setting
+    music_load_addr close to dispatcher_base (e.g. $9C00 for Chimera)
+    shrinks the gap to a few hundred bytes — matching the original
+    Chimera SID's ~12 KB footprint.
     """
+    music_load = (digi_code.music_load_addr
+                  if digi_code.music_load_addr is not None else LOAD)
     # Build the music binary the same way _emit_sid would, but then
     # extract just the data (no PSID header — we build a different one).
     tmp_music = out_path + '.music.tmp'
-    _emit_sid(inputs, tmp_music, codec)
+    _emit_sid(inputs, tmp_music, codec, load_addr=music_load)
     music_blob = open(tmp_music, 'rb').read()
     os.unlink(tmp_music)
     # _emit_sid wrote a PSID. Strip its 124-byte header.
-    music_body = music_blob[124:]                  # music bytes at $LOAD
+    music_body = music_blob[124:]                  # music bytes at $music_load
 
     digi_region, digi_base, play_addr = _build_digi_region(
         usf, digi_subs, digi_code, usf_dir)
 
-    music_end = LOAD + len(music_body)
+    music_end = music_load + len(music_body)
     if music_end > digi_base:
         raise ValueError(
-            f'music engine at ${LOAD:04X}-${music_end - 1:04X} overlaps '
+            f'music engine at ${music_load:04X}-${music_end - 1:04X} overlaps '
             f'the digi region starting at ${digi_base:04X}')
     gap = bytes(digi_base - music_end)
     binary = music_body + gap + digi_region
@@ -526,7 +537,7 @@ def _emit_combined_sid(inputs: _Inputs, usf: UsfFile, digi_subs: list,
 
     with open(out_path, 'wb') as f:
         f.write(bytes(h))
-        f.write(struct.pack('<H', LOAD))       # inline load addr
+        f.write(struct.pack('<H', music_load))   # inline load addr
         f.write(binary)
     return out_path
 
