@@ -1,0 +1,1523 @@
+version: 2
+engine: companion
+
+psid {
+  title:      "Up, up & Away!"
+  author:     "Rob Hubbard"
+  released:   "1984 Starcade"
+  clock:      PAL
+  sid:        6581
+  start_song: 1
+}
+
+params {
+  freq_table_base: $1000
+  instr_base: $1000
+  instr_count: 15
+}
+
+init {
+  voice 1 { ctrl: $40  dur_field: $00  pwm_period: $00  pwm_dir: up  instr: i1  slide_v: $00 }
+  voice 2 { ctrl: $40  dur_field: $00  pwm_period: $00  pwm_dir: up  instr: i2  slide_v: $00 }
+  voice 3 { ctrl: $40  dur_field: $00  pwm_period: $00  pwm_dir: up  instr: i3  slide_v: $00 }
+}
+
+instrument 1 {
+  waveform: $40
+  loop:     0
+  pwm:      mode=none speed=0 init=$0C00 min_hi=0 max_hi=0
+  adsr:     $07 $85
+  arp:      offsets=[0] period=1
+  vibrato:  scale=0
+  envelope: gate_off_delta=0 adsr_zero_delta=0
+}
+
+instrument 2 {
+  waveform: $40
+  loop:     0
+  pwm:      mode=none speed=0 init=$0800 min_hi=0 max_hi=0
+  adsr:     $07 $85
+  arp:      offsets=[0] period=1
+  vibrato:  scale=0
+  envelope: gate_off_delta=0 adsr_zero_delta=0
+}
+
+instrument 3 {
+  waveform: $40
+  loop:     0
+  pwm:      mode=none speed=0 init=$0100 min_hi=0 max_hi=0
+  adsr:     $09 $57
+  arp:      offsets=[0] period=1
+  vibrato:  scale=0
+  envelope: gate_off_delta=0 adsr_zero_delta=0
+}
+
+instrument 4 {
+  waveform: $10
+  loop:     0
+  pwm:      mode=none speed=0 init=$0C00 min_hi=0 max_hi=0
+  adsr:     $00 $F5
+  arp:      offsets=[0] period=1
+  vibrato:  scale=0
+  envelope: gate_off_delta=0 adsr_zero_delta=0
+}
+
+instrument 5 {
+  waveform: $10
+  loop:     0
+  pwm:      mode=none speed=0 init=$0800 min_hi=0 max_hi=0
+  adsr:     $00 $F5
+  arp:      offsets=[0] period=1
+  vibrato:  scale=0
+  envelope: gate_off_delta=0 adsr_zero_delta=0
+}
+
+instrument 6 {
+  waveform: $40
+  loop:     0
+  pwm:      mode=none speed=0 init=$0400 min_hi=0 max_hi=0
+  adsr:     $07 $37
+  arp:      offsets=[0] period=1
+  vibrato:  scale=0
+  envelope: gate_off_delta=0 adsr_zero_delta=0
+}
+
+instrument 7 {
+  waveform: $40
+  loop:     0
+  pwm:      mode=none speed=0 init=$0C00 min_hi=0 max_hi=0
+  adsr:     $07 $85
+  arp:      offsets=[0] period=1
+  vibrato:  scale=0
+  envelope: gate_off_delta=0 adsr_zero_delta=0
+}
+
+instrument 8 {
+  waveform: $40
+  loop:     0
+  pwm:      mode=none speed=0 init=$0800 min_hi=0 max_hi=0
+  adsr:     $07 $85
+  arp:      offsets=[0] period=1
+  vibrato:  scale=0
+  envelope: gate_off_delta=0 adsr_zero_delta=0
+}
+
+instrument 9 {
+  waveform: $40
+  loop:     0
+  pwm:      mode=none speed=0 init=$0100 min_hi=0 max_hi=0
+  adsr:     $09 $67
+  arp:      offsets=[0] period=1
+  vibrato:  scale=0
+  envelope: gate_off_delta=0 adsr_zero_delta=0
+}
+
+instrument 10 {
+  waveform: $40
+  loop:     0
+  pwm:      mode=none speed=0 init=$0A00 min_hi=0 max_hi=0
+  adsr:     $29 $85
+  arp:      offsets=[0] period=1
+  vibrato:  scale=0
+  envelope: gate_off_delta=0 adsr_zero_delta=0
+}
+
+instrument 11 {
+  waveform: $20
+  loop:     0
+  pwm:      mode=none speed=0 init=$0800 min_hi=0 max_hi=0
+  adsr:     $27 $45
+  arp:      offsets=[0] period=1
+  vibrato:  scale=0
+  envelope: gate_off_delta=0 adsr_zero_delta=0
+}
+
+instrument 12 {
+  waveform: $20
+  loop:     0
+  pwm:      mode=none speed=0 init=$0900 min_hi=0 max_hi=0
+  adsr:     $27 $47
+  arp:      offsets=[0] period=1
+  vibrato:  scale=0
+  envelope: gate_off_delta=0 adsr_zero_delta=0
+}
+
+instrument 13 {
+  waveform: $40
+  loop:     0
+  pwm:      mode=none speed=0 init=$0700 min_hi=0 max_hi=0
+  adsr:     $07 $85
+  arp:      offsets=[0] period=1
+  vibrato:  scale=0
+  envelope: gate_off_delta=0 adsr_zero_delta=0
+}
+
+instrument 14 {
+  waveform: $10
+  loop:     0
+  pwm:      mode=none speed=0 init=$0800 min_hi=0 max_hi=0
+  adsr:     $09 $F5
+  arp:      offsets=[0] period=1
+  vibrato:  scale=0
+  envelope: gate_off_delta=0 adsr_zero_delta=0
+}
+
+instrument 15 {
+  waveform: $40
+  loop:     0
+  pwm:      mode=none speed=0 init=$0980 min_hi=0 max_hi=0
+  adsr:     $09 $57
+  arp:      offsets=[0] period=1
+  vibrato:  scale=0
+  envelope: gate_off_delta=0 adsr_zero_delta=0
+}
+
+subtune 0 music {
+  tempo: 1
+  params {
+    filter_cutoff_hi: 0
+    gate_off_tick: 9
+    init_pwm_ctr: 255
+    init_pwm_ctr_2: 255
+    init_tempo_counter: 12
+    note_load_tick: 13
+    vol_filter: 15
+  }
+  init {
+    voice 1 { ctrl: $40  dur_field: $00  pwm_period: $00  pwm_dir: up  instr: i1  slide_v: $00 }
+    voice 2 { ctrl: $40  dur_field: $00  pwm_period: $00  pwm_dir: up  instr: i2  slide_v: $00 }
+    voice 3 { ctrl: $40  dur_field: $00  pwm_period: $00  pwm_dir: up  instr: i3  slide_v: $00 }
+  }
+  voice 1 {
+    orderlist: 1 stop
+    pattern 1 length=199 {
+      D-4    1
+      D-4    1  fx:early_release
+      D-4    1
+      G-4    1
+      G-4    1
+      A-4    1
+      A-4    1  fx:early_release
+      B-4    1
+      B-4    1
+      B-4    1
+      B-4    1
+      B-4    1  fx:early_release
+      B-4    1
+      B-4    1  fx:early_release
+      B-4    1
+      B-4    1  fx:early_release
+      B-4    1
+      C-5    1
+      C-5    1
+      C-5    1
+      A-4    1
+      A-4    1
+      G-4    1
+      A-4    1
+      A-4    1
+      A-4    1
+      A-4    1
+      A-4    1
+      A-4    1
+      A-4    1
+      A-4    1
+      A-4    1
+      F-4    1
+      F-4    1  fx:early_release
+      F-4    1
+      A#4    1
+      A#4    1
+      C-5    1
+      C-5    1  fx:early_release
+      D-5    1
+      D-5    1
+      D-5    1
+      D-5    1
+      D-5    1
+      ---    1  fx:early_release
+      D-5    1  fx:early_release
+      D-5    1
+      D-5    1  fx:early_release
+      D-5    1
+      D#5    1
+      D#5    1
+      D#5    1
+      C-5    1
+      C-5    1
+      A#4    1
+      C-5    1
+      C-5    1
+      C-5    1
+      C-5    1
+      C-5    1  fx:early_release
+      C#4    1
+      C#4    1  fx:early_release
+      D#4    1
+      D#4    1  fx:early_release
+      F-4    1
+      F-4    1
+      F-4    1  fx:early_release
+      F-4    1  fx:early_release
+      F-4    1  fx:early_release
+      F-4    1
+      F-4    1
+      F-4    1  fx:early_release
+      F-4    1
+      F-4    1  fx:early_release
+      F-4    1
+      F#4    1
+      F#4    1
+      F#4    1
+      F-4    1
+      F-4    1  fx:early_release
+      F-4    1
+      F-4    1
+      F#4    1
+      C#4    1
+      C#4    1
+      C#4    1
+      C#4    1
+      C#4    1
+      ---    1  fx:early_release
+      ---    1  fx:early_release
+      D#4    1
+      D#4    1
+      F-4    1
+      F#4    1
+      F#4    1
+      F#4    1
+      G#4    1
+      G#4    1
+      G#4    1
+      G#4    1
+      G#4    1
+      G#4    1
+      G#4    1
+      G#4    1
+      G#4    1
+      G#4    1
+      G#4    1
+      G#4    1
+      C#4    1  fx:early_release
+      C#4    1
+      C#4    1
+      C#4    1
+      G#4    1
+      G#4    1
+      G#4    1
+      G#4    1
+      G#4    1
+      G#4    1
+      G#4    1
+      G#4    1
+      G#4    1
+      G#4    1
+      G#4    1
+      G#4    1
+      G#4    1
+      G#4    1
+      ---    1  fx:early_release
+      ---    1  fx:early_release
+      E-4    1
+      E-4    1
+      ---    1  fx:early_release
+      ---    1  fx:early_release
+      A-4    1  fx:early_release
+      A-4    1
+      B-4    1
+      E-5    1
+      E-5    1
+      B-4    1
+      C#5    1
+      C#5    1  fx:early_release
+      C#5    1
+      C#5    1  fx:early_release
+      C#5    1
+      C#5    1  fx:early_release
+      C#5    1
+      D-5    1
+      D-5    1
+      B-4    1
+      B-4    1
+      B-4    1
+      A-4    1
+      A-4    1
+      B-4    1
+      C#5    1
+      C#5    1
+      A-4    1
+      A-4    1
+      A-4    1
+      E-4    1
+      E-4    1
+      E-5    1
+      E-5    1
+      E-5    1
+      E-5    1
+      E-5    1
+      E-5    1
+      E-5    1
+      E-5    1
+      E-5    1
+      E-5    1
+      E-5    1
+      E-5    1
+      E-5    1
+      E-5    1
+      E-5    1
+      E-5    1
+      E-5    1
+      E-5    1
+      E-5    1
+      E-5    1
+      E-5    1
+      E-5    1
+      E-5    1
+      E-5    1
+      E-5    1
+      E-5    1
+      E-5    1
+      E-5    1
+      E-5    1
+      E-5    1
+      E-5    1
+      E-5    1  fx:early_release
+      E-5    1
+      E-5    1
+      E-5    1
+      E-5    1
+      E-5    1
+      E-5    1
+      E-5    1
+    }
+    trailing:
+      $FF $FF $FF $FF $FF $FF $FF $FF $3B $3B $3B $3B $3B $3B $8C $47
+      $47 $47 $47 $47 $46 $46 $46 $46 $45 $45 $45 $45 $45 $45 $45 $45
+  }
+  voice 2 {
+    orderlist: 1 stop
+    pattern 1 length=199 {
+      B-3    1
+      B-3    1
+      B-3    1
+      B-3    1
+      B-3    1
+      B-3    1
+      ---    1  fx:early_release
+      G-4    1
+      G-4    1
+      G-4    1
+      G-4    1
+      G-4    1
+      F#4    1
+      F#4    1
+      F#4    1
+      F#4    1
+      F-4    1
+      F-4    1
+      F-4    1
+      F-4    1
+      F-4    1
+      F-4    1
+      F-4    1
+      F-4    1
+      E-4    1
+      E-4    1
+      E-4    1
+      E-4    1
+      D#4    1
+      D#4    1
+      D#4    1
+      D#4    1
+      D-4    1
+      D-4    1
+      D-4    1
+      D-4    1
+      D-4    1
+      D-4    1
+      ---    1  fx:early_release
+      A#4    1
+      A#4    1
+      A#4    1
+      A#4    1
+      A#4    1
+      A-4    1
+      A-4    1
+      A-4    1
+      A-4    1
+      G#4    1
+      G#4    1
+      G#4    1
+      G#4    1
+      G-4    1
+      G-4    1
+      G-4    1
+      F#4    1
+      F#4    1
+      F#4    1
+      F#4    1
+      F#4    1
+      ---    1  fx:early_release
+      ---    1  fx:early_release
+      ---    1  fx:early_release
+      ---    1  fx:early_release
+      C#4    1
+      C#4    1
+      C#4    1
+      C#4    1
+      C-4    1
+      C-4    1
+      C-4    1
+      C-4    1
+      B-3    1
+      B-3    1
+      B-3    1
+      B-3    1
+      B-3    1
+      B-3    1
+      B-3    1
+      B-3    1
+      A#3    1
+      A#3    1
+      A#3    1
+      A#3    1
+      A#3    1
+      A#3    1
+      A#3    1
+      A#3    1
+      ---    1  fx:early_release
+      ---    1  fx:early_release
+      B-3    1
+      B-3    1
+      C#4    1
+      D#4    1
+      D#4    1
+      D#4    1
+      F-4    1
+      F-4    1
+      F-4    1
+      D#4    1
+      F-4    1
+      D#4    1
+      C#4    1
+      B-3    1
+      B-3    1
+      B-3    1
+      B-3    1
+      B-3    1
+      B-3    1
+      B-3    1
+      B-3    1
+      B-3    1
+      F-4    1
+      F-4    1
+      F-4    1
+      D#4    1
+      F-4    1
+      D#4    1
+      C#4    1
+      B-3    1
+      B-3    1
+      B-3    1
+      B-3    1
+      B-3    1
+      B-3    1
+      B-3    1
+      C#4    1
+      D-4    1
+      C#4    1
+      C#4    1
+      ---    1  fx:early_release
+      ---    1  fx:early_release
+      C#4    1
+      C#4    1
+      C#4    1
+      A-4    1
+      A-4    1
+      A-4    1
+      A-4    1
+      A-4    1
+      G#4    1
+      G#4    1
+      G-4    1
+      G-4    1
+      F#4    1
+      F#4    1
+      F#4    1
+      F#4    1
+      F#4    1
+      F#4    1
+      F#4    1
+      F#4    1
+      F-4    1
+      F-4    1
+      F-4    1
+      F-4    1
+      F-4    1
+      F-4    1
+      ---    1  fx:early_release
+      ---    1  fx:early_release
+      C#5    1
+      C#5    1
+      C#5    1  fx:early_release
+      C#5    1  fx:early_release
+      C#5    1  fx:early_release
+      C#5    1
+      C#5    1
+      ---    1  fx:early_release
+      B-4    1
+      B-4    1  fx:early_release
+      A-4    1
+      A-4    1
+      A-4    1
+      ---    1  fx:early_release
+      B-4    1
+      B-4    1
+      C#5    1
+      C#5    1
+      C#5    1  fx:early_release
+      C#5    1  fx:early_release
+      C#5    1  fx:early_release
+      C#5    1
+      C#5    1
+      ---    1  fx:early_release
+      B-4    1
+      B-4    1  fx:early_release
+      A-4    1
+      A-4    1
+      A-4    1
+      ---    1  fx:early_release
+      B-4    1
+      B-4    1  fx:early_release
+      C#5    1
+      C#5    1
+      C#5    1
+      C#5    1
+      C#5    1
+      C#5    1
+      C#5    1
+    }
+    trailing:
+      $FF $FF $FF $FF $FF $FF $FF $FF $A7 $A7 $B7 $A7 $A7 $A7 $B7 $A7
+      $A7 $A7 $B7 $A7 $A7 $A7 $B7 $A7 $A5 $A5 $B5 $A5 $A5 $A5 $B5 $A5
+  }
+  voice 3 {
+    orderlist: 1 stop
+    pattern 1 length=199 {
+      G-2    1  fx:early_release
+      G-2    1  fx:early_release
+      G-3    1  fx:early_release
+      G-2    1  fx:early_release
+      G-2    1  fx:early_release
+      G-2    1  fx:early_release
+      G-3    1  fx:early_release
+      G-2    1  fx:early_release
+      G-2    1  fx:early_release
+      G-2    1  fx:early_release
+      G-3    1  fx:early_release
+      G-2    1  fx:early_release
+      G-2    1  fx:early_release
+      G-2    1  fx:early_release
+      G-3    1  fx:early_release
+      G-2    1  fx:early_release
+      F-2    1  fx:early_release
+      F-2    1  fx:early_release
+      F-3    1  fx:early_release
+      F-2    1  fx:early_release
+      F-2    1  fx:early_release
+      F-2    1  fx:early_release
+      F-3    1  fx:early_release
+      F-2    1  fx:early_release
+      F-2    1  fx:early_release
+      F-2    1  fx:early_release
+      F-3    1  fx:early_release
+      F-2    1  fx:early_release
+      F-2    1  fx:early_release
+      F-2    1  fx:early_release
+      G-3    1  fx:early_release
+      A-2    1  fx:early_release
+      A#2    1  fx:early_release
+      A#2    1  fx:early_release
+      A#3    1  fx:early_release
+      A#2    1  fx:early_release
+      A#2    1  fx:early_release
+      A#2    1  fx:early_release
+      A#3    1  fx:early_release
+      A#2    1  fx:early_release
+      A#2    1  fx:early_release
+      A#2    1  fx:early_release
+      A#3    1  fx:early_release
+      A#2    1  fx:early_release
+      A#2    1  fx:early_release
+      A#2    1  fx:early_release
+      A#3    1  fx:early_release
+      A#2    1  fx:early_release
+      G#2    1  fx:early_release
+      G#2    1  fx:early_release
+      G#3    1  fx:early_release
+      G#2    1  fx:early_release
+      G#2    1  fx:early_release
+      G#2    1  fx:early_release
+      G#3    1  fx:early_release
+      G#2    1  fx:early_release
+      G#2    1  fx:early_release
+      G#2    1  fx:early_release
+      G#3    1  fx:early_release
+      G#2    1  fx:early_release
+      G#2    1  fx:early_release
+      F#2    1  fx:early_release
+      F-3    1  fx:early_release
+      D#2    1  fx:early_release
+      C#2    1  fx:early_release
+      C#2    1  fx:early_release
+      C#3    1  fx:early_release
+      C#2    1  fx:early_release
+      C#2    1  fx:early_release
+      C#2    1  fx:early_release
+      C#3    1  fx:early_release
+      C#2    1  fx:early_release
+      C#2    1  fx:early_release
+      C#2    1  fx:early_release
+      C#3    1  fx:early_release
+      C#2    1  fx:early_release
+      C#2    1  fx:early_release
+      D#2    1  fx:early_release
+      F-3    1  fx:early_release
+      G#2    1  fx:early_release
+      F#2    1  fx:early_release
+      F#2    1  fx:early_release
+      F#3    1  fx:early_release
+      F#2    1  fx:early_release
+      F#2    1  fx:early_release
+      F-2    1  fx:early_release
+      D#3    1  fx:early_release
+      C#2    1  fx:early_release
+      B-1    1  fx:early_release
+      B-1    1  fx:early_release
+      B-2    1  fx:early_release
+      B-1    1  fx:early_release
+      B-1    1  fx:early_release
+      B-1    1  fx:early_release
+      B-2    1  fx:early_release
+      B-1    1  fx:early_release
+      C#2    1  fx:early_release
+      C#2    1  fx:early_release
+      C#3    1  fx:early_release
+      C#2    1  fx:early_release
+      C#2    1  fx:early_release
+      C#2    1  fx:early_release
+      C#3    1  fx:early_release
+      C#2    1  fx:early_release
+      G#2    1  fx:early_release
+      G#2    1  fx:early_release
+      G#3    1  fx:early_release
+      G#2    1  fx:early_release
+      G#2    1  fx:early_release
+      G#2    1  fx:early_release
+      G#2    1  fx:early_release
+      G#2    1  fx:early_release
+      C#2    1  fx:early_release
+      C#2    1  fx:early_release
+      C#3    1  fx:early_release
+      C#2    1  fx:early_release
+      C#2    1  fx:early_release
+      C#2    1  fx:early_release
+      C#3    1  fx:early_release
+      C#2    1  fx:early_release
+      E-2    1  fx:early_release
+      E-2    1  fx:early_release
+      E-3    1  fx:early_release
+      E-2    1  fx:early_release
+      E-2    1  fx:early_release
+      E-2    1  fx:early_release
+      F#3    1  fx:early_release
+      G#2    1  fx:early_release
+      A-2    1  fx:early_release
+      A-2    1  fx:early_release
+      A-3    1  fx:early_release
+      A-2    1  fx:early_release
+      A-2    1  fx:early_release
+      A-2    1  fx:early_release
+      A-3    1  fx:early_release
+      A-2    1  fx:early_release
+      A-2    1  fx:early_release
+      A-2    1  fx:early_release
+      A-3    1  fx:early_release
+      A-2    1  fx:early_release
+      A-2    1  fx:early_release
+      A-2    1  fx:early_release
+      A-3    1  fx:early_release
+      A-2    1  fx:early_release
+      D-2    1  fx:early_release
+      D-2    1  fx:early_release
+      D-3    1  fx:early_release
+      D-2    1  fx:early_release
+      D-2    1  fx:early_release
+      D-2    1  fx:early_release
+      E-3    1  fx:early_release
+      F#2    1  fx:early_release
+      G-2    1  fx:early_release
+      G-2    1  fx:early_release
+      G-3    1  fx:early_release
+      G-2    1  fx:early_release
+      G-2    1  fx:early_release
+      G-2    1  fx:early_release
+      G-3    1  fx:early_release
+      G-2    1  fx:early_release
+      A-2    1
+      A-2    1
+      A-2    1  fx:early_release
+      A-2    1  fx:early_release
+      A-2    1  fx:early_release
+      A-2    1
+      A-2    1
+      ---    1  fx:early_release
+      G-2    1
+      G-2    1  fx:early_release
+      F-2    1
+      F-2    1
+      F-2    1
+      ---    1  fx:early_release
+      G-2    1
+      G-2    1
+      A-2    1
+      A-2    1
+      A-2    1  fx:early_release
+      A-2    1  fx:early_release
+      A-2    1  fx:early_release
+      A-2    1
+      A-2    1
+      ---    1  fx:early_release
+      G-2    1
+      G-2    1  fx:early_release
+      F-2    1
+      F-2    1
+      F-2    1
+      ---    1  fx:early_release
+      G-2    1
+      G-2    1  fx:early_release
+      A-2    1
+      A-2    1
+      A-2    1
+      A-2    1
+      A-2    1
+      A-2    1
+      A-2    1
+    }
+    trailing:
+      $00 $00 $00 $00 $00 $00 $00 $00 $00 $00 $00 $0C $40 $07 $85 $00
+      $00 $00 $08 $40 $07 $85 $00 $00 $00 $01 $40 $09 $57 $09 $0D $0C
+  }
+}
+
+subtune 1 music {
+  tempo: 1
+  params {
+    filter_cutoff_hi: 255
+    gate_off_tick: 9
+    init_pwm_ctr: 255
+    init_pwm_ctr_2: 255
+    init_tempo_counter: 11
+    note_load_tick: 12
+    vol_filter: 15
+  }
+  init {
+    voice 1 { ctrl: $10  dur_field: $00  pwm_period: $00  pwm_dir: up  instr: i4  slide_v: $00 }
+    voice 2 { ctrl: $10  dur_field: $00  pwm_period: $00  pwm_dir: up  instr: i5  slide_v: $00 }
+    voice 3 { ctrl: $40  dur_field: $00  pwm_period: $00  pwm_dir: up  instr: i6  slide_v: $00 }
+  }
+  voice 1 {
+    orderlist: 1 stop
+    pattern 1 length=48 {
+      C-5    1
+      C-5    1  fx:early_release
+      C-5    1
+      C-5    1
+      E-5    1
+      E-5    1
+      E-4    1  fx:early_release
+      E-4    1  fx:early_release
+      F-4    1
+      F-4    1
+      A-4    1
+      A-4    1  fx:early_release
+      A-4    1
+      A-4    1  fx:early_release
+      A#4    1
+      A#4    1
+      D-5    1
+      D-5    1
+      D-4    1
+      D-4    1
+      D#4    1
+      D#4    1
+      D#4    1
+      D#4    1  fx:early_release
+      D#4    1
+      D#4    1
+      G#4    1
+      G#4    1
+      C-5    1
+      C-5    1
+      C-4    1  fx:early_release
+      C-4    1  fx:early_release
+      C#4    1
+      C#4    1
+      F-4    1
+      F-4    1  fx:early_release
+      F-4    1
+      F-4    1  fx:early_release
+      B-3    1
+      B-3    1
+      D-4    1
+      D-4    1
+      F-4    1
+      F-4    1
+      E-4    1
+      E-4    1
+      E-4    1
+      E-4    1
+    }
+    trailing:
+      $00 $00 $00 $00 $00 $00 $00 $00 $00 $00 $00 $00 $00 $00 $00 $54
+      $D4 $54 $54 $57 $57 $C7 $C7 $49 $49 $50 $D0 $50 $D0 $52 $52 $55
+  }
+  voice 2 {
+    orderlist: 1 stop
+    pattern 1 length=48 {
+      E-5    1
+      E-5    1  fx:early_release
+      E-5    1
+      E-5    1
+      G-5    1
+      G-5    1
+      G-4    1  fx:early_release
+      G-4    1  fx:early_release
+      A-4    1
+      A-4    1
+      C-5    1
+      C-5    1  fx:early_release
+      C-5    1
+      C-5    1  fx:early_release
+      D-5    1
+      D-5    1
+      F-5    1
+      F-5    1
+      F-4    1
+      F-4    1
+      G-4    1
+      G-4    1
+      G-4    1
+      G-4    1  fx:early_release
+      G-4    1
+      G-4    1
+      C-5    1
+      C-5    1
+      D#5    1
+      D#5    1
+      D#4    1  fx:early_release
+      D#4    1  fx:early_release
+      F-4    1
+      F-4    1
+      G#4    1
+      G#4    1  fx:early_release
+      G#4    1
+      G#4    1  fx:early_release
+      G-4    1
+      G-4    1
+      B-4    1
+      B-4    1
+      D-5    1
+      D-5    1
+      C-5    1
+      C-5    1
+      C-5    1
+      C-5    1
+    }
+    trailing:
+      $00 $00 $00 $00 $00 $00 $00 $00 $00 $00 $00 $00 $00 $00 $00 $8C
+      $8C $30 $30 $30 $30 $8C $8C $25 $25 $25 $25 $8C $8C $2A $2A $2A
+  }
+  voice 3 {
+    orderlist: 1 stop
+    pattern 1 length=48 {
+      ---    1  fx:early_release
+      ---    1  fx:early_release
+      C-3    1
+      C-3    1
+      C-3    1
+      C-3    1
+      ---    1  fx:early_release
+      ---    1  fx:early_release
+      F-2    1
+      F-2    1
+      F-2    1
+      F-2    1
+      ---    1  fx:early_release
+      ---    1  fx:early_release
+      A#2    1
+      A#2    1
+      A#2    1
+      A#2    1
+      ---    1  fx:early_release
+      ---    1  fx:early_release
+      D#3    1
+      D#3    1
+      D#3    1
+      D#3    1
+      ---    1  fx:early_release
+      ---    1  fx:early_release
+      G#2    1
+      G#2    1
+      G#2    1
+      G#2    1
+      ---    1  fx:early_release
+      ---    1  fx:early_release
+      C#3    1
+      C#3    1
+      C#3    1
+      C#3    1
+      ---    1  fx:early_release
+      ---    1  fx:early_release
+      G-2    1
+      G-2    1  fx:early_release
+      G-2    1
+      G-2    1  fx:early_release
+      B-2    1
+      B-2    1  fx:early_release
+      C-3    1
+      C-3    1
+      C-3    1
+      C-3    1
+    }
+    trailing:
+      $00 $00 $00 $00 $00 $00 $00 $00 $00 $00 $00 $00 $00 $00 $00 $00
+      $00 $00 $0C $10 $00 $F5 $00 $00 $00 $08 $10 $00 $F5 $00 $00 $00
+  }
+}
+
+subtune 2 music {
+  tempo: 1
+  params {
+    filter_cutoff_hi: 70
+    gate_off_tick: 6
+    init_pwm_ctr: 0
+    init_pwm_ctr_2: 0
+    init_tempo_counter: 11
+    note_load_tick: 12
+    vol_filter: 31
+  }
+  init {
+    voice 1 { ctrl: $40  dur_field: $00  pwm_period: $00  pwm_dir: up  instr: i7  slide_v: $00 }
+    voice 2 { ctrl: $40  dur_field: $00  pwm_period: $00  pwm_dir: up  instr: i8  slide_v: $00 }
+    voice 3 { ctrl: $40  dur_field: $00  pwm_period: $00  pwm_dir: up  instr: i9  slide_v: $00 }
+  }
+  voice 1 {
+    orderlist: 1 stop
+    pattern 1 length=31 {
+      G-4    1
+      G-4    1
+      G-4    1
+      G-4    1  fx:early_release
+      G-4    1
+      G-4    1
+      G-4    1
+      F#4    1  fx:early_release
+      G-4    1  fx:early_release
+      A-4    1
+      A-4    1
+      A-4    1
+      A-4    1
+      A-4    1
+      A-4    1
+      A-4    1  fx:early_release
+      G-4    1  fx:early_release
+      A-4    1
+      A-4    1  fx:early_release
+      G-4    1  fx:early_release
+      A-4    1  fx:early_release
+      G-4    1
+      G-4    1  fx:early_release
+      F#4    1  fx:early_release
+      F-4    1
+      F-4    1
+      F-4    1  fx:early_release
+      B-4    1  fx:early_release
+      C-5    1
+      C-5    1
+      C-5    1
+    }
+    trailing:
+      $44 $44 $44 $C4 $44 $44 $44 $C3 $C4 $45 $45 $45 $45 $45 $45 $C5
+      $C4 $45 $C5 $C4 $C5 $44 $C4 $C3 $42 $42 $C2 $C5 $44 $44 $44 $8D
+  }
+  voice 2 {
+    orderlist: 1 stop
+    pattern 1 length=31 {
+      E-4    1
+      E-4    1
+      E-4    1
+      E-4    1  fx:early_release
+      E-4    1
+      E-4    1
+      E-4    1
+      D#4    1  fx:early_release
+      E-4    1  fx:early_release
+      F-4    1
+      F-4    1
+      F-4    1
+      F-4    1
+      F-4    1
+      F-4    1
+      F-4    1  fx:early_release
+      E-4    1  fx:early_release
+      F-4    1
+      F-4    1  fx:early_release
+      E-4    1  fx:early_release
+      F-4    1  fx:early_release
+      E-4    1
+      E-4    1  fx:early_release
+      D#4    1  fx:early_release
+      D-4    1
+      D-4    1
+      D-4    1  fx:early_release
+      F-4    1  fx:early_release
+      E-4    1
+      E-4    1
+      E-4    1
+    }
+    trailing:
+      $20 $C0 $20 $C0 $20 $C0 $20 $C0 $20 $C0 $20 $C0 $20 $C0 $20 $C0
+      $20 $C0 $24 $B4 $25 $B5 $26 $B6 $27 $B7 $27 $B7 $20 $20 $20 $8D
+  }
+  voice 3 {
+    orderlist: 1 stop
+    pattern 1 length=31 {
+      C-2    1
+      C-4    1  fx:early_release
+      C-2    1
+      C-4    1  fx:early_release
+      C-2    1
+      C-4    1  fx:early_release
+      C-2    1
+      C-4    1  fx:early_release
+      C-2    1
+      C-4    1  fx:early_release
+      C-2    1
+      C-4    1  fx:early_release
+      C-2    1
+      C-4    1  fx:early_release
+      C-2    1
+      C-4    1  fx:early_release
+      C-2    1
+      C-4    1  fx:early_release
+      E-2    1
+      E-3    1  fx:early_release
+      F-2    1
+      F-3    1  fx:early_release
+      F#2    1
+      F#3    1  fx:early_release
+      G-2    1
+      G-3    1  fx:early_release
+      G-2    1
+      G-3    1  fx:early_release
+      C-2    1
+      C-2    1
+      C-2    1
+    }
+    trailing:
+      $00 $00 $00 $0C $40 $07 $85 $00 $00 $00 $08 $40 $07 $85 $00 $00
+      $00 $01 $40 $09 $67 $06 $0C $0B $00 $C2 $20 $C2 $40 $C2 $00 $00
+  }
+}
+
+subtune 3 music {
+  tempo: 1
+  params {
+    filter_cutoff_hi: 255
+    gate_off_tick: 3
+    init_pwm_ctr: 255
+    init_pwm_ctr_2: 255
+    init_tempo_counter: 5
+    note_load_tick: 6
+    vol_filter: 15
+  }
+  init {
+    voice 1 { ctrl: $40  dur_field: $00  pwm_period: $00  pwm_dir: up  instr: i10  slide_v: $00 }
+    voice 2 { ctrl: $20  dur_field: $00  pwm_period: $00  pwm_dir: up  instr: i11  slide_v: $00 }
+    voice 3 { ctrl: $20  dur_field: $00  pwm_period: $00  pwm_dir: up  instr: i12  slide_v: $00 }
+  }
+  voice 1 {
+    orderlist: 1 stop
+    pattern 1 length=31 {
+      A#3    1
+      A#3    1
+      A#3    1
+      A#3    1  fx:early_release
+      A#3    1
+      A#3    1
+      A#3    1  fx:early_release
+      A#3    1  fx:early_release
+      A#3    1
+      A#3    1
+      A#3    1
+      A#3    1  fx:early_release
+      C#4    1
+      C#4    1
+      C#4    1  fx:early_release
+      C-4    1  fx:early_release
+      C-4    1
+      C-4    1
+      C-4    1  fx:early_release
+      A#3    1  fx:early_release
+      A#3    1
+      A#3    1
+      A#3    1  fx:early_release
+      A#3    1  fx:early_release
+      A#3    1
+      A#3    1
+      A#3    1
+      A#3    1
+      A#3    1
+      A#3    1
+      A#3    1
+    }
+    trailing:
+      $35 $35 $35 $B5 $36 $36 $36 $B6 $35 $35 $35 $B5 $36 $36 $36 $B6
+      $35 $35 $35 $B5 $36 $36 $36 $B6 $35 $35 $35 $35 $35 $35 $35 $8D
+  }
+  voice 2 {
+    orderlist: 1 stop
+    pattern 1 length=31 {
+      F-3    1
+      F-3    1
+      F-3    1
+      F-3    1  fx:early_release
+      F#3    1
+      F#3    1
+      F#3    1
+      F#3    1  fx:early_release
+      F-3    1
+      F-3    1
+      F-3    1
+      F-3    1  fx:early_release
+      F#3    1
+      F#3    1
+      F#3    1
+      F#3    1  fx:early_release
+      F-3    1
+      F-3    1
+      F-3    1
+      F-3    1  fx:early_release
+      F#3    1
+      F#3    1
+      F#3    1
+      F#3    1  fx:early_release
+      F-3    1
+      F-3    1
+      F-3    1
+      F-3    1
+      F-3    1
+      F-3    1
+      F-3    1
+    }
+    trailing:
+      $2A $2A $2A $AA $2A $2A $2A $AA $2A $2A $2A $AA $2A $2A $2A $AA
+      $2A $2A $2A $AA $2A $2A $2A $AA $2A $2A $2A $2A $2A $2A $2A $8D
+  }
+  voice 3 {
+    orderlist: 1 stop
+    pattern 1 length=31 {
+      A#2    1
+      A#2    1
+      A#2    1
+      A#2    1  fx:early_release
+      A#2    1
+      A#2    1
+      A#2    1
+      A#2    1  fx:early_release
+      A#2    1
+      A#2    1
+      A#2    1
+      A#2    1  fx:early_release
+      A#2    1
+      A#2    1
+      A#2    1
+      A#2    1  fx:early_release
+      A#2    1
+      A#2    1
+      A#2    1
+      A#2    1  fx:early_release
+      A#2    1
+      A#2    1
+      A#2    1
+      A#2    1  fx:early_release
+      A#2    1
+      A#2    1
+      A#2    1
+      A#2    1
+      A#2    1
+      A#2    1
+      A#2    1
+    }
+    trailing:
+      $00 $00 $00 $0A $40 $29 $85 $00 $00 $00 $08 $20 $27 $45 $00 $00
+      $00 $09 $20 $27 $47 $03 $06 $05 $20 $C5 $40 $C5 $60 $C5 $FF $FF
+  }
+}
+
+subtune 4 music {
+  tempo: 1
+  params {
+    filter_cutoff_hi: 255
+    gate_off_tick: 5
+    init_pwm_ctr: 0
+    init_pwm_ctr_2: 0
+    init_tempo_counter: 8
+    note_load_tick: 9
+    vol_filter: 15
+  }
+  init {
+    voice 1 { ctrl: $40  dur_field: $00  pwm_period: $00  pwm_dir: up  instr: i13  slide_v: $00 }
+    voice 2 { ctrl: $10  dur_field: $00  pwm_period: $00  pwm_dir: up  instr: i14  slide_v: $00 }
+    voice 3 { ctrl: $40  dur_field: $00  pwm_period: $00  pwm_dir: up  instr: i15  slide_v: $00 }
+  }
+  voice 1 {
+    orderlist: 1 stop
+    pattern 1 length=71 {
+      B-3    1
+      B-3    1
+      B-3    1
+      B-3    1
+      C-4    1
+      C-4    1
+      C-4    1
+      C-4    1
+      D-4    1
+      D-4    1
+      G-4    1
+      G-4    1  fx:early_release
+      G-4    1
+      G-4    1  fx:early_release
+      G-4    1
+      G-4    1
+      G-4    1
+      G-4    1
+      F#4    1
+      F#4    1
+      F#4    1
+      F#4    1
+      G-4    1
+      G-4    1
+      A-4    1
+      A-4    1
+      E-4    1
+      E-4    1  fx:early_release
+      E-4    1
+      E-4    1  fx:early_release
+      E-4    1
+      E-4    1
+      E-4    1
+      E-4    1
+      G-4    1
+      G-4    1
+      G-4    1
+      G-4    1
+      E-4    1
+      E-4    1
+      F#4    1
+      F#4    1  fx:early_release
+      F#4    1  fx:early_release
+      F#4    1  fx:early_release
+      F#4    1
+      F#4    1  fx:early_release
+      F#4    1
+      F#4    1
+      F#4    1
+      F#4    1
+      E-4    1
+      E-4    1
+      E-4    1
+      E-4    1
+      F#4    1
+      F#4    1
+      G-4    1
+      G-4    1  fx:early_release
+      G-3    1  fx:early_release
+      G-3    1  fx:early_release
+      G-3    1
+      G-3    1  fx:early_release
+      G-3    1
+      G-3    1
+      G-3    1
+      G-3    1
+      G-3    1
+      G-3    1
+      G-3    1
+      G-3    1
+      G-3    1
+    }
+    trailing:
+      $8C $8C $8C $8C $8C $8C $8C $8C $32 $37 $3B $42 $47 $4B $52 $57
+      $5B $57 $52 $4B $47 $42 $3B $37 $34 $39 $41 $44 $49 $51 $54 $59
+  }
+  voice 2 {
+    orderlist: 1 stop
+    pattern 1 length=71 {
+      ---    1  fx:early_release
+      ---    1  fx:early_release
+      ---    1  fx:early_release
+      ---    1  fx:early_release
+      ---    1  fx:early_release
+      ---    1  fx:early_release
+      ---    1  fx:early_release
+      ---    1  fx:early_release
+      D-3    1
+      G-3    1
+      B-3    1
+      D-4    1
+      G-4    1
+      B-4    1
+      D-5    1
+      G-5    1
+      B-5    1
+      G-5    1
+      D-5    1
+      B-4    1
+      G-4    1
+      D-4    1
+      B-3    1
+      G-3    1
+      E-3    1
+      A-3    1
+      C#4    1
+      E-4    1
+      A-4    1
+      C#5    1
+      E-5    1
+      A-5    1
+      C#6    1
+      A-5    1
+      E-5    1
+      C#5    1
+      A-4    1
+      E-4    1
+      C#4    1
+      A-3    1
+      D-3    1
+      F#3    1
+      A-3    1
+      C-4    1
+      D-4    1
+      F#4    1
+      A-4    1
+      C-5    1
+      D-5    1
+      F#5    1
+      A-5    1
+      F#5    1
+      D-5    1
+      A-4    1
+      F#4    1
+      D-4    1
+      B-3    1
+      B-3    1  fx:early_release
+      D-3    1  fx:early_release
+      D-3    1  fx:early_release
+      D-3    1
+      D-3    1  fx:early_release
+      D-3    1
+      D-3    1
+      D-3    1
+      D-3    1
+      D-3    1
+      D-3    1
+      D-3    1
+      D-3    1
+      D-3    1
+    }
+    trailing:
+      $8C $8C $8C $8C $8C $8C $8C $8C $27 $27 $A7 $A7 $22 $A2 $24 $A4
+      $27 $27 $27 $A7 $22 $A2 $24 $A4 $29 $29 $A9 $A9 $24 $A4 $26 $A6
+  }
+  voice 3 {
+    orderlist: 1 stop
+    pattern 1 length=71 {
+      ---    1  fx:early_release
+      ---    1  fx:early_release
+      ---    1  fx:early_release
+      ---    1  fx:early_release
+      ---    1  fx:early_release
+      ---    1  fx:early_release
+      ---    1  fx:early_release
+      ---    1  fx:early_release
+      G-2    1
+      G-2    1
+      G-2    1  fx:early_release
+      G-2    1  fx:early_release
+      D-2    1
+      D-2    1  fx:early_release
+      E-2    1
+      E-2    1  fx:early_release
+      G-2    1
+      G-2    1
+      G-2    1
+      G-2    1  fx:early_release
+      D-2    1
+      D-2    1  fx:early_release
+      E-2    1
+      E-2    1  fx:early_release
+      A-2    1
+      A-2    1
+      A-2    1  fx:early_release
+      A-2    1  fx:early_release
+      E-2    1
+      E-2    1  fx:early_release
+      F#2    1
+      F#2    1  fx:early_release
+      A-2    1
+      A-2    1
+      A-2    1
+      A-2    1  fx:early_release
+      E-2    1
+      E-2    1  fx:early_release
+      F#2    1
+      F#2    1  fx:early_release
+      D-3    1
+      D-3    1
+      D-3    1  fx:early_release
+      D-3    1  fx:early_release
+      A-2    1
+      A-2    1  fx:early_release
+      B-2    1
+      B-2    1  fx:early_release
+      D-3    1
+      D-3    1
+      D-3    1
+      D-3    1  fx:early_release
+      A-2    1
+      A-2    1  fx:early_release
+      B-2    1
+      B-2    1  fx:early_release
+      G-2    1
+      G-2    1  fx:early_release
+      G-2    1  fx:early_release
+      G-2    1  fx:early_release
+      G-2    1
+      G-2    1  fx:early_release
+      G-2    1
+      G-2    1
+      G-2    1
+      G-2    1
+      G-2    1
+      G-2    1
+      G-2    1
+      G-2    1
+      G-2    1
+    }
+    trailing:
+      $FF $FF $FF $FF $FF $FF $FF $FF $00 $00 $00 $07 $40 $07 $85 $00
+      $00 $00 $08 $10 $09 $F5 $00 $00 $80 $09 $40 $09 $57 $05 $09 $08
+  }
+}

@@ -181,6 +181,14 @@ def _write_voice(v: VoiceBlock) -> list[str]:
     lines.append(f'    orderlist: {_write_orderlist(v.orderlist)}')
     for p in sorted(v.patterns, key=lambda x: x.id):
         lines.extend(_write_pattern(p))
+    if v.trailing:
+        # Engine-mechanism byte-stream emitted past the orderlist's
+        # `stop` terminator (Companion engine ringoff). Emitted as
+        # raw bytes wrapped at 16 per line for readability.
+        lines.append('    trailing:')
+        for i in range(0, len(v.trailing), 16):
+            chunk = v.trailing[i:i + 16]
+            lines.append('      ' + ' '.join(_hex(b) for b in chunk))
     lines.append('  }')
     return lines
 

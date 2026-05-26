@@ -101,10 +101,23 @@ class Orderlist:
 
 @dataclass
 class VoiceBlock:
-    """One of the three voice blocks inside a music subtune."""
+    """One of the three voice blocks inside a music subtune.
+
+    `trailing` holds raw bytes the engine reads past the orderlist's
+    `stop` terminator. Most engines don't need this — they actually
+    stop processing when their orderlist ends. But the Companion
+    engine (Bowden 1984 / Hubbard's Up,up&Away) keeps advancing
+    voice pointers past its $8D terminator, reading bytes adjacent
+    in memory. For byte-exact reconstruction the rebuild must emit
+    those same bytes. `trailing` is the place for them — kept
+    separate from the music in `patterns` to honour the USF
+    principle that the schema describes music, not engine ringoff.
+    Default empty (most engines).
+    """
     id: int                  # 1, 2, or 3
     orderlist: Orderlist
     patterns: list[Pattern] = field(default_factory=list)
+    trailing: bytes = b''
 
 
 # ---------------------------------------------------------------------------
