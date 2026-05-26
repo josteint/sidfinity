@@ -383,7 +383,8 @@ def _build_digi_region(usf: UsfFile, digi_subs: list[DigiSubtune],
     base = digi_code.dispatcher_base                       # e.g. $9F80
     # The Chimera player is assembled lazily from its xa65 asm source
     # (regenerated, not lifted verbatim from the original SID).
-    player_bytes = assemble_chimera_digi_player()
+    player_bytes = assemble_chimera_digi_player(
+        player_base=digi_code.player_base)
     end  = digi_code.player_base + len(player_bytes)       # one past last byte
 
     # Generate the PSID dispatcher with addresses substituted for our
