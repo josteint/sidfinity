@@ -544,7 +544,7 @@ CHIMERA_DIGI = DigiCode(
     dispatcher=b'',                          # regenerated at codegen time
     music_init_patch_off=0,                  # unused for PSID
     music_play_patch_off=0,                  # unused for PSID
-    player_base=0xB093,
+    player_base=0xC000,
     # The player bytes are assembled lazily from CHIMERA_DIGI_PLAYER_ASM;
     # `assemble_chimera_digi_player()` runs xa65 and caches the result.
     # Stored as a sentinel empty bytes here; the codegen calls the
