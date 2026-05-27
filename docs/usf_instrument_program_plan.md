@@ -45,7 +45,7 @@ engine-specific knowledge into the codegen, which is plumbing.
 - [x] **0.3** Baseline captured at `tests/baselines/commando_original_writelog.txt`
       (siddump --writelog --duration 30 --raw of
       demo/hubbard/Commando_original.sid; 1498 frame lines).
-- [x] **0.4** New schema lives in `pipelines/commando/codegen/Commando/USF2.lean`
+- [x] **0.4** New schema lives in `pipelines/hubbard/commando/codegen/Commando/USF2.lean`
       (placeholder file created; Phase 1 fills it in). Co-located with
       Commando's existing USF.lean so the current pipeline keeps
       working during the refactor. Will be promoted to a shared
@@ -54,7 +54,7 @@ engine-specific knowledge into the codegen, which is plumbing.
 ## Phase 1 — Schema design
 
 - [x] **1.1 / 1.2 / 1.3** Schema landed in
-      `pipelines/commando/codegen/Commando/USF2.lean`. Grammar:
+      `pipelines/hubbard/commando/codegen/Commando/USF2.lean`. Grammar:
       - `InstSource` has 9 constructors: `const`, `pitchFreqLo/Hi`
         (with `USFFreqGenSpec` carrying optional vibrato + freqSlide
         + arpeggio), `pulseModLo/Hi` (linear or bidirectional),
@@ -66,7 +66,7 @@ engine-specific knowledge into the codegen, which is plumbing.
       - `USFInstrument2 { events, noRelease, filterEnabled }`. No
         engineQuirks / voiceScratch / preserveNoteFlags / dynamicFreqEntries.
 - [x] **1.4** All 13 Commando instruments hand-encoded in
-      `pipelines/commando/codegen/Commando/CommandoInsts2.lean`. Builds
+      `pipelines/hubbard/commando/codegen/Commando/CommandoInsts2.lean`. Builds
       cleanly via `lake build Commando.CommandoInsts2`. Reality
       check observations:
       - Every instrument fit the grammar — no new primitives needed.
@@ -142,7 +142,7 @@ for the simplest possible instrument. Phase 2 acceptance test
 Phase 3 reshaped substantially against reality (see commits 785192d ..
 40df47c). What was actually built:
 
-- [x] **3.1** `pipelines/commando/extract/inst_program.py` — runs the
+- [x] **3.1** `pipelines/hubbard/commando/extract/inst_program.py` — runs the
       real Commando binary in py65, hooks every $D4xx write, segments
       the run into per-instrument NoteOccurrences. (785192d)
 - [x] **3.2** `inst_generalize.py` — a pure capture-generalisation could
@@ -176,7 +176,7 @@ continuing Phase 2.3's "Python codegen first" deviation; the Lean
 `Codegen2` is deferred to the migration phases.
 
 - [x] **4.1** All 13 instruments emitted (`emit_usf2.py`, Phase 3).
-- [x] **4.2 / 4.3** `pipelines/commando/codegen/usf2_codegen.py` — a
+- [x] **4.2 / 4.3** `pipelines/hubbard/commando/codegen/usf2_codegen.py` — a
       clean 6502 Commando engine (xa65 assembly, a faithful port of
       `song_interp.py`) + the USF2 data serialised into memory tables,
       assembled into a real `.sid`. No engineQuirks, no
@@ -270,7 +270,7 @@ binding rule for every effect representation decision in this phase.
       93e22b3.
 - [x] **6.1** Migrate **Devils Galop** — DONE. codegen 20000/20000
       byte-exact over the whole song; song_interp 100%; Commando still
-      19/19. `pipelines/devils_galop/config.py` + its engine_model on
+      19/19. `pipelines/hubbard/devils_galop/config.py` + its engine_model on
       the shared core. Three per-engine deltas, all config fields:
       inc_by2 ramp (`incby2_step`/`incby2_every_frame`), the $178B
       drum-priority gate (`suppress_first_notestart`), vibrato onset

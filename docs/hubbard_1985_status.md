@@ -10,23 +10,23 @@ music-subtune list derived from HVSC Songlengths (any subtune ≥ 30 sec).
 
 | SID | Music subs | Pipeline | First-build grade |
 |---|---|---|---|
-| 5 Title Tunes | 0,1,2,3,4 | `pipelines/five_title_tunes/` | **extract error** — rh_decompile finds 1 song, PSID claims 5 |
-| Action Biker | 0,1 | `pipelines/action_biker/` | F (0%) |
-| Battle of Britain | 0 | `pipelines/battle_of_britain/` | F (0%) |
-| Chimera | 0,1 | `pipelines/chimera/` | **lake build error** |
-| Confuzion | 0 | `pipelines/confuzion/` | F (3.3%) |
+| 5 Title Tunes | 0,1,2,3,4 | `pipelines/hubbard/five_title_tunes/` | **extract error** — rh_decompile finds 1 song, PSID claims 5 |
+| Action Biker | 0,1 | `pipelines/hubbard/action_biker/` | F (0%) |
+| Battle of Britain | 0 | `pipelines/hubbard/battle_of_britain/` | F (0%) |
+| Chimera | 0,1 | `pipelines/hubbard/chimera/` | **lake build error** |
+| Confuzion | 0 | `pipelines/hubbard/confuzion/` | F (3.3%) |
 | Crazy Comets | 0,1 | `pipelines/crazy_comets/` | F (3.9%) |
-| Devils Galop | 0 | `pipelines/devils_galop/` | **D (44.3%)** |
+| Devils Galop | 0 | `pipelines/hubbard/devils_galop/` | **D (44.3%)** |
 | Gremlins | 0,1,2,3,4,5,6 | `pipelines/gremlins/` | F (5.8%) |
-| Hunter Patrol | 0 | `pipelines/hunter_patrol/` | F (0%) |
-| One Man and his Droid | 0 | `pipelines/one_man_and_his_droid/` | **D (37.5%)** |
+| Hunter Patrol | 0 | `pipelines/hubbard/hunter_patrol/` | F (0%) |
+| One Man and his Droid | 0 | `pipelines/hubbard/one_man_and_his_droid/` | **D (37.5%)** |
 | Rasputin | 0 | `pipelines/rasputin/` | F (0%) |
 | Sample Music from I.Karate | 0 | `pipelines/sample_music_i_karate/` | F (0%) |
-| Human Race | 0,1,2,3,4 | `pipelines/human_race/` | **extract error** — pattern shared across subtunes at different tempos |
+| Human Race | 0,1,2,3,4 | `pipelines/hubbard/human_race/` | **extract error** — pattern shared across subtunes at different tempos |
 | Last V8 | 0 | `pipelines/last_v8/` | **lake build error** |
 | Last V8 (C128) | 0..2 | `pipelines/last_v8_c128/` | **scaffold + tombstone** — real extract (RSID, dual-engine: tracker + relocated sample player); codegen emits a 1-byte RTS; disassembly at `docs/hubbard_last_v8_c128_disassembly.s` |
 | Master of Magic | 0 | `pipelines/master_of_magic/` | F (2.8%) |
-| Thing on a Spring | 0 | `pipelines/thing_on_a_spring/` | F (4.8%) |
+| Thing on a Spring | 0 | `pipelines/hubbard/thing_on_a_spring/` | F (4.8%) |
 
 ## Honest interpretation
 

@@ -57,7 +57,7 @@ identification comes from:
 ## Significance for SIDfinity
 
 The Companion engine is **Hubbard's first driver**, not his second.
-The pipelines/commando/ engine (etc.) corresponds to his SECOND
+The pipelines/hubbard/commando/ engine (etc.) corresponds to his SECOND
 driver written from scratch in late 1984. The Companion engine is
 older, simpler (no arpeggio/vibrato/PWM per our local
 disassembly), and corresponds to a different lineage. It cannot

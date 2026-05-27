@@ -24,7 +24,7 @@ import struct
 import sys
 
 # ----------------------------------------------------------------------------
-# cv3I_test — mirror of pipelines/commando/codegen/Commando/CommandoInsts2.lean
+# cv3I_test — mirror of pipelines/hubbard/commando/codegen/Commando/CommandoInsts2.lean
 # ----------------------------------------------------------------------------
 # Events: (trigger_kind, trigger_arg, register, source_kind, source_arg)
 TEST_PITCH = 60               # play this pitch (semitone index)

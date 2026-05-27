@@ -406,7 +406,7 @@ def capture_all_subtunes(sid_path: str, n_frames: int
 
 
 def main(argv: list[str]) -> None:
-    from pipelines.commando.extract.engine_model import extract
+    from pipelines.hubbard.commando.extract.engine_model import extract
     from pipelines.hubbard.inst_program import SID_PATH
 
     freq_table = extract().freq_table

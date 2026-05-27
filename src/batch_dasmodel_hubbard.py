@@ -40,7 +40,7 @@ def _process_one(sid_path: str) -> dict:
 
         # Phase 2: extract (T, I, S)
         out['phase'] = 'extract'
-        from pipelines.commando.extract.engine_model import extract
+        from pipelines.hubbard.commando.extract.engine_model import extract
         T, instrs, score = extract(subtune=0,
                                     sid_path=sid_path,
                                     ft_base=lm.freq_table_addr)

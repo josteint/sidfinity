@@ -38,7 +38,7 @@ from pipelines.hubbard.types import (
 
 
 # ---------------------------------------------------------------------------
-# USF → InstrumentModel (the inverse of pipelines/chimera/extract/to_usf_v2.
+# USF → InstrumentModel (the inverse of pipelines/hubbard/chimera/extract/to_usf_v2.
 # _convert_instrument)
 # ---------------------------------------------------------------------------
 
@@ -227,7 +227,7 @@ def _freq_bytes_from_usf(usf: UsfFile, engine_const) -> bytes:
 def _ovseed_from_init_state(init, instr_count: int) -> bytes:
     """Convert a USF `InitState` back into the 18-byte ovseed
     (the inverse of `_init_state_from_ovseed` in
-    pipelines/five_title_tunes/v2/write_unified_usf.py).
+    pipelines/hubbard/five_title_tunes/v2/write_unified_usf.py).
     Layout: v_ctrl[3] pwm_period[3] pwm_dir[3] v_instr[3]
             v_durfield[3] v_slide[3]."""
     if init is None or not init.voices:

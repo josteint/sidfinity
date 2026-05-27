@@ -575,7 +575,7 @@ def verify(config, subtune: int, n_frames: int) -> dict:
 
 def main(argv: list[str]) -> None:
     from pipelines.hubbard.inst_program import REG_NAMES
-    from pipelines.commando.config import COMMANDO
+    from pipelines.hubbard.commando.config import COMMANDO
 
     subtune = int(argv[0]) if argv else 0
     n_frames = int(argv[1]) if len(argv) > 1 else 1500

@@ -42,7 +42,7 @@ The architectural bet: **engine quirks live as *data*, not as code branches**.
 
 What's universal:
 
-- **One format**, USF (Universal Symbolic Format). It describes notes, patterns, instruments, effects in engine-neutral terms. The schema lives in [`pipelines/commando/codegen/Commando/USF.lean`](pipelines/commando/codegen/Commando/USF.lean) (each pipeline currently has its own clone).
+- **One format**, USF (Universal Symbolic Format). It describes notes, patterns, instruments, effects in engine-neutral terms. The on-disk USF v2 grammar and reader/writer live in [`src/usf2/`](src/usf2/); the spec is in [`docs/usf_v2_format.md`](docs/usf_v2_format.md).
 - **One codegen per engine**. Each pipeline's `Codegen.lean` reads its USF song and emits 6502. There are no `if engine == Hubbard:` branches anywhere; engine-specific behaviour lives in the USF data + per-pipeline codegen, not in shared conditionals.
 
 What's per-engine:
@@ -96,8 +96,8 @@ Getting Commando clean took finding five universal-Hubbard quirks; Monty added t
 
 ## Pipelines
 
-Each Hubbard SID has a per-engine `pipelines/<engine>/` directory; the
-shared 6502 codegen lives at `pipelines/hubbard/`. 12 engines are byte-exact
+Each Hubbard SID has a per-engine `pipelines/hubbard/<engine>/` directory;
+the shared 6502 codegen lives at `pipelines/hubbard/`. 12 engines are byte-exact
 through this path (Commando, Monty, Action Biker, Battle of Britain, Chimera,
 Confuzion, Devils Galop, 5 Title Tunes, Human Race, Hunter Patrol, One Man
 and his Droid, Thing on a Spring). See [`pipelines/README.md`](pipelines/README.md)
@@ -122,13 +122,13 @@ source src/env.sh                              # PATH for siddump etc.
 bash tools/build.sh                            # libsidplayfp + siddump (one-time)
 
 # Build one engine end-to-end (example: Chimera)
-python -m pipelines.chimera.extract             # writes the .usf + FLAC sidecars
+python -m pipelines.hubbard.chimera.extract             # writes the .usf + FLAC sidecars
 python -c "from pipelines.hubbard.build_from_usf import build_from_usf; \
            build_from_usf('demo/hubbard/Chimera.usf', 'demo/hubbard/Chimera.sid')"
 
 # Verify (byte-exact via md5 of per-frame SID register snapshots)
 python -c "from pipelines.hubbard.verify import verify_all; \
-           from pipelines.chimera.config import CHIMERA; \
+           from pipelines.hubbard.chimera.config import CHIMERA; \
            print(verify_all([(CHIMERA, 'demo/hubbard/Chimera.sid')]))"
 
 # Tests

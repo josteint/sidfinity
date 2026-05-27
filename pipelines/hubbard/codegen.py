@@ -16,8 +16,8 @@ orderlists. Reproduces the original's instruction stream 100 % over
 the whole song.
 
 Usage:
-    python3 pipelines/commando/codegen/usf2_codegen.py
-    python3 pipelines/commando/codegen/usf2_codegen.py --verify
+    python3 pipelines/hubbard/commando/codegen/usf2_codegen.py
+    python3 pipelines/hubbard/commando/codegen/usf2_codegen.py --verify
 """
 
 from __future__ import annotations
@@ -1031,7 +1031,7 @@ fxa_ret: rts
 
 ; ============================ sound effects ===========================
 ; A SFX is a 2-voice register snapshot plus a freq-table pitch sweep,
-; driven by a 32-byte record (sfxdata). See pipelines/commando/extract/
+; driven by a 32-byte record (sfxdata). See pipelines/hubbard/commando/extract/
 ; sfx.py for the engine derivation.
 
 ; init_sfx - set up sound effect sfx_idx. Builds the record pointer,
@@ -1887,7 +1887,7 @@ def verify(sid_path: str, enabled: set, subtune: int = 0,
            n_frames: int = 1500) -> None:
     from pipelines.hubbard.inst_program import capture, REG_NAMES
     from pipelines.hubbard.song_interp import SongInterp
-    from pipelines.commando.config import COMMANDO
+    from pipelines.hubbard.commando.config import COMMANDO
 
     cap = capture(sid_path, n_frames=n_frames, subtune=subtune)
     si = SongInterp(COMMANDO, subtune)
@@ -1931,7 +1931,7 @@ def verify(sid_path: str, enabled: set, subtune: int = 0,
 
 
 def main(argv: list[str]) -> None:
-    from pipelines.commando.config import COMMANDO
+    from pipelines.hubbard.commando.config import COMMANDO
     path = build(COMMANDO)
     print(f'built {path}  ({os.path.getsize(path)} bytes)')
     if '--verify' in argv:

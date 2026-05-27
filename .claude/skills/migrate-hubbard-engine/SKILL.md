@@ -74,7 +74,7 @@ config field → re-measure. Repeat. Each delta is one commit.
   level `_extract(subtune)` and `_resetspd(subtune, binary, load)`
   wrappers. Start minimal: `name, sid_path, instr_base, instr_count,
   freq_table_base, extract, resetspd, subtunes, arp_interval=12,
-  has_sfx=False`. Copy `pipelines/chimera/config.py` as the template.
+  has_sfx=False`. Copy `pipelines/hubbard/chimera/config.py` as the template.
 
 ## Step 2 — sanity-check before building
 
@@ -174,8 +174,8 @@ Once the music subtunes are byte-exact, adding SFX is usually trivial:
   (`init_sfx` + `sfx_play`) — a 2-voice SID-register snapshot plus
   a freq-table pitch sweep with optional CTRL-flip.
 - Write `pipelines/<engine>/extract/sfx.py` modelled on
-  `pipelines/commando/extract/sfx.py` or
-  `pipelines/thing_on_a_spring/extract/sfx.py` — typically a
+  `pipelines/hubbard/commando/extract/sfx.py` or
+  `pipelines/hubbard/thing_on_a_spring/extract/sfx.py` — typically a
   ~10-line wrapper around `pipelines.hubbard.sfx.extract_sfx` with
   the engine's SFX-table address and freq-table address.
 - Set `has_sfx=True` and `extract_sfx=extract_sfx` in the config.
@@ -284,7 +284,7 @@ where Y wraps high, suspect these knobs first** — the existing
   dispatcher MUST `LDA #0` before each `JSR sub_init` (otherwise
   A > 0 routes into the sub's SFX init path, which corrupts $9A and
   silences the music with all-zero SID writes). See
-  `pipelines/five_title_tunes/v2/build_compound.py`.
+  `pipelines/hubbard/five_title_tunes/v2/build_compound.py`.
 - **IRQ-driven SID** (PSID play address 0): the music runs from a raster
   IRQ; `inst_program.capture` already follows the `$0314/$0315` vector
   after init. Nothing to do — but expect the original's play to be 0.
@@ -296,10 +296,10 @@ where Y wraps high, suspect these knobs first** — the existing
   → `pack_digi` → SID, verified cycle-strict via
   `siddump --writelog`. For a new engine whose extra subtunes are
   digi: model the extractor (engine-specific tables + sample
-  format) on `pipelines/chimera/extract/digi.py`, reuse
+  format) on `pipelines/hubbard/chimera/extract/digi.py`, reuse
   `pipelines/hubbard/{sample,flac_io,digi_pack,verify_cycle}.py`,
   and write a combined build alongside the music codegen on the
-  pattern of `pipelines/chimera/codegen/build_with_digi.py`. Until
+  pattern of `pipelines/hubbard/chimera/codegen/build_with_digi.py`. Until
   the digi engine code itself is regenerated from USF (D5,
   config-driven on the shared core), each engine ships a small
   wrapper that uses its dispatcher + player bytes verbatim with the

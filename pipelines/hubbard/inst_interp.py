@@ -242,7 +242,7 @@ def _first_diff(model, o, freq_table, resetspd) -> str:
 
 
 def main(argv: list[str]) -> None:
-    from pipelines.commando.extract.engine_model import extract
+    from pipelines.hubbard.commando.extract.engine_model import extract
     from pipelines.hubbard.inst_program import SID_PATH
     from pipelines.hubbard.inst_generalize import capture_all_subtunes
     from src.hubbard_emu import load_sid

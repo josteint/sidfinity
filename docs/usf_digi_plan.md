@@ -59,7 +59,7 @@ where it actually matters.
   to learn what tolerance "cycle-exact" actually needs.
 
 ### D1 — Chimera digi extractor
-- `pipelines/chimera/extract/digi.py`: read the `$A000` bank table +
+- `pipelines/hubbard/chimera/extract/digi.py`: read the `$A000` bank table +
   subtune→bank map (`$9FE2`) → `{sample blob, length, rate $A10A,
   per-byte repeat}`.
 - Decode the 1-bit packed blob to the engine-agnostic bit/±1 stream.

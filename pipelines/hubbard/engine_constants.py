@@ -823,7 +823,7 @@ def _five_title_tunes_freq_bytes(sub_idx: int) -> bytes:
     near-PAL, so the first 192 bytes match `HUBBARD_85_PAL_FREQ_TABLE`.
     The 128-byte state region is read from the sub's standalone PSID
     (written by `tools/split_multi_binary.py` into
-    `pipelines/five_title_tunes/work_subs/`).
+    `pipelines/hubbard/five_title_tunes/work_subs/`).
     """
     import os
     import sys
