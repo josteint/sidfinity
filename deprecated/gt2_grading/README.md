@@ -39,6 +39,12 @@ scripts/
   gt2_triage.py              automated F-grade GT2 song triager
   regression_test.py         3478-song GT2 regression suite (was at
                              src/player/regression_test.py)
+  batch_dasmodel_hubbard.py  was: batch-build das_model SIDs for each
+                             discovered Hubbard SID; raised
+                             NotImplementedError pending the demo/ asm
+                             rewrite that never happened (src/)
+  commando_hg2.py            was: hand-tuned "holy grail" Commando rebuild
+                             experiment, pre-USF-v2 (src/hubbard/)
 ```
 
 ## Reviving
@@ -47,8 +53,9 @@ If the GT2 / Grade A workflow becomes useful again:
 
 1. Move `data/*` back to the project's top-level `data/` directory.
 2. Move `scripts/hvsc_dashboard.py`, `gt2_triage.py`, `update_readme.py`,
-   `grade_db.py` back to `src/`.
+   `grade_db.py`, `batch_dasmodel_hubbard.py` back to `src/`.
 3. Move `scripts/regression_test.py` back to `src/player/`.
+4. Move `scripts/commando_hg2.py` back to `src/hubbard/`.
 4. Update CLAUDE.md and README.md to reference them again.
 
 The data is a snapshot from a specific point in time (approximately the
