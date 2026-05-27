@@ -124,12 +124,12 @@ bash tools/build.sh                            # libsidplayfp + siddump (one-tim
 # Build one engine end-to-end (example: Chimera)
 python -m pipelines.hubbard.chimera.extract             # writes the .usf + FLAC sidecars
 python -c "from pipelines.hubbard.build_from_usf import build_from_usf; \
-           build_from_usf('demo/hubbard/Chimera.usf', 'demo/hubbard/Chimera.sid')"
+           build_from_usf('hvsc84/MUSICIANS/H/Hubbard_Rob/Chimera.usf', 'hvsc84/MUSICIANS/H/Hubbard_Rob/Chimera.sidfinity.sid')"
 
 # Verify (byte-exact via md5 of per-frame SID register snapshots)
 python -c "from pipelines.hubbard.verify import verify_all; \
            from pipelines.hubbard.chimera.config import CHIMERA; \
-           print(verify_all([(CHIMERA, 'demo/hubbard/Chimera.sid')]))"
+           print(verify_all([(CHIMERA, 'hvsc84/MUSICIANS/H/Hubbard_Rob/Chimera.sidfinity.sid')]))"
 
 # Tests
 PYTHONPATH=tools/py_test_lib python -m pytest pipelines/        # extract smoke tests

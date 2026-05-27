@@ -131,6 +131,6 @@ def write_unified_usf(out_dir: str) -> str:
 
 if __name__ == '__main__':
     import sys
-    out_dir = sys.argv[1] if len(sys.argv) > 1 else 'demo/hubbard'
+    out_dir = sys.argv[1] if len(sys.argv) > 1 else 'hvsc84/MUSICIANS/H/Hubbard_Rob'
     p = write_unified_usf(out_dir)
     print(f'wrote {p} ({os.path.getsize(p)} bytes)')

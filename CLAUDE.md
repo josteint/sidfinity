@@ -45,7 +45,7 @@ Older paths live under `deprecated/`:
 
 Use the `migrate-hubbard-engine` skill at `.claude/skills/migrate-hubbard-engine/`. Short form:
 
-1. `cp hvsc84/MUSICIANS/H/Hubbard_Rob/<Engine>.sid demo/hubbard/<Engine>_original.sid`
+1. The HVSC original is read directly from `hvsc84/MUSICIANS/H/Hubbard_Rob/<Engine>.sid` — no copy needed.
 2. Generate a seed disassembly: `tools/seed_disassembly.py …` → `docs/hubbard_<engine>_disassembly.s` → hand-annotate the header
 3. Create `pipelines/hubbard/<engine>/config.py` (clone a similar existing one — Action Biker is a good template; Chimera if there's digi)
 4. Create `pipelines/hubbard/<engine>/extract/engine_model.py` + `extract/to_usf_v2.py`
@@ -75,15 +75,15 @@ python -c "
 from pipelines.hubbard.commando.extract.to_usf_v2 import write_commando_usf
 from pipelines.hubbard.commando.config import COMMANDO
 from pipelines.hubbard.build_from_usf import build_from_usf
-write_commando_usf(COMMANDO, 'demo/hubbard')
-build_from_usf('demo/hubbard/Commando.usf', 'demo/hubbard/Commando.sid')
+write_commando_usf(COMMANDO, 'hvsc84/MUSICIANS/H/Hubbard_Rob')
+build_from_usf('hvsc84/MUSICIANS/H/Hubbard_Rob/Commando.usf', 'hvsc84/MUSICIANS/H/Hubbard_Rob/Commando.sidfinity.sid')
 "
 
 # Verify byte-exact
 python -c "
 from pipelines.hubbard.verify import verify_all
 from pipelines.hubbard.commando.config import COMMANDO
-print(verify_all([(COMMANDO, 'demo/hubbard/Commando.sid')]))
+print(verify_all([(COMMANDO, 'hvsc84/MUSICIANS/H/Hubbard_Rob/Commando.sidfinity.sid')]))
 "
 
 # Extract smoke tests
@@ -125,7 +125,6 @@ src/                    shared source — USF v2 reader/writer at src/usf2/
 docs/                   specifications and reference docs
 tools/                  build tools (xa65, siddump, libsidplayfp)
 hvsc84/                 HVSC #84 collection (not in git, gitignored)
-demo/hubbard/           dev-iteration scratch dir for rebuilt SIDs
 deprecated/             earlier project phases — see deprecated/<topic>/README.md
 ```
 

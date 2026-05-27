@@ -14,7 +14,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(
 
 COMMANDO = EngineConfig(
     name='commando',
-    sid_path=os.path.join(ROOT, 'demo', 'hubbard', 'Commando_original.sid'),
+    sid_path=os.path.join(ROOT, 'hvsc84', 'MUSICIANS', 'H', 'Hubbard_Rob', 'Commando.sid'),
     instr_base=0x5591,
     instr_count=13,
     freq_table_base=0x5428,

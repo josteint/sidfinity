@@ -13,7 +13,7 @@ referenced against a disassembly file for label attribution.
 
 Usage:
 
-  python -m src.usf2.audit demo/hubbard/Human_Race_original.sid \\
+  python -m src.usf2.audit hvsc84/MUSICIANS/H/Hubbard_Rob/Human_Race.sid \\
       --subtune 1 --frames 225:235 --voice 0 \\
       --disasm docs/hubbard_human_race_disassembly.s
 """

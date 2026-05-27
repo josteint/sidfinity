@@ -26,7 +26,7 @@ from pipelines.hubbard.config import EngineConfig
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__)))))
 
-SID = os.path.join(ROOT, 'demo', 'hubbard', 'Thing_on_a_Spring_original.sid')
+SID = os.path.join(ROOT, 'hvsc84', 'MUSICIANS', 'H', 'Hubbard_Rob', 'Thing_on_a_Spring.sid')
 
 
 def _extract(subtune=0):

@@ -10,14 +10,14 @@ See `docs/usf_instrument_program_plan.md` for the broader plan.
 ## Files
 
 - `commando_original_writelog.txt` — `siddump --writelog --force-rsid
-  --duration 30 --raw` of `demo/hubbard/Commando_original.sid`.
+  --duration 30 --raw` of `hvsc84/MUSICIANS/H/Hubbard_Rob/Commando.sid`.
   Each line is one PAL frame: CSV snapshot then `|W:cycle:reg:val:...`
   write stream. 1500 frames (30s of PAL @ 50Hz).
 
 ## Regenerate
 
 ```
-tools/siddump demo/hubbard/Commando_original.sid \
+tools/siddump hvsc84/MUSICIANS/H/Hubbard_Rob/Commando.sid \
   --writelog --force-rsid --duration 30 --raw \
   > tests/baselines/commando_original_writelog.txt
 ```
@@ -25,7 +25,7 @@ tools/siddump demo/hubbard/Commando_original.sid \
 ## Compare against
 
 ```
-python3 src/writelog_diff.py demo/hubbard/Commando_original.sid <rebuild.sid>
+python3 src/writelog_diff.py hvsc84/MUSICIANS/H/Hubbard_Rob/Commando.sid <rebuild.sid>
 ```
 
 (or against the .txt directly — the diff tool re-runs siddump for both
