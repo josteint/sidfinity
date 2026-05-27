@@ -35,13 +35,35 @@ FPS = 50  # PAL frames per second
 
 def subtune_frames(config, passes: float = 1.1,
                    min_frames: int = 600) -> list[int]:
-    """Per-subtune frame counts: `passes` x the HVSC duration x 50 Hz."""
+    """Per-subtune frame counts: `passes` x the HVSC duration x 50 Hz.
+
+    `min_frames` is a fallback floor used in two cases:
+      * music subtunes whose HVSC Songlengths entry is 0 / missing
+      * digi subtunes (always) — the sample's full register-write stream
+        needs a buffer past the nominal HVSC duration to capture the
+        rebuilt PSID's dispatcher overhead (otherwise we cut off the
+        tail of the sample and false-fail on partial captures).
+
+    For music subtunes with a known non-zero songlength we use exactly
+    `passes` x duration (trust the HVSC database) — honouring the floor
+    there causes false-positive verify failures on short subtunes whose
+    post-song-end behaviour legitimately diverges from the original
+    (the engine reads garbage notes past its $8D / $FE sentinel, and
+    that garbage isn't part of the song)."""
     durs = get_durations(config.sid_path, load_database(_DB))
     n_sub = (len(config.subtunes)
              + (16 if config.has_sfx else 0)
              + len(config.digi_subtunes or ()))
-    return [max(min_frames, round(passes * durs[st] * FPS))
-            for st in range(min(n_sub, len(durs)))]
+    digi_set = set(config.digi_subtunes or ())
+    frames = []
+    for st in range(min(n_sub, len(durs))):
+        is_digi = st in digi_set
+        natural = round(passes * durs[st] * FPS) if durs[st] > 0 else 0
+        if is_digi or natural == 0:
+            frames.append(max(min_frames, natural))
+        else:
+            frames.append(natural)
+    return frames
 
 
 def _file_md5(path: str) -> str:
