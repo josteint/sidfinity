@@ -455,15 +455,17 @@ vol_write
     sta $F9                 ; reload rate counter
     jmp advance_check
 
-; cleanup — mute, restore VIC and banking, pop scratch, re-enable IRQ
+; cleanup — mute, restore VIC, pop scratch, re-enable IRQ, restore banking.
+; Order matters. The banking restore (which maps BASIC ROM over
+; the $A000-$BFFF range) must come AFTER the last instruction inside
+; that range, otherwise the next opcode fetch reads BASIC ROM garbage
+; instead of the bytes we just wrote. Restoring it LAST means RTS pops
+; into the psiddrv driver page (always RAM) regardless of $01 state.
 cleanup
     lda #$00
     sta $D418
     lda d011_cache
     sta $D011
-    lda #$03
-    ora $01
-    sta $01                 ; restore default banking
     pla
     sta $FA
     pla
@@ -473,6 +475,9 @@ cleanup
     pla
     sta $F7
     cli
+    lda #$03
+    ora $01
+    sta $01                 ; restore default banking — MUST be last
     rts
 
 ; ping — SFX fallback when no valid bank found
