@@ -31,10 +31,14 @@ Engines on this path (byte-exact):
 | `thing_on_a_spring/` | byte-exact 17/17 ($D400-$D418 snapshot) |
 | `companion/` (Up, up & Away!) | byte-exact 5/5 (1984 Bowden engine) |
 
-Engines that haven't reached byte-exact (extract scaffolded only):
-`bump_set_spike`, `crazy_comets`, `gremlins`, `last_v8`, `last_v8_c128`,
-`master_of_magic`, `rasputin`, `sample_music_i_karate`,
-`dragons_lair_part_ii`.
+Engines whose pipelines were never migrated off USF v1 / the Lean
+codegen have been moved to
+[`deprecated/usf1_pipelines/`](../deprecated/usf1_pipelines/) —
+9 engines, all Hubbard: `bump_set_spike`, `crazy_comets`,
+`dragons_lair_part_ii`, `gremlins`, `last_v8`, `last_v8_c128`,
+`master_of_magic`, `rasputin`, `sample_music_i_karate`. Their
+`extract/` scaffolds are still usable as a starting point for a fresh
+migration — see that directory's README.
 
 ## Shape of a pipeline
 
@@ -92,6 +96,7 @@ were collapsed onto the shared Python core; the Lean trees were moved
 to [`deprecated/lean_codegen/`](../deprecated/lean_codegen/). Reviving
 the Lean toolchain is documented there.
 
-`dragons_lair_part_ii/` was Lean-only (verbatim binary image via
-`EngineImage.lean`). Its build path is currently broken pending a
-Python reimplementation; the original SID is unaffected.
+`dragons_lair_part_ii/` (now under `deprecated/usf1_pipelines/`) was
+Lean-only (verbatim binary image via `EngineImage.lean`). Its build
+path is currently broken pending a Python reimplementation; the
+original SID is unaffected.
