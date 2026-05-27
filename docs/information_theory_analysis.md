@@ -2,7 +2,7 @@
 
 **Date:** 2026-04-29
 **Song:** Commando (Rob Hubbard, 1985)
-**Files:** `data/C64Music/MUSICIANS/H/Hubbard_Rob/Commando.sid` vs `demo/hubbard/Commando_das_model.sid`
+**Files:** `hvsc84/MUSICIANS/H/Hubbard_Rob/Commando.sid` vs `demo/hubbard/Commando_das_model.sid`
 **Script:** `src/info_theory_analysis.py`
 
 ---

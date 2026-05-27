@@ -11,7 +11,7 @@ the SIDfinity pipeline migration of `Up_up_and_Away.sid` (1984) and
   - `Companion/Murray`
   - `Companion/Jay_Derrett`
   - All three are in `tools/sidid.cfg` (search for `Companion`).
-  - Our `data/C64Music/MUSICIANS/H/Hubbard_Rob/Up_up_and_Away.sid`
+  - Our `hvsc84/MUSICIANS/H/Hubbard_Rob/Up_up_and_Away.sid`
     matches the base `Companion` signature (verified by inspecting
     `docs/hubbard_up_up_and_away_disassembly.s` against the pattern
     `BC ?? ?? C8 98 9D 04 D4 60`).

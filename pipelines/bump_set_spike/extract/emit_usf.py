@@ -182,7 +182,7 @@ def gen_pattern(idx: int, notes: list[Note], tempo: int) -> str:
     return f"def mv3P{idx} : USFPattern := {{ notes := [{', '.join(note_strs)}] }}"
 
 
-BUMP_SET_SPIKE_SID = '/home/jtr/sidfinity/data/C64Music/MUSICIANS/H/Hubbard_Rob/Bump_Set_Spike.sid'
+BUMP_SET_SPIKE_SID = '/home/jtr/sidfinity/hvsc84/MUSICIANS/H/Hubbard_Rob/Bump_Set_Spike.sid'
 # Freq table base, verified by reading the binary: lo[0]=$16, hi[0]=$01
 # (note 0 = $0116). Table is interleaved (lo, hi) over 96 semitones at $B3FF.
 BUMP_SET_SPIKE_FT_BASE = 0xB3FF

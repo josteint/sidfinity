@@ -175,7 +175,7 @@ def gen_pattern(idx: int, notes: list[Note], tempo: int) -> str:
     return f"def mv3P{idx} : USFPattern := {{ notes := [{', '.join(note_strs)}] }}"
 
 
-THING_ON_A_SPRING_SID = '/home/jtr/sidfinity/data/C64Music/MUSICIANS/H/Hubbard_Rob/Thing_on_a_Spring.sid'
+THING_ON_A_SPRING_SID = '/home/jtr/sidfinity/hvsc84/MUSICIANS/H/Hubbard_Rob/Thing_on_a_Spring.sid'
 THING_ON_A_SPRING_FT_BASE = 0xC3A9  # discovered via src/sidxray/discover.py
 
 

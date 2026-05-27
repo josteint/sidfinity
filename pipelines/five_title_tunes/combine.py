@@ -24,7 +24,7 @@ import sys
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent.parent
-PARENT_SID = REPO / 'data/C64Music/MUSICIANS/H/Hubbard_Rob/5_Title_Tunes.sid'
+PARENT_SID = REPO / 'hvsc84/MUSICIANS/H/Hubbard_Rob/5_Title_Tunes.sid'
 SUB_SIDS = [REPO / f'five_tt_{i}.sid' for i in range(5)]
 OUT_SID = REPO / 'five_title_tunes.sid'
 

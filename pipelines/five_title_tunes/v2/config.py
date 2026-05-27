@@ -34,7 +34,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(
 # are usable even without pre-running the splitter.
 WORK_SUBS = os.path.join(ROOT, 'pipelines', 'five_title_tunes', 'work_subs')
 
-PARENT_SID = os.path.join(ROOT, 'data', 'C64Music', 'MUSICIANS', 'H',
+PARENT_SID = os.path.join(ROOT, 'hvsc84', 'MUSICIANS', 'H',
                           'Hubbard_Rob', '5_Title_Tunes.sid')
 
 

@@ -8,7 +8,7 @@ the body is reconstructed region-by-region.
 Run:
     python3 pipelines/sample_music_i_karate/build_byte_perfect.py
     python3 src/writelog_grade.py \\
-        data/C64Music/MUSICIANS/H/Hubbard_Rob/Sample_Music_from_I_Karate.sid \\
+        hvsc84/MUSICIANS/H/Hubbard_Rob/Sample_Music_from_I_Karate.sid \\
         pipelines/sample_music_i_karate/build/sample_music_i_karate_bp.sid
 """
 from __future__ import annotations
@@ -22,7 +22,7 @@ sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.join(ROOT, 'src'))
 
 SID_PATH = os.path.join(
-    ROOT, 'data', 'C64Music', 'MUSICIANS', 'H',
+    ROOT, 'hvsc84', 'MUSICIANS', 'H',
     'Hubbard_Rob', 'Sample_Music_from_I_Karate.sid',
 )
 OUT_PATH = os.path.join(

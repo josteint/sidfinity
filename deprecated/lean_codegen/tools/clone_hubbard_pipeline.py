@@ -6,7 +6,7 @@ Usage:
 
 Example:
     python tools/clone_hubbard_pipeline.py \\
-        data/C64Music/MUSICIANS/H/Hubbard_Rob/Crazy_Comets.sid \\
+        hvsc84/MUSICIANS/H/Hubbard_Rob/Crazy_Comets.sid \\
         crazy_comets 0,1
 
 This copies pipelines/monty/ → pipelines/<pipeline_name>/, rewrites

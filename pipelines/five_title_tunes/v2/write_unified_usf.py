@@ -33,7 +33,7 @@ from src.usf2 import (
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__)))))
 PARENT_SID = os.path.join(
-    ROOT, 'data', 'C64Music', 'MUSICIANS', 'H',
+    ROOT, 'hvsc84', 'MUSICIANS', 'H',
     'Hubbard_Rob', '5_Title_Tunes.sid')
 
 

@@ -39,7 +39,7 @@ def main : IO Unit := do
   let nFrames := 20
 
   -- Load original Commando SID
-  let origPath := "../../data/C64Music/MUSICIANS/H/Hubbard_Rob/Commando.sid"
+  let origPath := "../../hvsc84/MUSICIANS/H/Hubbard_Rob/Commando.sid"
   let origData ← IO.FS.readBinFile origPath
   IO.println s!"Original: {origData.size} bytes"
 

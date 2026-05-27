@@ -3,7 +3,7 @@
 ; ANNOTATED DISASSEMBLY (auto-generated seed; awaiting hand annotation)
 ; ============================================================================
 ;
-; Binary: data/C64Music/MUSICIANS/H/Hubbard_Rob/Commodore_64_Music_Examples.sid
+; Binary: hvsc84/MUSICIANS/H/Hubbard_Rob/Commodore_64_Music_Examples.sid
 ; Load:   $086D   Init: $087C   Play: $086D
 ; PSID:   15 subtune(s), default subtune 1
 ; Binary: $086D-$422A (14782 bytes)

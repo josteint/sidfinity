@@ -26,7 +26,7 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'src'))
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'tools', 'z3_lib'))
 
-COMMANDO_SID = 'data/C64Music/MUSICIANS/H/Hubbard_Rob/Commando.sid'
+COMMANDO_SID = 'hvsc84/MUSICIANS/H/Hubbard_Rob/Commando.sid'
 OUTPUT_SID = 'demo/hubbard/Commando_hg10.sid'
 
 

@@ -45,7 +45,7 @@ from z3_decompose import (
 
 # ---------------------------------------------------------------------------
 
-COMMANDO_SID = os.path.join(ROOT, 'data', 'C64Music', 'MUSICIANS', 'H',
+COMMANDO_SID = os.path.join(ROOT, 'hvsc84', 'MUSICIANS', 'H',
                              'Hubbard_Rob', 'Commando.sid')
 OUT_PATH = os.path.join(ROOT, 'demo', 'hubbard', 'Commando_z3joint.sid')
 

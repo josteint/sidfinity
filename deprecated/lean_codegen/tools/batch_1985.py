@@ -20,7 +20,7 @@ import sys
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
-SIDS_DIR = REPO / 'data/C64Music/MUSICIANS/H/Hubbard_Rob'
+SIDS_DIR = REPO / 'hvsc84/MUSICIANS/H/Hubbard_Rob'
 
 # (sid_basename, pipeline_name, music_subtunes_csv) — derived from the
 # 1985 classic-engine survey + Songlengths-based ≥30s music detection.

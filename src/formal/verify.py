@@ -129,7 +129,7 @@ if __name__ == '__main__':
     print()
 
     # Capture ground truth
-    sid_path = os.path.join(ROOT, 'data', 'C64Music', 'MUSICIANS', 'H',
+    sid_path = os.path.join(ROOT, 'hvsc84', 'MUSICIANS', 'H',
                             'Hubbard_Rob', 'Commando.sid')
     print('Capturing sidplayfp writelog...')
     gt = parse_sidplayfp_writelog(sid_path, duration=n_frames // 50 + 1)

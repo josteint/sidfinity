@@ -3,7 +3,7 @@
 ; ANNOTATED DISASSEMBLY (auto-generated seed; selectively hand-annotated)
 ; ============================================================================
 ;
-; Binary: data/C64Music/MUSICIANS/H/Hubbard_Rob/Action_Biker.sid
+; Binary: hvsc84/MUSICIANS/H/Hubbard_Rob/Action_Biker.sid
 ; Load:   $C000   Init: $CBBB   Play: $C00D
 ; PSID:   19 subtunes, default subtune 2 (1-indexed; A=1 passed to init)
 ; Binary: $C000-$CBC1 (3010 bytes)

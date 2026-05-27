@@ -1,7 +1,12 @@
 # The Last V8 (C128 version) pipeline
 
+> **Note (2026-05): the Lean / Lake build commands below no longer work.**
+> The active build path for this engine is now the shared Python core at
+> `pipelines/hubbard/`. See [pipelines/README.md](../README.md) and
+> [`deprecated/lean_codegen/`](../../deprecated/lean_codegen/) for context.
+
 Rob Hubbard's *The Last V8 (C128 version)* (1985 MAD/Mastertronic) —
-binary at `data/C64Music/MUSICIANS/H/Hubbard_Rob/Last_V8_C128_version.sid`.
+binary at `hvsc84/MUSICIANS/H/Hubbard_Rob/Last_V8_C128_version.sid`.
 
 ## Status
 

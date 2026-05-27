@@ -50,7 +50,7 @@ SRC = os.path.join(ROOT, 'src')
 sys.path.insert(0, SRC)
 sys.path.insert(0, os.path.join(ROOT, 'tools', 'py65_lib'))
 
-COMMANDO_SID = os.path.join(ROOT, 'data', 'C64Music', 'MUSICIANS', 'H',
+COMMANDO_SID = os.path.join(ROOT, 'hvsc84', 'MUSICIANS', 'H',
                              'Hubbard_Rob', 'Commando.sid')
 HARD_RESTART  = 3        # frames before note end to zero AD/SR
 PW_MIN_HI     = 0x08     # Commando bidirectional boundary: lower

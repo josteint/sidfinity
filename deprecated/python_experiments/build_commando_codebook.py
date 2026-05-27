@@ -24,7 +24,7 @@ import os
 import struct
 
 SIDDUMP = '/home/jtr/sidfinity/tools/siddump'
-COMMANDO = '/home/jtr/sidfinity/data/C64Music/MUSICIANS/H/Hubbard_Rob/Commando.sid'
+COMMANDO = '/home/jtr/sidfinity/hvsc84/MUSICIANS/H/Hubbard_Rob/Commando.sid'
 XA65 = '/home/jtr/sidfinity/tools/xa65/xa/xa'
 OUTDIR = '/home/jtr/sidfinity/demo/hubbard'
 ASM_OUT = os.path.join(OUTDIR, 'Commando_hg15.s')

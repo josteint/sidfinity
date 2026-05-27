@@ -10,7 +10,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, 'src'))
 sys.path.insert(0, os.path.join(ROOT, 'tools', 'py65_lib'))
 
-SID_PATH = os.path.join(ROOT, 'data', 'C64Music', 'MUSICIANS', 'H',
+SID_PATH = os.path.join(ROOT, 'hvsc84', 'MUSICIANS', 'H',
                          'Hubbard_Rob', 'Commando.sid')
 DM_SID   = os.path.join(ROOT, 'demo', 'hubbard', 'Commando_das_model.sid')
 

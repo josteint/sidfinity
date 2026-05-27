@@ -18,7 +18,7 @@ import traceback
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-HVSC_ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'data', 'C64Music')
+HVSC_ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'hvsc84')
 SIDID_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'data', 'sidid_full.txt')
 OUTPUT_PATH = '/tmp/gt2_triage.json'
 

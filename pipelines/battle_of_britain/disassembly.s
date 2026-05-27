@@ -3,7 +3,7 @@
 ; ANNOTATED DISASSEMBLY (auto-generated seed; hand-annotated)
 ; ============================================================================
 ;
-; Binary: data/C64Music/MUSICIANS/H/Hubbard_Rob/Battle_of_Britain.sid
+; Binary: hvsc84/MUSICIANS/H/Hubbard_Rob/Battle_of_Britain.sid
 ; Load:   $8000   Init: $8EAA   Play: $8006
 ; PSID v2: 1 subtune (the HVSC PSID is a stripped one-track version; the
 ;          original game ships 19 entries — 3 music + 16 SFX), startSong=1.

@@ -22,7 +22,7 @@ from py65.devices.mpu6502 import MPU
 
 # ---- Paths ----------------------------------------------------------------
 BASE_DIR = os.path.join(os.path.dirname(__file__), '..', '..')
-SID_PATH = os.path.join(BASE_DIR, 'data', 'C64Music', 'MUSICIANS', 'H', 'Hubbard_Rob', 'Commando.sid')
+SID_PATH = os.path.join(BASE_DIR, 'hvsc84', 'MUSICIANS', 'H', 'Hubbard_Rob', 'Commando.sid')
 XA65     = os.path.join(BASE_DIR, 'tools', 'xa65', 'xa', 'xa')
 DEMO_DIR = os.path.join(BASE_DIR, 'demo', 'hubbard')
 OUT_SID  = os.path.join(DEMO_DIR, 'Commando_hg2.sid')

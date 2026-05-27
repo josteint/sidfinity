@@ -47,7 +47,7 @@ def twToRegVal (tw : TimedSIDWrite) : Nat × UInt8 :=
 
 def main : IO Unit := do
   let nFrames := 500
-  let origPath := "../../data/C64Music/MUSICIANS/H/Hubbard_Rob/Commando.sid"
+  let origPath := "../../hvsc84/MUSICIANS/H/Hubbard_Rob/Commando.sid"
   let origData ← IO.FS.readBinFile origPath
 
   -- 1. Run sidplayfp

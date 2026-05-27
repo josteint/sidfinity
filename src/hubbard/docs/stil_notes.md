@@ -1,5 +1,5 @@
 ---
-source_url: local: /home/jtr/sidfinity/data/C64Music/DOCUMENTS/STIL.txt
+source_url: local: /home/jtr/sidfinity/hvsc84/DOCUMENTS/STIL.txt
 fetched_via: local read
 fetch_date: 2026-04-11
 author: Rob Hubbard (RH comments); STIL maintainers
@@ -8,7 +8,7 @@ reliability: primary
 ---
 # Rob Hubbard STIL Notes (Technical Highlights)
 
-Extracted from `/home/jtr/sidfinity/data/C64Music/DOCUMENTS/STIL.txt`.
+Extracted from `/home/jtr/sidfinity/hvsc84/DOCUMENTS/STIL.txt`.
 
 General STIL note: "People have often stolen Hubbard's routine causing some
 tunes to be falsely credited to him. Hubbard's own comments are denoted (RH)."

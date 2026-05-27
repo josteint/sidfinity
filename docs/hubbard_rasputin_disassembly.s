@@ -3,7 +3,7 @@
 ; ANNOTATED DISASSEMBLY (auto-generated seed; selectively hand-annotated)
 ; ============================================================================
 ;
-; Binary: data/C64Music/MUSICIANS/H/Hubbard_Rob/Rasputin.sid
+; Binary: hvsc84/MUSICIANS/H/Hubbard_Rob/Rasputin.sid
 ; Load:   $C000   Init: $CFB5   Play: $C012
 ; PSID:   18 subtunes, default subtune 1 (1-indexed; A=0 passed to init)
 ; Binary: $C000-$CFC9 (4042 bytes)

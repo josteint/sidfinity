@@ -3,7 +3,7 @@
 ; ANNOTATED DISASSEMBLY (auto-generated seed; selectively hand-annotated)
 ; ============================================================================
 ;
-; Binary: data/C64Music/MUSICIANS/H/Hubbard_Rob/Chimera.sid
+; Binary: hvsc84/MUSICIANS/H/Hubbard_Rob/Chimera.sid
 ; Load:   $9F80   Init: $9F80   Play: $0000 (PSID claims 0; IRQ-driven via $0314/$0315)
 ; PSID:   4 subtunes, default subtune 1 (1-indexed)
 ; Binary: $9F80-$CF9A (12314 bytes), 1330 reachable code bytes (10.8%).

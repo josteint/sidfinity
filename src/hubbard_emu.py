@@ -16,10 +16,10 @@ This emulator:
   - Produces IDENTICAL output to the py65 6502 emulator frame-by-frame.
 
 Usage:
-    python3 src/hubbard_emu.py data/C64Music/MUSICIANS/H/Hubbard_Rob/Commando.sid [song]
+    python3 src/hubbard_emu.py hvsc84/MUSICIANS/H/Hubbard_Rob/Commando.sid [song]
 
 Verification:
-    python3 src/hubbard_emu.py --verify data/C64Music/MUSICIANS/H/Hubbard_Rob/Commando.sid
+    python3 src/hubbard_emu.py --verify hvsc84/MUSICIANS/H/Hubbard_Rob/Commando.sid
 """
 
 import struct

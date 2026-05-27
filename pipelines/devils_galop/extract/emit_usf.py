@@ -173,7 +173,7 @@ def gen_pattern(idx: int, notes: list[Note], tempo: int) -> str:
     return f"def mv3P{idx} : USFPattern := {{ notes := [{', '.join(note_strs)}] }}"
 
 
-DEVILS_GALOP_SID = '/home/jtr/sidfinity/data/C64Music/MUSICIANS/H/Hubbard_Rob/Devils_Galop.sid'
+DEVILS_GALOP_SID = '/home/jtr/sidfinity/hvsc84/MUSICIANS/H/Hubbard_Rob/Devils_Galop.sid'
 DEVILS_GALOP_FT_BASE = 0x1694  # discovered via src/sidxray/discover.py
 DEVILS_GALOP_FT_LEN  = 96  # 96 real semitones; pitches >= 96 are aliased reads
 

@@ -1,5 +1,10 @@
 # Devils Galop pipeline
 
+> **Note (2026-05): the Lean / Lake build commands below no longer work.**
+> The active build path for this engine is now the shared Python core at
+> `pipelines/hubbard/`. See [pipelines/README.md](../README.md) and
+> [`deprecated/lean_codegen/`](../../deprecated/lean_codegen/) for context.
+
 End-to-end rebuild of Rob Hubbard's *Devils Galop* (1985) SID. Same shape
 as the Commando / Monty / Action Biker pipelines; cloned from Monty via
 `tools/clone_hubbard_pipeline.py` and pending Devils-Galop-specific
@@ -128,7 +133,7 @@ Grade the rebuild against the original:
 
 ```bash
 python3 src/writelog_grade.py \
-    data/C64Music/MUSICIANS/H/Hubbard_Rob/Devils_Galop.sid \
+    hvsc84/MUSICIANS/H/Hubbard_Rob/Devils_Galop.sid \
     pipelines/devils_galop/build/devils_galop.sid
 ```
 

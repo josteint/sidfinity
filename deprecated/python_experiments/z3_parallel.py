@@ -1026,7 +1026,7 @@ def z3_to_usf(trace: SubtuneTrace, sid_path: str, output_path: str,
 
 def main():
     commando_path = os.path.join(
-        REPO_ROOT, 'data', 'C64Music', 'MUSICIANS', 'H', 'Hubbard_Rob', 'Commando.sid'
+        REPO_ROOT, 'hvsc84', 'MUSICIANS', 'H', 'Hubbard_Rob', 'Commando.sid'
     )
     output_path = os.path.join(REPO_ROOT, 'demo', 'hubbard', 'Commando_z3par.sid')
 

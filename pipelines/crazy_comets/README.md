@@ -1,5 +1,10 @@
 # Crazy Comets pipeline
 
+> **Note (2026-05): the Lean / Lake build commands below no longer work.**
+> The active build path for this engine is now the shared Python core at
+> `pipelines/hubbard/`. See [pipelines/README.md](../README.md) and
+> [`deprecated/lean_codegen/`](../../deprecated/lean_codegen/) for context.
+
 End-to-end rebuild of Rob Hubbard's *Crazy Comets* (1985 Martech) SID.
 Original is parsed, lifted into structured USF, then re-emitted as a
 fresh PSID driven by our own V3 player. Same shape as the Commando and
@@ -84,7 +89,7 @@ Grade against the original:
 ```bash
 source src/env.sh
 python3 src/writelog_grade.py \
-    data/C64Music/MUSICIANS/H/Hubbard_Rob/Crazy_Comets.sid \
+    hvsc84/MUSICIANS/H/Hubbard_Rob/Crazy_Comets.sid \
     pipelines/crazy_comets/build/crazy_comets.sid
 # Currently: Grade C, snapshots 1314/1500 (87.6%)
 ```

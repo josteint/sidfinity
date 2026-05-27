@@ -54,3 +54,4 @@ tools/py_test_lib/
 
 # verify.py capture cache (regenerated on demand)
 .verify_cache.pkl
+hvsc84/

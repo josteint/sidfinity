@@ -45,7 +45,7 @@ from holy_scale import holy_scale
 import holy_scale_codegen as _hsc
 from holy_scale_codegen import verify_against_trace
 
-COMMANDO_SID = os.path.join(ROOT, 'data', 'C64Music', 'MUSICIANS', 'H',
+COMMANDO_SID = os.path.join(ROOT, 'hvsc84', 'MUSICIANS', 'H',
                              'Hubbard_Rob', 'Commando.sid')
 OUT_SID = os.path.join(ROOT, 'demo', 'hubbard', 'Commando_holyscale.sid')
 

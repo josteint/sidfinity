@@ -126,7 +126,7 @@ def build_unified_inputs() -> _Inputs:
 
     # PSID header — copy from parent SID.
     parent_path = (
-        'data/C64Music/MUSICIANS/H/Hubbard_Rob/5_Title_Tunes.sid')
+        'hvsc84/MUSICIANS/H/Hubbard_Rob/5_Title_Tunes.sid')
     with open(parent_path, 'rb') as f:
         parent_hdr = f.read(124)
 

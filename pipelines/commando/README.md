@@ -1,5 +1,10 @@
 # Commando pipeline
 
+> **Note (2026-05): the Lean / Lake build commands below no longer work.**
+> The active build path for this engine is now the shared Python core at
+> `pipelines/hubbard/`. See [pipelines/README.md](../README.md) and
+> [`deprecated/lean_codegen/`](../../deprecated/lean_codegen/) for context.
+
 End-to-end rebuild of Rob Hubbard's *Commando* (1985) SID. The original is
 parsed, lifted into a structured USF representation, then re-emitted as a
 fresh PSID that uses our own V3 player driving the same musical data.
@@ -56,7 +61,7 @@ Verify byte-perfect:
 ```bash
 md5sum pipelines/commando/build/commando.sid  # expect 1964b77e8b542a5187fdd0a6db2d0186
 python src/writelog_grade.py \
-    data/C64Music/MUSICIANS/H/Hubbard_Rob/Commando.sid \
+    hvsc84/MUSICIANS/H/Hubbard_Rob/Commando.sid \
     pipelines/commando/build/commando.sid
 ```
 

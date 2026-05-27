@@ -173,7 +173,7 @@ def gen_pattern(idx: int, notes: list[Note], tempo: int) -> str:
     return f"def mv3P{idx} : USFPattern := {{ notes := [{', '.join(note_strs)}] }}"
 
 
-LAST_V8_SID = '/home/jtr/sidfinity/data/C64Music/MUSICIANS/H/Hubbard_Rob/Last_V8.sid'
+LAST_V8_SID = '/home/jtr/sidfinity/hvsc84/MUSICIANS/H/Hubbard_Rob/Last_V8.sid'
 LAST_V8_FT_BASE = 0x843B  # discovered via src/sidxray/discover.py
 
 

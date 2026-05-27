@@ -29,7 +29,7 @@ from collections import Counter
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-HVSC_ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'data', 'C64Music')
+HVSC_ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'hvsc84')
 SIDID_FULL = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'data', 'sidid_full.txt')
 CACHE_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'data', 'dashboard_cache.json')
 

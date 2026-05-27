@@ -28,7 +28,7 @@
 ### CURRENT STRATEGIC DIRECTION (2026-05): generalize das_model_gen via discovery
 - Goal: most Hubbard SIDs sound right (audibly identical) when rebuilt → USF.
 - Baseline measured 2026-05-09: `rh_to_usf` + Python `codegen_v3` produces **0/285 Grade A** on Hubbard SIDs via writelog comparison. Even Commando is 1.0% match through that path.
-- The byte-perfect Commando we have comes from `pipelines/commando/extract/engine_model.extract` → `pipelines/commando/codegen/Commando/SongData.lean` → `pipelines/commando/codegen/Commando/Codegen.lean`. That path is **correct** but Commando-hardcoded; Monty has its own clone at `pipelines/monty/`.
+- (Historical, 2026-05-27: the per-engine Lean codegen described here was deprecated. The active byte-exact path now goes through `pipelines/commando/config.py` → `pipelines/hubbard/codegen.py` — the shared Python core. See `deprecated/lean_codegen/README.md`.)
 - Direction: **generalize `das_model_gen.extract`** to take any Hubbard SID + landmarks. Use `src/sidxray/discover.py` to find landmarks rh_decompile misses (freq table coverage went from 14% → 87.4% via discovery alone).
 - Do **NOT** grind `rh_to_usf` bug-by-bug. That path is deeply broken (0/285) and would take months to fix incrementally.
 - Do **NOT** propose writelog-replay as a shortcut. User explicitly rejected; defeats USF/ML purpose.
@@ -155,19 +155,23 @@ GT2 SID → gt2_decompile → gt2_to_usf → USF Song → usf_to_sid → rebuilt
 Path 2 (register trace — universal, any engine):
 ANY SID → siddump → register CSV → regtrace_to_usf → USF Song → usf_to_sid → rebuilt SID
 
-Path 3 (Hubbard engine, structured — produces byte-perfect SIDs):
-SID binary → decompile → engine_model (extract) → emit_usf → SongData.lean
-           → Codegen.lean (USFSong → 6502 player) → rebuilt SID
+Path 3 (Hubbard family, structured — produces byte-exact SIDs):
+SID binary → decompile → engine_model (extract) → to_usf_v2 → <name>.usf
+           → pipelines/hubbard/build_from_usf.py → rebuilt SID
 ```
 
 **When to use which path:**
 - Path 1: GT2 SIDs where `find_freq_table` + `parse_gt2_direct` succeed (95.6% of GT2)
 - Path 2: any SID where static parsing fails, or non-GT2 engines as a starting point
-- Path 3: Hubbard's early-era engine. Two pipelines live here:
-  - `pipelines/commando/` — Commando (byte-perfect, locked md5 `1964b77e...`)
-  - `pipelines/monty/` — Monty on the Run (Grade A 98.8%, py65 0-divergence)
-  Each is fully self-contained: `extract/` (Python) + `codegen/` (Lean). See each
-  pipeline's README.md for run instructions.
+- Path 3: Hubbard's early-era engine. 12 engines on this path (byte-exact):
+  Commando, Monty, Action Biker, Battle of Britain, Chimera, Confuzion,
+  Devils Galop, 5 Title Tunes, Human Race, Hunter Patrol, One Man and his
+  Droid, Thing on a Spring. Each is described by `pipelines/<engine>/config.py`
+  + `pipelines/<engine>/extract/`; the shared `pipelines/hubbard/codegen.py`
+  is the single 6502 player generator. See each pipeline's `README.md`.
+
+The previous per-engine Lean codegen has been moved to
+`deprecated/lean_codegen/`.
 
 **Comparison:** `sid_compare.py` (jitter-tolerant) and `src/writelog_grade.py` (siddump
 writelog match) both compare original vs rebuilt frame-by-frame.
@@ -284,6 +288,7 @@ src/                    Active source code
   sidxray/              Player reverse-engineering tools
 docs/                   Specifications and reference docs
 tools/                  Build tools (xa65, siddump, libsidplayfp)
-data/                   HVSC collection (not in git)
+hvsc84/                 HVSC #84 collection (not in git)
+data/                   Project data — grade DB, dashboard cache, analysis JSONs
 deprecated/             Earlier development phases (with READMEs)
 ```

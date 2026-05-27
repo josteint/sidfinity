@@ -1,5 +1,10 @@
 # Sample Music from I. Karate pipeline
 
+> **Note (2026-05): the Lean / Lake build commands below no longer work.**
+> The active build path for this engine is now the shared Python core at
+> `pipelines/hubbard/`. See [pipelines/README.md](../README.md) and
+> [`deprecated/lean_codegen/`](../../deprecated/lean_codegen/) for context.
+
 End-to-end scaffolding for rebuilding Rob Hubbard's
 *Sample Music from I. Karate* (1985 Rob Hubbard) through USF and back
 to a SID. Cloned from `pipelines/action_biker/` and wired into the same
@@ -86,12 +91,12 @@ python3 pipelines/sample_music_i_karate/build_byte_perfect.py
 
 # 2. Grade
 python3 src/writelog_grade.py \
-    data/C64Music/MUSICIANS/H/Hubbard_Rob/Sample_Music_from_I_Karate.sid \
+    hvsc84/MUSICIANS/H/Hubbard_Rob/Sample_Music_from_I_Karate.sid \
     pipelines/sample_music_i_karate/build/sample_music_i_karate_bp.sid
 # Expected: Grade A, snapshots 1500/1500
 
 # 3. (Optional) verify md5 equality
-md5sum data/C64Music/MUSICIANS/H/Hubbard_Rob/Sample_Music_from_I_Karate.sid \
+md5sum hvsc84/MUSICIANS/H/Hubbard_Rob/Sample_Music_from_I_Karate.sid \
        pipelines/sample_music_i_karate/build/sample_music_i_karate_bp.sid
 # Expected: identical hashes
 ```

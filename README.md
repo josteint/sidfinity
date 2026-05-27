@@ -54,13 +54,16 @@ So when we hit "the drum needs a 3-frame `$80` burst," that goes into the song's
 
 Adding a new engine should mean: write a decompiler + write an adapter + spell out that engine's quirks. The codegen and Lean infrastructure shouldn't change. Whether that ambition holds up under contact with a *second* engine is one of the next things to find out.
 
-### Why Lean
+### Note on Lean (historical, 2026-05)
 
-The schema and codegen are written in [Lean 4](https://lean-lang.org/) for two reasons:
-
-1. **Type safety.** The schema is enforced at compile time, so a malformed song doesn't compile. When we add a new variant to the quirks DSL — say a new kind of note-load operation — the codegen *fails to build* until we handle it. This is how data-driven engine quirks stays honest: the compiler won't let us silently forget a quirk type.
-
-2. **Future formal proofs.** We'd like to eventually prove that the codegen's output is sound — that for any USF song the rebuilt SID matches the original under a chosen equivalence (frame-state for tracker music, cycle-precise for digi/demos). We *haven't* done those proofs yet. Right now Lean is buying us discipline more than it's buying us proofs. Maybe 30% of its potential value. The door is open for the rest.
+Earlier the schema and codegen were written in [Lean 4](https://lean-lang.org/),
+one self-contained codegen per engine. The Lean trees and Lake build have been
+moved to [`deprecated/lean_codegen/`](deprecated/lean_codegen/). The active
+codegen is now a shared Python core (`pipelines/hubbard/codegen.py`)
+parameterised by per-engine `EngineConfig` objects — adding a new engine no
+longer involves writing Lean. The 12 byte-exact Hubbard engines all share this
+single codegen. See `deprecated/lean_codegen/README.md` for what the Lean path
+looked like and how to revive it if needed.
 
 ## Where we are
 
@@ -91,30 +94,26 @@ Getting Commando clean took finding five universal-Hubbard quirks; Monty added t
 4. **Property tests on the codegen.** Cheap discipline win — `Properties.lean` exists per pipeline but the theorem set is thin. Catches "I forgot to handle this quirk variant" earlier.
 5. **Eventually: formal round-trip soundness proof for tracker music.** Months of work, but would let us convert HVSC at scale with machine-checked confidence rather than per-song listening.
 
-## Pipelines (V3)
+## Pipelines
 
-Each Hubbard SID has a dedicated, self-contained pipeline under
-[`pipelines/`](pipelines/). Two are live today; see each one's `README.md`
-for run instructions and current grade.
-
-| Pipeline | Status | Run |
-|---|---|---|
-| [`pipelines/commando/`](pipelines/commando/) | Byte-perfect (siddump writelog), md5 `1964b77e...` locked | `lake build sidgen_commando && ./.lake/build/bin/sidgen_commando` |
-| [`pipelines/monty/`](pipelines/monty/) | Grade A (98.8% siddump snapshot, 0-divergence under py65) | `lake build sidgen_monty && ./.lake/build/bin/sidgen_monty` |
+Each Hubbard SID has a per-engine `pipelines/<engine>/` directory; the
+shared 6502 codegen lives at `pipelines/hubbard/`. 12 engines are byte-exact
+through this path (Commando, Monty, Action Biker, Battle of Britain, Chimera,
+Confuzion, Devils Galop, 5 Title Tunes, Human Race, Hunter Patrol, One Man
+and his Droid, Thing on a Spring). See [`pipelines/README.md`](pipelines/README.md)
+for the full layout + run instructions.
 
 Per pipeline:
 
 | Step | File |
 |---|---|
-| 1. Parse Hubbard binary | `extract/decompile.py` |
-| 2. Lift to engine model `(T, I, S)` | `extract/engine_model.py` |
-| 3. Emit USF as Lean source | `extract/emit_usf.py` (or CLI: `python -m pipelines.<engine>.extract`) |
-| 4. Generate 6502 player + PSID wrap | `codegen/<Engine>/Codegen.lean` |
-| 5. Entry point (Lake exe) | `codegen/<Engine>/Main.lean` |
-
-Static infrastructure per pipeline: `codegen/<Engine>/{USF,SID,Asm6502,PSIDFile,Constants}.lean` and the auto-generated `SongData.lean`.
-
-Today the two pipelines are clones, not a single shared codegen. The plan is to merge once a third Hubbard SID is wired through to validate the abstraction. See [`pipelines/README.md`](pipelines/README.md) for the design rationale.
+| 1. Parse Hubbard binary | `<engine>/extract/decompile.py` |
+| 2. Lift to engine model `(T, I, S)` | `<engine>/extract/engine_model.py` |
+| 3. Engine config / parameters | `<engine>/config.py` |
+| 4. Emit USF v2 | `<engine>/extract/to_usf_v2.py` |
+| 5. Generate 6502 player + PSID wrap | `pipelines/hubbard/codegen.py` (shared) |
+| 6. End-to-end build | `pipelines/hubbard/build_from_usf.py` |
+| 7. Verify (byte-exact) | `pipelines/hubbard/verify.py` |
 
 ## Build
 
@@ -122,23 +121,26 @@ Today the two pipelines are clones, not a single shared codegen. The plan is to 
 source src/env.sh                              # PATH for siddump etc.
 bash tools/build.sh                            # libsidplayfp + siddump (one-time)
 
-# Extract — Python; writes codegen/SongData.lean
-python -m pipelines.commando.extract           # all three Commando subtunes
-python -m pipelines.monty.extract 0,1,2        # all three Monty music subtunes
+# Build one engine end-to-end (example: Chimera)
+python -m pipelines.chimera.extract             # writes the .usf + FLAC sidecars
+python -c "from pipelines.hubbard.build_from_usf import build_from_usf; \
+           build_from_usf('demo/hubbard/Chimera.usf', 'demo/hubbard/Chimera.sid')"
 
-# Codegen — Lean; writes pipelines/<engine>/build/<engine>.sid
-lake build sidgen_commando sidgen_monty
-./.lake/build/bin/sidgen_commando              # → pipelines/commando/build/commando.sid
-./.lake/build/bin/sidgen_monty                 # → pipelines/monty/build/monty.sid
+# Verify (byte-exact via md5 of per-frame SID register snapshots)
+python -c "from pipelines.hubbard.verify import verify_all; \
+           from pipelines.chimera.config import CHIMERA; \
+           print(verify_all([(CHIMERA, 'demo/hubbard/Chimera.sid')]))"
 
 # Tests
 PYTHONPATH=tools/py_test_lib python -m pytest pipelines/        # extract smoke tests
-PYTHONPATH=tools/py_test_lib python -m mypy pipelines/.../extract  # type-check
-lake build                                                       # builds Properties.lean (compile-time theorems)
 ```
 
-Requires: g++ (C++17), Python 3.10+, Lean 4 / Lake, xa65 assembler.
-Optional: CUDA / Z3 (only used by V2 pipeline tools).
+Requires: g++ (C++17), Python 3.10+, xa65 assembler. Optional: CUDA / Z3
+(only used by V2 pipeline tools).
+
+The earlier per-engine Lean 4 codegen has been moved to
+[`deprecated/lean_codegen/`](deprecated/lean_codegen/) — see that
+directory's README for context.
 
 ## Layout
 

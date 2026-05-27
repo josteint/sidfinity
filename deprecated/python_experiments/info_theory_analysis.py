@@ -357,7 +357,7 @@ def compute_theoretical_limits(orig_frames, das_frames, headers, n_frames_total)
 # =========================================================================
 
 def main():
-    orig_sid = '/home/jtr/sidfinity/data/C64Music/MUSICIANS/H/Hubbard_Rob/Commando.sid'
+    orig_sid = '/home/jtr/sidfinity/hvsc84/MUSICIANS/H/Hubbard_Rob/Commando.sid'
     das_sid  = '/home/jtr/sidfinity/demo/hubbard/Commando_das_model.sid'
 
     N_FRAMES = 200   # for entropy estimates

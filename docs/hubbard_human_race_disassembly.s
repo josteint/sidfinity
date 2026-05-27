@@ -3,7 +3,7 @@
 ; ANNOTATED DISASSEMBLY (auto-generated seed; selectively hand-annotated)
 ; ============================================================================
 ;
-; Binary: data/C64Music/MUSICIANS/H/Hubbard_Rob/Human_Race.sid
+; Binary: hvsc84/MUSICIANS/H/Hubbard_Rob/Human_Race.sid
 ; Load:   $0980   Init: $0980   Play: $0986
 ; PSID:   5 subtune(s), default subtune 1 (1-indexed; A=0 passed to init)
 ; Binary: $0980-$1ADF (4448 bytes)

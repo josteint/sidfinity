@@ -175,7 +175,7 @@ def gen_pattern(idx: int, notes: list[Note], tempo: int) -> str:
     return f"def mv3P{idx} : USFPattern := {{ notes := [{', '.join(note_strs)}] }}"
 
 
-HUNTER_PATROL_SID = '/home/jtr/sidfinity/data/C64Music/MUSICIANS/H/Hubbard_Rob/Hunter_Patrol.sid'
+HUNTER_PATROL_SID = '/home/jtr/sidfinity/hvsc84/MUSICIANS/H/Hubbard_Rob/Hunter_Patrol.sid'
 HUNTER_PATROL_FT_BASE = 0xA32D  # discovered via src/sidxray/discover.py
 
 

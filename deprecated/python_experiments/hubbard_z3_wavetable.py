@@ -408,7 +408,7 @@ def run_z3_analysis(sid_path, n_frames=1500, subtune=0):
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser(description='Z3 Hubbard wave table discovery')
-    parser.add_argument('--sid', default='data/C64Music/MUSICIANS/H/Hubbard_Rob/Commando.sid',
+    parser.add_argument('--sid', default='hvsc84/MUSICIANS/H/Hubbard_Rob/Commando.sid',
                         help='SID file to analyze')
     parser.add_argument('--frames', type=int, default=1500, help='Frames to capture')
     parser.add_argument('--subtune', type=int, default=0, help='Subtune index (0-based)')

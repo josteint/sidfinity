@@ -32,7 +32,7 @@ Usage:
     from ground_truth import capture_sid
     from z3_guided_strip import guided_strip, guided_strip_to_sid
 
-    result = capture_sid('data/C64Music/MUSICIANS/H/Hubbard_Rob/Commando.sid',
+    result = capture_sid('hvsc84/MUSICIANS/H/Hubbard_Rob/Commando.sid',
                          subtunes=[1], max_frames=1500)
     trace = result.subtunes[0]
     song, stats = guided_strip(trace)
@@ -741,7 +741,7 @@ if __name__ == '__main__':
     sys.path.insert(0, os.path.join(repo_root, 'src'))
 
     # Default: Commando subtune 1
-    default_sid = os.path.join(repo_root, 'data', 'C64Music',
+    default_sid = os.path.join(repo_root, 'hvsc84',
                                'MUSICIANS', 'H', 'Hubbard_Rob', 'Commando.sid')
 
     in_sid  = sys.argv[1] if len(sys.argv) > 1 else default_sid

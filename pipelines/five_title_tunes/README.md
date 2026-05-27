@@ -1,5 +1,10 @@
 # 5 Title Tunes pipeline (merged-into-idiomatic)
 
+> **Note (2026-05): the Lean / Lake build commands below no longer work.**
+> The active build path for this engine is now the shared Python core at
+> `pipelines/hubbard/`. See [pipelines/README.md](../README.md) and
+> [`deprecated/lean_codegen/`](../../deprecated/lean_codegen/) for context.
+
 End-to-end rebuild of Rob Hubbard's *5 Title Tunes* (1985, self-published) SID.
 
 ## Status

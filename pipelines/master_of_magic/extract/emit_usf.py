@@ -173,7 +173,7 @@ def gen_pattern(idx: int, notes: list[Note], tempo: int) -> str:
     return f"def mv3P{idx} : USFPattern := {{ notes := [{', '.join(note_strs)}] }}"
 
 
-MASTER_OF_MAGIC_SID = '/home/jtr/sidfinity/data/C64Music/MUSICIANS/H/Hubbard_Rob/Master_of_Magic.sid'
+MASTER_OF_MAGIC_SID = '/home/jtr/sidfinity/hvsc84/MUSICIANS/H/Hubbard_Rob/Master_of_Magic.sid'
 MASTER_OF_MAGIC_FT_BASE = 0xC32F  # discovered via src/sidxray/discover.py
 
 

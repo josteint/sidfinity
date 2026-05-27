@@ -312,7 +312,7 @@ def main():
     args = parser.parse_args()
 
     hvsc_root = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                             '..', 'data', 'C64Music', 'MUSICIANS')
+                             '..', 'hvsc84', 'MUSICIANS')
     if not os.path.isdir(hvsc_root):
         print(f"HVSC MUSICIANS directory not found at: {hvsc_root}")
         sys.exit(1)

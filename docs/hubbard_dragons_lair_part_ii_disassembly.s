@@ -3,7 +3,7 @@
 ; ANNOTATED DISASSEMBLY (auto-seeded; hand-annotated)
 ; ============================================================================
 ;
-; Binary: data/C64Music/MUSICIANS/H/Hubbard_Rob/Dragons_Lair_Part_II.sid
+; Binary: hvsc84/MUSICIANS/H/Hubbard_Rob/Dragons_Lair_Part_II.sid
 ; Load:   $AF00   Init: $AF00   Play: $C015
 ; PSID:   10 subtunes, default subtune 1 (1-indexed; A=0 passed to init)
 ; Binary: $AF00-$CDFF (7936 bytes)

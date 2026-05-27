@@ -21,7 +21,7 @@ _PROJECT_ROOT = os.path.realpath(os.path.join(os.path.dirname(os.path.abspath(__
 
 
 def _normalize_path(path):
-    """Normalize a SID path to a canonical relative form: data/C64Music/..."""
+    """Normalize a SID path to a canonical relative form: hvsc84/..."""
     real = os.path.realpath(path) if os.path.exists(path) else os.path.normpath(os.path.abspath(path))
     if real.startswith(_PROJECT_ROOT):
         return os.path.relpath(real, _PROJECT_ROOT)

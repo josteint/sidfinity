@@ -177,7 +177,7 @@ def get_processed(conn):
 
 def main():
     parser = argparse.ArgumentParser(description='Validate HVSC symbolic roundtrip')
-    parser.add_argument('hvsc_root', help='Path to C64Music directory')
+    parser.add_argument('hvsc_root', help='Path to HVSC root directory (e.g. hvsc84)')
     parser.add_argument('--songlengths', help='Path to Songlengths.md5')
     parser.add_argument('--db', default='validation.db', help='SQLite database path')
     parser.add_argument('--jobs', '-j', type=int, default=multiprocessing.cpu_count(),

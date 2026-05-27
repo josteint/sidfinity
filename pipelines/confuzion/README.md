@@ -1,5 +1,10 @@
 # Confuzion pipeline
 
+> **Note (2026-05): the Lean / Lake build commands below no longer work.**
+> The active build path for this engine is now the shared Python core at
+> `pipelines/hubbard/`. See [pipelines/README.md](../README.md) and
+> [`deprecated/lean_codegen/`](../../deprecated/lean_codegen/) for context.
+
 End-to-end byte-perfect rebuild of Rob Hubbard's *Confuzion* (1985
 Incentive) SID. The pipeline emits a Lean program that consumes USF
 data (`SongData.lean`) and synthesizes a SID file byte-identical to
@@ -81,11 +86,11 @@ lake build sidgen_confuzion
 
 # Verify byte-perfection:
 md5sum pipelines/confuzion/build/confuzion.sid \
-       data/C64Music/MUSICIANS/H/Hubbard_Rob/Confuzion.sid
+       hvsc84/MUSICIANS/H/Hubbard_Rob/Confuzion.sid
 
 # Verify writelog grade:
 python3 src/writelog_grade.py \
-    data/C64Music/MUSICIANS/H/Hubbard_Rob/Confuzion.sid \
+    hvsc84/MUSICIANS/H/Hubbard_Rob/Confuzion.sid \
     pipelines/confuzion/build/confuzion.sid
 # Grade A, 1500/1500 snapshots
 ```

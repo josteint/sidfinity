@@ -3,7 +3,7 @@
 ; ANNOTATED DISASSEMBLY (auto-generated seed; selectively hand-annotated)
 ; ============================================================================
 ;
-; Binary: data/C64Music/MUSICIANS/H/Hubbard_Rob/Thing_on_a_Spring.sid
+; Binary: hvsc84/MUSICIANS/H/Hubbard_Rob/Thing_on_a_Spring.sid
 ; Load:   $C000   Init: $CECB   Play: $C012
 ; PSID:   17 subtunes, default subtune 1 (PSID passes 0-based: subtune 0 plays
 ;         the song; subtunes 1..16 are sound-effect overlays).

@@ -61,7 +61,7 @@ def load_sid(sid_path):
 def get_durations(sid_path):
     """Get HVSC songlength durations for a SID file. Returns list of seconds per subtune."""
     db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                           '..', 'data', 'C64Music', 'DOCUMENTS', 'Songlengths.md5')
+                           '..', 'hvsc84', 'DOCUMENTS', 'Songlengths.md5')
     if not os.path.exists(db_path):
         return None
 

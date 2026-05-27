@@ -3,7 +3,7 @@
 ; ANNOTATED DISASSEMBLY (auto-generated seed; selectively hand-annotated)
 ; ============================================================================
 ;
-; Binary: data/C64Music/MUSICIANS/H/Hubbard_Rob/Hunter_Patrol.sid
+; Binary: hvsc84/MUSICIANS/H/Hubbard_Rob/Hunter_Patrol.sid
 ; Load:   $A000   Init: $AE1E   Play: $A006
 ; PSID:   1 subtune, default subtune 1
 ; Binary: $A000-$AE5F (3680 bytes)

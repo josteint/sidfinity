@@ -332,7 +332,7 @@ def main():
     args = p.parse_args()
 
     from sidid import scan_directory
-    res = scan_directory(os.path.join(ROOT, 'data', 'C64Music'),
+    res = scan_directory(os.path.join(ROOT, 'hvsc84'),
                          recursive=True)
     paths = sorted(r['path'] for r in res
                    if 'Hubbard' in (r.get('player') or ''))

@@ -16,7 +16,7 @@ Research collected from HVSC documentation, SIDId source code, and related sourc
 
 ### HVSC DOCUMENTS Directory
 
-The HVSC `DOCUMENTS/` directory (`data/C64Music/DOCUMENTS/`) contains no dedicated DMC format documentation. DMC is referenced only in:
+The HVSC `DOCUMENTS/` directory (`hvsc84/DOCUMENTS/`) contains no dedicated DMC format documentation. DMC is referenced only in:
 
 - **STIL.txt** — User comments mentioning DMC as a composition tool (e.g. "composed using DMC V5.0+", "done with DMC V4.0")
 - **Musicians.txt** — Lists "Danish Music Company (DMC)" as a music group (unrelated to the editor)
@@ -392,7 +392,7 @@ DMC V4/V7 have built-in packers that relocate to $1000. Most HVSC DMC SIDs are p
 ## Sources
 
 ### HVSC
-- HVSC DOCUMENTS directory: `/data/C64Music/DOCUMENTS/`
+- HVSC DOCUMENTS directory: `/hvsc84/DOCUMENTS/`
 - STIL.txt, Musicians.txt, Update_Announcements/
 
 ### SIDId

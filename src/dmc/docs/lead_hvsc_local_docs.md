@@ -1,5 +1,5 @@
 ---
-source_url: /home/jtr/sidfinity/data/C64Music/DOCUMENTS/STIL.txt, /home/jtr/sidfinity/data/C64Music/DOCUMENTS/HVSC.faq, /home/jtr/sidfinity/data/C64Music/DOCUMENTS/Update37.hvs, /home/jtr/sidfinity/data/C64Music/DOCUMENTS/Update36.hvs
+source_url: /home/jtr/sidfinity/hvsc84/DOCUMENTS/STIL.txt, /home/jtr/sidfinity/hvsc84/DOCUMENTS/HVSC.faq, /home/jtr/sidfinity/hvsc84/DOCUMENTS/Update37.hvs, /home/jtr/sidfinity/hvsc84/DOCUMENTS/Update36.hvs
 fetched_via: local read
 fetch_date: 2026-04-11
 author: HVSC Team (STIL annotations by PVCF, Richard Bayliss, and other musicians)
@@ -8,7 +8,7 @@ reliability: secondary
 ---
 # HVSC Local Collection — DMC Document Search Results
 
-Searched: `/home/jtr/sidfinity/data/C64Music/DOCUMENTS/` and `/home/jtr/sidfinity/data/C64Music/MUSICIANS/`
+Searched: `/home/jtr/sidfinity/hvsc84/DOCUMENTS/` and `/home/jtr/sidfinity/hvsc84/MUSICIANS/`
 
 ## Summary
 
@@ -16,7 +16,7 @@ No standalone DMC technical documentation found. The HVSC collection contains no
 
 ---
 
-## 1. `/home/jtr/sidfinity/data/C64Music/DOCUMENTS/` — Contents
+## 1. `/home/jtr/sidfinity/hvsc84/DOCUMENTS/` — Contents
 
 Key files checked:
 - `STIL.txt` — 66 lines match "DMC" (see below)
@@ -104,7 +104,7 @@ From musician annotations in STIL.txt, the following DMC versions are confirmed 
 
 ---
 
-## 3. `/home/jtr/sidfinity/data/C64Music/MUSICIANS/` — README search
+## 3. `/home/jtr/sidfinity/hvsc84/MUSICIANS/` — README search
 
 No README files exist in the MUSICIANS tree. Subdirectories are only organized alphabetically (A-Z, 0-9). No DMC-specific subdirectory exists.
 

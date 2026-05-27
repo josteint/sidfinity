@@ -3,7 +3,7 @@
 ; ANNOTATED DISASSEMBLY (auto-generated seed; selectively hand-annotated)
 ; ============================================================================
 ;
-; Binary: data/C64Music/MUSICIANS/H/Hubbard_Rob/Gremlins.sid
+; Binary: hvsc84/MUSICIANS/H/Hubbard_Rob/Gremlins.sid
 ; Load:   $1000   Init: $1530   Play: $1012
 ; PSID:   26 subtunes, default subtune 1 (1-indexed; A=0 passed to init)
 ; Binary: $1000-$2E8C (7821 bytes)

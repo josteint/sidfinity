@@ -173,7 +173,7 @@ def gen_pattern(idx: int, notes: list[Note], tempo: int) -> str:
     return f"def mv3P{idx} : USFPattern := {{ notes := [{', '.join(note_strs)}] }}"
 
 
-CHIMERA_SID = '/home/jtr/sidfinity/data/C64Music/MUSICIANS/H/Hubbard_Rob/Chimera.sid'
+CHIMERA_SID = '/home/jtr/sidfinity/hvsc84/MUSICIANS/H/Hubbard_Rob/Chimera.sid'
 CHIMERA_FT_BASE = 0xC567  # discovered via src/sidxray/discover.py
 
 

@@ -96,7 +96,7 @@ This is a SEPARATE issue from the `resetspd` speed counter.
    and decode its format.
 
 2. **CIA multispeed song list** — which Hubbard SIDs in HVSC have CIA timer flag set?
-   Run: `for f in data/C64Music/MUSICIANS/H/Hubbard_Rob/*.sid: check speed header bits`
+   Run: `for f in hvsc84/MUSICIANS/H/Hubbard_Rob/*.sid: check speed header bits`
 
 3. **Nested counter correction** — our current formula `(inner + outer) // 2` is a guess.
    Need to verify against a known-correct song. The correct formula may be `inner + outer`

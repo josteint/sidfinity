@@ -21,7 +21,7 @@ import tempfile
 sys.path.insert(0, '/home/jtr/sidfinity/tools/py65_lib')
 from py65.devices.mpu6502 import MPU
 
-ORIGINAL_SID = '/home/jtr/sidfinity/data/C64Music/MUSICIANS/H/Hubbard_Rob/Commando.sid'
+ORIGINAL_SID = '/home/jtr/sidfinity/hvsc84/MUSICIANS/H/Hubbard_Rob/Commando.sid'
 OUTPUT_SID   = '/home/jtr/sidfinity/demo/hubbard/Commando_hg3.sid'
 XA65         = '/home/jtr/sidfinity/tools/xa65/xa/xa'
 

@@ -20,7 +20,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[3]
 SID_PATH = (
     REPO_ROOT
-    / "data/C64Music/MUSICIANS/H/Hubbard_Rob/Dragons_Lair_Part_II.sid"
+    / "hvsc84/MUSICIANS/H/Hubbard_Rob/Dragons_Lair_Part_II.sid"
 )
 OUT_PATH = (
     REPO_ROOT

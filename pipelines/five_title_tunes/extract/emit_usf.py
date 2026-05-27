@@ -22,7 +22,7 @@ from pipelines.five_title_tunes.extract.types import Note, ExtractedSong
 
 logger = logging.getLogger(__name__)
 
-PARENT_SID  = REPO / 'data/C64Music/MUSICIANS/H/Hubbard_Rob/5_Title_Tunes.sid'
+PARENT_SID  = REPO / 'hvsc84/MUSICIANS/H/Hubbard_Rob/5_Title_Tunes.sid'
 WORK_SUBS   = REPO / 'pipelines/five_title_tunes/work_subs'
 SUB_FT_BASES = [0x0F6A, 0x1C07, 0x2360, 0x2BA0, 0x34C3]
 N_SUBS       = 5

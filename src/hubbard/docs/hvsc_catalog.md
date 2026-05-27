@@ -1,5 +1,5 @@
 ---
-source_url: local: data/C64Music/MUSICIANS/H/Hubbard_Rob/
+source_url: local: hvsc84/MUSICIANS/H/Hubbard_Rob/
 fetched_via: local read
 fetch_date: 2026-04-11
 author: "compiled locally from HVSC directory listing + SIDID scan"
@@ -8,7 +8,7 @@ reliability: secondary
 ---
 # Rob Hubbard HVSC Song Catalog
 
-96 SID files in `/data/C64Music/MUSICIANS/H/Hubbard_Rob/`.
+96 SID files in `/hvsc84/MUSICIANS/H/Hubbard_Rob/`.
 
 ## Songs Using the Rob Hubbard Player Engine (82 songs)
 

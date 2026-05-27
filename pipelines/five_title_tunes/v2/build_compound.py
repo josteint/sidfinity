@@ -158,7 +158,7 @@ def build_compound(out_path: str) -> str:
     h += struct.pack('>I', 0)                      # speed (PAL VBI for all)
     # Title / author / released — copy from parent.
     parent_sid = os.path.join(
-        ROOT, 'data', 'C64Music', 'MUSICIANS', 'H',
+        ROOT, 'hvsc84', 'MUSICIANS', 'H',
         'Hubbard_Rob', '5_Title_Tunes.sid')
     with open(parent_sid, 'rb') as f:
         parent_hdr = f.read(124)

@@ -1,5 +1,10 @@
 # Gremlins pipeline
 
+> **Note (2026-05): the Lean / Lake build commands below no longer work.**
+> The active build path for this engine is now the shared Python core at
+> `pipelines/hubbard/`. See [pipelines/README.md](../README.md) and
+> [`deprecated/lean_codegen/`](../../deprecated/lean_codegen/) for context.
+
 End-to-end rebuild of Rob Hubbard's *Gremlins* (1985, Adventure
 International). Same shape as the Commando pipeline; bulk-cloned from
 the Monty pipeline in commit `cbb86f6` and not yet ported to Gremlins's
@@ -84,7 +89,7 @@ lake build sidgen_gremlins
 
 ```bash
 python src/writelog_grade.py \
-    data/C64Music/MUSICIANS/H/Hubbard_Rob/Gremlins.sid \
+    hvsc84/MUSICIANS/H/Hubbard_Rob/Gremlins.sid \
     pipelines/gremlins/build/gremlins.sid
 ```
 

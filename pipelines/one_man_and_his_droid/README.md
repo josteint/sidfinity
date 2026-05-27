@@ -1,5 +1,10 @@
 # One Man and his Droid pipeline
 
+> **Note (2026-05): the Lean / Lake build commands below no longer work.**
+> The active build path for this engine is now the shared Python core at
+> `pipelines/hubbard/`. See [pipelines/README.md](../README.md) and
+> [`deprecated/lean_codegen/`](../../deprecated/lean_codegen/) for context.
+
 End-to-end rebuild of Rob Hubbard's *One Man and his Droid* (1985 Mastertronic) SID.
 Independent clone of the Commando/Monty pipeline; extended with the engine
 quirks documented in `docs/hubbard_one_man_and_his_droid_disassembly.s`.
@@ -91,7 +96,7 @@ lake build sidgen_one_man_and_his_droid
 # Grade against the original.
 source src/env.sh
 python src/writelog_grade.py \
-    data/C64Music/MUSICIANS/H/Hubbard_Rob/One_Man_and_his_Droid.sid \
+    hvsc84/MUSICIANS/H/Hubbard_Rob/One_Man_and_his_Droid.sid \
     pipelines/one_man_and_his_droid/build/one_man_and_his_droid.sid
 ```
 

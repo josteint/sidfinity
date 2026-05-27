@@ -1,5 +1,10 @@
 # ActionBiker on the Run pipeline
 
+> **Note (2026-05): the Lean / Lake build commands below no longer work.**
+> The active build path for this engine is now the shared Python core at
+> `pipelines/hubbard/`. See [pipelines/README.md](../README.md) and
+> [`deprecated/lean_codegen/`](../../deprecated/lean_codegen/) for context.
+
 End-to-end rebuild of Rob Hubbard's *ActionBiker on the Run* (1985) SID. Same shape
 as the Commando pipeline; cloned and extended for ActionBiker's engine quirks
 (skydive effect, pulsedelay/pulsedir initial state, notenum/freq-table
@@ -54,7 +59,7 @@ Grade against the original:
 
 ```bash
 python src/writelog_grade.py \
-    data/C64Music/MUSICIANS/H/Hubbard_Rob/Action_Biker.sid \
+    hvsc84/MUSICIANS/H/Hubbard_Rob/Action_Biker.sid \
     action_biker.sid
 # Expected: Grade A, snapshots 98.8% (1482/1500)
 ```

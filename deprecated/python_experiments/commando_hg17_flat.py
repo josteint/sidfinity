@@ -7,7 +7,7 @@ Goal: verify flat format works in libsidplayfp before adding delta encoding.
 import subprocess, sys, os, struct
 
 SIDDUMP = "/home/jtr/sidfinity/tools/siddump"
-ORIG_SID = "/home/jtr/sidfinity/data/C64Music/MUSICIANS/H/Hubbard_Rob/Commando.sid"
+ORIG_SID = "/home/jtr/sidfinity/hvsc84/MUSICIANS/H/Hubbard_Rob/Commando.sid"
 XA = "/home/jtr/sidfinity/tools/xa65/xa/xa"
 OUT_SID = "/home/jtr/sidfinity/demo/hubbard/Commando_hg17_flat.sid"
 OUT_ASM = "/home/jtr/sidfinity/demo/hubbard/Commando_hg17_flat.s"

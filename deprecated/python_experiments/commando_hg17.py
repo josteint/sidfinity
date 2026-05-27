@@ -16,7 +16,7 @@ Delta encoding format per frame (after first frame):
 import subprocess, sys, os, struct
 
 SIDDUMP = "/home/jtr/sidfinity/tools/siddump"
-ORIG_SID = "/home/jtr/sidfinity/data/C64Music/MUSICIANS/H/Hubbard_Rob/Commando.sid"
+ORIG_SID = "/home/jtr/sidfinity/hvsc84/MUSICIANS/H/Hubbard_Rob/Commando.sid"
 XA = "/home/jtr/sidfinity/tools/xa65/xa/xa"
 OUT_SID = "/home/jtr/sidfinity/demo/hubbard/Commando_hg17.sid"
 OUT_ASM = "/home/jtr/sidfinity/demo/hubbard/Commando_hg17.s"

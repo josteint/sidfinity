@@ -173,7 +173,7 @@ def gen_pattern(idx: int, notes: list[Note], tempo: int) -> str:
     return f"def mv3P{idx} : USFPattern := {{ notes := [{', '.join(note_strs)}] }}"
 
 
-GREMLINS_SID = '/home/jtr/sidfinity/data/C64Music/MUSICIANS/H/Hubbard_Rob/Gremlins.sid'
+GREMLINS_SID = '/home/jtr/sidfinity/hvsc84/MUSICIANS/H/Hubbard_Rob/Gremlins.sid'
 GREMLINS_FT_BASE = 0x1600  # discovered via src/sidxray/discover.py
 
 

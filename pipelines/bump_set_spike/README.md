@@ -1,5 +1,10 @@
 # Bump Set Spike pipeline
 
+> **Note (2026-05): the Lean / Lake build commands below no longer work.**
+> The active build path for this engine is now the shared Python core at
+> `pipelines/hubbard/`. See [pipelines/README.md](../README.md) and
+> [`deprecated/lean_codegen/`](../../deprecated/lean_codegen/) for context.
+
 End-to-end rebuild scaffold for Rob Hubbard's *Bump Set Spike* (1986
 Entertainment USA). Same shape as the Commando / Monty pipelines; cloned
 from Monty and renamed. The engine-specific adaptations needed for an
@@ -86,7 +91,7 @@ lake build sidgen_bump_set_spike
 
 # Grade against the original
 python src/writelog_grade.py \
-    data/C64Music/MUSICIANS/H/Hubbard_Rob/Bump_Set_Spike.sid \
+    hvsc84/MUSICIANS/H/Hubbard_Rob/Bump_Set_Spike.sid \
     pipelines/bump_set_spike/build/bump_set_spike.sid
 # Currently: Grade F (engine adaptation pending)
 ```

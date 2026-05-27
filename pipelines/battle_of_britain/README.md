@@ -1,5 +1,10 @@
 # Battle of Britain pipeline
 
+> **Note (2026-05): the Lean / Lake build commands below no longer work.**
+> The active build path for this engine is now the shared Python core at
+> `pipelines/hubbard/`. See [pipelines/README.md](../README.md) and
+> [`deprecated/lean_codegen/`](../../deprecated/lean_codegen/) for context.
+
 End-to-end rebuild of Rob Hubbard's *Battle of Britain* (1986 PSS) SID,
 modelled after the Commando and Monty pipelines. Structurally complete
 (extract → emit USF → Lean codegen → PSID); functionally a **work in
@@ -58,7 +63,7 @@ Grade against the original:
 ```bash
 source src/env.sh
 python3 src/writelog_grade.py \
-    data/C64Music/MUSICIANS/H/Hubbard_Rob/Battle_of_Britain.sid \
+    hvsc84/MUSICIANS/H/Hubbard_Rob/Battle_of_Britain.sid \
     pipelines/battle_of_britain/build/battle_of_britain.sid
 ```
 
@@ -67,7 +72,7 @@ Disassemble + annotate:
 ```bash
 # Regenerate the auto-disassembly seed (overwrite-safe):
 python3 -m pipelines.battle_of_britain.extract.disasm \
-    data/C64Music/MUSICIANS/H/Hubbard_Rob/Battle_of_Britain.sid \
+    hvsc84/MUSICIANS/H/Hubbard_Rob/Battle_of_Britain.sid \
     > /tmp/seed.s
 
 # Hand annotations live in disassembly.s; merge new findings manually.

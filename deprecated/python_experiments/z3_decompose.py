@@ -905,7 +905,7 @@ def _run_self_tests():
 def main():
     commando_path = os.path.join(
         os.path.dirname(os.path.abspath(__file__)),
-        '..', 'data', 'C64Music', 'MUSICIANS', 'H', 'Hubbard_Rob', 'Commando.sid',
+        '..', 'hvsc84', 'MUSICIANS', 'H', 'Hubbard_Rob', 'Commando.sid',
     )
 
     print('=' * 70)

@@ -1,5 +1,10 @@
 # Master of Magic pipeline
 
+> **Note (2026-05): the Lean / Lake build commands below no longer work.**
+> The active build path for this engine is now the shared Python core at
+> `pipelines/hubbard/`. See [pipelines/README.md](../README.md) and
+> [`deprecated/lean_codegen/`](../../deprecated/lean_codegen/) for context.
+
 End-to-end rebuild scaffold for Rob Hubbard's *The Master of Magic* (1985,
 MAD/Mastertronic). Same shape as the Commando and Monty pipelines —
 a Python `extract/` step reads the original SID and emits a Lean

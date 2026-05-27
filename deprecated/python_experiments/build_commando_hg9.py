@@ -19,7 +19,7 @@ import os
 
 FRAMES = 1500
 GT_CSV = '/tmp/commando_gt.csv'
-ORIG_SID = 'data/C64Music/MUSICIANS/H/Hubbard_Rob/Commando.sid'
+ORIG_SID = 'hvsc84/MUSICIANS/H/Hubbard_Rob/Commando.sid'
 OUT_SID = 'demo/hubbard/Commando_hg9.sid'
 ASM_FILE = '/tmp/commando_hg9.a65'
 BIN_FILE = '/tmp/commando_hg9.bin'

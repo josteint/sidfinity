@@ -1,5 +1,10 @@
 # Hunter Patrol pipeline
 
+> **Note (2026-05): the Lean / Lake build commands below no longer work.**
+> The active build path for this engine is now the shared Python core at
+> `pipelines/hubbard/`. See [pipelines/README.md](../README.md) and
+> [`deprecated/lean_codegen/`](../../deprecated/lean_codegen/) for context.
+
 End-to-end rebuild of Rob Hubbard's *Hunter Patrol* (1985 Mastertronic) SID.
 Original is parsed, lifted into structured USF, then re-emitted as a fresh
 PSID driven by our own V3 player. Same shape as the Commando and Monty
@@ -61,7 +66,7 @@ Grade against the original:
 ```bash
 source src/env.sh
 python3 src/writelog_grade.py \
-    data/C64Music/MUSICIANS/H/Hubbard_Rob/Hunter_Patrol.sid \
+    hvsc84/MUSICIANS/H/Hubbard_Rob/Hunter_Patrol.sid \
     pipelines/hunter_patrol/build/hunter_patrol.sid
 # Currently: Grade F, snapshots 0/1500
 ```

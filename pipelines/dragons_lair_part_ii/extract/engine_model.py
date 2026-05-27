@@ -30,7 +30,7 @@ sys.path.insert(0, os.path.join(ROOT, 'src'))
 sys.path.insert(0, os.path.join(ROOT, 'tools', 'py65_lib'))
 
 SID_PATH = os.path.join(
-    ROOT, 'data', 'C64Music', 'MUSICIANS', 'H',
+    ROOT, 'hvsc84', 'MUSICIANS', 'H',
     'Hubbard_Rob', 'Dragons_Lair_Part_II.sid',
 )
 

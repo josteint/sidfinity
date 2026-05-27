@@ -27,7 +27,7 @@ from pipelines.hubbard.inst_program import capture          # noqa: E402
 from pipelines.hubbard.verify_cycle import writelog_capture  # noqa: E402
 from songlengths import load_database, get_durations        # noqa: E402
 
-_DB = os.path.join(ROOT, 'data', 'C64Music', 'DOCUMENTS', 'Songlengths.md5')
+_DB = os.path.join(ROOT, 'hvsc84', 'DOCUMENTS', 'Songlengths.md5')
 _CACHE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                       '.verify_cache.pkl')
 FPS = 50  # PAL frames per second

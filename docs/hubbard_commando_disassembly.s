@@ -3,7 +3,7 @@
 ; COMPLETE PLAY ROUTINE DISASSEMBLY: $5012 - $5427
 ; =============================================================================
 ;
-; Binary: data/C64Music/MUSICIANS/H/Hubbard_Rob/Commando.sid
+; Binary: hvsc84/MUSICIANS/H/Hubbard_Rob/Commando.sid
 ; Load:   $5000   Init: $5FB2   Play: $5012
 ; Songs:  19      Start: 1
 ; Binary: $5000-$5FC6 (4039 bytes)

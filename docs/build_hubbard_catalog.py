@@ -15,7 +15,7 @@ sys.path.insert(0, 'src')
 sys.path.insert(0, 'tools/py65_lib')
 
 ROOT = '/home/jtr/sidfinity'
-SCAN_ROOT = os.path.join(ROOT, 'data/C64Music/MUSICIANS')
+SCAN_ROOT = os.path.join(ROOT, 'hvsc84/MUSICIANS')
 SIDID = os.path.join(ROOT, 'tools/sidid')
 SIDID_CFG = os.path.join(ROOT, 'tools/sidid.cfg')
 

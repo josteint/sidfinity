@@ -16,7 +16,7 @@ sys.path.insert(0, os.path.join(ROOT, 'src'))
 
 from hubbard_emu import load_sid, HubbardEmu
 
-SID_PATH = os.path.join(ROOT, 'data', 'C64Music', 'MUSICIANS', 'H',
+SID_PATH = os.path.join(ROOT, 'hvsc84', 'MUSICIANS', 'H',
                          'Hubbard_Rob', 'Commando.sid')
 XA = os.path.join(ROOT, 'tools', 'xa65', 'xa', 'xa')
 OUT_PATH = os.path.join(ROOT, 'demo', 'hubbard', 'Commando_stream.sid')

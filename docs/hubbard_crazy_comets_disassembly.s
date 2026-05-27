@@ -3,7 +3,7 @@
 ; ANNOTATED DISASSEMBLY (auto-generated seed; selectively hand-annotated)
 ; ============================================================================
 ;
-; Binary: data/C64Music/MUSICIANS/H/Hubbard_Rob/Crazy_Comets.sid
+; Binary: hvsc84/MUSICIANS/H/Hubbard_Rob/Crazy_Comets.sid
 ; Load:   $5000   Init: $6100   Play: $500C
 ; PSID:   17 subtunes, default subtune 1 (1-indexed; A=0 passed to init)
 ; Binary: $5000-$610F (4368 bytes)

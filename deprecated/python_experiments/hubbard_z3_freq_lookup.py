@@ -41,7 +41,7 @@ from z3 import (
 # Constants
 # ===========================================================================
 
-SID_PATH = os.path.join(REPO_ROOT, 'data', 'C64Music', 'MUSICIANS', 'H',
+SID_PATH = os.path.join(REPO_ROOT, 'hvsc84', 'MUSICIANS', 'H',
                         'Hubbard_Rob', 'Commando.sid')
 XA65 = os.path.join(REPO_ROOT, 'tools', 'xa65', 'xa', 'xa')
 SID_BASE = 0xD400

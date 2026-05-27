@@ -1,5 +1,10 @@
 # Last V8 pipeline
 
+> **Note (2026-05): the Lean / Lake build commands below no longer work.**
+> The active build path for this engine is now the shared Python core at
+> `pipelines/hubbard/`. See [pipelines/README.md](../README.md) and
+> [`deprecated/lean_codegen/`](../../deprecated/lean_codegen/) for context.
+
 Goal: rebuild Rob Hubbard's *The Last V8* (1985, MAD/Mastertronic) SID through
 the SID→USF→SID pipeline, matching the original byte-for-byte under
 `siddump --writelog`.
@@ -180,7 +185,7 @@ PYTHONPATH=src python -m pipelines.last_v8.extract.emit_usf 0
 source src/env.sh && lake build sidgen_last_v8
 ./.lake/build/bin/sidgen_last_v8
 python src/writelog_grade.py --duration 30 \
-    data/C64Music/MUSICIANS/H/Hubbard_Rob/Last_V8.sid \
+    hvsc84/MUSICIANS/H/Hubbard_Rob/Last_V8.sid \
     pipelines/last_v8/build/last_v8.sid
 # Expected: Grade D, snapshots ~31%, 467/1500
 ```

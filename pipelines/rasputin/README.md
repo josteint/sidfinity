@@ -1,5 +1,10 @@
 # Rasputin on the Run pipeline
 
+> **Note (2026-05): the Lean / Lake build commands below no longer work.**
+> The active build path for this engine is now the shared Python core at
+> `pipelines/hubbard/`. See [pipelines/README.md](../README.md) and
+> [`deprecated/lean_codegen/`](../../deprecated/lean_codegen/) for context.
+
 End-to-end rebuild of Rob Hubbard's *Rasputin on the Run* (1985) SID.
 Same shape as the Commando pipeline; the bulk-clone scaffold from
 commit cbb86f6 plus several Rasputin-specific engine fixes documented
@@ -68,7 +73,7 @@ Grade against the original:
 
 ```bash
 python3 src/writelog_grade.py \
-    data/C64Music/MUSICIANS/H/Hubbard_Rob/Rasputin.sid \
+    hvsc84/MUSICIANS/H/Hubbard_Rob/Rasputin.sid \
     pipelines/rasputin/build/rasputin.sid
 # Expected: Grade D, snapshots 67.0% (1005/1500)
 ```

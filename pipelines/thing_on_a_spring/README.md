@@ -1,5 +1,10 @@
 # Thing on a Spring pipeline
 
+> **Note (2026-05): the Lean / Lake build commands below no longer work.**
+> The active build path for this engine is now the shared Python core at
+> `pipelines/hubbard/`. See [pipelines/README.md](../README.md) and
+> [`deprecated/lean_codegen/`](../../deprecated/lean_codegen/) for context.
+
 End-to-end rebuild of Rob Hubbard's *Thing on a Spring* (1985 Gremlin Graphics).
 Same shape as the Commando / Monty pipelines.
 
@@ -40,7 +45,7 @@ lake build sidgen_thing_on_a_spring
 ./.lake/build/bin/sidgen_thing_on_a_spring                  # → build/thing_on_a_spring.sid
 
 python3 src/writelog_grade.py \
-    data/C64Music/MUSICIANS/H/Hubbard_Rob/Thing_on_a_Spring.sid \
+    hvsc84/MUSICIANS/H/Hubbard_Rob/Thing_on_a_Spring.sid \
     pipelines/thing_on_a_spring/build/thing_on_a_spring.sid
 ```
 

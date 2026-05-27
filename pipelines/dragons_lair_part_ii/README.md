@@ -1,5 +1,10 @@
 # Dragon's Lair Part II pipeline
 
+> **Note (2026-05): the Lean / Lake build commands below no longer work.**
+> The active build path for this engine is now the shared Python core at
+> `pipelines/hubbard/`. See [pipelines/README.md](../README.md) and
+> [`deprecated/lean_codegen/`](../../deprecated/lean_codegen/) for context.
+
 End-to-end rebuild of Rob Hubbard's *Dragon's Lair Part II* (1986
 Software Projects) SID. The engine underneath is the **1986 Hubbard
 variant**, materially different from the 1985 Commando/Monty engine,
@@ -153,7 +158,7 @@ Grade against the original (expected: Grade A 100%):
 
 ```bash
 python3 src/writelog_grade.py \
-    data/C64Music/MUSICIANS/H/Hubbard_Rob/Dragons_Lair_Part_II.sid \
+    hvsc84/MUSICIANS/H/Hubbard_Rob/Dragons_Lair_Part_II.sid \
     pipelines/dragons_lair_part_ii/build/dragons_lair_part_ii.sid
 
 md5sum pipelines/dragons_lair_part_ii/build/dragons_lair_part_ii.sid

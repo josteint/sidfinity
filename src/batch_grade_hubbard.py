@@ -65,7 +65,7 @@ def find_hubbard_sids() -> list[str]:
     """Use sidid to identify Hubbard-engine SIDs across HVSC."""
     sys.path.insert(0, os.path.join(ROOT, 'src'))
     from sidid import scan_directory
-    results = scan_directory(os.path.join(ROOT, 'data', 'C64Music'), recursive=True)
+    results = scan_directory(os.path.join(ROOT, 'hvsc84'), recursive=True)
     return sorted(r['path'] for r in results
                   if 'Hubbard' in (r.get('player') or ''))
 

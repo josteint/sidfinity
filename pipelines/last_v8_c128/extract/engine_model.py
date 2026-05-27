@@ -16,7 +16,7 @@ from .types import EngineModel
 def _default_sid_path() -> Path:
     here = Path(__file__).resolve()
     repo_root = here.parents[3]
-    return repo_root / 'data' / 'C64Music' / 'MUSICIANS' / 'H' / 'Hubbard_Rob' \
+    return repo_root / 'hvsc84' / 'MUSICIANS' / 'H' / 'Hubbard_Rob' \
         / 'Last_V8_C128_version.sid'
 
 

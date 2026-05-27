@@ -3,7 +3,7 @@
 ; ANNOTATED DISASSEMBLY (auto-generated seed; selectively hand-annotated)
 ; ============================================================================
 ;
-; Binary: data/C64Music/MUSICIANS/H/Hubbard_Rob/One_Man_and_his_Droid.sid
+; Binary: hvsc84/MUSICIANS/H/Hubbard_Rob/One_Man_and_his_Droid.sid
 ; Load:   $1000   Init: $1000   Play: $1012
 ; PSID:   14 subtune(s), default subtune 1
 ; Binary: $1000-$1F85 (3974 bytes)

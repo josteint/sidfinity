@@ -20,7 +20,7 @@ from dataclasses import dataclass, field, asdict
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-SID_PATH = REPO_ROOT / "data/C64Music/MUSICIANS/H/Hubbard_Rob/Dragons_Lair_Part_II.sid"
+SID_PATH = REPO_ROOT / "hvsc84/MUSICIANS/H/Hubbard_Rob/Dragons_Lair_Part_II.sid"
 
 # Anchor addresses from the annotated disassembly. These are hardcoded
 # for DL2 specifically; making them auto-discovered comes later if we
