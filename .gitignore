@@ -1,6 +1,3 @@
-# Data (HVSC, curated SIDs) - too large for git
-data/
-
 # Python virtual env
 .pylocal/
 

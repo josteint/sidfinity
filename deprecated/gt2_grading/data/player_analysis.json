@@ -1,0 +1,843 @@
+{
+  "Rob_Hubbard": [
+    {
+      "file": "Commando.sid",
+      "writes_per_frame": 9.5,
+      "write_span": 614,
+      "note_changes": 97,
+      "hr_by_type": {
+        "gate_off": 97
+      },
+      "hr_details": [
+        {
+          "type": "gate_off",
+          "frames": 1,
+          "hr_ad": "$00",
+          "hr_sr": "$00",
+          "count": 97
+        }
+      ]
+    },
+    {
+      "file": "Monty_on_the_Run.sid",
+      "writes_per_frame": 8.9,
+      "write_span": 1088,
+      "note_changes": 849,
+      "hr_by_type": {
+        "none": 833,
+        "gate_off": 16
+      },
+      "hr_details": [
+        {
+          "type": "none",
+          "frames": 0,
+          "hr_ad": null,
+          "hr_sr": null,
+          "count": 833
+        },
+        {
+          "type": "gate_off",
+          "frames": 1,
+          "hr_ad": "$00",
+          "hr_sr": "$00",
+          "count": 6
+        },
+        {
+          "type": "gate_off",
+          "frames": 2,
+          "hr_ad": "$00",
+          "hr_sr": "$00",
+          "count": 6
+        },
+        {
+          "type": "gate_off",
+          "frames": 3,
+          "hr_ad": "$00",
+          "hr_sr": "$00",
+          "count": 4
+        }
+      ]
+    },
+    {
+      "file": "Delta.sid",
+      "writes_per_frame": 14.8,
+      "write_span": 1262,
+      "note_changes": 359,
+      "hr_by_type": {
+        "gate_off": 226,
+        "none": 133
+      },
+      "hr_details": [
+        {
+          "type": "none",
+          "frames": 0,
+          "hr_ad": null,
+          "hr_sr": null,
+          "count": 133
+        },
+        {
+          "type": "gate_off",
+          "frames": 1,
+          "hr_ad": "$08",
+          "hr_sr": "$08",
+          "count": 69
+        },
+        {
+          "type": "gate_off",
+          "frames": 2,
+          "hr_ad": "$0C",
+          "hr_sr": "$C9",
+          "count": 41
+        },
+        {
+          "type": "gate_off",
+          "frames": 3,
+          "hr_ad": "$0C",
+          "hr_sr": "$C9",
+          "count": 41
+        },
+        {
+          "type": "gate_off",
+          "frames": 1,
+          "hr_ad": "$0C",
+          "hr_sr": "$C9",
+          "count": 37
+        }
+      ]
+    },
+    {
+      "file": "Crazy_Comets.sid",
+      "writes_per_frame": 5.2,
+      "write_span": 285,
+      "note_changes": 55,
+      "hr_by_type": {
+        "gate_off": 33,
+        "none": 22
+      },
+      "hr_details": [
+        {
+          "type": "gate_off",
+          "frames": 1,
+          "hr_ad": "$00",
+          "hr_sr": "$00",
+          "count": 29
+        },
+        {
+          "type": "none",
+          "frames": 0,
+          "hr_ad": null,
+          "hr_sr": null,
+          "count": 22
+        },
+        {
+          "type": "gate_off",
+          "frames": 1,
+          "hr_ad": "$1A",
+          "hr_sr": "$69",
+          "count": 1
+        },
+        {
+          "type": "gate_off",
+          "frames": 2,
+          "hr_ad": "$00",
+          "hr_sr": "$00",
+          "count": 1
+        },
+        {
+          "type": "gate_off",
+          "frames": 3,
+          "hr_ad": "$00",
+          "hr_sr": "$00",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "file": "Lightforce.sid",
+      "writes_per_frame": 13.4,
+      "write_span": 841,
+      "note_changes": 191,
+      "hr_by_type": {
+        "gate_off": 183,
+        "none": 8
+      },
+      "hr_details": [
+        {
+          "type": "gate_off",
+          "frames": 1,
+          "hr_ad": "$29",
+          "hr_sr": "$79",
+          "count": 65
+        },
+        {
+          "type": "gate_off",
+          "frames": 2,
+          "hr_ad": "$19",
+          "hr_sr": "$09",
+          "count": 45
+        },
+        {
+          "type": "gate_off",
+          "frames": 3,
+          "hr_ad": "$19",
+          "hr_sr": "$09",
+          "count": 45
+        },
+        {
+          "type": "gate_off",
+          "frames": 1,
+          "hr_ad": "$19",
+          "hr_sr": "$09",
+          "count": 28
+        },
+        {
+          "type": "none",
+          "frames": 0,
+          "hr_ad": null,
+          "hr_sr": null,
+          "count": 8
+        }
+      ]
+    }
+  ],
+  "GoatTracker_V2": [
+    {
+      "file": "Dojo.sid",
+      "writes_per_frame": 16.1,
+      "write_span": 570,
+      "note_changes": 19,
+      "hr_by_type": {
+        "test_bit": 19
+      },
+      "hr_details": [
+        {
+          "type": "test_bit",
+          "frames": 1,
+          "hr_ad": "$04",
+          "hr_sr": "$7A",
+          "count": 16
+        },
+        {
+          "type": "test_bit",
+          "frames": 1,
+          "hr_ad": "$02",
+          "hr_sr": "$AA",
+          "count": 3
+        }
+      ]
+    },
+    {
+      "file": "Soldiers_of_Satan.sid",
+      "writes_per_frame": 14.3,
+      "write_span": 594,
+      "note_changes": 88,
+      "hr_by_type": {
+        "test_bit": 42,
+        "gate_off": 30,
+        "none": 16
+      },
+      "hr_details": [
+        {
+          "type": "test_bit",
+          "frames": 1,
+          "hr_ad": "$02",
+          "hr_sr": "$A9",
+          "count": 26
+        },
+        {
+          "type": "none",
+          "frames": 0,
+          "hr_ad": null,
+          "hr_sr": null,
+          "count": 16
+        },
+        {
+          "type": "gate_off",
+          "frames": 2,
+          "hr_ad": "$0F",
+          "hr_sr": "$00",
+          "count": 15
+        },
+        {
+          "type": "gate_off",
+          "frames": 3,
+          "hr_ad": "$0F",
+          "hr_sr": "$00",
+          "count": 15
+        },
+        {
+          "type": "test_bit",
+          "frames": 1,
+          "hr_ad": "$02",
+          "hr_sr": "$99",
+          "count": 9
+        }
+      ]
+    },
+    {
+      "file": "Ex_Inferis.sid",
+      "writes_per_frame": 22.0,
+      "write_span": 631,
+      "note_changes": 102,
+      "hr_by_type": {
+        "gate_off": 75,
+        "none": 18,
+        "test_bit": 9
+      },
+      "hr_details": [
+        {
+          "type": "gate_off",
+          "frames": 2,
+          "hr_ad": "$0F",
+          "hr_sr": "$00",
+          "count": 41
+        },
+        {
+          "type": "gate_off",
+          "frames": 3,
+          "hr_ad": "$0F",
+          "hr_sr": "$00",
+          "count": 30
+        },
+        {
+          "type": "none",
+          "frames": 0,
+          "hr_ad": null,
+          "hr_sr": null,
+          "count": 18
+        },
+        {
+          "type": "test_bit",
+          "frames": 1,
+          "hr_ad": "$02",
+          "hr_sr": "$C8",
+          "count": 6
+        },
+        {
+          "type": "test_bit",
+          "frames": 1,
+          "hr_ad": "$02",
+          "hr_sr": "$C9",
+          "count": 3
+        }
+      ]
+    },
+    {
+      "file": "Tarantula.sid",
+      "writes_per_frame": 16.1,
+      "write_span": 610,
+      "note_changes": 102,
+      "hr_by_type": {
+        "test_bit": 89,
+        "none": 13
+      },
+      "hr_details": [
+        {
+          "type": "test_bit",
+          "frames": 1,
+          "hr_ad": "$04",
+          "hr_sr": "$7A",
+          "count": 60
+        },
+        {
+          "type": "none",
+          "frames": 0,
+          "hr_ad": null,
+          "hr_sr": null,
+          "count": 13
+        },
+        {
+          "type": "test_bit",
+          "frames": 1,
+          "hr_ad": "$07",
+          "hr_sr": "$99",
+          "count": 8
+        },
+        {
+          "type": "test_bit",
+          "frames": 2,
+          "hr_ad": "$07",
+          "hr_sr": "$99",
+          "count": 8
+        },
+        {
+          "type": "test_bit",
+          "frames": 1,
+          "hr_ad": "$06",
+          "hr_sr": "$98",
+          "count": 3
+        }
+      ]
+    },
+    {
+      "file": "Nancy_Drew_Multichoice_Mystery.sid",
+      "writes_per_frame": 21.1,
+      "write_span": 529,
+      "note_changes": 72,
+      "hr_by_type": {
+        "test_bit": 72
+      },
+      "hr_details": [
+        {
+          "type": "test_bit",
+          "frames": 1,
+          "hr_ad": "$17",
+          "hr_sr": "$6A",
+          "count": 65
+        },
+        {
+          "type": "test_bit",
+          "frames": 1,
+          "hr_ad": "$08",
+          "hr_sr": "$CA",
+          "count": 6
+        },
+        {
+          "type": "test_bit",
+          "frames": 1,
+          "hr_ad": "$00",
+          "hr_sr": "$FA",
+          "count": 1
+        }
+      ]
+    }
+  ],
+  "DMC": [
+    {
+      "file": "Not_My_Day_v2.sid",
+      "writes_per_frame": 18.2,
+      "write_span": 903,
+      "note_changes": 272,
+      "hr_by_type": {
+        "none": 227,
+        "test_bit": 31,
+        "gate_off": 14
+      },
+      "hr_details": [
+        {
+          "type": "none",
+          "frames": 0,
+          "hr_ad": null,
+          "hr_sr": null,
+          "count": 227
+        },
+        {
+          "type": "test_bit",
+          "frames": 1,
+          "hr_ad": "$0A",
+          "hr_sr": "$AA",
+          "count": 12
+        },
+        {
+          "type": "gate_off",
+          "frames": 1,
+          "hr_ad": "$0A",
+          "hr_sr": "$00",
+          "count": 10
+        },
+        {
+          "type": "test_bit",
+          "frames": 3,
+          "hr_ad": "$0A",
+          "hr_sr": "$AA",
+          "count": 6
+        },
+        {
+          "type": "test_bit",
+          "frames": 2,
+          "hr_ad": "$0A",
+          "hr_sr": "$AA",
+          "count": 5
+        }
+      ]
+    }
+  ],
+  "JCH_NewPlayer": [
+    {
+      "file": "X-Ray.sid",
+      "writes_per_frame": 16.6,
+      "write_span": 695,
+      "note_changes": 0,
+      "hr_by_type": {},
+      "hr_details": []
+    },
+    {
+      "file": "Hollywood.sid",
+      "writes_per_frame": 16.7,
+      "write_span": 805,
+      "note_changes": 275,
+      "hr_by_type": {
+        "none": 238,
+        "test_bit": 37
+      },
+      "hr_details": [
+        {
+          "type": "none",
+          "frames": 0,
+          "hr_ad": null,
+          "hr_sr": null,
+          "count": 238
+        },
+        {
+          "type": "test_bit",
+          "frames": 1,
+          "hr_ad": "$00",
+          "hr_sr": "$C9",
+          "count": 24
+        },
+        {
+          "type": "test_bit",
+          "frames": 1,
+          "hr_ad": "$05",
+          "hr_sr": "$5A",
+          "count": 6
+        },
+        {
+          "type": "test_bit",
+          "frames": 1,
+          "hr_ad": "$00",
+          "hr_sr": "$C2",
+          "count": 4
+        },
+        {
+          "type": "test_bit",
+          "frames": 3,
+          "hr_ad": "$05",
+          "hr_sr": "$5A",
+          "count": 2
+        }
+      ]
+    }
+  ],
+  "Soundmonitor": [
+    {
+      "file": "Shades.sid",
+      "writes_per_frame": 8.2,
+      "write_span": 3878,
+      "note_changes": 12,
+      "hr_by_type": {
+        "gate_off": 12
+      },
+      "hr_details": [
+        {
+          "type": "gate_off",
+          "frames": 1,
+          "hr_ad": "$09",
+          "hr_sr": "$0A",
+          "count": 11
+        },
+        {
+          "type": "gate_off",
+          "frames": 1,
+          "hr_ad": "$00",
+          "hr_sr": "$00",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "file": "R-Type.sid",
+      "writes_per_frame": 15.4,
+      "write_span": 590,
+      "note_changes": 334,
+      "hr_by_type": {
+        "none": 169,
+        "test_bit": 165
+      },
+      "hr_details": [
+        {
+          "type": "none",
+          "frames": 0,
+          "hr_ad": null,
+          "hr_sr": null,
+          "count": 169
+        },
+        {
+          "type": "test_bit",
+          "frames": 1,
+          "hr_ad": "$09",
+          "hr_sr": "$0F",
+          "count": 57
+        },
+        {
+          "type": "test_bit",
+          "frames": 2,
+          "hr_ad": "$09",
+          "hr_sr": "$0F",
+          "count": 55
+        },
+        {
+          "type": "test_bit",
+          "frames": 3,
+          "hr_ad": "$09",
+          "hr_sr": "$0F",
+          "count": 28
+        },
+        {
+          "type": "test_bit",
+          "frames": 1,
+          "hr_ad": "$07",
+          "hr_sr": "$6F",
+          "count": 9
+        }
+      ]
+    },
+    {
+      "file": "Great_Giana_Sisters.sid",
+      "writes_per_frame": 0,
+      "write_span": 0,
+      "note_changes": 0,
+      "hr_by_type": {},
+      "hr_details": []
+    }
+  ],
+  "Future_Composer": [
+    {
+      "file": "Cybernoid_II.sid",
+      "writes_per_frame": 15.9,
+      "write_span": 1569,
+      "note_changes": 590,
+      "hr_by_type": {
+        "none": 514,
+        "gate_off": 76
+      },
+      "hr_details": [
+        {
+          "type": "none",
+          "frames": 0,
+          "hr_ad": null,
+          "hr_sr": null,
+          "count": 514
+        },
+        {
+          "type": "gate_off",
+          "frames": 1,
+          "hr_ad": "$00",
+          "hr_sr": "$A8",
+          "count": 19
+        },
+        {
+          "type": "gate_off",
+          "frames": 2,
+          "hr_ad": "$00",
+          "hr_sr": "$A8",
+          "count": 18
+        },
+        {
+          "type": "gate_off",
+          "frames": 3,
+          "hr_ad": "$00",
+          "hr_sr": "$A8",
+          "count": 18
+        },
+        {
+          "type": "gate_off",
+          "frames": 1,
+          "hr_ad": "$00",
+          "hr_sr": "$C8",
+          "count": 5
+        }
+      ]
+    },
+    {
+      "file": "Turbo_Outrun.sid",
+      "writes_per_frame": 0,
+      "write_span": 0,
+      "note_changes": 0,
+      "hr_by_type": {},
+      "hr_details": []
+    },
+    {
+      "file": "Hawkeye.sid",
+      "writes_per_frame": 15.1,
+      "write_span": 902,
+      "note_changes": 130,
+      "hr_by_type": {
+        "none": 115,
+        "gate_off": 15
+      },
+      "hr_details": [
+        {
+          "type": "none",
+          "frames": 0,
+          "hr_ad": null,
+          "hr_sr": null,
+          "count": 115
+        },
+        {
+          "type": "gate_off",
+          "frames": 1,
+          "hr_ad": "$08",
+          "hr_sr": "$01",
+          "count": 6
+        },
+        {
+          "type": "gate_off",
+          "frames": 3,
+          "hr_ad": "$08",
+          "hr_sr": "$01",
+          "count": 3
+        },
+        {
+          "type": "gate_off",
+          "frames": 1,
+          "hr_ad": "$00",
+          "hr_sr": "$C9",
+          "count": 3
+        },
+        {
+          "type": "gate_off",
+          "frames": 2,
+          "hr_ad": "$08",
+          "hr_sr": "$01",
+          "count": 2
+        }
+      ]
+    },
+    {
+      "file": "Supremacy.sid",
+      "writes_per_frame": 20.3,
+      "write_span": 244,
+      "note_changes": 117,
+      "hr_by_type": {
+        "gate_off": 70,
+        "none": 47
+      },
+      "hr_details": [
+        {
+          "type": "none",
+          "frames": 0,
+          "hr_ad": null,
+          "hr_sr": null,
+          "count": 47
+        },
+        {
+          "type": "gate_off",
+          "frames": 1,
+          "hr_ad": "$68",
+          "hr_sr": "$CA",
+          "count": 40
+        },
+        {
+          "type": "gate_off",
+          "frames": 1,
+          "hr_ad": "$48",
+          "hr_sr": "$CA",
+          "count": 22
+        },
+        {
+          "type": "gate_off",
+          "frames": 3,
+          "hr_ad": "$68",
+          "hr_sr": "$CA",
+          "count": 4
+        },
+        {
+          "type": "gate_off",
+          "frames": 3,
+          "hr_ad": "$48",
+          "hr_sr": "$CA",
+          "count": 2
+        }
+      ]
+    },
+    {
+      "file": "Rubicon.sid",
+      "writes_per_frame": 42.9,
+      "write_span": 9169,
+      "note_changes": 162,
+      "hr_by_type": {
+        "test_bit": 101,
+        "gate_off": 51,
+        "none": 10
+      },
+      "hr_details": [
+        {
+          "type": "test_bit",
+          "frames": 1,
+          "hr_ad": "$0D",
+          "hr_sr": "$E8",
+          "count": 40
+        },
+        {
+          "type": "gate_off",
+          "frames": 1,
+          "hr_ad": "$0D",
+          "hr_sr": "$E8",
+          "count": 28
+        },
+        {
+          "type": "test_bit",
+          "frames": 2,
+          "hr_ad": "$0D",
+          "hr_sr": "$E8",
+          "count": 27
+        },
+        {
+          "type": "test_bit",
+          "frames": 3,
+          "hr_ad": "$0D",
+          "hr_sr": "$E8",
+          "count": 19
+        },
+        {
+          "type": "none",
+          "frames": 0,
+          "hr_ad": null,
+          "hr_sr": null,
+          "count": 10
+        }
+      ]
+    }
+  ],
+  "Music_Assembler": [
+    {
+      "file": "Blue_Monday.sid",
+      "writes_per_frame": 14.5,
+      "write_span": 481,
+      "note_changes": 124,
+      "hr_by_type": {
+        "test_bit": 85,
+        "gate_off": 31,
+        "none": 8
+      },
+      "hr_details": [
+        {
+          "type": "gate_off",
+          "frames": 1,
+          "hr_ad": "$08",
+          "hr_sr": "$08",
+          "count": 31
+        },
+        {
+          "type": "test_bit",
+          "frames": 1,
+          "hr_ad": "$08",
+          "hr_sr": "$08",
+          "count": 31
+        },
+        {
+          "type": "test_bit",
+          "frames": 3,
+          "hr_ad": "$08",
+          "hr_sr": "$08",
+          "count": 28
+        },
+        {
+          "type": "test_bit",
+          "frames": 2,
+          "hr_ad": "$08",
+          "hr_sr": "$08",
+          "count": 26
+        },
+        {
+          "type": "none",
+          "frames": 0,
+          "hr_ad": null,
+          "hr_sr": null,
+          "count": 8
+        }
+      ]
+    }
+  ]
+}

@@ -166,8 +166,8 @@ Extend coverage to remaining players:
 | `src/validate_hvsc.py` | Batch validation tool (register roundtrip) |
 | `src/sid_symbolic.py` | Register CSV <-> symbolic format |
 | `tools/siddump.cpp` | C++ register dumper with --writelog |
-| `data/player_analysis_all.json` | Behavior data for 642 players |
-| `data/sidid_full.txt` | Player ID for all 60,572 HVSC files |
+| `deprecated/gt2_grading/data/player_analysis_all.json` | Behavior data for 642 players |
+| `deprecated/gt2_grading/data/sidid_full.txt` | Player ID for all 60,572 HVSC files |
 | `docs/players/` | Documentation for 48 player engines |
 
 ## Build Environment

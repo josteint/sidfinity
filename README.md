@@ -157,7 +157,6 @@ src/                      V2 pipeline + shared utilities
 demo/                     Demo artefacts; build_das_model_<engine>.py emits readable asm
 docs/                     Specs (USF, GT2 data layout, player engine notes)
 tools/                    Build tools (xa65, siddump, libsidplayfp) + in-tree pytest/mypy
-data/                     HVSC collection (not in git)
 deprecated/               Earlier pipeline iterations + dead experiments
 ```
 

@@ -26,7 +26,7 @@ No byte-level format spec, no player disassembly, no technical documentation exi
 
 ### HVSC SIDId Output (sidid_full.txt)
 
-The project's `data/sidid_full.txt` (61,634 lines) contains SIDId identification results for the entire HVSC collection:
+The project's `deprecated/gt2_grading/data/sidid_full.txt` (61,634 lines) contains SIDId identification results for the entire HVSC collection:
 
 | SIDId Label | Count | Notes |
 |-------------|-------|-------|

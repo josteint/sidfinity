@@ -55,7 +55,7 @@ embed Companion-derived player code. The fixed signature
 `1E 18 8B 7E FA 06 AC F3 E6 8F F8 2E 00 00 00 ??` is data bytes (probably an
 LFO/sequence table) the two variants differ only in the last byte ($F0 vs $0E).
 
-# HVSC attributions (data/sidid_full.txt)
+# HVSC attributions (deprecated/gt2_grading/data/sidid_full.txt)
 
 Players identified as Companion in HVSC (selected):
 - `MUSICIANS/H/Hubbard_Rob/Up_up_and_Away.sid` → **Companion** (base)

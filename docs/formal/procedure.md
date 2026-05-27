@@ -16,8 +16,8 @@ Procedure:
 3. Sample 50 Grade B songs, classify the `note_wrong` / `wave_wrong` frames
 4. Look for patterns: are these differences genuinely audible?
 5. If a common inaudible pattern is found, add a tolerance rule
-6. Run full GT2 batch (`python3 src/gt2_triage.py`) to measure Grade A change
-7. Run regression (`python3 src/player/regression_test.py`) to verify zero regressions
+6. Run full GT2 batch (`python3 deprecated/gt2_grading/scripts/gt2_triage.py`) to measure Grade A change
+7. Run regression (`python3 deprecated/gt2_grading/scripts/regression_test.py`) to verify zero regressions
 8. Rebuild regression registry if Grade A count increased
 
 Track record: +233 (EarlyNoteStart symmetry), +5 (FrameShift symmetry), +155 (both-gates-off release) = **+393 songs** from three rule changes.

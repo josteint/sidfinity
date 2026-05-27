@@ -126,7 +126,6 @@ docs/                   specifications and reference docs
 tools/                  build tools (xa65, siddump, libsidplayfp)
 hvsc84/                 HVSC #84 collection (not in git, gitignored)
 demo/hubbard/           dev-iteration scratch dir for rebuilt SIDs
-data/                   project DBs / dashboard cache / analysis JSONs
 deprecated/             earlier project phases — see deprecated/<topic>/README.md
 ```
 

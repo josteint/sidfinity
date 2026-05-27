@@ -1,5 +1,5 @@
 ---
-source_url: tools/sidid.cfg + data/sidid_full.txt + HVSC Musicians.txt
+source_url: tools/sidid.cfg + deprecated/gt2_grading/data/sidid_full.txt + HVSC Musicians.txt
 fetched_via: local repo + WebFetch
 fetch_date: 2026-05-25
 author: HVSC + sidid signature DB
@@ -36,7 +36,7 @@ Murray's variant (A4 = 423 Hz) is presumably recognised as base
 `Companion` because the structural pattern is identical; only
 the frequency table differs.
 
-## HVSC SIDs by Companion signature (from data/sidid_full.txt)
+## HVSC SIDs by Companion signature (from deprecated/gt2_grading/data/sidid_full.txt)
 
 ### Base `Companion` (26 hits)
 - `MUSICIANS/B/Berry_Vic/Webern_Op_21.sid`
@@ -55,7 +55,7 @@ the frequency table differs.
 - `MUSICIANS/H/Hubbard_Rob/Up_up_and_Away.sid` (5 subtunes)
 - `MUSICIANS/H/Hoernell_Karl/Melonmania.sid`
 - (remainder ~10 not listed in our snippet — would benefit from a full
-  `grep -c "Companion$" data/sidid_full.txt` audit)
+  `grep -c "Companion$" deprecated/gt2_grading/data/sidid_full.txt` audit)
 
 ### `Companion/Jay_Derrett` (25 hits — partial sample)
 - `MUSICIANS/R/Raeburn_Gavin/Gun_Runner.sid` (co-credit; Derrett's engine)
