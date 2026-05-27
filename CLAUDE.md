@@ -120,24 +120,35 @@ xa65 assembler at `tools/xa65/xa/xa`. CUDA at `/usr/bin/nvcc`.
 
 ```
 pipelines/              13 active engines (12 Hubbard under hubbard/, plus companion)
-src/                    shared source — USF v2 reader/writer at src/usf2/
-                        plus broader-scope tools (sidxray, GT2 pipeline, etc.)
+src/                    USF v2 shared source — usf2/ (grammar + reader/writer),
+                        hubbard_emu.py, effect_detect.py, songlengths.py,
+                        gt_parser.py, env.sh. Everything pre-USF-v2 moved
+                        to deprecated/<topic>/.
 docs/                   specifications and reference docs
 tools/                  build tools (xa65, siddump, libsidplayfp)
 hvsc84/                 HVSC #84 collection (not in git, gitignored)
 deprecated/             earlier project phases — see deprecated/<topic>/README.md
 ```
 
-## Other workstreams (not the USF v2 focus)
+## Earlier workstreams (now under `deprecated/`)
 
-- **GT2 / GoatTracker pipeline** lives at `src/gt2_*.py` and ships its own
-  USF format (USF v1 / `src/usf.py`). It's a separate active pipeline that
-  reached partial coverage of HVSC GT2 SIDs. Documented separately; not part
-  of the USF v2 byte-exact methodology described above.
-- **Register-trace pipeline** (`src/regtrace_to_usf.py`) — universal fallback
-  via siddump CSV. Useful for engines we haven't reverse-engineered.
-- **sidxray** (`src/sidxray/`) — player reverse-engineering toolkit.
+Pre-USF-v2 work lives in `deprecated/<topic>/` clusters, each with its
+own README. The most relevant ones to know about:
 
-These workstreams are intentionally not detailed here. If they become
-relevant to a given task, search `src/` and the relevant `_deprecated/`
-memory archive.
+- `deprecated/gt2_pipeline/` — the GT2 / GoatTracker conversion pipeline
+  (static binary → USF v1) + bundled GoatTracker source distributions +
+  the universal register-trace fallback
+- `deprecated/v2_codegen/` — the GT2-era per-song 6502 codegen (V2/V3
+  + Z3 + GPU optimisers)
+- `deprecated/gt2_grading/` — Grade S/A/B/C/F bucketing tools + the
+  HVSC coverage dashboard
+- `deprecated/lean_codegen/` — the original per-engine Lean 4 codegen
+  + Lean formal-methods tools
+- `deprecated/usf1_pipelines/` — engines and helpers that never moved
+  off USF v1
+- `deprecated/sidxray/` — player reverse-engineering toolkit
+- `deprecated/research_docs/` — accumulated research material on the
+  Companion / Hubbard / DMC engines
+
+Each `deprecated/<topic>/README.md` describes what's there and how to
+revive it if needed.

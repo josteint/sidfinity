@@ -61,3 +61,30 @@ If the GT2 / Grade A workflow becomes useful again:
 The data is a snapshot from a specific point in time (approximately the
 state at HVSC #84 release) — re-run the relevant pipelines against current
 HVSC if you need a fresh measurement.
+
+## Addendum (2026-05-27): grading + analysis tools added during the src/ cleanup
+
+The following grading-era utilities also moved here from `src/`:
+
+```
+sid_compare.py             jitter-tolerant register comparator (the
+                           comparator that produced Grade S/A/B/C/F)
+writelog_diff.py           writelog comparison
+writelog_align_grade.py    align-by-content + grade
+writelog_grade.py          writelog-based grading
+audio_compare.py           PCM cross-correlation + spectral similarity
+py65_grade.py              py65-based grading
+ground_truth.py            ground-truth helpers
+batch_grade_hubbard.py     batch-grade all Hubbard SIDs
+batch_discover_landmarks.py
+discover_hubbard_landmarks.py
+code_flow.py               control-flow code_end detection
+freq_reconstruct.py        reconstruct freq table from played output
+memdiff.py                 classify static vs dynamic memory
+memdump_freq.py
+rh_decompile.py            Hubbard binary decompiler (the OLD one;
+                           pipelines/hubbard/<engine>/extract/decompile.py
+                           is the active per-engine decompiler)
+rh_to_usf.py               Hubbard → USF (v1) converter
+sid_data_extractor.py      universal SID data table discovery
+```
