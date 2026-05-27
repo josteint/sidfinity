@@ -104,7 +104,8 @@ int main(int argc, char* argv[])
             "  --writelog     Append full register write stream with cycle timing (ground truth)\n"
             "  --memtrace     Append memory access trace\n"
             "  --pcm          Output raw 16-bit signed PCM to stdout\n"
-            "  --force-rsid   Process RSID files (normally skipped)\n",
+            "  --force-rsid   Process RSID files (normally skipped)\n"
+            "  --pc-trace FILE START END  Dump CPU PC trace to FILE for frames START..END\n",
             argv[0]);
         return 1;
     }
@@ -119,6 +120,9 @@ int main(int argc, char* argv[])
     bool memtrace = false;
     bool pcm = false;
     bool force_rsid = false;
+    const char* pc_trace_path = nullptr;
+    int pc_trace_start_frame = -1;
+    int pc_trace_end_frame = -1;
 
     for (int i = 2; i < argc; i++) {
         if (strcmp(argv[i], "--raw") == 0) {
@@ -133,6 +137,10 @@ int main(int argc, char* argv[])
             pcm = true;
         } else if (strcmp(argv[i], "--force-rsid") == 0) {
             force_rsid = true;
+        } else if (strcmp(argv[i], "--pc-trace") == 0 && i + 3 < argc) {
+            pc_trace_path = argv[++i];
+            pc_trace_start_frame = atoi(argv[++i]);
+            pc_trace_end_frame = atoi(argv[++i]);
         } else if (strcmp(argv[i], "--subtune") == 0 && i + 1 < argc) {
             subtune = atoi(argv[++i]);
         } else if (strcmp(argv[i], "--duration") == 0 && i + 1 < argc) {
@@ -278,7 +286,17 @@ int main(int argc, char* argv[])
     uint8_t regs[32];
     bool anyNonZero = false;
 
+    FILE* pcTraceFile = nullptr;
     for (int frame = 0; frame < totalFrames; frame++) {
+        if (pc_trace_path) {
+            if (frame == pc_trace_start_frame) {
+                pcTraceFile = fopen(pc_trace_path, "w");
+                if (pcTraceFile) engine.debug(true, pcTraceFile);
+            } else if (frame == pc_trace_end_frame) {
+                engine.debug(false, nullptr);
+                if (pcTraceFile) { fclose(pcTraceFile); pcTraceFile = nullptr; }
+            }
+        }
         if (digi || writelog) {
             engine.clearWriteLog(0);
         }

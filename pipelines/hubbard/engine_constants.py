@@ -311,7 +311,7 @@ def chimera_psid_dispatcher(music_init: int, music_play: int,
 # the per-frame write distribution; verify_all's _checksum_digi
 # already hashes the flat (reg, val) sequence so byte-identity isn't
 # required — but in practice this assembles to exactly the original
-# 305 bytes (verified via assemble_chimera_digi_player()).
+# 299 bytes (verified via assemble_chimera_digi_player()).
 CHIMERA_DIGI_PLAYER_ASM = r"""
 * = $C000
 
@@ -455,12 +455,14 @@ vol_write
     sta $F9                 ; reload rate counter
     jmp advance_check
 
-; cleanup — mute, restore VIC, pop scratch, re-enable IRQ, restore banking.
-; Order matters. The banking restore (which maps BASIC ROM over
-; the $A000-$BFFF range) must come AFTER the last instruction inside
-; that range, otherwise the next opcode fetch reads BASIC ROM garbage
-; instead of the bytes we just wrote. Restoring it LAST means RTS pops
-; into the psiddrv driver page (always RAM) regardless of $01 state.
+; cleanup — mute, restore VIC, pop scratch, re-enable IRQ, return.
+; We DO NOT restore banking ($01) here. If the player lives in
+; $A000-$BFFF, restoring banking to $37 maps BASIC ROM over the
+; player's own RAM, and the next instruction fetch (RTS) would
+; read a BASIC ROM byte instead of the $60 RTS we placed. psiddrv
+; restores $01 itself in setregs after init returns (via its
+; explicit lda #$37 ; sta $01 in the driver page, which is RAM
+; regardless of banking).
 cleanup
     lda #$00
     sta $D418
@@ -475,9 +477,6 @@ cleanup
     pla
     sta $F7
     cli
-    lda #$03
-    ora $01
-    sta $01                 ; restore default banking — MUST be last
     rts
 
 ; ping — SFX fallback when no valid bank found
@@ -511,7 +510,7 @@ d011_cache
 
 def assemble_chimera_digi_player(player_base: int = 0xC000) -> bytes:
     """Run xa65 on `CHIMERA_DIGI_PLAYER_ASM` at the given origin and
-    return the 305-byte blob. Cached per player_base."""
+    return the 299-byte blob. Cached per player_base."""
     if player_base in _CHIMERA_DIGI_PLAYER_CACHE:
         return _CHIMERA_DIGI_PLAYER_CACHE[player_base]
     import os
@@ -531,9 +530,9 @@ def assemble_chimera_digi_player(player_base: int = 0xC000) -> bytes:
                            f'{r.stdout}\n{r.stderr}')
     with open(obj, 'rb') as f:
         bs = f.read()
-    if len(bs) != 305:
+    if len(bs) != 299:
         raise RuntimeError(
-            f'Chimera digi player assembled to {len(bs)} bytes, expected 305')
+            f'Chimera digi player assembled to {len(bs)} bytes, expected 299')
     _CHIMERA_DIGI_PLAYER_CACHE[player_base] = bs
     return bs
 
@@ -549,7 +548,7 @@ CHIMERA_DIGI = DigiCode(
     dispatcher=b'',                          # regenerated at codegen time
     music_init_patch_off=0,                  # unused for PSID
     music_play_patch_off=0,                  # unused for PSID
-    player_base=0xC000,
+    player_base=0xB093,
     # The player bytes are assembled lazily from CHIMERA_DIGI_PLAYER_ASM;
     # `assemble_chimera_digi_player()` runs xa65 and caches the result.
     # Stored as a sentinel empty bytes here; the codegen calls the
