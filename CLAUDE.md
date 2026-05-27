@@ -1,295 +1,145 @@
 # CLAUDE.md — Instructions for continuing development
 
-## Key References
+## Project goal
 
-- **`docs/usf_representation_principle.md`** — How USF must represent instruments/effects to be good ML training data. **Load-bearing. Read in full — not a summary — before designing or changing any USF instrument/effect representation.**
-- **`docs/PLAN.md`** — Full roadmap
-- **`docs/decisions.md`** — Dead ends and settled architectural decisions. **Read before investigating a bug you think might have been tried before.**
-- **`docs/benchmark.csv`** — Grade A count over time. **Append a row after each batch improvement.**
-- **`docs/usf_spec.md`** — USF specification (update when USF changes, then update all converters)
-- **`docs/gt2_data_layout.md`** — Byte-level GT2 data layout (read before touching the packer)
-- **`src/sidxray/METHODOLOGY.md`** — How to reverse-engineer any SID player
-- **`docs/formal/procedure.md`** — Mathematical methods: when to use which tool, decision framework
-- **`docs/formal/experiment_results.md`** — What works and what doesn't (10 experiments tested)
+Build the SIDfinity universal SID music player and ML pipeline. Take the
+HVSC catalogue of ~60,000 C64 SID files and translate every engine's binary
+format into a single uniform symbolic representation (USF) — engine-neutral
+musical data that an ML model can learn from. See `docs/PLAN.md` for the
+roadmap.
 
-## Continuous Improvement Process
+## Current state (2026-05-27)
 
-### MANDATORY before ANY pipeline work
-**STOP. Before writing or modifying any code, do these checks:**
-1. **Check if this engine has a diagnosis memory.** Search memories for `project_*_diagnosis.md`. If one exists, READ IT — it contains root cause analysis from prior sessions. Do NOT re-investigate from scratch.
-2. **Check `docs/formal/procedure.md`** for the decision framework. It tells you which tool to use for which problem. Follow it.
-3. **Check `docs/formal/experiment_results.md`** — 10 approaches were tested. 3 were proven NOT USEFUL. Don't re-try them.
-4. For Grade A improvement: start with trace equivalence mining (highest ROI, +501 songs from 4 rules)
-5. For new engines: taint tracking + abstract interpretation first, then code
-6. For fast validation: formal semantics player (15x faster than siddump)
+**13 Hubbard '85 engines byte-exact through the USF v2 pipeline.**
+95/95 subtunes verify via `pipelines.hubbard.verify.verify_all` (md5 of
+per-frame SID-register snapshots). Members: Commando, Monty, Action Biker,
+Battle of Britain, Chimera (2 music + 2 digi), Confuzion, Devils Galop,
+5 Title Tunes (unified), Human Race, Hunter Patrol, One Man and his Droid,
+Thing on a Spring, plus the separate 1984 Companion engine (Up, up & Away!).
 
-**The most common mistake:** jumping straight to manual frame-by-frame analysis instead of using the tools. The tools exist for a reason — they're faster and find root causes that staring at hex dumps won't.
-
-### CURRENT STRATEGIC DIRECTION (2026-05): generalize das_model_gen via discovery
-- Goal: most Hubbard SIDs sound right (audibly identical) when rebuilt → USF.
-- Baseline measured 2026-05-09: `rh_to_usf` + Python `codegen_v3` produces **0/285 Grade A** on Hubbard SIDs via writelog comparison. Even Commando is 1.0% match through that path.
-- (Historical, 2026-05-27: the per-engine Lean codegen described here was deprecated. The active byte-exact path now goes through `pipelines/hubbard/commando/config.py` → `pipelines/hubbard/codegen.py` — the shared Python core. See `deprecated/lean_codegen/README.md`.)
-- Direction: **generalize `das_model_gen.extract`** to take any Hubbard SID + landmarks. Use `src/sidxray/discover.py` to find landmarks rh_decompile misses (freq table coverage went from 14% → 87.4% via discovery alone).
-- Do **NOT** grind `rh_to_usf` bug-by-bug. That path is deeply broken (0/285) and would take months to fix incrementally.
-- Do **NOT** propose writelog-replay as a shortcut. User explicitly rejected; defeats USF/ML purpose.
-- Use `src/writelog_grade.py` for verdicts (NOT `src/sid_compare.py` — it has false-A bugs). Calibrated thresholds: A ≥ 98% snapshot match (acknowledged-heuristic until Lean comparator built).
-- Use `src/batch_grade_hubbard.py` to re-measure all 285 Hubbard SIDs after every meaningful change.
-- See memory `project_hubbard_strategy_2026_05.md` for the full plan.
-
-### Meta-rule: evaluate and evolve the process itself
-On compaction (the PreCompact hook will remind you):
-1. Check: are the current approaches still the highest ROI? Read `docs/benchmark.csv` — is the curve flattening?
-2. Check: are the memories accurate? Read and update `project_math_formalization.md` and `project_pipeline_status.md`
-3. Check: are there new approaches worth testing? Read `docs/formal/experiment_results.md` — any "NEEDS WORK" items worth revisiting?
-4. Check: should CLAUDE.md itself change? If a convention isn't being followed or a new pattern has emerged, update this file.
-5. If a tool that was "NOT USEFUL" starts seeming relevant (e.g., Z3 for non-GT2 engines), re-test it with a concrete experiment before investing.
-
-## Working Conventions
-
-### Keep things current
-- After fixing a bug that changes the Grade A count, update the pipeline status memory and CLAUDE.md status line.
-- After finding a new measurement artifact, improve `sid_compare.py` BEFORE investigating further — don't chase false positives.
-- Before ending a session, check if any memories have become stale or wrong. Update or remove them.
-- After adding a new tool or capability, add it to the Key Files table in this file.
-
-### Automate repeated work
-- If you do the same manual analysis 3+ times, write a reusable tool for it (like `gt2_triage.py` was born from manual F-grade sampling).
-- If you're running a multi-step pipeline by hand, make it a script.
-- Prefer 64-core parallel batch runs over sequential sampling.
-
-### Test everything
-- Run the full regression (`python3 src/player/regression_test.py`, 20 seconds) before EVERY commit that touches pipeline code.
-- If a fix causes ANY regression (even 1 song), investigate before accepting it.
-- When the Grade A count increases, rebuild the regression registry so new songs are protected.
-
-### Be skeptical
-- Challenge assumptions, even ones that seem well-established. The toneporta "init timing" investigation wasted hours because we assumed the init frame was the cause — it wasn't.
-- When a theory doesn't produce results after 2-3 attempts, stop and reconsider the premise. Read `docs/decisions.md` for known dead ends.
-- When you don't know something, acknowledge it. Ask: where can we get more knowledge? Check the GT2 player source, siddump --writelog output, py65 step-debug, or audio_compare ground truth.
-- Verify claims against real data. "The player is 1 frame late" means nothing without frame-by-frame register dumps showing the exact offset.
-
-### Fix bugs, not symptoms
-- When register comparison shows differences, first determine if the difference is AUDIBLE. Use `audio_compare.py` for ground truth if unsure.
-- Don't widen comparison tolerance to hide real bugs. Only classify as jitter what is genuinely inaudible (silent voice, phase drift of same notes, ±frame timing shift).
-- Use the investigation methodology: pick ONE song, trace the EXACT wrong frame, find root cause. See memory `feedback_bug_investigation.md`.
-
-## Project Goal
-
-Build the SIDfinity universal SID music player and ML pipeline. See `docs/PLAN.md` for the full roadmap and current status.
-
-**Status:** 4,716/6,595 Grade A (71.5%) on full HVSC GT2 scope. 6,768/7,325 (92.4%) parseable. Two paths to USF: static binary parsing (primary) and register trace analysis (universal fallback for any engine). **Rob Hubbard pipeline:** 31A + 1S + 3B + 15C = 50/95 songs graded A/S/B/C. Arpeggio freq table extension (2026-04-22): +13 A-grade songs (Commando F→A). Jitter rules: symmetric FrameShift, both-gates-off release tolerance, EarlyNoteStart symmetry (+160 + +233 Grade A).
-
-**Next steps (in priority order):**
-1. Add CIA timer / multispeed support to V2 player (703 songs, 9.6% of GT2, currently 100% F-rate — see docs/investigation_tempo12_fgrade.md)
-2. Continue F-grade investigation for remaining parseable songs
-3. Start ML training on 2,348 Grade A songs (USF tokenization)
-4. Expand to DMC (10,738 SIDs) and JCH (3,678 SIDs) — `regtrace_to_usf.py` works on them with zero engine-specific code
-
-**Key insights:**
-- V2 player code blocks are at 6502 minimum cycle counts. Further Grade A gains come from fixing decompiler/player BUGS, not cycle optimization.
-- **Tempo >= 12 songs are multispeed (CIA timer)**, NOT init timing. They run 2-16x per frame via CIA interrupts. V2 player needs CIA timer setup to support these. (Previous claim of "init timing" was wrong.)
-- Any byte-count change in the V2 player shifts 6502 addresses, causing ±1 frame timing jitter from page-crossing cycle penalties. This is handled by the comparison methodology (see below), not by avoiding code changes.
-- Pattern bleed-through: GT2 reads past ENDPATT when FX param is 0x00. Fixed in decompiler by matching GT2's continuation marker re-read behavior.
-- To investigate F-grade songs: pick the highest-scoring one, trace the first wrong frame, classify the error, fix root cause, batch test. See memory `feedback_bug_investigation.md`.
-
-## Comparison Methodology (sid_compare.py)
-
-The comparison classifies each frame difference as audible or inaudible:
-
-**Audible (counts toward grade):** `note_wrong`, `wave_wrong`
-**Weakly audible:** `env_wrong` (tolerated up to 1% for Grade A — ADSR write-order timing)
-**Inaudible:** `note_jitter`, `wave_jitter`, `gate_diff`, `env_jitter`, `freq_fine`, `pulse_diff`, `pulse_jitter`
-
-**Jitter detection layers (in order):**
-1. **Silent voice** — freq diffs when waveform bits are all 0 (oscillator off)
-2. **Noise freq** — both sides play noise ($80/$81), rate diffs are inaudible
-3. **Both-gates-off release** — both sides have gate=0, freq diff is inaudible (decaying to silence)
-4. **±3 frame window (symmetric)** — freq_hi found in the other stream's nearby frames (both directions)
-5. **1-frame transient** — both neighbors match (isolated glitch)
-6. **Early note start (symmetric)** — one side fires next note while other releases, ±20 frames (both directions)
-7. **Test-bit waveform** — $08/$09 near gate transitions is HR artifact
-8. **Sequence-level** — same note-change-event sequence in different order (95% LCS match)
-9. **Global value set** — both streams use identical set of freq_hi values (arpeggio phase drift)
-10. **Vibrato phase drift** — ±8 frame window, both values appear in each other's window (50% threshold)
-11. **Init/end grace** — first 10 frames and last 2 frames excluded
-
-**Grading:** A = zero note_wrong + wave_wrong (env_wrong < 1%). B = < 2% audible. C = < 10%. F = >= 10%.
-
-## CRITICAL: Do Not Break These Invariants
-
-### Wave table +2 extraction offset — DO NOT CHANGE
-
-`gt2_parse_direct.py` line 380 uses `table_operands[1] + 2` for the wave_right start. This looks wrong (mathematically +1 is correct) but it compensates for the GT2 player's `INY` before note column read. The V2 codegen reads notes BEFORE INY, so the +2 extraction and pre-INY read cancel out. **Changing either one without changing the other breaks ALL songs.**
-
-Verified: changing +2 to +1 breaks 42/43 songs. The paired system is self-consistent.
-
-### Wave table bias chain — THREE interdependent transformations
-
-1. **Decompiler** extracts packed bytes (may include +$10 bias)
-2. **gt2_to_usf** subtracts bias when `nowavedelay=False`: `sng_l = packed_l - $10`
-3. **Packer** adds bias back when `nowavedelay=True` (hardcoded in usf_to_sid.py)
-4. **V2 player** without WAVE_DELAY stores directly (no subtract — needs actual SID values)
-5. **V2 player** with WAVE_DELAY does `CMP #$10; BCS; SBC #$10`
-6. **Packer** `skip_bias` flag skips step 3 for V2 without WAVE_DELAY
-
-If `nowavedelay` is wrong, the chain breaks. Do NOT change `skip_bias` without understanding the full chain.
-
-### Group A pulse speed — FIXED via codegen ASL;BCC
-
-Some GT2 players use `ASL;BCC;CLC` to double pulse speed before adding. The fix is in codegen_v2.py: when `pulse_speed_asl=True`, emit `ASL;BCC;CLC` instead of `CLC;BPL`. Speed bytes stay UN-doubled in USF — the doubling happens at runtime via ASL. Do NOT try to double speed bytes in gt2_to_usf.py — naive doubling breaks sign detection (e.g. 0x40 doubled to 0x80 changes sign, causing wrong DEC pulsehi).
-
-### siddump frame boundary drift — measurement artifact, not a bug
-
-siddump uses 19688 cycles/frame (19656 + 32 margin). This causes the VBI to drift relative to siddump's frame boundary. Register diffs from this drift are classified as jitter (inaudible) in sid_compare.py. Do NOT try to "fix" these diffs by changing player cycle counts.
-
-## Pipelines
-
+**Layout — `pipelines/`:**
 ```
-Path 1 (static parsing — high quality, GT2-specific):
-GT2 SID → gt2_decompile → gt2_to_usf → USF Song → usf_to_sid → rebuilt SID
-                                                       ↓
-                                              codegen_v2 (V2 player)
-                                                       ↓
-                                              sidfinity_pack (xa65 assembly)
-
-Path 2 (register trace — universal, any engine):
-ANY SID → siddump → register CSV → regtrace_to_usf → USF Song → usf_to_sid → rebuilt SID
-
-Path 3 (Hubbard family, structured — produces byte-exact SIDs):
-SID binary → decompile → engine_model (extract) → to_usf_v2 → <name>.usf
-           → pipelines/hubbard/build_from_usf.py → rebuilt SID
+pipelines/
+├── hubbard/            shared Python core + 12 per-tune engines as subdirs
+│   ├── codegen.py      ← THE 6502 player generator (consumed by every engine)
+│   ├── build_from_usf.py
+│   ├── verify.py
+│   ├── engine_constants.py
+│   ├── (digi, sfx, instrument, song, sample, flac modules)
+│   └── <engine>/       config.py + extract/{decompile,engine_model,to_usf_v2,types}.py
+├── companion/          separate 1984 Bowden engine (own codegen)
+└── README.md
 ```
 
-**When to use which path:**
-- Path 1: GT2 SIDs where `find_freq_table` + `parse_gt2_direct` succeed (95.6% of GT2)
-- Path 2: any SID where static parsing fails, or non-GT2 engines as a starting point
-- Path 3: Hubbard's early-era engine. 12 engines on this path (byte-exact):
-  Commando, Monty, Action Biker, Battle of Britain, Chimera, Confuzion,
-  Devils Galop, 5 Title Tunes, Human Race, Hunter Patrol, One Man and his
-  Droid, Thing on a Spring. Each is described by
-  `pipelines/hubbard/<engine>/config.py` +
-  `pipelines/hubbard/<engine>/extract/`; the shared `pipelines/hubbard/codegen.py`
-  is the single 6502 player generator. See each pipeline's `README.md`.
+Older paths live under `deprecated/`:
+- `deprecated/lean_codegen/` — the per-engine Lean 4 codegen (replaced by `pipelines/hubbard/codegen.py`)
+- `deprecated/usf1_pipelines/` — engines that never migrated off USF v1 + per-engine USF v1 writers
 
-The previous per-engine Lean codegen has been moved to
-`deprecated/lean_codegen/`.
+## MANDATORY before any new pipeline work
 
-**Comparison:** `sid_compare.py` (jitter-tolerant) and `src/writelog_grade.py` (siddump
-writelog match) both compare original vs rebuilt frame-by-frame.
+1. **Check the engine's project memory** — `~/.claude/projects/-home-jtr-sidfinity/memory/project_<engine>.md`. Reads any prior session's root-cause analysis so you don't re-investigate from scratch.
+2. **Re-read `docs/usf_representation_principle.md` IN FULL** before designing or changing any USF instrument/effect representation. Load-bearing — see [`feedback_usf_representation_principle`](~/.claude/projects/-home-jtr-sidfinity/memory/feedback_usf_representation_principle.md).
+3. **Check `deprecated/` for prior attempts** before rewriting something from scratch.
 
-## Build Environment
+## Doing a Hubbard '85 engine migration
 
-64-core EPYC, 512GB RAM, dual 3090 GPUs. No sudo — everything from source in-tree.
+Use the `migrate-hubbard-engine` skill at `.claude/skills/migrate-hubbard-engine/`. Short form:
+
+1. `cp hvsc84/MUSICIANS/H/Hubbard_Rob/<Engine>.sid demo/hubbard/<Engine>_original.sid`
+2. Generate a seed disassembly: `tools/seed_disassembly.py …` → `docs/hubbard_<engine>_disassembly.s` → hand-annotate the header
+3. Create `pipelines/hubbard/<engine>/config.py` (clone a similar existing one — Action Biker is a good template; Chimera if there's digi)
+4. Create `pipelines/hubbard/<engine>/extract/engine_model.py` + `extract/to_usf_v2.py`
+5. Iterate: build → capture original vs rebuilt → fix first diff → repeat
+6. Verify byte-exact via `pipelines.hubbard.verify.verify_all`
+
+When the engine reaches byte-exact, its USF + rebuilt SID go alongside the
+HVSC original at `hvsc84/MUSICIANS/H/Hubbard_Rob/<Engine>.{usf, sidfinity.sid}`.
+
+## Working conventions
+
+- **`pipelines.hubbard.verify.verify_all` is the verdict.** Returns subtune-level OK/FAIL. md5 of per-frame `$D400-$D418` register snapshots from py65 capture; for digi subtunes it uses `siddump --writelog` (cycle-strict).
+- **py65 misses dispatch bugs** (CIA timer, PSID speed). Ear-test new engines and any dispatch changes in real sidplayfp before declaring done.
+- **Commit early.** Each verified delta is one commit. No `Co-Authored-By`.
+- **Propose options before code** for non-trivial work. Honest scope. Pause at decision points.
+- **Schema additions are suspicious by default** — see [`feedback_schema_addition_discipline`](~/.claude/projects/-home-jtr-sidfinity/memory/feedback_schema_addition_discipline.md). Exhaust derivation / `engine_constants` / existing-params alternatives first. `bytes`-typed fields almost always mean you're papering over a representation gap.
+- **The shared core stays parametric.** New engine quirks become config fields on `EngineConfig`, never `if engine == "Foo"` branches.
+
+## Build & test
 
 ```bash
-source src/env.sh        # set up PATH
-bash tools/build.sh      # build libsidplayfp + siddump
-```
+source src/env.sh              # adds tools/siddump etc. to PATH
+bash tools/build.sh            # builds libsidplayfp + siddump (one-time)
 
-xa65 assembler at `tools/xa65/xa/xa`. CUDA toolkit at `/usr/bin/nvcc`.
-
-## Testing
-
-```bash
-# Full regression (3,478 GT2 songs, 33 seconds)
-source src/env.sh
-python3 src/player/regression_test.py
-
-# Single song through pipeline
-python3 -c "
-import sys; sys.path.insert(0, 'src')
-from gt2_to_usf import gt2_to_usf
-from usf_to_sid import usf_to_sid
-from sid_compare import compare_sids_tolerant
-song = gt2_to_usf('path/to/song.sid')
-usf_to_sid(song, '/tmp/rebuilt.sid')
-comp = compare_sids_tolerant('path/to/song.sid', '/tmp/rebuilt.sid', 10)
-print(f'Grade: {comp[\"grade\"]} Score: {comp[\"score\"]:.1f}')
+# Rebuild one engine through the pipeline
+python -c "
+from pipelines.hubbard.commando.extract.to_usf_v2 import write_commando_usf
+from pipelines.hubbard.commando.config import COMMANDO
+from pipelines.hubbard.build_from_usf import build_from_usf
+write_commando_usf(COMMANDO, 'demo/hubbard')
+build_from_usf('demo/hubbard/Commando.usf', 'demo/hubbard/Commando.sid')
 "
+
+# Verify byte-exact
+python -c "
+from pipelines.hubbard.verify import verify_all
+from pipelines.hubbard.commando.config import COMMANDO
+print(verify_all([(COMMANDO, 'demo/hubbard/Commando.sid')]))
+"
+
+# Extract smoke tests
+pytest pipelines/
 ```
 
-## Key Files
+## Key files (USF v2 path)
 
-### GT2 Pipeline (active)
 | File | Purpose |
 |------|---------|
-| `src/gt2_to_usf.py` | GT2 SID → USF converter |
-| `src/usf_to_sid.py` | USF → rebuilt SID (via V2 codegen) |
-| `src/usf.py` | Universal Symbolic Format data structures |
-| `src/gt2_decompile.py` | GT2 binary decompiler |
-| `src/gt2_parse_direct.py` | Operand-based GT2 parser (finds columns via 6502 instruction analysis) |
-| `src/gt2_detect_version.py` | Player group (A/B/C/D) + feature flag detection |
-| `src/sid_compare.py` | Register-level comparison with 8-layer jitter tolerance |
-| `src/gt_parser.py` | Low-level GT2 binary parser (freq tables, PSID header) |
-| `src/gt2_packer.py` | GT2 freq tables + packing constants |
-| `src/detect_flags.py` | GT2 compilation flag detection (legacy packer path) |
-| `src/sidfinity_pack.py` | SIDfinity player packer (xa65 assembly) |
+| `pipelines/hubbard/codegen.py` | The 6502 player generator. Parameterised by `EngineConfig`. |
+| `pipelines/hubbard/build_from_usf.py` | End-to-end: `.usf` → assembled SID |
+| `pipelines/hubbard/verify.py` | `verify_all` — md5 of per-frame snapshots |
+| `pipelines/hubbard/engine_constants.py` | freq tables, digi player asm, `EngineConstants` |
+| `pipelines/hubbard/config.py` | `EngineConfig` dataclass (the parameter surface) |
+| `pipelines/hubbard/to_usf_v2.py` | Shared USF v2 writer |
+| `pipelines/hubbard/song_interp.py` | runtime interpretation of voice/note state |
+| `pipelines/hubbard/note_codec.py` | bitstream note encoding |
+| `pipelines/hubbard/inst_*.py` | instrument modelling |
+| `pipelines/hubbard/sfx.py` | sound-effect engine (shared) |
+| `pipelines/hubbard/sample.py`, `flac_io.py`, `digi_pack.py` | digi sidecar pipeline |
+| `pipelines/hubbard/<engine>/config.py` | per-tune `EngineConfig` instance |
+| `pipelines/hubbard/<engine>/extract/engine_model.py` | per-tune binary → `(T, I, S)` lifter |
+| `pipelines/hubbard/<engine>/extract/to_usf_v2.py` | per-tune USF v2 writer |
+| `src/usf2/` | USF v2 grammar + reader/writer (spec: `docs/usf_v2_format.md`) |
+| `tools/siddump.cpp` | C++ register dumper (libsidplayfp). `--writelog` for cycle timing, `--pc-trace` for CPU PC trace. |
 
-### V2 Player Codegen + Optimization
-| File | Purpose |
-|------|---------|
-| `src/player/codegen_v2.py` | V2 per-song 6502 code generator |
-| `src/player/codegen.py` | Feature detection for codegen |
-| `src/player/peephole.py` | Post-generation branch-over-JMP optimizer (ACTIVE) |
-| `src/player/cycle_model.py` | Static cycle counting + path tracing (estimates only) |
-| `src/player/layout_opt.py` | JMP/branch distance analysis |
-| `src/player/z3_6502.py` | Z3 SMT 6502 model for formal verification |
-| `src/player/z3_synth.py` | Z3-based instruction sequence synthesizer |
-| `src/player/gpu_6502.cu` | CUDA brute-force 6502 optimizer (dual 3090) |
-| `src/player/gpu_optimize.py` | Python interface for GPU optimizer |
-| `src/player/regression_test.py` | 3,478-song parallel regression suite (20 sec) |
+## Build environment
 
-### Universal Reverse-Engineering Tools
-| File | Purpose |
-|------|---------|
-| `src/regtrace_to_usf.py` | Register trace → USF (universal path, works for ANY player engine) |
-| `src/code_flow.py` | Control-flow code_end detection (no freq table needed) |
-| `src/freq_reconstruct.py` | Reconstruct freq table from played output |
-| `src/memdiff.py` | Classify static vs dynamic memory via siddump --memdump |
-| `src/usf2/audit.py` | PC-traced per-voice SID-write capture for Rule 1 collapse audits (voice attribution + disasm cross-ref) |
+64-core EPYC, 512 GB RAM, dual 3090 GPUs. No sudo — everything from source in-tree.
+xa65 assembler at `tools/xa65/xa/xa`. CUDA at `/usr/bin/nvcc`.
 
-### Player Reverse-Engineering (sidxray)
-| File | Purpose |
-|------|---------|
-| `src/sidxray/trace.py` | Capture memory traces via `siddump --memtrace` |
-| `src/sidxray/analyze.py` | Autocorrelation, periodicity, tempo, column classification |
-| `src/sidxray/xray.py` | Data region discovery from memory access patterns |
-| `src/sidxray/gt2_detect.py` | GT2 layout detection from traces (strict + relaxed modes) |
-| `src/sid_data_extractor.py` | Universal SID data table discovery (any player engine) |
-
-### Future Engine Support
-| File | Purpose |
-|------|---------|
-| `src/dmc_parser.py` | DMC (Demo Music Creator) SID parser |
-| `src/dmc_to_usf.py` | DMC → USF converter (partial) |
-
-### Analysis + Debugging
-| File | Purpose |
-|------|---------|
-| `src/audio_compare.py` | Audio A/B comparison (PCM cross-correlation + spectral similarity) |
-| `src/gt2_triage.py` | Automated F-grade categorization (64-core, ~30 seconds) |
-| `src/sidid.py` | Player engine identification wrapper (uses tools/sidid) |
-| `src/player/emu_test.py` | py65 6502 emulator test harness (step-debug V2 player) |
-
-### Utilities
-| File | Purpose |
-|------|---------|
-| `src/usf_text.py` | Human-readable USF text serialization |
-| `src/songlengths.py` | HVSC Songlengths.md5 database parser |
-| `tools/siddump.cpp` | C++ register dumper (libsidplayfp, `--writelog` for cycle timing) |
-| `tools/sidrender.cpp` | SID → raw PCM audio renderer |
-| `tools/build.sh` | Build script for libsidplayfp + siddump |
-| `src/env.sh` | Environment setup (PATH for tools) |
-
-## Project Structure
+## Project structure
 
 ```
-src/                    Active source code
-  player/               V2 player codegen + optimization tools
-  sidxray/              Player reverse-engineering tools
-docs/                   Specifications and reference docs
-tools/                  Build tools (xa65, siddump, libsidplayfp)
-hvsc84/                 HVSC #84 collection (not in git)
-data/                   Project data — grade DB, dashboard cache, analysis JSONs
-deprecated/             Earlier development phases (with READMEs)
+pipelines/              13 active engines (12 Hubbard under hubbard/, plus companion)
+src/                    shared source — USF v2 reader/writer at src/usf2/
+                        plus broader-scope tools (sidxray, GT2 pipeline, etc.)
+docs/                   specifications and reference docs
+tools/                  build tools (xa65, siddump, libsidplayfp)
+hvsc84/                 HVSC #84 collection (not in git, gitignored)
+demo/hubbard/           dev-iteration scratch dir for rebuilt SIDs
+data/                   project DBs / dashboard cache / analysis JSONs
+deprecated/             earlier project phases — see deprecated/<topic>/README.md
 ```
+
+## Other workstreams (not the USF v2 focus)
+
+- **GT2 / GoatTracker pipeline** lives at `src/gt2_*.py` and ships its own
+  USF format (USF v1 / `src/usf.py`). It's a separate active pipeline that
+  reached partial coverage of HVSC GT2 SIDs. Documented separately; not part
+  of the USF v2 byte-exact methodology described above.
+- **Register-trace pipeline** (`src/regtrace_to_usf.py`) — universal fallback
+  via siddump CSV. Useful for engines we haven't reverse-engineered.
+- **sidxray** (`src/sidxray/`) — player reverse-engineering toolkit.
+
+These workstreams are intentionally not detailed here. If they become
+relevant to a given task, search `src/` and the relevant `_deprecated/`
+memory archive.
