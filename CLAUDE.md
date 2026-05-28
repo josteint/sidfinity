@@ -111,6 +111,45 @@ pytest pipelines/
 | `src/usf2/` | USF v2 grammar + reader/writer (spec: `docs/usf_v2_format.md`) |
 | `tools/siddump.cpp` | C++ register dumper (libsidplayfp). `--writelog` for cycle timing, `--pc-trace` for CPU PC trace. |
 
+## HVSC index database — `hvsc84.db`
+
+A SQLite catalogue of every SID in `hvsc84/` with classification +
+build status. Built by `tools/build_sid_db.py` (re-runnable, idempotent,
+~20 s incremental). Use it for:
+
+- **engine-by-engine iteration** (instead of folder-by-folder)
+- **coverage queries** ("how many Rob_Hubbard tunes are migrated?")
+- **migration candidate selection** ("show me the longest unmigrated
+  tunes by engine X, sorted by songlength")
+
+There's **no `sqlite3` CLI** on this system — query with Python:
+
+```python
+import sqlite3
+db = sqlite3.connect('hvsc84.db')
+for path, title in db.execute(
+    "SELECT path, title FROM sids "
+    "WHERE engine='Rob_Hubbard' AND pipeline IS NULL "
+    "ORDER BY songlength_s DESC LIMIT 10"
+): print(path, title)
+```
+
+Schema in `tools/build_sid_db.py` (one table `sids`, indexes on
+engine / pipeline / md5).
+
+### When to re-run `tools/build_sid_db.py`
+
+| Trigger | Why |
+|---|---|
+| After migrating a new engine to `pipelines/` | refresh `pipeline` column |
+| After running the build for an engine | refresh `usf_path` / `sidfinity_md5` |
+| After an HVSC update (#85 lands) | re-walk + re-classify added/removed SIDs |
+| After re-running `sidid` | refresh engine column |
+| After `verify_all` (future hook) | refresh `verify_status` columns |
+
+The script is idempotent — when in doubt, re-run with no flags. Use
+`--rebuild` to ignore mtime cache and re-hash everything.
+
 ## Build environment
 
 64-core EPYC, 512 GB RAM, dual 3090 GPUs. No sudo — everything from source in-tree.
