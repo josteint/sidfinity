@@ -54,7 +54,7 @@ Player code is at 6502 minimum cycle counts (confirmed by Z3 SMT solver and GPU 
 
 1. **Register-level pipeline** — 100% lossless roundtrip on 56,936 PSID files (now in `deprecated/`)
 2. **Player identification** — sidid identifies 97.8% of HVSC (59,267/60,572 files, 758 signatures)
-3. **Player documentation** — 48 major engines documented in `docs/players/`
+3. **Player documentation** — 48 major engines documented in `deprecated/research_docs/players/`
 4. **Player behavior analysis** — 642 engines analyzed via cycle-accurate write logs
 5. **GT2 binary roundtrip** — 5,792/7,006 byte-for-byte matches (now in `deprecated/`)
 
@@ -160,7 +160,7 @@ Extend coverage to remaining players:
 |------|---------|
 | `src/player/sidfinity.a65` | The 6502 player (xa65 assembly) |
 | `src/player/test_build.py` | Test SID builder for the player |
-| `docs/sidfinity_player_spec.md` | Complete player data format specification |
+| `deprecated/lean_codegen/docs/sidfinity_player_spec.md` | Complete player data format specification |
 | `src/gt_parser.py` | GoatTracker V2 SID binary parser |
 | `src/analyze_player.py` | Player behavior analyzer (write logs) |
 | `src/validate_hvsc.py` | Batch validation tool (register roundtrip) |
@@ -168,7 +168,7 @@ Extend coverage to remaining players:
 | `tools/siddump.cpp` | C++ register dumper with --writelog |
 | `deprecated/gt2_grading/data/player_analysis_all.json` | Behavior data for 642 players |
 | `deprecated/gt2_grading/data/sidid_full.txt` | Player ID for all 60,572 HVSC files |
-| `docs/players/` | Documentation for 48 player engines |
+| `deprecated/research_docs/players/` | Documentation for 48 player engines |
 
 ## Build Environment
 

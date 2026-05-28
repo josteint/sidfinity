@@ -10,7 +10,7 @@ To get there, we first have to take ~60,000 existing SID files from the [HVSC ar
 
 A `.sid` file isn't audio. It isn't notes-and-instruments either. It's **6502 machine code** — a tiny program that, when run on a Commodore 64, writes registers to the SID sound chip 50 times a second.
 
-That means *every SID file is its own music player*. There is no standard music format underneath. Different composers used different "engines": Rob Hubbard's player, GoatTracker, JCH NewPlayer, DMC, Galway, Cybertracker, [dozens more](docs/players/). Each engine has its own custom binary layout for the music data — instruments, note patterns, orderlists — that *only that engine's player code* knows how to interpret. From the outside, every SID is a black box.
+That means *every SID file is its own music player*. There is no standard music format underneath. Different composers used different "engines": Rob Hubbard's player, GoatTracker, JCH NewPlayer, DMC, Galway, Cybertracker, [dozens more](deprecated/research_docs/players/). Each engine has its own custom binary layout for the music data — instruments, note patterns, orderlists — that *only that engine's player code* knows how to interpret. From the outside, every SID is a black box.
 
 This makes machine-learning on SIDs awkward. You can't train on raw bytes — they don't have shared structure. You need to first translate every black box into a common language. That's hard for several reasons.
 
@@ -162,10 +162,10 @@ deprecated/               Earlier pipeline iterations + dead experiments
 
 ## Docs
 
-- [USF Specification](docs/usf_spec.md)
+- [USF Specification](docs/usf_v2_format.md)
 - [Development Plan](docs/PLAN.md)
-- [GT2 Data Layout](docs/gt2_data_layout.md)
-- [Player Engine Notes](docs/players/) — 48 SID engines
+- [GT2 Data Layout](deprecated/gt2_pipeline/docs/gt2_data_layout.md)
+- [Player Engine Notes](deprecated/research_docs/players/) — 48 SID engines
 
 ## License
 
