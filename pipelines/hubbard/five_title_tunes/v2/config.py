@@ -32,7 +32,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.d
 # Standalone sub PSIDs (written by tools/split_multi_binary.py). The
 # `_ensure_subs()` helper regenerates these on demand so the configs
 # are usable even without pre-running the splitter.
-WORK_SUBS = os.path.join(ROOT, 'pipelines', 'five_title_tunes', 'work_subs')
+WORK_SUBS = os.path.join(ROOT, 'pipelines', 'hubbard', 'five_title_tunes', 'work_subs')
 
 PARENT_SID = os.path.join(ROOT, 'hvsc84', 'MUSICIANS', 'H',
                           'Hubbard_Rob', '5_Title_Tunes.sid')
