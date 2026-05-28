@@ -240,6 +240,11 @@ def write_usf(out_dir: str) -> str:
     validate(usf)
     out_path = os.path.join(out_dir, 'Up_up_and_Away.usf')
     write_file(usf, out_path)
+    try:
+        from src.sid_db import record_usf
+        record_usf(out_path)
+    except Exception:
+        pass    # db update is best-effort; never break the build
     return out_path
 
 

@@ -179,10 +179,19 @@ def verify_all(engine_jobs, passes: float = 1.1,
             pickle.dump(cache, f)
 
     out = {}
+    # Need the rebuilt path per engine to write back into hvsc84.db, but
+    # plan[name] only carries (st, ok_key, rb_key). Map from name → rebuilt
+    # path via the original engine_jobs list.
+    rebuilt_paths = {config.name: rebuilt for config, rebuilt in engine_jobs}
     for name, subs in plan.items():
         results = [(st, cache[ok_key] == cache[rb_key])
                    for st, ok_key, rb_key in subs]
         out[name] = (results, all(ok for _, ok in results))
+        try:
+            from src.sid_db import record_verify
+            record_verify(rebuilt_paths[name], results)
+        except Exception:
+            pass    # db update is best-effort; never break verify
     return out
 
 

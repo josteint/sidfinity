@@ -328,6 +328,13 @@ def write_usf(config, out_dir: str,
         writer(os.path.join(out_dir, fname))
 
     validate(usf, usf_dir=out_dir)
+
+    try:
+        from src.sid_db import record_usf
+        record_usf(usf_path)
+    except Exception:
+        pass    # db update is best-effort; never break the build
+
     return usf_path
 
 

@@ -584,12 +584,20 @@ def build_from_usf(usf_path: str, out_path: str, codec=None) -> str:
     digi_subs = [s for s in usf.subtunes if isinstance(s, DigiSubtune)]
     digi_subs.sort(key=lambda s: s.id)
     if not digi_subs:
-        return _emit_sid(inputs, out_path, codec)
+        result = _emit_sid(inputs, out_path, codec)
+    else:
+        ec = ENGINE_CONSTANTS[usf.engine]
+        if ec.digi is None:
+            raise ValueError(
+                f'engine {usf.engine!r} has no DigiCode but USF declares '
+                f'digi subtunes')
+        result = _emit_combined_sid(inputs, usf, digi_subs, ec.digi,
+                                    out_path, usf_dir, codec)
 
-    ec = ENGINE_CONSTANTS[usf.engine]
-    if ec.digi is None:
-        raise ValueError(
-            f'engine {usf.engine!r} has no DigiCode but USF declares '
-            f'digi subtunes')
-    return _emit_combined_sid(inputs, usf, digi_subs, ec.digi,
-                              out_path, usf_dir, codec)
+    try:
+        from src.sid_db import record_rebuild
+        record_rebuild(out_path)
+    except Exception:
+        pass    # db update is best-effort; never break the build
+
+    return result

@@ -160,6 +160,11 @@ def build_from_usf(usf_path: str, out_path: str) -> str:
 
     with open(out_path, 'wb') as f:
         f.write(bytes(h) + code)
+    try:
+        from src.sid_db import record_rebuild
+        record_rebuild(out_path)
+    except Exception:
+        pass    # db update is best-effort; never break the build
     return out_path
 
 

@@ -114,7 +114,7 @@ pytest pipelines/
 ## HVSC index database — `hvsc84.db`
 
 A SQLite catalogue of every SID in `hvsc84/` with classification +
-build status. Built by `tools/build_sid_db.py` (re-runnable, idempotent,
+build status. The pipeline updates this DB automatically (build → `sidfinity_md5`, USF write → `usf_path`, verify → `verify_*`). Initial population + full rebuild via `tools/build_sid_db.py` (re-runnable, idempotent,
 ~20 s incremental). Use it for:
 
 - **engine-by-engine iteration** (instead of folder-by-folder)
