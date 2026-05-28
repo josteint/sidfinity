@@ -1,0 +1,164 @@
+"""Extract → USF v2 for the Bowden-canonical Companion variant.
+
+Reads a Vic Berry SID, lifts the per-voice orderlists + timbres +
+tempo + init positions, and writes a `.usf` alongside the original.
+
+USF representation:
+  - 1 music subtune (PSID songs=1 in this cluster)
+  - 3 instruments (one per voice) — locked timbre: waveform/ctrl, PW,
+    AD, SR. PW never modulates so pwm.mode='none' with `init` carrying
+    the fixed PW.
+  - Per-voice patterns of K rows (pitches and rests), where K is the
+    orderlist's length up to (excluding) the engine's $FF terminator.
+  - `orderlist: 1 loop@0` per voice — the engine's flat orderlist is
+    a single looping pattern; the $FF byte is the loop marker, not a
+    musical row.
+  - V2/V3 initial phase offset carried in `subtune.params`
+    (`init_pos_v2`, `init_pos_v3`). V1 always starts at 0 (zeroed by
+    engine init).
+"""
+
+from __future__ import annotations
+
+import os
+
+from src.usf2 import (
+    UsfFile, PsidMeta, Params, InitState, InitVoice, Instrument,
+    PwmConfig, ArpConfig, VibratoConfig, EnvelopeConfig, MusicSubtune,
+    VoiceBlock, Orderlist, Pattern, NoteRow, Pitch, InstrumentRef,
+    write_file, validate,
+)
+from pipelines.companion.bowden_canonical.engine_constants import (
+    note_byte_to_pitch,
+)
+from pipelines.companion.bowden_canonical.extract.engine_model import (
+    load_state_from_sid,
+)
+
+
+def _row_from_note_byte(b: int) -> NoteRow:
+    if b == 0x80:
+        return NoteRow(pitch=Pitch.rest(), duration=1)
+    name, octave = note_byte_to_pitch(b)
+    return NoteRow(pitch=Pitch(name=name, octave=octave), duration=1)
+
+
+def _pattern_from_orderlist(pattern_id: int, ol: bytes) -> Pattern:
+    """Build a USF Pattern from one engine orderlist (excluding $FF)."""
+    body = ol[:-1] if ol and ol[-1] == 0xFF else ol
+    rows = [_row_from_note_byte(b) for b in body]
+    return Pattern(id=pattern_id, length=len(rows), rows=rows)
+
+
+def _instrument_from_timbre(instr_id: int, tb: bytes) -> Instrument:
+    """5-byte timbre (pw_lo, pw_hi, ctrl, ad, sr) → USF Instrument.
+
+    The engine's per-voice timbre maps to a 'frozen' Instrument:
+      - waveform = [ctrl]  (engine writes ctrl, then ctrl|1 for gate)
+      - pwm = mode=none  init=(pw_hi<<8|pw_lo)
+      - adsr = (ad, sr)
+      - arp/vib/envelope = no modulation
+    """
+    pw = (tb[1] << 8) | tb[0]
+    return Instrument(
+        id=instr_id,
+        waveform=[tb[2]],
+        loop=0,
+        pwm=PwmConfig(mode='none', speed=0, init=pw, min_hi=0, max_hi=0),
+        adsr=(tb[3], tb[4]),
+        arp=ArpConfig(offsets=[0], period=1),
+        vibrato=VibratoConfig(scale=0),
+        envelope=EnvelopeConfig(),
+    )
+
+
+def _psid_meta_from_sid(sid_path: str) -> PsidMeta:
+    """Read the PSID header strings + clock + sid model."""
+    raw = open(sid_path, 'rb').read()
+    title = raw[0x16:0x36].rstrip(b'\x00').decode('latin-1')
+    author = raw[0x36:0x56].rstrip(b'\x00').decode('latin-1')
+    released = raw[0x56:0x76].rstrip(b'\x00').decode('latin-1')
+    flags = int.from_bytes(raw[0x76:0x78], 'big')
+    clock_bits = (flags >> 2) & 0x03
+    clock = {0: 'unknown', 1: 'PAL', 2: 'NTSC', 3: 'both'}[clock_bits]
+    sid_bits = (flags >> 4) & 0x03
+    sid = {0: 6581, 1: 6581, 2: 8580, 3: 6581}[sid_bits]
+    start_song = int.from_bytes(raw[0x10:0x12], 'big')
+    return PsidMeta(
+        title=title,
+        author=author,
+        released=released,
+        clock=clock,
+        sid=sid,
+        start_song=start_song,
+    )
+
+
+def build_usf(sid_path: str) -> UsfFile:
+    """Extract a Bowden-canonical SID into an in-memory UsfFile."""
+    state = load_state_from_sid(sid_path)
+
+    instruments = [_instrument_from_timbre(i + 1, state.timbre[i])
+                   for i in range(3)]
+
+    voices = []
+    for v in range(3):
+        pat = _pattern_from_orderlist(1, state.orderlists[v])
+        voices.append(VoiceBlock(
+            id=v + 1,
+            orderlist=Orderlist(entries=[1], loop_to=0),
+            patterns=[pat],
+        ))
+
+    subtune_params = Params(fields={
+        'init_pos_v1': state.v_pos[0],   # always 0 — carried for symmetry
+        'init_pos_v2': state.v_pos[1],
+        'init_pos_v3': state.v_pos[2],
+    })
+
+    music = MusicSubtune(
+        id=0,
+        tempo=state.tempo,
+        voices=voices,
+        params=subtune_params,
+    )
+
+    top_init = InitState(voices=[
+        InitVoice(id=1, instr=InstrumentRef(id=1)),
+        InitVoice(id=2, instr=InstrumentRef(id=2)),
+        InitVoice(id=3, instr=InstrumentRef(id=3)),
+    ])
+
+    return UsfFile(
+        version=2,
+        engine='bowden_canonical',
+        psid=_psid_meta_from_sid(sid_path),
+        params=Params(),
+        init=top_init,
+        instruments=instruments,
+        subtunes=[music],
+    )
+
+
+def write_usf(sid_path: str, out_path: str | None = None) -> str:
+    """Extract a Bowden-canonical SID and write `.usf` next to it."""
+    if out_path is None:
+        base, _ = os.path.splitext(sid_path)
+        out_path = base + '.usf'
+    usf = build_usf(sid_path)
+    validate(usf)
+    write_file(usf, out_path)
+    try:
+        from src.sid_db import record_usf
+        record_usf(out_path)
+    except Exception:
+        pass
+    return out_path
+
+
+if __name__ == '__main__':
+    import sys
+    sid = sys.argv[1] if len(sys.argv) > 1 else \
+        'hvsc84/MUSICIANS/B/Berry_Vic/Bach_Sonata.sid'
+    p = write_usf(sid)
+    print(f'wrote {p}')
