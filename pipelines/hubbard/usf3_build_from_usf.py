@@ -73,8 +73,13 @@ def _inputs_from_usf3(usf: UsfFile) -> _Inputs:
     subtune_ids = tuple(s.id for s in music_subs)
     scores = [_score_from_subtune(s) for s in music_subs]
     resetspds = [s.tempo - 1 for s in music_subs]
-    voice_starts_map = get('voice_starts', {})
-    voice_starts = [voice_starts_map.get(s.id, 2) for s in music_subs]
+    # Per-subtune voice_start: when an Action-Biker-style subtune
+    # skips a voice, the subtune's own `params { voice_start: N }`
+    # carries the override. Default 2 = V3 starts the play loop.
+    voice_starts = []
+    for s in music_subs:
+        sp = s.params.fields if s.params else {}
+        voice_starts.append(sp.get('voice_start', 2))
 
     # SFX subtunes
     sfx_subs = sorted(
