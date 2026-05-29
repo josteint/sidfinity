@@ -84,17 +84,38 @@ def _run_init(sid_path: str):
     return bytearray(mpu.memory), list(mpu.memory.sid_writes), raw, load
 
 
-def _row_from_byte(b: int) -> NoteRow:
-    if b == 0x80:
-        return NoteRow(pitch=Pitch.rest(), duration=1)
-    if b == 0x81:
-        return NoteRow(pitch=Pitch.rest(), duration=1, fx_flags=('fx:hold',))
-    if b & 0x80:
-        # Unrecognised bit-7 byte (Henrys_House data uses only $80/$81/$FF)
-        return NoteRow(pitch=Pitch.rest(), duration=1,
-                       fx_flags=(f'fx:raw_{b:02x}',))
-    name, octave = note_byte_to_pitch(b)
-    return NoteRow(pitch=Pitch(name=name, octave=octave), duration=1)
+def _extract_pattern_rows(body: bytes) -> list[NoteRow]:
+    """Decode the pattern's byte body into a list of NoteRows.
+
+    Engine bytes: $00-$7F = note, $80 = rest (writes gate-off),
+    $81 = skip (no write — continues whatever the voice was doing).
+    A run of one head byte ($00-$7F or $80) followed by $81s is
+    musically a single event of the head's kind whose duration is
+    the run length. So we collapse runs into rows whose `duration`
+    is the tick count.
+    """
+    rows: list[NoteRow] = []
+    for b in body:
+        if b == 0x81:
+            if rows:
+                rows[-1].duration += 1
+            else:
+                # Pattern beginning with $81 — engine does nothing this
+                # tick. Encode as a rest tick we extend later.
+                rows.append(NoteRow(pitch=Pitch.rest(), duration=1))
+        elif b == 0x80:
+            rows.append(NoteRow(pitch=Pitch.rest(), duration=1))
+        elif b & 0x80:
+            # Pattern body should never hit this (only $80/$81/note);
+            # $FF is the terminator handled separately. Keep a raw
+            # escape for defence in depth.
+            rows.append(NoteRow(pitch=Pitch.rest(), duration=1,
+                                fx_flags=(f'fx:raw_{b:02x}',)))
+        else:
+            name, octave = note_byte_to_pitch(b)
+            rows.append(NoteRow(pitch=Pitch(name=name, octave=octave),
+                                duration=1))
+    return rows
 
 
 # Known data offsets in Henrys_House's binary (relative to load $ACC0).
@@ -131,11 +152,12 @@ def build_usf(sid_path: str) -> UsfFile:
         envelope=EnvelopeConfig(),
     )
 
-    rows = [_row_from_byte(b) for b in orderlist[:-1]]   # exclude $FF terminator
+    rows = _extract_pattern_rows(orderlist[:-1])         # exclude $FF terminator
+    total_ticks = sum(r.duration for r in rows)
     voice = VoiceBlock(
         id=1,
         orderlist=Orderlist(entries=[1], loop_to=0),
-        patterns=[Pattern(id=1, length=len(rows), rows=rows)],
+        patterns=[Pattern(id=1, length=total_ticks, rows=rows)],
     )
     # Grammar requires 3 voices per subtune; pad with empty placeholders
     # that the codegen ignores (henrys_house is single-voice).
@@ -196,15 +218,22 @@ def write_usf(sid_path: str, out_path: str | None = None) -> str:
 # Codegen (USF → SID)
 # ---------------------------------------------------------------------------
 
-def _row_to_byte(row: NoteRow) -> int:
+def _row_to_bytes(row: NoteRow) -> bytes:
+    """Serialise one NoteRow back to its engine byte sequence.
+
+    A row's `duration` D = 1 head byte + (D-1) $81 skips. The head
+    byte is the pitched-note byte for a note row, $80 for a rest, or
+    the raw byte for the (defensive) fx:raw_NN fallback.
+    """
     if not row.pitch.is_rest:
-        return pitch_to_note_byte(row.pitch.name, row.pitch.octave)
-    if 'fx:hold' in row.fx_flags:
-        return 0x81
-    for f in row.fx_flags:
-        if f.startswith('fx:raw_'):
-            return int(f.split('_')[1], 16)
-    return 0x80
+        head = pitch_to_note_byte(row.pitch.name, row.pitch.octave)
+    else:
+        head = 0x80
+        for f in row.fx_flags:
+            if f.startswith('fx:raw_'):
+                head = int(f.split('_')[1], 16)
+                break
+    return bytes([head]) + bytes([0x81] * (row.duration - 1))
 
 
 def emit_asm(usf: UsfFile) -> str:
@@ -227,7 +256,8 @@ def emit_asm(usf: UsfFile) -> str:
 
     # Extract pattern bytes
     pat = ms.voices[0].patterns[0]
-    pattern_bytes = bytes(_row_to_byte(r) for r in pat.rows) + bytes([0xFF])
+    pat_body = b''.join(_row_to_bytes(r) for r in pat.rows)
+    pattern_bytes = pat_body + bytes([0xFF])
 
     tempo = ms.tempo
 
