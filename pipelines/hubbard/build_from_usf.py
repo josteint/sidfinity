@@ -260,14 +260,8 @@ def _inputs_from_usf(usf: UsfFile) -> _Inputs:
     def latin1(s: str) -> bytes:
         return s.encode('latin-1', errors='replace')
 
-    # Engine equates / asm flags
-    p = usf.params.fields
-
-    def get(key: str, default):
-        return p.get(key, default)
-
     # Instruments — convert USF → InstrumentModel
-    models = [_model_from_usf_instrument(u, get('vib_onset', 6))
+    models = [_model_from_usf_instrument(u, ec.vib_onset)
               for u in usf.instruments]
 
     # Music subtunes only (digi handled elsewhere for now)
@@ -278,13 +272,12 @@ def _inputs_from_usf(usf: UsfFile) -> _Inputs:
     resetspds = [s.tempo - 1 for s in music_subs]
     voice_starts = [ec.voice_starts.get(s.id, 2) for s in music_subs]
 
-    # Per-subtune overrides — populated from each subtune's `params` and
-    # `init` blocks (USF v2 unified-engine extension). When ANY music
-    # subtune carries these, the codegen switches to per-subtune-table
-    # mode; existing engines (which don't emit these blocks) fall
-    # through with all lists = None.
-    has_per_subtune = any(
-        s.params is not None or s.init is not None for s in music_subs)
+    # Per-subtune overrides — only the unified compound engines
+    # (5 Title Tunes) carry per-subtune mechanism deltas + per-subtune
+    # init state. Standard engines have empty subtune_overrides and
+    # no per-subtune init blocks, so the codegen stays in single-mode.
+    has_per_subtune = bool(ec.subtune_overrides) or any(
+        s.init is not None for s in music_subs)
     per_subtune_speed_ctr_init = None
     per_subtune_incby2_step = None
     per_subtune_incby2_late_gate = None
@@ -294,19 +287,21 @@ def _inputs_from_usf(usf: UsfFile) -> _Inputs:
         per_subtune_incby2_step = []
         per_subtune_incby2_late_gate = []
         per_subtune_ovseed = []
-        for s in music_subs:
-            sp = s.params.fields if s.params is not None else {}
-            per_subtune_speed_ctr_init.append(sp.get('speed_ctr_init', 0))
-            per_subtune_incby2_step.append(sp.get('incby2_step', 2) & 0xFF)
+        for i, s in enumerate(music_subs):
+            ov = ec.subtune_overrides.get(s.id, {})
+            per_subtune_speed_ctr_init.append(
+                ov.get('speed_ctr_init', ec.speed_ctr_init))
+            per_subtune_incby2_step.append(
+                ov.get('incby2_step', ec.incby2_step) & 0xFF)
+            late_gate = ov.get('incby2_late_gate', ec.incby2_late_gate)
             per_subtune_incby2_late_gate.append(
-                sp.get('incby2_late_gate', 0xFF) & 0xFF)
+                (0xFF if late_gate is None else late_gate) & 0xFF)
             per_subtune_ovseed.append(
                 _ovseed_from_init_state(s.init, len(usf.instruments)))
-            # Per-subtune tick divider / voice start may override too.
-            if 'tick_divider' in sp:
-                resetspds[len(per_subtune_ovseed) - 1] = sp['tick_divider']
-            if 'voice_start' in sp:
-                voice_starts[len(per_subtune_ovseed) - 1] = sp['voice_start']
+            if 'tick_divider' in ov:
+                resetspds[i] = ov['tick_divider']
+            if 'voice_start' in ov:
+                voice_starts[i] = ov['voice_start']
 
     # SFX subtunes — reconstruct engine SoundEffect records in PSID-id order
     sfx_subs = sorted(
@@ -321,26 +316,22 @@ def _inputs_from_usf(usf: UsfFile) -> _Inputs:
         author=latin1(usf.psid.author),
         released=latin1(usf.psid.released),
         start_song=usf.psid.start_song,
-        arp_interval=get('arp_interval', 12),
-        arp_period=get('arp_period', 2),
-        arp_phase_invert=get('arp_phase_invert', False),
-        linear_pw_or=get('linear_pw_or', 0),
-        incby2_step=get('incby2_step', 2),
-        incby2_every_frame=get('incby2_every_frame', False),
-        incby2_onset=get('incby2_onset', 3),
-        suppress_first_notestart=get('suppress_first_notestart', False),
-        freeze_on_stop=get('freeze_on_stop', False),
-        speed_ctr_init=get('speed_ctr_init', 0),
-        first_frame_gate_off=get('first_frame_gate_off', False),
-        seed_overlap=get('seed_overlap', True),
+        arp_interval=ec.arp_interval,
+        arp_period=ec.arp_period,
+        arp_phase_invert=ec.arp_phase_invert,
+        linear_pw_or=ec.linear_pw_or,
+        incby2_step=ec.incby2_step,
+        incby2_every_frame=ec.incby2_every_frame,
+        incby2_onset=ec.incby2_onset,
+        suppress_first_notestart=ec.suppress_first_notestart,
+        freeze_on_stop=ec.freeze_on_stop,
+        speed_ctr_init=ec.speed_ctr_init,
+        first_frame_gate_off=ec.first_frame_gate_off,
+        seed_overlap=ec.seed_overlap,
         psid_speed=usf.psid.speed,
-        frame_ctr_init=get('frame_ctr_init', 0xFF),
-        incby2_late_gate=(get('incby2_late_gate', -1)
-                          if get('has_incby2_late_gate', False) else None),
-        # `has_stop_fill` distinguishes "stop_fill = 0 (write zeros)"
-        # from "no stop_fill (don't write anything)". Earlier USFs
-        # without this field default to None (no fill).
-        stop_fill=(get('stop_fill', 0) if get('has_stop_fill', False) else None),
+        frame_ctr_init=ec.frame_ctr_init,
+        incby2_late_gate=ec.incby2_late_gate,
+        stop_fill=ec.stop_fill,
         sfx_framectr_ofs=ec.sfx_framectr_ofs,
         sfx_state_ofs=ec.sfx_state_ofs,
         has_sfx=ec.has_sfx,
@@ -357,13 +348,10 @@ def _inputs_from_usf(usf: UsfFile) -> _Inputs:
         per_subtune_incby2_step=per_subtune_incby2_step,
         per_subtune_incby2_late_gate=per_subtune_incby2_late_gate,
         per_subtune_ovseed=per_subtune_ovseed,
-        master_vol_subtrahend_voice=(get('master_vol_subtrahend_voice', -1)
-                                     if get('has_master_vol_fade', False)
-                                     else None),
-        master_vol_base=get('master_vol_base', 0xA0),
-        master_vol_trigger=('every_note' if get(
-            'master_vol_trigger_every_note', False) else 'inst_change'),
-        tie_preserves_slide=get('tie_preserves_slide', False),
+        master_vol_subtrahend_voice=ec.master_vol_subtrahend_voice,
+        master_vol_base=ec.master_vol_base,
+        master_vol_trigger=ec.master_vol_trigger,
+        tie_preserves_slide=ec.tie_preserves_slide,
     )
 
 

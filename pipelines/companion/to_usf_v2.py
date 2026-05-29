@@ -219,12 +219,11 @@ def build_usf() -> UsfFile:
 
     psid = _read_psid_meta(CFG.sid_path)
 
-    # Engine-level params: just bookkeeping for the schema. Companion
-    # has no per-engine arp/vibrato/PWM parameters — those concepts
-    # simply don't apply. Per-subtune `params` blocks carry all the
-    # actually-variable engine state.
-    params = Params(fields={'instr_base': 0x1000, 'instr_count': 15,
-                            'freq_table_base': 0x1000})
+    # No top-level mechanism params for Companion — the codegen always
+    # emits LOAD=$1000 so the old instr_base/freq_table_base/instr_count
+    # placeholders were vestigial. Per-subtune `params` blocks (which
+    # still carry per-tune engine state) are a separate concern.
+    params = Params(fields={})
 
     # Top-level init is a placeholder (sub 0's). Per-subtune overrides
     # are what the codegen actually consumes.

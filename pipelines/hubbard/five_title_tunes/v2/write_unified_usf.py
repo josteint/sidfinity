@@ -67,24 +67,12 @@ def build_unified_usf() -> UsfFile:
     # PSID metadata from the parent SID.
     psid = _read_psid_meta(PARENT_SID)
 
-    # Engine-level params — the values shared across all subtunes.
-    # Per-subtune overrides go on each MusicSubtune.params.
-    params = Params(fields={
-        'arp_interval': inputs.arp_interval,
-        'arp_period': inputs.arp_period,
-        'vib_onset': 8,
-        'linear_pw_or': inputs.linear_pw_or,
-        'incby2_step': inputs.incby2_step,           # scalar fallback
-        'incby2_onset': inputs.incby2_onset,
-        'speed_ctr_init': inputs.speed_ctr_init,
-        # Bookkeeping fields the codegen reads from the USF; values
-        # are placeholders for the unified build (it uses the absolute
-        # instrument table emitted from `inputs.models`, no instr_base
-        # lookup needed). Kept for schema completeness.
-        'instr_base': 0x1000,
-        'instr_count': instr_count,
-        'freq_table_base': 0x1000,
-    })
+    # Engine mechanism (arp_interval, vib_onset, per-subtune
+    # speed_ctr_init / incby2_step / incby2_late_gate / tick_divider /
+    # voice_start) lives in engine_constants.py keyed by engine name.
+    # The USF carries an empty top-level params block and per-subtune
+    # init state only.
+    params = Params(fields={})
 
     # Engine-level init — placeholder (sub_0's values). The codegen's
     # unified path uses each subtune's own init block instead.
@@ -93,17 +81,12 @@ def build_unified_usf() -> UsfFile:
     instruments = [_convert_instrument(m, inputs.arp_period)
                    for m in inputs.models]
 
-    # 5 music subtunes.
+    # 5 music subtunes. Per-subtune init state (per-voice engine state
+    # captured at each sub's init) stays in USF; per-subtune mechanism
+    # has moved to ENGINE_CONSTANTS['five_title_tunes'].subtune_overrides.
     music_subtunes = []
     for st_idx, score in enumerate(inputs.scores):
         ms = _convert_score(st_idx, score)
-        ms.params = Params(fields={
-            'speed_ctr_init': inputs.per_subtune_speed_ctr_init[st_idx],
-            'incby2_step': inputs.per_subtune_incby2_step[st_idx] & 0xFF,
-            'incby2_late_gate': inputs.per_subtune_incby2_late_gate[st_idx],
-            'tick_divider': inputs.resetspds[st_idx],
-            'voice_start': inputs.voice_starts[st_idx],
-        })
         ms.init = _init_state_from_ovseed(
             inputs.per_subtune_ovseed[st_idx], instr_count)
         music_subtunes.append(ms)

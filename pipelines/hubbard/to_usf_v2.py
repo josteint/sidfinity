@@ -195,47 +195,15 @@ def _read_psid_meta(sid_path: str) -> PsidMeta:
 # ---------------------------------------------------------------------------
 
 def _params_from_config(config) -> Params:
-    """Project each EngineConfig field onto the USF `params:` block.
+    """The top-level USF `params:` block.
 
-    Engine-specific defaults are preserved in `EngineConfig`; this
-    function carries them through into the USF unconditionally. The
-    codegen's `_inputs_from_usf` reads these back, falling back on a
-    sensible default when a field is absent (legacy engines that
-    were extracted before a field existed).
+    Engine mechanism (arp_interval, vib_onset, master_vol_*, etc.) now
+    lives in `pipelines/hubbard/engine_constants.py` keyed by engine
+    name — per [[feedback_usf_representation_principle]] the USF
+    carries music, the engine carries mechanism. The block remains
+    declared for grammar compatibility but is empty.
     """
-    return Params(fields={
-        'arp_interval':              config.arp_interval,
-        'arp_period':                config.arp_period,
-        'arp_phase_invert':          config.arp_phase_invert,
-        'linear_pw_or':              config.linear_pw_or,
-        'vib_onset':                 config.vib_onset,
-        'speed_ctr_init':            config.speed_ctr_init,
-        'incby2_step':               config.incby2_step,
-        'incby2_every_frame':        config.incby2_every_frame,
-        'incby2_onset':              config.incby2_onset,
-        'suppress_first_notestart':  config.suppress_first_notestart,
-        'freeze_on_stop':            config.freeze_on_stop,
-        'first_frame_gate_off':      config.first_frame_gate_off,
-        'seed_overlap':              config.seed_overlap,
-        'frame_ctr_init':            config.frame_ctr_init,
-        'incby2_late_gate':          (config.incby2_late_gate
-                                      if config.incby2_late_gate is not None
-                                      else -1),
-        'has_incby2_late_gate':      (config.incby2_late_gate is not None),
-        'stop_fill':                 (config.stop_fill
-                                      if config.stop_fill is not None
-                                      else 0),
-        'has_stop_fill':             (config.stop_fill is not None),
-        'master_vol_subtrahend_voice': (config.master_vol_subtrahend_voice
-                                        if config.master_vol_subtrahend_voice
-                                        is not None else -1),
-        'has_master_vol_fade':       (config.master_vol_subtrahend_voice
-                                      is not None),
-        'master_vol_base':           config.master_vol_base,
-        'master_vol_trigger_every_note': (config.master_vol_trigger
-                                          == 'every_note'),
-        'tie_preserves_slide':       config.tie_preserves_slide,
-    })
+    return Params(fields={})
 
 
 # ---------------------------------------------------------------------------
