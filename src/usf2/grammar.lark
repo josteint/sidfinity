@@ -3,7 +3,7 @@
 // Lark grammar (LALR friendly). Whitespace and comments are ignored
 // between tokens. Top-level order is enforced by the start rule.
 
-start: version_decl engine_decl psid_block params_block init_block freq_table_block? instrument_block* subtune_block*
+start: version_decl engine_decl psid_block params_block init_block freq_table_block? state_layout_block? instrument_block* subtune_block*
 
 version_decl: "version" ":" INT
 engine_decl:  "engine" ":" CNAME
@@ -43,6 +43,17 @@ init_value: number           -> init_number
 // look up engine constants for the freq region — the tune is
 // self-contained.
 freq_table_block: "freq_table" "{" byte_list "}"
+
+// ----- state_layout (optional) -----
+// Off-table-arp statebuf layout — names which bytes the engine reads
+// when a note has pitch >= 96. Default (omitted) = the 3-voice
+// Commando family layout. Human Race emits its own 2-voice layout.
+state_layout_block: "state_layout" "{" sl_field+ "}"
+sl_field: "n_voices" ":" INT                          -> sl_n_voices
+        | "scalar" INT "const" byte                    -> sl_scalar_const
+        | "scalar" INT "var" CNAME                     -> sl_scalar_var
+        | "per_voice" INT "const" byte                 -> sl_pv_const
+        | "per_voice" INT "var" CNAME                  -> sl_pv_var
 
 // ----- instruments -----
 instrument_block: "instrument" INT instrument_name? "{" instrument_field+ "}"

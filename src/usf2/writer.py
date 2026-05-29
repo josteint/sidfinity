@@ -237,6 +237,28 @@ def _write_freq_table(bytes_: list[int]) -> list[str]:
     return lines
 
 
+def _write_state_layout(d: dict) -> list[str]:
+    lines = ['state_layout {']
+    if d.get('n_voices') is not None:
+        lines.append(f'  n_voices: {d["n_voices"]}')
+    for slot in d.get('scalars', []):
+        if slot['kind'] == 'const':
+            lines.append(
+                f'  scalar {slot["offset"]} const {_hex(slot["value"])}')
+        else:
+            lines.append(
+                f'  scalar {slot["offset"]} var {slot["var"]}')
+    for slot in d.get('per_voice', []):
+        if slot['kind'] == 'const':
+            lines.append(
+                f'  per_voice {slot["offset"]} const {_hex(slot["value"])}')
+        else:
+            lines.append(
+                f'  per_voice {slot["offset"]} var {slot["var"]}')
+    lines.append('}')
+    return lines
+
+
 def write(usf: UsfFile) -> str:
     """Serialize a `UsfFile` to canonical `.usf` text."""
     lines: list[str] = []
@@ -251,6 +273,9 @@ def write(usf: UsfFile) -> str:
     if usf.freq_table is not None:
         lines.append('')
         lines.extend(_write_freq_table(usf.freq_table))
+    if usf.state_layout is not None:
+        lines.append('')
+        lines.extend(_write_state_layout(usf.state_layout))
     for inst in sorted(usf.instruments, key=lambda x: x.id):
         lines.append('')
         lines.extend(_write_instrument(inst))

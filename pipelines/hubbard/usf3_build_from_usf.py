@@ -27,14 +27,32 @@ from __future__ import annotations
 import os
 import struct
 
-from src.usf2 import UsfFile, MusicSubtune, SfxSubtune, parse_file, validate
+from src.usf2 import (
+    UsfFile, MusicSubtune, SfxSubtune, DigiSubtune, parse_file, validate,
+)
 from pipelines.hubbard.codegen import _emit_sid, LOAD
 from pipelines.hubbard.build_from_usf import (
     _model_from_usf_instrument,
     _score_from_subtune,
     _soundeffect_from_usf,
+    _ovseed_from_init_state,
+    _emit_combined_sid,
 )
 from pipelines.hubbard.codegen import _Inputs
+
+
+# Registered digi players — named handles for the few distinct digi
+# techniques in the SID corpus. Each entry maps a tune-level
+# `digi_player: <name>` to its DigiCode (which describes where the
+# dispatcher + player live in the rebuild's address space). The bytes
+# of the player asm itself live in engine_constants.py — they're
+# engine-side code, not USF data, so they don't belong inline in the
+# .usf file. Adding a new digi technique = registering one entry.
+def _digi_player_registry():
+    from pipelines.hubbard.engine_constants import CHIMERA_DIGI
+    return {
+        'chimera_1bit': CHIMERA_DIGI,
+    }
 
 
 def _inputs_from_usf3(usf: UsfFile) -> _Inputs:
@@ -81,6 +99,46 @@ def _inputs_from_usf3(usf: UsfFile) -> _Inputs:
         sp = s.params.fields if s.params else {}
         voice_starts.append(sp.get('voice_start', 2))
 
+    # Per-subtune mechanism mode: 5_Title_Tunes-style compound engines
+    # carry per-subtune deltas on each MusicSubtune.params + per-sub
+    # init state on each MusicSubtune.init. Only the keys below trigger
+    # the codegen's per-subtune-table mode; per-subtune `voice_start`
+    # alone is read independently and doesn't flip the mode.
+    _PER_SUBTUNE_MECHANISM = {
+        'speed_ctr_init', 'incby2_step', 'incby2_late_gate', 'tick_divider',
+    }
+    has_per_subtune = any(
+        s.init is not None or
+        (s.params is not None and
+         _PER_SUBTUNE_MECHANISM & s.params.fields.keys())
+        for s in music_subs)
+    per_subtune_speed_ctr_init = None
+    per_subtune_incby2_step = None
+    per_subtune_incby2_late_gate = None
+    per_subtune_ovseed = None
+    if has_per_subtune:
+        per_subtune_speed_ctr_init = []
+        per_subtune_incby2_step = []
+        per_subtune_incby2_late_gate = []
+        per_subtune_ovseed = []
+        # Engine-level defaults to fall back on per subtune.
+        top_speed_ctr_init = get('speed_ctr_init', 0)
+        top_incby2_step = get('incby2_step', 2)
+        top_incby2_late_gate = get('incby2_late_gate', None)
+        for i, s in enumerate(music_subs):
+            sp = s.params.fields if s.params is not None else {}
+            per_subtune_speed_ctr_init.append(
+                sp.get('speed_ctr_init', top_speed_ctr_init))
+            per_subtune_incby2_step.append(
+                sp.get('incby2_step', top_incby2_step) & 0xFF)
+            late_gate = sp.get('incby2_late_gate', top_incby2_late_gate)
+            per_subtune_incby2_late_gate.append(
+                (0xFF if late_gate is None else late_gate) & 0xFF)
+            per_subtune_ovseed.append(
+                _ovseed_from_init_state(s.init, len(usf.instruments)))
+            if 'tick_divider' in sp:
+                resetspds[i] = sp['tick_divider']
+
     # SFX subtunes
     sfx_subs = sorted(
         (s for s in usf.subtunes if isinstance(s, SfxSubtune)),
@@ -102,6 +160,23 @@ def _inputs_from_usf3(usf: UsfFile) -> _Inputs:
         fb[232 + i] = 0x00 if v.pwm_dir == 'up' else 0xFF
         fb[239 + i] = v.slide_v
     freq_bytes = bytes(fb)
+
+    # Optional state_layout for engines whose off-table-arp scratch
+    # region has a non-Commando shape (Human Race).
+    state_layout = None
+    if usf.state_layout is not None:
+        from pipelines.hubbard.codegen import StatebufLayout, StatebufSlot
+        d = usf.state_layout
+        scalars = [StatebufSlot(offset=s['offset'], kind=s['kind'],
+                                value=s.get('value', 0),
+                                var=s.get('var', ''))
+                   for s in d['scalars']]
+        per_voice = [StatebufSlot(offset=s['offset'], kind=s['kind'],
+                                  value=s.get('value', 0),
+                                  var=s.get('var', ''))
+                     for s in d['per_voice']]
+        state_layout = StatebufLayout(
+            n_voices=d['n_voices'], scalars=scalars, per_voice=per_voice)
 
     # Tune-level mechanism flags (Commando defaults).
     ns_offtab_decr_offset = get('ns_offtab_decr_offset', None)
@@ -133,10 +208,10 @@ def _inputs_from_usf3(usf: UsfFile) -> _Inputs:
         models=models, scores=scores, resetspds=resetspds,
         voice_starts=voice_starts, freq_bytes=freq_bytes,
         sfx_list=sfx_list,
-        per_subtune_speed_ctr_init=None,
-        per_subtune_incby2_step=None,
-        per_subtune_incby2_late_gate=None,
-        per_subtune_ovseed=None,
+        per_subtune_speed_ctr_init=per_subtune_speed_ctr_init,
+        per_subtune_incby2_step=per_subtune_incby2_step,
+        per_subtune_incby2_late_gate=per_subtune_incby2_late_gate,
+        per_subtune_ovseed=per_subtune_ovseed,
         master_vol_subtrahend_voice=get('master_vol_subtrahend_voice', None),
         master_vol_base=get('master_vol_base', 0xA0),
         master_vol_trigger=get('master_vol_trigger', 'inst_change'),
@@ -144,11 +219,17 @@ def _inputs_from_usf3(usf: UsfFile) -> _Inputs:
         hubidx_wrap_at_patend=get('hubidx_wrap_at_patend', True),
         **({'ns_offtab_decr_offset': ns_offtab_decr_offset}
            if ns_offtab_decr_offset is not None else {}),
+        **({'state_layout': state_layout} if state_layout is not None else {}),
     )
 
 
 def build_from_usf3(usf_path: str, out_path: str, codec=None) -> str:
-    """Read a v3 USF, produce a SID with no engine-name dispatch."""
+    """Read a v3 USF, produce a SID with no engine-name dispatch.
+
+    Music-only USFs build directly. Tunes with digi subtunes also
+    specify `digi_player: <name>` in `params` — the build looks up
+    the named player from the small in-process registry.
+    """
     from pipelines.hubbard.note_codec import BitPackCodec
     if codec is None:
         codec = BitPackCodec()
@@ -156,4 +237,22 @@ def build_from_usf3(usf_path: str, out_path: str, codec=None) -> str:
     usf_dir = os.path.dirname(os.path.abspath(usf_path))
     validate(usf, usf_dir=usf_dir)
     inputs = _inputs_from_usf3(usf)
-    return _emit_sid(inputs, out_path, codec)
+
+    digi_subs = sorted(
+        (s for s in usf.subtunes if isinstance(s, DigiSubtune)),
+        key=lambda s: s.id)
+    if not digi_subs:
+        return _emit_sid(inputs, out_path, codec)
+
+    # Combined music + digi
+    name = usf.params.fields.get('digi_player') if usf.params else None
+    if name is None:
+        raise ValueError(
+            f'USF has digi subtunes but no `digi_player` in params')
+    registry = _digi_player_registry()
+    if name not in registry:
+        raise ValueError(
+            f'unknown digi_player {name!r}; '
+            f'register in `_digi_player_registry`')
+    return _emit_combined_sid(inputs, usf, digi_subs, registry[name],
+                              out_path, usf_dir, codec)

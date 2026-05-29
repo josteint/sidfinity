@@ -310,3 +310,10 @@ class UsfFile:
     # Per-tune freq table (v3 only). 320 bytes — first 192 are the
     # musical PAL table, last 128 are engine state/scratch.
     freq_table: Optional[list[int]] = None
+    # Off-table-arp statebuf layout (v3 only). Default = the Commando
+    # 3-voice family layout; Human Race overrides with a 2-voice
+    # layout. Parsed shape: {'n_voices': int, 'scalars': list[dict],
+    # 'per_voice': list[dict]} where each dict has offset + kind +
+    # (value or var). The build path constructs a StatebufLayout
+    # from this dict.
+    state_layout: Optional[dict] = None

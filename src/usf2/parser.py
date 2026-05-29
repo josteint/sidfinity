@@ -479,6 +479,42 @@ class _T(Transformer):
         # items[0] is a byte_list (= list[int])
         return ('freq_table', items[0])
 
+    def sl_n_voices(self, items):
+        return ('n_voices', int(items[0]))
+
+    def sl_scalar_const(self, items):
+        return ('scalar', {'offset': int(items[0]),
+                           'kind': 'const', 'value': int(items[1])})
+
+    def sl_scalar_var(self, items):
+        return ('scalar', {'offset': int(items[0]),
+                           'kind': 'var', 'var': str(items[1])})
+
+    def sl_pv_const(self, items):
+        return ('per_voice', {'offset': int(items[0]),
+                              'kind': 'const', 'value': int(items[1])})
+
+    def sl_pv_var(self, items):
+        return ('per_voice', {'offset': int(items[0]),
+                              'kind': 'var', 'var': str(items[1])})
+
+    def sl_field(self, items):
+        return items[0]
+
+    def state_layout_block(self, items):
+        # items is a list of tuples ('n_voices', N) | ('scalar', dict)
+        # | ('per_voice', dict). Reassemble into a StatebufLayout-shaped
+        # dict; the build path constructs the actual StatebufLayout.
+        d = {'n_voices': None, 'scalars': [], 'per_voice': []}
+        for k, v in items:
+            if k == 'n_voices':
+                d['n_voices'] = v
+            elif k == 'scalar':
+                d['scalars'].append(v)
+            elif k == 'per_voice':
+                d['per_voice'].append(v)
+        return ('state_layout', d)
+
     def fx_flag(self, items):
         return items[0]
 
@@ -503,6 +539,7 @@ class _T(Transformer):
         instruments = []
         subtunes = []
         freq_table = None
+        state_layout = None
         for it in items:
             if isinstance(it, tuple):
                 k, v = it
@@ -512,6 +549,8 @@ class _T(Transformer):
                     engine = v
                 elif k == 'freq_table':
                     freq_table = v
+                elif k == 'state_layout':
+                    state_layout = v
             elif isinstance(it, PsidMeta):
                 psid = it
             elif isinstance(it, Params):
@@ -525,7 +564,7 @@ class _T(Transformer):
         return UsfFile(
             version=version, engine=engine, psid=psid, params=params,
             init=init, instruments=instruments, subtunes=subtunes,
-            freq_table=freq_table)
+            freq_table=freq_table, state_layout=state_layout)
 
 
 # ---------------------------------------------------------------------------
