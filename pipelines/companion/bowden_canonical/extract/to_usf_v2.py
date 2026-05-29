@@ -116,6 +116,11 @@ def build_usf(sid_path: str) -> UsfFile:
         'init_pos_v1': state.v_pos[0],   # always 0 — carried for symmetry
         'init_pos_v2': state.v_pos[1],
         'init_pos_v3': state.v_pos[2],
+        # Some Bowden-canonical inits pre-set the tempo counter so the
+        # first play() call immediately fires a music tick (e.g.
+        # Roundabout: tempo_ctr=tempo-1). Vic Berry's leaves it at 0
+        # (tick fires after `tempo` frames). Carry as a param.
+        'init_tempo_ctr': state.tempo_ctr,
     })
 
     music = MusicSubtune(

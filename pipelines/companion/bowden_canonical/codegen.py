@@ -95,6 +95,7 @@ def emit_asm(usf: UsfFile) -> str:
     init_v1 = p.get('init_pos_v1', 0)
     init_v2 = p.get('init_pos_v2', 0)
     init_v3 = p.get('init_pos_v3', 0)
+    init_tempo_ctr = p.get('init_tempo_ctr', 0)
 
     tempo = ms.tempo
 
@@ -132,7 +133,7 @@ def emit_asm(usf: UsfFile) -> str:
     L.append('  sta v2_pos')
     L.append(f'  lda #{init_v3}')
     L.append('  sta v3_pos')
-    L.append('  lda #0')
+    L.append(f'  lda #{init_tempo_ctr}')
     L.append('  sta tempo_ctr')
     L.append('  rts')
 

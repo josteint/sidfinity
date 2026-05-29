@@ -69,6 +69,7 @@ V1POS_ADDR = 0xC017
 V2POS_ADDR = 0xC01E
 V3POS_ADDR = 0xC025
 TIMBRE_BASE = 0xC019            # per-voice timbre starts here; +0/+7/+14 per voice
+TEMPO_CTR_ADDR = 0xC07C         # runtime tempo counter
 FREQ_HI_BASE = 0xCA00
 FREQ_LO_BASE = 0xCA80
 ORDER_BASE = (0xCB00, 0xCC00, 0xCD00)  # V1, V2, V3 orderlists
@@ -87,30 +88,92 @@ class EngineState:
     tempo_ctr: int = 0          # runtime counter
 
 
-def load_state_from_sid(sid_path: str) -> EngineState:
-    """Read engine state from a Bowden-canonical SID's binary blob."""
-    raw = Path(sid_path).read_bytes()
-    load = struct.unpack('<H', raw[124:126])[0]
-    body = raw[126:]
+def _run_init(sid_path: str) -> tuple[bytearray, int]:
+    """Load the SID, run its init routine in py65, return (memory, load).
 
-    def at(addr: int) -> int:
-        return body[addr - load]
+    Used to capture the post-init memory state. Some Bowden-canonical
+    SIDs (e.g. Keith Bowden's own `Roundabout`) ship with the freq table
+    and orderlist addresses STORED in self-modifying-code form — init
+    patches the high bytes of the play loop's `LDA $CA00,Y` etc. to
+    point at a different memory layout. Reading the post-init bytes is
+    the simple, layout-agnostic way to know where each table lives.
+    """
+    import sys as _sys
+    _sys.path.insert(0, 'tools/py65_lib')
+    from py65.devices.mpu6502 import MPU
+    raw = Path(sid_path).read_bytes()
+    load_in = struct.unpack('>H', raw[8:10])[0]
+    body = raw[124:]
+    if load_in == 0:
+        load = struct.unpack('<H', body[:2])[0]
+        body = body[2:]
+    else:
+        load = load_in
+    init_addr = struct.unpack('>H', raw[10:12])[0]
+
+    mpu = MPU()
+    mpu.memory = bytearray(0x10000)
+    mpu.memory[load:load + len(body)] = body
+    mpu.a = 0
+    mpu.x = 0
+    mpu.y = 0
+    mpu.p = 0x20
+    mpu.sp = 0xFD
+    mpu.memory[0x01FF] = 0xFE
+    mpu.memory[0x01FE] = 0xFE
+    mpu.pc = init_addr
+    for _ in range(50000):
+        if not 0xC000 <= mpu.pc <= 0xCFFF:
+            break
+        mpu.step()
+    return bytearray(mpu.memory), load
+
+
+def _detect_layout(mem: bytearray) -> dict:
+    """Read the freq-table and orderlist addresses encoded as operand
+    bytes inside the post-init play loop. The high byte of each table
+    is at a fixed offset within the play code:
+      $C0B4 = freq_hi_tab high byte  (LDA $CA00,Y → patched)
+      $C0BA = freq_lo_tab high byte  (LDA $CA80,Y → patched)
+      $C088 = V1 orderlist high byte (LDY $CB00,X → patched)
+      $C096 = V2 orderlist high byte (LDY $CC00,X → patched)
+      $C0A4 = V3 orderlist high byte (LDY $CD00,X → patched)
+    """
+    return dict(
+        freq_hi_base=(mem[0xC0B4] << 8) | 0x00,
+        freq_lo_base=(mem[0xC0BA] << 8) | 0x80,
+        v_order_bases=(
+            (mem[0xC088] << 8) | 0x00,
+            (mem[0xC096] << 8) | 0x00,
+            (mem[0xC0A4] << 8) | 0x00,
+        ),
+    )
+
+
+def load_state_from_sid(sid_path: str) -> EngineState:
+    """Read engine state from a Bowden-canonical-family SID.
+
+    Runs init via py65, then reads the post-init memory layout (which
+    handles self-modifying-code variants like Roundabout that patch
+    the freq table / orderlist addresses at runtime).
+    """
+    mem, _ = _run_init(sid_path)
+    layout = _detect_layout(mem)
 
     def slice_(start: int, end: int) -> bytes:
-        return bytes(body[start - load: end - load])
+        return bytes(mem[start:end])
 
-    # Initial positions — V1 is zeroed by init, V2 + V3 keep their load-time values.
-    v_pos = [0, at(V2POS_ADDR), at(V3POS_ADDR)]
+    # Post-init v_pos values — V1 is zeroed by all known variant inits;
+    # V2/V3 are either zeroed (Roundabout) or set to a per-tune offset
+    # (Vic Berry tunes), preserved from load-time bytes.
+    v_pos = [mem[V1POS_ADDR], mem[V2POS_ADDR], mem[V3POS_ADDR]]
 
-    # 5-byte timbre per voice at offsets 0, 7, 14 from TIMBRE_BASE
-    # (the 5th byte — SR — is reached via the engine's carry-leak trick;
-    # see the docstring at the top of this file.)
+    # 5-byte timbre per voice — same address layout in all known variants.
     timbre = [slice_(TIMBRE_BASE + off, TIMBRE_BASE + off + 5)
               for off in (0, 7, 14)]
 
-    # Orderlists go up to and INCLUDING the $FF terminator
     orderlists = []
-    for base in ORDER_BASE:
+    for base in layout['v_order_bases']:
         bs = slice_(base, base + 256)
         ff = bs.find(0xFF)
         if ff < 0:
@@ -118,12 +181,13 @@ def load_state_from_sid(sid_path: str) -> EngineState:
         orderlists.append(bs[: ff + 1])
 
     return EngineState(
-        tempo=at(TEMPO_ADDR),
+        tempo=mem[TEMPO_ADDR],
         v_pos=v_pos,
         timbre=timbre,
         orderlists=orderlists,
-        freq_hi=slice_(FREQ_HI_BASE, FREQ_HI_BASE + 128),
-        freq_lo=slice_(FREQ_LO_BASE, FREQ_LO_BASE + 128),
+        freq_hi=slice_(layout['freq_hi_base'], layout['freq_hi_base'] + 128),
+        freq_lo=slice_(layout['freq_lo_base'], layout['freq_lo_base'] + 128),
+        tempo_ctr=mem[TEMPO_CTR_ADDR],
     )
 
 
