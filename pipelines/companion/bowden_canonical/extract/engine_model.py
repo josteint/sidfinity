@@ -63,16 +63,29 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
-# Engine memory map (from the disassembly).
-TEMPO_ADDR = 0xC07B
-V1POS_ADDR = 0xC017
-V2POS_ADDR = 0xC01E
-V3POS_ADDR = 0xC025
-TIMBRE_BASE = 0xC019            # per-voice timbre starts here; +0/+7/+14 per voice
-TEMPO_CTR_ADDR = 0xC07C         # runtime tempo counter
-FREQ_HI_BASE = 0xCA00
-FREQ_LO_BASE = 0xCA80
-ORDER_BASE = (0xCB00, 0xCC00, 0xCD00)  # V1, V2, V3 orderlists
+# Engine memory map — offsets are relative to the PSID play address.
+# Same offsets apply whether the engine loads at $C000 (Vic Berry,
+# Roundabout, Melonmania) or at some other base (Hyper_Blast at $55C0,
+# Henrys_House at $ACC0, etc).
+PLAY_REL = {
+    'v1_pos':        0x14,
+    'v2_pos':        0x1B,
+    'v3_pos':        0x22,
+    'v1_timbre':     0x16,
+    'v2_timbre':     0x1D,
+    'v3_timbre':     0x24,
+    'tempo':         0x78,
+    'tempo_ctr':     0x79,
+    # Operand bytes inside the main play loop / proc_note.
+    'freq_hi_hi':    0xB1,    # high byte of `LDA $XX00,Y` for freq_hi tab
+    'freq_lo_hi':    0xB7,    # high byte of `LDA $XX80,Y` for freq_lo tab
+    'v1_ord_hi':     0x85,    # high byte of V1's `LDY $XX00,X`
+    'v2_ord_hi':     0x93,
+    'v3_ord_hi':     0xA1,
+    'v1_jsr_op':     0x88,    # opcode byte of V1's JSR/BIT (enable check)
+    'v2_jsr_op':     0x96,
+    'v3_jsr_op':     0xA4,
+}
 
 
 @dataclass
@@ -88,7 +101,7 @@ class EngineState:
     tempo_ctr: int = 0          # runtime counter
 
 
-def _run_init(sid_path: str, subtune: int = 0) -> tuple[bytearray, int]:
+def _run_init(sid_path: str, subtune: int = 0) -> tuple[bytearray, int, int]:
     """Load the SID, run its init routine in py65, return (memory, load).
 
     Used to capture the post-init memory state for the given subtune
@@ -129,63 +142,63 @@ def _run_init(sid_path: str, subtune: int = 0) -> tuple[bytearray, int]:
     mpu.memory[0x01FF] = 0xFE
     mpu.memory[0x01FE] = 0xFE
     mpu.pc = init_addr
-    for _ in range(100000):
-        if not 0xC000 <= mpu.pc <= 0xCFFF:
+    # Run until PC leaves the loaded binary range.
+    for _ in range(200000):
+        if not load <= mpu.pc < load + len(body):
             break
         mpu.step()
     return bytearray(mpu.memory), load
 
 
-def _detect_layout(mem: bytearray) -> dict:
+def _detect_layout(mem: bytearray, play_addr: int) -> dict:
     """Read the freq-table and orderlist addresses encoded as operand
     bytes inside the post-init play loop. The high byte of each table
-    is at a fixed offset within the play code:
-      $C0B4 = freq_hi_tab high byte  (LDA $CA00,Y → patched)
-      $C0BA = freq_lo_tab high byte  (LDA $CA80,Y → patched)
-      $C088 = V1 orderlist high byte (LDY $CB00,X → patched)
-      $C096 = V2 orderlist high byte (LDY $CC00,X → patched)
-      $C0A4 = V3 orderlist high byte (LDY $CD00,X → patched)
+    is at a fixed offset within the play code (relative to play_addr).
     """
     return dict(
-        freq_hi_base=(mem[0xC0B4] << 8) | 0x00,
-        freq_lo_base=(mem[0xC0BA] << 8) | 0x80,
+        freq_hi_base=(mem[play_addr + PLAY_REL['freq_hi_hi']] << 8) | 0x00,
+        freq_lo_base=(mem[play_addr + PLAY_REL['freq_lo_hi']] << 8) | 0x80,
         v_order_bases=(
-            (mem[0xC088] << 8) | 0x00,
-            (mem[0xC096] << 8) | 0x00,
-            (mem[0xC0A4] << 8) | 0x00,
+            (mem[play_addr + PLAY_REL['v1_ord_hi']] << 8) | 0x00,
+            (mem[play_addr + PLAY_REL['v2_ord_hi']] << 8) | 0x00,
+            (mem[play_addr + PLAY_REL['v3_ord_hi']] << 8) | 0x00,
         ),
     )
 
 
 def load_state_from_sid(sid_path: str, subtune: int = 0) -> EngineState:
     """Read engine state from a Bowden-canonical-family SID for the
-    given subtune index.
-
-    Runs init via py65 with A=subtune, then reads the post-init memory
-    layout. Handles self-modifying-code variants (Roundabout) that
-    patch the freq table / orderlist addresses at runtime, and
-    multi-subtune engines (Melonmania) where init selects per-subtune
-    data based on A.
-
-    Also reads voice-enable state — engines disable a voice by patching
-    its `JSR $C0AD` (opcode $20) at $C08B / $C099 / $C0A7 to
-    `BIT $C0AD` (opcode $2C). A disabled voice's orderlist is replaced
-    with a no-op skip-loop `[$81, $FF]` so the rebuilt engine produces
-    the same instruction stream (no SID writes for that voice).
+    given subtune index. All engine state is at fixed offsets from
+    the play address — the engine is location-independent, just
+    relocated to different bases across SIDs (Vic Berry / Roundabout /
+    Melonmania at $C000; Hyper_Blast at $55C0; Henrys_House at $ACC0;
+    etc).
     """
+    raw = Path(sid_path).read_bytes()
+    play_addr = struct.unpack('>H', raw[12:14])[0]
+
     mem, _ = _run_init(sid_path, subtune)
-    layout = _detect_layout(mem)
+    layout = _detect_layout(mem, play_addr)
 
     def slice_(start: int, end: int) -> bytes:
         return bytes(mem[start:end])
 
-    v_pos = [mem[V1POS_ADDR], mem[V2POS_ADDR], mem[V3POS_ADDR]]
+    v1_pos_addr = play_addr + PLAY_REL['v1_pos']
+    v2_pos_addr = play_addr + PLAY_REL['v2_pos']
+    v3_pos_addr = play_addr + PLAY_REL['v3_pos']
+    v_pos = [mem[v1_pos_addr], mem[v2_pos_addr], mem[v3_pos_addr]]
 
-    timbre = [slice_(TIMBRE_BASE + off, TIMBRE_BASE + off + 5)
-              for off in (0, 7, 14)]
+    timbre_offs = (PLAY_REL['v1_timbre'], PLAY_REL['v2_timbre'],
+                   PLAY_REL['v3_timbre'])
+    timbre = [slice_(play_addr + off, play_addr + off + 5)
+              for off in timbre_offs]
 
     # Voice enables — JSR opcode is $20, BIT (absolute) is $2C.
-    voice_jsr_addrs = (0xC08B, 0xC099, 0xC0A7)
+    voice_jsr_addrs = (
+        play_addr + PLAY_REL['v1_jsr_op'],
+        play_addr + PLAY_REL['v2_jsr_op'],
+        play_addr + PLAY_REL['v3_jsr_op'],
+    )
     voice_enabled = tuple(mem[a] == 0x20 for a in voice_jsr_addrs)
 
     orderlists = []
@@ -207,13 +220,13 @@ def load_state_from_sid(sid_path: str, subtune: int = 0) -> EngineState:
             orderlists.append(bs[: ff + 1])
 
     return EngineState(
-        tempo=mem[TEMPO_ADDR],
+        tempo=mem[play_addr + PLAY_REL['tempo']],
         v_pos=v_pos,
         timbre=timbre,
         orderlists=orderlists,
         freq_hi=slice_(layout['freq_hi_base'], layout['freq_hi_base'] + 128),
         freq_lo=slice_(layout['freq_lo_base'], layout['freq_lo_base'] + 128),
-        tempo_ctr=mem[TEMPO_CTR_ADDR],
+        tempo_ctr=mem[play_addr + PLAY_REL['tempo_ctr']],
     )
 
 
