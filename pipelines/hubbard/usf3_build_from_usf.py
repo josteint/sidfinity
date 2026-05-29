@@ -99,6 +99,7 @@ def _inputs_from_usf3(usf: UsfFile) -> _Inputs:
     freq_bytes = bytes(fb)
 
     # Tune-level mechanism flags (Commando defaults).
+    ns_offtab_decr_offset = get('ns_offtab_decr_offset', None)
     return _Inputs(
         title=latin1(usf.psid.title),
         author=latin1(usf.psid.author),
@@ -135,6 +136,9 @@ def _inputs_from_usf3(usf: UsfFile) -> _Inputs:
         master_vol_base=get('master_vol_base', 0xA0),
         master_vol_trigger=get('master_vol_trigger', 'inst_change'),
         tie_preserves_slide=get('tie_preserves_slide', False),
+        hubidx_wrap_at_patend=get('hubidx_wrap_at_patend', True),
+        **({'ns_offtab_decr_offset': ns_offtab_decr_offset}
+           if ns_offtab_decr_offset is not None else {}),
     )
 
 
