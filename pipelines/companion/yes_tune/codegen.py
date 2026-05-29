@@ -63,7 +63,7 @@ INIT_VEC = LOAD
 PLAY_VEC = LOAD + 3
 
 
-def _run_init(sid_path: str):
+def _run_init(sid_path: str, subtune: int = 0):
     import sys as _sys
     _sys.path.insert(0, 'tools/py65_lib')
     from py65.devices.mpu6502 import MPU
@@ -92,7 +92,7 @@ def _run_init(sid_path: str):
     mpu.memory = _Mem(0x10000)
     mpu.memory[load:load + len(body)] = body
     mpu.memory.sid_writes.clear()
-    mpu.a = 0; mpu.x = 0; mpu.y = 0; mpu.p = 0x20; mpu.sp = 0xFD
+    mpu.a = subtune; mpu.x = 0; mpu.y = 0; mpu.p = 0x20; mpu.sp = 0xFD
     mpu.memory[0x01FF] = 0xFE; mpu.memory[0x01FE] = 0xFE
     mpu.memory.sid_writes.clear()
     mpu.pc = init_addr
@@ -102,12 +102,53 @@ def _run_init(sid_path: str):
     return bytearray(mpu.memory), list(mpu.memory.sid_writes), raw
 
 
-# Yes_Tune layout (engine constants).
-YT_VOICE_BASE = 0x6200    # +X for V1/V2/V3
-YT_TEMPO_CTR = 0x622A
-YT_TEMPO = 0x622B
-YT_FREQ_HI = 0x6100
-YT_FREQ_LO = 0x6180
+def _detect_layout(mem: bytearray, play_addr: int) -> dict:
+    """Detect per-tune engine addresses by scanning the play loop.
+
+    Yes_Tune-style engines share this play loop structure:
+      ...tempo gate...
+      LDA $VOICE_BASE+1,X    ; state byte
+      CMP #$02
+      ...
+      LDA $VOICE_BASE+$15,X  ; pattern ptr lo
+      LDY $VOICE_BASE+$16,X  ; pattern ptr hi
+      JSR play_note
+    where VOICE_BASE is engine-relative.
+
+    Returns dict with voice_base, freq_hi, freq_lo, tempo_ctr, tempo.
+    """
+    # Walk play_addr+0 to play_addr+0x80 looking for the LDA-CMP-#$02 pattern.
+    pc = play_addr
+    end = play_addr + 0x100
+    voice_state_addr = None
+    inc_target = None  # tempo_ctr
+    cmp_target = None  # tempo
+    while pc < end - 4:
+        if mem[pc] == 0xBD and mem[pc + 3] == 0xC9 and mem[pc + 4] == 0x02:
+            # LDA abs,X (BD) followed by CMP #$02 (C9 02)
+            voice_state_addr = mem[pc + 1] | (mem[pc + 2] << 8)
+            break
+        # Also opportunistically find INC abs / CPY abs for tempo
+        if mem[pc] == 0xEE and inc_target is None:
+            inc_target = mem[pc + 1] | (mem[pc + 2] << 8)
+        if mem[pc] == 0xCC and cmp_target is None:  # CPY abs
+            cmp_target = mem[pc + 1] | (mem[pc + 2] << 8)
+        pc += 1
+    if voice_state_addr is None:
+        raise ValueError(f'no LDA abs,X / CMP #$02 pattern in play loop')
+    # voice_state_addr = voice_base + 1
+    voice_base = voice_state_addr - 1
+    # Freq tables are voice_base - $100 (hi) and voice_base - $80 (lo).
+    # ("- $100" because freq_hi is at $X600 when voice_base is $X700.)
+    freq_hi = voice_base - 0x100
+    freq_lo = voice_base - 0x80
+    return dict(
+        voice_base=voice_base,
+        freq_hi=freq_hi,
+        freq_lo=freq_lo,
+        tempo_ctr=inc_target,
+        tempo=cmp_target,
+    )
 
 
 def _extract_pattern(mem: bytearray, start: int) -> bytes:
@@ -134,9 +175,13 @@ def _row_from_pair(note: int, dur: int) -> NoteRow:
     if note == 0x80:
         return NoteRow(pitch=Pitch.rest(), duration=dur)
     if note < 0x80:
-        name, octave = note_byte_to_pitch(note)
-        return NoteRow(pitch=Pitch(name=name, octave=octave), duration=dur)
-    # bit-7 special with paired byte — unlikely in well-formed tunes
+        semi = note & 0x0F
+        if semi < 12:
+            name, octave = note_byte_to_pitch(note)
+            return NoteRow(pitch=Pitch(name=name, octave=octave), duration=dur)
+        # Non-musical semitones (12-15) — preserve via fx:raw flag
+        return NoteRow(pitch=Pitch.rest(), duration=dur,
+                       fx_flags=(f'fx:raw_{note:02x}',))
     raise ValueError(f'unexpected pair note=${note:02X}')
 
 
@@ -165,42 +210,63 @@ def _build_voice_rows(pattern_bytes: bytes) -> list[NoteRow]:
     return rows
 
 
+def _n_subtunes(sid_path: str) -> int:
+    raw = open(sid_path, 'rb').read()
+    return int.from_bytes(raw[14:16], 'big')
+
+
 def build_usf(sid_path: str) -> UsfFile:
-    mem, init_sid, raw = _run_init(sid_path)
+    n_sub = _n_subtunes(sid_path)
+    mem0, init_sid0, raw = _run_init(sid_path, subtune=0)
+    play_addr = struct.unpack('>H', raw[12:14])[0]
+    layout = _detect_layout(mem0, play_addr)
+    VB = layout['voice_base']
+    TEMPO_CTR = layout['tempo_ctr']
+    TEMPO = layout['tempo']
 
-    # Per-voice state
-    voices = []
+    music_subtunes = []
     instruments = []
-    for v, x in enumerate((0, 7, 14)):
-        pat_start = mem[0x6217 + x] | (mem[0x6218 + x] << 8)
-        timbre = bytes(mem[0x6202 + x:0x6202 + x + 5])
-        pat_bytes = _extract_pattern(mem, pat_start)
-        rows = _build_voice_rows(pat_bytes)
-        # USF Pattern.length = total ticks (sum of row durations)
-        total_ticks = sum(r.duration for r in rows)
-        voices.append(VoiceBlock(
-            id=v + 1,
-            orderlist=Orderlist(entries=[1], loop_to=0),
-            patterns=[Pattern(id=1, length=total_ticks, rows=rows)],
-        ))
-        pw = (timbre[1] << 8) | timbre[0]
-        instruments.append(Instrument(
-            id=v + 1, waveform=[timbre[2]], loop=0,
-            pwm=PwmConfig(mode='none', speed=0, init=pw, min_hi=0, max_hi=0),
-            adsr=(timbre[3], timbre[4]),
-            arp=ArpConfig(offsets=[0], period=1),
-            vibrato=VibratoConfig(scale=0),
-            envelope=EnvelopeConfig(),
-        ))
+    instrument_id = 0
+    for s_idx in range(n_sub):
+        mem, _, _ = _run_init(sid_path, subtune=s_idx)
+        voices = []
+        sub_init_voices = []
+        for v, x in enumerate((0, 7, 14)):
+            pat_start = mem[VB + 0x17 + x] | (mem[VB + 0x18 + x] << 8)
+            timbre = bytes(mem[VB + 0x02 + x:VB + 0x02 + x + 5])
+            pat_bytes = _extract_pattern(mem, pat_start)
+            rows = _build_voice_rows(pat_bytes)
+            total_ticks = sum(r.duration for r in rows)
+            voices.append(VoiceBlock(
+                id=v + 1,
+                orderlist=Orderlist(entries=[1], loop_to=0),
+                patterns=[Pattern(id=1, length=total_ticks, rows=rows)],
+            ))
+            instrument_id += 1
+            pw = (timbre[1] << 8) | timbre[0]
+            instruments.append(Instrument(
+                id=instrument_id, waveform=[timbre[2]], loop=0,
+                pwm=PwmConfig(mode='none', speed=0, init=pw, min_hi=0, max_hi=0),
+                adsr=(timbre[3], timbre[4]),
+                arp=ArpConfig(offsets=[0], period=1),
+                vibrato=VibratoConfig(scale=0),
+                envelope=EnvelopeConfig(),
+            ))
+            sub_init_voices.append(
+                InitVoice(id=v + 1, instr=InstrumentRef(id=instrument_id)))
 
-    tempo = mem[YT_TEMPO]
-    music = MusicSubtune(
-        id=0, tempo=tempo, voices=voices,
-        init=InitState(voices=[
-            InitVoice(id=v + 1, instr=InstrumentRef(id=v + 1)) for v in range(3)
-        ]),
-        params=Params(fields={'init_tempo_ctr': mem[YT_TEMPO_CTR]}),
-    )
+        # Per-voice initial state byte ($00 = silent, $02 = load-pattern)
+        sub_fields = {'init_tempo_ctr': mem[TEMPO_CTR]}
+        for v, x in enumerate((0, 7, 14)):
+            sub_fields[f'init_state_v{v+1}'] = mem[VB + 1 + x]
+        # Whether init writes $D418 = $0F (music subtunes yes, SFX no)
+        _, init_sid, _ = _run_init(sid_path, subtune=s_idx)
+        sub_fields['init_d418'] = int(any(r == 0x18 and v == 0x0F for r, v in init_sid))
+        music_subtunes.append(MusicSubtune(
+            id=s_idx, tempo=mem[TEMPO], voices=voices,
+            init=InitState(voices=sub_init_voices),
+            params=Params(fields=sub_fields),
+        ))
 
     # PSID meta
     title = raw[0x16:0x36].rstrip(b'\x00').decode('latin-1')
@@ -220,7 +286,7 @@ def build_usf(sid_path: str) -> UsfFile:
     return UsfFile(
         version=2, engine='yes_tune', psid=psid,
         params=Params(), init=top_init,
-        instruments=instruments, subtunes=[music],
+        instruments=instruments, subtunes=music_subtunes,
     )
 
 
@@ -248,6 +314,9 @@ def _row_to_pattern_bytes(row: NoteRow) -> bytes:
         return bytes([0x81])
     if 'fx:loop' in row.fx_flags:
         return bytes([0xFF])
+    for f in row.fx_flags:
+        if f.startswith('fx:raw_'):
+            return bytes([int(f.split('_')[1], 16), row.duration & 0xFF])
     if row.pitch.is_rest:
         return bytes([0x80, row.duration & 0xFF])
     note = pitch_to_note_byte(row.pitch.name, row.pitch.octave)
@@ -255,37 +324,47 @@ def _row_to_pattern_bytes(row: NoteRow) -> bytes:
 
 
 def emit_asm(usf: UsfFile) -> str:
-    music = [s for s in usf.subtunes if isinstance(s, MusicSubtune)]
-    if len(music) != 1: raise ValueError('expected 1 music subtune')
-    ms = music[0]
-    if len(ms.voices) != 3: raise ValueError('expected 3 voices')
+    music = sorted([s for s in usf.subtunes if isinstance(s, MusicSubtune)],
+                   key=lambda s: s.id)
+    if not music: raise ValueError('no music subtunes')
+    n_sub = len(music)
 
-    p = ms.params.fields if ms.params else {}
-    init_tempo_ctr = p.get('init_tempo_ctr', 0)
-    tempo = ms.tempo
+    # Per-subtune data: timbres (3 voices × 5 bytes), tempo, init_tempo_ctr
+    instruments_by_id = {i.id: i for i in usf.instruments}
 
-    instruments = {i.id: i for i in usf.instruments}
-    timbres = []
-    for v in range(3):
-        iid = ms.init.voices[v].instr.id
-        inst = instruments[iid]
-        pw_lo = inst.pwm.init & 0xFF
-        pw_hi = (inst.pwm.init >> 8) & 0xFF
-        ctrl = inst.waveform[0] if inst.waveform else 0
-        ad, sr = inst.adsr
-        timbres.append([pw_lo, pw_hi, ctrl, ad, sr])
-
-    # Per-voice pattern bytes
-    voice_patterns = []
-    for vb in ms.voices:
-        if not vb.patterns:
-            voice_patterns.append(bytes([0x81]))
-            continue
-        pat = vb.patterns[0]
-        bs = bytearray()
-        for r in pat.rows:
-            bs.extend(_row_to_pattern_bytes(r))
-        voice_patterns.append(bytes(bs))
+    per_sub = []
+    voice_patterns = []  # (subtune_idx, voice_idx) → bytes
+    for s_idx, ms in enumerate(music):
+        if len(ms.voices) != 3: raise ValueError('expected 3 voices')
+        p = ms.params.fields if ms.params else {}
+        timbres = []
+        for v in range(3):
+            iid = ms.init.voices[v].instr.id
+            inst = instruments_by_id[iid]
+            timbres.append([
+                inst.pwm.init & 0xFF, (inst.pwm.init >> 8) & 0xFF,
+                inst.waveform[0] if inst.waveform else 0,
+                inst.adsr[0], inst.adsr[1],
+            ])
+        per_sub.append({
+            'tempo': ms.tempo,
+            'init_tempo_ctr': p.get('init_tempo_ctr', 0),
+            'timbres': timbres,
+            'init_state': (p.get('init_state_v1', 2),
+                           p.get('init_state_v2', 2),
+                           p.get('init_state_v3', 2)),
+            'init_d418': p.get('init_d418', 1),
+        })
+        # Per-voice patterns for this subtune
+        for vb in ms.voices:
+            if not vb.patterns:
+                voice_patterns.append(bytes([0x81]))
+                continue
+            pat = vb.patterns[0]
+            bs = bytearray()
+            for r in pat.rows:
+                bs.extend(_row_to_pattern_bytes(r))
+            voice_patterns.append(bytes(bs))
 
     L: list[str] = []
     L.append(f'* = ${LOAD:04X}')
@@ -293,31 +372,38 @@ def emit_asm(usf: UsfFile) -> str:
     L.append('  jmp play')
 
     L.append('init:')
-    # Yes_Tune init does NOT silence the SID. Only writes $D418=$0F
-    # and sets per-voice state[1]=2 to trigger pattern-load on first
-    # play tick.
+    # Engine init does NOT silence the SID. May write $D418=$0F for
+    # music subtunes; SFX subtunes skip that write. Driven by per-
+    # subtune init_d418_tab.
+    L.append('  pha                  ; save A = subtune index')
+    L.append('  tay                  ; Y = subtune index for table lookup')
+    L.append('  lda init_d418_tab,y')
+    L.append('  beq init_skip_d418')
     L.append('  lda #$0f')
     L.append('  sta $d418')
-    # Initialise per-voice state for V1/V2/V3
-    for v, x in enumerate((0, 7, 14)):
-        L.append(f'  ; V{v+1} init (X={x})')
-        L.append(f'  lda #<ptn_v{v+1}')
-        L.append(f'  sta v_state+${0x15+x:02X}    ; ptr lo')
-        L.append(f'  sta v_state+${0x17+x:02X}    ; pat_start lo')
-        L.append(f'  lda #>ptn_v{v+1}')
-        L.append(f'  sta v_state+${0x16+x:02X}    ; ptr hi')
-        L.append(f'  sta v_state+${0x18+x:02X}    ; pat_start hi')
-        L.append(f'  lda #$02')
-        L.append(f'  sta v_state+${0x01+x:02X}    ; state = 2 (load)')
+    L.append('init_skip_d418:')
+    L.append('  pla')
+    L.append('  tay                  ; Y = subtune index')
+    # Per-voice setup — loaded from per-subtune tables indexed by Y.
+    # Each voice has timbre, pat_start, and initial state=2.
+    for v_idx, x in enumerate((0, 7, 14)):
+        L.append(f'  ; V{v_idx+1} init from sub-Y tables')
+        for j in range(5):  # timbre 5 bytes
+            L.append(f'  lda v{v_idx+1}_tb{j}_tab,y')
+            L.append(f'  sta v_state+${0x02+x+j:02X}')
+        L.append(f'  lda v{v_idx+1}_ps_lo_tab,y')
+        L.append(f'  sta v_state+${0x15+x:02X}')
+        L.append(f'  sta v_state+${0x17+x:02X}')
+        L.append(f'  lda v{v_idx+1}_ps_hi_tab,y')
+        L.append(f'  sta v_state+${0x16+x:02X}')
+        L.append(f'  sta v_state+${0x18+x:02X}')
+        L.append(f'  lda v{v_idx+1}_state_tab,y')
+        L.append(f'  sta v_state+${0x01+x:02X}')
         L.append(f'  lda #$00')
-        L.append(f'  sta v_state+${0x00+x:02X}    ; tick_ctr = 0')
-        # Timbre setup
-        for j, b in enumerate(timbres[v]):
-            L.append(f'  lda #${b:02X}')
-            L.append(f'  sta v_state+${0x02+x+j:02X}    ; timbre[{j}]')
-    L.append(f'  lda #{tempo}')
+        L.append(f'  sta v_state+${0x00+x:02X}')
+    L.append('  lda tempo_tab,y')
     L.append('  sta tempo_const')
-    L.append(f'  lda #{init_tempo_ctr}')
+    L.append('  lda init_tempo_ctr_tab,y')
     L.append('  sta tempo_ctr')
     L.append('  rts')
 
@@ -476,11 +562,40 @@ def emit_asm(usf: UsfFile) -> str:
     for i in range(0, 128, 16):
         L.append('  .byte ' + ', '.join(f'${b:02X}' for b in CLEVER_FREQ_LO[i:i+16]))
 
-    # Pattern data
-    for v, pat in enumerate(voice_patterns):
-        L.append(f'ptn_v{v+1}:')
-        for i in range(0, len(pat), 16):
-            L.append('  .byte ' + ', '.join(f'${b:02X}' for b in pat[i:i+16]))
+    # Per-subtune data tables (indexed by Y = subtune)
+    def _byte_tab(label, vals):
+        L.append(f'{label}: .byte ' + ', '.join(f'${v:02X}' for v in vals))
+    _byte_tab('tempo_tab', [s['tempo'] for s in per_sub])
+    _byte_tab('init_tempo_ctr_tab', [s['init_tempo_ctr'] for s in per_sub])
+    # 3 voices × 5 timbre fields per subtune
+    for v_idx in range(3):
+        for j in range(5):
+            _byte_tab(f'v{v_idx+1}_tb{j}_tab',
+                      [s['timbres'][v_idx][j] for s in per_sub])
+    # Per-voice initial state byte
+    for v_idx in range(3):
+        _byte_tab(f'v{v_idx+1}_state_tab',
+                  [s['init_state'][v_idx] for s in per_sub])
+    _byte_tab('init_d418_tab', [s['init_d418'] for s in per_sub])
+    # Per-subtune pat_start (lo/hi) tables — reference ptn_sN_vV labels
+    for v_idx in range(3):
+        L.append(f'v{v_idx+1}_ps_lo_tab:')
+        L.append('  .byte ' + ', '.join(
+            f'<ptn_s{s}_v{v_idx+1}' for s in range(n_sub)))
+        L.append(f'v{v_idx+1}_ps_hi_tab:')
+        L.append('  .byte ' + ', '.join(
+            f'>ptn_s{s}_v{v_idx+1}' for s in range(n_sub)))
+
+    # Per-subtune per-voice pattern data
+    pat_idx = 0
+    for s_idx in range(n_sub):
+        for v_idx in range(3):
+            pat = voice_patterns[pat_idx]
+            pat_idx += 1
+            L.append(f'ptn_s{s_idx}_v{v_idx+1}:')
+            for i in range(0, len(pat), 16):
+                L.append('  .byte ' + ', '.join(
+                    f'${b:02X}' for b in pat[i:i+16]))
 
     return '\n'.join(L) + '\n'
 
