@@ -94,6 +94,9 @@ pitch: NOTE_NAME      -> pitch_named
 fx_flag: "tie"                  -> fx_tie
        | "no_release"           -> fx_no_release
        | "porta" "=" INT        -> fx_porta
+       | "tempo" "=" INT        -> fx_tempo
+       | "vol" "=" INT          -> fx_vol
+       | "song_pos" "=" INT     -> fx_song_pos
        | "fx" ":" CNAME         -> fx_named
 
 // digi

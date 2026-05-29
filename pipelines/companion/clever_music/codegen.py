@@ -45,30 +45,32 @@ PLAY_VEC = LOAD + 3
 # resolved by xa65 labels in the emitted assembly).
 
 
-def _row_to_byte(row: NoteRow) -> int:
-    """Inverse of `_row_from_byte` in to_usf_v2."""
+def _row_to_bytes(row: NoteRow) -> bytes:
+    """Serialise one NoteRow back to its Clever-Music byte sequence.
+
+    A row's `duration` D ≥ 1 emits 1 head byte + (D-1) $81 SKIP bytes
+    (notes / rests sustain by skipping). Command rows ($Bx / $Cx /
+    $Dx / $Ex) always have duration=1 — they don't consume a tempo
+    tick in the engine.
+    """
     flags = set(row.fx_flags)
     if not row.pitch.is_rest:
-        # NORMAL_NOTE
-        return pitch_to_note_byte(row.pitch.name, row.pitch.octave)
-    if 'fx:hold' in flags:
-        return 0x81
-    if 'fx:set_dur' in flags:
-        return 0x82
+        head = pitch_to_note_byte(row.pitch.name, row.pitch.octave)
+        return bytes([head]) + bytes([0x81] * (row.duration - 1))
     if row.instr is not None:
-        # SET_INSTRUMENT
-        return 0xD0 | ((row.instr.id - 1) & 0x0F)
+        # SET_INSTRUMENT — rest row with instr_ref.
+        return bytes([0xD0 | ((row.instr.id - 1) & 0x0F)])
     for flag in flags:
-        if flag.startswith('fx:tempo_'):
-            return 0xB0 | (int(flag.split('_')[1]) & 0x0F)
-        if flag.startswith('fx:vol_'):
-            return 0xC0 | (int(flag.split('_')[1]) & 0x0F)
-        if flag.startswith('fx:jump_'):
-            return 0xE0 | (int(flag.split('_')[1]) & 0x0F)
+        if flag.startswith('tempo='):
+            return bytes([0xB0 | (int(flag.split('=')[1]) & 0x0F)])
+        if flag.startswith('vol='):
+            return bytes([0xC0 | (int(flag.split('=')[1]) & 0x0F)])
+        if flag.startswith('song_pos='):
+            return bytes([0xE0 | (int(flag.split('=')[1]) & 0x0F)])
         if flag.startswith('fx:raw_'):
-            return int(flag.split('_')[1], 16)
-    # Default rest = $80
-    return 0x80
+            return bytes([int(flag.split('_')[1], 16)])
+    # Default rest = $80 + ($81 × (D-1))
+    return bytes([0x80]) + bytes([0x81] * (row.duration - 1))
 
 
 def _timbre_block(instr) -> bytes:
@@ -100,7 +102,7 @@ def emit_asm(usf: UsfFile) -> str:
         if not vb.patterns:
             raise ValueError(f'voice {vb.id} has no patterns')
         pat = vb.patterns[0]
-        voice_patterns.append(bytes(_row_to_byte(r) for r in pat.rows))
+        voice_patterns.append(b''.join(_row_to_bytes(r) for r in pat.rows))
 
     L: list[str] = []
     L.append(f'* = ${LOAD:04X}')

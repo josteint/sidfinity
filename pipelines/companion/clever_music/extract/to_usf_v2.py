@@ -1,21 +1,19 @@
 """Extract → USF v2 for the Clever Music Companion engine.
 
-Each voice's pattern is a sequence of engine command bytes. We encode
-ONE engine byte per USF NoteRow:
+USF encoding (one engine byte per row, except $81 which folds into
+the preceding row's duration):
 
-  $00-$7F NORMAL_NOTE  → Pitch(name, octave) + duration 1
-  $80     REST         → Pitch.rest() + duration 1
-  $81     SKIP         → Pitch.rest() + duration 1 + fx:hold
-  $82     SET_DURATION → Pitch.rest() + duration 1 + fx:set_dur
-  $B0-$BF SET_TEMPO    → Pitch.rest() + duration 1 + fx:tempo_<N>
-  $C0-$CF SET_MASTER_VOL → Pitch.rest() + duration 1 + fx:vol_<N>
-  $D0-$DF SET_INSTRUMENT → Pitch.rest() + duration 1 + i:i<N+1>
-  $E0-$EF PATTERN_JUMP → Pitch.rest() + duration 1 + fx:jump_<N>
+  $00-$7F NORMAL_NOTE  → Pitch(name, octave) + duration N
+  $80     REST         → Pitch.rest()        + duration N
+  $81     SKIP         → folded — adds 1 to duration of preceding row
+  $B0-$BF SET_TEMPO    → Pitch.rest() + duration 1 + tempo=<N>
+  $C0-$CF SET_MASTER_VOL → Pitch.rest() + duration 1 + vol=<N>
+  $D0-$DF SET_INSTRUMENT → Pitch.rest() + duration 1 + instr_ref (i<N+1>)
+  $E0-$EF PATTERN_JUMP → Pitch.rest() + duration 1 + song_pos=<N>
 
-The engine's `duration` field is the *number of pattern bytes the row
-represents* (always 1 for this engine — there's no multi-byte $82 N
-encoding in Fairlight or Gyroscope, but reserving the field allows
-$82 N to be encoded as `--- N fx:set_dur` later if needed).
+`tempo=N`, `vol=N`, `song_pos=N` are parametric fx flags (same
+shape as the existing `porta=N`) — N is musically meaningful (BPM-
+adjacent, 0..15 master vol, song-section index).
 
 Per-voice patterns are extracted from start through the LAST byte the
 voice's pattern_ptr reaches during one full song cycle, which we
@@ -41,20 +39,19 @@ from pipelines.companion.clever_music.extract.engine_model import (
 _NOTE_NAMES = ('C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B')
 
 
-def _row_from_byte(b: int) -> NoteRow:
-    """Encode one Clever-Music pattern byte as a USF NoteRow."""
+def _row_from_byte(b: int) -> NoteRow | None:
+    """Encode one Clever-Music pattern byte as a USF NoteRow, or
+    return None if the byte should fold into the preceding row's
+    duration ($81 SKIP).
+    """
     if b < 0x80:
         # NORMAL_NOTE — pitch byte (octave << 4) | semitone
         semitone = b & 0x0F
         octave = (b >> 4) & 0x07
-        # Engine's freq table is indexed 0..127. The 12-tone musical
-        # range covers semitone 0..11; semitones 12..15 are extra slots
-        # the engine treats as valid notes but with custom freq values
-        # set by the per-tune freq table. Map them to NoteRow with
-        # synthetic pitches using # spelling (we'll never see them in
-        # well-formed Clever Music tunes).
         if semitone >= 12:
-            # Unusual; encode with fx flag carrying the raw byte
+            # Engine's freq table has extra slots at semitone 12..15
+            # (freq=0 in Fairlight / Gyroscope). Never seen in their
+            # actual pattern data; keep as raw fallback.
             return NoteRow(pitch=Pitch.rest(), duration=1,
                            fx_flags=(f'fx:raw_{b:02x}',))
         return NoteRow(
@@ -64,31 +61,48 @@ def _row_from_byte(b: int) -> NoteRow:
     if b == 0x80:
         return NoteRow(pitch=Pitch.rest(), duration=1)
     if b == 0x81:
-        return NoteRow(pitch=Pitch.rest(), duration=1,
-                       fx_flags=('fx:hold',))
-    if b == 0x82:
-        return NoteRow(pitch=Pitch.rest(), duration=1,
-                       fx_flags=('fx:set_dur',))
+        # SKIP — caller folds into preceding row's duration.
+        return None
     nibble = b & 0x0F
     if 0xB0 <= b <= 0xBF:
         return NoteRow(pitch=Pitch.rest(), duration=1,
-                       fx_flags=(f'fx:tempo_{nibble}',))
+                       fx_flags=(f'tempo={nibble}',))
     if 0xC0 <= b <= 0xCF:
         return NoteRow(pitch=Pitch.rest(), duration=1,
-                       fx_flags=(f'fx:vol_{nibble}',))
+                       fx_flags=(f'vol={nibble}',))
     if 0xD0 <= b <= 0xDF:
-        # SET_INSTRUMENT — use instr_ref (1-indexed in USF)
+        # SET_INSTRUMENT — encoded by the instr_ref on a rest row.
         return NoteRow(
             pitch=Pitch.rest(), duration=1,
             instr=InstrumentRef(id=nibble + 1),
-            fx_flags=('fx:set_inst',),
         )
     if 0xE0 <= b <= 0xEF:
         return NoteRow(pitch=Pitch.rest(), duration=1,
-                       fx_flags=(f'fx:jump_{nibble}',))
-    # Anything else — engine no-ops. Encode raw.
+                       fx_flags=(f'song_pos={nibble}',))
+    # Anything else ($82 SET_DURATION et al — engine no-ops in this
+    # corpus). Keep raw escape so we don't silently drop bytes.
     return NoteRow(pitch=Pitch.rest(), duration=1,
                    fx_flags=(f'fx:raw_{b:02x}',))
+
+
+def _rows_from_bytes(pat_bytes: bytes) -> list[NoteRow]:
+    """Decode the full pattern byte sequence into NoteRows, folding
+    $81 SKIP bytes into the preceding row's duration.
+    """
+    rows: list[NoteRow] = []
+    for b in pat_bytes:
+        row = _row_from_byte(b)
+        if row is None:
+            # $81 SKIP — extend last row's duration.
+            if not rows:
+                # Defensive: pattern starts with $81 — treat as a 1-tick
+                # rest extended to dur=2 by this $81.
+                rows.append(NoteRow(pitch=Pitch.rest(), duration=2))
+            else:
+                rows[-1].duration += 1
+            continue
+        rows.append(row)
+    return rows
 
 
 def _extract_voice_pattern(state, voice: int) -> bytes:
@@ -192,8 +206,9 @@ def build_usf(sid_path: str) -> UsfFile:
         fresh = load_state_from_sid(sid_path)
         pat_bytes = _extract_voice_pattern(fresh, v)
         voice_pattern_bytes.append(pat_bytes)
-        rows = [_row_from_byte(b) for b in pat_bytes]
-        pat = Pattern(id=1, length=len(rows), rows=rows)
+        rows = _rows_from_bytes(pat_bytes)
+        total_ticks = sum(r.duration for r in rows)
+        pat = Pattern(id=1, length=total_ticks, rows=rows)
         voices.append(VoiceBlock(
             id=v + 1,
             orderlist=Orderlist(entries=[1], loop_to=0),

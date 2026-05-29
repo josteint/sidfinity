@@ -463,6 +463,15 @@ class _T(Transformer):
         # encode as a string so it round-trips through tuple[str]
         return f'porta={int(items[0])}'
 
+    def fx_tempo(self, items):
+        return f'tempo={int(items[0])}'
+
+    def fx_vol(self, items):
+        return f'vol={int(items[0])}'
+
+    def fx_song_pos(self, items):
+        return f'song_pos={int(items[0])}'
+
     def fx_named(self, items):
         return f'fx:{items[0]}'
 
