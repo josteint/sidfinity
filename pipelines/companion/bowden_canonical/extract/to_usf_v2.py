@@ -39,6 +39,13 @@ from pipelines.companion.bowden_canonical.extract.engine_model import (
 def _row_from_note_byte(b: int) -> NoteRow:
     if b == 0x80:
         return NoteRow(pitch=Pitch.rest(), duration=1)
+    if b & 0x80:
+        # bit-7 set, not $80, not $FF (FF is the orderlist terminator,
+        # filtered out before this is called). The engine treats these
+        # as skip — falls through to a bare RTS at $C108. Musically:
+        # the prior note continues without retrigger. Encoded as
+        # rest + fx:hold.
+        return NoteRow(pitch=Pitch.rest(), duration=1, fx_flags=('fx:hold',))
     name, octave = note_byte_to_pitch(b)
     return NoteRow(pitch=Pitch(name=name, octave=octave), duration=1)
 

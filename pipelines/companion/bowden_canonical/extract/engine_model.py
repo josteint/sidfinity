@@ -247,9 +247,12 @@ def proc_note(state: EngineState, voice: int, note: int,
                       skip_sr=True)
         return
 
-    # bit-7-set + not $80/$FF: undefined in the engine (branches to $C108).
-    # Should never occur in well-formed tunes.
-    raise ValueError(f'undefined note byte ${note:02X} at voice {voice}')
+    # bit-7-set + not $80/$FF: engine branches to $C108 which is just RTS.
+    # The voice does nothing this tick — no SID writes. Karl Hörnell's
+    # Melonmania uses these as silent skip markers (where a normal note
+    # would re-trigger the envelope, an unrecognised bit-7 byte lets
+    # the previous envelope keep ringing without retrigger).
+    return
 
 
 def play_one_frame(state: EngineState) -> list[tuple[int, int]]:

@@ -52,6 +52,13 @@ PLAY_VEC = LOAD + 3      # JMP play
 
 
 def _note_byte_from_row(row) -> int:
+    if 'fx:hold' in row.fx_flags:
+        # Engine treats any bit-7-set byte that's not $80 or $FF as a
+        # skip (bare RTS at $C108, no SID writes). $81 is the canonical
+        # value the original Bowden engines emit; using it preserves
+        # exact byte content and the carry-leak that propagates C=0 to
+        # the next voice's PW loop iteration count.
+        return 0x81
     if row.pitch.is_rest:
         return 0x80
     return pitch_to_note_byte(row.pitch.name, row.pitch.octave)
@@ -164,6 +171,7 @@ def emit_asm(usf: UsfFile) -> str:
     L.append('proc_note:')
     L.append('  cmp #$80')
     L.append('  beq pn_rest')
+    L.append('  bcs pn_skip          ; bit-7-set non-$80 non-$FF means no-op')
     L.append('  tay')
     L.append('  lda freq_hi_tab,y')
     L.append('  sta $d401,x')
@@ -187,9 +195,12 @@ def emit_asm(usf: UsfFile) -> str:
     L.append('  lda timbre_ctrl,x')
     L.append('  sta $d404,x')
     L.append('  rts')
+    L.append('pn_skip:')
+    L.append('  rts')
     L.append('proc_note_4:')
     L.append('  cmp #$80')
     L.append('  beq pn_rest')
+    L.append('  bcs pn_skip')
     L.append('  tay')
     L.append('  lda freq_hi_tab,y')
     L.append('  sta $d401,x')
