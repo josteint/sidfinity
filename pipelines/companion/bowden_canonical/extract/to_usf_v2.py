@@ -84,6 +84,7 @@ def _psid_meta_from_sid(sid_path: str) -> PsidMeta:
     sid_bits = (flags >> 4) & 0x03
     sid = {0: 6581, 1: 6581, 2: 8580, 3: 6581}[sid_bits]
     start_song = int.from_bytes(raw[0x10:0x12], 'big')
+    speed = int.from_bytes(raw[0x12:0x16], 'big')
     return PsidMeta(
         title=title,
         author=author,
@@ -91,6 +92,7 @@ def _psid_meta_from_sid(sid_path: str) -> PsidMeta:
         clock=clock,
         sid=sid,
         start_song=start_song,
+        speed=speed,
     )
 
 
