@@ -97,6 +97,51 @@ def compare_strict(a: list[Frame], b: list[Frame]) -> dict:
             'len_a': len(a), 'len_b': len(b)}
 
 
+def compare_instruction_stream(a: list[Frame], b: list[Frame],
+                                skip_init: bool = True) -> dict:
+    """Global cycle-ordered comparison of the (reg, val) sequence the
+    SID actually receives.
+
+    siddump's VBI-frame bucketing of writes is an OBSERVATION artifact:
+    writes near frame boundaries can shift bucket when total play()
+    cycle count drifts by even a few cycles. The SID chip itself just
+    receives a stream of writes in cycle order — the bucketing is
+    siddump's reporting choice, not part of the music.
+
+    This compare concatenates all writes across all frames in cycle
+    order, then matches the (reg, val) sequence position-by-position.
+
+    `skip_init=True` (default) drops frame 0 — the init invocation —
+    from both sides before comparing. Engine-specific init order
+    (e.g. silence direction, pre-D418 write, AD/SR ordering) can vary
+    while still producing the same final SID state and the same music.
+    For verifying "the rebuild plays the same music as the original,"
+    music-only is the right comparison.
+
+    Returns the longest matching prefix length plus both stream totals.
+    A clean run produces match == min(len_a, len_b). A length mismatch
+    with full-prefix match means init duration drifted by a few
+    cycles and the test window contains a different number of music
+    ticks on each side — equivalent musically, just truncated
+    differently.
+    """
+    def flatten(stream):
+        return [(reg, val)
+                for k, frame in enumerate(stream)
+                if (not skip_init or k > 0)
+                for _, reg, val in frame]
+    flat_a = flatten(a)
+    flat_b = flatten(b)
+    n = min(len(flat_a), len(flat_b))
+    match = 0
+    for i in range(n):
+        if flat_a[i] == flat_b[i]:
+            match += 1
+        else:
+            break
+    return {'match': match, 'len_a': len(flat_a), 'len_b': len(flat_b)}
+
+
 def cycle_drift(a: list[Frame], b: list[Frame]) -> dict:
     """For frames whose write SETS agree, characterise the cycle drift
     between matching writes — answers 'how cycle-close are these two
