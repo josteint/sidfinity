@@ -308,6 +308,24 @@ def main(argv: list[str] | None = None) -> int:
     if not args.quiet:
         print(f'    {len(songlengths):,} entries in Songlengths.md5')
 
+    # Local overrides — applied AFTER HVSC ingest. Used to correct anomalous
+    # HVSC entries (e.g. defaulted 4-second values for tunes whose natural
+    # loop is much longer). Survives HVSC re-fetches; the corresponding
+    # edits to Songlengths.md5 itself are local-only.
+    overrides_path = ROOT / 'tools' / 'songlength_overrides.json'
+    if overrides_path.exists():
+        import json
+        overrides = json.loads(overrides_path.read_text())
+        n_applied = 0
+        for md5, entry in overrides.items():
+            if not isinstance(entry, dict) or 'seconds' not in entry:
+                continue
+            songlengths[md5] = entry['seconds']
+            n_applied += 1
+        if not args.quiet:
+            print(f'    {n_applied} songlength overrides applied from '
+                  f'{overrides_path.relative_to(ROOT)}')
+
     if not args.quiet:
         print(f'  resolving pipeline mappings from pipelines/...')
     pipeline_map = build_pipeline_map()

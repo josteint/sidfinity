@@ -1,0 +1,19 @@
+{
+  "_comment": "Per-SID songlength overrides applied after HVSC ingest in build_sid_db.py. Keyed by md5(file). Use when HVSC's Songlengths.md5 has anomalously short or otherwise wrong durations and we have a principled reason to correct them. The override survives HVSC re-fetches; the corresponding line in HVSC's Songlengths.md5 is also edited in place but that file is gitignored.",
+
+  "0ee2cbed5764580b2a6a4ce44ef80cc3": {
+    "seconds": 46.566,
+    "path": "MUSICIANS/B/Berry_Vic/Bach_Sonata.sid",
+    "reason": "HVSC had 4.034s but the Bowden-canonical engine plays a 55.88s natural loop (K=254 ticks × tempo 11). All sibling Vic Berry tunes use HVSC = natural/1.2; applying the same rule gives 46.566s."
+  },
+  "9d27c54671b1db8d1da24f0a684c41d1": {
+    "seconds": 9.167,
+    "path": "MUSICIANS/B/Berry_Vic/SID_Sequencer.sid",
+    "reason": "HVSC had 4.034s but natural loop is 11.00s (K=50, tempo=11). Apply natural/1.2 = 9.167s."
+  },
+  "cb02c63aa47da7fe1d2b2841446b5fa7": {
+    "seconds": 11.733,
+    "path": "MUSICIANS/B/Berry_Vic/Te_Deum.sid",
+    "reason": "HVSC had 5.868s but natural loop is 14.08s (K=64, tempo=11). Apply natural/1.2 = 11.733s."
+  }
+}
