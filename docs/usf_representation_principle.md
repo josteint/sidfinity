@@ -183,14 +183,16 @@ the resulting *SID writeset* (per-frame ordered `(reg, val)` writes)
 differs, never when only the 6502 machine code differs.
 
 **The concrete test is writelog comparison.** The SID is deterministic
-from its register state: identical writeset, identical sound. For
+from its register state: identical write stream, identical sound. For
 non-digi music, two implementations are "the same musical concept" iff
-their per-frame `(reg, val)` write sequences match across the song
-(`compare_writeset` in `pipelines/hubbard/verify_cycle.py`). For digi,
-where cycle IS the signal, the test is cycle-strict writelog comparison
-(`compare_strict`) or flat-write-sequence equality
-(`_checksum_digi`'s test) — same instrument-level audibility, just
-without the cycle-shift artifact from a regenerated dispatcher.
+their global cycle-ordered `(reg, val)` write streams match across the
+song (`compare_instruction_stream` in
+`pipelines/hubbard/verify_cycle.py` — concatenates writes across all
+frames in cycle order, drops the init invocation; siddump's VBI-frame
+bucketing of writes is reporting, not part of what the chip receives).
+For digi, where cycle IS the signal, the test is cycle-strict
+per-frame writelog comparison (`compare_strict`) — same write timing
+matters there because the bit pattern timing is the sample.
 
 When the test needs to attribute writes to a specific voice or 6502
 routine (e.g. to isolate a single-voice effect from a multi-voice

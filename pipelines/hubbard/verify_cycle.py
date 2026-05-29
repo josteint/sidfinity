@@ -4,18 +4,21 @@ py65's `inst_program.capture` is frame-granular and physically cannot
 see cycle-timed playback (and would blow its step budget on a blocking
 digi routine). This harness drives `siddump --writelog`, the cycle-
 timed `(cycle, reg, val)` write stream from libsidplayfp — the
-project's ground truth for anything below the frame boundary.
+project's ground truth for what the SID chip actually receives.
 
-Two comparisons are useful:
+Two comparisons:
 
-- `compare_writeset` — per frame, compare the ordered list of
-  `(reg, val)` writes, ignoring the cycle within the frame. Matches
-  what the frame-granular py65 capture does, and is the right
-  comparison for music (where intra-frame cycle differences between
-  the original and the rebuild are inaudible).
+- `compare_instruction_stream` — the music comparator. Concatenates
+  all writes across all frames in cycle order, drops the init
+  invocation, compares the (reg, val) sequence. The SID chip sees a
+  continuous stream of writes; siddump's VBI-frame bucketing is
+  reporting, not part of what the chip receives — so per-frame
+  comparisons spuriously flag cycle-drift across frame boundaries as
+  "divergence" when the actual instruction stream is identical.
 
-- `compare_strict` — full `(cycle, reg, val)` equality. The right
-  comparison for digi, where the cycle IS the signal.
+- `compare_strict` — full per-frame (cycle, reg, val) equality. The
+  right comparison for digi, where the cycle within the frame IS the
+  signal (sample bits are timed cycle-precise).
 """
 
 from __future__ import annotations
@@ -63,23 +66,6 @@ def writelog_capture(sid_path: str, subtune: int = 0,
                 pass
         frames.append(writes)
     return frames
-
-
-def compare_writeset(a: list[Frame], b: list[Frame]) -> dict:
-    """Per-frame compare ignoring intra-frame cycle. Matches the
-    frame-granular py65 capture's semantics."""
-    n = min(len(a), len(b))
-    match = 0
-    first_diff = None
-    for k in range(n):
-        sa = [(r, v) for _, r, v in a[k]]
-        sb = [(r, v) for _, r, v in b[k]]
-        if sa == sb:
-            match += 1
-        elif first_diff is None:
-            first_diff = (k, sa, sb)
-    return {'frames': n, 'match': match, 'first_diff': first_diff,
-            'len_a': len(a), 'len_b': len(b)}
 
 
 def compare_strict(a: list[Frame], b: list[Frame]) -> dict:
@@ -142,30 +128,3 @@ def compare_instruction_stream(a: list[Frame], b: list[Frame],
     return {'match': match, 'len_a': len(flat_a), 'len_b': len(flat_b)}
 
 
-def cycle_drift(a: list[Frame], b: list[Frame]) -> dict:
-    """For frames whose write SETS agree, characterise the cycle drift
-    between matching writes — answers 'how cycle-close are these two
-    renderings, frame by frame?' Useful for calibrating what 'cycle-
-    exact' really needs to mean for digi vs music."""
-    n = min(len(a), len(b))
-    drifts: list[int] = []
-    set_matched = 0
-    for k in range(n):
-        sa = [(r, v) for _, r, v in a[k]]
-        sb = [(r, v) for _, r, v in b[k]]
-        if sa != sb or len(a[k]) != len(b[k]):
-            continue
-        set_matched += 1
-        for (ca, _, _), (cb, _, _) in zip(a[k], b[k]):
-            drifts.append(cb - ca)
-    if not drifts:
-        return {'set_matched_frames': set_matched, 'writes': 0}
-    abs_d = sorted(abs(d) for d in drifts)
-    return {
-        'set_matched_frames': set_matched,
-        'writes': len(drifts),
-        'max_abs_drift': abs_d[-1],
-        'p99_abs_drift': abs_d[max(0, int(0.99 * len(abs_d)) - 1)],
-        'p50_abs_drift': abs_d[len(abs_d) // 2],
-        'mean_signed_drift': sum(drifts) / len(drifts),
-    }
