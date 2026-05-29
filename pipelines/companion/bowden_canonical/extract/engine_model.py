@@ -128,7 +128,8 @@ def load_state_from_sid(sid_path: str) -> EngineState:
 
 
 def proc_note(state: EngineState, voice: int, note: int,
-              writes: list[tuple[int, int]]) -> None:
+              writes: list[tuple[int, int]],
+              skip_sr: bool = False) -> None:
     """Apply one note byte to a voice. Appends (reg_offset, val) for each
     SID write in the order the engine emits them.
 
@@ -148,7 +149,8 @@ def proc_note(state: EngineState, voice: int, note: int,
         writes.append((0x03 + voice_off, tb[1]))                 # V_PW_HI
         writes.append((0x04 + voice_off, tb[2]))                 # V_CTRL (junk — about to be overwritten)
         writes.append((0x05 + voice_off, tb[3]))                 # V_AD
-        writes.append((0x06 + voice_off, tb[4]))                 # V_SR
+        if not skip_sr:
+            writes.append((0x06 + voice_off, tb[4]))             # V_SR (only if 5-byte timbre)
         # Gated CTRL: ctrl | $01 (engine does "INY" on ctrl, equivalent to +1
         # for the typical ctrl byte where bit 0 is off)
         writes.append((0x04 + voice_off, tb[2] + 1))             # V_CTRL with gate
@@ -160,9 +162,25 @@ def proc_note(state: EngineState, voice: int, note: int,
         return
 
     if note == 0xFF:
-        # Loop: pos := 1, then process orderlist[0] (engine's recursive call)
+        # Loop: pos := 1, then process orderlist[0] (engine's recursive call).
+        # The engine's $FF dispatcher at $C0F0..$C105 does a sequence of
+        # CPX checks (CPX #$00 / CPX #$07 / CPX #$0E) to select the right
+        # voice's orderlist[0]. The LAST CPX executed determines the
+        # carry flag entering the recursive proc_note:
+        #   - For V1 (X=0): last CPX is #$0E, C=0 (X < $0E)
+        #   - For V2 (X=7): last CPX is #$0E, C=0
+        #   - For V3 (X=$E): CPX #$0E succeeds, BNE skipped, C=1
+        # So V1 and V2's $FF recursive call enters proc_note with C=0,
+        # which makes the PW timbre loop run only 4 iterations (no SR
+        # write). V3's runs the normal 5 iterations.
         state.v_pos[voice] = 1
-        proc_note(state, voice, state.orderlists[voice][0], writes)
+        if voice == 2:
+            # V3: full 5-byte timbre
+            proc_note(state, voice, state.orderlists[voice][0], writes)
+        else:
+            # V1 or V2: 4-byte timbre (skip SR write)
+            proc_note(state, voice, state.orderlists[voice][0], writes,
+                      skip_sr=True)
         return
 
     # bit-7-set + not $80/$FF: undefined in the engine (branches to $C108).

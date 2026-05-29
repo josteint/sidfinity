@@ -110,11 +110,12 @@ def emit_asm(usf: UsfFile) -> str:
     # ---- init ----
     L.append('init:')
     L.append('  lda #0')
-    L.append('  ldx #$18')
+    L.append('  ldx #0')
     L.append('init_silence:')
     L.append('  sta $d400,x')
-    L.append('  dex')
-    L.append('  bpl init_silence')
+    L.append('  inx')
+    L.append('  cpx #$19')
+    L.append('  bne init_silence')
     L.append('  lda #$0f')
     L.append('  sta $d418')
     L.append('  lda #$09')
@@ -153,6 +154,12 @@ def emit_asm(usf: UsfFile) -> str:
     L.append('; proc_note expects A as the note byte and X as voice offset 0,7,14')
     L.append('; voice_step sets X (via LDX immediate) AFTER loading A, which clears')
     L.append('; the N flag, so we test A explicitly with CMP rather than BMI.')
+    L.append('; The original engine emits a 5-byte timbre dump (pw_lo, pw_hi,')
+    L.append('; ctrl-junk, ad, sr) on regular ticks, but only 4 bytes (no sr) when')
+    L.append('; V1 or V2 hits its $FF loop terminator and proc_note is called')
+    L.append('; recursively on orderlist[0] — the loop dispatcher leaves carry=0')
+    L.append('; from CPX #$0E, which shortens the engine PW loop by one iteration.')
+    L.append('; We emit two variants — proc_note (5-byte) and proc_note_4 (4-byte).')
     L.append('proc_note:')
     L.append('  cmp #$80')
     L.append('  beq pn_rest')
@@ -165,24 +172,48 @@ def emit_asm(usf: UsfFile) -> str:
     L.append('  sta $d402,x')
     L.append('  lda timbre_pwhi,x')
     L.append('  sta $d403,x')
+    L.append('  lda timbre_ctrl,x')
+    L.append('  sta $d404,x          ; junk write (gate=0) — DELIBERATE retrigger')
     L.append('  lda timbre_ad,x')
     L.append('  sta $d405,x')
     L.append('  lda timbre_sr,x')
     L.append('  sta $d406,x')
     L.append('  lda timbre_ctrl,x')
     L.append('  ora #$01')
-    L.append('  sta $d404,x')
+    L.append('  sta $d404,x          ; gate=1, finalises the envelope retrigger')
     L.append('  rts')
     L.append('pn_rest:')
     L.append('  lda timbre_ctrl,x')
     L.append('  sta $d404,x')
     L.append('  rts')
+    L.append('proc_note_4:')
+    L.append('  cmp #$80')
+    L.append('  beq pn_rest')
+    L.append('  tay')
+    L.append('  lda freq_hi_tab,y')
+    L.append('  sta $d401,x')
+    L.append('  lda freq_lo_tab,y')
+    L.append('  sta $d400,x')
+    L.append('  lda timbre_pwlo,x')
+    L.append('  sta $d402,x')
+    L.append('  lda timbre_pwhi,x')
+    L.append('  sta $d403,x')
+    L.append('  lda timbre_ctrl,x')
+    L.append('  sta $d404,x          ; junk write (gate=0)')
+    L.append('  lda timbre_ad,x')
+    L.append('  sta $d405,x          ; NB no sr write (carry=0 path)')
+    L.append('  lda timbre_ctrl,x')
+    L.append('  ora #$01')
+    L.append('  sta $d404,x          ; gate=1')
+    L.append('  rts')
 
     # ---- per-voice step routines ----
-    for v, (pos_label, orderlist_label, voice_off) in enumerate([
-        ('v1_pos', 'orderlist_v1', 0),
-        ('v2_pos', 'orderlist_v2', 7),
-        ('v3_pos', 'orderlist_v3', 14),
+    # V1/V2 take a 4-byte-timbre path on $FF substitution; V3 stays 5-byte.
+    # (See proc_note above for the carry-leak explanation.)
+    for v, (pos_label, orderlist_label, voice_off, pn4_on_loop) in enumerate([
+        ('v1_pos', 'orderlist_v1', 0, True),
+        ('v2_pos', 'orderlist_v2', 7, True),
+        ('v3_pos', 'orderlist_v3', 14, False),
     ]):
         vn = v + 1
         L.append(f'voice{vn}_step:')
@@ -191,9 +222,15 @@ def emit_asm(usf: UsfFile) -> str:
         L.append(f'  lda {orderlist_label},x')
         L.append('  cmp #$ff')
         L.append(f'  bne v{vn}_play')
+        # $FF substitution path
         L.append('  lda #1')
         L.append(f'  sta {pos_label}')
         L.append(f'  lda {orderlist_label}')
+        L.append(f'  ldx #{voice_off}')
+        if pn4_on_loop:
+            L.append('  jmp proc_note_4    ; carry=0 path emits 4-byte timbre')
+        else:
+            L.append('  jmp proc_note      ; V3 keeps full 5-byte timbre')
         L.append(f'v{vn}_play:')
         L.append(f'  ldx #{voice_off}')
         L.append('  jmp proc_note')
