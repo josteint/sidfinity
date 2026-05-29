@@ -288,7 +288,18 @@ class PsidMeta:
 
 @dataclass
 class UsfFile:
-    """The full in-memory representation of a .usf file."""
+    """The full in-memory representation of a .usf file.
+
+    `version` distinguishes:
+      - `version: 2` — original schema with `engine: <name>` dispatch
+        through `pipelines/hubbard/engine_constants.ENGINE_CONSTANTS`.
+      - `version: 3` — engine-name-blind, self-contained. Carries
+        `freq_table` inline plus any per-tune mechanism overrides in
+        `params`. Built via `pipelines/hubbard/usf3_build_from_usf.py`.
+
+    Both versions share this dataclass; v3 just additionally requires
+    `freq_table is not None`.
+    """
     version: int
     engine: str
     psid: PsidMeta
@@ -296,7 +307,6 @@ class UsfFile:
     init: InitState
     instruments: list[Instrument] = field(default_factory=list)
     subtunes: list[Subtune] = field(default_factory=list)
-    # Optional per-tune freq table — when set, the build path can use
-    # these bytes directly without engine-name dispatch. See
-    # `pipelines/hubbard/universal_build_from_usf.py`.
+    # Per-tune freq table (v3 only). 320 bytes — first 192 are the
+    # musical PAL table, last 128 are engine state/scratch.
     freq_table: Optional[list[int]] = None

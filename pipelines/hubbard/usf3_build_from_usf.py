@@ -1,22 +1,25 @@
-"""USF → SID build path WITHOUT engine-name dispatch.
+"""USF v3 → SID build path.
 
-Proof of concept: a single codegen path that produces a byte-exact
-rebuild (instruction-stream-per-frame contract) reading ONLY from the
-USF. No `ENGINE_CONSTANTS[usf.engine]` lookup; the engine name is
-ignored. Per-tune freq table comes from `usf.freq_table` (the new
-optional grammar block); per-tune mechanism flags come from
-`usf.params.fields` with Commando-flavor defaults; instrument quirks
-come from the per-instrument fields already in USF.
+USF v3 is the engine-name-blind, self-contained version. A v3 USF
+declares `version: 3` and carries:
 
-Started for Commando — establishes whether the USF representation is
-rich enough to be self-contained. If this rebuilds Commando byte-
-exact, we know we can extend the same path to other engines whose
-USFs we'd also enrich with `freq_table` + flags.
+  - `freq_table { ... }` — the per-tune 320-byte freq region
+  - `params { ... }` — named tune-level mechanism overrides (only
+    fields that deviate from the Commando-flavor defaults)
+  - Per-instrument effect fields, per-voice patterns, SFX records —
+    all already principled at v2.
 
-This sits ALONGSIDE the existing engine-name-dispatch build path
-(`build_from_usf.py`) — that one is unchanged. Other engines that
-haven't been re-extracted with the universal extras keep using the
-old path.
+This build path reads ONLY from the USF — no `ENGINE_CONSTANTS[name]`
+lookup. The `engine:` token is metadata; the build never consumes it.
+
+Proves the universal target: the USF representation is rich enough
+to host every detail a build needs. As more engines are migrated,
+each becomes a v3 USF + tune-specific param overrides — no new
+codegen path, no new engine constants entry.
+
+Verified on Commando (19/19 subtunes byte-exact via verify_all).
+The existing v2 dispatched-build path (`build_from_usf.py`) stays
+alongside until all engines are migrated to v3.
 """
 
 from __future__ import annotations
@@ -34,11 +37,14 @@ from pipelines.hubbard.build_from_usf import (
 from pipelines.hubbard.codegen import _Inputs
 
 
-def _inputs_from_universal_usf(usf: UsfFile) -> _Inputs:
-    """Build codegen `_Inputs` from USF alone — no engine lookup."""
+def _inputs_from_usf3(usf: UsfFile) -> _Inputs:
+    """Build codegen `_Inputs` from a v3 USF — no engine lookup."""
+    if usf.version != 3:
+        raise ValueError(
+            f'usf3 build expects version 3, got {usf.version}')
     if usf.freq_table is None:
         raise ValueError(
-            'universal_build requires a freq_table block in the USF')
+            'usf3 build requires a freq_table block in the USF')
     if len(usf.freq_table) != 320:
         raise ValueError(
             f'expected 320-byte freq_table, got {len(usf.freq_table)}')
@@ -132,15 +138,13 @@ def _inputs_from_universal_usf(usf: UsfFile) -> _Inputs:
     )
 
 
-def build_universal(usf_path: str, out_path: str, codec=None) -> str:
-    """Read a USF that carries its own freq_table + flags, produce a
-    SID with no engine-name dispatch.
-    """
+def build_from_usf3(usf_path: str, out_path: str, codec=None) -> str:
+    """Read a v3 USF, produce a SID with no engine-name dispatch."""
     from pipelines.hubbard.note_codec import BitPackCodec
     if codec is None:
         codec = BitPackCodec()
     usf = parse_file(usf_path)
     usf_dir = os.path.dirname(os.path.abspath(usf_path))
     validate(usf, usf_dir=usf_dir)
-    inputs = _inputs_from_universal_usf(usf)
+    inputs = _inputs_from_usf3(usf)
     return _emit_sid(inputs, out_path, codec)
