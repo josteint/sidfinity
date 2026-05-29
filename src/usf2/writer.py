@@ -227,6 +227,16 @@ def _write_subtune(s) -> list[str]:
 # Public API
 # ---------------------------------------------------------------------------
 
+def _write_freq_table(bytes_: list[int]) -> list[str]:
+    lines = ['freq_table {']
+    # 16 bytes per line for readability.
+    for i in range(0, len(bytes_), 16):
+        row = ' '.join(_hex(b) for b in bytes_[i:i + 16])
+        lines.append(f'  {row}')
+    lines.append('}')
+    return lines
+
+
 def write(usf: UsfFile) -> str:
     """Serialize a `UsfFile` to canonical `.usf` text."""
     lines: list[str] = []
@@ -238,6 +248,9 @@ def write(usf: UsfFile) -> str:
     lines.extend(_write_params(usf.params))
     lines.append('')
     lines.extend(_write_init(usf.init))
+    if usf.freq_table is not None:
+        lines.append('')
+        lines.extend(_write_freq_table(usf.freq_table))
     for inst in sorted(usf.instruments, key=lambda x: x.id):
         lines.append('')
         lines.extend(_write_instrument(inst))

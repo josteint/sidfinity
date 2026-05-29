@@ -296,3 +296,7 @@ class UsfFile:
     init: InitState
     instruments: list[Instrument] = field(default_factory=list)
     subtunes: list[Subtune] = field(default_factory=list)
+    # Optional per-tune freq table — when set, the build path can use
+    # these bytes directly without engine-name dispatch. See
+    # `pipelines/hubbard/universal_build_from_usf.py`.
+    freq_table: Optional[list[int]] = None

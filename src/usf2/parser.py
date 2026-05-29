@@ -475,6 +475,10 @@ class _T(Transformer):
     def fx_named(self, items):
         return f'fx:{items[0]}'
 
+    def freq_table_block(self, items):
+        # items[0] is a byte_list (= list[int])
+        return ('freq_table', items[0])
+
     def fx_flag(self, items):
         return items[0]
 
@@ -498,6 +502,7 @@ class _T(Transformer):
         init = None
         instruments = []
         subtunes = []
+        freq_table = None
         for it in items:
             if isinstance(it, tuple):
                 k, v = it
@@ -505,6 +510,8 @@ class _T(Transformer):
                     version = v
                 elif k == 'engine':
                     engine = v
+                elif k == 'freq_table':
+                    freq_table = v
             elif isinstance(it, PsidMeta):
                 psid = it
             elif isinstance(it, Params):
@@ -517,7 +524,8 @@ class _T(Transformer):
                 subtunes.append(it)
         return UsfFile(
             version=version, engine=engine, psid=psid, params=params,
-            init=init, instruments=instruments, subtunes=subtunes)
+            init=init, instruments=instruments, subtunes=subtunes,
+            freq_table=freq_table)
 
 
 # ---------------------------------------------------------------------------

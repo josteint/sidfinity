@@ -3,7 +3,7 @@
 // Lark grammar (LALR friendly). Whitespace and comments are ignored
 // between tokens. Top-level order is enforced by the start rule.
 
-start: version_decl engine_decl psid_block params_block init_block instrument_block* subtune_block*
+start: version_decl engine_decl psid_block params_block init_block freq_table_block? instrument_block* subtune_block*
 
 version_decl: "version" ":" INT
 engine_decl:  "engine" ":" CNAME
@@ -36,6 +36,13 @@ init_field: CNAME ":" init_value
 init_value: number           -> init_number
           | CNAME            -> init_keyword
           | instr_ref        -> init_instr
+
+// ----- freq table (optional) -----
+// Per-tune freq table bytes. The codegen places them at the canonical
+// freq-table address. When present, the build path doesn't need to
+// look up engine constants for the freq region — the tune is
+// self-contained.
+freq_table_block: "freq_table" "{" byte_list "}"
 
 // ----- instruments -----
 instrument_block: "instrument" INT instrument_name? "{" instrument_field+ "}"
