@@ -33,11 +33,26 @@ Engine semantics (from $6240 disasm):
         else: DEC tick_ctr
       else: skip
 
-USF representation (one row per pattern entry):
-  Normal note → Pitch + duration N
-  $80 rest    → Pitch.rest() + duration N
-  $81 stop    → Pitch.rest() + duration 1 + fx:stop
-  $FF loop    → orderlist loop@0 (not encoded as a row)
+USF representation:
+  Normal note → row Pitch + duration N
+  $80 rest    → row Pitch.rest() + duration N
+  $81 stop    → voice orderlist terminator `stop`
+  $FF loop    → voice orderlist terminator `loop @ 0`
+
+  Per-voice runtime initial state lives entirely in the orderlist
+  shape: a silent voice has `orderlist: stop` with no patterns
+  (engine state=0); a normal voice has `orderlist: 1 stop` or
+  `orderlist: 1 loop@0` depending on which terminator byte the
+  engine reads at end-of-pattern (state=2).
+
+  Subtune gain-init (whether the engine writes $D418=$0F during
+  init) lives in `params { gain_init: full | preserve }`.
+
+  Muted-pitch percussion triggers ($2C..$2F, $4C..$4F) in SFX
+  subtunes still use `fx:raw_NN` — these are freq=0 entries in
+  the freq table that gate the envelope without an audible pitch;
+  a clean musical primitive ("trigger / drum / mute") requires a
+  Pitch-type extension and is deferred.
 """
 
 from __future__ import annotations
@@ -185,21 +200,25 @@ def _row_from_pair(note: int, dur: int) -> NoteRow:
     raise ValueError(f'unexpected pair note=${note:02X}')
 
 
-def _row_from_marker(b: int) -> NoteRow:
-    if b == 0x81:
-        return NoteRow(pitch=Pitch.rest(), duration=1, fx_flags=('fx:stop',))
-    if b == 0xFF:
-        return NoteRow(pitch=Pitch.rest(), duration=1, fx_flags=('fx:loop',))
-    raise ValueError(f'unexpected marker ${b:02X}')
+def _build_voice_rows(pattern_bytes: bytes) -> tuple[list[NoteRow], str | None]:
+    """Decode pattern bytes into note rows + the engine terminator kind.
 
-
-def _build_voice_rows(pattern_bytes: bytes) -> list[NoteRow]:
+    The terminator byte ($81 or $FF) doesn't appear in the row list;
+    it becomes the voice's orderlist terminator. Returns ('stop',
+    'loop' or None for an unterminated pattern body — only the latter
+    case means we read past the end without finding a terminator,
+    which would be a malformed engine state).
+    """
     rows = []
+    terminator: str | None = None
     i = 0
     while i < len(pattern_bytes):
         b = pattern_bytes[i]
-        if b == 0xFF or b == 0x81:
-            rows.append(_row_from_marker(b))
+        if b == 0x81:
+            terminator = 'stop'
+            break
+        if b == 0xFF:
+            terminator = 'loop'
             break
         if b < 0x80 or b == 0x80:
             dur = pattern_bytes[i + 1]
@@ -207,7 +226,7 @@ def _build_voice_rows(pattern_bytes: bytes) -> list[NoteRow]:
             i += 2
         else:
             i += 1
-    return rows
+    return rows, terminator
 
 
 def _n_subtunes(sid_path: str) -> int:
@@ -234,14 +253,8 @@ def build_usf(sid_path: str) -> UsfFile:
         for v, x in enumerate((0, 7, 14)):
             pat_start = mem[VB + 0x17 + x] | (mem[VB + 0x18 + x] << 8)
             timbre = bytes(mem[VB + 0x02 + x:VB + 0x02 + x + 5])
-            pat_bytes = _extract_pattern(mem, pat_start)
-            rows = _build_voice_rows(pat_bytes)
-            total_ticks = sum(r.duration for r in rows)
-            voices.append(VoiceBlock(
-                id=v + 1,
-                orderlist=Orderlist(entries=[1], loop_to=0),
-                patterns=[Pattern(id=1, length=total_ticks, rows=rows)],
-            ))
+            engine_state = mem[VB + 1 + x]    # 0 = silent, 2 = load-pattern
+
             instrument_id += 1
             pw = (timbre[1] << 8) | timbre[0]
             instruments.append(Instrument(
@@ -255,13 +268,49 @@ def build_usf(sid_path: str) -> UsfFile:
             sub_init_voices.append(
                 InitVoice(id=v + 1, instr=InstrumentRef(id=instrument_id)))
 
-        # Per-voice initial state byte ($00 = silent, $02 = load-pattern)
-        sub_fields = {'init_tempo_ctr': mem[TEMPO_CTR]}
-        for v, x in enumerate((0, 7, 14)):
-            sub_fields[f'init_state_v{v+1}'] = mem[VB + 1 + x]
-        # Whether init writes $D418 = $0F (music subtunes yes, SFX no)
+            if engine_state == 0:
+                # Voice is silent throughout the subtune. The engine
+                # never reads its pattern data; we drop it from USF.
+                voices.append(VoiceBlock(
+                    id=v + 1,
+                    orderlist=Orderlist(entries=[], stop=True),
+                    patterns=[],
+                ))
+                continue
+            if engine_state != 2:
+                raise ValueError(
+                    f'subtune {s_idx} voice {v+1}: unexpected engine '
+                    f'state ${engine_state:02X} (expected $00 or $02)')
+
+            pat_bytes = _extract_pattern(mem, pat_start)
+            rows, terminator = _build_voice_rows(pat_bytes)
+            if terminator is None:
+                raise ValueError(
+                    f'subtune {s_idx} voice {v+1}: pattern at ${pat_start:04X} '
+                    f'has no $81/$FF terminator')
+            total_ticks = sum(r.duration for r in rows)
+            if terminator == 'stop':
+                ol = Orderlist(entries=[1], stop=True)
+            else:  # 'loop'
+                ol = Orderlist(entries=[1], loop_to=0)
+            voices.append(VoiceBlock(
+                id=v + 1,
+                orderlist=ol,
+                patterns=[Pattern(id=1, length=total_ticks, rows=rows)],
+            ))
+
+        # Subtune-level musical params:
+        #   gain_init:    'full' if init writes $D418=$0F (music subtunes),
+        #                 'preserve' if init leaves $D418 untouched (SFX
+        #                 subtunes ride whatever master vol was already set).
+        #   init_tempo_ctr: starting phase of the tempo counter — where
+        #                 in the rhythmic cycle the song begins.
         _, init_sid, _ = _run_init(sid_path, subtune=s_idx)
-        sub_fields['init_d418'] = int(any(r == 0x18 and v == 0x0F for r, v in init_sid))
+        wrote_d418_full = any(r == 0x18 and v == 0x0F for r, v in init_sid)
+        sub_fields = {
+            'gain_init': 'full' if wrote_d418_full else 'preserve',
+            'init_tempo_ctr': mem[TEMPO_CTR],
+        }
         music_subtunes.append(MusicSubtune(
             id=s_idx, tempo=mem[TEMPO], voices=voices,
             init=InitState(voices=sub_init_voices),
@@ -310,10 +359,11 @@ def write_usf(sid_path: str, out_path: str | None = None) -> str:
 # ---------------------------------------------------------------------------
 
 def _row_to_pattern_bytes(row: NoteRow) -> bytes:
-    if 'fx:stop' in row.fx_flags:
-        return bytes([0x81])
-    if 'fx:loop' in row.fx_flags:
-        return bytes([0xFF])
+    """Emit the 2-byte (note, duration) pair for one pattern row.
+
+    The pattern terminator ($81/$FF) is emitted by the caller from the
+    voice's orderlist shape, not from row flags.
+    """
     for f in row.fx_flags:
         if f.startswith('fx:raw_'):
             return bytes([int(f.split('_')[1], 16), row.duration & 0xFF])
@@ -321,6 +371,36 @@ def _row_to_pattern_bytes(row: NoteRow) -> bytes:
         return bytes([0x80, row.duration & 0xFF])
     note = pitch_to_note_byte(row.pitch.name, row.pitch.octave)
     return bytes([note, row.duration & 0xFF])
+
+
+def _voice_pattern_bytes_and_state(vb: VoiceBlock) -> tuple[bytes, int]:
+    """For one VoiceBlock, return (pattern-data bytes, engine-state byte).
+
+    Empty orderlist + stop  → silent voice: sentinel pattern $81,
+                              state $00. The engine never reads this
+                              pattern because state=0 makes voice_tick
+                              skip it; the sentinel byte is just so
+                              the pat_start pointer points at *something*.
+    orderlist `1 stop`      → state $02, pattern bytes + $81.
+    orderlist `1 loop@0`    → state $02, pattern bytes + $FF.
+    """
+    ol = vb.orderlist
+    if not ol.entries:
+        # Silent voice. Engine never reads its pattern; emit a $81
+        # sentinel so pat_start points at a valid stop byte.
+        return bytes([0x81]), 0x00
+    if len(ol.entries) != 1 or ol.entries[0] != 1:
+        raise ValueError(
+            f'voice {vb.id}: yes_tune only supports a single-pattern '
+            f'orderlist ([1]); got {ol.entries}')
+    pat = vb.patterns[0]
+    body = b''.join(_row_to_pattern_bytes(r) for r in pat.rows)
+    if ol.stop:
+        return body + bytes([0x81]), 0x02
+    if ol.loop_to is not None:
+        return body + bytes([0xFF]), 0x02
+    raise ValueError(
+        f'voice {vb.id}: orderlist must terminate with stop or loop@N')
 
 
 def emit_asm(usf: UsfFile) -> str:
@@ -346,25 +426,21 @@ def emit_asm(usf: UsfFile) -> str:
                 inst.waveform[0] if inst.waveform else 0,
                 inst.adsr[0], inst.adsr[1],
             ])
+        # Per-voice pattern bytes + engine state derived from the
+        # orderlist shape (silent = state 0; stop/loop = state 2).
+        states = []
+        for vb in ms.voices:
+            pat_bytes, st = _voice_pattern_bytes_and_state(vb)
+            voice_patterns.append(pat_bytes)
+            states.append(st)
+        gain_init = p.get('gain_init', 'full')
         per_sub.append({
             'tempo': ms.tempo,
             'init_tempo_ctr': p.get('init_tempo_ctr', 0),
             'timbres': timbres,
-            'init_state': (p.get('init_state_v1', 2),
-                           p.get('init_state_v2', 2),
-                           p.get('init_state_v3', 2)),
-            'init_d418': p.get('init_d418', 1),
+            'init_state': tuple(states),
+            'gain_init_full': int(gain_init == 'full'),
         })
-        # Per-voice patterns for this subtune
-        for vb in ms.voices:
-            if not vb.patterns:
-                voice_patterns.append(bytes([0x81]))
-                continue
-            pat = vb.patterns[0]
-            bs = bytearray()
-            for r in pat.rows:
-                bs.extend(_row_to_pattern_bytes(r))
-            voice_patterns.append(bytes(bs))
 
     L: list[str] = []
     L.append(f'* = ${LOAD:04X}')
@@ -576,7 +652,7 @@ def emit_asm(usf: UsfFile) -> str:
     for v_idx in range(3):
         _byte_tab(f'v{v_idx+1}_state_tab',
                   [s['init_state'][v_idx] for s in per_sub])
-    _byte_tab('init_d418_tab', [s['init_d418'] for s in per_sub])
+    _byte_tab('init_d418_tab', [s['gain_init_full'] for s in per_sub])
     # Per-subtune pat_start (lo/hi) tables — reference ptn_sN_vV labels
     for v_idx in range(3):
         L.append(f'v{v_idx+1}_ps_lo_tab:')
