@@ -146,12 +146,18 @@ def build_usf(sid_path: str) -> UsfFile:
             for v in range(3)
         ])
 
-        subtune_params = Params(fields={
+        sub_fields = {
             'init_pos_v1': state.v_pos[0],
             'init_pos_v2': state.v_pos[1],
             'init_pos_v3': state.v_pos[2],
             'init_tempo_ctr': state.tempo_ctr,
-        })
+        }
+        if state.cia1_timer_a:
+            # Engine programs CIA1 timer A to set play() dispatch rate.
+            # Default (when 0) is libsidplayfp's PSID standard (~50Hz PAL).
+            # Surfchamp programs $40C7 = ~60Hz.
+            sub_fields['cia1_timer_a'] = state.cia1_timer_a
+        subtune_params = Params(fields=sub_fields)
 
         music_subtunes.append(MusicSubtune(
             id=s_idx,

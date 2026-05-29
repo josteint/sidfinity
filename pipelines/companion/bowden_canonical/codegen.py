@@ -101,6 +101,7 @@ def emit_asm(usf: UsfFile) -> str:
                          p.get('init_pos_v2', 0),
                          p.get('init_pos_v3', 0)),
             'init_tempo_ctr': p.get('init_tempo_ctr', 0),
+            'cia1_timer_a': p.get('cia1_timer_a', 0),
             'timbres': timbres,
             'orderlists': orderlists,
         })
@@ -168,6 +169,18 @@ def emit_asm(usf: UsfFile) -> str:
     L.append(f'  sta ${ZP_ORD_V3_LO:02X}')
     L.append('  lda v3_ol_hi_tab,x')
     L.append(f'  sta ${ZP_ORD_V3_HI:02X}')
+    # CIA1 timer A — if any subtune programs it, emit a per-subtune
+    # lookup and write. Default-zero subtunes write 0/0 which leaves
+    # libsidplayfp's default psiddrv programming intact (subtle: actually
+    # a zero write would set the timer to fire immediately, which is
+    # wrong — so we only emit the writes when at least one subtune has
+    # a non-default value, and we use the default value for the others
+    # — see _cia_default below).
+    if any(s['cia1_timer_a'] for s in per_sub):
+        L.append('  lda cia1_lo_tab,x')
+        L.append('  sta $dc04')
+        L.append('  lda cia1_hi_tab,x')
+        L.append('  sta $dc05')
     L.append('  rts')
 
     # ---- play ----
@@ -309,6 +322,15 @@ def emit_asm(usf: UsfFile) -> str:
     _byte_tab('init_v2_pos_tab', [s['init_pos'][1] for s in per_sub])
     _byte_tab('init_v3_pos_tab', [s['init_pos'][2] for s in per_sub])
     _byte_tab('init_tempo_ctr_tab', [s['init_tempo_ctr'] for s in per_sub])
+    if any(s['cia1_timer_a'] for s in per_sub):
+        # PAL default = $4CC7 (libsidplayfp's standard ~50Hz). Subtunes
+        # without a captured CIA write fall back to this so the rebuild
+        # plays at the same default rate sidplayfp would have used
+        # without explicit programming.
+        DEFAULT_CIA = 0x4CC7
+        cia_vals = [s['cia1_timer_a'] or DEFAULT_CIA for s in per_sub]
+        _byte_tab('cia1_lo_tab', [v & 0xFF for v in cia_vals])
+        _byte_tab('cia1_hi_tab', [(v >> 8) & 0xFF for v in cia_vals])
 
     # Per-subtune timbre fields (3 voices × 5 fields × N subtunes)
     for v in range(3):

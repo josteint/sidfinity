@@ -63,29 +63,163 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
-# Engine memory map — offsets are relative to the PSID play address.
-# Same offsets apply whether the engine loads at $C000 (Vic Berry,
-# Roundabout, Melonmania) or at some other base (Hyper_Blast at $55C0,
-# Henrys_House at $ACC0, etc).
-PLAY_REL = {
-    'v1_pos':        0x14,
-    'v2_pos':        0x1B,
-    'v3_pos':        0x22,
-    'v1_timbre':     0x16,
-    'v2_timbre':     0x1D,
-    'v3_timbre':     0x24,
-    'tempo':         0x78,
-    'tempo_ctr':     0x79,
-    # Operand bytes inside the main play loop / proc_note.
-    'freq_hi_hi':    0xB1,    # high byte of `LDA $XX00,Y` for freq_hi tab
-    'freq_lo_hi':    0xB7,    # high byte of `LDA $XX80,Y` for freq_lo tab
-    'v1_ord_hi':     0x85,    # high byte of V1's `LDY $XX00,X`
-    'v2_ord_hi':     0x93,
-    'v3_ord_hi':     0xA1,
-    'v1_jsr_op':     0x88,    # opcode byte of V1's JSR/BIT (enable check)
-    'v2_jsr_op':     0x96,
-    'v3_jsr_op':     0xA4,
-}
+def _scan_voice_blocks(mem: bytearray, play_addr: int) -> tuple[list[dict], int]:
+    """Scan the play loop for the 3 per-voice setup blocks. Each block
+    matches the pattern:
+
+        LDX abs   ($AE oplo ophi)   — V_pos counter read
+        INC abs   ($EE oplo ophi)   — V_pos++
+        LDY abs,X ($BC oplo ophi)   — orderlist[V_pos] read
+        LDX #     ($A2 imm)          — set voice offset (0/7/14)
+        JSR abs   ($20 oplo ophi)    — call proc_note
+
+    Returns (voices, proc_note_addr). Each voice dict carries v_pos,
+    v_ord (orderlist base), v_off (voice offset), jsr_op_addr (location
+    of the JSR opcode byte, used for voice-enable detection).
+
+    Engines vary in layout: bowden_canonical (Vic Berry et al) has these
+    blocks at play+$7D after a `JMP main` from the tempo gate; Surfchamp
+    has them inline at play+$10 with the tempo gate falling through;
+    Hyper_Blast is the bowden layout relocated to $55C0. The scanner
+    finds the blocks wherever they are.
+    """
+    voices = []
+    proc_note = None
+    pc = play_addr
+    end = play_addr + 0x200  # don't scan forever
+    while pc < end - 14 and len(voices) < 3:
+        if (mem[pc] == 0xAE and mem[pc + 3] == 0xEE
+                and mem[pc + 6] == 0xBC and mem[pc + 9] == 0xA2
+                and mem[pc + 11] in (0x20, 0x2C)):    # JSR or BIT (voice disabled)
+            v_pos = mem[pc + 1] | (mem[pc + 2] << 8)
+            v_pos2 = mem[pc + 4] | (mem[pc + 5] << 8)
+            v_ord = mem[pc + 7] | (mem[pc + 8] << 8)
+            v_off = mem[pc + 10]
+            pn = mem[pc + 12] | (mem[pc + 13] << 8)
+            if v_pos == v_pos2 and v_off in (0, 7, 14):
+                if proc_note is None:
+                    proc_note = pn
+                if pn == proc_note:
+                    voices.append({
+                        'v_pos': v_pos,
+                        'v_ord': v_ord,
+                        'v_off': v_off,
+                        'jsr_op_addr': pc + 11,
+                    })
+                    pc += 14
+                    continue
+        pc += 1
+    if len(voices) != 3:
+        raise ValueError(f'expected 3 voice blocks in play loop, found {len(voices)}')
+    return voices, proc_note
+
+
+def _scan_proc_note(mem: bytearray, proc_addr: int) -> dict:
+    """Scan proc_note for the freq-table / timbre-base / ctrl-byte
+    addresses. The structure is:
+
+        TYA / AND #$80 / BNE bit7_path
+        LDA freq_hi_tab,Y   ; first LDA abs,Y after entry
+        STA $D401,X
+        LDA freq_lo_tab,Y   ; second LDA abs,Y
+        STA $D400,X
+        NOP / NOP (often)
+        TXA / TAY
+        ADC #$04
+        STA end_y_storage
+        LDA timbre_base,Y   ; PW loop's read
+        STA $D402,Y
+        INY / CPY end_y / BNE -
+        LDY ctrl_base,X     ; gated ctrl read
+        INY / TYA / STA $D404,X / RTS
+    """
+    pc = proc_addr
+    end = proc_addr + 0x40
+    lda_abs_y_addrs = []
+    ldy_abs_x_addr = None
+    while pc < end:
+        op = mem[pc]
+        if op == 0xB9:  # LDA abs,Y
+            lda_abs_y_addrs.append(mem[pc + 1] | (mem[pc + 2] << 8))
+            pc += 3
+        elif op == 0xBC:  # LDY abs,X — gated ctrl read
+            if ldy_abs_x_addr is None:
+                ldy_abs_x_addr = mem[pc + 1] | (mem[pc + 2] << 8)
+            pc += 3
+        elif op == 0x60:  # RTS — end of normal-note path
+            break
+        else:
+            # Use a simple length table for the rest
+            pc += _opcode_length(op)
+    if len(lda_abs_y_addrs) < 3:
+        raise ValueError(
+            f'proc_note at ${proc_addr:04X}: expected ≥3 LDA abs,Y, got {len(lda_abs_y_addrs)}')
+    return dict(
+        freq_hi_base=lda_abs_y_addrs[0],
+        freq_lo_base=lda_abs_y_addrs[1],
+        timbre_base=lda_abs_y_addrs[2],
+        ctrl_base=ldy_abs_x_addr,
+    )
+
+
+# Minimal 6502 opcode-length table used by _scan_proc_note.
+_OP_LEN = [1] * 256
+# 1-byte opcodes default; common 2-byte (imm/zp) and 3-byte (abs) overrides
+_2BYTE = {0xA9, 0xA2, 0xA0, 0x29, 0x09, 0x49, 0x69, 0xE9, 0xC9, 0xC0, 0xE0,
+          0x10, 0x30, 0x50, 0x70, 0x90, 0xB0, 0xD0, 0xF0,
+          0xA5, 0xA6, 0xA4, 0x85, 0x86, 0x84, 0x65, 0x25, 0x05, 0xC5, 0xC6,
+          0xE5, 0xE6, 0x45, 0x06, 0x46, 0x26, 0x66, 0x24}
+_3BYTE = {0xAD, 0xAE, 0xAC, 0x8D, 0x8E, 0x8C, 0x6D, 0x2D, 0x0D, 0x4D, 0xCD,
+          0xCE, 0xEE, 0xED, 0xEC, 0xCC, 0x4C, 0x6C, 0x20, 0xBD, 0xB9, 0xBE,
+          0xBC, 0x9D, 0x99, 0x1D, 0x19, 0x3D, 0x39, 0x5D, 0x59, 0x7D, 0x79,
+          0xDD, 0xD9, 0xFD, 0xF9, 0x0E, 0x1E, 0x2E, 0x3E, 0x4E, 0x5E, 0x6E,
+          0x7E, 0x2C}
+for op in _2BYTE:
+    _OP_LEN[op] = 2
+for op in _3BYTE:
+    _OP_LEN[op] = 3
+
+
+def _opcode_length(op: int) -> int:
+    return _OP_LEN[op]
+
+
+def _scan_tempo_gate(mem: bytearray, play_addr: int) -> tuple[int, int]:
+    """Find the tempo_ctr and tempo addresses by scanning the tempo
+    gate at the play entry. Two variants seen:
+
+        bowden_canonical:   LDX tempo_ctr / INX / STX tempo_ctr / CPX tempo / BNE
+        Surfchamp:          INC tempo_ctr / LDA tempo_ctr / CMP tempo / BNE
+    """
+    pc = play_addr
+    end = play_addr + 0x20
+    inc_target = None
+    ldx_target = None
+    cmp_target = None
+    cpx_target = None
+    while pc < end:
+        op = mem[pc]
+        if op == 0xEE:  # INC abs
+            if inc_target is None:
+                inc_target = mem[pc + 1] | (mem[pc + 2] << 8)
+            pc += 3
+        elif op == 0xAE:  # LDX abs
+            if ldx_target is None:
+                ldx_target = mem[pc + 1] | (mem[pc + 2] << 8)
+            pc += 3
+        elif op == 0xCD:  # CMP abs
+            cmp_target = mem[pc + 1] | (mem[pc + 2] << 8)
+            break
+        elif op == 0xEC:  # CPX abs
+            cpx_target = mem[pc + 1] | (mem[pc + 2] << 8)
+            break
+        else:
+            pc += _opcode_length(op)
+    if cpx_target is not None:
+        return ldx_target, cpx_target          # bowden style
+    if cmp_target is not None:
+        return inc_target, cmp_target          # Surfchamp style
+    raise ValueError(f'no tempo gate CMP/CPX found near play=${play_addr:04X}')
 
 
 @dataclass
@@ -99,9 +233,31 @@ class EngineState:
     freq_hi: bytes              # 128 bytes
     freq_lo: bytes              # 128 bytes
     tempo_ctr: int = 0          # runtime counter
+    cia1_timer_a: int = 0       # 16-bit CIA1 timer A value (0 = default)
 
 
-def _run_init(sid_path: str, subtune: int = 0) -> tuple[bytearray, int, int]:
+class _TrackingMemory(bytearray):
+    """bytearray subclass that records writes to specific address ranges.
+
+    Used to capture init-time writes to CIA1 timer registers ($DC04/$DC05).
+    Some engines (e.g. Surfchamp) program a non-default play() dispatch
+    rate this way — the rebuild needs to replicate the programming or
+    play at the wrong speed.
+    """
+    cia_writes: dict[int, int]  # type: ignore
+
+    def __new__(cls, size):
+        obj = super().__new__(cls, size)
+        obj.cia_writes = {}
+        return obj
+
+    def __setitem__(self, idx, val):
+        if isinstance(idx, int) and 0xDC00 <= idx <= 0xDDFF:
+            self.cia_writes[idx] = val
+        super().__setitem__(idx, val)
+
+
+def _run_init(sid_path: str, subtune: int = 0) -> tuple[bytearray, int]:
     """Load the SID, run its init routine in py65, return (memory, load).
 
     Used to capture the post-init memory state for the given subtune
@@ -132,7 +288,7 @@ def _run_init(sid_path: str, subtune: int = 0) -> tuple[bytearray, int, int]:
     init_addr = struct.unpack('>H', raw[10:12])[0]
 
     mpu = MPU()
-    mpu.memory = bytearray(0x10000)
+    mpu.memory = _TrackingMemory(0x10000)
     mpu.memory[load:load + len(body)] = body
     mpu.a = subtune
     mpu.x = 0
@@ -150,83 +306,70 @@ def _run_init(sid_path: str, subtune: int = 0) -> tuple[bytearray, int, int]:
     return bytearray(mpu.memory), load
 
 
-def _detect_layout(mem: bytearray, play_addr: int) -> dict:
-    """Read the freq-table and orderlist addresses encoded as operand
-    bytes inside the post-init play loop. The high byte of each table
-    is at a fixed offset within the play code (relative to play_addr).
-    """
-    return dict(
-        freq_hi_base=(mem[play_addr + PLAY_REL['freq_hi_hi']] << 8) | 0x00,
-        freq_lo_base=(mem[play_addr + PLAY_REL['freq_lo_hi']] << 8) | 0x80,
-        v_order_bases=(
-            (mem[play_addr + PLAY_REL['v1_ord_hi']] << 8) | 0x00,
-            (mem[play_addr + PLAY_REL['v2_ord_hi']] << 8) | 0x00,
-            (mem[play_addr + PLAY_REL['v3_ord_hi']] << 8) | 0x00,
-        ),
-    )
-
-
 def load_state_from_sid(sid_path: str, subtune: int = 0) -> EngineState:
     """Read engine state from a Bowden-canonical-family SID for the
-    given subtune index. All engine state is at fixed offsets from
-    the play address — the engine is location-independent, just
-    relocated to different bases across SIDs (Vic Berry / Roundabout /
-    Melonmania at $C000; Hyper_Blast at $55C0; Henrys_House at $ACC0;
-    etc).
+    given subtune index.
+
+    All addresses (V_pos, orderlist bases, freq tables, timbres, tempo,
+    ctrl bytes) are discovered by scanning the post-init play loop and
+    proc_note for the appropriate operand bytes. This handles every
+    layout variant we've seen so far:
+      - $C000-base: Vic Berry / Roundabout / Melonmania / Titanic
+      - $55C0-base relocated: Hyper_Blast
+      - Inline-tempo-gate layout: Surfchamp (no JMP to main play; voice
+        blocks start at play+$10 instead of play+$7D)
     """
     raw = Path(sid_path).read_bytes()
     play_addr = struct.unpack('>H', raw[12:14])[0]
 
     mem, _ = _run_init(sid_path, subtune)
-    layout = _detect_layout(mem, play_addr)
+    voices, proc_addr = _scan_voice_blocks(mem, play_addr)
+    proc_info = _scan_proc_note(mem, proc_addr)
+    tempo_ctr_addr, tempo_addr = _scan_tempo_gate(mem, play_addr)
 
     def slice_(start: int, end: int) -> bytes:
         return bytes(mem[start:end])
 
-    v1_pos_addr = play_addr + PLAY_REL['v1_pos']
-    v2_pos_addr = play_addr + PLAY_REL['v2_pos']
-    v3_pos_addr = play_addr + PLAY_REL['v3_pos']
-    v_pos = [mem[v1_pos_addr], mem[v2_pos_addr], mem[v3_pos_addr]]
+    v_pos = [mem[v['v_pos']] for v in voices]
 
-    timbre_offs = (PLAY_REL['v1_timbre'], PLAY_REL['v2_timbre'],
-                   PLAY_REL['v3_timbre'])
-    timbre = [slice_(play_addr + off, play_addr + off + 5)
-              for off in timbre_offs]
+    # Timbre base is the address used inside the PW loop's `LDA $XX,Y`,
+    # where Y starts at the voice offset (0/7/14). So timbre_base+0 is
+    # V1.pw_lo, timbre_base+7 is V2.pw_lo, etc. We slice 5 bytes per voice.
+    timbre = [slice_(proc_info['timbre_base'] + v['v_off'],
+                     proc_info['timbre_base'] + v['v_off'] + 5)
+              for v in voices]
 
     # Voice enables — JSR opcode is $20, BIT (absolute) is $2C.
-    voice_jsr_addrs = (
-        play_addr + PLAY_REL['v1_jsr_op'],
-        play_addr + PLAY_REL['v2_jsr_op'],
-        play_addr + PLAY_REL['v3_jsr_op'],
-    )
-    voice_enabled = tuple(mem[a] == 0x20 for a in voice_jsr_addrs)
+    voice_enabled = tuple(mem[v['jsr_op_addr']] == 0x20 for v in voices)
 
     orderlists = []
-    for v, base in enumerate(layout['v_order_bases']):
+    for v, voice in enumerate(voices):
         if not voice_enabled[v]:
-            # Disabled voice — replace orderlist with no-op skip loop.
-            # $81 = bit-7-skip (no SID writes), $FF = loop back to pos 1.
             orderlists.append(bytes([0x81, 0xFF]))
             continue
+        base = voice['v_ord']
         bs = slice_(base, base + 256)
         ff = bs.find(0xFF)
         if ff < 0:
-            # No explicit $FF terminator — engine's 8-bit v_pos wraps
-            # naturally at 255→0 every 256 ticks. Treat as a full
-            # 256-byte cyclic orderlist by appending $FF at the end
-            # (which our codec then renders back into a wrap).
             orderlists.append(bytes(bs) + bytes([0xFF]))
         else:
             orderlists.append(bs[: ff + 1])
 
+    cia_writes = getattr(mem, 'cia_writes', {})
+    cia1_timer_a = (cia_writes.get(0xDC04, 0)
+                    | (cia_writes.get(0xDC05, 0) << 8))
+
     return EngineState(
-        tempo=mem[play_addr + PLAY_REL['tempo']],
+        tempo=mem[tempo_addr],
         v_pos=v_pos,
         timbre=timbre,
         orderlists=orderlists,
-        freq_hi=slice_(layout['freq_hi_base'], layout['freq_hi_base'] + 128),
-        freq_lo=slice_(layout['freq_lo_base'], layout['freq_lo_base'] + 128),
-        tempo_ctr=mem[play_addr + PLAY_REL['tempo_ctr']],
+        freq_hi=slice_(proc_info['freq_hi_base'],
+                       proc_info['freq_hi_base'] + 128),
+        freq_lo=slice_(proc_info['freq_lo_base'],
+                       proc_info['freq_lo_base'] + 128),
+        tempo_ctr=mem[tempo_ctr_addr],
+        cia1_timer_a=cia1_timer_a,
     )
 
 
