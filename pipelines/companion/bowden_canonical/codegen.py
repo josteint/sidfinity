@@ -178,13 +178,22 @@ def emit_asm(usf: UsfFile) -> str:
     L.append('  bne play_exit')
     L.append('  lda #0')
     L.append('  sta tempo_ctr')
+    L.append('  sta next_skip_sr     ; V1 starts each tick with 5-byte timbre')
     L.append('  jsr voice1_step')
     L.append('  jsr voice2_step')
     L.append('  jsr voice3_step')
     L.append('play_exit:')
     L.append('  rts')
 
-    # ---- proc_note + proc_note_4 ----
+    # Unified proc_note. The this_skip_sr byte controls whether the
+    # final SR write happens — set by voice_step to model the original
+    # engine's carry-leak between voices: a voice that plays a skip
+    # note ($81-$FE) leaves carry=0 from the engine's `CPY #$FF / BNE`
+    # at $C0E9, which makes the NEXT voice's `ADC #$04` add only 4
+    # instead of 5 and short-circuits its PW loop by one iteration —
+    # the SR write. Voice $FF substitution similarly forces 4-byte for
+    # V1/V2 via the loop dispatcher's `CPX #$0E` clearing carry; V3's
+    # $FF dispatch leaves carry=1 (X == $0E) and keeps 5-byte.
     L.append('proc_note:')
     L.append('  cmp #$80')
     L.append('  beq pn_rest')
@@ -202,8 +211,11 @@ def emit_asm(usf: UsfFile) -> str:
     L.append('  sta $d404,x          ; junk write (gate=0) for envelope retrigger')
     L.append('  lda timbre_ad,x')
     L.append('  sta $d405,x')
+    L.append('  lda this_skip_sr')
+    L.append('  bne pn_no_sr_write')
     L.append('  lda timbre_sr,x')
     L.append('  sta $d406,x')
+    L.append('pn_no_sr_write:')
     L.append('  lda timbre_ctrl,x')
     L.append('  ora #$01')
     L.append('  sta $d404,x          ; gate=1, finalises envelope retrigger')
@@ -214,30 +226,17 @@ def emit_asm(usf: UsfFile) -> str:
     L.append('  rts')
     L.append('pn_skip:')
     L.append('  rts')
-    L.append('proc_note_4:')
-    L.append('  cmp #$80')
-    L.append('  beq pn_rest')
-    L.append('  bcs pn_skip')
-    L.append('  tay')
-    L.append('  lda freq_hi_tab,y')
-    L.append('  sta $d401,x')
-    L.append('  lda freq_lo_tab,y')
-    L.append('  sta $d400,x')
-    L.append('  lda timbre_pwlo,x')
-    L.append('  sta $d402,x')
-    L.append('  lda timbre_pwhi,x')
-    L.append('  sta $d403,x')
-    L.append('  lda timbre_ctrl,x')
-    L.append('  sta $d404,x')
-    L.append('  lda timbre_ad,x')
-    L.append('  sta $d405,x          ; NB no sr write')
-    L.append('  lda timbre_ctrl,x')
-    L.append('  ora #$01')
-    L.append('  sta $d404,x')
-    L.append('  rts')
 
-    # ---- per-voice step routines (use (zp),Y indirect orderlist) ----
-    for v, (pos_label, zp_lo, voice_off, pn4_on_loop) in enumerate([
+    # ---- per-voice step routines ----
+    # Each voice:
+    #   1. Reads its note byte; handles $FF substitution
+    #   2. Sets THIS call's skip_sr (4-vs-5-byte timbre choice)
+    #      - normal flow: copy from prior voice's next_skip_sr
+    #      - $FF substitution: V1/V2 force 1, V3 forces 0
+    #   3. Classifies the effective note to update next_skip_sr for
+    #      the following voice
+    #   4. Calls proc_note
+    for v, (pos_label, zp_lo, voice_off, force_4_on_loop) in enumerate([
         ('v1_pos', ZP_ORD_V1_LO, 0, True),
         ('v2_pos', ZP_ORD_V2_LO, 7, True),
         ('v3_pos', ZP_ORD_V3_LO, 14, False),
@@ -247,28 +246,47 @@ def emit_asm(usf: UsfFile) -> str:
         L.append(f'  ldy {pos_label}')
         L.append(f'  inc {pos_label}')
         L.append(f'  lda (${zp_lo:02X}),y')
-        L.append('  cmp #$ff')
-        L.append(f'  bne v{vn}_play')
-        # $FF substitution
-        L.append('  lda #1')
+        L.append(f'  cmp #$ff')
+        L.append(f'  bne v{vn}_normal')
+        # $FF substitution path
+        L.append(f'  lda #1')
         L.append(f'  sta {pos_label}')
-        L.append('  ldy #0')
-        L.append(f'  lda (${zp_lo:02X}),y')
+        L.append(f'  ldy #0')
+        L.append(f'  lda (${zp_lo:02X}),y   ; A = effective note (orderlist[0])')
+        L.append(f'  ldy #{1 if force_4_on_loop else 0}')
+        L.append(f'  sty this_skip_sr      ; force {"4-byte" if force_4_on_loop else "5-byte"} for V{vn} loop')
+        L.append(f'  jmp v{vn}_classify')
+        L.append(f'v{vn}_normal:')
+        # Normal-path: inherit this_skip_sr from prior voice's next_skip_sr
+        L.append(f'  ldy next_skip_sr')
+        L.append(f'  sty this_skip_sr')
+        L.append(f'v{vn}_classify:')
+        # A = effective note; set next_skip_sr based on whether
+        # it's a skip ($81-$FE).
+        L.append(f'  pha')
+        L.append(f'  cmp #$81')
+        L.append(f'  bcc v{vn}_not_skip')
+        L.append(f'  cmp #$ff')
+        L.append(f'  beq v{vn}_not_skip')
+        L.append(f'  ldy #1')
+        L.append(f'  sty next_skip_sr')
+        L.append(f'  jmp v{vn}_call')
+        L.append(f'v{vn}_not_skip:')
+        L.append(f'  ldy #0')
+        L.append(f'  sty next_skip_sr')
+        L.append(f'v{vn}_call:')
+        L.append(f'  pla')
         L.append(f'  ldx #{voice_off}')
-        if pn4_on_loop:
-            L.append('  jmp proc_note_4')
-        else:
-            L.append('  jmp proc_note')
-        L.append(f'v{vn}_play:')
-        L.append(f'  ldx #{voice_off}')
-        L.append('  jmp proc_note')
+        L.append(f'  jmp proc_note')
 
     # ---- runtime variables ----
-    L.append('v1_pos:      .byte 0')
-    L.append('v2_pos:      .byte 0')
-    L.append('v3_pos:      .byte 0')
-    L.append('tempo_ctr:   .byte 0')
-    L.append('tempo_const: .byte 0')
+    L.append('v1_pos:        .byte 0')
+    L.append('v2_pos:        .byte 0')
+    L.append('v3_pos:        .byte 0')
+    L.append('tempo_ctr:     .byte 0')
+    L.append('tempo_const:   .byte 0')
+    L.append('this_skip_sr:  .byte 0')
+    L.append('next_skip_sr:  .byte 0')
 
     # Runtime timbre table — 5 parallel 15-byte arrays. Filled at init.
     for fname in fields:
