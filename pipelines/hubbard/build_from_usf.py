@@ -207,6 +207,18 @@ def _soundeffect_from_usf(s: SfxSubtune, idx: int) -> SoundEffect:
 # ---------------------------------------------------------------------------
 
 def _freq_bytes_from_usf(usf: UsfFile, engine_const) -> bytes:
+    """Build the 320-byte freq-table region for the rebuild.
+
+    Hubbard '85 standard engines: the per-voice overlap bytes live in
+    `engine_const.freq_bytes` already (the engine constants captured
+    them from the original binary). Empty `usf.init.voices` means
+    "use the engine constants verbatim" — the principled path.
+
+    Legacy USFs (extracted before Phase 3) still ship per-voice init
+    fields; we honor them as overrides on top of the engine constants
+    so old .usf files keep building byte-exact. New extracts produce
+    `init { }` and this loop is a no-op.
+    """
     fb = bytearray(engine_const.freq_bytes)
     for v in usf.init.voices:
         i = v.id - 1

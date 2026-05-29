@@ -148,27 +148,15 @@ def _convert_instrument(model, arp_period: int) -> Instrument:
 
 def _derive_init_state(binary: bytes, freq_table_base: int, load: int,
                        n_instruments: int) -> InitState:
-    base = freq_table_base - load
-
-    def at(off: int) -> int:
-        return binary[base + off]
-
-    voices = []
-    for i in range(3):
-        instr_byte = at(214 + i)
-        instr_ref = None
-        if 0 <= instr_byte < n_instruments:
-            instr_ref = InstrumentRef(id=instr_byte + 1)
-        voices.append(InitVoice(
-            id=i + 1,
-            dur_field=at(205 + i),
-            ctrl=at(208 + i),
-            instr=instr_ref,
-            pwm_period=at(229 + i),
-            pwm_dir='up' if at(232 + i) == 0 else 'down',
-            slide_v=at(239 + i),
-        ))
-    return InitState(voices=voices)
+    """Hubbard '85's per-voice init state is the byte the engine reads
+    from the freq-table overlap region at runtime — the same bytes
+    that are already stored in `engine_constants.freq_bytes` keyed by
+    engine name. The values are 100% derivable from the engine
+    constants, so the USF emits an empty init block and the codegen
+    reads from engine constants at build time (see
+    [[project_hubbard_principled_usf]] Phase 3).
+    """
+    return InitState(voices=[])
 
 
 # ---------------------------------------------------------------------------

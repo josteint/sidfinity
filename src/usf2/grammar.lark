@@ -26,7 +26,11 @@ param_value: signed_int      -> param_number
            | bool            -> param_bool
 
 // ----- init -----
-init_block: "init" "{" init_voice+ "}"
+// `init_voice*` (zero or more): engines whose per-voice init state
+// is fully derivable from engine-constant data (e.g. Hubbard '85's
+// freq-table overlap region) emit an empty `init { }` block. Engines
+// with per-tune state still emit one init_voice per voice.
+init_block: "init" "{" init_voice* "}"
 init_voice: "voice" INT "{" init_field+ "}"
 init_field: CNAME ":" init_value
 init_value: number           -> init_number
