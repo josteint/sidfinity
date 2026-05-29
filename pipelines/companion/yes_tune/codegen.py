@@ -1,0 +1,538 @@
+"""Yes_Tune — combined extract + USF + codegen for a single SID.
+
+Engine semantics (from $6240 disasm):
+
+  Per-voice state at $6200+X (X=0/7/14):
+    +$00  tick_ctr     (decrements; plays next pair when reaches 0)
+    +$01  state        (0=skipped, 1=normal, 2=load-pattern)
+    +$02..+$06  timbre (5 bytes: pw_lo, pw_hi, ctrl, ad, sr)
+    +$04  ctrl byte (= timbre[+2])
+    +$15  pattern_ptr lo (current position)
+    +$16  pattern_ptr hi
+    +$17  pat_start lo (immutable reset target)
+    +$18  pat_start hi
+
+  Global:
+    $622A  tempo_ctr
+    $622B  tempo
+    $6100..$617F  freq_hi (128 bytes)
+    $6180..$61FF  freq_lo
+
+  Pattern is a sequence of either 2-byte pairs or 1-byte commands:
+    $00-$7F dur  NORMAL_NOTE — play freq + 5-byte timbre + gated ctrl,
+                 then tick_ctr = dur, advance ptr by 2
+    $80 dur      REST — write ctrl (gate off), advance ptr by 2
+    $81          STOP_VOICE — write ctrl (gate off), state = 0 (silent)
+    $FF          LOOP — reset ptr to pat_start, recurse play_note
+
+  Play loop tick:
+    For each voice:
+      if state == 2: load_pattern (ptr=pat_start, tick=0), state = 1
+      if state == 1:
+        if tick_ctr == 0: play current pair (note+timbre+gate)
+        else: DEC tick_ctr
+      else: skip
+
+USF representation (one row per pattern entry):
+  Normal note → Pitch + duration N
+  $80 rest    → Pitch.rest() + duration N
+  $81 stop    → Pitch.rest() + duration 1 + fx:stop
+  $FF loop    → orderlist loop@0 (not encoded as a row)
+"""
+
+from __future__ import annotations
+
+import os
+import struct
+import subprocess
+
+from src.usf2 import (
+    UsfFile, PsidMeta, Params, InitState, InitVoice, Instrument,
+    PwmConfig, ArpConfig, VibratoConfig, EnvelopeConfig, MusicSubtune,
+    VoiceBlock, Orderlist, Pattern, NoteRow, Pitch, InstrumentRef,
+    write_file, validate, parse_file,
+)
+from pipelines.companion.clever_music.engine_constants import (
+    CLEVER_FREQ_HI, CLEVER_FREQ_LO, pitch_to_note_byte, note_byte_to_pitch,
+)
+
+XA = os.environ.get('XA', 'tools/xa65/xa/xa')
+
+LOAD = 0x1000
+INIT_VEC = LOAD
+PLAY_VEC = LOAD + 3
+
+
+def _run_init(sid_path: str):
+    import sys as _sys
+    _sys.path.insert(0, 'tools/py65_lib')
+    from py65.devices.mpu6502 import MPU
+
+    class _Mem(bytearray):
+        sid_writes: list  # type: ignore
+        def __new__(cls, size):
+            obj = super().__new__(cls, size)
+            obj.sid_writes = []
+            return obj
+        def __setitem__(self, idx, val):
+            if isinstance(idx, int) and 0xD400 <= idx <= 0xD418:
+                self.sid_writes.append((idx - 0xD400, val))
+            super().__setitem__(idx, val)
+
+    raw = open(sid_path, 'rb').read()
+    body = raw[124:]
+    load_in = struct.unpack('>H', raw[8:10])[0]
+    if load_in == 0:
+        load = struct.unpack('<H', body[:2])[0]
+        body = body[2:]
+    else:
+        load = load_in
+    init_addr = struct.unpack('>H', raw[10:12])[0]
+    mpu = MPU()
+    mpu.memory = _Mem(0x10000)
+    mpu.memory[load:load + len(body)] = body
+    mpu.memory.sid_writes.clear()
+    mpu.a = 0; mpu.x = 0; mpu.y = 0; mpu.p = 0x20; mpu.sp = 0xFD
+    mpu.memory[0x01FF] = 0xFE; mpu.memory[0x01FE] = 0xFE
+    mpu.memory.sid_writes.clear()
+    mpu.pc = init_addr
+    for _ in range(200000):
+        if not load <= mpu.pc < load + len(body): break
+        mpu.step()
+    return bytearray(mpu.memory), list(mpu.memory.sid_writes), raw
+
+
+# Yes_Tune layout (engine constants).
+YT_VOICE_BASE = 0x6200    # +X for V1/V2/V3
+YT_TEMPO_CTR = 0x622A
+YT_TEMPO = 0x622B
+YT_FREQ_HI = 0x6100
+YT_FREQ_LO = 0x6180
+
+
+def _extract_pattern(mem: bytearray, start: int) -> bytes:
+    """Walk pattern bytes from `start` until $FF or $81 terminator,
+    inclusive of the terminator byte."""
+    out = bytearray()
+    i = 0
+    while i < 4096:
+        b = mem[start + i]
+        out.append(b)
+        if b == 0xFF or b == 0x81:
+            return bytes(out)
+        if b < 0x80 or b == 0x80:
+            # 2-byte pair (note+dur or rest+dur)
+            out.append(mem[start + i + 1])
+            i += 2
+        else:
+            # other bit-7 — undocumented, treat as 1-byte
+            i += 1
+    raise ValueError(f'no $FF/$81 terminator within 4KB of ${start:04X}')
+
+
+def _row_from_pair(note: int, dur: int) -> NoteRow:
+    if note == 0x80:
+        return NoteRow(pitch=Pitch.rest(), duration=dur)
+    if note < 0x80:
+        name, octave = note_byte_to_pitch(note)
+        return NoteRow(pitch=Pitch(name=name, octave=octave), duration=dur)
+    # bit-7 special with paired byte — unlikely in well-formed tunes
+    raise ValueError(f'unexpected pair note=${note:02X}')
+
+
+def _row_from_marker(b: int) -> NoteRow:
+    if b == 0x81:
+        return NoteRow(pitch=Pitch.rest(), duration=1, fx_flags=('fx:stop',))
+    if b == 0xFF:
+        return NoteRow(pitch=Pitch.rest(), duration=1, fx_flags=('fx:loop',))
+    raise ValueError(f'unexpected marker ${b:02X}')
+
+
+def _build_voice_rows(pattern_bytes: bytes) -> list[NoteRow]:
+    rows = []
+    i = 0
+    while i < len(pattern_bytes):
+        b = pattern_bytes[i]
+        if b == 0xFF or b == 0x81:
+            rows.append(_row_from_marker(b))
+            break
+        if b < 0x80 or b == 0x80:
+            dur = pattern_bytes[i + 1]
+            rows.append(_row_from_pair(b, dur))
+            i += 2
+        else:
+            i += 1
+    return rows
+
+
+def build_usf(sid_path: str) -> UsfFile:
+    mem, init_sid, raw = _run_init(sid_path)
+
+    # Per-voice state
+    voices = []
+    instruments = []
+    for v, x in enumerate((0, 7, 14)):
+        pat_start = mem[0x6217 + x] | (mem[0x6218 + x] << 8)
+        timbre = bytes(mem[0x6202 + x:0x6202 + x + 5])
+        pat_bytes = _extract_pattern(mem, pat_start)
+        rows = _build_voice_rows(pat_bytes)
+        # USF Pattern.length = total ticks (sum of row durations)
+        total_ticks = sum(r.duration for r in rows)
+        voices.append(VoiceBlock(
+            id=v + 1,
+            orderlist=Orderlist(entries=[1], loop_to=0),
+            patterns=[Pattern(id=1, length=total_ticks, rows=rows)],
+        ))
+        pw = (timbre[1] << 8) | timbre[0]
+        instruments.append(Instrument(
+            id=v + 1, waveform=[timbre[2]], loop=0,
+            pwm=PwmConfig(mode='none', speed=0, init=pw, min_hi=0, max_hi=0),
+            adsr=(timbre[3], timbre[4]),
+            arp=ArpConfig(offsets=[0], period=1),
+            vibrato=VibratoConfig(scale=0),
+            envelope=EnvelopeConfig(),
+        ))
+
+    tempo = mem[YT_TEMPO]
+    music = MusicSubtune(
+        id=0, tempo=tempo, voices=voices,
+        init=InitState(voices=[
+            InitVoice(id=v + 1, instr=InstrumentRef(id=v + 1)) for v in range(3)
+        ]),
+        params=Params(fields={'init_tempo_ctr': mem[YT_TEMPO_CTR]}),
+    )
+
+    # PSID meta
+    title = raw[0x16:0x36].rstrip(b'\x00').decode('latin-1')
+    author = raw[0x36:0x56].rstrip(b'\x00').decode('latin-1')
+    released = raw[0x56:0x76].rstrip(b'\x00').decode('latin-1')
+    flags = int.from_bytes(raw[0x76:0x78], 'big')
+    clock = {0: 'unknown', 1: 'PAL', 2: 'NTSC', 3: 'both'}[(flags >> 2) & 0x03]
+    sid_model = {0: 6581, 1: 6581, 2: 8580, 3: 6581}[(flags >> 4) & 0x03]
+    psid = PsidMeta(title=title, author=author, released=released,
+                    clock=clock, sid=sid_model,
+                    start_song=int.from_bytes(raw[0x10:0x12], 'big'),
+                    speed=int.from_bytes(raw[0x12:0x16], 'big'))
+
+    top_init = InitState(voices=[
+        InitVoice(id=v + 1, instr=InstrumentRef(id=v + 1)) for v in range(3)
+    ])
+    return UsfFile(
+        version=2, engine='yes_tune', psid=psid,
+        params=Params(), init=top_init,
+        instruments=instruments, subtunes=[music],
+    )
+
+
+def write_usf(sid_path: str, out_path: str | None = None) -> str:
+    if out_path is None:
+        base, _ = os.path.splitext(sid_path)
+        out_path = base + '.usf'
+    usf = build_usf(sid_path)
+    validate(usf)
+    write_file(usf, out_path)
+    try:
+        from src.sid_db import record_usf
+        record_usf(out_path)
+    except Exception:
+        pass
+    return out_path
+
+
+# ---------------------------------------------------------------------------
+# Codegen
+# ---------------------------------------------------------------------------
+
+def _row_to_pattern_bytes(row: NoteRow) -> bytes:
+    if 'fx:stop' in row.fx_flags:
+        return bytes([0x81])
+    if 'fx:loop' in row.fx_flags:
+        return bytes([0xFF])
+    if row.pitch.is_rest:
+        return bytes([0x80, row.duration & 0xFF])
+    note = pitch_to_note_byte(row.pitch.name, row.pitch.octave)
+    return bytes([note, row.duration & 0xFF])
+
+
+def emit_asm(usf: UsfFile) -> str:
+    music = [s for s in usf.subtunes if isinstance(s, MusicSubtune)]
+    if len(music) != 1: raise ValueError('expected 1 music subtune')
+    ms = music[0]
+    if len(ms.voices) != 3: raise ValueError('expected 3 voices')
+
+    p = ms.params.fields if ms.params else {}
+    init_tempo_ctr = p.get('init_tempo_ctr', 0)
+    tempo = ms.tempo
+
+    instruments = {i.id: i for i in usf.instruments}
+    timbres = []
+    for v in range(3):
+        iid = ms.init.voices[v].instr.id
+        inst = instruments[iid]
+        pw_lo = inst.pwm.init & 0xFF
+        pw_hi = (inst.pwm.init >> 8) & 0xFF
+        ctrl = inst.waveform[0] if inst.waveform else 0
+        ad, sr = inst.adsr
+        timbres.append([pw_lo, pw_hi, ctrl, ad, sr])
+
+    # Per-voice pattern bytes
+    voice_patterns = []
+    for vb in ms.voices:
+        if not vb.patterns:
+            voice_patterns.append(bytes([0x81]))
+            continue
+        pat = vb.patterns[0]
+        bs = bytearray()
+        for r in pat.rows:
+            bs.extend(_row_to_pattern_bytes(r))
+        voice_patterns.append(bytes(bs))
+
+    L: list[str] = []
+    L.append(f'* = ${LOAD:04X}')
+    L.append('  jmp init')
+    L.append('  jmp play')
+
+    L.append('init:')
+    # Yes_Tune init does NOT silence the SID. Only writes $D418=$0F
+    # and sets per-voice state[1]=2 to trigger pattern-load on first
+    # play tick.
+    L.append('  lda #$0f')
+    L.append('  sta $d418')
+    # Initialise per-voice state for V1/V2/V3
+    for v, x in enumerate((0, 7, 14)):
+        L.append(f'  ; V{v+1} init (X={x})')
+        L.append(f'  lda #<ptn_v{v+1}')
+        L.append(f'  sta v_state+${0x15+x:02X}    ; ptr lo')
+        L.append(f'  sta v_state+${0x17+x:02X}    ; pat_start lo')
+        L.append(f'  lda #>ptn_v{v+1}')
+        L.append(f'  sta v_state+${0x16+x:02X}    ; ptr hi')
+        L.append(f'  sta v_state+${0x18+x:02X}    ; pat_start hi')
+        L.append(f'  lda #$02')
+        L.append(f'  sta v_state+${0x01+x:02X}    ; state = 2 (load)')
+        L.append(f'  lda #$00')
+        L.append(f'  sta v_state+${0x00+x:02X}    ; tick_ctr = 0')
+        # Timbre setup
+        for j, b in enumerate(timbres[v]):
+            L.append(f'  lda #${b:02X}')
+            L.append(f'  sta v_state+${0x02+x+j:02X}    ; timbre[{j}]')
+    L.append(f'  lda #{tempo}')
+    L.append('  sta tempo_const')
+    L.append(f'  lda #{init_tempo_ctr}')
+    L.append('  sta tempo_ctr')
+    L.append('  rts')
+
+    # play
+    L.append('play:')
+    L.append('  inc tempo_ctr')
+    L.append('  lda tempo_ctr')
+    L.append('  cmp tempo_const')
+    L.append('  bne play_exit')
+    L.append('  lda #0')
+    L.append('  sta tempo_ctr')
+    # Per voice
+    for v, x in enumerate((0, 7, 14)):
+        L.append(f'  ldx #{x}')
+        L.append(f'  jsr voice_tick')
+    L.append('play_exit:')
+    L.append('  rts')
+
+    # voice_tick(X = voice offset)
+    L.append('voice_tick:')
+    L.append('  lda v_state+1,x      ; state')
+    L.append('  cmp #2')
+    L.append('  bne vt_chk1')
+    # state == 2: load pattern + state := 1
+    L.append('  lda v_state+$17,x')
+    L.append('  sta v_state+$15,x    ; ptr = pat_start')
+    L.append('  lda v_state+$18,x')
+    L.append('  sta v_state+$16,x')
+    L.append('  lda #0')
+    L.append('  sta v_state,x        ; tick_ctr = 0')
+    L.append('  lda #1')
+    L.append('  sta v_state+1,x')
+    L.append('vt_chk1:')
+    L.append('  lda v_state+1,x')
+    L.append('  cmp #1')
+    L.append('  beq vt_play')
+    L.append('  rts                  ; state != 1 - skip')
+    L.append('vt_play:')
+    # Set zp ptr from v_state+$15/$16
+    L.append('  lda v_state+$15,x')
+    L.append('  sta $fb')
+    L.append('  lda v_state+$16,x')
+    L.append('  sta $fc')
+    L.append('  jmp play_note        ; tail-call (X preserved)')
+
+    # play_note (X = voice offset, $fb/$fc = pattern ptr)
+    L.append('play_note:')
+    L.append('  ldy #0')
+    L.append('  lda ($fb),y')
+    L.append('  and #$80')
+    L.append('  beq pn_normal')
+    L.append('  jmp pn_bit7')
+    L.append('pn_normal:')
+    L.append('  ldy v_state,x        ; tick_ctr')
+    L.append('  cpy #0')
+    L.append('  bne pn_dec')
+    L.append('  jsr pn_emit_note')
+    L.append('  jsr pn_advance')
+    L.append('pn_dec:')
+    L.append('  dec v_state,x')
+    L.append('  rts')
+    L.append('pn_emit_note:')
+    L.append('  ldy #0')
+    L.append('  lda ($fb),y')
+    L.append('  tay')
+    L.append('  lda freq_hi_tab,y')
+    L.append('  sta $d401,x')
+    L.append('  lda freq_lo_tab,y')
+    L.append('  sta $d400,x')
+    L.append('  txa')
+    L.append('  tay')
+    L.append('  clc')
+    L.append('  adc #$05')
+    L.append('  sta pn_endy')
+    L.append('pn_pw_loop:')
+    L.append('  lda v_state+2,y')
+    L.append('  sta $d402,y')
+    L.append('  iny')
+    L.append('  cpy pn_endy')
+    L.append('  bne pn_pw_loop')
+    L.append('  ldy v_state+4,x')
+    L.append('  iny')
+    L.append('  tya')
+    L.append('  sta $d404,x')
+    L.append('  rts')
+    L.append('pn_advance:')
+    L.append('  ldy #1')
+    L.append('  lda ($fb),y')
+    L.append('  cmp #0')
+    L.append('  bne pn_adv_ok')
+    L.append('  lda #1')
+    L.append('pn_adv_ok:')
+    L.append('  sta v_state,x')
+    L.append('  lda v_state+$15,x')
+    L.append('  clc')
+    L.append('  adc #2')
+    L.append('  sta v_state+$15,x')
+    L.append('  bcc pn_adv_done')
+    L.append('  inc v_state+$16,x')
+    L.append('pn_adv_done:')
+    L.append('  rts')
+
+    # bit-7 path
+    L.append('pn_bit7:')
+    L.append('  ldy #0')
+    L.append('  lda ($fb),y')
+    L.append('  cmp #$80')
+    L.append('  bne pn_n80')
+    # $80 - rest with duration
+    L.append('  ldy v_state,x        ; tick_ctr')
+    L.append('  cpy #0')
+    L.append('  bne pn_dec')
+    L.append('  lda v_state+4,x      ; ctrl')
+    L.append('  sta $d404,x')
+    L.append('  jsr pn_advance')
+    L.append('  jmp pn_dec')
+    L.append('pn_n80:')
+    L.append('  cmp #$ff')
+    L.append('  bne pn_nff')
+    # $FF - loop
+    L.append('  lda v_state+$17,x')
+    L.append('  sta v_state+$15,x')
+    L.append('  lda v_state+$18,x')
+    L.append('  sta v_state+$16,x')
+    L.append('  lda #0')
+    L.append('  sta v_state,x')
+    L.append('  lda v_state+$15,x')
+    L.append('  sta $fb')
+    L.append('  lda v_state+$16,x')
+    L.append('  sta $fc')
+    L.append('  jmp play_note')
+    L.append('pn_nff:')
+    L.append('  cmp #$81')
+    L.append('  bne pn_other')
+    # $81 - stop voice
+    L.append('  lda v_state+4,x')
+    L.append('  sta $d404,x')
+    L.append('  lda #0')
+    L.append('  sta v_state+1,x')
+    L.append('pn_other:')
+    L.append('  rts')
+
+    # Runtime vars
+    L.append('pn_endy:     .byte 0')
+    L.append('tempo_const: .byte 0')
+    L.append('tempo_ctr:   .byte 0')
+    L.append('; v_state per-voice block, X-indexed (3 voices at X=0,7,14)')
+    # We need v_state+X at offsets 0..$18 for all 3 voices. Allocate 0x20 bytes.
+    L.append('v_state:     .dsb $20, 0')
+
+    # Freq tables
+    L.append('freq_hi_tab:')
+    for i in range(0, 128, 16):
+        L.append('  .byte ' + ', '.join(f'${b:02X}' for b in CLEVER_FREQ_HI[i:i+16]))
+    L.append('freq_lo_tab:')
+    for i in range(0, 128, 16):
+        L.append('  .byte ' + ', '.join(f'${b:02X}' for b in CLEVER_FREQ_LO[i:i+16]))
+
+    # Pattern data
+    for v, pat in enumerate(voice_patterns):
+        L.append(f'ptn_v{v+1}:')
+        for i in range(0, len(pat), 16):
+            L.append('  .byte ' + ', '.join(f'${b:02X}' for b in pat[i:i+16]))
+
+    return '\n'.join(L) + '\n'
+
+
+def assemble(asm_src: str) -> bytes:
+    src = '/tmp/yes_tune_codegen.s'
+    obj = '/tmp/yes_tune_codegen.bin'
+    with open(src, 'w') as f:
+        f.write(asm_src)
+    r = subprocess.run([XA, src, '-o', obj], capture_output=True, text=True)
+    if r.returncode != 0:
+        raise RuntimeError(f'xa65 failed:\n{r.stdout}\n{r.stderr}')
+    return open(obj, 'rb').read()
+
+
+def emit_sid(usf: UsfFile) -> bytes:
+    asm = emit_asm(usf)
+    body = assemble(asm)
+    music = [s for s in usf.subtunes if isinstance(s, MusicSubtune)]
+    h = bytearray(b'PSID')
+    h += struct.pack('>HH', 2, 124)
+    h += struct.pack('>H', LOAD)
+    h += struct.pack('>H', INIT_VEC)
+    h += struct.pack('>H', PLAY_VEC)
+    h += struct.pack('>H', len(music))
+    h += struct.pack('>H', usf.psid.start_song)
+    h += struct.pack('>I', usf.psid.speed)
+    def latin1(s, n): return s.encode('latin-1', errors='replace')[:n].ljust(n, b'\x00')
+    h += latin1(usf.psid.title, 32)
+    h += latin1(usf.psid.author, 32)
+    h += latin1(usf.psid.released, 32)
+    clock_bits = {'unknown': 0, 'PAL': 1, 'NTSC': 2, 'both': 3}.get(usf.psid.clock, 0)
+    sid_bits = {6581: 1, 8580: 2}.get(usf.psid.sid, 1)
+    flags = (clock_bits << 2) | (sid_bits << 4)
+    h += struct.pack('>H', flags)
+    h += struct.pack('>BBH', 0, 0, 0)
+    assert len(h) == 124
+    return bytes(h) + body
+
+
+def build_from_usf(usf_path: str, out_path: str | None = None) -> str:
+    usf = parse_file(usf_path)
+    if usf.engine != 'yes_tune':
+        raise ValueError(f"expected engine 'yes_tune', got {usf.engine!r}")
+    if out_path is None:
+        base, _ = os.path.splitext(usf_path)
+        out_path = base + '.sidfinity.sid'
+    with open(out_path, 'wb') as f:
+        f.write(emit_sid(usf))
+    try:
+        from src.sid_db import record_rebuild
+        record_rebuild(out_path)
+    except Exception:
+        pass
+    return out_path
