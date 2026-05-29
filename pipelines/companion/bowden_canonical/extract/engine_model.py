@@ -88,15 +88,22 @@ class EngineState:
     tempo_ctr: int = 0          # runtime counter
 
 
-def _run_init(sid_path: str) -> tuple[bytearray, int]:
+def _run_init(sid_path: str, subtune: int = 0) -> tuple[bytearray, int]:
     """Load the SID, run its init routine in py65, return (memory, load).
 
-    Used to capture the post-init memory state. Some Bowden-canonical
-    SIDs (e.g. Keith Bowden's own `Roundabout`) ship with the freq table
-    and orderlist addresses STORED in self-modifying-code form — init
-    patches the high bytes of the play loop's `LDA $CA00,Y` etc. to
-    point at a different memory layout. Reading the post-init bytes is
-    the simple, layout-agnostic way to know where each table lives.
+    Used to capture the post-init memory state for the given subtune
+    index. Some Bowden-canonical SIDs (e.g. Keith Bowden's own
+    `Roundabout`) ship with the freq table and orderlist addresses
+    STORED in self-modifying-code form — init patches the high bytes
+    of the play loop's `LDA $CA00,Y` etc. to point at a different
+    memory layout. Reading the post-init bytes is the simple, layout-
+    agnostic way to know where each table lives.
+
+    Multi-subtune engines (e.g. Karl Hörnell's Melonmania) use the A
+    register passed to init to select which subtune's data tables get
+    patched into the play loop. Different subtunes can have different
+    orderlist addresses, different timbres, different tempo, and even
+    voices disabled by patching `JSR $C0AD` to `BIT $C0AD`.
     """
     import sys as _sys
     _sys.path.insert(0, 'tools/py65_lib')
@@ -114,7 +121,7 @@ def _run_init(sid_path: str) -> tuple[bytearray, int]:
     mpu = MPU()
     mpu.memory = bytearray(0x10000)
     mpu.memory[load:load + len(body)] = body
-    mpu.a = 0
+    mpu.a = subtune
     mpu.x = 0
     mpu.y = 0
     mpu.p = 0x20
@@ -122,7 +129,7 @@ def _run_init(sid_path: str) -> tuple[bytearray, int]:
     mpu.memory[0x01FF] = 0xFE
     mpu.memory[0x01FE] = 0xFE
     mpu.pc = init_addr
-    for _ in range(50000):
+    for _ in range(100000):
         if not 0xC000 <= mpu.pc <= 0xCFFF:
             break
         mpu.step()
@@ -150,35 +157,54 @@ def _detect_layout(mem: bytearray) -> dict:
     )
 
 
-def load_state_from_sid(sid_path: str) -> EngineState:
-    """Read engine state from a Bowden-canonical-family SID.
+def load_state_from_sid(sid_path: str, subtune: int = 0) -> EngineState:
+    """Read engine state from a Bowden-canonical-family SID for the
+    given subtune index.
 
-    Runs init via py65, then reads the post-init memory layout (which
-    handles self-modifying-code variants like Roundabout that patch
-    the freq table / orderlist addresses at runtime).
+    Runs init via py65 with A=subtune, then reads the post-init memory
+    layout. Handles self-modifying-code variants (Roundabout) that
+    patch the freq table / orderlist addresses at runtime, and
+    multi-subtune engines (Melonmania) where init selects per-subtune
+    data based on A.
+
+    Also reads voice-enable state — engines disable a voice by patching
+    its `JSR $C0AD` (opcode $20) at $C08B / $C099 / $C0A7 to
+    `BIT $C0AD` (opcode $2C). A disabled voice's orderlist is replaced
+    with a no-op skip-loop `[$81, $FF]` so the rebuilt engine produces
+    the same instruction stream (no SID writes for that voice).
     """
-    mem, _ = _run_init(sid_path)
+    mem, _ = _run_init(sid_path, subtune)
     layout = _detect_layout(mem)
 
     def slice_(start: int, end: int) -> bytes:
         return bytes(mem[start:end])
 
-    # Post-init v_pos values — V1 is zeroed by all known variant inits;
-    # V2/V3 are either zeroed (Roundabout) or set to a per-tune offset
-    # (Vic Berry tunes), preserved from load-time bytes.
     v_pos = [mem[V1POS_ADDR], mem[V2POS_ADDR], mem[V3POS_ADDR]]
 
-    # 5-byte timbre per voice — same address layout in all known variants.
     timbre = [slice_(TIMBRE_BASE + off, TIMBRE_BASE + off + 5)
               for off in (0, 7, 14)]
 
+    # Voice enables — JSR opcode is $20, BIT (absolute) is $2C.
+    voice_jsr_addrs = (0xC08B, 0xC099, 0xC0A7)
+    voice_enabled = tuple(mem[a] == 0x20 for a in voice_jsr_addrs)
+
     orderlists = []
-    for base in layout['v_order_bases']:
+    for v, base in enumerate(layout['v_order_bases']):
+        if not voice_enabled[v]:
+            # Disabled voice — replace orderlist with no-op skip loop.
+            # $81 = bit-7-skip (no SID writes), $FF = loop back to pos 1.
+            orderlists.append(bytes([0x81, 0xFF]))
+            continue
         bs = slice_(base, base + 256)
         ff = bs.find(0xFF)
         if ff < 0:
-            raise ValueError(f'no $FF terminator in orderlist at ${base:04X}')
-        orderlists.append(bs[: ff + 1])
+            # No explicit $FF terminator — engine's 8-bit v_pos wraps
+            # naturally at 255→0 every 256 ticks. Treat as a full
+            # 256-byte cyclic orderlist by appending $FF at the end
+            # (which our codec then renders back into a wrap).
+            orderlists.append(bytes(bs) + bytes([0xFF]))
+        else:
+            orderlists.append(bs[: ff + 1])
 
     return EngineState(
         tempo=mem[TEMPO_ADDR],

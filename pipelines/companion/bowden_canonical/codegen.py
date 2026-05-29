@@ -1,33 +1,29 @@
 """6502 codegen for the Bowden-canonical Companion engine.
 
 Generates a clean xa65 assembly source that reproduces the original
-engine's per-frame SID instruction stream from USF v2 data. The
-generated code is structurally different from the original engine
-binary (no carry-leak tricks, no self-modifying offsets) — it just
-needs to produce the same FINAL per-frame register state for each
-$D400-$D418 register, which `verify_all` checks via md5 of py65
-snapshots.
+engine's per-frame SID instruction stream from USF v2 data. Single-
+or multi-subtune. Init takes A as the subtune index and configures
+runtime state (orderlist pointers, timbre table, tempo, voice
+positions) from per-subtune data tables.
 
-Layout (all contiguous starting at LOAD=$1000; xa65 doesn't honour
-forward `* =` gaps, so labels fall naturally and we use JMP
-trampolines at the top to give PSID stable entry points):
+Layout (all contiguous starting at LOAD=$1000):
 
-  $1000  JMP init    (3 bytes)
-  $1003  JMP play    (3 bytes)
-  $1006  init body
-         play body
-         proc_note
-         voice1_step / voice2_step / voice3_step
-         data (timbres, freq tables, orderlists)
+  $1000   JMP init     (3 bytes — PSID entry)
+  $1003   JMP play     (3 bytes — PSID entry)
+  $1006+  init body (per-subtune dispatch)
+          play body
+          proc_note + proc_note_4 + voice steps
+          runtime variables + timbre table
+          freq tables (engine constant)
+          per-subtune data tables (init_pos, tempo, timbre, orderlist ptrs)
+          per-subtune orderlists (each up to 256 bytes per voice)
 
-Engine semantics (see extract/engine_model.py for the full analysis):
+Engine semantics — see extract/engine_model.py for the analysis.
 
-  - 3 voices walking flat orderlists of (oct<<4)|semi pitch bytes
-  - $80 = rest (gate off, no other writes)
-  - $FF = loop to position 1 of own orderlist, immediately play [0]
-  - Per-voice fixed 5-byte timbre (pw_lo, pw_hi, ctrl, ad, sr)
-  - Global tempo: frames per tick
-  - V1 init_pos = 0 (zeroed by init); V2/V3 init_pos are tune data
+Multi-subtune support: voice_step routines use indirect (zp),Y
+addressing to read orderlist bytes, so each subtune can point V1/V2/V3
+at independently-located orderlist data via zp pointers programmed
+by init.
 """
 
 from __future__ import annotations
@@ -36,9 +32,7 @@ import os
 import subprocess
 import struct
 
-from src.usf2 import (
-    UsfFile, MusicSubtune, Instrument, parse_file,
-)
+from src.usf2 import UsfFile, MusicSubtune, Instrument
 from pipelines.companion.bowden_canonical.engine_constants import (
     freq_tables, pitch_to_note_byte,
 )
@@ -47,17 +41,20 @@ from pipelines.companion.bowden_canonical.engine_constants import (
 XA = os.environ.get('XA', 'tools/xa65/xa/xa')
 
 LOAD = 0x1000
-INIT_VEC = LOAD          # JMP init
-PLAY_VEC = LOAD + 3      # JMP play
+INIT_VEC = LOAD
+PLAY_VEC = LOAD + 3
+
+# Zero-page pointers for per-voice orderlist (set by init).
+ZP_ORD_V1_LO = 0xE0
+ZP_ORD_V1_HI = 0xE1
+ZP_ORD_V2_LO = 0xE2
+ZP_ORD_V2_HI = 0xE3
+ZP_ORD_V3_LO = 0xE4
+ZP_ORD_V3_HI = 0xE5
 
 
 def _note_byte_from_row(row) -> int:
     if 'fx:hold' in row.fx_flags:
-        # Engine treats any bit-7-set byte that's not $80 or $FF as a
-        # skip (bare RTS at $C108, no SID writes). $81 is the canonical
-        # value the original Bowden engines emit; using it preserves
-        # exact byte content and the carry-leak that propagates C=0 to
-        # the next voice's PW loop iteration count.
         return 0x81
     if row.pitch.is_rest:
         return 0x80
@@ -65,8 +62,6 @@ def _note_byte_from_row(row) -> int:
 
 
 def _orderlist_bytes(voice_block) -> bytes:
-    """Convert a USF voice block's pattern 1 into the engine's
-    $FF-terminated byte sequence."""
     if not voice_block.patterns:
         raise ValueError(f'voice {voice_block.id} has no patterns')
     pat = voice_block.patterns[0]
@@ -74,7 +69,6 @@ def _orderlist_bytes(voice_block) -> bytes:
 
 
 def _timbre_block(instr: Instrument) -> bytes:
-    """USF Instrument → 5-byte timbre (pw_lo, pw_hi, ctrl, ad, sr)."""
     pw_lo = instr.pwm.init & 0xFF
     pw_hi = (instr.pwm.init >> 8) & 0xFF
     ctrl = instr.waveform[0] if instr.waveform else 0
@@ -83,40 +77,47 @@ def _timbre_block(instr: Instrument) -> bytes:
 
 
 def emit_asm(usf: UsfFile) -> str:
-    """Emit xa65 assembly source — fully contiguous from LOAD."""
     music = [s for s in usf.subtunes if isinstance(s, MusicSubtune)]
-    if len(music) != 1:
-        raise ValueError(f'bowden_canonical expects 1 music subtune, got {len(music)}')
-    ms = music[0]
-    if len(ms.voices) != 3:
-        raise ValueError(f'expected 3 voices, got {len(ms.voices)}')
+    if not music:
+        raise ValueError('no music subtunes')
+    music.sort(key=lambda s: s.id)
+    n_sub = len(music)
 
     instr_by_id = {i.id: i for i in usf.instruments}
-    voice_instr_ids = [iv.instr.id for iv in (ms.init.voices if ms.init
+
+    # Per-subtune data
+    per_sub: list[dict] = []
+    for ms in music:
+        if len(ms.voices) != 3:
+            raise ValueError(f'subtune {ms.id}: expected 3 voices')
+        voice_iids = [iv.instr.id for iv in (ms.init.voices if ms.init
                                               else usf.init.voices)]
-    timbres = [_timbre_block(instr_by_id[iid]) for iid in voice_instr_ids]
-
-    orderlists = [_orderlist_bytes(vb) for vb in ms.voices]
-
-    p = ms.params.fields if ms.params else {}
-    init_v1 = p.get('init_pos_v1', 0)
-    init_v2 = p.get('init_pos_v2', 0)
-    init_v3 = p.get('init_pos_v3', 0)
-    init_tempo_ctr = p.get('init_tempo_ctr', 0)
-
-    tempo = ms.tempo
+        timbres = [_timbre_block(instr_by_id[iid]) for iid in voice_iids]
+        orderlists = [_orderlist_bytes(vb) for vb in ms.voices]
+        p = ms.params.fields if ms.params else {}
+        per_sub.append({
+            'tempo': ms.tempo,
+            'init_pos': (p.get('init_pos_v1', 0),
+                         p.get('init_pos_v2', 0),
+                         p.get('init_pos_v3', 0)),
+            'init_tempo_ctr': p.get('init_tempo_ctr', 0),
+            'timbres': timbres,
+            'orderlists': orderlists,
+        })
 
     freq_hi, freq_lo = freq_tables()
 
-    L = []
+    L: list[str] = []
     L.append(f'* = ${LOAD:04X}')
 
-    # Trampolines — PSID dispatches into these at INIT_VEC / PLAY_VEC.
+    # PSID trampolines
     L.append('  jmp init')
     L.append('  jmp play')
 
-    # ---- init ----
+    # ---- init (A = subtune index) ----
     L.append('init:')
+    # Silence SID
+    L.append('  pha                  ; save A')
     L.append('  lda #0')
     L.append('  ldx #0')
     L.append('init_silence:')
@@ -134,14 +135,39 @@ def emit_asm(usf: UsfFile) -> str:
     L.append('  sta $d40c')
     L.append('  lda #0')
     L.append('  sta $d40d')
-    L.append(f'  lda #{init_v1}')
+    L.append('  pla                  ; restore A as subtune index')
+    L.append('  tax                  ; X = subtune index (byte tables)')
+    # Per-subtune scalar setup
+    L.append('  lda init_v1_pos_tab,x')
     L.append('  sta v1_pos')
-    L.append(f'  lda #{init_v2}')
+    L.append('  lda init_v2_pos_tab,x')
     L.append('  sta v2_pos')
-    L.append(f'  lda #{init_v3}')
+    L.append('  lda init_v3_pos_tab,x')
     L.append('  sta v3_pos')
-    L.append(f'  lda #{init_tempo_ctr}')
+    L.append('  lda init_tempo_ctr_tab,x')
     L.append('  sta tempo_ctr')
+    L.append('  lda tempo_tab,x')
+    L.append('  sta tempo_const')
+    # Per-subtune timbre table fill (15 bytes × 5 fields written into
+    # runtime timbre arrays at offsets 0, 7, 14)
+    fields = ['pwlo', 'pwhi', 'ctrl', 'ad', 'sr']
+    for fname in fields:
+        for v, off in enumerate((0, 7, 14)):
+            L.append(f'  lda v{v+1}_{fname}_tab,x')
+            L.append(f'  sta timbre_{fname}+{off}')
+    # Per-subtune orderlist pointers (3 voices × 2 bytes)
+    L.append('  lda v1_ol_lo_tab,x')
+    L.append(f'  sta ${ZP_ORD_V1_LO:02X}')
+    L.append('  lda v1_ol_hi_tab,x')
+    L.append(f'  sta ${ZP_ORD_V1_HI:02X}')
+    L.append('  lda v2_ol_lo_tab,x')
+    L.append(f'  sta ${ZP_ORD_V2_LO:02X}')
+    L.append('  lda v2_ol_hi_tab,x')
+    L.append(f'  sta ${ZP_ORD_V2_HI:02X}')
+    L.append('  lda v3_ol_lo_tab,x')
+    L.append(f'  sta ${ZP_ORD_V3_LO:02X}')
+    L.append('  lda v3_ol_hi_tab,x')
+    L.append(f'  sta ${ZP_ORD_V3_HI:02X}')
     L.append('  rts')
 
     # ---- play ----
@@ -158,20 +184,11 @@ def emit_asm(usf: UsfFile) -> str:
     L.append('play_exit:')
     L.append('  rts')
 
-    # ---- proc_note: A = note byte, X = voice offset (0/7/14) ----
-    L.append('; proc_note expects A as the note byte and X as voice offset 0,7,14')
-    L.append('; voice_step sets X (via LDX immediate) AFTER loading A, which clears')
-    L.append('; the N flag, so we test A explicitly with CMP rather than BMI.')
-    L.append('; The original engine emits a 5-byte timbre dump (pw_lo, pw_hi,')
-    L.append('; ctrl-junk, ad, sr) on regular ticks, but only 4 bytes (no sr) when')
-    L.append('; V1 or V2 hits its $FF loop terminator and proc_note is called')
-    L.append('; recursively on orderlist[0] — the loop dispatcher leaves carry=0')
-    L.append('; from CPX #$0E, which shortens the engine PW loop by one iteration.')
-    L.append('; We emit two variants — proc_note (5-byte) and proc_note_4 (4-byte).')
+    # ---- proc_note + proc_note_4 ----
     L.append('proc_note:')
     L.append('  cmp #$80')
     L.append('  beq pn_rest')
-    L.append('  bcs pn_skip          ; bit-7-set non-$80 non-$FF means no-op')
+    L.append('  bcs pn_skip')
     L.append('  tay')
     L.append('  lda freq_hi_tab,y')
     L.append('  sta $d401,x')
@@ -182,14 +199,14 @@ def emit_asm(usf: UsfFile) -> str:
     L.append('  lda timbre_pwhi,x')
     L.append('  sta $d403,x')
     L.append('  lda timbre_ctrl,x')
-    L.append('  sta $d404,x          ; junk write (gate=0) — DELIBERATE retrigger')
+    L.append('  sta $d404,x          ; junk write (gate=0) for envelope retrigger')
     L.append('  lda timbre_ad,x')
     L.append('  sta $d405,x')
     L.append('  lda timbre_sr,x')
     L.append('  sta $d406,x')
     L.append('  lda timbre_ctrl,x')
     L.append('  ora #$01')
-    L.append('  sta $d404,x          ; gate=1, finalises the envelope retrigger')
+    L.append('  sta $d404,x          ; gate=1, finalises envelope retrigger')
     L.append('  rts')
     L.append('pn_rest:')
     L.append('  lda timbre_ctrl,x')
@@ -211,79 +228,99 @@ def emit_asm(usf: UsfFile) -> str:
     L.append('  lda timbre_pwhi,x')
     L.append('  sta $d403,x')
     L.append('  lda timbre_ctrl,x')
-    L.append('  sta $d404,x          ; junk write (gate=0)')
+    L.append('  sta $d404,x')
     L.append('  lda timbre_ad,x')
-    L.append('  sta $d405,x          ; NB no sr write (carry=0 path)')
+    L.append('  sta $d405,x          ; NB no sr write')
     L.append('  lda timbre_ctrl,x')
     L.append('  ora #$01')
-    L.append('  sta $d404,x          ; gate=1')
+    L.append('  sta $d404,x')
     L.append('  rts')
 
-    # ---- per-voice step routines ----
-    # V1/V2 take a 4-byte-timbre path on $FF substitution; V3 stays 5-byte.
-    # (See proc_note above for the carry-leak explanation.)
-    for v, (pos_label, orderlist_label, voice_off, pn4_on_loop) in enumerate([
-        ('v1_pos', 'orderlist_v1', 0, True),
-        ('v2_pos', 'orderlist_v2', 7, True),
-        ('v3_pos', 'orderlist_v3', 14, False),
+    # ---- per-voice step routines (use (zp),Y indirect orderlist) ----
+    for v, (pos_label, zp_lo, voice_off, pn4_on_loop) in enumerate([
+        ('v1_pos', ZP_ORD_V1_LO, 0, True),
+        ('v2_pos', ZP_ORD_V2_LO, 7, True),
+        ('v3_pos', ZP_ORD_V3_LO, 14, False),
     ]):
         vn = v + 1
         L.append(f'voice{vn}_step:')
-        L.append(f'  ldx {pos_label}')
+        L.append(f'  ldy {pos_label}')
         L.append(f'  inc {pos_label}')
-        L.append(f'  lda {orderlist_label},x')
+        L.append(f'  lda (${zp_lo:02X}),y')
         L.append('  cmp #$ff')
         L.append(f'  bne v{vn}_play')
-        # $FF substitution path
+        # $FF substitution
         L.append('  lda #1')
         L.append(f'  sta {pos_label}')
-        L.append(f'  lda {orderlist_label}')
+        L.append('  ldy #0')
+        L.append(f'  lda (${zp_lo:02X}),y')
         L.append(f'  ldx #{voice_off}')
         if pn4_on_loop:
-            L.append('  jmp proc_note_4    ; carry=0 path emits 4-byte timbre')
+            L.append('  jmp proc_note_4')
         else:
-            L.append('  jmp proc_note      ; V3 keeps full 5-byte timbre')
+            L.append('  jmp proc_note')
         L.append(f'v{vn}_play:')
         L.append(f'  ldx #{voice_off}')
         L.append('  jmp proc_note')
 
-    # ---- runtime variables (RAM) ----
-    L.append('v1_pos:    .byte 0')
-    L.append('v2_pos:    .byte 0')
-    L.append('v3_pos:    .byte 0')
-    L.append('tempo_ctr: .byte 0')
-    L.append(f'tempo_const: .byte {tempo}')
+    # ---- runtime variables ----
+    L.append('v1_pos:      .byte 0')
+    L.append('v2_pos:      .byte 0')
+    L.append('v3_pos:      .byte 0')
+    L.append('tempo_ctr:   .byte 0')
+    L.append('tempo_const: .byte 0')
 
-    # ---- timbre table — 5 parallel arrays of 15 bytes (X up to 14) ----
-    fields = ['pwlo', 'pwhi', 'ctrl', 'ad', 'sr']
-    for fi, fname in enumerate(fields):
-        slot = [0] * 15
-        for v in range(3):
-            slot[v * 7] = timbres[v][fi]
-        bytes_str = ', '.join(f'${b:02X}' for b in slot)
-        L.append(f'timbre_{fname}: .byte {bytes_str}')
+    # Runtime timbre table — 5 parallel 15-byte arrays. Filled at init.
+    for fname in fields:
+        L.append(f'timbre_{fname}: .dsb 15, 0')
 
-    # ---- freq tables ----
+    # ---- freq tables (engine constant) ----
     L.append('freq_hi_tab:')
     for i in range(0, 128, 16):
         L.append('  .byte ' + ', '.join(f'${b:02X}' for b in freq_hi[i:i+16]))
-
     L.append('freq_lo_tab:')
     for i in range(0, 128, 16):
         L.append('  .byte ' + ', '.join(f'${b:02X}' for b in freq_lo[i:i+16]))
 
-    # ---- orderlists ----
-    for v, label in enumerate(['orderlist_v1', 'orderlist_v2', 'orderlist_v3']):
-        L.append(f'{label}:')
-        ol = orderlists[v]
-        for i in range(0, len(ol), 16):
-            L.append('  .byte ' + ', '.join(f'${b:02X}' for b in ol[i:i+16]))
+    # ---- per-subtune data tables (byte tables indexed by subtune) ----
+    def _byte_tab(label: str, values: list[int]) -> None:
+        L.append(f'{label}: .byte ' + ', '.join(f'${v:02X}' for v in values))
+
+    _byte_tab('tempo_tab', [s['tempo'] for s in per_sub])
+    _byte_tab('init_v1_pos_tab', [s['init_pos'][0] for s in per_sub])
+    _byte_tab('init_v2_pos_tab', [s['init_pos'][1] for s in per_sub])
+    _byte_tab('init_v3_pos_tab', [s['init_pos'][2] for s in per_sub])
+    _byte_tab('init_tempo_ctr_tab', [s['init_tempo_ctr'] for s in per_sub])
+
+    # Per-subtune timbre fields (3 voices × 5 fields × N subtunes)
+    for v in range(3):
+        for fi, fname in enumerate(fields):
+            _byte_tab(f'v{v+1}_{fname}_tab',
+                      [s['timbres'][v][fi] for s in per_sub])
+
+    # Per-subtune orderlist address tables (hi/lo per voice)
+    # We'll forward-reference labels orderlist_v<v>_s<i>.
+    for v in range(3):
+        L.append(f'v{v+1}_ol_lo_tab:')
+        L.append('  .byte ' + ', '.join(
+            f'<orderlist_v{v+1}_s{i}' for i in range(n_sub)))
+        L.append(f'v{v+1}_ol_hi_tab:')
+        L.append('  .byte ' + ', '.join(
+            f'>orderlist_v{v+1}_s{i}' for i in range(n_sub)))
+
+    # ---- per-subtune orderlists ----
+    for s_idx, s in enumerate(per_sub):
+        for v in range(3):
+            L.append(f'orderlist_v{v+1}_s{s_idx}:')
+            ol = s['orderlists'][v]
+            for i in range(0, len(ol), 16):
+                L.append('  .byte ' + ', '.join(
+                    f'${b:02X}' for b in ol[i:i+16]))
 
     return '\n'.join(L) + '\n'
 
 
 def assemble(asm_src: str) -> bytes:
-    """Run xa65, return the assembled flat binary (no load-address header)."""
     src_path = '/tmp/bowden_codegen.s'
     obj_path = '/tmp/bowden_codegen.bin'
     with open(src_path, 'w') as f:
@@ -296,7 +333,6 @@ def assemble(asm_src: str) -> bytes:
 
 
 def emit_sid(usf: UsfFile) -> bytes:
-    """Emit a complete PSID file for the given USF."""
     asm = emit_asm(usf)
     body = assemble(asm)
 
@@ -324,6 +360,5 @@ def emit_sid(usf: UsfFile) -> bytes:
     flags = (clock_bits << 2) | (sid_bits << 4)
     h += struct.pack('>H', flags)
     h += struct.pack('>BBH', 0, 0, 0)
-
     assert len(h) == 124, len(h)
     return bytes(h) + body

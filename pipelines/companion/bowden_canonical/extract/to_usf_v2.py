@@ -103,44 +103,68 @@ def _psid_meta_from_sid(sid_path: str) -> PsidMeta:
     )
 
 
+def _n_subtunes(sid_path: str) -> int:
+    """Read the PSID header's songs count."""
+    with open(sid_path, 'rb') as f:
+        raw = f.read(0x10)
+    import struct as _struct
+    return _struct.unpack('>H', raw[0x0E:0x10])[0]
+
+
 def build_usf(sid_path: str) -> UsfFile:
-    """Extract a Bowden-canonical SID into an in-memory UsfFile."""
-    state = load_state_from_sid(sid_path)
+    """Extract a Bowden-canonical SID into an in-memory UsfFile.
 
-    instruments = [_instrument_from_timbre(i + 1, state.timbre[i])
-                   for i in range(3)]
+    Iterates over all subtunes declared in the PSID header. Each
+    subtune's per-tune state (timbres, tempo, orderlists, init_pos)
+    is captured by re-running init with A=subtune_index. Per-subtune
+    instruments are numbered (sub_i * 3) + voice (so 3 instruments per
+    subtune; sub 0 = i1..i3, sub 1 = i4..i6, sub 2 = i7..i9, etc.).
+    """
+    n_sub = _n_subtunes(sid_path)
+    states = [load_state_from_sid(sid_path, i) for i in range(n_sub)]
 
-    voices = []
-    for v in range(3):
-        pat = _pattern_from_orderlist(1, state.orderlists[v])
-        voices.append(VoiceBlock(
-            id=v + 1,
-            orderlist=Orderlist(entries=[1], loop_to=0),
-            patterns=[pat],
+    instruments = []
+    music_subtunes = []
+    for s_idx, state in enumerate(states):
+        # Per-subtune timbres → 3 instruments per subtune
+        base_id = s_idx * 3 + 1
+        for v in range(3):
+            instruments.append(_instrument_from_timbre(
+                base_id + v, state.timbre[v]))
+
+        voices = []
+        for v in range(3):
+            pat = _pattern_from_orderlist(1, state.orderlists[v])
+            voices.append(VoiceBlock(
+                id=v + 1,
+                orderlist=Orderlist(entries=[1], loop_to=0),
+                patterns=[pat],
+            ))
+
+        sub_init = InitState(voices=[
+            InitVoice(id=v + 1, instr=InstrumentRef(id=base_id + v))
+            for v in range(3)
+        ])
+
+        subtune_params = Params(fields={
+            'init_pos_v1': state.v_pos[0],
+            'init_pos_v2': state.v_pos[1],
+            'init_pos_v3': state.v_pos[2],
+            'init_tempo_ctr': state.tempo_ctr,
+        })
+
+        music_subtunes.append(MusicSubtune(
+            id=s_idx,
+            tempo=state.tempo,
+            voices=voices,
+            init=sub_init,
+            params=subtune_params,
         ))
 
-    subtune_params = Params(fields={
-        'init_pos_v1': state.v_pos[0],   # always 0 — carried for symmetry
-        'init_pos_v2': state.v_pos[1],
-        'init_pos_v3': state.v_pos[2],
-        # Some Bowden-canonical inits pre-set the tempo counter so the
-        # first play() call immediately fires a music tick (e.g.
-        # Roundabout: tempo_ctr=tempo-1). Vic Berry's leaves it at 0
-        # (tick fires after `tempo` frames). Carry as a param.
-        'init_tempo_ctr': state.tempo_ctr,
-    })
-
-    music = MusicSubtune(
-        id=0,
-        tempo=state.tempo,
-        voices=voices,
-        params=subtune_params,
-    )
-
+    # Top-level init defaults to subtune 0's instruments
     top_init = InitState(voices=[
-        InitVoice(id=1, instr=InstrumentRef(id=1)),
-        InitVoice(id=2, instr=InstrumentRef(id=2)),
-        InitVoice(id=3, instr=InstrumentRef(id=3)),
+        InitVoice(id=v + 1, instr=InstrumentRef(id=v + 1))
+        for v in range(3)
     ])
 
     return UsfFile(
@@ -150,7 +174,7 @@ def build_usf(sid_path: str) -> UsfFile:
         params=Params(),
         init=top_init,
         instruments=instruments,
-        subtunes=[music],
+        subtunes=music_subtunes,
     )
 
 
