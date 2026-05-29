@@ -109,8 +109,8 @@ def _scan_voice_blocks(mem: bytearray, play_addr: int) -> tuple[list[dict], int]
                     pc += 14
                     continue
         pc += 1
-    if len(voices) != 3:
-        raise ValueError(f'expected 3 voice blocks in play loop, found {len(voices)}')
+    if not voices:
+        raise ValueError(f'no voice blocks found in play loop at ${play_addr:04X}')
     return voices, proc_note
 
 
@@ -184,12 +184,19 @@ def _opcode_length(op: int) -> int:
     return _OP_LEN[op]
 
 
-def _scan_tempo_gate(mem: bytearray, play_addr: int) -> tuple[int, int]:
-    """Find the tempo_ctr and tempo addresses by scanning the tempo
-    gate at the play entry. Two variants seen:
+def _scan_tempo_gate(mem: bytearray, play_addr: int
+                      ) -> tuple[int, int | None, int | None]:
+    """Find the tempo_ctr addr and the tempo value (either the address
+    of a memory cell holding tempo, or — for engines with hardcoded
+    tempo — None plus the immediate value).
 
-        bowden_canonical:   LDX tempo_ctr / INX / STX tempo_ctr / CPX tempo / BNE
-        Surfchamp:          INC tempo_ctr / LDA tempo_ctr / CMP tempo / BNE
+    Variants seen:
+      bowden_canonical:   LDX tempo_ctr / INX / STX tempo_ctr / CPX tempo_addr / BNE
+      Surfchamp:          INC tempo_ctr / LDA tempo_ctr / CMP tempo_addr / BNE
+      Henrys_House:       INC tempo_ctr / LDX tempo_ctr / CPX #imm / BEQ
+
+    Returns (tempo_ctr_addr, tempo_addr_or_None, tempo_immediate_or_None).
+    Exactly one of (tempo_addr, tempo_immediate) is non-None.
     """
     pc = play_addr
     end = play_addr + 0x20
@@ -197,6 +204,7 @@ def _scan_tempo_gate(mem: bytearray, play_addr: int) -> tuple[int, int]:
     ldx_target = None
     cmp_target = None
     cpx_target = None
+    cpx_imm = None
     while pc < end:
         op = mem[pc]
         if op == 0xEE:  # INC abs
@@ -213,12 +221,18 @@ def _scan_tempo_gate(mem: bytearray, play_addr: int) -> tuple[int, int]:
         elif op == 0xEC:  # CPX abs
             cpx_target = mem[pc + 1] | (mem[pc + 2] << 8)
             break
+        elif op == 0xE0:  # CPX immediate
+            cpx_imm = mem[pc + 1]
+            break
         else:
             pc += _opcode_length(op)
+    tempo_ctr = ldx_target if ldx_target is not None else inc_target
+    if cpx_imm is not None:
+        return tempo_ctr, None, cpx_imm                # immediate tempo
     if cpx_target is not None:
-        return ldx_target, cpx_target          # bowden style
+        return tempo_ctr, cpx_target, None             # bowden style
     if cmp_target is not None:
-        return inc_target, cmp_target          # Surfchamp style
+        return tempo_ctr, cmp_target, None             # Surfchamp style
     raise ValueError(f'no tempo gate CMP/CPX found near play=${play_addr:04X}')
 
 
@@ -237,23 +251,28 @@ class EngineState:
 
 
 class _TrackingMemory(bytearray):
-    """bytearray subclass that records writes to specific address ranges.
+    """bytearray subclass that records init-time writes.
 
-    Used to capture init-time writes to CIA1 timer registers ($DC04/$DC05).
-    Some engines (e.g. Surfchamp) program a non-default play() dispatch
-    rate this way — the rebuild needs to replicate the programming or
-    play at the wrong speed.
+    Captures CIA1 timer writes ($DC04/$DC05) for engines that program
+    a non-default play() dispatch rate (e.g. Surfchamp), AND the full
+    SID write sequence ($D400-$D418) so the rebuild can replay init's
+    exact instruction stream rather than hardcoding an assumed pattern.
     """
     cia_writes: dict[int, int]  # type: ignore
+    sid_writes: list  # type: ignore
 
     def __new__(cls, size):
         obj = super().__new__(cls, size)
         obj.cia_writes = {}
+        obj.sid_writes = []
         return obj
 
     def __setitem__(self, idx, val):
-        if isinstance(idx, int) and 0xDC00 <= idx <= 0xDDFF:
-            self.cia_writes[idx] = val
+        if isinstance(idx, int):
+            if 0xDC00 <= idx <= 0xDDFF:
+                self.cia_writes[idx] = val
+            elif 0xD400 <= idx <= 0xD418:
+                self.sid_writes.append((idx - 0xD400, val))
         super().__setitem__(idx, val)
 
 
@@ -306,6 +325,42 @@ def _run_init(sid_path: str, subtune: int = 0) -> tuple[bytearray, int]:
     return bytearray(mpu.memory), load
 
 
+def _run_init_capture(sid_path: str, subtune: int = 0):
+    """Run init, return (memory, sid_writes, cia_writes)."""
+    import sys as _sys
+    _sys.path.insert(0, 'tools/py65_lib')
+    from py65.devices.mpu6502 import MPU
+    raw = Path(sid_path).read_bytes()
+    load_in = struct.unpack('>H', raw[8:10])[0]
+    body = raw[124:]
+    if load_in == 0:
+        load = struct.unpack('<H', body[:2])[0]
+        body = body[2:]
+    else:
+        load = load_in
+    init_addr = struct.unpack('>H', raw[10:12])[0]
+    mpu = MPU()
+    mpu.memory = _TrackingMemory(0x10000)
+    mpu.memory[load:load + len(body)] = body
+    # _TrackingMemory records the slice write but those aren't init
+    # writes from the engine — they're just our setup. Reset:
+    mpu.memory.sid_writes.clear()
+    mpu.memory.cia_writes.clear()
+    mpu.a = subtune
+    mpu.x = 0; mpu.y = 0; mpu.p = 0x20; mpu.sp = 0xFD
+    mpu.memory[0x01FF] = 0xFE; mpu.memory[0x01FE] = 0xFE
+    mpu.memory.sid_writes.clear()  # forget the stack setup writes too
+    mpu.memory.cia_writes.clear()
+    mpu.pc = init_addr
+    for _ in range(200000):
+        if not load <= mpu.pc < load + len(body):
+            break
+        mpu.step()
+    return (bytearray(mpu.memory),
+            list(mpu.memory.sid_writes),
+            dict(mpu.memory.cia_writes))
+
+
 def load_state_from_sid(sid_path: str, subtune: int = 0) -> EngineState:
     """Read engine state from a Bowden-canonical-family SID for the
     given subtune index.
@@ -325,7 +380,7 @@ def load_state_from_sid(sid_path: str, subtune: int = 0) -> EngineState:
     mem, _ = _run_init(sid_path, subtune)
     voices, proc_addr = _scan_voice_blocks(mem, play_addr)
     proc_info = _scan_proc_note(mem, proc_addr)
-    tempo_ctr_addr, tempo_addr = _scan_tempo_gate(mem, play_addr)
+    tempo_ctr_addr, tempo_addr, tempo_imm = _scan_tempo_gate(mem, play_addr)
 
     def slice_(start: int, end: int) -> bytes:
         return bytes(mem[start:end])
@@ -359,8 +414,10 @@ def load_state_from_sid(sid_path: str, subtune: int = 0) -> EngineState:
     cia1_timer_a = (cia_writes.get(0xDC04, 0)
                     | (cia_writes.get(0xDC05, 0) << 8))
 
+    tempo_value = tempo_imm if tempo_imm is not None else mem[tempo_addr]
+
     return EngineState(
-        tempo=mem[tempo_addr],
+        tempo=tempo_value,
         v_pos=v_pos,
         timbre=timbre,
         orderlists=orderlists,
@@ -447,17 +504,26 @@ def play_one_frame(state: EngineState) -> list[tuple[int, int]]:
     state.tempo_ctr = 0
 
     writes: list[tuple[int, int]] = []
-    for v in range(3):
+    for v in range(len(state.orderlists)):
         note = state.orderlists[v][state.v_pos[v]]
         state.v_pos[v] = (state.v_pos[v] + 1) & 0xFF
         proc_note(state, v, note, writes)
     return writes
 
 
-def init_writes() -> list[tuple[int, int]]:
-    """The fixed writes the engine's init routine emits (excluding the
-    silence-loop sweep of $D400-$D418 → 0, which we model implicitly as
-    'SID starts at zero state')."""
+def init_writes(sid_path: str | None = None,
+                subtune: int = 0) -> list[tuple[int, int]]:
+    """SID writes performed by the engine's init routine.
+
+    When called with `sid_path`, captures init's writes dynamically
+    via py65 — the right thing for engines with per-tune init patterns.
+    Without a path, returns the bowden_canonical default sequence
+    (kept for back-compat with callers that don't pass a path).
+    """
+    if sid_path is not None:
+        # Re-run init to capture SID writes
+        _, sid_writes, _ = _run_init_capture(sid_path, subtune)
+        return sid_writes
     # init at $C053 does:
     #   silence $D400-$D418 (we treat starting state as zero)
     #   D418 = $0F  (vol = max)
