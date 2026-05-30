@@ -60,45 +60,66 @@ def _init_state_from_ovseed(ov: bytes, instr_count: int) -> InitState:
 
 
 def build_unified_usf() -> UsfFile:
-    """Build a UsfFile mirroring `build_unified_inputs()`."""
+    """Build a v3 UsfFile mirroring `build_unified_inputs()`."""
+    from pipelines.hubbard.engine_constants import (
+        ENGINE_CONSTANTS, EngineConstants,
+    )
+    from dataclasses import fields as dataclass_fields
+    from src.usf2.types import Params as ParamsCls
+
     inputs = build_unified_inputs()
     instr_count = len(inputs.models)
+    ec = ENGINE_CONSTANTS['five_title_tunes']
 
-    # PSID metadata from the parent SID.
     psid = _read_psid_meta(PARENT_SID)
 
-    # Engine mechanism (arp_interval, vib_onset, per-subtune
-    # speed_ctr_init / incby2_step / incby2_late_gate / tick_divider /
-    # voice_start) lives in engine_constants.py keyed by engine name.
-    # The USF carries an empty top-level params block and per-subtune
-    # init state only.
-    params = Params(fields={})
+    # Top-level params — engine_constants deltas (Commando-default
+    # diffs only). Per-subtune mechanism overrides live on each
+    # MusicSubtune.params.
+    defaults = EngineConstants(instr_base=0, instr_count=0,
+                               freq_table_base=0, freq_bytes=bytes(320))
+    SKIP = {'instr_base', 'instr_count', 'freq_table_base', 'freq_bytes',
+            'voice_starts', 'state_layout', 'seed_offsets', 'digi',
+            'is_rsid', 'subtune_overrides'}
+    top_fields: dict = {}
+    for f in dataclass_fields(EngineConstants):
+        if f.name in SKIP: continue
+        v_ec = getattr(ec, f.name); v_def = getattr(defaults, f.name)
+        if v_ec != v_def and v_ec is not None:
+            top_fields[f.name] = v_ec
+    params = Params(fields=top_fields)
 
-    # Engine-level init — placeholder (sub_0's values). The codegen's
-    # unified path uses each subtune's own init block instead.
+    # Engine-level init stays as a placeholder for per-subtune init
+    # state — the codegen's per-subtune-table path uses each sub's
+    # init explicitly.
     init = _init_state_from_ovseed(inputs.per_subtune_ovseed[0], instr_count)
 
     instruments = [_convert_instrument(m, inputs.arp_period)
                    for m in inputs.models]
 
-    # 5 music subtunes. Per-subtune init state (per-voice engine state
-    # captured at each sub's init) stays in USF; per-subtune mechanism
-    # has moved to ENGINE_CONSTANTS['five_title_tunes'].subtune_overrides.
     music_subtunes = []
     for st_idx, score in enumerate(inputs.scores):
         ms = _convert_score(st_idx, score)
         ms.init = _init_state_from_ovseed(
             inputs.per_subtune_ovseed[st_idx], instr_count)
+        # Per-subtune mechanism — pulled from ec.subtune_overrides into
+        # each sub's params block. None values are dropped (= absent).
+        ov = ec.subtune_overrides.get(st_idx, {})
+        sub_fields = {k: v for k, v in ov.items() if v is not None}
+        if sub_fields:
+            ms.params = ParamsCls(fields=sub_fields)
         music_subtunes.append(ms)
 
     return UsfFile(
-        version=2,
+        version=3,
         engine='five_title_tunes',
         psid=psid,
         params=params,
         init=init,
         instruments=instruments,
         subtunes=music_subtunes,
+        freq_table=list(ec.freq_bytes),
+        state_layout=None,
     )
 
 

@@ -570,13 +570,18 @@ def _emit_combined_sid(inputs: _Inputs, usf: UsfFile, digi_subs: list,
 
 def build_from_usf(usf_path: str, out_path: str, codec=None) -> str:
     """Read `usf_path` + its sample sidecars, produce a SID at `out_path`.
-    No access to the original SID — this is the principled path. Routes
-    to the music-only or combined music+digi build based on whether the
-    USF has any digi subtunes."""
+
+    USF v3 files (self-contained, no engine-name dispatch) route to
+    `build_from_usf3`. v2 files use the engine-constants-dispatched
+    legacy path below.
+    """
     from pipelines.hubbard.note_codec import BitPackCodec
     if codec is None:
         codec = BitPackCodec()
     usf = parse_file(usf_path)
+    if usf.version == 3:
+        from pipelines.hubbard.usf3_build_from_usf import build_from_usf3
+        return build_from_usf3(usf_path, out_path, codec)
     usf_dir = os.path.dirname(os.path.abspath(usf_path))
     validate(usf, usf_dir=usf_dir)
     inputs = _inputs_from_usf(usf)

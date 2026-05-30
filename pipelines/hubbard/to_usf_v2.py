@@ -182,16 +182,93 @@ def _read_psid_meta(sid_path: str) -> PsidMeta:
 # Params — the EngineConfig fields the codegen reads.
 # ---------------------------------------------------------------------------
 
-def _params_from_config(config) -> Params:
-    """The top-level USF `params:` block.
+_PARAMS_SKIP = {
+    'instr_base', 'instr_count', 'freq_table_base', 'freq_bytes',
+    'voice_starts', 'state_layout', 'seed_offsets', 'digi', 'is_rsid',
+    'subtune_overrides',
+}
 
-    Engine mechanism (arp_interval, vib_onset, master_vol_*, etc.) now
-    lives in `pipelines/hubbard/engine_constants.py` keyed by engine
-    name — per [[feedback_usf_representation_principle]] the USF
-    carries music, the engine carries mechanism. The block remains
-    declared for grammar compatibility but is empty.
+# Map engine_constants.DigiCode identity → tune-level `digi_player`
+# name in the v3 USF. The registry that resolves the name back to the
+# DigiCode lives in `pipelines/hubbard/usf3_build_from_usf.py`.
+_DIGI_NAMES = {
+    'chimera': 'chimera_1bit',
+}
+
+
+def _params_from_config(config) -> Params:
+    """Build the top-level USF `params { }` block for a v3 extract.
+
+    Carries every `EngineConstants` field that DIFFERS from the
+    canonical Commando-flavor defaults — named scalars/booleans, no
+    opaque kinds. Memory-layout fields and structured data
+    (seed_offsets, state_layout, digi) are handled outside this
+    block.
     """
-    return Params(fields={})
+    from dataclasses import fields as dataclass_fields
+    from pipelines.hubbard.engine_constants import (
+        ENGINE_CONSTANTS, EngineConstants,
+    )
+    if config.name not in ENGINE_CONSTANTS:
+        return Params(fields={})
+    ec = ENGINE_CONSTANTS[config.name]
+    defaults = EngineConstants(instr_base=0, instr_count=0,
+                               freq_table_base=0, freq_bytes=bytes(320))
+    out: dict = {}
+    for f in dataclass_fields(EngineConstants):
+        if f.name in _PARAMS_SKIP:
+            continue
+        v_ec = getattr(ec, f.name)
+        v_def = getattr(defaults, f.name)
+        if v_ec != v_def and v_ec is not None:
+            out[f.name] = v_ec
+    if ec.digi is not None and config.name in _DIGI_NAMES:
+        out['digi_player'] = _DIGI_NAMES[config.name]
+    return Params(fields=out)
+
+
+# Canonical Commando-family seed offsets — engines that deviate get
+# their freq_table normalised at extract time so the v3 codegen reads
+# at fixed positions.
+_DEFAULT_SEEDS = {
+    'v_ctrl': 208, 'pwm_period': 229, 'pwm_dir': 232,
+    'v_instr': 214, 'v_durfield': 205, 'v_slide': 239,
+}
+
+
+def _normalize_freq_table(freq_bytes: bytes, seed_offsets) -> bytes:
+    """Move engine-specific seed_offset bytes to canonical positions.
+
+    The v3 USF carries the normalised table; the universal codegen
+    reads voice state at the canonical positions for every engine.
+    Bytes that get overwritten by the move keep their original values
+    in the source positions (which the codegen never reads anyway).
+    """
+    if not seed_offsets:
+        return bytes(freq_bytes)
+    fb = bytearray(freq_bytes)
+    for name, src_off in seed_offsets.items():
+        dst_off = _DEFAULT_SEEDS[name]
+        if src_off != dst_off:
+            for v in range(3):
+                fb[dst_off + v] = freq_bytes[src_off + v]
+    return bytes(fb)
+
+
+def _state_layout_dict(state_layout) -> dict | None:
+    if state_layout is None:
+        return None
+
+    def slot_dict(s):
+        if s.kind == 'const':
+            return {'offset': s.offset, 'kind': 'const', 'value': s.value}
+        return {'offset': s.offset, 'kind': 'var', 'var': s.var}
+
+    return {
+        'n_voices': state_layout.n_voices,
+        'scalars': [slot_dict(s) for s in state_layout.scalars],
+        'per_voice': [slot_dict(s) for s in state_layout.per_voice],
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -225,15 +302,29 @@ def _convert_sfx(sfx, sfx_id: int) -> SfxSubtune:
 # ---------------------------------------------------------------------------
 
 def to_usf_v2(config, extra_subtunes: list | None = None) -> UsfFile:
-    """Build a `UsfFile` from an `EngineConfig`. Engine-specific extras
-    (digi subtunes for Chimera, SFX records for Commando/Monty in
-    future) are passed via `extra_subtunes`."""
+    """Build a v3 `UsfFile` from an `EngineConfig` — engine-name-blind,
+    self-contained. The name is historical; it now emits version 3.
+
+    A v3 UsfFile carries:
+      - inlined freq_table (normalised so seed_offsets land at canonical
+        positions)
+      - state_layout block for engines with non-default scratch layout
+      - named param overrides (only fields differing from defaults)
+      - per-subtune `voice_start` params (e.g. Action Biker)
+      - digi_player named reference (e.g. Chimera)
+
+    Engine-specific extras (digi subtunes for Chimera) flow in via
+    `extra_subtunes`.
+    """
+    from pipelines.hubbard.engine_constants import ENGINE_CONSTANTS
+
     _, binary, load = load_sid(config.sid_path)
 
     psid = _read_psid_meta(config.sid_path)
     params = _params_from_config(config)
-    init = _derive_init_state(binary, config.freq_table_base, load,
-                              config.instr_count)
+    # Phase 3: per-voice init bytes are derivable from freq_bytes;
+    # emit an empty init block.
+    init = InitState(voices=[])
 
     models = decode_all(config.sid_path, config.instr_base,
                         config.instr_count, config.arp_interval,
@@ -243,7 +334,8 @@ def to_usf_v2(config, extra_subtunes: list | None = None) -> UsfFile:
     music_subtunes = []
     for st in config.subtunes:
         song = config.extract(subtune=st)
-        music_subtunes.append(_convert_score(st, song.score))
+        ms = _convert_score(st, song.score)
+        music_subtunes.append(ms)
 
     # SFX subtunes — Hubbard '85 SFX records (Commando-style). PSID
     # subtunes len(config.subtunes)..len(config.subtunes)+15.
@@ -256,10 +348,30 @@ def to_usf_v2(config, extra_subtunes: list | None = None) -> UsfFile:
 
     subtunes = music_subtunes + sfx_subtunes + list(extra_subtunes or [])
 
+    # v3 enrichment from engine_constants. Engines without a registered
+    # EngineConstants entry stay as a v2 USF (rare path used by tests).
+    ec = ENGINE_CONSTANTS.get(config.name)
+    freq_table = None
+    state_layout = None
+    version = 2
+    if ec is not None:
+        version = 3
+        freq_table = list(_normalize_freq_table(ec.freq_bytes,
+                                                 ec.seed_offsets))
+        state_layout = _state_layout_dict(ec.state_layout)
+        # Per-subtune voice_start.
+        for ms in music_subtunes:
+            vs = ec.voice_starts.get(ms.id, None)
+            if vs is not None and vs != 2:
+                if ms.params is None:
+                    ms.params = Params(fields={})
+                ms.params.fields['voice_start'] = vs
+
     return UsfFile(
-        version=2, engine=config.name,
+        version=version, engine=config.name,
         psid=psid, params=params, init=init,
         instruments=instruments, subtunes=subtunes,
+        freq_table=freq_table, state_layout=state_layout,
     )
 
 
