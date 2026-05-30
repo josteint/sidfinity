@@ -1792,6 +1792,138 @@ def _emit_hubbard_freq_table_data(freq_bytes: bytes) -> list[str]:
     return lines
 
 
+def _digi_player_registry() -> dict:
+    """Map `digi_player` USF param values to their `DigiCode`.
+
+    Each entry binds a tune-level `digi_player: <name>` token to a
+    concrete `DigiCode` (dispatcher base, player base, music-load
+    hint, bank-table base, ...). Composer reads this when a USF has
+    digi subtunes — see `_emit_combined_sid` and the dispatch in
+    `composer_hubbard._emit_hubbard85_bytes`.
+    """
+    from pipelines.hubbard.engine_constants import CHIMERA_DIGI
+    return {
+        'chimera_1bit': CHIMERA_DIGI,
+    }
+
+
+def _build_digi_region(usf, digi_subs, digi_code, usf_dir: str,
+                       music_load=None):
+    """Build the bytes of the digi region — dispatcher + tables +
+    samples + player — placed at their fixed engine addresses.
+
+    Returns `(region_bytes, region_base, play_addr)`. `play_addr` is
+    the PSID `play` entry inside the dispatcher (used by the header).
+    """
+    import os as _os
+    from pipelines.hubbard.engine_constants import (
+        assemble_chimera_digi_player, chimera_psid_dispatcher,
+    )
+    from pipelines.hubbard.flac_io import read_sample
+    from pipelines.hubbard.digi_pack import pack_digi
+
+    base = digi_code.dispatcher_base                       # e.g. $9F80
+    # The Chimera player is assembled lazily from its xa65 asm source
+    # (regenerated, not lifted verbatim from the original SID).
+    player_bytes = assemble_chimera_digi_player(
+        player_base=digi_code.player_base)
+    end  = digi_code.player_base + len(player_bytes)       # one past last byte
+
+    # Generate the PSID dispatcher with addresses substituted for our
+    # music engine and the digi player. `music_load` is passed by the
+    # caller (auto-packing); fall back to digi_code.music_load_addr or
+    # composer_hubbard's LOAD when called from contexts that don't know
+    # the music engine address yet.
+    if music_load is None:
+        from pipelines.composer_hubbard import LOAD
+        music_load = (digi_code.music_load_addr
+                      if digi_code.music_load_addr is not None else LOAD)
+    disp = chimera_psid_dispatcher(
+        music_init=music_load, music_play=music_load + 3,
+        digi_player=digi_code.player_base, base=base)
+    dispatcher = disp['bytes']
+    play_addr = base + disp['play_off']
+    pace_table_addr = base + disp['pace_table_off']
+    bank_table_addr = base + disp['bank_table_off']
+
+    region = bytearray(end - base)
+    region[0:len(dispatcher)] = dispatcher
+    # Place the digi player at its base.
+    player_off = digi_code.player_base - base
+    region[player_off:player_off + len(player_bytes)] = player_bytes
+
+    # Process digi subtunes: each carries a pace + bank in its FLAC's
+    # Vorbis comments (via the extractor's `to_sample`).
+    samples = []
+    for st_idx, sub in enumerate(digi_subs):
+        sample_path = _os.path.join(usf_dir, sub.sample)
+        sample = read_sample(sample_path)
+        pace = int(sample.extras['pace'], 16)
+        bank = int(sample.extras['bank'], 16)
+        src = int(sample.extras['src'], 16)
+        end_addr = int(sample.extras['end'], 16)
+        keep_screen = sample.extras.get('keep_screen', '0') == '1'
+        packed = pack_digi(sample)
+        if end_addr - src != len(packed):
+            raise ValueError(
+                f'subtune {sub.id}: sample claims ${src:04X}-${end_addr:04X} '
+                f'({end_addr - src} bytes) but packed bytes are '
+                f'{len(packed)}')
+        samples.append({
+            'st_idx': st_idx, 'pace': pace, 'bank': bank,
+            'src': src, 'end': end_addr, 'keep_screen': keep_screen,
+            'packed': packed,
+            'boundary_vol': sample.extras.get('boundary_vol', '00'),
+        })
+
+    # Per-subtune dispatcher tables — the PSID dispatcher's pace_table /
+    # bank_table slots reported by `chimera_psid_dispatcher`.
+    for s in samples:
+        region[pace_table_addr - base + s['st_idx']] = s['pace']
+        region[bank_table_addr - base + s['st_idx']] = s['bank']
+
+    # Bank table at $A000 + bank*4 = {src_lo, src_hi, end_lo, end_hi}.
+    bt_off = digi_code.bank_table_base - base
+    for s in samples:
+        e = bt_off + s['bank'] * 4
+        region[e + 0] = s['src'] & 0xFF
+        region[e + 1] = (s['src'] >> 8) & 0xFF
+        region[e + 2] = s['end'] & 0xFF
+        region[e + 3] = (s['end'] >> 8) & 0xFF
+
+    # $A103 = sample-table length (number of banks the player accepts).
+    region[(digi_code.bank_table_base + 0x103) - base] = len(samples)
+    # $A108 = keep-screen flag. Use the first subtune's value (the
+    # engine's design assumes it's constant per tune).
+    if samples:
+        region[(digi_code.bank_table_base + 0x108) - base] = \
+            1 if samples[0]['keep_screen'] else 0
+        # $A10A = pace placeholder (the dispatcher writes the real one
+        # here at runtime). Set to the first subtune's pace.
+        region[(digi_code.bank_table_base + 0x10A) - base] = samples[0]['pace']
+    # $A10B+ = bank-validation table (the player linearly scans this
+    # at startup to confirm the requested bank is registered). Entries
+    # are ordered bank-ascending, which matches the original SIDs
+    # we've seen — the cycle count of the scan depends on the order,
+    # so cycle-strict reproduction requires we match it.
+    for i, s in enumerate(sorted(samples, key=lambda x: x['bank'])):
+        region[(digi_code.bank_table_base + 0x10B + i) - base] = s['bank']
+
+    # Sample bytes at their claimed addresses.
+    for s in samples:
+        sb = s['src'] - base
+        region[sb:sb + len(s['packed'])] = s['packed']
+        # The digi player reads one byte PAST `end` on its last loop
+        # iteration ($F9 wrap reads a final vol byte before the bounds
+        # check exits) — preserve that byte from the original so the
+        # very last $D418 write matches cycle-strict.
+        boundary_vol = int(s.get('boundary_vol', '00'), 16)
+        if 0 <= s['end'] - base < len(region):
+            region[s['end'] - base] = boundary_vol
+
+    return bytes(region), base, play_addr
+
+
 def _apply_sfx_state_in_freqtab(asm: str, ofs: int | None) -> str:
     """SFX state relocation into the freq-table off-table region.
 

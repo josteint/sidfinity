@@ -1352,14 +1352,47 @@ composer_hubbard.py:
 composer.py now owns 41 Hubbard '85 feature emitters. Hubbard 71/71
 byte-exact.
 
-#### Phase 8.15+ — Remaining ENGINE chunks (future sessions)
+#### Phase 8.15 — Digi region builder + player registry
 
-Following the same pattern:
-- Digi region builder (Chimera dispatcher + 1-bit player + sample
-  packs) — `_build_digi_region` + `_emit_combined_sid` in
-  composer_hubbard.
+Context shifts here from asm-template chunks to Python helper
+functions. Two helpers move into composer.py:
+
+- [x] `_digi_player_registry()` — maps a USF `digi_player: <name>`
+      param to its `DigiCode` (dispatcher base / player base /
+      music-load hint / bank-table base). Currently registers
+      `chimera_1bit` → `CHIMERA_DIGI`. Imports lazily from
+      `pipelines.hubbard.engine_constants`.
+- [x] `_build_digi_region()` — the ~110-line region builder that
+      composes the PSID dispatcher (regenerated, parameterised by
+      music-load address), the digi player (assembled from
+      `assemble_chimera_digi_player`), the per-subtune pace/bank
+      tables, the bank table at $A000+, the sample-table length /
+      keep-screen / pace placeholders, the bank-validation table,
+      and finally the sample bytes themselves with the one-byte
+      $D418 boundary value the player reads past `end`. Returns
+      `(region_bytes, region_base, play_addr)`. Imports
+      `assemble_chimera_digi_player` / `chimera_psid_dispatcher` /
+      `read_sample` / `pack_digi` lazily.
+
+composer_hubbard.py:
+- Two functions deleted; call sites in `_emit_combined_sid` and
+  `_emit_hubbard85_bytes` switched to lazy imports from composer.
+- `_emit_combined_sid` stays in composer_hubbard for now — it calls
+  `_hubbard_emit_sid` directly, so it can't move until that
+  function itself dissolves.
+
+composer.py now owns 43 Hubbard '85 emitters (41 asm + 2 Python).
+Hubbard 71/71 byte-exact — Chimera (the only digi-carrying engine
+in the catalogue today) still cycle-strict-correct.
+
+#### Phase 8.16+ — Compound build + template dissolution (future sessions)
+
 - Compound build (5TT packed sub-engines + dispatcher) — separate
-  from composer_hubbard's _hubbard_emit_sid.
+  from composer_hubbard's `_hubbard_emit_sid`. Currently lives at
+  `pipelines/five_title_tunes/v2/build_compound.py` per the
+  migration skill.
+- `_emit_combined_sid` move — pending the dissolution of
+  `_hubbard_emit_sid` (since they're coupled).
 - Eventually: replace `_hubbard_emit_sid` + ENGINE asm template
   with a composer-native assembly pipeline that consumes the
   EngineModel directly — at which point composer_hubbard.py is
