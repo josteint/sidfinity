@@ -175,232 +175,11 @@ cur_incby2_late_gate = $ba
         jmp init
         jmp play
 
-; init - A = subtune number. A under N_MUSIC is a music subtune; A
-; N_MUSIC and up is a sound effect (A-N_MUSIC = the SFX index).
-init:
-        cmp #N_MUSIC
-        bcc init_music
-        sec
-        sbc #N_MUSIC
-        sta sfx_idx
-        lda #$01
-        sta is_sfx
-        jmp init_sfx
-init_music:
-        sta sub_tmp          ; A = subtune
-        lda #$00
-        sta is_sfx
-        lda #DRUM_PRIO_INIT  ; $178B drum-priority gate
-        sta drum_prio
-        lda sub_tmp
-        asl                  ; subtune*2
-        clc
-        adc sub_tmp          ; subtune*3 = base index into the 9-entry
-        tay                  ; per-subtune orderlist tables
-        ldx #0
-inisel: lda subOrderLo,y
-        sta orderLo,x
-        lda subOrderHi,y
-        sta orderHi,x
-        lda subOrderLoop,y
-        sta orderLoop,x
-        iny
-        inx
-        cpx #3
-        bne inisel
-        ldy sub_tmp          ; this subtune's tempo
-        lda subResetspd,y
-        sta cur_resetspd
-        lda subVoiceStart,y  ; per-subtune voice-loop start
-        sta voice_start
-        ldx #PWLEN           ; re-seed the PWM accumulators from pwseed
-inipw:  lda pwseed,x
-        sta pwacc,x
-        dex
-        bpl inipw
-        ldx #2
-ini1:   lda #0
-        sta v_dur,x
-        sta v_pwdir,x
-        sta v_pwperiod,x
-        sta v_instr,x
-        sta v_orderpos,x
-        sta v_ended,x
-        sta v_frozen,x
-        jsr set_patptr       ; v_patptr,x = first pattern of orderlist X
-        dex
-        bpl ini1
-        ; %%OVSEED_COPY%%    ; runtime copy of subOvseed_<sub> -> ovseed
-        ldx #2               ; seed the freq-table-overlap variables
-iniov:  lda ovseed,x
-        sta v_ctrlbyte,x
-        lda ovseed+3,x
-        sta v_pwperiod,x
-        lda ovseed+6,x
-        sta v_pwdir,x
-        lda ovseed+9,x
-        sta v_instr,x
-        lda ovseed+12,x
-        sta v_durfield,x
-        lda ovseed+15,x
-        sta v_slide,x
-        dex
-        bpl iniov
-        lda #0
-        sta end_phase
-        ; %%VOL_PROGRESS_INIT%%   ; engines with MASTER_VOL_FADE reset
-                                  ; the vol_progress counter here; for
-                                  ; other engines this expands to nothing
-                                  ; so the binary doesn't grow (address-
-                                  ; shifting changes broke Monty st 0 +
-                                  ; SFX subtunes when this was emitted
-                                  ; unconditionally).
-        lda #SPEED_CTR_INIT
-        sta speed_ctr
-        lda #1
-        sta first_frame
-        lda #FRAME_CTR_INIT
-        sta frame_ctr
-        ldx #$18
-ini2:   lda #0
-        sta $d400,x
-        dex
-        bpl ini2
-        lda #MASTER_VOL_INIT  ; $D418 init value — most engines write $0F
-                              ; here, but engines with MASTER_VOL_FADE
-                              ; leave it at $00 because the original
-                              ; engine doesn't write $D418 until the
-                              ; first instrument-change note.
-        sta $d418
-        rts
+; %%INIT%%
 
-play:
-        inc freqtab+253      ; mirror Hubbard's INC $5525 (the SFX
-                             ; sweep can read this byte as a frequency)
-        lda is_sfx
-        beq pl_music
-        jmp sfx_play
-pl_music:
-        lda end_phase
-        beq pl_run
-        cmp #$01
-        bne pl_silent        ; end_phase 2 - song over, write nothing
-        lda #$02             ; end_phase 1 - gate every voice off, once
-        sta end_phase
-        lda #$00
-        sta $d404            ; V1 ctrl
-        sta $d40b            ; V2 ctrl
-        sta $d412            ; V3 ctrl
-pl_silent:
-        rts
-pl_run:
-        inc frame_ctr
-        lda first_frame
-        beq pl_nogate
-        lda #0
-        sta first_frame
-        lda #FIRST_FRAME_GATE_OFF
-        beq pl_nogate
-        lda #0
-        sta $d404
-        sta $d40b
-        sta $d412
-pl_nogate:
-        dec speed_ctr
-        bpl notick
-        lda cur_resetspd
-        sta speed_ctr
-        lda #1
-        sta is_tick
-        jmp voices
-notick: lda #0
-        sta is_tick
-voices:
-        lda #0
-        sta pv_abort
-        ldx voice_start
-pvloop: jsr proc_voice
-        lda pv_abort
-        bne pl_done
-        lda #$ff
-        sta drum_prio
-        dex
-        bpl pvloop
-        ; end-of-song - once all three voices have hit $FE, arm the
-        ; one-shot gate-off for the next frame.
-        lda v_ended+0
-        and v_ended+1
-        and v_ended+2
-        beq pl_done
-        lda end_phase
-        bne pl_done
-        lda #$01
-        sta end_phase
-pl_done:
-        rts
+; %%PLAY%%
 
-proc_voice:
-        lda v_ended,x
-        bne pv_endret        ; voice hit $FE - it no longer plays
-        lda v_frozen,x
-        bne pv_frozen        ; voice hit $FE under freeze_on_stop
-        lda sidtab,x
-        sta sidoff
-        jsr calc_instoff
-        lda is_tick
-        beq pv_fx
-        dec v_dur,x
-        bpl pv_sus
-        jsr load_note
-        lda v_ended,x        ; load_note may have hit the $FE marker
-        bne pv_endret
-        lda v_frozen,x       ; load_note may have hit the $FE freeze
-        bne pvf_abort
-        jsr calc_instoff
-        jmp note_start
-pv_sus:
-        inc v_tick,x
-        lda v_dur,x
-        bne pv_fx
-        lda v_norel,x
-        bne pv_fx            ; no_release - skip the hard restart
-        jsr hr_writes
-pv_fx:
-        jmp do_effects
-; a $FE-frozen voice. v_dur cycles as a signed byte; while it is
-; negative the voice tries to advance, hits $FE and aborts the frame.
-; otherwise it sustains, hard-restarts at zero-crossing and runs fx.
-pv_frozen:
-        lda sidtab,x
-        sta sidoff
-        jsr calc_instoff
-        lda is_tick
-        beq pvf_fx
-        dec v_dur,x
-        lda v_dur,x
-        bmi pvf_abort
-        inc v_tick,x
-        lda v_dur,x
-        bne pvf_fx
-        lda v_norel,x
-        bne pvf_fx
-        jsr hr_writes
-pvf_fx:
-        jmp do_effects
-pvf_abort:
-        lda #1
-        sta pv_abort
-        rts
-pv_endret:
-        rts
-
-calc_instoff:
-        lda v_instr,x
-        and #$3f
-        sta instoff          ; instrument number (column-table index)
-        asl
-        sta pw_idx           ; inst*2  (index into pwacc)
-        rts
+; %%PROC_VOICE%%
 
 ; load_note is supplied by the note codec (see note_codec.py) — the
 ; engine calls it; the codec owns the pattern byte format and its
@@ -881,10 +660,26 @@ def _hubbard_emit_sid(inputs: _Inputs, out_path: str, codec,
         _emit_hubbard_set_patptr,
         _emit_hubbard_next_orderidx,
         _emit_hubbard_do_effects,
+        _emit_hubbard_init,
+        _emit_hubbard_play,
+        _emit_hubbard_proc_voice,
     )
-    # Play-loop chunk substitutions (Phase 8.11+). Same pattern as the
-    # fx chunks — outer chunk first (so nested sentinels like
-    # NS_OFFTAB_DECR inside note_start find their host text).
+    # Engine framework + play-loop chunk substitutions (Phase 8.11+).
+    # Same pattern as the fx chunks — outer chunks first so nested
+    # sentinels and text-replace targets land inside the freshly-
+    # inserted bodies:
+    #   - INIT carries `; %%OVSEED_COPY%%`, `; %%VOL_PROGRESS_INIT%%`
+    #     and the literal `lda #SPEED_CTR_INIT / sta speed_ctr` text
+    #     that per_subtune_dispatch replaces.
+    #   - PLAY carries the literal `inc freqtab+253` that
+    #     sfx_framectr_offset_substitution replaces.
+    #   - NOTE_START carries `; %%NS_OFFTAB_DECR%%`.
+    #   - fx_arp carries the `beq fxa_even` text that
+    #     arp_phase_invert flips; fx_incby2 carries
+    #     `; %%INCBY2_LATE_GATE%%`.
+    asm = asm.replace('; %%INIT%%', _emit_hubbard_init())
+    asm = asm.replace('; %%PLAY%%', _emit_hubbard_play())
+    asm = asm.replace('; %%PROC_VOICE%%', _emit_hubbard_proc_voice())
     asm = asm.replace('; %%NOTE_START%%', _emit_hubbard_note_start())
     asm = asm.replace('; %%HR_WRITES%%', _emit_hubbard_hr_writes())
     asm = asm.replace('; %%SET_PATPTR%%', _emit_hubbard_set_patptr())

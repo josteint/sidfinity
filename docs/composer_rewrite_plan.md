@@ -1276,7 +1276,46 @@ caller lives in composer.py.
 
 Verified: Hubbard 71/71 byte-exact.
 
-#### Phase 8.13+ — Remaining ENGINE chunks (future sessions)
+#### Phase 8.13 — Engine framework: init + play + proc_voice
+
+Same pattern. The three engine-framework routines (entry / per-frame
+dispatch / per-voice tick) move out of the ENGINE template into
+composer.py constants.
+
+- [x] `_emit_hubbard_init()` → `_HUBBARD_INIT_ASM`. The ~100-line
+      engine entry: subtune dispatch (A < N_MUSIC → music; A >=
+      N_MUSIC → SFX), per-subtune orderlist / tempo / voice_start
+      re-seed, PWM accumulator re-seed, per-voice state init, then
+      frame counter + first_frame + master VOL seed. Contains the
+      nested `; %%OVSEED_COPY%%` and `; %%VOL_PROGRESS_INIT%%`
+      sentinels AND the literal `lda #SPEED_CTR_INIT / sta speed_ctr`
+      text that `_emit_per_subtune_dispatch` replaces for 5TT.
+- [x] `_emit_hubbard_play()` → `_HUBBARD_PLAY_ASM`. The ~50-line
+      per-frame entry: SFX dispatch, end-of-song handler, frame_ctr
+      bump, first-frame voice-gate handling, speed counter, voice
+      loop driven from `voice_start`. Contains the literal
+      `inc freqtab+253` that `sfx_framectr_offset_substitution`
+      replaces for engines that bump a non-default offset.
+- [x] `_emit_hubbard_proc_voice()` → `_HUBBARD_PROC_VOICE_ASM`. The
+      ~50-line per-voice tick handler (normal + freeze paths) plus
+      the 6-line `calc_instoff` helper bundled in.
+
+composer_hubbard.py:
+- ENGINE template's init block (~100 lines) → `; %%INIT%%`
+- ENGINE template's play block (~50 lines) → `; %%PLAY%%`
+- ENGINE template's proc_voice + calc_instoff (~55 lines) → `; %%PROC_VOICE%%`
+- Substitutions run FIRST in the loop — before sfx_framectr,
+  per_subtune_dispatch, OVSEED_COPY, VOL_PROGRESS_INIT — so the
+  nested sentinels and text-replace targets find their host bodies.
+
+composer.py now owns 38 Hubbard '85 feature emitters. The whole
+ENGINE play-loop (everything between `* = $1000` and the SFX
+sub-engine, except `build_statebuf` which is per-engine-generated)
+lives in composer.py constants.
+
+Verified: Hubbard 71/71 byte-exact.
+
+#### Phase 8.14+ — Remaining ENGINE chunks (future sessions)
 
 Following the same pattern:
 - init / play / proc_voice (the engine framework)
