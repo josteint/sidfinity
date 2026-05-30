@@ -212,7 +212,6 @@ def _statebuf_init_bytes(layout: StatebufLayout) -> str:
 # leaving the template unchanged for engines that don't use the fade.
 
 _VOL_FADE_SENTINELS = (
-    '; %%VOL_PROGRESS_INIT%%',
     '; %%VOL_PROGRESS_INC%%',
     '; %%MASTER_VOL_WRITE%%',
     '; %%MASTER_VOL_EVERY_NOTE%%',
@@ -536,7 +535,8 @@ fx_incby2:
 fxi_ret: rts"""
 
 
-def _emit_hubbard_fx_incby2() -> str:
+def _emit_hubbard_fx_incby2(incby2_late_gate: int | None = None,
+                            uses_per_subtune_dispatch: bool = False) -> str:
     """fx_incby2 routine — fx-flag bit 1, odd-frame freq-hi slide.
 
     Engine reads `v_slide`, writes the OLD value to freq_hi, then
@@ -544,11 +544,25 @@ def _emit_hubbard_fx_incby2() -> str:
     INCBY2_ONSET` and either odd-frame parity OR `INCBY2_ALWAYS`
     (Human Race).
 
-    The chunk still contains the `; %%INCBY2_LATE_GATE%%` nested
-    sentinel — composer's `_emit_incby2_late_gate` substitutes it
-    after fx_incby2 is inserted into the engine asm.
+    Two cross-cutting knobs resolved here:
+      - `incby2_late_gate`: optional `v_dur < N` late-gate (Hunter
+        Patrol) injected at the `; %%INCBY2_LATE_GATE%%` sentinel.
+      - `uses_per_subtune_dispatch`: 5_Title_Tunes path. When True,
+        the late-gate reads from the `cur_incby2_late_gate` zp slot
+        (per-subtune table) and the step ADC reads from
+        `cur_incby2_step` instead of the compile-time `INCBY2_STEP`
+        equate.
     """
-    return _HUBBARD_FX_INCBY2_ASM
+    asm = _HUBBARD_FX_INCBY2_ASM
+    if uses_per_subtune_dispatch:
+        asm = asm.replace('; %%INCBY2_LATE_GATE%%',
+                          _emit_incby2_late_gate(None, per_subtune_zp_var=True))
+        asm = asm.replace('        adc #INCBY2_STEP',
+                          '        adc cur_incby2_step')
+    else:
+        asm = asm.replace('; %%INCBY2_LATE_GATE%%',
+                          _emit_incby2_late_gate(incby2_late_gate))
+    return asm
 
 
 _HUBBARD_FX_PWM_ASM = """; fx_pwm - bit4. linear or bidirectional PWM. The pw accumulators
@@ -1238,7 +1252,9 @@ ini2:   lda #0
         rts"""
 
 
-def _emit_hubbard_init() -> str:
+def _emit_hubbard_init(has_per_subtune_ovseed: bool = False,
+                       has_master_vol_fade: bool = False,
+                       uses_per_subtune_dispatch: bool = False) -> str:
     """init routine — engine entry.
 
     A=subtune selects music (A < N_MUSIC) vs SFX (A >= N_MUSIC, with
@@ -1247,12 +1263,35 @@ def _emit_hubbard_init() -> str:
     voice state, then primes the frame counter, master VOL, and SID
     registers.
 
-    Contains the nested `; %%OVSEED_COPY%%` and `; %%VOL_PROGRESS_INIT%%`
-    sentinels (substituted later) and the literal
-    `lda #SPEED_CTR_INIT` / `sta speed_ctr` text that
-    `_emit_per_subtune_dispatch` replaces for compound PSIDs.
+    Three cross-cutting knobs resolved here:
+      - `has_per_subtune_ovseed`: 5_Title_Tunes path. Injects the
+        runtime ovseed-copy block at `; %%OVSEED_COPY%%` (selects
+        the active sub's 18-byte ovseed → the ovseed data label).
+      - `has_master_vol_fade`: when True, injects `sta vol_progress`
+        at `; %%VOL_PROGRESS_INIT%%` to zero the fade counter at
+        each subtune start.
+      - `uses_per_subtune_dispatch`: 5_Title_Tunes path. When True,
+        replaces the compile-time `lda #SPEED_CTR_INIT / sta speed_ctr`
+        block with the per-subtune table-read variant (also loads
+        cur_incby2_step + cur_incby2_late_gate from per-subtune
+        tables).
     """
-    return _HUBBARD_INIT_ASM
+    asm = _HUBBARD_INIT_ASM
+    asm = asm.replace('; %%OVSEED_COPY%%',
+                      _emit_ovseed_copy(has_per_subtune_ovseed))
+    asm = asm.replace('; %%VOL_PROGRESS_INIT%%',
+                      '        sta vol_progress' if has_master_vol_fade else '')
+    if uses_per_subtune_dispatch:
+        asm = asm.replace(
+            '        lda #SPEED_CTR_INIT\n        sta speed_ctr',
+            '        ldy sub_tmp\n'
+            '        lda subSpeedCtrInit,y\n'
+            '        sta speed_ctr\n'
+            '        lda subIncBy2Step,y\n'
+            '        sta cur_incby2_step\n'
+            '        lda subIncBy2LateGate,y\n'
+            '        sta cur_incby2_late_gate')
+    return asm
 
 
 _HUBBARD_PLAY_ASM = """play:
@@ -1467,20 +1506,49 @@ isfxclr: lda #$00
         rts"""
 
 
-def _emit_hubbard_init_sfx() -> str:
+def _emit_hubbard_init_sfx(sfx_state_ofs: int | None = None) -> str:
     """init_sfx routine — SFX dispatch entry.
 
     Computes the 32-byte SFX record address (`sfxdata + sfx_idx*32`),
-    seeds the Commando-shape SFX state mirror at freqtab+241/+255/+256
-    (Monty + One Man and his Droid relocate this via
-    `_apply_sfx_state_in_freqtab`), captures the live V1/V2 ctrl
-    gates, clears the SID, and writes $0F to $D418.
+    seeds the SFX state mirror in the freq-table off-table region,
+    captures the live V1/V2 ctrl gates, clears the SID, and writes
+    $0F to $D418.
 
-    Contains the literal 9-line SFX-state-seed block that
-    `_apply_sfx_state_in_freqtab` text-replaces for engines whose
-    SFX state lives at a different freq-table offset.
+    `sfx_state_ofs is None` (Commando family) → seeds the default
+    +241 / +255 / +256 layout. `sfx_state_ofs=int` (Monty + One Man
+    and his Droid) → relocates the 6-byte state block to
+    freqtab[ofs..ofs+5] and uses the layout
+    {disable, sfx_idx, $ff, sweep_idx, step_rate, end_idx}.
     """
-    return _HUBBARD_INIT_SFX_ASM
+    if sfx_state_ofs is None:
+        return _HUBBARD_INIT_SFX_ASM
+    old = ("        lda #$80\n"
+           "        sta freqtab+241      ; the sweep reads $5519 here -"
+           " mode byte $80\n"
+           "        lda sfx_idx\n"
+           "        sta freqtab+255      ; $5527 - the SFX index\n"
+           "        lda #$ff\n"
+           "        sta freqtab+256      ; $5528 - drum_enable\n"
+           "        ldy #14\n"
+           "        lda (sfx_rec),y      ; record 14 - sweep start index\n"
+           "        sta sfx_index\n")
+    new = ("        lda #$00\n"
+           f"        sta freqtab+{sfx_state_ofs}        ; SFX-disable flag\n"
+           "        lda sfx_idx\n"
+           f"        sta freqtab+{sfx_state_ofs + 1}        ; SFX index\n"
+           "        lda #$ff\n"
+           f"        sta freqtab+{sfx_state_ofs + 2}        ; static byte\n"
+           "        ldy #16\n"
+           "        lda (sfx_rec),y      ; record 16 - step rate\n"
+           f"        sta freqtab+{sfx_state_ofs + 4}        ; step counter\n"
+           "        ldy #15\n"
+           "        lda (sfx_rec),y      ; record 15 - end index\n"
+           f"        sta freqtab+{sfx_state_ofs + 5}        ; end index\n"
+           "        ldy #14\n"
+           "        lda (sfx_rec),y      ; record 14 - sweep start index\n"
+           "        sta sfx_index\n"
+           f"        sta freqtab+{sfx_state_ofs + 3}        ; sweep index (initial)\n")
+    return _HUBBARD_INIT_SFX_ASM.replace(old, new, 1)
 
 
 _HUBBARD_SFX_PLAY_ASM = """; sfx_play - one frame of the sound-effect engine. The first frame
@@ -1598,7 +1666,7 @@ sfxs_down:
         rts"""
 
 
-def _emit_hubbard_sfx_step() -> str:
+def _emit_hubbard_sfx_step(sfx_state_ofs: int | None = None) -> str:
     """sfx_step routine — one pitch-sweep step.
 
     Reads V1+V2 freq from the freq table at the current sweep index
@@ -1607,11 +1675,34 @@ def _emit_hubbard_sfx_step() -> str:
     advances the sweep index up or down. When the index reaches the
     end marker, gates V1/V2 off and marks `sfx_done`.
 
-    Contains the literal 3-line `flags` read that
-    `_apply_sfx_state_in_freqtab` text-replaces for engines that
-    mirror the post-update sweep index to a freq-table-offset slot.
+    `sfx_state_ofs is None` (Commando family) → no mirror update.
+    `sfx_state_ofs=int` → mirrors the post-update sweep index to
+    `freqtab[ofs+3]` before the sweep reads it (so the overrun
+    read sees the live value). Used by Monty + One Man and his
+    Droid; the index mirror is injected at the top of `sfxs_go`.
     """
-    return _HUBBARD_SFX_STEP_ASM
+    if sfx_state_ofs is None:
+        return _HUBBARD_SFX_STEP_ASM
+    old = ("        lda (sfx_rec),y      ; record 17 - flags\n"
+           "        sta sfx_flags\n"
+           "        and #$04\n")
+    new = ("        lda (sfx_rec),y      ; record 17 - flags\n"
+           "        sta sfx_flags\n"
+           "        and #$01\n"
+           "        beq sfxm_dn\n"
+           "        lda sfx_index\n"
+           "        clc\n"
+           "        adc #$01\n"
+           "        jmp sfxm_st\n"
+           "sfxm_dn:\n"
+           "        lda sfx_index\n"
+           "        sec\n"
+           "        sbc #$01\n"
+           "sfxm_st:\n"
+           f"        sta freqtab+{sfx_state_ofs + 3}\n"
+           "        lda sfx_flags\n"
+           "        and #$04\n")
+    return _HUBBARD_SFX_STEP_ASM.replace(old, new, 1)
 
 
 # ---------------------------------------------------------------------------
@@ -1762,7 +1853,12 @@ def _compose_hubbard_engine_body(
         load_addr: int = LOAD,
         sfx_framectr_ofs: int = 253,
         arp_phase_invert: bool = False,
-        ns_offtab_decr_offset: int | None = None) -> str:
+        ns_offtab_decr_offset: int | None = None,
+        sfx_state_ofs: int | None = None,
+        incby2_late_gate: int | None = None,
+        has_per_subtune_ovseed: bool = False,
+        has_master_vol_fade: bool = False,
+        uses_per_subtune_dispatch: bool = False) -> str:
     """Compose the Hubbard '85 engine asm body by direct concatenation
     of named chunks — the composer-native replacement for template +
     `; %%SENTINEL%%` substitution.
@@ -1777,20 +1873,27 @@ def _compose_hubbard_engine_body(
       - `sfx_framectr_ofs` — play's `inc freqtab+N` slot
       - `arp_phase_invert` — fx_arp branch polarity
       - `ns_offtab_decr_offset` — note_start statebuf decrement
+      - `sfx_state_ofs` — init_sfx + sfx_step SFX-state relocation
+      - `incby2_late_gate` — fx_incby2 `v_dur < N` late gate
+      - `has_per_subtune_ovseed` — init's runtime ovseed copy
+      - `has_master_vol_fade` — init's `sta vol_progress`
+      - `uses_per_subtune_dispatch` — 5_Title_Tunes mechanism tables
+        (init's SPEED_CTR_INIT block + fx_incby2's INCBY2_STEP add)
 
-    Chunks that still contain un-resolved sentinels / text-replace
-    targets (init's `; %%OVSEED_COPY%%` + `; %%VOL_PROGRESS_INIT%%`,
-    fx_incby2's `; %%INCBY2_LATE_GATE%%`, the `; %%MASTER_VOL_*%%`
-    sentinels in the codec's note_asm) are resolved by outer passes
-    in `composer_hubbard._hubbard_emit_sid`. Future phases push those
-    down too.
+    The remaining cross-chunk passes (`; %%VOL_PROGRESS_INC%%` /
+    `; %%MASTER_VOL_*%%` / `; %%CLEAR_DRUMTRIG_*%%`) all live in the
+    codec's note_asm rather than the engine body, so they're handled
+    by outer passes in `composer_hubbard._hubbard_emit_sid` until the
+    codec itself migrates.
     """
     parts = [
         _HUBBARD_ZP_EQUATES_ASM,
         '',
         _emit_hubbard_entry_stub(load_addr),
         '',
-        _emit_hubbard_init(),
+        _emit_hubbard_init(has_per_subtune_ovseed=has_per_subtune_ovseed,
+                           has_master_vol_fade=has_master_vol_fade,
+                           uses_per_subtune_dispatch=uses_per_subtune_dispatch),
         '',
         _emit_hubbard_play(sfx_framectr_ofs),
         '',
@@ -1811,7 +1914,9 @@ def _compose_hubbard_engine_body(
         '',
         _emit_hubbard_fx_drumslide(),
         '',
-        _emit_hubbard_fx_incby2(),
+        _emit_hubbard_fx_incby2(
+            incby2_late_gate=incby2_late_gate,
+            uses_per_subtune_dispatch=uses_per_subtune_dispatch),
         '',
         _emit_hubbard_fx_pwm(),
         '',
@@ -1826,11 +1931,11 @@ def _compose_hubbard_engine_body(
         '',
         _HUBBARD_SFX_BANNER,
         '',
-        _emit_hubbard_init_sfx(),
+        _emit_hubbard_init_sfx(sfx_state_ofs),
         '',
         _emit_hubbard_sfx_play(),
         '',
-        _emit_hubbard_sfx_step(),
+        _emit_hubbard_sfx_step(sfx_state_ofs),
         '',
         _HUBBARD_SIDTAB_ASM,
     ]
@@ -1952,12 +2057,21 @@ def _compose_hubbard_engine_asm(inputs, codec, pat_slot, pat_bytes,
     outer text-replace for the four single-chunk substitutions
     (sfx_framectr, arp_phase_invert, ns_offtab_decr, load_addr).
     """
+    uses_psp = (
+        inputs.per_subtune_speed_ctr_init is not None
+        or inputs.per_subtune_incby2_step is not None
+        or inputs.per_subtune_incby2_late_gate is not None)
     body = _compose_hubbard_engine_body(
         inputs.state_layout,
         load_addr=load_addr,
         sfx_framectr_ofs=inputs.sfx_framectr_ofs,
         arp_phase_invert=inputs.arp_phase_invert,
-        ns_offtab_decr_offset=inputs.ns_offtab_decr_offset)
+        ns_offtab_decr_offset=inputs.ns_offtab_decr_offset,
+        sfx_state_ofs=inputs.sfx_state_ofs,
+        incby2_late_gate=inputs.incby2_late_gate,
+        has_per_subtune_ovseed=inputs.per_subtune_ovseed is not None,
+        has_master_vol_fade=inputs.master_vol_subtrahend_voice is not None,
+        uses_per_subtune_dispatch=uses_psp)
     data = _emit_hubbard_data(
         inputs.scores, inputs.models, inputs.freq_bytes,
         inputs.resetspds, inputs.voice_starts,
@@ -2283,129 +2397,20 @@ def _build_digi_region(usf, digi_subs, digi_code, usf_dir: str,
     return bytes(region), base, play_addr
 
 
-def _apply_sfx_state_in_freqtab(asm: str, ofs: int | None) -> str:
-    """SFX state relocation into the freq-table off-table region.
-
-    For engines whose SFX pitch sweep overruns the 96-entry freq
-    table and reads engine state as 'frequency' (Monty: $84FB+,
-    One Man and his Droid: same pattern). The shared SFX player is
-    Commando's — zp state plus a few bytes mirrored at Commando's
-    scattered freq-table offsets. This rewires it so the SFX-state
-    block sits at ofs..ofs+5 and the post-update sweep index is
-    mirrored there each step, so the overrun reads live state
-    byte-exact.
-
-    `ofs is None` → returns asm unchanged (Commando family default).
-
-    Asm-in/asm-out signature (rather than a dict of substitutions)
-    so the assertions can catch the case where the lifted ENGINE
-    template doesn't contain the expected blocks — that would be a
-    template/codegen mismatch we want to fail loudly on.
-    """
-    if ofs is None:
-        return asm
-
-    # 1. init_sfx — write the SFX-state block at this engine's offsets:
-    #    +0 disable=0, +1 SFX index, +2 static $ff, +3 sweep index,
-    #    +4 step rate, +5 end index.
-    o2 = ("        lda #$80\n"
-          "        sta freqtab+241      ; the sweep reads $5519 here -"
-          " mode byte $80\n"
-          "        lda sfx_idx\n"
-          "        sta freqtab+255      ; $5527 - the SFX index\n"
-          "        lda #$ff\n"
-          "        sta freqtab+256      ; $5528 - drum_enable\n"
-          "        ldy #14\n"
-          "        lda (sfx_rec),y      ; record 14 - sweep start index\n"
-          "        sta sfx_index\n")
-    n2 = ("        lda #$00\n"
-          f"        sta freqtab+{ofs}        ; SFX-disable flag\n"
-          "        lda sfx_idx\n"
-          f"        sta freqtab+{ofs + 1}        ; SFX index\n"
-          "        lda #$ff\n"
-          f"        sta freqtab+{ofs + 2}        ; static byte\n"
-          "        ldy #16\n"
-          "        lda (sfx_rec),y      ; record 16 - step rate\n"
-          f"        sta freqtab+{ofs + 4}        ; step counter\n"
-          "        ldy #15\n"
-          "        lda (sfx_rec),y      ; record 15 - end index\n"
-          f"        sta freqtab+{ofs + 5}        ; end index\n"
-          "        ldy #14\n"
-          "        lda (sfx_rec),y      ; record 14 - sweep start index\n"
-          "        sta sfx_index\n"
-          f"        sta freqtab+{ofs + 3}        ; sweep index (initial)\n")
-    assert o2 in asm, 'sfx_state_in_freqtab: init_sfx block not found'
-    asm = asm.replace(o2, n2, 1)
-
-    # 2. sfxs_go — mirror the POST-update sweep index to freqtab+ofs+3
-    #    before the sweep reads it (the engine advances its index in
-    #    memory, then reads the freq table, so the overrun read of the
-    #    index byte sees the new value).
-    o3 = ("        lda (sfx_rec),y      ; record 17 - flags\n"
-          "        sta sfx_flags\n"
-          "        and #$04\n")
-    n3 = ("        lda (sfx_rec),y      ; record 17 - flags\n"
-          "        sta sfx_flags\n"
-          "        and #$01\n"
-          "        beq sfxm_dn\n"
-          "        lda sfx_index\n"
-          "        clc\n"
-          "        adc #$01\n"
-          "        jmp sfxm_st\n"
-          "sfxm_dn:\n"
-          "        lda sfx_index\n"
-          "        sec\n"
-          "        sbc #$01\n"
-          "sfxm_st:\n"
-          f"        sta freqtab+{ofs + 3}\n"
-          "        lda sfx_flags\n"
-          "        and #$04\n")
-    assert o3 in asm, 'sfx_state_in_freqtab: sfxs_go block not found'
-    asm = asm.replace(o3, n3, 1)
-    return asm
-
-
-def _emit_per_subtune_dispatch(enabled: bool) -> dict[str, str]:
-    """5_Title_Tunes per-subtune mechanism dispatch.
-
-    When `enabled` (any of `per_subtune_speed_ctr_init`,
-    `per_subtune_incby2_step`, `per_subtune_incby2_late_gate` is set),
-    replaces the compile-time `SPEED_CTR_INIT` load + `INCBY2_STEP`
-    add with per-subtune table reads:
-      * `lda #SPEED_CTR_INIT; sta speed_ctr` → `ldy sub_tmp` + 4-byte
-        block that loads speed_ctr, cur_incby2_step, and
-        cur_incby2_late_gate from per-subtune byte tables.
-      * `adc #INCBY2_STEP` → `adc cur_incby2_step` (zp slot lookup).
-
-    When `enabled=False`, returns an empty dict (no substitutions —
-    engine uses the compile-time constants).
-
-    Returns a dict mapping old-text → new-text suitable for
-    `asm.replace(old, new)` loops.
-    """
-    if not enabled:
-        return {}
-    return {
-        '        lda #SPEED_CTR_INIT\n        sta speed_ctr': (
-            '        ldy sub_tmp\n'
-            '        lda subSpeedCtrInit,y\n'
-            '        sta speed_ctr\n'
-            '        lda subIncBy2Step,y\n'
-            '        sta cur_incby2_step\n'
-            '        lda subIncBy2LateGate,y\n'
-            '        sta cur_incby2_late_gate'
-        ),
-        '        adc #INCBY2_STEP': '        adc cur_incby2_step',
-    }
-
-
 def _emit_master_vol_fade(fade: 'FadeProgressive | None') -> dict[str, str]:
-    """Return the four sentinel→asm fragments for the master-vol fade.
+    """Return the codec-side sentinel→asm fragments for the master-vol fade.
 
-    `fade is None` → all four sentinels expand to empty strings.
-    Otherwise: emits the peek-ahead INC at the configured voice's
-    pattern-end, the clamp-and-write $D418 fragment, and the init
-    `sta vol_progress` zero.
+    Three sentinels live in the note codec's note_asm:
+      - `; %%VOL_PROGRESS_INC%%` — peek-ahead INC at the configured
+        voice's pattern-end (last note of a pattern).
+      - `; %%MASTER_VOL_WRITE%%` — clamp-and-write $D418 on
+        instrument-change notes (default trigger).
+      - `; %%MASTER_VOL_EVERY_NOTE%%` — same write on every note
+        (Thing on a Spring's trigger='every_note' variant).
+
+    `fade is None` → all three sentinels expand to empty strings.
+    The init-side `; %%VOL_PROGRESS_INIT%%` is resolved by
+    `_emit_hubbard_init(has_master_vol_fade=...)` directly.
     """
     if fade is None:
         return {s: '' for s in _VOL_FADE_SENTINELS}
@@ -2434,7 +2439,6 @@ def _emit_master_vol_fade(fade: 'FadeProgressive | None') -> dict[str, str]:
     )
     write_asm = write_template.format(label='mvw_lt')
     return {
-        '; %%VOL_PROGRESS_INIT%%':     '        sta vol_progress',
         '; %%VOL_PROGRESS_INC%%':      inc_asm,
         '; %%MASTER_VOL_WRITE%%':      (
             write_asm if fade.trigger != 'every_note' else ''),

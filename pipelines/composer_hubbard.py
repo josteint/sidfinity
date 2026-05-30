@@ -253,19 +253,16 @@ def _hubbard_emit_sid(inputs: _Inputs, out_path: str, codec,
     non-overlapping addresses.
     """
     # Composer-native asm composition. `_compose_hubbard_engine_asm`
-    # threads the four single-chunk knobs (sfx_framectr_ofs,
-    # arp_phase_invert, ns_offtab_decr_offset, load_addr) into the
-    # chunk emitters directly (Phase 8.18) — no outer pass needed
-    # for them. The remaining cross-chunk passes below resolve
-    # sentinels and text-replace targets that genuinely span chunks
-    # (sfx_state_in_freqtab, master_vol_fade) or interact with
-    # other features (per_subtune_dispatch, tie_preserves_slide,
-    # OVSEED_COPY, INCBY2_LATE_GATE). Future phases push these down
-    # as the chunk emitters learn to take their full input.
+    # threads every per-engine knob (load_addr, sfx_framectr_ofs,
+    # arp_phase_invert, ns_offtab_decr_offset, sfx_state_ofs,
+    # incby2_late_gate, has_per_subtune_ovseed, has_master_vol_fade,
+    # uses_per_subtune_dispatch) into the chunk emitters directly.
+    # Only the codec.note_asm passes remain as outer text-replaces —
+    # they target text the codec emits (the master_vol fade's
+    # peek-ahead + $D418 writes, and tie_preserves_slide's drum-trig
+    # clear positioning).
     from pipelines.composer import (
         _compose_hubbard_engine_asm,
-        _emit_per_subtune_dispatch,
-        _apply_sfx_state_in_freqtab,
         _pattern_pool,
     )
     pat_order, pat_slot = _pattern_pool(inputs.scores)
@@ -274,44 +271,17 @@ def _hubbard_emit_sid(inputs: _Inputs, out_path: str, codec,
         inputs, codec, pat_slot, pat_bytes, codec_extra,
         load_addr=load_addr)
 
-    # sfx_state_in_freqtab: literal multi-line blocks across init_sfx
-    # + sfx_step's sfxs_go (Monty + One Man and his Droid relocate
-    # the SFX-state mirror).
-    asm = _apply_sfx_state_in_freqtab(asm, inputs.sfx_state_ofs)
-
     from pipelines.engine_model import FadeProgressive
     from pipelines.composer import (
         _emit_clear_drumtrig,
-        _emit_incby2_late_gate,
         _emit_master_vol_fade,
-        _emit_ovseed_copy,
     )
 
-    # Per-subtune engine params (5_Title_Tunes unified path). When ANY
-    # of the per_subtune_* lists is set, replace the compile-time SPEED
-    # CTR / INCBY2 STEP / late-gate code with per-subtune-table reads.
-    uses_psp = (
-        inputs.per_subtune_speed_ctr_init is not None
-        or inputs.per_subtune_incby2_step is not None
-        or inputs.per_subtune_incby2_late_gate is not None)
-
-    # 5_Title_Tunes per-subtune mechanism dispatch — replaces the
-    # SPEED_CTR_INIT load + INCBY2_STEP add with per-subtune table reads.
-    for old, new in _emit_per_subtune_dispatch(uses_psp).items():
-        asm = asm.replace(old, new)
-    if uses_psp:
-        asm = asm.replace('; %%OVSEED_COPY%%', _emit_ovseed_copy(
-            inputs.per_subtune_ovseed is not None))
-        asm = asm.replace('; %%INCBY2_LATE_GATE%%',
-                          _emit_incby2_late_gate(None, per_subtune_zp_var=True))
-    else:
-        asm = asm.replace('; %%OVSEED_COPY%%', _emit_ovseed_copy(False))
-        asm = asm.replace('; %%INCBY2_LATE_GATE%%',
-                          _emit_incby2_late_gate(inputs.incby2_late_gate))
-
-    # Master-volume fade — four sentinel substitutions (VOL_PROGRESS_INIT
-    # lives in INIT; the other three live in the codec's note_asm —
-    # genuinely cross-chunk, stays as an outer pass for now).
+    # Master-volume fade — VOL_PROGRESS_INIT was pushed into init
+    # (Phase 8.19); the remaining three sentinels live in the codec's
+    # note_asm. The init-side substitution becomes a no-op (no
+    # `; %%VOL_PROGRESS_INIT%%` text remains in the engine body), but
+    # the dict still has it harmlessly.
     fade = (
         FadeProgressive(
             subtrahend_voice_idx=inputs.master_vol_subtrahend_voice,

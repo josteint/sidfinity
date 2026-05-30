@@ -1499,38 +1499,75 @@ the codec's note_asm itself migrates into composer.
 
 Verified: Hubbard 71/71 byte-exact.
 
-#### Phase 8.19+ — Push the harder passes down
+#### Phase 8.19 — Push the engine-body passes down
 
-- [ ] `; %%INCBY2_LATE_GATE%%` + `adc #INCBY2_STEP` (per_subtune
-      flavour) → resolve inside `_emit_hubbard_fx_incby2(inputs)`.
-      Coordinates with `_emit_per_subtune_dispatch`.
-- [ ] `; %%OVSEED_COPY%%` + `lda #SPEED_CTR_INIT / sta speed_ctr`
-      → resolve inside `_emit_hubbard_init(inputs)`. Coordinates
-      with `_emit_per_subtune_dispatch`.
-- [ ] `; %%VOL_PROGRESS_INIT%%` (in init) +
-      `; %%VOL_PROGRESS_INC%%` / `; %%MASTER_VOL_WRITE%%` /
-      `; %%MASTER_VOL_EVERY_NOTE%%` (in codec.note_asm) — split:
-      push VOL_PROGRESS_INIT into init; the codec.note_asm three
-      stay until the codec itself migrates or `_emit_master_vol_fade`
-      threads the codec output.
-- [ ] `_apply_sfx_state_in_freqtab` — text-replaces inside both
-      init_sfx and sfx_step. Push each half into the respective
-      chunk emitter.
-- [ ] `; %%CLEAR_DRUMTRIG_*%%` (tie_preserves_slide) — lives in
-      codec.note_asm; same constraint as master_vol_fade.
+Every remaining text-replace pass whose targets live entirely
+inside the engine body (not codec.note_asm) is now resolved at
+chunk-emit time, threaded through `_compose_hubbard_engine_body`
+as explicit params drawn from `_Inputs`:
 
-Once every chunk's text-replace pass is pushed down,
-`_hubbard_emit_sid` becomes a thin shell calling
-`_compose_hubbard_engine_asm` + xa65 + PSID-header packaging. At
-that point the bulk of composer_hubbard.py is the `_Inputs`
-dataclass + `_inputs_from_*` adapters — natural composer.py
-territory.
+- [x] `_emit_hubbard_fx_incby2(incby2_late_gate, uses_per_subtune_dispatch)`
+      — resolves `; %%INCBY2_LATE_GATE%%` (Hunter Patrol gate /
+      5TT zp-slot read) AND `adc #INCBY2_STEP` (compile-time
+      constant vs 5TT `adc cur_incby2_step` zp-slot read).
+- [x] `_emit_hubbard_init(has_per_subtune_ovseed, has_master_vol_fade,
+      uses_per_subtune_dispatch)` — resolves `; %%OVSEED_COPY%%`
+      (5TT runtime ovseed copy), `; %%VOL_PROGRESS_INIT%%`
+      (`sta vol_progress` when fade enabled), AND the
+      `lda #SPEED_CTR_INIT / sta speed_ctr` block (compile-time
+      constant vs 5TT per-subtune table read of speed_ctr +
+      cur_incby2_step + cur_incby2_late_gate).
+- [x] `_emit_hubbard_init_sfx(sfx_state_ofs)` — resolves the
+      Monty / One Man and his Droid SFX-state mirror relocation
+      at +ofs/+ofs+1/+ofs+2/+ofs+3/+ofs+4/+ofs+5 instead of the
+      default Commando +241/+255/+256 layout.
+- [x] `_emit_hubbard_sfx_step(sfx_state_ofs)` — injects the
+      post-update sweep-index mirror at the top of `sfxs_go` for
+      the same Monty / One Man and his Droid case.
 
+`_compose_hubbard_engine_body` and `_compose_hubbard_engine_asm`
+grew six more explicit params (`sfx_state_ofs`, `incby2_late_gate`,
+`has_per_subtune_ovseed`, `has_master_vol_fade`,
+`uses_per_subtune_dispatch`, also the existing `state_layout` /
+`load_addr` / `sfx_framectr_ofs` / `arp_phase_invert` /
+`ns_offtab_decr_offset`) — every per-engine knob now enters the
+asm composition as a typed argument.
+
+Outer passes deleted from `_hubbard_emit_sid` along with the
+substitution helpers they used:
+- [x] `_apply_sfx_state_in_freqtab` deleted (no callers).
+- [x] `_emit_per_subtune_dispatch` deleted (no callers).
+- [x] `_emit_master_vol_fade` slimmed — VOL_PROGRESS_INIT dropped
+      from its sentinel set (now resolved in init); only the three
+      codec.note_asm sentinels remain.
+
+`_hubbard_emit_sid` shrinks further — the only outer passes left
+are the two that genuinely live in `codec.note_asm` (master_vol_fade
+and tie_preserves_slide). Those stay until either the chunks they
+target migrate or the codec itself moves into composer.
+
+Verified: Hubbard 71/71 byte-exact.
+
+#### Phase 8.20+ — Move `_Inputs` adapters + finish dissolution
+
+- [ ] `_Inputs` dataclass move into composer.py (or replace with
+      `EngineModel` field-passing directly).
+- [ ] `_inputs_from_usf` move — USF-to-`_Inputs` adapter is
+      engine-name-blind, lives naturally in composer.
+- [ ] `_inputs_from_config` — legacy `EngineConfig` reader. Only
+      used by the per-engine `pipelines/hubbard/<engine>/config.py`
+      verify path, which can move to a small helper outside the
+      composer build path.
+- [ ] codec.note_asm migration — move `; %%VOL_PROGRESS_INC%%` /
+      `; %%MASTER_VOL_*%%` / `; %%CLEAR_DRUMTRIG_*%%` resolution
+      down into the codec emitter once it learns to take inputs
+      directly (or into a composer-side per-feature emitter that
+      composes the codec output).
 - [ ] `_emit_combined_sid` move — pending the dissolution of
-  `_hubbard_emit_sid` (since they're coupled).
+      `_hubbard_emit_sid` (still coupled).
 - [ ] Eventually: composer_hubbard.py is deletable; the Hubbard '85
-  family lives in composer.py as feature-driven asm composition,
-  the same shape the companion engines already use.
+      family lives in composer.py as feature-driven asm composition,
+      the same shape the companion engines already use.
 
 - [ ] Vibrato LFO emitter (`_emit_vibrato_asm` or per-instrument).
 - [ ] PWM linear emitter.
