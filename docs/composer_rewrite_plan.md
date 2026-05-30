@@ -1385,18 +1385,57 @@ composer.py now owns 43 Hubbard '85 emitters (41 asm + 2 Python).
 Hubbard 71/71 byte-exact — Chimera (the only digi-carrying engine
 in the catalogue today) still cycle-strict-correct.
 
-#### Phase 8.16+ — Compound build + template dissolution (future sessions)
+#### Phase 8.16 — ENGINE template into composer + delete dead CompoundSpec
 
-- Compound build (5TT packed sub-engines + dispatcher) — separate
-  from composer_hubbard's `_hubbard_emit_sid`. Currently lives at
-  `pipelines/five_title_tunes/v2/build_compound.py` per the
-  migration skill.
+The asm template skeleton itself moves into composer.py — the last
+piece of asm content still in composer_hubbard. After this phase
+composer.py owns 100% of the asm output (the 18 routine chunks AND
+the template that wires them together); composer_hubbard.py becomes
+purely Python orchestration.
+
+- [x] `_emit_hubbard_engine_template()` → `_HUBBARD_ENGINE_TEMPLATE`
+      in composer.py. The ~150-line skeleton: zp declarations, asm
+      equates section, the `* = $1000 / jmp init / jmp play` entry
+      stub, the 18 `; %%<NAME>%%` sentinel slots, and the trailing
+      `sidtab` byte. composer_hubbard.py now imports it as
+      `ENGINE = _emit_hubbard_engine_template()`.
+
+Note: `* = $1000` stays in the template as a literal — it's the
+text-replace target for `_emit_load_addr_substitution`, which
+operates on the assembled asm string (not on this constant), so
+keeping the literal preserves the existing substitution.
+
+The user-flagged "compound build (5TT packed sub-engines)" target
+turned out to be dead: `CompoundSpec` was defined in
+`engine_model.py` but never instantiated — current 5TT runs through
+the unified single-engine + per-subtune dispatch path, not a
+multi-engine packer. Removed alongside the template move.
+
+- [x] Delete `CompoundSpec` from `engine_model.py` and its dispatch
+      gate (`if model.compound is not None: return False`) from
+      `composer._needs_hubbard85_path`.
+
+composer.py now owns 43 Hubbard '85 emitters + the ENGINE template
+itself. Hubbard 71/71 byte-exact.
+
+#### Phase 8.17+ — Template dissolution (future sessions)
+
+The mechanical extraction is essentially done — every asm
+artifact lives in composer.py. The remaining work changes
+character: instead of moving text, replace the template-based
+build with a composer-native assembly pipeline.
+
 - `_emit_combined_sid` move — pending the dissolution of
   `_hubbard_emit_sid` (since they're coupled).
-- Eventually: replace `_hubbard_emit_sid` + ENGINE asm template
-  with a composer-native assembly pipeline that consumes the
-  EngineModel directly — at which point composer_hubbard.py is
-  deletable.
+- Eventually: replace `_hubbard_emit_sid` + the ENGINE template's
+  string-substitution scheme with composer-native asm composition
+  that consumes the EngineModel directly. The 18 `_emit_hubbard_*`
+  functions become the composer's asm building blocks; chunk
+  ordering + nested-sentinel ordering + text-replace passes become
+  explicit asm composition.
+- At that point composer_hubbard.py is deletable; the Hubbard '85
+  family lives in composer.py as feature-driven asm composition,
+  the same shape the companion engines already use.
 
 - [ ] Vibrato LFO emitter (`_emit_vibrato_asm` or per-instrument).
 - [ ] PWM linear emitter.

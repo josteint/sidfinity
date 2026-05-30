@@ -517,21 +517,6 @@ class PsidMeta:
 
 
 # ---------------------------------------------------------------------------
-# Compound builds (5_Title_Tunes-style)
-# ---------------------------------------------------------------------------
-
-@dataclass
-class CompoundSpec:
-    """A PSID that packs N independent engine instances + a dispatcher
-    at the original init/play vectors. Only 5_Title_Tunes uses this
-    today; future engines that ship multiple sub-engines packed into
-    one PSID would land here too."""
-    sub_models: list                              # list[EngineModel]
-    dispatcher_init_addr: int
-    dispatcher_play_addr: int
-
-
-# ---------------------------------------------------------------------------
 # Top-level engine model
 # ---------------------------------------------------------------------------
 
@@ -559,7 +544,6 @@ class EngineModel:
     sfx: Optional[SfxConfig] = None
     digi: Optional[DigiConfig] = None
     hardcoded_pw_sweep: Optional[HardcodedPwSweep] = None
-    compound: Optional[CompoundSpec] = None
 
     # Engine knobs that don't fit a clean dataclass — kept here for the
     # transition; once Phase 3+ encodes them as proper features, remove.

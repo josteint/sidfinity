@@ -1619,6 +1619,177 @@ def _emit_hubbard_sfx_step() -> str:
     return _HUBBARD_SFX_STEP_ASM
 
 
+# ---------------------------------------------------------------------------
+# Hubbard '85 ENGINE template — the asm skeleton that holds zp/equates,
+# the entry stub, and `; %%SENTINEL%%` slots for every labelled routine
+# (init, play, proc_voice, set_patptr, next_orderidx, note_start,
+# hr_writes, do_effects, fx_{drumslide,incby2,pwm,vibrato,skydive,arp},
+# build_statebuf, init_sfx, sfx_play, sfx_step). The codegen interpolates
+# all 18 chunks (each owned by an `_emit_hubbard_<chunk>` function in
+# this module) and lets the substituted text-replace passes (sfx state /
+# arp phase invert / per-subtune dispatch / ovseed copy / ...) do their
+# work on the assembled result.
+#
+# `* = $1000` is the LOAD_ADDR text-replace target; the substitution
+# operates on the assembled asm string, not on the constant itself.
+#
+# Routine bodies are NOT in this template — each lives in its own
+# `_HUBBARD_<NAME>_ASM` constant above. Composer.py owns all asm; the
+# template is the skeleton that wires them together.
+# ---------------------------------------------------------------------------
+
+_HUBBARD_ENGINE_TEMPLATE = r"""
+frame_ctr = $40
+speed_ctr = $41
+is_tick   = $42
+sidoff    = $43
+v_dur     = $44
+v_instr   = $47
+v_pitch   = $4a
+v_patlo   = $4d
+v_pathi   = $50
+v_orderpos = $53
+orderp    = $56
+notep     = $59
+i_ctrl    = $5b
+i_pwlo    = $5c
+i_pwhi    = $5d
+i_ad      = $5e
+i_sr      = $5f
+f_lo      = $60
+f_hi      = $61
+instoff   = $62
+v_slide   = $63
+v_tick    = $66
+v_durfield = $69
+vib_step  = $6c
+vdelta_lo = $6d
+vdelta_hi = $6e
+vtarg_lo  = $6f
+vtarg_hi  = $70
+vdepthctr = $71
+vib_carry = $72
+pw_idx    = $73
+v_pwdir   = $74
+v_pwperiod = $77
+pwm_tmp   = $7a
+v_hubidx  = $7c
+v_norel   = $7f
+v_ctrlbyte = $82
+v_drumtrig = $85
+v_slidelo  = $88
+v_seqidx   = $8b
+vfreq      = $8e
+v_ended    = $92
+end_phase  = $95
+cur_resetspd = $96
+sub_tmp    = $97
+is_sfx     = $98
+sfx_idx    = $99
+sfx_rec    = $9a
+sfx_index  = $9c
+sfx_stepctr = $9d
+sfx_v1gate = $9e
+sfx_v2gate = $9f
+sfx_done   = $a0
+sfx_started = $a1
+sfx_y      = $a2
+sfx_flags  = $a3
+sfx_tmp    = $a4
+v_notesleft = $a5
+drum_prio   = $b2
+pv_abort    = $b3
+v_frozen    = $b4
+voice_start = $b7
+first_frame = $b8
+; Master-volume fade counter — incremented on the configured voice's
+; pattern-end (never wraps on song-loop). Read by the bit-7-style
+; master VOL write on instrument-change notes:
+;   $D418 = clamp(MASTER_VOL_BASE - vol_progress, 0..$0F)
+; Only emitted when MASTER_VOL_FADE = 1.
+vol_progress = $b9
+; Per-subtune engine-param zp slots (used only when the codegen emits
+; the per-subtune-params variant — see PER_SUBTUNE_ENGINE_PARAMS).
+; `cur_incby2_step` is the slide step added per frame (8-bit signed:
+; +2 = $02, -1 = $FF, etc.). `cur_incby2_late_gate` is the v_dur
+; threshold below which the fx-bit-1 slide fires; $FF = "no gate".
+cur_incby2_step  = $b9
+cur_incby2_late_gate = $ba
+
+* = $1000
+        jmp init
+        jmp play
+
+; %%INIT%%
+
+; %%PLAY%%
+
+; %%PROC_VOICE%%
+
+; load_note is supplied by the note codec (see note_codec.py) — the
+; engine calls it; the codec owns the pattern byte format and its
+; decoder. set_patptr / next_orderidx below are codec-agnostic.
+
+; set_patptr - point v_patptr,x at the pattern named by orderlist
+; entry v_orderpos,x. The $FF terminator wraps v_orderpos to
+; orderLoop,x; the $FE terminator ends the voice (v_ended). Clobbers
+; A and Y; preserves X.
+; %%SET_PATPTR%%
+
+; %%NEXT_ORDERIDX%%
+
+; %%NOTE_START%%
+
+; %%HR_WRITES%%
+
+; %%DO_EFFECTS%%
+
+; %%FX_DRUMSLIDE%%
+
+; %%FX_INCBY2%%
+
+; %%FX_PWM%%
+
+; %%FX_VIBRATO%%
+
+; %%FX_SKYDIVE%%
+
+; %%FX_ARP%%
+
+; build_statebuf - assemble the off-table-arpeggio state mirror.
+; Generated per-engine from StatebufLayout (see codegen.py); the
+; concrete body is substituted in at codegen time.
+; %%BUILD_STATEBUF%%
+
+; ============================ sound effects ===========================
+; A SFX is a 2-voice register snapshot plus a freq-table pitch sweep,
+; driven by a 32-byte record (sfxdata). See pipelines/hubbard/commando/extract/
+; sfx.py for the engine derivation.
+
+; %%INIT_SFX%%
+
+; %%SFX_PLAY%%
+
+; %%SFX_STEP%%
+
+sidtab: .byt 0, 7, 14
+"""
+
+
+def _emit_hubbard_engine_template() -> str:
+    """The Hubbard '85 ENGINE template — zp/equates + entry stub +
+    `; %%SENTINEL%%` slots for the 18 routine chunks.
+
+    The codegen interpolates each chunk via its `_emit_hubbard_<name>`
+    function, then runs the text-replace passes (sfx state / arp phase
+    invert / per-subtune dispatch / ovseed copy / ...) on the result.
+
+    `* = $1000` is the LOAD_ADDR text-replace target — substitution
+    happens on the assembled asm string, not on this constant.
+    """
+    return _HUBBARD_ENGINE_TEMPLATE
+
+
 def _emit_hubbard_pattern_pool(pat_bytes: list[bytes],
                                  codec_extra: str | None) -> list[str]:
     """Pattern pool — `pat0`, `pat1`, ... per unique pattern, plus the
@@ -2175,7 +2346,6 @@ def can_handle(model: EngineModel) -> bool:
     if model.state_layout is not None: return False
     if model.sfx is not None: return False
     if model.digi is not None: return False
-    if model.compound is not None: return False
     # `hardcoded_pw_sweep` is supported only in the two-phase tempo
     # (companion) path; reject when combined with other tempo dispatch.
     if model.hardcoded_pw_sweep is not None:
