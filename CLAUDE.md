@@ -10,7 +10,7 @@ roadmap.
 
 ## Current state (2026-05-27)
 
-**13 Hubbard '85 engines byte-exact through the USF v2 pipeline.**
+**13 Hubbard '85 engines byte-exact through the USF pipeline.**
 95/95 subtunes verify via `pipelines.hubbard.verify.verify_all` (md5 of
 per-frame SID-register snapshots). Members: Commando, Monty, Action Biker,
 Battle of Britain, Chimera (2 music + 2 digi), Confuzion, Devils Galop,
@@ -26,7 +26,7 @@ pipelines/
 │   ├── verify.py
 │   ├── engine_constants.py
 │   ├── (digi, sfx, instrument, song, sample, flac modules)
-│   └── <engine>/       config.py + extract/{decompile,engine_model,to_usf_v2,types}.py
+│   └── <engine>/       config.py + extract/{decompile,engine_model,to_usf,types}.py
 ├── companion/          separate 1984 Bowden engine (own codegen)
 └── README.md
 ```
@@ -48,7 +48,7 @@ Use the `migrate-hubbard-engine` skill at `.claude/skills/migrate-hubbard-engine
 1. The HVSC original is read directly from `hvsc84/MUSICIANS/H/Hubbard_Rob/<Engine>.sid` — no copy needed.
 2. Generate a seed disassembly: `tools/seed_disassembly.py …` → `docs/hubbard_<engine>_disassembly.s` → hand-annotate the header
 3. Create `pipelines/hubbard/<engine>/config.py` (clone a similar existing one — Action Biker is a good template; Chimera if there's digi)
-4. Create `pipelines/hubbard/<engine>/extract/engine_model.py` + `extract/to_usf_v2.py`
+4. Create `pipelines/hubbard/<engine>/extract/engine_model.py` + `extract/to_usf.py`
 5. Iterate: build → capture original vs rebuilt → fix first diff → repeat
 6. Verify byte-exact via `pipelines.hubbard.verify.verify_all`
 
@@ -72,7 +72,7 @@ bash tools/build.sh            # builds libsidplayfp + siddump (one-time)
 
 # Rebuild one engine through the pipeline
 python -c "
-from pipelines.hubbard.commando.extract.to_usf_v2 import write_commando_usf
+from pipelines.hubbard.commando.extract.to_usf import write_commando_usf
 from pipelines.hubbard.commando.config import COMMANDO
 from pipelines.hubbard.build_from_usf import build_from_usf
 write_commando_usf(COMMANDO, 'hvsc84/MUSICIANS/H/Hubbard_Rob')
@@ -90,7 +90,7 @@ print(verify_all([(COMMANDO, 'hvsc84/MUSICIANS/H/Hubbard_Rob/Commando.sidfinity.
 pytest pipelines/
 ```
 
-## Key files (USF v2 path)
+## Key files (USF path)
 
 | File | Purpose |
 |------|---------|
@@ -99,7 +99,7 @@ pytest pipelines/
 | `pipelines/hubbard/verify.py` | `verify_all` — md5 of per-frame snapshots |
 | `pipelines/hubbard/engine_constants.py` | freq tables, digi player asm, `EngineConstants` |
 | `pipelines/hubbard/config.py` | `EngineConfig` dataclass (the parameter surface) |
-| `pipelines/hubbard/to_usf_v2.py` | Shared USF v2 writer |
+| `pipelines/hubbard/to_usf.py` | Shared USF writer |
 | `pipelines/hubbard/song_interp.py` | runtime interpretation of voice/note state |
 | `pipelines/hubbard/note_codec.py` | bitstream note encoding |
 | `pipelines/hubbard/inst_*.py` | instrument modelling |
@@ -107,8 +107,8 @@ pytest pipelines/
 | `pipelines/hubbard/sample.py`, `flac_io.py`, `digi_pack.py` | digi sidecar pipeline |
 | `pipelines/hubbard/<engine>/config.py` | per-tune `EngineConfig` instance |
 | `pipelines/hubbard/<engine>/extract/engine_model.py` | per-tune binary → `(T, I, S)` lifter |
-| `pipelines/hubbard/<engine>/extract/to_usf_v2.py` | per-tune USF v2 writer |
-| `src/usf2/` | USF v2 grammar + reader/writer (spec: `docs/usf_v2_format.md`) |
+| `pipelines/hubbard/<engine>/extract/to_usf.py` | per-tune USF writer |
+| `src/usf/` | USF grammar + reader/writer (spec: `docs/usf_format.md`) |
 | `tools/siddump.cpp` | C++ register dumper (libsidplayfp). `--writelog` for cycle timing, `--pc-trace` for CPU PC trace. |
 
 ## HVSC index database — `hvsc84.db`
@@ -159,7 +159,7 @@ xa65 assembler at `tools/xa65/xa/xa`. CUDA at `/usr/bin/nvcc`.
 
 ```
 pipelines/              13 active engines (12 Hubbard under hubbard/, plus companion)
-src/                    USF v2 shared source — usf2/ (grammar + reader/writer),
+src/                    USF shared source — usf/ (grammar + reader/writer),
                         hubbard_emu.py, effect_detect.py, songlengths.py,
                         gt_parser.py, env.sh. Everything pre-USF-v2 moved
                         to deprecated/<topic>/.

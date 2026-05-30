@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import os
 
-from src.usf2 import parse_file
+from src.usf import parse_file
 from pipelines.companion.bowden_canonical import codegen
 
 

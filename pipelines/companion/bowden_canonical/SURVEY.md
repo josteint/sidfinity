@@ -149,10 +149,10 @@ pipelines/companion/bowden_canonical/
 ├── engine_constants.py  the engine blob + freq table layout
 ├── codegen.py           stitch engine+data into a PSID
 ├── build_from_usf.py    USF → assembled SID
-├── to_usf_v2.py         USF v2 writer
+├── to_usf.py         USF v2 writer
 └── extract/
     ├── engine_model.py  binary → (orderlists, timbre, tempo, freqs)
-    └── to_usf_v2.py
+    └── to_usf.py
 ```
 
 If we generalise later (e.g. the other 5 Vic Berry variants with

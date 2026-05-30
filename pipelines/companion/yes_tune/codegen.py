@@ -61,7 +61,7 @@ import os
 import struct
 import subprocess
 
-from src.usf2 import (
+from src.usf import (
     UsfFile, PsidMeta, Params, InitState, InitVoice, Instrument,
     PwmConfig, ArpConfig, VibratoConfig, EnvelopeConfig, MusicSubtune,
     VoiceBlock, Orderlist, Pattern, NoteRow, Pitch, InstrumentRef,
@@ -333,7 +333,7 @@ def build_usf(sid_path: str) -> UsfFile:
         InitVoice(id=v + 1, instr=InstrumentRef(id=v + 1)) for v in range(3)
     ])
     return UsfFile(
-        version=2, engine='yes_tune', psid=psid,
+        engine='yes_tune', psid=psid,
         params=Params(), init=top_init,
         instruments=instruments, subtunes=music_subtunes,
     )

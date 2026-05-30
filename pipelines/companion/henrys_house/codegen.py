@@ -19,7 +19,7 @@ import os
 import struct
 import subprocess
 
-from src.usf2 import (
+from src.usf import (
     UsfFile, PsidMeta, Params, InitState, InitVoice, Instrument,
     PwmConfig, ArpConfig, VibratoConfig, EnvelopeConfig, MusicSubtune,
     VoiceBlock, Orderlist, Pattern, NoteRow, Pitch, InstrumentRef,
@@ -189,7 +189,6 @@ def build_usf(sid_path: str) -> UsfFile:
     )
 
     return UsfFile(
-        version=2,
         engine='henrys_house',
         psid=psid,
         params=Params(),

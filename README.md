@@ -42,7 +42,7 @@ The architectural bet: **engine quirks live as *data*, not as code branches**.
 
 What's universal:
 
-- **One format**, USF (Universal Symbolic Format). It describes notes, patterns, instruments, effects in engine-neutral terms. The on-disk USF v2 grammar and reader/writer live in [`src/usf2/`](src/usf2/); the spec is in [`docs/usf_v2_format.md`](docs/usf_v2_format.md).
+- **One format**, USF (Universal Symbolic Format). It describes notes, patterns, instruments, effects in engine-neutral terms. The on-disk USF grammar and reader/writer live in [`src/usf/`](src/usf/); the spec is in [`docs/usf_format.md`](docs/usf_format.md).
 - **One codegen per engine**. Each pipeline's `Codegen.lean` reads its USF song and emits 6502. There are no `if engine == Hubbard:` branches anywhere; engine-specific behaviour lives in the USF data + per-pipeline codegen, not in shared conditionals.
 
 What's per-engine:
@@ -110,7 +110,7 @@ Per pipeline:
 | 1. Parse Hubbard binary | `<engine>/extract/decompile.py` |
 | 2. Lift to engine model `(T, I, S)` | `<engine>/extract/engine_model.py` |
 | 3. Engine config / parameters | `<engine>/config.py` |
-| 4. Emit USF v2 | `<engine>/extract/to_usf_v2.py` |
+| 4. Emit USF | `<engine>/extract/to_usf.py` |
 | 5. Generate 6502 player + PSID wrap | `pipelines/hubbard/codegen.py` (shared) |
 | 6. End-to-end build | `pipelines/hubbard/build_from_usf.py` |
 | 7. Verify (byte-exact) | `pipelines/hubbard/verify.py` |
@@ -162,7 +162,7 @@ deprecated/               Earlier pipeline iterations + dead experiments
 
 ## Docs
 
-- [USF Specification](docs/usf_v2_format.md)
+- [USF Specification](docs/usf_format.md)
 - [Development Plan](docs/PLAN.md)
 - [GT2 Data Layout](deprecated/gt2_pipeline/docs/gt2_data_layout.md)
 - [Player Engine Notes](deprecated/research_docs/players/) — 48 SID engines

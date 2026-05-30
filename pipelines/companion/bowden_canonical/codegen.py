@@ -32,7 +32,7 @@ import os
 import subprocess
 import struct
 
-from src.usf2 import UsfFile, MusicSubtune, Instrument
+from src.usf import UsfFile, MusicSubtune, Instrument
 from pipelines.companion.bowden_canonical.engine_constants import (
     freq_tables, pitch_to_note_byte,
 )

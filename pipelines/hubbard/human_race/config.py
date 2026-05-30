@@ -41,13 +41,13 @@ HUMAN_RACE = EngineConfig(
     subtunes=(0, 1, 2, 3, 4),
     arp_interval=12,
     # HR's `fx_arp` cycles 1 frame base + 7 frames +octave, keyed on
-    # `frame_ctr & 7`. Confirmed via src/usf2/audit.py on V1 inst 16
+    # `frame_ctr & 7`. Confirmed via src/usf/audit.py on V1 inst 16
     # (drumarp-only) subtune 3 frames 512-555. Shared-core default is
     # 2 (Commando's alternate-every-frame); HR is period 8.
     arp_period=8,
     # HR's `fx_skydive` (bit 1) increments v_fhi by 1 on odd frames
     # after the note has been held long enough ((v_flags & $1F) >= $11
-    # = 17). Confirmed via src/usf2/audit.py on V1 inst 21
+    # = 17). Confirmed via src/usf/audit.py on V1 inst 21
     # (skydive+PWmode) subtune 4 frames 575-604: $0CAA writes old v_fhi
     # then INC v_fhi on odd frames. Same shape as shared-core
     # `fx_incby2`; Commando defaults are step=2 onset=3.

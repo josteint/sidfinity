@@ -6,10 +6,10 @@ the index stays current without needing a manual
 doesn't exist or the output isn't under hvsc84/.
 
 Wired into:
-  - pipelines/hubbard/to_usf_v2.write_usf      → record_usf
+  - pipelines/hubbard/to_usf.write_usf      → record_usf
   - pipelines/hubbard/build_from_usf.build_from_usf → record_rebuild
   - pipelines/hubbard/verify.verify_all        → record_verify
-  - pipelines/companion/to_usf_v2.write_usf    → record_usf
+  - pipelines/companion/to_usf.write_usf    → record_usf
   - pipelines/companion/build_from_usf.build_from_usf → record_rebuild
 
 Schema lives in tools/build_sid_db.py — these helpers only UPDATE

@@ -1497,7 +1497,7 @@ class _Inputs:
     """Everything `_emit_sid` needs, decoupled from the source.
 
     `_inputs_from_config` builds this by reading `config.sid_path`.
-    `_inputs_from_usf3` (in `usf3_build_from_usf.py`) builds it from a
+    `_inputs_from_usf` (in `build_from_usf.py`) builds it from a
     v3 `.usf` file alone — no engine-name lookup. Both feed `_emit_sid`
     which is pure: it knows nothing about how the inputs were derived.
     """

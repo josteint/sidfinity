@@ -30,7 +30,7 @@ import os
 import struct
 import subprocess
 
-from src.usf2 import UsfFile, MusicSubtune, parse_file, Pitch, NoteRow
+from src.usf import UsfFile, MusicSubtune, parse_file, Pitch, NoteRow
 from pipelines.companion.clever_music.engine_constants import (
     CLEVER_FREQ_HI, CLEVER_FREQ_LO, pitch_to_note_byte,
 )

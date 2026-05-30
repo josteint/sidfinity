@@ -22,7 +22,7 @@ pipelines/hubbard/
   │   engine_constants.py    freq tables, digi player asm, EngineConstants
   │   codegen.py             6502 player generator (consumed by all engines below)
   │   build_from_usf.py      end-to-end .usf → assembled SID
-  │   to_usf_v2.py           shared USF v2 writer
+  │   to_usf.py           shared USF writer
   │   song_interp.py / note_codec.py / inst_*.py / sfx.py
   │   sample.py / flac_io.py / digi_pack.py    (digi)
   │   verify.py / verify_cycle.py              (verify)
@@ -51,14 +51,14 @@ pipelines/hubbard/<engine>/
   extract/
     decompile.py       parse PSID header + engine data structures
     engine_model.py    lift binary into (Tracks, Insts, Score)
-    to_usf_v2.py       write the .usf file
+    to_usf.py       write the .usf file
     types.py
   build/               output dir for the rebuilt SID
   tests/               pytest extract smoke tests
 ```
 
 (`five_title_tunes/` has a slightly different shape — its USF writer is
-at `v2/write_unified_usf.py` rather than `extract/to_usf_v2.py`, because
+at `v2/write_unified_usf.py` rather than `extract/to_usf.py`, because
 the parent PSID dispatches to 5 sub-engines that get unified into one.)
 
 Status (all byte-exact, 90/90 subtunes):
@@ -88,7 +88,7 @@ pipelines/companion/
   engine_constants.py
   codegen.py            6502 player generator
   build_from_usf.py     end-to-end build
-  to_usf_v2.py          USF v2 writer
+  to_usf.py          USF writer
   extract/
 ```
 
@@ -99,7 +99,7 @@ Status: 5/5 subtunes byte-exact (Up, up & Away!, 1984 Hubbard).
 ```bash
 # Extract + build one engine end-to-end (example: Commando)
 python -c "
-from pipelines.hubbard.commando.extract.to_usf_v2 import write_commando_usf
+from pipelines.hubbard.commando.extract.to_usf import write_commando_usf
 from pipelines.hubbard.commando.config import COMMANDO
 from pipelines.hubbard.build_from_usf import build_from_usf
 write_commando_usf(COMMANDO, 'demo/hubbard')
@@ -126,7 +126,7 @@ short:
 1. `cp hvsc84/MUSICIANS/H/Hubbard_Rob/<Engine>.sid demo/hubbard/<Engine>_original.sid`
 2. Disassemble: `tools/seed_disassembly.py` → hand-annotate header
 3. Write `pipelines/hubbard/<engine>/config.py` (clone an existing one)
-4. Write `pipelines/hubbard/<engine>/extract/engine_model.py` + `extract/to_usf_v2.py`
+4. Write `pipelines/hubbard/<engine>/extract/engine_model.py` + `extract/to_usf.py`
 5. Iterate: build → capture original vs rebuilt → fix first diff → repeat
 6. Verify byte-exact via `pipelines.hubbard.verify.verify_all`
 

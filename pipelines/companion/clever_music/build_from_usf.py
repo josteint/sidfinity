@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 
-from src.usf2 import parse_file
+from src.usf import parse_file
 from pipelines.companion.clever_music import codegen
 
 

@@ -1,6 +1,6 @@
 """USF v2 → SID for the Companion engine.
 
-Inverse of `pipelines/companion/to_usf_v2.py`. Reads
+Inverse of `pipelines/companion/to_usf.py`. Reads
 `<basename>.usf` and produces a byte-exact SID without touching the
 original binary.
 
@@ -14,7 +14,7 @@ from __future__ import annotations
 import os
 import struct
 
-from src.usf2 import UsfFile, MusicSubtune, parse_file
+from src.usf import UsfFile, MusicSubtune, parse_file
 from pipelines.companion.extract import SubtuneData, VoiceState, VoicePadding
 from pipelines.companion import codegen as cg
 
@@ -24,7 +24,7 @@ _SEMITONE = {'C': 0, 'C#': 1, 'D': 2, 'D#': 3, 'E': 4, 'F': 5,
 
 
 def _byte_from_row(row) -> int:
-    """Inverse of `to_usf_v2._row_from_byte`."""
+    """Inverse of `to_usf._row_from_byte`."""
     early = 'fx:early_release' in row.fx_flags
     if row.pitch.is_rest:
         # Rest + early_release = $8C; rest without flags shouldn't
