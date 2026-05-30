@@ -1111,23 +1111,61 @@ table is data-emitted through composer. Hunter Patrol uses the
 seed_offsets override (v_slide+238); Human Race uses
 seed_overlap=False; both exercised end-to-end.
 
-#### Phase 8.8+ — Per-feature decomposition (future sessions)
+#### Phase 8.8 — Pattern pool + orderlists + per-subtune + SFX records
 
-Remaining features for future sessions:
+Eight more data-section emitters into composer.py — the entire
+remainder of `_emit_data`'s body:
+
+- [x] `_emit_hubbard_pattern_pool(pat_bytes, codec_extra)` —
+      `pat0`/`pat1`/... + `pataddr_lo`/`pataddr_hi`.
+- [x] `_emit_hubbard_orderlists(scores, pat_slot)` —
+      per-subtune × per-voice `order_S_V:` blocks with `$FE`/`$FF`
+      terminators. Empty orderlist → just `$FE` (Human Race's
+      unused V3 silence).
+- [x] `_emit_hubbard_per_subtune_tables(scores, resetspds, voice_starts)`
+       — `subOrderLo/Hi/Loop`, `subResetspd`, `subVoiceStart`.
+- [x] `_emit_hubbard_psp_tables(n, sci, ibs, ibg)` — 5TT
+      `subSpeedCtrInit/subIncBy2Step/subIncBy2LateGate` byte tables
+      (empty when no per-subtune mechanism overrides).
+- [x] `_emit_hubbard_per_subtune_ovseed(per_sub_ov)` — 5TT
+      `subOvseed_N` blocks + `subOvseedLo/Hi` address lookup tables
+      (empty when no per-subtune ovseed).
+- [x] `_emit_hubbard_live_order_arrays()` — zero-init `orderLo/Hi/Loop`
+      live arrays.
+- [x] `_emit_hubbard_statebuf_data(layout)` — `statebuf: .byt {...}`
+      block using the already-composer-owned `_statebuf_init_bytes`.
+- [x] `_emit_hubbard_sfx_records(sfx_list)` — SFX record data
+      (32 bytes × N records, padded with zeros).
+
+composer_hubbard.py's `_emit_data` is now ~14 lines of composer-side
+function calls (down from ~120 lines of inline emit). The whole
+data-emission surface is composer-owned.
+
+composer.py now owns 24 Hubbard '85 feature emitters total.
+
+Verified: Hubbard 71/71 byte-exact (5TT exercises psp_tables +
+per_subtune_ovseed; engines with SFX exercise sfx_records; Human
+Race exercises empty orderlists). 5TT 4/5 (sub 2 pre-existing
+partial preserved). All 5 composer-native shapes unchanged.
+
+#### Phase 8.9+ — Per-feature decomposition (future sessions)
+
+Larger remaining features:
 - The seven fx routines as feature emitters (vibrato, PWM linear,
   PWM bidirectional, arpeggio, freq-hi slide, inc_by2 step,
-  drum-slide) — likely the biggest chunk of remaining work
-- Per-subtune dispatch tables emitter (`subOrder*`, `subResetspd`,
-  `subVoiceStart`, optional 5TT `subSpeedCtrInit`/`subIncBy2*` +
-  `subOvseed_N` + `subOvseed{Lo,Hi}`)
-- Pattern data + pattern pool emitter (`pat0`/`pat1`/... +
-  `pataddr_lo`/`pataddr_hi`)
-- Per-voice orderlist emitter (`order_S_V:`)
-- SFX records emitter (`sfxdata:` — 32 bytes × 16 records)
-- SFX sub-engine asm (`init_sfx`, `sfx_play`, `sfx_step`)
+  drum-slide) — these live inline in the ENGINE asm template
+  rather than as substituted blocks; extracting them requires
+  splitting the template.
+- SFX sub-engine asm (`init_sfx`, `sfx_play`, `sfx_step`) — also
+  inline in the ENGINE template.
 - Digi region builder (Chimera dispatcher + 1-bit player + sample
-  packs)
-- Compound build (5TT packed sub-engines + dispatcher)
+  packs) — `_build_digi_region` + `_emit_combined_sid` in
+  composer_hubbard.
+- The remaining ENGINE asm template chunks (init, play, voice
+  dispatch, note_start, hr_writes, do_effects, set_patptr,
+  next_orderidx, load_note callback).
+- Compound build (5TT packed sub-engines + dispatcher) — separate
+  from composer_hubbard's _hubbard_emit_sid.
 - Eventually: replace `_hubbard_emit_sid` + ENGINE asm template
   with a composer-native assembly pipeline that consumes the
   EngineModel directly — at which point composer_hubbard.py is

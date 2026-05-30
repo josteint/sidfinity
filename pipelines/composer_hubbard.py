@@ -1139,11 +1139,14 @@ def _emit_data(scores, models, freq_bytes, resetspds, voice_starts,
     subResetspd tables."""
     lines = []
 
-    # Instrument table + PW seed/acc + freq table + ovseed — all moved
-    # to composer.py in Phase 8.6-8.7.
+    # All data-section emitters now live in composer.py (Phase 8.6-8.8).
     from pipelines.composer import (
         _emit_hubbard_instrument_table, _emit_hubbard_pwseed_pwacc,
         _emit_hubbard_freq_table_data, _emit_hubbard_ovseed,
+        _emit_hubbard_pattern_pool, _emit_hubbard_orderlists,
+        _emit_hubbard_per_subtune_tables, _emit_hubbard_psp_tables,
+        _emit_hubbard_per_subtune_ovseed, _emit_hubbard_live_order_arrays,
+        _emit_hubbard_statebuf_data, _emit_hubbard_sfx_records,
     )
     lines.extend(_emit_hubbard_instrument_table(models))
     lines.extend(_emit_hubbard_pwseed_pwacc(models))
@@ -1154,111 +1157,19 @@ def _emit_data(scores, models, freq_bytes, resetspds, voice_starts,
     # them by a dense slot. pattern indices are global, so the pool is
     # shared by all packed subtunes. The note codec serialises each
     # pattern (byte 0 = note count); the format is the codec's choice.
-    for slot, blob in enumerate(pat_bytes):
-        lines.append(f'pat{slot}:')
-        for i in range(0, len(blob), 16):
-            chunk = blob[i:i + 16]
-            lines.append('        .byt ' + ','.join(f'${b:02X}' for b in chunk))
-    if codec_extra:
-        lines.append(codec_extra)
-
-    npat = len(pat_bytes)
-    lines.append('pataddr_lo: .byt '
-                 + ','.join(f'<pat{s}' for s in range(npat)))
-    lines.append('pataddr_hi: .byt '
-                 + ','.join(f'>pat{s}' for s in range(npat)))
-
-    # per-subtune orderlists ($FF = loop to orderLoop, $FE = end of song).
-    # An empty orderlist (e.g. Human Race's unused V3) emits just $FE —
-    # set_patptr will see the song-end terminator at the first read and
-    # set v_ended on the voice, leaving it silent. $FF here would loop
-    # forever (the only entry is the terminator).
-    for si, score in enumerate(scores):
-        for vi, v in enumerate(score.voices):
-            if v.orderlist:
-                term = '$FE' if v.stop else '$FF'
-                ob = ','.join(f'${pat_slot[oidx]:02X}' for oidx in v.orderlist)
-                lines.append(f'order_{si}_{vi}: .byt {ob},{term}')
-            else:
-                lines.append(f'order_{si}_{vi}: .byt $FE')
-
-    # subOrder* — 3 entries per subtune (one per voice); init copies the
-    # selected subtune's row into the live orderLo/Hi/Loop arrays.
-    los, his, loops = [], [], []
-    for si, score in enumerate(scores):
-        for vi, v in enumerate(score.voices):
-            los.append(f'<order_{si}_{vi}')
-            his.append(f'>order_{si}_{vi}')
-            loops.append(f'${(v.loop if v.loop >= 0 else 0):02X}')
-    lines.append('subOrderLo: .byt ' + ','.join(los))
-    lines.append('subOrderHi: .byt ' + ','.join(his))
-    lines.append('subOrderLoop: .byt ' + ','.join(loops))
-    lines.append('subResetspd: .byt '
-                 + ','.join(f'${r:02X}' for r in resetspds))
-    lines.append('subVoiceStart: .byt '
-                 + ','.join(f'${v:02X}' for v in voice_starts))
-
-    # Per-subtune engine-param tables — only emitted when any one is
-    # provided; the engine then reads from them at init (see _hubbard_emit_sid's
-    # `uses_psp` branch). Each list MUST be len(scores).
-    if (per_subtune_speed_ctr_init is not None
-            or per_subtune_incby2_step is not None
-            or per_subtune_incby2_late_gate is not None):
-        n = len(scores)
-        sci = per_subtune_speed_ctr_init or [0] * n
-        ibs = per_subtune_incby2_step or [0] * n
-        ibg = per_subtune_incby2_late_gate or [0xFF] * n
-        lines.append('subSpeedCtrInit: .byt '
-                     + ','.join(f'${b & 0xFF:02X}' for b in sci))
-        lines.append('subIncBy2Step: .byt '
-                     + ','.join(f'${b & 0xFF:02X}' for b in ibs))
-        lines.append('subIncBy2LateGate: .byt '
-                     + ','.join(f'${b & 0xFF:02X}' for b in ibg))
-
-    # Per-subtune ovseed (per-voice initial state). When provided, init
-    # copies the selected sub's 18-byte ovseed into `ovseed` before the
-    # iniov loop runs. This is for unified engines (5 Title Tunes) where
-    # the 5 sub-engines have different load-time per-voice state values.
-    if per_subtune_ovseed is not None:
-        assert all(len(o) == 18 for o in per_subtune_ovseed), \
-            'each per_subtune_ovseed entry must be 18 bytes'
-        for i, ov_bytes in enumerate(per_subtune_ovseed):
-            lines.append(f'subOvseed_{i}: .byt '
-                         + ','.join(f'${b & 0xFF:02X}' for b in ov_bytes))
-        lines.append('subOvseedLo: .byt '
-                     + ','.join(f'<subOvseed_{i}'
-                                 for i in range(len(per_subtune_ovseed))))
-        lines.append('subOvseedHi: .byt '
-                     + ','.join(f'>subOvseed_{i}'
-                                 for i in range(len(per_subtune_ovseed))))
-
-    # live per-voice orderlist selection (filled by init)
-    lines.append('orderLo: .byt 0,0,0')
-    lines.append('orderHi: .byt 0,0,0')
-    lines.append('orderLoop: .byt 0,0,0')
-
-    # statebuf - the engine-state mirror the off-table arpeggio indexes.
-    # Initial bytes hold any const scalars (Commando's per-voice sidoff
-    # 0,7,14 lives here; HR's sidoffs 0,7 likewise). The rest is filled
-    # live by build_statebuf, with unmapped gap bytes left at their
-    # init value (usually 0).
-    lines.append(f'statebuf: .byt {_statebuf_init_bytes(state_layout)}')
-
-    # sound-effect records — 32 bytes each: V1[7], V2[7], start, end,
-    # rate, flags (bit0 direction, bit1 skip-V1, bit2 skip-both),
-    # v2_byte_offset, gate (bit7/6 toggle V1/V2). See sfx_play.
-    lines.append('sfxdata:')
-    for sf in sfx_list:
-        flags = ((1 if sf.direction == 'up' else 0)
-                 | (2 if sf.skip_v1 else 0)
-                 | (4 if sf.skip_both else 0))
-        gate = ((0x80 if sf.toggle_v1 else 0)
-                | (0x40 if sf.toggle_v2 else 0))
-        rec = (list(sf.v1) + list(sf.v2)
-               + [sf.start_index, sf.end_index, sf.rate, flags,
-                  sf.v2_byte_offset, gate])
-        rec += [0] * (32 - len(rec))
-        lines.append('        .byt ' + ','.join(f'${b:02X}' for b in rec))
+    lines.extend(_emit_hubbard_pattern_pool(pat_bytes, codec_extra))
+    lines.extend(_emit_hubbard_orderlists(scores, pat_slot))
+    lines.extend(_emit_hubbard_per_subtune_tables(
+        scores, resetspds, voice_starts))
+    lines.extend(_emit_hubbard_psp_tables(
+        len(scores),
+        per_subtune_speed_ctr_init,
+        per_subtune_incby2_step,
+        per_subtune_incby2_late_gate))
+    lines.extend(_emit_hubbard_per_subtune_ovseed(per_subtune_ovseed))
+    lines.extend(_emit_hubbard_live_order_arrays())
+    lines.extend(_emit_hubbard_statebuf_data(state_layout))
+    lines.extend(_emit_hubbard_sfx_records(sfx_list))
     return '\n'.join(lines)
 
 

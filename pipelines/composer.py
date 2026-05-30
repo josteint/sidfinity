@@ -453,6 +453,156 @@ def _emit_hubbard_ovseed(freq_bytes: bytes,
     return ['ovseed: .byt ' + ','.join(f'${b:02X}' for b in ov)]
 
 
+def _emit_hubbard_pattern_pool(pat_bytes: list[bytes],
+                                 codec_extra: str | None) -> list[str]:
+    """Pattern pool — `pat0`, `pat1`, ... per unique pattern, plus the
+    `pataddr_lo` / `pataddr_hi` lookup tables that map a dense pattern
+    slot to its address. `codec_extra` is optional codec-side data
+    appended after the patterns (e.g. lookup tables for some codecs)."""
+    lines = []
+    for slot, blob in enumerate(pat_bytes):
+        lines.append(f'pat{slot}:')
+        for i in range(0, len(blob), 16):
+            chunk = blob[i:i + 16]
+            lines.append('        .byt ' +
+                         ','.join(f'${b:02X}' for b in chunk))
+    if codec_extra:
+        lines.append(codec_extra)
+    npat = len(pat_bytes)
+    lines.append('pataddr_lo: .byt ' + ','.join(
+        f'<pat{s}' for s in range(npat)))
+    lines.append('pataddr_hi: .byt ' + ','.join(
+        f'>pat{s}' for s in range(npat)))
+    return lines
+
+
+def _emit_hubbard_orderlists(scores, pat_slot: dict) -> list[str]:
+    """Per-subtune × per-voice orderlists `order_S_V:`.
+
+    `$FF` = loop to `orderLoop` (per-voice loop point); `$FE` = end
+    of song. An empty orderlist emits just `$FE` (e.g. Human Race's
+    unused V3 — set_patptr sees the song-end terminator at first
+    read and silences the voice).
+    """
+    lines = []
+    for si, score in enumerate(scores):
+        for vi, v in enumerate(score.voices):
+            if v.orderlist:
+                term = '$FE' if v.stop else '$FF'
+                ob = ','.join(
+                    f'${pat_slot[oidx]:02X}' for oidx in v.orderlist)
+                lines.append(f'order_{si}_{vi}: .byt {ob},{term}')
+            else:
+                lines.append(f'order_{si}_{vi}: .byt $FE')
+    return lines
+
+
+def _emit_hubbard_per_subtune_tables(scores, resetspds, voice_starts) -> list[str]:
+    """Per-subtune dispatch tables: `subOrderLo/Hi/Loop` (3 entries
+    per subtune — one per voice), `subResetspd` (per-subtune tempo),
+    `subVoiceStart` (which voice the dispatch loop starts at —
+    Action Biker skips V3 on sub 0)."""
+    los, his, loops = [], [], []
+    for si, score in enumerate(scores):
+        for vi, v in enumerate(score.voices):
+            los.append(f'<order_{si}_{vi}')
+            his.append(f'>order_{si}_{vi}')
+            loops.append(f'${(v.loop if v.loop >= 0 else 0):02X}')
+    return [
+        'subOrderLo: .byt ' + ','.join(los),
+        'subOrderHi: .byt ' + ','.join(his),
+        'subOrderLoop: .byt ' + ','.join(loops),
+        'subResetspd: .byt ' + ','.join(f'${r:02X}' for r in resetspds),
+        'subVoiceStart: .byt ' + ','.join(f'${v:02X}' for v in voice_starts),
+    ]
+
+
+def _emit_hubbard_psp_tables(n_scores: int,
+                              per_subtune_speed_ctr_init: list | None,
+                              per_subtune_incby2_step: list | None,
+                              per_subtune_incby2_late_gate: list | None
+                              ) -> list[str]:
+    """5_Title_Tunes per-subtune mechanism byte tables — only emitted
+    when any one is non-None. The engine's init reads `subSpeedCtrInit`,
+    `subIncBy2Step`, `subIncBy2LateGate` indexed by subtune (see the
+    `uses_psp` path in `_emit_per_subtune_dispatch`).
+    """
+    if (per_subtune_speed_ctr_init is None
+            and per_subtune_incby2_step is None
+            and per_subtune_incby2_late_gate is None):
+        return []
+    sci = per_subtune_speed_ctr_init or [0] * n_scores
+    ibs = per_subtune_incby2_step or [0] * n_scores
+    ibg = per_subtune_incby2_late_gate or [0xFF] * n_scores
+    return [
+        'subSpeedCtrInit: .byt ' + ','.join(f'${b & 0xFF:02X}' for b in sci),
+        'subIncBy2Step: .byt ' + ','.join(f'${b & 0xFF:02X}' for b in ibs),
+        'subIncBy2LateGate: .byt ' + ','.join(f'${b & 0xFF:02X}' for b in ibg),
+    ]
+
+
+def _emit_hubbard_per_subtune_ovseed(per_subtune_ovseed: list | None
+                                      ) -> list[str]:
+    """5TT per-subtune ovseed blocks + address lookup tables.
+
+    Each subtune has its own 18-byte ovseed copied at init via the
+    ovseed-copy loop (composer's `_emit_ovseed_copy`). The address
+    tables let init resolve which sub's bytes to copy.
+    """
+    if per_subtune_ovseed is None:
+        return []
+    assert all(len(o) == 18 for o in per_subtune_ovseed), \
+        'each per_subtune_ovseed entry must be 18 bytes'
+    lines = []
+    for i, ov_bytes in enumerate(per_subtune_ovseed):
+        lines.append(f'subOvseed_{i}: .byt ' +
+                     ','.join(f'${b & 0xFF:02X}' for b in ov_bytes))
+    n = len(per_subtune_ovseed)
+    lines.append('subOvseedLo: .byt ' + ','.join(
+        f'<subOvseed_{i}' for i in range(n)))
+    lines.append('subOvseedHi: .byt ' + ','.join(
+        f'>subOvseed_{i}' for i in range(n)))
+    return lines
+
+
+def _emit_hubbard_live_order_arrays() -> list[str]:
+    """Live per-voice orderlist selection — filled by init from
+    `subOrder*`. Zero-initialized at link time."""
+    return [
+        'orderLo: .byt 0,0,0',
+        'orderHi: .byt 0,0,0',
+        'orderLoop: .byt 0,0,0',
+    ]
+
+
+def _emit_hubbard_statebuf_data(layout: StatebufLayout) -> list[str]:
+    """`statebuf:` data block label — uses `_statebuf_init_bytes` for
+    the bytes themselves."""
+    return [f'statebuf: .byt {_statebuf_init_bytes(layout)}']
+
+
+def _emit_hubbard_sfx_records(sfx_list) -> list[str]:
+    """SFX records — 32 bytes each: V1[7], V2[7], start, end, rate,
+    flags (bit0 direction, bit1 skip-V1, bit2 skip-both),
+    v2_byte_offset, gate (bit7/6 toggle V1/V2). See `sfx_play`.
+    Padded to 32 bytes with zeros.
+    """
+    lines = ['sfxdata:']
+    for sf in sfx_list:
+        flags = ((1 if sf.direction == 'up' else 0)
+                 | (2 if sf.skip_v1 else 0)
+                 | (4 if sf.skip_both else 0))
+        gate = ((0x80 if sf.toggle_v1 else 0)
+                | (0x40 if sf.toggle_v2 else 0))
+        rec = (list(sf.v1) + list(sf.v2)
+               + [sf.start_index, sf.end_index, sf.rate, flags,
+                  sf.v2_byte_offset, gate])
+        rec += [0] * (32 - len(rec))
+        lines.append('        .byt ' +
+                     ','.join(f'${b:02X}' for b in rec))
+    return lines
+
+
 def _emit_hubbard_freq_table_data(freq_bytes: bytes) -> list[str]:
     """Emit Hubbard '85's `freqtab:` data block.
 
