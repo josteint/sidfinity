@@ -5,6 +5,10 @@ Status: seed. Today it handles two engine families:
   - Three-voice atomic-event tunes with per-voice loop semantics + an
     inter-voice carry-leak quirk (bowden_canonical)
 
+Both families support multi-subtune USFs. Init takes A = subtune index
+and reads per-subtune data tables (init_pos, tempo, timbres, orderlist
+pointers) emitted alongside the engine code.
+
 Each engine family that migrates over teaches it new primitives. When
 `pipelines/codegen.py` (the Hubbard '85 legacy codegen) can also be
 expressed here, it retires.
@@ -19,19 +23,13 @@ look at USF *content* (voice count, freq_table size, presence of
 fx flags, etc.), never at `usf.engine`.
 
   emit_sid(usf)
-    ├─ pick_features(usf)        → feature dict
-    ├─ emit_header / emit_init   → preamble + init
+    ├─ pick_features(usf)        → feature dict + per-subtune feature list
+    ├─ emit_header / emit_init   → preamble + init (A = subtune index)
     ├─ emit_play_loop_*          → tempo gate + per-voice processing
     ├─ emit_note_play_*          → SID register writes per played note
     ├─ emit_loop_terminator_*    → $FF handler
     ├─ emit_runtime_vars + data  → zp / freq table / orderlists
     └─ assemble + PSID header
-
-What's deliberately unified:
-- PSID header writing
-- xa65 invocation
-- LOAD address conventions
-- USF data access (subtunes, instruments, patterns)
 """
 
 from __future__ import annotations
@@ -66,12 +64,11 @@ def pick_features(usf: UsfFile) -> dict:
     music = sorted(
         (s for s in usf.subtunes if isinstance(s, MusicSubtune)),
         key=lambda s: s.id)
-    if len(music) != 1:
-        raise NotImplementedError(
-            f'universal codegen currently handles 1 subtune; got {len(music)}')
-    ms = music[0]
+    if not music:
+        raise NotImplementedError('universal codegen requires at least 1 music subtune')
 
-    active = [v for v in ms.voices if v.patterns]
+    # Voice count from the first subtune (all subtunes share engine shape).
+    active = [v for v in music[0].voices if v.patterns]
     voice_count = len(active)
     if voice_count not in (1, 3):
         raise NotImplementedError(
@@ -85,63 +82,70 @@ def pick_features(usf: UsfFile) -> dict:
 
     instr_by_id = {i.id: i for i in usf.instruments}
 
-    # Per-voice timbre, indexed by 0/1/2 = V1/V2/V3.
-    # For 1-voice tunes, V1's instrument lives at index 0; V2/V3 unused.
-    voice_to_instr = {1: None, 2: None, 3: None}
-    init_voices = (ms.init.voices if (ms.init and ms.init.voices)
-                   else usf.init.voices)
-    for iv in init_voices:
-        if iv.instr is not None:
-            voice_to_instr[iv.id] = instr_by_id[iv.instr.id]
-    timbres = []
-    for vid in (1, 2, 3):
-        ins = voice_to_instr[vid] or instr_by_id[1]   # fallback for inactive
-        timbres.append((
-            ins.pwm.init & 0xFF,
-            (ins.pwm.init >> 8) & 0xFF,
-            ins.waveform[0] if ins.waveform else 0,
-            ins.adsr[0],
-            ins.adsr[1],
-        ))
+    def _timbre_of(instr) -> tuple[int, int, int, int, int]:
+        return (
+            instr.pwm.init & 0xFF,
+            (instr.pwm.init >> 8) & 0xFF,
+            instr.waveform[0] if instr.waveform else 0,
+            instr.adsr[0],
+            instr.adsr[1],
+        )
 
-    # Per-voice pattern (the byte stream).
-    pat_rows = {}
-    for v in ms.voices:
-        pat_rows[v.id] = v.patterns[0].rows if v.patterns else []
+    # Per-subtune feature list.
+    subtunes_feat: list[dict] = []
+    for ms in music:
+        # Per-voice instrument lookup. Prefer the subtune's own init.voices
+        # (which carries per-subtune timbres for multi-subtune USFs), fall
+        # back to the file-level init.
+        init_voices = (ms.init.voices if (ms.init and ms.init.voices)
+                       else usf.init.voices)
+        voice_to_instr: dict[int, object] = {1: None, 2: None, 3: None}
+        for iv in init_voices:
+            if iv.instr is not None:
+                voice_to_instr[iv.id] = instr_by_id[iv.instr.id]
 
-    # Per-voice init position + init tempo counter — subtune-level params.
-    sp = ms.params.fields if ms.params else {}
-    init_pos = (sp.get('init_pos_v1', 0),
-                sp.get('init_pos_v2', 0),
-                sp.get('init_pos_v3', 0))
-    init_tempo_ctr = sp.get('init_tempo_ctr', 0)
+        timbres = []
+        for vid in (1, 2, 3):
+            ins = voice_to_instr[vid] or instr_by_id[next(iter(instr_by_id))]
+            timbres.append(_timbre_of(ins))
 
-    # Engine-quirk flags: derived from USF structure where possible.
-    # - `loop_action`: what happens when the engine reads the loop
-    #   terminator byte. Two known styles so far:
-    #     'reinit_master_vol' — write $D418=$0F + reset pos to 0; no note plays (henrys)
-    #     'substitute_first'  — pos = 1, then play orderlist[0] this tick (bowden)
+        pat_rows = {v.id: (v.patterns[0].rows if v.patterns else [])
+                    for v in ms.voices}
+        sp = ms.params.fields if ms.params else {}
+
+        subtunes_feat.append({
+            'id':             ms.id,
+            'tempo':          ms.tempo,
+            'init_pos':       (sp.get('init_pos_v1', 0),
+                               sp.get('init_pos_v2', 0),
+                               sp.get('init_pos_v3', 0)),
+            'init_tempo_ctr': sp.get('init_tempo_ctr', 0),
+            'cia1_timer_a':   sp.get('cia1_timer_a', 0),
+            'timbres':        timbres,
+            'pattern_rows':   pat_rows,
+        })
+
+    # Engine-quirk flags: derived from USF structure.
+    # - `loop_action`: what happens on the $FF terminator byte.
+    #     'reinit_master_vol' — write $D418=$0F + reset pos to 0 (henrys)
+    #     'substitute_first'  — pos = 1, play orderlist[0] this tick (bowden)
     #   Detected by voice count for now: 1-voice → reinit_master_vol;
     #   3-voice → substitute_first. As more engines arrive, this widens.
     loop_action = 'reinit_master_vol' if voice_count == 1 else 'substitute_first'
 
-    # - `inter_voice_carry_leak`: bowden's quirky 4-vs-5-byte timbre choice
-    #   based on whether the prior voice played a skip ($81-$FE) byte.
-    #   Engine-mechanism feature; off for henrys. On for 3-voice.
+    # - `inter_voice_carry_leak`: bowden's 4-vs-5-byte timbre choice based
+    #   on the prior voice's note byte. Engine-mechanism feature; off for
+    #   henrys, on for 3-voice.
     inter_voice_carry_leak = (voice_count == 3)
 
     return {
-        'tempo':             ms.tempo,
-        'voice_count':       voice_count,
-        'freq_hi':           bytes(usf.freq_table[:128]),
-        'freq_lo':           bytes(usf.freq_table[128:]),
-        'timbres':           timbres,
-        'pattern_rows':      pat_rows,
-        'init_pos':          init_pos,
-        'init_tempo_ctr':    init_tempo_ctr,
-        'loop_action':       loop_action,
+        'voice_count':           voice_count,
+        'freq_hi':               bytes(usf.freq_table[:128]),
+        'freq_lo':               bytes(usf.freq_table[128:]),
+        'loop_action':           loop_action,
         'inter_voice_carry_leak': inter_voice_carry_leak,
-        'master_vol':        0x0F,
+        'master_vol':            0x0F,
+        'subtunes':              subtunes_feat,
     }
 
 
@@ -172,12 +176,12 @@ def _row_to_bytes(row) -> bytes:
     return bytes([head]) + bytes([0x81] * (row.duration - 1))
 
 
-def _orderlist_bytes(features: dict, vid: int) -> bytes:
-    rows = features['pattern_rows'].get(vid, [])
+def _orderlist_bytes(sub_feat: dict, vid: int) -> bytes:
+    rows = sub_feat['pattern_rows'].get(vid, [])
     if not rows:
         # Inactive voice — emit a single $FF terminator (engine reads it
         # and loops; in practice the voice never starts because its
-        # init_pos / state is set to skip).
+        # init_pos is set to skip).
         return bytes([0xFF])
     return b''.join(_row_to_bytes(r) for r in rows) + bytes([0xFF])
 
@@ -187,24 +191,41 @@ def _orderlist_bytes(features: dict, vid: int) -> bytes:
 # ---------------------------------------------------------------------------
 
 def _emit_1voice_init(features: dict) -> list[str]:
+    """Init: A = subtune index. Load per-subtune state from byte tables."""
     return [
         'init:',
+        '  pha                  ; save A = subtune idx',
         f'  lda #${features["master_vol"]:02X}',
         '  sta $d418',
-        '  lda #0',
+        '  pla',
+        '  tax                  ; X = subtune index',
+        '  lda init_v1_pos_tab,x',
         '  sta v_pos',
+        '  lda init_tempo_ctr_tab,x',
         '  sta tempo_ctr',
+        '  lda tempo_tab,x',
+        '  sta tempo_const',
+        # Fill timbre slots from per-subtune table.
+        '  lda v1_pwlo_tab,x',
+        '  sta t_pwlo',
+        '  lda v1_pwhi_tab,x',
+        '  sta t_pwhi',
+        '  lda v1_ctrl_tab,x',
+        '  sta t_ctrl',
+        '  lda v1_ad_tab,x',
+        '  sta t_ad',
+        '  lda v1_sr_tab,x',
+        '  sta t_sr',
         '  rts',
     ]
 
 
 def _emit_1voice_play(features: dict) -> list[str]:
-    t = features['timbres'][0]
     return [
         'play:',
         '  inc tempo_ctr',
-        '  ldx tempo_ctr',
-        f'  cpx #{features["tempo"]}',
+        '  lda tempo_ctr',
+        '  cmp tempo_const',
         '  beq play_tick',
         '  rts',
         'play_tick:',
@@ -230,21 +251,22 @@ def _emit_1voice_play(features: dict) -> list[str]:
         '  sta $d401',
         '  lda freq_lo_tab,y',
         '  sta $d400',
-        f'  lda #${t[0]:02X}',
+        '  lda t_pwlo',
         '  sta $d402',
-        f'  lda #${t[1]:02X}',
+        '  lda t_pwhi',
         '  sta $d403',
-        f'  lda #${t[2]:02X}',
+        '  lda t_ctrl',
         '  sta $d404',
-        f'  lda #${t[3]:02X}',
+        '  lda t_ad',
         '  sta $d405',
-        f'  lda #${t[4]:02X}',
+        '  lda t_sr',
         '  sta $d406',
-        f'  lda #${(t[2] + 1) & 0xFF:02X}',
+        '  lda t_ctrl',
+        '  ora #$01',
         '  sta $d404',
         '  rts',
         'pn_rest:',
-        f'  lda #${t[2]:02X}',
+        '  lda t_ctrl',
         '  sta $d404',
         '  rts',
         'pn_skip:',
@@ -262,15 +284,16 @@ ZP_OL_V2_LO, ZP_OL_V2_HI = 0xE2, 0xE3
 ZP_OL_V3_LO, ZP_OL_V3_HI = 0xE4, 0xE5
 
 
-def _emit_3voice_init(features: dict) -> list[str]:
-    """Init silences SID, sets master vol, programs per-voice init
-    positions + tempo counter. Init-frame writes don't have to match
-    the original engine's exact init — `skip_init=True` in the
-    per-frame comparison drops frame 0.
+def _emit_3voice_init(features: dict, has_cia: bool) -> list[str]:
+    """Init: A = subtune index. Reads per-subtune scalar/timbre/orderlist
+    pointer tables.
+
+    Init-frame SID writes don't have to match the original engine's exact
+    init — `skip_init=True` in the per-frame comparison drops frame 0.
     """
-    pos = features['init_pos']
-    return [
+    L: list[str] = [
         'init:',
+        '  pha                  ; save A = subtune idx',
         # Silence SID — canonical init.
         '  lda #0',
         '  ldx #0',
@@ -281,47 +304,61 @@ def _emit_3voice_init(features: dict) -> list[str]:
         '  bne init_silence',
         f'  lda #${features["master_vol"]:02X}',
         '  sta $d418',
-        # Per-voice init positions and tempo counter.
-        f'  lda #${pos[0]:02X}',
+        '  pla',
+        '  tax                  ; X = subtune index',
+        # Per-subtune scalar setup.
+        '  lda init_v1_pos_tab,x',
         '  sta v1_pos',
-        f'  lda #${pos[1]:02X}',
+        '  lda init_v2_pos_tab,x',
         '  sta v2_pos',
-        f'  lda #${pos[2]:02X}',
+        '  lda init_v3_pos_tab,x',
         '  sta v3_pos',
-        f'  lda #${features["init_tempo_ctr"]:02X}',
+        '  lda init_tempo_ctr_tab,x',
         '  sta tempo_ctr',
-        # Orderlist pointers — zp slots used by the indirect (zp),Y reads.
-        '  lda #<orderlist_v1',
-        f'  sta ${ZP_OL_V1_LO:02X}',
-        '  lda #>orderlist_v1',
-        f'  sta ${ZP_OL_V1_HI:02X}',
-        '  lda #<orderlist_v2',
-        f'  sta ${ZP_OL_V2_LO:02X}',
-        '  lda #>orderlist_v2',
-        f'  sta ${ZP_OL_V2_HI:02X}',
-        '  lda #<orderlist_v3',
-        f'  sta ${ZP_OL_V3_LO:02X}',
-        '  lda #>orderlist_v3',
-        f'  sta ${ZP_OL_V3_HI:02X}',
-        '  rts',
+        '  lda tempo_tab,x',
+        '  sta tempo_const',
     ]
+    # Per-subtune timbre fill — 5 fields × 3 voices, into X-indexed RAM
+    # arrays at offsets 0, 7, 14.
+    fields = ['pwlo', 'pwhi', 'ctrl', 'ad', 'sr']
+    for fname in fields:
+        for v, off in enumerate((0, 7, 14)):
+            L.append(f'  lda v{v+1}_{fname}_tab,x')
+            L.append(f'  sta timbre_{fname}+{off}')
+    # Per-subtune orderlist pointers (zp).
+    L += [
+        '  lda v1_ol_lo_tab,x',
+        f'  sta ${ZP_OL_V1_LO:02X}',
+        '  lda v1_ol_hi_tab,x',
+        f'  sta ${ZP_OL_V1_HI:02X}',
+        '  lda v2_ol_lo_tab,x',
+        f'  sta ${ZP_OL_V2_LO:02X}',
+        '  lda v2_ol_hi_tab,x',
+        f'  sta ${ZP_OL_V2_HI:02X}',
+        '  lda v3_ol_lo_tab,x',
+        f'  sta ${ZP_OL_V3_LO:02X}',
+        '  lda v3_ol_hi_tab,x',
+        f'  sta ${ZP_OL_V3_HI:02X}',
+    ]
+    if has_cia:
+        L += [
+            '  lda cia1_lo_tab,x',
+            '  sta $dc04',
+            '  lda cia1_hi_tab,x',
+            '  sta $dc05',
+        ]
+    L.append('  rts')
+    return L
 
 
 def _emit_3voice_play(features: dict) -> list[str]:
-    """Play loop: gate by tempo, then process V1, V2, V3 in order.
-
-    Models bowden's `next_skip_sr` carry-leak: a voice that plays a
-    skip note ($81-$FE) sets a flag that causes the NEXT voice to
-    write only 4 timbre bytes (omitting SR) instead of 5. This is the
-    engine's quirky 6502 carry-bit behavior — we model it via an
-    explicit flag rather than recreating the carry leak directly.
-    """
+    """Play loop: gate by tempo_const RAM byte, process V1/V2/V3 in order."""
     leak = features['inter_voice_carry_leak']
     L: list[str] = [
         'play:',
         '  inc tempo_ctr',
         '  lda tempo_ctr',
-        f'  cmp #{features["tempo"]}',
+        '  cmp tempo_const',
         '  bne play_exit',
         '  lda #0',
         '  sta tempo_ctr',
@@ -341,9 +378,9 @@ def _emit_3voice_play(features: dict) -> list[str]:
 def _emit_3voice_proc_note(features: dict) -> list[str]:
     """proc_note — X = voice offset (0/7/14), A = byte to dispatch.
 
-    For each voice we write its own timbre (stored in 5 parallel
-    15-byte arrays indexed by X). The `this_skip_sr` flag suppresses
-    the SR write when set (bowden carry-leak).
+    The `this_skip_sr` flag suppresses the SR write when set (bowden
+    carry-leak: a prior voice's skip note leaves carry=0, making the
+    next voice's PW loop short-circuit one iteration — the SR write).
     """
     return [
         'proc_note:',
@@ -360,7 +397,7 @@ def _emit_3voice_proc_note(features: dict) -> list[str]:
         '  lda timbre_pwhi,x',
         '  sta $d403,x',
         '  lda timbre_ctrl,x',
-        '  sta $d404,x',
+        '  sta $d404,x          ; junk write (gate=0) for envelope retrigger',
         '  lda timbre_ad,x',
         '  sta $d405,x',
         '  lda this_skip_sr',
@@ -370,7 +407,7 @@ def _emit_3voice_proc_note(features: dict) -> list[str]:
         'pn_no_sr_write:',
         '  lda timbre_ctrl,x',
         '  ora #$01',
-        '  sta $d404,x',
+        '  sta $d404,x          ; gate=1, finalises envelope retrigger',
         '  rts',
         'pn_rest:',
         '  lda timbre_ctrl,x',
@@ -384,13 +421,8 @@ def _emit_3voice_proc_note(features: dict) -> list[str]:
 def _emit_3voice_voice_step(vn: int, pos_label: str, zp_lo: int,
                              voice_off: int, force_4_on_loop: bool,
                              leak: bool) -> list[str]:
-    """Per-voice step routine: read byte, handle $FF substitution (loop),
-    classify byte to set `next_skip_sr`, call proc_note.
-
-    `force_4_on_loop` is True for V1/V2 (bowden's loop dispatcher clears
-    carry → next voice uses 4-byte timbre); False for V3 (X==$0E keeps
-    carry set → 5-byte timbre).
-    """
+    """Per-voice step: read byte, handle $FF substitution, classify byte
+    to set `next_skip_sr`, call proc_note."""
     L: list[str] = [
         f'voice{vn}_step:',
         f'  ldy {pos_label}',
@@ -465,6 +497,12 @@ def _emit_runtime_vars(features: dict) -> list[str]:
         return [
             'v_pos:       .byte 0',
             'tempo_ctr:   .byte 0',
+            'tempo_const: .byte 0',
+            't_pwlo:      .byte 0',
+            't_pwhi:      .byte 0',
+            't_ctrl:      .byte 0',
+            't_ad:        .byte 0',
+            't_sr:        .byte 0',
         ]
     # 3-voice
     L = [
@@ -472,30 +510,16 @@ def _emit_runtime_vars(features: dict) -> list[str]:
         'v2_pos:        .byte 0',
         'v3_pos:        .byte 0',
         'tempo_ctr:     .byte 0',
+        'tempo_const:   .byte 0',
     ]
     if features['inter_voice_carry_leak']:
         L += [
             'this_skip_sr:  .byte 0',
             'next_skip_sr:  .byte 0',
         ]
-    # Per-voice timbre arrays — 5 parallel 15-byte tables. Populated
-    # at compile time from the per-voice timbres.
-    t1, t2, t3 = features['timbres']
-    fields = [
-        ('pwlo', 0, t1[0], t2[0], t3[0]),
-        ('pwhi', 1, t1[1], t2[1], t3[1]),
-        ('ctrl', 2, t1[2], t2[2], t3[2]),
-        ('ad',   3, t1[3], t2[3], t3[3]),
-        ('sr',   4, t1[4], t2[4], t3[4]),
-    ]
-    for fname, _fi, v1, v2, v3 in fields:
-        # X-indexed at 0, 7, 14 — pad with zeros between voice slots.
-        row = [0] * 15
-        row[0]  = v1
-        row[7]  = v2
-        row[14] = v3
-        L.append(f'timbre_{fname}: .byte ' +
-                 ', '.join(f'${b:02X}' for b in row))
+    # Runtime timbre table — 5 parallel 15-byte arrays, populated at init.
+    for fname in ('pwlo', 'pwhi', 'ctrl', 'ad', 'sr'):
+        L.append(f'timbre_{fname}: .dsb 15, 0')
     return L
 
 
@@ -511,16 +535,70 @@ def _emit_freq_table(features: dict) -> list[str]:
     return lines
 
 
-def _emit_orderlists(features: dict) -> list[str]:
-    """Emit orderlist data — one labelled block per voice."""
+def _emit_subtune_tables(features: dict) -> list[str]:
+    """Per-subtune scalar / timbre / orderlist-pointer byte tables."""
+    subs = features['subtunes']
+    n = len(subs)
     L: list[str] = []
-    n_voices = 3       # always emit 3 labels; inactive voices get $FF stub
-    for vid in (1, 2, 3):
-        L.append(f'orderlist_v{vid}:')
-        ob = _orderlist_bytes(features, vid)
-        for i in range(0, len(ob), 16):
+
+    def _tab(label: str, values: list[int]) -> None:
+        L.append(f'{label}: .byte ' +
+                 ', '.join(f'${v & 0xFF:02X}' for v in values))
+
+    _tab('tempo_tab',          [s['tempo'] for s in subs])
+    _tab('init_v1_pos_tab',    [s['init_pos'][0] for s in subs])
+    _tab('init_v2_pos_tab',    [s['init_pos'][1] for s in subs])
+    _tab('init_v3_pos_tab',    [s['init_pos'][2] for s in subs])
+    _tab('init_tempo_ctr_tab', [s['init_tempo_ctr'] for s in subs])
+
+    # Per-voice timbre fields.
+    n_voices = features['voice_count']
+    fields = ['pwlo', 'pwhi', 'ctrl', 'ad', 'sr']
+    for v in range(3 if n_voices == 3 else 1):
+        for fi, fname in enumerate(fields):
+            _tab(f'v{v+1}_{fname}_tab',
+                 [s['timbres'][v][fi] for s in subs])
+
+    if n_voices == 3:
+        # CIA1 timer A — emit only when at least one subtune programs it.
+        if any(s['cia1_timer_a'] for s in subs):
+            DEFAULT_CIA = 0x4CC7   # libsidplayfp's PAL default
+            cia_vals = [s['cia1_timer_a'] or DEFAULT_CIA for s in subs]
+            _tab('cia1_lo_tab', [v & 0xFF for v in cia_vals])
+            _tab('cia1_hi_tab', [(v >> 8) & 0xFF for v in cia_vals])
+
+        # Per-subtune orderlist address tables.
+        for v in range(3):
+            L.append(f'v{v+1}_ol_lo_tab:')
             L.append('  .byte ' + ', '.join(
-                f'${b:02X}' for b in ob[i:i+16]))
+                f'<orderlist_v{v+1}_s{i}' for i in range(n)))
+            L.append(f'v{v+1}_ol_hi_tab:')
+            L.append('  .byte ' + ', '.join(
+                f'>orderlist_v{v+1}_s{i}' for i in range(n)))
+    return L
+
+
+def _emit_orderlists(features: dict) -> list[str]:
+    """Emit per-subtune × per-voice orderlist blocks."""
+    L: list[str] = []
+    n_voices = features['voice_count']
+    for s_idx, sub in enumerate(features['subtunes']):
+        if n_voices == 1:
+            # 1-voice: a single `orderlist_v1` label is the entry point;
+            # for multi-subtune, init would copy the per-subtune body
+            # there. For now (henrys is 1-subtune), emit one block.
+            L.append('orderlist_v1:')
+            ob = _orderlist_bytes(sub, 1)
+            for i in range(0, len(ob), 16):
+                L.append('  .byte ' + ', '.join(
+                    f'${b:02X}' for b in ob[i:i+16]))
+        else:
+            for vid in (1, 2, 3):
+                L.append(f'orderlist_v{vid}_s{s_idx}:')
+                ob = _orderlist_bytes(sub, vid)
+                for i in range(0, len(ob), 16):
+                    L.append('  .byte ' + ', '.join(
+                        f'${b:02X}' for b in ob[i:i+16]))
     return L
 
 
@@ -566,6 +644,8 @@ def emit_sid(usf: UsfFile) -> bytes:
     """Universal entry. Reads USF, picks emitters, returns PSID bytes."""
     features = pick_features(usf)
     vc = features['voice_count']
+    has_cia = (vc == 3) and any(
+        s['cia1_timer_a'] for s in features['subtunes'])
 
     asm_lines: list[str] = []
     asm_lines += emit_header()
@@ -573,17 +653,18 @@ def emit_sid(usf: UsfFile) -> bytes:
         asm_lines += _emit_1voice_init(features)
         asm_lines += _emit_1voice_play(features)
     else:
-        asm_lines += _emit_3voice_init(features)
+        asm_lines += _emit_3voice_init(features, has_cia)
         asm_lines += _emit_3voice_play(features)
         asm_lines += _emit_3voice_proc_note(features)
         asm_lines += _emit_3voice_voice_steps(features)
     asm_lines += _emit_runtime_vars(features)
     asm_lines += _emit_freq_table(features)
+    asm_lines += _emit_subtune_tables(features)
     asm_lines += _emit_orderlists(features)
     asm = '\n'.join(asm_lines) + '\n'
 
     body = _assemble(asm)
-    n_subs = sum(1 for s in usf.subtunes if isinstance(s, MusicSubtune))
+    n_subs = len(features['subtunes'])
     return _psid_header(usf, n_subs, LOAD) + body
 
 
@@ -591,14 +672,13 @@ def applies_to(usf: UsfFile) -> bool:
     """Does this USF fit what the universal codegen currently handles?
 
     Used by `pipelines.build_from_usf.build_from_usf` to route. Looks at
-    USF *content* (voice count, freq_table size, subtune count); never
-    at `usf.engine`. Widens as more features arrive.
+    USF *content* (voice count, freq_table size); never at `usf.engine`.
+    Widens as more features arrive.
     """
     music = [s for s in usf.subtunes if isinstance(s, MusicSubtune)]
-    if len(music) != 1:
+    if not music:
         return False
-    ms = music[0]
-    active = [v for v in ms.voices if v.patterns]
+    active = [v for v in music[0].voices if v.patterns]
     if len(active) not in (1, 3):
         return False
     if usf.freq_table is None or len(usf.freq_table) != 256:
