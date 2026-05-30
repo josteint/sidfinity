@@ -1,10 +1,11 @@
 """Convert extracted Companion subtune data into a USF v2 UsfFile and
 write it to disk.
 
-This is the *extract → USF* direction. The reverse direction
-(USF → SID) lives in `pipelines/companion/build_from_usf.py`. Once the
-USF exists, the SID build only needs the USF; the original binary is
-no longer consulted.
+This is the *extract → USF* direction. The reverse direction (USF → SID)
+lives in `pipelines/universal_codegen.py` and is routed through the
+top-level `pipelines.build_from_usf.build_from_usf` entry point by USF
+content. Once the USF exists, the SID build only needs the USF; the
+original binary is no longer consulted.
 
 USF representation choices (no schema-level engine flavoring):
 
@@ -229,9 +230,16 @@ def build_usf() -> UsfFile:
     # are what the codegen actually consumes.
     top_init = _init_state_for_subtune(subs[0], *inst_ids_per_sub[0])
 
+    # Inline the freq table — engine-neutral data the USF carries.
+    from pipelines.companion.engine_constants import (
+        COMPANION_FREQ_HI, COMPANION_FREQ_LO,
+    )
+    freq_table = list(COMPANION_FREQ_HI) + list(COMPANION_FREQ_LO)
+
     return UsfFile(engine='companion',
                    psid=psid, params=params, init=top_init,
-                   instruments=instruments, subtunes=music)
+                   instruments=instruments, subtunes=music,
+                   freq_table=freq_table)
 
 
 def write_usf(out_dir: str) -> str:

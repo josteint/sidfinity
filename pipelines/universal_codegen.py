@@ -1,6 +1,6 @@
 """Universal codegen — USF → SID, designed for any engine family.
 
-Status: seed. Today it handles four engine families across three shapes:
+Status: seed. Today it handles five engine families across four shapes:
 
   Atomic-event shape (1 engine byte per tick):
     - 1-voice tunes (henrys_house)
@@ -16,6 +16,12 @@ Status: seed. Today it handles four engine families across three shapes:
     - 3-voice tunes with recursive command interpreter, mutable
       tempo / master_vol / instrument palette + song-position sync
       (clever_music — Fairlight + Gyroscope).
+
+  Companion shape (Hubbard's 1984 extension of Bowden's base driver):
+    - 3-voice, two-tempo (gate_off_tick + note_load_tick) for
+      staccato/legato, hardcoded V3 PW_LO sweep, $80+pitch =
+      "play with early release", $8C rest, $8D end-song on V3.
+      Up_up_and_Away.sid.
 
 All families support multi-subtune USFs. Init takes A = subtune index
 and reads per-subtune data tables (init_pos, tempo, timbres, orderlist
@@ -101,6 +107,16 @@ def _is_command_stream_shape(music) -> bool:
     return False
 
 
+def _is_companion_shape(music) -> bool:
+    """Companion-shape signal: any subtune carries a `gate_off_tick`
+    parameter — the two-tempo divider that distinguishes Hubbard's
+    1984 Companion engine from every other family."""
+    for ms in music:
+        if ms.params and 'gate_off_tick' in ms.params.fields:
+            return True
+    return False
+
+
 def pick_features(usf: UsfFile) -> dict:
     """Walk the USF and produce a feature dict the emitters consume.
 
@@ -119,7 +135,9 @@ def pick_features(usf: UsfFile) -> dict:
             f'universal codegen currently expects 256-byte freq_table '
             f'(128 hi + 128 lo); got {usf.freq_table and len(usf.freq_table)}')
 
-    if _is_command_stream_shape(music):
+    if _is_companion_shape(music):
+        pattern_shape = 'companion'
+    elif _is_command_stream_shape(music):
         pattern_shape = 'command_stream'
     elif _is_pair_shape(music):
         pattern_shape = 'pair'
@@ -146,11 +164,17 @@ def pick_features(usf: UsfFile) -> dict:
         voice_count = 3
         loop_action = 'reset_and_replay'
         inter_voice_carry_leak = False
-    else:
+    elif pattern_shape == 'command_stream':
         # Command-stream shape: clever_music family — 3 voices,
         # 16-instrument palette, song_pos sync, recursive interp.
         voice_count = 3
         loop_action = 'song_pos_jump'
+        inter_voice_carry_leak = False
+    else:
+        # Companion shape: Hubbard's 1984 Companion engine — 3 voices,
+        # locked timbre, two-tempo dispatch, V3 hardcoded PW sweep.
+        voice_count = 3
+        loop_action = 'companion_end_song'
         inter_voice_carry_leak = False
 
     instr_by_id = {i.id: i for i in usf.instruments}
@@ -219,6 +243,44 @@ def pick_features(usf: UsfFile) -> dict:
             sf['cmd_pattern_bytes'] = cmd_pat_bytes
             sf['init_song_pos']     = sp.get('init_song_pos', 0xE0)
             sf['init_master_vol']   = sp.get('init_master_vol', 0x0A)
+        elif pattern_shape == 'companion':
+            # Per-voice orderlist bytes ($8D-terminated + per-voice post-
+            # terminator padding the engine reads past the end).
+            # Companion shape uses InitVoice.ctrl as the per-voice
+            # ctrl_noGate byte (NOT the instrument's waveform field
+            # like other shapes do).
+            init_voices = (ms.init.voices if (ms.init and ms.init.voices)
+                           else usf.init.voices)
+            iv_by_id = {iv.id: iv for iv in init_voices}
+            cmp_timbres = []
+            for vid in (1, 2, 3):
+                iv = iv_by_id.get(vid)
+                ins = (instr_by_id[iv.instr.id]
+                       if iv and iv.instr else
+                       voice_to_instr[vid])
+                cmp_timbres.append((
+                    ins.pwm.init & 0xFF,
+                    (ins.pwm.init >> 8) & 0xFF,
+                    iv.ctrl if iv else 0,
+                    ins.adsr[0],
+                    ins.adsr[1],
+                ))
+            cmp_ord: dict[int, bytes] = {}
+            for v in ms.voices:
+                pad_count = sp.get(f'v{v.id}_pad_count', 0)
+                pad_byte  = sp.get(f'v{v.id}_pad_byte', 0)
+                cmp_ord[v.id] = (
+                    _companion_voice_bytes(v)
+                    + bytes([pad_byte] * pad_count))
+            sf['cmp_timbres']        = cmp_timbres
+            sf['cmp_orderlists']     = cmp_ord
+            sf['gate_off_tick']      = sp.get('gate_off_tick', 9)
+            sf['note_load_tick']     = sp.get('note_load_tick', 13)
+            sf['init_tempo_counter'] = sp.get('init_tempo_counter', 0)
+            sf['init_pwm_ctr']       = sp.get('init_pwm_ctr', 0)
+            sf['init_pwm_ctr_2']     = sp.get('init_pwm_ctr_2', 0)
+            sf['vol_filter']         = sp.get('vol_filter', 0x0F)
+            sf['filter_cutoff_hi']   = sp.get('filter_cutoff_hi', 0)
         subtunes_feat.append(sf)
 
     out = {
@@ -288,6 +350,57 @@ def _cmd_row_bytes(row) -> bytes:
         if flag.startswith('fx:raw_'):
             return bytes([int(flag.split('_')[1], 16)])
     return bytes([0x80]) + bytes([0x81] * (row.duration - 1))
+
+
+def _companion_row_byte(row) -> int:
+    """Companion shape row → 1 engine byte.
+
+    Normal pitch → (octave<<4)|semi.
+    Rest → $8C.
+    fx:early_release flag adds the $80 bit (or → $8C for rest+early).
+    """
+    early = 'fx:early_release' in row.fx_flags
+    if row.pitch.is_rest:
+        if not early:
+            raise ValueError(
+                f'voice has a rest row without fx:early_release — '
+                f'companion shape can\'t represent that musically')
+        return 0x8C
+    pitch_byte = (row.pitch.octave << 4) | _SEMI[row.pitch.name]
+    return pitch_byte | (0x80 if early else 0)
+
+
+def _companion_voice_bytes(vb) -> bytes:
+    """One voice's orderlist body + the $8D end-song terminator."""
+    if not vb.patterns:
+        raise ValueError(f'voice {vb.id} has no patterns')
+    pat = vb.patterns[0]
+    body = bytes(_companion_row_byte(r) for r in pat.rows)
+    return body + bytes([0x8D])
+
+
+def _companion_template_bytes(sub_feat: dict) -> bytes:
+    """The 32-byte init template the engine copies into v_state at init.
+
+    Layout: V1 (pos=0, gate_off_flag=0, pw_lo, pw_hi, ctrl_noGate, ad, sr),
+    V2, V3 (same), then gate_off_tick, note_load_tick, init_tempo_counter,
+    6 zeros (original engine had self-modifying-code bytes here), then
+    init_pwm_ctr, init_pwm_ctr_2.
+    """
+    out = []
+    for v_idx in range(3):
+        t = sub_feat['cmp_timbres'][v_idx]
+        out += [0, 0, t[0], t[1], t[2], t[3], t[4]]
+    out += [
+        sub_feat['gate_off_tick'],
+        sub_feat['note_load_tick'],
+        sub_feat['init_tempo_counter'],
+        0, 0, 0, 0, 0, 0,
+        sub_feat['init_pwm_ctr'],
+        sub_feat['init_pwm_ctr_2'],
+    ]
+    assert len(out) == 32, len(out)
+    return bytes(out)
 
 
 def _inst_timbre_block(inst) -> bytes:
@@ -1130,6 +1243,209 @@ def _emit_cmd_load_note() -> list[str]:
 
 
 # ---------------------------------------------------------------------------
+# Asm emitters — companion shape (Hubbard's 1984 Companion engine)
+# ---------------------------------------------------------------------------
+#
+# 32-byte template at v_state:
+#   bytes 0..6   V1 (pos, gate_off_flag, pw_lo, pw_hi, ctrl_noGate, ad, sr)
+#   bytes 7..13  V2 (same layout)
+#   bytes 14..20 V3 (same layout)
+#   byte 21      gate_off_tick     (early-release timer cap)
+#   byte 22      note_load_tick    (next-note timer cap)
+#   byte 23      init_tempo_counter
+#   bytes 24..29 6 zeros (engine had self-modifying-code bytes here)
+#   bytes 30..31 init_pwm_ctr, init_pwm_ctr_2
+#
+# Globals: g_tempo_ctr (== v_state+23 in original, but here separate),
+# g_pwm_ctr (== v_state+30), g_song_alive (1 byte).
+
+def _emit_companion_init() -> list[str]:
+    """A = subtune idx. Copies 32-byte template into v_state, loads
+    orderlist zp pointers from per-subtune tables, programs filter +
+    master vol, marks song alive."""
+    return [
+        'init:',
+        '  sta sub_idx',
+        '  ldx sub_idx',
+        '  lda tmpl_lo,x',
+        '  sta cmp_tcopy+1',
+        '  lda tmpl_hi,x',
+        '  sta cmp_tcopy+2',
+        '  ldx #0',
+        'cmp_tcopy:',
+        '  lda $FFFF,x          ; OPERAND patched at runtime',
+        '  sta v_state,x',
+        '  inx',
+        '  cpx #32',
+        '  bne cmp_tcopy',
+        '  ldx sub_idx',
+        '  lda ord_v1_lo,x',
+        f'  sta ${0xE0:02X}',
+        '  lda ord_v1_hi,x',
+        f'  sta ${0xE1:02X}',
+        '  lda ord_v2_lo,x',
+        f'  sta ${0xE2:02X}',
+        '  lda ord_v2_hi,x',
+        f'  sta ${0xE3:02X}',
+        '  lda ord_v3_lo,x',
+        f'  sta ${0xE4:02X}',
+        '  lda ord_v3_hi,x',
+        f'  sta ${0xE5:02X}',
+        '  lda sub_fcHi,x',
+        '  sta $D416',
+        '  lda #0',
+        '  sta $D417',
+        '  lda sub_vol,x',
+        '  sta $D418',
+        '  lda #1',
+        '  sta g_song_alive',
+        '  rts',
+    ]
+
+
+def _emit_companion_play() -> list[str]:
+    """Two-tempo play loop:
+
+    PWM block first — global pwm_ctr toggles 0/1 every frame; on the
+    1→0 transition, V3.PW_LO += 5 (the original engine relies on
+    carry=1 from the CMP, so the effective step is +5 not +4) and
+    writes $D410.
+
+    Then the tempo counter increments. If it hits gate_off_tick:
+    `maybe_gate_off` per voice (early-release scheduled by bit-7
+    save). If it hits note_load_tick: reset counter, advance each
+    voice's orderlist by 1, dispatch through proc_note.
+    """
+    return [
+        'play:',
+        '  inc g_pwm_ctr',
+        '  lda g_pwm_ctr',
+        '  cmp #$01',
+        '  bne cmp_pwm_done',
+        '  lda #0',
+        '  sta g_pwm_ctr',
+        '  lda v_state+16        ; V3 pw_lo',
+        # CMP set carry=1; ADC #4 → +5 effective step.
+        '  adc #4',
+        '  sta v_state+16',
+        '  sta $D410',
+        'cmp_pwm_done:',
+        '  inc g_tempo_ctr',
+        '  lda g_tempo_ctr',
+        '  cmp v_state+21        ; gate_off_tick',
+        '  bne cmp_not_gate_off',
+        '  ldx #0',
+        '  jsr cmp_maybe_gate_off',
+        '  ldx #7',
+        '  jsr cmp_maybe_gate_off',
+        '  ldx #14',
+        '  jsr cmp_maybe_gate_off',
+        '  jmp cmp_play_done',
+        'cmp_not_gate_off:',
+        '  cmp v_state+22        ; note_load_tick',
+        '  bne cmp_play_done',
+        '  lda #0',
+        '  sta g_tempo_ctr',
+        '  ldx #0',
+        '  ldy v_state+0',
+        '  inc v_state+0',
+        f'  lda (${0xE0:02X}),y',
+        '  tay',
+        '  jsr cmp_proc_note',
+        '  ldx #7',
+        '  ldy v_state+7',
+        '  inc v_state+7',
+        f'  lda (${0xE2:02X}),y',
+        '  tay',
+        '  jsr cmp_proc_note',
+        '  ldx #14',
+        '  ldy v_state+14',
+        '  inc v_state+14',
+        f'  lda (${0xE4:02X}),y',
+        '  tay',
+        '  jsr cmp_proc_note',
+        'cmp_play_done:',
+        '  rts',
+    ]
+
+
+def _emit_companion_maybe_gate_off() -> list[str]:
+    return [
+        'cmp_maybe_gate_off:',
+        '  lda v_state+1,x       ; gate_off flag',
+        '  bmi cmp_do_gate_off',
+        '  rts',
+        'cmp_do_gate_off:',
+        '  lda v_state+4,x       ; ctrl_noGate',
+        '  sta $D404,x',
+        '  lda #0',
+        '  sta v_state+1,x',
+        '  rts',
+    ]
+
+
+def _emit_companion_proc_note() -> list[str]:
+    """X = voice offset (0/7/14), Y = note byte.
+
+    bit-7 clear → normal note: write freq + timbre + gate-on ctrl.
+    bit-7 set  → save flag at v_state+1,x, then check sentinels:
+      $0C → rest (gate off)
+      $0D → end_or_rest (gate off; if V3, vol=0 + song_alive=0)
+      else $80+pitch → play pitch + leave bit-7 flag set so
+                       maybe_gate_off fires at next gate_off_tick.
+    """
+    return [
+        'cmp_proc_note:',
+        '  tya',
+        '  and #$80',
+        '  beq cmp_proc_normal',
+        '  sta v_state+1,x       ; flag = $80',
+        '  tya',
+        '  and #$7F',
+        '  tay',
+        '  cpy #$0C',
+        '  beq cmp_proc_rest',
+        '  cpy #$0D',
+        '  beq cmp_proc_end_or_rest',
+        'cmp_proc_normal:',
+        '  lda freq_hi_tab,y',
+        '  sta $D401,x',
+        '  lda freq_lo_tab,y',
+        '  sta $D400,x',
+        # Skip pw_lo for V3 — V3's PW_LO is driven only by the global sweep.
+        '  cpx #14',
+        '  beq cmp_skip_pwlo',
+        '  lda v_state+2,x',
+        '  sta $D402,x',
+        'cmp_skip_pwlo:',
+        '  lda v_state+3,x',
+        '  sta $D403,x',
+        '  lda v_state+5,x',
+        '  sta $D405,x',
+        '  lda v_state+6,x',
+        '  sta $D406,x',
+        '  lda v_state+4,x       ; ctrl_noGate',
+        '  ora #$01              ; gate on',
+        '  sta $D404,x',
+        '  rts',
+        'cmp_proc_rest:',
+        '  lda v_state+4,x',
+        '  sta $D404,x',
+        '  rts',
+        'cmp_proc_end_or_rest:',
+        '  lda v_state+4,x',
+        '  sta $D404,x',
+        '  cpx #14',
+        '  bne cmp_proc_end_done',
+        '  lda #0',
+        '  sta g_song_alive',
+        '  sta $D418',
+        'cmp_proc_end_done:',
+        '  rts',
+    ]
+
+
+# ---------------------------------------------------------------------------
 # Shared emitters
 # ---------------------------------------------------------------------------
 
@@ -1138,6 +1454,18 @@ def emit_header() -> list[str]:
 
 
 def _emit_runtime_vars(features: dict) -> list[str]:
+    if features['pattern_shape'] == 'companion':
+        return [
+            'sub_idx:       .byte 0',
+            'g_song_alive:  .byte 0',
+            # 32-byte template area. g_tempo_ctr and g_pwm_ctr deliberately
+            # share memory with v_state+23 (init_tempo_counter) and
+            # v_state+30 (init_pwm_ctr) — the template copy at init seeds
+            # both runtime counters, which the engine then mutates in place.
+            'v_state:       .dsb 32, 0',
+            'g_tempo_ctr = v_state+23',
+            'g_pwm_ctr   = v_state+30',
+        ]
     if features['pattern_shape'] == 'command_stream':
         return [
             'zp_ptr_lo = $FB',
@@ -1213,6 +1541,50 @@ def _emit_subtune_tables(features: dict) -> list[str]:
     def _tab(label: str, values: list[int]) -> None:
         L.append(f'{label}: .byte ' +
                  ', '.join(f'${v & 0xFF:02X}' for v in values))
+
+    if features['pattern_shape'] == 'companion':
+        # Per-subtune filter cutoff + master vol byte tables.
+        _tab('sub_fcHi',  [s['filter_cutoff_hi'] for s in subs])
+        _tab('sub_vol',   [s['vol_filter'] for s in subs])
+        # Per-subtune 32-byte template + per-voice orderlist labels.
+        # Layout: orderlists adjacent (V1 → V2 → V3 → template) so the
+        # engine's "read past $8D" behavior reads predictable bytes from
+        # the next block.
+        for s in subs:
+            sid = s['id']
+            L.append(f'ord_s{sid}_v1:')
+            ob = s['cmp_orderlists'][1]
+            for i in range(0, len(ob), 16):
+                L.append('  .byte ' + ', '.join(f'${b:02X}' for b in ob[i:i+16]))
+            L.append(f'ord_s{sid}_v2:')
+            ob = s['cmp_orderlists'][2]
+            for i in range(0, len(ob), 16):
+                L.append('  .byte ' + ', '.join(f'${b:02X}' for b in ob[i:i+16]))
+            L.append(f'ord_s{sid}_v3:')
+            ob = s['cmp_orderlists'][3]
+            for i in range(0, len(ob), 16):
+                L.append('  .byte ' + ', '.join(f'${b:02X}' for b in ob[i:i+16]))
+            tmpl = _companion_template_bytes(s)
+            L.append(f'tmpl_s{sid}:')
+            L.append('  .byte ' + ', '.join(f'${b:02X}' for b in tmpl[:16]))
+            L.append('  .byte ' + ', '.join(f'${b:02X}' for b in tmpl[16:32]))
+        L.append('ord_v1_lo: .byte ' + ', '.join(
+            f'<ord_s{s["id"]}_v1' for s in subs))
+        L.append('ord_v1_hi: .byte ' + ', '.join(
+            f'>ord_s{s["id"]}_v1' for s in subs))
+        L.append('ord_v2_lo: .byte ' + ', '.join(
+            f'<ord_s{s["id"]}_v2' for s in subs))
+        L.append('ord_v2_hi: .byte ' + ', '.join(
+            f'>ord_s{s["id"]}_v2' for s in subs))
+        L.append('ord_v3_lo: .byte ' + ', '.join(
+            f'<ord_s{s["id"]}_v3' for s in subs))
+        L.append('ord_v3_hi: .byte ' + ', '.join(
+            f'>ord_s{s["id"]}_v3' for s in subs))
+        L.append('tmpl_lo:   .byte ' + ', '.join(
+            f'<tmpl_s{s["id"]}' for s in subs))
+        L.append('tmpl_hi:   .byte ' + ', '.join(
+            f'>tmpl_s{s["id"]}' for s in subs))
+        return L
 
     _tab('tempo_tab',          [s['tempo'] for s in subs])
     _tab('init_tempo_ctr_tab', [s['init_tempo_ctr'] for s in subs])
@@ -1299,7 +1671,11 @@ def _emit_subtune_tables(features: dict) -> list[str]:
 
 def _emit_orderlists(features: dict) -> list[str]:
     """Emit per-subtune × per-voice orderlist (atomic) or pattern (pair /
-    command_stream) blocks."""
+    command_stream) blocks. Companion shape emits its data alongside the
+    template+dispatch tables in `_emit_subtune_tables`, so this returns
+    empty for that shape."""
+    if features['pattern_shape'] == 'companion':
+        return []
     L: list[str] = []
     if features['pattern_shape'] == 'command_stream':
         # Single-subtune for now — emit unlabelled-by-subtune `ptn_v{V}`
@@ -1389,7 +1765,12 @@ def emit_sid(usf: UsfFile) -> bytes:
 
     asm_lines: list[str] = []
     asm_lines += emit_header()
-    if shape == 'command_stream':
+    if shape == 'companion':
+        asm_lines += _emit_companion_init()
+        asm_lines += _emit_companion_play()
+        asm_lines += _emit_companion_maybe_gate_off()
+        asm_lines += _emit_companion_proc_note()
+    elif shape == 'command_stream':
         has_cia = any(s['cia1_timer_a'] for s in features['subtunes'])
         asm_lines += _emit_cmd_init(features, has_cia)
         asm_lines += _emit_cmd_play()
@@ -1433,6 +1814,11 @@ def applies_to(usf: UsfFile) -> bool:
         return False
     if not usf.instruments:
         return False
+    if _is_companion_shape(music):
+        for ms in music:
+            if len(ms.voices) != 3:
+                return False
+        return True
     if _is_command_stream_shape(music):
         for ms in music:
             if len(ms.voices) != 3:
