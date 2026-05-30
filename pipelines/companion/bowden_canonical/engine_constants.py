@@ -66,6 +66,21 @@ SEMITONE_OF = {
 SEMITONE_NAME = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
 
 
+# SID writes the engine performs at init time, after the silence-clear
+# loop ($D400-$D417 = $00) and the master VOL write ($D418 = $0F).
+# Hardcoded in the engine binary at $C064-$C075 — see
+# `pipelines/companion/bowden_canonical/disassembly.s`. Primes V1 + V2
+# envelope registers so silent voices (e.g. a `--- 1 fx:hold` pattern
+# that never produces a note-on with fresh AD/SR) see consistent state.
+# V3 is intentionally not primed by the engine binary.
+BOWDEN_INIT_SID_WRITES = [
+    (0x05, 0x09),  # V1 AD
+    (0x06, 0x00),  # V1 SR
+    (0x0C, 0x09),  # V2 AD
+    (0x0D, 0x00),  # V2 SR
+]
+
+
 def pitch_to_note_byte(name: str, octave: int) -> int:
     """USF note name + octave → engine's (oct<<4)|semitone byte."""
     return (octave << 4) | SEMITONE_OF[name]

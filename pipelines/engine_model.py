@@ -545,6 +545,15 @@ class EngineModel:
     digi: Optional[DigiConfig] = None
     hardcoded_pw_sweep: Optional[HardcodedPwSweep] = None
 
+    # Static SID writes the engine performs during init, after the
+    # silence-clear loop + master-vol write. Each tuple is a
+    # `(reg, val)` pair, written in order. Bowden hardcodes
+    # V1.AD/SR + V2.AD/SR primes here so silent voices don't see
+    # garbage envelope state — see
+    # `pipelines/companion/bowden_canonical/engine_constants.BOWDEN_INIT_SID_WRITES`.
+    # Most engines: empty.
+    init_sid_writes: list = field(default_factory=list)
+
     # Engine knobs that don't fit a clean dataclass — kept here for the
     # transition; once Phase 3+ encodes them as proper features, remove.
     extras: dict = field(default_factory=dict)
@@ -669,7 +678,27 @@ def from_usf(usf) -> EngineModel:
         sfx=sfx,
         digi=digi,
         hardcoded_pw_sweep=hardcoded_pw_sweep,
+        init_sid_writes=_init_sid_writes_for_shape(inter_voice_quirks),
     )
+
+
+def _init_sid_writes_for_shape(quirks) -> list:
+    """Static SID writes performed at engine init time, post-silence.
+
+    Detected by engine shape (via inter_voice_quirks content features),
+    not by engine name. Today only the bowden-canonical engine has
+    these — the V1.AD/SR + V2.AD/SR envelope primes hardcoded in its
+    init at $C064-$C075. Other engines that share a shape (none yet)
+    would land here too.
+    """
+    has_carry_leak = any(
+        q.name == 'carry_leak_4_vs_5_byte_timbre' for q in quirks)
+    if has_carry_leak:
+        from pipelines.companion.bowden_canonical.engine_constants import (
+            BOWDEN_INIT_SID_WRITES,
+        )
+        return list(BOWDEN_INIT_SID_WRITES)
+    return []
 
 
 # ---------------------------------------------------------------------------

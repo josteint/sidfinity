@@ -3399,6 +3399,14 @@ def _emit_init(model: EngineModel, active: list[int]) -> list[str]:
         # Master vol (single value across subtunes for fixed_init mode).
         f'  lda #${model.master_vol.init_value:02X}',
         '  sta $d418',
+    ]
+    # Engine-static init SID writes (bowden's V1/V2 envelope primes —
+    # hardcoded in the engine binary, populated on the model by shape
+    # detection in `_init_sid_writes_for_shape`).
+    for reg, val in model.init_sid_writes:
+        L.append(f'  lda #${val:02X}')
+        L.append(f'  sta $d4{reg:02x}')
+    L += [
         '  pla',
         '  tax                  ; X = subtune index',
     ]
