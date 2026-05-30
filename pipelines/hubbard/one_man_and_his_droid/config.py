@@ -69,4 +69,9 @@ ONE_MAN_AND_HIS_DROID = EngineConfig(
     # 13 drum/SFX overlays at $1600 — same 16-byte format as Commando.
     has_sfx=True,
     extract_sfx=extract_sfx,
+    # The drum engine's V2 freq sweep wraps Y into the engine's
+    # SFX-state block at $151D..$1522 (= freqtab+251..256).
+    sfx_state_ofs=251,
+    # Global frame counter at $151C = freqtab+250 (not Commando's +253).
+    sfx_framectr_ofs=250,
 )

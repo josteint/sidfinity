@@ -182,15 +182,18 @@ def _read_psid_meta(sid_path: str) -> PsidMeta:
 # Params — the EngineConfig fields the codegen reads.
 # ---------------------------------------------------------------------------
 
-_PARAMS_SKIP = {
-    'instr_base', 'instr_count', 'freq_table_base', 'freq_bytes',
-    'voice_starts', 'state_layout', 'seed_offsets', 'digi', 'is_rsid',
-    'subtune_overrides',
+# EngineConfig fields that are NOT tune-level mechanism — extract-side
+# concerns (callables, paths), memory-layout addresses the codegen
+# embeds, or shape-incompatible fields handled outside this block.
+_PARAMS_SKIP_CONFIG = {
+    'name', 'sid_path', 'extract', 'resetspd', 'extract_sfx',
+    'subtunes', 'instr_base', 'instr_count', 'freq_table_base',
+    'voice_starts', 'digi_subtunes', 'is_rsid',
 }
 
-# Map engine_constants.DigiCode identity → tune-level `digi_player`
-# name in the v3 USF. The registry that resolves the name back to the
-# DigiCode lives in `pipelines/hubbard/usf3_build_from_usf.py`.
+# Engine name → tune-level `digi_player` name in the v3 USF. The
+# registry that resolves the name back to a DigiCode lives in
+# `pipelines/hubbard/usf3_build_from_usf.py`.
 _DIGI_NAMES = {
     'chimera': 'chimera_1bit',
 }
@@ -199,31 +202,36 @@ _DIGI_NAMES = {
 def _params_from_config(config) -> Params:
     """Build the top-level USF `params { }` block for a v3 extract.
 
-    Carries every `EngineConstants` field that DIFFERS from the
-    canonical Commando-flavor defaults — named scalars/booleans, no
-    opaque kinds. Memory-layout fields and structured data
-    (seed_offsets, state_layout, digi) are handled outside this
-    block.
+    Carries every `EngineConfig` field that DIFFERS from the engine's
+    own defaults (Commando-flavor) — named scalars/booleans, no opaque
+    kinds. Memory-layout fields and structured data
+    (state_layout, freq_bytes, digi) flow in from `EngineConstants`
+    separately.
     """
-    from dataclasses import fields as dataclass_fields
-    from pipelines.hubbard.engine_constants import (
-        ENGINE_CONSTANTS, EngineConstants,
-    )
-    if config.name not in ENGINE_CONSTANTS:
-        return Params(fields={})
-    ec = ENGINE_CONSTANTS[config.name]
-    defaults = EngineConstants(instr_base=0, instr_count=0,
-                               freq_table_base=0, freq_bytes=bytes(320))
+    from dataclasses import fields as dataclass_fields, MISSING
+    from pipelines.hubbard.engine_constants import ENGINE_CONSTANTS
+
     out: dict = {}
-    for f in dataclass_fields(EngineConstants):
-        if f.name in _PARAMS_SKIP:
+    for f in dataclass_fields(type(config)):
+        if f.name in _PARAMS_SKIP_CONFIG:
             continue
-        v_ec = getattr(ec, f.name)
-        v_def = getattr(defaults, f.name)
-        if v_ec != v_def and v_ec is not None:
-            out[f.name] = v_ec
-    if ec.digi is not None and config.name in _DIGI_NAMES:
-        out['digi_player'] = _DIGI_NAMES[config.name]
+        if f.default is MISSING:
+            continue
+        v = getattr(config, f.name)
+        if v != f.default and v is not None:
+            out[f.name] = v
+    # EngineConstants-only fields (no EngineConfig counterpart) that
+    # still belong in the v3 USF's params: `ns_offtab_decr_offset`
+    # (Thing on a Spring) and `hubidx_wrap_at_patend` (ToaS, default
+    # False breaks the codec's wrap behavior).
+    ec = ENGINE_CONSTANTS.get(config.name)
+    if ec is not None:
+        if ec.ns_offtab_decr_offset is not None:
+            out['ns_offtab_decr_offset'] = ec.ns_offtab_decr_offset
+        if ec.hubidx_wrap_at_patend is not True:
+            out['hubidx_wrap_at_patend'] = ec.hubidx_wrap_at_patend
+        if ec.digi is not None and config.name in _DIGI_NAMES:
+            out['digi_player'] = _DIGI_NAMES[config.name]
     return Params(fields=out)
 
 

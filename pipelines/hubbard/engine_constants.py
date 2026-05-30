@@ -99,51 +99,6 @@ class EngineConstants:
     # only wraps on the NEXT note-load frame via the $C160 read).
     hubidx_wrap_at_patend: bool = True
 
-    # ----- Engine mechanism (was: top-level params block in USF) -----
-    # These describe HOW the engine works — same across all tunes of
-    # one engine. Previously serialised into each .usf file's `params {}`
-    # block; now hosted here per [[feedback_usf_representation_principle]]
-    # ("musical content to USF, mechanism to engine"). Defaults match
-    # the Commando flavor of the Hubbard '85 family.
-    arp_interval: int = 12              # arp offset in semitones
-    arp_period: int = 2                 # arp cycle length
-    arp_phase_invert: bool = False      # OMaH-Droid: invert arp branch sense
-    linear_pw_or: int = 0               # OR mask on linear-PW pw_lo
-    vib_onset: int = 6                  # min note dur for vibrato
-    speed_ctr_init: int = 0             # initial speed-counter value
-    incby2_step: int = 2                # fx-bit1 freq-hi step (signed)
-    incby2_every_frame: bool = False    # vs odd-frame parity
-    incby2_onset: int = 3               # min note dur for fx-bit1 slide
-    # Late-in-note gate: slide only fires when v_dur < N frames.
-    # None = no gate (slide fires for the whole note).
-    incby2_late_gate: Optional[int] = None
-    # First-voice-first-frame note-start gate (Devils Galop only).
-    suppress_first_notestart: bool = False
-    # $FE marker freezes the voice rather than ending the song (Monty).
-    freeze_on_stop: bool = False
-    # Engines that gate-off all voices on play frame 0 (Action Biker).
-    first_frame_gate_off: bool = False
-    # Whether engine reads per-voice init state from freq-table overlap.
-    # All Hubbard '85 engines do this except Human Race (zeros at init).
-    seed_overlap: bool = True
-    # Engine's first-frame music-frame-counter value. $FF gives 0 on
-    # frame 0; Hunter Patrol ships $1E, Battle of Britain ships $DC.
-    frame_ctr_init: int = 0xFF
-    # $FE end-of-song fill byte (Action Biker writes $80 to every voice
-    # register on $FE). None = no fill (the standard behaviour).
-    stop_fill: Optional[int] = None
-    # Master-volume pattern-progress fade: when set (0/1/2 = V1/V2/V3),
-    # codegen maintains an 8-bit counter that ticks +1 on each pattern-
-    # end of that voice, and writes clamp(master_vol_base - counter,
-    # 0..$0F) to $D418 on the gate trigger. See
-    # [[project_hubbard_song_end_fade]].
-    master_vol_subtrahend_voice: Optional[int] = None
-    master_vol_base: int = 0xA0
-    # 'inst_change' (Confuzion bit-7 path) or 'every_note' (ToaS unconditional).
-    master_vol_trigger: str = 'inst_change'
-    # Confuzion / Battle of Britain: tie path preserves the slide.
-    tie_preserves_slide: bool = False
-
     # Per-subtune mechanism overrides (5 Title Tunes is the only engine
     # with this — its compound build packs five sub-engines into one
     # binary, each with its own speed_ctr_init / incby2_step / etc.).
@@ -151,6 +106,12 @@ class EngineConstants:
     # level mechanism above). Non-empty = per-subtune-table codegen,
     # with each sub's overrides looked up by subtune index.
     subtune_overrides: dict = field(default_factory=dict)
+
+    # NOTE: the 20 tune-level mechanism knobs (arp_interval, vib_onset,
+    # master_vol_*, etc.) live on `EngineConfig` (`pipelines/hubbard/
+    # config.py`) — the single source of truth. The v3 extract reads
+    # them from `config` and emits them into the .usf's `params { }`
+    # block; the v3 build reads them from there.
 
 
 # ---------------------------------------------------------------------------
@@ -627,12 +588,6 @@ CHIMERA = EngineConstants(
     has_sfx=False,
     digi=CHIMERA_DIGI,
     is_rsid=False,          # PSID — no KERNAL, no IRQ-driven playback
-    arp_period=8,
-    linear_pw_or=0x40,
-    vib_onset=8,
-    speed_ctr_init=2,
-    incby2_step=1,
-    incby2_onset=17,
 )
 
 
@@ -649,11 +604,6 @@ DEVILS_GALOP = EngineConstants(
     has_sfx=False,
     digi=None,
     is_rsid=False,
-    arp_interval=24,
-    vib_onset=8,
-    incby2_step=-1,
-    incby2_every_frame=True,
-    suppress_first_notestart=True,
 )
 
 
@@ -678,10 +628,6 @@ ACTION_BIKER = EngineConstants(
     has_sfx=False,
     digi=None,
     is_rsid=False,
-    vib_onset=8,
-    speed_ctr_init=1,
-    first_frame_gate_off=True,
-    stop_fill=0x80,
 )
 
 
@@ -707,9 +653,6 @@ MONTY = EngineConstants(
     sfx_framectr_ofs=250,
     digi=None,
     is_rsid=False,
-    vib_onset=8,
-    incby2_step=-1,
-    freeze_on_stop=True,
 )
 
 
@@ -782,12 +725,6 @@ HUMAN_RACE = EngineConstants(
     digi=None,
     is_rsid=False,
     state_layout=HUMAN_RACE_STATE_LAYOUT,
-    arp_period=8,
-    linear_pw_or=0x40,
-    vib_onset=9,
-    incby2_step=1,
-    incby2_onset=17,
-    seed_overlap=False,         # HR init zeros v_inst etc. at runtime
 )
 
 
@@ -821,12 +758,6 @@ HUNTER_PATROL = EngineConstants(
         'v_durfield': 205,
         'v_slide':    238,
     },
-    vib_onset=8,
-    speed_ctr_init=1,
-    incby2_step=-1,
-    incby2_onset=12,
-    incby2_late_gate=9,
-    frame_ctr_init=0x1E,
 )
 
 
@@ -863,14 +794,6 @@ THING_ON_A_SPRING = EngineConstants(
     # v_hubidx must stay at its post-cumulative value through the
     # sustain frames at end of pattern.
     hubidx_wrap_at_patend=False,
-    arp_interval=24,
-    speed_ctr_init=1,
-    incby2_step=1,
-    incby2_every_frame=True,
-    incby2_onset=0,
-    master_vol_subtrahend_voice=2,
-    master_vol_base=0x47,
-    master_vol_trigger='every_note',
 )
 
 
@@ -907,12 +830,6 @@ ONE_MAN_AND_HIS_DROID = EngineConstants(
     # The global frame counter lives at $151C = freqtab+$FA (= 250),
     # not Commando's $5525 (= +253).
     sfx_framectr_ofs=250,
-    arp_period=5,
-    arp_phase_invert=True,      # OMaH-Droid's $5/$04==0 branch sense
-    vib_onset=8,
-    incby2_step=-1,
-    incby2_onset=16,
-    incby2_late_gate=24,
 )
 
 
@@ -996,12 +913,6 @@ BATTLE_OF_BRITAIN = EngineConstants(
     has_sfx=False,
     digi=None,
     is_rsid=False,
-    arp_period=8,
-    vib_onset=8,
-    incby2_step=-1,
-    incby2_onset=12,
-    frame_ctr_init=0xDC,
-    tie_preserves_slide=True,
 )
 
 
@@ -1025,10 +936,6 @@ CONFUZION = EngineConstants(
     has_sfx=False,
     digi=None,
     is_rsid=False,
-    vib_onset=8,
-    speed_ctr_init=2,
-    master_vol_subtrahend_voice=1,
-    tie_preserves_slide=True,
 )
 
 
@@ -1065,8 +972,6 @@ ENGINE_CONSTANTS: dict[str, EngineConstants] = {
         is_rsid=False,
         # Engine-level mechanism defaults (Commando-shaped except for
         # vib_onset=8 and incby2_onset=16).
-        vib_onset=8,
-        incby2_onset=16,
         # Per-subtune mechanism overrides — each of the 5 sub-engines
         # has its own (speed_ctr_init, incby2_step, incby2_late_gate,
         # tick_divider, voice_start). incby2_late_gate=None signals
