@@ -866,6 +866,139 @@ def _emit_hubbard_fx_arp() -> str:
     return _HUBBARD_FX_ARP_ASM
 
 
+_HUBBARD_NOTE_START_ASM = """; note_start - new-note setup. Tie ($40) skips freq, slide, off-table.
+; Full notes look up freq16[pitch]; pitch >= 96 reads the engine's
+; state mirror via build_statebuf (see StatebufLayout). drum_prio
+; suppresses voice 0 SID writes on the first frame.
+note_start:
+        ldy instoff
+        lda it_ctrl,y
+        sta i_ctrl
+        lda it_ad,y
+        sta i_ad
+        lda it_sr,y
+        sta i_sr
+        ldy pw_idx
+        lda pwacc,y
+        sta i_pwlo
+        lda pwacc+1,y
+        sta i_pwhi
+        lda v_instr,x
+        and #$40
+        beq ns_full
+        ; tie - ctrl gated off, pw, ad, sr; no freq, no slide re-seed.
+        lda i_ctrl
+        sta v_ctrlbyte,x
+        and #$fe
+        bit drum_prio
+        bpl ns_pwadsr        ; suppressed -> skip the write
+        ldy sidoff
+        sta $d404,y
+        jmp ns_pwadsr
+ns_full:
+        ; freq - pitch >= 96 reads off-table into the engine state
+        ; region. The shared `statebuf` mirrors the per-engine layout
+        ; (see StatebufLayout); off-table notes read it the same way
+        ; fx_arp does for the +12 / +24 octave cases.
+        lda v_pitch,x
+        cmp #96
+        bcs ns_offtab
+        asl
+        tay
+        lda freqtab,y
+        sta f_lo
+        lda freqtab+1,y
+        sta f_hi
+        jmp ns_havefreq
+ns_offtab:
+        sec
+        sbc #96
+        cmp #48
+        bcs ns_offzero       ; pitch beyond the 48-byte mirrored state
+        asl                  ; (pitch-96)*2 = statebuf offset
+        tay
+        jsr build_statebuf
+        ; %%NS_OFFTAB_DECR%%
+        lda statebuf+0,y
+        sta f_lo
+        lda statebuf+1,y
+        sta f_hi
+        jmp ns_havefreq
+ns_offzero:
+        lda #0
+        sta f_lo
+        sta f_hi
+ns_havefreq:
+        lda f_hi
+        sta v_slide,x        ; seed the skydive/drum-slide freq_hi
+        lda f_lo
+        sta v_slidelo,x      ; seed the drum-slide freq_lo
+        lda i_ctrl
+        sta v_ctrlbyte,x     ; update ctrl_byte AFTER the off-table read
+        bit drum_prio
+        bpl ns_pwadsr        ; suppressed -> skip the writes
+        ldy sidoff
+        lda f_hi
+        sta $d401,y
+        lda f_lo
+        sta $d400,y
+        lda i_ctrl
+        sta $d404,y
+ns_pwadsr:
+        bit drum_prio
+        bpl ns_pwret         ; suppressed -> skip the writes
+        ldy sidoff
+        lda i_pwlo
+        sta $d402,y
+        lda i_pwhi
+        sta $d403,y
+        lda i_ad
+        sta $d405,y
+        lda i_sr
+        sta $d406,y
+ns_pwret:
+        rts"""
+
+
+def _emit_hubbard_note_start() -> str:
+    """note_start routine — the new-note SID-register writes.
+
+    Loads `i_ctrl/i_ad/i_sr/i_pwlo/i_pwhi` from the instrument table,
+    looks up the freq (or builds the off-table statebuf for pitches
+    >= 96), seeds the slide registers, and writes the frequency / ctrl /
+    pulsewidth / AD / SR registers to the SID — all gated by
+    `drum_prio` so voice 0's first frame can be suppressed on engines
+    that use it.
+
+    Contains the `; %%NS_OFFTAB_DECR%%` sentinel that
+    `_emit_ns_offtab_decr` substitutes after this chunk is inserted
+    (substitution order matters — outer chunk first, then inner).
+    """
+    return _HUBBARD_NOTE_START_ASM
+
+
+_HUBBARD_HR_WRITES_ASM = """; hr_writes - hard-restart block, ctrl=hr_ctrl ad=0 sr=0.
+hr_writes:
+        ldy instoff
+        lda it_hrctrl,y
+        ldy sidoff
+        sta $d404,y
+        lda #0
+        sta $d405,y
+        sta $d406,y
+        rts"""
+
+
+def _emit_hubbard_hr_writes() -> str:
+    """hr_writes routine — the per-note hard-restart writes.
+
+    Writes `ctrl = it_hrctrl`, `ad = 0`, `sr = 0` to the voice's
+    SID registers — the standard Hubbard '85 hard-restart sequence
+    issued one frame before `note_start` runs for a new note.
+    """
+    return _HUBBARD_HR_WRITES_ASM
+
+
 def _emit_hubbard_pattern_pool(pat_bytes: list[bytes],
                                  codec_extra: str | None) -> list[str]:
     """Pattern pool — `pat0`, `pat1`, ... per unique pattern, plus the

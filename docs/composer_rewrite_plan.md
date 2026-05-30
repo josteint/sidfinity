@@ -1216,11 +1216,37 @@ seven inline fx routines have all moved out of the ENGINE template.
 Verified: Hubbard 71/71 byte-exact. 5TT subtune 2 carries its
 pre-existing partial (unchanged from before 8.10).
 
-#### Phase 8.11+ — Remaining ENGINE chunks (future sessions)
+#### Phase 8.11 — Play-loop chunk: note_start + hr_writes
+
+Same pattern as the fx phases. The two routines that own the
+new-note SID-register writes move out of the ENGINE template.
+
+- [x] `_emit_hubbard_note_start()` → `_HUBBARD_NOTE_START_ASM`.
+      The largest play-loop chunk (~90 lines). Loads instrument
+      bytes, handles the tie ($40) shortcut, looks up freq16 or
+      builds the off-table statebuf, seeds slide registers,
+      writes freq/ctrl/pw/AD/SR — all gated by `drum_prio` so
+      voice 0's first frame can be suppressed. Contains the
+      nested `; %%NS_OFFTAB_DECR%%` sentinel (Thing on a Spring's
+      v_hubidx decrement).
+- [x] `_emit_hubbard_hr_writes()` → `_HUBBARD_HR_WRITES_ASM`.
+      The 10-line hard-restart block (ctrl=hr_ctrl, ad=0, sr=0)
+      issued one frame before a new note.
+
+composer_hubbard.py:
+- ENGINE template's note_start block (~88 lines) → `; %%NOTE_START%%`
+- ENGINE template's hr_writes block (~10 lines) → `; %%HR_WRITES%%`
+- Substitutions run before NS_OFFTAB_DECR (outer chunk first).
+
+composer.py now owns 32 Hubbard '85 feature emitters.
+
+Verified: Hubbard 71/71 byte-exact.
+
+#### Phase 8.12+ — Remaining ENGINE chunks (future sessions)
 
 Following the same pattern:
-- The note_start / hr_writes / load_note / set_patptr / next_orderidx
-  routines (the play-loop guts)
+- do_effects (the 9-line jsr chain that orchestrates the fx routines)
+- set_patptr / next_orderidx (the pattern-pointer + orderlist advance)
 - init / play / proc_voice (the engine framework)
 - SFX sub-engine asm (`init_sfx`, `sfx_play`, `sfx_step`)
 - Digi region builder (Chimera dispatcher + 1-bit player + sample

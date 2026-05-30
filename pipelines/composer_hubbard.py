@@ -504,105 +504,9 @@ noi_have:
 ; note_start - write the note-start register block for voice X.
 ; common fields (ctrl/ad/sr from insttab, pw from the accumulator) are
 ; loaded into temps first; then tie vs full diverge.
-note_start:
-        ldy instoff
-        lda it_ctrl,y
-        sta i_ctrl
-        lda it_ad,y
-        sta i_ad
-        lda it_sr,y
-        sta i_sr
-        ldy pw_idx
-        lda pwacc,y
-        sta i_pwlo
-        lda pwacc+1,y
-        sta i_pwhi
-        lda v_instr,x
-        and #$40
-        beq ns_full
-        ; tie - ctrl gated off, pw, ad, sr; no freq, no slide re-seed.
-        lda i_ctrl
-        sta v_ctrlbyte,x
-        and #$fe
-        bit drum_prio
-        bpl ns_pwadsr        ; suppressed -> skip the write
-        ldy sidoff
-        sta $d404,y
-        jmp ns_pwadsr
-ns_full:
-        ; freq - pitch >= 96 reads off-table into the engine state
-        ; region. The shared `statebuf` mirrors the per-engine layout
-        ; (see StatebufLayout); off-table notes read it the same way
-        ; fx_arp does for the +12 / +24 octave cases.
-        lda v_pitch,x
-        cmp #96
-        bcs ns_offtab
-        asl
-        tay
-        lda freqtab,y
-        sta f_lo
-        lda freqtab+1,y
-        sta f_hi
-        jmp ns_havefreq
-ns_offtab:
-        sec
-        sbc #96
-        cmp #48
-        bcs ns_offzero       ; pitch beyond the 48-byte mirrored state
-        asl                  ; (pitch-96)*2 = statebuf offset
-        tay
-        jsr build_statebuf
-        ; %%NS_OFFTAB_DECR%%
-        lda statebuf+0,y
-        sta f_lo
-        lda statebuf+1,y
-        sta f_hi
-        jmp ns_havefreq
-ns_offzero:
-        lda #0
-        sta f_lo
-        sta f_hi
-ns_havefreq:
-        lda f_hi
-        sta v_slide,x        ; seed the skydive/drum-slide freq_hi
-        lda f_lo
-        sta v_slidelo,x      ; seed the drum-slide freq_lo
-        lda i_ctrl
-        sta v_ctrlbyte,x     ; update ctrl_byte AFTER the off-table read
-        bit drum_prio
-        bpl ns_pwadsr        ; suppressed -> skip the writes
-        ldy sidoff
-        lda f_hi
-        sta $d401,y
-        lda f_lo
-        sta $d400,y
-        lda i_ctrl
-        sta $d404,y
-ns_pwadsr:
-        bit drum_prio
-        bpl ns_pwret         ; suppressed -> skip the writes
-        ldy sidoff
-        lda i_pwlo
-        sta $d402,y
-        lda i_pwhi
-        sta $d403,y
-        lda i_ad
-        sta $d405,y
-        lda i_sr
-        sta $d406,y
-ns_pwret:
-        rts
+; %%NOTE_START%%
 
-; hr_writes - hard-restart block, ctrl=hr_ctrl ad=0 sr=0.
-hr_writes:
-        ldy instoff
-        lda it_hrctrl,y
-        ldy sidoff
-        sta $d404,y
-        lda #0
-        sta $d405,y
-        sta $d406,y
-        rts
+; %%HR_WRITES%%
 
 ; do_effects - effects in engine order vibrato,pwm,drumslide,skydive,arp.
 do_effects:
@@ -1071,7 +975,14 @@ def _hubbard_emit_sid(inputs: _Inputs, out_path: str, codec,
         _emit_hubbard_fx_vibrato,
         _emit_hubbard_fx_skydive,
         _emit_hubbard_fx_arp,
+        _emit_hubbard_note_start,
+        _emit_hubbard_hr_writes,
     )
+    # Play-loop chunk substitutions (Phase 8.11+). Same pattern as the
+    # fx chunks — outer chunk first (so nested sentinels like
+    # NS_OFFTAB_DECR inside note_start find their host text).
+    asm = asm.replace('; %%NOTE_START%%', _emit_hubbard_note_start())
+    asm = asm.replace('; %%HR_WRITES%%', _emit_hubbard_hr_writes())
     # fx routine chunk substitutions (Phase 8.9+). Each fx routine
     # moved out of the ENGINE template into composer.py; the template
     # has a `; %%FX_<NAME>%%` sentinel that we substitute back here.
