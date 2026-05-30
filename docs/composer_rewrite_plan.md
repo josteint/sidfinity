@@ -560,25 +560,54 @@ once and have multiple shapes consume:
 ### Phase 2 — Engine-model design
 
 The engine-model layer is a Python representation of "what the engine
-does each frame," parametric over features. Decisions to make:
+does each frame," parametric over features.
 
-- Single dataclass with many optional fields, or composition of feature
-  objects? Probably the latter — each feature is a small dataclass that
-  the composer chains.
-- How does the model express per-frame timing? Probably as an explicit
-  per-voice state machine spec (current state, transitions, register
-  writes per state).
-- How does the model express modulation programs? Probably as named
-  modulation objects on each instrument — `Vibrato`, `PwmLinear`,
-  `PwmBidirectional`, `Arpeggio`, `FreqSlide`, `IncBy2` — that the
-  codegen layer emits per-frame asm for.
-
-- [ ] Sketch the engine-model dataclass(es). Land in a new module
+- [x] Sketch the engine-model dataclass(es). Land in a new module
       `pipelines/engine_model.py` (or similar).
-- [ ] Write a unit test: each current shape's USF can be converted into
+- [x] Write a unit test: each current shape's USF can be converted into
       an engine-model instance. No asm yet — just verifying the model is
       expressive enough.
-- [ ] Document the model in `docs/engine_model.md`.
+- [x] Document the model in `docs/engine_model.md`.
+
+**Outcome (commit pending):**
+* `pipelines/engine_model.py` defines the `EngineModel` top-level
+  dataclass plus 14 sub-dataclasses spanning every feature dimension
+  the audit found. Mostly optional fields — USFs that don't use a
+  feature get `None`.
+* `from_usf(usf)` builder reads each feature dimension independently
+  from USF content (no engine identity, no shape selection). Phase 3+
+  refines it as the codegen consumes the model.
+* `tests/test_engine_model_audit.py` runs the builder against one+
+  USFs per shape (11 tests). All pass — every shape's features are
+  representable in the model.
+* `docs/engine_model.md` documents the model + the builder's
+  behavior + open items for Phase 3+.
+
+**Audit findings landed in the model:**
+* Pitch byte format split: `octave_semi_nibble` (5 shapes) vs
+  `absolute_semi` (Hubbard '85). PatternConfig.pitch_byte_format.
+* ctrl_source per-voice: `instrument_waveform` (5 shapes) vs
+  `init_voice_field` (companion). VoiceConfig.ctrl_source.
+* Terminator vocabulary as `byte_map: dict[int, TerminatorBehavior]`
+  — captures the per-shape byte semantics without engine names.
+* Hardcoded V3 PW sweep as `HardcodedPwSweep` — describes the
+  mechanism (voice_idx + delta + period), not the engine.
+* Compound builds (5_Title_Tunes) as `CompoundSpec` — top-level
+  construct, not a Hubbard '85 feature.
+
+**Decisions made during Phase 2:**
+* `VoiceTimingMode` lists 3 values (`every_tick`, `dur_counter_decrement`,
+  `tick_counter_decrement`). Removed an earlier `speed_ctr_underflow`
+  proposal — that conflated tempo dispatch with voice timing. Hubbard's
+  voice timing is `dur_counter_decrement` (per-voice `v_dur`); its
+  tempo dispatch is `single_phase` (the global `speed_ctr` underflow
+  is just an implementation of single-phase gating).
+* Per-voice terminator dictionary lives on `TerminatorVocab`, not
+  scattered across per-shape emitter functions. The codegen reads
+  `byte_map[byte]` directly.
+* Modulation programs are explicit fields on `InstrumentProgram`
+  (not a `list[Modulation]` variant). Each modulation has a fixed
+  slot; codegen emits asm for non-None slots.
 
 ### Phase 3 — Model → asm codegen (henrys first)
 
