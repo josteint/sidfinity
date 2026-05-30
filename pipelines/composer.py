@@ -38,7 +38,7 @@ import subprocess
 
 from pipelines.engine_model import (
     EngineModel, MasterVolConfig, SubtuneSpec, InstrumentProgram,
-    InterVoiceQuirk,
+    InterVoiceQuirk, FadeProgressive,
     StateLayoutMirror, StateSlot, StatebufLayout, StatebufSlot,
 )
 
@@ -187,6 +187,80 @@ def _statebuf_init_bytes(layout: StatebufLayout) -> str:
         if s.kind == 'const' and s.offset < len(bytes_):
             bytes_[s.offset] = s.value
     return ','.join(str(b) for b in bytes_)
+
+
+# ---------------------------------------------------------------------------
+# Master-volume fade — progressive $D418 decrement on configured voice's
+# pattern-end
+# ---------------------------------------------------------------------------
+#
+# A handful of Hubbard '85 engines (TOAS family) decrement $D418 over
+# the course of the song. The `vol_progress` counter increments on the
+# configured voice's pattern-end (peek-ahead via v_notesleft); the
+# engine writes `$D418 = clamp(base - vol_progress, 0..$0F)` on a
+# trigger (either every note-start or only on instrument-change rows).
+#
+# The lifted ENGINE template has four sentinel comments where this
+# feature substitutes asm fragments:
+#   ; %%VOL_PROGRESS_INIT%%     init: zero the counter
+#   ; %%VOL_PROGRESS_INC%%      load_note: peek-ahead increment
+#   ; %%MASTER_VOL_WRITE%%      instrument-change write of $D418
+#   ; %%MASTER_VOL_EVERY_NOTE%% every-note write of $D418
+#
+# Composer's emitter returns the four fragments as a dict (sentinel →
+# asm). When `fade is None`, every fragment is the empty string —
+# leaving the template unchanged for engines that don't use the fade.
+
+_VOL_FADE_SENTINELS = (
+    '; %%VOL_PROGRESS_INIT%%',
+    '; %%VOL_PROGRESS_INC%%',
+    '; %%MASTER_VOL_WRITE%%',
+    '; %%MASTER_VOL_EVERY_NOTE%%',
+)
+
+
+def _emit_master_vol_fade(fade: 'FadeProgressive | None') -> dict[str, str]:
+    """Return the four sentinel→asm fragments for the master-vol fade.
+
+    `fade is None` → all four sentinels expand to empty strings.
+    Otherwise: emits the peek-ahead INC at the configured voice's
+    pattern-end, the clamp-and-write $D418 fragment, and the init
+    `sta vol_progress` zero.
+    """
+    if fade is None:
+        return {s: '' for s in _VOL_FADE_SENTINELS}
+
+    v = fade.subtrahend_voice_idx
+    # Peek-ahead semantics: INC vol_progress when the current voice's
+    # v_notesleft has just decremented to 0 (i.e. THIS load was the
+    # pattern's last note). Matches the engine's $C15A-$C167 path
+    # which INCs the counter on the same tick the last note is loaded.
+    inc_asm = (
+        f'        cpx #{v}\n'
+        f'        bne vp_skip\n'
+        f'        lda v_notesleft,x\n'
+        f'        bne vp_skip\n'
+        f'        inc vol_progress\n'
+        f'vp_skip:'
+    )
+    write_template = (
+        f'        lda #${fade.base:02X}\n'
+        f'        sec\n'
+        f'        sbc vol_progress\n'
+        f'        cmp #$0f\n'
+        f'        bcc {{label}}\n'
+        f'        lda #$0f\n'
+        f'{{label}}: sta $d418'
+    )
+    write_asm = write_template.format(label='mvw_lt')
+    return {
+        '; %%VOL_PROGRESS_INIT%%':     '        sta vol_progress',
+        '; %%VOL_PROGRESS_INC%%':      inc_asm,
+        '; %%MASTER_VOL_WRITE%%':      (
+            write_asm if fade.trigger != 'every_note' else ''),
+        '; %%MASTER_VOL_EVERY_NOTE%%': (
+            write_asm if fade.trigger == 'every_note' else ''),
+    }
 
 
 def _needs_hubbard85_path(usf, model: EngineModel) -> bool:

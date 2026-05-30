@@ -985,7 +985,28 @@ file as the target surface for Phase 8.2+ feature extraction.
 routine emitter (vibrato or PWM), or the freq table data emitter, or
 the per-subtune dispatch tables — pick a feature with clean in/out.
 
-#### Phase 8.3+ — Per-feature decomposition (future sessions)
+#### Phase 8.3 — Master-volume fade emitter
+
+- [x] composer.py: `_emit_master_vol_fade(fade: FadeProgressive | None)
+      → dict[sentinel, asm_fragment]`. Reads the model's
+      `FadeProgressive` dataclass directly; emits the four sentinel
+      substitutions (`%%VOL_PROGRESS_INIT%%`, `%%VOL_PROGRESS_INC%%`,
+      `%%MASTER_VOL_WRITE%%`, `%%MASTER_VOL_EVERY_NOTE%%`).
+- [x] composer_hubbard.py: wrap `_Inputs` fields
+      (`master_vol_subtrahend_voice`/`base`/`trigger`) into a
+      `FadeProgressive` and call composer's emitter for the
+      substitutions. The 36-line inline emit replaced by a 12-line
+      adapter call.
+- [x] Verify 71/71 (Thing on a Spring + One Man and his Droid both
+      use the fade feature — exercised end-to-end).
+
+**Outcome:** the master vol fade emitter is now composer.py-owned.
+Pattern reinforced: each feature has a `_emit_<feature>(model_field)`
+function in composer.py that returns a single asm string or a
+{sentinel: fragment} dict; composer_hubbard.py imports and calls it
+during template substitution.
+
+#### Phase 8.4+ — Per-feature decomposition (future sessions)
 
 Each remaining Hubbard '85 feature moves from composer_hubbard.py
 to composer.py, one at a time, byte-exact regression at every step.

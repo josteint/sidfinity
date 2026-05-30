@@ -1689,49 +1689,20 @@ def _hubbard_emit_sid(inputs: _Inputs, out_path: str, codec,
             f'        sta statebuf+{ofs},x')
     asm = asm.replace('; %%NS_OFFTAB_DECR%%', offtab_decr_asm)
 
-    # Master-volume fade: when set, emit (a) a per-voice gate that INCs
-    # vol_progress on the configured voice's pattern-end, and (b) the
-    # $D418 = clamp(BASE - vol_progress, 0..$0F) write on every
-    # instrument-change note. The two sentinels live in note_codec.py's
-    # load_note; both expand to empty strings when the feature is off,
-    # leaving previously-byte-exact engines unaffected.
-    vol_inc_asm = ''
-    vol_write_inst_change_asm = ''
-    vol_write_every_note_asm = ''
-    if inputs.master_vol_subtrahend_voice is not None:
-        v = inputs.master_vol_subtrahend_voice
-        # Peek-ahead semantics: INC vol_progress when the current voice's
-        # v_notesleft has just decremented to 0 — i.e. THIS load was the
-        # pattern's last note. Matches the engine's $C15A-$C167 path
-        # which INCs $C46D on the same tick the last note is loaded
-        # (engine peeks one byte ahead and finds the $FF terminator).
-        vol_inc_asm = (
-            f'        cpx #{v}\n'
-            f'        bne vp_skip\n'
-            f'        lda v_notesleft,x\n'
-            f'        bne vp_skip\n'
-            f'        inc vol_progress\n'
-            f'vp_skip:')
-        vol_write_template = (
-            f'        lda #${inputs.master_vol_base:02X}\n'
-            f'        sec\n'
-            f'        sbc vol_progress\n'
-            f'        cmp #$0f\n'
-            f'        bcc {{label}}\n'
-            f'        lda #$0f\n'
-            f'{{label}}: sta $d418')
-        if inputs.master_vol_trigger == 'every_note':
-            vol_write_every_note_asm = vol_write_template.format(label='mvw_lt')
-        else:
-            vol_write_inst_change_asm = vol_write_template.format(label='mvw_lt')
-    vol_init_asm = ('        sta vol_progress'
-                    if inputs.master_vol_subtrahend_voice is not None
-                    else '')
-    asm = asm.replace('; %%VOL_PROGRESS_INC%%', vol_inc_asm)
-    asm = asm.replace('; %%MASTER_VOL_WRITE%%', vol_write_inst_change_asm)
-    asm = asm.replace('; %%MASTER_VOL_EVERY_NOTE%%',
-                      vol_write_every_note_asm)
-    asm = asm.replace('; %%VOL_PROGRESS_INIT%%', vol_init_asm)
+    # Master-volume fade — Phase 8.3 moved the emitter into composer.py.
+    # Build a FadeProgressive (model dataclass) from inputs' flat fields
+    # and let composer emit the four sentinel substitutions.
+    from pipelines.engine_model import FadeProgressive
+    from pipelines.composer import _emit_master_vol_fade
+    fade = (
+        FadeProgressive(
+            subtrahend_voice_idx=inputs.master_vol_subtrahend_voice,
+            base=inputs.master_vol_base,
+            trigger=inputs.master_vol_trigger,
+        )
+        if inputs.master_vol_subtrahend_voice is not None else None)
+    for sentinel, fragment in _emit_master_vol_fade(fade).items():
+        asm = asm.replace(sentinel, fragment)
 
     # tie_preserves_slide selects WHERE the v_drumtrig clear lives in
     # ln_decode. False (default): unconditional at the top (pre-9828b37
