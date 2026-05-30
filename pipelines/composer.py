@@ -453,6 +453,117 @@ def _emit_hubbard_ovseed(freq_bytes: bytes,
     return ['ovseed: .byt ' + ','.join(f'${b:02X}' for b in ov)]
 
 
+# ---------------------------------------------------------------------------
+# Hubbard '85 fx routine asm chunks
+# ---------------------------------------------------------------------------
+#
+# Each fx routine is a labeled subroutine in the ENGINE template. The
+# Phase 8.2-8.8 work moved sentinel substitutions + data emitters into
+# composer; Phase 8.9+ starts extracting the inline routines.
+#
+# Each routine becomes a string constant that the ENGINE template
+# substitutes via a `; %%FX_<NAME>%%` sentinel. The byte stream is
+# unchanged (same asm text, just sourced from composer); the
+# extraction sets up future parameterization (e.g. emit fx_drumslide
+# only when at least one instrument carries the drum_trig per-note
+# fx flag).
+
+_HUBBARD_FX_DRUMSLIDE_ASM = """; fx_drumslide - per-note portamento ($52B3-$52F9), effect #3. A note
+; carrying a drum/porta trigger slides the running freq (v_slidelo /
+; v_slide = $551D/$551A) by delta=trig&$7E each frame, dir=trig&$01.
+; bit7 of the trigger is no_release - mask it off before the run test.
+fx_drumslide:
+        lda v_drumtrig,x
+        and #$7f
+        beq fxd_ret
+        and #$7e             ; delta
+        sta pwm_tmp
+        lda v_drumtrig,x
+        and #$01
+        bne fxd_down
+        lda v_slidelo,x      ; slide up
+        clc
+        adc pwm_tmp
+        sta v_slidelo,x
+        lda v_slide,x
+        adc #$00
+        sta v_slide,x
+        jmp fxd_wr
+fxd_down:
+        lda v_slidelo,x      ; slide down
+        sec
+        sbc pwm_tmp
+        sta v_slidelo,x
+        lda v_slide,x
+        sbc #$00
+        sta v_slide,x
+fxd_wr:
+        ldy sidoff
+        lda v_slidelo,x
+        sta $d400,y          ; freq_lo
+        lda v_slide,x
+        sta $d401,y          ; freq_hi
+fxd_ret: rts"""
+
+
+def _emit_hubbard_fx_drumslide() -> str:
+    """fx_drumslide routine — per-note portamento (effect #3).
+
+    A note carrying a drum/porta trigger slides the running freq each
+    frame by delta = trig & $7E, dir = trig & $01. bit-7 of the
+    trigger is no_release (masked off before the run test).
+
+    Today: always emitted (the ENGINE template's `do_effects:` chain
+    unconditionally calls `jsr fx_drumslide`). Future: emit only when
+    any instrument uses drum_trig.
+    """
+    return _HUBBARD_FX_DRUMSLIDE_ASM
+
+
+_HUBBARD_FX_INCBY2_ASM = """; fx_incby2 - bit1. odd-frame slide on v_slide, write OLD value then
+; step. The optional %%INCBY2_LATE_GATE%% sentinel below is replaced
+; at codegen time with a `v_dur >= N -> skip` check for engines like
+; Hunter Patrol whose skydive only fires in the tail of long notes.
+fx_incby2:
+        ldy instoff
+        lda it_fx,y
+        and #$02
+        beq fxi_ret
+        lda v_durfield,x
+        cmp #INCBY2_ONSET
+        bcc fxi_ret
+; %%INCBY2_LATE_GATE%%
+        lda frame_ctr
+        and #$01
+        ora #INCBY2_ALWAYS   ; 1 -> runs every frame
+        beq fxi_ret
+        lda v_slide,x
+        beq fxi_ret
+        ldy sidoff
+        lda v_slide,x
+        sta $d401,y          ; write OLD slide value
+        lda v_slide,x
+        clc
+        adc #INCBY2_STEP
+        sta v_slide,x
+fxi_ret: rts"""
+
+
+def _emit_hubbard_fx_incby2() -> str:
+    """fx_incby2 routine — fx-flag bit 1, odd-frame freq-hi slide.
+
+    Engine reads `v_slide`, writes the OLD value to freq_hi, then
+    steps it by `INCBY2_STEP` (xa65 equate). Gated by `v_durfield >=
+    INCBY2_ONSET` and either odd-frame parity OR `INCBY2_ALWAYS`
+    (Human Race).
+
+    The chunk still contains the `; %%INCBY2_LATE_GATE%%` nested
+    sentinel — composer's `_emit_incby2_late_gate` substitutes it
+    after fx_incby2 is inserted into the engine asm.
+    """
+    return _HUBBARD_FX_INCBY2_ASM
+
+
 def _emit_hubbard_pattern_pool(pat_bytes: list[bytes],
                                  codec_extra: str | None) -> list[str]:
     """Pattern pool — `pat0`, `pat1`, ... per unique pattern, plus the

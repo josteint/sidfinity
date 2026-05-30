@@ -615,70 +615,9 @@ do_effects:
         jsr fx_incby2
         jmp fx_arp
 
-; fx_drumslide - per-note portamento ($52B3-$52F9), effect #3. A note
-; carrying a drum/porta trigger slides the running freq (v_slidelo /
-; v_slide = $551D/$551A) by delta=trig&$7E each frame, dir=trig&$01.
-; bit7 of the trigger is no_release - mask it off before the run test.
-fx_drumslide:
-        lda v_drumtrig,x
-        and #$7f
-        beq fxd_ret
-        and #$7e             ; delta
-        sta pwm_tmp
-        lda v_drumtrig,x
-        and #$01
-        bne fxd_down
-        lda v_slidelo,x      ; slide up
-        clc
-        adc pwm_tmp
-        sta v_slidelo,x
-        lda v_slide,x
-        adc #$00
-        sta v_slide,x
-        jmp fxd_wr
-fxd_down:
-        lda v_slidelo,x      ; slide down
-        sec
-        sbc pwm_tmp
-        sta v_slidelo,x
-        lda v_slide,x
-        sbc #$00
-        sta v_slide,x
-fxd_wr:
-        ldy sidoff
-        lda v_slidelo,x
-        sta $d400,y          ; freq_lo
-        lda v_slide,x
-        sta $d401,y          ; freq_hi
-fxd_ret: rts
+; %%FX_DRUMSLIDE%%
 
-; fx_incby2 - bit1. odd-frame slide on v_slide, write OLD value then
-; step. The optional %%INCBY2_LATE_GATE%% sentinel below is replaced
-; at codegen time with a `v_dur >= N -> skip` check for engines like
-; Hunter Patrol whose skydive only fires in the tail of long notes.
-fx_incby2:
-        ldy instoff
-        lda it_fx,y
-        and #$02
-        beq fxi_ret
-        lda v_durfield,x
-        cmp #INCBY2_ONSET
-        bcc fxi_ret
-; %%INCBY2_LATE_GATE%%
-        lda frame_ctr
-        and #$01
-        ora #INCBY2_ALWAYS   ; 1 -> runs every frame
-        beq fxi_ret
-        lda v_slide,x
-        beq fxi_ret
-        ldy sidoff
-        lda v_slide,x
-        sta $d401,y          ; write OLD slide value
-        lda v_slide,x
-        clc
-        adc #INCBY2_STEP
-        sta v_slide,x
-fxi_ret: rts
+; %%FX_INCBY2%%
 
 ; fx_pwm - bit4. linear or bidirectional PWM. The pw accumulators
 ; (pwacc) are per-instrument shared state - see song_interp._pwm.
@@ -1375,7 +1314,16 @@ def _hubbard_emit_sid(inputs: _Inputs, out_path: str, codec,
         _emit_per_subtune_dispatch,
         _emit_load_addr_substitution,
         _apply_sfx_state_in_freqtab,
+        _emit_hubbard_fx_drumslide,
+        _emit_hubbard_fx_incby2,
     )
+    # fx routine chunk substitutions (Phase 8.9+). Each fx routine
+    # moved out of the ENGINE template into composer.py; the template
+    # has a `; %%FX_<NAME>%%` sentinel that we substitute back here.
+    # The substitutions must run BEFORE the smaller nested sentinels
+    # (like `%%INCBY2_LATE_GATE%%` which lives inside fx_incby2).
+    asm = asm.replace('; %%FX_DRUMSLIDE%%', _emit_hubbard_fx_drumslide())
+    asm = asm.replace('; %%FX_INCBY2%%', _emit_hubbard_fx_incby2())
     old, new = _emit_sfx_framectr_offset_substitution(inputs.sfx_framectr_ofs)
     asm = asm.replace(old, new)
     asm = _apply_sfx_state_in_freqtab(asm, inputs.sfx_state_ofs)

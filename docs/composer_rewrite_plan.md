@@ -1148,22 +1148,52 @@ per_subtune_ovseed; engines with SFX exercise sfx_records; Human
 Race exercises empty orderlists). 5TT 4/5 (sub 2 pre-existing
 partial preserved). All 5 composer-native shapes unchanged.
 
-#### Phase 8.9+ — Per-feature decomposition (future sessions)
+#### Phase 8.9 — First two fx routines: drumslide + incby2
 
-Larger remaining features:
-- The seven fx routines as feature emitters (vibrato, PWM linear,
-  PWM bidirectional, arpeggio, freq-hi slide, inc_by2 step,
-  drum-slide) — these live inline in the ENGINE asm template
-  rather than as substituted blocks; extracting them requires
-  splitting the template.
-- SFX sub-engine asm (`init_sfx`, `sfx_play`, `sfx_step`) — also
-  inline in the ENGINE template.
+The seven fx routines live inline in the ENGINE asm template
+(rather than as substituted blocks like the data emitters). Phase
+8.9 starts extracting them via `; %%FX_<NAME>%%` sentinels: the
+ENGINE template gets a sentinel where the routine used to be; the
+composer holds the routine text as a constant and substitutes it
+back during template assembly.
+
+- [x] `_emit_hubbard_fx_drumslide()` → `_HUBBARD_FX_DRUMSLIDE_ASM`
+      constant. Per-note portamento (fx flag bit 3). Engine reads
+      `v_drumtrig`, slides v_slidelo/v_slide each frame by delta=
+      trig&$7E, dir=trig&$01.
+- [x] `_emit_hubbard_fx_incby2()` → `_HUBBARD_FX_INCBY2_ASM`
+      constant. Odd-frame slide on v_slide (fx flag bit 1).
+      Contains the nested `; %%INCBY2_LATE_GATE%%` sentinel which
+      composer's `_emit_incby2_late_gate` substitutes after the
+      fx_incby2 chunk is inserted (substitution order matters —
+      outer chunk first, then inner sentinel).
+
+composer_hubbard.py:
+- ENGINE template's fx_drumslide block (35 lines) → `; %%FX_DRUMSLIDE%%`
+- ENGINE template's fx_incby2 block (27 lines) → `; %%FX_INCBY2%%`
+- Substitution loop in `_hubbard_emit_sid` does fx chunks first,
+  then the smaller sentinels nested inside them.
+
+composer.py now owns 26 Hubbard '85 feature emitters total.
+
+Verified: Hubbard 71/71 byte-exact (Hunter Patrol exercises both
+fx_incby2 and the nested INCBY2_LATE_GATE; every engine exercises
+fx_drumslide since the `do_effects:` chain always calls it).
+
+#### Phase 8.10+ — Remaining fx routines + ENGINE chunks (future sessions)
+
+Following the same pattern:
+- `fx_pwm` (PWM linear + bidirectional)
+- `fx_vibrato` + `vib_loadfreq`
+- `fx_skydive`
+- `fx_arp`
+- The note_start / hr_writes / load_note / set_patptr / next_orderidx
+  routines (the play-loop guts)
+- init / play / proc_voice (the engine framework)
+- SFX sub-engine asm (`init_sfx`, `sfx_play`, `sfx_step`)
 - Digi region builder (Chimera dispatcher + 1-bit player + sample
   packs) — `_build_digi_region` + `_emit_combined_sid` in
   composer_hubbard.
-- The remaining ENGINE asm template chunks (init, play, voice
-  dispatch, note_start, hr_writes, do_effects, set_patptr,
-  next_orderidx, load_note callback).
 - Compound build (5TT packed sub-engines + dispatcher) — separate
   from composer_hubbard's _hubbard_emit_sid.
 - Eventually: replace `_hubbard_emit_sid` + ENGINE asm template
