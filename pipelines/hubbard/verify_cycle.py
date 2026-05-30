@@ -97,34 +97,75 @@ def compare_instruction_stream(a: list[Frame], b: list[Frame],
     This compare concatenates all writes across all frames in cycle
     order, then matches the (reg, val) sequence position-by-position.
 
-    `skip_init=True` (default) drops frame 0 — the init invocation —
-    from both sides before comparing. Engine-specific init order
-    (e.g. silence direction, pre-D418 write, AD/SR ordering) can vary
-    while still producing the same final SID state and the same music.
-    For verifying "the rebuild plays the same music as the original,"
-    music-only is the right comparison.
+    Both modes are computed and returned:
+      - `match` = best of the two (= max(match_all, match_post_init)).
+        This is what callers should treat as the verdict.
+      - `match_all` = longest matching prefix WITHOUT dropping init.
+        Best when orig + rebuild produce a byte-exact init sequence.
+      - `match_post_init` = longest matching prefix after dropping
+        each side's frame 0. Best when init order legitimately
+        differs (silence direction / pre-D418 / AD-SR ordering) but
+        the music after init still matches — and when init writes
+        DON'T straddle the frame-0/frame-1 boundary asymmetrically
+        (which would make `skip_init` cut off a different write count
+        on each side and shift alignment).
 
-    Returns the longest matching prefix length plus both stream totals.
-    A clean run produces match == min(len_a, len_b). A length mismatch
-    with full-prefix match means init duration drifted by a few
-    cycles and the test window contains a different number of music
-    ticks on each side — equivalent musically, just truncated
-    differently.
+    The `match` field hides the asymmetry of init-bucket drift — if
+    init writes spill into frame 0 on one side but not the other,
+    `match_post_init` gets clobbered; `match_all` still scores the
+    byte-exact case correctly. Conversely if init order genuinely
+    differs but the music after matches, `match_post_init` recovers.
+
+    `skip_init` is kept for backward compatibility but no longer
+    changes which prefix is computed — both are always computed and
+    returned. The argument only affects which one `match` aliases
+    to (default `True` → `match_post_init` for old callers expecting
+    that semantics; new callers should read `match` and trust the
+    `max(...)` semantics, or read `match_all` / `match_post_init`
+    explicitly).
+
+    Returns:
+      match            — best of the two prefix lengths.
+      match_all        — full-stream prefix length.
+      match_post_init  — post-init prefix length.
+      len_a, len_b     — stream lengths (using `skip_init`'s old shape:
+                         drops frame 0 from both when `skip_init=True`).
     """
-    def flatten(stream):
-        return [(reg, val)
-                for k, frame in enumerate(stream)
-                if (not skip_init or k > 0)
-                for _, reg, val in frame]
-    flat_a = flatten(a)
-    flat_b = flatten(b)
-    n = min(len(flat_a), len(flat_b))
-    match = 0
-    for i in range(n):
-        if flat_a[i] == flat_b[i]:
-            match += 1
-        else:
-            break
-    return {'match': match, 'len_a': len(flat_a), 'len_b': len(flat_b)}
+    flat_all_a = [(reg, val) for frame in a for _, reg, val in frame]
+    flat_all_b = [(reg, val) for frame in b for _, reg, val in frame]
+    flat_post_a = [(reg, val) for k, frame in enumerate(a)
+                   if k > 0 for _, reg, val in frame]
+    flat_post_b = [(reg, val) for k, frame in enumerate(b)
+                   if k > 0 for _, reg, val in frame]
+
+    def _prefix(x, y):
+        n = min(len(x), len(y))
+        for i in range(n):
+            if x[i] != y[i]:
+                return i
+        return n
+
+    match_all = _prefix(flat_all_a, flat_all_b)
+    match_post = _prefix(flat_post_a, flat_post_b)
+    flat_a = flat_post_a if skip_init else flat_all_a
+    flat_b = flat_post_b if skip_init else flat_all_b
+    # A subtune is "byte-exact" if EITHER mode shows a full match
+    # (longest prefix == both stream lengths). The two modes catch
+    # complementary cases — see the docstring.
+    is_full = (
+        (match_all == len(flat_all_a) == len(flat_all_b)) or
+        (match_post == len(flat_post_a) == len(flat_post_b)))
+    return {
+        'match': max(match_all, match_post),
+        'match_all': match_all,
+        'match_post_init': match_post,
+        'len_a': len(flat_a),
+        'len_b': len(flat_b),
+        'len_all_a': len(flat_all_a),
+        'len_all_b': len(flat_all_b),
+        'len_post_a': len(flat_post_a),
+        'len_post_b': len(flat_post_b),
+        'is_full': is_full,
+    }
 
 

@@ -11,9 +11,16 @@ modes:
     these engines use a different verification surface.
 
 Pre-existing partial cases (do NOT treat as regressions):
-  - Fairlight                  sub 0
   - Melonmania                 sub 1
   - 5_Title_Tunes              sub 2
+
+(Fairlight sub 0 was previously listed here as a phantom partial — it's
+actually byte-exact; the old `compare_instruction_stream(skip_init=True)`
+default reported 0/642 because the rebuild's init writes shift across
+the frame-0/frame-1 boundary. `compare_instruction_stream` now returns
+both `match_all` (skip_init=False) and `match_post_init` (skip_init=True)
+and an `is_full` verdict accepting either; this regression script uses
+`is_full`.)
 
 Run:
     python3 tools/regression.py
@@ -65,7 +72,6 @@ COMPANION_USFS = [
 # Pre-existing partial subtunes (carried since before the composer
 # rewrite). Not regressions; not failures.
 KNOWN_PARTIAL = {
-    'Fairlight':       {0},
     'Melonmania':      {1},
     '5_Title_Tunes':   {2},
 }
@@ -109,9 +115,8 @@ def regress_companion() -> tuple[int, int, int]:
         for st in range(ns):
             a = writelog_capture(sid, st, duration=6.0)
             b = writelog_capture(out, st, duration=6.0)
-            r = compare_instruction_stream(a, b, skip_init=True)
-            full = r['match'] == r['len_a'] == r['len_b']
-            if full:
+            r = compare_instruction_stream(a, b)
+            if r['is_full']:
                 sub_ok += 1
             elif st in known:
                 sub_partial += 1
