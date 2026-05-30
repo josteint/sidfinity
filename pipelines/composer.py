@@ -61,12 +61,14 @@ _ZP_OL_BASE = 0xE0   # V1: $E0/$E1, V2: $E2/$E3, V3: $E4/$E5
 # Feature support check
 # ---------------------------------------------------------------------------
 
-_SUPPORTED_PATTERN_ENCODINGS = {'atomic_per_tick', 'note_dur_pair'}
+_SUPPORTED_PATTERN_ENCODINGS = {
+    'atomic_per_tick', 'note_dur_pair', 'atomic_per_period',
+}
 _SUPPORTED_PITCH_FORMATS = {'octave_semi_nibble'}
 _SUPPORTED_VOICE_TIMING = {
     'every_tick', 'tick_counter_decrement', 'dur_counter_decrement',
 }
-_SUPPORTED_TEMPO_DISPATCH = {'single_phase'}
+_SUPPORTED_TEMPO_DISPATCH = {'single_phase', 'two_phase'}
 _SUPPORTED_MASTER_VOL = {'fixed_init', 'per_subtune_init', 'mutable_commands'}
 
 _SUPPORTED_TERMINATORS = {
@@ -76,6 +78,8 @@ _SUPPORTED_TERMINATORS = {
     'loop_reset',
     'song_end_voice',
     'set_duration_next_byte',
+    'early_release_flag',
+    'end_song_on_voice_n',
 }
 
 _SUPPORTED_INTER_VOICE_QUIRKS = {
@@ -109,8 +113,12 @@ def can_handle(model: EngineModel) -> bool:
     if model.state_layout is not None: return False
     if model.sfx is not None: return False
     if model.digi is not None: return False
-    if model.hardcoded_pw_sweep is not None: return False
     if model.compound is not None: return False
+    # `hardcoded_pw_sweep` is supported only in the two-phase tempo
+    # (companion) path; reject when combined with other tempo dispatch.
+    if model.hardcoded_pw_sweep is not None:
+        if model.tempo_dispatch.mode != 'two_phase':
+            return False
 
     for inst in model.instruments:
         if (inst.vibrato or inst.pwm_linear or inst.pwm_bidirectional
@@ -554,6 +562,72 @@ def _cmd_voice_bytes(voice_block) -> bytes:
             'cmd-stream voice requires at least one pattern')
     pat = voice_block.patterns[0]
     return b''.join(_cmd_row_bytes(r) for r in pat.rows)
+
+
+# ---------------------------------------------------------------------------
+# Companion-shape encoders — atomic-per-period + early-release flag + $8D end
+# ---------------------------------------------------------------------------
+
+def _companion_row_byte(row) -> int:
+    """One pattern row → 1 engine byte.
+
+    Normal pitch → (octave<<4)|semi.
+    fx:early_release on pitch → $80 | pitch_byte.
+    fx:early_release on rest → $8C.
+    Rest without early_release → not representable in companion shape.
+    """
+    early = 'fx:early_release' in row.fx_flags
+    if row.pitch.is_rest:
+        if not early:
+            raise NotImplementedError(
+                'companion shape: rest row without fx:early_release '
+                'is not representable')
+        return 0x8C
+    pitch_byte = (row.pitch.octave << 4) | _SEMI[row.pitch.name]
+    return pitch_byte | (0x80 if early else 0)
+
+
+def _companion_voice_bytes(voice_block, pad_count: int, pad_byte: int) -> bytes:
+    """One voice's pattern bytes + $8D end-song terminator + post-
+    terminator padding (engine reads past $8D into adjacent memory)."""
+    if not voice_block.patterns:
+        raise NotImplementedError('companion voice requires a pattern')
+    pat = voice_block.patterns[0]
+    body = bytes(_companion_row_byte(r) for r in pat.rows)
+    return body + bytes([0x8D]) + bytes([pad_byte] * pad_count)
+
+
+def _companion_template_bytes(per_voice_timbres: list[tuple],
+                                gate_off_tick: int, note_load_tick: int,
+                                init_tempo_counter: int,
+                                init_pwm_ctr: int, init_pwm_ctr_2: int
+                                ) -> bytes:
+    """The 32-byte init template the engine copies into v_state at init.
+
+    Layout:
+      bytes 0..6   V1 (pos=0, gate_off_flag=0, pw_lo, pw_hi,
+                       ctrl_noGate, ad, sr)
+      bytes 7..13  V2 (same)
+      bytes 14..20 V3 (same)
+      byte 21      gate_off_tick
+      byte 22      note_load_tick
+      byte 23      init_tempo_counter
+      bytes 24..29 6 zeros
+      bytes 30..31 init_pwm_ctr, init_pwm_ctr_2
+    """
+    out = []
+    for v_idx in range(3):
+        t = per_voice_timbres[v_idx]
+        # pos=0, gate_off_flag=0, then 5-byte timbre (pw_lo, pw_hi,
+        # ctrl_noGate, ad, sr)
+        out += [0, 0, t[0], t[1], t[2], t[3], t[4]]
+    out += [
+        gate_off_tick, note_load_tick, init_tempo_counter,
+        0, 0, 0, 0, 0, 0,
+        init_pwm_ctr, init_pwm_ctr_2,
+    ]
+    assert len(out) == 32, len(out)
+    return bytes(out)
 
 
 # ---------------------------------------------------------------------------
@@ -1204,6 +1278,322 @@ def _emit_cmd_orderlists(per_subtune_voice_patterns: list[dict[int, bytes]]
 
 
 # ---------------------------------------------------------------------------
+# Asm emitters — companion shape (two-phase tempo + V3 PW sweep +
+# early-release flag + 32-byte init template)
+# ---------------------------------------------------------------------------
+#
+# Per-subtune 32-byte template at v_state:
+#   bytes 0..6   V1 (pos, gate_off_flag, 5-byte timbre)
+#   bytes 7..13  V2 (same)
+#   bytes 14..20 V3 (same)
+#   byte 21      gate_off_tick      (early-release timer cap)
+#   byte 22      note_load_tick     (next-note timer cap)
+#   byte 23      init_tempo_counter
+#   bytes 24..29 6 zeros
+#   bytes 30..31 init_pwm_ctr, init_pwm_ctr_2
+#
+# `g_tempo_ctr` and `g_pwm_ctr` alias v_state+23 and v_state+30 so the
+# template copy at init also seeds the runtime counters.
+
+def _emit_companion_init() -> list[str]:
+    """A = subtune idx. Copies 32-byte template into v_state from
+    per-subtune tmpl_s{N} (selected via tmpl_lo/hi tables). Loads
+    orderlist zp pointers; programs filter + master vol; marks song
+    alive."""
+    return [
+        'init:',
+        '  sta sub_idx',
+        '  ldx sub_idx',
+        '  lda tmpl_lo,x',
+        '  sta cmp_tcopy+1',
+        '  lda tmpl_hi,x',
+        '  sta cmp_tcopy+2',
+        '  ldx #0',
+        'cmp_tcopy:',
+        '  lda $FFFF,x          ; OPERAND patched at runtime',
+        '  sta v_state,x',
+        '  inx',
+        '  cpx #32',
+        '  bne cmp_tcopy',
+        '  ldx sub_idx',
+        '  lda ord_v1_lo,x',
+        f'  sta ${0xE0:02X}',
+        '  lda ord_v1_hi,x',
+        f'  sta ${0xE1:02X}',
+        '  lda ord_v2_lo,x',
+        f'  sta ${0xE2:02X}',
+        '  lda ord_v2_hi,x',
+        f'  sta ${0xE3:02X}',
+        '  lda ord_v3_lo,x',
+        f'  sta ${0xE4:02X}',
+        '  lda ord_v3_hi,x',
+        f'  sta ${0xE5:02X}',
+        '  lda sub_fcHi,x',
+        '  sta $D416',
+        '  lda #0',
+        '  sta $D417',
+        '  lda sub_vol,x',
+        '  sta $D418',
+        '  lda #1',
+        '  sta g_song_alive',
+        '  rts',
+    ]
+
+
+def _emit_companion_play(model: EngineModel) -> list[str]:
+    """Two-tempo play loop. PWM block first (toggling pwm_ctr +
+    Vn PW_LO sweep on 1→0 transition), then tempo counter. On
+    gate_off_tick → maybe_gate_off × 3; on note_load_tick → reset
+    + advance + proc_note × 3."""
+    sweep = model.hardcoded_pw_sweep
+    # `g_pwm_ctr` aliases v_state+30. The legacy engine writes the
+    # swept register via the carry-leak +5 pattern (CMP sets carry,
+    # ADC #4 effectively adds 5). Mirror that for byte-exact match.
+    L = [
+        'play:',
+        '  inc g_pwm_ctr',
+        '  lda g_pwm_ctr',
+        '  cmp #$01',
+        '  bne cmp_pwm_done',
+        '  lda #0',
+        '  sta g_pwm_ctr',
+    ]
+    if sweep is not None:
+        # Swept voice's pw_lo offset in v_state = (voice_idx * 7) + 2 + 0
+        # = voice_idx * 7 + 2. For V3 (idx=2): 14 + 2 = 16.
+        pw_lo_off = sweep.voice_idx * 7 + 2
+        sid_reg = 0xD400 + sweep.voice_idx * 7 + 0x02  # voice pw_lo reg
+        # The original engine's `ADC #4` after `CMP #$01` adds 5
+        # (carry from CMP). Use the delta_per_phase - 1 to mirror that.
+        adc_imm = sweep.delta_per_phase - 1
+        L += [
+            f'  lda v_state+{pw_lo_off}',
+            f'  adc #{adc_imm}',
+            f'  sta v_state+{pw_lo_off}',
+            f'  sta ${sid_reg:04X}',
+        ]
+    L += [
+        'cmp_pwm_done:',
+        '  inc g_tempo_ctr',
+        '  lda g_tempo_ctr',
+        '  cmp v_state+21        ; gate_off_tick',
+        '  bne cmp_not_gate_off',
+        '  ldx #0',
+        '  jsr cmp_maybe_gate_off',
+        '  ldx #7',
+        '  jsr cmp_maybe_gate_off',
+        '  ldx #14',
+        '  jsr cmp_maybe_gate_off',
+        '  jmp cmp_play_done',
+        'cmp_not_gate_off:',
+        '  cmp v_state+22        ; note_load_tick',
+        '  bne cmp_play_done',
+        '  lda #0',
+        '  sta g_tempo_ctr',
+        '  ldx #0',
+        '  ldy v_state+0',
+        '  inc v_state+0',
+        f'  lda (${0xE0:02X}),y',
+        '  tay',
+        '  jsr cmp_proc_note',
+        '  ldx #7',
+        '  ldy v_state+7',
+        '  inc v_state+7',
+        f'  lda (${0xE2:02X}),y',
+        '  tay',
+        '  jsr cmp_proc_note',
+        '  ldx #14',
+        '  ldy v_state+14',
+        '  inc v_state+14',
+        f'  lda (${0xE4:02X}),y',
+        '  tay',
+        '  jsr cmp_proc_note',
+        'cmp_play_done:',
+        '  rts',
+    ]
+    return L
+
+
+def _emit_companion_maybe_gate_off() -> list[str]:
+    return [
+        'cmp_maybe_gate_off:',
+        '  lda v_state+1,x       ; gate_off flag',
+        '  bmi cmp_do_gate_off',
+        '  rts',
+        'cmp_do_gate_off:',
+        '  lda v_state+4,x       ; ctrl_noGate',
+        '  sta $D404,x',
+        '  lda #0',
+        '  sta v_state+1,x',
+        '  rts',
+    ]
+
+
+def _emit_companion_proc_note(model: EngineModel) -> list[str]:
+    """X = voice offset (0/7/14), Y = note byte.
+
+    bit-7 clear → normal note: freq + 5-byte timbre + gate-on.
+    bit-7 set:
+      - save bit-7 flag at v_state+1,x (gate-off scheduled)
+      - mask low 7
+      - $0C → rest (gate off)
+      - $0D → end_or_rest (gate off; on the end-song voice also
+              writes $D418=0 + clears g_song_alive)
+      - else $80+pitch → play pitch + leave flag set so
+                         maybe_gate_off fires at next gate_off_tick.
+    """
+    # End-song voice index from terminator vocab; companion writes
+    # vol=0 + song_alive=0 on V3's $8D ($0D after stripping bit-7).
+    end_song_voice = model.terminators.end_song_voice_idx
+    end_song_x = (end_song_voice or 0) * 7 if end_song_voice is not None else None
+    sweep = model.hardcoded_pw_sweep
+    sweep_voice_x = sweep.voice_idx * 7 if sweep else None
+
+    L = [
+        'cmp_proc_note:',
+        '  tya',
+        '  and #$80',
+        '  beq cmp_proc_normal',
+        '  sta v_state+1,x       ; flag = $80',
+        '  tya',
+        '  and #$7F',
+        '  tay',
+        '  cpy #$0C',
+        '  beq cmp_proc_rest',
+        '  cpy #$0D',
+        '  beq cmp_proc_end_or_rest',
+        'cmp_proc_normal:',
+        '  lda freq_hi_tab,y',
+        '  sta $D401,x',
+        '  lda freq_lo_tab,y',
+        '  sta $D400,x',
+    ]
+    # Skip pw_lo for the swept voice — its PW_LO is driven only by
+    # the global sweep.
+    if sweep_voice_x is not None:
+        L += [
+            f'  cpx #{sweep_voice_x}',
+            '  beq cmp_skip_pwlo',
+            '  lda v_state+2,x',
+            '  sta $D402,x',
+            'cmp_skip_pwlo:',
+        ]
+    else:
+        L += [
+            '  lda v_state+2,x',
+            '  sta $D402,x',
+        ]
+    L += [
+        '  lda v_state+3,x',
+        '  sta $D403,x',
+        '  lda v_state+5,x',
+        '  sta $D405,x',
+        '  lda v_state+6,x',
+        '  sta $D406,x',
+        '  lda v_state+4,x       ; ctrl_noGate',
+        '  ora #$01              ; gate on',
+        '  sta $D404,x',
+        '  rts',
+        'cmp_proc_rest:',
+        '  lda v_state+4,x',
+        '  sta $D404,x',
+        '  rts',
+        'cmp_proc_end_or_rest:',
+        '  lda v_state+4,x',
+        '  sta $D404,x',
+    ]
+    if end_song_x is not None:
+        L += [
+            f'  cpx #{end_song_x}',
+            '  bne cmp_proc_end_done',
+            '  lda #0',
+            '  sta g_song_alive',
+            '  sta $D418',
+            'cmp_proc_end_done:',
+            '  rts',
+        ]
+    else:
+        L.append('  rts')
+    return L
+
+
+def _emit_companion_runtime_vars() -> list[str]:
+    return [
+        'sub_idx:       .byte 0',
+        'g_song_alive:  .byte 0',
+        # 32-byte template area. g_tempo_ctr and g_pwm_ctr alias
+        # v_state+23 (init_tempo_counter slot) and v_state+30
+        # (init_pwm_ctr slot) so the template copy at init seeds
+        # both runtime counters.
+        'v_state:       .dsb 32, 0',
+        'g_tempo_ctr = v_state+23',
+        'g_pwm_ctr   = v_state+30',
+    ]
+
+
+def _emit_companion_per_subtune_blocks(model: EngineModel,
+                                        per_subtune_voice_orderlists: list[list[bytes]],
+                                        per_subtune_voice_timbres: list[list[tuple]]
+                                        ) -> list[str]:
+    """Per-subtune blocks (orderlist × 3 + template) + dispatch tables.
+
+    Layout follows the legacy companion engine: each subtune emits
+    `ord_s{N}_v1`, `ord_s{N}_v2`, `ord_s{N}_v3`, `tmpl_s{N}` in
+    sequence (so the engine's "read past $8D" overruns predictable
+    bytes from the next voice's orderlist or the template).
+    """
+    L = []
+    subs = model.subtunes
+    n_sub = len(subs)
+
+    for s_idx, sub in enumerate(subs):
+        L.append(f'; ----- subtune {sub.id} block -----')
+        # V1/V2/V3 orderlists
+        for v_idx in range(3):
+            L.append(f'ord_s{sub.id}_v{v_idx+1}:')
+            ob = per_subtune_voice_orderlists[s_idx][v_idx]
+            for i in range(0, len(ob), 16):
+                L.append('  .byte ' + ', '.join(
+                    f'${b:02X}' for b in ob[i:i+16]))
+        # Per-subtune template — built from voice timbres + timing/PWM
+        init_pwm = sub.init_pwm_state or (0, 0)
+        tmpl = _companion_template_bytes(
+            per_subtune_voice_timbres[s_idx],
+            sub.gate_off_tick or 0,
+            sub.note_load_tick or 0,
+            sub.init_tempo_ctr,
+            init_pwm[0], init_pwm[1])
+        L.append(f'tmpl_s{sub.id}:')
+        L.append('  .byte ' + ', '.join(f'${b:02X}' for b in tmpl[:16]))
+        L.append('  .byte ' + ', '.join(f'${b:02X}' for b in tmpl[16:32]))
+
+    # Dispatch tables (one entry per subtune)
+    L.append('; ----- dispatch tables -----')
+    L.append('ord_v1_lo: .byte ' + ', '.join(
+        f'<ord_s{subs[i].id}_v1' for i in range(n_sub)))
+    L.append('ord_v1_hi: .byte ' + ', '.join(
+        f'>ord_s{subs[i].id}_v1' for i in range(n_sub)))
+    L.append('ord_v2_lo: .byte ' + ', '.join(
+        f'<ord_s{subs[i].id}_v2' for i in range(n_sub)))
+    L.append('ord_v2_hi: .byte ' + ', '.join(
+        f'>ord_s{subs[i].id}_v2' for i in range(n_sub)))
+    L.append('ord_v3_lo: .byte ' + ', '.join(
+        f'<ord_s{subs[i].id}_v3' for i in range(n_sub)))
+    L.append('ord_v3_hi: .byte ' + ', '.join(
+        f'>ord_s{subs[i].id}_v3' for i in range(n_sub)))
+    L.append('tmpl_lo:   .byte ' + ', '.join(
+        f'<tmpl_s{subs[i].id}' for i in range(n_sub)))
+    L.append('tmpl_hi:   .byte ' + ', '.join(
+        f'>tmpl_s{subs[i].id}' for i in range(n_sub)))
+    # Per-subtune filter cutoff + master vol byte tables.
+    L.append('sub_fcHi:  .byte ' + ', '.join(
+        f'${(s.filter_cutoff_hi or 0):02X}' for s in subs))
+    L.append('sub_vol:   .byte ' + ', '.join(
+        f'${(s.master_vol_init or 0):02X}' for s in subs))
+    return L
+
+
+# ---------------------------------------------------------------------------
 
 def _emit_freq_table(freq_table: bytes) -> list[str]:
     fh = freq_table[:128]
@@ -1303,17 +1693,39 @@ def emit_asm(model: EngineModel,
     L += _emit_header()
 
     if model.voice_timing.mode == 'every_tick':
-        # Atomic-byte-per-tick: per-voice voice_step routines + shared
-        # proc_note + RAM-mutable per-voice positions.
-        L += _emit_init(model, active)
-        L += _emit_play(model, active)
-        L += _emit_proc_note(model)
-        for v in active:
-            L += _emit_voice_step(model, v)
-        L += _emit_runtime_vars(model, active)
-        L += _emit_freq_table(model.freq_table)
-        L += _emit_per_subtune_tables(model, active, per_subtune_voice_timbres)
-        L += _emit_orderlists(active, per_subtune_voice_patterns)
+        if model.tempo_dispatch.mode == 'two_phase':
+            # Companion shape: two-tempo dispatch (gate_off_tick +
+            # note_load_tick) + hardcoded V3 PW sweep + early-release
+            # flag + 32-byte init template per subtune. Voices read
+            # next byte only when the global tempo_ctr hits
+            # note_load_tick; no per-voice counter.
+            L += _emit_companion_init()
+            L += _emit_companion_play(model)
+            L += _emit_companion_maybe_gate_off()
+            L += _emit_companion_proc_note(model)
+            L += _emit_companion_runtime_vars()
+            L += _emit_freq_table(model.freq_table)
+            # Convert per-subtune-voice-patterns dict to ordered list
+            per_subtune_voice_orderlists = [
+                [per_subtune_voice_patterns[s_idx].get(v, bytes([0x8D]))
+                 for v in range(3)]
+                for s_idx in range(len(model.subtunes))]
+            L += _emit_companion_per_subtune_blocks(
+                model, per_subtune_voice_orderlists,
+                per_subtune_voice_timbres)
+        else:
+            # Atomic-byte-per-tick (single-phase tempo): per-voice
+            # voice_step routines + shared proc_note + RAM-mutable
+            # per-voice positions.
+            L += _emit_init(model, active)
+            L += _emit_play(model, active)
+            L += _emit_proc_note(model)
+            for v in active:
+                L += _emit_voice_step(model, v)
+            L += _emit_runtime_vars(model, active)
+            L += _emit_freq_table(model.freq_table)
+            L += _emit_per_subtune_tables(model, active, per_subtune_voice_timbres)
+            L += _emit_orderlists(active, per_subtune_voice_patterns)
 
     elif model.voice_timing.mode == 'tick_counter_decrement':
         # Per-voice tick-counter state machine: shared voice_tick called
@@ -1414,12 +1826,16 @@ def emit_sid_from_usf(usf) -> bytes:
 
     # Per-subtune, per-voice timbres. Each subtune carries its own
     # `init.voices` which references instruments — usually subtune-
-    # specific (Melonmania's subtunes use different instruments).
+    # specific (e.g. Melonmania's subtunes use different instruments).
+    # The ctrl byte's source depends on the model's `voices.ctrl_source`:
+    # 'instrument_waveform' (most shapes) or 'init_voice_field'
+    # (companion — ctrl_noGate is the per-voice InitVoice.ctrl byte).
     from src.usf import MusicSubtune
     music = sorted(
         (s for s in usf.subtunes if isinstance(s, MusicSubtune)),
         key=lambda s: s.id)
     instr_by_id = {i.id: i for i in usf.instruments}
+    ctrl_from_init = (model.voices.ctrl_source == 'init_voice_field')
 
     per_subtune_voice_timbres: list[list[tuple]] = []
     for ms in music:
@@ -1431,10 +1847,12 @@ def emit_sid_from_usf(usf) -> bytes:
             iv = iv_by_id.get(v_idx + 1)
             if iv and iv.instr:
                 inst = instr_by_id[iv.instr.id]
+                ctrl_byte = (iv.ctrl if ctrl_from_init
+                             else (inst.waveform[0] if inst.waveform else 0))
                 timbres.append((
                     inst.pwm.init & 0xFF,
                     (inst.pwm.init >> 8) & 0xFF,
-                    inst.waveform[0] if inst.waveform else 0,
+                    ctrl_byte,
                     inst.adsr[0],
                     inst.adsr[1],
                 ))
@@ -1443,14 +1861,18 @@ def emit_sid_from_usf(usf) -> bytes:
         per_subtune_voice_timbres.append(timbres)
 
     # Encode each subtune's per-voice pattern bytes — encoding depends
-    # on voice_timing.mode (atomic vs pair vs cmd-stream).
+    # on the model's pattern shape (atomic vs pair vs cmd-stream vs
+    # companion).
     per_subtune_voice_patterns: list[dict[int, bytes]] = []
     per_subtune_voice_init_states: list[list[int]] = []
     is_pair = (model.voice_timing.mode == 'tick_counter_decrement')
     is_cmd = (model.voice_timing.mode == 'dur_counter_decrement')
+    is_companion = (model.voice_timing.mode == 'every_tick'
+                    and model.tempo_dispatch.mode == 'two_phase')
     for ms in music:
         pat_dict: dict[int, bytes] = {}
         init_states = [0, 0, 0]
+        sp = ms.params.fields if ms.params else {}
         for v in ms.voices:
             if is_pair:
                 pb, st = _pair_voice_bytes_and_state(v)
@@ -1458,6 +1880,11 @@ def emit_sid_from_usf(usf) -> bytes:
                 init_states[v.id - 1] = st
             elif is_cmd:
                 pat_dict[v.id - 1] = _cmd_voice_bytes(v)
+            elif is_companion:
+                pad_count = sp.get(f'v{v.id}_pad_count', 0)
+                pad_byte = sp.get(f'v{v.id}_pad_byte', 0)
+                pat_dict[v.id - 1] = _companion_voice_bytes(
+                    v, pad_count, pad_byte)
             else:
                 pat_dict[v.id - 1] = _voice_pattern_bytes(
                     v, model.terminators.byte_map)

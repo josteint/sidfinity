@@ -832,17 +832,78 @@ The `shape == 'command_stream'` dispatch arm is gone.
 
 ### Phase 7 — Add companion's features
 
-- [ ] Two-tempo dispatch (`gate_off_tick` + `note_load_tick`).
-- [ ] Per-subtune 32-byte init template + per-voice locked timbre.
-- [ ] `$80`+pitch = early-release feature.
-- [ ] `$8C` rest, `$8D` end-song-on-Vn terminator semantics.
-- [ ] Hardcoded Vn PW_LO sweep (V3 += 5 every other frame).
-- [ ] Filter setup ($D416 + $D417 at init).
-- [ ] Post-terminator orderlist padding bytes (engine reads past `$8D`).
-- [ ] Express Up_up_and_Away as a feature config. Verify subs match
+- [x] Two-tempo dispatch (`gate_off_tick` + `note_load_tick`).
+- [x] Per-subtune 32-byte init template + per-voice locked timbre.
+- [x] `$80`+pitch = early-release feature.
+- [x] `$8C` rest, `$8D` end-song-on-Vn terminator semantics.
+- [x] Hardcoded Vn PW_LO sweep (V3 += 5 every other frame).
+- [x] Filter setup ($D416 + $D417 at init).
+- [x] Post-terminator orderlist padding bytes (engine reads past `$8D`).
+- [x] Express Up_up_and_Away as a feature config. Verify subs match
       pre-rewrite numbers (subs 0/1/2/4 1-event-short + sub 3
       divergence are pre-existing).
-- [ ] Delete the `companion` shape emitter. Commit.
+- [x] Delete the `companion` shape emitter. Commit.
+
+**Outcome:**
+* Composer's `emit_asm` now branches further within
+  `voice_timing.mode == 'every_tick'` on `tempo_dispatch.mode`:
+  `single_phase` → atomic (henrys + bowden), `two_phase` → companion.
+  Both branches still feature-driven on real USF features.
+* New companion-shape emitters in `pipelines/composer.py`:
+  - `_companion_row_byte` / `_companion_voice_bytes`: 1-byte-per-period
+    encoding. fx:early_release sets bit 7 of pitch byte; rest with
+    early_release → $8C. Terminator $8D + per-voice padding bytes.
+  - `_companion_template_bytes`: builds the 32-byte init template
+    (V1/V2/V3 voice state × 7 bytes + 2 tempo divider bytes +
+    init_tempo_counter + 6 zeros + 2 PWM init bytes).
+  - `_emit_companion_init`: A = subtune idx. Self-modifying tcopy
+    loop copies template into v_state. Orderlist zp pointers from
+    per-subtune `ord_v{1,2,3}_lo/hi` tables. Filter + master vol
+    from `sub_fcHi` + `sub_vol`.
+  - `_emit_companion_play`: PWM block first (g_pwm_ctr toggles 0/1;
+    on 1→0 fires Vn PW sweep via `HardcodedPwSweep` params); then
+    two-tempo gate (gate_off_tick → maybe_gate_off ×3; else
+    note_load_tick → advance + proc_note ×3).
+  - `_emit_companion_maybe_gate_off`: per-voice early-release fire.
+  - `_emit_companion_proc_note`: bit-7 dispatch. Normal note plays
+    freq + 5-byte timbre + gate-on (skipping pw_lo on swept voice).
+    $80+pitch flags + plays. $8C rest. $8D end-or-rest on the
+    end-song voice clears g_song_alive + writes $D418=0.
+  - `_emit_companion_runtime_vars`: sub_idx, g_song_alive, v_state
+    (32 bytes). `g_tempo_ctr` and `g_pwm_ctr` are aliased to
+    v_state+23 / v_state+30 so the template copy seeds them.
+  - `_emit_companion_per_subtune_blocks`: per-subtune orderlist + 32-byte
+    template emitted in sequence (so engine's "read past $8D"
+    overruns predictable bytes); dispatch tables (`ord_v*_lo/hi`,
+    `tmpl_lo/hi`, `sub_fcHi`, `sub_vol`).
+* Per-voice `ctrl_source` honored: when `model.voices.ctrl_source ==
+  'init_voice_field'`, the per-subtune timbre's ctrl byte is taken
+  from `InitVoice.ctrl` rather than `instrument.waveform[0]`.
+* `HardcodedPwSweep` feature on the model translates to the
+  per-frame PW sweep asm. Swept voice index + delta + phase period
+  are parametric, not engine-named.
+
+**Verified:**
+* Up_up_and_Away composer matches legacy byte-for-byte on all 5
+  subtunes (at 8s and 10s capture windows). Subs 0/1/2/4 + sub 3
+  pre-existing partials preserved verbatim.
+* All Phase 3-6 territory unchanged: Henrys, 18 bowden, 9 yes_tune,
+  Gyroscope, Fairlight (pre-existing).
+* Hubbard 71/71 unchanged.
+
+**Legacy companion-shape emitter retired:**
+`_emit_companion_init`, `_emit_companion_play`,
+`_emit_companion_maybe_gate_off`, `_emit_companion_proc_note`
+removed from `pipelines/universal_codegen.py`. The `shape == 'companion'`
+dispatch arm is gone; the legacy `emit_sid` now raises
+`NotImplementedError` for any shape that reaches it (composer
+should have handled all of them).
+
+The composer now owns ALL five companion-strain shapes:
+  atomic 1-voice (henrys), atomic 3-voice + carry-leak (bowden),
+  pair (yes_tune), cmd-stream (clever_music), companion
+  (Up_up_and_Away). One shape left: hubbard85 (the big parametric
+  core — Phase 8).
 
 ### Phase 8 — Absorb Hubbard '85
 
