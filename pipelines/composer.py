@@ -219,6 +219,120 @@ _VOL_FADE_SENTINELS = (
 )
 
 
+# ---------------------------------------------------------------------------
+# Small sentinel-substitution feature emitters (Phase 8.4)
+# ---------------------------------------------------------------------------
+#
+# Each of these features in the lifted Hubbard '85 ENGINE template is a
+# tiny asm fragment substituted via a `; %%FEATURE%%` sentinel comment
+# (or a direct text replacement for `arp_phase_invert`). The composer
+# owns the emitters; composer_hubbard.py calls them during template
+# substitution.
+
+def _emit_ns_offtab_decr(decr_offset: int | None) -> str:
+    """Off-table-note-start statebuf decrement (Thing on a Spring).
+
+    The engine reads pattern-position state mid-load, while our note
+    codec advances v_hubidx at end-of-load. To match, decrement the
+    current voice's v_hubidx slot in statebuf by 1 before the freq
+    read. The offset says which statebuf slot to decrement (the
+    v_hubidx position in `StateLayoutMirror`).
+    """
+    if decr_offset is None:
+        return ''
+    return (
+        f'        sec\n'
+        f'        lda statebuf+{decr_offset},x\n'
+        f'        sbc #1\n'
+        f'        sta statebuf+{decr_offset},x'
+    )
+
+
+def _emit_incby2_late_gate(threshold: int | None,
+                            per_subtune_zp_var: bool = False) -> str:
+    """fx_incby2 late-gate: only fire when `v_dur < threshold`.
+
+    Two variants:
+      * compile-time constant (`threshold` is an int) — used by Hunter
+        Patrol and similar.
+      * per-subtune table read via `cur_incby2_late_gate` zp slot
+        (5_Title_Tunes path).
+
+    When neither applies (`threshold=None`, `per_subtune_zp_var=False`),
+    returns the empty string — the engine's incby2 fx fires
+    unconditionally on the configured frame phase.
+    """
+    if not per_subtune_zp_var and threshold is None:
+        return ''
+    cmp_line = ('        cmp cur_incby2_late_gate' if per_subtune_zp_var
+                else f'        cmp #{threshold}')
+    return (
+        '        lda v_dur,x\n'
+        f'{cmp_line}\n'
+        '        bcs fxi_ret          ; v_dur >= late_gate -> skip'
+    )
+
+
+def _emit_clear_drumtrig(tie_preserves_slide: bool) -> dict[str, str]:
+    """Position the `sta v_drumtrig,x` clear in `ln_decode`.
+
+    Two placements possible (both emit the same 2 bytes so no address
+    shifting):
+      * unconditional (default) — pre-9828b37 behaviour. Works for
+        Monty / Chimera / others.
+      * only on the non-tie path — matches Confuzion / BoB's
+        `BVS skip` over the v_slide clear.
+    """
+    clear = '        sta v_drumtrig,x'
+    if tie_preserves_slide:
+        return {
+            '; %%CLEAR_DRUMTRIG_UNCOND%%': '',
+            '; %%CLEAR_DRUMTRIG_NONTIE%%': clear,
+        }
+    return {
+        '; %%CLEAR_DRUMTRIG_UNCOND%%': clear,
+        '; %%CLEAR_DRUMTRIG_NONTIE%%': '',
+    }
+
+
+def _emit_arp_phase_invert_substitution(invert: bool) -> tuple[str, str] | None:
+    """fx_arp phase-invert: swap which frame_ctr & ARP_MASK phase is
+    "active" (One Man and his Droid uses the inverse polarity from
+    every other engine — `frame_ctr & $04 == 0` → +12 semitones).
+
+    Returns (old, new) text pair for `asm.replace`, or None when
+    `invert is False` (no substitution applied).
+    """
+    if not invert:
+        return None
+    return ('beq fxa_even', 'bne fxa_even')
+
+
+def _emit_ovseed_copy(has_per_subtune_ovseed: bool) -> str:
+    """5_Title_Tunes per-subtune ovseed copy. Runs at the top of `init`
+    before the iniov loop reads ovseed; copies the selected subtune's
+    18-byte ovseed block into the `ovseed` data label so iniov sees
+    the right per-voice state seed.
+
+    Empty string when the engine doesn't use per-subtune ovseed
+    (every Hubbard '85 engine outside 5TT).
+    """
+    if not has_per_subtune_ovseed:
+        return ''
+    return (
+        '        ldy sub_tmp\n'
+        '        lda subOvseedLo,y\n'
+        '        sta sfx_rec\n'
+        '        lda subOvseedHi,y\n'
+        '        sta sfx_rec+1\n'
+        '        ldy #17\n'
+        'ovcopy: lda (sfx_rec),y\n'
+        '        sta ovseed,y\n'
+        '        dey\n'
+        '        bpl ovcopy'
+    )
+
+
 def _emit_master_vol_fade(fade: 'FadeProgressive | None') -> dict[str, str]:
     """Return the four sentinel→asm fragments for the master-vol fade.
 

@@ -1006,10 +1006,49 @@ function in composer.py that returns a single asm string or a
 {sentinel: fragment} dict; composer_hubbard.py imports and calls it
 during template substitution.
 
-#### Phase 8.4+ — Per-feature decomposition (future sessions)
+#### Phase 8.4 — Small sentinel-substitution features (batched)
 
-Each remaining Hubbard '85 feature moves from composer_hubbard.py
-to composer.py, one at a time, byte-exact regression at every step.
+Five small features moved into composer.py in one commit:
+
+- [x] `_emit_ns_offtab_decr(decr_offset)` — Thing on a Spring's
+      statebuf v_hubidx decrement (`%%NS_OFFTAB_DECR%%`).
+- [x] `_emit_incby2_late_gate(threshold, per_subtune_zp_var=False)` —
+      Hunter Patrol's compile-time late-gate AND 5TT's runtime
+      zp-var-lookup variant in one parametric emitter
+      (`%%INCBY2_LATE_GATE%%`).
+- [x] `_emit_clear_drumtrig(tie_preserves_slide)` — Confuzion/BoB's
+      `sta v_drumtrig,x` placement (uncond vs non-tie path)
+      (`%%CLEAR_DRUMTRIG_UNCOND%%` + `%%CLEAR_DRUMTRIG_NONTIE%%`).
+- [x] `_emit_arp_phase_invert_substitution(invert)` — One Man and
+      his Droid's `beq fxa_even` → `bne fxa_even` text replace.
+- [x] `_emit_ovseed_copy(has_per_subtune_ovseed)` — 5_Title_Tunes
+      per-subtune ovseed copy loop (`%%OVSEED_COPY%%`).
+
+composer_hubbard.py's `_hubbard_emit_sid` collapsed by ~70 lines —
+inline emit logic replaced by composer-side function calls. The
+`uses_psp` / non-psp dispatch is still in composer_hubbard (a 5TT
+concern that belongs in the Hubbard-specific adapter for now).
+
+Verified: Hubbard 71/71 byte-exact — Confuzion (tie_preserves_slide),
+BoB (tie_preserves_slide), One Man + His Droid (arp_phase_invert),
+Hunter Patrol (incby2_late_gate), Thing on a Spring (ns_offtab_decr
++ master vol fade), TOAS (master vol fade) — all exercised.
+
+#### Phase 8.5+ — Per-feature decomposition (future sessions)
+
+Larger remaining features for future sessions:
+- 5_Title_Tunes per-subtune mechanism dispatch (replaces the
+  SPEED_CTR_INIT load + INCBY2_STEP add with byte-table reads)
+- The four single-feature fx routines (vibrato, PWM linear,
+  PWM bidirectional, freq-hi slide, drum-slide, arpeggio,
+  inc_by2)
+- Freq table data emitter
+- Instrument table data emitter
+- Per-subtune dispatch tables emitter
+- Pattern data + pattern pool emitter
+- SFX sub-engine (init_sfx + sfx_play + sfx_step + sfxdata)
+- Digi region builder
+- Compound build (5TT packed sub-engines + dispatcher)
 
 - [ ] Vibrato LFO emitter (`_emit_vibrato_asm` or per-instrument).
 - [ ] PWM linear emitter.

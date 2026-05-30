@@ -1603,14 +1603,25 @@ def _hubbard_emit_sid(inputs: _Inputs, out_path: str, codec,
     asm = asm.replace('; %%BUILD_STATEBUF%%',
                       _emit_build_statebuf(inputs.state_layout))
 
-    # When arp_phase_invert, flip the sense of fx_arp's branch: the
-    # "frame_ctr & ARP_MASK == 0" path becomes the +ARP_OFS one
-    # instead of the base one (One Man and his Droid uses
-    # `frame_ctr & $04 == 0` → +12, the inverse of every other engine).
-    if inputs.arp_phase_invert:
-        asm = asm.replace('beq fxa_even', 'bne fxa_even')
+    # Small sentinel-feature emitters — Phase 8.4 moved them into
+    # composer.py. composer_hubbard.py is the adapter: wraps `_Inputs`
+    # fields into the right shape and applies the substitutions.
+    from pipelines.engine_model import FadeProgressive
+    from pipelines.composer import (
+        _emit_arp_phase_invert_substitution,
+        _emit_clear_drumtrig,
+        _emit_incby2_late_gate,
+        _emit_master_vol_fade,
+        _emit_ns_offtab_decr,
+        _emit_ovseed_copy,
+    )
 
-    # Per-subtune engine params (5 Title Tunes unified path). When ANY
+    # arp_phase_invert — direct text replace in fx_arp's branch.
+    sub = _emit_arp_phase_invert_substitution(inputs.arp_phase_invert)
+    if sub is not None:
+        asm = asm.replace(sub[0], sub[1])
+
+    # Per-subtune engine params (5_Title_Tunes unified path). When ANY
     # of the per_subtune_* lists is set, replace the compile-time SPEED
     # CTR / INCBY2 STEP / late-gate code with per-subtune-table reads.
     uses_psp = (
@@ -1631,69 +1642,26 @@ def _hubbard_emit_sid(inputs: _Inputs, out_path: str, codec,
             '        sta cur_incby2_step\n'
             '        lda subIncBy2LateGate,y\n'
             '        sta cur_incby2_late_gate')
-        # Per-subtune ovseed copy — runs BEFORE the iniov loop, so init's
-        # per-voice state seeding sees the correct per-subtune bytes.
-        ov_copy_asm = ''
-        if inputs.per_subtune_ovseed is not None:
-            ov_copy_asm = (
-                '        ldy sub_tmp\n'
-                '        lda subOvseedLo,y\n'
-                '        sta sfx_rec\n'
-                '        lda subOvseedHi,y\n'
-                '        sta sfx_rec+1\n'
-                '        ldy #17\n'
-                'ovcopy: lda (sfx_rec),y\n'
-                '        sta ovseed,y\n'
-                '        dey\n'
-                '        bpl ovcopy')
-        asm = asm.replace('; %%OVSEED_COPY%%', ov_copy_asm)
         # fx_incby2: switch the slide-step `adc #INCBY2_STEP` to use the
         # zp slot loaded above.
         asm = asm.replace(
             '        adc #INCBY2_STEP',
             '        adc cur_incby2_step')
-        # Late-gate sentinel: always emit the runtime check; subs with
-        # no gate use cur_incby2_late_gate = $FF (v_dur never reaches).
-        late_gate_asm = (
-            f'        lda v_dur,x\n'
-            f'        cmp cur_incby2_late_gate\n'
-            f'        bcs fxi_ret          ; v_dur >= late_gate -> skip')
-        asm = asm.replace('; %%INCBY2_LATE_GATE%%', late_gate_asm)
+        # Per-subtune ovseed copy + late-gate (zp-var lookup variant)
+        asm = asm.replace('; %%OVSEED_COPY%%', _emit_ovseed_copy(
+            inputs.per_subtune_ovseed is not None))
+        asm = asm.replace('; %%INCBY2_LATE_GATE%%',
+                          _emit_incby2_late_gate(None, per_subtune_zp_var=True))
     else:
-        # Existing per-engine compile-time path (unchanged for the 9
-        # already-migrated engines).
-        late_gate_asm = ''
-        if inputs.incby2_late_gate is not None:
-            late_gate_asm = (
-                f'        lda v_dur,x\n'
-                f'        cmp #{inputs.incby2_late_gate}\n'
-                f'        bcs fxi_ret          ; v_dur >= late_gate -> skip')
-        asm = asm.replace('; %%INCBY2_LATE_GATE%%', late_gate_asm)
-        # Engines without per-subtune ovseed don't copy anything — the
-        # codegen-baked `ovseed` constants are read directly.
-        asm = asm.replace('; %%OVSEED_COPY%%', '')
+        asm = asm.replace('; %%OVSEED_COPY%%', _emit_ovseed_copy(False))
+        asm = asm.replace('; %%INCBY2_LATE_GATE%%',
+                          _emit_incby2_late_gate(inputs.incby2_late_gate))
 
-    # Off-table note-start: for engines whose off-table reads
-    # pattern-position state, decrement the current voice's v_hubidx
-    # slot in statebuf by 1 to match the engine's v_patpos at the
-    # freq-read moment (orig advances mid-load; ours advances at end).
-    # Only Thing on a Spring sets this for now.
-    offtab_decr_asm = ''
-    if inputs.ns_offtab_decr_offset is not None:
-        ofs = inputs.ns_offtab_decr_offset
-        # Caller's voice index is in X here (build_statebuf preserves X).
-        offtab_decr_asm = (
-            f'        sec\n'
-            f'        lda statebuf+{ofs},x\n'
-            f'        sbc #1\n'
-            f'        sta statebuf+{ofs},x')
-    asm = asm.replace('; %%NS_OFFTAB_DECR%%', offtab_decr_asm)
+    # ns_offtab_decr — Thing on a Spring's statebuf v_hubidx decrement.
+    asm = asm.replace('; %%NS_OFFTAB_DECR%%',
+                      _emit_ns_offtab_decr(inputs.ns_offtab_decr_offset))
 
-    # Master-volume fade — Phase 8.3 moved the emitter into composer.py.
-    # Build a FadeProgressive (model dataclass) from inputs' flat fields
-    # and let composer emit the four sentinel substitutions.
-    from pipelines.engine_model import FadeProgressive
-    from pipelines.composer import _emit_master_vol_fade
+    # Master-volume fade — four sentinel substitutions.
     fade = (
         FadeProgressive(
             subtrahend_voice_idx=inputs.master_vol_subtrahend_voice,
@@ -1704,20 +1672,11 @@ def _hubbard_emit_sid(inputs: _Inputs, out_path: str, codec,
     for sentinel, fragment in _emit_master_vol_fade(fade).items():
         asm = asm.replace(sentinel, fragment)
 
-    # tie_preserves_slide selects WHERE the v_drumtrig clear lives in
-    # ln_decode. False (default): unconditional at the top (pre-9828b37
-    # behaviour — works for Monty / Chimera / others). True: only in the
-    # non-tie path (matches Confuzion / BoB's `BVS skip` over the
-    # v_slide clear). Both placements emit exactly `sta v_drumtrig,x`
-    # (2 bytes) so swapping doesn't shift any addresses.
-    if inputs.tie_preserves_slide:
-        clear_uncond = ''
-        clear_nontie = '        sta v_drumtrig,x'
-    else:
-        clear_uncond = '        sta v_drumtrig,x'
-        clear_nontie = ''
-    asm = asm.replace('; %%CLEAR_DRUMTRIG_UNCOND%%', clear_uncond)
-    asm = asm.replace('; %%CLEAR_DRUMTRIG_NONTIE%%', clear_nontie)
+    # tie_preserves_slide — pair of substitutions positioning the
+    # `sta v_drumtrig,x` clear.
+    for sentinel, fragment in _emit_clear_drumtrig(
+            inputs.tie_preserves_slide).items():
+        asm = asm.replace(sentinel, fragment)
 
     # Relocate the engine to the requested load address — the ENGINE
     # template has `* = $1000` hardcoded; rewrite it to load_addr.
