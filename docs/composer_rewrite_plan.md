@@ -953,11 +953,42 @@ The pipelines package is now:
 No more `universal_codegen.py`. The hubbard85 code now has its own
 file as the target surface for Phase 8.2+ feature extraction.
 
-#### Phase 8.2+ — Per-feature decomposition (future sessions)
+#### Phase 8.2 — State-layout mirror (first feature into composer)
 
-Each Hubbard '85 feature gets translated into a composer-style
-emitter parametric on EngineModel features. One feature per session
-(or several when independent), byte-exact-regression at every step.
+- [x] Unified state-layout dataclasses: `StatebufLayout`/`StatebufSlot`
+      aliased to `StateLayoutMirror`/`StateSlot` in
+      `pipelines/engine_model.py`. One canonical source for the
+      layout description.
+- [x] Moved `COMMANDO_STATEBUF_LAYOUT`, `_emit_build_statebuf`,
+      `_statebuf_init_bytes` from `composer_hubbard.py` to
+      `composer.py`. composer.py is now the home for the off-table
+      arp state-mirror feature's asm emitter.
+- [x] `composer_hubbard.py` imports the moved symbols back; the
+      lifted ENGINE template's `%%BUILD_STATEBUF%%` substitution
+      still works (calls composer's `_emit_build_statebuf` now).
+- [x] `pipelines/hubbard/engine_constants.py` imports the dataclasses
+      from `engine_model.py` (instead of the lifted location).
+- [x] Verify 71/71 (Human Race uses state_layout — confirms the
+      emitter works through composer).
+
+**Outcome:**
+* `composer.py` owns the first Hubbard '85 feature emitter
+  (state-layout mirror). The pattern is established: each Phase 8.X
+  moves one feature emitter from composer_hubbard.py to composer.py;
+  composer_hubbard imports it back so the lifted ENGINE template
+  still substitutes asm via sentinel comments.
+* Composer can now emit `build_statebuf:` asm directly from a
+  `StateLayoutMirror` (model dataclass), without needing the lifted
+  `_Inputs` dataclass as an intermediate.
+
+**Phase 8.3+ continues the pattern.** Likely next: a single fx
+routine emitter (vibrato or PWM), or the freq table data emitter, or
+the per-subtune dispatch tables — pick a feature with clean in/out.
+
+#### Phase 8.3+ — Per-feature decomposition (future sessions)
+
+Each remaining Hubbard '85 feature moves from composer_hubbard.py
+to composer.py, one at a time, byte-exact regression at every step.
 
 - [ ] Vibrato LFO emitter (`_emit_vibrato_asm` or per-instrument).
 - [ ] PWM linear emitter.

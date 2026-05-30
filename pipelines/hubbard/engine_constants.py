@@ -689,7 +689,7 @@ COMMANDO = EngineConstants(
 #   $0DAD..$0DAE -> v_dur                          (offset 9)
 # Only mirror what the off-table arp at the observed pitches reads;
 # unmapped offsets stay at the statebuf data-block init value (0).
-from pipelines.composer_hubbard import StatebufLayout, StatebufSlot
+from pipelines.engine_model import StatebufLayout, StatebufSlot
 
 HUMAN_RACE_STATE_LAYOUT = StatebufLayout(
     n_voices=2,

@@ -43,6 +43,17 @@ XA = _XA   # legacy name; some lifted code still references it
 
 from pipelines.hubbard.inst_generalize import decode_all  # noqa: E402
 
+# State-layout mirror moved to composer.py in Phase 8.2. composer.py
+# owns the feature emitters; composer_hubbard imports them back here
+# so the lifted ENGINE template still substitutes the build_statebuf
+# routine via `%%BUILD_STATEBUF%%`. The dataclasses live in
+# `engine_model.py` as `StateLayoutMirror`/`StateSlot`, aliased
+# `StatebufLayout`/`StatebufSlot` for the lifted code's legacy naming.
+from pipelines.composer import (
+    COMMANDO_STATEBUF_LAYOUT, _emit_build_statebuf, _statebuf_init_bytes,
+)
+from pipelines.engine_model import StatebufLayout, StatebufSlot
+
 
 # ---------------------------------------------------------------------------
 # build_statebuf — engine state-region mirror for off-table arpeggio
@@ -71,102 +82,6 @@ from pipelines.hubbard.inst_generalize import decode_all  # noqa: E402
 #     the slot's `offset` is the base, with offset+X storing the X-th
 #     voice's value.
 
-@dataclass
-class StatebufSlot:
-    offset: int
-    kind: str            # 'var' | 'var_and' | 'note_byte' | 'const' | 'zp'
-    var: str = ''        # zp name for 'var' / 'var_and'
-    mask: int = 0xFF     # AND mask for 'var_and'
-    value: int = 0       # byte value for 'const'
-
-
-@dataclass
-class StatebufLayout:
-    n_voices: int = 3
-    scalars: list = field(default_factory=list)     # list[StatebufSlot]
-    per_voice: list = field(default_factory=list)   # list[StatebufSlot]
-
-
-# Commando's layout — the historic hand-written `build_statebuf` body.
-# Action Biker, Devils Galop, Monty and Chimera all share this layout
-# (they're the same engine family with the same state-region offsets).
-COMMANDO_STATEBUF_LAYOUT = StatebufLayout(
-    n_voices=3,
-    scalars=[
-        StatebufSlot(offset=3, kind='zp', var='sidoff'),
-    ],
-    per_voice=[
-        StatebufSlot(offset=4,  kind='var',     var='v_seqidx'),
-        StatebufSlot(offset=7,  kind='var',     var='v_hubidx'),
-        StatebufSlot(offset=10, kind='var',     var='v_dur'),
-        StatebufSlot(offset=13, kind='note_byte'),
-        StatebufSlot(offset=16, kind='var',     var='v_ctrlbyte'),
-        StatebufSlot(offset=19, kind='var',     var='v_pitch'),
-        StatebufSlot(offset=22, kind='var_and', var='v_instr', mask=0x3f),
-        StatebufSlot(offset=40, kind='var',     var='v_pwdir'),
-    ],
-)
-
-
-def _emit_build_statebuf(layout: StatebufLayout) -> str:
-    """Emit the `build_statebuf:` routine from a StatebufLayout.
-
-    Saves X (the caller's voice index), runs the scalars once, then
-    the per-voice loop with X = n_voices-1 down to 0, then restores X.
-    """
-    lines = ['build_statebuf:', '        txa', '        pha']
-    for s in layout.scalars:
-        if s.kind == 'const':
-            lines.append(f'        lda #${s.value:02X}')
-        elif s.kind == 'zp':
-            lines.append(f'        lda {s.var}')
-        else:
-            raise ValueError(f'scalar slot kind {s.kind!r} not supported')
-        lines.append(f'        sta statebuf+{s.offset}')
-
-    if layout.per_voice:
-        lines.append(f'        ldx #{layout.n_voices - 1}')
-        lines.append('bsb1:')
-        for s in layout.per_voice:
-            if s.kind == 'var':
-                lines.append(f'        lda {s.var},x')
-                lines.append(f'        sta statebuf+{s.offset},x')
-            elif s.kind == 'var_and':
-                lines.append(f'        lda {s.var},x')
-                lines.append(f'        and #${s.mask:02X}')
-                lines.append(f'        sta statebuf+{s.offset},x')
-            elif s.kind == 'note_byte':
-                lines.append(f'        lda v_instr,x')
-                lines.append(f'        and #$40')
-                lines.append(f'        ora v_durfield,x')
-                lines.append(f'        sta statebuf+{s.offset},x')
-            else:
-                raise ValueError(f'per-voice slot kind {s.kind!r} not supported')
-        lines.append('        dex')
-        lines.append('        bpl bsb1')
-
-    lines += ['        pla', '        tax', '        rts']
-    return '\n'.join(lines)
-
-
-def _statebuf_init_bytes(layout: StatebufLayout) -> str:
-    """The `statebuf:` data block — 96 bytes, with the per-voice
-    sidoff constants seeded where Commando expects them ($00, $07,
-    $0E for V1, V2, V3) and zeros for everything else. For engines
-    with different scalar constants, those are reflected here."""
-    bytes_ = [0] * 96
-    # The classic seed: 0, 7, 14 for V1, V2, V3. Engines override via
-    # `scalars` entries with kind='const' (e.g. HR puts sidoff
-    # constants at offsets 0 and 1 explicitly).
-    bytes_[0] = 0
-    bytes_[1] = 7
-    if layout.n_voices >= 3:
-        bytes_[2] = 14
-    # Apply any const scalars from the layout.
-    for s in layout.scalars:
-        if s.kind == 'const' and s.offset < len(bytes_):
-            bytes_[s.offset] = s.value
-    return ','.join(str(b) for b in bytes_)
 
 # ---------------------------------------------------------------------------
 # 6502 engine. A faithful implementation of song_interp.py's frame loop.
