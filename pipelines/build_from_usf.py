@@ -21,7 +21,7 @@ import struct
 
 from src.usf import UsfFile, MusicSubtune, DigiSubtune, SfxSubtune, parse_file, validate
 from pipelines.hubbard.sfx import SoundEffect
-from pipelines.hubbard.codegen import _Inputs, _emit_sid, LOAD
+from pipelines.codegen import _Inputs, _emit_sid, LOAD
 from pipelines.hubbard.engine_constants import (
     DigiCode, chimera_psid_dispatcher, assemble_chimera_digi_player,
 )
@@ -535,7 +535,7 @@ def _inputs_from_usf(usf: UsfFile) -> _Inputs:
     # Optional state_layout (Human Race).
     state_layout = None
     if usf.state_layout is not None:
-        from pipelines.hubbard.codegen import StatebufLayout, StatebufSlot
+        from pipelines.codegen import StatebufLayout, StatebufSlot
         d = usf.state_layout
         scalars = [StatebufSlot(offset=s['offset'], kind=s['kind'],
                                 value=s.get('value', 0),

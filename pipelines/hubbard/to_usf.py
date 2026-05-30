@@ -193,7 +193,7 @@ _PARAMS_SKIP_CONFIG = {
 
 # Engine name → tune-level `digi_player` name in the v3 USF. The
 # registry that resolves the name back to a DigiCode lives in
-# `pipelines/hubbard/build_from_usf.py`.
+# `pipelines/build_from_usf.py`.
 _DIGI_NAMES = {
     'chimera': 'chimera_1bit',
 }

@@ -92,7 +92,7 @@ function); never hardcode a frame count:
 
 ```python
 import sys; sys.path.insert(0,'.'); sys.path.insert(0,'tools/py65_lib'); sys.path.insert(0,'src')
-from pipelines.hubbard.build_from_usf import build_from_usf
+from pipelines.build_from_usf import build_from_usf
 from pipelines.hubbard.inst_program import capture, REG_NAMES
 from pipelines.hubbard.verify import subtune_frames
 from pipelines.<engine>.config import CFG

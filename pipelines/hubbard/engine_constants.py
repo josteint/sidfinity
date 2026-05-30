@@ -592,7 +592,7 @@ CHIMERA = EngineConstants(
 
 
 # ---------------------------------------------------------------------------
-# Registry — pipelines/hubbard/build_from_usf.py looks up by engine name.
+# Registry — pipelines/build_from_usf.py looks up by engine name.
 # ---------------------------------------------------------------------------
 
 DEVILS_GALOP = EngineConstants(
@@ -689,7 +689,7 @@ COMMANDO = EngineConstants(
 #   $0DAD..$0DAE -> v_dur                          (offset 9)
 # Only mirror what the off-table arp at the observed pitches reads;
 # unmapped offsets stay at the statebuf data-block init value (0).
-from pipelines.hubbard.codegen import StatebufLayout, StatebufSlot
+from pipelines.codegen import StatebufLayout, StatebufSlot
 
 HUMAN_RACE_STATE_LAYOUT = StatebufLayout(
     n_voices=2,

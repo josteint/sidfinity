@@ -32,7 +32,7 @@ pipelines/
 ```
 
 Older paths live under `deprecated/`:
-- `deprecated/lean_codegen/` — the per-engine Lean 4 codegen (replaced by `pipelines/hubbard/codegen.py`)
+- `deprecated/lean_codegen/` — the per-engine Lean 4 codegen (replaced by `pipelines/codegen.py`)
 - `deprecated/usf1_pipelines/` — engines that never migrated off USF v1 + per-engine USF v1 writers
 
 ## MANDATORY before any new pipeline work
@@ -74,7 +74,7 @@ bash tools/build.sh            # builds libsidplayfp + siddump (one-time)
 python -c "
 from pipelines.hubbard.commando.extract.to_usf import write_commando_usf
 from pipelines.hubbard.commando.config import COMMANDO
-from pipelines.hubbard.build_from_usf import build_from_usf
+from pipelines.build_from_usf import build_from_usf
 write_commando_usf(COMMANDO, 'hvsc84/MUSICIANS/H/Hubbard_Rob')
 build_from_usf('hvsc84/MUSICIANS/H/Hubbard_Rob/Commando.usf', 'hvsc84/MUSICIANS/H/Hubbard_Rob/Commando.sidfinity.sid')
 "
@@ -94,8 +94,8 @@ pytest pipelines/
 
 | File | Purpose |
 |------|---------|
-| `pipelines/hubbard/codegen.py` | The 6502 player generator. Parameterised by `EngineConfig`. |
-| `pipelines/hubbard/build_from_usf.py` | End-to-end: `.usf` → assembled SID |
+| `pipelines/codegen.py` | The 6502 player generator. Parameterised by `EngineConfig`. |
+| `pipelines/build_from_usf.py` | End-to-end: `.usf` → assembled SID |
 | `pipelines/hubbard/verify.py` | `verify_all` — md5 of per-frame snapshots |
 | `pipelines/hubbard/engine_constants.py` | freq tables, digi player asm, `EngineConstants` |
 | `pipelines/hubbard/config.py` | `EngineConfig` dataclass (the parameter surface) |

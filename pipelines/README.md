@@ -101,7 +101,7 @@ Status: 5/5 subtunes byte-exact (Up, up & Away!, 1984 Hubbard).
 python -c "
 from pipelines.hubbard.commando.extract.to_usf import write_commando_usf
 from pipelines.hubbard.commando.config import COMMANDO
-from pipelines.hubbard.build_from_usf import build_from_usf
+from pipelines.build_from_usf import build_from_usf
 write_commando_usf(COMMANDO, 'demo/hubbard')
 build_from_usf('demo/hubbard/Commando.usf', 'demo/hubbard/Commando.sid')
 "
@@ -140,4 +140,4 @@ short:
   active engines.
 - [`deprecated/lean_codegen/`](../deprecated/lean_codegen/) — the
   original per-engine Lean 4 codegen. Replaced by the shared Python
-  core at `pipelines/hubbard/codegen.py`.
+  core at `pipelines/codegen.py`.

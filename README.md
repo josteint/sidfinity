@@ -59,7 +59,7 @@ Adding a new engine should mean: write a decompiler + write an adapter + spell o
 Earlier the schema and codegen were written in [Lean 4](https://lean-lang.org/),
 one self-contained codegen per engine. The Lean trees and Lake build have been
 moved to [`deprecated/lean_codegen/`](deprecated/lean_codegen/). The active
-codegen is now a shared Python core (`pipelines/hubbard/codegen.py`)
+codegen is now a shared Python core (`pipelines/codegen.py`)
 parameterised by per-engine `EngineConfig` objects — adding a new engine no
 longer involves writing Lean. The 12 byte-exact Hubbard engines all share this
 single codegen. See `deprecated/lean_codegen/README.md` for what the Lean path
@@ -111,8 +111,8 @@ Per pipeline:
 | 2. Lift to engine model `(T, I, S)` | `<engine>/extract/engine_model.py` |
 | 3. Engine config / parameters | `<engine>/config.py` |
 | 4. Emit USF | `<engine>/extract/to_usf.py` |
-| 5. Generate 6502 player + PSID wrap | `pipelines/hubbard/codegen.py` (shared) |
-| 6. End-to-end build | `pipelines/hubbard/build_from_usf.py` |
+| 5. Generate 6502 player + PSID wrap | `pipelines/codegen.py` (shared) |
+| 6. End-to-end build | `pipelines/build_from_usf.py` |
 | 7. Verify (byte-exact) | `pipelines/hubbard/verify.py` |
 
 ## Build
@@ -123,7 +123,7 @@ bash tools/build.sh                            # libsidplayfp + siddump (one-tim
 
 # Build one engine end-to-end (example: Chimera)
 python -m pipelines.hubbard.chimera.extract             # writes the .usf + FLAC sidecars
-python -c "from pipelines.hubbard.build_from_usf import build_from_usf; \
+python -c "from pipelines.build_from_usf import build_from_usf; \
            build_from_usf('hvsc84/MUSICIANS/H/Hubbard_Rob/Chimera.usf', 'hvsc84/MUSICIANS/H/Hubbard_Rob/Chimera.sidfinity.sid')"
 
 # Verify (byte-exact via md5 of per-frame SID register snapshots)
