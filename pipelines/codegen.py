@@ -1939,3 +1939,208 @@ def main(argv: list[str]) -> None:
 
 if __name__ == '__main__':
     main(sys.argv[1:])
+
+
+# ---------------------------------------------------------------------------
+# Simple-tracker emit path
+#
+# A second emission path alongside the Hubbard-shaped one. Handles USFs
+# whose music is structurally simpler — currently single-voice tunes
+# with atomic 1-tick events. The 6502 it emits is small (init, one
+# tempo gate, advance pos, decode one byte per tick) and the SID
+# instruction stream it produces matches the simpler engines (like
+# henrys_house) that don't carry Hubbard's multi-voice + effects
+# machinery.
+#
+# Dispatch lives in build_from_usf.py — the codegen exposes this as
+# `_emit_sid_simple_tracker(usf) -> bytes`. When more engines need this
+# style, the parameter surface grows here; when an engine doesn't fit,
+# we either generalise this path or add a new one. There is no engine-
+# name lookup — the build path decides which emitter by reading USF
+# content alone.
+# ---------------------------------------------------------------------------
+
+_SEMI = {'C': 0, 'C#': 1, 'D': 2, 'D#': 3, 'E': 4, 'F': 5,
+         'F#': 6, 'G': 7, 'G#': 8, 'A': 9, 'A#': 10, 'B': 11}
+
+
+def _pitch_to_simple_byte(name: str, octave: int) -> int:
+    """Simple-tracker pitch encoding: (octave << 4) | semitone — gives
+    16 entries per octave in the freq table, semitones 12-15 unused.
+    """
+    return (octave << 4) | _SEMI[name]
+
+
+def _row_to_simple_bytes(row) -> bytes:
+    """Encode one NoteRow as engine bytes.
+
+    Atomic 1-tick events: a row with duration N emits 1 head byte +
+    (N-1) $81 SKIP bytes. Head byte is the pitch byte for a note,
+    $80 for a rest, or a raw escape for `fx:raw_NN`.
+    """
+    if not row.pitch.is_rest:
+        head = _pitch_to_simple_byte(row.pitch.name, row.pitch.octave)
+    else:
+        head = 0x80
+        for f in row.fx_flags:
+            if f.startswith('fx:raw_'):
+                head = int(f.split('_')[1], 16)
+                break
+    return bytes([head]) + bytes([0x81] * (row.duration - 1))
+
+
+def _emit_sid_simple_tracker(usf) -> bytes:
+    """Emit a PSID for a single-voice, atomic-1-tick-event USF.
+
+    Reads from the USF only — no engine-constants lookup. The USF
+    must carry a `freq_table` (256 bytes: 128 freq_hi + 128 freq_lo)
+    and exactly one music subtune whose V1 has patterns and V2/V3
+    are `orderlist: stop` with no patterns.
+    """
+    import struct
+    import subprocess
+
+    if usf.freq_table is None:
+        raise ValueError(
+            'simple-tracker emit requires a freq_table block in the USF')
+    if len(usf.freq_table) != 256:
+        raise ValueError(
+            f'simple-tracker expects 256-byte freq_table '
+            f'(128 freq_hi + 128 freq_lo); got {len(usf.freq_table)}')
+
+    music = [s for s in usf.subtunes
+             if hasattr(s, 'tempo') and hasattr(s, 'voices')]
+    if len(music) != 1:
+        raise ValueError(
+            f'simple-tracker expects 1 music subtune, got {len(music)}')
+    ms = music[0]
+    v1 = next((v for v in ms.voices if v.id == 1), None)
+    if v1 is None or not v1.patterns:
+        raise ValueError('simple-tracker needs a V1 voice with patterns')
+
+    instr = next((i for i in usf.instruments if i.id == 1), None)
+    if instr is None:
+        raise ValueError('missing instrument 1')
+    timbre = [
+        instr.pwm.init & 0xFF,
+        (instr.pwm.init >> 8) & 0xFF,
+        instr.waveform[0] if instr.waveform else 0,
+        instr.adsr[0], instr.adsr[1],
+    ]
+
+    pat = v1.patterns[0]
+    pat_body = b''.join(_row_to_simple_bytes(r) for r in pat.rows)
+    pattern_bytes = pat_body + bytes([0xFF])
+    tempo = ms.tempo
+
+    freq_hi = usf.freq_table[:128]
+    freq_lo = usf.freq_table[128:]
+
+    load = 0x1000
+    L: list[str] = []
+    L.append(f'* = ${load:04X}')
+    L.append('  jmp init')
+    L.append('  jmp play')
+
+    L.append('init:')
+    L.append('  lda #$0f')
+    L.append('  sta $d418')
+    L.append('  lda #0')
+    L.append('  sta v_pos')
+    L.append('  sta tempo_ctr')
+    L.append('  rts')
+
+    L.append('play:')
+    L.append('  inc tempo_ctr')
+    L.append('  ldx tempo_ctr')
+    L.append(f'  cpx #{tempo}')
+    L.append('  beq play_tick')
+    L.append('  rts')
+    L.append('play_tick:')
+    L.append('  lda #0')
+    L.append('  sta tempo_ctr')
+    L.append('  ldx v_pos')
+    L.append('  inc v_pos')
+    L.append('  lda orderlist,x')
+    L.append('  cmp #$ff')
+    L.append('  bne not_ff')
+    L.append('  lda #$0f')
+    L.append('  sta $d418')
+    L.append('  lda #0')
+    L.append('  sta v_pos')
+    L.append('  rts')
+    L.append('not_ff:')
+    L.append('  ldx #0')
+    L.append('  cmp #$80')
+    L.append('  beq pn_rest')
+    L.append('  bcs pn_skip')
+    L.append('  tay')
+    L.append('  lda freq_hi_tab,y')
+    L.append('  sta $d401')
+    L.append('  lda freq_lo_tab,y')
+    L.append('  sta $d400')
+    L.append(f'  lda #${timbre[0]:02X}')
+    L.append('  sta $d402')
+    L.append(f'  lda #${timbre[1]:02X}')
+    L.append('  sta $d403')
+    L.append(f'  lda #${timbre[2]:02X}')
+    L.append('  sta $d404')
+    L.append(f'  lda #${timbre[3]:02X}')
+    L.append('  sta $d405')
+    L.append(f'  lda #${timbre[4]:02X}')
+    L.append('  sta $d406')
+    L.append(f'  lda #${(timbre[2] + 1) & 0xFF:02X}')
+    L.append('  sta $d404')
+    L.append('  rts')
+    L.append('pn_rest:')
+    L.append(f'  lda #${timbre[2]:02X}')
+    L.append('  sta $d404')
+    L.append('  rts')
+    L.append('pn_skip:')
+    L.append('  rts')
+
+    L.append('v_pos:       .byte 0')
+    L.append('tempo_ctr:   .byte 0')
+
+    L.append('freq_hi_tab:')
+    for i in range(0, 128, 16):
+        L.append('  .byte ' + ', '.join(f'${b:02X}' for b in freq_hi[i:i+16]))
+    L.append('freq_lo_tab:')
+    for i in range(0, 128, 16):
+        L.append('  .byte ' + ', '.join(f'${b:02X}' for b in freq_lo[i:i+16]))
+
+    L.append('orderlist:')
+    for i in range(0, len(pattern_bytes), 16):
+        L.append('  .byte ' + ', '.join(f'${b:02X}' for b in pattern_bytes[i:i+16]))
+
+    asm = '\n'.join(L) + '\n'
+    src = '/tmp/simple_tracker.s'
+    obj = '/tmp/simple_tracker.bin'
+    with open(src, 'w') as f:
+        f.write(asm)
+    r = subprocess.run([XA, src, '-o', obj], capture_output=True, text=True)
+    if r.returncode != 0:
+        raise RuntimeError(f'xa65 failed:\n{r.stdout}\n{r.stderr}')
+    body = open(obj, 'rb').read()
+
+    h = bytearray(b'PSID')
+    h += struct.pack('>HH', 2, 124)
+    h += struct.pack('>H', load)
+    h += struct.pack('>H', load)
+    h += struct.pack('>H', load + 3)
+    h += struct.pack('>H', len(music))
+    h += struct.pack('>H', usf.psid.start_song)
+    h += struct.pack('>I', usf.psid.speed)
+    def _latin1(s: str, n: int) -> bytes:
+        return s.encode('latin-1', errors='replace')[:n].ljust(n, b'\x00')
+    h += _latin1(usf.psid.title, 32)
+    h += _latin1(usf.psid.author, 32)
+    h += _latin1(usf.psid.released, 32)
+    clock_bits = {'unknown': 0, 'PAL': 1, 'NTSC': 2, 'both': 3}.get(
+        usf.psid.clock, 0)
+    sid_bits = {6581: 1, 8580: 2}.get(usf.psid.sid, 1)
+    flags = (clock_bits << 2) | (sid_bits << 4)
+    h += struct.pack('>H', flags)
+    h += struct.pack('>BBH', 0, 0, 0)
+    assert len(h) == 124
+    return bytes(h) + body

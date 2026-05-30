@@ -596,6 +596,33 @@ def _inputs_from_usf(usf: UsfFile) -> _Inputs:
 # Public API
 # ---------------------------------------------------------------------------
 
+def _is_simple_tracker_usf(usf: UsfFile) -> bool:
+    """Heuristic: the USF describes a single-voice tune with atomic
+    1-tick events and no Hubbard-family complexity. V1 has patterns,
+    V2/V3 are `orderlist: stop` with no patterns, freq_table is
+    256 bytes (128 hi + 128 lo). When this is true the simple-tracker
+    emit path produces the right instruction stream.
+    """
+    if usf.freq_table is None or len(usf.freq_table) != 256:
+        return False
+    music = [s for s in usf.subtunes
+             if isinstance(s, MusicSubtune)]
+    if len(music) != 1:
+        return False
+    ms = music[0]
+    if len(ms.voices) != 3:
+        return False
+    v1, v2, v3 = ms.voices
+    if not v1.patterns:
+        return False
+    for v in (v2, v3):
+        if v.patterns:
+            return False
+        if not v.orderlist.stop:
+            return False
+    return True
+
+
 def build_from_usf(usf_path: str, out_path: str, codec=None) -> str:
     """Read `usf_path` + its sample sidecars, produce a SID at `out_path`.
 
@@ -609,6 +636,22 @@ def build_from_usf(usf_path: str, out_path: str, codec=None) -> str:
     usf = parse_file(usf_path)
     usf_dir = os.path.dirname(os.path.abspath(usf_path))
     validate(usf, usf_dir=usf_dir)
+
+    # Simple-tracker path — read the USF's content (not engine name)
+    # to decide. A single-voice, atomic-1-tick-event tune with the
+    # split-hi/lo freq table goes here.
+    if _is_simple_tracker_usf(usf):
+        from pipelines.codegen import _emit_sid_simple_tracker
+        sid_bytes = _emit_sid_simple_tracker(usf)
+        with open(out_path, 'wb') as f:
+            f.write(sid_bytes)
+        try:
+            from src.sid_db import record_rebuild
+            record_rebuild(out_path)
+        except Exception:
+            pass
+        return out_path
+
     inputs = _inputs_from_usf(usf)
 
     digi_subs = sorted(
