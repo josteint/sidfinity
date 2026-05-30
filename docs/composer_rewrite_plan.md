@@ -1242,11 +1242,43 @@ composer.py now owns 32 Hubbard '85 feature emitters.
 
 Verified: Hubbard 71/71 byte-exact.
 
-#### Phase 8.12+ — Remaining ENGINE chunks (future sessions)
+#### Phase 8.12 — Play-loop chunks: set_patptr + next_orderidx + do_effects
+
+Same pattern. The three orderlist / fx-orchestration routines move
+out of the ENGINE template into composer.py constants.
+
+- [x] `_emit_hubbard_set_patptr()` → `_HUBBARD_SET_PATPTR_ASM`.
+      Orderlist dispatch + new-pattern setup — handles $FE
+      (end-of-song with freeze/stop_fill flavors) and $FF
+      (wrap-to-loop), then on a real pattern index loads the
+      pattern address, reads the leading note-count byte, and
+      resets the codec cursor. References the FREEZE_ON_STOP /
+      STOP_IS_FILL / STOP_FILL `.alias` equates emitted from
+      `inputs.freeze_on_stop` / `inputs.stop_fill`.
+- [x] `_emit_hubbard_next_orderidx()` → `_HUBBARD_NEXT_ORDERIDX_ASM`.
+      Peeks at the next pattern's orderlist index (used by
+      `master_vol_trigger='every_note'` engines that derive fade
+      phase from the upcoming orderlist position).
+- [x] `_emit_hubbard_do_effects()` → `_HUBBARD_DO_EFFECTS_ASM`.
+      The 9-line fx-chain orchestrator — calls fx_vibrato, fx_pwm,
+      fx_drumslide, fx_skydive, fx_incby2 in order then tail-calls
+      fx_arp; seeds `vib_carry = 0` for the cross-effect carry that
+      fx_vibrato sets and fx_pwm consumes.
+
+composer_hubbard.py:
+- ENGINE template's set_patptr block (~70 lines) → `; %%SET_PATPTR%%`
+- ENGINE template's next_orderidx block (~17 lines) → `; %%NEXT_ORDERIDX%%`
+- ENGINE template's do_effects block (~9 lines) → `; %%DO_EFFECTS%%`
+
+composer.py now owns 35 Hubbard '85 feature emitters. The fx
+orchestration boundary is fully closed — every fx routine plus its
+caller lives in composer.py.
+
+Verified: Hubbard 71/71 byte-exact.
+
+#### Phase 8.13+ — Remaining ENGINE chunks (future sessions)
 
 Following the same pattern:
-- do_effects (the 9-line jsr chain that orchestrates the fx routines)
-- set_patptr / next_orderidx (the pattern-pointer + orderlist advance)
 - init / play / proc_voice (the engine framework)
 - SFX sub-engine asm (`init_sfx`, `sfx_play`, `sfx_step`)
 - Digi region builder (Chimera dispatcher + 1-bit player + sample

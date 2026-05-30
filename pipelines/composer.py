@@ -999,6 +999,153 @@ def _emit_hubbard_hr_writes() -> str:
     return _HUBBARD_HR_WRITES_ASM
 
 
+_HUBBARD_SET_PATPTR_ASM = """; set_patptr - advance to the pattern at v_orderpos in voice X's
+; orderlist. Reads the orderlist byte, handles $FE (end-of-song)
+; and $FF (wrap-to-loop-point); on a real pattern index, loads the
+; address into v_patlo/v_pathi, reads the leading note-count byte,
+; and resets the per-voice codec cursor.
+set_patptr:
+        lda orderLo,x
+        sta orderp
+        lda orderHi,x
+        sta orderp+1
+sp_read:
+        ldy v_orderpos,x
+        lda (orderp),y
+        cmp #$fe
+        bcc sp_have          ; below $FE - a real pattern index
+        beq sp_stop          ; $FE - end of song
+        lda orderLoop,x      ; $FF - wrap to the loop point
+        sta v_orderpos,x
+        jmp sp_read
+sp_stop:
+        lda #$ff
+        ldy #FREEZE_ON_STOP
+        bne sps_freeze
+        ldy #STOP_IS_FILL
+        bne sps_fill
+        sta v_ended,x
+        rts
+sps_freeze:
+        sta v_frozen,x
+        rts
+; sps_fill - the $FE stop_fill end. Writes STOP_FILL to every voice
+; register PLUS filter cutoff lo/hi + res-routing ($D400-$D417, 24
+; regs), matching Action Biker's $C2E1-$C2E7 `LDX #$17; STA $D400,X`
+; loop. $D418 (master VOL) is left alone — the engine's loop stops
+; at $D417. `LDX #imm` is 2 bytes regardless of value, so this change
+; doesn't shift any other addresses.
+sps_fill:
+        stx sub_tmp
+        ldx #23
+        lda #STOP_FILL
+sps_fl: sta $d400,x
+        dex
+        bpl sps_fl
+        lda #$02
+        sta end_phase
+        lda #1
+        sta pv_abort
+        ldx sub_tmp
+        lda #$ff
+        sta v_ended,x
+        rts
+sp_have:
+        tay                  ; Y = pattern index
+        lda pataddr_lo,y
+        sta v_patlo,x
+        lda pataddr_hi,y
+        sta v_pathi,x
+        ; every pattern starts with a 1-byte note count - read it and
+        ; step v_patptr past it, then reset the per-voice read cursor.
+        lda v_patlo,x
+        sta notep
+        lda v_pathi,x
+        sta notep+1
+        ldy #0
+        lda (notep),y
+        sta v_notesleft,x
+        inc v_patlo,x
+        bne sp_nc
+        inc v_pathi,x
+sp_nc:
+        lda #0
+        sta v_bitcnt,x       ; codec cursor state
+        sta v_hubidx,x       ; note_idx restarts at 0 in a new pattern
+        rts"""
+
+
+def _emit_hubbard_set_patptr() -> str:
+    """set_patptr routine — orderlist dispatch + new-pattern setup.
+
+    Walks the per-voice orderlist (handling $FE end-of-song with the
+    freeze-vs-stop_fill flavor knobs, and $FF wrap-to-loop), then on
+    a real pattern index loads the pattern address, reads the leading
+    note-count byte, and resets the codec cursor.
+
+    References the assembler `.alias` equates FREEZE_ON_STOP /
+    STOP_IS_FILL / STOP_FILL (emitted at the top of the engine
+    binary from `inputs.freeze_on_stop` / `inputs.stop_fill`).
+    """
+    return _HUBBARD_SET_PATPTR_ASM
+
+
+_HUBBARD_NEXT_ORDERIDX_ASM = """; next_orderidx - the orderlist index the next pattern will occupy:
+; v_orderpos+1, or orderLoop,x if that entry is the $FF terminator.
+; Returns it in A. Preserves X.
+next_orderidx:
+        lda orderLo,x
+        sta orderp
+        lda orderHi,x
+        sta orderp+1
+        lda v_orderpos,x
+        clc
+        adc #1
+        tay                  ; Y = v_orderpos + 1
+        lda (orderp),y
+        cmp #$fe
+        bcc noi_have
+        lda orderLoop,x      ; next entry is a terminator ($FE/$FF) - wrap
+        rts
+noi_have:
+        tya
+        rts"""
+
+
+def _emit_hubbard_next_orderidx() -> str:
+    """next_orderidx routine — peek at where the next pattern lives.
+
+    Returns the orderlist index the next pattern will occupy:
+    v_orderpos+1, or orderLoop,x if that entry is the $FF terminator.
+    Used by master_vol_trigger=`every_note` engines that derive their
+    fade phase from the upcoming orderlist position.
+    """
+    return _HUBBARD_NEXT_ORDERIDX_ASM
+
+
+_HUBBARD_DO_EFFECTS_ASM = """; do_effects - effects in engine order vibrato,pwm,drumslide,skydive,arp.
+do_effects:
+        lda #0
+        sta vib_carry
+        jsr fx_vibrato
+        jsr fx_pwm
+        jsr fx_drumslide
+        jsr fx_skydive
+        jsr fx_incby2
+        jmp fx_arp"""
+
+
+def _emit_hubbard_do_effects() -> str:
+    """do_effects orchestrator — fx chain in engine-canonical order.
+
+    Calls fx_vibrato, fx_pwm, fx_drumslide, fx_skydive, fx_incby2
+    in sequence, tail-calls fx_arp. The leading `vib_carry = 0`
+    clears the cross-effect carry that fx_vibrato sets and fx_pwm
+    consumes.
+    """
+    return _HUBBARD_DO_EFFECTS_ASM
+
+
 def _emit_hubbard_pattern_pool(pat_bytes: list[bytes],
                                  codec_extra: str | None) -> list[str]:
     """Pattern pool — `pat0`, `pat1`, ... per unique pattern, plus the

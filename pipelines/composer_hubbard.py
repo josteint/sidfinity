@@ -410,114 +410,15 @@ calc_instoff:
 ; entry v_orderpos,x. The $FF terminator wraps v_orderpos to
 ; orderLoop,x; the $FE terminator ends the voice (v_ended). Clobbers
 ; A and Y; preserves X.
-set_patptr:
-        lda orderLo,x
-        sta orderp
-        lda orderHi,x
-        sta orderp+1
-sp_read:
-        ldy v_orderpos,x
-        lda (orderp),y
-        cmp #$fe
-        bcc sp_have          ; below $FE - a real pattern index
-        beq sp_stop          ; $FE - end of song
-        lda orderLoop,x      ; $FF - wrap to the loop point
-        sta v_orderpos,x
-        jmp sp_read
-sp_stop:
-        lda #$ff
-        ldy #FREEZE_ON_STOP
-        bne sps_freeze
-        ldy #STOP_IS_FILL
-        bne sps_fill
-        sta v_ended,x
-        rts
-sps_freeze:
-        sta v_frozen,x
-        rts
-; sps_fill - the $FE stop_fill end. Writes STOP_FILL to every voice
-; register PLUS filter cutoff lo/hi + res-routing ($D400-$D417, 24
-; regs), matching Action Biker's $C2E1-$C2E7 `LDX #$17; STA $D400,X`
-; loop. $D418 (master VOL) is left alone — the engine's loop stops
-; at $D417. `LDX #imm` is 2 bytes regardless of value, so this change
-; doesn't shift any other addresses.
-sps_fill:
-        stx sub_tmp
-        ldx #23
-        lda #STOP_FILL
-sps_fl: sta $d400,x
-        dex
-        bpl sps_fl
-        lda #$02
-        sta end_phase
-        lda #1
-        sta pv_abort
-        ldx sub_tmp
-        lda #$ff
-        sta v_ended,x
-        rts
-sp_have:
-        tay                  ; Y = pattern index
-        lda pataddr_lo,y
-        sta v_patlo,x
-        lda pataddr_hi,y
-        sta v_pathi,x
-        ; every pattern starts with a 1-byte note count - read it and
-        ; step v_patptr past it, then reset the per-voice read cursor.
-        lda v_patlo,x
-        sta notep
-        lda v_pathi,x
-        sta notep+1
-        ldy #0
-        lda (notep),y
-        sta v_notesleft,x
-        inc v_patlo,x
-        bne sp_nc
-        inc v_pathi,x
-sp_nc:
-        lda #0
-        sta v_bitcnt,x       ; codec cursor state
-        sta v_hubidx,x       ; note_idx restarts at 0 in a new pattern
-        rts
+; %%SET_PATPTR%%
 
-; next_orderidx - the orderlist index the next pattern will occupy:
-; v_orderpos+1, or orderLoop,x if that entry is the $FF terminator.
-; Returns it in A. Preserves X.
-next_orderidx:
-        lda orderLo,x
-        sta orderp
-        lda orderHi,x
-        sta orderp+1
-        lda v_orderpos,x
-        clc
-        adc #1
-        tay                  ; Y = v_orderpos + 1
-        lda (orderp),y
-        cmp #$fe
-        bcc noi_have
-        lda orderLoop,x      ; next entry is a terminator ($FE/$FF) - wrap
-        rts
-noi_have:
-        tya
-        rts
+; %%NEXT_ORDERIDX%%
 
-; note_start - write the note-start register block for voice X.
-; common fields (ctrl/ad/sr from insttab, pw from the accumulator) are
-; loaded into temps first; then tie vs full diverge.
 ; %%NOTE_START%%
 
 ; %%HR_WRITES%%
 
-; do_effects - effects in engine order vibrato,pwm,drumslide,skydive,arp.
-do_effects:
-        lda #0
-        sta vib_carry
-        jsr fx_vibrato
-        jsr fx_pwm
-        jsr fx_drumslide
-        jsr fx_skydive
-        jsr fx_incby2
-        jmp fx_arp
+; %%DO_EFFECTS%%
 
 ; %%FX_DRUMSLIDE%%
 
@@ -977,12 +878,18 @@ def _hubbard_emit_sid(inputs: _Inputs, out_path: str, codec,
         _emit_hubbard_fx_arp,
         _emit_hubbard_note_start,
         _emit_hubbard_hr_writes,
+        _emit_hubbard_set_patptr,
+        _emit_hubbard_next_orderidx,
+        _emit_hubbard_do_effects,
     )
     # Play-loop chunk substitutions (Phase 8.11+). Same pattern as the
     # fx chunks — outer chunk first (so nested sentinels like
     # NS_OFFTAB_DECR inside note_start find their host text).
     asm = asm.replace('; %%NOTE_START%%', _emit_hubbard_note_start())
     asm = asm.replace('; %%HR_WRITES%%', _emit_hubbard_hr_writes())
+    asm = asm.replace('; %%SET_PATPTR%%', _emit_hubbard_set_patptr())
+    asm = asm.replace('; %%NEXT_ORDERIDX%%', _emit_hubbard_next_orderidx())
+    asm = asm.replace('; %%DO_EFFECTS%%', _emit_hubbard_do_effects())
     # fx routine chunk substitutions (Phase 8.9+). Each fx routine
     # moved out of the ENGINE template into composer.py; the template
     # has a `; %%FX_<NAME>%%` sentinel that we substitute back here.
