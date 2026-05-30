@@ -383,3 +383,18 @@ def emit_sid(usf: UsfFile) -> bytes:
     return bytes(h) + body
 
 
+def build_from_usf(usf_path: str, out_path: str | None = None) -> str:
+    usf = parse_file(usf_path)
+    if usf.engine != 'henrys_house':
+        raise ValueError(f"expected engine 'henrys_house', got {usf.engine!r}")
+    if out_path is None:
+        base, _ = os.path.splitext(usf_path)
+        out_path = base + '.sidfinity.sid'
+    with open(out_path, 'wb') as f:
+        f.write(emit_sid(usf))
+    try:
+        from src.sid_db import record_rebuild
+        record_rebuild(out_path)
+    except Exception:
+        pass
+    return out_path

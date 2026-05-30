@@ -22,11 +22,10 @@ import os
 import struct
 import subprocess
 
-from pipelines.companion.up_up_and_away.config import CFG
-from pipelines.companion.up_up_and_away.extract import extract_all, SubtuneData
+from pipelines.companion.config import CFG
+from pipelines.companion.extract import extract_all, SubtuneData
 
-ROOT = os.path.dirname(os.path.dirname(os.path.dirname(
-    os.path.dirname(os.path.abspath(__file__)))))
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 XA = os.path.join(ROOT, 'tools', 'xa65', 'xa', 'xa')
 
 LOAD = 0x1000
@@ -353,114 +352,3 @@ if __name__ == '__main__':
     out = sys.argv[1] if len(sys.argv) > 1 else '/tmp/companion_uupa.sid'
     p = build_sid(out)
     print(f'wrote {p} ({os.path.getsize(p)} bytes)')
-
-
-# ---------------------------------------------------------------------------
-# USF → PSID bytes (the public entry the top-level dispatcher calls)
-# ---------------------------------------------------------------------------
-
-from src.usf import UsfFile, MusicSubtune  # noqa: E402
-from pipelines.companion.up_up_and_away.extract import VoiceState, VoicePadding  # noqa: E402
-
-
-_SEMITONE = {'C': 0, 'C#': 1, 'D': 2, 'D#': 3, 'E': 4, 'F': 5,
-             'F#': 6, 'G': 7, 'G#': 8, 'A': 9, 'A#': 10, 'B': 11}
-
-
-def _byte_from_row(row) -> int:
-    early = 'fx:early_release' in row.fx_flags
-    if row.pitch.is_rest:
-        if not early:
-            raise ValueError(
-                'rest row without fx:early_release is not representable '
-                'in Companion; should be in trailing bytes')
-        return 0x8C
-    b = (row.pitch.octave << 4) | _SEMITONE[row.pitch.name]
-    if early:
-        b |= 0x80
-    return b
-
-
-def _voice_state_from_init(iv, instr) -> VoiceState:
-    init_pw = instr.pwm.init
-    return VoiceState(
-        pos=0, gate_off_flag=0,
-        pw_lo=init_pw & 0xFF, pw_hi=(init_pw >> 8) & 0xFF,
-        ctrl_noGate=iv.ctrl, ad=instr.adsr[0], sr=instr.adsr[1],
-    )
-
-
-def _orderlist_bytes_from_voice_block(vb) -> bytes:
-    if not vb.patterns:
-        raise ValueError(f'voice {vb.id} has no patterns')
-    pat = vb.patterns[0]
-    body = bytes(_byte_from_row(r) for r in pat.rows)
-    return body + bytes([0x8D])
-
-
-def _subtune_from_music(ms, instruments_by_id: dict) -> SubtuneData:
-    p = ms.params.fields
-    iv1, iv2, iv3 = ms.init.voices
-    return SubtuneData(
-        index=ms.id,
-        v1_state=_voice_state_from_init(iv1, instruments_by_id[iv1.instr.id]),
-        v2_state=_voice_state_from_init(iv2, instruments_by_id[iv2.instr.id]),
-        v3_state=_voice_state_from_init(iv3, instruments_by_id[iv3.instr.id]),
-        gate_off_tick=p['gate_off_tick'],
-        note_load_tick=p['note_load_tick'],
-        init_tempo_counter=p['init_tempo_counter'],
-        init_pwm_ctr=p['init_pwm_ctr'],
-        init_pwm_ctr_2=p['init_pwm_ctr_2'],
-        vol_filter=p['vol_filter'],
-        filter_cutoff_hi=p['filter_cutoff_hi'],
-        v1_padding=VoicePadding(p.get('v1_pad_count', 0), p.get('v1_pad_byte', 0)),
-        v2_padding=VoicePadding(p.get('v2_pad_count', 0), p.get('v2_pad_byte', 0)),
-        v3_padding=VoicePadding(p.get('v3_pad_count', 0), p.get('v3_pad_byte', 0)),
-        orderlist_v1=_orderlist_bytes_from_voice_block(ms.voices[0]),
-        orderlist_v2=_orderlist_bytes_from_voice_block(ms.voices[1]),
-        orderlist_v3=_orderlist_bytes_from_voice_block(ms.voices[2]),
-    )
-
-
-def emit_sid(usf: UsfFile) -> bytes:
-    """Emit PSID bytes for an Up_up_and_Away (Companion '84) USF."""
-    from pipelines.companion.up_up_and_away.engine_constants import (
-        COMPANION_FREQ_HI, COMPANION_FREQ_LO,
-    )
-    import subprocess
-
-    music_subs = sorted(
-        (s for s in usf.subtunes if isinstance(s, MusicSubtune)),
-        key=lambda s: s.id)
-    instruments_by_id = {inst.id: inst for inst in usf.instruments}
-    subtunes = [_subtune_from_music(ms, instruments_by_id)
-                for ms in music_subs]
-    asm = ENGINE + '\n' + _emit_data(
-        subtunes, COMPANION_FREQ_HI, COMPANION_FREQ_LO) + '\n'
-
-    src = '/tmp/companion_uupa.s'
-    obj = '/tmp/companion_uupa.bin'
-    with open(src, 'w') as f:
-        f.write(asm)
-    r = subprocess.run([XA, src, '-o', obj], capture_output=True, text=True)
-    if r.returncode != 0:
-        raise RuntimeError(f'xa65 failed:\n{r.stdout}\n{r.stderr}')
-    code = open(obj, 'rb').read()
-
-    h = bytearray(b'PSID')
-    h += struct.pack('>HH', 2, 124)
-    h += struct.pack('>H', LOAD)
-    h += struct.pack('>H', LOAD)
-    h += struct.pack('>H', LOAD + 3)
-    h += struct.pack('>H', len(music_subs))
-    h += struct.pack('>H', usf.psid.start_song)
-    h += struct.pack('>I', usf.psid.speed)
-    def _latin1(s: str, n: int) -> bytes:
-        return s.encode('latin-1', errors='replace')[:n].ljust(n, b'\x00')
-    h += _latin1(usf.psid.title, 32)
-    h += _latin1(usf.psid.author, 32)
-    h += _latin1(usf.psid.released, 32)
-    h += struct.pack('>H', 0x0014)
-    h += struct.pack('>BBH', 0, 0, 0)
-    assert len(h) == 124
-    return bytes(h) + code
