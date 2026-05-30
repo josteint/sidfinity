@@ -1,16 +1,13 @@
-"""USF v2 → SID codegen.
+"""Shared USF → codegen helpers + the digi region builder.
 
-The *read* side of the USF-only pipeline. Reads `<basename>.usf` and
-the sibling `<basename>.sampleN.flac` files; does NOT peek at the
-original SID. Produces a SID functionally equivalent to the original
-(verified via verify_all: py65 frame-exact for music, writelog
-cycle-strict for digi).
+Most of the build now lives in `usf3_build_from_usf.py` (the
+engine-name-blind path). The helpers here — USF instrument → engine
+InstrumentModel, USF subtune → Score, USF SFX → SoundEffect, ovseed
+reconstruction, and the combined music + digi emitter — are shared
+between the v3 build and any future build paths.
 
-Per-engine constants (instrument-table address, freq-table addresses,
-the 320-byte freq-table region) live in
-`pipelines/hubbard/engine_constants.py` — these are engine *code*
-properties, the same across all tunes of one engine. Tune data is
-entirely in the USF + sidecar FLACs.
+The public entry point `build_from_usf` is preserved as a thin
+wrapper around `build_from_usf3` for back-compat with callers/docs.
 """
 
 from __future__ import annotations
@@ -18,14 +15,11 @@ from __future__ import annotations
 import os
 import struct
 
-from src.usf2 import (
-    UsfFile, MusicSubtune, DigiSubtune, SfxSubtune, parse_file, validate,
-)
+from src.usf2 import UsfFile, MusicSubtune, DigiSubtune, SfxSubtune
 from pipelines.hubbard.sfx import SoundEffect
 from pipelines.hubbard.codegen import _Inputs, _emit_sid, LOAD
 from pipelines.hubbard.engine_constants import (
-    ENGINE_CONSTANTS, DigiCode, chimera_psid_dispatcher,
-    assemble_chimera_digi_player,
+    DigiCode, chimera_psid_dispatcher, assemble_chimera_digi_player,
 )
 from pipelines.hubbard.flac_io import read_sample
 from pipelines.hubbard.digi_pack import pack_digi
@@ -199,41 +193,7 @@ def _soundeffect_from_usf(s: SfxSubtune, idx: int) -> SoundEffect:
 
 
 # ---------------------------------------------------------------------------
-# Freq bytes: 320 bytes that go at freqtab. First 192 = standard PAL
-# musical freq table (engine constant). Bytes at +205, +208, +214,
-# +229, +232, +239 come from USF init. Remaining engine state may also
-# come from the per-engine constant (scratch values etc.) — we let the
-# engine constants supply EVERYTHING, then overlay the init values.
-# ---------------------------------------------------------------------------
-
-def _freq_bytes_from_usf(usf: UsfFile, engine_const) -> bytes:
-    """Build the 320-byte freq-table region for the rebuild.
-
-    Hubbard '85 standard engines: the per-voice overlap bytes live in
-    `engine_const.freq_bytes` already (the engine constants captured
-    them from the original binary). Empty `usf.init.voices` means
-    "use the engine constants verbatim" — the principled path.
-
-    Legacy USFs (extracted before Phase 3) still ship per-voice init
-    fields; we honor them as overrides on top of the engine constants
-    so old .usf files keep building byte-exact. New extracts produce
-    `init { }` and this loop is a no-op.
-    """
-    fb = bytearray(engine_const.freq_bytes)
-    for v in usf.init.voices:
-        i = v.id - 1
-        fb[205 + i] = v.dur_field
-        fb[208 + i] = v.ctrl
-        if v.instr is not None:
-            fb[214 + i] = (v.instr.id - 1) & 0xFF
-        fb[229 + i] = v.pwm_period
-        fb[232 + i] = 0x00 if v.pwm_dir == 'up' else 0xFF
-        fb[239 + i] = v.slide_v
-    return bytes(fb)
-
-
-# ---------------------------------------------------------------------------
-# USF → _Inputs
+# USF → _Inputs helpers (shared with usf3_build_from_usf)
 # ---------------------------------------------------------------------------
 
 def _ovseed_from_init_state(init, instr_count: int) -> bytes:
@@ -257,114 +217,6 @@ def _ovseed_from_init_state(init, instr_count: int) -> bytes:
         ovseed[12 + i] = v.dur_field
         ovseed[15 + i] = v.slide_v
     return bytes(ovseed)
-
-
-def _inputs_from_usf(usf: UsfFile) -> _Inputs:
-    """Build codegen `_Inputs` purely from a parsed UsfFile + the
-    per-engine constants. No binary or sid_path access."""
-    if usf.engine not in ENGINE_CONSTANTS:
-        raise ValueError(
-            f'no engine constants registered for engine {usf.engine!r}; '
-            f'add to pipelines/hubbard/engine_constants.py')
-    ec = ENGINE_CONSTANTS[usf.engine]
-
-    # PSID metadata
-    def latin1(s: str) -> bytes:
-        return s.encode('latin-1', errors='replace')
-
-    # Instruments — convert USF → InstrumentModel
-    models = [_model_from_usf_instrument(u, ec.vib_onset)
-              for u in usf.instruments]
-
-    # Music subtunes only (digi handled elsewhere for now)
-    music_subs = [s for s in usf.subtunes if isinstance(s, MusicSubtune)]
-    music_subs.sort(key=lambda s: s.id)
-    subtune_ids = tuple(s.id for s in music_subs)
-    scores = [_score_from_subtune(s) for s in music_subs]
-    resetspds = [s.tempo - 1 for s in music_subs]
-    voice_starts = [ec.voice_starts.get(s.id, 2) for s in music_subs]
-
-    # Per-subtune overrides — only the unified compound engines
-    # (5 Title Tunes) carry per-subtune mechanism deltas + per-subtune
-    # init state. Standard engines have empty subtune_overrides and
-    # no per-subtune init blocks, so the codegen stays in single-mode.
-    has_per_subtune = bool(ec.subtune_overrides) or any(
-        s.init is not None for s in music_subs)
-    per_subtune_speed_ctr_init = None
-    per_subtune_incby2_step = None
-    per_subtune_incby2_late_gate = None
-    per_subtune_ovseed = None
-    if has_per_subtune:
-        per_subtune_speed_ctr_init = []
-        per_subtune_incby2_step = []
-        per_subtune_incby2_late_gate = []
-        per_subtune_ovseed = []
-        for i, s in enumerate(music_subs):
-            ov = ec.subtune_overrides.get(s.id, {})
-            per_subtune_speed_ctr_init.append(
-                ov.get('speed_ctr_init', ec.speed_ctr_init))
-            per_subtune_incby2_step.append(
-                ov.get('incby2_step', ec.incby2_step) & 0xFF)
-            late_gate = ov.get('incby2_late_gate', ec.incby2_late_gate)
-            per_subtune_incby2_late_gate.append(
-                (0xFF if late_gate is None else late_gate) & 0xFF)
-            per_subtune_ovseed.append(
-                _ovseed_from_init_state(s.init, len(usf.instruments)))
-            if 'tick_divider' in ov:
-                resetspds[i] = ov['tick_divider']
-            if 'voice_start' in ov:
-                voice_starts[i] = ov['voice_start']
-
-    # SFX subtunes — reconstruct engine SoundEffect records in PSID-id order
-    sfx_subs = sorted(
-        (s for s in usf.subtunes if isinstance(s, SfxSubtune)),
-        key=lambda s: s.id)
-    sfx_list = [_soundeffect_from_usf(s, idx) for idx, s in enumerate(sfx_subs)]
-
-    freq_bytes = _freq_bytes_from_usf(usf, ec)
-
-    return _Inputs(
-        title=latin1(usf.psid.title),
-        author=latin1(usf.psid.author),
-        released=latin1(usf.psid.released),
-        start_song=usf.psid.start_song,
-        arp_interval=ec.arp_interval,
-        arp_period=ec.arp_period,
-        arp_phase_invert=ec.arp_phase_invert,
-        linear_pw_or=ec.linear_pw_or,
-        incby2_step=ec.incby2_step,
-        incby2_every_frame=ec.incby2_every_frame,
-        incby2_onset=ec.incby2_onset,
-        suppress_first_notestart=ec.suppress_first_notestart,
-        freeze_on_stop=ec.freeze_on_stop,
-        speed_ctr_init=ec.speed_ctr_init,
-        first_frame_gate_off=ec.first_frame_gate_off,
-        seed_overlap=ec.seed_overlap,
-        psid_speed=usf.psid.speed,
-        frame_ctr_init=ec.frame_ctr_init,
-        incby2_late_gate=ec.incby2_late_gate,
-        stop_fill=ec.stop_fill,
-        sfx_framectr_ofs=ec.sfx_framectr_ofs,
-        sfx_state_ofs=ec.sfx_state_ofs,
-        has_sfx=ec.has_sfx,
-        subtunes=subtune_ids,
-        models=models, scores=scores, resetspds=resetspds,
-        voice_starts=voice_starts, freq_bytes=freq_bytes,
-        sfx_list=sfx_list,
-        **({'state_layout': ec.state_layout} if ec.state_layout is not None else {}),
-        **({'seed_offsets': ec.seed_offsets} if ec.seed_offsets is not None else {}),
-        **({'ns_offtab_decr_offset': ec.ns_offtab_decr_offset}
-           if getattr(ec, 'ns_offtab_decr_offset', None) is not None else {}),
-        hubidx_wrap_at_patend=getattr(ec, 'hubidx_wrap_at_patend', True),
-        per_subtune_speed_ctr_init=per_subtune_speed_ctr_init,
-        per_subtune_incby2_step=per_subtune_incby2_step,
-        per_subtune_incby2_late_gate=per_subtune_incby2_late_gate,
-        per_subtune_ovseed=per_subtune_ovseed,
-        master_vol_subtrahend_voice=ec.master_vol_subtrahend_voice,
-        master_vol_base=ec.master_vol_base,
-        master_vol_trigger=ec.master_vol_trigger,
-        tie_preserves_slide=ec.tie_preserves_slide,
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -571,38 +423,10 @@ def _emit_combined_sid(inputs: _Inputs, usf: UsfFile, digi_subs: list,
 def build_from_usf(usf_path: str, out_path: str, codec=None) -> str:
     """Read `usf_path` + its sample sidecars, produce a SID at `out_path`.
 
-    USF v3 files (self-contained, no engine-name dispatch) route to
-    `build_from_usf3`. v2 files use the engine-constants-dispatched
-    legacy path below.
+    Thin wrapper around `build_from_usf3` — kept as the public entry
+    point for back-compat with callers and docs. All Hubbard '85
+    .usf files are USF v3 (self-contained, engine-name-blind); v2
+    files would have to be re-extracted via the v3 extract path.
     """
-    from pipelines.hubbard.note_codec import BitPackCodec
-    if codec is None:
-        codec = BitPackCodec()
-    usf = parse_file(usf_path)
-    if usf.version == 3:
-        from pipelines.hubbard.usf3_build_from_usf import build_from_usf3
-        return build_from_usf3(usf_path, out_path, codec)
-    usf_dir = os.path.dirname(os.path.abspath(usf_path))
-    validate(usf, usf_dir=usf_dir)
-    inputs = _inputs_from_usf(usf)
-
-    digi_subs = [s for s in usf.subtunes if isinstance(s, DigiSubtune)]
-    digi_subs.sort(key=lambda s: s.id)
-    if not digi_subs:
-        result = _emit_sid(inputs, out_path, codec)
-    else:
-        ec = ENGINE_CONSTANTS[usf.engine]
-        if ec.digi is None:
-            raise ValueError(
-                f'engine {usf.engine!r} has no DigiCode but USF declares '
-                f'digi subtunes')
-        result = _emit_combined_sid(inputs, usf, digi_subs, ec.digi,
-                                    out_path, usf_dir, codec)
-
-    try:
-        from src.sid_db import record_rebuild
-        record_rebuild(out_path)
-    except Exception:
-        pass    # db update is best-effort; never break the build
-
-    return result
+    from pipelines.hubbard.usf3_build_from_usf import build_from_usf3
+    return build_from_usf3(usf_path, out_path, codec)

@@ -184,9 +184,12 @@ assert len(HUBBARD_85_PAL_FREQ_TABLE) == 192, len(HUBBARD_85_PAL_FREQ_TABLE)
 
 
 # Per-engine state region (bytes 192..319 of the freq-table memory
-# range). Engine scratch + arpeggio extension + per-voice init slots.
-# The codegen overlays USF `init:` values onto +205, +208, +214, +229,
-# +232, +239 (see `_freq_bytes_from_usf` in build_from_usf.py).
+# range). Engine scratch + arpeggio extension + per-voice init slots
+# at +205 (dur_field), +208 (ctrl), +214 (instr), +229 (pwm_period),
+# +232 (pwm_dir), +239 (slide_v). v3 extract inlines this whole region
+# into the .usf's `freq_table { }` block — normalising offsets if the
+# engine deviates from these defaults (e.g. Hunter Patrol's v_slide
+# at +238 gets moved to +239 in the v3 freq_table).
 CHIMERA_FREQ_STATE = bytes.fromhex(
     "00070e00000101530000000707005757414141430000040e02ff002600410000"
     "010017010100000000000002027000340003268ca90000000500794207416986"
