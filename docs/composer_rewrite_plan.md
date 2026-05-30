@@ -1034,21 +1034,48 @@ BoB (tie_preserves_slide), One Man + His Droid (arp_phase_invert),
 Hunter Patrol (incby2_late_gate), Thing on a Spring (ns_offtab_decr
 + master vol fade), TOAS (master vol fade) — all exercised.
 
-#### Phase 8.5+ — Per-feature decomposition (future sessions)
+#### Phase 8.5 — 5TT per-subtune dispatch + small text replacements
+
+- [x] `_emit_per_subtune_dispatch(uses_psp)` — 5_Title_Tunes
+      per-subtune mechanism dispatch. Returns the two-substitution
+      dict (SPEED_CTR_INIT block + INCBY2_STEP zp-slot lookup) when
+      enabled, or empty dict otherwise.
+- [x] `_emit_sfx_framectr_offset_substitution(ofs)` — Per-engine
+      SFX framectr-in-freqtab offset (default 253; Monty/One Man
+      override to 250).
+- [x] `_emit_load_addr_substitution(load_addr)` — Engine relocation
+      to a non-default load address (compound PSIDs like 5TT).
+
+composer_hubbard.py's _hubbard_emit_sid further shrinks: the
+30-line uses_psp block collapsed to a 4-line composer call;
+the inline `asm.replace('inc freqtab+253', ...)` and
+`asm.replace('* = $1000', ...)` calls now go through composer
+emitters.
+
+Verified: Hubbard 71/71 byte-exact (5TT exercises
+per_subtune_dispatch; Monty/One Man exercise the sfx_framectr_ofs
+override).
+
+#### Phase 8.6+ — Per-feature decomposition (future sessions)
 
 Larger remaining features for future sessions:
-- 5_Title_Tunes per-subtune mechanism dispatch (replaces the
-  SPEED_CTR_INIT load + INCBY2_STEP add with byte-table reads)
-- The four single-feature fx routines (vibrato, PWM linear,
-  PWM bidirectional, freq-hi slide, drum-slide, arpeggio,
-  inc_by2)
+- The seven fx routines as feature emitters (vibrato, PWM linear,
+  PWM bidirectional, arpeggio, freq-hi slide, inc_by2 step,
+  drum-slide)
+- `_sfx_state_in_freqtab` — multi-line substitution for engines
+  whose SFX state lives in the freq table region (Monty,
+  One Man and his Droid)
 - Freq table data emitter
 - Instrument table data emitter
 - Per-subtune dispatch tables emitter
 - Pattern data + pattern pool emitter
 - SFX sub-engine (init_sfx + sfx_play + sfx_step + sfxdata)
-- Digi region builder
+- Digi region builder (Chimera)
 - Compound build (5TT packed sub-engines + dispatcher)
+- Eventually: replace `_hubbard_emit_sid` + ENGINE asm template
+  with a composer-native assembly pipeline that consumes the
+  EngineModel directly — at which point composer_hubbard.py is
+  deletable.
 
 - [ ] Vibrato LFO emitter (`_emit_vibrato_asm` or per-instrument).
 - [ ] PWM linear emitter.

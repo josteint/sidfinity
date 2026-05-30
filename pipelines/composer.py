@@ -333,6 +333,62 @@ def _emit_ovseed_copy(has_per_subtune_ovseed: bool) -> str:
     )
 
 
+def _emit_per_subtune_dispatch(enabled: bool) -> dict[str, str]:
+    """5_Title_Tunes per-subtune mechanism dispatch.
+
+    When `enabled` (any of `per_subtune_speed_ctr_init`,
+    `per_subtune_incby2_step`, `per_subtune_incby2_late_gate` is set),
+    replaces the compile-time `SPEED_CTR_INIT` load + `INCBY2_STEP`
+    add with per-subtune table reads:
+      * `lda #SPEED_CTR_INIT; sta speed_ctr` → `ldy sub_tmp` + 4-byte
+        block that loads speed_ctr, cur_incby2_step, and
+        cur_incby2_late_gate from per-subtune byte tables.
+      * `adc #INCBY2_STEP` → `adc cur_incby2_step` (zp slot lookup).
+
+    When `enabled=False`, returns an empty dict (no substitutions —
+    engine uses the compile-time constants).
+
+    Returns a dict mapping old-text → new-text suitable for
+    `asm.replace(old, new)` loops.
+    """
+    if not enabled:
+        return {}
+    return {
+        '        lda #SPEED_CTR_INIT\n        sta speed_ctr': (
+            '        ldy sub_tmp\n'
+            '        lda subSpeedCtrInit,y\n'
+            '        sta speed_ctr\n'
+            '        lda subIncBy2Step,y\n'
+            '        sta cur_incby2_step\n'
+            '        lda subIncBy2LateGate,y\n'
+            '        sta cur_incby2_late_gate'
+        ),
+        '        adc #INCBY2_STEP': '        adc cur_incby2_step',
+    }
+
+
+def _emit_sfx_framectr_offset_substitution(ofs: int) -> tuple[str, str]:
+    """SFX framectr-in-freqtab offset.
+
+    The play loop increments a byte that the SFX V2 sweep can read as
+    a freq value (Hubbard's "INC $5525" trick). The default offset is
+    253 (Commando family); some engines override (Monty: 250,
+    One Man and his Droid: 250).
+    """
+    return ('inc freqtab+253', f'inc freqtab+{ofs}')
+
+
+def _emit_load_addr_substitution(load_addr: int) -> tuple[str, str]:
+    """Relocate the engine to a non-default load address.
+
+    The ENGINE template has `* = $1000` hardcoded; compound PSIDs
+    (5_Title_Tunes) place each packed sub-engine at a different
+    address. Most engines use the default and this substitution is
+    an effective no-op (`$1000` → `$1000`).
+    """
+    return ('* = $1000', f'* = ${load_addr:04X}')
+
+
 def _emit_master_vol_fade(fade: 'FadeProgressive | None') -> dict[str, str]:
     """Return the four sentinel→asm fragments for the master-vol fade.
 

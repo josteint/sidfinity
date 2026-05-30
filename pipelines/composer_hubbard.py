@@ -1592,8 +1592,13 @@ def _hubbard_emit_sid(inputs: _Inputs, out_path: str, codec,
                         per_subtune_ovseed=inputs.per_subtune_ovseed)
            + '\n')
 
-    asm = asm.replace('inc freqtab+253',
-                      f'inc freqtab+{inputs.sfx_framectr_ofs}')
+    from pipelines.composer import (
+        _emit_sfx_framectr_offset_substitution,
+        _emit_per_subtune_dispatch,
+        _emit_load_addr_substitution,
+    )
+    old, new = _emit_sfx_framectr_offset_substitution(inputs.sfx_framectr_ofs)
+    asm = asm.replace(old, new)
     if inputs.sfx_state_ofs is not None:
         asm = _sfx_state_in_freqtab(asm, inputs.sfx_state_ofs)
 
@@ -1629,25 +1634,11 @@ def _hubbard_emit_sid(inputs: _Inputs, out_path: str, codec,
         or inputs.per_subtune_incby2_step is not None
         or inputs.per_subtune_incby2_late_gate is not None)
 
+    # 5_Title_Tunes per-subtune mechanism dispatch — replaces the
+    # SPEED_CTR_INIT load + INCBY2_STEP add with per-subtune table reads.
+    for old, new in _emit_per_subtune_dispatch(uses_psp).items():
+        asm = asm.replace(old, new)
     if uses_psp:
-        # SPEED_CTR_INIT load: replace `lda #SPEED_CTR_INIT; sta speed_ctr`
-        # with a per-subtune table read. The init block also primes the
-        # cur_incby2_* zp slots that fx_incby2 reads at runtime.
-        asm = asm.replace(
-            '        lda #SPEED_CTR_INIT\n        sta speed_ctr',
-            '        ldy sub_tmp\n'
-            '        lda subSpeedCtrInit,y\n'
-            '        sta speed_ctr\n'
-            '        lda subIncBy2Step,y\n'
-            '        sta cur_incby2_step\n'
-            '        lda subIncBy2LateGate,y\n'
-            '        sta cur_incby2_late_gate')
-        # fx_incby2: switch the slide-step `adc #INCBY2_STEP` to use the
-        # zp slot loaded above.
-        asm = asm.replace(
-            '        adc #INCBY2_STEP',
-            '        adc cur_incby2_step')
-        # Per-subtune ovseed copy + late-gate (zp-var lookup variant)
         asm = asm.replace('; %%OVSEED_COPY%%', _emit_ovseed_copy(
             inputs.per_subtune_ovseed is not None))
         asm = asm.replace('; %%INCBY2_LATE_GATE%%',
@@ -1678,9 +1669,11 @@ def _hubbard_emit_sid(inputs: _Inputs, out_path: str, codec,
             inputs.tie_preserves_slide).items():
         asm = asm.replace(sentinel, fragment)
 
-    # Relocate the engine to the requested load address — the ENGINE
-    # template has `* = $1000` hardcoded; rewrite it to load_addr.
-    asm = asm.replace('* = $1000', f'* = ${load_addr:04X}')
+    # Relocate the engine to the requested load address (composer's
+    # emitter handles the substitution; compound PSIDs (5TT) place
+    # each packed sub-engine at a different address).
+    old, new = _emit_load_addr_substitution(load_addr)
+    asm = asm.replace(old, new)
 
     src = '/tmp/usf2_commando.s'
     obj = '/tmp/usf2_commando.bin'
