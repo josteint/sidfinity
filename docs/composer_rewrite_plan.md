@@ -1418,22 +1418,88 @@ multi-engine packer. Removed alongside the template move.
 composer.py now owns 43 Hubbard '85 emitters + the ENGINE template
 itself. Hubbard 71/71 byte-exact.
 
-#### Phase 8.17+ — Template dissolution (future sessions)
+#### Phase 8.17 — Composer-native asm composition
 
-The mechanical extraction is essentially done — every asm
-artifact lives in composer.py. The remaining work changes
-character: instead of moving text, replace the template-based
-build with a composer-native assembly pipeline.
+The template + `; %%SENTINEL%%` substitution scheme is replaced by
+direct chunk concatenation. The ENGINE template constant and its
+accessor are deleted; the build path no longer needs them.
 
-- `_emit_combined_sid` move — pending the dissolution of
+- [x] `_compose_hubbard_engine_body(state_layout)` in composer.py
+      builds the engine asm body by concatenating named chunks in
+      order: zp/equates → entry stub → 18 routine chunks (init,
+      play, proc_voice, set_patptr+next_orderidx, note_start,
+      hr_writes, do_effects, fx_*, build_statebuf, init_sfx,
+      sfx_play, sfx_step) → sidtab. `build_statebuf` is the only
+      chunk that varies per engine; the other 17 are static.
+- [x] `_compose_hubbard_engine_asm(inputs, codec, pat_slot,
+      pat_bytes, codec_extra)` returns the full asm = equates +
+      codec.zp_asm + body + codec.note_asm + data. This is the
+      single composition entry point for the Hubbard '85 family.
+- [x] `_emit_hubbard_asm_equates(inputs, codec)` extracted —
+      derives PWLEN / N_MUSIC / FRAME_CTR_INIT / ARP_OFS /
+      ARP_MASK / LINEAR_PW_OR / INCBY2_* / DRUM_PRIO_INIT /
+      DUR_BITS / INST_BITS / FREEZE_ON_STOP / SPEED_CTR_INIT /
+      FIRST_FRAME_GATE_OFF / STOP_IS_FILL / STOP_FILL /
+      MASTER_VOL_INIT from `_Inputs` + the note codec.
+- [x] `_emit_hubbard_data` + `_pattern_pool` moved from
+      composer_hubbard.py to composer.py. composer.py now owns
+      the data-section dispatcher alongside the per-section
+      emitters (which already lived there).
+- [x] `_HUBBARD_ENGINE_TEMPLATE` constant + `_emit_hubbard_engine_template()`
+      accessor DELETED (~150 lines). No longer referenced.
+- [x] `_hubbard_emit_sid` in composer_hubbard.py shrunk: it now
+      calls `_compose_hubbard_engine_asm`, applies the remaining
+      cross-chunk text-replace passes (sfx_framectr,
+      sfx_state_in_freqtab, arp_phase_invert, per_subtune_dispatch,
+      OVSEED_COPY, INCBY2_LATE_GATE, NS_OFFTAB_DECR,
+      master_vol_fade, tie_preserves_slide, load_addr), and
+      packages the xa65 output as a PSID.
+
+composer.py now owns the full asm composition (equates + body +
+data + all 18 routine chunks + per-section data emitters);
+composer_hubbard.py is now purely the orchestrator (`_Inputs`
+dataclass + `_inputs_from_*` adapters + the outer text-replace
+loop + xa65 invocation + PSID header). Hubbard 71/71 byte-exact.
+
+#### Phase 8.18+ — Push remaining text-replace passes down
+
+Each remaining cross-chunk text-replace pass either lives entirely
+inside one chunk's text (and so can be resolved at chunk-emit time)
+or genuinely spans chunks (and stays as an outer pass). Push the
+single-chunk ones down:
+
+- [ ] `inc freqtab+253` (sfx_framectr_offset) → resolve inside
+      `_emit_hubbard_play(inputs)`.
+- [ ] `beq fxa_even` (arp_phase_invert) → resolve inside
+      `_emit_hubbard_fx_arp(inputs)`.
+- [ ] `; %%INCBY2_LATE_GATE%%` + `adc #INCBY2_STEP` (per_subtune
+      flavour) → resolve inside `_emit_hubbard_fx_incby2(inputs)`.
+- [ ] `; %%NS_OFFTAB_DECR%%` → resolve inside
+      `_emit_hubbard_note_start(inputs)`.
+- [ ] `; %%OVSEED_COPY%%` + `lda #SPEED_CTR_INIT / sta speed_ctr`
+      → resolve inside `_emit_hubbard_init(inputs)`.
+- [ ] `; %%VOL_PROGRESS_INIT%%` + `; %%VOL_PROGRESS_INC%%` +
+      `; %%MASTER_VOL_WRITE%%` + `; %%MASTER_VOL_EVERY_NOTE%%`
+      (master_vol_fade) → these span multiple chunks. Either
+      thread the fade config through each emitter or keep them
+      as a final outer pass.
+
+Cross-chunk pass left after that:
+- [ ] `_apply_sfx_state_in_freqtab` — text-replaces inside both
+      init_sfx and sfx_step. If both emitters take inputs and
+      resolve their own halves, this collapses too.
+- [ ] `load_addr` substitution on `* = $1000` — this targets the
+      static entry stub; could be parameterised at chunk-emit time.
+
+Once every text-replace pass is pushed down, `_hubbard_emit_sid`
+becomes a thin shell calling `_compose_hubbard_engine_asm` + xa65
++ PSID-header packaging. At that point the bulk of
+composer_hubbard.py is the `_Inputs` dataclass + `_inputs_from_*`
+adapters — natural composer.py territory.
+
+- [ ] `_emit_combined_sid` move — pending the dissolution of
   `_hubbard_emit_sid` (since they're coupled).
-- Eventually: replace `_hubbard_emit_sid` + the ENGINE template's
-  string-substitution scheme with composer-native asm composition
-  that consumes the EngineModel directly. The 18 `_emit_hubbard_*`
-  functions become the composer's asm building blocks; chunk
-  ordering + nested-sentinel ordering + text-replace passes become
-  explicit asm composition.
-- At that point composer_hubbard.py is deletable; the Hubbard '85
+- [ ] Eventually: composer_hubbard.py is deletable; the Hubbard '85
   family lives in composer.py as feature-driven asm composition,
   the same shape the companion engines already use.
 

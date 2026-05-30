@@ -1620,25 +1620,26 @@ def _emit_hubbard_sfx_step() -> str:
 
 
 # ---------------------------------------------------------------------------
-# Hubbard '85 ENGINE template — the asm skeleton that holds zp/equates,
-# the entry stub, and `; %%SENTINEL%%` slots for every labelled routine
-# (init, play, proc_voice, set_patptr, next_orderidx, note_start,
-# hr_writes, do_effects, fx_{drumslide,incby2,pwm,vibrato,skydive,arp},
-# build_statebuf, init_sfx, sfx_play, sfx_step). The codegen interpolates
-# all 18 chunks (each owned by an `_emit_hubbard_<chunk>` function in
-# this module) and lets the substituted text-replace passes (sfx state /
-# arp phase invert / per-subtune dispatch / ovseed copy / ...) do their
-# work on the assembled result.
+# Hubbard '85 engine asm composition — direct concatenation.
 #
-# `* = $1000` is the LOAD_ADDR text-replace target; the substitution
-# operates on the assembled asm string, not on the constant itself.
+# The labelled routine chunks (init, play, proc_voice, set_patptr,
+# next_orderidx, note_start, hr_writes, do_effects, fx_{drumslide,
+# incby2, pwm, vibrato, skydive, arp}, build_statebuf, init_sfx,
+# sfx_play, sfx_step) each live in their own `_HUBBARD_<NAME>_ASM`
+# constant above. The composition function below concatenates them
+# with the static framing (zp equates, entry stub, section banners,
+# sidtab) to produce the engine asm body.
 #
-# Routine bodies are NOT in this template — each lives in its own
-# `_HUBBARD_<NAME>_ASM` constant above. Composer.py owns all asm; the
-# template is the skeleton that wires them together.
+# Phases 8.9-8.14 lifted each chunk out of a substitution template;
+# Phase 8.16 moved the template skeleton itself; Phase 8.17 replaced
+# the template-driven path with direct chunk concatenation here.
+# The remaining cross-chunk text-replace passes (sfx_framectr,
+# arp_phase_invert, master_vol_fade, ...) still run as outer passes
+# in composer_hubbard; later phases push them down.
 # ---------------------------------------------------------------------------
 
-_HUBBARD_ENGINE_TEMPLATE = r"""
+
+_HUBBARD_ZP_EQUATES_ASM = r"""
 frame_ctr = $40
 speed_ctr = $41
 is_tick   = $42
@@ -1715,79 +1716,246 @@ vol_progress = $b9
 ; threshold below which the fx-bit-1 slide fires; $FF = "no gate".
 cur_incby2_step  = $b9
 cur_incby2_late_gate = $ba
-
-* = $1000
-        jmp init
-        jmp play
-
-; %%INIT%%
-
-; %%PLAY%%
-
-; %%PROC_VOICE%%
-
-; load_note is supplied by the note codec (see note_codec.py) — the
-; engine calls it; the codec owns the pattern byte format and its
-; decoder. set_patptr / next_orderidx below are codec-agnostic.
-
-; set_patptr - point v_patptr,x at the pattern named by orderlist
-; entry v_orderpos,x. The $FF terminator wraps v_orderpos to
-; orderLoop,x; the $FE terminator ends the voice (v_ended). Clobbers
-; A and Y; preserves X.
-; %%SET_PATPTR%%
-
-; %%NEXT_ORDERIDX%%
-
-; %%NOTE_START%%
-
-; %%HR_WRITES%%
-
-; %%DO_EFFECTS%%
-
-; %%FX_DRUMSLIDE%%
-
-; %%FX_INCBY2%%
-
-; %%FX_PWM%%
-
-; %%FX_VIBRATO%%
-
-; %%FX_SKYDIVE%%
-
-; %%FX_ARP%%
-
-; build_statebuf - assemble the off-table-arpeggio state mirror.
-; Generated per-engine from StatebufLayout (see codegen.py); the
-; concrete body is substituted in at codegen time.
-; %%BUILD_STATEBUF%%
-
-; ============================ sound effects ===========================
-; A SFX is a 2-voice register snapshot plus a freq-table pitch sweep,
-; driven by a 32-byte record (sfxdata). See pipelines/hubbard/commando/extract/
-; sfx.py for the engine derivation.
-
-; %%INIT_SFX%%
-
-; %%SFX_PLAY%%
-
-; %%SFX_STEP%%
-
-sidtab: .byt 0, 7, 14
 """
 
 
-def _emit_hubbard_engine_template() -> str:
-    """The Hubbard '85 ENGINE template — zp/equates + entry stub +
-    `; %%SENTINEL%%` slots for the 18 routine chunks.
+_HUBBARD_ENTRY_STUB_ASM = """* = $1000
+        jmp init
+        jmp play"""
 
-    The codegen interpolates each chunk via its `_emit_hubbard_<name>`
-    function, then runs the text-replace passes (sfx state / arp phase
-    invert / per-subtune dispatch / ovseed copy / ...) on the result.
 
-    `* = $1000` is the LOAD_ADDR text-replace target — substitution
-    happens on the assembled asm string, not on this constant.
+_HUBBARD_LOAD_NOTE_COMMENT = (
+    "; load_note is supplied by the note codec (see note_codec.py) — the\n"
+    "; engine calls it; the codec owns the pattern byte format and its\n"
+    "; decoder. set_patptr / next_orderidx below are codec-agnostic.")
+
+
+_HUBBARD_SET_PATPTR_HEADER = (
+    "; set_patptr - point v_patptr,x at the pattern named by orderlist\n"
+    "; entry v_orderpos,x. The $FF terminator wraps v_orderpos to\n"
+    "; orderLoop,x; the $FE terminator ends the voice (v_ended). Clobbers\n"
+    "; A and Y; preserves X.")
+
+
+_HUBBARD_BUILD_STATEBUF_HEADER = (
+    "; build_statebuf - assemble the off-table-arpeggio state mirror.\n"
+    "; Generated per-engine from StatebufLayout (see codegen.py); the\n"
+    "; concrete body is substituted in at codegen time.")
+
+
+_HUBBARD_SFX_BANNER = (
+    "; ============================ sound effects ===========================\n"
+    "; A SFX is a 2-voice register snapshot plus a freq-table pitch sweep,\n"
+    "; driven by a 32-byte record (sfxdata). See pipelines/hubbard/commando/extract/\n"
+    "; sfx.py for the engine derivation.")
+
+
+_HUBBARD_SIDTAB_ASM = "sidtab: .byt 0, 7, 14"
+
+
+def _compose_hubbard_engine_body(state_layout: StatebufLayout) -> str:
+    """Compose the Hubbard '85 engine asm body by direct concatenation
+    of named chunks — the composer-native replacement for template +
+    `; %%SENTINEL%%` substitution.
+
+    Output is the same text the old template-substitution path
+    produced (modulo whitespace), but every chunk is positioned
+    explicitly here rather than via sentinel placeholders.
+
+    `build_statebuf` is the only chunk that varies per engine — its
+    body is generated from `state_layout`. The other 17 chunks are
+    static text owned by their `_emit_hubbard_<name>` functions.
+
+    Chunks still return text containing their nested sentinels
+    (`; %%OVSEED_COPY%%`, `; %%VOL_PROGRESS_INIT%%`, `; %%NS_OFFTAB_DECR%%`,
+    `; %%INCBY2_LATE_GATE%%`, `; %%MASTER_VOL_*%%`) and text-replace
+    targets (`inc freqtab+253`, `beq fxa_even`, `lda #SPEED_CTR_INIT`,
+    `adc #INCBY2_STEP`); the outer pass in `composer_hubbard._hubbard_emit_sid`
+    resolves them. Future phases push those passes down into the
+    individual chunk emitters.
     """
-    return _HUBBARD_ENGINE_TEMPLATE
+    parts = [
+        _HUBBARD_ZP_EQUATES_ASM,
+        '',
+        _HUBBARD_ENTRY_STUB_ASM,
+        '',
+        _emit_hubbard_init(),
+        '',
+        _emit_hubbard_play(),
+        '',
+        _emit_hubbard_proc_voice(),
+        '',
+        _HUBBARD_LOAD_NOTE_COMMENT,
+        '',
+        _HUBBARD_SET_PATPTR_HEADER,
+        _emit_hubbard_set_patptr(),
+        '',
+        _emit_hubbard_next_orderidx(),
+        '',
+        _emit_hubbard_note_start(),
+        '',
+        _emit_hubbard_hr_writes(),
+        '',
+        _emit_hubbard_do_effects(),
+        '',
+        _emit_hubbard_fx_drumslide(),
+        '',
+        _emit_hubbard_fx_incby2(),
+        '',
+        _emit_hubbard_fx_pwm(),
+        '',
+        _emit_hubbard_fx_vibrato(),
+        '',
+        _emit_hubbard_fx_skydive(),
+        '',
+        _emit_hubbard_fx_arp(),
+        '',
+        _HUBBARD_BUILD_STATEBUF_HEADER,
+        _emit_build_statebuf(state_layout),
+        '',
+        _HUBBARD_SFX_BANNER,
+        '',
+        _emit_hubbard_init_sfx(),
+        '',
+        _emit_hubbard_sfx_play(),
+        '',
+        _emit_hubbard_sfx_step(),
+        '',
+        _HUBBARD_SIDTAB_ASM,
+    ]
+    return '\n'.join(parts)
+
+
+def _emit_hubbard_asm_equates(inputs, codec) -> str:
+    """Header equates derived from `_Inputs` + the note codec.
+
+    These are the compile-time constants the engine asm references —
+    sizes (PWLEN, N_MUSIC), engine knobs (ARP_OFS, ARP_MASK,
+    LINEAR_PW_OR, INCBY2_*), behaviour flags (DRUM_PRIO_INIT,
+    FREEZE_ON_STOP, FIRST_FRAME_GATE_OFF, STOP_IS_FILL, STOP_FILL),
+    init values (FRAME_CTR_INIT, SPEED_CTR_INIT, MASTER_VOL_INIT)
+    and the codec's bitfield widths (DUR_BITS, INST_BITS).
+    """
+    return (
+        f'PWLEN = {2 * len(inputs.models) - 1}\n'
+        f'N_MUSIC = {len(inputs.subtunes)}\n'
+        f'FRAME_CTR_INIT = {inputs.frame_ctr_init}\n'
+        f'HUBIDX_WRAP_AT_PATEND = {1 if inputs.hubidx_wrap_at_patend else 0}\n'
+        f'ARP_OFS = {inputs.arp_interval}\n'
+        f'ARP_MASK = {inputs.arp_period - 1}\n'
+        f'LINEAR_PW_OR = {inputs.linear_pw_or}\n'
+        f'INCBY2_STEP = {inputs.incby2_step & 0xFF}\n'
+        f'INCBY2_ALWAYS = {1 if inputs.incby2_every_frame else 0}\n'
+        f'INCBY2_ONSET = {inputs.incby2_onset}\n'
+        f'DRUM_PRIO_INIT = {0 if inputs.suppress_first_notestart else 255}\n'
+        f'DUR_BITS = {codec.dur_bits}\n'
+        f'INST_BITS = {codec.inst_bits}\n'
+        f'FREEZE_ON_STOP = {1 if inputs.freeze_on_stop else 0}\n'
+        f'SPEED_CTR_INIT = {inputs.speed_ctr_init}\n'
+        f'FIRST_FRAME_GATE_OFF = {1 if inputs.first_frame_gate_off else 0}\n'
+        f'STOP_IS_FILL = {1 if inputs.stop_fill is not None else 0}\n'
+        f'STOP_FILL = {inputs.stop_fill or 0}\n'
+        f'MASTER_VOL_INIT = {0x00 if inputs.master_vol_subtrahend_voice is not None else 0x0F}\n'
+    )
+
+
+def _pattern_pool(scores):
+    """Dense, globally-shared pattern pool. Returns (pat_order, pat_slot):
+    pat_order[slot] = note list; pat_slot[orig pattern index] = slot.
+
+    All N music subtunes share one global pool — pattern indices are
+    re-numbered into a dense [0..M) range. Each unique pattern appears
+    once in the emitted asm regardless of how many voices/subtunes
+    reference it.
+    """
+    pat_order, pat_slot = [], {}
+    for score in scores:
+        for v in score.voices:
+            for oidx in v.orderlist:
+                if oidx not in pat_slot:
+                    pat_slot[oidx] = len(pat_order)
+                    pat_order.append(v.patterns.get(oidx, []))
+    return pat_order, pat_slot
+
+
+def _emit_hubbard_data(scores, models, freq_bytes, resetspds, voice_starts,
+                       sfx_list, pat_slot, pat_bytes, codec_extra,
+                       seed_overlap: bool = True,
+                       state_layout: StatebufLayout = None,
+                       seed_offsets=None,
+                       per_subtune_speed_ctr_init=None,
+                       per_subtune_incby2_step=None,
+                       per_subtune_incby2_late_gate=None,
+                       per_subtune_ovseed=None) -> str:
+    """Emit the xa65 data section for a multi-subtune build.
+
+    `scores` is one Score per packed music subtune; `sfx_list` is the
+    16 sound effects; the pattern pool / orderlist / per-subtune
+    tables (resetspd / voice_start / ovseed / mechanism overrides)
+    are emitted in the order the engine init code reads them.
+    Instruments, the freq table and the pattern pool are shared;
+    orderlists, loop points and tempo are per-subtune, selected by
+    `init` from the subOrder* / subResetspd tables.
+    """
+    if state_layout is None:
+        state_layout = COMMANDO_STATEBUF_LAYOUT
+    lines = []
+    lines.extend(_emit_hubbard_instrument_table(models))
+    lines.extend(_emit_hubbard_pwseed_pwacc(models))
+    lines.extend(_emit_hubbard_freq_table_data(freq_bytes))
+    lines.extend(_emit_hubbard_ovseed(freq_bytes, seed_overlap, seed_offsets))
+    # patterns — each unique pattern emitted once; orderlists reference
+    # them by a dense slot. Pattern indices are global, so the pool is
+    # shared by all packed subtunes. The note codec serialises each
+    # pattern (byte 0 = note count); the format is the codec's choice.
+    lines.extend(_emit_hubbard_pattern_pool(pat_bytes, codec_extra))
+    lines.extend(_emit_hubbard_orderlists(scores, pat_slot))
+    lines.extend(_emit_hubbard_per_subtune_tables(
+        scores, resetspds, voice_starts))
+    lines.extend(_emit_hubbard_psp_tables(
+        len(scores),
+        per_subtune_speed_ctr_init,
+        per_subtune_incby2_step,
+        per_subtune_incby2_late_gate))
+    lines.extend(_emit_hubbard_per_subtune_ovseed(per_subtune_ovseed))
+    lines.extend(_emit_hubbard_live_order_arrays())
+    lines.extend(_emit_hubbard_statebuf_data(state_layout))
+    lines.extend(_emit_hubbard_sfx_records(sfx_list))
+    return '\n'.join(lines)
+
+
+def _compose_hubbard_engine_asm(inputs, codec, pat_slot, pat_bytes,
+                                codec_extra) -> str:
+    """Compose the full Hubbard '85 engine asm — equates + codec zp +
+    engine body + codec note-codec + data section.
+
+    This is the composer-native replacement for the template +
+    `_emit_data` pipeline that lived in
+    `composer_hubbard._hubbard_emit_sid`. Returns asm text that
+    still contains the un-resolved cross-chunk sentinels +
+    text-replace targets; the caller is expected to run the outer
+    substitution passes on the result (Phase 8.17 keeps those there;
+    later phases push them down into chunk emitters).
+    """
+    body = _compose_hubbard_engine_body(inputs.state_layout)
+    data = _emit_hubbard_data(
+        inputs.scores, inputs.models, inputs.freq_bytes,
+        inputs.resetspds, inputs.voice_starts,
+        inputs.sfx_list, pat_slot, pat_bytes, codec_extra,
+        seed_overlap=inputs.seed_overlap,
+        state_layout=inputs.state_layout,
+        seed_offsets=inputs.seed_offsets,
+        per_subtune_speed_ctr_init=inputs.per_subtune_speed_ctr_init,
+        per_subtune_incby2_step=inputs.per_subtune_incby2_step,
+        per_subtune_incby2_late_gate=inputs.per_subtune_incby2_late_gate,
+        per_subtune_ovseed=inputs.per_subtune_ovseed)
+    return (
+        _emit_hubbard_asm_equates(inputs, codec)
+        + codec.zp_asm + '\n'
+        + body + '\n'
+        + codec.note_asm + '\n'
+        + data + '\n'
+    )
 
 
 def _emit_hubbard_pattern_pool(pat_bytes: list[bytes],
