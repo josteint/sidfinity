@@ -1461,41 +1461,70 @@ composer_hubbard.py is now purely the orchestrator (`_Inputs`
 dataclass + `_inputs_from_*` adapters + the outer text-replace
 loop + xa65 invocation + PSID header). Hubbard 71/71 byte-exact.
 
-#### Phase 8.18+ — Push remaining text-replace passes down
+#### Phase 8.18 — Push four single-chunk passes down
 
-Each remaining cross-chunk text-replace pass either lives entirely
-inside one chunk's text (and so can be resolved at chunk-emit time)
-or genuinely spans chunks (and stays as an outer pass). Push the
-single-chunk ones down:
+The four cross-chunk text-replace passes whose targets live
+entirely inside a single chunk are now resolved at chunk-emit time,
+threaded through `_compose_hubbard_engine_asm` as explicit params:
 
-- [ ] `inc freqtab+253` (sfx_framectr_offset) → resolve inside
-      `_emit_hubbard_play(inputs)`.
-- [ ] `beq fxa_even` (arp_phase_invert) → resolve inside
-      `_emit_hubbard_fx_arp(inputs)`.
+- [x] `_emit_hubbard_play(sfx_framectr_ofs)` — resolves
+      `inc freqtab+253` directly. Default 253 (Commando family);
+      Monty / One Man and his Droid override to 250.
+- [x] `_emit_hubbard_fx_arp(arp_phase_invert)` — flips `beq fxa_even`
+      → `bne fxa_even` for One Man and his Droid's inverse polarity.
+- [x] `_emit_hubbard_note_start(ns_offtab_decr_offset)` — resolves
+      the nested `; %%NS_OFFTAB_DECR%%` sentinel for Thing on a
+      Spring's statebuf v_hubidx decrement.
+- [x] `_emit_hubbard_entry_stub(load_addr)` — emits
+      `* = ${load_addr:04X}` directly instead of `* = $1000`
+      + outer text-replace. Replaces `_HUBBARD_ENTRY_STUB_ASM`
+      constant with a function.
+
+`_compose_hubbard_engine_body` and `_compose_hubbard_engine_asm`
+both grew explicit params (`load_addr`, `sfx_framectr_ofs`,
+`arp_phase_invert`, `ns_offtab_decr_offset`) drawn from `_Inputs`.
+
+Outer passes deleted from `_hubbard_emit_sid` along with the
+substitution helpers they used:
+- [x] `_emit_sfx_framectr_offset_substitution` deleted (no callers).
+- [x] `_emit_arp_phase_invert_substitution` deleted (no callers).
+- [x] `_emit_load_addr_substitution` deleted (no callers).
+- [x] `_HUBBARD_ENTRY_STUB_ASM` constant deleted (replaced by
+      `_emit_hubbard_entry_stub`).
+
+`_hubbard_emit_sid` is now ~30 lines shorter. The remaining outer
+passes are the genuinely cross-chunk ones — those stay until the
+chunks they span either learn to take their full inputs or until
+the codec's note_asm itself migrates into composer.
+
+Verified: Hubbard 71/71 byte-exact.
+
+#### Phase 8.19+ — Push the harder passes down
+
 - [ ] `; %%INCBY2_LATE_GATE%%` + `adc #INCBY2_STEP` (per_subtune
       flavour) → resolve inside `_emit_hubbard_fx_incby2(inputs)`.
-- [ ] `; %%NS_OFFTAB_DECR%%` → resolve inside
-      `_emit_hubbard_note_start(inputs)`.
+      Coordinates with `_emit_per_subtune_dispatch`.
 - [ ] `; %%OVSEED_COPY%%` + `lda #SPEED_CTR_INIT / sta speed_ctr`
-      → resolve inside `_emit_hubbard_init(inputs)`.
-- [ ] `; %%VOL_PROGRESS_INIT%%` + `; %%VOL_PROGRESS_INC%%` +
-      `; %%MASTER_VOL_WRITE%%` + `; %%MASTER_VOL_EVERY_NOTE%%`
-      (master_vol_fade) → these span multiple chunks. Either
-      thread the fade config through each emitter or keep them
-      as a final outer pass.
-
-Cross-chunk pass left after that:
+      → resolve inside `_emit_hubbard_init(inputs)`. Coordinates
+      with `_emit_per_subtune_dispatch`.
+- [ ] `; %%VOL_PROGRESS_INIT%%` (in init) +
+      `; %%VOL_PROGRESS_INC%%` / `; %%MASTER_VOL_WRITE%%` /
+      `; %%MASTER_VOL_EVERY_NOTE%%` (in codec.note_asm) — split:
+      push VOL_PROGRESS_INIT into init; the codec.note_asm three
+      stay until the codec itself migrates or `_emit_master_vol_fade`
+      threads the codec output.
 - [ ] `_apply_sfx_state_in_freqtab` — text-replaces inside both
-      init_sfx and sfx_step. If both emitters take inputs and
-      resolve their own halves, this collapses too.
-- [ ] `load_addr` substitution on `* = $1000` — this targets the
-      static entry stub; could be parameterised at chunk-emit time.
+      init_sfx and sfx_step. Push each half into the respective
+      chunk emitter.
+- [ ] `; %%CLEAR_DRUMTRIG_*%%` (tie_preserves_slide) — lives in
+      codec.note_asm; same constraint as master_vol_fade.
 
-Once every text-replace pass is pushed down, `_hubbard_emit_sid`
-becomes a thin shell calling `_compose_hubbard_engine_asm` + xa65
-+ PSID-header packaging. At that point the bulk of
-composer_hubbard.py is the `_Inputs` dataclass + `_inputs_from_*`
-adapters — natural composer.py territory.
+Once every chunk's text-replace pass is pushed down,
+`_hubbard_emit_sid` becomes a thin shell calling
+`_compose_hubbard_engine_asm` + xa65 + PSID-header packaging. At
+that point the bulk of composer_hubbard.py is the `_Inputs`
+dataclass + `_inputs_from_*` adapters — natural composer.py
+territory.
 
 - [ ] `_emit_combined_sid` move — pending the dissolution of
   `_hubbard_emit_sid` (since they're coupled).

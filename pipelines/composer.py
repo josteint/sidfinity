@@ -295,19 +295,6 @@ def _emit_clear_drumtrig(tie_preserves_slide: bool) -> dict[str, str]:
     }
 
 
-def _emit_arp_phase_invert_substitution(invert: bool) -> tuple[str, str] | None:
-    """fx_arp phase-invert: swap which frame_ctr & ARP_MASK phase is
-    "active" (One Man and his Droid uses the inverse polarity from
-    every other engine — `frame_ctr & $04 == 0` → +12 semitones).
-
-    Returns (old, new) text pair for `asm.replace`, or None when
-    `invert is False` (no substitution applied).
-    """
-    if not invert:
-        return None
-    return ('beq fxa_even', 'bne fxa_even')
-
-
 def _emit_ovseed_copy(has_per_subtune_ovseed: bool) -> str:
     """5_Title_Tunes per-subtune ovseed copy. Runs at the top of `init`
     before the iniov loop reads ovseed; copies the selected subtune's
@@ -850,7 +837,7 @@ fxa_in:
 fxa_ret: rts"""
 
 
-def _emit_hubbard_fx_arp() -> str:
+def _emit_hubbard_fx_arp(arp_phase_invert: bool = False) -> str:
     """fx_arp routine — fx-flag bit 2, multi-step arpeggio.
 
     Alternates `v_pitch` / `v_pitch + ARP_OFS` (ARP_OFS = engine
@@ -858,12 +845,14 @@ def _emit_hubbard_fx_arp() -> str:
     >= 96 read off-table via `build_statebuf` (state mirror — Hubbard
     family's "off-table arpeggio" trick).
 
-    Contains the `beq fxa_even` branch that One Man and his Droid's
-    arp_phase_invert flips to `bne fxa_even`. Composer's
-    `_emit_arp_phase_invert_substitution` runs that text-replace
-    after this chunk is inserted.
+    `arp_phase_invert=True` flips the active phase from
+    `frame_ctr & ARP_MASK == 0 → base` (the Commando family default)
+    to `... == 0 → +ARP_OFS` (One Man and his Droid). Implemented by
+    flipping the `beq fxa_even` branch sense.
     """
-    return _HUBBARD_FX_ARP_ASM
+    if not arp_phase_invert:
+        return _HUBBARD_FX_ARP_ASM
+    return _HUBBARD_FX_ARP_ASM.replace('beq fxa_even', 'bne fxa_even', 1)
 
 
 _HUBBARD_NOTE_START_ASM = """; note_start - new-note setup. Tie ($40) skips freq, slide, off-table.
@@ -960,7 +949,7 @@ ns_pwret:
         rts"""
 
 
-def _emit_hubbard_note_start() -> str:
+def _emit_hubbard_note_start(ns_offtab_decr_offset: int | None = None) -> str:
     """note_start routine — the new-note SID-register writes.
 
     Loads `i_ctrl/i_ad/i_sr/i_pwlo/i_pwhi` from the instrument table,
@@ -970,11 +959,14 @@ def _emit_hubbard_note_start() -> str:
     `drum_prio` so voice 0's first frame can be suppressed on engines
     that use it.
 
-    Contains the `; %%NS_OFFTAB_DECR%%` sentinel that
-    `_emit_ns_offtab_decr` substitutes after this chunk is inserted
-    (substitution order matters — outer chunk first, then inner).
+    `ns_offtab_decr_offset` resolves the nested
+    `; %%NS_OFFTAB_DECR%%` sentinel — None = no decrement (default),
+    int = statebuf slot to decrement (Thing on a Spring's pattern-
+    position state mid-load adjustment).
     """
-    return _HUBBARD_NOTE_START_ASM
+    return _HUBBARD_NOTE_START_ASM.replace(
+        '; %%NS_OFFTAB_DECR%%',
+        _emit_ns_offtab_decr(ns_offtab_decr_offset), 1)
 
 
 _HUBBARD_HR_WRITES_ASM = """; hr_writes - hard-restart block, ctrl=hr_ctrl ad=0 sr=0.
@@ -1329,18 +1321,21 @@ pl_done:
         rts"""
 
 
-def _emit_hubbard_play() -> str:
+def _emit_hubbard_play(sfx_framectr_ofs: int = 253) -> str:
     """play routine — the per-frame engine entry.
 
-    Bumps `freqtab+253` (the SFX-readable frame counter — the literal
-    offset is text-replaced by `_emit_sfx_framectr_offset_substitution`
-    for engines that read it from a different slot). Dispatches to the
-    SFX path on SFX subtunes; otherwise runs the music end-of-song
-    handler, increments `frame_ctr`, optionally gates voices off on
-    the first frame, runs the speed counter, and drives the voice
-    loop from `voice_start`.
+    Bumps `freqtab+sfx_framectr_ofs` (the SFX-readable frame counter
+    — default 253 / Commando family; Monty and One Man and his Droid
+    override to 250). Dispatches to the SFX path on SFX subtunes;
+    otherwise runs the music end-of-song handler, increments
+    `frame_ctr`, optionally gates voices off on the first frame,
+    runs the speed counter, and drives the voice loop from
+    `voice_start`.
     """
-    return _HUBBARD_PLAY_ASM
+    if sfx_framectr_ofs == 253:
+        return _HUBBARD_PLAY_ASM
+    return _HUBBARD_PLAY_ASM.replace(
+        'inc freqtab+253', f'inc freqtab+{sfx_framectr_ofs}', 1)
 
 
 _HUBBARD_PROC_VOICE_ASM = """proc_voice:
@@ -1719,9 +1714,18 @@ cur_incby2_late_gate = $ba
 """
 
 
-_HUBBARD_ENTRY_STUB_ASM = """* = $1000
-        jmp init
-        jmp play"""
+def _emit_hubbard_entry_stub(load_addr: int = LOAD) -> str:
+    """Engine entry stub at `load_addr`. Two-instruction trampoline
+    that PSID `init` / `play` vectors point at: JMP init / JMP play.
+
+    The default `load_addr=$1000` matches the standalone build; the
+    digi-aware combined build (`_emit_combined_sid`) and any future
+    compound packer can place each sub-engine at a non-default
+    address by passing `load_addr` through `_compose_hubbard_engine_asm`.
+    """
+    return (f'* = ${load_addr:04X}\n'
+            f'        jmp init\n'
+            f'        jmp play')
 
 
 _HUBBARD_LOAD_NOTE_COMMENT = (
@@ -1753,7 +1757,12 @@ _HUBBARD_SFX_BANNER = (
 _HUBBARD_SIDTAB_ASM = "sidtab: .byt 0, 7, 14"
 
 
-def _compose_hubbard_engine_body(state_layout: StatebufLayout) -> str:
+def _compose_hubbard_engine_body(
+        state_layout: StatebufLayout,
+        load_addr: int = LOAD,
+        sfx_framectr_ofs: int = 253,
+        arp_phase_invert: bool = False,
+        ns_offtab_decr_offset: int | None = None) -> str:
     """Compose the Hubbard '85 engine asm body by direct concatenation
     of named chunks — the composer-native replacement for template +
     `; %%SENTINEL%%` substitution.
@@ -1762,26 +1771,28 @@ def _compose_hubbard_engine_body(state_layout: StatebufLayout) -> str:
     produced (modulo whitespace), but every chunk is positioned
     explicitly here rather than via sentinel placeholders.
 
-    `build_statebuf` is the only chunk that varies per engine — its
-    body is generated from `state_layout`. The other 17 chunks are
-    static text owned by their `_emit_hubbard_<name>` functions.
+    Per-engine variation enters here as explicit parameters:
+      - `state_layout` — `build_statebuf` body (off-table arpeggio mirror)
+      - `load_addr` — entry stub address (default $1000)
+      - `sfx_framectr_ofs` — play's `inc freqtab+N` slot
+      - `arp_phase_invert` — fx_arp branch polarity
+      - `ns_offtab_decr_offset` — note_start statebuf decrement
 
-    Chunks still return text containing their nested sentinels
-    (`; %%OVSEED_COPY%%`, `; %%VOL_PROGRESS_INIT%%`, `; %%NS_OFFTAB_DECR%%`,
-    `; %%INCBY2_LATE_GATE%%`, `; %%MASTER_VOL_*%%`) and text-replace
-    targets (`inc freqtab+253`, `beq fxa_even`, `lda #SPEED_CTR_INIT`,
-    `adc #INCBY2_STEP`); the outer pass in `composer_hubbard._hubbard_emit_sid`
-    resolves them. Future phases push those passes down into the
-    individual chunk emitters.
+    Chunks that still contain un-resolved sentinels / text-replace
+    targets (init's `; %%OVSEED_COPY%%` + `; %%VOL_PROGRESS_INIT%%`,
+    fx_incby2's `; %%INCBY2_LATE_GATE%%`, the `; %%MASTER_VOL_*%%`
+    sentinels in the codec's note_asm) are resolved by outer passes
+    in `composer_hubbard._hubbard_emit_sid`. Future phases push those
+    down too.
     """
     parts = [
         _HUBBARD_ZP_EQUATES_ASM,
         '',
-        _HUBBARD_ENTRY_STUB_ASM,
+        _emit_hubbard_entry_stub(load_addr),
         '',
         _emit_hubbard_init(),
         '',
-        _emit_hubbard_play(),
+        _emit_hubbard_play(sfx_framectr_ofs),
         '',
         _emit_hubbard_proc_voice(),
         '',
@@ -1792,7 +1803,7 @@ def _compose_hubbard_engine_body(state_layout: StatebufLayout) -> str:
         '',
         _emit_hubbard_next_orderidx(),
         '',
-        _emit_hubbard_note_start(),
+        _emit_hubbard_note_start(ns_offtab_decr_offset),
         '',
         _emit_hubbard_hr_writes(),
         '',
@@ -1808,7 +1819,7 @@ def _compose_hubbard_engine_body(state_layout: StatebufLayout) -> str:
         '',
         _emit_hubbard_fx_skydive(),
         '',
-        _emit_hubbard_fx_arp(),
+        _emit_hubbard_fx_arp(arp_phase_invert),
         '',
         _HUBBARD_BUILD_STATEBUF_HEADER,
         _emit_build_statebuf(state_layout),
@@ -1925,19 +1936,28 @@ def _emit_hubbard_data(scores, models, freq_bytes, resetspds, voice_starts,
 
 
 def _compose_hubbard_engine_asm(inputs, codec, pat_slot, pat_bytes,
-                                codec_extra) -> str:
+                                codec_extra, load_addr: int = LOAD) -> str:
     """Compose the full Hubbard '85 engine asm — equates + codec zp +
     engine body + codec note-codec + data section.
 
     This is the composer-native replacement for the template +
     `_emit_data` pipeline that lived in
-    `composer_hubbard._hubbard_emit_sid`. Returns asm text that
-    still contains the un-resolved cross-chunk sentinels +
-    text-replace targets; the caller is expected to run the outer
-    substitution passes on the result (Phase 8.17 keeps those there;
-    later phases push them down into chunk emitters).
+    `composer_hubbard._hubbard_emit_sid`. Returns asm text that may
+    still contain un-resolved sentinels / text-replace targets for
+    the cross-chunk passes that haven't migrated yet — the caller
+    runs them on the result.
+
+    Per-engine variation is threaded into the body via explicit
+    parameters drawn from `_Inputs` — composer.py no longer needs an
+    outer text-replace for the four single-chunk substitutions
+    (sfx_framectr, arp_phase_invert, ns_offtab_decr, load_addr).
     """
-    body = _compose_hubbard_engine_body(inputs.state_layout)
+    body = _compose_hubbard_engine_body(
+        inputs.state_layout,
+        load_addr=load_addr,
+        sfx_framectr_ofs=inputs.sfx_framectr_ofs,
+        arp_phase_invert=inputs.arp_phase_invert,
+        ns_offtab_decr_offset=inputs.ns_offtab_decr_offset)
     data = _emit_hubbard_data(
         inputs.scores, inputs.models, inputs.freq_bytes,
         inputs.resetspds, inputs.voice_starts,
@@ -2377,28 +2397,6 @@ def _emit_per_subtune_dispatch(enabled: bool) -> dict[str, str]:
         ),
         '        adc #INCBY2_STEP': '        adc cur_incby2_step',
     }
-
-
-def _emit_sfx_framectr_offset_substitution(ofs: int) -> tuple[str, str]:
-    """SFX framectr-in-freqtab offset.
-
-    The play loop increments a byte that the SFX V2 sweep can read as
-    a freq value (Hubbard's "INC $5525" trick). The default offset is
-    253 (Commando family); some engines override (Monty: 250,
-    One Man and his Droid: 250).
-    """
-    return ('inc freqtab+253', f'inc freqtab+{ofs}')
-
-
-def _emit_load_addr_substitution(load_addr: int) -> tuple[str, str]:
-    """Relocate the engine to a non-default load address.
-
-    The ENGINE template has `* = $1000` hardcoded; compound PSIDs
-    (5_Title_Tunes) place each packed sub-engine at a different
-    address. Most engines use the default and this substitution is
-    an effective no-op (`$1000` → `$1000`).
-    """
-    return ('* = $1000', f'* = ${load_addr:04X}')
 
 
 def _emit_master_vol_fade(fade: 'FadeProgressive | None') -> dict[str, str]:

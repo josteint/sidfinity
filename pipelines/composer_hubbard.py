@@ -252,52 +252,40 @@ def _hubbard_emit_sid(inputs: _Inputs, out_path: str, codec,
     compound-PSID build (5 Title Tunes) which packs 5 engines at
     non-overlapping addresses.
     """
-    # Composer-native asm composition (Phase 8.17). Replaces the
-    # template + ; %%SENTINEL%% substitution loop with direct chunk
-    # concatenation in `_compose_hubbard_engine_asm`. The result
-    # still contains un-resolved cross-chunk sentinels and text-
-    # replace targets; the outer passes below resolve them. Later
-    # phases push those passes down into the chunk emitters.
+    # Composer-native asm composition. `_compose_hubbard_engine_asm`
+    # threads the four single-chunk knobs (sfx_framectr_ofs,
+    # arp_phase_invert, ns_offtab_decr_offset, load_addr) into the
+    # chunk emitters directly (Phase 8.18) — no outer pass needed
+    # for them. The remaining cross-chunk passes below resolve
+    # sentinels and text-replace targets that genuinely span chunks
+    # (sfx_state_in_freqtab, master_vol_fade) or interact with
+    # other features (per_subtune_dispatch, tie_preserves_slide,
+    # OVSEED_COPY, INCBY2_LATE_GATE). Future phases push these down
+    # as the chunk emitters learn to take their full input.
     from pipelines.composer import (
         _compose_hubbard_engine_asm,
-        _emit_sfx_framectr_offset_substitution,
         _emit_per_subtune_dispatch,
-        _emit_load_addr_substitution,
         _apply_sfx_state_in_freqtab,
         _pattern_pool,
     )
     pat_order, pat_slot = _pattern_pool(inputs.scores)
     pat_bytes, codec_extra = codec.encode(pat_order)
     asm = _compose_hubbard_engine_asm(
-        inputs, codec, pat_slot, pat_bytes, codec_extra)
+        inputs, codec, pat_slot, pat_bytes, codec_extra,
+        load_addr=load_addr)
 
-    # Cross-chunk text-replace passes. These operate on text that
-    # spans (or could span) the chunk boundaries:
-    #   - sfx_framectr_offset: `inc freqtab+253` lives in PLAY.
-    #   - sfx_state_in_freqtab: two literal multi-line blocks across
-    #     init_sfx + sfx_step's sfxs_go (Monty + One Man and his
-    #     Droid relocate the SFX-state mirror).
-    old, new = _emit_sfx_framectr_offset_substitution(inputs.sfx_framectr_ofs)
-    asm = asm.replace(old, new)
+    # sfx_state_in_freqtab: literal multi-line blocks across init_sfx
+    # + sfx_step's sfxs_go (Monty + One Man and his Droid relocate
+    # the SFX-state mirror).
     asm = _apply_sfx_state_in_freqtab(asm, inputs.sfx_state_ofs)
 
-    # Small sentinel-feature emitters — Phase 8.4 moved them into
-    # composer.py. composer_hubbard.py is the adapter: wraps `_Inputs`
-    # fields into the right shape and applies the substitutions.
     from pipelines.engine_model import FadeProgressive
     from pipelines.composer import (
-        _emit_arp_phase_invert_substitution,
         _emit_clear_drumtrig,
         _emit_incby2_late_gate,
         _emit_master_vol_fade,
-        _emit_ns_offtab_decr,
         _emit_ovseed_copy,
     )
-
-    # arp_phase_invert — direct text replace in fx_arp's branch.
-    sub = _emit_arp_phase_invert_substitution(inputs.arp_phase_invert)
-    if sub is not None:
-        asm = asm.replace(sub[0], sub[1])
 
     # Per-subtune engine params (5_Title_Tunes unified path). When ANY
     # of the per_subtune_* lists is set, replace the compile-time SPEED
@@ -321,11 +309,9 @@ def _hubbard_emit_sid(inputs: _Inputs, out_path: str, codec,
         asm = asm.replace('; %%INCBY2_LATE_GATE%%',
                           _emit_incby2_late_gate(inputs.incby2_late_gate))
 
-    # ns_offtab_decr — Thing on a Spring's statebuf v_hubidx decrement.
-    asm = asm.replace('; %%NS_OFFTAB_DECR%%',
-                      _emit_ns_offtab_decr(inputs.ns_offtab_decr_offset))
-
-    # Master-volume fade — four sentinel substitutions.
+    # Master-volume fade — four sentinel substitutions (VOL_PROGRESS_INIT
+    # lives in INIT; the other three live in the codec's note_asm —
+    # genuinely cross-chunk, stays as an outer pass for now).
     fade = (
         FadeProgressive(
             subtrahend_voice_idx=inputs.master_vol_subtrahend_voice,
@@ -337,16 +323,10 @@ def _hubbard_emit_sid(inputs: _Inputs, out_path: str, codec,
         asm = asm.replace(sentinel, fragment)
 
     # tie_preserves_slide — pair of substitutions positioning the
-    # `sta v_drumtrig,x` clear.
+    # `sta v_drumtrig,x` clear (lives in the codec's note_asm).
     for sentinel, fragment in _emit_clear_drumtrig(
             inputs.tie_preserves_slide).items():
         asm = asm.replace(sentinel, fragment)
-
-    # Relocate the engine to the requested load address (composer's
-    # emitter handles the substitution; compound PSIDs (5TT) place
-    # each packed sub-engine at a different address).
-    old, new = _emit_load_addr_substitution(load_addr)
-    asm = asm.replace(old, new)
 
     src = '/tmp/usf2_commando.s'
     obj = '/tmp/usf2_commando.bin'
