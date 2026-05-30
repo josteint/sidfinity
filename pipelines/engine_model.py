@@ -1057,6 +1057,21 @@ def _subtune_from_usf(ms, encoding: PatternEncodingMode, voice_count: int) -> Su
             # filled in Phase 3 when the codegen needs them.
         ))
 
+    # Resolve master_vol_init from whichever named-mechanism param the
+    # USF carries. `gain_init` (yes_tune family) is 'full' or 'preserve';
+    # `vol_filter` (companion) is an integer 0..F. `master_vol_init=None`
+    # means "skip the $D418 write at init" (the pair-shape codegen reads
+    # this to decide whether to write).
+    gain = p.get('gain_init')
+    if gain == 'full':
+        master_vol_init: Optional[int] = 0x0F
+    elif gain == 'preserve':
+        master_vol_init = None
+    elif 'vol_filter' in p:
+        master_vol_init = p['vol_filter']
+    else:
+        master_vol_init = None
+
     return SubtuneSpec(
         id=ms.id,
         tempo=ms.tempo,
@@ -1066,7 +1081,7 @@ def _subtune_from_usf(ms, encoding: PatternEncodingMode, voice_count: int) -> Su
         voice_init=voice_init,
         voice_starts_at=p.get('voice_start', 2),
         cia1_timer_a=p.get('cia1_timer_a'),
-        master_vol_init=p.get('vol_filter'),
+        master_vol_init=master_vol_init,
         init_song_pos=p.get('init_song_pos'),
         init_pwm_state=(
             (p['init_pwm_ctr'], p['init_pwm_ctr_2'])

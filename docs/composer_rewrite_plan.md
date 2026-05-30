@@ -715,13 +715,58 @@ through composer).
 
 ### Phase 5 — Add yes_tune's features
 
-- [ ] Tick-counter voice timing.
-- [ ] (note, dur) pair pattern encoding.
-- [ ] `$81` stop + `$FF` loop + `$82` set_dur terminator semantics.
-- [ ] `gain_init` (full / preserve).
-- [ ] Per-voice initial state byte (silent / load-pattern).
-- [ ] Express yes_tune as a feature config. Verify 9/9.
-- [ ] Delete the `pair` shape emitter. Commit.
+- [x] Tick-counter voice timing.
+- [x] (note, dur) pair pattern encoding.
+- [x] `$81` stop + `$FF` loop terminator semantics. (`$82` set_dur is
+      clever_music's, deferred to Phase 6.)
+- [x] `gain_init` (full / preserve).
+- [x] Per-voice initial state byte (silent / load-pattern).
+- [x] Express yes_tune as a feature config. Verify 9/9.
+- [x] Delete the `pair` shape emitter. Commit.
+
+**Outcome:**
+* Composer's `emit_asm` now branches on `voice_timing.mode` —
+  `every_tick` → atomic-shape emitters, `tick_counter_decrement` →
+  pair-shape emitters. This is feature-driven dispatch on a real USF
+  feature, not engine identification.
+* New pair-shape emitters in `pipelines/composer.py`:
+  - `_emit_pair_init`: per-subtune init via byte tables (timbre × 5
+    fields × 3 voices, pat_start lo/hi × 3, state byte × 3, tempo,
+    tempo_ctr, gain_init flag). Master vol written only when
+    `init_d418_tab[subtune] != 0`.
+  - `_emit_pair_play`: tempo gate, then `jsr voice_tick` with X = 0/7/14.
+  - `_emit_pair_voice_tick`: shared routine, state machine —
+    0 = silent (skip), 2 = load-pattern → state=1, 1 = playing → dispatch.
+  - `_emit_pair_play_note`: recursive byte interpreter — normal
+    note plays freq + 5-byte timbre + gated ctrl + arms tick_ctr;
+    `$80 dur` rest; `$81` stops voice (state=0); `$FF` loops back to
+    `pat_start` + recurses.
+  - `_emit_pair_runtime_vars`: per-voice state block at v_state[X]
+    (40 bytes for 3 voices × stride 7 + up to offset $18).
+  - `_emit_pair_per_subtune_tables`: includes pair-specific
+    `init_d418_tab` (gain_init flag) + `v<N>_state_tab` (initial
+    state byte) + `v<N>_ps_lo/hi_tab` (pat_start addresses).
+* `_pair_row_bytes` / `_pair_voice_bytes_and_state` row encoders —
+  emit 2-byte (note, dur) pairs + terminator. Silent voice
+  (empty entries + stop=True) → `$81` sentinel + state=0. Normal
+  voice → body + `$81` (stop) or `$FF` (loop) + state=2.
+* Model builder reads `gain_init` from yes_tune subtunes and sets
+  `master_vol_init = 0x0F` (full) or `None` (preserve) on SubtuneSpec.
+  Composer's init_d418_tab encodes None → 0 (skip the write),
+  non-None → 1 (write).
+
+**Verified:**
+* Yes_Tune byte-exact through composer (1/1)
+* Soldier_of_Fortune byte-exact through composer (8/8, mix of music
+  + SFX subtunes with `gain_init: preserve`)
+* All Phase 3-4 territory unchanged: Henrys_House, 18 bowden tunes.
+* Hubbard 71/71, Up_up_and_Away 4/5, Gyroscope 1/1 — legacy path
+  unchanged for these.
+
+**Legacy pair-shape emitter retired:**
+`_emit_pair_init`, `_emit_pair_play`, `_emit_pair_voice_tick`,
+`_emit_pair_play_note` removed from `pipelines/universal_codegen.py`.
+The `shape == 'pair'` dispatch arm is gone.
 
 ### Phase 6 — Add clever_music's features
 
