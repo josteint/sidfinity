@@ -84,52 +84,48 @@ def compare_strict(a: list[Frame], b: list[Frame]) -> dict:
 
 
 def compare_instruction_stream(a: list[Frame], b: list[Frame],
-                                skip_init: bool = True) -> dict:
-    """Global cycle-ordered comparison of the (reg, val) sequence the
-    SID actually receives.
+                                skip_init: bool = True,
+                                mode: str = 'legacy') -> dict:
+    """Compare the (reg, val) sequence the SID receives in two runs.
 
-    siddump's VBI-frame bucketing of writes is an OBSERVATION artifact:
-    writes near frame boundaries can shift bucket when total play()
-    cycle count drifts by even a few cycles. The SID chip itself just
-    receives a stream of writes in cycle order — the bucketing is
-    siddump's reporting choice, not part of the music.
+    Two modes:
 
-    This compare concatenates all writes across all frames in cycle
-    order, then matches the (reg, val) sequence position-by-position.
+    `mode='play_plus_state'` — DRAFT. The principled verdict per
+    the init trichotomy (`docs/sid_init_report.md §5`). Two checks:
 
-    Both modes are computed and returned:
-      - `match` = best of the two (= max(match_all, match_post_init)).
-        This is what callers should treat as the verdict.
-      - `match_all` = longest matching prefix WITHOUT dropping init.
-        Best when orig + rebuild produce a byte-exact init sequence.
-      - `match_post_init` = longest matching prefix after dropping
-        each side's frame 0. Best when init order legitimately
-        differs (silence direction / pre-D418 / AD-SR ordering) but
-        the music after init still matches — and when init writes
-        DON'T straddle the frame-0/frame-1 boundary asymmetrically
-        (which would make `skip_init` cut off a different write count
-        on each side and shift alignment).
+      A. **Check A — SID state at end of init.** Strict
+         register-by-register comparison of $D400-$D418 final
+         values.
 
-    The `match` field hides the asymmetry of init-bucket drift — if
-    init writes spill into frame 0 on one side but not the other,
-    `match_post_init` gets clobbered; `match_all` still scores the
-    byte-exact case correctly. Conversely if init order genuinely
-    differs but the music after matches, `match_post_init` recovers.
+      B. **Check B — play stream from frame 1 onward.**
+         Position-by-position match.
 
-    `skip_init` is kept for backward compatibility but no longer
-    changes which prefix is computed — both are always computed and
-    returned. The argument only affects which one `match` aliases
-    to (default `True` → `match_post_init` for old callers expecting
-    that semantics; new callers should read `match` and trust the
-    `max(...)` semantics, or read `match_all` / `match_post_init`
-    explicitly).
+      `is_full = state_match AND play_full`.
 
-    Returns:
-      match            — best of the two prefix lengths.
-      match_all        — full-stream prefix length.
-      match_post_init  — post-init prefix length.
-      len_a, len_b     — stream lengths (using `skip_init`'s old shape:
-                         drops frame 0 from both when `skip_init=True`).
+    **Known issue**: as currently implemented, Check A compares
+    "last value written during siddump frame 0," which is a VBI
+    clock boundary, not a CPU `init RTS` event. Tunes whose init
+    completes early in a VBI period have play() writes spilling
+    into frame 0; the rebuild's init may take a different cycle
+    count, putting a different count of play() writes into frame
+    0 vs frame 1. Check A's snapshot then differs even when both
+    runs produce byte-identical streams. See `legacy` mode for
+    the current verdict.
+
+    The principled fix is to capture the original's true
+    end-of-init chip state via py65 cycle-precise emulation
+    (stopping at init's RTS), store it in USF priming, and have
+    the composer's universal init reproduce it. This is the next
+    phase of the rewrite (universal-reset composer init); strict
+    Check A becomes meaningful at that point.
+
+    `mode='legacy'` (default) — the current verdict for in-tree
+    callers. Returns `match`, `match_all`, `match_post_init`, and
+    the corresponding `len_*` fields. `is_full` is True if EITHER
+    `match_all` or `match_post_init` is a full match.
+
+    The `skip_init` argument is honored in legacy mode only; it
+    has no effect in `play_plus_state` mode.
     """
     flat_all_a = [(reg, val) for frame in a for _, reg, val in frame]
     flat_all_b = [(reg, val) for frame in b for _, reg, val in frame]
@@ -145,17 +141,51 @@ def compare_instruction_stream(a: list[Frame], b: list[Frame],
                 return i
         return n
 
+    if mode == 'play_plus_state':
+        # Check A: strict register-by-register comparison of the LAST
+        # value written to each $D400-$D418 register during frame 0
+        # (default 0 if unwritten in that frame).
+        def end_state(frames):
+            state = [0] * 0x19
+            if frames:
+                for _, reg, val in frames[0]:
+                    if 0 <= reg < 0x19:
+                        state[reg] = val
+            return state
+        state_a = end_state(a)
+        state_b = end_state(b)
+        state_match = state_a == state_b
+        state_diff = [
+            (r, state_a[r], state_b[r]) for r in range(0x19)
+            if state_a[r] != state_b[r]]
+
+        # Check B: play stream from frame 1 onward.
+        play_match = _prefix(flat_post_a, flat_post_b)
+        play_len_a = len(flat_post_a)
+        play_len_b = len(flat_post_b)
+        play_full = (play_match == play_len_a == play_len_b)
+
+        return {
+            'mode': 'play_plus_state',
+            'state_match': state_match,
+            'state_diff': state_diff,        # list of (reg, orig_val, reb_val)
+            'play_match': play_match,
+            'play_len_a': play_len_a,
+            'play_len_b': play_len_b,
+            'play_full': play_full,
+            'is_full': state_match and play_full,
+        }
+
+    # Legacy mode.
     match_all = _prefix(flat_all_a, flat_all_b)
     match_post = _prefix(flat_post_a, flat_post_b)
     flat_a = flat_post_a if skip_init else flat_all_a
     flat_b = flat_post_b if skip_init else flat_all_b
-    # A subtune is "byte-exact" if EITHER mode shows a full match
-    # (longest prefix == both stream lengths). The two modes catch
-    # complementary cases — see the docstring.
     is_full = (
         (match_all == len(flat_all_a) == len(flat_all_b)) or
         (match_post == len(flat_post_a) == len(flat_post_b)))
     return {
+        'mode': 'legacy',
         'match': max(match_all, match_post),
         'match_all': match_all,
         'match_post_init': match_post,

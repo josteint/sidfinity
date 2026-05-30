@@ -115,6 +115,10 @@ def regress_companion() -> tuple[int, int, int]:
         for st in range(ns):
             a = writelog_capture(sid, st, duration=6.0)
             b = writelog_capture(out, st, duration=6.0)
+            # Legacy mode while we work out the right semantics for
+            # strict Check A under structurally-different init bytes
+            # (Phase A in docs/sid_init_report.md §5 — needs cycle-
+            # precise init-RTS marker, not VBI frame 0 boundary).
             r = compare_instruction_stream(a, b)
             if r['is_full']:
                 sub_ok += 1
