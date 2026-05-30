@@ -1078,16 +1078,45 @@ composer_hubbard.py changes:
 Verified: Hubbard 71/71 byte-exact (Monty + One Man exercise the
 SFX state relocation). All 5 composer-native shapes unchanged.
 
-#### Phase 8.7+ — Per-feature decomposition (future sessions)
+#### Phase 8.7 — Instrument table + pwseed/pwacc + ovseed
 
-Larger remaining features for future sessions:
+Three more data-side emitters into composer.py:
+
+- [x] `_fx_flags_byte(m)` — pack InstrumentModel modulation presence
+      flags into the engine's `fx_flags` byte (bit 0=slide,
+      1=inc_by2, 2=arp, 3=vibrato, 4=PWM).
+- [x] `_emit_hubbard_instrument_table(models)` — column-major 12
+      `it_*` tables indexed by instrument number (`it_ctrl`,
+      `it_ad`, `it_sr`, `it_hrctrl`, `it_fx`, `it_vibdepth`,
+      `it_pwmode`, `it_pwa`, `it_pwperiod`, `it_pwlo`, `it_pwhi`,
+      `it_onset`).
+- [x] `_emit_hubbard_pwseed_pwacc(models)` — per-instrument PW seed +
+      live accumulator (zero-init at link time; init copies seed →
+      acc each subtune).
+- [x] `_emit_hubbard_ovseed(freq_bytes, seed_overlap, seed_offsets)`
+       — 18-byte overlap seed read from the freq table at
+      engine-specific offsets (default = Commando family). Zeros
+      when `seed_overlap=False` (Human Race inits state at runtime).
+
+composer_hubbard.py changes:
+- `_emit_data`'s instrument-table + pwseed + ovseed sections (~50
+  lines combined) collapsed to 5 lines of composer-side calls.
+- Local `_fx_flags(m)` helper deleted; composer's `_fx_flags_byte`
+  does the same job.
+
+composer.py now owns 16 Hubbard '85 feature emitters total.
+
+Verified: Hubbard 71/71 byte-exact — every engine's instrument
+table is data-emitted through composer. Hunter Patrol uses the
+seed_offsets override (v_slide+238); Human Race uses
+seed_overlap=False; both exercised end-to-end.
+
+#### Phase 8.8+ — Per-feature decomposition (future sessions)
+
+Remaining features for future sessions:
 - The seven fx routines as feature emitters (vibrato, PWM linear,
   PWM bidirectional, arpeggio, freq-hi slide, inc_by2 step,
-  drum-slide)
-- Instrument table data emitter (it_ctrl / it_ad / it_sr /
-  it_hrctrl / it_fx / it_vibdepth / it_pwmode / it_pwa /
-  it_pwperiod / it_pwlo / it_pwhi / it_onset, plus pwseed/pwacc)
-- Overlap seed (`ovseed:`) data emitter
+  drum-slide) — likely the biggest chunk of remaining work
 - Per-subtune dispatch tables emitter (`subOrder*`, `subResetspd`,
   `subVoiceStart`, optional 5TT `subSpeedCtrInit`/`subIncBy2*` +
   `subOvseed_N` + `subOvseed{Lo,Hi}`)

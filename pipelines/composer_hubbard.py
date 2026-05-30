@@ -1108,12 +1108,6 @@ sidtab: .byt 0, 7, 14
 # data serialisation
 # ---------------------------------------------------------------------------
 
-def _fx_flags(m) -> int:
-    return ((1 if m.freq_slide else 0) | (2 if m.inc_by2 else 0)
-            | (4 if m.arpeggio else 0) | (8 if m.vibrato else 0)
-            | (16 if m.pwm else 0))
-
-
 def _pattern_pool(scores):
     """Dense, globally-shared pattern pool. Returns (pat_order, pat_slot):
     pat_order[slot] = note list; pat_slot[orig pattern index] = slot."""
@@ -1145,71 +1139,16 @@ def _emit_data(scores, models, freq_bytes, resetspds, voice_starts,
     subResetspd tables."""
     lines = []
 
-    # instrument data — column-major: one table per field, indexed by
-    # the instrument NUMBER. Row-major (inst*16) overflowed the 8-bit
-    # index past 15 instruments (Monty has 20).
-    irows = []
-    for m in models:
-        vib_depth = m.vibrato.depth if m.vibrato else 0
-        vib_onset = m.vibrato.onset_dur if m.vibrato else 6
-        pwm_mode = pwm_a = pwm_period = pwm_lo = pwm_hi = 0
-        if m.pwm:
-            if m.pwm.mode == 'linear':
-                pwm_mode, pwm_a = 1, m.pwm.speed
-            else:
-                pwm_mode, pwm_a = 2, m.pwm.step
-                pwm_period, pwm_lo, pwm_hi = (m.pwm.period, m.pwm.lo_bound,
-                                              m.pwm.hi_bound)
-        irows.append([m.init_ctrl, 0, 0, m.init_ad, m.init_sr, m.hr_ctrl,
-                      _fx_flags(m), vib_depth, pwm_mode, pwm_a,
-                      pwm_period, pwm_lo, pwm_hi, vib_onset])
-    for idx, name in ((0, 'it_ctrl'), (3, 'it_ad'), (4, 'it_sr'),
-                      (5, 'it_hrctrl'), (6, 'it_fx'), (7, 'it_vibdepth'),
-                      (8, 'it_pwmode'), (9, 'it_pwa'), (10, 'it_pwperiod'),
-                      (11, 'it_pwlo'), (12, 'it_pwhi'), (13, 'it_onset')):
-        lines.append(f'{name}: .byt '
-                     + ','.join(f'${r[idx]:02X}' for r in irows))
-
-    # pwseed - the per-instrument pw_lo/pw_hi seeds. pwacc is the live
-    # accumulator (shared by every voice playing the instrument); init
-    # copies pwseed -> pwacc so each subtune starts fresh.
-    lines.append('pwseed:')
-    for m in models:
-        lines.append(f'        .byt ${m.init_pw_lo:02X},${m.init_pw_hi:02X}')
-    lines.append('pwacc: .byt ' + ','.join(['0'] * (2 * len(models))))
-
-    # Freq table — composer emitter (Phase 8.6).
-    from pipelines.composer import _emit_hubbard_freq_table_data
+    # Instrument table + PW seed/acc + freq table + ovseed — all moved
+    # to composer.py in Phase 8.6-8.7.
+    from pipelines.composer import (
+        _emit_hubbard_instrument_table, _emit_hubbard_pwseed_pwacc,
+        _emit_hubbard_freq_table_data, _emit_hubbard_ovseed,
+    )
+    lines.extend(_emit_hubbard_instrument_table(models))
+    lines.extend(_emit_hubbard_pwseed_pwacc(models))
     lines.extend(_emit_hubbard_freq_table_data(freq_bytes))
-
-    # the overlap seed — v_ctrl / pwm_period / pwm_dir initial values.
-    # The engine's per-voice variables sit past the 96-entry freq table;
-    # init copies these load-time bytes into the zero-page mirrors so an
-    # off-table read (or a counter's first DEC) sees the right value.
-    # `seed_overlap=False` zeros the seed for engines that init their
-    # per-voice state at runtime (Human Race's $1A9C init).
-    if seed_overlap:
-        # The 6 per-voice state vars live inside the freq-table region.
-        # Each engine has the same set of vars but at engine-specific
-        # offsets — Commando defaults; Hunter Patrol's v_slide is at
-        # +238 instead of +239 (one byte earlier within the state).
-        so = seed_offsets or {
-            'v_ctrl':     208,
-            'pwm_period': 229,
-            'pwm_dir':    232,
-            'v_instr':    214,
-            'v_durfield': 205,
-            'v_slide':    239,
-        }
-        ov = ([freq_bytes[so['v_ctrl']     + i] for i in range(3)]
-              + [freq_bytes[so['pwm_period'] + i] for i in range(3)]
-              + [freq_bytes[so['pwm_dir']    + i] for i in range(3)]
-              + [freq_bytes[so['v_instr']    + i] for i in range(3)]
-              + [freq_bytes[so['v_durfield'] + i] for i in range(3)]
-              + [freq_bytes[so['v_slide']    + i] for i in range(3)])
-    else:
-        ov = [0] * 18
-    lines.append('ovseed: .byt ' + ','.join(f'${b:02X}' for b in ov))
+    lines.extend(_emit_hubbard_ovseed(freq_bytes, seed_overlap, seed_offsets))
 
     # patterns — each unique pattern emitted once; orderlists reference
     # them by a dense slot. pattern indices are global, so the pool is

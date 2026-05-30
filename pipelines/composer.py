@@ -333,6 +333,126 @@ def _emit_ovseed_copy(has_per_subtune_ovseed: bool) -> str:
     )
 
 
+def _fx_flags_byte(m) -> int:
+    """Pack an InstrumentModel's modulation presence flags into the
+    engine's fx_flags byte.
+
+    Bit 0 = freq_slide (skydive), 1 = inc_by2 (odd-frame slide),
+    2 = arpeggio (multi-step), 3 = vibrato, 4 = PWM (any mode).
+    The engine reads `it_fx,inst` and ANDs against these bits to
+    decide which fx routines to run for the playing note.
+    """
+    return ((1 if m.freq_slide else 0) | (2 if m.inc_by2 else 0)
+            | (4 if m.arpeggio else 0) | (8 if m.vibrato else 0)
+            | (16 if m.pwm else 0))
+
+
+def _emit_hubbard_instrument_table(models) -> list[str]:
+    """Hubbard '85's column-major instrument table.
+
+    12 `it_*` tables, each indexed by instrument number. Row-major
+    (`inst * 16`) would overflow the 8-bit index past 15 instruments
+    (Monty has 20); column-major keeps every index within byte range.
+
+    Fields (in `irow` order — only the indexed columns appear in the
+    final emitted tables):
+       0  init_ctrl                       → it_ctrl
+       1,2  reserved (0, 0)
+       3  init_ad                         → it_ad
+       4  init_sr                         → it_sr
+       5  hr_ctrl                         → it_hrctrl
+       6  fx_flags byte                   → it_fx
+       7  vibrato depth                   → it_vibdepth
+       8  pwm mode (0=none,1=linear,2=bidir) → it_pwmode
+       9  pwm `a` (speed for linear, step for bidir) → it_pwa
+       10 pwm period (bidir only)         → it_pwperiod
+       11,12 pwm lo/hi bounds (bidir)     → it_pwlo/it_pwhi
+       13 vibrato onset_dur               → it_onset
+    """
+    irows = []
+    for m in models:
+        vib_depth = m.vibrato.depth if m.vibrato else 0
+        vib_onset = m.vibrato.onset_dur if m.vibrato else 6
+        pwm_mode = pwm_a = pwm_period = pwm_lo = pwm_hi = 0
+        if m.pwm:
+            if m.pwm.mode == 'linear':
+                pwm_mode, pwm_a = 1, m.pwm.speed
+            else:
+                pwm_mode, pwm_a = 2, m.pwm.step
+                pwm_period, pwm_lo, pwm_hi = (
+                    m.pwm.period, m.pwm.lo_bound, m.pwm.hi_bound)
+        irows.append([m.init_ctrl, 0, 0, m.init_ad, m.init_sr, m.hr_ctrl,
+                      _fx_flags_byte(m), vib_depth, pwm_mode, pwm_a,
+                      pwm_period, pwm_lo, pwm_hi, vib_onset])
+    lines = []
+    for idx, name in ((0, 'it_ctrl'), (3, 'it_ad'), (4, 'it_sr'),
+                      (5, 'it_hrctrl'), (6, 'it_fx'), (7, 'it_vibdepth'),
+                      (8, 'it_pwmode'), (9, 'it_pwa'), (10, 'it_pwperiod'),
+                      (11, 'it_pwlo'), (12, 'it_pwhi'), (13, 'it_onset')):
+        lines.append(f'{name}: .byt ' +
+                     ','.join(f'${r[idx]:02X}' for r in irows))
+    return lines
+
+
+def _emit_hubbard_pwseed_pwacc(models) -> list[str]:
+    """Per-instrument PW seed + live accumulator.
+
+    `pwseed`: the load-time pw_lo / pw_hi for each instrument.
+    `pwacc`: same shape, zero-initialized at link time — init copies
+    `pwseed → pwacc` so each subtune starts the PWM accumulators
+    fresh. The PWM fx routines read/write `pwacc`.
+    """
+    lines = ['pwseed:']
+    for m in models:
+        lines.append(f'        .byt ${m.init_pw_lo:02X},${m.init_pw_hi:02X}')
+    lines.append('pwacc: .byt ' + ','.join(['0'] * (2 * len(models))))
+    return lines
+
+
+# Default seed offsets — Commando family's per-voice state-overlap
+# positions within the freq table region. Hunter Patrol overrides
+# `v_slide` to 238 (one byte earlier); other engines stay on these
+# defaults.
+_DEFAULT_SEED_OFFSETS = {
+    'v_ctrl':     208,
+    'pwm_period': 229,
+    'pwm_dir':    232,
+    'v_instr':    214,
+    'v_durfield': 205,
+    'v_slide':    239,
+}
+
+
+def _emit_hubbard_ovseed(freq_bytes: bytes,
+                          seed_overlap: bool,
+                          seed_offsets: dict | None = None) -> list[str]:
+    """Overlap seed — 18 bytes of per-voice initial state.
+
+    The engine's six per-voice state variables (`v_ctrl`,
+    `pwm_period`, `pwm_dir`, `v_instr`, `v_durfield`, `v_slide`)
+    live PAST the 96-entry musical freq table, in the overlap
+    region. `init` copies these load-time bytes into zero-page
+    mirrors so an off-table read or first counter DEC sees the
+    right value.
+
+    `seed_overlap=False` zeros the seed (Human Race inits per-voice
+    state at runtime via its `$1A9C` init — no load-time overlap).
+    """
+    if seed_overlap:
+        so = seed_offsets or _DEFAULT_SEED_OFFSETS
+        ov = (
+            [freq_bytes[so['v_ctrl']     + i] for i in range(3)]
+            + [freq_bytes[so['pwm_period'] + i] for i in range(3)]
+            + [freq_bytes[so['pwm_dir']    + i] for i in range(3)]
+            + [freq_bytes[so['v_instr']    + i] for i in range(3)]
+            + [freq_bytes[so['v_durfield'] + i] for i in range(3)]
+            + [freq_bytes[so['v_slide']    + i] for i in range(3)]
+        )
+    else:
+        ov = [0] * 18
+    return ['ovseed: .byt ' + ','.join(f'${b:02X}' for b in ov)]
+
+
 def _emit_hubbard_freq_table_data(freq_bytes: bytes) -> list[str]:
     """Emit Hubbard '85's `freqtab:` data block.
 
