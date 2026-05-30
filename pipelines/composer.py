@@ -333,6 +333,111 @@ def _emit_ovseed_copy(has_per_subtune_ovseed: bool) -> str:
     )
 
 
+def _emit_hubbard_freq_table_data(freq_bytes: bytes) -> list[str]:
+    """Emit Hubbard '85's `freqtab:` data block.
+
+    Hubbard uses ONE label `freqtab` for both halves of the table
+    (the music reads 16-bit entries — freq_hi and freq_lo at
+    interleaved offsets; the SFX sweep walks byte-wise and overflows
+    past the 96-entry musical region into the engine-state region —
+    the overlap is why this is a single contiguous block of typically
+    320 bytes).
+
+    Note this is the Hubbard-shape freq table emitter; the simpler
+    companion-strain emitter `_emit_freq_table` splits into
+    `freq_hi_tab` + `freq_lo_tab` (a 128+128 layout the simpler
+    engines use). Composer keeps both — they target structurally
+    different engines.
+    """
+    lines = ['freqtab:']
+    for i in range(0, len(freq_bytes), 16):
+        chunk = freq_bytes[i:i + 16]
+        lines.append('        .byt ' + ','.join(f'${b:02X}' for b in chunk))
+    return lines
+
+
+def _apply_sfx_state_in_freqtab(asm: str, ofs: int | None) -> str:
+    """SFX state relocation into the freq-table off-table region.
+
+    For engines whose SFX pitch sweep overruns the 96-entry freq
+    table and reads engine state as 'frequency' (Monty: $84FB+,
+    One Man and his Droid: same pattern). The shared SFX player is
+    Commando's — zp state plus a few bytes mirrored at Commando's
+    scattered freq-table offsets. This rewires it so the SFX-state
+    block sits at ofs..ofs+5 and the post-update sweep index is
+    mirrored there each step, so the overrun reads live state
+    byte-exact.
+
+    `ofs is None` → returns asm unchanged (Commando family default).
+
+    Asm-in/asm-out signature (rather than a dict of substitutions)
+    so the assertions can catch the case where the lifted ENGINE
+    template doesn't contain the expected blocks — that would be a
+    template/codegen mismatch we want to fail loudly on.
+    """
+    if ofs is None:
+        return asm
+
+    # 1. init_sfx — write the SFX-state block at this engine's offsets:
+    #    +0 disable=0, +1 SFX index, +2 static $ff, +3 sweep index,
+    #    +4 step rate, +5 end index.
+    o2 = ("        lda #$80\n"
+          "        sta freqtab+241      ; the sweep reads $5519 here -"
+          " mode byte $80\n"
+          "        lda sfx_idx\n"
+          "        sta freqtab+255      ; $5527 - the SFX index\n"
+          "        lda #$ff\n"
+          "        sta freqtab+256      ; $5528 - drum_enable\n"
+          "        ldy #14\n"
+          "        lda (sfx_rec),y      ; record 14 - sweep start index\n"
+          "        sta sfx_index\n")
+    n2 = ("        lda #$00\n"
+          f"        sta freqtab+{ofs}        ; SFX-disable flag\n"
+          "        lda sfx_idx\n"
+          f"        sta freqtab+{ofs + 1}        ; SFX index\n"
+          "        lda #$ff\n"
+          f"        sta freqtab+{ofs + 2}        ; static byte\n"
+          "        ldy #16\n"
+          "        lda (sfx_rec),y      ; record 16 - step rate\n"
+          f"        sta freqtab+{ofs + 4}        ; step counter\n"
+          "        ldy #15\n"
+          "        lda (sfx_rec),y      ; record 15 - end index\n"
+          f"        sta freqtab+{ofs + 5}        ; end index\n"
+          "        ldy #14\n"
+          "        lda (sfx_rec),y      ; record 14 - sweep start index\n"
+          "        sta sfx_index\n"
+          f"        sta freqtab+{ofs + 3}        ; sweep index (initial)\n")
+    assert o2 in asm, 'sfx_state_in_freqtab: init_sfx block not found'
+    asm = asm.replace(o2, n2, 1)
+
+    # 2. sfxs_go — mirror the POST-update sweep index to freqtab+ofs+3
+    #    before the sweep reads it (the engine advances its index in
+    #    memory, then reads the freq table, so the overrun read of the
+    #    index byte sees the new value).
+    o3 = ("        lda (sfx_rec),y      ; record 17 - flags\n"
+          "        sta sfx_flags\n"
+          "        and #$04\n")
+    n3 = ("        lda (sfx_rec),y      ; record 17 - flags\n"
+          "        sta sfx_flags\n"
+          "        and #$01\n"
+          "        beq sfxm_dn\n"
+          "        lda sfx_index\n"
+          "        clc\n"
+          "        adc #$01\n"
+          "        jmp sfxm_st\n"
+          "sfxm_dn:\n"
+          "        lda sfx_index\n"
+          "        sec\n"
+          "        sbc #$01\n"
+          "sfxm_st:\n"
+          f"        sta freqtab+{ofs + 3}\n"
+          "        lda sfx_flags\n"
+          "        and #$04\n")
+    assert o3 in asm, 'sfx_state_in_freqtab: sfxs_go block not found'
+    asm = asm.replace(o3, n3, 1)
+    return asm
+
+
 def _emit_per_subtune_dispatch(enabled: bool) -> dict[str, str]:
     """5_Title_Tunes per-subtune mechanism dispatch.
 

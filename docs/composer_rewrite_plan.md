@@ -1056,21 +1056,48 @@ Verified: Hubbard 71/71 byte-exact (5TT exercises
 per_subtune_dispatch; Monty/One Man exercise the sfx_framectr_ofs
 override).
 
-#### Phase 8.6+ — Per-feature decomposition (future sessions)
+#### Phase 8.6 — SFX state in freqtab + freq table data emitter
+
+- [x] `_apply_sfx_state_in_freqtab(asm, ofs)` — moved into composer.
+      Multi-line substitution for engines whose SFX pitch sweep
+      overruns the 96-entry freq table and reads engine state as
+      frequency (Monty: 251, One Man and his Droid: same pattern).
+      Asm-in/asm-out signature preserves the assertion-on-missing-
+      pattern behavior (catches template/codegen mismatch loudly).
+- [x] `_emit_hubbard_freq_table_data(freq_bytes)` — Hubbard's `freqtab:`
+      data block emitter. Single contiguous block (typically 320
+      bytes) — the SFX sweep overrun pattern requires the musical
+      entries + engine-state-region overlap to be one labelled run.
+
+composer_hubbard.py changes:
+- `_sfx_state_in_freqtab` local function deleted; uses composer's
+  `_apply_sfx_state_in_freqtab` via direct call.
+- `_emit_data`'s freq-table emit block (3 lines) replaced by a
+  call to composer's `_emit_hubbard_freq_table_data`.
+
+Verified: Hubbard 71/71 byte-exact (Monty + One Man exercise the
+SFX state relocation). All 5 composer-native shapes unchanged.
+
+#### Phase 8.7+ — Per-feature decomposition (future sessions)
 
 Larger remaining features for future sessions:
 - The seven fx routines as feature emitters (vibrato, PWM linear,
   PWM bidirectional, arpeggio, freq-hi slide, inc_by2 step,
   drum-slide)
-- `_sfx_state_in_freqtab` — multi-line substitution for engines
-  whose SFX state lives in the freq table region (Monty,
-  One Man and his Droid)
-- Freq table data emitter
-- Instrument table data emitter
-- Per-subtune dispatch tables emitter
-- Pattern data + pattern pool emitter
-- SFX sub-engine (init_sfx + sfx_play + sfx_step + sfxdata)
-- Digi region builder (Chimera)
+- Instrument table data emitter (it_ctrl / it_ad / it_sr /
+  it_hrctrl / it_fx / it_vibdepth / it_pwmode / it_pwa /
+  it_pwperiod / it_pwlo / it_pwhi / it_onset, plus pwseed/pwacc)
+- Overlap seed (`ovseed:`) data emitter
+- Per-subtune dispatch tables emitter (`subOrder*`, `subResetspd`,
+  `subVoiceStart`, optional 5TT `subSpeedCtrInit`/`subIncBy2*` +
+  `subOvseed_N` + `subOvseed{Lo,Hi}`)
+- Pattern data + pattern pool emitter (`pat0`/`pat1`/... +
+  `pataddr_lo`/`pataddr_hi`)
+- Per-voice orderlist emitter (`order_S_V:`)
+- SFX records emitter (`sfxdata:` — 32 bytes × 16 records)
+- SFX sub-engine asm (`init_sfx`, `sfx_play`, `sfx_step`)
+- Digi region builder (Chimera dispatcher + 1-bit player + sample
+  packs)
 - Compound build (5TT packed sub-engines + dispatcher)
 - Eventually: replace `_hubbard_emit_sid` + ENGINE asm template
   with a composer-native assembly pipeline that consumes the
