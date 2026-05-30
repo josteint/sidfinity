@@ -173,6 +173,14 @@ def build_usf(sid_path: str) -> UsfFile:
         for v in range(3)
     ])
 
+    # Inline the freq table — engine-neutral data the USF carries, so
+    # the build doesn't need an engine_constants lookup.
+    from pipelines.companion.bowden_canonical.engine_constants import (
+        freq_tables,
+    )
+    fh, fl = freq_tables()
+    freq_table = list(fh) + list(fl)
+
     return UsfFile(
         engine='bowden_canonical',
         psid=_psid_meta_from_sid(sid_path),
@@ -180,6 +188,7 @@ def build_usf(sid_path: str) -> UsfFile:
         init=top_init,
         instruments=instruments,
         subtunes=music_subtunes,
+        freq_table=freq_table,
     )
 
 
