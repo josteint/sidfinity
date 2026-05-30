@@ -7,7 +7,7 @@ import os
 import struct
 from dataclasses import dataclass
 
-from pipelines.companion.config import CFG
+from pipelines.companion.up_up_and_away.config import CFG
 
 
 @dataclass

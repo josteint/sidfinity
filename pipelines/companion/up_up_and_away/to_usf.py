@@ -42,8 +42,8 @@ from __future__ import annotations
 import os
 import struct
 
-from pipelines.companion.config import CFG
-from pipelines.companion.extract import extract_all, SubtuneData, VoiceState
+from pipelines.companion.up_up_and_away.config import CFG
+from pipelines.companion.up_up_and_away.extract import extract_all, SubtuneData, VoiceState
 from src.usf import (
     UsfFile, PsidMeta, Params, InitState, InitVoice, Instrument,
     PwmConfig, ArpConfig, VibratoConfig, EnvelopeConfig, MusicSubtune,
