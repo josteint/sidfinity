@@ -239,6 +239,12 @@ def build_usf(sid_path: str) -> UsfFile:
         InitVoice(id=v + 1, instr=InstrumentRef(id=1)) for v in range(3)
     ])
 
+    # Inline the freq table — engine-neutral data the USF carries.
+    from pipelines.companion.clever_music.engine_constants import (
+        CLEVER_FREQ_HI, CLEVER_FREQ_LO,
+    )
+    freq_table = list(CLEVER_FREQ_HI) + list(CLEVER_FREQ_LO)
+
     return UsfFile(
         engine='clever_music',
         psid=_psid_meta_from_sid(sid_path),
@@ -246,6 +252,7 @@ def build_usf(sid_path: str) -> UsfFile:
         init=top_init,
         instruments=instruments,
         subtunes=[music],
+        freq_table=freq_table,
     )
 
 

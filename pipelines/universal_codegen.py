@@ -1,6 +1,6 @@
 """Universal codegen — USF → SID, designed for any engine family.
 
-Status: seed. Today it handles three engine families across two shapes:
+Status: seed. Today it handles four engine families across three shapes:
 
   Atomic-event shape (1 engine byte per tick):
     - 1-voice tunes (henrys_house)
@@ -10,6 +10,12 @@ Status: seed. Today it handles three engine families across two shapes:
   Pair-encoded shape (2 engine bytes per row: note + duration):
     - 3-voice tick-counter state-machine tunes (yes_tune family —
       Yes_Tune + Soldier_of_Fortune).
+
+  Command-stream shape (1 byte per tick + embedded $Bx/$Cx/$Dx/$Ex
+  command bytes that don't consume a tick):
+    - 3-voice tunes with recursive command interpreter, mutable
+      tempo / master_vol / instrument palette + song-position sync
+      (clever_music — Fairlight + Gyroscope).
 
 All families support multi-subtune USFs. Init takes A = subtune index
 and reads per-subtune data tables (init_pos, tempo, timbres, orderlist
@@ -74,6 +80,27 @@ def _is_pair_shape(music) -> bool:
     return False
 
 
+_CMD_PREFIXES = ('tempo=', 'vol=', 'song_pos=')
+
+
+def _is_command_stream_shape(music) -> bool:
+    """Command-stream signal: at least one row carries an embedded
+    engine-command flag (tempo / vol / song_pos) or has an explicit
+    `instr` on a rest row (the $Dx SET_INSTRUMENT command in clever
+    music's pattern stream).
+    """
+    for ms in music:
+        for v in ms.voices:
+            for p in v.patterns:
+                for r in p.rows:
+                    if r.instr is not None and r.pitch.is_rest:
+                        return True
+                    for f in r.fx_flags:
+                        if f.startswith(_CMD_PREFIXES):
+                            return True
+    return False
+
+
 def pick_features(usf: UsfFile) -> dict:
     """Walk the USF and produce a feature dict the emitters consume.
 
@@ -92,7 +119,12 @@ def pick_features(usf: UsfFile) -> dict:
             f'universal codegen currently expects 256-byte freq_table '
             f'(128 hi + 128 lo); got {usf.freq_table and len(usf.freq_table)}')
 
-    pattern_shape = 'pair' if _is_pair_shape(music) else 'atomic'
+    if _is_command_stream_shape(music):
+        pattern_shape = 'command_stream'
+    elif _is_pair_shape(music):
+        pattern_shape = 'pair'
+    else:
+        pattern_shape = 'atomic'
 
     if pattern_shape == 'atomic':
         # Voice count from active voices in the first subtune.
@@ -109,10 +141,16 @@ def pick_features(usf: UsfFile) -> dict:
         # - `inter_voice_carry_leak`: bowden's 4-vs-5-byte timbre choice
         #   based on the prior voice's note byte. On for atomic 3-voice.
         inter_voice_carry_leak = (voice_count == 3)
-    else:
+    elif pattern_shape == 'pair':
         # Pair shape: yes_tune family — 3 voice slots, some may be silent.
         voice_count = 3
         loop_action = 'reset_and_replay'
+        inter_voice_carry_leak = False
+    else:
+        # Command-stream shape: clever_music family — 3 voices,
+        # 16-instrument palette, song_pos sync, recursive interp.
+        voice_count = 3
+        loop_action = 'song_pos_jump'
         inter_voice_carry_leak = False
 
     instr_by_id = {i.id: i for i in usf.instruments}
@@ -172,9 +210,18 @@ def pick_features(usf: UsfFile) -> dict:
             sf['pair_pattern_bytes'] = pat_bytes
             sf['pair_init_states']   = init_states
             sf['gain_init_full']     = int(sp.get('gain_init', 'full') == 'full')
+        elif pattern_shape == 'command_stream':
+            # Per-voice encoded pattern bytes (notes + skip runs + embedded
+            # command bytes), plus the engine-wide instrument palette.
+            cmd_pat_bytes: dict[int, bytes] = {}
+            for v in ms.voices:
+                cmd_pat_bytes[v.id] = _cmd_voice_bytes(v)
+            sf['cmd_pattern_bytes'] = cmd_pat_bytes
+            sf['init_song_pos']     = sp.get('init_song_pos', 0xE0)
+            sf['init_master_vol']   = sp.get('init_master_vol', 0x0A)
         subtunes_feat.append(sf)
 
-    return {
+    out = {
         'pattern_shape':         pattern_shape,
         'voice_count':           voice_count,
         'freq_hi':               bytes(usf.freq_table[:128]),
@@ -184,6 +231,10 @@ def pick_features(usf: UsfFile) -> dict:
         'master_vol':            0x0F,
         'subtunes':              subtunes_feat,
     }
+    if pattern_shape == 'command_stream':
+        # The full instrument palette ($Dx index → 5-byte timbre).
+        out['cmd_instruments'] = sorted(usf.instruments, key=lambda i: i.id)
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -211,6 +262,51 @@ def _row_to_bytes(row) -> bytes:
                 head = int(f.split('_')[1], 16)
                 break
     return bytes([head]) + bytes([0x81] * (row.duration - 1))
+
+
+def _cmd_row_bytes(row) -> bytes:
+    """Command-stream row → engine bytes.
+
+    Notes/rests emit (head, $81×(duration-1)) — one byte per tick, duration
+    represented as skip runs. Command flags (tempo/vol/song_pos) and
+    `row.instr` emit a single command byte that doesn't consume a tick
+    (the engine's interpreter recurses past it).
+    """
+    flags = set(row.fx_flags)
+    if not row.pitch.is_rest:
+        head = (row.pitch.octave << 4) | _SEMI[row.pitch.name]
+        return bytes([head]) + bytes([0x81] * (row.duration - 1))
+    if row.instr is not None:
+        return bytes([0xD0 | ((row.instr.id - 1) & 0x0F)])
+    for flag in flags:
+        if flag.startswith('tempo='):
+            return bytes([0xB0 | (int(flag.split('=')[1]) & 0x0F)])
+        if flag.startswith('vol='):
+            return bytes([0xC0 | (int(flag.split('=')[1]) & 0x0F)])
+        if flag.startswith('song_pos='):
+            return bytes([0xE0 | (int(flag.split('=')[1]) & 0x0F)])
+        if flag.startswith('fx:raw_'):
+            return bytes([int(flag.split('_')[1], 16)])
+    return bytes([0x80]) + bytes([0x81] * (row.duration - 1))
+
+
+def _inst_timbre_block(inst) -> bytes:
+    """5-byte (pw_lo, pw_hi, ctrl, ad, sr) timbre block — the inst_table
+    entry the command-stream engine reads on a $Dx SET_INSTRUMENT."""
+    pw_lo = inst.pwm.init & 0xFF
+    pw_hi = (inst.pwm.init >> 8) & 0xFF
+    ctrl = inst.waveform[0] if inst.waveform else 0
+    ad, sr = inst.adsr
+    return bytes([pw_lo, pw_hi, ctrl, ad, sr])
+
+
+def _cmd_voice_bytes(vb) -> bytes:
+    """Concatenate one voice's pattern rows into the command-stream byte
+    sequence the engine reads."""
+    if not vb.patterns:
+        raise ValueError(f'voice {vb.id} has no patterns')
+    pat = vb.patterns[0]
+    return b''.join(_cmd_row_bytes(r) for r in pat.rows)
 
 
 def _pair_row_bytes(row) -> bytes:
@@ -759,6 +855,281 @@ def _emit_pair_play_note() -> list[str]:
 
 
 # ---------------------------------------------------------------------------
+# Asm emitters — command-stream shape (clever_music family)
+# ---------------------------------------------------------------------------
+#
+# Per-voice state at `v_state + X` (X = 0/7/14):
+#   +$00  pattern_ptr lo
+#   +$01  pattern_ptr hi
+#   +$02..+$06  timbre slot (pw_lo, pw_hi, ctrl, ad, sr) — set by $Dx
+#
+# Per-voice duration counter at `dur_ctr + (X >> 3)` (stride 1: 0/1/2).
+# load_note runs when dur_ctr == 1; otherwise dec dur_ctr.
+#
+# Globals: tempo_const, tempo_ctr, song_pos. tempo_const + master_vol +
+# instrument palette are all RAM-mutable mid-stream.
+
+def _emit_cmd_init(features: dict, has_cia: bool) -> list[str]:
+    """Init: A = subtune index. Loads per-voice ptr lo/hi from song_table
+    (E0..E2 = V1/V2/V3 starts), dur_ctr=1 for all 3 voices, song_pos and
+    master_vol from per-subtune tables, tempo + tempo_ctr likewise. CIA1
+    timer programmed only if at least one subtune wants it."""
+    L: list[str] = [
+        'init:',
+        '  pha                  ; save A = subtune idx',
+        '  lda #0',
+        '  ldx #0',
+        'init_silence:',
+        '  sta $d400,x',
+        '  inx',
+        '  cpx #$19',
+        '  bne init_silence',
+        '  pla',
+        '  tax                  ; X = subtune index',
+        '  lda init_master_vol_tab,x',
+        '  sta $d418',
+        '  lda song_table+0',
+        '  sta v_state+0        ; V1 ptr lo',
+        '  lda song_table+1',
+        '  sta v_state+1        ; V1 ptr hi',
+        '  lda song_table+2',
+        '  sta v_state+7        ; V2 ptr lo',
+        '  lda song_table+3',
+        '  sta v_state+8        ; V2 ptr hi',
+        '  lda song_table+4',
+        '  sta v_state+14       ; V3 ptr lo',
+        '  lda song_table+5',
+        '  sta v_state+15       ; V3 ptr hi',
+        '  lda #1',
+        '  sta dur_ctr+0',
+        '  sta dur_ctr+1',
+        '  sta dur_ctr+2',
+        '  lda init_song_pos_tab,x',
+        '  sta song_pos',
+        '  lda tempo_tab,x',
+        '  sta tempo_const',
+        '  lda init_tempo_ctr_tab,x',
+        '  sta tempo_ctr',
+    ]
+    if has_cia:
+        L += [
+            '  lda cia1_lo_tab,x',
+            '  sta $dc04',
+            '  lda cia1_hi_tab,x',
+            '  sta $dc05',
+        ]
+    L.append('  rts')
+    return L
+
+
+def _emit_cmd_play() -> list[str]:
+    L = [
+        'play:',
+        '  inc tempo_ctr',
+        '  lda tempo_ctr',
+        '  cmp tempo_const',
+        '  bne play_exit',
+        '  lda #0',
+        '  sta tempo_ctr',
+    ]
+    for v, (x, dur_off) in enumerate([(0, 0), (7, 1), (14, 2)]):
+        L += [
+            f'  ldx #{x}',
+            f'  lda dur_ctr+{dur_off}',
+            '  cmp #1',
+            f'  bne v{v+1}_dec',
+            '  jsr load_note',
+            f'  jmp v{v+1}_done',
+            f'v{v+1}_dec:',
+            f'  dec dur_ctr+{dur_off}',
+            f'v{v+1}_done:',
+        ]
+    L += [
+        'play_exit:',
+        '  rts',
+    ]
+    return L
+
+
+def _emit_cmd_load_note() -> list[str]:
+    """Recursive command interpreter — X = voice offset (0/7/14).
+
+    Reads one byte; dispatches: $00-$7F NORMAL_NOTE plays, $80 REST gates
+    off, $81 SKIP returns, $82 dur SET_DURATION, $Bx tempo, $Cx vol,
+    $Dx instr (copy 5 bytes from inst_table), $Ex pattern_jump (when
+    Y == song_pos: jump via song_table, advance song_pos $E5→$E0, recurse).
+    Most commands recurse to consume the next byte in the same tick.
+    """
+    return [
+        '; load_note expects X as voice offset 0,7,14',
+        'load_note:',
+        '  ldy #0',
+        '  lda v_state+0,x      ; ptr lo',
+        '  sta zp_ptr_lo',
+        '  lda v_state+1,x      ; ptr hi',
+        '  sta zp_ptr_hi',
+        '  inc v_state+0,x      ; advance ptr',
+        '  bne ln_skip_inc_hi',
+        '  inc v_state+1,x',
+        'ln_skip_inc_hi:',
+        '  lda (zp_ptr_lo),y     ; read byte',
+        '  tay',
+        '  and #$80',
+        '  bne ln_bit7',
+        # NORMAL NOTE path
+        '  lda freq_hi_tab,y',
+        '  sta $d401,x',
+        '  lda freq_lo_tab,y',
+        '  sta $d400,x',
+        '  txa',
+        '  tay',
+        '  clc',
+        '  adc #$05',
+        '  sta zp_endy',
+        'ln_pw_loop:',
+        '  lda v_state+2,y       ; timbre[y]',
+        '  sta $d402,y',
+        '  iny',
+        '  cpy zp_endy',
+        '  bne ln_pw_loop',
+        '  ldy v_state+4,x       ; ctrl byte',
+        '  iny',
+        '  tya',
+        '  sta $d404,x           ; gate=1',
+        '  rts',
+        'ln_bit7:',
+        '  cpy #$80',
+        '  bne ln_not80',
+        '  lda v_state+4,x       ; ctrl (gate off)',
+        '  sta $d404,x',
+        '  rts',
+        'ln_not80:',
+        '  cpy #$81',
+        '  bne ln_not81',
+        '  rts',
+        'ln_not81:',
+        '  cpy #$82',
+        '  bne ln_not82',
+        # SET_DURATION: gate off, read next byte as new dur
+        '  lda v_state+4,x',
+        '  sta $d404,x',
+        '  lda v_state+0,x',
+        '  sta zp_ptr_lo',
+        '  lda v_state+1,x',
+        '  sta zp_ptr_hi',
+        '  inc v_state+0,x',
+        '  bne ln82_no_carry',
+        '  inc v_state+1,x',
+        'ln82_no_carry:',
+        '  txa                   ; transform X (0/7/14) → (0/1/2)',
+        '  clc',
+        '  ror',
+        '  clc',
+        '  adc #$01',
+        '  clc',
+        '  ror',
+        '  clc',
+        '  ror',
+        '  stx zp_x_save',
+        '  tax',
+        '  ldy #0',
+        '  lda (zp_ptr_lo),y',
+        '  sta dur_ctr,x',
+        '  ldx zp_x_save',
+        '  rts',
+        'ln_not82:',
+        # $Ex pattern jump (if Y == song_pos)
+        '  cpy song_pos',
+        '  bne ln_not_ex',
+        '  inc song_pos',
+        '  lda song_pos',
+        '  cmp #$e6',
+        '  bne ln_no_wrap',
+        '  lda #$e0',
+        '  sta song_pos',
+        'ln_no_wrap:',
+        '  tya                   ; Y = $Ex',
+        '  and #$0f',
+        '  clc',
+        '  rol                   ; *2 for 16-bit indexing',
+        '  tay',
+        '  lda song_table,y',
+        '  sta v_state+0,x',
+        '  iny',
+        '  lda song_table,y',
+        '  sta v_state+1,x',
+        '  jsr load_note         ; recurse with new ptr',
+        '  rts',
+        'ln_not_ex:',
+        # $Dx SET_INSTRUMENT — copy 5 bytes from inst_table
+        '  tya',
+        '  and #$f0',
+        '  cmp #$d0',
+        '  bne ln_not_dx',
+        '  tya',
+        '  and #$0f',
+        '  sta zp_tmp',
+        '  asl                   ; *2',
+        '  asl                   ; *4',
+        '  clc',
+        '  adc zp_tmp            ; *5',
+        '  tay',
+        '  stx zp_x_save',
+        '  txa',
+        '  clc',
+        '  adc #2                ; → timbre slot offset from v_state base',
+        '  tax',
+        '  lda inst_table,y',
+        '  sta v_state,x',
+        '  inx',
+        '  iny',
+        '  lda inst_table,y',
+        '  sta v_state,x',
+        '  inx',
+        '  iny',
+        '  lda inst_table,y',
+        '  sta v_state,x',
+        '  inx',
+        '  iny',
+        '  lda inst_table,y',
+        '  sta v_state,x',
+        '  inx',
+        '  iny',
+        '  lda inst_table,y',
+        '  sta v_state,x',
+        '  ldx zp_x_save',
+        '  jsr load_note',
+        '  rts',
+        'ln_not_dx:',
+        # $Cx SET_MASTER_VOL
+        '  tya',
+        '  and #$f0',
+        '  cmp #$c0',
+        '  bne ln_not_cx',
+        '  tya',
+        '  and #$0f',
+        '  sta $d418',
+        '  jsr load_note',
+        '  rts',
+        'ln_not_cx:',
+        # $Bx SET_TEMPO
+        '  tya',
+        '  and #$f0',
+        '  cmp #$b0',
+        '  bne ln_other_bit7',
+        '  tya',
+        '  and #$0f',
+        '  sta tempo_const',
+        '  jsr load_note',
+        '  rts',
+        'ln_other_bit7:',
+        # Unrecognized bit-7 byte — engine treats as SKIP_BYTE + recurse
+        '  jsr load_note',
+        '  rts',
+    ]
+
+
+# ---------------------------------------------------------------------------
 # Shared emitters
 # ---------------------------------------------------------------------------
 
@@ -767,6 +1138,21 @@ def emit_header() -> list[str]:
 
 
 def _emit_runtime_vars(features: dict) -> list[str]:
+    if features['pattern_shape'] == 'command_stream':
+        return [
+            'zp_ptr_lo = $FB',
+            'zp_ptr_hi = $FC',
+            'zp_endy:     .byte 0',
+            'zp_x_save:   .byte 0',
+            'zp_tmp:      .byte 0',
+            # Per-voice state (3 voices × 7 bytes stride).
+            'v_state:     .dsb 21, 0',
+            # Duration counters (stride 1).
+            'dur_ctr:     .dsb 3, 0',
+            'tempo_const: .byte 0',
+            'tempo_ctr:   .byte 0',
+            'song_pos:    .byte 0',
+        ]
     if features['pattern_shape'] == 'pair':
         return [
             'pn_endy:     .byte 0',
@@ -831,6 +1217,34 @@ def _emit_subtune_tables(features: dict) -> list[str]:
     _tab('tempo_tab',          [s['tempo'] for s in subs])
     _tab('init_tempo_ctr_tab', [s['init_tempo_ctr'] for s in subs])
 
+    if features['pattern_shape'] == 'command_stream':
+        _tab('init_song_pos_tab',  [s['init_song_pos'] for s in subs])
+        _tab('init_master_vol_tab', [s['init_master_vol'] for s in subs])
+        if any(s['cia1_timer_a'] for s in subs):
+            DEFAULT_CIA = 0x4CC7
+            cia_vals = [s['cia1_timer_a'] or DEFAULT_CIA for s in subs]
+            _tab('cia1_lo_tab', [v & 0xFF for v in cia_vals])
+            _tab('cia1_hi_tab', [(v >> 8) & 0xFF for v in cia_vals])
+        # Song table: E0/E3 → V1, E1/E4 → V2, E2/E5 → V3, all pointing at
+        # the (single) subtune's per-voice pattern starts. Multi-subtune
+        # support for command_stream is left for when a real multi-subtune
+        # clever_music engine surfaces.
+        L += [
+            'song_table:',
+            '  .byte <ptn_v1, >ptn_v1     ; E0',
+            '  .byte <ptn_v2, >ptn_v2     ; E1',
+            '  .byte <ptn_v3, >ptn_v3     ; E2',
+            '  .byte <ptn_v1, >ptn_v1     ; E3',
+            '  .byte <ptn_v2, >ptn_v2     ; E4',
+            '  .byte <ptn_v3, >ptn_v3     ; E5',
+            'inst_table:',
+        ]
+        # 16 × 5 byte instrument palette.
+        for inst in sorted(features['cmd_instruments'], key=lambda i: i.id):
+            L.append('  .byte ' + ', '.join(
+                f'${b:02X}' for b in _inst_timbre_block(inst)))
+        return L
+
     if features['pattern_shape'] == 'pair':
         # Pair-shape uses byte-per-timbre-field per-voice tables (yes_tune
         # init reads `v{V}_tb{J}_tab,y`), the per-voice initial state
@@ -884,9 +1298,21 @@ def _emit_subtune_tables(features: dict) -> list[str]:
 
 
 def _emit_orderlists(features: dict) -> list[str]:
-    """Emit per-subtune × per-voice orderlist (atomic) or pattern (pair)
-    blocks."""
+    """Emit per-subtune × per-voice orderlist (atomic) or pattern (pair /
+    command_stream) blocks."""
     L: list[str] = []
+    if features['pattern_shape'] == 'command_stream':
+        # Single-subtune for now — emit unlabelled-by-subtune `ptn_v{V}`
+        # blocks. Multi-subtune for clever_music would emit
+        # `ptn_s{S}_v{V}` and per-subtune song-tables.
+        sub = features['subtunes'][0]
+        for vid in (1, 2, 3):
+            L.append(f'ptn_v{vid}:')
+            pb = sub['cmd_pattern_bytes'][vid]
+            for i in range(0, len(pb), 16):
+                L.append('  .byte ' + ', '.join(
+                    f'${b:02X}' for b in pb[i:i+16]))
+        return L
     if features['pattern_shape'] == 'pair':
         for s_idx, sub in enumerate(features['subtunes']):
             for vid in (1, 2, 3):
@@ -963,7 +1389,12 @@ def emit_sid(usf: UsfFile) -> bytes:
 
     asm_lines: list[str] = []
     asm_lines += emit_header()
-    if shape == 'pair':
+    if shape == 'command_stream':
+        has_cia = any(s['cia1_timer_a'] for s in features['subtunes'])
+        asm_lines += _emit_cmd_init(features, has_cia)
+        asm_lines += _emit_cmd_play()
+        asm_lines += _emit_cmd_load_note()
+    elif shape == 'pair':
         asm_lines += _emit_pair_init(features)
         asm_lines += _emit_pair_play(features)
         asm_lines += _emit_pair_voice_tick()
@@ -1002,6 +1433,11 @@ def applies_to(usf: UsfFile) -> bool:
         return False
     if not usf.instruments:
         return False
+    if _is_command_stream_shape(music):
+        for ms in music:
+            if len(ms.voices) != 3:
+                return False
+        return True
     if _is_pair_shape(music):
         for ms in music:
             if len(ms.voices) != 3:
