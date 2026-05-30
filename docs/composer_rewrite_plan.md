@@ -1548,24 +1548,57 @@ target migrate or the codec itself moves into composer.
 
 Verified: Hubbard 71/71 byte-exact.
 
-#### Phase 8.20+ — Move `_Inputs` adapters + finish dissolution
+#### Phase 8.20 — Move `_Inputs` + USF adapters into composer
 
-- [ ] `_Inputs` dataclass move into composer.py (or replace with
-      `EngineModel` field-passing directly).
-- [ ] `_inputs_from_usf` move — USF-to-`_Inputs` adapter is
-      engine-name-blind, lives naturally in composer.
-- [ ] `_inputs_from_config` — legacy `EngineConfig` reader. Only
-      used by the per-engine `pipelines/hubbard/<engine>/config.py`
-      verify path, which can move to a small helper outside the
-      composer build path.
-- [ ] codec.note_asm migration — move `; %%VOL_PROGRESS_INC%%` /
+The typed surface `_compose_hubbard_engine_asm` consumes — plus
+the adapters that build it — all live in composer.py now. Moved
+this phase (~440 lines):
+
+- [x] `_Inputs` dataclass (the codegen's typed input).
+- [x] `_inputs_from_usf` — the production USF→`_Inputs` adapter
+      (engine-name-blind, just reads USF params + per-subtune
+      blocks + per-instrument blocks).
+- [x] `_inputs_from_config` — legacy `EngineConfig`-reader path,
+      kept since the 5TT unified-USF re-extractor uses it.
+- [x] USF→domain converters that `_inputs_from_usf` uses:
+      `_model_from_usf_instrument`, `_score_from_subtune`,
+      `_pitch_to_engine`, `_instr_to_engine_byte`, `_flags_to_engine`,
+      `_soundeffect_from_usf`, `_ovseed_from_init_state`, plus the
+      `_NOTE_TO_NUM` / `_REST_PITCH` constants.
+
+`composer_hubbard.py` keeps its `_hubbard_emit_sid` orchestrator +
+`_emit_combined_sid` digi-aware orchestrator + `_emit_hubbard85_bytes`
+entry point, plus tiny `from pipelines.composer import _Inputs,
+_inputs_from_config, _inputs_from_usf` re-exports for legacy
+importers (the 5TT unified-USF writer at
+`pipelines/hubbard/five_title_tunes/unified/unified_inputs.py`,
+which also gets its import line updated to point at
+`pipelines.composer` directly).
+
+composer_hubbard.py is now down to ~350 lines: it's purely the
+build dispatch (input→asm→xa65→PSID header) + the two codec.note_asm
+text-replace passes that haven't migrated yet. The bulk of the
+Hubbard '85 logic now lives in composer.py.
+
+Verified: Hubbard 71/71 byte-exact. unified_inputs.py imports
+correctly through the new module path.
+
+#### Phase 8.21+ — Finish the dissolution
+
+- [ ] codec.note_asm migration — push `; %%VOL_PROGRESS_INC%%` /
       `; %%MASTER_VOL_*%%` / `; %%CLEAR_DRUMTRIG_*%%` resolution
-      down into the codec emitter once it learns to take inputs
-      directly (or into a composer-side per-feature emitter that
-      composes the codec output).
-- [ ] `_emit_combined_sid` move — pending the dissolution of
-      `_hubbard_emit_sid` (still coupled).
-- [ ] Eventually: composer_hubbard.py is deletable; the Hubbard '85
+      down into the codec emitter (or into a composer-side
+      per-feature emitter that composes the codec output). Once
+      done, `_emit_master_vol_fade` and `_emit_clear_drumtrig`
+      become no-op wrappers and the last outer text-replace
+      passes disappear from `_hubbard_emit_sid`.
+- [ ] `_hubbard_emit_sid` move into composer.py — once the outer
+      passes are gone it's just composer call + xa65 + PSID header,
+      no orchestration left.
+- [ ] `_emit_combined_sid` + `_emit_hubbard85_bytes` move into
+      composer.py — pending `_hubbard_emit_sid`'s move (they're
+      coupled).
+- [ ] At that point composer_hubbard.py is deletable; the Hubbard '85
       family lives in composer.py as feature-driven asm composition,
       the same shape the companion engines already use.
 

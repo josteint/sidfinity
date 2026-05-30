@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 
-from pipelines.composer_hubbard import _Inputs, _inputs_from_config
+from pipelines.composer import _Inputs, _inputs_from_config
 from pipelines.hubbard.five_title_tunes.unified.config import ALL_TUNES
 
 
