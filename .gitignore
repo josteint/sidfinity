@@ -30,8 +30,24 @@ tools/7zz
 *.swp
 *~
 
-# Claude Code project-local state
-.claude/
+# Claude Code project-local state — most of .claude/ stays local
+# (agents/, commands/, hooks/settings, worktrees/), but the auto-memory
+# directory is versioned: it carries durable session knowledge
+# (project state, principles, references) that survives across sessions
+# and travels with the repo. Per-subdirectory ignores rather than
+# excluding all of .claude/, since gitignore can't re-include children
+# of an excluded parent.
+.claude/agents/
+.claude/commands/
+.claude/worktrees/
+.claude/file-history/
+.claude/worktree-checkpoint.sh
+.claude/settings.json
+.claude/settings.local.json
+# Skills: project-skill SKILL.md files are committed individually
+# (force-added when authored). The rest of each skill dir stays local.
+.claude/skills/*/
+!.claude/skills/migrate-hubbard-engine/SKILL.md
 
 # HVSC collection (60k files, not in git — install via HVSC release)
 hvsc84/
