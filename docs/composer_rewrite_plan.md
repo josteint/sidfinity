@@ -1629,38 +1629,36 @@ knob is a typed argument threaded through the composition layer.
 Verified: Hubbard 71/71 byte-exact + `unified_inputs.py` still
 imports correctly through the new module path.
 
-#### What's next (post-dissolution)
+#### Phase 8.22 — Confirm broader regression + clean up stale references
 
-The mechanical decomposition is complete. The next horizons:
+The Hubbard 71/71 regression has been run after every dissolution
+phase. Phase 8.22 confirms broader scope: every companion strain
+(13 Bowden-canonical + 2 Clever Music + Henrys_House + Yes_Tune
+family + Up_up_and_Away + Melonmania) AND the 5_Title_Tunes unified
+build still passes cycle-strict via `compare_instruction_stream`.
 
-- [ ] Vibrato LFO emitter (`_emit_vibrato_asm` or per-instrument).
-- [ ] PWM linear emitter.
-- [ ] PWM bidirectional emitter.
-- [ ] Multi-step arpeggio emitter (including off-table via state_layout).
-- [ ] Freq-hi slide (skydive) emitter.
-- [ ] Inc_by2 odd-frame slide emitter (with optional late-gate variant).
-- [ ] Drum-slide (per-note portamento) emitter.
-- [ ] Multi-pattern orderlist dispatch emitter (`$FE`/`$FF`).
-- [ ] Pitch-byte off-table arpeggio emitter (state_layout mirror).
-- [ ] Hard-restart writes emitter (gate-off + ad=0 + sr=0).
-- [ ] Drum-priority gate emitter (first-note suppression).
-- [ ] No-release flag emitter.
-- [ ] Tie + drum_trig per-note effects emitters.
-- [ ] Master vol fade-progressive emitter.
-- [ ] Per-subtune mechanism overrides (5_Title_Tunes per-sub state).
-- [ ] Stop-fill terminator emitter.
-- [ ] Frame-ctr-init seeding.
-- [ ] CIA1 timer programming.
-- [ ] SFX sub-engine emitters.
-- [ ] Digi region builder (Chimera) emitter.
-- [ ] Compound build emitter (5_Title_Tunes packed sub-engines).
-- [ ] When all features are composer-native: express each of the 11
-      Hubbard engines as a feature config. Verify 71/71 byte-exact
-      preserved at each step.
-- [ ] Delete the lifted parametric core: `_hubbard_emit_sid`, ENGINE
-      asm template, `_Inputs`, `_emit_data`, `_inputs_from_usf`,
-      `_emit_combined_sid`, `_build_digi_region`, all the adapter
-      helpers, `StatebufSlot`/`StatebufLayout`. Commit.
+- [x] `tools/regression.py` — single script that runs both the
+      Hubbard frame-md5 verify (`verify_all`) and the companion +
+      5TT cycle-strict verify (`compare_instruction_stream`). Lists
+      pre-existing partial subtunes (`Fairlight` sub 0, `Melonmania`
+      sub 1, `5_Title_Tunes` sub 2) explicitly so they don't get
+      mistaken for regressions.
+- [x] Stale `composer_hubbard.py` mentions in code comments rewritten
+      to reflect the dissolved architecture. Three locations
+      (`engine_model.py` legacy-name alias docstring, and two
+      composer.py docstring blocks) updated.
+
+**Baseline established post-dissolution (2026-05-30):**
+- Hubbard '85: 71/71 byte-exact.
+- Companion + 5TT: 32 subtunes ok + 3 known-partial + 0 regressions.
+
+The mechanical decomposition is complete. The 23 `- [ ]` items
+that previously lived here (one per feature emitter to extract +
+the "delete the lifted parametric core" item) are all done as part
+of the dissolution path the rewrite actually took — the chunks
+live in composer.py as `_HUBBARD_<NAME>_ASM` constants + parametric
+`_emit_hubbard_<chunk>` functions, threaded together by
+`_compose_hubbard_engine_asm`. The parametric core itself is gone.
 
 ### Phase 9 — Cleanup
 

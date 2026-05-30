@@ -1718,10 +1718,11 @@ def _emit_hubbard_sfx_step(sfx_state_ofs: int | None = None) -> str:
 #
 # Phases 8.9-8.14 lifted each chunk out of a substitution template;
 # Phase 8.16 moved the template skeleton itself; Phase 8.17 replaced
-# the template-driven path with direct chunk concatenation here.
-# The remaining cross-chunk text-replace passes (sfx_framectr,
-# arp_phase_invert, master_vol_fade, ...) still run as outer passes
-# in composer_hubbard; later phases push them down.
+# the template-driven path with direct chunk concatenation; Phase
+# 8.18-8.19 pushed every per-engine knob into the chunk emitters as
+# typed args; Phase 8.21 dissolved composer_hubbard.py entirely and
+# moved the dispatch into this module. There are no outer text-replace
+# passes anywhere — every sentinel is resolved at composition time.
 # ---------------------------------------------------------------------------
 
 
@@ -1880,11 +1881,11 @@ def _compose_hubbard_engine_body(
       - `uses_per_subtune_dispatch` — 5_Title_Tunes mechanism tables
         (init's SPEED_CTR_INIT block + fx_incby2's INCBY2_STEP add)
 
-    The remaining cross-chunk passes (`; %%VOL_PROGRESS_INC%%` /
-    `; %%MASTER_VOL_*%%` / `; %%CLEAR_DRUMTRIG_*%%`) all live in the
-    codec's note_asm rather than the engine body, so they're handled
-    by outer passes in `composer_hubbard._hubbard_emit_sid` until the
-    codec itself migrates.
+    The codec's note_asm sentinels (`; %%VOL_PROGRESS_INC%%` /
+    `; %%MASTER_VOL_*%%` / `; %%CLEAR_DRUMTRIG_*%%`) live in the
+    decoder asm rather than the engine body; they're resolved at
+    composition time by `_resolve_codec_note_asm`, called from
+    `_compose_hubbard_engine_asm` directly after this function.
     """
     parts = [
         _HUBBARD_ZP_EQUATES_ASM,
@@ -2984,7 +2985,7 @@ def _digi_player_registry() -> dict:
     concrete `DigiCode` (dispatcher base, player base, music-load
     hint, bank-table base, ...). Composer reads this when a USF has
     digi subtunes — see `_emit_combined_sid` and the dispatch in
-    `composer_hubbard._emit_hubbard85_bytes`.
+    `_emit_hubbard85_bytes`.
     """
     from pipelines.hubbard.engine_constants import CHIMERA_DIGI
     return {

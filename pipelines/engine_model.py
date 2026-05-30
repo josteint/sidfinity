@@ -402,9 +402,9 @@ class StateLayoutMirror:
     decr_voice_idx_offset: Optional[int] = None  # `ns_offtab_decr_offset`
 
 
-# Legacy names — the lifted Hubbard '85 parametric core (in
-# `pipelines/composer_hubbard.py`) calls these `StatebufLayout` and
-# `StatebufSlot`. Same dataclasses; aliased here so the two layers
+# Legacy names — the dissolved Hubbard '85 parametric core (now in
+# `pipelines/composer.py`) calls these `StatebufLayout` and
+# `StatebufSlot`. Same dataclasses; aliased here so both layers
 # share canonical definitions.
 StatebufSlot = StateSlot
 StatebufLayout = StateLayoutMirror
