@@ -181,10 +181,18 @@ def build_usf(sid_path: str) -> UsfFile:
     fh, fl = freq_tables()
     freq_table = list(fh) + list(fl)
 
+    # Top-level engine-mechanism param. The Bowden engine writes a
+    # 4-byte timbre (omitting SR) on a voice whose prior voice played
+    # a skip byte ($81-$FE) — a named mechanism feature the codegen
+    # composes, not an engine identity tag.
+    top_params = Params(fields={
+        'inter_voice_carry_leak': True,
+    })
+
     return UsfFile(
         engine='bowden_canonical',
         psid=_psid_meta_from_sid(sid_path),
-        params=Params(),
+        params=top_params,
         init=top_init,
         instruments=instruments,
         subtunes=music_subtunes,

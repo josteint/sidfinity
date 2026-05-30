@@ -974,23 +974,29 @@ def _infer_command_vocab(usf, music) -> Optional[CommandVocab]:
 
 
 def _infer_inter_voice_quirks(usf, music) -> list[InterVoiceQuirk]:
-    """Detect inter-voice quirks from USF features."""
+    """Detect inter-voice quirks from USF features.
+
+    All quirks are encoded as **named-mechanism USF params**, never
+    inferred from engine-correlated content. The USF declares which
+    quirks the engine uses; the model carries them as features the
+    codegen composes.
+    """
     quirks: list[InterVoiceQuirk] = []
     p = usf.params.fields if usf.params else {}
 
-    # Carry leak — bowden's feature, detected by 3 voices with all
-    # rows having `duration=1` and no fx:hold and no early_release.
-    # This is a coarse heuristic; refine in Phase 3 when we have the
-    # codegen needing this.
-    # For now, mark it whenever a 3-voice atomic-per-tick USF has no
-    # other distinguishing features. We'll refine.
+    # Bowden's 4-vs-5-byte timbre quirk — the engine writes only
+    # 4 bytes (omitting SR) when the prior voice played a skip byte.
+    # USFs that need this set `inter_voice_carry_leak: true`.
+    if p.get('inter_voice_carry_leak'):
+        quirks.append(InterVoiceQuirk(
+            name='carry_leak_4_vs_5_byte_timbre'))
 
-    # `first_note_suppression` — Hubbard 'drum_prio' / suppress_first_notestart
+    # Hubbard's first-note-on-V1 suppression — `drum_prio` gate.
     if p.get('suppress_first_notestart'):
         quirks.append(InterVoiceQuirk(
             name='first_note_suppression', voice_idx=0))
 
-    # `no_release` is a per-note flag; not a USF-level feature.
+    # `no_release_per_note_flag` is a per-row flag; not a USF-level feature.
 
     return quirks
 

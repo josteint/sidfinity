@@ -659,13 +659,59 @@ to handle henrys_house's feature config. Verify byte-exact. Commit.
 
 ### Phase 4 — Add bowden's features
 
-- [ ] Add inter-voice carry-leak feature to the engine model.
-- [ ] Add `$FF` loop substitution semantics.
-- [ ] Multi-subtune per-voice state seeding (init_pos_v1/v2/v3).
-- [ ] Express bowden_canonical as a feature config. Verify the 17/18
+- [x] Add inter-voice carry-leak feature to the engine model.
+- [x] Add `$FF` loop substitution semantics.
+- [x] Multi-subtune per-voice state seeding (init_pos_v1/v2/v3).
+- [x] Express bowden_canonical as a feature config. Verify the 17/18
       previously-passing tunes still match. Melonmania sub 1 stays
       pre-existing partial.
-- [ ] Delete the `atomic 3-voice + carry leak` shape emitter. Commit.
+- [x] Delete the `atomic 3-voice + carry leak` shape emitter. Commit.
+
+**Major insight that drove the redesign:** voice count is not a
+dispatch axis — it's just a number. The composer iterates over the
+voices the orderlist actually uses (any subtune with non-empty
+patterns), no `if 1-voice / elif 3-voice` branch. henrys (1 active
+voice) and bowden (3 active voices) flow through the **same emitters**,
+producing different code by the iteration count, not by structural
+branching.
+
+**Outcome:**
+* `pipelines/composer.py` rewritten with a unified voice-iterating
+  structure. `_emit_init` / `_emit_play` / `_emit_voice_step` /
+  `_emit_per_subtune_tables` / `_emit_orderlists` all loop over an
+  `active: list[int]` derived from which voices have non-empty
+  patterns. X-indexed timbre arrays at strides of 7 (the SID's per-
+  voice register stride).
+* `inter_voice_carry_leak` quirk encoded in USF as a named-mechanism
+  param. Bowden extract sets it at top-level (`Params({'inter_voice_
+  carry_leak': True})`); model builder reads it and populates
+  `inter_voice_quirks`; composer conditionally emits the
+  `this_skip_sr` / `next_skip_sr` runtime vars + classify logic +
+  SR-write-skip in proc_note when the quirk is set.
+* `loop_substitute_first` terminator behavior wired through the
+  composer's voice_step emitter via `_loop_byte(byte_map)` lookup.
+  The asm differs from `master_vol_reset_and_loop` (henrys) by the
+  loop-handler body; same overall voice_step structure.
+* `fx:hold` row encoding fix — was being treated as a rest (producing
+  ctrl-off SID writes); should be a skip byte (no SID write). Fixed
+  in `_row_to_byte`.
+* Per-subtune per-voice timbres — Melonmania's 3 subtunes use
+  different instruments per voice; the composer now reads each
+  subtune's `init.voices` for its timbre values rather than using
+  subtune 0 for all.
+
+**Verified:**
+* Henrys_House (1 active voice) + 18 bowden tunes (3 active voices)
+  byte-exact through composer. Melonmania sub 1 stays pre-existing
+  partial (matches legacy's m=15/386/361 exactly).
+* Hubbard 71/71 unchanged, all other companion strains unchanged.
+
+**Legacy 3-voice atomic emitter retired:**
+`_emit_3voice_init`, `_emit_3voice_play`, `_emit_3voice_proc_note`,
+`_emit_3voice_voice_step`, `_emit_3voice_voice_steps` all removed
+from `pipelines/universal_codegen.py`. The `shape == 'atomic'`
+dispatch arm now raises `NotImplementedError` (atomic USFs flow
+through composer).
 
 ### Phase 5 — Add yes_tune's features
 
