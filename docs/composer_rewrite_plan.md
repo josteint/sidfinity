@@ -195,11 +195,18 @@ unexpectedly, split it.
 
 ### Phase 0 — Read in (no code)
 
-- [ ] Read this plan in full.
-- [ ] Read `docs/usf_representation_principle.md` in full.
-- [ ] Check `~/.claude/projects/-home-jtr-sidfinity/memory/MEMORY.md`
+- [x] Read this plan in full.
+- [x] Read `docs/usf_representation_principle.md` in full.
+- [x] Check `~/.claude/projects/-home-jtr-sidfinity/memory/MEMORY.md`
       and any project memories the work touches.
-- [ ] Confirm regression baseline runs (commands below).
+- [x] Confirm regression baseline runs (commands below).
+
+**Baseline as of plan commit `1e6de93`:**
+* Hubbard 71/71 byte-exact through `verify_all`.
+* Henrys_House, Bach_Sonata (bowden), Yes_Tune, Soldier_of_Fortune
+  (8 subs), Gyroscope, Up_up_and_Away 4/5 — all match pre-rewrite
+  numbers via `compare_instruction_stream`. Up_up_and_Away sub 3 is
+  the only pre-existing partial in this set.
 
 Baseline commands:
 
@@ -261,45 +268,294 @@ for sid, dur in TUNES:
 ### Phase 1 — Audit (no code, produces a spec)
 
 The audit produces a feature-config spec for each current shape. The
-spec drives Phase 2's engine-model design. Output: this section gets
-filled in below.
+spec drives Phase 2's engine-model design.
 
-- [ ] Audit `atomic 1-voice` (henrys_house) — fill in feature config below.
-- [ ] Audit `atomic 3-voice + carry leak` (bowden_canonical).
-- [ ] Audit `pair` (yes_tune family).
-- [ ] Audit `command_stream` (clever_music).
-- [ ] Audit `companion` (Up_up_and_Away).
-- [ ] Audit `hubbard85` (the 11 Hubbard engines, considered as feature
+- [x] Audit `atomic 1-voice` (henrys_house) — fill in feature config below.
+- [x] Audit `atomic 3-voice + carry leak` (bowden_canonical).
+- [x] Audit `pair` (yes_tune family).
+- [x] Audit `command_stream` (clever_music).
+- [x] Audit `companion` (Up_up_and_Away).
+- [x] Audit `hubbard85` (the 11 Hubbard engines, considered as feature
       configurations — each engine's `EngineConfig` is already a
       feature-bag, so the audit is the projection of each into the
       composer's dimensions).
-- [ ] Identify gaps where the feature matrix above doesn't cover an
-      engine's mechanism. Update the matrix.
-- [ ] Identify shared mechanism — features used by multiple engines.
+- [x] Identify gaps where the feature matrix above doesn't cover an
+      engine's mechanism. Update the matrix (see "Audit-derived feature
+      matrix updates" below).
+- [x] Identify shared mechanism — features used by multiple engines
+      (see "Cross-shape mechanism table" below).
 
 #### Feature config — atomic 1-voice (henrys_house)
 
-(to fill in during audit)
+Sole tune: `hvsc84/GAMES/G-L/Henrys_House.sid` (1 subtune).
+Emitter: `_emit_1voice_init` / `_emit_1voice_play` in universal_codegen.
+
+| Dimension | Value |
+|---|---|
+| Voice count | 1 active (slots 2, 3 are placeholders with empty orderlists) |
+| Pattern encoding | atomic byte per tick |
+| Voice timing | every-tick read |
+| Tempo dispatch | single-tick, `tempo_const` RAM byte loaded from per-subtune `tempo_tab` (in practice fixed across this tune's 1 subtune at value 8) |
+| Modulation | NONE |
+| Embedded commands | NONE |
+| Terminator semantics | `$00-$7F` = note (play freq + 5-byte timbre + ctrl|1); `$80` = rest (write ctrl gate-off); `$81` = skip (no SID write); `$FF` = loop (write `$D418=master_vol` + reset pos to 0) |
+| Master vol | fixed at init (`$0F` written at boot AND on every `$FF` loop) |
+| Inter-voice quirks | N/A (1 voice) |
+| Voice-init seeding | zero (v_pos=0, tempo_ctr=0, timbre fields loaded from per-subtune table) |
+| Off-table arpeggio | NONE |
+| Sub-engines | NONE |
+| Freq table | 128 + 128 (256 bytes, Clever Music's table) |
 
 #### Feature config — atomic 3-voice + carry leak (bowden_canonical)
 
-(to fill in during audit)
+Tunes: 18 SIDs (Berry Vic family, Hyper_Blast, Memory_1991,
+Roundabout, Titanic, Surfchamp, Melonmania — Bowden_Bobby).
+Emitter: `_emit_3voice_*` in universal_codegen.
+
+| Dimension | Value |
+|---|---|
+| Voice count | 3 active |
+| Pattern encoding | atomic byte per tick, indirect-(zp),Y reads per voice |
+| Voice timing | every-tick read, V1 → V2 → V3 sequential dispatch |
+| Tempo dispatch | single-tick, per-subtune `tempo_const` |
+| Modulation | NONE |
+| Embedded commands | NONE |
+| Terminator semantics | `$00-$7F` = note; `$80` = rest; `$81-$FE` = skip (sets carry-leak flag on this voice); `$FF` = loop substitution (pos=1, replay orderlist[0] this tick) |
+| Master vol | fixed at init (`$0F` once) |
+| Inter-voice quirks | **carry leak**: a voice playing a skip ($81-$FE) sets `next_skip_sr`; the next voice writes 4-byte timbre (omit SR) instead of 5. On `$FF` loop, V1/V2 force the next voice's `this_skip_sr=1`; V3's `$FF` leaves it at 0. |
+| Voice-init seeding | per-subtune tables: `init_v{1,2,3}_pos_tab`, `init_tempo_ctr_tab`, plus 5-byte timbre arrays × 3 voices |
+| Off-table arpeggio | NONE |
+| Sub-engines | NONE |
+| Other | optional CIA1 timer A programming (Surfchamp: $40C7 for ~60Hz) |
+| Freq table | 128 + 128 (256 bytes) |
 
 #### Feature config — pair (yes_tune)
 
-(to fill in during audit)
+Tunes: 2 SIDs (Yes_Tune 1 subtune, Soldier_of_Fortune 8 subtunes — mix
+of music + SFX). Emitter: `_emit_pair_*` in universal_codegen.
+
+| Dimension | Value |
+|---|---|
+| Voice count | 3 slots; some voices silent (initial state byte = 0) |
+| Pattern encoding | (note, dur) byte pairs |
+| Voice timing | tick-counter state machine: `tick_ctr` decrements; play on 0 |
+| Tempo dispatch | single-tick, `tempo_const` per-subtune |
+| Modulation | NONE |
+| Embedded commands | NONE |
+| Terminator semantics | `$00-$7F dur` = note + arm tick_ctr; `$80 dur` = rest with duration; `$81` = stop voice (write ctrl gate-off + state=0); `$FF` = loop (reset ptr + recurse play_note) |
+| Master vol | per-subtune `gain_init` ("full" writes `$D418=$0F`, "preserve" skips the write — SFX subtunes ride existing vol) |
+| Inter-voice quirks | NONE |
+| Voice-init seeding | per-voice 5-byte timbre (3 voices) + `pat_start lo/hi` per voice + initial state byte (0 silent / 2 load-pattern) per voice, all from per-subtune tables; `tick_ctr=0` |
+| Off-table arpeggio | NONE |
+| Sub-engines | NONE |
+| Note | `fx:raw_NN` flag passthrough used by SoF SFX subtunes for muted-pitch triggers |
+| Freq table | 128 + 128 (Clever Music's table) |
 
 #### Feature config — command_stream (clever_music)
 
-(to fill in during audit)
+Tunes: 2 SIDs (Fairlight, Gyroscope — 1 subtune each).
+Emitter: `_emit_cmd_*` in universal_codegen.
+
+| Dimension | Value |
+|---|---|
+| Voice count | 3 |
+| Pattern encoding | atomic byte per tick + embedded command bytes that don't consume a tick |
+| Voice timing | dur-counter state machine: `dur_ctr` starts at 1, decrements per frame; `load_note` runs on `dur_ctr == 1` |
+| Tempo dispatch | single-tick, `tempo_const` mutable mid-stream via `$Bx` |
+| Modulation | NONE |
+| Embedded commands | `$Bx` SET_TEMPO, `$Cx` SET_MASTER_VOL, `$Dx` SET_INSTRUMENT (copy 5 bytes from `inst_table`), `$Ex` PATTERN_JUMP (if `Y == song_pos`: jump via `song_table`, advance + wrap song_pos), `$82 dur` SET_DURATION (gate off + dur_ctr=N), unrecognized bit-7 = SKIP_BYTE + recurse |
+| Terminator semantics | `$80` = rest (gate off); `$81` = skip (return); `$FF` = loop (reset ptr to `pat_start` + recurse). No song-end terminator — the engine reads adjacent memory past nominal end (similar to companion's read-past behavior) |
+| Master vol | per-subtune init (`init_master_vol`), mutable mid-stream via `$Cx` |
+| Inter-voice quirks | NONE |
+| Voice-init seeding | `song_table[0..5]` → V1/V2/V3 ptrs; dur_ctr=1; per-subtune `init_song_pos` + `init_tempo_ctr` |
+| Off-table arpeggio | NONE |
+| Sub-engines | NONE |
+| Other | 16-instrument palette (5-byte rows in `inst_table`); 6-entry `song_table` for `$Ex` dispatch (E0/E3 → V1, E1/E4 → V2, E2/E5 → V3); optional CIA1 timer A |
+| Freq table | 128 + 128 (Clever Music's table) |
 
 #### Feature config — companion (Up_up_and_Away)
 
-(to fill in during audit)
+Sole tune: `hvsc84/MUSICIANS/H/Hubbard_Rob/Up_up_and_Away.sid` (5 subtunes).
+Emitter: `_emit_companion_*` in universal_codegen.
+
+| Dimension | Value |
+|---|---|
+| Voice count | 3 |
+| Pattern encoding | atomic byte per tick (no skip-byte runs — duration comes from `note_load_tick`) |
+| Voice timing | global `g_tempo_ctr` increments per frame; on `== gate_off_tick` fires `maybe_gate_off` for all voices; on `== note_load_tick` resets and advances each voice's orderlist by 1 |
+| Tempo dispatch | **two-tempo**: `gate_off_tick` (early-release timer) + `note_load_tick` (next-note timer), both per-subtune |
+| Modulation | **hardcoded V3 PW_LO sweep**: `g_pwm_ctr` toggles 0/1 every frame; on the 1→0 transition, V3 pw_lo += 5 (carry=1 from `CMP #$01`) + write `$D410` |
+| Embedded commands | NONE |
+| Terminator semantics | `$00-$7F` = note (play pitch); `$80+pitch` = play pitch + schedule early release at next `gate_off_tick` (bit-7 flag held); `$8C` = rest (gate off); `$8D` = end-or-rest (gate off; on V3 also writes `$D418=0` + clears `g_song_alive`); engine reads past `$8D` into adjacent memory (`v{1,2,3}_pad_count` bytes) |
+| Master vol | per-subtune fixed at init (`vol_filter` table); V3's `$8D` also writes `$D418=0` |
+| Inter-voice quirks | V3's `$8D` is end-song (clears `g_song_alive` + writes `$D418=0`); V1/V2 `$8D` is just rest |
+| Voice-init seeding | copy-from-per-subtune-32-byte-template (V1/V2/V3 each: pos=0, gate_off_flag=0, 5-byte timbre; plus globals: gate_off_tick, note_load_tick, init_tempo_counter, 6 zeros, init_pwm_ctr × 2). `g_tempo_ctr` and `g_pwm_ctr` aliased to `v_state+23` / `v_state+30` so the template copy seeds the runtime counters. |
+| Off-table arpeggio | NONE |
+| Sub-engines | NONE |
+| Other | filter setup at init (`$D416 = filter_cutoff_hi`, `$D417 = 0`); orderlist post-`$8D` padding bytes per voice (`v{1,2,3}_pad_count`/`v{1,2,3}_pad_byte` per-subtune params); `ctrl_noGate` is per-voice (from `InitVoice.ctrl`), NOT from the instrument's waveform field |
+| Freq table | 128 + 128 (Companion's own table) |
 
 #### Feature config — hubbard85 (11 engines × their EngineConfig deltas)
 
-(to fill in during audit)
+The 11 Hubbard '85 engines + 5_Title_Tunes (compound) share one
+parametric core (`ENGINE` asm + `_hubbard_emit_sid`). The `_Inputs`
+dataclass is already a feature config — most fields below correspond
+directly to `_Inputs` fields.
+
+| Dimension | Value (defaults / range) |
+|---|---|
+| Voice count | 3; per-subtune `voice_start` table (2 = run V1+V2+V3; 1 = skip V3; 0 = also skip V2 — Action Biker sub 0 uses this) |
+| Pattern encoding | bitpack codec — `BitPackCodec.dur_bits` + `BitPackCodec.inst_bits` per-engine. Per-pattern: 1 leading byte (note count) + packed bitstream of (pitch, duration, instr-change, tie, drum_trig) tuples |
+| Voice timing | dur-counter state machine: per-voice `v_dur` decrements; on `< 0` calls `load_note` (codec-supplied). Sustain frames run effects only. |
+| Tempo dispatch | single-tick global `speed_ctr` decrements; on underflow → `cur_resetspd` (per-subtune `subResetspd`) and one tick fires |
+| Modulation | up to 6 pipelines per instrument: vibrato LFO (triangle), PWM linear (accumulator), PWM bidirectional (period+step+bounds), multi-step arpeggio (frame & ARP_MASK gates the +ARP_OFS semitones), freq-hi slide / "skydive" (fx bit 0), inc_by2 (odd-frame slide on `v_slide`, fx bit 1) — gated by `instrument.fx_flags` byte. Plus drum_slide (per-note portamento via `v_drumtrig`). |
+| Embedded commands | NONE (instrument-change lives in the per-note instr byte; tie/no_release/porta in fx flags) |
+| Terminator semantics | orderlist: `$FE` = stop (variants: plain stop, `freeze_on_stop` engines hold the note instead, `stop_fill` engines write `$D400-$D417 = STOP_FILL` byte and silence); `$FF` = loop (wraps to `orderLoop`). Per-note: tie ($40 high bit on inst byte), drum_trig (low 7 bits), no_release ($80 on drum_trig) |
+| Master vol | fixed at init (`$0F`) for most engines; optional fade-progressive (`master_vol_subtrahend_voice` + `master_vol_base` + `master_vol_trigger`: `inst_change` vs `every_note`) — increments `vol_progress` on the configured voice's pattern-end, writes `$D418 = clamp(base - vol_progress, 0..$0F)` |
+| Inter-voice quirks | `drum_prio` (first-frame note-start suppression on V1 — Hubbard suppresses voice 0's first note when set); per-note `no_release` (skips hard-restart writes) |
+| Voice-init seeding | `ovseed` block: 6 per-voice state bytes (v_ctrl/pwm_period/pwm_dir/v_instr/v_durfield/v_slide) × 3 voices = 18 bytes, **read from offsets within the freq table** (engine state overlaps freq table at +205, +208, +214, +229, +232, +239 by default; per-engine `seed_offsets` overrides). `seed_overlap=False` zeros it (Human Race inits per-voice state at runtime). For 5_Title_Tunes: per-subtune ovseed (`per_subtune_ovseed`). |
+| Off-table arpeggio | `state_layout` block defines a 48-byte mirror (`statebuf`) of engine state. Pitch ≥ 96 reads `statebuf[(pitch-96)*2]` for freq instead of the freq table. Layouts: `COMMANDO_STATEBUF_LAYOUT` (Commando family default) and Human Race's HR-specific layout. Optional `ns_offtab_decr_offset` for Thing on a Spring (decrements v_hubidx slot pre-read). |
+| Sub-engines | **SFX**: 16 sound-effect records (`sfxdata`, 32 bytes each) + `init_sfx` + `sfx_play` — 2-voice register snapshot + freq-table pitch sweep. PSID header's `songs` count = `len(subtunes) + 16` when `has_sfx`. Engines: Commando, Monty, Action Biker, Chimera, Thing on a Spring, One Man and his Droid (all 16). Optional `sfx_state_ofs` rewires SFX state into the freq-table off-table region (Monty, One Man — engines whose SFX V2 sweep overruns into engine state). **Digi**: cycle-strict 1-bit wavetoggle or 4-bit PCM player; combined music+digi region via `_emit_combined_sid` + `chimera_psid_dispatcher`. Only Chimera today. |
+| Engine knobs | `arp_interval` (default 12), `arp_period` (default 2), `arp_phase_invert` (One Man), `linear_pw_or`, `incby2_step` (default 2), `incby2_every_frame` (Human Race), `incby2_onset` (default 3), `incby2_late_gate` (Hunter Patrol — only fires when `v_dur < N`), `suppress_first_notestart`, `freeze_on_stop`, `speed_ctr_init` (delayed first note-load), `first_frame_gate_off`, `frame_ctr_init` (HP $1E vs default $FF), `tie_preserves_slide` (Confuzion, BoB), `hubidx_wrap_at_patend` (False for Thing on a Spring), CIA1 timer programming (via `psid_speed` bitmask) |
+| Compound (5_Title_Tunes) | 5 sub-engines packed at non-overlapping LOAD addresses + dispatcher at original init/play vectors. Per-subtune mechanism overrides (`per_subtune_speed_ctr_init`, `per_subtune_incby2_step`, `per_subtune_incby2_late_gate`, `per_subtune_ovseed`) when any subtune diverges from the top-level defaults. |
+| Freq table | 320 bytes (128 hi + 128 lo musical entries + 64 bytes of engine-state overlap region) |
+
+### Audit-derived feature matrix updates
+
+The original matrix needs these refinements:
+
+* **Pattern encoding** — three distinct cases:
+  - *atomic per-tick with skip runs*: 1 byte = 1 tick; duration encoded
+    as note-byte + (D-1) skip bytes. (henrys, bowden, clever_music)
+  - *atomic per-tick, no skip runs*: 1 byte = 1 note period (period
+    duration comes from per-tune tempo dividers). (companion)
+  - *(note, dur) pairs*: 2 bytes per row, duration in the second byte.
+    (yes_tune)
+  - *bitpack codec*: variable-bit-width pitch/dur/instr fields packed
+    into a bitstream, 1 leading note-count byte per pattern.
+    (Hubbard '85)
+* **Voice-init seeding** — four variants:
+  - zero (henrys)
+  - per-subtune position + tempo tables (bowden, yes_tune, clever, Hubbard '85's per-subtune mechanism mode)
+  - copy-from-32-byte-template (companion)
+  - copy-from-overlap (Hubbard '85's ovseed reading freq-table bytes
+    205/208/214/229/232/239)
+* **Inter-voice quirks** — full set:
+  - carry leak (bowden — 4 vs 5-byte timbre based on prior voice's note byte)
+  - drum_prio (Hubbard — first-frame V1 note suppression)
+  - no_release (Hubbard — per-note fx flag)
+  - end-song-on-V3 (companion — V3's `$8D` clears `song_alive` + vol=0)
+  - hardcoded Vn PW sweep (companion — V3 PW_LO += 5 every other frame)
+* **Embedded command bytes** — clever_music's set is the union: $Bx
+  tempo, $Cx vol, $Dx instrument, $Ex song-pos jump, $82 set_dur.
+  Other shapes have none.
+* **Master vol handling** — four variants:
+  - fixed at init (most engines)
+  - per-subtune fixed (yes_tune's `gain_init`, companion's `vol_filter`)
+  - mutable mid-stream via embedded command (clever_music's `$Cx`)
+  - fade-progressive (Hubbard '85 — TOAS, etc.)
+* **Pattern terminators** — wide vocabulary:
+  - `$80` rest, `$81` skip/stop, `$82` set_dur (only clever_music)
+  - `$8C` rest (companion), `$8D` end-song-on-V3 (companion)
+  - `$FE` stop, `$FF` loop (Hubbard '85), `$FF` loop substitution (bowden)
+  - The same byte means different things in different shapes — the
+    composer must model "what bytes terminate" as a feature, not
+    assume specific values.
+* **Modulation pipeline** — composable subset:
+  - vibrato LFO (Hubbard, Confuzion)
+  - PWM linear (Hubbard)
+  - PWM bidirectional (Hubbard, Confuzion)
+  - multi-step arpeggio (Hubbard) — plus off-table variant via state_layout
+  - freq-hi slide / skydive (Hubbard)
+  - inc_by2 odd-frame slide (Hubbard)
+  - drum_slide per-note portamento (Hubbard)
+  - hardcoded Vn PW sweep (companion — distinct from per-instrument PWM)
+* **Sub-engines** — orthogonal additions:
+  - SFX (Hubbard family — 16 records, 2-voice freq-sweep + register snapshot)
+  - digi (Chimera 1-bit wavetoggle)
+* **Off-table arpeggio** — `state_layout` block defines a per-engine
+  scalar + per-voice layout. Triggered when pitch ≥ 96. Only Hubbard
+  '85 uses this.
+* **Compound builds** — 5_Title_Tunes packs N sub-engines + dispatcher
+  in one PSID. Distinct from the per-subtune mechanism model — the
+  sub-engines have non-overlapping LOAD addresses and the dispatcher
+  routes by PSID subtune index.
+
+### Cross-shape mechanism table
+
+Mechanism reuse across shapes — features the composer can implement
+once and have multiple shapes consume:
+
+| Mechanism | Used by |
+|---|---|
+| per-subtune tempo_const RAM byte | bowden, yes_tune, clever_music, companion, Hubbard '85 |
+| per-subtune init_pos / init_tempo_ctr tables | bowden, yes_tune, clever_music, companion, Hubbard '85 (per-subtune mechanism mode) |
+| per-voice 5-byte timbre (pw_lo, pw_hi, ctrl, ad, sr) | bowden, yes_tune, clever_music, companion |
+| pitch byte = (octave<<4) \| semitone | henrys, bowden, yes_tune, clever_music, companion |
+| pitch byte = absolute semitone (semis = note + 12*octave) | Hubbard '85 |
+| atomic-byte-per-tick play loop | henrys, bowden, clever_music |
+| every-tick-read-but-tempo-gated voice dispatch | henrys, bowden, yes_tune, clever_music, Hubbard '85 |
+| `$FF` = loop (reset ptr) | henrys, bowden (substitution variant), yes_tune, clever_music |
+| `$D418 = $0F` master vol init | henrys, bowden, yes_tune (when `gain_init=full`), Hubbard '85 |
+| optional CIA1 timer A programming | bowden (Surfchamp), clever_music, Hubbard '85 (`psid_speed` bitmask) |
+| 256-byte freq table (128 hi + 128 lo, Clever Music's table) | henrys, yes_tune |
+| 256-byte freq table (Companion's own) | bowden, companion |
+| 320-byte freq table (Hubbard's, with state overlap) | Hubbard '85 only |
+| recursive command interpreter | clever_music only |
+| state_layout off-table arp | Hubbard '85 only |
+| bitpack codec | Hubbard '85 only |
+| SFX sub-engine | Hubbard '85 only |
+| digi sub-engine | Hubbard '85 only (Chimera) |
+| two-tempo dispatch (gate_off + note_load) | companion only |
+| inter-voice carry leak | bowden only |
+| hardcoded Vn PW sweep | companion only |
+| early-release flag on pitch byte | companion only |
+
+### Open audit findings
+
+1. **Pitch byte encoding differs.** Companion/yes_tune/clever_music/
+   bowden/henrys encode pitch as `(octave<<4) | semitone` (high nibble
+   = octave, low nibble = semitone, 12 semitones per octave). Hubbard
+   '85 encodes pitch as absolute semis (`semis = note + 12*octave`,
+   running 0..95). The musical content is identical; only the byte
+   layout differs. The composer's "musical events" layer should
+   normalize to one representation (probably absolute semis since it's
+   cleaner) and the encoder layer chooses the byte format.
+
+2. **Freq table is engine mechanism, not USF content.** The 128-entry
+   musical table is essentially identical across all engines (same
+   12-TET frequencies for the SID's freq registers). The 64-byte
+   "engine state overlap region" Hubbard uses is purely engine
+   mechanism. The companion-strain "256-byte freq table" inlining in
+   USFs today is data that should arguably live in the engine model,
+   not the USF — but moving it is out of scope for this rewrite
+   (which targets engine-model architecture, not USF format).
+
+3. **`InitVoice.ctrl` is the per-voice ctrl byte** for companion (the
+   `ctrl_noGate` in its template). Every other shape derives ctrl from
+   `instrument.waveform[0]`. The composer needs both modes available
+   under one model — probably as a per-voice "ctrl source" feature
+   (instrument-derived vs init-voice-derived).
+
+4. **The terminator byte vocabulary varies.** Same byte means
+   different things across shapes (`$81` is skip in bowden/henrys but
+   stop-voice in yes_tune; `$8D` is end-song in companion but unused
+   elsewhere). The engine model needs to express "what bytes are
+   terminators and what each means" as a per-engine parameter, not
+   assume a canonical mapping.
+
+5. **5_Title_Tunes compound** is genuinely structural — a PSID with
+   5 packed sub-engines + dispatcher. The engine model needs to
+   represent this as a top-level construct ("a single SID can hold
+   N independent engine instances + a dispatcher"). Not just a "Hubbard
+   '85 feature."
+
+6. **Hubbard '85's `_Inputs` dataclass is the closest thing to an
+   engine model we have today.** It's a feature bag the parametric
+   ENGINE asm reads via xa65 equates + sentinel substitutions. The
+   engine model design in Phase 2 should plausibly start by
+   generalizing `_Inputs` — strip its Hubbard-specific assumptions
+   and add the cross-shape features the audit surfaced.
 
 ### Phase 2 — Engine-model design
 
