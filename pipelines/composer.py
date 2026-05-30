@@ -1420,6 +1420,205 @@ def _emit_hubbard_proc_voice() -> str:
     return _HUBBARD_PROC_VOICE_ASM
 
 
+_HUBBARD_INIT_SFX_ASM = """; init_sfx - set up sound effect sfx_idx. Builds the record pointer,
+; patches the live freq-table bytes the sweep overflows into, and
+; resets the sweep state.
+init_sfx:
+        lda #$00
+        sta sfx_rec+1
+        lda sfx_idx
+        asl
+        rol sfx_rec+1
+        asl
+        rol sfx_rec+1
+        asl
+        rol sfx_rec+1
+        asl
+        rol sfx_rec+1
+        asl
+        rol sfx_rec+1        ; sfx_idx*32 - A is the low byte
+        clc
+        adc #<sfxdata
+        sta sfx_rec
+        lda sfx_rec+1
+        adc #>sfxdata
+        sta sfx_rec+1
+        lda #$80
+        sta freqtab+241      ; the sweep reads $5519 here - mode byte $80
+        lda sfx_idx
+        sta freqtab+255      ; $5527 - the SFX index
+        lda #$ff
+        sta freqtab+256      ; $5528 - drum_enable
+        ldy #14
+        lda (sfx_rec),y      ; record 14 - sweep start index
+        sta sfx_index
+        lda #$00
+        sta sfx_stepctr
+        sta sfx_done
+        sta sfx_started
+        ldy #4
+        lda (sfx_rec),y      ; record 4 - V1 ctrl, the live V1 gate
+        sta sfx_v1gate
+        ldy #11
+        lda (sfx_rec),y      ; record 11 - V2 ctrl, the live V2 gate
+        sta sfx_v2gate
+        ldx #$18
+isfxclr: lda #$00
+        sta $d400,x
+        dex
+        bpl isfxclr
+        lda #$0f
+        sta $d418
+        rts"""
+
+
+def _emit_hubbard_init_sfx() -> str:
+    """init_sfx routine — SFX dispatch entry.
+
+    Computes the 32-byte SFX record address (`sfxdata + sfx_idx*32`),
+    seeds the Commando-shape SFX state mirror at freqtab+241/+255/+256
+    (Monty + One Man and his Droid relocate this via
+    `_apply_sfx_state_in_freqtab`), captures the live V1/V2 ctrl
+    gates, clears the SID, and writes $0F to $D418.
+
+    Contains the literal 9-line SFX-state-seed block that
+    `_apply_sfx_state_in_freqtab` text-replaces for engines whose
+    SFX state lives at a different freq-table offset.
+    """
+    return _HUBBARD_INIT_SFX_ASM
+
+
+_HUBBARD_SFX_PLAY_ASM = """; sfx_play - one frame of the sound-effect engine. The first frame
+; gates the voices off and writes the 14-byte register snapshot;
+; thereafter it steps the freq-table sweep.
+sfx_play:
+        lda sfx_started
+        bne sfxp_run
+        lda #$01
+        sta sfx_started
+        lda #$00
+        sta $d404            ; play-path clear - gate V1,V2,V3 off
+        sta $d40b
+        sta $d412
+        sta $d404            ; the trigger gates V1,V2 again
+        sta $d40b
+        ldy #$00
+sfxp_cpy: lda (sfx_rec),y    ; records 0..13 - V1+V2 register snapshot
+        sta $d400,y
+        iny
+        cpy #$0e
+        bne sfxp_cpy
+sfxp_run:
+        lda sfx_done
+        bne sfxp_ret
+        dec sfx_stepctr
+        bpl sfxp_ret
+        ldy #16
+        lda (sfx_rec),y      ; record 16 - step rate
+        sta sfx_stepctr
+        jsr sfx_step
+sfxp_ret:
+        rts"""
+
+
+def _emit_hubbard_sfx_play() -> str:
+    """sfx_play routine — per-frame SFX driver.
+
+    On the first frame, gates V1/V2/V3 off then writes the 14-byte
+    V1+V2 register snapshot from the SFX record. On subsequent
+    frames, advances the step counter and invokes sfx_step when it
+    rolls over to drive the pitch sweep.
+    """
+    return _HUBBARD_SFX_PLAY_ASM
+
+
+_HUBBARD_SFX_STEP_ASM = """; sfx_step - one sweep step. Writes V1/V2 freq from the freq table and
+; advances the index; ends the SFX when the index reaches the end.
+sfx_step:
+        ldy #15
+        lda (sfx_rec),y      ; record 15 - end index
+        cmp sfx_index
+        bne sfxs_go
+        lda #$00             ; reached the end - gate off, done
+        sta $d404
+        sta $d40b
+        lda #$01
+        sta sfx_done
+        rts
+sfxs_go:
+        lda sfx_index
+        asl
+        sta sfx_y            ; sfx_y = (index*2) & $FF
+        ldy #17
+        lda (sfx_rec),y      ; record 17 - flags
+        sta sfx_flags
+        and #$04
+        bne sfxs_gates       ; bit2 - skip both freq writes
+        lda sfx_flags
+        and #$02
+        bne sfxs_v2          ; bit1 - skip the V1 freq write
+        ldy sfx_y
+        lda freqtab,y
+        sta $d400
+        lda freqtab+1,y
+        sta $d401
+sfxs_v2:
+        ldy #18
+        lda (sfx_rec),y      ; record 18 - V2 byte offset
+        sta sfx_tmp
+        lda sfx_y
+        sec
+        sbc sfx_tmp
+        tay                  ; Y = (sfx_y - v2offset) & $FF
+        lda freqtab,y
+        sta $d407
+        lda freqtab+1,y
+        sta $d408
+sfxs_gates:
+        ldy #19
+        lda (sfx_rec),y      ; record 19 - gate-toggle flags
+        sta sfx_tmp
+        and #$80
+        beq sfxs_g2          ; bit7 - retrigger the V1 gate
+        lda sfx_v1gate
+        eor #$01
+        sta sfx_v1gate
+        sta $d404
+sfxs_g2:
+        lda sfx_tmp
+        and #$40
+        beq sfxs_adv         ; bit6 - retrigger the V2 gate
+        lda sfx_v2gate
+        eor #$01
+        sta sfx_v2gate
+        sta $d40b
+sfxs_adv:
+        lda sfx_flags
+        and #$01
+        beq sfxs_down        ; bit0 - 1 sweeps up, 0 sweeps down
+        inc sfx_index
+        rts
+sfxs_down:
+        dec sfx_index
+        rts"""
+
+
+def _emit_hubbard_sfx_step() -> str:
+    """sfx_step routine — one pitch-sweep step.
+
+    Reads V1+V2 freq from the freq table at the current sweep index
+    (overflowing into engine-state-mirror bytes for off-table
+    sweeps), retriggers V1/V2 gates per the per-step flags, and
+    advances the sweep index up or down. When the index reaches the
+    end marker, gates V1/V2 off and marks `sfx_done`.
+
+    Contains the literal 3-line `flags` read that
+    `_apply_sfx_state_in_freqtab` text-replaces for engines that
+    mirror the post-update sweep index to a freq-table-offset slot.
+    """
+    return _HUBBARD_SFX_STEP_ASM
+
+
 def _emit_hubbard_pattern_pool(pat_bytes: list[bytes],
                                  codec_extra: str | None) -> list[str]:
     """Pattern pool — `pat0`, `pat1`, ... per unique pattern, plus the

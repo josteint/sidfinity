@@ -1315,11 +1315,46 @@ lives in composer.py constants.
 
 Verified: Hubbard 71/71 byte-exact.
 
-#### Phase 8.14+ — Remaining ENGINE chunks (future sessions)
+#### Phase 8.14 — SFX sub-engine: init_sfx + sfx_play + sfx_step
+
+Same pattern. The three SFX-engine routines move out of the ENGINE
+template into composer.py constants. With these out, every labelled
+asm routine in the ENGINE template has migrated; the template
+itself is now just zp/equate declarations, the entry stub, the
+codec slot, the sentinels, the sfx-section banner, and the
+`sidtab` byte.
+
+- [x] `_emit_hubbard_init_sfx()` → `_HUBBARD_INIT_SFX_ASM`. The
+      ~48-line SFX entry: computes `sfxdata + sfx_idx*32`, seeds
+      the Commando-shape SFX-state mirror at freqtab+241/+255/+256,
+      captures live V1/V2 ctrl gates, clears the SID, writes $0F to
+      $D418. Contains the literal 9-line SFX-state-seed block that
+      `_apply_sfx_state_in_freqtab` text-replaces for Monty + One
+      Man and his Droid.
+- [x] `_emit_hubbard_sfx_play()` → `_HUBBARD_SFX_PLAY_ASM`. The
+      ~30-line per-frame SFX driver: first-frame V1+V2 register
+      snapshot, then step-counter advance + sfx_step dispatch.
+- [x] `_emit_hubbard_sfx_step()` → `_HUBBARD_SFX_STEP_ASM`. The
+      ~65-line pitch-sweep stepper: V1/V2 freq read (off-table
+      overrun reads engine state), per-step gate retriggers,
+      sweep-direction advance, end-marker detection. Contains the
+      literal 3-line flags-read block that
+      `_apply_sfx_state_in_freqtab` text-replaces for engines that
+      mirror the post-update sweep index.
+
+composer_hubbard.py:
+- ENGINE template's init_sfx block (~48 lines) → `; %%INIT_SFX%%`
+- ENGINE template's sfx_play block (~30 lines) → `; %%SFX_PLAY%%`
+- ENGINE template's sfx_step block (~65 lines) → `; %%SFX_STEP%%`
+- Substitutions run BEFORE `_apply_sfx_state_in_freqtab` so its
+  literal text-replace targets find their host bodies.
+
+composer.py now owns 41 Hubbard '85 feature emitters. Hubbard 71/71
+byte-exact.
+
+#### Phase 8.15+ — Remaining ENGINE chunks (future sessions)
 
 Following the same pattern:
-- init / play / proc_voice (the engine framework)
-- SFX sub-engine asm (`init_sfx`, `sfx_play`, `sfx_step`)
 - Digi region builder (Chimera dispatcher + 1-bit player + sample
   packs) — `_build_digi_region` + `_emit_combined_sid` in
   composer_hubbard.
