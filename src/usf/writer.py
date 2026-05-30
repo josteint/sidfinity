@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from src.usf.types import (
     UsfFile, PsidMeta, Params, InitVoice, InitState,
+    InitSid, InitSidVoice, InitFilter,
     Instrument, PwmConfig, ArpConfig, VibratoConfig, EnvelopeConfig,
     MusicSubtune, DigiSubtune, SfxSubtune,
     VoiceBlock, Orderlist, Pattern, NoteRow, Pitch, InstrumentRef,
@@ -104,8 +105,40 @@ def _write_init_voice(v: InitVoice) -> str:
     return f'  voice {v.id} {{ ' + '  '.join(parts) + ' }'
 
 
+def _write_init_sid_voice(v: InitSidVoice) -> str:
+    parts = []
+    if v.envelope_prime is not None:
+        ad, sr = v.envelope_prime
+        parts.append(f'envelope_prime: ({_hex(ad)}, {_hex(sr)})')
+    if v.pw_init is not None:
+        parts.append(f'pw_init: {_hex(v.pw_init, 4)}')
+    return f'    voice {v.id} {{ ' + '  '.join(parts) + ' }'
+
+
+def _write_init_sid(sid: InitSid) -> list[str]:
+    lines = ['  sid {']
+    if sid.master_vol is not None:
+        lines.append(f'    master_vol: {_hex(sid.master_vol)}')
+    if sid.filter is not None:
+        f = sid.filter
+        parts = []
+        if f.cutoff_lo:
+            parts.append(f'cutoff_lo: {_hex(f.cutoff_lo)}')
+        if f.cutoff_hi:
+            parts.append(f'cutoff_hi: {_hex(f.cutoff_hi)}')
+        if f.res_routing:
+            parts.append(f'res_routing: {_hex(f.res_routing)}')
+        lines.append('    filter { ' + '  '.join(parts) + ' }')
+    for v in sorted(sid.voices, key=lambda x: x.id):
+        lines.append(_write_init_sid_voice(v))
+    lines.append('  }')
+    return lines
+
+
 def _write_init(state: InitState) -> list[str]:
     lines = ['init {']
+    if state.sid is not None:
+        lines.extend(_write_init_sid(state.sid))
     for v in sorted(state.voices, key=lambda x: x.id):
         lines.append(_write_init_voice(v))
     lines.append('}')

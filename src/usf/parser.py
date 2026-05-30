@@ -13,6 +13,7 @@ from lark.exceptions import LarkError
 
 from src.usf.types import (
     UsfFile, PsidMeta, Params, InitVoice, InitState,
+    InitSid, InitSidVoice, InitFilter,
     Instrument, PwmConfig, ArpConfig, VibratoConfig, EnvelopeConfig,
     MusicSubtune, DigiSubtune, SfxSubtune,
     VoiceBlock, Orderlist, Pattern, NoteRow, Pitch, InstrumentRef,
@@ -156,8 +157,53 @@ class _T(Transformer):
             setattr(v, k, val)
         return v
 
+    def init_inner(self, items):
+        # Either an InitVoice (engine-state priming) or InitSid
+        # (SID-chip priming). Returned unchanged; init_block sorts.
+        return items[0]
+
     def init_block(self, items):
-        return InitState(voices=list(items))
+        voices = [it for it in items if isinstance(it, InitVoice)]
+        sids = [it for it in items if isinstance(it, InitSid)]
+        if len(sids) > 1:
+            raise UsfParseError('init { sid { ... } } can appear at most once')
+        return InitState(voices=voices, sid=sids[0] if sids else None)
+
+    # ----- init.sid -----
+    def ifilt_lo(self, items):  return ('cutoff_lo', items[0])
+    def ifilt_hi(self, items):  return ('cutoff_hi', items[0])
+    def ifilt_res(self, items): return ('res_routing', items[0])
+
+    def isid_master_vol(self, items):
+        return ('master_vol', items[0])
+
+    def isid_filter(self, items):
+        f = InitFilter()
+        for k, v in items:
+            setattr(f, k, v)
+        return ('filter', f)
+
+    def isidv_env(self, items):
+        return ('envelope_prime', (items[0], items[1]))
+
+    def isidv_pw(self, items):
+        return ('pw_init', items[0])
+
+    def isid_voice(self, items):
+        voice_id = int(items[0])
+        v = InitSidVoice(id=voice_id)
+        for k, val in items[1:]:
+            setattr(v, k, val)
+        return ('voice', v)
+
+    def init_sid_block(self, items):
+        sid = InitSid()
+        for k, val in items:
+            if k == 'voice':
+                sid.voices.append(val)
+            else:
+                setattr(sid, k, val)
+        return sid
 
     # ----- instruments -----
     def instrument_name(self, items):

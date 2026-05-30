@@ -25,16 +25,35 @@ param_value: signed_int      -> param_number
            | bool            -> param_bool
 
 // ----- init -----
-// `init_voice*` (zero or more): engines whose per-voice init state
-// is fully derivable from engine-constant data (e.g. Hubbard '85's
-// freq-table overlap region) emit an empty `init { }` block. Engines
-// with per-tune state still emit one init_voice per voice.
-init_block: "init" "{" init_voice* "}"
+// `init_inner*`: each entry is either an init_voice (engine-state
+// priming — per-voice runtime state the play loop reads on tick 1)
+// OR an init_sid_block (SID-chip priming — master_vol, filter,
+// per-voice envelope_prime / pw_init). See docs/sid_init_report.md
+// for the trichotomy. Both are optional; an empty `init { }` block
+// means "no overrides, use composer defaults."
+init_block: "init" "{" init_inner* "}"
+init_inner: init_voice | init_sid_block
+
 init_voice: "voice" INT "{" init_field+ "}"
 init_field: CNAME ":" init_value
 init_value: number           -> init_number
           | CNAME            -> init_keyword
           | instr_ref        -> init_instr
+
+// ----- init.sid (optional) -----
+// SID-chip priming the engine performs during init. The composer's
+// universal init reads these and emits the corresponding SID writes
+// after the silence-clear reset. All sub-fields are optional;
+// missing fields mean "don't prime that slot."
+init_sid_block: "sid" "{" init_sid_field* "}"
+init_sid_field: "master_vol" ":" number                       -> isid_master_vol
+              | "filter" "{" init_filter_field+ "}"           -> isid_filter
+              | "voice" INT "{" isid_voice_field+ "}"         -> isid_voice
+init_filter_field: "cutoff_lo" ":" number      -> ifilt_lo
+                 | "cutoff_hi" ":" number      -> ifilt_hi
+                 | "res_routing" ":" number    -> ifilt_res
+isid_voice_field: "envelope_prime" ":" "(" number "," number ")"  -> isidv_env
+                | "pw_init" ":" number                              -> isidv_pw
 
 // ----- freq table (optional) -----
 // Per-tune freq table bytes. The codegen places them at the canonical

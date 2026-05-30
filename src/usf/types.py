@@ -253,9 +253,60 @@ class InitVoice:
     slide_v: int = 0
 
 
+# ---------------------------------------------------------------------------
+# SID-chip priming — `init.sid { ... }` block
+# ---------------------------------------------------------------------------
+# Per `docs/sid_init_report.md` (reset / priming / environment trichotomy):
+# these fields capture the chip-state priming the engine performs during
+# init, distinct from the engine's runtime voice_state (above). The
+# composer's universal init reads these and emits the corresponding SID
+# writes; default values mean "don't prime."
+
+@dataclass
+class InitFilter:
+    """Filter priming. Composer writes $D415/$D416/$D417 when at least
+    one field is non-default.
+    """
+    cutoff_lo: int = 0
+    cutoff_hi: int = 0
+    res_routing: int = 0
+
+
+@dataclass
+class InitSidVoice:
+    """Per-voice SID-chip priming the engine performs at init time
+    independent of any instrument-bound note.
+
+    `envelope_prime`: writes (ad, sr) to $D405/$D406 (V1), $D40C/$D40D
+    (V2), or $D413/$D414 (V3). Bowden's hardcoded V1/V2 AD/SR primes
+    live here (`($09, $00)`).
+
+    `pw_init`: writes (lo, hi) to $D402/$D403 (V1), $D409/$D40A (V2),
+    or $D410/$D411 (V3). For raw-register pulse-width priming
+    independent of any instrument's `pwm.init`.
+
+    Fields are `None` = "don't prime this slot."
+    """
+    id: int
+    envelope_prime: Optional[tuple] = None  # (ad, sr) or None
+    pw_init: Optional[int] = None           # 16-bit pulse-width or None
+
+
+@dataclass
+class InitSid:
+    """SID-chip priming. The composer's universal init reads this and
+    emits the writes after the silence-clear reset. Default = no
+    priming (composer emits only the universal reset baseline).
+    """
+    master_vol: Optional[int] = None        # None = composer default ($0F)
+    filter: Optional[InitFilter] = None
+    voices: list = field(default_factory=list)  # list[InitSidVoice]
+
+
 @dataclass
 class InitState:
     voices: list[InitVoice] = field(default_factory=list)
+    sid: Optional[InitSid] = None           # SID-chip priming (new schema)
 
 
 @dataclass
