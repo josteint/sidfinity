@@ -1,19 +1,15 @@
 """USF → SID public entry point.
 
-Two codegens live side by side during the composer rewrite (see
-`docs/composer_rewrite_plan.md`):
+Single dispatch: `pipelines.composer.emit_sid_from_usf` owns the build
+path. The composer reads the USF, builds an EngineModel from features,
+and emits asm per the model's feature combination. No engine identity
+anywhere in the build path.
 
-1. **`pipelines.composer`** — the engine-model-driven composer. Each
-   feature on the model has an emitter; the composer produces asm for
-   the feature combination the USF declares. No shape selection. As
-   phases land, more features land and the composer absorbs more USFs.
-2. **`pipelines.universal_codegen`** — the legacy shape dispatcher.
-   Handles USFs whose features the composer doesn't yet emit.
-
-Dispatch: try the composer first via `composer.emit_sid_from_usf`;
-fall back to the legacy path on the `NotImplementedError` the composer
-raises for unsupported features. Both paths are USF-content-routed.
-The composer wins back territory phase by phase.
+Today the composer's hubbard85 branch delegates to the lifted
+parametric core in `pipelines.universal_codegen` for the bitpack codec
++ full modulation pipeline + SFX/digi sub-engines. Future phases
+(see `docs/composer_rewrite_plan.md`) decompose those into composer
+feature emitters one feature at a time.
 """
 
 from __future__ import annotations
@@ -21,7 +17,7 @@ from __future__ import annotations
 import os
 
 from src.usf import parse_file, validate
-from pipelines import universal_codegen, composer
+from pipelines import composer
 
 
 def build_from_usf(usf_path: str, out_path: str, codec=None) -> str:
@@ -30,14 +26,7 @@ def build_from_usf(usf_path: str, out_path: str, codec=None) -> str:
     usf_dir = os.path.dirname(os.path.abspath(usf_path))
     validate(usf, usf_dir=usf_dir)
 
-    # Try the composer first. It raises NotImplementedError for USFs
-    # whose features it doesn't yet emit — fall through to the legacy
-    # path in that case.
-    try:
-        sid_bytes = composer.emit_sid_from_usf(usf)
-    except NotImplementedError:
-        sid_bytes = universal_codegen.emit_sid(usf, usf_dir=usf_dir)
-
+    sid_bytes = composer.emit_sid_from_usf(usf, usf_dir=usf_dir)
     with open(out_path, 'wb') as f:
         f.write(sid_bytes)
 

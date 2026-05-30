@@ -907,36 +907,61 @@ The composer now owns ALL five companion-strain shapes:
 
 ### Phase 8 — Absorb Hubbard '85
 
-The largest phase. The Hubbard '85 parametric core is already
-feature-bag-ish (`_Inputs` is essentially a feature config); the work
-is **translating** it into the engine-model representation.
+The largest phase. Split into sub-phases. The Hubbard '85 parametric
+core (`_hubbard_emit_sid` + ENGINE asm + `_Inputs` + `_emit_data`) is
+~1900 lines, already feature-bag-ish via `_Inputs`. The work is
+**translating** it into composer feature emitters that read from
+EngineModel directly.
 
-- [ ] Vibrato LFO feature.
-- [ ] PWM linear feature.
-- [ ] PWM bidirectional feature.
-- [ ] Multi-step arpeggio feature (including off-table via state_layout).
-- [ ] Freq-hi slide (skydive) feature.
-- [ ] Inc_by2 odd-frame slide feature (with optional late-gate variant).
-- [ ] Drum-slide (per-note portamento) feature.
-- [ ] Multi-pattern orderlist dispatch (`$FE`/`$FF` terminators).
-- [ ] Pitch-byte off-table arpeggio (via state_layout mirror).
-- [ ] Hard-restart writes (gate-off + ad=0 + sr=0).
-- [ ] Drum-priority gate (first-note suppression).
-- [ ] No-release flag.
-- [ ] Tie + drum_trig per-note effects.
-- [ ] Master vol fade-progressive feature.
-- [ ] Per-subtune mechanism overrides (5_Title_Tunes — per-sub
-      speed_ctr_init / incby2_step / incby2_late_gate / ovseed).
-- [ ] Stop-fill terminator behavior.
+#### Phase 8.0 — Composer dispatch (this session)
+
+- [x] Composer detects hubbard85 USFs by content features (rich
+      modulation, multi-pattern orderlists, SFX, digi, state_layout).
+- [x] Composer's `emit_sid_from_usf` delegates to
+      `universal_codegen._emit_hubbard85_bytes` for hubbard85.
+- [x] `build_from_usf` calls composer as single entry; no legacy
+      fallback path.
+- [x] Verify 71/71 + 5 companion-strain shapes preserved.
+
+**Outcome:** composer is the single entry point. Hubbard 71/71
+unchanged (same code runs via delegation). Future sub-phases
+decompose the ENGINE asm + helpers into composer feature emitters
+incrementally.
+
+#### Phase 8.1+ — Per-feature decomposition (future sessions)
+
+Each Hubbard '85 feature gets translated into a composer-style
+emitter parametric on EngineModel features. One feature per session
+(or several when independent), byte-exact-regression at every step.
+
+- [ ] Vibrato LFO emitter (`_emit_vibrato_asm` or per-instrument).
+- [ ] PWM linear emitter.
+- [ ] PWM bidirectional emitter.
+- [ ] Multi-step arpeggio emitter (including off-table via state_layout).
+- [ ] Freq-hi slide (skydive) emitter.
+- [ ] Inc_by2 odd-frame slide emitter (with optional late-gate variant).
+- [ ] Drum-slide (per-note portamento) emitter.
+- [ ] Multi-pattern orderlist dispatch emitter (`$FE`/`$FF`).
+- [ ] Pitch-byte off-table arpeggio emitter (state_layout mirror).
+- [ ] Hard-restart writes emitter (gate-off + ad=0 + sr=0).
+- [ ] Drum-priority gate emitter (first-note suppression).
+- [ ] No-release flag emitter.
+- [ ] Tie + drum_trig per-note effects emitters.
+- [ ] Master vol fade-progressive emitter.
+- [ ] Per-subtune mechanism overrides (5_Title_Tunes per-sub state).
+- [ ] Stop-fill terminator emitter.
 - [ ] Frame-ctr-init seeding.
 - [ ] CIA1 timer programming.
-- [ ] SFX sub-engine.
-- [ ] Digi region builder (Chimera).
-- [ ] Express each of the 11 Hubbard engines as a feature config.
-      Verify 71/71 byte-exact preserved. Commit per engine.
-- [ ] Delete the `hubbard85` shape emitter + `_hubbard_emit_sid` +
-      ENGINE asm template + `_Inputs` + all the now-obsolete adapter
-      code. Commit.
+- [ ] SFX sub-engine emitters.
+- [ ] Digi region builder (Chimera) emitter.
+- [ ] Compound build emitter (5_Title_Tunes packed sub-engines).
+- [ ] When all features are composer-native: express each of the 11
+      Hubbard engines as a feature config. Verify 71/71 byte-exact
+      preserved at each step.
+- [ ] Delete the lifted parametric core: `_hubbard_emit_sid`, ENGINE
+      asm template, `_Inputs`, `_emit_data`, `_inputs_from_usf`,
+      `_emit_combined_sid`, `_build_digi_region`, all the adapter
+      helpers, `StatebufSlot`/`StatebufLayout`. Commit.
 
 ### Phase 9 — Cleanup
 

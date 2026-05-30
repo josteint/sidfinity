@@ -92,6 +92,54 @@ _SUPPORTED_EMBEDDED_COMMANDS = {
 }
 
 
+def _needs_hubbard85_path(usf, model: EngineModel) -> bool:
+    """Return True iff the USF carries features the simpler composer
+    emitters can't produce — currently routed through the lifted
+    Hubbard '85 parametric core in `universal_codegen.py`.
+
+    Content signals (each independent — composer reads which features
+    the music uses, not which engine produced it):
+      * any instrument has a per-frame modulation program (vibrato,
+        PWM modes, multi-step arpeggio, freq-hi slide, odd-frame slide,
+        per-note portamento)
+      * any voice references multiple patterns through its orderlist
+        (composer's simpler shapes only handle a single pattern per
+        voice)
+      * the USF carries SFX or digi subtunes
+      * the USF carries a `state_layout` block (off-table arpeggio
+        state mirror)
+
+    A USF that doesn't trip any of these uses the composer's
+    feature-emitter chain directly.
+    """
+    # Per-instrument modulation programs
+    for inst in model.instruments:
+        if (inst.vibrato or inst.pwm_linear or inst.pwm_bidirectional
+                or inst.arpeggio or inst.freq_hi_slide
+                or inst.odd_frame_slide or inst.per_note_portamento):
+            return True
+    # Multi-pattern orderlists
+    from src.usf import MusicSubtune
+    for s in usf.subtunes:
+        if not isinstance(s, MusicSubtune):
+            continue
+        for v in s.voices:
+            entries = v.orderlist.entries
+            if len(entries) > 1 or any(e != 1 for e in entries):
+                return True
+            for p in v.patterns:
+                if p.id != 1:
+                    return True
+    # SFX / digi / state_layout — model carries them as Optional features
+    if model.sfx is not None:
+        return True
+    if model.digi is not None:
+        return True
+    if model.state_layout is not None:
+        return True
+    return False
+
+
 def can_handle(model: EngineModel) -> bool:
     """Does the composer have emitters for every feature in this model?"""
     if model.pattern.encoding not in _SUPPORTED_PATTERN_ENCODINGS:
@@ -1813,9 +1861,27 @@ def _psid_header(model: EngineModel, n_subtunes: int, load: int) -> bytes:
 # then composes asm via emit_asm.
 # ---------------------------------------------------------------------------
 
-def emit_sid_from_usf(usf) -> bytes:
+def emit_sid_from_usf(usf, usf_dir: str | None = None) -> bytes:
     from pipelines.engine_model import from_usf
     model = from_usf(usf)
+
+    # Hubbard '85 dispatch: the bitpack codec + full modulation pipeline
+    # + SFX/digi sub-engines are large enough that they're currently
+    # served by the lifted parametric core in `universal_codegen.py`
+    # (`_emit_hubbard85_bytes`). The composer detects hubbard85 USFs by
+    # USF content (rich instrument modulation, multi-pattern orderlists,
+    # SFX subtunes, state_layout block — all features the simpler
+    # composer emitters can't produce) and delegates.
+    #
+    # Future phases (8.1+) will decompose the Hubbard '85 ENGINE asm
+    # into per-feature composer emitters parametric on EngineModel
+    # features — one feature at a time, byte-exact-regression at each
+    # step. For now: composer is the single entry; the implementation
+    # for hubbard85 still lives in universal_codegen.py.
+    if _needs_hubbard85_path(usf, model):
+        from pipelines.universal_codegen import _emit_hubbard85_bytes
+        return _emit_hubbard85_bytes(usf, usf_dir)
+
     if not can_handle(model):
         raise NotImplementedError(
             'composer cannot handle this USF yet — fall through to legacy')
