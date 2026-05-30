@@ -1583,24 +1583,55 @@ Hubbard '85 logic now lives in composer.py.
 Verified: Hubbard 71/71 byte-exact. unified_inputs.py imports
 correctly through the new module path.
 
-#### Phase 8.21+ — Finish the dissolution
+#### Phase 8.21 — Finish the dissolution; delete composer_hubbard.py
 
-- [ ] codec.note_asm migration — push `; %%VOL_PROGRESS_INC%%` /
-      `; %%MASTER_VOL_*%%` / `; %%CLEAR_DRUMTRIG_*%%` resolution
-      down into the codec emitter (or into a composer-side
-      per-feature emitter that composes the codec output). Once
-      done, `_emit_master_vol_fade` and `_emit_clear_drumtrig`
-      become no-op wrappers and the last outer text-replace
-      passes disappear from `_hubbard_emit_sid`.
-- [ ] `_hubbard_emit_sid` move into composer.py — once the outer
-      passes are gone it's just composer call + xa65 + PSID header,
-      no orchestration left.
-- [ ] `_emit_combined_sid` + `_emit_hubbard85_bytes` move into
-      composer.py — pending `_hubbard_emit_sid`'s move (they're
-      coupled).
-- [ ] At that point composer_hubbard.py is deletable; the Hubbard '85
-      family lives in composer.py as feature-driven asm composition,
-      the same shape the companion engines already use.
+The five remaining outer text-replaces (the three master_vol_fade
+sentinels + two tie_preserves_slide sentinels — all in
+`codec.note_asm`) are now resolved at composition time by a new
+`_resolve_codec_note_asm(codec, inputs)` helper in composer.py;
+`_compose_hubbard_engine_asm` returns FULLY-RESOLVED asm. With the
+last outer passes gone, the three orchestrators collapse into
+composer.py and `composer_hubbard.py` is deleted.
+
+- [x] `_resolve_codec_note_asm(codec, inputs)` — builds the
+      `FadeProgressive` from `_Inputs.master_vol_*`, runs
+      `_emit_master_vol_fade` + `_emit_clear_drumtrig` against
+      `codec.note_asm`, returns the resolved decoder asm.
+- [x] `_compose_hubbard_engine_asm` calls `_resolve_codec_note_asm`
+      directly. The function now returns fully-resolved asm with no
+      sentinels left.
+- [x] `_hubbard_emit_sid` moved into composer.py. With the outer
+      passes gone, it's pure orchestration: `_pattern_pool` →
+      `_compose_hubbard_engine_asm` → xa65 → PSID header (~30 lines).
+      Uses module-level `_XA` and `LOAD` constants already in
+      composer.py.
+- [x] `_emit_combined_sid` moved into composer.py. Calls
+      `_hubbard_emit_sid` + `_build_digi_region` (both already in
+      composer); no longer needs the lazy import.
+- [x] `_emit_hubbard85_bytes` moved into composer.py. The dispatch
+      entry point: USF → `_inputs_from_usf` → music-only or
+      combined build. composer.py's `emit_sid_from_usf` calls it
+      directly now (no more lazy import from composer_hubbard).
+- [x] `composer_hubbard.py` DELETED (was ~350 lines).
+- [x] Updated `unified_inputs.py` to import `_hubbard_emit_sid` from
+      `pipelines.composer` directly.
+
+The Hubbard '85 family now lives entirely in `pipelines/composer.py`
+as feature-driven asm composition — the same shape the companion
+engines already use. composer.py is ~5,000 lines; from a top-level
+USF the path is `build_from_usf` → `composer.emit_sid_from_usf` →
+`_emit_hubbard85_bytes` → `_inputs_from_usf` →
+`_hubbard_emit_sid` → `_compose_hubbard_engine_asm` →
+{chunk emitters + `_resolve_codec_note_asm` + `_emit_hubbard_data`}
+→ xa65 → PSID. No template substitution anywhere; every per-engine
+knob is a typed argument threaded through the composition layer.
+
+Verified: Hubbard 71/71 byte-exact + `unified_inputs.py` still
+imports correctly through the new module path.
+
+#### What's next (post-dissolution)
+
+The mechanical decomposition is complete. The next horizons:
 
 - [ ] Vibrato LFO emitter (`_emit_vibrato_asm` or per-instrument).
 - [ ] PWM linear emitter.

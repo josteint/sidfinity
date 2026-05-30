@@ -2040,6 +2040,34 @@ def _emit_hubbard_data(scores, models, freq_bytes, resetspds, voice_starts,
     return '\n'.join(lines)
 
 
+def _resolve_codec_note_asm(codec, inputs) -> str:
+    """Resolve the codec's note_asm sentinels from `_Inputs`.
+
+    The codec emits its decoder as a class-level `note_asm` string
+    that carries five `; %%<SENTINEL>%%` placeholders — three for
+    the master-vol fade ($D418 write on instrument-change /
+    every-note, and the peek-ahead vol_progress INC at last note of
+    pattern) and two for tie_preserves_slide's drum-trig clear
+    position. The codec itself doesn't know about these features —
+    they're engine-level concerns — so the composer resolves them
+    here when composing the engine asm.
+    """
+    asm = codec.note_asm
+    fade = (
+        FadeProgressive(
+            subtrahend_voice_idx=inputs.master_vol_subtrahend_voice,
+            base=inputs.master_vol_base,
+            trigger=inputs.master_vol_trigger,
+        )
+        if inputs.master_vol_subtrahend_voice is not None else None)
+    for sentinel, fragment in _emit_master_vol_fade(fade).items():
+        asm = asm.replace(sentinel, fragment)
+    for sentinel, fragment in _emit_clear_drumtrig(
+            inputs.tie_preserves_slide).items():
+        asm = asm.replace(sentinel, fragment)
+    return asm
+
+
 def _compose_hubbard_engine_asm(inputs, codec, pat_slot, pat_bytes,
                                 codec_extra, load_addr: int = LOAD) -> str:
     """Compose the full Hubbard '85 engine asm — equates + codec zp +
@@ -2047,15 +2075,13 @@ def _compose_hubbard_engine_asm(inputs, codec, pat_slot, pat_bytes,
 
     This is the composer-native replacement for the template +
     `_emit_data` pipeline that lived in
-    `composer_hubbard._hubbard_emit_sid`. Returns asm text that may
-    still contain un-resolved sentinels / text-replace targets for
-    the cross-chunk passes that haven't migrated yet — the caller
-    runs them on the result.
+    `composer_hubbard._hubbard_emit_sid`. Returns FULLY-RESOLVED asm
+    ready for xa65 — every sentinel and text-replace target is
+    resolved by either the chunk emitters or `_resolve_codec_note_asm`.
 
     Per-engine variation is threaded into the body via explicit
-    parameters drawn from `_Inputs` — composer.py no longer needs an
-    outer text-replace for the four single-chunk substitutions
-    (sfx_framectr, arp_phase_invert, ns_offtab_decr, load_addr).
+    parameters drawn from `_Inputs`; the codec's note_asm sentinels
+    are resolved by `_resolve_codec_note_asm` from the same `_Inputs`.
     """
     uses_psp = (
         inputs.per_subtune_speed_ctr_init is not None
@@ -2087,7 +2113,7 @@ def _compose_hubbard_engine_asm(inputs, codec, pat_slot, pat_bytes,
         _emit_hubbard_asm_equates(inputs, codec)
         + codec.zp_asm + '\n'
         + body + '\n'
-        + codec.note_asm + '\n'
+        + _resolve_codec_note_asm(codec, inputs) + '\n'
         + data + '\n'
     )
 
@@ -2595,6 +2621,189 @@ def _inputs_from_usf(usf) -> _Inputs:
     )
 
 
+# ---------------------------------------------------------------------------
+# Hubbard '85 build dispatch — top-level entry that goes from a USF to
+# the PSID bytes. Phase 8.21 moved these in from composer_hubbard.py,
+# which is now deletable.
+# ---------------------------------------------------------------------------
+
+
+def _hubbard_emit_sid(inputs: _Inputs, out_path: str, codec,
+                      load_addr: int = LOAD) -> str:
+    """Emit a SID file from a fully-prepared `_Inputs`. No I/O of the
+    original binary; everything needed is in `inputs`.
+
+    `load_addr` overrides the default $1000 load address — set by the
+    combined music+digi build (Chimera) which may pack the music
+    engine closer to the digi region's dispatcher.
+
+    `_compose_hubbard_engine_asm` produces FULLY-RESOLVED asm: every
+    per-engine knob is threaded into the chunk emitters; the codec's
+    note_asm sentinels are resolved by `_resolve_codec_note_asm`.
+    This function just xa65-assembles the result and wraps it in a
+    PSID v2 header.
+    """
+    pat_order, pat_slot = _pattern_pool(inputs.scores)
+    pat_bytes, codec_extra = codec.encode(pat_order)
+    asm = _compose_hubbard_engine_asm(
+        inputs, codec, pat_slot, pat_bytes, codec_extra,
+        load_addr=load_addr)
+
+    src = '/tmp/usf2_commando.s'
+    obj = '/tmp/usf2_commando.bin'
+    with open(src, 'w') as f:
+        f.write(asm)
+    r = subprocess.run([_XA, src, '-o', obj], capture_output=True, text=True)
+    if r.returncode != 0:
+        raise RuntimeError(f'xa65 failed:\n{r.stdout}\n{r.stderr}')
+    with open(obj, 'rb') as f:
+        code = f.read()
+
+    # PSID header
+    songs = len(inputs.subtunes) + (len(inputs.sfx_list) if inputs.has_sfx else 0)
+    h = bytearray(b'PSID')
+    h += struct.pack('>HH', 2, 124)
+    h += struct.pack('>H', load_addr)
+    h += struct.pack('>H', load_addr)
+    h += struct.pack('>H', load_addr + 3)
+    h += struct.pack('>H', songs)
+    h += struct.pack('>H', min(max(inputs.start_song, 1), songs))
+    h += struct.pack('>I', inputs.psid_speed)
+    # 3 × 32-byte latin-1 fields. Pad/truncate to exactly 32 each.
+    for s in (inputs.title, inputs.author, inputs.released):
+        h += s[:32].ljust(32, b'\x00')
+    h += struct.pack('>H', 0x0014)
+    h += struct.pack('>BBH', 0, 0, 0)
+    assert len(h) == 124, len(h)
+
+    with open(out_path, 'wb') as f:
+        f.write(bytes(h) + code)
+    return out_path
+
+
+def _emit_combined_sid(inputs: _Inputs, usf, digi_subs: list,
+                       digi_code, out_path: str, usf_dir: str,
+                       codec) -> str:
+    """Emit a combined PSID containing music engine + digi engine +
+    samples. Music at `digi_code.music_load_addr` (or LOAD if None);
+    digi at the engine-fixed addresses ($9F80 dispatcher + $C000
+    player for Chimera). The combined file uses inline-load encoding
+    so the bytes are one contiguous segment between music_load_addr
+    and the digi region's end, with a zero-fill gap between them.
+
+    The default music_load=$1000 puts the music engine 36 KB below
+    the dispatcher, ballooning the file to ~45 KB. Setting
+    music_load_addr close to dispatcher_base (e.g. $9C00 for Chimera)
+    shrinks the gap to a few hundred bytes — matching the original
+    Chimera SID's ~12 KB footprint.
+    """
+    # Auto-pack music against dispatcher when music_load_addr is None:
+    # measure music size at LOAD, then compute the tight music_load
+    # before building the digi region (the dispatcher's JMP MUSIC_INIT
+    # must match the final music_load address). Iterate in case the
+    # assembled size shifts with the load address (page-crossing
+    # penalties etc.); typically converges in 1-2 iterations.
+    tmp_music = out_path + '.music.tmp'
+    if digi_code.music_load_addr is not None:
+        music_load = digi_code.music_load_addr
+    else:
+        _hubbard_emit_sid(inputs, tmp_music, codec, load_addr=LOAD)
+        size = os.path.getsize(tmp_music) - 124
+        music_load = digi_code.dispatcher_base - size
+        for _ in range(4):
+            _hubbard_emit_sid(inputs, tmp_music, codec, load_addr=music_load)
+            new_size = os.path.getsize(tmp_music) - 124
+            new_load = digi_code.dispatcher_base - new_size
+            if new_load == music_load:
+                break
+            music_load = new_load
+
+    digi_region, digi_base, play_addr = _build_digi_region(
+        usf, digi_subs, digi_code, usf_dir, music_load=music_load)
+
+    _hubbard_emit_sid(inputs, tmp_music, codec, load_addr=music_load)
+    music_blob = open(tmp_music, 'rb').read()
+    os.unlink(tmp_music)
+    # `_hubbard_emit_sid` wrote a PSID; strip its 124-byte header.
+    music_body = music_blob[124:]                  # music bytes at $music_load
+
+    music_end = music_load + len(music_body)
+    if music_end > digi_base:
+        raise ValueError(
+            f'music engine at ${music_load:04X}-${music_end - 1:04X} overlaps '
+            f'the digi region starting at ${digi_base:04X}')
+    gap = bytes(digi_base - music_end)
+    binary = music_body + gap + digi_region
+
+    # PSID v2 header: load=$0000 (inline), init=dispatcher_base,
+    # play=play_addr (regenerated PSID dispatcher's play entry).
+    # No more RSID; no KERNAL dep at playback.
+    n_music = len(inputs.subtunes)
+    songs = n_music + len(digi_subs)
+    start_song = min(max(inputs.start_song, 1), songs)
+
+    h = bytearray(b'PSID')
+    h += struct.pack('>HH', 2, 124)
+    h += struct.pack('>H', 0x0000)             # load = inline-encoded
+    h += struct.pack('>H', digi_code.dispatcher_base)
+    h += struct.pack('>H', play_addr)
+    h += struct.pack('>H', songs)
+    h += struct.pack('>H', start_song)
+    h += struct.pack('>I', inputs.psid_speed)
+    for s in (inputs.title, inputs.author, inputs.released):
+        h += s[:32].ljust(32, b'\x00')
+    h += struct.pack('>H', 0x0014)             # flags (PAL + 6581)
+    h += struct.pack('>BBH', 0, 0, 0)
+    assert len(h) == 124, len(h)
+
+    with open(out_path, 'wb') as f:
+        f.write(bytes(h))
+        f.write(struct.pack('<H', music_load))   # inline load addr
+        f.write(binary)
+    return out_path
+
+
+def _emit_hubbard85_bytes(usf, usf_dir) -> bytes:
+    """Hubbard '85 dispatch: build `_Inputs` from the USF, then either
+    `_hubbard_emit_sid` (music-only) or `_emit_combined_sid` (when the
+    USF carries digi subtunes). Returns the PSID bytes."""
+    import tempfile
+    from src.usf import DigiSubtune
+    from pipelines.hubbard.note_codec import BitPackCodec
+    codec = BitPackCodec()
+    inputs = _inputs_from_usf(usf)
+
+    digi_subs = sorted(
+        (s for s in usf.subtunes if isinstance(s, DigiSubtune)),
+        key=lambda s: s.id)
+
+    with tempfile.NamedTemporaryFile(suffix='.sid', delete=False) as tmp:
+        tmp_path = tmp.name
+    try:
+        if not digi_subs:
+            _hubbard_emit_sid(inputs, tmp_path, codec)
+        else:
+            if usf_dir is None:
+                raise ValueError(
+                    'USF has digi subtunes; emit_sid needs usf_dir to '
+                    'locate sample FLAC sidecars')
+            name = usf.params.fields.get('digi_player') if usf.params else None
+            if name is None:
+                raise ValueError(
+                    'USF has digi subtunes but no `digi_player` in params')
+            registry = _digi_player_registry()
+            if name not in registry:
+                raise ValueError(
+                    f'unknown digi_player {name!r}; '
+                    f'register in `_digi_player_registry`')
+            _emit_combined_sid(inputs, usf, digi_subs, registry[name],
+                                tmp_path, usf_dir, codec)
+        return open(tmp_path, 'rb').read()
+    finally:
+        if os.path.exists(tmp_path):
+            os.unlink(tmp_path)
+
+
 def _emit_hubbard_pattern_pool(pat_bytes: list[bytes],
                                  codec_extra: str | None) -> list[str]:
     """Pattern pool — `pat0`, `pat1`, ... per unique pattern, plus the
@@ -2808,10 +3017,9 @@ def _build_digi_region(usf, digi_subs, digi_code, usf_dir: str,
     # Generate the PSID dispatcher with addresses substituted for our
     # music engine and the digi player. `music_load` is passed by the
     # caller (auto-packing); fall back to digi_code.music_load_addr or
-    # composer_hubbard's LOAD when called from contexts that don't know
-    # the music engine address yet.
+    # the composer's default LOAD ($1000) when called from contexts
+    # that don't know the music engine address yet.
     if music_load is None:
-        from pipelines.composer_hubbard import LOAD
         music_load = (digi_code.music_load_addr
                       if digi_code.music_load_addr is not None else LOAD)
     disp = chimera_psid_dispatcher(
@@ -4736,7 +4944,6 @@ def emit_sid_from_usf(usf, usf_dir: str | None = None) -> bytes:
     # step. For now: composer is the single entry; the implementation
     # for hubbard85 still lives in universal_codegen.py.
     if _needs_hubbard85_path(usf, model):
-        from pipelines.composer_hubbard import _emit_hubbard85_bytes
         return _emit_hubbard85_bytes(usf, usf_dir)
 
     if not can_handle(model):
