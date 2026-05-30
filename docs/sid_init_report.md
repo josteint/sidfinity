@@ -24,11 +24,12 @@ analysis. This file is the shorter synthesis for the design call.
    ergonomics, not anything the chip or the spec cares about.
 
 3. **Each engine family has a characteristic init signature.** Empirical
-   sampling across the top 5 HVSC families (DMC, GoatTracker, Music
-   Assembler, FutureComposer, Soundmonitor) plus Chris Hülsbeck's
-   Shades shows init write counts from 0 to 47 and qualitatively
-   different patterns. **Init is not inferable from the music — it's
-   a per-engine setup contract.**
+   sampling across the **top 100 HVSC engine families (89% of the
+   catalogue, 53,905 SIDs covered)** plus a deep dive on the top 5
+   plus Hülsbeck's Shades shows init write counts from 0 to 259 and
+   qualitatively different patterns. **Init is not inferable from
+   the music — it's a per-engine setup contract.** Six classification
+   buckets (§2b) emerge, all of which fit the trichotomy.
 
 4. **Init's apparently engine-specific bytes split into three
    universal categories** (§6 — the load-bearing finding of this
@@ -218,6 +219,116 @@ five chip-touching styles above.
 - **None of these are inferable from "the music."** They are
   engine-author choices that produce the same musical notes via
   different SID register histories.
+
+---
+
+## 2b. Survey: top 100 HVSC engines (89% catalogue coverage)
+
+The top-5 sample above was extended to the top 100 engines (covering
+53,905 / 60,572 = **89.0% of HVSC**). Methodology: per engine, two
+random SIDs with `songlength_s > 30`, frame-0 writelog captured at
+`duration=1.0`. Six classification buckets emerge:
+
+| Bucket | Count | Examples | Notes |
+|---|---:|---|---|
+| **Noise-burst / test-bit / multi-pass reset** | **44** | DMC, FutureComposer, JCH_NewPlayer, HardTrack, AMP, SoedeSoft | Transient writes (regs written 2-8× during init). Either test-bit phase clear, brief noise burst, or paranoid multi-pass silence-clear. Subdivides further (below). |
+| **Clean reset (silence-clear + $D418)** | 19 | Soundmonitor, X-Ample, SidTracker64, TFX, PASS | 24-30 writes, every register touched once, single-pass. |
+| **Partial setup (4-23 writes)** | 11 | GoatTracker V2, GoatTracker V1, Master_Composer, Rob_Hubbard, Vibrants/JO | Touches a subset of registers — voice ctrls only, or voices + filter. |
+| **Deferred (no SID writes)** | 11 | Hülsbeck, Basic_Program, SidFactory_II, Laxity_NewPlayer, MusicShop, DefleMask_v2, GKGM | Pure RAM init; first play() does the SID setup. |
+| **Thorough setup (>30 writes, single-pass)** | 7 | Hermit/SidWizard, Electrosound, David_Whittaker, Matt_Gray, Asterion, Adam_Gilmore | Lots of priming on top of reset. |
+| **Minimal touch (≤3 writes)** | 4 | Music_Assembler, CheeseCutter_2.x, Ubik's_Musik, Arne/AFL | Relies on host-reset state. |
+
+### The noise-burst bucket dissected
+
+44 engines is a lot — and looking inside, this bucket actually
+contains three different sub-patterns:
+
+**(a) Test-bit oscillator-phase clear.** Voice ctrls written `$00 →
+$08 → $00` (or similar transient). DMC, Soundmonitor (3 transients on
+voice ctrls), Geir_Tjelta/SIDDuzz'It. ~10 engines.
+
+**(b) Noise-burst sweep (audible tick).** Voice ctrls written `$00 →
+$41 → $00` (noise + gate, then silence). FutureComposer, JCH_NewPlayer.
+~5 engines.
+
+**(c) Multi-pass silence-clear (paranoid).** Every register written
+3-8 times with all values zero, then a final priming value at the end.
+Griff (V1.freq_lo: `$00 $00 $00 $00 $00 $4B`), System6581 (writes 121
+bytes during init), SkyLine_Editor (259 writes), Glover, Groovy_Bits.
+~10 engines write 100+ bytes this way.
+
+The remaining ~19 engines in the bucket are mixes of the above.
+
+**Implication:** "transient writes during init" is *not* a unified
+phenomenon — it's three different techniques (defensive phase clear,
+intentional noise signature, redundant silence-clear). All three
+arrive at the same final register state. Per Check A (strict, §5),
+only the final state matters for verification, so all three collapse
+to "what's the state at end of init."
+
+### Master vol distribution (priming evidence)
+
+`$D418` final values across the top 100 engines, ranked by frequency:
+
+| Final $D418 | Engines | Reading |
+|---|---:|---|
+| **$0F** | 30 | Default — voices on, no filter mode bit |
+| **$1F** | 27 | Filter mode bit (3-OFF) + voice volume 15 |
+| (untouched by engine, host wrote $0F) | 22 | Music_Assembler-style: relies on host pre-init write |
+| $00 | 5 | Fade-in or silent intro (DefleMask_v12, SkyLine_Editor, Power_Music, Adam_Gilmore, Griff) |
+| $4F, $47, $7F, $2F, $39, $4F, $3F | various | High-bit / filter-mode combinations per-engine |
+| Other ($01, $06, $10, $1C) | various | Tune-specific |
+
+**This proves master_vol cannot be assumed $0F.** ~25% of engines
+explicitly use $1F (filter mode bit set); 5% use $00 (fade-in intent);
+plus a long tail of other values. A USF `init.sid.master_vol` field
+is **necessary**, not nice-to-have.
+
+### Filter init prevalence (priming evidence)
+
+**37 / 100 engines set the filter at init** (either `$D416` cutoff_hi
+or `$D417` res_routing non-zero). Values are diverse — `cut_hi`
+ranges from $0A to $FF; `res_routing` from $00 to $F7.
+
+**This proves filter is a real priming category.** Roughly 1 in 3
+HVSC engines uses filter from frame zero. A USF
+`init.sid.filter { cutoff_lo, cutoff_hi, res_routing }` block is
+**necessary**.
+
+### Trichotomy verdict at the 100-engine scale
+
+**The trichotomy holds.** Every one of the 100 engines' inits
+decomposes cleanly into:
+- Reset (universal, varies in technique but converges to "clean
+  chip state going into priming")
+- Priming (master_vol, filter, occasional envelope priming — all
+  captured as named USF params)
+- Environment (CIA timer / play rate — covered by `playback_rate_hz`)
+- Bookkeeping (RAM-only writes, out of USF)
+
+No engine surfaces a category the trichotomy can't handle.
+
+**What this changes in the design call:**
+
+- **Master_vol priming is mandatory** in the USF schema (already
+  there as `master_vol.init_value`, just needs the broader value
+  range support).
+- **Filter priming is mandatory** in the USF schema (new fields).
+- **Test-bit phase clear in the universal reset is well-supported** —
+  ~10 engines do this defensively; including it makes our rebuild
+  more reliable on first-note attacks across the catalogue.
+- **Noise-burst transient signatures (FutureComposer family) are
+  fidelity-loss the project accepts** — only ~5 engines exhibit
+  this signature, and the cost of capturing it (a new
+  `init.sid.startup_signature` field with multiple variants) outweighs
+  the benefit.
+
+### Sample data: `tools/init_survey.py`
+
+The script that produced these numbers. Re-runnable; samples randomly,
+so re-running may give slightly different intra-family-variance
+findings. The bucket counts and key prevalence numbers are stable
+across re-runs.
 
 ---
 
@@ -652,40 +763,58 @@ primes), the block carries them.
    priming are conceptually different and have different
    provenance.
 
-3. **Add typed musical-parameter fields to `init.sid` only as
-   engines surface them:**
-   - Bowden's V1/V2 AD/SR prime → `init.sid.voice N.envelope_prime`.
-   - Music_Assembler's $1F master vol → already in `master_vol.init_value`
-     (move into `init.sid.master_vol` for consistency).
-   - Soundmonitor / DMC filter init → `init.sid.filter { ... }`.
+3. **Required `init.sid` schema fields, confirmed by the
+   top-100-engine survey (§2b):**
+
+   - **`master_vol` — mandatory.** ~50% of top-100 engines use a
+     non-default value; $1F (filter mode bit + volume 15) alone
+     accounts for 27 engines. Today's `master_vol.init_value` is
+     the right shape; just needs the broader value range support
+     and a rename/move into `init.sid` for consistency.
+
+   - **`filter { cutoff_lo, cutoff_hi, res_routing } } — mandatory.**
+     37 / 100 engines set the filter at init. Diverse values
+     (cut_hi spans $00-$FF; res_routing spans $00-$F7). Not
+     optional anymore.
+
+   - **`voice N.envelope_prime: (ad, sr)` — when surfaced.** The
+     Bowden case ($D405=$09, $D406=$00 etc.) is the only known
+     example. Add as schema when migrating an engine that needs it.
+
+   - **`voice N.pw_init: $XXXX` — when surfaced.** Engines that
+     pre-set pulsewidth at init independent of any instrument.
+     Currently covered by `instrument.pwm.init` for instrument-
+     bound pw; this field is for raw-register priming.
+
+4. **Other useful USF additions (orthogonal to init.sid):**
    - Hülsbeck's deferred-init flag → out of scope (engine
      bookkeeping, §4.4).
    - CIA-driven playback rate → top-level `playback_rate_hz`,
      not under init.
 
-4. **Each schema addition must pass the
+5. **Each schema addition must pass the
    [schema-addition checklist](usf_representation_principle.md#7-the-forbidden-shape)**
    — exhaust derivation alternatives first.
 
-5. **Stop inferring engines from quirk flags.** If a USF needs
+6. **Stop inferring engines from quirk flags.** If a USF needs
    Bowden's envelope primes written, the USF carries them
    directly — not through a `carry_leak` marker that maps via
    shape-detection to a hidden constants table. The current
    `_init_sid_writes_for_shape` helper in composer.py is wrong
    and will be deleted.
 
-6. **The composer's init becomes a single universal routine,
+7. **The composer's init becomes a single universal routine,
    parameterised by USF.** Reset (silence-clear + baseline $D418
    + test-bit phase clear) is identical for every tune. Priming
    (filter, master vol, envelope_prime, voice_state) is read from
    USF. No engine-specific init code anywhere.
 
-7. **Verification verdict shifts to "play-stream + SID-state
+8. **Verification verdict shifts to "play-stream + SID-state
    checkpoint" (§5).** Add a `mode='play_plus_state'` to
    `compare_instruction_stream`. The old `match_all` /
    `match_post_init` lose primacy.
 
-8. **Document the trichotomy** in
+9. **Document the trichotomy** in
    `docs/usf_representation_principle.md` if we adopt it as the
    USF contract.
 
