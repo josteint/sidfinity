@@ -564,6 +564,308 @@ def _emit_hubbard_fx_incby2() -> str:
     return _HUBBARD_FX_INCBY2_ASM
 
 
+_HUBBARD_FX_PWM_ASM = """; fx_pwm - bit4. linear or bidirectional PWM. The pw accumulators
+; (pwacc) are per-instrument shared state - see song_interp._pwm.
+fx_pwm:
+        ldy instoff
+        lda it_pwmode,y      ; pwm_mode  0=none 1=linear 2=bidir
+        bne fxp_on
+        rts
+fxp_on:
+        cmp #$01
+        bne fxp_bidir
+        ldy instoff
+        lda it_pwa,y      ; linear - pw_lo += speed + vib_carry
+        sta pwm_tmp
+        ldy pw_idx
+        lda pwacc,y
+        clc
+        adc pwm_tmp
+        clc
+        adc vib_carry
+        ora #LINEAR_PW_OR
+        sta pwacc,y
+        ldy sidoff
+        sta $d402,y
+        rts
+fxp_bidir:
+        dec v_pwperiod,x
+        bpl fxp_ret          ; period counter not expired
+        ldy instoff
+        lda it_pwperiod,y     ; reload period
+        sta v_pwperiod,x
+        lda v_pwdir,x
+        bne fxp_fall
+        ldy instoff          ; rising
+        lda it_pwa,y      ; step
+        sta pwm_tmp
+        ldy pw_idx
+        lda pwacc,y
+        clc
+        adc pwm_tmp
+        sta pwacc,y
+        lda pwacc+1,y
+        adc #$00
+        and #$0f
+        sta pwacc+1,y
+        ldy instoff
+        cmp it_pwhi,y     ; hi_bound
+        bne fxp_wr
+        lda #$01
+        sta v_pwdir,x
+        jmp fxp_wr
+fxp_fall:
+        ldy instoff
+        lda it_pwa,y      ; step
+        sta pwm_tmp
+        ldy pw_idx
+        lda pwacc,y
+        sec
+        sbc pwm_tmp
+        sta pwacc,y
+        lda pwacc+1,y
+        sbc #$00
+        and #$0f
+        sta pwacc+1,y
+        ldy instoff
+        cmp it_pwlo,y     ; lo_bound
+        bne fxp_wr
+        lda #$00
+        sta v_pwdir,x
+fxp_wr:
+        ldy pw_idx
+        lda pwacc+1,y
+        sta pwm_tmp
+        lda pwacc,y
+        sta pwm_tmp+1
+        ldy sidoff
+        lda pwm_tmp
+        sta $d403,y          ; pw_hi
+        lda pwm_tmp+1
+        sta $d402,y          ; pw_lo
+fxp_ret:
+        rts"""
+
+
+def _emit_hubbard_fx_pwm() -> str:
+    """fx_pwm routine — fx-flag bit 4. Linear (pw_lo += speed +
+    vib_carry) or bidirectional (period-counter + step + bounds)
+    PWM. PWM accumulators in `pwacc` are per-instrument shared
+    state."""
+    return _HUBBARD_FX_PWM_ASM
+
+
+_HUBBARD_FX_VIBRATO_ASM = """; fx_vibrato - bit3. triangle LFO on freq, disassembly $51C1-$522D.
+; leaves vib_carry = the 6502 carry the section hands to the PWM add.
+fx_vibrato:
+        ldy instoff
+        lda it_fx,y
+        and #$08
+        bne fxv_go
+        rts
+fxv_go:
+        lda frame_ctr
+        and #$07
+        cmp #$04
+        bcc fxv_s1
+        eor #$07
+fxv_s1: sta vib_step
+        ldy instoff
+        lda it_vibdepth,y      ; vib_depth
+        sta vdepthctr
+        jsr vib_loadfreq     ; vfreq = freq16[pitch], freq16[pitch+1]
+        sec
+        lda vfreq+2          ; freq16[pitch+1] - freq16[pitch]
+        sbc vfreq+0
+        sta vdelta_lo
+        lda vfreq+3
+        sbc vfreq+1          ; A = diff_hi
+fxv_sh: lsr                  ; shift A,vdelta_lo right depth+1 times
+        ror vdelta_lo
+        dec vdepthctr
+        bpl fxv_sh
+        sta vdelta_hi
+        lda vfreq+0          ; target = freq16[pitch]
+        sta vtarg_lo
+        lda vfreq+1
+        sta vtarg_hi
+        lda v_durfield,x
+        ldy instoff
+        cmp it_onset,y     ; onset_dur (per-instrument)
+        bcc fxv_wr           ; dur < onset -> no add (carry left = 0)
+        ldy vib_step
+        beq fxv_wr           ; step 0 -> no add (carry left = 1)
+fxv_add:
+        clc
+        lda vtarg_lo
+        adc vdelta_lo
+        sta vtarg_lo
+        lda vtarg_hi
+        adc vdelta_hi
+        sta vtarg_hi
+        dey
+        bne fxv_add
+fxv_wr:
+        lda #0               ; capture carry-out for the PWM ADC
+        adc #0
+        sta vib_carry
+        ldy sidoff
+        lda vtarg_lo
+        sta $d400,y
+        lda vtarg_hi
+        sta $d401,y
+        rts
+
+; vib_loadfreq - fill vfreq (4 bytes) with freq16[pitch] and
+; freq16[pitch+1]. In-table pitches read the freq table; an off-table
+; pitch (96 and up) reads the engine-state mirror - the original's
+; vibrato overflows the 96-entry freq table the same way.
+vib_loadfreq:
+        lda v_pitch,x
+        cmp #96
+        bcs vlf_off
+        asl
+        tay
+        lda freqtab+0,y
+        sta vfreq+0
+        lda freqtab+1,y
+        sta vfreq+1
+        lda freqtab+2,y
+        sta vfreq+2
+        lda freqtab+3,y
+        sta vfreq+3
+        rts
+vlf_off:
+        sec
+        sbc #96
+        asl                  ; (pitch-96)*2 = statebuf offset
+        tay
+        jsr build_statebuf
+        lda statebuf+0,y
+        sta vfreq+0
+        lda statebuf+1,y
+        sta vfreq+1
+        lda statebuf+2,y
+        sta vfreq+2
+        lda statebuf+3,y
+        sta vfreq+3
+        rts"""
+
+
+def _emit_hubbard_fx_vibrato() -> str:
+    """fx_vibrato + vib_loadfreq routines — fx-flag bit 3, triangle
+    LFO on freq. Includes the `vib_loadfreq` support routine that
+    fills `vfreq` from freq table (or statebuf mirror for off-table
+    pitches). Leaves `vib_carry` set so fx_pwm's linear-mode ADC
+    picks up the carry-out from the vibrato addition."""
+    return _HUBBARD_FX_VIBRATO_ASM
+
+
+_HUBBARD_FX_SKYDIVE_ASM = """; fx_skydive - bit0. freq_hi slide + ctrl, see song_interp._skydive.
+fx_skydive:
+        ldy instoff
+        lda it_fx,y
+        and #$01
+        beq fxs_ret
+        lda v_dur,x
+        beq fxs_ret          ; duration_ctr == 0
+        lda v_slide,x
+        beq fxs_ret          ; slide value dead
+        ldy sidoff
+        lda v_slide,x
+        sta $d401,y          ; freq_hi = slide value
+        lda v_tick,x
+        beq fxs_ns
+        ldy instoff
+        lda it_hrctrl,y      ; not-start ctrl = hr_ctrl
+        bne fxs_w
+        lda #$80
+fxs_w:  ldy sidoff
+        sta $d404,y
+        dec v_slide,x
+        rts
+fxs_ns: lda #$80             ; note-start subphase ctrl = $80
+        ldy sidoff
+        sta $d404,y
+fxs_ret: rts"""
+
+
+def _emit_hubbard_fx_skydive() -> str:
+    """fx_skydive routine — fx-flag bit 0. freq_hi slide + ctrl
+    write. Decrements `v_slide` each frame; the ctrl write
+    re-asserts hr_ctrl (or $80 for first-tick) so the envelope holds
+    while the slide drifts."""
+    return _HUBBARD_FX_SKYDIVE_ASM
+
+
+_HUBBARD_FX_ARP_ASM = """; fx_arp - bit2 arpeggio. alternate pitch / pitch+12 by frame parity.
+; idx under 96 is a normal freq-table lookup. idx 96 and up is
+; off-table - in the original the lookup overflows the 96-entry freq
+; table into engine state; reproduced cleanly here via statebuf, a
+; mirror of the $54E8.. state region assembled on demand.
+fx_arp:
+        ldy instoff
+        lda it_fx,y
+        and #$04
+        beq fxa_ret
+        lda frame_ctr
+        and #ARP_MASK
+        beq fxa_even
+        lda v_pitch,x
+        clc
+        adc #ARP_OFS
+        jmp fxa_idx
+fxa_even:
+        lda v_pitch,x
+fxa_idx:
+        cmp #96
+        bcc fxa_in
+        sec
+        sbc #96
+        cmp #48
+        bcs fxa_ret          ; beyond the mirrored state - reads zero
+        asl                  ; (idx-96)*2 = statebuf offset
+        tay
+        jsr build_statebuf
+        lda statebuf+0,y     ; addr   -> freq_lo
+        pha
+        lda statebuf+1,y     ; addr+1 -> freq_hi
+        ldy sidoff
+        sta $d401,y          ; freq_hi written first
+        pla
+        sta $d400,y          ; then freq_lo
+        rts
+fxa_in:
+        asl
+        tay
+        lda freqtab,y
+        sta f_lo
+        lda freqtab+1,y
+        sta f_hi
+        ldy sidoff
+        lda f_hi
+        sta $d401,y
+        lda f_lo
+        sta $d400,y
+fxa_ret: rts"""
+
+
+def _emit_hubbard_fx_arp() -> str:
+    """fx_arp routine — fx-flag bit 2, multi-step arpeggio.
+
+    Alternates `v_pitch` / `v_pitch + ARP_OFS` (ARP_OFS = engine
+    knob, typically 12) by `frame_ctr & ARP_MASK` parity. Pitches
+    >= 96 read off-table via `build_statebuf` (state mirror — Hubbard
+    family's "off-table arpeggio" trick).
+
+    Contains the `beq fxa_even` branch that One Man and his Droid's
+    arp_phase_invert flips to `bne fxa_even`. Composer's
+    `_emit_arp_phase_invert_substitution` runs that text-replace
+    after this chunk is inserted.
+    """
+    return _HUBBARD_FX_ARP_ASM
+
+
 def _emit_hubbard_pattern_pool(pat_bytes: list[bytes],
                                  codec_extra: str | None) -> list[str]:
     """Pattern pool — `pat0`, `pat1`, ... per unique pattern, plus the

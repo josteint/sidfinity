@@ -1180,13 +1180,45 @@ Verified: Hubbard 71/71 byte-exact (Hunter Patrol exercises both
 fx_incby2 and the nested INCBY2_LATE_GATE; every engine exercises
 fx_drumslide since the `do_effects:` chain always calls it).
 
-#### Phase 8.10+ — Remaining fx routines + ENGINE chunks (future sessions)
+#### Phase 8.10 — Remaining four fx routines
+
+Same pattern as 8.9. The remaining four fx routines (the four fx
+chunks left inline in the ENGINE template after 8.9) move to
+composer.py constants behind `; %%FX_<NAME>%%` sentinels.
+
+- [x] `_emit_hubbard_fx_pwm()` → `_HUBBARD_FX_PWM_ASM`. PWM linear +
+      bidirectional (both branches in one block — runtime picks via
+      `it_pwmode`).
+- [x] `_emit_hubbard_fx_vibrato()` → `_HUBBARD_FX_VIBRATO_ASM`.
+      Triangle-LFO vibrato. The same constant carries the
+      `vib_loadfreq` helper (the only caller is `fx_vibrato`'s
+      shift-and-add path, so they belong together).
+- [x] `_emit_hubbard_fx_skydive()` → `_HUBBARD_FX_SKYDIVE_ASM`.
+      Freq-hi slide + per-note ctrl (fx flag bit 0).
+- [x] `_emit_hubbard_fx_arp()` → `_HUBBARD_FX_ARP_ASM`. Two-step
+      arpeggio with off-table state-buf overflow. Contains the
+      `beq fxa_even` text targeted by `arp_phase_invert` — the
+      substitution loop must insert the fx_arp chunk BEFORE
+      `_emit_arp_phase_invert_substitution` runs.
+
+composer_hubbard.py:
+- ENGINE template's fx_pwm block (81 lines) → `; %%FX_PWM%%`
+- ENGINE template's fx_vibrato + vib_loadfreq (95 lines) → `; %%FX_VIBRATO%%`
+- ENGINE template's fx_skydive (27 lines) → `; %%FX_SKYDIVE%%`
+- ENGINE template's fx_arp (50 lines) → `; %%FX_ARP%%`
+- Substitution order: fx chunks first (so nested sentinels +
+  text-targeted text-replaces find their content), then the smaller
+  nested sentinels and `arp_phase_invert`.
+
+composer.py now owns 30 Hubbard '85 feature emitters total. The
+seven inline fx routines have all moved out of the ENGINE template.
+
+Verified: Hubbard 71/71 byte-exact. 5TT subtune 2 carries its
+pre-existing partial (unchanged from before 8.10).
+
+#### Phase 8.11+ — Remaining ENGINE chunks (future sessions)
 
 Following the same pattern:
-- `fx_pwm` (PWM linear + bidirectional)
-- `fx_vibrato` + `vib_loadfreq`
-- `fx_skydive`
-- `fx_arp`
 - The note_start / hr_writes / load_note / set_patptr / next_orderidx
   routines (the play-loop guts)
 - init / play / proc_voice (the engine framework)
