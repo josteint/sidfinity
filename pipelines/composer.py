@@ -63,9 +63,11 @@ _ZP_OL_BASE = 0xE0   # V1: $E0/$E1, V2: $E2/$E3, V3: $E4/$E5
 
 _SUPPORTED_PATTERN_ENCODINGS = {'atomic_per_tick', 'note_dur_pair'}
 _SUPPORTED_PITCH_FORMATS = {'octave_semi_nibble'}
-_SUPPORTED_VOICE_TIMING = {'every_tick', 'tick_counter_decrement'}
+_SUPPORTED_VOICE_TIMING = {
+    'every_tick', 'tick_counter_decrement', 'dur_counter_decrement',
+}
 _SUPPORTED_TEMPO_DISPATCH = {'single_phase'}
-_SUPPORTED_MASTER_VOL = {'fixed_init', 'per_subtune_init'}
+_SUPPORTED_MASTER_VOL = {'fixed_init', 'per_subtune_init', 'mutable_commands'}
 
 _SUPPORTED_TERMINATORS = {
     'note', 'rest_gate_off', 'skip',
@@ -73,10 +75,16 @@ _SUPPORTED_TERMINATORS = {
     'loop_substitute_first',
     'loop_reset',
     'song_end_voice',
+    'set_duration_next_byte',
 }
 
 _SUPPORTED_INTER_VOICE_QUIRKS = {
     'carry_leak_4_vs_5_byte_timbre',
+}
+
+_SUPPORTED_EMBEDDED_COMMANDS = {
+    'set_tempo', 'set_master_vol', 'set_instrument', 'pattern_jump',
+    'skip_byte_recurse',
 }
 
 
@@ -94,7 +102,10 @@ def can_handle(model: EngineModel) -> bool:
         return False
 
     # Optional features the composer doesn't emit yet
-    if model.commands is not None: return False
+    if model.commands is not None:
+        for cmd in model.commands.nibble_map.values():
+            if cmd not in _SUPPORTED_EMBEDDED_COMMANDS:
+                return False
     if model.state_layout is not None: return False
     if model.sfx is not None: return False
     if model.digi is not None: return False
@@ -506,6 +517,46 @@ def _emit_runtime_vars(model: EngineModel, active: list[int]) -> list[str]:
 
 
 # ---------------------------------------------------------------------------
+# Cmd-stream encoder — atomic-per-tick + embedded command bytes
+# ---------------------------------------------------------------------------
+
+def _cmd_row_bytes(row) -> bytes:
+    """Cmd-stream row → engine bytes.
+
+    Notes/rests: head + (duration-1) × skip bytes ($81 skip; $80 rest).
+    Embedded commands (single byte, no skip extension — they don't
+    consume a tick): `tempo=N` → $B0|N, `vol=N` → $C0|N, `instr_ref`
+    on rest row → $D0|(id-1), `song_pos=N` → $E0|N. `fx:raw_NN` → raw.
+    """
+    flags = set(row.fx_flags)
+    if not row.pitch.is_rest:
+        head = (row.pitch.octave << 4) | _SEMI[row.pitch.name]
+        return bytes([head]) + bytes([0x81] * (row.duration - 1))
+    if row.instr is not None:
+        return bytes([0xD0 | ((row.instr.id - 1) & 0x0F)])
+    for flag in flags:
+        if flag.startswith('tempo='):
+            return bytes([0xB0 | (int(flag.split('=')[1]) & 0x0F)])
+        if flag.startswith('vol='):
+            return bytes([0xC0 | (int(flag.split('=')[1]) & 0x0F)])
+        if flag.startswith('song_pos='):
+            return bytes([0xE0 | (int(flag.split('=')[1]) & 0x0F)])
+        if flag.startswith('fx:raw_'):
+            return bytes([int(flag.split('_')[1], 16)])
+    return bytes([0x80]) + bytes([0x81] * (row.duration - 1))
+
+
+def _cmd_voice_bytes(voice_block) -> bytes:
+    """Concatenate one voice's pattern rows. No terminator — the engine
+    loops via $Ex pattern_jump commands that match song_pos."""
+    if not voice_block.patterns:
+        raise NotImplementedError(
+            'cmd-stream voice requires at least one pattern')
+    pat = voice_block.patterns[0]
+    return b''.join(_cmd_row_bytes(r) for r in pat.rows)
+
+
+# ---------------------------------------------------------------------------
 # Asm emitters — pair-shape (tick_counter_decrement voice timing)
 # ---------------------------------------------------------------------------
 #
@@ -785,6 +836,374 @@ def _emit_pair_per_subtune_tables(model: EngineModel,
 
 
 # ---------------------------------------------------------------------------
+# Asm emitters — cmd-stream shape (dur_counter_decrement + embedded
+# commands $Bx/$Cx/$Dx/$Ex/$82 + recursive interpreter)
+# ---------------------------------------------------------------------------
+#
+# Per-voice state at `v_state + X` (X = 0/7/14):
+#   +$00  pattern_ptr lo
+#   +$01  pattern_ptr hi
+#   +$02..+$06  timbre (5 bytes: pw_lo, pw_hi, ctrl, ad, sr)
+#
+# Per-voice `dur_ctr` at stride 1: dur_ctr+0/+1/+2 for V1/V2/V3.
+
+def _emit_cmd_init(model: EngineModel, has_cia: bool) -> list[str]:
+    """Init: A = subtune index. Silence SID, write per-subtune master
+    vol, load song_table[0..5] into V1/V2/V3 ptrs, dur_ctr=1 × 3,
+    song_pos + tempo + tempo_ctr from per-subtune tables."""
+    L = [
+        'init:',
+        '  pha                  ; save A = subtune idx',
+        '  lda #0',
+        '  ldx #0',
+        'init_silence:',
+        '  sta $d400,x',
+        '  inx',
+        '  cpx #$19',
+        '  bne init_silence',
+        '  pla',
+        '  tax                  ; X = subtune index',
+        '  lda init_master_vol_tab,x',
+        '  sta $d418',
+        '  lda song_table+0',
+        '  sta v_state+0',
+        '  lda song_table+1',
+        '  sta v_state+1',
+        '  lda song_table+2',
+        '  sta v_state+7',
+        '  lda song_table+3',
+        '  sta v_state+8',
+        '  lda song_table+4',
+        '  sta v_state+14',
+        '  lda song_table+5',
+        '  sta v_state+15',
+        '  lda #1',
+        '  sta dur_ctr+0',
+        '  sta dur_ctr+1',
+        '  sta dur_ctr+2',
+        '  lda init_song_pos_tab,x',
+        '  sta song_pos',
+        '  lda tempo_tab,x',
+        '  sta tempo_const',
+        '  lda init_tempo_ctr_tab,x',
+        '  sta tempo_ctr',
+    ]
+    if has_cia:
+        L += [
+            '  lda cia1_lo_tab,x',
+            '  sta $dc04',
+            '  lda cia1_hi_tab,x',
+            '  sta $dc05',
+        ]
+    L.append('  rts')
+    return L
+
+
+def _emit_cmd_play() -> list[str]:
+    """Play loop: tempo gate, then per-voice dur_ctr check + load_note."""
+    L = [
+        'play:',
+        '  inc tempo_ctr',
+        '  lda tempo_ctr',
+        '  cmp tempo_const',
+        '  bne play_exit',
+        '  lda #0',
+        '  sta tempo_ctr',
+    ]
+    for v, (x, dur_off) in enumerate([(0, 0), (7, 1), (14, 2)]):
+        L += [
+            f'  ldx #{x}',
+            f'  lda dur_ctr+{dur_off}',
+            '  cmp #1',
+            f'  bne v{v+1}_dec',
+            '  jsr load_note',
+            f'  jmp v{v+1}_done',
+            f'v{v+1}_dec:',
+            f'  dec dur_ctr+{dur_off}',
+            f'v{v+1}_done:',
+        ]
+    L += ['play_exit:', '  rts']
+    return L
+
+
+def _emit_cmd_load_note() -> list[str]:
+    """Recursive command interpreter. X = voice offset.
+
+    Reads one byte, dispatches:
+      $00-$7F NORMAL_NOTE → play freq + 5-byte timbre + gated ctrl
+      $80 REST → ctrl gate-off
+      $81 SKIP → return
+      $82 dur SET_DURATION → gate off + dur_ctr = next byte, return
+      $Bx SET_TEMPO → tempo_const = low nibble, recurse
+      $Cx SET_MASTER_VOL → $D418 = low nibble, recurse
+      $Dx SET_INSTRUMENT → copy 5 bytes from inst_table, recurse
+      $Ex PATTERN_JUMP (matches song_pos) → jump via song_table,
+                                            advance song_pos, recurse
+      other bit-7 → SKIP_BYTE + recurse
+    """
+    return [
+        '; load_note expects X as voice offset 0,7,14',
+        'load_note:',
+        '  ldy #0',
+        '  lda v_state+0,x',
+        '  sta zp_ptr_lo',
+        '  lda v_state+1,x',
+        '  sta zp_ptr_hi',
+        '  inc v_state+0,x',
+        '  bne ln_skip_inc_hi',
+        '  inc v_state+1,x',
+        'ln_skip_inc_hi:',
+        '  lda (zp_ptr_lo),y',
+        '  tay',
+        '  and #$80',
+        '  bne ln_bit7',
+        # NORMAL NOTE
+        '  lda freq_hi_tab,y',
+        '  sta $d401,x',
+        '  lda freq_lo_tab,y',
+        '  sta $d400,x',
+        '  txa',
+        '  tay',
+        '  clc',
+        '  adc #$05',
+        '  sta zp_endy',
+        'ln_pw_loop:',
+        '  lda v_state+2,y',
+        '  sta $d402,y',
+        '  iny',
+        '  cpy zp_endy',
+        '  bne ln_pw_loop',
+        '  ldy v_state+4,x',
+        '  iny',
+        '  tya',
+        '  sta $d404,x',
+        '  rts',
+        'ln_bit7:',
+        '  cpy #$80',
+        '  bne ln_not80',
+        '  lda v_state+4,x',
+        '  sta $d404,x',
+        '  rts',
+        'ln_not80:',
+        '  cpy #$81',
+        '  bne ln_not81',
+        '  rts',
+        'ln_not81:',
+        '  cpy #$82',
+        '  bne ln_not82',
+        # SET_DURATION
+        '  lda v_state+4,x',
+        '  sta $d404,x',
+        '  lda v_state+0,x',
+        '  sta zp_ptr_lo',
+        '  lda v_state+1,x',
+        '  sta zp_ptr_hi',
+        '  inc v_state+0,x',
+        '  bne ln82_no_carry',
+        '  inc v_state+1,x',
+        'ln82_no_carry:',
+        '  txa',
+        '  clc',
+        '  ror',
+        '  clc',
+        '  adc #$01',
+        '  clc',
+        '  ror',
+        '  clc',
+        '  ror',
+        '  stx zp_x_save',
+        '  tax',
+        '  ldy #0',
+        '  lda (zp_ptr_lo),y',
+        '  sta dur_ctr,x',
+        '  ldx zp_x_save',
+        '  rts',
+        'ln_not82:',
+        # $Ex PATTERN_JUMP (when Y == song_pos)
+        '  cpy song_pos',
+        '  bne ln_not_ex',
+        '  inc song_pos',
+        '  lda song_pos',
+        '  cmp #$e6',
+        '  bne ln_no_wrap',
+        '  lda #$e0',
+        '  sta song_pos',
+        'ln_no_wrap:',
+        '  tya',
+        '  and #$0f',
+        '  clc',
+        '  rol',
+        '  tay',
+        '  lda song_table,y',
+        '  sta v_state+0,x',
+        '  iny',
+        '  lda song_table,y',
+        '  sta v_state+1,x',
+        '  jsr load_note',
+        '  rts',
+        'ln_not_ex:',
+        # $Dx SET_INSTRUMENT — copy 5 bytes from inst_table
+        '  tya',
+        '  and #$f0',
+        '  cmp #$d0',
+        '  bne ln_not_dx',
+        '  tya',
+        '  and #$0f',
+        '  sta zp_tmp',
+        '  asl',
+        '  asl',
+        '  clc',
+        '  adc zp_tmp',
+        '  tay',
+        '  stx zp_x_save',
+        '  txa',
+        '  clc',
+        '  adc #2',
+        '  tax',
+        '  lda inst_table,y',
+        '  sta v_state,x',
+        '  inx',
+        '  iny',
+        '  lda inst_table,y',
+        '  sta v_state,x',
+        '  inx',
+        '  iny',
+        '  lda inst_table,y',
+        '  sta v_state,x',
+        '  inx',
+        '  iny',
+        '  lda inst_table,y',
+        '  sta v_state,x',
+        '  inx',
+        '  iny',
+        '  lda inst_table,y',
+        '  sta v_state,x',
+        '  ldx zp_x_save',
+        '  jsr load_note',
+        '  rts',
+        'ln_not_dx:',
+        # $Cx SET_MASTER_VOL
+        '  tya',
+        '  and #$f0',
+        '  cmp #$c0',
+        '  bne ln_not_cx',
+        '  tya',
+        '  and #$0f',
+        '  sta $d418',
+        '  jsr load_note',
+        '  rts',
+        'ln_not_cx:',
+        # $Bx SET_TEMPO
+        '  tya',
+        '  and #$f0',
+        '  cmp #$b0',
+        '  bne ln_other_bit7',
+        '  tya',
+        '  and #$0f',
+        '  sta tempo_const',
+        '  jsr load_note',
+        '  rts',
+        'ln_other_bit7:',
+        # Unrecognized bit-7 — SKIP_BYTE + recurse
+        '  jsr load_note',
+        '  rts',
+    ]
+
+
+def _emit_cmd_runtime_vars() -> list[str]:
+    return [
+        'zp_ptr_lo = $FB',
+        'zp_ptr_hi = $FC',
+        'zp_endy:     .byte 0',
+        'zp_x_save:   .byte 0',
+        'zp_tmp:      .byte 0',
+        'v_state:     .dsb 21, 0',
+        'dur_ctr:     .dsb 3, 0',
+        'tempo_const: .byte 0',
+        'tempo_ctr:   .byte 0',
+        'song_pos:    .byte 0',
+    ]
+
+
+def _emit_cmd_inst_table(model: EngineModel) -> list[str]:
+    """Engine-wide 16-instrument palette — 16 × 5-byte rows.
+
+    Instruments < 16 are real entries; pad to 16 with zeros."""
+    L = ['inst_table:']
+    insts_sorted = sorted(model.instruments, key=lambda i: i.id)
+    for inst in insts_sorted:
+        L.append('  .byte ' + ', '.join(f'${b:02X}' for b in [
+            inst.init_pw_lo, inst.init_pw_hi, inst.init_ctrl,
+            inst.init_ad, inst.init_sr,
+        ]))
+    # Pad to 16 entries with zeros.
+    for _ in range(16 - len(insts_sorted)):
+        L.append('  .byte $00, $00, $00, $00, $00')
+    return L
+
+
+def _emit_cmd_song_table() -> list[str]:
+    """Song table — 6 entries × 2 bytes. E0/E3 → V1, E1/E4 → V2,
+    E2/E5 → V3. For single-subtune cmd-stream USFs, the entries
+    point at ptn_v1/v2/v3 directly."""
+    return [
+        'song_table:',
+        '  .byte <ptn_v1, >ptn_v1     ; E0',
+        '  .byte <ptn_v2, >ptn_v2     ; E1',
+        '  .byte <ptn_v3, >ptn_v3     ; E2',
+        '  .byte <ptn_v1, >ptn_v1     ; E3',
+        '  .byte <ptn_v2, >ptn_v2     ; E4',
+        '  .byte <ptn_v3, >ptn_v3     ; E5',
+    ]
+
+
+def _emit_cmd_per_subtune_tables(model: EngineModel,
+                                  has_cia: bool) -> list[str]:
+    """Per-subtune byte tables for cmd-stream shape."""
+    subs = model.subtunes
+    L = []
+
+    def _tab(label, vals):
+        L.append(f'{label}: .byte ' +
+                 ', '.join(f'${v & 0xFF:02X}' for v in vals))
+
+    _tab('tempo_tab',          [s.tempo for s in subs])
+    _tab('init_tempo_ctr_tab', [s.init_tempo_ctr for s in subs])
+    _tab('init_song_pos_tab',  [s.init_song_pos if s.init_song_pos is not None
+                                 else 0xE0 for s in subs])
+    # init_master_vol: per-subtune; falls back to model.master_vol.init_value
+    # when SubtuneSpec.master_vol_init is None.
+    default_mv = model.master_vol.init_value
+    _tab('init_master_vol_tab',
+         [s.master_vol_init if s.master_vol_init is not None else default_mv
+          for s in subs])
+    if has_cia:
+        DEFAULT_CIA = 0x4CC7
+        cia_vals = [s.cia1_timer_a or DEFAULT_CIA for s in subs]
+        _tab('cia1_lo_tab', [v & 0xFF for v in cia_vals])
+        _tab('cia1_hi_tab', [(v >> 8) & 0xFF for v in cia_vals])
+    return L
+
+
+def _emit_cmd_orderlists(per_subtune_voice_patterns: list[dict[int, bytes]]
+                          ) -> list[str]:
+    """Cmd-stream pattern data — single-subtune today (Fairlight,
+    Gyroscope). Emits ptn_v1, ptn_v2, ptn_v3 labels (no subtune suffix)."""
+    L = []
+    if len(per_subtune_voice_patterns) != 1:
+        raise NotImplementedError(
+            'cmd-stream multi-subtune not supported yet')
+    voices = per_subtune_voice_patterns[0]
+    for vid in (1, 2, 3):
+        L.append(f'ptn_v{vid}:')
+        pb = voices.get(vid - 1, bytes())
+        for i in range(0, len(pb), 16):
+            L.append('  .byte ' + ', '.join(
+                f'${b:02X}' for b in pb[i:i+16]))
+    return L
+
+
+# ---------------------------------------------------------------------------
 
 def _emit_freq_table(freq_table: bytes) -> list[str]:
     fh = freq_table[:128]
@@ -915,6 +1334,26 @@ def emit_asm(model: EngineModel,
         # (silent voices get a $81 sentinel from the encoder).
         L += _emit_orderlists([0, 1, 2], per_subtune_voice_patterns)
 
+    elif model.voice_timing.mode == 'dur_counter_decrement':
+        # Per-voice dur-counter with a recursive command interpreter.
+        # Distinguished from a hypothetical other dur-counter shape by
+        # the presence of `commands` (embedded $Bx/$Cx/$Dx/$Ex bytes)
+        # and atomic_per_tick pattern encoding.
+        if model.commands is None:
+            raise NotImplementedError(
+                'dur_counter_decrement without commands not supported '
+                '(would be Hubbard\'s bitpack codec — Phase 8)')
+        has_cia = any(s.cia1_timer_a for s in model.subtunes)
+        L += _emit_cmd_init(model, has_cia)
+        L += _emit_cmd_play()
+        L += _emit_cmd_load_note()
+        L += _emit_cmd_runtime_vars()
+        L += _emit_freq_table(model.freq_table)
+        L += _emit_cmd_inst_table(model)
+        L += _emit_cmd_song_table()
+        L += _emit_cmd_per_subtune_tables(model, has_cia)
+        L += _emit_cmd_orderlists(per_subtune_voice_patterns)
+
     else:
         raise NotImplementedError(
             f'composer: voice_timing.mode {model.voice_timing.mode!r} '
@@ -1003,11 +1442,12 @@ def emit_sid_from_usf(usf) -> bytes:
                 timbres.append((0, 0, 0, 0, 0))
         per_subtune_voice_timbres.append(timbres)
 
-    # Encode each subtune's per-voice pattern bytes + (for pair shape)
-    # per-voice initial state bytes.
+    # Encode each subtune's per-voice pattern bytes — encoding depends
+    # on voice_timing.mode (atomic vs pair vs cmd-stream).
     per_subtune_voice_patterns: list[dict[int, bytes]] = []
     per_subtune_voice_init_states: list[list[int]] = []
     is_pair = (model.voice_timing.mode == 'tick_counter_decrement')
+    is_cmd = (model.voice_timing.mode == 'dur_counter_decrement')
     for ms in music:
         pat_dict: dict[int, bytes] = {}
         init_states = [0, 0, 0]
@@ -1016,6 +1456,8 @@ def emit_sid_from_usf(usf) -> bytes:
                 pb, st = _pair_voice_bytes_and_state(v)
                 pat_dict[v.id - 1] = pb
                 init_states[v.id - 1] = st
+            elif is_cmd:
+                pat_dict[v.id - 1] = _cmd_voice_bytes(v)
             else:
                 pat_dict[v.id - 1] = _voice_pattern_bytes(
                     v, model.terminators.byte_map)

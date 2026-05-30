@@ -921,13 +921,19 @@ def _instrument_from_usf(u) -> InstrumentProgram:
 
 def _infer_master_vol(usf, music) -> MasterVolConfig:
     """Master vol mode from USF features."""
-    # Mutable via $Cx? -> mutable_commands
+    # Mutable via $Cx? -> mutable_commands. Top-level USF param
+    # `init_master_vol` overrides the init value; default is $0A —
+    # the canonical init value for the cmd-stream family (clever_music
+    # writes $D418 = $0A at init via `lda #$0A; sta $d418`).
     has_vol_cmd = any(
         any(f.startswith('vol=') for f in r.fx_flags)
         for ms in music for v in ms.voices for p in v.patterns
         for r in p.rows)
     if has_vol_cmd:
-        return MasterVolConfig(mode='mutable_commands')
+        p_top = usf.params.fields if usf.params else {}
+        return MasterVolConfig(
+            mode='mutable_commands',
+            init_value=p_top.get('init_master_vol', 0x0A))
 
     # Fade-progressive — currently a top-level USF param. Detected by
     # `master_vol_subtrahend_voice` field. (Hubbard '85 only today.)

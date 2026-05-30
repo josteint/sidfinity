@@ -770,16 +770,65 @@ The `shape == 'pair'` dispatch arm is gone.
 
 ### Phase 6 — Add clever_music's features
 
-- [ ] Embedded `$Bx` (tempo) / `$Cx` (master vol) / `$Dx` (instrument)
+- [x] Embedded `$Bx` (tempo) / `$Cx` (master vol) / `$Dx` (instrument)
       / `$Ex` (song-pos jump) command bytes.
-- [ ] Recursive command interpreter / "command doesn't consume a tick"
+- [x] Recursive command interpreter / "command doesn't consume a tick"
       semantics.
-- [ ] Mutable tempo + mutable master vol mid-stream.
-- [ ] Instrument palette + dynamic timbre copy on `$Dx`.
-- [ ] Song-pos sync counter (E0..E5 cycling).
-- [ ] Express clever_music as a feature config. Verify (Gyroscope OK,
+- [x] Mutable tempo + mutable master vol mid-stream.
+- [x] Instrument palette + dynamic timbre copy on `$Dx`.
+- [x] Song-pos sync counter (E0..E5 cycling).
+- [x] Express clever_music as a feature config. Verify (Gyroscope OK,
       Fairlight stays pre-existing partial).
-- [ ] Delete the `command_stream` shape emitter. Commit.
+- [x] Delete the `command_stream` shape emitter. Commit.
+
+**Outcome:**
+* Composer's `emit_asm` now has a third branch on
+  `voice_timing.mode == 'dur_counter_decrement'`. Disambiguated from
+  Hubbard's future bitpack-encoded dur_counter by checking
+  `model.commands is not None` (the embedded $Bx/$Cx/$Dx/$Ex command
+  vocab is a content signal unique to the cmd-stream shape — Phase 8
+  will land Hubbard's dur_counter without commands).
+* New cmd-stream emitters in `pipelines/composer.py`:
+  - `_cmd_row_bytes` / `_cmd_voice_bytes`: encode notes/rests as
+    `head + (D-1) × $81` skip runs; command bytes ($Bx/$Cx/$Dx/$Ex)
+    as single bytes (no skip extension — they don't consume a tick).
+    `fx:raw_NN` passes through verbatim.
+  - `_emit_cmd_init`: silence SID, write per-subtune master vol,
+    load song_table into V1/V2/V3 ptrs, dur_ctr=1 × 3, song_pos +
+    tempo + tempo_ctr from per-subtune tables. Optional CIA1.
+  - `_emit_cmd_play`: tempo gate, then per-voice dur_ctr check +
+    `jsr load_note` or `dec dur_ctr`.
+  - `_emit_cmd_load_note`: the recursive command interpreter. Reads
+    one byte, dispatches normal note / $80 rest / $81 skip / $82 dur
+    set_duration / $Bx set_tempo / $Cx set_master_vol / $Dx
+    set_instrument (5-byte copy) / $Ex pattern_jump (match song_pos
+    → jump via song_table, advance + wrap song_pos $E5→$E0).
+    Commands recurse via `jsr load_note` to keep reading the same
+    tick.
+  - `_emit_cmd_inst_table`: 16-instrument palette (16 × 5-byte rows;
+    pad to 16 with zeros when the USF has fewer).
+  - `_emit_cmd_song_table`: 6-entry song_table (E0/E3 → V1, E1/E4
+    → V2, E2/E5 → V3 — single-subtune today).
+  - `_emit_cmd_per_subtune_tables`: tempo, init_tempo_ctr,
+    init_song_pos, init_master_vol, optional cia1_lo/hi.
+  - `_emit_cmd_orderlists`: emits `ptn_v1`, `ptn_v2`, `ptn_v3`
+    labels (no subtune suffix — single-subtune cmd-stream today).
+
+* Engine-model builder reads `init_master_vol` from top-level USF
+  params when `mode='mutable_commands'`; falls back to $0A (the
+  cmd-stream canonical init value).
+
+**Verified:**
+* Gyroscope byte-exact through composer (1/1)
+* Fairlight pre-existing partial (composer matches legacy within 1
+  event — same init-cycle-drift behavior; m=0 vs original on both)
+* All Phase 3-5 territory unchanged: Henrys, 18 bowden, Yes_Tune (9
+  yes_tune subtunes).
+* Hubbard 71/71, Up_up_and_Away 4/5 — legacy path unchanged.
+
+**Legacy cmd-stream emitter retired:**
+`_emit_cmd_init`, `_emit_cmd_play`, `_emit_cmd_load_note` removed.
+The `shape == 'command_stream'` dispatch arm is gone.
 
 ### Phase 7 — Add companion's features
 
