@@ -23,7 +23,8 @@ from __future__ import annotations
 import os
 
 from src.usf import (
-    UsfFile, PsidMeta, Params, InitState, InitVoice, Instrument,
+    UsfFile, PsidMeta, Params, InitState, InitVoice, InitSid,
+    InitSidVoice, Instrument,
     PwmConfig, ArpConfig, VibratoConfig, EnvelopeConfig, MusicSubtune,
     VoiceBlock, Orderlist, Pattern, NoteRow, Pitch, InstrumentRef,
     write_file, validate,
@@ -167,11 +168,44 @@ def build_usf(sid_path: str) -> UsfFile:
             params=subtune_params,
         ))
 
-    # Top-level init defaults to subtune 0's instruments
-    top_init = InitState(voices=[
-        InitVoice(id=v + 1, instr=InstrumentRef(id=v + 1))
-        for v in range(3)
-    ])
+    # Top-level init: voice_state (engine-state priming — currently
+    # just the per-voice starting instrument refs) PLUS SID-chip
+    # priming. The Bowden engine's init at $C064-$C075 writes V1.AD,
+    # V1.SR, V2.AD, V2.SR as hardcoded envelope primes (engine
+    # constants from the original binary — see
+    # `pipelines/companion/bowden_canonical/engine_constants.BOWDEN_INIT_SID_WRITES`,
+    # which this extract pre-populates into USF init.sid).
+    from pipelines.companion.bowden_canonical.engine_constants import (
+        BOWDEN_INIT_SID_WRITES,
+    )
+    # Group the (reg, val) writes into per-voice envelope_prime fields.
+    # Bowden writes V1.AD/SR + V2.AD/SR; no V3 prime.
+    sid_voices = []
+    by_voice = {1: {}, 2: {}, 3: {}}
+    for reg, val in BOWDEN_INIT_SID_WRITES:
+        # V1 AD/SR = $05/$06; V2 = $0C/$0D; V3 = $13/$14.
+        if reg in (0x05, 0x06):
+            by_voice[1][reg] = val
+        elif reg in (0x0C, 0x0D):
+            by_voice[2][reg] = val
+        elif reg in (0x13, 0x14):
+            by_voice[3][reg] = val
+    for vid in (1, 2, 3):
+        regs = by_voice[vid]
+        ad_reg = {1: 0x05, 2: 0x0C, 3: 0x13}[vid]
+        sr_reg = {1: 0x06, 2: 0x0D, 3: 0x14}[vid]
+        if ad_reg in regs or sr_reg in regs:
+            sid_voices.append(InitSidVoice(
+                id=vid,
+                envelope_prime=(regs.get(ad_reg, 0), regs.get(sr_reg, 0)),
+            ))
+    top_init = InitState(
+        voices=[
+            InitVoice(id=v + 1, instr=InstrumentRef(id=v + 1))
+            for v in range(3)
+        ],
+        sid=InitSid(voices=sid_voices) if sid_voices else None,
+    )
 
     # Inline the freq table — engine-neutral data the USF carries, so
     # the build doesn't need an engine_constants lookup.

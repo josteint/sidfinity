@@ -5,7 +5,8 @@ spec; types.py / parser.py / writer.py / validate.py for the impl.
 """
 
 from src.usf.types import (
-    UsfFile, PsidMeta, Params, InitVoice, InitState, Instrument,
+    UsfFile, PsidMeta, Params, InitVoice, InitState,
+    InitSid, InitSidVoice, InitFilter, Instrument,
     PwmConfig, ArpConfig, VibratoConfig, EnvelopeConfig,
     Subtune, MusicSubtune, DigiSubtune, SfxSubtune,
     VoiceBlock, Orderlist, Pattern, NoteRow, Pitch, InstrumentRef,
@@ -16,6 +17,7 @@ from src.usf.validate import validate, UsfValidationError
 
 __all__ = [
     'UsfFile', 'PsidMeta', 'Params', 'InitVoice', 'InitState',
+    'InitSid', 'InitSidVoice', 'InitFilter',
     'Instrument', 'PwmConfig', 'ArpConfig', 'VibratoConfig',
     'EnvelopeConfig',
     'Subtune', 'MusicSubtune', 'DigiSubtune', 'SfxSubtune',

@@ -697,28 +697,15 @@ def _init_sid_writes_for_engine(usf, quirks) -> list:
     after the silence-clear reset.
 
     Source of truth: `usf.init.sid` (the typed musical-parameter
-    block — `docs/sid_init_report.md` §4.2). When the USF carries
-    init.sid priming, expand it into a flat list of (reg, val) writes
-    in canonical order (master_vol → filter → per-voice envelope_prime
-    → per-voice pw_init).
+    block — `docs/sid_init_report.md` §4.2). Expand it into a flat
+    list of (reg, val) writes in canonical order (master_vol →
+    filter → per-voice envelope_prime → per-voice pw_init).
 
-    Backward-compatibility fallback: if the USF does NOT carry
-    init.sid (legacy USFs extracted before Phase B), fall back to
-    shape-detection for the Bowden carry-leak case. This fallback
-    is temporary and will be deleted in Phase D once all Bowden
-    USFs are regenerated with init.sid populated.
+    USFs without `init.sid` produce an empty list (composer emits
+    only the universal reset baseline).
     """
     if usf.init is not None and usf.init.sid is not None:
         return _expand_init_sid(usf.init.sid)
-
-    # Legacy fallback: Bowden engine shape (carry-leak quirk).
-    has_carry_leak = any(
-        q.name == 'carry_leak_4_vs_5_byte_timbre' for q in quirks)
-    if has_carry_leak:
-        from pipelines.companion.bowden_canonical.engine_constants import (
-            BOWDEN_INIT_SID_WRITES,
-        )
-        return list(BOWDEN_INIT_SID_WRITES)
     return []
 
 
