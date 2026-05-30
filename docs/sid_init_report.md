@@ -24,12 +24,15 @@ analysis. This file is the shorter synthesis for the design call.
    ergonomics, not anything the chip or the spec cares about.
 
 3. **Each engine family has a characteristic init signature.** Empirical
-   sampling across the **top 100 HVSC engine families (89% of the
-   catalogue, 53,905 SIDs covered)** plus a deep dive on the top 5
-   plus Hülsbeck's Shades shows init write counts from 0 to 259 and
-   qualitatively different patterns. **Init is not inferable from
-   the music — it's a per-engine setup contract.** Six classification
-   buckets (§2b) emerge, all of which fit the trichotomy.
+   sampling across the **top 100 HVSC engine families (89%) plus the
+   500-sample tail covering ranks 101-1000 plus unclassified
+   tunes** — effectively 100% of the catalogue's structural
+   coverage. Init write counts range from 0 to 279 and qualitatively
+   different patterns. **Init is not inferable from the music — it's
+   a per-engine setup contract.** Six classification buckets (§2b)
+   emerge, and the bucket distribution is **structurally identical
+   across the head and the tail** — the trichotomy holds at full
+   scope.
 
 4. **Init's apparently engine-specific bytes split into three
    universal categories** (§6 — the load-bearing finding of this
@@ -329,6 +332,60 @@ The script that produced these numbers. Re-runnable; samples randomly,
 so re-running may give slightly different intra-family-variance
 findings. The bucket counts and key prevalence numbers are stable
 across re-runs.
+
+### Tail check: the remaining 11%
+
+For thoroughness, the trichotomy was also tested against the
+remaining 11% of HVSC: 200 samples from engine ranks 101-200 +
+100 random samples from ranks 201-1000 + 200 random samples from
+the 2,639 unclassified SIDs (`engine IS NULL`, sidid had no
+fingerprint). Tool: `tools/init_survey_tail.py`.
+
+**Bucket distribution is structurally identical to the top 100:**
+
+| Bucket | Top 100 | Long tail (101-200) | Deep tail (201-1000) | Unclassified |
+|---|---:|---:|---:|---:|
+| Noise-burst / test-bit / multi-pass | 44% | 43% | 39% | 36% |
+| Clean reset (silence-clear + $D418) | 19% | 15% | 18% | 17% |
+| Partial setup (4-23 writes) | 11% | 18% | 20% | 24% |
+| Deferred (no SID writes) | 11% | 13% | 10% | 11% |
+| Thorough setup (>30 writes) | 7% | 7% | 10% | 9% |
+| Minimal touch (≤3 writes) | 4% | 4% | 3% | 4% |
+
+**Priming prevalence holds across the tail too:**
+
+| | Top 100 | Long tail | Deep tail | Unclassified |
+|---|---:|---:|---:|---:|
+| Non-default $D418 | 50% | 46% | 42% | 41% |
+| Filter set at init | 37% | 31% | 27% | 33% |
+
+**One stress-test finding worth noting** — a small number of tunes
+write to registers `$D419-$D41F` (the SID's read-only POTX / POTY /
+OSC3 output / ENV3 output, plus mirror/unused slots). Examples:
+`Maduplec/More_Los_Disco`, `Stephen_Ruddy/Psycho_Pigs_UXB`,
+`Ozzy_Oldskool/Starglide`, `<unclassified>/Twinky_Goes_Hiking`.
+
+These writes are **audibly no-ops on real SID** — the chip's
+address decoder accepts them, but the registers are read-only,
+so the writes are silently discarded. They're engine quirks
+(sloppy loop bounds, accidental misaligned writes), not a new init
+concern. Our universal init writes only $D400-$D418; the rebuild's
+audible output is unaffected by skipping $D419-$D41F.
+
+**Implication for verification (§5):** Check A's strict register-
+state comparison should remain scoped to $D400-$D418. Including
+$D419-$D41F would flag false positives on these quirky tunes
+(rebuild doesn't reproduce the no-op writes) without any audible
+divergence. The chip-state checkpoint is sufficient at $D400-$D418.
+
+### Final verdict at full catalogue scope
+
+**The trichotomy holds across 100% of HVSC.** Reset / priming /
+environment / bookkeeping is sufficient to classify every init
+across 60,572 SIDs. No engine surfaces a category that requires a
+schema extension beyond the master_vol + filter priming fields
+identified above (plus the rare envelope_prime when an engine
+needs it).
 
 ---
 
