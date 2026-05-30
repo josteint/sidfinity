@@ -472,10 +472,11 @@ init choices. `match_all` will be 0-or-tiny for every tune.
 
 Two checks together replace the old "byte-exact stream comparison":
 
-**Check A: SID state at end of init matches.** After init returns
-in both original and rebuild, the SID's register state should be
-*musically equivalent*. Compare register-by-register the LAST
-write of each `$D400-$D418` register in frame 0:
+**Check A: SID state at end of init matches — strict, all 25
+registers.** After init returns in both original and rebuild, the
+SID's register state must be identical across all of $D400-$D418.
+Compare register-by-register the LAST write of each register
+during frame 0 (default 0 if unwritten):
 
 ```
 For each register R in $D400..$D418:
@@ -483,6 +484,16 @@ For each register R in $D400..$D418:
   reb_state[R]  = last value written to R during frame 0 (or 0 if unwritten)
   assert orig_state[R] == reb_state[R]
 ```
+
+**Why strict.** A lenient version would compare only registers
+"play() won't immediately overwrite," but that requires inspecting
+the rebuild's first play() output to know which slots are
+exam-relevant — circular. The strict version is simpler and
+guarantees identical chip state going into play(), which in turn
+guarantees byte-identical play output from frame 1 onward. Any
+false-positive (states differ but the difference is masked by
+play()'s first writes) is something we'd want to see and decide
+about explicitly, not silently accept.
 
 This catches "we primed differently" without caring about HOW we
 got there (reset+priming sequence vs. minimal-touch).
