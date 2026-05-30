@@ -8,32 +8,59 @@ format into a single uniform symbolic representation (USF) — engine-neutral
 musical data that an ML model can learn from. See `docs/PLAN.md` for the
 roadmap.
 
-## Current state (2026-05-27)
+## Current state (2026-05-30)
 
-**13 Hubbard '85 engines byte-exact through the USF pipeline.**
-95/95 subtunes verify via `pipelines.hubbard.verify.verify_all` (md5 of
-per-frame SID-register snapshots). Members: Commando, Monty, Action Biker,
-Battle of Britain, Chimera (2 music + 2 digi), Confuzion, Devils Galop,
-5 Title Tunes (unified), Human Race, Hunter Patrol, One Man and his Droid,
-Thing on a Spring, plus the separate 1984 Companion engine (Up, up & Away!).
+**Composer rewrite complete. Hubbard 71/71 + companion 32 ok / 3 known-partial / 0 regressed.**
+
+The Hubbard '85 family lives entirely in `pipelines/composer.py` as
+feature-driven asm composition (no template, no string substitution —
+every per-engine knob is a typed argument threaded through
+`_compose_hubbard_engine_asm`). The earlier `composer_hubbard.py` +
+`universal_codegen.py` + `pipelines/codegen.py` + the ENGINE asm
+template are gone. See [[composer-dissolution]] for the architecture
++ build-path call chain.
+
+**13 Hubbard '85 engines byte-exact** through the USF pipeline. Members:
+Commando, Monty, Action Biker, Battle of Britain, Chimera (2 music + 2
+digi), Confuzion, Devils Galop, 5 Title Tunes (unified), Human Race,
+Hunter Patrol, One Man and his Droid, Thing on a Spring.
+
+**Companion strains byte-exact / cycle-strict**: Up_up_and_Away (1
+SID, Hubbard's 1984 first engine), Bowden-canonical (12 SIDs, Berry_Vic),
+Clever_Music (Fairlight + Gyroscope), Henrys_House, Yes_Tune family
+(Yes_Tune + Soldier_of_Fortune incl. 16 SFX).
+
+Pre-existing partial subtunes (carried since before the rewrite, NOT
+regressions): `Fairlight` sub 0, `Melonmania` sub 1, `5_Title_Tunes`
+sub 2.
 
 **Layout — `pipelines/`:**
 ```
 pipelines/
-├── hubbard/            shared Python core + 12 per-tune engines as subdirs
-│   ├── codegen.py      ← THE 6502 player generator (consumed by every engine)
-│   ├── build_from_usf.py
-│   ├── verify.py
-│   ├── engine_constants.py
-│   ├── (digi, sfx, instrument, song, sample, flac modules)
-│   └── <engine>/       config.py + extract/{decompile,engine_model,to_usf,types}.py
-├── companion/          separate 1984 Bowden engine (own codegen)
+├── composer.py         ← THE composer (~5k lines: 18 routine chunks,
+│                          data emitters, _Inputs adapters, dispatch)
+├── build_from_usf.py   ← Public entry; thin wrapper around composer
+├── engine_model.py     ← Typed feature dataclasses
+├── hubbard/            ← Shared Python core (codec, verify, sfx, digi,
+│   │                     instrument modelling) + per-tune extracts
+│   ├── verify.py / verify_cycle.py
+│   ├── note_codec.py / engine_constants.py / inst_*.py
+│   ├── sfx.py / sample.py / flac_io.py / digi_pack.py
+│   ├── config.py       ← EngineConfig (extract path only)
+│   └── <engine>/       config.py + extract/{engine_model,to_usf}.py
+├── companion/          ← Companion-strain engines (Up_up_and_Away,
+│                          Bowden-canonical, Clever_Music, Henrys_House,
+│                          Yes_Tune family); each subdir has its own
+│                          extract path.
 └── README.md
 ```
 
 Older paths live under `deprecated/`:
-- `deprecated/lean_codegen/` — the per-engine Lean 4 codegen (replaced by `pipelines/codegen.py`)
-- `deprecated/usf1_pipelines/` — engines that never migrated off USF v1 + per-engine USF v1 writers
+- `deprecated/lean_codegen/` — the per-engine Lean 4 codegen
+- `deprecated/usf1_pipelines/` — engines that never migrated off USF v1
+
+`tools/regression.py` runs the full pipeline regression (Hubbard +
+companion). Use it as the verdict after any composer change.
 
 ## MANDATORY before any new pipeline work
 
@@ -70,6 +97,9 @@ HVSC original at `hvsc84/MUSICIANS/H/Hubbard_Rob/<Engine>.{usf, sidfinity.sid}`.
 source src/env.sh              # adds tools/siddump etc. to PATH
 bash tools/build.sh            # builds libsidplayfp + siddump (one-time)
 
+# Full pipeline regression — Hubbard + companion + 5TT
+python3 tools/regression.py
+
 # Rebuild one engine through the pipeline
 python -c "
 from pipelines.hubbard.commando.extract.to_usf import write_commando_usf
@@ -79,7 +109,7 @@ write_commando_usf(COMMANDO, 'hvsc84/MUSICIANS/H/Hubbard_Rob')
 build_from_usf('hvsc84/MUSICIANS/H/Hubbard_Rob/Commando.usf', 'hvsc84/MUSICIANS/H/Hubbard_Rob/Commando.sidfinity.sid')
 "
 
-# Verify byte-exact
+# Verify one engine byte-exact
 python -c "
 from pipelines.hubbard.verify import verify_all
 from pipelines.hubbard.commando.config import COMMANDO
@@ -92,23 +122,34 @@ pytest pipelines/
 
 ## Key files (USF path)
 
+The build path is `build_from_usf` → `composer.emit_sid_from_usf` →
+`_emit_hubbard85_bytes` → `_compose_hubbard_engine_asm` → xa65 → PSID.
+Everything except extraction lives in `pipelines/composer.py` after
+the Phase 8 dissolution (~5,000 lines: 18 routine-chunk emitters +
+data-section emitters + `_Inputs` adapters + `_inputs_from_usf` +
+`_hubbard_emit_sid`/`_emit_combined_sid`/`_emit_hubbard85_bytes`).
+
 | File | Purpose |
 |------|---------|
-| `pipelines/codegen.py` | The 6502 player generator. Parameterised by `EngineConfig`. |
-| `pipelines/build_from_usf.py` | End-to-end: `.usf` → assembled SID |
-| `pipelines/hubbard/verify.py` | `verify_all` — md5 of per-frame snapshots |
-| `pipelines/hubbard/engine_constants.py` | freq tables, digi player asm, `EngineConstants` |
-| `pipelines/hubbard/config.py` | `EngineConfig` dataclass (the parameter surface) |
-| `pipelines/hubbard/to_usf.py` | Shared USF writer |
-| `pipelines/hubbard/song_interp.py` | runtime interpretation of voice/note state |
-| `pipelines/hubbard/note_codec.py` | bitstream note encoding |
-| `pipelines/hubbard/inst_*.py` | instrument modelling |
-| `pipelines/hubbard/sfx.py` | sound-effect engine (shared) |
-| `pipelines/hubbard/sample.py`, `flac_io.py`, `digi_pack.py` | digi sidecar pipeline |
-| `pipelines/hubbard/<engine>/config.py` | per-tune `EngineConfig` instance |
-| `pipelines/hubbard/<engine>/extract/engine_model.py` | per-tune binary → `(T, I, S)` lifter |
-| `pipelines/hubbard/<engine>/extract/to_usf.py` | per-tune USF writer |
-| `src/usf/` | USF grammar + reader/writer (spec: `docs/usf_format.md`) |
+| `pipelines/composer.py` | The composer. Owns the entire asm composition: 18 Hubbard '85 routine chunks, all data-section emitters, USF→`_Inputs` adapter, and the build dispatch. ~5,000 lines. |
+| `pipelines/build_from_usf.py` | Public entry. Thin wrapper calling `composer.emit_sid_from_usf`. |
+| `pipelines/engine_model.py` | `EngineModel` + the typed feature dataclasses (`StateLayoutMirror`, `FadeProgressive`, `SubtuneSpec`, ...). |
+| `pipelines/hubbard/verify.py` | `verify_all` — md5 of per-frame snapshots (Hubbard verification). |
+| `pipelines/hubbard/verify_cycle.py` | `compare_instruction_stream` + `writelog_capture` — cycle-strict verification (companion + digi). |
+| `pipelines/hubbard/engine_constants.py` | Freq tables, digi player asm, `EngineConstants`, `CHIMERA_DIGI`. |
+| `pipelines/hubbard/note_codec.py` | Bitstream note encoder + decoder asm (`BitPackCodec`). Composer's `_resolve_codec_note_asm` substitutes the four fade/tie sentinels in this codec's `note_asm`. |
+| `pipelines/hubbard/inst_generalize.py`, `inst_program.py` | Instrument modelling. |
+| `pipelines/hubbard/sfx.py` | SFX record types (`SoundEffect`). |
+| `pipelines/hubbard/sample.py`, `flac_io.py`, `digi_pack.py` | Digi sidecar pipeline (used by `composer._build_digi_region`). |
+| `pipelines/hubbard/config.py` | `EngineConfig` dataclass — drives the per-engine *extract* path (binary → USF). |
+| `pipelines/hubbard/<engine>/config.py` | Per-tune `EngineConfig` instance. |
+| `pipelines/hubbard/<engine>/extract/engine_model.py` | Per-tune binary → `(T, I, S)` lifter. |
+| `pipelines/hubbard/<engine>/extract/to_usf.py` | Per-tune USF writer. |
+| `pipelines/hubbard/to_usf.py` | Shared USF writer helpers. |
+| `pipelines/hubbard/song_interp.py` | Runtime interpretation of voice/note state (used by extract). |
+| `pipelines/companion/` | Companion-strain engines (Up_up_and_Away, Bowden-canonical, Clever_Music, Henrys_House, Yes_Tune family). Extract path + per-engine USF writers. |
+| `src/usf/` | USF grammar + reader/writer (spec: `docs/usf_format.md`). |
+| `tools/regression.py` | Full pipeline regression — Hubbard `verify_all` + companion `compare_instruction_stream` + 5TT. Lists pre-existing partials so they're not mistaken for regressions. |
 | `tools/siddump.cpp` | C++ register dumper (libsidplayfp). `--writelog` for cycle timing, `--pc-trace` for CPU PC trace. |
 
 ## HVSC index database — `hvsc84.db`

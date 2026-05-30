@@ -1660,67 +1660,69 @@ live in composer.py as `_HUBBARD_<NAME>_ASM` constants + parametric
 `_emit_hubbard_<chunk>` functions, threaded together by
 `_compose_hubbard_engine_asm`. The parametric core itself is gone.
 
-### Phase 9 — Cleanup
+### Phase 9 — Cleanup (resolved in-passing during dissolution)
 
-- [ ] Delete `pick_features`'s shape-detection branches. The composer
-      reads the USF directly.
-- [ ] Delete the `applies_to` shape detection. (Or: it just returns
-      True for any well-formed USF since the composer is universal.)
-- [ ] Delete `_is_pair_shape`, `_is_command_stream_shape`,
-      `_is_companion_shape`, `_has_rich_modulation`,
-      `_has_multi_pattern_orderlists`, `_has_sfx_subtunes`,
-      `_has_state_layout`. No shape detection anywhere.
-- [ ] Update `pipelines/universal_codegen.py`'s module docstring to
-      describe the composer architecture.
-- [ ] Update `docs/usf_representation_principle.md` if any of the
-      USF/composer boundary changed.
-- [ ] Update `CLAUDE.md`'s file table.
-- [ ] Update or write project memory for the composer architecture.
-- [ ] Final full regression — Hubbard 71/71 + all companion strains.
+Most Phase 9 items were dissolved en passant during Phases 8.9-8.22.
+The targets the original plan named are gone:
+
+- [x] Shape-detection branches deleted. `_is_pair_shape`,
+      `_is_command_stream_shape`, `_is_companion_shape`,
+      `_has_rich_modulation`, `_has_multi_pattern_orderlists`,
+      `_has_sfx_subtunes`, `_has_state_layout`, `pick_features`'s
+      branches, `applies_to` — none of these exist in `pipelines/`
+      anymore. The composer dispatches by content features today
+      via `_needs_hubbard85_path` + `can_handle`.
+- [x] `pipelines/universal_codegen.py` deleted (Phase 8.1).
+      The intent ("update its module docstring to describe the
+      composer architecture") no longer applies — the file is gone;
+      composer.py's own header serves that purpose.
+- [x] `docs/usf_representation_principle.md` — checked; no stale
+      references. The USF/composer boundary didn't change during
+      the dissolution.
+- [x] `CLAUDE.md`'s file table updated (Phase 8.22 cleanup).
+- [x] Project memory for the composer architecture written:
+      [[composer-dissolution]] (Phase 8.22).
+- [x] Full pipeline regression: Hubbard 71/71 + companion 32 ok / 3
+      known-partial / 0 regressed (Phase 8.22, `tools/regression.py`).
 
 
 ## Things to actively NOT do during the rewrite
 
-* **Don't fix pre-existing partial cases.** Melonmania sub 1, Fairlight,
-  Up_up_and_Away subs 0/1/2/4 + sub 3 — these are orthogonal to the
-  composer rewrite. Note them; don't touch them. If a phase accidentally
-  fixes one, great — but don't go hunting.
+(Kept for reference — these conventions extended through the whole
+Phase 8 rewrite and should keep applying to subsequent work.)
+
+* **Don't fix pre-existing partial cases.** Melonmania sub 1,
+  Fairlight, 5_Title_Tunes sub 2 — orthogonal to the composer
+  rewrite. Note them; don't touch them.
 * **Don't change USF format.** The composer reads the existing USF.
-  If the engine model needs information the USF doesn't carry, that's
-  a separate USF design question requiring its own user decision.
+  If the engine model needs information the USF doesn't carry,
+  that's a separate USF design question.
 * **Don't change verification tooling.** `verify_all` and
   `compare_instruction_stream` are stable contracts.
-* **Don't optimize for code size or asm cycle count.** The composer's
-  output is correct if the instruction stream matches. Performance
-  optimization is later.
+* **Don't optimize for code size or asm cycle count.** The
+  composer's output is correct if the instruction stream matches.
 * **Don't add features speculatively.** Only add features a current
-  engine uses. The composer grows engine-by-engine, not by anticipating
-  hypothetical future engines.
+  engine uses.
 
 
-## Open questions for future sessions
+## Open questions — status after the rewrite
 
-* **Should the engine model expose per-voice schedules explicitly, or
-  emit asm directly?** The two extremes: (a) generate an in-memory
-  per-frame trace, then trivially codegen a write-this-trace-to-SID
-  loop — but the asm becomes huge for long songs; (b) generate
-  parametric asm that, at runtime on the C64, *computes* the trace —
-  which is what every existing shape does. (b) is correct and is what
-  this rewrite assumes; (a) is a sanity-check / debug path worth having
-  as a Python interpreter of the engine model.
+* **Should the engine model expose per-voice schedules explicitly,
+  or emit asm directly?** RESOLVED — composer emits parametric asm;
+  the C64 computes the trace at runtime. The in-memory-trace path
+  was never built and isn't load-bearing.
 * **Where do `EngineConfig` (legacy Python config objects in
-  `pipelines/hubbard/<engine>/config.py`) fit in?** Today they drive
-  extraction; nothing in the build path looks at them. After the rewrite
-  they probably stay as extraction-side configs. Confirm and document.
-* **How does the audit handle the 11 Hubbard engines? Are they 11
-  feature configs or 11 small `EngineConfig` deltas on top of a base
-  config?** Probably the second — most Hubbard engines share a base
-  `_Inputs` and override a handful of fields. The composer should treat
-  these the same way.
-* **Compound builds (5_Title_Tunes).** A single PSID packs 5
-  sub-engines with a dispatcher. The composer needs to support this
-  layout. Today it's handled by `pipelines/hubbard/five_title_tunes/
-  unified/`. Audit how this interacts with the engine model.
+  `pipelines/hubbard/<engine>/config.py`) fit in?** RESOLVED —
+  extraction-side only; nothing in the build path reads them.
+  `_inputs_from_config` in composer.py is the legacy adapter used
+  only by the 5TT unified-USF re-extractor.
+* **How does the audit handle the 11 Hubbard engines?** RESOLVED —
+  the production build path is `_inputs_from_usf` (USF only). The
+  per-engine `EngineConfig` instances drive extraction only.
+* **Compound builds (5_Title_Tunes).** RESOLVED — 5TT is the unified
+  single-engine path (per-subtune dispatch tables + 18-byte ovseed
+  per sub), NOT a multi-engine packer. The deprecated `CompoundSpec`
+  dataclass was deleted in Phase 8.16.
 
 
 ## Plan-update protocol
