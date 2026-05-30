@@ -678,19 +678,40 @@ def from_usf(usf) -> EngineModel:
         sfx=sfx,
         digi=digi,
         hardcoded_pw_sweep=hardcoded_pw_sweep,
-        init_sid_writes=_init_sid_writes_for_shape(inter_voice_quirks),
+        init_sid_writes=_init_sid_writes_for_engine(usf, inter_voice_quirks),
     )
 
 
-def _init_sid_writes_for_shape(quirks) -> list:
-    """Static SID writes performed at engine init time, post-silence.
+# Per-voice SID register offsets for envelope-prime + pw_init writes.
+# Voice 1: $D405/$D406 AD/SR + $D402/$D403 PW lo/hi.
+# Voice 2: $D40C/$D40D AD/SR + $D409/$D40A PW lo/hi.
+# Voice 3: $D413/$D414 AD/SR + $D410/$D411 PW lo/hi.
+_PRIME_REG_AD = {1: 0x05, 2: 0x0C, 3: 0x13}
+_PRIME_REG_SR = {1: 0x06, 2: 0x0D, 3: 0x14}
+_PRIME_REG_PW_LO = {1: 0x02, 2: 0x09, 3: 0x10}
+_PRIME_REG_PW_HI = {1: 0x03, 2: 0x0A, 3: 0x11}
 
-    Detected by engine shape (via inter_voice_quirks content features),
-    not by engine name. Today only the bowden-canonical engine has
-    these — the V1.AD/SR + V2.AD/SR envelope primes hardcoded in its
-    init at $C064-$C075. Other engines that share a shape (none yet)
-    would land here too.
+
+def _init_sid_writes_for_engine(usf, quirks) -> list:
+    """SID-chip priming writes the composer's universal init emits
+    after the silence-clear reset.
+
+    Source of truth: `usf.init.sid` (the typed musical-parameter
+    block — `docs/sid_init_report.md` §4.2). When the USF carries
+    init.sid priming, expand it into a flat list of (reg, val) writes
+    in canonical order (master_vol → filter → per-voice envelope_prime
+    → per-voice pw_init).
+
+    Backward-compatibility fallback: if the USF does NOT carry
+    init.sid (legacy USFs extracted before Phase B), fall back to
+    shape-detection for the Bowden carry-leak case. This fallback
+    is temporary and will be deleted in Phase D once all Bowden
+    USFs are regenerated with init.sid populated.
     """
+    if usf.init is not None and usf.init.sid is not None:
+        return _expand_init_sid(usf.init.sid)
+
+    # Legacy fallback: Bowden engine shape (carry-leak quirk).
     has_carry_leak = any(
         q.name == 'carry_leak_4_vs_5_byte_timbre' for q in quirks)
     if has_carry_leak:
@@ -699,6 +720,35 @@ def _init_sid_writes_for_shape(quirks) -> list:
         )
         return list(BOWDEN_INIT_SID_WRITES)
     return []
+
+
+def _expand_init_sid(sid) -> list:
+    """Flatten an InitSid block into the (reg, val) write list the
+    composer's _emit_init emits after silence-clear.
+
+    Composer's universal reset already writes $D418=$0F (the
+    baseline). If init.sid.master_vol overrides that, emit a fresh
+    $D418 write here; otherwise leave the baseline alone.
+    """
+    writes = []
+    if sid.master_vol is not None:
+        writes.append((0x18, sid.master_vol & 0xFF))
+    if sid.filter is not None:
+        # Always emit all three filter regs when filter is present,
+        # using defaults for unset fields.
+        writes.append((0x15, sid.filter.cutoff_lo & 0xFF))
+        writes.append((0x16, sid.filter.cutoff_hi & 0xFF))
+        writes.append((0x17, sid.filter.res_routing & 0xFF))
+    # Per-voice priming, ordered by voice id, ad-then-sr-then-pw.
+    for v in sorted(sid.voices, key=lambda x: x.id):
+        if v.envelope_prime is not None:
+            ad, sr = v.envelope_prime
+            writes.append((_PRIME_REG_AD[v.id], ad & 0xFF))
+            writes.append((_PRIME_REG_SR[v.id], sr & 0xFF))
+        if v.pw_init is not None:
+            writes.append((_PRIME_REG_PW_LO[v.id], v.pw_init & 0xFF))
+            writes.append((_PRIME_REG_PW_HI[v.id], (v.pw_init >> 8) & 0xFF))
+    return writes
 
 
 # ---------------------------------------------------------------------------
