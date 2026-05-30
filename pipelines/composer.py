@@ -1879,7 +1879,7 @@ def emit_sid_from_usf(usf, usf_dir: str | None = None) -> bytes:
     # step. For now: composer is the single entry; the implementation
     # for hubbard85 still lives in universal_codegen.py.
     if _needs_hubbard85_path(usf, model):
-        from pipelines.universal_codegen import _emit_hubbard85_bytes
+        from pipelines.composer_hubbard import _emit_hubbard85_bytes
         return _emit_hubbard85_bytes(usf, usf_dir)
 
     if not can_handle(model):

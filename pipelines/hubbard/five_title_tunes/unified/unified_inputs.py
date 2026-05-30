@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 
-from pipelines.universal_codegen import _Inputs, _inputs_from_config
+from pipelines.composer_hubbard import _Inputs, _inputs_from_config
 from pipelines.hubbard.five_title_tunes.unified.config import ALL_TUNES
 
 
@@ -168,7 +168,7 @@ def build_unified_inputs() -> _Inputs:
 
 def build_unified_sid(out_path: str) -> str:
     """Build the unified 5TT PSID directly via `_emit_sid`."""
-    from pipelines.universal_codegen import _hubbard_emit_sid as _emit_sid
+    from pipelines.composer_hubbard import _hubbard_emit_sid as _emit_sid
     from pipelines.hubbard.note_codec import BitPackCodec
     inputs = build_unified_inputs()
     _emit_sid(inputs, out_path, BitPackCodec())

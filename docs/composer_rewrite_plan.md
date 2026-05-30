@@ -928,7 +928,32 @@ unchanged (same code runs via delegation). Future sub-phases
 decompose the ENGINE asm + helpers into composer feature emitters
 incrementally.
 
-#### Phase 8.1+ — Per-feature decomposition (future sessions)
+#### Phase 8.1 — Consolidate lifted Hubbard '85 code under composer
+
+- [x] Move the Hubbard '85 lifted code from `pipelines/universal_codegen.py`
+      into `pipelines/composer_hubbard.py`. Same logic; cleaner home
+      for the surface that Phase 8.2+ decomposes.
+- [x] `composer.py` imports `_emit_hubbard85_bytes` from
+      `composer_hubbard`. `hubbard/engine_constants.py` imports
+      `StatebufLayout`/`StatebufSlot` from `composer_hubbard`.
+      `five_title_tunes/unified/unified_inputs.py` imports `_Inputs`,
+      `_inputs_from_config`, `_hubbard_emit_sid` from `composer_hubbard`.
+- [x] Delete `pipelines/universal_codegen.py` entirely (all of the
+      legacy dispatch + dead-code shape detection + obsolete emitters
+      go away with the file).
+- [x] Verify 71/71 + all 5 composer-native shapes preserved.
+
+**Outcome:**
+The pipelines package is now:
+  `pipelines/composer.py` — composer dispatch + 5 composer-native shapes
+  `pipelines/composer_hubbard.py` — lifted Hubbard '85 parametric core
+  `pipelines/engine_model.py` — model dataclasses
+  `pipelines/build_from_usf.py` — single public entry
+  `pipelines/__init__.py`
+No more `universal_codegen.py`. The hubbard85 code now has its own
+file as the target surface for Phase 8.2+ feature extraction.
+
+#### Phase 8.2+ — Per-feature decomposition (future sessions)
 
 Each Hubbard '85 feature gets translated into a composer-style
 emitter parametric on EngineModel features. One feature per session
