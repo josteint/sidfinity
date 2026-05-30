@@ -544,94 +544,6 @@ def _orderlist_bytes(sub_feat: dict, vid: int) -> bytes:
 
 
 # ---------------------------------------------------------------------------
-# Asm emitters — 1-voice family (henrys_house)
-# ---------------------------------------------------------------------------
-
-def _emit_1voice_init(features: dict) -> list[str]:
-    """Init: A = subtune index. Load per-subtune state from byte tables."""
-    return [
-        'init:',
-        '  pha                  ; save A = subtune idx',
-        f'  lda #${features["master_vol"]:02X}',
-        '  sta $d418',
-        '  pla',
-        '  tax                  ; X = subtune index',
-        '  lda init_v1_pos_tab,x',
-        '  sta v_pos',
-        '  lda init_tempo_ctr_tab,x',
-        '  sta tempo_ctr',
-        '  lda tempo_tab,x',
-        '  sta tempo_const',
-        # Fill timbre slots from per-subtune table.
-        '  lda v1_pwlo_tab,x',
-        '  sta t_pwlo',
-        '  lda v1_pwhi_tab,x',
-        '  sta t_pwhi',
-        '  lda v1_ctrl_tab,x',
-        '  sta t_ctrl',
-        '  lda v1_ad_tab,x',
-        '  sta t_ad',
-        '  lda v1_sr_tab,x',
-        '  sta t_sr',
-        '  rts',
-    ]
-
-
-def _emit_1voice_play(features: dict) -> list[str]:
-    return [
-        'play:',
-        '  inc tempo_ctr',
-        '  lda tempo_ctr',
-        '  cmp tempo_const',
-        '  beq play_tick',
-        '  rts',
-        'play_tick:',
-        '  lda #0',
-        '  sta tempo_ctr',
-        '  ldx v_pos',
-        '  inc v_pos',
-        '  lda orderlist_v1,x',
-        '  cmp #$ff',
-        '  bne not_ff',
-        # Loop: reinit master_vol + reset position.
-        f'  lda #${features["master_vol"]:02X}',
-        '  sta $d418',
-        '  lda #0',
-        '  sta v_pos',
-        '  rts',
-        'not_ff:',
-        '  cmp #$80',
-        '  beq pn_rest',
-        '  bcs pn_skip',
-        '  tay',
-        '  lda freq_hi_tab,y',
-        '  sta $d401',
-        '  lda freq_lo_tab,y',
-        '  sta $d400',
-        '  lda t_pwlo',
-        '  sta $d402',
-        '  lda t_pwhi',
-        '  sta $d403',
-        '  lda t_ctrl',
-        '  sta $d404',
-        '  lda t_ad',
-        '  sta $d405',
-        '  lda t_sr',
-        '  sta $d406',
-        '  lda t_ctrl',
-        '  ora #$01',
-        '  sta $d404',
-        '  rts',
-        'pn_rest:',
-        '  lda t_ctrl',
-        '  sta $d404',
-        '  rts',
-        'pn_skip:',
-        '  rts',
-    ]
-
-
-# ---------------------------------------------------------------------------
 # Asm emitters — 3-voice family (bowden_canonical)
 # ---------------------------------------------------------------------------
 
@@ -1567,18 +1479,8 @@ def _emit_runtime_vars(features: dict) -> list[str]:
             # +14 (V3 base).
             'v_state:     .dsb $20, 0',
         ]
-    if features['voice_count'] == 1:
-        return [
-            'v_pos:       .byte 0',
-            'tempo_ctr:   .byte 0',
-            'tempo_const: .byte 0',
-            't_pwlo:      .byte 0',
-            't_pwhi:      .byte 0',
-            't_ctrl:      .byte 0',
-            't_ad:        .byte 0',
-            't_sr:        .byte 0',
-        ]
-    # atomic 3-voice
+    # atomic 3-voice (1-voice atomic shape was retired in Phase 3 of
+    # the composer rewrite — the composer owns those USFs now)
     L = [
         'v1_pos:        .byte 0',
         'v2_pos:        .byte 0',
@@ -1865,15 +1767,20 @@ def emit_sid(usf: UsfFile, usf_dir: str | None = None) -> bytes:
         asm_lines += _emit_pair_play(features)
         asm_lines += _emit_pair_voice_tick()
         asm_lines += _emit_pair_play_note()
-    elif vc == 1:
-        asm_lines += _emit_1voice_init(features)
-        asm_lines += _emit_1voice_play(features)
-    else:
+    elif shape == 'atomic' and vc == 3:
         has_cia = any(s['cia1_timer_a'] for s in features['subtunes'])
         asm_lines += _emit_3voice_init(features, has_cia)
         asm_lines += _emit_3voice_play(features)
         asm_lines += _emit_3voice_proc_note(features)
         asm_lines += _emit_3voice_voice_steps(features)
+    else:
+        # 1-voice atomic USFs (henrys-shape) now go through
+        # `pipelines.composer`. If they reach here, the composer
+        # rejected the USF for some other reason — raise rather than
+        # silently fall through to the 3-voice path.
+        raise NotImplementedError(
+            f'universal_codegen: no legacy emitter for shape={shape!r} '
+            f'voice_count={vc} (composer should have handled this)')
     asm_lines += _emit_runtime_vars(features)
     asm_lines += _emit_freq_table(features)
     asm_lines += _emit_subtune_tables(features)

@@ -614,15 +614,48 @@ does each frame," parametric over features.
 Start with the simplest engine. Build the asm-codegen layer just enough
 to handle henrys_house's feature config. Verify byte-exact. Commit.
 
-- [ ] Write `pipelines/composer.py` (or extend `universal_codegen.py`)
+- [x] Write `pipelines/composer.py` (or extend `universal_codegen.py`)
       with the model → asm transformer. Initial scope: enough features
       to reproduce henrys's instruction stream byte-exact.
-- [ ] Wire `pipelines.build_from_usf.build_from_usf` to use the
+- [x] Wire `pipelines.build_from_usf.build_from_usf` to use the
       composer when the USF is henrys-shaped. Keep the old shape
       dispatch for the others (transitional).
-- [ ] Verify henrys still byte-exact. Commit.
-- [ ] Delete the `atomic 1-voice` shape emitter from
+- [x] Verify henrys still byte-exact. Commit.
+- [x] Delete the `atomic 1-voice` shape emitter from
       `pipelines/universal_codegen.py`. Verify. Commit.
+
+**Outcome:**
+* `pipelines/composer.py` — engine-model-driven asm codegen. `can_handle`
+  reads each feature dimension and confirms the composer has an emitter
+  for it (no shape selection). Phase 3 supported set:
+  - PatternConfig: `atomic_per_tick` + `octave_semi_nibble`
+  - VoiceTiming: `every_tick`
+  - TempoDispatch: `single_phase`
+  - MasterVolConfig: `fixed_init`
+  - Terminators: `note`, `rest_gate_off`, `skip`, `master_vol_reset_and_loop`
+  - 1 active voice, 1 subtune, no modulation, no optional sub-features.
+* Each feature has its own emitter function (e.g.
+  `_emit_init_silence_sid`, `_emit_init_master_vol`,
+  `_emit_play_tempo_gate_single`). The composer composes them in
+  `emit_asm(model)`.
+* `pipelines/build_from_usf.py` tries composer first; falls through to
+  legacy on `NotImplementedError` for unsupported features.
+* `pipelines/universal_codegen.py` 1-voice emitter retired (function
+  defs + dispatch arm + runtime-vars branch all removed). The legacy
+  dispatch now explicitly raises `NotImplementedError` for any USF
+  that reaches it with `vc=1` — composer-only territory.
+* Verified: Hubbard 71/71 unchanged, Henrys_House byte-exact through
+  composer, all other companion strains unchanged.
+
+**Composer architecture notes (for Phase 4+):**
+* Each feature emitter is a small function returning `list[str]` of asm
+  lines. The composer assembles them in a fixed order
+  (header → init → play → runtime_vars → freq_table → orderlist data).
+* New features = new emitter functions + adding the feature value to
+  the relevant `_SUPPORTED_*` set in `can_handle`.
+* Per-shape dead code in `_emit_orderlists` / `_emit_subtune_tables`
+  (n_voices==1 branches) still exists in `universal_codegen.py` —
+  unreachable now; will be cleaned up in Phase 9.
 
 ### Phase 4 — Add bowden's features
 
