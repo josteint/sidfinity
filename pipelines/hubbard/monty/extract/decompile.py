@@ -804,7 +804,7 @@ def find_freq_table(binary, load_addr):
     if best_len >= 12 and best_pos >= 0:
         # Compute average absolute deviation from PAL standard table.
         try:
-            from gt_parser import FREQ_TBL_LO, FREQ_TBL_HI
+            from pipelines.hubbard.engine_constants import HUBBARD_85_PAL_FREQ_TABLE
         except ImportError:
             return None, False
 
@@ -816,7 +816,7 @@ def find_freq_table(binary, load_addr):
             if b + 1 >= len(binary):
                 break
             actual = binary[b] | (binary[b + 1] << 8)
-            pal = FREQ_TBL_LO[n] | (FREQ_TBL_HI[n] << 8)
+            pal = HUBBARD_85_PAL_FREQ_TABLE[n * 2] | (HUBBARD_85_PAL_FREQ_TABLE[n * 2 + 1] << 8)
             if pal > 0:
                 total_dev += abs(actual - pal) / pal
                 count += 1

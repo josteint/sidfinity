@@ -72,7 +72,7 @@ def extract(
               (restored on exit).
     """
     from .decompile import decompile
-    from effect_detect import FREQ_PAL
+    from pipelines.hubbard.engine_constants import FREQ_PAL
     from py65.devices.mpu6502 import MPU
 
     prev_level = logger.level

@@ -143,6 +143,11 @@ HUBBARD_85_PAL_FREQ_TABLE = bytes.fromhex(
 )
 assert len(HUBBARD_85_PAL_FREQ_TABLE) == 192, len(HUBBARD_85_PAL_FREQ_TABLE)
 
+# Same 96 entries as little-endian 16-bit integers — the form the
+# per-engine extract scripts use to seed their freq tables (`T[0..95]`).
+FREQ_PAL = [HUBBARD_85_PAL_FREQ_TABLE[i] | (HUBBARD_85_PAL_FREQ_TABLE[i + 1] << 8)
+            for i in range(0, 192, 2)]
+
 
 # Per-engine state region (bytes 192..319 of the freq-table memory
 # range). Engine scratch + arpeggio extension + per-voice init slots
@@ -852,8 +857,9 @@ def _five_title_tunes_freq_bytes(sub_idx: int) -> bytes:
     # Per-sub freq table base address (in sub_N.sid's address space).
     FT_BASE = {0: 0x0F6A, 1: 0x1C07, 2: 0x2360, 3: 0x2BA0, 4: 0x34C3}
 
-    sub_path = os.path.join(ROOT, 'pipelines', 'five_title_tunes',
-                            'work_subs', f'sub_{sub_idx}.sid')
+    sub_path = os.path.join(ROOT, 'pipelines', 'hubbard',
+                            'five_title_tunes', 'work_subs',
+                            f'sub_{sub_idx}.sid')
     if not os.path.exists(sub_path):
         # Try to (re)generate via the splitter.
         import subprocess

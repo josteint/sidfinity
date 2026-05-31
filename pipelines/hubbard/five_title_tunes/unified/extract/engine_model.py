@@ -41,7 +41,7 @@ def extract(
     verbose: bool = False,
 ) -> ExtractedSong:
     """Like Chimera's extract but with the pw_mode='linear' fix above."""
-    from effect_detect import FREQ_PAL
+    from pipelines.hubbard.engine_constants import FREQ_PAL
     from py65.devices.mpu6502 import MPU
     from pipelines.hubbard.chimera.extract.decompile import decompile
 

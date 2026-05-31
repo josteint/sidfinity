@@ -3,9 +3,8 @@
 One-off scripts and dead-end approaches from earlier work on the Commando
 roundtrip and packing experiments. Moved here to declutter `src/`.
 
-None of these are imported by the active V3 pipeline (`gen_commando_v3.py`,
-`das_model_gen.py`, `rh_decompile.py`, `effect_detect.py`) or by the
-GT2 / utility files that remain in `src/`. Cross-references between them
+None of these are imported by the current pipeline (composer-native
+asm under `pipelines/composer.py`); cross-references between them
 point only at other files in this directory.
 
 ## Categories
@@ -34,6 +33,15 @@ asm model, before V3 became the canonical pipeline):
 **Effect-detection experiments**:
 - `auto_effect_discover.py`, `effect_templates.py`, `effect_to_usf.py`
 - `info_theory_analysis.py`
+- `effect_detect.py` — DFT / segment analysis routines from the
+  initial reverse-engineering phase. The only piece still used (the
+  PAL freq table) now lives in `pipelines/hubbard/engine_constants.py`
+  as `FREQ_PAL` / `HUBBARD_85_PAL_FREQ_TABLE`.
+
+**GT2 parser**:
+- `gt_parser.py` — GoatTracker 2 binary parser from the deprecated
+  GT2 pipeline. The PAL freq tables it exported are now derived from
+  `engine_constants.HUBBARD_85_PAL_FREQ_TABLE`.
 
 **Old tests / verification scripts**:
 - `test_wave_encoding.py`, `verify_note_extraction.py`

@@ -29,6 +29,8 @@ sys.path.insert(0, os.path.join(ROOT, 'tools', 'py65_lib'))
 
 from pipelines.hubbard.inst_program import capture          # noqa: E402
 from pipelines.hubbard.verify_cycle import writelog_capture  # noqa: E402
+# songlengths lives at src/songlengths.py; resolved via the ROOT/src
+# entry pushed onto sys.path above (no package prefix in the import).
 from songlengths import load_database, get_durations        # noqa: E402
 
 _DB = os.path.join(ROOT, 'hvsc84', 'DOCUMENTS', 'Songlengths.md5')

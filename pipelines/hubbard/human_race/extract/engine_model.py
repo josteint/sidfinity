@@ -65,7 +65,7 @@ def extract(
               SID's siddump output and pass appropriate values.
     verbose:  Raise this module's logger to DEBUG for the duration of the call.
     """
-    from effect_detect import FREQ_PAL
+    from pipelines.hubbard.engine_constants import FREQ_PAL
     from py65.devices.mpu6502 import MPU
 
     from .decompile import decompile
