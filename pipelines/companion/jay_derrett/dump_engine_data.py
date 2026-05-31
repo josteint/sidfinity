@@ -22,6 +22,10 @@ from pipelines.companion.jay_derrett.extract.engine_model import (
     find_sub_jump_table,
     find_instrument_base_table,
 )
+from pipelines.companion.jay_derrett.extract.orderlist import (
+    decode_voice_orderlist, Note, CmdGateOff, CmdSkip, CmdSetDuration,
+    CmdSetTempo, CmdSetVol, CmdSetInstrument, CmdPatternJump,
+)
 
 
 CANDIDATES = (

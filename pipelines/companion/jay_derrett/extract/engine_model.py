@@ -777,3 +777,98 @@ def load_state_from_sid(sid_path: str, subtune: int = 0) -> EngineState:
                 raise static_err or e
             pc = inner
     raise static_err or ValueError('jay_derrett: scan exhausted all strategies')
+
+
+# ---------------------------------------------------------------------------
+# Runtime simulation — capture which bytes each voice's orderlist ptr visits.
+# ---------------------------------------------------------------------------
+
+def _run_play_capture(sid_path: str, n_frames: int = 2000,
+                      subtune: int = 0,
+                      counter_addr: int | None = None,
+                      stop_on_counter_wrap: bool = True
+                      ) -> tuple[list[list[int]], bytearray, list[int]]:
+    """Run init then call play() `n_frames` times in py65, recording
+    each voice's orderlist pointer (`ptr_addr`/`ptr_addr+1`) after
+    every play() call. Returns:
+
+      - `trails`: list of length len(voices). `trails[i]` is the
+        per-frame sequence of pointer values for voice i.
+      - The final post-play memory.
+      - `counter_trail`: per-frame value of the engine's self-mod
+        $E counter (read from `counter_addr`, default = proc_note+$18
+        which is the `CMP #imm` operand on jay_derrett). Used by the
+        caller to detect song-loop closure (counter wrapping from
+        ~$E9 back to $E0).
+
+    If `stop_on_counter_wrap` is true and a counter value < the
+    previous max is observed (the engine wrapped past $E9), the
+    capture halts early to avoid re-capturing redundant loop
+    iterations.
+
+    Why static walk isn't enough: the engine's `$Ex` byte only fires
+    when it equals a global self-mod counter that advances on each
+    match. A voice's stream contains `$Ex` bytes that get skipped at
+    runtime if the counter doesn't match yet — so the byte at which
+    the songwriter "intended" pat 0 to end is not the first `$Ex`,
+    but the first `$Ex` whose value equals the counter at the moment
+    that voice processes it. Without simulation we don't know which
+    `$Ex` is the active boundary.
+
+    `n_frames=2000` covers ~40 seconds of music at 50 Hz, enough for
+    most Type A songs to complete one full loop.
+    """
+    import sys as _sys
+    _sys.path.insert(0, 'tools/py65_lib')
+    from py65.devices.mpu6502 import MPU
+
+    # First: run init + scan to get the voice ptr addrs + the resolved
+    # play address.
+    state = load_state_from_sid(sid_path, subtune)
+    post_mem = bytearray(state.post_init_mem)
+    play_real = _resolve_play_addr(post_mem, state.play_addr)
+    # DON'T peel the IRQ handler for runtime simulation. The peel
+    # follows the FIRST JSR/JMP target from the IRQ entry, which is
+    # typically the frame-skip branch (e.g. `JMP per_frame_block` on
+    # the tempo-counter-non-zero path) — running only that branch
+    # never advances the orderlist pointers. The full IRQ handler at
+    # `play_real` runs both proc_note (which advances ptrs) and the
+    # per-frame SID-write block, then RTSes back to our sentinel.
+
+    ptr_addrs = [v.ptr_addr for v in state.voices]
+    # Default counter_addr: the CMP #imm operand near the start of
+    # proc_note. For Ninja_Hamster it's at proc_note+$18 ($C4D3).
+    # The scanner doesn't pinpoint this slot; for now we hardcode the
+    # offset and let the caller override per-tune if needed.
+    if counter_addr is None:
+        counter_addr = state.proc_note_addr + 0x18
+
+    mpu = MPU()
+    mpu.memory = post_mem
+
+    SENTINEL = 0x0200
+    trails: list[list[int]] = [[] for _ in ptr_addrs]
+    counter_trail: list[int] = []
+    counter_max = mpu.memory[counter_addr]
+    for _ in range(n_frames):
+        # Plant sentinel return; call play() as a JSR-equivalent.
+        mpu.sp = 0xFD
+        mpu.memory[0x01FF] = (SENTINEL - 1) >> 8
+        mpu.memory[0x01FE] = (SENTINEL - 1) & 0xFF
+        mpu.pc = play_real
+        # Run until RTS lands at sentinel. 50k cycle budget per frame
+        # is generous (real PAL frame ~20k cycles).
+        for _ in range(50000):
+            if mpu.pc == SENTINEL:
+                break
+            mpu.step()
+        for i, pa in enumerate(ptr_addrs):
+            trails[i].append(mpu.memory[pa] | (mpu.memory[pa + 1] << 8))
+        c = mpu.memory[counter_addr]
+        counter_trail.append(c)
+        if stop_on_counter_wrap and c < counter_max:
+            # Counter wrapped past max — song-loop closure detected.
+            break
+        if c > counter_max:
+            counter_max = c
+    return trails, mpu.memory, counter_trail
