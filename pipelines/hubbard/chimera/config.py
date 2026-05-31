@@ -7,7 +7,7 @@ digi/SFX player at $C000. Only the 2 music subtunes are migrated here;
 the SFX subtunes use the digi player and are not shipped.
 
 Instruments at $C662 (8-byte records), freq table at $C567.
-See docs/hubbard_chimera_disassembly.s.
+See pipelines/hubbard/chimera/disassembly.s.
 """
 
 import os

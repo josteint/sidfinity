@@ -10,7 +10,7 @@ metadata:
 Rob Hubbard's *The Human Race* (1985 Mastertronic). Load $0980, init
 $0980 (trampoline to $1A9C), play $0986. 5 PSID subtunes, all music.
 V3 is unused for music in the PSID; V1+V2 only. Disassembly:
-`docs/hubbard_human_race_disassembly.s`.
+`pipelines/hubbard/human_race/disassembly.s`.
 
 **Status (2026-05-25): fully byte-exact through the USF-only path.**
 `demo/hubbard/Human_Race.usf` + `Human_Race.sid` committed.

@@ -12,7 +12,7 @@ related tunes, adding:
   - 5-subtune dispatch via per-subtune init routines
 
 See `src/Companion/docs/` for the full research dossier
-and `docs/hubbard_up_up_and_away_disassembly.s` for the local
+and `pipelines/companion/up_up_and_away/disassembly.s` for the local
 disassembly we model.
 """
 

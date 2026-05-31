@@ -6,7 +6,7 @@ originSessionId: bd8c5590-7fdb-4eda-ac35-63db9d55f189
 ---
 When starting work on a new (or under-investigated) Hubbard SID, the first
 step is a full annotated disassembly of the player's init + play routines,
-like `docs/hubbard_commando_disassembly.s` does for Commando.
+like `pipelines/hubbard/commando/disassembly.s` does for Commando.
 
 **Why:** Hubbard hand-tuned every game. Each SID has its own counter
 machinery, init/play handoff, voice ordering, freq computation quirks.

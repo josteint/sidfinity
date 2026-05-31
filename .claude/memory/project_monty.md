@@ -32,7 +32,7 @@ existing `extract/engine_model.py`, on the shared Hubbard '85 core
 through the full codegen pipeline (6376-byte SID); song_interp 100%
 too. Commits up to 70b3e1b.
 
-**Annotated disassembly: `docs/hubbard_monty_disassembly.s`** — full
+**Annotated disassembly: `pipelines/hubbard/monty/disassembly.s`** — full
 engine layout, the $84C0-$8505 variable map, frame structure, effect
 constants. Read it before any Monty work.
 

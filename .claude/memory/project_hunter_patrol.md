@@ -9,7 +9,7 @@ metadata:
 
 Rob Hubbard's *Hunter Patrol* (1985 Mastertronic). Load $A000, init
 $AE1E, play $A006. 1 PSID subtune. 3 active voices. Disassembly:
-`docs/hubbard_hunter_patrol_disassembly.s`.
+`pipelines/hubbard/hunter_patrol/disassembly.s`.
 
 **Status (2026-05-25): fully byte-exact through the USF-only path.**
 All 11935 frames (1.1× HVSC duration = 238s) verify md5-exact.

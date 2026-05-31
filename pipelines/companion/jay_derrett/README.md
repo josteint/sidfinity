@@ -29,7 +29,7 @@ Derrett_Jay/.)
 The canonical RE was done on **Ninja_Hamster.sid** (load $C000,
 init $C57A, play $C452, 2.7 KB, 1 subtune — smallest + cleanest layout
 in the family). The annotated disassembly lives at
-`docs/companion_jay_derrett_ninja_hamster_disassembly.s`.
+`pipelines/companion/jay_derrett/disassembly_ninja_hamster.s`.
 
 ## Dispatch shapes across the 20 SIDs
 

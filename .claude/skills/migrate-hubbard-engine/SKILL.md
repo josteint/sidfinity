@@ -51,11 +51,12 @@ config field → re-measure. Repeat. Each delta is one commit.
 
 1. Search memory for `project_<engine>.md` — prior sessions' root-cause
    analysis. Read it if it exists.
-2. Disassembly: `docs/hubbard_<engine>_disassembly.s`. If missing,
+2. Disassembly: `pipelines/hubbard/<engine>/disassembly.s`. If missing,
    generate the seed and hand-annotate the header:
    ```
    PYTHONPATH=tools/py65_lib python3 tools/seed_disassembly.py \
-       demo/hubbard/<Engine>_original.sid > docs/hubbard_<engine>_disassembly.s
+       hvsc84/MUSICIANS/H/Hubbard_Rob/<Engine>.sid \
+       > pipelines/hubbard/<engine>/disassembly.s
    ```
 3. Read the disassembly header for: load / init / play addresses,
    **freq-table base**, **instrument-table base + record count**,

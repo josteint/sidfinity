@@ -33,7 +33,7 @@ def test_skydive_instruments_are_detected() -> None:
 def test_pw_bounds_are_hubbard_hardcoded() -> None:
     """Hubbard's pulsework uses cmp #$08 / #$0E for bidir PWM bounds —
     every OMHD extraction must default to those values (verified in
-    docs/hubbard_one_man_and_his_droid_disassembly.s at $1271/$128B)."""
+    pipelines/hubbard/one_man_and_his_droid/disassembly.s at $1271/$128B)."""
     song = extract(subtune=0)
     for inst in song.instruments:
         if inst.pwm.mode == 'bidirectional':

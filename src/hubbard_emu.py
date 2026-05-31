@@ -3,7 +3,7 @@
 Rob Hubbard Play Routine Emulator — Commando (1985 Elite).
 
 Exact Python reimplementation of the 6502 play routine at $5012-$5427.
-See docs/hubbard_commando_disassembly.s for the fully-commented disassembly.
+See pipelines/hubbard/commando/disassembly.s for the fully-commented disassembly.
 
 This emulator:
   - Takes binary data from a Hubbard SID file (load address, init address,

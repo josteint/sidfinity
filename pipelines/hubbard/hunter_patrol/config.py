@@ -7,7 +7,7 @@ $AE1E, play $A006. 1 PSID subtune. 3 active voices.
 Instruments at $A427 (8-byte records, up to 32 records though the
 extractor returns the 15 in use). Freq table at $A32D — 125 entries
 (extended past the standard 96 — pitches 96-124 extend further up
-than Commando's table). See docs/hubbard_hunter_patrol_disassembly.s.
+than Commando's table). See pipelines/hubbard/hunter_patrol/disassembly.s.
 """
 
 import os

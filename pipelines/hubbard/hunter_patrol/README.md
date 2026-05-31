@@ -44,7 +44,7 @@ layout walkthrough. Hunter-Patrol-specific bits live in:
 | `codegen/HunterPatrol/Codegen.lean` | Skydive emit; PWM bounds $08/$0E |
 
 The annotated disassembly that drives engine understanding is at
-`docs/hubbard_hunter_patrol_disassembly.s`.
+`pipelines/hubbard/hunter_patrol/disassembly.s`.
 
 ## How to run
 

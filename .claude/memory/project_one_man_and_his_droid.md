@@ -13,7 +13,7 @@ subtunes: subtune 0 = main 3-voice song, subtunes 1..13 =
 drum/SFX patterns played through the secondary "drum engine" at
 $139F (commandeers V1+V2 for sampled percussion, configured by
 sub_1528 from $1600 16-byte recipes). Disassembly:
-`docs/hubbard_one_man_and_his_droid_disassembly.s`.
+`pipelines/hubbard/one_man_and_his_droid/disassembly.s`.
 
 **Status (2026-05-25): FULLY byte-exact (14/14 subtunes).**
 Music subtune 0 byte-exact (19101 frames). All 13 SFX subtunes

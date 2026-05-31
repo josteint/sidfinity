@@ -26,7 +26,7 @@ Confuzion's player loads at `$0858` and is structurally a raster-IRQ
 handler. Init at `$0867` does self-modifying patching to turn it into
 a PSID-callable subroutine (patches `CLI`→`RTS`, `SEI`→`NOP`, and
 `JMP $EA81` (KERNAL IRQ exit) →`RTS`). The annotated disassembly is
-`docs/hubbard_confuzion_disassembly.s`; key behaviors:
+`pipelines/hubbard/confuzion/disassembly.s`; key behaviors:
 
 - `$A2` is repurposed as a per-call frame counter via self-modifying
   immediate at `$085C` (driving the triangle-LFO vibrato).
@@ -107,5 +107,5 @@ match in the process. The structural difference (load address,
 self-modifying init, raster-IRQ shape) made the inherited Commando-
 style codegen impossible to adapt; Confuzion needs its own engine.
 
-See `docs/hubbard_confuzion_disassembly.s` for the engine specifics
+See `pipelines/hubbard/confuzion/disassembly.s` for the engine specifics
 and `docs/hubbard_1985_status.md` for cross-pipeline context.

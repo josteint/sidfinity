@@ -3,7 +3,7 @@ Hubbard '85 core (pipelines/hubbard/).
 
 Rob Hubbard's *Action Biker* (1985 Mastertronic). Load $C000,
 init $CBBB, play $C00D. 3 music subtunes, 12 instruments at $CB5B,
-freq table at $C2FC. See docs/hubbard_action_biker_disassembly.s.
+freq table at $C2FC. See pipelines/hubbard/action_biker/disassembly.s.
 """
 
 import os

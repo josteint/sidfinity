@@ -17,7 +17,7 @@ Same shape as the Commando / Monty pipelines.
 | Codegen runs | yes, produces `build/thing_on_a_spring.sid` |
 | Grade vs original | **B — 96.0% snapshots (1440/1500)** |
 
-Reference disassembly: `docs/hubbard_thing_on_a_spring_disassembly.s`.
+Reference disassembly: `pipelines/hubbard/thing_on_a_spring/disassembly.s`.
 
 60 frames out of 1500 still diverge — mostly V1/V3 freq-hi on a few
 short runs (F767-773, F1185-1191, F872-877, F1194-1199). To reach
@@ -67,7 +67,7 @@ further: trace V1 across one of those runs with py65 and compare
 ## Engine reference
 
 The hand-annotated disassembly at
-`docs/hubbard_thing_on_a_spring_disassembly.s` documents the full
+`pipelines/hubbard/thing_on_a_spring/disassembly.s` documents the full
 engine: subtune dispatch, main player tempo gate ($C494/$C495), per-voice
 SID-write gating via $C4A0, SFX overlay engine at $C326 (currently not
 rebuilt — only subtune 0 is supported), instrument table layout
@@ -83,6 +83,6 @@ byte-perfect invariant safe while this one is being adapted. The two
 can be merged once a third Hubbard SID validates the abstraction.
 
 See also: the engine notes in
-`docs/hubbard_thing_on_a_spring_disassembly.s` and the memories
+`pipelines/hubbard/thing_on_a_spring/disassembly.s` and the memories
 `reference_hubbard_pwm_bounds.md`,
 `project_hubbard_notenum_overlap.md`.

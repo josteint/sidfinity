@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Seed an annotated 6502 disassembly file from a PSID, in the style of
-docs/hubbard_action_biker_disassembly.s. Auto-traces reachable code
+pipelines/hubbard/action_biker/disassembly.s. Auto-traces reachable code
 from (init, play) entry points; everything else is emitted as data
 gap markers. The output is intended to be hand-annotated afterwards.
 

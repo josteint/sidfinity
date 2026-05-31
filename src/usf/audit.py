@@ -15,7 +15,7 @@ Usage:
 
   python -m src.usf.audit hvsc84/MUSICIANS/H/Hubbard_Rob/Human_Race.sid \\
       --subtune 1 --frames 225:235 --voice 0 \\
-      --disasm docs/hubbard_human_race_disassembly.s
+      --disasm pipelines/hubbard/human_race/disassembly.s
 """
 
 from __future__ import annotations

@@ -1,7 +1,7 @@
 """Monty sound-effect extraction — the Hubbard '85 SFX format (shared
 core, pipelines/hubbard/sfx.py). Monty's 16 SFX records live at $9454
 and the sweep reads the freq table at $8400. The SFX init at $8506
-(see docs/hubbard_monty_disassembly.s) is structurally Commando's
+(see pipelines/hubbard/monty/disassembly.s) is structurally Commando's
 $53A5 sub-engine — only the addresses differ.
 """
 

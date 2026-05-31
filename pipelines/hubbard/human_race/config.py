@@ -6,7 +6,7 @@ $0980 (trampoline to $1A9C), play $0986. 5 PSID subtunes, all music
 (V3 unused — only V1 + V2 carry music for the PSID).
 
 Instruments at $0DE3 (8-byte records, 23 instruments), freq table
-at $0CE4 (96+ semitone entries). See docs/hubbard_human_race_disassembly.s.
+at $0CE4 (96+ semitone entries). See pipelines/hubbard/human_race/disassembly.s.
 """
 
 import os

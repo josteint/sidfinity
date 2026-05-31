@@ -7,7 +7,7 @@ song; subtunes 1..16 are SFX overlays (not migrated yet).
 
 Instruments at $CD2A (8-byte records × 15). Freq table at $C3A9
 (96 entries, standard Hubbard '85 PAL table). See
-docs/hubbard_thing_on_a_spring_disassembly.s.
+pipelines/hubbard/thing_on_a_spring/disassembly.s.
 
 Fx flag layout:
   bit 0 = freq_hi down-sweep (drum)        → shared fx_skydive

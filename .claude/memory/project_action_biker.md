@@ -27,7 +27,7 @@ subtune 2 at frame 577 of 605. Inaudible (the song has ended and no
 voice is gated on), but a real register-state diff. Subtune 0
 (10395 frames) still byte-exact. Score: 1/3.
 
-**Annotated disassembly: `docs/hubbard_action_biker_disassembly.s`.**
+**Annotated disassembly: `pipelines/hubbard/action_biker/disassembly.s`.**
 Freq table $C2FC, instrument table $CB5B (8-byte records). The
 8-byte record IS the shared '85 layout — byte 6 is pwm_speed (the
 disassembly's "vib_period" annotation is wrong; the PWM block at

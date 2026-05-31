@@ -10,7 +10,7 @@ metadata:
 Rob Hubbard's *Thing on a Spring* (1985 Gremlin Graphics). Load
 $C000, init $CECB, play $C012. 17 PSID subtunes: subtune 0 = the
 song, subtunes 1..16 = SFX overlays (silence the main song and play
-just an overlay). Disassembly: `docs/hubbard_thing_on_a_spring_disassembly.s`.
+just an overlay). Disassembly: `pipelines/hubbard/thing_on_a_spring/disassembly.s`.
 
 **Status (2026-05-25): music subtune 0 voice + filter byte-exact.**
 12001/12001 frames match across $D400-$D417 via py65. Fixed in

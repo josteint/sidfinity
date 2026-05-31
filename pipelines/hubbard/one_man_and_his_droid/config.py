@@ -9,7 +9,7 @@ drum/SFX patterns (sample playback via the $139F engine + $1600
 
 Instruments at $1588 (8-byte records). Freq table at $1422
 (96 entries, standard Hubbard '85 PAL table). See
-docs/hubbard_one_man_and_his_droid_disassembly.s.
+pipelines/hubbard/one_man_and_his_droid/disassembly.s.
 
 Fx-flag layout:
   bit 0 = freq slide (drum/skydive) → shared fx_skydive

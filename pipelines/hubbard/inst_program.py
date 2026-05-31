@@ -35,7 +35,7 @@ sys.path.insert(0, os.path.join(ROOT, 'tools', 'py65_lib'))
 SID_PATH = os.path.join(ROOT, 'hvsc84', 'MUSICIANS', 'H', 'Hubbard_Rob', 'Commando.sid')
 
 # Commando voice-state arrays ($54xx,X, X = voice 0/1/2). Addresses from
-# hubbard_emu.py / docs/hubbard_commando_disassembly.s.
+# hubbard_emu.py / pipelines/hubbard/commando/disassembly.s.
 VS_DUR     = 0x54F2   # duration countdown
 VS_NOTEIDX = 0x54EF   # index of the current note within its pattern
 VS_PITCH   = 0x54FB   # current pitch (semitone)

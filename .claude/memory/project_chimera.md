@@ -31,7 +31,7 @@ standard '85 tracker — freq table $C567, instruments $C662, 8-byte
 records, 19 of them, 2 music subtunes). A separate digi player at
 $C000 drives the other 2 PSID subtunes — **now also through USF** via
 the digi pipeline (extract → Sample/FLAC sidecar → pack_digi → combined
-RSID build). Disassembly: `docs/hubbard_chimera_disassembly.s`.
+RSID build). Disassembly: `pipelines/hubbard/chimera/disassembly.s`.
 
 **The digi pipeline** (engine-agnostic, see [[reference_digi_pipeline]]):
 - `pipelines/chimera/extract/digi.py` extracts the 1-bit waveform-

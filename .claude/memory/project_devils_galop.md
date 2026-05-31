@@ -42,7 +42,7 @@ needed NO Devils-Galop-specific code: the Hubbard '85 engine-state
 layout relative to the freq base is family-shared, so the shared
 `song_interp._read_state` / the codegen `statebuf` handle it.
 
-**Disassembly reference.** `docs/hubbard_devils_galop_disassembly.s`
+**Disassembly reference.** `pipelines/hubbard/devils_galop/disassembly.s`
 (hand-annotated). The engine variant uses heavy self-modifying init:
 init at $18B3 patches operand bytes in the play loop to
 $0A1E/$0A21/$0A24/$0A50, redirecting reads into the "data gap"

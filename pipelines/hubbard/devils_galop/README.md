@@ -20,7 +20,7 @@ calibration.
 | Rebuild output | `pipelines/hubbard/devils_galop/build/devils_galop.sid` (~5.9 KB) |
 | **Writelog grade** | **A (98.3%, 1474/1500 snapshots)** |
 | **py65 engine grade** | **A+ (500/500 = 100.00%)** — engine is byte-perfect identical to the original |
-| Annotated disassembly | `docs/hubbard_devils_galop_disassembly.s` |
+| Annotated disassembly | `pipelines/hubbard/devils_galop/disassembly.s` |
 
 The path from B to A: a tiny cycle-pad before V1's processing.
 
@@ -91,7 +91,7 @@ The grade rose from B 94.9% to A 98.3% with this one tweak.
 
 Devils Galop uses the same 1985-era Hubbard driver as Action Biker /
 Commando, with a couple of distinctive quirks documented in
-`docs/hubbard_devils_galop_disassembly.s`:
+`pipelines/hubbard/devils_galop/disassembly.s`:
 
 * **Self-modifying init.** Init at `$18B3` patches operand bytes inside
   the play loop so that `LDA $1795,X` / `LDA $1796,X` / `LDA $1797,Y` /
@@ -151,5 +151,5 @@ python3 src/writelog_grade.py \
 
 ## References
 
-* Annotated 6502 disassembly: `docs/hubbard_devils_galop_disassembly.s`
+* Annotated 6502 disassembly: `pipelines/hubbard/devils_galop/disassembly.s`
 * Seed disassembler: `tools/seed_disassembly.py`

@@ -7,7 +7,7 @@
 
 End-to-end rebuild of Rob Hubbard's *One Man and his Droid* (1985 Mastertronic) SID.
 Independent clone of the Commando/Monty pipeline; extended with the engine
-quirks documented in `docs/hubbard_one_man_and_his_droid_disassembly.s`.
+quirks documented in `pipelines/hubbard/one_man_and_his_droid/disassembly.s`.
 
 ## Status
 
@@ -72,7 +72,7 @@ explanation. OMHD-specific differences live inside `extract/` and `codegen/`:
 
 ## Disassembly reference
 
-`docs/hubbard_one_man_and_his_droid_disassembly.s` — annotated 6502
+`pipelines/hubbard/one_man_and_his_droid/disassembly.s` — annotated 6502
 disassembly of the original engine. Reads as the ground truth for what
 the codegen must reproduce: per-voice state at $14E2..$1527, freq
 table at $1422, instrument table at $1588 (8-byte stride), drum
@@ -109,6 +109,6 @@ keeps the Commando/Monty byte-perfect invariants safe while OMHD's
 divergent paths get reverse-engineered.
 
 See also:
-- `docs/hubbard_one_man_and_his_droid_disassembly.s` — annotated disassembly
+- `pipelines/hubbard/one_man_and_his_droid/disassembly.s` — annotated disassembly
 - `~/.claude/projects/-home-jtr-sidfinity/memory/reference_hubbard_pwm_bounds.md`
 - `~/.claude/projects/-home-jtr-sidfinity/memory/project_hubbard_notenum_overlap.md`

@@ -11,7 +11,7 @@ Rob Hubbard's *5 Title Tunes* (1985, self-published). Unique in the
 97-song Hubbard catalog — the parent PSID at $0B10/$0B40 is a
 **dispatcher** that JSRs to 5 fully independent Hubbard '85 sub-engines
 (each with its own init, play, freq table, instrument table, pattern
-data). Disassembly: `docs/hubbard_5_title_tunes_disassembly.s`.
+data). Disassembly: `pipelines/hubbard/five_title_tunes/disassembly.s`.
 
 **Status (2026-05-25, evening): UNIFIED single-engine byte-exact.**
 
