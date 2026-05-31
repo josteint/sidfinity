@@ -74,11 +74,15 @@ class VoiceBlock:
     engine uses while proc_note is running. `setup_bytes` is the raw
     inner-block bytes between the ptr-load and the JSR — kept verbatim
     so a later pass can decode the voice-index/offset assignment scheme.
+
+    `initial_ptr` is the orderlist pointer value present at `ptr_addr`
+    after init runs (the starting position for this voice's stream).
     """
     idx: int
     ptr_addr: int
     zp: int
     setup_bytes: bytes
+    initial_ptr: int = 0
 
 
 @dataclass
@@ -90,7 +94,18 @@ class EngineState:
     init_addr: int
     play_addr: int
     proc_note_addr: int
+    # The PC where the play loop's first per-voice setup block lives.
+    # Equals `play_addr` for direct-play tunes; for trampoline /
+    # IRQ-resolved tunes, it's the post-peel address. Downstream
+    # extractors should use this (not `play_addr`) as the root for
+    # reachability scans — both proc_note AND the per-frame block
+    # are reachable from here.
+    play_loop_entry: int = 0
     voices: list[VoiceBlock] = field(default_factory=list)
+    # Post-init memory snapshot — populated when load_state_from_sid
+    # ran init emulation, useful for downstream extractors that need
+    # to follow self-modifying-code pointers or read table contents.
+    post_init_mem: bytes | None = None
 
 
 def _read_psid_header(data: bytes) -> tuple[int, int, int, int, int]:
@@ -395,6 +410,179 @@ def _peel_irq_handler(mem: bytearray, pc: int) -> int | None:
     return None
 
 
+def _reachable_pcs(mem: bytearray, entry: int, budget: int = 2048
+                   ) -> set[int]:
+    """Walk 6502 control flow from `entry`, returning the set of all
+    PCs reached. Follows JSR/JMP unconditionally and branches both
+    ways; stops at RTI/RTS/budget. Used by the table-finding scanners
+    so they only look at code actually called from proc_note (not
+    random bytes elsewhere in the binary)."""
+    seen: set[int] = set()
+    stack = [entry]
+    steps = 0
+    while stack and steps < budget:
+        pc = stack.pop()
+        if pc in seen or pc >= len(mem):
+            continue
+        seen.add(pc)
+        op = mem[pc]
+        ln = _INST_LEN[op] or 1
+        steps += 1
+        if op in (0x60, 0x40):       # RTS / RTI
+            continue
+        if op == 0x4C:               # JMP abs
+            stack.append(mem[pc + 1] | (mem[pc + 2] << 8))
+            continue
+        if op == 0x20:               # JSR abs
+            stack.append(mem[pc + 1] | (mem[pc + 2] << 8))
+            stack.append(pc + 3)     # fall through after the JSR
+            continue
+        if op == 0x6C:               # JMP (abs) — give up (target is
+            continue                  # data-dependent on memory state)
+        if 0x10 <= op <= 0xF0 and (op & 0x1F) == 0x10:
+            # Branches (BPL/BMI/BVC/BVS/BCC/BCS/BNE/BEQ): try both paths.
+            offset = mem[pc + 1]
+            if offset >= 0x80:
+                offset -= 0x100
+            stack.append(pc + 2 + offset)
+        stack.append(pc + ln)
+    return seen
+
+
+# 6502 opcodes that set A from a memory source (carry an addr operand).
+# We only handle the addressing modes the jay_derrett engine actually
+# uses for freq-table / voice-state loads.
+_LDA_MODES: dict[int, str] = {
+    0xA5: 'zp',       # LDA $zp
+    0xAD: 'abs',      # LDA $abs
+    0xB1: 'ind_y',    # LDA ($zp),Y
+    0xB5: 'zp_x',     # LDA $zp,X
+    0xB9: 'abs_y',    # LDA $abs,Y
+    0xBD: 'abs_x',    # LDA $abs,X
+}
+
+# Opcodes that DON'T disturb A — predecessor walk can skip past them.
+_A_NEUTRAL: set[int] = {
+    0x18, 0x38,                                # CLC, SEC
+    0x58, 0x78,                                # CLI, SEI
+    0x88, 0xC8,                                # DEY, INY
+    0xCA, 0xE8,                                # DEX, INX
+    0x8A, 0xA8, 0x98, 0xAA, 0xBA, 0x9A,        # transfers not touching A
+    0xD8, 0xF8,                                # CLD, SED
+    0xEA,                                      # NOP
+    0x85, 0x95, 0x8D, 0x9D, 0x99, 0x91,        # STA — stores A but
+                                               # doesn't modify it
+    0x84, 0x94, 0x8C,                          # STY
+    0x86, 0x96, 0x8E,                          # STX
+    0xA6, 0xB6, 0xAE, 0xBE, 0xA2,              # LDX
+    0xA4, 0xB4, 0xAC, 0xBC, 0xA0,              # LDY
+    0xE6, 0xF6, 0xEE, 0xFE,                    # INC mem
+    0xC6, 0xD6, 0xCE, 0xDE,                    # DEC mem
+    0xE0, 0xE4, 0xEC, 0xC0, 0xC4, 0xCC,        # CPX/CPY
+}
+
+
+def _walk_back_for_a_source(mem: bytearray, sorted_pcs: list[int],
+                            sta_pc: int) -> tuple[str, int] | None:
+    """Given the PC of a `STA …` instruction, walk backwards through
+    the sorted reachable-PC list (linear predecessors) until we hit
+    an LDA. Skip past A-neutral ops (CLC, INC mem, STA, LDX, LDY, ...).
+    Returns (mode, abs_addr) for the LDA, or None if A's source is
+    not a simple memory load (e.g. it came from a TXA / PLA / ASL).
+    """
+    i = sorted_pcs.index(sta_pc) if sta_pc in sorted_pcs else -1
+    if i <= 0:
+        return None
+    while i > 0:
+        i -= 1
+        pc = sorted_pcs[i]
+        op = mem[pc]
+        if op in _LDA_MODES:
+            mode = _LDA_MODES[op]
+            if mode in ('zp', 'zp_x', 'ind_y'):
+                return mode, mem[pc + 1]
+            return mode, mem[pc + 1] | (mem[pc + 2] << 8)
+        if op in _A_NEUTRAL:
+            continue
+        return None  # A was modified by something we don't track
+    return None
+
+
+def find_freq_tables(mem: bytearray, play_entry: int
+                     ) -> tuple[int, int] | None:
+    """Find the engine's freq_lo / freq_hi table addresses by tracing
+    the data flow into V_FREQ_LO / V_FREQ_HI SID writes (no content
+    heuristics).
+
+    Approach:
+      1. Trace all reachable code from `play_entry` (covers proc_note
+         AND the per-frame block where SID writes happen).
+      2. Find every `STA $D40N,X/Y` where N ∈ {0,7,$E} (V_FREQ_LO for
+         V1/V2/V3) or N ∈ {1,8,$F} (V_FREQ_HI).
+      3. Trace A backwards from the STA through predecessor instructions
+         until we hit the originating LDA. The LDA's source is either:
+           a) Directly an `LDA $abs,X` from the freq table — done.
+           b) An intermediate voice-state load (`LDA $abs,Y`) — find
+              the STA to that slot elsewhere in reachable code, then
+              recurse: trace A backwards from that STA.
+      4. Both lo and hi tables are found independently; they should
+         turn out to be exactly 128 bytes apart in either order.
+
+    Returns `(lo_base, hi_base)` or None if either trace fails.
+    """
+    pcs = sorted(_reachable_pcs(mem, play_entry))
+
+    # Build the candidate STA-to-SID targets for V_FREQ_LO and V_FREQ_HI.
+    LO_TARGETS = {0xD400, 0xD407, 0xD40E}
+    HI_TARGETS = {0xD401, 0xD408, 0xD40F}
+
+    def _find_freq_table(targets: set[int]) -> int | None:
+        # Step 1: find a STA $D40N,X (opcode $9D) that writes to one of
+        # the freq registers.
+        for pc in pcs:
+            if pc + 3 >= len(mem):
+                continue
+            if mem[pc] not in (0x9D, 0x99):    # STA abs,X / STA abs,Y
+                continue
+            tgt = mem[pc + 1] | (mem[pc + 2] << 8)
+            if tgt not in targets:
+                continue
+            # Step 2: trace A backwards from this STA.
+            src = _walk_back_for_a_source(mem, pcs, pc)
+            if src is None:
+                continue
+            mode, addr = src
+            if mode == 'abs_x':
+                return addr  # direct lookup — found the table
+            if mode in ('abs', 'abs_y'):
+                # Indirect via a voice-state slot. Find the writer of
+                # this slot somewhere in reachable code, then recurse.
+                # We accept STA $abs (opcode $8D) or STA $abs,Y ($99)
+                # writing to `addr`.
+                for w_pc in pcs:
+                    if w_pc + 3 >= len(mem):
+                        continue
+                    wop = mem[w_pc]
+                    if wop not in (0x8D, 0x99):
+                        continue
+                    w_tgt = mem[w_pc + 1] | (mem[w_pc + 2] << 8)
+                    if w_tgt != addr:
+                        continue
+                    src2 = _walk_back_for_a_source(mem, pcs, w_pc)
+                    if src2 is None:
+                        continue
+                    mode2, addr2 = src2
+                    if mode2 == 'abs_x':
+                        return addr2
+        return None
+
+    lo = _find_freq_table(LO_TARGETS)
+    hi = _find_freq_table(HI_TARGETS)
+    if lo is None or hi is None:
+        return None
+    return lo, hi
+
+
 def load_state_from_sid(sid_path: str, subtune: int = 0) -> EngineState:
     """Top-level entry: load the SID, scan its play loop, return an
     `EngineState` with the engine's structural addresses filled in.
@@ -409,16 +597,32 @@ def load_state_from_sid(sid_path: str, subtune: int = 0) -> EngineState:
     """
     mem, load, init_addr, play_addr, _n_sub = _load_sid_binary(sid_path)
 
-    # Strategy 1+2: static scan, with up to 3 static trampoline peels.
+    def _finalize(blocks: list[VoiceBlock], proc_note: int,
+                  post_mem: bytes, loop_entry: int) -> EngineState:
+        """Populate per-voice initial_ptr from post-init memory and
+        return the final EngineState."""
+        for vb in blocks:
+            vb.initial_ptr = post_mem[vb.ptr_addr] | (
+                post_mem[vb.ptr_addr + 1] << 8)
+        return EngineState(
+            load=load, init_addr=init_addr, play_addr=play_addr,
+            proc_note_addr=proc_note, play_loop_entry=loop_entry,
+            voices=blocks, post_init_mem=post_mem)
+
+    # Always run init — we need post-init memory for table extraction
+    # downstream anyway. 200k cycle budget; cheap relative to total
+    # extract cost.
+    post_mem, _, _, _ = _run_init_capture(sid_path, subtune)
+
+    # Strategy 1+2: static scan against the raw binary, with up to 3
+    # static trampoline peels.
     pc = play_addr
     static_err: Exception | None = None
     if play_addr != 0:
         for _ in range(4):
             try:
                 blocks, proc_note = scan_voice_blocks(mem, pc)
-                return EngineState(
-                    load=load, init_addr=init_addr, play_addr=play_addr,
-                    proc_note_addr=proc_note, voices=blocks)
+                return _finalize(blocks, proc_note, post_mem, pc)
             except ValueError as e:
                 static_err = e
                 inner = _peel_trampoline(mem, pc)
@@ -426,25 +630,17 @@ def load_state_from_sid(sid_path: str, subtune: int = 0) -> EngineState:
                     break
                 pc = inner
 
-    # Strategy 3: run init, resolve play via post-init memory, re-scan.
-    post_mem, _, _, _ = _run_init_capture(sid_path, subtune)
+    # Strategy 3: resolve play via post-init memory, re-scan.
     resolved = _resolve_play_addr(post_mem, play_addr)
     if resolved == 0:
         raise ValueError(
             f'jay_derrett: init did not install a play vector '
             f'(play=$0000 still, $0314/$0315=$00)')
-    # Same peel chain on the resolved address. Try both the static
-    # trampoline peel AND the IRQ-handler peel — the IRQ case
-    # (`play_addr=$0000`) resolves to a raster-IRQ wrapper whose
-    # real-play target sits behind an INC $D019 + optional bank-switch
-    # + JSR inner_play sequence.
     pc = resolved
     for _ in range(4):
         try:
             blocks, proc_note = scan_voice_blocks(post_mem, pc)
-            return EngineState(
-                load=load, init_addr=init_addr, play_addr=play_addr,
-                proc_note_addr=proc_note, voices=blocks)
+            return _finalize(blocks, proc_note, post_mem, pc)
         except ValueError as e:
             inner = (_peel_trampoline(post_mem, pc)
                      or _peel_irq_handler(post_mem, pc))
