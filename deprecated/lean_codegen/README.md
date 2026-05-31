@@ -48,9 +48,14 @@ deprecated/lean_codegen/
   pipelines/<engine>/codegen/<EngineName>/...  per-engine Lean trees
 ```
 
-The corresponding `.lake/` build artifacts are still at the project root
-(167 MB, gitignored). Safe to `rm -rf .lake/` if disk space matters — derived
-output, nothing in there is source.
+## Regenerable artifacts (removed from tree to save space)
+
+- `formal/.lake/` — Lean build outputs. Run `lake build` from `formal/`
+  to regenerate (requires the toolchain pinned in `lean-toolchain`).
+- `tools/z3_lib/` — vendored z3 4.16.0 Python distribution. Was used
+  by `formal/inverse_solver.py` via a `sys.path` injection. Re-vendor
+  with `pip install z3-solver==4.16.0 --target tools/z3_lib`, or
+  install z3-solver into the active venv and drop the sys.path hack.
 
 ## Reviving
 
