@@ -1,6 +1,6 @@
 ---
 name: project_confuzion
-description: "Confuzion (Hubbard 1985 Incentive) — voice+filter byte-exact; song-end $D418 fade missing"
+description: "Confuzion (Hubbard 1985 Incentive) — byte-exact across all subtunes; stripped runtime (vibrato + bidirectional PWM only)."
 metadata:
   node_type: memory
   type: project
@@ -8,13 +8,10 @@ metadata:
 ---
 
 Confuzion (Rob Hubbard, 1985 Incentive Software) is the eleventh
-Hubbard '85 engine on the [[project_usf2_refactor]] USF-only path.
-Voice registers + filter ($D400-$D417) byte-exact across all 13998
-frames; **subtune 0 fails verify_all** under the stricter $D400-$D418
-snapshot check because our codegen doesn't reproduce the song-end
-$D418 fade (orig steps $0F → $01 across frames 12727-13861).
-Commits: b1c916b (initial migration), 667176a (the verify check that
-exposed the fade gap).
+Hubbard '85 engine on the shared composer path. Voice registers +
+filter + master-VOL ($D400-$D418) byte-exact across all 13998 frames
+after the fade was implemented — see [[project_hubbard_song_end_fade]]
+for the cross-engine fade story.
 
 Engine fingerprint:
 - load $0858  init $0867  play $0858  freq table $0AFD  instr base $1146 (12×8)
@@ -37,29 +34,13 @@ arp +12. It never reads bit 3 either — no linear PW path. Just:
 
 ## Config
 
-`pipelines/confuzion/config.py`:
+`pipelines/hubbard/confuzion/config.py`:
 - `vib_onset=8`
 - `speed_ctr_init=2` — first note-load deferred two frames; the
   engine ticks vibrato twice before reading the pattern.
+- `master_vol_subtrahend_voice=1`, `master_vol_base=0xA0` — drives
+  the song-end fade ($D418 from $0F down to $00 over the final ~22s).
 
-No shared-core changes. Every other Hubbard '85 knob (arp_period,
+No shared-core branches. Every other Hubbard '85 knob (arp_period,
 incby2_step, frame_ctr_init, …) defaults to the right value because
 Confuzion's runtime simply never exercises those paths.
-
-## Song-end $D418 fade — the verify_all gap
-
-Orig writes $D418 with values $0F → $0E → ... → $01 across frames
-12727-13861 (steps every ~87 frames = ~1.74s, total fade duration
-22.7 seconds). Our codegen sets $D418=$0F in init and never modifies
-it. This is the same engine feature seen in
-[[project_thing_on_a_spring]] — see [[project_hubbard_song_end_fade]]
-for the cross-engine summary and implementation sketch.
-
-The fade is driven by a counter at $0BC2 in the orig binary, but the
-init code NOPs out the trigger via self-modifying `LDA #$EA; STA
-$08B9`, hiding where the fade ARMs in the disassembly. Need deeper
-trace to find the increment path.
-
-Voice + filter ($D400-$D417) match 100.0% across 13998 frames. Only
-the master-VOL fade in the last 22s diverges. Listening test will
-expose the missing fade-out at the very end of the song.

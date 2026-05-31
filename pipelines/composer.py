@@ -1023,6 +1023,7 @@ sp_read:
         beq sp_stop          ; $FE - end of song
         lda orderLoop,x      ; $FF - wrap to the loop point
         sta v_orderpos,x
+        ; %%MASTER_VOL_LOOP_RESET%%
         jmp sp_read
 sp_stop:
         lda #$ff
@@ -1081,7 +1082,7 @@ sp_nc:
         rts"""
 
 
-def _emit_hubbard_set_patptr() -> str:
+def _emit_hubbard_set_patptr(fade: 'FadeProgressive | None' = None) -> str:
     """set_patptr routine — orderlist dispatch + new-pattern setup.
 
     Walks the per-voice orderlist (handling $FE end-of-song with the
@@ -1092,8 +1093,25 @@ def _emit_hubbard_set_patptr() -> str:
     References the assembler `.alias` equates FREEZE_ON_STOP /
     STOP_IS_FILL / STOP_FILL (emitted at the top of the engine
     binary from `inputs.freeze_on_stop` / `inputs.stop_fill`).
+
+    When `fade is not None` and `fade.reset_on_loop` is True, injects a
+    `sta vol_progress` in the $FF handler for the configured voice — so
+    on song-loop the master_vol counter resets along with the orderlist
+    read position (TOAS-style). Otherwise the counter is independent
+    (Confuzion-style; default).
     """
-    return _HUBBARD_SET_PATPTR_ASM
+    asm = _HUBBARD_SET_PATPTR_ASM
+    if fade is not None and fade.reset_on_loop:
+        v = fade.subtrahend_voice_idx
+        reset = (
+            f'        cpx #{v}\n'
+            f'        bne mv_lr_skip\n'
+            f'        sta vol_progress\n'
+            f'mv_lr_skip:'
+        )
+    else:
+        reset = ''
+    return asm.replace('; %%MASTER_VOL_LOOP_RESET%%', reset)
 
 
 _HUBBARD_NEXT_ORDERIDX_ASM = """; next_orderidx - the orderlist index the next pattern will occupy:
@@ -1859,7 +1877,8 @@ def _compose_hubbard_engine_body(
         incby2_late_gate: int | None = None,
         has_per_subtune_ovseed: bool = False,
         has_master_vol_fade: bool = False,
-        uses_per_subtune_dispatch: bool = False) -> str:
+        uses_per_subtune_dispatch: bool = False,
+        fade: 'FadeProgressive | None' = None) -> str:
     """Compose the Hubbard '85 engine asm body by direct concatenation
     of named chunks — the composer-native replacement for template +
     `; %%SENTINEL%%` substitution.
@@ -1903,7 +1922,7 @@ def _compose_hubbard_engine_body(
         _HUBBARD_LOAD_NOTE_COMMENT,
         '',
         _HUBBARD_SET_PATPTR_HEADER,
-        _emit_hubbard_set_patptr(),
+        _emit_hubbard_set_patptr(fade),
         '',
         _emit_hubbard_next_orderidx(),
         '',
@@ -2059,6 +2078,8 @@ def _resolve_codec_note_asm(codec, inputs) -> str:
             subtrahend_voice_idx=inputs.master_vol_subtrahend_voice,
             base=inputs.master_vol_base,
             trigger=inputs.master_vol_trigger,
+            reset_on_loop=inputs.master_vol_reset_on_loop,
+            underflow_clamp=inputs.master_vol_underflow_clamp,
         )
         if inputs.master_vol_subtrahend_voice is not None else None)
     for sentinel, fragment in _emit_master_vol_fade(fade).items():
@@ -2088,6 +2109,15 @@ def _compose_hubbard_engine_asm(inputs, codec, pat_slot, pat_bytes,
         inputs.per_subtune_speed_ctr_init is not None
         or inputs.per_subtune_incby2_step is not None
         or inputs.per_subtune_incby2_late_gate is not None)
+    fade = (
+        FadeProgressive(
+            subtrahend_voice_idx=inputs.master_vol_subtrahend_voice,
+            base=inputs.master_vol_base,
+            trigger=inputs.master_vol_trigger,
+            reset_on_loop=inputs.master_vol_reset_on_loop,
+            underflow_clamp=inputs.master_vol_underflow_clamp,
+        )
+        if inputs.master_vol_subtrahend_voice is not None else None)
     body = _compose_hubbard_engine_body(
         inputs.state_layout,
         load_addr=load_addr,
@@ -2098,7 +2128,8 @@ def _compose_hubbard_engine_asm(inputs, codec, pat_slot, pat_bytes,
         incby2_late_gate=inputs.incby2_late_gate,
         has_per_subtune_ovseed=inputs.per_subtune_ovseed is not None,
         has_master_vol_fade=inputs.master_vol_subtrahend_voice is not None,
-        uses_per_subtune_dispatch=uses_psp)
+        uses_per_subtune_dispatch=uses_psp,
+        fade=fade)
     data = _emit_hubbard_data(
         inputs.scores, inputs.models, inputs.freq_bytes,
         inputs.resetspds, inputs.voice_starts,
@@ -2216,6 +2247,8 @@ class _Inputs:
     master_vol_subtrahend_voice: _Optional[int] = None
     master_vol_base: int = 0xA0
     master_vol_trigger: str = 'inst_change'
+    master_vol_reset_on_loop: bool = False
+    master_vol_underflow_clamp: bool = False
     tie_preserves_slide: bool = False
 
 
@@ -2275,6 +2308,8 @@ def _inputs_from_config(config) -> _Inputs:
         master_vol_subtrahend_voice=config.master_vol_subtrahend_voice,
         master_vol_base=config.master_vol_base,
         master_vol_trigger=config.master_vol_trigger,
+        master_vol_reset_on_loop=config.master_vol_reset_on_loop,
+        master_vol_underflow_clamp=config.master_vol_underflow_clamp,
         tie_preserves_slide=config.tie_preserves_slide,
     )
 
@@ -2614,6 +2649,8 @@ def _inputs_from_usf(usf) -> _Inputs:
         master_vol_subtrahend_voice=get('master_vol_subtrahend_voice', None),
         master_vol_base=get('master_vol_base', 0xA0),
         master_vol_trigger=get('master_vol_trigger', 'inst_change'),
+        master_vol_reset_on_loop=get('master_vol_reset_on_loop', False),
+        master_vol_underflow_clamp=get('master_vol_underflow_clamp', False),
         tie_preserves_slide=get('tie_preserves_slide', False),
         hubidx_wrap_at_patend=get('hubidx_wrap_at_patend', True),
         **({'ns_offtab_decr_offset': ns_offtab_decr_offset}
@@ -3132,6 +3169,12 @@ def _emit_master_vol_fade(fade: 'FadeProgressive | None') -> dict[str, str]:
     # v_notesleft has just decremented to 0 (i.e. THIS load was the
     # pattern's last note). Matches the engine's $C15A-$C167 path
     # which INCs the counter on the same tick the last note is loaded.
+    # Peek-ahead INC at the configured voice's last-note load. Engines
+    # whose orderlist counter resets on $FF loop (`master_vol_reset_on_loop=True`,
+    # TOAS-style) get a paired `sta vol_progress` injected into set_patptr's
+    # $FF handler; engines whose counter just keeps incrementing (Confuzion-
+    # style) leave that alone and rely on $FE-ends to freeze the counter
+    # naturally.
     inc_asm = (
         f'        cpx #{v}\n'
         f'        bne vp_skip\n'
@@ -3140,15 +3183,36 @@ def _emit_master_vol_fade(fade: 'FadeProgressive | None') -> dict[str, str]:
         f'        inc vol_progress\n'
         f'vp_skip:'
     )
-    write_template = (
-        f'        lda #${fade.base:02X}\n'
-        f'        sec\n'
-        f'        sbc vol_progress\n'
-        f'        cmp #$0f\n'
-        f'        bcc {{label}}\n'
-        f'        lda #$0f\n'
-        f'{{label}}: sta $d418'
-    )
+    # clamp(BASE - vol_progress, 0..$0F).
+    # underflow_clamp=True (Confuzion-style):
+    #   underflow (vol_progress > BASE) → $00; A < $0F → A; A >= $0F → $0F
+    # underflow_clamp=False (default; TOAS et al., the orig engine has the
+    # same quirk so verify_all matches via this shape):
+    #   no underflow check — vol_progress > BASE produces a high A that
+    #   falls into the upper-clamp branch and writes $0F.
+    if fade.underflow_clamp:
+        write_template = (
+            f'        lda #${fade.base:02X}\n'
+            f'        sec\n'
+            f'        sbc vol_progress\n'
+            f'        bcc {{label}}_z\n'        # underflow → $00
+            f'        cmp #$0f\n'
+            f'        bcc {{label}}_w\n'        # A < $0F → write A
+            f'        lda #$0f\n'               # A >= $0F → clamp to $0F
+            f'        bne {{label}}_w\n'        # always branch (A=$0F != 0)
+            f'{{label}}_z: lda #$00\n'
+            f'{{label}}_w: sta $d418'
+        )
+    else:
+        write_template = (
+            f'        lda #${fade.base:02X}\n'
+            f'        sec\n'
+            f'        sbc vol_progress\n'
+            f'        cmp #$0f\n'
+            f'        bcc {{label}}\n'
+            f'        lda #$0f\n'
+            f'{{label}}: sta $d418'
+        )
     write_asm = write_template.format(label='mvw_lt')
     return {
         '; %%VOL_PROGRESS_INC%%':      inc_asm,

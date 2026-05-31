@@ -117,6 +117,23 @@ class EngineConfig:
     #                    master_VOL block at $C0C0-$C0CC after every dur
     #                    read in the new-note path).
     master_vol_trigger: str = 'inst_change'
+    # When True, the codegen also resets the master_vol counter to
+    # orderLoop[V] in set_patptr's $FF handler. TOAS-style: the engine's
+    # V3_orderpos IS the master_vol counter, so on $FF loop it gets
+    # reset along with the orderlist read position — making the fade
+    # restart on each loop pass. Confuzion-style (False, the default):
+    # the counter is independent of the orderlist and never resets; V2
+    # ends via $FE so no $FF reset is ever triggered.
+    master_vol_reset_on_loop: bool = False
+    # When True, the clamp formula handles SBC underflow correctly
+    # (vol_progress > BASE → write $00). When False (the default), the
+    # underflowed value is treated as "above the upper clamp" and gets
+    # clamped UP to $0F. Confuzion needs this enabled because V2 ends
+    # via $FE just past BASE+1 and the next master_vol write would
+    # otherwise jump $D418 back to $0F. Other engines (TOAS) leave it
+    # off because pre-fix verify_all was matching orig via the same
+    # SBC-underflow shape (orig has the same engine quirk).
+    master_vol_underflow_clamp: bool = False
     # When True, the codegen's note_codec emits the v_drumtrig clear
     # ONLY in the non-tie path of ln_decode — matching Confuzion's
     # `$807C: STA $841A,X` which the tie's `BVS $80C0` jumps over.

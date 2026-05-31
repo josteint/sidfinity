@@ -50,6 +50,11 @@ CFG = EngineConfig(
     # ~22 seconds. See [[project_hubbard_song_end_fade]].
     master_vol_subtrahend_voice=1,
     master_vol_base=0xA0,
+    # V2 ends via $FE just past BASE+1 ($A1). Without the underflow
+    # clamp, the buggy SBC wrap would jump $D418 back to $0F at the
+    # next inst-change. With it, the formula correctly writes $00 for
+    # vol_progress > BASE. See [[project_hubbard_song_end_fade]].
+    master_vol_underflow_clamp=True,
     # Engine's tie path ($807A BVS $80C0) jumps over the v_slide clear
     # at $807C — so a tie note must preserve whatever slide was set on
     # the head note. Without this the slide is lost on the first tie.

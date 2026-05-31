@@ -324,11 +324,25 @@ MasterVolMode = Literal[
 @dataclass
 class FadeProgressive:
     """Fade-progressive vol: increment `vol_progress` on the configured
-    voice's pattern-end (never wraps on loop), write
-    `$D418 = clamp(base - vol_progress, 0..$0F)` on a trigger."""
+    voice's pattern-end, write
+    `$D418 = clamp(base - vol_progress, 0..$0F)` on a trigger.
+
+    `reset_on_loop=True` (TOAS-style): the counter IS the orderlist
+    position, so on $FF loop the counter resets to orderLoop[V] and the
+    fade restarts each loop pass. Default False (Confuzion-style): the
+    counter is independent of the orderlist and never resets; the
+    configured voice ends via $FE so no $FF reset is triggered.
+
+    `underflow_clamp=True`: the clamp asm handles SBC underflow by
+    writing $00 when vol_progress > base. Default False matches the
+    older buggy clamp where underflow falls through to the $0F upper-
+    clamp branch — kept as default because some engines' orig has the
+    same quirk and verify_all was matching via that coincidence."""
     subtrahend_voice_idx: int           # 0/1/2
     base: int                            # 0xA0 typical
     trigger: Literal['inst_change', 'every_note'] = 'inst_change'
+    reset_on_loop: bool = False
+    underflow_clamp: bool = False
 
 
 @dataclass
@@ -1002,7 +1016,9 @@ def _infer_master_vol(usf, music) -> MasterVolConfig:
             fade=FadeProgressive(
                 subtrahend_voice_idx=p['master_vol_subtrahend_voice'],
                 base=p.get('master_vol_base', 0xA0),
-                trigger=p.get('master_vol_trigger', 'inst_change')))
+                trigger=p.get('master_vol_trigger', 'inst_change'),
+                reset_on_loop=bool(p.get('master_vol_reset_on_loop', False)),
+                underflow_clamp=bool(p.get('master_vol_underflow_clamp', False))))
 
     # Per-subtune `gain_init` (yes_tune) or `vol_filter` (companion)?
     per_sub = any(

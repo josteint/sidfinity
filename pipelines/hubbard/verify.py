@@ -1,9 +1,13 @@
 """verify.py — verify a rebuilt SID against the original.
 
 Each subtune is reduced to one md5 checksum: capture it through py65
-for 1.1x its HVSC song length (PAL, 50 Hz), then fold every frame's
+for 1.5x its HVSC song length (PAL, 50 Hz), then fold every frame's
 register writes, in order, into a running md5. Two SIDs agree on a
 subtune iff the checksums match.
+
+The 1.5x window catches post-songlength divergences that 1.1x missed
+(e.g. master-VOL fade-counter wrap on loop). See
+`tools/audit_d418_fade.py` for the audit that surfaced the gap.
 
 Checksums are cached on disk keyed by the SID file's md5, so a
 subtune is only ever re-captured for a SID whose bytes changed.
@@ -33,7 +37,7 @@ _CACHE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
 FPS = 50  # PAL frames per second
 
 
-def subtune_frames(config, passes: float = 1.1,
+def subtune_frames(config, passes: float = 1.5,
                    min_frames: int = 600) -> list[int]:
     """Per-subtune frame counts: `passes` x the HVSC duration x 50 Hz.
 
@@ -119,7 +123,7 @@ def _checksum_digi(args):
     return key, h.hexdigest()
 
 
-def verify_all(engine_jobs, passes: float = 1.1,
+def verify_all(engine_jobs, passes: float = 1.5,
                min_frames: int = 600, jobs: int | None = None):
     """`engine_jobs`: [(config, rebuilt_path), ...]. For every shipped
     subtune of every engine, checksum the original and the rebuilt and
@@ -195,7 +199,7 @@ def verify_all(engine_jobs, passes: float = 1.1,
     return out
 
 
-def verify(config, rebuilt_path: str, passes: float = 1.1,
+def verify(config, rebuilt_path: str, passes: float = 1.5,
            min_frames: int = 600, jobs: int | None = None):
     """Verify one engine — see verify_all. Returns (results, all_ok)."""
     return verify_all([(config, rebuilt_path)],

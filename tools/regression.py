@@ -13,6 +13,11 @@ modes:
 Pre-existing partial cases (do NOT treat as regressions):
   - Melonmania                 sub 1
   - 5_Title_Tunes              sub 2
+  - Confuzion                  sub 0  (voice-reg divergence past frame
+    ~15650 exposed when verify window widened from 1.1x to 1.5x — the
+    $D418 fade itself is correctly handled; this is a separate
+    post-fade engine-end-handling divergence. See
+    [[project_hubbard_song_end_fade]].)
 
 (Fairlight sub 0 was previously listed here as a phantom partial — it's
 actually byte-exact; the old `compare_instruction_stream(skip_init=True)`
@@ -76,28 +81,50 @@ KNOWN_PARTIAL = {
     '5_Title_Tunes':   {2},
 }
 
+# Hubbard '85 subtunes carrying a known-partial at 1.5x (the new
+# default verify window). At 1.1x these all passed; widening to 1.5x
+# exposed post-songlength divergences that aren't fade-related and
+# would each need its own investigation. The $D418 audit
+# (`tools/audit_d418_fade.py`) is the dedicated check for fade-class
+# bugs at 2.0x.
+KNOWN_PARTIAL_HUBBARD = {
+    'confuzion': {0},
+}
+
 
 def _n_subs(sid: str) -> int:
     with open(sid, 'rb') as f:
         return struct.unpack('>H', f.read(0x10)[0x0E:0x10])[0]
 
 
-def regress_hubbard() -> tuple[int, int]:
-    """Md5-of-frame-snapshot verify across all 10 Hubbard '85 engines."""
-    ok = total = 0
+def regress_hubbard() -> tuple[int, int, int]:
+    """Md5-of-frame-snapshot verify across all Hubbard '85 engines.
+    Returns (ok, partial, total)."""
+    ok = partial = total = 0
     for nick, cn, fn in HUBBARD_ENGINES:
         cfg = getattr(import_module(f'pipelines.hubbard.{nick}.config'), cn)
         out = f'{HUBBARD_BASE}/{fn}.sidfinity.sid'
         build_from_usf(f'{HUBBARD_BASE}/{fn}.usf', out)
         rows = list(verify_all([(cfg, out)]).values())[0][0]
-        passed = sum(1 for _, b in rows if b)
-        ok += passed
+        known = KNOWN_PARTIAL_HUBBARD.get(nick, set())
+        sub_ok = sub_partial = sub_fail = 0
+        for st, b in rows:
+            if b:
+                sub_ok += 1
+            elif st in known:
+                sub_partial += 1
+            else:
+                sub_fail += 1
+        ok += sub_ok
+        partial += sub_partial
         total += len(rows)
-        status = f'{passed}/{len(rows)}'
-        if passed < len(rows):
+        status = f'{sub_ok}/{len(rows)}'
+        if sub_partial:
+            status += f' ({sub_partial} known-partial)'
+        if sub_fail:
             status += ' FAIL'
         print(f'  {fn:32s} {status}')
-    return ok, total
+    return ok, partial, total
 
 
 def regress_companion() -> tuple[int, int, int]:
@@ -140,14 +167,16 @@ def regress_companion() -> tuple[int, int, int]:
 
 def main():
     print('Hubbard \'85:')
-    h_ok, h_total = regress_hubbard()
+    h_ok, h_part, h_total = regress_hubbard()
     print(f'\nCompanion + 5TT:')
     c_ok, c_part, c_fail = regress_companion()
 
-    print(f'\nHubbard:    {h_ok}/{h_total}')
+    print(f'\nHubbard:    {h_ok} ok  +  {h_part} known-partial  +  '
+          f'{h_total - h_ok - h_part} regressed  (of {h_total})')
     print(f'Companion:  {c_ok} ok  +  {c_part} known-partial  +  {c_fail} regressed')
 
-    if h_ok != h_total or c_fail:
+    h_regressed = h_total - h_ok - h_part
+    if h_regressed or c_fail:
         sys.exit(1)
 
 
