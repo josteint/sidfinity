@@ -1,13 +1,13 @@
 ---
 name: reference_audit_tool
-description: src/usf2/audit.py — PC-traced per-voice SID-write capture. Use for Rule 1 collapse audits when frame-level writelog conflates voices.
+description: src/usf/audit.py — PC-traced per-voice SID-write capture. Use for Rule 1 collapse audits when frame-level writelog conflates voices.
 metadata: 
   node_type: memory
   type: reference
   originSessionId: 0dddd211-01d5-48ea-b899-54adc79e22ae
 ---
 
-`src/usf2/audit.py` runs any SID through py65 with a SID-write
+`src/usf/audit.py` runs any SID through py65 with a SID-write
 observer, capturing `(frame, PC, addr, value)` for every write to
 $D400-$D418. Filters to one voice (0/1/2 via per-voice register
 range) and optionally cross-references PCs against a disassembly
@@ -28,7 +28,7 @@ file for engine-instruction attribution.
 
 ## Usage
 
-    python src/usf2/audit.py <sid> --subtune N --frames a:b \
+    python src/usf/audit.py <sid> --subtune N --frames a:b \
         [--voice 0|1|2] [--disasm path/to/disasm.s]
 
 Frame range is `start:end` (end-exclusive). `--voice` is 0-indexed

@@ -46,7 +46,7 @@ and we should reconsider.
    per-instrument-per-note, captured under standardised conditions
    — e.g. play the SID, isolate one voice playing one note at a
    known pitch, record the first 32 frames after note-start.
-   `src/usf2/audit.py` (see [[reference_audit_tool]]) already does
+   `src/usf/audit.py` (see [[reference_audit_tool]]) already does
    most of the capture; needs a "fingerprint" mode that probes
    under canonical conditions instead of a frame range.
 

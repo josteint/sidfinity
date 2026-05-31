@@ -25,7 +25,7 @@ ALL of these. If I can't, the proposal isn't ready.
    *audible/structural* behavior identical? If unknown, that's a
    research task before the design proposal. "Probably the same"
    is not the test. Use [[reference_audit_tool]]
-   (`src/usf2/audit.py`) for PC-traced per-voice writes when the
+   (`src/usf/audit.py`) for PC-traced per-voice writes when the
    frame-level writelog conflates voices.
 
 4. **§8 test 3 (interpolation).** Name two real corpus instances of
