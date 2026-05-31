@@ -1,27 +1,32 @@
 ---
 name: Meta-process for continuous improvement
-description: How to evaluate and evolve the SIDfinity development process itself — the meta-meta rule
+description: At natural pause points (PreCompact, end of a workstream), re-evaluate whether the current approach is still highest-ROI and whether memories / CLAUDE.md reflect reality.
 type: feedback
 ---
 
-On compaction (PreCompact hook will remind), evaluate whether the current process is working:
+At natural pause points — PreCompact hooks, end of a workstream,
+finishing an engine migration — pause and run the checklist:
 
-1. **Check ROI**: Read docs/benchmark.csv. Is the Grade A curve still rising? If it flattened, the current approach has diminishing returns — time to try something new.
+1. **Check ROI.** Is the current approach still the highest-value
+   thing to do? The frontier shifts: early-project parser bugs gave
+   way to USF v2 design, which gave way to per-engine migrations,
+   which gave way to the composer dissolution, etc. Always ask
+   "is THIS still where my hour buys the most progress?"
 
-2. **Check memories**: Read all memory files. Remove stale ones. Update numbers. Memories that reference specific file:line locations may be outdated — verify before acting on them.
+2. **Check memories.** Walk the index. Remove stale ones. Correct
+   wrong numbers. Memories that name a specific file:line are claims
+   that the file:line existed when the memory was written — verify
+   before acting on them.
 
-3. **Check procedure**: Read docs/formal/procedure.md. Is it still accurate? Has a "NOT USEFUL" tool become useful? Has a "USEFUL" tool stopped helping?
+3. **Check CLAUDE.md.** Is it still accurate? Are the Key Files up
+   to date? Are the working conventions being followed? Volatile
+   info (counts, dates, in-flight workstream status) belongs in
+   `tools/regression.py` output or `git log`, not CLAUDE.md.
 
-4. **Check CLAUDE.md**: Is the status line current? Are the Key Files up to date? Are the Working Conventions being followed?
+**Why:** Without periodic self-assessment, sessions tend to repeat
+the same approach even after it stops being highest-value, and the
+memory index drifts away from reality.
 
-5. **Check what's working NOW vs what was working BEFORE**: The highest-ROI approaches change over time:
-   - Early: fixing pipeline bugs (decompiler, codegen) had the biggest impact
-   - Mid: trace equivalence mining gained +393 songs from 3 rule changes
-   - Future: when GT2 gains plateau, non-GT2 engines (Hubbard, DMC, JCH) become the frontier
-   - The meta-rule: always work on whatever has the highest expected Grade A gain per hour invested
-
-6. **Update this memory**: If the process itself changed, update this file so future sessions know.
-
-**Why:** Without periodic self-assessment, sessions tend to repeat the same approach even when it stops working. The meta-rule prevents getting stuck.
-
-**How to apply:** The PreCompact hook triggers the review automatically. Compaction is a natural pause point — the context is about to shrink, so it's the right time to make sure memories and CLAUDE.md are current before state is lost.
+**How to apply:** Triggered by the PreCompact hook in
+`.claude/settings.json` and at natural end-of-workstream pauses
+(after an engine reaches byte-exact, after a refactor lands, etc).

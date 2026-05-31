@@ -53,20 +53,12 @@ build_statebuf, init_sfx, sfx_play, sfx_step) each have their own
 `_HUBBARD_<NAME>_ASM` constant + `_emit_hubbard_<chunk>(...)` accessor
 in `pipelines/composer.py`.
 
-**Verification baseline as of 2026-05-30:**
-- Hubbard '85: 71/71 byte-exact (md5 of `$D400-$D418` per-frame snapshots).
-- Companion + 5_Title_Tunes: 32 ok + 3 known-partial + 0 regressions
-  (cycle-strict via `compare_instruction_stream`).
-
-Known-partial subtunes carried through the rewrite (NOT new regressions
-— pre-existed since before the rewrite started):
-- `Fairlight` sub 0
-- `Melonmania` sub 1
-- `5_Title_Tunes` sub 2
-
-Run [`tools/regression.py`](../../../sidfinity/tools/regression.py) to
-re-baseline; it explicitly lists the known-partials so they don't get
-mistaken for regressions.
+**Verification:** `tools/regression.py` is the source of truth — it
+covers both verification surfaces (Hubbard snapshot via `verify_all`
+and companion + 5_Title_Tunes cycle-strict via
+`compare_instruction_stream`) and enumerates the pre-existing partial
+subtunes explicitly so they don't get mistaken for regressions. Run
+it to see the current ok / known-partial / regressed counts.
 
 See also [[composer-architecture-files]] if I ever write down the
 file-level map of composer.py's ~5,000 lines.
