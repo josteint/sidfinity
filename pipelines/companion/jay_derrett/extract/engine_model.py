@@ -843,6 +843,19 @@ def _run_play_capture(sid_path: str, n_frames: int = 2000,
     if counter_addr is None:
         counter_addr = state.proc_note_addr + 0x18
 
+    # Patch any `JMP $EA81` (KERNAL IRQ exit) in the play handler to
+    # an RTS — KERNAL's exit sequence pulls A/X/Y + RTI from a 6-byte
+    # IRQ stack frame our JSR doesn't provide. Patching to RTS lets
+    # the handler return to our sentinel via the standard JSR stack.
+    # Scan a 1KB window from play_real onward; replace any 4C 81 EA
+    # sequence with 60 EA EA (RTS + 2 NOPs).
+    for q in range(play_real, min(play_real + 1024, 0x10000 - 2)):
+        if (post_mem[q] == 0x4C and post_mem[q + 1] == 0x81
+                and post_mem[q + 2] == 0xEA):
+            post_mem[q] = 0x60       # RTS
+            post_mem[q + 1] = 0xEA   # NOP
+            post_mem[q + 2] = 0xEA   # NOP
+
     mpu = MPU()
     mpu.memory = post_mem
 
