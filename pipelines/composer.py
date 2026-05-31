@@ -1278,11 +1278,6 @@ iniov:  lda ovseed,x
         sta first_frame
         lda #FRAME_CTR_INIT
         sta frame_ctr
-        ldx #$18
-ini2:   lda #0
-        sta $d400,x
-        dex
-        bpl ini2
         lda #MASTER_VOL_INIT  ; $D418 init value — most engines write $0F
                               ; here, but engines with MASTER_VOL_FADE
                               ; leave it at $00 because the original

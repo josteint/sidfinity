@@ -10,16 +10,11 @@ modes:
     (`compare_instruction_stream(skip_init=True)`) — needed since
     these engines use a different verification surface.
 
-Pre-existing partial cases (do NOT treat as regressions):
-  - 5_Title_Tunes              sub 2
-
-(Fairlight sub 0 was previously listed here as a phantom partial — it's
-actually byte-exact; the old `compare_instruction_stream(skip_init=True)`
-default reported 0/642 because the rebuild's init writes shift across
-the frame-0/frame-1 boundary. `compare_instruction_stream` now returns
-both `match_all` (skip_init=False) and `match_post_init` (skip_init=True)
-and an `is_full` verdict accepting either; this regression script uses
-`is_full`.)
+All pre-existing partials are now resolved (Fairlight via the
+`is_full` accepting either skip_init=False or =True; Melonmania sub 1
+via the per-subtune `voice_enable_mask` knob; 5_Title_Tunes sub 2
+via dropping the composer init's silence-clear loop that was
+producing 24 phantom $D400-$D418=$00 writes orig didn't emit).
 
 Run:
     python3 tools/regression.py
@@ -70,9 +65,7 @@ COMPANION_USFS = [
 
 # Pre-existing partial subtunes (carried since before the composer
 # rewrite). Not regressions; not failures.
-KNOWN_PARTIAL = {
-    '5_Title_Tunes':   {2},
-}
+KNOWN_PARTIAL: dict[str, set[int]] = {}
 
 # Hubbard '85 subtunes carrying a known-partial at 1.5x (the
 # default verify window). Empty today — Confuzion sub 0 was the last
