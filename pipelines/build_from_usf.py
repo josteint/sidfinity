@@ -5,11 +5,9 @@ path. The composer reads the USF, builds an EngineModel from features,
 and emits asm per the model's feature combination. No engine identity
 anywhere in the build path.
 
-Today the composer's hubbard85 branch delegates to the lifted
-parametric core in `pipelines.universal_codegen` for the bitpack codec
-+ full modulation pipeline + SFX/digi sub-engines. Future phases
-(see `docs/composer_rewrite_plan.md`) decompose those into composer
-feature emitters one feature at a time.
+The composer's hubbard85 branch is the feature-driven asm
+composition path — see `pipelines/composer.py` and
+[[project_composer_dissolution]] for the architecture.
 """
 
 from __future__ import annotations

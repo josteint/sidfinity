@@ -24,10 +24,9 @@ Principles
 
 Status
 ------
-PHASE 2 — design + audit. Dataclasses defined; `from_usf` builds a
-model from any of the 6 currently-supported USF shapes. The codegen
-that consumes the model is Phase 3+. See
-`docs/composer_rewrite_plan.md`.
+Active — every Hubbard '85 engine flows through `from_usf` into the
+composer (`pipelines/composer.py`). See `docs/engine_model.md` for
+the typed-feature contract.
 """
 
 from __future__ import annotations
