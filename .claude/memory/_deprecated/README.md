@@ -29,6 +29,14 @@ they no longer load on session start. Source preserved for archaeology.
 - `project_subtune_testing.md`
 - `project_toneporta_bug.md`
 
+**Completed migration / refactor phases (superseded by current code):**
+- `project_usf2_refactor.md` — USF v2 refactor; superseded by composer dissolution
+- `project_usf3.md` — references deleted `usf3_build_from_usf.py`; "v3" terminology no longer used
+- `project_pipelines_layout.md` — duplicates CLAUDE.md's layout section; some paths outdated
+- `project_hubbard_principled_usf.md` — Phase 2 mechanism-fields-to-engine_constants migration
+- `project_companion_principled_usf.md` — Phase 1 companion forbidden-shape cleanup
+- `project_math_brainstorm.md` — Das Model era math ideas (Das Model deprecated)
+
 ## If you need to revive one
 
 Move it back up one level and add a line to `../MEMORY.md` pointing at it.

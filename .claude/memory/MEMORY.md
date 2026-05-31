@@ -1,9 +1,7 @@
 ## Project state
 
-- [USF init.sid block (2026-05-31)](project_usf_init_sid_block.md) — CURRENT. USF carries SID-chip priming as typed `init.sid { master_vol, filter, voice N { envelope_prime, pw_init } }` block; composer reads it directly; shape-detection deleted. Bowden migrated as the proof case. Built on [[init-trichotomy]] principle.
-- [Composer dissolution (2026-05-30)](project_composer_dissolution.md) — Phase 8 of the composer rewrite is done; `composer_hubbard.py` DELETED. The Hubbard '85 family lives entirely in `pipelines/composer.py` as feature-driven asm composition (18 chunk emitters + typed args, no template substitution). Hubbard 71/71 + companion 32 ok / 3 known-partial / 0 regressed. Run `tools/regression.py` to re-baseline.
-- [USF2 refactor](project_usf2_refactor.md) — 14 engines byte-exact through USF v2: 12 Hubbard '85 + Companion (Up_up_and_Away) + Bowden-canonical (17 SIDs across the Companion family). Multi-subtune, relocation-aware. Cycle-strict instruction-stream verified, not just frame snapshots.
-- [Project structure (2026-05-27)](project_pipelines_layout.md) — `pipelines/hubbard/<engine>/` for all 12 Hubbard '85 engines + `pipelines/hubbard/` for the shared core; `pipelines/companion/` for the separate 1984 Bowden engine. `deprecated/lean_codegen/` and `deprecated/usf1_pipelines/` hold the older paths.
+- [USF init.sid block](project_usf_init_sid_block.md) — CURRENT. USF carries SID-chip priming as typed `init.sid { master_vol, filter, voice N { envelope_prime, pw_init } }` block; composer reads it directly; shape-detection deleted. Bowden migrated as the proof case. Built on [[init-trichotomy]] principle.
+- [Composer dissolution](project_composer_dissolution.md) — Phase 8 of the composer rewrite is done; `composer_hubbard.py` DELETED. The Hubbard '85 family lives entirely in `pipelines/composer.py` as feature-driven asm composition (18 chunk emitters + typed args, no template substitution). Run `tools/regression.py` for the current verdict.
 
 ## Per-engine project memories
 
@@ -18,26 +16,22 @@
 - [Thing on a Spring](project_thing_on_a_spring.md) — master_VOL formula `clamp($47 − V3_orderpos, $0F)` with `master_vol_trigger='every_note'`; SFX uses Commando-shape sfx_play
 - [One Man and his Droid](project_one_man_and_his_droid.md) — new knob `arp_phase_invert`; songs = `len(subtunes) + len(sfx_list)`
 - [Battle of Britain](project_battle_of_britain.md) — surfaced the tie-preserves-slide bug in the shared note codec
-- [Confuzion](project_confuzion.md) — eleventh Hubbard '85 engine; stripped runtime (only vibrato + bidirectional PWM); frame counter advanced via self-modifying `INC $085C`
-- [5 Title Tunes (unified)](project_five_title_tunes.md) — UNIFIED single-engine (5/5, 7950 bytes vs 11849 original); driven by per-subtune params + ovseed + orderlist tables and globally-renumbered instruments
-- [Companion engine (Up, up & Away!)](project_companion.md) — pipelines/companion/ byte-exact (5/5) for Hubbard's 1984 first SID. First non-Hubbard-'85 engine.
-- [Bowden-canonical (Vic Berry)](project_bowden_canonical.md) — pipelines/companion/bowden_canonical/ byte-exact (12/12). Flat-orderlist engine; surfaced a 6502 carry-leak quirk (PW loop runs 5 iterations, not 4, because `ADC #4` inherits carry from upstream CPX).
-- [Clever Music (Fairlight + Gyroscope)](project_clever_music.md) — pipelines/companion/clever_music/ byte-exact (2/2). Duration counters, embedded commands ($Bx tempo / $Cx vol / $Dx instrument / $Ex pattern jump), song-position synchronisation counter cycling $E0..$E5.
-- [Henrys House](project_henrys_house.md) — pipelines/companion/henrys_house/ byte-exact (1/1). Single-voice variant, hardcoded tempo 8, $FF restart-init handler.
-- [Yes Tune family](project_yes_tune.md) — pipelines/companion/yes_tune/ — Yes_Tune + Soldier_of_Fortune (8 subtunes incl. SFX). Per-voice state machine + 2-byte (note, duration) format. Multi-subtune + relocation-aware.
-- [Companion principled USF (Phase 1)](project_companion_principled_usf.md) — removed forbidden-shape `fx:CNAME`/`init_state_*` tokens from all 4 Companion strains' USFs. Three new parametric fx flags (`tempo=N`/`vol=N`/`song_pos=N`); all 17 SIDs remain byte-exact.
-- [Hubbard '85 principled USF (Phase 2)](project_hubbard_principled_usf.md) — moved ~300 engine-mechanism ints (arp_*, vib_onset, master_vol_*, etc.) out of every Hubbard '85 USF into `engine_constants.py` keyed by engine name. New `EngineConstants.subtune_overrides` carries 5_Title_Tunes per-sub deltas. All 85 standard-engine subtunes byte-exact.
-- [USF v3 (universal)](project_usf3.md) — engine-name-blind, self-contained USF. All 12 Hubbard '85 engines × 89 subtunes byte-exact through `build_from_usf3`. Carries `freq_table` inline, `state_layout` (HR), named `digi_player` (Chimera). Companion pipeline still v2.
+- [Confuzion](project_confuzion.md) — stripped runtime (only vibrato + bidirectional PWM); frame counter advanced via self-modifying `INC $085C`; uses the song-end $D418 fade
+- [5 Title Tunes (unified)](project_five_title_tunes.md) — UNIFIED single-engine driven by per-subtune params + ovseed + orderlist tables and globally-renumbered instruments
+- [Companion engine (Up, up & Away!)](project_companion.md) — pipelines/companion/. First non-Hubbard-'85 engine; Hubbard's 1984 first SID.
+- [Bowden-canonical (Vic Berry)](project_bowden_canonical.md) — pipelines/companion/bowden_canonical/. Flat-orderlist engine; surfaced a 6502 carry-leak quirk (PW loop runs 5 iterations, not 4, because `ADC #4` inherits carry from upstream CPX).
+- [Clever Music (Fairlight + Gyroscope)](project_clever_music.md) — pipelines/companion/clever_music/. Duration counters, embedded commands ($Bx tempo / $Cx vol / $Dx instrument / $Ex pattern jump), song-position synchronisation counter cycling $E0..$E5.
+- [Henrys House](project_henrys_house.md) — pipelines/companion/henrys_house/. Single-voice variant, hardcoded tempo 8, $FF restart-init handler.
+- [Yes Tune family](project_yes_tune.md) — pipelines/companion/yes_tune/. Per-voice state machine + 2-byte (note, duration) format. Multi-subtune + relocation-aware.
 
 ## Engine quirks & open work
 
 - [Hubbard nested counters](project_hubbard_nested_counters.md) — nested DEC/BPL speed counters
 - [Hubbard notenum/freq overlap](project_hubbard_notenum_overlap.md) — notenum table lives INSIDE the freq table region; cross-voice coupling via shared bytes
-- [Hubbard song-end fade](project_hubbard_song_end_fade.md) — outstanding gap surfaced by the $D400-$D418 snapshot verify: Hubbard '85 engines fade $D418 from $0F → $00 over the final ~20s. Confuzion + TOAS confirmed; implementation sketch in the memory.
+- [Hubbard song-end fade](project_hubbard_song_end_fade.md) — RESOLVED. Master-VOL fade is `clamp(BASE - voice_orderpos, 0..$0F)` driven by `master_vol_subtrahend_voice` + `master_vol_base` + `master_vol_trigger`. Confuzion + TOAS use it. `tools/audit_d418_fade.py` is the probe for new engines.
 - [Hubbard PWM bounds](reference_hubbard_pwm_bounds.md) — pulsework's $08/$0E direction-flip thresholds are HARDCODED, not per-instrument
-- [Math brainstorm checklist](project_math_brainstorm.md) — 15+ ideas, several applied successfully (DFT, info theory, temporal logic, group theory)
 - [Timing requirements](project_timing_requirements.md) — frame-accurate OK for tracker music; cycle-precise needed later for digi/demo SIDs
-- [Fingerprint DB (deferred)](project_fingerprint_db.md) — future: SQLite-backed (writelog → USF parameters) database to accelerate future audits + supply ML training data. Revisit after 3 more engines migrate.
+- [Fingerprint DB (deferred)](project_fingerprint_db.md) — future: SQLite-backed (writelog → USF parameters) database to accelerate future audits + supply ML training data.
 
 ## Working principles (read these before acting)
 
@@ -57,7 +51,7 @@
 - [No co-author in commits](feedback_no_coauthor.md) — never add `Co-Authored-By`
 - [Do the actual work](feedback_do_the_work.md) — implement ALL optimizations, don't punt
 - [Worktree agents must commit](feedback_worktree_commit.md) — always tell agents to `git add` + commit
-- [Meta-process](feedback_meta_process.md) — evaluate if the current approach is still highest ROI
+- [Meta-process](feedback_meta_process.md) — at natural pauses, re-evaluate if the current approach is still highest ROI and whether memories / CLAUDE.md reflect reality
 
 ### USF schema discipline
 - [USF representation principle](feedback_usf_representation_principle.md) — TRIPWIRE: before designing/changing any USF effect/instrument representation, read `docs/usf_representation_principle.md` IN FULL. Effects are parametric over a musical basis; the engine holds mechanism, never an indexed library.
@@ -80,15 +74,16 @@
 
 - [HVSC index DB](reference_hvsc_db.md) — `hvsc84.db` at repo root. SQLite catalogue of every HVSC #84 SID with engine classification + per-SID build status. Query with Python (no `sqlite3` CLI). Refresh via `tools/build_sid_db.py` after migrations / new builds / HVSC updates.
 - [Songlength overrides](reference_songlength_overrides.md) — `tools/songlength_overrides.json`. Durable corrections to HVSC's Songlengths.md5 when a duration is clearly anomalous (defaulted ~4s for a 56s natural-loop tune). Survives HVSC re-fetches.
-- [USF v2 format](reference_usf_v2_format.md) — the on-disk .usf format + sidecar FLACs. Spec at `docs/usf_v2_format.md`. Custom DSL, Lark grammar, `.usf` + N `.sample{N}.flac`.
+- [USF v2 format](reference_usf_v2_format.md) — the on-disk .usf format + sidecar FLACs. Spec at `docs/usf_format.md`. Custom DSL, Lark grammar, `.usf` + N `.sample{N}.flac`.
 - [Digi pipeline](reference_digi_pipeline.md) — USF2 digi support; extract → Sample/FLAC → pack → SID. Cycle-strict via `siddump --writelog`. First engine: Chimera 1-bit wavetoggle.
 - [PC trace tool](reference_pc_trace_tool.md) — `tools/siddump --pc-trace FILE START END` dumps libsidplayfp CPU PC. Use when a SID misbehaves in sidplayfp but py65/writelog look fine.
-- [Audit tool](reference_audit_tool.md) — `src/usf2/audit.py`: PC-traced per-voice SID-write capture. Use for Rule 1 collapse audits when voice attribution matters.
+- [Audit tool](reference_audit_tool.md) — `src/usf/audit.py`: PC-traced per-voice SID-write capture. Use for Rule 1 collapse audits when voice attribution matters.
 - [Tokenization for ML](reference_tokenization.md) — USF is NOT tokens; tokenization is a downstream conversion when ML training starts. REMI-style is the proven starting point.
 - [Hubbard PWM bounds](reference_hubbard_pwm_bounds.md) — pulsework's $08/$0E direction-flip thresholds are HARDCODED, not per-instrument
 
 ## Deprecated memories
 
-Older project phases (Lean codegen, Grade A counting on GT2, etc.) live under
-[`_deprecated/`](_deprecated/) with a README explaining what's there. They no
-longer load — out of this index.
+Older project phases (Lean codegen, Grade A counting on GT2, completed
+migration / refactor phases) live under [`_deprecated/`](_deprecated/)
+with a README explaining what's there. They no longer load — out of
+this index.
