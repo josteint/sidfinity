@@ -117,7 +117,6 @@ def build_unified_usf() -> UsfFile:
         music_subtunes.append(ms)
 
     return UsfFile(
-        engine='five_title_tunes',
         psid=psid,
         params=params,
         init=init,

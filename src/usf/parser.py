@@ -77,10 +77,6 @@ class _T(Transformer):
     def bool_false(self, _):
         return False
 
-    # ----- engine -----
-    def engine_decl(self, items):
-        return ('engine', str(items[0]))
-
     # ----- psid -----
     def psid_title(self, items):
         return ('title', str(items[0])[1:-1])
@@ -574,7 +570,6 @@ class _T(Transformer):
 
     # ----- start -----
     def start(self, items):
-        engine = None
         psid = None
         params = None
         init = None
@@ -585,9 +580,7 @@ class _T(Transformer):
         for it in items:
             if isinstance(it, tuple):
                 k, v = it
-                if k == 'engine':
-                    engine = v
-                elif k == 'freq_table':
+                if k == 'freq_table':
                     freq_table = v
                 elif k == 'state_layout':
                     state_layout = v
@@ -602,7 +595,7 @@ class _T(Transformer):
             elif isinstance(it, (MusicSubtune, DigiSubtune, SfxSubtune)):
                 subtunes.append(it)
         return UsfFile(
-            engine=engine, psid=psid, params=params,
+            psid=psid, params=params,
             init=init, instruments=instruments, subtunes=subtunes,
             freq_table=freq_table, state_layout=state_layout)
 

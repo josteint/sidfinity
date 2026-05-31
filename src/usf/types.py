@@ -345,7 +345,6 @@ class UsfFile:
     self-contained shape). Pipelines with their own build paths (e.g.
     the Companion strain) may use other field combinations.
     """
-    engine: str
     psid: PsidMeta
     params: Params
     init: InitState

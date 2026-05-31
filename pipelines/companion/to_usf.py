@@ -236,8 +236,7 @@ def build_usf() -> UsfFile:
     )
     freq_table = list(COMPANION_FREQ_HI) + list(COMPANION_FREQ_LO)
 
-    return UsfFile(engine='companion',
-                   psid=psid, params=params, init=top_init,
+    return UsfFile(psid=psid, params=params, init=top_init,
                    instruments=instruments, subtunes=music,
                    freq_table=freq_table)
 

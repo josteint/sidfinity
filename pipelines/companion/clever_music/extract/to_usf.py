@@ -246,7 +246,6 @@ def build_usf(sid_path: str) -> UsfFile:
     freq_table = list(CLEVER_FREQ_HI) + list(CLEVER_FREQ_LO)
 
     return UsfFile(
-        engine='clever_music',
         psid=_psid_meta_from_sid(sid_path),
         params=Params(),
         init=top_init,

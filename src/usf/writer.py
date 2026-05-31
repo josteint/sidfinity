@@ -295,8 +295,6 @@ def _write_state_layout(d: dict) -> list[str]:
 def write(usf: UsfFile) -> str:
     """Serialize a `UsfFile` to canonical `.usf` text."""
     lines: list[str] = []
-    lines.append(f'engine: {usf.engine}')
-    lines.append('')
     lines.extend(_write_psid(usf.psid))
     lines.append('')
     lines.extend(_write_params(usf.params))

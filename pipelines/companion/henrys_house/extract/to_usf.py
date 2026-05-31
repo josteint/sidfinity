@@ -182,7 +182,6 @@ def build_usf(sid_path: str) -> UsfFile:
     freq_table = list(CLEVER_FREQ_HI) + list(CLEVER_FREQ_LO)
 
     return UsfFile(
-        engine='henrys_house',
         psid=psid,
         params=Params(),
         init=InitState(voices=[InitVoice(id=1, instr=InstrumentRef(id=1))]),

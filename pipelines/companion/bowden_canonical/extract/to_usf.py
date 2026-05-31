@@ -235,7 +235,6 @@ def build_usf(sid_path: str) -> UsfFile:
     })
 
     return UsfFile(
-        engine='bowden_canonical',
         psid=_psid_meta_from_sid(sid_path),
         params=top_params,
         init=top_init,

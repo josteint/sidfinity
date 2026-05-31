@@ -297,7 +297,7 @@ def build_usf(sid_path: str) -> UsfFile:
 
     freq_table = list(CLEVER_FREQ_HI) + list(CLEVER_FREQ_LO)
     return UsfFile(
-        engine='yes_tune', psid=psid,
+        psid=psid,
         params=Params(), init=top_init,
         instruments=instruments, subtunes=music_subtunes,
         freq_table=freq_table,

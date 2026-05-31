@@ -3,9 +3,7 @@
 // Lark grammar (LALR friendly). Whitespace and comments are ignored
 // between tokens. Top-level order is enforced by the start rule.
 
-start: engine_decl psid_block params_block init_block freq_table_block? state_layout_block? instrument_block* subtune_block*
-
-engine_decl:  "engine" ":" CNAME
+start: psid_block params_block init_block freq_table_block? state_layout_block? instrument_block* subtune_block*
 
 // ----- psid -----
 psid_block: "psid" "{" psid_field+ "}"

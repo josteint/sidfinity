@@ -375,7 +375,6 @@ def to_usf(config, extra_subtunes: list | None = None) -> UsfFile:
                 ms.params.fields['voice_start'] = vs
 
     return UsfFile(
-        engine=config.name,
         psid=psid, params=params, init=init,
         instruments=instruments, subtunes=subtunes,
         freq_table=freq_table, state_layout=state_layout,
