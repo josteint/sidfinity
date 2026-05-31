@@ -230,24 +230,46 @@ Hubbard-'85-class engine.
 
 ## Recommended migration plan
 
-1. **Scanner** (`pipelines/companion/jay_derrett/extract/engine_model.py`):
-   - Peel dispatch wrapper (trampoline / IRQ vector) to find the
-     canonical play loop entry.
-   - Pattern-match the per-voice setup (3 copies of `LDA abs / STA $F2`
-     blocks separated by `JSR proc_note` calls).
-   - Identify init constants (orderlist pointers, tempo reload, $E0
-     sub-jump table).
-2. **Engine data extraction**: instrument programs (24 bytes × N
+1. **Scanner** (`extract/engine_model.py`): ✓ DONE.
+   `load_state_from_sid` finds the play loop entry, peels a few
+   trampoline shapes (bare JMP, bank-switch + JSR, conditional JMP),
+   pattern-matches the 3 per-voice setup blocks (`LDA abs / STA zp`
+   ptr-load bookend + `JSR proc_note` + `LDA zp / STA abs` write-back
+   bookend), enforces shared proc_note across voices, and returns the
+   engine's structural addresses. Walks by 6502 instruction length
+   (not by byte) so STX/LDA operand bytes can't be mistaken for $20
+   JSR opcodes. Coverage:
+
+   | shape | count | scanner |
+   |---|---:|:---:|
+   | direct play (Ninja_Hamster + Discovery + inline-extra-LDA Equalizer) | 11 | ✓ |
+   | trampoline-wrapped (Dracula bank-switch + Sqij conditional + Blade_Runner + Death_or_Glory + Spindizzy + Soundwave_Tubular_Bells + Space_Doubt) | 7 | ✓ |
+   | KERNAL-IRQ (`play_addr=$0000`) | 3 | ✗ |
+   | runtime-installed indirect JMP (Road_Warrior / Stratton / Shao-Lins_Road / Gun_Runner) | 4 | ✗ |
+
+   Net: **18/25** classify with the static scanner. The 7 remaining
+   all need init code to run (in py65 or sidplayfp) before we can
+   read the dispatch state — KERNAL IRQ vector at $0314/$0315 or
+   runtime-patched JMP targets in zero page / data ROM.
+
+2. **Init emulator** (next session): run init through py65, capture
+   the resolved play vector for the IRQ + indirect-JMP cases. Should
+   recover the remaining 7.
+
+3. **Engine data extraction**: instrument programs (24 bytes × N
    instruments), freq tables, $E0 sub-jump targets.
-3. **USF representation**: per-voice orderlist as a sequence of
+
+4. **USF representation**: per-voice orderlist as a sequence of
    command-byte rows. Note rows carry pitch + instrument ref; control
    rows carry `tempo=N`/`vol=N`/`instr=N`/`pattern_jump=N`/`song_end`.
    Likely needs a new pattern_encoding mode in the composer ("cmd-stream"
    variant — clever_music has a similar shape with `$Bx`/`$Cx`/`$Dx`/`$Ex`
    commands today, may be reusable as a starting point).
-4. **Codegen**: new `_emit_jay_derrett_*` family in `composer.py`, or
+
+5. **Codegen**: new `_emit_jay_derrett_*` family in `composer.py`, or
    parameterize the existing `_emit_companion_*` further.
-5. **Verification**: cycle-strict `compare_instruction_stream`, same
+
+6. **Verification**: cycle-strict `compare_instruction_stream`, same
    as bowden_canonical.
 
 Hardest piece: the instrument program format. Worth a separate phase
