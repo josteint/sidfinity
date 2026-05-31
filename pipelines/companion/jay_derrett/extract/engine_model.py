@@ -583,6 +583,135 @@ def find_freq_tables(mem: bytearray, play_entry: int
     return lo, hi
 
 
+def find_sub_jump_table(mem: bytearray, proc_note_addr: int,
+                        zp_lo: int) -> int | None:
+    """Find the address of the $E0..$EF orderlist sub-jump table.
+
+    The $Ex handler in proc_note loads a new orderlist pointer from a
+    lookup table indexed by (byte & $0F)*2. The pattern (Ninja_Hamster
+    $C4D6-$C4E2):
+
+        LDA ($F2),Y         ; reload the byte
+        AND #$0F
+        ASL A
+        TAY
+        LDA $tbl,Y          ; ← table lookup, lo
+        STA $F2             ; ← writes ptr_lo zp
+        LDA $tbl+1,Y        ; lookup, hi
+        STA $F3             ; writes ptr_hi zp
+
+    Dataflow approach: in proc_note's reachable code, find every
+    `STA $zp_lo` (opcode $85 with operand = the per-voice scratch zp).
+    Walk A's predecessor chain; if it traces to `LDA $abs,Y`, that
+    abs is the table base.
+
+    Tracing from `proc_note_addr` (not play_addr) excludes the play
+    loop's per-voice setup blocks — those load the orderlist ptr from
+    a per-voice abs slot (LDA abs, no index), not from an indexed
+    table.
+    """
+    pcs = sorted(_reachable_pcs(mem, proc_note_addr))
+    for pc in pcs:
+        if pc + 1 >= len(mem): continue
+        if mem[pc] != 0x85: continue       # STA $zp
+        if mem[pc + 1] != zp_lo: continue
+        src = _walk_back_for_a_source(mem, pcs, pc)
+        if src is None: continue
+        mode, addr = src
+        if mode == 'abs_y':
+            return addr
+    return None
+
+
+def find_instrument_base_table(mem: bytearray, proc_note_addr: int
+                               ) -> int | None:
+    """Find the instrument-base lookup table.
+
+    Each instrument is a 24-byte program. The engine doesn't store
+    them in a regular array — note-start patches the source operand
+    of an `LDA $abs,Y` instruction (the body of a 24-byte copy loop)
+    before running it. The patching code reads the source address
+    from an instrument-base table indexed by instrument byte:
+
+        TAY                 ; Y = instrument byte
+        LDA $base_lo,Y      ; instrument_base_lo[Y]
+        STA $self_mod_pc+1  ; patch low byte of LDA source
+        LDA $base_lo+1,Y    ; instrument_base_hi[Y] (interleaved)
+        STA $self_mod_pc+2  ; patch high byte of LDA source
+        ...                 ; (more setup)
+        LDY #$17            ; 24-byte counter
+   self_mod_pc:
+        LDA $patched,Y      ; ← source addr is the self-modified value
+        STA voice_state,Y
+        DEY / BPL self_mod_pc
+
+    Detect this pattern:
+      1. Find the `LDY #$17` + `LDA $abs,Y / STA $abs2,Y / DEY / BPL`
+         24-byte copy loop. The LDA's operand position is the
+         self-mod target (PC+1, PC+2 from the LDA pc).
+      2. Find the upstream `STA $self_mod_pc+1` / `STA $self_mod_pc+2`
+         pair (opcode $8D with operand = the LDA's operand positions).
+      3. Walk A's predecessor chain from each STA; should hit
+         `LDA $base_tbl,Y` and `LDA $base_tbl+1,Y` respectively.
+         The shared base (`$base_tbl`) is the instrument-base table.
+
+    Returns the base address, or None if not found.
+    """
+    pcs = sorted(_reachable_pcs(mem, proc_note_addr))
+
+    # Step 1: find the per-instrument copy loop signature.
+    # The instrument size varies per tune (Counterforce uses LDY #$0E
+    # = 15 bytes, Ninja_Hamster uses LDY #$17 = 24 bytes). The shape
+    # is LDY #imm followed within ~6 bytes by LDA $abs,Y (B9 lo hi).
+    # imm is "size - 1", so an imm in roughly 7..31 matches plausible
+    # instrument sizes (8..32 bytes).
+    self_mod_lda_pc = None
+    for pc in pcs:
+        if pc + 5 >= len(mem): continue
+        if mem[pc] != 0xA0: continue                     # LDY #imm
+        if not (0x07 <= mem[pc + 1] <= 0x1F): continue
+        for q in range(pc + 2, min(pc + 8, len(mem) - 3)):
+            if mem[q] == 0xB9:                            # LDA $abs,Y
+                self_mod_lda_pc = q
+                break
+        if self_mod_lda_pc is not None:
+            inst_count_minus_1 = mem[pc + 1]
+            break
+    if self_mod_lda_pc is None:
+        return None
+
+    # Step 2: the LDA's operand bytes are at self_mod_lda_pc+1 (lo)
+    # and self_mod_lda_pc+2 (hi). Find STAs that write to these
+    # absolute addresses (opcode $8D = STA abs).
+    sm_lo_addr = self_mod_lda_pc + 1
+    sm_hi_addr = self_mod_lda_pc + 2
+    sta_lo_pc = sta_hi_pc = None
+    for pc in pcs:
+        if pc + 2 >= len(mem): continue
+        if mem[pc] != 0x8D: continue
+        tgt = mem[pc + 1] | (mem[pc + 2] << 8)
+        if tgt == sm_lo_addr:
+            sta_lo_pc = pc
+        elif tgt == sm_hi_addr:
+            sta_hi_pc = pc
+    if sta_lo_pc is None or sta_hi_pc is None:
+        return None
+
+    # Step 3: walk A back from each STA to its source LDA.
+    src_lo = _walk_back_for_a_source(mem, pcs, sta_lo_pc)
+    src_hi = _walk_back_for_a_source(mem, pcs, sta_hi_pc)
+    if src_lo is None or src_hi is None:
+        return None
+    mode_lo, addr_lo = src_lo
+    mode_hi, addr_hi = src_hi
+    if mode_lo != 'abs_y' or mode_hi != 'abs_y':
+        return None
+    # Must be a paired lo/hi table — addresses 1 apart (interleaved).
+    if addr_hi != addr_lo + 1:
+        return None
+    return addr_lo
+
+
 def load_state_from_sid(sid_path: str, subtune: int = 0) -> EngineState:
     """Top-level entry: load the SID, scan its play loop, return an
     `EngineState` with the engine's structural addresses filled in.

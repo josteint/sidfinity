@@ -265,10 +265,40 @@ Hubbard-'85-class engine.
    | init-resolved IRQ vector + IRQ-handler peel | 3 | Osmium, Thundercross, Trigger_Happy |
    | init-resolved + subtune dispatcher peel | 1 | Gun_Runner (LDA #0 / BEQ taken → JMP selected) |
 
-2. **Engine data extraction** (next): instrument programs (24 bytes
-   × N instruments), freq tables, $E0 sub-jump targets. Need to
-   trace through proc_note's per-note setup to dump the instrument
-   table layout.
+2. **Engine data extraction**: ✓ partial. Three table-finder helpers
+   in `extract/engine_model.py`, all using dataflow tracing (no
+   content heuristics — see [[feedback_dataflow_over_heuristics]]):
+
+   - `find_freq_tables` — 25/25. Finds the V_FREQ_LO/HI SID writes,
+     walks A's predecessors back through any voice-state indirection,
+     returns `(lo_base, hi_base)`. Handles both lo<hi and hi<lo
+     layouts (Blade_Runner + Space_Doubt store them reversed).
+   - `find_sub_jump_table` — 25/25. The $Ex handler in proc_note
+     loads the orderlist ptr from an indexed table; the table base
+     is the `LDA $abs,Y` source whose result reaches `STA $zp_lo`.
+   - `find_instrument_base_table` — 15/25. The note-start sub patches
+     a self-modified `LDA $abs,Y` source from a base-table indexed
+     by instrument byte. Counter `LDY #imm` varies per engine
+     (Ninja_Hamster uses $17 = 24-byte programs; Counterforce uses
+     $0E = 15-byte programs). The 10 misses use either a different
+     instrument data layout (no self-modifying copy loop at all) or
+     a counter outside the current 8..32 window — needs follow-up RE.
+
+   `pipelines/companion/jay_derrett/dump_engine_data.py` produces a
+   markdown table with all extracted addresses per SID. Latest run:
+
+   ```
+   Coverage:  freq_tables 25/25  $E0 sub-jump 25/25  inst-base 15/25
+   ```
+
+   See the dump's full output for per-SID addresses.
+
+3. **Remaining engine-data RE**: chase the 10 SIDs without an inst-base
+   table — Death_or_Glory, Dracula, Equalizer, Spindizzy_USA_Version,
+   Sqij, Blade_Runner, Shao-Lins_Road, Soundwave_Tubular_Bells,
+   Space_Doubt, Gun_Runner. Each needs a focused look at proc_note's
+   note-start path to identify the variant instrument layout. May
+   need to model multiple instrument-table shapes.
 
 4. **USF representation**: per-voice orderlist as a sequence of
    command-byte rows. Note rows carry pitch + instrument ref; control
