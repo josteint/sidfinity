@@ -1,5 +1,11 @@
 """Init-shape survey across the top 100 HVSC engines.
 
+One-shot survey — output landed in `docs/sid_init_report.md` and
+`docs/sid_init_research.md`. Kept here (rather than archived) so the
+survey can be re-run when HVSC updates or new init bucket candidates
+surface; not part of the regular regression.
+
+
 For each engine in the top 100 (by SID count), sample up to 2 SIDs
 with songlength > 30s (or any if no such), run `siddump --writelog`,
 extract frame 0 (the init invocation), and characterise:

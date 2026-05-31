@@ -1,5 +1,10 @@
 """Tail survey — the 11% of HVSC beyond the top 100 engines.
 
+One-shot survey companion to `init_survey.py`. Output landed in
+`docs/sid_init_report.md` §5. Re-run as a stress-test when HVSC
+updates or the trichotomy is challenged.
+
+
   - Long tail (6.6%): 542 classified engines with ≤39 SIDs each.
     Sample 1 SID from each of the 100 highest-ranked tail engines.
   - Unclassified (4.4%): 2,639 SIDs with engine = NULL. Random
