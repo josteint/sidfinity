@@ -1,0 +1,32 @@
+{
+  "autoMemoryDirectory": "/home/jtr/sidfinity/.claude/memory",
+  "hooks": {
+    "WorktreeRemove": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /home/jtr/sidfinity/.claude/worktree-checkpoint.sh",
+            "timeout": 10,
+            "statusMessage": "Checkpointing worktree..."
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "matcher": "auto",
+        "hooks": [
+          {
+            "type": "prompt",
+            "prompt": "Context is about to be compacted. Do TWO things:\n\nA) PRESERVE STATE: Summarize what must survive: 1) What is being investigated (song, voice, frame, error). 2) Uncommitted changes and their purpose. 3) Plan/next step.\n\nB) META-REVIEW: 1) Is the current approach still highest ROI? 2) Any stale memories? 3) Should CLAUDE.md status be updated? 4) New patterns to document?"
+          }
+        ]
+      }
+    ]
+  },
+  "attribution": {
+    "commit": "",
+    "pr": ""
+  }
+}
