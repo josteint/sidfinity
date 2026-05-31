@@ -158,6 +158,17 @@ def build_usf(sid_path: str) -> UsfFile:
             # Default (when 0) is libsidplayfp's PSID standard (~50Hz PAL).
             # Surfchamp programs $40C7 = ~60Hz.
             sub_fields['cia1_timer_a'] = state.cia1_timer_a
+        # Per-subtune voice enable mask (bit 0=V1, 1=V2, 2=V3). When any
+        # voice is disabled at the binary level (JSR→BIT patching), the
+        # codegen must skip its voice_step entirely — otherwise the
+        # synthetic [$81,$FF] orderlist makes V1 process a skip byte each
+        # tick and the carry-leak chain propagates wrong SR-skip flags
+        # to V2/V3. Default (omitted) = all 3 enabled.
+        mask = (int(state.voice_enabled[0])
+                | (int(state.voice_enabled[1]) << 1)
+                | (int(state.voice_enabled[2]) << 2))
+        if mask != 0b111:
+            sub_fields['voice_enable_mask'] = mask
         subtune_params = Params(fields=sub_fields)
 
         music_subtunes.append(MusicSubtune(

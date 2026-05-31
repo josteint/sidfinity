@@ -78,10 +78,12 @@ Bowden engine (Berry_Vic ×10 + Melonmania ×1):
   DELETED — no more "if carry_leak quirk present, inject Bowden's
   primes" inference. The composer reads USF directly.
 
-Verified: Bach_Sonata + Atonal_Music + … + Melonmania subs 0/2
-all byte-exact (`match_all = full`) via the new init.sid path.
-Melonmania sub 1 still partial (separate carry-leak issue with
-V1's `fx:hold` byte, unrelated to envelope priming).
+Verified: Bach_Sonata + Atonal_Music + … + Melonmania (all 3 subs)
+byte-exact (`match_all = full`) via the new init.sid path.
+Melonmania sub 1's previously-known partial (a carry-leak from the
+synthetic `[$81,$FF]` orderlist for V1) was later resolved by the
+per-subtune `voice_enable_mask` USF param — see
+[[project_bowden_canonical]].
 
 ## What's left
 

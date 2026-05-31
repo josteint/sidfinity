@@ -494,6 +494,11 @@ class SubtuneSpec:
     speed_ctr_init_override: Optional[int] = None
     odd_frame_slide_step_override: Optional[int] = None
     odd_frame_slide_late_gate_override: Optional[int] = None
+    # Per-subtune voice-enable bitmask (bit 0=V1, 1=V2, 2=V3). None or 7
+    # = all enabled (default). Used by companion engines that disable
+    # voices at the binary level (JSR→BIT patching) — Melonmania sub 1
+    # for example silences V1 this way.
+    voice_enable_mask: Optional[int] = None
 
 
 # ---------------------------------------------------------------------------
@@ -1160,6 +1165,7 @@ def _subtune_from_usf(ms, encoding: PatternEncodingMode, voice_count: int) -> Su
         voice_init=voice_init,
         voice_starts_at=p.get('voice_start', 2),
         cia1_timer_a=p.get('cia1_timer_a'),
+        voice_enable_mask=p.get('voice_enable_mask'),
         master_vol_init=master_vol_init,
         init_song_pos=p.get('init_song_pos'),
         init_pwm_state=(

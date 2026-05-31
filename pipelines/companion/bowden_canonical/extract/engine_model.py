@@ -248,6 +248,7 @@ class EngineState:
     freq_lo: bytes              # 128 bytes
     tempo_ctr: int = 0          # runtime counter
     cia1_timer_a: int = 0       # 16-bit CIA1 timer A value (0 = default)
+    voice_enabled: tuple = (True, True, True)  # JSR (enabled) vs BIT (disabled)
 
 
 class _TrackingMemory(bytearray):
@@ -427,6 +428,7 @@ def load_state_from_sid(sid_path: str, subtune: int = 0) -> EngineState:
                        proc_info['freq_lo_base'] + 128),
         tempo_ctr=mem[tempo_ctr_addr],
         cia1_timer_a=cia1_timer_a,
+        voice_enabled=voice_enabled,
     )
 
 

@@ -3374,6 +3374,17 @@ def _has_carry_leak(model: EngineModel) -> bool:
                for q in model.inter_voice_quirks)
 
 
+def _voice_ever_disabled(model: EngineModel, v: int) -> bool:
+    """True iff any subtune has voice `v` (0-indexed) disabled in its
+    voice_enable_mask. Engines with the mask omitted (None) default to
+    all-enabled."""
+    for s in model.subtunes:
+        m = s.voice_enable_mask
+        if m is not None and not ((m >> v) & 1):
+            return True
+    return False
+
+
 # ---------------------------------------------------------------------------
 # Pattern row encoder
 # ---------------------------------------------------------------------------
@@ -3501,10 +3512,13 @@ def _emit_init(model: EngineModel, active: list[int]) -> list[str]:
         '  pla',
         '  tax                  ; X = subtune index',
     ]
-    # Per-voice initial position.
+    # Per-voice initial position + per-subtune enable flag.
     for v in active:
         L.append(f'  lda init_v{v+1}_pos_tab,x')
         L.append(f'  sta v{v+1}_pos')
+        if _voice_ever_disabled(model, v):
+            L.append(f'  lda v{v+1}_enabled_tab,x')
+            L.append(f'  sta v{v+1}_enabled')
     L += [
         '  lda init_tempo_ctr_tab,x',
         '  sta tempo_ctr',
@@ -3638,8 +3652,18 @@ def _emit_voice_step(model: EngineModel, v: int) -> list[str]:
     voice_off = _VOICE_OFFSET[v]
     vn = v + 1
 
-    L = [
-        f'voice{vn}_step:',
+    L = [f'voice{vn}_step:']
+    if _voice_ever_disabled(model, v):
+        # Early-exit when this voice is disabled in the current subtune
+        # (matches orig's JSR→BIT patching where proc_note never runs
+        # and carry-leak state is preserved across the would-be voice).
+        L += [
+            f'  lda v{vn}_enabled',
+            f'  bne v{vn}_step_run',
+            f'  rts',
+            f'v{vn}_step_run:',
+        ]
+    L += [
         f'  ldy v{vn}_pos',
         f'  inc v{vn}_pos',
         f'  lda (${zp_lo:02X}),y',
@@ -3718,6 +3742,8 @@ def _emit_runtime_vars(model: EngineModel, active: list[int]) -> list[str]:
     L = []
     for v in active:
         L.append(f'v{v+1}_pos:        .byte 0')
+        if _voice_ever_disabled(model, v):
+            L.append(f'v{v+1}_enabled:    .byte 0')
     L += [
         'tempo_ctr:     .byte 0',
         'tempo_const:   .byte 0',
@@ -4844,6 +4870,14 @@ def _emit_per_subtune_tables(model: EngineModel, active: list[int],
         _tab(f'init_v{v+1}_pos_tab',
              [s.voice_init[v].initial_position if v < len(s.voice_init) else 0
               for s in subs])
+        if _voice_ever_disabled(model, v):
+            # Per-subtune enable byte (1 = run voice_step, 0 = early-rts).
+            # Mask omitted on a subtune defaults to all-enabled.
+            _tab(f'v{v+1}_enabled_tab',
+                 [1 if (s.voice_enable_mask is None
+                        or ((s.voice_enable_mask >> v) & 1))
+                  else 0
+                  for s in subs])
     fields = ['pwlo', 'pwhi', 'ctrl', 'ad', 'sr']
     for v in active:
         for fi, fname in enumerate(fields):

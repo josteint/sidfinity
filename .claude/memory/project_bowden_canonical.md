@@ -48,6 +48,27 @@ and the rebuilt SIDs diverge at every note. Lesson reinforced —
 6502 mindset, audit flag state across calls. See
 [[feedback_6502_mindset]] and [[feedback_deconstruct_not_reproduce]].
 
+## Disabled voices (Melonmania sub 1)
+
+Some Bowden subtunes silence a voice by patching its dispatch JSR
+to a BIT (e.g. `JSR $C0AD` → `BIT $C0AD`). The disabled voice never
+calls proc_note, so its `RTS-only` path never runs the CMP chain
+that affects carry — the carry-leak state is preserved across the
+voice.
+
+Our extract initially synthesised a `[$81, $FF]` orderlist for the
+disabled voice and let the codegen run it as a normal skip-each-tick
+voice. That made the carry-leak emulation incorrectly mark the next
+voice's `next_skip_sr=1`, which would silently drop V_SR writes on
+the following voice for the rest of the subtune.
+
+Fix: per-subtune `voice_enable_mask` USF param (bit 0=V1, 1=V2, 2=V3;
+omitted = all enabled = 7). Composer emits a per-subtune table; init
+loads the active subtune's mask into `v{N}_enabled` bytes; each
+`voice_step` early-RTSes when its flag is 0 — exactly mirroring orig's
+JSR→BIT patching, no proc_note, no carry side-effect. Melonmania
+sub 1 has mask=6 (V2+V3) and is now byte-exact.
+
 ## Cluster coverage
 
 The 12 Vic Berry SIDs span 6 different first-256-byte fingerprints

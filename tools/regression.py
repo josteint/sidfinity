@@ -11,7 +11,6 @@ modes:
     these engines use a different verification surface.
 
 Pre-existing partial cases (do NOT treat as regressions):
-  - Melonmania                 sub 1
   - 5_Title_Tunes              sub 2
 
 (Fairlight sub 0 was previously listed here as a phantom partial — it's
@@ -72,7 +71,6 @@ COMPANION_USFS = [
 # Pre-existing partial subtunes (carried since before the composer
 # rewrite). Not regressions; not failures.
 KNOWN_PARTIAL = {
-    'Melonmania':      {1},
     '5_Title_Tunes':   {2},
 }
 
