@@ -68,4 +68,10 @@ THING_ON_A_SPRING = EngineConfig(
     master_vol_subtrahend_voice=2,
     master_vol_base=0x47,
     master_vol_trigger='every_note',
+    # V3's master_vol counter IS V3's orderlist position — on the
+    # engine's $FF loop, V3_orderpos resets to orderLoop[V3]=0 and
+    # the master_VOL fade restarts in the next pass. Without this,
+    # vol_progress keeps climbing past 78 and the formula's upper
+    # clamp pins $D418=$0F for the rest of the run.
+    master_vol_reset_on_loop=True,
 )

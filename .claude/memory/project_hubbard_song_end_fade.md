@@ -75,7 +75,8 @@ work:
 
 - **Confuzion**: V2 ($0BC2), BASE = $A0, `underflow_clamp=True`,
   `loop_silences_song=True`
-- **Thing on a Spring**: V3 ($C46F), BASE = $47, trigger `every_note`
+- **Thing on a Spring**: V3 ($C46F), BASE = $47, trigger `every_note`,
+  `reset_on_loop=True`
 
 ## Open question — divergences past the verify window
 
@@ -89,14 +90,14 @@ engine where divergence falls past the 1.5× verify boundary.
   flag), and we now mirror that — no more loop-back, no more
   vol_progress wrap, no more voice-reg divergence past frame ~15650.
   Audit `first_diff: None`.
-- **TOAS**: orig's V3_orderpos resets on $FF loop and the fade
-  restarts in the second pass; our rebuild's V3 plays ~4 patterns
-  longer past fade-end before hitting $FF, so the reset fires later.
-  Pattern-length mismatch past fade-end — not the fade mechanism
-  itself.
-
-TOAS is deferred — it's past the project's verify window
-(1.5× songlength) and doesn't fall under "fade-class bugs" per se.
+- **TOAS**: RESOLVED across the full 2× window after
+  `master_vol_reset_on_loop=True` landed. The earlier divergence at
+  frame 21025 (orig starting its second fade $0F→$06; rebuild stuck
+  at $0F) traced to vol_progress climbing monotonically past V3's
+  first loop instead of resetting. Voice progression was already
+  in lockstep at frame 21025 — only $D418 differed — so the fix
+  was the single reset knob, no pattern-data investigation needed
+  after all. Audit `first_diff: None`.
 
 ## Related shared-core gap (different cause)
 
