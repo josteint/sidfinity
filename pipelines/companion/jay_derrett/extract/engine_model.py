@@ -623,7 +623,7 @@ def find_sub_jump_table(mem: bytearray, proc_note_addr: int,
     return None
 
 
-def find_instrument_base_table(mem: bytearray, proc_note_addr: int
+def find_instrument_base_table(mem: bytearray, entry: int
                                ) -> int | None:
     """Find the instrument-base lookup table.
 
@@ -657,7 +657,7 @@ def find_instrument_base_table(mem: bytearray, proc_note_addr: int
 
     Returns the base address, or None if not found.
     """
-    pcs = sorted(_reachable_pcs(mem, proc_note_addr))
+    pcs = sorted(_reachable_pcs(mem, entry))
 
     # Step 1: find the per-instrument copy loop signature.
     # The instrument size varies per tune (Counterforce uses LDY #$0E

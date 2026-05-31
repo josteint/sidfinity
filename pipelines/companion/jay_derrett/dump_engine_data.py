@@ -60,7 +60,7 @@ def main() -> int:
         mem = bytearray(s.post_init_mem)
         ft = find_freq_tables(mem, s.play_loop_entry)
         e0 = find_sub_jump_table(mem, s.proc_note_addr, s.voices[0].zp)
-        ib = find_instrument_base_table(mem, s.proc_note_addr)
+        ib = find_instrument_base_table(mem, s.play_loop_entry)
         if ft is not None: n_freq += 1
         if e0 is not None: n_e0 += 1
         if ib is not None: n_inst += 1

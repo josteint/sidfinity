@@ -280,9 +280,26 @@ Hubbard-'85-class engine.
      a self-modified `LDA $abs,Y` source from a base-table indexed
      by instrument byte. Counter `LDY #imm` varies per engine
      (Ninja_Hamster uses $17 = 24-byte programs; Counterforce uses
-     $0E = 15-byte programs). The 10 misses use either a different
-     instrument data layout (no self-modifying copy loop at all) or
-     a counter outside the current 8..32 window — needs follow-up RE.
+     $0E = 15-byte programs).
+
+   **The 10 missing engines aren't "missing" — they're a different
+   architectural family.** Type A (15 SIDs, Ninja_Hamster-shape) uses
+   per-voice indexed addressing (`STA $D400,X` with X = 0/7/14) and
+   a separable per-instrument program copied into voice state on each
+   note. Type B (10 SIDs, Dracula-shape) writes V1's registers
+   directly to fixed addresses (`STA $D400 / $D401 / $D402 / …`) and
+   uses smaller per-instrument data — typically a single byte of
+   ctrl/waveform looked up by index, no copy loop. Counts confirmed
+   by SID-write breadth: Type A writes 8 distinct SID register
+   offsets in reachable code, Type B writes 11-12 (V1 unrolled +
+   shared V2/V3 PW + indexed everything-else).
+
+   Per-SID classification:
+
+   | Type | count | engines |
+   |---|---:|---|
+   | A (self-mod 24-byte copy) | 15 | Counterforce, Destruct, Discovery, Jetboys, Lifeforce, Mandroid, Ninja_Hamster, Osmium, Road_Warrior, Stratton, Thundercross, Traxxion, Trigger_Happy, Vengeance, ZIP |
+   | B (V1 unrolled, inline instrument byte) | 10 | Death_or_Glory, Dracula, Equalizer, Spindizzy_USA_Version, Sqij, Blade_Runner, Shao-Lins_Road, Soundwave_Tubular_Bells, Space_Doubt, Gun_Runner |
 
    `pipelines/companion/jay_derrett/dump_engine_data.py` produces a
    markdown table with all extracted addresses per SID. Latest run:
@@ -293,12 +310,14 @@ Hubbard-'85-class engine.
 
    See the dump's full output for per-SID addresses.
 
-3. **Remaining engine-data RE**: chase the 10 SIDs without an inst-base
-   table — Death_or_Glory, Dracula, Equalizer, Spindizzy_USA_Version,
-   Sqij, Blade_Runner, Shao-Lins_Road, Soundwave_Tubular_Bells,
-   Space_Doubt, Gun_Runner. Each needs a focused look at proc_note's
-   note-start path to identify the variant instrument layout. May
-   need to model multiple instrument-table shapes.
+3. **Type B engine-data RE**: write a Type-B-specific finder. Each
+   per-instrument byte is loaded via a small set of `LDA $tab,X`
+   instructions inside the note handler, then stored to V1's fixed
+   SID address. Mapping each table's purpose (ctrl / AD / SR /
+   PW lo+hi / freq vibrato amount / etc.) requires per-tune
+   inspection. May further subdivide: Sqij (no $D418 writes at all)
+   and Blade_Runner (writes $D416/$D417 filter — has a filter
+   feature) look distinct from the others.
 
 4. **USF representation**: per-voice orderlist as a sequence of
    command-byte rows. Note rows carry pitch + instrument ref; control
