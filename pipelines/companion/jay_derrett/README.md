@@ -231,33 +231,44 @@ Hubbard-'85-class engine.
 ## Recommended migration plan
 
 1. **Scanner** (`extract/engine_model.py`): ✓ DONE.
-   `load_state_from_sid` finds the play loop entry, peels a few
-   trampoline shapes (bare JMP, bank-switch + JSR, conditional JMP),
-   pattern-matches the 3 per-voice setup blocks (`LDA abs / STA zp`
-   ptr-load bookend + `JSR proc_note` + `LDA zp / STA abs` write-back
-   bookend), enforces shared proc_note across voices, and returns the
-   engine's structural addresses. Walks by 6502 instruction length
-   (not by byte) so STX/LDA operand bytes can't be mistaken for $20
-   JSR opcodes. Coverage:
+   `load_state_from_sid` finds the play loop entry, peels several
+   trampoline + IRQ-handler + dispatcher shapes, pattern-matches the
+   3 per-voice setup blocks (`LDA abs / STA zp` ptr-load bookend +
+   `JSR proc_note` + `LDA zp / STA abs` write-back bookend), enforces
+   shared proc_note across voices, and returns the engine's
+   structural addresses. Walks by 6502 instruction length (not by
+   byte) so STX/LDA operand bytes can't be mistaken for $20 JSR
+   opcodes.
 
-   | shape | count | scanner |
-   |---|---:|:---:|
-   | direct play (Ninja_Hamster + Discovery + inline-extra-LDA Equalizer) | 11 | ✓ |
-   | trampoline-wrapped (Dracula bank-switch + Sqij conditional + Blade_Runner + Death_or_Glory + Spindizzy + Soundwave_Tubular_Bells + Space_Doubt) | 7 | ✓ |
-   | KERNAL-IRQ (`play_addr=$0000`) | 3 | ✗ |
-   | runtime-installed indirect JMP (Road_Warrior / Stratton / Shao-Lins_Road / Gun_Runner) | 4 | ✗ |
+   Resolution chain:
+   - **Static** (no init): scan at `play_addr`, peel up to 3 layers
+     of static trampoline (bare JMP, bank-switch + JSR, conditional
+     dispatch).
+   - **Init emulation** (fallback): run init through py65 (200k cycle
+     budget), then resolve the play vector from the post-init memory
+     state — KERNAL IRQ vector at `$0314/$0315` when `play_addr=$0000`,
+     or `JMP ($abs)` indirect target / `JMP $abs` direct target at
+     `play_addr`. Re-scan with the resolved address.
+   - **IRQ/dispatcher peel** (on top of init): skip past raster-IRQ
+     bookkeeping (`INC $D019` + optional `LDA $01/PHA` bank-switch +
+     optional conditional skip) to the inner JSR; or for subtune
+     dispatchers (`LDA #imm / BEQ +N / CMP / JMP …`) take the BEQ
+     branch when the loaded immediate guarantees it.
 
-   Net: **18/25** classify with the static scanner. The 7 remaining
-   all need init code to run (in py65 or sidplayfp) before we can
-   read the dispatch state — KERNAL IRQ vector at $0314/$0315 or
-   runtime-patched JMP targets in zero page / data ROM.
+   Coverage: **25/25**.
 
-2. **Init emulator** (next session): run init through py65, capture
-   the resolved play vector for the IRQ + indirect-JMP cases. Should
-   recover the remaining 7.
+   | shape | count | example |
+   |---|---:|---|
+   | direct play | 11 | Ninja_Hamster, Discovery, Jetboys, Mandroid, Vengeance, ZIP, Counterforce, Destruct, Lifeforce, Traxxion, Equalizer, Space_Doubt |
+   | static trampoline | 7 | Dracula, Sqij, Blade_Runner, Death_or_Glory, Spindizzy, Soundwave_Tubular_Bells |
+   | init-resolved indirect JMP | 4 | Road_Warrior, Stratton, Shao-Lins_Road |
+   | init-resolved IRQ vector + IRQ-handler peel | 3 | Osmium, Thundercross, Trigger_Happy |
+   | init-resolved + subtune dispatcher peel | 1 | Gun_Runner (LDA #0 / BEQ taken → JMP selected) |
 
-3. **Engine data extraction**: instrument programs (24 bytes × N
-   instruments), freq tables, $E0 sub-jump targets.
+2. **Engine data extraction** (next): instrument programs (24 bytes
+   × N instruments), freq tables, $E0 sub-jump targets. Need to
+   trace through proc_note's per-note setup to dump the instrument
+   table layout.
 
 4. **USF representation**: per-voice orderlist as a sequence of
    command-byte rows. Note rows carry pitch + instrument ref; control

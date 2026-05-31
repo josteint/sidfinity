@@ -242,16 +242,14 @@ def scan_voice_blocks(mem: bytearray, play_addr: int
 
 
 def _peel_trampoline(mem: bytearray, pc: int) -> int | None:
-    """If `pc` points at a known dispatch shell, return the inner play
-    address. Otherwise None.
+    """If `pc` points at a known static dispatch shell, return the
+    inner play address. Otherwise None. Static = readable from the
+    SID binary bytes alone (no init emulation needed).
 
     Patterns handled:
       - bare `JMP abs` (Dracula-shape via JSR is handled separately)
       - bank-switch + JSR: `LDA #imm / STA $01 / JSR abs / LDA #imm /
         STA $01 / RTS` (Dracula)
-      - leading sequence of JSRs to setup helpers (Equalizer is
-        actually a direct play loop with extra LDA/STA pairs — no
-        trampoline). Not handled here.
       - conditional dispatch (`LDA / CMP / BNE / JMP a / JMP b`) —
         Sqij; tries the first JMP target.
     """
@@ -270,40 +268,187 @@ def _peel_trampoline(mem: bytearray, pc: int) -> int | None:
     return None
 
 
-def load_state_from_sid(sid_path: str) -> EngineState:
+def _run_init_capture(sid_path: str, subtune: int = 0
+                      ) -> tuple[bytearray, int, int, int]:
+    """Run the SID's init() in py65 and return the post-init memory
+    plus (load, init_addr, play_addr).
+
+    Used to recover the dispatch state for SIDs whose play vector is
+    installed at runtime: KERNAL-IRQ engines (`play_addr=$0000` — init
+    sets the IRQ vector at $0314/$0315) and engines whose play_addr
+    points at a `JMP ($zp)` or `JMP $abs` whose target gets patched
+    by init.
+    """
+    import sys as _sys
+    _sys.path.insert(0, 'tools/py65_lib')
+    from py65.devices.mpu6502 import MPU
+
+    with open(sid_path, 'rb') as f:
+        raw = f.read()
+    hdr_size, load_hdr, init_addr, play_addr, _ = _read_psid_header(raw)
+    body = raw[hdr_size:]
+    if load_hdr == 0:
+        load = body[0] | (body[1] << 8)
+        body = body[2:]
+    else:
+        load = load_hdr
+
+    mpu = MPU()
+    mpu.memory = bytearray(0x10000)
+    mpu.memory[load:load + len(body)] = body
+    mpu.a = subtune
+    mpu.x = 0
+    mpu.y = 0
+    mpu.p = 0x20
+    mpu.sp = 0xFD
+    # Plant a sentinel return address so the RTS at end of init lands
+    # somewhere we can detect. We pick $0200 (out of typical engine
+    # range); init's RTS will fetch $0200-1 then jump there.
+    SENTINEL = 0x0200
+    mpu.memory[0x01FF] = (SENTINEL - 1) >> 8
+    mpu.memory[0x01FE] = (SENTINEL - 1) & 0xFF
+    mpu.pc = init_addr
+    # Run until PC leaves the engine area (to the sentinel or out of
+    # the loaded binary).
+    for _ in range(200000):
+        if mpu.pc == SENTINEL:
+            break
+        if not load <= mpu.pc < load + len(body):
+            break
+        mpu.step()
+    return bytearray(mpu.memory), load, init_addr, play_addr
+
+
+def _resolve_play_addr(mem: bytearray, play_addr: int) -> int:
+    """Resolve `play_addr` to a concrete code address using `mem`
+    (which must already have been touched by init).
+
+    Handles:
+      - play_addr == 0: read IRQ vector at $0314/$0315 (KERNAL).
+      - first instruction at play_addr is `JMP ($zp)` ($6C): read the
+        16-bit pointer at the indirect target.
+      - first instruction is `JMP $abs` ($4C): follow it (same as
+        the static peel but works regardless of memory state).
+    """
+    if play_addr == 0:
+        return mem[0x0314] | (mem[0x0315] << 8)
+    op = mem[play_addr]
+    if op == 0x4C:  # JMP abs
+        return mem[play_addr + 1] | (mem[play_addr + 2] << 8)
+    if op == 0x6C:  # JMP (abs)
+        ind = mem[play_addr + 1] | (mem[play_addr + 2] << 8)
+        return mem[ind] | (mem[(ind + 1) & 0xFFFF] << 8)
+    return play_addr
+
+
+def _peel_irq_handler(mem: bytearray, pc: int) -> int | None:
+    """If `pc` points at a KERNAL IRQ handler (or a subtune dispatcher),
+    find the inner JSR or selected JMP and return its target.
+
+    Typical raster-IRQ handler:
+        INC $D019           ; ack raster
+        (optional) LDA $01 / PHA / LDA #imm / STA $01   ; bank-switch save
+        (optional) LDA $F6 / BEQ skip                   ; conditional skip
+        JSR <inner_play>
+        (optional) PLA / STA $01                        ; bank-switch restore
+        JMP $EA81                                       ; KERNAL IRQ exit
+
+    Subtune dispatcher (Gun_Runner):
+        LDA #imm            ; load constant
+        BEQ +N              ; always taken since imm=0 sets Z
+        ...
+        JMP <selected play>
+
+    Walks forward by 6502 instruction length. Tracks one piece of CPU
+    state — `a_known`, the last-known A value from `LDA #imm` — so a
+    following `BEQ +N` can be evaluated. Returns the first JSR or JMP
+    target reached. Stops at RTI/RTS.
+    """
+    q = pc
+    end = pc + 80
+    a_known: int | None = None
+    while q < end and q < len(mem):
+        op = mem[q]
+        if op == 0x20:  # JSR abs
+            return mem[q + 1] | (mem[q + 2] << 8)
+        if op == 0x4C:  # JMP abs
+            return mem[q + 1] | (mem[q + 2] << 8)
+        if op == 0x40 or op == 0x60:  # RTI / RTS
+            return None
+        if op == 0xA9:  # LDA #imm — record A
+            a_known = mem[q + 1]
+        elif op == 0xF0 and a_known == 0:  # BEQ taken (A==0 sets Z)
+            offset = mem[q + 1]
+            if offset >= 0x80:
+                offset -= 0x100
+            q += 2 + offset
+            continue
+        elif op == 0xD0 and a_known is not None and a_known != 0:
+            # BNE taken (A!=0 clears Z)
+            offset = mem[q + 1]
+            if offset >= 0x80:
+                offset -= 0x100
+            q += 2 + offset
+            continue
+        ln = _INST_LEN[op] or 1
+        q += ln
+    return None
+
+
+def load_state_from_sid(sid_path: str, subtune: int = 0) -> EngineState:
     """Top-level entry: load the SID, scan its play loop, return an
     `EngineState` with the engine's structural addresses filled in.
 
-    Handles direct-play dispatch and a few trampoline shells (see
-    `_peel_trampoline`). SIDs with KERNAL-IRQ dispatch
-    (PSID play_addr=$0000) are still deferred — they need the init
-    code to run in an emulator to read the $0314/$0315 vectors.
+    Tries three strategies in order:
+      1. Direct static scan at the PSID `play_addr`.
+      2. Peel up to 3 layers of static trampoline (`_peel_trampoline`)
+         and re-scan.
+      3. Run init in py65 (`_run_init_capture`), resolve the play
+         vector from post-init memory (IRQ vector at $0314/$0315 or
+         `JMP ($abs)` indirect target), re-scan with that memory.
     """
     mem, load, init_addr, play_addr, _n_sub = _load_sid_binary(sid_path)
-    if play_addr == 0:
-        raise NotImplementedError(
-            f'jay_derrett: SID uses KERNAL IRQ dispatch (play=$0000); '
-            f'extract not yet implemented')
 
-    # Try the play_addr directly first; if that fails, peel up to 3
-    # trampoline layers and retry.
+    # Strategy 1+2: static scan, with up to 3 static trampoline peels.
     pc = play_addr
-    last_err: Exception | None = None
+    static_err: Exception | None = None
+    if play_addr != 0:
+        for _ in range(4):
+            try:
+                blocks, proc_note = scan_voice_blocks(mem, pc)
+                return EngineState(
+                    load=load, init_addr=init_addr, play_addr=play_addr,
+                    proc_note_addr=proc_note, voices=blocks)
+            except ValueError as e:
+                static_err = e
+                inner = _peel_trampoline(mem, pc)
+                if inner is None or inner == pc:
+                    break
+                pc = inner
+
+    # Strategy 3: run init, resolve play via post-init memory, re-scan.
+    post_mem, _, _, _ = _run_init_capture(sid_path, subtune)
+    resolved = _resolve_play_addr(post_mem, play_addr)
+    if resolved == 0:
+        raise ValueError(
+            f'jay_derrett: init did not install a play vector '
+            f'(play=$0000 still, $0314/$0315=$00)')
+    # Same peel chain on the resolved address. Try both the static
+    # trampoline peel AND the IRQ-handler peel — the IRQ case
+    # (`play_addr=$0000`) resolves to a raster-IRQ wrapper whose
+    # real-play target sits behind an INC $D019 + optional bank-switch
+    # + JSR inner_play sequence.
+    pc = resolved
     for _ in range(4):
         try:
-            blocks, proc_note = scan_voice_blocks(mem, pc)
+            blocks, proc_note = scan_voice_blocks(post_mem, pc)
             return EngineState(
-                load=load,
-                init_addr=init_addr,
-                play_addr=play_addr,
-                proc_note_addr=proc_note,
-                voices=blocks,
-            )
+                load=load, init_addr=init_addr, play_addr=play_addr,
+                proc_note_addr=proc_note, voices=blocks)
         except ValueError as e:
-            last_err = e
-            inner = _peel_trampoline(mem, pc)
+            inner = (_peel_trampoline(post_mem, pc)
+                     or _peel_irq_handler(post_mem, pc))
             if inner is None or inner == pc:
-                break
+                raise static_err or e
             pc = inner
-    assert last_err is not None
-    raise last_err
+    raise static_err or ValueError('jay_derrett: scan exhausted all strategies')
