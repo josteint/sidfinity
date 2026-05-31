@@ -69,6 +69,7 @@
 - [Migration as stress test](feedback_migration_as_stress_test.md) — migrating a new engine surfaces hardcoded assumptions in the shared core. Fix parametrically, not by matching the hardcode.
 - [Audit discriminator](feedback_audit_discriminator.md) — for per-instrument audits, use fx_flags cache or v_instr,x — NEVER ADSR alone. Multiple insts share AD/SR.
 - [Sidxray methodology](feedback_sidxray_methodology.md) — read `src/sidxray/METHODOLOGY.md` before cracking a new player
+- [Dataflow over heuristics](feedback_dataflow_over_heuristics.md) — for engine-data extraction from a disassembled 6502 player, default to dataflow tracing (find STA $D4xx, walk A's predecessors back to its source). Reach for content heuristics only when the semantics aren't recoverable.
 
 ## References
 
