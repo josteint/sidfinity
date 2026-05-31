@@ -8,31 +8,29 @@ format into a single uniform symbolic representation (USF) — engine-neutral
 musical data that an ML model can learn from. See `docs/PLAN.md` for the
 roadmap.
 
-## Current state (2026-05-30)
+## Current state
 
-**Composer rewrite complete. Hubbard 71/71 + companion 32 ok / 3 known-partial / 0 regressed.**
+Composer rewrite is complete. The Hubbard '85 family lives entirely in
+`pipelines/composer.py` as feature-driven asm composition (no template,
+no string substitution — every per-engine knob is a typed argument
+threaded through `_compose_hubbard_engine_asm`). The earlier
+`composer_hubbard.py` + `universal_codegen.py` + `pipelines/codegen.py`
++ the ENGINE asm template are gone. See
+[[project_composer_dissolution]] for the architecture + build-path
+call chain.
 
-The Hubbard '85 family lives entirely in `pipelines/composer.py` as
-feature-driven asm composition (no template, no string substitution —
-every per-engine knob is a typed argument threaded through
-`_compose_hubbard_engine_asm`). The earlier `composer_hubbard.py` +
-`universal_codegen.py` + `pipelines/codegen.py` + the ENGINE asm
-template are gone. See [[composer-dissolution]] for the architecture
-+ build-path call chain.
+Two engine families ship through the USF pipeline today:
 
-**13 Hubbard '85 engines byte-exact** through the USF pipeline. Members:
-Commando, Monty, Action Biker, Battle of Britain, Chimera (2 music + 2
-digi), Confuzion, Devils Galop, 5 Title Tunes (unified), Human Race,
-Hunter Patrol, One Man and his Droid, Thing on a Spring.
+- **Hubbard '85** (under `pipelines/hubbard/<engine>/`) — feature-driven
+  asm composition out of the shared composer.
+- **Companion strains** (under `pipelines/companion/<engine>/`) —
+  Hubbard's 1984 Up_up_and_Away, Bowden-canonical, Clever_Music
+  (Fairlight + Gyroscope), Henrys_House, Yes_Tune family.
 
-**Companion strains byte-exact / cycle-strict**: Up_up_and_Away (1
-SID, Hubbard's 1984 first engine), Bowden-canonical (12 SIDs, Berry_Vic),
-Clever_Music (Fairlight + Gyroscope), Henrys_House, Yes_Tune family
-(Yes_Tune + Soldier_of_Fortune incl. 16 SFX).
-
-Pre-existing partial subtunes (carried since before the rewrite, NOT
-regressions): `Fairlight` sub 0, `Melonmania` sub 1, `5_Title_Tunes`
-sub 2.
+`tools/regression.py` is the verdict for both families. It prints the
+current ok / known-partial / regressed counts and enumerates the
+pre-existing partial subtunes — treat it as the source of truth, not
+this file.
 
 **Layout — `pipelines/`:**
 ```
@@ -64,8 +62,8 @@ companion). Use it as the verdict after any composer change.
 
 ## MANDATORY before any new pipeline work
 
-1. **Check the engine's project memory** — `~/.claude/projects/-home-jtr-sidfinity/memory/project_<engine>.md`. Reads any prior session's root-cause analysis so you don't re-investigate from scratch.
-2. **Re-read `docs/usf_representation_principle.md` IN FULL** before designing or changing any USF instrument/effect representation. Load-bearing — see [`feedback_usf_representation_principle`](~/.claude/projects/-home-jtr-sidfinity/memory/feedback_usf_representation_principle.md).
+1. **Check the engine's project memory** — `.claude/memory/project_<engine>.md`. Reads any prior session's root-cause analysis so you don't re-investigate from scratch.
+2. **Re-read `docs/usf_representation_principle.md` IN FULL** before designing or changing any USF instrument/effect representation. Load-bearing — see [`feedback_usf_representation_principle`](.claude/memory/feedback_usf_representation_principle.md).
 3. **Check `deprecated/` for prior attempts** before rewriting something from scratch.
 
 ## Doing a Hubbard '85 engine migration
@@ -88,7 +86,7 @@ HVSC original at `hvsc84/MUSICIANS/H/Hubbard_Rob/<Engine>.{usf, sidfinity.sid}`.
 - **py65 misses dispatch bugs** (CIA timer, PSID speed). Ear-test new engines and any dispatch changes in real sidplayfp before declaring done.
 - **Commit early.** Each verified delta is one commit. No `Co-Authored-By`.
 - **Propose options before code** for non-trivial work. Honest scope. Pause at decision points.
-- **Schema additions are suspicious by default** — see [`feedback_schema_addition_discipline`](~/.claude/projects/-home-jtr-sidfinity/memory/feedback_schema_addition_discipline.md). Exhaust derivation / `engine_constants` / existing-params alternatives first. `bytes`-typed fields almost always mean you're papering over a representation gap.
+- **Schema additions are suspicious by default** — see [`feedback_schema_addition_discipline`](.claude/memory/feedback_schema_addition_discipline.md). Exhaust derivation / `engine_constants` / existing-params alternatives first. `bytes`-typed fields almost always mean you're papering over a representation gap.
 - **The shared core stays parametric.** New engine quirks become config fields on `EngineConfig`, never `if engine == "Foo"` branches.
 
 ## Build & test
@@ -199,7 +197,7 @@ xa65 assembler at `tools/xa65/xa/xa`. CUDA at `/usr/bin/nvcc`.
 ## Project structure
 
 ```
-pipelines/              13 active engines (12 Hubbard under hubbard/, plus companion)
+pipelines/              active engines — hubbard/ (Hubbard '85 family) + companion/
 src/                    USF shared source — usf/ (grammar + reader/writer),
                         hubbard_emu.py, effect_detect.py, songlengths.py,
                         gt_parser.py, env.sh. Everything pre-USF-v2 moved
