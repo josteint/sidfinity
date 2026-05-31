@@ -1082,7 +1082,8 @@ sp_nc:
         rts"""
 
 
-def _emit_hubbard_set_patptr(fade: 'FadeProgressive | None' = None) -> str:
+def _emit_hubbard_set_patptr(fade: 'FadeProgressive | None' = None,
+                             loop_silences_song: bool = False) -> str:
     """set_patptr routine — orderlist dispatch + new-pattern setup.
 
     Walks the per-voice orderlist (handling $FE end-of-song with the
@@ -1099,9 +1100,30 @@ def _emit_hubbard_set_patptr(fade: 'FadeProgressive | None' = None) -> str:
     on song-loop the master_vol counter resets along with the orderlist
     read position (TOAS-style). Otherwise the counter is independent
     (Confuzion-style; default).
+
+    When `loop_silences_song` is True, ANY voice hitting $FF silences
+    the entire song instead of looping back — Confuzion-style, matching
+    orig $0907→$091B→$08B9. The triggering voice is marked ended,
+    end_phase is set to the silent value, and pv_abort halts the
+    rest of this play() iteration.
     """
     asm = _HUBBARD_SET_PATPTR_ASM
-    if fade is not None and fade.reset_on_loop:
+    if loop_silences_song:
+        # On $FF: silence song + mark this voice ended + abort play.
+        # A still has orderLoop[X] at this point; we replace it with 0
+        # for $D418 and v_ended:=$FF below.
+        reset = (
+            f'        lda #$00\n'
+            f'        sta $d418\n'
+            f'        lda #$02\n'
+            f'        sta end_phase\n'
+            f'        lda #1\n'
+            f'        sta pv_abort\n'
+            f'        lda #$ff\n'
+            f'        sta v_ended,x\n'
+            f'        rts'
+        )
+    elif fade is not None and fade.reset_on_loop:
         v = fade.subtrahend_voice_idx
         reset = (
             f'        cpx #{v}\n'
@@ -1878,7 +1900,8 @@ def _compose_hubbard_engine_body(
         has_per_subtune_ovseed: bool = False,
         has_master_vol_fade: bool = False,
         uses_per_subtune_dispatch: bool = False,
-        fade: 'FadeProgressive | None' = None) -> str:
+        fade: 'FadeProgressive | None' = None,
+        loop_silences_song: bool = False) -> str:
     """Compose the Hubbard '85 engine asm body by direct concatenation
     of named chunks — the composer-native replacement for template +
     `; %%SENTINEL%%` substitution.
@@ -1922,7 +1945,7 @@ def _compose_hubbard_engine_body(
         _HUBBARD_LOAD_NOTE_COMMENT,
         '',
         _HUBBARD_SET_PATPTR_HEADER,
-        _emit_hubbard_set_patptr(fade),
+        _emit_hubbard_set_patptr(fade, loop_silences_song),
         '',
         _emit_hubbard_next_orderidx(),
         '',
@@ -2129,7 +2152,8 @@ def _compose_hubbard_engine_asm(inputs, codec, pat_slot, pat_bytes,
         has_per_subtune_ovseed=inputs.per_subtune_ovseed is not None,
         has_master_vol_fade=inputs.master_vol_subtrahend_voice is not None,
         uses_per_subtune_dispatch=uses_psp,
-        fade=fade)
+        fade=fade,
+        loop_silences_song=inputs.loop_silences_song)
     data = _emit_hubbard_data(
         inputs.scores, inputs.models, inputs.freq_bytes,
         inputs.resetspds, inputs.voice_starts,
@@ -2249,6 +2273,7 @@ class _Inputs:
     master_vol_trigger: str = 'inst_change'
     master_vol_reset_on_loop: bool = False
     master_vol_underflow_clamp: bool = False
+    loop_silences_song: bool = False
     tie_preserves_slide: bool = False
 
 
@@ -2310,6 +2335,7 @@ def _inputs_from_config(config) -> _Inputs:
         master_vol_trigger=config.master_vol_trigger,
         master_vol_reset_on_loop=config.master_vol_reset_on_loop,
         master_vol_underflow_clamp=config.master_vol_underflow_clamp,
+        loop_silences_song=config.loop_silences_song,
         tie_preserves_slide=config.tie_preserves_slide,
     )
 
@@ -2651,6 +2677,7 @@ def _inputs_from_usf(usf) -> _Inputs:
         master_vol_trigger=get('master_vol_trigger', 'inst_change'),
         master_vol_reset_on_loop=get('master_vol_reset_on_loop', False),
         master_vol_underflow_clamp=get('master_vol_underflow_clamp', False),
+        loop_silences_song=get('loop_silences_song', False),
         tie_preserves_slide=get('tie_preserves_slide', False),
         hubidx_wrap_at_patend=get('hubidx_wrap_at_patend', True),
         **({'ns_offtab_decr_offset': ns_offtab_decr_offset}

@@ -55,6 +55,13 @@ CFG = EngineConfig(
     # next inst-change. With it, the formula correctly writes $00 for
     # vol_progress > BASE. See [[project_hubbard_song_end_fade]].
     master_vol_underflow_clamp=True,
+    # Orig's $FF handler at $0907→$091B JMPs to $08B9 which sets
+    # $D418=0 and the song-running flag ($0BEB)=0. So ANY voice's
+    # $FF silences the entire song; subsequent play() calls become
+    # no-ops. All three Confuzion voices declare loop@0 in the USF
+    # but the engine treats $FF as a "song stops here" sentinel —
+    # this flag makes our codegen match.
+    loop_silences_song=True,
     # Engine's tie path ($807A BVS $80C0) jumps over the v_slide clear
     # at $807C — so a tie note must preserve whatever slide was set on
     # the head note. Without this the slide is lost on the first tie.

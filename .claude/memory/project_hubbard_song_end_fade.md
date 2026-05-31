@@ -1,6 +1,6 @@
 ---
 name: project_hubbard_song_end_fade
-description: "Hubbard '85 master-VOL fade is `clamp(BASE - voice_orderpos, 0..$0F)`. EngineConfig knobs: `master_vol_subtrahend_voice` + `master_vol_base` + `master_vol_trigger` (mandatory) + `master_vol_reset_on_loop` + `master_vol_underflow_clamp` (per-engine quirks). Confuzion + TOAS use it. `tools/audit_d418_fade.py` probes whether any other engine needs it."
+description: "Hubbard '85 master-VOL fade is `clamp(BASE - voice_orderpos, 0..$0F)`. EngineConfig knobs: `master_vol_subtrahend_voice` + `master_vol_base` + `master_vol_trigger` (mandatory) + `master_vol_reset_on_loop` + `master_vol_underflow_clamp` + `loop_silences_song` (per-engine quirks). Confuzion + TOAS use it. `tools/audit_d418_fade.py` probes whether any other engine needs it."
 metadata: 
   node_type: memory
   type: project
@@ -17,7 +17,7 @@ to $00 as the song approaches its end.
 
 ## Implementation
 
-Five EngineConfig fields (mirrored through USF params and the
+Six EngineConfig fields (mirrored through USF params and the
 composer's `_Inputs`):
 
 - `master_vol_subtrahend_voice` — which voice (0/1/2) drives the
@@ -36,6 +36,12 @@ composer's `_Inputs`):
   branch. Confuzion enables this; TOAS leaves it off because the
   orig engine has the same SBC-underflow shape and verify_all was
   matching via that coincidence.
+- `loop_silences_song` — when True, ANY voice hitting $FF in its
+  orderlist immediately silences the song: $D418=0, end_phase=2,
+  pv_abort=1, v_ended,x=$FF. Subsequent play() calls become no-ops.
+  Matches Confuzion's `$0907→$091B→$08B9` path where the $FF handler
+  JMPs to the song-silence routine. Default False: $FF is per-voice
+  loop-back to orderLoop[V] as usual.
 
 Composer adds a `vol_progress` zp counter ($B9), incremented at the
 configured voice's pattern-end (same point `v_orderpos,x` increments
@@ -67,7 +73,8 @@ work:
 
 ## Confirmed engines
 
-- **Confuzion**: V2 ($0BC2), BASE = $A0, `underflow_clamp=True`
+- **Confuzion**: V2 ($0BC2), BASE = $A0, `underflow_clamp=True`,
+  `loop_silences_song=True`
 - **Thing on a Spring**: V3 ($C46F), BASE = $47, trigger `every_note`
 
 ## Open question — divergences past the verify window
@@ -76,25 +83,20 @@ work:
 and rebuild at 2× songlength, compares $D418 traces, flags any
 engine where divergence falls past the 1.5× verify boundary.
 
-As of 2026-05-31 the audit still flags **Confuzion** (first $D418
-diff at frame 24578 vs 1.5× window 19088) and **TOAS** (first diff
-at 21025 vs 1.5× window 16365). Both are deep post-songlength
-divergences:
-
-- **Confuzion**: vol_progress eventually wraps from $FF→$00 (single
-  byte), producing $D418 = $A0 - 0 → clamp $0F. Capping vol_progress
-  at $FF would prevent the wrap, but Confuzion's regression at 1.5×
-  ALSO fails on voice-register divergence at frame 15650 (unrelated
-  to the fade) — listed as a known-partial in `tools/regression.py`.
-  Both issues are past 1.1× and out of scope for fade-class fixes.
+- **Confuzion**: RESOLVED across the full 2× window after
+  `loop_silences_song=True` landed. The orig $FF handler silences
+  the song entirely (any voice's $FF triggers $D418=0 + song-off
+  flag), and we now mirror that — no more loop-back, no more
+  vol_progress wrap, no more voice-reg divergence past frame ~15650.
+  Audit `first_diff: None`.
 - **TOAS**: orig's V3_orderpos resets on $FF loop and the fade
   restarts in the second pass; our rebuild's V3 plays ~4 patterns
   longer past fade-end before hitting $FF, so the reset fires later.
   Pattern-length mismatch past fade-end — not the fade mechanism
   itself.
 
-Both are deferred — they're past the project's verify window
-(1.5× songlength) and don't fall under "fade-class bugs" per se.
+TOAS is deferred — it's past the project's verify window
+(1.5× songlength) and doesn't fall under "fade-class bugs" per se.
 
 ## Related shared-core gap (different cause)
 

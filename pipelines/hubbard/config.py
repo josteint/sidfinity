@@ -134,6 +134,14 @@ class EngineConfig:
     # off because pre-fix verify_all was matching orig via the same
     # SBC-underflow shape (orig has the same engine quirk).
     master_vol_underflow_clamp: bool = False
+    # When True, ANY voice hitting $FF in its orderlist immediately
+    # silences the entire song: $D418 := 0, end_phase := 2, pv_abort
+    # := 1, and the triggering voice is marked ended. Subsequent
+    # play() calls become no-ops. Matches Confuzion's $0907→$091B→
+    # $08B9 path where the $FF handler JMPs to the song-silence
+    # routine that zeroes the `song running` flag. Default False:
+    # $FF is per-voice loop-back to orderLoop[V] as usual.
+    loop_silences_song: bool = False
     # When True, the codegen's note_codec emits the v_drumtrig clear
     # ONLY in the non-tie path of ln_decode — matching Confuzion's
     # `$807C: STA $841A,X` which the tie's `BVS $80C0` jumps over.

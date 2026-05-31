@@ -40,6 +40,13 @@ arp +12. It never reads bit 3 either — no linear PW path. Just:
   engine ticks vibrato twice before reading the pattern.
 - `master_vol_subtrahend_voice=1`, `master_vol_base=0xA0` — drives
   the song-end fade ($D418 from $0F down to $00 over the final ~22s).
+- `master_vol_underflow_clamp=True` — Confuzion's V2 ends past
+  BASE+1, so the SBC clamp asm needs explicit underflow handling
+  (otherwise $D418 jumps back to $0F on the first inst-change after
+  vol_progress > $A0).
+- `loop_silences_song=True` — orig's $FF handler unconditionally
+  silences the song (sets $D418=0, song-running flag=0). Without this
+  the song keeps playing past natural song-end.
 
 No shared-core branches. Every other Hubbard '85 knob (arp_period,
 incby2_step, frame_ctr_init, …) defaults to the right value because

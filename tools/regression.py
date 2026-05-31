@@ -13,11 +13,6 @@ modes:
 Pre-existing partial cases (do NOT treat as regressions):
   - Melonmania                 sub 1
   - 5_Title_Tunes              sub 2
-  - Confuzion                  sub 0  (voice-reg divergence past frame
-    ~15650 exposed when verify window widened from 1.1x to 1.5x — the
-    $D418 fade itself is correctly handled; this is a separate
-    post-fade engine-end-handling divergence. See
-    [[project_hubbard_song_end_fade]].)
 
 (Fairlight sub 0 was previously listed here as a phantom partial — it's
 actually byte-exact; the old `compare_instruction_stream(skip_init=True)`
@@ -81,15 +76,11 @@ KNOWN_PARTIAL = {
     '5_Title_Tunes':   {2},
 }
 
-# Hubbard '85 subtunes carrying a known-partial at 1.5x (the new
-# default verify window). At 1.1x these all passed; widening to 1.5x
-# exposed post-songlength divergences that aren't fade-related and
-# would each need its own investigation. The $D418 audit
-# (`tools/audit_d418_fade.py`) is the dedicated check for fade-class
-# bugs at 2.0x.
-KNOWN_PARTIAL_HUBBARD = {
-    'confuzion': {0},
-}
+# Hubbard '85 subtunes carrying a known-partial at 1.5x (the
+# default verify window). Empty today — Confuzion sub 0 was the last
+# entry and was resolved by the `loop_silences_song` knob landing on
+# its config (see [[project_hubbard_song_end_fade]]).
+KNOWN_PARTIAL_HUBBARD: dict[str, set[int]] = {}
 
 
 def _n_subs(sid: str) -> int:
