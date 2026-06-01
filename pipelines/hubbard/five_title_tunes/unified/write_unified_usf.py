@@ -118,14 +118,16 @@ def build_unified_usf() -> UsfFile:
             ms.params = ParamsCls(fields=sub_fields)
         music_subtunes.append(ms)
 
-    # song_end + init_behavior blocks — derive from inputs (5TT's
-    # _Inputs has same flat fields as EngineConfig). None when all
-    # defaults apply.
+    # song_end + init_behavior + master_vol blocks — derive from
+    # inputs (5TT's _Inputs has same flat fields as EngineConfig).
+    # None when all defaults apply.
     from pipelines.hubbard.to_usf import (
         _song_end_from_config, _init_behavior_from_config,
+        _master_vol_from_config,
     )
     song_end = _song_end_from_config(inputs)
     init_behavior = _init_behavior_from_config(inputs)
+    master_vol = _master_vol_from_config(inputs)
 
     return UsfFile(
         psid=psid,
@@ -137,6 +139,7 @@ def build_unified_usf() -> UsfFile:
         state_layout=None,
         song_end=song_end,
         init_behavior=init_behavior,
+        master_vol=master_vol,
     )
 
 

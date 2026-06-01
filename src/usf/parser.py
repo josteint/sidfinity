@@ -16,6 +16,7 @@ from src.usf.types import (
     InitSid, InitSidVoice, InitFilter,
     Instrument, PwmConfig, ArpConfig, VibratoConfig, EnvelopeConfig,
     FreqSlideConfig, IncBy2Config, SongEndConfig, InitBehaviorConfig,
+    MasterVolConfig,
     MusicSubtune, DigiSubtune, SfxSubtune,
     VoiceBlock, Orderlist, Pattern, NoteRow, Pitch, InstrumentRef,
 )
@@ -625,6 +626,30 @@ class _T(Transformer):
             setattr(cfg, k, v)
         return ('init_behavior', cfg)
 
+    def mv_subtrahend_voice(self, items):
+        return ('subtrahend_voice', int(items[0]))
+
+    def mv_base(self, items):
+        return ('base', items[0])
+
+    def mv_trigger(self, items):
+        return ('trigger', str(items[0]))
+
+    def mv_reset_on_loop(self, items):
+        return ('reset_on_loop', items[0])
+
+    def mv_underflow_clamp(self, items):
+        return ('underflow_clamp', items[0])
+
+    def master_vol_field(self, items):
+        return items[0]
+
+    def master_vol_block(self, items):
+        cfg = MasterVolConfig()
+        for k, v in items:
+            setattr(cfg, k, v)
+        return ('master_vol', cfg)
+
     def state_layout_block(self, items):
         # items is a list of tuples ('n_voices', N) | ('scalar', dict)
         # | ('per_voice', dict). Reassemble into a StatebufLayout-shaped
@@ -664,6 +689,7 @@ class _T(Transformer):
         state_layout = None
         song_end = None
         init_behavior = None
+        master_vol = None
         for it in items:
             if isinstance(it, tuple):
                 k, v = it
@@ -675,6 +701,8 @@ class _T(Transformer):
                     song_end = v
                 elif k == 'init_behavior':
                     init_behavior = v
+                elif k == 'master_vol':
+                    master_vol = v
             elif isinstance(it, PsidMeta):
                 psid = it
             elif isinstance(it, Params):
@@ -689,7 +717,8 @@ class _T(Transformer):
             psid=psid, params=params,
             init=init, instruments=instruments, subtunes=subtunes,
             freq_table=freq_table, state_layout=state_layout,
-            song_end=song_end, init_behavior=init_behavior)
+            song_end=song_end, init_behavior=init_behavior,
+            master_vol=master_vol)
 
 
 # ---------------------------------------------------------------------------

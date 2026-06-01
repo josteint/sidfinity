@@ -2746,11 +2746,33 @@ def _inputs_from_usf(usf) -> _Inputs:
         per_subtune_incby2_step=per_subtune_incby2_step,
         per_subtune_incby2_late_gate=per_subtune_incby2_late_gate,
         per_subtune_ovseed=per_subtune_ovseed,
-        master_vol_subtrahend_voice=get('master_vol_subtrahend_voice', None),
-        master_vol_base=get('master_vol_base', 0xA0),
-        master_vol_trigger=get('master_vol_trigger', 'inst_change'),
-        master_vol_reset_on_loop=get('master_vol_reset_on_loop', False),
-        master_vol_underflow_clamp=get('master_vol_underflow_clamp', False),
+        # master_vol unification: prefer the typed block; fall back
+        # to the 5 flat params keys for pre-refactor USFs.
+        master_vol_subtrahend_voice=(
+            usf.master_vol.subtrahend_voice
+            if usf.master_vol is not None
+            else get('master_vol_subtrahend_voice', None)
+        ),
+        master_vol_base=(
+            usf.master_vol.base
+            if usf.master_vol is not None
+            else get('master_vol_base', 0xA0)
+        ),
+        master_vol_trigger=(
+            usf.master_vol.trigger
+            if usf.master_vol is not None
+            else get('master_vol_trigger', 'inst_change')
+        ),
+        master_vol_reset_on_loop=(
+            usf.master_vol.reset_on_loop
+            if usf.master_vol is not None
+            else get('master_vol_reset_on_loop', False)
+        ),
+        master_vol_underflow_clamp=(
+            usf.master_vol.underflow_clamp
+            if usf.master_vol is not None
+            else get('master_vol_underflow_clamp', False)
+        ),
         loop_silences_song=(
             usf.song_end is not None and usf.song_end.loop_marker == 'silence_all'
             if usf.song_end is not None

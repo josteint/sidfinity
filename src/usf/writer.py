@@ -12,6 +12,7 @@ from src.usf.types import (
     InitSid, InitSidVoice, InitFilter,
     Instrument, PwmConfig, ArpConfig, VibratoConfig, EnvelopeConfig,
     FreqSlideConfig, IncBy2Config, SongEndConfig, InitBehaviorConfig,
+    MasterVolConfig,
     MusicSubtune, DigiSubtune, SfxSubtune,
     VoiceBlock, Orderlist, Pattern, NoteRow, Pitch, InstrumentRef,
 )
@@ -362,6 +363,22 @@ def _write_state_layout(d: dict) -> list[str]:
     return lines
 
 
+def _write_master_vol(cfg: MasterVolConfig) -> list[str]:
+    """Emit `master_vol { ... }`; subtrahend_voice always written
+    (the field is the trigger for the modulation existing), other
+    fields only when non-default."""
+    parts = [f'  subtrahend_voice: {cfg.subtrahend_voice}']
+    if cfg.base != 0xA0:
+        parts.append(f'  base: {_hex(cfg.base)}')
+    if cfg.trigger != 'inst_change':
+        parts.append(f'  trigger: {cfg.trigger}')
+    if cfg.reset_on_loop:
+        parts.append('  reset_on_loop: true')
+    if cfg.underflow_clamp:
+        parts.append('  underflow_clamp: true')
+    return ['master_vol {', *parts, '}']
+
+
 def _write_init_behavior(cfg: InitBehaviorConfig) -> list[str]:
     """Emit `init_behavior { ... }`; only non-default fields written."""
     parts = []
@@ -410,6 +427,9 @@ def write(usf: UsfFile) -> str:
             or usf.init_behavior.no_first_attack_voice):
         lines.append('')
         lines.extend(_write_init_behavior(usf.init_behavior))
+    if usf.master_vol is not None:
+        lines.append('')
+        lines.extend(_write_master_vol(usf.master_vol))
     for inst in sorted(usf.instruments, key=lambda x: x.id):
         lines.append('')
         lines.extend(_write_instrument(inst))

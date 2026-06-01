@@ -28,7 +28,7 @@ from src.hubbard_emu import load_sid
 from src.usf import (
     UsfFile, PsidMeta, Params, InitState, InitVoice,
     Instrument, PwmConfig, ArpConfig, VibratoConfig, EnvelopeConfig,
-    SongEndConfig, InitBehaviorConfig,
+    SongEndConfig, InitBehaviorConfig, MasterVolConfig,
     MusicSubtune, DigiSubtune, SfxSubtune, VoiceBlock, Orderlist,
     Pattern, NoteRow, Pitch, InstrumentRef, write_file, validate,
 )
@@ -283,7 +283,25 @@ _PARAMS_SKIP_CONFIG = {
     # linear_pw_or now lives per-instrument as pwm.lo_or_mask
     # (only meaningful for linear-PWM instruments).
     'linear_pw_or',
+    # master_vol_* now live in the typed master_vol {} block.
+    'master_vol_subtrahend_voice', 'master_vol_base', 'master_vol_trigger',
+    'master_vol_reset_on_loop', 'master_vol_underflow_clamp',
 }
+
+
+def _master_vol_from_config(config) -> MasterVolConfig | None:
+    """Derive a `MasterVolConfig` from the per-engine flat keys. None
+    when subtrahend_voice is unset (= no modulation active)."""
+    sv = getattr(config, 'master_vol_subtrahend_voice', None)
+    if sv is None:
+        return None
+    return MasterVolConfig(
+        subtrahend_voice=sv,
+        base=getattr(config, 'master_vol_base', 0xA0),
+        trigger=getattr(config, 'master_vol_trigger', 'inst_change'),
+        reset_on_loop=getattr(config, 'master_vol_reset_on_loop', False),
+        underflow_clamp=getattr(config, 'master_vol_underflow_clamp', False),
+    )
 
 
 def _init_behavior_from_config(config) -> InitBehaviorConfig | None:
@@ -512,6 +530,7 @@ def to_usf(config, extra_subtunes: list | None = None) -> UsfFile:
         freq_table=freq_table, state_layout=state_layout,
         song_end=_song_end_from_config(config),
         init_behavior=_init_behavior_from_config(config),
+        master_vol=_master_vol_from_config(config),
     )
 
 

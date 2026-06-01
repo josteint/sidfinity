@@ -455,6 +455,37 @@ class InitBehaviorConfig:
 
 
 @dataclass
+class MasterVolConfig:
+    """Master-volume modulation algorithm — replaces 5 flat per-tune
+    keys (`master_vol_subtrahend_voice`, `_base`, `_trigger`,
+    `_reset_on_loop`, `_underflow_clamp`). The five fields describe
+    ONE musical concept (master-vol modulation driven by a voice's
+    pattern-progress counter) and belong together.
+
+    `subtrahend_voice` (0/1/2) — which voice's pattern-position
+    advances drive the modulation. When None, no modulation is
+    active and the block is omitted from USF entirely.
+
+    `base` (default $A0) — starting master-vol byte. The modulation
+    decrements from here.
+
+    `trigger` ('inst_change' default | 'every_note') — when the
+    modulation counter advances.
+
+    `reset_on_loop` — when True, the master-vol counter resets to
+    `base` whenever the orderlist loops.
+
+    `underflow_clamp` — when True, the counter clamps to 0 on
+    underflow (vs wrapping at $FF).
+    """
+    subtrahend_voice: int = 0          # 0/1/2 = voice id
+    base: int = 0xA0
+    trigger: str = 'inst_change'       # 'inst_change' | 'every_note'
+    reset_on_loop: bool = False
+    underflow_clamp: bool = False
+
+
+@dataclass
 class SongEndConfig:
     """End-of-orderlist behavior for both terminator markers.
 
@@ -536,3 +567,6 @@ class UsfFile:
     # Engine first-frame init behavior — replaces the flat per-tune
     # `first_frame_gate_off` and `suppress_first_notestart` flags.
     init_behavior: Optional[InitBehaviorConfig] = None
+    # Master-volume modulation — replaces the 5 flat per-tune
+    # `master_vol_*` keys. None when no modulation is active.
+    master_vol: Optional[MasterVolConfig] = None
