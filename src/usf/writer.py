@@ -178,21 +178,20 @@ def _write_vibrato(v: VibratoConfig) -> str:
     return 'vibrato:  ' + ' '.join(parts)
 
 
-def _write_envelope(e: EnvelopeConfig) -> str:
+def _write_envelope(e: EnvelopeConfig) -> str | None:
+    """Returns the `envelope: ...` line, or None when all fields are
+    default (caller skips emission entirely).
+
+    Phase 3c — `gate_off_delta` and `adsr_zero_delta` are dropped from
+    the schema. The placeholder `envelope: gate_off_delta=0
+    adsr_zero_delta=0` line is gone — engines without release_ctrl
+    (Companion family) just omit the envelope line.
+    """
     parts = []
-    # Always emit deprecated fields when non-default (Phase 1 keeps
-    # them for back-compat).
-    if e.gate_off_delta:
-        parts.append(f'gate_off_delta={e.gate_off_delta}')
-    if e.adsr_zero_delta:
-        parts.append(f'adsr_zero_delta={e.adsr_zero_delta}')
     if e.release_ctrl:
         parts.append(f'release_ctrl={_hex(e.release_ctrl)}')
-    # Preserve the historical "envelope: gate_off_delta=0
-    # adsr_zero_delta=0" line shape when everything is default — too
-    # many tests / golden files assume the line is present.
     if not parts:
-        parts = ['gate_off_delta=0', 'adsr_zero_delta=0']
+        return None
     return 'envelope: ' + ' '.join(parts)
 
 
@@ -235,20 +234,16 @@ def _write_instrument(i: Instrument) -> list[str]:
     lines.append(f'  adsr:     {_hex(i.adsr[0])} {_hex(i.adsr[1])}')
     lines.append(f'  {_write_arp(i.arp)}')
     lines.append(f'  {_write_vibrato(i.vibrato)}')
-    lines.append(f'  {_write_envelope(i.envelope)}')
-    # Only emit slide / incby2 blocks when active (mode != 'none'),
-    # so existing Hubbard USFs that don't use them stay unchanged.
+    env_line = _write_envelope(i.envelope)
+    if env_line is not None:
+        lines.append(f'  {env_line}')
+    # Phase 3c — emit the per-inst sub-configs when active. The legacy
+    # `fx: freq_slide / inc_by2` flag line is gone — its info now
+    # lives in the slide / incby2 blocks below.
     if i.freq_slide_config.mode != 'none':
         lines.append(f'  {_write_slide(i.freq_slide_config)}')
     if i.inc_by2_config.mode != 'none':
         lines.append(f'  {_write_incby2(i.inc_by2_config)}')
-    fx_flags = []
-    if i.freq_slide:
-        fx_flags.append('freq_slide')
-    if i.inc_by2:
-        fx_flags.append('inc_by2')
-    if fx_flags:
-        lines.append(f'  fx:       {" ".join(fx_flags)}')
     lines.append('}')
     return lines
 

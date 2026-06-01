@@ -984,13 +984,15 @@ def _instrument_from_usf(u) -> InstrumentProgram:
         init_pw_hi=(u.pwm.init >> 8) & 0xFF,
         init_ad=u.adsr[0],
         init_sr=u.adsr[1],
-        hr_ctrl=init_ctrl & 0xFE,
+        hr_ctrl=u.envelope.release_ctrl or (init_ctrl & 0xFE),
         vibrato=vib,
         pwm_linear=pwm_lin,
         pwm_bidirectional=pwm_bid,
         arpeggio=arp,
-        freq_hi_slide=FreqHiSlide() if u.freq_slide else None,
-        odd_frame_slide=OddFrameSlide(step=2) if u.inc_by2 else None,
+        freq_hi_slide=(FreqHiSlide()
+                      if u.freq_slide_config.mode != 'none' else None),
+        odd_frame_slide=(OddFrameSlide(step=u.inc_by2_config.step)
+                        if u.inc_by2_config.mode != 'none' else None),
         # per_note_portamento is a per-note feature (no per-instrument params)
     )
 

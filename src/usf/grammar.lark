@@ -83,10 +83,6 @@ instrument_field: "waveform" ":" byte_list                              -> inst_
                 | "envelope" ":" env_args                               -> inst_envelope
                 | "slide" ":" slide_args                                -> inst_slide
                 | "incby2" ":" incby2_args                              -> inst_incby2
-                | "fx" ":" inst_fx_flag+                                -> inst_fx
-
-inst_fx_flag: "freq_slide"           -> inst_fx_freq_slide
-            | "inc_by2"              -> inst_fx_inc_by2
 
 pwm_args: pwm_kv+
 pwm_kv: "mode" "=" CNAME           -> pwm_mode
@@ -109,9 +105,7 @@ vib_kv: "scale" "=" INT             -> vib_scale
       | "onset" "=" INT             -> vib_onset
 
 env_args: env_kv+
-env_kv: "gate_off_delta" "=" INT       -> env_gate_off_delta
-      | "adsr_zero_delta" "=" INT      -> env_adsr_zero_delta
-      | "release_ctrl" "=" number      -> env_release_ctrl
+env_kv: "release_ctrl" "=" number      -> env_release_ctrl
 
 // Phase 1: per-instrument freq-slide config — replaces the per-
 // engine-parameterized `fx: freq_slide` flag.

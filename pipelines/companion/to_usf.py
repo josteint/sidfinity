@@ -108,9 +108,7 @@ def _instrument_from_voice_state(inst_id: int, vs: VoiceState) -> Instrument:
         adsr=(vs.ad, vs.sr),
         arp=ArpConfig(offsets=[0], period=1),
         vibrato=VibratoConfig(scale=0),
-        envelope=EnvelopeConfig(gate_off_delta=0, adsr_zero_delta=0),
-        freq_slide=False,
-        inc_by2=False,
+        envelope=EnvelopeConfig(),
     )
 
 

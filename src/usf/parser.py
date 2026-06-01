@@ -275,12 +275,6 @@ class _T(Transformer):
     def inst_vibrato(self, items):
         return ('vibrato', items[0])
 
-    def env_gate_off_delta(self, items):
-        return ('gate_off_delta', int(items[0]))
-
-    def env_adsr_zero_delta(self, items):
-        return ('adsr_zero_delta', int(items[0]))
-
     def env_release_ctrl(self, items):
         return ('release_ctrl', items[0])
 
@@ -333,19 +327,6 @@ class _T(Transformer):
     def inst_envelope(self, items):
         return ('envelope', items[0])
 
-    def inst_fx_freq_slide(self, _):
-        return 'freq_slide'
-
-    def inst_fx_inc_by2(self, _):
-        return 'inc_by2'
-
-    def inst_fx(self, items):
-        # items is a list of flag-name strings
-        flags = {'freq_slide': False, 'inc_by2': False}
-        for name in items:
-            flags[name] = True
-        return ('_fx_flags', flags)
-
     def instrument_block(self, items):
         # items: INT [name] field*
         inst_id = int(items[0])
@@ -356,12 +337,6 @@ class _T(Transformer):
             idx += 1
         fields = dict(items[idx:])
         inst = Instrument(id=inst_id, name=name)
-        # Pull fx flags out of the synthetic '_fx_flags' key before the
-        # generic setattr loop, since the dataclass has individual bools.
-        fx_flags = fields.pop('_fx_flags', None)
-        if fx_flags is not None:
-            for fname, fval in fx_flags.items():
-                setattr(inst, fname, fval)
         for k, val in fields.items():
             if not hasattr(inst, k):
                 raise UsfParseError(f'instrument {inst_id}: unknown field {k!r}')

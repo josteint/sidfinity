@@ -2417,23 +2417,21 @@ def _model_from_usf_instrument(u, vib_onset: int):
     vibrato = (VibratoSpec(depth=u.vibrato.scale, onset_dur=vib_onset)
                if u.vibrato.scale != 0 else None)
 
-    # Reconstruct the engine's fx_flags byte from the structured fields.
-    # Phase 3a — prefer the new per-instrument sub-configs; fall back to
-    # legacy bools when configs are at default. Phase 3c drops bools.
-    has_freq_slide = (u.freq_slide_config.mode != 'none' or u.freq_slide)
-    has_inc_by2    = (u.inc_by2_config.mode    != 'none' or u.inc_by2)
+    # Phase 3c — the engine's fx_flags byte is derived from per-inst
+    # sub-configs. No legacy fallback.
+    has_freq_slide = u.freq_slide_config.mode != 'none'
+    has_inc_by2    = u.inc_by2_config.mode    != 'none'
     fx_flags = ((1 if has_freq_slide else 0)
                 | (2 if has_inc_by2 else 0)
                 | (4 if has_arp else 0)
                 | (8 if u.pwm.mode == 'linear' else 0))
 
     # hr_ctrl: the CTRL byte written during the hard-restart / gate-off
-    # phase. Phase 3a prefers the new `envelope.release_ctrl` field;
-    # falls back to derived `init_ctrl & 0xFE` when release_ctrl=0.
-    # Phase 3c drops the fallback once all USFs carry release_ctrl
-    # explicitly.
-    hr_ctrl = u.envelope.release_ctrl if u.envelope.release_ctrl else (
-        init_ctrl & 0xFE)
+    # phase. Phase 3c — read from envelope.release_ctrl directly.
+    # Companion engines without release_ctrl semantics carry 0 here;
+    # the composer's gate-off codegen falls back to derived behavior
+    # only for Companion paths (Hubbard always has release_ctrl set).
+    hr_ctrl = u.envelope.release_ctrl or (init_ctrl & 0xFE)
 
     return InstrumentModel(
         inst=u.id - 1,                              # back to 0-indexed

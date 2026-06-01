@@ -260,14 +260,8 @@ class EnvelopeConfig:
     realizes it via delta arithmetic, jay_derrett via OR'd byte;
     both produce the same SID write. Schema carries the musical
     content (the resulting byte), not the mechanism.
-
-    `gate_off_delta` and `adsr_zero_delta` are DEAD (composer
-    doesn't read them) — kept for Phase 1 backward-parsing compat,
-    removed in Phase 3.
     """
     release_ctrl: int = 0
-    gate_off_delta: int = 0      # DEPRECATED — Phase 3 removal
-    adsr_zero_delta: int = 0     # DEPRECATED — Phase 3 removal
 
 
 @dataclass
@@ -332,21 +326,15 @@ class Instrument:
     arp: ArpConfig = field(default_factory=ArpConfig)
     vibrato: VibratoConfig = field(default_factory=VibratoConfig)
     envelope: EnvelopeConfig = field(default_factory=EnvelopeConfig)
-    # Per-instrument musical-effect configs (Phase 1 additions).
-    # When mode != 'none', composer reads the config; when 'none',
-    # composer falls back to legacy `freq_slide` / `inc_by2` bools.
-    # Phase 3 removes the bool fallback.
+    # Per-instrument musical-effect configs. The engine's fx_flags
+    # byte (bit 0 = freq_slide, bit 1 = inc_by2, bit 2 = arpeggio,
+    # bit 3 = pwm-linear) is derived at codegen time:
+    #   bit 0 ← freq_slide_config.mode != 'none'
+    #   bit 1 ← inc_by2_config.mode    != 'none'
+    #   bit 2 ← arp.offsets has > 1 entry
+    #   bit 3 ← pwm.mode == 'linear'
     freq_slide_config: FreqSlideConfig = field(default_factory=FreqSlideConfig)
     inc_by2_config: IncBy2Config = field(default_factory=IncBy2Config)
-    # DEPRECATED — Phase 3 removal. The engine's fx_flags byte has 4
-    # bits: bit 0 (freq_slide / skydive), bit 1 (inc_by2 / freq-hi
-    # ramp), bit 2 (arpeggio enabled), bit 3 (pwm mode = linear).
-    # Bits 2 and 3 are derived from arp.offsets and pwm.mode; bits 0
-    # and 1 used to be stored as these bools. Phase 1 keeps them for
-    # back-compat with pre-refactor USFs; Phase 3 drops them in
-    # favor of freq_slide_config / inc_by2_config.
-    freq_slide: bool = False
-    inc_by2: bool = False
 
 
 # ---------------------------------------------------------------------------
