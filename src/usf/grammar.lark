@@ -81,6 +81,8 @@ instrument_field: "waveform" ":" byte_list                              -> inst_
                 | "arp" ":" arp_args                                    -> inst_arp
                 | "vibrato" ":" vib_args                                -> inst_vibrato
                 | "envelope" ":" env_args                               -> inst_envelope
+                | "slide" ":" slide_args                                -> inst_slide
+                | "incby2" ":" incby2_args                              -> inst_incby2
                 | "fx" ":" inst_fx_flag+                                -> inst_fx
 
 inst_fx_flag: "freq_slide"           -> inst_fx_freq_slide
@@ -92,17 +94,42 @@ pwm_kv: "mode" "=" CNAME           -> pwm_mode
       | "init" "=" number          -> pwm_init
       | "min_hi" "=" INT           -> pwm_min_hi
       | "max_hi" "=" INT           -> pwm_max_hi
+      | "phase1_dir" "=" CNAME     -> pwm_phase1_dir
+      | "phase1_bound" "=" number  -> pwm_phase1_bound
+      | "phase1_step" "=" number   -> pwm_phase1_step
 
 arp_args: arp_kv+
 arp_kv: "offsets" "=" "[" (signed_int ("," signed_int)*)? "]"   -> arp_offsets
       | "period" "=" INT                                          -> arp_period
+      | "interval" "=" INT                                        -> arp_interval
+      | "phase_invert" "=" bool                                   -> arp_phase_invert
 
 vib_args: vib_kv+
 vib_kv: "scale" "=" INT             -> vib_scale
+      | "onset" "=" INT             -> vib_onset
 
 env_args: env_kv+
 env_kv: "gate_off_delta" "=" INT       -> env_gate_off_delta
       | "adsr_zero_delta" "=" INT      -> env_adsr_zero_delta
+      | "release_ctrl" "=" number      -> env_release_ctrl
+
+// Phase 1: per-instrument freq-slide config — replaces the per-
+// engine-parameterized `fx: freq_slide` flag.
+slide_args: slide_kv+
+slide_kv: "mode" "=" CNAME                  -> slide_mode
+        | "initial_dir" "=" CNAME           -> slide_initial_dir
+        | "upper_delta" "=" signed_int      -> slide_upper_delta
+        | "lower_delta" "=" signed_int      -> slide_lower_delta
+        | "step" "=" number                 -> slide_step
+        | "high_oct_arp" "=" bool           -> slide_high_oct_arp
+
+// Phase 1: per-instrument inc_by2 config — replaces the per-engine-
+// parameterized `fx: inc_by2` flag.
+incby2_args: incby2_kv+
+incby2_kv: "mode" "=" CNAME                 -> incby2_mode
+         | "step" "=" signed_int            -> incby2_step
+         | "onset" "=" INT                  -> incby2_onset
+         | "late_gate" "=" INT              -> incby2_late_gate
 
 // ----- subtunes -----
 subtune_block: "subtune" INT subtune_kind "{" subtune_body "}"

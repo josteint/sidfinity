@@ -190,28 +190,135 @@ Subtune = Union[MusicSubtune, DigiSubtune, SfxSubtune]
 
 @dataclass
 class PwmConfig:
+    """Pulse-width modulation per-instrument config.
+
+    Existing fields (Hubbard '85 / clever_music): `mode`, `speed`,
+    `init`, `min_hi`, `max_hi` describe a single-phase linear or
+    bidirectional oscillation.
+
+    Phase 1 addition (jay_derrett's two-phase shape): `phase1_*`
+    fields describe an initial sweep (ADC/SBC against `phase1_bound`
+    with `phase1_step` per frame), after which the engine
+    transitions to bidirectional oscillation between min_hi/max_hi.
+    For one-phase engines `phase1_*` defaults leave it inactive.
+    """
     mode: str = 'none'           # 'none' | 'linear' | 'bidirectional'
     speed: int = 0
     init: int = 0
     min_hi: int = 0
     max_hi: int = 0
+    # Two-phase modulation (jay_derrett); defaults make it inactive.
+    phase1_dir: str = 'up'       # 'up' (ADC) or 'down' (SBC)
+    phase1_bound: int = 0
+    phase1_step: int = 0
 
 
 @dataclass
 class ArpConfig:
+    """Arpeggio per-instrument config.
+
+    `offsets` is the per-step semitone delta list (already per-inst).
+    `period`, `interval`, `phase_invert` were previously held as
+    per-tune `params { }` values shared across all instruments; the
+    Phase 1 refactor moves them per-instrument per the USF
+    representation principle. For Hubbard engines that only realize
+    one value tune-wide, the extract path copies the per-tune value
+    onto every instrument.
+
+      `period`       — frame-counter mask + 1. The existing field —
+                       previously dead (composer read `params.arp_period`
+                       instead). Default 1 is the schema-historical
+                       value; Phase 2 fills with engine actuals.
+      `interval`     — semitones added per arpeggio step.
+      `phase_invert` — invert frame-parity phase (One Man and his
+                       Droid).
+    """
     offsets: list[int] = field(default_factory=list)
     period: int = 1
+    interval: int = 12
+    phase_invert: bool = False
 
 
 @dataclass
 class VibratoConfig:
+    """Vibrato per-instrument config.
+
+    `scale` is depth (already per-inst). `onset` was previously held
+    as per-tune `params.vib_onset`; the Phase 1 refactor moves it
+    per-instrument. Default 6 matches the codebase's prior fallback.
+    """
     scale: int = 0
+    onset: int = 6
 
 
 @dataclass
 class EnvelopeConfig:
-    gate_off_delta: int = 0
-    adsr_zero_delta: int = 0
+    """Per-instrument envelope-shape extras.
+
+    `release_ctrl` is the CTRL byte the engine writes during release
+    (gate-off / note-off phase). Universal across engines — Hubbard
+    realizes it via delta arithmetic, jay_derrett via OR'd byte;
+    both produce the same SID write. Schema carries the musical
+    content (the resulting byte), not the mechanism.
+
+    `gate_off_delta` and `adsr_zero_delta` are DEAD (composer
+    doesn't read them) — kept for Phase 1 backward-parsing compat,
+    removed in Phase 3.
+    """
+    release_ctrl: int = 0
+    gate_off_delta: int = 0      # DEPRECATED — Phase 3 removal
+    adsr_zero_delta: int = 0     # DEPRECATED — Phase 3 removal
+
+
+@dataclass
+class FreqSlideConfig:
+    """Per-instrument freq slide / sweep — replaces the per-engine-
+    parameterized `freq_slide: bool` flag.
+
+    Modes:
+      'none'           — no slide.
+      'one_shot_halt'  — slide toward bound 1; at bound, step → 0
+                         (freq frozen). Hubbard '85's skydive shape.
+      'one_shot_swap'  — slide toward bound 1; at bound, snap to
+                         bound 2's freq.
+      'bidirectional'  — slide toward bound 1; at bound, flip
+                         direction; slide toward bound 2; flip; repeat.
+
+    Bounds are SIGNED 16-bit deltas from the note's freq-table value
+    (the engine adds them at note-start to get absolute target freqs).
+
+    `high_oct_arp` selects the high-octave freq variant
+    (`freq_table[note + 16]`) as the SID write source after the
+    first bound crossing — jay_derrett's bound-crossing arpeggio.
+    """
+    mode: str = 'none'           # 'none' | 'one_shot_halt' |
+                                 # 'one_shot_swap' | 'bidirectional'
+    initial_dir: str = 'up'      # 'up' (ADC) or 'down' (SBC)
+    upper_delta: int = 0         # SIGNED 16-bit
+    lower_delta: int = 0         # SIGNED 16-bit
+    step: int = 0                # 16-bit unsigned
+    high_oct_arp: bool = False
+
+
+@dataclass
+class IncBy2Config:
+    """Per-instrument odd-frame freq-hi ramp — replaces the per-
+    engine-parameterized `inc_by2: bool` flag.
+
+    Modes:
+      'none'        — no ramp.
+      'on'          — ramp active for the whole note.
+      'late_gated'  — ramp halts when v_dur < `late_gate`.
+
+    `step` is the per-(odd-)frame freq_hi delta (signed 8-bit;
+    +2 = $02, -1 = $FF). `onset` is the frame delay before ramp
+    starts. `late_gate` is the v_dur threshold below which the ramp
+    halts (only consulted when mode='late_gated').
+    """
+    mode: str = 'none'           # 'none' | 'on' | 'late_gated'
+    step: int = 1                # signed 8-bit
+    onset: int = 0
+    late_gate: int = 0
 
 
 @dataclass
@@ -225,11 +332,19 @@ class Instrument:
     arp: ArpConfig = field(default_factory=ArpConfig)
     vibrato: VibratoConfig = field(default_factory=VibratoConfig)
     envelope: EnvelopeConfig = field(default_factory=EnvelopeConfig)
-    # Per-instrument behavioral flags. Hubbard '85 has 4 such bits
-    # in the engine's fx_flags byte: bit 0 (freq_slide / skydive),
-    # bit 1 (inc_by2 / freq-hi ramp), bit 2 (arpeggio enabled), bit 3
-    # (pwm mode = linear). Bits 2 and 3 are derived from arp.offsets
-    # and pwm.mode; the other two are stored explicitly.
+    # Per-instrument musical-effect configs (Phase 1 additions).
+    # When mode != 'none', composer reads the config; when 'none',
+    # composer falls back to legacy `freq_slide` / `inc_by2` bools.
+    # Phase 3 removes the bool fallback.
+    freq_slide_config: FreqSlideConfig = field(default_factory=FreqSlideConfig)
+    inc_by2_config: IncBy2Config = field(default_factory=IncBy2Config)
+    # DEPRECATED — Phase 3 removal. The engine's fx_flags byte has 4
+    # bits: bit 0 (freq_slide / skydive), bit 1 (inc_by2 / freq-hi
+    # ramp), bit 2 (arpeggio enabled), bit 3 (pwm mode = linear).
+    # Bits 2 and 3 are derived from arp.offsets and pwm.mode; bits 0
+    # and 1 used to be stored as these bools. Phase 1 keeps them for
+    # back-compat with pre-refactor USFs; Phase 3 drops them in
+    # favor of freq_slide_config / inc_by2_config.
     freq_slide: bool = False
     inc_by2: bool = False
 

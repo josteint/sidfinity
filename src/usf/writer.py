@@ -11,6 +11,7 @@ from src.usf.types import (
     UsfFile, PsidMeta, Params, InitVoice, InitState,
     InitSid, InitSidVoice, InitFilter,
     Instrument, PwmConfig, ArpConfig, VibratoConfig, EnvelopeConfig,
+    FreqSlideConfig, IncBy2Config,
     MusicSubtune, DigiSubtune, SfxSubtune,
     VoiceBlock, Orderlist, Pattern, NoteRow, Pitch, InstrumentRef,
 )
@@ -146,13 +147,79 @@ def _write_init(state: InitState) -> list[str]:
 
 
 def _write_pwm(p: PwmConfig) -> str:
-    return (f'pwm:      mode={p.mode} speed={p.speed} '
-            f'init={_hex(p.init, 4)} min_hi={p.min_hi} max_hi={p.max_hi}')
+    parts = [f'mode={p.mode}', f'speed={p.speed}',
+             f'init={_hex(p.init, 4)}',
+             f'min_hi={p.min_hi}', f'max_hi={p.max_hi}']
+    # Emit phase1_* only when any of them is non-default (keeps Hubbard
+    # USFs visually unchanged on round-trip).
+    if p.phase1_dir != 'up' or p.phase1_bound != 0 or p.phase1_step != 0:
+        parts.append(f'phase1_dir={p.phase1_dir}')
+        parts.append(f'phase1_bound={_hex(p.phase1_bound)}')
+        parts.append(f'phase1_step={_hex(p.phase1_step)}')
+    return 'pwm:      ' + ' '.join(parts)
 
 
 def _write_arp(a: ArpConfig) -> str:
     offs = ', '.join(str(o) for o in a.offsets)
-    return f'arp:      offsets=[{offs}] period={a.period}'
+    parts = [f'offsets=[{offs}]', f'period={a.period}']
+    # Emit interval / phase_invert only when non-default — keeps
+    # existing USFs unchanged on round-trip.
+    if a.interval != 12:
+        parts.append(f'interval={a.interval}')
+    if a.phase_invert:
+        parts.append('phase_invert=true')
+    return 'arp:      ' + ' '.join(parts)
+
+
+def _write_vibrato(v: VibratoConfig) -> str:
+    parts = [f'scale={v.scale}']
+    if v.onset != 6:
+        parts.append(f'onset={v.onset}')
+    return 'vibrato:  ' + ' '.join(parts)
+
+
+def _write_envelope(e: EnvelopeConfig) -> str:
+    parts = []
+    # Always emit deprecated fields when non-default (Phase 1 keeps
+    # them for back-compat).
+    if e.gate_off_delta:
+        parts.append(f'gate_off_delta={e.gate_off_delta}')
+    if e.adsr_zero_delta:
+        parts.append(f'adsr_zero_delta={e.adsr_zero_delta}')
+    if e.release_ctrl:
+        parts.append(f'release_ctrl={_hex(e.release_ctrl)}')
+    # Preserve the historical "envelope: gate_off_delta=0
+    # adsr_zero_delta=0" line shape when everything is default — too
+    # many tests / golden files assume the line is present.
+    if not parts:
+        parts = ['gate_off_delta=0', 'adsr_zero_delta=0']
+    return 'envelope: ' + ' '.join(parts)
+
+
+def _write_slide(s: FreqSlideConfig) -> str:
+    parts = [f'mode={s.mode}']
+    if s.initial_dir != 'up':
+        parts.append(f'initial_dir={s.initial_dir}')
+    if s.upper_delta:
+        parts.append(f'upper_delta={s.upper_delta}')
+    if s.lower_delta:
+        parts.append(f'lower_delta={s.lower_delta}')
+    if s.step:
+        parts.append(f'step={_hex(s.step, 4)}')
+    if s.high_oct_arp:
+        parts.append('high_oct_arp=true')
+    return 'slide:    ' + ' '.join(parts)
+
+
+def _write_incby2(b: IncBy2Config) -> str:
+    parts = [f'mode={b.mode}']
+    if b.step != 1:
+        parts.append(f'step={b.step}')
+    if b.onset:
+        parts.append(f'onset={b.onset}')
+    if b.late_gate:
+        parts.append(f'late_gate={b.late_gate}')
+    return 'incby2:   ' + ' '.join(parts)
 
 
 def _write_instrument(i: Instrument) -> list[str]:
@@ -167,10 +234,14 @@ def _write_instrument(i: Instrument) -> list[str]:
     lines.append(f'  {_write_pwm(i.pwm)}')
     lines.append(f'  adsr:     {_hex(i.adsr[0])} {_hex(i.adsr[1])}')
     lines.append(f'  {_write_arp(i.arp)}')
-    lines.append(f'  vibrato:  scale={i.vibrato.scale}')
-    lines.append(
-        f'  envelope: gate_off_delta={i.envelope.gate_off_delta} '
-        f'adsr_zero_delta={i.envelope.adsr_zero_delta}')
+    lines.append(f'  {_write_vibrato(i.vibrato)}')
+    lines.append(f'  {_write_envelope(i.envelope)}')
+    # Only emit slide / incby2 blocks when active (mode != 'none'),
+    # so existing Hubbard USFs that don't use them stay unchanged.
+    if i.freq_slide_config.mode != 'none':
+        lines.append(f'  {_write_slide(i.freq_slide_config)}')
+    if i.inc_by2_config.mode != 'none':
+        lines.append(f'  {_write_incby2(i.inc_by2_config)}')
     fx_flags = []
     if i.freq_slide:
         fx_flags.append('freq_slide')

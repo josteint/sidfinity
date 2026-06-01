@@ -15,6 +15,7 @@ from src.usf.types import (
     UsfFile, PsidMeta, Params, InitVoice, InitState,
     InitSid, InitSidVoice, InitFilter,
     Instrument, PwmConfig, ArpConfig, VibratoConfig, EnvelopeConfig,
+    FreqSlideConfig, IncBy2Config,
     MusicSubtune, DigiSubtune, SfxSubtune,
     VoiceBlock, Orderlist, Pattern, NoteRow, Pitch, InstrumentRef,
 )
@@ -226,6 +227,15 @@ class _T(Transformer):
     def pwm_max_hi(self, items):
         return ('max_hi', int(items[0]))
 
+    def pwm_phase1_dir(self, items):
+        return ('phase1_dir', str(items[0]))
+
+    def pwm_phase1_bound(self, items):
+        return ('phase1_bound', items[0])
+
+    def pwm_phase1_step(self, items):
+        return ('phase1_step', items[0])
+
     def pwm_args(self, items):
         return PwmConfig(**dict(items))
 
@@ -241,6 +251,12 @@ class _T(Transformer):
     def arp_period(self, items):
         return ('period', int(items[0]))
 
+    def arp_interval(self, items):
+        return ('interval', int(items[0]))
+
+    def arp_phase_invert(self, items):
+        return ('phase_invert', items[0])
+
     def arp_args(self, items):
         return ArpConfig(**dict(items))
 
@@ -249,6 +265,9 @@ class _T(Transformer):
 
     def vib_scale(self, items):
         return ('scale', int(items[0]))
+
+    def vib_onset(self, items):
+        return ('onset', int(items[0]))
 
     def vib_args(self, items):
         return VibratoConfig(**dict(items))
@@ -262,8 +281,54 @@ class _T(Transformer):
     def env_adsr_zero_delta(self, items):
         return ('adsr_zero_delta', int(items[0]))
 
+    def env_release_ctrl(self, items):
+        return ('release_ctrl', items[0])
+
     def env_args(self, items):
         return EnvelopeConfig(**dict(items))
+
+    # ----- Phase 1 sub-configs: slide + incby2 -----
+    def slide_mode(self, items):
+        return ('mode', str(items[0]))
+
+    def slide_initial_dir(self, items):
+        return ('initial_dir', str(items[0]))
+
+    def slide_upper_delta(self, items):
+        return ('upper_delta', items[0])
+
+    def slide_lower_delta(self, items):
+        return ('lower_delta', items[0])
+
+    def slide_step(self, items):
+        return ('step', items[0])
+
+    def slide_high_oct_arp(self, items):
+        return ('high_oct_arp', items[0])
+
+    def slide_args(self, items):
+        return FreqSlideConfig(**dict(items))
+
+    def inst_slide(self, items):
+        return ('freq_slide_config', items[0])
+
+    def incby2_mode(self, items):
+        return ('mode', str(items[0]))
+
+    def incby2_step(self, items):
+        return ('step', items[0])
+
+    def incby2_onset(self, items):
+        return ('onset', int(items[0]))
+
+    def incby2_late_gate(self, items):
+        return ('late_gate', int(items[0]))
+
+    def incby2_args(self, items):
+        return IncBy2Config(**dict(items))
+
+    def inst_incby2(self, items):
+        return ('inc_by2_config', items[0])
 
     def inst_envelope(self, items):
         return ('envelope', items[0])
