@@ -91,30 +91,37 @@ Engine semantics (sub 0 reference):
     - LDX #$14; copy $0A6E,X → $D400,X for X=$14 down to 0
       (dumps initial timbres to SID, in reverse register order)
 
+Status (after session 3):
+  - sub 0 emulator matches orig 100% across 2500 plays (full song).
+  - Parameterized FamilyAEmulator works for sub 0 with bindings auto-
+    discovered from handler bytes.
+  - Other Family A instances (subs 2, 3, 4-14) diverge — investigated
+    below.
+
+Per-instance differences discovered:
+  - sub 0 voice event router writes only ctrl reg on note play.
+  - sub 4-14 voice event router writes AD + SR + ctrl on note play.
+  - sub 2 first play emits NO writes (orig); my emulator emits vibrato.
+    Likely a guard at the top of sub 2's handler we haven't decoded.
+  - sub 3 first play emits only PWM write (3=$0C); my emulator emits
+    vibrato.
+
+So the "same engine at different addresses" model is too strong — the
+handler shape (outer play loop + dispatch) is identical, but each
+instance has its OWN voice event router with subtly different SID
+write sets. Need per-instance disassembly of the inner voice handlers
+($0954 for sub 0 + equivalent for each other handler).
+
 Open work for next session:
-  - Map remaining state bytes (+3..+20) by tracing each handler use.
-    Tentative: $0A6F-$0A71 = per-voice "current pattern command" state,
-    $0A72-$0A74 = per-voice timbre byte (control reg value).
-  - Verify $09D6 (tempo-match loop reset) — does it actually loop the
-    song, or is it dead code in sub 0?
-  - Decode pattern bytes per voice (V2 starts $50 $D0 $08 $E0 $01 $D3
-    $D2 $D3...). The byte semantics per $0954 event router:
-      < $09 → duration*16 stored to $0A72+X (per-voice "rate"?), fall
-              through to next byte (recursion)
-      $0C   → STA $0A72+X to $D404+X (timbre write, no freq update)
-      $0D   → JSR $09BE (same as $0C)
-      $0E   → JSR $0A01 + JMP $0A22 (V1) / JSR $0A0C + JMP $0A40 (V3) /
-              JSR $0A17 + JMP $0A31 (V2): reloads zp ptr from state
-              (pattern loop?)
-      $0F   → RTS (skip frame)
-      bare note (≥$09, <$80): freq lookup + write, ALSO stores Y → $0B5A
-              (sets V1 vibrato base note — only when X=0, i.e. V1)
-      note with bit 7 set: AND #$7F, freq lookup + write WITHOUT storing
-              $0B5A (so the note plays but vibrato continues on prior note)
-  - Build event-by-event emulator that produces same writes as orig
-  - Verify against writelog_capture(sid, 0)
-  - Start the USF schema for sub 0 (per-voice pattern + tempo +
-    init_timbre + init_current_note for V1 vibrato)
+  - For each instance (2, 3, 4-14): disassemble the voice event router
+    + identify which timbre fields it writes (just ctrl? AD/SR/ctrl?
+    AD/SR/ctrl/filter?). This dictates the USF instrument schema.
+  - For each instance, identify the play-loop guard preventing
+    writes on certain plays (sub 2 / sub 3 first-play behavior).
+  - Once all 4 instance variants are understood, design the USF
+    instrument schema spanning all of them.
+  - Start the USF schema design (per-voice pattern + per-voice
+    instrument + tempo + frame_ctr init + V1 vibrato init_note).
 
 Reference: pipelines/companion/c64_music_examples/RE_NOTES.md
 """
@@ -236,52 +243,134 @@ def load_sub0_state(sid_path: str) -> Sub0State:
 # =====================================================================
 
 
-class Sub0Emulator:
-    """Frame-by-frame pure-Python emulator for sub 0's Family A engine.
+# =====================================================================
+# Per-instance address bindings for Family A engines
+# =====================================================================
 
-    Holds state read from py65-init'd memory (engine state + pattern
-    bytes + freq tables) and steps one play frame at a time, returning
-    the SID writes that play frame would emit.
+@dataclass
+class FamilyABindings:
+    """Memory addresses that distinguish one Family A instance from
+    another. The engine code/data layout is the same shape, just at
+    different absolute addresses.
 
-    Implementation tracks per-voice state mirroring the engine's
-    in-memory layout: $0A6E (V2 phase), $0A6F+X (per-voice last-cmd
-    flag, bit 7 = sustained), $0A71+X (PW value), $0A72+X (timbre nybble),
-    $0A8C/$0A8D (per-voice running ctr), $0A85 (frame ctr), and the
-    three zp pattern pointers ($1C/$1E/$20).
+    state_base: V1 phase address (= start of 32-byte state block).
+                V3 phase is always at state_base+$0E.
+                Other fields at fixed offsets relative to state_base:
+                  +3   V1 PW init
+                  +14  V3 phase init  (same as state_base+14)
+                  +17  V3 PW init
+                  +21  tempo
+                  +22  alt-tempo
+                  +23  frame_ctr init
+                  +24/25  V1 pattern_ptr (lo/hi)
+                  +26/27  V2 pattern_ptr
+                  +28/29  V3 pattern_ptr
+                  +30  V3 PWM ctr init
+                  +31  V1 PWM ctr init
+    pwm_sign_base: $0ADE for sub 0 — start of per-voice PWM-sign bytes.
+                   For other instances this is a different range that
+                   the PWM-sweep subroutine reads via STA $XXXX,X.
+    zp_v1/zp_v2/zp_v3: zero-page pattern-pointer pairs. Same across
+                       all Family A instances ($1C/$1E/$20).
+    current_note_addr: vibrato base note storage ($0B5A for sub 0).
+                       This is set when V1 plays a bare-pitch note.
+    """
+    handler_addr: int
+    state_base: int
+    pwm_sign_base: int
+    current_note_addr: int
+    zp_v1: int = 0x1C   # convention across all Family A
+    zp_v2: int = 0x1E
+    zp_v3: int = 0x20
+
+    @property
+    def v3_phase(self) -> int: return self.state_base + 0x0E
+
+    @property
+    def v3_pwm_ctr(self) -> int: return self.state_base + 0x1E   # $0A8C-$0A6E = $1E
+
+    @property
+    def v1_pwm_ctr(self) -> int: return self.state_base + 0x1F
+
+
+# Known Family A instances. Discovered by decoding handler bytes
+# (LDA <state>,X / INC <ctr>) — see tools/dump_familya_bindings.py.
+FAMILY_A_INSTANCES = {
+    0:  FamilyABindings(handler_addr=0x0903, state_base=0x0A6E,
+                         pwm_sign_base=0x0ADE, current_note_addr=0x0B5A),
+    2:  FamilyABindings(handler_addr=0x1D8B, state_base=0x1EF2,
+                         pwm_sign_base=0x1F62, current_note_addr=0x1FDE),
+    3:  FamilyABindings(handler_addr=0x2A23, state_base=0x2B7F,
+                         pwm_sign_base=0x2BEF, current_note_addr=0x2C6B),
+    # Subs 4-14 share the engine at $33DB — single bindings entry.
+    'shared': FamilyABindings(handler_addr=0x33DB, state_base=0x35C2,
+                               pwm_sign_base=0x3632, current_note_addr=0x36AE),
+}
+
+
+class FamilyAEmulator:
+    """Frame-by-frame pure-Python emulator for any Family A instance.
+
+    Same engine logic as sub 0's $0903 handler; just takes a
+    FamilyABindings to find the per-instance state addresses.
+
+    Tracks per-voice state mirroring the engine's in-memory layout
+    relative to state_base (= V1 phase byte address):
+      +0    V1 phase           (PWM-tick gate; bit 7 → disable)
+      +1    last_cmd[V1]       (set to recently-played pattern byte)
+      +2    [unused / V1 secondary state]
+      +3    V1 PW value        (sweep state)
+      +4    V1 timbre nybble   (control reg base)
+      ...
+      +14   V3 phase           (gate)
+      +17   V3 PW value
+      +21   tempo
+      +22   alt-tempo
+      +23   frame_ctr
+      +24/25 V1 pattern_ptr (initial zp value)
+      +26/27 V2 pattern_ptr
+      +28/29 V3 pattern_ptr
+      +30   V3 PWM ctr
+      +31   V1 PWM ctr
     """
 
     # Per-voice X offsets used by the engine (V1=0, V2=7, V3=14).
     X_V1, X_V2, X_V3 = 0, 7, 14
 
-    def __init__(self, sid_path: str):
-        mem, _ = _run_init_via_py65(sid_path, 0)
-        self.mem = mem  # 64KB after init — used for freq tables + pattern data reads
-        self.frame_ctr = mem[0x0A85]
-        self.tempo = mem[0x0A83]
-        self.alt_tempo = mem[0x0A84]
-        self.current_note = mem[0x0B5A]  # V1 vibrato base
-        self.frame_index = 0             # play call counter ($086E)
-        # ZP pattern pointers (initialized by $09F8 during engine init)
+    def __init__(self, sid_path: str, subtune: int,
+                 bindings: FamilyABindings | None = None):
+        if bindings is None:
+            bindings = (FAMILY_A_INSTANCES.get(subtune)
+                        or FAMILY_A_INSTANCES['shared'])
+        self.b = bindings
+        mem, _ = _run_init_via_py65(sid_path, subtune)
+        self.mem = mem
+        sb = bindings.state_base
+        self.frame_ctr = mem[sb + 23]
+        self.tempo = mem[sb + 21]
+        self.alt_tempo = mem[sb + 22]
+        self.current_note = mem[bindings.current_note_addr]
+        self.frame_index = 0
+        # ZP pattern pointers (set by engine init $09F8)
         self.zp_ptrs = {
-            self.X_V1: (mem[0x1C], mem[0x1D]),
-            self.X_V2: (mem[0x1E], mem[0x1F]),
-            self.X_V3: (mem[0x20], mem[0x21]),
+            self.X_V1: (mem[bindings.zp_v1], mem[bindings.zp_v1 + 1]),
+            self.X_V2: (mem[bindings.zp_v2], mem[bindings.zp_v2 + 1]),
+            self.X_V3: (mem[bindings.zp_v3], mem[bindings.zp_v3 + 1]),
         }
-        # Per-voice state. Index by X (0/7/14).
-        self.last_cmd = {x: 0 for x in (0, 7, 14)}      # $0A6F+X
-        self.timbre = {x: 0 for x in (0, 7, 14)}        # $0A72+X (nybble << 4)
-        for x in (0, 7, 14):
-            self.last_cmd[x] = mem[0x0A6F + x]
-            self.timbre[x] = mem[0x0A72 + x]
-        # PWM state. Sweep only V1 (X=0) and V3 (X=$0E). Each tracks
-        # phase target ($0A6E/$0A7C), running ctr ($0A8D/$0A8C),
-        # current PW ($0A71+X), and sign byte ($0ADE+X — starts $00).
-        self.pwm_phase_v1 = mem[0x0A6E]
-        self.pwm_phase_v3 = mem[0x0A7C]
-        self.pwm_ctr_v1 = mem[0x0A8D]
-        self.pwm_ctr_v3 = mem[0x0A8C]
-        self.pwm_pw = {self.X_V1: mem[0x0A71], self.X_V3: mem[0x0A7F]}
-        self.pwm_sign = {self.X_V1: mem[0x0ADE], self.X_V3: mem[0x0AEC]}
+        # Per-voice last_cmd ($0A6F+X for sub 0) and timbre ($0A72+X).
+        # State layout: +0..+6 for V1, +7..+13 for V2, +14..+20 for V3.
+        # last_cmd is at +1 within each voice block (state_base+1, +8, +15).
+        # timbre at +4 within each block (state_base+4, +11, +18).
+        self.last_cmd = {0: mem[sb + 1], 7: mem[sb + 8], 14: mem[sb + 15]}
+        self.timbre = {0: mem[sb + 4], 7: mem[sb + 11], 14: mem[sb + 18]}
+        # PWM state. Sweep V1 (X=0) and V3 (X=$0E) only.
+        self.pwm_phase_v1 = mem[sb + 0]       # V1 phase
+        self.pwm_phase_v3 = mem[sb + 14]      # V3 phase
+        self.pwm_ctr_v1 = mem[sb + 31]
+        self.pwm_ctr_v3 = mem[sb + 30]
+        self.pwm_pw = {self.X_V1: mem[sb + 3], self.X_V3: mem[sb + 17]}
+        self.pwm_sign = {self.X_V1: mem[bindings.pwm_sign_base],
+                         self.X_V3: mem[bindings.pwm_sign_base + 14]}
 
     def _read_pattern_byte(self, x: int) -> int:
         """Read byte at the voice's zp pattern ptr; advance ptr by 1."""
@@ -463,7 +552,7 @@ if __name__ == '__main__':
 
     # Verify emulator against orig writelog
     print(f"\nEmulator verification (sub 0, first 10 play frames):")
-    em = Sub0Emulator(sid)
+    em = FamilyAEmulator(sid, 0)
     for f in range(10):
         writes = em.play_frame()
         print(f"  play #{f+1:2d}: {len(writes)} writes: " +
