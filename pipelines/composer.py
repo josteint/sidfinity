@@ -4239,7 +4239,11 @@ def _emit_pair_per_subtune_tables(model: EngineModel,
 def _emit_cmd_init(model: EngineModel, has_cia: bool) -> list[str]:
     """Init: A = subtune index. Silence SID, write per-subtune master
     vol, load song_table[0..5] into V1/V2/V3 ptrs, dur_ctr=1 × 3,
-    song_pos + tempo + tempo_ctr from per-subtune tables."""
+    song_pos + tempo + tempo_ctr from per-subtune tables.
+
+    Multi-subtune: also copies the chosen subtune's song_table into the
+    runtime song_table RAM buffer before the song_table+N reads below."""
+    n_subs = len(model.subtunes)
     L = [
         'init:',
         '  pha                  ; save A = subtune idx',
@@ -4252,8 +4256,29 @@ def _emit_cmd_init(model: EngineModel, has_cia: bool) -> list[str]:
         '  bne init_silence',
         '  pla',
         '  tax                  ; X = subtune index',
-        '  lda init_master_vol_tab,x',
-        '  sta $d418',
+    ]
+    if model.master_vol.init_value is not None:
+        L += [
+            '  lda init_master_vol_tab,x',
+            '  sta $d418',
+        ]
+    if n_subs > 1:
+        # Copy chosen subtune's song_table block (12 bytes) into the
+        # song_table RAM buffer the engine reads at runtime. X = subtune
+        # is preserved across the copy (copy uses Y).
+        L += [
+            '  lda song_table_ptr_lo,x',
+            '  sta zp_ptr_lo',
+            '  lda song_table_ptr_hi,x',
+            '  sta zp_ptr_hi',
+            '  ldy #11',
+            'init_song_copy:',
+            '  lda (zp_ptr_lo),y',
+            '  sta song_table,y',
+            '  dey',
+            '  bpl init_song_copy',
+        ]
+    L += [
         '  lda song_table+0',
         '  sta v_state+0',
         '  lda song_table+1',
@@ -4531,19 +4556,53 @@ def _emit_cmd_inst_table(model: EngineModel) -> list[str]:
     return L
 
 
-def _emit_cmd_song_table() -> list[str]:
+def _emit_cmd_song_table(n_subtunes: int) -> list[str]:
     """Song table — 6 entries × 2 bytes. E0/E3 → V1, E1/E4 → V2,
-    E2/E5 → V3. For single-subtune cmd-stream USFs, the entries
-    point at ptn_v1/v2/v3 directly."""
-    return [
-        'song_table:',
-        '  .byte <ptn_v1, >ptn_v1     ; E0',
-        '  .byte <ptn_v2, >ptn_v2     ; E1',
-        '  .byte <ptn_v3, >ptn_v3     ; E2',
-        '  .byte <ptn_v1, >ptn_v1     ; E3',
-        '  .byte <ptn_v2, >ptn_v2     ; E4',
-        '  .byte <ptn_v3, >ptn_v3     ; E5',
+    E2/E5 → V3.
+
+    Single-subtune: emits const data at label `song_table` pointing at
+    ptn_v1/v2/v3 directly; play loop reads it in-place.
+
+    Multi-subtune: emits a 12-byte RAM buffer at `song_table`, plus one
+    const block per subtune (`song_table_s{N}`) and selector tables
+    (`song_table_ptr_lo/hi`). The init copies the chosen subtune's block
+    into the RAM buffer before play begins.
+    """
+    if n_subtunes == 1:
+        return [
+            'song_table:',
+            '  .byte <ptn_v1, >ptn_v1     ; E0',
+            '  .byte <ptn_v2, >ptn_v2     ; E1',
+            '  .byte <ptn_v3, >ptn_v3     ; E2',
+            '  .byte <ptn_v1, >ptn_v1     ; E3',
+            '  .byte <ptn_v2, >ptn_v2     ; E4',
+            '  .byte <ptn_v3, >ptn_v3     ; E5',
+        ]
+    L = []
+    # Const per-subtune blocks.
+    for st in range(n_subtunes):
+        v1 = f'ptn_s{st}_v1'
+        v2 = f'ptn_s{st}_v2'
+        v3 = f'ptn_s{st}_v3'
+        L += [
+            f'song_table_s{st}:',
+            f'  .byte <{v1}, >{v1}     ; E0',
+            f'  .byte <{v2}, >{v2}     ; E1',
+            f'  .byte <{v3}, >{v3}     ; E2',
+            f'  .byte <{v1}, >{v1}     ; E3',
+            f'  .byte <{v2}, >{v2}     ; E4',
+            f'  .byte <{v3}, >{v3}     ; E5',
+        ]
+    # Selector tables — used by init to copy the right block.
+    lo = ', '.join(f'<song_table_s{st}' for st in range(n_subtunes))
+    hi = ', '.join(f'>song_table_s{st}' for st in range(n_subtunes))
+    L += [
+        f'song_table_ptr_lo: .byte {lo}',
+        f'song_table_ptr_hi: .byte {hi}',
     ]
+    # RAM buffer the engine actually reads at runtime.
+    L += ['song_table: .dsb 12, 0']
+    return L
 
 
 def _emit_cmd_per_subtune_tables(model: EngineModel,
@@ -4561,11 +4620,14 @@ def _emit_cmd_per_subtune_tables(model: EngineModel,
     _tab('init_song_pos_tab',  [s.init_song_pos if s.init_song_pos is not None
                                  else 0xE0 for s in subs])
     # init_master_vol: per-subtune; falls back to model.master_vol.init_value
-    # when SubtuneSpec.master_vol_init is None.
-    default_mv = model.master_vol.init_value
-    _tab('init_master_vol_tab',
-         [s.master_vol_init if s.master_vol_init is not None else default_mv
-          for s in subs])
+    # when SubtuneSpec.master_vol_init is None. When model.master_vol.init_value
+    # is None (no init $D418 write at all — e.g. BTTF), the table is omitted
+    # entirely since _emit_cmd_init won't reference it.
+    if model.master_vol.init_value is not None:
+        default_mv = model.master_vol.init_value
+        _tab('init_master_vol_tab',
+             [s.master_vol_init if s.master_vol_init is not None else default_mv
+              for s in subs])
     if has_cia:
         DEFAULT_CIA = 0x4CC7
         cia_vals = [s.cia1_timer_a or DEFAULT_CIA for s in subs]
@@ -4576,19 +4638,30 @@ def _emit_cmd_per_subtune_tables(model: EngineModel,
 
 def _emit_cmd_orderlists(per_subtune_voice_patterns: list[dict[int, bytes]]
                           ) -> list[str]:
-    """Cmd-stream pattern data — single-subtune today (Fairlight,
-    Gyroscope). Emits ptn_v1, ptn_v2, ptn_v3 labels (no subtune suffix)."""
+    """Cmd-stream pattern data.
+
+    Single-subtune (Fairlight, Gyroscope): emits `ptn_v1/v2/v3` labels.
+    Multi-subtune (BTTF and any future cmd-stream tune with multiple
+    subtunes): emits `ptn_s{N}_v{V}` labels. The per-subtune song_table
+    references whichever set of labels its subtune uses.
+    """
     L = []
-    if len(per_subtune_voice_patterns) != 1:
-        raise NotImplementedError(
-            'cmd-stream multi-subtune not supported yet')
-    voices = per_subtune_voice_patterns[0]
-    for vid in (1, 2, 3):
-        L.append(f'ptn_v{vid}:')
-        pb = voices.get(vid - 1, bytes())
-        for i in range(0, len(pb), 16):
-            L.append('  .byte ' + ', '.join(
-                f'${b:02X}' for b in pb[i:i+16]))
+    if len(per_subtune_voice_patterns) == 1:
+        voices = per_subtune_voice_patterns[0]
+        for vid in (1, 2, 3):
+            L.append(f'ptn_v{vid}:')
+            pb = voices.get(vid - 1, bytes())
+            for i in range(0, len(pb), 16):
+                L.append('  .byte ' + ', '.join(
+                    f'${b:02X}' for b in pb[i:i+16]))
+        return L
+    for st, voices in enumerate(per_subtune_voice_patterns):
+        for vid in (1, 2, 3):
+            L.append(f'ptn_s{st}_v{vid}:')
+            pb = voices.get(vid - 1, bytes())
+            for i in range(0, len(pb), 16):
+                L.append('  .byte ' + ', '.join(
+                    f'${b:02X}' for b in pb[i:i+16]))
     return L
 
 
@@ -5085,7 +5158,7 @@ def emit_asm(model: EngineModel,
         L += _emit_cmd_runtime_vars()
         L += _emit_freq_table(model.freq_table)
         L += _emit_cmd_inst_table(model)
-        L += _emit_cmd_song_table()
+        L += _emit_cmd_song_table(len(model.subtunes))
         L += _emit_cmd_per_subtune_tables(model, has_cia)
         L += _emit_cmd_orderlists(per_subtune_voice_patterns)
 

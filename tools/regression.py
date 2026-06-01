@@ -56,6 +56,7 @@ COMPANION_USFS = [
     ]),
     'hvsc84/MUSICIANS/C/Clever_Music/Fairlight.usf',
     'hvsc84/MUSICIANS/C/Clever_Music/Gyroscope.usf',
+    'hvsc84/MUSICIANS/C/Clever_Music/Back_to_the_Future.usf',
     'hvsc84/GAMES/G-L/Henrys_House.usf',
     'hvsc84/DEMOS/UNKNOWN/Yes_Tune.usf',
     'hvsc84/GAMES/S-Z/Soldier_of_Fortune.usf',
@@ -129,9 +130,15 @@ def regress_companion() -> tuple[int, int, int]:
         ns = _n_subs(sid)
         known = KNOWN_PARTIAL.get(name, set())
         sub_ok = sub_partial = sub_fail = 0
+        # Back_to_the_Future needs a slightly longer capture window: its
+        # banking-trampoline orig spreads init writes across two VBI frames
+        # while the rebuild's init lands all in frame 0; at 6s the truncation
+        # boundary falls between same-content frames in the two runs, giving
+        # different totals. By 8s both stabilize at the same write count.
+        duration = 8.0 if 'Back_to_the_Future' in usf else 6.0
         for st in range(ns):
-            a = writelog_capture(sid, st, duration=6.0)
-            b = writelog_capture(out, st, duration=6.0)
+            a = writelog_capture(sid, st, duration=duration)
+            b = writelog_capture(out, st, duration=duration)
             # Legacy mode while we work out the right semantics for
             # strict Check A under structurally-different init bytes
             # (Phase A in docs/sid_init_report.md §5 — needs cycle-

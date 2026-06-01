@@ -360,7 +360,10 @@ class MasterVolConfig:
         composes with `fixed_init`).
     """
     mode: MasterVolMode
-    init_value: int = 0x0F              # $0F when fixed/per-subtune; 0 with fade
+    init_value: Optional[int] = 0x0F     # $0F when fixed/per-subtune; 0 with fade;
+                                          # None = init emits no $D418 write at all
+                                          # (e.g. BTTF — relocated init only does
+                                          # the clear loop, no post-clear vol set).
     fade: Optional[FadeProgressive] = None
 
 
@@ -1009,9 +1012,13 @@ def _infer_master_vol(usf, music) -> MasterVolConfig:
         for r in p.rows)
     if has_vol_cmd:
         p_top = usf.params.fields if usf.params else {}
+        # `init_master_vol: -1` → skip the init $D418 write entirely
+        # (BTTF — relocated init clears regs but writes no master vol).
+        raw = p_top.get('init_master_vol', 0x0A)
+        init_value = None if raw == -1 else raw
         return MasterVolConfig(
             mode='mutable_commands',
-            init_value=p_top.get('init_master_vol', 0x0A))
+            init_value=init_value)
 
     # Fade-progressive — currently a top-level USF param. Detected by
     # `master_vol_subtrahend_voice` field. (Hubbard '85 only today.)

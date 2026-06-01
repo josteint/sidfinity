@@ -185,27 +185,15 @@ def _psid_meta_from_sid(sid_path: str) -> PsidMeta:
                     speed=speed)
 
 
-def build_usf(sid_path: str) -> UsfFile:
-    """Extract a Clever Music SID into an in-memory UsfFile."""
-    state = load_state_from_sid(sid_path)
+def _build_subtune(sid_path: str, subtune: int) -> tuple[MusicSubtune, int | None]:
+    """Extract one subtune. Returns (subtune, post_clear_vol-or-None)."""
+    state = load_state_from_sid(sid_path, subtune)
+    _, init_sid_writes, init_cia = _run_init(sid_path, subtune)
 
-    # Capture init's SID writes (for codegen replay)
-    _, init_sid_writes, init_cia = _run_init(sid_path)
-
-    # 16 instruments
-    instruments = []
-    for i in range(16):
-        block = state.inst_table[i * 5: (i + 1) * 5]
-        instruments.append(_instrument_from_block(i, block))
-
-    # Per-voice pattern extraction. Use a FRESH state per voice so
-    # walks don't interfere with each other.
     voices = []
-    voice_pattern_bytes = []
     for v in range(3):
-        fresh = load_state_from_sid(sid_path)
+        fresh = load_state_from_sid(sid_path, subtune)
         pat_bytes = _extract_voice_pattern(fresh, v)
-        voice_pattern_bytes.append(pat_bytes)
         rows = _rows_from_bytes(pat_bytes)
         total_ticks = sum(r.duration for r in rows)
         pat = Pattern(id=1, length=total_ticks, rows=rows)
@@ -215,8 +203,6 @@ def build_usf(sid_path: str) -> UsfFile:
             patterns=[pat],
         ))
 
-    # Subtune params — engine constants + per-voice initial pointer
-    # offset (always 0 for Clever Music's natural song layout).
     subtune_params = Params(fields={
         'init_tempo_ctr': state.tempo_ctr,
         'init_song_pos': state.song_pos,
@@ -226,11 +212,36 @@ def build_usf(sid_path: str) -> UsfFile:
             init_cia.get(0xDC04, 0) | (init_cia.get(0xDC05, 0) << 8))
 
     music = MusicSubtune(
-        id=0,
+        id=subtune,
         tempo=state.tempo,
         voices=voices,
         params=subtune_params,
     )
+
+    vol_writes = [v for r, v in init_sid_writes if r == 0x18]
+    post_clear_vol = next((v for v in vol_writes[1:]), None) if vol_writes else None
+    return music, post_clear_vol
+
+
+def build_usf(sid_path: str) -> UsfFile:
+    """Extract a Clever Music SID into an in-memory UsfFile."""
+    import struct
+    with open(sid_path, 'rb') as f:
+        n_subs = struct.unpack('>H', f.read(0x10)[0x0E:0x10])[0]
+
+    state0 = load_state_from_sid(sid_path, 0)
+
+    # 16 instruments — taken from subtune 0; the engine reuses one
+    # instrument table across subtunes.
+    instruments = [_instrument_from_block(i, state0.inst_table[i*5:(i+1)*5])
+                   for i in range(16)]
+
+    subtunes = []
+    post_clear_vols = []
+    for st in range(n_subs):
+        music, pcv = _build_subtune(sid_path, st)
+        subtunes.append(music)
+        post_clear_vols.append(pcv)
 
     # Top-level init — voices default to their starting instruments
     # (which are set by the FIRST $Dx in their pattern, so default is
@@ -239,18 +250,29 @@ def build_usf(sid_path: str) -> UsfFile:
         InitVoice(id=v + 1, instr=InstrumentRef(id=1)) for v in range(3)
     ])
 
-    # Inline the freq table — engine-neutral data the USF carries.
     from pipelines.companion.clever_music.engine_constants import (
         CLEVER_FREQ_HI, CLEVER_FREQ_LO,
     )
     freq_table = list(CLEVER_FREQ_HI) + list(CLEVER_FREQ_LO)
 
+    # Capture init's master-vol behaviour. All subtunes must agree
+    # (the composer uses a single top-level init_master_vol). If they
+    # disagree, fall back to the canonical $0A default and emit nothing
+    # — this would be a real engine variant we'd need to handle later.
+    top_params = Params()
+    if all(pcv == post_clear_vols[0] for pcv in post_clear_vols):
+        pcv = post_clear_vols[0]
+        if pcv is None:
+            top_params.fields['init_master_vol'] = -1
+        elif pcv != 0x0A:
+            top_params.fields['init_master_vol'] = pcv
+
     return UsfFile(
         psid=_psid_meta_from_sid(sid_path),
-        params=Params(),
+        params=top_params,
         init=top_init,
         instruments=instruments,
-        subtunes=[music],
+        subtunes=subtunes,
         freq_table=freq_table,
     )
 

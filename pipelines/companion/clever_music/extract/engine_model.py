@@ -147,8 +147,12 @@ def _run_init(sid_path: str, subtune: int = 0
     mpu.memory[0x01FF] = 0xFE
     mpu.memory[0x01FE] = 0xFE
     mpu.pc = init_addr
+    # Stop when init's RTS pops the sentinel return address $FEFE → PC=$FEFF.
+    # We can't gate on `PC inside SID load range`: BTTF (and likely other
+    # banking-trampoline variants) JMP into relocated init code OUTSIDE the
+    # load range; that relocated code does the real per-voice state setup.
     for _ in range(200000):
-        if mpu.pc < load or mpu.pc >= load + len(body):
+        if mpu.pc == 0xFEFF:
             break
         mpu.step()
     return (bytearray(mpu.memory),
