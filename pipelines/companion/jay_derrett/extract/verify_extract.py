@@ -102,6 +102,127 @@ def _voice_to_bytes(voice) -> bytes:
     return bytes(out)
 
 
+def _encode_instrument(inst, original_size: int = 24) -> bytes:
+    """Re-encode a USF Instrument back into the engine's N-byte
+    program (inverse of `decode_instrument`). Padding bytes ($09,
+    $0D, $13) are emitted as zero since the engine doesn't read
+    them — they don't affect the instruction stream.
+
+    For instruments with `original_size > 24` (Counterforce's 31-byte
+    programs), the extra bytes are emitted as zero (TODO: RE those
+    layouts properly).
+    """
+    prog = bytearray(max(24, original_size))
+
+    # bit-flags ($00) — bidirectional sets BOTH bit 1 (bidir) AND
+    # bit 2 (bound-swap); one_shot_swap only sets bit 2; one_shot_halt
+    # sets neither.
+    flags = 0
+    if inst.freq_slide_config.mode != 'none':
+        if inst.freq_slide_config.initial_dir == 'down':
+            flags |= 0x01
+        if inst.freq_slide_config.mode == 'bidirectional':
+            flags |= 0x06               # bits 1 + 2
+        elif inst.freq_slide_config.mode == 'one_shot_swap':
+            flags |= 0x04               # bit 2
+        if inst.freq_slide_config.high_oct_arp:
+            flags |= 0x80
+    prog[0x00] = flags
+
+    # freq init ($01-$02) — not in Instrument schema; engine sets at
+    # note-start from freq_table[note]. Emit 0 (engine overwrites).
+
+    # freq slide bounds + step ($03-$08)
+    s = inst.freq_slide_config
+    if s.mode != 'none':
+        upper = s.upper_delta & 0xFFFF
+        lower = s.lower_delta & 0xFFFF
+        prog[0x03] = upper & 0xFF
+        prog[0x04] = (upper >> 8) & 0xFF
+        prog[0x05] = lower & 0xFF
+        prog[0x06] = (lower >> 8) & 0xFF
+        prog[0x07] = s.step & 0xFF
+        prog[0x08] = (s.step >> 8) & 0xFF
+
+    # $09: padding — emit 0.
+
+    # PWM ($0A-$12)
+    if inst.pwm.mode != 'none':
+        prog[0x0A] = (inst.pwm.init >> 8) & 0xFF
+        prog[0x0B] = inst.pwm.phase1_bound & 0xFF
+        prog[0x0C] = inst.pwm.phase1_step & 0xFF
+        # $0D: padding.
+        prog[0x0E] = 0xFF if inst.pwm.phase1_dir == 'down' else 0x00
+        # $0F: osc state init — always 0.
+        prog[0x10] = inst.pwm.max_hi & 0xFF
+        prog[0x11] = inst.pwm.min_hi & 0xFF
+        prog[0x12] = inst.pwm.speed & 0xFF
+
+    # $13: padding.
+
+    # CTRL ($14), AD ($15), SR ($16), CTRL alt ($17)
+    prog[0x14] = inst.waveform[0] if inst.waveform else 0
+    prog[0x15] = inst.adsr[0]
+    prog[0x16] = inst.adsr[1]
+    # CTRL alt = release_ctrl XOR ctrl_on (since release_ctrl was
+    # decoded as ctrl_on | ctrl_alt). Reversing the OR isn't unique
+    # without knowing which bits ctrl_alt contributes, but the
+    # principal case is XOR.
+    prog[0x17] = (inst.envelope.release_ctrl ^ prog[0x14]) & 0xFF
+
+    return bytes(prog[:original_size])
+
+
+def verify_instruments(name: str) -> dict:
+    """Round-trip verify the instrument programs for one Type A SID.
+
+    For each instrument: decode → re-encode → compare against the
+    original program bytes. Padding bytes ($09, $0D, $13) and the
+    freq init slots ($01, $02) are expected to differ (engine
+    overwrites them at note-start), so we report a `semantic_match`
+    that masks those positions.
+    """
+    json_path = f'pipelines/companion/jay_derrett/_extracted/{name}.json'
+    dump = json.load(open(json_path))
+    from pipelines.companion.jay_derrett.extract.instrument import (
+        decode_instrument)
+
+    # Mask: positions we expect to differ between decoded+re-encoded
+    # and the original (engine-overwritten or padding).
+    DONT_CARE = {0x01, 0x02, 0x09, 0x0D, 0x13, 0x0F}
+
+    n_full = n_semantic = 0
+    diffs = []
+    for entry in dump['instrument_base_table']['instruments']:
+        orig = bytes(entry['bytes'])
+        inst = decode_instrument(entry['idx'], orig)
+        recon = _encode_instrument(inst, original_size=len(orig))
+        # Compare only the first 24 bytes (rest is unanalyzed for
+        # larger layouts like Counterforce's 31-byte).
+        cmp_len = min(24, len(orig))
+        orig24 = orig[:cmp_len]
+        recon24 = recon[:cmp_len]
+        full = orig24 == recon24
+        semantic = all(
+            o == r for i, (o, r) in enumerate(zip(orig24, recon24))
+            if i not in DONT_CARE)
+        if full: n_full += 1
+        if semantic: n_semantic += 1
+        if not semantic:
+            diffs.append({
+                'idx': entry['idx'],
+                'diffs': [(i, o, r) for i, (o, r) in enumerate(zip(orig24, recon24))
+                          if o != r and i not in DONT_CARE],
+            })
+    return {
+        'name': name,
+        'n_instruments': len(dump['instrument_base_table']['instruments']),
+        'n_full_match': n_full,
+        'n_semantic_match': n_semantic,
+        'diffs': diffs,
+    }
+
+
 def verify_one(name: str) -> dict:
     """Round-trip verify one Type A SID. Returns per-voice match info."""
     json_path = f'pipelines/companion/jay_derrett/_extracted/{name}.json'
@@ -155,7 +276,32 @@ def main() -> int:
             n_full += 1
         print(f'{name:<18s} {cols[0]:<28s} {cols[1]:<28s} {cols[2]:<28s}')
     print()
-    print(f'{n_full}/{len(TYPE_A)} byte-exact round-trip')
+    print(f'Orderlist round-trip: {n_full}/{len(TYPE_A)} byte-exact')
+
+    # Instrument round-trip check.
+    print()
+    print('Instrument decode→encode round-trip (masking engine-overwritten + padding bytes):')
+    print(f'{"name":<18s} {"full":<10s} {"semantic":<12s} {"diffs":<8s}')
+    print('-' * 60)
+    full_all = sem_all = total_all = 0
+    for name in TYPE_A:
+        try:
+            r = verify_instruments(name)
+        except Exception as e:
+            print(f'{name:<18s}  ERR: {type(e).__name__}: {e}')
+            continue
+        marker = '✓' if r['n_full_match'] == r['n_instruments'] else ' '
+        sem_marker = '✓' if r['n_semantic_match'] == r['n_instruments'] else ' '
+        print(f'{name:<18s} {marker} {r["n_full_match"]:2d}/{r["n_instruments"]:2d}   '
+              f'{sem_marker} {r["n_semantic_match"]:2d}/{r["n_instruments"]:2d}     '
+              f'{len(r["diffs"]):3d}')
+        full_all += r['n_full_match']
+        sem_all  += r['n_semantic_match']
+        total_all += r['n_instruments']
+    print()
+    print(f'Instrument round-trip: full {full_all}/{total_all}  '
+          f'semantic {sem_all}/{total_all}')
+
     return 0 if n_full == len(TYPE_A) else 1
 
 

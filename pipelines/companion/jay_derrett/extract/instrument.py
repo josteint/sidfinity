@@ -150,11 +150,12 @@ def decode_instrument(inst_id: int, prog: list[int]) -> Instrument:
     if not slide_active:
         slide = FreqSlideConfig(mode='none')
     else:
-        # Mode from bit-flags:
-        #   bit 1 (bidir) set → bidirectional
-        #   bit 1 clear, bit 2 (bound-mode) set → one_shot_swap
-        #   bit 1 clear, bit 2 clear → one_shot_halt
-        if flags & 0x02:
+        # Mode from bit-flags (corrected via instrument round-trip):
+        #   bit 1 (bidir) + bit 2 (bound-swap) BOTH set → bidirectional
+        #   only bit 2 (bound-swap) set → one_shot_swap
+        #   neither bit set → one_shot_halt
+        # (bit 1 alone, without bit 2, hasn't been observed.)
+        if (flags & 0x02) and (flags & 0x04):
             mode = 'bidirectional'
         elif flags & 0x04:
             mode = 'one_shot_swap'
