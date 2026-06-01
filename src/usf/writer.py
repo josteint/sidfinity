@@ -186,6 +186,9 @@ def _write_vibrato(v: VibratoConfig) -> str:
         parts.append(f'period_frames={v.period_frames}')
     if v.polarity != 'unipolar':
         parts.append(f'polarity={v.polarity}')
+    if v.depth_semitones:
+        # Trim trailing zeros for readability (1.5 not 1.500000).
+        parts.append(f'depth_semitones={v.depth_semitones:g}')
     return 'vibrato:  ' + ' '.join(parts)
 
 

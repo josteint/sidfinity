@@ -282,6 +282,9 @@ class _T(Transformer):
     def vib_polarity(self, items):
         return ('polarity', str(items[0]))
 
+    def vib_depth_semitones(self, items):
+        return ('depth_semitones', float(items[0]))
+
     def vib_args(self, items):
         return VibratoConfig(**dict(items))
 

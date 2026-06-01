@@ -278,6 +278,14 @@ class VibratoConfig:
     shape: str = 'triangle'      # 'triangle' | 'sine' | 'square' | 'table' | ...
     period_frames: int = 8
     polarity: str = 'unipolar'    # 'unipolar' | 'bipolar'
+    # Max modulation amplitude in semitones (descriptive metadata
+    # derived from `scale` at extract time). For Hubbard the asm's
+    # right-shift loop yields amplitude = 3 / 2^(shifts), where
+    # `shifts` depends on `scale` in a non-trivial way (see
+    # pipelines/hubbard/to_usf._scale_byte_to_depth_semitones).
+    # Composer uses `scale` as engine byte; this field exists for
+    # the model to see continuous musical amplitude.
+    depth_semitones: float = 0.0
 
 
 @dataclass

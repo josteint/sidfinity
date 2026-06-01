@@ -107,6 +107,37 @@ def _convert_score(subtune_id: int, score) -> MusicSubtune:
 # Instrument conversion — `InstrumentModel` → USF v2 `Instrument`
 # ---------------------------------------------------------------------------
 
+def _scale_byte_to_depth_semitones(scale: int) -> float:
+    """Convert Hubbard's per-instrument vibrato `scale` byte to its
+    musical depth in semitones (descriptive metadata for the model).
+
+    Hubbard's `fx_vibrato` runs a `dec ctr; bpl` shift loop with
+    `ctr` starting at the scale byte. The loop body shifts a 16-bit
+    "semitone-delta" register right by one bit each iteration. Net
+    amplitude = `(semitone_delta * 3) / 2^N` where N = number of
+    shifts and 3 is the max triangle-LFO step. In semitones, the
+    one-semitone reference value cancels to `3 / 2^N`.
+
+    Loop iteration count `N`:
+      scale 0..127        → N = scale + 1
+      scale 128           → N = 129 (loop iterates with $7F..$00 + $FF)
+      scale 129..255      → N = 1   (first `dec` produces a negative
+                                     value, BPL doesn't branch)
+
+    For N >= 16 the semitone value is effectively zero (16-bit value
+    fully shifted out). Conventionally returns 0.0 in that case.
+    """
+    if scale <= 127:
+        shifts = scale + 1
+    elif scale == 128:
+        shifts = 129
+    else:  # 129..255
+        shifts = 1
+    if shifts >= 16:
+        return 0.0
+    return 3.0 / (2 ** shifts)
+
+
 def _convert_instrument(model, config) -> Instrument:
     """Build a USF `Instrument` from an `InstrumentModel` + engine
     `EngineConfig`.
@@ -209,7 +240,11 @@ def _convert_instrument(model, config) -> Instrument:
             interval=arp_interval,
             phase_invert=arp_phase_invert,
         ),
-        vibrato=VibratoConfig(scale=vibrato_scale, onset=vib_onset),
+        vibrato=VibratoConfig(
+            scale=vibrato_scale, onset=vib_onset,
+            depth_semitones=_scale_byte_to_depth_semitones(vibrato_scale)
+            if model.vibrato else 0.0,
+        ),
         envelope=EnvelopeConfig(release_ctrl=release_ctrl),
         freq_slide_config=freq_slide_config,
         inc_by2_config=inc_by2_config,
