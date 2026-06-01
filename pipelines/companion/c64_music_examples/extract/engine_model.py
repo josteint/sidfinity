@@ -584,6 +584,200 @@ class FamilyAEmulator:
         return writes
 
 
+# =====================================================================
+# V2 engine emulator — for subs 4-14 (shared engine at $33DB)
+# =====================================================================
+#
+# Differences from V1 (FamilyAEmulator with dispatch='v0'/'no_vibrato'/
+# 'bne_loop'):
+#
+# - Voice event router has no duration-nybble path. Every byte is
+#   note-or-special; no `<$09 → timbre*16 + recurse`.
+# - On note play, AD/SR helper $34BA fires:
+#     - For X=$07 (V2 only): write $35C4+X=state+9 to D402+X=D409 (PW lo)
+#                            write $35C5+X=state+10 to D403+X=D40A (PW hi)
+#     - For all voices: write state+5+X to D405+X (AD)
+#                       write state+6+X to D406+X (SR)
+# - Gate flag at $0384: if bit 7 set, V1 note writes are skipped.
+# - $0D byte sent to V3 sets $0383 = $FF (song-end marker).
+# - No vibrato in else branch (JMPs to RTS).
+# - Different freq tables: $32D8 (hi) and $3358 (lo).
+# - State layout: 7-byte per voice (last_cmd, PW_lo, PW_hi, ctrl, AD,
+#   SR + 1 padding) repeated 3 times, then global state at offset 21+.
+
+V2_FREQ_HI_ADDR = 0x32D8
+V2_FREQ_LO_ADDR = 0x3358
+
+
+class V2Emulator:
+    """Pure-Python emulator for the V2 Family A engine variant used by
+    subs 4-14 (handler $33DB, voice event router $342E)."""
+
+    X_V1, X_V2, X_V3 = 0, 7, 14
+
+    def __init__(self, sid_path: str, subtune: int):
+        mem, _ = _run_init_via_py65(sid_path, subtune)
+        self.mem = mem
+        sb = 0x35C2  # state base for V2 engine
+        self.state_base = sb
+        self.frame_ctr = mem[sb + 23]
+        self.tempo = mem[sb + 21]
+        self.alt_tempo = mem[sb + 22]
+        self.frame_index = 0
+        # Gate flag (from $0383 init): set to $20 by $35E2's STX $0383
+        self.gate_flag = mem[0x0384]
+        # ZP pattern pointers
+        self.zp_ptrs = {
+            self.X_V1: (mem[0x1C], mem[0x1D]),
+            self.X_V2: (mem[0x1E], mem[0x1F]),
+            self.X_V3: (mem[0x20], mem[0x21]),
+        }
+        # Per-voice state. Each voice has 7 bytes: phase|last_cmd|PW_lo|
+        # PW_hi|ctrl|AD|SR, starting at offset 0 (V1), 7 (V2), 14 (V3).
+        # The router accesses last_cmd via $35C3+X (= state+1+X).
+        # AD via $35C7+X (= state+5+X), SR via $35C8+X (= state+6+X).
+        # Timbre (ctrl-byte base) via $35C6+X (= state+4+X).
+        self.last_cmd = {0: mem[sb + 1], 7: mem[sb + 8], 14: mem[sb + 15]}
+        self.timbre = {0: mem[sb + 4], 7: mem[sb + 11], 14: mem[sb + 18]}
+        # PWM state. Variant is 'increment' for V2 engine.
+        self.pwm_phase_v1 = mem[sb + 0]
+        self.pwm_phase_v3 = mem[sb + 14]
+        self.pwm_ctr_v1 = mem[sb + 31]
+        self.pwm_ctr_v3 = mem[sb + 30]
+        self.pwm_pw = {self.X_V1: mem[sb + 3], self.X_V3: mem[sb + 17]}
+
+    def _read_pattern_byte(self, x: int) -> int:
+        lo, hi = self.zp_ptrs[x]
+        addr = lo | (hi << 8)
+        b = self.mem[addr]
+        addr = (addr + 1) & 0xFFFF
+        self.zp_ptrs[x] = (addr & 0xFF, (addr >> 8) & 0xFF)
+        return b
+
+    def _ad_sr_helper(self, x: int, writes: list[tuple[int, int]]) -> None:
+        """$34BA helper. V2 (X=$07) only also gets PW lo/hi."""
+        sb = self.state_base
+        if x == self.X_V2:
+            writes.append((0x02 + x, self.mem[sb + 2 + x]))   # PW lo
+            writes.append((0x03 + x, self.mem[sb + 3 + x]))   # PW hi
+        writes.append((0x05 + x, self.mem[sb + 5 + x]))       # AD
+        writes.append((0x06 + x, self.mem[sb + 6 + x]))       # SR
+
+    def _note_play(self, x: int, note: int,
+                   writes: list[tuple[int, int]]) -> None:
+        """Note-play path ($3443-$345A). Gate-check is up to caller."""
+        writes.append((0x01 + x, self.mem[V2_FREQ_HI_ADDR + note]))  # freq hi to D401,X
+        writes.append((0x00 + x, self.mem[V2_FREQ_LO_ADDR + note]))  # freq lo to D400,X
+        self._ad_sr_helper(x, writes)
+        # Ctrl reg: timbre + 1 (engine does `LDY $35C6,X; INY; TYA`)
+        writes.append((0x04 + x, (self.timbre[x] + 1) & 0xFF))
+
+    def _voice_event(self, x: int, byte: int,
+                     writes: list[tuple[int, int]]) -> bool:
+        """Process one pattern byte. Returns True if next byte should
+        be read immediately (for $0E pattern-loop recursion)."""
+        # Store cmd byte
+        sb = self.state_base
+        self.mem[sb + 1 + x] = byte
+        self.last_cmd[x] = byte
+
+        if byte < 0x80:
+            # Note path. Check gate.
+            if (self.gate_flag & 0x80) and x == self.X_V1:
+                return False
+            self._note_play(x, byte, writes)
+            return False
+
+        # bit 7 set → mask and route
+        y = byte & 0x7F
+
+        if y == 0x0E:
+            # Pattern loop — reload zp ptr from state. The reload addr
+            # depends on voice — $34FB (V1), $3506 (V3), $3511 (V2) load
+            # from per-voice state slots. State pattern ptrs at +24/25
+            # (V1), +26/27 (V2), +28/29 (V3).
+            sb = self.state_base
+            if x == self.X_V1:
+                self.zp_ptrs[x] = (self.mem[sb + 24], self.mem[sb + 25])
+            elif x == self.X_V2:
+                self.zp_ptrs[x] = (self.mem[sb + 26], self.mem[sb + 27])
+            else:
+                self.zp_ptrs[x] = (self.mem[sb + 28], self.mem[sb + 29])
+            return True
+
+        if y == 0x0C:
+            # Timbre only — gate-check applies.
+            if (self.gate_flag & 0x80) and x == self.X_V1:
+                return False
+            writes.append((0x04 + x, self.timbre[x]))
+            return False
+
+        if y == 0x0D:
+            # Same as $0C, then if V3 set $0383=$FF (song-end).
+            if (self.gate_flag & 0x80) and x == self.X_V1:
+                pass  # gated, skip write
+            else:
+                writes.append((0x04 + x, self.timbre[x]))
+            if x == self.X_V3:
+                self.mem[0x0383] = 0xFF
+            return False
+
+        # Any other bit-7-set byte: fall through to note path (after mask).
+        if (self.gate_flag & 0x80) and x == self.X_V1:
+            return False
+        self._note_play(x, y, writes)
+        return False
+
+    def _advance_voice(self, x: int, writes: list[tuple[int, int]]) -> None:
+        while True:
+            b = self._read_pattern_byte(x)
+            if not self._voice_event(x, b, writes):
+                return
+
+    def _pwm_tick(self, x: int, writes: list[tuple[int, int]]) -> None:
+        """Increment-variant PWM ($3549): INC PW, if reaches $0E reset to $02."""
+        pw = (self.pwm_pw[x] + 1) & 0xFF
+        if pw == 0x0E:
+            pw = 0x02
+        self.pwm_pw[x] = pw
+        writes.append((0x03 + x, pw))
+
+    def play_frame(self) -> list[tuple[int, int]]:
+        writes: list[tuple[int, int]] = []
+
+        # PWM ticks (V3 first per handler order)
+        if not (self.pwm_phase_v3 & 0x80):
+            self.pwm_ctr_v3 = (self.pwm_ctr_v3 + 1) & 0xFF
+            if self.pwm_ctr_v3 == self.pwm_phase_v3:
+                self._pwm_tick(self.X_V3, writes)
+                self.pwm_ctr_v3 = 0
+        if not (self.pwm_phase_v1 & 0x80):
+            self.pwm_ctr_v1 = (self.pwm_ctr_v1 + 1) & 0xFF
+            if self.pwm_ctr_v1 == self.pwm_phase_v1:
+                self._pwm_tick(self.X_V1, writes)
+                self.pwm_ctr_v1 = 0
+
+        # Frame dispatch
+        self.frame_ctr = (self.frame_ctr + 1) & 0xFF
+        if self.frame_ctr == self.tempo:
+            # Loop-reset: per-voice if last_cmd bit 7, do $347D timbre-write
+            for x in (self.X_V1, self.X_V2, self.X_V3):
+                if self.last_cmd[x] & 0x80:
+                    # $347D has gate check
+                    if (self.gate_flag & 0x80) and x == self.X_V1:
+                        continue
+                    writes.append((0x04 + x, self.timbre[x]))
+        elif self.frame_ctr == self.alt_tempo:
+            # Full voice tick + reset
+            self.frame_ctr = 0
+            for x in (self.X_V1, self.X_V2, self.X_V3):
+                self._advance_voice(x, writes)
+        # else: JMP to RTS — no vibrato.
+
+        self.frame_index = (self.frame_index + 1) & 0xFF
+        return writes
+
+
 if __name__ == '__main__':
     sid = 'hvsc84/MUSICIANS/H/Hubbard_Rob/Commodore_64_Music_Examples.sid'
     s = load_sub0_state(sid)
