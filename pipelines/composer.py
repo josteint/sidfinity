@@ -2688,7 +2688,13 @@ def _inputs_from_usf(usf) -> _Inputs:
                                   if i.inc_by2_config.mode != 'none' else 3,
                                   3),
         suppress_first_notestart=get('suppress_first_notestart', False),
-        freeze_on_stop=get('freeze_on_stop', False),
+        # song_end refactor: prefer the typed `song_end` block; fall
+        # back to flat per-tune keys for pre-refactor USFs.
+        freeze_on_stop=(
+            usf.song_end is not None and usf.song_end.stop_marker == 'freeze'
+            if usf.song_end is not None
+            else get('freeze_on_stop', False)
+        ),
         speed_ctr_init=get('speed_ctr_init', 0),
         first_frame_gate_off=get('first_frame_gate_off', False),
         seed_overlap=get('seed_overlap', True),
@@ -2703,7 +2709,11 @@ def _inputs_from_usf(usf) -> _Inputs:
             if any(i.inc_by2_config.mode != 'none' for i in usf.instruments)
             else get('incby2_late_gate', None)
         ),
-        stop_fill=get('stop_fill', None),
+        stop_fill=(
+            usf.song_end.fill_value
+            if usf.song_end is not None and usf.song_end.stop_marker == 'fill'
+            else (None if usf.song_end is not None else get('stop_fill', None))
+        ),
         sfx_framectr_ofs=get('sfx_framectr_ofs', 253),
         sfx_state_ofs=get('sfx_state_ofs', None),
         has_sfx=get('has_sfx', False),
@@ -2720,7 +2730,11 @@ def _inputs_from_usf(usf) -> _Inputs:
         master_vol_trigger=get('master_vol_trigger', 'inst_change'),
         master_vol_reset_on_loop=get('master_vol_reset_on_loop', False),
         master_vol_underflow_clamp=get('master_vol_underflow_clamp', False),
-        loop_silences_song=get('loop_silences_song', False),
+        loop_silences_song=(
+            usf.song_end is not None and usf.song_end.loop_marker == 'silence_all'
+            if usf.song_end is not None
+            else get('loop_silences_song', False)
+        ),
         tie_preserves_slide=get('tie_preserves_slide', False),
         hubidx_wrap_at_patend=get('hubidx_wrap_at_patend', True),
         **({'ns_offtab_decr_offset': ns_offtab_decr_offset}

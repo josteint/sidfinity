@@ -15,7 +15,7 @@ from src.usf.types import (
     UsfFile, PsidMeta, Params, InitVoice, InitState,
     InitSid, InitSidVoice, InitFilter,
     Instrument, PwmConfig, ArpConfig, VibratoConfig, EnvelopeConfig,
-    FreqSlideConfig, IncBy2Config,
+    FreqSlideConfig, IncBy2Config, SongEndConfig,
     MusicSubtune, DigiSubtune, SfxSubtune,
     VoiceBlock, Orderlist, Pattern, NoteRow, Pitch, InstrumentRef,
 )
@@ -586,6 +586,24 @@ class _T(Transformer):
     def sl_field(self, items):
         return items[0]
 
+    def se_stop_marker(self, items):
+        return ('stop_marker', str(items[0]))
+
+    def se_fill_value(self, items):
+        return ('fill_value', int(items[0]))
+
+    def se_loop_marker(self, items):
+        return ('loop_marker', str(items[0]))
+
+    def song_end_field(self, items):
+        return items[0]
+
+    def song_end_block(self, items):
+        cfg = SongEndConfig()
+        for k, v in items:
+            setattr(cfg, k, v)
+        return ('song_end', cfg)
+
     def state_layout_block(self, items):
         # items is a list of tuples ('n_voices', N) | ('scalar', dict)
         # | ('per_voice', dict). Reassemble into a StatebufLayout-shaped
@@ -623,6 +641,7 @@ class _T(Transformer):
         subtunes = []
         freq_table = None
         state_layout = None
+        song_end = None
         for it in items:
             if isinstance(it, tuple):
                 k, v = it
@@ -630,6 +649,8 @@ class _T(Transformer):
                     freq_table = v
                 elif k == 'state_layout':
                     state_layout = v
+                elif k == 'song_end':
+                    song_end = v
             elif isinstance(it, PsidMeta):
                 psid = it
             elif isinstance(it, Params):
@@ -643,7 +664,8 @@ class _T(Transformer):
         return UsfFile(
             psid=psid, params=params,
             init=init, instruments=instruments, subtunes=subtunes,
-            freq_table=freq_table, state_layout=state_layout)
+            freq_table=freq_table, state_layout=state_layout,
+            song_end=song_end)
 
 
 # ---------------------------------------------------------------------------

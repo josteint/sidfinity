@@ -8,7 +8,7 @@ from src.usf.types import (
     UsfFile, PsidMeta, Params, InitVoice, InitState,
     InitSid, InitSidVoice, InitFilter, Instrument,
     PwmConfig, ArpConfig, VibratoConfig, EnvelopeConfig,
-    FreqSlideConfig, IncBy2Config,
+    FreqSlideConfig, IncBy2Config, SongEndConfig,
     Subtune, MusicSubtune, DigiSubtune, SfxSubtune,
     VoiceBlock, Orderlist, Pattern, NoteRow, Pitch, InstrumentRef,
 )
@@ -20,7 +20,7 @@ __all__ = [
     'UsfFile', 'PsidMeta', 'Params', 'InitVoice', 'InitState',
     'InitSid', 'InitSidVoice', 'InitFilter',
     'Instrument', 'PwmConfig', 'ArpConfig', 'VibratoConfig',
-    'EnvelopeConfig', 'FreqSlideConfig', 'IncBy2Config',
+    'EnvelopeConfig', 'FreqSlideConfig', 'IncBy2Config', 'SongEndConfig',
     'Subtune', 'MusicSubtune', 'DigiSubtune', 'SfxSubtune',
     'VoiceBlock', 'Orderlist', 'Pattern', 'NoteRow',
     'Pitch', 'InstrumentRef',

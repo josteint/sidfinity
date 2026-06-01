@@ -11,7 +11,7 @@ from src.usf.types import (
     UsfFile, PsidMeta, Params, InitVoice, InitState,
     InitSid, InitSidVoice, InitFilter,
     Instrument, PwmConfig, ArpConfig, VibratoConfig, EnvelopeConfig,
-    FreqSlideConfig, IncBy2Config,
+    FreqSlideConfig, IncBy2Config, SongEndConfig,
     MusicSubtune, DigiSubtune, SfxSubtune,
     VoiceBlock, Orderlist, Pattern, NoteRow, Pitch, InstrumentRef,
 )
@@ -358,6 +358,19 @@ def _write_state_layout(d: dict) -> list[str]:
     return lines
 
 
+def _write_song_end(cfg: SongEndConfig) -> list[str]:
+    """Emit a `song_end { ... }` block; only fields differing from
+    defaults are written so default Hubbard songs don't emit a block."""
+    parts = []
+    if cfg.stop_marker != 'silence':
+        parts.append(f'  stop_marker: {cfg.stop_marker}')
+    if cfg.fill_value:
+        parts.append(f'  fill_value: {_hex(cfg.fill_value)}')
+    if cfg.loop_marker != 'loop':
+        parts.append(f'  loop_marker: {cfg.loop_marker}')
+    return ['song_end {', *parts, '}']
+
+
 def write(usf: UsfFile) -> str:
     """Serialize a `UsfFile` to canonical `.usf` text."""
     lines: list[str] = []
@@ -372,6 +385,12 @@ def write(usf: UsfFile) -> str:
     if usf.state_layout is not None:
         lines.append('')
         lines.extend(_write_state_layout(usf.state_layout))
+    if usf.song_end is not None and (
+            usf.song_end.stop_marker != 'silence'
+            or usf.song_end.fill_value
+            or usf.song_end.loop_marker != 'loop'):
+        lines.append('')
+        lines.extend(_write_song_end(usf.song_end))
     for inst in sorted(usf.instruments, key=lambda x: x.id):
         lines.append('')
         lines.extend(_write_instrument(inst))

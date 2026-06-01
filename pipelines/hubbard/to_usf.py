@@ -28,6 +28,7 @@ from src.hubbard_emu import load_sid
 from src.usf import (
     UsfFile, PsidMeta, Params, InitState, InitVoice,
     Instrument, PwmConfig, ArpConfig, VibratoConfig, EnvelopeConfig,
+    SongEndConfig,
     MusicSubtune, DigiSubtune, SfxSubtune, VoiceBlock, Orderlist,
     Pattern, NoteRow, Pitch, InstrumentRef, write_file, validate,
 )
@@ -265,7 +266,29 @@ _PARAMS_SKIP_CONFIG = {
     # from any instrument. Stop emitting into params { } entirely.
     'vib_onset', 'arp_interval', 'arp_period', 'arp_phase_invert',
     'incby2_step', 'incby2_onset', 'incby2_late_gate',
+    # song-end refactor — these three flat keys now live in the
+    # typed `song_end` block at top-level.
+    'freeze_on_stop', 'stop_fill', 'loop_silences_song',
 }
+
+
+def _song_end_from_config(config) -> SongEndConfig | None:
+    """Derive a `SongEndConfig` from the per-engine flat flags. Returns
+    None when all defaults apply (composer's defaults match)."""
+    freeze = getattr(config, 'freeze_on_stop', False)
+    fill = getattr(config, 'stop_fill', None)
+    loop_silence = getattr(config, 'loop_silences_song', False)
+    if not freeze and fill is None and not loop_silence:
+        return None
+    cfg = SongEndConfig()
+    if fill is not None:
+        cfg.stop_marker = 'fill'
+        cfg.fill_value = fill
+    elif freeze:
+        cfg.stop_marker = 'freeze'
+    if loop_silence:
+        cfg.loop_marker = 'silence_all'
+    return cfg
 
 # Engine name → tune-level `digi_player` name in the v3 USF. The
 # registry that resolves the name back to a DigiCode lives in
@@ -454,6 +477,7 @@ def to_usf(config, extra_subtunes: list | None = None) -> UsfFile:
         psid=psid, params=params, init=init,
         instruments=instruments, subtunes=subtunes,
         freq_table=freq_table, state_layout=state_layout,
+        song_end=_song_end_from_config(config),
     )
 
 

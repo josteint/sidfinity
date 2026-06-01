@@ -118,6 +118,11 @@ def build_unified_usf() -> UsfFile:
             ms.params = ParamsCls(fields=sub_fields)
         music_subtunes.append(ms)
 
+    # song_end block — derive from inputs (5TT's _Inputs has same
+    # flat fields as EngineConfig). None when all defaults apply.
+    from pipelines.hubbard.to_usf import _song_end_from_config
+    song_end = _song_end_from_config(inputs)
+
     return UsfFile(
         psid=psid,
         params=params,
@@ -126,6 +131,7 @@ def build_unified_usf() -> UsfFile:
         subtunes=music_subtunes,
         freq_table=list(ec.freq_bytes),
         state_layout=None,
+        song_end=song_end,
     )
 
 

@@ -422,6 +422,39 @@ class Params:
 
 
 @dataclass
+class SongEndConfig:
+    """End-of-orderlist behavior for both terminator markers.
+
+    Each voice's orderlist ends with either a STOP marker (engine's
+    `$FE`) or a LOOP marker (engine's `$FF` → loop back to a position
+    within the orderlist). The TUNE-LEVEL `song_end` block specifies
+    what those markers actually DO at end-of-list time:
+
+      `stop_marker`:
+        'silence'  — voice silences (default — Hubbard standard).
+        'freeze'   — voice freezes on its last note (note hangs;
+                     effects continue; never gates off).
+        'fill'     — voice writes `fill_value` to its 7-byte SID
+                     register block, then silences. Used for engines
+                     that want a specific outro byte (Action Biker
+                     writes `$80` to set noise+gate-off).
+
+      `fill_value`: only consulted when stop_marker='fill'.
+
+      `loop_marker`:
+        'loop'         — voice wraps to its loop_to position (default).
+        'silence_all'  — when ANY voice hits its loop marker, the
+                         entire song silences. Used for engines whose
+                         loop kills the song (Hunter Patrol).
+
+    Defaults = Hubbard standard behavior; song_end is optional in USF.
+    """
+    stop_marker: str = 'silence'      # 'silence' | 'freeze' | 'fill'
+    fill_value: int = 0                # only used when stop_marker='fill'
+    loop_marker: str = 'loop'          # 'loop' | 'silence_all'
+
+
+@dataclass
 class PsidMeta:
     title: str = ''
     author: str = ''
@@ -463,3 +496,7 @@ class UsfFile:
     # (value or var). The build path constructs a StatebufLayout
     # from this dict.
     state_layout: Optional[dict] = None
+    # Song-end behavior — replaces the three flat params keys
+    # `freeze_on_stop`/`stop_fill`/`loop_silences_song`. When None,
+    # composer uses defaults (silence + loop).
+    song_end: Optional[SongEndConfig] = None
