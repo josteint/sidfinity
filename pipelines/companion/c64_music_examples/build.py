@@ -174,7 +174,6 @@ dump_to_sid:
   rts
 
 play:
-  inc frame_idx
   lda state+14         ; V3 phase
   bmi skip_v3_pwm
   inc state+30
@@ -209,6 +208,7 @@ full_tick:
   jsr advance_v1
   jsr advance_v2
   jsr advance_v3
+  inc frame_idx
   rts
 
 loop_reset:
@@ -228,6 +228,7 @@ skip_lr_v2:
   sta $d412
 skip_lr_v3:
   jmp vibrato_only
+; (vibrato_only does the final INC frame_idx + rts)
 
 vibrato_only:
   ; V1 vibrato (triangle sweep on freq)
@@ -278,6 +279,7 @@ vib_emit:
   sta $d400
   lda base_hi
   sta $d401
+  inc frame_idx
   rts
 
 ; Voice advance subroutines
