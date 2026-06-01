@@ -15,7 +15,7 @@ from src.usf.types import (
     UsfFile, PsidMeta, Params, InitVoice, InitState,
     InitSid, InitSidVoice, InitFilter,
     Instrument, PwmConfig, ArpConfig, VibratoConfig, EnvelopeConfig,
-    FreqSlideConfig, IncBy2Config, SongEndConfig,
+    FreqSlideConfig, IncBy2Config, SongEndConfig, InitBehaviorConfig,
     MusicSubtune, DigiSubtune, SfxSubtune,
     VoiceBlock, Orderlist, Pattern, NoteRow, Pitch, InstrumentRef,
 )
@@ -604,6 +604,21 @@ class _T(Transformer):
             setattr(cfg, k, v)
         return ('song_end', cfg)
 
+    def ib_silence_all(self, items):
+        return ('silence_all_voices_on_frame_0', items[0])
+
+    def ib_no_first_attack(self, items):
+        return ('no_first_attack_voice', int(items[0]))
+
+    def init_behavior_field(self, items):
+        return items[0]
+
+    def init_behavior_block(self, items):
+        cfg = InitBehaviorConfig()
+        for k, v in items:
+            setattr(cfg, k, v)
+        return ('init_behavior', cfg)
+
     def state_layout_block(self, items):
         # items is a list of tuples ('n_voices', N) | ('scalar', dict)
         # | ('per_voice', dict). Reassemble into a StatebufLayout-shaped
@@ -642,6 +657,7 @@ class _T(Transformer):
         freq_table = None
         state_layout = None
         song_end = None
+        init_behavior = None
         for it in items:
             if isinstance(it, tuple):
                 k, v = it
@@ -651,6 +667,8 @@ class _T(Transformer):
                     state_layout = v
                 elif k == 'song_end':
                     song_end = v
+                elif k == 'init_behavior':
+                    init_behavior = v
             elif isinstance(it, PsidMeta):
                 psid = it
             elif isinstance(it, Params):
@@ -665,7 +683,7 @@ class _T(Transformer):
             psid=psid, params=params,
             init=init, instruments=instruments, subtunes=subtunes,
             freq_table=freq_table, state_layout=state_layout,
-            song_end=song_end)
+            song_end=song_end, init_behavior=init_behavior)
 
 
 # ---------------------------------------------------------------------------

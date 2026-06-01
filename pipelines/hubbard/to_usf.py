@@ -28,7 +28,7 @@ from src.hubbard_emu import load_sid
 from src.usf import (
     UsfFile, PsidMeta, Params, InitState, InitVoice,
     Instrument, PwmConfig, ArpConfig, VibratoConfig, EnvelopeConfig,
-    SongEndConfig,
+    SongEndConfig, InitBehaviorConfig,
     MusicSubtune, DigiSubtune, SfxSubtune, VoiceBlock, Orderlist,
     Pattern, NoteRow, Pitch, InstrumentRef, write_file, validate,
 )
@@ -269,7 +269,30 @@ _PARAMS_SKIP_CONFIG = {
     # song-end refactor — these three flat keys now live in the
     # typed `song_end` block at top-level.
     'freeze_on_stop', 'stop_fill', 'loop_silences_song',
+    # init_behavior refactor — these flat keys now live in the typed
+    # `init_behavior { silence_all_voices_on_frame_0,
+    # no_first_attack_voice }` block at top-level.
+    'first_frame_gate_off', 'suppress_first_notestart',
 }
+
+
+def _init_behavior_from_config(config) -> InitBehaviorConfig | None:
+    """Derive an `InitBehaviorConfig` from the per-engine flat flags.
+    Returns None when all defaults apply (most Hubbard engines).
+
+    `no_first_attack_voice` translation: the legacy
+    `suppress_first_notestart=True` always meant "voice 3" (engine's
+    drum-priority gate suppresses V3's frame-0 note — see Devils Galop
+    config comment). We encode that explicitly.
+    """
+    silence_all = getattr(config, 'first_frame_gate_off', False)
+    suppress = getattr(config, 'suppress_first_notestart', False)
+    if not silence_all and not suppress:
+        return None
+    return InitBehaviorConfig(
+        silence_all_voices_on_frame_0=silence_all,
+        no_first_attack_voice=(3 if suppress else 0),
+    )
 
 
 def _song_end_from_config(config) -> SongEndConfig | None:
@@ -478,6 +501,7 @@ def to_usf(config, extra_subtunes: list | None = None) -> UsfFile:
         instruments=instruments, subtunes=subtunes,
         freq_table=freq_table, state_layout=state_layout,
         song_end=_song_end_from_config(config),
+        init_behavior=_init_behavior_from_config(config),
     )
 
 

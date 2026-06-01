@@ -2687,7 +2687,17 @@ def _inputs_from_usf(usf) -> _Inputs:
                                   lambda i: i.inc_by2_config.onset
                                   if i.inc_by2_config.mode != 'none' else 3,
                                   3),
-        suppress_first_notestart=get('suppress_first_notestart', False),
+        # init_behavior refactor: prefer the typed block; fall back
+        # to flat key for pre-refactor USFs. The typed block carries
+        # which voice has the no-attack (engine implements via
+        # drum-priority-gate suppressing voice 3); the bool flag
+        # downstream stays True iff any voice has suppression.
+        suppress_first_notestart=(
+            bool(usf.init_behavior is not None
+                 and usf.init_behavior.no_first_attack_voice)
+            if usf.init_behavior is not None
+            else get('suppress_first_notestart', False)
+        ),
         # song_end refactor: prefer the typed `song_end` block; fall
         # back to flat per-tune keys for pre-refactor USFs.
         freeze_on_stop=(
@@ -2696,7 +2706,12 @@ def _inputs_from_usf(usf) -> _Inputs:
             else get('freeze_on_stop', False)
         ),
         speed_ctr_init=get('speed_ctr_init', 0),
-        first_frame_gate_off=get('first_frame_gate_off', False),
+        first_frame_gate_off=(
+            usf.init_behavior is not None
+            and usf.init_behavior.silence_all_voices_on_frame_0
+            if usf.init_behavior is not None
+            else get('first_frame_gate_off', False)
+        ),
         seed_overlap=get('seed_overlap', True),
         psid_speed=usf.psid.speed,
         frame_ctr_init=get('frame_ctr_init', 0xFF),

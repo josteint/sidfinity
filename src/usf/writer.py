@@ -11,7 +11,7 @@ from src.usf.types import (
     UsfFile, PsidMeta, Params, InitVoice, InitState,
     InitSid, InitSidVoice, InitFilter,
     Instrument, PwmConfig, ArpConfig, VibratoConfig, EnvelopeConfig,
-    FreqSlideConfig, IncBy2Config, SongEndConfig,
+    FreqSlideConfig, IncBy2Config, SongEndConfig, InitBehaviorConfig,
     MusicSubtune, DigiSubtune, SfxSubtune,
     VoiceBlock, Orderlist, Pattern, NoteRow, Pitch, InstrumentRef,
 )
@@ -358,6 +358,16 @@ def _write_state_layout(d: dict) -> list[str]:
     return lines
 
 
+def _write_init_behavior(cfg: InitBehaviorConfig) -> list[str]:
+    """Emit `init_behavior { ... }`; only non-default fields written."""
+    parts = []
+    if cfg.silence_all_voices_on_frame_0:
+        parts.append('  silence_all_voices_on_frame_0: true')
+    if cfg.no_first_attack_voice:
+        parts.append(f'  no_first_attack_voice: {cfg.no_first_attack_voice}')
+    return ['init_behavior {', *parts, '}']
+
+
 def _write_song_end(cfg: SongEndConfig) -> list[str]:
     """Emit a `song_end { ... }` block; only fields differing from
     defaults are written so default Hubbard songs don't emit a block."""
@@ -391,6 +401,11 @@ def write(usf: UsfFile) -> str:
             or usf.song_end.loop_marker != 'loop'):
         lines.append('')
         lines.extend(_write_song_end(usf.song_end))
+    if usf.init_behavior is not None and (
+            usf.init_behavior.silence_all_voices_on_frame_0
+            or usf.init_behavior.no_first_attack_voice):
+        lines.append('')
+        lines.extend(_write_init_behavior(usf.init_behavior))
     for inst in sorted(usf.instruments, key=lambda x: x.id):
         lines.append('')
         lines.extend(_write_instrument(inst))

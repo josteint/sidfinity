@@ -422,6 +422,30 @@ class Params:
 
 
 @dataclass
+class InitBehaviorConfig:
+    """Engine's first-frame play behavior — replaces the two flat
+    per-tune flags `first_frame_gate_off` and `suppress_first_notestart`.
+
+    The model sees these as ONE block of related boot-time behavior
+    instead of two scattered booleans named after Hubbard mechanism.
+
+      `silence_all_voices_on_frame_0`: when True, the engine writes
+        ctrl=$00 to all 3 voices on play frame 0. Result: voices
+        start silent before any notes. Action Biker uses this.
+
+      `no_first_attack_voice`: when non-zero, the engine suppresses
+        that voice's first-frame note-start SID writes (no envelope
+        attack on the very first note). The value is the voice id
+        (1, 2, or 3). 0 = no suppression (default). Devils Galop
+        suppresses voice 3 — the engine's drum-priority gate is the
+        mechanism, but the musical effect is "voice N doesn't attack
+        on its first frame."
+    """
+    silence_all_voices_on_frame_0: bool = False
+    no_first_attack_voice: int = 0      # 0 = none; 1/2/3 = voice id
+
+
+@dataclass
 class SongEndConfig:
     """End-of-orderlist behavior for both terminator markers.
 
@@ -500,3 +524,6 @@ class UsfFile:
     # `freeze_on_stop`/`stop_fill`/`loop_silences_song`. When None,
     # composer uses defaults (silence + loop).
     song_end: Optional[SongEndConfig] = None
+    # Engine first-frame init behavior — replaces the flat per-tune
+    # `first_frame_gate_off` and `suppress_first_notestart` flags.
+    init_behavior: Optional[InitBehaviorConfig] = None

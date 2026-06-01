@@ -3,7 +3,7 @@
 // Lark grammar (LALR friendly). Whitespace and comments are ignored
 // between tokens. Top-level order is enforced by the start rule.
 
-start: psid_block params_block init_block freq_table_block? state_layout_block? song_end_block? instrument_block* subtune_block*
+start: psid_block params_block init_block freq_table_block? state_layout_block? song_end_block? init_behavior_block? instrument_block* subtune_block*
 
 // ----- psid -----
 psid_block: "psid" "{" psid_field+ "}"
@@ -79,6 +79,13 @@ song_end_block: "song_end" "{" song_end_field+ "}"
 song_end_field: "stop_marker" ":" CNAME       -> se_stop_marker
               | "fill_value" ":" number       -> se_fill_value
               | "loop_marker" ":" CNAME       -> se_loop_marker
+
+// ----- init_behavior (optional) -----
+// Engine first-frame play behavior — replaces flat per-tune flags
+// `first_frame_gate_off` and `suppress_first_notestart`.
+init_behavior_block: "init_behavior" "{" init_behavior_field+ "}"
+init_behavior_field: "silence_all_voices_on_frame_0" ":" bool   -> ib_silence_all
+                   | "no_first_attack_voice" ":" INT             -> ib_no_first_attack
 
 // ----- instruments -----
 instrument_block: "instrument" INT instrument_name? "{" instrument_field+ "}"
