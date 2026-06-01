@@ -220,6 +220,8 @@ def _write_incby2(b: IncBy2Config) -> str:
         parts.append(f'onset={b.onset}')
     if b.late_gate:
         parts.append(f'late_gate={b.late_gate}')
+    if b.every_frame:
+        parts.append('every_frame=true')
     return 'incby2:   ' + ' '.join(parts)
 
 

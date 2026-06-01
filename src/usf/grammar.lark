@@ -141,6 +141,7 @@ incby2_kv: "mode" "=" CNAME                 -> incby2_mode
          | "step" "=" signed_int            -> incby2_step
          | "onset" "=" INT                  -> incby2_onset
          | "late_gate" "=" INT              -> incby2_late_gate
+         | "every_frame" "=" bool           -> incby2_every_frame
 
 // ----- subtunes -----
 subtune_block: "subtune" INT subtune_kind "{" subtune_body "}"

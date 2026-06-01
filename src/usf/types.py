@@ -318,6 +318,10 @@ class IncBy2Config:
     step: int = 1                # signed 8-bit
     onset: int = 0
     late_gate: int = 0
+    # When True, the ramp runs every frame instead of odd-frames-only
+    # (was per-tune `params.incby2_every_frame`). Devils Galop + Thing
+    # on a Spring use True.
+    every_frame: bool = False
 
 
 @dataclass

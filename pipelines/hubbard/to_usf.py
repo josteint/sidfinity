@@ -137,6 +137,7 @@ def _convert_instrument(model, config) -> Instrument:
     incby2_step      = getattr(config, 'incby2_step',      2)
     incby2_onset     = getattr(config, 'incby2_onset',     3)
     incby2_late_gate = getattr(config, 'incby2_late_gate', None)
+    incby2_every_frame = getattr(config, 'incby2_every_frame', False)
     linear_pw_or     = getattr(config, 'linear_pw_or',     0)
 
     init_pw = (model.init_pw_hi << 8) | model.init_pw_lo
@@ -189,6 +190,7 @@ def _convert_instrument(model, config) -> Instrument:
             step=incby2_step,
             onset=incby2_onset,
             late_gate=incby2_late_gate or 0,
+            every_frame=incby2_every_frame,
         )
 
     # Hubbard's release CTRL is gate-on CTRL with the gate bit cleared.
@@ -270,7 +272,7 @@ _PARAMS_SKIP_CONFIG = {
     # inc_by2_config.{step,onset,late_gate}). Composer reads them
     # from any instrument. Stop emitting into params { } entirely.
     'vib_onset', 'arp_interval', 'arp_period', 'arp_phase_invert',
-    'incby2_step', 'incby2_onset', 'incby2_late_gate',
+    'incby2_step', 'incby2_onset', 'incby2_late_gate', 'incby2_every_frame',
     # song-end refactor — these three flat keys now live in the
     # typed `song_end` block at top-level.
     'freeze_on_stop', 'stop_fill', 'loop_silences_song',

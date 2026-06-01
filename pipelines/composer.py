@@ -2683,7 +2683,12 @@ def _inputs_from_usf(usf) -> _Inputs:
                                  lambda i: i.inc_by2_config.step
                                  if i.inc_by2_config.mode != 'none' else 2,
                                  2),
-        incby2_every_frame=get('incby2_every_frame', False),
+        incby2_every_frame=(
+            # Prefer per-inst from any inc_by2 instrument; else flat.
+            any(i.inc_by2_config.every_frame for i in usf.instruments
+                if i.inc_by2_config.mode != 'none')
+            or get('incby2_every_frame', False)
+        ),
         incby2_onset=prefer_inst('incby2_onset',
                                   lambda i: i.inc_by2_config.onset
                                   if i.inc_by2_config.mode != 'none' else 3,

@@ -321,6 +321,9 @@ class _T(Transformer):
     def incby2_late_gate(self, items):
         return ('late_gate', int(items[0]))
 
+    def incby2_every_frame(self, items):
+        return ('every_frame', items[0])
+
     def incby2_args(self, items):
         return IncBy2Config(**dict(items))
 
