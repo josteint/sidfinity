@@ -229,6 +229,229 @@ def load_sub0_state(sid_path: str) -> Sub0State:
     )
 
 
+# =====================================================================
+# Event-by-event emulator — produces the same (reg, val) SID writes as
+# the original engine for sub 0. Used to validate our understanding
+# before designing the USF schema.
+# =====================================================================
+
+
+class Sub0Emulator:
+    """Frame-by-frame pure-Python emulator for sub 0's Family A engine.
+
+    Holds state read from py65-init'd memory (engine state + pattern
+    bytes + freq tables) and steps one play frame at a time, returning
+    the SID writes that play frame would emit.
+
+    Implementation tracks per-voice state mirroring the engine's
+    in-memory layout: $0A6E (V2 phase), $0A6F+X (per-voice last-cmd
+    flag, bit 7 = sustained), $0A71+X (PW value), $0A72+X (timbre nybble),
+    $0A8C/$0A8D (per-voice running ctr), $0A85 (frame ctr), and the
+    three zp pattern pointers ($1C/$1E/$20).
+    """
+
+    # Per-voice X offsets used by the engine (V1=0, V2=7, V3=14).
+    X_V1, X_V2, X_V3 = 0, 7, 14
+
+    def __init__(self, sid_path: str):
+        mem, _ = _run_init_via_py65(sid_path, 0)
+        self.mem = mem  # 64KB after init — used for freq tables + pattern data reads
+        self.frame_ctr = mem[0x0A85]
+        self.tempo = mem[0x0A83]
+        self.alt_tempo = mem[0x0A84]
+        self.current_note = mem[0x0B5A]  # V1 vibrato base
+        self.frame_index = 0             # play call counter ($086E)
+        # ZP pattern pointers (initialized by $09F8 during engine init)
+        self.zp_ptrs = {
+            self.X_V1: (mem[0x1C], mem[0x1D]),
+            self.X_V2: (mem[0x1E], mem[0x1F]),
+            self.X_V3: (mem[0x20], mem[0x21]),
+        }
+        # Per-voice state. Index by X (0/7/14).
+        self.last_cmd = {x: 0 for x in (0, 7, 14)}      # $0A6F+X
+        self.timbre = {x: 0 for x in (0, 7, 14)}        # $0A72+X (nybble << 4)
+        for x in (0, 7, 14):
+            self.last_cmd[x] = mem[0x0A6F + x]
+            self.timbre[x] = mem[0x0A72 + x]
+        # PWM state. Sweep only V1 (X=0) and V3 (X=$0E). Each tracks
+        # phase target ($0A6E/$0A7C), running ctr ($0A8D/$0A8C),
+        # current PW ($0A71+X), and sign byte ($0ADE+X — starts $00).
+        self.pwm_phase_v1 = mem[0x0A6E]
+        self.pwm_phase_v3 = mem[0x0A7C]
+        self.pwm_ctr_v1 = mem[0x0A8D]
+        self.pwm_ctr_v3 = mem[0x0A8C]
+        self.pwm_pw = {self.X_V1: mem[0x0A71], self.X_V3: mem[0x0A7F]}
+        self.pwm_sign = {self.X_V1: mem[0x0ADE], self.X_V3: mem[0x0AEC]}
+
+    def _read_pattern_byte(self, x: int) -> int:
+        """Read byte at the voice's zp pattern ptr; advance ptr by 1."""
+        lo, hi = self.zp_ptrs[x]
+        addr = lo | (hi << 8)
+        b = self.mem[addr]
+        addr = (addr + 1) & 0xFFFF
+        self.zp_ptrs[x] = (addr & 0xFF, (addr >> 8) & 0xFF)
+        return b
+
+    def _voice_event(self, x: int, byte: int,
+                     writes: list[tuple[int, int]]) -> bool:
+        """Process one pattern byte for voice X. Returns True if a
+        new byte should be read (recursion case for < $09)."""
+        self.last_cmd[x] = byte
+        if byte < 0x09:
+            # Duration-set: store (byte * 16) as timbre, recurse.
+            self.timbre[x] = (byte << 4) & 0xFF
+            return True
+        if byte == 0x0F:
+            # End-of-pattern marker — no writes, no recurse.
+            return False
+
+        if byte >= 0x80:
+            y = byte & 0x7F
+            # Hit the $099C path — check $0E/$0C/$0D specially.
+            if y == 0x0E:
+                # Pattern loop: reload zp ptr from state ($0A86/87 for V1,
+                # $0A88/89 V2, $0A8A/8B V3) and recurse.
+                if x == self.X_V1:
+                    self.zp_ptrs[x] = (self.mem[0x0A86], self.mem[0x0A87])
+                elif x == self.X_V2:
+                    self.zp_ptrs[x] = (self.mem[0x0A88], self.mem[0x0A89])
+                else:
+                    self.zp_ptrs[x] = (self.mem[0x0A8A], self.mem[0x0A8B])
+                return True
+            if y == 0x0C:
+                # Just write timbre to $D404+X — no freq update.
+                writes.append((0x04 + x, self.timbre[x]))
+                return False
+            if y == 0x0D:
+                # Same as $0C — timbre write + return.
+                writes.append((0x04 + x, self.timbre[x]))
+                return False
+            # Note play (with bit 7 → still stored as note; bit 7 controls
+            # the "sustained" flag in last_cmd which the loop-reset path
+            # reads later).
+            note = y
+        else:
+            note = byte
+
+        # Bare-note path: store note as V1 vibrato base (V1 only), play note.
+        if x == self.X_V1:
+            self.current_note = note
+        freq_lo = self.mem[FAMILY_A_FREQ_LO_ADDR + note]
+        freq_hi = self.mem[FAMILY_A_FREQ_HI_ADDR + note]
+        # NB: engine writes go to $D401,X (= reg 0x01+x) THEN $D400,X.
+        # The values stored: A=$0B5F[Y]=freq_lo → STA $D401,X.
+        # That looks BACKWARDS — actually $0B5F is the freq HIGH table
+        # per the engine layout, despite the symbol name. The voice
+        # event router writes freq HIGH to reg+1 then freq LOW to reg+0
+        # (which matches SID's reg+0=lo / reg+1=hi convention if the
+        # table at $0B5F is freq lo and $0BDF is freq hi after all).
+        # Verify empirically below.
+        writes.append((0x01 + x, freq_lo))
+        writes.append((0x00 + x, freq_hi))
+        # Control reg: timbre + 1 (the engine does `LDY $0A72,X; INY; TYA`)
+        writes.append((0x04 + x, (self.timbre[x] + 1) & 0xFF))
+        return False
+
+    def _advance_voice(self, x: int, writes: list[tuple[int, int]]) -> None:
+        """Read pattern bytes for voice X until a non-recurse case."""
+        while True:
+            b = self._read_pattern_byte(x)
+            if not self._voice_event(x, b, writes):
+                return
+
+    def _vibrato(self, writes: list[tuple[int, int]]) -> None:
+        """Reproduce $0AF3: V1 freq sweep based on (frame_index & 7)
+        folded as a triangle, multiplied by (freq[note+1]-freq[note])/16."""
+        # $0AF3-$0AFD: triangle position
+        a = self.frame_index & 0x07
+        if a >= 4:
+            a = a ^ 7  # EOR #$07: 4→3, 5→2, 6→1, 7→0
+        tri_pos = a
+        note = self.current_note
+        # Step = (freq[note+1] - freq[note]) >> 4, signed-extending across
+        # both bytes (see ASM: SBC + LSR/ROR sequence). Build as 16-bit
+        # signed delta of the freq, then shift right 4.
+        f0_lo = self.mem[FAMILY_A_FREQ_HI_ADDR + note]
+        f0_hi = self.mem[FAMILY_A_FREQ_LO_ADDR + note]
+        f1_lo = self.mem[FAMILY_A_FREQ_HI_ADDR + note + 1]
+        f1_hi = self.mem[FAMILY_A_FREQ_LO_ADDR + note + 1]
+        # NB: the engine's freq tables map confusingly — $0B5F seems to
+        # be freq HIGH and $0BDF freq LOW (need to confirm with writes).
+        # For the sweep math we use the 16-bit freq value as
+        # (hi<<8)|lo with the engine's labeling.
+        f0 = (f0_hi << 8) | f0_lo
+        f1 = (f1_hi << 8) | f1_lo
+        if f1 == 0:
+            # Engine's BEQ $0B56 escape — exit without writing.
+            return
+        step = ((f1 - f0) & 0xFFFF) >> 4  # logical shift right 4
+        # base = f0; sweep value = base + step * tri_pos
+        sweep = (f0 + step * tri_pos) & 0xFFFF
+        writes.append((0x00, sweep & 0xFF))         # $D400 = V1 freq lo
+        writes.append((0x01, (sweep >> 8) & 0xFF))  # $D401 = V1 freq hi
+
+    def _pwm_tick(self, x: int, writes: list[tuple[int, int]]) -> None:
+        """Per-voice PWM sweep ($0AB6). Ramps PW between 2 and 14,
+        flipping direction via sign-byte tracking, writes $D403+X."""
+        sign = self.pwm_sign[x]
+        if sign & 0x80:
+            # Ascending phase: PW++.
+            pw = (self.pwm_pw[x] + 1) & 0xFF
+            self.pwm_pw[x] = pw
+            if pw == 0x0E:
+                self.pwm_sign[x] = (sign + 1) & 0xFF
+            a = pw
+        else:
+            # Descending phase: PW--.
+            pw = (self.pwm_pw[x] - 1) & 0xFF
+            self.pwm_pw[x] = pw
+            if pw == 0x02:
+                self.pwm_sign[x] = (sign - 1) & 0xFF
+            a = pw
+        writes.append((0x03 + x, a))   # STA $D403,X
+
+    def play_frame(self) -> list[tuple[int, int]]:
+        """Run one engine play-call. Returns list of (reg, val) SID writes
+        in the order the engine emits them."""
+        writes: list[tuple[int, int]] = []
+
+        # PWM ticks: V3 first (LDX #$0E), then V1 (LDX #$00) per $0903 order.
+        # Each only fires if (phase-byte BPL-not-set) AND (++ctr == phase).
+        # V3 path checks $0A7C; V1 path checks $0A6E.
+        if not (self.pwm_phase_v3 & 0x80):
+            self.pwm_ctr_v3 = (self.pwm_ctr_v3 + 1) & 0xFF
+            if self.pwm_ctr_v3 == self.pwm_phase_v3:
+                self._pwm_tick(self.X_V3, writes)
+                self.pwm_ctr_v3 = 0
+        if not (self.pwm_phase_v1 & 0x80):
+            self.pwm_ctr_v1 = (self.pwm_ctr_v1 + 1) & 0xFF
+            if self.pwm_ctr_v1 == self.pwm_phase_v1:
+                self._pwm_tick(self.X_V1, writes)
+                self.pwm_ctr_v1 = 0
+
+        self.frame_ctr = (self.frame_ctr + 1) & 0xFF
+        if self.frame_ctr == self.tempo:
+            # Loop-reset path: per-voice, if last_cmd bit 7 set → timbre write
+            for x in (self.X_V1, self.X_V2, self.X_V3):
+                if self.last_cmd[x] & 0x80:
+                    writes.append((0x04 + x, self.timbre[x]))
+            self._vibrato(writes)
+        elif self.frame_ctr == self.alt_tempo:
+            # Full voice tick: reset frame_ctr, advance each voice.
+            self.frame_ctr = 0
+            for x in (self.X_V1, self.X_V2, self.X_V3):
+                self._advance_voice(x, writes)
+            # Note: $09D6's tempo-match path JMPs to vibrato AFTER tick.
+            # But the alt-tempo (full advance) path DOES NOT — it just
+            # does the voice advances and exits. Verify with writelog.
+        else:
+            # Vibrato only.
+            self._vibrato(writes)
+
+        self.frame_index = (self.frame_index + 1) & 0xFF
+        return writes
+
+
 if __name__ == '__main__':
     sid = 'hvsc84/MUSICIANS/H/Hubbard_Rob/Commodore_64_Music_Examples.sid'
     s = load_sub0_state(sid)
@@ -237,3 +460,11 @@ if __name__ == '__main__':
     print(f"  V1 ptr=${s.v1_pattern_ptr:04X} V2=${s.v2_pattern_ptr:04X} V3=${s.v3_pattern_ptr:04X}")
     print(f"  current_note=${s.current_note:02X} (initial vibrato note)")
     print(f"  state bytes: {' '.join(f'{b:02X}' for b in s.state_bytes)}")
+
+    # Verify emulator against orig writelog
+    print(f"\nEmulator verification (sub 0, first 10 play frames):")
+    em = Sub0Emulator(sid)
+    for f in range(10):
+        writes = em.play_frame()
+        print(f"  play #{f+1:2d}: {len(writes)} writes: " +
+              ' '.join(f'${r:02X}=${v:02X}' for r, v in writes[:8]))
