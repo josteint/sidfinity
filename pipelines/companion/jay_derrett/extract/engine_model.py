@@ -786,7 +786,9 @@ def load_state_from_sid(sid_path: str, subtune: int = 0) -> EngineState:
 def _run_play_capture(sid_path: str, n_frames: int = 2000,
                       subtune: int = 0,
                       counter_addr: int | None = None,
-                      stop_on_counter_wrap: bool = True
+                      stop_on_counter_wrap: bool = True,
+                      stop_on_voice_realign: bool = False,
+                      initial_ptrs: list[int] | None = None
                       ) -> tuple[list[list[int]], bytearray, list[int]]:
     """Run init then call play() `n_frames` times in py65, recording
     each voice's orderlist pointer (`ptr_addr`/`ptr_addr+1`) after
@@ -863,6 +865,13 @@ def _run_play_capture(sid_path: str, n_frames: int = 2000,
     trails: list[list[int]] = [[] for _ in ptr_addrs]
     counter_trail: list[int] = []
     counter_max = mpu.memory[counter_addr]
+    # For voice-realign detection: track per-voice "have we left
+    # initial yet" and "frame count since each voice last sat at
+    # initial". Voice realignment = all voices simultaneously at
+    # initial AFTER having moved.
+    initials = initial_ptrs or [
+        mpu.memory[pa] | (mpu.memory[pa + 1] << 8) for pa in ptr_addrs]
+    left_initial = [False] * len(ptr_addrs)
     for _ in range(n_frames):
         # Plant sentinel return; call play() as a JSR-equivalent.
         mpu.sp = 0xFD
@@ -879,9 +888,113 @@ def _run_play_capture(sid_path: str, n_frames: int = 2000,
             trails[i].append(mpu.memory[pa] | (mpu.memory[pa + 1] << 8))
         c = mpu.memory[counter_addr]
         counter_trail.append(c)
+        # Voice-realign check: all voices simultaneously at initial
+        # AFTER each has moved at least once. This is the true
+        # song-loop period (LCM of voice loop periods), not just one
+        # counter wrap.
+        if stop_on_voice_realign:
+            all_at_initial = True
+            for i, pa in enumerate(ptr_addrs):
+                cur = mpu.memory[pa] | (mpu.memory[pa + 1] << 8)
+                if cur != initials[i]:
+                    left_initial[i] = True
+                    all_at_initial = False
+            if all_at_initial and all(left_initial):
+                break
         if stop_on_counter_wrap and c < counter_max:
             # Counter wrapped past max — song-loop closure detected.
             break
         if c > counter_max:
             counter_max = c
     return trails, mpu.memory, counter_trail
+
+
+def reconstruct_executed_bytes(
+        initial_ptr: int, trail: list[int],
+        mem: bytes, sub_jump_table_addr: int,
+        trim_at_loop: bool = True) -> list[int]:
+    """Reconstruct one voice's ORDERED byte-consumption sequence
+    (what the engine actually played, in time order) from the per-frame
+    ptr trail.
+
+    The engine's `$Ex` self-mod counter creates non-linear execution
+    flow — most `$Ex` bytes are skipped linearly, some fire sub-jumps.
+    The captured byte stream (`mem[min_ptr:max_ptr+2]`) preserves the
+    memory range but loses the execution sequence. This walks the
+    trail and recovers the in-order byte sequence:
+
+      - ptr unchanged this frame → voice idled.
+      - ptr advanced linearly (ptr_new > ptr_old) → voice consumed
+        `mem[ptr_old:ptr_new]` linearly (including any $Ex bytes that
+        got skipped because the counter didn't match).
+      - ptr changed to non-contiguous value (sub-jump fired) → walk
+        forward from `ptr_old`, consuming bytes; at each $Ex byte,
+        check if `sub_jump_table[nibble]` == `ptr_new`. If yes, that
+        $Ex matched and fired. Voice consumed bytes through the $Ex
+        inclusive, then jumped.
+
+    The returned sequence is the canonical "what the engine plays"
+    — composer codegen for the new engine just needs to emit a flat
+    byte stream that walks this in order.
+    """
+    executed: list[int] = []
+    prev = initial_ptr
+    # If trim_at_loop: stop as soon as the voice's ptr returns to
+    # `initial_ptr` AFTER having moved away. Voice may sit at
+    # initial_ptr for many starting frames (initial duration counter)
+    # before advancing; only after it leaves and comes back do we
+    # consider that a loop closure.
+    left_initial = False
+    for ptr in trail:
+        if trim_at_loop:
+            if ptr != initial_ptr:
+                left_initial = True
+            elif left_initial:
+                break  # voice returned to initial — loop closed.
+        if ptr == prev:
+            continue  # idle frame
+        if ptr > prev and ptr <= prev + 16:
+            # Linear advance within plausible same-frame consumption
+            # range. The engine processes at most a small handful of
+            # bytes per frame (commands + 1 note).
+            executed.extend(mem[prev:ptr])
+        else:
+            # Sub-jump (ptr decreased OR jumped far forward).
+            # Walk forward from prev, looking for the firing $Ex.
+            walk = prev
+            found = False
+            # Safety budget — sub-jump should be reachable within
+            # ~512 bytes of the previous ptr.
+            for _ in range(512):
+                if walk >= len(mem):
+                    break
+                b = mem[walk]
+                if 0xE0 <= b <= 0xEF:
+                    nibble = b & 0x0F
+                    tbl = sub_jump_table_addr + nibble * 2
+                    if tbl + 1 < len(mem):
+                        tgt = mem[tbl] | (mem[tbl + 1] << 8)
+                        if tgt == ptr:
+                            # This $Ex matched and fired the sub-jump.
+                            executed.append(b)
+                            found = True
+                            break
+                    # $Ex didn't match — counter wasn't this value.
+                    executed.append(b)
+                    walk += 1
+                elif b == 0x82:
+                    # 2-byte SET_DUR; include operand.
+                    executed.append(b)
+                    if walk + 1 < len(mem):
+                        executed.append(mem[walk + 1])
+                    walk += 2
+                else:
+                    executed.append(b)
+                    walk += 1
+            if not found:
+                # Couldn't find a firing $Ex — give up reconstructing
+                # this segment. The ptr trail still progresses; just
+                # advance prev and continue.
+                pass
+        prev = ptr
+    return executed

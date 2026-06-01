@@ -215,7 +215,14 @@ def build_usf(json_path: str) -> UsfFile:
 
 
 def write_usf_for(name: str) -> str:
-    """Build + validate + write `<NAME>.usf` for one Type A SID."""
+    """Build + validate + write `<NAME>.usf` for one Type A SID.
+
+    Refuses excluded SIDs (see `tools/excluded_sids.json`).
+    """
+    from src.exclusions import check_or_raise
+    sid_path = f'hvsc84/MUSICIANS/D/Derrett_Jay/{name}.sid'
+    check_or_raise(sid_path)
+
     json_path = (f'pipelines/companion/jay_derrett/_extracted/{name}.json')
     usf = build_usf(json_path)
     out_path = f'hvsc84/MUSICIANS/D/Derrett_Jay/{name}.usf'

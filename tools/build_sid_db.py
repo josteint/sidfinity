@@ -233,11 +233,19 @@ CREATE TABLE IF NOT EXISTS sids (
     verify_status       TEXT,                -- 'ok' | 'fail' | NULL
     verify_ok_subs      INTEGER,
     verify_total_subs   INTEGER,
-    last_verified_at    TEXT
+    last_verified_at    TEXT,
+
+    -- exclusion (from tools/excluded_sids.json — SIDs that don't fit
+    -- the principled USF and are deliberately kept out of the pipeline).
+    -- The pipeline (build_from_usf / write_usf) refuses these with a
+    -- clear error. See src/exclusions.py.
+    excluded            INTEGER DEFAULT 0,   -- 1 = listed in excluded_sids.json
+    exclusion_reason    TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_engine ON sids(engine);
 CREATE INDEX IF NOT EXISTS idx_pipeline ON sids(pipeline);
 CREATE INDEX IF NOT EXISTS idx_md5 ON sids(md5);
+CREATE INDEX IF NOT EXISTS idx_excluded ON sids(excluded);
 """
 
 
@@ -332,10 +340,38 @@ def main(argv: list[str] | None = None) -> int:
     if not args.quiet:
         print(f'    {len(pipeline_map)} SIDs handled by active pipelines')
 
+    # Load exclusions (SIDs deliberately kept out of the pipeline).
+    if not args.quiet:
+        print(f'  loading exclusions from tools/excluded_sids.json...')
+    from src.exclusions import all_excluded
+    excluded_map = all_excluded()      # {rel-from-repo-root: reason}
+    # Normalize keys to HVSC-relative paths (drop 'hvsc84/' prefix).
+    excluded_hvsc = {
+        p[len('hvsc84/'):] if p.startswith('hvsc84/') else p: r
+        for p, r in excluded_map.items()
+    }
+    if not args.quiet:
+        print(f'    {len(excluded_hvsc)} SIDs in the exclusion list')
+
     # Connect DB
     db = sqlite3.connect(DB_PATH)
-    db.executescript(SCHEMA)
     cur = db.cursor()
+    # In-place migrations for columns added after the original table.
+    # SQLite's CREATE TABLE IF NOT EXISTS skips changes when the table
+    # already exists, so any new column needs an explicit ALTER. Run
+    # these BEFORE the schema (the schema references these columns in
+    # an index). The try/except shrugs off "already exists".
+    cur.execute('CREATE TABLE IF NOT EXISTS sids (path TEXT PRIMARY KEY)')
+    for alter in (
+        'ALTER TABLE sids ADD COLUMN excluded INTEGER DEFAULT 0',
+        'ALTER TABLE sids ADD COLUMN exclusion_reason TEXT',
+    ):
+        try:
+            cur.execute(alter)
+        except sqlite3.OperationalError as e:
+            if 'duplicate column' not in str(e).lower():
+                raise
+    db.executescript(SCHEMA)
 
     # Read mtime cache
     cache: dict[str, tuple[float, str]] = {}
@@ -382,6 +418,7 @@ def main(argv: list[str] | None = None) -> int:
         sidfinity_md5 = (md5_file(sidfinity_path)
                          if sidfinity_path.exists() else None)
 
+        excl_reason = excluded_hvsc.get(rel)
         row = {
             'path': rel,
             'md5': file_md5,
@@ -393,6 +430,8 @@ def main(argv: list[str] | None = None) -> int:
             'usf_path': usf_rel,
             'sidfinity_md5': sidfinity_md5,
             # verify_* columns left at NULL; future verify_all writes them
+            'excluded': 1 if excl_reason else 0,
+            'exclusion_reason': excl_reason,
             **hdr,
         }
         upsert(cur, row)

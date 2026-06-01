@@ -1,0 +1,88 @@
+{
+  "_schema": {
+    "description": "SIDs deliberately excluded from the USF pipeline. The pipeline (build_from_usf, write_usf) refuses to process listed paths with a clear error pointing back here.",
+    "entry_fields": {
+      "path": "SID path relative to repo root (e.g. 'hvsc84/MUSICIANS/...')",
+      "reason": "Why this SID is excluded — specific enough that future readers understand the call without re-investigating",
+      "excluded_date": "YYYY-MM-DD"
+    },
+    "adding_an_entry": "Append to `entries`. Re-run `tools/build_sid_db.py` to refresh the `excluded`/`exclusion_reason` columns in hvsc84.db."
+  },
+  "entries": [
+    {
+      "path": "hvsc84/MUSICIANS/D/Derrett_Jay/Counterforce.sid",
+      "reason": "Companion/Jay_Derrett engine — aperiodic by design. The engine's $E0..$E9 self-mod counter + per-voice ptr drift means voices never simultaneously realign; the song is conceptually infinite. HVSC songlength is a curator-chosen cut-off, not an engine loop point. Cannot fit into the principled USF representation without dragging engine-mechanism bookkeeping (sub-jump table + initial state) into the schema.",
+      "excluded_date": "2026-06-01"
+    },
+    {
+      "path": "hvsc84/MUSICIANS/D/Derrett_Jay/Destruct.sid",
+      "reason": "Companion/Jay_Derrett engine — aperiodic by design (see Counterforce).",
+      "excluded_date": "2026-06-01"
+    },
+    {
+      "path": "hvsc84/MUSICIANS/D/Derrett_Jay/Discovery.sid",
+      "reason": "Companion/Jay_Derrett engine — aperiodic by design (see Counterforce).",
+      "excluded_date": "2026-06-01"
+    },
+    {
+      "path": "hvsc84/MUSICIANS/D/Derrett_Jay/Jetboys.sid",
+      "reason": "Companion/Jay_Derrett engine — aperiodic by design (see Counterforce).",
+      "excluded_date": "2026-06-01"
+    },
+    {
+      "path": "hvsc84/MUSICIANS/D/Derrett_Jay/Lifeforce.sid",
+      "reason": "Companion/Jay_Derrett engine — aperiodic by design (see Counterforce).",
+      "excluded_date": "2026-06-01"
+    },
+    {
+      "path": "hvsc84/MUSICIANS/D/Derrett_Jay/Mandroid.sid",
+      "reason": "Companion/Jay_Derrett engine — aperiodic by design (see Counterforce).",
+      "excluded_date": "2026-06-01"
+    },
+    {
+      "path": "hvsc84/MUSICIANS/D/Derrett_Jay/Ninja_Hamster.sid",
+      "reason": "Companion/Jay_Derrett engine — aperiodic by design (see Counterforce).",
+      "excluded_date": "2026-06-01"
+    },
+    {
+      "path": "hvsc84/MUSICIANS/D/Derrett_Jay/Osmium.sid",
+      "reason": "Companion/Jay_Derrett engine — aperiodic by design (see Counterforce).",
+      "excluded_date": "2026-06-01"
+    },
+    {
+      "path": "hvsc84/MUSICIANS/D/Derrett_Jay/Road_Warrior.sid",
+      "reason": "Companion/Jay_Derrett engine — aperiodic by design (see Counterforce).",
+      "excluded_date": "2026-06-01"
+    },
+    {
+      "path": "hvsc84/MUSICIANS/D/Derrett_Jay/Stratton.sid",
+      "reason": "Companion/Jay_Derrett engine — aperiodic by design (see Counterforce).",
+      "excluded_date": "2026-06-01"
+    },
+    {
+      "path": "hvsc84/MUSICIANS/D/Derrett_Jay/Thundercross.sid",
+      "reason": "Companion/Jay_Derrett engine — aperiodic by design (see Counterforce).",
+      "excluded_date": "2026-06-01"
+    },
+    {
+      "path": "hvsc84/MUSICIANS/D/Derrett_Jay/Traxxion.sid",
+      "reason": "Companion/Jay_Derrett engine — aperiodic by design (see Counterforce).",
+      "excluded_date": "2026-06-01"
+    },
+    {
+      "path": "hvsc84/MUSICIANS/D/Derrett_Jay/Trigger_Happy.sid",
+      "reason": "Companion/Jay_Derrett engine — aperiodic by design (see Counterforce).",
+      "excluded_date": "2026-06-01"
+    },
+    {
+      "path": "hvsc84/MUSICIANS/D/Derrett_Jay/Vengeance.sid",
+      "reason": "Companion/Jay_Derrett engine — aperiodic by design (see Counterforce).",
+      "excluded_date": "2026-06-01"
+    },
+    {
+      "path": "hvsc84/MUSICIANS/D/Derrett_Jay/ZIP.sid",
+      "reason": "Companion/Jay_Derrett engine — aperiodic by design (see Counterforce).",
+      "excluded_date": "2026-06-01"
+    }
+  ]
+}

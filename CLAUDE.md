@@ -185,9 +185,35 @@ engine / pipeline / md5).
 | After an HVSC update (#85 lands) | re-walk + re-classify added/removed SIDs |
 | After re-running `sidid` | refresh engine column |
 | After `verify_all` (future hook) | refresh `verify_status` columns |
+| After editing `tools/excluded_sids.json` | refresh `excluded` + `exclusion_reason` columns |
 
 The script is idempotent — when in doubt, re-run with no flags. Use
 `--rebuild` to ignore mtime cache and re-hash everything.
+
+## Excluded SIDs — `tools/excluded_sids.json`
+
+Some SIDs / engine families can't fit into the principled USF
+representation without dragging engine-mechanism bookkeeping into the
+schema. For example: Companion/Jay_Derrett engine (25 SIDs) is
+aperiodic by design — voices never simultaneously realign, the song
+is conceptually infinite, and storing a finite played-trace requires
+either an arbitrary cut-off OR sub-jump-table positional info that
+violates the USF principle.
+
+Such SIDs are listed in `tools/excluded_sids.json` with a reason and
+an `excluded_date`. The pipeline (`pipelines/build_from_usf.py` +
+per-engine `write_usf` paths) calls `src.exclusions.check_or_raise`
+early and refuses to process listed paths with a clear error pointing
+back to the JSON. The DB picks up `excluded` (INTEGER) + `exclusion_reason`
+(TEXT) columns from the JSON on `build_sid_db.py` rebuild.
+
+To add an exclusion: append to `entries[]` in the JSON with `{path,
+reason, excluded_date}`, then re-run `tools/build_sid_db.py`.
+
+To query excluded SIDs:
+```python
+db.execute("SELECT path, exclusion_reason FROM sids WHERE excluded=1")
+```
 
 ## Build environment
 
