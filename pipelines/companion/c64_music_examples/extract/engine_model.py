@@ -249,9 +249,10 @@ def load_sub0_state(sid_path: str) -> Sub0State:
 
 @dataclass
 class FamilyABindings:
-    """Memory addresses that distinguish one Family A instance from
-    another. The engine code/data layout is the same shape, just at
-    different absolute addresses.
+    """Memory addresses + dispatch variant that distinguish one Family A
+    instance from another. The engine code SHAPE is the same; the
+    actual dispatch + voice event router code differs per instance
+    (verified by disassembly, not assumed).
 
     state_base: V1 phase address (= start of 32-byte state block).
                 V3 phase is always at state_base+$0E.
@@ -279,6 +280,12 @@ class FamilyABindings:
     state_base: int
     pwm_sign_base: int
     current_note_addr: int
+    # Dispatch variant. 'v0' = sub 0 shape (vibrato in else branch).
+    # 'no_vibrato' = sub 2 shape (else JMPs to RTS, no vibrato).
+    # 'bne_loop' = sub 3 shape (BNE backward instead of BEQ+JMP).
+    # 'v2_engine' = sub 4-14 shape (different voice event router with
+    # AD/SR/ctrl + no duration-nybble path).
+    dispatch: str = 'v0'
     zp_v1: int = 0x1C   # convention across all Family A
     zp_v2: int = 0x1E
     zp_v3: int = 0x20
@@ -297,14 +304,19 @@ class FamilyABindings:
 # (LDA <state>,X / INC <ctr>) — see tools/dump_familya_bindings.py.
 FAMILY_A_INSTANCES = {
     0:  FamilyABindings(handler_addr=0x0903, state_base=0x0A6E,
-                         pwm_sign_base=0x0ADE, current_note_addr=0x0B5A),
+                         pwm_sign_base=0x0ADE, current_note_addr=0x0B5A,
+                         dispatch='v0'),
     2:  FamilyABindings(handler_addr=0x1D8B, state_base=0x1EF2,
-                         pwm_sign_base=0x1F62, current_note_addr=0x1FDE),
+                         pwm_sign_base=0x1F62, current_note_addr=0x1FDE,
+                         dispatch='no_vibrato'),
     3:  FamilyABindings(handler_addr=0x2A23, state_base=0x2B7F,
-                         pwm_sign_base=0x2BEF, current_note_addr=0x2C6B),
-    # Subs 4-14 share the engine at $33DB — single bindings entry.
+                         pwm_sign_base=0x2BEF, current_note_addr=0x2C6B,
+                         dispatch='bne_loop'),
+    # Subs 4-14 share the engine at $33DB. Voice event router is the v2
+    # variant (no duration nybble + AD/SR/ctrl on note play).
     'shared': FamilyABindings(handler_addr=0x33DB, state_base=0x35C2,
-                               pwm_sign_base=0x3632, current_note_addr=0x36AE),
+                               pwm_sign_base=0x3632, current_note_addr=0x36AE,
+                               dispatch='v2_engine'),
 }
 
 
@@ -524,18 +536,21 @@ class FamilyAEmulator:
             for x in (self.X_V1, self.X_V2, self.X_V3):
                 if self.last_cmd[x] & 0x80:
                     writes.append((0x04 + x, self.timbre[x]))
-            self._vibrato(writes)
+            # Sub 0 vibrato follows the tempo-match path too; sub 2 + sub 3
+            # don't have vibrato at all.
+            if self.b.dispatch == 'v0':
+                self._vibrato(writes)
         elif self.frame_ctr == self.alt_tempo:
             # Full voice tick: reset frame_ctr, advance each voice.
             self.frame_ctr = 0
             for x in (self.X_V1, self.X_V2, self.X_V3):
                 self._advance_voice(x, writes)
-            # Note: $09D6's tempo-match path JMPs to vibrato AFTER tick.
-            # But the alt-tempo (full advance) path DOES NOT — it just
-            # does the voice advances and exits. Verify with writelog.
         else:
-            # Vibrato only.
-            self._vibrato(writes)
+            # Else branch: sub 0 does vibrato. Sub 2 JMPs to RTS (no
+            # vibrato). Sub 3 has BNE-loop control flow that mostly
+            # equates to "no vibrato either".
+            if self.b.dispatch == 'v0':
+                self._vibrato(writes)
 
         self.frame_index = (self.frame_index + 1) & 0xFF
         return writes
