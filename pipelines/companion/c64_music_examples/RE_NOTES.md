@@ -114,19 +114,55 @@ State block (sub 0 example) at `$0A6E-$0AB4`:
 
 Init template for sub 0 starts at `$10C7` (32 bytes copied to `$0A6E-$0A8D` by `$0A8E`).
 
-## Family B engine shape (sub 1)
+## Family B engine shape (sub 1) — fully RE'd session 8
 
-Different. First instructions at `$1119`:
-```
-LDX #$02
-DEC <ctr1>
-BPL +6
-LDA <ctr2>; STA <ctr1>
-LDA <ptn_table>,X; STA <jsr-op>
-...
-```
+Sub 1's engine at `$1119` is structurally completely different from Family A. Per-voice loop with `LDX #$02` outer counter (X = 2, 1, 0), with per-voice state in PARALLEL arrays indexed by X:
 
-This looks more like a *pattern-jump-driven* engine — needs separate RE before migration.
+State (per-voice indexed by X=0/1/2):
+- `$1408+X` — voice phase byte (= SID voice base offset 0/7/14, stored in `$140B` for current voice)
+- `$140C+X` — primary pattern index
+- `$140F+X` — secondary index
+- `$1412+X` — duration counter (signed, DEC each tick; BMI = end of note → get next)
+- `$1415+X` — current pattern event byte
+- `$1418+X` — cached ctrl byte
+- `$141B+X` — current note
+- `$141E+X` — current instrument index
+- `$1421` — note-gate (set to $FF on note start, used as mask)
+- `$1422-$1425` — temporary state
+- `$1433` — tempo ctr (DEC each tick)
+- `$1434` — tempo
+- `$1436+X` (lo) / `$1439+X` (hi) — per-voice pattern_ptr (in zp $FB/$FC)
+
+Pattern format (two-level indirect):
+1. Per-voice pattern_ptr ($FB/$FC) reads "instrument index" byte
+2. `$FF` byte → end of pattern → reset and restart
+3. Otherwise: byte is used as Y to look up TWO tables: `$143C+Y` (lo) and `$14CD+Y` (hi) → pattern data address in zp $FD/$FE
+4. Read from pattern data: first byte = duration + flags
+   - bit 5..0 = duration (5-bit, so 0..31)
+   - bit 6 set = "no_play_note" (no D400/D401 write)
+   - bit 7 set = read extra byte (instrument change at +1, stored in $141E,X)
+5. Then read note byte → ASL × freq table lookup at `$1348` (interleaved 2-byte freq entries)
+6. Then read terminator byte (`$FF` = end of pattern data block, increment primary index)
+
+Instrument table at `$1D1D-$1D21` (5 bytes × N instruments). Each instrument:
+- $1D1D,X: PW lo
+- $1D1E,X: PW hi
+- $1D1F,X: ctrl byte
+- $1D20,X: AD
+- $1D21,X: SR
+
+SID write order per note:
+- D401+Y (freq hi)
+- D400+Y (freq lo)
+- D404+Y (ctrl, with $1421 gate mask)
+- D402+Y (PW lo)
+- D403+Y (PW hi)
+- D405+Y (AD)
+- D406+Y (SR)
+
+This is essentially a proper modular engine (orderlist → patterns → notes-with-duration + instrument lookup) — much more like a tracker than Family A's stream-of-events design. Building an emulator would take 1-2 more iterations.
+
+**Recommendation:** Defer sub 1 emulator. 14/15 = 93% coverage via Family A emulators is sufficient to move forward with USF schema design + composer; sub 1 can be added later as its own emulator class.
 
 ## Feature-disable patches
 
