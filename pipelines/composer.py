@@ -2418,10 +2418,22 @@ def _model_from_usf_instrument(u, vib_onset: int):
                if u.vibrato.scale != 0 else None)
 
     # Reconstruct the engine's fx_flags byte from the structured fields.
-    fx_flags = ((1 if u.freq_slide else 0)
-                | (2 if u.inc_by2 else 0)
+    # Phase 3a — prefer the new per-instrument sub-configs; fall back to
+    # legacy bools when configs are at default. Phase 3c drops bools.
+    has_freq_slide = (u.freq_slide_config.mode != 'none' or u.freq_slide)
+    has_inc_by2    = (u.inc_by2_config.mode    != 'none' or u.inc_by2)
+    fx_flags = ((1 if has_freq_slide else 0)
+                | (2 if has_inc_by2 else 0)
                 | (4 if has_arp else 0)
                 | (8 if u.pwm.mode == 'linear' else 0))
+
+    # hr_ctrl: the CTRL byte written during the hard-restart / gate-off
+    # phase. Phase 3a prefers the new `envelope.release_ctrl` field;
+    # falls back to derived `init_ctrl & 0xFE` when release_ctrl=0.
+    # Phase 3c drops the fallback once all USFs carry release_ctrl
+    # explicitly.
+    hr_ctrl = u.envelope.release_ctrl if u.envelope.release_ctrl else (
+        init_ctrl & 0xFE)
 
     return InstrumentModel(
         inst=u.id - 1,                              # back to 0-indexed
@@ -2430,10 +2442,12 @@ def _model_from_usf_instrument(u, vib_onset: int):
         init_pw_hi=init_pw_hi,
         init_ad=u.adsr[0],
         init_sr=u.adsr[1],
-        hr_ctrl=init_ctrl & 0xFE,
+        hr_ctrl=hr_ctrl,
         pw_lo_kind=pw_lo_kind, pw_hi_kind=pw_hi_kind,
         fx_flags=fx_flags,
-        freq_slide=u.freq_slide, inc_by2=u.inc_by2,
+        # Phase 3a — InstrumentModel bools mirror the per-inst sub-
+        # configs (with legacy bool fallback when configs default).
+        freq_slide=has_freq_slide, inc_by2=has_inc_by2,
         arpeggio=arpeggio, vibrato=vibrato, pwm=pwm,
     )
 
@@ -2542,9 +2556,28 @@ def _inputs_from_usf(usf) -> _Inputs:
     def latin1(s: str) -> bytes:
         return s.encode('latin-1', errors='replace')
 
-    # Vibrato onset is per-instrument; we plumb the top-level value
-    # through each InstrumentModel at build time.
-    vib_onset = get('vib_onset', 6)
+    # Phase 3a — tune-level params with per-instrument equivalents
+    # prefer the per-inst value (Phase 2 populates every instrument
+    # with the engine's per-tune value). Falls back to legacy params
+    # for pre-Phase-2 USFs. Phase 3b drops legacy from extract; Phase
+    # 3c drops the schema fields entirely.
+    def pick_inst(getter, default):
+        """Pick a tune-level value from any instrument whose per-inst
+        field is set non-default."""
+        for inst in usf.instruments:
+            v = getter(inst)
+            if v != default:
+                return v
+        return default
+
+    def prefer_inst(param_key, getter, default):
+        """Prefer per-inst value if set, else legacy `params.<key>`."""
+        v = pick_inst(getter, default)
+        if v != default:
+            return v
+        return get(param_key, default)
+
+    vib_onset = prefer_inst('vib_onset', lambda i: i.vibrato.onset, 6)
 
     models = [_model_from_usf_instrument(u, vib_onset)
               for u in usf.instruments]
@@ -2640,13 +2673,22 @@ def _inputs_from_usf(usf) -> _Inputs:
         author=latin1(usf.psid.author),
         released=latin1(usf.psid.released),
         start_song=usf.psid.start_song,
-        arp_interval=get('arp_interval', 12),
-        arp_period=get('arp_period', 2),
-        arp_phase_invert=get('arp_phase_invert', False),
+        arp_interval=prefer_inst('arp_interval',
+                                  lambda i: i.arp.interval, 12),
+        arp_period=prefer_inst('arp_period',
+                                lambda i: i.arp.period, 2),
+        arp_phase_invert=prefer_inst('arp_phase_invert',
+                                      lambda i: i.arp.phase_invert, False),
         linear_pw_or=get('linear_pw_or', 0),
-        incby2_step=get('incby2_step', 2),
+        incby2_step=prefer_inst('incby2_step',
+                                 lambda i: i.inc_by2_config.step
+                                 if i.inc_by2_config.mode != 'none' else 2,
+                                 2),
         incby2_every_frame=get('incby2_every_frame', False),
-        incby2_onset=get('incby2_onset', 3),
+        incby2_onset=prefer_inst('incby2_onset',
+                                  lambda i: i.inc_by2_config.onset
+                                  if i.inc_by2_config.mode != 'none' else 3,
+                                  3),
         suppress_first_notestart=get('suppress_first_notestart', False),
         freeze_on_stop=get('freeze_on_stop', False),
         speed_ctr_init=get('speed_ctr_init', 0),
@@ -2654,7 +2696,15 @@ def _inputs_from_usf(usf) -> _Inputs:
         seed_overlap=get('seed_overlap', True),
         psid_speed=usf.psid.speed,
         frame_ctr_init=get('frame_ctr_init', 0xFF),
-        incby2_late_gate=get('incby2_late_gate', None),
+        incby2_late_gate=(
+            # Prefer per-inst when any inc_by2 instrument is
+            # late_gated; else fall back to params.
+            next((i.inc_by2_config.late_gate
+                  for i in usf.instruments
+                  if i.inc_by2_config.mode == 'late_gated'), None)
+            if any(i.inc_by2_config.mode != 'none' for i in usf.instruments)
+            else get('incby2_late_gate', None)
+        ),
         stop_fill=get('stop_fill', None),
         sfx_framectr_ofs=get('sfx_framectr_ofs', 253),
         sfx_state_ofs=get('sfx_state_ofs', None),
