@@ -82,6 +82,10 @@ def _row_from_byte(b: int, follow: int) -> tuple[NoteRow | None, int]:
         # `follow` frames after processing.
         return NoteRow(pitch=Pitch.rest(), duration=1 + follow,
                        fx_flags=(f'set_dur=${follow:02X}',)), 2
+
+    # NOTE: callers must check for the trailing-$82 edge case (where
+    # the engine touched $82 but never read its operand because the
+    # capture exited mid-instruction). See `_rows_from_bytes`.
     nibble = b & 0x0F
     if 0xB0 <= b <= 0xBF:
         return NoteRow(pitch=Pitch.rest(), duration=1,
@@ -115,6 +119,16 @@ def _rows_from_bytes(bytes_seq: list[int]) -> list[NoteRow]:
     i = 0
     while i < len(bytes_seq):
         b = bytes_seq[i]
+        # Trailing-$82 edge case: capture exit happened at a $82 byte
+        # before the engine could read the operand. The $82 byte is in
+        # the captured stream but its operand is past the buffer end.
+        # Encode as raw to preserve byte fidelity (round-trip == $82
+        # alone, no operand).
+        if b == 0x82 and i + 1 >= len(bytes_seq):
+            rows.append(NoteRow(pitch=Pitch.rest(), duration=1,
+                                fx_flags=('fx:raw_82',)))
+            i += 1
+            continue
         follow = bytes_seq[i + 1] if i + 1 < len(bytes_seq) else 0
         row, consumed = _row_from_byte(b, follow)
         if row is None:
