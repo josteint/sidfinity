@@ -211,6 +211,11 @@ class PwmConfig:
     phase1_dir: str = 'up'       # 'up' (ADC) or 'down' (SBC)
     phase1_bound: int = 0
     phase1_step: int = 0
+    # OR mask applied to PW low byte every frame in linear-PWM mode
+    # (Hubbard '85's `ora #LINEAR_PW_OR`). Default 0 = no OR. Chimera
+    # uses $40 on its linear-PWM instruments. Per-instrument: each
+    # inst's linear-PWM update gets its own mask.
+    lo_or_mask: int = 0
 
 
 @dataclass

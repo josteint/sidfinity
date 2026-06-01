@@ -137,14 +137,19 @@ def _convert_instrument(model, config) -> Instrument:
     incby2_step      = getattr(config, 'incby2_step',      2)
     incby2_onset     = getattr(config, 'incby2_onset',     3)
     incby2_late_gate = getattr(config, 'incby2_late_gate', None)
+    linear_pw_or     = getattr(config, 'linear_pw_or',     0)
 
     init_pw = (model.init_pw_hi << 8) | model.init_pw_lo
+    # lo_or_mask only applies to linear-PWM instruments (engine ORs it
+    # in the linear-PW update routine). Bidirectional + no-PWM don't
+    # read it; default 0.
     if model.pwm is None:
         pwm = PwmConfig(mode='none', speed=0, init=init_pw)
     elif model.pwm.mode == 'linear':
         pwm = PwmConfig(
             mode='linear', speed=model.pwm.speed, init=init_pw,
             min_hi=model.pwm.lo_bound, max_hi=model.pwm.hi_bound,
+            lo_or_mask=linear_pw_or,
         )
     else:
         pwm = PwmConfig(
@@ -273,6 +278,9 @@ _PARAMS_SKIP_CONFIG = {
     # `init_behavior { silence_all_voices_on_frame_0,
     # no_first_attack_voice }` block at top-level.
     'first_frame_gate_off', 'suppress_first_notestart',
+    # linear_pw_or now lives per-instrument as pwm.lo_or_mask
+    # (only meaningful for linear-PWM instruments).
+    'linear_pw_or',
 }
 
 

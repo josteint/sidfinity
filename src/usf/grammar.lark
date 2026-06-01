@@ -109,6 +109,7 @@ pwm_kv: "mode" "=" CNAME           -> pwm_mode
       | "phase1_dir" "=" CNAME     -> pwm_phase1_dir
       | "phase1_bound" "=" number  -> pwm_phase1_bound
       | "phase1_step" "=" number   -> pwm_phase1_step
+      | "lo_or_mask" "=" number    -> pwm_lo_or_mask
 
 arp_args: arp_kv+
 arp_kv: "offsets" "=" "[" (signed_int ("," signed_int)*)? "]"   -> arp_offsets

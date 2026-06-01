@@ -2677,7 +2677,8 @@ def _inputs_from_usf(usf) -> _Inputs:
                                 lambda i: i.arp.period, 2),
         arp_phase_invert=prefer_inst('arp_phase_invert',
                                       lambda i: i.arp.phase_invert, False),
-        linear_pw_or=get('linear_pw_or', 0),
+        linear_pw_or=prefer_inst('linear_pw_or',
+                                  lambda i: i.pwm.lo_or_mask, 0),
         incby2_step=prefer_inst('incby2_step',
                                  lambda i: i.inc_by2_config.step
                                  if i.inc_by2_config.mode != 'none' else 2,

@@ -236,6 +236,9 @@ class _T(Transformer):
     def pwm_phase1_step(self, items):
         return ('phase1_step', items[0])
 
+    def pwm_lo_or_mask(self, items):
+        return ('lo_or_mask', items[0])
+
     def pwm_args(self, items):
         return PwmConfig(**dict(items))
 

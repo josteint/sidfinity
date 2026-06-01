@@ -156,6 +156,8 @@ def _write_pwm(p: PwmConfig) -> str:
         parts.append(f'phase1_dir={p.phase1_dir}')
         parts.append(f'phase1_bound={_hex(p.phase1_bound)}')
         parts.append(f'phase1_step={_hex(p.phase1_step)}')
+    if p.lo_or_mask:
+        parts.append(f'lo_or_mask={_hex(p.lo_or_mask)}')
     return 'pwm:      ' + ' '.join(parts)
 
 
