@@ -278,14 +278,24 @@ class FamilyABindings:
     """
     handler_addr: int
     state_base: int
-    pwm_sign_base: int
+    pwm_sign_base: int       # Only meaningful when pwm_variant='sweep'.
     current_note_addr: int
+    # PWM ctr addresses (per-instance: NOT a fixed offset from state_base).
+    # Decoded from the handler's `INC $XXXX` after each LDA <phase>.
+    v3_pwm_ctr_addr: int = 0
+    v1_pwm_ctr_addr: int = 0
     # Dispatch variant. 'v0' = sub 0 shape (vibrato in else branch).
     # 'no_vibrato' = sub 2 shape (else JMPs to RTS, no vibrato).
     # 'bne_loop' = sub 3 shape (BNE backward instead of BEQ+JMP).
     # 'v2_engine' = sub 4-14 shape (different voice event router with
     # AD/SR/ctrl + no duration-nybble path).
     dispatch: str = 'v0'
+    # PWM variant. 'sweep' = sign-byte triangle bounded by [pwm_lo, pwm_hi].
+    # 'increment' = monotonic INC PW; resets to pwm_lo when reaches pwm_hi.
+    # Bounds differ per instance — sub 0 uses 2↔14, sub 3 uses 3↔13.
+    pwm_variant: str = 'sweep'
+    pwm_hi: int = 0x0E
+    pwm_lo: int = 0x02
     zp_v1: int = 0x1C   # convention across all Family A
     zp_v2: int = 0x1E
     zp_v3: int = 0x20
@@ -305,18 +315,22 @@ class FamilyABindings:
 FAMILY_A_INSTANCES = {
     0:  FamilyABindings(handler_addr=0x0903, state_base=0x0A6E,
                          pwm_sign_base=0x0ADE, current_note_addr=0x0B5A,
-                         dispatch='v0'),
+                         v3_pwm_ctr_addr=0x0A8C, v1_pwm_ctr_addr=0x0A8D,
+                         dispatch='v0', pwm_variant='sweep'),
     2:  FamilyABindings(handler_addr=0x1D8B, state_base=0x1EF2,
-                         pwm_sign_base=0x1F62, current_note_addr=0x1FDE,
-                         dispatch='no_vibrato'),
+                         pwm_sign_base=0x0000, current_note_addr=0x1FDE,
+                         v3_pwm_ctr_addr=0x1F10, v1_pwm_ctr_addr=0x1F11,
+                         dispatch='no_vibrato', pwm_variant='increment'),
     3:  FamilyABindings(handler_addr=0x2A23, state_base=0x2B7F,
-                         pwm_sign_base=0x2BEF, current_note_addr=0x2C6B,
-                         dispatch='bne_loop'),
-    # Subs 4-14 share the engine at $33DB. Voice event router is the v2
-    # variant (no duration nybble + AD/SR/ctrl on note play).
+                         pwm_sign_base=0x2BD0, current_note_addr=0x2C6B,
+                         v3_pwm_ctr_addr=0x2B97, v1_pwm_ctr_addr=0x2B98,
+                         dispatch='bne_loop', pwm_variant='sweep',
+                         pwm_hi=0x0D, pwm_lo=0x03),
+    # Subs 4-14 share the engine at $33DB.
     'shared': FamilyABindings(handler_addr=0x33DB, state_base=0x35C2,
-                               pwm_sign_base=0x3632, current_note_addr=0x36AE,
-                               dispatch='v2_engine'),
+                               pwm_sign_base=0x0000, current_note_addr=0x36AE,
+                               v3_pwm_ctr_addr=0x35E0, v1_pwm_ctr_addr=0x35E1,
+                               dispatch='v2_engine', pwm_variant='increment'),
 }
 
 
@@ -378,11 +392,14 @@ class FamilyAEmulator:
         # PWM state. Sweep V1 (X=0) and V3 (X=$0E) only.
         self.pwm_phase_v1 = mem[sb + 0]       # V1 phase
         self.pwm_phase_v3 = mem[sb + 14]      # V3 phase
-        self.pwm_ctr_v1 = mem[sb + 31]
-        self.pwm_ctr_v3 = mem[sb + 30]
+        self.pwm_ctr_v1 = mem[bindings.v1_pwm_ctr_addr]
+        self.pwm_ctr_v3 = mem[bindings.v3_pwm_ctr_addr]
         self.pwm_pw = {self.X_V1: mem[sb + 3], self.X_V3: mem[sb + 17]}
-        self.pwm_sign = {self.X_V1: mem[bindings.pwm_sign_base],
-                         self.X_V3: mem[bindings.pwm_sign_base + 14]}
+        if bindings.pwm_variant == 'sweep':
+            self.pwm_sign = {self.X_V1: mem[bindings.pwm_sign_base],
+                             self.X_V3: mem[bindings.pwm_sign_base + 14]}
+        else:
+            self.pwm_sign = {self.X_V1: 0, self.X_V3: 0}  # unused
 
     def _read_pattern_byte(self, x: int) -> int:
         """Read byte at the voice's zp pattern ptr; advance ptr by 1."""
@@ -492,24 +509,35 @@ class FamilyAEmulator:
         writes.append((0x01, (sweep >> 8) & 0xFF))  # $D401 = V1 freq hi
 
     def _pwm_tick(self, x: int, writes: list[tuple[int, int]]) -> None:
-        """Per-voice PWM sweep ($0AB6). Ramps PW between 2 and 14,
-        flipping direction via sign-byte tracking, writes $D403+X."""
-        sign = self.pwm_sign[x]
-        if sign & 0x80:
-            # Ascending phase: PW++.
+        """Per-voice PWM tick. Variant depends on bindings.pwm_variant:
+
+        - 'sweep' ($0AB6 shape): ramps PW between 2 and 14, flipping
+          direction via sign-byte tracking.
+        - 'increment' ($1ED0 shape): INC PW, if reaches $0E reset
+          to $02 (monotonic up-and-wrap).
+
+        Both end with `STA $D403,X` to write the new PW.
+        """
+        if self.b.pwm_variant == 'sweep':
+            sign = self.pwm_sign[x]
+            if sign & 0x80:
+                pw = (self.pwm_pw[x] + 1) & 0xFF
+                self.pwm_pw[x] = pw
+                if pw == self.b.pwm_hi:
+                    self.pwm_sign[x] = (sign + 1) & 0xFF
+            else:
+                pw = (self.pwm_pw[x] - 1) & 0xFF
+                self.pwm_pw[x] = pw
+                if pw == self.b.pwm_lo:
+                    self.pwm_sign[x] = (sign - 1) & 0xFF
+            a = pw
+        else:  # 'increment'
             pw = (self.pwm_pw[x] + 1) & 0xFF
+            if pw == self.b.pwm_hi:
+                pw = self.b.pwm_lo
             self.pwm_pw[x] = pw
-            if pw == 0x0E:
-                self.pwm_sign[x] = (sign + 1) & 0xFF
             a = pw
-        else:
-            # Descending phase: PW--.
-            pw = (self.pwm_pw[x] - 1) & 0xFF
-            self.pwm_pw[x] = pw
-            if pw == 0x02:
-                self.pwm_sign[x] = (sign - 1) & 0xFF
-            a = pw
-        writes.append((0x03 + x, a))   # STA $D403,X
+        writes.append((0x03 + x, a))
 
     def play_frame(self) -> list[tuple[int, int]]:
         """Run one engine play-call. Returns list of (reg, val) SID writes
