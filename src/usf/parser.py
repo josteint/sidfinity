@@ -551,6 +551,12 @@ class _T(Transformer):
     def fx_song_pos(self, items):
         return f'song_pos={int(items[0])}'
 
+    def fx_section_end(self, items):
+        return f'section_end={int(items[0])}'
+
+    def fx_set_dur(self, items):
+        return f'set_dur=${items[0]:02X}'
+
     def fx_named(self, items):
         return f'fx:{items[0]}'
 

@@ -156,6 +156,8 @@ fx_flag: "tie"                  -> fx_tie
        | "tempo" "=" INT        -> fx_tempo
        | "vol" "=" INT          -> fx_vol
        | "song_pos" "=" INT     -> fx_song_pos
+       | "section_end" "=" INT  -> fx_section_end
+       | "set_dur" "=" number   -> fx_set_dur
        | "fx" ":" CNAME         -> fx_named
 
 // digi
