@@ -52,6 +52,7 @@ COMPANION_USFS = [
         'Webern_Op_21.usf', 'Atonal_Music.usf', 'Progression.usf',
         'Triad.usf', 'Schillinger.usf', 'In_C.usf', 'Dufay.usf',
         'Test_File.usf', 'Bach_Sonata.usf', 'Te_Deum.usf',
+        'SID_Sequencer.usf', 'Sigma.usf',
     ]),
     'hvsc84/MUSICIANS/C/Clever_Music/Fairlight.usf',
     'hvsc84/MUSICIANS/C/Clever_Music/Gyroscope.usf',
@@ -60,6 +61,13 @@ COMPANION_USFS = [
     'hvsc84/GAMES/S-Z/Soldier_of_Fortune.usf',
     'hvsc84/MUSICIANS/H/Hubbard_Rob/Up_up_and_Away.usf',
     'hvsc84/MUSICIANS/H/Hoernell_Karl/Melonmania.usf',
+    # Bowden-engine variants (relocated / inline-tempo layout, etc.) —
+    # surface other Companion-tagged SIDs we hadn't pinned in regression.
+    'hvsc84/DEMOS/M-R/Roundabout.usf',
+    'hvsc84/GAMES/G-L/Hyper_Blast.usf',
+    'hvsc84/GAMES/M-R/Memory_1991.usf',
+    'hvsc84/GAMES/S-Z/Surfchamp.usf',
+    'hvsc84/GAMES/S-Z/Titanic-The_Adventure_Begins.usf',
     'hvsc84/MUSICIANS/H/Hubbard_Rob/5_Title_Tunes.usf',
 ]
 
