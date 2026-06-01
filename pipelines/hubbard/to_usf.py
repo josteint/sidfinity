@@ -106,7 +106,37 @@ def _convert_score(subtune_id: int, score) -> MusicSubtune:
 # Instrument conversion — `InstrumentModel` → USF v2 `Instrument`
 # ---------------------------------------------------------------------------
 
-def _convert_instrument(model, arp_period: int) -> Instrument:
+def _convert_instrument(model, config) -> Instrument:
+    """Build a USF `Instrument` from an `InstrumentModel` + engine
+    `EngineConfig`.
+
+    Phase 2 of the principled-instrument refactor: populates the new
+    per-instrument sub-configs (`freq_slide_config`, `inc_by2_config`,
+    `envelope.release_ctrl`, `arp.{interval,period,phase_invert}`,
+    `vibrato.onset`) from the engine config's tune-level values. The
+    legacy fields (`freq_slide: bool`, `inc_by2: bool`) stay populated
+    for back-compat through Phase 2; Phase 3 drops them.
+
+    For tunes that share one engine-level value across all instruments
+    (every Hubbard '85 — engine hardcoded), the per-tune value is
+    copied verbatim onto every instrument.
+
+    `config` may be any object exposing the required EngineConfig
+    field names — the 5TT unified writer's `_Inputs` shape lacks a
+    few of them, hence the `getattr` defaults for the optional ones.
+    """
+    from src.usf.types import FreqSlideConfig, IncBy2Config
+
+    # Tune-level fields — getattr with safe defaults so non-EngineConfig
+    # callers (5TT's _Inputs) can pass their own shapes.
+    arp_period       = getattr(config, 'arp_period',       2)
+    arp_interval     = getattr(config, 'arp_interval',     12)
+    arp_phase_invert = getattr(config, 'arp_phase_invert', False)
+    vib_onset        = getattr(config, 'vib_onset',        6)
+    incby2_step      = getattr(config, 'incby2_step',      2)
+    incby2_onset     = getattr(config, 'incby2_onset',     3)
+    incby2_late_gate = getattr(config, 'incby2_late_gate', None)
+
     init_pw = (model.init_pw_hi << 8) | model.init_pw_lo
     if model.pwm is None:
         pwm = PwmConfig(mode='none', speed=0, init=init_pw)
@@ -126,6 +156,38 @@ def _convert_instrument(model, arp_period: int) -> Instrument:
                if model.arpeggio is not None else [0])
     vibrato_scale = model.vibrato.depth if model.vibrato else 0
 
+    # Phase 2: per-instrument musical sub-configs replace the legacy
+    # `freq_slide: bool` / `inc_by2: bool` + per-tune params shape.
+
+    # Hubbard's skydive is one-shot: v_slide decrements by 1 each frame
+    # until it reaches 0, then halts. step=1 captures that. Bounds
+    # default to 0 (target = 0 freq delta = freq drops to note value).
+    # initial_dir='down' because v_slide DECREMENTS.
+    freq_slide_config = FreqSlideConfig()
+    if model.freq_slide:
+        freq_slide_config = FreqSlideConfig(
+            mode='one_shot_halt',
+            initial_dir='down',
+            upper_delta=0, lower_delta=0,
+            step=1,
+            high_oct_arp=False,
+        )
+
+    inc_by2_config = IncBy2Config()
+    if model.inc_by2:
+        # Hunter Patrol uses late_gated (config.incby2_late_gate set);
+        # the rest use plain 'on'.
+        mode = 'late_gated' if incby2_late_gate else 'on'
+        inc_by2_config = IncBy2Config(
+            mode=mode,
+            step=incby2_step,
+            onset=incby2_onset,
+            late_gate=incby2_late_gate or 0,
+        )
+
+    # Hubbard's release CTRL is gate-on CTRL with the gate bit cleared.
+    release_ctrl = model.init_ctrl & 0xFE
+
     return Instrument(
         id=model.inst + 1,                                  # USF 1-indexed
         name=None,
@@ -133,9 +195,17 @@ def _convert_instrument(model, arp_period: int) -> Instrument:
         loop=0,
         pwm=pwm,
         adsr=(model.init_ad, model.init_sr),
-        arp=ArpConfig(offsets=offsets, period=arp_period),
-        vibrato=VibratoConfig(scale=vibrato_scale),
-        envelope=EnvelopeConfig(gate_off_delta=0, adsr_zero_delta=0),
+        arp=ArpConfig(
+            offsets=offsets,
+            period=arp_period,
+            interval=arp_interval,
+            phase_invert=arp_phase_invert,
+        ),
+        vibrato=VibratoConfig(scale=vibrato_scale, onset=vib_onset),
+        envelope=EnvelopeConfig(release_ctrl=release_ctrl),
+        freq_slide_config=freq_slide_config,
+        inc_by2_config=inc_by2_config,
+        # Legacy fields — back-compat for Phase 2; Phase 3 removal.
         freq_slide=model.freq_slide,
         inc_by2=model.inc_by2,
     )
@@ -337,7 +407,7 @@ def to_usf(config, extra_subtunes: list | None = None) -> UsfFile:
     models = decode_all(config.sid_path, config.instr_base,
                         config.instr_count, config.arp_interval,
                         config.vib_onset, config.arp_period)
-    instruments = [_convert_instrument(m, config.arp_period) for m in models]
+    instruments = [_convert_instrument(m, config) for m in models]
 
     music_subtunes = []
     for st in config.subtunes:

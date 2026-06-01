@@ -100,7 +100,13 @@ def build_unified_usf() -> UsfFile:
     # init explicitly.
     init = _init_state_from_ovseed(inputs.per_subtune_ovseed[0], instr_count)
 
-    instruments = [_convert_instrument(m, inputs.arp_period)
+    # _convert_instrument reads tune-level fields via getattr; pass
+    # inputs directly. The fields it consults: arp_period, arp_interval,
+    # arp_phase_invert (defaults to False), vib_onset (defaults to 6 —
+    # 5TT's top_fields explicitly carries vib_onset=8, but the per-
+    # instrument value goes into the .usf via the inputs.vib_onset
+    # attribute when present, falling back to default otherwise).
+    instruments = [_convert_instrument(m, inputs)
                    for m in inputs.models]
 
     music_subtunes = []
