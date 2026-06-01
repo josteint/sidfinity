@@ -357,10 +357,11 @@ ve_hi:
   jmp ve_special_or_note
 
 ve_bare_note:
-  cpx #0
-  bne ve_play_note
-  sty current_note
 ve_play_note:
+  cpx #0
+  bne ve_play_freq
+  sty current_note
+ve_play_freq:
   lda freq_hi,y
   sta $d401,x
   lda freq_lo,y
@@ -426,7 +427,9 @@ ve_emit_timbre:
   rts
 ve_check_0d:
   cpy #$0D
-  bne ve_play_note
+  beq ve_0d_path
+  jmp ve_play_note
+ve_0d_path:
   cpx #0
   bne ve_0d_v2
   lda state+4
