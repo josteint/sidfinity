@@ -123,11 +123,12 @@ def build_unified_usf() -> UsfFile:
     # None when all defaults apply.
     from pipelines.hubbard.to_usf import (
         _song_end_from_config, _init_behavior_from_config,
-        _master_vol_from_config,
+        _master_vol_from_config, _sfx_from_config,
     )
     song_end = _song_end_from_config(inputs)
     init_behavior = _init_behavior_from_config(inputs)
     master_vol = _master_vol_from_config(inputs)
+    sfx = _sfx_from_config(inputs)
 
     return UsfFile(
         psid=psid,
@@ -140,6 +141,7 @@ def build_unified_usf() -> UsfFile:
         song_end=song_end,
         init_behavior=init_behavior,
         master_vol=master_vol,
+        sfx=sfx,
     )
 
 

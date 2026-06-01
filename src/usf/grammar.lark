@@ -3,7 +3,7 @@
 // Lark grammar (LALR friendly). Whitespace and comments are ignored
 // between tokens. Top-level order is enforced by the start rule.
 
-start: psid_block params_block init_block freq_table_block? state_layout_block? song_end_block? init_behavior_block? master_vol_block? instrument_block* subtune_block*
+start: psid_block params_block init_block freq_table_block? state_layout_block? song_end_block? init_behavior_block? master_vol_block? sfx_block? instrument_block* subtune_block*
 
 // ----- psid -----
 psid_block: "psid" "{" psid_field+ "}"
@@ -96,6 +96,15 @@ master_vol_field: "subtrahend_voice" ":" INT       -> mv_subtrahend_voice
                 | "trigger" ":" CNAME              -> mv_trigger
                 | "reset_on_loop" ":" bool         -> mv_reset_on_loop
                 | "underflow_clamp" ":" bool       -> mv_underflow_clamp
+
+// ----- sfx (optional) -----
+// SFX sub-engine bookkeeping — replaces flat `has_sfx` +
+// `sfx_framectr_ofs` + `sfx_state_ofs`. Presence of the block
+// signals SFX presence; addresses inside are engine-positional but
+// per-tune-stable.
+sfx_block: "sfx" "{" sfx_kv* "}"
+sfx_kv: "framectr_ofs" ":" number       -> sfx_framectr_ofs
+      | "state_ofs" ":" number          -> sfx_state_ofs
 
 // ----- instruments -----
 instrument_block: "instrument" INT instrument_name? "{" instrument_field+ "}"

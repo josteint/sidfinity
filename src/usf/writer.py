@@ -12,7 +12,7 @@ from src.usf.types import (
     InitSid, InitSidVoice, InitFilter,
     Instrument, PwmConfig, ArpConfig, VibratoConfig, EnvelopeConfig,
     FreqSlideConfig, IncBy2Config, SongEndConfig, InitBehaviorConfig,
-    MasterVolConfig,
+    MasterVolConfig, SfxConfig,
     MusicSubtune, DigiSubtune, SfxSubtune,
     VoiceBlock, Orderlist, Pattern, NoteRow, Pitch, InstrumentRef,
 )
@@ -363,6 +363,17 @@ def _write_state_layout(d: dict) -> list[str]:
     return lines
 
 
+def _write_sfx(cfg: SfxConfig) -> list[str]:
+    """Emit `sfx { ... }`; only non-default fields written. Block
+    itself signals SFX presence."""
+    parts = []
+    if cfg.framectr_ofs != 253:
+        parts.append(f'  framectr_ofs: {_hex(cfg.framectr_ofs)}')
+    if cfg.state_ofs is not None:
+        parts.append(f'  state_ofs: {_hex(cfg.state_ofs)}')
+    return ['sfx {', *parts, '}']
+
+
 def _write_master_vol(cfg: MasterVolConfig) -> list[str]:
     """Emit `master_vol { ... }`; subtrahend_voice always written
     (the field is the trigger for the modulation existing), other
@@ -430,6 +441,9 @@ def write(usf: UsfFile) -> str:
     if usf.master_vol is not None:
         lines.append('')
         lines.extend(_write_master_vol(usf.master_vol))
+    if usf.sfx is not None:
+        lines.append('')
+        lines.extend(_write_sfx(usf.sfx))
     for inst in sorted(usf.instruments, key=lambda x: x.id):
         lines.append('')
         lines.extend(_write_instrument(inst))

@@ -28,7 +28,7 @@ from src.hubbard_emu import load_sid
 from src.usf import (
     UsfFile, PsidMeta, Params, InitState, InitVoice,
     Instrument, PwmConfig, ArpConfig, VibratoConfig, EnvelopeConfig,
-    SongEndConfig, InitBehaviorConfig, MasterVolConfig,
+    SongEndConfig, InitBehaviorConfig, MasterVolConfig, SfxConfig,
     MusicSubtune, DigiSubtune, SfxSubtune, VoiceBlock, Orderlist,
     Pattern, NoteRow, Pitch, InstrumentRef, write_file, validate,
 )
@@ -286,7 +286,22 @@ _PARAMS_SKIP_CONFIG = {
     # master_vol_* now live in the typed master_vol {} block.
     'master_vol_subtrahend_voice', 'master_vol_base', 'master_vol_trigger',
     'master_vol_reset_on_loop', 'master_vol_underflow_clamp',
+    # SFX bookkeeping now lives in the typed sfx {} block. Block
+    # presence signals has_sfx=True; default Commando layout when
+    # state_ofs is None.
+    'has_sfx', 'sfx_framectr_ofs', 'sfx_state_ofs',
 }
+
+
+def _sfx_from_config(config) -> SfxConfig | None:
+    """Derive an `SfxConfig` from per-engine SFX bookkeeping. None when
+    the engine has no SFX sub-engine."""
+    if not getattr(config, 'has_sfx', False):
+        return None
+    return SfxConfig(
+        framectr_ofs=getattr(config, 'sfx_framectr_ofs', 253),
+        state_ofs=getattr(config, 'sfx_state_ofs', None),
+    )
 
 
 def _master_vol_from_config(config) -> MasterVolConfig | None:
@@ -531,6 +546,7 @@ def to_usf(config, extra_subtunes: list | None = None) -> UsfFile:
         song_end=_song_end_from_config(config),
         init_behavior=_init_behavior_from_config(config),
         master_vol=_master_vol_from_config(config),
+        sfx=_sfx_from_config(config),
     )
 
 

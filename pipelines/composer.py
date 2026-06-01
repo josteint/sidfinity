@@ -2735,9 +2735,20 @@ def _inputs_from_usf(usf) -> _Inputs:
             if usf.song_end is not None and usf.song_end.stop_marker == 'fill'
             else (None if usf.song_end is not None else get('stop_fill', None))
         ),
-        sfx_framectr_ofs=get('sfx_framectr_ofs', 253),
-        sfx_state_ofs=get('sfx_state_ofs', None),
-        has_sfx=get('has_sfx', False),
+        # SFX unification: prefer typed block; fall back to flat keys.
+        sfx_framectr_ofs=(
+            usf.sfx.framectr_ofs if usf.sfx is not None
+            else get('sfx_framectr_ofs', 253)
+        ),
+        sfx_state_ofs=(
+            usf.sfx.state_ofs if usf.sfx is not None
+            else get('sfx_state_ofs', None)
+        ),
+        has_sfx=(
+            usf.sfx is not None
+            if usf.sfx is not None or 'has_sfx' not in (usf.params.fields if usf.params else {})
+            else get('has_sfx', False)
+        ),
         subtunes=subtune_ids,
         models=models, scores=scores, resetspds=resetspds,
         voice_starts=voice_starts, freq_bytes=freq_bytes,

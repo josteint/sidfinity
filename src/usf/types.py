@@ -455,6 +455,28 @@ class InitBehaviorConfig:
 
 
 @dataclass
+class SfxConfig:
+    """SFX sub-engine bookkeeping — replaces 3 flat per-tune keys
+    (`has_sfx`, `sfx_framectr_ofs`, `sfx_state_ofs`).
+
+    Presence of the block itself signals the engine has a SFX
+    sub-engine (the legacy `has_sfx=True`). Composer reads the
+    addresses when emitting SFX support code.
+
+      `framectr_ofs` — freq-table offset where the SFX-readable frame
+        counter lives. Default 253 = Commando-family.
+      `state_ofs` — freq-table offset of the SFX state block (sweep
+        index, step counter, etc.). None = scattered Commando layout;
+        non-None = packed layout (Monty $FB, One Man $FB).
+
+    Engine-internal positional offsets, but per-tune-stable.
+    Replaces 3 flat keys with one named block.
+    """
+    framectr_ofs: int = 253
+    state_ofs: Optional[int] = None
+
+
+@dataclass
 class MasterVolConfig:
     """Master-volume modulation algorithm — replaces 5 flat per-tune
     keys (`master_vol_subtrahend_voice`, `_base`, `_trigger`,
@@ -570,3 +592,7 @@ class UsfFile:
     # Master-volume modulation — replaces the 5 flat per-tune
     # `master_vol_*` keys. None when no modulation is active.
     master_vol: Optional[MasterVolConfig] = None
+    # SFX sub-engine bookkeeping — replaces flat `has_sfx` +
+    # `sfx_framectr_ofs` + `sfx_state_ofs`. None when the engine has
+    # no SFX sub-engine.
+    sfx: Optional[SfxConfig] = None

@@ -16,7 +16,7 @@ from src.usf.types import (
     InitSid, InitSidVoice, InitFilter,
     Instrument, PwmConfig, ArpConfig, VibratoConfig, EnvelopeConfig,
     FreqSlideConfig, IncBy2Config, SongEndConfig, InitBehaviorConfig,
-    MasterVolConfig,
+    MasterVolConfig, SfxConfig,
     MusicSubtune, DigiSubtune, SfxSubtune,
     VoiceBlock, Orderlist, Pattern, NoteRow, Pitch, InstrumentRef,
 )
@@ -650,6 +650,21 @@ class _T(Transformer):
             setattr(cfg, k, v)
         return ('master_vol', cfg)
 
+    def sfx_framectr_ofs(self, items):
+        return ('framectr_ofs', items[0])
+
+    def sfx_state_ofs(self, items):
+        return ('state_ofs', items[0])
+
+    def sfx_kv(self, items):
+        return items[0]
+
+    def sfx_block(self, items):
+        cfg = SfxConfig()
+        for k, v in items:
+            setattr(cfg, k, v)
+        return ('sfx', cfg)
+
     def state_layout_block(self, items):
         # items is a list of tuples ('n_voices', N) | ('scalar', dict)
         # | ('per_voice', dict). Reassemble into a StatebufLayout-shaped
@@ -690,6 +705,7 @@ class _T(Transformer):
         song_end = None
         init_behavior = None
         master_vol = None
+        sfx = None
         for it in items:
             if isinstance(it, tuple):
                 k, v = it
@@ -703,6 +719,8 @@ class _T(Transformer):
                     init_behavior = v
                 elif k == 'master_vol':
                     master_vol = v
+                elif k == 'sfx':
+                    sfx = v
             elif isinstance(it, PsidMeta):
                 psid = it
             elif isinstance(it, Params):
@@ -718,7 +736,7 @@ class _T(Transformer):
             init=init, instruments=instruments, subtunes=subtunes,
             freq_table=freq_table, state_layout=state_layout,
             song_end=song_end, init_behavior=init_behavior,
-            master_vol=master_vol)
+            master_vol=master_vol, sfx=sfx)
 
 
 # ---------------------------------------------------------------------------
