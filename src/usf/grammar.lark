@@ -139,6 +139,9 @@ arp_kv: "offsets" "=" "[" (signed_int ("," signed_int)*)? "]"   -> arp_offsets
 vib_args: vib_kv+
 vib_kv: "scale" "=" INT             -> vib_scale
       | "onset" "=" INT             -> vib_onset
+      | "shape" "=" CNAME           -> vib_shape
+      | "period_frames" "=" INT     -> vib_period_frames
+      | "polarity" "=" CNAME        -> vib_polarity
 
 env_args: env_kv+
 env_kv: "release_ctrl" "=" number      -> env_release_ctrl

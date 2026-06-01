@@ -273,6 +273,15 @@ class _T(Transformer):
     def vib_onset(self, items):
         return ('onset', int(items[0]))
 
+    def vib_shape(self, items):
+        return ('shape', str(items[0]))
+
+    def vib_period_frames(self, items):
+        return ('period_frames', int(items[0]))
+
+    def vib_polarity(self, items):
+        return ('polarity', str(items[0]))
+
     def vib_args(self, items):
         return VibratoConfig(**dict(items))
 

@@ -178,6 +178,14 @@ def _write_vibrato(v: VibratoConfig) -> str:
     parts = [f'scale={v.scale}']
     if v.onset != 6:
         parts.append(f'onset={v.onset}')
+    # Descriptive parameters — emit only when non-default so existing
+    # USFs stay visually unchanged for the common (Hubbard) defaults.
+    if v.shape != 'triangle':
+        parts.append(f'shape={v.shape}')
+    if v.period_frames != 8:
+        parts.append(f'period_frames={v.period_frames}')
+    if v.polarity != 'unipolar':
+        parts.append(f'polarity={v.polarity}')
     return 'vibrato:  ' + ' '.join(parts)
 
 

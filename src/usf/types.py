@@ -246,14 +246,38 @@ class ArpConfig:
 
 @dataclass
 class VibratoConfig:
-    """Vibrato per-instrument config.
+    """Vibrato per-instrument config — parameterized over a musical
+    basis per the USF representation principle (§4).
 
-    `scale` is depth (already per-inst). `onset` was previously held
-    as per-tune `params.vib_onset`; the Phase 1 refactor moves it
-    per-instrument. Default 6 matches the codebase's prior fallback.
+    Five musical knobs:
+
+      `shape` (default 'triangle') — LFO shape. Hubbard '85 uses
+        triangle always; other engines may add 'sine', 'square',
+        'table' (etc.). Discrete enum — values generalize across
+        engines.
+
+      `period_frames` (default 8) — LFO period in PAL frames. Hubbard
+        hardcodes 8 (counter ANDed with $07 then folded). Other
+        engines may differ.
+
+      `polarity` (default 'unipolar') — 'unipolar' = modulation only
+        upward from base freq; 'bipolar' = symmetric around base.
+        Hubbard is unipolar.
+
+      `scale` — depth control. For Hubbard the byte value is a
+        right-shift count: actual modulation amplitude is approximately
+        `(freq_table[pitch+1] - freq_table[pitch]) >> (scale+1)` per
+        step, so larger scale = SMALLER modulation. The scale=0 case
+        modulates by half a semitone per step.
+
+      `onset` (default 6) — frames of note duration before vibrato
+        kicks in. Below this duration counter, vibrato is gated off.
     """
     scale: int = 0
     onset: int = 6
+    shape: str = 'triangle'      # 'triangle' | 'sine' | 'square' | 'table' | ...
+    period_frames: int = 8
+    polarity: str = 'unipolar'    # 'unipolar' | 'bipolar'
 
 
 @dataclass
