@@ -205,9 +205,9 @@ def _convert_instrument(model, config) -> Instrument:
         envelope=EnvelopeConfig(release_ctrl=release_ctrl),
         freq_slide_config=freq_slide_config,
         inc_by2_config=inc_by2_config,
-        # Legacy fields — back-compat for Phase 2; Phase 3 removal.
-        freq_slide=model.freq_slide,
-        inc_by2=model.inc_by2,
+        # Phase 3b — legacy bools no longer written; the per-inst
+        # sub-configs carry the same musical content. The composer
+        # reads from the configs in preference to the bools.
     )
 
 
@@ -259,6 +259,12 @@ _PARAMS_SKIP_CONFIG = {
     'name', 'sid_path', 'extract', 'resetspd', 'extract_sfx',
     'subtunes', 'instr_base', 'instr_count', 'freq_table_base',
     'voice_starts', 'digi_subtunes', 'is_rsid',
+    # Phase 3b — these tune-level fields are now per-instrument
+    # (vibrato.onset, arp.interval/period/phase_invert,
+    # inc_by2_config.{step,onset,late_gate}). Composer reads them
+    # from any instrument. Stop emitting into params { } entirely.
+    'vib_onset', 'arp_interval', 'arp_period', 'arp_phase_invert',
+    'incby2_step', 'incby2_onset', 'incby2_late_gate',
 }
 
 # Engine name → tune-level `digi_player` name in the v3 USF. The

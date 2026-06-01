@@ -70,27 +70,15 @@ def build_unified_usf() -> UsfFile:
 
     psid = _read_psid_meta(PARENT_SID)
 
-    # Top-level params — the compound engine's tune-level mechanism.
-    # Read from `inputs` (the unified _Inputs already carries the
-    # right values for the 5-sub compound). Plus vib_onset, which is
-    # baked into each instrument's model in `inputs.models` but also
-    # needed at top level so the build-side `vib_onset = get(...)`
-    # applies it uniformly. All 5 subs have vib_onset=8.
+    # Phase 3b — tune-level musical fields (vib_onset, arp_*,
+    # incby2_*) are now per-instrument. Composer reads them from any
+    # instrument's per-inst slot. Only emit genuinely-per-tune fields
+    # here: linear_pw_or + speed_ctr_init.
     top_fields: dict = {
-        'arp_interval': inputs.arp_interval,
-        'arp_period': inputs.arp_period,
         'linear_pw_or': inputs.linear_pw_or,
-        'incby2_step': inputs.incby2_step,
-        'incby2_onset': inputs.incby2_onset,
         'speed_ctr_init': inputs.speed_ctr_init,
-        'vib_onset': 8,
     }
-    # Drop any that match Commando-flavor defaults so the USF stays
-    # minimal and the round-trip through build_from_usf reads
-    # cleanly.
-    DEFAULTS = {'arp_interval': 12, 'arp_period': 2, 'linear_pw_or': 0,
-                'incby2_step': 2, 'incby2_onset': 3,
-                'speed_ctr_init': 0, 'vib_onset': 6}
+    DEFAULTS = {'linear_pw_or': 0, 'speed_ctr_init': 0}
     top_fields = {k: v for k, v in top_fields.items()
                   if v != DEFAULTS.get(k)}
     params = Params(fields=top_fields)
@@ -100,13 +88,21 @@ def build_unified_usf() -> UsfFile:
     # init explicitly.
     init = _init_state_from_ovseed(inputs.per_subtune_ovseed[0], instr_count)
 
-    # _convert_instrument reads tune-level fields via getattr; pass
-    # inputs directly. The fields it consults: arp_period, arp_interval,
-    # arp_phase_invert (defaults to False), vib_onset (defaults to 6 —
-    # 5TT's top_fields explicitly carries vib_onset=8, but the per-
-    # instrument value goes into the .usf via the inputs.vib_onset
-    # attribute when present, falling back to default otherwise).
-    instruments = [_convert_instrument(m, inputs)
+    # _convert_instrument reads tune-level fields via getattr from
+    # config. `inputs` (the unified _Inputs) HAS arp_interval +
+    # arp_period + incby2_* but LACKS `vib_onset` and
+    # `arp_phase_invert`. Pass a shim that delegates to inputs and
+    # supplies the missing fields with the engine's true values.
+    class _5TTConfig:
+        def __init__(self, base):
+            self._base = base
+        def __getattr__(self, name):
+            missing = {'vib_onset': 8, 'arp_phase_invert': False}
+            if name in missing:
+                return missing[name]
+            return getattr(self._base, name)
+    cfg_shim = _5TTConfig(inputs)
+    instruments = [_convert_instrument(m, cfg_shim)
                    for m in inputs.models]
 
     music_subtunes = []
