@@ -2683,72 +2683,48 @@ def _inputs_from_usf(usf) -> _Inputs:
                                  lambda i: i.inc_by2_config.step
                                  if i.inc_by2_config.mode != 'none' else 2,
                                  2),
-        incby2_every_frame=(
-            # Prefer per-inst from any inc_by2 instrument; else flat.
-            any(i.inc_by2_config.every_frame for i in usf.instruments
-                if i.inc_by2_config.mode != 'none')
-            or get('incby2_every_frame', False)
+        # OR across instruments — per-inst is canonical post-refactor.
+        incby2_every_frame=any(
+            i.inc_by2_config.every_frame for i in usf.instruments
+            if i.inc_by2_config.mode != 'none'
         ),
         incby2_onset=prefer_inst('incby2_onset',
                                   lambda i: i.inc_by2_config.onset
                                   if i.inc_by2_config.mode != 'none' else 3,
                                   3),
-        # init_behavior refactor: prefer the typed block; fall back
-        # to flat key for pre-refactor USFs. The typed block carries
-        # which voice has the no-attack (engine implements via
-        # drum-priority-gate suppressing voice 3); the bool flag
-        # downstream stays True iff any voice has suppression.
-        suppress_first_notestart=(
-            bool(usf.init_behavior is not None
-                 and usf.init_behavior.no_first_attack_voice)
-            if usf.init_behavior is not None
-            else get('suppress_first_notestart', False)
+        # Bool flag for the engine's drum-priority-gate suppressor.
+        # The typed `init_behavior.no_first_attack_voice` carries which
+        # voice (engine implements as suppressing voice 3 specifically);
+        # the downstream codegen flag is just "is any voice suppressed."
+        suppress_first_notestart=bool(
+            usf.init_behavior is not None
+            and usf.init_behavior.no_first_attack_voice
         ),
-        # song_end refactor: prefer the typed `song_end` block; fall
-        # back to flat per-tune keys for pre-refactor USFs.
         freeze_on_stop=(
             usf.song_end is not None and usf.song_end.stop_marker == 'freeze'
-            if usf.song_end is not None
-            else get('freeze_on_stop', False)
         ),
         speed_ctr_init=get('speed_ctr_init', 0),
         first_frame_gate_off=(
             usf.init_behavior is not None
             and usf.init_behavior.silence_all_voices_on_frame_0
-            if usf.init_behavior is not None
-            else get('first_frame_gate_off', False)
         ),
         seed_overlap=get('seed_overlap', True),
         psid_speed=usf.psid.speed,
         frame_ctr_init=get('frame_ctr_init', 0xFF),
-        incby2_late_gate=(
-            # Prefer per-inst when any inc_by2 instrument is
-            # late_gated; else fall back to params.
-            next((i.inc_by2_config.late_gate
-                  for i in usf.instruments
-                  if i.inc_by2_config.mode == 'late_gated'), None)
-            if any(i.inc_by2_config.mode != 'none' for i in usf.instruments)
-            else get('incby2_late_gate', None)
+        # late_gate from the first late_gated inc_by2 instrument.
+        incby2_late_gate=next(
+            (i.inc_by2_config.late_gate
+             for i in usf.instruments
+             if i.inc_by2_config.mode == 'late_gated'), None
         ),
         stop_fill=(
             usf.song_end.fill_value
             if usf.song_end is not None and usf.song_end.stop_marker == 'fill'
-            else (None if usf.song_end is not None else get('stop_fill', None))
+            else None
         ),
-        # SFX unification: prefer typed block; fall back to flat keys.
-        sfx_framectr_ofs=(
-            usf.sfx.framectr_ofs if usf.sfx is not None
-            else get('sfx_framectr_ofs', 253)
-        ),
-        sfx_state_ofs=(
-            usf.sfx.state_ofs if usf.sfx is not None
-            else get('sfx_state_ofs', None)
-        ),
-        has_sfx=(
-            usf.sfx is not None
-            if usf.sfx is not None or 'has_sfx' not in (usf.params.fields if usf.params else {})
-            else get('has_sfx', False)
-        ),
+        sfx_framectr_ofs=(usf.sfx.framectr_ofs if usf.sfx is not None else 253),
+        sfx_state_ofs=(usf.sfx.state_ofs if usf.sfx is not None else None),
+        has_sfx=(usf.sfx is not None),
         subtunes=subtune_ids,
         models=models, scores=scores, resetspds=resetspds,
         voice_starts=voice_starts, freq_bytes=freq_bytes,
@@ -2757,32 +2733,21 @@ def _inputs_from_usf(usf) -> _Inputs:
         per_subtune_incby2_step=per_subtune_incby2_step,
         per_subtune_incby2_late_gate=per_subtune_incby2_late_gate,
         per_subtune_ovseed=per_subtune_ovseed,
-        # master_vol unification: prefer the typed block; fall back
-        # to the 5 flat params keys for pre-refactor USFs.
+        # master_vol — read from typed block; None when no modulation.
         master_vol_subtrahend_voice=(
-            usf.master_vol.subtrahend_voice
-            if usf.master_vol is not None
-            else get('master_vol_subtrahend_voice', None)
+            usf.master_vol.subtrahend_voice if usf.master_vol is not None else None
         ),
         master_vol_base=(
-            usf.master_vol.base
-            if usf.master_vol is not None
-            else get('master_vol_base', 0xA0)
+            usf.master_vol.base if usf.master_vol is not None else 0xA0
         ),
         master_vol_trigger=(
-            usf.master_vol.trigger
-            if usf.master_vol is not None
-            else get('master_vol_trigger', 'inst_change')
+            usf.master_vol.trigger if usf.master_vol is not None else 'inst_change'
         ),
         master_vol_reset_on_loop=(
-            usf.master_vol.reset_on_loop
-            if usf.master_vol is not None
-            else get('master_vol_reset_on_loop', False)
+            usf.master_vol.reset_on_loop if usf.master_vol is not None else False
         ),
         master_vol_underflow_clamp=(
-            usf.master_vol.underflow_clamp
-            if usf.master_vol is not None
-            else get('master_vol_underflow_clamp', False)
+            usf.master_vol.underflow_clamp if usf.master_vol is not None else False
         ),
         loop_silences_song=(
             usf.song_end is not None and usf.song_end.loop_marker == 'silence_all'
