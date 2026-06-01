@@ -160,8 +160,28 @@ Total realistic budget: **4-7 sessions**. Less than the original 5-10 estimate b
 
 ## Open questions for the next session
 
-1. Where do sub 0's V1/V2/V3 pattern pointers actually point? Need to read `$10C7-$10E6` (the init template) and follow.
-2. The mysterious `JSR $10E5` in `$09E8` — likely the song-start setup for sub 0. Need to trace.
-3. The 11 5-byte stubs `$38A0..$4224` — confirm they're per-subtune setup calls for subs 4-14.
-4. CIA timer is set to `$2663` for subs 4-14 only. Implications for play rate?
+1. Where do sub 0's V1/V2/V3 pattern pointers actually point? Need to read `$10C7-$10E6` (the init template) and follow. **RESOLVED**: $0C5F (V1), $0DA3 (V2), $0F84 (V3).
+2. The mysterious `JSR $10E5` in `$09E8` — likely the song-start setup for sub 0. Need to trace. **DEFERRED**: doesn't affect sub 0 emulator output (200/200 ok).
+3. The 11 5-byte stubs `$38A0..$4224` — confirm they're per-subtune setup calls for subs 4-14. **PARTIALLY RESOLVED** (session 7):
+   - Each stub does `LDX #lo; LDY #hi; JMP $35E2`.
+   - $35E2 patches the operand of `LDA $416E,X` at $35EA-$35EC to (lo, hi) — self-modifying code pointing the copy loop at the per-song init data block.
+   - Then copies 32 bytes from that block into $35C2-$35E1 (state region).
+   - Then clears $0383/$0384 (gate flags = $20), SEI, JSR $34F2, master_vol=$0F.
+   - **OPEN**: where are the stubs called FROM? PSID init dispatches sub 4-14 to play handler $33DB directly; the stub-to-state-init mechanism must run somewhere. Empirically the patched LDA operand is "off by one" — sub 4 ends up with source $3B0A (= sub 5's stub data), sub 12 has source $3882 (= sub 4's stub data). Need to find the call site to understand the dispatch.
+4. CIA timer is set to `$2663` for subs 4-14 only. Implications for play rate? — **OPEN**.
 5. Family B (sub 1) — full RE pass needed; agent's notes for `$1119` weren't verified by py65 trace.
+
+## V2 voice event router (subs 4-14) — disassembly notes
+
+Router at `$342E` (subs 4-14). Decoded session 7. Differs from V1 (subs 0/2/3) in:
+- **No duration-nybble path** (no `CMP #$09 / BCS` at top).
+- **Gate flag at `$0384`**: bytes that would write SID can be skipped for V1 when gate set.
+- **AD/SR helper `$34BA`**: writes additional registers on note play.
+  - For V2 (X=$07): writes PW lo to $D402+X ($D409) and PW hi to $D403+X ($D40A) from state $35C4/$35C5.
+  - For all voices: writes AD to $D405+X from $35C7,X and SR to $D406+X from $35C8,X.
+- **Different freq tables**: `$32D8` (hi) and `$3358` (lo) instead of `$0B5F`/`$0BDF`.
+- **`$0D` for V3 sets `$0383 = $FF`**: song-end marker. The PLAY handler's $33DB entry checks `LDA $0383; BMI` and exits immediately if set.
+- **`$0E` reloads zp ptr from state**: pattern-loop (same as V1).
+- **Dispatch else-branch JMPs to $33D8 (RTS)**: NO vibrato. Same as sub 2 / sub 3 dispatch shape.
+
+So sub 4-14's voice event router is **functionally** similar to V1 but with AD/SR writes and gate logic. The state layout is also different (V2 timbre needs 5 bytes per voice: PWlo, PWhi, ctrl, AD, SR — not just timbre nybble + ctrl).
