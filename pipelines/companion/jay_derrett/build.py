@@ -166,6 +166,28 @@ def detect_voice_state_base(sid_path: str, params: EngineParams) -> int:
     return candidates[0][1]
 
 
+def detect_set_dur_clears_v3(sid_path: str) -> bool:
+    """Detect engines whose SET DUR ($82 N) handler ALSO clears V3
+    CTRL slots. Pattern: TWO `A9 00 8D LO HI 8D LO+3 HI 4C` blocks
+    in proc_note (one for wrap, one for SET DUR). Engines with only
+    ONE such block (NH) don't do the SET DUR clear."""
+    raw = Path(sid_path).read_bytes()
+    body = raw[0x7C:]
+    load = struct.unpack('>H', raw[8:10])[0]
+    if load == 0:
+        load = struct.unpack('<H', body[:2])[0]
+        body = body[2:]
+    mem = bytearray(0x10000)
+    mem[load:load + len(body)] = body
+    count = 0
+    for addr in range(load, load + len(body) - 11):
+        if (mem[addr] == 0xA9 and mem[addr+1] == 0x00 and mem[addr+2] == 0x8D
+            and mem[addr+5] == 0x8D and mem[addr+8] == 0x4C
+            and mem[addr+6] == mem[addr+3] + 3):
+            count += 1
+    return count >= 2
+
+
 def detect_pwm_phase_base(sid_path: str, params: EngineParams) -> int:
     """Scan orig binary for the PWM phase check: `BD LL HH D0 ??`
     (LDA $XXXX,X / BNE phase1) where the LDA reads the per-voice
@@ -597,6 +619,10 @@ def emit_asm(data: ExtractedData, load_addr: int = 0x1000,
     for v, val in enumerate(cur_ctrl):
         if val:
             lines += [f'    lda #${val:02X}', f'    sta cur_ctrl+{v}']
+    # frame_counter (ZIP pre-INCs during init → starts non-zero)
+    fc = quirks.initial_frame_counter if quirks else 0
+    if fc:
+        lines += [f'    lda #${fc:02X}', '    sta frame_counter']
     # Copy captured orig init voice_state slabs into the reb's
     # voice_state region. This pre-populates per-voice runtime state
     # (freq slide setup, PW params, CTRL slot) — matches engines whose
@@ -778,6 +804,15 @@ def emit_asm(data: ExtractedData, load_addr: int = 0x1000,
         '    ldy #$00',
         '    lda ($f2),y',
         '    sta dur_counters,x',
+    ]
+    if quirks and quirks.set_dur_clears_v3:
+        lines += [
+            '    ; Engine quirk: SET DUR also clears V3 CTRL slots',
+            '    lda #$00',
+            '    sta voice_state+$14+$34',
+            '    sta voice_state+$17+$34',
+        ]
+    lines += [
         '    jmp pn_advance_rts',
         '',
         '; --- $Bx: set tempo ---',
@@ -1344,6 +1379,13 @@ class EngineQuirks:
     initial_smc: int = 0xE0
     # Initial master vol (most $0F; Destruct $05).
     initial_master_vol: int = 0x0F
+    # Initial frame_counter (most $00; ZIP=$53 — engine pre-INCs during init).
+    initial_frame_counter: int = 0x00
+    # Some engines (Jetboys/Lifeforce/Vengeance/ZIP) clear V3 CTRL slots
+    # inside the SET DUR ($82 N) handler. NH/Mandroid/Counterforce/
+    # Destruct/Discovery don't. Detected by scanning for the
+    # `A9 00 8D LO HI 8D LO+3 HI 4C` pattern preceded by SET DUR setup.
+    set_dur_clears_v3: bool = False
     # Number of instruments in the inst src table (typically 19).
     n_inst: int = 19
 
@@ -1428,6 +1470,7 @@ def build_sid(sid_path: str, params: EngineParams,
              vp - 9, vp - 8,                # tempo, tempo_reload
              vp - 7, vp - 6, vp - 5,        # cur_inst
              vp - 4, vp - 3, vp - 2,        # cur_ctrl
+             vp - 1,                        # frame_counter
              params.self_mod_counter,       # smc
              0xD418])                       # master vol
         dur = (state_cells[0], state_cells[1], state_cells[2])
@@ -1435,14 +1478,16 @@ def build_sid(sid_path: str, params: EngineParams,
         tempo_reload = state_cells[4]
         cur_inst = (state_cells[5], state_cells[6], state_cells[7])
         cur_ctrl = (state_cells[8], state_cells[9], state_cells[10])
-        smc = state_cells[11]
-        mvol = state_cells[12] if state_cells[12] else 0x0F
+        frame_cnt = state_cells[11]
+        smc = state_cells[12]
+        mvol = state_cells[13] if state_cells[13] else 0x0F
     except Exception:
         dur = quirks.initial_dur_counters
         tempo = quirks.initial_tempo
         tempo_reload = quirks.initial_tempo_reload
         cur_inst = quirks.initial_cur_inst
         cur_ctrl = quirks.initial_cur_ctrl
+        frame_cnt = quirks.initial_frame_counter
         smc = quirks.initial_smc
         mvol = quirks.initial_master_vol
     quirks = EngineQuirks(
@@ -1455,6 +1500,8 @@ def build_sid(sid_path: str, params: EngineParams,
         initial_dur_counters=dur,
         initial_smc=smc,
         initial_master_vol=mvol,
+        initial_frame_counter=frame_cnt,
+        set_dur_clears_v3=detect_set_dur_clears_v3(sid_path),
         n_inst=quirks.n_inst)
     # Apply tempo + master vol overrides into data so emit_asm uses them
     data.initial_tempo = tempo
