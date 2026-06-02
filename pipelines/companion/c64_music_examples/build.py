@@ -241,6 +241,7 @@ vib_pos:
   sta tri_pos
   ldy current_note
   lda freq_lo+1,y      ; freq_lo[note+1]
+  beq vib_done
   sec
   sbc freq_lo,y
   sta step_lo
@@ -279,6 +280,7 @@ vib_emit:
   sta $d400
   lda base_hi
   sta $d401
+vib_done:
   inc frame_idx
   rts
 
