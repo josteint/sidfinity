@@ -622,11 +622,403 @@ def build_subtune_sid(subtune: int) -> bytes:
     return h + body
 
 
+def emit_v2_subtune_asm(subtune: int) -> str:
+    """Emit complete xa65 asm for one V2-router subtune (subs 4-14).
+
+    Differs from V1 router in:
+    - No duration-nybble path (no <$09 case)
+    - AD/SR writes on note play (V2-the-voice also gets PW writes)
+    - Gate flag at gate_flag var (orig $0384) skips V1 writes when bit 7 set
+    - $0D for V3 sets song_end_flag (orig $0383) = $FF
+    - Different freq tables ($32D8 hi / $3358 lo in orig)
+    - Per-voice state: 7 bytes (last_cmd, PW_lo, PW_hi, ctrl, AD, SR + 1 unused)
+    - No vibrato in else branch
+    - Increment PWM
+    """
+    from pipelines.companion.c64_music_examples.extract.engine_model import (
+        _run_init_via_py65, FAMILY_A_INSTANCES, V2_FREQ_HI_ADDR, V2_FREQ_LO_ADDR,
+    )
+    b = FAMILY_A_INSTANCES['shared']
+    mem, _ = _run_init_via_py65(SID_PATH, subtune)
+
+    state_bytes = list(mem[b.state_base:b.state_base + 32])
+    v1_lo = mem[0x1C]; v1_hi = mem[0x1D]
+    v2_lo = mem[0x1E]; v2_hi = mem[0x1F]
+    v3_lo = mem[0x20]; v3_hi = mem[0x21]
+    v1_pat = _walk_pattern(mem, (v1_hi << 8) | v1_lo)
+    v2_pat = _walk_pattern(mem, (v2_hi << 8) | v2_lo)
+    v3_pat = _walk_pattern(mem, (v3_hi << 8) | v3_lo)
+    freq_hi = list(mem[V2_FREQ_HI_ADDR:V2_FREQ_HI_ADDR + 128])
+    freq_lo = list(mem[V2_FREQ_LO_ADDR:V2_FREQ_LO_ADDR + 128])
+    gate_flag_init = mem[0x0384]
+    song_end_init = mem[0x0383]
+
+    # V2 PWM ctr addresses for sub 4-14: state+30 (V3), state+31 (V1)
+    v3_pwm_state_off = 30
+    v1_pwm_state_off = 31
+
+    def hex_list(bs):
+        out = []
+        for i in range(0, len(bs), 16):
+            chunk = bs[i:i + 16]
+            out.append('  .byte ' + ', '.join(f'${b:02X}' for b in chunk))
+        return '\n'.join(out)
+
+    asm = f"""\
+* = $0801
+
+zp_v1_lo = $1C
+zp_v1_hi = $1D
+zp_v2_lo = $1E
+zp_v2_hi = $1F
+zp_v3_lo = $20
+zp_v3_hi = $21
+
+init_jmp:
+  jmp init
+play_jmp:
+  jmp play
+
+init:
+  sei
+  lda #$0F
+  sta $d418
+  ldx #31
+copy_state:
+  lda state_template,x
+  sta state,x
+  dex
+  bpl copy_state
+  lda #<ptn_v1
+  sta zp_v1_lo
+  lda #>ptn_v1
+  sta zp_v1_hi
+  lda #<ptn_v2
+  sta zp_v2_lo
+  lda #>ptn_v2
+  sta zp_v2_hi
+  lda #<ptn_v3
+  sta zp_v3_lo
+  lda #>ptn_v3
+  sta zp_v3_hi
+  lda #${gate_flag_init:02X}
+  sta gate_flag
+  lda #${song_end_init:02X}
+  sta song_end
+  lda #0
+  sta $d417
+  lda #$0F
+  sta $d418
+  lda state+3
+  sta $d403
+  cli
+  rts
+
+play:
+  ; V3 PWM
+  lda state+14
+  bmi skip_v3_pwm
+  inc state+{v3_pwm_state_off}
+  cmp state+{v3_pwm_state_off}
+  bne skip_v3_pwm
+  ldx #$0E
+  jsr pwm_sweep
+  sta state+{v3_pwm_state_off}
+skip_v3_pwm:
+  ; V1 PWM
+  lda state+0
+  bmi skip_v1_pwm
+  inc state+{v1_pwm_state_off}
+  cmp state+{v1_pwm_state_off}
+  bne skip_v1_pwm
+  ldx #$00
+  jsr pwm_sweep
+  sta state+{v1_pwm_state_off}
+skip_v1_pwm:
+  inc state+23
+  lda state+23
+  cmp state+21
+  bne v2_not_tempo
+  jmp v2_loop_reset
+v2_not_tempo:
+  cmp state+22
+  beq v2_full_tick
+  rts
+v2_full_tick:
+  lda #0
+  sta state+23
+  jsr advance_v1
+  jsr advance_v2
+  jsr advance_v3
+  rts
+
+v2_loop_reset:
+  lda state+1
+  bpl v2_skip_lr_v1
+  bit gate_flag
+  bmi v2_skip_lr_v1
+  lda state+4
+  sta $d404
+v2_skip_lr_v1:
+  lda state+8
+  bpl v2_skip_lr_v2
+  lda state+11
+  sta $d40b
+v2_skip_lr_v2:
+  lda state+15
+  bpl v2_skip_lr_v3
+  lda state+18
+  sta $d412
+v2_skip_lr_v3:
+  rts
+
+; V2 PWM sweep (increment-only)
+pwm_sweep:
+  cpx #0
+  bne pwm_inc_v3
+  inc state+3
+  lda state+3
+  cmp #$0E
+  bne pwm_inc_v1_emit
+  lda #$02
+  sta state+3
+pwm_inc_v1_emit:
+  sta $d403
+  lda #0
+  rts
+pwm_inc_v3:
+  inc state+17
+  lda state+17
+  cmp #$0E
+  bne pwm_inc_v3_emit
+  lda #$02
+  sta state+17
+pwm_inc_v3_emit:
+  sta $d411
+  lda #0
+  rts
+
+; Voice advance subroutines
+advance_v1:
+  ldy #0
+  lda (zp_v1_lo),y
+  inc zp_v1_lo
+  bne av1_done
+  inc zp_v1_hi
+av1_done:
+  ldx #$00
+  jmp v2_voice_event
+
+advance_v2:
+  ldy #0
+  lda (zp_v2_lo),y
+  inc zp_v2_lo
+  bne av2_done
+  inc zp_v2_hi
+av2_done:
+  ldx #$07
+  jmp v2_voice_event
+
+advance_v3:
+  ldy #0
+  lda (zp_v3_lo),y
+  inc zp_v3_lo
+  bne av3_done
+  inc zp_v3_hi
+av3_done:
+  ldx #$0E
+  jmp v2_voice_event
+
+; V2 voice event router (no duration nybble; AD/SR writes; gate check)
+v2_voice_event:
+  cpx #0
+  bne v2_store_v2
+  sta state+1
+  jmp v2_dispatch
+v2_store_v2:
+  cpx #7
+  bne v2_store_v3
+  sta state+8
+  jmp v2_dispatch
+v2_store_v3:
+  sta state+15
+v2_dispatch:
+  tay
+  bpl v2_note_path
+  and #$7F
+  tay
+  jmp v2_special
+
+v2_note_path:
+  bit gate_flag
+  bpl v2_play_note
+  cpx #0
+  beq v2_done
+v2_play_note:
+  lda freq_hi,y
+  sta $d401,x
+  lda freq_lo,y
+  sta $d400,x
+  jsr v2_ad_sr_helper
+  cpx #0
+  bne v2_ctrl_v2
+  ldy state+4
+  jmp v2_emit_ctrl
+v2_ctrl_v2:
+  cpx #7
+  bne v2_ctrl_v3
+  ldy state+11
+  jmp v2_emit_ctrl
+v2_ctrl_v3:
+  ldy state+18
+v2_emit_ctrl:
+  iny
+  tya
+  sta $d404,x
+v2_done:
+  rts
+
+v2_special:
+  cpy #$0E
+  bne v2_check_0c
+  ; Pattern loop
+  cpx #0
+  bne v2_loop_v2
+  lda #<ptn_v1
+  sta zp_v1_lo
+  lda #>ptn_v1
+  sta zp_v1_hi
+  jmp advance_v1
+v2_loop_v2:
+  cpx #7
+  bne v2_loop_v3
+  lda #<ptn_v2
+  sta zp_v2_lo
+  lda #>ptn_v2
+  sta zp_v2_hi
+  jmp advance_v2
+v2_loop_v3:
+  lda #<ptn_v3
+  sta zp_v3_lo
+  lda #>ptn_v3
+  sta zp_v3_hi
+  jmp advance_v3
+v2_check_0c:
+  cpy #$0C
+  bne v2_check_0d
+  bit gate_flag
+  bpl v2_0c_write
+  cpx #0
+  beq v2_done
+v2_0c_write:
+  cpx #0
+  bne v2_0c_v2
+  lda state+4
+  jmp v2_0c_emit
+v2_0c_v2:
+  cpx #7
+  bne v2_0c_v3
+  lda state+11
+  jmp v2_0c_emit
+v2_0c_v3:
+  lda state+18
+v2_0c_emit:
+  sta $d404,x
+  rts
+v2_check_0d:
+  cpy #$0D
+  beq v2_0d_path
+  jmp v2_play_note
+v2_0d_path:
+  bit gate_flag
+  bpl v2_0d_write
+  cpx #0
+  beq v2_0d_check_v3
+v2_0d_write:
+  cpx #0
+  bne v2_0d_v2
+  lda state+4
+  jmp v2_0d_emit
+v2_0d_v2:
+  cpx #7
+  bne v2_0d_v3
+  lda state+11
+  jmp v2_0d_emit
+v2_0d_v3:
+  lda state+18
+v2_0d_emit:
+  sta $d404,x
+v2_0d_check_v3:
+  cpx #$0E
+  bne v2_0d_done
+  lda #$FF
+  sta song_end
+v2_0d_done:
+  rts
+
+; AD/SR helper — writes AD/SR for all voices, plus PW for V2 (X=7)
+v2_ad_sr_helper:
+  cpx #$07
+  bne v2_ad_sr_no_pw
+  lda state+2,x
+  sta $d402,x
+  lda state+3,x
+  sta $d403,x
+v2_ad_sr_no_pw:
+  lda state+5,x
+  sta $d405,x
+  lda state+6,x
+  sta $d406,x
+  rts
+
+;===== Data =====
+
+state_template:
+{hex_list(state_bytes)}
+
+ptn_v1:
+{hex_list(list(v1_pat))}
+ptn_v2:
+{hex_list(list(v2_pat))}
+ptn_v3:
+{hex_list(list(v3_pat))}
+
+freq_hi:
+{hex_list(freq_hi)}
+freq_lo:
+{hex_list(freq_lo)}
+
+state:        .dsb 32, 0
+gate_flag:    .byte 0
+song_end:     .byte 0
+"""
+    return asm
+
+
+def build_subtune_sid_v2(subtune: int) -> bytes:
+    asm = emit_v2_subtune_asm(subtune)
+    body = _assemble(asm, f'c64me_sub{subtune}')
+    load_addr = 0x0801
+    init_addr = load_addr
+    play_addr = load_addr + 3
+    title = f"Commodore 64 Music Examples (sub {subtune})"
+    author = "Rob Hubbard"
+    released = "1985 Rob Hubbard"
+    h = _psid_header(title, author, released, 1, 1, load_addr, init_addr, play_addr)
+    return h + body
+
+
 if __name__ == '__main__':
     import sys
     subtunes = [int(s) for s in sys.argv[1:]] if len(sys.argv) > 1 else [0]
     for st in subtunes:
-        sid = build_subtune_sid(st)
+        if st in (0, 2, 3):
+            sid = build_subtune_sid(st)
+        elif st == 1:
+            print(f"Sub 1 (Family B) not yet supported")
+            continue
+        else:
+            sid = build_subtune_sid_v2(st)
         out_path = SID_PATH.replace('.sid', f'.sub{st}.sidfinity.sid')
         with open(out_path, 'wb') as f:
             f.write(sid)
