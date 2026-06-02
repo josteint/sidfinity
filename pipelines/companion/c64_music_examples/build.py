@@ -325,6 +325,12 @@ base_hi:         .byte 0
     else:
         full_tick_end_asm = "  rts"
 
+    # Per-subtune init's optional initial master_vol write.
+    if b.init_master_vol_first:
+        init_master_vol_first_asm = "  lda #$0F\n  sta $d418\n"
+    else:
+        init_master_vol_first_asm = ""
+
     asm = f"""\
 * = $0801
 
@@ -342,39 +348,26 @@ play_jmp:
 
 init:
   sei
-  lda #$0F
-  sta $d418
-  ; Copy state template (32 bytes)
+{init_master_vol_first_asm}  ; Copy state template (32 bytes)
   ldx #31
 copy_state:
   lda state_template,x
   sta state,x
   dex
   bpl copy_state
-  ; Override state pattern ptrs with our fresh addresses, then load zp
+  ; Init zp pattern ptrs directly to our fresh addresses (no via-state
+  ; indirection — sub 3 has PWM ctrs at state+24/+25, not pattern_ptrs)
   lda #<ptn_v1
-  sta state+24
-  lda #>ptn_v1
-  sta state+25
-  lda #<ptn_v2
-  sta state+26
-  lda #>ptn_v2
-  sta state+27
-  lda #<ptn_v3
-  sta state+28
-  lda #>ptn_v3
-  sta state+29
-  lda state+24
   sta zp_v1_lo
-  lda state+25
+  lda #>ptn_v1
   sta zp_v1_hi
-  lda state+26
+  lda #<ptn_v2
   sta zp_v2_lo
-  lda state+27
+  lda #>ptn_v2
   sta zp_v2_hi
-  lda state+28
+  lda #<ptn_v3
   sta zp_v3_lo
-  lda state+29
+  lda #>ptn_v3
   sta zp_v3_hi
 {pwm_init_asm}{common_init_asm}{vib_init_asm}
   ; Dump state to SID regs (LDX #$14; LDA state,X; STA $D400,X; DEX; BPL)
@@ -535,23 +528,23 @@ ve_special_or_note:
   bne ve_check_0c
   cpx #0
   bne ve_loop_v2
-  lda state+24
+  lda #<ptn_v1
   sta zp_v1_lo
-  lda state+25
+  lda #>ptn_v1
   sta zp_v1_hi
   jmp advance_v1
 ve_loop_v2:
   cpx #7
   bne ve_loop_v3
-  lda state+26
+  lda #<ptn_v2
   sta zp_v2_lo
-  lda state+27
+  lda #>ptn_v2
   sta zp_v2_hi
   jmp advance_v2
 ve_loop_v3:
-  lda state+28
+  lda #<ptn_v3
   sta zp_v3_lo
-  lda state+29
+  lda #>ptn_v3
   sta zp_v3_hi
   jmp advance_v3
 ve_check_0c:

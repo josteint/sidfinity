@@ -296,6 +296,9 @@ class FamilyABindings:
     pwm_variant: str = 'sweep'
     pwm_hi: int = 0x0E
     pwm_lo: int = 0x02
+    # Per-subtune init writes master_vol BEFORE the state-dump. Sub 0 + sub 2
+    # have this; sub 3 (V1.c) skips it (start init helper differs).
+    init_master_vol_first: bool = True
     zp_v1: int = 0x1C   # convention across all Family A
     zp_v2: int = 0x1E
     zp_v3: int = 0x20
@@ -325,7 +328,8 @@ FAMILY_A_INSTANCES = {
                          pwm_sign_base=0x2BD0, current_note_addr=0x2C6B,
                          v3_pwm_ctr_addr=0x2B97, v1_pwm_ctr_addr=0x2B98,
                          dispatch='bne_loop', pwm_variant='sweep',
-                         pwm_hi=0x0D, pwm_lo=0x03),
+                         pwm_hi=0x0D, pwm_lo=0x03,
+                         init_master_vol_first=False),
     # Subs 4-14 share the engine at $33DB.
     'shared': FamilyABindings(handler_addr=0x33DB, state_base=0x35C2,
                                pwm_sign_base=0x0000, current_note_addr=0x36AE,
