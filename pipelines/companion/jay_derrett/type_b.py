@@ -171,7 +171,7 @@ def emit_asm_type_b(data: TypeBData, load_addr: int = 0x1000) -> str:
         '    clc',
         '    adc voice_phase1_delta+0',
         '    sta voice_pw_lo+0',
-        '    sta $d402',           # phase 1 writes ONLY PW lo (not PW hi)',
+        '    sta $d402',
         '    beq v0_p1_flip',
         '    rts',
         'v0_p1_flip:',
@@ -549,6 +549,34 @@ TYPE_B_CONFIGS = {
         'pw_hi_addrs': (0x3A94, 0x3A96, 0x3A98),
         'phase1_delta_addrs': (0x3ABB, 0x3AFB, 0x3B3B),
         'pw_hi_reset_addrs': (0x3A9C, 0x3A9D, 0x3A9E),
+    },
+    # Sqij: B4 sub-cluster — Equalizer-shape with the V1/V2 mod-sub PW
+    # state slots EMBEDDED inside the mod-sub binary region (between
+    # phase 0 code and phase 1 code). PW slots at $89CA-CF, deltas at
+    # $89F2 (V0), $8A32 (V1), $8A72 (V2). NOTE handler zeros V0 PW lo
+    # only — same quirk as Equalizer/Death. PW hi "saved" slots
+    # ($89D3-D5) get copied to working slots ($89D1/D2) around the
+    # shared process_voice JSR but for byte-exactness we use the
+    # consolidated array layout.
+    'Sqij': {
+        'voice_ptrs_addr': 0x8873,
+        'dur_counters_addr': 0x8879,
+        'cur_ctrl_addr': 0x887C,
+        'tempo_addr': 0x8871,
+        'tempo_reload_addr': 0x8872,
+        'freq_lo_addr': 0x88A8,
+        'freq_hi_addr': 0x8928,
+        'inst_programs_addr': 0x8886,
+        'n_inst': 16,
+        'sub_jump_table_addr': 0x887F,
+        'smc_addr': 0x8748,
+        'smc_wrap': 0xE3,
+        'pw_lo_addrs': (0x89CA, 0x89CC, 0x89CE),
+        'pw_hi_addrs': (0x89CB, 0x89CD, 0x89CF),
+        'phase1_delta_addrs': (0x89F2, 0x8A32, 0x8A72),
+        # PW hi "saved" slots used as pw_hi_reset (copied from working
+        # slot post-process to per-voice slot).
+        'pw_hi_reset_addrs': (0x89D3, 0x89D4, 0x89D5),
     },
 }
 
