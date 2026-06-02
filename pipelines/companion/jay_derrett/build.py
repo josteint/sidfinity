@@ -57,8 +57,137 @@ class ExtractedData:
     released: str
 
 
-def extract_data(sid_path: str, params: EngineParams = NINJA_HAMSTER
-                 ) -> ExtractedData:
+def _libsidplayfp_powerup_byte(addr: int) -> int:
+    """Compute the libsidplayfp powerup pattern byte at `addr`.
+    Mirrors SystemRAMBank::reset(). Used to determine engine-mechanism
+    quirks where the engine reads an uninitialised cell."""
+    # Determine bank's initial fill byte
+    bank = addr >> 14   # 0, 1, 2, 3 for the four $4000-byte banks
+    fill = 0xFF if bank in (1, 3) else 0x00
+    overlay = fill ^ 0xFF
+    # Within each 8-byte block: offset 0..1 = fill, 2..5 = overlay, 6..7 = fill
+    off8 = addr & 7
+    if off8 in (2, 3, 4, 5):
+        return overlay
+    return fill
+
+
+def _libsidplayfp_powerup_ram() -> bytearray:
+    """Mirror libsidplayfp's SystemRAMBank::reset() — needed because
+    orig engines read uninitialised RAM cells whose powerup values
+    influence audible behavior."""
+    ram = bytearray(0x10000)
+    byte = 0x00
+    for j in range(0, 0x10000, 0x4000):
+        for k in range(0x4000):
+            ram[j + k] = byte
+        byte ^= 0xFF
+        for i in range(0x02, 0x4000, 0x08):
+            for k in range(4):
+                ram[j + i + k] = byte
+    return ram
+
+
+def capture_init_state(sid_path: str, params: EngineParams,
+                       subtune: int = 0) -> dict:
+    """Run orig init in py65 with libsidplayfp powerup RAM; return
+    state-cell values the composer needs to reproduce.
+
+    Returns a dict with keys:
+      - tempo_counter, tempo_reload (the orig's value at the state cell
+        Ninja_Hamster has at voice_ptrs - 9 / -8; same offset assumed
+        for all Type A engines)
+      - dur_counters (3 bytes at voice_ptrs - 12 / -11 / -10)
+      - cur_inst (3 bytes at voice_ptrs - 7 / -6 / -5)
+      - cur_ctrl (3 bytes at voice_ptrs - 4 / -3 / -2)
+      - frame_counter (1 byte at voice_ptrs - 1)
+      - self_mod_counter (from params)
+      - initial_pwm_lo (3 bytes from voice_pwm_lo cells via heuristic
+        or computed powerup pattern)
+    """
+    import sys as _sys
+    _sys.path.insert(0, str(ROOT / 'tools' / 'py65_lib'))
+    from py65.devices.mpu6502 import MPU
+    raw = Path(sid_path).read_bytes()
+    body = raw[0x7C:]
+    load = struct.unpack('>H', raw[8:10])[0]
+    if load == 0:
+        load = struct.unpack('<H', body[:2])[0]
+        body = body[2:]
+    mpu = MPU()
+    mpu.memory = _libsidplayfp_powerup_ram()
+    mpu.memory[load:load + len(body)] = body
+    mpu.memory[0x01] = 0x37
+    mpu.a = subtune
+    mpu.x = 0; mpu.y = 0
+    mpu.p = 0x20
+    mpu.sp = 0xFD
+    mpu.memory[0x01FF] = 0xFE
+    mpu.memory[0x01FE] = 0xFE
+    mpu.pc = params.init_addr
+    for _ in range(2_000_000):
+        if mpu.pc == 0xFEFF:
+            break
+        mpu.step()
+    # Capture state assuming Ninja_Hamster layout offsets relative to voice_ptrs
+    vp = params.voice_ptrs
+    state = {
+        'dur_counters': bytes(mpu.memory[vp - 12:vp - 9]),
+        'tempo_counter': mpu.memory[vp - 9],
+        'tempo_reload': mpu.memory[vp - 8],
+        'cur_inst': bytes(mpu.memory[vp - 7:vp - 4]),
+        'cur_ctrl': bytes(mpu.memory[vp - 4:vp - 1]),
+        'frame_counter': mpu.memory[vp - 1],
+        'self_mod_counter': mpu.memory[params.self_mod_counter],
+        'voice_ptrs': bytes(mpu.memory[vp:vp + 6]),
+        # Initial $D418 — read from SID register memory
+        'master_vol': mpu.memory[0xD418] or 0x0F,
+    }
+    return state
+
+
+def params_from_extracted_json(json_path: str | Path) -> EngineParams:
+    """Build an EngineParams from the scanner's _extracted JSON.
+
+    Some fields are not load-bearing for the rebuild (only for extraction
+    and per-engine quirks) — set to 0 where unknown. emit_asm() doesn't
+    consume these; only extract_data + composer init use them."""
+    d = json.load(open(json_path))
+    voices = [v['initial_ptr'] for v in d['voices']]
+    while len(voices) < 3:
+        voices.append(0)
+    return EngineParams(
+        play_addr=d['play_addr'],
+        init_addr=d['init_addr'],
+        proc_note_addr=d['proc_note_addr'],
+        duration_counters=0,         # not used in extract
+        tempo_counter=0,
+        tempo_reload=0,
+        current_inst=0,
+        ctrl_byte=0,
+        frame_counter=0,
+        voice_ptrs=d['voices'][0]['ptr_addr'],
+        self_mod_counter=d['counter_addr'],
+        song_loop_clears=(),
+        sub_jump_table=d['sub_jump_table']['addr'],
+        inst_slide_lo_table=d['freq_table']['lo_addr'],
+        inst_slide_hi_table=d['freq_table']['hi_addr'],
+        voice_offsets=0,             # we synthesize [0, 7, 14]
+        voice_pwm_phase=0,
+        voice_pwm_lo_accum=0,        # configured per engine; defaults below
+        modulation_voice_idx=0,
+        voice_state_base=0,          # in orig binary; computed from proc_note
+        voice_state_stride=0x1A,
+        inst_src_table=d['instrument_base_table']['addr'],
+        voice_dst_table=0,
+        voice_initial_ptrs=tuple(voices[:3]),
+        initial_tempo=0x0A,
+        initial_master_vol=0x0F,
+    )
+
+
+def extract_data(sid_path: str, params: EngineParams = NINJA_HAMSTER,
+                 n_inst: int = 19) -> ExtractedData:
     """Run the emulator-equivalent SID load + pull engine data tables.
     The data is the SID's musical content — this is principled extraction
     (not engine bytes)."""
@@ -80,10 +209,11 @@ def extract_data(sid_path: str, params: EngineParams = NINJA_HAMSTER
     freq_hi = bytes(mem[params.inst_slide_hi_table:params.inst_slide_hi_table + 256])
 
     sub_jump = bytes(mem[params.sub_jump_table:params.sub_jump_table + 20])
-    voice_offs = bytes(mem[params.voice_offsets:params.voice_offsets + 3])
+    # Voice SID offsets are always [0, 7, 14] across all Jay_Derrett engines
+    # (it's a SID register layout, not an engine choice).
+    voice_offs = bytes([0, 7, 14])
 
-    # Instrument source table — 19 × 2 byte ptrs at $C8FB+
-    n_inst = 19
+    # Instrument source table — n_inst × 2 byte ptrs
     inst_src = bytes(mem[params.inst_src_table:params.inst_src_table + n_inst * 2])
 
     # Instrument programs — 24 bytes each, pointed to by inst_src
@@ -139,7 +269,8 @@ def extract_data(sid_path: str, params: EngineParams = NINJA_HAMSTER
 # Composer — emit clean xa65 asm for the Jay_Derrett engine
 # ---------------------------------------------------------------------------
 
-def emit_asm(data: ExtractedData, load_addr: int = 0x1000) -> str:
+def emit_asm(data: ExtractedData, load_addr: int = 0x1000,
+             quirks: 'EngineQuirks' = None) -> str:
     """Generate xa65 source for a clean Jay_Derrett rebuild.
 
     Layout (one contiguous block from load_addr):
@@ -208,10 +339,14 @@ def emit_asm(data: ExtractedData, load_addr: int = 0x1000) -> str:
         '    sta dur_counters',
         '    sta dur_counters+1',
         '    sta dur_counters+2',
-        '    ; Initial PWM lo accumulator: V1=$FF (mirrors orig\'s reliance',
-        '    ; on libsidplayfp powerup RAM at $CB01); V2/V3 stay $00.',
-        '    lda #$ff',
-        '    sta voice_pwm_lo',
+        '    ; Initial PWM lo accumulator values mirror orig reliance on',
+        '    ; libsidplayfp powerup RAM at the engine PWM lo cell address.',
+    ]
+    pwm = quirks.initial_pwm_lo if quirks else (0xFF, 0x00, 0x00)
+    for v, val in enumerate(pwm):
+        if val:
+            lines += [f'    lda #${val:02X}', f'    sta voice_pwm_lo+{v}']
+    lines += [
         '    rts',
         '',
     ]
@@ -907,56 +1042,151 @@ def _assemble(asm_src: str, name: str = 'jd') -> tuple[bytes, dict[str, int]]:
     return open(obj, 'rb').read(), labels
 
 
-def build_ninja_hamster_sid(load_addr: int = 0x1000) -> bytes:
-    """Build a clean Ninja_Hamster PSID."""
-    sid_path = str(ROOT / 'hvsc84' / 'MUSICIANS' / 'D' / 'Derrett_Jay' /
-                   'Ninja_Hamster.sid')
-    data = extract_data(sid_path, NINJA_HAMSTER)
+@dataclass
+class EngineQuirks:
+    """Per-engine quirks that have to be reproduced for byte-exact match.
 
-    # Pass 1: emit asm + assemble to find voice_pattern label addresses
-    asm1 = emit_asm(data, load_addr)
-    bin1, labels1 = _assemble(asm1, 'jd_pass1')
+    Most engines lift these into engine config; we keep them as a small
+    typed bag here. Lift into USF (Phase later) once we understand the
+    full quirk-space across the family.
+    """
+    # Initial value for the V1 PWM-lo accumulator (orig engines depend
+    # on libsidplayfp's powerup RAM at the engine's PWM lo cell address).
+    initial_pwm_lo: tuple[int, int, int] = (0xFF, 0x00, 0x00)
+    # Number of instruments in the inst src table (typically 19).
+    n_inst: int = 19
+
+
+# Per-SID config: SID basename -> EngineQuirks
+# Defaults work for most "direct-play" Ninja_Hamster-shape engines.
+_PER_SID_QUIRKS: dict[str, EngineQuirks] = {
+    'Ninja_Hamster': EngineQuirks(),  # defaults
+}
+
+
+def _quirks_for(sid_stem: str, params: EngineParams) -> EngineQuirks:
+    """Look up per-SID quirks; fall back to libsidplayfp powerup defaults."""
+    if sid_stem in _PER_SID_QUIRKS:
+        return _PER_SID_QUIRKS[sid_stem]
+    # Default: compute PWM lo initial values from orig engine address.
+    # If we don't know the orig PWM lo cell, fall back to Ninja_Hamster
+    # pattern (V1=$FF, V2/V3=$00). This is wrong for non-default SIDs
+    # — they need explicit quirks entries when byte-exact verification fails.
+    return EngineQuirks()
+
+
+def build_sid(sid_path: str, params: EngineParams,
+              load_addr: int = 0x1000,
+              quirks: EngineQuirks = None) -> bytes:
+    """Generic PSID builder for any Type A direct-play Jay_Derrett engine.
+
+    `params` carries the orig binary's data-table addresses (for
+    extraction). `quirks` carries per-engine init-quirks; defaults
+    sufficient for many SIDs.
+    """
+    sid_stem = Path(sid_path).stem
+    if quirks is None:
+        quirks = _quirks_for(sid_stem, params)
+    data = extract_data(sid_path, params, n_inst=quirks.n_inst)
+
+    asm1 = emit_asm(data, load_addr, quirks=quirks)
+    bin1, labels1 = _assemble(asm1, f'jd_{sid_stem}_pass1')
     voice_pattern_bases = [
         labels1.get(f'voice{v}_pattern', 0) for v in range(3)
     ]
-
-    # Pass 2: emit again with sub_jump_table remapped
-    remapped_sjt = _remap_sub_jump_table(data, NINJA_HAMSTER,
-                                          voice_pattern_bases)
-    # Replace data.sub_jump_table with remapped version
+    remapped_sjt = _remap_sub_jump_table(data, params, voice_pattern_bases)
     data.sub_jump_table = remapped_sjt
-    asm2 = emit_asm(data, load_addr)
-    bin2, _ = _assemble(asm2, 'jd_pass2')
+    asm2 = emit_asm(data, load_addr, quirks=quirks)
+    bin2, _ = _assemble(asm2, f'jd_{sid_stem}_pass2')
 
-    # Build PSID header
     title = data.title
     author = data.author
     released = data.released
     init_addr = load_addr
     play_addr = load_addr + 3
+    return _wrap_psid(title, author, released, init_addr, play_addr,
+                      load_addr, bin2, n_subtunes=1)
 
+
+def _wrap_psid(title: str, author: str, released: str,
+               init_addr: int, play_addr: int, load_addr: int,
+               body: bytes, n_subtunes: int = 1) -> bytes:
     h = bytearray(b'PSID')
     h += struct.pack('>HH', 2, 124)
     h += struct.pack('>H', load_addr)
     h += struct.pack('>H', init_addr)
     h += struct.pack('>H', play_addr)
-    h += struct.pack('>H', 1)            # 1 subtune
-    h += struct.pack('>H', 1)            # start_song
-    h += struct.pack('>I', 0)            # speed (50Hz)
+    h += struct.pack('>H', n_subtunes)
+    h += struct.pack('>H', 1)
+    h += struct.pack('>I', 0)
     def _latin1(s, n):
         return s.encode('latin-1', errors='replace')[:n].ljust(n, b'\x00')
     h += _latin1(title, 32)
     h += _latin1(author, 32)
     h += _latin1(released, 32)
-    h += struct.pack('>H', (1 << 2) | (1 << 4))  # flags: musPlayer + PAL
+    h += struct.pack('>H', (1 << 2) | (1 << 4))
     h += struct.pack('>BBH', 0, 0, 0)
     assert len(h) == 124
-    return bytes(h) + bin2
+    return bytes(h) + body
+
+
+def build_ninja_hamster_sid(load_addr: int = 0x1000) -> bytes:
+    """Build a clean Ninja_Hamster PSID."""
+    sid_path = str(ROOT / 'hvsc84' / 'MUSICIANS' / 'D' / 'Derrett_Jay' /
+                   'Ninja_Hamster.sid')
+    return build_sid(sid_path, NINJA_HAMSTER, load_addr=load_addr)
+
+
+_TYPE_A_SIDS = [
+    'Counterforce', 'Destruct', 'Discovery', 'Jetboys', 'Lifeforce',
+    'Mandroid', 'Ninja_Hamster', 'Osmium', 'Road_Warrior', 'Stratton',
+    'Thundercross', 'Traxxion', 'Trigger_Happy', 'Vengeance', 'ZIP',
+]
+
+
+def try_all_type_a(duration: float = 6.0) -> dict[str, str]:
+    """Attempt to build + verify every Type A SID with current composer.
+    Returns dict of sid_name -> status string. Useful for tracking
+    Phase 3 progress across engine variants."""
+    from pipelines.hubbard.verify_cycle import (
+        writelog_capture, compare_instruction_stream,
+    )
+    results: dict[str, str] = {}
+    base = ROOT / 'hvsc84' / 'MUSICIANS' / 'D' / 'Derrett_Jay'
+    extracted = ROOT / 'pipelines' / 'companion' / 'jay_derrett' / '_extracted'
+    for name in _TYPE_A_SIDS:
+        sid_path = str(base / f'{name}.sid')
+        reb_path = str(base / f'{name}.sidfinity.sid')
+        json_path = str(extracted / f'{name}.json')
+        if not Path(json_path).exists():
+            results[name] = 'NO-JSON'
+            continue
+        try:
+            params = params_from_extracted_json(json_path)
+            sid_bytes = build_sid(sid_path, params)
+            Path(reb_path).write_bytes(sid_bytes)
+            a = writelog_capture(sid_path, 0, duration=duration)
+            b = writelog_capture(reb_path, 0, duration=duration)
+            r = compare_instruction_stream(a, b)
+            if r['is_full']:
+                results[name] = 'PASS'
+            else:
+                results[name] = (f"FAIL match_all={r['match_all']}/"
+                                 f"{r['len_all_a']}")
+        except Exception as e:
+            results[name] = f"BUILD-ERR {type(e).__name__}: {str(e)[:60]}"
+    return results
 
 
 if __name__ == '__main__':
-    sid = build_ninja_hamster_sid()
-    out = str(ROOT / 'hvsc84' / 'MUSICIANS' / 'D' / 'Derrett_Jay' /
-              'Ninja_Hamster.sidfinity.sid')
-    Path(out).write_bytes(sid)
-    print(f'Wrote {out} ({len(sid)} bytes)')
+    import sys as _sys
+    if len(_sys.argv) > 1 and _sys.argv[1] == 'all':
+        results = try_all_type_a()
+        for name, status in results.items():
+            print(f'{name:18} {status}')
+    else:
+        sid = build_ninja_hamster_sid()
+        out = str(ROOT / 'hvsc84' / 'MUSICIANS' / 'D' / 'Derrett_Jay' /
+                  'Ninja_Hamster.sidfinity.sid')
+        Path(out).write_bytes(sid)
+        print(f'Wrote {out} ({len(sid)} bytes)')
