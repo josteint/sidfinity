@@ -52,6 +52,11 @@ class TypeBData:
     # Per-SID init SID writes (captured via py65 trace) — replayed by reb's
     # init to match orig's pre-play SID state. Sequence of (reg, val) tuples.
     init_sid_writes: list[tuple[int, int]] = None
+    # Per-tempo-expired master vol write. Death has `LDA $392E / ORA #$10 /
+    # STA $D418` at start of voice processing — writes $0F | $10 = $1F each
+    # tempo expiry. None = no per-frame write. Otherwise = the byte value
+    # to write to $D418.
+    per_frame_d418_value: int | None = None
 
 
 def emit_asm_type_b(data: TypeBData, load_addr: int = 0x1000) -> str:
@@ -121,6 +126,14 @@ def emit_asm_type_b(data: TypeBData, load_addr: int = 0x1000) -> str:
         '    beq tempo_expired',
         '    rts',
         'tempo_expired:',
+    ]
+    if data.per_frame_d418_value is not None:
+        lines += [
+            f'    ; Per-engine: write master vol on each tempo expiry',
+            f'    lda #${data.per_frame_d418_value:02X}',
+            '    sta $d418',
+        ]
+    lines += [
         '    ldx #$00',
         '    jsr process_voice',
         '    ldx #$01',
@@ -519,6 +532,7 @@ TYPE_B_CONFIGS = {
         'pw_hi_reset_addrs': (0xCA0B, 0xCA0D, 0xCA0E),
     },
     'Death_or_Glory': {
+        'per_frame_d418_value': 0x1F,   # LDA $392E ($0F) / ORA #$10 / STA $D418
         'voice_ptrs_addr': 0x3931,
         'dur_counters_addr': 0x3937,
         'cur_ctrl_addr': 0x393A,        # heuristic — adjust if wrong
@@ -667,6 +681,7 @@ def extract_type_b(sid_path: str, sid_name: str = None) -> TypeBData:
         initial_smc=smc,
         smc_wrap=cfg['smc_wrap'],
         init_sid_writes=init_sid_writes,
+        per_frame_d418_value=cfg.get('per_frame_d418_value'),
     )
 
 

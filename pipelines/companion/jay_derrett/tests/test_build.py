@@ -35,6 +35,26 @@ import pytest
 from pipelines.companion.jay_derrett.build import (
     build_sid, params_from_extracted_json,
 )
+from pipelines.companion.jay_derrett.type_b import build_type_b_sid
+
+
+TYPE_B_SIDS = ['Equalizer', 'Death_or_Glory']
+
+
+@pytest.mark.parametrize('name', TYPE_B_SIDS)
+def test_type_b_byte_exact(name):
+    """Type B SIDs (Equalizer-shape engine, 5-byte inst program,
+    per-voice unrolled PWM mod)."""
+    sid_path = str(ROOT / 'hvsc84' / 'MUSICIANS' / 'D' / 'Derrett_Jay' /
+                   f'{name}.sid')
+    reb_path = str(ROOT / 'hvsc84' / 'MUSICIANS' / 'D' / 'Derrett_Jay' /
+                   f'{name}.sidfinity.sid')
+    Path(reb_path).write_bytes(build_type_b_sid(name))
+    a = writelog_capture(sid_path, 0, duration=6.0)
+    b = writelog_capture(reb_path, 0, duration=6.0)
+    r = compare_instruction_stream(a, b)
+    assert r['is_full'], (
+        f"{name}: match_all={r['match_all']}/{r['len_all_a']}/{r['len_all_b']}")
 
 
 CLUSTER_A_SIDS = [
