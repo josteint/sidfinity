@@ -1008,6 +1008,117 @@ def build_subtune_sid_v2(subtune: int) -> bytes:
     return h + body
 
 
+def build_subtune_sid_b(subtune: int) -> bytes:
+    """Build sub 1 (Family B engine).
+
+    Pragmatic approach: load at $1100 to fit just before the engine
+    at $1119; copy engine code + data verbatim from orig SID. The
+    engine internally references hardcoded addresses ($1348 freq,
+    $143C/$14CD pattern tables, $1D1D instruments, $1408 state, etc.)
+    — placing them at orig addresses lets engine code work as-is
+    without fixups.
+
+    State and runtime vars at $1408-$1437 are RAM (cleared at load),
+    set up via init code.
+    """
+    if subtune != 1:
+        raise ValueError("build_subtune_sid_b only handles sub 1")
+    from pipelines.companion.c64_music_examples.extract.engine_model import (
+        _run_init_via_py65,
+    )
+    mem, _ = _run_init_via_py65(SID_PATH, 1)
+
+    # Build init code at $1100 that:
+    # - SEI
+    # - sets master_vol $0F + filter $00
+    # - initializes state ($1408-$1437) with snapshot values from orig init
+    # - CLI; RTS
+    # Play address: $1119 (engine entry — same as orig, since we're at same load)
+
+    # Capture state snapshot AFTER orig init runs
+    state_snap = bytes(mem[0x1408:0x1438])  # 0x30 bytes
+    # Also $0314/$0315 (IRQ vector) and $A2 (frame ctr equiv) and $03E7
+    # — these aren't reset to specific values per subtune in orig PSID, so leave.
+
+    # Build init asm at $1100
+    init_asm = ['* = $1100', 'init_entry:', '  sei',
+                '  lda #$0F', '  sta $d418',
+                '  lda #$00', '  sta $d417',
+                '  lda #$0F', '  sta $d418']
+    # Copy state snapshot byte-by-byte
+    for i, v in enumerate(state_snap):
+        init_asm.append(f'  lda #${v:02X}')
+        init_asm.append(f'  sta ${0x1408 + i:04X}')
+    init_asm.append('  cli')
+    init_asm.append('  rts')
+
+    # Assemble init code first to get its size
+    init_src = '\n'.join(init_asm)
+    init_bin = _assemble(init_src, 'c64me_sub1_init')
+
+    # Build full asm: init + raw engine bytes at $1119 + raw data sections
+    # We assemble in two pieces, but xa65 single-pass works by using
+    # .byte for the engine/data sections.
+    # Engine code: $1119-$1347 (varies) + $1348-$1447 freq + $143C-$14DC pattern tables + ...
+    # Easiest: dump $1119-$1D9F (covers engine + data + instruments) as a single .byte block.
+    # Then padding to ensure addresses match.
+
+    # Find end of useful data: $1D1D + 13*8 = $1D85 (instruments). Add safety to $1DA0.
+    DATA_END = 0x1DA0
+
+    # Lower load to $1000 to fit init code + state snapshot data
+    full_asm = ['* = $1000']
+    full_asm.append('init_entry:')
+    full_asm.append('  jmp init_real')
+    full_asm.append('play_entry:')
+    full_asm.append('  lda $A2')
+    full_asm.append('  pha')
+    full_asm.append('  lda $086E')
+    full_asm.append('  sta $A2')
+    full_asm.append('  inc $086E')
+    full_asm.append('  jsr $1119')
+    full_asm.append('  pla')
+    full_asm.append('  sta $A2')
+    full_asm.append('  rts')
+    full_asm.append('init_real:')
+    full_asm.append('  sei')
+    full_asm.append('  lda #$00')
+    full_asm.append('  sta $086E')
+    full_asm.append('  sta $d417')
+    full_asm.append('  lda #$0F')
+    full_asm.append('  sta $d418')
+    full_asm.append('  ldx #$2F')          # copy 48 bytes (state[0x00..0x2F])
+    full_asm.append('init_copy:')
+    full_asm.append('  lda state_snap,x')
+    full_asm.append('  sta $1408,x')
+    full_asm.append('  dex')
+    full_asm.append('  bpl init_copy')
+    full_asm.append('  cli')
+    full_asm.append('  rts')
+    full_asm.append('state_snap:')
+    for i in range(0, len(state_snap), 16):
+        chunk = state_snap[i:i+16]
+        full_asm.append('  .byte ' + ', '.join(f'${b:02X}' for b in chunk))
+    full_asm.append('  .dsb $1119 - *, 0')
+
+    # Dump engine + data $1119-$1D9F
+    raw_block = bytes(mem[0x1119:DATA_END])
+    for i in range(0, len(raw_block), 16):
+        chunk = raw_block[i:i+16]
+        full_asm.append('  .byte ' + ', '.join(f'${b:02X}' for b in chunk))
+
+    asm = '\n'.join(full_asm) + '\n'
+    body = _assemble(asm, 'c64me_sub1')
+    load_addr = 0x1000
+    init_addr = load_addr      # init_entry at $1000
+    play_addr = load_addr + 3  # play_entry just after init_entry's JMP
+    title = "Commodore 64 Music Examples (sub 1)"
+    author = "Rob Hubbard"
+    released = "1985 Rob Hubbard"
+    h = _psid_header(title, author, released, 1, 1, load_addr, init_addr, play_addr)
+    return h + body
+
+
 if __name__ == '__main__':
     import sys
     subtunes = [int(s) for s in sys.argv[1:]] if len(sys.argv) > 1 else [0]
@@ -1015,8 +1126,7 @@ if __name__ == '__main__':
         if st in (0, 2, 3):
             sid = build_subtune_sid(st)
         elif st == 1:
-            print(f"Sub 1 (Family B) not yet supported")
-            continue
+            sid = build_subtune_sid_b(st)
         else:
             sid = build_subtune_sid_v2(st)
         out_path = SID_PATH.replace('.sid', f'.sub{st}.sidfinity.sid')
