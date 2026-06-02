@@ -199,6 +199,69 @@ def regress_c64me() -> tuple[int, int]:
     return ok, fail
 
 
+def regress_jay_derrett() -> tuple[int, int]:
+    """Jay_Derrett family — 13 SIDs currently passing byte-exact:
+    - 10 PSID-compatible (siddump --writelog both sides): 6 Cluster A
+      (Jetboys, Lifeforce, Mandroid, Ninja_Hamster, Vengeance, ZIP),
+      3 Cluster B PSID (Counterforce, Destruct, Stratton), 1
+      Cluster C (Discovery).
+    - 3 RSID IRQ-driven (orig via py65 IRQ-vector capture, reb via
+      siddump): Osmium, Thundercross, Trigger_Happy.
+    Returns (ok, fail). Of 25 total Jay_Derrett SIDs: 13 wired, 12
+    pending (Traxxion + Road_Warrior + 10 Type B engines)."""
+    from pipelines.companion.jay_derrett.build import (
+        build_sid, params_from_extracted_json, capture_writes_via_py65,
+    )
+    import json
+    from pathlib import Path
+    PSID_SIDS = [
+        'Counterforce', 'Destruct', 'Discovery', 'Jetboys', 'Lifeforce',
+        'Mandroid', 'Ninja_Hamster', 'Stratton', 'Vengeance', 'ZIP',
+    ]
+    RSID_IRQ_SIDS = ['Osmium', 'Thundercross', 'Trigger_Happy']
+    base = 'hvsc84/MUSICIANS/D/Derrett_Jay'
+    extracted = 'pipelines/companion/jay_derrett/_extracted'
+    ok = fail = 0
+
+    def _build(name):
+        params = params_from_extracted_json(f'{extracted}/{name}.json')
+        jd = json.load(open(f'{extracted}/{name}.json'))
+        vbr = [(v['ptr_min'], v['ptr_min'] + len(v['bytes']))
+               for v in jd['voice_bytes']]
+        Path(f'{base}/{name}.sidfinity.sid').write_bytes(
+            build_sid(f'{base}/{name}.sid', params, voice_byte_ranges=vbr))
+
+    for name in PSID_SIDS:
+        _build(name)
+        a = writelog_capture(f'{base}/{name}.sid', 0, duration=6.0)
+        b = writelog_capture(f'{base}/{name}.sidfinity.sid', 0, duration=6.0)
+        r = compare_instruction_stream(a, b)
+        if r['is_full']:
+            ok += 1; status = 'OK'
+        else:
+            fail += 1
+            status = f"FAIL match_all={r['match_all']}/{r['len_all_a']}"
+        print(f'  {name:18s} (psid)  {status}')
+
+    for name in RSID_IRQ_SIDS:
+        _build(name)
+        orig = capture_writes_via_py65(f'{base}/{name}.sid', 0, n_frames=50)
+        reb = writelog_capture(f'{base}/{name}.sidfinity.sid', 0, duration=1.0)
+        fa = [(r, v) for f in orig for c, r, v in f]
+        fb_all = [(r, v) for f in reb for c, r, v in f]
+        fb = fb_all[2:]  # skip reb's init $D418 writes
+        n = min(len(fa), len(fb))
+        div = next((i for i in range(n) if fa[i] != fb[i]), None)
+        if div is None and n > 500:
+            ok += 1; status = 'OK'
+        else:
+            fail += 1
+            status = f'FAIL diverge#{div} ({n} matched)'
+        print(f'  {name:18s} (rsid)  {status}')
+
+    return ok, fail
+
+
 def main():
     print('Hubbard \'85:')
     h_ok, h_part, h_total = regress_hubbard()
@@ -206,14 +269,17 @@ def main():
     c_ok, c_part, c_fail = regress_companion()
     print(f'\nC64 Music Examples (prefix-match):')
     cme_ok, cme_fail = regress_c64me()
+    print(f'\nJay_Derrett family (13 of 25 SIDs wired):')
+    jd_ok, jd_fail = regress_jay_derrett()
 
     print(f'\nHubbard:    {h_ok} ok  +  {h_part} known-partial  +  '
           f'{h_total - h_ok - h_part} regressed  (of {h_total})')
     print(f'Companion:  {c_ok} ok  +  {c_part} known-partial  +  {c_fail} regressed')
     print(f'C64ME:      {cme_ok} ok  +  {cme_fail} regressed  (of 15)')
+    print(f'Jay_Derrett:  {jd_ok} ok  +  {jd_fail} regressed  (of 13 wired / 25 total)')
 
     h_regressed = h_total - h_ok - h_part
-    if h_regressed or c_fail or cme_fail:
+    if h_regressed or c_fail or cme_fail or jd_fail:
         sys.exit(1)
 
 
