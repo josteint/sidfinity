@@ -49,6 +49,9 @@ class TypeBData:
     initial_phase1_delta: tuple[int, int, int]
     initial_smc: int
     smc_wrap: int             # $E3 for Equalizer (3 sub-jump entries)
+    # Per-SID init SID writes (captured via py65 trace) — replayed by reb's
+    # init to match orig's pre-play SID state. Sequence of (reg, val) tuples.
+    init_sid_writes: list[tuple[int, int]] = None
 
 
 def emit_asm_type_b(data: TypeBData, load_addr: int = 0x1000) -> str:
@@ -83,9 +86,11 @@ def emit_asm_type_b(data: TypeBData, load_addr: int = 0x1000) -> str:
         '    sta tempo_counter',
         f'    lda #${data.initial_tempo_reload:02X}',
         '    sta tempo_reload',
-        f'    lda #${data.initial_master_vol:02X}',
-        '    sta $d418',
     ]
+    # Replay captured orig init SID writes (matches orig's pre-play SID state)
+    if data.init_sid_writes:
+        for reg, val in data.init_sid_writes:
+            lines += [f'    lda #${val:02X}', f'    sta $d4{reg:02X}']
     for v in range(3):
         lines += [
             f'    lda #${data.initial_dur_counters[v]:02X}',
@@ -153,10 +158,8 @@ def emit_asm_type_b(data: TypeBData, load_addr: int = 0x1000) -> str:
         '    clc',
         '    adc voice_phase1_delta+0',
         '    sta voice_pw_lo+0',
-        '    sta $d402',
+        '    sta $d402',           # phase 1 writes ONLY PW lo (not PW hi)',
         '    beq v0_p1_flip',
-        '    lda voice_pw_hi+0',
-        '    sta $d403',
         '    rts',
         'v0_p1_flip:',
         '    lda #$00',
@@ -494,12 +497,10 @@ def emit_asm_type_b(data: TypeBData, load_addr: int = 0x1000) -> str:
 # Extraction for Type B SIDs
 # ---------------------------------------------------------------------------
 
-def extract_type_b(sid_path: str) -> TypeBData:
-    """Extract Type B engine data from a SID. Currently Equalizer-specific
-    (hardcoded addresses); will be generalized after auto-detection works."""
-    # Equalizer specifics — replace with auto-detect later
-    EQUALIZER = {
-        'name': 'Equalizer',
+# Per-SID hardcoded engine state addresses for B1 sub-cluster.
+# Eventually auto-detect; for now hand-extracted from binary RE.
+TYPE_B_CONFIGS = {
+    'Equalizer': {
         'voice_ptrs_addr': 0xC8AC,
         'dur_counters_addr': 0xC8B2,
         'cur_ctrl_addr': 0xC8B5,
@@ -512,20 +513,39 @@ def extract_type_b(sid_path: str) -> TypeBData:
         'sub_jump_table_addr': 0xC8B8,
         'smc_addr': 0xC785,
         'smc_wrap': 0xE3,
-        # PWM cells: V1 at $CA03/$CA04, V2 at $CA05/$CA06, V3 at $CA07/$CA08
         'pw_lo_addrs': (0xCA03, 0xCA05, 0xCA07),
         'pw_hi_addrs': (0xCA04, 0xCA06, 0xCA08),
-        # Phase-1 signed delta cells (the actual deltas read by mod
-        # subs): V1 $CA2B, V2 $CA6B, V3 $CAAB. Static body data;
-        # mod sub toggles sign on each ADC=0 flip event.
         'phase1_delta_addrs': (0xCA2B, 0xCA6B, 0xCAAB),
-        # PW hi reset value cells. $C8B5-style; orig writes inst byte 0
-        # here in $Dx handler, then NOTE handler copies these to the
-        # current PW hi cell. For V1: stored at $CA0B (after copy via
-        # play_code multiplexing). V2/V3: $CA0D, $CA0E.
         'pw_hi_reset_addrs': (0xCA0B, 0xCA0D, 0xCA0E),
-    }
-    cfg = EQUALIZER
+    },
+    'Death_or_Glory': {
+        'voice_ptrs_addr': 0x3931,
+        'dur_counters_addr': 0x3937,
+        'cur_ctrl_addr': 0x393A,        # heuristic — adjust if wrong
+        'tempo_addr': 0x392F,
+        'tempo_reload_addr': 0x3930,    # heuristic
+        'freq_lo_addr': 0x3971,
+        'freq_hi_addr': 0x39F1,         # heuristic = freq_lo + $80
+        'inst_programs_addr': 0x394A,   # from $Dx handler at $3832
+        'n_inst': 16,
+        'sub_jump_table_addr': 0x393D,  # heuristic — adjust
+        'smc_addr': 0x3812,             # heuristic — at LDA before CMP #$E6 at $3813
+        'smc_wrap': 0xE6,               # detected: CMP #$E6
+        'pw_lo_addrs': (0x3A93, 0x3A95, 0x3A97),
+        'pw_hi_addrs': (0x3A94, 0x3A96, 0x3A98),
+        'phase1_delta_addrs': (0x3ABB, 0x3AFB, 0x3B3B),
+        'pw_hi_reset_addrs': (0x3A9C, 0x3A9D, 0x3A9E),
+    },
+}
+
+
+def extract_type_b(sid_path: str, sid_name: str = None) -> TypeBData:
+    """Extract Type B engine data from a SID using TYPE_B_CONFIGS."""
+    if sid_name is None:
+        sid_name = Path(sid_path).stem
+    if sid_name not in TYPE_B_CONFIGS:
+        raise ValueError(f'No TYPE_B_CONFIGS entry for {sid_name}')
+    cfg = TYPE_B_CONFIGS[sid_name]
 
     raw = Path(sid_path).read_bytes()
     body = raw[0x7C:]
@@ -538,7 +558,7 @@ def extract_type_b(sid_path: str) -> TypeBData:
     mem = bytearray(0x10000)
     mem[load:load + len(body)] = body
 
-    # Run init via py65 to capture state cells
+    # Run init via py65 to capture state cells + SID writes
     import sys as _sys
     _sys.path.insert(0, str(ROOT / 'tools' / 'py65_lib'))
     from py65.devices.mpu6502 import MPU
@@ -551,8 +571,28 @@ def extract_type_b(sid_path: str) -> TypeBData:
     mpu.a = 0; mpu.x = 0; mpu.y = 0; mpu.p = 0x20; mpu.sp = 0xFD
     mpu.memory[0x01FF] = 0xFE; mpu.memory[0x01FE] = 0xFE
     mpu.pc = init_addr
+    init_sid_writes: list[tuple[int, int]] = []
     for _ in range(2_000_000):
         if mpu.pc == 0xFEFF: break
+        op = mpu.memory[mpu.pc]
+        tgt = None
+        if op == 0x8D:    # STA abs
+            tgt = mpu.memory[mpu.pc + 1] | (mpu.memory[mpu.pc + 2] << 8)
+            val = mpu.a
+        elif op == 0x9D:  # STA abs,X
+            tgt = ((mpu.memory[mpu.pc + 1] | (mpu.memory[mpu.pc + 2] << 8)) + mpu.x) & 0xFFFF
+            val = mpu.a
+        elif op == 0x99:  # STA abs,Y
+            tgt = ((mpu.memory[mpu.pc + 1] | (mpu.memory[mpu.pc + 2] << 8)) + mpu.y) & 0xFFFF
+            val = mpu.a
+        elif op == 0x8E:  # STX abs
+            tgt = mpu.memory[mpu.pc + 1] | (mpu.memory[mpu.pc + 2] << 8)
+            val = mpu.x
+        elif op == 0x8C:  # STY abs
+            tgt = mpu.memory[mpu.pc + 1] | (mpu.memory[mpu.pc + 2] << 8)
+            val = mpu.y
+        if tgt is not None and 0xD400 <= tgt <= 0xD41F:
+            init_sid_writes.append((tgt & 0x1F, val))
         mpu.step()
     post = mpu.memory
 
@@ -577,16 +617,17 @@ def extract_type_b(sid_path: str) -> TypeBData:
         prog = bytes(post[inst_base + i*5:inst_base + (i+1)*5])
         inst_programs.append(prog)
 
-    # Voice patterns — use captured ranges. For Equalizer, voice ptrs
-    # at $C000, $C233, $C46C; pattern data goes from each ptr to the
-    # next, or to play_addr ($C6B4).
+    # Voice patterns — use captured ranges. Pattern data goes from each
+    # voice's initial ptr to the next sorted boundary (other voice ptrs,
+    # play_addr, init_addr, or end of body).
     pat_starts = list(voice_initial_ptrs)
     play_addr = struct.unpack('>H', raw[12:14])[0]
-    boundaries = sorted(pat_starts + [play_addr])
+    body_end = load + len(body)
+    boundaries = sorted(set(pat_starts + [play_addr, init_addr, body_end]))
     voice_patterns = []
     for v in range(3):
         start = voice_initial_ptrs[v]
-        end = next(b for b in boundaries if b > start)
+        end = next((b for b in boundaries if b > start), body_end)
         voice_patterns.append(bytes(post[start:end]))
 
     # Init state captures
@@ -625,19 +666,20 @@ def extract_type_b(sid_path: str) -> TypeBData:
         initial_phase1_delta=phase1,
         initial_smc=smc,
         smc_wrap=cfg['smc_wrap'],
+        init_sid_writes=init_sid_writes,
     )
 
 
-def build_equalizer_sid(load_addr: int = 0x1000) -> bytes:
-    """Build Equalizer as PSID using emit_asm_type_b."""
+def build_type_b_sid(sid_name: str, load_addr: int = 0x1000) -> bytes:
+    """Build a Type B SID as PSID using emit_asm_type_b."""
     from pipelines.companion.jay_derrett.build import _assemble, _wrap_psid
     sid_path = str(ROOT / 'hvsc84' / 'MUSICIANS' / 'D' / 'Derrett_Jay' /
-                   'Equalizer.sid')
-    data = extract_type_b(sid_path)
+                   f'{sid_name}.sid')
+    data = extract_type_b(sid_path, sid_name)
 
     # Pass 1: assemble to get label addrs
     asm1 = emit_asm_type_b(data, load_addr)
-    bin1, labels1 = _assemble(asm1, 'jd_equalizer_pass1')
+    bin1, labels1 = _assemble(asm1, f'jd_{sid_name}_pass1')
     voice_pattern_bases = [labels1.get(f'voice{v}_pattern', 0) for v in range(3)]
 
     # Remap sub_jump_table entries to new voice_pattern_bases
@@ -659,14 +701,21 @@ def build_equalizer_sid(load_addr: int = 0x1000) -> bytes:
             remapped += b'\x00\x00'
     data.sub_jump_table = bytes(remapped)
     asm2 = emit_asm_type_b(data, load_addr)
-    bin2, _ = _assemble(asm2, 'jd_equalizer_pass2')
+    bin2, _ = _assemble(asm2, f'jd_{sid_name}_pass2')
 
     return _wrap_psid(data.title, data.author, data.released,
                       load_addr, load_addr + 3, load_addr,
                       bin2, n_subtunes=1)
 
 
+def build_equalizer_sid(load_addr: int = 0x1000) -> bytes:
+    return build_type_b_sid('Equalizer', load_addr)
+
+
 if __name__ == '__main__':
-    out = ROOT / 'hvsc84' / 'MUSICIANS' / 'D' / 'Derrett_Jay' / 'Equalizer.sidfinity.sid'
-    out.write_bytes(build_equalizer_sid())
-    print(f'Wrote {out}')
+    import sys as _sys
+    targets = _sys.argv[1:] if len(_sys.argv) > 1 else ['Equalizer']
+    for name in targets:
+        out = ROOT / 'hvsc84' / 'MUSICIANS' / 'D' / 'Derrett_Jay' / f'{name}.sidfinity.sid'
+        out.write_bytes(build_type_b_sid(name))
+        print(f'Wrote {out}')
