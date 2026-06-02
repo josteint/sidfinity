@@ -75,6 +75,90 @@ def _libsidplayfp_powerup_byte(addr: int) -> int:
     return fill
 
 
+def capture_writes_via_py65(sid_path: str, subtune: int = 0,
+                            n_frames: int = 300) -> list[list[tuple[int, int, int]]]:
+    """Capture per-frame (cycle, reg, val) SID writes by running the
+    SID in py65. Handles RSID with play=$0000 by following the IRQ
+    vector at $0314/$0315 after init returns (where the engine has
+    installed its IRQ handler). Returns a frames list compatible with
+    siddump's writelog_capture output.
+
+    The IRQ handler in these SIDs typically does
+    `JSR real_play / JMP $EA31` (or pulls the IRQ stack via RTI);
+    we let py65 follow whatever the handler does, but use the
+    `JMP $EA31` JMP-to-unmapped trick as the per-frame stop sentinel
+    (a `BRK` at $00 unmapped memory).
+
+    Used for verification of IRQ-driven engines (Osmium, Thundercross,
+    Trigger_Happy) where `siddump --writelog` returns 0 writes."""
+    import sys as _sys
+    _sys.path.insert(0, str(ROOT / 'tools' / 'py65_lib'))
+    from py65.devices.mpu6502 import MPU
+    raw = Path(sid_path).read_bytes()
+    body = raw[0x7C:]
+    load = struct.unpack('>H', raw[8:10])[0]
+    if load == 0:
+        load = struct.unpack('<H', body[:2])[0]
+        body = body[2:]
+    init_addr = struct.unpack('>H', raw[10:12])[0]
+    play_addr = struct.unpack('>H', raw[12:14])[0]
+    mpu = MPU()
+    mpu.memory = _libsidplayfp_powerup_ram()
+    mpu.memory[load:load + len(body)] = body
+    mpu.memory[0x01] = 0x37
+    mpu.a = subtune
+    mpu.x = 0; mpu.y = 0
+    mpu.p = 0x20
+    mpu.sp = 0xFD
+    mpu.memory[0x01FF] = 0xFE
+    mpu.memory[0x01FE] = 0xFE
+    mpu.pc = init_addr
+    for _ in range(2_000_000):
+        if mpu.pc == 0xFEFF:
+            break
+        mpu.step()
+    # IRQ-driven SID: play_addr is 0; follow the KERNAL IRQ vector
+    # the engine just installed.
+    if play_addr == 0:
+        play_addr = mpu.memory[0x0314] | (mpu.memory[0x0315] << 8)
+
+    frames: list[list[tuple[int, int, int]]] = []
+    for fi in range(n_frames):
+        mpu.sp = 0xFD
+        mpu.memory[0x01FF] = 0xFE
+        mpu.memory[0x01FE] = 0xFE
+        mpu.pc = play_addr
+        frame_writes: list[tuple[int, int, int]] = []
+        cycle = 0
+        for _ in range(200000):
+            if mpu.pc == 0xFEFF:
+                break
+            # Detect SID writes via STA abs / STA abs,X / STA abs,Y
+            op = mpu.memory[mpu.pc]
+            tgt = None
+            if op == 0x8D:    # STA abs
+                tgt = mpu.memory[mpu.pc + 1] | (mpu.memory[mpu.pc + 2] << 8)
+                val = mpu.a
+            elif op == 0x9D:  # STA abs,X
+                tgt = ((mpu.memory[mpu.pc + 1] | (mpu.memory[mpu.pc + 2] << 8)) + mpu.x) & 0xFFFF
+                val = mpu.a
+            elif op == 0x99:  # STA abs,Y
+                tgt = ((mpu.memory[mpu.pc + 1] | (mpu.memory[mpu.pc + 2] << 8)) + mpu.y) & 0xFFFF
+                val = mpu.a
+            elif op == 0x8E:  # STX abs
+                tgt = mpu.memory[mpu.pc + 1] | (mpu.memory[mpu.pc + 2] << 8)
+                val = mpu.x
+            elif op == 0x8C:  # STY abs
+                tgt = mpu.memory[mpu.pc + 1] | (mpu.memory[mpu.pc + 2] << 8)
+                val = mpu.y
+            if tgt is not None and 0xD400 <= tgt <= 0xD41F:
+                frame_writes.append((cycle, tgt & 0x1F, val))
+            mpu.step()
+            cycle += 1
+        frames.append(frame_writes)
+    return frames
+
+
 def _run_init_for_extract(sid_path: str, params: EngineParams,
                           subtune: int = 0) -> bytearray:
     """Run orig init via py65 with libsidplayfp powerup RAM; return

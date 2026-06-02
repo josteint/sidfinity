@@ -41,16 +41,16 @@ CLUSTER_A_SIDS = [
     'Jetboys', 'Lifeforce', 'Mandroid', 'Ninja_Hamster', 'Vengeance', 'ZIP',
 ]
 
-# Cluster B SIDs that pass via siddump --writelog. Osmium/Thundercross/
-# Trigger_Happy are RSIDs with play=$0000 (IRQ-driven); siddump skips
-# them. Road_Warrior bundles two engines and needs subtune-aware
-# dispatch — not yet supported.
-CLUSTER_B_SIDS = ['Counterforce', 'Destruct', 'Stratton']
+# Cluster B SIDs verifiable via siddump --writelog (PSID-compatible orig).
+CLUSTER_B_PSID_SIDS = ['Counterforce', 'Destruct', 'Stratton']
+
+# Cluster B IRQ-driven SIDs (RSID orig with play=$0000). Verified
+# via py65 capture for orig + siddump for reb (which ships as PSID).
+CLUSTER_B_IRQ_SIDS = ['Osmium', 'Thundercross', 'Trigger_Happy']
 
 
-@pytest.mark.parametrize('name', CLUSTER_A_SIDS + CLUSTER_B_SIDS)
-def test_type_a_byte_exact(name):
-    """All supported Type A SIDs must produce byte-exact SID writes."""
+def _build_and_load_data(name):
+    """Build + return (sid_path, reb_path, params, vbr)."""
     sid_path = str(ROOT / 'hvsc84' / 'MUSICIANS' / 'D' / 'Derrett_Jay' /
                    f'{name}.sid')
     reb_path = str(ROOT / 'hvsc84' / 'MUSICIANS' / 'D' / 'Derrett_Jay' /
@@ -60,14 +60,42 @@ def test_type_a_byte_exact(name):
     params = params_from_extracted_json(json_path)
     import json
     jd = json.load(open(json_path))
-    voice_byte_ranges = [
-        (vb['ptr_min'], vb['ptr_min'] + len(vb['bytes']))
-        for vb in jd['voice_bytes']
-    ]
+    vbr = [(vb['ptr_min'], vb['ptr_min'] + len(vb['bytes']))
+           for vb in jd['voice_bytes']]
     Path(reb_path).write_bytes(
-        build_sid(sid_path, params, voice_byte_ranges=voice_byte_ranges))
+        build_sid(sid_path, params, voice_byte_ranges=vbr))
+    return sid_path, reb_path
+
+
+@pytest.mark.parametrize('name', CLUSTER_A_SIDS + CLUSTER_B_PSID_SIDS)
+def test_psid_byte_exact(name):
+    """SIDs whose orig is PSID — verify via siddump --writelog both sides."""
+    sid_path, reb_path = _build_and_load_data(name)
     a = writelog_capture(sid_path, 0, duration=6.0)
     b = writelog_capture(reb_path, 0, duration=6.0)
     r = compare_instruction_stream(a, b)
     assert r['is_full'], (
         f"{name}: match_all={r['match_all']}/{r['len_all_a']}/{r['len_all_b']}")
+
+
+@pytest.mark.parametrize('name', CLUSTER_B_IRQ_SIDS)
+def test_rsid_irq_byte_exact(name):
+    """RSID IRQ-driven SIDs (play=$0000) — orig captured via py65
+    (follows IRQ vector at $0314/$0315 after init), reb captured
+    via siddump (reb ships as PSID with normal play addr). Compare
+    write sequences as prefix-match (different end-of-capture
+    boundary handling)."""
+    from pipelines.companion.jay_derrett.build import capture_writes_via_py65
+    sid_path, reb_path = _build_and_load_data(name)
+    orig = capture_writes_via_py65(sid_path, 0, n_frames=50)
+    reb = writelog_capture(reb_path, 0, duration=1.0)
+    fa = [(r, v) for f in orig for c, r, v in f]
+    fb_all = [(r, v) for f in reb for c, r, v in f]
+    # reb has 2 init $D418 writes before the per-frame play; py65
+    # capture starts at play frame 0 (post-init).
+    fb = fb_all[2:]
+    n = min(len(fa), len(fb))
+    div = next((i for i in range(n) if fa[i] != fb[i]), None)
+    assert div is None, (
+        f"{name}: diverge at write {div}: orig={fa[div]} reb={fb[div]}")
+    assert n > 500, f"{name}: too few matched writes: {n}"
