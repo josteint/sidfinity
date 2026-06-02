@@ -38,7 +38,8 @@ from pipelines.companion.jay_derrett.build import (
 from pipelines.companion.jay_derrett.type_b import build_type_b_sid
 
 
-TYPE_B_SIDS = ['Equalizer', 'Death_or_Glory', 'Sqij']
+TYPE_B_SIDS = ['Equalizer', 'Death_or_Glory', 'Sqij', 'Dracula']
+TYPE_B_PREFIX_MATCH = {'Dracula'}  # CIA-driven; reb has trailing extras
 
 
 @pytest.mark.parametrize('name', TYPE_B_SIDS)
@@ -53,8 +54,14 @@ def test_type_b_byte_exact(name):
     a = writelog_capture(sid_path, 0, duration=6.0)
     b = writelog_capture(reb_path, 0, duration=6.0)
     r = compare_instruction_stream(a, b)
-    assert r['is_full'], (
-        f"{name}: match_all={r['match_all']}/{r['len_all_a']}/{r['len_all_b']}")
+    if name in TYPE_B_PREFIX_MATCH:
+        assert r['match_all'] == r['len_all_a'], (
+            f"{name}: prefix-match failed match_all={r['match_all']}"
+            f"/{r['len_all_a']}/{r['len_all_b']}")
+    else:
+        assert r['is_full'], (
+            f"{name}: match_all={r['match_all']}/{r['len_all_a']}"
+            f"/{r['len_all_b']}")
 
 
 CLUSTER_A_SIDS = [

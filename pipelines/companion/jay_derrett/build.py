@@ -1826,7 +1826,10 @@ def build_sid(sid_path: str, params: EngineParams,
 
 def _wrap_psid(title: str, author: str, released: str,
                init_addr: int, play_addr: int, load_addr: int,
-               body: bytes, n_subtunes: int = 1) -> bytes:
+               body: bytes, n_subtunes: int = 1,
+               speed: int = 0) -> bytes:
+    """speed: PSID speed flags (one bit per subtune; bit=0 → 50Hz VBI,
+    bit=1 → CIA timer A). Default 0 = 50Hz for all subtunes."""
     h = bytearray(b'PSID')
     h += struct.pack('>HH', 2, 124)
     h += struct.pack('>H', load_addr)
@@ -1834,7 +1837,7 @@ def _wrap_psid(title: str, author: str, released: str,
     h += struct.pack('>H', play_addr)
     h += struct.pack('>H', n_subtunes)
     h += struct.pack('>H', 1)
-    h += struct.pack('>I', 0)
+    h += struct.pack('>I', speed)
     def _latin1(s, n):
         return s.encode('latin-1', errors='replace')[:n].ljust(n, b'\x00')
     h += _latin1(title, 32)

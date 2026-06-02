@@ -564,6 +564,38 @@ TYPE_B_CONFIGS = {
     # ($89D3-D5) get copied to working slots ($89D1/D2) around the
     # shared process_voice JSR but for byte-exactness we use the
     # consolidated array layout.
+    # Dracula: B1 cluster (Equalizer-shape). Banking-trampoline orig
+    # (play_outer=$05FE just JSRs real play at $0401 with $01 bank
+    # flips); reb doesn't need banking since we lay out at $1000. Init
+    # at $0800 copies 3122 bytes from $084C → $A000 (V0 patterns at
+    # $A000, V1 at $A4B5, V2 at $A943 — outside load range, populated
+    # by init copy loop).
+    'Dracula': {
+        'psid_speed': 1,                # CIA-driven dispatch
+        # Init at $0800 copies 3122 bytes from $084C → $A000.
+        # Pattern data lives at $A000-$AC32, outside the load range.
+        'pattern_body_end': 0xAC32,
+        'voice_ptrs_addr': 0x060C,
+        'dur_counters_addr': 0x0612,
+        'cur_ctrl_addr': 0x0615,
+        'tempo_addr': 0x060A,
+        'tempo_reload_addr': 0x060B,
+        'freq_lo_addr': 0x0637,
+        'freq_hi_addr': 0x06B7,
+        'inst_programs_addr': 0x061F,
+        'n_inst': 5,                    # 5 insts × 5 bytes = 25, byte 4
+                                        # of inst 4 overlaps freq_lo[0]
+        'sub_jump_table_addr': 0x0618,
+        'smc_addr': 0x04DE,             # self-mod CMP #$E0 operand byte
+        'smc_wrap': 0xE3,
+        'pw_lo_addrs': (0x0755, 0x0757, 0x0759),
+        'pw_hi_addrs': (0x0756, 0x0758, 0x075A),
+        'phase1_delta_addrs': (0x077D, 0x07BD, 0x07FD),
+        'pw_hi_reset_addrs': (0x075E, 0x075F, 0x0760),
+        'ptr_zp_addr': 0x19,
+        'cur_voice_zp_addr': 0x1F,
+        'n_simulation_frames': 8000,
+    },
     'Sqij': {
         'voice_ptrs_addr': 0x8873,
         'dur_counters_addr': 0x8879,
@@ -674,10 +706,12 @@ def extract_type_b(sid_path: str, sid_name: str = None) -> TypeBData:
 
     # Voice patterns — use captured ranges. Pattern data goes from each
     # voice's initial ptr to the next sorted boundary (other voice ptrs,
-    # play_addr, init_addr, or end of body).
+    # play_addr, init_addr, or end of body). Some engines (e.g. Dracula)
+    # populate pattern data OUTSIDE the load range via init copy loops;
+    # for those, cfg['pattern_body_end'] overrides body_end.
     pat_starts = list(voice_initial_ptrs)
     play_addr = struct.unpack('>H', raw[12:14])[0]
-    body_end = load + len(body)
+    body_end = cfg.get('pattern_body_end', load + len(body))
     boundaries = sorted(set(pat_starts + [play_addr, init_addr, body_end]))
     voice_patterns = []
     for v in range(3):
@@ -912,9 +946,14 @@ def build_type_b_sid(sid_name: str, load_addr: int = 0x1000) -> bytes:
     asm2 = emit_asm_type_b(data, load_addr)
     bin2, _ = _assemble(asm2, f'jd_{sid_name}_pass2')
 
+    # PSID speed flag: per-subtune dispatch mode. Default 50Hz VBI.
+    # Some engines (e.g., Dracula) drive play via CIA timer A — match
+    # by setting bit 0 = 1.
+    cfg = TYPE_B_CONFIGS.get(sid_name, {})
+    speed = cfg.get('psid_speed', 0)
     return _wrap_psid(data.title, data.author, data.released,
                       load_addr, load_addr + 3, load_addr,
-                      bin2, n_subtunes=1)
+                      bin2, n_subtunes=1, speed=speed)
 
 
 def build_equalizer_sid(load_addr: int = 0x1000) -> bytes:

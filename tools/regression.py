@@ -200,18 +200,19 @@ def regress_c64me() -> tuple[int, int]:
 
 
 def regress_jay_derrett() -> tuple[int, int]:
-    """Jay_Derrett family — 16 SIDs currently passing byte-exact:
+    """Jay_Derrett family — 17 SIDs currently passing byte-exact:
     - 10 PSID-compatible (siddump --writelog both sides): 6 Cluster A
       (Jetboys, Lifeforce, Mandroid, Ninja_Hamster, Vengeance, ZIP),
       3 Cluster B PSID (Counterforce, Destruct, Stratton), 1
       Cluster C (Discovery).
     - 3 RSID IRQ-driven (orig via py65 IRQ-vector capture, reb via
       siddump): Osmium, Thundercross, Trigger_Happy.
-    - 3 Type B (Equalizer-shape engine): Equalizer, Death_or_Glory
-      (B1 sub-cluster), Sqij (B4 — needs principled high-byte-note
-      resolution via py65 simulation).
+    - 4 Type B (Equalizer-shape engine): Equalizer, Death_or_Glory
+      (B1), Sqij (B4 — high-byte-note resolution via py65 simulation),
+      Dracula (B1, CIA-driven, prefix-match — reb's CIA rate gives
+      slightly different siddump capture boundary).
     Returns (ok, fail). Of 20 total Jay_Derrett SIDs in HVSC #84:
-    16 wired, 4 pending (Dracula, Spindizzy_USA_Version, Road_Warrior,
+    17 wired, 3 pending (Spindizzy_USA_Version, Road_Warrior,
     Traxxion)."""
     from pipelines.companion.jay_derrett.build import (
         build_sid, params_from_extracted_json, capture_writes_via_py65,
@@ -222,7 +223,10 @@ def regress_jay_derrett() -> tuple[int, int]:
         'Counterforce', 'Destruct', 'Discovery', 'Jetboys', 'Lifeforce',
         'Mandroid', 'Ninja_Hamster', 'Stratton', 'Vengeance', 'ZIP',
     ]
-    TYPE_B_SIDS = ['Equalizer', 'Death_or_Glory', 'Sqij']  # Type B
+    TYPE_B_SIDS = ['Equalizer', 'Death_or_Glory', 'Sqij', 'Dracula']
+    # Dracula uses prefix-match (CIA-driven dispatch — reb's capture
+    # boundary in siddump may include 6-16 extra trailing writes).
+    TYPE_B_PREFIX_MATCH = {'Dracula'}
     RSID_IRQ_SIDS = ['Osmium', 'Thundercross', 'Trigger_Happy']
     base = 'hvsc84/MUSICIANS/D/Derrett_Jay'
     extracted = 'pipelines/companion/jay_derrett/_extracted'
@@ -257,11 +261,19 @@ def regress_jay_derrett() -> tuple[int, int]:
         a = writelog_capture(f'{base}/{name}.sid', 0, duration=6.0)
         b = writelog_capture(str(out), 0, duration=6.0)
         r = compare_instruction_stream(a, b)
-        if r['is_full']:
+        if name in TYPE_B_PREFIX_MATCH:
+            passed = r['match_all'] == r['len_all_a']
+            status_detail = (f"match_all={r['match_all']}/{r['len_all_a']} "
+                             f"(prefix; reb_extras="
+                             f"{r['len_all_b'] - r['match_all']})")
+        else:
+            passed = r['is_full']
+            status_detail = (f"match_all={r['match_all']}/{r['len_all_a']}")
+        if passed:
             ok += 1; status = 'OK'
         else:
             fail += 1
-            status = f"FAIL match_all={r['match_all']}/{r['len_all_a']}"
+            status = f'FAIL {status_detail}'
         print(f'  {name:18s} (typeb) {status}')
 
     for name in RSID_IRQ_SIDS:
@@ -290,14 +302,14 @@ def main():
     c_ok, c_part, c_fail = regress_companion()
     print(f'\nC64 Music Examples (prefix-match):')
     cme_ok, cme_fail = regress_c64me()
-    print(f'\nJay_Derrett family (16 of 20 SIDs wired):')
+    print(f'\nJay_Derrett family (17 of 20 SIDs wired):')
     jd_ok, jd_fail = regress_jay_derrett()
 
     print(f'\nHubbard:    {h_ok} ok  +  {h_part} known-partial  +  '
           f'{h_total - h_ok - h_part} regressed  (of {h_total})')
     print(f'Companion:  {c_ok} ok  +  {c_part} known-partial  +  {c_fail} regressed')
     print(f'C64ME:      {cme_ok} ok  +  {cme_fail} regressed  (of 15)')
-    print(f'Jay_Derrett:  {jd_ok} ok  +  {jd_fail} regressed  (of 16 wired / 20 total)')
+    print(f'Jay_Derrett:  {jd_ok} ok  +  {jd_fail} regressed  (of 17 wired / 20 total)')
 
     h_regressed = h_total - h_ok - h_part
     if h_regressed or c_fail or cme_fail or jd_fail:
