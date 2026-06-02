@@ -75,16 +75,53 @@ def _libsidplayfp_powerup_byte(addr: int) -> int:
     return fill
 
 
+def _run_init_for_extract(sid_path: str, params: EngineParams,
+                          subtune: int = 0) -> bytearray:
+    """Run orig init via py65 with libsidplayfp powerup RAM; return
+    the full RAM image. Used by extract_data to read pattern data
+    that init COPIES from body to per-voice RAM regions (Mandroid)."""
+    import sys as _sys
+    _sys.path.insert(0, str(ROOT / 'tools' / 'py65_lib'))
+    from py65.devices.mpu6502 import MPU
+    raw = Path(sid_path).read_bytes()
+    body = raw[0x7C:]
+    load = struct.unpack('>H', raw[8:10])[0]
+    if load == 0:
+        load = struct.unpack('<H', body[:2])[0]
+        body = body[2:]
+    mpu = MPU()
+    mpu.memory = _libsidplayfp_powerup_ram()
+    mpu.memory[load:load + len(body)] = body
+    mpu.memory[0x01] = 0x37
+    mpu.a = subtune
+    mpu.x = 0; mpu.y = 0
+    mpu.p = 0x20
+    mpu.sp = 0xFD
+    mpu.memory[0x01FF] = 0xFE
+    mpu.memory[0x01FE] = 0xFE
+    mpu.pc = params.init_addr
+    for _ in range(2_000_000):
+        if mpu.pc == 0xFEFF:
+            break
+        mpu.step()
+    return bytearray(mpu.memory)
+
+
 def detect_mod_base(sid_path: str, params: EngineParams) -> int:
-    """Scan orig binary for the modulation block's normal-path
-    `LDA $XXXX,Y / STA $D400,X` write. Returns the LDA source - 1,
-    which is the modulation base (since freq lo is at offset +1 in
-    all known Jay_Derrett variants).
+    """Scan orig binary for the slide-update pattern
+    `B9 LL HH 18 79 ?? ?? 99 LL HH` (LDA abs,Y / CLC / ADC abs,Y /
+    STA abs,Y at the SAME address). The repeated address is the
+    freq-lo-accumulator slot. mod_base = that addr - 1, since freq
+    lo lives at offset +1 in all known Jay_Derrett slab variants.
 
     This is the address engine USES for voice_state slot reads,
     NOT the instrument-loader copy destination (which may differ
-    in engines like Lifeforce/Mandroid where the copy lands at
-    a stride-offset from the modulation base)."""
+    in engines like Lifeforce/Mandroid where the copy lands at a
+    stride offset from the modulation base).
+
+    Universal across all slab variants because slide-update logic
+    is structurally identical (always LDA-CLC-ADC-STA on the same
+    accumulator)."""
     raw = Path(sid_path).read_bytes()
     body = raw[0x7C:]
     load = struct.unpack('>H', raw[8:10])[0]
@@ -94,21 +131,13 @@ def detect_mod_base(sid_path: str, params: EngineParams) -> int:
     body_end = load + len(body)
     mem = bytearray(0x10000)
     mem[load:load + len(body)] = body
-    # Find all STA $D400,X with preceding LDA abs,Y. Pick the one
-    # whose source is in the LARGER region (normal path; off-slide
-    # source is at a smaller address — pw_hi/off_freq_lo at negative
-    # offsets from mod_base).
-    candidates = []
-    for addr in range(load + 3, body_end - 3):
-        if (mem[addr] == 0x9D and mem[addr + 1] == 0x00 and
-            mem[addr + 2] == 0xD4 and mem[addr - 3] == 0xB9):
-            src = mem[addr - 2] | (mem[addr - 1] << 8)
-            candidates.append(src)
-    if not candidates:
-        raise RuntimeError(f'No LDA $YYYY,Y / STA $D400,X in {sid_path}')
-    # Normal path has the LARGEST source (off-slide is at a smaller
-    # address per all known variants).
-    return max(candidates) - 1
+    for addr in range(load, body_end - 10):
+        if (mem[addr] == 0xB9 and mem[addr+3] == 0x18 and
+            mem[addr+4] == 0x79 and mem[addr+7] == 0x99 and
+            mem[addr+1] == mem[addr+8] and mem[addr+2] == mem[addr+9]):
+            slot = mem[addr+1] | (mem[addr+2] << 8)
+            return slot - 1
+    raise RuntimeError(f'No slide-update pattern in {sid_path}')
 
 
 def detect_voice_state_base(sid_path: str, params: EngineParams) -> int:
@@ -133,6 +162,37 @@ def detect_voice_state_base(sid_path: str, params: EngineParams) -> int:
             candidates.append((distance, dst))
     if not candidates:
         raise RuntimeError(f'No voice_state base found in {sid_path}')
+    candidates.sort()
+    return candidates[0][1]
+
+
+def detect_pwm_phase_base(sid_path: str, params: EngineParams) -> int:
+    """Scan orig binary for the PWM phase check: `BD LL HH D0 ??`
+    (LDA $XXXX,X / BNE phase1) where the LDA reads the per-voice
+    phase cell. Returns the LDA's operand (PWM phase base address).
+
+    The phase cell is indexed by X = voice idx (0/1/2), so values
+    at base, base+1, base+2 give V0/V1/V2 phase states (0 = phase 0,
+    non-zero = phase 1)."""
+    raw = Path(sid_path).read_bytes()
+    body = raw[0x7C:]
+    load = struct.unpack('>H', raw[8:10])[0]
+    if load == 0:
+        load = struct.unpack('<H', body[:2])[0]
+        body = body[2:]
+    body_end = load + len(body)
+    mem = bytearray(0x10000)
+    mem[load:load + len(body)] = body
+    # Scan for `BD LL HH D0 ??` near proc_note
+    candidates = []
+    for addr in range(load, body_end - 5):
+        if mem[addr] == 0xBD and mem[addr + 3] == 0xD0:
+            a = mem[addr + 1] | (mem[addr + 2] << 8)
+            # Filter: state-cell-like address (not in inst src table etc.)
+            distance = abs(addr - params.proc_note_addr)
+            candidates.append((distance, a))
+    if not candidates:
+        raise RuntimeError(f'No PWM phase base found in {sid_path}')
     candidates.sort()
     return candidates[0][1]
 
@@ -397,10 +457,17 @@ def extract_data(sid_path: str, params: EngineParams = NINJA_HAMSTER,
     if voice_byte_ranges is not None:
         # Explicit ranges from scanner; each voice's pattern stream
         # is whatever the play-capture observed at that voice's ptr.
-        # Each voice's "initial offset" within its slice = initial_ptr - min_addr.
+        # For engines that COPY pattern data from body to RAM during
+        # init (Mandroid), the body addresses at voice_ptrs are
+        # uninitialised — we must run init via py65 to get the
+        # populated pattern bytes.
+        # Run init in py65 with libsidplayfp powerup RAM, then dump
+        # the voice_byte_ranges from RAM. This handles both
+        # "directly-loaded" engines (NH) and "copied" engines (Mandroid).
+        post_init_mem = _run_init_for_extract(sid_path, params)
         for v in range(3):
             lo, hi = voice_byte_ranges[v]
-            voice_patterns.append(bytes(mem[lo:hi]))
+            voice_patterns.append(bytes(post_init_mem[lo:hi]))
     else:
         pat_starts = [params.voice_initial_ptrs[v] for v in range(3)]
         pat_end = params.play_addr  # play starts right after data
@@ -516,6 +583,20 @@ def emit_asm(data: ExtractedData, load_addr: int = 0x1000,
     for v, val in enumerate(pwm):
         if val:
             lines += [f'    lda #${val:02X}', f'    sta voice_pwm_lo+{v}']
+    phase = quirks.initial_pwm_phase if quirks else (0, 0, 0)
+    for v, val in enumerate(phase):
+        if val:
+            lines += [f'    lda #${val:02X}', f'    sta voice_pwm_phase+{v}']
+    # cur_inst per voice (orig init may pre-set instrument IDs)
+    cur_inst = quirks.initial_cur_inst if quirks else (0, 0, 0)
+    for v, val in enumerate(cur_inst):
+        if val:
+            lines += [f'    lda #${val:02X}', f'    sta cur_inst+{v}']
+    # cur_ctrl per voice (CTRL byte cache; orig pre-sets via inst load)
+    cur_ctrl = quirks.initial_cur_ctrl if quirks else (0, 0, 0)
+    for v, val in enumerate(cur_ctrl):
+        if val:
+            lines += [f'    lda #${val:02X}', f'    sta cur_ctrl+{v}']
     # Copy captured orig init voice_state slabs into the reb's
     # voice_state region. This pre-populates per-voice runtime state
     # (freq slide setup, PW params, CTRL slot) — matches engines whose
@@ -1248,6 +1329,21 @@ class EngineQuirks:
     # Initial value for the V1 PWM-lo accumulator (orig engines depend
     # on libsidplayfp's powerup RAM at the engine's PWM lo cell address).
     initial_pwm_lo: tuple[int, int, int] = (0xFF, 0x00, 0x00)
+    # Initial PWM phase per voice (0 = phase 0, non-zero = phase 1).
+    initial_pwm_phase: tuple[int, int, int] = (0x00, 0x00, 0x00)
+    # Initial cur_inst per voice (orig init may pre-load instruments).
+    initial_cur_inst: tuple[int, int, int] = (0x00, 0x00, 0x00)
+    # Initial cur_ctrl per voice (CTRL byte cache; set by inst load).
+    initial_cur_ctrl: tuple[int, int, int] = (0x00, 0x00, 0x00)
+    # Initial tempo counter + reload values (most engines = $0A).
+    initial_tempo: int = 0x0A
+    initial_tempo_reload: int = 0x0A
+    # Initial dur counters (most engines = [1, 1, 1]).
+    initial_dur_counters: tuple[int, int, int] = (0x01, 0x01, 0x01)
+    # Initial self-mod counter ($E0 for most; $D0 for Jetboys; $FB for Traxxion).
+    initial_smc: int = 0xE0
+    # Initial master vol (most $0F; Destruct $05).
+    initial_master_vol: int = 0x0F
     # Number of instruments in the inst src table (typically 19).
     n_inst: int = 19
 
@@ -1292,7 +1388,7 @@ def build_sid(sid_path: str, params: EngineParams,
     # same per-voice runtime state (some engines pre-load instruments
     # during init; their voice_state has non-zero contents at frame 0).
     try:
-        vs_base = detect_voice_state_base(sid_path, params)
+        vs_base = detect_mod_base(sid_path, params)
         data.init_voice_state = capture_voice_state_slabs(
             sid_path, params, vs_base, stride=0x1A)
     except RuntimeError:
@@ -1300,16 +1396,69 @@ def build_sid(sid_path: str, params: EngineParams,
     # Capture orig PWM lo accumulator initial values (engines depend
     # on libsidplayfp powerup RAM at the PWM lo cell address; for
     # engines whose body extends past the cell, on the body bytes).
-    if quirks.initial_pwm_lo == (0xFF, 0x00, 0x00):  # default — auto-detect
+    pwm_lo_init = quirks.initial_pwm_lo
+    pwm_phase_init = quirks.initial_pwm_phase
+    if pwm_lo_init == (0xFF, 0x00, 0x00):
         try:
             pwm_base = detect_pwm_lo_accum_base(sid_path, params)
             pwm_vals = capture_cells_after_init(
                 sid_path, params, [pwm_base + v for v in range(3)])
-            quirks = EngineQuirks(
-                initial_pwm_lo=(pwm_vals[0], pwm_vals[1], pwm_vals[2]),
-                n_inst=quirks.n_inst)
+            pwm_lo_init = (pwm_vals[0], pwm_vals[1], pwm_vals[2])
         except RuntimeError:
             pass
+    if pwm_phase_init == (0x00, 0x00, 0x00):
+        try:
+            phase_base = detect_pwm_phase_base(sid_path, params)
+            phase_vals = capture_cells_after_init(
+                sid_path, params, [phase_base + v for v in range(3)])
+            pwm_phase_init = (phase_vals[0], phase_vals[1], phase_vals[2])
+        except RuntimeError:
+            pass
+    # Capture engine state cells near voice_ptrs (NH layout assumed):
+    # voice_ptrs - 12 = dur_counters[0]
+    # voice_ptrs - 9 = tempo_counter
+    # voice_ptrs - 8 = tempo_reload
+    # voice_ptrs - 7 = cur_inst[0]
+    # voice_ptrs - 4 = cur_ctrl[0]
+    vp = params.voice_ptrs
+    try:
+        state_cells = capture_cells_after_init(
+            sid_path, params,
+            [vp - 12, vp - 11, vp - 10,    # dur
+             vp - 9, vp - 8,                # tempo, tempo_reload
+             vp - 7, vp - 6, vp - 5,        # cur_inst
+             vp - 4, vp - 3, vp - 2,        # cur_ctrl
+             params.self_mod_counter,       # smc
+             0xD418])                       # master vol
+        dur = (state_cells[0], state_cells[1], state_cells[2])
+        tempo = state_cells[3]
+        tempo_reload = state_cells[4]
+        cur_inst = (state_cells[5], state_cells[6], state_cells[7])
+        cur_ctrl = (state_cells[8], state_cells[9], state_cells[10])
+        smc = state_cells[11]
+        mvol = state_cells[12] if state_cells[12] else 0x0F
+    except Exception:
+        dur = quirks.initial_dur_counters
+        tempo = quirks.initial_tempo
+        tempo_reload = quirks.initial_tempo_reload
+        cur_inst = quirks.initial_cur_inst
+        cur_ctrl = quirks.initial_cur_ctrl
+        smc = quirks.initial_smc
+        mvol = quirks.initial_master_vol
+    quirks = EngineQuirks(
+        initial_pwm_lo=pwm_lo_init,
+        initial_pwm_phase=pwm_phase_init,
+        initial_cur_inst=cur_inst,
+        initial_cur_ctrl=cur_ctrl,
+        initial_tempo=tempo,
+        initial_tempo_reload=tempo_reload,
+        initial_dur_counters=dur,
+        initial_smc=smc,
+        initial_master_vol=mvol,
+        n_inst=quirks.n_inst)
+    # Apply tempo + master vol overrides into data so emit_asm uses them
+    data.initial_tempo = tempo
+    data.initial_master_vol = mvol
 
     asm1 = emit_asm(data, load_addr, quirks=quirks)
     bin1, labels1 = _assemble(asm1, f'jd_{sid_stem}_pass1')
