@@ -55,6 +55,9 @@ class ExtractedData:
     title: str
     author: str
     released: str
+    # Captured orig init state — emitted as init-time data in the reb.
+    # 78 bytes (3 voices × 26-byte stride). None means "use zeros".
+    init_voice_state: bytes | None = None
 
 
 def _libsidplayfp_powerup_byte(addr: int) -> int:
@@ -70,6 +73,127 @@ def _libsidplayfp_powerup_byte(addr: int) -> int:
     if off8 in (2, 3, 4, 5):
         return overlay
     return fill
+
+
+def detect_voice_state_base(sid_path: str, params: EngineParams) -> int:
+    """Scan orig binary for the instrument-loader copy pattern
+    `B9 ?? ?? 99 LL HH 88 10 F7` (LDA abs,Y / STA abs,Y / DEY / BPL)
+    and return the STA destination address — that's voice_state base.
+
+    Picks the match closest to proc_note when multiple matches exist
+    (some engines have similar copy patterns elsewhere)."""
+    raw = Path(sid_path).read_bytes()
+    body = raw[0x7C:]
+    load = struct.unpack('>H', raw[8:10])[0]
+    if load == 0:
+        load = struct.unpack('<H', body[:2])[0]
+        body = body[2:]
+    mem = bytearray(0x10000)
+    mem[load:load + len(body)] = body
+    candidates = []
+    for addr in range(load, load + len(body) - 9):
+        if (mem[addr] == 0xB9 and mem[addr+3] == 0x99 and
+            mem[addr+6] == 0x88 and mem[addr+7] == 0x10 and
+            mem[addr+8] == 0xF7):
+            dst = mem[addr+4] | (mem[addr+5] << 8)
+            distance = abs(addr - params.proc_note_addr)
+            candidates.append((distance, dst))
+    if not candidates:
+        raise RuntimeError(f'No voice_state base found in {sid_path}')
+    candidates.sort()
+    return candidates[0][1]
+
+
+def detect_pwm_lo_accum_base(sid_path: str, params: EngineParams) -> int:
+    """Scan orig binary for the modulation block's PW-lo write:
+    `AC ?? ?? B9 LL HH 9D 02 D4` (LDY $CB04 / LDA $CB01,Y / STA $D402,X)
+    and return the LDA's operand — that's the PWM lo accum base."""
+    raw = Path(sid_path).read_bytes()
+    body = raw[0x7C:]
+    load = struct.unpack('>H', raw[8:10])[0]
+    if load == 0:
+        load = struct.unpack('<H', body[:2])[0]
+        body = body[2:]
+    mem = bytearray(0x10000)
+    mem[load:load + len(body)] = body
+    candidates = []
+    for addr in range(load, load + len(body) - 9):
+        if (mem[addr] == 0xAC and mem[addr+3] == 0xB9 and
+            mem[addr+6] == 0x9D and mem[addr+7] == 0x02 and
+            mem[addr+8] == 0xD4):
+            base = mem[addr+4] | (mem[addr+5] << 8)
+            distance = abs(addr - params.proc_note_addr)
+            candidates.append((distance, base))
+    if not candidates:
+        raise RuntimeError(f'No PWM lo accum base found in {sid_path}')
+    candidates.sort()
+    return candidates[0][1]
+
+
+def capture_cells_after_init(sid_path: str, params: EngineParams,
+                             cell_addrs: list[int],
+                             subtune: int = 0) -> bytes:
+    """Run orig init in py65 with libsidplayfp powerup RAM; return
+    the values at cell_addrs after init returns."""
+    import sys as _sys
+    _sys.path.insert(0, str(ROOT / 'tools' / 'py65_lib'))
+    from py65.devices.mpu6502 import MPU
+    raw = Path(sid_path).read_bytes()
+    body = raw[0x7C:]
+    load = struct.unpack('>H', raw[8:10])[0]
+    if load == 0:
+        load = struct.unpack('<H', body[:2])[0]
+        body = body[2:]
+    mpu = MPU()
+    mpu.memory = _libsidplayfp_powerup_ram()
+    mpu.memory[load:load + len(body)] = body
+    mpu.memory[0x01] = 0x37
+    mpu.a = subtune
+    mpu.x = 0; mpu.y = 0
+    mpu.p = 0x20
+    mpu.sp = 0xFD
+    mpu.memory[0x01FF] = 0xFE
+    mpu.memory[0x01FE] = 0xFE
+    mpu.pc = params.init_addr
+    for _ in range(2_000_000):
+        if mpu.pc == 0xFEFF:
+            break
+        mpu.step()
+    return bytes(mpu.memory[a] for a in cell_addrs)
+
+
+def capture_voice_state_slabs(sid_path: str, params: EngineParams,
+                              voice_state_base: int,
+                              stride: int = 0x1A,
+                              subtune: int = 0) -> bytes:
+    """Run orig init in py65 with libsidplayfp powerup RAM; dump the
+    3 voice_state slabs (3 × stride = 78 bytes by default)."""
+    import sys as _sys
+    _sys.path.insert(0, str(ROOT / 'tools' / 'py65_lib'))
+    from py65.devices.mpu6502 import MPU
+    raw = Path(sid_path).read_bytes()
+    body = raw[0x7C:]
+    load = struct.unpack('>H', raw[8:10])[0]
+    if load == 0:
+        load = struct.unpack('<H', body[:2])[0]
+        body = body[2:]
+    mpu = MPU()
+    mpu.memory = _libsidplayfp_powerup_ram()
+    mpu.memory[load:load + len(body)] = body
+    mpu.memory[0x01] = 0x37
+    mpu.a = subtune
+    mpu.x = 0; mpu.y = 0
+    mpu.p = 0x20
+    mpu.sp = 0xFD
+    mpu.memory[0x01FF] = 0xFE
+    mpu.memory[0x01FE] = 0xFE
+    mpu.pc = params.init_addr
+    for _ in range(2_000_000):
+        if mpu.pc == 0xFEFF:
+            break
+        mpu.step()
+    n_bytes = 3 * stride
+    return bytes(mpu.memory[voice_state_base:voice_state_base + n_bytes])
 
 
 def _libsidplayfp_powerup_ram() -> bytearray:
@@ -187,10 +311,17 @@ def params_from_extracted_json(json_path: str | Path) -> EngineParams:
 
 
 def extract_data(sid_path: str, params: EngineParams = NINJA_HAMSTER,
-                 n_inst: int = 19) -> ExtractedData:
+                 n_inst: int = 19,
+                 voice_byte_ranges: list[tuple[int, int]] | None = None
+                 ) -> ExtractedData:
     """Run the emulator-equivalent SID load + pull engine data tables.
-    The data is the SID's musical content — this is principled extraction
-    (not engine bytes)."""
+
+    `voice_byte_ranges` overrides the contiguous-pattern heuristic for
+    engines where the three voice pattern streams aren't contiguous in
+    memory (Mandroid: V0/V1 at $04xx, V2 at $76xx). Pass a list of
+    (min_addr, max_addr+1) per voice; we'll slice mem[min:max+1].
+    Without it, we fall back to the Ninja_Hamster heuristic of
+    "next sorted voice start" or play_addr."""
     raw = Path(sid_path).read_bytes()
     body = raw[0x7C:]
     load_in = struct.unpack('>H', raw[8:10])[0]
@@ -230,16 +361,22 @@ def extract_data(sid_path: str, params: EngineParams = NINJA_HAMSTER,
     # We extract each voice's range from initial_ptr to next voice's
     # initial_ptr (or end of pattern region).
     voice_patterns = []
-    pat_starts = [params.voice_initial_ptrs[v] for v in range(3)]
-    # End of pattern region: just before the first code instruction
-    pat_end = params.play_addr  # play starts right after data
-    boundaries = list(pat_starts) + [pat_end]
-    boundaries.sort()
-    for v in range(3):
-        start = params.voice_initial_ptrs[v]
-        # Find next boundary > start
-        end = next(b for b in boundaries if b > start)
-        voice_patterns.append(bytes(mem[start:end]))
+    if voice_byte_ranges is not None:
+        # Explicit ranges from scanner; each voice's pattern stream
+        # is whatever the play-capture observed at that voice's ptr.
+        # Each voice's "initial offset" within its slice = initial_ptr - min_addr.
+        for v in range(3):
+            lo, hi = voice_byte_ranges[v]
+            voice_patterns.append(bytes(mem[lo:hi]))
+    else:
+        pat_starts = [params.voice_initial_ptrs[v] for v in range(3)]
+        pat_end = params.play_addr  # play starts right after data
+        boundaries = list(pat_starts) + [pat_end]
+        boundaries.sort()
+        for v in range(3):
+            start = params.voice_initial_ptrs[v]
+            end = next(b for b in boundaries if b > start)
+            voice_patterns.append(bytes(mem[start:end]))
     # Offsets of each voice's initial ptr within its pattern slice = 0
     voice_initial_offsets = (0, 0, 0)
 
@@ -346,10 +483,30 @@ def emit_asm(data: ExtractedData, load_addr: int = 0x1000,
     for v, val in enumerate(pwm):
         if val:
             lines += [f'    lda #${val:02X}', f'    sta voice_pwm_lo+{v}']
+    # Copy captured orig init voice_state slabs into the reb's
+    # voice_state region. This pre-populates per-voice runtime state
+    # (freq slide setup, PW params, CTRL slot) — matches engines whose
+    # init pre-loads instruments for one or more voices.
+    if data.init_voice_state is not None and any(data.init_voice_state):
+        n = len(data.init_voice_state)
+        lines += [
+            f'    ldx #${n-1:02X}',
+            'init_copy_state_loop:',
+            '    lda init_voice_state_data,x',
+            '    sta voice_state,x',
+            '    dex',
+            '    bpl init_copy_state_loop',
+        ]
     lines += [
         '    rts',
         '',
     ]
+    if data.init_voice_state is not None and any(data.init_voice_state):
+        lines.append('init_voice_state_data:')
+        for i in range(0, len(data.init_voice_state), 16):
+            chunk = data.init_voice_state[i:i + 16]
+            lines.append('    .byte ' + ', '.join(f'${b:02X}' for b in chunk))
+        lines.append('')
 
     # ----- play code -----
     lines += [
@@ -956,18 +1113,23 @@ def emit_asm(data: ExtractedData, load_addr: int = 0x1000,
 # ---------------------------------------------------------------------------
 
 def _remap_sub_jump_table(data: ExtractedData, params: EngineParams,
-                           voice_pattern_bases: list[int]) -> bytes:
+                           voice_pattern_bases: list[int],
+                           voice_byte_ranges: list[tuple[int, int]] | None = None
+                           ) -> bytes:
     """The orig sub_jump_table entries are absolute addresses into
     voice pattern data. Since we relocate the patterns to our own
     addresses, the table entries must be remapped.
 
-    For each entry's orig address, find which orig voice's pattern
-    range it falls in, compute the offset, then add the new voice's
-    base address."""
-    orig_voice_bases = list(params.voice_initial_ptrs)
-    # Determine each voice's pattern length (we have these in data)
-    voice_ends = [orig_voice_bases[v] + len(data.voice_patterns[v])
-                  for v in range(3)]
+    `voice_byte_ranges` (when provided) overrides voice_initial_ptrs
+    as the source of truth for each voice's range — used when voices
+    are non-contiguous in orig memory."""
+    if voice_byte_ranges is not None:
+        orig_voice_bases = [lo for lo, _ in voice_byte_ranges]
+        voice_ends = [hi for _, hi in voice_byte_ranges]
+    else:
+        orig_voice_bases = list(params.voice_initial_ptrs)
+        voice_ends = [orig_voice_bases[v] + len(data.voice_patterns[v])
+                      for v in range(3)]
     remapped = bytearray()
     for i in range(0, len(data.sub_jump_table), 2):
         orig_lo = data.sub_jump_table[i]
@@ -1077,24 +1239,53 @@ def _quirks_for(sid_stem: str, params: EngineParams) -> EngineQuirks:
 
 def build_sid(sid_path: str, params: EngineParams,
               load_addr: int = 0x1000,
-              quirks: EngineQuirks = None) -> bytes:
+              quirks: EngineQuirks = None,
+              voice_byte_ranges: list[tuple[int, int]] | None = None
+              ) -> bytes:
     """Generic PSID builder for any Type A direct-play Jay_Derrett engine.
 
     `params` carries the orig binary's data-table addresses (for
     extraction). `quirks` carries per-engine init-quirks; defaults
-    sufficient for many SIDs.
+    sufficient for many SIDs. `voice_byte_ranges` overrides the
+    pattern slicing heuristic when voices are non-contiguous in
+    memory (typical for relocated/IRQ-driven variants).
     """
     sid_stem = Path(sid_path).stem
     if quirks is None:
         quirks = _quirks_for(sid_stem, params)
-    data = extract_data(sid_path, params, n_inst=quirks.n_inst)
+    data = extract_data(sid_path, params, n_inst=quirks.n_inst,
+                        voice_byte_ranges=voice_byte_ranges)
+    # Capture orig init voice_state slabs so the reb starts with the
+    # same per-voice runtime state (some engines pre-load instruments
+    # during init; their voice_state has non-zero contents at frame 0).
+    try:
+        vs_base = detect_voice_state_base(sid_path, params)
+        data.init_voice_state = capture_voice_state_slabs(
+            sid_path, params, vs_base, stride=0x1A)
+    except RuntimeError:
+        data.init_voice_state = None
+    # Capture orig PWM lo accumulator initial values (engines depend
+    # on libsidplayfp powerup RAM at the PWM lo cell address; for
+    # engines whose body extends past the cell, on the body bytes).
+    if quirks.initial_pwm_lo == (0xFF, 0x00, 0x00):  # default — auto-detect
+        try:
+            pwm_base = detect_pwm_lo_accum_base(sid_path, params)
+            pwm_vals = capture_cells_after_init(
+                sid_path, params, [pwm_base + v for v in range(3)])
+            quirks = EngineQuirks(
+                initial_pwm_lo=(pwm_vals[0], pwm_vals[1], pwm_vals[2]),
+                n_inst=quirks.n_inst)
+        except RuntimeError:
+            pass
 
     asm1 = emit_asm(data, load_addr, quirks=quirks)
     bin1, labels1 = _assemble(asm1, f'jd_{sid_stem}_pass1')
     voice_pattern_bases = [
         labels1.get(f'voice{v}_pattern', 0) for v in range(3)
     ]
-    remapped_sjt = _remap_sub_jump_table(data, params, voice_pattern_bases)
+    remapped_sjt = _remap_sub_jump_table(
+        data, params, voice_pattern_bases,
+        voice_byte_ranges=voice_byte_ranges)
     data.sub_jump_table = remapped_sjt
     asm2 = emit_asm(data, load_addr, quirks=quirks)
     bin2, _ = _assemble(asm2, f'jd_{sid_stem}_pass2')
@@ -1163,7 +1354,13 @@ def try_all_type_a(duration: float = 6.0) -> dict[str, str]:
             continue
         try:
             params = params_from_extracted_json(json_path)
-            sid_bytes = build_sid(sid_path, params)
+            jd = json.load(open(json_path))
+            voice_byte_ranges = [
+                (vb['ptr_min'], vb['ptr_min'] + len(vb['bytes']))
+                for vb in jd['voice_bytes']
+            ]
+            sid_bytes = build_sid(sid_path, params,
+                                  voice_byte_ranges=voice_byte_ranges)
             Path(reb_path).write_bytes(sid_bytes)
             a = writelog_capture(sid_path, 0, duration=duration)
             b = writelog_capture(reb_path, 0, duration=duration)
