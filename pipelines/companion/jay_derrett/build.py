@@ -75,13 +75,46 @@ def _libsidplayfp_powerup_byte(addr: int) -> int:
     return fill
 
 
-def detect_voice_state_base(sid_path: str, params: EngineParams) -> int:
-    """Scan orig binary for the instrument-loader copy pattern
-    `B9 ?? ?? 99 LL HH 88 10 F7` (LDA abs,Y / STA abs,Y / DEY / BPL)
-    and return the STA destination address — that's voice_state base.
+def detect_mod_base(sid_path: str, params: EngineParams) -> int:
+    """Scan orig binary for the modulation block's normal-path
+    `LDA $XXXX,Y / STA $D400,X` write. Returns the LDA source - 1,
+    which is the modulation base (since freq lo is at offset +1 in
+    all known Jay_Derrett variants).
 
-    Picks the match closest to proc_note when multiple matches exist
-    (some engines have similar copy patterns elsewhere)."""
+    This is the address engine USES for voice_state slot reads,
+    NOT the instrument-loader copy destination (which may differ
+    in engines like Lifeforce/Mandroid where the copy lands at
+    a stride-offset from the modulation base)."""
+    raw = Path(sid_path).read_bytes()
+    body = raw[0x7C:]
+    load = struct.unpack('>H', raw[8:10])[0]
+    if load == 0:
+        load = struct.unpack('<H', body[:2])[0]
+        body = body[2:]
+    body_end = load + len(body)
+    mem = bytearray(0x10000)
+    mem[load:load + len(body)] = body
+    # Find all STA $D400,X with preceding LDA abs,Y. Pick the one
+    # whose source is in the LARGER region (normal path; off-slide
+    # source is at a smaller address — pw_hi/off_freq_lo at negative
+    # offsets from mod_base).
+    candidates = []
+    for addr in range(load + 3, body_end - 3):
+        if (mem[addr] == 0x9D and mem[addr + 1] == 0x00 and
+            mem[addr + 2] == 0xD4 and mem[addr - 3] == 0xB9):
+            src = mem[addr - 2] | (mem[addr - 1] << 8)
+            candidates.append(src)
+    if not candidates:
+        raise RuntimeError(f'No LDA $YYYY,Y / STA $D400,X in {sid_path}')
+    # Normal path has the LARGEST source (off-slide is at a smaller
+    # address per all known variants).
+    return max(candidates) - 1
+
+
+def detect_voice_state_base(sid_path: str, params: EngineParams) -> int:
+    """DEPRECATED: returned copy destination, which differs from
+    modulation base in many engines. Use detect_mod_base instead.
+    Kept for backwards compatibility."""
     raw = Path(sid_path).read_bytes()
     body = raw[0x7C:]
     load = struct.unpack('>H', raw[8:10])[0]
