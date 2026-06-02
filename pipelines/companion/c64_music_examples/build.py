@@ -72,13 +72,112 @@ def _walk_pattern(mem: bytearray, start: int, max_bytes: int = 4000) -> bytes:
     return bytes(out)
 
 
-def emit_sub0_asm() -> str:
-    """Emit complete xa65 asm for sub 0's V1.a engine + data."""
+# Vibrato + loop_reset variant chunks
+_VIBRATO_AND_LOOP_RESET_ASM = """\
+loop_reset:
+  lda state+1
+  bpl skip_lr_v1
+  lda state+4
+  sta $d404
+skip_lr_v1:
+  lda state+8
+  bpl skip_lr_v2
+  lda state+11
+  sta $d40b
+skip_lr_v2:
+  lda state+15
+  bpl skip_lr_v3
+  lda state+18
+  sta $d412
+skip_lr_v3:
+  jmp vibrato_only
+
+vibrato_only:
+  lda frame_idx
+  and #$07
+  cmp #$04
+  bcc vib_pos
+  eor #$07
+vib_pos:
+  sta tri_pos
+  ldy current_note
+  lda freq_lo+1,y
+  beq vib_done
+  sec
+  sbc freq_lo,y
+  sta step_lo
+  lda freq_hi+1,y
+  sbc freq_hi,y
+  lsr
+  ror step_lo
+  lsr
+  ror step_lo
+  lsr
+  ror step_lo
+  lsr
+  ror step_lo
+  sta step_hi
+  lda freq_lo,y
+  sta base_lo
+  lda freq_hi,y
+  sta base_hi
+  ldy tri_pos
+  beq vib_emit
+vib_mul:
+  clc
+  lda base_lo
+  adc step_lo
+  sta base_lo
+  lda base_hi
+  adc step_hi
+  sta base_hi
+  dey
+  bne vib_mul
+vib_emit:
+  lda base_lo
+  sta $d400
+  lda base_hi
+  sta $d401
+vib_done:
+  inc frame_idx
+  rts
+"""
+
+# loop_reset without vibrato (sub 2 / sub 3): RTS instead of jmp vibrato
+_LOOP_RESET_NO_VIBRATO_ASM = """\
+loop_reset:
+  lda state+1
+  bpl skip_lr_v1
+  lda state+4
+  sta $d404
+skip_lr_v1:
+  lda state+8
+  bpl skip_lr_v2
+  lda state+11
+  sta $d40b
+skip_lr_v2:
+  lda state+15
+  bpl skip_lr_v3
+  lda state+18
+  sta $d412
+skip_lr_v3:
+  rts
+"""
+
+
+def emit_subtune_asm(subtune: int) -> str:
+    """Emit complete xa65 asm for one Family A V1-router subtune.
+
+    Handles dispatch + PWM variant + per-instance state/pattern data
+    via FAMILY_A_INSTANCES bindings. Sub 0 = V1.a (vibrato + sweep PWM).
+    Sub 2 = V1.b (no vibrato + increment PWM). Sub 3 = V1.c (BNE-loop
+    + sweep PWM with $03/$0D bounds).
+    """
     from pipelines.companion.c64_music_examples.extract.engine_model import (
         _run_init_via_py65, FAMILY_A_INSTANCES,
     )
-    b = FAMILY_A_INSTANCES[0]
-    mem, _ = _run_init_via_py65(SID_PATH, 0)
+    b = FAMILY_A_INSTANCES[subtune]
+    mem, _ = _run_init_via_py65(SID_PATH, subtune)
 
     # Extract state + patterns + freq tables
     state_bytes = list(mem[b.state_base:b.state_base + 32])
@@ -90,9 +189,16 @@ def emit_sub0_asm() -> str:
     v3_pat = _walk_pattern(mem, (v3_hi << 8) | v3_lo)
     freq_hi = list(mem[0x0B5F:0x0B5F + 128])
     freq_lo = list(mem[0x0BDF:0x0BDF + 128])
-    current_note = mem[0x0B5A]
-    pwm_sign_v1 = mem[0x0ADE]
-    pwm_sign_v3 = mem[0x0AEC]
+    current_note = mem[b.current_note_addr]
+    # PWM sign bytes only meaningful for sweep variant
+    if b.pwm_variant == 'sweep':
+        pwm_sign_v1 = mem[b.pwm_sign_base]
+        pwm_sign_v3 = mem[b.pwm_sign_base + 14]
+    else:
+        pwm_sign_v1 = pwm_sign_v3 = 0  # unused
+    # PWM state offsets within state — sub 3 has them at +24/+25 instead of +30/+31.
+    v3_pwm_state_off = b.v3_pwm_ctr_addr - b.state_base
+    v1_pwm_state_off = b.v1_pwm_ctr_addr - b.state_base
 
     def hex_list(bs):
         out = []
@@ -100,6 +206,124 @@ def emit_sub0_asm() -> str:
             chunk = bs[i:i + 16]
             out.append('  .byte ' + ', '.join(f'${b:02X}' for b in chunk))
         return '\n'.join(out)
+
+    # Variant-specific asm chunks.
+    if b.pwm_variant == 'sweep':
+        pwm_sweep_asm = f"""\
+pwm_sweep:
+  cpx #0
+  bne pwm_v3
+  lda pwm_sign_v1
+  bpl pwm_v1_desc
+  inc state+3
+  lda state+3
+  cmp #${b.pwm_hi:02X}
+  bne pwm_v1_emit
+  inc pwm_sign_v1
+  jmp pwm_v1_emit
+pwm_v1_desc:
+  dec state+3
+  lda state+3
+  cmp #${b.pwm_lo:02X}
+  bne pwm_v1_emit
+  dec pwm_sign_v1
+pwm_v1_emit:
+  sta $d403
+  lda #0
+  rts
+pwm_v3:
+  lda pwm_sign_v3
+  bpl pwm_v3_desc
+  inc state+17
+  lda state+17
+  cmp #${b.pwm_hi:02X}
+  bne pwm_v3_emit
+  inc pwm_sign_v3
+  jmp pwm_v3_emit
+pwm_v3_desc:
+  dec state+17
+  lda state+17
+  cmp #${b.pwm_lo:02X}
+  bne pwm_v3_emit
+  dec pwm_sign_v3
+pwm_v3_emit:
+  sta $d411
+  lda #0
+  rts
+"""
+        pwm_runtime_vars = """\
+pwm_sign_v1:     .byte 0
+pwm_sign_v3:     .byte 0
+"""
+        pwm_init_asm = f"""\
+  lda #${pwm_sign_v1:02X}
+  sta pwm_sign_v1
+  lda #${pwm_sign_v3:02X}
+  sta pwm_sign_v3
+"""
+    else:  # 'increment'
+        pwm_sweep_asm = f"""\
+pwm_sweep:
+  cpx #0
+  bne pwm_inc_v3
+  inc state+3
+  lda state+3
+  cmp #${b.pwm_hi:02X}
+  bne pwm_inc_v1_emit
+  lda #${b.pwm_lo:02X}
+  sta state+3
+pwm_inc_v1_emit:
+  sta $d403
+  lda #0
+  rts
+pwm_inc_v3:
+  inc state+17
+  lda state+17
+  cmp #${b.pwm_hi:02X}
+  bne pwm_inc_v3_emit
+  lda #${b.pwm_lo:02X}
+  sta state+17
+pwm_inc_v3_emit:
+  sta $d411
+  lda #0
+  rts
+"""
+        pwm_runtime_vars = ""
+        pwm_init_asm = ""
+
+    # current_note is always allocated — voice_event router writes to it on
+    # V1 note plays regardless of dispatch variant (even when vibrato never
+    # reads it). vibrato_only also references it; whether it's present in
+    # the emitted code depends on the dispatch chunk.
+    common_runtime_vars = f"current_note:    .byte 0\n"
+    common_init_asm = f"  lda #${current_note:02X}\n  sta current_note\n"
+
+    if b.dispatch == 'v0':
+        else_branch_asm = "  jmp vibrato_only"
+        tempo_branch_asm = "  jmp loop_reset"
+        vibrato_section = _VIBRATO_AND_LOOP_RESET_ASM
+        vib_runtime_vars = """\
+frame_idx:       .byte 0
+tri_pos:         .byte 0
+step_lo:         .byte 0
+step_hi:         .byte 0
+base_lo:         .byte 0
+base_hi:         .byte 0
+"""
+        vib_init_asm = ""
+    else:  # 'no_vibrato' or 'bne_loop'
+        else_branch_asm = "  rts"
+        tempo_branch_asm = "  jmp loop_reset"
+        vibrato_section = _LOOP_RESET_NO_VIBRATO_ASM
+        vib_runtime_vars = ""
+        vib_init_asm = ""
+
+    # full_tick end: V1.a engine INCs frame_idx (for vibrato); other variants
+    # don't have frame_idx so just rts.
+    if b.dispatch == 'v0':
+        full_tick_end_asm = "  inc frame_idx\n  rts"
+    else:
+        full_tick_end_asm = "  rts"
 
     asm = f"""\
 * = $0801
@@ -152,13 +376,7 @@ copy_state:
   sta zp_v3_lo
   lda state+29
   sta zp_v3_hi
-  ; Init PWM sign + current_note
-  lda #${pwm_sign_v1:02X}
-  sta pwm_sign_v1
-  lda #${pwm_sign_v3:02X}
-  sta pwm_sign_v3
-  lda #${current_note:02X}
-  sta current_note
+{pwm_init_asm}{common_init_asm}{vib_init_asm}
   ; Dump state to SID regs (LDX #$14; LDA state,X; STA $D400,X; DEX; BPL)
   ldx #$14
 dump_to_sid:
@@ -174,116 +392,42 @@ dump_to_sid:
   rts
 
 play:
-  lda state+14         ; V3 phase
+  lda state+14
   bmi skip_v3_pwm
-  inc state+30
-  cmp state+30
+  inc state+{v3_pwm_state_off}
+  cmp state+{v3_pwm_state_off}
   bne skip_v3_pwm
   ldx #$0E
   jsr pwm_sweep
-  sta state+30
+  sta state+{v3_pwm_state_off}
 skip_v3_pwm:
-  lda state+0          ; V1 phase
+  lda state+0
   bmi skip_v1_pwm
-  inc state+31
-  cmp state+31
+  inc state+{v1_pwm_state_off}
+  cmp state+{v1_pwm_state_off}
   bne skip_v1_pwm
   ldx #$00
   jsr pwm_sweep
-  sta state+31
+  sta state+{v1_pwm_state_off}
 skip_v1_pwm:
-  ; Frame dispatch
-  inc state+23         ; frame_ctr
+  inc state+23
   lda state+23
-  cmp state+21         ; tempo
+  cmp state+21
   bne not_tempo
-  jmp loop_reset
+{tempo_branch_asm}
 not_tempo:
-  cmp state+22         ; alt_tempo
+  cmp state+22
   beq full_tick
-  jmp vibrato_only
+{else_branch_asm}
 full_tick:
   lda #0
   sta state+23
   jsr advance_v1
   jsr advance_v2
   jsr advance_v3
-  inc frame_idx
-  rts
+{full_tick_end_asm}
 
-loop_reset:
-  lda state+1          ; V1 last_cmd
-  bpl skip_lr_v1
-  lda state+4          ; V1 timbre
-  sta $d404
-skip_lr_v1:
-  lda state+8          ; V2 last_cmd
-  bpl skip_lr_v2
-  lda state+11         ; V2 timbre
-  sta $d40b
-skip_lr_v2:
-  lda state+15         ; V3 last_cmd
-  bpl skip_lr_v3
-  lda state+18         ; V3 timbre
-  sta $d412
-skip_lr_v3:
-  jmp vibrato_only
-; (vibrato_only does the final INC frame_idx + rts)
-
-vibrato_only:
-  ; V1 vibrato (triangle sweep on freq)
-  lda frame_idx
-  and #$07
-  cmp #$04
-  bcc vib_pos
-  eor #$07
-vib_pos:
-  sta tri_pos
-  ldy current_note
-  lda freq_lo+1,y      ; freq_lo[note+1]
-  beq vib_done
-  sec
-  sbc freq_lo,y
-  sta step_lo
-  lda freq_hi+1,y
-  sbc freq_hi,y
-  ; logical shift right 4 (16-bit signed)
-  lsr
-  ror step_lo
-  lsr
-  ror step_lo
-  lsr
-  ror step_lo
-  lsr
-  ror step_lo
-  sta step_hi
-  ; base
-  lda freq_lo,y
-  sta base_lo
-  lda freq_hi,y
-  sta base_hi
-  ; multiply step by tri_pos via repeated addition
-  ldy tri_pos
-  beq vib_emit
-vib_mul:
-  clc
-  lda base_lo
-  adc step_lo
-  sta base_lo
-  lda base_hi
-  adc step_hi
-  sta base_hi
-  dey
-  bne vib_mul
-vib_emit:
-  lda base_lo
-  sta $d400
-  lda base_hi
-  sta $d401
-vib_done:
-  inc frame_idx
-  rts
-
+{vibrato_section}
 ; Voice advance subroutines
 advance_v1:
   ldy #0
@@ -447,47 +591,7 @@ ve_emit_timbre_0d:
   sta $d404,x
   rts
 
-pwm_sweep:
-  cpx #0
-  bne pwm_v3
-  lda pwm_sign_v1
-  bpl pwm_v1_desc
-  inc state+3
-  lda state+3
-  cmp #$0E
-  bne pwm_v1_emit
-  inc pwm_sign_v1
-  jmp pwm_v1_emit
-pwm_v1_desc:
-  dec state+3
-  lda state+3
-  cmp #$02
-  bne pwm_v1_emit
-  dec pwm_sign_v1
-pwm_v1_emit:
-  sta $d403
-  lda #0
-  rts
-pwm_v3:
-  lda pwm_sign_v3
-  bpl pwm_v3_desc
-  inc state+17
-  lda state+17
-  cmp #$0E
-  bne pwm_v3_emit
-  inc pwm_sign_v3
-  jmp pwm_v3_emit
-pwm_v3_desc:
-  dec state+17
-  lda state+17
-  cmp #$02
-  bne pwm_v3_emit
-  dec pwm_sign_v3
-pwm_v3_emit:
-  sta $d411
-  lda #0
-  rts
-
+{pwm_sweep_asm}
 ;===== Data =====
 
 state_template:
@@ -507,38 +611,30 @@ freq_lo:
 
 ;Runtime state
 state:           .dsb 32, 0
-pwm_sign_v1:     .byte 0
-pwm_sign_v3:     .byte 0
-current_note:    .byte 0
-frame_idx:       .byte 0
-tri_pos:         .byte 0
-step_lo:         .byte 0
-step_hi:         .byte 0
-base_lo:         .byte 0
-base_hi:         .byte 0
-last_cmd_tmp:    .byte 0
+{pwm_runtime_vars}{common_runtime_vars}{vib_runtime_vars}last_cmd_tmp:    .byte 0
 """
     return asm
 
 
-def build_sub0_sid() -> bytes:
-    asm = emit_sub0_asm()
-    body = _assemble(asm, 'c64me_sub0')
-    # xa65 emits raw code; the * = $0801 directive determined the load addr.
+def build_subtune_sid(subtune: int) -> bytes:
+    asm = emit_subtune_asm(subtune)
+    body = _assemble(asm, f'c64me_sub{subtune}')
     load_addr = 0x0801
-    init_addr = load_addr      # init_jmp (jmp init) at $0801
-    play_addr = load_addr + 3  # play_jmp (jmp play) at $0804
-    title = "Commodore 64 Music Examples (sub 0)"
+    init_addr = load_addr
+    play_addr = load_addr + 3
+    title = f"Commodore 64 Music Examples (sub {subtune})"
     author = "Rob Hubbard"
     released = "1985 Rob Hubbard"
-    # PSID header with load=load_addr (non-zero), so body is raw code (no prefix).
     h = _psid_header(title, author, released, 1, 1, load_addr, init_addr, play_addr)
     return h + body
 
 
 if __name__ == '__main__':
-    sid = build_sub0_sid()
-    out_path = SID_PATH.replace('.sid', '.sub0.sidfinity.sid')
-    with open(out_path, 'wb') as f:
-        f.write(sid)
-    print(f"Wrote {out_path} ({len(sid)} bytes)")
+    import sys
+    subtunes = [int(s) for s in sys.argv[1:]] if len(sys.argv) > 1 else [0]
+    for st in subtunes:
+        sid = build_subtune_sid(st)
+        out_path = SID_PATH.replace('.sid', f'.sub{st}.sidfinity.sid')
+        with open(out_path, 'wb') as f:
+            f.write(sid)
+        print(f"Wrote {out_path} ({len(sid)} bytes)")
