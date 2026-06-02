@@ -166,6 +166,72 @@ def detect_voice_state_base(sid_path: str, params: EngineParams) -> int:
     return candidates[0][1]
 
 
+def detect_mod_base_cluster_b(sid_path: str, params: EngineParams) -> int:
+    """Find Cluster B's (Counterforce-shape) modulation base. The mod
+    block has two `LDA $YYYY,Y / STA $D400,X` writes — off-slide freq
+    at slab+$14 (smaller addr) and normal freq at slab+$16. Returns
+    smaller_source - $14."""
+    raw = Path(sid_path).read_bytes()
+    body = raw[0x7C:]
+    load = struct.unpack('>H', raw[8:10])[0]
+    if load == 0:
+        load = struct.unpack('<H', body[:2])[0]
+        body = body[2:]
+    body_end = load + len(body)
+    mem = bytearray(0x10000)
+    mem[load:load + len(body)] = body
+    candidates = []
+    for addr in range(load + 3, body_end - 3):
+        if (mem[addr] == 0x9D and mem[addr + 1] == 0x00 and
+            mem[addr + 2] == 0xD4 and mem[addr - 3] == 0xB9):
+            src = mem[addr - 2] | (mem[addr - 1] << 8)
+            candidates.append(src)
+    if not candidates:
+        raise RuntimeError(f'No LDA $YYYY,Y / STA $D400,X in {sid_path}')
+    return min(candidates) - 0x14
+
+
+def detect_smc_wrap(sid_path: str) -> int:
+    """Find the self-mod counter wrap value. Pattern after the $Ex match:
+    `EE LL HH AD LL HH C9 WW D0 ??` (INC smc / LDA smc / CMP #WW / BNE).
+    The WW byte is the wrap target. NH/most engines use $E9; Counterforce
+    uses $E6."""
+    raw = Path(sid_path).read_bytes()
+    body = raw[0x7C:]
+    load = struct.unpack('>H', raw[8:10])[0]
+    if load == 0:
+        load = struct.unpack('<H', body[:2])[0]
+        body = body[2:]
+    mem = bytearray(0x10000)
+    mem[load:load + len(body)] = body
+    for addr in range(load, load + len(body) - 10):
+        if (mem[addr] == 0xEE and mem[addr+3] == 0xAD and
+            mem[addr+1] == mem[addr+4] and mem[addr+2] == mem[addr+5] and
+            mem[addr+6] == 0xC9 and mem[addr+8] == 0xD0):
+            return mem[addr+7]
+    return 0xE9  # default fallback
+
+
+def detect_inst_program_size(sid_path: str) -> int:
+    """Find the instrument-program copy loop's LDY #imm. Returns N+1
+    (= program size in bytes). NH/Cluster A = 24; Counterforce/Cluster B = 15."""
+    raw = Path(sid_path).read_bytes()
+    body = raw[0x7C:]
+    load = struct.unpack('>H', raw[8:10])[0]
+    if load == 0:
+        load = struct.unpack('<H', body[:2])[0]
+        body = body[2:]
+    mem = bytearray(0x10000)
+    mem[load:load + len(body)] = body
+    # Pattern: A0 SS B9 ?? ?? 99 LL HH 88 10 F7
+    for addr in range(load, load + len(body) - 11):
+        if (mem[addr] == 0xA0 and mem[addr+2] == 0xB9 and
+            mem[addr+5] == 0x99 and mem[addr+8] == 0x88 and
+            mem[addr+9] == 0x10 and mem[addr+10] == 0xF7):
+            return mem[addr+1] + 1
+    return 24  # default fallback
+
+
 def detect_set_dur_clears_v3(sid_path: str) -> bool:
     """Detect engines whose SET DUR ($82 N) handler ALSO clears V3
     CTRL slots. Pattern: TWO `A9 00 8D LO HI 8D LO+3 HI 4C` blocks
@@ -1386,6 +1452,8 @@ class EngineQuirks:
     # Destruct/Discovery don't. Detected by scanning for the
     # `A9 00 8D LO HI 8D LO+3 HI 4C` pattern preceded by SET DUR setup.
     set_dur_clears_v3: bool = False
+    # Self-mod counter wrap value (NH/most: $E9; Counterforce wraps at $E6).
+    smc_wrap: int = 0xE9
     # Number of instruments in the inst src table (typically 19).
     n_inst: int = 19
 
@@ -1430,7 +1498,12 @@ def build_sid(sid_path: str, params: EngineParams,
     # same per-voice runtime state (some engines pre-load instruments
     # during init; their voice_state has non-zero contents at frame 0).
     try:
-        vs_base = detect_mod_base(sid_path, params)
+        # Cluster A: slab base = modulation base (= freq_lo source - 1).
+        # Cluster B: no slide-update; mod_base = smaller freq_lo source - $14.
+        try:
+            vs_base = detect_mod_base(sid_path, params)
+        except RuntimeError:
+            vs_base = detect_mod_base_cluster_b(sid_path, params)
         data.init_voice_state = capture_voice_state_slabs(
             sid_path, params, vs_base, stride=0x1A)
     except RuntimeError:
@@ -1502,12 +1575,24 @@ def build_sid(sid_path: str, params: EngineParams,
         initial_master_vol=mvol,
         initial_frame_counter=frame_cnt,
         set_dur_clears_v3=detect_set_dur_clears_v3(sid_path),
+        smc_wrap=detect_smc_wrap(sid_path),
         n_inst=quirks.n_inst)
+    # Dispatch to Cluster B emit if engine has 15-byte program
+    program_size = detect_inst_program_size(sid_path)
     # Apply tempo + master vol overrides into data so emit_asm uses them
     data.initial_tempo = tempo
     data.initial_master_vol = mvol
 
-    asm1 = emit_asm(data, load_addr, quirks=quirks)
+    # Pick emit variant based on engine program size:
+    # Cluster A (NH-shape): 24-byte program
+    # Cluster B (CF-shape): 15-byte program — different slab layout
+    if program_size == 15:
+        from pipelines.companion.jay_derrett.cluster_b import emit_asm_cluster_b
+        emit_fn = emit_asm_cluster_b
+    else:
+        emit_fn = emit_asm
+
+    asm1 = emit_fn(data, load_addr, quirks=quirks)
     bin1, labels1 = _assemble(asm1, f'jd_{sid_stem}_pass1')
     voice_pattern_bases = [
         labels1.get(f'voice{v}_pattern', 0) for v in range(3)
@@ -1516,7 +1601,7 @@ def build_sid(sid_path: str, params: EngineParams,
         data, params, voice_pattern_bases,
         voice_byte_ranges=voice_byte_ranges)
     data.sub_jump_table = remapped_sjt
-    asm2 = emit_asm(data, load_addr, quirks=quirks)
+    asm2 = emit_fn(data, load_addr, quirks=quirks)
     bin2, _ = _assemble(asm2, f'jd_{sid_stem}_pass2')
 
     title = data.title

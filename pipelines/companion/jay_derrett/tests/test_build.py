@@ -41,11 +41,16 @@ CLUSTER_A_SIDS = [
     'Jetboys', 'Lifeforce', 'Mandroid', 'Ninja_Hamster', 'Vengeance', 'ZIP',
 ]
 
+# Cluster B SIDs that pass via siddump --writelog. Osmium/Thundercross/
+# Trigger_Happy are RSIDs with play=$0000 (IRQ-driven); siddump skips
+# them. Road_Warrior bundles two engines and needs subtune-aware
+# dispatch — not yet supported.
+CLUSTER_B_SIDS = ['Counterforce', 'Destruct', 'Stratton']
 
-@pytest.mark.parametrize('name', CLUSTER_A_SIDS)
-def test_cluster_a_byte_exact(name):
-    """All Cluster A SIDs (NH-shape engine variant: 24-byte program,
-    stride 26, direct dispatch) must produce byte-exact SID writes."""
+
+@pytest.mark.parametrize('name', CLUSTER_A_SIDS + CLUSTER_B_SIDS)
+def test_type_a_byte_exact(name):
+    """All supported Type A SIDs must produce byte-exact SID writes."""
     sid_path = str(ROOT / 'hvsc84' / 'MUSICIANS' / 'D' / 'Derrett_Jay' /
                    f'{name}.sid')
     reb_path = str(ROOT / 'hvsc84' / 'MUSICIANS' / 'D' / 'Derrett_Jay' /
