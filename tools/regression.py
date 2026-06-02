@@ -200,7 +200,7 @@ def regress_c64me() -> tuple[int, int]:
 
 
 def regress_jay_derrett() -> tuple[int, int]:
-    """Jay_Derrett family — 13 SIDs currently passing byte-exact:
+    """Jay_Derrett family — 14 SIDs currently passing byte-exact:
     - 10 PSID-compatible (siddump --writelog both sides): 6 Cluster A
       (Jetboys, Lifeforce, Mandroid, Ninja_Hamster, Vengeance, ZIP),
       3 Cluster B PSID (Counterforce, Destruct, Stratton), 1
@@ -218,6 +218,7 @@ def regress_jay_derrett() -> tuple[int, int]:
         'Counterforce', 'Destruct', 'Discovery', 'Jetboys', 'Lifeforce',
         'Mandroid', 'Ninja_Hamster', 'Stratton', 'Vengeance', 'ZIP',
     ]
+    TYPE_B_SIDS = ['Equalizer']    # Type B canonical (B1 sub-cluster)
     RSID_IRQ_SIDS = ['Osmium', 'Thundercross', 'Trigger_Happy']
     base = 'hvsc84/MUSICIANS/D/Derrett_Jay'
     extracted = 'pipelines/companion/jay_derrett/_extracted'
@@ -242,6 +243,23 @@ def regress_jay_derrett() -> tuple[int, int]:
             fail += 1
             status = f"FAIL match_all={r['match_all']}/{r['len_all_a']}"
         print(f'  {name:18s} (psid)  {status}')
+
+    # Type B (Equalizer-shape) — uses its own type_b.py emit
+    from pipelines.companion.jay_derrett.type_b import build_equalizer_sid
+    from pathlib import Path as _Path
+    for name in TYPE_B_SIDS:
+        out = _Path(f'{base}/{name}.sidfinity.sid')
+        if name == 'Equalizer':
+            out.write_bytes(build_equalizer_sid())
+        a = writelog_capture(f'{base}/{name}.sid', 0, duration=6.0)
+        b = writelog_capture(str(out), 0, duration=6.0)
+        r = compare_instruction_stream(a, b)
+        if r['is_full']:
+            ok += 1; status = 'OK'
+        else:
+            fail += 1
+            status = f"FAIL match_all={r['match_all']}/{r['len_all_a']}"
+        print(f'  {name:18s} (typeb) {status}')
 
     for name in RSID_IRQ_SIDS:
         _build(name)
@@ -269,14 +287,14 @@ def main():
     c_ok, c_part, c_fail = regress_companion()
     print(f'\nC64 Music Examples (prefix-match):')
     cme_ok, cme_fail = regress_c64me()
-    print(f'\nJay_Derrett family (13 of 25 SIDs wired):')
+    print(f'\nJay_Derrett family (14 of 25 SIDs wired):')
     jd_ok, jd_fail = regress_jay_derrett()
 
     print(f'\nHubbard:    {h_ok} ok  +  {h_part} known-partial  +  '
           f'{h_total - h_ok - h_part} regressed  (of {h_total})')
     print(f'Companion:  {c_ok} ok  +  {c_part} known-partial  +  {c_fail} regressed')
     print(f'C64ME:      {cme_ok} ok  +  {cme_fail} regressed  (of 15)')
-    print(f'Jay_Derrett:  {jd_ok} ok  +  {jd_fail} regressed  (of 13 wired / 25 total)')
+    print(f'Jay_Derrett:  {jd_ok} ok  +  {jd_fail} regressed  (of 14 wired / 25 total)')
 
     h_regressed = h_total - h_ok - h_part
     if h_regressed or c_fail or cme_fail or jd_fail:
