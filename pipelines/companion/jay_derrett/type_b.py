@@ -395,6 +395,12 @@ def emit_asm_type_b(data: TypeBData, load_addr: int = 0x1000) -> str:
         '    ldy #$00',
         '    lda ($f2),y',
         '    sta dur_counters,x',
+        '    ; Orig falls through to GATE OFF handler — write cur_ctrl,X',
+        '    ; to $D404+sid_off as a side effect. Found in Sqij; latent',
+        '    ; in Equalizer/Death (their 6s windows don\'t hit $82).',
+        '    ldy voice_sid_off,x',
+        '    lda cur_ctrl,x',
+        '    sta $d404,y',
         '    jmp pn_advance_rts',
         '',
         'pn_bx:',
@@ -577,6 +583,13 @@ TYPE_B_CONFIGS = {
         # PW hi "saved" slots used as pw_hi_reset (copied from working
         # slot post-process to per-voice slot).
         'pw_hi_reset_addrs': (0x89D3, 0x89D4, 0x89D5),
+        # ZP addresses used by orig engine — needed by the simulation-
+        # based high-byte-note resolver (see resolve_high_byte_notes).
+        'ptr_zp_addr': 0x1A,        # $1A/$1B: cur voice's pattern ptr
+        'cur_voice_zp_addr': 0x1C,  # $1C: cur voice index
+        # Simulation frames — enough to cover whole subtune. Sqij sub 0
+        # is ~150s, so ~7500 play calls @50Hz. Use a generous bound.
+        'n_simulation_frames': 8000,
     },
 }
 
@@ -689,6 +702,21 @@ def extract_type_b(sid_path: str, sid_name: str = None) -> TypeBData:
     author = raw[0x36:0x56].rstrip(b'\x00').decode('latin-1')
     released = raw[0x56:0x76].rstrip(b'\x00').decode('latin-1')
 
+    # Principled high-byte note resolution. Some Type B engines (e.g.,
+    # Sqij) deliberately emit pattern bytes >= $80 (outside vocabulary
+    # AND outside the standard 0-127 note range), which cause the
+    # NOTE handler's `LDA freq_lo_addr,X` to index PAST the 128-entry
+    # freq tables — reading from adjacent engine state. This is a
+    # composer space-saving trick (engine mechanism overlapping with
+    # data). Per docs/usf_representation_principle.md, the extract
+    # must RESOLVE such dynamic lookups to concrete effective freqs
+    # and re-encode the pattern with clean low-byte notes. The reb
+    # engine then needs no special high-byte handling.
+    if 'ptr_zp_addr' in cfg and 'cur_voice_zp_addr' in cfg:
+        voice_patterns, freq_lo, freq_hi = _resolve_high_byte_notes(
+            sid_path, cfg, voice_initial_ptrs, voice_patterns,
+            freq_lo, freq_hi)
+
     return TypeBData(
         freq_lo=freq_lo, freq_hi=freq_hi,
         sub_jump_table=sjt,
@@ -711,6 +739,144 @@ def extract_type_b(sid_path: str, sid_name: str = None) -> TypeBData:
         init_sid_writes=init_sid_writes,
         per_frame_d418_value=cfg.get('per_frame_d418_value'),
     )
+
+
+def _resolve_high_byte_notes(
+    sid_path: str, cfg: dict,
+    voice_initial_ptrs: tuple[int, int, int],
+    voice_patterns: list[bytes],
+    freq_lo: bytes, freq_hi: bytes,
+) -> tuple[list[bytes], bytes, bytes]:
+    """Simulate the engine in py65 for N play frames. At each `LDA
+    freq_lo_addr,X` execution (= NOTE freq lookup), capture the voice
+    + pattern ptr + raw byte + effective freq. For events with byte
+    >= $80 (out-of-vocab high-byte notes), find/claim an unused slot
+    in the freq tables (the zero gaps at indices 12-15, 28-31, etc.)
+    and substitute the pattern byte with the synthetic note index.
+
+    Returns: (new voice_patterns, new freq_lo, new freq_hi).
+    """
+    import sys as _sys
+    _sys.path.insert(0, str(ROOT / 'tools' / 'py65_lib'))
+    from py65.devices.mpu6502 import MPU
+    from pipelines.companion.jay_derrett.build import _libsidplayfp_powerup_ram
+
+    raw = Path(sid_path).read_bytes()
+    body = raw[0x7C:]
+    load = struct.unpack('>H', raw[8:10])[0]
+    if load == 0:
+        load = struct.unpack('<H', body[:2])[0]
+        body = body[2:]
+    init_addr = struct.unpack('>H', raw[10:12])[0]
+    play_addr = struct.unpack('>H', raw[12:14])[0]
+
+    freq_lo_addr = cfg['freq_lo_addr']
+    freq_hi_addr = cfg['freq_hi_addr']
+    ptr_zp = cfg['ptr_zp_addr']
+    cur_voice_zp = cfg['cur_voice_zp_addr']
+    n_frames = cfg.get('n_simulation_frames', 1000)
+
+    mpu = MPU()
+    mpu.memory = _libsidplayfp_powerup_ram()
+    mpu.memory[load:load + len(body)] = body
+    mpu.memory[0x01] = 0x37
+    mpu.a = 0; mpu.x = 0; mpu.y = 0; mpu.p = 0x20; mpu.sp = 0xFD
+    mpu.memory[0x01FF] = 0xFE; mpu.memory[0x01FE] = 0xFE
+    mpu.pc = init_addr
+    for _ in range(2_000_000):
+        if mpu.pc == 0xFEFF: break
+        mpu.step()
+
+    # NOTE events keyed by (voice, ptr_addr) → set of (raw_byte, eff_lo, eff_hi)
+    # If same (voice, ptr_addr) yields multiple distinct (raw,lo,hi) tuples,
+    # the substitution can't be position-based — raise error.
+    note_events: dict[tuple[int, int], set[tuple[int, int, int]]] = {}
+    max_cyc_per_frame = 200_000
+
+    for _ in range(n_frames):
+        mpu.pc = play_addr; mpu.sp = 0xFD
+        mpu.memory[0x01FF] = 0xFE; mpu.memory[0x01FE] = 0xFE
+        cyc = 0
+        while mpu.pc != 0xFEFF and cyc < max_cyc_per_frame:
+            op = mpu.memory[mpu.pc]
+            if op == 0xBD:    # LDA abs,X
+                tgt = (mpu.memory[mpu.pc + 1]
+                       | (mpu.memory[mpu.pc + 2] << 8))
+                if tgt == freq_lo_addr:
+                    raw_byte = mpu.x
+                    voice = mpu.memory[cur_voice_zp]
+                    ptr_addr = (mpu.memory[ptr_zp]
+                                | (mpu.memory[ptr_zp + 1] << 8))
+                    eff_lo = mpu.memory[(freq_lo_addr + raw_byte) & 0xFFFF]
+                    eff_hi = mpu.memory[(freq_hi_addr + raw_byte) & 0xFFFF]
+                    key = (voice, ptr_addr)
+                    note_events.setdefault(key, set()).add(
+                        (raw_byte, eff_lo, eff_hi))
+            mpu.step()
+            cyc += 1
+
+    # Substitute high-byte pattern bytes. Track substitutions; bail if
+    # same position needs to be assigned different bytes.
+    new_voice_patterns = [bytearray(p) for p in voice_patterns]
+    new_freq_lo = bytearray(freq_lo)
+    new_freq_hi = bytearray(freq_hi)
+
+    # Unused freq table slots: indices where both freq_lo and freq_hi
+    # are zero in the orig tables. For Sqij these are 12-15, 28-31, ...
+    available_slots = [
+        i for i in range(128)
+        if new_freq_lo[i] == 0 and new_freq_hi[i] == 0
+    ]
+    synthetic: dict[tuple[int, int], int] = {}  # (eff_lo, eff_hi) -> slot
+
+    high_byte_subs = 0
+    for (voice, ptr_addr), variants in note_events.items():
+        # Only act on positions inside this voice's extracted pattern
+        v_start = voice_initial_ptrs[voice]
+        v_end = v_start + len(voice_patterns[voice])
+        if not (v_start <= ptr_addr < v_end):
+            continue
+
+        # Filter to high-byte raw values
+        high_variants = {
+            (raw, lo, hi) for (raw, lo, hi) in variants if raw >= 0x80
+        }
+        if not high_variants:
+            continue
+
+        # Inconsistency check
+        if len({(lo, hi) for (_, lo, hi) in high_variants}) > 1:
+            raise ValueError(
+                f"voice={voice} ptr=${ptr_addr:04X}: high-byte note "
+                f"resolves to multiple effective freqs across runs: "
+                f"{high_variants}")
+
+        raw, eff_lo, eff_hi = next(iter(high_variants))
+        key = (eff_lo, eff_hi)
+        if key not in synthetic:
+            if not available_slots:
+                raise ValueError(
+                    f"Out of synthetic freq table slots while resolving "
+                    f"high-byte note ${raw:02X} → freq "
+                    f"(${eff_lo:02X},${eff_hi:02X})")
+            slot = available_slots.pop(0)
+            synthetic[key] = slot
+            new_freq_lo[slot] = eff_lo
+            new_freq_hi[slot] = eff_hi
+        offset = ptr_addr - v_start
+        # Sanity: the pattern byte at offset must match the raw byte
+        # we observed. If not, the simulation is misaligned with
+        # extracted patterns.
+        if new_voice_patterns[voice][offset] != raw:
+            raise ValueError(
+                f"voice={voice} ptr=${ptr_addr:04X} (offset {offset}): "
+                f"pattern byte ${new_voice_patterns[voice][offset]:02X} "
+                f"doesn't match simulated raw byte ${raw:02X}")
+        new_voice_patterns[voice][offset] = synthetic[key]
+        high_byte_subs += 1
+
+    return ([bytes(p) for p in new_voice_patterns],
+            bytes(new_freq_lo), bytes(new_freq_hi))
 
 
 def build_type_b_sid(sid_name: str, load_addr: int = 0x1000) -> bytes:

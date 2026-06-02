@@ -38,7 +38,7 @@ from pipelines.companion.jay_derrett.build import (
 from pipelines.companion.jay_derrett.type_b import build_type_b_sid
 
 
-TYPE_B_SIDS = ['Equalizer', 'Death_or_Glory']
+TYPE_B_SIDS = ['Equalizer', 'Death_or_Glory', 'Sqij']
 
 
 @pytest.mark.parametrize('name', TYPE_B_SIDS)
