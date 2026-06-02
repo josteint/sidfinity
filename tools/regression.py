@@ -162,18 +162,58 @@ def regress_companion() -> tuple[int, int, int]:
     return ok, partial, fail
 
 
+def regress_c64me() -> tuple[int, int]:
+    """Commodore_64_Music_Examples — 15 subtunes via the C64ME-specific
+    build.py composer. Uses PREFIX-match semantics rather than is_full
+    because the rebuild's play loop takes more cycles per VBI than orig,
+    so siddump captures fewer writes from reb in the same wall-clock
+    duration (even though every captured reb write matches orig)."""
+    from pipelines.companion.c64_music_examples.build import (
+        build_subtune_sid, build_subtune_sid_b, build_subtune_sid_v2,
+    )
+    SID = 'hvsc84/MUSICIANS/H/Hubbard_Rob/Commodore_64_Music_Examples.sid'
+    ok = fail = 0
+    for st in range(15):
+        out = SID.replace('.sid', f'.sub{st}.sidfinity.sid')
+        if st in (0, 2, 3):
+            sid_bytes = build_subtune_sid(st)
+        elif st == 1:
+            sid_bytes = build_subtune_sid_b(st)
+        else:
+            sid_bytes = build_subtune_sid_v2(st)
+        with open(out, 'wb') as f:
+            f.write(sid_bytes)
+        a = writelog_capture(SID, st, duration=15.0)
+        b = writelog_capture(out, 0, duration=15.0)
+        fa = [(r, v) for f in a for c, r, v in f]
+        fb = [(r, v) for f in b for c, r, v in f]
+        n = min(len(fa), len(fb))
+        div = next((i for i in range(n) if fa[i] != fb[i]), None)
+        if div is None and len(fb) > 0:
+            ok += 1
+            status = 'OK'
+        else:
+            fail += 1
+            status = f'diverge#{div}'
+        print(f'  sub {st:2d}: orig {len(fa):>5d} reb {len(fb):>5d}  {status}')
+    return ok, fail
+
+
 def main():
     print('Hubbard \'85:')
     h_ok, h_part, h_total = regress_hubbard()
     print(f'\nCompanion + 5TT:')
     c_ok, c_part, c_fail = regress_companion()
+    print(f'\nC64 Music Examples (prefix-match):')
+    cme_ok, cme_fail = regress_c64me()
 
     print(f'\nHubbard:    {h_ok} ok  +  {h_part} known-partial  +  '
           f'{h_total - h_ok - h_part} regressed  (of {h_total})')
     print(f'Companion:  {c_ok} ok  +  {c_part} known-partial  +  {c_fail} regressed')
+    print(f'C64ME:      {cme_ok} ok  +  {cme_fail} regressed  (of 15)')
 
     h_regressed = h_total - h_ok - h_part
-    if h_regressed or c_fail:
+    if h_regressed or c_fail or cme_fail:
         sys.exit(1)
 
 
