@@ -296,6 +296,92 @@ def detect_smc_wrap(sid_path: str) -> int:
     return 0xE9  # default fallback
 
 
+def detect_dur_counters_base(sid_path: str, params: EngineParams) -> int:
+    """Scan for `DE LL HH F0` (DEC abs,X / BEQ — the proc_note duration
+    counter decrement). Returns LL HH address (dur_counters[0])."""
+    raw = Path(sid_path).read_bytes()
+    body = raw[0x7C:]
+    load = struct.unpack('>H', raw[8:10])[0]
+    if load == 0:
+        load = struct.unpack('<H', body[:2])[0]
+        body = body[2:]
+    mem = bytearray(0x10000)
+    mem[load:load + len(body)] = body
+    candidates = []
+    for addr in range(load, load + len(body) - 4):
+        if mem[addr] == 0xDE and mem[addr + 3] == 0xF0:
+            a = mem[addr + 1] | (mem[addr + 2] << 8)
+            # Filter: state-cell-like, near proc_note
+            distance = abs(addr - params.proc_note_addr)
+            candidates.append((distance, a))
+    if not candidates:
+        # Fall back to NH heuristic
+        return params.voice_ptrs - 12
+    candidates.sort()
+    return candidates[0][1]
+
+
+def detect_stride(sid_path: str) -> int:
+    """Find the voice stride table. Returns the second value (V1's stride
+    from V0). NH/Cluster A/B = $1A; Cluster C (Discovery/Traxxion) = $18.
+    Pattern: 00 SS LL (table of [0, stride, 2*stride])."""
+    raw = Path(sid_path).read_bytes()
+    body = raw[0x7C:]
+    load = struct.unpack('>H', raw[8:10])[0]
+    if load == 0:
+        load = struct.unpack('<H', body[:2])[0]
+        body = body[2:]
+    mem = bytearray(0x10000)
+    mem[load:load + len(body)] = body
+    # Scan for `00 SS LL` where LL = 2*SS and SS in (24, 26)
+    for addr in range(load, load + len(body) - 3):
+        if mem[addr] == 0x00:
+            s1 = mem[addr + 1]
+            s2 = mem[addr + 2]
+            if s1 in (0x18, 0x1A) and s2 == s1 * 2:
+                return s1
+    return 0x1A  # default fallback
+
+
+def detect_has_off_slide(sid_path: str) -> bool:
+    """Detect whether the engine has an off-slide freq output path.
+    Counted by number of distinct LDA $YYYY,Y / STA $D400,X pairs in
+    modulation. 2 = has off-slide (Cluster A/B); 1 = no off-slide
+    (Cluster C)."""
+    raw = Path(sid_path).read_bytes()
+    body = raw[0x7C:]
+    load = struct.unpack('>H', raw[8:10])[0]
+    if load == 0:
+        load = struct.unpack('<H', body[:2])[0]
+        body = body[2:]
+    mem = bytearray(0x10000)
+    mem[load:load + len(body)] = body
+    count = 0
+    for addr in range(load + 3, load + len(body) - 3):
+        if (mem[addr] == 0x9D and mem[addr + 1] == 0x00 and
+            mem[addr + 2] == 0xD4 and mem[addr - 3] == 0xB9):
+            count += 1
+    return count >= 2
+
+
+def detect_inc_frame_counter(sid_path: str) -> bool:
+    """Cluster A/B engines start play() with `INC frame_counter` (opcode
+    $EE). Cluster C starts with `DEC tempo_counter` ($CE) — no INC."""
+    raw = Path(sid_path).read_bytes()
+    body = raw[0x7C:]
+    load = struct.unpack('>H', raw[8:10])[0]
+    if load == 0:
+        load = struct.unpack('<H', body[:2])[0]
+        body = body[2:]
+    mem = bytearray(0x10000)
+    mem[load:load + len(body)] = body
+    play_addr = struct.unpack('>H', raw[12:14])[0]
+    if play_addr == 0:
+        # IRQ-driven: handler typically has INC frame_counter (Cluster B IRQ)
+        return True
+    return mem[play_addr] == 0xEE
+
+
 def detect_inst_program_size(sid_path: str) -> int:
     """Find the instrument-program copy loop's LDY #imm. Returns N+1
     (= program size in bytes). NH/Cluster A = 24; Counterforce/Cluster B = 15."""
@@ -679,7 +765,10 @@ def extract_data(sid_path: str, params: EngineParams = NINJA_HAMSTER,
 # ---------------------------------------------------------------------------
 
 def emit_asm(data: ExtractedData, load_addr: int = 0x1000,
-             quirks: 'EngineQuirks' = None) -> str:
+             quirks: 'EngineQuirks' = None,
+             stride: int = 0x1A,
+             emit_off_slide: bool = True,
+             emit_inc_frame_counter: bool = True) -> str:
     """Generate xa65 source for a clean Jay_Derrett rebuild.
 
     Layout (one contiguous block from load_addr):
@@ -801,7 +890,10 @@ def emit_asm(data: ExtractedData, load_addr: int = 0x1000,
     # ----- play code -----
     lines += [
         'play_code:',
-        '    inc frame_counter',
+    ]
+    if emit_inc_frame_counter:
+        lines += ['    inc frame_counter']
+    lines += [
         '    dec tempo_counter',
         '    bne play_modulation     ; tempo not expired; skip voice processing',
         '    ; Process all 3 voices',
@@ -914,15 +1006,15 @@ def emit_asm(data: ExtractedData, load_addr: int = 0x1000,
         '    sta $f3',
         '    inc self_mod_counter',
         '    lda self_mod_counter',
-        '    cmp #$e9',
+        f'    cmp #${quirks.smc_wrap if quirks else 0xE9:02X}',
         '    bne pn_read         ; not yet wrap, recurse with new ptr',
         '    ; Wrap: reset counter + silence voice 2 (orig clears',
-        '    ; $C975 + $C978 which are voice 2 CTRL + gate-off CTRL slots).',
-        '    lda #$e0',
+        '    ; voice 2 CTRL + gate-off CTRL slots).',
+        f'    lda #${quirks.initial_smc if quirks else 0xE0:02X}',
         '    sta self_mod_counter',
         '    lda #$00',
-        '    sta voice_state+$14+$34',
-        '    sta voice_state+$17+$34',
+        f'    sta voice_state+$14+${stride*2:02X}',
+        f'    sta voice_state+$17+${stride*2:02X}',
         '    jmp pn_read',
         '',
         '; --- $Dx: set instrument ---',
@@ -959,8 +1051,8 @@ def emit_asm(data: ExtractedData, load_addr: int = 0x1000,
         lines += [
             '    ; Engine quirk: SET DUR also clears V3 CTRL slots',
             '    lda #$00',
-            '    sta voice_state+$14+$34',
-            '    sta voice_state+$17+$34',
+            f'    sta voice_state+$14+${stride*2:02X}',
+            f'    sta voice_state+$17+${stride*2:02X}',
         ]
     lines += [
         '    jmp pn_advance_rts',
@@ -1064,15 +1156,25 @@ def emit_asm(data: ExtractedData, load_addr: int = 0x1000,
         '    lda voice_state+$02,y',
         '    sbc voice_state+$06,y',
         '    sta voice_state+$06,y',
-        '    ; note + $10 → freq off-slide override',
-        '    pla',
-        '    clc',
-        '    adc #$10',
-        '    tax',
-        '    lda freq_lo_table,x',
-        '    sta voice_state+$18,y',
-        '    lda freq_hi_table,x',
-        '    sta voice_state+$19,y',
+    ]
+    if emit_off_slide:
+        lines += [
+            '    ; note + $10 -> freq off-slide override',
+            '    pla',
+            '    clc',
+            '    adc #$10',
+            '    tax',
+            '    lda freq_lo_table,x',
+            '    sta voice_state+$18,y',
+            '    lda freq_hi_table,x',
+            '    sta voice_state+$19,y',
+        ]
+    else:
+        # Discard the stored note from the stack (no off-slide path)
+        lines += [
+            '    pla',
+        ]
+    lines += [
         '    ; Set CTRL byte from voice_state+$14',
         '    lda voice_state+$14,y',
         '    ldx cur_voice',
@@ -1101,28 +1203,42 @@ def emit_asm(data: ExtractedData, load_addr: int = 0x1000,
         '    sta cur_voice_y',
         '    ldy voice_sid_off,x',
         '    sty cur_sid_off',
-        '    ; Output freq (with bit-7 LFO toggle)',
         '    ldy cur_voice_y',
-        '    lda voice_state,y',
-        '    bpl mod_freq_normal     ; bit 7 clear → normal freq',
-        '    ; bit 7 set: check frame counter LSB',
-        '    lda frame_counter',
-        '    lsr',
-        '    bcc mod_freq_offslide   ; carry clear → off-slide freq',
-        'mod_freq_normal:',
-        '    ldx cur_sid_off',
-        '    lda voice_state+$01,y',
-        '    sta $d400,x',
-        '    lda voice_state+$02,y',
-        '    sta $d401,x',
-        '    jmp mod_pw_out',
-        'mod_freq_offslide:',
-        '    ldx cur_sid_off',
-        '    lda voice_state+$18,y',
-        '    sta $d400,x',
-        '    lda voice_state+$19,y',
-        '    sta $d401,x',
-        'mod_pw_out:',
+    ]
+    if emit_off_slide:
+        lines += [
+            '    ; Output freq (with bit-7 LFO toggle)',
+            '    lda voice_state,y',
+            '    bpl mod_freq_normal     ; bit 7 clear -> normal freq',
+            '    ; bit 7 set: check frame counter LSB',
+            '    lda frame_counter',
+            '    lsr',
+            '    bcc mod_freq_offslide   ; carry clear -> off-slide freq',
+            'mod_freq_normal:',
+            '    ldx cur_sid_off',
+            '    lda voice_state+$01,y',
+            '    sta $d400,x',
+            '    lda voice_state+$02,y',
+            '    sta $d401,x',
+            '    jmp mod_pw_out',
+            'mod_freq_offslide:',
+            '    ldx cur_sid_off',
+            '    lda voice_state+$18,y',
+            '    sta $d400,x',
+            '    lda voice_state+$19,y',
+            '    sta $d401,x',
+            'mod_pw_out:',
+        ]
+    else:
+        lines += [
+            '    ; Output freq (no off-slide path for Cluster C)',
+            '    ldx cur_sid_off',
+            '    lda voice_state+$01,y',
+            '    sta $d400,x',
+            '    lda voice_state+$02,y',
+            '    sta $d401,x',
+        ]
+    lines += [
         '    ; PW out: $D403 = voice_state+$0A,y ; $D402 = voice_pwm_lo[v]',
         '    lda voice_state+$0A,y',
         '    sta $d403,x',
@@ -1334,12 +1450,11 @@ def emit_asm(data: ExtractedData, load_addr: int = 0x1000,
         'voice_pwm_phase:  .byte 0, 0, 0',
         'voice_pwm_lo:     .byte 0, 0, 0',
         '',
-        '; Per-voice runtime state slabs (3 × $1A = 78 bytes)',
-        '; Voice 0: $00, voice 1: $1A, voice 2: $34',
-        'voice_state:      .dsb 26 * 3, 0',
+        f'; Per-voice runtime state slabs (3 x ${stride:02X} bytes)',
+        f'voice_state:      .dsb {stride} * 3, 0',
         '',
         '; Voice Y-stride table',
-        'voice_y_table:    .byte $00, $1A, $34',
+        f'voice_y_table:    .byte $00, ${stride:02X}, ${stride * 2:02X}',
         '',
         '; Voice SID register offsets',
         'voice_sid_off:    .byte ' + ', '.join(f'${b:02X}' for b in data.voice_offsets),
@@ -1589,7 +1704,8 @@ def build_sid(sid_path: str, params: EngineParams,
         except RuntimeError:
             vs_base = detect_mod_base_cluster_b(sid_path, params)
         data.init_voice_state = capture_voice_state_slabs(
-            sid_path, params, vs_base, stride=0x1A)
+            sid_path, params, vs_base,
+            stride=detect_stride(sid_path))
     except RuntimeError:
         data.init_voice_state = None
     # Capture orig PWM lo accumulator initial values (engines depend
@@ -1613,23 +1729,23 @@ def build_sid(sid_path: str, params: EngineParams,
             pwm_phase_init = (phase_vals[0], phase_vals[1], phase_vals[2])
         except RuntimeError:
             pass
-    # Capture engine state cells near voice_ptrs (NH layout assumed):
-    # voice_ptrs - 12 = dur_counters[0]
-    # voice_ptrs - 9 = tempo_counter
-    # voice_ptrs - 8 = tempo_reload
-    # voice_ptrs - 7 = cur_inst[0]
-    # voice_ptrs - 4 = cur_ctrl[0]
+    # Capture engine state cells. NH layout puts state contiguously
+    # at vp-12..vp-1; some engines (Discovery) have different layouts
+    # — auto-detect dur_counters base via DEC pattern.
     vp = params.voice_ptrs
+    dur_base = detect_dur_counters_base(sid_path, params)
+    # Other state cells relative to dur_base (NH: dur=0, tempo=+3, tempo_reload=+4,
+    # cur_inst=+5..+7, cur_ctrl=+8..+10, frame_counter=+11)
     try:
         state_cells = capture_cells_after_init(
             sid_path, params,
-            [vp - 12, vp - 11, vp - 10,    # dur
-             vp - 9, vp - 8,                # tempo, tempo_reload
-             vp - 7, vp - 6, vp - 5,        # cur_inst
-             vp - 4, vp - 3, vp - 2,        # cur_ctrl
-             vp - 1,                        # frame_counter
-             params.self_mod_counter,       # smc
-             0xD418])                       # master vol
+            [dur_base, dur_base + 1, dur_base + 2,    # dur
+             dur_base + 3, dur_base + 4,              # tempo, tempo_reload
+             dur_base + 5, dur_base + 6, dur_base + 7,  # cur_inst
+             dur_base + 8, dur_base + 9, dur_base + 10,  # cur_ctrl
+             dur_base + 11,                            # frame_counter
+             params.self_mod_counter,                  # smc
+             0xD418])                                  # master vol
         dur = (state_cells[0], state_cells[1], state_cells[2])
         tempo = state_cells[3]
         tempo_reload = state_cells[4]
@@ -1667,14 +1783,25 @@ def build_sid(sid_path: str, params: EngineParams,
     data.initial_tempo = tempo
     data.initial_master_vol = mvol
 
+    # Detect engine variant signals
+    stride = detect_stride(sid_path)
+    has_off_slide = detect_has_off_slide(sid_path)
+    inc_frame_counter = detect_inc_frame_counter(sid_path)
+
     # Pick emit variant based on engine program size:
-    # Cluster A (NH-shape): 24-byte program
+    # Cluster A (NH-shape): 24-byte program, slab layout A
     # Cluster B (CF-shape): 15-byte program — different slab layout
+    # Cluster C: 24-byte program, stride 24, no off-slide — parametric A
     if program_size == 15:
         from pipelines.companion.jay_derrett.cluster_b import emit_asm_cluster_b
-        emit_fn = emit_asm_cluster_b
+        def emit_fn(data, load_addr, quirks=None):
+            return emit_asm_cluster_b(data, load_addr, quirks)
     else:
-        emit_fn = emit_asm
+        def emit_fn(data, load_addr, quirks=None):
+            return emit_asm(data, load_addr, quirks,
+                            stride=stride,
+                            emit_off_slide=has_off_slide,
+                            emit_inc_frame_counter=inc_frame_counter)
 
     asm1 = emit_fn(data, load_addr, quirks=quirks)
     bin1, labels1 = _assemble(asm1, f'jd_{sid_stem}_pass1')

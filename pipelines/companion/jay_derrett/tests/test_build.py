@@ -44,6 +44,9 @@ CLUSTER_A_SIDS = [
 # Cluster B SIDs verifiable via siddump --writelog (PSID-compatible orig).
 CLUSTER_B_PSID_SIDS = ['Counterforce', 'Destruct', 'Stratton']
 
+# Cluster C SIDs (stride-24, no off-slide path, no-INC dispatch).
+CLUSTER_C_SIDS = ['Discovery']
+
 # Cluster B IRQ-driven SIDs (RSID orig with play=$0000). Verified
 # via py65 capture for orig + siddump for reb (which ships as PSID).
 CLUSTER_B_IRQ_SIDS = ['Osmium', 'Thundercross', 'Trigger_Happy']
@@ -67,7 +70,7 @@ def _build_and_load_data(name):
     return sid_path, reb_path
 
 
-@pytest.mark.parametrize('name', CLUSTER_A_SIDS + CLUSTER_B_PSID_SIDS)
+@pytest.mark.parametrize('name', CLUSTER_A_SIDS + CLUSTER_B_PSID_SIDS + CLUSTER_C_SIDS)
 def test_psid_byte_exact(name):
     """SIDs whose orig is PSID — verify via siddump --writelog both sides."""
     sid_path, reb_path = _build_and_load_data(name)
