@@ -131,6 +131,10 @@ class FxNames:
     Per-voice PWM state (labeled, X-indexed; used by fx_pwm):
       `v_pwperiod`  — bidirectional-mode period counter per voice
       `v_pwdir`     — bidirectional-mode direction flag per voice
+    Per-voice skydive state (labeled, X-indexed; used by fx_skydive):
+      `v_dur`       — duration counter per voice
+      `v_slide`     — freq_hi slide value per voice (decrements each tick)
+      `v_tick`      — per-voice tick subphase counter
     Per-voice scalars (continued):
       `pw_idx`      — current voice's PW accumulator slot (Y-loadable)
     Instrument table accessors (labeled, Y-indexed):
@@ -142,6 +146,7 @@ class FxNames:
       `it_pwperiod` — pwm period (bidir) per instr
       `it_pwhi`     — pwm hi bound (bidir) per instr
       `it_pwlo`     — pwm lo bound (bidir) per instr
+      `it_hrctrl`   — hard-restart ctrl byte per instrument (fx_skydive)
     Lookup tables (labeled):
       `freqtab`     — 96-entry freq table (musical PAL, byte-pairs)
       `statebuf`    — off-table-arpeggio state mirror (byte-pairs)
@@ -189,6 +194,11 @@ class FxNames:
     it_pwlo: str
     pwacc: str
     pwm_tmp: str
+    # Skydive names — added Phase B step 3 (fx_skydive lift)
+    v_dur: str
+    v_slide: str
+    v_tick: str
+    it_hrctrl: str
 
 
 HUBBARD_FX_NAMES = FxNames(
@@ -221,6 +231,10 @@ HUBBARD_FX_NAMES = FxNames(
     it_pwlo='it_pwlo',
     pwacc='pwacc',
     pwm_tmp='pwm_tmp',
+    v_dur='v_dur',
+    v_slide='v_slide',
+    v_tick='v_tick',
+    it_hrctrl='it_hrctrl',
 )
 
 
@@ -904,41 +918,44 @@ def _emit_fx_vibrato(names: FxNames) -> str:
     return _FX_VIBRATO_ASM_TEMPLATE.format(**asdict(names))
 
 
-_HUBBARD_FX_SKYDIVE_ASM = """; fx_skydive - bit0. freq_hi slide + ctrl, see song_interp._skydive.
+_FX_SKYDIVE_ASM_TEMPLATE = """; fx_skydive - bit0. freq_hi slide + ctrl, see song_interp._skydive.
 fx_skydive:
-        ldy instoff
-        lda it_fx,y
+        ldy {instoff}
+        lda {it_fx},y
         and #$01
         beq fxs_ret
-        lda v_dur,x
+        lda {v_dur},x
         beq fxs_ret          ; duration_ctr == 0
-        lda v_slide,x
+        lda {v_slide},x
         beq fxs_ret          ; slide value dead
-        ldy sidoff
-        lda v_slide,x
+        ldy {sidoff}
+        lda {v_slide},x
         sta $d401,y          ; freq_hi = slide value
-        lda v_tick,x
+        lda {v_tick},x
         beq fxs_ns
-        ldy instoff
-        lda it_hrctrl,y      ; not-start ctrl = hr_ctrl
+        ldy {instoff}
+        lda {it_hrctrl},y      ; not-start ctrl = hr_ctrl
         bne fxs_w
         lda #$80
-fxs_w:  ldy sidoff
+fxs_w:  ldy {sidoff}
         sta $d404,y
-        dec v_slide,x
+        dec {v_slide},x
         rts
 fxs_ns: lda #$80             ; note-start subphase ctrl = $80
-        ldy sidoff
+        ldy {sidoff}
         sta $d404,y
 fxs_ret: rts"""
 
 
-def _emit_hubbard_fx_skydive() -> str:
+def _emit_fx_skydive(names: FxNames) -> str:
     """fx_skydive routine — fx-flag bit 0. freq_hi slide + ctrl
     write. Decrements `v_slide` each frame; the ctrl write
     re-asserts hr_ctrl (or $80 for first-tick) so the envelope holds
-    while the slide drifts."""
-    return _HUBBARD_FX_SKYDIVE_ASM
+    while the slide drifts.
+
+    Skeleton-agnostic: parameterised over `names: FxNames`.
+    """
+    return _FX_SKYDIVE_ASM_TEMPLATE.format(**asdict(names))
 
 
 _HUBBARD_FX_ARP_ASM = """; fx_arp - bit2 arpeggio. alternate pitch / pitch+12 by frame parity.
@@ -2102,7 +2119,7 @@ def _compose_hubbard_engine_body(
         '',
         _emit_fx_vibrato(HUBBARD_FX_NAMES),
         '',
-        _emit_hubbard_fx_skydive(),
+        _emit_fx_skydive(HUBBARD_FX_NAMES),
         '',
         _emit_hubbard_fx_arp(arp_phase_invert),
         '',
