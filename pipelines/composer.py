@@ -1937,14 +1937,14 @@ def _emit_init_sfx(names: FxNames,
     return asm.replace(old, new, 1)
 
 
-_HUBBARD_SFX_PLAY_ASM = """; sfx_play - one frame of the sound-effect engine. The first frame
+_SFX_PLAY_ASM_TEMPLATE = """; sfx_play - one frame of the sound-effect engine. The first frame
 ; gates the voices off and writes the 14-byte register snapshot;
 ; thereafter it steps the freq-table sweep.
 sfx_play:
-        lda sfx_started
+        lda {sfx_started}
         bne sfxp_run
         lda #$01
-        sta sfx_started
+        sta {sfx_started}
         lda #$00
         sta $d404            ; play-path clear - gate V1,V2,V3 off
         sta $d40b
@@ -1952,33 +1952,35 @@ sfx_play:
         sta $d404            ; the trigger gates V1,V2 again
         sta $d40b
         ldy #$00
-sfxp_cpy: lda (sfx_rec),y    ; records 0..13 - V1+V2 register snapshot
+sfxp_cpy: lda ({sfx_rec}),y    ; records 0..13 - V1+V2 register snapshot
         sta $d400,y
         iny
         cpy #$0e
         bne sfxp_cpy
 sfxp_run:
-        lda sfx_done
+        lda {sfx_done}
         bne sfxp_ret
-        dec sfx_stepctr
+        dec {sfx_stepctr}
         bpl sfxp_ret
         ldy #16
-        lda (sfx_rec),y      ; record 16 - step rate
-        sta sfx_stepctr
+        lda ({sfx_rec}),y      ; record 16 - step rate
+        sta {sfx_stepctr}
         jsr sfx_step
 sfxp_ret:
         rts"""
 
 
-def _emit_hubbard_sfx_play() -> str:
+def _emit_sfx_play(names: FxNames) -> str:
     """sfx_play routine — per-frame SFX driver.
 
     On the first frame, gates V1/V2/V3 off then writes the 14-byte
     V1+V2 register snapshot from the SFX record. On subsequent
     frames, advances the step counter and invokes sfx_step when it
     rolls over to drive the pitch sweep.
+
+    Skeleton-agnostic: parameterised over `names: FxNames`.
     """
-    return _HUBBARD_SFX_PLAY_ASM
+    return _SFX_PLAY_ASM_TEMPLATE.format(**asdict(names))
 
 
 _HUBBARD_SFX_STEP_ASM = """; sfx_step - one sweep step. Writes V1/V2 freq from the freq table and
@@ -2328,7 +2330,7 @@ def _compose_hubbard_engine_body(
         '',
         _emit_init_sfx(HUBBARD_FX_NAMES, sfx_state_ofs),
         '',
-        _emit_hubbard_sfx_play(),
+        _emit_sfx_play(HUBBARD_FX_NAMES),
         '',
         _emit_hubbard_sfx_step(sfx_state_ofs),
         '',
