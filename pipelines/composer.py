@@ -128,19 +128,35 @@ class FxNames:
       `instoff`     — instrument table offset (Y-loadable) for current voice
     Global counters:
       `frame_ctr`   — engine frame counter (vibrato reads bits 0..2)
+    Per-voice PWM state (labeled, X-indexed; used by fx_pwm):
+      `v_pwperiod`  — bidirectional-mode period counter per voice
+      `v_pwdir`     — bidirectional-mode direction flag per voice
+    Per-voice scalars (continued):
+      `pw_idx`      — current voice's PW accumulator slot (Y-loadable)
     Instrument table accessors (labeled, Y-indexed):
       `it_fx`       — fx-flags byte per instrument
       `it_vibdepth` — vibrato depth per instrument
       `it_onset`    — vibrato onset (minimum duration) per instrument
+      `it_pwmode`   — pwm mode (0=none / 1=linear / 2=bidir) per instr
+      `it_pwa`      — pwm A field (step or speed) per instr
+      `it_pwperiod` — pwm period (bidir) per instr
+      `it_pwhi`     — pwm hi bound (bidir) per instr
+      `it_pwlo`     — pwm lo bound (bidir) per instr
     Lookup tables (labeled):
       `freqtab`     — 96-entry freq table (musical PAL, byte-pairs)
       `statebuf`    — off-table-arpeggio state mirror (byte-pairs)
+      `pwacc`       — per-instrument PW accumulator (byte-pairs, Y-idx)
     Subroutines (skeleton-provided):
       `build_statebuf_subr` — call to populate statebuf for current X
     Vibrato-internal scratch (the emitter writes these; the skeleton
     allocates matching names so they share the same zp):
       `vfreq` (4 bytes), `vdelta_lo`, `vdelta_hi`, `vdepthctr`,
       `vtarg_lo`, `vtarg_hi`, `vib_step`, `vib_carry`
+    PWM-internal scratch (skeleton-allocated):
+      `pwm_tmp` (2 bytes)
+    Shared equate (skeleton-emitted): `LINEAR_PW_OR` is referenced
+    by fx_pwm; the skeleton's equates emitter sets its value from
+    the USF (per-tune `linear_pw_or` field).
     """
     v_pitch: str
     v_durfield: str
@@ -162,6 +178,17 @@ class FxNames:
     vtarg_hi: str
     vib_step: str
     vib_carry: str
+    # PWM names — added Phase B step 2 (fx_pwm lift)
+    v_pwperiod: str
+    v_pwdir: str
+    pw_idx: str
+    it_pwmode: str
+    it_pwa: str
+    it_pwperiod: str
+    it_pwhi: str
+    it_pwlo: str
+    pwacc: str
+    pwm_tmp: str
 
 
 HUBBARD_FX_NAMES = FxNames(
@@ -184,6 +211,16 @@ HUBBARD_FX_NAMES = FxNames(
     vtarg_hi='vtarg_hi',
     vib_step='vib_step',
     vib_carry='vib_carry',
+    v_pwperiod='v_pwperiod',
+    v_pwdir='v_pwdir',
+    pw_idx='pw_idx',
+    it_pwmode='it_pwmode',
+    it_pwa='it_pwa',
+    it_pwperiod='it_pwperiod',
+    it_pwhi='it_pwhi',
+    it_pwlo='it_pwlo',
+    pwacc='pwacc',
+    pwm_tmp='pwm_tmp',
 )
 
 
@@ -659,95 +696,100 @@ def _emit_hubbard_fx_incby2(incby2_late_gate: int | None = None,
     return asm
 
 
-_HUBBARD_FX_PWM_ASM = """; fx_pwm - bit4. linear or bidirectional PWM. The pw accumulators
-; (pwacc) are per-instrument shared state - see song_interp._pwm.
+_FX_PWM_ASM_TEMPLATE = """; fx_pwm - bit4. linear or bidirectional PWM. The pw accumulators
+; ({pwacc}) are per-instrument shared state - see song_interp._pwm.
 fx_pwm:
-        ldy instoff
-        lda it_pwmode,y      ; pwm_mode  0=none 1=linear 2=bidir
+        ldy {instoff}
+        lda {it_pwmode},y      ; pwm_mode  0=none 1=linear 2=bidir
         bne fxp_on
         rts
 fxp_on:
         cmp #$01
         bne fxp_bidir
-        ldy instoff
-        lda it_pwa,y      ; linear - pw_lo += speed + vib_carry
-        sta pwm_tmp
-        ldy pw_idx
-        lda pwacc,y
+        ldy {instoff}
+        lda {it_pwa},y      ; linear - pw_lo += speed + {vib_carry}
+        sta {pwm_tmp}
+        ldy {pw_idx}
+        lda {pwacc},y
         clc
-        adc pwm_tmp
+        adc {pwm_tmp}
         clc
-        adc vib_carry
+        adc {vib_carry}
         ora #LINEAR_PW_OR
-        sta pwacc,y
-        ldy sidoff
+        sta {pwacc},y
+        ldy {sidoff}
         sta $d402,y
         rts
 fxp_bidir:
-        dec v_pwperiod,x
+        dec {v_pwperiod},x
         bpl fxp_ret          ; period counter not expired
-        ldy instoff
-        lda it_pwperiod,y     ; reload period
-        sta v_pwperiod,x
-        lda v_pwdir,x
+        ldy {instoff}
+        lda {it_pwperiod},y     ; reload period
+        sta {v_pwperiod},x
+        lda {v_pwdir},x
         bne fxp_fall
-        ldy instoff          ; rising
-        lda it_pwa,y      ; step
-        sta pwm_tmp
-        ldy pw_idx
-        lda pwacc,y
+        ldy {instoff}          ; rising
+        lda {it_pwa},y      ; step
+        sta {pwm_tmp}
+        ldy {pw_idx}
+        lda {pwacc},y
         clc
-        adc pwm_tmp
-        sta pwacc,y
-        lda pwacc+1,y
+        adc {pwm_tmp}
+        sta {pwacc},y
+        lda {pwacc}+1,y
         adc #$00
         and #$0f
-        sta pwacc+1,y
-        ldy instoff
-        cmp it_pwhi,y     ; hi_bound
+        sta {pwacc}+1,y
+        ldy {instoff}
+        cmp {it_pwhi},y     ; hi_bound
         bne fxp_wr
         lda #$01
-        sta v_pwdir,x
+        sta {v_pwdir},x
         jmp fxp_wr
 fxp_fall:
-        ldy instoff
-        lda it_pwa,y      ; step
-        sta pwm_tmp
-        ldy pw_idx
-        lda pwacc,y
+        ldy {instoff}
+        lda {it_pwa},y      ; step
+        sta {pwm_tmp}
+        ldy {pw_idx}
+        lda {pwacc},y
         sec
-        sbc pwm_tmp
-        sta pwacc,y
-        lda pwacc+1,y
+        sbc {pwm_tmp}
+        sta {pwacc},y
+        lda {pwacc}+1,y
         sbc #$00
         and #$0f
-        sta pwacc+1,y
-        ldy instoff
-        cmp it_pwlo,y     ; lo_bound
+        sta {pwacc}+1,y
+        ldy {instoff}
+        cmp {it_pwlo},y     ; lo_bound
         bne fxp_wr
         lda #$00
-        sta v_pwdir,x
+        sta {v_pwdir},x
 fxp_wr:
-        ldy pw_idx
-        lda pwacc+1,y
-        sta pwm_tmp
-        lda pwacc,y
-        sta pwm_tmp+1
-        ldy sidoff
-        lda pwm_tmp
+        ldy {pw_idx}
+        lda {pwacc}+1,y
+        sta {pwm_tmp}
+        lda {pwacc},y
+        sta {pwm_tmp}+1
+        ldy {sidoff}
+        lda {pwm_tmp}
         sta $d403,y          ; pw_hi
-        lda pwm_tmp+1
+        lda {pwm_tmp}+1
         sta $d402,y          ; pw_lo
 fxp_ret:
         rts"""
 
 
-def _emit_hubbard_fx_pwm() -> str:
+def _emit_fx_pwm(names: FxNames) -> str:
     """fx_pwm routine — fx-flag bit 4. Linear (pw_lo += speed +
     vib_carry) or bidirectional (period-counter + step + bounds)
     PWM. PWM accumulators in `pwacc` are per-instrument shared
-    state."""
-    return _HUBBARD_FX_PWM_ASM
+    state.
+
+    Skeleton-agnostic: parameterised over `names: FxNames`. The host
+    skeleton must also emit `LINEAR_PW_OR` as an equate (set from
+    the per-tune `linear_pw_or` field).
+    """
+    return _FX_PWM_ASM_TEMPLATE.format(**asdict(names))
 
 
 _FX_VIBRATO_ASM_TEMPLATE = """; fx_vibrato - bit3. triangle LFO on freq, disassembly $51C1-$522D.
@@ -2056,7 +2098,7 @@ def _compose_hubbard_engine_body(
             incby2_late_gate=incby2_late_gate,
             uses_per_subtune_dispatch=uses_per_subtune_dispatch),
         '',
-        _emit_hubbard_fx_pwm(),
+        _emit_fx_pwm(HUBBARD_FX_NAMES),
         '',
         _emit_fx_vibrato(HUBBARD_FX_NAMES),
         '',
