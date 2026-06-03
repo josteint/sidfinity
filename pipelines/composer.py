@@ -1395,37 +1395,39 @@ def _emit_set_patptr(names: FxNames,
     return asm.replace('; %%MASTER_VOL_LOOP_RESET%%', reset)
 
 
-_HUBBARD_NEXT_ORDERIDX_ASM = """; next_orderidx - the orderlist index the next pattern will occupy:
+_NEXT_ORDERIDX_ASM_TEMPLATE = """; next_orderidx - the orderlist index the next pattern will occupy:
 ; v_orderpos+1, or orderLoop,x if that entry is the $FF terminator.
 ; Returns it in A. Preserves X.
 next_orderidx:
-        lda orderLo,x
-        sta orderp
-        lda orderHi,x
-        sta orderp+1
-        lda v_orderpos,x
+        lda {orderLo},x
+        sta {orderp}
+        lda {orderHi},x
+        sta {orderp}+1
+        lda {v_orderpos},x
         clc
         adc #1
         tay                  ; Y = v_orderpos + 1
-        lda (orderp),y
+        lda ({orderp}),y
         cmp #$fe
         bcc noi_have
-        lda orderLoop,x      ; next entry is a terminator ($FE/$FF) - wrap
+        lda {orderLoop},x      ; next entry is a terminator ($FE/$FF) - wrap
         rts
 noi_have:
         tya
         rts"""
 
 
-def _emit_hubbard_next_orderidx() -> str:
+def _emit_next_orderidx(names: FxNames) -> str:
     """next_orderidx routine — peek at where the next pattern lives.
 
     Returns the orderlist index the next pattern will occupy:
     v_orderpos+1, or orderLoop,x if that entry is the $FF terminator.
     Used by master_vol_trigger=`every_note` engines that derive their
     fade phase from the upcoming orderlist position.
+
+    Skeleton-agnostic: parameterised over `names: FxNames`.
     """
-    return _HUBBARD_NEXT_ORDERIDX_ASM
+    return _NEXT_ORDERIDX_ASM_TEMPLATE.format(**asdict(names))
 
 
 _HUBBARD_DO_EFFECTS_ASM = """; do_effects - effects in engine order vibrato,pwm,drumslide,skydive,arp.
@@ -2201,7 +2203,7 @@ def _compose_hubbard_engine_body(
         _HUBBARD_SET_PATPTR_HEADER,
         _emit_set_patptr(HUBBARD_FX_NAMES, fade, loop_silences_song),
         '',
-        _emit_hubbard_next_orderidx(),
+        _emit_next_orderidx(HUBBARD_FX_NAMES),
         '',
         _emit_note_start(HUBBARD_FX_NAMES, ns_offtab_decr_offset),
         '',
