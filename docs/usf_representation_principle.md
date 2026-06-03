@@ -1,7 +1,8 @@
 # The USF Representation Principle
 
 **Status: load-bearing. Read this document in full before designing or
-changing how USF represents any instrument, effect, or behavior. Do not
+changing how USF represents any instrument, effect, or behavior — and
+before adding any composer code that branches on USF content. Do not
 act on a summary of it. The reasoning chain below *is* the content — a
 slogan drawn from it ("effects parametric, engine holds mechanism")
 reproduces the shallow version and silently drops the discipline, which
@@ -243,7 +244,75 @@ never hold a library that the USF indexes into.**
 
 ---
 
-## 8. The four tests — the ML-readiness gate
+## 8. The same prohibition binds the composer
+
+The schema-level prohibition in §7 has a structural twin on the
+composer side. It is the more dangerous of the two, because it looks
+reasonable and it does not appear in the serialized USF where a schema
+review would find it.
+
+A composer that **identifies the originating engine from USF content
+and dispatches to that engine's 6502 implementation** is doing the
+same thing as a `vibratoKind: int` field. The integer is replaced by
+a tuple of "features only engine X uses"; the engine pointer is
+replaced by `if discriminator: emit_engineX_bytes()`; the engine
+library is the set of `_emit_engineX_*` routines reachable from those
+branches. Moving the leak from the schema into Python does not unleak
+it.
+
+The cover story is "feature-parametric dispatch": the discriminator
+claims to be reading *which features the music uses*, not *which
+engine produced it*. The cover story collapses whenever there is only
+one consumer of the feature combination — when "USF has vibrato +
+multi-pattern orderlist + SFX" routes uniformly to "emit engine X's
+bytes," the discriminator is engine identification and the routing
+target is an engine-library lookup, regardless of what the
+discriminator's docstring says.
+
+The test is sharp: **does the composer's choice of which 6502 to
+emit depend on USF content?** If yes, the composer has an engine
+library indexed by content sniffing.
+
+Why this is fatal in exactly the way §7's schema leak is:
+
+The audible character of a tune is not only notes and instrument
+parameters. It is also choices like the exact per-frame write order,
+hard-restart timing, PWM-bound handling, arpeggio phase semantics.
+When the composer recognises "this USF is engine-X-shape" and emits
+engine X's exact 6502, those audible-character choices come from the
+composer's hidden engine library, not from the USF. The USF was
+incomplete; the composer silently completed it.
+
+The ML consequence is the one the schema-level rule was meant to
+prevent. **The musical knowledge the model needs to generate
+audio-faithful music does not exist in the training data.** It exists
+in the composer's engine-library Python. A model trained on this
+corpus can only produce audio-faithful music by accidentally
+producing USFs that match one of the composer's recognised engine
+shapes; it has no path to learn the audible-character choices,
+because those choices were never in USF for the model to see.
+
+**The rule, stated to bind both sides:** there is one composer. It
+is engine-blind. It reads USF as the complete specification of the
+music and synthesises one 6502 implementation that produces the audio
+that specification describes. If the composer needs information it
+does not find in USF to produce correct audio, the missing
+information goes into USF as named musical content — never into a
+per-engine emitter selected by sniffing.
+
+A new engine migration that ends in "we needed engine X's exact
+bytes to match, so we added an engine-X emitter path" has the same
+status as a schema PR that ends in "we needed to distinguish twelve
+vibratos, so we added a `vibratoKind: int`." It is the failure mode
+in a different disguise. The right outcome is either (a) USF grew a
+musically-named field that carries the previously-missing content
+and the universal composer uses that field, or (b) the universal
+composer grew a parametric feature that USF uses — and no engine
+identity entered the rebuild path.
+
+---
+
+## 9. The four tests — the ML-readiness gate
 
 So that "is this representation good?" is checkable rather than hoped,
 four falsifiable tests. Together they are the ML-readiness gate for any
@@ -255,13 +324,20 @@ effect representation.
    the engines on the principled path — it demonstrates the parameter
    set is expressive *enough* for them.
 
-2. **No escape hatch.** No field in the serialized USF acts as an
-   engine-library index. A grep for the obvious shapes (`*Kind: int`,
-   `*Ptr`, `*_idx: int`) catches the most blatant slips, but the
-   discipline is human schema review — a field can be named musically
-   and still smuggle engine-defined values. Cross-engine cardinality
-   analysis (group field values by engine, flag fields with disjoint
-   value sets per engine) catches more.
+2. **No escape hatch.** Two surfaces to check, both must be clean.
+   *Schema:* no field in the serialized USF acts as an engine-library
+   index. A grep for the obvious shapes (`*Kind: int`, `*Ptr`,
+   `*_idx: int`) catches the most blatant slips; cross-engine
+   cardinality analysis (group field values by engine, flag fields
+   with disjoint value sets per engine) catches more; the final layer
+   is human schema review, since a field can be named musically and
+   still smuggle engine-defined values. *Composer (see §8):* no
+   branch on USF content selects which 6502 implementation to emit.
+   Discriminator functions named `_needs_<engine>_path` or
+   `_emit_<engine>_*` routine families reachable only through
+   engine-discriminating branches are the obvious shapes to grep for;
+   the structural test is whether the composer is one universal
+   engine or a library indexed by content sniffing.
 
 3. **Interpolation sanity.** Take two real instances of the effect,
    average their parameters, and render or imagine. The result should
@@ -282,7 +358,7 @@ effect representation.
 
 ---
 
-## 9. The honest caveat
+## 10. The honest caveat
 
 Any specific parameter set is provisional. Each parameter set is
 reverse-engineered to be sufficient for the engines migrated so far
@@ -311,3 +387,12 @@ a direct, well-aimed challenge, and that challenge is the reason it is
 sharp. When in doubt about an effect representation, re-run that
 challenge — it is the test that found the principle, and it will find
 the next mistake too.
+
+§8 was added later, after the composer-side analog of the schema leak
+kept re-emerging across sessions. Each time it surfaced, the easy
+escape was to read §7 narrowly as "the principle is about the
+serialized USF, not the composer." That narrowing is the failure mode
+§8 closes. The same challenge that produced §7 produces §8: if the
+composer needs to recognise the originating engine to produce correct
+audio, the USF was not the complete specification — close the gap on
+the USF side, not by adding an engine-X emitter path.
