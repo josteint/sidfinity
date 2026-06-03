@@ -217,6 +217,10 @@ class FxNames:
     v_instr: str
     v_ctrlbyte: str
     drum_prio: str
+    # Proc_voice infrastructure — added Phase B step 12 (proc_voice lift)
+    sidtab: str
+    is_tick: str
+    v_norel: str
     # Orderlist + pattern infrastructure — added Phase B step 9
     # (set_patptr lift)
     orderLo: str
@@ -289,6 +293,9 @@ HUBBARD_FX_NAMES = FxNames(
     v_instr='v_instr',
     v_ctrlbyte='v_ctrlbyte',
     drum_prio='drum_prio',
+    sidtab='sidtab',
+    is_tick='is_tick',
+    v_norel='v_norel',
     orderLo='orderLo',
     orderHi='orderHi',
     orderLoop='orderLoop',
@@ -1677,30 +1684,30 @@ def _emit_hubbard_play(sfx_framectr_ofs: int = 253) -> str:
         'inc freqtab+253', f'inc freqtab+{sfx_framectr_ofs}', 1)
 
 
-_HUBBARD_PROC_VOICE_ASM = """proc_voice:
-        lda v_ended,x
+_PROC_VOICE_ASM_TEMPLATE = """proc_voice:
+        lda {v_ended},x
         bne pv_endret        ; voice hit $FE - it no longer plays
-        lda v_frozen,x
+        lda {v_frozen},x
         bne pv_frozen        ; voice hit $FE under freeze_on_stop
-        lda sidtab,x
-        sta sidoff
+        lda {sidtab},x
+        sta {sidoff}
         jsr calc_instoff
-        lda is_tick
+        lda {is_tick}
         beq pv_fx
-        dec v_dur,x
+        dec {v_dur},x
         bpl pv_sus
         jsr load_note
-        lda v_ended,x        ; load_note may have hit the $FE marker
+        lda {v_ended},x        ; load_note may have hit the $FE marker
         bne pv_endret
-        lda v_frozen,x       ; load_note may have hit the $FE freeze
+        lda {v_frozen},x       ; load_note may have hit the $FE freeze
         bne pvf_abort
         jsr calc_instoff
         jmp note_start
 pv_sus:
-        inc v_tick,x
-        lda v_dur,x
+        inc {v_tick},x
+        lda {v_dur},x
         bne pv_fx
-        lda v_norel,x
+        lda {v_norel},x
         bne pv_fx            ; no_release - skip the hard restart
         jsr hr_writes
 pv_fx:
@@ -1709,39 +1716,39 @@ pv_fx:
 ; negative the voice tries to advance, hits $FE and aborts the frame.
 ; otherwise it sustains, hard-restarts at zero-crossing and runs fx.
 pv_frozen:
-        lda sidtab,x
-        sta sidoff
+        lda {sidtab},x
+        sta {sidoff}
         jsr calc_instoff
-        lda is_tick
+        lda {is_tick}
         beq pvf_fx
-        dec v_dur,x
-        lda v_dur,x
+        dec {v_dur},x
+        lda {v_dur},x
         bmi pvf_abort
-        inc v_tick,x
-        lda v_dur,x
+        inc {v_tick},x
+        lda {v_dur},x
         bne pvf_fx
-        lda v_norel,x
+        lda {v_norel},x
         bne pvf_fx
         jsr hr_writes
 pvf_fx:
         jmp do_effects
 pvf_abort:
         lda #1
-        sta pv_abort
+        sta {pv_abort}
         rts
 pv_endret:
         rts
 
 calc_instoff:
-        lda v_instr,x
+        lda {v_instr},x
         and #$3f
-        sta instoff          ; instrument number (column-table index)
+        sta {instoff}          ; instrument number (column-table index)
         asl
-        sta pw_idx           ; inst*2  (index into pwacc)
+        sta {pw_idx}           ; inst*2  (index into pwacc)
         rts"""
 
 
-def _emit_hubbard_proc_voice() -> str:
+def _emit_proc_voice(names: FxNames) -> str:
     """proc_voice routine — per-voice tick handler + calc_instoff.
 
     Bundled with `calc_instoff` (the 6-line instrument-offset helper
@@ -1750,8 +1757,14 @@ def _emit_hubbard_proc_voice() -> str:
     or hard-restarts at zero-crossing; on a non-tick frame runs only
     the effect chain. Handles both the normal path and the
     freeze_on_stop $FE-frozen path.
+
+    Skeleton-agnostic: parameterised over `names: FxNames`. The
+    subroutine names `load_note`, `note_start`, `hr_writes`,
+    `do_effects` are skeleton-supplied — `note_start`, `hr_writes`,
+    `do_effects` come from the corresponding lifted emitters;
+    `load_note` is host-supplied (the note codec).
     """
-    return _HUBBARD_PROC_VOICE_ASM
+    return _PROC_VOICE_ASM_TEMPLATE.format(**asdict(names))
 
 
 _HUBBARD_INIT_SFX_ASM = """; init_sfx - set up sound effect sfx_idx. Builds the record pointer,
@@ -2200,7 +2213,7 @@ def _compose_hubbard_engine_body(
         '',
         _emit_hubbard_play(sfx_framectr_ofs),
         '',
-        _emit_hubbard_proc_voice(),
+        _emit_proc_voice(HUBBARD_FX_NAMES),
         '',
         _HUBBARD_LOAD_NOTE_COMMENT,
         '',
