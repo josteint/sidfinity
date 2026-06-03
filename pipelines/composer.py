@@ -247,6 +247,10 @@ class FxNames:
     sfx_v1gate: str
     sfx_v2gate: str
     sfxdata: str
+    # SFX-step scratch — added Phase B step 18 (sfx_step lift)
+    sfx_y: str
+    sfx_flags: str
+    sfx_tmp: str
     # Orderlist + pattern infrastructure — added Phase B step 9
     # (set_patptr lift)
     orderLo: str
@@ -345,6 +349,9 @@ HUBBARD_FX_NAMES = FxNames(
     sfx_v1gate='sfx_v1gate',
     sfx_v2gate='sfx_v2gate',
     sfxdata='sfxdata',
+    sfx_y='sfx_y',
+    sfx_flags='sfx_flags',
+    sfx_tmp='sfx_tmp',
     orderLo='orderLo',
     orderHi='orderHi',
     orderLoop='orderLoop',
@@ -1983,78 +1990,79 @@ def _emit_sfx_play(names: FxNames) -> str:
     return _SFX_PLAY_ASM_TEMPLATE.format(**asdict(names))
 
 
-_HUBBARD_SFX_STEP_ASM = """; sfx_step - one sweep step. Writes V1/V2 freq from the freq table and
+_SFX_STEP_ASM_TEMPLATE = """; sfx_step - one sweep step. Writes V1/V2 freq from the freq table and
 ; advances the index; ends the SFX when the index reaches the end.
 sfx_step:
         ldy #15
-        lda (sfx_rec),y      ; record 15 - end index
-        cmp sfx_index
+        lda ({sfx_rec}),y      ; record 15 - end index
+        cmp {sfx_index}
         bne sfxs_go
         lda #$00             ; reached the end - gate off, done
         sta $d404
         sta $d40b
         lda #$01
-        sta sfx_done
+        sta {sfx_done}
         rts
 sfxs_go:
-        lda sfx_index
+        lda {sfx_index}
         asl
-        sta sfx_y            ; sfx_y = (index*2) & $FF
+        sta {sfx_y}            ; sfx_y = (index*2) & $FF
         ldy #17
-        lda (sfx_rec),y      ; record 17 - flags
-        sta sfx_flags
+        lda ({sfx_rec}),y      ; record 17 - flags
+        sta {sfx_flags}
         and #$04
         bne sfxs_gates       ; bit2 - skip both freq writes
-        lda sfx_flags
+        lda {sfx_flags}
         and #$02
         bne sfxs_v2          ; bit1 - skip the V1 freq write
-        ldy sfx_y
-        lda freqtab,y
+        ldy {sfx_y}
+        lda {freqtab},y
         sta $d400
-        lda freqtab+1,y
+        lda {freqtab}+1,y
         sta $d401
 sfxs_v2:
         ldy #18
-        lda (sfx_rec),y      ; record 18 - V2 byte offset
-        sta sfx_tmp
-        lda sfx_y
+        lda ({sfx_rec}),y      ; record 18 - V2 byte offset
+        sta {sfx_tmp}
+        lda {sfx_y}
         sec
-        sbc sfx_tmp
+        sbc {sfx_tmp}
         tay                  ; Y = (sfx_y - v2offset) & $FF
-        lda freqtab,y
+        lda {freqtab},y
         sta $d407
-        lda freqtab+1,y
+        lda {freqtab}+1,y
         sta $d408
 sfxs_gates:
         ldy #19
-        lda (sfx_rec),y      ; record 19 - gate-toggle flags
-        sta sfx_tmp
+        lda ({sfx_rec}),y      ; record 19 - gate-toggle flags
+        sta {sfx_tmp}
         and #$80
         beq sfxs_g2          ; bit7 - retrigger the V1 gate
-        lda sfx_v1gate
+        lda {sfx_v1gate}
         eor #$01
-        sta sfx_v1gate
+        sta {sfx_v1gate}
         sta $d404
 sfxs_g2:
-        lda sfx_tmp
+        lda {sfx_tmp}
         and #$40
         beq sfxs_adv         ; bit6 - retrigger the V2 gate
-        lda sfx_v2gate
+        lda {sfx_v2gate}
         eor #$01
-        sta sfx_v2gate
+        sta {sfx_v2gate}
         sta $d40b
 sfxs_adv:
-        lda sfx_flags
+        lda {sfx_flags}
         and #$01
         beq sfxs_down        ; bit0 - 1 sweeps up, 0 sweeps down
-        inc sfx_index
+        inc {sfx_index}
         rts
 sfxs_down:
-        dec sfx_index
+        dec {sfx_index}
         rts"""
 
 
-def _emit_hubbard_sfx_step(sfx_state_ofs: int | None = None) -> str:
+def _emit_sfx_step(names: FxNames,
+                   sfx_state_ofs: int | None = None) -> str:
     """sfx_step routine — one pitch-sweep step.
 
     Reads V1+V2 freq from the freq table at the current sweep index
@@ -2068,29 +2076,32 @@ def _emit_hubbard_sfx_step(sfx_state_ofs: int | None = None) -> str:
     `freqtab[ofs+3]` before the sweep reads it (so the overrun
     read sees the live value). Used by Monty + One Man and his
     Droid; the index mirror is injected at the top of `sfxs_go`.
+
+    Skeleton-agnostic: parameterised over `names: FxNames`.
     """
+    asm = _SFX_STEP_ASM_TEMPLATE.format(**asdict(names))
     if sfx_state_ofs is None:
-        return _HUBBARD_SFX_STEP_ASM
-    old = ("        lda (sfx_rec),y      ; record 17 - flags\n"
-           "        sta sfx_flags\n"
-           "        and #$04\n")
-    new = ("        lda (sfx_rec),y      ; record 17 - flags\n"
-           "        sta sfx_flags\n"
-           "        and #$01\n"
-           "        beq sfxm_dn\n"
-           "        lda sfx_index\n"
-           "        clc\n"
-           "        adc #$01\n"
-           "        jmp sfxm_st\n"
-           "sfxm_dn:\n"
-           "        lda sfx_index\n"
-           "        sec\n"
-           "        sbc #$01\n"
-           "sfxm_st:\n"
-           f"        sta freqtab+{sfx_state_ofs + 3}\n"
-           "        lda sfx_flags\n"
-           "        and #$04\n")
-    return _HUBBARD_SFX_STEP_ASM.replace(old, new, 1)
+        return asm
+    old = (f"        lda ({names.sfx_rec}),y      ; record 17 - flags\n"
+           f"        sta {names.sfx_flags}\n"
+           f"        and #$04\n")
+    new = (f"        lda ({names.sfx_rec}),y      ; record 17 - flags\n"
+           f"        sta {names.sfx_flags}\n"
+           f"        and #$01\n"
+           f"        beq sfxm_dn\n"
+           f"        lda {names.sfx_index}\n"
+           f"        clc\n"
+           f"        adc #$01\n"
+           f"        jmp sfxm_st\n"
+           f"sfxm_dn:\n"
+           f"        lda {names.sfx_index}\n"
+           f"        sec\n"
+           f"        sbc #$01\n"
+           f"sfxm_st:\n"
+           f"        sta {names.freqtab}+{sfx_state_ofs + 3}\n"
+           f"        lda {names.sfx_flags}\n"
+           f"        and #$04\n")
+    return asm.replace(old, new, 1)
 
 
 # ---------------------------------------------------------------------------
@@ -2332,7 +2343,7 @@ def _compose_hubbard_engine_body(
         '',
         _emit_sfx_play(HUBBARD_FX_NAMES),
         '',
-        _emit_hubbard_sfx_step(sfx_state_ofs),
+        _emit_sfx_step(HUBBARD_FX_NAMES, sfx_state_ofs),
         '',
         _HUBBARD_SIDTAB_ASM,
     ]
