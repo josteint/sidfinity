@@ -136,7 +136,11 @@ def build_unified_usf() -> UsfFile:
         init=init,
         instruments=instruments,
         subtunes=music_subtunes,
-        freq_table=list(ec.freq_bytes),
+        # New schema: 192-byte musical PAL only. The state-region bytes
+        # 5TT's sub-engines need are carried as per-subtune init.voice
+        # overlays (the per_subtune_ovseed mechanism, populated above).
+        # No SFX, no extended_freq.
+        freq_table=list(ec.freq_bytes[:192]),
         state_layout=None,
         song_end=song_end,
         init_behavior=init_behavior,
