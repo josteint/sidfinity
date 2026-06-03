@@ -1197,11 +1197,11 @@ def _emit_note_start(names: FxNames,
         _emit_ns_offtab_decr(ns_offtab_decr_offset, names), 1)
 
 
-_HUBBARD_HR_WRITES_ASM = """; hr_writes - hard-restart block, ctrl=hr_ctrl ad=0 sr=0.
+_HR_WRITES_ASM_TEMPLATE = """; hr_writes - hard-restart block, ctrl=hr_ctrl ad=0 sr=0.
 hr_writes:
-        ldy instoff
-        lda it_hrctrl,y
-        ldy sidoff
+        ldy {instoff}
+        lda {it_hrctrl},y
+        ldy {sidoff}
         sta $d404,y
         lda #0
         sta $d405,y
@@ -1209,14 +1209,16 @@ hr_writes:
         rts"""
 
 
-def _emit_hubbard_hr_writes() -> str:
+def _emit_hr_writes(names: FxNames) -> str:
     """hr_writes routine — the per-note hard-restart writes.
 
     Writes `ctrl = it_hrctrl`, `ad = 0`, `sr = 0` to the voice's
     SID registers — the standard Hubbard '85 hard-restart sequence
     issued one frame before `note_start` runs for a new note.
+
+    Skeleton-agnostic: parameterised over `names: FxNames`.
     """
-    return _HUBBARD_HR_WRITES_ASM
+    return _HR_WRITES_ASM_TEMPLATE.format(**asdict(names))
 
 
 _HUBBARD_SET_PATPTR_ASM = """; set_patptr - advance to the pattern at v_orderpos in voice X's
@@ -2160,7 +2162,7 @@ def _compose_hubbard_engine_body(
         '',
         _emit_note_start(HUBBARD_FX_NAMES, ns_offtab_decr_offset),
         '',
-        _emit_hubbard_hr_writes(),
+        _emit_hr_writes(HUBBARD_FX_NAMES),
         '',
         _emit_hubbard_do_effects(),
         '',
