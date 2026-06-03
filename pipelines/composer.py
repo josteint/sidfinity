@@ -5413,13 +5413,15 @@ def _emit_orderlists(active: list[int],
 # Top-level compose
 # ---------------------------------------------------------------------------
 
-def emit_asm(model: EngineModel,
-             active: list[int],
-             per_subtune_voice_timbres: list[list[tuple]],
-             per_subtune_voice_patterns: list[dict[int, bytes]],
-             per_subtune_voice_init_states: list[list[int]] | None = None,
-             ) -> str:
-    """Emit asm composed from the model's features.
+def _dispatch_simple_shape_asm(
+        model: EngineModel,
+        active: list[int],
+        per_subtune_voice_timbres: list[list[tuple]],
+        per_subtune_voice_patterns: list[dict[int, bytes]],
+        per_subtune_voice_init_states: list[list[int]] | None = None,
+        ) -> str:
+    """Emit asm for the simple-shape USFs (every_tick / pair / cmd-stream
+    feature combinations). Internal helper called by `emit_asm`.
 
     Dispatch on `voice_timing.mode` — different timing modes produce
     structurally different play loops (every-tick atomic dispatch vs
@@ -5428,8 +5430,8 @@ def emit_asm(model: EngineModel,
     """
     if not can_handle(model):
         raise NotImplementedError(
-            'composer does not yet support every feature in this model. '
-            'See `can_handle()`.')
+            'simple-shape dispatch reached for a USF the bitpack '
+            'branch should handle. emit_asm should have routed it.')
 
     L: list[str] = []
     L += _emit_header()
@@ -5570,20 +5572,11 @@ def emit_sid_from_usf(usf, usf_dir: str | None = None) -> bytes:
     if digi_subs:
         return _emit_bitpack_bytes(usf, usf_dir)
 
-    # Non-digi: both the universal `emit_asm` chain and the bitpack
-    # chain produce asm; the assembly + PSID-wrap post-pipeline is
-    # shared. The dispatch on `can_handle(model)` is honest about
-    # what's happening — the universal chain handles every feature it
-    # advertises; the bitpack chain handles the rest (currently the
-    # rich-feature USFs: per-instrument modulation, multi-pattern
-    # orderlists, SFX, state_layout). The §8 endpoint is one chain
-    # that subsumes both; the work to get there is folding the
-    # bitpack chain into `emit_asm`'s feature-conditional dispatch.
-    if can_handle(model):
-        asm = _emit_asm_simple_shape(model, usf)
-    else:
-        asm = _emit_asm_bitpack(usf)
-
+    # Non-digi: `emit_asm` is the single asm-emission entry. It does
+    # the 5-way dispatch internally (4 simple-shape branches + the
+    # bitpack branch) on real USF features. Assembly + PSID-wrap is
+    # shared.
+    asm = emit_asm(model, usf)
     body = _assemble(asm)
     # n_subtunes counts every selectable subtune. For simple-shape USFs
     # that's just music. For bitpack USFs it includes SFX (selectable
@@ -5593,10 +5586,38 @@ def emit_sid_from_usf(usf, usf_dir: str | None = None) -> bytes:
     return _psid_header(model, n_subtunes=n_subtunes, load=LOAD) + body
 
 
+def emit_asm(model: EngineModel, usf) -> str:
+    """Unified composer asm emitter. Single entry: dispatches on
+    `can_handle(model)` to choose the simple-shape feature chain
+    (every_tick / pair / cmd-stream) or the bitpack-skeleton chain.
+
+    Returns a full asm source string ready for `_assemble` to feed
+    to xa65. Callers (currently only `emit_sid_from_usf`) handle the
+    PSID-header wrap.
+
+    The 5-way dispatch — 4 simple-shape branches inside
+    `_dispatch_simple_shape_asm` + the bitpack branch — is the closest
+    the composer currently gets to the §8 endpoint of "one composer
+    handling every feature combination." The bitpack branch is still
+    a distinct chunked emitter chain rather than fully feature-
+    parametric pieces inside the simple-shape dispatch, but every
+    individual chunk is already skeleton-agnostic (`FxNames`-shaped),
+    so the next consolidation step (collapsing the bitpack-chain
+    sub-emitters into peers of the simple-shape sub-emitters) is
+    unblocked by the lifts done so far.
+    """
+    if not can_handle(model):
+        return _emit_asm_bitpack(usf)
+
+    # Simple-shape: build the per-subtune timbres + per-voice pattern
+    # bytes the inner dispatch needs.
+    return _emit_asm_simple_shape(model, usf)
+
+
 def _emit_asm_simple_shape(model, usf) -> str:
-    """asm gen for USFs the universal `emit_asm` chain handles —
-    builds per-subtune timbres + per-voice pattern bytes from the USF
-    and runs the existing 4-branch feature dispatch in `emit_asm`."""
+    """Build the per-subtune timbres + per-voice pattern bytes the
+    simple-shape feature chain needs, then dispatch through
+    `_dispatch_simple_shape_asm`."""
     from src.usf import MusicSubtune
     active = _active_voice_indices(model, usf=usf)
     if not active:
@@ -5668,7 +5689,7 @@ def _emit_asm_simple_shape(model, usf) -> str:
         per_subtune_voice_patterns.append(pat_dict)
         per_subtune_voice_init_states.append(init_states)
 
-    return emit_asm(
+    return _dispatch_simple_shape_asm(
         model, active,
         per_subtune_voice_timbres, per_subtune_voice_patterns,
         per_subtune_voice_init_states=(
