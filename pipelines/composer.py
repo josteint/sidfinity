@@ -205,6 +205,18 @@ class FxNames:
     # Drumslide names — added Phase B step 6 (fx_drumslide lift)
     v_drumtrig: str
     v_slidelo: str
+    # note_start names — added Phase B step 7 (note_start lift)
+    it_ctrl: str
+    it_ad: str
+    it_sr: str
+    i_ctrl: str
+    i_ad: str
+    i_sr: str
+    i_pwlo: str
+    i_pwhi: str
+    v_instr: str
+    v_ctrlbyte: str
+    drum_prio: str
 
 
 HUBBARD_FX_NAMES = FxNames(
@@ -245,6 +257,17 @@ HUBBARD_FX_NAMES = FxNames(
     f_hi='f_hi',
     v_drumtrig='v_drumtrig',
     v_slidelo='v_slidelo',
+    it_ctrl='it_ctrl',
+    it_ad='it_ad',
+    it_sr='it_sr',
+    i_ctrl='i_ctrl',
+    i_ad='i_ad',
+    i_sr='i_sr',
+    i_pwlo='i_pwlo',
+    i_pwhi='i_pwhi',
+    v_instr='v_instr',
+    v_ctrlbyte='v_ctrlbyte',
+    drum_prio='drum_prio',
 )
 
 
@@ -383,7 +406,8 @@ _VOL_FADE_SENTINELS = (
 # owns the emitters; composer_hubbard.py calls them during template
 # substitution.
 
-def _emit_ns_offtab_decr(decr_offset: int | None) -> str:
+def _emit_ns_offtab_decr(decr_offset: int | None,
+                          names: 'FxNames | None' = None) -> str:
     """Off-table-note-start statebuf decrement (Thing on a Spring).
 
     The engine reads pattern-position state mid-load, while our note
@@ -394,11 +418,12 @@ def _emit_ns_offtab_decr(decr_offset: int | None) -> str:
     """
     if decr_offset is None:
         return ''
+    statebuf_ref = names.statebuf if names is not None else 'statebuf'
     return (
         f'        sec\n'
-        f'        lda statebuf+{decr_offset},x\n'
+        f'        lda {statebuf_ref}+{decr_offset},x\n'
         f'        sbc #1\n'
-        f'        sta statebuf+{decr_offset},x'
+        f'        sta {statebuf_ref}+{decr_offset},x'
     )
 
 
@@ -1054,33 +1079,33 @@ def _emit_fx_arp(names: FxNames, arp_phase_invert: bool = False) -> str:
     return asm
 
 
-_HUBBARD_NOTE_START_ASM = """; note_start - new-note setup. Tie ($40) skips freq, slide, off-table.
+_NOTE_START_ASM_TEMPLATE = """; note_start - new-note setup. Tie ($40) skips freq, slide, off-table.
 ; Full notes look up freq16[pitch]; pitch >= 96 reads the engine's
 ; state mirror via build_statebuf (see StatebufLayout). drum_prio
 ; suppresses voice 0 SID writes on the first frame.
 note_start:
-        ldy instoff
-        lda it_ctrl,y
-        sta i_ctrl
-        lda it_ad,y
-        sta i_ad
-        lda it_sr,y
-        sta i_sr
-        ldy pw_idx
-        lda pwacc,y
-        sta i_pwlo
-        lda pwacc+1,y
-        sta i_pwhi
-        lda v_instr,x
+        ldy {instoff}
+        lda {it_ctrl},y
+        sta {i_ctrl}
+        lda {it_ad},y
+        sta {i_ad}
+        lda {it_sr},y
+        sta {i_sr}
+        ldy {pw_idx}
+        lda {pwacc},y
+        sta {i_pwlo}
+        lda {pwacc}+1,y
+        sta {i_pwhi}
+        lda {v_instr},x
         and #$40
         beq ns_full
         ; tie - ctrl gated off, pw, ad, sr; no freq, no slide re-seed.
-        lda i_ctrl
-        sta v_ctrlbyte,x
+        lda {i_ctrl}
+        sta {v_ctrlbyte},x
         and #$fe
-        bit drum_prio
+        bit {drum_prio}
         bpl ns_pwadsr        ; suppressed -> skip the write
-        ldy sidoff
+        ldy {sidoff}
         sta $d404,y
         jmp ns_pwadsr
 ns_full:
@@ -1088,15 +1113,15 @@ ns_full:
         ; region. The shared `statebuf` mirrors the per-engine layout
         ; (see StatebufLayout); off-table notes read it the same way
         ; fx_arp does for the +12 / +24 octave cases.
-        lda v_pitch,x
+        lda {v_pitch},x
         cmp #96
         bcs ns_offtab
         asl
         tay
-        lda freqtab,y
-        sta f_lo
-        lda freqtab+1,y
-        sta f_hi
+        lda {freqtab},y
+        sta {f_lo}
+        lda {freqtab}+1,y
+        sta {f_hi}
         jmp ns_havefreq
 ns_offtab:
         sec
@@ -1105,50 +1130,51 @@ ns_offtab:
         bcs ns_offzero       ; pitch beyond the 48-byte mirrored state
         asl                  ; (pitch-96)*2 = statebuf offset
         tay
-        jsr build_statebuf
+        jsr {build_statebuf_subr}
         ; %%NS_OFFTAB_DECR%%
-        lda statebuf+0,y
-        sta f_lo
-        lda statebuf+1,y
-        sta f_hi
+        lda {statebuf}+0,y
+        sta {f_lo}
+        lda {statebuf}+1,y
+        sta {f_hi}
         jmp ns_havefreq
 ns_offzero:
         lda #0
-        sta f_lo
-        sta f_hi
+        sta {f_lo}
+        sta {f_hi}
 ns_havefreq:
-        lda f_hi
-        sta v_slide,x        ; seed the skydive/drum-slide freq_hi
-        lda f_lo
-        sta v_slidelo,x      ; seed the drum-slide freq_lo
-        lda i_ctrl
-        sta v_ctrlbyte,x     ; update ctrl_byte AFTER the off-table read
-        bit drum_prio
+        lda {f_hi}
+        sta {v_slide},x        ; seed the skydive/drum-slide freq_hi
+        lda {f_lo}
+        sta {v_slidelo},x      ; seed the drum-slide freq_lo
+        lda {i_ctrl}
+        sta {v_ctrlbyte},x     ; update ctrl_byte AFTER the off-table read
+        bit {drum_prio}
         bpl ns_pwadsr        ; suppressed -> skip the writes
-        ldy sidoff
-        lda f_hi
+        ldy {sidoff}
+        lda {f_hi}
         sta $d401,y
-        lda f_lo
+        lda {f_lo}
         sta $d400,y
-        lda i_ctrl
+        lda {i_ctrl}
         sta $d404,y
 ns_pwadsr:
-        bit drum_prio
+        bit {drum_prio}
         bpl ns_pwret         ; suppressed -> skip the writes
-        ldy sidoff
-        lda i_pwlo
+        ldy {sidoff}
+        lda {i_pwlo}
         sta $d402,y
-        lda i_pwhi
+        lda {i_pwhi}
         sta $d403,y
-        lda i_ad
+        lda {i_ad}
         sta $d405,y
-        lda i_sr
+        lda {i_sr}
         sta $d406,y
 ns_pwret:
         rts"""
 
 
-def _emit_hubbard_note_start(ns_offtab_decr_offset: int | None = None) -> str:
+def _emit_note_start(names: FxNames,
+                     ns_offtab_decr_offset: int | None = None) -> str:
     """note_start routine — the new-note SID-register writes.
 
     Loads `i_ctrl/i_ad/i_sr/i_pwlo/i_pwhi` from the instrument table,
@@ -1162,10 +1188,13 @@ def _emit_hubbard_note_start(ns_offtab_decr_offset: int | None = None) -> str:
     `; %%NS_OFFTAB_DECR%%` sentinel — None = no decrement (default),
     int = statebuf slot to decrement (Thing on a Spring's pattern-
     position state mid-load adjustment).
+
+    Skeleton-agnostic: parameterised over `names: FxNames`.
     """
-    return _HUBBARD_NOTE_START_ASM.replace(
+    asm = _NOTE_START_ASM_TEMPLATE.format(**asdict(names))
+    return asm.replace(
         '; %%NS_OFFTAB_DECR%%',
-        _emit_ns_offtab_decr(ns_offtab_decr_offset), 1)
+        _emit_ns_offtab_decr(ns_offtab_decr_offset, names), 1)
 
 
 _HUBBARD_HR_WRITES_ASM = """; hr_writes - hard-restart block, ctrl=hr_ctrl ad=0 sr=0.
@@ -2129,7 +2158,7 @@ def _compose_hubbard_engine_body(
         '',
         _emit_hubbard_next_orderidx(),
         '',
-        _emit_hubbard_note_start(ns_offtab_decr_offset),
+        _emit_note_start(HUBBARD_FX_NAMES, ns_offtab_decr_offset),
         '',
         _emit_hubbard_hr_writes(),
         '',
