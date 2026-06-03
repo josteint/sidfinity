@@ -35,6 +35,7 @@ from __future__ import annotations
 import os
 import struct
 import subprocess
+from dataclasses import asdict, dataclass
 
 from pipelines.engine_model import (
     EngineModel, MasterVolConfig, SubtuneSpec, InstrumentProgram,
@@ -91,6 +92,99 @@ _SUPPORTED_EMBEDDED_COMMANDS = {
     'set_tempo', 'set_master_vol', 'set_instrument', 'pattern_jump',
     'skip_byte_recurse',
 }
+
+
+# ---------------------------------------------------------------------------
+# Player-skeleton interface for shared fx emitters
+# ---------------------------------------------------------------------------
+#
+# Refactor 1, Phase B: each fx emitter (vibrato/pwm/arp/skydive/incby2/
+# drumslide) is principally player-skeleton-agnostic — it reads/writes
+# named storage; the skeleton allocates the storage. The skeleton's
+# names are passed in as an `FxNames` context; the emitter substitutes
+# them into its asm template.
+#
+# This is the unit of work for Refactor 1: lift each fx emitter from
+# the Hubbard chain into a parametric form callable from any skeleton
+# that provides the named interface. The end state (per §8 of the
+# representation principle) is one composer, no engine-named dispatch;
+# every fx emitter is reachable from every skeleton on equal footing.
+#
+# Today (Phase B in progress) only the Hubbard skeleton supplies an
+# `FxNames` context (`HUBBARD_FX_NAMES`). When other skeletons grow fx
+# support, they provide their own `FxNames` and call the same emitters.
+
+@dataclass(frozen=True)
+class FxNames:
+    """Skeleton-provided names + the vibrato-internal scratch names a
+    player skeleton must allocate to host the shared fx emitters.
+
+    Per-voice arrays (labeled, X-indexed):
+      `v_pitch`     — current pitch (note number)
+      `v_durfield`  — vibrato-carry-path duration field (frames since
+                      note start, clamped)
+    Per-voice scalars (zp, set up by the skeleton before fx dispatch):
+      `sidoff`      — SID register offset (0, 7, 14) for the current voice
+      `instoff`     — instrument table offset (Y-loadable) for current voice
+    Global counters:
+      `frame_ctr`   — engine frame counter (vibrato reads bits 0..2)
+    Instrument table accessors (labeled, Y-indexed):
+      `it_fx`       — fx-flags byte per instrument
+      `it_vibdepth` — vibrato depth per instrument
+      `it_onset`    — vibrato onset (minimum duration) per instrument
+    Lookup tables (labeled):
+      `freqtab`     — 96-entry freq table (musical PAL, byte-pairs)
+      `statebuf`    — off-table-arpeggio state mirror (byte-pairs)
+    Subroutines (skeleton-provided):
+      `build_statebuf_subr` — call to populate statebuf for current X
+    Vibrato-internal scratch (the emitter writes these; the skeleton
+    allocates matching names so they share the same zp):
+      `vfreq` (4 bytes), `vdelta_lo`, `vdelta_hi`, `vdepthctr`,
+      `vtarg_lo`, `vtarg_hi`, `vib_step`, `vib_carry`
+    """
+    v_pitch: str
+    v_durfield: str
+    sidoff: str
+    instoff: str
+    frame_ctr: str
+    it_fx: str
+    it_vibdepth: str
+    it_onset: str
+    freqtab: str
+    statebuf: str
+    build_statebuf_subr: str
+    # Vibrato-internal scratch (skeleton-allocated)
+    vfreq: str
+    vdelta_lo: str
+    vdelta_hi: str
+    vdepthctr: str
+    vtarg_lo: str
+    vtarg_hi: str
+    vib_step: str
+    vib_carry: str
+
+
+HUBBARD_FX_NAMES = FxNames(
+    v_pitch='v_pitch',
+    v_durfield='v_durfield',
+    sidoff='sidoff',
+    instoff='instoff',
+    frame_ctr='frame_ctr',
+    it_fx='it_fx',
+    it_vibdepth='it_vibdepth',
+    it_onset='it_onset',
+    freqtab='freqtab',
+    statebuf='statebuf',
+    build_statebuf_subr='build_statebuf',
+    vfreq='vfreq',
+    vdelta_lo='vdelta_lo',
+    vdelta_hi='vdelta_hi',
+    vdepthctr='vdepthctr',
+    vtarg_lo='vtarg_lo',
+    vtarg_hi='vtarg_hi',
+    vib_step='vib_step',
+    vib_carry='vib_carry',
+)
 
 
 # ---------------------------------------------------------------------------
@@ -656,110 +750,116 @@ def _emit_hubbard_fx_pwm() -> str:
     return _HUBBARD_FX_PWM_ASM
 
 
-_HUBBARD_FX_VIBRATO_ASM = """; fx_vibrato - bit3. triangle LFO on freq, disassembly $51C1-$522D.
-; leaves vib_carry = the 6502 carry the section hands to the PWM add.
+_FX_VIBRATO_ASM_TEMPLATE = """; fx_vibrato - bit3. triangle LFO on freq, disassembly $51C1-$522D.
+; leaves {vib_carry} = the 6502 carry the section hands to the PWM add.
 fx_vibrato:
-        ldy instoff
-        lda it_fx,y
+        ldy {instoff}
+        lda {it_fx},y
         and #$08
         bne fxv_go
         rts
 fxv_go:
-        lda frame_ctr
+        lda {frame_ctr}
         and #$07
         cmp #$04
         bcc fxv_s1
         eor #$07
-fxv_s1: sta vib_step
-        ldy instoff
-        lda it_vibdepth,y      ; vib_depth
-        sta vdepthctr
-        jsr vib_loadfreq     ; vfreq = freq16[pitch], freq16[pitch+1]
+fxv_s1: sta {vib_step}
+        ldy {instoff}
+        lda {it_vibdepth},y      ; vib_depth
+        sta {vdepthctr}
+        jsr vib_loadfreq     ; {vfreq} = freq16[pitch], freq16[pitch+1]
         sec
-        lda vfreq+2          ; freq16[pitch+1] - freq16[pitch]
-        sbc vfreq+0
-        sta vdelta_lo
-        lda vfreq+3
-        sbc vfreq+1          ; A = diff_hi
-fxv_sh: lsr                  ; shift A,vdelta_lo right depth+1 times
-        ror vdelta_lo
-        dec vdepthctr
+        lda {vfreq}+2          ; freq16[pitch+1] - freq16[pitch]
+        sbc {vfreq}+0
+        sta {vdelta_lo}
+        lda {vfreq}+3
+        sbc {vfreq}+1          ; A = diff_hi
+fxv_sh: lsr                  ; shift A,{vdelta_lo} right depth+1 times
+        ror {vdelta_lo}
+        dec {vdepthctr}
         bpl fxv_sh
-        sta vdelta_hi
-        lda vfreq+0          ; target = freq16[pitch]
-        sta vtarg_lo
-        lda vfreq+1
-        sta vtarg_hi
-        lda v_durfield,x
-        ldy instoff
-        cmp it_onset,y     ; onset_dur (per-instrument)
+        sta {vdelta_hi}
+        lda {vfreq}+0          ; target = freq16[pitch]
+        sta {vtarg_lo}
+        lda {vfreq}+1
+        sta {vtarg_hi}
+        lda {v_durfield},x
+        ldy {instoff}
+        cmp {it_onset},y     ; onset_dur (per-instrument)
         bcc fxv_wr           ; dur < onset -> no add (carry left = 0)
-        ldy vib_step
+        ldy {vib_step}
         beq fxv_wr           ; step 0 -> no add (carry left = 1)
 fxv_add:
         clc
-        lda vtarg_lo
-        adc vdelta_lo
-        sta vtarg_lo
-        lda vtarg_hi
-        adc vdelta_hi
-        sta vtarg_hi
+        lda {vtarg_lo}
+        adc {vdelta_lo}
+        sta {vtarg_lo}
+        lda {vtarg_hi}
+        adc {vdelta_hi}
+        sta {vtarg_hi}
         dey
         bne fxv_add
 fxv_wr:
         lda #0               ; capture carry-out for the PWM ADC
         adc #0
-        sta vib_carry
-        ldy sidoff
-        lda vtarg_lo
+        sta {vib_carry}
+        ldy {sidoff}
+        lda {vtarg_lo}
         sta $d400,y
-        lda vtarg_hi
+        lda {vtarg_hi}
         sta $d401,y
         rts
 
-; vib_loadfreq - fill vfreq (4 bytes) with freq16[pitch] and
+; vib_loadfreq - fill {vfreq} (4 bytes) with freq16[pitch] and
 ; freq16[pitch+1]. In-table pitches read the freq table; an off-table
 ; pitch (96 and up) reads the engine-state mirror - the original's
 ; vibrato overflows the 96-entry freq table the same way.
 vib_loadfreq:
-        lda v_pitch,x
+        lda {v_pitch},x
         cmp #96
         bcs vlf_off
         asl
         tay
-        lda freqtab+0,y
-        sta vfreq+0
-        lda freqtab+1,y
-        sta vfreq+1
-        lda freqtab+2,y
-        sta vfreq+2
-        lda freqtab+3,y
-        sta vfreq+3
+        lda {freqtab}+0,y
+        sta {vfreq}+0
+        lda {freqtab}+1,y
+        sta {vfreq}+1
+        lda {freqtab}+2,y
+        sta {vfreq}+2
+        lda {freqtab}+3,y
+        sta {vfreq}+3
         rts
 vlf_off:
         sec
         sbc #96
         asl                  ; (pitch-96)*2 = statebuf offset
         tay
-        jsr build_statebuf
-        lda statebuf+0,y
-        sta vfreq+0
-        lda statebuf+1,y
-        sta vfreq+1
-        lda statebuf+2,y
-        sta vfreq+2
-        lda statebuf+3,y
-        sta vfreq+3
+        jsr {build_statebuf_subr}
+        lda {statebuf}+0,y
+        sta {vfreq}+0
+        lda {statebuf}+1,y
+        sta {vfreq}+1
+        lda {statebuf}+2,y
+        sta {vfreq}+2
+        lda {statebuf}+3,y
+        sta {vfreq}+3
         rts"""
 
 
-def _emit_hubbard_fx_vibrato() -> str:
+def _emit_fx_vibrato(names: FxNames) -> str:
     """fx_vibrato + vib_loadfreq routines — fx-flag bit 3, triangle
     LFO on freq. Includes the `vib_loadfreq` support routine that
     fills `vfreq` from freq table (or statebuf mirror for off-table
     pitches). Leaves `vib_carry` set so fx_pwm's linear-mode ADC
-    picks up the carry-out from the vibrato addition."""
-    return _HUBBARD_FX_VIBRATO_ASM
+    picks up the carry-out from the vibrato addition.
+
+    Skeleton-agnostic: the asm reads/writes the variable and
+    subroutine names supplied via `names: FxNames`. Any player
+    skeleton that allocates the named storage and supplies a
+    matching `build_statebuf_subr` can call this emitter.
+    """
+    return _FX_VIBRATO_ASM_TEMPLATE.format(**asdict(names))
 
 
 _HUBBARD_FX_SKYDIVE_ASM = """; fx_skydive - bit0. freq_hi slide + ctrl, see song_interp._skydive.
@@ -1958,7 +2058,7 @@ def _compose_hubbard_engine_body(
         '',
         _emit_hubbard_fx_pwm(),
         '',
-        _emit_hubbard_fx_vibrato(),
+        _emit_fx_vibrato(HUBBARD_FX_NAMES),
         '',
         _emit_hubbard_fx_skydive(),
         '',
