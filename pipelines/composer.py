@@ -217,6 +217,27 @@ class FxNames:
     v_instr: str
     v_ctrlbyte: str
     drum_prio: str
+    # Orderlist + pattern infrastructure — added Phase B step 9
+    # (set_patptr lift)
+    orderLo: str
+    orderHi: str
+    orderLoop: str
+    orderp: str
+    v_orderpos: str
+    v_ended: str
+    v_frozen: str
+    pataddr_lo: str
+    pataddr_hi: str
+    v_patlo: str
+    v_pathi: str
+    notep: str
+    v_notesleft: str
+    v_bitcnt: str
+    v_hubidx: str
+    sub_tmp: str
+    end_phase: str
+    pv_abort: str
+    vol_progress: str
 
 
 HUBBARD_FX_NAMES = FxNames(
@@ -268,6 +289,25 @@ HUBBARD_FX_NAMES = FxNames(
     v_instr='v_instr',
     v_ctrlbyte='v_ctrlbyte',
     drum_prio='drum_prio',
+    orderLo='orderLo',
+    orderHi='orderHi',
+    orderLoop='orderLoop',
+    orderp='orderp',
+    v_orderpos='v_orderpos',
+    v_ended='v_ended',
+    v_frozen='v_frozen',
+    pataddr_lo='pataddr_lo',
+    pataddr_hi='pataddr_hi',
+    v_patlo='v_patlo',
+    v_pathi='v_pathi',
+    notep='notep',
+    v_notesleft='v_notesleft',
+    v_bitcnt='v_bitcnt',
+    v_hubidx='v_hubidx',
+    sub_tmp='sub_tmp',
+    end_phase='end_phase',
+    pv_abort='pv_abort',
+    vol_progress='vol_progress',
 )
 
 
@@ -1221,24 +1261,24 @@ def _emit_hr_writes(names: FxNames) -> str:
     return _HR_WRITES_ASM_TEMPLATE.format(**asdict(names))
 
 
-_HUBBARD_SET_PATPTR_ASM = """; set_patptr - advance to the pattern at v_orderpos in voice X's
+_SET_PATPTR_ASM_TEMPLATE = """; set_patptr - advance to the pattern at v_orderpos in voice X's
 ; orderlist. Reads the orderlist byte, handles $FE (end-of-song)
 ; and $FF (wrap-to-loop-point); on a real pattern index, loads the
 ; address into v_patlo/v_pathi, reads the leading note-count byte,
 ; and resets the per-voice codec cursor.
 set_patptr:
-        lda orderLo,x
-        sta orderp
-        lda orderHi,x
-        sta orderp+1
+        lda {orderLo},x
+        sta {orderp}
+        lda {orderHi},x
+        sta {orderp}+1
 sp_read:
-        ldy v_orderpos,x
-        lda (orderp),y
+        ldy {v_orderpos},x
+        lda ({orderp}),y
         cmp #$fe
         bcc sp_have          ; below $FE - a real pattern index
         beq sp_stop          ; $FE - end of song
-        lda orderLoop,x      ; $FF - wrap to the loop point
-        sta v_orderpos,x
+        lda {orderLoop},x      ; $FF - wrap to the loop point
+        sta {v_orderpos},x
         ; %%MASTER_VOL_LOOP_RESET%%
         jmp sp_read
 sp_stop:
@@ -1247,10 +1287,10 @@ sp_stop:
         bne sps_freeze
         ldy #STOP_IS_FILL
         bne sps_fill
-        sta v_ended,x
+        sta {v_ended},x
         rts
 sps_freeze:
-        sta v_frozen,x
+        sta {v_frozen},x
         rts
 ; sps_fill - the $FE stop_fill end. Writes STOP_FILL to every voice
 ; register PLUS filter cutoff lo/hi + res-routing ($D400-$D417, 24
@@ -1259,47 +1299,48 @@ sps_freeze:
 ; at $D417. `LDX #imm` is 2 bytes regardless of value, so this change
 ; doesn't shift any other addresses.
 sps_fill:
-        stx sub_tmp
+        stx {sub_tmp}
         ldx #23
         lda #STOP_FILL
 sps_fl: sta $d400,x
         dex
         bpl sps_fl
         lda #$02
-        sta end_phase
+        sta {end_phase}
         lda #1
-        sta pv_abort
-        ldx sub_tmp
+        sta {pv_abort}
+        ldx {sub_tmp}
         lda #$ff
-        sta v_ended,x
+        sta {v_ended},x
         rts
 sp_have:
         tay                  ; Y = pattern index
-        lda pataddr_lo,y
-        sta v_patlo,x
-        lda pataddr_hi,y
-        sta v_pathi,x
+        lda {pataddr_lo},y
+        sta {v_patlo},x
+        lda {pataddr_hi},y
+        sta {v_pathi},x
         ; every pattern starts with a 1-byte note count - read it and
         ; step v_patptr past it, then reset the per-voice read cursor.
-        lda v_patlo,x
-        sta notep
-        lda v_pathi,x
-        sta notep+1
+        lda {v_patlo},x
+        sta {notep}
+        lda {v_pathi},x
+        sta {notep}+1
         ldy #0
-        lda (notep),y
-        sta v_notesleft,x
-        inc v_patlo,x
+        lda ({notep}),y
+        sta {v_notesleft},x
+        inc {v_patlo},x
         bne sp_nc
-        inc v_pathi,x
+        inc {v_pathi},x
 sp_nc:
         lda #0
-        sta v_bitcnt,x       ; codec cursor state
-        sta v_hubidx,x       ; note_idx restarts at 0 in a new pattern
+        sta {v_bitcnt},x       ; codec cursor state
+        sta {v_hubidx},x       ; note_idx restarts at 0 in a new pattern
         rts"""
 
 
-def _emit_hubbard_set_patptr(fade: 'FadeProgressive | None' = None,
-                             loop_silences_song: bool = False) -> str:
+def _emit_set_patptr(names: FxNames,
+                     fade: 'FadeProgressive | None' = None,
+                     loop_silences_song: bool = False) -> str:
     """set_patptr routine — orderlist dispatch + new-pattern setup.
 
     Walks the per-voice orderlist (handling $FE end-of-song with the
@@ -1322,8 +1363,10 @@ def _emit_hubbard_set_patptr(fade: 'FadeProgressive | None' = None,
     orig $0907→$091B→$08B9. The triggering voice is marked ended,
     end_phase is set to the silent value, and pv_abort halts the
     rest of this play() iteration.
+
+    Skeleton-agnostic: parameterised over `names: FxNames`.
     """
-    asm = _HUBBARD_SET_PATPTR_ASM
+    asm = _SET_PATPTR_ASM_TEMPLATE.format(**asdict(names))
     if loop_silences_song:
         # On $FF: silence song + mark this voice ended + abort play.
         # A still has orderLoop[X] at this point; we replace it with 0
@@ -1332,11 +1375,11 @@ def _emit_hubbard_set_patptr(fade: 'FadeProgressive | None' = None,
             f'        lda #$00\n'
             f'        sta $d418\n'
             f'        lda #$02\n'
-            f'        sta end_phase\n'
+            f'        sta {names.end_phase}\n'
             f'        lda #1\n'
-            f'        sta pv_abort\n'
+            f'        sta {names.pv_abort}\n'
             f'        lda #$ff\n'
-            f'        sta v_ended,x\n'
+            f'        sta {names.v_ended},x\n'
             f'        rts'
         )
     elif fade is not None and fade.reset_on_loop:
@@ -1344,7 +1387,7 @@ def _emit_hubbard_set_patptr(fade: 'FadeProgressive | None' = None,
         reset = (
             f'        cpx #{v}\n'
             f'        bne mv_lr_skip\n'
-            f'        sta vol_progress\n'
+            f'        sta {names.vol_progress}\n'
             f'mv_lr_skip:'
         )
     else:
@@ -2156,7 +2199,7 @@ def _compose_hubbard_engine_body(
         _HUBBARD_LOAD_NOTE_COMMENT,
         '',
         _HUBBARD_SET_PATPTR_HEADER,
-        _emit_hubbard_set_patptr(fade, loop_silences_song),
+        _emit_set_patptr(HUBBARD_FX_NAMES, fade, loop_silences_song),
         '',
         _emit_hubbard_next_orderidx(),
         '',
