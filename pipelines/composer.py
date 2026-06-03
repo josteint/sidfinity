@@ -239,6 +239,14 @@ class FxNames:
     subVoiceStart: str
     subOvseedLo: str
     subOvseedHi: str
+    # SFX sub-engine — added Phase B step 16 (init_sfx lift)
+    sfx_index: str
+    sfx_stepctr: str
+    sfx_done: str
+    sfx_started: str
+    sfx_v1gate: str
+    sfx_v2gate: str
+    sfxdata: str
     # Orderlist + pattern infrastructure — added Phase B step 9
     # (set_patptr lift)
     orderLo: str
@@ -330,6 +338,13 @@ HUBBARD_FX_NAMES = FxNames(
     subVoiceStart='subVoiceStart',
     subOvseedLo='subOvseedLo',
     subOvseedHi='subOvseedHi',
+    sfx_index='sfx_index',
+    sfx_stepctr='sfx_stepctr',
+    sfx_done='sfx_done',
+    sfx_started='sfx_started',
+    sfx_v1gate='sfx_v1gate',
+    sfx_v2gate='sfx_v2gate',
+    sfxdata='sfxdata',
     orderLo='orderLo',
     orderHi='orderHi',
     orderLoop='orderLoop',
@@ -1821,48 +1836,48 @@ def _emit_proc_voice(names: FxNames) -> str:
     return _PROC_VOICE_ASM_TEMPLATE.format(**asdict(names))
 
 
-_HUBBARD_INIT_SFX_ASM = """; init_sfx - set up sound effect sfx_idx. Builds the record pointer,
+_INIT_SFX_ASM_TEMPLATE = """; init_sfx - set up sound effect sfx_idx. Builds the record pointer,
 ; patches the live freq-table bytes the sweep overflows into, and
 ; resets the sweep state.
 init_sfx:
         lda #$00
-        sta sfx_rec+1
-        lda sfx_idx
+        sta {sfx_rec}+1
+        lda {sfx_idx}
         asl
-        rol sfx_rec+1
+        rol {sfx_rec}+1
         asl
-        rol sfx_rec+1
+        rol {sfx_rec}+1
         asl
-        rol sfx_rec+1
+        rol {sfx_rec}+1
         asl
-        rol sfx_rec+1
+        rol {sfx_rec}+1
         asl
-        rol sfx_rec+1        ; sfx_idx*32 - A is the low byte
+        rol {sfx_rec}+1        ; sfx_idx*32 - A is the low byte
         clc
-        adc #<sfxdata
-        sta sfx_rec
-        lda sfx_rec+1
-        adc #>sfxdata
-        sta sfx_rec+1
+        adc #<{sfxdata}
+        sta {sfx_rec}
+        lda {sfx_rec}+1
+        adc #>{sfxdata}
+        sta {sfx_rec}+1
         lda #$80
-        sta freqtab+241      ; the sweep reads $5519 here - mode byte $80
-        lda sfx_idx
-        sta freqtab+255      ; $5527 - the SFX index
+        sta {freqtab}+241      ; the sweep reads $5519 here - mode byte $80
+        lda {sfx_idx}
+        sta {freqtab}+255      ; $5527 - the SFX index
         lda #$ff
-        sta freqtab+256      ; $5528 - drum_enable
+        sta {freqtab}+256      ; $5528 - drum_enable
         ldy #14
-        lda (sfx_rec),y      ; record 14 - sweep start index
-        sta sfx_index
+        lda ({sfx_rec}),y      ; record 14 - sweep start index
+        sta {sfx_index}
         lda #$00
-        sta sfx_stepctr
-        sta sfx_done
-        sta sfx_started
+        sta {sfx_stepctr}
+        sta {sfx_done}
+        sta {sfx_started}
         ldy #4
-        lda (sfx_rec),y      ; record 4 - V1 ctrl, the live V1 gate
-        sta sfx_v1gate
+        lda ({sfx_rec}),y      ; record 4 - V1 ctrl, the live V1 gate
+        sta {sfx_v1gate}
         ldy #11
-        lda (sfx_rec),y      ; record 11 - V2 ctrl, the live V2 gate
-        sta sfx_v2gate
+        lda ({sfx_rec}),y      ; record 11 - V2 ctrl, the live V2 gate
+        sta {sfx_v2gate}
         ldx #$18
 isfxclr: lda #$00
         sta $d400,x
@@ -1873,7 +1888,8 @@ isfxclr: lda #$00
         rts"""
 
 
-def _emit_hubbard_init_sfx(sfx_state_ofs: int | None = None) -> str:
+def _emit_init_sfx(names: FxNames,
+                   sfx_state_ofs: int | None = None) -> str:
     """init_sfx routine — SFX dispatch entry.
 
     Computes the 32-byte SFX record address (`sfxdata + sfx_idx*32`),
@@ -1886,36 +1902,39 @@ def _emit_hubbard_init_sfx(sfx_state_ofs: int | None = None) -> str:
     and his Droid) → relocates the 6-byte state block to
     freqtab[ofs..ofs+5] and uses the layout
     {disable, sfx_idx, $ff, sweep_idx, step_rate, end_idx}.
+
+    Skeleton-agnostic: parameterised over `names: FxNames`.
     """
+    asm = _INIT_SFX_ASM_TEMPLATE.format(**asdict(names))
     if sfx_state_ofs is None:
-        return _HUBBARD_INIT_SFX_ASM
-    old = ("        lda #$80\n"
-           "        sta freqtab+241      ; the sweep reads $5519 here -"
-           " mode byte $80\n"
-           "        lda sfx_idx\n"
-           "        sta freqtab+255      ; $5527 - the SFX index\n"
-           "        lda #$ff\n"
-           "        sta freqtab+256      ; $5528 - drum_enable\n"
-           "        ldy #14\n"
-           "        lda (sfx_rec),y      ; record 14 - sweep start index\n"
-           "        sta sfx_index\n")
-    new = ("        lda #$00\n"
-           f"        sta freqtab+{sfx_state_ofs}        ; SFX-disable flag\n"
-           "        lda sfx_idx\n"
-           f"        sta freqtab+{sfx_state_ofs + 1}        ; SFX index\n"
-           "        lda #$ff\n"
-           f"        sta freqtab+{sfx_state_ofs + 2}        ; static byte\n"
-           "        ldy #16\n"
-           "        lda (sfx_rec),y      ; record 16 - step rate\n"
-           f"        sta freqtab+{sfx_state_ofs + 4}        ; step counter\n"
-           "        ldy #15\n"
-           "        lda (sfx_rec),y      ; record 15 - end index\n"
-           f"        sta freqtab+{sfx_state_ofs + 5}        ; end index\n"
-           "        ldy #14\n"
-           "        lda (sfx_rec),y      ; record 14 - sweep start index\n"
-           "        sta sfx_index\n"
-           f"        sta freqtab+{sfx_state_ofs + 3}        ; sweep index (initial)\n")
-    return _HUBBARD_INIT_SFX_ASM.replace(old, new, 1)
+        return asm
+    old = (f"        lda #$80\n"
+           f"        sta {names.freqtab}+241      ; the sweep reads $5519 here -"
+           f" mode byte $80\n"
+           f"        lda {names.sfx_idx}\n"
+           f"        sta {names.freqtab}+255      ; $5527 - the SFX index\n"
+           f"        lda #$ff\n"
+           f"        sta {names.freqtab}+256      ; $5528 - drum_enable\n"
+           f"        ldy #14\n"
+           f"        lda ({names.sfx_rec}),y      ; record 14 - sweep start index\n"
+           f"        sta {names.sfx_index}\n")
+    new = (f"        lda #$00\n"
+           f"        sta {names.freqtab}+{sfx_state_ofs}        ; SFX-disable flag\n"
+           f"        lda {names.sfx_idx}\n"
+           f"        sta {names.freqtab}+{sfx_state_ofs + 1}        ; SFX index\n"
+           f"        lda #$ff\n"
+           f"        sta {names.freqtab}+{sfx_state_ofs + 2}        ; static byte\n"
+           f"        ldy #16\n"
+           f"        lda ({names.sfx_rec}),y      ; record 16 - step rate\n"
+           f"        sta {names.freqtab}+{sfx_state_ofs + 4}        ; step counter\n"
+           f"        ldy #15\n"
+           f"        lda ({names.sfx_rec}),y      ; record 15 - end index\n"
+           f"        sta {names.freqtab}+{sfx_state_ofs + 5}        ; end index\n"
+           f"        ldy #14\n"
+           f"        lda ({names.sfx_rec}),y      ; record 14 - sweep start index\n"
+           f"        sta {names.sfx_index}\n"
+           f"        sta {names.freqtab}+{sfx_state_ofs + 3}        ; sweep index (initial)\n")
+    return asm.replace(old, new, 1)
 
 
 _HUBBARD_SFX_PLAY_ASM = """; sfx_play - one frame of the sound-effect engine. The first frame
@@ -2307,7 +2326,7 @@ def _compose_hubbard_engine_body(
         '',
         _HUBBARD_SFX_BANNER,
         '',
-        _emit_hubbard_init_sfx(sfx_state_ofs),
+        _emit_init_sfx(HUBBARD_FX_NAMES, sfx_state_ofs),
         '',
         _emit_hubbard_sfx_play(),
         '',
