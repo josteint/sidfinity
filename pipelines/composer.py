@@ -221,6 +221,12 @@ class FxNames:
     sidtab: str
     is_tick: str
     v_norel: str
+    # Play infrastructure — added Phase B step 13 (play lift)
+    is_sfx: str
+    first_frame: str
+    speed_ctr: str
+    cur_resetspd: str
+    voice_start: str
     # Orderlist + pattern infrastructure — added Phase B step 9
     # (set_patptr lift)
     orderLo: str
@@ -296,6 +302,11 @@ HUBBARD_FX_NAMES = FxNames(
     sidtab='sidtab',
     is_tick='is_tick',
     v_norel='v_norel',
+    is_sfx='is_sfx',
+    first_frame='first_frame',
+    speed_ctr='speed_ctr',
+    cur_resetspd='cur_resetspd',
+    voice_start='voice_start',
     orderLo='orderLo',
     orderHi='orderHi',
     orderLoop='orderLoop',
@@ -1601,19 +1612,19 @@ def _emit_hubbard_init(has_per_subtune_ovseed: bool = False,
     return asm
 
 
-_HUBBARD_PLAY_ASM = """play:
-        inc freqtab+253      ; mirror Hubbard's INC $5525 (the SFX
+_PLAY_ASM_TEMPLATE = """play:
+        inc {freqtab}+{sfx_framectr_ofs}      ; mirror Hubbard's INC $5525 (the SFX
                              ; sweep can read this byte as a frequency)
-        lda is_sfx
+        lda {is_sfx}
         beq pl_music
         jmp sfx_play
 pl_music:
-        lda end_phase
+        lda {end_phase}
         beq pl_run
         cmp #$01
         bne pl_silent        ; end_phase 2 - song over, write nothing
         lda #$02             ; end_phase 1 - gate every voice off, once
-        sta end_phase
+        sta {end_phase}
         lda #$00
         sta $d404            ; V1 ctrl
         sta $d40b            ; V2 ctrl
@@ -1621,11 +1632,11 @@ pl_music:
 pl_silent:
         rts
 pl_run:
-        inc frame_ctr
-        lda first_frame
+        inc {frame_ctr}
+        lda {first_frame}
         beq pl_nogate
         lda #0
-        sta first_frame
+        sta {first_frame}
         lda #FIRST_FRAME_GATE_OFF
         beq pl_nogate
         lda #0
@@ -1633,42 +1644,44 @@ pl_run:
         sta $d40b
         sta $d412
 pl_nogate:
-        dec speed_ctr
+        dec {speed_ctr}
         bpl notick
-        lda cur_resetspd
-        sta speed_ctr
+        lda {cur_resetspd}
+        sta {speed_ctr}
         lda #1
-        sta is_tick
+        sta {is_tick}
         jmp voices
 notick: lda #0
-        sta is_tick
+        sta {is_tick}
 voices:
         lda #0
-        sta pv_abort
-        ldx voice_start
+        sta {pv_abort}
+        ldx {voice_start}
 pvloop: jsr proc_voice
-        lda pv_abort
+        lda {pv_abort}
         bne pl_done
         lda #$ff
-        sta drum_prio
+        sta {drum_prio}
         dex
         bpl pvloop
         ; end-of-song - once all three voices have hit $FE, arm the
         ; one-shot gate-off for the next frame.
-        lda v_ended+0
-        and v_ended+1
-        and v_ended+2
+        lda {v_ended}+0
+        and {v_ended}+1
+        and {v_ended}+2
         beq pl_done
-        lda end_phase
+        lda {end_phase}
         bne pl_done
         lda #$01
-        sta end_phase
+        sta {end_phase}
 pl_done:
         rts"""
 
 
-def _emit_hubbard_play(sfx_framectr_ofs: int = 253) -> str:
-    """play routine — the per-frame engine entry.
+def _emit_play_bp(names: FxNames, sfx_framectr_ofs: int = 253) -> str:
+    """play routine — the per-frame engine entry (bitpack-skeleton
+    flavor). Coexists with the universal `_emit_play(model, active)`
+    until the two are unified.
 
     Bumps `freqtab+sfx_framectr_ofs` (the SFX-readable frame counter
     — default 253 / Commando family; Monty and One Man and his Droid
@@ -1677,11 +1690,14 @@ def _emit_hubbard_play(sfx_framectr_ofs: int = 253) -> str:
     `frame_ctr`, optionally gates voices off on the first frame,
     runs the speed counter, and drives the voice loop from
     `voice_start`.
+
+    Skeleton-agnostic: parameterised over `names: FxNames`. The
+    `sfx_framectr_ofs` integer arg is a per-engine constant offset
+    into the freq table — kept as a kwarg since it's an integer, not
+    a name.
     """
-    if sfx_framectr_ofs == 253:
-        return _HUBBARD_PLAY_ASM
-    return _HUBBARD_PLAY_ASM.replace(
-        'inc freqtab+253', f'inc freqtab+{sfx_framectr_ofs}', 1)
+    return _PLAY_ASM_TEMPLATE.format(
+        sfx_framectr_ofs=sfx_framectr_ofs, **asdict(names))
 
 
 _PROC_VOICE_ASM_TEMPLATE = """proc_voice:
@@ -2211,7 +2227,7 @@ def _compose_hubbard_engine_body(
                            has_master_vol_fade=has_master_vol_fade,
                            uses_per_subtune_dispatch=uses_per_subtune_dispatch),
         '',
-        _emit_hubbard_play(sfx_framectr_ofs),
+        _emit_play_bp(HUBBARD_FX_NAMES, sfx_framectr_ofs),
         '',
         _emit_proc_voice(HUBBARD_FX_NAMES),
         '',
