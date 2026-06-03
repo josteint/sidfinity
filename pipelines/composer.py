@@ -1430,10 +1430,10 @@ def _emit_next_orderidx(names: FxNames) -> str:
     return _NEXT_ORDERIDX_ASM_TEMPLATE.format(**asdict(names))
 
 
-_HUBBARD_DO_EFFECTS_ASM = """; do_effects - effects in engine order vibrato,pwm,drumslide,skydive,arp.
+_DO_EFFECTS_ASM_TEMPLATE = """; do_effects - effects in engine order vibrato,pwm,drumslide,skydive,arp.
 do_effects:
         lda #0
-        sta vib_carry
+        sta {vib_carry}
         jsr fx_vibrato
         jsr fx_pwm
         jsr fx_drumslide
@@ -1442,15 +1442,19 @@ do_effects:
         jmp fx_arp"""
 
 
-def _emit_hubbard_do_effects() -> str:
+def _emit_do_effects(names: FxNames) -> str:
     """do_effects orchestrator — fx chain in engine-canonical order.
 
     Calls fx_vibrato, fx_pwm, fx_drumslide, fx_skydive, fx_incby2
     in sequence, tail-calls fx_arp. The leading `vib_carry = 0`
     clears the cross-effect carry that fx_vibrato sets and fx_pwm
     consumes.
+
+    Skeleton-agnostic: parameterised over `names: FxNames`. The
+    routine labels (fx_vibrato etc.) are emitter-internal — any host
+    that includes the lifted fx emitters has them.
     """
-    return _HUBBARD_DO_EFFECTS_ASM
+    return _DO_EFFECTS_ASM_TEMPLATE.format(**asdict(names))
 
 
 _HUBBARD_INIT_ASM = """; init - A = subtune number. A under N_MUSIC is a music subtune; A
@@ -2209,7 +2213,7 @@ def _compose_hubbard_engine_body(
         '',
         _emit_hr_writes(HUBBARD_FX_NAMES),
         '',
-        _emit_hubbard_do_effects(),
+        _emit_do_effects(HUBBARD_FX_NAMES),
         '',
         _emit_fx_drumslide(HUBBARD_FX_NAMES),
         '',
