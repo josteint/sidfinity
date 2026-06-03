@@ -2210,9 +2210,9 @@ def _emit_entry_stub(load_addr: int = LOAD) -> str:
     that PSID `init` / `play` vectors point at: JMP init / JMP play.
 
     The default `load_addr=$1000` matches the standalone build; the
-    digi-aware combined build (`_emit_combined_sid`) and any future
+    digi-aware combined build (`_emit_combined_sid_bp`) and any future
     compound packer can place each sub-engine at a non-default
-    address by passing `load_addr` through `_compose_hubbard_engine_asm`.
+    address by passing `load_addr` through `_compose_engine_asm_bp`.
 
     Skeleton-agnostic: takes no FxNames since it has no variable
     references — just the `init` / `play` entry labels both
@@ -2252,7 +2252,7 @@ _HUBBARD_SFX_BANNER = (
 _HUBBARD_SIDTAB_ASM = "sidtab: .byt 0, 7, 14"
 
 
-def _compose_hubbard_engine_body(
+def _compose_engine_body_bp(
         state_layout: StatebufLayout,
         load_addr: int = LOAD,
         sfx_framectr_ofs: int = 253,
@@ -2290,7 +2290,7 @@ def _compose_hubbard_engine_body(
     `; %%MASTER_VOL_*%%` / `; %%CLEAR_DRUMTRIG_*%%`) live in the
     decoder asm rather than the engine body; they're resolved at
     composition time by `_resolve_codec_note_asm`, called from
-    `_compose_hubbard_engine_asm` directly after this function.
+    `_compose_engine_asm_bp` directly after this function.
     """
     parts = [
         _HUBBARD_ZP_EQUATES_ASM,
@@ -2478,14 +2478,14 @@ def _resolve_codec_note_asm(codec, inputs) -> str:
     return asm
 
 
-def _compose_hubbard_engine_asm(inputs, codec, pat_slot, pat_bytes,
+def _compose_engine_asm_bp(inputs, codec, pat_slot, pat_bytes,
                                 codec_extra, load_addr: int = LOAD) -> str:
     """Compose the full Hubbard '85 engine asm — equates + codec zp +
     engine body + codec note-codec + data section.
 
     This is the composer-native replacement for the template +
     `_emit_data` pipeline that lived in
-    `composer_hubbard._hubbard_emit_sid`. Returns FULLY-RESOLVED asm
+    `composer_hubbard._emit_sid_bp`. Returns FULLY-RESOLVED asm
     ready for xa65 — every sentinel and text-replace target is
     resolved by either the chunk emitters or `_resolve_codec_note_asm`.
 
@@ -2506,7 +2506,7 @@ def _compose_hubbard_engine_asm(inputs, codec, pat_slot, pat_bytes,
             underflow_clamp=inputs.master_vol_underflow_clamp,
         )
         if inputs.master_vol_subtrahend_voice is not None else None)
-    body = _compose_hubbard_engine_body(
+    body = _compose_engine_body_bp(
         inputs.state_layout,
         load_addr=load_addr,
         sfx_framectr_ofs=inputs.sfx_framectr_ofs,
@@ -2542,7 +2542,7 @@ def _compose_hubbard_engine_asm(inputs, codec, pat_slot, pat_bytes,
 # ---------------------------------------------------------------------------
 # Hubbard '85 _Inputs dataclass + USF / config adapters.
 # Moved here from composer_hubbard.py in Phase 8.20 — these are the
-# typed surface `_compose_hubbard_engine_asm` consumes; they belong
+# typed surface `_compose_engine_asm_bp` consumes; they belong
 # next to the composition layer.
 # ---------------------------------------------------------------------------
 
@@ -2552,14 +2552,14 @@ from typing import Optional as _Optional
 
 @_dataclass
 class _Inputs:
-    """Everything `_compose_hubbard_engine_asm` needs, decoupled from
+    """Everything `_compose_engine_asm_bp` needs, decoupled from
     the source.
 
     `_inputs_from_usf` (the production path) builds this from a USF
     file alone — no engine-name lookup. `_inputs_from_config` is the
     legacy adapter for `EngineConfig` (binary-reading); used today by
     the 5_Title_Tunes unified-USF re-extractor. Both feed
-    `_compose_hubbard_engine_asm` which is pure — it knows nothing
+    `_compose_engine_asm_bp` which is pure — it knows nothing
     about how the inputs were derived.
     """
     # PSID header metadata
@@ -3156,7 +3156,7 @@ def _inputs_from_usf(usf) -> _Inputs:
 # ---------------------------------------------------------------------------
 
 
-def _hubbard_emit_sid(inputs: _Inputs, out_path: str, codec,
+def _emit_sid_bp(inputs: _Inputs, out_path: str, codec,
                       load_addr: int = LOAD) -> str:
     """Emit a SID file from a fully-prepared `_Inputs`. No I/O of the
     original binary; everything needed is in `inputs`.
@@ -3165,7 +3165,7 @@ def _hubbard_emit_sid(inputs: _Inputs, out_path: str, codec,
     combined music+digi build (Chimera) which may pack the music
     engine closer to the digi region's dispatcher.
 
-    `_compose_hubbard_engine_asm` produces FULLY-RESOLVED asm: every
+    `_compose_engine_asm_bp` produces FULLY-RESOLVED asm: every
     per-engine knob is threaded into the chunk emitters; the codec's
     note_asm sentinels are resolved by `_resolve_codec_note_asm`.
     This function just xa65-assembles the result and wraps it in a
@@ -3173,7 +3173,7 @@ def _hubbard_emit_sid(inputs: _Inputs, out_path: str, codec,
     """
     pat_order, pat_slot = _pattern_pool(inputs.scores)
     pat_bytes, codec_extra = codec.encode(pat_order)
-    asm = _compose_hubbard_engine_asm(
+    asm = _compose_engine_asm_bp(
         inputs, codec, pat_slot, pat_bytes, codec_extra,
         load_addr=load_addr)
 
@@ -3209,7 +3209,7 @@ def _hubbard_emit_sid(inputs: _Inputs, out_path: str, codec,
     return out_path
 
 
-def _emit_combined_sid(inputs: _Inputs, usf, digi_subs: list,
+def _emit_combined_sid_bp(inputs: _Inputs, usf, digi_subs: list,
                        digi_code, out_path: str, usf_dir: str,
                        codec) -> str:
     """Emit a combined PSID containing music engine + digi engine +
@@ -3235,11 +3235,11 @@ def _emit_combined_sid(inputs: _Inputs, usf, digi_subs: list,
     if digi_code.music_load_addr is not None:
         music_load = digi_code.music_load_addr
     else:
-        _hubbard_emit_sid(inputs, tmp_music, codec, load_addr=LOAD)
+        _emit_sid_bp(inputs, tmp_music, codec, load_addr=LOAD)
         size = os.path.getsize(tmp_music) - 124
         music_load = digi_code.dispatcher_base - size
         for _ in range(4):
-            _hubbard_emit_sid(inputs, tmp_music, codec, load_addr=music_load)
+            _emit_sid_bp(inputs, tmp_music, codec, load_addr=music_load)
             new_size = os.path.getsize(tmp_music) - 124
             new_load = digi_code.dispatcher_base - new_size
             if new_load == music_load:
@@ -3249,10 +3249,10 @@ def _emit_combined_sid(inputs: _Inputs, usf, digi_subs: list,
     digi_region, digi_base, play_addr = _build_digi_region(
         usf, digi_subs, digi_code, usf_dir, music_load=music_load)
 
-    _hubbard_emit_sid(inputs, tmp_music, codec, load_addr=music_load)
+    _emit_sid_bp(inputs, tmp_music, codec, load_addr=music_load)
     music_blob = open(tmp_music, 'rb').read()
     os.unlink(tmp_music)
-    # `_hubbard_emit_sid` wrote a PSID; strip its 124-byte header.
+    # `_emit_sid_bp` wrote a PSID; strip its 124-byte header.
     music_body = music_blob[124:]                  # music bytes at $music_load
 
     music_end = music_load + len(music_body)
@@ -3291,9 +3291,9 @@ def _emit_combined_sid(inputs: _Inputs, usf, digi_subs: list,
     return out_path
 
 
-def _emit_hubbard85_bytes(usf, usf_dir) -> bytes:
+def _emit_bitpack_bytes(usf, usf_dir) -> bytes:
     """Hubbard '85 dispatch: build `_Inputs` from the USF, then either
-    `_hubbard_emit_sid` (music-only) or `_emit_combined_sid` (when the
+    `_emit_sid_bp` (music-only) or `_emit_combined_sid_bp` (when the
     USF carries digi subtunes). Returns the PSID bytes."""
     import tempfile
     from src.usf import DigiSubtune
@@ -3309,7 +3309,7 @@ def _emit_hubbard85_bytes(usf, usf_dir) -> bytes:
         tmp_path = tmp.name
     try:
         if not digi_subs:
-            _hubbard_emit_sid(inputs, tmp_path, codec)
+            _emit_sid_bp(inputs, tmp_path, codec)
         else:
             if usf_dir is None:
                 raise ValueError(
@@ -3324,7 +3324,7 @@ def _emit_hubbard85_bytes(usf, usf_dir) -> bytes:
                 raise ValueError(
                     f'unknown digi_player {name!r}; '
                     f'register in `_digi_player_registry`')
-            _emit_combined_sid(inputs, usf, digi_subs, registry[name],
+            _emit_combined_sid_bp(inputs, usf, digi_subs, registry[name],
                                 tmp_path, usf_dir, codec)
         return open(tmp_path, 'rb').read()
     finally:
@@ -3511,8 +3511,8 @@ def _digi_player_registry() -> dict:
     Each entry binds a tune-level `digi_player: <name>` token to a
     concrete `DigiCode` (dispatcher base, player base, music-load
     hint, bank-table base, ...). Composer reads this when a USF has
-    digi subtunes — see `_emit_combined_sid` and the dispatch in
-    `_emit_hubbard85_bytes`.
+    digi subtunes — see `_emit_combined_sid_bp` and the dispatch in
+    `_emit_bitpack_bytes`.
     """
     from pipelines.hubbard.engine_constants import CHIMERA_DIGI
     return {
@@ -3713,25 +3713,37 @@ def _emit_master_vol_fade(fade: 'FadeProgressive | None') -> dict[str, str]:
     }
 
 
-def _needs_hubbard85_path(usf, model: EngineModel) -> bool:
-    """Return True iff the USF carries features the simpler composer
-    emitters can't produce — currently routed through the lifted
-    Hubbard '85 parametric core in `universal_codegen.py`.
+def _needs_bitpack_path(usf, model: EngineModel) -> bool:
+    """Return True iff the USF carries features the simple-shape
+    `emit_asm` branches can't currently produce — routed instead
+    through the bitpack-skeleton chain (`_emit_bitpack_bytes` →
+    `_emit_sid_bp` → `_compose_engine_asm_bp` → the lifted
+    `_emit_fx_*` / `_emit_*_bp` chunks).
 
-    Content signals (each independent — composer reads which features
-    the music uses, not which engine produced it):
+    Content signals (each independent — the composer reads which
+    features the music uses, NOT which engine produced it; see §8 of
+    `docs/usf_representation_principle.md`):
+
       * any instrument has a per-frame modulation program (vibrato,
         PWM modes, multi-step arpeggio, freq-hi slide, odd-frame slide,
         per-note portamento)
       * any voice references multiple patterns through its orderlist
-        (composer's simpler shapes only handle a single pattern per
+        (the simple-shape branches only handle a single pattern per
         voice)
       * the USF carries SFX or digi subtunes
       * the USF carries a `state_layout` block (off-table arpeggio
         state mirror)
 
-    A USF that doesn't trip any of these uses the composer's
-    feature-emitter chain directly.
+    A USF that doesn't trip any of these uses `emit_asm`'s
+    simple-shape branches directly.
+
+    Honest caveat: there's currently exactly one consumer of the
+    True branch (the bitpack skeleton's chunked chain). Per §8 that's
+    a cover-story risk — until `emit_asm` grows a 5th branch that
+    subsumes the bitpack path, the discriminator is structurally
+    feature-named but pragmatically routes uniformly to one
+    skeleton. The endpoint is dissolving this function and inlining
+    the dispatch into `emit_asm`.
     """
     # Per-instrument modulation programs
     for inst in model.instruments:
@@ -5600,21 +5612,24 @@ def emit_sid_from_usf(usf, usf_dir: str | None = None) -> bytes:
     from pipelines.engine_model import from_usf
     model = from_usf(usf)
 
-    # Hubbard '85 dispatch: the bitpack codec + full modulation pipeline
-    # + SFX/digi sub-engines are large enough that they're currently
-    # served by the lifted parametric core in `universal_codegen.py`
-    # (`_emit_hubbard85_bytes`). The composer detects hubbard85 USFs by
-    # USF content (rich instrument modulation, multi-pattern orderlists,
-    # SFX subtunes, state_layout block — all features the simpler
-    # composer emitters can't produce) and delegates.
+    # Bitpack-skeleton dispatch: the bitpack pattern codec + full
+    # per-instrument modulation pipeline + SFX/digi sub-engines together
+    # require a structurally different player than the simple-shape
+    # emitters in `emit_asm` produce. USFs that carry any of these
+    # features (per `_needs_bitpack_path`) route to the bitpack
+    # skeleton's chunked emitters (`_emit_bitpack_bytes` →
+    # `_emit_sid_bp` → `_compose_engine_asm_bp` → the ~17 lifted
+    # `_emit_fx_*` / `_emit_*_bp` chunks).
     #
-    # Future phases (8.1+) will decompose the Hubbard '85 ENGINE asm
-    # into per-feature composer emitters parametric on EngineModel
-    # features — one feature at a time, byte-exact-regression at each
-    # step. For now: composer is the single entry; the implementation
-    # for hubbard85 still lives in universal_codegen.py.
-    if _needs_hubbard85_path(usf, model):
-        return _emit_hubbard85_bytes(usf, usf_dir)
+    # The discriminator is structural (presence of features the
+    # simple-shape path can't produce). It is NOT engine identification:
+    # any future skeleton that grows the same features and supplies its
+    # own FxNames context could host the same chunks. The §8 endpoint
+    # is to dissolve this dispatch entirely — `emit_asm` grows a 5th
+    # branch that subsumes the bitpack path — but the per-feature
+    # lifts that make that possible landed first.
+    if _needs_bitpack_path(usf, model):
+        return _emit_bitpack_bytes(usf, usf_dir)
 
     if not can_handle(model):
         raise NotImplementedError(
