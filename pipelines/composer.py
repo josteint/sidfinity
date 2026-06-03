@@ -227,6 +227,18 @@ class FxNames:
     speed_ctr: str
     cur_resetspd: str
     voice_start: str
+    # Init infrastructure — added Phase B step 14 (init lift)
+    sfx_idx: str
+    pwseed: str
+    ovseed: str
+    sfx_rec: str
+    subOrderLo: str
+    subOrderHi: str
+    subOrderLoop: str
+    subResetspd: str
+    subVoiceStart: str
+    subOvseedLo: str
+    subOvseedHi: str
     # Orderlist + pattern infrastructure — added Phase B step 9
     # (set_patptr lift)
     orderLo: str
@@ -307,6 +319,17 @@ HUBBARD_FX_NAMES = FxNames(
     speed_ctr='speed_ctr',
     cur_resetspd='cur_resetspd',
     voice_start='voice_start',
+    sfx_idx='sfx_idx',
+    pwseed='pwseed',
+    ovseed='ovseed',
+    sfx_rec='sfx_rec',
+    subOrderLo='subOrderLo',
+    subOrderHi='subOrderHi',
+    subOrderLoop='subOrderLoop',
+    subResetspd='subResetspd',
+    subVoiceStart='subVoiceStart',
+    subOvseedLo='subOvseedLo',
+    subOvseedHi='subOvseedHi',
     orderLo='orderLo',
     orderHi='orderHi',
     orderLoop='orderLoop',
@@ -537,7 +560,8 @@ def _emit_clear_drumtrig(tie_preserves_slide: bool) -> dict[str, str]:
     }
 
 
-def _emit_ovseed_copy(has_per_subtune_ovseed: bool) -> str:
+def _emit_ovseed_copy(has_per_subtune_ovseed: bool,
+                      names: 'FxNames | None' = None) -> str:
     """5_Title_Tunes per-subtune ovseed copy. Runs at the top of `init`
     before the iniov loop reads ovseed; copies the selected subtune's
     18-byte ovseed block into the `ovseed` data label so iniov sees
@@ -545,20 +569,29 @@ def _emit_ovseed_copy(has_per_subtune_ovseed: bool) -> str:
 
     Empty string when the engine doesn't use per-subtune ovseed
     (every Hubbard '85 engine outside 5TT).
+
+    `names` is consumed for variable references; when None (legacy
+    callers), falls back to the literal Hubbard names.
     """
     if not has_per_subtune_ovseed:
         return ''
+    n = names
+    sub_tmp = n.sub_tmp if n else 'sub_tmp'
+    subOvseedLo = n.subOvseedLo if n else 'subOvseedLo'
+    subOvseedHi = n.subOvseedHi if n else 'subOvseedHi'
+    sfx_rec = n.sfx_rec if n else 'sfx_rec'
+    ovseed = n.ovseed if n else 'ovseed'
     return (
-        '        ldy sub_tmp\n'
-        '        lda subOvseedLo,y\n'
-        '        sta sfx_rec\n'
-        '        lda subOvseedHi,y\n'
-        '        sta sfx_rec+1\n'
-        '        ldy #17\n'
-        'ovcopy: lda (sfx_rec),y\n'
-        '        sta ovseed,y\n'
-        '        dey\n'
-        '        bpl ovcopy'
+        f'        ldy {sub_tmp}\n'
+        f'        lda {subOvseedLo},y\n'
+        f'        sta {sfx_rec}\n'
+        f'        lda {subOvseedHi},y\n'
+        f'        sta {sfx_rec}+1\n'
+        f'        ldy #17\n'
+        f'ovcopy: lda ({sfx_rec}),y\n'
+        f'        sta {ovseed},y\n'
+        f'        dey\n'
+        f'        bpl ovcopy'
     )
 
 
@@ -1475,79 +1508,79 @@ def _emit_do_effects(names: FxNames) -> str:
     return _DO_EFFECTS_ASM_TEMPLATE.format(**asdict(names))
 
 
-_HUBBARD_INIT_ASM = """; init - A = subtune number. A under N_MUSIC is a music subtune; A
+_INIT_ASM_TEMPLATE = """; init - A = subtune number. A under N_MUSIC is a music subtune; A
 ; N_MUSIC and up is a sound effect (A-N_MUSIC = the SFX index).
 init:
         cmp #N_MUSIC
         bcc init_music
         sec
         sbc #N_MUSIC
-        sta sfx_idx
+        sta {sfx_idx}
         lda #$01
-        sta is_sfx
+        sta {is_sfx}
         jmp init_sfx
 init_music:
-        sta sub_tmp          ; A = subtune
+        sta {sub_tmp}          ; A = subtune
         lda #$00
-        sta is_sfx
+        sta {is_sfx}
         lda #DRUM_PRIO_INIT  ; $178B drum-priority gate
-        sta drum_prio
-        lda sub_tmp
+        sta {drum_prio}
+        lda {sub_tmp}
         asl                  ; subtune*2
         clc
-        adc sub_tmp          ; subtune*3 = base index into the 9-entry
+        adc {sub_tmp}          ; subtune*3 = base index into the 9-entry
         tay                  ; per-subtune orderlist tables
         ldx #0
-inisel: lda subOrderLo,y
-        sta orderLo,x
-        lda subOrderHi,y
-        sta orderHi,x
-        lda subOrderLoop,y
-        sta orderLoop,x
+inisel: lda {subOrderLo},y
+        sta {orderLo},x
+        lda {subOrderHi},y
+        sta {orderHi},x
+        lda {subOrderLoop},y
+        sta {orderLoop},x
         iny
         inx
         cpx #3
         bne inisel
-        ldy sub_tmp          ; this subtune's tempo
-        lda subResetspd,y
-        sta cur_resetspd
-        lda subVoiceStart,y  ; per-subtune voice-loop start
-        sta voice_start
+        ldy {sub_tmp}          ; this subtune's tempo
+        lda {subResetspd},y
+        sta {cur_resetspd}
+        lda {subVoiceStart},y  ; per-subtune voice-loop start
+        sta {voice_start}
         ldx #PWLEN           ; re-seed the PWM accumulators from pwseed
-inipw:  lda pwseed,x
-        sta pwacc,x
+inipw:  lda {pwseed},x
+        sta {pwacc},x
         dex
         bpl inipw
         ldx #2
 ini1:   lda #0
-        sta v_dur,x
-        sta v_pwdir,x
-        sta v_pwperiod,x
-        sta v_instr,x
-        sta v_orderpos,x
-        sta v_ended,x
-        sta v_frozen,x
+        sta {v_dur},x
+        sta {v_pwdir},x
+        sta {v_pwperiod},x
+        sta {v_instr},x
+        sta {v_orderpos},x
+        sta {v_ended},x
+        sta {v_frozen},x
         jsr set_patptr       ; v_patptr,x = first pattern of orderlist X
         dex
         bpl ini1
         ; %%OVSEED_COPY%%    ; runtime copy of subOvseed_<sub> -> ovseed
         ldx #2               ; seed the freq-table-overlap variables
-iniov:  lda ovseed,x
-        sta v_ctrlbyte,x
-        lda ovseed+3,x
-        sta v_pwperiod,x
-        lda ovseed+6,x
-        sta v_pwdir,x
-        lda ovseed+9,x
-        sta v_instr,x
-        lda ovseed+12,x
-        sta v_durfield,x
-        lda ovseed+15,x
-        sta v_slide,x
+iniov:  lda {ovseed},x
+        sta {v_ctrlbyte},x
+        lda {ovseed}+3,x
+        sta {v_pwperiod},x
+        lda {ovseed}+6,x
+        sta {v_pwdir},x
+        lda {ovseed}+9,x
+        sta {v_instr},x
+        lda {ovseed}+12,x
+        sta {v_durfield},x
+        lda {ovseed}+15,x
+        sta {v_slide},x
         dex
         bpl iniov
         lda #0
-        sta end_phase
+        sta {end_phase}
         ; %%VOL_PROGRESS_INIT%%   ; engines with MASTER_VOL_FADE reset
                                   ; the vol_progress counter here; for
                                   ; other engines this expands to nothing
@@ -1556,11 +1589,11 @@ iniov:  lda ovseed,x
                                   ; SFX subtunes when this was emitted
                                   ; unconditionally).
         lda #SPEED_CTR_INIT
-        sta speed_ctr
+        sta {speed_ctr}
         lda #1
-        sta first_frame
+        sta {first_frame}
         lda #FRAME_CTR_INIT
-        sta frame_ctr
+        sta {frame_ctr}
         lda #MASTER_VOL_INIT  ; $D418 init value — most engines write $0F
                               ; here, but engines with MASTER_VOL_FADE
                               ; leave it at $00 because the original
@@ -1570,10 +1603,12 @@ iniov:  lda ovseed,x
         rts"""
 
 
-def _emit_hubbard_init(has_per_subtune_ovseed: bool = False,
-                       has_master_vol_fade: bool = False,
-                       uses_per_subtune_dispatch: bool = False) -> str:
-    """init routine — engine entry.
+def _emit_init_bp(names: FxNames,
+                  has_per_subtune_ovseed: bool = False,
+                  has_master_vol_fade: bool = False,
+                  uses_per_subtune_dispatch: bool = False) -> str:
+    """init routine — engine entry (bitpack-skeleton flavor; coexists
+    with the universal `_emit_init(model, active)`).
 
     A=subtune selects music (A < N_MUSIC) vs SFX (A >= N_MUSIC, with
     A - N_MUSIC = SFX index). Music init re-seeds the per-subtune
@@ -1593,22 +1628,25 @@ def _emit_hubbard_init(has_per_subtune_ovseed: bool = False,
         block with the per-subtune table-read variant (also loads
         cur_incby2_step + cur_incby2_late_gate from per-subtune
         tables).
+
+    Skeleton-agnostic: parameterised over `names: FxNames`.
     """
-    asm = _HUBBARD_INIT_ASM
+    asm = _INIT_ASM_TEMPLATE.format(**asdict(names))
     asm = asm.replace('; %%OVSEED_COPY%%',
-                      _emit_ovseed_copy(has_per_subtune_ovseed))
-    asm = asm.replace('; %%VOL_PROGRESS_INIT%%',
-                      '        sta vol_progress' if has_master_vol_fade else '')
+                      _emit_ovseed_copy(has_per_subtune_ovseed, names))
+    asm = asm.replace(
+        '; %%VOL_PROGRESS_INIT%%',
+        f'        sta {names.vol_progress}' if has_master_vol_fade else '')
     if uses_per_subtune_dispatch:
         asm = asm.replace(
-            '        lda #SPEED_CTR_INIT\n        sta speed_ctr',
-            '        ldy sub_tmp\n'
-            '        lda subSpeedCtrInit,y\n'
-            '        sta speed_ctr\n'
-            '        lda subIncBy2Step,y\n'
-            '        sta cur_incby2_step\n'
-            '        lda subIncBy2LateGate,y\n'
-            '        sta cur_incby2_late_gate')
+            f'        lda #SPEED_CTR_INIT\n        sta {names.speed_ctr}',
+            f'        ldy {names.sub_tmp}\n'
+            f'        lda subSpeedCtrInit,y\n'
+            f'        sta {names.speed_ctr}\n'
+            f'        lda subIncBy2Step,y\n'
+            f'        sta cur_incby2_step\n'
+            f'        lda subIncBy2LateGate,y\n'
+            f'        sta cur_incby2_late_gate')
     return asm
 
 
@@ -2223,7 +2261,8 @@ def _compose_hubbard_engine_body(
         '',
         _emit_hubbard_entry_stub(load_addr),
         '',
-        _emit_hubbard_init(has_per_subtune_ovseed=has_per_subtune_ovseed,
+        _emit_init_bp(HUBBARD_FX_NAMES,
+                       has_per_subtune_ovseed=has_per_subtune_ovseed,
                            has_master_vol_fade=has_master_vol_fade,
                            uses_per_subtune_dispatch=uses_per_subtune_dispatch),
         '',
