@@ -3292,9 +3292,17 @@ def _emit_combined_sid_bp(inputs: _Inputs, usf, digi_subs: list,
 
 
 def _emit_bitpack_bytes(usf, usf_dir) -> bytes:
-    """Hubbard '85 dispatch: build `_Inputs` from the USF, then either
-    `_emit_sid_bp` (music-only) or `_emit_combined_sid_bp` (when the
-    USF carries digi subtunes). Returns the PSID bytes."""
+    """Digi-only entry: build `_Inputs` from the USF, then route
+    through `_emit_combined_sid_bp` to compose the music engine + digi
+    region + sample blobs into a packed PSID.
+
+    The non-digi case used to route here too (via `_emit_sid_bp`); it
+    now goes through `emit_sid_from_usf`'s unified asm-then-PSID-wrap
+    pipeline. Digi stays separate because its orchestration is
+    structurally different (iterative auto-pack of music against the
+    digi dispatcher base, inline-load PSID encoding, sample-blob
+    assembly).
+    """
     import tempfile
     from src.usf import DigiSubtune
     from pipelines.hubbard.note_codec import BitPackCodec
@@ -3304,28 +3312,27 @@ def _emit_bitpack_bytes(usf, usf_dir) -> bytes:
     digi_subs = sorted(
         (s for s in usf.subtunes if isinstance(s, DigiSubtune)),
         key=lambda s: s.id)
+    assert digi_subs, '_emit_bitpack_bytes is now digi-only'
+
+    if usf_dir is None:
+        raise ValueError(
+            'USF has digi subtunes; emit_sid needs usf_dir to '
+            'locate sample FLAC sidecars')
+    name = usf.params.fields.get('digi_player') if usf.params else None
+    if name is None:
+        raise ValueError(
+            'USF has digi subtunes but no `digi_player` in params')
+    registry = _digi_player_registry()
+    if name not in registry:
+        raise ValueError(
+            f'unknown digi_player {name!r}; '
+            f'register in `_digi_player_registry`')
 
     with tempfile.NamedTemporaryFile(suffix='.sid', delete=False) as tmp:
         tmp_path = tmp.name
     try:
-        if not digi_subs:
-            _emit_sid_bp(inputs, tmp_path, codec)
-        else:
-            if usf_dir is None:
-                raise ValueError(
-                    'USF has digi subtunes; emit_sid needs usf_dir to '
-                    'locate sample FLAC sidecars')
-            name = usf.params.fields.get('digi_player') if usf.params else None
-            if name is None:
-                raise ValueError(
-                    'USF has digi subtunes but no `digi_player` in params')
-            registry = _digi_player_registry()
-            if name not in registry:
-                raise ValueError(
-                    f'unknown digi_player {name!r}; '
-                    f'register in `_digi_player_registry`')
-            _emit_combined_sid_bp(inputs, usf, digi_subs, registry[name],
-                                tmp_path, usf_dir, codec)
+        _emit_combined_sid_bp(inputs, usf, digi_subs, registry[name],
+                              tmp_path, usf_dir, codec)
         return open(tmp_path, 'rb').read()
     finally:
         if os.path.exists(tmp_path):
@@ -5550,28 +5557,47 @@ def _psid_header(model: EngineModel, n_subtunes: int, load: int) -> bytes:
 
 def emit_sid_from_usf(usf, usf_dir: str | None = None) -> bytes:
     from pipelines.engine_model import from_usf
+    from src.usf import DigiSubtune, MusicSubtune
     model = from_usf(usf)
 
-    # Dispatch: if the universal `emit_asm` chain can handle every
-    # feature in this model, use it; otherwise fall through to the
-    # bitpack-skeleton chain (`_emit_bitpack_bytes` → `_emit_sid_bp`
-    # → `_compose_engine_asm_bp` → the ~17 lifted `_emit_fx_*` /
-    # `_emit_*_bp` chunks). The bitpack chain currently handles the
-    # rich-feature USFs (per-instrument modulation, multi-pattern
-    # orderlists, SFX, state_layout) that `emit_asm` doesn't yet
-    # produce.
-    #
-    # `can_handle(model)` is the feature-based predicate — it lists
-    # the features `emit_asm` supports and answers "can I do this
-    # one?" The §8 endpoint is one composer that handles every
-    # feature combination on equal footing — i.e. the bitpack chain
-    # folds into `emit_asm` and the fall-through goes away. The
-    # per-feature lifts that make that possible have landed; the
-    # remaining work is growing `emit_asm` to subsume the bitpack
-    # path, after which `_emit_bitpack_bytes` retires.
-    if not can_handle(model):
+    # Digi USFs route through the bitpack-combined orchestrator: it owns
+    # the iterative auto-packing of music against the digi dispatcher,
+    # the sample-blob composition, and the inline-load PSID assembly.
+    # The unified asm-then-wrap pipeline below doesn't cover that
+    # shape — digi is a separate orchestration concern. Folding it in
+    # is a follow-on; the lifts done so far don't unblock it.
+    digi_subs = [s for s in usf.subtunes if isinstance(s, DigiSubtune)]
+    if digi_subs:
         return _emit_bitpack_bytes(usf, usf_dir)
 
+    # Non-digi: both the universal `emit_asm` chain and the bitpack
+    # chain produce asm; the assembly + PSID-wrap post-pipeline is
+    # shared. The dispatch on `can_handle(model)` is honest about
+    # what's happening — the universal chain handles every feature it
+    # advertises; the bitpack chain handles the rest (currently the
+    # rich-feature USFs: per-instrument modulation, multi-pattern
+    # orderlists, SFX, state_layout). The §8 endpoint is one chain
+    # that subsumes both; the work to get there is folding the
+    # bitpack chain into `emit_asm`'s feature-conditional dispatch.
+    if can_handle(model):
+        asm = _emit_asm_simple_shape(model, usf)
+    else:
+        asm = _emit_asm_bitpack(usf)
+
+    body = _assemble(asm)
+    # n_subtunes counts every selectable subtune. For simple-shape USFs
+    # that's just music. For bitpack USFs it includes SFX (selectable
+    # via PSID's subtune parameter).
+    n_subtunes = len([s for s in usf.subtunes
+                       if not isinstance(s, DigiSubtune)])
+    return _psid_header(model, n_subtunes=n_subtunes, load=LOAD) + body
+
+
+def _emit_asm_simple_shape(model, usf) -> str:
+    """asm gen for USFs the universal `emit_asm` chain handles —
+    builds per-subtune timbres + per-voice pattern bytes from the USF
+    and runs the existing 4-branch feature dispatch in `emit_asm`."""
+    from src.usf import MusicSubtune
     active = _active_voice_indices(model, usf=usf)
     if not active:
         raise NotImplementedError('USF has no active voices')
@@ -5582,7 +5608,6 @@ def emit_sid_from_usf(usf, usf_dir: str | None = None) -> bytes:
     # The ctrl byte's source depends on the model's `voices.ctrl_source`:
     # 'instrument_waveform' (most shapes) or 'init_voice_field'
     # (companion — ctrl_noGate is the per-voice InitVoice.ctrl byte).
-    from src.usf import MusicSubtune
     music = sorted(
         (s for s in usf.subtunes if isinstance(s, MusicSubtune)),
         key=lambda s: s.id)
@@ -5643,10 +5668,22 @@ def emit_sid_from_usf(usf, usf_dir: str | None = None) -> bytes:
         per_subtune_voice_patterns.append(pat_dict)
         per_subtune_voice_init_states.append(init_states)
 
-    asm = emit_asm(
+    return emit_asm(
         model, active,
         per_subtune_voice_timbres, per_subtune_voice_patterns,
         per_subtune_voice_init_states=(
             per_subtune_voice_init_states if is_pair else None))
-    body = _assemble(asm)
-    return _psid_header(model, n_subtunes=len(music), load=LOAD) + body
+
+
+def _emit_asm_bitpack(usf) -> str:
+    """asm gen for USFs the universal chain can't handle — produces
+    bitpack-skeleton asm via the lifted `_compose_engine_asm_bp`
+    chain. The intermediate `_Inputs` carrier is still here; folding
+    it into `model`-direct emission is a separate refactor."""
+    from pipelines.hubbard.note_codec import BitPackCodec
+    codec = BitPackCodec()
+    inputs = _inputs_from_usf(usf)
+    pat_order, pat_slot = _pattern_pool(inputs.scores)
+    pat_bytes, codec_extra = codec.encode(pat_order)
+    return _compose_engine_asm_bp(
+        inputs, codec, pat_slot, pat_bytes, codec_extra, load_addr=LOAD)
