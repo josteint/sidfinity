@@ -202,6 +202,9 @@ class FxNames:
     # Arp / note-start freq scratch — added Phase B step 4 (fx_arp lift)
     f_lo: str
     f_hi: str
+    # Drumslide names — added Phase B step 6 (fx_drumslide lift)
+    v_drumtrig: str
+    v_slidelo: str
 
 
 HUBBARD_FX_NAMES = FxNames(
@@ -240,6 +243,8 @@ HUBBARD_FX_NAMES = FxNames(
     it_hrctrl='it_hrctrl',
     f_lo='f_lo',
     f_hi='f_hi',
+    v_drumtrig='v_drumtrig',
+    v_slidelo='v_slidelo',
 )
 
 
@@ -609,56 +614,56 @@ def _emit_hubbard_ovseed(freq_bytes: bytes,
 # only when at least one instrument carries the drum_trig per-note
 # fx flag).
 
-_HUBBARD_FX_DRUMSLIDE_ASM = """; fx_drumslide - per-note portamento ($52B3-$52F9), effect #3. A note
+_FX_DRUMSLIDE_ASM_TEMPLATE = """; fx_drumslide - per-note portamento ($52B3-$52F9), effect #3. A note
 ; carrying a drum/porta trigger slides the running freq (v_slidelo /
 ; v_slide = $551D/$551A) by delta=trig&$7E each frame, dir=trig&$01.
 ; bit7 of the trigger is no_release - mask it off before the run test.
 fx_drumslide:
-        lda v_drumtrig,x
+        lda {v_drumtrig},x
         and #$7f
         beq fxd_ret
         and #$7e             ; delta
-        sta pwm_tmp
-        lda v_drumtrig,x
+        sta {pwm_tmp}
+        lda {v_drumtrig},x
         and #$01
         bne fxd_down
-        lda v_slidelo,x      ; slide up
+        lda {v_slidelo},x      ; slide up
         clc
-        adc pwm_tmp
-        sta v_slidelo,x
-        lda v_slide,x
+        adc {pwm_tmp}
+        sta {v_slidelo},x
+        lda {v_slide},x
         adc #$00
-        sta v_slide,x
+        sta {v_slide},x
         jmp fxd_wr
 fxd_down:
-        lda v_slidelo,x      ; slide down
+        lda {v_slidelo},x      ; slide down
         sec
-        sbc pwm_tmp
-        sta v_slidelo,x
-        lda v_slide,x
+        sbc {pwm_tmp}
+        sta {v_slidelo},x
+        lda {v_slide},x
         sbc #$00
-        sta v_slide,x
+        sta {v_slide},x
 fxd_wr:
-        ldy sidoff
-        lda v_slidelo,x
+        ldy {sidoff}
+        lda {v_slidelo},x
         sta $d400,y          ; freq_lo
-        lda v_slide,x
+        lda {v_slide},x
         sta $d401,y          ; freq_hi
 fxd_ret: rts"""
 
 
-def _emit_hubbard_fx_drumslide() -> str:
+def _emit_fx_drumslide(names: FxNames) -> str:
     """fx_drumslide routine — per-note portamento (effect #3).
 
     A note carrying a drum/porta trigger slides the running freq each
     frame by delta = trig & $7E, dir = trig & $01. bit-7 of the
-    trigger is no_release (masked off before the run test).
+    trigger is no_release (masked off before the run test). Borrows
+    `pwm_tmp` as scratch (fx_drumslide and fx_pwm don't run
+    concurrently within a voice's do_effects chain).
 
-    Today: always emitted (the ENGINE template's `do_effects:` chain
-    unconditionally calls `jsr fx_drumslide`). Future: emit only when
-    any instrument uses drum_trig.
+    Skeleton-agnostic: parameterised over `names: FxNames`.
     """
-    return _HUBBARD_FX_DRUMSLIDE_ASM
+    return _FX_DRUMSLIDE_ASM_TEMPLATE.format(**asdict(names))
 
 
 _FX_INCBY2_ASM_TEMPLATE = """; fx_incby2 - bit1. odd-frame slide on v_slide, write OLD value then
@@ -2130,7 +2135,7 @@ def _compose_hubbard_engine_body(
         '',
         _emit_hubbard_do_effects(),
         '',
-        _emit_hubbard_fx_drumslide(),
+        _emit_fx_drumslide(HUBBARD_FX_NAMES),
         '',
         _emit_fx_incby2(
             HUBBARD_FX_NAMES,
