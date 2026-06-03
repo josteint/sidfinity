@@ -3713,66 +3713,6 @@ def _emit_master_vol_fade(fade: 'FadeProgressive | None') -> dict[str, str]:
     }
 
 
-def _needs_bitpack_path(usf, model: EngineModel) -> bool:
-    """Return True iff the USF carries features the simple-shape
-    `emit_asm` branches can't currently produce — routed instead
-    through the bitpack-skeleton chain (`_emit_bitpack_bytes` →
-    `_emit_sid_bp` → `_compose_engine_asm_bp` → the lifted
-    `_emit_fx_*` / `_emit_*_bp` chunks).
-
-    Content signals (each independent — the composer reads which
-    features the music uses, NOT which engine produced it; see §8 of
-    `docs/usf_representation_principle.md`):
-
-      * any instrument has a per-frame modulation program (vibrato,
-        PWM modes, multi-step arpeggio, freq-hi slide, odd-frame slide,
-        per-note portamento)
-      * any voice references multiple patterns through its orderlist
-        (the simple-shape branches only handle a single pattern per
-        voice)
-      * the USF carries SFX or digi subtunes
-      * the USF carries a `state_layout` block (off-table arpeggio
-        state mirror)
-
-    A USF that doesn't trip any of these uses `emit_asm`'s
-    simple-shape branches directly.
-
-    Honest caveat: there's currently exactly one consumer of the
-    True branch (the bitpack skeleton's chunked chain). Per §8 that's
-    a cover-story risk — until `emit_asm` grows a 5th branch that
-    subsumes the bitpack path, the discriminator is structurally
-    feature-named but pragmatically routes uniformly to one
-    skeleton. The endpoint is dissolving this function and inlining
-    the dispatch into `emit_asm`.
-    """
-    # Per-instrument modulation programs
-    for inst in model.instruments:
-        if (inst.vibrato or inst.pwm_linear or inst.pwm_bidirectional
-                or inst.arpeggio or inst.freq_hi_slide
-                or inst.odd_frame_slide or inst.per_note_portamento):
-            return True
-    # Multi-pattern orderlists
-    from src.usf import MusicSubtune
-    for s in usf.subtunes:
-        if not isinstance(s, MusicSubtune):
-            continue
-        for v in s.voices:
-            entries = v.orderlist.entries
-            if len(entries) > 1 or any(e != 1 for e in entries):
-                return True
-            for p in v.patterns:
-                if p.id != 1:
-                    return True
-    # SFX / digi / state_layout — model carries them as Optional features
-    if model.sfx is not None:
-        return True
-    if model.digi is not None:
-        return True
-    if model.state_layout is not None:
-        return True
-    return False
-
-
 def can_handle(model: EngineModel) -> bool:
     """Does the composer have emitters for every feature in this model?"""
     if model.pattern.encoding not in _SUPPORTED_PATTERN_ENCODINGS:
@@ -5612,28 +5552,25 @@ def emit_sid_from_usf(usf, usf_dir: str | None = None) -> bytes:
     from pipelines.engine_model import from_usf
     model = from_usf(usf)
 
-    # Bitpack-skeleton dispatch: the bitpack pattern codec + full
-    # per-instrument modulation pipeline + SFX/digi sub-engines together
-    # require a structurally different player than the simple-shape
-    # emitters in `emit_asm` produce. USFs that carry any of these
-    # features (per `_needs_bitpack_path`) route to the bitpack
-    # skeleton's chunked emitters (`_emit_bitpack_bytes` →
-    # `_emit_sid_bp` → `_compose_engine_asm_bp` → the ~17 lifted
-    # `_emit_fx_*` / `_emit_*_bp` chunks).
+    # Dispatch: if the universal `emit_asm` chain can handle every
+    # feature in this model, use it; otherwise fall through to the
+    # bitpack-skeleton chain (`_emit_bitpack_bytes` → `_emit_sid_bp`
+    # → `_compose_engine_asm_bp` → the ~17 lifted `_emit_fx_*` /
+    # `_emit_*_bp` chunks). The bitpack chain currently handles the
+    # rich-feature USFs (per-instrument modulation, multi-pattern
+    # orderlists, SFX, state_layout) that `emit_asm` doesn't yet
+    # produce.
     #
-    # The discriminator is structural (presence of features the
-    # simple-shape path can't produce). It is NOT engine identification:
-    # any future skeleton that grows the same features and supplies its
-    # own FxNames context could host the same chunks. The §8 endpoint
-    # is to dissolve this dispatch entirely — `emit_asm` grows a 5th
-    # branch that subsumes the bitpack path — but the per-feature
-    # lifts that make that possible landed first.
-    if _needs_bitpack_path(usf, model):
-        return _emit_bitpack_bytes(usf, usf_dir)
-
+    # `can_handle(model)` is the feature-based predicate — it lists
+    # the features `emit_asm` supports and answers "can I do this
+    # one?" The §8 endpoint is one composer that handles every
+    # feature combination on equal footing — i.e. the bitpack chain
+    # folds into `emit_asm` and the fall-through goes away. The
+    # per-feature lifts that make that possible have landed; the
+    # remaining work is growing `emit_asm` to subsume the bitpack
+    # path, after which `_emit_bitpack_bytes` retires.
     if not can_handle(model):
-        raise NotImplementedError(
-            'composer cannot handle this USF yet — fall through to legacy')
+        return _emit_bitpack_bytes(usf, usf_dir)
 
     active = _active_voice_indices(model, usf=usf)
     if not active:
