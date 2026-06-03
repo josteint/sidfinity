@@ -10,7 +10,7 @@ To get there, we first have to take ~60,000 existing SID files from the [HVSC ar
 
 A `.sid` file isn't audio. It isn't notes-and-instruments either. It's **6502 machine code** — a tiny program that, when run on a Commodore 64, writes registers to the SID sound chip 50 times a second.
 
-That means *every SID file is its own music player*. There is no standard music format underneath. Different composers used different "engines": Rob Hubbard's player, GoatTracker, JCH NewPlayer, DMC, Galway, Cybertracker, [dozens more](deprecated/research_docs/players/). Each engine has its own custom binary layout for the music data — instruments, note patterns, orderlists — that *only that engine's player code* knows how to interpret. From the outside, every SID is a black box.
+That means *every SID file is its own music player*. There is no standard music format underneath. Different composers used different "engines": Rob Hubbard's player, GoatTracker, JCH NewPlayer, DMC, Galway, Cybertracker, [dozens more](pipelines/). Each engine has its own custom binary layout for the music data — instruments, note patterns, orderlists — that *only that engine's player code* knows how to interpret. From the outside, every SID is a black box.
 
 This makes machine-learning on SIDs awkward. You can't train on raw bytes — they don't have shared structure. You need to first translate every black box into a common language. That's hard for several reasons.
 
@@ -25,7 +25,7 @@ This makes machine-learning on SIDs awkward. You can't train on raw bytes — th
 
 If your converter doesn't replicate these quirks, the rebuilt song *plays the right notes but sounds wrong*. We found all of those by listening, not by reading code. A typical bug report from the user listening to a candidate rebuild was *"sounds a bit washed out, like the lead voice is afraid of being itself."* That turned out to be a 32-frame stretch where one specific instrument byte was being misread, swapping a lead instrument for a bass instrument's envelope. Frame-by-frame register comparison hadn't caught it; the ear did.
 
-**Different engines have entirely different quirks.** Hubbard's quirks aren't GoatTracker's quirks. The drum noise burst, the aliased freq table, the per-voice PWM direction — those are Hubbard-specific. GoatTracker has its own set we haven't fully surveyed.
+**Different engines have entirely different quirks.** Hubbard's quirks aren't Bowden's, which aren't GoatTracker's. We're now two engine families in, and each family has surfaced its own family-specific tricks. A second family validating the approach was a major milestone — but it's still only two of the ~5–10 families needed to cover HVSC.
 
 **60,000 files.** Even if each engine takes a couple of weeks, ~5–10 engines will cover most of the catalogue. The trick is getting each one *right*, because subtle errors compound: a model trained on subtly wrong data learns subtly wrong music.
 
@@ -33,87 +33,84 @@ If your converter doesn't replicate these quirks, the rebuilt song *plays the ri
 
 ## How we approach it
 
-The architectural bet: **engine quirks live as *data*, not as code branches**.
+The architectural bet: **engine mechanism stays out of the universal format; only the musical content goes in.**
 
 ```
-  any SID  ──►  decompiler   ──►  USF song   ──►  universal codegen   ──►  rebuilt SID
-              (engine-spec.)     (universal)         (universal)
+  any SID  ──►  per-engine extract  ──►  USF song  ──►  shared composer  ──►  rebuilt SID
+              (binary → musical data)   (universal)        (universal)
 ```
 
 What's universal:
 
-- **One format**, USF (Universal Symbolic Format). It describes notes, patterns, instruments, effects in engine-neutral terms. The on-disk USF grammar and reader/writer live in [`src/usf/`](src/usf/); the spec is in [`docs/usf_format.md`](docs/usf_format.md).
-- **One codegen per engine**. Each pipeline's `Codegen.lean` reads its USF song and emits 6502. There are no `if engine == Hubbard:` branches anywhere; engine-specific behaviour lives in the USF data + per-pipeline codegen, not in shared conditionals.
+- **One format**, USF (Unified SID Format) — engine-name-blind, self-contained. It describes notes, patterns, instruments, effects in engine-neutral terms. The reader/writer lives in [`src/usf/`](src/usf/); the spec is in [`docs/usf_format.md`](docs/usf_format.md); the representation principle ([`docs/usf_representation_principle.md`](docs/usf_representation_principle.md)) is load-bearing for any schema change.
+- **One composer**, [`pipelines/composer.py`](pipelines/composer.py) (~5,300 lines). 18 routine-chunk emitters + data emitters + USF-to-input adapters, parameterised by typed feature dataclasses (`StateLayoutMirror`, `FadeProgressive`, `SubtuneSpec`, …). No `if engine == "Hubbard"` branches anywhere; engine-specific behaviour is data on `EngineConfig`, never a code path.
 
 What's per-engine:
 
-- **A decompiler** that knows how to parse that engine's binary layout (e.g. `rh_decompile.py` for Hubbard).
-- **An adapter** that lifts the engine-specific data into USF and *attaches a quirks block*: a declarative `engineQuirks` description of what that engine's player does that's unusual. The codegen iterates that block and emits the appropriate 6502 sequences mechanically.
+- **An extract** that knows how to parse that engine's binary layout (e.g. `pipelines/hubbard/commando/extract/`).
+- **A typed config** that captures the engine's quirks declaratively (per-engine `config.py` + `engine_constants.py`).
 
-So when we hit "the drum needs a 3-frame `$80` burst," that goes into the song's `engineQuirks` as a few lines of data, not a branch in the codegen. When we hit "freq slot 104 should alias voice 1's ctrl byte," that's a `dynamicFreqEntries` entry in the quirks block. The codegen reads the quirks block once at compile time and emits the per-frame 6502 that implements them.
-
-Adding a new engine should mean: write a decompiler + write an adapter + spell out that engine's quirks. The codegen and Lean infrastructure shouldn't change. Whether that ambition holds up under contact with a *second* engine is one of the next things to find out.
-
-### Note on Lean (historical, 2026-05)
-
-Earlier the schema and codegen were written in [Lean 4](https://lean-lang.org/),
-one self-contained codegen per engine. The Lean trees and Lake build have been
-moved to [`deprecated/lean_codegen/`](deprecated/lean_codegen/). The active
-codegen is now a shared Python core (`pipelines/codegen.py`)
-parameterised by per-engine `EngineConfig` objects — adding a new engine no
-longer involves writing Lean. The 12 byte-exact Hubbard engines all share this
-single codegen. See `deprecated/lean_codegen/README.md` for what the Lean path
-looked like and how to revive it if needed.
+The bet that "every engine quirk reduces to typed musical data" has held up so far. The Human Race migration is a small case study: it surfaced five new effects (downslide, drumarp, skydive, PWmode, per-note slide) — all five collapsed cleanly into shared-core effects (`freq_slide`, `fx_arp`, `fx_incby2`, `fx_pwm`, `fx_drumslide`) without growing the schema.
 
 ## Where we are
 
-**Validated end-to-end on two songs, same engine family.**
+**130 subtunes byte-exact across two engine families** (as of June 2026):
 
-- Rob Hubbard's *Commando* — all three music subtunes — round-trips into a single multi-subtune SID file that's audibly indistinguishable from the original. Frame-by-frame register comparison is byte-perfect against the original via siddump writelog. Rebuild md5 `1964b77e8b542a5187fdd0a6db2d0186` is locked in.
-- Rob Hubbard's *Monty on the Run* — the three music tracks — Grade A (98.8% snapshot match in siddump, **zero divergence over 1500 frames in py65**). The remaining gap is libsidplayfp emulator-internals (CIA timer, cycle-exact bus contention), not codegen bugs.
+- **Hubbard '85 family** — 12 engines, 71/71 subtunes byte-exact. Action Biker, Battle of Britain, Chimera (incl. 1-bit digi), Commando, Confuzion, Devils Galop, 5 Title Tunes, Human Race, Hunter Patrol, Monty on the Run, One Man and his Droid, Thing on a Spring.
+- **Companion family** — 44/44 subtunes byte-exact across six sub-engines. Hubbard's 1984 *Up, up & Away!*; the Bowden-canonical engine from the *Companion to the Commodore 64* type-in book (12 SIDs); Clever_Music (Fairlight, Gyroscope, plus the Back_to_the_Future banking trampoline variant); Henrys_House (single-voice); Yes_Tune (incl. Soldier_of_Fortune, 8 subtunes); Commodore_64_Music_Examples (15 subtunes across two bundled engine families).
 
-Adding Monty required cloning the entire pipeline (per [`pipelines/README.md`](pipelines/README.md)'s rationale) and discovering three more Hubbard quirks beyond Commando's: the skydive effect (fx_flags bit 1), pulsedelay/pulsedir initial state extracted from the binary (not the ACME source's `!by $00,$00,$00`), and a notenum/freq-table memory overlap that causes V2's vibrato to read V1's current notenum.
+`tools/regression.py` is the verdict. Cycle-strict instruction-stream verified via `siddump --writelog` (not just per-frame register snapshots).
 
-Getting Commando clean took finding five universal-Hubbard quirks; Monty added three more. None of those eight are SID-specific — they should apply to every Hubbard song in the early-engine family. Whether they actually do is what a third Hubbard SID would tell us.
-
-**An older GT2-only pipeline alongside.** Before V3 we built a separate Python pipeline targeted at GoatTracker V2 specifically. It reaches **4,968 Grade A** on GT2 SIDs with engine-specific code — works at scale, useful as a baseline, but doesn't share the V3 architecture and won't generalise. Long term we'd like to retire it; short term it's the only thing that handles GT2 at all.
+The verification path matters here. We compare per-frame `$D400–$D418` register snapshots from py65 (md5-exact) for the music engines, and switch to cycle-strict `siddump --writelog` comparison for digi (Chimera) and any tune where dispatch timing matters. py65 silently misses dispatch bugs — CIA timer, PSID speed — so any new engine also gets an ear-test in real sidplayfp before declaring done.
 
 ### Honest limitations
 
-- **The "universal codegen" claim is unproven outside the Hubbard early-engine family.** Until V3 runs on a non-Hubbard engine and Just Works, the architectural bet hasn't paid out. We've discovered eight Hubbard quirks across two songs; we don't know how many universal-GT2 quirks exist, or universal-JCH, or whether the schema is expressive enough to encode them all.
-- **Even within Hubbard, the two pipelines are clones, not a shared codegen.** Sharing them is gated on a third Hubbard song being wired through, so the abstraction is exercised by three cases instead of two.
-- **Subtunes 4+ of either game aren't round-tripping.** Most are sound effects that take a different code path in Hubbard's player; the others reuse music patterns at conflicting tempos and need a tick-based duration model we haven't built.
-- **Lean discipline catches a lot of bugs at compile time** (per-pipeline `Properties.lean`), **but the substantive proofs (round-trip soundness, schema completeness) aren't written.** Maybe 30% of Lean's potential value realised.
-- **Audio comparison via `siddump` has frame-boundary jitter** that masks real differences. Ear remains the final test, which doesn't scale.
+- **Two engine families is not five.** The next family (likely DMC or JCH NewPlayer) is the next real test of "the composer doesn't grow `if engine == ...` branches." Each new family probes the architecture differently.
+- **Some SIDs can't fit the principled USF at all.** The Jay_Derrett engine (25 SIDs) is aperiodic by design — voices never simultaneously realign, the song is conceptually infinite, and storing a finite trace requires either an arbitrary cut-off or sub-jump-table positional info that violates the representation principle. Those are listed in [`tools/excluded_sids.json`](tools/excluded_sids.json) and refused by the pipeline with a pointer back to the JSON.
+- **Quirk discovery is still manual.** We hand-discover quirks per engine via py65 tracing + listening. Auto-extracting them from a binary (symbolic execution, abstract interpretation) is the highest-leverage thing we don't have yet.
+- **The ear remains the final judge.** Frame-exact register comparison catches most things, cycle-strict instruction comparison catches more, but neither guarantees the audio sounds right. That doesn't scale to 60k files; we'll need a more automated signal eventually.
 
-### What's next, by leverage-per-effort
+### What's next
 
-1. **A third Hubbard SID through the existing pipeline structure.** Cheap; the right point to validate before merging the two clones into one. Likely candidate: Sanxion, Skate Crazy, or BMX Kidz.
-2. **Merge Commando + Monty into one parameterised pipeline.** Trade some duplication for a single source of truth — once we know the abstraction handles three engines, not two.
-3. **Auto-extract Hubbard quirks from any binary.** Right now we hand-discover quirks per song via py65 tracing. A tool that infers them (symbolic execution, abstract interpretation) drops "weeks per SID" to "hours". Highest-leverage item for HVSC scale.
-4. **Property tests on the codegen.** Cheap discipline win — `Properties.lean` exists per pipeline but the theorem set is thin. Catches "I forgot to handle this quirk variant" earlier.
-5. **Eventually: formal round-trip soundness proof for tracker music.** Months of work, but would let us convert HVSC at scale with machine-checked confidence rather than per-song listening.
+1. **A non-Hubbard, non-Companion engine family.** DMC, JCH NewPlayer, or Galway. Each new family is the next real test of the architecture; pick by HVSC coverage.
+2. **In-progress migrations.** Jay_Derrett (25 SIDs; scanner + 15/25 Type-A engine data dumped to JSON; USF schema + composer + verify still pending).
+3. **HVSC coverage queries.** [`hvsc84.db`](hvsc84.db) is the SQLite index — engine classification + per-SID build status. Drives "which engine should we pick next" by coverage / runtime.
+4. **Auto-quirk extraction.** Long-tail: symbolic execution over the original 6502 to surface engine quirks without hand-RE. Drops "weeks per engine" to "hours". The single biggest leverage point for HVSC scale.
 
 ## Pipelines
 
-Each Hubbard SID has a per-engine `pipelines/hubbard/<engine>/` directory;
-the shared 6502 codegen lives at `pipelines/hubbard/`. 12 engines are byte-exact
-through this path (Commando, Monty, Action Biker, Battle of Britain, Chimera,
-Confuzion, Devils Galop, 5 Title Tunes, Human Race, Hunter Patrol, One Man
-and his Droid, Thing on a Spring). See [`pipelines/README.md`](pipelines/README.md)
-for the full layout + run instructions.
+```
+pipelines/
+├── composer.py         The shared composer (~5,300 lines)
+├── build_from_usf.py   Public entry point
+├── engine_model.py     Typed feature dataclasses
+├── hubbard/            Hubbard '85 family — shared core + 12 per-engine subdirs
+│   ├── verify.py             per-frame snapshot verification
+│   ├── verify_cycle.py       cycle-strict instruction-stream verification
+│   ├── engine_constants.py   freq tables, digi player asm
+│   ├── note_codec.py         bitstream note encoder + decoder asm
+│   ├── inst_*.py             instrument modelling
+│   ├── sfx.py / sample.py / digi_pack.py / flac_io.py
+│   └── <engine>/             config.py + extract/{engine_model,to_usf}.py
+└── companion/          Companion family — shared core + 6 per-engine subdirs
+    ├── config.py / engine_constants.py / to_usf.py
+    └── <engine>/             config.py + extract/
+```
 
-Per pipeline:
+Adding a new Hubbard '85 engine is one `config.py` + one `extract/` package; the
+shared composer is unchanged. See the `migrate-hubbard-engine` skill at
+`.claude/skills/migrate-hubbard-engine/` for the full procedure, and
+[`pipelines/README.md`](pipelines/README.md) for the per-pipeline layout.
 
 | Step | File |
 |---|---|
-| 1. Parse Hubbard binary | `<engine>/extract/decompile.py` |
-| 2. Lift to engine model `(T, I, S)` | `<engine>/extract/engine_model.py` |
-| 3. Engine config / parameters | `<engine>/config.py` |
-| 4. Emit USF | `<engine>/extract/to_usf.py` |
-| 5. Generate 6502 player + PSID wrap | `pipelines/codegen.py` (shared) |
+| 1. Parse engine binary | `<family>/<engine>/extract/decompile.py` |
+| 2. Lift to engine model `(T, I, S)` | `<family>/<engine>/extract/engine_model.py` |
+| 3. Engine config / parameters | `<family>/<engine>/config.py` |
+| 4. Emit USF | `<family>/<engine>/extract/to_usf.py` |
+| 5. Compose 6502 player + PSID wrap | `pipelines/composer.py` (shared) |
 | 6. End-to-end build | `pipelines/build_from_usf.py` |
-| 7. Verify (byte-exact) | `pipelines/hubbard/verify.py` |
+| 7. Verify (byte-exact) | `pipelines/hubbard/verify.py` or `verify_cycle.py` |
 
 ## Build
 
@@ -121,60 +118,85 @@ Per pipeline:
 source src/env.sh                              # PATH for siddump etc.
 bash tools/build.sh                            # libsidplayfp + siddump (one-time)
 
-# Build one engine end-to-end (example: Chimera)
-python -m pipelines.hubbard.chimera.extract             # writes the .usf + FLAC sidecars
-python -c "from pipelines.build_from_usf import build_from_usf; \
-           build_from_usf('hvsc84/MUSICIANS/H/Hubbard_Rob/Chimera.usf', 'hvsc84/MUSICIANS/H/Hubbard_Rob/Chimera.sidfinity.sid')"
+# Full pipeline regression — Hubbard + Companion + C64ME (~130 subtunes)
+python3 tools/regression.py
 
-# Verify (byte-exact via md5 of per-frame SID register snapshots)
-python -c "from pipelines.hubbard.verify import verify_all; \
-           from pipelines.hubbard.chimera.config import CHIMERA; \
-           print(verify_all([(CHIMERA, 'hvsc84/MUSICIANS/H/Hubbard_Rob/Chimera.sidfinity.sid')]))"
+# Rebuild one engine end-to-end (example: Commando)
+python -c "
+from pipelines.hubbard.commando.extract.to_usf import write_commando_usf
+from pipelines.hubbard.commando.config import COMMANDO
+from pipelines.build_from_usf import build_from_usf
+write_commando_usf(COMMANDO, 'hvsc84/MUSICIANS/H/Hubbard_Rob')
+build_from_usf('hvsc84/MUSICIANS/H/Hubbard_Rob/Commando.usf',
+               'hvsc84/MUSICIANS/H/Hubbard_Rob/Commando.sidfinity.sid')
+"
 
-# Tests
-PYTHONPATH=tools/py_test_lib python -m pytest pipelines/        # extract smoke tests
+# Verify byte-exact (per-frame SID register md5)
+python -c "
+from pipelines.hubbard.verify import verify_all
+from pipelines.hubbard.commando.config import COMMANDO
+print(verify_all([(COMMANDO, 'hvsc84/MUSICIANS/H/Hubbard_Rob/Commando.sidfinity.sid')]))
+"
+
+# Extract smoke tests
+pytest pipelines/
 ```
 
-Requires: g++ (C++17), Python 3.10+, xa65 assembler. Optional: CUDA / Z3
-(only used by V2 pipeline tools).
+Requires: g++ (C++17), Python 3.10+. The xa65 assembler lives in-tree at
+`tools/xa65/xa/xa`.
 
-The earlier per-engine Lean 4 codegen has been moved to
-[`deprecated/lean_codegen/`](deprecated/lean_codegen/) — see that
-directory's README for context.
+## HVSC index — `hvsc84.db`
+
+A SQLite catalogue of every SID in `hvsc84/` with engine classification +
+per-SID build status. The pipeline updates it automatically (build →
+`sidfinity_md5`, USF write → `usf_path`, verify → `verify_*`). Initial
+populate / full rebuild via `tools/build_sid_db.py` (~20 s incremental).
+
+There's no `sqlite3` CLI on this system — query with Python:
+
+```python
+import sqlite3
+db = sqlite3.connect('hvsc84.db')
+for path, title in db.execute(
+    "SELECT path, title FROM sids "
+    "WHERE engine='Rob_Hubbard' AND pipeline IS NULL "
+    "ORDER BY songlength_s DESC LIMIT 10"
+): print(path, title)
+```
 
 ## Layout
 
 ```
-pipelines/                Per-engine V3 pipelines (see pipelines/README.md)
-  commando/               Rob Hubbard's Commando
-  monty/                  Rob Hubbard's Monty on the Run
-src/                      V2 pipeline + shared utilities
-  rh_decompile.py         Hubbard SID parser (also cloned into each pipeline)
-  gt2_*.py, dmc_*.py      V2 pipeline (GT2, DMC engines)
-  player/                 V2 6502 code generator + optimisation tools
-  sidxray/                Player reverse-engineering tools
-  formal/                 Research utilities (Z3, abstract interp, etc.)
-demo/                     Demo artefacts; build_das_model_<engine>.py emits readable asm
-docs/                     Specs (USF, GT2 data layout, player engine notes)
-tools/                    Build tools (xa65, siddump, libsidplayfp) + in-tree pytest/mypy
-deprecated/               Earlier pipeline iterations + dead experiments
+pipelines/         Active engines — hubbard/ (Hubbard '85) + companion/ + shared composer
+src/               USF grammar + reader/writer, shared utilities, exclusions, env.sh
+docs/              Specs — USF format, representation principle, init report, plan
+tools/             Build tools (xa65, siddump, libsidplayfp) + regression.py + excluded_sids.json
+hvsc84/            HVSC #84 collection (not in git, gitignored)
+hvsc84.db          SQLite index over HVSC (build status, engine classification)
+deprecated/        Earlier project phases — see deprecated/<topic>/README.md
 ```
+
+Earlier workstreams (pre-USF-v2 codegen, GT2 / GoatTracker pipeline, Lean 4
+codegen, USF v1 engines, Grade S/A/B/C/F bucketing tools, player
+reverse-engineering toolkit, accumulated research material) all live under
+`deprecated/<topic>/` with their own READMEs.
 
 ## Docs
 
-- [USF Specification](docs/usf_format.md)
-- [Development Plan](docs/PLAN.md)
-- [GT2 Data Layout](deprecated/gt2_pipeline/docs/gt2_data_layout.md)
-- [Player Engine Notes](deprecated/research_docs/players/) — 48 SID engines
+- [USF specification](docs/usf_format.md)
+- [USF representation principle](docs/usf_representation_principle.md) — load-bearing for any schema change
+- [SID init report](docs/sid_init_report.md) — empirical init trichotomy across HVSC
+- [Development plan](docs/PLAN.md)
+- [Per-engine research notes](pipelines/) — `pipelines/<engine>/docs/` for ~47 SID engines
 
 ## License
 
-The SIDfinity pipeline (Python code, USF format, V2 code generator) is released under the **MIT License**. See [LICENSE](LICENSE).
+The SIDfinity pipeline (Python code, USF format, composer) is released under
+the **MIT License**. See [LICENSE](LICENSE).
 
-The C/C++ tools (`siddump`, `sidrender`, `gt2asm`) link against GPL v2 libraries and are distributed under **GPL v2**. See [tools/LICENSE](tools/LICENSE).
+The C/C++ tools (`siddump`, `sidrender`) link against GPL v2 libraries and are
+distributed under **GPL v2**. See [tools/LICENSE](tools/LICENSE).
 
 ## Acknowledgments
-
-The V2 SIDfinity player implements algorithms from Lasse Öörni's GoatTracker V2 playroutine — wave table execution, effect dispatch, pattern reading, hard restart timing. The V2 code generator (`codegen_v2.py`) was written from scratch in Python but the player logic it generates faithfully follows Lasse Öörni's design. A copy of the original GT2 playroutine source is preserved in `deprecated/old_player/sidfinity_gt2.asm`. Lasse Öörni's license: *"free for any purpose, commercial or noncommercial."*
 
 [libsidplayfp](https://github.com/libsidplayfp/libsidplayfp) is used for SID emulation (GPL v2). [xa65](https://github.com/af65/xa65) is used for 6502 assembly (GPL v2).

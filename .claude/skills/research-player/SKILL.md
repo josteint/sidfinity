@@ -1,6 +1,6 @@
 ---
 name: research-player
-description: Research a C64 SID player engine online. Gathers documentation, source code, disassemblies, and format specs from CSDb, GitHub, Archive.org, forums, HVSC docs, and more. Saves everything to src/{player}/docs/.
+description: Research a C64 SID player engine online. Gathers documentation, source code, disassemblies, and format specs from CSDb, GitHub, Archive.org, forums, HVSC docs, and more. Saves everything to pipelines/<engine>/docs/.
 argument-hint: [player-name]
 user-invocable: true
 allowed-tools: Agent Bash Read Write Glob Grep WebFetch WebSearch
@@ -54,7 +54,7 @@ Before going online, check what we already have:
 
 ## Output
 
-Save everything useful to `src/$ARGUMENTS/docs/` as individual files with clear names:
+Save everything useful to `pipelines/<engine_snake_case>/docs/` as individual files with clear names:
 - `{source}_player_source.md` — actual player source code or disassembly
 - `{source}_format_spec.md` — data format specifications
 - `{source}_parser_notes.md` — notes from other tools' implementations
@@ -117,7 +117,7 @@ After all waves complete, assess what critical knowledge is still missing. Organ
 - **Probably unfillable online** — only discoverable through reverse engineering. These become the priority list for sidxray work.
 
 ### Phase 5: Save results
-Save each find as a separate file in `src/$ARGUMENTS/docs/`. Write a README.md summarizing:
+Save each find as a separate file in `pipelines/<engine_snake_case>/docs/`. Write a README.md summarizing:
 1. What was found (with quality assessment)
 2. What leads were followed and what they yielded
 3. What gaps remain and how to fill them

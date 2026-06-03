@@ -54,7 +54,7 @@ Player code is at 6502 minimum cycle counts (confirmed by Z3 SMT solver and GPU 
 
 1. **Register-level pipeline** — 100% lossless roundtrip on 56,936 PSID files (now in `deprecated/`)
 2. **Player identification** — sidid identifies 97.8% of HVSC (59,267/60,572 files, 758 signatures)
-3. **Player documentation** — 48 major engines documented in `deprecated/research_docs/players/`
+3. **Player documentation** — 48 major engines documented in `pipelines/&lt;engine&gt;/docs/`
 4. **Player behavior analysis** — 642 engines analyzed via cycle-accurate write logs
 5. **GT2 binary roundtrip** — 5,792/7,006 byte-for-byte matches (now in `deprecated/`)
 
@@ -131,7 +131,7 @@ Generate audio from original and SIDfinity SIDs using libsidplayfp:
 - Perceptual metric (loudness-weighted)
 - Use as validation and potentially training signal
 
-### Step 5: Universal Symbolic Format
+### Step 5: Unified SID Format
 
 Design tokenization for transformer training based on SIDfinity data structures:
 - Instrument definitions as token sequences
@@ -168,7 +168,7 @@ Extend coverage to remaining players:
 | `tools/siddump.cpp` | C++ register dumper with --writelog |
 | `deprecated/gt2_grading/data/player_analysis_all.json` | Behavior data for 642 players |
 | `deprecated/gt2_grading/data/sidid_full.txt` | Player ID for all 60,572 HVSC files |
-| `deprecated/research_docs/players/` | Documentation for 48 player engines |
+| `pipelines/&lt;engine&gt;/docs/` | Documentation for 48 player engines |
 
 ## Build Environment
 

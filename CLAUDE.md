@@ -4,7 +4,7 @@
 
 Build the SIDfinity universal SID music player and ML pipeline. Take the
 HVSC catalogue of ~60,000 C64 SID files and translate every engine's binary
-format into a single uniform symbolic representation (USF) — engine-neutral
+format into a single Unified SID Format (USF) — engine-neutral
 musical data that an ML model can learn from. See `docs/PLAN.md` for the
 roadmap.
 
@@ -251,8 +251,10 @@ own README. The most relevant ones to know about:
 - `deprecated/usf1_pipelines/` — engines and helpers that never moved
   off USF v1
 - `deprecated/sidxray/` — player reverse-engineering toolkit
-- `deprecated/research_docs/` — accumulated research material on the
-  Companion / Hubbard / DMC engines
+- `pipelines/<engine>/docs/` — per-engine research material (format
+  specs, disassemblies, version differences). Created via the
+  `research-player` skill. ~47 engine subdirs today, covering both
+  migrated engines and pre-migration research stash.
 
 Each `deprecated/<topic>/README.md` describes what's there and how to
 revive it if needed.
