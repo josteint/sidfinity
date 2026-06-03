@@ -631,7 +631,7 @@ def _fx_flags_byte(m) -> int:
             | (16 if m.pwm else 0))
 
 
-def _emit_hubbard_instrument_table(models) -> list[str]:
+def _emit_instrument_table(models) -> list[str]:
     """Hubbard '85's column-major instrument table.
 
     12 `it_*` tables, each indexed by instrument number. Row-major
@@ -678,7 +678,7 @@ def _emit_hubbard_instrument_table(models) -> list[str]:
     return lines
 
 
-def _emit_hubbard_pwseed_pwacc(models) -> list[str]:
+def _emit_pwseed_pwacc(models) -> list[str]:
     """Per-instrument PW seed + live accumulator.
 
     `pwseed`: the load-time pw_lo / pw_hi for each instrument.
@@ -707,7 +707,7 @@ _DEFAULT_SEED_OFFSETS = {
 }
 
 
-def _emit_hubbard_ovseed(freq_bytes: bytes,
+def _emit_ovseed(freq_bytes: bytes,
                           seed_overlap: bool,
                           seed_offsets: dict | None = None) -> list[str]:
     """Overlap seed — 18 bytes of per-voice initial state.
@@ -2350,7 +2350,7 @@ def _compose_hubbard_engine_body(
     return '\n'.join(parts)
 
 
-def _emit_hubbard_asm_equates(inputs, codec) -> str:
+def _emit_asm_equates(inputs, codec) -> str:
     """Header equates derived from `_Inputs` + the note codec.
 
     These are the compile-time constants the engine asm references —
@@ -2402,7 +2402,7 @@ def _pattern_pool(scores):
     return pat_order, pat_slot
 
 
-def _emit_hubbard_data(scores, models, freq_bytes, resetspds, voice_starts,
+def _emit_data_bp(scores, models, freq_bytes, resetspds, voice_starts,
                        sfx_list, pat_slot, pat_bytes, codec_extra,
                        seed_overlap: bool = True,
                        state_layout: StatebufLayout = None,
@@ -2424,27 +2424,27 @@ def _emit_hubbard_data(scores, models, freq_bytes, resetspds, voice_starts,
     if state_layout is None:
         state_layout = COMMANDO_STATEBUF_LAYOUT
     lines = []
-    lines.extend(_emit_hubbard_instrument_table(models))
-    lines.extend(_emit_hubbard_pwseed_pwacc(models))
-    lines.extend(_emit_hubbard_freq_table_data(freq_bytes))
-    lines.extend(_emit_hubbard_ovseed(freq_bytes, seed_overlap, seed_offsets))
+    lines.extend(_emit_instrument_table(models))
+    lines.extend(_emit_pwseed_pwacc(models))
+    lines.extend(_emit_freq_table_data(freq_bytes))
+    lines.extend(_emit_ovseed(freq_bytes, seed_overlap, seed_offsets))
     # patterns — each unique pattern emitted once; orderlists reference
     # them by a dense slot. Pattern indices are global, so the pool is
     # shared by all packed subtunes. The note codec serialises each
     # pattern (byte 0 = note count); the format is the codec's choice.
-    lines.extend(_emit_hubbard_pattern_pool(pat_bytes, codec_extra))
-    lines.extend(_emit_hubbard_orderlists(scores, pat_slot))
-    lines.extend(_emit_hubbard_per_subtune_tables(
+    lines.extend(_emit_pattern_pool(pat_bytes, codec_extra))
+    lines.extend(_emit_orderlists_bp(scores, pat_slot))
+    lines.extend(_emit_per_subtune_tables_bp(
         scores, resetspds, voice_starts))
-    lines.extend(_emit_hubbard_psp_tables(
+    lines.extend(_emit_psp_tables(
         len(scores),
         per_subtune_speed_ctr_init,
         per_subtune_incby2_step,
         per_subtune_incby2_late_gate))
-    lines.extend(_emit_hubbard_per_subtune_ovseed(per_subtune_ovseed))
-    lines.extend(_emit_hubbard_live_order_arrays())
-    lines.extend(_emit_hubbard_statebuf_data(state_layout))
-    lines.extend(_emit_hubbard_sfx_records(sfx_list))
+    lines.extend(_emit_per_subtune_ovseed(per_subtune_ovseed))
+    lines.extend(_emit_live_order_arrays())
+    lines.extend(_emit_statebuf_data(state_layout))
+    lines.extend(_emit_sfx_records(sfx_list))
     return '\n'.join(lines)
 
 
@@ -2519,7 +2519,7 @@ def _compose_hubbard_engine_asm(inputs, codec, pat_slot, pat_bytes,
         uses_per_subtune_dispatch=uses_psp,
         fade=fade,
         loop_silences_song=inputs.loop_silences_song)
-    data = _emit_hubbard_data(
+    data = _emit_data_bp(
         inputs.scores, inputs.models, inputs.freq_bytes,
         inputs.resetspds, inputs.voice_starts,
         inputs.sfx_list, pat_slot, pat_bytes, codec_extra,
@@ -2531,7 +2531,7 @@ def _compose_hubbard_engine_asm(inputs, codec, pat_slot, pat_bytes,
         per_subtune_incby2_late_gate=inputs.per_subtune_incby2_late_gate,
         per_subtune_ovseed=inputs.per_subtune_ovseed)
     return (
-        _emit_hubbard_asm_equates(inputs, codec)
+        _emit_asm_equates(inputs, codec)
         + codec.zp_asm + '\n'
         + body + '\n'
         + _resolve_codec_note_asm(codec, inputs) + '\n'
@@ -3332,7 +3332,7 @@ def _emit_hubbard85_bytes(usf, usf_dir) -> bytes:
             os.unlink(tmp_path)
 
 
-def _emit_hubbard_pattern_pool(pat_bytes: list[bytes],
+def _emit_pattern_pool(pat_bytes: list[bytes],
                                  codec_extra: str | None) -> list[str]:
     """Pattern pool — `pat0`, `pat1`, ... per unique pattern, plus the
     `pataddr_lo` / `pataddr_hi` lookup tables that map a dense pattern
@@ -3355,7 +3355,7 @@ def _emit_hubbard_pattern_pool(pat_bytes: list[bytes],
     return lines
 
 
-def _emit_hubbard_orderlists(scores, pat_slot: dict) -> list[str]:
+def _emit_orderlists_bp(scores, pat_slot: dict) -> list[str]:
     """Per-subtune × per-voice orderlists `order_S_V:`.
 
     `$FF` = loop to `orderLoop` (per-voice loop point); `$FE` = end
@@ -3376,7 +3376,7 @@ def _emit_hubbard_orderlists(scores, pat_slot: dict) -> list[str]:
     return lines
 
 
-def _emit_hubbard_per_subtune_tables(scores, resetspds, voice_starts) -> list[str]:
+def _emit_per_subtune_tables_bp(scores, resetspds, voice_starts) -> list[str]:
     """Per-subtune dispatch tables: `subOrderLo/Hi/Loop` (3 entries
     per subtune — one per voice), `subResetspd` (per-subtune tempo),
     `subVoiceStart` (which voice the dispatch loop starts at —
@@ -3396,7 +3396,7 @@ def _emit_hubbard_per_subtune_tables(scores, resetspds, voice_starts) -> list[st
     ]
 
 
-def _emit_hubbard_psp_tables(n_scores: int,
+def _emit_psp_tables(n_scores: int,
                               per_subtune_speed_ctr_init: list | None,
                               per_subtune_incby2_step: list | None,
                               per_subtune_incby2_late_gate: list | None
@@ -3420,7 +3420,7 @@ def _emit_hubbard_psp_tables(n_scores: int,
     ]
 
 
-def _emit_hubbard_per_subtune_ovseed(per_subtune_ovseed: list | None
+def _emit_per_subtune_ovseed(per_subtune_ovseed: list | None
                                       ) -> list[str]:
     """5TT per-subtune ovseed blocks + address lookup tables.
 
@@ -3444,7 +3444,7 @@ def _emit_hubbard_per_subtune_ovseed(per_subtune_ovseed: list | None
     return lines
 
 
-def _emit_hubbard_live_order_arrays() -> list[str]:
+def _emit_live_order_arrays() -> list[str]:
     """Live per-voice orderlist selection — filled by init from
     `subOrder*`. Zero-initialized at link time."""
     return [
@@ -3454,13 +3454,13 @@ def _emit_hubbard_live_order_arrays() -> list[str]:
     ]
 
 
-def _emit_hubbard_statebuf_data(layout: StatebufLayout) -> list[str]:
+def _emit_statebuf_data(layout: StatebufLayout) -> list[str]:
     """`statebuf:` data block label — uses `_statebuf_init_bytes` for
     the bytes themselves."""
     return [f'statebuf: .byt {_statebuf_init_bytes(layout)}']
 
 
-def _emit_hubbard_sfx_records(sfx_list) -> list[str]:
+def _emit_sfx_records(sfx_list) -> list[str]:
     """SFX records — 32 bytes each: V1[7], V2[7], start, end, rate,
     flags (bit0 direction, bit1 skip-V1, bit2 skip-both),
     v2_byte_offset, gate (bit7/6 toggle V1/V2). See `sfx_play`.
@@ -3482,7 +3482,7 @@ def _emit_hubbard_sfx_records(sfx_list) -> list[str]:
     return lines
 
 
-def _emit_hubbard_freq_table_data(freq_bytes: bytes) -> list[str]:
+def _emit_freq_table_data(freq_bytes: bytes) -> list[str]:
     """Emit Hubbard '85's `freqtab:` data block.
 
     Hubbard uses ONE label `freqtab` for both halves of the table
@@ -3649,7 +3649,7 @@ def _emit_master_vol_fade(fade: 'FadeProgressive | None') -> dict[str, str]:
 
     `fade is None` → all three sentinels expand to empty strings.
     The init-side `; %%VOL_PROGRESS_INIT%%` is resolved by
-    `_emit_hubbard_init(has_master_vol_fade=...)` directly.
+    `_emit_init_bp(has_master_vol_fade=...)` directly.
     """
     if fade is None:
         return {s: '' for s in _VOL_FADE_SENTINELS}
