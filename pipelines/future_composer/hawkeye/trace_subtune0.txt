@@ -1,0 +1,152 @@
+
+======================================================================
+Subtune 0  (10 frames)
+======================================================================
+load=$7AE0  init=$7AE0  play=$7AE3
+init: 572 steps
+
+State after init (only non-zero bytes in $90C5..$913B):
+  counter2         $FF $FF $FF
+
+Known SMC / global sites:
+  $7B99: $00  (testbyte (play dispatcher state))
+  $7AFE: $03  (speedbyte)
+  $910A: $00  (st2 scratch (or repeats?))
+  $9116: $00  (speedsto global counter)
+
+--- frame  0  (645 cycles) ---
+  variable changes:
+    tabcount         V0:$00->$02 V1:$00->$01 V2:$00->$03
+    begcount         V0:$00 V1:$00->$03 V2:$00
+    nootcount        V0:$00->$3F V1:$00 V2:$00->$3F
+    nootleng         V0:$00->$3F V1:$00 V2:$00->$3F
+    wavesto          V0:$00 V1:$00->$41 V2:$00
+    noho             V0:$00->$10 V1:$00->$37 V2:$00->$10
+    wavecount        V0:$00 V1:$00->$06 V2:$00
+    hinotesto        V0:$00->$02 V1:$00->$1A V2:$00->$02
+    hinotesto2       V0:$00->$02 V1:$00->$1A V2:$00->$02
+    lonotesto        V0:$00->$CC V1:$00->$9C V2:$00->$CC
+    pulsehisto       V0:$00 V1:$00->$08 V2:$00
+    pulsehitemp      V0:$00 V1:$00->$08 V2:$00
+    counter2         V0:$FF->$00 V1:$FF->$00 V2:$FF->$00
+    toneadd          V0:$00->$10 V1:$00->$10 V2:$00->$10
+    filter           V0:$00->$F0 V1:$00 V2:$00->$01
+    filtercount      V0:$00->$01 V1:$00->$01 V2:$00
+    speedsto         V0:$00->$03
+    stod404          V0:$00 V1:$00->$41 V2:$00
+  SID writes:
+    $D400: $00 -> $CC
+    $D401: $00 -> $02
+    $D407: $00 -> $9C
+    $D408: $00 -> $1A
+    $D40A: $00 -> $08
+    $D40B: $00 -> $41
+    $D40C: $00 -> $08
+    $D40D: $00 -> $6F
+    $D40E: $00 -> $CC
+    $D40F: $00 -> $02
+
+--- frame  1  (312 cycles) ---
+  variable changes:
+    noothoogt        V0:$00->$10 V1:$00->$37 V2:$00->$10
+    pulsestolo       V0:$00 V1:$00->$FF V2:$00
+    pulsecountup     V0:$00->$FF
+    counter2         V0:$00->$01 V1:$00->$01 V2:$00->$01
+    arpieokhi        V0:$00 V1:$00->$E0 V2:$00
+    speedsto         V0:$03->$02
+  SID writes:
+    $D409: $00 -> $FF
+    $D416: $00 -> $E0
+
+--- frame  2  (312 cycles) ---
+  variable changes:
+    pulsestolo       V0:$00 V1:$FF->$FE V2:$00
+    pulsehisto       V0:$00 V1:$08->$09 V2:$00
+    counter2         V0:$01->$02 V1:$01->$02 V2:$01->$02
+    speedsto         V0:$02->$01
+  SID writes:
+    $D409: $FF -> $FE
+    $D40A: $08 -> $09
+
+--- frame  3  (312 cycles) ---
+  variable changes:
+    pulsestolo       V0:$00 V1:$FE->$FD V2:$00
+    pulsehisto       V0:$00 V1:$09->$0A V2:$00
+    counter2         V0:$02->$03 V1:$02->$03 V2:$02->$03
+    speedsto         V0:$01->$00
+  SID writes:
+    $D409: $FE -> $FD
+    $D40A: $09 -> $0A
+
+--- frame  4  (333 cycles) ---
+  variable changes:
+    begcount         V0:$00 V1:$03->$05 V2:$00
+    nootcount        V0:$3F->$3E V1:$00 V2:$3F->$3E
+    noho             V0:$10 V1:$37->$2F V2:$10
+    hinotesto        V0:$02 V1:$1A->$10 V2:$02
+    hinotesto2       V0:$02 V1:$1A->$10 V2:$02
+    lonotesto        V0:$CC V1:$9C->$C3 V2:$CC
+    counter2         V0:$03->$04 V1:$03->$00 V2:$03->$04
+    arpieoklo        V0:$00 V1:$00 V2:$00->$03
+    speedsto         V0:$00->$03
+    strafil          V0:$00->$01
+  SID writes:
+    $D407: $9C -> $C3
+    $D408: $1A -> $10
+
+--- frame  5  (312 cycles) ---
+  variable changes:
+    noothoogt        V0:$10 V1:$37->$2F V2:$10
+    pulsestolo       V0:$00 V1:$FD->$FC V2:$00
+    pulsehisto       V0:$00 V1:$0A->$0B V2:$00
+    counter2         V0:$04->$05 V1:$00->$01 V2:$04->$05
+    speedsto         V0:$03->$02
+  SID writes:
+    $D409: $FD -> $FC
+    $D40A: $0A -> $0B
+
+--- frame  6  (312 cycles) ---
+  variable changes:
+    pulsestolo       V0:$00 V1:$FC->$FB V2:$00
+    pulsehisto       V0:$00 V1:$0B->$0C V2:$00
+    counter2         V0:$05->$06 V1:$01->$02 V2:$05->$06
+    speedsto         V0:$02->$01
+  SID writes:
+    $D409: $FC -> $FB
+    $D40A: $0B -> $0C
+
+--- frame  7  (312 cycles) ---
+  variable changes:
+    pulsestolo       V0:$00 V1:$FB->$FA V2:$00
+    pulsehisto       V0:$00 V1:$0C->$0D V2:$00
+    counter2         V0:$06->$07 V1:$02->$03 V2:$06->$07
+    speedsto         V0:$01->$00
+  SID writes:
+    $D409: $FB -> $FA
+    $D40A: $0C -> $0D
+
+--- frame  8  (333 cycles) ---
+  variable changes:
+    begcount         V0:$00 V1:$05->$07 V2:$00
+    nootcount        V0:$3E->$3D V1:$00 V2:$3E->$3D
+    noho             V0:$10 V1:$2F->$34 V2:$10
+    hinotesto        V0:$02 V1:$10->$16 V2:$02
+    hinotesto2       V0:$02 V1:$10->$16 V2:$02
+    lonotesto        V0:$CC V1:$C3->$60 V2:$CC
+    counter2         V0:$07->$08 V1:$03->$00 V2:$07->$08
+    speedsto         V0:$00->$03
+  SID writes:
+    $D407: $C3 -> $60
+    $D408: $10 -> $16
+
+--- frame  9  (316 cycles) ---
+  variable changes:
+    noothoogt        V0:$10 V1:$2F->$34 V2:$10
+    pulsestolo       V0:$00 V1:$FA->$F9 V2:$00
+    pulsehisto       V0:$00 V1:$0D->$0E V2:$00
+    counter2         V0:$08->$09 V1:$00->$01 V2:$08->$09
+    filtercount      V0:$01->$00 V1:$01 V2:$00
+    speedsto         V0:$03->$02
+  SID writes:
+    $D409: $FA -> $F9
+    $D40A: $0D -> $0E

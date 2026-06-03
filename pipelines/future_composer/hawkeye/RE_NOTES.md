@@ -101,13 +101,60 @@ with Cybernoid II is TODO — verify via py65 trace before extract**):
 | `$9138` | (unused / boundary) | 1 | |
 | `$9139..$913B` | `voiceinc` | 3 | wave-table advance step |
 
-⚠️ The above is a **best-guess mapping** based on Cybernoid II's
-sequential layout. The byte order may be permuted in Hawkeye (Tel
-sometimes reordered for cache layout). Verify by:
-1. Cross-reference each `$90XX,x` reference in `disassembly.s` against
-   the same access in Cybernoid II.
-2. Or py65-trace Hawkeye's init+first-frame, dump $90C5..$913B before
-   and after each frame, infer roles from update patterns.
+### Status after py65 trace + disassembly grep
+
+10-frame trace of subtune 0 saved in `trace_subtune0.txt` (script:
+`trace.py`).
+
+**Verified per-voice array bases** (from `STA $9XXX,x` writes in the
+disassembly — 32 distinct arrays):
+```
+$90C5, $90C8, $90CB, $90CE, $90D1, $90D4, $90D7, $90DA,
+$90DD, $90E0, $90E3, $90E6, $90E9, $90EC, $90EF, $90F2,   ← 16 contiguous, 0x30 bytes
+$90F6, $90F9,                                              ← 2 more
+$90FE, $9104, $9107, $910C,                                ← gap-separated
+$910F, $9112,
+$9118, $911B,                                              ← repeatsto, stod404
+$9127,
+$912B, $912E, $9133, $9136, $9139                          ← d400, d401, …, voiceinc
+```
+
+**Verified globals** (1-byte writes without ,X) at `$90F5`, `$90FD`,
+`$910A`, `$9116`, plus the SMC operand bytes at `$7B99` / `$7AFE` /
+`$7BAE`.
+
+**Role confirmations** (observed update pattern matches Cybernoid II
+semantics):
+- `counter2` at `$90F6` (offset 0x31) — incremented every frame for
+  all 3 voices. Init from $FF.
+- `speedsto` at `$9116` (global, 1 byte) — decremented per frame,
+  reloads to `speedbyte=$03` at rollover (= 4 frames per step).
+- `toneadd` at `$90F9` (offset 0x34) — set to $10 for all voices on
+  frame 0 (= transpose $10 from a $80+ sequence command).
+- `tabcount` at `$90C5` — advanced in frame 0 (V0=2, V1=1, V2=3 after
+  processing the leading sequence commands).
+- `begcount` at `$90C8` — pattern-read pos (V1 advanced 0→3→5 across
+  frames 0, 4).
+- `nootcount` at `$90CB` — note frames remaining ($3F = 63 → decrements).
+- `nootleng` at `$90CE` — total note length ($3F = 63 frames).
+- `wavesto` at `$90D1` — wave ctrl byte ($41 = pulse + gate for V1).
+- `hinotesto`/`hinotesto2`/`lonotesto` at `$90DD`/`$90E0`/`$90E3` —
+  pitch values written to SID FREQ regs.
+- `stod404` at `$911B` — V_CTRL mirror ($41 for V1's first note).
+
+**Role correction:** the offset-0x46 array (`$910B..$910D`) is actually
+**filter state**, not `arpieokhi`. The trace shows it set to $E0 in
+frame 1 simultaneously with `$D416 ← $E0` (filter cutoff hi). The
+"arpieok" label from Cybernoid II's per-voice region maps elsewhere
+in Hawkeye, or is unused.
+
+**Hawkeye vs Cybernoid II layout difference:** Hawkeye has `voiceinc`
+at $9139 (offset 0x74). Projecting Cybernoid II's sequence forward
+from `tabcount` would land `voiceinc` at offset 0x6A. So Hawkeye has
+~10 extra bytes inserted between `speedsto` ($9116) and `voiceinc`
+($9139). Those 10 bytes are Hawkeye-specific additions (filter
+state? extra vibrato?). The gap arrays at $9118/$911B/$9127 + the
+singleton $910A occupy that span.
 
 ## Sequence / pattern byte formats
 
