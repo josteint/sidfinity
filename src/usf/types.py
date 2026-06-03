@@ -178,6 +178,13 @@ class SfxSubtune:
     toggle_v2: bool = False
     skip_v1: bool = False
     skip_both: bool = False
+    # Per-SFX freqtab overlay carrying the byte values the sweep reads
+    # at offsets ≥ 192 — i.e. the V1/V2 frequencies this SFX emits when
+    # `sfx_y = (index*2) & $FF` lands past the 96-entry musical table,
+    # or when V2's `sfx_y - v2_offset` underflows into the upper region.
+    # Maps freqtab byte offset → byte value. Empty when the sweep stays
+    # within 0..191 throughout its run.
+    extended_freq: dict = field(default_factory=dict)
     kind: str = 'sfx'
 
 

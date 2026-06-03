@@ -211,6 +211,7 @@ sfx_field: "v1" ":" byte byte byte byte byte byte           -> sfx_v1
          | "sweep" ":" sfx_sweep_kv+                         -> sfx_sweep
          | "v2_offset" ":" byte                              -> sfx_v2_offset
          | "flags" ":" sfx_flag+                             -> sfx_flags
+         | "extended_freq" "{" ext_freq_entry+ "}"           -> sfx_extended_freq
 
 sfx_sweep_kv: "start" "=" byte             -> sfx_sweep_start
             | "end" "=" byte               -> sfx_sweep_end
@@ -221,6 +222,12 @@ sfx_flag: "toggle_v1"   -> sfx_flag_toggle_v1
         | "toggle_v2"   -> sfx_flag_toggle_v2
         | "skip_v1"     -> sfx_flag_skip_v1
         | "skip_both"   -> sfx_flag_skip_both
+
+// extended_freq — per-SFX freqtab overlay: `offset: value` pairs naming
+// the bytes the sweep reads when its index lands past the 96-entry
+// musical region (sfx_y ≥ 192, or V2 sweep_y underflows). The composer
+// overlays these onto the synthesized freq-table block before assembly.
+ext_freq_entry: byte ":" byte               -> ext_freq_pair
 
 // ----- common -----
 instr_ref: INSTR_ID             -> instr_id

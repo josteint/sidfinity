@@ -445,6 +445,12 @@ class _T(Transformer):
             flags[name] = True
         return ('_flags', flags)
 
+    def ext_freq_pair(self, items):
+        return (int(items[0]), int(items[1]))
+
+    def sfx_extended_freq(self, items):
+        return ('extended_freq', dict(items))
+
     def sfx_field(self, items):
         return items[0]
 

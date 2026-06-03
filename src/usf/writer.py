@@ -333,6 +333,11 @@ def _write_subtune(s) -> list[str]:
         if s.skip_both: flags.append('skip_both')
         if flags:
             lines.append('  flags: ' + ' '.join(flags))
+        if s.extended_freq:
+            lines.append('  extended_freq {')
+            for off in sorted(s.extended_freq):
+                lines.append(f'    {_hex(off)}: {_hex(s.extended_freq[off])}')
+            lines.append('  }')
         lines.append('}')
         return lines
     raise TypeError(f'unknown subtune type: {type(s).__name__}')

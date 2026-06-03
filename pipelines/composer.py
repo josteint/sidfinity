@@ -2540,9 +2540,10 @@ def _inputs_from_usf(usf) -> _Inputs:
     if usf.freq_table is None:
         raise ValueError(
             'Hubbard build requires a freq_table block in the USF')
-    if len(usf.freq_table) != 320:
+    if len(usf.freq_table) not in (192, 320):
         raise ValueError(
-            f'expected 320-byte freq_table, got {len(usf.freq_table)}')
+            'expected 192- or 320-byte freq_table, '
+            f'got {len(usf.freq_table)}')
 
     # Tune-level params with Commando-flavor defaults. Engines that
     # diverge from these set the field in the USF's params block.
@@ -2636,9 +2637,15 @@ def _inputs_from_usf(usf) -> _Inputs:
     sfx_list = [_soundeffect_from_usf(s, idx)
                 for idx, s in enumerate(sfx_subs)]
 
-    # Freq bytes: USF carries the canonical region; per-voice init
-    # overlay (when the USF still ships an init block) overrides.
+    # Freq bytes: USF carries the 192-byte musical PAL region (new
+    # schema) or the legacy 320-byte block (old schema, back-compat).
+    # In both cases we materialise a 320-byte buffer for downstream
+    # codegen: musical bytes at 0..191, then init.voice slots overlaid
+    # at the named offsets, then per-SFX extended_freq overlays applied
+    # at the offsets they declare.
     fb = bytearray(usf.freq_table)
+    if len(fb) == 192:
+        fb.extend(bytes(128))
     for v in usf.init.voices:
         i = v.id - 1
         fb[205 + i] = v.dur_field
@@ -2648,6 +2655,16 @@ def _inputs_from_usf(usf) -> _Inputs:
         fb[229 + i] = v.pwm_period
         fb[232 + i] = 0x00 if v.pwm_dir == 'up' else 0xFF
         fb[239 + i] = v.slide_v
+    # SFX extended_freq overlays — per-SFX bytes the sweep reads at
+    # offsets ≥ 192. The musical content of those SFX sweeps lives on
+    # the SFX subtune; the composer scatters them back onto its
+    # freq-table buffer at the declared offsets.
+    from src.usf import SfxSubtune
+    for s in usf.subtunes:
+        if isinstance(s, SfxSubtune):
+            for off, val in s.extended_freq.items():
+                if 192 <= off < 320:
+                    fb[off] = val & 0xFF
     freq_bytes = bytes(fb)
 
     # Optional state_layout (Human Race).

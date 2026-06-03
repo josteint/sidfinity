@@ -488,7 +488,56 @@ def _state_layout_dict(state_layout) -> dict | None:
 # the gate flags + v2_offset. Both are derived at codegen time.
 # ---------------------------------------------------------------------------
 
-def _convert_sfx(sfx, sfx_id: int) -> SfxSubtune:
+def _simulate_sfx_sweep_reads(sfx, freq_bytes: bytes,
+                              implicit_defaults: dict) -> dict:
+    """Replay the SFX sweep state machine; collect every freqtab read at
+    offset ≥ 192 (the engine-state region beyond the 96-entry musical
+    freq table). These bytes are the V1/V2 frequencies the SFX emits at
+    extreme sweep positions; the principled USF carries them on the SFX
+    that actually reads them.
+
+    Matches `_HUBBARD_SFX_STEP_ASM` in `pipelines/composer.py`:
+      - sfx_y = (index*2) & $FF
+      - V1 reads freqtab[sfx_y], freqtab[sfx_y+1] unless skip_v1/skip_both
+      - V2 reads freqtab[(sfx_y - v2_offset) & $FF], freqtab[...+1]
+      - direction=up: index += 1; down: index -= 1
+      - terminates when index == end_index (8-bit equality)
+
+    `implicit_defaults` maps offset → the byte the composer would place
+    there from init.voice slots (or 0 elsewhere). Entries equal to the
+    implicit default are dropped — the composer recovers them without
+    USF help.
+    """
+    overlay: dict[int, int] = {}
+    index = sfx.start_index & 0xFF
+    end = sfx.end_index & 0xFF
+    step = 1 if sfx.direction == 'up' else -1
+    for _ in range(257):
+        if index == end:
+            break
+        sfx_y = (index * 2) & 0xFF
+        if not sfx.skip_both:
+            # 6502 indexed reads use 16-bit address arithmetic for the
+            # `base+1, Y` form — `lda freqtab+1,y` with Y=$FF reads
+            # freqtab[256], not freqtab[0]. So the +1 read offsets are
+            # plain `y + 1`, not `(y + 1) & $FF`.
+            if not sfx.skip_v1:
+                for off in (sfx_y, sfx_y + 1):
+                    if 192 <= off < len(freq_bytes):
+                        overlay[off] = freq_bytes[off]
+            v2_y = (sfx_y - sfx.v2_byte_offset) & 0xFF
+            for off in (v2_y, v2_y + 1):
+                if 192 <= off < len(freq_bytes):
+                    overlay[off] = freq_bytes[off]
+        index = (index + step) & 0xFF
+    # Drop entries equal to the implicit default — those bytes are
+    # already supplied by init.voice overlay (or by the zero-pad).
+    return {off: val for off, val in overlay.items()
+            if val != implicit_defaults.get(off, 0)}
+
+
+def _convert_sfx(sfx, sfx_id: int, freq_bytes: bytes,
+                 implicit_defaults: dict) -> SfxSubtune:
     return SfxSubtune(
         id=sfx_id,
         v1=tuple(sfx.v1[1:7]),          # freq_hi, pw_lo, pw_hi, ctrl, ad, sr
@@ -502,6 +551,8 @@ def _convert_sfx(sfx, sfx_id: int) -> SfxSubtune:
         toggle_v2=sfx.toggle_v2,
         skip_v1=sfx.skip_v1,
         skip_both=sfx.skip_both,
+        extended_freq=_simulate_sfx_sweep_reads(
+            sfx, freq_bytes, implicit_defaults),
     )
 
 
@@ -530,9 +581,38 @@ def to_usf(config, extra_subtunes: list | None = None) -> UsfFile:
 
     psid = _read_psid_meta(config.sid_path)
     params = _params_from_config(config)
-    # Phase 3: per-voice init bytes are derivable from freq_bytes;
-    # emit an empty init block.
-    init = InitState(voices=[])
+
+    # Pull engine_constants up front — we need freq_bytes to (1) populate
+    # init.voice from named state-region slots and (2) simulate each
+    # SFX's sweep to capture extended_freq overlays.
+    ec = ENGINE_CONSTANTS.get(config.name)
+    state_layout = None
+    freq_bytes_normalised: bytes | None = None
+    if ec is not None:
+        freq_bytes_normalised = _normalize_freq_table(
+            ec.freq_bytes, ec.seed_offsets)
+        state_layout = _state_layout_dict(ec.state_layout)
+
+    # Init.voice — populate from the six named state-region offsets
+    # (canonical positions after _normalize_freq_table). Composer
+    # overlays these onto its synthesized freq-table block.
+    if freq_bytes_normalised is not None:
+        init_voices = []
+        for i in range(3):
+            init_voices.append(InitVoice(
+                id=i + 1,
+                dur_field=freq_bytes_normalised[205 + i],
+                ctrl=freq_bytes_normalised[208 + i],
+                instr=InstrumentRef(
+                    id=(freq_bytes_normalised[214 + i] & 0xFF) + 1),
+                pwm_period=freq_bytes_normalised[229 + i],
+                pwm_dir=('up' if freq_bytes_normalised[232 + i] == 0
+                         else 'down'),
+                slide_v=freq_bytes_normalised[239 + i],
+            ))
+        init = InitState(voices=init_voices)
+    else:
+        init = InitState(voices=[])
 
     models = decode_all(config.sid_path, config.instr_base,
                         config.instr_count, config.arp_interval,
@@ -550,22 +630,39 @@ def to_usf(config, extra_subtunes: list | None = None) -> UsfFile:
     sfx_subtunes = []
     if config.has_sfx and config.extract_sfx is not None:
         sfx_list, _ = config.extract_sfx(config.sid_path)
+        sfx_freq = (bytes(freq_bytes_normalised) if freq_bytes_normalised
+                    is not None else b'\x00' * 320)
+        # implicit_defaults: the bytes the composer will already place
+        # via init.voice overlay (everything else is 0 from zero-pad).
+        # SFX entries equal to these defaults are dropped — no need to
+        # carry them in USF, the composer already produces them.
+        implicit_defaults: dict[int, int] = {}
+        for v in init.voices:
+            i = v.id - 1
+            implicit_defaults[205 + i] = v.dur_field
+            implicit_defaults[208 + i] = v.ctrl
+            if v.instr is not None:
+                implicit_defaults[214 + i] = (v.instr.id - 1) & 0xFF
+            implicit_defaults[229 + i] = v.pwm_period
+            implicit_defaults[232 + i] = 0 if v.pwm_dir == 'up' else 0xFF
+            implicit_defaults[239 + i] = v.slide_v
         for offset, sfx in enumerate(sfx_list):
             sfx_id = len(config.subtunes) + offset
-            sfx_subtunes.append(_convert_sfx(sfx, sfx_id))
+            sfx_subtunes.append(_convert_sfx(
+                sfx, sfx_id, sfx_freq, implicit_defaults))
 
     subtunes = music_subtunes + sfx_subtunes + list(extra_subtunes or [])
 
-    # Pull freq_table and state_layout from engine_constants. Engines
-    # without a registered EngineConstants entry produce a USF without
-    # these blocks (rare path used by tests).
-    ec = ENGINE_CONSTANTS.get(config.name)
+    # USF freq_table: just the 192-byte musical PAL prefix. The
+    # state-region tail (offsets 192..319) is now decomposed into
+    # init.voice slots (named musical content) + per-SFX extended_freq
+    # overlays (the SFX-sweep musical content) + dropped engine
+    # mechanism / dead bytes. See `docs/usf_representation_principle.md`
+    # — bytes that aren't read by the rebuild aren't music, so they
+    # leave USF.
     freq_table = None
-    state_layout = None
-    if ec is not None:
-        freq_table = list(_normalize_freq_table(ec.freq_bytes,
-                                                 ec.seed_offsets))
-        state_layout = _state_layout_dict(ec.state_layout)
+    if freq_bytes_normalised is not None:
+        freq_table = list(freq_bytes_normalised[:192])
         # Per-subtune voice_start.
         for ms in music_subtunes:
             vs = ec.voice_starts.get(ms.id, None)
