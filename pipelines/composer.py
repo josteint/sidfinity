@@ -398,6 +398,7 @@ def _emit_ns_offtab_decr(decr_offset: int | None) -> str:
 
 
 def _emit_incby2_late_gate(threshold: int | None,
+                            names: 'FxNames | None' = None,
                             per_subtune_zp_var: bool = False) -> str:
     """fx_incby2 late-gate: only fire when `v_dur < threshold`.
 
@@ -410,13 +411,17 @@ def _emit_incby2_late_gate(threshold: int | None,
     When neither applies (`threshold=None`, `per_subtune_zp_var=False`),
     returns the empty string — the engine's incby2 fx fires
     unconditionally on the configured frame phase.
+
+    `names` is consumed for the `v_dur` reference; when None (legacy
+    callers), falls back to the literal `v_dur`.
     """
     if not per_subtune_zp_var and threshold is None:
         return ''
+    v_dur_ref = names.v_dur if names is not None else 'v_dur'
     cmp_line = ('        cmp cur_incby2_late_gate' if per_subtune_zp_var
                 else f'        cmp #{threshold}')
     return (
-        '        lda v_dur,x\n'
+        f'        lda {v_dur_ref},x\n'
         f'{cmp_line}\n'
         '        bcs fxi_ret          ; v_dur >= late_gate -> skip'
     )
@@ -656,37 +661,38 @@ def _emit_hubbard_fx_drumslide() -> str:
     return _HUBBARD_FX_DRUMSLIDE_ASM
 
 
-_HUBBARD_FX_INCBY2_ASM = """; fx_incby2 - bit1. odd-frame slide on v_slide, write OLD value then
+_FX_INCBY2_ASM_TEMPLATE = """; fx_incby2 - bit1. odd-frame slide on v_slide, write OLD value then
 ; step. The optional %%INCBY2_LATE_GATE%% sentinel below is replaced
 ; at codegen time with a `v_dur >= N -> skip` check for engines like
 ; Hunter Patrol whose skydive only fires in the tail of long notes.
 fx_incby2:
-        ldy instoff
-        lda it_fx,y
+        ldy {instoff}
+        lda {it_fx},y
         and #$02
         beq fxi_ret
-        lda v_durfield,x
+        lda {v_durfield},x
         cmp #INCBY2_ONSET
         bcc fxi_ret
 ; %%INCBY2_LATE_GATE%%
-        lda frame_ctr
+        lda {frame_ctr}
         and #$01
         ora #INCBY2_ALWAYS   ; 1 -> runs every frame
         beq fxi_ret
-        lda v_slide,x
+        lda {v_slide},x
         beq fxi_ret
-        ldy sidoff
-        lda v_slide,x
+        ldy {sidoff}
+        lda {v_slide},x
         sta $d401,y          ; write OLD slide value
-        lda v_slide,x
+        lda {v_slide},x
         clc
         adc #INCBY2_STEP
-        sta v_slide,x
+        sta {v_slide},x
 fxi_ret: rts"""
 
 
-def _emit_hubbard_fx_incby2(incby2_late_gate: int | None = None,
-                            uses_per_subtune_dispatch: bool = False) -> str:
+def _emit_fx_incby2(names: FxNames,
+                    incby2_late_gate: int | None = None,
+                    uses_per_subtune_dispatch: bool = False) -> str:
     """fx_incby2 routine — fx-flag bit 1, odd-frame freq-hi slide.
 
     Engine reads `v_slide`, writes the OLD value to freq_hi, then
@@ -702,16 +708,22 @@ def _emit_hubbard_fx_incby2(incby2_late_gate: int | None = None,
         (per-subtune table) and the step ADC reads from
         `cur_incby2_step` instead of the compile-time `INCBY2_STEP`
         equate.
+
+    Skeleton-agnostic: parameterised over `names: FxNames`. The host
+    skeleton must emit `INCBY2_ONSET` / `INCBY2_ALWAYS` /
+    `INCBY2_STEP` equates, and (if per-subtune dispatch is requested)
+    allocate the `cur_incby2_late_gate` / `cur_incby2_step` zp slots.
     """
-    asm = _HUBBARD_FX_INCBY2_ASM
+    asm = _FX_INCBY2_ASM_TEMPLATE.format(**asdict(names))
     if uses_per_subtune_dispatch:
         asm = asm.replace('; %%INCBY2_LATE_GATE%%',
-                          _emit_incby2_late_gate(None, per_subtune_zp_var=True))
+                          _emit_incby2_late_gate(
+                              None, names, per_subtune_zp_var=True))
         asm = asm.replace('        adc #INCBY2_STEP',
                           '        adc cur_incby2_step')
     else:
         asm = asm.replace('; %%INCBY2_LATE_GATE%%',
-                          _emit_incby2_late_gate(incby2_late_gate))
+                          _emit_incby2_late_gate(incby2_late_gate, names))
     return asm
 
 
@@ -2120,7 +2132,8 @@ def _compose_hubbard_engine_body(
         '',
         _emit_hubbard_fx_drumslide(),
         '',
-        _emit_hubbard_fx_incby2(
+        _emit_fx_incby2(
+            HUBBARD_FX_NAMES,
             incby2_late_gate=incby2_late_gate,
             uses_per_subtune_dispatch=uses_per_subtune_dispatch),
         '',
