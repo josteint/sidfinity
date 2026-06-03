@@ -199,6 +199,9 @@ class FxNames:
     v_slide: str
     v_tick: str
     it_hrctrl: str
+    # Arp / note-start freq scratch — added Phase B step 4 (fx_arp lift)
+    f_lo: str
+    f_hi: str
 
 
 HUBBARD_FX_NAMES = FxNames(
@@ -235,6 +238,8 @@ HUBBARD_FX_NAMES = FxNames(
     v_slide='v_slide',
     v_tick='v_tick',
     it_hrctrl='it_hrctrl',
+    f_lo='f_lo',
+    f_hi='f_hi',
 )
 
 
@@ -958,25 +963,25 @@ def _emit_fx_skydive(names: FxNames) -> str:
     return _FX_SKYDIVE_ASM_TEMPLATE.format(**asdict(names))
 
 
-_HUBBARD_FX_ARP_ASM = """; fx_arp - bit2 arpeggio. alternate pitch / pitch+12 by frame parity.
+_FX_ARP_ASM_TEMPLATE = """; fx_arp - bit2 arpeggio. alternate pitch / pitch+12 by frame parity.
 ; idx under 96 is a normal freq-table lookup. idx 96 and up is
 ; off-table - in the original the lookup overflows the 96-entry freq
 ; table into engine state; reproduced cleanly here via statebuf, a
 ; mirror of the $54E8.. state region assembled on demand.
 fx_arp:
-        ldy instoff
-        lda it_fx,y
+        ldy {instoff}
+        lda {it_fx},y
         and #$04
         beq fxa_ret
-        lda frame_ctr
+        lda {frame_ctr}
         and #ARP_MASK
         beq fxa_even
-        lda v_pitch,x
+        lda {v_pitch},x
         clc
         adc #ARP_OFS
         jmp fxa_idx
 fxa_even:
-        lda v_pitch,x
+        lda {v_pitch},x
 fxa_idx:
         cmp #96
         bcc fxa_in
@@ -986,11 +991,11 @@ fxa_idx:
         bcs fxa_ret          ; beyond the mirrored state - reads zero
         asl                  ; (idx-96)*2 = statebuf offset
         tay
-        jsr build_statebuf
-        lda statebuf+0,y     ; addr   -> freq_lo
+        jsr {build_statebuf_subr}
+        lda {statebuf}+0,y     ; addr   -> freq_lo
         pha
-        lda statebuf+1,y     ; addr+1 -> freq_hi
-        ldy sidoff
+        lda {statebuf}+1,y     ; addr+1 -> freq_hi
+        ldy {sidoff}
         sta $d401,y          ; freq_hi written first
         pla
         sta $d400,y          ; then freq_lo
@@ -998,34 +1003,38 @@ fxa_idx:
 fxa_in:
         asl
         tay
-        lda freqtab,y
-        sta f_lo
-        lda freqtab+1,y
-        sta f_hi
-        ldy sidoff
-        lda f_hi
+        lda {freqtab},y
+        sta {f_lo}
+        lda {freqtab}+1,y
+        sta {f_hi}
+        ldy {sidoff}
+        lda {f_hi}
         sta $d401,y
-        lda f_lo
+        lda {f_lo}
         sta $d400,y
 fxa_ret: rts"""
 
 
-def _emit_hubbard_fx_arp(arp_phase_invert: bool = False) -> str:
+def _emit_fx_arp(names: FxNames, arp_phase_invert: bool = False) -> str:
     """fx_arp routine — fx-flag bit 2, multi-step arpeggio.
 
     Alternates `v_pitch` / `v_pitch + ARP_OFS` (ARP_OFS = engine
     knob, typically 12) by `frame_ctr & ARP_MASK` parity. Pitches
-    >= 96 read off-table via `build_statebuf` (state mirror — Hubbard
-    family's "off-table arpeggio" trick).
+    >= 96 read off-table via `build_statebuf_subr` (state mirror —
+    Hubbard family's "off-table arpeggio" trick).
 
     `arp_phase_invert=True` flips the active phase from
     `frame_ctr & ARP_MASK == 0 → base` (the Commando family default)
     to `... == 0 → +ARP_OFS` (One Man and his Droid). Implemented by
     flipping the `beq fxa_even` branch sense.
+
+    Skeleton-agnostic: parameterised over `names: FxNames`. The host
+    skeleton must emit `ARP_MASK` and `ARP_OFS` equates.
     """
-    if not arp_phase_invert:
-        return _HUBBARD_FX_ARP_ASM
-    return _HUBBARD_FX_ARP_ASM.replace('beq fxa_even', 'bne fxa_even', 1)
+    asm = _FX_ARP_ASM_TEMPLATE.format(**asdict(names))
+    if arp_phase_invert:
+        asm = asm.replace('beq fxa_even', 'bne fxa_even', 1)
+    return asm
 
 
 _HUBBARD_NOTE_START_ASM = """; note_start - new-note setup. Tie ($40) skips freq, slide, off-table.
@@ -2121,7 +2130,7 @@ def _compose_hubbard_engine_body(
         '',
         _emit_fx_skydive(HUBBARD_FX_NAMES),
         '',
-        _emit_hubbard_fx_arp(arp_phase_invert),
+        _emit_fx_arp(HUBBARD_FX_NAMES, arp_phase_invert),
         '',
         _HUBBARD_BUILD_STATEBUF_HEADER,
         _emit_build_statebuf(state_layout),
