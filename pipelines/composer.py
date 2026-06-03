@@ -2173,7 +2173,7 @@ cur_incby2_late_gate = $ba
 """
 
 
-def _emit_hubbard_entry_stub(load_addr: int = LOAD) -> str:
+def _emit_entry_stub(load_addr: int = LOAD) -> str:
     """Engine entry stub at `load_addr`. Two-instruction trampoline
     that PSID `init` / `play` vectors point at: JMP init / JMP play.
 
@@ -2181,6 +2181,10 @@ def _emit_hubbard_entry_stub(load_addr: int = LOAD) -> str:
     digi-aware combined build (`_emit_combined_sid`) and any future
     compound packer can place each sub-engine at a non-default
     address by passing `load_addr` through `_compose_hubbard_engine_asm`.
+
+    Skeleton-agnostic: takes no FxNames since it has no variable
+    references — just the `init` / `play` entry labels both
+    skeletons define.
     """
     return (f'* = ${load_addr:04X}\n'
             f'        jmp init\n'
@@ -2259,7 +2263,7 @@ def _compose_hubbard_engine_body(
     parts = [
         _HUBBARD_ZP_EQUATES_ASM,
         '',
-        _emit_hubbard_entry_stub(load_addr),
+        _emit_entry_stub(load_addr),
         '',
         _emit_init_bp(HUBBARD_FX_NAMES,
                        has_per_subtune_ovseed=has_per_subtune_ovseed,
