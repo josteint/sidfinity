@@ -397,39 +397,51 @@ def _decode_pattern(mem: bytes, pat_id: int, start_addr: int,
 
 
 def _decode_subtune(mem: bytes, cfg: FCConfig, sub_idx: int) -> Subtune:
-    """Reconstruct per-subtune setup by replicating $918F's logic.
+    """Reconstruct per-subtune setup. Dispatches on `cfg.subtune_layout`.
 
-    Music (sub 0..music_subtune_count-1): X = sub_idx, sub_7B5A reads
+    `flat_seqtabel` (Cybernoid II): subtune N's 6-byte record (lo*3 then
+      hi*3) sits at `seqtabel_addr + N * 6`. Speedbyte from
+      `per_subtune_speed_addr + N`. No music/sfx distinction.
+
+    `smc_template_with_sfx` (Hawkeye): X = sub_idx, sub_7B5A reads
       template lo from `per_subtune_smc_addr,X` and copies 6 bytes from
-      `template_base_hi<<8 | lo` + 0..5 to $8403..$8408. Speedbyte from
-      `per_subtune_speed_addr,X`, mode from `per_subtune_mode_addr,X`.
-
-    SFX: SFX index = sub - music_subtune_count. SFX record at
-      page `sfx_page_base + sfx_idx * sfx_page_stride`. The first 6 bytes
-      are V0/V1/V2 seq pointers. $918F forces X = music_subtune_count
-      before calling sub_7B5A, so speedbyte/mode come from that fixed
-      index.
+      `template_base_hi<<8 | lo` + 0..5. SFX subtunes (N >=
+      music_subtune_count) take a record from page `sfx_page_base +
+      sfx_idx * sfx_page_stride` instead; $918F forces X =
+      music_subtune_count for the SFX path so speedbyte/mode come from
+      that fixed index.
     """
-    if sub_idx < cfg.music_subtune_count:
-        template_lo = mem[cfg.per_subtune_smc_addr + sub_idx]
-        template_addr = (cfg.template_base_hi << 8) | template_lo
-        seq_lo = mem[template_addr + 0:template_addr + 3]
-        seq_hi = mem[template_addr + 3:template_addr + 6]
-        speedbyte = mem[cfg.per_subtune_speed_addr + sub_idx]
-        mode = mem[cfg.per_subtune_mode_addr + sub_idx]
-    else:
-        sfx_idx = sub_idx - cfg.music_subtune_count
-        record_base = (cfg.sfx_page_base + sfx_idx * cfg.sfx_page_stride) << 8
+    if cfg.subtune_layout == 'flat_seqtabel':
+        record_base = cfg.seqtabel_addr + sub_idx * 6
         seq_lo = mem[record_base + 0:record_base + 3]
         seq_hi = mem[record_base + 3:record_base + 6]
-        # $918F forces X = music_subtune_count for SFX path
-        speedbyte = mem[cfg.per_subtune_speed_addr + cfg.music_subtune_count]
-        mode = mem[cfg.per_subtune_mode_addr + cfg.music_subtune_count]
+        speedbyte = mem[cfg.per_subtune_speed_addr + sub_idx]
+        is_sfx = False
+    elif cfg.subtune_layout == 'smc_template_with_sfx':
+        if sub_idx < cfg.music_subtune_count:
+            template_lo = mem[cfg.per_subtune_smc_addr + sub_idx]
+            template_addr = (cfg.template_base_hi << 8) | template_lo
+            seq_lo = mem[template_addr + 0:template_addr + 3]
+            seq_hi = mem[template_addr + 3:template_addr + 6]
+            speedbyte = mem[cfg.per_subtune_speed_addr + sub_idx]
+            mode = mem[cfg.per_subtune_mode_addr + sub_idx]
+        else:
+            sfx_idx = sub_idx - cfg.music_subtune_count
+            record_base = ((cfg.sfx_page_base
+                            + sfx_idx * cfg.sfx_page_stride) << 8)
+            seq_lo = mem[record_base + 0:record_base + 3]
+            seq_hi = mem[record_base + 3:record_base + 6]
+            # $918F forces X = music_subtune_count for SFX path
+            speedbyte = mem[cfg.per_subtune_speed_addr
+                            + cfg.music_subtune_count]
+            mode = mem[cfg.per_subtune_mode_addr + cfg.music_subtune_count]
+        is_sfx = (mode == 0x00)
+    else:
+        raise ValueError(f'unknown subtune_layout: {cfg.subtune_layout!r}')
 
     v0_addr = seq_lo[0] | (seq_hi[0] << 8)
     v1_addr = seq_lo[1] | (seq_hi[1] << 8)
     v2_addr = seq_lo[2] | (seq_hi[2] << 8)
-    is_sfx = (mode == 0x00)
     return Subtune(
         id=sub_idx, is_sfx=is_sfx, speedbyte=speedbyte,
         seq_v0_addr=v0_addr, seq_v1_addr=v1_addr, seq_v2_addr=v2_addr,

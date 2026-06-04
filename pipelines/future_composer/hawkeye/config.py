@@ -16,6 +16,8 @@ HAWKEYE = FCConfig(
     pattern_ptr_addr=0x8409,
     instr_records_addr=0x860C,
     per_subtune_speed_addr=0x83F5,
+
+    subtune_layout='smc_template_with_sfx',
     per_subtune_smc_addr=0x83FC,
     per_subtune_mode_addr=0x7AFF,
     template_base_hi=0x7B,

@@ -135,16 +135,33 @@ extract code is what needs the per-SID work.
 
 ## Updated next steps
 
-1. **Refactor engine_model.py** to take a `FCConfig` parameter; move
-   Hawkeye's constants into `pipelines/future_composer/hawkeye/config.py`.
-2. **Add Cybernoid II as a second canary** (we have its full ACME
-   source — easiest second case). Write `pipelines/future_composer/
-   cybernoid_ii/config.py`.
+1. ~~**Refactor engine_model.py** to take a `FCConfig` parameter; move
+   Hawkeye's constants into `pipelines/future_composer/hawkeye/config.py`.~~
+   **Done 2026-06-04.**
+2. ~~**Add Cybernoid II as a second canary** (we have its full ACME
+   source — easiest second case).~~ **Done 2026-06-04.** Surfaced
+   that the FC family has at least TWO structurally distinct subtune
+   layouts; added `subtune_layout` discriminator to `FCConfig`:
+   - `flat_seqtabel` (Cybernoid II): contiguous per-subtune record at
+     `seqtabel_addr + N*6`. No SFX section.
+   - `smc_template_with_sfx` (Hawkeye): SMC-driven indirection +
+     fixed-page SFX records.
+
+   Cross-canary table sizes also differ:
+
+   | | Hawkeye | Cybernoid II |
+   |---|---|---|
+   | freq table entries | 96 | 87 (top octave truncated) |
+   | instruments | 16 | 19 |
+   | patterns | 64 (54 used) | 33 (31 used) |
+   | subtunes | 12 (6 music + 6 SFX) | 2 (both music) |
+
 3. **THEN** implement `to_usf.py` against the parameterised
    extract. Both Hawkeye and Cybernoid II produce USF; schema
    validates against both.
 4. **THEN** composer + verify.
-5. **Defer** auto-discovery to once we have 2+ manual configs.
+5. **Defer** auto-discovery to once we have 2+ manual configs (we
+   now do).
 
 ## Cross-family note (for the deferred composer-unification work)
 
