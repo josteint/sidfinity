@@ -1,0 +1,110 @@
+Hawkeye: load=$7AE0 init=$7AE0 play=$7AE3 songs=12
+Code size: 8768 bytes (covers $7AE0..$9D1F)
+
+=== $83FC: per-subtune speedbyte (12 subs) ===
+$83FC: 08 0E 14 1A 20 26 2C C5 21 21 8F 90 90 C0 8F 44  .... &,.!!.....D
+
+=== $83F5: per-subtune ??? (12 subs) ===
+$83F5: 03 02 02 03 02 02 02 08 0E 14 1A 20 26 2C C5 21  ........... &,.!
+
+=== $7AFF: per-subtune ??? (12 subs) ===
+$7AFF: 02 02 02 02 02 02 00 07 0E 24 92 2E 87 87 88 29  .........$.....)
+
+=== $7B2C: 6-byte template → $8403 ===
+$7B2C: C5 21 21 8F 90 90 A9 00 A2 76 9D C5 90 CA 10 FA  .!!......v......
+
+=== $8409: pattern-pointer table (lo,hi pairs) ===
+  pat   0: $8FC0
+  pat   1: $8944
+  pat   2: $895C
+  pat   3: $8970
+  pat   4: $8992
+  pat   5: $89B4
+  pat   6: $89CD
+  pat   7: $89E5
+  pat   8: $89FF
+  pat   9: $8A13
+  pat  10: $8A30
+  pat  11: $8A4D
+  pat  12: $8A8B
+  pat  13: $8AAD
+  pat  14: $8AC9
+  pat  15: $8ACE
+  pat  16: $8AD3
+  pat  17: $8AE4
+  pat  18: $8B05
+  pat  19: $8B10
+  pat  20: $8B34
+  pat  21: $8B4E
+  pat  22: $8B72
+  pat  23: $8C01
+  pat  24: $8C4B
+  pat  25: $8C55
+  pat  26: $8C59
+  pat  27: $8C5F
+  pat  28: $8C91
+  pat  29: $8CA9
+  pat  30: $8CBD
+  pat  31: $8CCA
+  pat  32: $8CF8
+  pat  33: $8D4B
+  pat  34: $8D98
+  pat  35: $8DA3
+  pat  36: $8DBF
+  pat  37: $8DD0
+  pat  38: $8DEF
+  pat  39: $8E0F
+
+=== $8337: freq table lo (96 entries) ===
+  +  0: 1C 2D 3E 51 66 7B 91 A9 C3 DD FA 18 38 5A 7D A3
+  + 16: CC F6 23 53 86 BB E0 30 70 B4 FB 47 98 ED 47 A7
+  + 32: 0C 77 E9 61 E1 68 F7 8F 30 DA 8F 4E 18 EF D2 C3
+  + 48: C3 D1 EF 1F 60 B5 1E 9C 31 DF A5 87 86 A2 DF 3E
+  + 64: C1 6B 3C 39 63 BE 4B 0F 0C 45 BF 7D 83 D6 79 73
+  + 80: C7 7C 97 1E 18 8B 7E FA 06 AC F3 E6 8F F8 2E 01
+
+=== $8396: freq table hi (96 entries) ===
+  +  0: 01 01 01 01 01 01 01 01 01 01 01 02 02 02 02 02
+  + 16: 02 02 03 03 03 03 03 04 04 04 04 05 05 05 06 06
+  + 32: 07 07 07 08 08 09 09 0A 0B 0B 0C 0D 0E 0E 0F 10
+  + 48: 11 12 13 15 16 17 19 1A 1C 1D 1F 21 23 25 27 2A
+  + 64: 2C 2F 32 35 38 3B 3F 43 47 4B 4F 54 59 5E 64 6A
+  + 80: 70 77 7E 86 8E 96 9F A8 B3 BD C8 D4 E1 EE FD 03
+
+  note 33 (a-4 PAL=0x1C37 expected): $0777
+
+=== $8580: instrument col 1 (16?) ===
+$8580: 92 96 9A 9E A2 A6 AA AE B2 85 85 85 85 85 85 85  ................
+
+=== $8589: instrument col 2 (16?) ===
+$8589: 85 85 85 85 85 85 85 85 85 02 00 03 07 02 00 04  ................
+
+=== $860C: per-instrument 8-byte records (8 insts?) ===
+$860C: 00 00 00 00 00 00 00 00 14 41 08 DD F0 40 61 00  .........A...@a.
+$861C: 14 41 08 69 00 00 F1 05 13 41 20 BF F0 53 31 01  .A.i.....A ..S1.
+$862C: 08 11 00 C8 00 01 00 10 08 15 00 C9 00 00 00 10  ................
+$863C: 08 41 08 6F F0 00 F2 00 1A 21 00 BF F0 52 A1 41  .A.o.....!...R.A
+
+=== $8403: per-voice seq pointer (3 lo + 3 hi) ===
+$8403: C5 21 21 8F 90 90 C0 8F 44 89 5C 89 70 89 92 89  .!!.....D.\.p...
+
+=== sequence stream start (per-voice) ===
+  V0: seq base = $8FC5
+    00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  V1: seq base = $9021
+    00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  V2: seq base = $9021
+    00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+
+=== after init(subtune=0): $8403..$8408 ===
+
+=== $8403 after init(sub=0) ===
+$8403: 24 92 2E 87 87 88 C0 8F 44 89 5C 89 70 89 92 89  $.......D.\.p...
+
+=== sequence stream start AFTER init ===
+  V0: seq base = $8724
+    90 00 90 43 01 90 47 01 93 01 01 8C 01 93 01 93
+  V1: seq base = $8792
+    90 03 03 03 03 90 03 03 03 03 90 0C 0C 03 03 90
+  V2: seq base = $882E
+    60 90 00 90 00 00 90 05 06 05 07 64 93 08 09 08

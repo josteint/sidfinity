@@ -215,29 +215,74 @@ elsewhere — possibly at `$860C..$8627` based on `L_7D60..L_7D77`
 (`LDA $860E,x` for AD, `LDA $860F,x` for SR, `LDA $860C,x`/`$860D,x`
 for PW, `LDA $8610,x` for further data).
 
+## Per-subtune setup (verified by trace)
+
+`subtune_init_dump.txt` shows post-init state for all 12 subtunes.
+Key findings:
+
+| Subtune | speedbyte | $7BAE | V0 seq | V1 seq | V2 seq | SMC offset |
+|---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| 0 | $03 | $02 | $8724 | $8792 | $882E | $08 |
+| 1 | $02 | $02 | $8C29 | $8C3D | $8C43 | $0E |
+| 2 | $02 | $02 | $8CD0 | $8CED | $8CF0 | $14 |
+| 3 | $03 | $02 | $8E2D | $8E30 | $8E33 | $1A |
+| 4 | $02 | $02 | $8E64 | $8E67 | $8E6A | $20 |
+| 5 | $02 | $02 | $8EA0 | $8EDB | $8EE0 | $26 |
+| 6 | $02 | $00 | $8FC5 | $9015 | $9015 | $2C |
+| 7 | $02 | $00 | $8FC5 | $9056 | $9056 | $2C |
+| 8 | $02 | $00 | $8FC5 | $9008 | $9008 | $2C |
+| 9 | $02 | $00 | $8FC5 | $9054 | $9054 | $2C |
+| 10 | $02 | $00 | $8FC5 | $9014 | $9014 | $2C |
+| 11 | $02 | $00 | $8FC5 | $9021 | $9021 | $2C |
+
+**Structure**: 6 music subtunes (0-5) + 6 SFX (6-11). Distinguished
+by `$7BAE` value: $02 for music, $00 for SFX. SFX subtunes share V1=V2
+seq (sound effect on one voice, mirrored).
+
+**SMC site at $7B6B** is the LDA low-byte that gets patched per
+subtune. Subtunes 0-5 each have their own 6-byte seq-pointer template
+at $7B08, $7B0E, $7B14, $7B1A, $7B20, $7B26. Subtunes 6-11 all share
+the template at $7B2C (their V0 seq is identical = $8FC5).
+
+**Per-subtune tables in the binary** (verified at data dump):
+- `$83F5+X` (1 byte): speedbyte for subtune X — though the trace shows
+  raw `LDA $83F5,X` doesn't quite match for X≥7 (subtunes 7-11 all get
+  speedbyte=$02 while the table contains $08+ at those offsets). The
+  `JMP $918F` from PSID init likely does some subtune translation
+  before calling `sub_7B5A`. **TODO: disassemble $918F to confirm.**
+- `$83FC+X` (1 byte): low byte of the per-subtune SMC template
+  (high byte is $7B for all)
+- `$7AFF+X` (1 byte): the per-subtune value stored to $7BAE
+  (music=$02, sfx=$00)
+
 ## Data section addresses (Hawkeye)
 
 | Address | Purpose | Notes |
 |---|---|---|
-| `$7AE0` | PSID entry: JMP init | |
-| `$7AE3` | PSID entry: JMP play | |
-| `$7AE6..$7B31` | data gap (76 bytes) | per-subtune seqlochi pointers + speedbyte table + scratch buffer (the 6 bytes Cybernoid II copies at $83FC) |
-| `$7B2C..$7B31` | 6-byte template copied to $8403,Y on init | (Cybernoid II copies from `template:` to `seqloclo`) |
-| `$7B32..$7B97` | init / reset code | |
-| `$7B98..$7DC9` | play loop | |
+| `$7AE0` | PSID entry: JMP init ($918F) | |
+| `$7AE3` | PSID entry: JMP play ($7B98) | |
+| `$7AE6..$7B07` | data gap (~34 bytes) | scratch / unused / part of $7AFF,X table |
+| `$7AFF..$7B0A` | per-subtune $7BAE values (12 bytes) | music=$02, sfx=$00 |
+| `$7B08..$7B31` | per-subtune seq-pointer templates (7 × 6 bytes) | indexed via SMC at $7B6B; subtunes 6-11 share template at $7B2C |
+| `$7B32..$7B97` | init / reset code | sub_7B32, L_7B3C, sub_7B5A |
+| `$7B98..$7DC9` | play loop | dispatcher, sequence read, command dispatch, pattern read |
 | `$7DCA..$7DF8` | sustain freq update | |
 | `$7DF9..$830C?` | per-frame instrument processing (wave/pulse/filter walking) | |
-| `$830C..??` | continue play loop | |
-| `$8337..$83F4` | freq lookup table (lo at $8337, hi at $8396) | 96-entry PAL freq table, 96 bytes each |
-| `$83F5..$83FB` | per-subtune setup data (×12 subtunes?) | `$83F5,X` = init data, `$83FC,X` = speedbyte |
-| `$83FC..$8402` | per-subtune speedbyte table (12 bytes) | |
-| `$8403..$8408` | runtime sequence pointers (6 bytes, modified by init) | `seqloclo` / `seqlochi` per voice |
-| `$8409..$84??` | sequence pointer table (per pattern) | `sequence,y` indexed by 2*pattern_id |
-| `$8580..$8588` | instrument table column 1 | (per `L_7CD0`) |
-| `$8589..$8591` | instrument table column 2 | |
-| `$8FC5..$??` | sequence data (the actual byte streams) | per `L_7BE3: LDA $8FC5,y` |
-| `$90C5..$913B` | per-voice runtime variables | 119 bytes |
-| `$918F` | subtune dispatch (entered from `JMP init`) | |
+| `$830C..$8336?` | continue play loop tail | |
+| `$8337..$8395` | freq table lo (96 entries) | **verified** by binary inspection |
+| `$8396..$83F4` | freq table hi (96 entries) | **verified** |
+| `$83F5..$8400` | per-subtune speedbyte table (12 bytes) | overlapping high-7-byte region also used by SMC offset table — see TODO above |
+| `$83FC..$8407` | per-subtune SMC template-lo-byte table (12 bytes) | |
+| `$8403..$8408` | RUNTIME per-voice seq pointers (3 lo + 3 hi) | overwritten by sub_7B5A's template copy at each init |
+| `$8409..$8488?` | pattern-pointer table (lo,hi pairs) | **40+ patterns confirmed** at $8FC0, $8944, $895C, $8970, $8992, $89B4, $89CD, $89E5, $89FF, $8A13, $8A30, $8A4D, $8A8B, $8AAD, $8AC9, $8ACE, $8AD3, $8AE4, $8B05, $8B10, $8B34, $8B4E, $8B72, $8C01, $8C4B, $8C55, $8C59, $8C5F, $8C91, $8CA9, $8CBD, $8CCA, $8CF8, $8D4B, $8D98, $8DA3, $8DBF, $8DD0, $8DEF, $8E0F, ... |
+| `$8580..$858F` | instrument table column 1 (16 entries) | values: $92 $96 $9A $9E $A2 $A6 $AA $AE $B2 $85×7 |
+| `$8589..$8598` | instrument table column 2 (16 entries) | values: $85×9 then $02 $00 $03 $07 $02 $00 $04 |
+| `$860C..$865B?` | per-instrument 8-byte records | **verified** — at least 8 instruments visible. Record 0 all zero; record 1 = `14 41 08 DD F0 40 61 00` (pulse=14, ctrl=41, AD=08, SR=DD, fil=F0, fx1=40, fx2=61, fx3=00) |
+| `$8724..$8FBF?` | per-subtune sequence streams | each subtune's V0/V1/V2 starts (table above) — interleaved or sectioned |
+| `$8FC5..$??` | shared SFX V0 sequence (subtunes 6-11) | |
+| `$9008..$905F?` | shared SFX V1/V2 sequences | per the subtune init dump |
+| `$90C5..$913B` | per-voice runtime variables | 119 bytes — see layout table above |
+| `$918F..$??` | subtune dispatch (entered from JMP init) | translates raw subtune number, then JSRs into sub_7B5A |
 
 ⚠️ Many of these are EDUCATED GUESSES from a single-pass disassembly read.
 They need verification — see "Open questions" below.
