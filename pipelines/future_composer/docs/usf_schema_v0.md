@@ -17,7 +17,8 @@ records likewise.
 
 ## What the engine model has
 
-Per `pipelines/future_composer/hawkeye/engine_model.py`:
+Per `pipelines/future_composer/engine_model.py` (parametric over per-SID
+`FCConfig`; Hawkeye's instance lives in `pipelines/future_composer/hawkeye/config.py`):
 
 | Layer | FC concept | Structured Python type |
 |---|---|---|

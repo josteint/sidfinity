@@ -1,41 +1,29 @@
-"""Engine model + extractor for Hawkeye (FutureComposer V3.x-lineage).
+"""FC-family engine model + extractor (shared core).
 
-First-cut typed model of the FC engine, scoped to what `RE_NOTES.md`
-has verified through trace + disassembly. Walks the binary, decodes
-instruments / pattern-pointer table / sequence streams / per-subtune
-setup, and returns a single `FCSong` dataclass.
+Typed model of the FutureComposer / MoN-1987 engine family. The
+sequence/pattern byte encodings are FC-family-stable and live here.
+Per-SID data table addresses + table sizes come in via `FCConfig`
+(see `pipelines/future_composer/config.py`).
 
-This is the foundation for the USF representation + extract path,
-not the byte-exact rebuild yet. The shapes here reflect ONLY
-verified facts; everything still uncertain (fx1/fx2/fx3 semantics,
-exact sequence-end criteria, glide parameter bytes) is preserved as
-raw bytes for later interpretation.
+Use:
+    from pipelines.future_composer.engine_model import extract
+    from pipelines.future_composer.hawkeye.config import HAWKEYE
+    song = extract(HAWKEYE)
 
-Run as a script to inspect the decoded model:
-    python3 pipelines/future_composer/hawkeye/engine_model.py
+Or run a canary's config as a script:
+    python3 pipelines/future_composer/hawkeye/config.py
 """
 from __future__ import annotations
 
 import os
 import struct
-import sys
-from dataclasses import dataclass, field
-from typing import Optional
+from dataclasses import dataclass
+
+from pipelines.future_composer.config import FCConfig
 
 
-# Verified addresses (RE_NOTES.md → "Data section addresses (Hawkeye)")
-ADDR_FREQ_LO_TABLE = 0x8337   # 96 entries
-ADDR_FREQ_HI_TABLE = 0x8396   # 96 entries
-ADDR_PATTERN_PTR_TABLE = 0x8409  # (lo,hi) per pattern id
-ADDR_INSTR_COL1 = 0x8580      # 16 entries
-ADDR_INSTR_COL2 = 0x8589      # 16 entries
-ADDR_INSTR_RECORDS = 0x860C   # 8 bytes per instrument
-ADDR_PER_SUBTUNE_SPEED = 0x83F5  # X-indexed, 1 byte per subtune
-ADDR_PER_SUBTUNE_SMC = 0x83FC    # X-indexed, 1 byte per subtune (template lo)
-ADDR_PER_SUBTUNE_7BAE = 0x7AFF   # X-indexed, 1 byte per subtune (music=$02, sfx=$00)
-ADDR_TEMPLATE_BASE_HI = 0x7B   # template addr = (TEMPLATE_BASE_HI << 8) | smc_lo
-
-# Sequence command byte ranges (verified by L_7C0D/L_7C1F/L_7C31 dispatch)
+# Sequence command byte ranges (verified by L_7C0D/L_7C1F/L_7C31 dispatch
+# in Hawkeye disassembly; identical across the FC family by design).
 SEQ_END = 0xFE
 SEQ_WRAP = 0xFF
 SEQ_TRANSPOSE_RANGE = (0x80, 0xBF)   # AND #$1F → toneadd
@@ -46,7 +34,7 @@ SEQ_PATTERN_RANGE   = (0x00, 0x3F)   # ASL → index pattern-ptr table
 
 @dataclass
 class Instrument:
-    """8-byte FC instrument record (verified at $860C+).
+    """8-byte FC instrument record.
 
     The 8 raw bytes are preserved; the named fields are the
     interpretation per the research docs (FC V4.1 manual + Cybernoid II
@@ -71,7 +59,7 @@ class Instrument:
 @dataclass
 class SeqPatternJump:
     """$00-$3F: play pattern N. Triggers a 2*N index into the pattern
-    pointer table at $8409."""
+    pointer table."""
     pattern_id: int            # 0-63
 
 
@@ -79,8 +67,7 @@ class SeqPatternJump:
 class SeqRepeats:
     """$40-$5F: set the per-voice pattern-repeat counter (`repeatsto`).
     The pattern then replays N times before sequence advances."""
-    count: int                 # 0-31 (from AND #$3F = 0-63, but high bit
-                               # is the range gate so really 0-31)
+    count: int                 # 0-31
 
 
 @dataclass
@@ -166,7 +153,7 @@ class Sequence:
 class PatNote:
     """Play a note at `pitch` (index into freq table 0-95). $60-$6F is
     off-table (reads engine state region; rare in well-formed patterns)."""
-    pitch: int                 # 0-127 raw byte value
+    pitch: int
 
 
 @dataclass
@@ -193,7 +180,6 @@ class PatGlide:
     """$E0-$EF, delay, target: 3-byte glide. The target byte is BOTH
     the glide target AND the next note's pitch (engine re-reads it)."""
     delay: int                 # 0-255
-    # `target` is captured as the following PatNote in the event list
 
 
 @dataclass
@@ -270,11 +256,7 @@ def _parse_pattern(raw: bytes) -> tuple[list[PatEvent], int]:
 @dataclass
 class Pattern:
     """A pattern stream: bytes consumed left-to-right by the per-voice
-    pattern reader until $FF (end).
-
-    `bytes_raw` is the verbatim source. `events` is the decoded event
-    list. `notes_count` is the precise note count (PatNote events).
-    """
+    pattern reader until $FF (end)."""
     id: int
     start_addr: int
     bytes_raw: bytes
@@ -287,8 +269,8 @@ class Subtune:
     """Per-subtune setup: which sequence each voice plays + the
     tempo (speedbyte = frames per sequence step)."""
     id: int
-    is_sfx: bool                # True if $7AFF+X == $00 (SFX kind)
-    speedbyte: int              # frames per sequence step (-1? frames per step?)
+    is_sfx: bool
+    speedbyte: int
     seq_v0_addr: int
     seq_v1_addr: int
     seq_v2_addr: int
@@ -296,18 +278,18 @@ class Subtune:
 
 @dataclass
 class FCSong:
-    """The full Hawkeye decoded model."""
-    sid_path: str
+    """The full decoded FC model for one SID."""
+    cfg: FCConfig
     load_addr: int
     init_addr: int
     play_addr: int
-    psid_songs: int             # raw PSID count (= 12 for Hawkeye)
+    psid_songs: int
 
-    freq_table: list[int]       # 96 16-bit PAL freq values
+    freq_table: list[int]
     instruments: list[Instrument]
-    pattern_ptr_table: list[int]  # addr per pattern id; truncated when out-of-range
-    patterns: dict[int, Pattern]  # patterns referenced by any sequence
-    sequences: list[Sequence]   # one per (subtune, voice) pair
+    pattern_ptr_table: list[int]
+    patterns: dict[int, Pattern]
+    sequences: list[Sequence]
     subtunes: list[Subtune]
 
 
@@ -340,22 +322,20 @@ def _materialize_memory(load_addr: int, code: bytes) -> bytes:
 
 
 # ---------------------------------------------------------------------------
-# Decoders
+# Decoders (parametric over FCConfig)
 # ---------------------------------------------------------------------------
 
-def _decode_freq_table(mem: bytes) -> list[int]:
-    """96-entry PAL freq table at $8337 (lo) / $8396 (hi)."""
+def _decode_freq_table(mem: bytes, cfg: FCConfig) -> list[int]:
     return [
-        mem[ADDR_FREQ_LO_TABLE + i] | (mem[ADDR_FREQ_HI_TABLE + i] << 8)
-        for i in range(96)
+        mem[cfg.freq_lo_addr + i] | (mem[cfg.freq_hi_addr + i] << 8)
+        for i in range(cfg.freq_table_entries)
     ]
 
 
-def _decode_instruments(mem: bytes, count: int = 16) -> list[Instrument]:
-    """Decode `count` per-instrument 8-byte records at $860C."""
+def _decode_instruments(mem: bytes, cfg: FCConfig) -> list[Instrument]:
     out: list[Instrument] = []
-    for i in range(count):
-        base = ADDR_INSTR_RECORDS + i * 8
+    for i in range(cfg.instr_count):
+        base = cfg.instr_records_addr + i * 8
         raw = bytes(mem[base:base + 8])
         out.append(Instrument(
             id=i, raw=raw,
@@ -365,15 +345,15 @@ def _decode_instruments(mem: bytes, count: int = 16) -> list[Instrument]:
     return out
 
 
-def _decode_pattern_ptr_table(mem: bytes, load_addr: int, code_len: int,
-                               max_patterns: int = 64) -> list[int]:
-    """Walk $8409 pattern pointer table; stop at the first pointer that
-    falls outside the loaded code region (signals end of table)."""
+def _decode_pattern_ptr_table(mem: bytes, cfg: FCConfig,
+                               load_addr: int, code_len: int) -> list[int]:
+    """Walk pattern pointer table; stop at first pointer outside the
+    loaded code region."""
     out: list[int] = []
     lo_hi_end = load_addr + code_len
-    for i in range(max_patterns):
-        lo = mem[ADDR_PATTERN_PTR_TABLE + i * 2]
-        hi = mem[ADDR_PATTERN_PTR_TABLE + i * 2 + 1]
+    for i in range(cfg.max_patterns):
+        lo = mem[cfg.pattern_ptr_addr + i * 2]
+        hi = mem[cfg.pattern_ptr_addr + i * 2 + 1]
         addr = lo | (hi << 8)
         if addr < load_addr or addr >= lo_hi_end:
             break
@@ -383,8 +363,6 @@ def _decode_pattern_ptr_table(mem: bytes, load_addr: int, code_len: int,
 
 def _decode_sequence(mem: bytes, start_addr: int,
                      max_bytes: int = 256) -> Sequence:
-    """Walk a sequence stream from `start_addr` until $FE (end) or
-    $FF (wrap) or `max_bytes` is hit. Collect pattern ids used."""
     raw_buf = bytearray()
     pat_ids: list[int] = []
     seen_pat = set()
@@ -405,7 +383,6 @@ def _decode_sequence(mem: bytes, start_addr: int,
 
 def _decode_pattern(mem: bytes, pat_id: int, start_addr: int,
                     max_bytes: int = 512) -> Pattern:
-    """Walk a pattern stream until $FF terminator or max_bytes."""
     raw_buf = bytearray()
     for k in range(max_bytes):
         b = mem[start_addr + k]
@@ -419,36 +396,35 @@ def _decode_pattern(mem: bytes, pat_id: int, start_addr: int,
                    events=events, notes_count=notes)
 
 
-def _decode_subtune(mem: bytes, sub_idx: int) -> Subtune:
+def _decode_subtune(mem: bytes, cfg: FCConfig, sub_idx: int) -> Subtune:
     """Reconstruct per-subtune setup by replicating $918F's logic.
 
-    Music (sub 0-5): X = sub_idx, sub_7B5A reads template lo from
-      $83FC,X and copies 6 bytes from $7B<lo>+0..5 to $8403..$8408.
-      Speedbyte from $83F5,X, mode from $7AFF,X.
+    Music (sub 0..music_subtune_count-1): X = sub_idx, sub_7B5A reads
+      template lo from `per_subtune_smc_addr,X` and copies 6 bytes from
+      `template_base_hi<<8 | lo` + 0..5 to $8403..$8408. Speedbyte from
+      `per_subtune_speed_addr,X`, mode from `per_subtune_mode_addr,X`.
 
-    SFX (sub 6-11): SFX index = sub - 6. SFX record at page
-      $92 + 2*SFX_index. The first 6 bytes of the record are V0/V1/V2
-      seq pointers (these get blitted to $7B2C then to $8403). The
-      speedbyte + mode come from $83F5+6 / $7AFF+6 (because $918F
-      forces X=6 before calling sub_7B5A).
+    SFX: SFX index = sub - music_subtune_count. SFX record at
+      page `sfx_page_base + sfx_idx * sfx_page_stride`. The first 6 bytes
+      are V0/V1/V2 seq pointers. $918F forces X = music_subtune_count
+      before calling sub_7B5A, so speedbyte/mode come from that fixed
+      index.
     """
-    if sub_idx < 6:
-        # Music path
-        template_lo = mem[ADDR_PER_SUBTUNE_SMC + sub_idx]
-        template_addr = (ADDR_TEMPLATE_BASE_HI << 8) | template_lo
+    if sub_idx < cfg.music_subtune_count:
+        template_lo = mem[cfg.per_subtune_smc_addr + sub_idx]
+        template_addr = (cfg.template_base_hi << 8) | template_lo
         seq_lo = mem[template_addr + 0:template_addr + 3]
         seq_hi = mem[template_addr + 3:template_addr + 6]
-        speedbyte = mem[ADDR_PER_SUBTUNE_SPEED + sub_idx]
-        mode = mem[ADDR_PER_SUBTUNE_7BAE + sub_idx]
+        speedbyte = mem[cfg.per_subtune_speed_addr + sub_idx]
+        mode = mem[cfg.per_subtune_mode_addr + sub_idx]
     else:
-        # SFX path — record at page $92 + 2*(sub-6)
-        sfx_idx = sub_idx - 6
-        record_base = (0x92 + sfx_idx * 2) << 8
+        sfx_idx = sub_idx - cfg.music_subtune_count
+        record_base = (cfg.sfx_page_base + sfx_idx * cfg.sfx_page_stride) << 8
         seq_lo = mem[record_base + 0:record_base + 3]
         seq_hi = mem[record_base + 3:record_base + 6]
-        # $918F forces X = 6 → speedbyte = $83F5+6, mode = $7AFF+6
-        speedbyte = mem[ADDR_PER_SUBTUNE_SPEED + 6]
-        mode = mem[ADDR_PER_SUBTUNE_7BAE + 6]
+        # $918F forces X = music_subtune_count for SFX path
+        speedbyte = mem[cfg.per_subtune_speed_addr + cfg.music_subtune_count]
+        mode = mem[cfg.per_subtune_mode_addr + cfg.music_subtune_count]
 
     v0_addr = seq_lo[0] | (seq_hi[0] << 8)
     v1_addr = seq_lo[1] | (seq_hi[1] << 8)
@@ -464,19 +440,23 @@ def _decode_subtune(mem: bytes, sub_idx: int) -> Subtune:
 # Top-level extract
 # ---------------------------------------------------------------------------
 
-def extract(sid_path: str) -> FCSong:
-    """Read Hawkeye (or any FC-V3.x-lineage SID at the same layout)
-    and return a fully-decoded `FCSong`."""
+def extract(cfg: FCConfig, root: str | None = None) -> FCSong:
+    """Decode an FC-family SID per its `FCConfig`. `root` defaults to
+    the sidfinity repo root (auto-detected from this file's location)."""
+    if root is None:
+        root = os.path.dirname(os.path.dirname(os.path.dirname(
+            os.path.abspath(__file__))))
+    sid_path = os.path.join(root, cfg.sid_path)
+
     load_addr, init_addr, play_addr, n_songs, code = _load_psid(sid_path)
     mem = _materialize_memory(load_addr, code)
 
-    freq_table = _decode_freq_table(mem)
-    instruments = _decode_instruments(mem)
-    pattern_ptr_table = _decode_pattern_ptr_table(mem, load_addr, len(code))
+    freq_table = _decode_freq_table(mem, cfg)
+    instruments = _decode_instruments(mem, cfg)
+    pattern_ptr_table = _decode_pattern_ptr_table(mem, cfg, load_addr, len(code))
 
-    subtunes = [_decode_subtune(mem, s) for s in range(n_songs)]
+    subtunes = [_decode_subtune(mem, cfg, s) for s in range(n_songs)]
 
-    # Decode every distinct sequence referenced by the subtune table.
     sequences: list[Sequence] = []
     seq_seen: set[int] = set()
     pat_ids_total: set[int] = set()
@@ -489,7 +469,6 @@ def extract(sid_path: str) -> FCSong:
             sequences.append(seq)
             pat_ids_total.update(seq.pattern_ids_used)
 
-    # Decode patterns that are actually referenced.
     patterns: dict[int, Pattern] = {}
     for pat_id in sorted(pat_ids_total):
         if pat_id >= len(pattern_ptr_table):
@@ -498,7 +477,7 @@ def extract(sid_path: str) -> FCSong:
         patterns[pat_id] = _decode_pattern(mem, pat_id, addr)
 
     return FCSong(
-        sid_path=sid_path, load_addr=load_addr, init_addr=init_addr,
+        cfg=cfg, load_addr=load_addr, init_addr=init_addr,
         play_addr=play_addr, psid_songs=n_songs,
         freq_table=freq_table, instruments=instruments,
         pattern_ptr_table=pattern_ptr_table,
@@ -507,25 +486,19 @@ def extract(sid_path: str) -> FCSong:
 
 
 # ---------------------------------------------------------------------------
-# CLI
+# Pretty-printer (shared CLI dump for any canary)
 # ---------------------------------------------------------------------------
 
-def _main():
-    root = os.path.dirname(os.path.dirname(os.path.dirname(
-        os.path.dirname(os.path.abspath(__file__)))))
-    sid = os.path.join(root, 'hvsc84', 'MUSICIANS', 'T', 'Tel_Jeroen',
-                       'Hawkeye.sid')
-    song = extract(sid)
-
-    print(f'Hawkeye: load=${song.load_addr:04X} '
+def print_song(song: FCSong) -> None:
+    cfg = song.cfg
+    print(f'{cfg.name}: load=${song.load_addr:04X} '
           f'init=${song.init_addr:04X} play=${song.play_addr:04X}')
     print(f'PSID songs: {song.psid_songs}')
 
-    print(f'\nFreq table: 96 entries, first 5 = '
-          f'${song.freq_table[0]:04X} ${song.freq_table[1]:04X} '
-          f'${song.freq_table[2]:04X} ${song.freq_table[3]:04X} '
-          f'${song.freq_table[4]:04X}')
-    print(f'  range: ${min(song.freq_table):04X} .. ${max(song.freq_table):04X}')
+    print(f'\nFreq table: {len(song.freq_table)} entries, first 5 = '
+          + ' '.join(f'${v:04X}' for v in song.freq_table[:5]))
+    print(f'  range: ${min(song.freq_table):04X} '
+          f'.. ${max(song.freq_table):04X}')
 
     print(f'\nInstruments: {len(song.instruments)}')
     for inst in song.instruments:
@@ -538,25 +511,11 @@ def _main():
                   f'fx1=${inst.fx1:02X} fx2=${inst.fx2:02X} '
                   f'fx3=${inst.fx3:02X}')
 
-    print(f'\nPattern pointer table: {len(song.pattern_ptr_table)} valid entries')
-    print(f'\nReferenced patterns: {len(song.patterns)} ({sum(p.notes_count for p in song.patterns.values())} notes total)')
-    # Show a few decoded patterns to illustrate event structure
-    show_pats = [0, 1, 3, 22, 32]
-    for pat_id in show_pats:
-        if pat_id not in song.patterns:
-            continue
-        pat = song.patterns[pat_id]
-        evt_summary: dict[str, int] = {}
-        for e in pat.events:
-            evt_summary[type(e).__name__] = evt_summary.get(type(e).__name__, 0) + 1
-        print(f'  pat {pat_id:3d} @ ${pat.start_addr:04X}: '
-              f'{len(pat.bytes_raw)} bytes, {pat.notes_count} notes, '
-              f'events: {", ".join(f"{k}={v}" for k,v in evt_summary.items())}')
-    # First pattern decoded in detail
-    if 0 in song.patterns:
-        print(f'\n  pat 0 events (full):')
-        for e in song.patterns[0].events:
-            print(f'    {e}')
+    print(f'\nPattern pointer table: {len(song.pattern_ptr_table)} '
+          f'valid entries')
+    notes_total = sum(p.notes_count for p in song.patterns.values())
+    print(f'\nReferenced patterns: {len(song.patterns)} '
+          f'({notes_total} notes total)')
 
     print(f'\nSubtunes: {song.psid_songs}')
     print(f'{"sub":>3} {"kind":>5} {"speed":>5} {"V0_seq":>7} '
@@ -567,7 +526,7 @@ def _main():
                         if s.start_addr in (st.seq_v0_addr,
                                             st.seq_v1_addr,
                                             st.seq_v2_addr)
-                        for p in s.pattern_ids_used)
+                        for _p in s.pattern_ids_used)
         print(f'{st.id:>3} {kind:>5} ${st.speedbyte:02X}    '
               f'${st.seq_v0_addr:04X}  ${st.seq_v1_addr:04X}  '
               f'${st.seq_v2_addr:04X}  {pat_count}')
@@ -576,17 +535,10 @@ def _main():
     for s in song.sequences[:6]:
         cmd_summary: dict[str, int] = {}
         for c in s.commands:
-            cmd_summary[type(c).__name__] = cmd_summary.get(type(c).__name__, 0) + 1
+            cmd_summary[type(c).__name__] = cmd_summary.get(
+                type(c).__name__, 0) + 1
         print(f'  ${s.start_addr:04X}: {len(s.bytes_raw)} bytes, '
-              f'{len(s.commands)} commands, patterns={s.pattern_ids_used[:8]}, '
-              f'cmd types: {", ".join(f"{k}={v}" for k,v in cmd_summary.items())}')
-    # First sequence decoded in detail
-    if song.sequences:
-        s = song.sequences[0]
-        print(f'\n  ${s.start_addr:04X} commands (first 20):')
-        for c in s.commands[:20]:
-            print(f'    {c}')
-
-
-if __name__ == '__main__':
-    _main()
+              f'{len(s.commands)} commands, '
+              f'patterns={s.pattern_ids_used[:8]}, '
+              f'cmd types: '
+              + ', '.join(f'{k}={v}' for k, v in cmd_summary.items()))
