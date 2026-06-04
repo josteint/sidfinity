@@ -189,6 +189,13 @@ def _write_vibrato(v: VibratoConfig) -> str:
     if v.depth_semitones:
         # Trim trailing zeros for readability (1.5 not 1.500000).
         parts.append(f'depth_semitones={v.depth_semitones:g}')
+    # FC v1 additions — emit only when non-default
+    if v.amplitude:
+        parts.append(f'amplitude={v.amplitude}')
+    if v.speed:
+        parts.append(f'speed={v.speed}')
+    if v.direction != 'up':
+        parts.append(f'direction={v.direction}')
     return 'vibrato:  ' + ' '.join(parts)
 
 
@@ -260,13 +267,33 @@ def _write_instrument(i: Instrument) -> list[str]:
         lines.append(f'  {_write_slide(i.freq_slide_config)}')
     if i.inc_by2_config.mode != 'none':
         lines.append(f'  {_write_incby2(i.inc_by2_config)}')
-    # FC family v0 compromise — opaque per-instrument bytes. Emit only
-    # when at least one is non-zero so Hubbard etc. stay unaffected.
-    if i.fc_fil_count or i.fc_fx1 or i.fc_fx2 or i.fc_fx3:
-        lines.append(f'  fc_fil_count: {_hex(i.fc_fil_count)}')
-        lines.append(f'  fc_fx1:       {_hex(i.fc_fx1)}')
-        lines.append(f'  fc_fx2:       {_hex(i.fc_fx2)}')
-        lines.append(f'  fc_fx3:       {_hex(i.fc_fx3)}')
+    # FC v1 — emit decomposed effect blocks only when active.
+    pp = i.pulse_prog
+    if pp.program or pp.increment:
+        pp_parts = []
+        if pp.program:
+            pp_parts.append(f'program={pp.program}')
+        if pp.increment:
+            pp_parts.append(f'increment={pp.increment}')
+        lines.append('  pulse_prog: ' + ' '.join(pp_parts))
+    fp = i.filter_prog
+    if (fp.program or fp.strange or fp.double_voice or fp.aux_bits):
+        fp_parts = []
+        if fp.program:
+            fp_parts.append(f'program={fp.program}')
+        if fp.strange:
+            fp_parts.append('strange=true')
+        if fp.double_voice:
+            fp_parts.append('double_voice=true')
+        if fp.aux_bits:
+            fp_parts.append(f'aux_bits={_hex(fp.aux_bits)}')
+        lines.append('  filter_prog: ' + ' '.join(fp_parts))
+    if i.effects:
+        # Deterministic order matching the bit positions in fx3
+        order = ['filter_program', 'pulse_run', 'tone_arp', 'pulse_arp',
+                 'drum', 'tonesweep_up', 'wave_arp', 'noise_tick']
+        emitted = [n for n in order if n in i.effects]
+        lines.append('  effects: ' + ' '.join(emitted))
     lines.append('}')
     return lines
 

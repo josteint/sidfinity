@@ -285,6 +285,15 @@ class _T(Transformer):
     def vib_depth_semitones(self, items):
         return ('depth_semitones', float(items[0]))
 
+    def vib_amplitude(self, items):
+        return ('amplitude', int(items[0]))
+
+    def vib_speed(self, items):
+        return ('speed', int(items[0]))
+
+    def vib_direction(self, items):
+        return ('direction', str(items[0]))
+
     def vib_args(self, items):
         return VibratoConfig(**dict(items))
 
@@ -346,17 +355,56 @@ class _T(Transformer):
     def inst_envelope(self, items):
         return ('envelope', items[0])
 
-    def inst_fc_fil_count(self, items):
-        return ('fc_fil_count', int(items[0]))
+    # FC v1 — decomposed effect blocks
+    def pp_program(self, items):
+        return ('program', int(items[0]))
 
-    def inst_fc_fx1(self, items):
-        return ('fc_fx1', int(items[0]))
+    def pp_increment(self, items):
+        return ('increment', int(items[0]))
 
-    def inst_fc_fx2(self, items):
-        return ('fc_fx2', int(items[0]))
+    def pulse_prog_args(self, items):
+        from src.usf.types import PulseProgConfig
+        return PulseProgConfig(**dict(items))
 
-    def inst_fc_fx3(self, items):
-        return ('fc_fx3', int(items[0]))
+    def inst_pulse_prog(self, items):
+        return ('pulse_prog', items[0])
+
+    def fp_program(self, items):
+        return ('program', int(items[0]))
+
+    def fp_strange(self, items):
+        return ('strange', bool(items[0]))
+
+    def fp_double_voice(self, items):
+        return ('double_voice', bool(items[0]))
+
+    def fp_aux_bits(self, items):
+        return ('aux_bits', int(items[0]))
+
+    def filter_prog_args(self, items):
+        from src.usf.types import FilterProgConfig
+        return FilterProgConfig(**dict(items))
+
+    def inst_filter_prog(self, items):
+        return ('filter_prog', items[0])
+
+    def efx_tone_arp(self, _):       return 'tone_arp'
+    def efx_pulse_arp(self, _):      return 'pulse_arp'
+    def efx_drum(self, _):           return 'drum'
+    def efx_tonesweep_up(self, _):   return 'tonesweep_up'
+    def efx_wave_arp(self, _):       return 'wave_arp'
+    def efx_noise_tick(self, _):     return 'noise_tick'
+    def efx_pulse_run(self, _):      return 'pulse_run'
+    def efx_filter_program(self, _): return 'filter_program'
+
+    def effect_name(self, items):
+        return items[0]
+
+    def effects_args(self, items):
+        return frozenset(items)
+
+    def inst_effects(self, items):
+        return ('effects', items[0])
 
     def instrument_block(self, items):
         # items: INT [name] field*

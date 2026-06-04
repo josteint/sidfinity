@@ -57,7 +57,7 @@ from pathlib import Path
 from src.usf import (
     UsfFile, PsidMeta, Params, InitState,
     Instrument, MusicSubtune, VoiceBlock, Orderlist, Pattern, NoteRow,
-    Pitch, InstrumentRef,
+    Pitch, InstrumentRef, VibratoConfig, PulseProgConfig, FilterProgConfig,
 )
 from pipelines.future_composer.config import FCConfig
 from pipelines.future_composer.engine_model import (
@@ -119,21 +119,102 @@ def _read_psid_meta(sid_path: str) -> PsidMeta:
 # Instruments
 # ---------------------------------------------------------------------------
 
-def _inst_to_usf(inst: FCInstrument) -> Instrument:
-    """FC 8-byte instrument record → USF Instrument.
+def fx_bytes_from_inst(usf_inst: Instrument) -> tuple[int, int, int, int]:
+    """Inverse of `_decompose_fx_bytes` — re-encode an Instrument's
+    named v1 fields back into the four FC bytes (fil_count, fx1, fx2, fx3).
 
-    waveform = [pulse_hi, ctrl_byte]; adsr = (ad, sr). The 4 fc_*
-    bytes carry the engine's per-instrument bookkeeping bytes
-    unchanged — opaque pending decomposition into musical names.
+    Used by the composers (binary-patch + asm-data) to write the engine's
+    8-byte instrument record. Round-trip invariant:
+    fx_bytes_from_inst(_inst_to_usf(fc_inst)) == (fc_inst.fil_count,
+    fc_inst.fx1, fc_inst.fx2, fc_inst.fx3).
     """
+    v = usf_inst.vibrato
+    fx1 = (v.amplitude & 0x0F) | ((v.speed & 0x07) << 4)
+    if v.direction == 'down':
+        fx1 |= 0x80
+    pp = usf_inst.pulse_prog
+    fp = usf_inst.filter_prog
+    fx2 = (pp.program & 0x07) | ((pp.increment & 0x0F) << 4)
+    if fp.strange:
+        fx2 |= 0x08
+    fil_count = (fp.program & 0x0F) | (fp.aux_bits & 0x70)
+    if fp.double_voice:
+        fil_count |= 0x80
+    bit_for = {v: k for k, v in _FX3_BIT_TO_NAME.items()}
+    fx3 = 0
+    for name in usf_inst.effects:
+        fx3 |= bit_for[name]
+    return fil_count, fx1, fx2, fx3
+
+
+# --- FC v1 fx-byte bit decomposition ---
+# Maps the four raw FC instrument bytes (fil_count, fx1, fx2, fx3) into
+# named musical fields. See pipelines/future_composer/docs/usf_schema_v1.md
+# for the verified bit table.
+
+_FX3_BIT_TO_NAME = {
+    0x01: 'filter_program',
+    0x02: 'pulse_run',
+    0x04: 'tone_arp',
+    0x08: 'pulse_arp',
+    0x10: 'drum',
+    0x20: 'tonesweep_up',
+    0x40: 'wave_arp',
+    0x80: 'noise_tick',
+}
+
+
+def _decompose_fx_bytes(fil_count: int, fx1: int, fx2: int,
+                         fx3: int) -> dict:
+    """Decompose FC's four opaque instrument bytes into named fields.
+    Returns a dict matching the USF Instrument fields:
+      vibrato (VibratoConfig with amplitude/speed/direction set)
+      pulse_prog (PulseProgConfig)
+      filter_prog (FilterProgConfig)
+      effects (frozenset[str])
+    """
+    # fx1 → vibrato (amplitude/speed/direction)
+    vibrato = VibratoConfig(
+        amplitude=fx1 & 0x0F,
+        speed=(fx1 & 0x70) >> 4,
+        direction='down' if (fx1 & 0x80) else 'up',
+    )
+    # fx2 → pulse_prog (program / increment) + filter_prog.strange (bit 3)
+    pulse_prog = PulseProgConfig(
+        program=fx2 & 0x07,
+        increment=(fx2 & 0xF0) >> 4,
+    )
+    # fil_count → filter_prog.program (lo nibble), double_voice (bit 3),
+    # aux_bits (remaining high-nibble bits whose musical meaning isn't
+    # fully RE'd)
+    filter_prog = FilterProgConfig(
+        program=fil_count & 0x0F,
+        strange=bool(fx2 & 0x08),
+        double_voice=bool(fil_count & 0x80),
+        aux_bits=fil_count & 0x70,   # bits 4-6 of fil_count, TBD musical meaning
+    )
+    # fx3 → effects flag set
+    effects = frozenset(
+        name for bit, name in _FX3_BIT_TO_NAME.items() if fx3 & bit
+    )
+    return dict(vibrato=vibrato, pulse_prog=pulse_prog,
+                filter_prog=filter_prog, effects=effects)
+
+
+def _inst_to_usf(inst: FCInstrument) -> Instrument:
+    """FC 8-byte instrument record → USF Instrument (v1 schema).
+
+    waveform = [pulse_hi, ctrl_byte]; adsr = (ad, sr). The four FC
+    effect bytes (fil_count, fx1, fx2, fx3) are decomposed into named
+    fields per usf_schema_v1.md.
+    """
+    fields = _decompose_fx_bytes(inst.fil_count, inst.fx1, inst.fx2,
+                                  inst.fx3)
     return Instrument(
         id=inst.id + 1,           # USF uses 1-based instrument ids
         waveform=[inst.pulse_hi, inst.waveform],
         adsr=(inst.ad, inst.sr),
-        fc_fil_count=inst.fil_count,
-        fc_fx1=inst.fx1,
-        fc_fx2=inst.fx2,
-        fc_fx3=inst.fx3,
+        **fields,
     )
 
 

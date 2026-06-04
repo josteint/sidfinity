@@ -118,14 +118,12 @@ instrument_field: "waveform" ":" byte_list                              -> inst_
                 | "envelope" ":" env_args                               -> inst_envelope
                 | "slide" ":" slide_args                                -> inst_slide
                 | "incby2" ":" incby2_args                              -> inst_incby2
-                // FC family v0 compromise — opaque per-instrument bytes
-                // pending decomposition into musical names. See
-                // pipelines/future_composer/docs/usf_schema_v0.md §7
-                // and the "Still suspicious (v0 compromises)" section.
-                | "fc_fil_count" ":" byte                               -> inst_fc_fil_count
-                | "fc_fx1" ":" byte                                     -> inst_fc_fx1
-                | "fc_fx2" ":" byte                                     -> inst_fc_fx2
-                | "fc_fx3" ":" byte                                     -> inst_fc_fx3
+                // FC v1 — decomposed instrument effects (replaces v0's
+                // four opaque fc_fil_count/fc_fx1-3 bytes). See
+                // pipelines/future_composer/docs/usf_schema_v1.md.
+                | "pulse_prog" ":" pulse_prog_args                      -> inst_pulse_prog
+                | "filter_prog" ":" filter_prog_args                    -> inst_filter_prog
+                | "effects" ":" effects_args                            -> inst_effects
 
 pwm_args: pwm_kv+
 pwm_kv: "mode" "=" CNAME           -> pwm_mode
@@ -151,6 +149,46 @@ vib_kv: "scale" "=" INT                 -> vib_scale
       | "period_frames" "=" INT         -> vib_period_frames
       | "polarity" "=" CNAME            -> vib_polarity
       | "depth_semitones" "=" FLOAT     -> vib_depth_semitones
+      // FC v1 — added to express the engine's amplitude/speed/direction
+      // bit-fields as named musical scalars. Independent of Hubbard's
+      // scale/onset (different engines parameterise vibrato differently
+      // but they all write to the same conceptual block).
+      | "amplitude" "=" INT             -> vib_amplitude
+      | "speed" "=" INT                 -> vib_speed
+      | "direction" "=" CNAME           -> vib_direction
+
+// FC v1 — pulse-program config (replaces opaque fc_fx2 byte).
+// `program` selects the engine's `pulsetabel` entry (1-7; 0 = disabled).
+// `increment` is the per-frame pulse-width step (0-15 → scaled by 16
+// when encoded back into fx2's high nibble).
+pulse_prog_args: pulse_prog_kv+
+pulse_prog_kv: "program" "=" INT        -> pp_program
+             | "increment" "=" INT      -> pp_increment
+
+// FC v1 — filter-program config (replaces opaque fc_fil_count byte +
+// fx2 bit 3 + fx3 bit 0). `program` selects the engine's filter program
+// (1-15; 0 = disabled). `strange` enables the bidirectional cutoff
+// sweep. `double_voice` is the lo-freq detune trick. `aux_bits` carries
+// the high-nibble bits of fil_count whose musical meaning isn't yet
+// fully RE'd (v2 deferral).
+filter_prog_args: filter_prog_kv+
+filter_prog_kv: "program" "=" INT       -> fp_program
+              | "strange" "=" bool      -> fp_strange
+              | "double_voice" "=" bool -> fp_double_voice
+              | "aux_bits" "=" number   -> fp_aux_bits
+
+// FC v1 — instrument effect flags (replaces opaque fc_fx3 bits 1-7
+// plus a flag for fx3 bit 0). Each name is a flag that's PRESENT if
+// the corresponding bit is set in the original instrument's fx3 byte.
+effects_args: effect_name+
+effect_name: "tone_arp"        -> efx_tone_arp
+           | "pulse_arp"       -> efx_pulse_arp
+           | "drum"            -> efx_drum
+           | "tonesweep_up"    -> efx_tonesweep_up
+           | "wave_arp"        -> efx_wave_arp
+           | "noise_tick"      -> efx_noise_tick
+           | "pulse_run"       -> efx_pulse_run
+           | "filter_program"  -> efx_filter_program
 
 env_args: env_kv+
 env_kv: "release_ctrl" "=" number      -> env_release_ctrl

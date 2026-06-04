@@ -83,6 +83,7 @@ def _apply_instruments(mem: bytearray, cfg: FCConfig,
     present in USF stay at whatever the original SID had (which is
     fine — the original engine code initializes them to zero).
     """
+    from pipelines.future_composer.to_usf import fx_bytes_from_inst
     for inst in usf.instruments:
         slot = inst.id - 1
         if slot < 0 or slot >= cfg.instr_count:
@@ -90,14 +91,15 @@ def _apply_instruments(mem: bytearray, cfg: FCConfig,
         base = cfg.instr_records_addr + slot * 8
         pulse_hi = inst.waveform[0] if inst.waveform else 0
         ctrl     = inst.waveform[1] if len(inst.waveform) > 1 else 0
+        fil_count, fx1, fx2, fx3 = fx_bytes_from_inst(inst)
         mem[base + 0] = pulse_hi
         mem[base + 1] = ctrl
         mem[base + 2] = inst.adsr[0]
         mem[base + 3] = inst.adsr[1]
-        mem[base + 4] = inst.fc_fil_count
-        mem[base + 5] = inst.fc_fx1
-        mem[base + 6] = inst.fc_fx2
-        mem[base + 7] = inst.fc_fx3
+        mem[base + 4] = fil_count
+        mem[base + 5] = fx1
+        mem[base + 6] = fx2
+        mem[base + 7] = fx3
 
 
 def _apply_per_subtune_speed(mem: bytearray, cfg: FCConfig,

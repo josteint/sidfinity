@@ -284,6 +284,10 @@ class VibratoConfig:
 
       `onset` (default 6) — frames of note duration before vibrato
         kicks in. Below this duration counter, vibrato is gated off.
+
+    FC v1 additions (`amplitude`/`speed`/`direction`) carry FC's
+    fx1-byte decomposition. They coexist with Hubbard's scale/onset/etc;
+    each engine populates the subset it uses.
     """
     scale: int = 0
     onset: int = 6
@@ -298,6 +302,47 @@ class VibratoConfig:
     # Composer uses `scale` as engine byte; this field exists for
     # the model to see continuous musical amplitude.
     depth_semitones: float = 0.0
+    # FC v1 — fx1 byte decomposition. amplitude=0 means vibrato is
+    # disabled (the engine short-circuits on fx1==0).
+    amplitude: int = 0           # 0-15 (low nibble of fx1)
+    speed: int = 0               # 0-7 (bits 4-6 of fx1, >> 4)
+    direction: str = 'up'        # 'up' (bit 7 clear) | 'down' (set)
+
+
+@dataclass
+class PulseProgConfig:
+    """FC v1 — pulse-program per-instrument config (replaces opaque
+    fc_fx2 byte).
+
+    `program` (1-7; 0 = disabled) selects the engine's pulsetabel
+    entry — an 8-byte program describing how pulse-width sweeps over
+    time. The pulsetabel is engine-shared (not yet inlined per-inst).
+    v2 deferral: inline the 8 bytes here as named per-segment fields.
+
+    `increment` (0-15) is the default per-frame pulse-width step,
+    scaled to fx2's high nibble (0-$F0 in 16-step increments).
+    """
+    program: int = 0
+    increment: int = 0
+
+
+@dataclass
+class FilterProgConfig:
+    """FC v1 — filter-program per-instrument config (replaces opaque
+    fc_fil_count byte + fx2 bit 3 + fx3 bit 0).
+
+    `program` (1-15; 0 = disabled) selects the filter program; the
+    engine indexes filterbytes by program * 4.
+
+    `strange` enables the bidirectional cutoff sweep on $D416 (fx2.3).
+    `double_voice` is the lo-freq detune trick (filcount bit 3 = $08).
+    `aux_bits` carries fil_count's high-nibble bits whose musical
+    meaning isn't fully RE'd yet (v2 deferral).
+    """
+    program: int = 0
+    strange: bool = False
+    double_voice: bool = False
+    aux_bits: int = 0
 
 
 @dataclass
@@ -388,17 +433,16 @@ class Instrument:
     #   bit 3 ← pwm.mode == 'linear'
     freq_slide_config: FreqSlideConfig = field(default_factory=FreqSlideConfig)
     inc_by2_config: IncBy2Config = field(default_factory=IncBy2Config)
-    # FC family v0 compromise — opaque per-instrument bytes pending
-    # decomposition into musical names. The four bytes carry the FC
-    # engine's per-instrument filter-program index + 3 fx flag bytes
-    # (fx1: vibrato+drum-number; fx2: pulse-program+strange-filter;
-    # fx3: filter/pulse-run/arp/drum/sweep/wave-arp/noise-tick flags).
-    # See pipelines/future_composer/docs/usf_schema_v0.md "Still
-    # suspicious (v0 compromises)" for the decomposition plan.
-    fc_fil_count: int = 0
-    fc_fx1: int = 0
-    fc_fx2: int = 0
-    fc_fx3: int = 0
+    # FC v1 — decomposed instrument effects (replaces v0's opaque
+    # fc_fil_count/fc_fx1-3 bytes). See
+    # pipelines/future_composer/docs/usf_schema_v1.md.
+    # vibrato.amplitude/speed/direction carry the fx1 byte.
+    pulse_prog: PulseProgConfig = field(default_factory=PulseProgConfig)
+    filter_prog: FilterProgConfig = field(default_factory=FilterProgConfig)
+    # Effect flags from fx3 bits — names match the engine routines
+    # they enable (see usf_schema_v1.md bit table). Empty set = no
+    # effects active.
+    effects: frozenset = field(default_factory=frozenset)
 
 
 # ---------------------------------------------------------------------------

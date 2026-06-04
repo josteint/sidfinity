@@ -108,7 +108,11 @@ def _emit_instruments(usf: UsfFile, cfg: FCConfig) -> str:
     """Emit 8-byte per-instrument records starting at the `pulsehi`
     label (= instr_records_addr). Slots 0..instr_count-1; USF skips
     all-zero instruments so we fill missing slots with zeros.
+
+    v1: the 4 effect bytes are recomposed from the USF Instrument's
+    decomposed fields via `fx_bytes_from_inst`.
     """
+    from pipelines.future_composer.to_usf import fx_bytes_from_inst
     slot_to_inst = {i.id - 1: i for i in usf.instruments}
     out = ['pulsehi = * + 0',
            'waveform = * + 1',
@@ -125,9 +129,9 @@ def _emit_instruments(usf: UsfFile, cfg: FCConfig) -> str:
         else:
             pulse_hi = inst.waveform[0] if inst.waveform else 0
             ctrl     = inst.waveform[1] if len(inst.waveform) > 1 else 0
+            fil_count, fx1, fx2, fx3 = fx_bytes_from_inst(inst)
             row = [pulse_hi, ctrl, inst.adsr[0], inst.adsr[1],
-                   inst.fc_fil_count, inst.fc_fx1, inst.fc_fx2,
-                   inst.fc_fx3]
+                   fil_count, fx1, fx2, fx3]
         out.append('        .byt ' + ','.join(f'${b:02X}' for b in row)
                    + f'  ; inst {slot}')
     return '\n'.join(out)
