@@ -262,14 +262,24 @@ def _voice_to_usf(sub, voice_idx, song) -> VoiceBlock:
 6. **Pattern-pointer table size** — FC has 64 entries at $8409 (54
    referenced by sequences); ensure USF pattern IDs map cleanly.
 
-## Cross-engine sanity check
+## Cross-engine sanity check — DONE 2026-06-04
 
-Before implementing this schema, sketch how it would handle:
-- A second FC tune from a different composer (Bjerregaard variant?)
-- A Deenen-MoN tune (Noisy Pillars)
-- An FC V4 editor tune (which the V4.1 manual documents differently)
+See `usf_schema_v0_sanity_check.md` for the full writeup.
 
-If any of these surface new musical concepts that this schema can't
-hold, the schema needs revision before extract code is written. This
-is the "informed by structural diversity" check the deferred
-composer-unification work argues for.
+Summary: ran the Hawkeye `engine_model.extract()` against 9 FC-family
+SIDs (Cybernoid II, Noisy Pillars, 4 Bjerregaard tunes, Catalypse,
+Golden Pyramids). All non-Hawkeye SIDs decoded as empty — the
+engine_model has Hawkeye's data section addresses hardcoded.
+
+**Schema impact: none.** No new musical concepts surfaced. The schema
+above holds.
+
+**Extract-layer impact: significant.** Must be refactored to take a
+per-SID `FCConfig` (addresses + load offsets) before Phase 6 (to_usf.py)
+makes sense. Plan:
+
+1. Refactor `engine_model.py` → parametric over `FCConfig`.
+2. Add Cybernoid II as second canary (we have ACME source).
+3. THEN write `to_usf.py` validated against both canaries.
+4. Compose + verify.
+5. Defer auto-discovery to after 2+ manual configs exist.
