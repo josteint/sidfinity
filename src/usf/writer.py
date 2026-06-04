@@ -260,6 +260,13 @@ def _write_instrument(i: Instrument) -> list[str]:
         lines.append(f'  {_write_slide(i.freq_slide_config)}')
     if i.inc_by2_config.mode != 'none':
         lines.append(f'  {_write_incby2(i.inc_by2_config)}')
+    # FC family v0 compromise — opaque per-instrument bytes. Emit only
+    # when at least one is non-zero so Hubbard etc. stay unaffected.
+    if i.fc_fil_count or i.fc_fx1 or i.fc_fx2 or i.fc_fx3:
+        lines.append(f'  fc_fil_count: {_hex(i.fc_fil_count)}')
+        lines.append(f'  fc_fx1:       {_hex(i.fc_fx1)}')
+        lines.append(f'  fc_fx2:       {_hex(i.fc_fx2)}')
+        lines.append(f'  fc_fx3:       {_hex(i.fc_fx3)}')
     lines.append('}')
     return lines
 
@@ -304,6 +311,8 @@ def _write_subtune(s) -> list[str]:
     if isinstance(s, MusicSubtune):
         lines = [f'subtune {s.id} music {{']
         lines.append(f'  tempo: {s.tempo}')
+        if s.is_sfx:
+            lines.append('  is_sfx: true')
         if s.params is not None and s.params.fields:
             # Indent the per-subtune params block under the subtune.
             for line in _write_params(s.params):

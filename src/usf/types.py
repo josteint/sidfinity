@@ -127,6 +127,11 @@ class MusicSubtune:
     tempo: int
     voices: list[VoiceBlock] = field(default_factory=list)
     params: 'Params | None' = None
+    # FC family — when True, the engine treats this subtune as SFX:
+    # structurally identical to music (3-voice note streams) but the
+    # play loop doesn't sustain the gate on song-end. Default False
+    # for music; FC's SFX subtunes (Hawkeye 6..11) set this.
+    is_sfx: bool = False
     # Per-subtune init override. When set, overrides the top-level
     # `init` for this subtune (the codegen emits subOvseed_<sub> from
     # each subtune's init, and at runtime copies the selected one into
@@ -383,6 +388,17 @@ class Instrument:
     #   bit 3 ← pwm.mode == 'linear'
     freq_slide_config: FreqSlideConfig = field(default_factory=FreqSlideConfig)
     inc_by2_config: IncBy2Config = field(default_factory=IncBy2Config)
+    # FC family v0 compromise — opaque per-instrument bytes pending
+    # decomposition into musical names. The four bytes carry the FC
+    # engine's per-instrument filter-program index + 3 fx flag bytes
+    # (fx1: vibrato+drum-number; fx2: pulse-program+strange-filter;
+    # fx3: filter/pulse-run/arp/drum/sweep/wave-arp/noise-tick flags).
+    # See pipelines/future_composer/docs/usf_schema_v0.md "Still
+    # suspicious (v0 compromises)" for the decomposition plan.
+    fc_fil_count: int = 0
+    fc_fx1: int = 0
+    fc_fx2: int = 0
+    fc_fx3: int = 0
 
 
 # ---------------------------------------------------------------------------

@@ -346,6 +346,18 @@ class _T(Transformer):
     def inst_envelope(self, items):
         return ('envelope', items[0])
 
+    def inst_fc_fil_count(self, items):
+        return ('fc_fil_count', int(items[0]))
+
+    def inst_fc_fx1(self, items):
+        return ('fc_fx1', int(items[0]))
+
+    def inst_fc_fx2(self, items):
+        return ('fc_fx2', int(items[0]))
+
+    def inst_fc_fx3(self, items):
+        return ('fc_fx3', int(items[0]))
+
     def instrument_block(self, items):
         # items: INT [name] field*
         inst_id = int(items[0])
@@ -378,10 +390,16 @@ class _T(Transformer):
     def subtune_body(self, items):
         return items[0]
 
+    def is_sfx_field(self, items):
+        return ('is_sfx', bool(items[0]))
+
     def music_body(self, items):
-        # 'tempo' ':' INT params_block? init_block? voice voice voice
+        # 'tempo' ':' INT is_sfx_field? params_block? init_block? voice*3
         tempo = int(items[0])
         rest = list(items[1:])
+        is_sfx = False
+        if rest and isinstance(rest[0], tuple) and rest[0][0] == 'is_sfx':
+            is_sfx = rest.pop(0)[1]
         params = None
         init = None
         if rest and isinstance(rest[0], Params):
@@ -390,7 +408,8 @@ class _T(Transformer):
             init = rest.pop(0)
         voices = rest
         return ('music', {'tempo': tempo, 'voices': voices,
-                          'params': params, 'init': init})
+                          'params': params, 'init': init,
+                          'is_sfx': is_sfx})
 
     def digi_body(self, items):
         return ('digi', {'sample': str(items[0])})
@@ -481,7 +500,8 @@ class _T(Transformer):
                 id=sub_id, tempo=body_data['tempo'],
                 voices=body_data['voices'],
                 params=body_data.get('params'),
-                init=body_data.get('init'))
+                init=body_data.get('init'),
+                is_sfx=body_data.get('is_sfx', False))
         elif kind == 'digi':
             return DigiSubtune(id=sub_id, sample=body_data['sample'])
         else:
@@ -584,6 +604,15 @@ class _T(Transformer):
 
     def fx_named(self, items):
         return f'fx:{items[0]}'
+
+    def fx_glide(self, items):
+        return f'glide={int(items[0])}'
+
+    def fx_wave_adjust(self, items):
+        return f'wave_adjust={int(items[0])}'
+
+    def fx_filter(self, items):
+        return f'filter=${int(items[0]):02X}'
 
     def freq_table_block(self, items):
         # items[0] is a byte_list (= list[int])

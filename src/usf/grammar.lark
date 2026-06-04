@@ -118,6 +118,14 @@ instrument_field: "waveform" ":" byte_list                              -> inst_
                 | "envelope" ":" env_args                               -> inst_envelope
                 | "slide" ":" slide_args                                -> inst_slide
                 | "incby2" ":" incby2_args                              -> inst_incby2
+                // FC family v0 compromise — opaque per-instrument bytes
+                // pending decomposition into musical names. See
+                // pipelines/future_composer/docs/usf_schema_v0.md §7
+                // and the "Still suspicious (v0 compromises)" section.
+                | "fc_fil_count" ":" byte                               -> inst_fc_fil_count
+                | "fc_fx1" ":" byte                                     -> inst_fc_fx1
+                | "fc_fx2" ":" byte                                     -> inst_fc_fx2
+                | "fc_fx3" ":" byte                                     -> inst_fc_fx3
 
 pwm_args: pwm_kv+
 pwm_kv: "mode" "=" CNAME           -> pwm_mode
@@ -177,7 +185,11 @@ subtune_body: music_body
             | sfx_body
 
 // music
-music_body: "tempo" ":" INT params_block? init_block? voice_block voice_block voice_block
+// `is_sfx`: FC family — distinguishes SFX-kind subtunes that are
+// structurally identical to music (3-voice note streams) but whose
+// runtime semantics differ (engine doesn't sustain gate on song-end).
+music_body: "tempo" ":" INT is_sfx_field? params_block? init_block? voice_block voice_block voice_block
+is_sfx_field: "is_sfx" ":" bool
 
 voice_block: "voice" INT "{" "orderlist" ":" orderlist pattern_block* "}"
 orderlist: orderlist_entry+ orderlist_terminator?
@@ -200,6 +212,12 @@ fx_flag: "tie"                  -> fx_tie
        | "section_end" "=" INT  -> fx_section_end
        | "set_dur" "=" number   -> fx_set_dur
        | "fx" ":" CNAME         -> fx_named
+       // FC family musical attributes (new in v0). Glide = portamento
+       // with an N-frame onset delay; wave_adjust = per-note wave-table
+       // offset; filter = direct $D417 write.
+       | "glide" "=" INT        -> fx_glide
+       | "wave_adjust" "=" INT  -> fx_wave_adjust
+       | "filter" "=" number    -> fx_filter
 
 // digi
 digi_body: "sample" ":" SAMPLE_PATH
