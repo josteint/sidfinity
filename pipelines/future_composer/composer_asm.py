@@ -149,6 +149,56 @@ def _emit_instruments(usf: UsfFile, cfg: FCConfig) -> str:
 # Sessions 2-3 incrementally replace this with feature-driven asm
 # emitters.
 
+# ---------------------------------------------------------------------------
+# Engine-code emitters — session 2 begins here
+# ---------------------------------------------------------------------------
+#
+# Cybernoid II's HVSC SID uses a multi-stage trampoline that doesn't
+# match the ACME source's natural layout. The PSID-pointed init/play
+# vectors at $A600/$A603 jump to a TAX/JMP at $A606 which jumps to a
+# SECOND trampoline at $A620 which finally jumps to the real song
+# body at $A6CA. The 22-byte zero gap at $A60A-$A61F is engine state
+# storage that the engine zero-clears at runtime.
+#
+# Session 2: emit the trampolines as proper labelled asm. This is the
+# simplest chunk to lift out of the verbatim placeholder.
+
+def _emit_trampolines_cybernoid_ii() -> str:
+    """Emit the two-stage trampoline at $A600-$A628 plus the
+    state-region zero gap.
+
+    HVSC's Cybernoid II uses a multi-stage trampoline. The PSID-pointed
+    init/play vectors at $A600/$A603 jump to a TAX/JMP at $A606 which
+    jumps to a second trampoline at $A620 which finally jumps to the
+    real engine routines at $A6CA/$A70F/$A716. The 22-byte zero gap
+    at $A60A-$A61F is engine state storage that the engine zero-clears
+    at runtime.
+
+    Targets are raw addresses ($A6CA etc.) so we don't need to define
+    labels for them (they live in the verbatim engine region that
+    follows). Session 3+ will replace those raw addresses with proper
+    labels as more chunks lift out of verbatim.
+    """
+    return """; --- entry trampolines (session 2 asm) ---
+; PSID init=$A600, play=$A603
+init    jmp song_tramp           ; $A600 jmp $A606
+        jmp play_tramp           ; $A603 jmp $A626
+song_tramp                       ; $A606
+        tax                      ; save song number from accumulator
+        jmp song_body            ; $A607 jmp $A620
+
+; $A60A-$A61F: 22 bytes of state storage (engine zero-clears at runtime)
+        .dsb 22, 0
+
+; --- second trampoline at $A620 (3-vector to real routines) ---
+song_body                        ; $A620
+        jmp $a6ca                ; song body (real routine)
+        jmp $a70f                ; songout (real routine)
+play_tramp                       ; $A626
+        jmp $a716                ; playirq (real routine)
+"""
+
+
 def _emit_verbatim_region(orig_mem: bytes, start_addr: int,
                            end_addr_exclusive: int) -> str:
     """Emit a region of memory as `.byt` bytes. The label is the
@@ -262,15 +312,24 @@ def compose_fc_asm(usf: UsfFile, cfg: FCConfig,
         sections.append((name, start, end))
 
     lines = [
-        f'; FC asm composer — session 1 output for {cfg.name}',
+        f'; FC asm composer — sessions 1+2 output for {cfg.name}',
         f'; load_addr = ${load_addr:04X}',
-        f'; session 1: data sections from USF, engine code verbatim',
+        f'; session 1: data sections from USF; session 2: '
+        f'engine front-end as asm',
         '',
         f'* = ${load_addr:04X}',
         '',
     ]
 
     cursor = load_addr
+
+    # Session 2 (cybernoid_ii only): emit the entry trampolines as asm.
+    # The next-cursor advances past the second trampoline ($A628) so
+    # the verbatim region kicks in from $A629 (speedbyte) onwards.
+    if cfg.name == 'cybernoid_ii':
+        lines.append(_emit_trampolines_cybernoid_ii())
+        cursor = 0xA629    # one past second trampoline's last jmp
+
     for name, start, end in sections:
         if start > cursor:
             # Emit verbatim engine code from cursor..start-1
