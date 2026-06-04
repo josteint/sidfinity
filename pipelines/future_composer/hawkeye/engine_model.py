@@ -253,28 +253,39 @@ def _decode_pattern(mem: bytes, pat_id: int, start_addr: int,
 
 
 def _decode_subtune(mem: bytes, sub_idx: int) -> Subtune:
-    """Reconstruct per-subtune setup by replicating sub_7B5A's logic.
+    """Reconstruct per-subtune setup by replicating $918F's logic.
 
-    `sub_7B5A` reads:
-      A = $83FC,X    (template lo byte)  → SMC at $7B6B
-      LDY #5; B9 2C 7B copies 6 bytes from $7B<lo>+0..5 to $8403+0..5
-      A = $83F5,X    (speedbyte)         → $7AFE
-      A = $7AFF,X    (mode byte)         → $7BAE
+    Music (sub 0-5): X = sub_idx, sub_7B5A reads template lo from
+      $83FC,X and copies 6 bytes from $7B<lo>+0..5 to $8403..$8408.
+      Speedbyte from $83F5,X, mode from $7AFF,X.
 
-    NB: trace showed the raw subtune index isn't always X here —
-    $918F apparently translates it. For now we read X = sub_idx
-    directly; if disagreements appear vs the actual init trace,
-    revisit.
+    SFX (sub 6-11): SFX index = sub - 6. SFX record at page
+      $92 + 2*SFX_index. The first 6 bytes of the record are V0/V1/V2
+      seq pointers (these get blitted to $7B2C then to $8403). The
+      speedbyte + mode come from $83F5+6 / $7AFF+6 (because $918F
+      forces X=6 before calling sub_7B5A).
     """
-    template_lo = mem[ADDR_PER_SUBTUNE_SMC + sub_idx]
-    template_addr = (ADDR_TEMPLATE_BASE_HI << 8) | template_lo
-    seq_lo = mem[template_addr + 0:template_addr + 3]
-    seq_hi = mem[template_addr + 3:template_addr + 6]
+    if sub_idx < 6:
+        # Music path
+        template_lo = mem[ADDR_PER_SUBTUNE_SMC + sub_idx]
+        template_addr = (ADDR_TEMPLATE_BASE_HI << 8) | template_lo
+        seq_lo = mem[template_addr + 0:template_addr + 3]
+        seq_hi = mem[template_addr + 3:template_addr + 6]
+        speedbyte = mem[ADDR_PER_SUBTUNE_SPEED + sub_idx]
+        mode = mem[ADDR_PER_SUBTUNE_7BAE + sub_idx]
+    else:
+        # SFX path — record at page $92 + 2*(sub-6)
+        sfx_idx = sub_idx - 6
+        record_base = (0x92 + sfx_idx * 2) << 8
+        seq_lo = mem[record_base + 0:record_base + 3]
+        seq_hi = mem[record_base + 3:record_base + 6]
+        # $918F forces X = 6 → speedbyte = $83F5+6, mode = $7AFF+6
+        speedbyte = mem[ADDR_PER_SUBTUNE_SPEED + 6]
+        mode = mem[ADDR_PER_SUBTUNE_7BAE + 6]
+
     v0_addr = seq_lo[0] | (seq_hi[0] << 8)
     v1_addr = seq_lo[1] | (seq_hi[1] << 8)
     v2_addr = seq_lo[2] | (seq_hi[2] << 8)
-    speedbyte = mem[ADDR_PER_SUBTUNE_SPEED + sub_idx]
-    mode = mem[ADDR_PER_SUBTUNE_7BAE + sub_idx]
     is_sfx = (mode == 0x00)
     return Subtune(
         id=sub_idx, is_sfx=is_sfx, speedbyte=speedbyte,

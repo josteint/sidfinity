@@ -282,10 +282,68 @@ the template at $7B2C (their V0 seq is identical = $8FC5).
 | `$8FC5..$??` | shared SFX V0 sequence (subtunes 6-11) | |
 | `$9008..$905F?` | shared SFX V1/V2 sequences | per the subtune init dump |
 | `$90C5..$913B` | per-voice runtime variables | 119 bytes — see layout table above |
-| `$918F..$??` | subtune dispatch (entered from JMP init) | translates raw subtune number, then JSRs into sub_7B5A |
+| `$918F..$91D5` | subtune dispatch (entered from JMP init) | see decoded logic below |
+| `$9200..$9CFF` | per-SFX records (6 × 0x200 bytes) | one record per SFX subtune (6-11) |
 
 ⚠️ Many of these are EDUCATED GUESSES from a single-pass disassembly read.
 They need verification — see "Open questions" below.
+
+## $918F subtune dispatcher (decoded)
+
+```
+$918F: CMP #$06         ; A = raw subtune number
+       BCS $919A        ;   ≥6 → SFX path
+       TAX              ; A < 6: X = A (music subtune 0-5)
+       JSR $7B5A        ;        call music init with X = subtune
+       RTS
+
+$919A: CMP #$0C         ; SFX path (A ≥ 6)
+       BCS $9197        ;   ≥12 → invalid, RTS
+       SBC #$06         ; A = SFX index (0-5)
+       ASL              ; A = SFX_index * 2
+       CLC; ADC #$92    ; A = $92 + SFX_index*2 (record page number)
+       STA $03          ; (zp_02:zp_03) = pointer to SFX record
+       LDA #$00; STA $02
+       ; copy 6 bytes from record+$00 to $7B2C..$7B31 (overwrites
+       ; template 6 with this SFX's V0/V1/V2 seq pointers)
+       LDY #$05
+       LDA ($02),y / STA $7B2C,y / DEY / BPL  ; 6 bytes
+       LDA #$06; STA $02   ; ptr += 6
+       ; copy 20 bytes from record+$06 to $8475..$8488 (overwrites
+       ; pattern-pointer table entries 26..35 with SFX-specific
+       ; pattern addresses — 10 new patterns)
+       LDY #$13
+       LDA ($02),y / STA $8475,y / DEY / BPL  ; 20 bytes
+       LDA #$1A; STA $02   ; ptr += $1A (now $1A from page base)
+       ; copy 255 bytes from record+$1A to $8FC5..$90C4 (the
+       ; sequence/pattern data area; SFX gets fresh content)
+       LDY #$00
+       LDA ($02),y / STA $8FC5,y / DEY / BNE  ; 255 bytes (wraps)
+       LDX #$06         ; force X = template index 6
+       JMP $9194        ; tail-call music init with X = 6
+```
+
+Per-SFX record layout (each is at page `$92 + 2*SFX_index`, total ~256 bytes):
+- bytes `+$00..$05`: 6-byte seq-pointer template (3 lo + 3 hi for V0/V1/V2)
+- bytes `+$06..$19`: 20 bytes = 10 pattern pointers (lo,hi) — get written to pattern-pointer table at $8475
+- bytes `+$1A..$118`: 255 bytes of sequence + pattern data — gets written to runtime $8FC5+
+
+So SFX subtunes are SELF-CONTAINED RECORDS, not just template aliases. Each SFX record carries its own sequences + patterns. They use shared instruments + freq table from the music side, but everything else is SFX-specific.
+
+SFX record locations: $9200, $9400, $9600, $9800, $9A00, $9C00.
+
+Decoded SFX V0/V1/V2 seq pointers (matches post-init trace):
+
+| Sub | Page | V0 | V1 | V2 |
+|---|---|---|---|---|
+| 6 | $92xx | $8FC5 | $9015 | $9015 |
+| 7 | $94xx | $8FC5 | $9056 | $9056 |
+| 8 | $96xx | $8FC5 | $9008 | $9008 |
+| 9 | $98xx | $8FC5 | $9054 | $9054 |
+| 10 | $9Axx | $8FC5 | $9014 | $9014 |
+| 11 | $9Cxx | $8FC5 | $9021 | $9021 |
+
+(All SFX use V0=$8FC5 — the V0 stream is the first 80 bytes of every SFX record's data region, so they all point to the same runtime address after the copy. V1=V2 = mirror-doubling on the second voice.)
 
 ## Open questions / verification TODO
 
