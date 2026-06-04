@@ -64,34 +64,222 @@ class Instrument:
     fx3: int                    # +7 — drum/skydive flags (TBD)
 
 
+# ---------------------------------------------------------------------------
+# Sequence commands (decoded from byte ranges in L_7C0D/L_7C1F/L_7C31/L_7C43)
+# ---------------------------------------------------------------------------
+
+@dataclass
+class SeqPatternJump:
+    """$00-$3F: play pattern N. Triggers a 2*N index into the pattern
+    pointer table at $8409."""
+    pattern_id: int            # 0-63
+
+
+@dataclass
+class SeqRepeats:
+    """$40-$5F: set the per-voice pattern-repeat counter (`repeatsto`).
+    The pattern then replays N times before sequence advances."""
+    count: int                 # 0-31 (from AND #$3F = 0-63, but high bit
+                               # is the range gate so really 0-31)
+
+
+@dataclass
+class SeqVoiceinc:
+    """$60-$7F: set per-voice wave-table advance step (`voiceinc`)."""
+    inc: int                   # 0-15 (AND #$0F)
+
+
+@dataclass
+class SeqTranspose:
+    """$80-$BF: set per-voice transpose offset (`toneadd`)."""
+    semitones: int             # 0-31 (AND #$1F)
+
+
+@dataclass
+class SeqEnd:
+    """$FE: section end → triggers `songout` (gate all voices off)."""
+    pass
+
+
+@dataclass
+class SeqWrap:
+    """$FF: wrap → reset tabcount/begcount/nootcount and re-read."""
+    pass
+
+
+SeqCommand = (SeqPatternJump | SeqRepeats | SeqVoiceinc | SeqTranspose
+              | SeqEnd | SeqWrap)
+
+
+def _parse_sequence(raw: bytes) -> list[SeqCommand]:
+    """Decode the sequence byte stream into structured commands."""
+    out: list[SeqCommand] = []
+    for b in raw:
+        if b == SEQ_END:
+            out.append(SeqEnd())
+            break
+        if b == SEQ_WRAP:
+            out.append(SeqWrap())
+            break
+        if SEQ_TRANSPOSE_RANGE[0] <= b <= SEQ_TRANSPOSE_RANGE[1]:
+            out.append(SeqTranspose(b & 0x1F))
+        elif SEQ_VOICEINC_RANGE[0] <= b <= SEQ_VOICEINC_RANGE[1]:
+            out.append(SeqVoiceinc(b & 0x0F))
+        elif SEQ_REPEATS_RANGE[0] <= b <= SEQ_REPEATS_RANGE[1]:
+            out.append(SeqRepeats(b & 0x3F))
+        else:  # $00-$3F
+            out.append(SeqPatternJump(b))
+    return out
+
+
 @dataclass
 class Sequence:
     """A per-voice sequence stream: bytes consumed left-to-right by
     the engine until $FE (end) or $FF (wrap to start).
 
-    `bytes_raw` is the verbatim source. `parsed` is the decoded
-    command-by-command structure (TBD — first pass only stores raw).
-    `pattern_ids_used` is the unique pattern ids the sequence
-    references (extracted from $00-$3F byte ranges).
+    `bytes_raw` is the verbatim source. `commands` is the decoded
+    command list. `pattern_ids_used` is the unique pattern ids
+    referenced by SeqPatternJump.
     """
     start_addr: int
     bytes_raw: bytes
+    commands: list[SeqCommand]
     pattern_ids_used: list[int]
+
+
+# ---------------------------------------------------------------------------
+# Pattern events (decoded from dispatch logic at L_7C64 .. L_7D22)
+# ---------------------------------------------------------------------------
+#
+# Pattern byte ranges (verified by reading the disassembly's dispatch
+# chain in order $F0 → $E0 → $C0 → $70 → $80 → fallthrough):
+#   $FF        end-of-pattern
+#   $F1, p     direct $D417 write with parameter p
+#   $F0, n     no-glide marker; n = next note
+#   $E0..$EF, d, t : glide command (delay d, target/note t)
+#   $C0..$DF   wave-position adjust (& $1F = offset added to voiceinc)
+#   $80..$BF   set note-length (& $3F - 1 = frames). Can chain.
+#   $70..$7F   instrument change (low nibble = instr id 0-15)
+#   $00..$6F   note (pitch index 0-95; $60-$6F is off-table)
+
+@dataclass
+class PatNote:
+    """Play a note at `pitch` (index into freq table 0-95). $60-$6F is
+    off-table (reads engine state region; rare in well-formed patterns)."""
+    pitch: int                 # 0-127 raw byte value
+
+
+@dataclass
+class PatInstrumentChange:
+    """$70-$7F: change current instrument to N (low nibble)."""
+    instr_id: int              # 0-15
+
+
+@dataclass
+class PatSetLength:
+    """$80-$BF: set the length of the next note(s). The engine may chain
+    multiple PatSetLength to extend the length further."""
+    length: int                # 0-63 (frames; engine subtracts 1)
+
+
+@dataclass
+class PatWaveAdjust:
+    """$C0-$DF: adjust wavetable position by (byte & $1F) + voiceinc."""
+    delta: int                 # 0-31
+
+
+@dataclass
+class PatGlide:
+    """$E0-$EF, delay, target: 3-byte glide. The target byte is BOTH
+    the glide target AND the next note's pitch (engine re-reads it)."""
+    delay: int                 # 0-255
+    # `target` is captured as the following PatNote in the event list
+
+
+@dataclass
+class PatNoGlide:
+    """$F0: prefix that disables glide for the immediately-following
+    note (the next byte is the note pitch)."""
+    pass
+
+
+@dataclass
+class PatFilterSet:
+    """$F1, value: direct write to $D417 (filter resonance/routing)."""
+    value: int                 # 0-255
+
+
+@dataclass
+class PatEnd:
+    """$FF: end of pattern. Triggers sequence-advance + repeat logic."""
+    pass
+
+
+PatEvent = (PatNote | PatInstrumentChange | PatSetLength | PatWaveAdjust
+            | PatGlide | PatNoGlide | PatFilterSet | PatEnd)
+
+
+def _parse_pattern(raw: bytes) -> tuple[list[PatEvent], int]:
+    """Decode pattern bytes into structured events. Returns
+    (events, consumed_byte_count). Stops at first $FF (inclusive)."""
+    events: list[PatEvent] = []
+    i = 0
+    while i < len(raw):
+        b = raw[i]
+        if b == 0xFF:
+            events.append(PatEnd())
+            i += 1
+            break
+        if b == 0xF1:
+            if i + 1 >= len(raw):
+                break
+            events.append(PatFilterSet(raw[i + 1]))
+            i += 2
+            continue
+        if b == 0xF0:
+            events.append(PatNoGlide())
+            i += 1
+            continue
+        if 0xE0 <= b <= 0xEF:
+            if i + 2 >= len(raw):
+                break
+            delay = raw[i + 1]
+            target = raw[i + 2]
+            events.append(PatGlide(delay))
+            events.append(PatNote(target))     # the glide target IS the note
+            i += 3
+            continue
+        if 0xC0 <= b <= 0xDF:
+            events.append(PatWaveAdjust(b & 0x1F))
+            i += 1
+            continue
+        if 0x70 <= b <= 0x7F:
+            events.append(PatInstrumentChange(b & 0x0F))
+            i += 1
+            continue
+        if 0x80 <= b <= 0xBF:
+            events.append(PatSetLength(b & 0x3F))
+            i += 1
+            continue
+        # $00..$6F: note
+        events.append(PatNote(b))
+        i += 1
+    return events, i
 
 
 @dataclass
 class Pattern:
     """A pattern stream: bytes consumed left-to-right by the per-voice
-    pattern reader until $FF (end). Variable length.
+    pattern reader until $FF (end).
 
-    `bytes_raw` is the verbatim source. `len` is the length to the
-    first $FF terminator (inclusive). `notes_count` is the rough
-    note count (approx — the dispatch is multi-byte per "note").
+    `bytes_raw` is the verbatim source. `events` is the decoded event
+    list. `notes_count` is the precise note count (PatNote events).
     """
     id: int
     start_addr: int
     bytes_raw: bytes
-    notes_count_approx: int
+    events: list[PatEvent]
+    notes_count: int
 
 
 @dataclass
@@ -209,47 +397,26 @@ def _decode_sequence(mem: bytes, start_addr: int,
             if b not in seen_pat:
                 seen_pat.add(b)
                 pat_ids.append(b)
-    return Sequence(start_addr=start_addr, bytes_raw=bytes(raw_buf),
-                    pattern_ids_used=pat_ids)
+    raw = bytes(raw_buf)
+    commands = _parse_sequence(raw)
+    return Sequence(start_addr=start_addr, bytes_raw=raw,
+                    commands=commands, pattern_ids_used=pat_ids)
 
 
 def _decode_pattern(mem: bytes, pat_id: int, start_addr: int,
                     max_bytes: int = 512) -> Pattern:
-    """Walk a pattern stream until $FF terminator or max_bytes.
-
-    notes_count_approx: rough count of "play-note" events (bytes in
-    $00-$5F that aren't part of a multi-byte command). Exact decoding
-    requires interpreting glide / instr-change / note-length prefixes
-    — left for the USF design phase.
-    """
+    """Walk a pattern stream until $FF terminator or max_bytes."""
     raw_buf = bytearray()
-    notes_approx = 0
-    skip_next = 0
     for k in range(max_bytes):
         b = mem[start_addr + k]
         raw_buf.append(b)
         if b == 0xFF:
             break
-        if skip_next > 0:
-            skip_next -= 1
-            continue
-        hi_nibble = b & 0xF0
-        if hi_nibble == 0xE0:
-            # glide: 3-byte command sequence (E0, delay, target)
-            skip_next = 2
-        elif (b & 0xE0) == 0xC0:
-            pass  # freq-adjust: single byte
-        elif hi_nibble == 0x70:
-            pass  # instrument change: single byte
-        elif (b & 0xC0) == 0x80:
-            pass  # note-length: single byte; followed by a separate note
-        elif b == 0xF1:
-            skip_next = 1  # filter set: takes one parameter
-        else:
-            notes_approx += 1
-    return Pattern(id=pat_id, start_addr=start_addr,
-                   bytes_raw=bytes(raw_buf),
-                   notes_count_approx=notes_approx)
+    raw = bytes(raw_buf)
+    events, _consumed = _parse_pattern(raw)
+    notes = sum(1 for e in events if isinstance(e, PatNote))
+    return Pattern(id=pat_id, start_addr=start_addr, bytes_raw=raw,
+                   events=events, notes_count=notes)
 
 
 def _decode_subtune(mem: bytes, sub_idx: int) -> Subtune:
@@ -372,10 +539,24 @@ def _main():
                   f'fx3=${inst.fx3:02X}')
 
     print(f'\nPattern pointer table: {len(song.pattern_ptr_table)} valid entries')
-    print(f'\nReferenced patterns: {len(song.patterns)}')
-    for pat_id, pat in sorted(song.patterns.items()):
+    print(f'\nReferenced patterns: {len(song.patterns)} ({sum(p.notes_count for p in song.patterns.values())} notes total)')
+    # Show a few decoded patterns to illustrate event structure
+    show_pats = [0, 1, 3, 22, 32]
+    for pat_id in show_pats:
+        if pat_id not in song.patterns:
+            continue
+        pat = song.patterns[pat_id]
+        evt_summary: dict[str, int] = {}
+        for e in pat.events:
+            evt_summary[type(e).__name__] = evt_summary.get(type(e).__name__, 0) + 1
         print(f'  pat {pat_id:3d} @ ${pat.start_addr:04X}: '
-              f'{len(pat.bytes_raw)} bytes, ~{pat.notes_count_approx} notes')
+              f'{len(pat.bytes_raw)} bytes, {pat.notes_count} notes, '
+              f'events: {", ".join(f"{k}={v}" for k,v in evt_summary.items())}')
+    # First pattern decoded in detail
+    if 0 in song.patterns:
+        print(f'\n  pat 0 events (full):')
+        for e in song.patterns[0].events:
+            print(f'    {e}')
 
     print(f'\nSubtunes: {song.psid_songs}')
     print(f'{"sub":>3} {"kind":>5} {"speed":>5} {"V0_seq":>7} '
@@ -392,10 +573,19 @@ def _main():
               f'${st.seq_v2_addr:04X}  {pat_count}')
 
     print(f'\nDistinct sequences: {len(song.sequences)}')
-    for s in song.sequences[:10]:
+    for s in song.sequences[:6]:
+        cmd_summary: dict[str, int] = {}
+        for c in s.commands:
+            cmd_summary[type(c).__name__] = cmd_summary.get(type(c).__name__, 0) + 1
         print(f'  ${s.start_addr:04X}: {len(s.bytes_raw)} bytes, '
-              f'{len(s.pattern_ids_used)} distinct patterns: '
-              f'{s.pattern_ids_used[:8]}')
+              f'{len(s.commands)} commands, patterns={s.pattern_ids_used[:8]}, '
+              f'cmd types: {", ".join(f"{k}={v}" for k,v in cmd_summary.items())}')
+    # First sequence decoded in detail
+    if song.sequences:
+        s = song.sequences[0]
+        print(f'\n  ${s.start_addr:04X} commands (first 20):')
+        for c in s.commands[:20]:
+            print(f'    {c}')
 
 
 if __name__ == '__main__':
