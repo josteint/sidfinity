@@ -8,6 +8,44 @@ format into a single Unified SID Format (USF) — engine-neutral
 musical data that an ML model can learn from. See `docs/PLAN.md` for the
 roadmap.
 
+## CORE TENET — read this FIRST, before every session
+
+**The verification target is the SID write-log stream, not the engine code.**
+
+Every composer / codegen / migration in this repo is judged ONLY by whether
+the rebuilt SID emits the same `$D400..$D418` write sequence (frame-by-frame
+for tracker music; cycle-strict for digi) as the HVSC original. Nothing
+else is the target.
+
+This means the composer is FREE to invent any runtime architecture it wants —
+different dispatch path, different instrument layout, different orderlist
+scheme, different memory map, completely re-arranged effect-chain emitters,
+zero-page reassignment, JSR/RTS where the original had inline code, inline
+where the original had subroutines. The original engine's machine code is a
+historical artifact, not a blueprint.
+
+When you are stuck on "I need to add N bytes but there's no room" or "the
+disassembly forces me to do X" — the answer is almost always to **re-state
+the problem in terms of the write-log stream**, then restructure the code
+to produce that stream more compactly. Do NOT reach for hacks like
+shifting data addresses, reproducing self-modifying code mechanisms, or
+emitting verbatim byte regions from HVSC.
+
+Concrete corollaries:
+- USF carries only musical content, never engine-positional artifacts
+  (sub-jump tables, abs pointers, raw inst-program bytes, SMC slots).
+- Per-engine config fields parametrise differences between engines'
+  write-log streams (e.g. `nextvoice_write_order`, `fx_drum_d401_offset`,
+  `held_note_clears_stod404_gate`) — they never describe HVSC's code layout.
+- When a disasm shows SMC, do NOT reproduce it; emit clean code that
+  produces the same writes (see [[feedback_smc_disasm_check]]).
+- For FC family see [[feedback_deconstruct_not_reproduce]] for the Hawkeye
+  sub-0 worked example (match=133 → 1538 after this reframing).
+
+If you find yourself reading a long disasm and asking "how do I mirror this
+structure," stop and ask "what writes does this produce in this frame?"
+instead.
+
 ## Current state
 
 Composer rewrite is complete. The Hubbard '85 family lives entirely in
