@@ -246,6 +246,9 @@ seqlochi:       .dsb 3, 0
 # environment is responsible for not stomping on these.
 _FC_ZP_EQUATES = """
 ; --- zero-page equates ---
+fx1sto     = $40           ; cached fx1 byte (vibrato params) for current voice
+fx2sto     = $41           ; cached fx2 byte (pulse program + strange filter)
+fx3sto     = $42           ; cached fx3 byte (8 effect-flag bits)
 tabbytsto  = $43           ; current pattern byte under dispatch
 seqptr_lo  = $44           ; sequence-stream indirect pointer lo
 seqptr_hi  = $45           ; sequence-stream indirect pointer hi
@@ -437,7 +440,7 @@ startplayer:
         cmp speedbyte
         beq do_h2                    ; speed counter just reloaded →
                                      ; eligible to take a new sequence step
-        jmp h11_stub                 ; intermediate frame → continuation
+        jmp h11                      ; intermediate frame → continuation
 
 do_h2:
         ; Load current voice's sequence pointer into ZP indirect slot
@@ -447,7 +450,7 @@ do_h2:
         sta seqptr_hi
         dec nootcount,x
         bmi h2_take_step             ; underflow → take next sequence step
-        jmp h10_stub                 ; note still playing → continuation
+        jmp h10                      ; note still playing → held-note path
 
 h2_take_step:
         ldy tabcount,x
@@ -740,18 +743,218 @@ verhoogtest:
         sta tabbytsto
         rts
 
-h10_stub:
-        ; STUB — note continuation when nootcount > 0. Real impl
-        ; runs the effect chain (vibrato/glide/pulse/filter/drum)
-        ; on the held note. For now: fall through to nextvoice to
-        ; let the shadow→SID write loop produce per-frame writes.
-        jmp nextvoice
+; --- Held-note path (h10) + intermediate-frame path (h11) ---
+;
+; h10 runs when do_h2 finds nootcount > 0 (note still has frames left).
+; It sets byteand based on the drum-trigger threshold derived from
+; filcount's high nibble, then falls into h11.
+;
+; h11 also runs directly when speedsto != speedbyte (intermediate
+; frame — speed counter hasn't reloaded yet). It checks for a special
+; ADSR-release condition (pulsehitemp bit 4 + nootcount=0 + speedsto=1),
+; then falls into gwo2 (the effect-chain dispatcher).
+;
+; gwo2 loads the per-voice fx*sto cache from the current instrument
+; and dispatches into the effect chain. For drum-flag instruments,
+; it skips tone-arp + vibrato by jumping straight to fx_glide.
+;
+; Each effect chunk (fx_*) starts with its bit check and is currently
+; a NO-OP stub that falls into the next effect. Drop in implementations
+; one at a time by replacing the STUB block.
 
-h11_stub:
-        ; STUB — intermediate-frame continuation (speedcounter not
-        ; yet underflowed). Real impl runs effect chain on the held
-        ; note. For now: jump to nextvoice.
-        jmp nextvoice
+h10:
+        ; Held-note path: nootcount > 0 (decremented by do_h2, didn't
+        ; underflow). Compute byteand based on filcount's drum-trigger
+        ; high nibble.
+        lda nootcount,x
+        beq gwaitout
+        lda wavecount,x
+        asl
+        asl
+        asl
+        tay
+        lda filcount,y               ; instrument's filcount byte
+        and #$F0
+        lsr
+        lsr
+        cmp nootcount,x
+        bcs gwaitout                 ; threshold >= nootcount → kill gate
+        lda #$FF                     ; threshold < nootcount → keep gate
+        bne gwb                      ; always taken
+gwaitout:
+        lda #$FE                     ; gate-off mask (preserves waveform bits)
+gwb:
+        sta byteand,x
+        ; fall into h11
+
+h11:
+        ; Intermediate-frame path entry + ADSR release check.
+        ; If pulsehitemp bit 4 set AND note just ended AND speedsto=1,
+        ; force ADSR release (write $02 to $D406,y).
+        lda pulsehitemp,x
+        and #$10
+        beq gwo2
+        lda nootcount,x
+        bne gwo2
+        lda speedsto
+        cmp #1
+        bne gwo2
+        lda #$02
+        sta $d406,y                  ; ADSR sustain/release tweak
+
+gwo2:
+        ; Effect-chain dispatcher entry — load instrument fx bytes into
+        ; ZP cache, then walk the effect chain.
+        lda wavecount,x
+        asl
+        asl
+        asl
+        tay                          ; Y = wavecount * 8 (instrument offset)
+        lda fx1,y
+        sta fx1sto
+        lda fx2,y
+        sta fx2sto
+        lda noho,x
+        sta noothoogt,x
+        lda fx3,y
+        sta fx3sto
+        and #$10
+        beq fx_tone_arp              ; not drum — normal chain start
+        jmp fx_glide                 ; drum — skip tone-arp + vibrato
+
+; --- Effect chain (skeleton; drop in real impls one at a time) ---
+;
+; Order matches the original FC engine. Each effect's entry point is
+; a labelled stub: the flag check is present so xa65 produces valid
+; code, but the effect's actual logic is a TODO. Falls through to the
+; next effect.
+;
+; What each effect should eventually modify (shadow regs that
+; nextvoice writes to SID at end-of-frame):
+;   stod404      ← waveform + gate ($D404,y)
+;   d400         ← freq lo         ($D400,y)
+;   d401         ← freq hi         ($D401,y)
+;   d402         ← pulse-width lo  ($D402,y)
+;   d403         ← pulse-width hi  ($D403,y)
+;   byteand      ← AND mask for $D404 (drum routine clears gate)
+; Some effects also write SID registers DIRECTLY (e.g., filter
+; program writes $D416/$D418, noise-tick writes $D401,y).
+
+fx_tone_arp:
+        ; fx3 bit $04 — cycles arpieoklo/hi program adding semitones
+        ; to noho per tonearpcounter. TODO.
+        lda fx3sto
+        and #$04
+        beq fx_vibrato
+        ; STUB: tone-arpeggio impl here.
+
+fx_vibrato:
+        ; fx1 != 0 (and !glidetest2) — triangle-LFO vibrato modulating
+        ; d400/d401 by depth derived from delta-freq, amplitude/speed
+        ; from fx1 nibbles, polarity from fx1 bit 7. TODO.
+        lda fx1sto
+        beq fx_glide
+        lda glidetest2,x
+        bne fx_glide
+        ; STUB: vibrato impl here.
+
+fx_glide:
+        ; glidetest set (PatGlide active) — linear pitch interpolation
+        ; from current freq toward tempglide target, divided by
+        ; (1<<bran)-1 per frame. TODO.
+        lda glidetest,x
+        beq fx_pulse_prog
+        ; STUB: tone-glide impl here.
+
+fx_pulse_prog:
+        ; fx2 & $07 — walks pulsetabel program for current pulse-width
+        ; sweep. Modifies d402/d403 (pw lo/hi shadow). TODO.
+        lda fx2sto
+        and #$07
+        beq fx_wave_arp
+        ; STUB: pulse program impl here.
+
+fx_wave_arp:
+        ; fx3 bit $40 — cycles wavearp[$80,$10,$80,$10] (waveform
+        ; toggle for test bit). Modifies stod404. TODO.
+        lda fx3sto
+        and #$40
+        beq fx_pulse_arp
+        ; STUB: wave-arp impl here.
+
+fx_pulse_arp:
+        ; fx3 bit $08 — cycles pulsearp through d403 (pw hi).
+        ; TODO.
+        lda fx3sto
+        and #$08
+        beq fx_tonesweep_up
+        ; STUB: pulse-arp impl here.
+
+fx_tonesweep_up:
+        ; fx3 bit $20 — decrements hinotesto each frame (downward
+        ; pitch sweep). Modifies d401. TODO.
+        lda fx3sto
+        and #$20
+        beq fx_filter_prog
+        ; STUB: tonesweep-up impl here.
+
+fx_filter_prog:
+        ; fx3 bit $01 — walks filterbytes program segments, writing
+        ; $D416 (cutoff hi) and $D418 (vol + filter routing). TODO.
+        lda fx3sto
+        and #$01
+        beq fx_strange_filter
+        ; STUB: filter program impl here.
+
+fx_strange_filter:
+        ; fx2 bit $08 — bidirectional sweep of $D416 cutoff via
+        ; strafilter state. Writes $D416. TODO.
+        lda fx2sto
+        and #$08
+        beq fx_pulse_run
+        ; STUB: strange-filter impl here.
+
+fx_pulse_run:
+        ; fx3 bit $02 — autonomous PWM sweep via pulserunlo/hi at
+        ; pulserunspeed rate. Modifies d402/d403. TODO.
+        lda fx3sto
+        and #$02
+        beq fx_double_voice
+        ; STUB: pulse-run impl here.
+
+fx_double_voice:
+        ; filcount bit $08 — adds dubvoice ($0C) to d400 lo freq
+        ; for octave-detune effect. Modifies d400. TODO.
+        lda wavecount,x
+        asl
+        asl
+        asl
+        tay
+        lda filcount,y
+        and #$08
+        beq fx_drum
+        ; STUB: double-voice impl here.
+
+fx_drum:
+        ; fx3 bit $10 — plays drumtabel-indexed waveform + pitch
+        ; programs based on counter2,x. Modifies stod404 + d400/d401
+        ; + byteand. Drum number from fx1 & $0F. TODO.
+        lda fx3sto
+        and #$10
+        beq fx_noise_tick
+        ; STUB: drum routine impl here.
+
+fx_noise_tick:
+        ; fx3 bit $80 — plays starttabel[wavecount] waveform for
+        ; startlen[wavecount] frames at noisehitone ($FA) pitch.
+        ; Modifies stod404 + d401. TODO.
+        lda fx3sto
+        and #$80
+        beq effect_chain_end
+        ; STUB: noise-tick impl here.
+
+effect_chain_end:
+        jmp nextvoice                ; per-voice shadow→SID write loop
 
 nextvoice:
         ; Per-voice tail: write the shadow regs to SID, then advance
