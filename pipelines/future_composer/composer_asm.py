@@ -477,6 +477,7 @@ def _emit_song_init_smc(cfg: FCConfig) -> str:
     """
     snelheid_addr = cfg.per_subtune_speed_addr
     smc_addr      = cfg.per_subtune_smc_addr
+    mode_addr     = cfg.per_subtune_mode_addr
     music_count   = cfg.music_subtune_count
     template_hi   = cfg.template_base_hi
     sfx_pg_base   = cfg.sfx_page_base
@@ -513,6 +514,8 @@ song:
         ; --- MUSIC PATH ---
         lda ${snelheid_addr:04X},x
         sta speedbyte
+        lda ${mode_addr:04X},x         ; per-subtune voice-loop mode byte
+        sta voice_loop_start
         lda ${smc_addr:04X},x          ; SMC template lo for this subtune
         sta seqptr_lo                ; reuse seqptr ZP as the indirect ptr
         lda #${template_hi:02X}
@@ -520,10 +523,14 @@ song:
         jmp song_copy_seqs
 
 song_sfx_path:
-        ; X = music_count + sfx_idx. speedbyte from forced-X slot.
+        ; X = music_count + sfx_idx. SFX uses the mode-byte at
+        ; per_subtune_mode_addr[music_count] (same fixed slot for all SFX),
+        ; matching orig's JSR $7B5A music init with forced X=music_count.
         ldy #{music_count}
         lda ${snelheid_addr:04X},y
         sta speedbyte
+        lda ${mode_addr:04X},y         ; SFX shares the music_count slot's mode
+        sta voice_loop_start
         txa
         sec
         sbc #{music_count}              ; A = sfx_idx
@@ -531,6 +538,34 @@ song_sfx_path:
         clc
         adc #${sfx_pg_base:02X}        ; A = SFX page
         sta seqptr_hi
+        lda #0
+        sta seqptr_lo
+
+        ; SFX 3-copy: SFX page contains 6+20+256 = 282 bytes of
+        ; per-subtune data the engine reads at runtime. Orig populates
+        ; runtime areas $7B2C..$7B31, $8475..$8488, $8FC5..$90C4 by
+        ; copying from the SFX page. We do the same here so mine reads
+        ; SFX-specific data when walking V1.
+        ; Copy 2: 20 bytes ($SFX_page+6) → $8475 (SFX inst/pat data)
+        lda #6
+        sta seqptr_lo
+        ldy #$13
+sfx_copy2:
+        lda (seqptr_lo),y
+        sta $8475,y
+        dey
+        bpl sfx_copy2
+        ; Copy 3: 256 bytes ($SFX_page+$1A) → $8FC5 (SFX seq stream)
+        lda #$1A
+        sta seqptr_lo
+        ldy #0
+sfx_copy3:
+        lda (seqptr_lo),y
+        sta $8FC5,y
+        dey
+        bne sfx_copy3
+        ; Restore seqptr_lo = 0 for the 6-byte seq pointer copy below
+        ; (song_copy_seqs reads (seqptr_lo, seqptr_hi) = $SFX_page+0).
         lda #0
         sta seqptr_lo
 
@@ -598,6 +633,11 @@ ok2_pv:
 
         sta testbyte
         rts
+
+; SMC-layout per-voice loop initial X. Music subs set to mode_addr[X];
+; SFX subs share mode_addr[music_count]. Single byte of state — only
+; allocated for SMC layout (flat layout uses hardcoded `ldx #2`).
+voice_loop_start: .dsb 1, 2
 """
 
 
@@ -827,6 +867,19 @@ def _emit_playirq_dispatch(cfg: FCConfig) -> str:
     # falling through to the dex/loop. The nextvoice: block is still
     # emitted in both modes because h10b's skip path branches to it.
     pw_writes_mid_chain = ''  # legacy slot — empty now (moved into pp_store)
+    # Voice-loop initial X. SMC layout: load from voice_loop_start (set
+    # per-subtune in song init from mode_addr byte). Flat layout: hardcoded
+    # ldx #$02 (Cyb II's tight engine budget can't afford the state byte).
+    if cfg.subtune_layout == 'smc_template_with_sfx':
+        playirq_run_ldx = (
+            '        ldx voice_loop_start         ; loop initial X '
+            '(set per-subtune)\n'
+        )
+    else:
+        playirq_run_ldx = (
+            '        ldx #2                       ; V3 → V1 (3 voices)\n'
+        )
+
     # nolengset's tonearpcounter reset (Cyb II yes, Hawkeye no).
     nolengset_reset_tonearp = (
         '        lda #0\n'
@@ -931,8 +984,7 @@ playirq:
 
 playirq_run:
         lda speedbyte
-        ldx #2                       ; X = voice 2 (V3) — count down to 0
-        dec speedsto
+{playirq_run_ldx}        dec speedsto
         bpl startplayer
         sta speedsto                 ; reload speed counter on underflow
 
@@ -2188,6 +2240,7 @@ playirq_done:
         nolengset_sta_d402_sid=nolengset_sta_d402_sid,
         nolengset_sta_d403_sid=nolengset_sta_d403_sid,
         nolengset_reset_tonearp=nolengset_reset_tonearp,
+        playirq_run_ldx=playirq_run_ldx,
     )
 
 #
