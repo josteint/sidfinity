@@ -83,3 +83,17 @@ class FCConfig:
     freq_table_entries: int = 96
     instr_count: int = 16
     max_patterns: int = 64
+
+    # Aux-table addresses needed by the featuredriven asm composer.
+    # These tables live in the verbatim aux region (not yet USF-derived);
+    # the composer needs equates for them so the engine code can
+    # reference them by name. Default 0 = "not yet located" (effect
+    # that uses the table will error if invoked).
+    drumtabel_addr: int = 0        # drum-program ptrs (4 bytes per drum)
+    # TODO as effects come online:
+    # arplo_addr, arphi_addr (arpeggio program ptrs)
+    # pulsetabel_addr (pulse-program data)
+    # filterbytes_addr (filter-program data)
+    # wavearp_addr, pulsearp_addr (wave/pulse-arp tables)
+    # startlen_addr, starttabel_addr (noise-tick tables)
+    # vibtabwait_addr (vibrato delay table)

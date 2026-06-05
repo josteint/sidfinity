@@ -181,6 +181,9 @@ speedsto:       .dsb 1, 0
 ; st2: scratch — current sequence byte under dispatch in h3.
 st2:            .dsb 1, 0
 
+; st: scratch — used by the drum routine for the tone-byte read.
+st:             .dsb 1, 0
+
 ; d4point: per-voice SID register offset (V1=$00, V2=$07, V3=$14).
 ; Constant table, X-indexed.
 d4point:        .byt $00, $07, $0E
@@ -257,6 +260,13 @@ zp4        = $47           ; pattern indirect pointer hi
 wax        = $48           ; current voice index (0..2) during play
 voicesto   = $49           ; current voice's $D400 offset (0/7/14)
 denom      = $4B           ; scratch for arp setup
+
+; Drum-routine ZP indirect ptrs (replaces ACME source's SMC dwalo/dtalo)
+drum_dwa_lo = $4C          ; drum wave-program ptr lo
+drum_dwa_hi = $4D           ; drum wave-program ptr hi
+drum_dto_lo = $4E          ; drum tone-program ptr lo
+drum_dto_hi = $4F           ; drum tone-program ptr hi
+drum_dl     = $50          ; drum length scratch
 """
 
 
@@ -938,11 +948,106 @@ fx_double_voice:
 fx_drum:
         ; fx3 bit $10 — plays drumtabel-indexed waveform + pitch
         ; programs based on counter2,x. Modifies stod404 + d400/d401
-        ; + byteand. Drum number from fx1 & $0F. TODO.
+        ; + byteand. Drum number from fx1 & $0F.
+        ;
+        ; drumtabel format (4 bytes per drum, X = drum_num * 4):
+        ;   +0,+1: dwa_<n> pointer (waveform program: length byte +
+        ;          N waveform bytes; counter2 indexes from 1..N)
+        ;   +2,+3: dto_<n> pointer (tone program: N tone bytes;
+        ;          counter2-1 indexes from 0..N-1)
+        ;
+        ; Per-frame:
+        ;   - If counter2 >= dwa[0] (length), drum is finished; exit
+        ;     to nextvoice without modifying shadows.
+        ;   - Else write dwa[counter2] → stod404 (new waveform),
+        ;     and dto[counter2-1] → either d401 directly (with d400=0)
+        ;     or d400/d401 via lonote/hinote indexed by
+        ;     (noothoogt + tone_byte) when fx1 bit 4 is set.
+        ;
+        ; Drum-routine ZP indirect ptrs (drum_dwa_lo/hi at $4C/$4D,
+        ; drum_dto_lo/hi at $4E/$4F) replace the ACME source's SMC.
+        ; Frame-exact comparison only cares about SID writes; the
+        ; CPU-internal indirection method is free.
         lda fx3sto
         and #$10
-        beq fx_noise_tick
-        ; STUB: drum routine impl here.
+        beq fx_noise_tick            ; not drum — fall to noise-tick
+
+        ; Setup: load drumtabel[drum_num*4..+3] into ZP indirect ptrs
+        lda fx1sto
+        and #$0F
+        asl
+        asl                          ; X = drum_num * 4
+        tax
+        lda drumtabel,x
+        sta drum_dwa_lo
+        lda drumtabel+1,x
+        sta drum_dwa_hi
+        lda drumtabel+2,x
+        sta drum_dto_lo
+        lda drumtabel+3,x
+        sta drum_dto_hi
+
+        ; Read drum program length from dwa[0]
+        ldy #0
+        lda (drum_dwa_lo),y
+        sta drum_dl
+
+        ; Check if counter2 < length
+        ldx wax
+        lda counter2,x
+        cmp drum_dl
+        bcs drum_done                ; counter2 >= length → drum finished
+
+        ; Read wave byte at dwa[counter2]
+        tay                          ; Y = counter2
+        lda (drum_dwa_lo),y
+        sta stod404,x                ; new waveform shadow
+
+        ; Set byteand based on wave's gate bit (preserved/cleared)
+        and #1
+        beq drum_nd1
+        lda #$FF
+        bmi drum_nd2                 ; always taken ($FF is negative)
+drum_nd1:
+        lda #$FE
+drum_nd2:
+        sta byteand,x
+
+        ; Read tone byte at dto[counter2-1]
+        dey                          ; Y = counter2 - 1
+        lda (drum_dto_lo),y
+        sta st                       ; tone scratch
+
+        ; fx1 bit $10 = drum-uses-noothoogt path
+        ldy voicesto
+        lda fx1sto
+        and #$10
+        beq drum_drfu2
+
+        ; fx1 bit 4 set — pitch = noothoogt + st; load lonote/hinote
+        ldx wax
+        lda noothoogt,x
+        clc
+        adc st
+        tay                          ; Y = freq table index
+        ldx wax
+        lda lonote,y
+        sta d400,x
+        lda hinote,y
+        sta d401,x
+        jmp drum_done
+
+drum_drfu2:
+        ldx wax
+        lda st
+        sta d401,x                   ; freq hi shadow = tone byte
+        lda #0
+        sta d400,x                   ; freq lo shadow = 0
+
+drum_done:
+        ; Drum overrides downstream effects (specifically fx_noise_tick).
+        ; Original engine: `drfu: jmp nextvoice` skipping noti.
+        jmp effect_chain_end
 
 fx_noise_tick:
         ; fx3 bit $80 — plays starttabel[wavecount] waveform for
@@ -1304,6 +1409,8 @@ def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
         '; Engine code references these; the tables themselves live',
         '; in the data section (USF-derived) or verbatim aux region.',
         f'pattern_ptr_table = ${cfg.pattern_ptr_addr:04X}',
+        f'drumtabel = ${cfg.drumtabel_addr:04X}'
+        if cfg.drumtabel_addr else '; drumtabel: not yet located',
         _FC_ZP_EQUATES,
         '',
         f'* = ${load_addr:04X}',
