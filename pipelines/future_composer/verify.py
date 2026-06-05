@@ -64,7 +64,7 @@ def _capture_pair(orig_path: str, rebuilt_bytes: bytes,
 
 
 def verify_canary(cfg: FCConfig, build_fn, root: str | None = None,
-                  duration: float = 2.0,
+                  duration: float | None = None,
                   subtunes: list[int] | None = None) -> dict:
     """Run the writelog comparison across every subtune.
 
@@ -94,9 +94,30 @@ def verify_canary(cfg: FCConfig, build_fn, root: str | None = None,
     md5_orig = hashlib.md5(open(sid_path, 'rb').read()).hexdigest()
     md5_new = hashlib.md5(rebuilt).hexdigest()
 
+    # Resolve per-subtune durations. If `duration` is None (or
+    # call-time wants per-sub songlength coverage), read HVSC's
+    # Songlengths.md5 for this SID and use songlen * 1.1 + 1s margin
+    # per subtune. Matches the project convention from
+    # feedback_subtune_frames_not_arbitrary — testing with a fixed
+    # short duration hides divergences past that point.
+    songlen_path = str(Path(root) / 'hvsc84' / 'DOCUMENTS' / 'Songlengths.md5')
+    per_sub_durations: dict[int, float] = {}
+    if duration is None:
+        with open(songlen_path) as f:
+            for line in f:
+                if line.startswith(md5_orig):
+                    parts = line.rstrip().split('=', 1)[1].split()
+                    for i, p in enumerate(parts):
+                        m, s = p.split(':')
+                        per_sub_durations[i] = int(m) * 60 + int(s)
+                    break
+
     per_sub = {}
     for s in subtunes:
-        per_sub[s] = _capture_pair(sid_path, rebuilt, s, duration)
+        sub_dur = (per_sub_durations.get(s, 2.0) * 1.1 + 1.0
+                   if duration is None else duration)
+        per_sub[s] = _capture_pair(sid_path, rebuilt, s, sub_dur)
+        per_sub[s]['duration_used'] = sub_dur
 
     all_full = all(v['is_full'] for v in per_sub.values())
     return {
