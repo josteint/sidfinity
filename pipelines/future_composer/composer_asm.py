@@ -2237,6 +2237,22 @@ def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
 
     first_data_addr = sections[0][1]
 
+    # For SMC layout: compute preservation range for HVSC's SMC
+    # template region. My engine reads `mem[(template_base_hi<<8) |
+    # per_subtune_smc_addr,X]` to get music-subtune sequence records.
+    # That region overlaps where my engine code would live if I emit
+    # right after the entry jumps. Preserve HVSC's bytes in that range
+    # via verbatim emission, place engine code AFTER it.
+    preserve_end = 0     # 0 = no preservation (flat layout default)
+    if cfg.subtune_layout == 'smc_template_with_sfx':
+        # Find max SMC template lo byte to compute the upper preservation
+        # bound. Each music subtune's template is 6 bytes at
+        # (template_base_hi << 8) | smc_lo[N], so the last byte of the
+        # highest-addressed template is max_smc_lo + 5.
+        smc_los = [mem[cfg.per_subtune_smc_addr + n]
+                   for n in range(cfg.music_subtune_count)]
+        preserve_end = (cfg.template_base_hi << 8) | (max(smc_los) + 5)
+
     lines = [
         f'; FC featuredriven composer — {cfg.name}',
         f'; load_addr = ${load_addr:04X}',
@@ -2276,13 +2292,40 @@ def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
         'init:   jmp song',
         'play:   jmp playirq',
         '',
+    ]
+
+    # For SMC layout, preserve HVSC's bytes from after the entry jumps
+    # to the end of the SMC template region. My engine code starts
+    # after that.
+    if preserve_end:
+        engine_code_start = preserve_end + 1
+        lines.append(f'; --- preserve HVSC SMC template region '
+                     f'${load_addr+6:04X}..${preserve_end:04X} ---')
+        lines.append(f'; The per-subtune music-record templates at '
+                     f'$(template_base_hi << 8) | smc_lo are read by ')
+        lines.append(f'; song init. My engine reads them at HVSC\'s '
+                     f'original addresses, so they must be preserved.')
+        lines.append(_emit_verbatim_region(mem, load_addr + 6,
+                                            preserve_end + 1))
+        lines.append('')
+        lines.append(f'* = ${engine_code_start:04X}')
+        lines.append('')
+
+    lines += [
         _emit_song_init_routine(cfg),
         '',
         _emit_playirq_dispatch(),
         '',
-        _FC_STATE_LABELS,
-        '',
     ]
+
+    # State allocation for flat_seqtabel: emit right after engine code
+    # (there's room between engine end and first data table for
+    # Cybernoid II's smaller engine). For SMC layout, defer to the end
+    # of the asm (after all data sections) to avoid overflow into the
+    # data tables.
+    if cfg.subtune_layout == 'flat_seqtabel':
+        lines.append(_FC_STATE_LABELS)
+        lines.append('')
 
     # Explicit zero-fill from our engine code's end to the first data
     # table. xa65 does NOT auto-pad gaps between `* = $XXXX` directives
@@ -2316,6 +2359,22 @@ def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
                      f'${code_end-1:04X} ---')
         lines.append(f'* = ${cursor:04X}')
         lines.append(_emit_verbatim_region(mem, cursor, code_end))
+        lines.append('')
+
+    # For SMC layout, state arrays are parked AFTER the verbatim tail
+    # (engine code + state would overflow into data tables otherwise).
+    # IMPORTANT: xa65 doesn't auto-pad gaps between `* = $XXXX`
+    # directives — the output file is byte-concatenated regardless
+    # of address. So we explicit `.dsb` to materialize the gap;
+    # otherwise the state bytes would land at the wrong CPU address
+    # and d4point/per-voice arrays would read garbage at runtime.
+    if cfg.subtune_layout == 'smc_template_with_sfx':
+        state_addr = ((code_end + 0xFF) & ~0xFF)
+        lines.append(f'; --- state arrays parked at ${state_addr:04X} '
+                     f'(past HVSC SID end) ---')
+        lines.append(f'        .dsb ${state_addr:04X} - *, 0  ; pad gap '
+                     f'so state lands at ${state_addr:04X} in CPU memory')
+        lines.append(_FC_STATE_LABELS)
         lines.append('')
 
     return '\n'.join(lines), load_addr
