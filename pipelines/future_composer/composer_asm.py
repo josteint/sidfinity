@@ -1107,6 +1107,9 @@ nolengset:
         and #$0F
         sta d403,x                   ; shadow $D403 (pw hi nibble)
         sta pulsehisto,x
+        ; NOTE: startnewnote in real engines also writes $D402/$D403 to
+        ; SID directly here; adding those overflows past freq_lo_addr
+        ; ($8337 for Hawkeye). Deferred until data region can be moved.
         lda #1
         sta pulsetest,x
         pla
