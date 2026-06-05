@@ -97,5 +97,16 @@ class FCConfig:
     arphi_addr: int = 0            # arpeggio program ptrs (hi bytes, 8 entries)
     pulsetabel_addr: int = 0       # pulse-program data (4 programs × 8 bytes)
     vibtabwait_addr: int = 0       # per-instrument vibrato delay (20 bytes)
+
+    # nextvoice's per-voice SID-register write order (offsets 0-6 within
+    # the voice's $D400-$D406 block). Different FC-family engines use
+    # different orders — and the order MATTERS audibly (gate-edge
+    # timing, test-bit reset, ADSR delay-bug window, $D418 clicks).
+    # See the SID-internal-state research for the principles.
+    # Defaults to the Cybernoid II / Bowden / ACME-source convention:
+    #   (4, 0, 1, 2, 3) = ctrl, freq lo, freq hi, pw lo, pw hi
+    # Hawkeye overrides with (2, 3, 4, 0, 1).
+    nextvoice_write_order: tuple = (4, 0, 1, 2, 3)
+
     # TODO as effects come online:
     # wavearp_addr, pulsearp_addr (wave/pulse-arp tables)

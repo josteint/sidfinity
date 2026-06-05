@@ -52,6 +52,10 @@ HAWKEYE = FCConfig(
     pulsetabel_addr=0x85EC,
     vibtabwait_addr=0x8704,
     # startlen_addr/starttabel_addr left at default 0 (unused).
+
+    # Hawkeye's nextvoice writes in this order per voice (verified by
+    # diffing HVSC's writelog): pw lo, pw hi, ctrl, freq lo, freq hi.
+    nextvoice_write_order=(2, 3, 4, 0, 1),
 )
 
 

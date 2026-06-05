@@ -601,7 +601,42 @@ ok2_pv:
 """
 
 
-def _emit_playirq_dispatch() -> str:
+def _emit_nextvoice_writes(write_order: tuple) -> str:
+    """Emit the per-voice shadow→SID write block in the order given by
+    `write_order` (tuple of register offsets 0-4 within the voice).
+
+    Per the SID-internal-state research, within-frame write order IS
+    musically significant (gate edges trigger envelope retriggers, test
+    bit resets oscillator + noise LFSR, ADSR delay bug, $D418 clicks).
+    Different FC-family engines use different orders — each cfg
+    declares its convention.
+    """
+    chunks = []
+    for offset in write_order:
+        if offset == 0:
+            chunks.append('        lda d400,x\n'
+                          '        sta $d400,y                  ; freq lo')
+        elif offset == 1:
+            chunks.append('        lda d401,x\n'
+                          '        sta $d401,y                  ; freq hi')
+        elif offset == 2:
+            chunks.append('        lda d402,x\n'
+                          '        sta $d402,y                  ; pw lo')
+        elif offset == 3:
+            chunks.append('        lda d403,x\n'
+                          '        sta $d403,y                  ; pw hi')
+        elif offset == 4:
+            chunks.append('        lda stod404,x\n'
+                          '        and byteand,x                ; drum gate-off mask\n'
+                          '        sta $d404,y                  ; ctrl (waveform + gate)')
+        else:
+            raise ValueError(
+                f'invalid nextvoice_write_order offset {offset}; '
+                f'expected 0..4')
+    return '\n'.join(chunks)
+
+
+def _emit_playirq_dispatch(cfg: FCConfig) -> str:
     """Emit playirq + h2 + h3 sequence-byte dispatch.
 
     Called via PSID play=$LOAD+3 each VBI (50Hz PAL). Walks each
@@ -624,8 +659,10 @@ def _emit_playirq_dispatch() -> str:
         Frame-exact comparison only cares about SID writes; CPU
         internals are free.
       - Voice loop uses X=2,1,0 (V3→V2→V1) to match the original.
+      - nextvoice's shadow→SID write order from cfg.nextvoice_write_order.
     """
-    return """
+    nextvoice_writes = _emit_nextvoice_writes(cfg.nextvoice_write_order)
+    return ("""
 ; --- playirq dispatch + h2/h3 sequence walker ---
 playirq:
         lda testbyte
@@ -1902,28 +1939,19 @@ effect_chain_end:
 
 nextvoice:
         ; Per-voice tail: write the shadow regs to SID, then advance
-        ; to next voice (or RTS if all 3 done).
+        ; to next voice (or RTS if all 3 done). Write order from cfg
+        ; — see SID-internal-state research for why order matters.
         ldx wax
         ldy voicesto
 
-        lda stod404,x
-        and byteand,x
-        sta $d404,y                  ; SID $D404 (waveform+gate)
-        lda d400,x
-        sta $d400,y                  ; SID $D400 (freq lo — redundant with inline)
-        lda d401,x
-        sta $d401,y                  ; SID $D401 (freq hi — redundant with inline)
-        lda d402,x
-        sta $d402,y                  ; SID $D402 (pw lo)
-        lda d403,x
-        sta $d403,y                  ; SID $D403 (pw hi)
+{nextvoice_writes}
         dex
         bmi playirq_done
         jmp startplayer
 
 playirq_done:
         rts
-"""
+""").format(nextvoice_writes=nextvoice_writes)
 
 #
 # Cybernoid II's HVSC SID uses a multi-stage trampoline that doesn't
@@ -2314,7 +2342,7 @@ def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
     lines += [
         _emit_song_init_routine(cfg),
         '',
-        _emit_playirq_dispatch(),
+        _emit_playirq_dispatch(cfg),
         '',
     ]
 
