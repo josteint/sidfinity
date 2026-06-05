@@ -1792,11 +1792,15 @@ fx_pulse_prog:
                                      ; (using jmp because pp_store is
                                      ; out of branch range)
 pp_active:
-        ; Compute Y = program offset in pulsetabel: (N*8)-7
+        ; Compute Y = program offset in pulsetabel: (N*8)-8 = (N-1)*8
+        ; for program N (1..7). Comment used to say (N*8)-7 but the actual
+        ; SBC #$07 with carry-clear (from asl chain) gives -8 not -7, and
+        ; the resulting program-N at offset (N-1)*8 IS what matches HVSC's
+        ; layout. Cyb II all subs ALL_FULL with this formula.
         asl
         asl
         asl
-        sbc #$07                     ; carry already clear from asl chain
+        sbc #$07
         tay
 
         ; Read pulsetabel[Y] — first byte
