@@ -90,10 +90,10 @@ class FCConfig:
     # reference them by name. Default 0 = "not yet located" (effect
     # that uses the table will error if invoked).
     drumtabel_addr: int = 0        # drum-program ptrs (4 bytes per drum)
+    filterbytes_addr: int = 0      # filter-program ptrs (4 ptrs to 10-byte programs)
     # TODO as effects come online:
     # arplo_addr, arphi_addr (arpeggio program ptrs)
     # pulsetabel_addr (pulse-program data)
-    # filterbytes_addr (filter-program data)
     # wavearp_addr, pulsearp_addr (wave/pulse-arp tables)
     # startlen_addr, starttabel_addr (noise-tick tables)
     # vibtabwait_addr (vibrato delay table)

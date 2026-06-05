@@ -53,7 +53,9 @@ CYBERNOID_II = FCConfig(
     # Aux-table addresses (found by disassembling the engine's
     # `lda <addr>,X` references):
     #   $AD51: BD 45 AF       lda $AF45,X    ← drumtabel
+    #   $AC7A: BD C4 AF       lda $AFC4,X    ← filterbytes
     drumtabel_addr=0xAF45,
+    filterbytes_addr=0xAFC4,
 )
 
 

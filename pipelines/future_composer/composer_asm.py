@@ -184,6 +184,12 @@ st2:            .dsb 1, 0
 ; st: scratch — used by the drum routine for the tone-byte read.
 st:             .dsb 1, 0
 
+; filwhat: shared scratch — last voice index that ran fx_filter_prog.
+; Non-filter-prog voices check this to skip filter cleanup if they
+; aren't the "owning" voice. Lives outside ok2's clear range so it
+; persists across song init.
+filwhat:        .dsb 1, 0
+
 ; d4point: per-voice SID register offset (V1=$00, V2=$07, V3=$14).
 ; Constant table, X-indexed.
 d4point:        .byt $00, $07, $0E
@@ -219,6 +225,9 @@ pulsestolo:     .dsb 3, 0
 pulsehisto:     .dsb 3, 0
 pulsetest:     .dsb 3, 0
 filtercount:    .dsb 3, 0
+filter:         .dsb 3, 0            ; per-voice filter cutoff shadow
+                                     ; (written by fx_filter_prog / fm2 →
+                                     ;  $D416)
 stod404:        .dsb 3, 0            ; per-voice $D404 output byte
 byteand:        .dsb 3, 0            ; per-voice $D404 AND mask
                                      ; (drum routine sets $FE; default $FF)
@@ -267,6 +276,11 @@ drum_dwa_hi = $4D           ; drum wave-program ptr hi
 drum_dto_lo = $4E          ; drum tone-program ptr lo
 drum_dto_hi = $4F           ; drum tone-program ptr hi
 drum_dl     = $50          ; drum length scratch
+
+; Filter-program ZP indirect (matches ACME source's zer0fillo/zer0filhi
+; semantics). Used by fx_filter_prog to read fb<n> program bytes.
+zer0fillo  = $51           ; filter program indirect ptr lo
+zer0filhi  = $52           ; filter program indirect ptr hi
 """
 
 
@@ -909,12 +923,99 @@ fx_tonesweep_up:
         ; STUB: tonesweep-up impl here.
 
 fx_filter_prog:
-        ; fx3 bit $01 — walks filterbytes program segments, writing
-        ; $D416 (cutoff hi) and $D418 (vol + filter routing). TODO.
+        ; fx3 bit $01 — walks the per-voice filter program (fb<n>)
+        ; selected by filtercount,X & $07. Writes $D418 (master vol +
+        ; filter routing) from fb[5], then $D416 (cutoff hi) computed
+        ; by comparing counter2,X against the threshold list at
+        ; fb[6..9] and either taking a fixed cutoff (fb[0]/fb[4]) or
+        ; incrementing the current cutoff by fb[1..3].
+        ;
+        ; When the bit is CLEAR, falls into fm2 (filter cleanup):
+        ; if this voice was the last to OWN the filter (filwhat == X)
+        ; and strange filter isn't active (fx2 & $08 == 0), resets
+        ; $D418 to $10|VOLUME and $D416 to $80. Otherwise no-op.
+        ;
+        ; ZP indirect (zer0fillo/zer0filhi at $51/$52) replaces the
+        ; ACME source's SMC trick (trulo/truhi patching `lda #imm`
+        ; into the operand of `lda zer0fillo`).
         lda fx3sto
         and #$01
-        beq fx_strange_filter
-        ; STUB: filter program impl here.
+        beq fm2_filter_cleanup
+
+        ; --- filterklooi: filter_prog active ---
+        ldx wax
+        stx filwhat                  ; this voice now owns the filter
+        lda filtercount,x
+        and #$07
+        asl
+        tax                          ; X = (filtercount & 7) * 2
+        lda filterbytes,x
+        sta zer0fillo
+        lda filterbytes+1,x
+        sta zer0filhi
+
+        ; $D418 ← fb[5] (master vol + filter routing for this program)
+        ldy #5
+        lda (zer0fillo),y
+        sta $d418
+
+        ; Compute cutoff by walking thresholds fb[9]..fb[6]
+        ldx wax
+        lda counter2,x
+        ldy #9
+        cmp (zer0fillo),y            ; counter2 < fb[9] ?
+        bcc filfur3                  ; yes — look further
+
+        ; counter2 >= fb[9] — use fb[4] as final cutoff
+        ldy #4
+        lda (zer0fillo),y
+        jmp fme
+
+filfur3:
+        dey                          ; Y goes 8, 7, 6
+        cmp (zer0fillo),y
+        bcs filfur1                  ; counter2 >= fb[Y] → segment add
+        cpy #6
+        bne filfur3
+
+        ; counter2 < fb[6] — use fb[0] (initial cutoff)
+        ldy #0
+        lda (zer0fillo),y
+        jmp fme
+
+filfur1:
+        ; Within a segment — add fb[Y-5] to current cutoff
+        ;   Y=8: add fb[3]
+        ;   Y=7: add fb[2]
+        ;   Y=6: add fb[1]
+        dey
+        dey
+        dey
+        dey
+        dey
+        lda filter,x                 ; current cutoff
+        clc
+        adc (zer0fillo),y
+        jmp fme
+
+fm2_filter_cleanup:
+        ; --- fm2 cleanup: filter_prog NOT active for this voice ---
+        ldx wax
+        cpx filwhat
+        bne fx_strange_filter        ; this voice didn't own filter → skip
+        lda fx2sto
+        and #$08
+        bne fx_strange_filter        ; strange filter active → skip cleanup
+        ; This voice owned the filter, no strange filter — reset.
+        lda #$10 | VOLUME_INIT
+        sta $d418
+        lda #$80
+        ; falls into fme
+
+fme:
+        sta filter,x                 ; cutoff shadow
+        sta $d416                    ; SID cutoff hi
+        ; falls through to fx_strange_filter
 
 fx_strange_filter:
         ; fx2 bit $08 — bidirectional sweep of $D416 cutoff via
@@ -1411,6 +1512,8 @@ def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
         f'pattern_ptr_table = ${cfg.pattern_ptr_addr:04X}',
         f'drumtabel = ${cfg.drumtabel_addr:04X}'
         if cfg.drumtabel_addr else '; drumtabel: not yet located',
+        f'filterbytes = ${cfg.filterbytes_addr:04X}'
+        if cfg.filterbytes_addr else '; filterbytes: not yet located',
         _FC_ZP_EQUATES,
         '',
         f'* = ${load_addr:04X}',
