@@ -154,8 +154,176 @@ def _emit_instruments(usf: UsfFile, cfg: FCConfig) -> str:
 # emitters.
 
 # ---------------------------------------------------------------------------
-# Engine-code emitters — session 2 begins here
+# Engine-code emitters — feature-driven (session 3+ asm composer)
 # ---------------------------------------------------------------------------
+#
+# These emitters produce engine routines from USF features rather than
+# carrying HVSC's verbatim bytes. The composer chooses its own layout;
+# verification shifts from md5-exact to writelog frame-exact via
+# `pipelines.future_composer.verify.verify_asm`.
+
+# FC engine state — fixed RAM allocations the engine reads/writes during
+# play. Addresses are the composer's choice; routines reference these
+# labels and the assembler resolves them. Sessions 4+ will lay them out
+# as a contiguous block at the end of the engine code region.
+
+_FC_STATE_LABELS = """
+; --- engine state ---
+; testbyte: gates the play loop. 0 = playing, 1 = halted.
+; song / songout / ok2 set it; playirq's first instruction tests it.
+testbyte:       .dsb 1, 1            ; init to halted
+
+; speedbyte: per-subtune tempo (frames per sequence step). song sets
+; this from snelheid,X; playirq reloads speedsto from it.
+speedbyte:      .dsb 1, 0
+speedsto:       .dsb 1, 0
+
+; Per-voice 3-byte state arrays. Only the few used by song init are
+; declared here; sessions 4+ add the rest.
+pulseruntest:   .dsb 3, 0            ; song sets to 1,1,1
+tabcount:       .dsb 3, 0            ; sequence step (per voice)
+begcount:       .dsb 3, 0            ; pattern offset
+nootcount:      .dsb 3, 0            ; frames until next note
+noho:           .dsb 3, 0            ; base pitch
+counter2:       .dsb 3, 0            ; global tick counter
+
+; seqloclo / seqlochi: the current song's 3 voice sequence-stream
+; pointers, copied from seqtabel by song init.
+seqloclo:       .dsb 3, 0
+seqlochi:       .dsb 3, 0
+
+; End-of-state marker — ok2's clear loop runs from tabcount to here.
+state_end:
+"""
+
+
+def _emit_song_init_routine(cfg: FCConfig) -> str:
+    """Emit the song init routine + songout + ok2 + silence-all.
+
+    Called via PSID init=$LOAD with X = song number. Initializes engine
+    state for the selected subtune and silences the SID. Falls through
+    from song into silence-all (the ACME `uitzet` label).
+
+    Routine boundaries (each one a callable / branch target):
+      song:        from PSID init; sets state, copies seq pointers,
+                   primes $D416/$D417/$D418, calls ok2, falls into
+                   silence-all.
+      silence_all: writes 0 to $D400-$D415 (22 SID registers).
+      songout:     marks engine halted; falls into silence-all.
+      ok2:         zeros all per-voice state arrays (between tabcount
+                   and the end of the state region).
+
+    Frame-exact-visible SID writes during init (in order):
+      $D416 ← $00, $D417 ← $01, $D418 ← $10|VOLUME, then 22× ($D4xx ← $00)
+    plus whatever the first play() invocation writes (frame 0 in the
+    writelog combines init+play).
+
+    Uses straight code (not the ACME source's SMC trick) because
+    frame-exact comparison only cares about $D4xx writes; CPU internals
+    are free.
+    """
+    snelheid_addr = cfg.per_subtune_speed_addr
+    seqtabel_addr = cfg.seqtabel_addr if cfg.subtune_layout == 'flat_seqtabel' else 0
+    if seqtabel_addr == 0:
+        raise NotImplementedError(
+            f'song init emitter currently supports only flat_seqtabel layout '
+            f'(cfg.subtune_layout = {cfg.subtune_layout!r}); SMC dispatcher '
+            f'+ SFX page records for Hawkeye still pending')
+
+    return f"""
+; --- song init ($LOAD entry; X = song number) ---
+; Initializes engine state for the selected subtune. Frame-exact SID
+; writes: $D416/$D417 cleared, $D418 = $10|VOLUME, then $D400-$D415
+; silenced via the fall-through into silence_all.
+song:
+        ; testbyte = 1 (halted), pulseruntest[0..2] = 1
+        lda #1
+        sta testbyte
+        sta pulseruntest+0
+        sta pulseruntest+1
+        sta pulseruntest+2
+
+        ; speedbyte = snelheid[X]
+        lda ${snelheid_addr:04X},x
+        sta speedbyte
+
+        ; Compute Y-index into seqtabel for subtune X: idx = X*6 + 5
+        ; (we copy 6 bytes downward into seqloclo[0..2]/seqlochi[0..2])
+        ; Straight code, no SMC trick.
+        stx song_tmp
+        txa
+        asl                          ; *2
+        clc
+        adc song_tmp                 ; *3
+        asl                          ; *6
+        adc #5                       ; *6 + 5
+        tax
+
+        ldy #5
+song_seqcp:
+        lda ${seqtabel_addr:04X},x
+        sta seqloclo,y               ; seqloclo+0..2, seqlochi+0..2 are
+                                     ; contiguous so Y=0..5 covers both
+        dex
+        dey
+        bpl song_seqcp
+
+        ; Reset SID filter cutoff + routing, set master volume.
+        ; (Y=$FF after the loop above; we want $00 to $D416 and $01
+        ; to $D417, so re-zero Y here.)
+        lda #0
+        sta $d416
+        lda #1
+        sta $d417
+        lda #$10 | VOLUME_INIT
+        sta $d418
+
+        jsr ok2
+        ; falls through into silence_all (init silences $D400-$D415)
+
+silence_all:
+        lda #0
+        ldx #$15
+silence_loop:
+        sta $d400,x
+        dex
+        bpl silence_loop
+        rts
+
+songout:
+        lda #1
+        sta testbyte
+        ; fall through into silence_all
+        jmp silence_all
+
+; ok2 — zero every byte from tabcount through the end of the engine
+; state arrays, then reset the X-indexed counter2/tabcount/begcount/
+; nootcount/noho per-voice arrays explicitly.
+ok2:
+        lda #0
+        ldx #state_end - tabcount - 1
+ok2_zero:
+        sta tabcount,x
+        dex
+        bpl ok2_zero
+
+        ; Per-voice arrays reset (overlaps the above for clarity)
+        ldx #2
+ok2_pv:
+        sta tabcount,x
+        sta begcount,x
+        sta nootcount,x
+        sta noho,x
+        sta counter2,x
+        dex
+        bpl ok2_pv
+
+        sta testbyte
+        rts
+
+song_tmp: .dsb 1, 0
+"""
+
 #
 # Cybernoid II's HVSC SID uses a multi-stage trampoline that doesn't
 # match the ACME source's natural layout. The PSID-pointed init/play

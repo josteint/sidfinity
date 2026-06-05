@@ -1,24 +1,31 @@
-"""FC family cycle-equivalence verification via siddump --writelog.
+"""FC family frame-equivalence verification via siddump --writelog.
 
 The asm composer (when complete) won't produce byte-exact rebuild —
 it composes engine code from USF features and its layout choices will
 differ from HVSC's. The composer's correctness verdict shifts from
 "md5 matches HVSC" to "the SID write stream the chip receives matches
-HVSC's, cycle-ordered."
+HVSC's, frame-by-frame."
 
-This module wraps `pipelines.hubbard.verify_cycle` (engine-agnostic
-already; used by Hubbard, Companion, and now FC) with FC-specific
-helpers:
+**Frame-exact (not cycle-exact) for music.** The comparator
+(`compare_instruction_stream`) drops within-frame cycle timestamps;
+the (reg, val) sequence per frame must match but WHEN within the
+frame those writes happen is unconstrained. Cycle-strict comparison
+is only needed for digi (where the sample timing within the frame
+IS the signal — that's `compare_strict` in verify_cycle.py). FC
+canaries don't have digi, so frame-exact is the verdict.
+
+This module wraps `pipelines.hubbard.verify_cycle` (engine-agnostic;
+used by Hubbard, Companion, and now FC) with FC-specific helpers:
 
   - `verify_baseline(cfg)` — captures original and rebuilt writelogs
     for every subtune and compares. Sanity baseline: when the rebuild
     is byte-identical (the current binary-patch composer state), the
     writelogs must also match.
-  - `verify_asm(cfg)` — same but uses the asm-pipeline composer. Used
-    as the verdict for feature-driven asm work that doesn't preserve
+  - `verify_asm(cfg)` — same but uses the asm-pipeline composer. The
+    real verdict for feature-driven asm work that doesn't preserve
     byte equivalence.
 
-Both return a per-subtune dict with `is_full` (cycle-stream match) +
+Both return a per-subtune dict with `is_full` (frame stream match) +
 the position of the first divergence + total stream lengths.
 """
 from __future__ import annotations
