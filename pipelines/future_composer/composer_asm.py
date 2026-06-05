@@ -1156,8 +1156,10 @@ noglideset:
         ; falls through to novoiceset
 
 novoiceset:
-        ; Range $80-$BF (first) = setlength, with $80-$FF (second)
-        ; as extension.
+        ; Range $80-$BF = setlength. First byte: nootleng = (lo 6 bits) - 1.
+        ; Subsequent $80-$BF bytes extend: nootleng += (lo 6 bits).
+        ; $C0+ next byte → re-dispatch (wave/inst, glide, $F0+).
+        ; <$80 next byte → fall through to arpset (note/arp).
         lda tabbytsto
         cmp #$80
         bcc arpset
@@ -1166,24 +1168,20 @@ novoiceset:
         sec
         sbc #1
         sta nootleng,x
-        jsr verhoogtest
 
-        cmp #$E0
-        beq skip                     ; glide can interrupt — re-dispatch
+setlen_loop:
+        jsr verhoogtest              ; reads next byte → tabbytsto, also in A
+        cmp #$C0
+        bcs skip                     ; >= $C0: re-dispatch fresh cmd
         cmp #$80
-        bcc arpset
+        bcc arpset                   ; < $80: note/arp
 
-        ; second setlength byte (extension)
-        and #$7F
+        ; extension byte ($80-$BF): nootleng += (byte & $3F)
+        and #$3F
         clc
         adc nootleng,x
         sta nootleng,x
-        jsr verhoogtest
-
-        cmp #$80
-        bcc arpset
-
-        jmp skip                     ; yet another $80+ byte — re-dispatch
+        jmp setlen_loop
 
 arpset:
         ; Range $70-$7F = arpeggio program select. Loads arplo[N]/
