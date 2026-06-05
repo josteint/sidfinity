@@ -511,3 +511,33 @@ Real fix: Hawkeye's noise_tick at $82D4-$830B is structurally different:
   - `else → no-op`
 
 Different constants ($58 vs $FA), no per-instrument startlen/starttabel lookup. This needs an FCConfig knob `noise_tick_style: 'cyb2_table' | 'hawkeye_constants'` plus the Hawkeye-style routine.
+
+### Real root cause: Hawkeye's fx_drum produces $3D, not noise_tick
+
+Re-reading $826C-$82D3 (Hawkeye's fx_drum / fx3 bit $10):
+```
+$826C: LDA fx3sto / AND #$10 / BEQ skip ; not drum
+$8272: LDA $F7 / AND #$0F / ASL / ASL / TAY  ; Y = (inst & $0F) * 4
+$8279-$8291: SMC-load 4 drumtabel ptrs into program slots
+$829D: LDA counter2,x / CMP #$03 / BCS $82D1 (→ late writes)
+$82A5: LDA drum_table_A[counter2] / STA stod404,x
+$82AC: LDA drum_table_B[counter2-1] / STA $910B
+$82B6: LDA $F7 / AND #$10 / BEQ $82C3
+$82BA-$82C0: (alt path) freq via $8327 callback
+$82C3: LDA $910B / CLC / ADC #$0D / STA $9136,x  ; d401 = drum_B + $0D
+$82CC: LDA #$00 / STA $9133,x                     ; d400 = 0
+```
+
+For sub 1 V3 frame 1 (counter2=1):
+- `drum_table_B[0] = $30` (likely; from drum prog at drumtabel[V3_inst*4])
+- `d401 = $30 + $0D = $3D` ✓ matches orig
+
+For frame 2 (counter2=2): `drum_table_B[1] = ?`, `d401 = ? + $0D = $07` → `drum_B[1] = $FA` (or -6 signed).
+
+This is Hawkeye-specific fx_drum logic — different from Cyb II's. My Cyb II fx_drum uses `lda st / sta d401` with `st` being the drum tone byte. Hawkeye uses two parallel drum tables (drum_A → stod404 shadow, drum_B → d401 with $+0D offset).
+
+**Path forward**: this needs a new noise_tick style + new fx_drum style as parametric FCConfig choices. Both Cyb II's and Hawkeye's are valid engine variants. The chain emitter should select per cfg.
+
+For now, **disabling fx_noise_tick for Hawkeye** (since startlen/starttabel are unset placeholders reading garbage) would at least stop the $FA misfire at frame 2.
+
+Additionally noted: per-voice fx3 cache in Hawkeye may not even be at the same address my model assumes. Hawkeye's instrument-record layout is different — record +0 is WAVE byte (PHA'd, low nibble → $D403), +1 is stod404 init, +2 AD, +3 SR, +4 → $910F (extension flags). No obvious per-instrument fx3 slot in the record; fx2/fx3 come from sequence stream commands instead.
