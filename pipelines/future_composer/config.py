@@ -108,5 +108,16 @@ class FCConfig:
     # Hawkeye overrides with (2, 3, 4, 0, 1).
     nextvoice_write_order: tuple = (4, 0, 1, 2, 3)
 
+    # fm2 filter-cleanup parameters. fm2 runs when fx_filter_prog is NOT
+    # active for the current voice. If this voice was the prior filter
+    # owner, cleanup resets the filter.
+    #   - Cyb II writes $D418=$10|VOL and $D416=$80, with a strange-filter
+    #     early-out (don't reset if strange-filter is active).
+    #   - Hawkeye writes only $D416=$E0, no $D418 write, no strange-filter
+    #     check (cleanup runs unconditionally for the owner).
+    fm2_cleanup_d416_value: int = 0x80           # Cyb II default
+    fm2_cleanup_writes_d418: bool = True         # Cyb II default
+    fm2_cleanup_checks_strange_filter: bool = True  # Cyb II default
+
     # TODO as effects come online:
     # wavearp_addr, pulsearp_addr (wave/pulse-arp tables)

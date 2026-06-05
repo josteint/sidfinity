@@ -56,6 +56,15 @@ HAWKEYE = FCConfig(
     # Hawkeye's nextvoice writes in this order per voice (verified by
     # diffing HVSC's writelog): pw lo, pw hi, ctrl, freq lo, freq hi.
     nextvoice_write_order=(2, 3, 4, 0, 1),
+
+    # fm2 cleanup is structurally different from Cyb II in Hawkeye —
+    # see disassembly.s $8199-$81A5:
+    #   $81A0: lda #$e0
+    #   $81A5: sta $d416     ; only $D416, no $D418
+    # And no strange-filter check before the cleanup. Verified in RE_NOTES.
+    fm2_cleanup_d416_value=0xE0,
+    fm2_cleanup_writes_d418=False,
+    fm2_cleanup_checks_strange_filter=False,
 )
 
 

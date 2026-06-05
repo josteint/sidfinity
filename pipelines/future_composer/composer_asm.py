@@ -662,6 +662,23 @@ def _emit_playirq_dispatch(cfg: FCConfig) -> str:
       - nextvoice's shadow→SID write order from cfg.nextvoice_write_order.
     """
     nextvoice_writes = _emit_nextvoice_writes(cfg.nextvoice_write_order)
+
+    # fm2_cleanup parameters. Cyb II default: writes both $D418=$10|VOL
+    # and $D416=$80, with a strange-filter early-out. Hawkeye writes
+    # only $D416=$E0, no strange-filter check, no $D418.
+    fm2_d416_value = f'{cfg.fm2_cleanup_d416_value:02x}'
+    fm2_strange_check = (
+        '        lda fx2sto\n'
+        '        and #$08\n'
+        '        bne fx_strange_filter        ; strange filter active → skip cleanup\n'
+        if cfg.fm2_cleanup_checks_strange_filter else ''
+    )
+    fm2_d418_write = (
+        '        lda #$10 | VOLUME_INIT\n'
+        '        sta $d418\n'
+        if cfg.fm2_cleanup_writes_d418 else ''
+    )
+
     return ("""
 ; --- playirq dispatch + h2/h3 sequence walker ---
 playirq:
@@ -1728,16 +1745,16 @@ filfur1:
 
 fm2_filter_cleanup:
         ; --- fm2 cleanup: filter_prog NOT active for this voice ---
+        ; Parametric per cfg:
+        ;   - fm2_cleanup_d416_value: $D416 reset value (Cyb II $80, Hawkeye $E0)
+        ;   - fm2_cleanup_writes_d418: write $D418=$10|VOL too (Cyb II yes, Hawkeye no)
+        ;   - fm2_cleanup_checks_strange_filter: skip cleanup if strange-filter
+        ;     bit is set (Cyb II yes, Hawkeye no)
         ldx wax
         cpx filwhat
         bne fx_strange_filter        ; this voice didn't own filter → skip
-        lda fx2sto
-        and #$08
-        bne fx_strange_filter        ; strange filter active → skip cleanup
-        ; This voice owned the filter, no strange filter — reset.
-        lda #$10 | VOLUME_INIT
-        sta $d418
-        lda #$80
+{fm2_strange_check}        ; This voice owned the filter — reset.
+{fm2_d418_write}        lda #${fm2_d416_value}
         ; falls into fme
 
 fme:
@@ -1951,7 +1968,12 @@ nextvoice:
 
 playirq_done:
         rts
-""").format(nextvoice_writes=nextvoice_writes)
+""").format(
+        nextvoice_writes=nextvoice_writes,
+        fm2_strange_check=fm2_strange_check,
+        fm2_d418_write=fm2_d418_write,
+        fm2_d416_value=fm2_d416_value,
+    )
 
 #
 # Cybernoid II's HVSC SID uses a multi-stage trampoline that doesn't
