@@ -173,6 +173,12 @@ class FCConfig:
     # directly, with no byteand involvement. Mirrors disasm $7DCA-$7DF6.
     held_note_clears_stod404_gate: bool = False
 
+    # h11's force-release SR value, written to $D406,Y at end-of-note
+    # when wave-byte bit $10 is set AND speedsto==1. Cyb II writes $02,
+    # Hawkeye writes $01 (from `LDA $9116 / CMP #$01 / STA $D406,Y`,
+    # reusing the freshly-loaded speed counter as the release value).
+    h11_release_sr_value: int = 0x02
+
     # When non-zero, shift every data-table address (freq_lo, freq_hi,
     # snelheid, instr_records, drumtabel, pulsetabel, ...) up by this
     # many bytes in the featuredriven rebuild ONLY. Engine code grows

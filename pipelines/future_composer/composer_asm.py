@@ -1275,7 +1275,8 @@ h10:
 h11:
         ; Intermediate-frame path entry + ADSR release check.
         ; If pulsehitemp bit 4 set AND note just ended AND speedsto=1,
-        ; force ADSR release (write $02 to $D406,y).
+        ; force ADSR release ($D406,y = h11_release_sr_value from cfg).
+        ; Cyb II: $02. Hawkeye: $01 (orig reuses LDA $9116 result here).
         lda pulsehitemp,x
         and #$10
         beq gwo2
@@ -1284,7 +1285,7 @@ h11:
         lda speedsto
         cmp #1
         bne gwo2
-        lda #$02
+        lda #h11_release_sr_value
         sta $d406,y                  ; ADSR sustain/release tweak
 
 gwo2:
@@ -2568,6 +2569,7 @@ def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
         f'wavearpwait = {cfg.wavearpwait}',
         f'pulsearpwait = {cfg.pulsearpwait}',
         f'fx_drum_d401_offset = ${cfg.fx_drum_d401_offset:02X}',
+        f'h11_release_sr_value = ${cfg.h11_release_sr_value:02X}',
         # vibrato uses lonote2/hinote2 = lonote+1/hinote+1 (one byte
         # past the freq-table base) to read the next note's freq for
         # delta computation.

@@ -105,6 +105,10 @@ HAWKEYE = FCConfig(
     # elapsed < threshold, else wavesto & $FE.
     held_note_clears_stod404_gate=True,
 
+    # Hawkeye writes $D406=$01 at h11's release-tweak (orig $7E0C reuses
+    # the LDA $9116 = $01 value). Cyb II uses $02.
+    h11_release_sr_value=0x01,
+
     # featuredriven_addr_shift=0x100 was tried to make room for the
     # startnewnote PW direct writes, but breaks pointer tables in the
     # verbatim aux region (HVSC data has embedded $84BB/$84CC etc.
