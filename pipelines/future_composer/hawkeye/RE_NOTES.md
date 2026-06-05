@@ -441,3 +441,73 @@ block at the end writes ctrl/freq/PW in one chunk.
    it's the `lda $f8 / and #$08` block starting at $81A8.
 
 This is the next chunk of work to make Hawkeye match further.
+
+## $822C octave-up effect + per-instrument flag byte (added 2026-06-05)
+
+### What $822C does
+```
+$822B: LDA $910F,X / AND #$08 / BEQ skip
+$8232: LDA lonotesto,x / CLC / ADC #$20 / STA d400,x
+$823B: LDA hinotesto,x / ADC #$00       / STA d401,x  ; +carry from above
+```
+16-bit add of $0020 to (hinotesto:lonotesto), result into (d401:d400).
+Pitch shift up by 32 freq units (~quarter semitone at top octave).
+
+### Source of $910F[X]
+Loaded once at note-init ($7D74-$7D99). Trace:
+- LDA $8610,X (instrument record offset +4) / PHA
+- LDA $860C,X (offset +0 — WAVE byte) / PHA
+- LDA $860D,X (offset +1 — initial CTRL/wave shadow) / STA $90D1,x + $911B,x
+- (stack pops in reverse)
+- LDA $910F,x ← record byte +4
+
+So `$910F,X = instrument_record[N].byte[4]`. Per-instrument flag byte.
+
+### How $910F[X] is consumed
+| bit | effect | site |
+|---|---|---|
+| 0-1 | filter-program selector | $8146 (fx_filter_prog) |
+| $04 | enables conditional shadow-bump | $8243-$826B |
+| $08 | octave-up ($D40020 16-bit add) | $822C |
+| 6/7? | not yet traced | — |
+
+### Cybernoid II comparison
+Cyb II's filter_prog uses `filtercount,X & $07` (cyclic per-voice counter) for program selection — NOT a latched per-instrument byte. So this byte is Hawkeye-specific (or differs in role between engines).
+
+### Implementing requires
+1. **New instrument field** in USF schema: per-instrument flag byte (e.g. `flags: int` or named per-bit).
+2. **Per-voice cache** (RAM slot — `inst_flags,x` 3-byte array) loaded at note-init from the instrument's flag byte.
+3. **FCConfig knob** `filter_prog_selector: 'cyclic' | 'inst_latched'` — Cyb II 'cyclic'; Hawkeye 'inst_latched'.
+4. **FCConfig knob** `has_octave_up: bool` — Hawkeye True; Cyb II False.
+
+### Sub 1 frame-1 divergence — NOT solely explained by octave-up
+orig d401[V3] = $3D, my d401[V3] = $30. Diff $0D.
+
+If $822C is firing in orig but not in mine: adds at most +1 to hinotesto via carry. Doesn't explain $0D.
+
+Likely the underlying hinotesto[V3] ALSO differs between orig and mine — meaning a different note value is loaded for V3 at frame 1, OR an earlier effect (tone_arp / vibrato / glide / drum) modifies it differently. Worth investigating BEFORE implementing octave-up — the fix may be elsewhere.
+
+### Sub 1 V3 divergence — root cause IS noise_tick, not octave-up
+
+py65 dump of V3 across frames (orig vs reb):
+```
+orig: f0 $D40F=$02 hinote=$02 ctr2=$00
+      f1 $D40F=$3D hinote=$02 ctr2=$01
+      f2 $D40F=$07 hinote=$02 ctr2=$02
+reb:  f0 $D40F=$02
+      f1 $D40F=$30
+      f2 $D40F=$FA   ← noisehitone!
+```
+
+`$D40F=$FA` at reb f2 is Cyb II's `noisehitone` constant from my fx_noise_tick attack branch. My code is mistakenly firing the noise-tick path for V3 because:
+  1. Hawkeye `startlen_addr=0` / `starttabel_addr=0` (placeholders).
+  2. My fx_noise_tick `lda starttabel,y` reads garbage from $0000+y.
+  3. When the garbage is >= $7F it goes into the noise-attack branch (`d401=$FA`).
+
+Real fix: Hawkeye's noise_tick at $82D4-$830B is structurally different:
+  - `if fx3 bit $80 not set → skip`
+  - `if counter2 < 2 → d400=$00 d401=$58 stod404=$81`  (hardcoded)
+  - `if 2 <= counter2 < 4 → d400=lonotesto d401=hinotesto stod404=wavesto&$FE`
+  - `else → no-op`
+
+Different constants ($58 vs $FA), no per-instrument startlen/starttabel lookup. This needs an FCConfig knob `noise_tick_style: 'cyb2_table' | 'hawkeye_constants'` plus the Hawkeye-style routine.
