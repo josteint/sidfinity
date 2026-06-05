@@ -173,5 +173,13 @@ class FCConfig:
     # directly, with no byteand involvement. Mirrors disasm $7DCA-$7DF6.
     held_note_clears_stod404_gate: bool = False
 
+    # When non-zero, shift every data-table address (freq_lo, freq_hi,
+    # snelheid, instr_records, drumtabel, pulsetabel, ...) up by this
+    # many bytes in the featuredriven rebuild ONLY. Engine code grows
+    # past the HVSC table positions on some engines (e.g. Hawkeye's
+    # $8337 is tight); a small upward shift creates margin. Extraction
+    # still reads from the unshifted addresses (HVSC's actual layout).
+    featuredriven_addr_shift: int = 0
+
     # TODO as effects come online:
     # wavearp_addr, pulsearp_addr (wave/pulse-arp tables)

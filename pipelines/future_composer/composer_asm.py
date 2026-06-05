@@ -601,7 +601,8 @@ ok2_pv:
 """
 
 
-def _emit_nextvoice_writes(write_order: tuple, use_byteand_mask: bool = True) -> str:
+def _emit_nextvoice_writes(write_order: tuple, use_byteand_mask: bool = True,
+                            skip_pw: bool = False) -> str:
     """Emit the per-voice shadow→SID write block in the order given by
     `write_order` (tuple of register offsets 0-4 within the voice).
 
@@ -610,9 +611,16 @@ def _emit_nextvoice_writes(write_order: tuple, use_byteand_mask: bool = True) ->
     bit resets oscillator + noise LFSR, ADSR delay bug, $D418 clicks).
     Different FC-family engines use different orders — each cfg
     declares its convention.
+
+    `skip_pw=True` (used by interleaved-layout's h10b shortcut) omits
+    offsets 2 and 3 (PW lo, PW hi) — these were already written in the
+    EARLY phase of the chain. Mirrors Hawkeye's $830C late-write trio
+    of CTRL/FREQ LO/FREQ HI when the new-note path jumps via $7DBA.
     """
     chunks = []
     for offset in write_order:
+        if skip_pw and offset in (2, 3):
+            continue
         if offset == 0:
             chunks.append('        lda d400,x\n'
                           '        sta $d400,y                  ; freq lo')
@@ -787,6 +795,12 @@ def _emit_playirq_dispatch(cfg: FCConfig) -> str:
       - Voice loop uses X=2,1,0 (V3→V2→V1) to match the original.
       - nextvoice's shadow→SID write order from cfg.nextvoice_write_order.
     """
+    # nextvoice (used by h10b's skip path) writes regs in cfg order.
+    # NOTE: for Hawkeye's $7DBA shortcut path, orig writes only 3 regs
+    # at $830C (ctrl + freq lo + freq hi); the PW writes are done by
+    # startnewnote at $7D81/$7D8D direct. My nolengset doesn't emit
+    # those direct PW writes (would overflow past freq_lo_addr — see
+    # task #72), so I have to keep PW in nextvoice to compensate.
     nextvoice_writes = _emit_nextvoice_writes(
         cfg.nextvoice_write_order, cfg.late_ctrl_uses_byteand_mask)
 
@@ -1183,9 +1197,9 @@ nolengset:
         and #$0F
         sta d403,x                   ; shadow $D403 (pw hi nibble)
         sta pulsehisto,x
-        ; NOTE: startnewnote in real engines also writes $D402/$D403 to
-        ; SID directly here; adding those overflows past freq_lo_addr
-        ; ($8337 for Hawkeye). Deferred until data region can be moved.
+        ; NOTE: real startnewnote also writes $D402/$D403 direct here;
+        ; adding those overflows past freq_lo_addr. Tried shift=$100 but
+        ; it breaks pointer tables in verbatim aux data. See task #72.
         lda #1
         sta pulsetest,x
         pla
@@ -2429,6 +2443,35 @@ def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
     code_end = load_addr + len(code)
     mem = bytearray(65536); mem[load_addr:code_end] = code
 
+    # Apply featuredriven_addr_shift: rebuild's data tables can be
+    # placed higher than HVSC's actual layout (which the unshifted
+    # cfg.X_addr fields point at — used by extract). Build a shifted
+    # cfg so the rest of this function emits everything at the
+    # rebuild's chosen positions and the engine code's equates match.
+    import dataclasses as _dc
+    shift = cfg.featuredriven_addr_shift
+    if shift:
+        def _s(a): return (a + shift) if a else 0
+        cfg = _dc.replace(cfg,
+            freq_lo_addr = _s(cfg.freq_lo_addr),
+            freq_hi_addr = _s(cfg.freq_hi_addr),
+            pattern_ptr_addr = _s(cfg.pattern_ptr_addr),
+            instr_records_addr = _s(cfg.instr_records_addr),
+            per_subtune_speed_addr = _s(cfg.per_subtune_speed_addr),
+            drumtabel_addr = _s(cfg.drumtabel_addr),
+            filterbytes_addr = _s(cfg.filterbytes_addr),
+            startlen_addr = _s(cfg.startlen_addr),
+            starttabel_addr = _s(cfg.starttabel_addr),
+            arplo_addr = _s(cfg.arplo_addr),
+            arphi_addr = _s(cfg.arphi_addr),
+            pulsetabel_addr = _s(cfg.pulsetabel_addr),
+            vibtabwait_addr = _s(cfg.vibtabwait_addr),
+            wavearp_addr = _s(cfg.wavearp_addr),
+            pulsearp_addr = _s(cfg.pulsearp_addr),
+            # NOTE: per_subtune_smc_addr / template_base_hi NOT shifted —
+            # those reference HVSC's preserved SMC region (verbatim).
+        )
+
     # Data sections (same as compose_fc_asm)
     music_subs = [s for s in usf.subtunes if isinstance(s, MusicSubtune)]
     if cfg.subtune_layout == 'flat_seqtabel':
@@ -2577,10 +2620,14 @@ def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
     cursor = first_data_addr
     for name, start, end in sections:
         if start > cursor:
+            # Verbatim aux fill between sections. Source bytes from HVSC
+            # at the UNSHIFTED address (mem[addr - shift]); destination
+            # is the shifted address (set by `* = $cursor`).
             lines.append(f'; --- verbatim aux region ${cursor:04X}..'
                          f'${start-1:04X} ---')
             lines.append(f'* = ${cursor:04X}')
-            lines.append(_emit_verbatim_region(mem, cursor, start))
+            lines.append(_emit_verbatim_region(
+                mem, cursor - shift, start - shift))
             lines.append('')
         n_bytes = end - start
         lines.append(f'; --- {name} ${start:04X}..${end-1:04X} '
@@ -2591,12 +2638,16 @@ def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
         cursor = end
 
     # Tail (sequences + patterns + remaining aux tables — still verbatim)
-    if cursor < code_end:
+    # When shift != 0, the tail's source address is also unshifted.
+    if cursor < (code_end + shift):
+        tail_end_dest = code_end + shift
         lines.append(f'; --- verbatim tail ${cursor:04X}..'
-                     f'${code_end-1:04X} ---')
+                     f'${tail_end_dest-1:04X} ---')
         lines.append(f'* = ${cursor:04X}')
-        lines.append(_emit_verbatim_region(mem, cursor, code_end))
+        lines.append(_emit_verbatim_region(
+            mem, cursor - shift, tail_end_dest - shift))
         lines.append('')
+        cursor = tail_end_dest
 
     # For SMC layout, state arrays are parked AFTER the verbatim tail
     # (engine code + state would overflow into data tables otherwise).
@@ -2606,7 +2657,9 @@ def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
     # otherwise the state bytes would land at the wrong CPU address
     # and d4point/per-voice arrays would read garbage at runtime.
     if cfg.subtune_layout == 'smc_template_with_sfx':
-        state_addr = ((code_end + 0xFF) & ~0xFF)
+        # State address rounds up from the END of the verbatim tail, which
+        # extends to code_end+shift when featuredriven_addr_shift is set.
+        state_addr = (((code_end + shift) + 0xFF) & ~0xFF)
         lines.append(f'; --- state arrays parked at ${state_addr:04X} '
                      f'(past HVSC SID end) ---')
         lines.append(f'        .dsb ${state_addr:04X} - *, 0  ; pad gap '

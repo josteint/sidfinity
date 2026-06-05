@@ -104,6 +104,12 @@ HAWKEYE = FCConfig(
     # (nootleng - nootcount), not remaining. Stod404 = wavesto when
     # elapsed < threshold, else wavesto & $FE.
     held_note_clears_stod404_gate=True,
+
+    # featuredriven_addr_shift=0x100 was tried to make room for the
+    # startnewnote PW direct writes, but breaks pointer tables in the
+    # verbatim aux region (HVSC data has embedded $84BB/$84CC etc.
+    # pointers that would need rewriting). Leave at 0.
+    # featuredriven_addr_shift=0,
 )
 
 
