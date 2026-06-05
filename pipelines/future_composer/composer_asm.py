@@ -1151,13 +1151,60 @@ drum_done:
         jmp effect_chain_end
 
 fx_noise_tick:
-        ; fx3 bit $80 — plays starttabel[wavecount] waveform for
-        ; startlen[wavecount] frames at noisehitone ($FA) pitch.
-        ; Modifies stod404 + d401. TODO.
+        ; fx3 bit $80 — pre-attack waveform for the first N frames of
+        ; a note, where N = startlen[wavecount]. Writes the attack
+        ; waveform from starttabel[wavecount] into stod404. If the
+        ; waveform's high bit is set (noise-y), also writes
+        ; noisehitone ($FA) to d401 to fix the pitch.
+        ;
+        ; After startlen frames, has a 2-frame transition window
+        ; (counter2 == startlen or startlen+1) where it restores
+        ; lonotesto/hinotesto/wavesto into d400/d401/stod404 —
+        ; i.e., the "real" note settings load. After startlen+1,
+        ; noise_tick is done and the held-note steady state takes
+        ; over.
+        ;
+        ; Last effect in the chain; falls through to effect_chain_end.
         lda fx3sto
         and #$80
         beq effect_chain_end
-        ; STUB: noise-tick impl here.
+
+        ldy wavecount,x
+        lda counter2,x
+        cmp startlen,y
+        bcs nt_nv3                   ; counter2 >= startlen → transition/done
+
+        ; counter2 < startlen — attack phase
+        lda starttabel,y
+        cmp #$7F
+        bcc nt_nve                   ; waveform < $7F → use directly
+
+        ; waveform >= $7F (noise-y) — also force pitch to noisehitone
+        lda #$FA                     ; noisehitone
+        sta d401,x
+        lda #$81                     ; use noise+gate as waveform
+        jmp nt_nve
+
+nt_nv3:
+        ; counter2 >= startlen — check if we're in the 2-frame
+        ; transition window (startlen or startlen+1).
+        lda startlen,y
+        clc
+        adc #2
+        sta st2                      ; scratch: startlen+2
+        lda counter2,x
+        cmp st2
+        bcs effect_chain_end         ; counter2 >= startlen+2 → done
+
+        ; transition frame — restore "real" note values into shadows
+        lda lonotesto,x
+        sta d400,x
+        lda hinotesto,x
+        sta d401,x
+        lda wavesto,x
+nt_nve:
+        sta stod404,x
+        ; falls through to effect_chain_end
 
 effect_chain_end:
         jmp nextvoice                ; per-voice shadow→SID write loop
@@ -1514,6 +1561,10 @@ def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
         if cfg.drumtabel_addr else '; drumtabel: not yet located',
         f'filterbytes = ${cfg.filterbytes_addr:04X}'
         if cfg.filterbytes_addr else '; filterbytes: not yet located',
+        f'startlen = ${cfg.startlen_addr:04X}'
+        if cfg.startlen_addr else '; startlen: not yet located',
+        f'starttabel = ${cfg.starttabel_addr:04X}'
+        if cfg.starttabel_addr else '; starttabel: not yet located',
         _FC_ZP_EQUATES,
         '',
         f'* = ${load_addr:04X}',

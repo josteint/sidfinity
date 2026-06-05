@@ -54,8 +54,12 @@ CYBERNOID_II = FCConfig(
     # `lda <addr>,X` references):
     #   $AD51: BD 45 AF       lda $AF45,X    ← drumtabel
     #   $AC7A: BD C4 AF       lda $AFC4,X    ← filterbytes
+    #   $ADC9: D9 C0 B0       cmp $B0C0,Y    ← startlen
+    #   $ADCE: B9 CC B0       lda $B0CC,Y    ← starttabel
     drumtabel_addr=0xAF45,
     filterbytes_addr=0xAFC4,
+    startlen_addr=0xB0C0,
+    starttabel_addr=0xB0CC,
 )
 
 
