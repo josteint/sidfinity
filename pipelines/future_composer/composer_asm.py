@@ -545,11 +545,24 @@ song_seqcp:
         dey
         bpl song_seqcp
 
-        ; Hawkeye's init does NOT write $D416/$D417/$D418 master vol —
-        ; it goes straight to silence. PSID warmup left $D418 = $0F
-        ; (filter routing 0 + master vol $F = max).
+        ; Hawkeye's init goes straight to silence then writes
+        ; $D418=$FF and $D417=$00 AFTER the silence loop. NOT the
+        ; Cybernoid II preamble; instead a post-silence cleanup.
         jsr ok2
-        ; falls through into silence_all
+        jsr silence_all              ; jsr (not fall-through) — we need
+                                     ; to continue with more writes
+        ; Hawkeye-specific: post-silence master vol + filter routing.
+        lda #$FF
+        sta $d418
+        lda #$00
+        sta $d417
+        rts
+
+songout:
+        lda #1
+        sta testbyte
+        jmp silence_all              ; songout bypasses the $D418/$D417
+                                     ; cleanup (just silences and returns)
 
 silence_all:
         ; Hawkeye's silence pattern: for each register $D400-$D417,
@@ -564,11 +577,6 @@ silence_loop:
         dex
         bpl silence_loop
         rts
-
-songout:
-        lda #1
-        sta testbyte
-        jmp silence_all
 
 ok2:
         lda #0

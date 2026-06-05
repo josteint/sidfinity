@@ -32,6 +32,26 @@ HAWKEYE = FCConfig(
     freq_table_entries=96,
     instr_count=16,
     max_patterns=64,
+
+    # Aux-table addresses found by disassembling Hawkeye's engine:
+    #   $7CDD: BD 80 85  lda $8580,X       ← arplo  (NOT $AF7F like CYII)
+    #   $7CE6: BD 89 85  lda $8589,X       ← arphi
+    #   $810D: B9 8C 84  lda $848C,Y       ← wavearp
+    #   $8126: B9 97 84  lda $8497,Y       ← pulsearp
+    #   $8279: B9 9F 84  lda $849F,Y       ← drumtabel
+    #   $814D: B9 B7 85  lda $85B7,Y       ← filterbytes
+    #   pulsetabel at $85EC (signature match)
+    #   vibtabwait at $8704 (signature match)
+    # NOT FOUND: startlen, starttabel — Hawkeye doesn't use noise_tick
+    # (no instrument has fx3 bit $80 set), so the engine probably
+    # doesn't include the noti routine. Defaults to $0000 placeholders.
+    drumtabel_addr=0x849F,
+    filterbytes_addr=0x85B7,
+    arplo_addr=0x8580,
+    arphi_addr=0x8589,
+    pulsetabel_addr=0x85EC,
+    vibtabwait_addr=0x8704,
+    # startlen_addr/starttabel_addr left at default 0 (unused).
 )
 
 
