@@ -98,11 +98,12 @@ HAWKEYE = FCConfig(
     # happens via stod404 itself in the held-note path at $7DCA.
     late_ctrl_uses_byteand_mask=False,
 
-    # Hawkeye's held-note path at $7DCA structurally clears gate via
-    # stod404 = wavesto & $FE, but enabling this regresses sub 1 by
-    # ~100 matches (some effect re-asserts the gate that mine doesn't
-    # know about). Leave at False; investigate further before enabling.
-    # held_note_clears_stod404_gate=True,
+    # Hawkeye's held-note path at $7DCA uses self-modified CMP (the
+    # operand at $7DE9 is patched by STA at $7DE0 with the per-voice
+    # threshold = (inst_byte4 & $F0) >> 3). Compared to ELAPSED frames
+    # (nootleng - nootcount), not remaining. Stod404 = wavesto when
+    # elapsed < threshold, else wavesto & $FE.
+    held_note_clears_stod404_gate=True,
 )
 
 

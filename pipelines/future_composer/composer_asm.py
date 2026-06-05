@@ -833,16 +833,41 @@ def _emit_playirq_dispatch(cfg: FCConfig) -> str:
 
     # h10 body — per cfg.held_note_clears_stod404_gate.
     if cfg.held_note_clears_stod404_gate:
-        h10_body = (
-            "        ; Held-note path (Hawkeye style): clear gate bit in\n"
-            "        ; stod404 each frame. No byteand involvement; late\n"
-            "        ; $D404 write is direct (cfg.late_ctrl_uses_byteand_mask).\n"
-            "        ; Mirrors disasm $7DCA-$7DF6.\n"
-            "        ldx wax\n"
-            "        lda wavesto,x\n"
-            "        and #$FE\n"
-            "        sta stod404,x\n"
-        )
+        h10_body = """        ; Held-note path (Hawkeye style): threshold-based gate
+        ; clear in stod404. Threshold = (filcount byte & $F0) >> 3
+        ; (high nibble / 8). Compared against ELAPSED frames
+        ; (nootleng - nootcount), not remaining.
+        ;   if elapsed >= threshold → stod404 = wavesto & $FE (kill gate)
+        ;   else                    → stod404 = wavesto (keep gate)
+        ; Mirrors disasm $7DCA-$7DF8 (self-modified CMP at $7DE8).
+        ; No byteand involvement; late $D404 write is direct.
+        lda nootcount,x
+        beq h10_hk_kill              ; if 0 → kill gate
+        lda wavecount,x
+        asl
+        asl
+        asl
+        tay
+        lda filcount,y               ; instrument byte +4
+        and #$F0
+        lsr
+        lsr
+        lsr                          ; threshold = hi_nibble / 8 (>> 3)
+        sta st2            ; scratch (reused from noise_tick)
+        lda nootleng,x
+        sec
+        sbc nootcount,x              ; A = elapsed frames
+        cmp st2
+        bcs h10_hk_kill              ; elapsed >= threshold → kill gate
+        ; elapsed < threshold — keep gate (use wavesto unchanged)
+        lda wavesto,x
+        bne h10_hk_store             ; if wavesto != 0, store directly
+h10_hk_kill:
+        lda wavesto,x
+        and #$FE
+h10_hk_store:
+        sta stod404,x
+"""
     else:
         h10_body = """        ; Held-note path (Cyb II style): compute byteand from
         ; filcount's high nibble. The late $D404 write ANDs stod404

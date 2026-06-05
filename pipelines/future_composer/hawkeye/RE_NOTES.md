@@ -580,3 +580,29 @@ Possible candidates (effects that write stod404 in Hawkeye disasm):
 - $7E0F onwards (note-load follow-up routine via $7E0C STA $D406 with $01)
 
 Worth a separate session to identify which effect rescues the gate.
+
+## Held-note threshold via SELF-MODIFIED CMP — solved (2026-06-05)
+
+Re-examining $7DE8 with py65 step trace reveals the CMP operand IS
+self-modified by the STA at $7DE0. Different per voice:
+```
+V3 (X=2): CMP #$00    (threshold 0 — always kill gate)
+V2 (X=1): CMP #$08    (threshold 8 — keep gate for first 8 elapsed frames)
+V1 (X=0): CMP #$1E    (threshold 30 — keep gate for first 30 elapsed frames)
+```
+
+The threshold = `(inst_byte4 & $F0) >> 3` (high nibble / 8), compared
+to ELAPSED frames (nootleng - nootcount), not remaining. Sub 1 V2
+frame 3 elapsed=1, threshold=8 → keep gate (stod404 = wavesto = $41).
+
+Implemented as Hawkeye-style h10:
+```
+held_note_clears_stod404_gate=True  (now using threshold logic, not always-clear)
+```
+
+Result: sub 1 224→244, sub 2 120→140, sub 3 132→174, sub 4 127→446 (+319),
+sub 5 115→166. Total Hawkeye music subs: 1303 (was 851 going in).
+
+**Lesson**: hand-decoded disasm can mislead when there's SMC. Always
+verify the actual runtime instruction stream via py65 step trace before
+trusting the static byte interpretation.
