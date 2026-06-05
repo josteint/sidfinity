@@ -79,6 +79,19 @@ HAWKEYE = FCConfig(
     # $D416/$D418 writes between them. See RE_NOTES.md "Per-voice loop
     # structure" for the full disassembly walk.
     voice_loop_layout='interleaved',
+
+    # Hawkeye has its own noise-tick at $82D4 with hardcoded constants
+    # ($58, $00, $81) — completely different from Cyb II's per-instrument
+    # startlen/starttabel lookup. Until a 'hawkeye_constants' style is
+    # implemented, disable the Cyb II path to prevent garbage reads from
+    # the unset startlen_addr / starttabel_addr placeholders. (See
+    # RE_NOTES.md "Real root cause" section.)
+    noise_tick_style='disabled',
+
+    # Hawkeye's drum at $82C3 adds $0D to the tone byte before writing
+    # to d401 (V3 freq hi shadow). Verified: orig V3 sub 1 frame 1 has
+    # d401=$3D, drum_table_B[0]=$30, $30+$0D=$3D. See RE_NOTES.md.
+    fx_drum_d401_offset=0x0D,
 )
 
 

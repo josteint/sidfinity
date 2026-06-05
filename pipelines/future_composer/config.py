@@ -43,6 +43,7 @@ from typing import Literal
 
 SubtuneLayout = Literal['flat_seqtabel', 'smc_template_with_sfx']
 VoiceLoopLayout = Literal['tight_nextvoice', 'interleaved']
+NoiseTickStyle = Literal['cyb2_table', 'disabled']
 
 
 @dataclass(frozen=True)
@@ -140,6 +141,22 @@ class FCConfig:
     #     write $D416/$D418 (filter_prog, fm2, strange_filter) interleave
     #     between PW and CTRL+FREQ writes naturally.
     voice_loop_layout: VoiceLoopLayout = 'tight_nextvoice'
+
+    # fx_noise_tick style. 'cyb2_table' (Cyb II default): per-instrument
+    # startlen/starttabel lookup; writes noisehitone $FA to d401 when the
+    # attack waveform byte has bit 7 set. 'disabled': fx_noise_tick is a
+    # no-op (label exists but body falls through to chain end). Hawkeye
+    # has its own noise-tick at $82D4 with hardcoded constants ($58, $81)
+    # — using 'disabled' here prevents the Cyb II logic from reading
+    # garbage from $0000 placeholder startlen/starttabel addresses;
+    # a future 'hawkeye_constants' style will implement it properly.
+    noise_tick_style: NoiseTickStyle = 'cyb2_table'
+
+    # Constant offset added to the drum tone byte before storing to d401
+    # (V3 freq hi shadow). Cyb II writes the raw tone byte; Hawkeye's
+    # drum at $82C3 adds $0D first (`d401 = drum_table_B[counter2-1] + $0D`).
+    # See hawkeye/RE_NOTES.md "Real root cause" section.
+    fx_drum_d401_offset: int = 0
 
     # TODO as effects come online:
     # wavearp_addr, pulsearp_addr (wave/pulse-arp tables)

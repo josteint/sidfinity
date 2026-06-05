@@ -636,6 +636,81 @@ def _emit_nextvoice_writes(write_order: tuple) -> str:
     return '\n'.join(chunks)
 
 
+def _emit_fx_noise_tick(cfg: FCConfig) -> str:
+    """Emit fx_noise_tick body per cfg.noise_tick_style.
+
+    'cyb2_table' — Cyb II's per-instrument startlen/starttabel lookup,
+                   writing noisehitone $FA when attack byte bit 7 set.
+    'disabled'   — no-op (label only, falls through to effect_chain_end).
+                   Used by engines whose noise-tick is structurally
+                   different (e.g. Hawkeye's hardcoded $58/$81 logic at
+                   $82D4), to avoid garbage reads from unset startlen/
+                   starttabel addresses.
+    """
+    if cfg.noise_tick_style == 'disabled':
+        return (
+            'fx_noise_tick:\n'
+            "        ; disabled per cfg — falls through to effect_chain_end\n"
+        )
+    if cfg.noise_tick_style == 'cyb2_table':
+        return """fx_noise_tick:
+        ; fx3 bit $80 — pre-attack waveform for the first N frames of
+        ; a note, where N = startlen[wavecount]. Writes the attack
+        ; waveform from starttabel[wavecount] into stod404. If the
+        ; waveform's high bit is set (noise-y), also writes
+        ; noisehitone ($FA) to d401 to fix the pitch.
+        ;
+        ; After startlen frames, has a 2-frame transition window
+        ; (counter2 == startlen or startlen+1) where it restores
+        ; lonotesto/hinotesto/wavesto into d400/d401/stod404 —
+        ; i.e., the "real" note settings load. After startlen+1,
+        ; noise_tick is done and the held-note steady state takes
+        ; over.
+        ;
+        ; Last effect in the chain; falls through to effect_chain_end.
+        lda fx3sto
+        and #$80
+        beq effect_chain_end
+
+        ldy wavecount,x
+        lda counter2,x
+        cmp startlen,y
+        bcs nt_nv3                   ; counter2 >= startlen → transition/done
+
+        ; counter2 < startlen — attack phase
+        lda starttabel,y
+        cmp #$7F
+        bcc nt_nve                   ; waveform < $7F → use directly
+
+        ; waveform >= $7F (noise-y) — also force pitch to noisehitone
+        lda #$FA                     ; noisehitone
+        sta d401,x
+        lda #$81                     ; use noise+gate as waveform
+        jmp nt_nve
+
+nt_nv3:
+        ; counter2 >= startlen — check if we're in the 2-frame
+        ; transition window (startlen or startlen+1).
+        lda startlen,y
+        clc
+        adc #2
+        sta st2                      ; scratch: startlen+2
+        lda counter2,x
+        cmp st2
+        bcs effect_chain_end         ; counter2 >= startlen+2 → done
+
+        ; transition frame — restore "real" note values into shadows
+        lda lonotesto,x
+        sta d400,x
+        lda hinotesto,x
+        sta d401,x
+        lda wavesto,x
+nt_nve:
+        sta stod404,x
+        ; falls through to effect_chain_end"""
+    raise ValueError(f'unknown noise_tick_style: {cfg.noise_tick_style!r}')
+
+
 def _emit_pw_writes_inline() -> str:
     """Emit V1 PW lo + PW hi writes (used by 'interleaved' voice loop layout).
 
@@ -739,6 +814,8 @@ def _emit_playirq_dispatch(cfg: FCConfig) -> str:
         chain_exit = 'jmp nextvoice                ; per-voice shadow→SID write loop'
     else:
         raise ValueError(f'unknown voice_loop_layout: {cfg.voice_loop_layout!r}')
+
+    fx_noise_tick_chunk = _emit_fx_noise_tick(cfg)
 
     return ("""
 ; --- playirq dispatch + h2/h3 sequence walker ---
@@ -1978,7 +2055,9 @@ drum_nd2:
 drum_drfu2:
         ldx wax
         lda st
-        sta d401,x                   ; freq hi shadow = tone byte
+        clc
+        adc #fx_drum_d401_offset     ; Cyb II 0; Hawkeye $0D
+        sta d401,x                   ; freq hi shadow = tone byte (+ offset)
         lda #0
         sta d400,x                   ; freq lo shadow = 0
 
@@ -1987,61 +2066,7 @@ drum_done:
         ; Original engine: `drfu: jmp nextvoice` skipping noti.
         jmp effect_chain_end
 
-fx_noise_tick:
-        ; fx3 bit $80 — pre-attack waveform for the first N frames of
-        ; a note, where N = startlen[wavecount]. Writes the attack
-        ; waveform from starttabel[wavecount] into stod404. If the
-        ; waveform's high bit is set (noise-y), also writes
-        ; noisehitone ($FA) to d401 to fix the pitch.
-        ;
-        ; After startlen frames, has a 2-frame transition window
-        ; (counter2 == startlen or startlen+1) where it restores
-        ; lonotesto/hinotesto/wavesto into d400/d401/stod404 —
-        ; i.e., the "real" note settings load. After startlen+1,
-        ; noise_tick is done and the held-note steady state takes
-        ; over.
-        ;
-        ; Last effect in the chain; falls through to effect_chain_end.
-        lda fx3sto
-        and #$80
-        beq effect_chain_end
-
-        ldy wavecount,x
-        lda counter2,x
-        cmp startlen,y
-        bcs nt_nv3                   ; counter2 >= startlen → transition/done
-
-        ; counter2 < startlen — attack phase
-        lda starttabel,y
-        cmp #$7F
-        bcc nt_nve                   ; waveform < $7F → use directly
-
-        ; waveform >= $7F (noise-y) — also force pitch to noisehitone
-        lda #$FA                     ; noisehitone
-        sta d401,x
-        lda #$81                     ; use noise+gate as waveform
-        jmp nt_nve
-
-nt_nv3:
-        ; counter2 >= startlen — check if we're in the 2-frame
-        ; transition window (startlen or startlen+1).
-        lda startlen,y
-        clc
-        adc #2
-        sta st2                      ; scratch: startlen+2
-        lda counter2,x
-        cmp st2
-        bcs effect_chain_end         ; counter2 >= startlen+2 → done
-
-        ; transition frame — restore "real" note values into shadows
-        lda lonotesto,x
-        sta d400,x
-        lda hinotesto,x
-        sta d401,x
-        lda wavesto,x
-nt_nve:
-        sta stod404,x
-        ; falls through to effect_chain_end
+{fx_noise_tick_chunk}
 
 effect_chain_end:
 {ctrl_freq_writes_late}        {chain_exit}
@@ -2071,6 +2096,7 @@ playirq_done:
         pw_writes_mid_chain=pw_writes_mid_chain,
         ctrl_freq_writes_late=ctrl_freq_writes_late,
         chain_exit=chain_exit,
+        fx_noise_tick_chunk=fx_noise_tick_chunk,
     )
 
 #
@@ -2429,6 +2455,7 @@ def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
         f'pulsearp = ${cfg.pulsearp_addr or 0:04X}',
         f'wavearpwait = {cfg.wavearpwait}',
         f'pulsearpwait = {cfg.pulsearpwait}',
+        f'fx_drum_d401_offset = ${cfg.fx_drum_d401_offset:02X}',
         # vibrato uses lonote2/hinote2 = lonote+1/hinote+1 (one byte
         # past the freq-table base) to read the next note's freq for
         # delta computation.
