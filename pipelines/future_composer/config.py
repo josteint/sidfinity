@@ -96,6 +96,6 @@ class FCConfig:
     arplo_addr: int = 0            # arpeggio program ptrs (lo bytes, 8 entries)
     arphi_addr: int = 0            # arpeggio program ptrs (hi bytes, 8 entries)
     pulsetabel_addr: int = 0       # pulse-program data (4 programs × 8 bytes)
+    vibtabwait_addr: int = 0       # per-instrument vibrato delay (20 bytes)
     # TODO as effects come online:
     # wavearp_addr, pulsearp_addr (wave/pulse-arp tables)
-    # vibtabwait_addr (vibrato delay table)

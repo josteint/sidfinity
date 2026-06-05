@@ -184,6 +184,12 @@ st2:            .dsb 1, 0
 ; st: scratch — used by the drum routine for the tone-byte read.
 st:             .dsb 1, 0
 
+; Vibrato shared scratch (NOT per-voice; reloaded each frame).
+vibreallo:      .dsb 1, 0
+vibrealhi:      .dsb 1, 0
+templono:       .dsb 1, 0
+temphino:       .dsb 1, 0
+
 ; filwhat: shared scratch — last voice index that ran fx_filter_prog.
 ; Non-filter-prog voices check this to skip filter cleanup if they
 ; aren't the "owning" voice. Lives outside ok2's clear range so it
@@ -212,6 +218,9 @@ newnote:        .dsb 3, 0            ; new-note flag (set by $F0 noglide)
 glidetest:      .dsb 3, 0            ; glide active flag
 glidetest2:     .dsb 3, 0            ; glide secondary
 vibcounter:     .dsb 3, 0            ; vibrato delay counter
+vibstore1:      .dsb 3, 0            ; per-voice vibrato LFO step
+vibstore2:      .dsb 3, 0            ; per-voice vibrato direction
+vibstore3:      .dsb 3, 0            ; per-voice vibrato counter
 tempglide:      .dsb 3, 0            ; glide target
 glidedelay:     .dsb 3, 0            ; glide delay
 tonearpcounter: .dsb 3, 0            ; tone-arp counter
@@ -295,6 +304,11 @@ ta_arp_hi  = $54           ; tone-arp program indirect ptr hi
 pp_count_lo  = $55         ; lower bound for the bounce check
 pp_count_hi  = $56         ; upper bound for the bounce check
 pp_purepbyte = $57         ; wrap flag (1 = snap to lo, 0 = bounce)
+
+; Vibrato ZP scratch
+vibrasto    = $4A          ; amplitude/depth countdown (matches ACME)
+vibwait_zp  = $58          ; cached vibtabwait[wavecount] (replaces
+                            ; ACME's SMC vibwait slot)
 """
 
 
@@ -935,14 +949,159 @@ ta_hallo:
         ; falls through to fx_vibrato
 
 fx_vibrato:
-        ; fx1 != 0 (and !glidetest2) — triangle-LFO vibrato modulating
-        ; d400/d401 by depth derived from delta-freq, amplitude/speed
-        ; from fx1 nibbles, polarity from fx1 bit 7. TODO.
+        ; fx1 != 0 (vibrato amplitude lo nibble) AND !glidetest2,X
+        ; (glide not yet 2nd-phase) → run vibrato. Otherwise skip.
+        ;
+        ; fx1 layout:
+        ;   bits 0-3 (amplitude): vibrasto = depth shift count
+        ;   bits 4-6 (speed):     vibstore1 = LFO step
+        ;   bit  7   (direction): 0=positive (LDY path), 1=negative (ADC path)
+        ;
+        ; Algorithm:
+        ;   1. Compute delta = freq[noothoogt+1] - freq[noothoogt]
+        ;      (the inter-semitone distance — vibrato unit).
+        ;   2. Shift delta right `vibrasto` times → smaller modulation
+        ;      depth.
+        ;   3. Update LFO state via vibstore1/2/3 (triangle wave).
+        ;   4. Add/subtract scaled delta to vibreallo/vibrealhi based
+        ;      on vibstore3 (number of subtractions) and (vibstore1>>1
+        ;      - vibstore3) (number of additions).
+        ;   5. Skip the add/sub when counter2,X < vibtabwait[wavecount]
+        ;      (vibrato onset delay).
+        ;   6. Write d400/d401 + lonotesto/hinotesto from
+        ;      vibreallo/vibrealhi.
+        ;
+        ; Branch replaces ACME's SMC doitnot trick; ZP replaces SMC
+        ; vibwait slot.
         lda fx1sto
-        beq fx_glide
+        bne vib_check_glide
+        jmp fx_glide                 ; fx1=0 → no vibrato
+vib_check_glide:
         lda glidetest2,x
-        bne fx_glide
-        ; STUB: vibrato impl here.
+        beq vib_run
+        jmp fx_glide                 ; glide phase 2 → skip vibrato
+
+vib_run:
+        ; Setup
+        ldy wavecount,x
+        lda vibtabwait,y
+        sta vibwait_zp               ; cache vibtabwait[wavecount]
+
+        lda fx1sto
+        and #$0F                     ; amplitude nibble
+        sta vibrasto
+
+        lda fx1sto
+        and #$70                     ; speed bits 4-6
+        lsr
+        lsr
+        lsr
+        lsr
+        ldx wax
+        sta vibstore1,x
+
+        ; Increment vibcounter (capped at vibtotzover)
+        lda vibcounter,x
+        cmp #vibtotzover
+        bcs vib_skip_inc
+        inc vibcounter,x
+vib_skip_inc:
+
+        ; Compute delta = freq[noothoogt+1] - freq[noothoogt]
+        ldy noothoogt,x
+        lda lonote2,y                ; lonote2 = lonote + 1
+        sec
+        sbc lonote,y
+        sta templono
+        lda hinote2,y
+        sbc hinote,y
+        ; For NEGATIVE vibrato (fx1 bit 7 set), the original adds
+        ; vibcounter[X] + carry to delta_hi here. Branch instead.
+        bit fx1sto
+        bpl vib_pos
+        adc vibcounter,x             ; A = delta_hi + vibcounter[X] + carry
+vib_pos:
+        sta temphino
+
+        ; Divide delta by 2^vibrasto (shift right vibrasto times)
+vib_reducesize:
+        dec vibrasto
+        bmi vib_redout
+        lsr temphino
+        ror templono
+        jmp vib_reducesize
+
+vib_redout:
+        ; Update LFO state via vibstore2 (direction) and vibstore3 (counter)
+        lda vibstore2,x
+        bpl vib_w1                   ; vibstore2 >= 0 → counting up
+        ; vibstore2 < 0 → counting down
+        dec vibstore3,x
+        bne vib_nextsect
+        inc vibstore2,x
+        bpl vib_nextsect
+vib_w1:
+        inc vibstore3,x
+        lda vibstore1,x
+        cmp vibstore3,x
+        bcs vib_nextsect             ; vibstore3 < vibstore1 → keep going up
+        ; Reached peak — flip direction
+        sta vibstore3,x
+        dec vibstore2,x
+        dec vibstore3,x
+
+vib_nextsect:
+        ; Load fresh base freq into vibreallo/vibrealhi
+        ldy noothoogt,x
+        lda lonote,y
+        sta vibreallo
+        lda hinote,y
+        sta vibrealhi
+
+        ; Subtract delta (vibstore1>>1) times, gated by vibtabwait
+        lda vibstore1,x
+        lsr
+        tay                          ; Y = subtraction count
+
+vib_subval:
+        dey
+        bmi vib_endsv
+        lda counter2,x
+        cmp vibwait_zp
+        bcc vib_endav                ; counter2 < vibwait → onset delay
+        lda vibreallo
+        sec
+        sbc templono
+        sta vibreallo
+        lda vibrealhi
+        sbc temphino
+        sta vibrealhi
+        jmp vib_subval
+
+vib_endsv:
+        ; Then add delta vibstore3 times
+        ldy vibstore3,x
+vib_addval:
+        dey
+        bmi vib_endav
+        clc
+        lda vibreallo
+        adc templono
+        sta vibreallo
+        lda vibrealhi
+        adc temphino
+        sta vibrealhi
+        jmp vib_addval
+
+vib_endav:
+        ldx wax
+        lda vibreallo
+        sta d400,x
+        sta lonotesto,x
+        lda vibrealhi
+        sta d401,x
+        sta hinotesto,x
+        ; falls through to fx_glide
 
 fx_glide:
         ; glidetest set (PatGlide active) — linear pitch interpolation
@@ -1777,6 +1936,15 @@ def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
         if cfg.arphi_addr else '; arphi: not yet located',
         f'pulsetabel = ${cfg.pulsetabel_addr:04X}'
         if cfg.pulsetabel_addr else '; pulsetabel: not yet located',
+        f'vibtabwait = ${cfg.vibtabwait_addr:04X}'
+        if cfg.vibtabwait_addr else '; vibtabwait: not yet located',
+        # vibrato uses lonote2/hinote2 = lonote+1/hinote+1 (one byte
+        # past the freq-table base) to read the next note's freq for
+        # delta computation.
+        'lonote2 = lonote + 1',
+        'hinote2 = hinote + 1',
+        '; --- engine constants ---',
+        'vibtotzover = $30          ; vibrato counter max',
         _FC_ZP_EQUATES,
         '',
         f'* = ${load_addr:04X}',
