@@ -190,19 +190,54 @@ pulseruntest:   .dsb 3, 0            ; song sets to 1,1,1
 tabcount:       .dsb 3, 0            ; sequence step (per voice)
 begcount:       .dsb 3, 0            ; pattern offset (within current pat)
 nootcount:      .dsb 3, 0            ; frames until next note
-noho:           .dsb 3, 0            ; base pitch
+nootleng:       .dsb 3, 0            ; current note length
+noho:           .dsb 3, 0            ; base pitch (before transpose)
+noothoogt:      .dsb 3, 0            ; current pitch index
 counter2:       .dsb 3, 0            ; global tick counter
 toneadd:        .dsb 3, 0            ; per-voice transpose (from $80-$FF seq)
 voiceinc:       .dsb 3, 0            ; per-voice wave-table inc (from $60-$7F)
 repeatsto:      .dsb 3, 0            ; per-voice pattern-repeat ctr (from $40-$5F)
+wavecount:      .dsb 3, 0            ; instrument index per voice (from $C0-$DF)
+wavesto:        .dsb 3, 0            ; stored waveform byte
+newnote:        .dsb 3, 0            ; new-note flag (set by $F0 noglide)
+glidetest:      .dsb 3, 0            ; glide active flag
+glidetest2:     .dsb 3, 0            ; glide secondary
+vibcounter:     .dsb 3, 0            ; vibrato delay counter
+tempglide:      .dsb 3, 0            ; glide target
+glidedelay:     .dsb 3, 0            ; glide delay
+tonearpcounter: .dsb 3, 0            ; tone-arp counter
+arpieoklo:      .dsb 3, 0            ; arpeggio program ptr lo
+arpieokhi:      .dsb 3, 0            ; arpeggio program ptr hi
+lonotesto:      .dsb 3, 0            ; freq lo shadow (for vibrato later)
+hinotesto:      .dsb 3, 0            ; freq hi shadow
+hinotesto2:     .dsb 3, 0            ; freq hi shadow 2
+pulsehitemp:    .dsb 3, 0
+pulsestolo:     .dsb 3, 0
+pulsehisto:     .dsb 3, 0
+pulsetest:     .dsb 3, 0
+filtercount:    .dsb 3, 0
+stod404:        .dsb 3, 0            ; per-voice $D404 output byte
+byteand:        .dsb 3, 0            ; per-voice $D404 AND mask
+                                     ; (drum routine sets $FE; default $FF)
 
-; seqloclo / seqlochi: the current song's 3 voice sequence-stream
-; pointers, copied from seqtabel by song init.
-seqloclo:       .dsb 3, 0
-seqlochi:       .dsb 3, 0
+; Per-voice shadow SID registers (nextvoice writes these to $D400-$D403)
+d400:           .dsb 3, 0            ; shadow $D400 (freq lo)
+d401:           .dsb 3, 0            ; shadow $D401 (freq hi)
+d402:           .dsb 3, 0            ; shadow $D402 (pw lo)
+d403:           .dsb 3, 0            ; shadow $D403 (pw hi)
 
 ; End-of-state marker — ok2's clear loop runs from tabcount to here.
+; ANYTHING THAT MUST SURVIVE ok2 GOES AFTER THIS MARKER (the song
+; routine writes seqloclo/seqlochi BEFORE calling ok2; if those were
+; inside the clear range, ok2 would wipe them — bug from session 3).
 state_end:
+
+; seqloclo / seqlochi: the current song's 3 voice sequence-stream
+; pointers, copied from seqtabel by song init. Placed AFTER state_end
+; so ok2's clear loop doesn't touch them (the song writes them before
+; jsr ok2 returns).
+seqloclo:       .dsb 3, 0
+seqlochi:       .dsb 3, 0
 """
 
 
@@ -211,10 +246,14 @@ state_end:
 # environment is responsible for not stomping on these.
 _FC_ZP_EQUATES = """
 ; --- zero-page equates ---
-wax        = $48           ; current voice index (0..2) during play
-voicesto   = $49           ; current voice's $D400 offset (0/7/14)
+tabbytsto  = $43           ; current pattern byte under dispatch
 seqptr_lo  = $44           ; sequence-stream indirect pointer lo
 seqptr_hi  = $45           ; sequence-stream indirect pointer hi
+zp3        = $46           ; pattern indirect pointer lo
+zp4        = $47           ; pattern indirect pointer hi
+wax        = $48           ; current voice index (0..2) during play
+voicesto   = $49           ; current voice's $D400 offset (0/7/14)
+denom      = $4B           ; scratch for arp setup
 """
 
 
@@ -252,11 +291,15 @@ def _emit_song_init_routine(cfg: FCConfig) -> str:
             f'+ SFX page records for Hawkeye still pending')
 
     return f"""
-; --- song init ($LOAD entry; X = song number) ---
+; --- song init ($LOAD entry; A = subtune number) ---
 ; Initializes engine state for the selected subtune. Frame-exact SID
 ; writes: $D416/$D417 cleared, $D418 = $10|VOLUME, then $D400-$D415
 ; silenced via the fall-through into silence_all.
 song:
+        tax                          ; X = subtune number (PSID passes
+                                     ; the subtune index in A; the
+                                     ; whole song body uses X-indexed
+                                     ; lookups so move it now)
         ; testbyte = 1 (halted), pulseruntest[0..2] = 1
         lda #1
         sta testbyte
@@ -453,40 +496,284 @@ h3c_repeat:
         jmp h2_take_step
 
 h3f_pattern:
-        ; STUB ($00-$3F pattern jump). Real impl (next session):
-        ; index pattern_ptr_table[A*2..A*2+1] into a pattern ptr,
-        ; then note-load chain (PatGlide / PatSetLength / PatNote
-        ; writes to $D400-$D406). For now: consume byte, fall to
-        ; nextvoice — engine advances through sequences but plays
-        ; no notes.
+        ; $00-$3F — pattern jump. Load pattern_ptr_table[A*2..A*2+1]
+        ; into zp3/zp4 (the pattern indirect pointer), then walk the
+        ; pattern byte chain to load the first note.
+        ;
+        ; A on entry: pattern id (0-63).
+        asl                          ; A *= 2
+        tay
+        lda pattern_ptr_table,y
+        sta zp3
+        lda pattern_ptr_table+1,y
+        sta zp4
+
+        ; Reset per-note state for the new note
+        lda #0
+        sta glidetest,x
+        sta glidetest2,x
+        sta counter2,x
+        sta vibcounter,x
+
+        ; Fetch first pattern byte. If $F0/$F1, handle prefix; else
+        ; jump to startnewnote (clear newnote flag) and dispatch.
+        ldy begcount,x
+        lda (zp3),y
+        sta tabbytsto
+        cmp #$F0
+        bcc startnewnote
+
+        ; >= $F0 — check bit 0 for $F1
+        lda tabbytsto
+        and #1
+        bne dofilset                 ; $F1 = filter set
+        ; $F0 — noglide marker. Set newnote, consume $F0, read next
+        ; byte (the note) as tabbytsto, jump to skip (dispatch).
+        lda #1
+        sta newnote,x
+        inc begcount,x
+        iny
+        lda (zp3),y
+        sta tabbytsto
+        bne skip                     ; (always nonzero — notes >$00)
+
+dofilset:
+        ; $F1 — filter set. Consume $F1, read value byte, write to
+        ; $D417, then advance + fetch next byte into tabbytsto.
+        inc begcount,x
+        iny
+        lda (zp3),y
+        sta $d417                    ; filter resonance/routing
+        jsr verhoogtest
+        ; falls through to startnewnote
+
+startnewnote:
+        lda #0
+        sta newnote,x
+
+skip:
+        ; --- Pattern byte dispatch chain ---
+        ; Each handler dispatches `tabbytsto` and consumes byte(s).
+        ; Range $E0-$EF = glide (3-byte sequence)
+        lda tabbytsto
+        cmp #$E0
+        bcc noglideset
+
+        ; Glide handler: 3 bytes total ($Ex + delay + target).
+        ; Consume delay, then target. The target is the actual note,
+        ; saved into tempglide AND re-stored as tabbytsto for the
+        ; nolengset chain to play it.
+        lda #1
+        sta glidetest,x
+        inc begcount,x
+        iny
+        lda (zp3),y
+        sta glidedelay,x
+        inc begcount,x
+        inc begcount,x
+        iny
+        iny
+        lda (zp3),y
+        clc
+        adc toneadd,x
+        sta tempglide,x
+        dey                          ; back up Y to point at target
+        lda (zp3),y
+        sta tabbytsto
+        bne nolengset                ; always taken (target > 0)
+
+noglideset:
+        ; Range $C0-$DF = wave/inst adjust (sets wavecount)
+        lda tabbytsto
+        cmp #$C0
+        bcc novoiceset
+
+        and #$1F
+        clc
+        adc voiceinc,x
+        sta wavecount,x
+        jsr verhoogtest
+        ; falls through to novoiceset
+
+novoiceset:
+        ; Range $80-$BF (first) = setlength, with $80-$FF (second)
+        ; as extension.
+        lda tabbytsto
+        cmp #$80
+        bcc arpset
+
+        and #$3F
+        sec
+        sbc #1
+        sta nootleng,x
+        jsr verhoogtest
+
+        cmp #$E0
+        beq skip                     ; glide can interrupt — re-dispatch
+        cmp #$80
+        bcc arpset
+
+        ; second setlength byte (extension)
+        and #$7F
+        clc
+        adc nootleng,x
+        sta nootleng,x
+        jsr verhoogtest
+
+        cmp #$80
+        bcc arpset
+
+        jmp skip                     ; yet another $80+ byte — re-dispatch
+
+arpset:
+        ; Range $70-$7F = arpeggio program select.
+        ; STUB — arplo/arphi addresses aren't yet exposed by the
+        ; composer (they live in the verbatim aux region between
+        ; pattern_ptr_table and instr_records). Consume the byte
+        ; without acting; arpeggios will be silent until those
+        ; tables get a labelled emitter in a later session.
+        cmp #$70
+        bcc nolengset
+        jsr verhoogtest
+        ; falls through to nolengset
+
+nolengset:
+        ; Note play. tabbytsto holds the note pitch ($00-$6F).
+        ; Apply toneadd, look up lonote/hinote, write to $D400/01,
+        ; set ADSR + waveform from instrument, etc.
+        lda nootleng,x
+        sta nootcount,x
+        lda #0
+        sta tonearpcounter,x
+        lda tabbytsto
+        clc
+        adc toneadd,x
+        sta noho,x
+        tay                          ; Y = freq table index
+
+        ; Write lonote/hinote to per-voice shadow regs + SID
+        lda lonote,y
+        sta d400,x
+        pha
+        sta lonotesto,x
+        lda hinote,y
+        sta d401,x
+        sta hinotesto,x
+        sta hinotesto2,x
+        ldy voicesto
+        sta $d401,y                  ; SID $D401 (freq hi)
+        pla
+        sta $d400,y                  ; SID $D400 (freq lo)
+
+        ; If newnote flag set (came from $F0 noglide), skip ADSR
+        ; reload — keep current envelope state.
+        lda newnote,x
+        bne snnn
+
+        ; Reload ADSR + waveform + pulse from instrument table
+        lda wavecount,x
+        asl
+        asl
+        asl
+        tax                          ; X = instrument byte offset (= wavecount*8)
+        lda attdec,x
+        sta $d405,y                  ; SID $D405 (AD)
+        lda susrel,x
+        sta $d406,y                  ; SID $D406 (SR)
+        lda filcount,x
+        pha
+        lda pulsehi,x
+        pha
+        lda waveform,x
+        ldx wax                      ; X = voice id again
+        sta wavesto,x
+        sta stod404,x                ; shadow $D404 (waveform+gate)
+        lda #0
+        sta d402,x                   ; shadow $D402 (pw lo)
+        sta pulsestolo,x
+        pla
+        sta pulsehitemp,x
+        and #$0F
+        sta d403,x                   ; shadow $D403 (pw hi nibble)
+        sta pulsehisto,x
+        lda #1
+        sta pulsetest,x
+        pla
+        sta filtercount,x
+
+snnn:
+        ; Advance begcount, check if next byte is $FF (pattern end).
+        inc begcount,x
+        ldy begcount,x
+        lda (zp3),y
+        cmp #$FF
+        bne h10b
+
+nextjmp:
+        ; Pattern ended ($FF). If repeats remain, decrement; else
+        ; advance to next sequence step.
+        lda #0
+        sta begcount,x
+        lda repeatsto,x
+        beq nj1
+
+        dec repeatsto,x
+        bpl h10b
+
+nj1:
         inc tabcount,x
+
+h10b:
+        ; Reset byteand (drum-routine gate mask) to $FF and exit.
+        lda #$FF
+        sta byteand,x
         jmp nextvoice
 
+verhoogtest:
+        ; Advance begcount, increment Y, fetch next byte into
+        ; tabbytsto. If $FF (pattern end), jump to nextjmp.
+        inc begcount,x
+        iny
+        lda (zp3),y
+        cmp #$FF
+        beq nextjmp
+        sta tabbytsto
+        rts
+
 h10_stub:
-        ; STUB — note still playing (nootcount > 0). Real impl will
-        ; run the effect chain on the current note (vibrato/glide/
-        ; pulse/filter/drum/etc.) and write the shadow registers.
+        ; STUB — note continuation when nootcount > 0. Real impl
+        ; runs the effect chain (vibrato/glide/pulse/filter/drum)
+        ; on the held note. For now: fall through to nextvoice to
+        ; let the shadow→SID write loop produce per-frame writes.
         jmp nextvoice
 
 h11_stub:
-        ; STUB — intermediate speed frame (pattern continuation
-        ; without taking a new sequence step). Real impl runs the
-        ; effect chain on the held note.
+        ; STUB — intermediate-frame continuation (speedcounter not
+        ; yet underflowed). Real impl runs effect chain on the held
+        ; note. For now: jump to nextvoice.
         jmp nextvoice
 
 nextvoice:
-        ; STUB — per-voice tail. Real impl (next session): the
-        ; shadow→SID write loop:
-        ;   lda stod404,x / and byteand,x / sta $d404,y
-        ;   lda d400,x    / sta $d400,y
-        ;   lda d401,x    / sta $d401,y
-        ;   lda d402,x    / sta $d402,y
-        ;   lda d403,x    / sta $d403,y
-        ; For now: advance to next voice, no SID writes.
+        ; Per-voice tail: write the shadow regs to SID, then advance
+        ; to next voice (or RTS if all 3 done).
         ldx wax
+        ldy voicesto
+
+        lda stod404,x
+        and byteand,x
+        sta $d404,y                  ; SID $D404 (waveform+gate)
+        lda d400,x
+        sta $d400,y                  ; SID $D400 (freq lo — redundant with inline)
+        lda d401,x
+        sta $d401,y                  ; SID $D401 (freq hi — redundant with inline)
+        lda d402,x
+        sta $d402,y                  ; SID $D402 (pw lo)
+        lda d403,x
+        sta $d403,y                  ; SID $D403 (pw hi)
         dex
         bmi playirq_done
         jmp startplayer
+
 playirq_done:
         rts
 """
@@ -809,6 +1096,11 @@ def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
         '',
         '; tune-shared equates',
         'VOLUME_INIT = $0F',
+        '',
+        '; --- data-table address equates ---',
+        '; Engine code references these; the tables themselves live',
+        '; in the data section (USF-derived) or verbatim aux region.',
+        f'pattern_ptr_table = ${cfg.pattern_ptr_addr:04X}',
         _FC_ZP_EQUATES,
         '',
         f'* = ${load_addr:04X}',
