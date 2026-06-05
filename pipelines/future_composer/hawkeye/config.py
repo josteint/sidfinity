@@ -51,7 +51,14 @@ HAWKEYE = FCConfig(
     arphi_addr=0x8589,
     pulsetabel_addr=0x85EC,
     vibtabwait_addr=0x8704,
+    wavearp_addr=0x848C,           # $810D: LDA $848C,Y
+    pulsearp_addr=0x8497,          # $8126: LDA $8497,Y
     # startlen_addr/starttabel_addr left at default 0 (unused).
+
+    # Hawkeye uses wavearpwait=3 ($8106: CMP #$03), pulsearpwait=1
+    # ($811C: CMP #$01). Cyb II uses (2, 1).
+    wavearpwait=3,
+    pulsearpwait=1,
 
     # Hawkeye's nextvoice writes in this order per voice (verified by
     # diffing HVSC's writelog): pw lo, pw hi, ctrl, freq lo, freq hi.

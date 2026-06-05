@@ -98,6 +98,14 @@ class FCConfig:
     arphi_addr: int = 0            # arpeggio program ptrs (hi bytes, 8 entries)
     pulsetabel_addr: int = 0       # pulse-program data (4 programs × 8 bytes)
     vibtabwait_addr: int = 0       # per-instrument vibrato delay (20 bytes)
+    wavearp_addr: int = 0          # 4-byte wave-arpeggio table {$80,$10,$80,$10}
+    pulsearp_addr: int = 0         # 8-byte pulse-arpeggio table
+
+    # Per-engine arpeggio start delays (counter2 thresholds at which
+    # wave/pulse arpeggios activate). Cyb II: wavearpwait=2, pulsearpwait=1.
+    # Hawkeye: wavearpwait=3, pulsearpwait=1.
+    wavearpwait: int = 2
+    pulsearpwait: int = 1
 
     # nextvoice's per-voice SID-register write order (offsets 0-6 within
     # the voice's $D400-$D406 block). Different FC-family engines use

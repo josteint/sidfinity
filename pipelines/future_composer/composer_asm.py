@@ -1706,19 +1706,44 @@ pp_store:
 
 {pw_writes_mid_chain}fx_wave_arp:
         ; fx3 bit $40 — cycles wavearp[$80,$10,$80,$10] (waveform
-        ; toggle for test bit). Modifies stod404. TODO.
+        ; toggle for test bit). Mirrors Hawkeye disasm $80FD-$8110:
+        ;   skip if not active OR counter2 < wavearpwait;
+        ;   else Y = counter2 & 3; stod404[X] = wavearp[Y].
         lda fx3sto
         and #$40
         beq fx_pulse_arp
-        ; STUB: wave-arp impl here.
+        ldx wax
+        lda counter2,x
+        cmp #wavearpwait
+        bcc fx_pulse_arp
+        and #$03
+        tay
+        lda wavearp,y
+        sta stod404,x
 
 fx_pulse_arp:
-        ; fx3 bit $08 — cycles pulsearp through d403 (pw hi).
-        ; TODO.
+        ; fx3 bit $08 — cycles pulsearp through $D403 (pw hi).
+        ; Mirrors Hawkeye disasm $8113-$812B:
+        ;   skip if not active OR counter2 < pulsearpwait;
+        ;   else Y = counter2 & 7; $D403,voicesto = pulsearp[Y].
+        ; Writes DIRECTLY to SID (bypassing the d403 shadow) — for
+        ; 'interleaved' layout this is the latest write so the chip
+        ; sees pulsearp's value. For 'tight_nextvoice' layout, the
+        ; nextvoice tail overwrites $D403 from the shadow afterwards
+        ; (matches the original engine's behaviour).
         lda fx3sto
         and #$08
         beq fx_tonesweep_up
-        ; STUB: pulse-arp impl here.
+        ldx wax
+        lda counter2,x
+        cmp #pulsearpwait
+        bcc fx_tonesweep_up
+        lda counter2,x
+        and #$07
+        tay
+        lda pulsearp,y
+        ldy voicesto
+        sta $d403,y
 
 fx_tonesweep_up:
         ; fx3 bit $20 — decrements hinotesto each frame (downward
@@ -2400,6 +2425,10 @@ def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
         f'arphi = ${cfg.arphi_addr or 0:04X}',
         f'pulsetabel = ${cfg.pulsetabel_addr or 0:04X}',
         f'vibtabwait = ${cfg.vibtabwait_addr or 0:04X}',
+        f'wavearp = ${cfg.wavearp_addr or 0:04X}',
+        f'pulsearp = ${cfg.pulsearp_addr or 0:04X}',
+        f'wavearpwait = {cfg.wavearpwait}',
+        f'pulsearpwait = {cfg.pulsearpwait}',
         # vibrato uses lonote2/hinote2 = lonote+1/hinote+1 (one byte
         # past the freq-table base) to read the next note's freq for
         # delta computation.
