@@ -345,13 +345,13 @@ def _emit_song_init_routine(cfg: FCConfig) -> str:
     frame-exact comparison only cares about $D4xx writes; CPU internals
     are free.
     """
+    if cfg.subtune_layout == 'smc_template_with_sfx':
+        return _emit_song_init_smc(cfg)
+    if cfg.subtune_layout != 'flat_seqtabel':
+        raise ValueError(f'unknown subtune_layout: {cfg.subtune_layout!r}')
+
     snelheid_addr = cfg.per_subtune_speed_addr
-    seqtabel_addr = cfg.seqtabel_addr if cfg.subtune_layout == 'flat_seqtabel' else 0
-    if seqtabel_addr == 0:
-        raise NotImplementedError(
-            f'song init emitter currently supports only flat_seqtabel layout '
-            f'(cfg.subtune_layout = {cfg.subtune_layout!r}); SMC dispatcher '
-            f'+ SFX page records for Hawkeye still pending')
+    seqtabel_addr = cfg.seqtabel_addr
 
     return f"""
 ; --- song init ($LOAD entry; A = subtune number) ---
@@ -450,6 +450,146 @@ ok2_pv:
         rts
 
 song_tmp: .dsb 1, 0
+"""
+
+
+def _emit_song_init_smc(cfg: FCConfig) -> str:
+    """Song init for SMC-template-with-SFX layout (Hawkeye).
+
+    On entry, A holds the subtune number (PSID convention).
+    Dispatches between two paths based on A vs music_subtune_count:
+
+      MUSIC PATH (A < music_subtune_count):
+        speedbyte = per_subtune_speed_addr[A]
+        record at: (template_base_hi << 8) | per_subtune_smc_addr[A]
+        Records are 6 bytes (lo*3, hi*3) for the 3 voice sequence ptrs.
+
+      SFX PATH (A >= music_subtune_count):
+        speedbyte = per_subtune_speed_addr[music_subtune_count]
+                    (all SFX subtunes share one speed slot;
+                     dispatcher forces X = music_count for SFX)
+        record at: (sfx_page_base + (A - music_count) * sfx_page_stride)
+                   * 256
+        Same 6-byte record format at page boundary.
+
+    Same shared code afterward as the flat_seqtabel path:
+      $D416/$D417/$D418 setup → jsr ok2 → silence_all.
+    """
+    snelheid_addr = cfg.per_subtune_speed_addr
+    smc_addr      = cfg.per_subtune_smc_addr
+    music_count   = cfg.music_subtune_count
+    template_hi   = cfg.template_base_hi
+    sfx_pg_base   = cfg.sfx_page_base
+    sfx_pg_stride = cfg.sfx_page_stride
+    # Pre-emit the SFX stride multiplier as a sequence of ASLs (only
+    # works for stride being a power of 2; Hawkeye stride=2 → 1 asl).
+    if sfx_pg_stride == 1:
+        stride_asm = ''
+    elif sfx_pg_stride == 2:
+        stride_asm = '        asl'
+    elif sfx_pg_stride == 4:
+        stride_asm = '        asl\n        asl'
+    else:
+        raise NotImplementedError(
+            f'sfx_page_stride {sfx_pg_stride} not handled '
+            f'(non-power-of-2 needs a multiply loop)')
+
+    return f"""
+; --- song init ($LOAD entry; A = subtune number) ---
+; SMC-template-with-SFX layout (Hawkeye family). Dispatches between
+; music subtunes (A < {music_count}) and SFX subtunes (A >= {music_count}).
+; See _emit_song_init_smc docstring for the per-path semantics.
+song:
+        tax                          ; X = subtune number
+        lda #1
+        sta testbyte
+        sta pulseruntest+0
+        sta pulseruntest+1
+        sta pulseruntest+2
+
+        cpx #{music_count}              ; music_subtune_count
+        bcs song_sfx_path
+
+        ; --- MUSIC PATH ---
+        lda ${snelheid_addr:04X},x
+        sta speedbyte
+        lda ${smc_addr:04X},x          ; SMC template lo for this subtune
+        sta seqptr_lo                ; reuse seqptr ZP as the indirect ptr
+        lda #${template_hi:02X}
+        sta seqptr_hi
+        jmp song_copy_seqs
+
+song_sfx_path:
+        ; X = music_count + sfx_idx. speedbyte from forced-X slot.
+        ldy #{music_count}
+        lda ${snelheid_addr:04X},y
+        sta speedbyte
+        txa
+        sec
+        sbc #{music_count}              ; A = sfx_idx
+{stride_asm}                              ; A *= sfx_page_stride
+        clc
+        adc #${sfx_pg_base:02X}        ; A = SFX page
+        sta seqptr_hi
+        lda #0
+        sta seqptr_lo
+
+song_copy_seqs:
+        ; Copy 6 bytes from (seqptr),Y to seqloclo+Y for Y=0..5.
+        ; seqloclo / seqlochi are contiguous in state; Y=0..2 hits
+        ; seqloclo[0..2], Y=3..5 hits seqlochi[0..2].
+        ldy #5
+song_seqcp:
+        lda (seqptr_lo),y
+        sta seqloclo,y
+        dey
+        bpl song_seqcp
+
+        ; Hawkeye's init does NOT write $D416/$D417/$D418 master vol —
+        ; it goes straight to silence. PSID warmup left $D418 = $0F
+        ; (filter routing 0 + master vol $F = max).
+        jsr ok2
+        ; falls through into silence_all
+
+silence_all:
+        ; Hawkeye's silence pattern: for each register $D400-$D417,
+        ; write $01 then $00. This 2-write strobe is the engine's
+        ; SID-reset convention (each register touched twice).
+        ldx #$17                     ; covers $D400 + $00..$17 = $D400-$D417
+silence_loop:
+        lda #$01
+        sta $d400,x
+        lda #$00
+        sta $d400,x
+        dex
+        bpl silence_loop
+        rts
+
+songout:
+        lda #1
+        sta testbyte
+        jmp silence_all
+
+ok2:
+        lda #0
+        ldx #state_end - tabcount - 1
+ok2_zero:
+        sta tabcount,x
+        dex
+        bpl ok2_zero
+
+        ldx #2
+ok2_pv:
+        sta tabcount,x
+        sta begcount,x
+        sta nootcount,x
+        sta noho,x
+        sta counter2,x
+        dex
+        bpl ok2_pv
+
+        sta testbyte
+        rts
 """
 
 
@@ -2100,22 +2240,19 @@ def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
         '; Engine code references these; the tables themselves live',
         '; in the data section (USF-derived) or verbatim aux region.',
         f'pattern_ptr_table = ${cfg.pattern_ptr_addr:04X}',
-        f'drumtabel = ${cfg.drumtabel_addr:04X}'
-        if cfg.drumtabel_addr else '; drumtabel: not yet located',
-        f'filterbytes = ${cfg.filterbytes_addr:04X}'
-        if cfg.filterbytes_addr else '; filterbytes: not yet located',
-        f'startlen = ${cfg.startlen_addr:04X}'
-        if cfg.startlen_addr else '; startlen: not yet located',
-        f'starttabel = ${cfg.starttabel_addr:04X}'
-        if cfg.starttabel_addr else '; starttabel: not yet located',
-        f'arplo = ${cfg.arplo_addr:04X}'
-        if cfg.arplo_addr else '; arplo: not yet located',
-        f'arphi = ${cfg.arphi_addr:04X}'
-        if cfg.arphi_addr else '; arphi: not yet located',
-        f'pulsetabel = ${cfg.pulsetabel_addr:04X}'
-        if cfg.pulsetabel_addr else '; pulsetabel: not yet located',
-        f'vibtabwait = ${cfg.vibtabwait_addr:04X}'
-        if cfg.vibtabwait_addr else '; vibtabwait: not yet located',
+        # Aux-table addresses. Default $0000 placeholders when an
+        # address isn't located yet — the engine code still compiles,
+        # but any effect that reads from $0000 will return junk. As
+        # long as the effect's flag bit isn't set for any instrument,
+        # the dead-code path doesn't execute and behaviour is correct.
+        f'drumtabel = ${cfg.drumtabel_addr or 0:04X}',
+        f'filterbytes = ${cfg.filterbytes_addr or 0:04X}',
+        f'startlen = ${cfg.startlen_addr or 0:04X}',
+        f'starttabel = ${cfg.starttabel_addr or 0:04X}',
+        f'arplo = ${cfg.arplo_addr or 0:04X}',
+        f'arphi = ${cfg.arphi_addr or 0:04X}',
+        f'pulsetabel = ${cfg.pulsetabel_addr or 0:04X}',
+        f'vibtabwait = ${cfg.vibtabwait_addr or 0:04X}',
         # vibrato uses lonote2/hinote2 = lonote+1/hinote+1 (one byte
         # past the freq-table base) to read the next note's freq for
         # delta computation.
