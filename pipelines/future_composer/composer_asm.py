@@ -190,6 +190,14 @@ vibrealhi:      .dsb 1, 0
 templono:       .dsb 1, 0
 temphino:       .dsb 1, 0
 
+; Glide shared scratch (NOT per-voice; transient per-frame state).
+glideslo:       .dsb 1, 0          ; 16-bit delta lo (then divisor)
+glideshi:       .dsb 1, 0          ; 16-bit delta hi (then divisor)
+glide_glen:     .dsb 1, 0          ; glidedelay hi nibble cached
+glide_bran:     .dsb 1, 0          ; same — used as the long-div shift
+glide_denom:    .dsb 1, 0          ; bran * (speedbyte+1)
+glide_dir:      .dsb 1, 0          ; 0 = down (subtract), 1 = up (add)
+
 ; filwhat: shared scratch — last voice index that ran fx_filter_prog.
 ; Non-filter-prog voices check this to skip filter cleanup if they
 ; aren't the "owning" voice. Lives outside ok2's clear range so it
@@ -1105,11 +1113,181 @@ vib_endav:
 
 fx_glide:
         ; glidetest set (PatGlide active) — linear pitch interpolation
-        ; from current freq toward tempglide target, divided by
-        ; (1<<bran)-1 per frame. TODO.
+        ; from current freq toward tempglide target. Step size derived
+        ; from 16-bit (current-target) delta divided by
+        ; (speedbyte+1) * glide_bran (where glide_bran is the hi
+        ; nibble of glidedelay). Direction (subtract vs add) depends
+        ; on delta sign.
+        ;
+        ; glidedelay byte layout:
+        ;   hi nibble  →  glen (snap threshold) + bran (denom mult)
+        ;   lo nibble  →  pre-onset delay (skip glide while nootcount
+        ;                  + lo - 1 > nootleng)
+        ;
+        ; When close to note end (snap condition), pitch snaps to
+        ; tempglide and glidetest/glidetest2 clear.
+        ;
+        ; Branches replace ACME source's SMC opcode-patching tricks
+        ; (glisscarry / updown1 / updown2 / glen / bran / udlo / udhi).
+        ldx wax
         lda glidetest,x
-        beq fx_pulse_prog
-        ; STUB: tone-glide impl here.
+        bne glide_run
+        jmp fx_pulse_prog            ; not glide → next effect
+
+glide_run:
+        ; Cache glen + bran (= glidedelay hi nibble)
+        lda glidedelay,x
+        and #$F0
+        lsr
+        lsr
+        lsr
+        lsr
+        sta glide_glen
+        sta glide_bran
+
+        ; Pre-onset delay check
+        lda glidedelay,x
+        and #$0F
+        sec
+        sbc #1
+        clc
+        adc nootcount,x
+        cmp nootleng,x
+        bcc glide_phase2             ; A < nootleng → continue
+        jmp fx_pulse_prog            ; still in delay phase
+
+glide_phase2:
+        pha
+        lda #1
+        sta glidetest2,x
+        pla
+        adc glide_glen
+        cmp nootleng,x
+        bcs glide_no_snap            ; A + glen >= nootleng → continue
+        jmp glide_snap               ; otherwise snap (far branch via JMP)
+glide_no_snap:
+
+        ; Compute delta = freq[noho] - freq[tempglide]
+        ldy noho,x
+        lda tempglide,x
+        tax                          ; X = target pitch (temporary)
+        sec
+        lda lonote,y
+        sbc lonote,x
+        sta glideslo
+        lda hinote,y
+        sbc hinote,x
+        sta glideshi
+        ldx wax                      ; restore X = current voice
+        bcs glide_pos
+
+        ; Delta negative — negate to abs value
+        lda glideshi
+        eor #$FF
+        sta glideshi
+        lda glideslo
+        eor #$FF
+        sta glideslo
+        inc glideslo
+        bne glide_neg_done
+        inc glideshi
+glide_neg_done:
+        lda #1
+        sta glide_dir                ; direction = UP
+        jmp glide_div
+
+glide_pos:
+        lda #0
+        sta glide_dir                ; direction = DOWN
+
+glide_div:
+        ; denom = bran * (speedbyte + 1) — repeated add
+        ldy speedbyte
+        lda #0
+        clc
+glide_denom_loop:
+        adc glide_bran
+        dey
+        bpl glide_denom_loop
+        sta glide_denom
+
+        ; 16-bit / 8-bit long division: glideslo:glideshi /= denom
+        ; Quotient back in glideslo:glideshi
+        clc
+        asl glideslo
+        rol glideshi
+        ldx #$0F                     ; 15 iterations
+        lda #0
+glide_div_loop:
+        rol glideslo
+        rol glideshi
+        rol
+        bcs glide_div_sub
+        cmp glide_denom
+        bcc glide_div_skip
+glide_div_sub:
+        sbc glide_denom
+        sec
+glide_div_skip:
+        dex
+        bne glide_div_loop
+        rol glideslo
+        rol glideshi
+        ; Rounding step
+        asl
+        cmp glide_denom
+        bcc glide_div_done
+        inc glideslo
+        bne glide_div_done
+        inc glideshi
+glide_div_done:
+
+        ; Apply step to lonotesto/hinotesto + d400/d401 by direction
+        ldx wax
+        lda glide_dir
+        bne glide_apply_up
+
+        ; DOWN: lonotesto -= step
+        sec
+        lda lonotesto,x
+        sbc glideslo
+        sta lonotesto,x
+        sta d400,x
+        lda hinotesto,x
+        sbc glideshi
+        sta hinotesto,x
+        sta d401,x
+        jmp fx_pulse_prog
+
+glide_apply_up:
+        ; UP: lonotesto += step
+        clc
+        lda lonotesto,x
+        adc glideslo
+        sta lonotesto,x
+        sta d400,x
+        lda hinotesto,x
+        adc glideshi
+        sta hinotesto,x
+        sta d401,x
+        jmp fx_pulse_prog
+
+glide_snap:
+        ; Snap to target: load lonote/hinote[tempglide], clear glide flags
+        ldx wax
+        lda tempglide,x
+        sta noho,x
+        tay
+        lda lonote,y
+        sta lonotesto,x
+        sta d400,x
+        lda hinote,y
+        sta hinotesto,x
+        sta d401,x
+        lda #0
+        sta glidetest,x
+        sta glidetest2,x
+        jmp fx_pulse_prog
 
 fx_pulse_prog:
         ; fx2 & $07 — pulse-width sweep program. 4 programs in
