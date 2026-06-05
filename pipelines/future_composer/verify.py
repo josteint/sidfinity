@@ -40,7 +40,9 @@ from pipelines.hubbard.verify_cycle import (
 )
 from pipelines.future_composer.config import FCConfig
 from pipelines.future_composer.composer import build_canary
-from pipelines.future_composer.composer_asm import build_via_asm
+from pipelines.future_composer.composer_asm import (
+    build_via_asm, build_via_asm_featuredriven,
+)
 
 
 _ROOT = str(Path(__file__).resolve().parents[2])
@@ -116,15 +118,29 @@ def verify_baseline(cfg: FCConfig, **kw) -> dict:
 
 
 def verify_asm(cfg: FCConfig, **kw) -> dict:
-    """Verify cycle-equivalence using the asm-pipeline composer.
+    """Verify frame-equivalence using the byte-preserving asm
+    composer (verbatim engine bytes + USF-derived data tables).
 
-    Used as the verdict for asm composer work that doesn't preserve
-    byte equivalence (the future feature-driven composer). When the
-    asm path matches HVSC byte-for-byte (the current session 1+2
-    state), this is redundant with the byte md5 check; once layout
-    diverges, this becomes the real test.
+    Since the rebuild is byte-identical to HVSC, this is redundant
+    with the md5 check. Kept for symmetry.
     """
     return verify_canary(cfg, build_via_asm, **kw)
+
+
+def verify_featuredriven(cfg: FCConfig, **kw) -> dict:
+    """Verify frame-equivalence using the FEATUREDRIVEN asm composer
+    (engine code emitted from USF features; data tables USF-derived).
+
+    The rebuild does NOT byte-match HVSC — the composer chooses its
+    own layout. The verdict is per-subtune frame-by-frame writelog
+    match.
+
+    Incremental: this WILL report partial progress while engine
+    emitters are being filled in. Frame 0 should match (init writes)
+    once the song init routine is wired; frame 1+ stays divergent
+    until playirq's effect chain is emitted.
+    """
+    return verify_canary(cfg, build_via_asm_featuredriven, **kw)
 
 
 def _format_verdict(result: dict) -> str:

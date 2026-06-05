@@ -268,15 +268,16 @@ song_seqcp:
         dey
         bpl song_seqcp
 
-        ; Reset SID filter cutoff + routing, set master volume.
-        ; (Y=$FF after the loop above; we want $00 to $D416 and $01
-        ; to $D417, so re-zero Y here.)
-        lda #0
-        sta $d416
-        lda #1
-        sta $d417
+        ; Filter setup + master volume. After the seqtabel loop, Y=$FF
+        ; (the BPL exits when DEY underflows). HVSC writes Y to $D416
+        ; ($FF = max cutoff lo), then INY (Y=$00), then writes Y to
+        ; $D417 ($00 = filter off / no resonance). This matches what
+        ; the frame-exact writelog captures from the original.
+        sty $d416                    ; Y=$FF → $D416 ← $FF
+        iny
+        sty $d417                    ; Y=$00 → $D417 ← $00
         lda #$10 | VOLUME_INIT
-        sta $d418
+        sta $d418                    ; $D418 ← $1F
 
         jsr ok2
         ; falls through into silence_all (init silences $D400-$D415)
@@ -560,6 +561,175 @@ def _xa65_assemble(asm_text: str, load_addr: int) -> bytes:
     # asm's `* = $XXXX` sets the address symbol context only; the
     # output file starts at the lowest emitted byte.
     return raw
+
+
+# ---------------------------------------------------------------------------
+# Feature-driven composition path (incremental — engine emitters replace
+# verbatim bytes one chunk at a time, verified via verify_asm writelog)
+# ---------------------------------------------------------------------------
+
+def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
+                                  root: str | None = None
+                                  ) -> tuple[str, int]:
+    """Featuredriven asm composition. Replaces HVSC's engine code with
+    USF-feature-derived emitters. The composer chooses its own layout
+    (engine routines + state) before the data tables; the data tables
+    themselves stay at their original addresses (so the verbatim
+    sequence/pattern/aux-table streams that follow them continue to
+    work).
+
+    Session 1 (this commit) emits:
+      - PSID entry jumps at $LOAD
+      - song / songout / ok2 / silence_all (the song init chunk)
+      - playirq stub (returns immediately — music doesn't play yet)
+      - engine state allocations (testbyte, speedbyte, per-voice arrays)
+
+    Sessions 2+ will incrementally replace the playirq stub with real
+    h2/h3 dispatch + effect chain emitters, verifying frame-by-frame
+    via verify_asm at each step.
+    """
+    if root is None:
+        root = _ROOT
+    sid_path = str(Path(root) / cfg.sid_path)
+    with open(sid_path, 'rb') as f:
+        orig = f.read()
+    _hl, load_addr, _i, _p, _n, code, _inline = _load_sid_psid(orig)
+    code_end = load_addr + len(code)
+    mem = bytearray(65536); mem[load_addr:code_end] = code
+
+    # Data sections (same as compose_fc_asm)
+    music_subs = [s for s in usf.subtunes if isinstance(s, MusicSubtune)]
+    if cfg.subtune_layout == 'flat_seqtabel':
+        snelheid_len = len(music_subs)
+    else:
+        snelheid_len = cfg.music_subtune_count + 1
+
+    raw_sections = [
+        ('freq_lo',  cfg.freq_lo_addr,
+                     cfg.freq_lo_addr + cfg.freq_table_entries),
+        ('freq_hi',  cfg.freq_hi_addr,
+                     cfg.freq_hi_addr + cfg.freq_table_entries),
+        ('snelheid', cfg.per_subtune_speed_addr,
+                     cfg.per_subtune_speed_addr + snelheid_len),
+        ('instruments', cfg.instr_records_addr,
+                        cfg.instr_records_addr + cfg.instr_count * 8),
+    ]
+    def _emit_lo(limit):
+        return _emit_byte_list('lonote',
+            [usf.freq_table[i*2] for i in range(limit)])
+    def _emit_hi(limit):
+        return _emit_byte_list('hinote',
+            [usf.freq_table[i*2+1] for i in range(limit)])
+    section_emitters = {
+        'freq_lo':  _emit_lo,
+        'freq_hi':  _emit_hi,
+        'snelheid': lambda _n: _emit_snelheid(usf, cfg),
+        'instruments': lambda _n: _emit_instruments(usf, cfg),
+    }
+    raw_sections.sort(key=lambda s: s[1])
+    sections = []
+    for i, (name, start, end) in enumerate(raw_sections):
+        if i + 1 < len(raw_sections):
+            next_start = raw_sections[i + 1][1]
+            if end > next_start:
+                end = next_start
+        sections.append((name, start, end))
+
+    first_data_addr = sections[0][1]
+
+    lines = [
+        f'; FC featuredriven composer — {cfg.name}',
+        f'; load_addr = ${load_addr:04X}',
+        '',
+        '; tune-shared equates',
+        'VOLUME_INIT = $0F',
+        '',
+        f'* = ${load_addr:04X}',
+        '',
+        '; --- PSID entry trampolines ---',
+        'init:   jmp song',
+        'play:   jmp playirq',
+        '',
+        _emit_song_init_routine(cfg),
+        '',
+        '; --- playirq stub (session-1 placeholder) ---',
+        ';',
+        '; Returns immediately so music does NOT yet play; verify_asm',
+        '; writelog will show frame 0 init writes match HVSC then',
+        '; frame 1+ shows nothing from this rebuild (HVSC has play()',
+        '; writes; we have none). Each session replaces more of this',
+        '; stub with real h2/h3 + effect chain emitters.',
+        'playirq:',
+        '        lda testbyte',
+        '        beq playirq_run',
+        '        rts',
+        'playirq_run:',
+        '        rts',
+        '',
+        _FC_STATE_LABELS,
+        '',
+    ]
+
+    # Explicit zero-fill from our engine code's end to the first data
+    # table. xa65 does NOT auto-pad gaps between `* = $XXXX` directives
+    # — the output file is byte-concatenated regardless of address.
+    # So we emit `.dsb first_data_addr - *, 0` to materialize the gap.
+    # The fill region is dead bytes — our entry jumps go directly to
+    # our song/playirq routines, never executing through here.
+    lines.append(f'; fill from end of engine code to first data table')
+    lines.append(f'        .dsb ${first_data_addr:04X} - *, 0')
+    lines.append('')
+
+    cursor = first_data_addr
+    for name, start, end in sections:
+        if start > cursor:
+            lines.append(f'; --- verbatim aux region ${cursor:04X}..'
+                         f'${start-1:04X} ---')
+            lines.append(f'* = ${cursor:04X}')
+            lines.append(_emit_verbatim_region(mem, cursor, start))
+            lines.append('')
+        n_bytes = end - start
+        lines.append(f'; --- {name} ${start:04X}..${end-1:04X} '
+                     f'(USF-derived, {n_bytes} bytes) ---')
+        lines.append(f'* = ${start:04X}')
+        lines.append(section_emitters[name](n_bytes))
+        lines.append('')
+        cursor = end
+
+    # Tail (sequences + patterns + remaining aux tables — still verbatim)
+    if cursor < code_end:
+        lines.append(f'; --- verbatim tail ${cursor:04X}..'
+                     f'${code_end-1:04X} ---')
+        lines.append(f'* = ${cursor:04X}')
+        lines.append(_emit_verbatim_region(mem, cursor, code_end))
+        lines.append('')
+
+    return '\n'.join(lines), load_addr
+
+
+def build_via_asm_featuredriven(cfg: FCConfig,
+                                 usf_path: str | None = None,
+                                 root: str | None = None) -> bytes:
+    """Full featuredriven build path. Reuses the original SID's PSID
+    header for now (the header carries title/author/init-vector/etc.,
+    which the composer doesn't yet generate from scratch)."""
+    if root is None:
+        root = _ROOT
+    if usf_path is None:
+        usf_path = str(Path(root) / cfg.sid_path).removesuffix('.sid') + '.usf'
+    with open(usf_path) as f:
+        usf = parse(f.read())
+
+    asm, load_addr = compose_fc_asm_featuredriven(usf, cfg, root=root)
+    code_bytes = _xa65_assemble(asm, load_addr)
+
+    sid_path = str(Path(root) / cfg.sid_path)
+    with open(sid_path, 'rb') as f:
+        orig = f.read()
+    hl, _la, _i, _p, _n, _c, has_inline = _load_sid_psid(orig)
+    if has_inline:
+        return orig[:hl] + load_addr.to_bytes(2, 'little') + code_bytes
+    return orig[:hl] + code_bytes
 
 
 def build_via_asm(cfg: FCConfig, usf_path: str | None = None,
