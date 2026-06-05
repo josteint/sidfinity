@@ -178,14 +178,23 @@ testbyte:       .dsb 1, 1            ; init to halted
 speedbyte:      .dsb 1, 0
 speedsto:       .dsb 1, 0
 
-; Per-voice 3-byte state arrays. Only the few used by song init are
-; declared here; sessions 4+ add the rest.
+; st2: scratch — current sequence byte under dispatch in h3.
+st2:            .dsb 1, 0
+
+; d4point: per-voice SID register offset (V1=$00, V2=$07, V3=$14).
+; Constant table, X-indexed.
+d4point:        .byt $00, $07, $0E
+
+; Per-voice 3-byte state arrays.
 pulseruntest:   .dsb 3, 0            ; song sets to 1,1,1
 tabcount:       .dsb 3, 0            ; sequence step (per voice)
-begcount:       .dsb 3, 0            ; pattern offset
+begcount:       .dsb 3, 0            ; pattern offset (within current pat)
 nootcount:      .dsb 3, 0            ; frames until next note
 noho:           .dsb 3, 0            ; base pitch
 counter2:       .dsb 3, 0            ; global tick counter
+toneadd:        .dsb 3, 0            ; per-voice transpose (from $80-$FF seq)
+voiceinc:       .dsb 3, 0            ; per-voice wave-table inc (from $60-$7F)
+repeatsto:      .dsb 3, 0            ; per-voice pattern-repeat ctr (from $40-$5F)
 
 ; seqloclo / seqlochi: the current song's 3 voice sequence-stream
 ; pointers, copied from seqtabel by song init.
@@ -194,6 +203,18 @@ seqlochi:       .dsb 3, 0
 
 ; End-of-state marker — ok2's clear loop runs from tabcount to here.
 state_end:
+"""
+
+
+# Zero-page slot equates — these must live in $00-$FF for (zp),Y indirect
+# addressing to work. ZP $40-$7F is the conventional FC range; pre-PSID
+# environment is responsible for not stomping on these.
+_FC_ZP_EQUATES = """
+; --- zero-page equates ---
+wax        = $48           ; current voice index (0..2) during play
+voicesto   = $49           ; current voice's $D400 offset (0/7/14)
+seqptr_lo  = $44           ; sequence-stream indirect pointer lo
+seqptr_hi  = $45           ; sequence-stream indirect pointer hi
 """
 
 
@@ -323,6 +344,151 @@ ok2_pv:
         rts
 
 song_tmp: .dsb 1, 0
+"""
+
+
+def _emit_playirq_dispatch() -> str:
+    """Emit playirq + h2 + h3 sequence-byte dispatch.
+
+    Called via PSID play=$LOAD+3 each VBI (50Hz PAL). Walks each
+    voice's sequence stream, consuming transpose/voiceinc/repeat
+    commands and advancing tabcount until it hits a pattern jump
+    ($00-$3F). Pattern-jump processing (note-load + per-voice
+    shadow→SID write loop) is the next session — for now h3f_pattern
+    stubs out to nextvoice, and nextvoice just advances to the next
+    voice without writing any SID registers.
+
+    Frame-exact effect THIS session: zero net $D4xx writes per play()
+    call. State updates only: tabcount, toneadd, voiceinc, repeatsto,
+    counter2 advance per frame. The writelog `match` count therefore
+    stays at 26 (init only). Next session lights up frame 1+ writes
+    by emitting the note-load + shadow-write chain.
+
+    Translation notes from the ACME reference (h2/h3/h3a/h3c/h3f):
+      - SMC trick (yoa1/yoa2 patching the immediate operand of
+        `lda $ffff,y`) replaced by ZP indirect load via seqptr_lo/hi.
+        Frame-exact comparison only cares about SID writes; CPU
+        internals are free.
+      - Voice loop uses X=2,1,0 (V3→V2→V1) to match the original.
+    """
+    return """
+; --- playirq dispatch + h2/h3 sequence walker ---
+playirq:
+        lda testbyte
+        beq playirq_run
+        rts                          ; halted, return immediately
+
+playirq_run:
+        lda speedbyte
+        ldx #2                       ; X = voice 2 (V3) — count down to 0
+        dec speedsto
+        bpl startplayer
+        sta speedsto                 ; reload speed counter on underflow
+
+startplayer:
+        stx wax                      ; save current voice index
+        inc counter2,x               ; per-voice frame counter
+        ldy d4point,x                ; Y = SID register offset (0/7/14)
+        sty voicesto
+        lda speedsto
+        cmp speedbyte
+        beq do_h2                    ; speed counter just reloaded →
+                                     ; eligible to take a new sequence step
+        jmp h11_stub                 ; intermediate frame → continuation
+
+do_h2:
+        ; Load current voice's sequence pointer into ZP indirect slot
+        lda seqloclo,x
+        sta seqptr_lo
+        lda seqlochi,x
+        sta seqptr_hi
+        dec nootcount,x
+        bmi h2_take_step             ; underflow → take next sequence step
+        jmp h10_stub                 ; note still playing → continuation
+
+h2_take_step:
+        ldy tabcount,x
+        lda (seqptr_lo),y            ; A = sequence byte
+        cmp #$FE
+        beq do_songout
+        cmp #$FF
+        bne h3_dispatch
+        ; $FF — reset sequence cursor (loop to start)
+        lda #0
+        sta nootcount,x
+        sta tabcount,x
+        sta begcount,x
+        jmp h2_take_step
+
+do_songout:
+        jmp songout
+
+h3_dispatch:
+        sta st2
+        cmp #$40
+        bcc h3f_pattern              ; $00-$3F → pattern jump
+        cmp #$80
+        bcc h3a_voiceinc_or_repeat   ; $40-$7F → voiceinc/repeat
+        ; $80-$FF → set toneadd (transpose)
+        and #$1F
+        sta toneadd,x
+        inc tabcount,x
+        jmp h2_take_step
+
+h3a_voiceinc_or_repeat:
+        lda st2
+        cmp #$60
+        bcc h3c_repeat               ; $40-$5F → repeat
+        ; $60-$7F → voiceinc
+        and #$0F
+        sta voiceinc,x
+        inc tabcount,x
+        jmp h2_take_step
+
+h3c_repeat:
+        ; $40-$5F → set repeatsto
+        and #$3F
+        sta repeatsto,x
+        inc tabcount,x
+        jmp h2_take_step
+
+h3f_pattern:
+        ; STUB ($00-$3F pattern jump). Real impl (next session):
+        ; index pattern_ptr_table[A*2..A*2+1] into a pattern ptr,
+        ; then note-load chain (PatGlide / PatSetLength / PatNote
+        ; writes to $D400-$D406). For now: consume byte, fall to
+        ; nextvoice — engine advances through sequences but plays
+        ; no notes.
+        inc tabcount,x
+        jmp nextvoice
+
+h10_stub:
+        ; STUB — note still playing (nootcount > 0). Real impl will
+        ; run the effect chain on the current note (vibrato/glide/
+        ; pulse/filter/drum/etc.) and write the shadow registers.
+        jmp nextvoice
+
+h11_stub:
+        ; STUB — intermediate speed frame (pattern continuation
+        ; without taking a new sequence step). Real impl runs the
+        ; effect chain on the held note.
+        jmp nextvoice
+
+nextvoice:
+        ; STUB — per-voice tail. Real impl (next session): the
+        ; shadow→SID write loop:
+        ;   lda stod404,x / and byteand,x / sta $d404,y
+        ;   lda d400,x    / sta $d400,y
+        ;   lda d401,x    / sta $d401,y
+        ;   lda d402,x    / sta $d402,y
+        ;   lda d403,x    / sta $d403,y
+        ; For now: advance to next voice, no SID writes.
+        ldx wax
+        dex
+        bmi playirq_done
+        jmp startplayer
+playirq_done:
+        rts
 """
 
 #
@@ -643,6 +809,7 @@ def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
         '',
         '; tune-shared equates',
         'VOLUME_INIT = $0F',
+        _FC_ZP_EQUATES,
         '',
         f'* = ${load_addr:04X}',
         '',
@@ -652,19 +819,7 @@ def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
         '',
         _emit_song_init_routine(cfg),
         '',
-        '; --- playirq stub (session-1 placeholder) ---',
-        ';',
-        '; Returns immediately so music does NOT yet play; verify_asm',
-        '; writelog will show frame 0 init writes match HVSC then',
-        '; frame 1+ shows nothing from this rebuild (HVSC has play()',
-        '; writes; we have none). Each session replaces more of this',
-        '; stub with real h2/h3 + effect chain emitters.',
-        'playirq:',
-        '        lda testbyte',
-        '        beq playirq_run',
-        '        rts',
-        'playirq_run:',
-        '        rts',
+        _emit_playirq_dispatch(),
         '',
         _FC_STATE_LABELS,
         '',
