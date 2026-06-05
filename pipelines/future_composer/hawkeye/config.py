@@ -109,6 +109,11 @@ HAWKEYE = FCConfig(
     # the LDA $9116 = $01 value). Cyb II uses $02.
     h11_release_sr_value=0x01,
 
+    # Hawkeye does NOT reset tonearpcounter on new notes — $9107 is
+    # only touched inside fx_tone_arp's DEC/STA at $7E38/$7E40. The
+    # counter persists across notes.
+    nolengset_resets_tonearpcounter=False,
+
     # featuredriven_addr_shift=0x100 was tried to make room for the
     # startnewnote PW direct writes, but breaks pointer tables in the
     # verbatim aux region (HVSC data has embedded $84BB/$84CC etc.

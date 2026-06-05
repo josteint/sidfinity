@@ -827,6 +827,13 @@ def _emit_playirq_dispatch(cfg: FCConfig) -> str:
     # falling through to the dex/loop. The nextvoice: block is still
     # emitted in both modes because h10b's skip path branches to it.
     pw_writes_mid_chain = ''  # legacy slot — empty now (moved into pp_store)
+    # nolengset's tonearpcounter reset (Cyb II yes, Hawkeye no).
+    nolengset_reset_tonearp = (
+        '        lda #0\n'
+        '        sta tonearpcounter,x\n'
+        if cfg.nolengset_resets_tonearpcounter else ''
+    )
+
     if cfg.voice_loop_layout == 'interleaved':
         pp_store_pw_setup = '        ldy voicesto\n'
         pp_store_sta_d402_sid = '        sta $d402,y                  ; SID PW lo (early)\n'
@@ -1152,8 +1159,7 @@ nolengset:
         ; set ADSR + waveform from instrument, etc.
         lda nootleng,x
         sta nootcount,x
-        lda #0
-        sta tonearpcounter,x
+{nolengset_reset_tonearp}
         lda tabbytsto
         clc
         adc toneadd,x
@@ -2181,6 +2187,7 @@ playirq_done:
         pp_store_sta_d403_sid=pp_store_sta_d403_sid,
         nolengset_sta_d402_sid=nolengset_sta_d402_sid,
         nolengset_sta_d403_sid=nolengset_sta_d403_sid,
+        nolengset_reset_tonearp=nolengset_reset_tonearp,
     )
 
 #

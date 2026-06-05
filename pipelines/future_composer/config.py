@@ -179,6 +179,14 @@ class FCConfig:
     # reusing the freshly-loaded speed counter as the release value).
     h11_release_sr_value: int = 0x02
 
+    # Whether nolengset (new-note load) resets tonearpcounter to 0.
+    # Cyb II resets (default True); Hawkeye does NOT — its tonearpcounter
+    # ($9107) is touched only inside fx_tone_arp itself, persisting
+    # across notes. Resetting in mine produces wrong V3 freq evolution
+    # in tunes that use tone_arp (sub 3 drops 1378→full match after
+    # disabling).
+    nolengset_resets_tonearpcounter: bool = True
+
     # When non-zero, shift every data-table address (freq_lo, freq_hi,
     # snelheid, instr_records, drumtabel, pulsetabel, ...) up by this
     # many bytes in the featuredriven rebuild ONLY. Engine code grows
