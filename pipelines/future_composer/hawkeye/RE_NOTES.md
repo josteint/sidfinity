@@ -392,3 +392,52 @@ Decoded SFX V0/V1/V2 seq pointers (matches post-init trace):
    in `pipelines/composer.py`, NOT folded into the existing simple-shape
    or bitpack branches — FC is structurally distinct).
 6. Verify byte-exact via `verify_all`.
+
+## Per-voice loop structure (added 2026-06-05)
+
+Hawkeye does NOT have a tight `nextvoice` block like Cybernoid II.
+The per-voice processing loop (entered at `$7BBA`, looping via
+`dex / jmp $7BBA`) interleaves SID writes with effect processing:
+
+```
+Per voice (X = voice index, Y = $D40x voice offset):
+  $80F4: sta $d402,y        ; PW LO (early)
+  $80FA: sta $d403,y        ; PW HI (early)
+  $80FD..$8110:               ; fx3 bit $40 — wave_arp (modifies $911B = cached ctrl)
+  $8113..$812B:               ; fx3 bit $08 — pulse_arp (re-writes $D403,y)
+  $812E..$813A:               ; fx3 bit $20 — tonesweep_up-like (modifies $9136)
+  $813D..$8196:               ; fx3 bit $01 — fx_filter_prog
+                              ;   writes $D418 = fb[5], $D416 = computed cutoff
+  $8199..$81A5: fm2_cleanup   ; if voice == filwhat:
+                              ;   lda #$e0     ← NOT $80 (Cyb II uses $80)
+                              ;   sta $910c,x  ; cache
+                              ;   sta $d416    ; write
+                              ;   (no $D418 write — Cyb II writes both)
+                              ; (no strange-filter check — Cyb II checks)
+  $81A8..$820B:               ; fx2 bit $08 — strange_filter (writes $D416, $9132)
+  ...
+  $8311: sta $d404,y        ; CTRL (LATE)
+  $8317: sta $d400,y        ; FREQ LO
+  $831D: sta $d401,y        ; FREQ HI
+  $8320: dex / bmi exit / jmp $7BBA
+```
+
+In Cybernoid II, by contrast, the per-voice loop runs ALL effects
+first (writing their own regs as they go), then a tight `nextvoice`
+block at the end writes ctrl/freq/PW in one chunk.
+
+**Composer implications:**
+
+1. The per-voice layout must be a per-cfg structural choice — not
+   just a `nextvoice_write_order` permutation. Two layouts so far:
+     - `tight_nextvoice` (Cyb II): all effects → tight 5-reg nextvoice
+     - `interleaved` (Hawkeye): pw_writes → effects → ctrl+freq_writes
+
+2. fm2 cleanup behaviour differs:
+     - Cyb II: writes $D418 = $10|VOL, $D416 = $80, checks strange-filter bit
+     - Hawkeye: writes $D416 = $E0 only, no strange-filter check
+
+3. The strange-filter routine differs too (needs separate analysis);
+   it's the `lda $f8 / and #$08` block starting at $81A8.
+
+This is the next chunk of work to make Hawkeye match further.
