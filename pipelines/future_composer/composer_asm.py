@@ -796,13 +796,13 @@ def _emit_playirq_dispatch(cfg: FCConfig) -> str:
       - nextvoice's shadow→SID write order from cfg.nextvoice_write_order.
     """
     # nextvoice (used by h10b's skip path) writes regs in cfg order.
-    # NOTE: for Hawkeye's $7DBA shortcut path, orig writes only 3 regs
-    # at $830C (ctrl + freq lo + freq hi); the PW writes are done by
-    # startnewnote at $7D81/$7D8D direct. My nolengset doesn't emit
-    # those direct PW writes (would overflow past freq_lo_addr — see
-    # task #72), so I have to keep PW in nextvoice to compensate.
+    # For interleaved layout, PW was already written either by
+    # pp_store's inline SID writes (held-note path) or by nolengset's
+    # inst-reload direct writes (new-note path). So nextvoice can
+    # skip PW — matches Hawkeye's $830C 3-reg late write.
     nextvoice_writes = _emit_nextvoice_writes(
-        cfg.nextvoice_write_order, cfg.late_ctrl_uses_byteand_mask)
+        cfg.nextvoice_write_order, cfg.late_ctrl_uses_byteand_mask,
+        skip_pw=(cfg.voice_loop_layout == 'interleaved'))
 
     # fm2_cleanup parameters. Cyb II default: writes both $D418=$10|VOL
     # and $D416=$80, with a strange-filter early-out. Hawkeye writes
@@ -822,13 +822,17 @@ def _emit_playirq_dispatch(cfg: FCConfig) -> str:
 
     # Voice-loop layout. 'tight_nextvoice' (Cyb II): all effects run, then
     # nextvoice writes all 5 voice regs at chain end. 'interleaved'
-    # (Hawkeye): PW writes happen mid-chain (right after pulse_prog,
-    # before wave_arp/pulse_arp can override), CTRL+FREQ writes happen
-    # at chain end before falling through to the dex/loop. The nextvoice:
-    # block is still emitted in both modes because h10b's skip path
-    # branches to it (writes all 5 regs and continues).
+    # (Hawkeye): PW writes happen INLINE in pp_store (right after each
+    # PW shadow STA), then CTRL+FREQ writes happen at chain end before
+    # falling through to the dex/loop. The nextvoice: block is still
+    # emitted in both modes because h10b's skip path branches to it.
+    pw_writes_mid_chain = ''  # legacy slot — empty now (moved into pp_store)
     if cfg.voice_loop_layout == 'interleaved':
-        pw_writes_mid_chain = _emit_pw_writes_inline() + '\n'
+        pp_store_pw_setup = '        ldy voicesto\n'
+        pp_store_sta_d402_sid = '        sta $d402,y                  ; SID PW lo (early)\n'
+        pp_store_sta_d403_sid = '        sta $d403,y                  ; SID PW hi (early)\n'
+        nolengset_sta_d402_sid = '        sta $d402,y                  ; SID PW lo (inst reload)\n'
+        nolengset_sta_d403_sid = '        sta $d403,y                  ; SID PW hi (inst reload)\n'
         ctrl_freq_writes_late = _emit_ctrl_freq_writes_inline(
             cfg.late_ctrl_uses_byteand_mask) + '\n'
         chain_exit = (
@@ -837,7 +841,11 @@ def _emit_playirq_dispatch(cfg: FCConfig) -> str:
             '        jmp startplayer              ; interleaved: bypass nextvoice'
         )
     elif cfg.voice_loop_layout == 'tight_nextvoice':
-        pw_writes_mid_chain = ''
+        pp_store_pw_setup = ''
+        pp_store_sta_d402_sid = ''
+        pp_store_sta_d403_sid = ''
+        nolengset_sta_d402_sid = ''
+        nolengset_sta_d403_sid = ''
         ctrl_freq_writes_late = ''
         chain_exit = 'jmp nextvoice                ; per-voice shadow→SID write loop'
     else:
@@ -1192,14 +1200,12 @@ nolengset:
         lda #0
         sta d402,x                   ; shadow $D402 (pw lo)
         sta pulsestolo,x
-        pla
+{nolengset_sta_d402_sid}        pla
         sta pulsehitemp,x
         and #$0F
         sta d403,x                   ; shadow $D403 (pw hi nibble)
         sta pulsehisto,x
-        ; NOTE: real startnewnote also writes $D402/$D403 direct here;
-        ; adding those overflows past freq_lo_addr. Tried shift=$100 but
-        ; it breaks pointer tables in verbatim aux data. See task #72.
+{nolengset_sta_d403_sid}
         lda #1
         sta pulsetest,x
         pla
@@ -1846,13 +1852,13 @@ pp_pulseshit:
 
 pp_store:
         ldx wax
-        lda pulsestolo,x
+{pp_store_pw_setup}        lda pulsestolo,x
         sta d402,x                   ; PW lo shadow
-        lda pulsehisto,x
+{pp_store_sta_d402_sid}        lda pulsehisto,x
         sta d403,x                   ; PW hi shadow
-        ; falls through to fx_wave_arp (or to PW writes for 'interleaved' layout)
+{pp_store_sta_d403_sid}        ; falls through to fx_wave_arp
 
-{pw_writes_mid_chain}fx_wave_arp:
+fx_wave_arp:
         ; fx3 bit $40 — cycles wavearp[$80,$10,$80,$10] (waveform
         ; toggle for test bit). Mirrors Hawkeye disasm $80FD-$8110:
         ;   skip if not active OR counter2 < wavearpwait;
@@ -2169,6 +2175,11 @@ playirq_done:
         chain_exit=chain_exit,
         fx_noise_tick_chunk=fx_noise_tick_chunk,
         h10_body=h10_body,
+        pp_store_pw_setup=pp_store_pw_setup,
+        pp_store_sta_d402_sid=pp_store_sta_d402_sid,
+        pp_store_sta_d403_sid=pp_store_sta_d403_sid,
+        nolengset_sta_d402_sid=nolengset_sta_d402_sid,
+        nolengset_sta_d403_sid=nolengset_sta_d403_sid,
     )
 
 #
