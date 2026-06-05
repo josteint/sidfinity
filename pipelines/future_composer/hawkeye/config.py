@@ -65,6 +65,13 @@ HAWKEYE = FCConfig(
     fm2_cleanup_d416_value=0xE0,
     fm2_cleanup_writes_d418=False,
     fm2_cleanup_checks_strange_filter=False,
+
+    # Hawkeye's per-voice loop is interleaved (not tight nextvoice):
+    # PW writes happen early ($80F4/$80FA), CTRL+FREQ writes happen
+    # late ($8311/$8317/$831D), and the filter handler interleaves its
+    # $D416/$D418 writes between them. See RE_NOTES.md "Per-voice loop
+    # structure" for the full disassembly walk.
+    voice_loop_layout='interleaved',
 )
 
 

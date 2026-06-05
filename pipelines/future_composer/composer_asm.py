@@ -636,6 +636,45 @@ def _emit_nextvoice_writes(write_order: tuple) -> str:
     return '\n'.join(chunks)
 
 
+def _emit_pw_writes_inline() -> str:
+    """Emit V1 PW lo + PW hi writes (used by 'interleaved' voice loop layout).
+
+    Mirrors Hawkeye disassembly $80F1-$80FA: PW shadows are written
+    early in the per-voice loop, before wave_arp / pulse_arp / etc.
+    can override them.
+    """
+    return (
+        '        ; --- interleaved layout: PW writes (early) ---\n'
+        '        ldx wax\n'
+        '        ldy voicesto\n'
+        '        lda d402,x\n'
+        '        sta $d402,y                  ; PW lo (early)\n'
+        '        lda d403,x\n'
+        '        sta $d403,y                  ; PW hi (early)\n'
+    )
+
+
+def _emit_ctrl_freq_writes_inline() -> str:
+    """Emit CTRL + FREQ lo + FREQ hi writes (used by 'interleaved' layout).
+
+    Mirrors Hawkeye disassembly $830C-$831D: ctrl/freq shadows are
+    written LATE in the per-voice loop, after all effects have settled.
+    Includes the drum gate-off mask `byteand,x` AND on the ctrl byte.
+    """
+    return (
+        '        ; --- interleaved layout: CTRL + FREQ writes (late) ---\n'
+        '        ldx wax\n'
+        '        ldy voicesto\n'
+        '        lda stod404,x\n'
+        "        and byteand,x                ; drum gate-off mask\n"
+        '        sta $d404,y                  ; ctrl (waveform + gate)\n'
+        '        lda d400,x\n'
+        '        sta $d400,y                  ; freq lo\n'
+        '        lda d401,x\n'
+        '        sta $d401,y                  ; freq hi\n'
+    )
+
+
 def _emit_playirq_dispatch(cfg: FCConfig) -> str:
     """Emit playirq + h2 + h3 sequence-byte dispatch.
 
@@ -678,6 +717,28 @@ def _emit_playirq_dispatch(cfg: FCConfig) -> str:
         '        sta $d418\n'
         if cfg.fm2_cleanup_writes_d418 else ''
     )
+
+    # Voice-loop layout. 'tight_nextvoice' (Cyb II): all effects run, then
+    # nextvoice writes all 5 voice regs at chain end. 'interleaved'
+    # (Hawkeye): PW writes happen mid-chain (right after pulse_prog,
+    # before wave_arp/pulse_arp can override), CTRL+FREQ writes happen
+    # at chain end before falling through to the dex/loop. The nextvoice:
+    # block is still emitted in both modes because h10b's skip path
+    # branches to it (writes all 5 regs and continues).
+    if cfg.voice_loop_layout == 'interleaved':
+        pw_writes_mid_chain = _emit_pw_writes_inline() + '\n'
+        ctrl_freq_writes_late = _emit_ctrl_freq_writes_inline() + '\n'
+        chain_exit = (
+            'dex\n'
+            '        bmi playirq_done\n'
+            '        jmp startplayer              ; interleaved: bypass nextvoice'
+        )
+    elif cfg.voice_loop_layout == 'tight_nextvoice':
+        pw_writes_mid_chain = ''
+        ctrl_freq_writes_late = ''
+        chain_exit = 'jmp nextvoice                ; per-voice shadow→SID write loop'
+    else:
+        raise ValueError(f'unknown voice_loop_layout: {cfg.voice_loop_layout!r}')
 
     return ("""
 ; --- playirq dispatch + h2/h3 sequence walker ---
@@ -1641,9 +1702,9 @@ pp_store:
         sta d402,x                   ; PW lo shadow
         lda pulsehisto,x
         sta d403,x                   ; PW hi shadow
-        ; falls through to fx_wave_arp
+        ; falls through to fx_wave_arp (or to PW writes for 'interleaved' layout)
 
-fx_wave_arp:
+{pw_writes_mid_chain}fx_wave_arp:
         ; fx3 bit $40 — cycles wavearp[$80,$10,$80,$10] (waveform
         ; toggle for test bit). Modifies stod404. TODO.
         lda fx3sto
@@ -1952,12 +2013,15 @@ nt_nve:
         ; falls through to effect_chain_end
 
 effect_chain_end:
-        jmp nextvoice                ; per-voice shadow→SID write loop
+{ctrl_freq_writes_late}        {chain_exit}
 
 nextvoice:
         ; Per-voice tail: write the shadow regs to SID, then advance
         ; to next voice (or RTS if all 3 done). Write order from cfg
         ; — see SID-internal-state research for why order matters.
+        ; For 'interleaved' layout, normal control flow bypasses this
+        ; block (PW + CTRL/FREQ writes happen inline in the chain);
+        ; this block is still emitted because h10b's skip path uses it.
         ldx wax
         ldy voicesto
 
@@ -1973,6 +2037,9 @@ playirq_done:
         fm2_strange_check=fm2_strange_check,
         fm2_d418_write=fm2_d418_write,
         fm2_d416_value=fm2_d416_value,
+        pw_writes_mid_chain=pw_writes_mid_chain,
+        ctrl_freq_writes_late=ctrl_freq_writes_late,
+        chain_exit=chain_exit,
     )
 
 #

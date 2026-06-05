@@ -42,6 +42,7 @@ from typing import Literal
 
 
 SubtuneLayout = Literal['flat_seqtabel', 'smc_template_with_sfx']
+VoiceLoopLayout = Literal['tight_nextvoice', 'interleaved']
 
 
 @dataclass(frozen=True)
@@ -118,6 +119,19 @@ class FCConfig:
     fm2_cleanup_d416_value: int = 0x80           # Cyb II default
     fm2_cleanup_writes_d418: bool = True         # Cyb II default
     fm2_cleanup_checks_strange_filter: bool = True  # Cyb II default
+
+    # Per-voice loop structural layout. Drives WHERE the SID register
+    # writes happen inside the per-voice processing loop:
+    #   - 'tight_nextvoice' (Cyb II default): all effects run first,
+    #     writing only to shadows + maybe $D416/$D418 direct; then a
+    #     tight nextvoice block writes all 5 voice regs in
+    #     nextvoice_write_order.
+    #   - 'interleaved' (Hawkeye): PW writes happen mid-chain (right
+    #     after pulse_prog, before wave_arp / pulse_arp / filter_prog
+    #     run); CTRL+FREQ writes happen at chain end. Effects that
+    #     write $D416/$D418 (filter_prog, fm2, strange_filter) interleave
+    #     between PW and CTRL+FREQ writes naturally.
+    voice_loop_layout: VoiceLoopLayout = 'tight_nextvoice'
 
     # TODO as effects come online:
     # wavearp_addr, pulsearp_addr (wave/pulse-arp tables)
