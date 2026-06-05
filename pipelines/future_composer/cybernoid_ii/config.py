@@ -58,12 +58,14 @@ CYBERNOID_II = FCConfig(
     #   $ADCE: B9 CC B0       lda $B0CC,Y    ← starttabel
     #   $A861: B9 7F AF       lda $AF7F,Y    ← arplo
     #   $A869: B9 87 AF       lda $AF87,Y    ← arphi
+    #   $AB9B: B9 F4 AF       lda $AFF4,Y    ← pulsetabel
     drumtabel_addr=0xAF45,
     filterbytes_addr=0xAFC4,
     startlen_addr=0xB0C0,
     starttabel_addr=0xB0CC,
     arplo_addr=0xAF7F,
     arphi_addr=0xAF87,
+    pulsetabel_addr=0xAFF4,
 )
 
 

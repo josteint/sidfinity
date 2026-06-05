@@ -224,6 +224,8 @@ pulsehitemp:    .dsb 3, 0
 pulsestolo:     .dsb 3, 0
 pulsehisto:     .dsb 3, 0
 pulsetest:     .dsb 3, 0
+pulsecountup:   .dsb 1, 0            ; shared scratch — pulse_prog step value
+                                     ; (NOT per-voice; reloaded each frame)
 filtercount:    .dsb 3, 0
 filter:         .dsb 3, 0            ; per-voice filter cutoff shadow
                                      ; (written by fx_filter_prog / fm2 →
@@ -286,6 +288,13 @@ zer0filhi  = $52           ; filter program indirect ptr hi
 ; Loaded from arpieoklo,X/arpieokhi,X each frame.
 ta_arp_lo  = $53           ; tone-arp program indirect ptr lo
 ta_arp_hi  = $54           ; tone-arp program indirect ptr hi
+
+; Pulse-program ZP scratch (replaces ACME source's SMC slots:
+; pulsecountlo/pulsecounthi/purepbyte). Loaded fresh each frame
+; when fx_pulse_prog runs.
+pp_count_lo  = $55         ; lower bound for the bounce check
+pp_count_hi  = $56         ; upper bound for the bounce check
+pp_purepbyte = $57         ; wrap flag (1 = snap to lo, 0 = bounce)
 """
 
 
@@ -944,12 +953,156 @@ fx_glide:
         ; STUB: tone-glide impl here.
 
 fx_pulse_prog:
-        ; fx2 & $07 — walks pulsetabel program for current pulse-width
-        ; sweep. Modifies d402/d403 (pw lo/hi shadow). TODO.
+        ; fx2 & $07 — pulse-width sweep program. 4 programs in
+        ; pulsetabel, 8 bytes each. Program N starts at offset
+        ; (N*8)-7 (so program 1 at offset 1, program 2 at offset 9,
+        ; etc.) Bytes:
+        ;   [0]    low nibble = lo bound; bit 7 = wrap flag (purepbyte)
+        ;   [1]    hi bound
+        ;   [2,4,6] threshold values (counter2 compared in order)
+        ;          high bit toggles direction
+        ;   [3,5,7] step values (active when corresponding threshold
+        ;           is matched)
+        ;
+        ; pulsetest,X drives direction (1 = up, 0 = down). pulsestolo,X
+        ; and pulsehisto,X are the 16-bit shadow PW. On reaching a
+        ; bound, direction flips (or snap-wraps if purepbyte set).
+        ;
+        ; ZP scratch (pp_count_lo @ $55, pp_count_hi @ $56,
+        ; pp_purepbyte @ $57) replaces ACME source's SMC slots.
+        ;
+        ; ALWAYS writes d402/d403 from shadows at end (the original
+        ; engine's `pst:` entry is the unconditional shadow write).
+        ; When fx2 & $07 == 0, just skip to the shadow write.
         lda fx2sto
         and #$07
-        beq fx_wave_arp
-        ; STUB: pulse program impl here.
+        bne pp_active                ; program active → run program
+        jmp pp_store                 ; inactive → just write shadows
+                                     ; (using jmp because pp_store is
+                                     ; out of branch range)
+pp_active:
+        ; Compute Y = program offset in pulsetabel: (N*8)-7
+        asl
+        asl
+        asl
+        sbc #$07                     ; carry already clear from asl chain
+        tay
+
+        ; Read pulsetabel[Y] — first byte
+        lda pulsetabel,y
+        pha                          ; save first byte
+        and #$80                     ; bit 7 = wrap flag
+        beq pp_noprep
+        lda #1
+pp_noprep:
+        sta pp_purepbyte
+        pla
+        and #$0F                     ; low nibble = lo bound
+        sta pp_count_lo
+
+        iny
+        lda pulsetabel,y             ; pulsetabel[Y+1] = hi bound
+        sta pp_count_hi
+
+        ; Walk thresholds at offsets 2, 4, 6 — find which segment
+        ; counter2 falls into.
+        iny
+        lda pulsetabel,y             ; pulsetabel[Y+2]
+        and #$7F
+        cmp counter2,x
+        bcc pp_go6
+        jmp pp_go5
+
+pp_go6:
+        iny
+        iny
+        lda pulsetabel,y             ; pulsetabel[Y+4]
+        and #$7F
+        cmp counter2,x
+        bcc pp_go2
+        jmp pp_go5
+
+pp_go2:
+        iny
+        iny
+        lda pulsetabel,y             ; pulsetabel[Y+6]
+        and #$7F
+        cmp counter2,x
+        bcc pp_go3
+        ; fall through to pp_go5
+
+pp_go5:
+        ; Threshold matched — use this segment's step
+        lda pulsetabel,y             ; the matched threshold byte
+        and #$80                     ; high bit → flip direction
+        beq pp_goo1
+        lda #0
+        sta pulsetest,x
+pp_goo1:
+        iny
+        lda pulsetabel,y             ; pulsetabel[matched+1] = step
+        sta pulsecountup
+        jmp pp_go4
+
+pp_go3:
+        ; Past all thresholds — use fx2 hi nibble as step
+        lda fx2sto
+        and #$F0
+        sta pulsecountup
+
+pp_go4:
+        lda pulsetest,x
+        bne pp_pusw1                 ; pulsetest != 0 → direction UP
+
+        ; Direction DOWN: pulsestolo -= pulsecountup (with hi borrow)
+        lda pulsestolo,x
+        sec
+        sbc pulsecountup
+        sta pulsestolo,x
+        lda pulsehisto,x
+        sbc #0
+        sta pulsehisto,x
+        cmp pp_count_lo              ; reached lower bound?
+        bcs pp_store
+        ; underflow — flip direction (go UP next frame)
+        lda #1
+        bne pp_pulseshit             ; always taken
+
+pp_pusw1:
+        ; Direction UP: pulsestolo += pulsecountup
+        lda pulsestolo,x
+        clc
+        adc pulsecountup
+        sta pulsestolo,x
+        lda pulsehisto,x
+        adc #0
+        sta pulsehisto,x
+        cmp pp_count_hi              ; reached upper bound?
+        bcc pp_store
+        ; hit upper bound — check wrap flag
+        lda pp_purepbyte
+        beq pp_ppt
+        ; wrap: snap pulsehisto = pp_count_lo, pulsestolo = saved A
+        ; Original: `sta pulsestolo,x / lda pulsecountlo / sta pulsehisto,x`
+        ; A was the pp_purepbyte value (= 1 typically)
+        sta pulsestolo,x
+        lda pp_count_lo
+        sta pulsehisto,x
+        lda #1
+        bne pp_pulseshit             ; always taken
+
+pp_ppt:
+        lda #0
+pp_pulseshit:
+        sta pulsetest,x              ; flip direction
+
+pp_store:
+        ldx wax
+        lda pulsestolo,x
+        sta d402,x                   ; PW lo shadow
+        lda pulsehisto,x
+        sta d403,x                   ; PW hi shadow
+        ; falls through to fx_wave_arp
 
 fx_wave_arp:
         ; fx3 bit $40 — cycles wavearp[$80,$10,$80,$10] (waveform
@@ -1622,6 +1775,8 @@ def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
         if cfg.arplo_addr else '; arplo: not yet located',
         f'arphi = ${cfg.arphi_addr:04X}'
         if cfg.arphi_addr else '; arphi: not yet located',
+        f'pulsetabel = ${cfg.pulsetabel_addr:04X}'
+        if cfg.pulsetabel_addr else '; pulsetabel: not yet located',
         _FC_ZP_EQUATES,
         '',
         f'* = ${load_addr:04X}',
