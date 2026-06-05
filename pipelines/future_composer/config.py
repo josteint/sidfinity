@@ -93,8 +93,9 @@ class FCConfig:
     filterbytes_addr: int = 0      # filter-program ptrs (4 ptrs to 10-byte programs)
     startlen_addr: int = 0         # per-instrument noise-tick attack length
     starttabel_addr: int = 0       # per-instrument noise-tick attack waveform
+    arplo_addr: int = 0            # arpeggio program ptrs (lo bytes, 8 entries)
+    arphi_addr: int = 0            # arpeggio program ptrs (hi bytes, 8 entries)
     # TODO as effects come online:
-    # arplo_addr, arphi_addr (arpeggio program ptrs)
     # pulsetabel_addr (pulse-program data)
     # wavearp_addr, pulsearp_addr (wave/pulse-arp tables)
     # vibtabwait_addr (vibrato delay table)

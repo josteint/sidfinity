@@ -281,6 +281,11 @@ drum_dl     = $50          ; drum length scratch
 ; semantics). Used by fx_filter_prog to read fb<n> program bytes.
 zer0fillo  = $51           ; filter program indirect ptr lo
 zer0filhi  = $52           ; filter program indirect ptr hi
+
+; Tone-arp ZP indirect (replaces ACME source's SMC arpieoklo1/2 slots).
+; Loaded from arpieoklo,X/arpieokhi,X each frame.
+ta_arp_lo  = $53           ; tone-arp program indirect ptr lo
+ta_arp_hi  = $54           ; tone-arp program indirect ptr hi
 """
 
 
@@ -653,14 +658,22 @@ novoiceset:
         jmp skip                     ; yet another $80+ byte — re-dispatch
 
 arpset:
-        ; Range $70-$7F = arpeggio program select.
-        ; STUB — arplo/arphi addresses aren't yet exposed by the
-        ; composer (they live in the verbatim aux region between
-        ; pattern_ptr_table and instr_records). Consume the byte
-        ; without acting; arpeggios will be silent until those
-        ; tables get a labelled emitter in a later session.
+        ; Range $70-$7F = arpeggio program select. Loads arplo[N]/
+        ; arphi[N] (where N = byte & $0F) into the per-voice
+        ; arpieoklo/arpieokhi state arrays. fx_tone_arp consumes
+        ; those each frame.
         cmp #$70
         bcc nolengset
+
+        and #$0F
+        sty denom                    ; save Y (begcount cursor)
+        tay
+        lda arplo,y
+        ldx wax
+        sta arpieoklo,x
+        lda arphi,y
+        sta arpieokhi,x
+        ldy denom                    ; restore Y
         jsr verhoogtest
         ; falls through to nolengset
 
@@ -865,12 +878,52 @@ gwo2:
 ; program writes $D416/$D418, noise-tick writes $D401,y).
 
 fx_tone_arp:
-        ; fx3 bit $04 — cycles arpieoklo/hi program adding semitones
-        ; to noho per tonearpcounter. TODO.
+        ; fx3 bit $04 — cycles a per-voice arp program. The program
+        ; lives at arpieoklo,X/arpieokhi,X (set by arpset during
+        ; pattern dispatch). Layout:
+        ;   arp[0]    = reload counter value when the counter
+        ;               underflows
+        ;   arp[1..N] = semitone deltas added to noho per frame
+        ;
+        ; tonearpcounter,X counts down each frame. On underflow it
+        ; reloads from arp[0]. Each frame reads arp[tonearpcounter+1]
+        ; and adds it to noho to compute the new noothoogt (pitch),
+        ; then reloads d400/d401 from lonote/hinote at that index.
+        ;
+        ; ZP indirect (ta_arp_lo/hi at $53/$54) replaces the ACME
+        ; source's SMC trick (arpieoklo1/arpieoklo2/arpieokhi1/
+        ; arpieokhi2 SMC slots patching `lda arp0`/`lda arp0,Y`).
         lda fx3sto
         and #$04
         beq fx_vibrato
-        ; STUB: tone-arpeggio impl here.
+
+        ldx wax
+        lda arpieoklo,x
+        sta ta_arp_lo
+        lda arpieokhi,x
+        sta ta_arp_hi
+        dec tonearpcounter,x
+        bpl ta_hallo
+
+        ; counter underflowed — reload from arp[0]
+        ldy #0
+        lda (ta_arp_lo),y
+        sta tonearpcounter,x
+
+ta_hallo:
+        ldx wax
+        ldy tonearpcounter,x
+        iny                          ; arp[counter+1] = current delta
+        lda (ta_arp_lo),y
+        clc
+        adc noho,x
+        sta noothoogt,x
+        tay                          ; Y = new pitch index
+        lda lonote,y
+        sta d400,x                   ; freq lo shadow
+        lda hinote,y
+        sta d401,x                   ; freq hi shadow
+        ; falls through to fx_vibrato
 
 fx_vibrato:
         ; fx1 != 0 (and !glidetest2) — triangle-LFO vibrato modulating
@@ -1565,6 +1618,10 @@ def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
         if cfg.startlen_addr else '; startlen: not yet located',
         f'starttabel = ${cfg.starttabel_addr:04X}'
         if cfg.starttabel_addr else '; starttabel: not yet located',
+        f'arplo = ${cfg.arplo_addr:04X}'
+        if cfg.arplo_addr else '; arplo: not yet located',
+        f'arphi = ${cfg.arphi_addr:04X}'
+        if cfg.arphi_addr else '; arphi: not yet located',
         _FC_ZP_EQUATES,
         '',
         f'* = ${load_addr:04X}',
