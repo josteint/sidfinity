@@ -1722,11 +1722,17 @@ fx_pulse_arp:
 
 fx_tonesweep_up:
         ; fx3 bit $20 — decrements hinotesto each frame (downward
-        ; pitch sweep). Modifies d401. TODO.
+        ; pitch sweep). Mirrors Hawkeye disasm $812E-$813A:
+        ;   LDA fx3sto / AND #$20 / BEQ skip
+        ;   DEC hinotesto,x
+        ;   LDA hinotesto,x / STA d401,x
         lda fx3sto
         and #$20
         beq fx_filter_prog
-        ; STUB: tonesweep-up impl here.
+        ldx wax
+        dec hinotesto,x
+        lda hinotesto,x
+        sta d401,x
 
 fx_filter_prog:
         ; fx3 bit $01 — walks the per-voice filter program (fb<n>)
