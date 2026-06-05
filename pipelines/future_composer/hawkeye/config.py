@@ -92,6 +92,17 @@ HAWKEYE = FCConfig(
     # to d401 (V3 freq hi shadow). Verified: orig V3 sub 1 frame 1 has
     # d401=$3D, drum_table_B[0]=$30, $30+$0D=$3D. See RE_NOTES.md.
     fx_drum_d401_offset=0x0D,
+
+    # Hawkeye's late $D404 write at $830E/$8311 is a direct
+    # `LDA stod404,X / STA $D404,Y` — no byteand mask. Gate-clear
+    # happens via stod404 itself in the held-note path at $7DCA.
+    late_ctrl_uses_byteand_mask=False,
+
+    # Hawkeye's held-note path at $7DCA structurally clears gate via
+    # stod404 = wavesto & $FE, but enabling this regresses sub 1 by
+    # ~100 matches (some effect re-asserts the gate that mine doesn't
+    # know about). Leave at False; investigate further before enabling.
+    # held_note_clears_stod404_gate=True,
 )
 
 

@@ -601,7 +601,7 @@ ok2_pv:
 """
 
 
-def _emit_nextvoice_writes(write_order: tuple) -> str:
+def _emit_nextvoice_writes(write_order: tuple, use_byteand_mask: bool = True) -> str:
     """Emit the per-voice shadow→SID write block in the order given by
     `write_order` (tuple of register offsets 0-4 within the voice).
 
@@ -626,9 +626,13 @@ def _emit_nextvoice_writes(write_order: tuple) -> str:
             chunks.append('        lda d403,x\n'
                           '        sta $d403,y                  ; pw hi')
         elif offset == 4:
-            chunks.append('        lda stod404,x\n'
-                          '        and byteand,x                ; drum gate-off mask\n'
-                          '        sta $d404,y                  ; ctrl (waveform + gate)')
+            if use_byteand_mask:
+                chunks.append('        lda stod404,x\n'
+                              '        and byteand,x                ; drum gate-off mask\n'
+                              '        sta $d404,y                  ; ctrl (waveform + gate)')
+            else:
+                chunks.append('        lda stod404,x\n'
+                              '        sta $d404,y                  ; ctrl (waveform + gate)')
         else:
             raise ValueError(
                 f'invalid nextvoice_write_order offset {offset}; '
@@ -729,20 +733,28 @@ def _emit_pw_writes_inline() -> str:
     )
 
 
-def _emit_ctrl_freq_writes_inline() -> str:
+def _emit_ctrl_freq_writes_inline(use_byteand_mask: bool = True) -> str:
     """Emit CTRL + FREQ lo + FREQ hi writes (used by 'interleaved' layout).
 
     Mirrors Hawkeye disassembly $830C-$831D: ctrl/freq shadows are
     written LATE in the per-voice loop, after all effects have settled.
-    Includes the drum gate-off mask `byteand,x` AND on the ctrl byte.
+    `use_byteand_mask` controls whether the drum gate-off mask
+    `byteand,x` is ANDed in (Cyb II yes; Hawkeye no — Hawkeye clears
+    the gate via stod404 itself in the held-note path at $7DCA).
     """
+    ctrl_write = (
+        '        lda stod404,x\n'
+        '        and byteand,x                ; drum gate-off mask\n'
+        '        sta $d404,y                  ; ctrl (waveform + gate)\n'
+        if use_byteand_mask else
+        '        lda stod404,x\n'
+        '        sta $d404,y                  ; ctrl (waveform + gate)\n'
+    )
     return (
         '        ; --- interleaved layout: CTRL + FREQ writes (late) ---\n'
         '        ldx wax\n'
         '        ldy voicesto\n'
-        '        lda stod404,x\n'
-        "        and byteand,x                ; drum gate-off mask\n"
-        '        sta $d404,y                  ; ctrl (waveform + gate)\n'
+        + ctrl_write +
         '        lda d400,x\n'
         '        sta $d400,y                  ; freq lo\n'
         '        lda d401,x\n'
@@ -775,7 +787,8 @@ def _emit_playirq_dispatch(cfg: FCConfig) -> str:
       - Voice loop uses X=2,1,0 (V3→V2→V1) to match the original.
       - nextvoice's shadow→SID write order from cfg.nextvoice_write_order.
     """
-    nextvoice_writes = _emit_nextvoice_writes(cfg.nextvoice_write_order)
+    nextvoice_writes = _emit_nextvoice_writes(
+        cfg.nextvoice_write_order, cfg.late_ctrl_uses_byteand_mask)
 
     # fm2_cleanup parameters. Cyb II default: writes both $D418=$10|VOL
     # and $D416=$80, with a strange-filter early-out. Hawkeye writes
@@ -802,7 +815,8 @@ def _emit_playirq_dispatch(cfg: FCConfig) -> str:
     # branches to it (writes all 5 regs and continues).
     if cfg.voice_loop_layout == 'interleaved':
         pw_writes_mid_chain = _emit_pw_writes_inline() + '\n'
-        ctrl_freq_writes_late = _emit_ctrl_freq_writes_inline() + '\n'
+        ctrl_freq_writes_late = _emit_ctrl_freq_writes_inline(
+            cfg.late_ctrl_uses_byteand_mask) + '\n'
         chain_exit = (
             'dex\n'
             '        bmi playirq_done\n'
@@ -816,6 +830,43 @@ def _emit_playirq_dispatch(cfg: FCConfig) -> str:
         raise ValueError(f'unknown voice_loop_layout: {cfg.voice_loop_layout!r}')
 
     fx_noise_tick_chunk = _emit_fx_noise_tick(cfg)
+
+    # h10 body — per cfg.held_note_clears_stod404_gate.
+    if cfg.held_note_clears_stod404_gate:
+        h10_body = (
+            "        ; Held-note path (Hawkeye style): clear gate bit in\n"
+            "        ; stod404 each frame. No byteand involvement; late\n"
+            "        ; $D404 write is direct (cfg.late_ctrl_uses_byteand_mask).\n"
+            "        ; Mirrors disasm $7DCA-$7DF6.\n"
+            "        ldx wax\n"
+            "        lda wavesto,x\n"
+            "        and #$FE\n"
+            "        sta stod404,x\n"
+        )
+    else:
+        h10_body = """        ; Held-note path (Cyb II style): compute byteand from
+        ; filcount's high nibble. The late $D404 write ANDs stod404
+        ; with byteand to apply the gate-off mask.
+        lda nootcount,x
+        beq h10_gwaitout
+        lda wavecount,x
+        asl
+        asl
+        asl
+        tay
+        lda filcount,y               ; instrument's filcount byte
+        and #$F0
+        lsr
+        lsr
+        cmp nootcount,x
+        bcs h10_gwaitout             ; threshold >= nootcount → kill gate
+        lda #$FF                     ; threshold < nootcount → keep gate
+        bne h10_gwb                  ; always taken
+h10_gwaitout:
+        lda #$FE                     ; gate-off mask (preserves waveform bits)
+h10_gwb:
+        sta byteand,x
+"""
 
     return ("""
 ; --- playirq dispatch + h2/h3 sequence walker ---
@@ -1174,29 +1225,7 @@ verhoogtest:
 ; one at a time by replacing the STUB block.
 
 h10:
-        ; Held-note path: nootcount > 0 (decremented by do_h2, didn't
-        ; underflow). Compute byteand based on filcount's drum-trigger
-        ; high nibble.
-        lda nootcount,x
-        beq gwaitout
-        lda wavecount,x
-        asl
-        asl
-        asl
-        tay
-        lda filcount,y               ; instrument's filcount byte
-        and #$F0
-        lsr
-        lsr
-        cmp nootcount,x
-        bcs gwaitout                 ; threshold >= nootcount → kill gate
-        lda #$FF                     ; threshold < nootcount → keep gate
-        bne gwb                      ; always taken
-gwaitout:
-        lda #$FE                     ; gate-off mask (preserves waveform bits)
-gwb:
-        sta byteand,x
-        ; fall into h11
+{h10_body}        ; fall into h11
 
 h11:
         ; Intermediate-frame path entry + ADSR release check.
@@ -2100,6 +2129,7 @@ playirq_done:
         ctrl_freq_writes_late=ctrl_freq_writes_late,
         chain_exit=chain_exit,
         fx_noise_tick_chunk=fx_noise_tick_chunk,
+        h10_body=h10_body,
     )
 
 #

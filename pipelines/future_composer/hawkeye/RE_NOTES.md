@@ -541,3 +541,42 @@ This is Hawkeye-specific fx_drum logic — different from Cyb II's. My Cyb II fx
 For now, **disabling fx_noise_tick for Hawkeye** (since startlen/starttabel are unset placeholders reading garbage) would at least stop the $FA misfire at frame 2.
 
 Additionally noted: per-voice fx3 cache in Hawkeye may not even be at the same address my model assumes. Hawkeye's instrument-record layout is different — record +0 is WAVE byte (PHA'd, low nibble → $D403), +1 is stod404 init, +2 AD, +3 SR, +4 → $910F (extension flags). No obvious per-instrument fx3 slot in the record; fx2/fx3 come from sequence stream commands instead.
+
+## byteand investigation (added 2026-06-05)
+
+### Hawkeye doesn't use `byteand` in the late $D404 write
+At $830E/$8311: `LDA $911B,X / STA $D404,Y` — direct, no AND.
+
+Cyb II's `LDA stod404,X / AND byteand,X / STA $D404,Y` is engine-specific.
+Dropping the AND for Hawkeye (`late_ctrl_uses_byteand_mask=False`) gave:
+- sub 1: 122 → 224 (+102)
+- sub 4: 115 → 127 (+12)
+- sub 5: 120 → 115 (-5)
+
+### Hawkeye's held-note path at $7DCA is structurally different
+```
+$7DCA: LDA nootcount,X
+$7DCD: BEQ $7DF1                ; if 0 → kill gate
+$7DCF-$7DDE: compute threshold from inst_byte4 high nibble, save via SMC
+$7DE1-$7DE9: A = nootleng - nootcount = elapsed frames
+$7DEA: CMP #$00
+$7DEC: BCS $7DF1                ; ALWAYS taken given CMP #$00 (always sets C=1)
+$7DEE-$7DF0: LDA wavesto / BNE  ; dead code (unreachable)
+$7DF1: LDA wavesto / AND #$FE   ; clear gate
+$7DF6: STA stod404,X
+```
+
+So the disasm reads as "always clear gate at held-note speed-ticks" — but
+enabling this in my emitter (`held_note_clears_stod404_gate=True`) regresses
+sub 1 by -102 matches while winning +51/+42 on subs 2/3/5. Net flat.
+
+**Hypothesis**: some Hawkeye-specific effect downstream of the held-note
+clear re-asserts the gate in stod404 for certain instruments. Until that's
+identified, leave the knob at False.
+
+Possible candidates (effects that write stod404 in Hawkeye disasm):
+- $8243-$826B (fx3 bit $04 effect): conditional, may write stod404
+- $826C-$82D3 (fx_drum): writes stod404 from drum wave table  
+- $7E0F onwards (note-load follow-up routine via $7E0C STA $D406 with $01)
+
+Worth a separate session to identify which effect rescues the gate.

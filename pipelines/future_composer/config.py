@@ -158,5 +158,20 @@ class FCConfig:
     # See hawkeye/RE_NOTES.md "Real root cause" section.
     fx_drum_d401_offset: int = 0
 
+    # Whether the late $D404 (V_CTRL) write AND-masks `stod404` with the
+    # per-voice `byteand` flag (Cyb II's drum-routine gate-off mechanism).
+    # Cyb II does (default True). Hawkeye's late write at $830E/$8311 is
+    # a direct `LDA $911B,X / STA $D404,Y` — no mask — because Hawkeye
+    # clears the gate by modifying stod404 itself during the held-note
+    # path at $7DCA, not via a separate mask. (See RE_NOTES.md.)
+    late_ctrl_uses_byteand_mask: bool = True
+
+    # Held-note gate-clear mechanism. Cyb II (False): h10 sets the
+    # per-voice `byteand` mask to $FE based on a filcount-threshold
+    # comparison; the late $D404 write ANDs stod404 with byteand.
+    # Hawkeye (True): h10 instead does `stod404 = wavesto & $FE`
+    # directly, with no byteand involvement. Mirrors disasm $7DCA-$7DF6.
+    held_note_clears_stod404_gate: bool = False
+
     # TODO as effects come online:
     # wavearp_addr, pulsearp_addr (wave/pulse-arp tables)
