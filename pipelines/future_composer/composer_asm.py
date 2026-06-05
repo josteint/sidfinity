@@ -244,6 +244,12 @@ pulsetest:     .dsb 3, 0
 pulsecountup:   .dsb 1, 0            ; shared scratch — pulse_prog step value
                                      ; (NOT per-voice; reloaded each frame)
 
+; fx_pulse_run per-voice first-frame init flag (set on bit-clear frames,
+; consumed on bit-set first frame). Reuses pulsestolo as accumulator
+; and pulsehisto as pwhi shadow (safe — pulse_prog inactive when
+; pulse_run active).
+pulserun_flag:   .dsb 3, 0
+
 filtercount:    .dsb 3, 0
 filter:         .dsb 3, 0            ; per-voice filter cutoff shadow
                                      ; (written by fx_filter_prog / fm2 →
@@ -704,21 +710,42 @@ def _emit_fx_pulse_run(cfg: FCConfig) -> str:
                 '        beq fx_double_voice\n'
                 '        ; fall through (no-op)')
     if cfg.pulse_run_style == 'cyb2':
-        return """        ; Cyb II fx_pulse_run (minimal): PW sweep at pulserunspeed.
-        ; Reuses pulsestolo (acc) and pulsehisto (16-bit overflow target).
-        ; Omits first-frame init flag + pwhi wrap (small budget on Cyb II);
-        ; fx_pulse_run state matches orig in steady state.
+        return """        ; Cyb II fx_pulse_run: PW sweep at pulserunspeed.
+        ; Runs AFTER pp_store has copied pulsestolo→d402 / pulsehisto→d403,
+        ; so this routine must also re-sync the d402/d403 shadows that
+        ; the late write reads from.
+        ;   bit clear → set per-voice flag (= "init next time bit goes on")
+        ;   bit set + flag set   → first-frame init: clear flag + pulsestolo
+        ;   bit set + flag clear → step: acc+=spd; on carry, walk pwhi
         lda fx3sto
         and #$02
-        beq fx_double_voice          ; not active
+        beq fx_pulse_run_set_flag
         ldx wax
+        lda pulserun_flag,x
+        beq fx_pulse_run_step
+        lda #0
+        sta pulserun_flag,x
+        sta pulsestolo,x
+fx_pulse_run_step:
         lda pulsestolo,x
         clc
         adc #pulserunspeed
         sta pulsestolo,x
+        sta d402,x                   ; re-sync late-write shadow
         bcc fx_double_voice
-        inc pulsehisto,x             ; 16-bit carry into pwhi
-        ; (no upper-bound wrap — see task #76)"""
+        inc pulsehisto,x
+        lda pulsehisto,x
+        cmp #pulserun_pwhi_upper
+        bne fx_pulse_run_sync_pwhi
+        eor #pulserun_pwhi_wrap_xor
+        sta pulsehisto,x
+fx_pulse_run_sync_pwhi:
+        sta d403,x                   ; re-sync late-write shadow
+        jmp fx_double_voice
+fx_pulse_run_set_flag:
+        ldx wax
+        lda #1
+        sta pulserun_flag,x"""
     raise ValueError(f'unknown pulse_run_style: {cfg.pulse_run_style!r}')
 
 
@@ -2707,14 +2734,12 @@ def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
         '',
     ]
 
-    # State allocation for flat_seqtabel: emit right after engine code
-    # (there's room between engine end and first data table for
-    # Cybernoid II's smaller engine). For SMC layout, defer to the end
-    # of the asm (after all data sections) to avoid overflow into the
-    # data tables.
-    if cfg.subtune_layout == 'flat_seqtabel':
-        lines.append(_FC_STATE_LABELS)
-        lines.append('')
+    # State allocation: ALWAYS park past the data region (matches Hawkeye's
+    # long-standing approach). This frees the engine code area from the
+    # engine+state budget — engine code can grow up to first_data_addr,
+    # state lives past the SID body end.
+    # (Previous flat_seqtabel-style "state between code and data" was
+    # blocking Cyb II's engine from adding fx_pulse_run.)
 
     # Explicit zero-fill from our engine code's end to the first data
     # table. xa65 does NOT auto-pad gaps between `* = $XXXX` directives
@@ -2765,16 +2790,16 @@ def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
     # of address. So we explicit `.dsb` to materialize the gap;
     # otherwise the state bytes would land at the wrong CPU address
     # and d4point/per-voice arrays would read garbage at runtime.
-    if cfg.subtune_layout == 'smc_template_with_sfx':
-        # State address rounds up from the END of the verbatim tail, which
-        # extends to code_end+shift when featuredriven_addr_shift is set.
-        state_addr = (((code_end + shift) + 0xFF) & ~0xFF)
-        lines.append(f'; --- state arrays parked at ${state_addr:04X} '
-                     f'(past HVSC SID end) ---')
-        lines.append(f'        .dsb ${state_addr:04X} - *, 0  ; pad gap '
-                     f'so state lands at ${state_addr:04X} in CPU memory')
-        lines.append(_FC_STATE_LABELS)
-        lines.append('')
+    # Park state past the end of the verbatim tail (= original SID body
+    # end). For both flat and SMC layouts. shift accounts for any
+    # featuredriven_addr_shift in effect.
+    state_addr = (((code_end + shift) + 0xFF) & ~0xFF)
+    lines.append(f'; --- state arrays parked at ${state_addr:04X} '
+                 f'(past HVSC SID end) ---')
+    lines.append(f'        .dsb ${state_addr:04X} - *, 0  ; pad gap '
+                 f'so state lands at ${state_addr:04X} in CPU memory')
+    lines.append(_FC_STATE_LABELS)
+    lines.append('')
 
     return '\n'.join(lines), load_addr
 

@@ -69,16 +69,12 @@ CYBERNOID_II = FCConfig(
     pulsetabel_addr=0xAFF4,
     vibtabwait_addr=0xB0AC,
 
-    # Cyb II's fx_pulse_run (fx3 bit $02) at $ACE4-$AD24 (verified via
-    # siddump --pc-trace at frame 8400) — adds $63 to per-voice accumulator,
-    # walks pwhi shadow with cmp $0F / EOR $08 wrap. NOT enabled yet:
-    # Cyb II's engine+state budget (load=$A600..freq_lo=$AE3F = $83F bytes)
-    # is at the absolute limit — adding even the minimal pulse_run impl
-    # (16 bytes) overflows by 9 bytes. featuredriven_addr_shift breaks
-    # verbatim aux pointer tables. Sub 0 stays at 99.19% match (~28-second
-    # V3 PW window mismatch) until either compression frees up bytes OR
-    # state can be hoisted past the data region.
-    # pulse_run_style='cyb2', pulserunspeed=0x63,
+    # Cyb II's fx_pulse_run (fx3 bit $02) at $ACE4-$AD24 — verified
+    # via siddump --pc-trace at frame 8400. Adds $63 to per-voice
+    # accumulator each frame; pulsehisto shadow walks with overflow,
+    # wrapping at $0F via `EOR #$08` → $07.
+    pulse_run_style='cyb2',
+    pulserunspeed=0x63,
 )
 
 
