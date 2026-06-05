@@ -243,6 +243,7 @@ pulsehisto:     .dsb 3, 0
 pulsetest:     .dsb 3, 0
 pulsecountup:   .dsb 1, 0            ; shared scratch — pulse_prog step value
                                      ; (NOT per-voice; reloaded each frame)
+
 filtercount:    .dsb 3, 0
 filter:         .dsb 3, 0            ; per-voice filter cutoff shadow
                                      ; (written by fx_filter_prog / fm2 →
@@ -688,6 +689,39 @@ def _emit_nextvoice_writes(write_order: tuple, use_byteand_mask: bool = True,
     return '\n'.join(chunks)
 
 
+def _emit_fx_pulse_run(cfg: FCConfig) -> str:
+    """Emit fx_pulse_run body per cfg.pulse_run_style.
+
+    'disabled' — no-op (just the fx3 bit check that falls through).
+    'cyb2'     — Cyb II's $ACE4-$AD24 logic: per-voice accumulator +=
+                 pulserunspeed each frame; written to pulsestolo. pwhi
+                 shadow walks with overflow wrap (CMP upper / EOR wrap).
+    """
+    if cfg.pulse_run_style == 'disabled':
+        return ('        ; STUB: fx_pulse_run disabled per cfg\n'
+                '        lda fx3sto\n'
+                '        and #$02\n'
+                '        beq fx_double_voice\n'
+                '        ; fall through (no-op)')
+    if cfg.pulse_run_style == 'cyb2':
+        return """        ; Cyb II fx_pulse_run (minimal): PW sweep at pulserunspeed.
+        ; Reuses pulsestolo (acc) and pulsehisto (16-bit overflow target).
+        ; Omits first-frame init flag + pwhi wrap (small budget on Cyb II);
+        ; fx_pulse_run state matches orig in steady state.
+        lda fx3sto
+        and #$02
+        beq fx_double_voice          ; not active
+        ldx wax
+        lda pulsestolo,x
+        clc
+        adc #pulserunspeed
+        sta pulsestolo,x
+        bcc fx_double_voice
+        inc pulsehisto,x             ; 16-bit carry into pwhi
+        ; (no upper-bound wrap — see task #76)"""
+    raise ValueError(f'unknown pulse_run_style: {cfg.pulse_run_style!r}')
+
+
 def _emit_fx_noise_tick(cfg: FCConfig) -> str:
     """Emit fx_noise_tick body per cfg.noise_tick_style.
 
@@ -912,6 +946,7 @@ def _emit_playirq_dispatch(cfg: FCConfig) -> str:
         raise ValueError(f'unknown voice_loop_layout: {cfg.voice_loop_layout!r}')
 
     fx_noise_tick_chunk = _emit_fx_noise_tick(cfg)
+    fx_pulse_run_body = _emit_fx_pulse_run(cfg)
 
     # h10 body — per cfg.held_note_clears_stod404_gate.
     if cfg.held_note_clears_stod404_gate:
@@ -2078,12 +2113,7 @@ fx_strange_filter:
         ; STUB: strange-filter impl here.
 
 fx_pulse_run:
-        ; fx3 bit $02 — autonomous PWM sweep via pulserunlo/hi at
-        ; pulserunspeed rate. Modifies d402/d403. TODO.
-        lda fx3sto
-        and #$02
-        beq fx_double_voice
-        ; STUB: pulse-run impl here.
+{fx_pulse_run_body}
 
 fx_double_voice:
         ; filcount bit $08 — adds dubvoice ($0C) to d400 lo freq
@@ -2243,6 +2273,7 @@ playirq_done:
         nolengset_sta_d403_sid=nolengset_sta_d403_sid,
         nolengset_reset_tonearp=nolengset_reset_tonearp,
         playirq_run_ldx=playirq_run_ldx,
+        fx_pulse_run_body=fx_pulse_run_body,
     )
 
 #
@@ -2632,6 +2663,9 @@ def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
         f'pulsearpwait = {cfg.pulsearpwait}',
         f'fx_drum_d401_offset = ${cfg.fx_drum_d401_offset:02X}',
         f'h11_release_sr_value = ${cfg.h11_release_sr_value:02X}',
+        f'pulserunspeed = ${cfg.pulserunspeed:02X}',
+        f'pulserun_pwhi_upper = ${cfg.pulserun_pwhi_upper:02X}',
+        f'pulserun_pwhi_wrap_xor = ${cfg.pulserun_pwhi_wrap_xor:02X}',
         # vibrato uses lonote2/hinote2 = lonote+1/hinote+1 (one byte
         # past the freq-table base) to read the next note's freq for
         # delta computation.

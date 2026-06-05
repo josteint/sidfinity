@@ -187,6 +187,18 @@ class FCConfig:
     # disabling).
     nolengset_resets_tonearpcounter: bool = True
 
+    # fx_pulse_run (fx3 bit $02). 'disabled' (default): a STUB that just
+    # falls through. 'cyb2': adds pulserunspeed to a per-voice accumulator
+    # each frame, stores to pulsestolo, and walks a per-voice pwhi shadow
+    # with overflow wrap. Mirrors Cyb II's $ACE4-$AD24 routine.
+    pulse_run_style: Literal['disabled', 'cyb2'] = 'disabled'
+    # Cyb II's pulse_run is `ADC #$63` (step = $63 hardcoded in the engine).
+    pulserunspeed: int = 0x63
+    # Cyb II's pwhi shadow CMP #$0F / EOR #$08 — when shadow hits upper,
+    # wrap via XOR (= $07).
+    pulserun_pwhi_upper: int = 0x0F
+    pulserun_pwhi_wrap_xor: int = 0x08
+
     # When non-zero, shift every data-table address (freq_lo, freq_hi,
     # snelheid, instr_records, drumtabel, pulsetabel, ...) up by this
     # many bytes in the featuredriven rebuild ONLY. Engine code grows
