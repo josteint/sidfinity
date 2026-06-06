@@ -178,6 +178,84 @@ Phase 1/2 infrastructure (EngineInstance schema + resolve_address +
 extract refactor) directly supports per-subtune extract — that
 infrastructure is the right shape for this work.
 
+## Engine A ($7A00) — hand-annotation, in progress
+
+Following the same labelling pattern as Hawkeye's `RE_NOTES.md`
+(disassembly.s keeps the seed `L_XXXX` labels — they're cross-referenced
+throughout — and this table maps each to its canonical FC label).
+
+Adrenalin engine A uses the canonical FC v4.1 +0/+3/+6 vector layout
+(matching MoN/FC family across Deenen, Tel, Bjerregaard, FC V1-V5).
+Variant confirmed: standard 3-vector entry at engine base.
+
+### Entry vectors
+
+| Addr | Canonical FC label | Purpose |
+|---|---|---|
+| `$7A00` | `init` (jmp song) | Entry vector → jumps to per-subtune init at `$7AB4` |
+| `$7A03` | (jmp songout) | Songout vector → jumps to `$7AFC` |
+| `$7A06` | `play` (jmp playirq) | Per-frame play vector → jumps to dispatcher at `$7B02` |
+
+PSID's play vector at `$50E3` is SMC'd by the launcher (at init time)
+to point at `$7A06` for sub 0; subs 1/2/3 point elsewhere — see
+"Per-subtune engine instances" above.
+
+### Engine A routine map (in progress)
+
+| Adrenalin | Canonical FC label | Purpose |
+|---|---|---|
+| `sub_7A88` | `ok2` | Zero per-voice state at `$7A0D..$7A87` (`STA $7A0D,X` with X=$7A down to 0). Then explicitly clear 4-byte $7A3E..$7A40 with `$FF` and 3-byte arrays at `$7A0D/$7A10/$7A13/$7A1F` (per-voice). Sets play state `$7A61=0`. Called by `songinit` after subtune setup. |
+| `L_7AB4` (`sub_7AB4`) | `songinit` / `song` | Per-subtune init. PHA saves subtune#, sets `$7A61=1` (state=stopped), restores A as X = subtune index. SMC's the LDA at `$7ACA` with `$18A5,X`/`$18A7,X` so the next loop copies subtune-specific seq pointers from `(<sub_base>),Y` to `$18B5,Y` (6 bytes). Loads speed from `$18A1,X` to `$7A09` (per-frame speed reload), and `$18A3,X` to `$7D73` (TBD — likely another SMC). Calls `ok2`. Then clears SID `$D400-$D414` and sets `$D418=$0F` / `$D417=$00`. |
+| `L_7AFC` | `songout` | Sets play state `$7A61=2` (end). RTS — does NOT actually silence voices (caller's responsibility). |
+| `L_7B02` | `playirq` (dispatcher) | Read `$7A61` (play state); state=2 → RTS (song ended); state=1 → RTS (not playing); state=0 → fall to `L_7B11` (main play). |
+| `L_7B11` | `playirq` (main entry) | Per-frame work entry. INC frame counters at `$7A3E..$7A40` (3 voices). DEC `$7A60` (global speed counter); if BPL skip reload, else reload from `$7A09` (per-subtune speedbyte). |
+| `L_7B27` | `startplayer` (voice loop) | Per-voice loop body, X = voice (2→1→0). STX `$77` (zp save). LDA per-voice `tabcount` from `$7A0A,X` → `$7A45` (active tabcount byte). Continue sequence read. |
+| `L_7B4F` | (sustain branch) | `JMP $7D63` — branches to sustain-frame handler when nootcount not zero. |
+| `L_7B52` | `h2` (sequence read) | Read sequence byte: `LDY $7A0D,X; LDA $1A20,Y`. Test for `$FE` (song end → `L_7B6E`) and `$FF` (wrap → reset begcount). `$1A20` = sequence stream base. |
+| `L_7B6E` | (song end handler) | `$FE` token: set play state=2 (songout), JMP `$7AE2` (silence voices / final cleanup). |
+| `L_7B76` | `h3` (transpose) | `$80-$BF` command. `AND #$1F; STA $7A41,X` (transpose), advance `tabcount` (`$7A0D,X`). |
+| `L_7B88` | `h3a` (voiceinc) | `$60-$7F` command. `AND #$0F; STA $7A84,X` (voiceinc?). |
+| `L_7B9A` | `h3c` (repeats) | `$40-$5F` command. `AND #$3F; STA $7A63,X` (repeats counter). |
+| `L_7BAC` | `h3f` (pattern jump) | `$00-$3F` command. ASL+TAY then `LDA $1BA0,Y; STA $75` + `LDA $1BA1,Y; STA $76` — load pattern address into zp `$75/$76`. `$1BA0` = pattern_ptr_table. |
+| `L_7BCD` | `startnote` (pat dispatcher) | Pattern-byte dispatcher (with `$73` = current pattern byte). Recognises `$F0` (noglide), `$F1` (filterset → `$D417`), `$E0-$EF` (glide 3-byte), `$C0-$DF` (waveform select), `$70-$7F` (instrument change). |
+| `L_7C8B` | (note-play / nolengset) | Identified earlier: compute Y from `$73 + transpose`, then `LDA $17E3,Y` → `$7A81,X` (current freq lo shadow) + `STA $D400,Y`. `LDA $1842,Y` → `$7A81,X` (hi shadow) + `STA $D401,Y`. Then per-frame instrument table setup from `$19AC` region. |
+| `sub_7D27` | `verhoogtest` | Helper: INC `$7A0D,X` (begcount/tabcount?), INY, read next pattern byte via `($75),y`, check `$FF`. |
+| `L_7D34` | (note-continue) | Branch from `$7B47: DEC $7A13,X; BMI $7B52` (new note) vs continue. Sustain-frame handling. |
+| `L_7D63` | (sustain) | Sustain-frame freq update / held-note path. |
+
+### Data table addresses (confirmed)
+
+| Addr | Field | Verification |
+|---|---|---|
+| `$17E3` | lonote (freq_lo) | `LDA $17E3,Y` at `$7C9B` in nolengset; sig matches Hawkeye freq idx $48 lo |
+| `$1842` | hinote (freq_hi) | `LDA $1842,Y` at `$7CA5` in nolengset; sig matches Hawkeye freq idx $48 hi |
+| `$18A1` | per_subtune_speed | `LDA $18A1,X` at `$7AD3` in songinit; 4 bytes for 4 subtunes |
+| `$18A5`/`$18A7` | seqtabel ptr lo/hi | `LDA $18A5,X` + `LDA $18A7,X` at `$7ABC`/`$7AC2` in songinit |
+| `$18B5` | runtime per-voice seq ptrs | `STA $18B5,Y` at `$7ACD` (copy target) |
+| `$19AC` | instr_records (8 bytes/inst) | `LDA $19AC,X..$19B3,X` at `$7CCA-$7DE9` in nolengset/per-frame |
+| `$1A20` | sequence stream base | `LDA $1A20,Y` at `$7B55` in h2 |
+| `$1BA0` | pattern_ptr_table (2 bytes/entry) | `LDA $1BA0,Y / $1BA1,Y` at `$7BB1/$7BB6` in h3f |
+
+Per-voice state base: `$7A0D` onwards (3-byte arrays); explicit
+zero-clear in `ok2` covers `$7A0D..$7A87` (127 bytes ≈ same as
+Hawkeye's 119-byte block at `$90C5`).
+
+### TBD on engine A
+
+- Identify the rest of the routines past `$7D34` (vibrato, drum,
+  noise-tick, filter-prog, pulse-prog — the effect chain).
+- Identify the auxiliary table addresses (`drumtabel`, `filterbytes`,
+  `arplo`, `arphi`, `pulsetabel`, `vibtabwait`, `startlen`,
+  `starttabel`).
+- Verify `subtune_layout`: the X-indexed lo+hi pointer table at
+  `$18A5`/`$18A7` is a flavour of `flat_seqtabel` but stores the
+  runtime slot's source address via SMC, not directly. Needs
+  confirmation that the extract path's `flat_seqtabel` works for
+  this shape.
+- The `$7AB4 → $7D73` SMC (LDA `$18A3,X` / STA `$7D73`): what is
+  `$7D73`? Probably another piece of subtune setup state, possibly
+  master volume or initial filter.
+
 ## Required next session — full decompile (protocol Step 0)
 
 Before any FCConfig / composer / USF schema work, do the following
