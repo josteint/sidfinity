@@ -1,5 +1,21 @@
 # Canary SID Picker — Top 50 Engines
 
+## Progress (as of 2026-06-06)
+
+| Status | Engines |
+|---|---|
+| Byte-exact canary | 2 of 50 — #4 MoN/FutureComposer (Hawkeye + Cybernoid_II), #24 Rob_Hubbard (Human_Race) |
+| In progress | 1 — #4 MoN/FutureComposer Adrenalin (disasm seeded, FCConfig pending; see `pipelines/future_composer/adrenalin/RE_NOTES.md`) |
+| Not started | 47 |
+
+The Hubbard '85 + Companion + Jay_Derrett families have many more
+verified subtunes (160+ across `tools/regression.py`), but only
+`Human_Race.sid` overlaps with the canary picker's row choices for
+engine #24 — the picker selected the 5 longest Hubbard tunes, and our
+migration corpus is feature-driven rather than length-driven. The
+other migrated engines (Berry_Vic, Clever_Music, Henrys_House, etc.)
+are companion/Bowden-era niche engines below the top-50 cutoff.
+
 ## What this is
 
 A breadth-first selection list for migrating one canary SID per engine
@@ -82,11 +98,11 @@ recommendation; alternatives follow. Override as you prefer.
 
 | Sel | Mig | Path | Author | Subs | Length |
 |---|---|---|---|---|---|
-| [ ] | [ ] | `MUSICIANS/T/Tel_Jeroen/Hawkeye.sid` | Jeroen Tel | 12 | 18:52 |
+| [x] | [x] | `MUSICIANS/T/Tel_Jeroen/Hawkeye.sid` | Jeroen Tel | 12 | 18:52 |
 | [ ] | [ ] | `MUSICIANS/T/Tel_Jeroen/Eliminator.sid` | Jeroen Tel | 4 | 11:07 |
-| [ ] | [ ] | `MUSICIANS/H/HeatWave/Adrenalin.sid` | Marvin Severijns & M. de Bree | 4 | 9:25 |
+| [x] | [ ] | `MUSICIANS/H/HeatWave/Adrenalin.sid` | Marvin Severijns & M. de Bree | 4 | 9:25 |
 | [ ] | [ ] | `MUSICIANS/T/Tel_Jeroen/Tomcat.sid` | Jeroen Tel | 3 | 8:12 |
-| [ ] | [ ] | `MUSICIANS/T/Tel_Jeroen/Cybernoid_II.sid` | Jeroen Tel | 2 | 5:54 |
+| [x] | [x] | `MUSICIANS/T/Tel_Jeroen/Cybernoid_II.sid` | Jeroen Tel | 2 | 5:54 |
 
 ## 5. Soundmonitor (3625 SIDs)
 
@@ -304,7 +320,7 @@ recommendation; alternatives follow. Override as you prefer.
 | [ ] | [ ] | `MUSICIANS/H/Hubbard_Rob/Gremlins.sid` | Rob Hubbard | 26 | 14:10 |
 | [ ] | [ ] | `MUSICIANS/H/Hubbard_Rob/Gerry_the_Germ.sid` | Rob Hubbard | 23 | 12:55 |
 | [ ] | [ ] | `MUSICIANS/H/Hubbard_Rob/International_Karate.sid` | Rob Hubbard | 1 | 10:45 |
-| [ ] | [ ] | `MUSICIANS/H/Hubbard_Rob/Human_Race.sid` | Rob Hubbard | 5 | 9:48 |
+| [x] | [x] | `MUSICIANS/H/Hubbard_Rob/Human_Race.sid` | Rob Hubbard | 5 | 9:48 |
 
 ## 25. TFX (269 SIDs)
 

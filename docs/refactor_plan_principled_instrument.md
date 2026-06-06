@@ -1,5 +1,12 @@
 # Refactor plan — principled Instrument schema (Hubbard migration + jay_derrett add)
 
+> **Status: DONE 2026-06-01.** The five Instrument-schema leaks are
+> closed; Hubbard 71/71 + Companion 35 + Jay_Derrett 17 byte-exact
+> through the new schema. This document is the original plan, kept as
+> historical reference for the design reasoning. Current schema state
+> lives in `src/usf/types.py` and the `project_principled_instrument_refactor`
+> memory.
+
 ## Goal
 
 A schema audit found **five same-pattern leaks** in the `Instrument`

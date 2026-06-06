@@ -17,3 +17,10 @@ Session plans and codegen plans from earlier phases. Kept for historical context
   "in progress") is out of date. Replaced by `docs/canary_picker.md`
   + `docs/refactor_1_remaining.md` as the operational plan;
   `docs/PLAN.md` is now a thin pointer to those two.
+- `usf_instrument_program_plan_2026_v1era.md` — USF v1 era blueprint
+  for "instruments as 6502 programs" with Lean-codegen verification.
+  Superseded by the principled-instrument refactor (typed musical
+  parameters per `docs/usf_representation_principle.md`) and the
+  feature-driven composer in `pipelines/composer.py`. References
+  long-removed concepts: `engineQuirks`, `dynamicFreqEntries`,
+  `preserveNoteFlags`, Grade A grading, `Codegen2.lean`.
