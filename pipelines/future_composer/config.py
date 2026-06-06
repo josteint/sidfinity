@@ -47,6 +47,63 @@ NoiseTickStyle = Literal['cyb2_table', 'hawkeye_constants', 'disabled']
 
 
 @dataclass(frozen=True)
+class EngineInstance:
+    """One engine instance in a multi-engine FC SID.
+
+    Most FC SIDs are single-engine: the engine code + data live at
+    fixed addresses, and the PSID's init/play vectors point directly
+    into the engine. For these, FCConfig.engines is None and the
+    top-level address fields apply across all subtunes.
+
+    Some FC SIDs (Adrenalin / HeatWave is the worked example) use a
+    DIFFERENT engine per subtune — either the same FC family code
+    relocated to a different base address, or a distinct entry shim.
+    Each subtune's PSID init runs a memcpy of packed-source bytes into
+    the runtime layout, then SMCs the play handler to the subtune's
+    entry. EngineInstance captures one such engine layout.
+
+    `subtune_indices` lists which 0-based subtune indices use this
+    instance. `play_vector` is what gets SMC'd into PSID's play slot.
+    The address fields override the top-level FCConfig defaults: 0
+    means "fall back to the FCConfig top-level field of the same name."
+    """
+    name: str
+    subtune_indices: tuple[int, ...]
+
+    # Init copy params — engine init memcpy from raw binary's packed
+    # source into the runtime data layout. 0 = no copy needed (engine
+    # data already at runtime addresses in the raw binary, as
+    # Hawkeye/Cyb II are).
+    copy_src_addr: int = 0
+    copy_dst_addr: int = 0
+    copy_size: int = 0
+
+    # PSID play handler address for subtunes in subtune_indices.
+    # 0 = use PSID header's play field directly.
+    play_vector: int = 0
+
+    # Runtime address overrides. 0 = inherit the corresponding
+    # top-level FCConfig field. The list is the same set as the
+    # mandatory + aux fields on FCConfig.
+    freq_lo_addr: int = 0
+    freq_hi_addr: int = 0
+    pattern_ptr_addr: int = 0
+    instr_records_addr: int = 0
+    per_subtune_speed_addr: int = 0
+    seqtabel_addr: int = 0
+    drumtabel_addr: int = 0
+    filterbytes_addr: int = 0
+    startlen_addr: int = 0
+    starttabel_addr: int = 0
+    arplo_addr: int = 0
+    arphi_addr: int = 0
+    pulsetabel_addr: int = 0
+    vibtabwait_addr: int = 0
+    wavearp_addr: int = 0
+    pulsearp_addr: int = 0
+
+
+@dataclass(frozen=True)
 class FCConfig:
     """Per-SID configuration for the FC family extractor.
 
@@ -221,5 +278,51 @@ class FCConfig:
     # value if the data layout shifts. 0 = use orig location $8FC5.
     sfx_seq_stream_addr: int = 0
 
+    # Multi-engine support: if a SID uses a different engine instance
+    # per subtune (different code, different runtime addresses, different
+    # init-copy params), provide one EngineInstance per layout here.
+    # None = single-engine SID; top-level fields apply to all subtunes
+    # (the Hawkeye / Cybernoid II shape).
+    #
+    # Cover every subtune index with exactly one EngineInstance —
+    # use `instance_for_subtune` to look up.
+    engines: tuple | None = None
+
     # TODO as effects come online:
     # wavearp_addr, pulsearp_addr (wave/pulse-arp tables)
+
+
+def instance_for_subtune(cfg: FCConfig, subtune: int) -> EngineInstance | None:
+    """Return the EngineInstance handling `subtune`, or None for the
+    single-engine case (caller should use cfg's top-level fields).
+
+    Raises ValueError if `cfg.engines` is set but no instance covers
+    `subtune` — that's a config bug, not a single-engine SID.
+    """
+    if cfg.engines is None:
+        return None
+    for engine in cfg.engines:
+        if subtune in engine.subtune_indices:
+            return engine
+    raise ValueError(
+        f'FCConfig {cfg.name!r}: no EngineInstance covers subtune {subtune}; '
+        f'engines cover {[e.subtune_indices for e in cfg.engines]!r}'
+    )
+
+
+def resolve_address(cfg: FCConfig, engine: EngineInstance | None,
+                    field: str) -> int:
+    """Resolve a runtime address field, looking at the EngineInstance
+    override first (if non-zero) then falling back to cfg's top-level
+    field of the same name. Use this from extract/composer code that
+    needs to handle both single- and multi-engine SIDs uniformly.
+
+    Example:
+      engine = instance_for_subtune(cfg, sub)
+      freq_lo = resolve_address(cfg, engine, 'freq_lo_addr')
+    """
+    if engine is not None:
+        v = getattr(engine, field, 0)
+        if v != 0:
+            return v
+    return getattr(cfg, field)
