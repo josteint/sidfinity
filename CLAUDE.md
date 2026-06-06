@@ -121,6 +121,7 @@ HVSC original at `hvsc84/MUSICIANS/H/Hubbard_Rob/<Engine>.{usf, sidfinity.sid}`.
 ## Working conventions
 
 - **`pipelines.hubbard.verify.verify_all` is the verdict.** Returns subtune-level OK/FAIL. md5 of per-frame `$D400-$D418` register snapshots from py65 capture; for digi subtunes it uses `siddump --writelog` (cycle-strict).
+- **For writelog-partial debugging, start with `tools/find_first_divergence.py ORIG.sid REBUILD.sid --subtune N`.** It localises the first `(reg, val)` mismatch + names the voice/role (e.g. "V2 freq hi") in one command. THEN disassemble orig's effect for that register, THEN diff against the composer emitter. Do NOT start from py65 state traces or prior task descriptions — both go stale. Full protocol in [`feedback_writelog_divergence_recipe`](.claude/memory/feedback_writelog_divergence_recipe.md).
 - **py65 misses dispatch bugs** (CIA timer, PSID speed). Ear-test new engines and any dispatch changes in real sidplayfp before declaring done.
 - **Commit early.** Each verified delta is one commit. No `Co-Authored-By`.
 - **Propose options before code** for non-trivial work. Honest scope. Pause at decision points.
