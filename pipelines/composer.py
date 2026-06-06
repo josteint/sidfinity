@@ -34,7 +34,6 @@ from __future__ import annotations
 
 import os
 import struct
-import subprocess
 from dataclasses import asdict, dataclass
 
 from pipelines.engine_model import (
@@ -44,7 +43,6 @@ from pipelines.engine_model import (
 )
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-_XA = os.path.join(_ROOT, 'tools', 'xa65', 'xa', 'xa')
 LOAD = 0x1000
 
 _SEMI = {'C': 0, 'C#': 1, 'D': 2, 'D#': 3, 'E': 4, 'F': 5,
@@ -3177,15 +3175,8 @@ def _emit_sid_bp(inputs: _Inputs, out_path: str, codec,
         inputs, codec, pat_slot, pat_bytes, codec_extra,
         load_addr=load_addr)
 
-    src = '/tmp/usf2_commando.s'
-    obj = '/tmp/usf2_commando.bin'
-    with open(src, 'w') as f:
-        f.write(asm)
-    r = subprocess.run([_XA, src, '-o', obj], capture_output=True, text=True)
-    if r.returncode != 0:
-        raise RuntimeError(f'xa65 failed:\n{r.stdout}\n{r.stderr}')
-    with open(obj, 'rb') as f:
-        code = f.read()
+    from src.composer_runtime import assemble
+    code = assemble(asm)
 
     # PSID header
     songs = len(inputs.subtunes) + (len(inputs.sfx_list) if inputs.has_sfx else 0)
@@ -5519,14 +5510,11 @@ def _dispatch_simple_shape_asm(
 
 
 def _assemble(asm_src: str, tmp_basename: str = 'composer') -> bytes:
-    src = f'/tmp/{tmp_basename}.s'
-    obj = f'/tmp/{tmp_basename}.bin'
-    with open(src, 'w') as f:
-        f.write(asm_src)
-    r = subprocess.run([_XA, src, '-o', obj], capture_output=True, text=True)
-    if r.returncode != 0:
-        raise RuntimeError(f'xa65 failed:\n{r.stdout}\n{r.stderr}')
-    return open(obj, 'rb').read()
+    """Thin wrapper around the shared `src.composer_runtime.assemble`.
+    tmp_basename is ignored (the shared helper uses TemporaryDirectory
+    for concurrency-safe isolation)."""
+    from src.composer_runtime import assemble
+    return assemble(asm_src)
 
 
 def _psid_header(model: EngineModel, n_subtunes: int, load: int) -> bytes:
