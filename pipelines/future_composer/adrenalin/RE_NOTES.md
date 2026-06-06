@@ -85,96 +85,108 @@ its tables at `$17E3/$1842/$19AC/$1BA0` are valid. Subs 1/2/3 use a
 DIFFERENT engine at `$1000-$1FFF` (a second relocated FC engine copy
 with its own data layout).
 
-## Engine instances — comparative structure (2026-06-06 deeper RE)
+## Engine prefix bytes — observation only (2026-06-06)
 
-Comparing the engine prefix bytes across the per-subtune copies:
+Comparing the first 9 bytes at each per-subtune copy destination:
 
 ```
-Sub 0  $7A00: 4C B4 7A | 4C FC 7A | 4C 02 7B   ← engine A at $7A00
-Sub 2  $1000: 4C 00 CD | 4C FC 10 | 4C 02 11   ← engine B at $1000
-Sub 3  $1000: 4C 00 9D | 4C FC 10 | 4C 02 11   ← engine B at $1000
-Sub 1  $1021: A2 00 CE 90 10 30 0C 20 26 ...   ← engine C at $1021 (no JMP prefix)
+Sub 0  $7A00: 4C B4 7A | 4C FC 7A | 4C 02 7B   (engine code already in raw binary)
+Sub 2  $1000: 4C 00 CD | 4C FC 10 | 4C 02 11   (post-init at $1000)
+Sub 3  $1000: 4C 00 9D | 4C FC 10 | 4C 02 11   (post-init at $1000)
+Sub 1  $1021: A2 00 CE 90 10 30 0C 20 26       (post-init at $1021, no JMP prefix)
 ```
 
-**Key observation:** sub 2 and sub 3's engines at `$1000` have the SAME
-relative-offset structure as sub 0's engine at `$7A00` — second JMP
-to `+$FC`, third JMP to `+$102` in both. So engine B (`$1000`) is
-"engine A relocated from $7A00 to $1000" — same FC family code, same
-internal labels, different base address. The first JMP differs
-(`$7AB4`/`$CD00`/`$9D00`) — that's the songinit routine which is
-per-tune.
+Measured directly via `_run_init_in_py65(sub=2)`: of the first 2048
+bytes at offset 0 (i.e., comparing `$7A00..$81FF` to `$1000..$17FF`),
+**1578/2048 = 77.1% bytes are identical**. The matching positions
+include relative offsets `$FC` and `$102` (the 2nd and 3rd JMP
+targets) and other internal labels.
 
-Sub 1's engine C at `$1021` doesn't have the JMP prefix; its play
-vector points directly at `$1021`. Different layout — possibly an
-entry shim that calls into a shared body at `$1000+`. (TBD — needs
-disasm of sub 1's $575D source after copying to $1021.)
+This is consistent with **two distinct hypotheses** that the seed
+disasm alone cannot distinguish:
 
-**Implication for the implementation:**
+1. **Multi-engine.** Adrenalin has multiple distinct engine instances:
+   engine A statically present in the binary at `$7A00`, engine B
+   copied into `$1000` at init (same family code, relocated). The 77%
+   match is the byte-identical portion of relocated code; the 23%
+   difference is the address operands that had to be rebased.
 
-The composer doesn't need 3 separate engine implementations. It needs:
-- One FC engine emitter (the existing featuredriven_addr_shift path)
-  parameterised by base address — so it can emit at `$7A00` for sub 0
-  OR at `$1000` for subs 2/3.
-- Per-subtune init copy data (src → dst → size).
-- Per-subtune SMC play vector + songinit address.
-- Sub 1's $1021 engine entry: needs disasm to confirm what it is.
+2. **Single engine + per-subtune data overlay.** Adrenalin has ONE
+   engine at `$7A00` and the per-subtune copies place **data only**
+   (with some shim/trampoline bytes that happen to start with JMP-
+   shaped bytes because those are part of the packed data structure).
+   The `JMP $CD00` at `$1000` is never executed; PSID's SMC'd play
+   vector at `$1006` (= `JMP $1102`) trampolines into the `$7A00`
+   engine.
 
-This is more tractable than I worried: the existing composer already
-parameterises engine addresses; it just needs to be called twice
-(once for each engine instance) and the resulting bytes laid out in
-the PSID at distinct positions.
+Without a hand-annotated disassembly of BOTH `$7A00..$81FF` AND
+`$1000..$1FFF` (post-init), I cannot rule out either hypothesis.
+**Speculation prior to that disasm was a protocol violation per
+`feedback_check_existing_engine_docs`.**
 
-## Implementation plan (for next session — multi-session work)
+## Required next session — full decompile (protocol Step 0)
 
-### Phase 1: extend FCConfig schema
-Add `engine_instances: list[EngineInstance]` (optional). Each
-EngineInstance carries:
-- subtune indices that use it (e.g., `[0]` for sub 0, `[2, 3]` for subs 2/3)
-- engine base address (e.g. `$7A00` or `$1000`)
-- copy source/dest/size (for init)
-- play vector (for init SMC)
-- All the runtime address fields currently on FCConfig (freq_lo, freq_hi,
-  instr_records, pattern_ptr, per_subtune_speed, aux tables ...)
+Before any FCConfig / composer / USF schema work, do the following
+in order:
 
-Single-engine canaries (Hawkeye, Cyb II) keep using top-level fields;
-multi-engine canaries use the list.
+1. **Read the family-wide docs** at `pipelines/future_composer/docs/`
+   (FC v4.1 manual, `csdb_fc_v4_player_disasm.md`, lineage notes) —
+   already exist; haven't been fully consulted yet for this RE.
 
-### Phase 2: extend extract path
-For each EngineInstance, run the extract pipeline → produce per-engine
-musical content. Reconcile cross-engine data (e.g., common freq table)
-if applicable.
+2. **Hand-annotate engine A** at `$7A00..$81D0` from the existing
+   seed `disassembly.s` (967 lines, auto-traced). Identify structural
+   labels: playirq, songinit, nolengset, arpset, the per-frame voice
+   loop, etc. Use Hawkeye's `disassembly.s` as a model for annotation
+   style.
 
-### Phase 3: extend USF schema
-Decide whether to store multi-engine USFs as a single file with
-sub-blocks per engine, or as multiple USFs (one per engine). Simpler:
-single USF with `subtunes` referencing per-engine pattern/instrument
-pools.
+3. **Generate and hand-annotate engine B** at `$1000..$1FFF`
+   post-init. Use `_run_init_in_py65(sub=2)` to capture the post-init
+   memory, write it as a synthetic SID, seed-disassemble with
+   `tools/seed_disassembly.py --entry 0x1003 --entry 0x1006`, then
+   hand-annotate.
 
-### Phase 4: extend composer
-Emit each engine instance at its base address, then emit the init
-copy table + play vector SMC table. PSID's play vector = `$50E0`-ish
-(the init code), which SMCs the actual play handler per subtune.
+4. **Compare engine A vs engine B routine-by-routine.** Determine
+   from evidence whether engine B is:
+   - engine A relocated (multi-engine hypothesis), or
+   - a small trampoline that JSRs into engine A (single-engine
+     hypothesis with shim).
 
-### Phase 5: address sub 1's $1021 engine entry
-Disasm sub 1 source to determine whether it's a shim, a different
-engine, or something else.
+5. **Generate and hand-annotate the sub 1 source** at `$575D..$61CF`
+   (copies to `$1021`). This one has no JMP prefix — its structural
+   purpose is genuinely unknown from current evidence.
 
-### Phase 6: verify byte-exact across all 4 subtunes
-Iterate. Likely surfaces new feature paths the composer doesn't
-handle yet.
+6. **Determine FC v4 / FC v4.1 player layout.** Some FC variants
+   support per-subtune player code as an explicit feature. If
+   Adrenalin uses that mechanism, the existing FC docs may describe
+   it.
 
-### Estimated scope
-- Phase 1-2: 1 session (schema + extract for sub 0 + sub 2)
-- Phase 3-4: 1-2 sessions (composer multi-engine emission)
-- Phase 5: 1 session (sub 1 RE)
-- Phase 6: 1+ sessions (byte-exact iteration)
+7. **Only THEN** decide multi-engine vs single-engine architecture
+   and write the FCConfig.
 
-Total: ~4-5 sessions. The Hawkeye migration took similar — this is
-within the same complexity envelope.
+## What's already in place for either outcome
 
-## Decision needed before continuing
+Phase 1 schema + Phase 2 extract refactor commits (`55c1f98`,
+`5c5a4c3`, `6b60f4c`) added general infrastructure:
 
-Three options for what canary #3 actually covers:
+- `EngineInstance` dataclass + `instance_for_subtune` /
+  `resolve_address` helpers on `FCConfig`.
+- `_run_init_in_py65` to capture post-init memory.
+- `extract()` is multi-engine aware via `engine=None` fallback for
+  single-engine SIDs — no behavior change for Hawkeye/Cyb II.
+
+These are general-purpose. If Adrenalin turns out single-engine,
+`FCConfig.engines = None` and the new infrastructure simply isn't
+used for this canary; it remains available for genuinely multi-engine
+SIDs if one is encountered later.
+
+If Adrenalin IS multi-engine, the infrastructure is ready and the
+FCConfig only needs the EngineInstance tuple filled in based on the
+hand-annotated disasm.
+
+## Decision NOT YET MADE — pending full decompile
+
+Three options for what canary #3 actually covers (DO NOT pick one
+before the hand-annotated disasm work above is complete):
 
 1. **Adrenalin sub 0 only** as a single-subtune canary. The engine
    at `$7A00` matches Hawkeye/Cyb II's shape (we already found the

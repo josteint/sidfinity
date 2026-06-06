@@ -8,7 +8,7 @@ Run this module to dump the decoded model (will likely error until
 all addresses + knob choices are validated):
     python3 -m pipelines.future_composer.adrenalin.config
 """
-from pipelines.future_composer.config import FCConfig, EngineInstance
+from pipelines.future_composer.config import FCConfig
 
 
 # Address verification (from py65 init + disassembly grep):
@@ -82,53 +82,13 @@ ADRENALIN = FCConfig(
     # voice_loop_layout='tight_nextvoice',
     # nextvoice_write_order=(4, 0, 1, 2, 3),
 
-    # ---- Multi-engine instances (from init copy table $514E-$5175) ----
-    # Sub 0 uses engine A at $7A00 (the one we disassembled). Subs 2/3
-    # use engine B at $1000 (same FC code, relocated; same +$FC and
-    # +$102 relative-offset structure). Sub 1 uses entry C at $1021
-    # (no JMP prefix — likely a shim into engine B). The top-level
-    # address fields above reflect engine A (sub 0); the EngineInstance
-    # overrides for subs 1/2/3 carry their distinct addresses.
-    engines=(
-        EngineInstance(
-            name='engine_a_7A00',
-            subtune_indices=(0,),
-            copy_src_addr=0x5176,
-            copy_dst_addr=0x17F3,
-            copy_size=0x06E7,
-            play_vector=0x7A06,
-            # Top-level field defaults apply (engine A IS the top-level).
-        ),
-        EngineInstance(
-            name='engine_b_1000_sub1',
-            subtune_indices=(1,),
-            copy_src_addr=0x575D,
-            copy_dst_addr=0x1021,
-            copy_size=0x0A73,
-            play_vector=0x1021,
-            # TODO: per-engine runtime address overrides — engine B has
-            # its own freq_lo/hi, instr_records, etc. at offsets within
-            # the $1000-$1FFF block. Find via disasm.
-        ),
-        EngineInstance(
-            name='engine_b_1000_sub2',
-            subtune_indices=(2,),
-            copy_src_addr=0x60D0,
-            copy_dst_addr=0x1000,
-            copy_size=0x0DDD,
-            play_vector=0x1006,
-            # TODO: per-engine runtime address overrides
-        ),
-        EngineInstance(
-            name='engine_b_1000_sub3',
-            subtune_indices=(3,),
-            copy_src_addr=0x6DAD,
-            copy_dst_addr=0x1000,
-            copy_size=0x0D51,
-            play_vector=0x1006,
-            # TODO: per-engine runtime address overrides
-        ),
-    ),
+    # ---- engines tuple: NOT SET until evidence determines whether
+    # ---- Adrenalin is truly multi-engine or single-engine-with-relocated-
+    # ---- data-copies. The 77% byte match between engine at $7A00 (sub 0)
+    # ---- and the $1000 area (subs 2/3) suggests the latter. Determining
+    # ---- requires hand-annotated disassembly of both regions per the
+    # ---- protocol in feedback_check_existing_engine_docs.md.
+    # engines=(...),
 )
 
 
