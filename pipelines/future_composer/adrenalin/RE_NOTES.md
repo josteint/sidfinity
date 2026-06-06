@@ -9,6 +9,74 @@
 canaries (Hawkeye, Cybernoid_II). See `docs/canary_picker.md` row 3
 of engine #4 (MoN/FutureComposer).
 
+## Addresses found (2026-06-06)
+
+From py65 init + disassembly grep:
+
+| Address | Meaning | Verification |
+|---|---|---|
+| `$17E3` | lonote (freq_lo) | `$17E3+$48 = $0C` matches Hawkeye freq idx $48 lo |
+| `$1842` | hinote (freq_hi) | `$1842+$48 = $47` matches Hawkeye freq idx $48 hi |
+| `$18A1` | per_subtune_speed | 4 bytes `$02 $02 $01 $01` for 4 subtunes |
+| `$18A5` + `$18A7` | subtune seq-base pointer table | X-indexed lo (`$18A5+X`) + hi (`$18A7+X`) — engine SMCs LDA at `$7ACA` with these |
+| `$18B5` | runtime 6-byte per-voice seq ptr slot | copied from subtune base at init |
+| `$19AC` | instr_records | 8 bytes/inst, byte layout matches Hawkeye (+0 pulse_hi, +1 ctrl, +2 AD, +3 SR, +4 fil_count, +5 fx1, +6 fx2, +7 fx3) |
+| `$1BA0` | pattern_ptr_table | 2 bytes/entry lo,hi (e.g. `$1BA0..$1BAF = {$001C, $061C, $341C, $451C, $561C, $7A1C, $8E1C, $B31C}`) |
+
+Code-side identification points:
+- Nolengset (new-note play) at `$7C8B-$7CB8`
+- Inst record load at `$7CCA-$7DE9`
+- Pattern dispatch + ASL+TAY+SMC at `$7BAC-$7BB9`
+- Sequence-byte read via `($75),Y` indirect at `$7BC9`
+
+## Structural finding: data tables populated at init
+
+Adrenalin's data tables (lonote at `$17E3`, hinote at `$1842`,
+per_subtune_speed at `$18A1`, instr_records at `$19AC`,
+pattern_ptr_table at `$1BA0`) all live in **low memory `$17xx-$1Bxx`**
+— BELOW the binary's load address (`$50E0`). They're zeroes in the
+raw binary. At init time the engine code at `$50E0`-`$7AB3` copies
+packed source data from higher addresses into `$17xx-$1Bxx`.
+
+Source addresses found so far (via signature match in raw binary):
+| Runtime addr | Source addr | What |
+|---|---|---|
+| `$17E3` (lonote) | `$68B3` | Canonical FC lonote bytes (`1C 2D 3E 51 66 7B ...`) found in raw binary at `$68B3` |
+| `$1842` (hinote) | ? | Find by sig "01 01 01 01 01 01 01 02 02 02..." in raw binary |
+
+**This is a NEW extract-path shape vs Hawkeye/Cyb II**, both of which
+have data tables directly at their runtime addresses in the raw binary
+(engine loads its data tables to their final positions).
+
+Two options for the extract path:
+1. **Run init in py65 first** to populate `$17xx-$1Bxx`, then read
+   addresses from post-init memory. Cleanest. Requires extending
+   `engine_model.py::extract` to optionally run init (a new FCConfig
+   field like `requires_init=True`).
+2. **Find all source addresses in the raw binary** and update the
+   FCConfig addresses to source rather than runtime. Requires
+   understanding the init copy mechanism in detail.
+
+For byte-exact rebuild, the rebuild MUST place the source data at
+the source addresses (so the init copy produces matching post-init
+state). So either way, the source addresses are what get written
+into the rebuild's data emission.
+
+## Unknown — TODO next session
+
+- `subtune_layout`: new shape (X-indexed lo+hi pointer table + 6-byte
+  runtime slot at `$18B5`). Provisional `'flat_seqtabel'` in config;
+  may need a new SubtuneLayout variant if extractor fails.
+- `instr_count`: count from `$19AC` records area.
+- `max_patterns`: count from `$1BA0..` table extent.
+- Aux tables (`drumtabel`, `filterbytes`, `arplo`, `arphi`, `pulsetabel`,
+  `vibtabwait`, `startlen`, `starttabel`, `wavearp`, `pulsearp`):
+  not yet located.
+- `voice_loop_layout`, `noise_tick_style`, `nextvoice_write_order`, all
+  other Cyb II/Hawkeye discriminator knobs: provisionally Cyb II
+  defaults; verify by examining the per-voice loop tail + drum effect
+  in the disasm.
+
 ## Status (2026-06-06)
 
 **Stalled at structural discovery.** The runtime layout differs
