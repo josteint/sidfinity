@@ -85,6 +85,93 @@ its tables at `$17E3/$1842/$19AC/$1BA0` are valid. Subs 1/2/3 use a
 DIFFERENT engine at `$1000-$1FFF` (a second relocated FC engine copy
 with its own data layout).
 
+## Engine instances — comparative structure (2026-06-06 deeper RE)
+
+Comparing the engine prefix bytes across the per-subtune copies:
+
+```
+Sub 0  $7A00: 4C B4 7A | 4C FC 7A | 4C 02 7B   ← engine A at $7A00
+Sub 2  $1000: 4C 00 CD | 4C FC 10 | 4C 02 11   ← engine B at $1000
+Sub 3  $1000: 4C 00 9D | 4C FC 10 | 4C 02 11   ← engine B at $1000
+Sub 1  $1021: A2 00 CE 90 10 30 0C 20 26 ...   ← engine C at $1021 (no JMP prefix)
+```
+
+**Key observation:** sub 2 and sub 3's engines at `$1000` have the SAME
+relative-offset structure as sub 0's engine at `$7A00` — second JMP
+to `+$FC`, third JMP to `+$102` in both. So engine B (`$1000`) is
+"engine A relocated from $7A00 to $1000" — same FC family code, same
+internal labels, different base address. The first JMP differs
+(`$7AB4`/`$CD00`/`$9D00`) — that's the songinit routine which is
+per-tune.
+
+Sub 1's engine C at `$1021` doesn't have the JMP prefix; its play
+vector points directly at `$1021`. Different layout — possibly an
+entry shim that calls into a shared body at `$1000+`. (TBD — needs
+disasm of sub 1's $575D source after copying to $1021.)
+
+**Implication for the implementation:**
+
+The composer doesn't need 3 separate engine implementations. It needs:
+- One FC engine emitter (the existing featuredriven_addr_shift path)
+  parameterised by base address — so it can emit at `$7A00` for sub 0
+  OR at `$1000` for subs 2/3.
+- Per-subtune init copy data (src → dst → size).
+- Per-subtune SMC play vector + songinit address.
+- Sub 1's $1021 engine entry: needs disasm to confirm what it is.
+
+This is more tractable than I worried: the existing composer already
+parameterises engine addresses; it just needs to be called twice
+(once for each engine instance) and the resulting bytes laid out in
+the PSID at distinct positions.
+
+## Implementation plan (for next session — multi-session work)
+
+### Phase 1: extend FCConfig schema
+Add `engine_instances: list[EngineInstance]` (optional). Each
+EngineInstance carries:
+- subtune indices that use it (e.g., `[0]` for sub 0, `[2, 3]` for subs 2/3)
+- engine base address (e.g. `$7A00` or `$1000`)
+- copy source/dest/size (for init)
+- play vector (for init SMC)
+- All the runtime address fields currently on FCConfig (freq_lo, freq_hi,
+  instr_records, pattern_ptr, per_subtune_speed, aux tables ...)
+
+Single-engine canaries (Hawkeye, Cyb II) keep using top-level fields;
+multi-engine canaries use the list.
+
+### Phase 2: extend extract path
+For each EngineInstance, run the extract pipeline → produce per-engine
+musical content. Reconcile cross-engine data (e.g., common freq table)
+if applicable.
+
+### Phase 3: extend USF schema
+Decide whether to store multi-engine USFs as a single file with
+sub-blocks per engine, or as multiple USFs (one per engine). Simpler:
+single USF with `subtunes` referencing per-engine pattern/instrument
+pools.
+
+### Phase 4: extend composer
+Emit each engine instance at its base address, then emit the init
+copy table + play vector SMC table. PSID's play vector = `$50E0`-ish
+(the init code), which SMCs the actual play handler per subtune.
+
+### Phase 5: address sub 1's $1021 engine entry
+Disasm sub 1 source to determine whether it's a shim, a different
+engine, or something else.
+
+### Phase 6: verify byte-exact across all 4 subtunes
+Iterate. Likely surfaces new feature paths the composer doesn't
+handle yet.
+
+### Estimated scope
+- Phase 1-2: 1 session (schema + extract for sub 0 + sub 2)
+- Phase 3-4: 1-2 sessions (composer multi-engine emission)
+- Phase 5: 1 session (sub 1 RE)
+- Phase 6: 1+ sessions (byte-exact iteration)
+
+Total: ~4-5 sessions. The Hawkeye migration took similar — this is
+within the same complexity envelope.
+
 ## Decision needed before continuing
 
 Three options for what canary #3 actually covers:
