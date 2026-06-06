@@ -2900,6 +2900,20 @@ def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
     else:
         snelheid_len = cfg.music_subtune_count + 1
 
+    # Principled data tail: build the USF-derived music-data block (patterns
+    # + pattern_ptr_table + sequences + seqtabel) into fresh space past the
+    # verbatim tail, and redirect the engine's pointers (pattern_ptr_table
+    # equate + song-init's seqtabel address) at it. The verbatim tail still
+    # emits (its aux tables stay live; the old music data goes dead).
+    music_data = None
+    if cfg.emit_data_from_usf:
+        from pipelines.future_composer.data_emit import build_music_data
+        music_base = code_end + shift
+        music_data = build_music_data(music_subs, music_base)
+        cfg = _dc.replace(cfg,
+            seqtabel_addr=music_data['seqtabel_addr'],
+            pattern_ptr_addr=music_data['pattern_ptr_addr'])
+
     raw_sections = [
         ('freq_lo',  cfg.freq_lo_addr,
                      cfg.freq_lo_addr + cfg.freq_table_entries),
@@ -3079,6 +3093,20 @@ def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
         lines.append('')
         cursor = tail_end_dest
 
+    # Principled music-data block (USF-derived patterns/sequences/tables),
+    # placed right after the verbatim tail. The pattern_ptr_table equate +
+    # song-init seqtabel address (set above) point into here.
+    if music_data is not None:
+        base = music_data['base']
+        lines.append(f'; --- USF-derived music data ${base:04X}..'
+                     f'${base + music_data["size"] - 1:04X} '
+                     f'(seqtabel + pattern_ptr_table + patterns + sequences, '
+                     f'{music_data["n_slots"]} pattern slots) ---')
+        lines.append(f'* = ${base:04X}')
+        lines.append(_emit_byte_list('music_data', music_data['block']))
+        lines.append('')
+        cursor = base + music_data['size']
+
     # For SMC layout, state arrays are parked AFTER the verbatim tail
     # (engine code + state would overflow into data tables otherwise).
     # IMPORTANT: xa65 doesn't auto-pad gaps between `* = $XXXX`
@@ -3089,7 +3117,7 @@ def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
     # Park state past the end of the verbatim tail (= original SID body
     # end). For both flat and SMC layouts. shift accounts for any
     # featuredriven_addr_shift in effect.
-    state_addr = (((code_end + shift) + 0xFF) & ~0xFF)
+    state_addr = ((cursor + 0xFF) & ~0xFF)
     lines.append(f'; --- state arrays parked at ${state_addr:04X} '
                  f'(past HVSC SID end) ---')
     lines.append(f'        .dsb ${state_addr:04X} - *, 0  ; pad gap '

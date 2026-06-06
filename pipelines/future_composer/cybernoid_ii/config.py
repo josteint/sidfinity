@@ -41,6 +41,7 @@ CYBERNOID_II = FCConfig(
 
     subtune_layout='flat_seqtabel',
     seqtabel_addr=0xAEEF,
+    emit_data_from_usf=True,
 
     # Cybernoid II's freq table is 87 entries (NOT a full 8-octave 96)
     # — the table truncates partway through the top octave. The source
@@ -48,7 +49,9 @@ CYBERNOID_II = FCConfig(
     # rows of 12, giving 87.
     freq_table_entries=87,
     instr_count=19,
-    max_patterns=33,
+    max_patterns=34,   # sequences reference pattern 33 (dup of 29); 33 was
+                       # one short and dropped it (only mattered once the
+                       # composer emits patterns from USF, not verbatim).
 
     # Aux-table addresses (found by disassembling the engine's
     # `lda <addr>,X` references):

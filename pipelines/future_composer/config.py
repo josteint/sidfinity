@@ -287,6 +287,14 @@ class FCConfig:
     # still reads from the unshifted addresses (HVSC's actual layout).
     featuredriven_addr_shift: int = 0
 
+    # Principled data tail. When True, the featuredriven composer emits the
+    # patterns + pattern_ptr_table + sequences + seqtabel from USF content
+    # (into a fresh music-data block, pointers redirected there) instead of
+    # carrying them verbatim from the orig binary. Aux tables (drumtabel,
+    # filterbytes, ...) stay verbatim until their own phases. When False
+    # (default), the whole data tail is verbatim.
+    emit_data_from_usf: bool = False
+
     # SFX seq-stream destination address. For smc_template_with_sfx
     # engines, sub_song_init copy3 writes 256 bytes from $SFX_page+$1A
     # to this address. Orig location for Hawkeye is $8FC5; declared
