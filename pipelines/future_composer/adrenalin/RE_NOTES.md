@@ -124,6 +124,60 @@ Without a hand-annotated disassembly of BOTH `$7A00..$81FF` AND
 **Speculation prior to that disasm was a protocol violation per
 `feedback_check_existing_engine_docs`.**
 
+## Critical reframing via family docs (2026-06-06 session 2)
+
+Reading `pipelines/future_composer/docs/wiki_mon_driver_disasm.md` +
+`wiki_fc_v41_manual.md`: the **entire MoN/FC driver family is
+canonically single-engine** — one player at a fixed base, multi-
+subtune via `LDA #subtune / JSR init`. Across Deenen/Tel/Bjerregaard
+MoN, FC V1-V5: all single-engine. Hawkeye and Cybernoid II conform.
+
+Adrenalin's runtime arrangement (per-subtune SMC of the play vector
+into 3 different engine copies) is **non-canonical for the family**.
+Likely explanation: HeatWave (1991) wrote a custom launcher around an
+FC-family engine to pack 4 subtunes into memory where a single
+$1800-based engine couldn't fit them all (the data for each subtune
+exceeds the address-space allowance the engine code reserves).
+
+### Applying the CORE TENET
+
+> The verification target is the SID write-log stream, not the engine
+> code structure. The composer is FREE to invent any runtime
+> architecture that produces the same writes.
+
+For our rebuild:
+
+- The PRODUCED `.sidfinity.sid` does NOT need to mirror Adrenalin's
+  3-engine-instance memory layout.
+- A single canonical FC engine handling all 4 subtunes (the standard
+  Hawkeye/Cyb II shape) is allowed — and is the right target — IF the
+  per-subtune writelog matches HVSC's original.
+- This collapses the previously-imagined "multi-engine composer
+  emission" (Phase 4 in the reverted plan) to standard composer work.
+
+What we still need from RE:
+
+- **Per-subtune DATA extraction**, possibly from different runtime
+  addresses (sub 0 reads `$17E3`/`$1842`/`$19AC`/`$1BA0`; subs 1/2/3
+  read addresses inside `$1000-$1FFF` we haven't located yet). The
+  `_run_init_in_py65` helper + the resolve_address infrastructure
+  from Phase 1/2 fits this purpose exactly — extract per subtune
+  from the post-init memory.
+- **Hand-annotated disassembly of engine A at $7A00** to confirm it's
+  a recognizable FC variant + identify its read-address knobs (so
+  the composer can emit a canonical single-engine equivalent).
+- Engine B at $1000 may or may not need disasm depending on whether
+  it's confirmed-relocated engine A (77% match suggests yes) — if it
+  is, we don't need to RE engine B beyond confirming the relocation;
+  we just need to know engine B's read addresses for subs 2/3 data
+  extraction.
+- Sub 1's `$1021` entry: still TBD.
+
+This is a SIMPLER scope than the reverted multi-engine plan. The
+Phase 1/2 infrastructure (EngineInstance schema + resolve_address +
+extract refactor) directly supports per-subtune extract — that
+infrastructure is the right shape for this work.
+
 ## Required next session — full decompile (protocol Step 0)
 
 Before any FCConfig / composer / USF schema work, do the following
