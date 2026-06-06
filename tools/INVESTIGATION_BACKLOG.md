@@ -26,6 +26,7 @@ roadmap.
 | `tools/voice_writelog.py` | Filter writelog to one voice's writes + auto-attribute each write to the likely engine routine (nolengset / pulse_prog / glide / etc.) | (in this file) |
 | `tools/pattern_stream_decode.py` | Decode FC pattern stream bytes as readable command list ($Cx wave/inst, $Fx markers, glide triples, etc.) Both pattern and seq streams. | (in this file) |
 | `tools/state_map_gen.py` + per-engine `state_map.py` annotations | Auto-derive state_diff map files from xa65 labels joined with per-engine state-address annotations. `--engine ENGINE --voice {1,2,3,all}`. | (in this file) |
+| `tools/disasm_diff.py` | Side-by-side compare orig disasm region vs composer emitter. Auto-extracts the asm string from `_emit_*` functions. Visual aid for spotting structural differences during recipe step 3. | (in this file + CLAUDE.md) |
 | `tools/seed_disassembly.py` | Generate a labelled disasm from a SID's binary as the starting point for hand-annotation. | (migrate-hubbard-engine skill) |
 
 ## Backlog (not built yet)
