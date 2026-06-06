@@ -111,7 +111,12 @@ int main(int argc, char* argv[])
             "                             M<frame>:<addr>=<val>[:<addr>=<val>...]\n"
             "                             When --memwatch is on, also emits |P:<count> giving the\n"
             "                             number of PSID play() invocations that fired in this\n"
-            "                             siddump frame. Used to diagnose Trap C alignment.\n",
+            "                             siddump frame. Used to diagnose Trap C alignment.\n"
+            "  --memwatch-on-write HEX HEX[,HEX...]  Event-driven memwatch. First HEX is the\n"
+            "                             trigger address (e.g. D404). The remaining list is the\n"
+            "                             RAM addresses to snapshot every time the CPU writes to\n"
+            "                             the trigger. Emits one E<idx>:<trigger=val>:<addr=val>...\n"
+            "                             line per event. Use for SMC / conditional-update traces.\n",
             argv[0]);
         return 1;
     }
@@ -130,6 +135,8 @@ int main(int argc, char* argv[])
     int pc_trace_start_frame = -1;
     int pc_trace_end_frame = -1;
     std::vector<uint16_t> memwatch_addrs;
+    uint16_t memwatch_event_trigger = 0;     // 0 = disabled
+    std::vector<uint16_t> memwatch_event_ram;
 
     for (int i = 2; i < argc; i++) {
         if (strcmp(argv[i], "--raw") == 0) {
@@ -156,6 +163,18 @@ int main(int argc, char* argv[])
                 unsigned long addr = strtoul(p, &end, 16);
                 if (end == p) break;
                 memwatch_addrs.push_back(static_cast<uint16_t>(addr));
+                p = end;
+                if (*p == ',') ++p;
+            }
+        } else if (strcmp(argv[i], "--memwatch-on-write") == 0 && i + 2 < argc) {
+            // Trigger addr (hex) + comma-list of RAM addrs to snapshot
+            memwatch_event_trigger = static_cast<uint16_t>(strtoul(argv[++i], nullptr, 16));
+            const char* p = argv[++i];
+            while (*p) {
+                char* end = nullptr;
+                unsigned long addr = strtoul(p, &end, 16);
+                if (end == p) break;
+                memwatch_event_ram.push_back(static_cast<uint16_t>(addr));
                 p = end;
                 if (*p == ',') ++p;
             }
@@ -302,6 +321,11 @@ int main(int argc, char* argv[])
         engine.setPlayAddr(info->playAddr());
     }
 
+    // Wire memwatch-on-write event capture
+    if (memwatch_event_trigger != 0 && !memwatch_event_ram.empty()) {
+        engine.setMemWatchOnWrite(memwatch_event_trigger, memwatch_event_ram);
+    }
+
     // Initialize mixer (needed for play() to work)
     engine.initMixer(false); // mono
 
@@ -402,6 +426,21 @@ int main(int argc, char* argv[])
             printf("|P:%llu", (unsigned long long) engine.getPlayCount());
             engine.clearPlayCount();
             anyNonZero = true;  // memwatch alone counts as "doing something"
+        }
+
+        // Append per-frame memwatch-on-write events
+        if (memwatch_event_trigger != 0 && !memwatch_event_ram.empty()) {
+            size_t n = engine.getMemWatchEventCount();
+            for (size_t e = 0; e < n; e++) {
+                auto ev = engine.getMemWatchEvent(e);
+                printf("|E%zu:%04X=%02X", e, (unsigned) ev.triggerAddr, ev.triggerVal);
+                for (size_t k = 0; k < ev.ramSnapshot.size(); k++) {
+                    printf(":%04X=%02X",
+                           memwatch_event_ram[k], ev.ramSnapshot[k]);
+                }
+            }
+            engine.clearMemWatchEvents();
+            if (n > 0) anyNonZero = true;
         }
 
         // Append full write log (all writes with cycle timing)

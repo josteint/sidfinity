@@ -183,6 +183,32 @@ void sidplayfp::clearPlayCount()
     sidplayer.clearPlayCount();
 }
 
+void sidplayfp::setMemWatchOnWrite(uint16_t triggerAddr,
+                                    const std::vector<uint16_t>& ramAddrs)
+{
+    sidplayer.setMemWatchOnWrite(triggerAddr, ramAddrs);
+}
+
+size_t sidplayfp::getMemWatchEventCount() const
+{
+    return sidplayer.getEventLog().size();
+}
+
+sidplayfp::MemWatchEvent sidplayfp::getMemWatchEvent(size_t i) const
+{
+    const auto& src = sidplayer.getEventLog()[i];
+    MemWatchEvent ev;
+    ev.triggerAddr = src.triggerAddr;
+    ev.triggerVal = src.triggerVal;
+    ev.ramSnapshot = src.ramSnapshot;
+    return ev;
+}
+
+void sidplayfp::clearMemWatchEvents()
+{
+    sidplayer.clearEventLog();
+}
+
 unsigned int sidplayfp::installedSIDs() const
 {
     return sidplayer.installedSIDs();

@@ -260,6 +260,27 @@ public:
     void clearPlayCount();
 
     /**
+     * Memwatch-on-event: snapshot a list of RAM addresses every time
+     * the CPU writes to a chosen trigger address. Use case: "show me
+     * the engine state at every write to $D404" — exposes SMC and
+     * conditional-update behavior that per-frame memwatch misses.
+     *
+     * After setMemWatchOnWrite, every cpuWrite(triggerAddr) appends a
+     * MemWatchEvent to the log. Query via getMemWatchEventCount() and
+     * getMemWatchEvent(i).
+     */
+    struct MemWatchEvent {
+        uint16_t triggerAddr;
+        uint8_t triggerVal;
+        std::vector<uint8_t> ramSnapshot;
+    };
+    void setMemWatchOnWrite(uint16_t triggerAddr,
+                             const std::vector<uint16_t>& ramAddrs);
+    size_t getMemWatchEventCount() const;
+    MemWatchEvent getMemWatchEvent(size_t i) const;
+    void clearMemWatchEvents();
+
+    /**
      * Get the required size of the buffer for the number of cycles to run,
      * approximate value by excess.
      * The mixer must have been initialized before with #initMixer

@@ -180,6 +180,14 @@ public:
     uint64_t getPlayCount() const { return m_c64.getCpuBus().getPlayCount(); }
     void clearPlayCount() { m_c64.getCpuBus().clearPlayCount(); }
 
+    // Memwatch-on-event: see c64cpubus::setMemWatchOnWrite.
+    void setMemWatchOnWrite(uint16_t triggerAddr,
+                             const std::vector<uint16_t>& ramAddrs)
+    { m_c64.getCpuBus().setMemWatchOnWrite(triggerAddr, ramAddrs); }
+    const std::vector<libsidplayfp::c64cpubus::EventRecord>& getEventLog() const
+    { return m_c64.getCpuBus().getEventLog(); }
+    void clearEventLog() { m_c64.getCpuBus().clearEventLog(); }
+
     unsigned int installedSIDs() const { return m_chips.size(); }
 
     void initMixer(bool stereo);
