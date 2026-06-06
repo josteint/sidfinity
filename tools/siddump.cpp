@@ -235,10 +235,19 @@ int main(int argc, char* argv[])
     // PAL:  63 cycles/line × 312 lines = 19656, + 32 margin
     // NTSC: 65 cycles/line × 263 lines = 17095, + 32 margin
     // The margin ensures we always cross the raster trigger point.
-    // NOTE: the 32-cycle margin causes ~8c/frame measurement drift relative
-    // to VBI timing. This is unavoidable without play()-synchronous sampling.
-    // Register diffs caused by this drift are measurement artifacts, not
-    // actual player differences. See docs/player_codegen_plan.md.
+    //
+    // *** TRAP C — read .claude/memory/feedback_verification_modes.md ***
+    // The +32 margin means each siddump "frame" processes usually 1,
+    // sometimes 0, sometimes 2 PSID `play()` invocations. This is fine
+    // for `--writelog` (the flat-prefix comparator in verify_cycle is
+    // robust to bucket shifts). But for `--memwatch`, RAM is sampled at
+    // the end of each `engine.play(cyclesPerFrame)` call, NOT at IRQ
+    // boundaries — state at siddump-frame N can differ from state-after-
+    // IRQ-N even when the engines are equivalent under Mode 1.
+    //
+    // Real fix: hook the PSID play() entry, sample writes+RAM per
+    // invocation, emit one record per IRQ. Tracked in
+    // tools/INVESTIGATION_BACKLOG.md under "siddump --play-aligned".
     unsigned int cyclesPerFrame = isPAL ? (63 * 312 + 32) : (65 * 263 + 32);
 
     int totalFrames = static_cast<int>(seconds * fps);

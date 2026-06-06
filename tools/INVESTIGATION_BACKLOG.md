@@ -28,6 +28,7 @@ roadmap.
 
 | Idea | Use case | Rough ROI | Build estimate |
 |---|---|---|---|
+| **`siddump --play-aligned` / `--writelog-per-irq`** (PRIORITY) | Hook the PSID `play()` vector and emit one writelog "frame" per IRQ invocation, not per `cyclesPerFrame`. ALSO let `--memwatch` capture at IRQ boundaries. Eliminates Trap C at the source (`feedback_verification_modes`). | Very high — Trap C burned a full Hawkeye sub 10 investigation. Without this, state_diff stays a hint-only tool. | 2-3 hours libsidplayfp overlay |
 | `tools/voice_writelog.py` | Filter writelog to one voice; auto-attribute writes to likely effects (AD/SR write = nolengset; freq-only = glide; etc.) | Saves 10-15 min/session on "which effect produced this write?" | 30 min |
 | `tools/pattern_stream_decode.py` | Given (SID, engine config, subtune, voice), decode pattern stream as human-readable command list | Saves 30-60 min/session on pattern-dispatch bugs | 1-2 hours, engine-specific |
 | `tools/disasm_diff.py` | Side-by-side compare orig disasm region vs composer emitter, with state-name alias substitution | Saves 15-20 min/session on effect comparisons | 1-2 hours |
@@ -40,7 +41,7 @@ roadmap.
 
 | Tool | Why it hurt | Resolution |
 |---|---|---|
-| (none yet — populate from experience) | | |
+| `tools/state_diff.py` (mitigated, not removed) | Misleads when siddump frame buckets are misaligned with PSID `play()` invocations (Trap C). Hawkeye sub 10 session: reported a `nootcount[V1]` "divergence" at f277 that turned out to be IRQ-count drift — orig had 0 IRQs in that siddump frame. Real bug was elsewhere. | KEPT — still useful for HINTS when cross-checked against writelog. Added explicit caveat in docstring + runtime warning in output. Permanent fix: build `siddump --play-aligned` (PRIORITY in Backlog above) so memwatch samples at IRQ boundaries. Until then: any state_diff "divergence" MUST be cross-checked against `find_first_divergence.py` before trusting. |
 
 When entering: write what the tool was supposed to do, what it actually
 did (silent failures, wrong defaults, etc.), what to do (delete? fix?

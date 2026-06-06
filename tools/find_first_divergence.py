@@ -1,10 +1,22 @@
 #!/usr/bin/env python3
 """find_first_divergence.py — locate the first writelog mismatch between
-an HVSC original and a rebuilt SID.
+an HVSC original and a rebuilt SID. This is the Mode 1 ground truth
+localizer.
 
 Wraps the writelog → flat-stream → prefix-mismatch flow so a bug
 investigation can jump straight to "what register, what frame, what
 value" instead of writing the diagnostic from scratch.
+
+Mode 1 verdict (per `feedback_verification_modes`): the rebuild matches
+iff the per-`play()` write sequence matches the original frame by
+frame. This tool flattens writes across frames and finds the first
+`(reg, val)` mismatch. Robust against siddump frame-bucket drift
+(Trap C) because the flat sequence is invariant under bucket-boundary
+shifts.
+
+Within-frame cycle position is OBSERVATION only — same writes in the
+same order at different cycles within a frame are equivalent (Trap B).
+The `cycle` field in the output is for context, NOT a divergence signal.
 
 Usage:
     python3 tools/find_first_divergence.py ORIG.sid REBUILD.sid [opts]
@@ -19,8 +31,8 @@ Options:
 
 Output:
     First divergence position in the (reg, val) flat stream + the
-    frame number, cycle offset, register, both values, and the
-    register's voice + role (e.g. "V1 PW lo").
+    frame number, cycle offset (observation only — see Trap B above),
+    register, both values, and the register's voice + role.
 """
 from __future__ import annotations
 

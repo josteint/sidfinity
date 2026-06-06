@@ -26,6 +26,27 @@ Output:
 
 The point: collapse the "build a custom py65 trace from scratch"
 diagnostic into one command using libsidplayfp (ground truth, not py65).
+
+============================================================
+CAVEAT — this tool produces HINTS, not verdicts (Trap C)
+============================================================
+
+`siddump --memwatch` samples RAM at the end of each
+`engine.play(cyclesPerFrame)` call. cyclesPerFrame=19688 (PAL VBI=19656,
++32 margin), so each siddump "frame" processes usually 1, sometimes 0,
+sometimes 2 PSID `play()` invocations. State sampled at siddump-frame N
+is NOT necessarily what the engine had after IRQ N.
+
+A reported "state divergence at frame N" may be:
+  (a) a real engine bug, OR
+  (b) an IRQ-count misalignment between mine and orig (Trap C)
+
+ALWAYS cross-check against `tools/find_first_divergence.py` (the
+writelog flat-sequence ground truth). If writelog matches but state_diff
+reports a divergence, you're in Trap C — ignore the state hint.
+
+See `feedback_verification_modes.md` (under `.claude/memory/`) for the
+full Mode 1 / Mode 2 / Traps A,B,C framing.
 """
 from __future__ import annotations
 
@@ -136,6 +157,17 @@ def _format(result: dict) -> str:
             lines.append(
                 f'  {label:30s}  orig ${oa:04X}={ov_s}  '
                 f'rebuild ${ra:04X}={rv_s}')
+        lines.append('')
+        lines.append(
+            'CAVEAT (Trap C): siddump frame buckets are misaligned with PSID')
+        lines.append(
+            'play() invocations (19688 vs 19656 cycles). This "divergence" may')
+        lines.append(
+            'be IRQ-count drift rather than an engine bug. Cross-check against')
+        lines.append(
+            'tools/find_first_divergence.py — if writelog MATCHES at this point,')
+        lines.append(
+            'the engines are equivalent under Mode 1 and this is Trap C noise.')
     return '\n'.join(lines)
 
 

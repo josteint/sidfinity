@@ -46,6 +46,58 @@ If you find yourself reading a long disasm and asking "how do I mirror this
 structure," stop and ask "what writes does this produce in this frame?"
 instead.
 
+## The two verification modes — read alongside the CORE TENET
+
+The project has EXACTLY TWO modes for declaring a rebuild byte-exact.
+Anything else is wrong. Three traps eat hours of session time; each is
+explicitly documented.
+
+**Mode 1 — frame-by-frame instruction sequence (tracker music).**
+Each PSID `play()` invocation emits a finite, ordered sequence of writes
+to `$D400-$D418`. The rebuild matches iff that per-`play()` sequence
+matches the original, frame by frame, for the whole song. WITHIN a frame
+the ORDER of writes matters (gate edges, test bit, ADSR delay, $D418
+clicks). The CYCLE TIMESTAMPS within a frame do NOT. This is what 99% of
+HVSC needs.
+
+- Tool: `tools/siddump --writelog` (capture).
+- Comparator: `pipelines.hubbard.verify_cycle.compare_instruction_stream`
+  (flat-prefix over `(reg, val)`, cycle dropped). Robust against siddump
+  frame-bucket drift (Trap C).
+- Localizer: `tools/find_first_divergence.py`.
+
+**Mode 2 — cycle-exact (digi only).**
+For digi (sample playback timing IS the signal), every `(cycle, reg, val)`
+must match. Used for Chimera and similar.
+
+- Tool: same `--writelog`.
+- Comparator: `pipelines.hubbard.verify_cycle.compare_strict`.
+
+**Trap A — snapshotting registers instead of capturing the write
+sequence.** Half the early project did this. Loses within-frame writes
+and order. Never use register snapshots for Mode 1 verdict.
+
+**Trap B — chasing cycle-exactness for music.** Within-frame cycle
+position is observation, not signal. Don't try to make cycles match for
+tracker music; same writes in the same order at different cycles within
+a frame are equivalent.
+
+**Trap C — siddump frame buckets ≠ PSID `play()` invocations.** siddump
+runs 19688 cycles per loop iteration; PAL VBI is 19656. So per siddump
+"frame" the PSID `play()` vector fires usually 1, sometimes 0, sometimes
+2 times. Consequences:
+
+- `compare_instruction_stream` is ROBUST (flat concatenation across
+  frames; sequence is identical regardless of bucket boundary).
+- `tools/state_diff.py` (memwatch snapshots) is NOT robust — state is
+  sampled at siddump frame boundaries, not at IRQ boundaries. A state
+  "divergence" at siddump-frame N may be IRQ misalignment, not a real
+  engine bug. Cross-check against `find_first_divergence.py` (writelog
+  ground truth) before treating state_diff localization as a verdict.
+
+Full discussion (with worked Hawkeye examples for each trap) in
+[`feedback_verification_modes`](.claude/memory/feedback_verification_modes.md).
+
 ## Current state
 
 Composer rewrite is complete. The Hubbard '85 family lives entirely in
