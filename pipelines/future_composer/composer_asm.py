@@ -244,11 +244,14 @@ pulsetest:     .dsb 3, 0
 pulsecountup:   .dsb 1, 0            ; shared scratch — pulse_prog step value
                                      ; (NOT per-voice; reloaded each frame)
 
-; fx_pulse_run per-voice first-frame init flag (set on bit-clear frames,
-; consumed on bit-set first frame). Reuses pulsestolo as accumulator
-; and pulsehisto as pwhi shadow (safe — pulse_prog inactive when
-; pulse_run active).
+; fx_pulse_run per-voice state (orig $a69f/$a6a2/$a6a5 in Cyb II).
+; Kept SEPARATE from pulsestolo/pulsehisto: pulse_prog and pulse_run
+; both touch the d402/d403 shadow each frame but each maintains its
+; own state. On first-frame init, pulserun_hi seeds from pulsehisto
+; (pulse_prog's hi state) — see fx_pulse_run.
 pulserun_flag:   .dsb 3, 0
+pulserun_acc:    .dsb 3, 0            ; pulse_run accumulator (orig $a6a2)
+pulserun_hi:     .dsb 3, 0            ; pulse_run hi shadow (orig $a6a5)
 
 filtercount:    .dsb 3, 0
 filter:         .dsb 3, 0            ; per-voice filter cutoff shadow
@@ -711,36 +714,43 @@ def _emit_fx_pulse_run(cfg: FCConfig) -> str:
                 '        ; fall through (no-op)')
     if cfg.pulse_run_style == 'cyb2':
         return """        ; Cyb II fx_pulse_run: PW sweep at pulserunspeed.
-        ; Runs AFTER pp_store has copied pulsestolo→d402 / pulsehisto→d403,
-        ; so this routine must also re-sync the d402/d403 shadows that
-        ; the late write reads from.
+        ; Mirrors orig $ACE4-$AD24. Maintains SEPARATE state from
+        ; pulse_prog: pulserun_acc/pulserun_hi (vs pulsestolo/pulsehisto).
+        ; Both routines write to the shared d402/d403 shadows; pulse_run
+        ; runs AFTER pp_store so its shadow writes win for this frame.
         ;   bit clear → set per-voice flag (= "init next time bit goes on")
-        ;   bit set + flag set   → first-frame init: clear flag + pulsestolo
-        ;   bit set + flag clear → step: acc+=spd; on carry, walk pwhi
+        ;   bit set + flag set   → first-frame init: clear flag + acc,
+        ;                          seed pulserun_hi from pulsehisto
+        ;   bit set + flag clear → step: acc+=spd; on carry, walk pulserun_hi
         lda fx3sto
         and #$02
         beq fx_pulse_run_set_flag
         ldx wax
         lda pulserun_flag,x
         beq fx_pulse_run_step
+        lda pulsehisto,x             ; seed pulserun_hi from pulse_prog
+        sta pulserun_hi,x
         lda #0
         sta pulserun_flag,x
-        sta pulsestolo,x
+        sta pulserun_acc,x
 fx_pulse_run_step:
-        lda pulsestolo,x
+        lda pulserun_acc,x
         clc
         adc #pulserunspeed
-        sta pulsestolo,x
-        sta d402,x                   ; re-sync late-write shadow
-        bcc fx_double_voice
-        inc pulsehisto,x
-        lda pulsehisto,x
+        sta pulserun_acc,x
+        sta d402,x                   ; shadow d402
+        bcc fx_pulse_run_sync_pwhi   ; no carry → skip inc/wrap, still
+                                     ; need to write d403 (orig $AD1F
+                                     ; is unconditional)
+        inc pulserun_hi,x
+        lda pulserun_hi,x
         cmp #pulserun_pwhi_upper
         bne fx_pulse_run_sync_pwhi
         eor #pulserun_pwhi_wrap_xor
-        sta pulsehisto,x
+        sta pulserun_hi,x
 fx_pulse_run_sync_pwhi:
-        sta d403,x                   ; re-sync late-write shadow
+        lda pulserun_hi,x            ; ALWAYS load pulserun_hi (orig $AD1C)
+        sta d403,x                   ; ALWAYS write shadow (orig $AD1F)
         jmp fx_double_voice
 fx_pulse_run_set_flag:
         ldx wax
