@@ -2663,6 +2663,117 @@ def _xa65_assemble(asm_text: str, load_addr: int) -> bytes:
 # verbatim bytes one chunk at a time, verified via verify_asm writelog)
 # ---------------------------------------------------------------------------
 
+def _fixup_verbatim_pointers(mem: bytearray, cfg, shift: int,
+                              orig_first_data_addr: int) -> None:
+    """Rewrite 16-bit pointers in HVSC's verbatim source bytes so they
+    point to the shifted data positions. Mutates `mem` in place.
+
+    Without this, the composer emits pattern_ptr_table (and similar)
+    bytes verbatim from HVSC; the entries still contain unshifted
+    addresses that don't match the shifted data layout. The engine
+    reads those entries at runtime, follows them, gets garbage.
+
+    Tables fixed up (all in HVSC's verbatim aux/tail regions):
+      - pattern_ptr_table  (cfg.pattern_ptr_addr, max_patterns entries)
+      - drumtabel          (4 drums × 4 bytes = 2 ptrs each)
+      - filterbytes        (4 filter progs × 2-byte pointer)
+      - arplo + arphi      (split-byte pointers, 8 entries)
+      - SFX records        (first 6 bytes = V1/V2/V3 seq ptrs;
+                            next 20 bytes = SFX pattern ptr extension)
+
+    Conservative shift rule: only shift pointers whose VALUE is in the
+    data region [orig_first_data_addr .. $FFFF]. Engine-code addresses
+    (below orig_first_data_addr) are left alone — they typically refer
+    to engine subroutines that stay at their original location.
+    """
+    if shift == 0:
+        return
+    cutoff = orig_first_data_addr
+
+    def shift_at(lo_addr: int, hi_addr: int) -> None:
+        ptr = mem[lo_addr] | (mem[hi_addr] << 8)
+        if ptr >= cutoff:
+            new = (ptr + shift) & 0xFFFF
+            mem[lo_addr] = new & 0xFF
+            mem[hi_addr] = new >> 8
+
+    # cfg passed in is ALREADY shifted; convert back to unshifted for
+    # source reads.
+    def _u(a):
+        return a - shift if a else 0
+
+    # pattern_ptr_table: max_patterns entries, 2 bytes each.
+    base = _u(cfg.pattern_ptr_addr)
+    if base:
+        for n in range(cfg.max_patterns):
+            shift_at(base + n*2, base + n*2 + 1)
+
+    # drumtabel: each entry = 4 bytes = 2 ptrs (dwa, dto). Conservatively
+    # assume 4 drums (one full pulsetabel-style sweep would be 32 bytes).
+    base = _u(cfg.drumtabel_addr)
+    if base:
+        for drum in range(4):
+            shift_at(base + drum*4 + 0, base + drum*4 + 1)
+            shift_at(base + drum*4 + 2, base + drum*4 + 3)
+
+    # filterbytes: 4 filter programs × 2 bytes per pointer.
+    base = _u(cfg.filterbytes_addr)
+    if base:
+        for prog in range(4):
+            shift_at(base + prog*2, base + prog*2 + 1)
+
+    # arplo + arphi: SEPARATE arrays. arp[N] = (arplo[N], arphi[N]).
+    base_lo = _u(cfg.arplo_addr)
+    base_hi = _u(cfg.arphi_addr)
+    if base_lo and base_hi:
+        for n in range(8):
+            shift_at(base_lo + n, base_hi + n)
+
+    # Music subtune templates (smc_template_with_sfx layout). Each music
+    # subtune has a 6-byte template at (template_base_hi << 8) |
+    # SMC_byte. Format: 3 lo + 3 hi seq pointers (V1, V2, V3). These
+    # pointers reference seq streams which have moved with the shift.
+    if cfg.subtune_layout == 'smc_template_with_sfx':
+        already_fixed = set()
+        # per_subtune_smc_addr is now shifted; read SMC bytes from
+        # the unshifted source location in mem.
+        smc_src_base = _u(cfg.per_subtune_smc_addr)
+        for sub_idx in range(cfg.music_subtune_count):
+            smc_byte = mem[smc_src_base + sub_idx]
+            template_addr = (cfg.template_base_hi << 8) | smc_byte
+            if template_addr in already_fixed:
+                continue  # multiple subs may share a template
+            already_fixed.add(template_addr)
+            for v in range(3):
+                shift_at(template_addr + v, template_addr + 3 + v)
+
+    # SFX records (smc_template_with_sfx layout). Each SFX page record:
+    #   bytes 0..5: V1/V2/V3 seq pointers (lo3, hi3) — pointing to
+    #               sfx_seq_stream destination (= $8FC5 default).
+    #   bytes 6..$19: 20 bytes of pattern_ptr_table extension (10
+    #               2-byte pointers).
+    #   bytes $1A..$119: 256 bytes pattern data (not pointers).
+    if cfg.subtune_layout == 'smc_template_with_sfx' and cfg.sfx_page_base:
+        # Use the actual number of SFX subtunes from the PSID songs count
+        # minus music subs. Defaults to 6 if unclear. The cfg doesn't
+        # carry this directly; conservatively iterate up to 8 SFX records
+        # and skip rows whose mem bytes look empty.
+        for sfx_idx in range(8):
+            rec_base = (cfg.sfx_page_base
+                        + sfx_idx * cfg.sfx_page_stride) << 8
+            if rec_base + 0x1A > 0x10000:
+                break
+            # Probe: if all 6 leading bytes are 0, treat as empty/unused.
+            if all(mem[rec_base + i] == 0 for i in range(6)):
+                continue
+            # First 6 bytes: V1/V2/V3 seq pointers (lo3, hi3)
+            for v in range(3):
+                shift_at(rec_base + v, rec_base + 3 + v)
+            # Bytes 6..$19: pattern_ptr extension (10 × 2-byte ptrs)
+            for n in range(10):
+                shift_at(rec_base + 6 + n*2, rec_base + 6 + n*2 + 1)
+
+
 def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
                                   root: str | None = None
                                   ) -> tuple[str, int]:
@@ -2699,8 +2810,10 @@ def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
     # rebuild's chosen positions and the engine code's equates match.
     import dataclasses as _dc
     shift = cfg.featuredriven_addr_shift
+    orig_first_data_addr = cfg.freq_lo_addr  # capture BEFORE shifting
     if shift:
         def _s(a): return (a + shift) if a else 0
+        sfx_seq_default = (cfg.sfx_seq_stream_addr or 0x8FC5)
         cfg = _dc.replace(cfg,
             freq_lo_addr = _s(cfg.freq_lo_addr),
             freq_hi_addr = _s(cfg.freq_hi_addr),
@@ -2717,9 +2830,21 @@ def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
             vibtabwait_addr = _s(cfg.vibtabwait_addr),
             wavearp_addr = _s(cfg.wavearp_addr),
             pulsearp_addr = _s(cfg.pulsearp_addr),
-            # NOTE: per_subtune_smc_addr / template_base_hi NOT shifted —
-            # those reference HVSC's preserved SMC region (verbatim).
+            sfx_seq_stream_addr = sfx_seq_default + shift,
+            # per_subtune_smc_addr SHIFTED — the SMC byte table at $83FC
+            # is in the verbatim aux region (between snelheid + instr),
+            # not the preserved-SMC region $7AE6..$7B5F. Earlier comment
+            # was wrong.
+            per_subtune_smc_addr = _s(cfg.per_subtune_smc_addr),
+            # per_subtune_mode_addr ($7AFF) IS in the preserved region —
+            # not shifted. template_base_hi is a high byte, not an
+            # address — not shifted.
         )
+        # Fix up pointers in verbatim regions so they target the shifted
+        # data positions. Without this, pattern_ptr_table entries (and
+        # similar) emitted verbatim from HVSC still point to unshifted
+        # addresses where mine no longer has the data.
+        _fixup_verbatim_pointers(mem, cfg, shift, orig_first_data_addr)
 
     # Data sections (same as compose_fc_asm)
     music_subs = [s for s in usf.subtunes if isinstance(s, MusicSubtune)]
@@ -2773,7 +2898,11 @@ def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
         # bound. Each music subtune's template is 6 bytes at
         # (template_base_hi << 8) | smc_lo[N], so the last byte of the
         # highest-addressed template is max_smc_lo + 5.
-        smc_los = [mem[cfg.per_subtune_smc_addr + n]
+        # IMPORTANT: read SMC bytes from the UNSHIFTED location in mem
+        # (cfg.per_subtune_smc_addr is now shifted but mem still holds
+        # HVSC's bytes at the original address).
+        smc_src_addr = cfg.per_subtune_smc_addr - shift
+        smc_los = [mem[smc_src_addr + n]
                    for n in range(cfg.music_subtune_count)]
         preserve_end = (cfg.template_base_hi << 8) | (max(smc_los) + 5)
 

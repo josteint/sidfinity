@@ -124,11 +124,16 @@ HAWKEYE = FCConfig(
     # counter persists across notes.
     nolengset_resets_tonearpcounter=False,
 
-    # featuredriven_addr_shift=0x100 was tried to make room for the
-    # startnewnote PW direct writes, but breaks pointer tables in the
-    # verbatim aux region (HVSC data has embedded $84BB/$84CC etc.
-    # pointers that would need rewriting). Leave at 0.
-    # featuredriven_addr_shift=0,
+    # featuredriven_addr_shift: shift all data tables forward by N
+    # bytes to give engine code more room. The infrastructure
+    # (composer_asm.py _fixup_verbatim_pointers) is in place but Phase 2
+    # tested at 0x40 still loses music sub 1 + sub 5 (V3 drum-kick gets
+    # different pattern; one pointer family is incompletely tracked).
+    # Suspects: arp programs may contain non-pointer bytes my fixup
+    # treats as pointers, OR a pointer table I haven't enumerated
+    # (e.g., pulsetabel program addresses). Leave at 0 until the
+    # remaining pointer family is identified.
+    # featuredriven_addr_shift=0x40,
 )
 
 
