@@ -321,6 +321,62 @@ def _materialize_memory(load_addr: int, code: bytes) -> bytes:
     return bytes(mem)
 
 
+def _run_init_in_py65(sid_path: str, subtune: int,
+                      max_cycles: int = 10_000_000) -> bytes:
+    """Load the SID, run its PSID init handler in py65 with A=subtune,
+    return the 64K memory image after init returns.
+
+    For multi-engine FC SIDs (Adrenalin and similar) where data tables
+    live at runtime addresses that are BELOW the load address — populated
+    at init by a per-subtune memcpy. The raw-binary `_materialize_memory`
+    image has zeroes at those runtime addresses; running init populates
+    them.
+
+    For single-engine SIDs (Hawkeye, Cyb II) init still runs but it's
+    a no-op as far as data extraction goes — the runtime addresses
+    already hold their final values in the raw binary. Existing
+    `extract()` callers don't need this helper.
+
+    Termination: init returns to a fake RTS sentinel; the loop also
+    bails after `max_cycles` (default 10M) as a safety net.
+    """
+    import sys
+    sys.path.insert(0, 'tools/py65_lib')
+    from py65.devices.mpu6502 import MPU
+    from py65.memory import ObservableMemory
+
+    load_addr, init_addr, _play_addr, _n_songs, code = _load_psid(sid_path)
+    mem_bytes = _materialize_memory(load_addr, code)
+
+    mpu = MPU()
+    mem = ObservableMemory()
+    for i, v in enumerate(mem_bytes):
+        mem[i] = v
+    mpu.memory = mem
+
+    # Push a fake return-target address onto the stack so when init
+    # finishes with RTS, PC lands at $0001 (an unmapped sentinel),
+    # not somewhere unpredictable. 6502 RTS pulls lo then hi then
+    # increments — so push hi=$00, lo=$00, and RTS lands at $0001.
+    mpu.stPush(0x00)
+    mpu.stPush(0x00)
+    mpu.pc = init_addr
+    mpu.a = subtune
+    mpu.x = 0
+    mpu.y = 0
+
+    for _ in range(max_cycles):
+        if mpu.pc == 0x0001:
+            break
+        mpu.step()
+    else:
+        raise RuntimeError(
+            f'_run_init_in_py65: init did not return after {max_cycles} '
+            f'cycles for {sid_path} sub {subtune}')
+
+    return bytes(mem[i] for i in range(0x10000))
+
+
 # ---------------------------------------------------------------------------
 # Decoders (parametric over FCConfig)
 # ---------------------------------------------------------------------------
