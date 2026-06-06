@@ -14,28 +14,23 @@ from __future__ import annotations
 
 import os
 import struct
-import subprocess
 import sys
 from pathlib import Path
 
 sys.path.insert(0, 'tools/py65_lib')
 
 ROOT = Path(__file__).resolve().parents[3]
-XA = str(ROOT / 'tools' / 'xa65' / 'xa' / 'xa')
 
 SID_PATH = str(ROOT / 'hvsc84' / 'MUSICIANS' / 'H' / 'Hubbard_Rob' /
                'Commodore_64_Music_Examples.sid')
 
 
 def _assemble(asm_src: str, name: str = 'c64me') -> bytes:
-    src = f'/tmp/{name}.s'
-    obj = f'/tmp/{name}.bin'
-    with open(src, 'w') as f:
-        f.write(asm_src)
-    r = subprocess.run([XA, src, '-o', obj], capture_output=True, text=True)
-    if r.returncode != 0:
-        raise RuntimeError(f'xa65 failed:\n{r.stdout}\n{r.stderr}')
-    return open(obj, 'rb').read()
+    """Thin wrapper around the shared `src.composer_runtime.assemble`.
+    C64ME's asm doesn't use ':' in comments and doesn't need labels.
+    `name` is ignored — shared helper uses TemporaryDirectory."""
+    from src.composer_runtime import assemble
+    return assemble(asm_src)
 
 
 def _psid_header(title: str, author: str, released: str,

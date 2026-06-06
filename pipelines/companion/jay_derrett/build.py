@@ -22,7 +22,6 @@ from __future__ import annotations
 
 import json
 import struct
-import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -31,7 +30,6 @@ from pipelines.companion.jay_derrett.emulator import (
 )
 
 ROOT = Path(__file__).resolve().parents[3]
-XA = str(ROOT / 'tools' / 'xa65' / 'xa' / 'xa')
 
 
 # ---------------------------------------------------------------------------
@@ -1595,27 +1593,13 @@ def _sanitize_asm(s: str) -> str:
 
 
 def _assemble(asm_src: str, name: str = 'jd') -> tuple[bytes, dict[str, int]]:
-    src = f'/tmp/{name}.s'
-    obj = f'/tmp/{name}.bin'
-    lbl = f'/tmp/{name}.labels'
+    """Thin wrapper around the shared `src.composer_runtime.assemble`.
+    JD asm uses ':' in comments (masm_mode) and the codegen consumes
+    the labels dict downstream. `name` is ignored — shared helper uses
+    TemporaryDirectory."""
+    from src.composer_runtime import assemble
     asm_src = _sanitize_asm(asm_src)
-    with open(src, 'w') as f:
-        f.write(asm_src)
-    r = subprocess.run([XA, '-M', src, '-o', obj, '-l', lbl],
-                       capture_output=True, text=True)
-    if r.returncode != 0:
-        raise RuntimeError(f'xa65 failed:\n{r.stdout}\n{r.stderr}')
-    labels = {}
-    if Path(lbl).exists():
-        for line in open(lbl):
-            # xa65 labels file format: name, 0xaddr, 0, 0xext
-            parts = [p.strip() for p in line.split(',')]
-            if len(parts) >= 2:
-                try:
-                    labels[parts[0]] = int(parts[1], 16)
-                except ValueError:
-                    pass
-    return open(obj, 'rb').read(), labels
+    return assemble(asm_src, masm_mode=True, return_labels=True)
 
 
 @dataclass
