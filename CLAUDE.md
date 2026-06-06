@@ -185,6 +185,10 @@ HVSC original at `hvsc84/MUSICIANS/H/Hubbard_Rob/<Engine>.{usf, sidfinity.sid}`.
 ## Working conventions
 
 - **`pipelines.hubbard.verify.verify_all` is the verdict.** Returns subtune-level OK/FAIL. md5 of per-frame `$D400-$D418` register snapshots from py65 capture; for digi subtunes it uses `siddump --writelog` (cycle-strict).
+- **Regression scope by touched files** — don't run full regression on every edit, but don't skip it when shared code changed either:
+  - `pipelines/<engine>/` only → that engine's verify only (e.g., `verify_featuredriven(CFG)` for FC, `verify_all([(cfg, sid)])` for Hubbard). Other families are physically untouched and can't regress.
+  - `src/composer_runtime/`, `src/usf/types.py`, `pipelines/hubbard/verify_cycle.py`, or any shared plumbing → full `tools/regression.py` (one diff hits all engines).
+  - Before commit → full `tools/regression.py` regardless of what was touched.
 - **For writelog-partial debugging, start with `tools/find_first_divergence.py ORIG.sid REBUILD.sid --subtune N`.** It localises the first `(reg, val)` mismatch + names the voice/role (e.g. "V2 freq hi") in one command. THEN disassemble orig's effect for that register, THEN diff against the composer emitter. Do NOT start from py65 state traces or prior task descriptions — both go stale. Full protocol in [`feedback_writelog_divergence_recipe`](.claude/memory/feedback_writelog_divergence_recipe.md).
 - **For engine-state divergence, use `tools/state_diff.py` + auto-generated map.**
   - Build the map: `python3 tools/state_map_gen.py --engine ENGINE --voice {1,2,3,all} --output MAP.py` — joins per-engine `pipelines/future_composer/<engine>/state_map.py` annotation with composer's xa65 labels. **DO NOT hand-craft state maps** (wrong addresses bit hard last session).
