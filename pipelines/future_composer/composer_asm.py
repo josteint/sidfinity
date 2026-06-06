@@ -39,10 +39,7 @@ Public entry:
 """
 from __future__ import annotations
 
-import os
 import struct
-import subprocess
-import tempfile
 from pathlib import Path
 
 from src.usf import UsfFile, parse
@@ -52,7 +49,7 @@ from pipelines.future_composer.composer import _load_sid_psid
 
 
 _ROOT = str(Path(__file__).resolve().parents[2])
-_XA = os.path.join(_ROOT, 'tools', 'xa65', 'xa', 'xa')
+
 
 
 # ---------------------------------------------------------------------------
@@ -2685,26 +2682,11 @@ def compose_fc_asm(usf: UsfFile, cfg: FCConfig,
 
 def _xa65_assemble(asm_text: str, load_addr: int) -> bytes:
     """Run xa65 on asm_text, return the assembled raw bytes (no PSID
-    header). The raw bytes start at the lowest emitted address; xa65
-    pads any gaps with zeros."""
-    with tempfile.TemporaryDirectory() as td:
-        src = os.path.join(td, 'src.s')
-        obj = os.path.join(td, 'out.bin')
-        with open(src, 'w') as f:
-            f.write(asm_text)
-        # -M allows ':' to appear in comments (MASM-compat mode)
-        r = subprocess.run([_XA, '-M', src, '-o', obj],
-                           capture_output=True, text=True)
-        if r.returncode != 0:
-            raise RuntimeError(
-                f'xa65 failed (rc={r.returncode}):\n'
-                f'stdout: {r.stdout}\nstderr: {r.stderr}')
-        with open(obj, 'rb') as f:
-            raw = f.read()
-    # xa65 default output is raw bytes (no load-address prefix). The
-    # asm's `* = $XXXX` sets the address symbol context only; the
-    # output file starts at the lowest emitted byte.
-    return raw
+    header). load_addr is informational only — xa65's output starts at
+    the lowest emitted byte regardless. Thin wrapper around the shared
+    `src.composer_runtime.xa65.assemble` helper."""
+    from src.composer_runtime import assemble
+    return assemble(asm_text, masm_mode=True)
 
 
 # ---------------------------------------------------------------------------
