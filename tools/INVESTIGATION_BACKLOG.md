@@ -43,6 +43,23 @@ roadmap.
 | `tools/effect_chain_profiler.py` | Attribute each `$D4xx` write to the routine that produced it (via PC-trace cross-reference). Output: "$D408 = $47 written by nolengset at PC $7CXX." | Definitive answer to "which routine produced this write." Saves ~20 min/session. | 2-3 hours |
 | Pattern-stream USF-vs-binary verifier | Verify USF's extracted pattern stream byte-matches what the engine would have read from HVSC's binary | Catches USF extraction bugs at extract time, not rebuild time | 1 hour per engine family |
 
+---
+
+**BACKLOG AUDIT (post-session sweep):** The list above contains stale
+entries that were built and not removed. Actual remaining items:
+
+| Item | Reality |
+|---|---|
+| `siddump --play-aligned` | PARTIALLY MITIGATED. The `\|P:<count>` per-frame play-count emission + state_diff's Trap C delta check turn this from silent footgun into explicit signal. Eliminating Trap C entirely (hook play() entry, bucket writes per-IRQ) is still nice-to-have but no longer painful. |
+| Composer-symbolic data layout | DONE (commit 09742c7). Phase 1 + Phase 2 both shipped. Hawkeye runs with shift=$40, noise-tick enabled, 11/12 subs FULL. |
+| `tools/voice_writelog.py` | BUILT (commit 7bb6abe). |
+| `tools/pattern_stream_decode.py` | BUILT (commit 7bb6abe). |
+| `tools/disasm_diff.py` | BUILT (commit 6db2726). |
+| State map generator | BUILT as `tools/state_map_gen.py` + per-engine annotations (commit 0bdc98e). |
+| `siddump --memwatch-events` | BUILT as `siddump --memwatch-on-write` (commit 8bc8d0f). |
+| `tools/effect_chain_profiler.py` | NOT BUILT, but largely subsumed by `--memwatch-on-write`. The only added value would be PC tagging (which routine address wrote $D4xx). Lower-priority. |
+| Pattern-stream USF-vs-binary verifier | NOT BUILT. For FC family this is trivial because patterns emit verbatim; would only have real value for Hubbard '85 / Companion engines where patterns are USF-re-encoded. Cross-checked there at rebuild time already. Lower-priority. |
+
 ## Hurt list (built tools that didn't earn their keep — to be modified or removed)
 
 | Tool | Why it hurt | Resolution |
