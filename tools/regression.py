@@ -1,4 +1,4 @@
-"""Full pipeline regression — Hubbard '85 + companion strains.
+"""Full pipeline regression — Hubbard '85 + companion + FC family.
 
 Phase 8.22 baseline. Builds every known USF through the dissolved
 composer and verifies it against the original SID. Two verification
@@ -199,6 +199,40 @@ def regress_c64me() -> tuple[int, int]:
     return ok, fail
 
 
+def regress_future_composer() -> tuple[int, int, int]:
+    """Future Composer family — `verify_featuredriven` (cycle-strict
+    instruction-stream via `compare_instruction_stream`, per-subtune
+    duration from Songlengths.md5 * 1.1 + 1s). Returns (ok, partial, fail).
+
+    Each canary builds through `build_via_asm_featuredriven` and verifies
+    every subtune at full songlength."""
+    from pipelines.future_composer.verify import verify_featuredriven
+    from pipelines.future_composer.cybernoid_ii.config import CYBERNOID_II
+    from pipelines.future_composer.hawkeye.config import HAWKEYE
+
+    canaries = [
+        ('Cybernoid_II', CYBERNOID_II),
+        ('Hawkeye',      HAWKEYE),
+    ]
+    ok = partial = fail = 0
+    for name, cfg in canaries:
+        result = verify_featuredriven(cfg)
+        subs = result['subtunes']
+        sub_ok = sub_fail = 0
+        for st, info in subs.items():
+            if info['is_full']:
+                sub_ok += 1
+            else:
+                sub_fail += 1
+        ok += sub_ok
+        fail += sub_fail
+        status = f'{sub_ok}/{len(subs)}'
+        if sub_fail:
+            status += f' ({sub_fail} REGRESSED)'
+        print(f'  {name:18s} {status}')
+    return ok, partial, fail
+
+
 def regress_jay_derrett() -> tuple[int, int]:
     """Jay_Derrett family — 17 SIDs currently passing byte-exact:
     - 10 PSID-compatible (siddump --writelog both sides): 6 Cluster A
@@ -304,15 +338,18 @@ def main():
     cme_ok, cme_fail = regress_c64me()
     print(f'\nJay_Derrett family (17 of 20 SIDs wired):')
     jd_ok, jd_fail = regress_jay_derrett()
+    print(f'\nFuture Composer family (2 canaries: Cyb II + Hawkeye):')
+    fc_ok, fc_part, fc_fail = regress_future_composer()
 
     print(f'\nHubbard:    {h_ok} ok  +  {h_part} known-partial  +  '
           f'{h_total - h_ok - h_part} regressed  (of {h_total})')
     print(f'Companion:  {c_ok} ok  +  {c_part} known-partial  +  {c_fail} regressed')
     print(f'C64ME:      {cme_ok} ok  +  {cme_fail} regressed  (of 15)')
     print(f'Jay_Derrett:  {jd_ok} ok  +  {jd_fail} regressed  (of 17 wired / 20 total)')
+    print(f'FC:         {fc_ok} ok  +  {fc_fail} regressed')
 
     h_regressed = h_total - h_ok - h_part
-    if h_regressed or c_fail or cme_fail or jd_fail:
+    if h_regressed or c_fail or cme_fail or jd_fail or fc_fail:
         sys.exit(1)
 
 
