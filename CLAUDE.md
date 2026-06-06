@@ -152,13 +152,15 @@ companion). Use it as the verdict after any composer change.
 
 ## MANDATORY before any new pipeline work
 
-**Before any engine investigation, ask yourself two questions OUT LOUD (in your first text turn of the session):**
+**Before any engine investigation, ask yourself three questions OUT LOUD (in your first text turn of the session). They form a hierarchy from family-wide foundation to per-SID specifics:**
 
-1. **Did I do full decompilation?** — i.e., does the engine have a hand-annotated `pipelines/<family>/<engine>/disassembly.s` already in the repo? Most FC + Hubbard engines do (1000+ lines, hand-labelled with routine names + state-byte assignments). If yes, READ IT before any py65 fragment-disasm work. If no, generate one with `tools/seed_disassembly.py` and annotate the header BEFORE coding.
+1. **Do we have engine-family docs?** — `pipelines/<family>/docs/` is where family-wide research lives: format specs, player manuals, CSDB release notes, lineage, prior reverse-engineering. This is the FIRST thing acquired when work begins on a new player family (via the `research-player` skill at `.claude/skills/research-player/`). ~47 family-doc dirs exist today (`pipelines/future_composer/docs/`, `pipelines/goattracker/docs/`, ...). If a family-doc dir exists, READ IT BEFORE any per-SID work — it tells you the player's instruction semantics, instrument format, effect catalogue, byte encodings. Skipping this means re-deriving the format from raw bytes.
 
-2. **Do we have docs?** — check `pipelines/<family>/<engine>/RE_NOTES.md` (per-engine RE notes, often 500+ lines of state-byte assignments + flow narration + prior-session findings) and `pipelines/<family>/docs/` (family-wide research: format specs, manuals, lineage). If either exists, read FIRST.
+2. **Did I do full decompilation?** — does the SID have a hand-annotated `pipelines/<family>/<engine>/disassembly.s` already in the repo? Most migrated FC + Hubbard engines do (1000+ lines, hand-labelled with routine names + state-byte assignments). If yes, READ IT before any py65 fragment-disasm work — the structural labels (`L_7DCA`, `sub_7DBD`) are knowledge py65 cannot reconstruct. If no, generate one with `tools/seed_disassembly.py` and annotate the header BEFORE coding.
 
-Skipping these two questions cost a multi-hour wrong-guessing session on Hawkeye sub 6 (2026-06-06) — the answer was in `disassembly.s` + `RE_NOTES.md` and would have taken 5 minutes. See [[feedback_check_existing_engine_docs]].
+3. **Do we have per-engine RE notes?** — check `pipelines/<family>/<engine>/RE_NOTES.md` (often 500+ lines of state-byte assignments + flow narration + prior-session findings + known partial-cause analysis). If it exists, read FIRST.
+
+Skipping these three questions cost a multi-hour wrong-guessing session on Hawkeye sub 6 (2026-06-06) — the answer was in `disassembly.s` + `RE_NOTES.md` (+ the FC v4.1 manual in `pipelines/future_composer/docs/`) and would have taken 5 minutes. See [[feedback_check_existing_engine_docs]].
 
 Then:
 
