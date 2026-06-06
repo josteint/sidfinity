@@ -19,7 +19,9 @@ import os
 import struct
 from dataclasses import dataclass
 
-from pipelines.future_composer.config import FCConfig
+from pipelines.future_composer.config import (
+    FCConfig, EngineInstance, instance_for_subtune, resolve_address,
+)
 
 
 # Sequence command byte ranges (verified by L_7C0D/L_7C1F/L_7C31 dispatch
@@ -381,17 +383,23 @@ def _run_init_in_py65(sid_path: str, subtune: int,
 # Decoders (parametric over FCConfig)
 # ---------------------------------------------------------------------------
 
-def _decode_freq_table(mem: bytes, cfg: FCConfig) -> list[int]:
+def _decode_freq_table(mem: bytes, cfg: FCConfig,
+                       engine: EngineInstance | None = None) -> list[int]:
+    freq_lo = resolve_address(cfg, engine, 'freq_lo_addr')
+    freq_hi = resolve_address(cfg, engine, 'freq_hi_addr')
     return [
-        mem[cfg.freq_lo_addr + i] | (mem[cfg.freq_hi_addr + i] << 8)
+        mem[freq_lo + i] | (mem[freq_hi + i] << 8)
         for i in range(cfg.freq_table_entries)
     ]
 
 
-def _decode_instruments(mem: bytes, cfg: FCConfig) -> list[Instrument]:
+def _decode_instruments(mem: bytes, cfg: FCConfig,
+                        engine: EngineInstance | None = None
+                        ) -> list[Instrument]:
+    instr_base = resolve_address(cfg, engine, 'instr_records_addr')
     out: list[Instrument] = []
     for i in range(cfg.instr_count):
-        base = cfg.instr_records_addr + i * 8
+        base = instr_base + i * 8
         raw = bytes(mem[base:base + 8])
         out.append(Instrument(
             id=i, raw=raw,
@@ -402,14 +410,17 @@ def _decode_instruments(mem: bytes, cfg: FCConfig) -> list[Instrument]:
 
 
 def _decode_pattern_ptr_table(mem: bytes, cfg: FCConfig,
-                               load_addr: int, code_len: int) -> list[int]:
+                               load_addr: int, code_len: int,
+                               engine: EngineInstance | None = None
+                               ) -> list[int]:
     """Walk pattern pointer table; stop at first pointer outside the
     loaded code region."""
+    pat_ptr_base = resolve_address(cfg, engine, 'pattern_ptr_addr')
     out: list[int] = []
     lo_hi_end = load_addr + code_len
     for i in range(cfg.max_patterns):
-        lo = mem[cfg.pattern_ptr_addr + i * 2]
-        hi = mem[cfg.pattern_ptr_addr + i * 2 + 1]
+        lo = mem[pat_ptr_base + i * 2]
+        hi = mem[pat_ptr_base + i * 2 + 1]
         addr = lo | (hi << 8)
         if addr < load_addr or addr >= lo_hi_end:
             break
@@ -452,7 +463,8 @@ def _decode_pattern(mem: bytes, pat_id: int, start_addr: int,
                    events=events, notes_count=notes)
 
 
-def _decode_subtune(mem: bytes, cfg: FCConfig, sub_idx: int) -> Subtune:
+def _decode_subtune(mem: bytes, cfg: FCConfig, sub_idx: int,
+                    engine: EngineInstance | None = None) -> Subtune:
     """Reconstruct per-subtune setup. Dispatches on `cfg.subtune_layout`.
 
     `flat_seqtabel` (Cybernoid II): subtune N's 6-byte record (lo*3 then
@@ -467,19 +479,27 @@ def _decode_subtune(mem: bytes, cfg: FCConfig, sub_idx: int) -> Subtune:
       music_subtune_count for the SFX path so speedbyte/mode come from
       that fixed index.
     """
+    seqtabel = resolve_address(cfg, engine, 'seqtabel_addr')
+    per_sub_speed = resolve_address(cfg, engine, 'per_subtune_speed_addr')
     if cfg.subtune_layout == 'flat_seqtabel':
-        record_base = cfg.seqtabel_addr + sub_idx * 6
+        record_base = seqtabel + sub_idx * 6
         seq_lo = mem[record_base + 0:record_base + 3]
         seq_hi = mem[record_base + 3:record_base + 6]
-        speedbyte = mem[cfg.per_subtune_speed_addr + sub_idx]
+        speedbyte = mem[per_sub_speed + sub_idx]
         is_sfx = False
     elif cfg.subtune_layout == 'smc_template_with_sfx':
+        # smc_template_with_sfx uses several FCConfig-only fields
+        # (per_subtune_smc_addr, template_base_hi, per_subtune_mode_addr,
+        # sfx_page_base, sfx_page_stride, music_subtune_count) which
+        # don't have EngineInstance overrides — this layout shape is
+        # single-engine-only today (Hawkeye). If a multi-engine SID
+        # ever needs it, add the corresponding fields to EngineInstance.
         if sub_idx < cfg.music_subtune_count:
             template_lo = mem[cfg.per_subtune_smc_addr + sub_idx]
             template_addr = (cfg.template_base_hi << 8) | template_lo
             seq_lo = mem[template_addr + 0:template_addr + 3]
             seq_hi = mem[template_addr + 3:template_addr + 6]
-            speedbyte = mem[cfg.per_subtune_speed_addr + sub_idx]
+            speedbyte = mem[per_sub_speed + sub_idx]
             mode = mem[cfg.per_subtune_mode_addr + sub_idx]
         else:
             sfx_idx = sub_idx - cfg.music_subtune_count
@@ -488,8 +508,7 @@ def _decode_subtune(mem: bytes, cfg: FCConfig, sub_idx: int) -> Subtune:
             seq_lo = mem[record_base + 0:record_base + 3]
             seq_hi = mem[record_base + 3:record_base + 6]
             # $918F forces X = music_subtune_count for SFX path
-            speedbyte = mem[cfg.per_subtune_speed_addr
-                            + cfg.music_subtune_count]
+            speedbyte = mem[per_sub_speed + cfg.music_subtune_count]
             mode = mem[cfg.per_subtune_mode_addr + cfg.music_subtune_count]
         is_sfx = (mode == 0x00)
     else:
@@ -510,25 +529,60 @@ def _decode_subtune(mem: bytes, cfg: FCConfig, sub_idx: int) -> Subtune:
 
 def extract(cfg: FCConfig, root: str | None = None) -> FCSong:
     """Decode an FC-family SID per its `FCConfig`. `root` defaults to
-    the sidfinity repo root (auto-detected from this file's location)."""
+    the sidfinity repo root (auto-detected from this file's location).
+
+    Single-engine SIDs (cfg.engines is None): reads from the raw-binary
+    memory image. This is the Hawkeye/Cybernoid II path — fast, no
+    py65 needed. Per-decoder `engine=None` falls back to FCConfig's
+    top-level address fields via `resolve_address`.
+
+    Multi-engine SIDs (cfg.engines is set): runs the PSID init in py65
+    once per subtune (each subtune may load different packed-source
+    data into its runtime layout), and decodes per-subtune content
+    using the EngineInstance overrides. Shared content (freq_table,
+    instruments, pattern_ptr_table) is read from sub 0's post-init
+    memory using sub 0's EngineInstance. This is the Adrenalin path.
+    """
     if root is None:
         root = os.path.dirname(os.path.dirname(os.path.dirname(
             os.path.abspath(__file__))))
     sid_path = os.path.join(root, cfg.sid_path)
 
     load_addr, init_addr, play_addr, n_songs, code = _load_psid(sid_path)
-    mem = _materialize_memory(load_addr, code)
 
-    freq_table = _decode_freq_table(mem, cfg)
-    instruments = _decode_instruments(mem, cfg)
-    pattern_ptr_table = _decode_pattern_ptr_table(mem, cfg, load_addr, len(code))
+    # --- shared (engine-A / sub 0 / top-level) data ---
+    if cfg.engines is None:
+        mem_global = _materialize_memory(load_addr, code)
+        engine_for_shared = None
+    else:
+        # Run init for sub 0 to populate sub 0's engine layout in memory.
+        mem_global = _run_init_in_py65(sid_path, subtune=0)
+        engine_for_shared = instance_for_subtune(cfg, 0)
 
-    subtunes = [_decode_subtune(mem, cfg, s) for s in range(n_songs)]
+    freq_table = _decode_freq_table(mem_global, cfg, engine_for_shared)
+    instruments = _decode_instruments(mem_global, cfg, engine_for_shared)
+    pattern_ptr_table = _decode_pattern_ptr_table(
+        mem_global, cfg, load_addr, len(code), engine_for_shared)
 
+    # --- per-subtune data ---
+    subtunes: list[Subtune] = []
     sequences: list[Sequence] = []
     seq_seen: set[int] = set()
     pat_ids_total: set[int] = set()
-    for st in subtunes:
+    patterns: dict[int, Pattern] = {}
+
+    for sub_idx in range(n_songs):
+        if cfg.engines is None:
+            # Single-engine: reuse mem_global (raw binary). engine=None
+            # → resolve_address falls back to top-level FCConfig fields.
+            mem = mem_global
+            engine = None
+        else:
+            mem = _run_init_in_py65(sid_path, subtune=sub_idx)
+            engine = instance_for_subtune(cfg, sub_idx)
+
+        st = _decode_subtune(mem, cfg, sub_idx, engine)
+        subtunes.append(st)
         for addr in (st.seq_v0_addr, st.seq_v1_addr, st.seq_v2_addr):
             if addr in seq_seen:
                 continue
@@ -537,12 +591,11 @@ def extract(cfg: FCConfig, root: str | None = None) -> FCSong:
             sequences.append(seq)
             pat_ids_total.update(seq.pattern_ids_used)
 
-    patterns: dict[int, Pattern] = {}
     for pat_id in sorted(pat_ids_total):
         if pat_id >= len(pattern_ptr_table):
             continue
         addr = pattern_ptr_table[pat_id]
-        patterns[pat_id] = _decode_pattern(mem, pat_id, addr)
+        patterns[pat_id] = _decode_pattern(mem_global, pat_id, addr)
 
     return FCSong(
         cfg=cfg, load_addr=load_addr, init_addr=init_addr,
