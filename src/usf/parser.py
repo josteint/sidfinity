@@ -567,23 +567,32 @@ class _T(Transformer):
         return items[0]
 
     def orderlist_entry(self, items):
-        return int(items[0])
+        # INT ("+" INT)?  →  ('entry', pattern_id, transpose)
+        pid = int(items[0])
+        trans = int(items[1]) if len(items) > 1 else 0
+        return ('entry', pid, trans)
 
     def orderlist(self, items):
         # entries followed by optional terminator
         entries = []
+        transposes = []
         loop_to = None
         stop = False
         for it in items:
-            if isinstance(it, int):
-                entries.append(it)
-            elif isinstance(it, tuple):
-                kind, val = it
-                if kind == 'loop':
-                    loop_to = val
-                elif kind == 'stop':
-                    stop = True
-        return Orderlist(entries=entries, loop_to=loop_to, stop=stop)
+            kind = it[0]
+            if kind == 'entry':
+                entries.append(it[1])
+                transposes.append(it[2])
+            elif kind == 'loop':
+                loop_to = it[1]
+            elif kind == 'stop':
+                stop = True
+        # Omit transposes entirely when all-zero (keeps the common case
+        # backward-compatible and the round-trip output clean).
+        if not any(transposes):
+            transposes = []
+        return Orderlist(entries=entries, loop_to=loop_to, stop=stop,
+                         transposes=transposes)
 
     def pattern_block(self, items):
         # INT INT note_row*

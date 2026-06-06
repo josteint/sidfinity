@@ -89,14 +89,32 @@ class Pattern:
 
 @dataclass
 class Orderlist:
-    """A voice's orderlist of pattern ids, with loop/stop terminator."""
+    """A voice's orderlist of pattern ids, with loop/stop terminator.
+
+    `transposes` carries an optional per-entry transpose (semitone /
+    freq-table-index offset applied to the referenced pattern's notes).
+    It is a sequence-level modifier — the pattern body stores the
+    untransposed motif, and `transposes[i]` shifts the notes of
+    `entries[i]`. Empty means all-zero (the common case: most engines
+    have no orderlist transpose). When non-empty it must be the same
+    length as `entries`.
+    """
     entries: list[int] = field(default_factory=list)
     loop_to: Optional[int] = None      # position to jump to after the list
     stop: bool = False                  # true iff terminator is `stop`
+    transposes: list[int] = field(default_factory=list)
 
     def __post_init__(self):
         if self.loop_to is not None and self.stop:
             raise ValueError('Orderlist cannot be both looping and stopping')
+        if self.transposes and len(self.transposes) != len(self.entries):
+            raise ValueError(
+                'Orderlist.transposes must be empty or match len(entries) '
+                f'({len(self.transposes)} != {len(self.entries)})')
+
+    def transpose_at(self, i: int) -> int:
+        """Transpose for entry `i` (0 when transposes is empty)."""
+        return self.transposes[i] if self.transposes else 0
 
 
 @dataclass
