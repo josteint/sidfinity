@@ -326,25 +326,77 @@ or handled by the new `lo_hi_pair_with_smc_copy` subtune_layout's
 config. Defer until extract-path implementation reveals the cleanest
 API.
 
-### What about engine B / sub 1?
+### Subtune-to-engine mapping — VERIFIED
 
-With engine A fully annotated as a STANDARD FC family engine, the
-hypothesis becomes: the `$1000` engine is engine A relocated for
-subs 2/3 (with all 8 hex digits in addresses rebased from `$7Axx` →
-`$10xx`, `$17xx` → `$10xx`, etc.). The 77% byte match supports this.
+Tested directly via `_run_init_in_py65` + post-init memory inspection:
 
-For the rebuild approach (per the CORE TENET): emit a single canonical
-FC engine handling all 4 subtunes (Adrenalin's binary uses 3 engine
-copies for memory packing; our rebuild doesn't need to mirror that).
-The per-subtune extract reads each subtune's data from its own
-post-init memory layout (sub 0: data at `$17xx-$1Bxx`; subs 1/2/3:
-data at `$10xx-$1Fxx`).
+| Sub | PSID $50E3 play vec | Engine used | Data tables at |
+|---|---|---|---|
+|  0  | JMP `$7A06` | engine A at `$7A00` | `$17E3`/`$1842`/`$19AC`/`$1BA0` |
+|  1  | JMP `$1021` | unknown (entry shim?) | unknown — TBD |
+|  2  | JMP `$1006` | **engine A relocated at `$1000`** | `$17E3`/`$1842`/`$19AC`/`$1BA0` (SAME as sub 0) |
+|  3  | JMP `$1006` | **engine A relocated at `$1000`** | `$17E3`/`$1842`/`$19AC`/`$1BA0` (SAME as sub 0) |
 
-Verifying the relocation hypothesis for engine B / sub 1 entry is
-work that's still worth doing — but is no longer architecturally
-blocking. The current Phase 1/2 infrastructure (`EngineInstance`
-overrides per subtune for the address fields) is exactly the right
-shape for this per-subtune extract.
+The `$1000` engine is engine A with PER-VOICE STATE addresses rebased
+(`$7Axx → $10xx`) but **DATA TABLE references unchanged** (still
+read from `$17E3`/`$1842`/etc.). Verified by disassembling the
+relocated nolengset at `$128B`:
+
+```
+Engine A nolengset $7C8B+:              Relocated $128B+:
+  LDA $7A16,X    STA $7A13,X              LDA $1016,X    STA $1013,X
+  LDA $73        CLC  ADC $7A41,X         LDA $73        CLC  ADC $1041,X
+  STA $7A1F,X    TAY                      STA $101F,X    TAY
+  LDA $17E3,Y    STA $7A7E,X              LDA $17E3,Y    STA $107E,X   ← lonote ADDR UNCHANGED
+  PHA  STA $7A2B,X                        PHA  STA $102B,X
+  LDA $1842,Y                             LDA $1842,Y                  ← hinote ADDR UNCHANGED
+```
+
+So:
+
+- **Both engines share the data table addresses at `$17E3`/`$1842`/
+  `$19AC`/`$1BA0`/etc.** The PER-SUBTUNE state (`$7Axx` for sub 0's
+  engine, `$10xx` for sub 2/3's engine) is separate.
+- For subs 0, 2, 3: the DATA at the engine A addresses differs per
+  subtune (each subtune's init copies its own patterns / per_subtune_speed
+  / etc. into the shared addresses). E.g., sub 0's per_subtune_speed
+  is `02 02 01 01`, sub 2's is `03 02 01 01`, sub 3's is `03 02 01 01`.
+- The reason for the two engine copies: each engine instance has its
+  own per-voice state (so subs 2/3 don't stomp on sub 0's state).
+  That's irrelevant to our rebuild — we emit one engine.
+
+### Sub 1 — TBD
+
+PSID play vec for sub 1 is `$1021` — neither engine A (`$7A06`) nor
+the relocated engine (`$1006`). Post-init data at engine A's addresses
+(`$17E3` etc.) doesn't look like valid FC data for sub 1
+(lonote[$48]=`$90` instead of `$0C`; pattern_ptr_table all zeros;
+per_subtune_speed `$21 $02 $00 $21`).
+
+Sub 1 likely uses a third engine variant at `$1021` (e.g., a
+trampoline / shim) OR sub 1 is an SFX-style subtune that uses
+different machinery. Needs disasm of `$1021+` post-init.
+
+For now: sub 0, 2, 3 are the "music subtunes" with confirmed engine A
+data layout. Sub 1 is the outlier. Can land subs 0/2/3 first
+(3-subtune canary) then return for sub 1 separately.
+
+### Implications for `EngineInstance` schema
+
+The Phase 1 schema with per-EngineInstance address overrides was
+designed assuming per-subtune address overrides for `freq_lo_addr`
+etc. The actual situation: **for subs 0, 2, 3 the data addresses are
+the same** — no per-EngineInstance overrides needed for them. Sub 1
+likely DOES need overrides.
+
+EngineInstance is still useful for tracking:
+- Which subtunes go through which engine instance
+- The init copy params (src/dst/size) per subtune
+- The PSID play vector per subtune
+
+But for data extraction across subs 0/2/3, the existing top-level
+FCConfig address fields suffice. Sub 1 is the one case that needs
+per-subtune address overrides.
 
 ## Required next session — full decompile (protocol Step 0)
 
