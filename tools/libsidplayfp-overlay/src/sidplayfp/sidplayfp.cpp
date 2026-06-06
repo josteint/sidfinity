@@ -183,6 +183,16 @@ void sidplayfp::clearPlayCount()
     sidplayer.clearPlayCount();
 }
 
+const std::vector<uint64_t>& sidplayfp::getPlayEntryCycles() const
+{
+    return sidplayer.getPlayEntryCycles();
+}
+
+void sidplayfp::clearPlayEntryCycles()
+{
+    sidplayer.clearPlayEntryCycles();
+}
+
 void sidplayfp::setMemWatchOnWrite(uint16_t triggerAddr,
                                     const std::vector<uint16_t>& ramAddrs)
 {

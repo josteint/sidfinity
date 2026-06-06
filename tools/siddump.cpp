@@ -102,6 +102,10 @@ int main(int argc, char* argv[])
             "  --raw          Skip metadata/header lines\n"
             "  --digi         Enable intra-frame write logging\n"
             "  --writelog     Append full register write stream with cycle timing (ground truth)\n"
+            "  --writelog-per-irq  Like --writelog, but each output line is ONE PSID play()\n"
+            "                      invocation (not one siddump frame). Eliminates Trap C from\n"
+            "                      observation. Implies --writelog. Output prefix changes from\n"
+            "                      |W: to |I: to flag the per-IRQ encoding.\n"
             "  --memtrace     Append memory access trace\n"
             "  --pcm          Output raw 16-bit signed PCM to stdout\n"
             "  --force-rsid   Process RSID files (normally skipped)\n"
@@ -128,6 +132,7 @@ int main(int argc, char* argv[])
     bool raw = false;
     bool digi = false;
     bool writelog = false;
+    bool writelog_per_irq = false;
     bool memtrace = false;
     bool pcm = false;
     bool force_rsid = false;
@@ -145,6 +150,9 @@ int main(int argc, char* argv[])
             digi = true;
         } else if (strcmp(argv[i], "--writelog") == 0) {
             writelog = true;
+        } else if (strcmp(argv[i], "--writelog-per-irq") == 0) {
+            writelog = true;
+            writelog_per_irq = true;
         } else if (strcmp(argv[i], "--memtrace") == 0) {
             memtrace = true;
         } else if (strcmp(argv[i], "--pcm") == 0) {
@@ -317,7 +325,8 @@ int main(int argc, char* argv[])
     // counts (Trap C diagnostic). The PSID's playAddr is the address the
     // IRQ handler jumps to — counting reads at that address counts play()
     // invocations. See feedback_verification_modes.md.
-    if (!memwatch_addrs.empty()) {
+    // --writelog-per-irq also needs this to know where to split.
+    if (!memwatch_addrs.empty() || writelog_per_irq) {
         engine.setPlayAddr(info->playAddr());
     }
 
@@ -443,10 +452,31 @@ int main(int argc, char* argv[])
             if (n > 0) anyNonZero = true;
         }
 
-        // Append full write log (all writes with cycle timing)
+        // Append full write log. Two encodings:
+        //   --writelog: one |W: chunk per siddump frame
+        //   --writelog-per-irq: one |I: chunk per PSID play() invocation
+        //     (the writes that occurred during that invocation), split
+        //     by the play-entry cycle markers. Eliminates Trap C.
         if (writelog) {
             const auto& log = engine.getWriteLog(0);
-            if (!log.empty()) {
+            if (writelog_per_irq) {
+                const auto& irqCycles = engine.getPlayEntryCycles();
+                // Each IRQ's writes = log entries whose cycle is between
+                // this IRQ entry and the next (or end of log).
+                size_t idx = 0;
+                for (size_t i = 0; i < irqCycles.size(); i++) {
+                    uint64_t end = (i + 1 < irqCycles.size())
+                        ? irqCycles[i + 1]
+                        : UINT64_MAX;
+                    printf("|I");
+                    while (idx < log.size() && log[idx].cycle < end) {
+                        printf(":%u:%02X:%02X",
+                               log[idx].cycle, log[idx].reg, log[idx].value);
+                        ++idx;
+                    }
+                }
+                engine.clearPlayEntryCycles();
+            } else if (!log.empty()) {
                 printf("|W");
                 for (const auto& w : log) {
                     printf(":%u:%02X:%02X", w.cycle, w.reg, w.value);

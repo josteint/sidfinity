@@ -180,6 +180,13 @@ public:
     uint64_t getPlayCount() const { return m_c64.getCpuBus().getPlayCount(); }
     void clearPlayCount() { m_c64.getCpuBus().clearPlayCount(); }
 
+    // Per-IRQ play-entry cycles — PHI1 clocks at each play vector entry.
+    // Used by siddump --writelog-per-irq to split the writelog stream
+    // into per-PSID-play() buckets, eliminating Trap C at the source.
+    const std::vector<uint64_t>& getPlayEntryCycles() const
+    { return m_c64.getCpuBus().getPlayEntryCycles(); }
+    void clearPlayEntryCycles() { m_c64.getCpuBus().clearPlayEntryCycles(); }
+
     // Memwatch-on-event: see c64cpubus::setMemWatchOnWrite.
     void setMemWatchOnWrite(uint16_t triggerAddr,
                              const std::vector<uint16_t>& ramAddrs)

@@ -260,6 +260,15 @@ public:
     void clearPlayCount();
 
     /**
+     * Per-PSID-play() invocation markers. Returns the PHI1 cycle at
+     * each entry into the play vector since the last clear. Used to
+     * split the writelog stream into per-IRQ buckets — the principled
+     * fix for Trap C (see feedback_verification_modes.md).
+     */
+    const std::vector<uint64_t>& getPlayEntryCycles() const;
+    void clearPlayEntryCycles();
+
+    /**
      * Memwatch-on-event: snapshot a list of RAM addresses every time
      * the CPU writes to a chosen trigger address. Use case: "show me
      * the engine state at every write to $D404" — exposes SMC and

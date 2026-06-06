@@ -15,6 +15,7 @@
 
 #include "c64/mmu.h"
 #include "CPU/mos6510.h"
+#include "EventScheduler.h"
 
 #include "sidcxx11.h"
 
@@ -49,6 +50,14 @@ private:
     // m_playAddr is the watched address.
     uint16_t m_playAddr = 0;
     uint64_t m_playCount = 0;
+
+    // Per-IRQ scheduling: cycle (PHI1 clock) at each play vector entry.
+    // Used by siddump --writelog-per-irq to split the writelog stream
+    // into per-PSID-play() buckets — KILLS Trap C at the source by
+    // aligning observation to engine IRQs instead of siddump frame
+    // boundaries.
+    EventScheduler *m_scheduler = nullptr;
+    std::vector<uint64_t> m_playEntryCycles;
 
     // Memwatch-on-event state.
     uint16_t m_eventWriteAddr = 0;
@@ -89,6 +98,16 @@ public:
     uint64_t getPlayCount() const { return m_playCount; }
     void clearPlayCount() { m_playCount = 0; }
 
+    // Scheduler setter — wires PHI1 cycle access for per-IRQ markers.
+    // c64.cpp calls this once after construction.
+    void setScheduler(EventScheduler* s) { m_scheduler = s; }
+
+    // Per-IRQ markers — cycles at which the play vector was entered.
+    // Used by siddump --writelog-per-irq to split writes by IRQ.
+    const std::vector<uint64_t>& getPlayEntryCycles() const
+    { return m_playEntryCycles; }
+    void clearPlayEntryCycles() { m_playEntryCycles.clear(); }
+
     // Memwatch-on-event: snapshot specified RAM addresses every time
     // the CPU writes to a trigger address. Use case: "show me the
     // engine state at every write to $D404" for SMC / conditional-
@@ -118,6 +137,11 @@ protected:
         if (m_playAddr != 0 && addr == m_playAddr)
         {
             ++m_playCount;
+            if (m_scheduler)
+            {
+                m_playEntryCycles.push_back(
+                    m_scheduler->getTime(EVENT_CLOCK_PHI1));
+            }
         }
         return val;
     }

@@ -88,6 +88,9 @@ c64::c64() :
     cpubus(mmu),
     cpu(eventScheduler, cpubus)
 {
+    // Wire the scheduler so c64cpubus can record PHI1 cycles at each
+    // PSID play vector entry (siddump --writelog-per-irq / Trap C kill).
+    cpubus.setScheduler(&eventScheduler);
     resetIoBank();
 }
 
