@@ -242,6 +242,12 @@ lonotesto2:     .dsb 3, 0            ; freq lo shadow 2 (preserved freq —
                                      ; to hinotesto2 / orig $90E3)
 hinotesto:      .dsb 3, 0            ; freq hi shadow
 hinotesto2:     .dsb 3, 0            ; freq hi shadow 2
+freq_rise_acc:  .dsb 3, 0            ; bit-2 sweep accumulator (orig $90E0)
+                                     ; — INCs each odd counter2 frame when
+                                     ; inst.filter_prog.freq_hi_rise is set;
+                                     ; the PRE-INC value is written to
+                                     ; hinotesto + d401 (slow upward freq
+                                     ; creep). Init by nolengset to hinote.
 pulsehitemp:    .dsb 3, 0
 pulsestolo:     .dsb 3, 0
 pulsehisto:     .dsb 3, 0
@@ -1417,6 +1423,7 @@ nolengset:
         sta d401,x
         sta hinotesto,x
         sta hinotesto2,x             ; preserved (orig $90DD, Hawkeye release)
+        sta freq_rise_acc,x          ; bit-2 sweep accumulator (orig $90E0)
         ldy voicesto
         sta $d401,y                  ; SID $D401 (freq hi)
         pla
@@ -1798,7 +1805,7 @@ fx_glide:
         ldx wax
         lda glidetest,x
         bne glide_run
-        jmp fx_pulse_prog            ; not glide → next effect
+        jmp fx_freq_hi_rise            ; not glide → next effect
 
 glide_run:
         ; Cache glen + bran (= glidedelay hi nibble)
@@ -1820,7 +1827,7 @@ glide_run:
         adc nootcount,x
         cmp nootleng,x
         bcc glide_phase2             ; A < nootleng → continue
-        jmp fx_pulse_prog            ; still in delay phase
+        jmp fx_freq_hi_rise            ; still in delay phase
 
 glide_phase2:
         pha
@@ -1923,7 +1930,7 @@ glide_div_done:
         sbc glideshi
         sta hinotesto,x
         sta d401,x
-        jmp fx_pulse_prog
+        jmp fx_freq_hi_rise
 
 glide_apply_up:
         ; UP: lonotesto += step
@@ -1936,7 +1943,7 @@ glide_apply_up:
         adc glideshi
         sta hinotesto,x
         sta d401,x
-        jmp fx_pulse_prog
+        jmp fx_freq_hi_rise
 
 glide_snap:
         ; Snap to target: load lonote/hinote[tempglide], clear glide flags
@@ -1953,7 +1960,35 @@ glide_snap:
         lda #0
         sta glidetest,x
         sta glidetest2,x
-        jmp fx_pulse_prog
+        jmp fx_freq_hi_rise
+
+fx_freq_hi_rise:
+        ; Per-instrument freq-hi creep (gated by inst.filter_prog.
+        ; freq_hi_rise = fil_count bit 2). Each odd counter2 frame
+        ; INC freq_rise_acc and write the PRE-INC value to hinotesto/
+        ; d401. Mirrors orig $8243-$826B. Slot AFTER fx_glide so
+        ; glide's writes (when active) aren't overwritten on drum-glide
+        ; paths; AFTER vibrato so it can overwrite vibrato's hi output
+        ; for non-drum tone_arp + bit-2 insts (Hawkeye step 25 worked
+        ; example).
+        lda counter2,x
+        lsr                          ; carry = counter2 bit 0
+        bcc fx_freq_hi_rise_skip     ; even → skip
+        lda wavecount,x
+        asl
+        asl
+        asl
+        tay
+        lda filcount,y
+        and #$04
+        beq fx_freq_hi_rise_skip     ; bit 2 clear → skip
+        lda freq_rise_acc,x
+        beq fx_freq_hi_rise_skip     ; acc=0 → would write 0
+        inc freq_rise_acc,x
+        sta d401,x                   ; PRE-INC value → d401 shadow
+        sta hinotesto,x              ; mirror to inner shadow
+fx_freq_hi_rise_skip:
+        ; falls through to fx_pulse_prog
 
 fx_pulse_prog:
         ; fx2 & $07 — pulse-width sweep program. 4 programs in

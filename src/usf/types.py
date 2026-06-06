@@ -343,6 +343,14 @@ class FilterProgConfig:
     strange: bool = False
     double_voice: bool = False
     aux_bits: int = 0
+    # Per-instrument: when True, a per-frame "freq-hi creep" effect is
+    # active. The instrument's freq hi shadow rises by +1 every 2 frames
+    # (or wraps), independent of vibrato/glide. Musical: slow upward
+    # detune (like a vibrato with infinite period — runaway pitch creep).
+    # Hawkeye step 25 (drum trail / texture insts) uses this. Maps to
+    # fil_count bit 2 in the FC binary; round-trip is implicit since
+    # bit 2 is also part of the `program` nibble (program & 0x04).
+    freq_hi_rise: bool = False
 
 
 @dataclass

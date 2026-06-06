@@ -192,6 +192,7 @@ def _decompose_fx_bytes(fil_count: int, fx1: int, fx2: int,
         strange=bool(fx2 & 0x08),
         double_voice=bool(fil_count & 0x80),
         aux_bits=fil_count & 0x70,   # bits 4-6 of fil_count, TBD musical meaning
+        freq_hi_rise=bool(fil_count & 0x04),
     )
     # fx3 → effects flag set
     effects = frozenset(
