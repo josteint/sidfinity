@@ -27,6 +27,9 @@ roadmap.
 | `tools/pattern_stream_decode.py` | Decode FC pattern stream bytes as readable command list ($Cx wave/inst, $Fx markers, glide triples, etc.) Both pattern and seq streams. | (in this file) |
 | `tools/state_map_gen.py` + per-engine `state_map.py` annotations | Auto-derive state_diff map files from xa65 labels joined with per-engine state-address annotations. `--engine ENGINE --voice {1,2,3,all}`. | (in this file) |
 | `tools/disasm_diff.py` | Side-by-side compare orig disasm region vs composer emitter. Auto-extracts the asm string from `_emit_*` functions. Visual aid for spotting structural differences during recipe step 3. | (in this file + CLAUDE.md) |
+| `siddump --writelog-per-irq` | Emits the writelog stream bucketed PER PSID `play()` invocation (one `\|I:` chunk per IRQ). Kills Trap C at the source. Implementation: c64cpubus hooks the play vector entry via cpuRead, records PHI1 cycle, siddump splits the writelog by these cycle markers. | (in this file + CLAUDE.md) |
+| `tools/effect_chain_profiler.py` | Attribute each SID write to its CPU PC. Cross-references siddump --writelog with --pc-trace, aligns cycle scales, outputs "$D408=$47 written by PC $831D" per write. | (in this file + CLAUDE.md) |
+| `tools/pattern_stream_verify.py` | USF roundtrip check for the pattern-stream region. Verifies orig vs rebuild bytes match, accounting for `featuredriven_addr_shift` and pointer fixup. Catches data-emission regressions early. | (in this file + CLAUDE.md) |
 | `tools/seed_disassembly.py` | Generate a labelled disasm from a SID's binary as the starting point for hand-annotation. | (migrate-hubbard-engine skill) |
 
 ## Backlog (not built yet)
@@ -45,20 +48,22 @@ roadmap.
 
 ---
 
-**BACKLOG AUDIT (post-session sweep):** The list above contains stale
-entries that were built and not removed. Actual remaining items:
+**BACKLOG STATUS (final sweep — all items resolved):**
 
-| Item | Reality |
+| Item | Status |
 |---|---|
-| `siddump --play-aligned` | PARTIALLY MITIGATED. The `\|P:<count>` per-frame play-count emission + state_diff's Trap C delta check turn this from silent footgun into explicit signal. Eliminating Trap C entirely (hook play() entry, bucket writes per-IRQ) is still nice-to-have but no longer painful. |
-| Composer-symbolic data layout | DONE (commit 09742c7). Phase 1 + Phase 2 both shipped. Hawkeye runs with shift=$40, noise-tick enabled, 11/12 subs FULL. |
+| `siddump --play-aligned` / `--writelog-per-irq` | BUILT (commit ca1623f). Per-IRQ writelog bucketing eliminates Trap C at the source. |
+| Composer-symbolic data layout | BUILT (commit 09742c7). Phase 1 + 2. Hawkeye 11/12 FULL. |
 | `tools/voice_writelog.py` | BUILT (commit 7bb6abe). |
 | `tools/pattern_stream_decode.py` | BUILT (commit 7bb6abe). |
 | `tools/disasm_diff.py` | BUILT (commit 6db2726). |
-| State map generator | BUILT as `tools/state_map_gen.py` + per-engine annotations (commit 0bdc98e). |
+| State map generator | BUILT as `tools/state_map_gen.py` (commit 0bdc98e). |
 | `siddump --memwatch-events` | BUILT as `siddump --memwatch-on-write` (commit 8bc8d0f). |
-| `tools/effect_chain_profiler.py` | NOT BUILT, but largely subsumed by `--memwatch-on-write`. The only added value would be PC tagging (which routine address wrote $D4xx). Lower-priority. |
-| Pattern-stream USF-vs-binary verifier | NOT BUILT. For FC family this is trivial because patterns emit verbatim; would only have real value for Hubbard '85 / Companion engines where patterns are USF-re-encoded. Cross-checked there at rebuild time already. Lower-priority. |
+| `tools/effect_chain_profiler.py` | BUILT (commit 9ec3509). PC-attributed write log. |
+| Pattern-stream USF-vs-binary verifier | BUILT as `tools/pattern_stream_verify.py`. |
+
+**Backlog cleared.** Add new entries above as future sessions surface
+tools that would have saved time.
 
 ## Hurt list (built tools that didn't earn their keep — to be modified or removed)
 
