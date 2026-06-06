@@ -40,14 +40,14 @@ def test_orderlist_transpose_serialization():
 
 
 def test_orderlist_all_modifiers_serialization():
-    # [a*]b[+c][^d] — repeats, transpose, voiceinc combined.
+    # a[*b][+c][^d] — pattern, repeats, transpose, voiceinc combined.
     o = Orderlist(entries=[0, 5, 8, 2],
                   repeats=[1, 7, 4, 1],
                   transposes=[0, 0, 3, 0],
                   voiceincs=[0, 0, 0, 2],
                   loop_to=0)
     from src.usf.writer import _write_orderlist
-    assert _write_orderlist(o) == '0 7*5 4*8+3 2^2 loop@0'
+    assert _write_orderlist(o) == '0 5*7 8*4+3 2^2 loop@0'
 
 
 def test_orderlist_all_modifiers_roundtrip():

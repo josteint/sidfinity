@@ -576,9 +576,9 @@ class _T(Transformer):
         return ('vi', int(items[0]))
 
     def orderlist_entry(self, items):
-        # [a*]b[+c][^d] → ('entry', pattern_id, transpose, voiceinc, repeats)
-        # Modifier sub-rules arrive as tagged tuples; the bare Token is the
-        # pattern id.
+        # a[*b][+c][^d] → ('entry', pattern_id, transpose, voiceinc, repeats)
+        # The bare Token is the pattern id (operand, first); modifier
+        # sub-rules arrive as tagged tuples.
         pid = None
         rep, tr, vi = 1, 0, 0
         for it in items:

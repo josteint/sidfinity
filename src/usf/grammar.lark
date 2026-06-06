@@ -232,9 +232,10 @@ is_sfx_field: "is_sfx" ":" bool
 voice_block: "voice" INT "{" "orderlist" ":" orderlist pattern_block* "}"
 orderlist: orderlist_entry+ orderlist_terminator?
          | orderlist_terminator
-// entry: [a*]b[+c][^d]  — a=repeats, b=pattern id, c=transpose, d=voiceinc
-orderlist_entry: ol_repeat? INT ol_transpose? ol_voiceinc?
-ol_repeat: INT "*"
+// entry: a[*b][+c][^d]  — a=pattern id, b=repeats, c=transpose, d=voiceinc.
+// Operand first, then a homogeneous list of <operator><parameter> modifiers.
+orderlist_entry: INT ol_repeat? ol_transpose? ol_voiceinc?
+ol_repeat: "*" INT
 ol_transpose: "+" INT
 ol_voiceinc: "^" INT
 orderlist_terminator: "loop" "@" INT      -> ol_loop

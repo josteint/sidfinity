@@ -219,7 +219,7 @@ subtune 0 music {
 
 ```
 voice 1 {
-  orderlist: 0 1 3*0+7 2 loop@2
+  orderlist: 0 1 0*3+7 2 loop@2
 
   pattern 0 length=32 { ... }
   pattern 1 length=16 { ... }
@@ -229,11 +229,13 @@ voice 1 {
 - `orderlist`: a sequence of pattern ids. A `loop@N` token gives the
   position to jump to after the orderlist ends (0-indexed). A trailing
   `stop` (no `loop@`) indicates an end-of-song with no loop.
-- Per-entry modifiers. An entry has the form `[a*]b[+c][^d]`:
-  - `b` — the pattern id (required).
-  - `a*` — **repeats**: play the pattern `a` times (e.g. `3*0` plays
+- Per-entry modifiers. An entry has the form `a[*b][+c][^d]` — the
+  pattern id (operand) first, then a homogeneous list of
+  `<operator><parameter>` modifiers:
+  - `a` — the pattern id (required, the operand).
+  - `*b` — **repeats**: play the pattern `b` times (e.g. `0*3` plays
     pattern 0 three times). Omitted means once. A lossless run-length
-    form of an expanded orderlist (`0 0 0` == `3*0`).
+    form of an expanded orderlist (`0 0 0` == `0*3`).
   - `+c` — **transpose**: a semitone / freq-table-index offset added to
     the entry's notes (FC's `SeqTranspose`; non-negative). Omitted = 0.
   - `^d` — **voiceinc** ("sound transpose"): an offset added to the

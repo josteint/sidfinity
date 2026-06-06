@@ -304,7 +304,9 @@ def _write_orderlist(o: Orderlist) -> str:
         rep = o.repeat_at(i)
         tr = o.transpose_at(i)
         vi = o.voiceinc_at(i)
-        s = f'{rep}*{e}' if rep != 1 else str(e)
+        s = str(e)
+        if rep != 1:
+            s += f'*{rep}'
         if tr:
             s += f'+{tr}'
         if vi:
