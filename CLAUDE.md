@@ -152,6 +152,16 @@ companion). Use it as the verdict after any composer change.
 
 ## MANDATORY before any new pipeline work
 
+**Before any engine investigation, ask yourself two questions OUT LOUD (in your first text turn of the session):**
+
+1. **Did I do full decompilation?** — i.e., does the engine have a hand-annotated `pipelines/<family>/<engine>/disassembly.s` already in the repo? Most FC + Hubbard engines do (1000+ lines, hand-labelled with routine names + state-byte assignments). If yes, READ IT before any py65 fragment-disasm work. If no, generate one with `tools/seed_disassembly.py` and annotate the header BEFORE coding.
+
+2. **Do we have docs?** — check `pipelines/<family>/<engine>/RE_NOTES.md` (per-engine RE notes, often 500+ lines of state-byte assignments + flow narration + prior-session findings) and `pipelines/<family>/docs/` (family-wide research: format specs, manuals, lineage). If either exists, read FIRST.
+
+Skipping these two questions cost a multi-hour wrong-guessing session on Hawkeye sub 6 (2026-06-06) — the answer was in `disassembly.s` + `RE_NOTES.md` and would have taken 5 minutes. See [[feedback_check_existing_engine_docs]].
+
+Then:
+
 1. **Check the engine's project memory** — `.claude/memory/project_<engine>.md`. Reads any prior session's root-cause analysis so you don't re-investigate from scratch.
 2. **Re-read `docs/usf_representation_principle.md` IN FULL** before designing or changing any USF instrument/effect representation. Load-bearing — see [`feedback_usf_representation_principle`](.claude/memory/feedback_usf_representation_principle.md).
 3. **Check `deprecated/` for prior attempts** before rewriting something from scratch.
