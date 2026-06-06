@@ -1186,8 +1186,24 @@ startnewnote:
 skip:
         ; --- Pattern byte dispatch chain ---
         ; Each handler dispatches `tabbytsto` and consumes byte(s).
+        ;
+        ; Range $F0/$F1 = special markers (noglide / filterset)
         ; Range $E0-$EF = glide (3-byte sequence)
+        ; Range $C0-$DF = wave/inst adjust
+        ; Range $80-$BF = setlength
+        ; Range <$80   = note/arp
+        ;
+        ; $F0/$F1 must be checked FIRST because $F0 ≥ $E0 would
+        ; otherwise be caught by the glide handler. Orig handles this
+        ; via AND #$F0 / CMP #$F0 at $7C64 — re-dispatched on every
+        ; chain step (setlen_loop, wave/inst chain) and on the
+        ; initial pattern entry. Hawkeye sub 1 pattern $1B hits
+        ; $82 $F0 $43 $FF — without this check, $F0 fires glide and
+        ; consumes $FF as glide target, missing the pattern end.
         lda tabbytsto
+        cmp #$F0
+        bcs f0_or_f1_chained
+
         cmp #$E0
         bcc noglideset
 
@@ -1213,6 +1229,36 @@ skip:
         lda (zp3),y
         sta tabbytsto
         bne nolengset                ; always taken (target > 0)
+
+f0_or_f1_chained:
+        ; Re-dispatched $F0 (noglide) or $F1 (filterset). Mirrors
+        ; orig's $7C64-$7C8B flow: advance past the marker byte,
+        ; read the next byte into tabbytsto, then re-dispatch via
+        ; `skip` (or to nolengset for the noglide case, since the
+        ; next byte IS the note).
+        lda tabbytsto
+        and #1
+        bne f1_chained               ; $F1 → filterset
+        ; $F0 — noglide marker. Set newnote, advance past $F0,
+        ; read next byte (the note) as tabbytsto, dispatch.
+        lda #1
+        sta newnote,x
+        inc begcount,x
+        iny
+        lda (zp3),y
+        sta tabbytsto
+        bne skip                     ; (always nonzero — notes >$00)
+
+f1_chained:
+        ; $F1 — filterset. Advance past $F1, read value byte, write
+        ; to $D417, then advance + fetch next byte into tabbytsto,
+        ; re-dispatch.
+        inc begcount,x
+        iny
+        lda (zp3),y
+        sta $d417
+        jsr verhoogtest              ; INC begcount, fetch next byte
+        jmp skip
 
 noglideset:
         ; Range $C0-$DF = wave/inst adjust (sets wavecount)
