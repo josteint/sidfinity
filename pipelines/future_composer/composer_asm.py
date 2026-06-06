@@ -604,15 +604,24 @@ song_seqcp:
         rts
 
 songout:
-        lda #1
+        ; Hawkeye songout at orig $7BFC-$7C0C: silence only the three
+        ; voice control regs ($D404/$D40B/$D412), set testbyte = $02.
+        ; Note: orig writes #$02 (NOT #$01) to its testbyte equivalent
+        ; ($7B99) — the play loop's `bne` test sees any non-zero as
+        ; halted, but the chip-state writelog is what we match.
+        lda #$02
         sta testbyte
-        jmp silence_all              ; songout bypasses the $D418/$D417
-                                     ; cleanup (just silences and returns)
+        lda #$00
+        sta $d404                    ; V1 ctrl = 0
+        sta $d40b                    ; V2 ctrl = 0
+        sta $d412                    ; V3 ctrl = 0
+        rts
 
 silence_all:
-        ; Hawkeye's silence pattern: for each register $D400-$D417,
-        ; write $01 then $00. This 2-write strobe is the engine's
-        ; SID-reset convention (each register touched twice).
+        ; Init-time SID reset (Hawkeye orig $7B82-$7B97): for each
+        ; register $D400-$D417, write $01 then $00. Two-write strobe
+        ; per register. This is the INIT pattern, NOT songout —
+        ; songout has its own minimal silencing above.
         ldx #$17                     ; covers $D400 + $00..$17 = $D400-$D417
 silence_loop:
         lda #$01
