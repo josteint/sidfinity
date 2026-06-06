@@ -241,6 +241,13 @@ public:
     const std::vector<MemRead>& getReadLog() const;
 
     /**
+     * Read a single byte of C64 RAM (post-PLA, what the CPU would see
+     * at this address right now). For diagnostic state inspection
+     * between play() calls — used by siddump --memwatch.
+     */
+    uint8_t peekRam(uint16_t addr);
+
+    /**
      * Get the required size of the buffer for the number of cycles to run,
      * approximate value by excess.
      * The mixer must have been initialized before with #initMixer

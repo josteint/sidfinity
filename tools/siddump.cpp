@@ -105,14 +105,17 @@ int main(int argc, char* argv[])
             "  --memtrace     Append memory access trace\n"
             "  --pcm          Output raw 16-bit signed PCM to stdout\n"
             "  --force-rsid   Process RSID files (normally skipped)\n"
-            "  --pc-trace FILE START END  Dump CPU PC trace to FILE for frames START..END\n",
+            "  --pc-trace FILE START END  Dump CPU PC trace to FILE for frames START..END\n"
+            "  --memwatch HEX[,HEX...]    Per-frame snapshot of RAM at these addresses (post-play)\n"
+            "                             (e.g. --memwatch 90C5,90C8,90CB,9116). Output lines:\n"
+            "                             M<frame>:<addr>=<val>[:<addr>=<val>...]\n",
             argv[0]);
         return 1;
     }
 
     const char* filename = argv[1];
     int subtune = 0;
-    int seconds = 60;
+    double seconds = 60;
     int timeout = 0;
     bool raw = false;
     bool digi = false;
@@ -123,6 +126,7 @@ int main(int argc, char* argv[])
     const char* pc_trace_path = nullptr;
     int pc_trace_start_frame = -1;
     int pc_trace_end_frame = -1;
+    std::vector<uint16_t> memwatch_addrs;
 
     for (int i = 2; i < argc; i++) {
         if (strcmp(argv[i], "--raw") == 0) {
@@ -141,10 +145,21 @@ int main(int argc, char* argv[])
             pc_trace_path = argv[++i];
             pc_trace_start_frame = atoi(argv[++i]);
             pc_trace_end_frame = atoi(argv[++i]);
+        } else if (strcmp(argv[i], "--memwatch") == 0 && i + 1 < argc) {
+            // Comma-separated list of hex addresses to snapshot each frame
+            const char* p = argv[++i];
+            while (*p) {
+                char* end = nullptr;
+                unsigned long addr = strtoul(p, &end, 16);
+                if (end == p) break;
+                memwatch_addrs.push_back(static_cast<uint16_t>(addr));
+                p = end;
+                if (*p == ',') ++p;
+            }
         } else if (strcmp(argv[i], "--subtune") == 0 && i + 1 < argc) {
             subtune = atoi(argv[++i]);
         } else if (strcmp(argv[i], "--duration") == 0 && i + 1 < argc) {
-            seconds = atoi(argv[++i]);
+            seconds = atof(argv[++i]);
         } else if (strcmp(argv[i], "--timeout") == 0 && i + 1 < argc) {
             timeout = atoi(argv[++i]);
         } else if (atoi(argv[i]) > 0) {
@@ -226,7 +241,7 @@ int main(int argc, char* argv[])
     // actual player differences. See docs/player_codegen_plan.md.
     unsigned int cyclesPerFrame = isPAL ? (63 * 312 + 32) : (65 * 263 + 32);
 
-    int totalFrames = seconds * fps;
+    int totalFrames = static_cast<int>(seconds * fps);
 
     // Output metadata as JSON
     if (!raw) {
@@ -353,6 +368,15 @@ int main(int argc, char* argv[])
                     }
                 }
             }
+        }
+
+        // Append per-frame memwatch snapshot of requested RAM addresses
+        if (!memwatch_addrs.empty()) {
+            printf("|M");
+            for (uint16_t a : memwatch_addrs) {
+                printf(":%04X=%02X", a, engine.peekRam(a));
+            }
+            anyNonZero = true;  // memwatch alone counts as "doing something"
         }
 
         // Append full write log (all writes with cycle timing)

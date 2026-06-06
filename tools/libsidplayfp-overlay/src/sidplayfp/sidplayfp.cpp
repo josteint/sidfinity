@@ -163,6 +163,11 @@ const std::vector<MemRead>& sidplayfp::getReadLog() const
     return sidplayer.getReadLog();
 }
 
+uint8_t sidplayfp::peekRam(uint16_t addr)
+{
+    return sidplayer.peekRam(addr);
+}
+
 unsigned int sidplayfp::installedSIDs() const
 {
     return sidplayer.installedSIDs();

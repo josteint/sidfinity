@@ -168,6 +168,8 @@ public:
     const std::vector<libsidplayfp::MemRead>& getReadLog() const
     { return m_c64.getCpuBus().getReadLog(); }
 
+    uint8_t peekRam(uint16_t addr) { return m_c64.getMemInterface().readMemByte(addr); }
+
     unsigned int installedSIDs() const { return m_chips.size(); }
 
     void initMixer(bool stereo);
