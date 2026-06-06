@@ -235,6 +235,11 @@ tonearpcounter: .dsb 3, 0            ; tone-arp counter
 arpieoklo:      .dsb 3, 0            ; arpeggio program ptr lo
 arpieokhi:      .dsb 3, 0            ; arpeggio program ptr hi
 lonotesto:      .dsb 3, 0            ; freq lo shadow (for vibrato later)
+lonotesto2:     .dsb 3, 0            ; freq lo shadow 2 (preserved freq —
+                                     ; used by Hawkeye noise-tick release
+                                     ; to restore the note's original pitch
+                                     ; after the drum-kick frames, parallel
+                                     ; to hinotesto2 / orig $90E3)
 hinotesto:      .dsb 3, 0            ; freq hi shadow
 hinotesto2:     .dsb 3, 0            ; freq hi shadow 2
 pulsehitemp:    .dsb 3, 0
@@ -830,10 +835,14 @@ def _emit_fx_noise_tick(cfg: FCConfig) -> str:
 hk_nt_release:
         cmp #$04
         bcs effect_chain_end          ; counter2 >= 4 → done
-        ; counter2 in [2..3]: release (orig $82F5-$8306)
-        lda lonotesto,x
+        ; counter2 in [2..3]: release (orig $82F5-$8306). Uses the
+        ; PRESERVED freq shadows (lonotesto2/hinotesto2) so the
+        ; drum-kick "release tail" restores the original note pitch,
+        ; not any vibrato/glide-modulated current value. Orig reads
+        ; $90E3 (lonotesto2 equiv) and $90DD (hinotesto2 equiv).
+        lda lonotesto2,x
         sta d400,x
-        lda hinotesto,x
+        lda hinotesto2,x
         sta d401,x
         lda wavesto,x
         and #$FE
@@ -1403,10 +1412,11 @@ nolengset:
         sta d400,x
         pha
         sta lonotesto,x
+        sta lonotesto2,x             ; preserved (orig $90E3, Hawkeye release)
         lda hinote,y
         sta d401,x
         sta hinotesto,x
-        sta hinotesto2,x
+        sta hinotesto2,x             ; preserved (orig $90DD, Hawkeye release)
         ldy voicesto
         sta $d401,y                  ; SID $D401 (freq hi)
         pla
