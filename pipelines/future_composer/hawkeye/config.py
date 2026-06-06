@@ -89,14 +89,9 @@ HAWKEYE = FCConfig(
     voice_loop_layout='interleaved',
 
     # Hawkeye's noise-tick at orig $82D4-$82F0 is a 4-frame drum-kick.
-    # The composer has 'hawkeye_constants' style ready to emit it, but
-    # adding it overflows the current engine-code budget (24 bytes past
-    # cfg.freq_lo_addr=$8337). Enabling needs the engine code area
-    # extended past $8337 (shift freq_lo + dependent data addrs forward).
-    # Sub 10 V1 drum hit at f786 ($D404=$81, freq=$0058) is what this
-    # style fixes — see task #75 / sub 10 SFX investigation. Left at
-    # 'disabled' until the layout shift lands.
-    noise_tick_style='disabled',
+    # The 'hawkeye_constants' style emits it (52 bytes); enabled now
+    # that featuredriven_addr_shift=$40 makes room past $8337.
+    noise_tick_style='hawkeye_constants',
 
     # Hawkeye's drum at $82C3 adds $0D to the tone byte before writing
     # to d401 (V3 freq hi shadow). Verified: orig V3 sub 1 frame 1 has
@@ -125,15 +120,10 @@ HAWKEYE = FCConfig(
     nolengset_resets_tonearpcounter=False,
 
     # featuredriven_addr_shift: shift all data tables forward by N
-    # bytes to give engine code more room. The infrastructure
-    # (composer_asm.py _fixup_verbatim_pointers) is in place but Phase 2
-    # tested at 0x40 still loses music sub 1 + sub 5 (V3 drum-kick gets
-    # different pattern; one pointer family is incompletely tracked).
-    # Suspects: arp programs may contain non-pointer bytes my fixup
-    # treats as pointers, OR a pointer table I haven't enumerated
-    # (e.g., pulsetabel program addresses). Leave at 0 until the
-    # remaining pointer family is identified.
-    # featuredriven_addr_shift=0x40,
+    # bytes to give engine code more room. Phase 2 of the symbolic-
+    # data-layout refactor enables this. $40 = 64 bytes of breathing
+    # room, enough for noise_tick_style='hawkeye_constants' (+52 bytes).
+    featuredriven_addr_shift=0x40,
 )
 
 

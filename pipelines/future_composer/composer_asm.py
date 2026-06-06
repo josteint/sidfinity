@@ -490,8 +490,13 @@ def _emit_song_init_smc(cfg: FCConfig) -> str:
     mode_addr     = cfg.per_subtune_mode_addr
     music_count   = cfg.music_subtune_count
     template_hi   = cfg.template_base_hi
-    sfx_pg_base   = cfg.sfx_page_base
     sfx_pg_stride = cfg.sfx_page_stride
+    # If data is shifted, SFX records also move. Bake shift's hi+lo into
+    # the SFX-page-base lookup so seqptr_hi/seqptr_lo land on the
+    # actually-emitted SFX record address.
+    shift = cfg.featuredriven_addr_shift
+    sfx_pg_base   = (cfg.sfx_page_base + (shift >> 8)) & 0xFF
+    sfx_pg_offset = shift & 0xFF
     # Pre-emit the SFX stride multiplier as a sequence of ASLs (only
     # works for stride being a power of 2; Hawkeye stride=2 → 1 asl).
     if sfx_pg_stride == 1:
@@ -546,9 +551,9 @@ song_sfx_path:
         sbc #{music_count}              ; A = sfx_idx
 {stride_asm}                              ; A *= sfx_page_stride
         clc
-        adc #${sfx_pg_base:02X}        ; A = SFX page
+        adc #${sfx_pg_base:02X}        ; A = SFX page (includes shift>>8)
         sta seqptr_hi
-        lda #0
+        lda #${sfx_pg_offset:02X}     ; SFX page low-byte offset (shift&$FF)
         sta seqptr_lo
 
         ; SFX 3-copy: SFX page contains 6+20+256 = 282 bytes of
@@ -557,11 +562,10 @@ song_sfx_path:
         ; copying from the SFX page. We do the same here so mine reads
         ; SFX-specific data when walking V1.
         ; Copy 2: 20 bytes ($SFX_page+6) → pattern_ptr_table+$6C (SFX
-        ; pattern-pointer extension area). Address symbolic so the
-        ; composer can shift the data layout — see CORE TENET, the
-        ; engine is free to put data wherever; only the write-log stream
-        ; matters.
-        lda #6
+        ; pattern-pointer extension area). The +sfx_pg_offset accounts
+        ; for the SFX page offset within a 256-byte page (= shift & $FF
+        ; for shifted layouts; 0 otherwise).
+        lda #(6 + ${sfx_pg_offset:02X})
         sta seqptr_lo
         ldy #$13
 sfx_copy2:
@@ -570,8 +574,7 @@ sfx_copy2:
         dey
         bpl sfx_copy2
         ; Copy 3: 256 bytes ($SFX_page+$1A) → sfx_seq_stream destination.
-        ; Symbolic — defined in the engine equates section.
-        lda #$1A
+        lda #($1A + ${sfx_pg_offset:02X})
         sta seqptr_lo
         ldy #0
 sfx_copy3:
@@ -579,9 +582,10 @@ sfx_copy3:
         sta sfx_seq_stream,y
         dey
         bne sfx_copy3
-        ; Restore seqptr_lo = 0 for the 6-byte seq pointer copy below
-        ; (song_copy_seqs reads (seqptr_lo, seqptr_hi) = $SFX_page+0).
-        lda #0
+        ; Restore seqptr_lo = sfx_pg_offset for the 6-byte seq pointer
+        ; copy below (song_copy_seqs reads (seqptr_lo, seqptr_hi) =
+        ; SFX_page+0 in the shifted layout).
+        lda #${sfx_pg_offset:02X}
         sta seqptr_lo
 
 song_copy_seqs:
@@ -2708,25 +2712,41 @@ def _fixup_verbatim_pointers(mem: bytearray, cfg, shift: int,
         for n in range(cfg.max_patterns):
             shift_at(base + n*2, base + n*2 + 1)
 
-    # drumtabel: each entry = 4 bytes = 2 ptrs (dwa, dto). Conservatively
-    # assume 4 drums (one full pulsetabel-style sweep would be 32 bytes).
+    # drumtabel: each entry = 4 bytes = 2 ptrs (dwa, dto). Engine masks
+    # drum_num with $0F (= 16 possible drums). Iterate all 16 and skip
+    # entries whose hi bytes look like garbage (< orig_first_data_addr's
+    # hi byte). Hawkeye uses drum 5 (inst 21), so the conservative-4
+    # used to miss it.
     base = _u(cfg.drumtabel_addr)
     if base:
-        for drum in range(4):
+        for drum in range(16):
+            # Sanity: check the dwa hi byte looks like a code/data
+            # address (>= $80). If not, this drum slot is unused; skip.
+            dwa_hi = mem[base + drum*4 + 1]
+            dto_hi = mem[base + drum*4 + 3]
+            if dwa_hi < 0x80 or dto_hi < 0x80:
+                continue
             shift_at(base + drum*4 + 0, base + drum*4 + 1)
             shift_at(base + drum*4 + 2, base + drum*4 + 3)
 
-    # filterbytes: 4 filter programs × 2 bytes per pointer.
+    # filterbytes: filter programs × 2 bytes per pointer. Iterate up to
+    # 8 (fits the engine's max mask); skip entries with garbage hi byte.
     base = _u(cfg.filterbytes_addr)
     if base:
-        for prog in range(4):
+        for prog in range(8):
+            if mem[base + prog*2 + 1] < 0x80:
+                continue
             shift_at(base + prog*2, base + prog*2 + 1)
 
     # arplo + arphi: SEPARATE arrays. arp[N] = (arplo[N], arphi[N]).
+    # Iterate up to 16 (engine masks with $0F); skip entries with
+    # garbage hi byte.
     base_lo = _u(cfg.arplo_addr)
     base_hi = _u(cfg.arphi_addr)
     if base_lo and base_hi:
-        for n in range(8):
+        for n in range(16):
+            if mem[base_hi + n] < 0x80:
+                continue
             shift_at(base_lo + n, base_hi + n)
 
     # Music subtune templates (smc_template_with_sfx layout). Each music
