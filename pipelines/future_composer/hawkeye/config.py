@@ -88,12 +88,14 @@ HAWKEYE = FCConfig(
     # structure" for the full disassembly walk.
     voice_loop_layout='interleaved',
 
-    # Hawkeye has its own noise-tick at $82D4 with hardcoded constants
-    # ($58, $00, $81) — completely different from Cyb II's per-instrument
-    # startlen/starttabel lookup. Until a 'hawkeye_constants' style is
-    # implemented, disable the Cyb II path to prevent garbage reads from
-    # the unset startlen_addr / starttabel_addr placeholders. (See
-    # RE_NOTES.md "Real root cause" section.)
+    # Hawkeye's noise-tick at orig $82D4-$82F0 is a 4-frame drum-kick.
+    # The composer has 'hawkeye_constants' style ready to emit it, but
+    # adding it overflows the current engine-code budget (24 bytes past
+    # cfg.freq_lo_addr=$8337). Enabling needs the engine code area
+    # extended past $8337 (shift freq_lo + dependent data addrs forward).
+    # Sub 10 V1 drum hit at f786 ($D404=$81, freq=$0058) is what this
+    # style fixes — see task #75 / sub 10 SFX investigation. Left at
+    # 'disabled' until the layout shift lands.
     noise_tick_style='disabled',
 
     # Hawkeye's drum at $82C3 adds $0D to the tone byte before writing

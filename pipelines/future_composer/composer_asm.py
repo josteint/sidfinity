@@ -771,19 +771,65 @@ fx_pulse_run_set_flag:
 def _emit_fx_noise_tick(cfg: FCConfig) -> str:
     """Emit fx_noise_tick body per cfg.noise_tick_style.
 
-    'cyb2_table' — Cyb II's per-instrument startlen/starttabel lookup,
-                   writing noisehitone $FA when attack byte bit 7 set.
-    'disabled'   — no-op (label only, falls through to effect_chain_end).
-                   Used by engines whose noise-tick is structurally
-                   different (e.g. Hawkeye's hardcoded $58/$81 logic at
-                   $82D4), to avoid garbage reads from unset startlen/
-                   starttabel addresses.
+    'cyb2_table'        — Cyb II's per-instrument startlen/starttabel
+                          lookup, writing noisehitone $FA when attack
+                          byte bit 7 set.
+    'hawkeye_constants' — Hawkeye's drum-kick at orig $82D4-$82F0.
+                          Triggered by fx3 bit 7. For counter2 in [0..1]:
+                          ctrl=$81 (noise+gate), freq=$0058. For
+                          counter2 in [2..3]: ctrl=wavesto&$FE (release,
+                          gate cleared), freq restored from lonotesto/
+                          hinotesto. Beyond counter2=3: done. Mode 1
+                          equivalent of orig.
+    'disabled'          — no-op (label only, falls through to
+                          effect_chain_end).
     """
     if cfg.noise_tick_style == 'disabled':
         return (
             'fx_noise_tick:\n'
             "        ; disabled per cfg — falls through to effect_chain_end\n"
         )
+    if cfg.noise_tick_style == 'hawkeye_constants':
+        # Tight encoding to mirror orig $82D4-$82F0's 51-byte footprint.
+        # `effect_chain_end` follows immediately — branches/exits use it
+        # as the fall-through target to save the hk_nt_done label.
+        return """fx_noise_tick:
+        ; Hawkeye drum-kick (orig $82D4-$82F0). fx3 bit 7 triggers a
+        ; 4-frame drum-kick + release effect:
+        ;   counter2 in [0..1]: ctrl=$81 (noise+gate), freq=$0058
+        ;   counter2 in [2..3]: ctrl=wavesto&$FE (release), freq from
+        ;                       lonotesto/hinotesto
+        ;   counter2 >= 4:      done (fall through)
+        lda fx3sto
+        bpl effect_chain_end          ; bit 7 clear → skip (orig $82D6)
+        ; X is already wax (preserved through fx_double_voice + fx_drum's
+        ; BEQ fall-through path; neither clobbers X). Save 2 bytes by not
+        ; reloading. Verified in the chain order section.
+        lda counter2,x
+        cmp #$02
+        bcs hk_nt_release             ; counter2 >= 2 → release path
+
+        ; counter2 < 2: drum kick (orig $82DF-$82EE)
+        lda #$58
+        sta d401,x
+        lda #$00
+        sta d400,x
+        lda #$81
+        sta stod404,x
+        bne effect_chain_end          ; always taken ($81 ≠ 0)
+
+hk_nt_release:
+        cmp #$04
+        bcs effect_chain_end          ; counter2 >= 4 → done
+        ; counter2 in [2..3]: release (orig $82F5-$8306)
+        lda lonotesto,x
+        sta d400,x
+        lda hinotesto,x
+        sta d401,x
+        lda wavesto,x
+        and #$FE
+        sta stod404,x
+        ; falls through to effect_chain_end"""
     if cfg.noise_tick_style == 'cyb2_table':
         return """fx_noise_tick:
         ; fx3 bit $80 — pre-attack waveform for the first N frames of

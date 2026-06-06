@@ -43,7 +43,7 @@ from typing import Literal
 
 SubtuneLayout = Literal['flat_seqtabel', 'smc_template_with_sfx']
 VoiceLoopLayout = Literal['tight_nextvoice', 'interleaved']
-NoiseTickStyle = Literal['cyb2_table', 'disabled']
+NoiseTickStyle = Literal['cyb2_table', 'hawkeye_constants', 'disabled']
 
 
 @dataclass(frozen=True)
