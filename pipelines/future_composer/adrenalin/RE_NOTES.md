@@ -365,6 +365,59 @@ So:
   own per-voice state (so subs 2/3 don't stomp on sub 0's state).
   That's irrelevant to our rebuild — we emit one engine.
 
+### Empirical: subs 0/2/3 may share most data (TBD)
+
+After running init per subtune and dumping the runtime state:
+
+- Subs 0, 2, 3 ALL show identical:
+  - per-subtune ptr lookup table at `$18A5..$18AB` (`A9 AF 18 18 20 A0 20`)
+  - runtime slot at `$18B5..$18BA` (`20 A0 20 1A 1A 1B` → V0=`$1A20`,
+    V1=`$1AA0`, V2=`$1B20`)
+  - active speedbyte at `$7A09` (`$02`)
+- Subs 2, 3 ALL show identical:
+  - per_subtune_speed table at `$18A1` (`03 02 01 01`)
+
+So the extracted USF for subs 0/2/3 has identical V0/V1/V2 sequence
+pointers + identical speed. Yet HVSC's Songlengths reports 4 distinct
+durations: `3:36 3:47 1:21 0:41`. So the actual music DIFFERS somehow.
+
+Two possibilities:
+1. **The sequence bytes at `$1A20`/`$1AA0`/`$1B20` differ between
+   subs 0/2/3's post-init memory** — i.e., the per-subtune copy
+   populates the same pointer addresses but with different data at
+   the pointed-to locations. Likely.
+2. **Subs 0/2/3 share the same music**, with the launcher exposing
+   different STARTING POSITIONS or different SECTIONS via some
+   non-FC mechanism. Less likely.
+
+Need to verify by inspecting sequence/pattern bytes per subtune.
+
+### Composer build is BLOCKED on the new `runtime_slot` variant
+
+`compose_fc_asm_featuredriven` doesn't know `runtime_slot` — it
+expects `flat_seqtabel` or `smc_template_with_sfx`. To get a rebuild
+SID, one of two paths:
+
+1. **Teach the composer about runtime_slot.** Emit a standard FC
+   songinit that copies per-subtune data into the runtime slot from
+   a synthesized flat seqtabel table. Per the CORE TENET the rebuilt
+   SID doesn't have to mirror Adrenalin's binary layout — it just has
+   to produce the same writelog.
+
+2. **Change Adrenalin's subtune_layout to 'flat_seqtabel'**, and have
+   the extract path synthesize a 4-subtune flat seqtabel by reading
+   each subtune's runtime slot from its own post-init memory.
+
+Option 2 is simpler. The extract code already runs init per subtune.
+Just collect the runtime slot values + speedbyte values into a
+synthetic 4-record table, expose as `cfg.seqtabel_addr` /
+`cfg.per_subtune_speed_addr` for the composer.
+
+But before either path: confirm whether subs 0/2/3 really differ at
+the sequence/pattern byte level. If they share data, the single-
+subtune Adrenalin canary (sub 0 only) is the realistic deliverable
+and we should mark subs 1/2/3 as deferred.
+
 ### Sub 1 — TBD
 
 PSID play vec for sub 1 is `$1021` — neither engine A (`$7A06`) nor
