@@ -240,21 +240,111 @@ Per-voice state base: `$7A0D` onwards (3-byte arrays); explicit
 zero-clear in `ok2` covers `$7A0D..$7A87` (127 bytes ≈ same as
 Hawkeye's 119-byte block at `$90C5`).
 
-### TBD on engine A
+### Effect chain (extending the routine map)
 
-- Identify the rest of the routines past `$7D34` (vibrato, drum,
-  noise-tick, filter-prog, pulse-prog — the effect chain).
-- Identify the auxiliary table addresses (`drumtabel`, `filterbytes`,
-  `arplo`, `arphi`, `pulsetabel`, `vibtabwait`, `startlen`,
-  `starttabel`).
-- Verify `subtune_layout`: the X-indexed lo+hi pointer table at
-  `$18A5`/`$18A7` is a flavour of `flat_seqtabel` but stores the
-  runtime slot's source address via SMC, not directly. Needs
-  confirmation that the extract path's `flat_seqtabel` works for
-  this shape.
-- The `$7AB4 → $7D73` SMC (LDA `$18A3,X` / STA `$7D73`): what is
-  `$7D73`? Probably another piece of subtune setup state, possibly
-  master volume or initial filter.
+| Adrenalin | Canonical FC label | Purpose |
+|---|---|---|
+| `L_7D34` | (h10 / held-note SR-modify) | nootcount>0: LDA inst's fil_count `$19B0,Y`; AND #$F0; >>3 = threshold. Compares against `nootleng - nootcount` (elapsed frames). Sets gate-off mask in `$7A66,X` (stod404). |
+| `L_7D60` | (gate-off store) | `STA $7A66,X` — write computed stod404 byte. |
+| `L_7D63` | (SR-release trigger) | LDA `$7A3A,X` (inst fx?); AND #$10; BEQ skip. Force-release SR when condition met. Writes `$D406,Y` directly. |
+| `L_7D79` | (per-frame inst chain entry) | LDA `$7A22,X` (curr inst); shift; TAY. Cache fx1/fx2/fx3 at `$78`/`$71`/`$72`. Check fx3 bit $10 (drum) → BNE `$7EAC` (drum/effect path). |
+| `L_7D9C` | `fx_tone_arp` | fx2 (now `$72`) bit $04 (arp) gate. DEC `$7A50,X` arp counter; if BMI reload from `$1973`. Then re-lookup freq from `$17E3,Y`/`$1842,Y` at `Y = arp_offset + base pitch`. |
+| `L_7DCA` | `fx_vibrato` (setup) | fx1 (`$78`) != 0 gate. LDX `$1A14,Y` = per-inst vibrato params; SMC at `$7E63`. Decode amplitude (low nibble) and speed (mid bits). |
+| `L_7DF8` | (vibrato delta) | Compute delta = freq[Y+1] - freq[Y] from `$17E3/$1842` tables; shift right `amp` times. |
+| `L_7E14` | (vibrato shift loop) | `DEC $7A46; BMI exit; LSR $7A6B; ROR $7A6C`. Identical to Hawkeye. |
+| `L_7E25` | (vibrato LFO state) | LFO state machine with `$7A4A/$7A4D/$7A47` (vibstore2/3/1 equivalent). |
+| `L_7E48` | (vibrato base + sub loop) | Load base freq from `$17E3,Y`/`$1842,Y` into `$7A69/$7A6A`. Then subtract delta `vibstore1>>1` times (skipped while frame counter < threshold). |
+| `L_7E7C` | (vibrato add loop) | Add delta `vibstore3` times. |
+| `L_7E98` | (vibrato output) | Write `$7A69/$7A6A` (= vibrato output) to current freq lo/hi shadows. |
+| `L_7EAC` | `fx_glide` (entry) | LDA `$7A2E,X` (glidetest); BNE run, BEQ skip → fall to `fx_pulse_prog`. |
+| `L_7EB9` | `glide_run` | Decode glidedelay byte `$7A79,X`. Check threshold for snap. |
+| `L_7EE5` | `glide_div` | 16-bit / 8-bit long division. Delta = freq[target] - freq[source] divided by speedbyte+1. SMC slots at `$7F6A`/`$7F75` hold the divided step. |
+| `L_7F63` | (glide step apply) | `LDA $7A2B,X; ADC #$16; STA $7A2B/$7A7E,X; LDA $7A25,X; ADC #$00; STA $7A25/$7A81,X` — `#$16` is the immediate step (likely SMC'd from glide division but visible-as $16 here). |
+| `L_7F82` | `glide_snap` | Reached target: load freq from `$17E3,Y`/`$1842,Y` at `Y = $7A76,X` (glide target); clear glidetest/glidetest2. |
+| `L_7FA3` | `fx_pulse_prog` | fx2 (`$71`) != 0 gate. Extract program (lo 3 bits) and increment (hi 4 bits). 4 programs in `$199C` table, each 8 bytes per (n*8)-7 offset. |
+| `L_805A` | (pulse_prog output) | Write `$D402/$D403` from `$7A34,X`/`$7A37,X` (PW lo/hi shadows). |
+| `L_806B` | `fx_filter_prog` | fx3 (`$72`) bit $01 gate. LDA `$7A59,X` (filcount cache); AND #$03 (4 programs); ASL; TAX. SMC from `$198B,X`/`$198C,X` (filterbytes ptr table). |
+| (drum path branched from `$7D99`) | `fx_drum` | fx3 bit $10. Decoded at `$8109`+: AND #$0F (drum number); `$18DD,X` is drumtabel. SMC `$190E,Y`/`$191F,Y` reads (drum 6's wave/tone — same Hawkeye SMC trick). Compare frame counter `$7A3E,X` against `#$0F` (SMC'd to drum length). |
+| `L_8175` | `fx_noise_tick` | fx3 bit $80 gate. counter2 < 2 → write freq=`$0058`, ctrl=$81 (noise+gate); counter2 in [2,3] → restore freq from `$7A2B/$7A25,X` shadows; gate off (ctrl & $FE). Same as Hawkeye's `noise_tick_style='hawkeye_constants'`. |
+| `L_81B3` | `nextvoice` | Write `$D404` from `$7A66,X` (stod404), `$D400` from `$7A7E,X`, `$D401` from `$7A81,X`. DEX; loop or RTS. |
+
+### `$7D73` SMC target — identified
+
+`songinit` writes `$18A3,X / STA $7D73`. `$7D73` is the IMMEDIATE byte
+of `CMP #$01` at the held-note `D406` SR-release trigger (line `$7D72`).
+The SMC writes a PER-SUBTUNE threshold into that CMP. So `$18A3` is a
+4-byte per-subtune table of SR-release thresholds (one byte per
+subtune).
+
+### All data table addresses for engine A — final
+
+| Addr | Field | Size |
+|---|---|---|
+| `$17E3` | lonote (freq_lo) | 96 entries |
+| `$1842` | hinote (freq_hi) | 96 entries |
+| `$18A1` | per_subtune_speed | 4 bytes (4 subtunes) |
+| `$18A3` | per_subtune_sr_threshold | 4 bytes (SMC into `$7D73` per subtune) |
+| `$18A5` | seqtabel ptr lo (X-indexed) | 4 bytes |
+| `$18A7` | seqtabel ptr hi (X-indexed) | 4 bytes |
+| `$18B5` | runtime per-voice seq ptrs slot | 6 bytes |
+| `$18DD` | drumtabel | 4 bytes/drum |
+| `$190E` | drum 6 wave (SMC source) | (fixed reference) |
+| `$191F` | drum 6 tone (SMC source) | (fixed reference) |
+| `$1961` | arplo (arp ptr lo per inst) | 8 bytes (overlaps with arphi at last) |
+| `$1968` | arphi (arp ptr hi per inst) | 8 bytes |
+| `$1973` | arp offset table | constants used by `fx_tone_arp` |
+| `$198B` | filterbytes (ptr lo+hi to 10-byte progs) | 4 progs × 2 bytes |
+| `$199C` | pulsetabel | 4 progs × 8 bytes (per offset (n*8)-7) |
+| `$19AC` | instr_records | 16 × 8 bytes |
+| `$1A14` | vibtabwait | 8 bytes (per-inst vibrato delay) |
+| `$1A20` | sequence stream base | variable (multiple voices share) |
+| `$1BA0` | pattern_ptr_table | 2 bytes/entry (lo+hi interleaved) |
+
+### Engine A — engine variant + knob mapping for FCConfig
+
+Comparing to existing FCConfig knob choices:
+
+| FCConfig field | Adrenalin engine A | Reasoning |
+|---|---|---|
+| `subtune_layout` | NEW VARIANT NEEDED — call it `'lo_hi_pair_with_smc_copy'` | `$18A5`/`$18A7` X-indexed lo+hi tables + 6-byte copy from `($18A5,X:$18A7,X)+0..5` to `$18B5`. Doesn't match Cyb II's `flat_seqtabel` (which is contiguous 6-byte blocks) or Hawkeye's `smc_template_with_sfx`. |
+| `voice_loop_layout` | `tight_nextvoice` | nextvoice at `$81B3` writes all 5 voice regs together; no inline writes in effect chain. |
+| `noise_tick_style` | `'hawkeye_constants'` | `$8175+` uses `LDA #$58 / LDA #$81` — same as Hawkeye. No startlen/starttabel. |
+| `nextvoice_write_order` | `(4, 0, 1, 2, 3)` (ctrl, freq lo, freq hi, ...) | At `$81B3-$81C7`: D404 (`+4`) then D400 (`+0`) then D401 (`+1`) — Cyb II order. |
+| `fx_drum_d401_offset` | `$0D` | At `$8167-$816A`: `LDA $7A55; CLC; ADC #$0D; STA $7A81,X` — same Hawkeye offset. |
+| `held_note_clears_stod404_gate` | True (Hawkeye-style) | `$7D34-$7D60` directly clears gate via `AND #$FE / STA $7A66,X` — no byteand. |
+| `filter_prog_mask` | `$03` (4 programs) | `$8079: AND #$03` at filter_prog entry. |
+| `pulse_run_style` | `'disabled'` | No fx3 bit $02 handling visible; Adrenalin doesn't use pulse_run. |
+| `pulserunspeed` | n/a | n/a |
+| `fm2_cleanup_d416_value` | TBD via experimentation | Need to find fm2 branch. |
+| `wavearpwait` / `pulsearpwait` | TBD | Need to find wave_arp / pulse_arp branches (might not exist for Adrenalin). |
+| `instr_count` | 16 | inst_records = 8 bytes/inst at `$19AC`, max inst id is fx1/fx2/fx3 low nibble = 4 bits. |
+| `max_patterns` | TBD | Limited by pattern_ptr_table size. Need to inspect `$1BA0..$1Bxx`. |
+
+The `$18A3` SR-release threshold is per-subtune but doesn't currently
+have a FCConfig field — would be a new field `per_subtune_sr_thresh_addr`
+or handled by the new `lo_hi_pair_with_smc_copy` subtune_layout's
+config. Defer until extract-path implementation reveals the cleanest
+API.
+
+### What about engine B / sub 1?
+
+With engine A fully annotated as a STANDARD FC family engine, the
+hypothesis becomes: the `$1000` engine is engine A relocated for
+subs 2/3 (with all 8 hex digits in addresses rebased from `$7Axx` →
+`$10xx`, `$17xx` → `$10xx`, etc.). The 77% byte match supports this.
+
+For the rebuild approach (per the CORE TENET): emit a single canonical
+FC engine handling all 4 subtunes (Adrenalin's binary uses 3 engine
+copies for memory packing; our rebuild doesn't need to mirror that).
+The per-subtune extract reads each subtune's data from its own
+post-init memory layout (sub 0: data at `$17xx-$1Bxx`; subs 1/2/3:
+data at `$10xx-$1Fxx`).
+
+Verifying the relocation hypothesis for engine B / sub 1 entry is
+work that's still worth doing — but is no longer architecturally
+blocking. The current Phase 1/2 infrastructure (`EngineInstance`
+overrides per subtune for the address fields) is exactly the right
+shape for this per-subtune extract.
 
 ## Required next session — full decompile (protocol Step 0)
 
