@@ -108,7 +108,10 @@ int main(int argc, char* argv[])
             "  --pc-trace FILE START END  Dump CPU PC trace to FILE for frames START..END\n"
             "  --memwatch HEX[,HEX...]    Per-frame snapshot of RAM at these addresses (post-play)\n"
             "                             (e.g. --memwatch 90C5,90C8,90CB,9116). Output lines:\n"
-            "                             M<frame>:<addr>=<val>[:<addr>=<val>...]\n",
+            "                             M<frame>:<addr>=<val>[:<addr>=<val>...]\n"
+            "                             When --memwatch is on, also emits |P:<count> giving the\n"
+            "                             number of PSID play() invocations that fired in this\n"
+            "                             siddump frame. Used to diagnose Trap C alignment.\n",
             argv[0]);
         return 1;
     }
@@ -291,6 +294,14 @@ int main(int argc, char* argv[])
         engine.enableReadTrace(true, 0x0000, 0xFFFF);
     }
 
+    // Wire the play-vector counter so --memwatch can emit per-frame IRQ
+    // counts (Trap C diagnostic). The PSID's playAddr is the address the
+    // IRQ handler jumps to — counting reads at that address counts play()
+    // invocations. See feedback_verification_modes.md.
+    if (!memwatch_addrs.empty()) {
+        engine.setPlayAddr(info->playAddr());
+    }
+
     // Initialize mixer (needed for play() to work)
     engine.initMixer(false); // mono
 
@@ -385,6 +396,11 @@ int main(int argc, char* argv[])
             for (uint16_t a : memwatch_addrs) {
                 printf(":%04X=%02X", a, engine.peekRam(a));
             }
+            // Per-frame PSID play() invocation count (Trap C diagnostic).
+            // Normally 1; 0 or 2+ means siddump's frame bucket is
+            // misaligned with engine IRQs.
+            printf("|P:%llu", (unsigned long long) engine.getPlayCount());
+            engine.clearPlayCount();
             anyNonZero = true;  // memwatch alone counts as "doing something"
         }
 

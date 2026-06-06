@@ -42,6 +42,14 @@ private:
     uint16_t m_traceMinAddr = 0;    // only trace reads >= this address
     uint16_t m_traceMaxAddr = 0xCFFF; // only trace reads <= this address
 
+    // Play-vector entry counter (Trap C diagnostic for siddump).
+    // Counts CPU reads at the PSID play vector address — a proxy for
+    // "how many times has the play() vector been invoked." See
+    // feedback_verification_modes.md (Trap C). When non-zero,
+    // m_playAddr is the watched address.
+    uint16_t m_playAddr = 0;
+    uint64_t m_playCount = 0;
+
 public:
     std::vector<MemRead> readLog;
 
@@ -59,6 +67,14 @@ public:
 
     const std::vector<MemRead>& getReadLog() const { return readLog; }
 
+    // Play-vector tracking. Set the PSID play() vector address (from
+    // SidTuneInfo::playAddr()); after each engine.play() call, query
+    // getPlayCount() to learn how many IRQs invoked the play vector
+    // during the call. Used to detect Trap C (state_diff alignment).
+    void setPlayAddr(uint16_t addr) { m_playAddr = addr; }
+    uint64_t getPlayCount() const { return m_playCount; }
+    void clearPlayCount() { m_playCount = 0; }
+
 protected:
     uint8_t cpuRead(uint_least16_t addr) override
     {
@@ -66,6 +82,14 @@ protected:
         if (m_traceEnabled && addr >= m_traceMinAddr && addr <= m_traceMaxAddr)
         {
             readLog.push_back({static_cast<uint16_t>(addr), val});
+        }
+        // Count reads at the PSID play vector — proxy for IRQ invocations
+        // of play(). Each opcode-fetch at PC=playAddr fires this; in
+        // practice the engine code never reads its own play vector
+        // address as data so the count is accurate.
+        if (m_playAddr != 0 && addr == m_playAddr)
+        {
+            ++m_playCount;
         }
         return val;
     }

@@ -168,6 +168,21 @@ uint8_t sidplayfp::peekRam(uint16_t addr)
     return sidplayer.peekRam(addr);
 }
 
+void sidplayfp::setPlayAddr(uint16_t addr)
+{
+    sidplayer.setPlayAddr(addr);
+}
+
+uint64_t sidplayfp::getPlayCount() const
+{
+    return sidplayer.getPlayCount();
+}
+
+void sidplayfp::clearPlayCount()
+{
+    sidplayer.clearPlayCount();
+}
+
 unsigned int sidplayfp::installedSIDs() const
 {
     return sidplayer.installedSIDs();

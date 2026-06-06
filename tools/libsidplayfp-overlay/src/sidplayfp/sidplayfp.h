@@ -248,6 +248,18 @@ public:
     uint8_t peekRam(uint16_t addr);
 
     /**
+     * Play-vector entry counter. Set the PSID play() vector address
+     * (from getInfo()->playAddr()); after each play() call, query
+     * getPlayCount() to learn how many IRQs invoked the play vector
+     * during the call. siddump uses this to detect Trap C: IRQ-count
+     * drift between siddump frames vs PSID play() invocations.
+     * See .claude/memory/feedback_verification_modes.md.
+     */
+    void setPlayAddr(uint16_t addr);
+    uint64_t getPlayCount() const;
+    void clearPlayCount();
+
+    /**
      * Get the required size of the buffer for the number of cycles to run,
      * approximate value by excess.
      * The mixer must have been initialized before with #initMixer

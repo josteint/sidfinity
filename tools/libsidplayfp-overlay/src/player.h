@@ -170,6 +170,16 @@ public:
 
     uint8_t peekRam(uint16_t addr) { return m_c64.getMemInterface().readMemByte(addr); }
 
+    // Play-vector entry counter (Trap C diagnostic — see
+    // feedback_verification_modes.md). Set the play vector address
+    // (e.g. from SidTuneInfo::playAddr()); after each play() call,
+    // query getPlayCount() to learn how many IRQs entered the
+    // play vector during the call. Used by siddump --memwatch to
+    // detect IRQ-count drift between mine and orig.
+    void setPlayAddr(uint16_t addr) { m_c64.getCpuBus().setPlayAddr(addr); }
+    uint64_t getPlayCount() const { return m_c64.getCpuBus().getPlayCount(); }
+    void clearPlayCount() { m_c64.getCpuBus().clearPlayCount(); }
+
     unsigned int installedSIDs() const { return m_chips.size(); }
 
     void initMixer(bool stereo);
