@@ -232,7 +232,11 @@ is_sfx_field: "is_sfx" ":" bool
 voice_block: "voice" INT "{" "orderlist" ":" orderlist pattern_block* "}"
 orderlist: orderlist_entry+ orderlist_terminator?
          | orderlist_terminator
-orderlist_entry: INT ("+" INT)?
+// entry: [a*]b[+c][^d]  — a=repeats, b=pattern id, c=transpose, d=voiceinc
+orderlist_entry: ol_repeat? INT ol_transpose? ol_voiceinc?
+ol_repeat: INT "*"
+ol_transpose: "+" INT
+ol_voiceinc: "^" INT
 orderlist_terminator: "loop" "@" INT      -> ol_loop
                     | "stop"              -> ol_stop
 

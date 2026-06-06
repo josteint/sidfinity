@@ -91,30 +91,53 @@ class Pattern:
 class Orderlist:
     """A voice's orderlist of pattern ids, with loop/stop terminator.
 
-    `transposes` carries an optional per-entry transpose (semitone /
-    freq-table-index offset applied to the referenced pattern's notes).
-    It is a sequence-level modifier — the pattern body stores the
-    untransposed motif, and `transposes[i]` shifts the notes of
-    `entries[i]`. Empty means all-zero (the common case: most engines
-    have no orderlist transpose). When non-empty it must be the same
-    length as `entries`.
+    Three optional per-entry modifiers carry sequence-level techniques
+    explicitly rather than folding them into the pattern body (so the
+    pattern stays a pure reusable motif and the modifiers stay learnable
+    parameters). Each is empty (the default / common case) or the same
+    length as `entries`:
+
+    - `transposes[i]` — semitone / freq-table-index offset applied to
+      entry `i`'s notes (FC `SeqTranspose`; non-negative, 0 = none).
+    - `voiceincs[i]` — wave-table-position offset applied to entry `i`
+      (FC `SeqVoiceinc`; 0 = none). Modulates where instrument wave
+      programs are read.
+    - `repeats[i]` — how many times entry `i` is played (FC's `$40-$5F`
+      repeat command; 1 = play once, the default). Empty means every
+      entry plays once. This is a lossless run-length form of an
+      expanded orderlist (`5 5 5` == one entry with repeats=3).
+
+    Serialized form per entry: `[a*]b[+c][^d]` — a=repeats, b=pattern id,
+    c=transpose, d=voiceinc; each modifier omitted at its identity value.
     """
     entries: list[int] = field(default_factory=list)
     loop_to: Optional[int] = None      # position to jump to after the list
     stop: bool = False                  # true iff terminator is `stop`
     transposes: list[int] = field(default_factory=list)
+    voiceincs: list[int] = field(default_factory=list)
+    repeats: list[int] = field(default_factory=list)
 
     def __post_init__(self):
         if self.loop_to is not None and self.stop:
             raise ValueError('Orderlist cannot be both looping and stopping')
-        if self.transposes and len(self.transposes) != len(self.entries):
-            raise ValueError(
-                'Orderlist.transposes must be empty or match len(entries) '
-                f'({len(self.transposes)} != {len(self.entries)})')
+        for name in ('transposes', 'voiceincs', 'repeats'):
+            vals = getattr(self, name)
+            if vals and len(vals) != len(self.entries):
+                raise ValueError(
+                    f'Orderlist.{name} must be empty or match len(entries) '
+                    f'({len(vals)} != {len(self.entries)})')
 
     def transpose_at(self, i: int) -> int:
         """Transpose for entry `i` (0 when transposes is empty)."""
         return self.transposes[i] if self.transposes else 0
+
+    def voiceinc_at(self, i: int) -> int:
+        """Voiceinc for entry `i` (0 when voiceincs is empty)."""
+        return self.voiceincs[i] if self.voiceincs else 0
+
+    def repeat_at(self, i: int) -> int:
+        """Play-count for entry `i` (1 when repeats is empty)."""
+        return self.repeats[i] if self.repeats else 1
 
 
 @dataclass

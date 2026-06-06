@@ -566,33 +566,65 @@ class _T(Transformer):
     def orderlist_terminator(self, items):
         return items[0]
 
+    def ol_repeat(self, items):
+        return ('rep', int(items[0]))
+
+    def ol_transpose(self, items):
+        return ('tr', int(items[0]))
+
+    def ol_voiceinc(self, items):
+        return ('vi', int(items[0]))
+
     def orderlist_entry(self, items):
-        # INT ("+" INT)?  →  ('entry', pattern_id, transpose)
-        pid = int(items[0])
-        trans = int(items[1]) if len(items) > 1 else 0
-        return ('entry', pid, trans)
+        # [a*]b[+c][^d] → ('entry', pattern_id, transpose, voiceinc, repeats)
+        # Modifier sub-rules arrive as tagged tuples; the bare Token is the
+        # pattern id.
+        pid = None
+        rep, tr, vi = 1, 0, 0
+        for it in items:
+            if isinstance(it, tuple):
+                kind, val = it
+                if kind == 'rep':
+                    rep = val
+                elif kind == 'tr':
+                    tr = val
+                elif kind == 'vi':
+                    vi = val
+            else:
+                pid = int(it)
+        return ('entry', pid, tr, vi, rep)
 
     def orderlist(self, items):
         # entries followed by optional terminator
         entries = []
         transposes = []
+        voiceincs = []
+        repeats = []
         loop_to = None
         stop = False
         for it in items:
             kind = it[0]
             if kind == 'entry':
-                entries.append(it[1])
-                transposes.append(it[2])
+                _, pid, tr, vi, rep = it
+                entries.append(pid)
+                transposes.append(tr)
+                voiceincs.append(vi)
+                repeats.append(rep)
             elif kind == 'loop':
                 loop_to = it[1]
             elif kind == 'stop':
                 stop = True
-        # Omit transposes entirely when all-zero (keeps the common case
-        # backward-compatible and the round-trip output clean).
+        # Omit each modifier list when it carries no information (clean
+        # round-trip output + backward-compatible default).
         if not any(transposes):
             transposes = []
+        if not any(voiceincs):
+            voiceincs = []
+        if all(r == 1 for r in repeats):
+            repeats = []
         return Orderlist(entries=entries, loop_to=loop_to, stop=stop,
-                         transposes=transposes)
+                         transposes=transposes, voiceincs=voiceincs,
+                         repeats=repeats)
 
     def pattern_block(self, items):
         # INT INT note_row*

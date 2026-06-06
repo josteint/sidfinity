@@ -301,8 +301,15 @@ def _write_instrument(i: Instrument) -> list[str]:
 def _write_orderlist(o: Orderlist) -> str:
     parts = []
     for i, e in enumerate(o.entries):
-        t = o.transpose_at(i)
-        parts.append(f'{e}+{t}' if t else str(e))
+        rep = o.repeat_at(i)
+        tr = o.transpose_at(i)
+        vi = o.voiceinc_at(i)
+        s = f'{rep}*{e}' if rep != 1 else str(e)
+        if tr:
+            s += f'+{tr}'
+        if vi:
+            s += f'^{vi}'
+        parts.append(s)
     if o.loop_to is not None:
         parts.append(f'loop@{o.loop_to}')
     elif o.stop:

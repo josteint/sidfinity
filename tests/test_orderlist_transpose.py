@@ -39,9 +39,43 @@ def test_orderlist_transpose_serialization():
     assert _write_orderlist(o) == '0 1+7 2+12 stop'
 
 
-def test_orderlist_transpose_validation():
-    with pytest.raises(ValueError):
-        Orderlist(entries=[0, 1], transposes=[7])  # length mismatch
+def test_orderlist_all_modifiers_serialization():
+    # [a*]b[+c][^d] — repeats, transpose, voiceinc combined.
+    o = Orderlist(entries=[0, 5, 8, 2],
+                  repeats=[1, 7, 4, 1],
+                  transposes=[0, 0, 3, 0],
+                  voiceincs=[0, 0, 0, 2],
+                  loop_to=0)
+    from src.usf.writer import _write_orderlist
+    assert _write_orderlist(o) == '0 7*5 4*8+3 2^2 loop@0'
+
+
+def test_orderlist_all_modifiers_roundtrip():
+    o = Orderlist(entries=[0, 5, 8, 2],
+                  repeats=[1, 7, 4, 1],
+                  transposes=[0, 0, 3, 0],
+                  voiceincs=[0, 0, 0, 2],
+                  loop_to=0)
+    from src.usf.writer import _write_orderlist
+    from src.usf.parser import _T
+    from lark import Lark
+    from pathlib import Path
+    grammar = (Path(__file__).resolve().parents[1] /
+               'src' / 'usf' / 'grammar.lark').read_text()
+    # Parse just the orderlist fragment via the full grammar's start.
+    text = _write_orderlist(o)
+    p = Lark(grammar, start='orderlist', parser='lalr')
+    ol = _T().transform(p.parse(text))
+    assert ol.entries == o.entries
+    assert [ol.repeat_at(i) for i in range(4)] == [1, 7, 4, 1]
+    assert [ol.transpose_at(i) for i in range(4)] == [0, 0, 3, 0]
+    assert [ol.voiceinc_at(i) for i in range(4)] == [0, 0, 0, 2]
+
+
+def test_orderlist_modifier_validation():
+    for bad in ('transposes', 'voiceincs', 'repeats'):
+        with pytest.raises(ValueError):
+            Orderlist(entries=[0, 1], **{bad: [7]})  # length mismatch
 
 
 @pytest.mark.skipif(not _USF.exists(), reason='Cyb II USF not present')

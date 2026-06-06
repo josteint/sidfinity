@@ -219,7 +219,7 @@ subtune 0 music {
 
 ```
 voice 1 {
-  orderlist: 0 1 0+7 2 loop@2
+  orderlist: 0 1 3*0+7 2 loop@2
 
   pattern 0 length=32 { ... }
   pattern 1 length=16 { ... }
@@ -229,13 +229,22 @@ voice 1 {
 - `orderlist`: a sequence of pattern ids. A `loop@N` token gives the
   position to jump to after the orderlist ends (0-indexed). A trailing
   `stop` (no `loop@`) indicates an end-of-song with no loop.
-- Orderlist transpose: an entry may carry a `+N` suffix (e.g. `0+7`)
-  giving a per-entry transpose — a semitone / freq-table-index offset
-  applied to the referenced pattern's notes. This is a sequence-level
-  modifier: the pattern body stores the untransposed motif and the
-  orderlist shifts it, so one pattern can be reused at several pitches
-  (FC's `SeqTranspose`). `+0` is omitted. Most engines emit no
-  transposes at all.
+- Per-entry modifiers. An entry has the form `[a*]b[+c][^d]`:
+  - `b` — the pattern id (required).
+  - `a*` — **repeats**: play the pattern `a` times (e.g. `3*0` plays
+    pattern 0 three times). Omitted means once. A lossless run-length
+    form of an expanded orderlist (`0 0 0` == `3*0`).
+  - `+c` — **transpose**: a semitone / freq-table-index offset added to
+    the entry's notes (FC's `SeqTranspose`; non-negative). Omitted = 0.
+  - `^d` — **voiceinc** ("sound transpose"): an offset added to the
+    entry's wave/instrument-program index (FC's `SeqVoiceinc`).
+    Omitted = 0; rare.
+
+  These are sequence-level modifiers: the pattern body stores the pure
+  untransposed motif and the orderlist shifts/repeats it, so one pattern
+  is reused at several pitches/timbres. Each modifier is omitted at its
+  identity value, so most engines (no transpose/voiceinc/repeat) emit
+  plain pattern ids.
 - `pattern N length=L`: pattern id `N`, total tick length `L`. The
   parser validates that the contained notes' durations sum to L.
 

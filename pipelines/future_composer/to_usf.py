@@ -223,21 +223,17 @@ def _inst_to_usf(inst: FCInstrument) -> Instrument:
 # Patterns
 # ---------------------------------------------------------------------------
 
-def _build_pattern_rows(fc_pat: FCPattern,
-                        voiceinc: int) -> tuple[list[NoteRow], int]:
+def _build_pattern_rows(fc_pat: FCPattern) -> tuple[list[NoteRow], int]:
     """Walk FC pattern events; emit note rows.
 
-    The pattern body stores the *untransposed* motif — transpose is a
-    sequence-level modifier carried in `Orderlist.transposes`, not baked
-    into note pitch (baking would blow the pattern pool past FC's
-    64-pattern jump-encoding limit).
-
-    `voiceinc` IS baked into each note's `wave_adjust`: in the engine the
-    wave/inst index is `(pattern_byte & $1F) + voiceinc`, and voiceinc is
-    consumed ONLY at the $C0-$DF wave-adjust handler. Folding it into the
-    stored delta keeps the USF self-sufficient. Distinct voiceinc values
-    already produce distinct patterns via the dedup key, so each pattern
-    has a single voiceinc context.
+    The pattern body stores the *pure motif* — neither transpose nor
+    voiceinc is folded in. Both are sequence-level modifiers carried on
+    the orderlist (`Orderlist.transposes` / `Orderlist.voiceincs`):
+    transpose offsets note pitch, voiceinc ("sound transpose") offsets
+    the wave/inst index `(pattern_byte & $1F) + voiceinc` at the engine's
+    $C0-$DF handler. Keeping both out of the pattern means one pattern is
+    reused unchanged at every (transpose, voiceinc) it appears with, so
+    the pattern pool stays at the base motif count (<=64).
 
     Returns (rows, total_length_in_frames).
     """
@@ -264,14 +260,7 @@ def _build_pattern_rows(fc_pat: FCPattern,
         elif isinstance(evt, PatNoGlide):
             pending_glide = None
         elif isinstance(evt, PatWaveAdjust):
-            baked = evt.delta + voiceinc
-            if baked > 0x1F:
-                raise ValueError(
-                    f'voiceinc bake overflow: wave_adjust {evt.delta} + '
-                    f'voiceinc {voiceinc} = {baked} > 31 (5-bit $C0-$DF '
-                    f'field). This tune needs voiceinc as a parametric '
-                    f'field, not a bake. See project_fc_principled_composer.')
-            pending_wave_adjust = baked
+            pending_wave_adjust = evt.delta
         elif isinstance(evt, PatFilterSet):
             pending_filter = evt.value
         elif isinstance(evt, PatNote):
@@ -321,13 +310,14 @@ def _voice_to_usf(voice_id: int, seq_addr: int,
         )
 
     orderlist_entries: list[int] = []
-    # Patterns dedup by (fc_id, voiceinc) — transpose is NOT in the key;
-    # it rides the orderlist (Orderlist.transposes). voiceinc IS in the
-    # key because it's baked into each pattern's wave_adjust.
-    pattern_key_to_id: dict[tuple, int] = {}    # (fc_id, vinc) -> usf_id
-    pattern_specs: dict[int, tuple] = {}         # usf_id -> (fc_id, vinc)
+    # Patterns are pure motifs — dedup by fc_id ALONE. Transpose and
+    # voiceinc ride the orderlist; repeats stay run-length-encoded.
+    pattern_key_to_id: dict[int, int] = {}    # fc_id -> usf_id
+    pattern_specs: dict[int, int] = {}         # usf_id -> fc_id
 
     orderlist_transposes: list[int] = []
+    orderlist_voiceincs: list[int] = []
+    orderlist_repeats: list[int] = []
     transpose = 0
     repeats = 0
     voiceinc = 0
@@ -342,15 +332,16 @@ def _voice_to_usf(voice_id: int, seq_addr: int,
         elif isinstance(cmd, SeqVoiceinc):
             voiceinc = cmd.inc
         elif isinstance(cmd, SeqPatternJump):
-            key = (cmd.pattern_id, voiceinc)
+            key = cmd.pattern_id
             if key not in pattern_key_to_id:
                 new_id = len(pattern_key_to_id)
                 pattern_key_to_id[key] = new_id
                 pattern_specs[new_id] = key
             usf_pat_id = pattern_key_to_id[key]
-            for _ in range(repeats + 1):
-                orderlist_entries.append(usf_pat_id)
-                orderlist_transposes.append(transpose)
+            orderlist_entries.append(usf_pat_id)
+            orderlist_transposes.append(transpose)
+            orderlist_voiceincs.append(voiceinc)
+            orderlist_repeats.append(repeats + 1)   # FC count = extra plays
             repeats = 0
         elif isinstance(cmd, SeqEnd):
             stop = True
@@ -361,20 +352,25 @@ def _voice_to_usf(voice_id: int, seq_addr: int,
 
     usf_patterns: list[Pattern] = []
     for usf_id in sorted(pattern_specs):
-        fc_id, vinc = pattern_specs[usf_id]
+        fc_id = pattern_specs[usf_id]
         if fc_id not in song.patterns:
             usf_patterns.append(Pattern(id=usf_id, length=1, rows=[]))
             continue
-        rows, length = _build_pattern_rows(song.patterns[fc_id], vinc)
+        rows, length = _build_pattern_rows(song.patterns[fc_id])
         usf_patterns.append(Pattern(id=usf_id, length=length, rows=rows))
 
-    # Omit transposes entirely when all-zero (clean output, matches the
-    # grammar's backward-compatible default).
+    # Omit each modifier list when it carries no information.
     if not any(orderlist_transposes):
         orderlist_transposes = []
+    if not any(orderlist_voiceincs):
+        orderlist_voiceincs = []
+    if all(r == 1 for r in orderlist_repeats):
+        orderlist_repeats = []
     orderlist = Orderlist(entries=orderlist_entries,
                           loop_to=loop_to, stop=stop,
-                          transposes=orderlist_transposes)
+                          transposes=orderlist_transposes,
+                          voiceincs=orderlist_voiceincs,
+                          repeats=orderlist_repeats)
     return VoiceBlock(id=voice_id, orderlist=orderlist,
                       patterns=usf_patterns)
 
