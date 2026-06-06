@@ -2125,9 +2125,9 @@ fx_filter_prog:
         ldx wax
         stx filwhat                  ; this voice now owns the filter
         lda filtercount,x
-        and #$07
+        and #{filter_prog_mask}      ; cfg-knob: $07 (Cyb II, 8 progs) or $03 (Hawkeye, 4 progs)
         asl
-        tax                          ; X = (filtercount & 7) * 2
+        tax                          ; X = (filtercount & mask) * 2
         lda filterbytes,x
         sta zer0fillo
         lda filterbytes+1,x
@@ -2353,6 +2353,7 @@ playirq_done:
         fm2_strange_check=fm2_strange_check,
         fm2_d418_write=fm2_d418_write,
         fm2_d416_value=fm2_d416_value,
+        filter_prog_mask=f'${cfg.filter_prog_mask:02x}',
         pw_writes_mid_chain=pw_writes_mid_chain,
         ctrl_freq_writes_late=ctrl_freq_writes_late,
         chain_exit=chain_exit,

@@ -129,6 +129,13 @@ class FCConfig:
     fm2_cleanup_writes_d418: bool = True         # Cyb II default
     fm2_cleanup_checks_strange_filter: bool = True  # Cyb II default
 
+    # Mask applied to filtercount (filter program selector) before
+    # indexing filterbytes[]. Cyb II's fx_filter_prog at $AC76 uses
+    # AND #$07 (8 programs). Hawkeye at $8149 uses AND #$03 (4
+    # programs). Wrong mask reads beyond filterbytes table → garbage
+    # filter routing/cutoff values written to $D418/$D416.
+    filter_prog_mask: int = 0x07                 # Cyb II default
+
     # Per-voice loop structural layout. Drives WHERE the SID register
     # writes happen inside the per-voice processing loop:
     #   - 'tight_nextvoice' (Cyb II default): all effects run first,

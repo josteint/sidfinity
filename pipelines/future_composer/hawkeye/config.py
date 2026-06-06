@@ -73,6 +73,14 @@ HAWKEYE = FCConfig(
     fm2_cleanup_writes_d418=False,
     fm2_cleanup_checks_strange_filter=False,
 
+    # Hawkeye's fx_filter_prog selector uses AND #$03 at $8149 — only
+    # 4 filter programs. Cyb II default ($07) would read out-of-bounds
+    # past the 4-entry filterbytes table, producing $D418=$FF garbage.
+    # Sub 6 (SFX 0) bug: filtercount[V1] reaches values >= $04 at certain
+    # frames, mine selected garbage prog → 48 spurious $FF writes vs
+    # orig's 1. Verified by reading orig disasm $8149.
+    filter_prog_mask=0x03,
+
     # Hawkeye's per-voice loop is interleaved (not tight nextvoice):
     # PW writes happen early ($80F4/$80FA), CTRL+FREQ writes happen
     # late ($8311/$8317/$831D), and the filter handler interleaves its
