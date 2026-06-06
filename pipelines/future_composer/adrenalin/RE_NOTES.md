@@ -62,6 +62,56 @@ the source addresses (so the init copy produces matching post-init
 state). So either way, the source addresses are what get written
 into the rebuild's data emission.
 
+## Per-subtune engine instances (NEW FINDING 2026-06-06)
+
+Adrenalin uses **MULTIPLE engine instances**, not just multiple
+per-subtune data sets. Decoded from the init copy table at `$514E-$5175`:
+
+| Sub | Copy src | Copy dst | Size  | Play vector |
+|-----|----------|----------|-------|-------------|
+|  0  | `$5176`  | `$17F3`  | `$06E7` | `$7A06` (the engine at `$7A00`) |
+|  1  | `$575D`  | `$1021`  | `$0A73` | `$1006` (engine instance at `$1000+`) |
+|  2  | `$60D0`  | `$1000`  | `$0DDD` | `$1006` |
+|  3  | `$6DAD`  | `$1000`  | `$0D51` | `$1006` |
+
+Init flow (`$50E6-$5107`):
+1. `JSR sub_510A` — runs the memcpy loop with X = subtune\*2,
+   pulling source/dest/size from the four 8-byte tables.
+2. SMC the play vector at `$50E3-$50E5` with the per-subtune play
+   handler from `$516E[X]/$516F[X]`.
+
+The implication: sub 0 uses the `$7A00` engine we disassembled, and
+its tables at `$17E3/$1842/$19AC/$1BA0` are valid. Subs 1/2/3 use a
+DIFFERENT engine at `$1000-$1FFF` (a second relocated FC engine copy
+with its own data layout).
+
+## Decision needed before continuing
+
+Three options for what canary #3 actually covers:
+
+1. **Adrenalin sub 0 only** as a single-subtune canary. The engine
+   at `$7A00` matches Hawkeye/Cyb II's shape (we already found the
+   addresses). Works under the existing FCConfig if we treat the
+   "songs" field as 1 instead of 4. Loses 3 of the 4 subtunes from
+   coverage but DOES land a non-Tel FC canary cleanly.
+
+2. **Full Adrenalin (all 4 subs)** — requires multi-engine-instance
+   support in FCConfig + the composer. Significantly larger scope:
+   the per-subtune copy table becomes a new schema element, and the
+   composer needs to emit two engine instances. Realistically a
+   multi-session refactor.
+
+3. **Switch to a different non-Tel FC canary.** Eliminator (row 2,
+   Tel) and Tomcat (row 4, Tel) don't help diversify. Adrenalin is
+   the only non-Tel row. Without Adrenalin (in some form), the FC
+   canary set stays Tel-only.
+
+Recommendation: option (1) — extract sub 0 only, mark Adrenalin as
+"partial canary" in `canary_picker.md`, and revisit multi-instance
+support once it's the bottleneck. This gets us a non-Tel canary into
+the regression in one more focused session without committing to a
+schema-level refactor.
+
 ## Unknown — TODO next session
 
 - `subtune_layout`: new shape (X-indexed lo+hi pointer table + 6-byte
