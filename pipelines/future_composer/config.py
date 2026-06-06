@@ -41,7 +41,8 @@ from dataclasses import dataclass
 from typing import Literal
 
 
-SubtuneLayout = Literal['flat_seqtabel', 'smc_template_with_sfx']
+SubtuneLayout = Literal['flat_seqtabel', 'smc_template_with_sfx',
+                        'runtime_slot']
 VoiceLoopLayout = Literal['tight_nextvoice', 'interleaved']
 NoiseTickStyle = Literal['cyb2_table', 'hawkeye_constants', 'disabled']
 
@@ -126,6 +127,21 @@ class FCConfig:
     # --- variant 'flat_seqtabel' fields ---
     seqtabel_addr: int = 0          # base of contiguous per-subtune
                                     # 6-byte (lo*3, hi*3) records
+
+    # --- variant 'runtime_slot' fields ---
+    # For SIDs whose songinit copies subtune-specific data into a
+    # fixed runtime "active slot" (the engine then reads from that
+    # slot regardless of which subtune is active). Extract reads
+    # directly from these addresses AFTER running init in py65 for
+    # each subtune — `_run_init_in_py65` populates the slot with the
+    # active subtune's pointers/speed. No per-subtune indexing.
+    #
+    # Used by Adrenalin: songinit at `$7AB4` SMC-copies 6 bytes from
+    # `($18A5+X:$18A7+X)+0..5` to `$18B5..$18BA` (per-voice seq
+    # pointers) and loads `$18A1+X` → `$7A09` (active speedbyte).
+    runtime_seq_ptrs_addr: int = 0       # base of 6-byte slot
+                                         # (3 lo bytes then 3 hi bytes)
+    runtime_speed_addr: int = 0          # active speedbyte slot
 
     # --- variant 'smc_template_with_sfx' fields ---
     per_subtune_smc_addr: int = 0   # X-indexed SMC template lo per subtune

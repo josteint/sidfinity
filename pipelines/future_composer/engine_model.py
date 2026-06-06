@@ -487,6 +487,16 @@ def _decode_subtune(mem: bytes, cfg: FCConfig, sub_idx: int,
         seq_hi = mem[record_base + 3:record_base + 6]
         speedbyte = mem[per_sub_speed + sub_idx]
         is_sfx = False
+    elif cfg.subtune_layout == 'runtime_slot':
+        # Post-init memory already holds active subtune's pointers in
+        # the fixed runtime slot. No per-subtune indexing — just read
+        # the slot. Caller must have run init for the subtune via
+        # `_run_init_in_py65` (i.e., multi-engine FCSong path).
+        slot = cfg.runtime_seq_ptrs_addr
+        seq_lo = mem[slot + 0:slot + 3]
+        seq_hi = mem[slot + 3:slot + 6]
+        speedbyte = mem[cfg.runtime_speed_addr]
+        is_sfx = False
     elif cfg.subtune_layout == 'smc_template_with_sfx':
         # smc_template_with_sfx uses several FCConfig-only fields
         # (per_subtune_smc_addr, template_base_hi, per_subtune_mode_addr,

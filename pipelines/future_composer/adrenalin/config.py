@@ -1,94 +1,115 @@
 """Adrenalin (HeatWave) FCConfig — third FC family canary.
 
-Status: DRAFT. Addresses identified via disassembly + post-init py65
-memory inspection (see RE_NOTES.md "Addresses found"). Several knobs
-default to Cybernoid II values pending verification.
+All address knobs derived from hand-annotated disassembly of engine A
+at `$7A00-$81D0` (see `disassembly.s` + `RE_NOTES.md` "Engine A —
+hand-annotation" section). Engine variant: canonical FC family,
++0/+3/+6 vector layout, structurally identical to Hawkeye and Cyb II
+just at different addresses.
 
-Run this module to dump the decoded model (will likely error until
-all addresses + knob choices are validated):
+Verified subtune-to-engine mapping (via `_run_init_in_py65`):
+  sub 0: engine A at `$7A00` directly
+  sub 1: outlier — engine at `$1021`, data layout TBD
+  sub 2: engine A relocated to `$1000` (state at `$10xx`, data still
+         at `$17E3` etc. — verified by disasm of relocated nolengset
+         at `$128B`)
+  sub 3: same as sub 2
+
+Subs 0, 2, 3 all read from the SAME data tables at engine A's
+addresses; only the data VALUES differ per subtune (each subtune's
+init copies its own patterns/per_subtune_speed/sequence pointers
+into the runtime slot). Per the CORE TENET, our rebuild emits ONE
+canonical FC engine handling 3 subtunes via standard FC subtune
+dispatch — Adrenalin's binary uses 2 engine copies for memory
+packing, irrelevant to our rebuild.
+
+Sub 1 is deferred — handled as a separate task once subs 0/2/3
+verify byte-exact.
+
+Run this module to dump the decoded model:
     python3 -m pipelines.future_composer.adrenalin.config
 """
-from pipelines.future_composer.config import FCConfig
-
-
-# Address verification (from py65 init + disassembly grep):
-#   $17E3 lonote   — freq_lo[0..95], $17E3+$48=$0C matches Hawkeye idx $48
-#   $1842 hinote   — freq_hi[0..95], $1842+$48=$47 matches Hawkeye idx $48
-#   $18A1 per_subtune_speed — 4 bytes: $02 $02 $01 $01 (4 subtunes)
-#   $18A5/$18A7    — per-subtune sequence-base pointer table (X-indexed
-#                    lo at $18A5+X, hi at $18A7+X; the engine SMCs the
-#                    LDA at $7ACA with these to load the 6-byte per-voice
-#                    seq pointers from <subtune_base>+0..5 → $18B5)
-#   $19AC instr_records — 8-byte records, identified via $7CCA-$7DE9
-#                  (matches Hawkeye byte layout: +0 pulse_hi, +1 ctrl,
-#                  +2 AD, +3 SR, +4 fil_count, +5 fx1, +6 fx2, +7 fx3)
-#   $1BA0 pattern_ptr_table — 2 bytes/entry lo,hi (e.g.
-#                  $1BA0..$1BAF = pat 0..7 ptrs ${001C, 061C, ...} which
-#                  matches the SMC pattern at $7BB1: LDA $1BA0,Y / $1BA1,Y)
-#
-# UNKNOWNS (TODOs — find via further disasm):
-#   - subtune_layout: probably 'flat_seqtabel' (no SFX evident in
-#     PSID's 4 music subtunes) but the X-indexed ptr table at
-#     $18A5/$18A7 is a NEW shape — Cyb II's flat_seqtabel is a
-#     contiguous 6-byte block per subtune, Hawkeye's
-#     smc_template_with_sfx uses a different SMC template scheme.
-#     May need a new SubtuneLayout variant.
-#   - instr_count: count from instrument records data
-#   - max_patterns: count from $1BA0..$1BFF range
-#   - drumtabel_addr, filterbytes_addr, arplo/hi, pulsetabel,
-#     vibtabwait, startlen, starttabel: not yet located
-#   - voice_loop_layout: probably 'tight_nextvoice' but verify by
-#     examining the per-voice loop tail
-#   - noise_tick_style: 'cyb2_table' default; may need new style
-#   - All other Hawkeye-vs-Cyb II discriminator knobs
+from pipelines.future_composer.config import FCConfig, EngineInstance
 
 
 ADRENALIN = FCConfig(
     name='adrenalin',
     sid_path='hvsc84/MUSICIANS/H/HeatWave/Adrenalin.sid',
 
-    # ---- verified addresses ----
-    freq_lo_addr=0x17E3,
-    freq_hi_addr=0x1842,
-    pattern_ptr_addr=0x1BA0,
-    instr_records_addr=0x19AC,
-    per_subtune_speed_addr=0x18A1,
+    # ---- mandatory data table addresses (verified by disasm reads) ----
+    freq_lo_addr=0x17E3,            # lonote, LDA $17E3,Y at $7C9B
+    freq_hi_addr=0x1842,            # hinote, LDA $1842,Y at $7CA5
+    per_subtune_speed_addr=0x18A1,  # LDA $18A1,X at $7AD3 (4 bytes for 4 subs)
+    instr_records_addr=0x19AC,      # LDA $19AC,X..$19B3,X at $7CCA-$7DE9
+    pattern_ptr_addr=0x1BA0,        # LDA $1BA0,Y / $1BA1,Y at $7BB1/$7BB6
 
-    # ---- TODO: verify subtune layout shape ----
-    # Adrenalin uses X-indexed lo + hi pointer tables at $18A5/$18A7
-    # plus a 6-byte runtime slot at $18B5. This is a new shape vs Cyb II
-    # and Hawkeye. Provisionally pick 'flat_seqtabel' — if the
-    # extractor doesn't decode the seq stream cleanly, this needs a new
-    # SubtuneLayout variant added to config.py.
-    subtune_layout='flat_seqtabel',
-    seqtabel_addr=0x18A5,           # PROVISIONAL
+    # ---- subtune layout: runtime_slot variant ----
+    # Songinit ($7AB4) SMC-copies 6 bytes from per-subtune source
+    # ($18A5+X:$18A7+X)+0..5 to $18B5..$18BA. We extract from $18B5
+    # directly after running init per subtune in py65.
+    subtune_layout='runtime_slot',
+    runtime_seq_ptrs_addr=0x18B5,   # 6-byte slot (3 lo + 3 hi)
+    runtime_speed_addr=0x7A09,      # active speed byte (loaded by songinit)
 
-    # ---- table sizes (TODO: verify from instr_records + pattern_ptr extent) ----
-    freq_table_entries=96,           # confirmed via Hawkeye signature match
-    instr_count=16,                  # PROVISIONAL — count from $19AC area
-    max_patterns=64,                 # PROVISIONAL
+    # ---- table sizes ----
+    freq_table_entries=96,          # canonical FC 96-entry table
+    instr_count=16,                 # 16 × 8-byte records at $19AC
+    max_patterns=64,                # provisional; revisit if extract complains
 
-    # ---- aux tables (TODO: locate via further disasm) ----
-    # drumtabel_addr=0,
-    # filterbytes_addr=0,
-    # arplo_addr=0, arphi_addr=0,
-    # pulsetabel_addr=0,
-    # vibtabwait_addr=0,
-    # startlen_addr=0, starttabel_addr=0,
-    # wavearp_addr=0, pulsearp_addr=0,
+    # ---- aux table addresses (all confirmed via disasm reads) ----
+    drumtabel_addr=0x18DD,          # LDA $18DD,X / $18DE,X at $8112/$811B
+    filterbytes_addr=0x198B,        # LDA $198B,X / $198C,X at $807D/$8083
+    arplo_addr=0x1961,              # LDA $1961,X at $7C46
+    arphi_addr=0x1968,              # LDA $1968,X at $7C4F
+    pulsetabel_addr=0x199C,         # LDA $199C,Y at $7FAF
+    vibtabwait_addr=0x1A14,         # LDX $1A14,Y at $7DD6
 
-    # ---- Cyb II-style defaults until proven otherwise ----
-    # noise_tick_style='cyb2_table',
-    # voice_loop_layout='tight_nextvoice',
-    # nextvoice_write_order=(4, 0, 1, 2, 3),
+    # ---- engine knobs (from disasm) ----
+    noise_tick_style='hawkeye_constants',  # $8175+: LDA #$58, LDA #$81
+    voice_loop_layout='tight_nextvoice',   # nextvoice at $81B3 all-in-one
+    nextvoice_write_order=(4, 0, 1, 2, 3),  # D404 D400 D401 D402 D403
+    fx_drum_d401_offset=0x0D,              # $8168: ADC #$0D
+    held_note_clears_stod404_gate=True,    # $7D5B: AND #$FE / STA stod404
+    filter_prog_mask=0x03,                 # $8079: AND #$03 (4 progs)
+    pulse_run_style='disabled',            # no fx3 bit $02 path in engine A
 
-    # ---- engines tuple: NOT SET until evidence determines whether
-    # ---- Adrenalin is truly multi-engine or single-engine-with-relocated-
-    # ---- data-copies. The 77% byte match between engine at $7A00 (sub 0)
-    # ---- and the $1000 area (subs 2/3) suggests the latter. Determining
-    # ---- requires hand-annotated disassembly of both regions per the
-    # ---- protocol in feedback_check_existing_engine_docs.md.
-    # engines=(...),
+    # ---- multi-engine: which subtune uses which engine instance ----
+    # Setting `engines` triggers the init-per-subtune extract path
+    # (each subtune's post-init memory has its own data). All 4 subs
+    # listed; no per-subtune ADDRESS overrides needed for subs 0/2/3
+    # (they all read engine A's standard data tables — verified by
+    # disasm of relocated nolengset at $128B).
+    #
+    # Sub 1 IS the outlier (different engine at $1021); extract will
+    # produce garbage data for it. Accepting that until sub 1's own
+    # disasm work lands.
+    engines=(
+        EngineInstance(
+            name='engine_a_at_7A00',
+            subtune_indices=(0,),
+            copy_src_addr=0x5176, copy_dst_addr=0x17F3, copy_size=0x06E7,
+            play_vector=0x7A06,
+        ),
+        EngineInstance(
+            name='engine_at_1021_sub1_DEFERRED',
+            subtune_indices=(1,),
+            copy_src_addr=0x575D, copy_dst_addr=0x1021, copy_size=0x0A73,
+            play_vector=0x1021,
+            # Sub 1 deferred — extract output for this sub will be
+            # garbage until its data layout is identified.
+        ),
+        EngineInstance(
+            name='engine_a_relocated_to_1000_sub2',
+            subtune_indices=(2,),
+            copy_src_addr=0x60D0, copy_dst_addr=0x1000, copy_size=0x0DDD,
+            play_vector=0x1006,
+        ),
+        EngineInstance(
+            name='engine_a_relocated_to_1000_sub3',
+            subtune_indices=(3,),
+            copy_src_addr=0x6DAD, copy_dst_addr=0x1000, copy_size=0x0D51,
+            play_vector=0x1006,
+        ),
+    ),
 )
 
 
