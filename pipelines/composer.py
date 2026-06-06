@@ -3179,24 +3179,16 @@ def _emit_sid_bp(inputs: _Inputs, out_path: str, codec,
     code = assemble(asm)
 
     # PSID header
+    from src.composer_runtime import build_header
     songs = len(inputs.subtunes) + (len(inputs.sfx_list) if inputs.has_sfx else 0)
-    h = bytearray(b'PSID')
-    h += struct.pack('>HH', 2, 124)
-    h += struct.pack('>H', load_addr)
-    h += struct.pack('>H', load_addr)
-    h += struct.pack('>H', load_addr + 3)
-    h += struct.pack('>H', songs)
-    h += struct.pack('>H', min(max(inputs.start_song, 1), songs))
-    h += struct.pack('>I', inputs.psid_speed)
-    # 3 × 32-byte latin-1 fields. Pad/truncate to exactly 32 each.
-    for s in (inputs.title, inputs.author, inputs.released):
-        h += s[:32].ljust(32, b'\x00')
-    h += struct.pack('>H', 0x0014)
-    h += struct.pack('>BBH', 0, 0, 0)
-    assert len(h) == 124, len(h)
+    h = build_header(
+        load=load_addr, init=load_addr, play=load_addr + 3,
+        songs=songs, start_song=min(max(inputs.start_song, 1), songs),
+        speed=inputs.psid_speed,
+        title=inputs.title, author=inputs.author, released=inputs.released)
 
     with open(out_path, 'wb') as f:
-        f.write(bytes(h) + code)
+        f.write(h + code)
     return out_path
 
 
@@ -3261,22 +3253,16 @@ def _emit_combined_sid_bp(inputs: _Inputs, usf, digi_subs: list,
     songs = n_music + len(digi_subs)
     start_song = min(max(inputs.start_song, 1), songs)
 
-    h = bytearray(b'PSID')
-    h += struct.pack('>HH', 2, 124)
-    h += struct.pack('>H', 0x0000)             # load = inline-encoded
-    h += struct.pack('>H', digi_code.dispatcher_base)
-    h += struct.pack('>H', play_addr)
-    h += struct.pack('>H', songs)
-    h += struct.pack('>H', start_song)
-    h += struct.pack('>I', inputs.psid_speed)
-    for s in (inputs.title, inputs.author, inputs.released):
-        h += s[:32].ljust(32, b'\x00')
-    h += struct.pack('>H', 0x0014)             # flags (PAL + 6581)
-    h += struct.pack('>BBH', 0, 0, 0)
-    assert len(h) == 124, len(h)
+    from src.composer_runtime import build_header
+    h = build_header(
+        load=0,                                # inline-encoded
+        init=digi_code.dispatcher_base, play=play_addr,
+        songs=songs, start_song=start_song,
+        speed=inputs.psid_speed,
+        title=inputs.title, author=inputs.author, released=inputs.released)
 
     with open(out_path, 'wb') as f:
-        f.write(bytes(h))
+        f.write(h)
         f.write(struct.pack('<H', music_load))   # inline load addr
         f.write(binary)
     return out_path
@@ -5518,26 +5504,19 @@ def _assemble(asm_src: str, tmp_basename: str = 'composer') -> bytes:
 
 
 def _psid_header(model: EngineModel, n_subtunes: int, load: int) -> bytes:
-    h = bytearray(b'PSID')
-    h += struct.pack('>HH', 2, 124)
-    h += struct.pack('>H', load)
-    h += struct.pack('>H', load)
-    h += struct.pack('>H', load + 3)
-    h += struct.pack('>H', n_subtunes)
-    h += struct.pack('>H', model.psid.start_song)
-    h += struct.pack('>I', model.psid.psid_speed)
-    def _latin1(s: str, n: int) -> bytes:
-        return s.encode('latin-1', errors='replace')[:n].ljust(n, b'\x00')
-    h += _latin1(model.psid.title, 32)
-    h += _latin1(model.psid.author, 32)
-    h += _latin1(model.psid.released, 32)
+    """Build a PSID v2 header from EngineModel. init=load, play=load+3
+    is the convention for the Hubbard composer's inline-init shape."""
+    from src.composer_runtime import build_header
     clock_bits = {'unknown': 0, 'PAL': 1, 'NTSC': 2, 'both': 3}.get(
         model.psid.clock, 0)
     sid_bits = {6581: 1, 8580: 2}.get(model.psid.sid_model, 1)
-    h += struct.pack('>H', (clock_bits << 2) | (sid_bits << 4))
-    h += struct.pack('>BBH', 0, 0, 0)
-    assert len(h) == 124
-    return bytes(h)
+    flags = (clock_bits << 2) | (sid_bits << 4)
+    return build_header(
+        load=load, init=load, play=load + 3,
+        songs=n_subtunes, start_song=model.psid.start_song,
+        speed=model.psid.psid_speed,
+        title=model.psid.title, author=model.psid.author,
+        released=model.psid.released, flags=flags)
 
 
 # ---------------------------------------------------------------------------

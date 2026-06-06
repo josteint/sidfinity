@@ -9,5 +9,6 @@ binds individual emitters; this module is even further from engine
 identity — it's pure mechanism shared across families.
 """
 from src.composer_runtime.xa65 import assemble
+from src.composer_runtime.psid import build_header
 
-__all__ = ['assemble']
+__all__ = ['assemble', 'build_header']

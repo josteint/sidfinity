@@ -1813,24 +1813,14 @@ def _wrap_psid(title: str, author: str, released: str,
                body: bytes, n_subtunes: int = 1,
                speed: int = 0) -> bytes:
     """speed: PSID speed flags (one bit per subtune; bit=0 → 50Hz VBI,
-    bit=1 → CIA timer A). Default 0 = 50Hz for all subtunes."""
-    h = bytearray(b'PSID')
-    h += struct.pack('>HH', 2, 124)
-    h += struct.pack('>H', load_addr)
-    h += struct.pack('>H', init_addr)
-    h += struct.pack('>H', play_addr)
-    h += struct.pack('>H', n_subtunes)
-    h += struct.pack('>H', 1)
-    h += struct.pack('>I', speed)
-    def _latin1(s, n):
-        return s.encode('latin-1', errors='replace')[:n].ljust(n, b'\x00')
-    h += _latin1(title, 32)
-    h += _latin1(author, 32)
-    h += _latin1(released, 32)
-    h += struct.pack('>H', (1 << 2) | (1 << 4))
-    h += struct.pack('>BBH', 0, 0, 0)
-    assert len(h) == 124
-    return bytes(h) + body
+    bit=1 → CIA timer A). Default 0 = 50Hz for all subtunes. start_song
+    hardcoded to 1 — Jay_Derrett SIDs are all single-subtune."""
+    from src.composer_runtime import build_header
+    h = build_header(
+        load=load_addr, init=init_addr, play=play_addr,
+        songs=n_subtunes, start_song=1, speed=speed,
+        title=title, author=author, released=released)
+    return h + body
 
 
 def build_ninja_hamster_sid(load_addr: int = 0x1000) -> bytes:

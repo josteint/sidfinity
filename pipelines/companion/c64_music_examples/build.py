@@ -36,23 +36,12 @@ def _assemble(asm_src: str, name: str = 'c64me') -> bytes:
 def _psid_header(title: str, author: str, released: str,
                  n_subtunes: int, start_song: int,
                  load: int, init_addr: int, play_addr: int) -> bytes:
-    h = bytearray(b'PSID')
-    h += struct.pack('>HH', 2, 124)
-    h += struct.pack('>H', load)  # load addr (non-zero → raw body)
-    h += struct.pack('>H', init_addr)
-    h += struct.pack('>H', play_addr)
-    h += struct.pack('>H', n_subtunes)
-    h += struct.pack('>H', start_song)
-    h += struct.pack('>I', 0)  # speed: VBI
-    def _latin1(s, n):
-        return s.encode('latin-1', errors='replace')[:n].ljust(n, b'\x00')
-    h += _latin1(title, 32)
-    h += _latin1(author, 32)
-    h += _latin1(released, 32)
-    h += struct.pack('>H', (1 << 2) | (1 << 4))  # PAL + 6581
-    h += struct.pack('>BBH', 0, 0, 0)
-    assert len(h) == 124
-    return bytes(h)
+    """Thin wrapper around src.composer_runtime.build_header."""
+    from src.composer_runtime import build_header
+    return build_header(
+        load=load, init=init_addr, play=play_addr,
+        songs=n_subtunes, start_song=start_song, speed=0,  # VBI
+        title=title, author=author, released=released)
 
 
 def _walk_pattern(mem: bytearray, start: int, max_bytes: int = 4000) -> bytes:
