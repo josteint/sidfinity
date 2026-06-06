@@ -20,8 +20,12 @@ roadmap.
 | Tool | Use case | Memory pointer |
 |---|---|---|
 | `tools/find_first_divergence.py` | Locate first (reg, val) mismatch in writelog between orig + rebuild. Names voice/role. | [feedback_writelog_divergence_recipe](.claude/memory/feedback_writelog_divergence_recipe.md) |
-| `siddump --memwatch HEX[,HEX...]` | Per-frame RAM snapshot at specific addresses. libsidplayfp-accurate (ground truth, not py65). Use for engine-state tracing. | (in this file + CLAUDE.md) |
-| `tools/state_diff.py` | Wrapper around `--memwatch`: takes orig+rebuild SIDs + an address-mapping file, finds first frame where any mapped pair diverges. | (in this file + CLAUDE.md) |
+| `siddump --memwatch HEX[,HEX...]` + `\|P:<count>` | Per-frame RAM snapshot at specific addresses + per-frame PSID play() invocation count (Trap C diagnostic). libsidplayfp-accurate (ground truth, not py65). | (in this file + CLAUDE.md) |
+| `tools/state_diff.py` | Wrapper around `--memwatch`: takes orig+rebuild SIDs + an address-mapping file, finds first frame where any mapped pair diverges. Detects Trap C via IRQ-count delta. | (in this file + CLAUDE.md) |
+| `siddump --memwatch-on-write TRIG ADDRS` | Event-driven RAM snapshot — on every CPU write to TRIG, snapshot the configured RAM addresses. For SMC / conditional-update traces. | (in this file) |
+| `tools/voice_writelog.py` | Filter writelog to one voice's writes + auto-attribute each write to the likely engine routine (nolengset / pulse_prog / glide / etc.) | (in this file) |
+| `tools/pattern_stream_decode.py` | Decode FC pattern stream bytes as readable command list ($Cx wave/inst, $Fx markers, glide triples, etc.) Both pattern and seq streams. | (in this file) |
+| `tools/state_map_gen.py` + per-engine `state_map.py` annotations | Auto-derive state_diff map files from xa65 labels joined with per-engine state-address annotations. `--engine ENGINE --voice {1,2,3,all}`. | (in this file) |
 | `tools/seed_disassembly.py` | Generate a labelled disasm from a SID's binary as the starting point for hand-annotation. | (migrate-hubbard-engine skill) |
 
 ## Backlog (not built yet)
@@ -29,7 +33,7 @@ roadmap.
 | Idea | Use case | Rough ROI | Build estimate |
 |---|---|---|---|
 | **`siddump --play-aligned` / `--writelog-per-irq`** (PRIORITY) | Hook the PSID `play()` vector and emit one writelog "frame" per IRQ invocation, not per `cyclesPerFrame`. ALSO let `--memwatch` capture at IRQ boundaries. Eliminates Trap C at the source (`feedback_verification_modes`). | Very high — Trap C burned a full Hawkeye sub 10 investigation. Without this, state_diff stays a hint-only tool. | 2-3 hours libsidplayfp overlay |
-| **Composer-symbolic data layout** (PRIORITY) | Drop HVSC-aligned data addresses. Composer places data freely after engine code; pointer-containing tables (`pattern_ptr_table`, `drumtabel`, `filterbytes`, `arplo`/`arphi`, music subtune templates' seq pointers at `$7B0E+`) get entries computed at compose time. SFX-init hardcoded `$8475`/`$8FC5` become symbolic labels. Removes the "engine-code budget" artifact (engine code can grow as needed). | High — currently blocks Hawkeye's noise-tick fix (sub 10) and any future engine that has more code than HVSC's tight layout. Per CORE TENET this is the principled fix. | Session or two of careful refactor; touches `compose_fc_asm_featuredriven` + extract pipeline + USF emission. Will need careful testing across all 14 currently-FULL subs (no regression). |
+| **Composer-symbolic data layout** (PARTIAL — Phase 1 done) | Phase 1 (commit 4740472-followup): SFX-init hardcoded `$8475`/`$8FC5` → symbolic `pattern_ptr_table+$6C` / `sfx_seq_stream` (new cfg field). All currently-FULL subs preserved. Phase 2 (TODO): activate `featuredriven_addr_shift` with pointer-fixup for the verbatim tail's pointer tables (`pattern_ptr_table`, `drumtabel`, `filterbytes`, `arplo`/`arphi`, music subtune templates' seq pointers at `$7B0E+`). When done: flip Hawkeye to `noise_tick_style='hawkeye_constants'`, fix sub 10. | High — Phase 2 still blocks Hawkeye sub 10 noise-tick. | Phase 1 done in 30 min. Phase 2 still 1-2 hours of refactor. |
 | `tools/voice_writelog.py` | Filter writelog to one voice; auto-attribute writes to likely effects (AD/SR write = nolengset; freq-only = glide; etc.) | Saves 10-15 min/session on "which effect produced this write?" | 30 min |
 | `tools/pattern_stream_decode.py` | Given (SID, engine config, subtune, voice), decode pattern stream as human-readable command list | Saves 30-60 min/session on pattern-dispatch bugs | 1-2 hours, engine-specific |
 | `tools/disasm_diff.py` | Side-by-side compare orig disasm region vs composer emitter, with state-name alias substitution | Saves 15-20 min/session on effect comparisons | 1-2 hours |

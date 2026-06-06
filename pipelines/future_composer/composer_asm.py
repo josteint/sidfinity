@@ -556,22 +556,27 @@ song_sfx_path:
         ; runtime areas $7B2C..$7B31, $8475..$8488, $8FC5..$90C4 by
         ; copying from the SFX page. We do the same here so mine reads
         ; SFX-specific data when walking V1.
-        ; Copy 2: 20 bytes ($SFX_page+6) → $8475 (SFX inst/pat data)
+        ; Copy 2: 20 bytes ($SFX_page+6) → pattern_ptr_table+$6C (SFX
+        ; pattern-pointer extension area). Address symbolic so the
+        ; composer can shift the data layout — see CORE TENET, the
+        ; engine is free to put data wherever; only the write-log stream
+        ; matters.
         lda #6
         sta seqptr_lo
         ldy #$13
 sfx_copy2:
         lda (seqptr_lo),y
-        sta $8475,y
+        sta pattern_ptr_table+$6C,y
         dey
         bpl sfx_copy2
-        ; Copy 3: 256 bytes ($SFX_page+$1A) → $8FC5 (SFX seq stream)
+        ; Copy 3: 256 bytes ($SFX_page+$1A) → sfx_seq_stream destination.
+        ; Symbolic — defined in the engine equates section.
         lda #$1A
         sta seqptr_lo
         ldy #0
 sfx_copy3:
         lda (seqptr_lo),y
-        sta $8FC5,y
+        sta sfx_seq_stream,y
         dey
         bne sfx_copy3
         ; Restore seqptr_lo = 0 for the 6-byte seq pointer copy below
@@ -2783,6 +2788,9 @@ def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
         '; Engine code references these; the tables themselves live',
         '; in the data section (USF-derived) or verbatim aux region.',
         f'pattern_ptr_table = ${cfg.pattern_ptr_addr:04X}',
+        # SFX seq-stream destination (used by sfx_copy3 in sub_song_init).
+        # Defaults to orig Hawkeye's $8FC5 when cfg.sfx_seq_stream_addr is 0.
+        f'sfx_seq_stream = ${(cfg.sfx_seq_stream_addr or 0x8FC5):04X}',
         # Aux-table addresses. Default $0000 placeholders when an
         # address isn't located yet — the engine code still compiles,
         # but any effect that reads from $0000 will return junk. As

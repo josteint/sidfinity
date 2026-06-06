@@ -214,5 +214,12 @@ class FCConfig:
     # still reads from the unshifted addresses (HVSC's actual layout).
     featuredriven_addr_shift: int = 0
 
+    # SFX seq-stream destination address. For smc_template_with_sfx
+    # engines, sub_song_init copy3 writes 256 bytes from $SFX_page+$1A
+    # to this address. Orig location for Hawkeye is $8FC5; declared
+    # symbolically in the asm so the composer can pick a different
+    # value if the data layout shifts. 0 = use orig location $8FC5.
+    sfx_seq_stream_addr: int = 0
+
     # TODO as effects come online:
     # wavearp_addr, pulsearp_addr (wave/pulse-arp tables)
