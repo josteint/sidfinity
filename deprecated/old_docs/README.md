@@ -11,3 +11,9 @@ Session plans and codegen plans from earlier phases. Kept for historical context
   the Lean-codegen era (Phase 2's `Codegen2.lean`). Lean codegen is
   deprecated; the current composer is feature-driven asm composition
   in Python.
+- `PLAN_2026_04.md` — the project's top-level development plan as
+  of 2026-04-09. Captures the long-term vision (neural net → USF →
+  SIDfinity player) but the per-step status (GT2/DMC transpilers
+  "in progress") is out of date. Replaced by `docs/canary_picker.md`
+  + `docs/refactor_1_remaining.md` as the operational plan;
+  `docs/PLAN.md` is now a thin pointer to those two.

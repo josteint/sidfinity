@@ -1,182 +1,29 @@
-# SIDfinity Development Plan
+# SIDfinity Plan — Pointer
 
-## Vision
+This file used to hold the project's top-level development plan. That
+document (dated 2026-04-09) is now historical and has been moved to
+[`deprecated/old_docs/PLAN_2026_04.md`](../deprecated/old_docs/PLAN_2026_04.md).
 
-Build a neural net that generates authentic C64 SID music, packaged as playable .sid files.
+It still captures the project's long-term **vision** (text/MP3/MIDI →
+neural net → Universal Symbolic Format → SIDfinity player → playable
+`.sid` files on real C64 hardware), so it's worth reading if you want
+the original framing.
 
-The pipeline: input (text prompt, MP3, MIDI, or style reference) -> neural net -> symbolic representation -> SIDfinity player -> .sid file that plays on real C64 hardware.
+## Current operational plan
 
-## Architecture
+The plan has split into two living documents:
 
-```
-                    ┌─────────────┐
-   MP3/MIDI/Text ──>│ Transcriber │
-                    └──────┬──────┘
-                           v
-                    ┌─────────────┐
-                    │  Universal  │
-                    │  Symbolic   │<──── Original SID (via player-specific parsers)
-                    │  Format     │
-                    └──────┬──────┘
-                           v
-                    ┌─────────────┐
-                    │ Style/Sound │ "make it sound like Hubbard"
-                    │  Transfer   │ "use GoatTracker instruments"
-                    │   Model     │
-                    └──────┬──────┘
-                           v
-                    ┌─────────────┐
-                    │  SIDfinity  │ Universal 6502 player
-                    │  Player     │
-                    └──────┬──────┘
-                           v
-                         .sid
-```
+- **[`canary_picker.md`](canary_picker.md)** — the breadth-first
+  migration corpus. One canary SID per engine family in HVSC's top 50,
+  ~84% of HVSC by volume. Each canary lands byte-exact through the
+  per-engine pipeline at `pipelines/<family>/<engine>/`.
 
-## Current Status (2026-04-09)
+- **[`refactor_1_remaining.md`](refactor_1_remaining.md)** — the
+  composer-unification refactor. Deferred until the canary corpus is
+  rich enough that designing one engine-blind universal composer
+  doesn't overfit to today's five engine families. Trigger condition
+  documented in that file.
 
-### GT2 Pipeline: 1,688/3,478 Grade A (48.5%)
-
-The GoatTracker V2 pipeline is the most mature:
-- **Decompiler**: extracts all GT2 data sections from packed SID binaries
-- **USF conversion**: notes, instruments, wave/pulse/filter/speed tables, orderlists
-- **V2 player**: per-song 6502 code generator with feature stripping and peephole optimization
-- **Validation**: frame-by-frame register comparison with jitter tolerance
-- **Regression**: all 3,478 GT2 SIDs tested in 33 seconds on 48 cores
-
-All 4 player groups (A–D, versions 2.65–2.77) supported, including ghost registers (Group C) and alternate data layouts (large-code Group A).
-
-### Superoptimizer: Complete
-
-Player code is at 6502 minimum cycle counts (confirmed by Z3 SMT solver and GPU brute-force search). 34 cycles/frame saved through: Z3-verified FX dispatch, FIRSTNOTE elimination, wave table STY removal, self-modifying code vibrato, peephole branch optimization, effects→pulse fall-through.
-
-### Earlier Phases (Complete)
-
-1. **Register-level pipeline** — 100% lossless roundtrip on 56,936 PSID files (now in `deprecated/`)
-2. **Player identification** — sidid identifies 97.8% of HVSC (59,267/60,572 files, 758 signatures)
-3. **Player documentation** — 48 major engines documented in `pipelines/&lt;engine&gt;/docs/`
-4. **Player behavior analysis** — 642 engines analyzed via cycle-accurate write logs
-5. **GT2 binary roundtrip** — 5,792/7,006 byte-for-byte matches (now in `deprecated/`)
-
-### Step 1: GoatTracker Encoder (DONE)
-
-GT2 SID -> parse -> high-level data -> serialize -> byte-for-byte identical SID.
-5,922/7,006 clean files validated. Can modify data (transpose) and produce playable SIDs.
-
-Key files: `src/gt_parser.py`, `src/gt_encoder.py`, `src/gt_roundtrip.py`, `src/gt_modify.py`
-
-### Step 2: Universal Data Extractor (DONE)
-
-`src/sid_data_extractor.py` discovers all data tables in ANY SID file by analyzing
-6502 player code address references. Tested on GoatTracker, DMC V4, DMC V5, Rob Hubbard,
-JCH NewPlayer — finds 11-29 data tables per file regardless of player.
-
-### Step 3: DMC -> SIDfinity Transpiler (IN PROGRESS)
-
-Strategy: use GoatTracker's player as the SIDfinity player foundation. GT2 player.s
-is forked into `src/player/sidfinity_player.s` (free license).
-
-The transpiler pipeline: DMC SID -> parse -> transpile to GT2 format -> GT2 player -> output SID
-
-**Completed:**
-- DMC sector data DECODED: 55 sectors with real music (Turrican_32k)
-- DMC sector pointer table found via universal address analysis
-- DMC instrument table found at freq_hi + $0248 (works for ~96% of files)
-- DMC track data decoded: 3 voices with sector refs, transpose, repeat commands
-- DMC sectors -> GT2 packed patterns: working (duration expansion, note mapping)
-- Full pipeline produces playable SID (GT2 player reads transpiled DMC patterns)
-- DMC parser tested on 497 files: 367/455 have sectors extracted (80.7%)
-
-**Key problem discovered:**
-Hacking an existing GT2 SID template doesn't work because:
-1. Template instruments don't match DMC instruments (wrong waveforms, ADSR, wave tables)
-2. DMC uses non-standard freq tables (different tuning per file)
-3. GT2 player initialization expects its own data format for instruments, wave/pulse/filter tables
-
-**Next steps (pick up here):**
-1. **Port greloc.c to Python** — build a GT2 SID assembler that creates complete binaries
-   from scratch: player code + defines + freq table + instruments + tables + orderlists + patterns.
-   This is the proper way to produce GT2 SIDs rather than hacking templates.
-2. Map DMC instruments to GT2 instruments properly (AD/SR, wave table for waveform,
-   pulse table for PWM, gate timer for hard restart / nogate mode)
-3. Map DMC wave table to GT2 wave table
-4. Copy DMC freq table into output SID
-5. Validate: siddump comparison original DMC vs rebuilt SID
-
-### Step 4: Scale to More Players
-
-Take parsed GT2 data from `gt_parser.py` and convert to SIDfinity format:
-- Map GT2 instruments (9 bytes + name) to SIDfinity instruments (12 bytes)
-- Convert GT2 wave/pulse/filter/speed tables to SIDfinity table format
-- Convert GT2 packed patterns to SIDfinity packed patterns (very similar encoding)
-- Convert GT2 orderlists to SIDfinity orderlists
-
-Validate: run siddump on original GT2 SID and transpiled SIDfinity SID, compare register output frame-by-frame. Target: exact match on most frames.
-
-First improve `gt_parser.py` freq table detection to handle more than 30% of GT2 SIDs.
-
-### Step 3: DMC and JCH Transpilers
-
-Same approach for the next two biggest players:
-- DMC (10,738 tunes): parse 11-byte instruments, sector-based patterns, track orderlists
-- JCH NewPlayer (3,678 tunes): parse 8-byte instruments, wave/pulse/filter tables, sequences
-
-After this step, ~22,000 tunes go through SIDfinity.
-
-### Step 4: Audio Comparison Tool
-
-Generate audio from original and SIDfinity SIDs using libsidplayfp:
-- Cross-correlation of waveforms
-- Spectral similarity (FFT comparison)
-- Perceptual metric (loudness-weighted)
-- Use as validation and potentially training signal
-
-### Step 5: Unified SID Format
-
-Design tokenization for transformer training based on SIDfinity data structures:
-- Instrument definitions as token sequences
-- Pattern data as token sequences (note, instrument, command events)
-- Orderlists as song structure tokens
-- SID model and clock as conditioning tokens
-
-### Step 6: Neural Net Training
-
-- Tokenize all transpiled songs from steps 2-3
-- Train transformer model (GPT-style decoder)
-- Experiment: unconditional generation, style-conditioned, MP3-to-SID transfer
-- Output: token sequences -> SIDfinity data -> package with player -> .sid file
-
-### Step 7: Additional Transpilers
-
-Extend coverage to remaining players:
-- Music Assembler (6,403), Future Composer (4,085), Soundmonitor (3,663)
-- GoatTracker V1 (1,384), HardTrack (1,170), Master Composer (1,075)
-- SidWizard (1,074), SIDDuzz'It (994), SoedeSoft (950)
-- And the long tail of 600+ smaller players
-
-## Key Files
-
-| File | Purpose |
-|------|---------|
-| `src/player/sidfinity.a65` | The 6502 player (xa65 assembly) |
-| `src/player/test_build.py` | Test SID builder for the player |
-| `deprecated/lean_codegen/docs/sidfinity_player_spec.md` | Complete player data format specification |
-| `src/gt_parser.py` | GoatTracker V2 SID binary parser |
-| `src/analyze_player.py` | Player behavior analyzer (write logs) |
-| `src/validate_hvsc.py` | Batch validation tool (register roundtrip) |
-| `src/sid_symbolic.py` | Register CSV <-> symbolic format |
-| `tools/siddump.cpp` | C++ register dumper with --writelog |
-| `deprecated/gt2_grading/data/player_analysis_all.json` | Behavior data for 642 players |
-| `deprecated/gt2_grading/data/sidid_full.txt` | Player ID for all 60,572 HVSC files |
-| `pipelines/&lt;engine&gt;/docs/` | Documentation for 48 player engines |
-
-## Build Environment
-
-64-core EPYC, 512GB RAM. No sudo. Everything from source in-tree.
-
-```bash
-source src/env.sh
-bash tools/build.sh    # builds libsidplayfp + siddump
-```
-
-xa65 assembler at `tools/xa65/xa/xa`. Note: xa65 requires standalone comments at column 1 (no leading whitespace before `;`).
+The current per-engine working conventions (extract path, verify
+modes, tools, memory layout) live in [`../CLAUDE.md`](../CLAUDE.md) —
+that file is what you should read first when sitting down to work.
