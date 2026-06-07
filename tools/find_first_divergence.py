@@ -89,8 +89,9 @@ def _resolve_duration(orig_path: str, subtune: int,
             if line.startswith(md5):
                 parts = line.rstrip().split('=', 1)[1].split()
                 if subtune < len(parts):
+                    # Songlengths.md5 uses M:SS or M:SS.mmm (fractional secs).
                     m, s = parts[subtune].split(':')
-                    return (int(m) * 60 + int(s)) * 1.1 + 1.0
+                    return (int(m) * 60 + float(s)) * 1.1 + 1.0
                 break
     print(f'warning: subtune {subtune} not in Songlengths.md5 — '
           f'using 60s default', file=sys.stderr)

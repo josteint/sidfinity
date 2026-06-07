@@ -2,6 +2,7 @@
 
 - [USF init.sid block](project_usf_init_sid_block.md) — CURRENT. USF carries SID-chip priming as typed `init.sid { master_vol, filter, voice N { envelope_prime, pw_init } }` block; composer reads it directly; shape-detection deleted. Bowden migrated as the proof case. Built on [[init-trichotomy]] principle.
 - [Composer dissolution](project_composer_dissolution.md) — Phase 8 of the composer rewrite is done; `composer_hubbard.py` DELETED. The Hubbard '85 family lives entirely in `pipelines/composer.py` as feature-driven asm composition (18 chunk emitters + typed args, no template substitution). Run `tools/regression.py` for the current verdict.
+- [Hubbard remaining partials](project_hubbard_remaining_partials.md) — after Monty 19/19, 6 Hubbard subtunes still write-log-partial: Human_Race(4)+Battle(1) = CIA-timed note-onset one-frame timing shift (90% byte-exact, py65 logic correct, deep CIA-dispatch dig); Devils_Galop(1) = dropped V3 freq write (separate). All false-passed by the old snapshot verdict.
 - [FC principled composer](project_fc_principled_composer.md) — IN PROGRESS. De-verbatim the FC data tail (patterns/sequences/aux). Schema foundation DONE (commit 4f040eb: `Orderlist.transposes`). Transpose stays a sequence command (64-pattern limit); voiceinc bakes into wave_adjust. Next: extract un-bake + composer emit. Verdict = `verify_featuredriven`.
 
 ## Per-engine project memories
