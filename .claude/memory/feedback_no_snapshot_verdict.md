@@ -30,9 +30,13 @@ deleted tool. Use the write-log. py65 `capture()` is fine for EXTRACTION
 was still a py65 per-frame-snapshot md5 verdict (it was never deleted).
 It reported "71/71 Hubbard subtunes OK." Converging the verdict on the
 write-log revealed it had been silently FALSE-PASSING 25 subtunes:
-- Monty_on_the_Run (all 19) — multispeed (CIA); the rebuild's play()
-  rate differs from the original. py65 is frame-granular and can't see
-  multispeed, so it emulated both identically-wrongly → snapshot matched.
+- Monty_on_the_Run (all 19) — NOT multispeed (that was a wrong early
+  guess; PSID speed=0, play rates match). The real bug: orig re-writes
+  $D418=$0F (master vol) at EVERY play() — during the song AND, in SFX,
+  as the post-sweep sustain — but the rebuild set $D418 once in init. The
+  end-of-frame STATE matched (snapshot passed); the write-log was missing
+  one write per frame. Fixed by the `master_vol_every_frame` config knob
+  (composer writes $D418 at music pl_run AND sfx_play entry). Monty 0->19/19.
 - Human_Race (4), Battle_of_Britain (1), Devils_Galop (1) — the rebuild's
   write stream diverges (e.g. first note loads one play() late / within-
   frame order), but the end-of-frame STATE reconverged so the snapshot

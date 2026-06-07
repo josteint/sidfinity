@@ -1951,7 +1951,7 @@ def _emit_init_sfx(names: FxNames,
 _SFX_PLAY_ASM_TEMPLATE = """; sfx_play - one frame of the sound-effect engine. The first frame
 ; gates the voices off and writes the 14-byte register snapshot;
 ; thereafter it steps the freq-table sweep.
-sfx_play:
+sfx_play:{master_vol_per_frame}
         lda {sfx_started}
         bne sfxp_run
         lda #$01
@@ -1981,7 +1981,7 @@ sfxp_ret:
         rts"""
 
 
-def _emit_sfx_play(names: FxNames) -> str:
+def _emit_sfx_play(names: FxNames, master_vol_every_frame: int = 0) -> str:
     """sfx_play routine — per-frame SFX driver.
 
     On the first frame, gates V1/V2/V3 off then writes the 14-byte
@@ -1989,9 +1989,15 @@ def _emit_sfx_play(names: FxNames) -> str:
     frames, advances the step counter and invokes sfx_step when it
     rolls over to drive the pitch sweep.
 
-    Skeleton-agnostic: parameterised over `names: FxNames`.
+    `master_vol_every_frame`: if non-zero, write it to $D418 at every SFX
+    play() entry (before any early-return), matching engines that re-assert
+    master vol every frame — including the post-sweep sustain where it's the
+    ONLY write. Skeleton-agnostic: parameterised over `names: FxNames`.
     """
-    return _SFX_PLAY_ASM_TEMPLATE.format(**asdict(names))
+    mvol = (f'\n        lda #${master_vol_every_frame:02X}\n        sta $d418'
+            if master_vol_every_frame else '')
+    return _SFX_PLAY_ASM_TEMPLATE.format(master_vol_per_frame=mvol,
+                                         **asdict(names))
 
 
 _SFX_STEP_ASM_TEMPLATE = """; sfx_step - one sweep step. Writes V1/V2 freq from the freq table and
@@ -2347,7 +2353,7 @@ def _compose_engine_body_bp(
         '',
         _emit_init_sfx(HUBBARD_FX_NAMES, sfx_state_ofs),
         '',
-        _emit_sfx_play(HUBBARD_FX_NAMES),
+        _emit_sfx_play(HUBBARD_FX_NAMES, master_vol_every_frame),
         '',
         _emit_sfx_step(HUBBARD_FX_NAMES, sfx_state_ofs),
         '',
