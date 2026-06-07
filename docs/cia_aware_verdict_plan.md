@@ -1,7 +1,23 @@
 # Plan: CIA-aware per-play() verdict for `verify_all`
 
-**Status:** designed, not implemented. Engine side is DONE (Human_Race is
-proven byte-exact). This plan fixes only the VERIFICATION TOOLING so CIA-timed
+**Status: IMPLEMENTED 2026-06-07 (commit `f82b347`).** Human_Race 5/5 +
+Battle_of_Britain 1/1 now PASS; Hubbard regression 65 ok → 70 ok (Devils_Galop
+remains the one real, separate vblank bug). Outcome notes vs this plan:
+- §3a/§3b implemented as written (base plumbed out, splitter origin-corrected).
+- §3c resolved empirically: init writes ARE present in frame-0's log (4 of them,
+  before the first play-entry) → frame-0-only init-skip added. Later-frame
+  pre-entry writes are straddle tails and are KEPT (+ a defensive continuation
+  chunk for zero-entry frames so no write is ever dropped).
+- §5 done; the comparison is FLATTEN-then-flat-compare (`_music_ok` reused), not
+  per-chunk — the straddle problem is a non-issue for a flat comparison, so the
+  per-irq markers only need to mark where init ends. Kept `--per-irq-debug`.
+
+The rest of this document is the original design (kept for the rationale + the
+pc-trace oracle, which remains the validation method).
+
+---
+
+This plan fixes only the VERIFICATION TOOLING so CIA-timed
 Hubbard tunes (Human_Race, Battle_of_Britain) verify correctly.
 
 **Read first:** `.claude/memory/project_hubbard_remaining_partials.md` and
