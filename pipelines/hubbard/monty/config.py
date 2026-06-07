@@ -42,6 +42,7 @@ MONTY = EngineConfig(
     vib_onset=8,                # vibrato gate CMP #$08 at $8201
     incby2_step=-1,             # fx bit1 = DEC v_freq_hi on odd frames ($831A)
     freeze_on_stop=True,        # $FE freezes voices (hold + effects, no gate-off)
+    master_vol_every_frame=0x0F,  # re-asserts $D418=$0F every play(), not just init
     has_sfx=True,               # 16 SFX at $9454 ($8506 SFX init)
     extract_sfx=extract_sfx,
     sfx_state_ofs=251,          # SFX engine state at $84FB (freqtab+251)

@@ -756,6 +756,9 @@ class _T(Transformer):
     def ib_no_first_attack(self, items):
         return ('no_first_attack_voice', int(items[0]))
 
+    def ib_master_vol_every_frame(self, items):
+        return ('master_vol_every_frame', int(items[0]))
+
     def init_behavior_field(self, items):
         return items[0]
 

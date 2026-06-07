@@ -600,6 +600,11 @@ class InitBehaviorConfig:
     """
     silence_all_voices_on_frame_0: bool = False
     no_first_attack_voice: int = 0      # 0 = none; 1/2/3 = voice id
+    # When non-zero, the engine re-writes this value to $D418 (master
+    # volume) at the start of EVERY play() — not just init. Some engines
+    # (e.g. Monty on the Run) re-assert master vol every frame; others set
+    # it once in init. 0 = init-only (default).
+    master_vol_every_frame: int = 0
 
 
 @dataclass

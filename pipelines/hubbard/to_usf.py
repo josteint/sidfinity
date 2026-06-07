@@ -365,11 +365,13 @@ def _init_behavior_from_config(config) -> InitBehaviorConfig | None:
     """
     silence_all = getattr(config, 'first_frame_gate_off', False)
     suppress = getattr(config, 'suppress_first_notestart', False)
-    if not silence_all and not suppress:
+    mvol = getattr(config, 'master_vol_every_frame', 0)
+    if not silence_all and not suppress and not mvol:
         return None
     return InitBehaviorConfig(
         silence_all_voices_on_frame_0=silence_all,
         no_first_attack_voice=(3 if suppress else 0),
+        master_vol_every_frame=mvol,
     )
 
 

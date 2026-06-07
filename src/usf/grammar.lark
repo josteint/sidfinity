@@ -127,6 +127,7 @@ song_end_field: "stop_marker" ":" CNAME       -> se_stop_marker
 init_behavior_block: "init_behavior" "{" init_behavior_field+ "}"
 init_behavior_field: "silence_all_voices_on_frame_0" ":" bool   -> ib_silence_all
                    | "no_first_attack_voice" ":" INT             -> ib_no_first_attack
+                   | "master_vol_every_frame" ":" number         -> ib_master_vol_every_frame
 
 // ----- master_vol (optional) -----
 // Master-volume modulation algorithm — replaces 5 flat per-tune

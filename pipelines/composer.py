@@ -1689,7 +1689,7 @@ pl_music:
         sta $d412            ; V3 ctrl
 pl_silent:
         rts
-pl_run:
+pl_run:{master_vol_per_frame}
         inc {frame_ctr}
         lda {first_frame}
         beq pl_nogate
@@ -1736,7 +1736,8 @@ pl_done:
         rts"""
 
 
-def _emit_play_bp(names: FxNames, sfx_framectr_ofs: int = 253) -> str:
+def _emit_play_bp(names: FxNames, sfx_framectr_ofs: int = 253,
+                  master_vol_every_frame: int = 0) -> str:
     """play routine — the per-frame engine entry (bitpack-skeleton
     flavor). Coexists with the universal `_emit_play(model, active)`
     until the two are unified.
@@ -1754,8 +1755,13 @@ def _emit_play_bp(names: FxNames, sfx_framectr_ofs: int = 253) -> str:
     into the freq table — kept as a kwarg since it's an integer, not
     a name.
     """
+    # Engines that re-assert master volume every play() (e.g. Monty) write
+    # $D418 first; engines that set it only in init pass 0 here (no block).
+    mvol = (f'\n        lda #${master_vol_every_frame:02X}\n        sta $d418'
+            if master_vol_every_frame else '')
     return _PLAY_ASM_TEMPLATE.format(
-        sfx_framectr_ofs=sfx_framectr_ofs, **asdict(names))
+        sfx_framectr_ofs=sfx_framectr_ofs, master_vol_per_frame=mvol,
+        **asdict(names))
 
 
 _PROC_VOICE_ASM_TEMPLATE = """proc_voice:
@@ -2262,7 +2268,8 @@ def _compose_engine_body_bp(
         has_master_vol_fade: bool = False,
         uses_per_subtune_dispatch: bool = False,
         fade: 'FadeProgressive | None' = None,
-        loop_silences_song: bool = False) -> str:
+        loop_silences_song: bool = False,
+        master_vol_every_frame: int = 0) -> str:
     """Compose the Hubbard '85 engine asm body by direct concatenation
     of named chunks — the composer-native replacement for template +
     `; %%SENTINEL%%` substitution.
@@ -2300,7 +2307,8 @@ def _compose_engine_body_bp(
                            has_master_vol_fade=has_master_vol_fade,
                            uses_per_subtune_dispatch=uses_per_subtune_dispatch),
         '',
-        _emit_play_bp(HUBBARD_FX_NAMES, sfx_framectr_ofs),
+        _emit_play_bp(HUBBARD_FX_NAMES, sfx_framectr_ofs,
+                      master_vol_every_frame),
         '',
         _emit_proc_voice(HUBBARD_FX_NAMES),
         '',
@@ -2516,7 +2524,8 @@ def _compose_engine_asm_bp(inputs, codec, pat_slot, pat_bytes,
         has_master_vol_fade=inputs.master_vol_subtrahend_voice is not None,
         uses_per_subtune_dispatch=uses_psp,
         fade=fade,
-        loop_silences_song=inputs.loop_silences_song)
+        loop_silences_song=inputs.loop_silences_song,
+        master_vol_every_frame=inputs.master_vol_every_frame)
     data = _emit_data_bp(
         inputs.scores, inputs.models, inputs.freq_bytes,
         inputs.resetspds, inputs.voice_starts,
@@ -2576,6 +2585,7 @@ class _Inputs:
     freeze_on_stop: bool
     speed_ctr_init: int
     first_frame_gate_off: bool
+    master_vol_every_frame: int       # 0 = init-only; else $D418 value per play()
     stop_fill: _Optional[int]
     sfx_framectr_ofs: int
     sfx_state_ofs: _Optional[int]
@@ -2682,6 +2692,7 @@ def _inputs_from_config(config) -> _Inputs:
         freeze_on_stop=config.freeze_on_stop,
         speed_ctr_init=config.speed_ctr_init,
         first_frame_gate_off=config.first_frame_gate_off,
+        master_vol_every_frame=getattr(config, 'master_vol_every_frame', 0),
         stop_fill=config.stop_fill,
         sfx_framectr_ofs=config.sfx_framectr_ofs,
         sfx_state_ofs=config.sfx_state_ofs,
@@ -3092,6 +3103,10 @@ def _inputs_from_usf(usf) -> _Inputs:
         first_frame_gate_off=(
             usf.init_behavior is not None
             and usf.init_behavior.silence_all_voices_on_frame_0
+        ),
+        master_vol_every_frame=(
+            usf.init_behavior.master_vol_every_frame
+            if usf.init_behavior is not None else 0
         ),
         seed_overlap=get('seed_overlap', True),
         psid_speed=usf.psid.speed,
