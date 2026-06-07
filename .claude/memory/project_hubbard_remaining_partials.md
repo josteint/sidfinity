@@ -7,6 +7,28 @@ metadata:
   originSessionId: 34baf59d-942f-49ab-b1d7-123e07963888
 ---
 
+## CIA-aware verdict — ATTEMPTED, hit a tooling obstacle (2026-06-07)
+Tried to make `verify_all` verify CIA tunes per-`play()` so HR/Battle pass.
+Reverted; the lightweight per-`play()` segmentation tools are not reliable enough:
+- `siddump --writelog-per-irq` splits the per-frame write-log by play-entry
+  cycles, but: (a) the play-entry cycles are ABSOLUTE while write-log cycles are
+  RELATIVE to a per-frame `m_cycleBase` (c64sid.h) — different origin; (b) the
+  init/first-play boundary (whether init writes land in frame 0's write-log) is
+  unclear; (c) fixing (a) via subtracting `m_cycleBase` STILL mis-split orig vs
+  rebuild (chunks ≠ the pc-trace play boundaries). Play-detection is 1/frame
+  (not spurious), so the issue is the cycle/boundary mapping, which I couldn't
+  nail empirically this session.
+- `siddump --pc-trace` (segment by play-entry PC) is RELIABLE (it's what proved
+  54/54) but is far too heavy for a full-song verdict (~16k trace lines/frame).
+- All overlay/siddump WIP was reverted to keep the tree clean.
+Options for next time: (a) nail the per-irq cycle/boundary mapping with careful
+empirical checks against the pc-trace ground truth; (b) a Python flat-stream
+ALIGNMENT verdict (find the offset that aligns orig vs rebuild flat write-logs,
+since the play streams are identical modulo the init prefix); or (c) pragmatic:
+mark HR/Battle engine-verified via the one-time pc-trace proof and exempt them
+from the siddump-flat verdict with a documented justification (the engine is
+proven correct; the gap is purely the observation tool).
+
 After Monty went 19/19 (the `master_vol_every_frame` fix), the write-log
 verdict leaves **6 Hubbard subtunes** failing — all previously false-passed by
 the deleted py65 snapshot verdict ([[feedback_no_snapshot_verdict]]). Two
