@@ -17,7 +17,7 @@
 - [Clever Music (Fairlight + Gyroscope)](project_clever_music.md) — pipelines/companion/clever_music/. Duration counters, embedded commands ($Bx tempo / $Cx vol / $Dx instrument / $Ex pattern jump), song-position synchronisation counter cycling $E0..$E5.
 - [Henrys House](project_henrys_house.md) — pipelines/companion/henrys_house/. Single-voice variant, hardcoded tempo 8, $FF restart-init handler.
 - [Yes Tune family](project_yes_tune.md) — pipelines/companion/yes_tune/. Per-voice state machine + 2-byte (note, duration) format. Multi-subtune + relocation-aware.
-- [Adrenalin (HeatWave)](project_adrenalin.md) — IN PROGRESS, 3rd FC canary (non-Tel). Inline-load PSID + self-decompressing/relocating engine + multiple per-subtune engine instances. Full disasm+RE_NOTES done; BLOCKED on composer not knowing the new runtime_slot subtune_layout (no rebuild SID yet). Recommended unblock: synthesize a flat seqtabel in extract, reuse flat_seqtabel composer path.
+- [Adrenalin (HeatWave)](project_adrenalin.md) — IN PROGRESS (diagnosis), intended 3rd FC canary. DEEP DIAGNOSIS 2026-06-07: it's a COMPILATION — 3 distinct engines + 4 INDEPENDENT data pools in one PSID (sub0=engine A @ $7A00; subs2/3=engine A relocated to $1000; sub1=different engine @ $1021). Sub-0-only = clean FC canary (needs runtime_slot→flat_seq_table emission); full Adrenalin needs multi-independent-song FC support. User chose diagnose-only this round.
 
 ## Engine quirks & open work
 

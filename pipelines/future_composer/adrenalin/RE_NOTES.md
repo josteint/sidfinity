@@ -9,6 +9,62 @@
 canaries (Hawkeye, Cybernoid_II). See `docs/canary_picker.md` row 3
 of engine #4 (MoN/FutureComposer).
 
+## DIAGNOSIS 2026-06-07 — THREE engines, FOUR independent songs (READ FIRST)
+
+Adrenalin is not one FC song with 4 subtunes; it is a **compilation** that
+packs **three distinct player engines** + four independent data sets into one
+PSID. Established this session with py65 init-per-subtune + post-init memory
+diffs + pc-trace:
+
+| Sub | Engine (post-init) | Relation | Data pool |
+|-----|--------------------|----------|-----------|
+| 0 | engine A @ `$7A00` (canonical FC, full feature set) | reference | own |
+| 2 | engine A relocated to `$1000` (entry `$1006`→`JMP $1102`) | `$128B` nolengset == engine A `$7C8B` byte-for-byte, addrs reloc `$7A`→`$10` — **proven engine A** | own |
+| 3 | same relocated engine A @ `$1000` | 99% identical code to sub 2; different data | own |
+| 1 | a DIFFERENT, smaller engine @ `$1021` | only **4%** code-identical to subs 2/3; not engine A | own, layout unknown |
+
+- **Every subtune has an INDEPENDENT data pool.** freq_lo/hi, instr_records,
+  pattern_ptr_table AND pattern/sequence bytes ALL differ between subs 0/2/3
+  (sub 2 & 3 happen to share the freq table only). They sit at engine A's
+  same runtime addresses (`$17E3/$1842/$19AC/$1BA0/$1A20..`) but each
+  subtune's init copies different VALUES there. So subs 0/2/3 are three
+  separate FC songs that reuse engine A's *design*, not one song with shared
+  pools + per-subtune sequences (the normal FC multi-subtune shape).
+- **Shared IRQ harness** at `$1E00-$1EFF` (100% identical across subs):
+  installs the tune's own IRQ, banks `$01=$37`, spins at `$JMP $1EA5`, and
+  calls the active player via `JMP ($1E04)` → `$50E3` (the PSID play vector).
+  The heavy `$1Exx` pc-trace count is just this idle spin, not real work.
+- **Sub 1's engine** ($1021): `LDX #0; DEC $1090 (speed ctr); JSR $1226;
+  JSR $1225; JMP $1225`. Compact 3-voice player, distinct code. Whether it is
+  a stripped FC variant or a different player is NOT yet determined — needs
+  its own disasm + data-address hunt. Its extract via engine-A addresses
+  yields garbage (seq_v0_addr came out `$910C`, in the packed-source region).
+
+### Migration implications (scope)
+- **Sub 0 alone = a clean FC canary.** Engine A, full feature set, one pool.
+  The ONLY composer change needed is to map `runtime_slot` → `flat_seq_table`
+  on the EMISSION side (the rebuild lays out its own seqtabel per the CORE
+  TENET; `runtime_slot` is purely an EXTRACTION concept — where to read the
+  original's pointers). Concrete blocker today: `_emit_song_init_routine`
+  (`composer_asm.py:374`) raises `unknown subtune_layout: 'runtime_slot'`.
+  The extract path ALREADY captures sub 0 correctly (it reads sub 0's
+  post-init pool); `extract(ADRENALIN)` succeeds and yields 96 freq / 16 instr
+  / 17 patterns / 4 subtunes — but the shared-pool fields come from sub 0
+  ONLY, so subs 2/3 in that FCSong are WRONG (carry sub 0's pools).
+- **Full Adrenalin (subs 0/2/3) = needs multi-INDEPENDENT-song FC support:**
+  FCSong + USF + composer must carry a separate freq/instr/pattern/sequence
+  pool PER subtune and emit a subtune dispatch that repoints all base
+  addresses. Engine A's design is shared, so it's ONE engine emit + 3 data
+  pools + dispatch — but the current model assumes a single shared pool, so
+  this is a genuine schema+composer feature, not a config tweak.
+- **Sub 1 = separate engine, separate RE.** Defer; or treat as its own
+  mini-engine once subs 0/2/3 land.
+
+Recommended order when resumed: (1) sub-0 canary (map runtime_slot→
+flat_seq_table emission, build a single-subtune USF, verify byte-frame-exact);
+(2) decide whether multi-independent-song FC support is worth it for subs 2/3;
+(3) sub 1 last.
+
 ## Addresses found (2026-06-06)
 
 From py65 init + disassembly grep:

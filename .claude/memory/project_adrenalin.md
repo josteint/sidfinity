@@ -1,6 +1,6 @@
 ---
 name: project_adrenalin
-description: "Adrenalin (HeatWave) — the 3rd Future Composer canary, IN PROGRESS/stalled. Non-Tel FC tune to diversify away from Hawkeye+Cybernoid_II (both Jeroen Tel). Structurally hard: inline-load PSID, self-decompressing/relocating engine, multiple per-subtune engine instances. Full disassembly.s + 649-line RE_NOTES.md done; FCConfig has a new runtime_slot subtune_layout. BLOCKED: compose_fc_asm_featuredriven doesn't know runtime_slot, so no rebuild SID / no verdict yet."
+description: "Adrenalin (HeatWave) — intended 3rd FC canary, IN PROGRESS/diagnosis. DEEP DIAGNOSIS 2026-06-07: it's a COMPILATION — THREE distinct engines + FOUR independent data pools in one PSID. Sub 0 = engine A @ $7A00 (canonical FC); subs 2/3 = engine A relocated to $1000 (proven byte-for-byte reloc), each its own pool; sub 1 = a DIFFERENT engine @ $1021 (4% code match). Every subtune has its own freq/instr/pattern/sequence (NOT shared-pool FC multi-subtune). Sub-0-only = a clean FC canary (just needs runtime_slot→flat_seq_table emission); full Adrenalin needs multi-independent-song FC support (new schema+composer feature). User chose DIAGNOSE-ONLY, not build."
 metadata: 
   node_type: memory
   type: project
@@ -25,14 +25,25 @@ composer generalises beyond Tel's subset.
   addrs into low memory `$17xx-$1Bxx` (zeros in the raw binary) and unpacks
   engine code into `$7Axx-$81xx`. The raw binary at the load addr is a
   decompressor + packed data, NOT the runnable engine.
-- **Multiple engine instances per subtune** (init copy table `$514E-$5175`):
-  sub 0 → engine A at `$7A00` (play `$7A06`); subs 2/3 → relocated engine at
-  `$1000` (play `$1006`); **sub 1 is the outlier** (play `$1021`, post-init
-  data at engine-A addrs looks invalid) — likely a shim/SFX subtune.
-- Subs 0/2/3 share sequence-pointer addrs + speed, yet HVSC lists 4 distinct
-  durations → the per-subtune copy likely writes the same pointer addrs with
-  DIFFERENT pointed-to sequence/pattern bytes. UNCONFIRMED — verify at the
-  byte level before committing to single- vs multi-subtune scope.
+- **THREE distinct engines + FOUR independent data pools** (CONFIRMED
+  2026-06-07; full table in RE_NOTES "DIAGNOSIS" section):
+  - sub 0 → engine A @ `$7A00` (canonical FC, full features).
+  - subs 2/3 → engine A *relocated* to `$1000` (entry `$1006`) — PROVEN: sub2
+    nolengset `$128B` == engine A `$7C8B` byte-for-byte, addrs reloc `$7A`→
+    `$10`. Sub2≈sub3 engine code (99%); different data.
+  - sub 1 → a DIFFERENT, smaller engine @ `$1021` (only 4% code match to
+    subs 2/3; `DEC $1090` speed ctr, `JSR $1226/$1225`). NOT identified as FC
+    yet; needs its own RE.
+  - Shared IRQ harness `$1E00-$1EFF` (100% identical): installs IRQ, banks
+    `$01=$37`, idle-spins `JMP $1EA5`, calls play via `JMP ($1E04)`→`$50E3`.
+- **Every subtune has an INDEPENDENT pool** (CONFIRMED): freq/instr/
+  pattern_ptr/pattern/sequence bytes ALL differ between subs 0/2/3 (sub2&3
+  share only the freq table). They sit at engine A's SAME runtime addresses
+  but each subtune's init copies different VALUES. So these are 3 separate FC
+  songs reusing engine A's design — NOT shared-pool FC multi-subtune.
+- **extract(ADRENALIN) only captures sub 0's pool** for the shared fields
+  (freq/instr/patterns from sub 0's post-init mem), so subs 2/3 in that
+  FCSong carry sub 0's WRONG data. Only sub 0 is faithfully extractable today.
 
 ## Key addresses (engine A, post-init, from RE_NOTES)
 lonote $17E3, hinote $1842, per_subtune_speed $18A1 (`02 02 01 01`),
