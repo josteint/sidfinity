@@ -31,7 +31,10 @@ HAWKEYE = FCConfig(
 
     # Table sizes
     freq_table_entries=96,
-    instr_count=16,
+    # 31 instruments (0-30) span instr_records_addr..vibtabwait_addr
+    # ($860C..$8704). Was 16, which left instruments 16-30 as verbatim data
+    # the rebuild depended on; 31 makes the whole instrument table USF-derived.
+    instr_count=31,
     max_patterns=64,
 
     # Aux-table addresses found by disassembling Hawkeye's engine:

@@ -256,19 +256,21 @@ Replaced `_emit_verbatim_region` with zero-fill, re-verified:
   composer still reads from orig is DEAD. The `orig=f.read()` can be dropped for
   Cyb II (it only needs the PSID header, like Hubbard). Cyb II is the first
   fully-principled FC SID end to end.
-- **Hawkeye: 0/12 with verbatim zeroed → still has LIVE verbatim.** Bisected:
-  zeroing the TAIL alone → 8/12 (4 SFX subtunes read tail data, e.g. the SFX
-  seq stream $8FC5 region); zeroing the GAPS alone → 0/12 (ALL subtunes read a
-  gap). The culprit gap is `$83FC..$848B` (= per_subtune_smc_addr region): it's
-  the SMC template lo-bytes (08 0e 14 1a 20 26 2c) + a big lo/hi POINTER TABLE
-  into $89xx-$90xx (the tail's old sequences/patterns). So Hawkeye's flat
-  song_init / dispatch still reads the SMC templates + that pointer table →
-  tail data, i.e. Hawkeye's seq/pattern path is NOT fully replaced by the
-  music_data block (unlike Cyb II). Closing §9 for Hawkeye requires routing its
-  SMC/pointer-table path through music_data too (or de-verbatiming that pointer
-  table + the SFX tail). NOTE Hawkeye builds with shift=$40 (gap dest = src+$40).
-- Did NOT remove `orig=f.read()` (would break Hawkeye). Cyb II could have it
-  removed behind a per-cfg flag, but left unified for now.
+- **Hawkeye: 0/12 zeroed (with instr_count=16) → was a MISATTRIBUTION.** Per-gap
+  bisection corrected it: zeroing gap1 ($83FC..$848B = SMC templates + the
+  pointer table) → **12/12** (gap1 is DEAD — the SMC pointer-table is NOT read
+  in the emit_data path; my first audit was wrong). The real live region was
+  gap2 ($868C..$8704) = **instrument records 16-30**: Hawkeye has 31 instruments
+  (0-30 span instr_records_addr..vibtabwait_addr, $860C..$8704 = 31×8), but
+  instr_count was set to 16, so 16-30 stayed verbatim and ALL subtunes read
+  them. FIX: instr_count 16 → 31 (Hawkeye config). Now Hawkeye is **12/12 with
+  ALL verbatim zeroed → fully de-verbatim**, same as Cyb II.
+- **BOTH canaries now fully de-verbatim.** The composer's `orig=f.read()` is no
+  longer needed for DATA (only the PSID-header metadata, like Hubbard). Next:
+  zero-fill the (now-dead) verbatim regions + source song_init_modes from config
+  instead of mem[$7AFF], to actually drop the data read and close §9.
+  LESSON: don't trust a coarse zero-fill audit — bisect per-region; and an
+  instr_count that's too small silently hides instruments as verbatim.
 
   (older note) CONFIRMED per-SID effect-PROGRAM data, NOT engine constants:
   arp/pulse/filter program bytes DIFFER between Cyb II and Hawkeye (only a
