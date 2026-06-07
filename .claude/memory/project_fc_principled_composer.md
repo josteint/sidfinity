@@ -250,6 +250,26 @@ table into musical USF fields with schema discipline). IN PROGRESS.
   (replace _emit_verbatim_region with zeros, verify writelog unchanged → all
   dead → remove `orig=f.read()`); if it breaks, a gap holds an unidentified
   live table. NOTE Hawkeye builds with shift=$40 (aux addrs shifted).
+### VERBATIM AUDIT RESULT (zero-fill test) — §9 status
+Replaced `_emit_verbatim_region` with zero-fill, re-verified:
+- **Cyb II: 2/2 with ALL verbatim zeroed → FULLY de-verbatim.** Every byte the
+  composer still reads from orig is DEAD. The `orig=f.read()` can be dropped for
+  Cyb II (it only needs the PSID header, like Hubbard). Cyb II is the first
+  fully-principled FC SID end to end.
+- **Hawkeye: 0/12 with verbatim zeroed → still has LIVE verbatim.** Bisected:
+  zeroing the TAIL alone → 8/12 (4 SFX subtunes read tail data, e.g. the SFX
+  seq stream $8FC5 region); zeroing the GAPS alone → 0/12 (ALL subtunes read a
+  gap). The culprit gap is `$83FC..$848B` (= per_subtune_smc_addr region): it's
+  the SMC template lo-bytes (08 0e 14 1a 20 26 2c) + a big lo/hi POINTER TABLE
+  into $89xx-$90xx (the tail's old sequences/patterns). So Hawkeye's flat
+  song_init / dispatch still reads the SMC templates + that pointer table →
+  tail data, i.e. Hawkeye's seq/pattern path is NOT fully replaced by the
+  music_data block (unlike Cyb II). Closing §9 for Hawkeye requires routing its
+  SMC/pointer-table path through music_data too (or de-verbatiming that pointer
+  table + the SFX tail). NOTE Hawkeye builds with shift=$40 (gap dest = src+$40).
+- Did NOT remove `orig=f.read()` (would break Hawkeye). Cyb II could have it
+  removed behind a per-cfg flag, but left unified for now.
+
   (older note) CONFIRMED per-SID effect-PROGRAM data, NOT engine constants:
   arp/pulse/filter program bytes DIFFER between Cyb II and Hawkeye (only a
   shared default prefix matches). So each needs real work: RE the program
