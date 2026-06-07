@@ -151,14 +151,47 @@ a data bug. Verified CORRECT in libsidplayfp via --memwatch: seq_table
 @$9D60 (5C C4 59 A7 A7 A8), seqloclo @$AD9B populated post-init (5C..A7..),
 pattern slot0 @$9E6E, speedbyte=$03, testbyte=0. So data + song_init are
 right in BOTH emulators; only execution differs.
-RULED OUT: data placement/loading (memwatch confirms), seqloclo population,
-C64 banking ($A000+ is RAM — Cyb II at $AE3F proves it), the 128-slot walker
-encoding (Cyb II emit_data uses it and is green in libsidplayfp).
-Hawkeye-specific differences vs working cases: featuredriven_addr_shift=$40,
-the flat smc song_init, larger engine code (preserve_end=0 places engine at
-load+6). NEXT: `tools/siddump --pc-trace` the play in libsidplayfp to find
-where execution diverges from py65 (proper pc-trace invocation TBD; the
-`--pc-trace START END` form printed the register table, not PCs).
+RULED OUT (all via libsidplayfp --memwatch — EVERYTHING the engine reads is
+correct at runtime in libsidplayfp): speedbyte=$03 (@$AD01), snelheid=$03
+(@$8435), seq_table (@$9D60), seqloclo populated (@$AD9B = 5C..A7..),
+sequences (@$A75C=$90), patterns (@$9E6E). Also ruled out: C64 banking
+($A000+ is RAM — Cyb II at $AE3F + Hawkeye's own $AD9B prove it), the
+128-slot walker (Cyb II emit_data green with it), addr_shift (shift=0 gives
+the SAME match=51 silence). So ALL DATA is correct in libsidplayfp yet it
+plays silent while py65 plays perfectly — a pure CPU/execution divergence.
+
+**pc-trace tool**: `tools/siddump FILE --subtune N --pc-trace OUTFILE
+START_FRAME END_FRAME` (START/END are FRAME numbers; writes PCs+regs+flags
+to OUTFILE — can be HUGE, 1.6GB for a frame; capture in bg + kill early).
+Each line: `PC flags A X Y SP DR PR NV-BDIZC opcode`. The A/regs are the
+PRE-instruction state. D-flag is clear (not decimal mode).
+
+**pc-trace status / the alignment trap**: lock-step py65-vs-libsidplayfp
+PC+A diffs kept pointing at false divergences (e.g. "speedbyte=$00" at
+$7B89) because (a) py65 is ONE play() call but the libsidplayfp trace spans
+init + driver + many frames, so anchoring on "first $7AE3/$7B89" picked
+non-corresponding contexts, and (b) the trace A-column is pre-instruction.
+The libsidplayfp driver idle-loops at $04A5 (normal). There is NO runaway
+loop (the $82xx hotspot is just the 3-voice DEX/BMI SID-write loop).
+
+NEXT (clean lock-step): anchor the libsidplayfp trace on the FIRST play
+cycle AFTER init completes (find first $7AE0 init pass, then the following
+$7AE3), and make the py65 harness enter play with libsidplayfp's exact
+entry registers/flags. Compare POST-instruction state step-by-step for the
+true first execution divergence. The data being 100% correct means the bug
+is in how some instruction EXECUTES (candidates: an undocumented opcode
+xa65 emitted that the two CPUs handle differently; a stack/flag-on-entry
+dependence in playirq; a self-modify the new song_init introduced).
+
+**Shift bisection result (separate bug):** Cyb II is green at shift=0 but
+forcing featuredriven_addr_shift=$40 breaks it — diverges DEEP (match=54208)
+at a $D416 FILTER write (orig $A0 vs reb $E0). So the shift path mishandles
+the filterbytes aux table (verbatim + _fixup_verbatim_pointers). This is
+NOT Hawkeye's silence blocker (Hawkeye fails at shift=0 too), but it must be
+fixed OR avoided for a clean Hawkeye. Hawkeye emit_data BUILDS with shift=0
+(engine fits load+6..first_data_addr since preserve_end=0), so dropping the
+shift for the emit_data path side-steps the filter bug — do that once the
+silence bug is fixed.
 The composer infra is COMMITTED but DORMANT — Hawkeye config does NOT set
 emit_data_from_usf, so it stays on the verbatim path (12/12). Cyb II 2/2,
 Hawkeye-verbatim 12/12 confirmed after the song_init restructure.
