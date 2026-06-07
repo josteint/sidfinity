@@ -199,6 +199,21 @@ step rate switches to `S` when a counter crosses threshold `T` (`seg T S`).
 snaps at the bound instead of bouncing. Exactly three segments. The composer
 emits the 8-byte-per-program `pulsetabel` from these fields.
 
+## `filter_programs { ... }` (FC filter cutoff-envelope library)
+
+```
+filter_programs {
+  prog 0: init=160 d418=31 final=128 end=98 seg 2 254 seg 34 2 seg 66 255
+}
+```
+
+Optional. Each `prog N` (an instrument's `filter_prog.program`) is a filter
+cutoff envelope: the `$D416` cutoff starts at `init`, gains each segment's add
+value as a counter crosses that segment's threshold (`seg T A`), and snaps to
+`final` once the counter passes `end`; `d418` is written to `$D418` (master
+volume + filter routing). Exactly three segments. The composer lays the
+10-byte programs out and computes the `filterbytes` pointer table itself.
+
 ## `instrument N name { ... }`
 
 ```

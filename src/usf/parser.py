@@ -835,6 +835,21 @@ class _T(Transformer):
     def pulse_programs_block(self, items):
         return ('pulse_programs', {n: prog for n, prog in items})
 
+    def fp_seg(self, items):
+        return ('seg', (int(items[0]), int(items[1])))
+
+    def filter_program(self, items):
+        n = int(items[0])
+        init, d418, final, end = (int(items[1]), int(items[2]),
+                                  int(items[3]), int(items[4]))
+        segs = [it[1] for it in items[5:] if isinstance(it, tuple)
+                and it[0] == 'seg']
+        return (n, {'init': init, 'd418': d418, 'final': final,
+                    'end': end, 'segs': segs})
+
+    def filter_programs_block(self, items):
+        return ('filter_programs', {n: prog for n, prog in items})
+
     def state_layout_block(self, items):
         # items is a list of tuples ('n_voices', N) | ('scalar', dict)
         # | ('per_voice', dict). Reassemble into a StatebufLayout-shaped
@@ -878,6 +893,7 @@ class _T(Transformer):
         sfx = None
         arp_programs = {}
         pulse_programs = {}
+        filter_programs = {}
         for it in items:
             if isinstance(it, tuple):
                 k, v = it
@@ -897,6 +913,8 @@ class _T(Transformer):
                     arp_programs = v
                 elif k == 'pulse_programs':
                     pulse_programs = v
+                elif k == 'filter_programs':
+                    filter_programs = v
             elif isinstance(it, PsidMeta):
                 psid = it
             elif isinstance(it, Params):
@@ -913,7 +931,7 @@ class _T(Transformer):
             freq_table=freq_table, state_layout=state_layout,
             song_end=song_end, init_behavior=init_behavior,
             master_vol=master_vol, sfx=sfx, arp_programs=arp_programs,
-            pulse_programs=pulse_programs)
+            pulse_programs=pulse_programs, filter_programs=filter_programs)
 
 
 # ---------------------------------------------------------------------------

@@ -311,6 +311,7 @@ class FCSong:
     subtunes: list[Subtune]
     arp_programs: dict = field(default_factory=dict)  # N -> signed offsets
     pulse_programs: dict = field(default_factory=dict)  # N -> sweep shape
+    filter_programs: dict = field(default_factory=dict)  # N -> cutoff env
 
 
 # ---------------------------------------------------------------------------
@@ -479,6 +480,39 @@ def _decode_pulse_programs(mem: bytes, cfg: FCConfig,
                 (b[6] & 0x7F, b[7], bool(b[6] & 0x80))]
         progs[n] = {'lo': b[0] & 0x0F, 'hi': b[1],
                     'wrap': bool(b[0] & 0x80), 'segs': segs}
+    return progs
+
+
+def _decode_filter_programs(mem: bytes, cfg: FCConfig,
+                            instruments: list,
+                            engine: EngineInstance | None = None) -> dict:
+    """Decode the FC filter library (filterbytes ptr table) into {N: env}.
+
+    filterbytes[N] is a 2-byte pointer to a 10-byte program fb[0..9]:
+      fb[0] init cutoff; fb[1..3] segment adds; fb[4] final cutoff;
+      fb[5] $D418 routing; fb[6..8] segment thresholds; fb[9] end threshold.
+    Stored as {init, d418, final, end, segs:[(threshold, add)*3]}. Only the
+    programs referenced by an instrument (fil_count & filter_prog_mask) are
+    kept — the hi-byte scan alone yields false positives past the real data.
+    """
+    base = resolve_address(cfg, engine, 'filterbytes_addr')
+    if not base:
+        return {}
+    # Program count = where the pointer table ends = (first pointer - base)/2.
+    # Extract ALL of them (not just instrument-referenced): SFX subtunes
+    # reference programs no music instrument does, and matching orig's table
+    # size keeps the rebuilt layout aligned.
+    first_ptr = mem[base] | (mem[base + 1] << 8)
+    count = (first_ptr - base) // 2
+    if not (1 <= count <= 8):
+        return {}
+    progs: dict[int, dict] = {}
+    for n in range(count):
+        ptr = mem[base + n * 2] | (mem[base + n * 2 + 1] << 8)
+        fb = [mem[ptr + j] for j in range(10)]
+        segs = [(fb[6], fb[1]), (fb[7], fb[2]), (fb[8], fb[3])]
+        progs[n] = {'init': fb[0], 'd418': fb[5], 'final': fb[4],
+                    'end': fb[9], 'segs': segs}
     return progs
 
 
@@ -710,6 +744,8 @@ def extract(cfg: FCConfig, root: str | None = None) -> FCSong:
         patterns=patterns, sequences=sequences, subtunes=subtunes,
         arp_programs=_decode_arp_programs(mem_global, cfg, engine_for_shared),
         pulse_programs=_decode_pulse_programs(
+            mem_global, cfg, instruments, engine_for_shared),
+        filter_programs=_decode_filter_programs(
             mem_global, cfg, instruments, engine_for_shared),
     )
 

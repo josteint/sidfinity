@@ -269,6 +269,20 @@ def _write_pulse_programs(progs: dict) -> list[str]:
     return lines
 
 
+def _write_filter_programs(progs: dict) -> list[str]:
+    """Emit `filter_programs { prog N: init= d418= final= end= seg T A }`."""
+    lines = ['filter_programs {']
+    for n in sorted(progs):
+        p = progs[n]
+        parts = [f'init={p["init"]}', f'd418={p["d418"]}',
+                 f'final={p["final"]}', f'end={p["end"]}']
+        for thr, add in p['segs']:
+            parts.append(f'seg {thr} {add}')
+        lines.append(f'  prog {n}: ' + ' '.join(parts))
+    lines.append('}')
+    return lines
+
+
 def _write_instrument(i: Instrument) -> list[str]:
     head = f'instrument {i.id}'
     if i.name:
@@ -539,6 +553,9 @@ def write(usf: UsfFile) -> str:
     if usf.pulse_programs:
         lines.append('')
         lines.extend(_write_pulse_programs(usf.pulse_programs))
+    if usf.filter_programs:
+        lines.append('')
+        lines.extend(_write_filter_programs(usf.filter_programs))
     for inst in sorted(usf.instruments, key=lambda x: x.id):
         lines.append('')
         lines.extend(_write_instrument(inst))

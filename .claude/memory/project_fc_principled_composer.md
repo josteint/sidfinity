@@ -216,7 +216,16 @@ table into musical USF fields with schema discipline). IN PROGRESS.
   inst.fx2&7; unused slots are dead data). Engine ignores b0 bits 4-6 so the
   (wrap,lo) decomposition is writelog-faithful. Schema across all USF files +
   docs. Cyb II 2/2, Hawkeye 12/12.
-- **Remaining: filterbytes, drumtabel, wavearp/pulsearp.**
+- **filterbytes (filter cutoff-envelope programs) — DONE.** New top-level USF
+  block `filter_programs { prog N: init= d418= final= end= seg T A x3 }`.
+  filterbytes is a 2-byte-ptr table → 10-byte programs fb[0..9]: fb0=init
+  cutoff, fb1-3=segment adds, fb4=final, fb5=$D418, fb6-8=seg thresholds,
+  fb9=end threshold. fx_filter_prog walks counter2 vs thresholds → cutoff to
+  $D416, routing to $D418. GOTCHA: extract ALL programs (count = (first_ptr -
+  filterbytes_addr)/2), NOT just instrument-referenced — SFX subtunes (6-11)
+  reference a program no music instrument uses; refs-only gave Hawkeye 6/12
+  (SFX read garbage $FF), full-table extract → 12/12. Cyb II 2/2.
+- **Remaining: drumtabel, wavearp/pulsearp.**
   CONFIRMED per-SID effect-PROGRAM data, NOT engine constants:
   arp/pulse/filter program bytes DIFFER between Cyb II and Hawkeye (only a
   shared default prefix matches). So each needs real work: RE the program

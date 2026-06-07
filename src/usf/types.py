@@ -758,3 +758,11 @@ class UsfFile:
     # counter crosses each segment threshold (flip = reverse direction).
     # Empty dict when no pulse programs are used.
     pulse_programs: dict[int, dict] = field(default_factory=dict)
+    # FC filter-sweep program library (v0). Maps filter-program index N
+    # (an instrument's filter_prog.program) to its cutoff envelope:
+    # {'init': int, 'd418': int, 'final': int, 'end': int,
+    #  'segs': [(threshold, add)*3]}. The engine starts cutoff at `init`,
+    # adds each segment's value as a counter crosses its threshold, snaps to
+    # `final` past `end`, and routes filter via `d418` ($D418). Empty dict
+    # when no filter programs are used.
+    filter_programs: dict[int, dict] = field(default_factory=dict)

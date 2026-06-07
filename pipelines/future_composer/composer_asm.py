@@ -3087,6 +3087,21 @@ def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
         raw_sections.append(('pulsetabel', cfg.pulsetabel_addr,
                              cfg.pulsetabel_addr + pulse_kmax * 8))
 
+    # filterbytes: 2-byte pointer table -> 10-byte cutoff-envelope programs,
+    # from usf.filter_programs (was verbatim). Pointer table holds slots
+    # 0..max(N); program data follows it; pointers computed fresh.
+    filt_layout = {}
+    if (cfg.emit_data_from_usf and cfg.filterbytes_addr and usf.filter_programs):
+        filt_count = max(usf.filter_programs) + 1
+        fprog_addr = cfg.filterbytes_addr + filt_count * 2
+        cur = fprog_addr
+        for n in range(filt_count):
+            if n in usf.filter_programs:
+                filt_layout[n] = cur
+                cur += 10
+        raw_sections.append(('filterbytes', cfg.filterbytes_addr, fprog_addr))
+        raw_sections.append(('filt_progs', fprog_addr, cur))
+
     def _emit_lo(limit):
         return _emit_byte_list('lonote',
             [usf.freq_table[i*2] for i in range(limit)])
@@ -3128,6 +3143,23 @@ def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
             out.append('        .byt ' + ','.join(f'${b & 0xFF:02X}' for b in row)
                        + f'  ; pulse {n}')
         return '\n'.join(out)
+    def _emit_filterbytes(_n):
+        filt_count = max(usf.filter_programs) + 1
+        vals = []
+        for n in range(filt_count):
+            a = filt_layout.get(n, 0)
+            vals += [a & 0xFF, (a >> 8) & 0xFF]
+        return _emit_labelless('filterbytes (USF-derived filter ptr table)', vals)
+    def _emit_filt_progs(_n):
+        out = ['; filter programs (USF-derived: 10-byte cutoff envelope per N)']
+        for n in sorted(filt_layout):
+            p = usf.filter_programs[n]
+            s = p['segs']
+            fb = [p['init'], s[0][1], s[1][1], s[2][1], p['final'], p['d418'],
+                  s[0][0], s[1][0], s[2][0], p['end']]
+            out.append('        .byt ' + ','.join(f'${b & 0xFF:02X}' for b in fb)
+                       + f'  ; filter {n}')
+        return '\n'.join(out)
     section_emitters = {
         'freq_lo':  _emit_lo,
         'freq_hi':  _emit_hi,
@@ -3138,6 +3170,8 @@ def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
         'arphi': _emit_arphi,
         'arp_progs': _emit_arp_progs,
         'pulsetabel': _emit_pulsetabel,
+        'filterbytes': _emit_filterbytes,
+        'filt_progs': _emit_filt_progs,
     }
     raw_sections.sort(key=lambda s: s[1])
     sections = []
