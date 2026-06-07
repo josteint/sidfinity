@@ -42,6 +42,7 @@ CYBERNOID_II = FCConfig(
     subtune_layout='flat_seq_table',
     seq_table_addr=0xAEEF,
     emit_data_from_usf=True,
+    load_addr=0xA600,          # emit_data: no orig file needed
 
     # Cybernoid II's freq table is 87 entries (NOT a full 8-octave 96)
     # — the table truncates partway through the top octave. The source

@@ -19,6 +19,8 @@ HAWKEYE = FCConfig(
 
     subtune_layout='smc_template_with_sfx',
     emit_data_from_usf=True,   # all 12 subtunes byte-exact from USF
+    load_addr=0x7AE0,          # emit_data: no orig file needed
+
     per_subtune_smc_addr=0x83FC,
     per_subtune_mode_addr=0x7AFF,
     template_base_hi=0x7B,

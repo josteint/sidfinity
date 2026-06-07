@@ -2964,12 +2964,23 @@ def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
     """
     if root is None:
         root = _ROOT
-    sid_path = str(Path(root) / cfg.sid_path)
-    with open(sid_path, 'rb') as f:
-        orig = f.read()
-    _hl, load_addr, _i, _p, _n, code, _inline = _load_sid_psid(orig)
-    code_end = load_addr + len(code)
-    mem = bytearray(65536); mem[load_addr:code_end] = code
+    if cfg.emit_data_from_usf:
+        # De-verbatim path: the composer needs NO orig file — load address
+        # comes from cfg, all musical data + layout from USF. (mem / code_end
+        # are only used by the verbatim path below.)
+        if not cfg.load_addr:
+            raise ValueError(
+                'emit_data_from_usf requires cfg.load_addr (no orig read)')
+        load_addr = cfg.load_addr
+        code_end = None
+        mem = None
+    else:
+        sid_path = str(Path(root) / cfg.sid_path)
+        with open(sid_path, 'rb') as f:
+            orig = f.read()
+        _hl, load_addr, _i, _p, _n, code, _inline = _load_sid_psid(orig)
+        code_end = load_addr + len(code)
+        mem = bytearray(65536); mem[load_addr:code_end] = code
 
     # Apply featuredriven_addr_shift: rebuild's data tables can be
     # placed higher than HVSC's actual layout (which the unshifted
@@ -3024,19 +3035,11 @@ def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
     else:
         snelheid_len = cfg.music_subtune_count + 1
 
-    # Principled data tail: build the USF-derived music-data block (patterns
-    # + pattern_ptr_table + sequences + seq_table) into fresh space past the
-    # verbatim tail, and redirect the engine's pointers (pattern_ptr_table
-    # equate + song-init's seq_table address) at it. The verbatim tail still
-    # emits (its aux tables stay live; the old music data goes dead).
+    # The USF-derived music-data block (patterns + pattern_ptr_table +
+    # sequences + seq_table) is built AFTER the section layout is known, so it
+    # can be placed right after the last USF section instead of at orig's
+    # code_end (which would tie placement to orig's body size). See below.
     music_data = None
-    if cfg.emit_data_from_usf:
-        from pipelines.future_composer.data_emit import build_music_data
-        music_base = code_end + shift
-        music_data = build_music_data(music_subs, music_base)
-        cfg = _dc.replace(cfg,
-            seq_table_addr=music_data['seq_table_addr'],
-            pattern_ptr_addr=music_data['pattern_ptr_addr'])
 
     raw_sections = [
         ('freq_lo',  cfg.freq_lo_addr,
@@ -3242,6 +3245,19 @@ def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
 
     first_data_addr = sections[0][1]
 
+    # Now that the section layout is known, build the USF-derived music-data
+    # block and place it right AFTER the last section (no dependency on orig's
+    # code_end). The section loop below zero-fills any gaps and ends exactly at
+    # this address, so the block lands contiguously. Redirect the engine's
+    # pointers (pattern_ptr_table equate + song-init seq_table) at it.
+    if cfg.emit_data_from_usf:
+        from pipelines.future_composer.data_emit import build_music_data
+        music_base = max(end for _, _, end in sections)
+        music_data = build_music_data(music_subs, music_base)
+        cfg = _dc.replace(cfg,
+            seq_table_addr=music_data['seq_table_addr'],
+            pattern_ptr_addr=music_data['pattern_ptr_addr'])
+
     # For SMC layout: compute preservation range for HVSC's SMC
     # template region. My engine reads `mem[(template_base_hi<<8) |
     # per_subtune_smc_addr,X]` to get music-subtune sequence records.
@@ -3399,27 +3415,23 @@ def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
         lines.append('')
         cursor = end
 
-    # Tail region (HVSC's old sequences/patterns + leftover aux). When
-    # emit_data, this is all dead (engine reads the music_data block below)
-    # — zero-fill it; otherwise copy verbatim from HVSC.
-    if cursor < (code_end + shift):
+    # Verbatim tail (HVSC's old sequences/patterns + leftover aux) — only the
+    # verbatim path emits it. For emit_data the section loop ends exactly at
+    # music_base (max section end), so the music-data block below follows
+    # contiguously with no orig tail at all.
+    if not cfg.emit_data_from_usf and cursor < (code_end + shift):
         tail_end_dest = code_end + shift
         lines.append(f'* = ${cursor:04X}')
-        if cfg.emit_data_from_usf:
-            lines.append(f'; --- dead tail ${cursor:04X}..${tail_end_dest-1:04X} '
-                         f'(zero-filled; orig data not copied) ---')
-            lines.append(f'        .dsb ${tail_end_dest:04X} - *, 0')
-        else:
-            lines.append(f'; --- verbatim tail ${cursor:04X}..'
-                         f'${tail_end_dest-1:04X} ---')
-            lines.append(_emit_verbatim_region(
-                mem, cursor - shift, tail_end_dest - shift))
+        lines.append(f'; --- verbatim tail ${cursor:04X}..'
+                     f'${tail_end_dest-1:04X} ---')
+        lines.append(_emit_verbatim_region(
+            mem, cursor - shift, tail_end_dest - shift))
         lines.append('')
         cursor = tail_end_dest
 
     # Principled music-data block (USF-derived patterns/sequences/tables),
-    # placed right after the verbatim tail. The pattern_ptr_table equate +
-    # song-init seq_table address (set above) point into here.
+    # placed right after the last section (emit_data) or the verbatim tail.
+    # The pattern_ptr_table equate + song-init seq_table address point here.
     if music_data is not None:
         base = music_data['base']
         lines.append(f'; --- USF-derived music data ${base:04X}..'

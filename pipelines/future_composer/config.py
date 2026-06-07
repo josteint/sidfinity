@@ -295,6 +295,11 @@ class FCConfig:
     # (default), the whole data tail is verbatim.
     emit_data_from_usf: bool = False
 
+    # SID load address. For the emit_data path the composer needs no orig file
+    # at all, so the load address (also the init/play entry base) comes from
+    # here instead of the PSID header. 0 = read it from orig (verbatim path).
+    load_addr: int = 0
+
     # Per-path voice-loop mode constants (music_mode, sfx_mode) for the
     # emit_data song-init. Were read from mem[per_subtune_mode_addr] in the
     # verbatim path; for the de-verbatim path they come from here so the
