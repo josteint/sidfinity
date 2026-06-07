@@ -1,6 +1,6 @@
 ---
 name: project_hubbard_remaining_partials
-description: "The 3 Hubbard subtune families still write-log-partial after Monty was fixed (2026-06-07): Human_Race(4)[+probably Battle(1)] = spurious bidirectional PWM because the composer zeros the per-voice PWM counters (v_pwperiod/v_pwdir) that the engine seeds from the binary $0DC8 (root found via pc-trace; NOT the CIA/timing red herring); Devils_Galop(1) = a dropped V3 freq write. All were false-passed by the old snapshot verdict."
+description: "Hubbard subtunes the regression marks partial after Monty was fixed (2026-06-07). Human_Race(4)[+prob Battle(1)]: ENGINE IS CORRECT — per-play() write sequence is byte-identical to orig (54/54 via pc-trace); they fail only because they are CIA-timed (speed!=0) and siddump's flat 50Hz capture buckets init/first-play out of phase. Fix is the VERDICT (verify CIA tunes per-play), not the engine. (Earlier 'CIA-dispatch' and 'PWM-seed' theories were both wrong — buggy trace parsing.) Devils_Galop(1): a genuine dropped-V3-freq-write bug (vblank, separate)."
 metadata: 
   node_type: memory
   type: project
@@ -12,7 +12,40 @@ verdict leaves **6 Hubbard subtunes** failing — all previously false-passed by
 the deleted py65 snapshot verdict ([[feedback_no_snapshot_verdict]]). Two
 distinct causes:
 
-## Human_Race (4) [+ probably Battle (1)] — PWM-counter seed not replicated
+## Human_Race (4) [+ probably Battle (1)] — ENGINE IS CORRECT; verdict is CIA-confounded
+FINAL CONCLUSION 2026-06-07: **there is no engine bug.** A correct per-`play()`
+comparison (pc-trace, segment by play-entry `$0986`/`$1003`, extract SID writes
+via the EFFECTIVE address in the trace's `[d4xx]` brackets) shows the rebuild's
+write sequence is **byte-identical to the original over 54/54 plays**. py65 (logic)
+agrees. Human_Race is byte-exact in the Mode-1 sense.
+
+Everything below this line was a WRONG theory caused by buggy trace parsing —
+kept only as a cautionary trail. The verdict (`verify_all` / `find_first_divergence`
+via `siddump --writelog` flat) FAILS Human_Race because it is **CIA-timed**
+(speed=0x0f): siddump's 50Hz-frame flat capture buckets the init + first play()
+differently for orig (long init → first play at cycle ~15714) vs rebuild (short
+init → cycle ~1403), so the two flat streams start at different points and
+"diverge" at position 0. That's a capture/observation artifact (Trap C for CIA
+tunes), not the engine.
+
+THREE parsing bugs burned a long session here — beware:
+1. `--writelog-per-irq` chunk0 ≠ play[0] (it folds init in, differently per
+   tune) → bogus "V1 one play late" + "88%/90% match".
+2. A PW-write regex that matched only `STAay` (store abs,Y) and missed the
+   bounded-PWM `STAax` (store abs,X at orig $0BF7/$0BFE) → bogus "orig
+   [4,0,0,..] vs reb [4,4,0,..] PWM modulation bug".
+3. The disasm COMMENT "v_pwperiod=[0,1,$1D]" is a runtime value; the load-time
+   bytes at $0DC8 are all zero (same as the composer) — the "seed" was a non-fix.
+THE RELIABLE METHOD: pc-trace both, segment by play-entry, compare the
+effective-address `[d4xx]` writes per play. Use THAT, not `--writelog-per-irq`
+parsing or instruction-mnemonic regexes.
+
+REAL fix needed (verdict, not engine): make `verify_all` verify CIA-timed tunes
+(speed != 0) via the per-`play()` comparison above instead of the siddump-flat
+stream, OR ear-test + accept. This fixes Human_Race + Battle (both CIA) together.
+
+--- OBSOLETE WRONG THEORY BELOW (PWM seed) — ignore, kept as cautionary trail ---
+## (WRONG) PWM-counter seed not replicated
 ROOT CAUSE FOUND 2026-06-07 via a pc-trace dig (siddump `--pc-trace FILE
 START END`, ground truth). **It is NOT a CIA/timing/first-frame issue** — earlier
 "V1 one play late" / "CIA dispatch phase" theories were ALL wrong, artifacts of
