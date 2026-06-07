@@ -3464,12 +3464,40 @@ def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
     return '\n'.join(lines), load_addr
 
 
+def _make_psid_header(usf: UsfFile, init_addr: int, play_addr: int,
+                      n_songs: int) -> bytes:
+    """Synthesize a PSID v2 header (0x7C bytes) from USF metadata + entry
+    vectors — no orig file needed. Inline-load form (loadAddr=0; the load
+    address is prepended to the data). Matches HVSC's header layout."""
+    def _s32(s):
+        return (s or '').encode('latin-1', 'replace')[:32].ljust(32, b'\x00')
+    clock = {'PAL': 1, 'NTSC': 2, 'both': 3}.get(usf.psid.clock, 0)
+    sidm = {6581: 1, 8580: 2, 'both': 3}.get(usf.psid.sid, 0)
+    flags = (clock << 2) | (sidm << 4)
+    hdr = (b'PSID'
+           + struct.pack('>H', 2)            # version
+           + struct.pack('>H', 0x7C)         # dataOffset
+           + struct.pack('>H', 0)            # loadAddr (0 = inline)
+           + struct.pack('>H', init_addr)
+           + struct.pack('>H', play_addr)
+           + struct.pack('>H', n_songs)
+           + struct.pack('>H', usf.psid.start_song)
+           + struct.pack('>I', usf.psid.speed)
+           + _s32(usf.psid.title)
+           + _s32(usf.psid.author)
+           + _s32(usf.psid.released)
+           + struct.pack('>H', flags)
+           + bytes(4))                       # startPage, pageLen, 2nd/3rd SID
+    assert len(hdr) == 0x7C, len(hdr)
+    return hdr
+
+
 def build_via_asm_featuredriven(cfg: FCConfig,
                                  usf_path: str | None = None,
                                  root: str | None = None) -> bytes:
-    """Full featuredriven build path. Reuses the original SID's PSID
-    header for now (the header carries title/author/init-vector/etc.,
-    which the composer doesn't yet generate from scratch)."""
+    """Full featuredriven build path. For emit_data engines the whole path is
+    orig-free: the PSID header is synthesized from USF metadata + cfg entry
+    vectors. The verbatim path still reuses the original SID's header."""
     if root is None:
         root = _ROOT
     if usf_path is None:
@@ -3479,6 +3507,12 @@ def build_via_asm_featuredriven(cfg: FCConfig,
 
     asm, load_addr = compose_fc_asm_featuredriven(usf, cfg, root=root)
     code_bytes = _xa65_assemble(asm, load_addr)
+
+    if cfg.emit_data_from_usf:
+        # init = load_addr (init trampoline), play = load_addr + 3.
+        hdr = _make_psid_header(usf, load_addr, load_addr + 3,
+                                len(usf.subtunes))
+        return hdr + load_addr.to_bytes(2, 'little') + code_bytes
 
     sid_path = str(Path(root) / cfg.sid_path)
     with open(sid_path, 'rb') as f:

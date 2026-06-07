@@ -282,11 +282,26 @@ full regression green. The only remaining orig read is the PSID header
 (load_addr / init+play vectors / title) + body size — metadata, exactly like
 Hubbard's `_inputs_from_usf` reading its 124-byte header. All MUSICAL content
 (patterns, sequences, tables, instruments, every aux program) is USF-derived.
-REMAINING for a literal "build with no orig at all" (model-generated USF):
-music_data is still placed at code_end+shift (orig body size = a layout
-anchor); to drop that, place music_data right after the last USF section
-(cursor) and source load_addr from config/USF. Not done (layout refactor,
-deferred) — but the §9 musical-data-completeness criterion is met.
+### §9 FULLY CLOSED — the whole build is orig-free (model-USF buildable)
+Done (commits cda5658 + this one):
+- **music_data placement refactor:** music_data is built AFTER the section
+  layout and placed at `music_base = max(section end)` — right after the last
+  USF section — instead of `code_end+shift`. The section loop zero-fills gaps
+  and ends exactly there, so no verbatim tail. Removes the orig-body-size
+  (code_end) dependency.
+- **load_addr from cfg** (`FCConfig.load_addr`; Hawkeye $7AE0, Cyb II $A600):
+  `compose_fc_asm_featuredriven` reads NO orig on the emit_data path (proven:
+  composes with a bogus sid_path).
+- **PSID header synthesized** from `usf.psid` + cfg (`_make_psid_header`):
+  byte-IDENTICAL to HVSC's header for both canaries; flags from clock+sid,
+  init=load_addr, play=load_addr+3, songs=len(usf.subtunes), inline-load form.
+  `build_via_asm_featuredriven` uses it for emit_data → the FULL build runs
+  from USF alone (proven: builds Hawkeye with a bogus .sid, byte-identical to
+  the orig-header build).
+Result: a model-generated FC USF can build a complete, byte-exact SID with NO
+orig file at all. Both canaries fully principled, equal to Hubbard/Companion
+(actually a step beyond — Hubbard still reads its 124-byte header). §9 met in
+full for the FC emit_data path.
 
   (older note) CONFIRMED per-SID effect-PROGRAM data, NOT engine constants:
   arp/pulse/filter program bytes DIFFER between Cyb II and Hawkeye (only a
