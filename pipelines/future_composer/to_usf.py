@@ -209,8 +209,11 @@ def _inst_to_usf(inst: FCInstrument) -> Instrument:
     effect bytes (fil_count, fx1, fx2, fx3) are decomposed into named
     fields per usf_schema_v1.md.
     """
+    import dataclasses as _dc
     fields = _decompose_fx_bytes(inst.fil_count, inst.fx1, inst.fx2,
                                   inst.fx3)
+    # vibtabwait[id] → vibrato onset delay (frames before vibrato kicks in).
+    fields['vibrato'] = _dc.replace(fields['vibrato'], onset=inst.vib_onset)
     return Instrument(
         id=inst.id + 1,           # USF uses 1-based instrument ids
         waveform=[inst.pulse_hi, inst.waveform],

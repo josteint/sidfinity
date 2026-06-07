@@ -56,6 +56,7 @@ class Instrument:
     fx1: int                    # +5 — vibrato-related (TBD)
     fx2: int                    # +6 — arpeggio-related (TBD)
     fx3: int                    # +7 — drum/skydive flags (TBD)
+    vib_onset: int = 0          # vibtabwait[id]: vibrato onset delay (frames)
 
 
 # ---------------------------------------------------------------------------
@@ -412,6 +413,7 @@ def _decode_instruments(mem: bytes, cfg: FCConfig,
                         engine: EngineInstance | None = None
                         ) -> list[Instrument]:
     instr_base = resolve_address(cfg, engine, 'instr_records_addr')
+    vib_base = resolve_address(cfg, engine, 'vibtabwait_addr')
     out: list[Instrument] = []
     for i in range(cfg.instr_count):
         base = instr_base + i * 8
@@ -420,6 +422,7 @@ def _decode_instruments(mem: bytes, cfg: FCConfig,
             id=i, raw=raw,
             pulse_hi=raw[0], waveform=raw[1], ad=raw[2], sr=raw[3],
             fil_count=raw[4], fx1=raw[5], fx2=raw[6], fx3=raw[7],
+            vib_onset=(mem[vib_base + i] if vib_base else 0),
         ))
     return out
 

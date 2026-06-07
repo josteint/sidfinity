@@ -3045,17 +3045,35 @@ def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
         ('instruments', cfg.instr_records_addr,
                         cfg.instr_records_addr + cfg.instr_count * 8),
     ]
+    # vibtabwait: per-instrument vibrato onset delay — now USF-derived from
+    # each instrument's vibrato.onset (was verbatim from orig). Only when
+    # emit_data_from_usf (the de-verbatim path).
+    if cfg.emit_data_from_usf and cfg.vibtabwait_addr:
+        raw_sections.append(('vibtabwait', cfg.vibtabwait_addr,
+                             cfg.vibtabwait_addr + cfg.instr_count))
     def _emit_lo(limit):
         return _emit_byte_list('lonote',
             [usf.freq_table[i*2] for i in range(limit)])
     def _emit_hi(limit):
         return _emit_byte_list('hinote',
             [usf.freq_table[i*2+1] for i in range(limit)])
+    def _emit_vibtabwait(_n):
+        # Label-less (the `vibtabwait` equate already names this address);
+        # values are each instrument's vibrato onset delay.
+        slot_to_inst = {i.id - 1: i for i in usf.instruments}
+        vals = [(slot_to_inst[s].vibrato.onset if s in slot_to_inst else 0)
+                for s in range(cfg.instr_count)]
+        out = ['; vibtabwait (USF-derived: per-instrument vibrato onset)']
+        for i in range(0, len(vals), 12):
+            out.append('        .byt ' + ','.join(f'${b:02X}'
+                                                  for b in vals[i:i + 12]))
+        return '\n'.join(out)
     section_emitters = {
         'freq_lo':  _emit_lo,
         'freq_hi':  _emit_hi,
         'snelheid': lambda _n: _emit_snelheid(usf, cfg),
         'instruments': lambda _n: _emit_instruments(usf, cfg),
+        'vibtabwait': _emit_vibtabwait,
     }
     raw_sections.sort(key=lambda s: s[1])
     sections = []
