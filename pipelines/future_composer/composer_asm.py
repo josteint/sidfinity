@@ -1123,6 +1123,71 @@ h10_gwb:
         sta byteand,x
 """
 
+    # Sequence-command dispatch. The byte partition is the composer's own
+    # choice (writelog is the only verdict), so the USF-derived path uses a
+    # wider partition than HVSC's: $00-$7F pattern jump (128 patterns vs
+    # HVSC's 64), $80-$9F transpose, $A0-$BF repeat, $C0-$CF voiceinc. This
+    # gives one global pattern pool — no per-subtune pattern tables, and
+    # song_init stays dumb (no pattern-table base to set). The verbatim
+    # path keeps HVSC's partition so orig sequence bytes still parse.
+    if cfg.emit_data_from_usf:
+        h3_command_dispatch = """h3_dispatch:
+        sta st2
+        cmp #$80
+        bcc h3f_pattern              ; $00-$7F → pattern jump (128 slots)
+        cmp #$A0
+        bcc h3_set_transpose         ; $80-$9F → transpose
+        cmp #$C0
+        bcc h3_set_repeat            ; $A0-$BF → repeat
+        ; $C0-$CF → voiceinc
+        and #$0F
+        sta voiceinc,x
+        inc tabcount,x
+        jmp h2_take_step
+
+h3_set_transpose:
+        and #$1F
+        sta toneadd,x
+        inc tabcount,x
+        jmp h2_take_step
+
+h3_set_repeat:
+        and #$1F
+        sta repeatsto,x
+        inc tabcount,x
+        jmp h2_take_step
+"""
+    else:
+        h3_command_dispatch = """h3_dispatch:
+        sta st2
+        cmp #$40
+        bcc h3f_pattern              ; $00-$3F → pattern jump
+        cmp #$80
+        bcc h3a_voiceinc_or_repeat   ; $40-$7F → voiceinc/repeat
+        ; $80-$FF → set toneadd (transpose)
+        and #$1F
+        sta toneadd,x
+        inc tabcount,x
+        jmp h2_take_step
+
+h3a_voiceinc_or_repeat:
+        lda st2
+        cmp #$60
+        bcc h3c_repeat               ; $40-$5F → repeat
+        ; $60-$7F → voiceinc
+        and #$0F
+        sta voiceinc,x
+        inc tabcount,x
+        jmp h2_take_step
+
+h3c_repeat:
+        ; $40-$5F → set repeatsto
+        and #$3F
+        sta repeatsto,x
+        inc tabcount,x
+        jmp h2_take_step
+"""
+
     return ("""
 ; --- playirq dispatch + h2/h3 sequence walker ---
 playirq:
@@ -1174,35 +1239,7 @@ h2_take_step:
 do_songout:
         jmp songout
 
-h3_dispatch:
-        sta st2
-        cmp #$40
-        bcc h3f_pattern              ; $00-$3F → pattern jump
-        cmp #$80
-        bcc h3a_voiceinc_or_repeat   ; $40-$7F → voiceinc/repeat
-        ; $80-$FF → set toneadd (transpose)
-        and #$1F
-        sta toneadd,x
-        inc tabcount,x
-        jmp h2_take_step
-
-h3a_voiceinc_or_repeat:
-        lda st2
-        cmp #$60
-        bcc h3c_repeat               ; $40-$5F → repeat
-        ; $60-$7F → voiceinc
-        and #$0F
-        sta voiceinc,x
-        inc tabcount,x
-        jmp h2_take_step
-
-h3c_repeat:
-        ; $40-$5F → set repeatsto
-        and #$3F
-        sta repeatsto,x
-        inc tabcount,x
-        jmp h2_take_step
-
+{h3_command_dispatch}
 h3f_pattern:
         ; $00-$3F — pattern jump. Load pattern_ptr_table[A*2..A*2+1]
         ; into zp3/zp4 (the pattern indirect pointer), then walk the
@@ -2464,6 +2501,7 @@ playirq_done:
         nolengset_reset_tonearp=nolengset_reset_tonearp,
         playirq_run_ldx=playirq_run_ldx,
         fx_pulse_run_body=fx_pulse_run_body,
+        h3_command_dispatch=h3_command_dispatch,
     )
 
 #

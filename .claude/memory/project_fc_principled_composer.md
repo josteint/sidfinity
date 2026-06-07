@@ -105,13 +105,21 @@ The "overlap" (V1 seq addr $9015 == SFX pattern-54 addr) is orig's
 space-saving — in USF/our pool pattern-54 and the V1 sequence are SEPARATE,
 so it doesn't complicate our representation.
 
-**The blocker — 98 > 64.** Total UNIQUE pattern content across music+all-SFX
-(deduped) = **98**, but the sequence pattern-jump is a 1-byte $00-$3F field
-(max 64) and pattern_ptr_table has 64 slots. Orig fits this by **reusing
-slots 54-63 per SFX subtune** (each SFX record reloads them at init). So a
-single unified global pool CANNOT work; the principled rebuild must
-**regenerate the per-subtune SFX records** preserving the slot-54-63 reuse
-(music = global slots 0-53; each SFX subtune = its ≤10 patterns in 54-63).
+**The blocker — 98 > 64 — SOLVED by repartitioning our sequence encoding.**
+The 64 limit was FC's 1-byte $00-$3F jump partition; our composer emits its
+own bytes + walker, so we widened it (user directive 2026-06-07: be elegant,
+don't inherit FC's limit, no per-subtune-table-in-init hack, unify). New
+USF-derived sequence partition (`encode_sequence` + the walker's
+`h3_command_dispatch`, gated on `emit_data_from_usf`):
+  `$00-$7F` jump (128 patterns) / `$80-$9F` transpose / `$A0-$BF` repeat /
+  `$C0-$CF` voiceinc / `$FE`/`$FF` end/wrap.
+128 = the clean 1-byte ceiling because the walker indexes
+`pattern_ptr_table` with 8-bit `asl;tay;lda table,y` (id*2 ≤ 255); >128
+would need a carry-branch (easy, deferred). 128 covers Hawkeye's 98. This
+gives ONE global pattern pool, NO per-subtune tables, and song_init stays
+dumb. The verbatim path keeps FC's $00-$3F partition (else branch) so orig
+bytes still parse. DONE + Cyb II re-verified 2/2, Hawkeye verbatim 12/12.
+(The earlier per-subtune-SFX-record-regeneration plan is SUPERSEDED.)
 
 **Two model reworks needed (the implementation, not yet done):**
 - EXTRACTION: SFX subtunes need POST-INIT memory (static $8FC5 is empty;

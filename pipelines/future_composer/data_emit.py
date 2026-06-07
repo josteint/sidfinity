@@ -148,18 +148,22 @@ def encode_sequence(orderlist: Orderlist, localmap: dict[int, int]) -> bytes:
         v = orderlist.voiceinc_at(i)
         rep = orderlist.repeat_at(i)
         if t != cur_t:
-            out.append(0x80 | (t & 0x1F))
+            out.append(0x80 | (t & 0x1F))      # $80-$9F transpose
             cur_t = t
         if v != cur_v:
-            out.append(0x60 | (v & 0x0F))
+            out.append(0xC0 | (v & 0x0F))      # $C0-$CF voiceinc
             cur_v = v
         if rep > 1:
             r = rep - 1
             if r > 0x1F:
-                raise ValueError(f'repeat count {rep} exceeds single $40 '
+                raise ValueError(f'repeat count {rep} exceeds single $A0 '
                                  f'command (max 32 plays); chaining TODO')
-            out.append(0x40 | r)
-        out.append(localmap[pid] & 0x3F)
+            out.append(0xA0 | r)               # $A0-$BF repeat
+        slot = localmap[pid]
+        if slot > 0x7F:
+            raise ValueError(f'pattern slot {slot} exceeds 127 (1-byte '
+                             f'jump $00-$7F); needs 16-bit pattern index')
+        out.append(slot)                       # $00-$7F pattern jump
     out.append(0xFE if orderlist.stop else 0xFF)
     return bytes(out)
 
