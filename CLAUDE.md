@@ -184,7 +184,7 @@ HVSC original at `hvsc84/MUSICIANS/H/Hubbard_Rob/<Engine>.{usf, sidfinity.sid}`.
 
 ## Working conventions
 
-- **`pipelines.hubbard.verify.verify_all` is the verdict.** Returns subtune-level OK/FAIL. md5 of per-frame `$D400-$D418` register snapshots from py65 capture; for digi subtunes it uses `siddump --writelog` (cycle-strict).
+- **`pipelines.hubbard.verify.verify_all` is the verdict.** Returns subtune-level OK/FAIL via the SID WRITE-LOG (`siddump --writelog`, libsidplayfp ground truth): a subtune passes iff the rebuild's `(reg,val)` write sequence matches the original's over their overlap (same as `find_first_divergence`). It does NOT snapshot per-frame register state — that's Trap A (loses within-frame order, can't model multispeed, false-passes real bugs); the py65-snapshot verdict was removed 2026-06-07, having silently false-passed 25 Hubbard subtunes incl. all of Monty's multispeed. Digi subtunes use the `--writelog` flattened-`(reg,val)` check.
 - **Regression scope by touched files** — don't run full regression on every edit, but don't skip it when shared code changed either:
   - `pipelines/<engine>/` only → that engine's verify only (e.g., `verify_featuredriven(CFG)` for FC, `verify_all([(cfg, sid)])` for Hubbard). Other families are physically untouched and can't regress.
   - `src/composer_runtime/`, `src/usf/types.py`, `pipelines/hubbard/verify_cycle.py`, or any shared plumbing → full `tools/regression.py` (one diff hits all engines).
@@ -252,7 +252,7 @@ data-section emitters + `_Inputs` adapters + `_inputs_from_usf` +
 | `pipelines/composer.py` | The composer. Owns the entire asm composition: 18 Hubbard '85 routine chunks, all data-section emitters, USF→`_Inputs` adapter, and the build dispatch. ~5,000 lines. |
 | `pipelines/build_from_usf.py` | Public entry. Thin wrapper calling `composer.emit_sid_from_usf`. |
 | `pipelines/engine_model.py` | `EngineModel` + the typed feature dataclasses (`StateLayoutMirror`, `FadeProgressive`, `SubtuneSpec`, ...). |
-| `pipelines/hubbard/verify.py` | `verify_all` — md5 of per-frame snapshots (Hubbard verification). |
+| `pipelines/hubbard/verify.py` | `verify_all` — write-log overlap verdict (Hubbard verification; siddump ground truth, no register snapshots). |
 | `pipelines/hubbard/verify_cycle.py` | `compare_instruction_stream` + `writelog_capture` — cycle-strict verification (companion + digi). |
 | `pipelines/hubbard/engine_constants.py` | Freq tables, digi player asm, `EngineConstants`, `CHIMERA_DIGI`. |
 | `pipelines/hubbard/note_codec.py` | Bitstream note encoder + decoder asm (`BitPackCodec`). Composer's `_resolve_codec_note_asm` substitutes the four fade/tie sentinels in this codec's `note_asm`. |

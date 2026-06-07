@@ -30,6 +30,7 @@
 
 ### Ground truth & methodology
 - [Ground truth is sidplayfp](feedback_ground_truth.md) — NEVER use py65 or Python reimplementations as ground truth. Only `sidplayfp --writelog` is authoritative. The user's ear is the final judge.
+- [NO snapshot-per-frame verdict](feedback_no_snapshot_verdict.md) — the verdict is ALWAYS the write-log, NEVER per-frame register-state snapshots (Trap A). Reinvented in `verify_all` + removed 2026-06-07; it had false-passed 25 Hubbard subtunes (all of Monty's multispeed). py65 capture is for extraction only.
 - [subtune_frames not arbitrary](feedback_subtune_frames_not_arbitrary.md) — verify frame count = songlength × 1.1 × 50 Hz, never `n=500` / `n=1000`. User has had to remind multiple times.
 - [NO writelog replay](feedback_no_writelog_replay.md) — user STRONGLY rejected. Never propose. Defeats the USF/ML purpose.
 - [py65 misses dispatch bugs](feedback_py65_misses_dispatch_bugs.md) — `verify_all` is silent about PSID speed / CIA timer / dispatch-rate bugs. md5-exact register sequence does NOT mean the SID sounds right on hardware. Suggest an ear-test on new engines / dispatch changes.

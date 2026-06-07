@@ -1,15 +1,21 @@
 """verify.py — verify a rebuilt SID against the original.
 
-Each subtune is reduced to one md5 checksum: capture it through py65
-for 1.5x its HVSC song length (PAL, 50 Hz), then fold every frame's
-register writes, in order, into a running md5. Two SIDs agree on a
-subtune iff the checksums match.
+The verdict is the SID WRITE-LOG STREAM (the CORE TENET), captured via
+`siddump --writelog` (libsidplayfp, the project's ground truth) for 1.5x
+each subtune's HVSC song length (PAL, 50 Hz). A subtune passes iff the
+rebuild's `(reg, val)` write sequence matches the original's at every
+write they both produce — the same overlap comparison `find_first_divergence`
+uses. This catches within-frame write-order and dispatch/multispeed
+divergences that a per-frame register SNAPSHOT cannot see (snapshots are
+Trap A in CLAUDE.md — they lose write order and can't model multispeed,
+so py65-snapshot verdicts false-pass real bugs). This file used to do
+exactly that; it no longer does.
 
 The 1.5x window catches post-songlength divergences that 1.1x missed
 (e.g. master-VOL fade-counter wrap on loop). See
 `tools/audit_d418_fade.py` for the audit that surfaced the gap.
 
-Checksums are cached on disk keyed by the SID file's md5, so a
+Captured write-logs are cached on disk keyed by the SID file's md5, so a
 subtune is only ever re-captured for a SID whose bytes changed.
 """
 
@@ -27,8 +33,8 @@ sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.join(ROOT, 'src'))
 sys.path.insert(0, os.path.join(ROOT, 'tools', 'py65_lib'))
 
-from pipelines.hubbard.inst_program import capture          # noqa: E402
-from pipelines.hubbard.verify_cycle import writelog_capture  # noqa: E402
+from pipelines.hubbard.verify_cycle import (                 # noqa: E402
+    writelog_capture, compare_instruction_stream)
 # songlengths lives at src/songlengths.py; resolved via the ROOT/src
 # entry pushed onto sys.path above (no package prefix in the import).
 from songlengths import load_database, get_durations        # noqa: E402
@@ -77,21 +83,33 @@ def _file_md5(path: str) -> str:
         return hashlib.md5(f.read()).hexdigest()
 
 
-def _checksum(args):
-    """One subtune -> one checksum. The comparison is on the SID's
-    END-OF-FRAME REGISTER STATE — every byte of $D400..$D418 at the
-    boundary of each play() call. Snapshots fold in writes from init
-    and every play call up to that frame, so a register the play loop
-    doesn't re-assert (e.g. $D418 set once in init) still gets
-    compared. Two captures match exactly when the SID sees identical
-    state at the same frame boundary."""
-    key, sid, nf, subtune = args
-    cap = capture(sid, n_frames=nf, subtune=subtune)
-    h = hashlib.md5()
-    for snap in cap.snapshots:
-        h.update(snap)
-        h.update(b'\n')                       # frame delimiter
-    return key, h.hexdigest()
+def _capture_music(args):
+    """One music subtune -> its captured write-log frames (via siddump,
+    libsidplayfp ground truth). The original is captured in its native
+    RSID/PSID mode; the verdict (in `verify_all`) compares the rebuild's
+    write sequence against it over their overlap."""
+    key, sid, nf, subtune, force_rsid = args
+    frames = writelog_capture(sid, subtune=subtune, duration=nf / FPS,
+                              force_rsid=force_rsid)
+    return key, frames
+
+
+def _music_ok(orig_frames, reb_frames) -> bool:
+    """Write-log verdict for a music subtune: the rebuild matches the
+    original at every write they BOTH produce (find_first_divergence
+    overlap semantics), on either the full stream or the post-init play
+    stream (the universal-reset init writes legitimately differ from
+    HVSC's). Also require the two captures end within one play-frame of
+    each other, so a rebuild that stops short still fails."""
+    r = compare_instruction_stream(orig_frames, reb_frames)
+    overlap_ok = (
+        r['match_all'] == min(r['len_all_a'], r['len_all_b'])
+        or r['match_post_init'] == min(r['len_post_a'], r['len_post_b']))
+    # One busy 3-voice play() frame is well under this; a stopped-early
+    # rebuild differs by thousands. This is capture cut-off granularity,
+    # not a snapshot fudge.
+    close = abs(r['len_all_a'] - r['len_all_b']) <= 64
+    return overlap_ok and close
 
 
 def _checksum_digi(args):
@@ -146,9 +164,11 @@ def verify_all(engine_jobs, passes: float = 1.5,
             md5s[sid] = _file_md5(sid)
         return (md5s[sid], st, nf, kind)
 
-    # Two pools: 'music' (py65 frame capture) and 'digi' (siddump
-    # --writelog cycle capture). Cache keys include the kind so the
-    # two checksums of the same (sid, st, nf) never collide.
+    # Two capture kinds, both via siddump --writelog (libsidplayfp ground
+    # truth): 'music_wl' stores the captured frames (compared by overlap in
+    # _music_ok); 'digi' stores a flattened-(reg,val) md5 (compared by
+    # equality). The kind is part of the cache key. The 'music_wl' tag also
+    # invalidates any pre-write-log 'music' (py65 snapshot) cache entries.
     need_music: dict = {}
     need_digi: dict = {}
     plan: dict = {}
@@ -156,25 +176,30 @@ def verify_all(engine_jobs, passes: float = 1.5,
         plan[config.name] = []
         digi_set = set(config.digi_subtunes or ())
         for st, nf in enumerate(subtune_frames(config, passes, min_frames)):
-            kind = 'digi' if st in digi_set else 'music'
+            is_digi = st in digi_set
+            kind = 'digi' if is_digi else 'music_wl'
             ok_key = key_for(config.sid_path, nf, st, kind)
             rb_key = key_for(rebuilt, nf, st, kind)
-            need = need_digi if kind == 'digi' else need_music
-            for key, sid in ((ok_key, config.sid_path), (rb_key, rebuilt)):
+            need = need_digi if is_digi else need_music
+            # Original captured in its native mode (force_rsid for RSID
+            # SIDs). Digi keeps forcing RSID on the rebuild too (CIA-paced
+            # digi timing — preserves the prior digi verdict); music captures
+            # the rebuild as the PSID it is.
+            rb_frsid = config.is_rsid if is_digi else False
+            for key, sid, frsid in ((ok_key, config.sid_path, config.is_rsid),
+                                    (rb_key, rebuilt, rb_frsid)):
                 if key not in cache and key not in need:
-                    if kind == 'digi':
-                        need[key] = (sid, nf, st, config.is_rsid)
-                    else:
-                        need[key] = (sid, nf, st)
-            plan[config.name].append((st, ok_key, rb_key))
+                    need[key] = (sid, nf, st, frsid)
+            plan[config.name].append((st, ok_key, rb_key, is_digi))
 
     if need_music or need_digi:
         with Pool(jobs) as pool:
             if need_music:
                 items = [(k, *v) for k, v in need_music.items()]
                 items.sort(key=lambda a: -a[2])
-                for key, digest in pool.map(_checksum, items, chunksize=1):
-                    cache[key] = digest
+                for key, frames in pool.map(_capture_music, items,
+                                            chunksize=1):
+                    cache[key] = frames
             if need_digi:
                 items = [(k, *v) for k, v in need_digi.items()]
                 items.sort(key=lambda a: -a[2])
@@ -190,8 +215,13 @@ def verify_all(engine_jobs, passes: float = 1.5,
     # path via the original engine_jobs list.
     rebuilt_paths = {config.name: rebuilt for config, rebuilt in engine_jobs}
     for name, subs in plan.items():
-        results = [(st, cache[ok_key] == cache[rb_key])
-                   for st, ok_key, rb_key in subs]
+        results = []
+        for st, ok_key, rb_key, is_digi in subs:
+            if is_digi:
+                ok = cache[ok_key] == cache[rb_key]
+            else:
+                ok = _music_ok(cache[ok_key], cache[rb_key])
+            results.append((st, ok))
         out[name] = (results, all(ok for _, ok in results))
         try:
             from src.sid_db import record_verify
