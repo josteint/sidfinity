@@ -167,19 +167,25 @@ verbatim 12/12.
   (engine nootleng = value-1); encoder emits `$80|duration`. Byte-exact
   round-trip, unchanged for setlen>=2 (Cyb II 2/2). Fixed subs 0,1,6,9.
 
-**Remaining: 2 SFX subtunes (7,10) — within-frame write-order, AUDIBLY
-CORRECT.** Per-frame register state is byte-IDENTICAL to orig (freq/PW/ctrl/
-AD/SR all match frame-by-frame), but compare_instruction_stream flags a
-within-frame divergence: the rebuild processes an EXTRA note step inside one
-frame (loads an extra note, e.g. SR=$A9 mid-frame, then the correct note),
-adding writes orig doesn't have. Exposed by the length fix (the old setlen
-collision had masked it in the SFX pool). match: sub7=5714, sub10=37107.
-Likely an SFX-specific note-timing/duration cumulative issue (SFX V1=V2
-mirroring? a chained setlen? repeat?). NEXT: localize which pattern/note in
-sub 7 V1 gets the extra step; compare its duration chain vs orig.
-Hawkeye config still verbatim (emit_data NOT enabled) until 12/12.
+**HAWKEYE 12/12 — fully principled (emit_data_from_usf=True in config).**
+The last 2 (SFX 7,10) were a NOTE-LENGTH PERSISTENCE bug (caught after a
+Trap-A slip — don't judge by per-frame register snapshots; the write-log is
+the verdict). FC's `nootleng` PERSISTS across patterns: orig patterns whose
+first note has no setlen inherit the previous pattern's length. The composer
+forced a setlen with a default duration → wrong timing. FIX: thread the
+persisted length through the voice's sequence in to_usf — `_build_pattern_rows`
+takes `init_length` and returns `final_length`; `_voice_to_usf` carries it
+across jumps and dedups patterns by `(fc_id, init_length)`. The composer
+always emits an explicit setlen, so rebuilt patterns are self-contained
+(different bytes from orig, identical write-log). Verified 12/12 + Cyb II 2/2.
+
+**The full FC principled composer is now DONE for both canaries: Cyb II 2/2
++ Hawkeye 12/12, all data (patterns/sequences/tables) from USF, no verbatim
+music data.** Aux tables (drumtabel/filterbytes/pulsetabel/arp/vib) are still
+verbatim but they're shared engine-constant content; the music IS principled.
+
 Cyb II+shift filter bug remains separately latent (Hawkeye builds at shift=0,
-so emit_data doesn't need the shift; the silence fix made shift irrelevant).
+so emit_data doesn't need the shift; the banking fix made shift irrelevant).
 
 ### (historical) Hawkeye composer BLOCKER: py65 plays, libsidplayfp silent
 With `emit_data_from_usf=True` (via dc.replace; NOT yet set in config),

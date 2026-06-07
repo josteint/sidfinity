@@ -28,13 +28,13 @@ def test_pattern_encode_roundtrips_to_same_content():
     song = extract(CYBERNOID_II)
     assert song.patterns
     for fc_id, pat in song.patterns.items():
-        rows, _ = _build_pattern_rows(pat)
+        rows, _, _ = _build_pattern_rows(pat)
         encoded = encode_pattern(rows)
         assert encoded[-1] == 0xFF, f'pat {fc_id} not $FF-terminated'
         ev, _ = _parse_pattern(encoded)
         reb = FCPattern(id=0, start_addr=0, bytes_raw=encoded,
                         events=ev, notes_count=0)
-        reb_rows, _ = _build_pattern_rows(reb)
+        reb_rows, _, _ = _build_pattern_rows(reb)
         assert _rowsig(reb_rows) == _rowsig(rows), f'pattern {fc_id} mismatch'
 
 

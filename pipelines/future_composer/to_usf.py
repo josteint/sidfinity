@@ -223,7 +223,8 @@ def _inst_to_usf(inst: FCInstrument) -> Instrument:
 # Patterns
 # ---------------------------------------------------------------------------
 
-def _build_pattern_rows(fc_pat: FCPattern) -> tuple[list[NoteRow], int]:
+def _build_pattern_rows(fc_pat: FCPattern,
+                        init_length: int = 1) -> tuple[list[NoteRow], int, int]:
     """Walk FC pattern events; emit note rows.
 
     The pattern body stores the *pure motif* — neither transpose nor
@@ -235,14 +236,22 @@ def _build_pattern_rows(fc_pat: FCPattern) -> tuple[list[NoteRow], int]:
     reused unchanged at every (transpose, voiceinc) it appears with, so
     the pattern pool stays at the base motif count (<=64).
 
-    Returns (rows, total_length_in_frames).
+    `init_length` is the engine's persisted nootleng+1 (duration) on entry
+    to this pattern. FC's nootleng PERSISTS across patterns, so a pattern
+    whose first note has no setlen inherits the previous pattern's length;
+    threading `init_length` makes that first note's duration correct. The
+    composer always emits an explicit setlen, so the rebuilt pattern is
+    self-contained (different bytes from orig, identical write-log).
+
+    Returns (rows, total_length_in_frames, final_length) — final_length is
+    the duration to carry into the next pattern.
     """
     rows: list[NoteRow] = []
     pending_glide: int | None = None
     pending_wave_adjust: int | None = None
     pending_filter: int | None = None
     pending_noretrig: bool = False    # $F0 seen → next note doesn't retrigger
-    cur_length: int = 1            # frames per note (set by PatSetLength)
+    cur_length: int = init_length  # persisted nootleng+1 (set by PatSetLength)
     cur_instr: InstrumentRef | None = None
     length_seen_first = False      # for chained PatSetLength tracking
 
@@ -296,7 +305,7 @@ def _build_pattern_rows(fc_pat: FCPattern) -> tuple[list[NoteRow], int]:
             break
 
     total_length = sum(r.duration for r in rows)
-    return rows, max(total_length, 1)
+    return rows, max(total_length, 1), cur_length
 
 
 # ---------------------------------------------------------------------------
@@ -321,10 +330,13 @@ def _voice_to_usf(voice_id: int, seq, patterns: dict) -> VoiceBlock:
         )
 
     orderlist_entries: list[int] = []
-    # Patterns are pure motifs — dedup by fc_id ALONE. Transpose and
-    # voiceinc ride the orderlist; repeats stay run-length-encoded.
-    pattern_key_to_id: dict[int, int] = {}    # fc_id -> usf_id
-    pattern_specs: dict[int, int] = {}         # usf_id -> fc_id
+    # Patterns are pure motifs; transpose/voiceinc ride the orderlist and
+    # repeats stay run-length-encoded. Dedup by (fc_id, init_length): FC's
+    # note length (nootleng) PERSISTS across patterns, so a pattern is only
+    # the same USF pattern when it's entered with the same persisted length.
+    pattern_key_to_id: dict[tuple, int] = {}    # (fc_id, init_len) -> usf_id
+    pattern_specs: dict[int, tuple] = {}         # usf_id -> (rows, length)
+    key_final: dict[tuple, int] = {}             # (fc_id, init_len) -> final_len
 
     orderlist_transposes: list[int] = []
     orderlist_voiceincs: list[int] = []
@@ -332,6 +344,7 @@ def _voice_to_usf(voice_id: int, seq, patterns: dict) -> VoiceBlock:
     transpose = 0
     repeats = 0
     voiceinc = 0
+    persisted_length = 1            # engine nootleng+1 at song start
     loop_to: int | None = None
     stop = False
 
@@ -343,17 +356,25 @@ def _voice_to_usf(voice_id: int, seq, patterns: dict) -> VoiceBlock:
         elif isinstance(cmd, SeqVoiceinc):
             voiceinc = cmd.inc
         elif isinstance(cmd, SeqPatternJump):
-            key = cmd.pattern_id
+            fc_id = cmd.pattern_id
+            key = (fc_id, persisted_length)
             if key not in pattern_key_to_id:
-                new_id = len(pattern_key_to_id)
-                pattern_key_to_id[key] = new_id
-                pattern_specs[new_id] = key
+                usf_id = len(pattern_key_to_id)
+                pattern_key_to_id[key] = usf_id
+                if fc_id in patterns:
+                    rows, length, final = _build_pattern_rows(
+                        patterns[fc_id], persisted_length)
+                else:
+                    rows, length, final = [], 1, persisted_length
+                pattern_specs[usf_id] = (rows, length)
+                key_final[key] = final
             usf_pat_id = pattern_key_to_id[key]
             orderlist_entries.append(usf_pat_id)
             orderlist_transposes.append(transpose)
             orderlist_voiceincs.append(voiceinc)
             orderlist_repeats.append(repeats + 1)   # FC count = extra plays
             repeats = 0
+            persisted_length = key_final[key]       # carry to next pattern
         elif isinstance(cmd, SeqEnd):
             stop = True
             break
@@ -363,11 +384,7 @@ def _voice_to_usf(voice_id: int, seq, patterns: dict) -> VoiceBlock:
 
     usf_patterns: list[Pattern] = []
     for usf_id in sorted(pattern_specs):
-        fc_id = pattern_specs[usf_id]
-        if fc_id not in patterns:
-            usf_patterns.append(Pattern(id=usf_id, length=1, rows=[]))
-            continue
-        rows, length = _build_pattern_rows(patterns[fc_id])
+        rows, length = pattern_specs[usf_id]
         usf_patterns.append(Pattern(id=usf_id, length=length, rows=rows))
 
     # Omit each modifier list when it carries no information.
