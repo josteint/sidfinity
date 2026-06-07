@@ -8,15 +8,7 @@
 
 - [Commando — no drum engine](project_commando_no_drum_engine.md) — "the drum" is inst 4 played off the end of the freq table; the drum sub-engine never runs in subtune 0
 - [Chimera pipeline](project_chimera.md) — PSID rebuild (no KERNAL); music frame-exact + digi cycle-strict. Drove the digi pipeline + USF v2 + the no-verbatim-engine-bytes refactor. Includes the C64 banking gotcha that surfaced during the $B093 player_base shrink.
-- [Devils Galop pipeline](project_devils_galop.md)
-- [Monty on the Run](project_monty.md) — off-table SFX sweep via `sfx_state_ofs=251`
-- [Action Biker](project_action_biker.md) — sps_fill extended to LDX #23 for the $D415-$D418 cleanup
-- [Human Race](project_human_race.md) — required skydive params, drumarp period, PWmode linear_pw_or, N_MUSIC parameterization, off-table arp layout
 - [Human Race effect audit](project_human_race_audit.md) — ALL FIVE HR effects collapse to existing shared-core effects (downslide ≡ freq_slide, drumarp ≡ fx_arp, skydive ≡ fx_incby2, PWmode ≡ fx_pwm, per-note slide ≡ fx_drumslide)
-- [Hunter Patrol](project_hunter_patrol.md) — added frame_ctr_init, incby2_late_gate, seed_offsets
-- [Thing on a Spring](project_thing_on_a_spring.md) — master_VOL formula `clamp($47 − V3_orderpos, $0F)` with `master_vol_trigger='every_note'`; SFX uses Commando-shape sfx_play
-- [One Man and his Droid](project_one_man_and_his_droid.md) — new knob `arp_phase_invert`; songs = `len(subtunes) + len(sfx_list)`
-- [Battle of Britain](project_battle_of_britain.md) — surfaced the tie-preserves-slide bug in the shared note codec
 - [Confuzion](project_confuzion.md) — stripped runtime (only vibrato + bidirectional PWM); frame counter advanced via self-modifying `INC $085C`; uses the song-end $D418 fade
 - [5 Title Tunes (unified)](project_five_title_tunes.md) — UNIFIED single-engine driven by per-subtune params + ovseed + orderlist tables and globally-renumbered instruments
 - [Companion engine (Up, up & Away!)](project_companion.md) — pipelines/companion/. First non-Hubbard-'85 engine; Hubbard's 1984 first SID.
@@ -69,7 +61,6 @@
 - [Deconstruct, don't reproduce the trick](feedback_deconstruct_not_reproduce.md) — reproduce the exact instruction stream with clean code; the trick to avoid is Hubbard's space-saving MECHANISM, not the output. Investigate odd behaviour (what/audible?) before discarding.
 - [Migration as stress test](feedback_migration_as_stress_test.md) — migrating a new engine surfaces hardcoded assumptions in the shared core. Fix parametrically, not by matching the hardcode.
 - [Audit discriminator](feedback_audit_discriminator.md) — for per-instrument audits, use fx_flags cache or v_instr,x — NEVER ADSR alone. Multiple insts share AD/SR.
-- [Sidxray methodology](feedback_sidxray_methodology.md) — read `src/sidxray/METHODOLOGY.md` before cracking a new player
 - [Dataflow over heuristics](feedback_dataflow_over_heuristics.md) — for engine-data extraction from a disassembled 6502 player, default to dataflow tracing (find STA $D4xx, walk A's predecessors back to its source). Reach for content heuristics only when the semantics aren't recoverable.
 
 ## References

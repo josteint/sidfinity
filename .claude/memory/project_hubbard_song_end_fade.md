@@ -98,11 +98,3 @@ engine where divergence falls past the 1.5× verify boundary.
   in lockstep at frame 21025 — only $D418 differed — so the fix
   was the single reset knob, no pattern-data investigation needed
   after all. Audit `first_diff: None`.
-
-## Related shared-core gap (different cause)
-
-Action Biker's subtunes 1 and 2 fail at the END of the song (orig
-writes $D415/$D416/$D417=$80 at the final frame, our codegen
-doesn't). That's a separate end-of-song filter cleanup — inaudible
-because no sound is being produced at that moment — and is **not** a
-fade. See [[project_action_biker]].
