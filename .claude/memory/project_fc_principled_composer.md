@@ -83,8 +83,51 @@ the disasm/walker.
    streams) at `code_end+shift`, past the verbatim tail, and redirects the
    engine pointers (pattern_ptr_table equate + song-init seqtabel addr) at
    it; verbatim tail still emits (aux tables stay live, old music data dead).
-3. **Hawkeye NEXT** (smc_template_with_sfx, featuredriven_addr_shift $40,
-   SFX subtunes). Still verbatim (flag off).
+3. **Hawkeye IN PROGRESS** (smc_template_with_sfx, featuredriven_addr_shift
+   $40, 6 music + 6 SFX subtunes). Still verbatim (flag off). RE COMPLETE,
+   implementation is a sizable multi-session effort — see Hawkeye SFX RE below.
+
+### Hawkeye SFX RE (complete; 2026-06-07)
+Hawkeye = 6 music subtunes (0-5) + 6 SFX subtunes (6-11). SFX are REAL
+note sequences (not register-snapshot SFX like Hubbard's SfxSubtune), but
+stored as **self-contained per-SFX records** at $9200/$9400/.../$9C00
+(page = $92 + sfx_idx*2). `$918F` dispatcher (init) for an SFX subtune
+copies from the record:
+  - record+$00 (6 bytes) → $7B2C: V0/V1/V2 seq pointers (V0=$8FC5 shared;
+    V1=V2 mirrored, e.g. $9015).
+  - record+$06 (20 bytes) → pattern_ptr_table+$6C ($8475): 10 SFX pattern
+    pointers = pool **slots 54-63**.
+  - record+$1A (255 bytes) → $8FC5: the seq + pattern DATA (runtime area).
+  Then forces X=6 and tail-calls music init.
+SFX sequences decode CLEANLY with the correct walker ranges (V0 jumps to
+SFX patterns 54-61; V1/V2 jump to SHARED music patterns 0,10,11,12 + WRAP).
+The "overlap" (V1 seq addr $9015 == SFX pattern-54 addr) is orig's
+space-saving — in USF/our pool pattern-54 and the V1 sequence are SEPARATE,
+so it doesn't complicate our representation.
+
+**The blocker — 98 > 64.** Total UNIQUE pattern content across music+all-SFX
+(deduped) = **98**, but the sequence pattern-jump is a 1-byte $00-$3F field
+(max 64) and pattern_ptr_table has 64 slots. Orig fits this by **reusing
+slots 54-63 per SFX subtune** (each SFX record reloads them at init). So a
+single unified global pool CANNOT work; the principled rebuild must
+**regenerate the per-subtune SFX records** preserving the slot-54-63 reuse
+(music = global slots 0-53; each SFX subtune = its ≤10 patterns in 54-63).
+
+**Two model reworks needed (the implementation, not yet done):**
+- EXTRACTION: SFX subtunes need POST-INIT memory (static $8FC5 is empty;
+  populated at init from the record) — run `_run_init_in_py65` per SFX
+  subtune. And the FCSong `patterns` dict (single global) can't hold
+  per-subtune slot-54-63 patterns; needs per-subtune SFX pattern storage.
+- COMPOSER: emit per-SFX-subtune records (6-byte seq ptrs + 10 pattern ptrs
+  + 255-byte seq/pattern data copied to $8FC5) from USF, keep the song_init
+  SFX path; music side as Cyb II (slots 0-53). OR widen the engine pattern
+  reference (changes the shared walker, risks re-verifying Cyb II) — NOT
+  recommended.
+
+**DONE this session:** fixed `SEQ_TRANSPOSE_RANGE` $80-$BF → $80-$FD
+(engine_model.py): the walker treats all $80-$FD as transpose; the old
+bound mis-parsed SFX high-transpose bytes ($C0-$FD) as pattern jumps. Safe
+(music transpose ≤$97; canaries stay green).
 
 **FC byte encodings (data_emit.py):** pattern: $F1 v filter / $E0 d p glide
 (bypasses wave/len/instr; reached only via `skip` re-dispatch, so a length

@@ -28,7 +28,11 @@ from pipelines.future_composer.config import (
 # in Hawkeye disassembly; identical across the FC family by design).
 SEQ_END = 0xFE
 SEQ_WRAP = 0xFF
-SEQ_TRANSPOSE_RANGE = (0x80, 0xBF)   # AND #$1F → toneadd
+# Engine walker treats ALL of $80-$FF (minus $FE/$FF) as transpose
+# (AND #$1F). The earlier (0x80,0xBF) bound mis-classified $C0-$FD as
+# pattern jumps — invisible for music (transpose stays <=$97) but it
+# corrupts SFX sequences, which use high-transpose bytes.
+SEQ_TRANSPOSE_RANGE = (0x80, 0xFD)   # AND #$1F → toneadd
 SEQ_VOICEINC_RANGE  = (0x60, 0x7F)   # AND #$0F → voiceinc
 SEQ_REPEATS_RANGE   = (0x40, 0x5F)   # AND #$3F → repeatsto
 SEQ_PATTERN_RANGE   = (0x00, 0x3F)   # ASL → index pattern-ptr table
