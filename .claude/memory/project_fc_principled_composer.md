@@ -234,9 +234,22 @@ table into musical USF fields with schema discipline). IN PROGRESS.
   (first_dwa - base)/4) — SFX reference drums no music inst does (Hawkeye
   has 7, music uses 0/1/3). Compose lays dwa+dto out + computes drumtabel
   ptrs. Cyb II 2/2, Hawkeye 12/12.
-- **Remaining: wavearp/pulsearp (small Hawkeye tables), then the final
-  `orig = f.read()` removal (§9).** Also check startlen/starttabel +
-  any other bytes still in the verbatim gap-fill.
+- **flat aux tables — DONE.** startlen/starttabel → `attack_len`/`attack_wave`
+  (per-wavecount note-attack; size = starttabel-startlen gap). wavearp/pulsearp
+  → `wave_arp` (4, counter2&3) / `pulse_arp` (8, counter2&7). All flat top-level
+  USF lists, emitted at their engine addrs. Cyb II 2/2, Hawkeye 12/12.
+- **GRAMMAR SPEEDUP (important):** the start rule had accumulated ~13 sequential
+  optional blocks (`X? Y? Z? ...`) — LALR table construction blew up to 29s+ and
+  then HUNG (>40s) when the 4 flat decls were added. Fix: grouped all FC aux
+  blocks (arp/pulse/filter/drum/attack/arp-cycles) into one repeated
+  `fc_aux_block*` rule → load 29s → **1.1s**. If adding more top-level optional
+  blocks, ALWAYS use a repeated group rule, never a long `X?` chain.
+- **ALL live aux tables now USF-derived.** Remaining verbatim (per re-audit):
+  aux GAPS (Cyb II 95b, Hawkeye 320b) + TAIL (Cyb II 1600b, Hawkeye 5644b =
+  dead old seq/patterns; engine reads music_data). NEXT for §9: zero-fill test
+  (replace _emit_verbatim_region with zeros, verify writelog unchanged → all
+  dead → remove `orig=f.read()`); if it breaks, a gap holds an unidentified
+  live table. NOTE Hawkeye builds with shift=$40 (aux addrs shifted).
   (older note) CONFIRMED per-SID effect-PROGRAM data, NOT engine constants:
   arp/pulse/filter program bytes DIFFER between Cyb II and Hawkeye (only a
   shared default prefix matches). So each needs real work: RE the program

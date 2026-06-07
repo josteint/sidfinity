@@ -230,6 +230,21 @@ The two lists are parallel (same length). The composer emits the engine's
 bytes) and `dto` tone program, and computes the `drumtabel` pointer table
 (4 bytes/drum) itself.
 
+## FC flat aux tables (`attack_len` / `attack_wave` / `wave_arp` / `pulse_arp`)
+
+```
+attack_len  = [2, 2, 2, 2, 5, ...]
+attack_wave = [129, 129, 129, 129, 65, ...]
+wave_arp    = [64, 64, 64, 64]
+pulse_arp   = [6, 7, 8, 9, 10, 9, 8, 7]
+```
+
+Optional flat per-index value lists. `attack_len[w]`/`attack_wave[w]` are the
+note-attack frame count and `$D404` waveform for wave index `w` (the engine's
+`startlen`/`starttabel`). `wave_arp` cycles the `$D404` waveform (indexed
+`counter2 & 3`) and `pulse_arp` cycles `$D403` pulse-hi (`counter2 & 7`). The
+composer emits each at its engine address.
+
 ## `instrument N name { ... }`
 
 ```

@@ -477,6 +477,10 @@ def fcsong_to_usf(song: FCSong, root: str | None = None) -> UsfFile:
         pulse_programs=dict(song.pulse_programs),
         filter_programs=dict(song.filter_programs),
         drum_programs=dict(song.drum_programs),
+        attack_len=list(song.attack_len),
+        attack_wave=list(song.attack_wave),
+        wave_arp=list(song.wave_arp),
+        pulse_arp=list(song.pulse_arp),
     )
 
 

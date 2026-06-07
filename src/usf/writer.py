@@ -571,6 +571,12 @@ def write(usf: UsfFile) -> str:
     if usf.drum_programs:
         lines.append('')
         lines.extend(_write_drum_programs(usf.drum_programs))
+    for name, vals in (('attack_len', usf.attack_len),
+                       ('attack_wave', usf.attack_wave),
+                       ('wave_arp', usf.wave_arp),
+                       ('pulse_arp', usf.pulse_arp)):
+        if vals:
+            lines.append(f'{name} = [{", ".join(str(v) for v in vals)}]')
     for inst in sorted(usf.instruments, key=lambda x: x.id):
         lines.append('')
         lines.extend(_write_instrument(inst))

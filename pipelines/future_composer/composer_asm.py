@@ -3121,6 +3121,19 @@ def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
         raw_sections.append(('drumtabel', cfg.drumtabel_addr, dprog_addr))
         raw_sections.append(('drum_progs', dprog_addr, cur))
 
+    # Flat per-index aux tables (attack_len/attack_wave = startlen/starttabel,
+    # wave_arp/pulse_arp = wavearp/pulsearp) — from USF lists (was verbatim).
+    flat_aux = []
+    if cfg.emit_data_from_usf:
+        for nm, addr, vals in (
+                ('attack_len', cfg.startlen_addr, usf.attack_len),
+                ('attack_wave', cfg.starttabel_addr, usf.attack_wave),
+                ('wave_arp', cfg.wavearp_addr, usf.wave_arp),
+                ('pulse_arp', cfg.pulsearp_addr, usf.pulse_arp)):
+            if addr and vals:
+                raw_sections.append((nm, addr, addr + len(vals)))
+                flat_aux.append((nm, vals))
+
     def _emit_lo(limit):
         return _emit_byte_list('lonote',
             [usf.freq_table[i*2] for i in range(limit)])
@@ -3212,6 +3225,9 @@ def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
         'drumtabel': _emit_drumtabel,
         'drum_progs': _emit_drum_progs,
     }
+    for _nm, _vals in flat_aux:
+        section_emitters[_nm] = (lambda v, label: (lambda _n:
+            _emit_labelless(f'{label} (USF-derived)', v)))(_vals, _nm)
     raw_sections.sort(key=lambda s: s[1])
     sections = []
     for i, (name, start, end) in enumerate(raw_sections):

@@ -313,6 +313,10 @@ class FCSong:
     pulse_programs: dict = field(default_factory=dict)  # N -> sweep shape
     filter_programs: dict = field(default_factory=dict)  # N -> cutoff env
     drum_programs: dict = field(default_factory=dict)  # N -> wave/tone steps
+    attack_len: list = field(default_factory=list)
+    attack_wave: list = field(default_factory=list)
+    wave_arp: list = field(default_factory=list)
+    pulse_arp: list = field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
@@ -544,6 +548,31 @@ def _decode_drum_programs(mem: bytes, cfg: FCConfig,
         tone = [mem[dto + j] for j in range(L - 1)]
         progs[d] = {'wave': wave, 'tone': tone}
     return progs
+
+
+def _decode_flat_aux(mem: bytes, cfg: FCConfig,
+                     engine: EngineInstance | None = None) -> dict:
+    """Decode the small flat per-index aux tables (attack_len/attack_wave =
+    startlen/starttabel, wave_arp/pulse_arp = wavearp/pulsearp).
+
+    startlen/starttabel are parallel per-wavecount tables; their length is the
+    gap between them. wavearp/pulsearp are cyclic value tables read with a
+    fixed mask (counter2 & 3 -> 4 entries, & 7 -> 8 entries).
+    """
+    out = {'attack_len': [], 'attack_wave': [], 'wave_arp': [], 'pulse_arp': []}
+    sl = resolve_address(cfg, engine, 'startlen_addr')
+    st = resolve_address(cfg, engine, 'starttabel_addr')
+    if sl and st and st > sl:
+        n = st - sl
+        out['attack_len'] = [mem[sl + i] for i in range(n)]
+        out['attack_wave'] = [mem[st + i] for i in range(n)]
+    wa = resolve_address(cfg, engine, 'wavearp_addr')
+    if wa:
+        out['wave_arp'] = [mem[wa + i] for i in range(4)]
+    pa = resolve_address(cfg, engine, 'pulsearp_addr')
+    if pa:
+        out['pulse_arp'] = [mem[pa + i] for i in range(8)]
+    return out
 
 
 def _decode_pattern_ptr_table(mem: bytes, cfg: FCConfig,
@@ -779,6 +808,7 @@ def extract(cfg: FCConfig, root: str | None = None) -> FCSong:
             mem_global, cfg, instruments, engine_for_shared),
         drum_programs=_decode_drum_programs(
             mem_global, cfg, engine_for_shared),
+        **_decode_flat_aux(mem_global, cfg, engine_for_shared),
     )
 
 

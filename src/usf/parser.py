@@ -856,8 +856,23 @@ class _T(Transformer):
     def drum_program(self, items):
         return (int(items[0]), {'wave': items[1], 'tone': items[2]})
 
+    def fc_aux_block(self, items):
+        return items[0]
+
     def drum_programs_block(self, items):
         return ('drum_programs', {n: prog for n, prog in items})
+
+    def attack_len_decl(self, items):
+        return ('attack_len', items[0])
+
+    def attack_wave_decl(self, items):
+        return ('attack_wave', items[0])
+
+    def wave_arp_decl(self, items):
+        return ('wave_arp', items[0])
+
+    def pulse_arp_decl(self, items):
+        return ('pulse_arp', items[0])
 
     def state_layout_block(self, items):
         # items is a list of tuples ('n_voices', N) | ('scalar', dict)
@@ -904,6 +919,10 @@ class _T(Transformer):
         pulse_programs = {}
         filter_programs = {}
         drum_programs = {}
+        attack_len = []
+        attack_wave = []
+        wave_arp = []
+        pulse_arp = []
         for it in items:
             if isinstance(it, tuple):
                 k, v = it
@@ -927,6 +946,14 @@ class _T(Transformer):
                     filter_programs = v
                 elif k == 'drum_programs':
                     drum_programs = v
+                elif k == 'attack_len':
+                    attack_len = v
+                elif k == 'attack_wave':
+                    attack_wave = v
+                elif k == 'wave_arp':
+                    wave_arp = v
+                elif k == 'pulse_arp':
+                    pulse_arp = v
             elif isinstance(it, PsidMeta):
                 psid = it
             elif isinstance(it, Params):
@@ -944,7 +971,8 @@ class _T(Transformer):
             song_end=song_end, init_behavior=init_behavior,
             master_vol=master_vol, sfx=sfx, arp_programs=arp_programs,
             pulse_programs=pulse_programs, filter_programs=filter_programs,
-            drum_programs=drum_programs)
+            drum_programs=drum_programs, attack_len=attack_len,
+            attack_wave=attack_wave, wave_arp=wave_arp, pulse_arp=pulse_arp)
 
 
 # ---------------------------------------------------------------------------

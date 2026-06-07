@@ -773,3 +773,13 @@ class UsfFile:
     # the program length is len(wave)+1 (the engine's leading length byte is
     # derived). Empty dict when no drum programs are used.
     drum_programs: dict[int, dict] = field(default_factory=dict)
+    # FC per-wavecount note-attack tables (v0): attack_len[w] = frames of
+    # attack phase, attack_wave[w] = $D404 waveform during attack, for wave
+    # index w. Parallel lists; empty when unused.
+    attack_len: list[int] = field(default_factory=list)
+    attack_wave: list[int] = field(default_factory=list)
+    # FC waveform/pulse arpeggio cycles (v0): wave_arp cycles the $D404
+    # waveform (indexed counter2 & 3), pulse_arp cycles $D403 pulse-hi
+    # (indexed counter2 & 7). Flat value lists; empty when unused.
+    wave_arp: list[int] = field(default_factory=list)
+    pulse_arp: list[int] = field(default_factory=list)
