@@ -17,6 +17,7 @@
 - [Clever Music (Fairlight + Gyroscope)](project_clever_music.md) — pipelines/companion/clever_music/. Duration counters, embedded commands ($Bx tempo / $Cx vol / $Dx instrument / $Ex pattern jump), song-position synchronisation counter cycling $E0..$E5.
 - [Henrys House](project_henrys_house.md) — pipelines/companion/henrys_house/. Single-voice variant, hardcoded tempo 8, $FF restart-init handler.
 - [Yes Tune family](project_yes_tune.md) — pipelines/companion/yes_tune/. Per-voice state machine + 2-byte (note, duration) format. Multi-subtune + relocation-aware.
+- [Adrenalin (HeatWave)](project_adrenalin.md) — IN PROGRESS, 3rd FC canary (non-Tel). Inline-load PSID + self-decompressing/relocating engine + multiple per-subtune engine instances. Full disasm+RE_NOTES done; BLOCKED on composer not knowing the new runtime_slot subtune_layout (no rebuild SID yet). Recommended unblock: synthesize a flat seqtabel in extract, reuse flat_seqtabel composer path.
 
 ## Engine quirks & open work
 
