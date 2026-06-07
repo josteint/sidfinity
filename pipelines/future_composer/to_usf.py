@@ -249,10 +249,14 @@ def _build_pattern_rows(fc_pat: FCPattern) -> tuple[list[NoteRow], int]:
     for evt in fc_pat.events:
         if isinstance(evt, PatSetLength):
             if not length_seen_first:
-                cur_length = max(1, evt.length - 1)
+                # duration = the raw setlen value (byte & $3F); the engine
+                # computes nootleng = value - 1. Do NOT clamp/-1 here — that
+                # collapsed length 1 and 2 to the same duration and shifted
+                # every note one step too long.
+                cur_length = evt.length
                 length_seen_first = True
             else:
-                # Chained second PatSetLength extends length by (b & $7F)
+                # Chained PatSetLength adds (byte & $3F) to the duration.
                 cur_length += evt.length
         elif isinstance(evt, PatInstrumentChange):
             cur_instr = InstrumentRef(id=evt.instr_id + 1)

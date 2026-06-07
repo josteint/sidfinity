@@ -245,18 +245,16 @@ def build_music_data(music_subtunes: list, music_base: int) -> dict:
 
 
 def _encode_length(dur: int) -> bytes:
-    """Encode note length `dur` (frames) as $80-chain bytes.
+    """Encode note length `dur` as $80-chain bytes.
 
-    Decoder: first byte sets nootleng = (b & $3F) - 1; each chained
-    $80-$BF adds (b & $3F). So the first byte carries dur+1 (clamped to
-    $3F) and overflow spills into extension bytes.
+    `dur` is the raw setlen total (engine: nootleng = dur - 1). One byte
+    $80|dur carries it directly; values > $3F spill into chained $80-$BF
+    bytes that the engine sums (dur = sum of all the (byte & $3F) values).
     """
-    first = dur + 1
-    if first <= 0x3F:
-        return bytes((0x80 | first,))
-    # Chain: first byte maxes at $3F (nootleng = 62), rest add.
-    out = bytearray((0x80 | 0x3F,))
-    rem = dur - 0x3E
+    if dur <= 0x3F:
+        return bytes((0x80 | dur,))
+    out = bytearray()
+    rem = dur
     while rem > 0:
         step = min(rem, 0x3F)
         out.append(0x80 | step)
