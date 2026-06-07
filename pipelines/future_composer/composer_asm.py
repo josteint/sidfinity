@@ -1260,10 +1260,20 @@ h3c_repeat:
         jmp h2_take_step
 """
 
+    # Bank BASIC ROM out every frame ($A000-$BFFF -> RAM) so the engine reads
+    # our USF-derived music_data/state there instead of ROM. Only for the
+    # emit_data path (its data lives in $A000-$BFFF and the engine code is
+    # below $A000); the PSID driver resets $01 before each play so it must be
+    # re-set here, not just in song-init. $36 = BASIC out, KERNAL + I/O in
+    # (SID at $D400 stays visible). Verbatim engines keep their data below
+    # $A000 and must NOT touch $01.
+    bank_ram = ('        lda #$36\n        sta $01\n'
+                if cfg.emit_data_from_usf else '')
+
     return ("""
 ; --- playirq dispatch + h2/h3 sequence walker ---
 playirq:
-        lda testbyte
+{bank_ram}        lda testbyte
         beq playirq_run
         rts                          ; halted, return immediately
 
@@ -2574,6 +2584,7 @@ playirq_done:
         playirq_run_ldx=playirq_run_ldx,
         fx_pulse_run_body=fx_pulse_run_body,
         h3_command_dispatch=h3_command_dispatch,
+        bank_ram=bank_ram,
     )
 
 #
