@@ -3011,8 +3011,11 @@ def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
         # Fix up pointers in verbatim regions so they target the shifted
         # data positions. Without this, pattern_ptr_table entries (and
         # similar) emitted verbatim from HVSC still point to unshifted
-        # addresses where mine no longer has the data.
-        _fixup_verbatim_pointers(mem, cfg, shift, orig_first_data_addr)
+        # addresses where mine no longer has the data. Only needed for the
+        # verbatim path — emit_data zero-fills those regions and emits all
+        # data from USF, so no orig pointers are copied.
+        if not cfg.emit_data_from_usf:
+            _fixup_verbatim_pointers(mem, cfg, shift, orig_first_data_addr)
 
     # Data sections (same as compose_fc_asm)
     music_subs = [s for s in usf.subtunes if isinstance(s, MusicSubtune)]
@@ -3335,9 +3338,12 @@ def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
     # song_init's flat (USF-derived) SMC path needs orig's per-subtune
     # voice-loop mode bytes (music slot + the shared SFX slot). Read them
     # from the UNSHIFTED mode table in the orig image.
-    if cfg.subtune_layout == 'smc_template_with_sfx':
-        # per_subtune_mode_addr ($7AFF) is NOT shifted (preserved region),
-        # so read it directly from the orig image.
+    if cfg.emit_data_from_usf:
+        # De-verbatim path: modes come from config, NOT orig's mode table.
+        song_init_modes = cfg.song_init_modes
+    elif cfg.subtune_layout == 'smc_template_with_sfx':
+        # Verbatim path: per_subtune_mode_addr ($7AFF) is NOT shifted
+        # (preserved region), so read it directly from the orig image.
         mode_src = cfg.per_subtune_mode_addr
         song_init_modes = (mem[mode_src], mem[mode_src + cfg.music_subtune_count])
     else:
@@ -3370,14 +3376,20 @@ def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
     cursor = first_data_addr
     for name, start, end in sections:
         if start > cursor:
-            # Verbatim aux fill between sections. Source bytes from HVSC
-            # at the UNSHIFTED address (mem[addr - shift]); destination
-            # is the shifted address (set by `* = $cursor`).
-            lines.append(f'; --- verbatim aux region ${cursor:04X}..'
-                         f'${start-1:04X} ---')
             lines.append(f'* = ${cursor:04X}')
-            lines.append(_emit_verbatim_region(
-                mem, cursor - shift, start - shift))
+            if cfg.emit_data_from_usf:
+                # De-verbatim path: the inter-section bytes are dead (verified
+                # by the zero-fill audit). Zero-fill instead of copying orig.
+                lines.append(f'; --- dead gap ${cursor:04X}..${start-1:04X} '
+                             f'(zero-filled; orig data not copied) ---')
+                lines.append(f'        .dsb ${start:04X} - *, 0')
+            else:
+                # Verbatim aux fill between sections. Source bytes from HVSC
+                # at the UNSHIFTED address (mem[addr - shift]).
+                lines.append(f'; --- verbatim aux region ${cursor:04X}..'
+                             f'${start-1:04X} ---')
+                lines.append(_emit_verbatim_region(
+                    mem, cursor - shift, start - shift))
             lines.append('')
         n_bytes = end - start
         lines.append(f'; --- {name} ${start:04X}..${end-1:04X} '
@@ -3387,15 +3399,21 @@ def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
         lines.append('')
         cursor = end
 
-    # Tail (sequences + patterns + remaining aux tables — still verbatim)
-    # When shift != 0, the tail's source address is also unshifted.
+    # Tail region (HVSC's old sequences/patterns + leftover aux). When
+    # emit_data, this is all dead (engine reads the music_data block below)
+    # — zero-fill it; otherwise copy verbatim from HVSC.
     if cursor < (code_end + shift):
         tail_end_dest = code_end + shift
-        lines.append(f'; --- verbatim tail ${cursor:04X}..'
-                     f'${tail_end_dest-1:04X} ---')
         lines.append(f'* = ${cursor:04X}')
-        lines.append(_emit_verbatim_region(
-            mem, cursor - shift, tail_end_dest - shift))
+        if cfg.emit_data_from_usf:
+            lines.append(f'; --- dead tail ${cursor:04X}..${tail_end_dest-1:04X} '
+                         f'(zero-filled; orig data not copied) ---')
+            lines.append(f'        .dsb ${tail_end_dest:04X} - *, 0')
+        else:
+            lines.append(f'; --- verbatim tail ${cursor:04X}..'
+                         f'${tail_end_dest-1:04X} ---')
+            lines.append(_emit_verbatim_region(
+                mem, cursor - shift, tail_end_dest - shift))
         lines.append('')
         cursor = tail_end_dest
 

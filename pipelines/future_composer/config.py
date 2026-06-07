@@ -295,6 +295,12 @@ class FCConfig:
     # (default), the whole data tail is verbatim.
     emit_data_from_usf: bool = False
 
+    # Per-path voice-loop mode constants (music_mode, sfx_mode) for the
+    # emit_data song-init. Were read from mem[per_subtune_mode_addr] in the
+    # verbatim path; for the de-verbatim path they come from here so the
+    # composer needs no engine-mode bytes from orig. (2, 0) covers Hawkeye.
+    song_init_modes: tuple = (2, 0)
+
     # SFX seq-stream destination address. For smc_template_with_sfx
     # engines, sub_song_init copy3 writes 256 bytes from $SFX_page+$1A
     # to this address. Orig location for Hawkeye is $8FC5; declared

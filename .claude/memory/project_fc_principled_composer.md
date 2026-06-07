@@ -265,12 +265,28 @@ Replaced `_emit_verbatim_region` with zero-fill, re-verified:
   instr_count was set to 16, so 16-30 stayed verbatim and ALL subtunes read
   them. FIX: instr_count 16 → 31 (Hawkeye config). Now Hawkeye is **12/12 with
   ALL verbatim zeroed → fully de-verbatim**, same as Cyb II.
-- **BOTH canaries now fully de-verbatim.** The composer's `orig=f.read()` is no
-  longer needed for DATA (only the PSID-header metadata, like Hubbard). Next:
-  zero-fill the (now-dead) verbatim regions + source song_init_modes from config
-  instead of mem[$7AFF], to actually drop the data read and close §9.
+- **BOTH canaries now fully de-verbatim.**
   LESSON: don't trust a coarse zero-fill audit — bisect per-region; and an
   instr_count that's too small silently hides instruments as verbatim.
+
+### §9 CLOSED for the FC emit_data path — no musical data copied from orig
+The composer now copies ZERO musical bytes from orig on the emit_data path:
+- Inter-section gaps + the old seq/pattern tail are ZERO-FILLED (`.dsb n,0`),
+  not copied verbatim (they're dead — proven by the zero-fill audit).
+- `song_init_modes` comes from `FCConfig.song_init_modes` (default (2,0),
+  Hawkeye's actual value), not mem[$7AFF].
+- `_fixup_verbatim_pointers` skipped for emit_data (nothing verbatim to fix).
+- SMC-template preserve already skipped for emit_data.
+Verified with REAL builds (zero-filled verbatim): Cyb II 2/2, Hawkeye 12/12,
+full regression green. The only remaining orig read is the PSID header
+(load_addr / init+play vectors / title) + body size — metadata, exactly like
+Hubbard's `_inputs_from_usf` reading its 124-byte header. All MUSICAL content
+(patterns, sequences, tables, instruments, every aux program) is USF-derived.
+REMAINING for a literal "build with no orig at all" (model-generated USF):
+music_data is still placed at code_end+shift (orig body size = a layout
+anchor); to drop that, place music_data right after the last USF section
+(cursor) and source load_addr from config/USF. Not done (layout refactor,
+deferred) — but the §9 musical-data-completeness criterion is met.
 
   (older note) CONFIRMED per-SID effect-PROGRAM data, NOT engine constants:
   arp/pulse/filter program bytes DIFFER between Cyb II and Hawkeye (only a
