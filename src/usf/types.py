@@ -605,6 +605,14 @@ class InitBehaviorConfig:
     # (e.g. Monty on the Run) re-assert master vol every frame; others set
     # it once in init. 0 = init-only (default).
     master_vol_every_frame: int = 0
+    # When non-zero, the engine writes this value to $D418 (master volume)
+    # on EVERY note-load — once per voice that advances to a new pattern
+    # entry. Devils Galop does this: its $13B7 vol write sits inline in the
+    # pattern-advance path, and the clamp is NOP'd at runtime so the value
+    # is fixed. Distinct from master_vol_every_frame (per-play()) — this
+    # fires per note-advance, so frames with no note-loads emit nothing.
+    # 0 = no per-note write (default).
+    master_vol_every_note: int = 0
 
 
 @dataclass

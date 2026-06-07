@@ -315,6 +315,7 @@ _PARAMS_SKIP_CONFIG = {
     # `init_behavior { silence_all_voices_on_frame_0,
     # no_first_attack_voice }` block at top-level.
     'first_frame_gate_off', 'suppress_first_notestart',
+    'master_vol_every_frame', 'master_vol_every_note',
     # linear_pw_or now lives per-instrument as pwm.lo_or_mask
     # (only meaningful for linear-PWM instruments).
     'linear_pw_or',
@@ -366,12 +367,14 @@ def _init_behavior_from_config(config) -> InitBehaviorConfig | None:
     silence_all = getattr(config, 'first_frame_gate_off', False)
     suppress = getattr(config, 'suppress_first_notestart', False)
     mvol = getattr(config, 'master_vol_every_frame', 0)
-    if not silence_all and not suppress and not mvol:
+    mvol_note = getattr(config, 'master_vol_every_note', 0)
+    if not silence_all and not suppress and not mvol and not mvol_note:
         return None
     return InitBehaviorConfig(
         silence_all_voices_on_frame_0=silence_all,
         no_first_attack_voice=(3 if suppress else 0),
         master_vol_every_frame=mvol,
+        master_vol_every_note=mvol_note,
     )
 
 

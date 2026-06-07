@@ -759,6 +759,9 @@ class _T(Transformer):
     def ib_master_vol_every_frame(self, items):
         return ('master_vol_every_frame', int(items[0]))
 
+    def ib_master_vol_every_note(self, items):
+        return ('master_vol_every_note', int(items[0]))
+
     def init_behavior_field(self, items):
         return items[0]
 

@@ -514,6 +514,8 @@ def _write_init_behavior(cfg: InitBehaviorConfig) -> list[str]:
         parts.append(f'  no_first_attack_voice: {cfg.no_first_attack_voice}')
     if cfg.master_vol_every_frame:
         parts.append(f'  master_vol_every_frame: ${cfg.master_vol_every_frame:02X}')
+    if cfg.master_vol_every_note:
+        parts.append(f'  master_vol_every_note: ${cfg.master_vol_every_note:02X}')
     return ['init_behavior {', *parts, '}']
 
 
@@ -553,7 +555,8 @@ def write(usf: UsfFile) -> str:
     if usf.init_behavior is not None and (
             usf.init_behavior.silence_all_voices_on_frame_0
             or usf.init_behavior.no_first_attack_voice
-            or usf.init_behavior.master_vol_every_frame):
+            or usf.init_behavior.master_vol_every_frame
+            or usf.init_behavior.master_vol_every_note):
         lines.append('')
         lines.extend(_write_init_behavior(usf.init_behavior))
     if usf.master_vol is not None:

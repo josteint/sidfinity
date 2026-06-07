@@ -37,4 +37,6 @@ DEVILS_GALOP = EngineConfig(
     incby2_step=-1,             # init patches INC $1783,X -> DEC
     incby2_every_frame=True,    # the slide runs every frame, not odd-only
     suppress_first_notestart=True,   # the $178B gate drops V3's f0 note
+    master_vol_every_note=0x0F,      # $13B7 writes $D418=$0F on every
+                                     # note-load (clamp NOP'd at runtime)
 )

@@ -2482,6 +2482,20 @@ def _resolve_codec_note_asm(codec, inputs) -> str:
             underflow_clamp=inputs.master_vol_underflow_clamp,
         )
         if inputs.master_vol_subtrahend_voice is not None else None)
+    # Fixed-value per-note master-vol write (Devils Galop): the engine
+    # writes $D418 = <value> on every note-load, with no progressive fade
+    # (its clamp is NOP'd so the value is constant). Resolve it FIRST so the
+    # fade pass below (which replaces MASTER_VOL_EVERY_NOTE with '' when
+    # there is no every_note fade) can't clobber it. Only one of the two
+    # fills the sentinel.
+    if inputs.master_vol_every_note:
+        if fade is not None and fade.trigger == 'every_note':
+            raise ValueError(
+                'master_vol_every_note conflicts with the every_note fade')
+        asm = asm.replace(
+            '; %%MASTER_VOL_EVERY_NOTE%%',
+            f'        lda #${inputs.master_vol_every_note:02X}\n'
+            f'        sta $d418')
     for sentinel, fragment in _emit_master_vol_fade(fade).items():
         asm = asm.replace(sentinel, fragment)
     for sentinel, fragment in _emit_clear_drumtrig(
@@ -2592,6 +2606,7 @@ class _Inputs:
     speed_ctr_init: int
     first_frame_gate_off: bool
     master_vol_every_frame: int       # 0 = init-only; else $D418 value per play()
+    master_vol_every_note: int        # 0 = none; else $D418 value per note-load
     stop_fill: _Optional[int]
     sfx_framectr_ofs: int
     sfx_state_ofs: _Optional[int]
@@ -2699,6 +2714,7 @@ def _inputs_from_config(config) -> _Inputs:
         speed_ctr_init=config.speed_ctr_init,
         first_frame_gate_off=config.first_frame_gate_off,
         master_vol_every_frame=getattr(config, 'master_vol_every_frame', 0),
+        master_vol_every_note=getattr(config, 'master_vol_every_note', 0),
         stop_fill=config.stop_fill,
         sfx_framectr_ofs=config.sfx_framectr_ofs,
         sfx_state_ofs=config.sfx_state_ofs,
@@ -3112,6 +3128,10 @@ def _inputs_from_usf(usf) -> _Inputs:
         ),
         master_vol_every_frame=(
             usf.init_behavior.master_vol_every_frame
+            if usf.init_behavior is not None else 0
+        ),
+        master_vol_every_note=(
+            usf.init_behavior.master_vol_every_note
             if usf.init_behavior is not None else 0
         ),
         seed_overlap=get('seed_overlap', True),

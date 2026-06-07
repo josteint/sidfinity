@@ -72,6 +72,11 @@ class EngineConfig:
     # When non-zero, the engine re-writes this value to $D418 (master vol)
     # at the start of EVERY play(), not just init (e.g. Monty = 0x0F).
     master_vol_every_frame: int = 0
+    # When non-zero, the engine writes this value to $D418 (master vol) on
+    # EVERY note-load (per voice that advances a pattern entry). Devils Galop
+    # = 0x0F: its $13B7 vol write is inline in the pattern-advance path with
+    # the clamp NOP'd, so it always writes $0F. Per-note, not per-frame.
+    master_vol_every_note: int = 0
     # per-subtune voice-loop start index (Action Biker subtune 0 skips
     # V3 — $C3F2). Empty = every subtune starts at V3 (index 2).
     voice_starts: tuple = ()
