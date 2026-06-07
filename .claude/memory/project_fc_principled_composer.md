@@ -121,16 +121,26 @@ dumb. The verbatim path keeps FC's $00-$3F partition (else branch) so orig
 bytes still parse. DONE + Cyb II re-verified 2/2, Hawkeye verbatim 12/12.
 (The earlier per-subtune-SFX-record-regeneration plan is SUPERSEDED.)
 
-**Two model reworks needed (the implementation, not yet done):**
-- EXTRACTION: SFX subtunes need POST-INIT memory (static $8FC5 is empty;
-  populated at init from the record) — run `_run_init_in_py65` per SFX
-  subtune. And the FCSong `patterns` dict (single global) can't hold
-  per-subtune slot-54-63 patterns; needs per-subtune SFX pattern storage.
-- COMPOSER: emit per-SFX-subtune records (6-byte seq ptrs + 10 pattern ptrs
-  + 255-byte seq/pattern data copied to $8FC5) from USF, keep the song_init
-  SFX path; music side as Cyb II (slots 0-53). OR widen the engine pattern
-  reference (changes the shared walker, risks re-verifying Cyb II) — NOT
-  recommended.
+**Remaining for Hawkeye 12/12 (the elegant path, given the blocker is gone):**
+The COMPOSER is now uniform — one global pool (≤128), dumb song_init, flat
+seq_table. So Hawkeye just needs its real data fed through. Steps:
+1. EXTRACTION (the main remaining work): SFX subtunes need POST-INIT memory
+   (static $8FC5 is empty; populated at init from the record) — run
+   `_run_init_in_py65` per SFX subtune, decode sequences with the corrected
+   ranges, extract the SFX patterns (slots 54-63 from $8475 post-init). The
+   FCSong `patterns` dict (single global, keyed by fc-id) can't hold
+   per-subtune slot-54-63 patterns (fc-id 54 differs per SFX subtune) →
+   resolve patterns PER-SUBTUNE so each SFX subtune's voices carry their own
+   real patterns. Then the global content-dedup pool in build_pattern_pool
+   merges/separates them naturally (98 unique ≤128 ✓).
+2. song_init: unify Hawkeye to a flat seq_table for ALL 12 subtunes (drop
+   the SMC template + SFX-page copies; CORE TENET lets us). seq_table holds
+   12 records × 6 bytes (3 voice seq ptrs); speedbyte per subtune from USF
+   tempo; voice_loop_start = is_sfx?0:2 (mode byte). build_music_data already
+   builds the global pool + flat seq_table — extend for n_songs subtunes.
+3. Set Hawkeye `emit_data_from_usf=True`; verify 12/12.
+No per-subtune pattern tables, no SFX-record regeneration, no engine-walker
+widening needed — the 128-slot encoding made all that unnecessary.
 
 **DONE this session:** fixed `SEQ_TRANSPOSE_RANGE` $80-$BF → $80-$FD
 (engine_model.py): the walker treats all $80-$FD as transpose; the old
