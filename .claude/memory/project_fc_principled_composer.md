@@ -194,6 +194,24 @@ USF can't build — needs orig for the aux tables). Hubbard's USF→SID path
 header metadata). Closing this = the plan's Phase 3/4/5 (decompose each aux
 table into musical USF fields with schema discipline). IN PROGRESS.
 
+### Aux-table de-verbatim progress
+- **vibtabwait — DONE (commit 4418bb9).** Per-instrument vibrato onset; no
+  schema needed (reused `VibratoConfig.onset`). Extract reads vibtabwait[id]
+  → FCInstrument.vib_onset → `_inst_to_usf` sets vibrato.onset; composer
+  emits the table as a USF-derived section (label-less; equate names it).
+- **Remaining: arplo/arphi, pulsetabel, filterbytes, drumtabel, wavearp/
+  pulsearp.** CONFIRMED per-SID effect-PROGRAM data, NOT engine constants:
+  arp/pulse/filter program bytes DIFFER between Cyb II and Hawkeye (only a
+  shared default prefix matches). So each needs real work: RE the program
+  format → design a musical USF representation (schema-addition discipline;
+  programs = offset/value sequences = data tables per Rule 2, decompose where
+  structure is clear) → extract → compose-from-USF → verify byte-exact
+  writelog. Each is a mini-project (~1 table/session). The arp table is 8
+  pointers (arplo/arphi) into overlapping 4-byte-spaced windows of a shared
+  program stream; the note's $7x arp-select (currently mapped to row.instr)
+  picks the window. §9 completeness passes only once ALL are USF-derived and
+  the composer's `orig = f.read()` is removed.
+
 Cyb II+shift filter bug remains separately latent (Hawkeye builds at shift=0,
 so emit_data doesn't need the shift; the banking fix made shift irrelevant).
 
