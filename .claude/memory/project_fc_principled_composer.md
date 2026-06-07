@@ -167,7 +167,8 @@ verbatim 12/12.
   (engine nootleng = value-1); encoder emits `$80|duration`. Byte-exact
   round-trip, unchanged for setlen>=2 (Cyb II 2/2). Fixed subs 0,1,6,9.
 
-**HAWKEYE 12/12 — fully principled (emit_data_from_usf=True in config).**
+**HAWKEYE 12/12 — music layer principled (emit_data_from_usf=True in config;
+aux effect-program tables still verbatim — see the gap note below).**
 The last 2 (SFX 7,10) were a NOTE-LENGTH PERSISTENCE bug (caught after a
 Trap-A slip — don't judge by per-frame register snapshots; the write-log is
 the verdict). FC's `nootleng` PERSISTS across patterns: orig patterns whose
@@ -179,10 +180,19 @@ across jumps and dedups patterns by `(fc_id, init_length)`. The composer
 always emits an explicit setlen, so rebuilt patterns are self-contained
 (different bytes from orig, identical write-log). Verified 12/12 + Cyb II 2/2.
 
-**The full FC principled composer is now DONE for both canaries: Cyb II 2/2
-+ Hawkeye 12/12, all data (patterns/sequences/tables) from USF, no verbatim
-music data.** Aux tables (drumtabel/filterbytes/pulsetabel/arp/vib) are still
-verbatim but they're shared engine-constant content; the music IS principled.
+**MUSIC layer principled for both canaries: Cyb II 2/2 + Hawkeye 12/12 —
+patterns/sequences/orderlist/freq/instrument-records/pattern_ptr_table/
+seq_table all from USF.** BUT this is NOT yet as principled as
+Hubbard/Companion: the composer STILL verbatim-copies the aux EFFECT-PROGRAM
+tables from the orig binary at compose time (`build_via_asm_featuredriven`
+does `orig = f.read()`), and both canaries USE all of them — `drumtabel`
+(drum programs), `filterbytes` (filter programs), `pulsetabel` (pulse
+programs), `arplo`/`arphi` (arp programs), `vibtabwait` (vibrato onset),
+`wavearp`/`pulsearp`. So §9 completeness FAILS for FC (a model-generated FC
+USF can't build — needs orig for the aux tables). Hubbard's USF→SID path
+(`_inputs_from_usf`) builds from `usf.*` alone (only orig read = the PSID
+header metadata). Closing this = the plan's Phase 3/4/5 (decompose each aux
+table into musical USF fields with schema discipline). IN PROGRESS.
 
 Cyb II+shift filter bug remains separately latent (Hawkeye builds at shift=0,
 so emit_data doesn't need the shift; the banking fix made shift irrelevant).
