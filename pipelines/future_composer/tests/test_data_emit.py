@@ -39,7 +39,7 @@ def test_pattern_encode_roundtrips_to_same_content():
 
 
 def test_build_music_data_layout_consistent():
-    """build_music_data produces a block whose seqtabel/pattern_ptr offsets
+    """build_music_data produces a block whose seq_table/pattern_ptr offsets
     fall inside the block and whose pointers are within the block span."""
     from src.usf import parse
     from src.usf.types import MusicSubtune
@@ -52,7 +52,7 @@ def test_build_music_data_layout_consistent():
     base = 0xB718
     md = build_music_data(subs, base)
     assert md['base'] == base
-    assert md['seqtabel_addr'] == base
+    assert md['seq_table_addr'] == base
     assert md['pattern_ptr_addr'] > base
     assert md['size'] == len(md['block'])
     # pattern_ptr_table entries point inside the block span.

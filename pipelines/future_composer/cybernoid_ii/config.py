@@ -6,7 +6,7 @@ The HVSC tune loads at $A600; the source's RELOC was $1000, so all
 labels are offset by ($A600 - $1000) = $9600.
 
 Key structural differences from Hawkeye:
-  - Flat seqtabel (no SMC indirection, no SFX page section)
+  - Flat seq_table (no SMC indirection, no SFX page section)
   - 87 freq-table entries (Hawkeye has 96)
   - 19 instruments (Hawkeye has 16)
   - 33 patterns (Hawkeye has 64)
@@ -25,8 +25,8 @@ from pipelines.future_composer.config import FCConfig
 #   freq_lo signature found at $AE3F  (lonote)
 #   freq_hi signature found at $AE96  (hinote = lonote + 87)
 #   snelheid at $AEED (= hinote + 87)
-#   seqtabel at $AEEF (= snelheid + 2)
-#   sequence (pat ptr table) at $AF01 (= seqtabel + 12 + 6 runtime slots)
+#   seq_table at $AEEF (= snelheid + 2)
+#   sequence (pat ptr table) at $AF01 (= seq_table + 12 + 6 runtime slots)
 #   pulsetabel at $AFF4
 #   instr_records (pulsehi) at $B014 (= pulsetabel + 32)
 CYBERNOID_II = FCConfig(
@@ -39,8 +39,8 @@ CYBERNOID_II = FCConfig(
     instr_records_addr=0xB014,
     per_subtune_speed_addr=0xAEED,
 
-    subtune_layout='flat_seqtabel',
-    seqtabel_addr=0xAEEF,
+    subtune_layout='flat_seq_table',
+    seq_table_addr=0xAEEF,
     emit_data_from_usf=True,
 
     # Cybernoid II's freq table is 87 entries (NOT a full 8-octave 96)

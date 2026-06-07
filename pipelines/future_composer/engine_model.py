@@ -471,8 +471,8 @@ def _decode_subtune(mem: bytes, cfg: FCConfig, sub_idx: int,
                     engine: EngineInstance | None = None) -> Subtune:
     """Reconstruct per-subtune setup. Dispatches on `cfg.subtune_layout`.
 
-    `flat_seqtabel` (Cybernoid II): subtune N's 6-byte record (lo*3 then
-      hi*3) sits at `seqtabel_addr + N * 6`. Speedbyte from
+    `flat_seq_table` (Cybernoid II): subtune N's 6-byte record (lo*3 then
+      hi*3) sits at `seq_table_addr + N * 6`. Speedbyte from
       `per_subtune_speed_addr + N`. No music/sfx distinction.
 
     `smc_template_with_sfx` (Hawkeye): X = sub_idx, sub_7B5A reads
@@ -483,10 +483,10 @@ def _decode_subtune(mem: bytes, cfg: FCConfig, sub_idx: int,
       music_subtune_count for the SFX path so speedbyte/mode come from
       that fixed index.
     """
-    seqtabel = resolve_address(cfg, engine, 'seqtabel_addr')
+    seq_table = resolve_address(cfg, engine, 'seq_table_addr')
     per_sub_speed = resolve_address(cfg, engine, 'per_subtune_speed_addr')
-    if cfg.subtune_layout == 'flat_seqtabel':
-        record_base = seqtabel + sub_idx * 6
+    if cfg.subtune_layout == 'flat_seq_table':
+        record_base = seq_table + sub_idx * 6
         seq_lo = mem[record_base + 0:record_base + 3]
         seq_hi = mem[record_base + 3:record_base + 6]
         speedbyte = mem[per_sub_speed + sub_idx]

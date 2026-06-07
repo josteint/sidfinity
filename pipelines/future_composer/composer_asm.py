@@ -24,7 +24,7 @@ Per-SID asm regions for Cybernoid II:
   $AE3F          lonote (87 bytes freq lo)        ┐
   $AE96          hinote (87 bytes freq hi)        │ DATA SECTIONS
   $AEED          snelheid (per-subtune speed)     │ — emitted from USF
-  $AEEF          seqtabel (per-subtune seq ptrs)  │
+  $AEEF          seq_table (per-subtune seq ptrs)  │
   $AEFB          seqloclo/seqlochi runtime slots  │
   $AF01          sequence (pattern_ptr_table)     │
   ...            wavearp/pulsearp/drumtabel/etc.  │
@@ -85,7 +85,7 @@ def _emit_snelheid(usf: UsfFile, cfg: FCConfig) -> str:
     subtune. SMC layout: music_subtune_count + 1 (shared SFX-default).
     """
     music = [s for s in usf.subtunes if isinstance(s, MusicSubtune)]
-    if cfg.subtune_layout == 'flat_seqtabel':
+    if cfg.subtune_layout == 'flat_seq_table':
         bytes_seq = [(s.tempo - 1) & 0xFF for s in music]
     elif cfg.subtune_layout == 'smc_template_with_sfx':
         bytes_seq = []
@@ -282,7 +282,7 @@ d403:           .dsb 3, 0            ; shadow $D403 (pw hi)
 state_end:
 
 ; seqloclo / seqlochi: the current song's 3 voice sequence-stream
-; pointers, copied from seqtabel by song init. Placed AFTER state_end
+; pointers, copied from seq_table by song init. Placed AFTER state_end
 ; so ok2's clear loop doesn't touch them (the song writes them before
 ; jsr ok2 returns).
 seqloclo:       .dsb 3, 0
@@ -365,11 +365,11 @@ def _emit_song_init_routine(cfg: FCConfig) -> str:
     """
     if cfg.subtune_layout == 'smc_template_with_sfx':
         return _emit_song_init_smc(cfg)
-    if cfg.subtune_layout != 'flat_seqtabel':
+    if cfg.subtune_layout != 'flat_seq_table':
         raise ValueError(f'unknown subtune_layout: {cfg.subtune_layout!r}')
 
     snelheid_addr = cfg.per_subtune_speed_addr
-    seqtabel_addr = cfg.seqtabel_addr
+    seq_table_addr = cfg.seq_table_addr
 
     return f"""
 ; --- song init ($LOAD entry; A = subtune number) ---
@@ -392,7 +392,7 @@ song:
         lda ${snelheid_addr:04X},x
         sta speedbyte
 
-        ; Compute Y-index into seqtabel for subtune X: idx = X*6 + 5
+        ; Compute Y-index into seq_table for subtune X: idx = X*6 + 5
         ; (we copy 6 bytes downward into seqloclo[0..2]/seqlochi[0..2])
         ; Straight code, no SMC trick.
         stx song_tmp
@@ -406,14 +406,14 @@ song:
 
         ldy #5
 song_seqcp:
-        lda ${seqtabel_addr:04X},x
+        lda ${seq_table_addr:04X},x
         sta seqloclo,y               ; seqloclo+0..2, seqlochi+0..2 are
                                      ; contiguous so Y=0..5 covers both
         dex
         dey
         bpl song_seqcp
 
-        ; Filter setup + master volume. After the seqtabel loop, Y=$FF
+        ; Filter setup + master volume. After the seq_table loop, Y=$FF
         ; (the BPL exits when DEY underflows). HVSC writes Y to $D416
         ; ($FF = max cutoff lo), then INY (Y=$00), then writes Y to
         ; $D417 ($00 = filter off / no resonance). This matches what
@@ -490,7 +490,7 @@ def _emit_song_init_smc(cfg: FCConfig) -> str:
                    * 256
         Same 6-byte record format at page boundary.
 
-    Same shared code afterward as the flat_seqtabel path:
+    Same shared code afterward as the flat_seq_table path:
       $D416/$D417/$D418 setup → jsr ok2 → silence_all.
     """
     snelheid_addr = cfg.per_subtune_speed_addr
@@ -2618,7 +2618,7 @@ def compose_fc_asm(usf: UsfFile, cfg: FCConfig,
     music_subs = [s for s in usf.subtunes if isinstance(s, MusicSubtune)]
 
     # snelheid length depends on subtune_layout
-    if cfg.subtune_layout == 'flat_seqtabel':
+    if cfg.subtune_layout == 'flat_seq_table':
         snelheid_len = len(music_subs)
     else:
         snelheid_len = cfg.music_subtune_count + 1
@@ -2933,15 +2933,15 @@ def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
 
     # Data sections (same as compose_fc_asm)
     music_subs = [s for s in usf.subtunes if isinstance(s, MusicSubtune)]
-    if cfg.subtune_layout == 'flat_seqtabel':
+    if cfg.subtune_layout == 'flat_seq_table':
         snelheid_len = len(music_subs)
     else:
         snelheid_len = cfg.music_subtune_count + 1
 
     # Principled data tail: build the USF-derived music-data block (patterns
-    # + pattern_ptr_table + sequences + seqtabel) into fresh space past the
+    # + pattern_ptr_table + sequences + seq_table) into fresh space past the
     # verbatim tail, and redirect the engine's pointers (pattern_ptr_table
-    # equate + song-init's seqtabel address) at it. The verbatim tail still
+    # equate + song-init's seq_table address) at it. The verbatim tail still
     # emits (its aux tables stay live; the old music data goes dead).
     music_data = None
     if cfg.emit_data_from_usf:
@@ -2949,7 +2949,7 @@ def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
         music_base = code_end + shift
         music_data = build_music_data(music_subs, music_base)
         cfg = _dc.replace(cfg,
-            seqtabel_addr=music_data['seqtabel_addr'],
+            seq_table_addr=music_data['seq_table_addr'],
             pattern_ptr_addr=music_data['pattern_ptr_addr'])
 
     raw_sections = [
@@ -3086,7 +3086,7 @@ def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
     # long-standing approach). This frees the engine code area from the
     # engine+state budget — engine code can grow up to first_data_addr,
     # state lives past the SID body end.
-    # (Previous flat_seqtabel-style "state between code and data" was
+    # (Previous flat_seq_table-style "state between code and data" was
     # blocking Cyb II's engine from adding fx_pulse_run.)
 
     # Explicit zero-fill from our engine code's end to the first data
@@ -3133,12 +3133,12 @@ def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
 
     # Principled music-data block (USF-derived patterns/sequences/tables),
     # placed right after the verbatim tail. The pattern_ptr_table equate +
-    # song-init seqtabel address (set above) point into here.
+    # song-init seq_table address (set above) point into here.
     if music_data is not None:
         base = music_data['base']
         lines.append(f'; --- USF-derived music data ${base:04X}..'
                      f'${base + music_data["size"] - 1:04X} '
-                     f'(seqtabel + pattern_ptr_table + patterns + sequences, '
+                     f'(seq_table + pattern_ptr_table + patterns + sequences, '
                      f'{music_data["n_slots"]} pattern slots) ---')
         lines.append(f'* = ${base:04X}')
         lines.append(_emit_byte_list('music_data', music_data['block']))

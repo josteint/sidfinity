@@ -13,7 +13,7 @@ What this does NOT do (deferred to a future composer iteration):
   - Re-emit variable-length sequence / pattern byte streams (they
     carry verbatim from the original — round-trip not tested for
     those bytes)
-  - Reconstruct seqtabel (the per-subtune sequence pointers depend
+  - Reconstruct seq_table (the per-subtune sequence pointers depend
     on the layout of the variable-length streams)
   - Re-emit voiceinc (lost in USF v0)
 
@@ -110,7 +110,7 @@ def _apply_per_subtune_speed(mem: bytearray, cfg: FCConfig,
     USF subtune ids are 1-based; engine indices are 0-based.
 
     Layout-dependent slot count:
-      `flat_seqtabel`: one byte per subtune; writes 0..n-1.
+      `flat_seq_table`: one byte per subtune; writes 0..n-1.
       `smc_template_with_sfx`: per_subtune_speed table is only
         music_subtune_count+1 bytes (one per music sub + one shared
         SFX-default at the slot the dispatcher forces via `LDX
@@ -119,7 +119,7 @@ def _apply_per_subtune_speed(mem: bytearray, cfg: FCConfig,
         single SFX-default slot.
     """
     from src.usf.types import MusicSubtune
-    if cfg.subtune_layout == 'flat_seqtabel':
+    if cfg.subtune_layout == 'flat_seq_table':
         for sub in usf.subtunes:
             if not isinstance(sub, MusicSubtune):
                 continue
@@ -157,7 +157,7 @@ def build_from_usf(usf: UsfFile, cfg: FCConfig,
     Returns the new SID bytes. The data sections at the FCConfig
     addresses are overwritten with USF-decoded values; everything else
     (the engine code itself, the sequence/pattern byte streams, the
-    seqtabel pointers) carries verbatim from the original.
+    seq_table pointers) carries verbatim from the original.
     """
     if root is None:
         root = str(Path(__file__).resolve().parents[2])

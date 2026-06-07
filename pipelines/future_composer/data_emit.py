@@ -22,11 +22,13 @@ Pattern stream (per note, in dispatch order):
   $00-$6F note pitch            (base pitch, transpose applied by the seq)
   $FF     end of pattern
 
-Sequence stream:
-  $00-$3F pattern jump (= pool slot id)
-  $40|r   repeat (play count-1; r = plays-1, 0-31 per command, chained)
-  $60|v   voiceinc  (v = voiceinc & $0F)
+Sequence stream (our own wider partition — the composer emits these bytes
+and its own walker reads them, so we are not bound to FC's 64-pattern
+$00-$3F limit; see composer_asm h3_command_dispatch):
+  $00-$7F pattern jump (= pool slot id, 128 patterns)
   $80|t   transpose (t = transpose & $1F)
+  $A0|r   repeat (play count-1; r = plays-1, 0-31 per command)
+  $C0|v   voiceinc  (v = voiceinc & $0F)
   $FE     end (stop) / $FF wrap (loop)
 """
 from __future__ import annotations
@@ -169,15 +171,15 @@ def encode_sequence(orderlist: Orderlist, localmap: dict[int, int]) -> bytes:
 
 
 def build_music_data(music_subtunes: list, music_base: int) -> dict:
-    """Lay out the full FC music data block (seqtabel + pattern_ptr_table +
+    """Lay out the full FC music data block (seq_table + pattern_ptr_table +
     pattern streams + sequence streams) starting at `music_base`.
 
     Returns a dict with the assembled `block` bytes and the resolved
-    `seqtabel_addr` / `pattern_ptr_addr` (which the engine code's song-init
+    `seq_table_addr` / `pattern_ptr_addr` (which the engine code's song-init
     + pattern_ptr_table equate point at) and `n_slots`.
 
     Layout (all pointers absolute, so streams can live anywhere):
-      seqtabel          6 bytes/subtune: [v1lo,v2lo,v3lo, v1hi,v2hi,v3hi]
+      seq_table          6 bytes/subtune: [v1lo,v2lo,v3lo, v1hi,v2hi,v3hi]
       pattern_ptr_table 2 bytes/slot: lo,hi of the slot's pattern stream
       pattern streams   concatenated, one per global slot
       sequence streams  concatenated, one per (subtune, voice)
@@ -193,9 +195,9 @@ def build_music_data(music_subtunes: list, music_base: int) -> dict:
             seqs[(sub.id - 1, v.id - 1)] = encode_sequence(
                 v.orderlist, localmaps[(sub.id, v.id)])
 
-    seqtabel_addr = music_base
-    seqtabel_size = 6 * n_sub
-    pattern_ptr_addr = seqtabel_addr + seqtabel_size
+    seq_table_addr = music_base
+    seq_table_size = 6 * n_sub
+    pattern_ptr_addr = seq_table_addr + seq_table_size
     pattern_ptr_size = 2 * n_slots
 
     cur = pattern_ptr_addr + pattern_ptr_size
@@ -217,18 +219,18 @@ def build_music_data(music_subtunes: list, music_base: int) -> dict:
     for a in slot_addr:
         pattern_ptr += bytes((a & 0xFF, (a >> 8) & 0xFF))
 
-    seqtabel = bytearray()
+    seq_table = bytearray()
     for si in range(n_sub):
         los = [seq_addr[(si, vi)] & 0xFF for vi in range(3)]
         his = [(seq_addr[(si, vi)] >> 8) & 0xFF for vi in range(3)]
-        seqtabel += bytes(los + his)
+        seq_table += bytes(los + his)
 
-    block = bytes(seqtabel) + bytes(pattern_ptr) + bytes(pat_bytes) + \
+    block = bytes(seq_table) + bytes(pattern_ptr) + bytes(pat_bytes) + \
         bytes(seq_bytes)
     return {
         'block': block,
         'base': music_base,
-        'seqtabel_addr': seqtabel_addr,
+        'seq_table_addr': seq_table_addr,
         'pattern_ptr_addr': pattern_ptr_addr,
         'n_slots': n_slots,
         'size': len(block),

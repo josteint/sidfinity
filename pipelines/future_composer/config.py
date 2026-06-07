@@ -26,8 +26,8 @@ What's per-SID vs what's family-stable:
 Different FC drivers store their per-subtune sequence pointers in
 structurally different ways. Two layouts seen so far:
 
-- `'flat_seqtabel'` (Cybernoid II): contiguous table; subtune N's
-  6-byte sequence record lives at `seqtabel_addr + N * 6`. All
+- `'flat_seq_table'` (Cybernoid II): contiguous table; subtune N's
+  6-byte sequence record lives at `seq_table_addr + N * 6`. All
   subtunes are music — no SFX section.
 - `'smc_template_with_sfx'` (Hawkeye): SMC-driven indirection — the
   table at `per_subtune_smc_addr` stores 1 lo-byte per subtune; combined
@@ -41,7 +41,7 @@ from dataclasses import dataclass
 from typing import Literal
 
 
-SubtuneLayout = Literal['flat_seqtabel', 'smc_template_with_sfx',
+SubtuneLayout = Literal['flat_seq_table', 'smc_template_with_sfx',
                         'runtime_slot']
 VoiceLoopLayout = Literal['tight_nextvoice', 'interleaved']
 NoiseTickStyle = Literal['cyb2_table', 'hawkeye_constants', 'disabled']
@@ -91,7 +91,7 @@ class EngineInstance:
     pattern_ptr_addr: int = 0
     instr_records_addr: int = 0
     per_subtune_speed_addr: int = 0
-    seqtabel_addr: int = 0
+    seq_table_addr: int = 0
     drumtabel_addr: int = 0
     filterbytes_addr: int = 0
     startlen_addr: int = 0
@@ -124,8 +124,8 @@ class FCConfig:
     # Subtune layout discriminator (selects which variant fields apply)
     subtune_layout: SubtuneLayout
 
-    # --- variant 'flat_seqtabel' fields ---
-    seqtabel_addr: int = 0          # base of contiguous per-subtune
+    # --- variant 'flat_seq_table' fields ---
+    seq_table_addr: int = 0          # base of contiguous per-subtune
                                     # 6-byte (lo*3, hi*3) records
 
     # --- variant 'runtime_slot' fields ---
@@ -288,7 +288,7 @@ class FCConfig:
     featuredriven_addr_shift: int = 0
 
     # Principled data tail. When True, the featuredriven composer emits the
-    # patterns + pattern_ptr_table + sequences + seqtabel from USF content
+    # patterns + pattern_ptr_table + sequences + seq_table from USF content
     # (into a fresh music-data block, pointers redirected there) instead of
     # carrying them verbatim from the orig binary. Aux tables (drumtabel,
     # filterbytes, ...) stay verbatim until their own phases. When False
