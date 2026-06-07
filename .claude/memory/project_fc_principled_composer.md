@@ -132,14 +132,36 @@ seq_table. So Hawkeye just needs its real data fed through. Steps:
    which collide for SFX). Result: Hawkeye SFX subtunes now carry REAL
    sequences/patterns (was 256-byte garbage); global content-dedup pool = 99
    (≤128 ✓); all 136 Hawkeye patterns round-trip; Cyb II still 2/2.
-2. song_init: unify Hawkeye to a flat seq_table for ALL 12 subtunes (drop
-   the SMC template + SFX-page copies; CORE TENET lets us). seq_table holds
-   12 records × 6 bytes (3 voice seq ptrs); speedbyte per subtune from USF
-   tempo; voice_loop_start = is_sfx?0:2 (mode byte). build_music_data already
-   builds the global pool + flat seq_table — extend for n_songs subtunes.
-3. Set Hawkeye `emit_data_from_usf=True`; verify 12/12.
-No per-subtune pattern tables, no SFX-record regeneration, no engine-walker
-widening needed — the 128-slot encoding made all that unnecessary.
+2. song_init: DONE — `_emit_song_init_smc` has an `emit_data_from_usf` flat
+   branch (all 12 subtunes read the flat seq_table; speedbyte per-subtune;
+   voice_loop_start = orig mode constants music/SFX, read from $7AFF in
+   compose). compose_fc_asm_featuredriven: preserve_end gated off when
+   emit_data_from_usf (no SMC templates read), reads song_init_modes from
+   orig mode table, build_music_data already gets all 12 subtunes.
+3. Set Hawkeye `emit_data_from_usf=True`; verify 12/12. **BLOCKED — see below.**
+
+### Hawkeye composer BLOCKER (2026-06-07): py65 plays, libsidplayfp silent
+With `emit_data_from_usf=True` (via dc.replace; NOT yet set in config),
+Hawkeye builds fine and **py65 plays it CORRECTLY** (frame 1: V3=$02CC,
+V2=$1A9C — matches orig). But **siddump/libsidplayfp (GROUND TRUTH) plays it
+essentially SILENT** (1 stray write in 60 frames; verify match=51 = init only,
+reb_len >> orig). This is the classic [[feedback_py65_misses_dispatch_bugs]]
+/ [[feedback_ground_truth]] split — a CPU/dispatch EXECUTION divergence, NOT
+a data bug. Verified CORRECT in libsidplayfp via --memwatch: seq_table
+@$9D60 (5C C4 59 A7 A7 A8), seqloclo @$AD9B populated post-init (5C..A7..),
+pattern slot0 @$9E6E, speedbyte=$03, testbyte=0. So data + song_init are
+right in BOTH emulators; only execution differs.
+RULED OUT: data placement/loading (memwatch confirms), seqloclo population,
+C64 banking ($A000+ is RAM — Cyb II at $AE3F proves it), the 128-slot walker
+encoding (Cyb II emit_data uses it and is green in libsidplayfp).
+Hawkeye-specific differences vs working cases: featuredriven_addr_shift=$40,
+the flat smc song_init, larger engine code (preserve_end=0 places engine at
+load+6). NEXT: `tools/siddump --pc-trace` the play in libsidplayfp to find
+where execution diverges from py65 (proper pc-trace invocation TBD; the
+`--pc-trace START END` form printed the register table, not PCs).
+The composer infra is COMMITTED but DORMANT — Hawkeye config does NOT set
+emit_data_from_usf, so it stays on the verbatim path (12/12). Cyb II 2/2,
+Hawkeye-verbatim 12/12 confirmed after the song_init restructure.
 
 **DONE this session:** fixed `SEQ_TRANSPOSE_RANGE` $80-$BF → $80-$FD
 (engine_model.py): the walker treats all $80-$FD as transpose; the old

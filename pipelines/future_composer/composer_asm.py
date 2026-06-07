@@ -338,8 +338,13 @@ vibwait_zp  = $58          ; cached vibtabwait[wavecount] (replaces
 """
 
 
-def _emit_song_init_routine(cfg: FCConfig) -> str:
+def _emit_song_init_routine(cfg: FCConfig,
+                            song_init_modes: tuple = (2, 0)) -> str:
     """Emit the song init routine + songout + ok2 + silence-all.
+
+    `song_init_modes` = (music_mode, sfx_mode) — the per-subtune
+    voice-loop mode bytes (orig's $7AFF table values), used only by the
+    SMC layout's USF-derived flat path. Default (2, 0) is Hawkeye's.
 
     Called via PSID init=$LOAD with X = song number. Initializes engine
     state for the selected subtune and silences the SID. Falls through
@@ -364,7 +369,7 @@ def _emit_song_init_routine(cfg: FCConfig) -> str:
     are free.
     """
     if cfg.subtune_layout == 'smc_template_with_sfx':
-        return _emit_song_init_smc(cfg)
+        return _emit_song_init_smc(cfg, song_init_modes)
     if cfg.subtune_layout != 'flat_seq_table':
         raise ValueError(f'unknown subtune_layout: {cfg.subtune_layout!r}')
 
@@ -471,7 +476,7 @@ song_tmp: .dsb 1, 0
 """
 
 
-def _emit_song_init_smc(cfg: FCConfig) -> str:
+def _emit_song_init_smc(cfg: FCConfig, song_init_modes: tuple = (2, 0)) -> str:
     """Song init for SMC-template-with-SFX layout (Hawkeye).
 
     On entry, A holds the subtune number (PSID convention).
@@ -518,7 +523,69 @@ def _emit_song_init_smc(cfg: FCConfig) -> str:
             f'sfx_page_stride {sfx_pg_stride} not handled '
             f'(non-power-of-2 needs a multiply loop)')
 
-    return f"""
+    # USF-derived path: all 12 subtunes (music + SFX) read a single flat
+    # seq_table — no SMC templates, no SFX-page copies. song_init stays
+    # dumb. speedbyte is still per-subtune (music = snelheid[X]; SFX share
+    # snelheid[music_count]); voice_loop_start uses orig's mode constants.
+    if cfg.emit_data_from_usf:
+        music_mode, sfx_mode = song_init_modes
+        seqtab = cfg.seq_table_addr
+        song_body = f"""
+; --- song init ($LOAD entry; A = subtune number) ---
+; SMC layout, USF-derived: flat seq_table for ALL subtunes.
+song:
+        tax
+        lda #1
+        sta testbyte
+        sta pulseruntest+0
+        sta pulseruntest+1
+        sta pulseruntest+2
+
+        cpx #{music_count}
+        bcs song_sfx_params
+        ; MUSIC: per-subtune speed + music voice-loop mode
+        lda ${snelheid_addr:04X},x
+        sta speedbyte
+        lda #${music_mode:02X}
+        sta voice_loop_start
+        jmp song_flat_seqcopy
+song_sfx_params:
+        ; SFX: shared speed (music_count slot) + SFX voice-loop mode
+        ldy #{music_count}
+        lda ${snelheid_addr:04X},y
+        sta speedbyte
+        lda #${sfx_mode:02X}
+        sta voice_loop_start
+
+song_flat_seqcopy:
+        ; idx = X*6 + 5; copy 6 bytes seq_table[idx..idx-5] → seqloclo[5..0]
+        stx song_tmp
+        txa
+        asl
+        clc
+        adc song_tmp
+        asl
+        adc #5
+        tax
+        ldy #5
+song_seqcp:
+        lda ${seqtab:04X},x
+        sta seqloclo,y
+        dex
+        dey
+        bpl song_seqcp
+
+        ; Hawkeye init writes (same as the verbatim SMC path).
+        jsr ok2
+        jsr silence_all
+        lda #$FF
+        sta $d418
+        lda #$00
+        sta $d417
+        rts
+"""
+    else:
+        song_body = f"""
 ; --- song init ($LOAD entry; A = subtune number) ---
 ; SMC-template-with-SFX layout (Hawkeye family). Dispatches between
 ; music subtunes (A < {music_count}) and SFX subtunes (A >= {music_count}).
@@ -619,7 +686,11 @@ song_seqcp:
         lda #$00
         sta $d417
         rts
+"""
 
+    # Shared tail (songout / silence_all / ok2 / state) — same for both
+    # the verbatim SMC path and the USF-derived flat path.
+    return song_body + f"""
 songout:
         ; Hawkeye songout at orig $7BFC-$7C0C: silence only the three
         ; voice control regs ($D404/$D40B/$D412), set testbyte = $02.
@@ -674,6 +745,7 @@ ok2_pv:
 ; SFX subs share mode_addr[music_count]. Single byte of state — only
 ; allocated for SMC layout (flat layout uses hardcoded `ldx #2`).
 voice_loop_start: .dsb 1, 2
+song_tmp: .dsb 1, 0
 """
 
 
@@ -2992,7 +3064,7 @@ def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
     # right after the entry jumps. Preserve HVSC's bytes in that range
     # via verbatim emission, place engine code AFTER it.
     preserve_end = 0     # 0 = no preservation (flat layout default)
-    if cfg.subtune_layout == 'smc_template_with_sfx':
+    if cfg.subtune_layout == 'smc_template_with_sfx' and not cfg.emit_data_from_usf:
         # Find max SMC template lo byte to compute the upper preservation
         # bound. Each music subtune's template is 6 bytes at
         # (template_base_hi << 8) | smc_lo[N], so the last byte of the
@@ -3000,6 +3072,9 @@ def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
         # IMPORTANT: read SMC bytes from the UNSHIFTED location in mem
         # (cfg.per_subtune_smc_addr is now shifted but mem still holds
         # HVSC's bytes at the original address).
+        # When emit_data_from_usf, song_init uses a flat seq_table and
+        # never reads the SMC templates, so no preservation is needed —
+        # the engine code can use that space.
         smc_src_addr = cfg.per_subtune_smc_addr - shift
         smc_los = [mem[smc_src_addr + n]
                    for n in range(cfg.music_subtune_count)]
@@ -3075,8 +3150,19 @@ def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
         lines.append(f'* = ${engine_code_start:04X}')
         lines.append('')
 
+    # song_init's flat (USF-derived) SMC path needs orig's per-subtune
+    # voice-loop mode bytes (music slot + the shared SFX slot). Read them
+    # from the UNSHIFTED mode table in the orig image.
+    if cfg.subtune_layout == 'smc_template_with_sfx':
+        # per_subtune_mode_addr ($7AFF) is NOT shifted (preserved region),
+        # so read it directly from the orig image.
+        mode_src = cfg.per_subtune_mode_addr
+        song_init_modes = (mem[mode_src], mem[mode_src + cfg.music_subtune_count])
+    else:
+        song_init_modes = (2, 0)
+
     lines += [
-        _emit_song_init_routine(cfg),
+        _emit_song_init_routine(cfg, song_init_modes),
         '',
         _emit_playirq_dispatch(cfg),
         '',
