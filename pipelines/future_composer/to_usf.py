@@ -293,14 +293,15 @@ def _build_pattern_rows(fc_pat: FCPattern) -> tuple[list[NoteRow], int]:
 # Voices
 # ---------------------------------------------------------------------------
 
-def _voice_to_usf(voice_id: int, seq_addr: int,
-                  song: FCSong) -> VoiceBlock:
+def _voice_to_usf(voice_id: int, seq, patterns: dict) -> VoiceBlock:
     """Walk one voice's sequence stream → orderlist + USF patterns.
 
-    Each unique (fc_pattern_id, transpose, voiceinc) tuple becomes a
-    distinct USF pattern, keyed sequentially as 0, 1, 2 ...
+    `seq` is this voice's decoded `Sequence` and `patterns` is its
+    subtune's `fc_id -> Pattern` map (both resolved in the subtune's own
+    memory context — see `Subtune.seqs`/`patterns`). Each referenced
+    pattern becomes a USF pattern, keyed sequentially as 0, 1, 2 ...
+    transpose/voiceinc ride the orderlist; repeats stay run-length-coded.
     """
-    seq = next((s for s in song.sequences if s.start_addr == seq_addr), None)
     if seq is None:
         # No matching sequence: empty voice with stop terminator.
         return VoiceBlock(
@@ -353,10 +354,10 @@ def _voice_to_usf(voice_id: int, seq_addr: int,
     usf_patterns: list[Pattern] = []
     for usf_id in sorted(pattern_specs):
         fc_id = pattern_specs[usf_id]
-        if fc_id not in song.patterns:
+        if fc_id not in patterns:
             usf_patterns.append(Pattern(id=usf_id, length=1, rows=[]))
             continue
-        rows, length = _build_pattern_rows(song.patterns[fc_id])
+        rows, length = _build_pattern_rows(patterns[fc_id])
         usf_patterns.append(Pattern(id=usf_id, length=length, rows=rows))
 
     # Omit each modifier list when it carries no information.
@@ -380,10 +381,22 @@ def _voice_to_usf(voice_id: int, seq_addr: int,
 # ---------------------------------------------------------------------------
 
 def _subtune_to_usf(sub: FCSubtune, song: FCSong) -> MusicSubtune:
+    # Per-subtune sequences + patterns (resolved in this subtune's memory
+    # context at extract time). Fall back to SID-global lookup-by-addr for
+    # any older path that didn't populate sub.seqs.
+    pats = sub.patterns if sub.patterns is not None else song.patterns
+    if sub.seqs:
+        seqs = sub.seqs
+    else:
+        def _find(addr):
+            return next((s for s in song.sequences
+                         if s.start_addr == addr), None)
+        seqs = (_find(sub.seq_v0_addr), _find(sub.seq_v1_addr),
+                _find(sub.seq_v2_addr))
     voices = [
-        _voice_to_usf(1, sub.seq_v0_addr, song),
-        _voice_to_usf(2, sub.seq_v1_addr, song),
-        _voice_to_usf(3, sub.seq_v2_addr, song),
+        _voice_to_usf(1, seqs[0], pats),
+        _voice_to_usf(2, seqs[1], pats),
+        _voice_to_usf(3, seqs[2], pats),
     ]
     return MusicSubtune(
         id=sub.id + 1,                  # USF subtunes are 1-based

@@ -124,15 +124,14 @@ bytes still parse. DONE + Cyb II re-verified 2/2, Hawkeye verbatim 12/12.
 **Remaining for Hawkeye 12/12 (the elegant path, given the blocker is gone):**
 The COMPOSER is now uniform — one global pool (≤128), dumb song_init, flat
 seq_table. So Hawkeye just needs its real data fed through. Steps:
-1. EXTRACTION (the main remaining work): SFX subtunes need POST-INIT memory
-   (static $8FC5 is empty; populated at init from the record) — run
-   `_run_init_in_py65` per SFX subtune, decode sequences with the corrected
-   ranges, extract the SFX patterns (slots 54-63 from $8475 post-init). The
-   FCSong `patterns` dict (single global, keyed by fc-id) can't hold
-   per-subtune slot-54-63 patterns (fc-id 54 differs per SFX subtune) →
-   resolve patterns PER-SUBTUNE so each SFX subtune's voices carry their own
-   real patterns. Then the global content-dedup pool in build_pattern_pool
-   merges/separates them naturally (98 unique ≤128 ✓).
+1. EXTRACTION (DONE): `Subtune` now carries per-subtune `seqs` + `patterns`,
+   resolved in that subtune's memory context (`extract()` runs
+   `_run_init_in_py65` for SFX subtunes since static $8FC5 is empty; music
+   uses the static image). `to_usf._voice_to_usf(voice_id, seq, patterns)`
+   + `_subtune_to_usf` read the per-subtune data (not the SID-global dicts,
+   which collide for SFX). Result: Hawkeye SFX subtunes now carry REAL
+   sequences/patterns (was 256-byte garbage); global content-dedup pool = 99
+   (≤128 ✓); all 136 Hawkeye patterns round-trip; Cyb II still 2/2.
 2. song_init: unify Hawkeye to a flat seq_table for ALL 12 subtunes (drop
    the SMC template + SFX-page copies; CORE TENET lets us). seq_table holds
    12 records × 6 bytes (3 voice seq ptrs); speedbyte per subtune from USF

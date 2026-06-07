@@ -273,13 +273,24 @@ class Pattern:
 @dataclass
 class Subtune:
     """Per-subtune setup: which sequence each voice plays + the
-    tempo (speedbyte = frames per sequence step)."""
+    tempo (speedbyte = frames per sequence step).
+
+    `seqs` / `patterns` carry this subtune's sequences and the patterns
+    they reference, resolved in THIS subtune's memory context. They are
+    per-subtune because some engines (Hawkeye SFX) reuse the same
+    sequence/pattern addresses across subtunes with different content
+    (the SFX records reload $8FC5 + pattern slots 54-63 at init), so a
+    single SID-global addr/id-keyed dict would collide. Music subtunes
+    on a single-engine SID just resolve from the static image.
+    """
     id: int
     is_sfx: bool
     speedbyte: int
     seq_v0_addr: int
     seq_v1_addr: int
     seq_v2_addr: int
+    seqs: tuple = ()                       # (Sequence, Sequence, Sequence)
+    patterns: dict | None = None          # fc_id -> Pattern (this subtune)
 
 
 @dataclass
@@ -582,34 +593,56 @@ def extract(cfg: FCConfig, root: str | None = None) -> FCSong:
     subtunes: list[Subtune] = []
     sequences: list[Sequence] = []
     seq_seen: set[int] = set()
-    pat_ids_total: set[int] = set()
     patterns: dict[int, Pattern] = {}
 
     for sub_idx in range(n_songs):
+        # Pick this subtune's memory context. SFX subtunes (smc layout)
+        # need POST-INIT memory: their sequences/patterns live in runtime
+        # areas ($8FC5, pattern slots 54-63) that the static image leaves
+        # empty until init copies the per-SFX record in. Music subtunes on
+        # a single-engine SID resolve from the static image.
+        sfx_needs_init = (
+            cfg.engines is None
+            and cfg.subtune_layout == 'smc_template_with_sfx'
+            and sub_idx >= cfg.music_subtune_count)
         if cfg.engines is None:
-            # Single-engine: reuse mem_global (raw binary). engine=None
-            # → resolve_address falls back to top-level FCConfig fields.
-            mem = mem_global
+            mem = _run_init_in_py65(sid_path, subtune=sub_idx) \
+                if sfx_needs_init else mem_global
             engine = None
         else:
             mem = _run_init_in_py65(sid_path, subtune=sub_idx)
             engine = instance_for_subtune(cfg, sub_idx)
 
         st = _decode_subtune(mem, cfg, sub_idx, engine)
-        subtunes.append(st)
-        for addr in (st.seq_v0_addr, st.seq_v1_addr, st.seq_v2_addr):
-            if addr in seq_seen:
-                continue
-            seq_seen.add(addr)
-            seq = _decode_sequence(mem, addr)
-            sequences.append(seq)
-            pat_ids_total.update(seq.pattern_ids_used)
 
-    for pat_id in sorted(pat_ids_total):
-        if pat_id >= len(pattern_ptr_table):
-            continue
-        addr = pattern_ptr_table[pat_id]
-        patterns[pat_id] = _decode_pattern(mem_global, pat_id, addr)
+        # Resolve this subtune's 3 voice sequences + the patterns they
+        # reference, IN this subtune's memory context (so SFX pattern slots
+        # 54-63 read the post-init record, not the empty static image).
+        pat_ptr_base = resolve_address(cfg, engine, 'pattern_ptr_addr')
+        sub_seqs: list[Sequence] = []
+        sub_pat_ids: set[int] = set()
+        for addr in (st.seq_v0_addr, st.seq_v1_addr, st.seq_v2_addr):
+            seq = _decode_sequence(mem, addr)
+            sub_seqs.append(seq)
+            sub_pat_ids.update(seq.pattern_ids_used)
+        sub_patterns: dict[int, Pattern] = {}
+        for pid in sorted(sub_pat_ids):
+            paddr = (mem[pat_ptr_base + pid * 2]
+                     | (mem[pat_ptr_base + pid * 2 + 1] << 8))
+            sub_patterns[pid] = _decode_pattern(mem, pid, paddr)
+        st.seqs = tuple(sub_seqs)
+        st.patterns = sub_patterns
+        subtunes.append(st)
+
+        # Legacy SID-global views (print_song / pattern_stream_verify).
+        # First-seen wins; SFX collisions are expected and harmless here
+        # because to_usf reads the per-subtune seqs/patterns, not these.
+        for seq in sub_seqs:
+            if seq.start_addr not in seq_seen:
+                seq_seen.add(seq.start_addr)
+                sequences.append(seq)
+        for pid, pat in sub_patterns.items():
+            patterns.setdefault(pid, pat)
 
     return FCSong(
         cfg=cfg, load_addr=load_addr, init_addr=init_addr,
