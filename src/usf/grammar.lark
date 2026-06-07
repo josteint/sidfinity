@@ -3,7 +3,7 @@
 // Lark grammar (LALR friendly). Whitespace and comments are ignored
 // between tokens. Top-level order is enforced by the start rule.
 
-start: psid_block params_block init_block freq_table_block? state_layout_block? song_end_block? init_behavior_block? master_vol_block? sfx_block? arp_programs_block? pulse_programs_block? filter_programs_block? instrument_block* subtune_block*
+start: psid_block params_block init_block freq_table_block? state_layout_block? song_end_block? init_behavior_block? master_vol_block? sfx_block? arp_programs_block? pulse_programs_block? filter_programs_block? drum_programs_block? instrument_block* subtune_block*
 
 // ----- arp programs (FC arpeggio library) -----
 // `prog N: [o0, o1, ...]` — N is the arp index selected by a pattern $7x
@@ -26,6 +26,13 @@ pp_flip: "flip"
 filter_programs_block: "filter_programs" "{" filter_program* "}"
 filter_program: "prog" INT ":" "init" "=" number "d418" "=" number "final" "=" number "end" "=" number fp_seg fp_seg fp_seg
 fp_seg: "seg" number number
+
+// ----- drum programs (FC percussion library) -----
+// `drum N: wave=[..] tone=[..]` — parallel per-step waveform ($D404) and
+// pitch-offset lists. Program length = len(wave)+1 (leading byte derived).
+drum_programs_block: "drum_programs" "{" drum_program* "}"
+drum_program: "drum" INT ":" "wave" dnum_list "tone" dnum_list
+dnum_list: "=" "[" (number ("," number)*)? "]"
 
 // ----- psid -----
 psid_block: "psid" "{" psid_field+ "}"

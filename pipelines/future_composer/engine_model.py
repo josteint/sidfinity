@@ -312,6 +312,7 @@ class FCSong:
     arp_programs: dict = field(default_factory=dict)  # N -> signed offsets
     pulse_programs: dict = field(default_factory=dict)  # N -> sweep shape
     filter_programs: dict = field(default_factory=dict)  # N -> cutoff env
+    drum_programs: dict = field(default_factory=dict)  # N -> wave/tone steps
 
 
 # ---------------------------------------------------------------------------
@@ -513,6 +514,35 @@ def _decode_filter_programs(mem: bytes, cfg: FCConfig,
         segs = [(fb[6], fb[1]), (fb[7], fb[2]), (fb[8], fb[3])]
         progs[n] = {'init': fb[0], 'd418': fb[5], 'final': fb[4],
                     'end': fb[9], 'segs': segs}
+    return progs
+
+
+def _decode_drum_programs(mem: bytes, cfg: FCConfig,
+                          engine: EngineInstance | None = None) -> dict:
+    """Decode the FC drum library (drumtabel) into {N: {wave, tone}}.
+
+    drumtabel is 4 bytes/drum: a `dwa` pointer (waveform program
+    [length, w1..w_{L-1}]) and a `dto` pointer (tone program [t0..t_{L-2}]).
+    Each frame plays (dwa[k+1], dto[k]); we store the wave/tone steps as two
+    parallel lists (length L-1; the leading length byte = len+1 is derived).
+    Program count = where the pointer table ends = (first dwa ptr - base)/4;
+    extract ALL drums (SFX may reference drums no music instrument does).
+    """
+    base = resolve_address(cfg, engine, 'drumtabel_addr')
+    if not base:
+        return {}
+    first_dwa = mem[base] | (mem[base + 1] << 8)
+    count = (first_dwa - base) // 4
+    if not (1 <= count <= 16):
+        return {}
+    progs: dict[int, dict] = {}
+    for d in range(count):
+        dwa = mem[base + d * 4] | (mem[base + d * 4 + 1] << 8)
+        dto = mem[base + d * 4 + 2] | (mem[base + d * 4 + 3] << 8)
+        L = mem[dwa]
+        wave = [mem[dwa + 1 + j] for j in range(L - 1)]
+        tone = [mem[dto + j] for j in range(L - 1)]
+        progs[d] = {'wave': wave, 'tone': tone}
     return progs
 
 
@@ -747,6 +777,8 @@ def extract(cfg: FCConfig, root: str | None = None) -> FCSong:
             mem_global, cfg, instruments, engine_for_shared),
         filter_programs=_decode_filter_programs(
             mem_global, cfg, instruments, engine_for_shared),
+        drum_programs=_decode_drum_programs(
+            mem_global, cfg, engine_for_shared),
     )
 
 

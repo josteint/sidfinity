@@ -766,3 +766,10 @@ class UsfFile:
     # `final` past `end`, and routes filter via `d418` ($D418). Empty dict
     # when no filter programs are used.
     filter_programs: dict[int, dict] = field(default_factory=dict)
+    # FC drum (percussion) program library (v0). Maps drum index N (an
+    # instrument's fx1 & $0F when its drum flag is set) to two parallel
+    # per-step lists: {'wave': [...], 'tone': [...]}. Each frame the drum
+    # plays wave[k] into the $D404 waveform and tone[k] as a pitch offset;
+    # the program length is len(wave)+1 (the engine's leading length byte is
+    # derived). Empty dict when no drum programs are used.
+    drum_programs: dict[int, dict] = field(default_factory=dict)

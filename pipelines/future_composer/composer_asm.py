@@ -3102,6 +3102,25 @@ def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
         raw_sections.append(('filterbytes', cfg.filterbytes_addr, fprog_addr))
         raw_sections.append(('filt_progs', fprog_addr, cur))
 
+    # drumtabel: 4-byte-per-drum pointer table (dwa waveform prog + dto tone
+    # prog) -> the programs, from usf.drum_programs (was verbatim).
+    drum_layout = {}
+    if (cfg.emit_data_from_usf and cfg.drumtabel_addr and usf.drum_programs):
+        drum_count = max(usf.drum_programs) + 1
+        dprog_addr = cfg.drumtabel_addr + drum_count * 4
+        cur = dprog_addr
+        for d in range(drum_count):
+            p = usf.drum_programs.get(d)
+            if p is None:
+                continue
+            dwa_a = cur
+            cur += 1 + len(p['wave'])      # length byte + waveform bytes
+            dto_a = cur
+            cur += len(p['tone'])
+            drum_layout[d] = (dwa_a, dto_a)
+        raw_sections.append(('drumtabel', cfg.drumtabel_addr, dprog_addr))
+        raw_sections.append(('drum_progs', dprog_addr, cur))
+
     def _emit_lo(limit):
         return _emit_byte_list('lonote',
             [usf.freq_table[i*2] for i in range(limit)])
@@ -3160,6 +3179,24 @@ def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
             out.append('        .byt ' + ','.join(f'${b & 0xFF:02X}' for b in fb)
                        + f'  ; filter {n}')
         return '\n'.join(out)
+    def _emit_drumtabel(_n):
+        drum_count = max(usf.drum_programs) + 1
+        vals = []
+        for d in range(drum_count):
+            dwa_a, dto_a = drum_layout.get(d, (0, 0))
+            vals += [dwa_a & 0xFF, (dwa_a >> 8) & 0xFF,
+                     dto_a & 0xFF, (dto_a >> 8) & 0xFF]
+        return _emit_labelless('drumtabel (USF-derived drum ptr table)', vals)
+    def _emit_drum_progs(_n):
+        out = ['; drum programs (USF-derived: dwa [len,wave..] + dto [tone..])']
+        for d in sorted(drum_layout):
+            p = usf.drum_programs[d]
+            dwa = [len(p['wave']) + 1] + list(p['wave'])
+            out.append('        .byt ' + ','.join(f'${b & 0xFF:02X}' for b in dwa)
+                       + f'  ; drum {d} wave')
+            out.append('        .byt ' + ','.join(f'${b & 0xFF:02X}' for b in p['tone'])
+                       + f'  ; drum {d} tone')
+        return '\n'.join(out)
     section_emitters = {
         'freq_lo':  _emit_lo,
         'freq_hi':  _emit_hi,
@@ -3172,6 +3209,8 @@ def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
         'pulsetabel': _emit_pulsetabel,
         'filterbytes': _emit_filterbytes,
         'filt_progs': _emit_filt_progs,
+        'drumtabel': _emit_drumtabel,
+        'drum_progs': _emit_drum_progs,
     }
     raw_sections.sort(key=lambda s: s[1])
     sections = []

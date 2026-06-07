@@ -214,6 +214,22 @@ value as a counter crosses that segment's threshold (`seg T A`), and snaps to
 volume + filter routing). Exactly three segments. The composer lays the
 10-byte programs out and computes the `filterbytes` pointer table itself.
 
+## `drum_programs { ... }` (FC percussion library)
+
+```
+drum_programs {
+  drum 0: wave=[129, 65, 64, 64, ...] tone=[52, 10, 8, 6, ...]
+}
+```
+
+Optional. Each `drum N` (an instrument's `fx1 & $0F` when its drum flag is
+set) is a short percussion program played one step per frame: `wave[k]` is
+written to the `$D404` waveform control and `tone[k]` is the pitch offset.
+The two lists are parallel (same length). The composer emits the engine's
+`dwa` waveform program (a leading length byte = `len(wave)+1`, then the wave
+bytes) and `dto` tone program, and computes the `drumtabel` pointer table
+(4 bytes/drum) itself.
+
 ## `instrument N name { ... }`
 
 ```

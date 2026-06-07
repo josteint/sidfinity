@@ -225,8 +225,19 @@ table into musical USF fields with schema discipline). IN PROGRESS.
   filterbytes_addr)/2), NOT just instrument-referenced — SFX subtunes (6-11)
   reference a program no music instrument uses; refs-only gave Hawkeye 6/12
   (SFX read garbage $FF), full-table extract → 12/12. Cyb II 2/2.
-- **Remaining: drumtabel, wavearp/pulsearp.**
-  CONFIRMED per-SID effect-PROGRAM data, NOT engine constants:
+- **drumtabel (percussion programs) — DONE.** New top-level USF block
+  `drum_programs { drum N: wave=[..] tone=[..] }` (parallel per-step lists).
+  drumtabel = 4 bytes/drum: dwa ptr (waveform prog [len, w1..]) + dto ptr
+  (tone prog [t0..]). fx_drum plays (dwa[counter2], dto[counter2-1]) per
+  frame → $D404 waveform + pitch offset. Stored as wave/tone steps (len-1
+  each; leading length byte = len+1 derived). Extract ALL drums (count =
+  (first_dwa - base)/4) — SFX reference drums no music inst does (Hawkeye
+  has 7, music uses 0/1/3). Compose lays dwa+dto out + computes drumtabel
+  ptrs. Cyb II 2/2, Hawkeye 12/12.
+- **Remaining: wavearp/pulsearp (small Hawkeye tables), then the final
+  `orig = f.read()` removal (§9).** Also check startlen/starttabel +
+  any other bytes still in the verbatim gap-fill.
+  (older note) CONFIRMED per-SID effect-PROGRAM data, NOT engine constants:
   arp/pulse/filter program bytes DIFFER between Cyb II and Hawkeye (only a
   shared default prefix matches). So each needs real work: RE the program
   format → design a musical USF representation (schema-addition discipline;

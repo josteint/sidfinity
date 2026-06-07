@@ -283,6 +283,18 @@ def _write_filter_programs(progs: dict) -> list[str]:
     return lines
 
 
+def _write_drum_programs(progs: dict) -> list[str]:
+    """Emit `drum_programs { drum N: wave=[..] tone=[..] }`."""
+    lines = ['drum_programs {']
+    for n in sorted(progs):
+        p = progs[n]
+        w = ', '.join(str(x) for x in p['wave'])
+        t = ', '.join(str(x) for x in p['tone'])
+        lines.append(f'  drum {n}: wave=[{w}] tone=[{t}]')
+    lines.append('}')
+    return lines
+
+
 def _write_instrument(i: Instrument) -> list[str]:
     head = f'instrument {i.id}'
     if i.name:
@@ -556,6 +568,9 @@ def write(usf: UsfFile) -> str:
     if usf.filter_programs:
         lines.append('')
         lines.extend(_write_filter_programs(usf.filter_programs))
+    if usf.drum_programs:
+        lines.append('')
+        lines.extend(_write_drum_programs(usf.drum_programs))
     for inst in sorted(usf.instruments, key=lambda x: x.id):
         lines.append('')
         lines.extend(_write_instrument(inst))

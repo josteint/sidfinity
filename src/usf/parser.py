@@ -850,6 +850,15 @@ class _T(Transformer):
     def filter_programs_block(self, items):
         return ('filter_programs', {n: prog for n, prog in items})
 
+    def dnum_list(self, items):
+        return [int(x) for x in items]
+
+    def drum_program(self, items):
+        return (int(items[0]), {'wave': items[1], 'tone': items[2]})
+
+    def drum_programs_block(self, items):
+        return ('drum_programs', {n: prog for n, prog in items})
+
     def state_layout_block(self, items):
         # items is a list of tuples ('n_voices', N) | ('scalar', dict)
         # | ('per_voice', dict). Reassemble into a StatebufLayout-shaped
@@ -894,6 +903,7 @@ class _T(Transformer):
         arp_programs = {}
         pulse_programs = {}
         filter_programs = {}
+        drum_programs = {}
         for it in items:
             if isinstance(it, tuple):
                 k, v = it
@@ -915,6 +925,8 @@ class _T(Transformer):
                     pulse_programs = v
                 elif k == 'filter_programs':
                     filter_programs = v
+                elif k == 'drum_programs':
+                    drum_programs = v
             elif isinstance(it, PsidMeta):
                 psid = it
             elif isinstance(it, Params):
@@ -931,7 +943,8 @@ class _T(Transformer):
             freq_table=freq_table, state_layout=state_layout,
             song_end=song_end, init_behavior=init_behavior,
             master_vol=master_vol, sfx=sfx, arp_programs=arp_programs,
-            pulse_programs=pulse_programs, filter_programs=filter_programs)
+            pulse_programs=pulse_programs, filter_programs=filter_programs,
+            drum_programs=drum_programs)
 
 
 # ---------------------------------------------------------------------------
