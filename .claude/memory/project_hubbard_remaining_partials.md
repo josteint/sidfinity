@@ -7,6 +7,12 @@ metadata:
   originSessionId: 34baf59d-942f-49ab-b1d7-123e07963888
 ---
 
+## CIA-aware verdict — full implementation plan in `docs/cia_aware_verdict_plan.md`
+A complete, self-contained plan for option (a) (reliable per-play verdict) is in
+`docs/cia_aware_verdict_plan.md`: root cause of the `--writelog-per-irq`
+cycle-origin bug, the exact fix + plumbing, the pc-trace validation oracle, the
+verify.py integration, the test matrix, and the session's pitfalls. Start there.
+
 ## CIA-aware verdict — ATTEMPTED, hit a tooling obstacle (2026-06-07)
 Tried to make `verify_all` verify CIA tunes per-`play()` so HR/Battle pass.
 Reverted; the lightweight per-`play()` segmentation tools are not reliable enough:
