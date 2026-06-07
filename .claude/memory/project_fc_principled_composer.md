@@ -140,7 +140,33 @@ seq_table. So Hawkeye just needs its real data fed through. Steps:
    orig mode table, build_music_data already gets all 12 subtunes.
 3. Set Hawkeye `emit_data_from_usf=True`; verify 12/12. **BLOCKED — see below.**
 
-### Hawkeye composer BLOCKER (2026-06-07): py65 plays, libsidplayfp silent
+### Hawkeye composer: SILENCE BLOCKER SOLVED (banking) — now 7/12
+**Root cause (FIXED, commit 9a67de3):** Hawkeye's emit_data music_data +
+state live in $A000-$BFFF, but Hawkeye's CODE is below $A000, so libsidplayfp
+keeps BASIC ROM mapped at $A000-$BFFF by default — the engine read ROM
+instead of its data (py65 has flat RAM → played; libsidplayfp = ground
+truth → silent). [[feedback_c64_banking_relocation]]. Found via lock-step
+py65-vs-libsidplayfp PC diff + memwatch(RAM)≠CPU-read mismatch.
+FIX: `playirq` sets `$01=$36` (BASIC out → RAM at $A000-$BFFF; KERNAL + I/O
+in) EVERY frame (the PSID driver resets $01 before each play, so song-init
+alone doesn't hold). Gated on `emit_data_from_usf` via the `bank_ram`
+substitution — verbatim engines keep data below $A000 and setting $01 there
+BREAKS them (broke verbatim Hawkeye until gated). Result: Hawkeye emit_data
+0/12 → **7/12** (subs 2,3,4,7,8,10,11 byte-exact). Cyb II 2/2, Hawkeye
+verbatim 12/12.
+
+**Remaining: 5 subtunes (0,1,5,6,9) — ordinary per-content writelog
+divergences, SHIFT-INDEPENDENT** (shift=0 gives identical 7/12 + same match
+counts, so NOT the aux-table-shift bug). sub 0 diverges frame 4 at V2 with
+PW ($D409/$D40A) + ctrl ($41 vs $40) + freq differences (pulse-program /
+effect / pattern issue, not data placement). Each needs the writelog-
+divergence recipe (find_first_divergence → disasm orig effect → diff emitter).
+match counts: sub0=131, sub1=2088, sub5=166, sub6=2507, sub9=22422.
+Hawkeye config still on verbatim path (emit_data NOT enabled) until these 5
+are fixed. The Cyb II+shift filter bug remains separately latent (only bites
+if shift is used with emit_data; Hawkeye doesn't need shift — builds at 0).
+
+### (historical) Hawkeye composer BLOCKER: py65 plays, libsidplayfp silent
 With `emit_data_from_usf=True` (via dc.replace; NOT yet set in config),
 Hawkeye builds fine and **py65 plays it CORRECTLY** (frame 1: V3=$02CC,
 V2=$1A9C — matches orig). But **siddump/libsidplayfp (GROUND TRUTH) plays it
