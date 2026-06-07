@@ -5,6 +5,16 @@
 > `pipelines/hubbard/`. See [pipelines/README.md](../README.md) and
 > [`deprecated/lean_codegen/`](../../deprecated/lean_codegen/) for context.
 
+> **Status (2026-06-07): BYTE-EXACT via the write-log verdict (verify_all
+> 1/1).** The last divergence was the master volume: the engine writes
+> `$D418 = $0F` on EVERY note-load (per voice that advances a pattern entry,
+> from `$13B7` inline in the pattern-advance path, clamp NOP'd so the value is
+> constant). Fixed with the `master_vol_every_note` config/USF knob. NOTE: the
+> "Diagnosis"/"TODO" sections below describe the OLD snapshot-grade (Trap A,
+> per-frame register snapshot) and its cycle-pad — that grading was retired;
+> the verdict is now the SID write-log stream and the cycle-pad is irrelevant
+> to it. Treat those sections as historical.
+
 End-to-end rebuild of Rob Hubbard's *Devils Galop* (1985) SID. Same shape
 as the Commando / Monty / Action Biker pipelines; cloned from Monty via
 `tools/clone_hubbard_pipeline.py` and pending Devils-Galop-specific

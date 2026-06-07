@@ -1,6 +1,6 @@
 ---
 name: project_hubbard_remaining_partials
-description: "RESOLVED 2026-06-07: the CIA-aware per-play() verdict is implemented; Human_Race 5/5 + Battle_of_Britain 1/1 now PASS. verify_all routes CIA subtunes (PSID speed!=0) through siddump --writelog-per-irq (cycle-base-corrected splitter, frame-0 init drop) and compares play-for-play. Hubbard regression: 70 ok + 1 regressed (Devils_Galop, a genuine dropped-V3-freq-write bug — vblank, separate, still open). Earlier 'CIA-dispatch' and 'PWM-seed' engine theories were both wrong (buggy trace parsing); the engine was always correct."
+description: "FULLY RESOLVED 2026-06-07: the entire Hubbard family is byte-exact (regression 71/71 ok, 0 partial, 0 regressed). Two fixes this day: (1) CIA-aware per-play() verdict (Human_Race 5/5 + Battle 1/1 — verify_all routes PSID speed!=0 subtunes through siddump --writelog-per-irq, cycle-base-corrected, frame-0 init drop); (2) Devils_Galop master_vol_every_note knob (1/1). Devils was NOT a 'dropped V3 freq write' (that came from the unreliable per-irq tooling) — the engine writes $D418=$0F on every note-load and the rebuild only wrote it at init."
 metadata: 
   node_type: memory
   type: project
@@ -122,11 +122,25 @@ dedicated seed); (2) check whether the composer's bounded PWM writes at the
 bound when it shouldn't. Verify with the per-`play()` pc-trace comparison above
 (target: rebuild PW-per-play == orig `[4,0,0,...]`).
 
-## Devils_Galop (1) — dropped V3 frequency write (DIFFERENT bug)
-- Devils is **vblank** (speed=0), so NOT the CIA issue. Per-IRQ sub0 chunk 5:
-  orig `V3flo=4e V3fhi=03 V3fhi=0d V3flo=09` (a glide/double-step on V3), the
-  rebuild writes only `V3flo=4e V3fhi=03` — it drops the second V3 freq update.
-  A glide/effect-emit divergence on V3. Separate investigation.
+## Devils_Galop (1) — RESOLVED: master-vol written on every note-load
+NOT a dropped V3 freq write (that was the unreliable per-irq tooling lying —
+same lesson as Human_Race). Ground-truth `find_first_divergence` showed at flat
+pos 572 the orig writes `$D418=$0F` (master vol) that the rebuild omits; the
+rebuild's V3 note-load then matches orig byte-for-byte, just shifted by one.
+ROOT: the engine writes `$D418=$0F` on EVERY note-load — once per voice that
+advances a pattern entry — from `$13B7`, inline in the pattern-advance path
+(`L_138B`), with the clamp NOP'd at runtime so the value is constant $0F. The
+rebuild only wrote $D418 at init.
+FIX: new knob `master_vol_every_note` (EngineConfig + USF init_behavior),
+mirroring `master_vol_every_frame` but per-note. Fills the codec's existing
+`; %%MASTER_VOL_EVERY_NOTE%%` sentinel with a fixed `lda #$0F; sta $d418`,
+resolved in `_resolve_codec_note_asm` BEFORE the fade pass (else the fade's
+empty-replacement clobbers it). The progressive-fade path can't model it (its
+vol_progress would drop volume; Devils stays $0F). devils_galop config sets
+`master_vol_every_note=0x0F`. Also added both every_frame/every_note to
+`_PARAMS_SKIP_CONFIG` (they belong in init_behavior, not params — the params
+copy was a dead duplicate, an oversight from when every_frame was added).
+Result: Devils 1/1, Hubbard 71/71.
 
 ## Tooling note
 `tools/find_first_divergence.py` had a duration-parse bug (crashed on
