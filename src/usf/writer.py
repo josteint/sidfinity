@@ -254,6 +254,21 @@ def _write_arp_programs(progs: dict) -> list[str]:
     return lines
 
 
+def _write_pulse_programs(progs: dict) -> list[str]:
+    """Emit `pulse_programs { prog N: lo=.. hi=.. [wrap] seg T S [flip] }`."""
+    lines = ['pulse_programs {']
+    for n in sorted(progs):
+        p = progs[n]
+        parts = [f'lo={p["lo"]}', f'hi={p["hi"]}']
+        if p.get('wrap'):
+            parts.append('wrap')
+        for thr, step, flip in p['segs']:
+            parts.append(f'seg {thr} {step}' + (' flip' if flip else ''))
+        lines.append(f'  prog {n}: ' + ' '.join(parts))
+    lines.append('}')
+    return lines
+
+
 def _write_instrument(i: Instrument) -> list[str]:
     head = f'instrument {i.id}'
     if i.name:
@@ -521,6 +536,9 @@ def write(usf: UsfFile) -> str:
     if usf.arp_programs:
         lines.append('')
         lines.extend(_write_arp_programs(usf.arp_programs))
+    if usf.pulse_programs:
+        lines.append('')
+        lines.extend(_write_pulse_programs(usf.pulse_programs))
     for inst in sorted(usf.instruments, key=lambda x: x.id):
         lines.append('')
         lines.extend(_write_instrument(inst))

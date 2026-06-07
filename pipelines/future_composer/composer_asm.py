@@ -3079,6 +3079,14 @@ def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
         raw_sections.append(('arphi', cfg.arphi_addr, cfg.arphi_addr + arp_count))
         raw_sections.append(('arp_progs', prog_addr, cur))
 
+    # pulsetabel: pulse-sweep programs, 8 bytes each at (N-1)*8 — from
+    # usf.pulse_programs (was verbatim). Emit slots 1..max(N); missing
+    # (unreferenced) slots get 8 zero bytes (never read).
+    pulse_kmax = max(usf.pulse_programs, default=0) if cfg.emit_data_from_usf else 0
+    if pulse_kmax and cfg.pulsetabel_addr:
+        raw_sections.append(('pulsetabel', cfg.pulsetabel_addr,
+                             cfg.pulsetabel_addr + pulse_kmax * 8))
+
     def _emit_lo(limit):
         return _emit_byte_list('lonote',
             [usf.freq_table[i*2] for i in range(limit)])
@@ -3106,6 +3114,20 @@ def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
             out.append('        .byt ' + ','.join(f'${b:02X}' for b in row)
                        + f'  ; arp {n}')
         return '\n'.join(out)
+    def _emit_pulsetabel(_n):
+        out = ['; pulsetabel (USF-derived pulse-sweep programs)']
+        for n in range(1, pulse_kmax + 1):
+            p = usf.pulse_programs.get(n)
+            if p is None:
+                row = [0] * 8
+            else:
+                s = p['segs']
+                row = [((0x80 if p['wrap'] else 0) | (p['lo'] & 0x0F)), p['hi']]
+                for thr, step, flip in s:
+                    row += [((0x80 if flip else 0) | (thr & 0x7F)), step & 0xFF]
+            out.append('        .byt ' + ','.join(f'${b & 0xFF:02X}' for b in row)
+                       + f'  ; pulse {n}')
+        return '\n'.join(out)
     section_emitters = {
         'freq_lo':  _emit_lo,
         'freq_hi':  _emit_hi,
@@ -3115,6 +3137,7 @@ def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
         'arplo': _emit_arplo,
         'arphi': _emit_arphi,
         'arp_progs': _emit_arp_progs,
+        'pulsetabel': _emit_pulsetabel,
     }
     raw_sections.sort(key=lambda s: s[1])
     sections = []

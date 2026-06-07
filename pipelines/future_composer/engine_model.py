@@ -310,6 +310,7 @@ class FCSong:
     sequences: list[Sequence]
     subtunes: list[Subtune]
     arp_programs: dict = field(default_factory=dict)  # N -> signed offsets
+    pulse_programs: dict = field(default_factory=dict)  # N -> sweep shape
 
 
 # ---------------------------------------------------------------------------
@@ -451,6 +452,33 @@ def _decode_arp_programs(mem: bytes, cfg: FCConfig,
         offs = [mem[ptr + 1 + j] for j in range(count + 1)]
         # store signed (0xE9 -> -23): downward arps read naturally
         progs[n] = tuple(o - 256 if o >= 128 else o for o in offs)
+    return progs
+
+
+def _decode_pulse_programs(mem: bytes, cfg: FCConfig,
+                           instruments: list,
+                           engine: EngineInstance | None = None) -> dict:
+    """Decode the FC pulse-sweep library (pulsetabel) into {N: shape}.
+
+    Program N (an instrument's fx2 & $07, 1-based) lives at offset (N-1)*8:
+      [0] lo bound (low nibble) + wrap (bit7); [1] hi bound;
+      [2,4,6] segment thresholds (bit7 = direction flip); [3,5,7] steps.
+    We store only the programs actually referenced by an instrument — unused
+    slots are dead data, not musical content.
+    """
+    base = resolve_address(cfg, engine, 'pulsetabel_addr')
+    if not base:
+        return {}
+    kmax = max((i.fx2 & 0x07) for i in instruments) if instruments else 0
+    progs: dict[int, dict] = {}
+    for n in range(1, kmax + 1):
+        off = base + (n - 1) * 8
+        b = [mem[off + j] for j in range(8)]
+        segs = [(b[2] & 0x7F, b[3], bool(b[2] & 0x80)),
+                (b[4] & 0x7F, b[5], bool(b[4] & 0x80)),
+                (b[6] & 0x7F, b[7], bool(b[6] & 0x80))]
+        progs[n] = {'lo': b[0] & 0x0F, 'hi': b[1],
+                    'wrap': bool(b[0] & 0x80), 'segs': segs}
     return progs
 
 
@@ -681,6 +709,8 @@ def extract(cfg: FCConfig, root: str | None = None) -> FCSong:
         pattern_ptr_table=pattern_ptr_table,
         patterns=patterns, sequences=sequences, subtunes=subtunes,
         arp_programs=_decode_arp_programs(mem_global, cfg, engine_for_shared),
+        pulse_programs=_decode_pulse_programs(
+            mem_global, cfg, instruments, engine_for_shared),
     )
 
 

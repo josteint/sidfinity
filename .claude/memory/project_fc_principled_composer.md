@@ -208,7 +208,15 @@ table into musical USF fields with schema discipline). IN PROGRESS.
   name them). Extract `_decode_arp_programs` reads them signed. Schema across
   types/grammar/parser/writer + docs/usf_format.md. Cyb II 2/2, Hawkeye 12/12,
   corpus roundtrips.
-- **Remaining: pulsetabel, filterbytes, drumtabel, wavearp/pulsearp.**
+- **pulsetabel (pulse-sweep programs) — DONE.** New top-level USF block
+  `pulse_programs { prog N: lo= hi= [wrap] seg T S [flip] x3 }`. Program N =
+  instrument's fx2&7; 8 bytes at (N-1)*8: b0=(wrap<<7)|lo nibble, b1=hi, then
+  3×(b=thr|flip<<7, step). fx_pulse_prog ramps PW between bounds, switching
+  step at each threshold. Only REFERENCED programs stored (kmax = max
+  inst.fx2&7; unused slots are dead data). Engine ignores b0 bits 4-6 so the
+  (wrap,lo) decomposition is writelog-faithful. Schema across all USF files +
+  docs. Cyb II 2/2, Hawkeye 12/12.
+- **Remaining: filterbytes, drumtabel, wavearp/pulsearp.**
   CONFIRMED per-SID effect-PROGRAM data, NOT engine constants:
   arp/pulse/filter program bytes DIFFER between Cyb II and Hawkeye (only a
   shared default prefix matches). So each needs real work: RE the program

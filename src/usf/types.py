@@ -751,3 +751,10 @@ class UsfFile:
     # are signed semitone deltas (e.g. [0,4,7] = major triad; negatives =
     # downward). Empty dict when the engine has no arp library.
     arp_programs: dict[int, tuple[int, ...]] = field(default_factory=dict)
+    # FC pulse-width-sweep program library (v0). Maps pulse-program index N
+    # (selected by an instrument's pulse_prog.program) to its sweep shape:
+    # {'lo': int, 'hi': int, 'wrap': bool, 'segs': [(threshold, step, flip)*3]}.
+    # The engine ramps PW between lo/hi bounds, switching step rate as a
+    # counter crosses each segment threshold (flip = reverse direction).
+    # Empty dict when no pulse programs are used.
+    pulse_programs: dict[int, dict] = field(default_factory=dict)

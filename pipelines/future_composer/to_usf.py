@@ -474,6 +474,7 @@ def fcsong_to_usf(song: FCSong, root: str | None = None) -> UsfFile:
         instruments=instruments,
         subtunes=subtunes,
         arp_programs=dict(song.arp_programs),
+        pulse_programs=dict(song.pulse_programs),
     )
 
 

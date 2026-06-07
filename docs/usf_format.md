@@ -183,6 +183,22 @@ arp downward). The engine cycles the offsets each frame; the stored
 The composer lays the programs out and computes the `arplo`/`arphi`
 pointer tables itself — replacing the original's verbatim arp tables.
 
+## `pulse_programs { ... }` (FC pulse-width-sweep library)
+
+```
+pulse_programs {
+  prog 1: lo=4 hi=12 seg 2 48 seg 4 48 seg 6 48
+  prog 2: lo=4 hi=12 wrap seg 4 128 seg 8 96 seg 12 64
+}
+```
+
+Optional. Each `prog N` (selected by an instrument's `pulse_prog.program`)
+is a pulse-width sweep shape: PW ramps between bound `lo` and `hi`, and the
+step rate switches to `S` when a counter crosses threshold `T` (`seg T S`).
+`flip` after a segment reverses sweep direction at that threshold; `wrap`
+snaps at the bound instead of bouncing. Exactly three segments. The composer
+emits the 8-byte-per-program `pulsetabel` from these fields.
+
 ## `instrument N name { ... }`
 
 ```

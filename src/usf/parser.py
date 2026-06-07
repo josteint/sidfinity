@@ -811,6 +811,30 @@ class _T(Transformer):
     def arp_programs_block(self, items):
         return ('arp_programs', {n: offs for n, offs in items})
 
+    def pp_wrap(self, _):
+        return ('wrap', True)
+
+    def pp_flip(self, _):
+        return ('flip', True)
+
+    def pp_seg(self, items):
+        thr = int(items[0]); step = int(items[1])
+        flip = len(items) > 2 and items[2] == ('flip', True)
+        return ('seg', (thr, step, flip))
+
+    def pulse_program(self, items):
+        n = int(items[0]); lo = int(items[1]); hi = int(items[2])
+        wrap = False; segs = []
+        for it in items[3:]:
+            if it == ('wrap', True):
+                wrap = True
+            elif isinstance(it, tuple) and it[0] == 'seg':
+                segs.append(it[1])
+        return (n, {'lo': lo, 'hi': hi, 'wrap': wrap, 'segs': segs})
+
+    def pulse_programs_block(self, items):
+        return ('pulse_programs', {n: prog for n, prog in items})
+
     def state_layout_block(self, items):
         # items is a list of tuples ('n_voices', N) | ('scalar', dict)
         # | ('per_voice', dict). Reassemble into a StatebufLayout-shaped
@@ -853,6 +877,7 @@ class _T(Transformer):
         master_vol = None
         sfx = None
         arp_programs = {}
+        pulse_programs = {}
         for it in items:
             if isinstance(it, tuple):
                 k, v = it
@@ -870,6 +895,8 @@ class _T(Transformer):
                     sfx = v
                 elif k == 'arp_programs':
                     arp_programs = v
+                elif k == 'pulse_programs':
+                    pulse_programs = v
             elif isinstance(it, PsidMeta):
                 psid = it
             elif isinstance(it, Params):
@@ -885,7 +912,8 @@ class _T(Transformer):
             init=init, instruments=instruments, subtunes=subtunes,
             freq_table=freq_table, state_layout=state_layout,
             song_end=song_end, init_behavior=init_behavior,
-            master_vol=master_vol, sfx=sfx, arp_programs=arp_programs)
+            master_vol=master_vol, sfx=sfx, arp_programs=arp_programs,
+            pulse_programs=pulse_programs)
 
 
 # ---------------------------------------------------------------------------
