@@ -1,6 +1,6 @@
 ---
 name: project_hubbard_remaining_partials
-description: "The 3 Hubbard subtune families still write-log-partial after Monty was fixed (2026-06-07): Human_Race(4)+Battle(1) = CIA-timed note-onset one-frame timing shift (90% byte-exact, py65 logic is correct); Devils_Galop(1) = a dropped V3 freq write. All were false-passed by the old snapshot verdict."
+description: "The 3 Hubbard subtune families still write-log-partial after Monty was fixed (2026-06-07): Human_Race(4)[+probably Battle(1)] = spurious bidirectional PWM because the composer zeros the per-voice PWM counters (v_pwperiod/v_pwdir) that the engine seeds from the binary $0DC8 (root found via pc-trace; NOT the CIA/timing red herring); Devils_Galop(1) = a dropped V3 freq write. All were false-passed by the old snapshot verdict."
 metadata: 
   node_type: memory
   type: project
@@ -12,33 +12,45 @@ verdict leaves **6 Hubbard subtunes** failing — all previously false-passed by
 the deleted py65 snapshot verdict ([[feedback_no_snapshot_verdict]]). Two
 distinct causes:
 
-## Human_Race (4) + Battle_of_Britain (1) — CIA-timed note-onset timing shift
-- **Both are CIA-timed**: `Human_Race` PSID speed=`0x0f` (subtunes 1-4 CIA),
-  `Battle_of_Britain` speed=`0x01`. (Commando/Monty/Devils are vblank speed=0
-  and that's the discriminator — the timing shift tracks CIA timing.)
-- Human_Race sub0: **180/199 per-`play()` chunks are byte-identical (90%)**
-  with the play streams ALIGNED (shifting ±1 play → 0% match, so it is NOT a
-  dispatch/capture offset; the plays line up). The 19 mismatches are: chunk 1
-  (V1's first note loads one frame late) + **9 regular pairs `(i,i+1)` at note
-  onsets** (~every 10-50 chunks) — i.e. the note-onset timing is one frame off
-  at note boundaries.
-- **py65 (logic, RAM-independent — tested RAM=$00 and $FF identical) loads V1
-  correctly on the first play.** So the rebuilt ENGINE LOGIC is right; the
-  divergence is in the first-play / CIA-dispatch interaction that py65
-  structurally cannot model (`feedback_py65_misses_dispatch_bugs`).
-- Ruled out: uninitialized-RAM read (RAM fill makes no difference; init zeros
-  v_dur via the `ini1` loop at composer.py ~1574); missing CIA-timer write
-  (neither orig nor rebuild writes $DC04/$DC05 — both use libsidplayfp's
-  default ~50Hz CIA); global play-offset (aligned beats both shifts).
-- Orig mechanism (`disassembly.s`): init silences V1+V2 ctrl + vol=$0F + sets
-  `$0DD6=$40` (bit-6 "first-frame setup pending"); play frame 1 zeros per-voice
-  state then the tick fires so both voices load on the first tick. The rebuild
-  also omits the init's V1+V2 ctrl-silence.
-- **Next step if resumed:** trace libsidplayfp's PSID-CIA dispatch of the
-  first play vs py65 (why the first/onset play loads V1 a frame later under
-  CIA), and/or replicate the orig's bit-6 "zero per-voice state on frame 1" +
-  init ctrl-silence in the composer. This is a deep CIA-dispatch/first-frame
-  dig, not a one-line fix like Monty.
+## Human_Race (4) [+ probably Battle (1)] — PWM-counter seed not replicated
+ROOT CAUSE FOUND 2026-06-07 via a pc-trace dig (siddump `--pc-trace FILE
+START END`, ground truth). **It is NOT a CIA/timing/first-frame issue** — earlier
+"V1 one play late" / "CIA dispatch phase" theories were ALL wrong, artifacts of
+an error-prone per-IRQ writelog comparison. CIA (speed=0x0f) is fine; ignore it.
+
+Method that worked: pc-trace BOTH orig (play entry `$0986`) and rebuild (`$1003`),
+segment by play entry, extract the per-`play()` SID-write sequence from the trace
+(reg = store base + Y; the trace line carries PC, A, X, Y). The trace shows PC +
+registers so you can follow exact branches. This per-`play()` ground-truth
+comparison is the right tool — NOT my ad-hoc `--writelog-per-irq` parsing (which
+was mis-aligned and produced the bogus "V1 late" + "88%/90%" numbers).
+
+The real divergence (Human_Race sub0):
+- **play[0] is byte-identical** (V1 and V2 both load correctly — "V1 late" was false).
+- PW-writes per play: **orig `[4,0,0,0,0,0,0,0,0,0]`** (PW written only on the
+  note-load), **rebuild `[4,4,0,4,0,4,0,4,0,4]`** (modulates PW every other frame).
+- So the rebuild runs **spurious bidirectional PWM** on instrument 0 (`pwm_speed=
+  0x81`, `fx_flags=0x00`; used by V1/V2's first notes: ctrl=41 AD=3c SR=9f).
+
+ROOT (disasm `pipelines/hubbard/human_race/disassembly.s` lines 158-159):
+the engine seeds the per-voice PWM counters from the BINARY at `$0DC8..$0DCD`:
+`v_pwperiod=[0,1,$1D]`, `v_pwdir=[1,0,0]`. The composer ZEROS them — Human_Race
+has `seed_overlap=False`, and the `ini1` loop (composer.py ~1574) zeros
+`v_pwperiod`/`v_pwdir`. With `v_pwperiod=0` the bidir PWM (period = pwm_speed &
+$1F = 1) underflows immediately → modulates every other frame.
+
+CAVEAT (not fully resolved): seeding explains V2 ([1] vs 0) and V3 ([$1D] vs 0),
+but V1's seed is 0 in BOTH orig and rebuild, yet orig still doesn't modulate V1.
+So there is likely a SECOND factor for V1 — probably the bounded-PWM
+write-at-bound behavior (inst 0's pw_hi=08 = min bound; orig may flip direction
+WITHOUT writing when a step would exceed the bound, while the composer's
+`fxp_bidir` always writes via `fxp_wr`). Verify both.
+
+**Next step if resumed:** (1) seed `v_pwperiod`/`v_pwdir` from the binary
+`$0DC8` for Human_Race instead of zeroing (the ovseed/seed_overlap path, or a
+dedicated seed); (2) check whether the composer's bounded PWM writes at the
+bound when it shouldn't. Verify with the per-`play()` pc-trace comparison above
+(target: rebuild PW-per-play == orig `[4,0,0,...]`).
 
 ## Devils_Galop (1) — dropped V3 frequency write (DIFFERENT bug)
 - Devils is **vblank** (speed=0), so NOT the CIA issue. Per-IRQ sub0 chunk 5:
