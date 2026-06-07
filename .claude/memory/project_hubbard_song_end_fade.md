@@ -1,6 +1,6 @@
 ---
 name: project_hubbard_song_end_fade
-description: "Hubbard '85 master-VOL fade is `clamp(BASE - voice_orderpos, 0..$0F)`. EngineConfig knobs: `master_vol_subtrahend_voice` + `master_vol_base` + `master_vol_trigger` (mandatory) + `master_vol_reset_on_loop` + `master_vol_underflow_clamp` + `loop_silences_song` (per-engine quirks). Confuzion + TOAS use it. `tools/audit_d418_fade.py` probes whether any other engine needs it."
+description: "Hubbard '85 master-VOL fade is `clamp(BASE - voice_orderpos, 0..$0F)`. EngineConfig knobs: `master_vol_subtrahend_voice` + `master_vol_base` + `master_vol_trigger` (mandatory) + `master_vol_reset_on_loop` + `master_vol_underflow_clamp` + `loop_silences_song` (per-engine quirks). Confuzion + TOAS use it. (audit_d418_fade.py was a per-frame $D418 snapshot probe — DELETED 2026-06-07; audit the fade via the write-log instead.)"
 metadata: 
   node_type: memory
   type: project
@@ -80,9 +80,11 @@ work:
 
 ## Open question — divergences past the verify window
 
-`tools/audit_d418_fade.py` is the probe — captures both original
-and rebuild at 2× songlength, compares $D418 traces, flags any
-engine where divergence falls past the 1.5× verify boundary.
+(`tools/audit_d418_fade.py` was DELETED 2026-06-07 — it captured per-frame
+$D418 register STATE snapshots, which is Trap A. To audit the fade now, filter
+the write-log to $D418 writes via `tools/voice_writelog.py` / `siddump
+--writelog` and compare the $D418 write sequence. See
+[[feedback_no_snapshot_verdict]].)
 
 - **Confuzion**: RESOLVED across the full 2× window after
   `loop_silences_song=True` landed. The orig $FF handler silences

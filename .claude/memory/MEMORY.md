@@ -21,7 +21,7 @@
 
 - [Hubbard nested counters](project_hubbard_nested_counters.md) — nested DEC/BPL speed counters
 - [Hubbard notenum/freq overlap](project_hubbard_notenum_overlap.md) — notenum table lives INSIDE the freq table region; cross-voice coupling via shared bytes
-- [Hubbard song-end fade](project_hubbard_song_end_fade.md) — RESOLVED for Confuzion (full 2× match) + TOAS (1.5× match). Master-VOL fade is `clamp(BASE - voice_orderpos, 0..$0F)` driven by 6 EngineConfig knobs (`master_vol_subtrahend_voice` + `_base` + `_trigger` + `_reset_on_loop` + `_underflow_clamp` + `loop_silences_song`). `tools/audit_d418_fade.py` is the probe for new engines.
+- [Hubbard song-end fade](project_hubbard_song_end_fade.md) — RESOLVED for Confuzion (full 2× match) + TOAS (1.5× match). Master-VOL fade is `clamp(BASE - voice_orderpos, 0..$0F)` driven by 6 EngineConfig knobs (`master_vol_subtrahend_voice` + `_base` + `_trigger` + `_reset_on_loop` + `_underflow_clamp` + `loop_silences_song`). (audit_d418_fade.py snapshot probe DELETED 2026-06-07 — audit the fade via the write-log.)
 - [Hubbard PWM bounds](reference_hubbard_pwm_bounds.md) — pulsework's $08/$0E direction-flip thresholds are HARDCODED, not per-instrument
 - [Timing requirements](project_timing_requirements.md) — frame-accurate OK for tracker music; cycle-precise needed later for digi/demo SIDs
 - [Fingerprint DB (deferred)](project_fingerprint_db.md) — future: SQLite-backed (writelog → USF parameters) database to accelerate future audits + supply ML training data.
