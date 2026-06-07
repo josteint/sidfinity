@@ -261,6 +261,9 @@ fx_flag: "tie"                  -> fx_tie
        | "glide" "=" INT        -> fx_glide
        | "wave_adjust" "=" INT  -> fx_wave_adjust
        | "filter" "=" number    -> fx_filter
+       // FC $F0 marker: play this note WITHOUT retriggering the
+       // instrument (skip ADSR/wave reload) — legato to a new pitch.
+       | "noretrig"             -> fx_noretrig
 
 // digi
 digi_body: "sample" ":" SAMPLE_PATH

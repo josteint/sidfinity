@@ -241,6 +241,7 @@ def _build_pattern_rows(fc_pat: FCPattern) -> tuple[list[NoteRow], int]:
     pending_glide: int | None = None
     pending_wave_adjust: int | None = None
     pending_filter: int | None = None
+    pending_noretrig: bool = False    # $F0 seen → next note doesn't retrigger
     cur_length: int = 1            # frames per note (set by PatSetLength)
     cur_instr: InstrumentRef | None = None
     length_seen_first = False      # for chained PatSetLength tracking
@@ -258,7 +259,9 @@ def _build_pattern_rows(fc_pat: FCPattern) -> tuple[list[NoteRow], int]:
         elif isinstance(evt, PatGlide):
             pending_glide = evt.delay
         elif isinstance(evt, PatNoGlide):
+            # $F0: no glide AND skip the instrument retrigger (legato).
             pending_glide = None
+            pending_noretrig = True
         elif isinstance(evt, PatWaveAdjust):
             pending_wave_adjust = evt.delta
         elif isinstance(evt, PatFilterSet):
@@ -277,6 +280,9 @@ def _build_pattern_rows(fc_pat: FCPattern) -> tuple[list[NoteRow], int]:
             if pending_filter is not None:
                 flags.append(f'filter=${pending_filter:02X}')
                 pending_filter = None
+            if pending_noretrig:
+                flags.append('noretrig')
+                pending_noretrig = False
             rows.append(NoteRow(
                 pitch=pitch, duration=cur_length,
                 instr=cur_instr, fx_flags=tuple(flags),

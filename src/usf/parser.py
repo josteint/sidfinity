@@ -703,6 +703,9 @@ class _T(Transformer):
     def fx_filter(self, items):
         return f'filter=${int(items[0]):02X}'
 
+    def fx_noretrig(self, _):
+        return 'noretrig'
+
     def freq_table_block(self, items):
         # items[0] is a byte_list (= list[int])
         return ('freq_table', items[0])

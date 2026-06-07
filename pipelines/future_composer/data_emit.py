@@ -62,6 +62,13 @@ def encode_pattern(rows: list[NoteRow]) -> bytes:
     out = bytearray()
     prev_dur = None
     for row in rows:
+        # $F0 (no-retrigger / legato) goes FIRST: it sets the engine's
+        # newnote flag (skip ADSR/wave reload) then re-dispatches the rest
+        # of the note's chain via `skip`, so any wave/length/note that
+        # follows still applies.
+        if 'noretrig' in row.fx_flags:
+            out.append(0xF0)
+
         filt = _fx(row.fx_flags, 'filter=')
         if filt is not None:
             out += bytes((0xF1, filt & 0xFF))
