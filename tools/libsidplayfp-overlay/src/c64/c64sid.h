@@ -94,6 +94,12 @@ public:
 
     const std::vector<SidWrite>& getWriteLog() const { return writeLog; }
 
+    // Per-frame cycle origin for write-log cycles. Write-log cycles are
+    // recorded RELATIVE to this base (set at frame start in clearWriteLog).
+    // Play-entry cycles (c64cpu.h) are ABSOLUTE; siddump --writelog-per-irq
+    // subtracts this base to bring them into the write-log's relative origin.
+    uint32_t getWriteLogCycleBase() const { return m_cycleBase; }
+
     // Bank functions
     void poke(uint_least16_t address, uint8_t value) override
     {

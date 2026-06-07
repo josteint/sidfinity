@@ -68,6 +68,56 @@ def writelog_capture(sid_path: str, subtune: int = 0,
     return frames
 
 
+def writelog_per_irq_capture(sid_path: str, subtune: int = 0,
+                             duration: float = 2.0,
+                             force_rsid: bool = False) -> list[Frame]:
+    """Run `siddump --writelog-per-irq` and parse the per-PSID-`play()`
+    register writes — one `Frame` per play() invocation instead of one per
+    siddump 50 Hz frame.
+
+    This is the verdict capture for CIA-timed tunes (PSID `speed != 0`).
+    Such tunes' play() invocations do not align with siddump's 19656-cycle
+    frame buckets, so the flat `--writelog` capture buckets the init + first
+    play() differently for the original vs a rebuild whose init has a
+    different length (different CIA phase) — making the flat streams
+    "diverge at position 0" even when every play()'s write sequence is
+    identical (Trap C specialised to CIA tunes). The per-irq tool:
+
+      * splits writes by play-entry cycle (so each `|I` chunk = one play),
+      * drops the tune's init writes (those preceding the FIRST play entry
+        of the run), which differ in count between orig and rebuild.
+
+    The returned frames therefore start at play[0]; flattening them and
+    comparing with `compare_instruction_stream` aligns orig vs rebuild
+    play-for-play. Validated against the `--pc-trace` oracle (Human_Race
+    54/54, Battle_of_Britain 54/54).
+
+    `subtune` is 0-indexed (as in `writelog_capture`).
+    """
+    cmd = [SIDDUMP, sid_path, '--subtune', str(subtune + 1),
+           '--duration', str(duration), '--writelog-per-irq', '--raw']
+    if force_rsid:
+        cmd.append('--force-rsid')
+    r = subprocess.run(cmd, capture_output=True, text=True)
+    frames: list[Frame] = []
+    for line in r.stdout.splitlines():
+        if '|I' not in line:
+            continue
+        # A line may carry MULTIPLE |I chunks (multiple play()s per siddump
+        # frame under CIA). Each chunk = :cyc:reg:val:cyc:reg:val...
+        for chunk in line.split('|I')[1:]:
+            toks = [t for t in chunk.split(':') if t != '']
+            writes: Frame = []
+            for i in range(0, len(toks) - 2, 3):
+                try:
+                    writes.append((int(toks[i]), int(toks[i + 1], 16),
+                                   int(toks[i + 2], 16)))
+                except ValueError:
+                    pass
+            frames.append(writes)
+    return frames
+
+
 def compare_strict(a: list[Frame], b: list[Frame]) -> dict:
     """Cycle-exact comparison: every (cycle, reg, val) tuple identical.
     The right comparison for digi."""

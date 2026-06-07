@@ -102,10 +102,12 @@ int main(int argc, char* argv[])
             "  --raw          Skip metadata/header lines\n"
             "  --digi         Enable intra-frame write logging\n"
             "  --writelog     Append full register write stream with cycle timing (ground truth)\n"
-            "  --writelog-per-irq  Like --writelog, but each output line is ONE PSID play()\n"
-            "                      invocation (not one siddump frame). Eliminates Trap C from\n"
-            "                      observation. Implies --writelog. Output prefix changes from\n"
-            "                      |W: to |I: to flag the per-IRQ encoding.\n"
+            "  --writelog-per-irq  Like --writelog, but writes are bucketed PER PSID play()\n"
+            "                      invocation (|I chunk), not per siddump frame. Eliminates\n"
+            "                      Trap C. Splits by play-entry cycle (origin-corrected) and\n"
+            "                      drops the init prefix (writes before the first play-entry).\n"
+            "                      Implies --writelog; prefix changes from |W: to |I.\n"
+            "  --per-irq-debug  --writelog-per-irq + stderr dump of base/entry/write cycles\n"
             "  --memtrace     Append memory access trace\n"
             "  --pcm          Output raw 16-bit signed PCM to stdout\n"
             "  --force-rsid   Process RSID files (normally skipped)\n"
@@ -133,6 +135,7 @@ int main(int argc, char* argv[])
     bool digi = false;
     bool writelog = false;
     bool writelog_per_irq = false;
+    bool perirq_debug = false;
     bool memtrace = false;
     bool pcm = false;
     bool force_rsid = false;
@@ -153,6 +156,10 @@ int main(int argc, char* argv[])
         } else if (strcmp(argv[i], "--writelog-per-irq") == 0) {
             writelog = true;
             writelog_per_irq = true;
+        } else if (strcmp(argv[i], "--per-irq-debug") == 0) {
+            writelog = true;
+            writelog_per_irq = true;
+            perirq_debug = true;
         } else if (strcmp(argv[i], "--memtrace") == 0) {
             memtrace = true;
         } else if (strcmp(argv[i], "--pcm") == 0) {
@@ -354,6 +361,15 @@ int main(int argc, char* argv[])
     uint8_t regs[32];
     bool anyNonZero = false;
 
+    // --writelog-per-irq: the writes that precede the FIRST play() entry of
+    // the whole run are the tune's init writes (gate-off / vol-set tail that
+    // flushes at frame-0 start, before the first CIA play IRQ fires). They
+    // are NOT part of any play() and their count differs between orig and a
+    // rebuild with a different init length — so they are dropped, once, from
+    // the very first chunk. Pre-entry writes in LATER frames are legitimate
+    // straddle tails (a play that began in the prior frame) and are kept.
+    bool firstIrqChunkPending = true;
+
     FILE* pcTraceFile = nullptr;
     for (int frame = 0; frame < totalFrames; frame++) {
         if (pc_trace_path) {
@@ -461,15 +477,58 @@ int main(int argc, char* argv[])
             const auto& log = engine.getWriteLog(0);
             if (writelog_per_irq) {
                 const auto& irqCycles = engine.getPlayEntryCycles();
+                // Play-entry cycles are ABSOLUTE (PHI1 clock); write-log
+                // cycles are RELATIVE to the per-frame base. Bring the
+                // entries into the write-log origin before comparing.
+                uint64_t base = engine.getWriteLogCycleBase(0);
+                auto rel = [base](uint64_t abs) -> uint64_t {
+                    return abs > base ? abs - base : 0;
+                };
+                if (perirq_debug && !irqCycles.empty()) {
+                    fprintf(stderr, "[per-irq] frame=%d base=%llu "
+                            "nentries=%zu entry0=%llu rel0=%llu "
+                            "nwrites=%zu w0=%u w1=%u w2=%u\n",
+                            frame, (unsigned long long) base,
+                            irqCycles.size(),
+                            (unsigned long long) irqCycles[0],
+                            (unsigned long long) rel(irqCycles[0]),
+                            log.size(),
+                            log.size() > 0 ? log[0].cycle : 0,
+                            log.size() > 1 ? log[1].cycle : 0,
+                            log.size() > 2 ? log[2].cycle : 0);
+                }
                 // Each IRQ's writes = log entries whose cycle is between
                 // this IRQ entry and the next (or end of log).
                 size_t idx = 0;
+                // Drop the init prefix: writes before the global first
+                // play() entry (frame-0 chunk only — see firstIrqChunkPending).
+                if (firstIrqChunkPending && !irqCycles.empty()) {
+                    uint64_t firstEntry = rel(irqCycles[0]);
+                    while (idx < log.size() && log[idx].cycle < firstEntry)
+                        ++idx;
+                    firstIrqChunkPending = false;
+                }
                 for (size_t i = 0; i < irqCycles.size(); i++) {
                     uint64_t end = (i + 1 < irqCycles.size())
-                        ? irqCycles[i + 1]
+                        ? rel(irqCycles[i + 1])
                         : UINT64_MAX;
                     printf("|I");
                     while (idx < log.size() && log[idx].cycle < end) {
+                        printf(":%u:%02X:%02X",
+                               log[idx].cycle, log[idx].reg, log[idx].value);
+                        ++idx;
+                    }
+                }
+                // A frame with writes but NO play entry (possible when the
+                // CIA period exceeds the 50 Hz frame) holds the straddle tail
+                // of a play that entered in the prior frame. Emit it as a
+                // continuation chunk so no write is ever silently dropped —
+                // unless we have not yet seen the first play (firstIrqChunk
+                // Pending), in which case these are still init writes.
+                if (irqCycles.empty() && !firstIrqChunkPending
+                        && idx < log.size()) {
+                    printf("|I");
+                    while (idx < log.size()) {
                         printf(":%u:%02X:%02X",
                                log[idx].cycle, log[idx].reg, log[idx].value);
                         ++idx;

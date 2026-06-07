@@ -161,6 +161,7 @@ public:
     bool enableWriteLog(unsigned int sidNum, bool enable);
     bool clearWriteLog(unsigned int sidNum);
     const std::vector<libsidplayfp::SidWrite>* getWriteLog(unsigned int sidNum);
+    uint32_t getWriteLogCycleBase(unsigned int sidNum);
 
     void enableReadTrace(bool enable, uint16_t minAddr = 0, uint16_t maxAddr = 0xCFFF)
     { m_c64.getCpuBus().enableReadTrace(enable, minAddr, maxAddr); }

@@ -34,7 +34,8 @@ sys.path.insert(0, os.path.join(ROOT, 'src'))
 sys.path.insert(0, os.path.join(ROOT, 'tools', 'py65_lib'))
 
 from pipelines.hubbard.verify_cycle import (                 # noqa: E402
-    writelog_capture, compare_instruction_stream)
+    writelog_capture, writelog_per_irq_capture,
+    compare_instruction_stream)
 # songlengths lives at src/songlengths.py; resolved via the ROOT/src
 # entry pushed onto sys.path above (no package prefix in the import).
 from songlengths import load_database, get_durations        # noqa: E402
@@ -83,6 +84,23 @@ def _file_md5(path: str) -> str:
         return hashlib.md5(f.read()).hexdigest()
 
 
+def _cia_speed(sid_path: str) -> int:
+    """The PSID/RSID `speed` field (32-bit, bytes 0x12-0x16 big-endian).
+    Bit N (0-indexed, capped at 31) set => subtune N is CIA-timed; clear =>
+    vblank. Returns 0 for a non-PSID/short file (treated as all-vblank)."""
+    with open(sid_path, 'rb') as f:
+        b = f.read(0x16)
+    if len(b) < 0x16 or b[:4] not in (b'PSID', b'RSID'):
+        return 0
+    return int.from_bytes(b[0x12:0x16], 'big')
+
+
+def _is_cia_subtune(speed: int, st: int) -> bool:
+    """True iff subtune `st` (0-indexed) is CIA-timed per the speed field.
+    Subtunes beyond 32 reuse bit 31 (the PSID convention)."""
+    return bool((speed >> min(st, 31)) & 1)
+
+
 def _capture_music(args):
     """One music subtune -> its captured write-log frames (via siddump,
     libsidplayfp ground truth). The original is captured in its native
@@ -91,6 +109,17 @@ def _capture_music(args):
     key, sid, nf, subtune, force_rsid = args
     frames = writelog_capture(sid, subtune=subtune, duration=nf / FPS,
                               force_rsid=force_rsid)
+    return key, frames
+
+
+def _capture_music_irq(args):
+    """One CIA-timed music subtune -> its write-log captured PER play()
+    invocation (siddump --writelog-per-irq), with the init prefix dropped.
+    Used so CIA tunes are compared play-for-play instead of per-50Hz-frame
+    (Trap C for CIA tunes — see writelog_per_irq_capture)."""
+    key, sid, nf, subtune, force_rsid = args
+    frames = writelog_per_irq_capture(sid, subtune=subtune, duration=nf / FPS,
+                                      force_rsid=force_rsid)
     return key, frames
 
 
@@ -170,17 +199,25 @@ def verify_all(engine_jobs, passes: float = 1.5,
     # equality). The kind is part of the cache key. The 'music_wl' tag also
     # invalidates any pre-write-log 'music' (py65 snapshot) cache entries.
     need_music: dict = {}
+    need_music_irq: dict = {}
     need_digi: dict = {}
     plan: dict = {}
     for config, rebuilt in engine_jobs:
         plan[config.name] = []
         digi_set = set(config.digi_subtunes or ())
+        speed = _cia_speed(config.sid_path)
         for st, nf in enumerate(subtune_frames(config, passes, min_frames)):
             is_digi = st in digi_set
-            kind = 'digi' if is_digi else 'music_wl'
+            # CIA-timed (non-digi) subtunes verify per-play() (Trap C); vblank
+            # subtunes use the flat per-frame write-log path unchanged.
+            if is_digi:
+                kind, need = 'digi', need_digi
+            elif _is_cia_subtune(speed, st):
+                kind, need = 'music_irq', need_music_irq
+            else:
+                kind, need = 'music_wl', need_music
             ok_key = key_for(config.sid_path, nf, st, kind)
             rb_key = key_for(rebuilt, nf, st, kind)
-            need = need_digi if is_digi else need_music
             # Original captured in its native mode (force_rsid for RSID
             # SIDs). Digi keeps forcing RSID on the rebuild too (CIA-paced
             # digi timing — preserves the prior digi verdict); music captures
@@ -190,14 +227,20 @@ def verify_all(engine_jobs, passes: float = 1.5,
                                     (rb_key, rebuilt, rb_frsid)):
                 if key not in cache and key not in need:
                     need[key] = (sid, nf, st, frsid)
-            plan[config.name].append((st, ok_key, rb_key, is_digi))
+            plan[config.name].append((st, ok_key, rb_key, kind))
 
-    if need_music or need_digi:
+    if need_music or need_music_irq or need_digi:
         with Pool(jobs) as pool:
             if need_music:
                 items = [(k, *v) for k, v in need_music.items()]
                 items.sort(key=lambda a: -a[2])
                 for key, frames in pool.map(_capture_music, items,
+                                            chunksize=1):
+                    cache[key] = frames
+            if need_music_irq:
+                items = [(k, *v) for k, v in need_music_irq.items()]
+                items.sort(key=lambda a: -a[2])
+                for key, frames in pool.map(_capture_music_irq, items,
                                             chunksize=1):
                     cache[key] = frames
             if need_digi:
@@ -216,10 +259,13 @@ def verify_all(engine_jobs, passes: float = 1.5,
     rebuilt_paths = {config.name: rebuilt for config, rebuilt in engine_jobs}
     for name, subs in plan.items():
         results = []
-        for st, ok_key, rb_key, is_digi in subs:
-            if is_digi:
+        for st, ok_key, rb_key, kind in subs:
+            if kind == 'digi':
                 ok = cache[ok_key] == cache[rb_key]
             else:
+                # 'music_wl' (flat per-frame) and 'music_irq' (per-play(),
+                # init dropped) both yield Frame lists compared by the same
+                # write-stream overlap verdict.
                 ok = _music_ok(cache[ok_key], cache[rb_key])
             results.append((st, ok))
         out[name] = (results, all(ok for _, ok in results))

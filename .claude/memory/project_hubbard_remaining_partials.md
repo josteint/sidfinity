@@ -1,39 +1,48 @@
 ---
 name: project_hubbard_remaining_partials
-description: "Hubbard subtunes the regression marks partial after Monty was fixed (2026-06-07). Human_Race(4)[+prob Battle(1)]: ENGINE IS CORRECT — per-play() write sequence is byte-identical to orig (54/54 via pc-trace); they fail only because they are CIA-timed (speed!=0) and siddump's flat 50Hz capture buckets init/first-play out of phase. Fix is the VERDICT (verify CIA tunes per-play), not the engine. (Earlier 'CIA-dispatch' and 'PWM-seed' theories were both wrong — buggy trace parsing.) Devils_Galop(1): a genuine dropped-V3-freq-write bug (vblank, separate)."
+description: "RESOLVED 2026-06-07: the CIA-aware per-play() verdict is implemented; Human_Race 5/5 + Battle_of_Britain 1/1 now PASS. verify_all routes CIA subtunes (PSID speed!=0) through siddump --writelog-per-irq (cycle-base-corrected splitter, frame-0 init drop) and compares play-for-play. Hubbard regression: 70 ok + 1 regressed (Devils_Galop, a genuine dropped-V3-freq-write bug — vblank, separate, still open). Earlier 'CIA-dispatch' and 'PWM-seed' engine theories were both wrong (buggy trace parsing); the engine was always correct."
 metadata: 
   node_type: memory
   type: project
   originSessionId: 34baf59d-942f-49ab-b1d7-123e07963888
 ---
 
-## CIA-aware verdict — full implementation plan in `docs/cia_aware_verdict_plan.md`
-A complete, self-contained plan for option (a) (reliable per-play verdict) is in
-`docs/cia_aware_verdict_plan.md`: root cause of the `--writelog-per-irq`
-cycle-origin bug, the exact fix + plumbing, the pc-trace validation oracle, the
-verify.py integration, the test matrix, and the session's pitfalls. Start there.
+## CIA-aware verdict — IMPLEMENTED 2026-06-07 (option (a), the per-play verdict)
+Plan `docs/cia_aware_verdict_plan.md` is now DONE. HR 5/5 + Battle 1/1 pass.
+What shipped (all in this repo now, not reverted):
+- **siddump per-irq splitter fixed** (`tools/siddump.cpp`). The bug was a
+  cycle-origin mismatch: play-entry cycles are ABSOLUTE (PHI1 clock, recorded in
+  `c64cpu.h::cpuRead`), write-log cycles are RELATIVE to a per-frame
+  `m_cycleBase` (`c64sid.h`). The splitter now subtracts the base
+  (`rel = abs - base`). Base plumbed out via new `getWriteLogCycleBase()`
+  (c64sid.h → player.{h,cpp} → sidplayfp.{h,cpp}), mirroring `getWriteLog`.
+- **Init prefix dropped, frame-0 ONLY.** Empirically (via temporary
+  `--per-irq-debug`, kept as a diagnostic flag): frame 0's write-log holds 4
+  init writes (gate-off/vol-set tail) BEFORE the first play-entry; those are
+  dropped once. Pre-entry writes in LATER frames are legitimate straddle tails
+  (a play that began in the prior frame) and are KEPT — `firstIrqChunkPending`
+  guards this. Defensive: a zero-entry frame's writes are emitted as a
+  continuation chunk so nothing is ever silently dropped (matters only for
+  slower-than-50Hz CIA; HR/Battle are faster so never hit it).
+- **Comparison = flatten + flat-prefix.** The per-irq chunk boundaries are used
+  ONLY to drop init; the verdict flattens all `|I` chunks and compares the flat
+  `(reg,val)` sequence (flattening preserves global cycle order, so straddle
+  tails landing in the "wrong" chunk are still in the right global position).
+  This is `compare_instruction_stream`/`_music_ok` reused unchanged.
+- **verify.py integration.** `verify_all` classifies each subtune by the PSID
+  `speed` bit (`_cia_speed` + `_is_cia_subtune`): CIA→`writelog_per_irq_capture`
+  (`_capture_music_irq`, cache kind `music_irq`); vblank→flat `music_wl`
+  unchanged; digi unchanged. Gated tightly on the original's speed field.
+- **Validated against the pc-trace oracle** (`/tmp/validate_perirq.py` pattern,
+  §4): per-irq flattened stream == oracle, byte-for-byte, for HR (54/54, 352
+  writes) AND Battle (54/54, 489 writes), orig + rebuild. Orig-vs-rebuild flat
+  matches at full-song scale (HR 8938/10571, Battle 30101 writes).
 
-## CIA-aware verdict — ATTEMPTED, hit a tooling obstacle (2026-06-07)
-Tried to make `verify_all` verify CIA tunes per-`play()` so HR/Battle pass.
-Reverted; the lightweight per-`play()` segmentation tools are not reliable enough:
-- `siddump --writelog-per-irq` splits the per-frame write-log by play-entry
-  cycles, but: (a) the play-entry cycles are ABSOLUTE while write-log cycles are
-  RELATIVE to a per-frame `m_cycleBase` (c64sid.h) — different origin; (b) the
-  init/first-play boundary (whether init writes land in frame 0's write-log) is
-  unclear; (c) fixing (a) via subtracting `m_cycleBase` STILL mis-split orig vs
-  rebuild (chunks ≠ the pc-trace play boundaries). Play-detection is 1/frame
-  (not spurious), so the issue is the cycle/boundary mapping, which I couldn't
-  nail empirically this session.
-- `siddump --pc-trace` (segment by play-entry PC) is RELIABLE (it's what proved
-  54/54) but is far too heavy for a full-song verdict (~16k trace lines/frame).
-- All overlay/siddump WIP was reverted to keep the tree clean.
-Options for next time: (a) nail the per-irq cycle/boundary mapping with careful
-empirical checks against the pc-trace ground truth; (b) a Python flat-stream
-ALIGNMENT verdict (find the offset that aligns orig vs rebuild flat write-logs,
-since the play streams are identical modulo the init prefix); or (c) pragmatic:
-mark HR/Battle engine-verified via the one-time pc-trace proof and exempt them
-from the siddump-flat verdict with a documented justification (the engine is
-proven correct; the gap is purely the observation tool).
+KEY INSIGHT that unlocked it: the straddle problem (a play() spanning two
+siddump frames) is a NON-ISSUE for a FLAT comparison — only per-chunk alignment
+would care. So the per-irq tool only needs to mark where init ends; everything
+else flattens. The first reverted attempt failed by trying to align per-chunk
+and by adding a too-broad init-skip; the fix is frame-0-only skip + flat compare.
 
 After Monty went 19/19 (the `master_vol_every_frame` fix), the write-log
 verdict leaves **6 Hubbard subtunes** failing — all previously false-passed by

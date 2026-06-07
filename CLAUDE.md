@@ -65,6 +65,13 @@ HVSC needs.
   (flat-prefix over `(reg, val)`, cycle dropped). Robust against siddump
   frame-bucket drift (Trap C).
 - Localizer: `tools/find_first_divergence.py`.
+- **CIA-timed tunes (PSID `speed != 0`):** the flat per-50Hz-frame capture
+  buckets init + first play() out of phase between orig and a rebuild with a
+  different init length (Trap C specialised to CIA), so `verify_all` captures
+  these subtunes PER `play()` via `tools/siddump --writelog-per-irq`
+  (`writelog_per_irq_capture`, init prefix dropped) and flat-compares the
+  flattened play stream. Detected by the PSID `speed` bit; vblank subtunes
+  use the flat path unchanged. Validated against the `--pc-trace` oracle.
 
 **Mode 2 — cycle-exact (digi only).**
 For digi (sample playback timing IS the signal), every `(cycle, reg, val)`
@@ -199,7 +206,7 @@ HVSC original at `hvsc84/MUSICIANS/H/Hubbard_Rob/<Engine>.{usf, sidfinity.sid}`.
   - `tools/pattern_stream_decode.py --addr HEX [--seq]` — decode FC pattern/seq stream bytes as readable commands ($Cx wave/inst, $Fx markers, glide triples, etc.). Use when the bug is "what byte does the pattern stream actually have at this offset?"
   - `siddump --memwatch-on-write TRIG ADDRS` — event-driven RAM snapshot. Captures the listed RAM addresses every time the CPU writes to TRIG. Use for SMC behavior + "show me the engine state at every $D404 write" investigations.
   - `tools/disasm_diff.py --orig SID --orig-range HEX-HEX --composer FILE --composer-label LABEL` — side-by-side orig disasm vs composer emitter (extracts the asm string from `_emit_*` functions). Use during step 3 of the recipe ("diff orig's effect code against the composer emitter line by line") to spot structural differences.
-  - `siddump --writelog-per-irq` — emits the writelog stream bucketed PER PSID `play()` invocation (one `\|I:` chunk per IRQ) instead of per siddump frame. Kills Trap C at the source — IRQ-bucketed streams align across mine/orig regardless of siddump's frame boundaries. Implies `--writelog`.
+  - `siddump --writelog-per-irq` — emits the writelog stream bucketed PER PSID `play()` invocation (one `\|I` chunk per IRQ) instead of per siddump frame. Kills Trap C at the source — IRQ-bucketed streams align across mine/orig regardless of siddump's frame boundaries. Splits by play-entry cycle (origin-corrected: play entries are absolute PHI1 clocks, write-log cycles are relative to a per-frame base, so the splitter subtracts the base) and DROPS the init prefix (the writes before the first play-entry, frame-0 only — later-frame pre-entry writes are straddle tails and are kept). This is the capture behind `verify_all`'s CIA-tune verdict (see below). Add `--per-irq-debug` to print base / entry / write cycles to stderr for one frame. Implies `--writelog`.
   - `tools/effect_chain_profiler.py SID --subtune N --frames F1-F2 [--register HEX]` — attribute each SID write to its CPU PC by cross-referencing writelog + pc-trace. Answers "which routine wrote this $D408 = $47?" in one command.
   - `tools/pattern_stream_verify.py --engine ENGINE` (or `--all`) — USF roundtrip check for the pattern-stream region. Verifies that orig and rebuild bytes match (accounting for `featuredriven_addr_shift` and the verbatim-pointer fixup). Catches data-emission regressions at extract/compose time.
 - **py65 misses dispatch bugs** (CIA timer, PSID speed). Ear-test new engines and any dispatch changes in real sidplayfp before declaring done. Prefer `siddump --memwatch` for state inspection — it uses libsidplayfp = ground truth.

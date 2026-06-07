@@ -236,6 +236,13 @@ public:
     bool clearWriteLog(unsigned int sidNum);
     const std::vector<SidWrite>& getWriteLog(unsigned int sidNum);
 
+    /**
+     * Per-frame cycle origin for write-log cycles of the given chip.
+     * Write-log cycles are relative to this base; play-entry cycles are
+     * absolute. siddump --writelog-per-irq subtracts this to align them.
+     */
+    uint32_t getWriteLogCycleBase(unsigned int sidNum);
+
     void enableReadTrace(bool enable, uint16_t minAddr = 0, uint16_t maxAddr = 0xCFFF);
     void clearReadLog();
     const std::vector<MemRead>& getReadLog() const;

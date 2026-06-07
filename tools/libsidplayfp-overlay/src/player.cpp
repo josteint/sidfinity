@@ -611,6 +611,13 @@ const std::vector<libsidplayfp::SidWrite>* Player::getWriteLog(unsigned int sidN
     return &m_chips[sidNum]->getWriteLog();
 }
 
+uint32_t Player::getWriteLogCycleBase(unsigned int sidNum)
+{
+    if (sidNum >= m_chips.size())
+        return 0;
+    return m_chips[sidNum]->getWriteLogCycleBase();
+}
+
 int Player::getBufSize(unsigned int cycles)
 {
     if (!m_simpleMixer)

@@ -148,6 +148,11 @@ const std::vector<SidWrite>& sidplayfp::getWriteLog(unsigned int sidNum)
     return *log;
 }
 
+uint32_t sidplayfp::getWriteLogCycleBase(unsigned int sidNum)
+{
+    return sidplayer.getWriteLogCycleBase(sidNum);
+}
+
 void sidplayfp::enableReadTrace(bool enable, uint16_t minAddr, uint16_t maxAddr)
 {
     sidplayer.enableReadTrace(enable, minAddr, maxAddr);
