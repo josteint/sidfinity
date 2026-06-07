@@ -48,3 +48,6 @@ hvsc84/
 # Per-engine build/ scratch dirs (active outputs go to hvsc84/.../sidfinity.sid)
 pipelines/hubbard/*/build/
 
+
+# accidental pc-trace/hex-named dumps at repo root (e.g. siddump --pc-trace 0x7AE0 ...)
+/0x*
