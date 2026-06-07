@@ -3045,12 +3045,40 @@ def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
         ('instruments', cfg.instr_records_addr,
                         cfg.instr_records_addr + cfg.instr_count * 8),
     ]
+    def _emit_labelless(comment, vals):
+        # Bytes only — an equate already names the address (`* =` places it).
+        out = [f'; {comment}']
+        for i in range(0, len(vals), 12):
+            out.append('        .byt ' + ','.join(f'${b & 0xFF:02X}'
+                                                  for b in vals[i:i + 12]))
+        return '\n'.join(out)
+
     # vibtabwait: per-instrument vibrato onset delay — now USF-derived from
     # each instrument's vibrato.onset (was verbatim from orig). Only when
     # emit_data_from_usf (the de-verbatim path).
     if cfg.emit_data_from_usf and cfg.vibtabwait_addr:
         raw_sections.append(('vibtabwait', cfg.vibtabwait_addr,
                              cfg.vibtabwait_addr + cfg.instr_count))
+
+    # arp library: arplo/arphi pointer tables + the program data, all from
+    # usf.arp_programs (was verbatim). arp_count = the gap between the two
+    # pointer tables; program data follows arphi; pointers computed fresh.
+    arp_layout = {}
+    if (cfg.emit_data_from_usf and cfg.arplo_addr and cfg.arphi_addr
+            and usf.arp_programs):
+        arp_count = cfg.arphi_addr - cfg.arplo_addr
+        prog_addr = cfg.arphi_addr + arp_count
+        cur = prog_addr
+        for n in range(arp_count):
+            offs = usf.arp_programs.get(n)
+            if offs is None:
+                continue
+            arp_layout[n] = cur
+            cur += 1 + len(offs)          # count byte + offsets
+        raw_sections.append(('arplo', cfg.arplo_addr, cfg.arplo_addr + arp_count))
+        raw_sections.append(('arphi', cfg.arphi_addr, cfg.arphi_addr + arp_count))
+        raw_sections.append(('arp_progs', prog_addr, cur))
+
     def _emit_lo(limit):
         return _emit_byte_list('lonote',
             [usf.freq_table[i*2] for i in range(limit)])
@@ -3058,15 +3086,25 @@ def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
         return _emit_byte_list('hinote',
             [usf.freq_table[i*2+1] for i in range(limit)])
     def _emit_vibtabwait(_n):
-        # Label-less (the `vibtabwait` equate already names this address);
-        # values are each instrument's vibrato onset delay.
         slot_to_inst = {i.id - 1: i for i in usf.instruments}
         vals = [(slot_to_inst[s].vibrato.onset if s in slot_to_inst else 0)
                 for s in range(cfg.instr_count)]
-        out = ['; vibtabwait (USF-derived: per-instrument vibrato onset)']
-        for i in range(0, len(vals), 12):
-            out.append('        .byt ' + ','.join(f'${b:02X}'
-                                                  for b in vals[i:i + 12]))
+        return _emit_labelless('vibtabwait (USF-derived vibrato onset)', vals)
+    def _emit_arplo(_n):
+        arp_count = cfg.arphi_addr - cfg.arplo_addr
+        return _emit_labelless('arplo (USF-derived arp ptr lo)',
+            [arp_layout.get(n, 0) & 0xFF for n in range(arp_count)])
+    def _emit_arphi(_n):
+        arp_count = cfg.arphi_addr - cfg.arplo_addr
+        return _emit_labelless('arphi (USF-derived arp ptr hi)',
+            [(arp_layout.get(n, 0) >> 8) & 0xFF for n in range(arp_count)])
+    def _emit_arp_progs(_n):
+        out = ['; arp programs (USF-derived: [count, offsets...] per N)']
+        for n in sorted(arp_layout):
+            offs = usf.arp_programs[n]
+            row = [len(offs) - 1] + [o & 0xFF for o in offs]
+            out.append('        .byt ' + ','.join(f'${b:02X}' for b in row)
+                       + f'  ; arp {n}')
         return '\n'.join(out)
     section_emitters = {
         'freq_lo':  _emit_lo,
@@ -3074,6 +3112,9 @@ def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
         'snelheid': lambda _n: _emit_snelheid(usf, cfg),
         'instruments': lambda _n: _emit_instruments(usf, cfg),
         'vibtabwait': _emit_vibtabwait,
+        'arplo': _emit_arplo,
+        'arphi': _emit_arphi,
+        'arp_progs': _emit_arp_progs,
     }
     raw_sections.sort(key=lambda s: s[1])
     sections = []

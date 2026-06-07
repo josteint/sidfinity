@@ -244,6 +244,16 @@ def _write_incby2(b: IncBy2Config) -> str:
     return 'incby2:   ' + ' '.join(parts)
 
 
+def _write_arp_programs(progs: dict) -> list[str]:
+    """Emit `arp_programs { prog N: [o0, o1, ...] }` (FC arp library)."""
+    lines = ['arp_programs {']
+    for n in sorted(progs):
+        offs = ', '.join(str(o) for o in progs[n])
+        lines.append(f'  prog {n}: [{offs}]')
+    lines.append('}')
+    return lines
+
+
 def _write_instrument(i: Instrument) -> list[str]:
     head = f'instrument {i.id}'
     if i.name:
@@ -508,6 +518,9 @@ def write(usf: UsfFile) -> str:
     if usf.sfx is not None:
         lines.append('')
         lines.extend(_write_sfx(usf.sfx))
+    if usf.arp_programs:
+        lines.append('')
+        lines.extend(_write_arp_programs(usf.arp_programs))
     for inst in sorted(usf.instruments, key=lambda x: x.id):
         lines.append('')
         lines.extend(_write_instrument(inst))

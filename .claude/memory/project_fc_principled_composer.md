@@ -199,8 +199,17 @@ table into musical USF fields with schema discipline). IN PROGRESS.
   schema needed (reused `VibratoConfig.onset`). Extract reads vibtabwait[id]
   → FCInstrument.vib_onset → `_inst_to_usf` sets vibrato.onset; composer
   emits the table as a USF-derived section (label-less; equate names it).
-- **Remaining: arplo/arphi, pulsetabel, filterbytes, drumtabel, wavearp/
-  pulsearp.** CONFIRMED per-SID effect-PROGRAM data, NOT engine constants:
+- **arp library (arplo/arphi + programs) — DONE.** New top-level USF block
+  `arp_programs { prog N: [o0,o1,...] }` (signed semitone offsets; count =
+  len-1, derived). Mechanism: pattern `$7x` → N (carried as note instr ref)
+  → `arplo[N]/arphi[N]` → program `[count, off0..]`; fx_tone_arp cycles the
+  offsets. arp_count = `arphi_addr - arplo_addr`; program data follows arphi;
+  composer lays programs out + computes pointers (label-less sections, equates
+  name them). Extract `_decode_arp_programs` reads them signed. Schema across
+  types/grammar/parser/writer + docs/usf_format.md. Cyb II 2/2, Hawkeye 12/12,
+  corpus roundtrips.
+- **Remaining: pulsetabel, filterbytes, drumtabel, wavearp/pulsearp.**
+  CONFIRMED per-SID effect-PROGRAM data, NOT engine constants:
   arp/pulse/filter program bytes DIFFER between Cyb II and Hawkeye (only a
   shared default prefix matches). So each needs real work: RE the program
   format → design a musical USF representation (schema-addition discipline;

@@ -744,3 +744,10 @@ class UsfFile:
     # `sfx_framectr_ofs` + `sfx_state_ofs`. None when the engine has
     # no SFX sub-engine.
     sfx: Optional[SfxConfig] = None
+    # FC arpeggio-program library (v0). Maps arp index N (selected by a
+    # pattern's $7x command, carried as a note's instr ref) to its
+    # semitone-offset sequence. The engine cycles the offsets; the stored
+    # "count" byte is len(offsets)-1, so it's derived, not stored. Offsets
+    # are signed semitone deltas (e.g. [0,4,7] = major triad; negatives =
+    # downward). Empty dict when the engine has no arp library.
+    arp_programs: dict[int, tuple[int, ...]] = field(default_factory=dict)

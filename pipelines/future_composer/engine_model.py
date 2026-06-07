@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import os
 import struct
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from pipelines.future_composer.config import (
     FCConfig, EngineInstance, instance_for_subtune, resolve_address,
@@ -309,6 +309,7 @@ class FCSong:
     patterns: dict[int, Pattern]
     sequences: list[Sequence]
     subtunes: list[Subtune]
+    arp_programs: dict = field(default_factory=dict)  # N -> signed offsets
 
 
 # ---------------------------------------------------------------------------
@@ -425,6 +426,32 @@ def _decode_instruments(mem: bytes, cfg: FCConfig,
             vib_onset=(mem[vib_base + i] if vib_base else 0),
         ))
     return out
+
+
+def _decode_arp_programs(mem: bytes, cfg: FCConfig,
+                         engine: EngineInstance | None = None) -> dict:
+    """Decode the FC arp library (arplo/arphi) into {N: signed offsets}.
+
+    Each entry N (selected by a pattern $7x command) points to a program
+    `[count, off0, off1, ... off_count]`; the engine cycles the count+1
+    offsets. We store the offsets as signed semitone deltas; count is
+    recovered as len-1 on emit. Entries with a garbage hi byte (< $80)
+    are skipped (unused slots), matching the composer's table scan.
+    """
+    lo = resolve_address(cfg, engine, 'arplo_addr')
+    hi = resolve_address(cfg, engine, 'arphi_addr')
+    if not (lo and hi):
+        return {}
+    progs: dict[int, tuple[int, ...]] = {}
+    for n in range(16):                      # engine masks $7x with $0F
+        if mem[hi + n] < 0x80:
+            continue
+        ptr = mem[lo + n] | (mem[hi + n] << 8)
+        count = mem[ptr]
+        offs = [mem[ptr + 1 + j] for j in range(count + 1)]
+        # store signed (0xE9 -> -23): downward arps read naturally
+        progs[n] = tuple(o - 256 if o >= 128 else o for o in offs)
+    return progs
 
 
 def _decode_pattern_ptr_table(mem: bytes, cfg: FCConfig,
@@ -653,6 +680,7 @@ def extract(cfg: FCConfig, root: str | None = None) -> FCSong:
         freq_table=freq_table, instruments=instruments,
         pattern_ptr_table=pattern_ptr_table,
         patterns=patterns, sequences=sequences, subtunes=subtunes,
+        arp_programs=_decode_arp_programs(mem_global, cfg, engine_for_shared),
     )
 
 

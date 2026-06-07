@@ -164,6 +164,25 @@ This replaces the original engine's freq-table-overlap-as-state-
 storage trick. The codegen places the values wherever convenient in
 the output binary.
 
+## `arp_programs { ... }` (FC arpeggio library)
+
+```
+arp_programs {
+  prog 0: [0, 3, 7]
+  prog 1: [0, 4, 7]
+  prog 6: [-23, -22, -21, ..., 0]
+}
+```
+
+Optional. The Future Composer family's arpeggio library: each `prog N`
+is the semitone-offset cycle for arp index `N`, which a pattern selects
+with a `$7x` command (carried on a note as its instrument ref). Offsets
+are signed semitone deltas (`[0,4,7]` = major triad; negatives run the
+arp downward). The engine cycles the offsets each frame; the stored
+"count" byte is `len(offsets) - 1`, so it is derived on emit, not stored.
+The composer lays the programs out and computes the `arplo`/`arphi`
+pointer tables itself — replacing the original's verbatim arp tables.
+
 ## `instrument N name { ... }`
 
 ```

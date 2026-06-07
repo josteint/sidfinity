@@ -3,7 +3,13 @@
 // Lark grammar (LALR friendly). Whitespace and comments are ignored
 // between tokens. Top-level order is enforced by the start rule.
 
-start: psid_block params_block init_block freq_table_block? state_layout_block? song_end_block? init_behavior_block? master_vol_block? sfx_block? instrument_block* subtune_block*
+start: psid_block params_block init_block freq_table_block? state_layout_block? song_end_block? init_behavior_block? master_vol_block? sfx_block? arp_programs_block? instrument_block* subtune_block*
+
+// ----- arp programs (FC arpeggio library) -----
+// `prog N: [o0, o1, ...]` — N is the arp index selected by a pattern $7x
+// command; the list is the semitone-offset cycle (count byte = len-1).
+arp_programs_block: "arp_programs" "{" arp_program* "}"
+arp_program: "prog" INT ":" "[" (signed_int ("," signed_int)*)? "]"
 
 // ----- psid -----
 psid_block: "psid" "{" psid_field+ "}"

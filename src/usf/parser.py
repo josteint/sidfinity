@@ -804,6 +804,13 @@ class _T(Transformer):
             setattr(cfg, k, v)
         return ('sfx', cfg)
 
+    def arp_program(self, items):
+        # items[0] = INT index; rest = signed_int offsets
+        return (int(items[0]), tuple(int(x) for x in items[1:]))
+
+    def arp_programs_block(self, items):
+        return ('arp_programs', {n: offs for n, offs in items})
+
     def state_layout_block(self, items):
         # items is a list of tuples ('n_voices', N) | ('scalar', dict)
         # | ('per_voice', dict). Reassemble into a StatebufLayout-shaped
@@ -845,6 +852,7 @@ class _T(Transformer):
         init_behavior = None
         master_vol = None
         sfx = None
+        arp_programs = {}
         for it in items:
             if isinstance(it, tuple):
                 k, v = it
@@ -860,6 +868,8 @@ class _T(Transformer):
                     master_vol = v
                 elif k == 'sfx':
                     sfx = v
+                elif k == 'arp_programs':
+                    arp_programs = v
             elif isinstance(it, PsidMeta):
                 psid = it
             elif isinstance(it, Params):
@@ -875,7 +885,7 @@ class _T(Transformer):
             init=init, instruments=instruments, subtunes=subtunes,
             freq_table=freq_table, state_layout=state_layout,
             song_end=song_end, init_behavior=init_behavior,
-            master_vol=master_vol, sfx=sfx)
+            master_vol=master_vol, sfx=sfx, arp_programs=arp_programs)
 
 
 # ---------------------------------------------------------------------------
