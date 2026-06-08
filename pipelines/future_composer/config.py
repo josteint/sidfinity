@@ -300,6 +300,15 @@ class FCConfig:
     # here instead of the PSID header. 0 = read it from orig (verbatim path).
     load_addr: int = 0
 
+    # Song-init SID-write shape. The state setup (testbyte/speedbyte/seq-ptr
+    # copy) is identical across styles; only the SID register-clear sequence
+    # differs:
+    #   'generic'        — Cyb II / Hawkeye: $D416=$FF, $D417=$00, $D418=$1F,
+    #                      then ascending $00 silence of $D400-$D415.
+    #   'fc_clear_sweep' — Adrenalin engine A ($7AE2): descending $D417..$D400
+    #                      each written $01 then $00, then $D418=$0F, $D417=$00.
+    init_style: str = 'generic'
+
     # Per-path voice-loop mode constants (music_mode, sfx_mode) for the
     # emit_data song-init. Were read from mem[per_subtune_mode_addr] in the
     # verbatim path; for the de-verbatim path they come from here so the

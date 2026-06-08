@@ -376,11 +376,13 @@ def _emit_song_init_routine(cfg: FCConfig,
     snelheid_addr = cfg.per_subtune_speed_addr
     seq_table_addr = cfg.seq_table_addr
 
-    return f"""
+    # Shared state setup: testbyte/speedbyte + the 6-byte seq-pointer copy.
+    # Identical across init styles; emits no SID writes. After song_seqcp the
+    # seq-copy loop has left Y=$FF (DEY underflow exits the BPL).
+    setup = f"""
 ; --- song init ($LOAD entry; A = subtune number) ---
-; Initializes engine state for the selected subtune. Frame-exact SID
-; writes: $D416/$D417 cleared, $D418 = $10|VOLUME, then $D400-$D415
-; silenced via the fall-through into silence_all.
+; Initializes engine state for the selected subtune, then clears the SID
+; registers per cfg.init_style.
 song:
         tax                          ; X = subtune number (PSID passes
                                      ; the subtune index in A; the
@@ -417,12 +419,36 @@ song_seqcp:
         dex
         dey
         bpl song_seqcp
+"""
 
-        ; Filter setup + master volume. After the seq_table loop, Y=$FF
-        ; (the BPL exits when DEY underflows). HVSC writes Y to $D416
-        ; ($FF = max cutoff lo), then INY (Y=$00), then writes Y to
-        ; $D417 ($00 = filter off / no resonance). This matches what
-        ; the frame-exact writelog captures from the original.
+    if cfg.init_style == 'fc_clear_sweep':
+        # Adrenalin engine A ($7AE2): clear $D417..$D400 descending, writing
+        # $01 then $00 to each, then $D418=$0F, $D417=$00. RTS (no fall into
+        # silence_all). Frame-exact write order matches the original engine's
+        # song-init tail.
+        sidwrite = """
+        ; --- SID clear (fc_clear_sweep, engine A $7AE2) ---
+        ldx #$17                     ; sweep $D417 down to $D400
+song_sweep:
+        lda #$01
+        sta $d400,x                  ; $D400+X ← $01
+        lda #$00
+        sta $d400,x                  ; $D400+X ← $00
+        dex
+        bpl song_sweep
+        lda #$0f
+        sta $d418                    ; $D418 ← $0F
+        lda #$00
+        sta $d417                    ; $D417 ← $00
+        jsr ok2
+        rts                          ; engine A does NOT fall into silence_all
+"""
+    else:
+        # Generic (Cyb II / Hawkeye): $D416=$FF, $D417=$00, $D418=$1F, then
+        # ascending $00 silence of $D400-$D415 via fall-through into
+        # silence_all. After song_seqcp, Y=$FF (used for $D416).
+        sidwrite = """
+        ; --- SID clear (generic): filter setup + master volume ---
         sty $d416                    ; Y=$FF → $D416 ← $FF
         iny
         sty $d417                    ; Y=$00 → $D417 ← $00
@@ -431,7 +457,9 @@ song_seqcp:
 
         jsr ok2
         ; falls through into silence_all (init silences $D400-$D415)
+"""
 
+    return setup + sidwrite + """
 silence_all:
         lda #0
         ldx #$15
