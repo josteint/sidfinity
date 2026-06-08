@@ -98,11 +98,35 @@ frame + different init writes → diverges at flat pos 0. The `$01/$00` sweep
 nets to all-zero (a verbose clear); it's a "reset" sequence (init trichotomy)
 but the frame-exact verdict still requires reproducing it.
 
-**Next step:** make the composer reproduce engine A's init shape for this
-canary — frame 0 = `$D418=$0F` only; frame 1 = the descending `$01/$00`
-sweep; music from frame 2. Likely a new FCConfig "init_style" knob (engine A
-vs the Cyb II/Hawkeye generic init). Disassemble engine A's $7A00 entry +
-first-play path to get the exact sweep order/extent (78 writes), then emit it.
+**The exact init routine FOUND** (disassembly.s `sub_7AB4` song-init tail,
+`$7AE2-$7AFB`):
+```
+$7AE2: LDX #$17              ; X = $17 → sweep $D417 down to $D400
+$7AE4: LDA #$01 : STA $D400,X   ; write $01 to $D400+X
+$7AE9: LDA #$00 : STA $D400,X   ; then $00  to $D400+X
+$7AEE: DEX : BPL $7AE4
+$7AF1: LDA #$0F : STA $D418   ; VOL  = $0F
+$7AF6: LDA #$00 : STA $D417   ; RES_FILT = $00
+$7AFB: RTS
+```
+= 48 writes ($D417..$D400, each $01 then $00) + `$D418=$0F` + `$D417=$00`.
+The generic FC composer init instead does `$D416=$FF, $D417=$00, $D418=$1F`
++ ascending `$00` silence of `$D400-$D415` — completely different bytes AND
+a different VOL ($0F vs $10|VOLUME_INIT=$1F).
+
+**Next step:** add an FCConfig `init_style` knob (default = current generic
+init; `'fc_clear_sweep'` = engine A's `$7AE2` routine above) and branch in
+`_emit_song_init_routine`. Two sub-problems beyond the byte sequence:
+  1. **Frame split.** Orig: f0=`$D418=$0F` only, f1=the sweep, music f2.
+     Rebuild does init+music contiguously (music f1). For the flat
+     `compare_instruction_stream` the frame boundary itself doesn't matter,
+     but the ORDERED write stream must match — so the rebuild must emit the
+     same leading `$D418=$0F` then the sweep then music, with no extra/missing
+     writes. Where the orig's standalone f0 `$D418=$0F` comes from (PSID-init
+     tail vs first play() warmup) needs confirming via pc-trace of $50E0/$50E3.
+  2. Only AFTER the init matches can the music-frame divergences (engine-knob
+     differences: nextvoice order, drum, pulse/filter progs, etc.) be
+     iterated via find_first_divergence.
 This is the gating work for sub-0 frame-exact; subs 2/3 (independent pools)
 and sub 1 (different engine) remain as previously scoped.
 
