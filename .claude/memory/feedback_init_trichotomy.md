@@ -86,6 +86,25 @@ libsidplayfp source) at `docs/sid_init_research.md`.
 Re-read the report **before** designing init handling for a new
 engine migration.
 
+## Why our own init introduces NO audio change
+
+Emitting our own reset instead of reproducing the engine's init writes is
+audibly safe, and the report proves why (`docs/sid_init_report.md` §2b
+"noise-burst bucket dissected" + §5.3 edge cases). What a SID tune SOUNDS like
+is fully determined by (1) the chip STATE at the moment music starts and (2)
+the play() write stream from there. Every init technique — clean clear,
+test-bit phase clear, noise-burst sweep, multi-pass paranoid clear, a $01/$00
+descending sweep — **converges to the same final register state**; only the
+transient TRACE during init differs, and play() overwrites a silenced chip
+before anything is heard. So if (A) our end-of-init state matches register-by-
+register over $D400-$D418 and (B) the play stream matches, the audio is
+identical even though the init write SEQUENCE is ours. The trichotomy verdict
+checks exactly those two things. (Caveat: a deliberate audible init signature
+like FC's `$00→$41→$00` noise tick would be removed — but a $01/$00 sweep with
+no waveform bit set, as in Adrenalin, is silent, so nothing audible is lost.)
+This is the "various inits affect the song / ours doesn't change the audio"
+reasoning. See [[project_adrenalin]] for the worked case.
+
 ## Verification consequence
 
 Strict Check A (chip state at end of init matches register-by-

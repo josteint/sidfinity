@@ -296,8 +296,8 @@ Done (commits cda5658 + this one):
   byte-IDENTICAL to HVSC's header for both canaries; flags from clock+sid,
   init=load_addr, play=load_addr+3, songs=len(usf.subtunes), inline-load form.
   `build_via_asm_featuredriven` uses it for emit_data → the FULL build runs
-  from USF alone (proven: builds Hawkeye with a bogus .sid, byte-identical to
-  the orig-header build).
+  from USF alone (proven: builds Hawkeye with a bogus .sid, producing output
+  identical to the orig-header build).
 Result: a model-generated FC USF can build a complete, instruction-sequence exact SID with NO
 orig file at all. Both canaries fully principled, equal to Hubbard/Companion
 (actually a step beyond — Hubbard still reads its 124-byte header). §9 met in

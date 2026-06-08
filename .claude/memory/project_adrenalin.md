@@ -1,6 +1,6 @@
 ---
 name: project_adrenalin
-description: "Adrenalin (HeatWave) — 3rd FC canary. SUB 0 DONE 2026-06-08: per-frame instruction-sequence exact via the pure-trichotomy init + trichotomy verdict (tracked in tools/regression.py FC canaries as Adrenalin[0] 1/1). It's a COMPILATION — THREE distinct engines + FOUR independent data pools in one PSID. Sub 0 = engine A @ $7A00 (canonical FC, DONE); subs 2/3 = engine A relocated to $1000 (proven byte-for-byte reloc), each its own pool; sub 1 = a DIFFERENT engine @ $1021 (4% code match). Every subtune has its own freq/instr/pattern/sequence (NOT shared-pool FC multi-subtune). Full Adrenalin (subs 1/2/3) still needs multi-independent-song FC support (new schema+composer feature)."
+description: "Adrenalin (HeatWave) — 3rd FC canary. SUB 0 DONE 2026-06-08: per-frame instruction-sequence exact via the pure-trichotomy init + trichotomy verdict (tracked in tools/regression.py FC canaries as Adrenalin[0] 1/1). It's a COMPILATION — THREE distinct engines + FOUR independent data pools in one PSID. Sub 0 = engine A @ $7A00 (canonical FC, DONE); subs 2/3 = engine A relocated to $1000 (proven exact reloc), each its own pool; sub 1 = a DIFFERENT engine @ $1021 (4% code match). Every subtune has its own freq/instr/pattern/sequence (NOT shared-pool FC multi-subtune). Full Adrenalin (subs 1/2/3) still needs multi-independent-song FC support (new schema+composer feature)."
 metadata: 
   node_type: memory
   type: project
@@ -29,7 +29,7 @@ composer generalises beyond Tel's subset.
   2026-06-07; full table in RE_NOTES "DIAGNOSIS" section):
   - sub 0 → engine A @ `$7A00` (canonical FC, full features).
   - subs 2/3 → engine A *relocated* to `$1000` (entry `$1006`) — PROVEN: sub2
-    nolengset `$128B` == engine A `$7C8B` byte-for-byte, addrs reloc `$7A`→
+    nolengset `$128B` == engine A `$7C8B` exactly, addrs reloc `$7A`→
     `$10`. Sub2≈sub3 engine code (99%); different data.
   - sub 1 → a DIFFERENT, smaller engine @ `$1021` (only 4% code match to
     subs 2/3; `DEC $1090` speed ctr, `JSR $1226/$1225`). NOT identified as FC

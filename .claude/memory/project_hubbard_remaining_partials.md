@@ -34,7 +34,7 @@ What shipped (all in this repo now, not reverted):
   (`_capture_music_irq`, cache kind `music_irq`); vblank→flat `music_wl`
   unchanged; digi unchanged. Gated tightly on the original's speed field.
 - **Validated against the pc-trace oracle** (`/tmp/validate_perirq.py` pattern,
-  §4): per-irq flattened stream == oracle, byte-for-byte, for HR (54/54, 352
+  §4): per-irq flattened stream == oracle, write-for-write, for HR (54/54, 352
   writes) AND Battle (54/54, 489 writes), orig + rebuild. Orig-vs-rebuild flat
   matches at full-song scale (HR 8938/10571, Battle 30101 writes).
 
@@ -53,7 +53,7 @@ distinct causes:
 FINAL CONCLUSION 2026-06-07: **there is no engine bug.** A correct per-`play()`
 comparison (pc-trace, segment by play-entry `$0986`/`$1003`, extract SID writes
 via the EFFECTIVE address in the trace's `[d4xx]` brackets) shows the rebuild's
-write sequence is **byte-identical to the original over 54/54 plays**. py65 (logic)
+write sequence **matches the original write-for-write over 54/54 plays**. py65 (logic)
 agrees. Human_Race is instruction-sequence exact in the Mode-1 sense.
 
 Everything below this line was a WRONG theory caused by buggy trace parsing —
@@ -96,7 +96,7 @@ comparison is the right tool — NOT my ad-hoc `--writelog-per-irq` parsing (whi
 was mis-aligned and produced the bogus "V1 late" + "88%/90%" numbers).
 
 The real divergence (Human_Race sub0):
-- **play[0] is byte-identical** (V1 and V2 both load correctly — "V1 late" was false).
+- **play[0] matches write-for-write** (V1 and V2 both load correctly — "V1 late" was false).
 - PW-writes per play: **orig `[4,0,0,0,0,0,0,0,0,0]`** (PW written only on the
   note-load), **rebuild `[4,4,0,4,0,4,0,4,0,4]`** (modulates PW every other frame).
 - So the rebuild runs **spurious bidirectional PWM** on instrument 0 (`pwm_speed=
@@ -126,7 +126,7 @@ bound when it shouldn't. Verify with the per-`play()` pc-trace comparison above
 NOT a dropped V3 freq write (that was the unreliable per-irq tooling lying —
 same lesson as Human_Race). Ground-truth `find_first_divergence` showed at flat
 pos 572 the orig writes `$D418=$0F` (master vol) that the rebuild omits; the
-rebuild's V3 note-load then matches orig byte-for-byte, just shifted by one.
+rebuild's V3 note-load then matches orig write-for-write, just shifted by one.
 ROOT: the engine writes `$D418=$0F` on EVERY note-load — once per voice that
 advances a pattern entry — from `$13B7`, inline in the pattern-advance path
 (`L_138B`), with the clamp NOP'd at runtime so the value is constant $0F. The

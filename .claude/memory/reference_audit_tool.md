@@ -38,7 +38,7 @@ Frame range is `start:end` (end-exclusive). `--voice` is 0-indexed
 
 Reproduces the Human Race downslide Rule 1 COLLAPSE verdict
 recorded in [[project_human_race_audit]] — V1 inst 6 (downslide-
-only) frames 225-234 writes byte-identical to a Commando-engine
+only) frames 225-234 produce the same writes (write-for-write) as a Commando-engine
 `freq_slide` rebuild.
 
 ## How to apply

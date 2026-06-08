@@ -47,7 +47,7 @@ RSID build). Disassembly: `pipelines/hubbard/chimera/disassembly.s`.
     no IRQ install, proper play() entry).
   - Digi player at $C000 — hand-written xa65 in
     `pipelines/hubbard/engine_constants.py::CHIMERA_DIGI_PLAYER_ASM`,
-    assembled byte-identical to the original 305 bytes.
+    assembled verbatim — the same 305 bytes as the original.
   - Bank table at $A000, validation at $A10B (sorted bank-ascending
     for cycle-strict scan match), pace+bank tables in the
     dispatcher.
