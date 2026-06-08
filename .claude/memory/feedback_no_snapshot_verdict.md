@@ -41,6 +41,6 @@ write-log revealed it had been silently FALSE-PASSING 25 subtunes:
   write stream diverges (e.g. first note loads one play() late / within-
   frame order), but the end-of-frame STATE reconverged so the snapshot
   passed.
-These are REAL divergences (not byte-exact under ground truth), now
+These are REAL divergences (not instruction-sequence exact under ground truth), now
 correctly flagged. See [[feedback_verification_modes]] and
 [[feedback_py65_misses_dispatch_bugs]].

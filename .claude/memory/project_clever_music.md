@@ -1,6 +1,6 @@
 ---
 name: clever-music-engine
-description: "Clever Music Companion variant — Fairlight + Gyroscope byte-exact via pipelines/companion/clever_music. Duration counters, embedded commands, song-position sync."
+description: "Clever Music Companion variant — Fairlight + Gyroscope instruction-sequence exact via pipelines/companion/clever_music. Duration counters, embedded commands, song-position sync."
 metadata: 
   node_type: memory
   type: project
@@ -9,7 +9,7 @@ metadata:
 
 `pipelines/companion/clever_music/` — third Companion engine strain.
 Graham Jarvis & Rob Hartshorn's engine, used by Clever Music titles.
-Two SIDs byte-exact end-to-end via `compare_instruction_stream`:
+Two SIDs instruction-sequence exact end-to-end via `compare_instruction_stream`:
 
 - Fairlight (4322/4322 writes across 46.9s)
 - Gyroscope (3502/3502 writes across 60s)

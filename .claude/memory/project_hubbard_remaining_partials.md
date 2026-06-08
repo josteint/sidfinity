@@ -1,6 +1,6 @@
 ---
 name: project_hubbard_remaining_partials
-description: "FULLY RESOLVED 2026-06-07: the entire Hubbard family is byte-exact (regression 71/71 ok, 0 partial, 0 regressed). Two fixes this day: (1) CIA-aware per-play() verdict (Human_Race 5/5 + Battle 1/1 — verify_all routes PSID speed!=0 subtunes through siddump --writelog-per-irq, cycle-base-corrected, frame-0 init drop); (2) Devils_Galop master_vol_every_note knob (1/1). Devils was NOT a 'dropped V3 freq write' (that came from the unreliable per-irq tooling) — the engine writes $D418=$0F on every note-load and the rebuild only wrote it at init."
+description: "FULLY RESOLVED 2026-06-07: the entire Hubbard family is instruction-sequence exact (regression 71/71 ok, 0 partial, 0 regressed). Two fixes this day: (1) CIA-aware per-play() verdict (Human_Race 5/5 + Battle 1/1 — verify_all routes PSID speed!=0 subtunes through siddump --writelog-per-irq, cycle-base-corrected, frame-0 init drop); (2) Devils_Galop master_vol_every_note knob (1/1). Devils was NOT a 'dropped V3 freq write' (that came from the unreliable per-irq tooling) — the engine writes $D418=$0F on every note-load and the rebuild only wrote it at init."
 metadata: 
   node_type: memory
   type: project
@@ -54,7 +54,7 @@ FINAL CONCLUSION 2026-06-07: **there is no engine bug.** A correct per-`play()`
 comparison (pc-trace, segment by play-entry `$0986`/`$1003`, extract SID writes
 via the EFFECTIVE address in the trace's `[d4xx]` brackets) shows the rebuild's
 write sequence is **byte-identical to the original over 54/54 plays**. py65 (logic)
-agrees. Human_Race is byte-exact in the Mode-1 sense.
+agrees. Human_Race is instruction-sequence exact in the Mode-1 sense.
 
 Everything below this line was a WRONG theory caused by buggy trace parsing —
 kept only as a cautionary trail. The verdict (`verify_all` / `find_first_divergence`

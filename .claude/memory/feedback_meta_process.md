@@ -29,4 +29,4 @@ memory index drifts away from reality.
 
 **How to apply:** Triggered by the PreCompact hook in
 `.claude/settings.json` and at natural end-of-workstream pauses
-(after an engine reaches byte-exact, after a refactor lands, etc).
+(after an engine reaches instruction-sequence exact, after a refactor lands, etc).

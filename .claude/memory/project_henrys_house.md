@@ -1,6 +1,6 @@
 ---
 name: henrys-house-engine
-description: "Chris Murray's Henrys_House — stripped single-voice Companion variant. Byte-exact via pipelines/companion/henrys_house."
+description: "Chris Murray's Henrys_House — stripped single-voice Companion variant. Instruction-sequence exact via pipelines/companion/henrys_house."
 metadata: 
   node_type: memory
   type: project
@@ -8,7 +8,7 @@ metadata:
 ---
 
 `pipelines/companion/henrys_house/` — fifth Companion strain. Chris
-Murray's Henrys_House, a stripped single-voice variant. Byte-exact:
+Murray's Henrys_House, a stripped single-voice variant. Instruction-sequence exact:
 434/434 cycle-ordered writes match.
 
 ## Engine semantics

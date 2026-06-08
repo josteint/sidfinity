@@ -48,9 +48,11 @@ instead.
 
 ## The two verification modes — read alongside the CORE TENET
 
-The project has EXACTLY TWO modes for declaring a rebuild byte-exact.
-Anything else is wrong. Three traps eat hours of session time; each is
-explicitly documented.
+The project has EXACTLY TWO modes for declaring a rebuild correct — i.e.
+**per-frame instruction-sequence exact** (the rebuilt SID is NOT byte-for-byte
+identical to HVSC's binary; we compose our own engine — only the `$D400-$D418`
+write stream matches). Anything else is wrong. Three traps eat hours of
+session time; each is explicitly documented.
 
 **Mode 1 — frame-by-frame instruction sequence (tracker music).**
 Each PSID `play()` invocation emits a finite, ordered sequence of writes
@@ -184,9 +186,9 @@ Use the `migrate-hubbard-engine` skill at `.claude/skills/migrate-hubbard-engine
 3. Create `pipelines/hubbard/<engine>/config.py` (clone a similar existing one — Action Biker is a good template; Chimera if there's digi)
 4. Create `pipelines/hubbard/<engine>/extract/engine_model.py` + `extract/to_usf.py`
 5. Iterate: build → capture original vs rebuilt → fix first diff → repeat
-6. Verify byte-exact via `pipelines.hubbard.verify.verify_all`
+6. Verify the per-frame instruction sequence via `pipelines.hubbard.verify.verify_all`
 
-When the engine reaches byte-exact, its USF + rebuilt SID go alongside the
+When the engine's instruction sequence matches, its USF + rebuilt SID go alongside the
 HVSC original at `hvsc84/MUSICIANS/H/Hubbard_Rob/<Engine>.{usf, sidfinity.sid}`.
 
 ## Working conventions
@@ -234,7 +236,7 @@ write_commando_usf(COMMANDO, 'hvsc84/MUSICIANS/H/Hubbard_Rob')
 build_from_usf('hvsc84/MUSICIANS/H/Hubbard_Rob/Commando.usf', 'hvsc84/MUSICIANS/H/Hubbard_Rob/Commando.sidfinity.sid')
 "
 
-# Verify one engine byte-exact
+# Verify one engine's per-frame instruction sequence
 python -c "
 from pipelines.hubbard.verify import verify_all
 from pipelines.hubbard.commando.config import COMMANDO

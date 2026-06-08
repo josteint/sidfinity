@@ -1,6 +1,6 @@
 ---
 name: bowden-canonical-engine
-description: "Bowden-canonical Companion strain — 17 SIDs byte-exact (snapshot AND instruction-stream) via pipelines/companion/bowden_canonical. Flat orderlists, 3 fixed-timbre voices, multi-subtune, relocation-aware."
+description: "Bowden-canonical Companion strain — 17 SIDs instruction-sequence exact (snapshot AND instruction-stream) via pipelines/companion/bowden_canonical. Flat orderlists, 3 fixed-timbre voices, multi-subtune, relocation-aware."
 metadata:
   node_type: memory
   type: project
@@ -9,7 +9,7 @@ metadata:
 
 `pipelines/companion/bowden_canonical/` — second Companion engine
 strain after Hubbard's 1984 `pipelines/companion/` (Up_up_and_Away).
-**17 SIDs** in HVSC #84 byte-exact through the SID → USF v2 → SID
+**17 SIDs** in HVSC #84 instruction-sequence exact through the SID → USF v2 → SID
 pipeline, BOTH at the per-frame snapshot level (md5 of $D400-$D418)
 AND at the cycle-strict instruction-stream level (siddump --writelog
 flat (reg,val) sequence comparison):
@@ -67,7 +67,7 @@ omitted = all enabled = 7). Composer emits a per-subtune table; init
 loads the active subtune's mask into `v{N}_enabled` bytes; each
 `voice_step` early-RTSes when its flag is 0 — exactly mirroring orig's
 JSR→BIT patching, no proc_note, no carry side-effect. Melonmania
-sub 1 has mask=6 (V2+V3) and is now byte-exact.
+sub 1 has mask=6 (V2+V3) and is now instruction-sequence exact.
 
 ## Cluster coverage
 
@@ -118,7 +118,7 @@ identity), via:
 ## Related
 
 - [[project_companion]] — sister strain (Hubbard 1984 Companion,
-  pipelines/companion/, Up_up_and_Away byte-exact)
+  pipelines/companion/, Up_up_and_Away instruction-sequence exact)
 - [[feedback_6502_mindset]] — the carry-leak class of bug
 - [[reference_usf_v2_format]] — USF v2 grammar; init_pos lives in
   subtune.params.fields since InitVoice fields are Hubbard-shaped

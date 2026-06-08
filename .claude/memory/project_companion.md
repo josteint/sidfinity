@@ -1,6 +1,6 @@
 ---
 name: project_companion
-description: "Companion engine pipeline — pipelines/companion/. Byte-exact for Up_up_and_Away.sid (5/5 subtunes). First non-Hubbard-'85 engine in our pipeline. Engine origin documented (Keith Bowden 1984 type-in book) via research-player skill."
+description: "Companion engine pipeline — pipelines/companion/. Instruction-sequence exact for Up_up_and_Away.sid (5/5 subtunes). First non-Hubbard-'85 engine in our pipeline. Engine origin documented (Keith Bowden 1984 type-in book) via research-player skill."
 metadata: 
   node_type: memory
   type: project
@@ -13,7 +13,7 @@ type-in driver from *The Companion to the Commodore 64*, Pan Books).
 Hubbard extended Bowden's base driver before later writing his own
 1985 player (the Commando-era engine).
 
-**Status (2026-05-25): FULLY byte-exact, 5/5 subtunes.**
+**Status (2026-05-25): FULLY instruction-sequence exact, 5/5 subtunes.**
 ```
 unified sub_0: 2860/2860 (100.0%) — 52 sec
 unified sub_1:  660/ 660 (100.0%) — 12 sec

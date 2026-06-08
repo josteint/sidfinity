@@ -79,7 +79,7 @@ Bowden engine (Berry_Vic ×10 + Melonmania ×1):
   primes" inference. The composer reads USF directly.
 
 Verified: Bach_Sonata + Atonal_Music + … + Melonmania (all 3 subs)
-byte-exact (`match_all = full`) via the new init.sid path.
+instruction-sequence exact (`match_all = full`) via the new init.sid path.
 Melonmania sub 1's previously-known partial (a carry-leak from the
 synthetic `[$81,$FF]` orderlist for V1) was later resolved by the
 per-subtune `voice_enable_mask` USF param — see

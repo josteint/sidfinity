@@ -14,14 +14,14 @@ pattern_ptr_table + aux tables) is still verbatim-copied from the orig
 HVSC binary**. Plan: `docs/principled_fc_composer_plan.md`.
 
 **Verdict tool:** `verify_featuredriven(cfg)` — frame-exact writelog match
-(NOT byte-exact; the composer chooses its own layout per CORE TENET).
+(NOT instruction-sequence exact; the composer chooses its own layout per CORE TENET).
 Baseline (2026-06-06): Hawkeye 12/12, Cyb II 2/2 green. Two canaries.
 
 **Plan correction (load-bearing):** the plan's "Schema: nothing — USF
 already carries `Pattern.events`" is WRONG. `to_usf.py` lowers FC patterns
 into the *generic* USF representation (`VoiceBlock → Orderlist + Pattern →
 NoteRow`, like Hubbard), not FC `Pattern.events` (those exist only at
-extract time). So Phase 1 walks the generic USF, and byte-exact is off the
+extract time). So Phase 1 walks the generic USF, and instruction-sequence exact is off the
 table — writelog-exact is the verdict.
 
 **Phase 1 + Phase 2 are coupled** — the sequence references patterns by id
@@ -152,7 +152,7 @@ in) EVERY frame (the PSID driver resets $01 before each play, so song-init
 alone doesn't hold). Gated on `emit_data_from_usf` via the `bank_ram`
 substitution — verbatim engines keep data below $A000 and setting $01 there
 BREAKS them (broke verbatim Hawkeye until gated). Result: Hawkeye emit_data
-0/12 → **7/12** (subs 2,3,4,7,8,10,11 byte-exact). Cyb II 2/2, Hawkeye
+0/12 → **7/12** (subs 2,3,4,7,8,10,11 instruction-sequence exact). Cyb II 2/2, Hawkeye
 verbatim 12/12.
 
 **Hawkeye emit_data now 10/12** after two more fixes:
@@ -164,7 +164,7 @@ verbatim 12/12.
   `cur_length = max(1, setlen-1)` which collapsed setlen 1 vs 2 to the same
   duration AND made the encoder emit setlen=duration+1, so notes played one
   step too long → sequence desync. Correct: `duration = raw setlen value`
-  (engine nootleng = value-1); encoder emits `$80|duration`. Byte-exact
+  (engine nootleng = value-1); encoder emits `$80|duration`. Instruction-sequence exact
   round-trip, unchanged for setlen>=2 (Cyb II 2/2). Fixed subs 0,1,6,9.
 
 **HAWKEYE 12/12 — music layer principled (emit_data_from_usf=True in config;
@@ -298,7 +298,7 @@ Done (commits cda5658 + this one):
   `build_via_asm_featuredriven` uses it for emit_data → the FULL build runs
   from USF alone (proven: builds Hawkeye with a bogus .sid, byte-identical to
   the orig-header build).
-Result: a model-generated FC USF can build a complete, byte-exact SID with NO
+Result: a model-generated FC USF can build a complete, instruction-sequence exact SID with NO
 orig file at all. Both canaries fully principled, equal to Hubbard/Companion
 (actually a step beyond — Hubbard still reads its 124-byte header). §9 met in
 full for the FC emit_data path.
@@ -308,7 +308,7 @@ full for the FC emit_data path.
   shared default prefix matches). So each needs real work: RE the program
   format → design a musical USF representation (schema-addition discipline;
   programs = offset/value sequences = data tables per Rule 2, decompose where
-  structure is clear) → extract → compose-from-USF → verify byte-exact
+  structure is clear) → extract → compose-from-USF → verify instruction-sequence exact
   writelog. Each is a mini-project (~1 table/session). The arp table is 8
   pointers (arplo/arphi) into overlapping 4-byte-spaced windows of a shared
   program stream; the note's $7x arp-select (currently mapped to row.instr)

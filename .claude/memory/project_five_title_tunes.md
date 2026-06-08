@@ -1,6 +1,6 @@
 ---
 name: project_five_title_tunes
-description: "5 Title Tunes — UNIFIED single-engine byte-exact (5/5 subtunes, 7950 bytes vs original 11849). One Hubbard '85 engine plays all 5 tunes via per-subtune runtime tables (params, ovseed, instrument-base, orderlist). Drove three codegen extensions: per-subtune engine params, per-subtune ovseed, USF v2 per-subtune params block. Replaces an earlier 5-engine compound (20836 bytes)."
+description: "5 Title Tunes — UNIFIED single-engine instruction-sequence exact (5/5 subtunes, 7950 bytes vs original 11849). One Hubbard '85 engine plays all 5 tunes via per-subtune runtime tables (params, ovseed, instrument-base, orderlist). Drove three codegen extensions: per-subtune engine params, per-subtune ovseed, USF v2 per-subtune params block. Replaces an earlier 5-engine compound (20836 bytes)."
 metadata: 
   node_type: memory
   type: project
@@ -13,7 +13,7 @@ Rob Hubbard's *5 Title Tunes* (1985, self-published). Unique in the
 (each with its own init, play, freq table, instrument table, pattern
 data). Disassembly: `pipelines/hubbard/five_title_tunes/disassembly.s`.
 
-**Status (2026-05-25, evening): UNIFIED single-engine byte-exact.**
+**Status (2026-05-25, evening): UNIFIED single-engine instruction-sequence exact.**
 
 The shipped `demo/hubbard/5_Title_Tunes.sid` is now ONE Hubbard '85
 engine playing all 5 subtunes (7950 bytes vs original 11849, and
@@ -29,13 +29,13 @@ unified sub_3: 5921/5921 (100.0%)
 unified sub_4: 6637/6637 (100.0%)
 ```
 
-verify_all over the 9 other engines: 83/83 still byte-exact. Zero
+verify_all over the 9 other engines: 83/83 still instruction-sequence exact. Zero
 regression.
 
 ## Pipeline shape — different from the other engines
 
 Lives at `pipelines/five_title_tunes/v2/`. The directory's V1 path
-(merge-into-single-engine, audibly correct but NOT byte-exact) is left
+(merge-into-single-engine, audibly correct but NOT instruction-sequence exact) is left
 intact for reference.
 
 ```
@@ -53,7 +53,7 @@ work_subs/sub_{0..4}.sid                         (5 standalone PSIDs)
 demo/hubbard/5_Title_Tunes_{0..4}.usf            (5 USFs, one per sub)
     │
     ▼ pipelines.hubbard.build_from_usf — standalone build at LOAD=$1000
-    │  (each sub byte-exact against parent[subtune N])
+    │  (each sub instruction-sequence exact against parent[subtune N])
     │
     ▼ v2/build_compound.py — codegen 5× at unique LOADs + dispatcher
     │
@@ -157,7 +157,7 @@ that handles all 5 subtunes. Architecture:
 - Codec auto-sizes `INST_BITS=6` to fit absolute IDs 0..55; smaller
   engines still use 4-5 bits.
 
-The critical insight that closed the byte-exactness gap: the
+The critical insight that closed the instruction-sequence exactness gap: the
 per-voice `v_instr` ovseed bytes (load-time initial instrument
 references) are sub-LOCAL in the raw freq-table overlap. When
 extracting per-subtune ovseed for the unified build, the `v_instr`

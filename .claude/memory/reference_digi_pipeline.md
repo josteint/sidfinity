@@ -32,7 +32,7 @@ Phases D0..D3c are done (2026-05-23, commits 8052172..922f59c).
 - `pipelines/hubbard/digi_pack.py` — `pack_digi(sample)` is the
   inverse of `extract_digi`: 1-bit audio + comma-hex `vol_envelope`
   extra → engine `[vol_byte, audio_byte × 16]` byte stream,
-  MSB-first. Lossless byte-exact round-trip verified.
+  MSB-first. Lossless instruction-sequence exact round-trip verified.
 
 - `pipelines/chimera/extract/digi.py` — Chimera's extractor. Per
   subtune X = subtune-2: pace at `$9FE2[X]`, bank at `$9FE4[X]`;

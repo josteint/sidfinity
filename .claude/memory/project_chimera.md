@@ -87,7 +87,7 @@ gate-clear).
 
 How to apply: Chimera is done — all 4 subtunes. The linear-PWM carry
 the old memory flagged as "unmodelable" is fully handled by
-`_vibrato`'s carry_out plus the dur_field seed — byte-exact, not
+`_vibrato`'s carry_out plus the dur_field seed — instruction-sequence exact, not
 "inaudible drift". For digi work on a different engine, start from
 the Chimera digi pipeline (the extract → Sample/FLAC → pack flow is
 mostly engine-agnostic; only `extract_digi` and the dispatcher patch
@@ -128,4 +128,4 @@ go" investigation).
 
 Final state: `player_base=$B093` (auto-packed against samples ending
 at $B092), file 9601 bytes (smaller than original 12440), all 4
-subtunes byte-exact + 32s playback in sidplayfp.
+subtunes instruction-sequence exact + 32s playback in sidplayfp.

@@ -1,6 +1,6 @@
 ---
 name: yes-tune-engine
-description: "Yes_Tune — Companion variant with per-voice state machine and 2-byte (note, duration) pattern format. Byte-exact via pipelines/companion/yes_tune."
+description: "Yes_Tune — Companion variant with per-voice state machine and 2-byte (note, duration) pattern format. Instruction-sequence exact via pipelines/companion/yes_tune."
 metadata: 
   node_type: memory
   type: project
@@ -12,7 +12,7 @@ state machine engine with 2-byte (note, duration) format. Used by:
 
 - Yes_Tune (anonymous 1986 demo) — 4542/4542 writes match
 - Soldier_of_Fortune (Michael Draper, 8 subtunes incl. 5 SFX) —
-  8/8 subtunes byte-exact
+  8/8 subtunes instruction-sequence exact
 
 Same engine code relocated ($6000 base for Yes_Tune, $B600 for
 Soldier_of_Fortune). Layout detection scans play loop for the

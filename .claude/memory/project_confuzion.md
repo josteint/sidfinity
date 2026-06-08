@@ -1,6 +1,6 @@
 ---
 name: project_confuzion
-description: "Confuzion (Hubbard 1985 Incentive) — byte-exact across all subtunes; stripped runtime (vibrato + bidirectional PWM only)."
+description: "Confuzion (Hubbard 1985 Incentive) — instruction-sequence exact across all subtunes; stripped runtime (vibrato + bidirectional PWM only)."
 metadata:
   node_type: memory
   type: project
@@ -9,7 +9,7 @@ metadata:
 
 Confuzion (Rob Hubbard, 1985 Incentive Software) is the eleventh
 Hubbard '85 engine on the shared composer path. Voice registers +
-filter + master-VOL ($D400-$D418) byte-exact across all 13998 frames
+filter + master-VOL ($D400-$D418) instruction-sequence exact across all 13998 frames
 after the fade was implemented — see [[project_hubbard_song_end_fade]]
 for the cross-engine fade story.
 
