@@ -168,8 +168,26 @@ the pattern pool dedup (`build_pattern_pool` by row-content → V1 entries map t
 slots [0,0,0,0,1,1] = pattern-9 ×4, correct); the seq_table voice order
 (voice 0 = V1 = the $90 09... sequence).
 
-ROOT CAUSE FOUND (traced to the bottom this session): V1's FIRST note is a
-DELAYED GLIDE. orig pattern 9 = `f1 f1 c1 a0 e0 8f 00 ...`: filter $F1, wave_adj
+### FIXED (commit e3363a4): glide target gates on unconditionally
+The glide handler did `bne nolengset` ("always taken, target>0") but V1's glide
+target is $00 (note C0) → bne fell through, skipping the note-play/gate → V1
+silent. Changed to `jmp nolengset` (engine always plays the glide target with
+attack). V1 now gates on; divergence advanced pos 70 → 87. Cyb II 2/2 +
+Hawkeye 12/12 unaffected.
+
+### CURRENT divergence — pos 87, V2 pitch ($42D0 vs $0001)
+After the glide fix, V1 matches through pos 86. At pos 87 V2's note freq is
+orig $42D0 vs rebuild $0001 (near-zero); V2 gates on (ctrl=$21 matches at pos
+86), so it's a PITCH/freq COMPUTATION issue, not a gate issue. The streams
+RE-CONVERGE at pos 93-95 (V1 ctrl/freq match), so it's a localized per-note
+mis-pitch, not a structural break. V2's sequence ($1aa0) has transposes
+$84 then $90 (`84 05 05 05 05 90 02 03...`), so transpose handling on V2's
+note is the prime suspect. Also a vol/filter vs V1-PW write-ORDER shift around
+pos 89-92 (likely a consequence of the same note resolving differently). NEXT:
+trace V2's note at this step (pitch index + toneadd) vs orig; check the
+$0001 — likely a bad freq-table index from a transpose over/underflow.
+
+### (historical) ROOT CAUSE of the pos-70 divergence: V1 FIRST note DELAYED GLIDE. orig pattern 9 = `f1 f1 c1 a0 e0 8f 00 ...`: filter $F1, wave_adj
 1, len 32, then `$E0 $8F $00` = a GLIDE command (delay $8F=143, target note
 $00=C0). The extraction is CORRECT (USF row: glide=143, pitch=C0). The original
 ENGINE still GATES ON this note (writes AD/SR + ctrl=$41) — a glide with no

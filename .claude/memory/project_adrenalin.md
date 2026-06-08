@@ -87,6 +87,11 @@ $1BA0 (2B/entry). lonote source found in raw binary at `$68B3`.
   diverges. NEXT: fix composer glide to gate on when no source note (and/or
   honor glide delay); read engine A $E0/glide handler in disassembly.s; shared
   FC-effect change (verify Cyb II + Hawkeye). Detail in RE_NOTES.
+- FIXED (e3363a4): glide target gates on unconditionally (jmp nolengset, was
+  bne — failed for glide target $00=C0). V1 plays; divergence 70→87. Now pos 87
+  = V2 pitch ($42D0 vs $0001, near-zero) — gate OK, PITCH wrong; streams
+  re-converge at 93-95 so localized; V2 seq has $84/$90 transposes → transpose
+  over/underflow → bad freq-table index is the suspect. Cyb II/Hawkeye green.
 
 ## PROGRESS 2026-06-07 (cont. 2) [HYPOTHESIS WAS WRONG — see cont. 3]
 - `init_style='fc_clear_sweep'` knob (commit a1bbba2) emits engine A's $7AE2
