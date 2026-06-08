@@ -1451,7 +1451,13 @@ skip:
         dey                          ; back up Y to point at target
         lda (zp3),y
         sta tabbytsto
-        bne nolengset                ; always taken (target > 0)
+        jmp nolengset                ; play the glide target note + gate on,
+                                     ; like the engine (falls into the note-
+                                     ; play path). Must be unconditional: a
+                                     ; glide target of $00 (= note C0, e.g.
+                                     ; Adrenalin V1 pattern 9) is a real note,
+                                     ; not a rest — a `bne` here would skip the
+                                     ; gate and leave the voice silent.
 
 f0_or_f1_chained:
         ; Re-dispatched $F0 (noglide) or $F1 (filterset). Mirrors
