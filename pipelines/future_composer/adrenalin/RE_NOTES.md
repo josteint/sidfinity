@@ -168,7 +168,23 @@ the pattern pool dedup (`build_pattern_pool` by row-content → V1 entries map t
 slots [0,0,0,0,1,1] = pattern-9 ×4, correct); the seq_table voice order
 (voice 0 = V1 = the $90 09... sequence).
 
-LEADS for next session (pattern-content / playback, not data layout):
+ROOT CAUSE FOUND (traced to the bottom this session): V1's FIRST note is a
+DELAYED GLIDE. orig pattern 9 = `f1 f1 c1 a0 e0 8f 00 ...`: filter $F1, wave_adj
+1, len 32, then `$E0 $8F $00` = a GLIDE command (delay $8F=143, target note
+$00=C0). The extraction is CORRECT (USF row: glide=143, pitch=C0). The original
+ENGINE still GATES ON this note (writes AD/SR + ctrl=$41) — a glide with no
+prior note (first note) / with a delay plays the target note with attack first,
+then glides. The COMPOSER's glide emitter does NOT gate on (writes ctrl=$00, no
+AD/SR), so V1 stays silent. V2/V3 first notes are plain (no glide) so they're
+unaffected — that's why only V1 diverges.
+→ FIX (next session, composer-effect work): make the glide path gate on the
+note when there's no source note to glide from (and/or honor the glide DELAY:
+gate on now, begin sliding after `delay` frames). Read engine A's glide handler
+in disassembly.s (the $E0/glide path, PatGlide) for the exact delay + gate
+semantics, then fix the composer's glide emitter. This is a shared FC-composer
+effect change — gate it / verify Cyb II + Hawkeye don't regress.
+
+EARLIER LEADS (now superseded by the root cause above, kept for context):
 - The encoder emits a `$C0` (voiceinc 0) right after the transpose in EVERY
   voice's sequence (`90 c0 00 00 ...`). orig V1 has NO voiceinc command. It's
   present for V2/V3 too (whose first notes still match), so the decoder handles

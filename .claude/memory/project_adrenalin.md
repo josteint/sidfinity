@@ -79,6 +79,14 @@ $1BA0 (2B/entry). lonote source found in raw binary at `$68B3`.
   freq $02CC+AD/SR/PW/ctrl; rebuild different freq, no AD/SR — held-vs-new-note
   or pitch/sequence mismatch). Per-voice musical accuracy now; structurally
   sound (flat lengths 4941 vs 4953). Cyb II 2/2 + Hawkeye 12/12 unaffected.
+- ROOT-CAUSED pos-70 (traced seq-parse→orderlist→pool→pattern→effect, all OK
+  except the last): V1's FIRST note is a DELAYED GLIDE (orig pattern 9 =
+  `...e0 8f 00`: $E0 glide, delay $8F=143, target C0; extraction correct). orig
+  ENGINE gates it on (AD/SR+ctrl=$41); the COMPOSER glide emitter does NOT
+  (ctrl=$00, no AD/SR) → V1 silent. Only V1 has a glide first note → only V1
+  diverges. NEXT: fix composer glide to gate on when no source note (and/or
+  honor glide delay); read engine A $E0/glide handler in disassembly.s; shared
+  FC-effect change (verify Cyb II + Hawkeye). Detail in RE_NOTES.
 
 ## PROGRESS 2026-06-07 (cont. 2) [HYPOTHESIS WAS WRONG — see cont. 3]
 - `init_style='fc_clear_sweep'` knob (commit a1bbba2) emits engine A's $7AE2
