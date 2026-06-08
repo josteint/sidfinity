@@ -38,7 +38,7 @@ structurally different ways. Two layouts seen so far:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal
+from typing import Literal, Optional
 
 
 SubtuneLayout = Literal['flat_seq_table', 'smc_template_with_sfx',
@@ -170,6 +170,18 @@ class FCConfig:
     starttabel_addr: int = 0       # per-instrument noise-tick attack waveform
     arplo_addr: int = 0            # arpeggio program ptrs (lo bytes, 8 entries)
     arphi_addr: int = 0            # arpeggio program ptrs (hi bytes, 8 entries)
+    # Minimum valid hi byte for an arp-program pointer in arphi; the extract
+    # skips arphi slots below this as unused/garbage. Default $80 fits engines
+    # whose arp programs live in high memory (Hawkeye $8xxx); engines with
+    # low-memory arp programs (Adrenalin $19xx) lower it so valid pointers
+    # aren't filtered out.
+    arp_ptr_hi_min: int = 0x80
+    # Auto-arpeggio from instrument fx3 bit 2 (engine A $7D9C): instruments with
+    # fx3 bit 2 set run a fixed arp program every frame with NO pattern $7x
+    # command. This is the arp-program INDEX they use (engine A hardcodes
+    # program 1 @ $1973 = (0,+4,+7)). None = no fx3-bit-2 auto-arp (default;
+    # Hawkeye/Cyb II drive arp only via the pattern $7x command).
+    fx3_bit2_autoarp_index: Optional[int] = None
     pulsetabel_addr: int = 0       # pulse-program data (4 programs × 8 bytes)
     vibtabwait_addr: int = 0       # per-instrument vibrato delay (20 bytes)
     wavearp_addr: int = 0          # 4-byte wave-arpeggio table {$80,$10,$80,$10}

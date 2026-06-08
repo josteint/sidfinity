@@ -1134,6 +1134,35 @@ def _emit_playirq_dispatch(cfg: FCConfig) -> str:
         if cfg.nolengset_resets_tonearpcounter else ''
     )
 
+    # fx3 bit-2 auto-arp (engine A $7D9C): instruments with fx3 bit 2 run a
+    # fixed arp program every frame WITHOUT a pattern $7x command. At inst
+    # reload we point the per-voice arp ptr (arpieoklo/arpieokhi) at that
+    # program and reset the arp counter; the per-frame bit-2 handler then runs
+    # it. X = voice id here. Empty unless cfg.fx3_bit2_autoarp_index is set.
+    if cfg.fx3_bit2_autoarp_index is not None:
+        _aai = cfg.fx3_bit2_autoarp_index
+        fx3_autoarp = (
+            '        ; fx3 bit-2 auto-arp setup (engine A): bit-2 insts run '
+            f'arp program {_aai}\n'
+            '        lda wavecount,x\n'
+            '        asl\n'
+            '        asl\n'
+            '        asl\n'
+            '        tay\n'
+            '        lda fx3,y                     ; instrument fx3 byte\n'
+            '        and #$04\n'
+            '        beq naa_skip\n'
+            f'        lda arplo+{_aai}\n'
+            '        sta arpieoklo,x\n'
+            f'        lda arphi+{_aai}\n'
+            '        sta arpieokhi,x\n'
+            '        lda #0\n'
+            '        sta tonearpcounter,x\n'
+            'naa_skip:\n'
+        )
+    else:
+        fx3_autoarp = ''
+
     if cfg.voice_loop_layout == 'interleaved':
         pp_store_pw_setup = '        ldy voicesto\n'
         pp_store_sta_d402_sid = '        sta $d402,y                  ; SID PW lo (early)\n'
@@ -1615,7 +1644,7 @@ nolengset:
         sta pulsetest,x
         pla
         sta filtercount,x
-
+{fx3_autoarp}
 snnn:
         ; Advance begcount, check if next byte is $FF (pattern end).
         inc begcount,x
@@ -2615,6 +2644,7 @@ playirq_done:
         nolengset_sta_d402_sid=nolengset_sta_d402_sid,
         nolengset_sta_d403_sid=nolengset_sta_d403_sid,
         nolengset_reset_tonearp=nolengset_reset_tonearp,
+        fx3_autoarp=fx3_autoarp,
         playirq_run_ldx=playirq_run_ldx,
         fx_pulse_run_body=fx_pulse_run_body,
         h3_command_dispatch=h3_command_dispatch,
@@ -3087,16 +3117,12 @@ def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
     # Contiguous repack (see FCConfig.contiguous_data_layout): assign every
     # data table a fresh non-overlapping address packed upward from the first
     # data address, then rewrite cfg so the section builders + pointer-table
-    # layouts (filt/drum) + equates all use the packed addresses. The pointer
-    # layouts derive their pointers from these cfg addresses, so they follow
-    # automatically. (arp is N/A when usf.arp_programs is empty — its count is
-    # encoded in the arplo/arphi address gap, so it is NOT repacked here; assert
-    # that case.)
+    # layouts (filt/drum/arp) + equates all use the packed addresses. The
+    # pointer layouts derive their pointers from these cfg addresses, so they
+    # follow automatically. arp is special: its count is encoded in the
+    # arphi-arplo gap, so arplo/arphi must stay exactly arp_count apart and
+    # arp_progs reserved right after (mirroring _emit's arp_layout).
     if cfg.emit_data_from_usf and cfg.contiguous_data_layout:
-        if usf.arp_programs:
-            raise NotImplementedError(
-                'contiguous_data_layout + arp_programs not supported (arp '
-                'count is derived from the arplo/arphi address gap)')
         entries = cfg.freq_table_entries
         base = min(a for a in (cfg.freq_lo_addr, cfg.freq_hi_addr,
                                cfg.per_subtune_speed_addr, cfg.instr_records_addr)
@@ -3117,6 +3143,15 @@ def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
         _take('instr_records_addr', cfg.instr_count * 8)
         if cfg.vibtabwait_addr:
             _take('vibtabwait_addr', cfg.instr_count)
+        # arp: arplo (arp_count) + arphi (arp_count, must be arplo+arp_count) +
+        # arp_progs (1+len(offsets) per program). _emit's arp_layout recomputes
+        # prog_addr = arphi + arp_count and the pointers from these cfg addrs.
+        if cfg.arplo_addr and cfg.arphi_addr and usf.arp_programs:
+            _arp_count = cfg.arphi_addr - cfg.arplo_addr
+            repack['arplo_addr'] = cur
+            repack['arphi_addr'] = cur + _arp_count
+            _arp_prog_sz = sum(1 + len(offs) for offs in usf.arp_programs.values())
+            cur += 2 * _arp_count + _arp_prog_sz
         _pulse_kmax = max(usf.pulse_programs, default=0)
         if _pulse_kmax and cfg.pulsetabel_addr:
             _take('pulsetabel_addr', _pulse_kmax * 8)

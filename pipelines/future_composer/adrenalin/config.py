@@ -73,6 +73,10 @@ ADRENALIN = FCConfig(
     filterbytes_addr=0x198B,        # LDA $198B,X / $198C,X at $807D/$8083
     arplo_addr=0x1961,              # LDA $1961,X at $7C46
     arphi_addr=0x1968,              # LDA $1968,X at $7C4F
+    arp_ptr_hi_min=0x10,            # arp programs live at $19xx (hi $19), not
+                                    # high memory — don't filter them as garbage
+    fx3_bit2_autoarp_index=1,       # fx3 bit 2 → auto-arp using program 1
+                                    # ($1973 = (0,+4,+7)); engine A $7DA7
     pulsetabel_addr=0x199C,         # LDA $199C,Y at $7FAF
     vibtabwait_addr=0x1A14,         # LDX $1A14,Y at $7DD6
 

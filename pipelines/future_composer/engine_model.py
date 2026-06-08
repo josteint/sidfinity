@@ -450,8 +450,9 @@ def _decode_arp_programs(mem: bytes, cfg: FCConfig,
     if not (lo and hi):
         return {}
     progs: dict[int, tuple[int, ...]] = {}
+    hi_min = getattr(cfg, 'arp_ptr_hi_min', 0x80)
     for n in range(16):                      # engine masks $7x with $0F
-        if mem[hi + n] < 0x80:
+        if mem[hi + n] < hi_min:
             continue
         ptr = mem[lo + n] | (mem[hi + n] << 8)
         count = mem[ptr]
