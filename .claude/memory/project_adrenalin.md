@@ -197,6 +197,12 @@ of reproducing the sweep (user's call — "byte exact is out"):
 - This is the FIRST FC engine to use the pure trichotomy (Cyb II/Hawkeye still
   reproduce their init verbatim; the trichotomy verdict means they no longer
   HAVE to — a future cleanup could switch them to universal_reset too).
+- EAR-TESTED 2026-06-08 (user, sidplayfp `-o1`, orig vs rebuild): sounds
+  IDENTICAL. Confirms universal_reset + the defensive test-bit clear introduced
+  no audible change (the verdict's `audio✓` / canonical init boundary held in
+  practice). The rebuild `.sidfinity.sid` is a gitignored build artifact (the
+  whole hvsc84/ tree is out of git; 0 SID/USF artifacts tracked) — regenerate
+  via `build_via_asm_featuredriven(ADRENALIN)`.
 
 ## Resume order (subs 1/2/3 — multi-independent-song FC, still pending)
 1. Confirm whether subs 0/2/3 differ at the sequence/pattern byte level
