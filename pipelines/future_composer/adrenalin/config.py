@@ -83,6 +83,8 @@ ADRENALIN = FCConfig(
     nolengset_resets_tonearpcounter=False,  # engine A runs the arp counter
                                     # ($7a50) continuously across notes ($7DA2);
                                     # NOT reset at note-load
+    noise_tick_release_uses_vibrato=True,   # engine A $819F release tail uses
+                                    # the vibrato'd current freq ($7a2b/$7a25)
     pulsetabel_addr=0x199C,         # LDA $199C,Y at $7FAF
     vibtabwait_addr=0x1A14,         # LDX $1A14,Y at $7DD6
 

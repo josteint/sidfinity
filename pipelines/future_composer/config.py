@@ -187,6 +187,12 @@ class FCConfig:
     # check fx3 bit 6 — that bit is dead in its instruments — so running the
     # wave-arp there spuriously clears the ctrl. Set False to disable it.
     fx3_bit6_wavearp: bool = True
+    # Drum-kick (fx3 bit 7 noise_tick) release tail freq source. Hawkeye uses
+    # the PRESERVED base shadow (lonotesto2/hinotesto2). Engine A (Adrenalin
+    # $819F) reads the VIBRATO'D current shadow ($7a2b/$7a25, updated by the
+    # vibrato at $7F65-$7F79), so its release tail keeps vibratoing. True =
+    # use the current (vibrato'd) lonotesto/hinotesto.
+    noise_tick_release_uses_vibrato: bool = False
     pulsetabel_addr: int = 0       # pulse-program data (4 programs × 8 bytes)
     vibtabwait_addr: int = 0       # per-instrument vibrato delay (20 bytes)
     wavearp_addr: int = 0          # 4-byte wave-arpeggio table {$80,$10,$80,$10}

@@ -938,19 +938,21 @@ def _emit_fx_noise_tick(cfg: FCConfig) -> str:
 hk_nt_release:
         cmp #$04
         bcs effect_chain_end          ; counter2 >= 4 → done
-        ; counter2 in [2..3]: release (orig $82F5-$8306). Uses the
-        ; PRESERVED freq shadows (lonotesto2/hinotesto2) so the
-        ; drum-kick "release tail" restores the original note pitch,
-        ; not any vibrato/glide-modulated current value. Orig reads
-        ; $90E3 (lonotesto2 equiv) and $90DD (hinotesto2 equiv).
-        lda lonotesto2,x
+        ; counter2 in [2..3]: release tail. Freq source per cfg:
+        ; Hawkeye uses the PRESERVED base (lonotesto2/hinotesto2); engine A
+        ; ($819F) uses the VIBRATO'D current shadow so the tail keeps vibratoing.
+        lda {rel_lo},x
         sta d400,x
-        lda hinotesto2,x
+        lda {rel_hi},x
         sta d401,x
         lda wavesto,x
         and #$FE
         sta stod404,x
-        ; falls through to effect_chain_end"""
+        ; falls through to effect_chain_end""".format(
+            rel_lo='lonotesto' if cfg.noise_tick_release_uses_vibrato
+                   else 'lonotesto2',
+            rel_hi='hinotesto' if cfg.noise_tick_release_uses_vibrato
+                   else 'hinotesto2')
     if cfg.noise_tick_style == 'cyb2_table':
         return """fx_noise_tick:
         ; fx3 bit $80 — pre-attack waveform for the first N frames of
