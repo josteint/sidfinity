@@ -82,7 +82,9 @@ ADRENALIN = FCConfig(
 
     # ---- engine knobs (from disasm) ----
     noise_tick_style='hawkeye_constants',  # $8175+: LDA #$58, LDA #$81
-    voice_loop_layout='tight_nextvoice',   # nextvoice at $81B3 all-in-one
+    voice_loop_layout='interleaved',       # PW written early, then filter/vol
+                                           # ($D418/$D416), then ctrl/freq late —
+                                           # matches orig V1 PW,vol,filter,ctrl,freq
     nextvoice_write_order=(2, 3, 4, 0, 1),  # PWlo PWhi ctrl freqlo freqhi
                                             # (engine A inst-load $7CEB/$7CF7
                                             # write PW before ctrl/freq)
