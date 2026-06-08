@@ -58,7 +58,12 @@ def _capture_pair(orig_path: str, rebuilt_bytes: bytes,
     try:
         a = writelog_capture(orig_path, subtune=subtune, duration=duration)
         b = writelog_capture(tmp_path, subtune=subtune, duration=duration)
-        return compare_instruction_stream(a, b)
+        # Init-trichotomy verdict: the composer emits its OWN init (universal
+        # reset + typed priming), so the init write SEQUENCE need not match —
+        # only the end-of-init STATE (Check A) + the play stream (Check B).
+        # Reduces to a full prefix match when inits already coincide, so
+        # verbatim-init canaries (Cyb II, Hawkeye) are unaffected.
+        return compare_instruction_stream(a, b, mode='trichotomy')
     finally:
         os.unlink(tmp_path)
 
@@ -172,11 +177,19 @@ def _format_verdict(result: dict) -> str:
                  f'duration {result["duration"]}s) ===')
     for s, v in sorted(result['subtunes'].items()):
         verdict = '✓' if v['is_full'] else '✗'
-        match = v['match']
-        len_a = max(v['len_all_a'], v['len_post_a'])
-        len_b = max(v['len_all_b'], v['len_post_b'])
-        lines.append(f'  sub {s:2d}  {verdict}  match={match} '
-                     f'orig_len={len_a} reb_len={len_b}')
+        if v.get('mode') == 'trichotomy':
+            extra = '' if v['state_match'] else f' STATE≠ {v["state_diff"]}'
+            lines.append(
+                f'  sub {s:2d}  {verdict}  play={v["play_match"]}/'
+                f'{v["play_overlap"]} shift={v["shift_d"]} '
+                f'init=({v["init_len_a"]},{v["init_len_b"]}) '
+                f'post_len=({v["len_post_a"]},{v["len_post_b"]}){extra}')
+        else:
+            match = v['match']
+            len_a = max(v['len_all_a'], v['len_post_a'])
+            len_b = max(v['len_all_b'], v['len_post_b'])
+            lines.append(f'  sub {s:2d}  {verdict}  match={match} '
+                         f'orig_len={len_a} reb_len={len_b}')
     lines.append(f'  ALL_FULL: {result["all_full"]}')
     return '\n'.join(lines)
 

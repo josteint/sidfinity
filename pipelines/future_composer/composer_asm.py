@@ -421,11 +421,36 @@ song_seqcp:
         bpl song_seqcp
 """
 
-    if cfg.init_style == 'fc_clear_sweep':
+    if cfg.init_style == 'universal_reset':
+        # PURE TRICHOTOMY (docs/sid_init_report.md): emit OUR OWN init, not a
+        # reproduction of the engine's song-init write sequence. A universal
+        # silence-clear ($D400-$D417 = $00) leaves the chip in the canonical
+        # reset state; the single typed PRIMING write ($D418 = master volume)
+        # restores the one musical init value the play loop relies on. The
+        # original engine A reaches the IDENTICAL end-of-init state via a
+        # noisier $01/$00 sweep across two frames — but that sweep is engine
+        # MECHANISM (Reset bucket), invisible to USF, so we don't reproduce it.
+        # The verdict skips both inits and compares (A) end-of-init state +
+        # (B) the play stream (compare_instruction_stream mode='trichotomy').
+        sidwrite = """
+        ; --- SID universal reset (trichotomy): silence-clear + vol priming ---
+        lda #$00
+        ldx #$17                     ; clear $D400..$D417 ascending-index
+song_ureset:
+        sta $d400,x
+        dex
+        bpl song_ureset
+        lda #VOLUME_INIT             ; $D418 ← master-volume priming ($0F)
+        sta $d418
+        jsr ok2
+        rts                          ; own clear; no fall into silence_all
+"""
+    elif cfg.init_style == 'fc_clear_sweep':
         # Adrenalin engine A ($7AE2): clear $D417..$D400 descending, writing
         # $01 then $00 to each, then $D418=$0F, $D417=$00. RTS (no fall into
         # silence_all). Frame-exact write order matches the original engine's
-        # song-init tail.
+        # song-init tail. (Superseded by 'universal_reset' for the trichotomy
+        # verdict; kept for the byte-preserving baseline path.)
         sidwrite = """
         ; --- SID clear (fc_clear_sweep, engine A $7AE2) ---
         ldx #$17                     ; sweep $D417 down to $D400

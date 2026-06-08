@@ -133,6 +133,105 @@ def compare_strict(a: list[Frame], b: list[Frame]) -> dict:
             'len_a': len(a), 'len_b': len(b)}
 
 
+def _trichotomy_compare(fa: list, fb: list, close_tol: int = 64,
+                        max_init: int = 4096, win: int = 64) -> dict:
+    """Init-trichotomy comparison of two flat (reg, val) streams.
+
+    `fa`, `fb` are the full flattened write streams (init + play). The play
+    (music) substreams are assumed identical; the streams differ only by a
+    short init PREFIX of differing length/content.
+
+    Returns Check A (`state_match`) + Check B (`play_full`, `close`), with
+    `is_full = state_match and play_full and close`. Also reports the
+    recovered `shift_d`, per-side init lengths, and a `state_diff` /
+    `first_play_diff` for localisation.
+    """
+    la, lb = len(fa), len(fb)
+
+    def aligned_run(d: int, start_a: int) -> int:
+        """Length of the matching run of fa[start_a:] vs fb[start_a+d:]."""
+        ib = start_a + d
+        k = 0
+        while start_a + k < la and ib + k < lb and fa[start_a + k] == fb[ib + k]:
+            k += 1
+        return k
+
+    # 1. Recover the global play-stream shift d = (init_len_b - init_len_a)
+    #    via a landmark window deep in the music. Prefer the smallest |d|.
+    d = None
+    n = min(la, lb)
+    if n >= win:
+        p = n // 2
+        landmark = fa[p:p + win]
+        for cand in sorted(range(-max_init, max_init + 1), key=abs):
+            j = p + cand
+            if 0 <= j and j + win <= lb and fb[j:j + win] == landmark:
+                d = cand
+                break
+    if d is None:
+        # No alignment: total mismatch (or streams too short). Fall back to a
+        # plain prefix match so the verdict is still meaningful.
+        m = 0
+        for i in range(n):
+            if fa[i] != fb[i]:
+                break
+            m += 1
+        return {
+            'mode': 'trichotomy', 'shift_d': None,
+            'init_len_a': 0, 'init_len_b': 0,
+            'state_match': False, 'state_diff': [],
+            'play_match': m, 'play_overlap': n,
+            'play_full': m == n == la == lb, 'close': la == lb,
+            'len_post_a': la, 'len_post_b': lb,
+            'is_full': m == n == la == lb,
+        }
+
+    # 2. Find ia = first index where the shifted match begins (music start).
+    #    The init prefixes differ, so the match only kicks in after both inits.
+    ia = max(0, -d)
+    limit = min(la - win, ia + max_init)
+    while ia <= limit:
+        if fa[ia:ia + win] == fb[ia + d:ia + d + win]:
+            break
+        ia += 1
+    else:
+        ia = max(0, -d)
+    ib = ia + d
+
+    # Check B: aligned play stream.
+    play_match = aligned_run(d, ia)
+    overlap = min(la - ia, lb - ib)
+    play_full = play_match == overlap
+    post_a, post_b = la - ia, lb - ib
+    close = abs(post_a - post_b) <= close_tol
+    first_play_diff = None
+    if not play_full:
+        k = play_match
+        first_play_diff = (k, fa[ia + k], fb[ib + k])
+
+    # Check A: end-of-init chip state (the priming result).
+    def end_state(flat, end):
+        st = [0] * 0x19
+        for reg, val in flat[:end]:
+            if 0 <= reg < 0x19:
+                st[reg] = val
+        return st
+    sa, sb = end_state(fa, ia), end_state(fb, ib)
+    state_match = sa == sb
+    state_diff = [(r, sa[r], sb[r]) for r in range(0x19) if sa[r] != sb[r]]
+
+    return {
+        'mode': 'trichotomy', 'shift_d': d,
+        'init_len_a': ia, 'init_len_b': ib,
+        'state_match': state_match, 'state_diff': state_diff,
+        'play_match': play_match, 'play_overlap': overlap,
+        'play_full': play_full, 'close': close,
+        'first_play_diff': first_play_diff,
+        'len_post_a': post_a, 'len_post_b': post_b,
+        'is_full': state_match and play_full and close,
+    }
+
+
 def compare_instruction_stream(a: list[Frame], b: list[Frame],
                                 skip_init: bool = True,
                                 mode: str = 'legacy') -> dict:
@@ -225,6 +324,22 @@ def compare_instruction_stream(a: list[Frame], b: list[Frame],
             'play_full': play_full,
             'is_full': state_match and play_full,
         }
+
+    if mode == 'trichotomy':
+        # PRINCIPLED init-trichotomy verdict (docs/sid_init_report.md §5),
+        # robust to a multi-frame init whose write SEQUENCE differs between
+        # orig and rebuild (e.g. Adrenalin: orig clears via a 2-frame $01/$00
+        # sweep, the rebuild via a one-shot universal reset). The two streams
+        # share an IDENTICAL play (music) stream; only a short init PREFIX —
+        # different in length and content — separates them.
+        #
+        #   Check A  end-of-init chip STATE matches (the priming result).
+        #   Check B  the aligned play streams match + lengths are close.
+        #
+        # When the inits already coincide (shift 0, no init prefix) this
+        # reduces to a full prefix match — so engines that reproduce their
+        # init verbatim (Cyb II, Hawkeye) are unaffected.
+        return _trichotomy_compare(flat_all_a, flat_all_b)
 
     # Legacy mode.
     match_all = _prefix(flat_all_a, flat_all_b)

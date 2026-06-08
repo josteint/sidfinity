@@ -45,7 +45,11 @@ ADRENALIN = FCConfig(
     # engine must precede the data tables.
     emit_data_from_usf=True,
     load_addr=0x0E00,
-    init_style='fc_clear_sweep',     # engine A $7AE2 descending $01/$00 clear
+    init_style='universal_reset',    # PURE TRICHOTOMY: emit our own clean
+                                     # silence-clear + $D418=$0F priming, NOT
+                                     # engine A's $01/$00 sweep. Same end-of-init
+                                     # state; verdict skips the init (trichotomy
+                                     # mode). Was 'fc_clear_sweep'.
     contiguous_data_layout=True,     # orig packs tables tightly → emit packed
 
     # ---- mandatory data table addresses (verified by disasm reads) ----
