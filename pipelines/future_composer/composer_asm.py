@@ -1179,8 +1179,10 @@ def _emit_playirq_dispatch(cfg: FCConfig) -> str:
             '        sta arpieoklo,x\n'
             f'        lda arphi+{_aai}\n'
             '        sta arpieokhi,x\n'
-            '        lda #0\n'
-            '        sta tonearpcounter,x\n'
+            '        ; NOTE: do NOT reset tonearpcounter — engine A ($7DA2)\n'
+            '        ; runs the arp counter continuously across notes (only the\n'
+            '        ; arp routine DECs/reloads it), so resetting at note-load\n'
+            '        ; desyncs the arp phase after the first note.\n'
             'naa_skip:\n'
         )
     else:

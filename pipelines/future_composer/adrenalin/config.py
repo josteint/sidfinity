@@ -80,6 +80,9 @@ ADRENALIN = FCConfig(
     fx3_bit6_wavearp=False,         # engine A doesn't check fx3 bit 6 (dead
                                     # bit) — don't run the Hawkeye wave-arp
     h11_release_sr_value=0x01,      # engine A $7D76 writes $01 to SR on release
+    nolengset_resets_tonearpcounter=False,  # engine A runs the arp counter
+                                    # ($7a50) continuously across notes ($7DA2);
+                                    # NOT reset at note-load
     pulsetabel_addr=0x199C,         # LDA $199C,Y at $7FAF
     vibtabwait_addr=0x1A14,         # LDX $1A14,Y at $7DD6
 
