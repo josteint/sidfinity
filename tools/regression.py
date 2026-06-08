@@ -209,14 +209,20 @@ def regress_future_composer() -> tuple[int, int, int]:
     from pipelines.future_composer.verify import verify_featuredriven
     from pipelines.future_composer.cybernoid_ii.config import CYBERNOID_II
     from pipelines.future_composer.hawkeye.config import HAWKEYE
+    from pipelines.future_composer.adrenalin.config import ADRENALIN
 
+    # (name, cfg, subtunes) — subtunes=None means all. Adrenalin is restricted
+    # to sub 0: it's a 3-engine compilation where subs 1/2/3 are independent
+    # data pools needing multi-song FC support (see project_adrenalin memory);
+    # sub 0 is the clean FC canary and verifies via the trichotomy verdict.
     canaries = [
-        ('Cybernoid_II', CYBERNOID_II),
-        ('Hawkeye',      HAWKEYE),
+        ('Cybernoid_II', CYBERNOID_II, None),
+        ('Hawkeye',      HAWKEYE,      None),
+        ('Adrenalin[0]', ADRENALIN,    [0]),
     ]
     ok = partial = fail = 0
-    for name, cfg in canaries:
-        result = verify_featuredriven(cfg)
+    for name, cfg, subtunes in canaries:
+        result = verify_featuredriven(cfg, subtunes=subtunes)
         subs = result['subtunes']
         sub_ok = sub_fail = 0
         for st, info in subs.items():
