@@ -127,6 +127,16 @@ $1BA0 (2B/entry). lonote source found in raw binary at `$68B3`.
   fragment reset → ONE keystone fix jumped sub-0 match 403 → 28686 (frame
   22→1663, ~33s). NEXT: pos 28686 = V3 release freq ($1BC7 vs $1C31, gate off)
   — arp-phase/glide-slide ±1 drift over ~1600 frames. Cyb II/Hawkeye green.
+- ✅ SUB 0 BYTE-EXACT (2026-06-08): two more ketchup fixes finished it.
+  pos 28686 = drum-kick release tail used preserved base freq; engine A $819F
+  uses vibrato'd current ($7a2b/$7a25) → noise_tick_release_uses_vibrato=True
+  (→117638). pos 117638 = fm2 filter cleanup Cyb-II vs Hawkeye; engine A $80D2
+  writes $D416=$E0 no $D418 → fm2_cleanup_d416_value=$E0 + writes_d418=False
+  (→208299 = full orig length). orig is now a COMPLETE PREFIX of the rebuild,
+  NO divergence. +19-write trailing = 1-frame init bucketing (rebuild init 1
+  siddump-frame shorter); byte-exact by Mode-1 overlap standard. REMAINING:
+  is_full/regression needs the trailing handled (2-frame init OR overlap+close
+  verdict); subs 1/2/3 need multi-independent-song support. Cyb II/Hawkeye green.
 
 ## PROGRESS 2026-06-07 (cont. 2) [HYPOTHESIS WAS WRONG — see cont. 3]
 - `init_style='fc_clear_sweep'` knob (commit a1bbba2) emits engine A's $7AE2

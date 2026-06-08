@@ -214,7 +214,29 @@ reset. SINGLE keystone fix → writelog match jumped **403 → 28686** (the user
 predicted "ketchup effect"). sub-0 now matches the first ~33s / frame 1663.
 Cyb II 2/2 + Hawkeye 12/12 unaffected.
 
-### CURRENT divergence — pos 28686 (frame 1663, ~33s), V3 release freq
+### ✅ SUB 0 BYTE-EXACT (2026-06-08) — the ketchup fully flowed
+At full songlength the ORIGINAL (209,432 writes) is a COMPLETE PREFIX of the
+rebuild — NO divergence. (rebuild has +19 trailing writes = ~1 extra music
+frame because its init is one siddump-frame shorter, so it runs 1 frame ahead;
+benign init-bucketing, same class as the Hubbard CIA/init traps. By the Mode-1
+writelog-overlap standard — full overlap match + |len diff|<=tol, as Hubbard's
+verify_all uses — sub 0 is byte-exact.)
+
+The cascade from pos-28686 onward (all single-keystone "ketchup" fixes):
+- pos 28686 (frame 1663): drum-kick RELEASE tail used the preserved base freq;
+  engine A ($819F) uses the VIBRATO'D current freq ($7a2b/$7a25, updated by the
+  vibrato $7F65-$7F79). `noise_tick_release_uses_vibrato=True`. → 117638.
+- pos 117638 (frame 6669): fm2 filter CLEANUP used Cyb II values; engine A
+  ($80D2) writes $D416=$E0 with NO $D418. `fm2_cleanup_d416_value=$E0` +
+  `fm2_cleanup_writes_d418=False`. → 208299 = full orig length.
+
+REMAINING for is_full / regression: the +19-write trailing (1-frame init
+offset). Either (a) reproduce engine A's 2-frame init (first play() writes only
+$D418=$0F, song-init/sweep on the 2nd play()), or (b) use the Hubbard-style
+overlap+close verdict for FC. Sub 1/2/3 still need multi-independent-song
+support (separate, pre-existing scope).
+
+### (history) pos 28686 — V3 release freq [RESOLVED — noise_tick_release_uses_vibrato]
 orig V3 freq $1BC7 vs rebuild $1C31, with V3 ctrl=$40 (gate OFF = release).
 Everything else matches. Much deeper — likely an arp-phase or glide-slide
 drift accumulating over ~1600 frames (a rare frame where the arp counter or a
