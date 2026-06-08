@@ -309,6 +309,17 @@ class FCConfig:
     #                      each written $01 then $00, then $D418=$0F, $D417=$00.
     init_style: str = 'generic'
 
+    # Repack the emit_data_from_usf data tables CONTIGUOUSLY from the first
+    # data address instead of placing each at its original (extraction) address.
+    # Needed when the original packs tables so tightly that emitting them at
+    # their orig addresses overlaps (e.g. Adrenalin: pulsetabel/vibtabwait
+    # collide with the instrument table) — overlapping CPU addresses can't map
+    # to a flat load file, so xa65's backward `* =` desyncs file vs address and
+    # the state region loads at the wrong place. Per the CORE TENET the rebuild's
+    # data layout is free; only the writelog must match. Default False keeps the
+    # proven fixed-address layout for Cyb II / Hawkeye (which don't overlap).
+    contiguous_data_layout: bool = False
+
     # Per-path voice-loop mode constants (music_mode, sfx_mode) for the
     # emit_data song-init. Were read from mem[per_subtune_mode_addr] in the
     # verbatim path; for the de-verbatim path they come from here so the

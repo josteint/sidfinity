@@ -3078,6 +3078,63 @@ def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
     # code_end (which would tie placement to orig's body size). See below.
     music_data = None
 
+    # Contiguous repack (see FCConfig.contiguous_data_layout): assign every
+    # data table a fresh non-overlapping address packed upward from the first
+    # data address, then rewrite cfg so the section builders + pointer-table
+    # layouts (filt/drum) + equates all use the packed addresses. The pointer
+    # layouts derive their pointers from these cfg addresses, so they follow
+    # automatically. (arp is N/A when usf.arp_programs is empty — its count is
+    # encoded in the arplo/arphi address gap, so it is NOT repacked here; assert
+    # that case.)
+    if cfg.emit_data_from_usf and cfg.contiguous_data_layout:
+        if usf.arp_programs:
+            raise NotImplementedError(
+                'contiguous_data_layout + arp_programs not supported (arp '
+                'count is derived from the arplo/arphi address gap)')
+        entries = cfg.freq_table_entries
+        base = min(a for a in (cfg.freq_lo_addr, cfg.freq_hi_addr,
+                               cfg.per_subtune_speed_addr, cfg.instr_records_addr)
+                   if a)
+        cur = base
+        repack = {}
+
+        def _take(field, size):
+            nonlocal cur
+            if size <= 0:
+                return
+            repack[field] = cur
+            cur += size
+
+        _take('freq_lo_addr', entries)
+        _take('freq_hi_addr', entries)
+        _take('per_subtune_speed_addr', snelheid_len)
+        _take('instr_records_addr', cfg.instr_count * 8)
+        if cfg.vibtabwait_addr:
+            _take('vibtabwait_addr', cfg.instr_count)
+        _pulse_kmax = max(usf.pulse_programs, default=0)
+        if _pulse_kmax and cfg.pulsetabel_addr:
+            _take('pulsetabel_addr', _pulse_kmax * 8)
+        if cfg.filterbytes_addr and usf.filter_programs:
+            _fc = max(usf.filter_programs) + 1
+            _fsz = _fc * 2 + sum(10 for n in range(_fc)
+                                 if n in usf.filter_programs)
+            _take('filterbytes_addr', _fsz)
+        if cfg.drumtabel_addr and usf.drum_programs:
+            _dc_count = max(usf.drum_programs) + 1
+            _dsz = _dc_count * 4
+            for _d in range(_dc_count):
+                _p = usf.drum_programs.get(_d)
+                if _p is not None:
+                    _dsz += 1 + len(_p['wave']) + len(_p['tone'])
+            _take('drumtabel_addr', _dsz)
+        for _field, _vals in (('startlen_addr', usf.attack_len),
+                              ('starttabel_addr', usf.attack_wave),
+                              ('wavearp_addr', usf.wave_arp),
+                              ('pulsearp_addr', usf.pulse_arp)):
+            if getattr(cfg, _field) and _vals:
+                _take(_field, len(_vals))
+        cfg = _dc.replace(cfg, **repack)
+
     raw_sections = [
         ('freq_lo',  cfg.freq_lo_addr,
                      cfg.freq_lo_addr + cfg.freq_table_entries),

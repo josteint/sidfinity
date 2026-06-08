@@ -46,6 +46,7 @@ ADRENALIN = FCConfig(
     emit_data_from_usf=True,
     load_addr=0x0E00,
     init_style='fc_clear_sweep',     # engine A $7AE2 descending $01/$00 clear
+    contiguous_data_layout=True,     # orig packs tables tightly → emit packed
 
     # ---- mandatory data table addresses (verified by disasm reads) ----
     freq_lo_addr=0x17E3,            # lonote, LDA $17E3,Y at $7C9B
