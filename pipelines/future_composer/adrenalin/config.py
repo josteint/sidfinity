@@ -79,6 +79,7 @@ ADRENALIN = FCConfig(
                                     # ($1973 = (0,+4,+7)); engine A $7DA7
     fx3_bit6_wavearp=False,         # engine A doesn't check fx3 bit 6 (dead
                                     # bit) — don't run the Hawkeye wave-arp
+    h11_release_sr_value=0x01,      # engine A $7D76 writes $01 to SR on release
     pulsetabel_addr=0x199C,         # LDA $199C,Y at $7FAF
     vibtabwait_addr=0x1A14,         # LDX $1A14,Y at $7DD6
 
