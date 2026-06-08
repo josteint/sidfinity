@@ -114,6 +114,13 @@ $1BA0 (2B/entry). lonote source found in raw binary at `$68B3`.
   a waveform-table effect (wave-arp/pre-attack/noise-tick) with a NULL table
   ptr (same class as the arp null-ptr bug). Identify the $148F-$1497 routine's
   gate+table; suppress or set up its pointer. Cyb II/Hawkeye green.
+- FIXED: pos-98 = spurious bit-6 wave-arp (engine A only checks fx3 bits 2/4/7,
+  not 6) → fx3_bit6_wavearp=False knob (div 98→232). pos-232 = release SR value
+  (engine A $7D76 writes $01, composer default $02) → h11_release_sr_value=$01
+  (div 232→403). NEXT: pos 403 = V2 note-length off-by-one — orig V2 auto-arp has
+  an extra base-note frame (new note at f22); rebuild's V2 note ends 1 frame
+  early. nootleng/nootcount ±1 (FC note-length persistence). Div now 403 (frame
+  22). Cyb II/Hawkeye green.
 
 ## PROGRESS 2026-06-07 (cont. 2) [HYPOTHESIS WAS WRONG — see cont. 3]
 - `init_style='fc_clear_sweep'` knob (commit a1bbba2) emits engine A's $7AE2

@@ -194,7 +194,27 @@ Adrenalin to `voice_loop_layout='interleaved'` (PW early, ctrl/freq late) puts
 the filter/vol write in the right spot. Div 89 → 98. Cyb II/Hawkeye unaffected
 (config-only; Hawkeye already uses interleaved).
 
-### CURRENT divergence — pos 98, held-frame ctrl=$00 (null waveform-table effect)
+### FIXED (commits 7b7789f, h11): wave-arp + release SR
+- pos-98 was a SPURIOUS bit-6 wave-arp: engine A only checks fx3 bits 2/4/7,
+  NOT bit 6 (dead bit in its instruments), but the composer's bit-6 handler ran
+  the Hawkeye wave-arp → null wavearp table → ctrl=$00. New `fx3_bit6_wavearp`
+  knob (Adrenalin False) disables it. Div 98 → 232.
+- pos-232 was the release SR value: engine A $7D76 writes $01 on release; the
+  composer default `h11_release_sr_value` is $02. Set Adrenalin $01. Div 232 →
+  403.
+
+### CURRENT divergence — pos 403, V2 note-length off-by-one (arp phase)
+Matches through frame 21. V2 has the fx3-bit-2 auto-arp; its freq cycles arp
+offsets 7,4,0 (notes $47,$44,$40). orig: f19-24 = 7,4,0,**0**,7,4 — an EXTRA
+offset-0 frame at f22 because V2 LOADS A NEW NOTE there (note-load writes the
+base freq $2CC1 = offset 0, and resets the arp). The rebuild has 7,4,0,7,4 — no
+extra base frame, i.e. its V2 new note arrives ONE FRAME EARLY. So V2's
+note-length/nootcount is off by one (rebuild note ~1 frame short). Likely the FC
+note-length persistence (nootleng/durtab, the (fc_id, persisted_length) split)
+or a count±1. NEXT: compare orig vs rebuild V2 nootcount/nootleng around f21-22
+(state_diff or pc-trace) to find the ±1.
+
+### (history) pos-98 held-frame ctrl=$00 [SUPERSEDED — bit-6 wave-arp fix above]
 On the next note/held frame, the rebuild writes ctrl=$00 for ALL THREE voices;
 orig keeps ctrl=$41/$21/$41 (everything else — PW, freq, vol, filter — matches).
 pc-trace: stod404[V3]=$00 comes from `$1494: LDA $0000,Y` — a waveform-table
