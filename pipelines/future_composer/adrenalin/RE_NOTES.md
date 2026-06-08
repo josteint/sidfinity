@@ -203,7 +203,25 @@ the filter/vol write in the right spot. Div 89 → 98. Cyb II/Hawkeye unaffected
   composer default `h11_release_sr_value` is $02. Set Adrenalin $01. Div 232 →
   403.
 
-### CURRENT divergence — pos 403, V2 note-length off-by-one (arp phase)
+### FIXED (commit 867d64c): arp counter ran with a spurious note-load reset — KETCHUP
+pos-403 was NOT note-length. The fx3-bit-2 auto-arp counter (tonearpcounter)
+was reset at every note-load (nolengset_resets_tonearpcounter default True +
+my fx3_autoarp fragment reset). Engine A ($7DA2/$7DAA) runs it CONTINUOUSLY
+across notes — verified via memwatch (orig V2 $7a51 cycles 0,2,1,0,2,1 unbroken
+across note boundaries). The reset desynced the arp phase after the first note.
+Fix: `nolengset_resets_tonearpcounter=False` for Adrenalin + drop the fragment
+reset. SINGLE keystone fix → writelog match jumped **403 → 28686** (the user's
+predicted "ketchup effect"). sub-0 now matches the first ~33s / frame 1663.
+Cyb II 2/2 + Hawkeye 12/12 unaffected.
+
+### CURRENT divergence — pos 28686 (frame 1663, ~33s), V3 release freq
+orig V3 freq $1BC7 vs rebuild $1C31, with V3 ctrl=$40 (gate OFF = release).
+Everything else matches. Much deeper — likely an arp-phase or glide-slide
+drift accumulating over ~1600 frames (a rare frame where the arp counter or a
+slide step differs by one). NEXT: compare V3's arp counter / glide state around
+frame 1663 (orig vs rebuild) to find the rare ±1.
+
+### (history) pos-403 V2 note-length off-by-one [WRONG framing — was the arp reset, see above]
 Matches through frame 21. V2 has the fx3-bit-2 auto-arp; its freq cycles arp
 offsets 7,4,0 (notes $47,$44,$40). orig: f19-24 = 7,4,0,**0**,7,4 — an EXTRA
 offset-0 frame at f22 because V2 LOADS A NEW NOTE there (note-load writes the

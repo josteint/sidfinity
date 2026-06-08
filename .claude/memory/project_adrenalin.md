@@ -121,6 +121,12 @@ $1BA0 (2B/entry). lonote source found in raw binary at `$68B3`.
   an extra base-note frame (new note at f22); rebuild's V2 note ends 1 frame
   early. nootleng/nootcount ±1 (FC note-length persistence). Div now 403 (frame
   22). Cyb II/Hawkeye green.
+- KETCHUP (867d64c): pos-403 was NOT note-length — the fx3-bit-2 auto-arp
+  counter (tonearpcounter) was reset at note-load; engine A runs it CONTINUOUSLY
+  ($7DA2, memwatch confirms). nolengset_resets_tonearpcounter=False + drop the
+  fragment reset → ONE keystone fix jumped sub-0 match 403 → 28686 (frame
+  22→1663, ~33s). NEXT: pos 28686 = V3 release freq ($1BC7 vs $1C31, gate off)
+  — arp-phase/glide-slide ±1 drift over ~1600 frames. Cyb II/Hawkeye green.
 
 ## PROGRESS 2026-06-07 (cont. 2) [HYPOTHESIS WAS WRONG — see cont. 3]
 - `init_style='fc_clear_sweep'` knob (commit a1bbba2) emits engine A's $7AE2
