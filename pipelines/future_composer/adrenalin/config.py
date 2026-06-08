@@ -77,6 +77,8 @@ ADRENALIN = FCConfig(
                                     # high memory — don't filter them as garbage
     fx3_bit2_autoarp_index=1,       # fx3 bit 2 → auto-arp using program 1
                                     # ($1973 = (0,+4,+7)); engine A $7DA7
+    fx3_bit6_wavearp=False,         # engine A doesn't check fx3 bit 6 (dead
+                                    # bit) — don't run the Hawkeye wave-arp
     pulsetabel_addr=0x199C,         # LDA $199C,Y at $7FAF
     vibtabwait_addr=0x1A14,         # LDX $1A14,Y at $7DD6
 

@@ -1134,6 +1134,29 @@ def _emit_playirq_dispatch(cfg: FCConfig) -> str:
         if cfg.nolengset_resets_tonearpcounter else ''
     )
 
+    # fx3 bit-6 wave-arp (Hawkeye/Cyb II). Engine A doesn't use fx3 bit 6, so
+    # for it the body is empty (fx_wave_arp falls straight into fx_pulse_arp).
+    if cfg.fx3_bit6_wavearp:
+        fx_wave_arp_body = (
+            '        ; fx3 bit $40 — cycles wavearp[$80,$10,$80,$10] (waveform\n'
+            '        ; toggle for test bit). Mirrors Hawkeye disasm $80FD-$8110.\n'
+            '        lda fx3sto\n'
+            '        and #$40\n'
+            '        beq fx_pulse_arp\n'
+            '        ldx wax\n'
+            '        lda counter2,x\n'
+            '        cmp #wavearpwait\n'
+            '        bcc fx_pulse_arp\n'
+            '        and #$03\n'
+            '        tay\n'
+            '        lda wavearp,y\n'
+            '        sta stod404,x\n'
+        )
+    else:
+        fx_wave_arp_body = (
+            '        ; fx3 bit-6 wave-arp disabled (engine A ignores fx3 bit 6)\n'
+        )
+
     # fx3 bit-2 auto-arp (engine A $7D9C): instruments with fx3 bit 2 run a
     # fixed arp program every frame WITHOUT a pattern $7x command. At inst
     # reload we point the per-voice arp ptr (arpieoklo/arpieokhi) at that
@@ -2326,22 +2349,7 @@ pp_store:
 {pp_store_sta_d403_sid}        ; falls through to fx_wave_arp
 
 fx_wave_arp:
-        ; fx3 bit $40 — cycles wavearp[$80,$10,$80,$10] (waveform
-        ; toggle for test bit). Mirrors Hawkeye disasm $80FD-$8110:
-        ;   skip if not active OR counter2 < wavearpwait;
-        ;   else Y = counter2 & 3; stod404[X] = wavearp[Y].
-        lda fx3sto
-        and #$40
-        beq fx_pulse_arp
-        ldx wax
-        lda counter2,x
-        cmp #wavearpwait
-        bcc fx_pulse_arp
-        and #$03
-        tay
-        lda wavearp,y
-        sta stod404,x
-
+{fx_wave_arp_body}
 fx_pulse_arp:
         ; fx3 bit $08 — cycles pulsearp through $D403 (pw hi).
         ; Mirrors Hawkeye disasm $8113-$812B:
@@ -2645,6 +2653,7 @@ playirq_done:
         nolengset_sta_d403_sid=nolengset_sta_d403_sid,
         nolengset_reset_tonearp=nolengset_reset_tonearp,
         fx3_autoarp=fx3_autoarp,
+        fx_wave_arp_body=fx_wave_arp_body,
         playirq_run_ldx=playirq_run_ldx,
         fx_pulse_run_body=fx_pulse_run_body,
         h3_command_dispatch=h3_command_dispatch,

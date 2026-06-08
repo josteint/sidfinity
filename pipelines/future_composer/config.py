@@ -182,6 +182,11 @@ class FCConfig:
     # program 1 @ $1973 = (0,+4,+7)). None = no fx3-bit-2 auto-arp (default;
     # Hawkeye/Cyb II drive arp only via the pattern $7x command).
     fx3_bit2_autoarp_index: Optional[int] = None
+    # Whether fx3 bit 6 drives the wave-arp effect (cycles wavearp[] into the
+    # ctrl/waveform). True for Hawkeye/Cyb II. Engine A (Adrenalin) does NOT
+    # check fx3 bit 6 — that bit is dead in its instruments — so running the
+    # wave-arp there spuriously clears the ctrl. Set False to disable it.
+    fx3_bit6_wavearp: bool = True
     pulsetabel_addr: int = 0       # pulse-program data (4 programs × 8 bytes)
     vibtabwait_addr: int = 0       # per-instrument vibrato delay (20 bytes)
     wavearp_addr: int = 0          # 4-byte wave-arpeggio table {$80,$10,$80,$10}
