@@ -130,6 +130,50 @@ init; `'fc_clear_sweep'` = engine A's `$7AE2` routine above) and branch in
 This is the gating work for sub-0 frame-exact; subs 2/3 (independent pools)
 and sub 1 (different engine) remain as previously scoped.
 
+## PROGRESS 2026-06-07 (cont. 2) — init byte-exact; voice bug = LAYOUT COLLISION
+
+**init_style sweep DONE (committed a1bbba2).** New FCConfig `init_style`;
+`'fc_clear_sweep'` emits engine A's `$7AE2` init. Adrenalin sub-0 init now
+matches byte-for-byte (full-flat pos 0..50); first divergence moved into the
+music at pos 51.
+
+**Voice bug ROOT-CAUSED — it's a composer LAYOUT collision, not voice logic:**
+- Symptom: rebuild writes ONLY V1 registers ($D400-$D406); V2/V3 NEVER written
+  (V1 count ~4×, V2/V3 = 0 over 88 frames). All three voice iterations write to
+  V1.
+- Cause: the per-voice SID offset comes from `d4point` (`.byt $00,$07,$0E`, the
+  static [0,7,14] table). The voice loop DOES iterate X=2,1,0 correctly
+  (`stx wax` trace shows 02,01,00), and `startplayer` does `ldy d4point,x;
+  sty voicesto`. BUT at runtime `LDY $2410,X` (= `d4point,x`) reads **0** for
+  X=2 — d4point is all zeros at runtime.
+- Why: `d4point` resolves to **$2410**, but the BUILT BINARY has `00 00 00` at
+  $2410 (checked the .sid file directly). The engine+state block, emitted from
+  `load_addr=$0E00`, is **~5.6 KB** (extends past $2410), so it OVERLAPS the
+  data tables at `$17E3` and the USF music_data region. The composer places
+  data/music_data via `* =` at those addresses and zero-fills gaps — clobbering
+  the state region (incl. d4point) that the engine code also occupies up there.
+- Confirmation: `d4point` is BEFORE `tabcount` in source, so `ok2`'s zeroing
+  (tabcount..state_end) does NOT touch it — ruling out ok2. The zeros come from
+  the section layout overlap.
+
+**Root constraint:** the composer emits sections ascending and requires
+`load_addr < all data-section addresses` (load above a section → "DSB has
+negative length"). Adrenalin's data tables are fixed LOW ($17E3) by cfg (those
+addrs are shared by extract = read orig, and emit = place rebuild). The
+engine+state (~5.6 KB) does NOT fit in $0E00..$17E3 (only ~2.5 KB), so ANY
+load_addr below $17E3 collides. Cyb II/Hawkeye avoid this because their data
+addrs sit ABOVE their load_addr.
+
+**Next step (composer layout, needs design — do NOT hack):** decouple the
+extract-time data addresses (read orig at $17E3 etc.) from the emit-time
+placement, so `emit_data_from_usf` can put the data tables ABOVE the engine+
+state (like Cyb II) instead of at orig's low addresses. Options: (a) add
+emit-address-override fields to FCConfig; (b) in emit_data_from_usf mode,
+auto-relocate ALL data tables to after the engine+state block and rewrite the
+equates accordingly (orig addresses are extraction artifacts — CORE TENET says
+the rebuild's layout is free). Then re-verify sub-0 from pos 51 onward
+(voice-order + per-voice music should fall into place once d4point survives).
+
 ## Addresses found (2026-06-06)
 
 From py65 init + disassembly grep:

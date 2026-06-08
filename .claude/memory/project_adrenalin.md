@@ -65,6 +65,22 @@ $1BA0 (2B/entry). lonote source found in raw binary at `$68B3`.
   knob emitting engine A's f0/f1 init shape (disasm $7A00 first-play path for
   the exact 78-write sweep). Full detail in RE_NOTES "PROGRESS" section.
 
+## PROGRESS 2026-06-07 (cont. 2) — init byte-exact; voice bug = LAYOUT collision
+- `init_style='fc_clear_sweep'` knob (commit a1bbba2) emits engine A's $7AE2
+  init sweep. Adrenalin sub-0 init now byte-exact (full-flat pos 0..50); first
+  divergence at pos 51 (music).
+- Music divergence ROOT-CAUSED: rebuild writes ONLY V1 ($D400-$D406); V2/V3
+  never. Per-voice SID offset `d4point` (.byt $00,$07,$0E at $2410) reads 0 at
+  runtime — the BUILT .sid has `00 00 00` at $2410. Engine+state block from
+  load_addr=$0E00 is ~5.6KB, OVERLAPS the data tables ($17E3) + music_data;
+  the `* =` section emission zero-fills over the state region. NOT ok2 (d4point
+  is before tabcount). Composer requires load_addr < data-section addrs, but
+  engine+state (~5.6KB) doesn't fit below the fixed-low $17E3 tables.
+- NEXT (composer layout, needs design): decouple extract data addrs ($17E3,
+  read orig) from emit placement so emit_data_from_usf puts data tables ABOVE
+  the engine+state (like Cyb II/Hawkeye whose data sits above load_addr). Then
+  re-verify from pos 51. Full detail in RE_NOTES "PROGRESS ... (cont. 2)".
+
 ## THE BLOCKER (last commit 17f7618) — RESOLVED (see PROGRESS above)
 `compose_fc_asm_featuredriven` only knows `subtune_layout` ∈
 {`flat_seqtabel`, `smc_template_with_sfx`}; Adrenalin's config uses a new
