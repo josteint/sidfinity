@@ -65,6 +65,47 @@ flat_seq_table emission, build a single-subtune USF, verify byte-frame-exact);
 (2) decide whether multi-independent-song FC support is worth it for subs 2/3;
 (3) sub 1 last.
 
+## PROGRESS 2026-06-07 (cont.) — composer unblocked; sub-0 init divergence
+
+Pursued the sub-0 canary (the recommended first increment).
+
+**DONE — composer unblocked (the `runtime_slot` blocker is gone):**
+- `compose_fc_asm_featuredriven` now normalizes `subtune_layout=='runtime_slot'`
+  → `'flat_seq_table'` at entry (EMISSION only; extract keeps runtime_slot).
+  Rationale: runtime_slot is purely an extraction concept (where to read the
+  original's per-subtune seq pointers from post-init mem); the rebuild lays
+  out its own flat seq_table, so emission == flat_seq_table. CORE TENET.
+- Adrenalin config: `emit_data_from_usf=True`, `load_addr=0x0E00` (engine
+  ~2KB sits BELOW the fixed data tables at $17E3+; sections emit ascending,
+  so engine must precede data — load above $17E3 makes section padding go
+  negative: "DSB has negative length").
+- `write_canary_usf(ADRENALIN)` + `build_via_asm_featuredriven(ADRENALIN)`
+  now BUILD (5975 bytes). Cyb II 2/2 + Hawkeye 12/12 still pass (the
+  normalization only triggers for runtime_slot = Adrenalin only).
+
+**REMAINING — sub-0 fails frame-exact on an INIT-sequence mismatch (pos 0):**
+Adrenalin (engine A) has a distinctive MULTI-FRAME init the generic FC
+composer doesn't reproduce. Per-frame writelog (subtune 0, vblank speed=0):
+
+| frame | ORIG | REBUILD |
+|---|---|---|
+| 0 | 1 write: `$D418=$0F` | 53 writes: generic FC init (`$D416=FF,$D417=00,$D418=1F`, silence $D400-$D415) |
+| 1 | 78 writes: `$D417=01,00 $D416=01,00 … $D400=01,00` — a verbose **$01-then-$00 reset sweep** descending across all SID regs | 17 writes: MUSIC starts (V1 ctrl/freq) |
+| 2 | 17 writes: MUSIC starts (`$D410=80 $D411=02 $D412=41 …`) | music |
+
+So orig's music starts at **frame 2**, rebuild's at **frame 1** → off by one
+frame + different init writes → diverges at flat pos 0. The `$01/$00` sweep
+nets to all-zero (a verbose clear); it's a "reset" sequence (init trichotomy)
+but the frame-exact verdict still requires reproducing it.
+
+**Next step:** make the composer reproduce engine A's init shape for this
+canary — frame 0 = `$D418=$0F` only; frame 1 = the descending `$01/$00`
+sweep; music from frame 2. Likely a new FCConfig "init_style" knob (engine A
+vs the Cyb II/Hawkeye generic init). Disassemble engine A's $7A00 entry +
+first-play path to get the exact sweep order/extent (78 writes), then emit it.
+This is the gating work for sub-0 frame-exact; subs 2/3 (independent pools)
+and sub 1 (different engine) remain as previously scoped.
+
 ## Addresses found (2026-06-06)
 
 From py65 init + disassembly grep:

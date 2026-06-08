@@ -2964,6 +2964,15 @@ def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
     """
     if root is None:
         root = _ROOT
+    # `runtime_slot` is an EXTRACTION concept (where to read the original's
+    # per-subtune sequence pointers from post-init memory). For EMISSION the
+    # rebuild lays out its own flat seq_table (CORE TENET: match the writelog,
+    # not the binary), so it composes identically to `flat_seq_table`.
+    # Normalize here so every downstream emission branch sees flat_seq_table;
+    # the extract path (engine_model) keeps the original runtime_slot cfg.
+    if cfg.subtune_layout == 'runtime_slot':
+        import dataclasses as _dataclasses
+        cfg = _dataclasses.replace(cfg, subtune_layout='flat_seq_table')
     if cfg.emit_data_from_usf:
         # De-verbatim path: the composer needs NO orig file — load address
         # comes from cfg, all musical data + layout from USF. (mem / code_end

@@ -51,7 +51,21 @@ subtune seq-base ptr table $18A5(lo)+$18A7(hi), 6-byte runtime per-voice seq
 slot $18B5, instr_records $19AC (8B/inst, Hawkeye layout), pattern_ptr_table
 $1BA0 (2B/entry). lonote source found in raw binary at `$68B3`.
 
-## THE BLOCKER (last commit 17f7618)
+## PROGRESS 2026-06-07 (cont.) — composer UNBLOCKED; sub-0 init divergence
+- `compose_fc_asm_featuredriven` normalizes `runtime_slot`→`flat_seq_table`
+  at entry (emission only; extract keeps runtime_slot). Adrenalin config:
+  `emit_data_from_usf=True`, `load_addr=0x0E00` (engine below the fixed
+  $17E3+ data tables). It now BUILDS (5975 B). Cyb II 2/2 + Hawkeye 12/12
+  unaffected.
+- Sub-0 still FAILS frame-exact: engine A has a MULTI-FRAME init the generic
+  FC composer doesn't reproduce. ORIG: f0=`$D418=$0F` only; f1=78-write
+  `$01,$00` descending reset sweep across all SID regs; music from f2.
+  REBUILD: f0=generic FC init; music from f1 → off by one frame, diverges at
+  pos 0 (vblank, speed=0, so no CIA issue). Next: an FCConfig "init_style"
+  knob emitting engine A's f0/f1 init shape (disasm $7A00 first-play path for
+  the exact 78-write sweep). Full detail in RE_NOTES "PROGRESS" section.
+
+## THE BLOCKER (last commit 17f7618) — RESOLVED (see PROGRESS above)
 `compose_fc_asm_featuredriven` only knows `subtune_layout` ∈
 {`flat_seqtabel`, `smc_template_with_sfx`}; Adrenalin's config uses a new
 `runtime_slot` variant it can't emit → no rebuild SID → no

@@ -35,6 +35,17 @@ ADRENALIN = FCConfig(
     name='adrenalin',
     sid_path='hvsc84/MUSICIANS/H/HeatWave/Adrenalin.sid',
 
+    # ---- rebuild layout (CORE TENET: own layout, match the writelog) ----
+    # The original is a self-decompressing inline-load PSID; the rebuild is a
+    # plain FC engine emitted from USF. Data tables stay at engine A's runtime
+    # addresses ($17E3-$1Bxx); the engine code (~2KB) sits BELOW them at
+    # load_addr, with USF-derived music_data (patterns/sequences/seq_table)
+    # placed after the data sections (~$1Exx). Engine $0E00..~$15F5, data
+    # $17E3+ — the composer emits sections in ascending address order, so the
+    # engine must precede the data tables.
+    emit_data_from_usf=True,
+    load_addr=0x0E00,
+
     # ---- mandatory data table addresses (verified by disasm reads) ----
     freq_lo_addr=0x17E3,            # lonote, LDA $17E3,Y at $7C9B
     freq_hi_addr=0x1842,            # hinote, LDA $1842,Y at $7CA5
