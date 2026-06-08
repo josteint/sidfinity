@@ -85,6 +85,9 @@ ADRENALIN = FCConfig(
                                     # NOT reset at note-load
     noise_tick_release_uses_vibrato=True,   # engine A $819F release tail uses
                                     # the vibrato'd current freq ($7a2b/$7a25)
+    fm2_cleanup_d416_value=0xE0,    # engine A $80D2 writes $D416=$E0 on filter
+                                    # cleanup (not $80), and no $D418
+    fm2_cleanup_writes_d418=False,
     pulsetabel_addr=0x199C,         # LDA $199C,Y at $7FAF
     vibtabwait_addr=0x1A14,         # LDX $1A14,Y at $7DD6
 
