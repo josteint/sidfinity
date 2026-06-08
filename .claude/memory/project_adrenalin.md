@@ -65,7 +65,22 @@ $1BA0 (2B/entry). lonote source found in raw binary at `$68B3`.
   knob emitting engine A's f0/f1 init shape (disasm $7A00 first-play path for
   the exact 78-write sweep). Full detail in RE_NOTES "PROGRESS" section.
 
-## PROGRESS 2026-06-07 (cont. 2) — init byte-exact; voice bug = LAYOUT collision
+## PROGRESS 2026-06-07 (cont. 3) — layout decoupling DONE; now per-voice notes
+- Layout decoupling SHIPPED (commit 7984e88). The cont-2 "engine+state overlaps
+  data" guess was WRONG. Real cause: original packs data tables so tightly that
+  emitting at orig addresses OVERLAPS (pulsetabel/vibtabwait vs instruments) →
+  xa65 backward `* =` desyncs file vs CPU addr by $38 → d4point (per-voice SID
+  offset table) loads as zeros → all voices write V1. Fix: new FCConfig
+  `contiguous_data_layout` (Adrenalin-only) packs data tables contiguously +
+  rewrites cfg addrs. d4point survives; voices fixed.
+- `nextvoice_write_order` → (2,3,4,0,1) (orig writes PW before ctrl/freq).
+- Divergence progression: pos 1→50 (init_style)→51 (voices all-V1)→55 (layout
+  decoupling)→70 (nextvoice). CURRENT: pos 70 = V1 note content (orig new note
+  freq $02CC+AD/SR/PW/ctrl; rebuild different freq, no AD/SR — held-vs-new-note
+  or pitch/sequence mismatch). Per-voice musical accuracy now; structurally
+  sound (flat lengths 4941 vs 4953). Cyb II 2/2 + Hawkeye 12/12 unaffected.
+
+## PROGRESS 2026-06-07 (cont. 2) [HYPOTHESIS WAS WRONG — see cont. 3]
 - `init_style='fc_clear_sweep'` knob (commit a1bbba2) emits engine A's $7AE2
   init sweep. Adrenalin sub-0 init now byte-exact (full-flat pos 0..50); first
   divergence at pos 51 (music).

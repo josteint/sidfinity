@@ -130,7 +130,41 @@ init; `'fc_clear_sweep'` = engine A's `$7AE2` routine above) and branch in
 This is the gating work for sub-0 frame-exact; subs 2/3 (independent pools)
 and sub 1 (different engine) remain as previously scoped.
 
-## PROGRESS 2026-06-07 (cont. 2) — init byte-exact; voice bug = LAYOUT COLLISION
+## PROGRESS 2026-06-07 (cont. 3) — layout decoupling DONE; now per-voice note accuracy
+
+**Layout decoupling SHIPPED (commit 7984e88) — voices fixed.** The cont.-2
+"engine+state too big / overlaps data" hypothesis below was WRONG. True root
+cause: the original packs its data tables so tightly that emitting them at their
+ORIGINAL addresses OVERLAPS (pulsetabel/vibtabwait collide with the instrument
+table). Overlapping CPU addresses can't map to a flat load file, so xa65's
+backward `* =` desynced the byte-concatenated file from CPU addresses by $38
+bytes → the state region (`d4point`, the per-voice SID offset table) loaded $38
+off and read as zeros → every voice wrote V1.
+- Fix: new `FCConfig.contiguous_data_layout` (Adrenalin only; default False so
+  Cyb II/Hawkeye keep the proven fixed-address layout). A pre-pass packs all
+  data tables contiguously from the first data address and rewrites cfg so the
+  section builders + pointer-table layouts + equates use packed, non-overlapping
+  addresses. (arp rejected — its count is encoded in the arplo/arphi gap; N/A
+  here since usf.arp_programs is empty.)
+- Result: d4point survives; all 3 voices write their own registers.
+
+**nextvoice_write_order fixed (commit pending):** orig writes a voice's
+new-note regs as PW,ctrl,freq (engine A inst-load $7CEB/$7CF7 write PW before
+ctrl/freq), not ctrl,freq,PW. Set `(2,3,4,0,1)`.
+
+**Divergence progression this session:** pos 1 (no init) → 50 (init_style) →
+51 (voices all-V1) → 55 (layout decoupling) → 70 (nextvoice order).
+
+**CURRENT divergence — pos 70, V1 note content.** orig loads V1 as a NEW note
+(freq $02CC + AD=$00 SR=$FD + PW + ctrl=$41); the rebuild writes a DIFFERENT
+freq ($0430), no AD/SR, and writes freq twice — i.e. it's taking a held/no-new-
+note path where orig takes a new note, or V1's pitch/sequence resolves
+differently. This is per-voice musical accuracy (note timing / pitch /
+sequence), the normal iterative writelog-divergence loop from here. orig/rebuild
+flat lengths are near-equal (4941 vs 4953), so the engine is structurally
+sound now.
+
+## PROGRESS 2026-06-07 (cont. 2) — init byte-exact; voice bug [HYPOTHESIS BELOW WAS WRONG — see cont. 3]
 
 **init_style sweep DONE (committed a1bbba2).** New FCConfig `init_style`;
 `'fc_clear_sweep'` emits engine A's `$7AE2` init. Adrenalin sub-0 init now
