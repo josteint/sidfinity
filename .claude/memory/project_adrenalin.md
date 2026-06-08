@@ -1,6 +1,6 @@
 ---
 name: project_adrenalin
-description: "Adrenalin (HeatWave) — intended 3rd FC canary, IN PROGRESS/diagnosis. DEEP DIAGNOSIS 2026-06-07: it's a COMPILATION — THREE distinct engines + FOUR independent data pools in one PSID. Sub 0 = engine A @ $7A00 (canonical FC); subs 2/3 = engine A relocated to $1000 (proven byte-for-byte reloc), each its own pool; sub 1 = a DIFFERENT engine @ $1021 (4% code match). Every subtune has its own freq/instr/pattern/sequence (NOT shared-pool FC multi-subtune). Sub-0-only = a clean FC canary (just needs runtime_slot→flat_seq_table emission); full Adrenalin needs multi-independent-song FC support (new schema+composer feature). User chose DIAGNOSE-ONLY, not build."
+description: "Adrenalin (HeatWave) — 3rd FC canary. SUB 0 DONE 2026-06-08: per-frame instruction-sequence exact via the pure-trichotomy init + trichotomy verdict (tracked in tools/regression.py FC canaries as Adrenalin[0] 1/1). It's a COMPILATION — THREE distinct engines + FOUR independent data pools in one PSID. Sub 0 = engine A @ $7A00 (canonical FC, DONE); subs 2/3 = engine A relocated to $1000 (proven byte-for-byte reloc), each its own pool; sub 1 = a DIFFERENT engine @ $1021 (4% code match). Every subtune has its own freq/instr/pattern/sequence (NOT shared-pool FC multi-subtune). Full Adrenalin (subs 1/2/3) still needs multi-independent-song FC support (new schema+composer feature)."
 metadata: 
   node_type: memory
   type: project
@@ -168,11 +168,42 @@ is BLOCKED"):
    existing composer path. Per the CORE TENET the rebuild needn't mirror the
    decompressor — only the writelog.
 
-## Resume order
+## ✅ SUB 0 DONE 2026-06-08 — pure-trichotomy init closed it
+After the ketchup cascade got sub-0 music to a full prefix (orig 209432 writes
+= prefix of rebuild), the only remaining "fail" was the INIT: orig clears the
+chip over 2 frames via an $01/$00 sweep; reproducing that exactly
+(`init_style='fc_clear_sweep'`) left a +19 trailing-frame bucketing artifact
+that FC's strict `is_full` rejected. Resolved by going PURE TRICHOTOMY instead
+of reproducing the sweep (user's call — "byte exact is out"):
+
+- **Composer** `init_style='universal_reset'` (composer_asm.py): emit OUR OWN
+  init — a clean silence-clear ($D400-$D417=$00) + one typed PRIMING write
+  ($D418=VOLUME_INIT=$0F). Same END-OF-INIT STATE as engine A's noisy sweep;
+  the sweep itself is Reset-bucket MECHANISM (invisible to USF), so we don't
+  reproduce it. `fc_clear_sweep` kept for the byte-preserving baseline path.
+- **Verdict** `compare_instruction_stream(mode='trichotomy')` (verify_cycle.py
+  `_trichotomy_compare`): the two streams share an IDENTICAL play stream and
+  differ only by a short init prefix of different length. It recovers the global
+  shift d via a midstream landmark, finds each side's init length, then applies
+  the two trichotomy checks — **Check A** end-of-init chip STATE matches (the
+  priming), **Check B** aligned play stream matches + `|len diff|<=64`.
+  `is_full = state_match and play_full and close`. When inits coincide it
+  reduces to a full prefix match → Cyb II/Hawkeye unaffected (shift=0). FC
+  verdict (`verify.py::_capture_pair`) now uses this mode for ALL FC.
+- **Result**: Adrenalin sub 0 = play 208248/208248, shift=-25, init=(51,26),
+  state matches, +17 trailing (bucketing) → `is_full`. In regression as
+  `Adrenalin[0] 1/1`. Full regression green (Hubbard 71 / Companion 44 /
+  C64ME 15 / Jay_Derrett 17 / FC 14→15).
+- This is the FIRST FC engine to use the pure trichotomy (Cyb II/Hawkeye still
+  reproduce their init verbatim; the trichotomy verdict means they no longer
+  HAVE to — a future cleanup could switch them to universal_reset too).
+
+## Resume order (subs 1/2/3 — multi-independent-song FC, still pending)
 1. Confirm whether subs 0/2/3 differ at the sequence/pattern byte level
    (decides single- vs multi-subtune scope; sub 1 deferred regardless).
-2. Apply option 2; build; `find_first_divergence`; `verify_featuredriven`.
-3. Add to `tools/regression.py::regress_future_composer` canaries when FULL.
+2. Multi-independent-pool FC support: each subtune is its own freq/instr/
+   pattern/sequence pool (sub 1 is a different engine @ $1021). Needs a
+   schema+composer feature to carry N independent FC songs in one USF.
 
 ## Related
 [[project_fc_principled_composer]] (FC de-verbatim work),

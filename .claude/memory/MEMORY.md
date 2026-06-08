@@ -17,7 +17,7 @@
 - [Clever Music (Fairlight + Gyroscope)](project_clever_music.md) — pipelines/companion/clever_music/. Duration counters, embedded commands ($Bx tempo / $Cx vol / $Dx instrument / $Ex pattern jump), song-position synchronisation counter cycling $E0..$E5.
 - [Henrys House](project_henrys_house.md) — pipelines/companion/henrys_house/. Single-voice variant, hardcoded tempo 8, $FF restart-init handler.
 - [Yes Tune family](project_yes_tune.md) — pipelines/companion/yes_tune/. Per-voice state machine + 2-byte (note, duration) format. Multi-subtune + relocation-aware.
-- [Adrenalin (HeatWave)](project_adrenalin.md) — IN PROGRESS (diagnosis), intended 3rd FC canary. DEEP DIAGNOSIS 2026-06-07: it's a COMPILATION — 3 distinct engines + 4 INDEPENDENT data pools in one PSID (sub0=engine A @ $7A00; subs2/3=engine A relocated to $1000; sub1=different engine @ $1021). Sub-0-only = clean FC canary (needs runtime_slot→flat_seq_table emission); full Adrenalin needs multi-independent-song FC support. User chose diagnose-only this round.
+- [Adrenalin (HeatWave)](project_adrenalin.md) — SUB 0 DONE (2026-06-08): 3rd FC canary, per-frame instruction-sequence exact via the PURE-TRICHOTOMY init (`init_style='universal_reset'`) + `compare_instruction_stream(mode='trichotomy')`. Tracked as `Adrenalin[0] 1/1`. It's a COMPILATION — 3 distinct engines + 4 INDEPENDENT data pools (sub0=engine A @ $7A00 DONE; subs2/3=engine A relocated to $1000; sub1=different engine @ $1021). Full Adrenalin (subs 1/2/3) still needs multi-independent-song FC support.
 
 ## Engine quirks & open work
 

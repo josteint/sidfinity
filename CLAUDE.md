@@ -67,6 +67,17 @@ HVSC needs.
   (flat-prefix over `(reg, val)`, cycle dropped). Robust against siddump
   frame-bucket drift (Trap C).
 - Localizer: `tools/find_first_divergence.py`.
+- **Engines that emit their OWN init (pure trichotomy):** when the composer
+  emits a universal reset + typed priming instead of reproducing the original
+  engine's init write SEQUENCE (e.g. FC `init_style='universal_reset'`), the
+  two streams share an identical play stream but differ by a short init prefix
+  of different length — so a flat prefix match diverges at frame 0. Use
+  `compare_instruction_stream(mode='trichotomy')`: it recovers the play-stream
+  shift, then checks (A) the end-of-init chip STATE matches (the priming) and
+  (B) the aligned play stream matches (+ close length tolerance). It reduces to
+  a full prefix match when inits coincide, so verbatim-init engines are
+  unaffected. This is the answer to "how do we compare when we have our own
+  init" — see [[feedback_init_trichotomy]] + [[project_adrenalin]].
 - **CIA-timed tunes (PSID `speed != 0`):** the flat per-50Hz-frame capture
   buckets init + first play() out of phase between orig and a rebuild with a
   different init length (Trap C specialised to CIA), so `verify_all` captures
