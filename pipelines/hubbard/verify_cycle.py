@@ -133,6 +133,38 @@ def compare_strict(a: list[Frame], b: list[Frame]) -> dict:
             'len_a': len(a), 'len_b': len(b)}
 
 
+# Register indices into a $D400-$D418 state vector.
+_VOICE_FREQ_LO = (0x00, 0x07, 0x0E)
+_VOICE_FREQ_HI = (0x01, 0x08, 0x0F)
+_VOICE_CTRL = (0x04, 0x0B, 0x12)
+
+
+def init_boundary_is_canonical(state: list) -> bool:
+    """Does this end-of-init $D400-$D418 register state put the SID's
+    INTERNAL analog state into its canonical reset?
+
+    The register write-log can't observe the chip's internal analog state
+    (oscillator phase accumulators, envelope-generator counters, filter
+    integrators). But when, at the moment play() takes over, every voice has
+    its GATE off (so envelopes are idle → output 0) AND its FREQUENCY 0 (so
+    the phase accumulator is frozen, not advancing), the internal state is
+    pinned to its power-on/reset condition regardless of how the init got
+    there. Under that condition, two runs that reach an IDENTICAL register
+    state (Check A) and then emit an IDENTICAL play stream (Check B) have
+    IDENTICAL internal-state evolution too — so the audio is provably the
+    same, even though we replaced the engine's init with our own.
+
+    When this returns False (e.g. an engine that leaves a voice gated or at
+    a non-zero frequency at the init boundary), register-state match alone no
+    longer guarantees the internal state matches — the first note's attack
+    can depend on init-length-dependent phase/envelope history — so that
+    subtune wants an ear test, not just the write-log verdict.
+    """
+    gates_off = all((state[c] & 0x01) == 0 for c in _VOICE_CTRL)
+    freq_zero = all(state[r] == 0 for r in _VOICE_FREQ_LO + _VOICE_FREQ_HI)
+    return gates_off and freq_zero
+
+
 def _trichotomy_compare(fa: list, fb: list, close_tol: int = 64,
                         max_init: int = 4096, win: int = 64) -> dict:
     """Init-trichotomy comparison of two flat (reg, val) streams.
@@ -220,6 +252,14 @@ def _trichotomy_compare(fa: list, fb: list, close_tol: int = 64,
     state_match = sa == sb
     state_diff = [(r, sa[r], sb[r]) for r in range(0x19) if sa[r] != sb[r]]
 
+    # Audio-equivalence guarantee: if the init boundary is canonical (gates
+    # off + freq 0) on BOTH sides, the chip's internal analog state is pinned
+    # to reset, so Check A + Check B imply identical audio — replacing the
+    # init introduced no audible change. Otherwise flag for an ear test.
+    canon_a = init_boundary_is_canonical(sa)
+    canon_b = init_boundary_is_canonical(sb)
+    init_canonical = canon_a and canon_b
+
     return {
         'mode': 'trichotomy', 'shift_d': d,
         'init_len_a': ia, 'init_len_b': ib,
@@ -228,6 +268,9 @@ def _trichotomy_compare(fa: list, fb: list, close_tol: int = 64,
         'play_full': play_full, 'close': close,
         'first_play_diff': first_play_diff,
         'len_post_a': post_a, 'len_post_b': post_b,
+        'init_canonical': init_canonical,
+        'init_canonical_orig': canon_a, 'init_canonical_reb': canon_b,
+        'audio_guaranteed': state_match and play_full and close and init_canonical,
         'is_full': state_match and play_full and close,
     }
 

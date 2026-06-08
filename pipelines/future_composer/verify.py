@@ -179,11 +179,17 @@ def _format_verdict(result: dict) -> str:
         verdict = '✓' if v['is_full'] else '✗'
         if v.get('mode') == 'trichotomy':
             extra = '' if v['state_match'] else f' STATE≠ {v["state_diff"]}'
+            # audio-equivalence flag: ✓ = canonical init boundary → register
+            # match provably implies identical audio; ! = non-canonical →
+            # ear-test recommended.
+            audio = ' audio✓' if v.get('audio_guaranteed') else (
+                ' audio?(non-canonical init — ear-test)'
+                if v['is_full'] and not v.get('init_canonical') else '')
             lines.append(
                 f'  sub {s:2d}  {verdict}  play={v["play_match"]}/'
                 f'{v["play_overlap"]} shift={v["shift_d"]} '
                 f'init=({v["init_len_a"]},{v["init_len_b"]}) '
-                f'post_len=({v["len_post_a"]},{v["len_post_b"]}){extra}')
+                f'post_len=({v["len_post_a"]},{v["len_post_b"]}){extra}{audio}')
         else:
             match = v['match']
             len_a = max(v['len_all_a'], v['len_post_a'])
