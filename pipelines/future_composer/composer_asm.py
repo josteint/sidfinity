@@ -440,6 +440,22 @@ song_ureset:
         sta $d400,x
         dex
         bpl song_ureset
+        ; Defensive test-bit oscillator-phase clear (report sid_init_report §6a):
+        ; pulse TEST ($08) then $00 on V1/V2/V3 ctrl, resetting the oscillator
+        ; phase accumulators to zero so the first note's attack is click-free
+        ; and DETERMINISTIC regardless of prior chip/host state — the one piece
+        ; of audible init fidelity the register-state check can't otherwise
+        ; guarantee. Ends with ctrl=$00, so the end-of-init STATE (Check A) is
+        ; unchanged; only the init trace lengthens, which the trichotomy verdict
+        ; skips.
+        lda #$08
+        sta $d404                    ; V1 ctrl ← TEST
+        sta $d40b                    ; V2 ctrl ← TEST
+        sta $d412                    ; V3 ctrl ← TEST
+        lda #$00
+        sta $d404                    ; V1 ctrl ← $00 (release at phase 0)
+        sta $d40b                    ; V2 ctrl ← $00
+        sta $d412                    ; V3 ctrl ← $00
         lda #VOLUME_INIT             ; $D418 ← master-volume priming ($0F)
         sta $d418
         jsr ok2
