@@ -192,12 +192,22 @@ Traced via pc-trace of the rebuild ($0E00 engine). The chain:
 - ($0001 is the byte-swap of freq[0]=$0100, a red herring — the real fault is
   the out-of-range index from the null-pointer garbage.)
 
-NEXT: find why V2's note-length isn't set (setlen $86 not applied → counter 0)
-and why its pattern pointer `$2458/$245B` is null on advance, while V1/V3 are
-fine. Likely the FC note-length-persistence / pattern-pointer state for the
-middle voice; relates to the (fc_id, persisted_length) pattern split in
-`_voice_to_usf` and how the composer carries per-voice pattern pointers. Start
-at the composer's note-advance / set_patptr path for X=1.
+DEEPER ROOT (further pc-trace): the bad path is gated by `LDA $42; AND #$04;
+BEQ` (PC $1126) — V2's note has **fx bit 2 set**, triggering a per-voice
+freq-modulation effect (the "bit-2 sweep", composer `freq_rise_acc`, orig
+$90E0). THAT is what produces orig's $2CC1→$42D0→$3863→$2CEB modulation on the
+held note. The effect reads its program/state pointer from `$2458,X`/`$245B,X`
+into zp `$53/$54`, but for V2 those are $00/$00 (null) → reads zero-page $0000 →
+garbage pitch/freq. V1/V3's notes don't have fx bit 2, so they never hit this
+path → V2-specific.
+
+So pos-87 is a COMPOSER fx-bit-2 (freq-sweep) EFFECT-SETUP bug: the note-load
+doesn't initialise the bit-2 effect's per-voice pointer ($2458/$245B). NEXT:
+read engine A's bit-2 handler in disassembly.s (the $90E0/freq-rise path +
+where it sets the per-voice pointer at note-load), then make the composer's
+note-load set up that pointer/state for fx-bit-2 instruments. Shared FC-effect
+change — verify Cyb II + Hawkeye. (Confirm whether any of their instruments use
+fx bit 2; if not, it's currently untested and safe to add.)
 
 ### (history) earlier framing — pos 87, V2 pitch ($42D0 vs $0001)
 After the glide fix, V1 matches through pos 86. At pos 87 V2's note freq is
