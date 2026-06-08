@@ -155,14 +155,35 @@ ctrl/freq), not ctrl,freq,PW. Set `(2,3,4,0,1)`.
 **Divergence progression this session:** pos 1 (no init) → 50 (init_style) →
 51 (voices all-V1) → 55 (layout decoupling) → 70 (nextvoice order).
 
-**CURRENT divergence — pos 70, V1 note content.** orig loads V1 as a NEW note
-(freq $02CC + AD=$00 SR=$FD + PW + ctrl=$41); the rebuild writes a DIFFERENT
-freq ($0430), no AD/SR, and writes freq twice — i.e. it's taking a held/no-new-
-note path where orig takes a new note, or V1's pitch/sequence resolves
-differently. This is per-voice musical accuracy (note timing / pitch /
-sequence), the normal iterative writelog-divergence loop from here. orig/rebuild
-flat lengths are near-equal (4941 vs 4953), so the engine is structurally
-sound now.
+**CURRENT divergence — pos 70, V1 first-note pattern content.** orig loads V1 as
+a NEW note (freq $02CC + AD=$00 SR=$FD + PW + ctrl=$41 gate-on); the rebuild's
+V1 does NOT gate on (freq $0430, no AD/SR, ctrl=00) — V1's first note isn't
+playing. V3 (pos 50-59) + V2 (60-68) match perfectly, so the engine plays
+patterns correctly in general; this is V1-pattern-specific.
+
+VERIFIED CORRECT (this session, ruled out): V1's sequence parse
+(`_parse_sequence` → patterns [9,9,9,9,1,...]); the to_usf orderlist
+(`entries=[0,1,1,1,2,3,...]`, the (fc_id, persisted_length) split is by design);
+the pattern pool dedup (`build_pattern_pool` by row-content → V1 entries map to
+slots [0,0,0,0,1,1] = pattern-9 ×4, correct); the seq_table voice order
+(voice 0 = V1 = the $90 09... sequence).
+
+LEADS for next session (pattern-content / playback, not data layout):
+- The encoder emits a `$C0` (voiceinc 0) right after the transpose in EVERY
+  voice's sequence (`90 c0 00 00 ...`). orig V1 has NO voiceinc command. It's
+  present for V2/V3 too (whose first notes still match), so the decoder handles
+  it — but per the design note "voiceinc bakes into wave_adjust" it may be
+  spurious and worth removing (encode+decode together). Check whether it
+  perturbs V1 specifically.
+- Decode V1's slot-0 pattern stream (`f1 f1 c1 a0 e0 8f 00 07 ...`) vs orig
+  pattern 9's first row; confirm the first row is a real note (not rest/tie) and
+  that `_build_pattern_rows` + the persisted_length carry produced the right
+  first-note duration/instrument for V1.
+- Compare against the engine's V1 note-load path at runtime (pc-trace V1's
+  first do_h2 step) to see why it doesn't gate on.
+
+orig/rebuild flat lengths are near-equal (4941 vs 4953); the engine is
+structurally sound — this is the normal per-voice writelog-divergence loop.
 
 ## PROGRESS 2026-06-07 (cont. 2) — init byte-exact; voice bug [HYPOTHESIS BELOW WAS WRONG — see cont. 3]
 
