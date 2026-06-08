@@ -175,7 +175,31 @@ silent. Changed to `jmp nolengset` (engine always plays the glide target with
 attack). V1 now gates on; divergence advanced pos 70 → 87. Cyb II 2/2 +
 Hawkeye 12/12 unaffected.
 
-### CURRENT divergence — pos 87, V2 pitch ($42D0 vs $0001)
+### CURRENT divergence — pos 87, V2 note-length + null pattern pointer (LOCALIZED)
+Traced via pc-trace of the rebuild ($0E00 engine). The chain:
+- orig holds V2's first note (pitch 60+transpose4 = note $40 → freq $2CC1) for
+  6 frames (pattern slot 3 = `c7 86 3c 3c ...`: wave_adj7, **setlen $86=6**,
+  note $3C ×2) and VIBRATO-modulates it ($2CC1→$42D0→$3863→$2CEB). It does NO
+  table lookup on frame 2.
+- rebuild: V2's note-length counter `$2455,X` is already **0** on frame 1
+  (`DEC`→$FF at PC $1138), so it PREMATURELY advances the pattern — V2's note
+  length was never set to ~5 (the `$86` setlen didn't take). V1/V3 hold
+  correctly, so it's V2-specific.
+- On that bad advance, V2's current-pattern pointer `$2458,X`/`$245B,X` is
+  **$00/$00** → zp ptr `$53/$54 = $0000` → it reads zero-page `$0000` (=$2F) as
+  the pattern position, then pattern byte `$24`, adds toneadd `$40` → pitch
+  `$64` (=100, OUT OF the 96-entry freq table) → reads garbage `$0001`.
+- ($0001 is the byte-swap of freq[0]=$0100, a red herring — the real fault is
+  the out-of-range index from the null-pointer garbage.)
+
+NEXT: find why V2's note-length isn't set (setlen $86 not applied → counter 0)
+and why its pattern pointer `$2458/$245B` is null on advance, while V1/V3 are
+fine. Likely the FC note-length-persistence / pattern-pointer state for the
+middle voice; relates to the (fc_id, persisted_length) pattern split in
+`_voice_to_usf` and how the composer carries per-voice pattern pointers. Start
+at the composer's note-advance / set_patptr path for X=1.
+
+### (history) earlier framing — pos 87, V2 pitch ($42D0 vs $0001)
 After the glide fix, V1 matches through pos 86. At pos 87 V2's note freq is
 orig $42D0 vs rebuild $0001 (near-zero); V2 gates on (ctrl=$21 matches at pos
 86), so it's a PITCH/freq COMPUTATION issue, not a gate issue. The streams

@@ -92,6 +92,13 @@ $1BA0 (2B/entry). lonote source found in raw binary at `$68B3`.
   = V2 pitch ($42D0 vs $0001, near-zero) — gate OK, PITCH wrong; streams
   re-converge at 93-95 so localized; V2 seq has $84/$90 transposes → transpose
   over/underflow → bad freq-table index is the suspect. Cyb II/Hawkeye green.
+- pos-87 LOCALIZED (pc-trace): V2's note-length counter ($2455,X) is 0 on
+  frame 1 → premature pattern-advance (orig holds 6 frames; pattern slot 3 has
+  setlen $86=6 that didn't take). On advance, V2's current-pattern pointer
+  $2458,X/$245B,X is null ($00/$00) → zp ptr $0000 → reads garbage → pitch $64
+  out-of-freq-table → $0001. V1/V3 fine → V2-specific note-length +
+  pattern-pointer state bug. NEXT: composer note-advance / set_patptr for X=1;
+  relates to FC note-length persistence + per-voice pattern-ptr storage.
 
 ## PROGRESS 2026-06-07 (cont. 2) [HYPOTHESIS WAS WRONG — see cont. 3]
 - `init_style='fc_clear_sweep'` knob (commit a1bbba2) emits engine A's $7AE2
