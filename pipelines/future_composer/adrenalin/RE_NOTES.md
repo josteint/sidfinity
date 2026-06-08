@@ -186,7 +186,27 @@ packs arp; (3) `fx3_bit2_autoarp_index` knob (Adrenalin=1) — nolengset sets
 arpieoklo/arpieokhi + resets the counter for fx3-bit-2 insts. V2 freq now
 byte-exact ($42D0...). Divergence 87 → 89. Cyb II 2/2 + Hawkeye 12/12 green.
 
-### CURRENT divergence — pos 89, vol/filter write ORDER
+### FIXED (commit 129eccb): vol/filter write order — voice_loop_layout=interleaved
+orig writes the master vol/filter ($D418/$D416, from engine A's per-voice filter
+routine $807D-$80DA) BETWEEN the last voice's PW and ctrl/freq writes. The
+composer (tight_nextvoice) wrote them before the whole nextvoice block. Switching
+Adrenalin to `voice_loop_layout='interleaved'` (PW early, ctrl/freq late) puts
+the filter/vol write in the right spot. Div 89 → 98. Cyb II/Hawkeye unaffected
+(config-only; Hawkeye already uses interleaved).
+
+### CURRENT divergence — pos 98, held-frame ctrl=$00 (null waveform-table effect)
+On the next note/held frame, the rebuild writes ctrl=$00 for ALL THREE voices;
+orig keeps ctrl=$41/$21/$41 (everything else — PW, freq, vol, filter — matches).
+pc-trace: stod404[V3]=$00 comes from `$1494: LDA $0000,Y` — a waveform-table
+effect (indexed by counter&3) reading a NULL table base ($0000), like the arp
+null-pointer bug earlier. So a per-voice waveform effect (wave-arp / pre-attack
+starttabel / noise-tick) runs with an unset pointer → $00 → clears the ctrl.
+orig's ctrl is stable ($41, no waveform cycling here), so EITHER the rebuild
+runs this effect spuriously OR its table pointer isn't set up. NEXT: identify
+which effect the $148F-$1497 routine is (gate + table) and either suppress it
+(if orig doesn't run it for these voices) or set up its table pointer. Likely
+the same class as the arp fix (effect enabled by an instrument fx bit whose
+per-voice program pointer the composer's note-load never initialises).
 orig writes (V1, the last voice): PWlo $02, PWhi $03, **then vol $18 + filter
 $16**, then ctrl $04, freqlo $00, freqhi $01. The rebuild writes vol $16/$18
 BEFORE V1's PW. So the master-vol/filter ($D418/$D416) write is positioned

@@ -108,6 +108,12 @@ $1BA0 (2B/entry). lonote source found in raw binary at `$68B3`.
   byte-exact; divergence 87→89. NEXT: pos 89 = vol/filter ($D418/$D416) write
   ORDER (orig writes them mid-V1-nextvoice, after PW before ctrl; rebuild before
   nextvoice) — fm2 placement knob. Cyb II/Hawkeye green.
+- FIXED (129eccb): vol/filter order via voice_loop_layout='interleaved' (PW
+  early, then filter/vol, then ctrl/freq). Div 89→98. NEXT: pos 98 = held-frame
+  ctrl=$00 for ALL 3 voices (orig $41/$21/$41); stod404 reads `LDA $0000,Y` —
+  a waveform-table effect (wave-arp/pre-attack/noise-tick) with a NULL table
+  ptr (same class as the arp null-ptr bug). Identify the $148F-$1497 routine's
+  gate+table; suppress or set up its pointer. Cyb II/Hawkeye green.
 
 ## PROGRESS 2026-06-07 (cont. 2) [HYPOTHESIS WAS WRONG — see cont. 3]
 - `init_style='fc_clear_sweep'` knob (commit a1bbba2) emits engine A's $7AE2
