@@ -175,7 +175,29 @@ silent. Changed to `jmp nolengset` (engine always plays the glide target with
 attack). V1 now gates on; divergence advanced pos 70 → 87. Cyb II 2/2 +
 Hawkeye 12/12 unaffected.
 
-### CURRENT divergence — pos 87, V2 note-length + null pattern pointer (LOCALIZED)
+### FIXED (commit fc25d4e): fx3-bit-2 auto-arpeggio (engine A $7D9C)
+pos-87 root cause was NOT note-length — it was that V2's instrument has fx3
+bit 2 = an AUTO-ARPEGGIO (no pattern $7x command), cycling a fixed arp program
+($1973 = program 1 = (0,+4,+7)) each frame. The composer had the per-frame
+bit-2 handler but never set the per-voice arp pointer for an auto-arp → null
+ptr → garbage. Three-part fix: (1) extract `arp_ptr_hi_min` (Adrenalin $10) so
+the low-memory arp programs aren't filtered out; (2) contiguous_data_layout now
+packs arp; (3) `fx3_bit2_autoarp_index` knob (Adrenalin=1) — nolengset sets
+arpieoklo/arpieokhi + resets the counter for fx3-bit-2 insts. V2 freq now
+byte-exact ($42D0...). Divergence 87 → 89. Cyb II 2/2 + Hawkeye 12/12 green.
+
+### CURRENT divergence — pos 89, vol/filter write ORDER
+orig writes (V1, the last voice): PWlo $02, PWhi $03, **then vol $18 + filter
+$16**, then ctrl $04, freqlo $00, freqhi $01. The rebuild writes vol $16/$18
+BEFORE V1's PW. So the master-vol/filter ($D418/$D416) write is positioned
+mid-V1-nextvoice in orig (after PW offset 3, before ctrl offset 4) but
+before-nextvoice in the rebuild. Likely the composer's fm2 (master-vol/filter)
+write placement relative to the last voice's nextvoice writes — a sequencing
+knob, not a value bug (the values match). NEXT: find where engine A emits the
+$D418/$D416 master write in the voice loop (relative to V1's nextvoice) and
+match the composer's fm2 placement.
+
+### (history) pos-87, V2 note-length + null pattern pointer [SUPERSEDED — see fx3-bit-2 fix above]
 Traced via pc-trace of the rebuild ($0E00 engine). The chain:
 - orig holds V2's first note (pitch 60+transpose4 = note $40 → freq $2CC1) for
   6 frames (pattern slot 3 = `c7 86 3c 3c ...`: wave_adj7, **setlen $86=6**,

@@ -99,6 +99,15 @@ $1BA0 (2B/entry). lonote source found in raw binary at `$68B3`.
   out-of-freq-table → $0001. V1/V3 fine → V2-specific note-length +
   pattern-pointer state bug. NEXT: composer note-advance / set_patptr for X=1;
   relates to FC note-length persistence + per-voice pattern-ptr storage.
+- FIXED (fc25d4e): pos-87 was actually fx3-bit-2 AUTO-ARP (engine A $7D9C):
+  V2 inst has fx3 bit 2 → auto-arpeggio cycling fixed arp program 1 ($1973 =
+  (0,+4,+7)); composer never set the per-voice arp ptr for an auto-arp → null
+  → garbage $0001. Fix: (1) extract arp_ptr_hi_min ($10) so low-mem arp progs
+  aren't filtered; (2) contiguous layout packs arp; (3) fx3_bit2_autoarp_index
+  knob (=1) wires nolengset to set arpieoklo/hi + reset counter. V2 freq now
+  byte-exact; divergence 87→89. NEXT: pos 89 = vol/filter ($D418/$D416) write
+  ORDER (orig writes them mid-V1-nextvoice, after PW before ctrl; rebuild before
+  nextvoice) — fm2 placement knob. Cyb II/Hawkeye green.
 
 ## PROGRESS 2026-06-07 (cont. 2) [HYPOTHESIS WAS WRONG — see cont. 3]
 - `init_style='fc_clear_sweep'` knob (commit a1bbba2) emits engine A's $7AE2
