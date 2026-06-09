@@ -3095,6 +3095,90 @@ def _fixup_verbatim_pointers(mem: bytearray, cfg, shift: int,
                 shift_at(rec_base + 6 + n*2, rec_base + 6 + n*2 + 1)
 
 
+def _standard_pulse_prog_body() -> str:
+    """Vanilla-FC pulse_prog (standard/RE_NOTES.md). 4-byte programs
+    [thr_a, step1, thr_b, step2]; step picked by the voice frame counter:
+    ctr>=thr_a → step1; thr_b<=ctr<thr_a → step2; else default. 16-bit PW
+    accumulator (pulsestolo/pulsehisto) ± step; direction (pulsetest) flips
+    at hi<$01 / hi>=$0F. Reuses the shared pp_store shadow-write tail.
+    Selector/default/counter semantics are first-cut — refine via write-log."""
+    return """fx_pulse_prog:
+        lda fx2sto
+        and #$07
+        bne pps_active
+        jmp pp_store
+pps_active:
+        asl
+        asl
+        sec
+        sbc #$04                     ; (N*4)-4 = (N-1)*4 → program offset
+        tay
+        lda pulsetabel,y             ; thr_a
+        cmp counter2,x
+        bcs pps_step1                ; ctr >= thr_a → step1
+        iny
+        iny
+        lda pulsetabel,y             ; thr_b
+        cmp counter2,x
+        bcs pps_step2                ; thr_b <= ctr < thr_a → step2
+        lda #$00                     ; ctr < thr_b → default step (iterate)
+        jmp pps_apply
+pps_step1:
+        iny
+        lda pulsetabel,y             ; step1
+        jmp pps_apply
+pps_step2:
+        iny
+        lda pulsetabel,y             ; step2
+pps_apply:
+        sta pulsecountup
+        lda pulsetest,x
+        bne pps_up
+        lda pulsestolo,x             ; DOWN: acc -= step
+        sec
+        sbc pulsecountup
+        sta pulsestolo,x
+        lda pulsehisto,x
+        sbc #0
+        sta pulsehisto,x
+        cmp #$01
+        bcs pps_done                 ; hi >= $01 → ok
+        lda #1                       ; underflow → flip UP
+        sta pulsetest,x
+        jmp pps_done
+pps_up:
+        lda pulsestolo,x             ; UP: acc += step
+        clc
+        adc pulsecountup
+        sta pulsestolo,x
+        lda pulsehisto,x
+        adc #0
+        sta pulsehisto,x
+        cmp #$0f
+        bcc pps_done                 ; hi < $0F → ok
+        lda #0                       ; overflow → flip DOWN
+        sta pulsetest,x
+pps_done:
+        jmp pp_store
+"""
+
+
+def _splice_standard_pulse_prog(asm: str) -> str:
+    """Replace the Tel fx_pulse_prog body with the standard one (marker-based:
+    from the `fx_pulse_prog:` label up to the shared `pp_store:` label).
+    Gated by cfg.pulse_prog_format=='standard' — never runs for Tel engines."""
+    lines = asm.split('\n')
+    try:
+        start = next(i for i, l in enumerate(lines)
+                     if l.strip() == 'fx_pulse_prog:')
+        end = next(i for i, l in enumerate(lines) if l.strip() == 'pp_store:')
+    except StopIteration:
+        raise RuntimeError('standard pulse splice: fx_pulse_prog/pp_store '
+                           'markers not found')
+    body = _standard_pulse_prog_body().rstrip('\n').split('\n')
+    return '\n'.join(lines[:start] + body + lines[end:])
+
+
 def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
                                   root: str | None = None,
                                   data_base_override: int | None = None
@@ -3699,7 +3783,10 @@ def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
     lines.append(_FC_STATE_LABELS)
     lines.append('')
 
-    return '\n'.join(lines), load_addr
+    asm = '\n'.join(lines)
+    if cfg.pulse_prog_format == 'standard':
+        asm = _splice_standard_pulse_prog(asm)
+    return asm, load_addr
 
 
 def _make_psid_header(usf: UsfFile, init_addr: int, play_addr: int,

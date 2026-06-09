@@ -82,8 +82,34 @@ Remaining, minimal-wiring path (avoids USF grammar changes):
 GATING: everything behind cfg knobs; default 'tel' → Cyb II/Hawkeye/Adrenalin
 untouched. Hubbard/Companion are a different composer entirely (no risk).
 
+## EMITTER PROGRESS + key finding (2026-06-09)
+DONE: standard pulse emitter asm cut + integrated — `_standard_pulse_prog_body`
++ `_splice_standard_pulse_prog` (marker-based splice of fx_pulse_prog..pp_store,
+gated by cfg.pulse_prog_format=='standard'). FC canaries stay 15/15 (gating is
+clean — Tel engines never run the standard body). Config enables it
+(pulsetabel_addr=$1E95, pulse_prog_format='standard').
+
+**KEY FINDING — wrong order:** enabling the pulse emitter does NOT move the
+Jarre_2 verdict, because the trichotomy aligner returns `shift=None` — the
+play streams don't align AT ALL. That means the BASE playback (notes / freq /
+ctrl / AD-SR / sequence timing) already diverges from the standard player
+(rebuild ~10% more writes), so effects can't be isolated/verified on top of an
+unaligned base. **Base playback alignment is the PREREQUISITE; pulse/filter
+come after.** The pulse emitter is banked (gated, safe) but unverifiable until
+the base aligns.
+
+**NEXT (revised order):**
+1. BASE first: get Jarre_2's play stream to ALIGN (shift becomes a small int,
+   not None). Localize the first base divergence (note-load / sequence step /
+   freq+ctrl write order / per-frame writes) — the composer's Tel-tuned base
+   behavior vs the standard player. This is where the real iteration is.
+2. THEN pulse: with the base aligned, verify the $D402/$D403 sub-stream
+   (tools/voice_writelog.py) and fix the standard pulse selector/default/
+   counter semantics.
+3. THEN filter ($1E89), then relocation for family coverage.
+
 ## Filter EMITTER: same pattern — gated `standard` filter style emitting the
-6-band cutoff envelope ($1E89) → $D416/$D417. Spec above.
+6-band cutoff envelope ($1E89) → $D416/$D417. Spec above (after base aligns).
 
 ## Other tables still to spec when needed
 $1E66/$1E76 (per-frame wave/arp), $1E3E/$40/$42/$44 (program-ptr table sel

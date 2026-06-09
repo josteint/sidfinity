@@ -25,6 +25,9 @@ FC_STANDARD = FCConfig(
     emit_data_from_usf=True,
     load_addr=0x1000,               # our own engine below the $1D64 data
 
+    pulsetabel_addr=0x1E95,
+    pulse_prog_format='standard',
+
     freq_table_entries=96,
     instr_count=10,
     max_patterns=64,
