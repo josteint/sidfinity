@@ -204,6 +204,10 @@ class FCConfig:
     # effect-flags (NOT Tel fx); the standard decoder zeros fx1/2/3 so the
     # composer applies no Tel effects. See standard/RE_NOTES.md.
     instr_format: str = 'tel'
+    # If non-zero, write this value to $D418 at the TOP of every play frame
+    # (before the voice loop), matching the vanilla FC player's $1833 vol write.
+    # 0 = no top-of-frame vol write (Tel engines write vol elsewhere).
+    vol_every_frame: int = 0
     vibtabwait_addr: int = 0       # per-instrument vibrato delay (20 bytes)
     wavearp_addr: int = 0          # 4-byte wave-arpeggio table {$80,$10,$80,$10}
     pulsearp_addr: int = 0         # 8-byte pulse-arpeggio table

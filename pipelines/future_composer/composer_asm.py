@@ -1265,6 +1265,12 @@ def _emit_playirq_dispatch(cfg: FCConfig) -> str:
     else:
         fx3_autoarp = ''
 
+    # Top-of-frame $D418 vol write (vanilla FC $1833: vol written first each
+    # frame, before the voice loop). 0 = none (Tel engines write vol elsewhere).
+    vol_first_write = (
+        f'        lda #${cfg.vol_every_frame:02X}\n        sta $d418\n'
+        if cfg.vol_every_frame else '')
+
     # nolengset's early new-note freq SID write. The 'standard' (vanilla FC)
     # layout suppresses it so freq is written ONCE per frame by nextvoice
     # (the vanilla player writes each voice's regs once: freqhi,freqlo,...).
@@ -1458,7 +1464,7 @@ playirq:
         rts                          ; halted, return immediately
 
 playirq_run:
-        lda speedbyte
+{vol_first_write}        lda speedbyte
 {playirq_run_ldx}        dec speedsto
         bpl startplayer
         sta speedsto                 ; reload speed counter on underflow
@@ -2753,6 +2759,7 @@ playirq_done:
         fx3_autoarp=fx3_autoarp,
         fx_wave_arp_body=fx_wave_arp_body,
         playirq_run_ldx=playirq_run_ldx,
+        vol_first_write=vol_first_write,
         fx_pulse_run_body=fx_pulse_run_body,
         h3_command_dispatch=h3_command_dispatch,
         bank_ram=bank_ram,
