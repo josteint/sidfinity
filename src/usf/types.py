@@ -796,3 +796,8 @@ class UsfFile:
     # (indexed counter2 & 7). Flat value lists; empty when unused.
     wave_arp: list[int] = field(default_factory=list)
     pulse_arp: list[int] = field(default_factory=list)
+    # FC standard-player wave-program envelope library (v0). Maps wave selector
+    # N (an instrument's wave nibble) to a per-frame envelope: two parallel
+    # 15-entry tables {'ctrl': [...], 'freq': [...]} driving $D404 (waveform) and
+    # $D400/$D401 (freq) each frame after note-load. Empty when unused.
+    wave_programs: dict[int, dict] = field(default_factory=dict)

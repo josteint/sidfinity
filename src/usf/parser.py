@@ -868,6 +868,12 @@ class _T(Transformer):
     def drum_programs_block(self, items):
         return ('drum_programs', {n: prog for n, prog in items})
 
+    def wave_program(self, items):
+        return (int(items[0]), {'ctrl': items[1], 'freq': items[2]})
+
+    def wave_programs_block(self, items):
+        return ('wave_programs', {n: prog for n, prog in items})
+
     def attack_len_decl(self, items):
         return ('attack_len', items[0])
 
@@ -929,6 +935,7 @@ class _T(Transformer):
         attack_wave = []
         wave_arp = []
         pulse_arp = []
+        wave_programs = {}
         for it in items:
             if isinstance(it, tuple):
                 k, v = it
@@ -960,6 +967,8 @@ class _T(Transformer):
                     wave_arp = v
                 elif k == 'pulse_arp':
                     pulse_arp = v
+                elif k == 'wave_programs':
+                    wave_programs = v
             elif isinstance(it, PsidMeta):
                 psid = it
             elif isinstance(it, Params):
@@ -978,7 +987,8 @@ class _T(Transformer):
             master_vol=master_vol, sfx=sfx, arp_programs=arp_programs,
             pulse_programs=pulse_programs, filter_programs=filter_programs,
             drum_programs=drum_programs, attack_len=attack_len,
-            attack_wave=attack_wave, wave_arp=wave_arp, pulse_arp=pulse_arp)
+            attack_wave=attack_wave, wave_arp=wave_arp, pulse_arp=pulse_arp,
+            wave_programs=wave_programs)
 
 
 # ---------------------------------------------------------------------------

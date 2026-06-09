@@ -481,6 +481,7 @@ def fcsong_to_usf(song: FCSong, root: str | None = None) -> UsfFile:
         attack_wave=list(song.attack_wave),
         wave_arp=list(song.wave_arp),
         pulse_arp=list(song.pulse_arp),
+        wave_programs=dict(song.std_wave_programs),
     )
 
 

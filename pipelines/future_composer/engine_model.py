@@ -317,6 +317,8 @@ class FCSong:
     attack_wave: list = field(default_factory=list)
     wave_arp: list = field(default_factory=list)
     pulse_arp: list = field(default_factory=list)
+    # Vanilla-FC wave-program envelope library: {sel: {'ctrl':[15],'freq':[15]}}
+    std_wave_programs: dict = field(default_factory=dict)
 
 
 # ---------------------------------------------------------------------------
@@ -876,6 +878,8 @@ def extract(cfg: FCConfig, root: str | None = None) -> FCSong:
             mem_global, cfg, instruments, engine_for_shared),
         drum_programs=_decode_drum_programs(
             mem_global, cfg, engine_for_shared),
+        std_wave_programs=_decode_std_wave_programs(
+            mem_global, cfg, instruments, engine_for_shared),
         **_decode_flat_aux(mem_global, cfg, engine_for_shared),
     )
 

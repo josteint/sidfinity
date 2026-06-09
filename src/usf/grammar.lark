@@ -7,7 +7,7 @@ start: psid_block params_block init_block freq_table_block? state_layout_block? 
 
 // FC aux tables/programs — grouped into one repeated rule (any order) so the
 // LALR table stays small; a long chain of optionals blows up construction.
-fc_aux_block: arp_programs_block | pulse_programs_block | filter_programs_block | drum_programs_block | attack_len_decl | attack_wave_decl | wave_arp_decl | pulse_arp_decl
+fc_aux_block: arp_programs_block | pulse_programs_block | filter_programs_block | drum_programs_block | wave_programs_block | attack_len_decl | attack_wave_decl | wave_arp_decl | pulse_arp_decl
 
 // ----- arp programs (FC arpeggio library) -----
 // `prog N: [o0, o1, ...]` — N is the arp index selected by a pattern $7x
@@ -37,6 +37,12 @@ fp_seg: "seg" number number
 drum_programs_block: "drum_programs" "{" drum_program* "}"
 drum_program: "drum" INT ":" "wave" dnum_list "tone" dnum_list
 dnum_list: "=" "[" (number ("," number)*)? "]"
+
+// ----- wave programs (FC standard-player wave/freq envelope library) -----
+// `prog N: ctrl=[..] freq=[..]` — parallel per-frame waveform ($D404) and
+// freq ($D400/01) tables, indexed by note frame-counter (capped 15).
+wave_programs_block: "wave_programs" "{" wave_program* "}"
+wave_program: "prog" INT ":" "ctrl" dnum_list "freq" dnum_list
 
 // ----- FC flat aux value tables -----
 // attack_len/attack_wave: per-wavecount note-attack; wave_arp/pulse_arp:

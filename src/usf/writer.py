@@ -295,6 +295,18 @@ def _write_drum_programs(progs: dict) -> list[str]:
     return lines
 
 
+def _write_wave_programs(progs: dict) -> list[str]:
+    """Emit `wave_programs { prog N: ctrl=[..] freq=[..] }`."""
+    lines = ['wave_programs {']
+    for n in sorted(progs):
+        p = progs[n]
+        c = ', '.join(str(x) for x in p['ctrl'])
+        f = ', '.join(str(x) for x in p['freq'])
+        lines.append(f'  prog {n}: ctrl=[{c}] freq=[{f}]')
+    lines.append('}')
+    return lines
+
+
 def _write_instrument(i: Instrument) -> list[str]:
     head = f'instrument {i.id}'
     if i.name:
@@ -577,6 +589,9 @@ def write(usf: UsfFile) -> str:
     if usf.drum_programs:
         lines.append('')
         lines.extend(_write_drum_programs(usf.drum_programs))
+    if usf.wave_programs:
+        lines.append('')
+        lines.extend(_write_wave_programs(usf.wave_programs))
     for name, vals in (('attack_len', usf.attack_len),
                        ('attack_wave', usf.attack_wave),
                        ('wave_arp', usf.wave_arp),
