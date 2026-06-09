@@ -34,11 +34,17 @@ diffs + pc-trace:
   installs the tune's own IRQ, banks `$01=$37`, spins at `$JMP $1EA5`, and
   calls the active player via `JMP ($1E04)` → `$50E3` (the PSID play vector).
   The heavy `$1Exx` pc-trace count is just this idle spin, not real work.
-- **Sub 1's engine** ($1021): `LDX #0; DEC $1090 (speed ctr); JSR $1226;
-  JSR $1225; JMP $1225`. Compact 3-voice player, distinct code. Whether it is
-  a stripped FC variant or a different player is NOT yet determined — needs
-  its own disasm + data-address hunt. Its extract via engine-A addresses
-  yields garbage (seq_v0_addr came out `$910C`, in the packed-source region).
+- **Sub 1's engine** ($1021): RESOLVED 2026-06-09 by full disassembly →
+  `sub1_disassembly.s` (801 traced code bytes, annotated). It **IS Future
+  Composer** — a different VARIANT of engine A, not a foreign player (the "4%
+  code match" was layout divergence). FC signatures: 8-byte instrument records
+  @ `$192C`, 3 voices with d4point `$10C6,x` (0/7/14), pattern streams with FC
+  command ranges (note<$60 / $60-$9F / $A0+), per-voice sequence ptrs
+  `$14B9`/`$14BC` (lo/hi), pattern-ptr table `$190A`/`$18E8`, wavetables
+  `$1437`/`$11C5`. Its extract via engine-A addresses yielded garbage only
+  because sub-1's data lives at DIFFERENT addresses (its own variant layout) —
+  see the disasm header for the full address map. Migratable as an FC config
+  (own addresses) and potentially unifiable with engine A per the 5TT pattern.
 
 ### Migration implications (scope)
 - **Sub 0 alone = a clean FC canary.** Engine A, full feature set, one pool.
