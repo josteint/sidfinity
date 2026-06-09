@@ -208,6 +208,10 @@ class FCConfig:
     # (before the voice loop), matching the vanilla FC player's $1833 vol write.
     # 0 = no top-of-frame vol write (Tel engines write vol elsewhere).
     vol_every_frame: int = 0
+    # Standard wave-program pointer-table base ($1E3E in Jarre_2): 4 sub-tables
+    # ctrl-lo(@base) / ctrl-hi(@base+?) / freq-lo / freq-hi, selected by an
+    # instrument's wave nibble. 0 = no standard wave programs. See RE_NOTES.
+    std_wave_ptr_addr: int = 0
     vibtabwait_addr: int = 0       # per-instrument vibrato delay (20 bytes)
     wavearp_addr: int = 0          # 4-byte wave-arpeggio table {$80,$10,$80,$10}
     pulsearp_addr: int = 0         # 8-byte pulse-arpeggio table

@@ -455,6 +455,34 @@ def _decode_instruments(mem: bytes, cfg: FCConfig,
     return out
 
 
+def _decode_std_wave_programs(mem: bytes, cfg: FCConfig,
+                              instruments: list,
+                              engine: EngineInstance | None = None) -> dict:
+    """Decode the vanilla-FC wave-program envelope library (standard/RE_NOTES.md).
+
+    The pointer-table base (cfg.std_wave_ptr_addr) holds, per selector s:
+      ctrl_ptr = base+s | (base+2+s)<<8     freq_ptr = base+4+s | (base+6+s)<<8
+    Each program is two parallel 15-entry tables: ctrl[] (waveform → $D404) and
+    freq[] (→ $D400/$D401, absolute +$0D or relative per the instrument's mode
+    bit). Selector = instrument raw[5] & $0F; enabled iff raw[7] & $10. Returns
+    {sel: {'ctrl': [15], 'freq': [15]}} for the selectors instruments use.
+    """
+    base = resolve_address(cfg, engine, 'std_wave_ptr_addr')
+    if not base:
+        return {}
+    sels = sorted({i.raw[5] & 0x0F for i in instruments
+                   if len(i.raw) >= 8 and (i.raw[7] & 0x10)})
+    progs: dict[int, dict] = {}
+    for s in sels:
+        cptr = mem[base + s] | (mem[base + 2 + s] << 8)
+        fptr = mem[base + 4 + s] | (mem[base + 6 + s] << 8)
+        progs[s] = {
+            'ctrl': [mem[cptr + j] for j in range(15)],
+            'freq': [mem[fptr + j] for j in range(15)],
+        }
+    return progs
+
+
 def _decode_arp_programs(mem: bytes, cfg: FCConfig,
                          engine: EngineInstance | None = None) -> dict:
     """Decode the FC arp library (arplo/arphi) into {N: signed offsets}.
