@@ -54,6 +54,37 @@ shape → needs a standard filter decoder + emitter.
 5. Relocation: family members load at $1800/$4800/... — derive addresses from
    the load/init so ONE config covers all 3673.
 
+## Pulse EMITTER integration plan (turnkey — derived from the composer)
+DONE: decoder (`_decode_pulse_programs`, gated by `cfg.pulse_prog_format=='standard'`)
+parses $1E95 into `{std,thr_a,step1,thr_b,step2}` — VERIFIED on Jarre_2.
+
+Remaining, minimal-wiring path (avoids USF grammar changes):
+1. USF schema reuse: have the decoder emit the EXISTING Tel pulse-program shape
+   so `_write_pulse_programs`/reader round-trip unchanged:
+     `{lo:$01, hi:$0F, wrap:False,
+       segs:[(thr_a,step1,False),(thr_b,step2,False),(0,0,False)]}`
+   (the standard bounds $01/$0F are hardcoded; default step $2154&$FC handled in
+   the emitter). The emitter reinterprets seg[0]/seg[1] as the 2-threshold
+   schedule — it does NOT use the Tel sequential-crossing semantics.
+2. Composer emitter: this is a PER-INSTRUMENT PW program → it belongs on the
+   `pp_store`/`pulse_prog` path (pulsestolo/pulsehisto shadows), NOT
+   `fx_pulse_run`. Add a gated `standard` variant that, per voice per frame:
+     step = (ctr>=thr_a)?step1 : (ctr>=thr_b)?step2 : (default $2154&$FC)
+            where ctr = the voice frame counter
+     16-bit PW acc ±= step; dir flag flips at hi<$01 (→up) / hi>=$0F (→down)
+     write shadow d402/d403 (respect cfg.voice_loop_layout: interleaved →
+     inline SID write in pp_store; tight → nextvoice writes at chain end)
+   Note-load resets the acc + dir + selects the program (find the standard
+   selector field in the instrument record — disasm $1986/$19xx area).
+3. Verify: set FC_STANDARD pulsetabel_addr=$1E95 + pulse_prog_format='standard';
+   `verify_featuredriven`; localize the $D402/$D403 sub-stream divergence with
+   tools/voice_writelog.py; iterate.
+GATING: everything behind cfg knobs; default 'tel' → Cyb II/Hawkeye/Adrenalin
+untouched. Hubbard/Companion are a different composer entirely (no risk).
+
+## Filter EMITTER: same pattern — gated `standard` filter style emitting the
+6-band cutoff envelope ($1E89) → $D416/$D417. Spec above.
+
 ## Other tables still to spec when needed
 $1E66/$1E76 (per-frame wave/arp), $1E3E/$40/$42/$44 (program-ptr table sel
 $2153&$0F), $1E32 (4-byte effect). Map these the same way if Jarre_2 (or
