@@ -180,6 +180,33 @@ the RIGHT effects. Until then the base can't align (spurious vibrato corrupts
 every held frame). Held-frame write order is now set: nextvoice (2,3,1,0,4).
 THEN the $4800 transient effect, then pulse/filter emitters (already cut).
 
+## Standard instrument decoder DONE — vibrato fixed; frame-1 divergences remain (2026-06-09)
+`instr_format='standard'` decoder cut (gated): decodes the real 8-byte layout,
+zeros Tel fx1/2/3 → **spurious vibrato GONE** (V3 freq steady $25a2, matches
+orig). FC canaries 15/15. But still `shift=None` — frame-1 compare shows the
+standard player is STRUCTURALLY different from the Tel composer in several ways:
+
+1. **$D418 (vol) placement** — orig writes $18=$1F FIRST each frame (top of the
+   play loop $1833); composer writes it mid-frame. → need a vol-first knob.
+2. **Conditional freq writes** — orig does NOT rewrite a voice's freq when
+   unchanged (frame1 V2 = PW+ctrl only, no freq); the composer's nextvoice
+   writes freq EVERY frame. → the standard player writes freq only when it
+   changes (note/effect). This is a different per-frame write model.
+3. **ctrl/waveform from the WAVE PROGRAM** — orig V3 ctrl $81 at frame1 (from
+   wave table $1E76 = 81,41,40,40,...); composer uses the static raw[1]=$41.
+   → need the standard wave-program emitter ($1E66/$1E76) driving $D404.
+4. **PW** — orig sweeps (standard pulse, currently off because fx2=0); needs the
+   standard pulse selector wired (selector byte TBD, NOT fx2=$2154 which is the
+   default-step) + the cut pulse emitter.
+5. **Filter $D416/$D417** — orig $16=$FF; needs the standard filter emitter ($1E89).
+6. **$4800 freq transient** (orig V3 frame1) — another per-frame effect TBD.
+
+So the standard player is a structurally-different engine (conditional freq
+writes, wave-program ctrl, vol-first, standard effect formats), not a knob
+variant of the Tel composer. Each item above is a gated composer piece +
+write-log iteration. Recommended next order: (1) vol-first, (2) conditional
+freq writes, (3) wave-program ctrl — these are the base; then pulse/filter.
+
 ## Filter EMITTER: same pattern — gated `standard` filter style emitting the
 6-band cutoff envelope ($1E89) → $D416/$D417. Spec above (after base aligns).
 
