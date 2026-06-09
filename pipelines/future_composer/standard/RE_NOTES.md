@@ -207,6 +207,44 @@ variant of the Tel composer. Each item above is a gated composer piece +
 write-log iteration. Recommended next order: (1) vol-first, (2) conditional
 freq writes, (3) wave-program ctrl — these are the base; then pulse/filter.
 
+## WAVE-PROGRAM emitter — full RE + decoded data (2026-06-09) — the engine's core envelope
+Routine $1C7B-$1CE2. The biggest base/effect piece: a per-frame envelope that
+drives BOTH ctrl ($D404) and freq ($D400/$D401).
+- ENABLE: instrument +7 ($2155) bit4 ($10). If clear → skip (go to $1CE3,
+  another effect: $2155 bit7).
+- SELECTOR: instrument +5 ($2153) low nibble → index into 4 pointer tables
+  $1E3E(ctrl-lo)/$1E40(ctrl-hi)/$1E42(freq-lo)/$1E44(freq-hi); SMC'd into the
+  LDA operands at $1CAE/$1CB6. (Jarre_2: only sel 0,1 valid; ptr tables end at
+  the first data table $1E46.)
+- CLOCK: $2142,x = frames since note-load (the effect-envelope clock, INC every
+  frame, reset on note-load), capped at 15 ($1CA5 CMP #$0F BCS skip→holds last).
+  Index = clk-1 ($1CAC TAX; DEX).
+- CTRL: ctrltable[clk-1] → $2179 → $D404.
+- FREQ: freqtable[clk-1] → $2168; then mode on +5 ($2153) bit4 ($10):
+    set ($1CC5) → freq = $2130,x + $2168 (relative)
+    clear ($1CCF) → freq hi = $2168 + $0D, freq lo = $00 (absolute)
+- Decoded Jarre_2 programs (15 entries each):
+    sel0 ctrl@1e56 [81 41 40 80 80 80 80 80 10 10 10 10 10 10 10]
+         freq@1e46 [13 01 ff 23 08 13 03 23 00 00 00 00 00 00 00]
+    sel1 ctrl@1e76 [81 41 40 40 40 40 40 40 40 40 40 40 40 40 40]
+         freq@1e66 [24 fd fb f9 f8 f7 f6 f6 f5 f5 f4 f4 f5 f6 f5]
+
+This is what makes V3's ctrl ($81) and freq ($4800) — the largest remaining
+divergence. The conditional-freq logic already in place will emit the freq once
+the wave program updates the freq shadow.
+
+EMITTER PLAN (gated standard wave style):
+1. Decoder: per selector, read ptr from $1E3E/$40/$42/$44; decode ctrl[15] +
+   freq[15] tables. Number of selectors = (first-table-addr - $1E3E)//... bound
+   by the ptr region; for Jarre_2 = 2. USF: carry per-selector ctrl+freq tables.
+2. Composer emitter (gated): each frame, if instrument wave-enabled, clk =
+   min(counter2,x, 15); ctrl_shadow = ctrl[clk-1]; freq from freq[clk-1] per
+   mode (+$0D absolute / +base relative). counter2,x must = frames-since-note
+   capped 15 (verify it resets on note-load like $2142,x).
+3. Wire selector (instrument +5 low nibble) + enable (+7 bit4) + mode (+5 bit4).
+4. Verify ctrl + freq sub-streams (tools/voice_writelog.py); iterate.
+This is a large dual-register envelope engine — implement carefully + iterate.
+
 ## Filter EMITTER: same pattern — gated `standard` filter style emitting the
 6-band cutoff envelope ($1E89) → $D416/$D417. Spec above (after base aligns).
 
