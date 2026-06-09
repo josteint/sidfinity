@@ -1,6 +1,6 @@
 ---
 name: project_fc_fingerprint_and_standard
-description: "FC player-version fingerprint DB (tools/fc_fingerprint.py) + the dominant 'vanilla' FC player migration (pipelines/future_composer/standard/). Fingerprinting found 91% of HVSC FC (3673/4024) is ONE player → highest-leverage FC target. Standard-player extract works; build needs aux effect tables mapped next."
+description: "FC player-version fingerprint DB (tools/fc_fingerprint.py) + the dominant 'vanilla' FC player migration (pipelines/future_composer/standard/). 91% of HVSC FC (3673/4024) is ONE player → highest-leverage target. Standard player is a DIFFERENT ENGINE from the Tel composer (pattern/instrument/effect/write-model all differ). Base + wave done but FOUNDATIONAL pattern-format bug found (extract decodes patterns Tel-style → wrong notes). RESUME: write the standard PATTERN decoder first (see RESUME HERE)."
 metadata: 
   node_type: memory
   type: project
@@ -89,21 +89,48 @@ DONE + committed (wave envelope = engine core, the big remaining effect):
   arp/pulse/filter_programs): types+grammar+parser+writer + extract->to_usf
   carry. Round-trips write->parse exactly. (Shared USF change, backward-compat.)
 
-REMAINING (stage 2 — the large composer build, write-log iteration):
-- WAVE emitter: extend the data-layout packing engine (composer_asm.py ~3368)
-  to emit the dual tables + SMC ptr tables; add the gated envelope asm
-  (per-frame ctrl+freq via counter2,x capped 15 + selector + mode); carry the
-  standard +5/+7 bytes (un-zero fx1/fx3 + gate the Tel effect chain off, OR new
-  per-voice state) so the wave effect can read sel/enable; build + iterate the
-  ctrl + freq sub-streams. THIS drives V3 ctrl $81 + freq $4800.
-- PULSE emitter already written (gated `_standard_pulse_prog_body`); needs the
-  real selector byte wired (NOT fx2=$2154 = default-step).
-- FILTER emitter ($1E89 12-byte) — spec'd in RE_NOTES.
-- THEN relocation handling (load $1800/$4800/... → derive addrs) so ONE config
-  covers all 3673.
-The standard player is a STRUCTURALLY different engine from the Tel composer
-(conditional freq writes, per-frame wave-program ctrl, vol-first) — the effect
-chain is a focused multi-stage build, blueprinted in standard/RE_NOTES.md.
+WAVE emitter (stage 2) ALSO DONE + committed (gated, canaries 15/15):
+- 2a DATA emission: contiguous-layout allocator lays ctrl[]/freq[] at sel*16
+  stride (std_wave_ctrl/std_wave_freq equates). Verified bytes for Jarre_2.
+- 2b EFFECT asm: gated `std_wave_chain` (composer_asm.py) — ctrl from
+  std_wave_ctrl[(sel<<4)+clk-1], clk=counter2,x reset on note-load; gwo2
+  BYPASSES the Tel chain (`gwo2_dispatch` hook); instr decoder un-zeroed so
+  fx1=+5/fx2=+6/fx3=+7 carry the standard bytes. Wiring verified.
+  (freq part of the wave + the modes NOT yet written — ctrl only so far.)
+
+⚠ FOUNDATIONAL BUG FOUND while verifying 2b (commit 79fdbd3) — REORDERS THE WORK:
+The reb plays the WRONG NOTES (stuck on ~2). The extract decodes PATTERNS with
+TEL semantics, but the standard pattern format is DIFFERENT (parser $18DD: a
+byte is a command only if (b&$f0)==$f0; $Ex=glide triple, $Cx=range cmd, else
+note). Example: pattern 5 `c4 8b 00 ff` = Tel 1 note, standard ≥3 notes. So
+EVERYTHING downstream (base alignment + wave/pulse/filter) sits on a broken note
+stream and is UNVERIFIABLE until fixed. Sequence decode IS correct (standard
+$8x=transpose/$00-7f=pattern/$fe-ff markers). The base+wave work is correct per
+RE but was built in the wrong order. Full detail in standard/RE_NOTES.md.
+
+## RESUME HERE (corrected priority — start a new session with these):
+0. Run the 3 MANDATORY questions (CLAUDE.md): family docs = pipelines/
+   future_composer/docs/; disasm = pipelines/future_composer/standard/
+   disassembly.s; RE = standard/RE_NOTES.md (READ IT — turnkey, has all decoded
+   data + the corrected plan). Then check this memory.
+1. **Standard PATTERN decoder** (extract, engine_model.py) — THE foundational
+   fix. Parse the $18DD-$1957 note/command semantics ($Fx commands incl
+   length+end, $Ex 3-byte glide, $Cx range, note encoding). Gate by a cfg knob
+   (like instr_format). Verify the reb plays the RIGHT notes (V1 should hit
+   many distinct freqs, not 2), then re-verify base+conditional-freq.
+2. Instrument EFFECT dispatch: Jarre_2's OPENING uses inst1 ($40 effect), NOT
+   the wave program (inst2/3/4) — implement the $40 effect (find ~$1BE0) to
+   align the opening. Wave effect (done, gated) covers inst2/3/4.
+3. Wave freq part + modes; pulse selector wiring; filter ($1E89); $80 effect.
+4. Relocation handling (load $1800/$4800/... → derive addrs) → ONE config for 3673.
+
+Verdict tool: `verify_featuredriven(FC_STANDARD)` (shift becomes a real int once
+the note stream + base align). Diagnostic: per-frame writelog compare on
+Carter/Jarre_2.sid vs build_via_asm_featuredriven(FC_STANDARD).
+The standard player is a DIFFERENT ENGINE from the Tel composer (pattern fmt,
+instrument fmt, effect chain, write model all differ) — not a config variant.
+All changes gated → FC canaries (Cyb II/Hawkeye/Adrenalin) stay 15/15; FC
+composer (composer_asm.py) is separate from Hubbard/Companion (composer.py).
 
 ## Related
 [[project_adrenalin]] (the outlier that triggered this pivot),
