@@ -27,6 +27,8 @@ FC_STANDARD = FCConfig(
 
     pulsetabel_addr=0x1E95,
     pulse_prog_format='standard',
+    voice_loop_layout='standard',
+    nextvoice_write_order=(1, 0, 2, 3, 4),  # freqhi,freqlo,PWlo,PWhi,ctrl
 
     freq_table_entries=96,
     instr_count=10,

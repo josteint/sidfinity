@@ -1265,6 +1265,14 @@ def _emit_playirq_dispatch(cfg: FCConfig) -> str:
     else:
         fx3_autoarp = ''
 
+    # nolengset's early new-note freq SID write. The 'standard' (vanilla FC)
+    # layout suppresses it so freq is written ONCE per frame by nextvoice
+    # (the vanilla player writes each voice's regs once: freqhi,freqlo,...).
+    nolengset_freq_pha = '        pha\n'
+    nolengset_freq_sid = (
+        '        sta $d401,y                  ; SID $D401 (freq hi)\n'
+        '        pla\n'
+        '        sta $d400,y                  ; SID $D400 (freq lo)\n')
     if cfg.voice_loop_layout == 'interleaved':
         pp_store_pw_setup = '        ldy voicesto\n'
         pp_store_sta_d402_sid = '        sta $d402,y                  ; SID PW lo (early)\n'
@@ -1286,6 +1294,19 @@ def _emit_playirq_dispatch(cfg: FCConfig) -> str:
         nolengset_sta_d403_sid = ''
         ctrl_freq_writes_late = ''
         chain_exit = 'jmp nextvoice                ; per-voice shadow→SID write loop'
+    elif cfg.voice_loop_layout == 'standard':
+        # Vanilla FC: nextvoice writes freq+PW+ctrl ONCE per frame (set
+        # nextvoice_write_order=(1,0,2,3,4) = freqhi,freqlo,PWlo,PWhi,ctrl);
+        # nolengset writes only AD/SR (its freq + PW SID writes suppressed).
+        pp_store_pw_setup = ''
+        pp_store_sta_d402_sid = ''
+        pp_store_sta_d403_sid = ''
+        nolengset_sta_d402_sid = ''
+        nolengset_sta_d403_sid = ''
+        ctrl_freq_writes_late = ''
+        chain_exit = 'jmp nextvoice                ; standard: nextvoice writes freq+PW+ctrl once'
+        nolengset_freq_pha = ''
+        nolengset_freq_sid = ''
     else:
         raise ValueError(f'unknown voice_loop_layout: {cfg.voice_loop_layout!r}')
 
@@ -1697,8 +1718,7 @@ nolengset:
         ; Write lonote/hinote to per-voice shadow regs + SID
         lda lonote,y
         sta d400,x
-        pha
-        sta lonotesto,x
+{nolengset_freq_pha}        sta lonotesto,x
         sta lonotesto2,x             ; preserved (orig $90E3, Hawkeye release)
         lda hinote,y
         sta d401,x
@@ -1706,10 +1726,7 @@ nolengset:
         sta hinotesto2,x             ; preserved (orig $90DD, Hawkeye release)
         sta freq_rise_acc,x          ; bit-2 sweep accumulator (orig $90E0)
         ldy voicesto
-        sta $d401,y                  ; SID $D401 (freq hi)
-        pla
-        sta $d400,y                  ; SID $D400 (freq lo)
-
+{nolengset_freq_sid}
         ; If newnote flag set (came from $F0 noglide), skip ADSR
         ; reload — keep current envelope state.
         lda newnote,x
@@ -2730,6 +2747,8 @@ playirq_done:
         pp_store_sta_d403_sid=pp_store_sta_d403_sid,
         nolengset_sta_d402_sid=nolengset_sta_d402_sid,
         nolengset_sta_d403_sid=nolengset_sta_d403_sid,
+        nolengset_freq_pha=nolengset_freq_pha,
+        nolengset_freq_sid=nolengset_freq_sid,
         nolengset_reset_tonearp=nolengset_reset_tonearp,
         fx3_autoarp=fx3_autoarp,
         fx_wave_arp_body=fx_wave_arp_body,
