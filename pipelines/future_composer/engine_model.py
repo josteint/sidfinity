@@ -435,16 +435,17 @@ def _decode_instruments(mem: bytes, cfg: FCConfig,
             #   +0 PW-hi  +1 param($2179/$212d)  +2 AD  +3 SR  +4 param($216c)
             #   +5 filter/wave selector ($2153)  +6 pulse default ($2154)
             #   +7 effect-enable flags ($2155: $01 filter,$10 wave,$40 fx)
-            # These are NOT Tel's fx1/fx2/fx3 (vibrato/pulse/arp). Zero the
-            # Tel effect fields so the composer does NOT apply Tel effects
-            # (the spurious vibrato); the standard effect emitters read the
-            # standard selectors from raw[] separately. Waveform is per-frame
-            # from the wave program ($1E66/$1E76), not a record byte — carried
-            # as raw[1] for now (TODO: wave-program emitter for the ctrl).
+            # Carry the standard effect bytes in the fx slots: fx1=+5 (wave
+            # selector low nibble + mode bit4), fx2=+6 (pulse default), fx3=+7
+            # (effect-enable flags: $10 wave, $01 filter, $40 fx). The standard
+            # voice_loop_layout BYPASSES the Tel effect chain (gwo2 →
+            # std_wave_chain), so these drive ONLY the standard effects — the
+            # Tel vibrato/arp never run on them. Waveform (raw[1]) is the
+            # note-load ctrl; the wave program overrides it per frame.
             out.append(Instrument(
                 id=i, raw=raw,
                 pulse_hi=raw[0], waveform=raw[1], ad=raw[2], sr=raw[3],
-                fil_count=0, fx1=0, fx2=0, fx3=0,
+                fil_count=raw[4], fx1=raw[5], fx2=raw[6], fx3=raw[7],
                 vib_onset=0,
             ))
         else:

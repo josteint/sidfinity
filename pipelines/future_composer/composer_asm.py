@@ -932,6 +932,40 @@ def _emit_nextvoice_writes_standard() -> str:
         '        sta $d404,y                  ; ctrl')
 
 
+def _emit_std_wave_chain() -> str:
+    """Standard wave-program envelope effect (standard/RE_NOTES.md). X = voice.
+    Enabled by fx3sto bit4 (inst +7). Frame clock = counter2,x (reset on
+    note-load, inc'd at startplayer), capped 15. Index = (sel<<4)+(clk-1) where
+    sel = fx1sto & $0F. Writes ctrl shadow from std_wave_ctrl[idx]; freq comes
+    in a follow-up step (modes). Falls to nextvoice (bypassing the Tel chain)."""
+    return """std_wave_chain:
+        lda fx3sto
+        and #$10
+        beq stdw_done                ; wave effect not enabled
+        lda counter2,x               ; clk = frames since note
+        cmp #$10
+        bcc stdw_clk
+        lda #$0f                     ; cap at 15 (orig $1CA8 CMP #$0F)
+stdw_clk:
+        beq stdw_done                ; clk 0 → no envelope entry yet
+        sec
+        sbc #1                       ; A = clk-1 (0..14)
+        sta pp_count_lo              ; stash index-low
+        lda fx1sto                   ; selector = inst +5 low nibble
+        and #$0f
+        asl
+        asl
+        asl
+        asl                          ; sel*16
+        ora pp_count_lo              ; + (clk-1)
+        tay                          ; Y = wave-table index
+        lda std_wave_ctrl,y
+        sta stod404,x                ; ctrl shadow (→ $D404 via nextvoice)
+stdw_done:
+        jmp nextvoice
+"""
+
+
 def _emit_fx_pulse_run(cfg: FCConfig) -> str:
     """Emit fx_pulse_run body per cfg.pulse_run_style.
 
@@ -1312,6 +1346,13 @@ def _emit_playirq_dispatch(cfg: FCConfig) -> str:
         '        sta $d401,y                  ; SID $D401 (freq hi)\n'
         '        pla\n'
         '        sta $d400,y                  ; SID $D400 (freq lo)\n')
+    # gwo2 chain dispatch: Tel = drum-vs-normal split; standard = bypass the
+    # whole Tel chain and run the standard effect chain (wave→nextvoice).
+    gwo2_dispatch = ('        and #$10\n'
+                     '        beq fx_tone_arp              ; not drum — normal chain start\n'
+                     '        jmp fx_glide                 ; drum — skip tone-arp + vibrato')
+    nolengset_counter2_reset = ''     # standard resets counter2 (wave clock)
+    std_wave_chain_routine = ''       # standard wave-program effect routine
     if cfg.voice_loop_layout == 'interleaved':
         pp_store_pw_setup = '        ldy voicesto\n'
         pp_store_sta_d402_sid = '        sta $d402,y                  ; SID PW lo (early)\n'
@@ -1356,6 +1397,13 @@ def _emit_playirq_dispatch(cfg: FCConfig) -> str:
             '        sta $d400,y                  ; SID freq lo (note-load)\n'
             '        sta lastfreqlo,x\n')
         nextvoice_writes = _emit_nextvoice_writes_standard()
+        # gwo2 → standard chain (bypass the Tel effects entirely).
+        gwo2_dispatch = '        jmp std_wave_chain'
+        # reset the wave-envelope clock on note-load (mirrors orig $18D5
+        # STA $2142,x = 0). counter2,x is inc'd at startplayer each frame.
+        nolengset_counter2_reset = ('        lda #0\n'
+                                    '        sta counter2,x\n')
+        std_wave_chain_routine = _emit_std_wave_chain()
     else:
         raise ValueError(f'unknown voice_loop_layout: {cfg.voice_loop_layout!r}')
 
@@ -1757,7 +1805,7 @@ nolengset:
         ; set ADSR + waveform from instrument, etc.
         lda nootleng,x
         sta nootcount,x
-{nolengset_reset_tonearp}
+{nolengset_counter2_reset}{nolengset_reset_tonearp}
         lda tabbytsto
         clc
         adc toneadd,x
@@ -1906,9 +1954,7 @@ gwo2:
         sta noothoogt,x
         lda fx3,y
         sta fx3sto
-        and #$10
-        beq fx_tone_arp              ; not drum — normal chain start
-        jmp fx_glide                 ; drum — skip tone-arp + vibrato
+{gwo2_dispatch}
 
 ; --- Effect chain (skeleton; drop in real impls one at a time) ---
 ;
@@ -2763,6 +2809,7 @@ drum_done:
 effect_chain_end:
 {ctrl_freq_writes_late}        {chain_exit}
 
+{std_wave_chain_routine}
 nextvoice:
         ; Per-voice tail: write the shadow regs to SID, then advance
         ; to next voice (or RTS if all 3 done). Write order from cfg
@@ -2798,6 +2845,9 @@ playirq_done:
         nolengset_sta_d403_sid=nolengset_sta_d403_sid,
         nolengset_freq_pha=nolengset_freq_pha,
         nolengset_freq_sid=nolengset_freq_sid,
+        gwo2_dispatch=gwo2_dispatch,
+        nolengset_counter2_reset=nolengset_counter2_reset,
+        std_wave_chain_routine=std_wave_chain_routine,
         nolengset_reset_tonearp=nolengset_reset_tonearp,
         fx3_autoarp=fx3_autoarp,
         fx_wave_arp_body=fx_wave_arp_body,
