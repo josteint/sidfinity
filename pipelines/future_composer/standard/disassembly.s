@@ -32,9 +32,27 @@
 ;   transpose ($214F,x) indexes the freq table $1D64/$1DC4. Instrument # from a
 ;   pattern cmd → $2133,x → <<3 → instrument record at $2188.
 ;
-; STATUS: disassembled + address-mapped (2026-06-09). NEXT: FCConfig for this
-; player → extract → build → trichotomy write-log verify (Jarre_2 first), then
-; relocation handling so one config covers the whole 3673-SID family.
+; EFFECT TABLES (the $1E** data region, standard FC effect layout):
+;   $1E32  4-byte effect (sel $2142&3; gated by $2155&$40) → $2179
+;   $1E3E/$40/$42/$44  program-ptr pairs (sel $2153&$0F; SMC'd at $1CAF..$1CB8)
+;   $1E66 / $1E76  per-frame wave/arp tables (sel by frame ctr $2142,x)
+;   $1E89  FILTER program, 12 bytes, read ($f9),y y=$06-$0B → $D416/$D417
+;   $1E95  PULSE program, 4 bytes/prog (sel (n&7)<<2) → PW accum → $D402/$D403
+;
+; SCOPE FINDING (2026-06-09): these are the STANDARD FC effect formats and they
+; differ STRUCTURALLY from the Tel variants (Cyb II/Hawkeye) the current
+; extract/composer were built for — e.g. pulse is 4-byte here vs 8-byte there;
+; filter is a 12-byte ($f9),y program. So migrating this player is NOT
+; config-only: it needs standard-FC-format decoders (extract) + emitters
+; (composer). First build (config addresses only, aux=0) verified: extract OK,
+; play stream diverges because the instruments use fx1/2/3 but the standard
+; effect formats aren't yet implemented. This reorients the FC composer around
+; the DOMINANT format (91% of HVSC FC) rather than the custom outliers.
+;
+; STATUS: disassembled + FULLY address-mapped incl. effect tables (2026-06-09).
+; NEXT: implement standard-FC effect decoders/emitters (pulse $1E95 4-byte,
+; filter $1E89 12-byte, wave/arp $1E66/$1E76, $1E3E-$44 program ptrs), iterate
+; write-log on Jarre_2, then relocation so one config covers the 3673 family.
 ; ============================================================================
 
 ; ======= init: =======

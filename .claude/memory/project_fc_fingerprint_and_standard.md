@@ -41,15 +41,27 @@ seq/orderlist ptrs $1EA1(lo)/$1EA4(hi) (= flat_seq_table 6B record @ $1EA1),
 speed $211D, d4point $211E. `config.py` (FC_STANDARD) drives the EXTRACT, which
 WORKS (sane FCSong: 96 freq, 10 instr, 5 patterns, 3 seqs).
 
-**NEXT STEP (where it stopped 2026-06-09):** first build+trichotomy-verify
-diverges on the PLAY stream (`shift=None`, rebuild ~10% more writes). Init
-diff is trichotomy-handled (orig ascending clear vs composer generic init).
-Root cause of the play divergence: the instruments use fx1/fx2/fx3 (non-zero)
-but the aux effect-program tables (arp/pulse/filter/drum/vibrato) are still at
-0 in the config — MAP THOSE ADDRESSES from disassembly.s next, then iterate
-write-log divergence. Then add relocation handling (family members load at
+Effect tables NOW MAPPED (disassembly.s): pulse $1E95 (4-byte/prog),
+filter $1E89 (12-byte ($f9),y program), wave/arp $1E66/$1E76, program-ptr
+table $1E3E/$40/$42/$44 (sel $2153&$0F), $1E32 (4-byte effect).
+
+**KEY SCOPE FINDING (2026-06-09):** the standard FC effect FORMATS differ
+STRUCTURALLY from the Tel variants (Cyb II/Hawkeye) the current extract/composer
+were built for — pulse 4-byte vs 8-byte; filter is a 12-byte ($f9),y program.
+So this migration is NOT config-only: it needs standard-FC-format DECODERS
+(extract) + EMITTERS (composer). First build (core addresses, aux=0) confirmed:
+extract yields a sane FCSong but the play stream diverges (shift=None) because
+instruments use fx1/2/3 and the standard effect formats aren't implemented. The
+init diff is trichotomy-handled.
+
+This REORIENTS the FC composer: it should target the DOMINANT standard format
+(91% of HVSC FC), with the Tel variants (Cyb II/Hawkeye/Adrenalin) as special
+cases — opposite of how it grew. Ties into [[project_fc_principled_composer]].
+
+**NEXT STEP:** implement standard-FC effect decoders/emitters (start with the
+ones Jarre_2 uses: pulse $1E95 + filter $1E89), iterate write-log via
+`verify_featuredriven` on Jarre_2, then relocation handling (family loads
 $1800/$4800/... → derive addrs from load) so ONE config covers all 3673.
-Verdict = `verify_featuredriven` (trichotomy + audio✓).
 
 ## Related
 [[project_adrenalin]] (the outlier that triggered this pivot),
