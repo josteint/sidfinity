@@ -193,7 +193,12 @@ class FCConfig:
     # vibrato at $7F65-$7F79), so its release tail keeps vibratoing. True =
     # use the current (vibrato'd) lonotesto/hinotesto.
     noise_tick_release_uses_vibrato: bool = False
-    pulsetabel_addr: int = 0       # pulse-program data (4 programs × 8 bytes)
+    pulsetabel_addr: int = 0       # pulse-program data
+    # Pulse-program byte format. 'tel' (default) = the Tel-variant 8-byte
+    # program [lo,hi, 3×(thr,step)]. 'standard' = the vanilla FC player's
+    # 4-byte program [thr_a, step1, thr_b, step2] (a ctr-keyed 2-threshold
+    # step schedule; bounds $01/$0F hardcoded). See standard/RE_NOTES.md.
+    pulse_prog_format: str = 'tel'
     vibtabwait_addr: int = 0       # per-instrument vibrato delay (20 bytes)
     wavearp_addr: int = 0          # 4-byte wave-arpeggio table {$80,$10,$80,$10}
     pulsearp_addr: int = 0         # 8-byte pulse-arpeggio table

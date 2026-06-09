@@ -476,6 +476,19 @@ def _decode_pulse_programs(mem: bytes, cfg: FCConfig,
     base = resolve_address(cfg, engine, 'pulsetabel_addr')
     if not base:
         return {}
+    if getattr(cfg, 'pulse_prog_format', 'tel') == 'standard':
+        # Vanilla FC: 4-byte programs [thr_a, step1, thr_b, step2], packed
+        # from `base` up to the seq table (the next data section). See
+        # standard/RE_NOTES.md (pulse $1E95).
+        end = resolve_address(cfg, engine, 'seq_table_addr') or (base + 4 * 8)
+        count = max(0, (end - base) // 4)
+        progs: dict[int, dict] = {}
+        for n in range(1, count + 1):
+            off = base + (n - 1) * 4
+            b = [mem[off + j] for j in range(4)]
+            progs[n] = {'std': True, 'thr_a': b[0], 'step1': b[1],
+                        'thr_b': b[2], 'step2': b[3]}
+        return progs
     kmax = max((i.fx2 & 0x07) for i in instruments) if instruments else 0
     progs: dict[int, dict] = {}
     for n in range(1, kmax + 1):
