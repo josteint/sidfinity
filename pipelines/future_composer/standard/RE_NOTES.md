@@ -108,6 +108,29 @@ the base aligns.
    counter semantics.
 3. THEN filter ($1E89), then relocation for family coverage.
 
+## BASE-ALIGNMENT iteration — first divergence found (2026-06-09)
+Compared per siddump frame (init = frame 0). The standard player writes each
+voice's block ONCE per frame in this order (V3 note frame, from orig Jarre_2):
+  $0F freqhi, $0E freqlo, $13 AD, $14 SR, $10 PWlo, $11 PWhi, $12 ctrl
+(held frames omit AD/SR: freqhi, freqlo, PWlo, PWhi, ctrl). V1/V2 analogous at
+their reg offsets, voice order V3,V2,V1.
+
+The composer's DEFAULT layout (tight_nextvoice + nextvoice_write_order
+(4,0,1,2,3)) instead emits, per voice:
+  nolengset(note-load): freqhi, freqlo, AD, SR
+  nextvoice(every frame): ctrl, freqlo, freqhi, PWlo, PWhi
+→ FREQ WRITTEN TWICE (nolengset + nextvoice) and AD/SR land BEFORE freq, not
+after. That is the +2-writes/frame and the `shift=None` (streams never align).
+
+**FIX (next asm cut):** a gated `voice_loop_layout='standard'` that emits the
+per-voice block freqhi, freqlo, [AD, SR on note], PWlo, PWhi, ctrl — ONCE, in
+that order (freq written once per frame in the voice loop; AD/SR interleaved
+after freq on note-load; no nextvoice freq duplication). Gate it so Cyb II/
+Hawkeye/Adrenalin (interleaved/tight) are untouched. Then re-compare frame 1;
+expect `shift` to become a small int (streams align), exposing the next
+divergence (tempo / held-frame / sequence). THEN the pulse + filter emitters
+(already cut/spec'd) become verifiable.
+
 ## Filter EMITTER: same pattern — gated `standard` filter style emitting the
 6-band cutoff envelope ($1E89) → $D416/$D417. Spec above (after base aligns).
 
