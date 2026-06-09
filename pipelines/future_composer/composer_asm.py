@@ -272,6 +272,10 @@ byteand:        .dsb 3, 0            ; per-voice $D404 AND mask
 ; Per-voice shadow SID registers (nextvoice writes these to $D400-$D403)
 d400:           .dsb 3, 0            ; shadow $D400 (freq lo)
 d401:           .dsb 3, 0            ; shadow $D401 (freq hi)
+lastfreqlo:     .dsb 3, 0            ; last freq lo WRITTEN to SID (standard
+lastfreqhi:     .dsb 3, 0            ; layout: nextvoice writes freq only when
+                                     ; changed — vanilla FC writes freq only on
+                                     ; note-load/freq-effect, not every frame)
 d402:           .dsb 3, 0            ; shadow $D402 (pw lo)
 d403:           .dsb 3, 0            ; shadow $D403 (pw hi)
 
@@ -899,6 +903,35 @@ def _emit_nextvoice_writes(write_order: tuple, use_byteand_mask: bool = True,
     return '\n'.join(chunks)
 
 
+def _emit_nextvoice_writes_standard() -> str:
+    """Standard (vanilla FC) per-voice tail: PW always, freq ONLY if changed
+    since the last SID write (lastfreq shadow), ctrl always — order
+    PWlo,PWhi,[freqhi,freqlo],ctrl. The vanilla player writes freq only on
+    note-load (done in nolengset, which also updates lastfreq) or when a
+    freq-effect changes it; held/unchanged voices emit no freq write."""
+    return (
+        '        lda d402,x\n'
+        '        sta $d402,y                  ; pw lo\n'
+        '        lda d403,x\n'
+        '        sta $d403,y                  ; pw hi\n'
+        '        lda d401,x                   ; freq hi vs last-written\n'
+        '        cmp lastfreqhi,x\n'
+        '        bne stdnv_wf\n'
+        '        lda d400,x\n'
+        '        cmp lastfreqlo,x\n'
+        '        beq stdnv_ct                 ; unchanged → no freq write\n'
+        'stdnv_wf:\n'
+        '        lda d401,x\n'
+        '        sta $d401,y                  ; freq hi (changed)\n'
+        '        sta lastfreqhi,x\n'
+        '        lda d400,x\n'
+        '        sta $d400,y                  ; freq lo\n'
+        '        sta lastfreqlo,x\n'
+        'stdnv_ct:\n'
+        '        lda stod404,x\n'
+        '        sta $d404,y                  ; ctrl')
+
+
 def _emit_fx_pulse_run(cfg: FCConfig) -> str:
     """Emit fx_pulse_run body per cfg.pulse_run_style.
 
@@ -1310,9 +1343,19 @@ def _emit_playirq_dispatch(cfg: FCConfig) -> str:
         nolengset_sta_d402_sid = ''
         nolengset_sta_d403_sid = ''
         ctrl_freq_writes_late = ''
-        chain_exit = 'jmp nextvoice                ; standard: nextvoice writes freq+PW+ctrl once'
+        chain_exit = 'jmp nextvoice                ; standard: PW + conditional freq + ctrl'
         nolengset_freq_pha = ''
-        nolengset_freq_sid = ''
+        # note-load writes freq EARLY (freq-first order) + updates lastfreq, so
+        # nextvoice skips the redundant freq write this frame (no dup); on held
+        # frames nextvoice writes freq only when a freq-effect changed it.
+        nolengset_freq_sid = (
+            '        lda d401,x\n'
+            '        sta $d401,y                  ; SID freq hi (note-load)\n'
+            '        sta lastfreqhi,x\n'
+            '        lda d400,x\n'
+            '        sta $d400,y                  ; SID freq lo (note-load)\n'
+            '        sta lastfreqlo,x\n')
+        nextvoice_writes = _emit_nextvoice_writes_standard()
     else:
         raise ValueError(f'unknown voice_loop_layout: {cfg.voice_loop_layout!r}')
 
