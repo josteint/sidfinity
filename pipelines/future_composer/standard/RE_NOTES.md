@@ -131,6 +131,30 @@ expect `shift` to become a small int (streams align), exposing the next
 divergence (tempo / held-frame / sequence). THEN the pulse + filter emitters
 (already cut/spec'd) become verifiable.
 
+## BASE-ALIGNMENT progress (2026-06-09, cont.)
+DONE: `voice_loop_layout='standard'` (gated) — nolengset's freq SID writes
+suppressed so freq is written ONCE per frame by nextvoice. **Freq-duplication
+divergence FIXED.** FC canaries 15/15 (gated). Config: voice_loop_layout=
+'standard', nextvoice_write_order=(1,0,2,3,4).
+
+Still `shift=None`. Two remaining base issues, found by per-frame compare:
+1. **Held-frame write order** is `PWlo,PWhi,freqhi,freqlo,ctrl` = nextvoice
+   order `(2,3,1,0,4)`, NOT (1,0,2,3,4). (Note-load frame 0 is freq-first,
+   freqhi,freqlo,AD,SR,PWlo,PWhi,ctrl — note vs held orders differ; the
+   composer's nolengset(AD,SR)+nextvoice split may not produce both exactly.)
+2. **NOTE-TIMING divergence (the alignment blocker):** orig V3 freq advances
+   $25a2(f0)→$4800(f1)→… (new notes), but the rebuild HOLDS $25a2 — it isn't
+   advancing notes at the original's cadence. Likely a speed/tempo or
+   note-length mismatch (per_subtune_speed_addr=$211D may be wrong, or the
+   standard player's note-length/speed-counter semantics differ from the
+   composer's). Until note timing matches, no 64-write window aligns → shift
+   stays None.
+
+**NEXT:** (a) set nextvoice_write_order=(2,3,1,0,4); (b) fix note timing —
+trace the standard player's speed/note-length ($2173 ctr vs $211D, the
+nootleng/nootcount path) vs the composer's, get V3 to advance to $4800 at f1.
+Then shift→int (aligned), then the held/note order + effects (pulse/filter).
+
 ## Filter EMITTER: same pattern — gated `standard` filter style emitting the
 6-band cutoff envelope ($1E89) → $D416/$D417. Spec above (after base aligns).
 
