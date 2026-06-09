@@ -199,6 +199,11 @@ class FCConfig:
     # 4-byte program [thr_a, step1, thr_b, step2] (a ctr-keyed 2-threshold
     # step schedule; bounds $01/$0F hardcoded). See standard/RE_NOTES.md.
     pulse_prog_format: str = 'tel'
+    # Instrument-record byte layout. 'tel' (default) = waveform/fx1/fx2/fx3 at
+    # +1/+5/+6/+7. 'standard' = vanilla FC: +5/+6/+7 are filter-sel/pulse-param/
+    # effect-flags (NOT Tel fx); the standard decoder zeros fx1/2/3 so the
+    # composer applies no Tel effects. See standard/RE_NOTES.md.
+    instr_format: str = 'tel'
     vibtabwait_addr: int = 0       # per-instrument vibrato delay (20 bytes)
     wavearp_addr: int = 0          # 4-byte wave-arpeggio table {$80,$10,$80,$10}
     pulsearp_addr: int = 0         # 8-byte pulse-arpeggio table

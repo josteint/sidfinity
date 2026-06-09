@@ -422,16 +422,36 @@ def _decode_instruments(mem: bytes, cfg: FCConfig,
                         ) -> list[Instrument]:
     instr_base = resolve_address(cfg, engine, 'instr_records_addr')
     vib_base = resolve_address(cfg, engine, 'vibtabwait_addr')
+    std = getattr(cfg, 'instr_format', 'tel') == 'standard'
     out: list[Instrument] = []
     for i in range(cfg.instr_count):
         base = instr_base + i * 8
         raw = bytes(mem[base:base + 8])
-        out.append(Instrument(
-            id=i, raw=raw,
-            pulse_hi=raw[0], waveform=raw[1], ad=raw[2], sr=raw[3],
-            fil_count=raw[4], fx1=raw[5], fx2=raw[6], fx3=raw[7],
-            vib_onset=(mem[vib_base + i] if vib_base else 0),
-        ))
+        if std:
+            # Vanilla FC 8-byte record (standard/RE_NOTES.md, from disasm
+            # note-load $1986-$19C9 + per-frame $1A11-$1A1D):
+            #   +0 PW-hi  +1 param($2179/$212d)  +2 AD  +3 SR  +4 param($216c)
+            #   +5 filter/wave selector ($2153)  +6 pulse default ($2154)
+            #   +7 effect-enable flags ($2155: $01 filter,$10 wave,$40 fx)
+            # These are NOT Tel's fx1/fx2/fx3 (vibrato/pulse/arp). Zero the
+            # Tel effect fields so the composer does NOT apply Tel effects
+            # (the spurious vibrato); the standard effect emitters read the
+            # standard selectors from raw[] separately. Waveform is per-frame
+            # from the wave program ($1E66/$1E76), not a record byte — carried
+            # as raw[1] for now (TODO: wave-program emitter for the ctrl).
+            out.append(Instrument(
+                id=i, raw=raw,
+                pulse_hi=raw[0], waveform=raw[1], ad=raw[2], sr=raw[3],
+                fil_count=0, fx1=0, fx2=0, fx3=0,
+                vib_onset=0,
+            ))
+        else:
+            out.append(Instrument(
+                id=i, raw=raw,
+                pulse_hi=raw[0], waveform=raw[1], ad=raw[2], sr=raw[3],
+                fil_count=raw[4], fx1=raw[5], fx2=raw[6], fx3=raw[7],
+                vib_onset=(mem[vib_base + i] if vib_base else 0),
+            ))
     return out
 
 
@@ -486,8 +506,14 @@ def _decode_pulse_programs(mem: bytes, cfg: FCConfig,
         for n in range(1, count + 1):
             off = base + (n - 1) * 4
             b = [mem[off + j] for j in range(4)]
-            progs[n] = {'std': True, 'thr_a': b[0], 'step1': b[1],
-                        'thr_b': b[2], 'step2': b[3]}
+            # Carry in the EXISTING Tel pulse-program shape so the USF
+            # writer/reader round-trip unchanged. The emitter reinterprets
+            # seg[0]/seg[1] as the standard 2-threshold step schedule when
+            # cfg.pulse_prog_format=='standard' (bounds $01/$0F hardcoded).
+            progs[n] = {'lo': 0x01, 'hi': 0x0F, 'wrap': False,
+                        'segs': [(b[0], b[1], False),     # (thr_a, step1)
+                                 (b[2], b[3], False),     # (thr_b, step2)
+                                 (0, 0, False)]}
         return progs
     kmax = max((i.fx2 & 0x07) for i in instruments) if instruments else 0
     progs: dict[int, dict] = {}
