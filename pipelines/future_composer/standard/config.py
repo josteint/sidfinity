@@ -23,6 +23,7 @@ FC_STANDARD = FCConfig(
     seq_table_addr=0x1EA1,          # 6-byte record: lo*3 ($1EA1) + hi*3 ($1EA4)
 
     emit_data_from_usf=True,
+    contiguous_data_layout=True,
     load_addr=0x1000,               # our own engine below the $1D64 data
 
     pulsetabel_addr=0x1E95,

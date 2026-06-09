@@ -212,6 +212,11 @@ class FCConfig:
     # ctrl-lo(@base) / ctrl-hi(@base+?) / freq-lo / freq-hi, selected by an
     # instrument's wave nibble. 0 = no standard wave programs. See RE_NOTES.
     std_wave_ptr_addr: int = 0
+    # Allocated (contiguous layout) addresses of the emitted wave-program
+    # tables: ctrl[] and freq[] laid per selector at sel*16 stride. 0 until
+    # the data-layout allocator assigns them.
+    std_wave_ctrl_addr: int = 0
+    std_wave_freq_addr: int = 0
     vibtabwait_addr: int = 0       # per-instrument vibrato delay (20 bytes)
     wavearp_addr: int = 0          # 4-byte wave-arpeggio table {$80,$10,$80,$10}
     pulsearp_addr: int = 0         # 8-byte pulse-arpeggio table

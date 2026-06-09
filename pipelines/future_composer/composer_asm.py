@@ -3425,6 +3425,12 @@ def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
                               ('pulsearp_addr', usf.pulse_arp)):
             if getattr(cfg, _field) and _vals:
                 _take(_field, len(_vals))
+        # standard wave-program envelope tables: ctrl[] + freq[], one slot per
+        # selector at sel*16 stride (simpler than the orig SMC ptr tables).
+        if usf.wave_programs:
+            _wnsel = max(usf.wave_programs) + 1
+            _take('std_wave_ctrl_addr', _wnsel * 16)
+            _take('std_wave_freq_addr', _wnsel * 16)
         cfg = _dc.replace(cfg, **repack)
 
     raw_sections = [
@@ -3512,6 +3518,15 @@ def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
             drum_layout[d] = (dwa_a, dto_a)
         raw_sections.append(('drumtabel', cfg.drumtabel_addr, dprog_addr))
         raw_sections.append(('drum_progs', dprog_addr, cur))
+
+    # standard wave-program envelope: ctrl[] + freq[] tables, one slot per
+    # selector at sel*16 stride (from usf.wave_programs).
+    if (cfg.emit_data_from_usf and cfg.std_wave_ctrl_addr and usf.wave_programs):
+        _wnsel = max(usf.wave_programs) + 1
+        raw_sections.append(('std_wave_ctrl', cfg.std_wave_ctrl_addr,
+                             cfg.std_wave_ctrl_addr + _wnsel * 16))
+        raw_sections.append(('std_wave_freq', cfg.std_wave_freq_addr,
+                             cfg.std_wave_freq_addr + _wnsel * 16))
 
     # Flat per-index aux tables (attack_len/attack_wave = startlen/starttabel,
     # wave_arp/pulse_arp = wavearp/pulsearp) — from USF lists (was verbatim).
@@ -3602,6 +3617,18 @@ def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
             out.append('        .byt ' + ','.join(f'${b & 0xFF:02X}' for b in p['tone'])
                        + f'  ; drum {d} tone')
         return '\n'.join(out)
+    def _emit_std_wave_table(_n, key, label):
+        # One 16-byte slot per selector: 15 program entries + 1 pad. clk-1
+        # indexes 0..14 (clk capped 15 in the asm), so 15 entries suffice.
+        wnsel = max(usf.wave_programs) + 1
+        out = [f'; {label} (USF-derived wave-program {key} tables, sel*16)']
+        for sel in range(wnsel):
+            p = usf.wave_programs.get(sel)
+            vals = (list(p[key]) if p else [])[:15]
+            vals = vals + [0] * (16 - len(vals))
+            out.append('        .byt ' + ','.join(f'${b & 0xFF:02X}' for b in vals)
+                       + f'  ; sel {sel}')
+        return '\n'.join(out)
     section_emitters = {
         'freq_lo':  _emit_lo,
         'freq_hi':  _emit_hi,
@@ -3616,6 +3643,8 @@ def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
         'filt_progs': _emit_filt_progs,
         'drumtabel': _emit_drumtabel,
         'drum_progs': _emit_drum_progs,
+        'std_wave_ctrl': lambda n: _emit_std_wave_table(n, 'ctrl', 'std_wave_ctrl'),
+        'std_wave_freq': lambda n: _emit_std_wave_table(n, 'freq', 'std_wave_freq'),
     }
     for _nm, _vals in flat_aux:
         section_emitters[_nm] = (lambda v, label: (lambda _n:
@@ -3696,6 +3725,8 @@ def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
         f'vibtabwait = ${cfg.vibtabwait_addr or 0:04X}',
         f'wavearp = ${cfg.wavearp_addr or 0:04X}',
         f'pulsearp = ${cfg.pulsearp_addr or 0:04X}',
+        f'std_wave_ctrl = ${cfg.std_wave_ctrl_addr or 0:04X}',
+        f'std_wave_freq = ${cfg.std_wave_freq_addr or 0:04X}',
         f'wavearpwait = {cfg.wavearpwait}',
         f'pulsearpwait = {cfg.pulsearpwait}',
         f'fx_drum_d401_offset = ${cfg.fx_drum_d401_offset:02X}',
