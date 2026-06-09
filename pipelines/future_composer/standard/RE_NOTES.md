@@ -155,6 +155,31 @@ trace the standard player's speed/note-length ($2173 ctr vs $211D, the
 nootleng/nootcount path) vs the composer's, get V3 to advance to $4800 at f1.
 Then shift→int (aligned), then the held/note order + effects (pulse/filter).
 
+## ROOT CAUSE of the "note-timing" divergence (2026-06-09) — it's the INSTRUMENT LAYOUT
+Tempo is CORRECT: $211D=$01, extracted speedbyte=$01; the tick mechanism is
+per-voice $2142-$2144 incremented every frame, $2173 counts down + reloads from
+$211D, tick when $2173==$211D (DEC $2127,x note-length). So note advance is fine.
+
+The real divergence is EFFECTS driven by a wrong instrument decode:
+- reb V3 freq oscillates $25a2 ±4 ($25a6/$259e) = SPURIOUS VIBRATO; orig V3 holds
+  $25a2 (with brief $4800 transients = some other effect).
+- The composer's fx_vibrato runs iff the instrument's fx1 byte != 0
+  (composer_asm.py ~1930/1957). The extract decodes the standard instrument's
+  effect bytes at the TEL offsets (fx1/fx2/fx3 = record +5/+6/+7), but the
+  STANDARD 8-byte record has a different layout, so it reads the wrong bytes as
+  fx1 → spurious vibrato (and wrong pulse/filter selectors). AD ($+2) / SR
+  ($+3) happen to line up (confirmed via disasm note-load), but the effect bytes
+  do NOT.
+
+**NEXT (the actual base prerequisite):** map the STANDARD instrument record's
+8-byte layout from disassembly.s (note-load $1986-$19C9 + $1A11-$1A1D reads
+$2188+0..7): which byte = waveform/ctrl, pulse-hi, AD, SR, and which drive
+vibrato / pulse-program / filter / wave selectors. Then a standard instrument
+DECODER (gated by a cfg knob, like the pulse decoder) so the composer applies
+the RIGHT effects. Until then the base can't align (spurious vibrato corrupts
+every held frame). Held-frame write order is now set: nextvoice (2,3,1,0,4).
+THEN the $4800 transient effect, then pulse/filter emitters (already cut).
+
 ## Filter EMITTER: same pattern — gated `standard` filter style emitting the
 6-band cutoff envelope ($1E89) → $D416/$D417. Spec above (after base aligns).
 
