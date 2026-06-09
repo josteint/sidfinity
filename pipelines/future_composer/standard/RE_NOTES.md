@@ -245,6 +245,44 @@ EMITTER PLAN (gated standard wave style):
 4. Verify ctrl + freq sub-streams (tools/voice_writelog.py); iterate.
 This is a large dual-register envelope engine — implement carefully + iterate.
 
+## ⚠ FOUNDATIONAL FINDING (2026-06-09) — the PATTERN FORMAT differs from Tel
+While verifying the wave effect (stage 2b), found the reb plays only ~2 notes
+(stuck) while orig plays a melody. Root cause: the extract decodes PATTERNS with
+TEL semantics, but the standard pattern format is DIFFERENT.
+
+Evidence: pattern 5 (V1) bytes `c4 8b 00 ff`. Tel decode → WaveAdjust($C4),
+SetLength($8b), Note(0), End($ff) = 1 note. But the standard parser
+($18DD-$1957): a byte is a COMMAND only if `(b & $f0) == $f0` ($Fx); everything
+else is a note/range-command. $Ex = 3-byte glide ($18FC), $Cx ($c0-$df) =
+command ($1930), lower = note. So `c4`,`8b`,`00` are notes/commands and `ff`
+is the lone $Fx command — the pattern is LONGER than the Tel decode sees.
+
+So the SEQUENCE decode is right (standard: $8x=transpose, $00-$7f=pattern,
+$fe/$ff markers — matches), but the PATTERN decode is Tel-format and WRONG. The
+reb plays the wrong note stream, and NOTHING downstream (base alignment,
+wave/pulse/filter) can be verified until this is fixed. (Frame 0 V1 freq
+coincidentally matched — the first note — masking it.)
+
+## REVISED SCOPE — the standard player is a DIFFERENT ENGINE, not a config variant
+Every layer differs from the Tel composer the FC pipeline grew around:
+- PATTERN format ($18DD parser: $Fx commands, $Ex glide triples, $Cx range,
+  note+length encoding) — DIFFERENT, extract decodes it wrong. ← foundational
+- INSTRUMENT format (+5/+6/+7 = wave-sel/pulse-default/effect-flags) — DONE.
+- EFFECT chain: wave ($10), the $40 effect (inst1 — drives Jarre_2's opening!),
+  $80 effect, filter ($01), pulse — multiple per-frame effects by +7 bit.
+- WRITE model (conditional freq, vol-first, per-frame wave-program ctrl) — base
+  pieces DONE. Order was backwards: built base+effects on a wrong note stream.
+
+## NEXT (corrected priority order):
+1. **Standard PATTERN decoder** (extract) — parse $18DD-$1957 semantics
+   ($Fx commands incl length/end, $Ex glide triple, $Cx range, note encoding)
+   so the reb plays the RIGHT notes. THE foundational fix; re-verify base +
+   conditional-freq against a correct note stream after.
+2. Instrument EFFECT dispatch: Jarre_2's opening uses inst1 ($40 effect), NOT
+   the wave program — implement the $40 effect (~$1BE0) to align the opening;
+   the wave effect (done, gated) covers inst2/3/4.
+3. Then pulse / filter / $80 effect, then relocation for the family.
+
 ## Filter EMITTER: same pattern — gated `standard` filter style emitting the
 6-band cutoff envelope ($1E89) → $D416/$D417. Spec above (after base aligns).
 
