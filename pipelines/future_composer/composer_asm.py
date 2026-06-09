@@ -338,6 +338,55 @@ vibwait_zp  = $58          ; cached vibtabwait[wavecount] (replaces
 """
 
 
+def _emit_universal_reset_sidwrite(cfg: FCConfig) -> str:
+    """The PURE-TRICHOTOMY SID reset+priming body (shared by the flat and SMC
+    init paths). Emits, in order: a clean silence-clear of $D400-$D417, a
+    defensive test-bit oscillator-phase clear on V1/V2/V3 (report
+    sid_init_report §6a — click-free DETERMINISTIC first-note attack, ends
+    ctrl=$00 so end-of-init STATE is unchanged), then the typed PRIMING writes
+    derived from cfg.init_master_vol / init_filter_* (only the non-default
+    filter registers are emitted, so an engine whose only priming is volume
+    stays minimal). Does NOT reproduce the original engine's init write
+    sequence — only its end-of-init register STATE. Caller appends `jsr ok2`
+    + `rts` (flat) or its own tail (SMC)."""
+    prime = []
+    if cfg.init_filter_cutoff_lo:
+        prime.append(f'        lda #${cfg.init_filter_cutoff_lo:02X}\n'
+                     f'        sta $d415                    ; filter cutoff lo priming')
+    if cfg.init_filter_cutoff_hi:
+        prime.append(f'        lda #${cfg.init_filter_cutoff_hi:02X}\n'
+                     f'        sta $d416                    ; filter cutoff hi priming')
+    if cfg.init_filter_res_routing:
+        prime.append(f'        lda #${cfg.init_filter_res_routing:02X}\n'
+                     f'        sta $d417                    ; filter res/routing priming')
+    prime.append(f'        lda #${cfg.init_master_vol:02X}\n'
+                 f'        sta $d418                    ; master-volume priming')
+    prime_asm = '\n'.join(prime)
+    return f"""
+        ; --- SID universal reset (trichotomy): silence-clear + test-bit + priming ---
+        lda #$00
+        ldx #$17                     ; clear $D400..$D417 ascending-index
+song_ureset:
+        sta $d400,x
+        dex
+        bpl song_ureset
+        ; Defensive test-bit oscillator-phase clear (report §6a): pulse TEST ($08)
+        ; then $00 on V1/V2/V3 ctrl, resetting the oscillator phase accumulators
+        ; so the first note's attack is click-free + DETERMINISTIC regardless of
+        ; prior chip/host state. Ends ctrl=$00 -> end-of-init STATE unchanged.
+        lda #$08
+        sta $d404
+        sta $d40b
+        sta $d412
+        lda #$00
+        sta $d404
+        sta $d40b
+        sta $d412
+        ; typed priming (trichotomy "priming" bucket) from cfg.init_* fields:
+{prime_asm}
+"""
+
+
 def _emit_song_init_routine(cfg: FCConfig,
                             song_init_modes: tuple = (2, 0)) -> str:
     """Emit the song init routine + songout + ok2 + silence-all.
@@ -432,35 +481,9 @@ song_seqcp:
         # MECHANISM (Reset bucket), invisible to USF, so we don't reproduce it.
         # The verdict skips both inits and compares (A) end-of-init state +
         # (B) the play stream (compare_instruction_stream mode='trichotomy').
-        sidwrite = """
-        ; --- SID universal reset (trichotomy): silence-clear + vol priming ---
-        lda #$00
-        ldx #$17                     ; clear $D400..$D417 ascending-index
-song_ureset:
-        sta $d400,x
-        dex
-        bpl song_ureset
-        ; Defensive test-bit oscillator-phase clear (report sid_init_report §6a):
-        ; pulse TEST ($08) then $00 on V1/V2/V3 ctrl, resetting the oscillator
-        ; phase accumulators to zero so the first note's attack is click-free
-        ; and DETERMINISTIC regardless of prior chip/host state — the one piece
-        ; of audible init fidelity the register-state check can't otherwise
-        ; guarantee. Ends with ctrl=$00, so the end-of-init STATE (Check A) is
-        ; unchanged; only the init trace lengthens, which the trichotomy verdict
-        ; skips.
-        lda #$08
-        sta $d404                    ; V1 ctrl ← TEST
-        sta $d40b                    ; V2 ctrl ← TEST
-        sta $d412                    ; V3 ctrl ← TEST
-        lda #$00
-        sta $d404                    ; V1 ctrl ← $00 (release at phase 0)
-        sta $d40b                    ; V2 ctrl ← $00
-        sta $d412                    ; V3 ctrl ← $00
-        lda #VOLUME_INIT             ; $D418 ← master-volume priming ($0F)
-        sta $d418
-        jsr ok2
-        rts                          ; own clear; no fall into silence_all
-"""
+        sidwrite = _emit_universal_reset_sidwrite(cfg) + (
+            '        jsr ok2\n'
+            '        rts                          ; own clear; no silence_all\n')
     elif cfg.init_style == 'fc_clear_sweep':
         # Adrenalin engine A ($7AE2): clear $D417..$D400 descending, writing
         # $01 then $00 to each, then $D418=$0F, $D417=$00. RTS (no fall into
@@ -599,6 +622,24 @@ def _emit_song_init_smc(cfg: FCConfig, song_init_modes: tuple = (2, 0)) -> str:
     if cfg.emit_data_from_usf:
         music_mode, sfx_mode = song_init_modes
         seqtab = cfg.seq_table_addr
+        if cfg.init_style == 'universal_reset':
+            # PURE TRICHOTOMY on the SMC path: emit our own clean reset +
+            # test-bit phase clear + typed priming instead of reproducing the
+            # engine's silence_all ($01/$00 strobe) + post-silence writes. Same
+            # end-of-init STATE (set init_master_vol/init_filter_* to match);
+            # the trichotomy verdict skips the differing init trace.
+            smc_init_tail = _emit_universal_reset_sidwrite(cfg) + (
+                '        jsr ok2\n'
+                '        rts\n')
+        else:
+            smc_init_tail = """        ; Hawkeye init writes (same as the verbatim SMC path).
+        jsr ok2
+        jsr silence_all
+        lda #$FF
+        sta $d418
+        lda #$00
+        sta $d417
+        rts"""
         song_body = f"""
 ; --- song init ($LOAD entry; A = subtune number) ---
 ; SMC layout, USF-derived: flat seq_table for ALL subtunes.
@@ -644,14 +685,7 @@ song_seqcp:
         dey
         bpl song_seqcp
 
-        ; Hawkeye init writes (same as the verbatim SMC path).
-        jsr ok2
-        jsr silence_all
-        lda #$FF
-        sta $d418
-        lda #$00
-        sta $d417
-        rts
+{smc_init_tail}
 """
     else:
         song_body = f"""
@@ -2919,13 +2953,14 @@ def compose_fc_asm(usf: UsfFile, cfg: FCConfig,
 # xa65 pipeline + PSID wrapping
 # ---------------------------------------------------------------------------
 
-def _xa65_assemble(asm_text: str, load_addr: int) -> bytes:
+def _xa65_assemble(asm_text: str, load_addr: int, return_labels: bool = False):
     """Run xa65 on asm_text, return the assembled raw bytes (no PSID
     header). load_addr is informational only — xa65's output starts at
     the lowest emitted byte regardless. Thin wrapper around the shared
-    `src.composer_runtime.xa65.assemble` helper."""
+    `src.composer_runtime.xa65.assemble` helper. With return_labels=True
+    returns (bytes, labels_dict) for the dynamic base-float measurement."""
     from src.composer_runtime import assemble
-    return assemble(asm_text, masm_mode=True)
+    return assemble(asm_text, masm_mode=True, return_labels=return_labels)
 
 
 # ---------------------------------------------------------------------------
@@ -3061,7 +3096,8 @@ def _fixup_verbatim_pointers(mem: bytearray, cfg, shift: int,
 
 
 def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
-                                  root: str | None = None
+                                  root: str | None = None,
+                                  data_base_override: int | None = None
                                   ) -> tuple[str, int]:
     """Featuredriven asm composition. Replaces HVSC's engine code with
     USF-feature-derived emitters. The composer chooses its own layout
@@ -3178,9 +3214,17 @@ def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
     # arp_progs reserved right after (mirroring _emit's arp_layout).
     if cfg.emit_data_from_usf and cfg.contiguous_data_layout:
         entries = cfg.freq_table_entries
-        base = min(a for a in (cfg.freq_lo_addr, cfg.freq_hi_addr,
-                               cfg.per_subtune_speed_addr, cfg.instr_records_addr)
-                   if a)
+        # The pack base normally pins to the original first-data address. When
+        # `data_base_override` is supplied (the dynamic base-float in
+        # build_via_asm_featuredriven), the whole data region floats to that
+        # address instead — used to lift the tables above an engine that grew
+        # past the orig base (e.g. a larger universal_reset init). The pointer
+        # tables (drum/arp/filter/seq) derive from these cfg addrs, so they
+        # recompute automatically for the floated layout.
+        base = (data_base_override if data_base_override is not None
+                else min(a for a in (cfg.freq_lo_addr, cfg.freq_hi_addr,
+                                     cfg.per_subtune_speed_addr,
+                                     cfg.instr_records_addr) if a))
         cur = base
         repack = {}
 
@@ -3575,6 +3619,11 @@ def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
     # The fill region is dead bytes — our entry jumps go directly to
     # our song/playirq routines, never executing through here.
     lines.append(f'; fill from end of engine code to first data table')
+    # Marker label at the engine-code end (before the pad). The dynamic
+    # base-float reads this via assemble(return_labels=True) to size where the
+    # data region must float to. Engine code size is data-base-independent
+    # (label refs are fixed-width), so one measurement pass suffices.
+    lines.append('__engine_end')
     lines.append(f'        .dsb ${first_data_addr:04X} - *, 0')
     lines.append('')
 
@@ -3694,8 +3743,39 @@ def build_via_asm_featuredriven(cfg: FCConfig,
     with open(usf_path) as f:
         usf = parse(f.read())
 
-    asm, load_addr = compose_fc_asm_featuredriven(usf, cfg, root=root)
-    code_bytes = _xa65_assemble(asm, load_addr)
+    if cfg.emit_data_from_usf and cfg.contiguous_data_layout:
+        # Dynamic data-base float: lift the contiguous data region to sit just
+        # above the engine code, wherever it ends — so a larger init (e.g.
+        # universal_reset) can't overrun the original first-data address. No
+        # magic load_addr. One measurement pass reads __engine_end (engine size
+        # is data-base-independent), then the real pass floats the base to
+        # max(orig first-data addr, engine_end).
+        orig_base = min(a for a in (cfg.freq_lo_addr, cfg.freq_hi_addr,
+                                    cfg.per_subtune_speed_addr,
+                                    cfg.instr_records_addr) if a)
+        meas_base = orig_base + 0x800
+        engine_end = None
+        for _ in range(6):                       # widen if engine > margin
+            asm_m, la_m = compose_fc_asm_featuredriven(
+                usf, cfg, root=root, data_base_override=meas_base)
+            try:
+                _, labels = _xa65_assemble(asm_m, la_m, return_labels=True)
+            except RuntimeError as e:
+                if 'negative length' in str(e):
+                    meas_base += 0x800
+                    continue
+                raise
+            engine_end = labels['__engine_end']
+            break
+        if engine_end is None:
+            raise RuntimeError('base-float: could not measure __engine_end')
+        float_base = max(orig_base, engine_end)
+        asm, load_addr = compose_fc_asm_featuredriven(
+            usf, cfg, root=root, data_base_override=float_base)
+        code_bytes = _xa65_assemble(asm, load_addr)
+    else:
+        asm, load_addr = compose_fc_asm_featuredriven(usf, cfg, root=root)
+        code_bytes = _xa65_assemble(asm, load_addr)
 
     if cfg.emit_data_from_usf:
         # init = load_addr (init trampoline), play = load_addr + 3.

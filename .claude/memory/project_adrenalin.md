@@ -194,9 +194,14 @@ of reproducing the sweep (user's call — "byte exact is out"):
   state matches, +17 trailing (bucketing) → `is_full`. In regression as
   `Adrenalin[0] 1/1`. Full regression green (Hubbard 71 / Companion 44 /
   C64ME 15 / Jay_Derrett 17 / FC 14→15).
-- This is the FIRST FC engine to use the pure trichotomy (Cyb II/Hawkeye still
-  reproduce their init verbatim; the trichotomy verdict means they no longer
-  HAVE to — a future cleanup could switch them to universal_reset too).
+- Was the FIRST FC engine on pure trichotomy; Cyb II + Hawkeye were switched to
+  `universal_reset` too (2026-06-08) — ALL of FC is now pure-trichotomy. That
+  needed three composer additions: typed priming knobs (init_master_vol +
+  init_filter_*), a dynamic data-base FLOAT (data lifts above the engine end so
+  the larger init can't overrun the orig first-data addr — two-pass measure via
+  an `__engine_end` label, no magic load_addr), and teaching the SMC init path
+  (`_emit_song_init_smc`, Hawkeye) to honor init_style. See
+  [[project_fc_principled_composer]].
 - EAR-TESTED 2026-06-08 (user, sidplayfp `-o1`, orig vs rebuild): sounds
   IDENTICAL. Confirms universal_reset + the defensive test-bit clear introduced
   no audible change (the verdict's `audio✓` / canonical init boundary held in

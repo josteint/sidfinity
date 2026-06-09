@@ -330,7 +330,24 @@ class FCConfig:
     #                      then ascending $00 silence of $D400-$D415.
     #   'fc_clear_sweep' — Adrenalin engine A ($7AE2): descending $D417..$D400
     #                      each written $01 then $00, then $D418=$0F, $D417=$00.
+    #   'universal_reset' — pure trichotomy: OUR own clean silence-clear +
+    #                      defensive test-bit phase clear + typed priming (the
+    #                      init_master_vol / init_filter_* fields below). The
+    #                      original engine's init write sequence is NOT
+    #                      reproduced; only its end-of-init STATE is matched.
     init_style: str = 'generic'
+
+    # Typed SID-chip PRIMING emitted by init_style='universal_reset' (the
+    # trichotomy "priming" bucket — named musical params, not engine bytes).
+    # Defaults reproduce the canonical reset state ($D418=$0F, no filter), so
+    # an engine whose only priming is full volume needs nothing set. Engines
+    # that prime the filter / a non-default master volume set these to their
+    # original end-of-init register values (e.g. Cyb II: master_vol=$1F,
+    # filter_cutoff_hi=$FF; Hawkeye: master_vol=$1F, filter_res_routing=$01).
+    init_master_vol: int = 0x0F          # $D418 final value
+    init_filter_cutoff_lo: int = 0x00    # $D415
+    init_filter_cutoff_hi: int = 0x00    # $D416
+    init_filter_res_routing: int = 0x00  # $D417
 
     # Repack the emit_data_from_usf data tables CONTIGUOUSLY from the first
     # data address instead of placing each at its original (extraction) address.

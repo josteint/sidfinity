@@ -44,6 +44,18 @@ CYBERNOID_II = FCConfig(
     emit_data_from_usf=True,
     load_addr=0xA600,          # emit_data: no orig file needed
 
+    # Pure trichotomy: emit OUR own init (clean silence-clear + defensive
+    # test-bit phase clear + typed priming) instead of reproducing the Tel
+    # engine's init writes. The original ends init with $D416=$FF (filter
+    # cutoff hi; routing $D417=$00 so inaudible) + $D418=$1F (vol $0F + LP
+    # mode bit); we reproduce that end-of-init STATE via the priming fields.
+    # contiguous_data_layout floats the data above the (slightly larger)
+    # universal_reset engine so it doesn't overrun $AE3F.
+    init_style='universal_reset',
+    contiguous_data_layout=True,
+    init_master_vol=0x1F,
+    init_filter_cutoff_hi=0xFF,
+
     # Cybernoid II's freq table is 87 entries (NOT a full 8-octave 96)
     # — the table truncates partway through the top octave. The source
     # ends lonote/hinote with `!by $8f,$f8,$2e` (3 bytes) after 7 full

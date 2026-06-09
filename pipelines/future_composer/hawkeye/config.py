@@ -18,8 +18,18 @@ HAWKEYE = FCConfig(
     per_subtune_speed_addr=0x83F5,
 
     subtune_layout='smc_template_with_sfx',
-    emit_data_from_usf=True,   # all 12 subtunes byte-exact from USF
+    emit_data_from_usf=True,   # all 12 subtunes instruction-sequence exact from USF
     load_addr=0x7AE0,          # emit_data: no orig file needed
+
+    # Pure trichotomy: emit OUR own init (clean silence-clear + defensive
+    # test-bit phase clear + typed priming) instead of reproducing the Tel
+    # engine's silence_all ($01/$00 strobe) + post-silence writes. The
+    # original ends init with $D418=$FF (vol $0F + all filter-mode bits +
+    # 3OFF; routing $D417=$00 so inaudible). The SMC init path honors
+    # init_style; contiguous_data_layout floats data above the engine.
+    init_style='universal_reset',
+    contiguous_data_layout=True,
+    init_master_vol=0xFF,
 
     per_subtune_smc_addr=0x83FC,
     per_subtune_mode_addr=0x7AFF,
