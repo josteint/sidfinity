@@ -990,8 +990,83 @@ stdnt_restore:
 """
     else:
         nt_body = '        ; $80 noise-click disabled per cfg\n'
+    if cfg.pulse_prog_format == 'standard':
+        pulse_body = """        ; PULSE sweep (orig $1B41-$1BDD) — first in the chain (orig order
+        ; pulse → $40 → wave → $80). 4-byte programs [thr_a,step1,thr_b,
+        ; step2] at (fx2&7 - 1)*4; the step is schedule-keyed by the note
+        ; frame counter: ctr<=thr_a → step1; thr_a<ctr<=thr_b → step2;
+        ; ctr>thr_b → the DEFAULT step fx2&$FC. fx2&7==0 ALSO takes the
+        ; default: the orig indexes the table at offset -4 and compares
+        ; out-of-table bytes, which for real tunes resolve below ctr — we
+        ; emit the explicit branch, not the OOB-read mechanism. fx2==0 →
+        ; no sweep (the shadows still reach SID via nextvoice each frame).
+        ; Acc = the d402/d403 shadows (note-load inits lo=0, hi=pw&$0F);
+        ; dir = pulsetest,x (note-load inits 1=UP); flips at hi<$01 /
+        ; hi>=$0F after the add/sub. (Not emitted: orig's +$B0 on the
+        ; WRITTEN lo on odd frames when inst raw[0] bit7 — the acc is
+        ; unaffected; no Jarre_2 inst sets bit7.)
+        lda fx2sto
+        beq stdpp_done
+        and #$07
+        beq stdpp_default
+        asl
+        asl
+        sec
+        sbc #$04                     ; (n-1)*4 = program offset
+        tay
+        lda pulsetabel,y             ; thr_a
+        cmp counter2,x
+        bcs stdpp_s1                 ; thr_a >= ctr → step1
+        iny
+        iny
+        lda pulsetabel,y             ; thr_b
+        cmp counter2,x
+        bcs stdpp_s2                 ; thr_b >= ctr → step2
+stdpp_default:
+        lda fx2sto
+        and #$FC                     ; default step
+        jmp stdpp_apply
+stdpp_s1:
+        iny
+        lda pulsetabel,y             ; step1
+        jmp stdpp_apply
+stdpp_s2:
+        iny
+        lda pulsetabel,y             ; step2
+stdpp_apply:
+        sta pp_count_lo              ; scratch (wave program reuses it later
+        lda pulsetest,x              ; in this chain run — sequential, safe)
+        bne stdpp_up
+        lda d402,x                   ; DOWN: acc -= step
+        sec
+        sbc pp_count_lo
+        sta d402,x
+        lda d403,x
+        sbc #0
+        sta d403,x
+        cmp #$01
+        bcs stdpp_done               ; hi still >= $01
+        lda #1                       ; underflow → flip UP
+        sta pulsetest,x
+        bne stdpp_done               ; always
+stdpp_up:
+        lda d402,x                   ; UP: acc += step
+        clc
+        adc pp_count_lo
+        sta d402,x
+        lda d403,x
+        adc #0
+        sta d403,x
+        cmp #$0F
+        bcc stdpp_done               ; hi still < $0F
+        lda #0                       ; overflow → flip DOWN
+        sta pulsetest,x
+stdpp_done:
+"""
+    else:
+        pulse_body = '        ; standard pulse sweep disabled per cfg\n'
     return """std_wave_chain:
-        ; $40 effect (inst +7 bit6) — wave-arp ctrl cycle (orig $1BE0-$1BFA).
+""" + pulse_body + """        ; $40 effect (inst +7 bit6) — wave-arp ctrl cycle (orig $1BE0-$1BFA).
         ; Same musical concept as the Tel fx_wave_arp (USF wave_arp = the
         ; ctrl-value table = content); the standard chain bypasses the Tel
         ; chain so the interpreter lives here. Hold the note-load waveform for
@@ -3288,90 +3363,6 @@ def _fixup_verbatim_pointers(mem: bytearray, cfg, shift: int,
                 shift_at(rec_base + 6 + n*2, rec_base + 6 + n*2 + 1)
 
 
-def _standard_pulse_prog_body() -> str:
-    """Vanilla-FC pulse_prog (standard/RE_NOTES.md). 4-byte programs
-    [thr_a, step1, thr_b, step2]; step picked by the voice frame counter:
-    ctr>=thr_a → step1; thr_b<=ctr<thr_a → step2; else default. 16-bit PW
-    accumulator (pulsestolo/pulsehisto) ± step; direction (pulsetest) flips
-    at hi<$01 / hi>=$0F. Reuses the shared pp_store shadow-write tail.
-    Selector/default/counter semantics are first-cut — refine via write-log."""
-    return """fx_pulse_prog:
-        lda fx2sto
-        and #$07
-        bne pps_active
-        jmp pp_store
-pps_active:
-        asl
-        asl
-        sec
-        sbc #$04                     ; (N*4)-4 = (N-1)*4 → program offset
-        tay
-        lda pulsetabel,y             ; thr_a
-        cmp counter2,x
-        bcs pps_step1                ; ctr >= thr_a → step1
-        iny
-        iny
-        lda pulsetabel,y             ; thr_b
-        cmp counter2,x
-        bcs pps_step2                ; thr_b <= ctr < thr_a → step2
-        lda #$00                     ; ctr < thr_b → default step (iterate)
-        jmp pps_apply
-pps_step1:
-        iny
-        lda pulsetabel,y             ; step1
-        jmp pps_apply
-pps_step2:
-        iny
-        lda pulsetabel,y             ; step2
-pps_apply:
-        sta pulsecountup
-        lda pulsetest,x
-        bne pps_up
-        lda pulsestolo,x             ; DOWN: acc -= step
-        sec
-        sbc pulsecountup
-        sta pulsestolo,x
-        lda pulsehisto,x
-        sbc #0
-        sta pulsehisto,x
-        cmp #$01
-        bcs pps_done                 ; hi >= $01 → ok
-        lda #1                       ; underflow → flip UP
-        sta pulsetest,x
-        jmp pps_done
-pps_up:
-        lda pulsestolo,x             ; UP: acc += step
-        clc
-        adc pulsecountup
-        sta pulsestolo,x
-        lda pulsehisto,x
-        adc #0
-        sta pulsehisto,x
-        cmp #$0f
-        bcc pps_done                 ; hi < $0F → ok
-        lda #0                       ; overflow → flip DOWN
-        sta pulsetest,x
-pps_done:
-        jmp pp_store
-"""
-
-
-def _splice_standard_pulse_prog(asm: str) -> str:
-    """Replace the Tel fx_pulse_prog body with the standard one (marker-based:
-    from the `fx_pulse_prog:` label up to the shared `pp_store:` label).
-    Gated by cfg.pulse_prog_format=='standard' — never runs for Tel engines."""
-    lines = asm.split('\n')
-    try:
-        start = next(i for i, l in enumerate(lines)
-                     if l.strip() == 'fx_pulse_prog:')
-        end = next(i for i, l in enumerate(lines) if l.strip() == 'pp_store:')
-    except StopIteration:
-        raise RuntimeError('standard pulse splice: fx_pulse_prog/pp_store '
-                           'markers not found')
-    body = _standard_pulse_prog_body().rstrip('\n').split('\n')
-    return '\n'.join(lines[:start] + body + lines[end:])
-
-
 def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
                                   root: str | None = None,
                                   data_base_override: int | None = None
@@ -3529,7 +3520,8 @@ def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
             cur += 2 * _arp_count + _arp_prog_sz
         _pulse_kmax = max(usf.pulse_programs, default=0)
         if _pulse_kmax and cfg.pulsetabel_addr:
-            _take('pulsetabel_addr', _pulse_kmax * 8)
+            _take('pulsetabel_addr', _pulse_kmax *
+                  (4 if cfg.pulse_prog_format == 'standard' else 8))
         if cfg.filterbytes_addr and usf.filter_programs:
             _fc = max(usf.filter_programs) + 1
             _fsz = _fc * 2 + sum(10 for n in range(_fc)
@@ -3601,13 +3593,14 @@ def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
         raw_sections.append(('arphi', cfg.arphi_addr, cfg.arphi_addr + arp_count))
         raw_sections.append(('arp_progs', prog_addr, cur))
 
-    # pulsetabel: pulse-sweep programs, 8 bytes each at (N-1)*8 — from
-    # usf.pulse_programs (was verbatim). Emit slots 1..max(N); missing
-    # (unreferenced) slots get 8 zero bytes (never read).
+    # pulsetabel: pulse-sweep programs — Tel 8 bytes / standard 4 bytes per
+    # slot at (N-1)*stride — from usf.pulse_programs (was verbatim). Emit
+    # slots 1..max(N); missing (unreferenced) slots get zero bytes (never read).
     pulse_kmax = max(usf.pulse_programs, default=0) if cfg.emit_data_from_usf else 0
+    _pp_stride = 4 if cfg.pulse_prog_format == 'standard' else 8
     if pulse_kmax and cfg.pulsetabel_addr:
         raw_sections.append(('pulsetabel', cfg.pulsetabel_addr,
-                             cfg.pulsetabel_addr + pulse_kmax * 8))
+                             cfg.pulsetabel_addr + pulse_kmax * _pp_stride))
 
     # filterbytes: 2-byte pointer table -> 10-byte cutoff-envelope programs,
     # from usf.filter_programs (was verbatim). Pointer table holds slots
@@ -3694,9 +3687,20 @@ def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
         return '\n'.join(out)
     def _emit_pulsetabel(_n):
         out = ['; pulsetabel (USF-derived pulse-sweep programs)']
+        std_pp = cfg.pulse_prog_format == 'standard'
         for n in range(1, pulse_kmax + 1):
             p = usf.pulse_programs.get(n)
-            if p is None:
+            if std_pp:
+                # standard 4-byte format [thr_a, step1, thr_b, step2] at
+                # (n-1)*4 — bounds $01/$0F are hardcoded in the player, the
+                # decoder carries them redundantly in lo/hi.
+                if p is None:
+                    row = [0] * 4
+                else:
+                    s = p['segs']
+                    row = [s[0][0] & 0xFF, s[0][1] & 0xFF,
+                           s[1][0] & 0xFF, s[1][1] & 0xFF]
+            elif p is None:
                 row = [0] * 8
             else:
                 s = p['segs']
@@ -4011,8 +4015,6 @@ def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
     lines.append('')
 
     asm = '\n'.join(lines)
-    if cfg.pulse_prog_format == 'standard':
-        asm = _splice_standard_pulse_prog(asm)
     return asm, load_addr
 
 
