@@ -1,6 +1,6 @@
 ---
 name: project_fc_fingerprint_and_standard
-description: "FC player-version fingerprint DB (tools/fc_fingerprint.py) + the dominant 'vanilla' FC player migration (pipelines/future_composer/standard/). 91% of HVSC FC (3673/4024) is ONE player → highest-leverage target. Standard player is a DIFFERENT ENGINE from the Tel composer (pattern/instrument/effect/write-model all differ). Base + wave-ctrl + standard PATTERN decoder DONE (commit 1af4a15; the 'wrong notes' premise was a mis-diagnosis — pitches coincided, real fix was $Cx instrument-select). RESUME: the per-frame EFFECT CHAIN (frame-1 blocker) — $40 effect ($1E32, decoded), $80 effect, wave-freq, pulse, filter (see RESUME HERE)."
+description: "FC player-version fingerprint DB (tools/fc_fingerprint.py) + the dominant 'vanilla' FC player migration (pipelines/future_composer/standard/). 91% of HVSC FC (3673/4024) is ONE player → highest-leverage target. Standard player is a DIFFERENT ENGINE from the Tel composer (pattern/instrument/effect/write-model all differ). DONE: base + standard PATTERN decoder + instrument-select fix + $40 effect (=wave_arp reuse, no new schema). V1 wave program matches orig exactly. RESUME: the $80 effect (V3, biggest remaining lever — a noise-click attack), then pulse/filter/wave-freq, then the base counter init-phase (the $40 onset is 1 tick late = a per-voice counter-phasing diff). See RESUME HERE."
 metadata: 
   node_type: memory
   type: project
@@ -110,25 +110,40 @@ via $Cx, which Tel misread as wave-adjust → no instrument ever selected → wr
 instrument's effects corrupted freq. Now pat5→i4, pat6→i1, pat7/8/9→i7; frame 0
 matches; first divergence moved to frame 1 = the EFFECT CHAIN.
 
-## RESUME HERE (2026-06-10 — the effect chain is the live work):
-0. Run the 3 MANDATORY questions (CLAUDE.md): family docs = pipelines/
-   future_composer/docs/; disasm = standard/disassembly.s; RE = standard/
-   RE_NOTES.md (READ the top "PATTERN DECODER DONE + finding CORRECTED" section
-   — turnkey, has the effect-flag map + $40-effect decode). Then this memory.
-1. **The per-frame EFFECT CHAIN** — base now aligns through frame 0; shift still
-   None because frame 1 effects don't emit. find_first_divergence(Jarre_2, reb)
-   frame 1 SID V3: orig PW=$01C0/freq=$4800/ctrl=$81 vs reb $0000/none/$00.
-   Jarre_2 opening exercises THREE effects (inst+7 effect-flags): inst4=wave
-   program (sel1, absolute), inst1=$40 effect, inst7=$80 effect. Implement (gated):
-   - $40 effect ($1BE0-$1BFA, DECODED): +7 bit6; if counter $2142,x <3 skip;
-     else ctrl=$1E32[counter&3]→$D404 (4-entry ctrl cycle, ctrl-only). Table $1E32.
-   - $80 effect ($1CE3 region) — RE it next.
-   - wave-program FREQ part + modes (ctrl part already gated/done).
-   - standard pulse sweep ($1E95, emitter cut/unverified) + selector wiring.
-   - filter ($1E89, inst9).
-   Verdict: verify_featuredriven(FC_STANDARD); localize with find_first_divergence
-   + tools/voice_writelog.py per voice.
-2. Relocation handling (load $1800/$4800/... → derive addrs) → ONE config for 3673.
+## ✅ $40 EFFECT DONE (2026-06-10, commit 3fdf1e9): = wave_arp (no new schema —
+the $40 effect $1BE0 IS the shipped wave_arp musical concept; reused it:
+wavearp_addr=$1E32 + wavearpwait=3 + gated interpreter in std_wave_chain). Plus a
+PREREQUISITE fix: the instrument-select encoding (encode_pattern emitted
+NoteRow.instr as $70|n = arp-select, but the composer sets wavecount only from
+$Cx; new instr_as_wavecount flag emits $C0|n so standard instruments actually
+load). V1 (inst4, WAVE PROGRAM) ctrl now matches orig EXACTLY ($11,$81,$41,$40).
+RESIDUAL: the $40 onset is 1 tick late (orig 2 frames of $41, reb 3) — a per-VOICE
+counter INIT-PHASE diff (V1 wave matches with counter2=0 at note-load, but orig's
+V2 acts as if counter is +1; orig advances some voices' counters during
+init/pre-roll). Plus a note-duration discrepancy (reb V2 note2 ~2 frames early).
+Both are base counter/tempo init-phasing, NOT $40-specific; the $40 VALUES are right.
+
+## RESUME HERE (2026-06-10 — the rest of the effect chain + the base timing):
+0. MANDATORY 3 questions: docs=pipelines/future_composer/docs/; disasm=standard/
+   disassembly.s; RE=standard/RE_NOTES.md (READ the top sections — turnkey, has
+   the effect-flag map, $40+$80 decodes, the counter-phase finding). Then memory.
+1. **$80 EFFECT (V3, inst7) — the biggest remaining lever.** Verdict shift=None,
+   reb 11544 writes vs orig 17189 (~5600 short); V3 (pat7/8/9, many notes) is the
+   dominant voice and its $80 effect isn't emitted. DECODED ($1CE3-$1D1D): +7
+   bit7; if counter $2142,x <2 → freq=$4800 + ctrl=$81 (a 2-frame NOISE-CLICK
+   attack transient); else freq=note's stored freq, ctrl=note's ctrl & $FE. It's
+   a drum ATTACK — parametric {attack_freq=$4800, attack_ctrl=$81, attack_frames=2},
+   NO table → likely a small parametric "attack" effect (NOT a wavetable; check
+   for an existing attack_* representation first, e.g. types.py attack_len/wave).
+2. Standard pulse sweep ($1E95, emitter cut/unverified) + selector wiring; filter
+   ($1E89, inst9); wave-program FREQ part + modes (ctrl done).
+3. The base counter/tempo INIT-PHASE (the $40 residual + note-duration): orig
+   advances some voices' counter2 during init so V1/V2/V3 have a 1-frame inter-
+   voice phase the reb lacks. Investigate the standard init/pre-roll ($2108 init
+   + first play) — how many times play() runs / which voices advance before f0.
+4. Relocation handling (load $1800/$4800/... → derive addrs) → ONE config for 3673.
+Verdict: verify_featuredriven(FC_STANDARD); localize with find_first_divergence +
+tools/voice_writelog.py per voice (mind Trap C — frame numbers ≠ play() calls).
 
 Verdict tool: `verify_featuredriven(FC_STANDARD)` (shift becomes a real int once
 the note stream + base align). Diagnostic: per-frame writelog compare on

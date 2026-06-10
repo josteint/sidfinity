@@ -270,7 +270,43 @@ a wave-position nudge (PatWaveAdjust), so NO instrument was ever selected and th
 WRONG (default) instrument's effects ran. Fixed now: pat5→i4, pat6→i1,
 pat7/8/9→i7. Frame 0 matches; first divergence moved to frame 1 (the effect chain).
 
+## ✅ $40 EFFECT (wave-arp) DONE + instrument-select fix (2026-06-10, commit 3fdf1e9)
+The $40 effect ($1BE0: ctrl=$1E32[counter&3] when counter>=3) = the SAME musical
+concept as the already-shipped `wave_arp` (types.py: "cycles $D404 waveform
+indexed counter2&3"). REUSED it — no new schema: wavearp_addr=$1E32 +
+wavearpwait=3 (onset = a player constant = engine mechanism, correctly a cfg
+knob not USF content) + a gated interpreter block in std_wave_chain (the Tel
+fx_wave_arp is bypassed by gwo2->std_wave_chain). Decoder/data/allocator/equate
+paths all pre-existed.
+
+PREREQUISITE FIX (same commit): the instrument-select encoding. The composer's
+pattern parser sets wavecount (its instrument mechanism) ONLY from $C0-$DF;
+$70-$7F is arp-select. But encode_pattern emitted NoteRow.instr as $70|n — so the
+standard $Cx instrument round-tripped into the ARP path and never set the
+instrument: every standard voice played inst0 (all-zero) → ctrl $00. New
+`instr_as_wavecount` flag (gated on pattern_format=='standard') emits the
+instrument as $C0|n. NOW: V2 loads inst1, ctrl $41 gate-on; the $40 effect
+cycles ctrl $40. **V1 (inst4, WAVE PROGRAM) ctrl matches orig EXACTLY** (incl.
+timing: $11,$81,$41,$40,... — confirms counter2's phase is right for V1).
+
+### Residual on the $40 effect — a per-voice counter INIT-PHASE difference
+The $40 effect onset is 1 tick late: orig writes ctrl=$41 for 2 frames then $40;
+reb writes $41 for 3 frames then $40 (a real write-COUNT diff, not Trap-C). Yet
+V1's wave program (same counter2) matches exactly. So counter2 is NOT globally
+off — orig has a 1-frame phase DIFFERENCE BETWEEN VOICES: V1's counter is 0 at
+its note-load (wave entry[0] at note-load+1), but V2's $40 effect fires as if its
+counter is +1 (2 ticks not 3 to reach the CMP #$03 threshold). orig establishes
+this inter-voice phase during INIT/pre-roll (some voices' counters advanced
+before the first play). The reb resets all voices' counter2 at f0 (in phase), so
+V2 is 1 tick behind orig. ALSO a separate note-DURATION discrepancy (reb V2 note2
+~2 frames early). Both are base counter/tempo init-phasing — broader than the $40
+effect, shared across effects — NOT yet fixed. The $40 VALUES are correct.
+
 ### Remaining: the per-frame EFFECT CHAIN (the actual blocker now)
+Verdict still shift=None: reb 11544 writes vs orig 17189 (~5600 short). The
+dominant melody voice V3 (inst7, the $80 effect, pat7/8/9 = many notes) plus
+pulse + filter aren't emitted — they account for most of the gap. The $40 effect
+(V2) alone can't align the stream. Next biggest lever: the $80 effect (V3).
 First divergence (find_first_divergence Jarre_2 vs reb, frame 1, SID V3):
   orig: V3 PW=$01C0 (pulse sweep), freq=$4800, ctrl=$81 ; V2 PW=$0240, ctrl=$41
   reb : V3 PW=$0000, ctrl=$00, NO freq ; (effects not emitting)
