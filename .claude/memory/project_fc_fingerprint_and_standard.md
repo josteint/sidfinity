@@ -141,19 +141,29 @@ skipped — NO new state). Gated 4-byte pulsetabel emission at (n-1)*4. Deleted
 the inert Tel-chain splice. V2 exact; V3 exact until the early-note residual.
 Match prefix 1→11 writes; f1 matches through V3+V2+V1-PW.
 
-## RESUME HERE (2026-06-10 — first diff = V1's f1 tail; see RE_NOTES top):
+## ✅ WAVE-FREQ + $D416 + TICK GATE-OFF DONE (2026-06-10, 4c0a355 + e18bda0):
+**FRAMES 1-3 EXACT, match prefix 46.** Wave freq: relative mode = semitone ARP
+(note idx + val → table, lo,hi $1D42); absolute = val+$0D hi,lo ($1CD8); clk>=15
+skips ctrl+freq (shadows hold, idx 0..13); wave insts never reach $80. fw_mode
+3-state freq-write dispatch in nextvoice. $D416=$FF: bit0-clear insts write iff
+voice==filtvoice latch (0 → V1 wins); chain-armed filt_pend, written between PW
+and freq. Tick GATE-OFF ($19FA): standard h10 = on tick frames w/ counter2!=0,
+ctrl shadow = waveform&$FE before the chain. **RE-DIAGNOSIS: the 'counter
+init-phase / $40-onset-late' theory was WRONG — it was the missing gate-off.**
+
+## RESUME HERE (2026-06-10 — first unmatched write = f4 VIBRATO):
 0. MANDATORY 3 questions: docs=pipelines/future_composer/docs/; disasm=standard/
-   disassembly.s; RE=standard/RE_NOTES.md (READ the top sections — turnkey).
-1. **Wave-program FREQ part** — confirmed live on V1 f1: inst +5 bit4 CLEAR =
-   ABSOLUTE mode freq hi = freqtab[clk-1]+$0D, lo=$00 (sel1 $24+$0D=$31 ✓);
-   bit4 SET = RELATIVE $2130,x + freqtab[clk-1]. Emit in the std wave block
-   (ctrl already done); shadows + lastfreq; check orig write order $1CC5/$1CCF.
-2. **$D416=$FF** between V1's PW and freq — from the chain's filter-bit-CLEAR
-   path ($1C2F) though inst4 has no filter bit. Read $1C00-$1C7B both paths.
-3. **Vibrato** (V3, +5=$27): freq pair $25AE before $80-restore $25A2 (f4+).
-   Map $1A0A-$1B3F.
-4. Note timing / counter INIT-PHASE (reb V3 notes ~2 frames early; $40 onset
-   1 tick late); then relocation (load $1800/$4800/...) → ONE config for 3673.
+   disassembly.s; RE=standard/RE_NOTES.md (READ the top sections — turnkey,
+   incl. the vibrato implementation plan).
+1. **VIBRATO** — orig V3 f4: freq $AE,$25 (= base+$0C) lo,hi DIRECT, BEFORE the
+   PW writes → chain segment $1A0A-$1B3F (before pulse). inst +5=$27 = param
+   byte. No writes f1-f3 (onset/alternating gating TBD). RE the routine, emit a
+   direct lo,hi SID write in the chain (lands before nextvoice PW naturally);
+   do NOT touch shadows/lastfreq (vibrato is invisible to the shadow system;
+   $80 voices overwrite with base after, matching orig).
+2. Re-check note timing AFTER vibrato (the '~2-frame-early' observation
+   predates the gate-off fix — may dissolve). Then filter bit-SET path when a
+   family SID exercises it; relocation (load $1800/$4800/...) → ONE config.
 Verdict: verify_featuredriven(FC_STANDARD); localize with find_first_divergence +
 tools/voice_writelog.py per voice (mind Trap C — frame numbers ≠ play() calls).
 

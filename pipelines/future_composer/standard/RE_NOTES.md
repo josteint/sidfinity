@@ -334,23 +334,42 @@ the Tel chain which the standard layout bypasses; it never ran. NOT emitted:
 Jarre_2 inst uses it; implement when a family SID exercises it.
 Verified: V2 exact; V3 exact until the known ~2-frame-early note advance.
 
-### Remaining divergences (match prefix now 11; first diff = V1's f1 block)
-Frame 1 now matches through V3 (PW sweep, $80 attack, ctrl $81) + V2 + V1 PW.
-Orig V1 f1 tail: …PWlo $00, PWhi $08, **$D416=$FF**, freq $31,$00 (hi,lo),
-ctrl $81. Reb is missing the two middle pieces:
-1. **Wave-program FREQ part** — confirmed live: inst4 +5=$01 → sel1, mode
-   bit4 CLEAR = ABSOLUTE → freq hi = freqtab[clk-1]+$0D, lo=$00. sel1
-   freq[0]=$24 → $24+$0D=$31 ✓. Relative mode (+5 bit4 set) = $2130,x +
-   freqtab[clk-1]. Emit in the wave block (ctrl part already there); write
-   via shadows + lastfreq (hi,lo order fits nextvoice's conditional path —
-   verify the orig order at the wave routine, $1CC5/$1CCF region).
-2. **$D416=$FF** — written between V1's PW and freq, i.e. from V1's chain
-   slice though inst4 has NO filter bit (+7 bit0 clear). Read the $1C00
-   bit-clear path ($1C2F) — likely a default/off $D416 write each frame.
-3. **Vibrato** (V3, +5=$27): freq pair ($25AE) before the $80 restore
-   overwrites ($25A2), from f4-ish. Map $1A0A-$1B3F.
-4. **Note timing / counter init-phase**: reb V3 advances notes ~2 frames
-   early; the $40 onset 1 tick late. Same family of base-timing phasing.
+## ✅ WAVE-FREQ + $D416 + TICK GATE-OFF DONE (2026-06-10, commits 4c0a355 +
+## e18bda0) — FRAMES 1-3 EXACT (match prefix 46)
+1. **Wave-program FREQ part** (orig $1CB6-$1CE0): val=freqtab[sel][clk-1];
+   mode = inst +5 bit4: SET = RELATIVE — a semitone ARPEGGIO (note index +
+   val → freq-table lookup, written LO,HI direct, $1D42), NOT a raw freq
+   add; CLEAR = ABSOLUTE (hi = val+$0D w/ 8-bit wrap, lo=0, written HI,LO,
+   $1CD8/$1CDD). Both unconditional clk 1..14. TWO corrections: clk>=15
+   SKIPS the whole ctrl+freq update (shadows hold; idx range is 0..13, NOT
+   "capped at 15"); wave-enabled insts NEVER reach the $80 effect (all
+   paths exit before $1CE3). nt_flag generalized → fw_mode (0=cond hi,lo /
+   1=uncond lo,hi: $80-restore+wave-relative / 2=uncond hi,lo: wave-abs).
+2. **$D416=$FF filter-off default** (orig $1C6A-$1C78): +7 bit0 CLEAR insts
+   write $D416=$FF iff voice == filtvoice latch ($2175, 0 until a filter
+   inst runs → V1/X=0 wins). Chain arms filt_pend; nextvoice writes it
+   between PW and freq ($1C78 position). Bit-SET path ($1E89 6-band
+   envelope + $D417 res/routing $1C32-$1C67) still unemitted (unexercised).
+3. **Standard tick GATE-OFF** (orig $19FA) + RE-DIAGNOSIS: the earlier
+   "counter init-phase / $40-onset-late" residual was NEITHER — orig V2's
+   $40 at f2 is $19FA: on tick frames with counter2!=0 the ctrl shadow
+   defaults to waveform&$FE BEFORE the chain (the wave-arp value $40 merely
+   coincides). New h10 body for voice_loop_layout='standard'. The
+   init-phase theory is DEAD; ignore it in older sections below.
+
+### NEXT: VIBRATO (f4 divergence — the first unmatched write)
+Orig V3 f4: freq $AE,$25 (lo,hi) DIRECT, BEFORE the PW writes — i.e. from
+the chain segment $1A0A-$1B3F (runs before pulse $1B41) — then PW, then the
+$80 restore $A2,$25, then ctrl. $25AE = base $25A2 + $0C. inst7 +5 = $27
+(param byte: depth/speed nibbles TBD). First vibrato write at f4 (none
+f1-f3 → onset or alternating-frame gating TBD). RE $1A0A-$1B3F, then emit:
+direct lo,hi SID write in the chain (lands before nextvoice's PW
+naturally); do NOT touch shadows/lastfreq — the vibrato is invisible to the
+shadow system ($80-restore voices then overwrite with base via fw_mode=1,
+matching orig; vibrato-only voices keep base in shadows → no extra
+conditional write). After vibrato: re-check note timing (the "~2-frame-
+early note advance" observation predates the gate-off fix — may dissolve),
+then filter bit-SET when exercised, relocation.
 First divergence (find_first_divergence Jarre_2 vs reb, frame 1, SID V3):
   orig: V3 PW=$01C0 (pulse sweep), freq=$4800, ctrl=$81 ; V2 PW=$0240, ctrl=$41
   reb : V3 PW=$0000, ctrl=$00, NO freq ; (effects not emitting)
