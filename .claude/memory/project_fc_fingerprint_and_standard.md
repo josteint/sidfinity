@@ -1,6 +1,6 @@
 ---
 name: project_fc_fingerprint_and_standard
-description: "FC player-version fingerprint DB (tools/fc_fingerprint.py) + the dominant 'vanilla' FC player migration (pipelines/future_composer/standard/). 91% of HVSC FC (3673/4024) is ONE player → highest-leverage target. Standard player is a DIFFERENT ENGINE from the Tel composer (pattern/instrument/effect/write-model all differ). Base + wave done but FOUNDATIONAL pattern-format bug found (extract decodes patterns Tel-style → wrong notes). RESUME: write the standard PATTERN decoder first (see RESUME HERE)."
+description: "FC player-version fingerprint DB (tools/fc_fingerprint.py) + the dominant 'vanilla' FC player migration (pipelines/future_composer/standard/). 91% of HVSC FC (3673/4024) is ONE player → highest-leverage target. Standard player is a DIFFERENT ENGINE from the Tel composer (pattern/instrument/effect/write-model all differ). Base + wave-ctrl + standard PATTERN decoder DONE (commit 1af4a15; the 'wrong notes' premise was a mis-diagnosis — pitches coincided, real fix was $Cx instrument-select). RESUME: the per-frame EFFECT CHAIN (frame-1 blocker) — $40 effect ($1E32, decoded), $80 effect, wave-freq, pulse, filter (see RESUME HERE)."
 metadata: 
   node_type: memory
   type: project
@@ -98,31 +98,37 @@ WAVE emitter (stage 2) ALSO DONE + committed (gated, canaries 15/15):
   fx1=+5/fx2=+6/fx3=+7 carry the standard bytes. Wiring verified.
   (freq part of the wave + the modes NOT yet written — ctrl only so far.)
 
-⚠ FOUNDATIONAL BUG FOUND while verifying 2b (commit 79fdbd3) — REORDERS THE WORK:
-The reb plays the WRONG NOTES (stuck on ~2). The extract decodes PATTERNS with
-TEL semantics, but the standard pattern format is DIFFERENT (parser $18DD: a
-byte is a command only if (b&$f0)==$f0; $Ex=glide triple, $Cx=range cmd, else
-note). Example: pattern 5 `c4 8b 00 ff` = Tel 1 note, standard ≥3 notes. So
-EVERYTHING downstream (base alignment + wave/pulse/filter) sits on a broken note
-stream and is UNVERIFIABLE until fixed. Sequence decode IS correct (standard
-$8x=transpose/$00-7f=pattern/$fe-ff markers). The base+wave work is correct per
-RE but was built in the wrong order. Full detail in standard/RE_NOTES.md.
+## ✅ PATTERN DECODER DONE (2026-06-10, commit 1af4a15) — premise CORRECTED:
+`_parse_pattern_standard` (engine_model.py), gated `cfg.pattern_format='standard'`
+(default 'tel' → canaries 15/15). $18DD-$1957: $C0-$DF=instrument-select(0-31),
+$F0-$FE=tie/no-retrigger (next byte=note), $E0-$EF=3-byte glide, $80-$BF=length,
+$00-$7F=note, $FF=end. Reuses existing PatEvent vocab → to_usf/composer unchanged.
+The 79fdbd3 "wrong notes" finding was a MIS-DIAGNOSIS (incomplete parser trace):
+note PITCHES are IDENTICAL Tel-vs-standard for Jarre_2. The real foundational bug
+was INSTRUMENT SELECTION — Jarre_2 patterns have zero $70-$7F bytes; they select
+via $Cx, which Tel misread as wave-adjust → no instrument ever selected → wrong
+instrument's effects corrupted freq. Now pat5→i4, pat6→i1, pat7/8/9→i7; frame 0
+matches; first divergence moved to frame 1 = the EFFECT CHAIN.
 
-## RESUME HERE (corrected priority — start a new session with these):
+## RESUME HERE (2026-06-10 — the effect chain is the live work):
 0. Run the 3 MANDATORY questions (CLAUDE.md): family docs = pipelines/
-   future_composer/docs/; disasm = pipelines/future_composer/standard/
-   disassembly.s; RE = standard/RE_NOTES.md (READ IT — turnkey, has all decoded
-   data + the corrected plan). Then check this memory.
-1. **Standard PATTERN decoder** (extract, engine_model.py) — THE foundational
-   fix. Parse the $18DD-$1957 note/command semantics ($Fx commands incl
-   length+end, $Ex 3-byte glide, $Cx range, note encoding). Gate by a cfg knob
-   (like instr_format). Verify the reb plays the RIGHT notes (V1 should hit
-   many distinct freqs, not 2), then re-verify base+conditional-freq.
-2. Instrument EFFECT dispatch: Jarre_2's OPENING uses inst1 ($40 effect), NOT
-   the wave program (inst2/3/4) — implement the $40 effect (find ~$1BE0) to
-   align the opening. Wave effect (done, gated) covers inst2/3/4.
-3. Wave freq part + modes; pulse selector wiring; filter ($1E89); $80 effect.
-4. Relocation handling (load $1800/$4800/... → derive addrs) → ONE config for 3673.
+   future_composer/docs/; disasm = standard/disassembly.s; RE = standard/
+   RE_NOTES.md (READ the top "PATTERN DECODER DONE + finding CORRECTED" section
+   — turnkey, has the effect-flag map + $40-effect decode). Then this memory.
+1. **The per-frame EFFECT CHAIN** — base now aligns through frame 0; shift still
+   None because frame 1 effects don't emit. find_first_divergence(Jarre_2, reb)
+   frame 1 SID V3: orig PW=$01C0/freq=$4800/ctrl=$81 vs reb $0000/none/$00.
+   Jarre_2 opening exercises THREE effects (inst+7 effect-flags): inst4=wave
+   program (sel1, absolute), inst1=$40 effect, inst7=$80 effect. Implement (gated):
+   - $40 effect ($1BE0-$1BFA, DECODED): +7 bit6; if counter $2142,x <3 skip;
+     else ctrl=$1E32[counter&3]→$D404 (4-entry ctrl cycle, ctrl-only). Table $1E32.
+   - $80 effect ($1CE3 region) — RE it next.
+   - wave-program FREQ part + modes (ctrl part already gated/done).
+   - standard pulse sweep ($1E95, emitter cut/unverified) + selector wiring.
+   - filter ($1E89, inst9).
+   Verdict: verify_featuredriven(FC_STANDARD); localize with find_first_divergence
+   + tools/voice_writelog.py per voice.
+2. Relocation handling (load $1800/$4800/... → derive addrs) → ONE config for 3673.
 
 Verdict tool: `verify_featuredriven(FC_STANDARD)` (shift becomes a real int once
 the note stream + base align). Diagnostic: per-frame writelog compare on

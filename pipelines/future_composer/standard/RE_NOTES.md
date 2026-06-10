@@ -245,7 +245,53 @@ EMITTER PLAN (gated standard wave style):
 4. Verify ctrl + freq sub-streams (tools/voice_writelog.py); iterate.
 This is a large dual-register envelope engine — implement carefully + iterate.
 
-## ⚠ FOUNDATIONAL FINDING (2026-06-09) — the PATTERN FORMAT differs from Tel
+## ✅ PATTERN DECODER DONE + finding CORRECTED (2026-06-10)
+The standard pattern decoder is implemented and committed (1af4a15):
+`_parse_pattern_standard` in engine_model.py, gated by `cfg.pattern_format=
+'standard'` (default 'tel' → canaries untouched, 15/15). Full $18DD-$1957 trace:
+  $FF        end ($19CC / sub_19ED peek)
+  $F0..$FE   tie/no-retrigger prefix; low nibble ignored; NEXT byte is the note,
+             played WITHOUT instrument reload ($2180,x=1 skips $1986 note-load).
+             → PatNoGlide (carries the 'noretrig' flag in to_usf) + PatNote.
+  $E0..$EF   3-byte glide [$Ex][param][note]; param low nibble = dir(b0)+
+             speed(b1-3>>1); 3rd byte = note. → PatGlide + PatNote.
+  $C0..$DF   INSTRUMENT-select, low 5 bits (0-31). → PatInstrumentChange.
+  $80..$BF   note-length, low 6 bits. → PatSetLength.
+  $00..$7F   note. → PatNote.
+Reuses the existing PatEvent vocabulary; to_usf/composer consume it unchanged.
+
+**The 2026-06-09 "wrong notes / stuck on 2" finding below was a MIS-DIAGNOSIS**
+(from an incomplete parser trace that hadn't yet resolved $1930=$Cx-instrument
+and $1942=$8x-length). Empirically the note PITCHES are IDENTICAL between Tel and
+standard decode for Jarre_2 (verified: pat9 both give 43,43,43,45,46,...). The
+REAL foundational bug is INSTRUMENT SELECTION: Jarre_2's patterns have ZERO
+$70-$7F bytes — they select the instrument via $Cx, which Tel decode misread as
+a wave-position nudge (PatWaveAdjust), so NO instrument was ever selected and the
+WRONG (default) instrument's effects ran. Fixed now: pat5→i4, pat6→i1,
+pat7/8/9→i7. Frame 0 matches; first divergence moved to frame 1 (the effect chain).
+
+### Remaining: the per-frame EFFECT CHAIN (the actual blocker now)
+First divergence (find_first_divergence Jarre_2 vs reb, frame 1, SID V3):
+  orig: V3 PW=$01C0 (pulse sweep), freq=$4800, ctrl=$81 ; V2 PW=$0240, ctrl=$41
+  reb : V3 PW=$0000, ctrl=$00, NO freq ; (effects not emitting)
+Jarre_2's opening exercises THREE effects at once (instrument +7 = effect-flags):
+  - inst4 (V0/pat5): wave program, bit4 $10. fx1($2153)=$01 → sel1, absolute mode.
+  - inst1 (V1/pat6): the $40 effect, bit6 $40.
+  - inst7 (V2/pat7-9): the $80 effect, bit7 $80. (inst9: + filter bit0 $01.)
+Effect-flag map (fx3=+7): $40→inst 1,6,8 · $10(wave)→inst 2,3,4 · $80→inst 5,7,9
+· $01(filter)→inst 9.
+
+**$40 effect** ($1BE0-$1BFA, decoded 2026-06-10): gated by +7 bit6. Reads voice
+frame-counter $2142,x; if <3 → SKIP (silent first 3 frames); else selector =
+counter&3 → ctrl = $1E32[selector] → $2179,x → $D404. A 4-entry ctrl/waveform
+CYCLE (writes ONLY ctrl, no freq/PW). $1E32 = 4-byte table.
+
+To align Jarre_2 the chain needs (in some order): wave-program ctrl (gated/done)
++ FREQ part + modes; the $40 effect ($1E32); the $80 effect ($1CE3 region); the
+standard pulse sweep ($1E95, emitter cut/unverified); filter ($1E89, inst9).
+
+------------------------------------------------------------------------------
+## (SUPERSEDED — see above) ⚠ FOUNDATIONAL FINDING (2026-06-09) — the PATTERN FORMAT differs from Tel
 While verifying the wave effect (stage 2b), found the reb plays only ~2 notes
 (stuck) while orig plays a melody. Root cause: the extract decodes PATTERNS with
 TEL semantics, but the standard pattern format is DIFFERENT.
