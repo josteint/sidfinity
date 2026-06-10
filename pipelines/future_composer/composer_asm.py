@@ -278,6 +278,17 @@ lastfreqhi:     .dsb 3, 0            ; layout: nextvoice writes freq only when
                                      ; note-load/freq-effect, not every frame)
 d402:           .dsb 3, 0            ; shadow $D402 (pw lo)
 d403:           .dsb 3, 0            ; shadow $D403 (pw hi)
+svib_pos:       .dsb 3, 0            ; standard vibrato triangle position (orig
+                                     ; $215E,x) — NOT reset on note-load,
+                                     ; continuous across notes
+svib_dir:       .dsb 3, 0            ; standard vibrato direction (orig $215B,x):
+                                     ; 0 = up, $FF = down
+svib_depth:     .dsb 1, 0            ; per-frame temps for the standard vibrato
+svib_spd:       .dsb 1, 0            ; (depth / speed / 16-bit step / 16-bit
+svib_slo:       .dsb 1, 0            ; work freq — orig $2158/$2157/$217F/$217E/
+svib_shi:       .dsb 1, 0            ; $217C/$217D)
+svib_wlo:       .dsb 1, 0
+svib_whi:       .dsb 1, 0
 filtvoice:      .dsb 1, 0            ; standard filter-voice latch (orig $2175):
                                      ; stays 0 until an inst with +7 bit0 runs;
                                      ; the matching voice writes the $D416
@@ -1092,8 +1103,117 @@ stdpp_done:
 """
     else:
         pulse_body = '        ; standard pulse sweep disabled per cfg\n'
+    vib_body = """        ; VIBRATO (orig $1A36-$1AE8) — first in the chain (orig order:
+        ; vibrato → glide → pulse → $40 → filter → wave → $80; the $Ex
+        ; glide $1AEB-$1B40 is not yet emitted — no Jarre_2 sub-0 pattern
+        ; uses it; the fx3-bit2/$2030 path makes no SID writes). Runs iff
+        ; fx3 bit2 CLEAR, bit4 CLEAR (wave insts skip) and fx1 != 0.
+        ; fx1 = depth (bits 3-6) + speed (bits 0-2). Triangle counter in
+        ; vib_pos/vib_dir — per-voice, NOT reset on note-load (orig
+        ; $215E/$215B, continuous across notes). Step = the note's
+        ; semitone delta freq[note+1]-freq[note] shifted right per speed —
+        ; replicated 1:1 INCLUDING the odd `hi += counter2 + carry`
+        ; ($1A7C) and the lone initial A-only LSR ($1A7F): that arithmetic
+        ; is the player's audible semantics. freq = base - step*(depth/2)
+        ; + step*pos, written $D400/$D401 (lo,hi) DIRECTLY when counter2
+        ; >= 4 — lands before nextvoice's PW block, the orig position.
+        ; Shadows/lastfreq untouched: vibrato is invisible to the shadow
+        ; system ($80-restore voices rewrite the base after, as in orig;
+        ; vibrato-only voices keep base in shadows → no extra write).
+        lda fx3sto
+        and #$14                     ; bit2 ($2030 effect) or bit4 (wave)
+        beq stdvib_chk
+        jmp stdvib_done
+stdvib_chk:
+        lda fx1sto
+        bne stdvib_run               ; fx1 == 0 → no vibrato
+        jmp stdvib_done
+stdvib_run:
+        pha
+        and #$78
+        lsr
+        lsr
+        lsr
+        sta svib_depth               ; depth = (fx1 >> 3) & $0F
+        pla
+        and #$07
+        sta svib_spd                 ; speed = fx1 & 7
+        lda svib_dir,x               ; triangle phase update ($1A45-$1A67)
+        beq stdvib_up
+        dec svib_pos,x               ; going down
+        bne stdvib_step
+        inc svib_dir,x               ; pos hit 0 → turn up ($FF → 0)
+        jmp stdvib_step
+stdvib_up:
+        inc svib_pos,x               ; going up
+        lda svib_depth
+        cmp svib_pos,x
+        bcs stdvib_step              ; pos <= depth → ok
+        sta svib_pos,x               ; pos crossed depth → clamp + turn
+        dec svib_dir,x               ; dir = $FF (down)
+        dec svib_pos,x
+stdvib_step:
+        ldy noho,x                   ; step computation ($1A68-$1A8C)
+        sec
+        lda lonote+1,y               ; semitone delta (lonote/hinote are
+        sbc lonote,y                 ; adjacent, so +96 overruns land in
+        sta svib_slo                 ; hinote — same as orig $1D64/$1DC4)
+        lda hinote+1,y
+        sbc hinote,y
+        adc counter2,x               ; orig $1A7C — odd but faithful
+        lsr                          ; orig $1A7F — A only, no ROR
+stdvib_shift:
+        dec svib_spd
+        bmi stdvib_shifted
+        lsr
+        ror svib_slo
+        jmp stdvib_shift
+stdvib_shifted:
+        sta svib_shi
+        lda lonote,y                 ; work = base freq (from the table)
+        sta svib_wlo
+        lda hinote,y
+        sta svib_whi
+        lda svib_depth
+        lsr
+        tay                          ; work -= step * (depth/2) ($1AA0)
+stdvib_sub:
+        dey
+        bmi stdvib_subdone
+        sec
+        lda svib_wlo
+        sbc svib_slo
+        sta svib_wlo
+        lda svib_whi
+        sbc svib_shi
+        sta svib_whi
+        jmp stdvib_sub
+stdvib_subdone:
+        lda counter2,x               ; write gate: counter2 >= 4 ($1AB9)
+        cmp #$04
+        bcc stdvib_done
+        ldy svib_pos,x               ; work += step * pos ($1AC0)
+stdvib_add:
+        dey
+        bmi stdvib_write
+        clc
+        lda svib_wlo
+        adc svib_slo
+        sta svib_wlo
+        lda svib_whi
+        adc svib_shi
+        sta svib_whi
+        jmp stdvib_add
+stdvib_write:
+        ldy voicesto
+        lda svib_wlo
+        sta $d400,y                  ; lo,hi direct (orig $1ADC-$1AE8)
+        lda svib_whi
+        sta $d401,y
+stdvib_done:
+"""
     return """std_wave_chain:
-""" + pulse_body + """        ; $40 effect (inst +7 bit6) — wave-arp ctrl cycle (orig $1BE0-$1BFA).
+""" + vib_body + pulse_body + """        ; $40 effect (inst +7 bit6) — wave-arp ctrl cycle (orig $1BE0-$1BFA).
         ; Same musical concept as the Tel fx_wave_arp (USF wave_arp = the
         ; ctrl-value table = content); the standard chain bypasses the Tel
         ; chain so the interpreter lives here. Hold the note-load waveform for

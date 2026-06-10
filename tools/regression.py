@@ -210,15 +210,19 @@ def regress_future_composer() -> tuple[int, int, int]:
     from pipelines.future_composer.cybernoid_ii.config import CYBERNOID_II
     from pipelines.future_composer.hawkeye.config import HAWKEYE
     from pipelines.future_composer.adrenalin.config import ADRENALIN
+    from pipelines.future_composer.standard.config import FC_STANDARD
 
     # (name, cfg, subtunes) — subtunes=None means all. Adrenalin is restricted
     # to sub 0: it's a 3-engine compilation where subs 1/2/3 are independent
     # data pools needing multi-song FC support (see project_adrenalin memory);
     # sub 0 is the clean FC canary and verifies via the trichotomy verdict.
+    # Jarre_2 = the STANDARD ("vanilla") FC player — the dominant family
+    # (91% of HVSC FC); first verified 2026-06-10 (trichotomy, audio✓).
     canaries = [
         ('Cybernoid_II', CYBERNOID_II, None),
         ('Hawkeye',      HAWKEYE,      None),
         ('Adrenalin[0]', ADRENALIN,    [0]),
+        ('Jarre_2',      FC_STANDARD,  None),
     ]
     ok = partial = fail = 0
     for name, cfg, subtunes in canaries:
@@ -344,7 +348,8 @@ def main():
     cme_ok, cme_fail = regress_c64me()
     print(f'\nJay_Derrett family (17 of 20 SIDs wired):')
     jd_ok, jd_fail = regress_jay_derrett()
-    print(f'\nFuture Composer family (2 canaries: Cyb II + Hawkeye):')
+    print(f'\nFuture Composer family (4 canaries: Cyb II + Hawkeye + '
+          f'Adrenalin[0] + Jarre_2/standard):')
     fc_ok, fc_part, fc_fail = regress_future_composer()
 
     print(f'\nHubbard:    {h_ok} ok  +  {h_part} known-partial  +  '

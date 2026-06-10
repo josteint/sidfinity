@@ -1,6 +1,6 @@
 ---
 name: project_fc_fingerprint_and_standard
-description: "FC player-version fingerprint DB (tools/fc_fingerprint.py) + the dominant 'vanilla' FC player migration (pipelines/future_composer/standard/). 91% of HVSC FC (3673/4024) is ONE player → highest-leverage target. Standard player is a DIFFERENT ENGINE from the Tel composer (pattern/instrument/effect/write-model all differ). DONE: base + standard PATTERN decoder + instrument-select fix + $40 effect (=wave_arp reuse, no new schema). V1 wave program matches orig exactly. RESUME: the $80 effect (V3, biggest remaining lever — a noise-click attack), then pulse/filter/wave-freq, then the base counter init-phase (the $40 onset is 1 tick late = a per-voice counter-phasing diff). See RESUME HERE."
+description: "FC player-version fingerprint DB (tools/fc_fingerprint.py) + the dominant 'vanilla' FC player migration (pipelines/future_composer/standard/). 91% of HVSC FC (3673/4024) is ONE player → highest-leverage target. ✅ JARRE_2 SUB 0 FULL (2026-06-10): play 17164/17164 + trichotomy audio✓ — the standard player's first verified tune. Full effect chain done (pattern decoder, instrument-select, $40=wave_arp, $80=noise_tick, pulse sweep, wave ctrl+freq, vibrato, $D416 default, tick gate-off, note-duration +1, universal_reset init). RESUME: ear-test + RELOCATION → one config for the 3673-SID family rollout. See RESUME HERE."
 metadata: 
   node_type: memory
   type: project
@@ -151,19 +151,31 @@ and freq. Tick GATE-OFF ($19FA): standard h10 = on tick frames w/ counter2!=0,
 ctrl shadow = waveform&$FE before the chain. **RE-DIAGNOSIS: the 'counter
 init-phase / $40-onset-late' theory was WRONG — it was the missing gate-off.**
 
-## RESUME HERE (2026-06-10 — first unmatched write = f4 VIBRATO):
-0. MANDATORY 3 questions: docs=pipelines/future_composer/docs/; disasm=standard/
-   disassembly.s; RE=standard/RE_NOTES.md (READ the top sections — turnkey,
-   incl. the vibrato implementation plan).
-1. **VIBRATO** — orig V3 f4: freq $AE,$25 (= base+$0C) lo,hi DIRECT, BEFORE the
-   PW writes → chain segment $1A0A-$1B3F (before pulse). inst +5=$27 = param
-   byte. No writes f1-f3 (onset/alternating gating TBD). RE the routine, emit a
-   direct lo,hi SID write in the chain (lands before nextvoice PW naturally);
-   do NOT touch shadows/lastfreq (vibrato is invisible to the shadow system;
-   $80 voices overwrite with base after, matching orig).
-2. Re-check note timing AFTER vibrato (the '~2-frame-early' observation
-   predates the gate-off fix — may dissolve). Then filter bit-SET path when a
-   family SID exercises it; relocation (load $1800/$4800/...) → ONE config.
+## ✅✅ JARRE_2 SUB 0 FULL (2026-06-10) — THE STANDARD PLAYER'S FIRST VERIFIED
+TUNE: play 17164/17164, trichotomy state ✓, audio✓ (canonical init boundary).
+The last three pieces: (1) VIBRATO ($1A36-$1AE8: triangle, fx1 = depth bits
+3-6 + speed bits 0-2, step = semitone delta >> speed replicated 1:1 incl. the
+`hi += counter2` and lone-LSR quirks, direct lo,hi write when counter2>=4,
+shadows untouched; svib_* state, NOT reset per note); (2) NOTE-DURATION fix
+in the EXTRACT (standard plays raw+1 ticks per $8x → PatSetLength(raw+1), USF
+carries the actual tick count — this was the "~2-frames-early" residual);
+(3) INIT = init_style='universal_reset' (orig init is a pure clean zeroing,
+NO priming → empty USF init{} + default cfg knobs match end-of-init state;
+the Tel default init's $16=$FF/$17/$18=$1F signature was leaking before).
+
+## RESUME HERE (2026-06-10 — family rollout):
+0. MANDATORY 3 questions: docs=pipelines/future_composer/docs/; disasm=
+   standard/disassembly.s; RE=standard/RE_NOTES.md (top sections = turnkey,
+   incl. the still-unimplemented list: filter bit-SET path, $Ex glide, +$B0
+   pulse jitter, $2030/bit2 effect, adjacent-$8x chaining caveat).
+1. **EAR-TEST Jarre_2** (new engine — suggest to user; writelog can't hear
+   dispatch).
+2. **RELOCATION → ONE config for the 3673-SID family**: derive data addrs
+   from load/init (members at $1800/$4800/...; fingerprint DB lists them).
+   Then batch-verify family members; each new SID exercises more of the
+   unimplemented list, write-log-first per tune.
+3. Track Jarre_2[0] as the 4th FC canary (alongside Cyb II/Hawkeye/
+   Adrenalin[0]) in regression runs.
 Verdict: verify_featuredriven(FC_STANDARD); localize with find_first_divergence +
 tools/voice_writelog.py per voice (mind Trap C — frame numbers ≠ play() calls).
 

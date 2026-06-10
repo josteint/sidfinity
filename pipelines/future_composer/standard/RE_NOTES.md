@@ -357,19 +357,56 @@ Verified: V2 exact; V3 exact until the known ~2-frame-early note advance.
    coincides). New h10 body for voice_loop_layout='standard'. The
    init-phase theory is DEAD; ignore it in older sections below.
 
-### NEXT: VIBRATO (f4 divergence — the first unmatched write)
-Orig V3 f4: freq $AE,$25 (lo,hi) DIRECT, BEFORE the PW writes — i.e. from
-the chain segment $1A0A-$1B3F (runs before pulse $1B41) — then PW, then the
-$80 restore $A2,$25, then ctrl. $25AE = base $25A2 + $0C. inst7 +5 = $27
-(param byte: depth/speed nibbles TBD). First vibrato write at f4 (none
-f1-f3 → onset or alternating-frame gating TBD). RE $1A0A-$1B3F, then emit:
-direct lo,hi SID write in the chain (lands before nextvoice's PW
-naturally); do NOT touch shadows/lastfreq — the vibrato is invisible to the
-shadow system ($80-restore voices then overwrite with base via fw_mode=1,
-matching orig; vibrato-only voices keep base in shadows → no extra
-conditional write). After vibrato: re-check note timing (the "~2-frame-
-early note advance" observation predates the gate-off fix — may dissolve),
-then filter bit-SET when exercised, relocation.
+## ✅✅ JARRE_2 SUB 0 FULL (2026-06-10) — play 17164/17164, trichotomy audio✓
+The first fully-verified standard-player tune. The last three pieces:
+
+### VIBRATO done ($1A36-$1AE8) — full RE
+Runs iff fx3 bit2 CLEAR, bit4 CLEAR (wave insts skip it via the $2030 path,
+which makes NO SID writes) and fx1 != 0. fx1 = depth(bits 3-6) + speed(bits
+0-2) — NOTE: different bit layout from Tel's fx1 vibrato. Per-voice triangle
+counter ($215E pos / $215B dir = svib_pos/svib_dir) — NOT reset on note-load,
+continuous across notes. Step = the note's SEMITONE DELTA (freq[note+1] -
+freq[note]) shifted right per speed, replicated 1:1 INCLUDING two quirks that
+are audible semantics: `hi += counter2 + carry` ($1A7C) and a lone initial
+A-only LSR ($1A7F). freq = base - step*(depth/2) + step*pos, written
+$D400/$D401 (lo,hi) DIRECTLY when counter2 >= 4 — lands before nextvoice's
+PW block (the orig position). Shadows/lastfreq untouched (vibrato is
+invisible to the shadow system; $80-restore voices rewrite base after, as in
+orig). $1AEB-$1B40 is the $Ex GLIDE (shadow-modifying, lo,hi direct) — NOT
+yet emitted, no Jarre_2 sub-0 pattern uses $Ex.
+
+### Note-duration semantics fixed (the "~2-frames-early" residual)
+The standard player plays (raw&$3F)+1 ticks per $8x length byte ($2127=raw,
+DEC/BMI counts raw+1 underflows); the composer plays exactly `duration`
+ticks (nootleng=duration-1). Fix in the EXTRACT (principled — USF carries
+the ACTUAL tick count): _parse_pattern_standard emits PatSetLength(raw+1).
+CAVEAT: consecutive $8x bytes OVERWRITE in the standard player but to_usf
+CHAINS them (Tel) — no Jarre_2 pattern has adjacent $8x; gate if a family
+SID does.
+
+### Init = pure trichotomy (init_style='universal_reset')
+Orig Jarre_2 init is a CLEAN ZEROING ($00-$17 ascending; the $D418=$0F is
+the host stub) with NO priming → USF init{} stays empty, cfg defaults
+(init_master_vol=$0F, no filter) match the end-of-init state exactly. The
+Tel-style default init (which writes $16=$FF/$17=$00/$18=$1F — Cyb II's
+signature) was leaking in before the knob was set. Verdict: shift=7,
+init=(25,32), state ✓, audio✓ (canonical boundary).
+
+### Still unimplemented (will surface via write-log on family SIDs)
+- filter bit-SET path ($1E89 6-band envelope + $D417 res/routing $1C32-$1C67)
+- $Ex glide ($1AEB-$1B40)
+- pulse +$B0 write-jitter (inst raw[0] bit7, odd frames)
+- the fx3-bit2 / $2030 effect (writes $1E87/$1E88 globals — glide speed?)
+- wave+$80 both-bits insts (orig: wave path skips $80 — composer matches)
+- adjacent-$8x setlen chaining (see caveat above)
+
+### NEXT: RELOCATION + FAMILY ROLLOUT
+One config for the 3673-SID family: derive the data addresses from the
+load/init address (members load at $1800/$4800/...; the fingerprint DB
+lists them — tools/fc_fingerprint.py). Then batch verify across family
+members; each new SID exercises more of the unimplemented list above.
+Also: EAR-TEST Jarre_2.sidfinity (new engine — py65/writelog can't hear
+dispatch; user's ear is the final judge).
 First divergence (find_first_divergence Jarre_2 vs reb, frame 1, SID V3):
   orig: V3 PW=$01C0 (pulse sweep), freq=$4800, ctrl=$81 ; V2 PW=$0240, ctrl=$41
   reb : V3 PW=$0000, ctrl=$00, NO freq ; (effects not emitting)

@@ -24,6 +24,9 @@ FC_STANDARD = FCConfig(
 
     emit_data_from_usf=True,
     contiguous_data_layout=True,
+    init_style='universal_reset',   # pure trichotomy: orig init is a clean
+                                    # zeroing with NO priming (end state = all
+                                    # 0 + host $D418=$0F = the defaults)
     load_addr=0x1000,               # our own engine below the $1D64 data
 
     pulsetabel_addr=0x1E95,

@@ -309,7 +309,15 @@ def _parse_pattern_standard(raw: bytes) -> tuple[list[PatEvent], int]:
             i += 1
             continue
         if (b & 0xC0) == 0x80:           # $80..$BF note-length
-            events.append(PatSetLength(b & 0x3F))
+            # The standard player plays (raw & $3F) + 1 ticks per note (it
+            # loads $2127 = raw and its DEC/BMI counts raw+1 underflows).
+            # USF duration carries the ACTUAL tick count, so +1 here; the
+            # composer's setlen (nootleng = duration-1, DEC/BMI) then plays
+            # exactly duration ticks. NB: consecutive $8x bytes OVERWRITE in
+            # the standard player (no Tel-style chaining); to_usf's chaining
+            # would mis-add them — no Jarre_2 pattern has adjacent $8x; gate
+            # in to_usf if a family SID does.
+            events.append(PatSetLength((b & 0x3F) + 1))
             i += 1
             continue
         # $00..$7F: note
