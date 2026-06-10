@@ -278,6 +278,13 @@ lastfreqhi:     .dsb 3, 0            ; layout: nextvoice writes freq only when
                                      ; note-load/freq-effect, not every frame)
 d402:           .dsb 3, 0            ; shadow $D402 (pw lo)
 d403:           .dsb 3, 0            ; shadow $D403 (pw hi)
+filtvoice:      .dsb 1, 0            ; standard filter-voice latch (orig $2175):
+                                     ; stays 0 until an inst with +7 bit0 runs;
+                                     ; the matching voice writes the $D416
+                                     ; filter-off default each frame
+filt_pend:      .dsb 1, 0            ; pending $D416 value armed by the chain,
+                                     ; consumed by nextvoice between the PW and
+                                     ; freq writes (orig $1C78 position); 0=none
 fw_mode:        .dsb 3, 0            ; standard freq-write mode, armed by the
                                      ; chain each frame, consumed (self-clearing)
                                      ; by nextvoice's freq slot:
@@ -922,6 +929,12 @@ def _emit_nextvoice_writes_standard() -> str:
         '        sta $d402,y                  ; pw lo\n'
         '        lda d403,x\n'
         '        sta $d403,y                  ; pw hi\n'
+        '        lda filt_pend                ; chain-armed $D416 write?\n'
+        '        beq stdnv_nofl               ; (between PW and freq — the\n'
+        '        sta $d416                    ; orig $1C78 position)\n'
+        '        lda #0\n'
+        '        sta filt_pend\n'
+        'stdnv_nofl:\n'
         '        lda fw_mode,x                ; chain-armed freq-write mode?\n'
         '        beq stdnv_cf                 ; 0 → normal conditional freq\n'
         '        lsr                          ; bit0 → C: mode 1 → C=1 (lo,hi),\n'
@@ -1098,6 +1111,22 @@ stdpp_done:
         lda wavearp,y
         sta stod404,x                ; ctrl shadow (→ $D404 via nextvoice)
 stdw_waveprog:
+        ; FILTER (orig $1BFE-$1C78), bit-CLEAR path: the voice matching the
+        ; filter-voice latch (filtvoice = orig $2175, 0 until an inst with
+        ; +7 bit0 runs) arms $D416=$FF (cutoff-hi / filter-off default) for
+        ; nextvoice, which slots it between the PW and freq writes (the
+        ; orig $1C78 position). The bit-SET path (6-band cutoff envelope at
+        ; $1E89 + $D417 res/routing $1C32-$1C67) is NOT yet emitted — no
+        ; Jarre_2 sub-0 inst sets +7 bit0; spec in RE_NOTES for when a
+        ; family SID exercises it.
+        lda fx3sto
+        and #$01
+        bne stdfl_done               ; bit set → TODO (unexercised)
+        cpx filtvoice                ; X = voice id
+        bne stdfl_done
+        lda #$ff
+        sta filt_pend
+stdfl_done:
         lda fx3sto
         and #$10
         beq stdw_nt                  ; wave program not enabled → $80 check
@@ -1610,8 +1639,22 @@ def _emit_playirq_dispatch(cfg: FCConfig) -> str:
     fx_noise_tick_chunk = _emit_fx_noise_tick(cfg)
     fx_pulse_run_body = _emit_fx_pulse_run(cfg)
 
-    # h10 body — per cfg.held_note_clears_stod404_gate.
-    if cfg.held_note_clears_stod404_gate:
+    # h10 body — standard layout has its own tick gate-off; Tel layouts pick
+    # per cfg.held_note_clears_stod404_gate.
+    if cfg.voice_loop_layout == 'standard':
+        h10_body = """        ; Held-note path (standard/vanilla, orig $19FA): on tick
+        ; frames with counter2 != 0 the ctrl shadow defaults to
+        ; waveform & $FE (gate off, one tick after note-load); the chain
+        ; effects ($40 / wave program / $80) may override it before
+        ; nextvoice writes it. No thresholds, no byteand.
+        lda counter2,x
+        beq h10_std_skip
+        lda wavesto,x
+        and #$FE
+        sta stod404,x
+h10_std_skip:
+"""
+    elif cfg.held_note_clears_stod404_gate:
         h10_body = """        ; Held-note path (Hawkeye style): threshold-based gate
         ; clear in stod404. Threshold = (filcount byte & $F0) >> 3
         ; (high nibble / 8). Compared against ELAPSED frames
