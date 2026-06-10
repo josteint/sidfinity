@@ -48,12 +48,14 @@ def fc_standard_config(sid_path: str, root: str | None = None) -> FCConfig:
     #   mirror-write hack (Entrail). Stored as low 5 bits (mirror-equivalent).
     variant = body[0x2046 - _REF_LOAD]
     glide_hi = body[0x1B3F - _REF_LOAD]
+    arp3 = tuple(body[0x1E86 - _REF_LOAD:0x1E89 - _REF_LOAD])
     return _dc.replace(
         FC_STANDARD,
         name=f'fc_standard:{p.stem}',
         sid_path=str(sid_path),
         std_vibrato_stale_tail=(variant == 0xDC),
         std_glide_hi_reg=glide_hi & 0x1F,
+        std_arp3_init=arp3,
         **shifted,
     )
 

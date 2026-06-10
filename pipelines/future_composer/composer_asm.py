@@ -313,6 +313,12 @@ flt_mask:       .dsb 1, 0            ; scratch: band-0 voice routing mask
 filt_ctr:       .dsb 1, 0            ; the $D417 res/routing counter (orig
                                      ; $2172): song-init seeds $B0 (standard),
                                      ; any voice's sequence-$FF wrap resets 0
+arp3_ctr:       .dsb 3, 0            ; standard +$04 arp counter (orig $2161,x:
+                                     ; set to 3 per note, cycles 2->1->0->2)
+arp3_tab:       .dsb 3, 0            ; standard +$04 arp offsets (orig $1E86-88:
+                                     ; slot 0 static, slots 1-2 rewritten by
+                                     ; every vibrato-skipped inst's $2030 path;
+                                     ; song-init seeds the baked image values)
 fw_mode:        .dsb 3, 0            ; standard freq-write mode, armed by the
                                      ; chain each frame, consumed (self-clearing)
                                      ; by nextvoice's freq slot:
@@ -533,6 +539,10 @@ song_seqcp:
             '        sta filt_ctr                 ; counter seed (orig sub_20D9\n'
             '                                     ; $2172=$B0 — engine bookkeeping\n'
             '                                     ; init, after the state clear)\n'
+            + ''.join(
+                f'        lda #${cfg.std_arp3_init[i]:02X}\n'
+                f'        sta arp3_tab+{i}                ; +$04 arp slot {i} '
+                f'(baked $1E8{6+i:X})\n' for i in range(3))
         ) if cfg.voice_loop_layout == 'standard' else ''
         sidwrite = _emit_universal_reset_sidwrite(cfg) + (
             '        jsr ok2\n'
@@ -978,6 +988,22 @@ def _emit_nextvoice_writes_standard() -> str:
         'stdnv_nofl:\n'
         '        lda fw_mode,x                ; chain-armed freq-write mode?\n'
         '        beq stdnv_cf                 ; 0 → normal conditional freq\n'
+        '        cmp #3                       ; 3 → $80-restore pair THEN arp\n'
+        '        bne stdnv_m12                ; pair (both due, orig $1D0A+$1D42)\n'
+        '        lda #0\n'
+        '        sta fw_mode,x\n'
+        '        lda lonotesto,x              ; the restore pair (base, lo,hi)\n'
+        '        sta $d400,y\n'
+        '        lda hinotesto,x\n'
+        '        sta $d401,y\n'
+        '        lda d400,x                   ; then the arp pair (lo,hi)\n'
+        '        sta $d400,y\n'
+        '        sta lastfreqlo,x\n'
+        '        lda d401,x\n'
+        '        sta $d401,y\n'
+        '        sta lastfreqhi,x\n'
+        '        jmp stdnv_ct\n'
+        'stdnv_m12:\n'
         '        lsr                          ; bit0 → C: mode 1 → C=1 (lo,hi),\n'
         '        lda #0                       ; mode 2 → C=0 (hi,lo)\n'
         '        sta fw_mode,x                ; consume (chain re-arms per frame)\n'
@@ -1034,7 +1060,9 @@ def _emit_std_wave_chain(cfg: FCConfig) -> str:
         ; on held frames, so the single attack frame is counter==1 (orig
         ; skips the chain on note-load frames too).
         lda fx3sto
-        bpl stdw_done                ; bit7 clear → not a noise-click inst
+        bpl stdarp                   ; bit7 clear → not a noise-click inst
+                                     ; (still eligible for the +$04 arp,
+                                     ; orig $1CE8 BEQ $1D1E)
         lda counter2,x
         cmp #$02
         bcs stdnt_restore
@@ -1058,6 +1086,44 @@ stdnt_restore:
 """
     else:
         nt_body = '        ; $80 noise-click disabled per cfg\n'
+    arp_body = """stdarp:
+        ; +$04 3-step ARPEGGIO (orig $1D1E-$1D51): fx3-bit2 insts cycle a
+        ; per-note counter 2->1->0 (set to 3 at note fetch) through the
+        ; 3-slot offset table (slot 0 baked, slots 1-2 = the last
+        ; vibrato-skipped inst's fx1 nibbles / $0C,$18 defaults); freq =
+        ; table[noho + offset], written lo,hi unconditionally per frame.
+        ; Reached by every non-wave inst except during the $80 attack
+        ; window (orig $1CE0/$1D07 jump past $1D1E). When the $80
+        ; restore already armed fw_mode this frame, BOTH pairs are due
+        ; (orig writes restore then arp) -> fw_mode=3 double dispatch.
+        lda fx3sto
+        and #$04
+        bne stdarp_run
+        jmp stdw_done
+stdarp_run:
+        dec arp3_ctr,x
+        bpl stdarp_idx
+        lda #$02
+        sta arp3_ctr,x
+stdarp_idx:
+        ldy arp3_ctr,x
+        lda arp3_tab,y               ; offset (orig $1E86,x with X=ctr)
+        clc
+        adc noho,x                   ; + note index
+        tay
+        lda lonote,y                 ; freq table lookup (8-bit wrap ok —
+        sta d400,x                   ; lonote/hinote adjacent, same as orig)
+        lda hinote,y
+        sta d401,x
+        lda fw_mode,x                ; $80 restore armed this frame?
+        beq stdarp_arm
+        lda #3                       ; restore pair THEN arp pair
+        sta fw_mode,x
+        jmp stdw_done
+stdarp_arm:
+        lda #1                       ; arp pair alone (unconditional lo,hi)
+        sta fw_mode,x
+"""
     if cfg.pulse_prog_format == 'standard':
         pulse_body = """        ; PULSE sweep (orig $1B41-$1BDD) — first in the chain (orig order
         ; pulse → $40 → wave → $80). 4-byte programs [thr_a,step1,thr_b,
@@ -1291,6 +1357,28 @@ stdvib_write:
         sta $d401,y
         jmp stdvib_done
 stdvib_skip:
+        ; The $2030 path (every vibrato-skipped inst: fx3 bit2/bit4 or
+        ; fx1==0): rewrite the +$04 arp table's volatile slots — fx1's
+        ; nibbles, or the $0C/$18 defaults when fx1==0. Last runner wins
+        ; (the per-frame voice order), exactly like orig $1E87/$1E88.
+        lda fx1sto
+        beq stdvib_defslots
+        pha
+        lsr
+        lsr
+        lsr
+        lsr
+        sta arp3_tab+1               ; fx1 hi nibble (orig $1E87)
+        pla
+        and #$0f
+        sta arp3_tab+2               ; fx1 lo nibble (orig $1E88)
+        jmp stdvib_slotsdone
+stdvib_defslots:
+        lda #$0c
+        sta arp3_tab+1               ; defaults (orig $2048: X=$0C, A=$18)
+        lda #$18
+        sta arp3_tab+2
+stdvib_slotsdone:
 """ + (
         """        ; STALE-TAIL variant (orig $2046 = JMP $1ADC): vibrato-skipped
         ; instruments write the GLOBAL work regs — whatever the last vibrato
@@ -1445,7 +1533,7 @@ stdwf_abs:
         sta fw_mode,x
         jmp stdw_done                ; wave path skips the $80 effect
 stdw_nt:
-""" + nt_body + """stdw_done:
+""" + nt_body + arp_body + """stdw_done:
         jmp nextvoice
 """
 
@@ -1821,9 +1909,22 @@ def _emit_playirq_dispatch(cfg: FCConfig) -> str:
 
     # Top-of-frame $D418 vol write (vanilla FC $1833: vol written first each
     # frame, before the voice loop). 0 = none (Tel engines write vol elsewhere).
-    vol_first_write = (
+    # The standard layout also INCs all three counter2 at the frame top BEFORE
+    # the vol write (orig $182A precedes $1833) and skips the per-voice INC —
+    # write-stream-identical (counter2 is RAM; each voice's chain reads its own
+    # counter after its INC either way), but it makes the engine state at the
+    # $D418 trigger match orig exactly (state_diff --on-write alignment).
+    _ctr_top = ('        inc counter2+0               ; frame counters first\n'
+                '        inc counter2+1               ; (orig $182A, before\n'
+                '        inc counter2+2               ; the $1833 vol write)\n'
+                if cfg.voice_loop_layout == 'standard' else '')
+    vol_first_write = _ctr_top + (
         f'        lda #${cfg.vol_every_frame:02X}\n        sta $d418\n'
         if cfg.vol_every_frame else '')
+    counter2_per_voice_inc = (
+        '        ; counter2 INCed at the frame top (standard layout)\n'
+        if cfg.voice_loop_layout == 'standard' else
+        '        inc counter2,x               ; per-voice frame counter\n')
 
     # nolengset's early new-note freq SID write. The 'standard' (vanilla FC)
     # layout suppresses it so freq is written ONCE per frame by nextvoice
@@ -2124,8 +2225,7 @@ playirq_run:
 
 startplayer:
         stx wax                      ; save current voice index
-        inc counter2,x               ; per-voice frame counter
-        ldy d4point,x                ; Y = SID register offset (0/7/14)
+{counter2_per_voice_inc}        ldy d4point,x                ; Y = SID register offset (0/7/14)
         sty voicesto
         lda speedsto
         cmp speedbyte
@@ -2184,6 +2284,8 @@ h3f_pattern:
         sta counter2,x
         sta vibcounter,x
         sta sgl_dir,x                ; standard $Ex glide flag (orig $18CD)
+        lda #3
+        sta arp3_ctr,x               ; standard +$04 arp counter (orig $18D8)
 
         ; Fetch first pattern byte. If $F0/$F1, handle prefix; else
         ; jump to startnewnote (clear newnote flag) and dispatch.
@@ -3395,6 +3497,7 @@ playirq_done:
         fx_wave_arp_body=fx_wave_arp_body,
         playirq_run_ldx=playirq_run_ldx,
         vol_first_write=vol_first_write,
+        counter2_per_voice_inc=counter2_per_voice_inc,
         fx_pulse_run_body=fx_pulse_run_body,
         h3_command_dispatch=h3_command_dispatch,
         bank_ram=bank_ram,

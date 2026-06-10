@@ -120,6 +120,133 @@ def _run_memwatch(sid_path: str, subtune: int, duration: float,
     return frames, play_counts
 
 
+def _run_memwatch_onwrite(sid_path: str, subtune: int, duration: float,
+                          trig: int, addrs: list[int]
+                          ) -> list[dict[int, int]]:
+    """Run siddump --memwatch-on-write and parse the EVENT stream.
+
+    Returns one snapshot dict per TRIGGER WRITE, in global event order —
+    independent of siddump's frame bucketing. For an engine that writes a
+    fixed register exactly once per play() (the standard FC player writes
+    $D418 at the top of every play), event K IS play-call K (after any
+    init-time trigger writes — see --align-value). This kills Trap C for
+    state comparison at the source.
+
+    Each snapshot includes the trigger's own written value under the key
+    -1 (the trigger register isn't an ADDRS RAM cell)."""
+    import re as _re
+    addr_arg = ','.join(f'{a:04X}' for a in addrs)
+    cmd = [str(SIDDUMP), sid_path,
+           '--subtune', str(subtune + 1),
+           '--duration', str(duration),
+           '--memwatch-on-write', f'{trig:04X}', addr_arg]
+    r = subprocess.run(cmd, capture_output=True, text=True)
+    if r.returncode not in (0, 2):
+        print(f'siddump error (rc={r.returncode}): {r.stderr}',
+              file=sys.stderr)
+        return []
+    events: list[dict[int, int]] = []
+    for chunk in _re.finditer(r'\|E\d+:([^|\n]*)', r.stdout):
+        snap: dict[int, int] = {}
+        toks = chunk.group(1).split(':')
+        for i, tok in enumerate(toks):
+            if '=' not in tok:
+                continue
+            a_str, v_str = tok.split('=', 1)
+            try:
+                a, v = int(a_str, 16), int(v_str, 16)
+            except ValueError:
+                continue
+            if i == 0:
+                snap[-1] = v          # the trigger write's value
+            else:
+                snap[a] = v
+        events.append(snap)
+    return events
+
+
+def state_diff_onwrite(orig_path: str, rebuild_path: str,
+                       mapping: dict[int, tuple[int, str]],
+                       trig: int, align_value: int | None = None,
+                       subtune: int = 0, duration: float = 60.0,
+                       start_event: int = 0,
+                       end_event: int | None = None) -> dict:
+    """Event-aligned state diff: snapshots are taken at every write to
+    `trig` and compared by GLOBAL EVENT INDEX (no frame bucketing — no
+    Trap C). `align_value` drops each side's leading events until the
+    trigger's written value equals it (e.g. $1F = the standard player's
+    top-of-play $D418 write, skipping host/init-time $0F writes whose
+    counts differ between orig and rebuild)."""
+    orig_addrs = list(mapping.keys())
+    rebuild_addrs = [m[0] for m in mapping.values()]
+    ev_a = _run_memwatch_onwrite(orig_path, subtune, duration, trig, orig_addrs)
+    ev_b = _run_memwatch_onwrite(rebuild_path, subtune, duration, trig,
+                                 rebuild_addrs)
+    if align_value is not None:
+        def _skip(evs):
+            for i, e in enumerate(evs):
+                if e.get(-1) == align_value:
+                    return evs[i:]
+            return []
+        ev_a, ev_b = _skip(ev_a), _skip(ev_b)
+    n = min(len(ev_a), len(ev_b))
+    if end_event is None or end_event > n:
+        end_event = n
+    first_div = None
+    for k in range(start_event, end_event):
+        o, r = ev_a[k], ev_b[k]
+        diffs = []
+        for orig_a, (reb_a, label) in mapping.items():
+            ov, rv = o.get(orig_a), r.get(reb_a)
+            if ov is None or rv is None or ov != rv:
+                diffs.append((label, orig_a, reb_a, ov, rv))
+        if diffs:
+            first_div = (k, diffs)
+            break
+    return {
+        'orig_events': len(ev_a),
+        'rebuild_events': len(ev_b),
+        'range_examined': (start_event, end_event),
+        'first_div': first_div,
+        'events_a': ev_a, 'events_b': ev_b,
+    }
+
+
+def _format_onwrite(result: dict, mapping: dict) -> str:
+    lines = [
+        f'orig events:    {result["orig_events"]} (aligned)',
+        f'rebuild events: {result["rebuild_events"]} (aligned)',
+        f'range examined: e{result["range_examined"][0]}'
+        f'..e{result["range_examined"][1]}',
+    ]
+    fd = result['first_div']
+    if fd is None:
+        lines.append('NO STATE DIVERGENCE in mapped pairs across the range.')
+        return '\n'.join(lines)
+    k, diffs = fd
+    lines.append(f'\nFIRST STATE DIVERGENCE at play-event {k} '
+                 f'(event-aligned — NOT a siddump frame number):')
+    for label, oa, ra, ov, rv in diffs:
+        ov_s = f'${ov:02X}' if ov is not None else 'MISSING'
+        rv_s = f'${rv:02X}' if rv is not None else 'MISSING'
+        lines.append(f'  {label:30s}  orig ${oa:04X}={ov_s}  '
+                     f'rebuild ${ra:04X}={rv_s}')
+    # context: the diverging fields' trajectories ±4 events
+    lines.append('\ncontext (diverging fields, events '
+                 f'{max(0, k-4)}..{k+4}):')
+    ev_a, ev_b = result['events_a'], result['events_b']
+    for label, oa, ra, _ov, _rv in diffs[:6]:
+        traj_a = [ev_a[j].get(oa) for j in range(max(0, k-4),
+                                                 min(len(ev_a), k+5))]
+        traj_b = [ev_b[j].get(ra) for j in range(max(0, k-4),
+                                                 min(len(ev_b), k+5))]
+        fmt = lambda t: ' '.join('--' if v is None else f'{v:02X}'
+                                 for v in t)
+        lines.append(f'  {label:30s} orig [{fmt(traj_a)}]')
+        lines.append(f'  {"":30s} reb  [{fmt(traj_b)}]')
+    return '\n'.join(lines)
+
+
 def state_diff(orig_path: str, rebuild_path: str,
                mapping: dict[int, tuple[int, str]],
                subtune: int = 0, duration: float = 60.0,
@@ -257,15 +384,34 @@ def main() -> int:
     p.add_argument('--duration', type=float, default=10.0,
                    help='seconds (default 10)')
     p.add_argument('--start', type=int, default=0,
-                   help='start frame (inclusive, default 0)')
+                   help='start frame/event (inclusive, default 0)')
     p.add_argument('--end', type=int, default=None,
-                   help='end frame (exclusive, default min(orig,rebuild) frames)')
+                   help='end frame/event (exclusive, default min length)')
+    p.add_argument('--on-write', default=None, metavar='TRIG',
+                   help='EVENT-ALIGNED mode: snapshot at every write to hex '
+                        'addr TRIG and compare by global event index (kills '
+                        'Trap C). Use a register written exactly once per '
+                        'play() — the standard FC player: D418.')
+    p.add_argument('--align-value', default=None, metavar='VV',
+                   help='with --on-write: drop leading events until the '
+                        'trigger value equals hex VV (standard FC: 1F skips '
+                        'the host/init $0F writes, whose counts differ)')
     args = p.parse_args()
     if not os.path.exists(args.orig):
         print(f'orig not found: {args.orig}', file=sys.stderr); return 1
     if not os.path.exists(args.rebuild):
         print(f'rebuild not found: {args.rebuild}', file=sys.stderr); return 1
     mapping = _load_map(args.map)
+    if args.on_write:
+        result = state_diff_onwrite(
+            args.orig, args.rebuild, mapping,
+            trig=int(args.on_write, 16),
+            align_value=(int(args.align_value, 16)
+                         if args.align_value else None),
+            subtune=args.subtune, duration=args.duration,
+            start_event=args.start, end_event=args.end)
+        print(_format_onwrite(result, mapping))
+        return 0 if result['first_div'] is None else 2
     result = state_diff(args.orig, args.rebuild, mapping,
                         args.subtune, args.duration,
                         args.start, args.end)

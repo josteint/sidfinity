@@ -510,18 +510,45 @@ length byte re-dispatches fully, making $Ex reachable. encode_pattern's
 standard glide branch now emits instr first + the length UNCONDITIONALLY
 (idempotent nootleng re-set) before the $Ex triple.
 
-⚠ OPEN — Entrail @53174/127140: orig V2 (pat10 row2: note $39 dur 48,
-glide-down $0040 onset 4, inst20 fx1=$1D fx3=$40 → vibrato + glide BOTH
-run per frame, profiler-confirmed $1AE2 + $1B13 pairs) writes one extra
-(07,08) freq pair = $70C7 that the reb lacks; reb's vib+glide both go
-silent one frame earlier (memwatch: orig ctr reaches $60=96 before its
-note reset, reb resets after $5F=95 — the orig note appears ONE FRAME
-longer). $70C7 matches neither the vib (≈$1Cxx) nor the glide (≈$06xx)
-trajectories — provenance unidentified (memwatch frame-bucket skew makes
-the state dumps ±1-row ambiguous — Trap C). NEXT SESSION: build a
-paired per-IRQ writelog+state differ for the standard engine (the
-INVESTIGATION_BACKLOG reflex — this chase burned an hour on bucketing
-ambiguity), then re-localize.
+✅ RESOLVED (2026-06-10) — ENTRAIL FULL: play 127162/127162, audio✓. The
+$70C7 mystery = the **fx3-bit2 +$04 ARPEGGIO** ($1D1E-$1D51), the last
+unimplemented chain effect. Found via the NEW EVENT-ALIGNED STATE DIFFER
+(below), which proved NO semantic-state divergence across all 3676 play
+events — meaning the missing write was stateless-looking → an unemitted
+effect. Semantics:
+- fx3 bit2: per-note counter (orig $2161,x, set to 3 at note FETCH
+  $18D8) cycles 2→1→0→2; freq = freqtab[noho + arp3[counter]] written
+  lo,hi DIRECT every frame ($1D42; position after the $80 restore,
+  before ctrl). $70C7 = freq[74+7] ✓.
+- arp3 = the 3 bytes at orig $1E86-$1E88: slot 0 STATIC image data;
+  slots 1-2 REWRITTEN by every vibrato-skipped instrument's $2030 path
+  (fx1 hi/lo nibbles, or $0C/$18 when fx1==0 — last runner wins). THIS
+  is what the $2030 routine is for.
+- Reached by every non-wave inst (bit7-clear via $1CE8→$1D1E; the $80
+  restore falls through; the $80 ATTACK and wave insts skip to $1D52).
+- $80+bit2 insts write BOTH pairs per frame (restore then arp) →
+  composer fw_mode=3 (double-pair dispatch in nextvoice).
+- Composer: arp3_ctr per-voice (3 at note fetch in h3f_pattern),
+  arp3_tab seeded from the baked image bytes at song-init
+  (cfg.std_arp3_init, factory-probed; both Jarre/Entrail = 00 00 01),
+  slot rewrites in the chain's stdvib_skip path.
+Two red herrings en route: the "one frame longer note" (memwatch
+sampling skew) and the $70C7-vs-trajectories puzzle (it's a third
+effect's write). Also benign-by-construction: counter2 snapshot offset
+(orig INCs all 3 at frame top BEFORE the $D418 write; the composer now
+matches for the standard layout — RAM-only, stream-neutral) and the
+baked $1AF8 glide threshold (editor leftover, dead until the first $Ex).
+
+### THE TOOL (built for this): event-aligned state diff
+`tools/state_diff.py --on-write D418 --align-value 1F` — snapshots at
+every write to the trigger register and compares by GLOBAL EVENT INDEX
+(one event per play() for the standard player) — NO frame bucketing, NO
+Trap C. Map via `tools/state_map_gen.py --engine standard --sid SID.sid`
+(NEW --sid: per-member rebuild layout + orig reloc shift; annotation in
+standard/state_map.py — stream CURSORS tabcount/begcount intentionally
+unmapped, the composer re-encodes streams). "NO STATE DIVERGENCE +
+write divergence" = a missing/extra EFFECT EMISSION — exactly how this
+case cracked.
 
 ⚠ LATENT (found while triaging, unexercised by the sample): the orig
 parser, after an $Ex's param, FALLS INTO the $Cx/$8x dispatch ($192E →

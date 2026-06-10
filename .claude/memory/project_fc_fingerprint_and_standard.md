@@ -198,28 +198,38 @@ seq-$FF), $D417/$D416 via filt_pend17/filt_pend (D417 FIRST). Entrail
 prefix 18948→49752. The full standard effect chain is now: vibrato →
 glide → pulse → $40 → FILTER → wave → $80. Canaries 16/16.
 
-## ENTRAIL TRIAGE (2026-06-10): ✅ the GLIDE EMISSION ORDER bug fixed
-(prefix 49752→53174) — the composer parser checks only $8x-or-note after a
-$Cx, so [len][instr][$Ex] misread the $Ex as a length and played the glide
-PARAM as the note; encode now emits [instr][len-unconditional][$Ex] like
-the orig editor. ⚠ OPEN @53174: orig V2 writes an extra $70C7 freq pair /
-its note runs one frame longer (vib+glide both die early in reb);
-provenance unidentified — memwatch bucket skew (Trap C) blocked the state
-diff. ⚠ LATENT: glide 3rd byte can be a $Cx/$8x command in orig (parser
-falls into the dispatch); my decoder assumes note — unexercised so far.
+## ✅✅ ENTRAIL FULL (2026-06-10): play 127162/127162, audio✓ — 3rd member.
+Two bugs: (1) the GLIDE EMISSION ORDER (composer parser checks only
+$8x-or-note after $Cx → [len][instr][$Ex] misread the $Ex as a length;
+encode now emits [instr][len-unconditional][$Ex]); (2) the **fx3-bit2 +$04
+ARPEGGIO** ($1D1E — the LAST chain effect): per-note ctr (3 at fetch)
+cycles 2→1→0; freq = freqtab[noho+arp3[ctr]] lo,hi direct per frame; arp3
+= orig $1E86-88 (slot 0 baked → cfg.std_arp3_init factory-probed; slots
+1-2 rewritten by every vibrato-skipped inst's $2030 path = fx1 nibbles or
+$0C/$18 — THAT's what $2030 does); $80+bit2 insts write BOTH pairs →
+fw_mode=3 double dispatch. Cracked by the NEW TOOL (below): "no semantic-
+state divergence + writelog divergence" = an unemitted effect.
 
-## RESUME HERE (2026-06-10 — per-tune triage campaign):
-0. MANDATORY 3 questions; RE=standard/RE_NOTES.md (top: implemented chain,
-   variant census, the ENTRAIL OPEN item + latent bugs).
-1. **TOOL FIRST** (INVESTIGATION_BACKLOG reflex): a paired PER-IRQ
-   writelog+state differ for the standard engine (orig $21xx addrs vs reb
-   labels via state_map_gen) — the Entrail chase burned an hour on
-   memwatch frame-bucket ambiguity. Then re-localize Entrail @53174.
-2. The 9 position-~1 sample failures (check probe bytes / oddball builds
-   first), then the 2639-member batch bucketed by first-divergence
-   signature.
+## ✅ NEW TOOL: event-aligned state diff (Trap-C-free)
+`state_diff.py --on-write D418 --align-value 1F` + `state_map_gen --sid`
+(per-member maps) + `standard/state_map.py` annotation (stream cursors
+intentionally unmapped — the composer re-encodes streams). Also: the
+composer's standard layout now INCs counter2×3 at frame top before the
+$D418 write (orig $182A order; RAM-only, stream-neutral) so the state
+trigger-snapshots align exactly. Benign known diffs: baked $1AF8 glide
+threshold (dead until the first $Ex). Documented in CLAUDE.md +
+INVESTIGATION_BACKLOG.
+
+## RESUME HERE (2026-06-10 — widen the rollout):
+0. MANDATORY 3 questions; RE=standard/RE_NOTES.md (top: full chain incl.
+   +$04 arp, variant census, latent glide-3rd-byte caveat).
+1. The 9 remaining sample failures (fail at position ~1 — check their
+   probe bytes / oddball $2046 builds first; triage write-log-first; the
+   event-aligned state differ is the second tool to reach for).
+2. Then the 2639-member batch bucketed by first-divergence signature;
+   fix the biggest buckets first.
 Verdict: verify_featuredriven(fc_standard_config(sid)); localize with
-find_first_divergence + voice_writelog (mind Trap C).
+find_first_divergence + state_diff --on-write D418 --align-value 1F.
 
 Verdict tool: `verify_featuredriven(FC_STANDARD)` (shift becomes a real int once
 the note stream + base align). Diagnostic: per-frame writelog compare on

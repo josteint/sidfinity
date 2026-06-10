@@ -236,6 +236,12 @@ class FCConfig:
     # V3→$03). Stored as the operand's low 5 bits; the composer emits
     # sta $D400+reg,y — mirror-equivalent to the orig's absolute target.
     std_glide_hi_reg: int = 0x01
+    # Standard-player fx3-bit2 3-step ARPEGGIO (+$04 effect, orig $1D1E):
+    # baked initial values of the 3-byte offset table at orig $1E86-$1E88.
+    # Slots 1-2 are overwritten at runtime by every vibrato-skipped
+    # instrument (the $2030 path: fx1 nibbles, or $0C/$18 when fx1==0);
+    # slot 0 is static image data. Factory-probed.
+    std_arp3_init: tuple = (0x00, 0x00, 0x01)
     # If non-zero, write this value to $D418 at the TOP of every play frame
     # (before the voice loop), matching the vanilla FC player's $1833 vol write.
     # 0 = no top-of-frame vol write (Tel engines write vol elsewhere).
