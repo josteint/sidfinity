@@ -56,9 +56,17 @@ def _fx(flags: tuple, prefix: str):
     return None
 
 
-def encode_pattern(rows: list[NoteRow]) -> bytes:
+def encode_pattern(rows: list[NoteRow], instr_as_wavecount: bool = False) -> bytes:
     """Encode a USF pattern body (list of NoteRow) into an FC pattern byte
-    stream terminated by $FF."""
+    stream terminated by $FF.
+
+    `instr_as_wavecount` (standard FC player): emit a NoteRow's instrument as
+    a $C0|n wavecount-set command (the composer's instrument mechanism) instead
+    of the default $70|n arp-program select. The standard player selects its
+    instrument via the pattern's $Cx byte, which maps onto the composer's
+    wavecount path; the Tel default routes instrument through $7x. (The two
+    composer-parser ranges are distinct: $C0-$DF sets wavecount, $70-$7F selects
+    an arp program — so the standard instrument MUST ride the $Cx path.)"""
     out = bytearray()
     prev_dur = None
     for row in rows:
@@ -97,7 +105,10 @@ def encode_pattern(rows: list[NoteRow]) -> bytes:
             prev_dur = row.duration
 
         if row.instr is not None:
-            out.append(0x70 | ((row.instr.id - 1) & 0x0F))
+            if instr_as_wavecount:
+                out.append(0xC0 | ((row.instr.id - 1) & 0x1F))
+            else:
+                out.append(0x70 | ((row.instr.id - 1) & 0x0F))
 
         out.append(byte_from_pitch(row.pitch))
     out.append(0xFF)
@@ -110,7 +121,7 @@ def _row_key(r: NoteRow):
             r.instr.id if r.instr else None, tuple(sorted(r.fx_flags)))
 
 
-def build_pattern_pool(music_subtunes: list):
+def build_pattern_pool(music_subtunes: list, instr_as_wavecount: bool = False):
     """Collect every voice's patterns into a global dense pool, deduped by
     content. Returns (slot_streams, localmaps):
 
@@ -130,7 +141,8 @@ def build_pattern_pool(music_subtunes: list):
                 if slot is None:
                     slot = len(slot_streams)
                     key_to_slot[key] = slot
-                    slot_streams.append(encode_pattern(pat.rows))
+                    slot_streams.append(encode_pattern(
+                        pat.rows, instr_as_wavecount=instr_as_wavecount))
                 lm[pat.id] = slot
             localmaps[(sub.id, v.id)] = lm
     return slot_streams, localmaps
@@ -177,7 +189,8 @@ def encode_sequence(orderlist: Orderlist, localmap: dict[int, int]) -> bytes:
     return bytes(out)
 
 
-def build_music_data(music_subtunes: list, music_base: int) -> dict:
+def build_music_data(music_subtunes: list, music_base: int,
+                     instr_as_wavecount: bool = False) -> dict:
     """Lay out the full FC music data block (seq_table + pattern_ptr_table +
     pattern streams + sequence streams) starting at `music_base`.
 
@@ -191,7 +204,8 @@ def build_music_data(music_subtunes: list, music_base: int) -> dict:
       pattern streams   concatenated, one per global slot
       sequence streams  concatenated, one per (subtune, voice)
     """
-    slot_streams, localmaps = build_pattern_pool(music_subtunes)
+    slot_streams, localmaps = build_pattern_pool(
+        music_subtunes, instr_as_wavecount=instr_as_wavecount)
     n_slots = len(slot_streams)
     n_sub = max((s.id for s in music_subtunes), default=0)   # 1-based ids
 

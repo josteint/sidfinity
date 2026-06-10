@@ -939,9 +939,27 @@ def _emit_std_wave_chain() -> str:
     sel = fx1sto & $0F. Writes ctrl shadow from std_wave_ctrl[idx]; freq comes
     in a follow-up step (modes). Falls to nextvoice (bypassing the Tel chain)."""
     return """std_wave_chain:
+        ; $40 effect (inst +7 bit6) — wave-arp ctrl cycle (orig $1BE0-$1BFA).
+        ; Same musical concept as the Tel fx_wave_arp (USF wave_arp = the
+        ; ctrl-value table = content); the standard chain bypasses the Tel
+        ; chain so the interpreter lives here. Hold the note-load waveform for
+        ; `wavearpwait` frames, then cycle wavearp[counter2&3] into the ctrl
+        ; shadow each frame. Runs before the wave program (matches orig order;
+        ; if an instrument set both bits, the wave program ctrl wins, as in orig).
+        lda fx3sto
+        and #$40
+        beq stdw_waveprog            ; $40 effect not enabled
+        lda counter2,x               ; frames since note-load
+        cmp #wavearpwait             ; onset delay (player constant; std = 3)
+        bcc stdw_waveprog            ; still in the held-waveform onset window
+        and #$03                     ; counter & 3 (4-entry cycle)
+        tay
+        lda wavearp,y
+        sta stod404,x                ; ctrl shadow (→ $D404 via nextvoice)
+stdw_waveprog:
         lda fx3sto
         and #$10
-        beq stdw_done                ; wave effect not enabled
+        beq stdw_done                ; wave program not enabled
         lda counter2,x               ; clk = frames since note
         cmp #$10
         bcc stdw_clk
@@ -3718,7 +3736,10 @@ def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
     if cfg.emit_data_from_usf:
         from pipelines.future_composer.data_emit import build_music_data
         music_base = max(end for _, _, end in sections)
-        music_data = build_music_data(music_subs, music_base)
+        music_data = build_music_data(
+            music_subs, music_base,
+            instr_as_wavecount=(getattr(cfg, 'pattern_format', 'tel')
+                                == 'standard'))
         cfg = _dc.replace(cfg,
             seq_table_addr=music_data['seq_table_addr'],
             pattern_ptr_addr=music_data['pattern_ptr_addr'])

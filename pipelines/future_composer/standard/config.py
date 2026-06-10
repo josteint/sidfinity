@@ -27,6 +27,8 @@ FC_STANDARD = FCConfig(
     load_addr=0x1000,               # our own engine below the $1D64 data
 
     pulsetabel_addr=0x1E95,
+    wavearp_addr=0x1E32,            # $40 effect: 4-byte ctrl-cycle table ($1E32)
+    wavearpwait=3,                  # onset delay (orig $1BEC CMP #$03)
     pulse_prog_format='standard',
     instr_format='standard',
     pattern_format='standard',
