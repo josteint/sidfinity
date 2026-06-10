@@ -499,6 +499,37 @@ reset 0 at any sequence-$FF wrap. $D417/$D416 are chain-armed pendings
 (filt_pend17/filt_pend) consumed by nextvoice between PW and freq —
 $D417 FIRST (orig $1C4B before $1C78).
 
+## ENTRAIL TRIAGE (2026-06-10) — one fixed, one open
+✅ FIXED — the GLIDE EMISSION ORDER bug (prefix 49752 → 53174): the
+composer's parser, after a $Cx instrument, checks only $8x-or-note (the
+orig's structure); my encode emitted [len][instr][$Ex...] so the $Ex
+straight after the instrument was misread as a LENGTH and the glide's
+PARAM byte became the NOTE (V2 played $30=48 instead of $32=50; reb noho
+probe confirmed). The orig editor always emits [instr][len][$Ex] — a
+length byte re-dispatches fully, making $Ex reachable. encode_pattern's
+standard glide branch now emits instr first + the length UNCONDITIONALLY
+(idempotent nootleng re-set) before the $Ex triple.
+
+⚠ OPEN — Entrail @53174/127140: orig V2 (pat10 row2: note $39 dur 48,
+glide-down $0040 onset 4, inst20 fx1=$1D fx3=$40 → vibrato + glide BOTH
+run per frame, profiler-confirmed $1AE2 + $1B13 pairs) writes one extra
+(07,08) freq pair = $70C7 that the reb lacks; reb's vib+glide both go
+silent one frame earlier (memwatch: orig ctr reaches $60=96 before its
+note reset, reb resets after $5F=95 — the orig note appears ONE FRAME
+longer). $70C7 matches neither the vib (≈$1Cxx) nor the glide (≈$06xx)
+trajectories — provenance unidentified (memwatch frame-bucket skew makes
+the state dumps ±1-row ambiguous — Trap C). NEXT SESSION: build a
+paired per-IRQ writelog+state differ for the standard engine (the
+INVESTIGATION_BACKLOG reflex — this chase burned an hour on bucketing
+ambiguity), then re-localize.
+
+⚠ LATENT (found while triaging, unexercised by the sample): the orig
+parser, after an $Ex's param, FALLS INTO the $Cx/$8x dispatch ($192E →
+L_1930) — the glide's 3rd byte can be a command, not a note. My
+_parse_pattern_standard assumes 3rd-byte-is-note. All Entrail/sample
+glides have note 3rd-bytes; fix when a family SID hits it (the decoder
+should re-dispatch $Cx/$8x after the param like the orig).
+
 ## (RE preserved below for reference)
 ### the FILTER bit-SET path — COMPLETE RE (incl. $2172)
 Routine $1BFE-$1C78, table $1E89 = 12 bytes [6 cutoffs][6 thresholds],

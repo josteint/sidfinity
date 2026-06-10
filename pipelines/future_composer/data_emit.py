@@ -94,11 +94,16 @@ def encode_pattern(rows: list[NoteRow], instr_as_wavecount: bool = False) -> byt
             if g_up is not None or g_down is not None:
                 speed = g_down if g_down is not None else g_up
                 onset = _fx(row.fx_flags, 'glide_onset=') or 0
-                if row.duration != prev_dur:
-                    out += _encode_length(row.duration)
-                    prev_dur = row.duration
+                # ORDER MATTERS: [instr][len][$Ex...] — after a $Cx the
+                # parser checks only $8x-or-note (orig structure), so an
+                # $Ex straight after an instrument would be misread as a
+                # length. A length byte re-dispatches fully, so the $Ex
+                # must ride behind one — emitted unconditionally
+                # (idempotent nootleng re-set, no SID writes).
                 if row.instr is not None:
                     out.append(0xC0 | ((row.instr.id - 1) & 0x1F))
+                out += _encode_length(row.duration)
+                prev_dur = row.duration
                 cmd = (0xE0 | (1 if g_down is not None else 0)
                        | (((speed >> 8) & 0x07) << 1))
                 out += bytes((cmd, (speed & 0xF0) | (onset & 0x0F),

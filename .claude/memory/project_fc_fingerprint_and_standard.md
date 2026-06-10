@@ -198,18 +198,26 @@ seq-$FF), $D417/$D416 via filt_pend17/filt_pend (D417 FIRST). Entrail
 prefix 18948→49752. The full standard effect chain is now: vibrato →
 glide → pulse → $40 → FILTER → wave → $80. Canaries 16/16.
 
+## ENTRAIL TRIAGE (2026-06-10): ✅ the GLIDE EMISSION ORDER bug fixed
+(prefix 49752→53174) — the composer parser checks only $8x-or-note after a
+$Cx, so [len][instr][$Ex] misread the $Ex as a length and played the glide
+PARAM as the note; encode now emits [instr][len-unconditional][$Ex] like
+the orig editor. ⚠ OPEN @53174: orig V2 writes an extra $70C7 freq pair /
+its note runs one frame longer (vib+glide both die early in reb);
+provenance unidentified — memwatch bucket skew (Trap C) blocked the state
+diff. ⚠ LATENT: glide 3rd byte can be a $Cx/$8x command in orig (parser
+falls into the dispatch); my decoder assumes note — unexercised so far.
+
 ## RESUME HERE (2026-06-10 — per-tune triage campaign):
-0. MANDATORY 3 questions; RE=standard/RE_NOTES.md (top = the implemented
-   chain + variant census; everything structural is DONE).
-1. **Triage the sample failures one by one** (write-log-first:
-   find_first_divergence + voice_writelog + effect_chain_profiler):
-   - Entrail @49752/127140: V2 freq hi $12 vs $10 ~1 min in (value diff —
-     transpose/glide accumulation? investigate).
-   - 9 others fail at position ~1 (first-feature missing/different —
-     check their $2046/$1B3F/init-shape probe bytes first; some are the
-     ~19 oddball builds).
-2. Widen to the 2639-member batch; bucket failures by first-divergence
-   signature; fix the biggest buckets first.
+0. MANDATORY 3 questions; RE=standard/RE_NOTES.md (top: implemented chain,
+   variant census, the ENTRAIL OPEN item + latent bugs).
+1. **TOOL FIRST** (INVESTIGATION_BACKLOG reflex): a paired PER-IRQ
+   writelog+state differ for the standard engine (orig $21xx addrs vs reb
+   labels via state_map_gen) — the Entrail chase burned an hour on
+   memwatch frame-bucket ambiguity. Then re-localize Entrail @53174.
+2. The 9 position-~1 sample failures (check probe bytes / oddball builds
+   first), then the 2639-member batch bucketed by first-divergence
+   signature.
 Verdict: verify_featuredriven(fc_standard_config(sid)); localize with
 find_first_divergence + voice_writelog (mind Trap C).
 
