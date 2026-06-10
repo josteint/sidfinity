@@ -131,20 +131,29 @@ waveform&$FE — the order asymmetry handled by a per-voice nt_flag armed by the
 chain, consumed by nextvoice's freq slot (unconditional lo,hi, self-clearing).
 V3 attack+restore verified EXACT (values + order). Writes 11544→13494 (orig 17189).
 
-## RESUME HERE (2026-06-10 — remaining effects, biggest lever first):
+## ✅ PULSE SWEEP DONE (2026-06-10, commit 23c9f22): top of std_wave_chain,
+gated pulse_prog_format=='standard'. CORRECTED bands: ctr<=thr_a→step1;
+thr_a<ctr<=thr_b→step2; ctr>thr_b→DEFAULT=fx2&$FC; selector=fx2&7 (overlapping
+fields); fx2&7==0 → explicit default branch (orig does an OOB table read at -4
+that resolves to default — composer doesn't reproduce the mechanism). Acc=
+d402/d403 shadows + dir=pulsetest (both pre-existing, note-load-init'd, tie-
+skipped — NO new state). Gated 4-byte pulsetabel emission at (n-1)*4. Deleted
+the inert Tel-chain splice. V2 exact; V3 exact until the early-note residual.
+Match prefix 1→11 writes; f1 matches through V3+V2+V1-PW.
+
+## RESUME HERE (2026-06-10 — first diff = V1's f1 tail; see RE_NOTES top):
 0. MANDATORY 3 questions: docs=pipelines/future_composer/docs/; disasm=standard/
    disassembly.s; RE=standard/RE_NOTES.md (READ the top sections — turnkey).
-1. **PULSE sweep** — orig V2 PW +$40/frame, V3 +$C0/frame = exactly fx2 & $FC
-   (inst1=$40, inst7=$C0) = the pulse DEFAULT step ($2154&$FC, the ctr<thr_b
-   band). The spliced standard pulse emitter (cut 2026-06-09,
-   _splice_standard_pulse_prog) is NOT producing it — selector/default-step
-   wiring missing or splice inert. Acc: 16-bit ±= step, dir flips hi<$01/>=$0F.
-2. **Vibrato** (V3, +5=$27): orig writes a freq pair ($25AE) BEFORE the $80
-   restore overwrites ($25A2) — both in the stream. Map $1A0A-$1B3F.
-3. **Filter $D416=$FF every frame from f1** (global reg) — find the driver ($1C00).
-4. Wave-program FREQ part + modes (ctrl done); then the base counter INIT-PHASE
-   (the $40 onset 1 tick late = per-voice counter phasing from init pre-roll);
-   then relocation (load $1800/$4800/... → derive addrs) → ONE config for 3673.
+1. **Wave-program FREQ part** — confirmed live on V1 f1: inst +5 bit4 CLEAR =
+   ABSOLUTE mode freq hi = freqtab[clk-1]+$0D, lo=$00 (sel1 $24+$0D=$31 ✓);
+   bit4 SET = RELATIVE $2130,x + freqtab[clk-1]. Emit in the std wave block
+   (ctrl already done); shadows + lastfreq; check orig write order $1CC5/$1CCF.
+2. **$D416=$FF** between V1's PW and freq — from the chain's filter-bit-CLEAR
+   path ($1C2F) though inst4 has no filter bit. Read $1C00-$1C7B both paths.
+3. **Vibrato** (V3, +5=$27): freq pair $25AE before $80-restore $25A2 (f4+).
+   Map $1A0A-$1B3F.
+4. Note timing / counter INIT-PHASE (reb V3 notes ~2 frames early; $40 onset
+   1 tick late); then relocation (load $1800/$4800/...) → ONE config for 3673.
 Verdict: verify_featuredriven(FC_STANDARD); localize with find_first_divergence +
 tools/voice_writelog.py per voice (mind Trap C — frame numbers ≠ play() calls).
 

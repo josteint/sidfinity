@@ -314,20 +314,43 @@ the chain each restore frame and consumed by nextvoice's freq slot
 chain — use the normal conditional path). Verified exact on Jarre_2 V3 f1-f4
 (values AND order). Rebuild writes 11544→13494 (orig 17189).
 
-### Remaining V3/V2 divergences (next levers, biggest first)
-1. **PULSE sweep** — orig V2 PW +$40/frame, V3 +$C0/frame = exactly each
-   instrument's fx2 & $FC (inst1=$40, inst7=$C0) = the pulse routine's DEFAULT
-   step ($2154 & $FC, the ctr<thr_b band). So these voices sweep on the default
-   step alone (no 4-byte program thresholds involved). The spliced standard
-   pulse emitter (cut 2026-06-09) is NOT producing this — likely the program
-   selector / default-step wiring is missing or the splice is inert. Acc model:
-   16-bit acc ±= step, dir flips at hi<$01 / hi>=$0F (RE_NOTES top).
-2. **Vibrato** (V3, inst +5=$27 when wave bit4 unset?) — orig writes a freq pair
-   ($25AE lo,hi) BEFORE the $80 restore overwrites with $25A2 (both visible in
-   the stream, e.g. f4). Map the $1A0A-$1B3F chain segment for the vibrato
-   semantics (speed/depth from +5).
-3. **Filter $D416=$FF every frame from f1** — appears in every voice's filtered
-   view (global reg). Find which inst/condition drives it ($1C00 routine).
+## ✅ PULSE SWEEP DONE (2026-06-10, commit 23c9f22) — corrected semantics
+$1B41-$1BDD, body at the TOP of std_wave_chain (orig chain order pulse→$40→
+wave→$80), gated pulse_prog_format=='standard'. CORRECTED step schedule (the
+older notes above had the bands backwards): ctr<=thr_a → step1; thr_a<ctr<=
+thr_b → step2; ctr>thr_b → DEFAULT step = fx2&$FC. Program selector = fx2&7
+(OVERLAPS the default-step field). **fx2&7==0 quirk:** the orig indexes the
+table at -4 and compares OUT-OF-TABLE bytes; for real tunes these resolve
+below ctr → default band (proof: V2 +$40/frame and V3 +$C0/frame = each
+inst's own fx2&$FC — one shared garbage step couldn't make both). Composer
+emits an explicit fx2&7==0→default branch (tenet: no OOB-read mechanism).
+Acc = d402/d403 shadows + dir = pulsetest,x — both already note-load-init'd
+(lo=0/hi=pw&$0F, dir=1) and tie-skipped; NO new state. Flips at hi<$01/>=$0F.
+fx2==0 → no acc update (shadows still hit SID via nextvoice). Data: gated
+4-byte [thr_a,step1,thr_b,step2] emission at (n-1)*4 (Tel keeps 8-byte).
+DELETED the inert splice (_standard_pulse_prog_body/_splice_…) — it patched
+the Tel chain which the standard layout bypasses; it never ran. NOT emitted:
++$B0 write-time jitter (inst raw[0] bit7, odd frames; acc unaffected) — no
+Jarre_2 inst uses it; implement when a family SID exercises it.
+Verified: V2 exact; V3 exact until the known ~2-frame-early note advance.
+
+### Remaining divergences (match prefix now 11; first diff = V1's f1 block)
+Frame 1 now matches through V3 (PW sweep, $80 attack, ctrl $81) + V2 + V1 PW.
+Orig V1 f1 tail: …PWlo $00, PWhi $08, **$D416=$FF**, freq $31,$00 (hi,lo),
+ctrl $81. Reb is missing the two middle pieces:
+1. **Wave-program FREQ part** — confirmed live: inst4 +5=$01 → sel1, mode
+   bit4 CLEAR = ABSOLUTE → freq hi = freqtab[clk-1]+$0D, lo=$00. sel1
+   freq[0]=$24 → $24+$0D=$31 ✓. Relative mode (+5 bit4 set) = $2130,x +
+   freqtab[clk-1]. Emit in the wave block (ctrl part already there); write
+   via shadows + lastfreq (hi,lo order fits nextvoice's conditional path —
+   verify the orig order at the wave routine, $1CC5/$1CCF region).
+2. **$D416=$FF** — written between V1's PW and freq, i.e. from V1's chain
+   slice though inst4 has NO filter bit (+7 bit0 clear). Read the $1C00
+   bit-clear path ($1C2F) — likely a default/off $D416 write each frame.
+3. **Vibrato** (V3, +5=$27): freq pair ($25AE) before the $80 restore
+   overwrites ($25A2), from f4-ish. Map $1A0A-$1B3F.
+4. **Note timing / counter init-phase**: reb V3 advances notes ~2 frames
+   early; the $40 onset 1 tick late. Same family of base-timing phasing.
 First divergence (find_first_divergence Jarre_2 vs reb, frame 1, SID V3):
   orig: V3 PW=$01C0 (pulse sweep), freq=$4800, ctrl=$81 ; V2 PW=$0240, ctrl=$41
   reb : V3 PW=$0000, ctrl=$00, NO freq ; (effects not emitting)
