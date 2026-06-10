@@ -302,11 +302,32 @@ V2 is 1 tick behind orig. ALSO a separate note-DURATION discrepancy (reb V2 note
 ~2 frames early). Both are base counter/tempo init-phasing — broader than the $40
 effect, shared across effects — NOT yet fixed. The $40 VALUES are correct.
 
-### Remaining: the per-frame EFFECT CHAIN (the actual blocker now)
-Verdict still shift=None: reb 11544 writes vs orig 17189 (~5600 short). The
-dominant melody voice V3 (inst7, the $80 effect, pat7/8/9 = many notes) plus
-pulse + filter aren't emitted — they account for most of the gap. The $40 effect
-(V2) alone can't align the stream. Next biggest lever: the $80 effect (V3).
+## ✅ $80 EFFECT DONE (2026-06-10, commit 13beae3) — V3 attack+restore EXACT
+= noise_tick reuse (same fx3 bit as Hawkeye's; 0x80→'noise_tick' mapping
+pre-existed): new `noise_tick_style='standard'`, body in std_wave_chain (after
+the wave program, matching orig chain order $1C7B→$1CE3). Semantics: counter<2
+→ freq=$4800 (written HI,LO via the conditional-freq path) + ctrl=$81; counter
+>=2 → BASE note freq rewritten EVERY frame LO,HI (orig $1D0A) + ctrl=
+waveform&$FE. The order asymmetry is handled by a per-voice `nt_flag` armed by
+the chain each restore frame and consumed by nextvoice's freq slot
+(unconditional lo,hi write; self-clearing so note-load frames — which skip the
+chain — use the normal conditional path). Verified exact on Jarre_2 V3 f1-f4
+(values AND order). Rebuild writes 11544→13494 (orig 17189).
+
+### Remaining V3/V2 divergences (next levers, biggest first)
+1. **PULSE sweep** — orig V2 PW +$40/frame, V3 +$C0/frame = exactly each
+   instrument's fx2 & $FC (inst1=$40, inst7=$C0) = the pulse routine's DEFAULT
+   step ($2154 & $FC, the ctr<thr_b band). So these voices sweep on the default
+   step alone (no 4-byte program thresholds involved). The spliced standard
+   pulse emitter (cut 2026-06-09) is NOT producing this — likely the program
+   selector / default-step wiring is missing or the splice is inert. Acc model:
+   16-bit acc ±= step, dir flips at hi<$01 / hi>=$0F (RE_NOTES top).
+2. **Vibrato** (V3, inst +5=$27 when wave bit4 unset?) — orig writes a freq pair
+   ($25AE lo,hi) BEFORE the $80 restore overwrites with $25A2 (both visible in
+   the stream, e.g. f4). Map the $1A0A-$1B3F chain segment for the vibrato
+   semantics (speed/depth from +5).
+3. **Filter $D416=$FF every frame from f1** — appears in every voice's filtered
+   view (global reg). Find which inst/condition drives it ($1C00 routine).
 First divergence (find_first_divergence Jarre_2 vs reb, frame 1, SID V3):
   orig: V3 PW=$01C0 (pulse sweep), freq=$4800, ctrl=$81 ; V2 PW=$0240, ctrl=$41
   reb : V3 PW=$0000, ctrl=$00, NO freq ; (effects not emitting)

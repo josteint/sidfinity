@@ -123,25 +123,28 @@ V2 acts as if counter is +1; orig advances some voices' counters during
 init/pre-roll). Plus a note-duration discrepancy (reb V2 note2 ~2 frames early).
 Both are base counter/tempo init-phasing, NOT $40-specific; the $40 VALUES are right.
 
-## RESUME HERE (2026-06-10 — the rest of the effect chain + the base timing):
+## ✅ $80 EFFECT DONE (2026-06-10, commit 13beae3): = noise_tick reuse (same fx3
+bit as Hawkeye's, 0x80→'noise_tick' pre-existed). noise_tick_style='standard',
+body in std_wave_chain after the wave program. counter<2 → freq=$4800 (HI,LO via
+conditional-freq) + ctrl=$81; counter>=2 → BASE freq EVERY frame LO,HI + ctrl=
+waveform&$FE — the order asymmetry handled by a per-voice nt_flag armed by the
+chain, consumed by nextvoice's freq slot (unconditional lo,hi, self-clearing).
+V3 attack+restore verified EXACT (values + order). Writes 11544→13494 (orig 17189).
+
+## RESUME HERE (2026-06-10 — remaining effects, biggest lever first):
 0. MANDATORY 3 questions: docs=pipelines/future_composer/docs/; disasm=standard/
-   disassembly.s; RE=standard/RE_NOTES.md (READ the top sections — turnkey, has
-   the effect-flag map, $40+$80 decodes, the counter-phase finding). Then memory.
-1. **$80 EFFECT (V3, inst7) — the biggest remaining lever.** Verdict shift=None,
-   reb 11544 writes vs orig 17189 (~5600 short); V3 (pat7/8/9, many notes) is the
-   dominant voice and its $80 effect isn't emitted. DECODED ($1CE3-$1D1D): +7
-   bit7; if counter $2142,x <2 → freq=$4800 + ctrl=$81 (a 2-frame NOISE-CLICK
-   attack transient); else freq=note's stored freq, ctrl=note's ctrl & $FE. It's
-   a drum ATTACK — parametric {attack_freq=$4800, attack_ctrl=$81, attack_frames=2},
-   NO table → likely a small parametric "attack" effect (NOT a wavetable; check
-   for an existing attack_* representation first, e.g. types.py attack_len/wave).
-2. Standard pulse sweep ($1E95, emitter cut/unverified) + selector wiring; filter
-   ($1E89, inst9); wave-program FREQ part + modes (ctrl done).
-3. The base counter/tempo INIT-PHASE (the $40 residual + note-duration): orig
-   advances some voices' counter2 during init so V1/V2/V3 have a 1-frame inter-
-   voice phase the reb lacks. Investigate the standard init/pre-roll ($2108 init
-   + first play) — how many times play() runs / which voices advance before f0.
-4. Relocation handling (load $1800/$4800/... → derive addrs) → ONE config for 3673.
+   disassembly.s; RE=standard/RE_NOTES.md (READ the top sections — turnkey).
+1. **PULSE sweep** — orig V2 PW +$40/frame, V3 +$C0/frame = exactly fx2 & $FC
+   (inst1=$40, inst7=$C0) = the pulse DEFAULT step ($2154&$FC, the ctr<thr_b
+   band). The spliced standard pulse emitter (cut 2026-06-09,
+   _splice_standard_pulse_prog) is NOT producing it — selector/default-step
+   wiring missing or splice inert. Acc: 16-bit ±= step, dir flips hi<$01/>=$0F.
+2. **Vibrato** (V3, +5=$27): orig writes a freq pair ($25AE) BEFORE the $80
+   restore overwrites ($25A2) — both in the stream. Map $1A0A-$1B3F.
+3. **Filter $D416=$FF every frame from f1** (global reg) — find the driver ($1C00).
+4. Wave-program FREQ part + modes (ctrl done); then the base counter INIT-PHASE
+   (the $40 onset 1 tick late = per-voice counter phasing from init pre-roll);
+   then relocation (load $1800/$4800/... → derive addrs) → ONE config for 3673.
 Verdict: verify_featuredriven(FC_STANDARD); localize with find_first_divergence +
 tools/voice_writelog.py per voice (mind Trap C — frame numbers ≠ play() calls).
 
