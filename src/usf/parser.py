@@ -697,6 +697,15 @@ class _T(Transformer):
     def fx_glide(self, items):
         return f'glide={int(items[0])}'
 
+    def fx_glide_up(self, items):
+        return f'glide_up=${int(items[0]):04X}'
+
+    def fx_glide_down(self, items):
+        return f'glide_down=${int(items[0]):04X}'
+
+    def fx_glide_onset(self, items):
+        return f'glide_onset={int(items[0])}'
+
     def fx_wave_adjust(self, items):
         return f'wave_adjust={int(items[0])}'
 

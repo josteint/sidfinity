@@ -176,17 +176,32 @@ composer sizes from USF). Verify fixes: fractional Songlengths; trichotomy
 Check-A default = host state ($D418=$0F pre-init) → deferred-init members
 (Prato init = ZERO SID writes, $210E=$2C variant) verify.
 
-## RESUME HERE (2026-06-10 — the $Ex GLIDE, then re-batch):
-0. MANDATORY 3 questions; RE=standard/RE_NOTES.md top ("NEXT: the $Ex
-   GLIDE" — full RE + the parser-discards-param bug + implementation list).
-1. **$Ex GLIDE** (blocks Entrail_Ranx @17376/127140 + likely more of the 9
-   failing sample tunes): parser must carry (dir, speed_hi, speed_lo,
-   threshold) — currently DISCARDS the param byte; then to_usf + gated
-   encode + composer $Ex handler + chain block (shadow-MUTATING lo,hi
-   direct writes between vibrato and pulse; globals last-parsed-wins).
-2. Re-batch /tmp/fc_std_sample.json (12 tunes; Jarre+Prato pass, 9 others
-   shift=None, 1 was the songlength crash now fixed), then widen to the
-   2639-member list; write-log-first per new failure.
+## ✅ $Ex GLIDE DONE (2026-06-10): USF grammar grew glide_up/glide_down
+(16-bit rate) + glide_onset (directional portamento — new point shape in the
+same parameter space as Tel's glide=N); PatGlide carries (direction, speed,
+onset); standard encode; gated composer $Ex parse handler (sgl_* state,
+threshold = variable not SMC); chain block between vibrato and pulse
+(MUTATES lonotesto/hinotesto so $80-restore sees glided freq; d400/d401 +
+lastfreq track intent). PLUS the MIRROR-WRITE variant: orig $1B3F operand
+$55 (20 members) makes the glide-up hi write land on SID-mirrored regs
+((op+d4point)&$1F); cfg.std_glide_hi_reg, factory-probed, emitted as
+sta $D400+reg,y (mirror-equivalent). Entrail prefix 17376→18948.
+
+## RESUME HERE (2026-06-10 — the FILTER bit-SET path, then re-batch):
+0. MANDATORY 3 questions; RE=standard/RE_NOTES.md top ("NEXT: the FILTER
+   bit-SET path" — COMPLETE RE incl. the $2172 res/routing counter: init
+   constant $B0 seeded by the composer's song-init (engine bookkeeping),
+   reset 0 at sequence-$FF; 6-band cutoff envelope, band0 also writes
+   $D417 = $2172+voice_mask when ($2172 & mask)==0; bands 4..1 are
+   INCREMENTAL cutoff += table[k], band 5 + 0 absolute).
+1. **REPRESENTATION decision first** (schema-discipline checklist): the
+   standard filter = ONE 12-byte 6-band envelope vs Tel filter_programs
+   (3-seg). Extend along the musical axis (variable band count) — never a
+   kind. Then: decoder (std filter addr = $1E89 reloc) + emit + chain block.
+   Blocks Entrail @18948/127140.
+2. Re-batch /tmp/fc_std_sample.json (Jarre+Prato pass; 9 to triage — some
+   need the filter; triage each via find_first_divergence), then widen to
+   the 2639-member list. ~19 oddball $2046 builds need triage too.
 Verdict: verify_featuredriven(fc_standard_config(sid)); localize with
 find_first_divergence + voice_writelog (mind Trap C).
 

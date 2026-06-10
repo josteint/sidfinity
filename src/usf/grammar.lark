@@ -308,6 +308,14 @@ fx_flag: "tie"                  -> fx_tie
        // with an N-frame onset delay; wave_adjust = per-note wave-table
        // offset; filter = direct $D417 write.
        | "glide" "=" INT        -> fx_glide
+       // Standard-FC directional portamento: a constant per-frame rate
+       // (16-bit) toward up/down, starting after `glide_onset` ticks of
+       // the note. Same musical concept as `glide` (Tel: slide-to-target
+       // with delay) — a different point in the portamento parameter
+       // space (direction+rate+onset vs target+delay).
+       | "glide_up" "=" number    -> fx_glide_up
+       | "glide_down" "=" number  -> fx_glide_down
+       | "glide_onset" "=" INT    -> fx_glide_onset
        | "wave_adjust" "=" INT  -> fx_wave_adjust
        | "filter" "=" number    -> fx_filter
        // FC $F0 marker: play this note WITHOUT retriggering the

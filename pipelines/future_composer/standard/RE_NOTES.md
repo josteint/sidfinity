@@ -451,6 +451,56 @@ Full RE (from $18FC + $1AEB-$1B40):
   composer's $Ex parse handler + the chain glide block.
 Then re-batch /tmp/fc_std_sample.json (9 tunes still shift=None) +
 widen to the full member list.
+
+## ✅ $Ex GLIDE DONE (2026-06-10) + the MIRROR-WRITE variant
+Implemented across all layers: USF grammar/parser grew `glide_up=$RRRR` /
+`glide_down=$RRRR` / `glide_onset=N` (directional-rate portamento — a new
+point shape in the same parameter space as Tel's `glide=N` slide-to-target);
+PatGlide carries (direction, speed, onset); standard 3-byte encode; gated
+composer $Ex parse handler (sgl_dir,x per voice + sgl_spd_lo/hi + sgl_thresh
+GLOBALS, last-$Ex-wins, threshold as a variable not the orig's SMC); chain
+block between vibrato and pulse — MUTATES lonotesto/hinotesto (so $80-restore
+sees the glided freq), writes lo,hi direct, d400/d401+lastfreq track intent.
+
+**MIRROR-WRITE variant** (one static operand byte at orig $1B3F, the glide-UP
+hi write): $01 = 2739/2760 members (normal freq hi); $55 = 20 members (e.g.
+Entrail_Ranx) — STA $D455,Y lands on SID-MIRRORED registers (($55+d4point) &
+$1F: V1→$15 cutoff-lo, V2→$1C, V3→$03). cfg.std_glide_hi_reg (low 5 bits,
+factory-probed); the composer emits sta $D400+reg,y (mirror-equivalent), and
+the freq shadows/lastfreq still track the engine's INTENT (the chip's freq-hi
+stays stale exactly as in orig). Verified on Entrail: prefix 17376 → 18948.
+
+## VARIANT CENSUS (2760 members, the factory's probe bytes)
+- $2046 (vibrato-skip JMP): $EB ×2694, $DC ×34 (stale-tail), ~19 oddballs
+  (likely different builds — triage when batched).
+- $1B3F (glide-up hi): $01 ×2739, $55 ×20 (mirror-write).
+- $1B20 (glide-down hi): $01 ×2759 — no variant.
+- init JMP target: $2108 ×1245, $2000 ×972, + tail — IRRELEVANT under
+  universal_reset except where end-of-init STATE differs (trichotomy
+  Check-A catches per tune; the host default now includes $D418=$0F).
+
+## NEXT: the FILTER bit-SET path — COMPLETE RE (incl. $2172), needs a
+## representation decision before coding
+Routine $1BFE-$1C78, table $1E89 = 12 bytes [6 cutoffs][6 thresholds],
+ctr = counter2 (frames since note):
+- inst +7 bit0 SET: latch filtvoice=this voice ($2175). Scan thresholds
+  DESCENDING: ctr >= thr[5] → cutoff[5] ABSOLUTE → $D416 (+$2169,x shadow);
+  thr[k] (k=4..1) → cutoff = $2169,x + table[k] INCREMENTAL → $D416;
+  ctr >= thr[0] (band 0) → $D417 RES/ROUTING FIRST: mask = voice==0 ? 1 :
+  voice<<1; if ($2172 & mask)==0 → $D417 = $2172 + mask; then cutoff[0]
+  ABSOLUTE → $D416. ctr < thr[0] → NO write this frame.
+- $2172: INIT CONSTANT $B0 (sub_20D9 — engine bookkeeping init, the
+  composer's song-init must seed it for the standard layout); RESET to 0
+  at any voice's sequence-$FF wrap ($1886). So $D417 = $B1/$B2/$B4 before
+  the first wrap (resonance 11 + routing bit), mask-only after.
+- bit0 CLEAR: the already-implemented filtvoice==voice → $D416=$FF default.
+REPRESENTATION QUESTION (do the schema-discipline checklist first): the
+standard filter is ONE 12-byte 6-band envelope; Tel filter_programs is a
+ptr table → 10-byte programs (3 segs + init/final/d418/end). Either extend
+filter_programs to a variable seg count (musical-axis growth) or carry the
+6 (threshold, cutoff, absolute|incremental) bands; the $2172/$D417
+mechanism is ENGINE (emitter), only the bands are content.
+Blocks Entrail @18948/127140; likely other sample tunes too.
 First divergence (find_first_divergence Jarre_2 vs reb, frame 1, SID V3):
   orig: V3 PW=$01C0 (pulse sweep), freq=$4800, ctrl=$81 ; V2 PW=$0240, ctrl=$41
   reb : V3 PW=$0000, ctrl=$00, NO freq ; (effects not emitting)

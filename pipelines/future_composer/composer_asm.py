@@ -289,6 +289,14 @@ svib_slo:       .dsb 1, 0            ; work freq — orig $2158/$2157/$217F/$217
 svib_shi:       .dsb 1, 0            ; $217C/$217D)
 svib_wlo:       .dsb 1, 0
 svib_whi:       .dsb 1, 0
+sgl_dir:        .dsb 3, 0            ; standard $Ex glide direction per voice
+                                     ; (orig $213F,x): 0 = none (cleared per
+                                     ; note), 1 = up, 2 = down
+sgl_spd_lo:     .dsb 1, 0            ; standard glide rate lo (orig $2164 —
+sgl_spd_hi:     .dsb 1, 0            ; GLOBAL, last-parsed $Ex wins) / hi ($2165)
+sgl_thresh:     .dsb 1, 0            ; standard glide onset threshold (orig:
+                                     ; the SMC CMP operand at $1AF8 — emitted
+                                     ; as a plain variable, not SMC)
 filtvoice:      .dsb 1, 0            ; standard filter-voice latch (orig $2175):
                                      ; stays 0 until an inst with +7 bit0 runs;
                                      ; the matching voice writes the $D416
@@ -1103,6 +1111,55 @@ stdpp_done:
 """
     else:
         pulse_body = '        ; standard pulse sweep disabled per cfg\n'
+    glide_body = """        ; $Ex GLIDE (orig $1AEB-$1B40) — between vibrato and pulse.
+        ; Runs when sgl_dir,x != 0 (set by this note's $Ex, cleared per
+        ; note) and (elapsed ticks) >= sgl_thresh (orig: the SMC CMP
+        ; operand $1AF8; rate + threshold are last-$Ex-wins globals).
+        ; MUTATES the stored note freq (lonotesto/hinotesto = orig
+        ; $213C/$2136 — so the $80-restore sees the glided freq) and
+        ; writes lo,hi DIRECT; the d400/d401 + lastfreq shadows track it
+        ; so nextvoice's conditional path stays silent.
+        lda nootleng,x
+        sec
+        sbc nootcount,x              ; elapsed ticks this note
+        cmp sgl_thresh
+        bcc stdgl_done               ; glide starts mid-note
+        lda sgl_dir,x
+        beq stdgl_done               ; no $Ex on this note
+        ldy voicesto
+        and #$03
+        cmp #$01
+        beq stdgl_up
+        sec                          ; DOWN (orig $1B06-$1B22)
+        lda lonotesto,x
+        sbc sgl_spd_lo
+        sta lonotesto,x
+        sta d400,x
+        sta lastfreqlo,x
+        sta $d400,y                  ; lo,hi direct
+        lda hinotesto,x
+        sbc sgl_spd_hi
+        sta hinotesto,x
+        sta d401,x
+        sta lastfreqhi,x
+        sta $d401,y
+        jmp stdgl_done
+stdgl_up:
+        clc                          ; UP (orig $1B25-$1B3E)
+        lda lonotesto,x
+        adc sgl_spd_lo
+        sta lonotesto,x
+        sta d400,x
+        sta lastfreqlo,x
+        sta $d400,y                  ; lo,hi direct
+        lda hinotesto,x
+        adc sgl_spd_hi
+        sta hinotesto,x
+        sta d401,x                   ; shadows + lastfreq track the engine's
+        sta lastfreqhi,x             ; INTENT even when the SID write is the
+        sta $d4""" + f'{cfg.std_glide_hi_reg:02x}' + """,y                  ; $1B3F variant (mirror-equivalent reg)
+stdgl_done:
+"""
     vib_body = """        ; VIBRATO (orig $1A36-$1AE8) — first in the chain (orig order:
         ; vibrato → glide → pulse → $40 → filter → wave → $80; the $Ex
         ; glide $1AEB-$1B40 is not yet emitted — no Jarre_2 sub-0 pattern
@@ -1227,7 +1284,7 @@ stdvib_skip:
 ) + """stdvib_done:
 """
     return """std_wave_chain:
-""" + vib_body + pulse_body + """        ; $40 effect (inst +7 bit6) — wave-arp ctrl cycle (orig $1BE0-$1BFA).
+""" + vib_body + glide_body + pulse_body + """        ; $40 effect (inst +7 bit6) — wave-arp ctrl cycle (orig $1BE0-$1BFA).
         ; Same musical concept as the Tel fx_wave_arp (USF wave_arp = the
         ; ctrl-value table = content); the standard chain bypasses the Tel
         ; chain so the interpreter lives here. Hold the note-load waveform for
@@ -1849,6 +1906,67 @@ h10_gwb:
         sta byteand,x
 """
 
+    # $Ex glide PARSE handler — Tel (slide-to-target: $Ex, delay, target) vs
+    # standard (directional rate: $Ex, param, note → sgl_* state).
+    if getattr(cfg, 'pattern_format', 'tel') == 'standard':
+        glide_parse = """        ; Standard $Ex glide (orig $1904-$192E): cmd bit0 → direction
+        ; (0=up/1=down → sgl_dir=1/2), bits1-3 → rate hi; param hi
+        ; nibble → rate lo, lo nibble → onset threshold. Rate/threshold
+        ; are GLOBALS (orig $2164/$2165/SMC $1AF8) — last $Ex wins.
+        ; 3rd byte is the note, played with a full instrument reload.
+        pha
+        and #$01
+        clc
+        adc #$01
+        sta sgl_dir,x                ; 1 = up, 2 = down
+        pla
+        and #$0E
+        lsr
+        sta sgl_spd_hi
+        inc begcount,x
+        iny
+        lda (zp3),y                  ; param byte
+        pha
+        and #$F0
+        sta sgl_spd_lo
+        pla
+        and #$0F
+        sta sgl_thresh
+        inc begcount,x
+        iny
+        lda (zp3),y                  ; the note
+        sta tabbytsto
+        jmp nolengset"""
+    else:
+        glide_parse = """        ; Glide handler: 3 bytes total ($Ex + delay + target).
+        ; Consume delay, then target. The target is the actual note,
+        ; saved into tempglide AND re-stored as tabbytsto for the
+        ; nolengset chain to play it.
+        lda #1
+        sta glidetest,x
+        inc begcount,x
+        iny
+        lda (zp3),y
+        sta glidedelay,x
+        inc begcount,x
+        inc begcount,x
+        iny
+        iny
+        lda (zp3),y
+        clc
+        adc toneadd,x
+        sta tempglide,x
+        dey                          ; back up Y to point at target
+        lda (zp3),y
+        sta tabbytsto
+        jmp nolengset                ; play the glide target note + gate on,
+                                     ; like the engine (falls into the note-
+                                     ; play path). Must be unconditional: a
+                                     ; glide target of $00 (= note C0, e.g.
+                                     ; Adrenalin V1 pattern 9) is a real note,
+                                     ; not a rest — a `bne` here would skip the
+                                     ; gate and leave the voice silent."""
+
     # Sequence-command dispatch. The byte partition is the composer's own
     # choice (writelog is the only verdict), so the USF-derived path uses a
     # wider partition than HVSC's: $00-$7F pattern jump (128 patterns vs
@@ -1995,6 +2113,7 @@ h3f_pattern:
         sta glidetest2,x
         sta counter2,x
         sta vibcounter,x
+        sta sgl_dir,x                ; standard $Ex glide flag (orig $18CD)
 
         ; Fetch first pattern byte. If $F0/$F1, handle prefix; else
         ; jump to startnewnote (clear newnote flag) and dispatch.
@@ -2056,34 +2175,7 @@ skip:
         cmp #$E0
         bcc noglideset
 
-        ; Glide handler: 3 bytes total ($Ex + delay + target).
-        ; Consume delay, then target. The target is the actual note,
-        ; saved into tempglide AND re-stored as tabbytsto for the
-        ; nolengset chain to play it.
-        lda #1
-        sta glidetest,x
-        inc begcount,x
-        iny
-        lda (zp3),y
-        sta glidedelay,x
-        inc begcount,x
-        inc begcount,x
-        iny
-        iny
-        lda (zp3),y
-        clc
-        adc toneadd,x
-        sta tempglide,x
-        dey                          ; back up Y to point at target
-        lda (zp3),y
-        sta tabbytsto
-        jmp nolengset                ; play the glide target note + gate on,
-                                     ; like the engine (falls into the note-
-                                     ; play path). Must be unconditional: a
-                                     ; glide target of $00 (= note C0, e.g.
-                                     ; Adrenalin V1 pattern 9) is a real note,
-                                     ; not a rest — a `bne` here would skip the
-                                     ; gate and leave the voice silent.
+{glide_parse}
 
 f0_or_f1_chained:
         ; Re-dispatched $F0 (noglide) or $F1 (filterset). Mirrors
@@ -2145,7 +2237,9 @@ novoiceset:
 setlen_loop:
         jsr verhoogtest              ; reads next byte → tabbytsto, also in A
         cmp #$C0
-        bcs skip                     ; >= $C0: re-dispatch fresh cmd
+        bcc setlen_noskip            ; >= $C0: re-dispatch fresh cmd
+        jmp skip                     ; (jmp: `skip` can sit > 128 bytes away
+setlen_noskip:                       ; once the standard $Ex handler is in)
         cmp #$80
         bcc arpset                   ; < $80: note/arp
 
@@ -3215,6 +3309,7 @@ playirq_done:
         chain_exit=chain_exit,
         fx_noise_tick_chunk=fx_noise_tick_chunk,
         h10_body=h10_body,
+        glide_parse=glide_parse,
         pp_store_pw_setup=pp_store_pw_setup,
         pp_store_sta_d402_sid=pp_store_sta_d402_sid,
         pp_store_sta_d403_sid=pp_store_sta_d403_sid,

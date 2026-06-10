@@ -222,6 +222,13 @@ class FCConfig:
     # ($217C/$217D = the last vibrato computation, possibly another voice's)
     # to their freq lo,hi EVERY frame. True = the $DC behavior.
     std_vibrato_stale_tail: bool = False
+    # Standard-player GLIDE-UP hi-write register (one static operand byte at
+    # orig $1B3F): $01 (2739/2760 members) = the voice's freq hi, normal; $55
+    # (20 members, e.g. Entrail_Ranx) = a hacked operand whose write lands on
+    # SID-MIRRORED registers (($55+d4point) & $1F: V1→$15 cutoff-lo, V2→$1C,
+    # V3→$03). Stored as the operand's low 5 bits; the composer emits
+    # sta $D400+reg,y — mirror-equivalent to the orig's absolute target.
+    std_glide_hi_reg: int = 0x01
     # If non-zero, write this value to $D418 at the TOP of every play frame
     # (before the voice loop), matching the vanilla FC player's $1833 vol write.
     # 0 = no top-of-frame vol write (Tel engines write vol elsewhere).

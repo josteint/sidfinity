@@ -358,6 +358,13 @@ Columns (whitespace-separated):
    parser interns them as string flags; the codegen translates to
    engine bits.
 
+   Portamento family (one parameter space, two point shapes):
+   `glide=N` — slide-to-target with an N-frame delay (Tel FC).
+   `glide_up=$RRRR` / `glide_down=$RRRR` + `glide_onset=N` — a
+   directional constant-rate portamento: 16-bit rate added/subtracted
+   to the note freq each frame, starting after N elapsed ticks of the
+   note (standard FC $Ex).
+
 A line with no pitch (`---`) and no instrument is a rest of the given
 duration.
 

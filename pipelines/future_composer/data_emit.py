@@ -85,6 +85,26 @@ def encode_pattern(rows: list[NoteRow], instr_as_wavecount: bool = False) -> byt
         if wave is not None:
             out.append(0xC0 | (wave & 0x1F))
 
+        if instr_as_wavecount:
+            # standard FC directional portamento: [$Ex][param][note].
+            # cmd bit0 = down, bits1-3 = speed hi; param hi nibble =
+            # speed lo, lo nibble = onset threshold (elapsed ticks).
+            g_up = _fx(row.fx_flags, 'glide_up=')
+            g_down = _fx(row.fx_flags, 'glide_down=')
+            if g_up is not None or g_down is not None:
+                speed = g_down if g_down is not None else g_up
+                onset = _fx(row.fx_flags, 'glide_onset=') or 0
+                if row.duration != prev_dur:
+                    out += _encode_length(row.duration)
+                    prev_dur = row.duration
+                if row.instr is not None:
+                    out.append(0xC0 | ((row.instr.id - 1) & 0x1F))
+                cmd = (0xE0 | (1 if g_down is not None else 0)
+                       | (((speed >> 8) & 0x07) << 1))
+                out += bytes((cmd, (speed & 0xF0) | (onset & 0x0F),
+                              byte_from_pitch(row.pitch)))
+                continue
+
         glide = _fx(row.fx_flags, 'glide=')
         if glide is not None:
             # Glide note: the target byte IS the note (3-byte $E0,d,p) and

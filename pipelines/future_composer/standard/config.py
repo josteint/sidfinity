@@ -41,14 +41,19 @@ def fc_standard_config(sid_path: str, root: str | None = None) -> FCConfig:
     delta = load - _REF_LOAD
     shifted = {f: getattr(FC_STANDARD, f) + delta for f in _RELOC_FIELDS}
     body = d[hdr + 2:]
-    # Static player-variant byte at orig $2046 (the vibrato-skip JMP operand):
-    # $EB = skip writes nothing (Jarre_2); $DC = stale-tail write (Prato).
+    # Static player-variant bytes:
+    # $2046 (vibrato-skip JMP operand): $EB = skip writes nothing (Jarre_2);
+    #   $DC = stale-tail write (Prato).
+    # $1B3F (glide-up hi-write operand): $01 = freq hi (normal); $55 =
+    #   mirror-write hack (Entrail). Stored as low 5 bits (mirror-equivalent).
     variant = body[0x2046 - _REF_LOAD]
+    glide_hi = body[0x1B3F - _REF_LOAD]
     return _dc.replace(
         FC_STANDARD,
         name=f'fc_standard:{p.stem}',
         sid_path=str(sid_path),
         std_vibrato_stale_tail=(variant == 0xDC),
+        std_glide_hi_reg=glide_hi & 0x1F,
         **shifted,
     )
 

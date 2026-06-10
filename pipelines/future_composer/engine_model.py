@@ -184,9 +184,19 @@ class PatWaveAdjust:
 
 @dataclass
 class PatGlide:
-    """$E0-$EF, delay, target: 3-byte glide. The target byte is BOTH
-    the glide target AND the next note's pitch (engine re-reads it)."""
-    delay: int                 # 0-255
+    """Portamento, two shapes sharing one event:
+
+    Tel ($E0-$EF, delay, target): slide-to-target; `delay` set, standard
+    fields None. The target byte is BOTH the glide target AND the next
+    note's pitch (engine re-reads it).
+
+    Standard FC ($Ex, param, note): directional constant-rate slide —
+    cmd bit0 → direction, cmd bits1-3 → speed hi, param hi nibble →
+    speed lo, param lo nibble → onset threshold (elapsed ticks)."""
+    delay: int                 # 0-255 (Tel; 0 for standard)
+    direction: str | None = None   # 'up' | 'down' (standard)
+    speed: int | None = None       # 16-bit rate per frame (standard)
+    onset: int | None = None       # elapsed-tick threshold (standard)
 
 
 @dataclass
@@ -300,7 +310,12 @@ def _parse_pattern_standard(raw: bytes) -> tuple[list[PatEvent], int]:
         if (b & 0xF0) == 0xE0:           # $E0..$EF 3-byte glide
             if i + 2 >= len(raw):
                 break
-            events.append(PatGlide(b & 0x0F))    # param low nibble (dir+speed)
+            param = raw[i + 1]
+            events.append(PatGlide(
+                0,
+                direction='down' if (b & 0x01) else 'up',
+                speed=(((b & 0x0E) >> 1) << 8) | (param & 0xF0),
+                onset=param & 0x0F))
             events.append(PatNote(raw[i + 2]))   # 3rd byte is the note
             i += 3
             continue

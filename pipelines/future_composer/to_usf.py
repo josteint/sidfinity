@@ -251,6 +251,7 @@ def _build_pattern_rows(fc_pat: FCPattern,
     """
     rows: list[NoteRow] = []
     pending_glide: int | None = None
+    pending_glide_std: tuple | None = None   # (direction, speed, onset)
     pending_wave_adjust: int | None = None
     pending_filter: int | None = None
     pending_noretrig: bool = False    # $F0 seen → next note doesn't retrigger
@@ -273,7 +274,11 @@ def _build_pattern_rows(fc_pat: FCPattern,
         elif isinstance(evt, PatInstrumentChange):
             cur_instr = InstrumentRef(id=evt.instr_id + 1)
         elif isinstance(evt, PatGlide):
-            pending_glide = evt.delay
+            if evt.direction is not None:
+                # standard FC directional portamento → typed flags
+                pending_glide_std = (evt.direction, evt.speed, evt.onset)
+            else:
+                pending_glide = evt.delay
         elif isinstance(evt, PatNoGlide):
             # $F0: no glide AND skip the instrument retrigger (legato).
             pending_glide = None
@@ -290,6 +295,11 @@ def _build_pattern_rows(fc_pat: FCPattern,
             if pending_glide is not None:
                 flags.append(f'glide={pending_glide}')
                 pending_glide = None
+            if pending_glide_std is not None:
+                gdir, gspeed, gonset = pending_glide_std
+                flags.append(f'glide_{gdir}=${gspeed:04X}')
+                flags.append(f'glide_onset={gonset}')
+                pending_glide_std = None
             if pending_wave_adjust is not None:
                 flags.append(f'wave_adjust={pending_wave_adjust}')
                 pending_wave_adjust = None
