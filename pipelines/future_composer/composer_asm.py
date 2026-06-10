@@ -278,6 +278,10 @@ lastfreqhi:     .dsb 3, 0            ; layout: nextvoice writes freq only when
                                      ; note-load/freq-effect, not every frame)
 d402:           .dsb 3, 0            ; shadow $D402 (pw lo)
 d403:           .dsb 3, 0            ; shadow $D403 (pw hi)
+nt_flag:        .dsb 3, 0            ; standard noise-click restore flag: armed
+                                     ; by the chain each restore frame; tells
+                                     ; nextvoice to write freq UNCONDITIONALLY
+                                     ; lo,hi (orig $1D0A order); self-clearing
 
 ; End-of-state marker — ok2's clear loop runs from tabcount to here.
 ; ANYTHING THAT MUST SURVIVE ok2 GOES AFTER THIS MARKER (the song
@@ -914,6 +918,18 @@ def _emit_nextvoice_writes_standard() -> str:
         '        sta $d402,y                  ; pw lo\n'
         '        lda d403,x\n'
         '        sta $d403,y                  ; pw hi\n'
+        '        lda nt_flag,x                ; noise-click restore frame?\n'
+        '        beq stdnv_cf                 ; no → normal conditional freq\n'
+        '        lda #0\n'
+        '        sta nt_flag,x                ; consume (chain re-arms per frame)\n'
+        '        lda d400,x\n'
+        '        sta $d400,y                  ; freq lo FIRST — orig $1D0A\n'
+        '        sta lastfreqlo,x             ; restore order (lo,hi), written\n'
+        '        lda d401,x                   ; EVERY frame even if unchanged\n'
+        '        sta $d401,y                  ; freq hi\n'
+        '        sta lastfreqhi,x\n'
+        '        jmp stdnv_ct\n'
+        'stdnv_cf:\n'
         '        lda d401,x                   ; freq hi vs last-written\n'
         '        cmp lastfreqhi,x\n'
         '        bne stdnv_wf\n'
@@ -932,12 +948,48 @@ def _emit_nextvoice_writes_standard() -> str:
         '        sta $d404,y                  ; ctrl')
 
 
-def _emit_std_wave_chain() -> str:
+def _emit_std_wave_chain(cfg: FCConfig) -> str:
     """Standard wave-program envelope effect (standard/RE_NOTES.md). X = voice.
     Enabled by fx3sto bit4 (inst +7). Frame clock = counter2,x (reset on
     note-load, inc'd at startplayer), capped 15. Index = (sel<<4)+(clk-1) where
     sel = fx1sto & $0F. Writes ctrl shadow from std_wave_ctrl[idx]; freq comes
-    in a follow-up step (modes). Falls to nextvoice (bypassing the Tel chain)."""
+    in a follow-up step (modes). Then the $80 noise-click effect (gated by
+    cfg.noise_tick_style=='standard'). Falls to nextvoice (bypassing the Tel
+    chain)."""
+    if cfg.noise_tick_style == 'standard':
+        nt_body = """        ; $80 effect (inst +7 bit7) — standard noise-click attack, orig
+        ; $1CE3-$1D1D. Same musical concept as Hawkeye's noise_tick (same
+        ; fx3 bit), different constants + a PERSISTENT restore: counter<2 →
+        ; freq=$4800 + ctrl=$81 (noise+gate click); counter>=2 → the note's
+        ; BASE freq rewritten EVERY frame (lo,hi — via the nt_flag hook in
+        ; nextvoice) + ctrl = waveform & $FE (gate off). The chain only runs
+        ; on held frames, so the single attack frame is counter==1 (orig
+        ; skips the chain on note-load frames too).
+        lda fx3sto
+        bpl stdw_done                ; bit7 clear → not a noise-click inst
+        lda counter2,x
+        cmp #$02
+        bcs stdnt_restore
+        lda #$48                     ; attack: shadows differ from lastfreq →
+        sta d401,x                   ; nextvoice conditional path writes
+        lda #$00                     ; freq hi,lo (orig $1CF6 attack order)
+        sta d400,x
+        lda #$81
+        sta stod404,x                ; noise + gate
+        bne stdw_done                ; always ($81 != 0)
+stdnt_restore:
+        lda lonotesto,x              ; base note freq back into the shadows
+        sta d400,x
+        lda hinotesto,x
+        sta d401,x
+        lda #1
+        sta nt_flag,x                ; arm the unconditional lo,hi freq write
+        lda wavesto,x
+        and #$FE
+        sta stod404,x                ; gate off, waveform kept
+"""
+    else:
+        nt_body = '        ; $80 noise-click disabled per cfg\n'
     return """std_wave_chain:
         ; $40 effect (inst +7 bit6) — wave-arp ctrl cycle (orig $1BE0-$1BFA).
         ; Same musical concept as the Tel fx_wave_arp (USF wave_arp = the
@@ -959,13 +1011,13 @@ def _emit_std_wave_chain() -> str:
 stdw_waveprog:
         lda fx3sto
         and #$10
-        beq stdw_done                ; wave program not enabled
+        beq stdw_nt                  ; wave program not enabled
         lda counter2,x               ; clk = frames since note
         cmp #$10
         bcc stdw_clk
         lda #$0f                     ; cap at 15 (orig $1CA8 CMP #$0F)
 stdw_clk:
-        beq stdw_done                ; clk 0 → no envelope entry yet
+        beq stdw_nt                  ; clk 0 → no envelope entry yet
         sec
         sbc #1                       ; A = clk-1 (0..14)
         sta pp_count_lo              ; stash index-low
@@ -979,7 +1031,8 @@ stdw_clk:
         tay                          ; Y = wave-table index
         lda std_wave_ctrl,y
         sta stod404,x                ; ctrl shadow (→ $D404 via nextvoice)
-stdw_done:
+stdw_nt:
+""" + nt_body + """stdw_done:
         jmp nextvoice
 """
 
@@ -1061,7 +1114,10 @@ def _emit_fx_noise_tick(cfg: FCConfig) -> str:
     'disabled'          — no-op (label only, falls through to
                           effect_chain_end).
     """
-    if cfg.noise_tick_style == 'disabled':
+    if cfg.noise_tick_style in ('disabled', 'standard'):
+        # 'standard': the noise-click body lives in std_wave_chain (the
+        # standard layout bypasses this Tel chain via gwo2 → std_wave_chain),
+        # so the Tel-chain slot is label-only.
         return (
             'fx_noise_tick:\n'
             "        ; disabled per cfg — falls through to effect_chain_end\n"
@@ -1421,7 +1477,7 @@ def _emit_playirq_dispatch(cfg: FCConfig) -> str:
         # STA $2142,x = 0). counter2,x is inc'd at startplayer each frame.
         nolengset_counter2_reset = ('        lda #0\n'
                                     '        sta counter2,x\n')
-        std_wave_chain_routine = _emit_std_wave_chain()
+        std_wave_chain_routine = _emit_std_wave_chain(cfg)
     else:
         raise ValueError(f'unknown voice_loop_layout: {cfg.voice_loop_layout!r}')
 
