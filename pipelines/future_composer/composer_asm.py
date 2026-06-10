@@ -304,6 +304,15 @@ filtvoice:      .dsb 1, 0            ; standard filter-voice latch (orig $2175):
 filt_pend:      .dsb 1, 0            ; pending $D416 value armed by the chain,
                                      ; consumed by nextvoice between the PW and
                                      ; freq writes (orig $1C78 position); 0=none
+filt_pend17:    .dsb 1, 0            ; pending $D417 value (orig $1C4B; written
+                                     ; BEFORE the $D416); 0=none ($2172+mask is
+                                     ; never 0: mask is 1/2/4)
+flt_sto:        .dsb 3, 0            ; per-voice cutoff shadow (orig $2169,x) —
+                                     ; the incremental bands accumulate into it
+flt_mask:       .dsb 1, 0            ; scratch: band-0 voice routing mask
+filt_ctr:       .dsb 1, 0            ; the $D417 res/routing counter (orig
+                                     ; $2172): song-init seeds $B0 (standard),
+                                     ; any voice's sequence-$FF wrap resets 0
 fw_mode:        .dsb 3, 0            ; standard freq-write mode, armed by the
                                      ; chain each frame, consumed (self-clearing)
                                      ; by nextvoice's freq slot:
@@ -519,8 +528,15 @@ song_seqcp:
         # MECHANISM (Reset bucket), invisible to USF, so we don't reproduce it.
         # The verdict skips both inits and compares (A) end-of-init state +
         # (B) the play stream (compare_instruction_stream mode='trichotomy').
+        filt_seed = (
+            '        lda #$b0                     ; standard filter res/routing\n'
+            '        sta filt_ctr                 ; counter seed (orig sub_20D9\n'
+            '                                     ; $2172=$B0 — engine bookkeeping\n'
+            '                                     ; init, after the state clear)\n'
+        ) if cfg.voice_loop_layout == 'standard' else ''
         sidwrite = _emit_universal_reset_sidwrite(cfg) + (
             '        jsr ok2\n'
+            + filt_seed +
             '        rts                          ; own clear; no silence_all\n')
     elif cfg.init_style == 'fc_clear_sweep':
         # Adrenalin engine A ($7AE2): clear $D417..$D400 descending, writing
@@ -948,6 +964,12 @@ def _emit_nextvoice_writes_standard() -> str:
         '        sta $d402,y                  ; pw lo\n'
         '        lda d403,x\n'
         '        sta $d403,y                  ; pw hi\n'
+        '        lda filt_pend17              ; chain-armed $D417 write?\n'
+        '        beq stdnv_no17               ; (before the $D416 — orig\n'
+        '        sta $d417                    ; $1C4B position)\n'
+        '        lda #0\n'
+        '        sta filt_pend17\n'
+        'stdnv_no17:\n'
         '        lda filt_pend                ; chain-armed $D416 write?\n'
         '        beq stdnv_nofl               ; (between PW and freq — the\n'
         '        sta $d416                    ; orig $1C78 position)\n'
@@ -1302,20 +1324,65 @@ stdvib_skip:
         lda wavearp,y
         sta stod404,x                ; ctrl shadow (→ $D404 via nextvoice)
 stdw_waveprog:
-        ; FILTER (orig $1BFE-$1C78), bit-CLEAR path: the voice matching the
-        ; filter-voice latch (filtvoice = orig $2175, 0 until an inst with
-        ; +7 bit0 runs) arms $D416=$FF (cutoff-hi / filter-off default) for
-        ; nextvoice, which slots it between the PW and freq writes (the
-        ; orig $1C78 position). The bit-SET path (6-band cutoff envelope at
-        ; $1E89 + $D417 res/routing $1C32-$1C67) is NOT yet emitted — no
-        ; Jarre_2 sub-0 inst sets +7 bit0; spec in RE_NOTES for when a
-        ; family SID exercises it.
+        ; FILTER (orig $1BFE-$1C78). Bit-SET path: latch this voice, scan
+        ; the 6-band envelope thresholds DESCENDING against the note frame
+        ; counter — band 5 = absolute hold cutoff, bands 4..1 = INCREMENTAL
+        ; (cutoff shadow += add, a ramp), band 0 = absolute init cutoff +
+        ; the $D417 res/routing write ($D417 = filt_ctr + voice_mask when
+        ; (filt_ctr & mask)==0; mask = voice0?1:voice<<1), below band 0 =
+        ; no write. Bit-CLEAR path: the voice matching the latch arms
+        ; $D416=$FF (filter-off default). Both $D416/$D417 are chain-armed
+        ; pendings consumed by nextvoice between the PW and freq writes
+        ; ($D417 first — the orig $1C4B/$1C78 positions).
         lda fx3sto
         and #$01
-        bne stdfl_done               ; bit set → TODO (unexercised)
-        cpx filtvoice                ; X = voice id
+        beq stdfl_off
+        stx filtvoice                ; latch (orig $1C05)
+        lda counter2,x               ; ctr = frames since note
+        ldy #$05
+        cmp std_filter+6+5           ; thr[5]
+        bcs stdfl_abs                ; → band 5 absolute
+        ldy #$04
+stdfl_scan:
+        cmp std_filter+6,y           ; thr[4..1]
+        bcs stdfl_inc                ; → incremental band
+        dey
+        bne stdfl_scan
+        cmp std_filter+6             ; thr[0]
+        bcs stdfl_band0
+        jmp stdfl_done               ; below the onset → no write
+stdfl_band0:
+        txa                          ; mask = voice0 ? 1 : voice<<1
+        asl
+        bne stdfl_mask
+        lda #$01
+stdfl_mask:
+        sta flt_mask
+        lda filt_ctr
+        and flt_mask
+        bne stdfl_b0cut              ; (ctr & mask) != 0 → no $D417
+        lda filt_ctr
+        clc
+        adc flt_mask
+        sta filt_pend17              ; $D417 = filt_ctr + mask
+stdfl_b0cut:
+        ldy #$00                     ; band 0 absolute cutoff
+stdfl_abs:
+        lda std_filter,y             ; cutoff[0 or 5]
+        jmp stdfl_store
+stdfl_inc:
+        lda flt_sto,x                ; cutoff shadow += add[k] (the ramp)
+        clc
+        adc std_filter,y
+stdfl_store:
+        sta flt_sto,x                ; shadow (orig $2169,x)
+        sta filt_pend                ; → $D416 via nextvoice
+        jmp stdfl_done
+stdfl_off:
+        cpx filtvoice                ; bit clear: only the latched voice
         bne stdfl_done
-        lda #$ff
+        lda #$ff                     ; filter-off default
+        sta flt_sto,x                ; (orig $1C73 stores it in the shadow too)
         sta filt_pend
 stdfl_done:
         lda fx3sto
@@ -2088,6 +2155,9 @@ h2_take_step:
         sta nootcount,x
         sta tabcount,x
         sta begcount,x
+        sta filt_ctr                 ; standard filter res/routing counter
+                                     ; resets on any wrap (orig $1886; the
+                                     ; array is unused by Tel layouts)
         jmp h2_take_step
 
 do_songout:
@@ -3853,9 +3923,12 @@ def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
             _take('pulsetabel_addr', _pulse_kmax *
                   (4 if cfg.pulse_prog_format == 'standard' else 8))
         if cfg.filterbytes_addr and usf.filter_programs:
-            _fc = max(usf.filter_programs) + 1
-            _fsz = _fc * 2 + sum(10 for n in range(_fc)
-                                 if n in usf.filter_programs)
+            if cfg.filter_prog_format == 'standard':
+                _fsz = 12        # ONE 6-band program [6 cutoffs][6 thresholds]
+            else:
+                _fc = max(usf.filter_programs) + 1
+                _fsz = _fc * 2 + sum(10 for n in range(_fc)
+                                     if n in usf.filter_programs)
             _take('filterbytes_addr', _fsz)
         if cfg.drumtabel_addr and usf.drum_programs:
             _dc_count = max(usf.drum_programs) + 1
@@ -3932,20 +4005,24 @@ def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
         raw_sections.append(('pulsetabel', cfg.pulsetabel_addr,
                              cfg.pulsetabel_addr + pulse_kmax * _pp_stride))
 
-    # filterbytes: 2-byte pointer table -> 10-byte cutoff-envelope programs,
-    # from usf.filter_programs (was verbatim). Pointer table holds slots
-    # 0..max(N); program data follows it; pointers computed fresh.
+    # filterbytes: Tel = 2-byte pointer table -> 10-byte cutoff-envelope
+    # programs; standard = ONE 12-byte 6-band program [6 cutoffs][6
+    # thresholds], from usf.filter_programs (was verbatim).
     filt_layout = {}
     if (cfg.emit_data_from_usf and cfg.filterbytes_addr and usf.filter_programs):
-        filt_count = max(usf.filter_programs) + 1
-        fprog_addr = cfg.filterbytes_addr + filt_count * 2
-        cur = fprog_addr
-        for n in range(filt_count):
-            if n in usf.filter_programs:
-                filt_layout[n] = cur
-                cur += 10
-        raw_sections.append(('filterbytes', cfg.filterbytes_addr, fprog_addr))
-        raw_sections.append(('filt_progs', fprog_addr, cur))
+        if cfg.filter_prog_format == 'standard':
+            raw_sections.append(('std_filter', cfg.filterbytes_addr,
+                                 cfg.filterbytes_addr + 12))
+        else:
+            filt_count = max(usf.filter_programs) + 1
+            fprog_addr = cfg.filterbytes_addr + filt_count * 2
+            cur = fprog_addr
+            for n in range(filt_count):
+                if n in usf.filter_programs:
+                    filt_layout[n] = cur
+                    cur += 10
+            raw_sections.append(('filterbytes', cfg.filterbytes_addr, fprog_addr))
+            raw_sections.append(('filt_progs', fprog_addr, cur))
 
     # drumtabel: 4-byte-per-drum pointer table (dwa waveform prog + dto tone
     # prog) -> the programs, from usf.drum_programs (was verbatim).
@@ -4057,6 +4134,16 @@ def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
             out.append('        .byt ' + ','.join(f'${b & 0xFF:02X}' for b in fb)
                        + f'  ; filter {n}')
         return '\n'.join(out)
+    def _emit_std_filter(_n):
+        # standard 12-byte runtime shape [6 cutoffs][6 thresholds] from the
+        # shared envelope fields: cutoffs = [init, seg adds 1..4, final];
+        # thresholds = [onset, seg thrs 1..4, end].
+        p = usf.filter_programs[0]
+        s = p['segs']
+        cut = [p['init']] + [a for _t, a in s] + [p['final']]
+        thr = [p.get('onset', 0)] + [t for t, _a in s] + [p['end']]
+        return _emit_labelless('std_filter (6-band cutoff envelope: '
+                               '[6 cutoffs][6 thresholds])', cut + thr)
     def _emit_drumtabel(_n):
         drum_count = max(usf.drum_programs) + 1
         vals = []
@@ -4099,6 +4186,7 @@ def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
         'pulsetabel': _emit_pulsetabel,
         'filterbytes': _emit_filterbytes,
         'filt_progs': _emit_filt_progs,
+        'std_filter': _emit_std_filter,
         'drumtabel': _emit_drumtabel,
         'drum_progs': _emit_drum_progs,
         'std_wave_ctrl': lambda n: _emit_std_wave_table(n, 'ctrl', 'std_wave_ctrl'),
@@ -4188,6 +4276,7 @@ def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
         f'pulsearp = ${cfg.pulsearp_addr or 0:04X}',
         f'std_wave_ctrl = ${cfg.std_wave_ctrl_addr or 0:04X}',
         f'std_wave_freq = ${cfg.std_wave_freq_addr or 0:04X}',
+        f'std_filter = ${cfg.filterbytes_addr or 0:04X}',
         f'wavearpwait = {cfg.wavearpwait}',
         f'pulsearpwait = {cfg.pulsearpwait}',
         f'fx_drum_d401_offset = ${cfg.fx_drum_d401_offset:02X}',

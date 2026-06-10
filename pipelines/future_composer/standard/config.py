@@ -22,7 +22,7 @@ from pipelines.future_composer.config import FCConfig
 _RELOC_FIELDS = (
     'freq_lo_addr', 'freq_hi_addr', 'pattern_ptr_addr', 'instr_records_addr',
     'per_subtune_speed_addr', 'seq_table_addr', 'pulsetabel_addr',
-    'wavearp_addr', 'std_wave_ptr_addr',
+    'wavearp_addr', 'std_wave_ptr_addr', 'filterbytes_addr',
 )
 _REF_LOAD = 0x1800                  # Jarre_2's load address (the address map base)
 
@@ -81,6 +81,8 @@ FC_STANDARD = FCConfig(
     pulsetabel_addr=0x1E95,
     wavearp_addr=0x1E32,            # $40 effect: 4-byte ctrl-cycle table ($1E32)
     wavearpwait=3,                  # onset delay (orig $1BEC CMP #$03)
+    filterbytes_addr=0x1E89,        # filter: ONE 12-byte 6-band envelope
+    filter_prog_format='standard',
     pulse_prog_format='standard',
     instr_format='standard',
     pattern_format='standard',

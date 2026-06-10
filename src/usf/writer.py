@@ -270,12 +270,16 @@ def _write_pulse_programs(progs: dict) -> list[str]:
 
 
 def _write_filter_programs(progs: dict) -> list[str]:
-    """Emit `filter_programs { prog N: init= d418= final= end= seg T A }`."""
+    """Emit `filter_programs { prog N: init= [onset=] d418= final= end=
+    seg T A ... }` — onset only when non-zero (Tel programs omit it)."""
     lines = ['filter_programs {']
     for n in sorted(progs):
         p = progs[n]
-        parts = [f'init={p["init"]}', f'd418={p["d418"]}',
-                 f'final={p["final"]}', f'end={p["end"]}']
+        parts = [f'init={p["init"]}']
+        if p.get('onset'):
+            parts.append(f'onset={p["onset"]}')
+        parts += [f'd418={p["d418"]}',
+                  f'final={p["final"]}', f'end={p["end"]}']
         for thr, add in p['segs']:
             parts.append(f'seg {thr} {add}')
         lines.append(f'  prog {n}: ' + ' '.join(parts))

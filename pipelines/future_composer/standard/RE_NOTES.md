@@ -479,8 +479,28 @@ stays stale exactly as in orig). Verified on Entrail: prefix 17376 → 18948.
   universal_reset except where end-of-init STATE differs (trichotomy
   Check-A catches per tune; the host default now includes $D418=$0F).
 
-## NEXT: the FILTER bit-SET path — COMPLETE RE (incl. $2172), needs a
-## representation decision before coding
+## ✅ FILTER bit-SET path DONE (2026-06-10) — Entrail prefix 18948 → 49752
+Representation: the standard filter maps into the EXISTING Tel
+filter_programs envelope shape (same musical concept: init cutoff + ramp
+segments + final hold) grown along the musical axis: the grammar's fp_seg
+count is now variable (Tel 3 / standard 4) + an optional `onset=` threshold
+(band-0 entry; Tel programs omit it = 0). Decoder: filter_prog_format=
+'standard' reads the 12 bytes at filterbytes_addr ($1E89 reloc'd, now in
+_RELOC_FIELDS) → progs[0] {init=cut[0], onset=thr[0], segs=(thr[k],cut[k])
+k=1..4, end=thr[5], final=cut[5]} — only when some inst has +7 bit0.
+Emitter: gated 12-byte [6 cutoffs][6 thresholds] section + std_filter
+equate. Chain block (the stdw_waveprog slot): descending threshold scan;
+band 5 absolute; bands 4..1 cutoff-shadow += add (flt_sto,x = orig $2169);
+band 0 absolute + the $D417 write ($D417 = filt_ctr + mask when (filt_ctr
+& mask)==0; mask = voice0?1:voice<<1); below onset = no write; bit-CLEAR =
+the latched-voice $FF default (kept). filt_ctr = orig $2172: seeded $B0
+after ok2 in the universal_reset song-init (engine bookkeeping init),
+reset 0 at any sequence-$FF wrap. $D417/$D416 are chain-armed pendings
+(filt_pend17/filt_pend) consumed by nextvoice between PW and freq —
+$D417 FIRST (orig $1C4B before $1C78).
+
+## (RE preserved below for reference)
+### the FILTER bit-SET path — COMPLETE RE (incl. $2172)
 Routine $1BFE-$1C78, table $1E89 = 12 bytes [6 cutoffs][6 thresholds],
 ctr = counter2 (frames since note):
 - inst +7 bit0 SET: latch filtvoice=this voice ($2175). Scan thresholds

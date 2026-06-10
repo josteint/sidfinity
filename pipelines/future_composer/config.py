@@ -200,6 +200,13 @@ class FCConfig:
     # 4-byte program [thr_a, step1, thr_b, step2] (a ctr-keyed 2-threshold
     # step schedule; bounds $01/$0F hardcoded). See standard/RE_NOTES.md.
     pulse_prog_format: str = 'tel'
+    # Filter-program byte format. 'tel' (default) = filterbytes_addr is a
+    # 2-byte pointer table to 10-byte programs. 'standard' = the vanilla FC
+    # player's ONE 12-byte program at filterbytes_addr: [6 cutoffs][6
+    # thresholds] — a 6-band time-keyed cutoff envelope (band 0 absolute +
+    # the $D417 res/routing write, bands 1-4 incremental, band 5 absolute
+    # hold). See standard/RE_NOTES.md (filter $1E89 + the $2172 counter).
+    filter_prog_format: str = 'tel'
     # Instrument-record byte layout. 'tel' (default) = waveform/fx1/fx2/fx3 at
     # +1/+5/+6/+7. 'standard' = vanilla FC: +5/+6/+7 are filter-sel/pulse-param/
     # effect-flags (NOT Tel fx); the standard decoder zeros fx1/2/3 so the

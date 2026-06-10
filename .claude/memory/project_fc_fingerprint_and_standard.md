@@ -187,21 +187,29 @@ $55 (20 members) makes the glide-up hi write land on SID-mirrored regs
 ((op+d4point)&$1F); cfg.std_glide_hi_reg, factory-probed, emitted as
 sta $D400+reg,y (mirror-equivalent). Entrail prefix 17376→18948.
 
-## RESUME HERE (2026-06-10 — the FILTER bit-SET path, then re-batch):
-0. MANDATORY 3 questions; RE=standard/RE_NOTES.md top ("NEXT: the FILTER
-   bit-SET path" — COMPLETE RE incl. the $2172 res/routing counter: init
-   constant $B0 seeded by the composer's song-init (engine bookkeeping),
-   reset 0 at sequence-$FF; 6-band cutoff envelope, band0 also writes
-   $D417 = $2172+voice_mask when ($2172 & mask)==0; bands 4..1 are
-   INCREMENTAL cutoff += table[k], band 5 + 0 absolute).
-1. **REPRESENTATION decision first** (schema-discipline checklist): the
-   standard filter = ONE 12-byte 6-band envelope vs Tel filter_programs
-   (3-seg). Extend along the musical axis (variable band count) — never a
-   kind. Then: decoder (std filter addr = $1E89 reloc) + emit + chain block.
-   Blocks Entrail @18948/127140.
-2. Re-batch /tmp/fc_std_sample.json (Jarre+Prato pass; 9 to triage — some
-   need the filter; triage each via find_first_divergence), then widen to
-   the 2639-member list. ~19 oddball $2046 builds need triage too.
+## ✅ FILTER bit-SET path DONE (2026-06-10): mapped into the EXISTING Tel
+filter_programs envelope (same musical concept) grown along the musical
+axis — variable seg count (3 Tel / 4 standard) + optional onset= in the
+USF grammar. filter_prog_format='standard' decoder (12 bytes at
+filterbytes_addr=$1E89, reloc'd) → progs[0]; gated 12-byte emission +
+std_filter equate; chain block with the descending band scan, flt_sto
+cutoff shadow ($2169), filt_ctr ($2172: $B0 seed after ok2, reset at
+seq-$FF), $D417/$D416 via filt_pend17/filt_pend (D417 FIRST). Entrail
+prefix 18948→49752. The full standard effect chain is now: vibrato →
+glide → pulse → $40 → FILTER → wave → $80. Canaries 16/16.
+
+## RESUME HERE (2026-06-10 — per-tune triage campaign):
+0. MANDATORY 3 questions; RE=standard/RE_NOTES.md (top = the implemented
+   chain + variant census; everything structural is DONE).
+1. **Triage the sample failures one by one** (write-log-first:
+   find_first_divergence + voice_writelog + effect_chain_profiler):
+   - Entrail @49752/127140: V2 freq hi $12 vs $10 ~1 min in (value diff —
+     transpose/glide accumulation? investigate).
+   - 9 others fail at position ~1 (first-feature missing/different —
+     check their $2046/$1B3F/init-shape probe bytes first; some are the
+     ~19 oddball builds).
+2. Widen to the 2639-member batch; bucket failures by first-divergence
+   signature; fix the biggest buckets first.
 Verdict: verify_featuredriven(fc_standard_config(sid)); localize with
 find_first_divergence + voice_writelog (mind Trap C).
 

@@ -28,7 +28,12 @@ pp_flip: "flip"
 // `prog N: init=I d418=D final=F end=E seg T A (x3)` — cutoff starts at I,
 // adds A as a counter crosses threshold T, snaps to F past E; D = $D418.
 filter_programs_block: "filter_programs" "{" filter_program* "}"
-filter_program: "prog" INT ":" "init" "=" number "d418" "=" number "final" "=" number "end" "=" number fp_seg fp_seg fp_seg
+// Time-keyed cutoff envelope: init cutoff (from `onset` elapsed frames,
+// default 0 = note start), then (threshold, add) ramp segments — cutoff
+// += add per frame while in a segment's window — until `end`, where the
+// cutoff holds at `final`. Tel programs have 3 segments and no onset;
+// the standard FC program has 4 segments + an explicit onset threshold.
+filter_program: "prog" INT ":" "init" "=" number ("onset" "=" number)? "d418" "=" number "final" "=" number "end" "=" number fp_seg+
 fp_seg: "seg" number number
 
 // ----- drum programs (FC percussion library) -----

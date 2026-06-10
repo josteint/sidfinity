@@ -660,6 +660,21 @@ def _decode_filter_programs(mem: bytes, cfg: FCConfig,
     base = resolve_address(cfg, engine, 'filterbytes_addr')
     if not base:
         return {}
+    if getattr(cfg, 'filter_prog_format', 'tel') == 'standard':
+        # Vanilla FC: ONE 12-byte program at base = [6 cutoffs][6
+        # thresholds]. Mapped into the shared envelope shape: onset =
+        # thr[0] (band-0 entry), init = cutoff[0], segs = (thr[k],
+        # add[k]) for the incremental bands k=1..4, end = thr[5],
+        # final = cutoff[5]. No d418 byte. Decoded only when some
+        # instrument enables the filter (+7 bit0) — otherwise the 12
+        # bytes are dead data.
+        if not any((i.fx3 & 0x01) for i in instruments):
+            return {}
+        cut = [mem[base + j] for j in range(6)]
+        thr = [mem[base + 6 + j] for j in range(6)]
+        return {0: {'init': cut[0], 'onset': thr[0], 'd418': 0,
+                    'final': cut[5], 'end': thr[5],
+                    'segs': [(thr[k], cut[k]) for k in range(1, 5)]}}
     # Program count = where the pointer table ends = (first pointer - base)/2.
     # Extract ALL of them (not just instrument-referenced): SFX subtunes
     # reference programs no music instrument does, and matching orig's table
