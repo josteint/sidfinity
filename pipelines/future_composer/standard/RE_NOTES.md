@@ -400,13 +400,57 @@ init=(25,32), state ✓, audio✓ (canonical boundary).
 - wave+$80 both-bits insts (orig: wave path skips $80 — composer matches)
 - adjacent-$8x setlen chaining (see caveat above)
 
-### NEXT: RELOCATION + FAMILY ROLLOUT
-One config for the 3673-SID family: derive the data addresses from the
-load/init address (members load at $1800/$4800/...; the fingerprint DB
-lists them — tools/fc_fingerprint.py). Then batch verify across family
-members; each new SID exercises more of the unimplemented list above.
-Also: EAR-TEST Jarre_2.sidfinity (new engine — py65/writelog can't hear
-dispatch; user's ear is the final judge).
+## FAMILY ROLLOUT phase 1 (2026-06-10) — relocation + 2nd member FULL
+**Relocation confirmed + shipped**: the load image has a FIXED internal
+layout — 2760/4024 HVSC FC SIDs carry the canonical freq table at exactly
+load+$564; 2639 share Jarre_2's full shape (init=load, play=load+6, vblank).
+`fc_standard_config(sid_path)` (standard/config.py) shifts all 9 address
+fields by (load-$1800) + probes the variant byte (below). Sample list:
+/tmp/fc_std_members.json (regenerable via the freq-table probe).
+
+**PRATO (Luca) = 2nd verified member** — play 181601/181601, audio✓.
+Three family findings shipped on the way:
+1. **Pulse programs decoded BY REFERENCE**: n = fx2&7 for every inst; the
+   player indexes blindly so n>=4 reads PAST the nominal 3-prog table into
+   following data (Prato prog 7 lands in the pattern-ptr region). The 4
+   bytes are still the inst's effective schedule — captured by VALUE.
+2. **STALE-TAIL player variant** — a single static code byte at orig $2046
+   (the vibrato-skip JMP operand): $EB (Jarre_2) = skip writes nothing;
+   $DC (Prato) = jump into the vibrato WRITE TAIL ($1ADC) → vibrato-skipped
+   insts (fx1==0 / wave bit4 / bit2) write the STALE global work regs
+   ($217C/$217D — last vibrato computation, possibly another voice's!) to
+   their freq lo,hi EVERY frame. cfg.std_vibrato_stale_tail, factory-probed.
+   This single fix took Prato 1.57% → 92.87%.
+3. **Instrument table growth**: patterns select ids 0-31 ($Cx, 5 bits);
+   Prato references inst 10 (beyond Jarre's 10). Extract grows the decode to
+   max referenced id; the composer sizes every instr-table emission from
+   the USF (instr_count is a floor, not the truth).
+Plus verify fixes: Songlengths fractional seconds ('0:19.813'); trichotomy
+Check-A default state now includes the HOST's pre-init $D418=$0F (psiddrv
+writes it BEFORE init) — deferred-init members (Prato: init makes ZERO SID
+writes, the $210E=$2C variant) verify correctly.
+
+### NEXT: the $Ex GLIDE (the biggest remaining effect; blocks Entrail +
+### likely several of the 9 remaining sample failures)
+Full RE (from $18FC + $1AEB-$1B40):
+- Pattern cmd [$Ex][param][note]: cmd bit0 → dir flag $213F,x=(b&1)+1
+  (1=up, 2=down); cmd bits1-3 >>1 → $2165 (speed HI). Param byte: hi
+  nibble → $2164 (speed LO, hi-nibble-only value); lo nibble → the GATE
+  THRESHOLD, stored via SMC into the CMP operand at $1AF8. NB $2164/$2165/
+  $1AF8 are GLOBALS — last-parsed $Ex wins across voices.
+- Per frame ($1AEB): if (noteleng - count) < threshold → skip (glide
+  starts mid-note); if $213F,x==0 → skip (flag cleared per note at $18CD).
+  dir==1 → shadows $213C/$2136 (lonotesto/hinotesto!) += $2164/$2165,
+  written lo,hi DIRECT; else -= , same writes. Position: between vibrato
+  and pulse. NOTE: it MUTATES the base-freq shadows → the $80-restore and
+  vibrato base then see the glided freq (orig behavior).
+- **MY PARSER BUG**: _parse_pattern_standard currently DISCARDS the $Ex
+  param byte (only keeps cmd&$0F as PatGlide.delay + the note). Needs: carry
+  (dir, speed_hi, speed_lo, threshold); to_usf encode; encode_pattern emit
+  the standard 3-byte form (gated — the Tel $E0,d,p semantics differ); the
+  composer's $Ex parse handler + the chain glide block.
+Then re-batch /tmp/fc_std_sample.json (9 tunes still shift=None) +
+widen to the full member list.
 First divergence (find_first_divergence Jarre_2 vs reb, frame 1, SID V3):
   orig: V3 PW=$01C0 (pulse sweep), freq=$4800, ctrl=$81 ; V2 PW=$0240, ctrl=$41
   reb : V3 PW=$0000, ctrl=$00, NO freq ; (effects not emitting)

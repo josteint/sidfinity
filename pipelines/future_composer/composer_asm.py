@@ -1123,11 +1123,11 @@ stdpp_done:
         lda fx3sto
         and #$14                     ; bit2 ($2030 effect) or bit4 (wave)
         beq stdvib_chk
-        jmp stdvib_done
+        jmp stdvib_skip
 stdvib_chk:
         lda fx1sto
         bne stdvib_run               ; fx1 == 0 → no vibrato
-        jmp stdvib_done
+        jmp stdvib_skip
 stdvib_run:
         pha
         and #$78
@@ -1210,7 +1210,21 @@ stdvib_write:
         sta $d400,y                  ; lo,hi direct (orig $1ADC-$1AE8)
         lda svib_whi
         sta $d401,y
-stdvib_done:
+        jmp stdvib_done
+stdvib_skip:
+""" + (
+        """        ; STALE-TAIL variant (orig $2046 = JMP $1ADC): vibrato-skipped
+        ; instruments write the GLOBAL work regs — whatever the last vibrato
+        ; computation left, even another voice's — to their freq lo,hi every
+        ; frame. Direct + shadow-invisible, like the vibrato itself.
+        ldy voicesto
+        lda svib_wlo
+        sta $d400,y
+        lda svib_whi
+        sta $d401,y
+""" if cfg.std_vibrato_stale_tail else
+        '        ; vibrato-skip writes nothing (orig $2046 = JMP $1AEB)\n'
+) + """stdvib_done:
 """
     return """std_wave_chain:
 """ + vib_body + pulse_body + """        ; $40 effect (inst +7 bit6) — wave-arp ctrl cycle (orig $1BE0-$1BFA).
@@ -3609,6 +3623,13 @@ def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
     if cfg.subtune_layout == 'runtime_slot':
         import dataclasses as _dataclasses
         cfg = _dataclasses.replace(cfg, subtune_layout='flat_seq_table')
+    # The USF may carry more instrument slots than cfg.instr_count (standard
+    # patterns can select ids 0-31; the extract grows the table to cover every
+    # referenced id). Size every instrument-table emission from the USF.
+    _max_slot = max((i.id - 1 for i in usf.instruments), default=-1)
+    if _max_slot + 1 > cfg.instr_count:
+        import dataclasses as _dcl
+        cfg = _dcl.replace(cfg, instr_count=_max_slot + 1)
     if cfg.emit_data_from_usf:
         # De-verbatim path: the composer needs NO orig file — load address
         # comes from cfg, all musical data + layout from USF. (mem / code_end

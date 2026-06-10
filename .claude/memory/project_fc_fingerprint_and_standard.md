@@ -163,21 +163,32 @@ carries the actual tick count — this was the "~2-frames-early" residual);
 NO priming → empty USF init{} + default cfg knobs match end-of-init state;
 the Tel default init's $16=$FF/$17/$18=$1F signature was leaking before).
 
-## RESUME HERE (2026-06-10 — family rollout):
-0. MANDATORY 3 questions: docs=pipelines/future_composer/docs/; disasm=
-   standard/disassembly.s; RE=standard/RE_NOTES.md (top sections = turnkey,
-   incl. the still-unimplemented list: filter bit-SET path, $Ex glide, +$B0
-   pulse jitter, $2030/bit2 effect, adjacent-$8x chaining caveat).
-1. **EAR-TEST Jarre_2** (new engine — suggest to user; writelog can't hear
-   dispatch).
-2. **RELOCATION → ONE config for the 3673-SID family**: derive data addrs
-   from load/init (members at $1800/$4800/...; fingerprint DB lists them).
-   Then batch-verify family members; each new SID exercises more of the
-   unimplemented list, write-log-first per tune.
-3. Track Jarre_2[0] as the 4th FC canary (alongside Cyb II/Hawkeye/
-   Adrenalin[0]) in regression runs.
-Verdict: verify_featuredriven(FC_STANDARD); localize with find_first_divergence +
-tools/voice_writelog.py per voice (mind Trap C — frame numbers ≠ play() calls).
+## FAMILY ROLLOUT phase 1 DONE (2026-06-10): ear-test PASSED (user).
+`fc_standard_config(sid_path)` = relocation factory (fixed layout confirmed:
+2760/4024 SIDs have the freq table at load+$564; 2639 share the full shape).
+**PRATO = 2nd verified member (181601/181601, audio✓)** via 3 family fixes:
+pulse programs BY REFERENCE (n=fx2&7, reads may pass the nominal table —
+capture by value); the STALE-TAIL variant (one static byte orig $2046: $DC →
+vibrato-skipped insts write stale global $217C/D every frame;
+cfg.std_vibrato_stale_tail, factory-probed; 1.57%→92.87% on its own);
+instrument growth (patterns select ids 0-31; extract grows to max referenced,
+composer sizes from USF). Verify fixes: fractional Songlengths; trichotomy
+Check-A default = host state ($D418=$0F pre-init) → deferred-init members
+(Prato init = ZERO SID writes, $210E=$2C variant) verify.
+
+## RESUME HERE (2026-06-10 — the $Ex GLIDE, then re-batch):
+0. MANDATORY 3 questions; RE=standard/RE_NOTES.md top ("NEXT: the $Ex
+   GLIDE" — full RE + the parser-discards-param bug + implementation list).
+1. **$Ex GLIDE** (blocks Entrail_Ranx @17376/127140 + likely more of the 9
+   failing sample tunes): parser must carry (dir, speed_hi, speed_lo,
+   threshold) — currently DISCARDS the param byte; then to_usf + gated
+   encode + composer $Ex handler + chain block (shadow-MUTATING lo,hi
+   direct writes between vibrato and pulse; globals last-parsed-wins).
+2. Re-batch /tmp/fc_std_sample.json (12 tunes; Jarre+Prato pass, 9 others
+   shift=None, 1 was the songlength crash now fixed), then widen to the
+   2639-member list; write-log-first per new failure.
+Verdict: verify_featuredriven(fc_standard_config(sid)); localize with
+find_first_divergence + voice_writelog (mind Trap C).
 
 Verdict tool: `verify_featuredriven(FC_STANDARD)` (shift becomes a real int once
 the note stream + base align). Diagnostic: per-frame writelog compare on

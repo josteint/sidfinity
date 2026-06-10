@@ -486,13 +486,13 @@ def _decode_freq_table(mem: bytes, cfg: FCConfig,
 
 
 def _decode_instruments(mem: bytes, cfg: FCConfig,
-                        engine: EngineInstance | None = None
-                        ) -> list[Instrument]:
+                        engine: EngineInstance | None = None,
+                        count: int | None = None) -> list[Instrument]:
     instr_base = resolve_address(cfg, engine, 'instr_records_addr')
     vib_base = resolve_address(cfg, engine, 'vibtabwait_addr')
     std = getattr(cfg, 'instr_format', 'tel') == 'standard'
     out: list[Instrument] = []
-    for i in range(cfg.instr_count):
+    for i in range(count if count is not None else cfg.instr_count):
         base = instr_base + i * 8
         raw = bytes(mem[base:base + 8])
         if std:
@@ -594,13 +594,18 @@ def _decode_pulse_programs(mem: bytes, cfg: FCConfig,
     if not base:
         return {}
     if getattr(cfg, 'pulse_prog_format', 'tel') == 'standard':
-        # Vanilla FC: 4-byte programs [thr_a, step1, thr_b, step2], packed
-        # from `base` up to the seq table (the next data section). See
-        # standard/RE_NOTES.md (pulse $1E95).
-        end = resolve_address(cfg, engine, 'seq_table_addr') or (base + 4 * 8)
-        count = max(0, (end - base) // 4)
+        # Vanilla FC: 4-byte programs [thr_a, step1, thr_b, step2] at
+        # base + (n-1)*4, n = an instrument's fx2 & 7 (1-based). Decode
+        # every program some instrument REFERENCES — the player indexes
+        # blindly, so n >= 4 reads past the nominal table into whatever
+        # data follows (Prato: prog 7 lands in the pattern-ptr region).
+        # Those 4 bytes are still the instrument's effective pulse-schedule
+        # parameters — musical content; their provenance in the orig image
+        # is irrelevant (capturing them by VALUE keeps the rebuild's own
+        # layout free). See standard/RE_NOTES.md (pulse $1E95).
+        ns = sorted({(i.fx2 & 0x07) for i in instruments} - {0})
         progs: dict[int, dict] = {}
-        for n in range(1, count + 1):
+        for n in ns:
             off = base + (n - 1) * 4
             b = [mem[off + j] for j in range(4)]
             # Carry in the EXISTING Tel pulse-program shape so the USF
@@ -936,6 +941,18 @@ def extract(cfg: FCConfig, root: str | None = None) -> FCSong:
                 sequences.append(seq)
         for pid, pat in sub_patterns.items():
             patterns.setdefault(pid, pat)
+
+    # Patterns may select instrument ids beyond cfg.instr_count (the $C0-$DF
+    # command carries 5 bits = ids 0-31; the player indexes the record table
+    # blindly). Grow the decoded instrument list to cover every id a pattern
+    # references — the records are real per-tune content wherever they sit.
+    max_ref = max((e.instr_id
+                   for st in subtunes for p in (st.patterns or {}).values()
+                   for e in p.events if isinstance(e, PatInstrumentChange)),
+                  default=-1)
+    if max_ref >= len(instruments):
+        instruments = _decode_instruments(
+            mem_global, cfg, engine_for_shared, count=max_ref + 1)
 
     return FCSong(
         cfg=cfg, load_addr=load_addr, init_addr=init_addr,

@@ -241,9 +241,14 @@ def _trichotomy_compare(fa: list, fb: list, close_tol: int = 64,
         k = play_match
         first_play_diff = (k, fa[ia + k], fb[ib + k])
 
-    # Check A: end-of-init chip state (the priming result).
+    # Check A: end-of-init chip state (the priming result). The unwritten
+    # default is the HOST-reset state, not all-zeros: libsidplayfp's psiddrv
+    # writes $D418=$0F BEFORE calling init (sid_init_report §1), so a
+    # deferred-init engine (zero frame-0 writes) really sits at $D418=$0F —
+    # identical to a rebuild that explicitly primes $0F.
     def end_state(flat, end):
         st = [0] * 0x19
+        st[0x18] = 0x0F
         for reg, val in flat[:end]:
             if 0 <= reg < 0x19:
                 st[reg] = val

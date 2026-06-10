@@ -215,6 +215,13 @@ class FCConfig:
     # wave-position nudge — leaving the wrong instrument's effects to corrupt
     # the freq stream).
     pattern_format: str = 'tel'
+    # Standard-player VIBRATO-TAIL variant (one static byte at orig $2046):
+    # variant $EB (Jarre_2) — vibrato-skipped instruments (fx1==0 / wave bit4 /
+    # bit2) skip the freq write entirely; variant $DC (Prato) — they jump into
+    # the vibrato's WRITE TAIL ($1ADC) and write the STALE global work regs
+    # ($217C/$217D = the last vibrato computation, possibly another voice's)
+    # to their freq lo,hi EVERY frame. True = the $DC behavior.
+    std_vibrato_stale_tail: bool = False
     # If non-zero, write this value to $D418 at the TOP of every play frame
     # (before the voice loop), matching the vanilla FC player's $1833 vol write.
     # 0 = no top-of-frame vol write (Tel engines write vol elsewhere).

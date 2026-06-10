@@ -114,7 +114,8 @@ def verify_canary(cfg: FCConfig, build_fn, root: str | None = None,
                     parts = line.rstrip().split('=', 1)[1].split()
                     for i, p in enumerate(parts):
                         m, s = p.split(':')
-                        per_sub_durations[i] = int(m) * 60 + int(s)
+                        # Songlengths entries may carry millis ("0:19.813")
+                        per_sub_durations[i] = int(m) * 60 + float(s)
                     break
 
     per_sub = {}

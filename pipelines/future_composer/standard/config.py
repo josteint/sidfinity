@@ -3,10 +3,54 @@
 This is the dominant FC player: ~91% (3673/4024) of HVSC FutureComposer SIDs
 share it (tools/fc_fingerprint.py). Migrating it covers the bulk of the FC
 catalogue. Address map from disassembly.s (representative Carter/Jarre_2 @
-load $1800). Aux effect-program tables (arp/pulse/filter/drum/...) are left at
-0 for the first pass and added as write-log divergence reveals them.
+load $1800).
+
+RELOCATION: the vanilla player's load image has a FIXED internal layout —
+every engine table sits at a constant offset from the load address (verified
+empirically: 2760/4024 HVSC FC SIDs carry the canonical 96-entry freq table
+at exactly load+$564; 2639 of those share Jarre_2's full shape init=load,
+play=load+6, vblank). `fc_standard_config(sid_path)` derives a per-SID config
+by shifting every address field by (load - $1800).
 """
+import dataclasses as _dc
+import struct
+from pathlib import Path
+
 from pipelines.future_composer.config import FCConfig
+
+# Address fields that live inside the original load image and shift with it.
+_RELOC_FIELDS = (
+    'freq_lo_addr', 'freq_hi_addr', 'pattern_ptr_addr', 'instr_records_addr',
+    'per_subtune_speed_addr', 'seq_table_addr', 'pulsetabel_addr',
+    'wavearp_addr', 'std_wave_ptr_addr',
+)
+_REF_LOAD = 0x1800                  # Jarre_2's load address (the address map base)
+
+
+def fc_standard_config(sid_path: str, root: str | None = None) -> FCConfig:
+    """Relocation-aware FC_STANDARD for any standard-player family member.
+
+    Reads the PSID load address and shifts every in-image address field by
+    (load - $1800). Everything else (formats, write model, init style) is
+    the player's behavior, identical across the family.
+    """
+    p = Path(root) / sid_path if root else Path(sid_path)
+    d = p.read_bytes()
+    hdr = struct.unpack('>H', d[6:8])[0]
+    load = struct.unpack('<H', d[hdr:hdr + 2])[0]
+    delta = load - _REF_LOAD
+    shifted = {f: getattr(FC_STANDARD, f) + delta for f in _RELOC_FIELDS}
+    body = d[hdr + 2:]
+    # Static player-variant byte at orig $2046 (the vibrato-skip JMP operand):
+    # $EB = skip writes nothing (Jarre_2); $DC = stale-tail write (Prato).
+    variant = body[0x2046 - _REF_LOAD]
+    return _dc.replace(
+        FC_STANDARD,
+        name=f'fc_standard:{p.stem}',
+        sid_path=str(sid_path),
+        std_vibrato_stale_tail=(variant == 0xDC),
+        **shifted,
+    )
 
 FC_STANDARD = FCConfig(
     name='fc_standard',
