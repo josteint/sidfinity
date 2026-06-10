@@ -278,10 +278,14 @@ lastfreqhi:     .dsb 3, 0            ; layout: nextvoice writes freq only when
                                      ; note-load/freq-effect, not every frame)
 d402:           .dsb 3, 0            ; shadow $D402 (pw lo)
 d403:           .dsb 3, 0            ; shadow $D403 (pw hi)
-nt_flag:        .dsb 3, 0            ; standard noise-click restore flag: armed
-                                     ; by the chain each restore frame; tells
-                                     ; nextvoice to write freq UNCONDITIONALLY
-                                     ; lo,hi (orig $1D0A order); self-clearing
+fw_mode:        .dsb 3, 0            ; standard freq-write mode, armed by the
+                                     ; chain each frame, consumed (self-clearing)
+                                     ; by nextvoice's freq slot:
+                                     ;   0 = conditional hi,lo (default)
+                                     ;   1 = UNCONDITIONAL lo,hi ($80 restore
+                                     ;       $1D0A / wave relative $1D42)
+                                     ;   2 = UNCONDITIONAL hi,lo (wave absolute
+                                     ;       $1CD8)
 
 ; End-of-state marker — ok2's clear loop runs from tabcount to here.
 ; ANYTHING THAT MUST SURVIVE ok2 GOES AFTER THIS MARKER (the song
@@ -918,16 +922,26 @@ def _emit_nextvoice_writes_standard() -> str:
         '        sta $d402,y                  ; pw lo\n'
         '        lda d403,x\n'
         '        sta $d403,y                  ; pw hi\n'
-        '        lda nt_flag,x                ; noise-click restore frame?\n'
-        '        beq stdnv_cf                 ; no → normal conditional freq\n'
-        '        lda #0\n'
-        '        sta nt_flag,x                ; consume (chain re-arms per frame)\n'
-        '        lda d400,x\n'
-        '        sta $d400,y                  ; freq lo FIRST — orig $1D0A\n'
-        '        sta lastfreqlo,x             ; restore order (lo,hi), written\n'
-        '        lda d401,x                   ; EVERY frame even if unchanged\n'
-        '        sta $d401,y                  ; freq hi\n'
+        '        lda fw_mode,x                ; chain-armed freq-write mode?\n'
+        '        beq stdnv_cf                 ; 0 → normal conditional freq\n'
+        '        lsr                          ; bit0 → C: mode 1 → C=1 (lo,hi),\n'
+        '        lda #0                       ; mode 2 → C=0 (hi,lo)\n'
+        '        sta fw_mode,x                ; consume (chain re-arms per frame)\n'
+        '        bcc stdnv_fhl\n'
+        '        lda d400,x                   ; mode 1: UNCONDITIONAL lo,hi\n'
+        '        sta $d400,y                  ; ($80 restore $1D0A / wave\n'
+        '        sta lastfreqlo,x             ; relative $1D42), written EVERY\n'
+        '        lda d401,x                   ; frame even if unchanged\n'
+        '        sta $d401,y\n'
         '        sta lastfreqhi,x\n'
+        '        jmp stdnv_ct\n'
+        'stdnv_fhl:\n'
+        '        lda d401,x                   ; mode 2: UNCONDITIONAL hi,lo\n'
+        '        sta $d401,y                  ; (wave absolute $1CD8/$1CDD)\n'
+        '        sta lastfreqhi,x\n'
+        '        lda d400,x\n'
+        '        sta $d400,y\n'
+        '        sta lastfreqlo,x\n'
         '        jmp stdnv_ct\n'
         'stdnv_cf:\n'
         '        lda d401,x                   ; freq hi vs last-written\n'
@@ -961,7 +975,7 @@ def _emit_std_wave_chain(cfg: FCConfig) -> str:
         ; $1CE3-$1D1D. Same musical concept as Hawkeye's noise_tick (same
         ; fx3 bit), different constants + a PERSISTENT restore: counter<2 →
         ; freq=$4800 + ctrl=$81 (noise+gate click); counter>=2 → the note's
-        ; BASE freq rewritten EVERY frame (lo,hi — via the nt_flag hook in
+        ; BASE freq rewritten EVERY frame (lo,hi — via the fw_mode hook in
         ; nextvoice) + ctrl = waveform & $FE (gate off). The chain only runs
         ; on held frames, so the single attack frame is counter==1 (orig
         ; skips the chain on note-load frames too).
@@ -983,7 +997,7 @@ stdnt_restore:
         lda hinotesto,x
         sta d401,x
         lda #1
-        sta nt_flag,x                ; arm the unconditional lo,hi freq write
+        sta fw_mode,x                ; arm the unconditional lo,hi freq write
         lda wavesto,x
         and #$FE
         sta stod404,x                ; gate off, waveform kept
@@ -1086,15 +1100,20 @@ stdpp_done:
 stdw_waveprog:
         lda fx3sto
         and #$10
-        beq stdw_nt                  ; wave program not enabled
+        beq stdw_nt                  ; wave program not enabled → $80 check
         lda counter2,x               ; clk = frames since note
-        cmp #$10
-        bcc stdw_clk
-        lda #$0f                     ; cap at 15 (orig $1CA8 CMP #$0F)
-stdw_clk:
-        beq stdw_nt                  ; clk 0 → no envelope entry yet
+        bne stdw_clkok               ; clk 0 → nothing yet (chain runs on held
+        jmp stdw_done                ; frames only, so this is theoretical)
+stdw_clkok:
+        cmp #$0f
+        bcc stdw_clkrun              ; clk >= 15 → HOLD: no ctrl/freq update,
+        jmp stdw_done                ; shadows keep their last values (orig
+                                     ; $1CAA BCS $1CE0 — which also skips the
+                                     ; $80 effect; wave-enabled insts NEVER
+                                     ; reach $1CE3 on any path)
+stdw_clkrun:
         sec
-        sbc #1                       ; A = clk-1 (0..14)
+        sbc #1                       ; A = clk-1 (0..13)
         sta pp_count_lo              ; stash index-low
         lda fx1sto                   ; selector = inst +5 low nibble
         and #$0f
@@ -1106,6 +1125,38 @@ stdw_clk:
         tay                          ; Y = wave-table index
         lda std_wave_ctrl,y
         sta stod404,x                ; ctrl shadow (→ $D404 via nextvoice)
+        ; FREQ part (orig $1CB6-$1CE0): val = freqtab[sel][clk-1]; mode on
+        ; inst +5 bit4: SET = RELATIVE — a semitone ARPEGGIO (note index +
+        ; val → freq-table lookup, written lo,hi, orig $1D42); CLEAR =
+        ; ABSOLUTE (freq hi = val+$0D with 8-bit wrap, lo = 0, written
+        ; hi,lo, orig $1CD8/$1CDD). Both UNCONDITIONAL every frame clk
+        ; 1..14 → armed via fw_mode for nextvoice's freq slot.
+        lda std_wave_freq,y
+        sta pp_count_lo              ; scratch: envelope value (clk-1 done)
+        lda fx1sto
+        and #$10
+        beq stdwf_abs
+        lda noho,x                   ; RELATIVE: note index + val (semitones)
+        clc
+        adc pp_count_lo
+        tay
+        lda lonote,y                 ; freq table lookup
+        sta d400,x
+        lda hinote,y
+        sta d401,x
+        lda #1                       ; unconditional lo,hi (orig $1D42)
+        sta fw_mode,x
+        jmp stdw_done                ; wave path skips the $80 effect
+stdwf_abs:
+        lda pp_count_lo              ; ABSOLUTE: hi = val + $0D, lo = 0
+        clc
+        adc #$0d
+        sta d401,x
+        lda #0
+        sta d400,x
+        lda #2                       ; unconditional hi,lo (orig $1CD8/$1CDD)
+        sta fw_mode,x
+        jmp stdw_done                ; wave path skips the $80 effect
 stdw_nt:
 """ + nt_body + """stdw_done:
         jmp nextvoice
