@@ -260,6 +260,64 @@ def _parse_pattern(raw: bytes) -> tuple[list[PatEvent], int]:
     return events, i
 
 
+def _parse_pattern_standard(raw: bytes) -> tuple[list[PatEvent], int]:
+    """Decode STANDARD ("vanilla") FC pattern bytes — parser $18DD-$1957.
+
+    This is a structurally different dispatch from the Tel variant
+    (`_parse_pattern`); the byte ranges mean different things:
+
+      $FF        end-of-pattern ($19CC / sub_19ED peek)
+      $F0..$FE   tie/no-retrigger prefix: the FOLLOWING byte is a note that
+                 plays WITHOUT reloading the instrument ($2180,x=1 skips the
+                 note-load at $1986). Low nibble is ignored. → PatNoGlide
+                 (which carries the 'noretrig' legato flag in to_usf) + PatNote.
+      $E0..$EF   3-byte glide [$Ex][param][note]: param low nibble = dir(bit0)+
+                 speed(bits1-3>>1); 3rd byte is the note. → PatGlide + PatNote.
+      $C0..$DF   instrument-select, low 5 bits = instrument id (0-31). This is
+                 the key divergence from Tel ($Cx = wave-adjust there): the
+                 standard player chooses its instrument here. → PatInstrumentChange.
+      $80..$BF   note-length, low 6 bits (1-63). Modal prefix. → PatSetLength.
+      $00..$7F   note (pitch index). → PatNote.
+
+    The standard format reuses the existing PatEvent vocabulary — only the
+    dispatch differs — so to_usf / the composer consume it unchanged.
+    """
+    events: list[PatEvent] = []
+    i = 0
+    while i < len(raw):
+        b = raw[i]
+        if b == 0xFF:
+            events.append(PatEnd())
+            i += 1
+            break
+        if (b & 0xF0) == 0xF0:           # $F0..$FE tie/no-retrigger
+            if i + 1 >= len(raw):
+                break
+            events.append(PatNoGlide())          # carries the noretrig flag
+            events.append(PatNote(raw[i + 1]))   # next byte is the note
+            i += 2
+            continue
+        if (b & 0xF0) == 0xE0:           # $E0..$EF 3-byte glide
+            if i + 2 >= len(raw):
+                break
+            events.append(PatGlide(b & 0x0F))    # param low nibble (dir+speed)
+            events.append(PatNote(raw[i + 2]))   # 3rd byte is the note
+            i += 3
+            continue
+        if (b & 0xE0) == 0xC0:           # $C0..$DF instrument-select (0-31)
+            events.append(PatInstrumentChange(b & 0x1F))
+            i += 1
+            continue
+        if (b & 0xC0) == 0x80:           # $80..$BF note-length
+            events.append(PatSetLength(b & 0x3F))
+            i += 1
+            continue
+        # $00..$7F: note
+        events.append(PatNote(b))
+        i += 1
+    return events, i
+
+
 @dataclass
 class Pattern:
     """A pattern stream: bytes consumed left-to-right by the per-voice
@@ -686,7 +744,8 @@ def _decode_sequence(mem: bytes, start_addr: int,
 
 
 def _decode_pattern(mem: bytes, pat_id: int, start_addr: int,
-                    max_bytes: int = 512) -> Pattern:
+                    max_bytes: int = 512,
+                    pattern_format: str = 'tel') -> Pattern:
     raw_buf = bytearray()
     for k in range(max_bytes):
         b = mem[start_addr + k]
@@ -694,7 +753,9 @@ def _decode_pattern(mem: bytes, pat_id: int, start_addr: int,
         if b == 0xFF:
             break
     raw = bytes(raw_buf)
-    events, _consumed = _parse_pattern(raw)
+    parse = (_parse_pattern_standard if pattern_format == 'standard'
+             else _parse_pattern)
+    events, _consumed = parse(raw)
     notes = sum(1 for e in events if isinstance(e, PatNote))
     return Pattern(id=pat_id, start_addr=start_addr, bytes_raw=raw,
                    events=events, notes_count=notes)
@@ -851,7 +912,9 @@ def extract(cfg: FCConfig, root: str | None = None) -> FCSong:
         for pid in sorted(sub_pat_ids):
             paddr = (mem[pat_ptr_base + pid * 2]
                      | (mem[pat_ptr_base + pid * 2 + 1] << 8))
-            sub_patterns[pid] = _decode_pattern(mem, pid, paddr)
+            sub_patterns[pid] = _decode_pattern(
+                mem, pid, paddr,
+                pattern_format=getattr(cfg, 'pattern_format', 'tel'))
         st.seqs = tuple(sub_seqs)
         st.patterns = sub_patterns
         subtunes.append(st)

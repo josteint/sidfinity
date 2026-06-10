@@ -204,6 +204,16 @@ class FCConfig:
     # effect-flags (NOT Tel fx); the standard decoder zeros fx1/2/3 so the
     # composer applies no Tel effects. See standard/RE_NOTES.md.
     instr_format: str = 'tel'
+    # Pattern-stream byte dispatch. 'tel' (default) = the Tel-variant ranges
+    # ($70-$7F instr, $C0-$DF wave-adjust, $F0 noglide, $F1 filter). 'standard'
+    # = the vanilla FC player's parser ($18DD-$1957): $C0-$DF = instrument-select
+    # (low 5 bits, 0-31), $F0-$FE = tie/no-retrigger prefix (next byte is the
+    # note), $E0-$EF = 3-byte glide, $80-$BF = note-length, $00-$7F = note,
+    # $FF = end. See standard/RE_NOTES.md (the foundational fix: the standard
+    # player selects instruments via $Cx, which Tel decode misreads as a
+    # wave-position nudge — leaving the wrong instrument's effects to corrupt
+    # the freq stream).
+    pattern_format: str = 'tel'
     # If non-zero, write this value to $D418 at the TOP of every play frame
     # (before the voice loop), matching the vanilla FC player's $1833 vol write.
     # 0 = no top-of-frame vol write (Tel engines write vol elsewhere).

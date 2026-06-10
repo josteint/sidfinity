@@ -29,6 +29,7 @@ FC_STANDARD = FCConfig(
     pulsetabel_addr=0x1E95,
     pulse_prog_format='standard',
     instr_format='standard',
+    pattern_format='standard',
     std_wave_ptr_addr=0x1E3E,
     vol_every_frame=0x1F,
     fm2_cleanup_writes_d418=False,
