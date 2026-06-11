@@ -568,9 +568,12 @@ def _decode_std_wave_programs(mem: bytes, cfg: FCConfig,
     for s in sels:
         cptr = mem[base + s] | (mem[base + 2 + s] << 8)
         fptr = mem[base + 4 + s] | (mem[base + 6 + s] << 8)
+        # Content-by-reference: read what the player would read — a junk
+        # pointer near the top of memory wraps at 64K on the 6502 (grown
+        # instrument decodes can reference selectors with garbage ptrs).
         progs[s] = {
-            'ctrl': [mem[cptr + j] for j in range(15)],
-            'freq': [mem[fptr + j] for j in range(15)],
+            'ctrl': [mem[(cptr + j) & 0xFFFF] for j in range(15)],
+            'freq': [mem[(fptr + j) & 0xFFFF] for j in range(15)],
         }
     return progs
 
