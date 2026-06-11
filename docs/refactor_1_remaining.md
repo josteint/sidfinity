@@ -49,6 +49,42 @@ Pick this back up when at least two of:
 - 2+ other large engine families migrated (Music_Assembler ~6k,
   Future_Composer ~4k, Soundmonitor ~3.6k SIDs).
 
+**Vocabulary: an engine family counts toward this trigger when it is
+"uready" (unification-ready)** — the six-criteria maturity gate defined
+in `.claude/memory/feedback_uready_vocabulary.md`: orig-free §9 builds,
+no escape hatches, factored/reversible USF, representative verification
+(variant census + wide-batch pass-rate), feature-dimension accounting,
+documented residue. "Is this engine uready?" is the question to ask
+before leaving a family.
+
+### Trigger progress + shape evidence (2026-06-11)
+
+The **standard ("vanilla") Future Composer player** (~2700 of FC's ~4k
+SIDs, one fixed-layout relocatable image) is substantially migrated: a
+12-SID load/variant-spread sample verifies play-stream exact with
+trichotomy audio-equivalence; the wide batch is next. Shape evidence it
+contributes to Move 1's design:
+
+- **Reused dimensions** (evidence the feature space is sound): wave_arp,
+  noise_tick (new 'standard' style), filter_programs (grown along the
+  musical axis: variable seg count + onset), pulse programs (4-byte
+  variant of the same threshold/step schedule), the portamento space
+  (glide=N target-style vs glide_up/down+onset rate-style),
+  Orderlist.loop_transpose (loop-pickup semantics).
+- **New write-model shape**: conditional freq writes + chain-direct
+  effect writes with per-effect lo/hi order asymmetries (the composer's
+  fw_mode dispatch) — a per-voice write model none of the prior five
+  families had.
+- **Per-MEMBER player variants** (hacked operand bytes, NOPed writes,
+  JSR hooks, wrapper inits) handled as factory-probed behavior knobs —
+  a finer granularity than per-family configs; the unified skeleton's
+  input surface must account for it.
+- **An honest §8-shaped note**: the FC composer now carries its own
+  Tel-vs-standard layout dispatch (gwo2 → std_wave_chain etc.) — the
+  same engine-flavored branch structure this document describes for the
+  Hubbard composer, deferred by the same corpus-richness logic. It
+  belongs in Move 1's scope.
+
 At that point the 5-way dispatch will have either grown to 7-10
 branches (signaling the structural move is needed) or will have
 absorbed new engines into the existing feature dimensions (signaling

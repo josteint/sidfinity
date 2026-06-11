@@ -49,6 +49,7 @@
 - [Do the actual work](feedback_do_the_work.md) — implement ALL optimizations, don't punt
 - [Worktree agents must commit](feedback_worktree_commit.md) — always tell agents to `git add` + commit
 - [Meta-process](feedback_meta_process.md) — at natural pauses, re-evaluate if the current approach is still highest ROI and whether memories / CLAUDE.md reflect reality
+- [VOCABULARY: "uready"](feedback_uready_vocabulary.md) — unification-ready: the 6-criteria gate for leaving an engine family (orig-free §9, no escape hatches, factored/reversible USF, representative verification, feature-dimension accounting, documented residue). "Is this engine uready?" = can we move on without the composer-skeleton unification (refactor_1 Move 1) suffering for it. Scoreboard kept in the memory.
 
 ### USF schema discipline
 - [USF representation principle](feedback_usf_representation_principle.md) — TRIPWIRE: before designing/changing any USF effect/instrument representation, read `docs/usf_representation_principle.md` IN FULL. Effects are parametric over a musical basis; the engine holds mechanism, never an indexed library.
