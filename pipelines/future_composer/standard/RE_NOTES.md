@@ -739,3 +739,24 @@ other family members) exercise them.
    ($00 ×6, $C9 ×3, $18 ×2); unrecognized/oddball $1C78 ($D416) hooks
    (JBs_Freak-Out JSR $2080). Probe over all 4024 FC SIDs: 2672 members /
    1352 flagged (82 too-short, 11 play=load+3, 5 play=load+$2A, singles).
+
+## WIDE-BATCH TRIAGE (2026-06-11, batch still running) — 3 fixes + 1 deferred
+Fixed (each with witness + canaries 16/16, committed):
+1. chained-$8x collapse (1st_Sound) — see the parser comment.
+2. ascending songout clear (seq $FE → orig $188C → JMP $210B).
+3. the +$B0 PW write-time jitter (Ranx/Gylletanken/Popcorn) — inst
+   raw[0] bit7 + odd counter2; written-only, carry into hi.
+
+DEFERRED — **the stale-X arp DEC** (witness Ace64/Tune_10, bucket ~3
+in the first 1200): for fx3-bit2 insts with bit7 CLEAR the orig enters
+$1D1E from $1CE8 WITHOUT reloading X (the $1D2F read does LDX $FF, the
+$1D25 DEC does NOT) — the DEC hits $2161+staleX (whatever the pulse/
+$40/filter blocks left), so the voice's own counter sticks at 3 between
+note fetches and arp3[3] = $1E89 = the FILTER table's first byte ($C0
+in Tune_10) → freq reads land at noho+192 mod 256, deep in the overrun
+(memwatch: D40F=$00 row = noho $2B + $C0 → idx 235 = overrun[139]).
+Entrail verified because ITS arp insts are bit7-SET → the $1D0A path
+reloads X. Modelling needs per-block X-exit analysis (which chain
+blocks ran per inst combo decides the DEC target — deterministic but
+fiddly). ALSO requires freq_overrun to include delta=filterbytes[0]
+(and the ctr=0 slot reads) for such insts once modelled.
