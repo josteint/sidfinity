@@ -713,3 +713,29 @@ Every layer differs from the Tel composer the FC pipeline grew around:
 $1E66/$1E76 (per-frame wave/arp), $1E3E/$40/$42/$44 (program-ptr table sel
 $2153&$0F), $1E32 (4-byte effect). Map these the same way if Jarre_2 (or
 other family members) exercise them.
+
+## ✅ UREADY ROUND A (2026-06-11) — freq_overrun minimization + batch hygiene
+1. **freq_overrun reachable-window capture** (engine_model._std_freq_overrun):
+   replaced the unconditional 160-byte tail with the set of hinote indices
+   the tune can actually REACH. Per-voice orderlist walk (transpose + current
+   instrument carried through patterns AND across the $FF wrap, two passes =
+   the loop-pickup fixpoint); per-instrument deltas: 0 (note-load), +1
+   (vibrato's semitone-delta read, only for vibrato-capable insts), the
+   wave-relative freq-program values (entries 0..13), the global arp3
+   candidate set (init slots + vibrato-skipped insts' fx1 nibbles + $0C/$18).
+   The PAIRING matters: relative-mode programs are full of negative vals
+   ($F4..$FD) that only wrap off-table under LOW notes — a naive notes×deltas
+   cross product recaptures ~160 for nearly every wave-relative tune; the
+   paired walk gives Jarre 0, Intense 11, Exquisite 13, FBI 12, most 0.
+   Sample 12/12 FULL + canaries 16/16 after regeneration. Under-capture is
+   fail-visible (the next data section sits right after the window).
+2. **Factory hygiene** (FCStandardUnsupported, bucketable .reason): the
+   factory now detects-and-flags instead of building wrong-shape noise —
+   image too short; freq-table probe (SHA1 of the 96 LO bytes at load+$564
+   ONLY: the table is per-tune image data — Tyranny carries an edited
+   hi[90]=$00; LO-only reproduces the documented membership); entry shape
+   (init ∈ {0, load, $2108+delta} — ~50 members point init straight at the
+   stock routine — play = load+6); CIA speed bits; oddball $2046 operands
+   ($00 ×6, $C9 ×3, $18 ×2); unrecognized/oddball $1C78 ($D416) hooks
+   (JBs_Freak-Out JSR $2080). Probe over all 4024 FC SIDs: 2672 members /
+   1352 flagged (82 too-short, 11 play=load+3, 5 play=load+$2A, singles).

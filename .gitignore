@@ -51,3 +51,6 @@ pipelines/hubbard/*/build/
 
 # accidental pc-trace/hex-named dumps at repo root (e.g. siddump --pc-trace 0x7AE0 ...)
 /0x*
+
+# scratch dir for batch lists, worker tmp, probe outputs (use this, NOT /tmp)
+/tmp/

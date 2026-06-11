@@ -570,6 +570,105 @@ def _decode_std_wave_programs(mem: bytes, cfg: FCConfig,
     return progs
 
 
+def _std_freq_overrun(mem: bytes, cfg: FCConfig,
+                      engine: EngineInstance | None,
+                      subtunes: list, instruments: list,
+                      wave_programs: dict) -> list:
+    """Reachable-window capture of the image bytes after hinote (standard).
+
+    The standard player indexes lonote/hinote with 8-bit indices that can
+    pass the 96-entry table; off-table reads must resolve to the orig's
+    following image bytes (content-by-reference — what it reads IS what
+    plays). Capturing the whole 160-byte window for every member stuffs
+    the corpus with junk, so capture only what the tune can REACH, as a
+    conservative over-approximation:
+
+      noho candidates  = every pattern note pitch × every seq transpose
+                         (cross product — pairing notes to the transposes
+                         they actually play under would under-capture on
+                         a mismodel; extra candidates only cost bytes)
+      delta candidates = 0  (note-load / glide-target lookup)
+                         1  (vibrato's semitone-delta +1 read), if any
+                            inst can run vibrato (fx1!=0, fx3 bits2/4 clear)
+                         wave freq-program values (relative-mode insts:
+                            fx3 bit4 + fx1 bit4; entries 0..13 reachable)
+                         arp3 offsets (any fx3-bit2 inst: the baked init
+                            slots + every $2030-path rewrite candidate —
+                            vibrato-skipped insts' fx1 nibbles / $0C,$18)
+
+    The note↔instrument PAIRING matters: a relative-mode program full of
+    negative vals ($F4..$FD) only wraps off-table when its inst plays a
+    LOW note, so each voice's orderlist is walked (transpose + current
+    instrument carried through patterns, and across the $FF wrap — the
+    loop-pickup carry — via a second pass) and deltas applied per the
+    instrument actually sounding. A naive notes×deltas cross product
+    re-captures ~160 bytes for nearly every wave-relative tune.
+
+    Window = hinote indices {(noho+delta)&$FF} ≥ entries, up to the max.
+    Empty when nothing reaches off-table. An under-capture cannot pass
+    silently: the composer lays the next data section right after the
+    window, so an unmodeled off-table read diverges in verify.
+    """
+    entries = cfg.freq_table_entries
+    insts = list(instruments)
+
+    # arp3 offsets are GLOBAL state (slots 1-2 last-runner-wins across
+    # voices each frame): any vibrato-skipped inst's rewrite can be live
+    # when any fx3-bit2 inst reads the table.
+    arp_cands = set(cfg.std_arp3_init)
+    for i in insts:
+        if len(i.raw) >= 8 and ((i.fx3 & 0x14) or not i.fx1):
+            arp_cands.update((i.fx1 >> 4, i.fx1 & 0x0F) if i.fx1
+                             else (0x0C, 0x18))
+
+    delta_cache: dict[int, set] = {}
+
+    def _deltas(idx: int) -> set:
+        if idx not in delta_cache:
+            d = {0}                          # note-load / glide-target lookup
+            if 0 <= idx < len(insts) and len(insts[idx].raw) >= 8:
+                i = insts[idx]
+                if i.fx1 and not (i.fx3 & 0x14):
+                    d.add(1)                 # vibrato's semitone-delta +1 read
+                if (i.fx3 & 0x10) and (i.fx1 & 0x10):
+                    prog = wave_programs.get(i.fx1 & 0x0F)
+                    if prog:
+                        d.update(v & 0xFF for v in prog['freq'][:14])
+                if i.fx3 & 0x04:
+                    d.update(a & 0xFF for a in arp_cands)
+            delta_cache[idx] = d
+        return delta_cache[idx]
+
+    reach: set[int] = set()
+    for st in subtunes:
+        pats = st.patterns or {}
+        for seq in (st.seqs or ()):
+            transpose, cur = 0, 0            # toneadd + current instrument
+            for _pass in range(2):           # pass 2 = the $FF wrap carry
+                wrapped = False
+                for cmd in seq.commands:
+                    if isinstance(cmd, SeqTranspose):
+                        transpose = cmd.semitones
+                    elif isinstance(cmd, SeqWrap):
+                        wrapped = True
+                    elif (isinstance(cmd, SeqPatternJump)
+                          and cmd.pattern_id in pats):
+                        for e in pats[cmd.pattern_id].events:
+                            if isinstance(e, PatInstrumentChange):
+                                cur = e.instr_id
+                            elif isinstance(e, PatNote):
+                                noho = (e.pitch + transpose) & 0xFF
+                                reach.update((noho + d) & 0xFF
+                                             for d in _deltas(cur))
+                if not wrapped:
+                    break
+    top = max((i for i in reach if i >= entries), default=None)
+    if top is None:
+        return []
+    base = resolve_address(cfg, engine, 'freq_hi_addr') + entries
+    return [mem[base + i] for i in range(top - entries + 1)]
+
+
 def _decode_arp_programs(mem: bytes, cfg: FCConfig,
                          engine: EngineInstance | None = None) -> dict:
     """Decode the FC arp library (arplo/arphi) into {N: signed offsets}.
@@ -999,6 +1098,8 @@ def extract(cfg: FCConfig, root: str | None = None) -> FCSong:
         instruments = _decode_instruments(
             mem_global, cfg, engine_for_shared, count=max_ref + 1)
 
+    std_wave_programs = _decode_std_wave_programs(
+        mem_global, cfg, instruments, engine_for_shared)
     return FCSong(
         cfg=cfg, load_addr=load_addr, init_addr=init_addr,
         play_addr=play_addr, psid_songs=n_songs,
@@ -1012,16 +1113,14 @@ def extract(cfg: FCConfig, root: str | None = None) -> FCSong:
             mem_global, cfg, instruments, engine_for_shared),
         drum_programs=_decode_drum_programs(
             mem_global, cfg, engine_for_shared),
-        std_wave_programs=_decode_std_wave_programs(
-            mem_global, cfg, instruments, engine_for_shared),
-        # Standard: capture the 160 image bytes after the freq hi table —
-        # the window 8-bit off-table indices (96..255) actually read
-        # (lonote[96+k] = hinote[k] is covered by table adjacency; the
-        # hinote overrun needs the orig's following bytes by value).
+        std_wave_programs=std_wave_programs,
+        # Standard: the bytes after the freq hi table that off-table 8-bit
+        # indices can actually reach (lonote[96+k] = hinote[k] is covered
+        # by table adjacency; the hinote overrun needs the orig's bytes by
+        # value). Reachable-window capture — see _std_freq_overrun.
         freq_overrun=(
-            [mem_global[resolve_address(cfg, engine_for_shared,
-                                        'freq_hi_addr')
-                        + cfg.freq_table_entries + i] for i in range(160)]
+            _std_freq_overrun(mem_global, cfg, engine_for_shared,
+                              subtunes, instruments, std_wave_programs)
             if getattr(cfg, 'pattern_format', 'tel') == 'standard' else []),
         **_decode_flat_aux(mem_global, cfg, engine_for_shared),
     )

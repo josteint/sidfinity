@@ -1,5 +1,7 @@
 ## Project state
 
+- [Current host is 8-core](project_current_host_8core.md) — since 2026-06-11: 8 cores (NOT the 64-core EPYC in CLAUDE.md), no pytest. Pool(8); regression as the gate.
+
 - [USF init.sid block](project_usf_init_sid_block.md) — CURRENT. USF carries SID-chip priming as typed `init.sid { master_vol, filter, voice N { envelope_prime, pw_init } }` block; composer reads it directly; shape-detection deleted. Bowden migrated as the proof case. Built on [[init-trichotomy]] principle.
 - [Composer dissolution](project_composer_dissolution.md) — Phase 8 of the composer rewrite is done; `composer_hubbard.py` DELETED. The Hubbard '85 family lives entirely in `pipelines/composer.py` as feature-driven asm composition (18 chunk emitters + typed args, no template substitution). Run `tools/regression.py` for the current verdict.
 - [Hubbard remaining partials](project_hubbard_remaining_partials.md) — FULLY RESOLVED: entire Hubbard family instruction-sequence exact (71/71, 0 partial). Two fixes: (1) CIA-aware per-play verdict (Human_Race 5/5 + Battle 1/1 via siddump --writelog-per-irq); (2) Devils_Galop master_vol_every_note knob ($D418=$0F on every note-load; NOT the "dropped V3 freq" the old tooling claimed). New knob mirrors master_vol_every_frame but per-note.
@@ -45,6 +47,7 @@
 - [User nudge pattern](feedback_user_nudge_pattern.md) — question implausible explanations, brainstorm across math fields, extract don't reconstruct
 - [User strategic pattern](feedback_user_strategic_pattern.md) — propose options before code; honest scope; pause after each step
 - [Commit early](feedback_commit_early.md) — commit immediately after each verified improvement
+- [Repo tmp/ not /tmp](feedback_repo_tmp_dir.md) — ALL scratch artifacts go in the gitignored repo-local `tmp/`, never the system /tmp (it gets wiped; ate the FC member lists)
 - [No co-author in commits](feedback_no_coauthor.md) — never add `Co-Authored-By`
 - [Do the actual work](feedback_do_the_work.md) — implement ALL optimizations, don't punt
 - [Worktree agents must commit](feedback_worktree_commit.md) — always tell agents to `git add` + commit

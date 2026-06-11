@@ -13,10 +13,33 @@ play=load+6, vblank). `fc_standard_config(sid_path)` derives a per-SID config
 by shifting every address field by (load - $1800).
 """
 import dataclasses as _dc
+import hashlib
 import struct
 from pathlib import Path
 
 from pipelines.future_composer.config import FCConfig
+
+
+class FCStandardUnsupported(Exception):
+    """The SID is not a clean standard-player family member.
+
+    Raised by `fc_standard_config` with a machine-bucketable `reason` so
+    batch runs flag oddballs cleanly instead of producing a garbage
+    verdict (wrong-shape build → meaningless divergence noise).
+    """
+
+    def __init__(self, sid_path: str, reason: str):
+        self.sid_path = sid_path
+        self.reason = reason
+        super().__init__(f'{sid_path}: {reason}')
+
+
+# SHA1 of the canonical 96-entry freq LO table at load+$564 (the family
+# membership probe — 2760/4024 HVSC FC SIDs carry it verbatim). LO only:
+# the table is per-tune image DATA and a few members carry edited/zeroed
+# HI bytes (Tyranny_for_You_part_6 hi[90]=$00) — content rides in the
+# USF either way; the probe only establishes the layout.
+_CANONICAL_FREQ_SHA1 = '0c341b7f47605a64e39a3bb7652580865c1444a9'
 
 # Address fields that live inside the original load image and shift with it.
 _RELOC_FIELDS = (
@@ -41,12 +64,37 @@ def fc_standard_config(sid_path: str, root: str | None = None) -> FCConfig:
     delta = load - _REF_LOAD
     shifted = {f: getattr(FC_STANDARD, f) + delta for f in _RELOC_FIELDS}
     body = d[hdr + 2:]
+    # ---- family membership + variant hygiene -------------------------
+    # Detect-and-flag (FCStandardUnsupported, bucketable reason) instead
+    # of building a wrong-shape rebuild whose divergence is pure noise.
+    if len(body) < 0x847:                # deepest probed offset ($2046)
+        raise FCStandardUnsupported(str(sid_path), 'image too short')
+    if hashlib.sha1(body[0x564:0x5C4]).hexdigest() != _CANONICAL_FREQ_SHA1:
+        raise FCStandardUnsupported(
+            str(sid_path), 'freq-table probe mismatch (not standard layout)')
+    init_hdr = struct.unpack('>H', d[0x0A:0x0C])[0]
+    play_hdr = struct.unpack('>H', d[0x0C:0x0E])[0]
+    # Stock image: load+0 = JMP $2108 (init), load+6 = the inline play
+    # routine. Some members' headers point init STRAIGHT at the stock
+    # $2108-equivalent, bypassing the JMP — same engine, accepted.
+    if (init_hdr not in (0, load, 0x2108 + delta)
+            or play_hdr != load + 6):
+        raise FCStandardUnsupported(
+            str(sid_path), f'non-standard entry shape (init=${init_hdr:04X} '
+            f'play=${play_hdr:04X} load=${load:04X})')
+    if d[0x12:0x16] != b'\x00\x00\x00\x00':
+        raise FCStandardUnsupported(
+            str(sid_path), 'CIA-timed (PSID speed bits set)')
     # Static player-variant bytes:
     # $2046 (vibrato-skip JMP operand): $EB = skip writes nothing (Jarre_2);
     #   $DC = stale-tail write (Prato).
     # $1B3F (glide-up hi-write operand): $01 = freq hi (normal); $55 =
     #   mirror-write hack (Entrail). Stored as low 5 bits (mirror-equivalent).
     variant = body[0x2046 - _REF_LOAD]
+    if variant not in (0xEB, 0xDC):
+        raise FCStandardUnsupported(
+            str(sid_path),
+            f'oddball $2046 build (vibrato-skip operand ${variant:02X})')
     glide_hi = body[0x1B3F - _REF_LOAD]
     arp3 = tuple(body[0x1E86 - _REF_LOAD:0x1E89 - _REF_LOAD])
     # $D416-write variant (the opcode at orig $1C78): STA / NOPed-out /
@@ -63,10 +111,12 @@ def fc_standard_config(sid_path: str, root: str | None = None) -> FCConfig:
                 and body[tgt + 5] == 0x60):
             d416_mode, d416_const = 'const', body[tgt + 1]
         else:
-            import sys
-            print(f'fc_standard_config: unrecognized $1C78 hook in '
-                  f'{sid_path} — keeping the normal $D416 write',
-                  file=sys.stderr)
+            raise FCStandardUnsupported(
+                str(sid_path),
+                f'unrecognized $1C78 hook (JSR ${tgt + load:04X})')
+    elif op != 0x8D:
+        raise FCStandardUnsupported(
+            str(sid_path), f'oddball $1C78 opcode ${op:02X}')
     # Sequence-table provenance. The stock player reads the static 6-byte
     # record at $1EA1 and has NO subtune indexing. Wrapper inits (e.g.
     # Intense_Intro: copy a per-subtune record from a side table into the
