@@ -292,8 +292,11 @@ orderlist_entry: INT ol_repeat? ol_transpose? ol_voiceinc?
 ol_repeat: "*" INT
 ol_transpose: "+" INT
 ol_voiceinc: "^" INT
-orderlist_terminator: "loop" "@" INT      -> ol_loop
-                    | "stop"              -> ol_stop
+// loop@N — wrap to entry N, the head re-establishing its stated
+// transpose. loop@N+T — wrap CARRYING transpose T over (the engine's
+// state persists; the head plays passes 2+ under T — standard FC).
+orderlist_terminator: "loop" "@" INT ol_transpose?  -> ol_loop
+                    | "stop"                        -> ol_stop
 
 pattern_block: "pattern" INT "length" "=" INT "{" note_row* "}"
 

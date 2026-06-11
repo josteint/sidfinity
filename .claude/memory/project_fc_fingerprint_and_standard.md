@@ -220,14 +220,28 @@ trigger-snapshots align exactly. Benign known diffs: baked $1AF8 glide
 threshold (dead until the first $Ex). Documented in CLAUDE.md +
 INVESTIGATION_BACKLOG.
 
-## RESUME HERE (2026-06-10 — widen the rollout):
-0. MANDATORY 3 questions; RE=standard/RE_NOTES.md (top: full chain incl.
-   +$04 arp, variant census, latent glide-3rd-byte caveat).
-1. The 9 remaining sample failures (fail at position ~1 — check their
-   probe bytes / oddball $2046 builds first; triage write-log-first; the
-   event-aligned state differ is the second tool to reach for).
-2. Then the 2639-member batch bucketed by first-divergence signature;
-   fix the biggest buckets first.
+## SAMPLE TRIAGE round 2 (2026-06-11): 7/12 FULL (Jarre, Prato, Entrail,
+FBI, Netop_Nu, Attraction_part_1, Fire, Tyranny... = 7 of the 12-SID
+load-spread sample). Three new family findings:
+1. **$D416-write variant** (opcode at orig $1C78): $8D normal ×2748 /
+   $EA NOPed ×8 / $20 JSR-hook ×2 (FBI = constant $10 override; the
+   $2169,x shadow path is never patched). cfg.std_d416_mode +
+   std_d416_const, factory-probed.
+2. **Loop-pickup transpose** — USF schema growth: `loop@N+T`
+   (Orderlist.loop_transpose): the engine's transpose CARRIES OVER the
+   $FF wrap; inherited loop heads (FBI) play passes 2+ under the end
+   transpose, explicit heads (Prato) re-establish. Extract detects
+   explicit-head; encode omits the head byte iff set. NB the analogous
+   persisted-LENGTH carry across the wrap is NOT yet modeled (noted).
+3. state_map_gen label-build mirrors the composer's base-float.
+
+## RESUME HERE (2026-06-11 — 5 sample fails left, then the wide batch):
+0. MANDATORY 3 questions; RE=standard/RE_NOTES.md (top sections).
+1. Triage: Intense_Intro (1/84040), Exquisite_2 (0/80760), Obelisk_1
+   (1/130975), Eurodance_Remix (99712/265150 — deep, likely another
+   carry-over/effect case), Deneb (3 subtunes all ~1). Write-log-first;
+   the event-aligned differ second.
+2. Then the 2639-member batch bucketed by first-divergence signature.
 Verdict: verify_featuredriven(fc_standard_config(sid)); localize with
 find_first_divergence + state_diff --on-write D418 --align-value 1F.
 

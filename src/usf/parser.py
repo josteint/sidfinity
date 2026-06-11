@@ -558,7 +558,10 @@ class _T(Transformer):
 
     # ----- voice / orderlist / patterns -----
     def ol_loop(self, items):
-        return ('loop', int(items[0]))
+        loop_tr = None
+        if len(items) > 1 and isinstance(items[1], tuple):
+            loop_tr = items[1][1]          # ('tr', T) from ol_transpose
+        return ('loop', (int(items[0]), loop_tr))
 
     def ol_stop(self, _):
         return ('stop', None)
@@ -601,6 +604,7 @@ class _T(Transformer):
         voiceincs = []
         repeats = []
         loop_to = None
+        loop_transpose = None
         stop = False
         for it in items:
             kind = it[0]
@@ -611,7 +615,7 @@ class _T(Transformer):
                 voiceincs.append(vi)
                 repeats.append(rep)
             elif kind == 'loop':
-                loop_to = it[1]
+                loop_to, loop_transpose = it[1]
             elif kind == 'stop':
                 stop = True
         # Omit each modifier list when it carries no information (clean
@@ -623,6 +627,7 @@ class _T(Transformer):
         if all(r == 1 for r in repeats):
             repeats = []
         return Orderlist(entries=entries, loop_to=loop_to, stop=stop,
+                         loop_transpose=loop_transpose,
                          transposes=transposes, voiceincs=voiceincs,
                          repeats=repeats)
 

@@ -242,6 +242,16 @@ class FCConfig:
     # instrument (the $2030 path: fx1 nibbles, or $0C/$18 when fx1==0);
     # slot 0 is static image data. Factory-probed.
     std_arp3_init: tuple = (0x00, 0x00, 0x01)
+    # Standard-player $D416 write variant (the opcode at orig $1C78, the
+    # filter chain's final SID write; the $2169,x shadow update before it is
+    # never patched, so the band pipeline runs unchanged in all variants):
+    #   'normal' ($8D, 2748/2760 members) — write the computed cutoff.
+    #   'none'   ($EA, 8 members)         — the write is NOPed out.
+    #   'const'  ($20 JSR to LDA #VV/STA/RTS, e.g. FBI_Crew_Intro_2 $10)
+    #            — a hook overrides the value with std_d416_const.
+    # Factory-probed; unrecognized hooks fall back to 'normal' with a warn.
+    std_d416_mode: str = 'normal'
+    std_d416_const: int = 0
     # If non-zero, write this value to $D418 at the TOP of every play frame
     # (before the voice loop), matching the vanilla FC player's $1833 vol write.
     # 0 = no top-of-frame vol write (Tel engines write vol elsewhere).

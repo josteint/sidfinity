@@ -361,9 +361,12 @@ def _voice_to_usf(voice_id: int, seq, patterns: dict) -> VoiceBlock:
     loop_to: int | None = None
     stop = False
 
+    explicit_head_transpose = False     # a SeqTranspose BEFORE the first jump
     for cmd in seq.commands:
         if isinstance(cmd, SeqTranspose):
             transpose = cmd.semitones
+            if not orderlist_entries:
+                explicit_head_transpose = True
         elif isinstance(cmd, SeqRepeats):
             repeats = cmd.count
         elif isinstance(cmd, SeqVoiceinc):
@@ -400,6 +403,16 @@ def _voice_to_usf(voice_id: int, seq, patterns: dict) -> VoiceBlock:
         rows, length = pattern_specs[usf_id]
         usf_patterns.append(Pattern(id=usf_id, length=length, rows=rows))
 
+    # Loop PICKUP transpose: when the stream wraps with NO explicit
+    # transpose before the first pattern, the engine's transpose state
+    # CARRIES OVER the wrap — passes 2+ play the head under the
+    # end-of-list value (audible vs pass 1). Recorded only when it
+    # actually differs from re-establishing (carry != 0; an inherited
+    # head always resolved to 0 on pass 1).
+    loop_transpose = None
+    if loop_to is not None and not explicit_head_transpose and transpose:
+        loop_transpose = transpose          # the running value at the wrap
+
     # Omit each modifier list when it carries no information.
     if not any(orderlist_transposes):
         orderlist_transposes = []
@@ -409,6 +422,7 @@ def _voice_to_usf(voice_id: int, seq, patterns: dict) -> VoiceBlock:
         orderlist_repeats = []
     orderlist = Orderlist(entries=orderlist_entries,
                           loop_to=loop_to, stop=stop,
+                          loop_transpose=loop_transpose,
                           transposes=orderlist_transposes,
                           voiceincs=orderlist_voiceincs,
                           repeats=orderlist_repeats)

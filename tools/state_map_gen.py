@@ -53,33 +53,46 @@ def _load_engine(engine: str):
 
 
 def _build_and_get_xa65_labels(cfg) -> dict[str, int]:
-    """Build the composer asm and parse xa65's label dump."""
+    """Build the composer asm and parse xa65's label dump. Mirrors
+    build_via_asm_featuredriven's contiguous base-float (measure pass +
+    widen-on-'negative length' retries) so engines whose data layout needs
+    the float (the standard family) resolve like the real build."""
     from pipelines.future_composer.to_usf import write_canary_usf
     from pipelines.future_composer.composer_asm import (
-        compose_fc_asm_featuredriven)
+        compose_fc_asm_featuredriven, _xa65_assemble)
     from src.usf.parser import parse
     with tempfile.NamedTemporaryFile(suffix='.usf', delete=False) as f:
         p = f.name
     write_canary_usf(cfg, out_path=p)
     with open(p) as f:
         usf = parse(f.read())
-    asm, load = compose_fc_asm_featuredriven(usf, cfg)
     os.unlink(p)
-    with tempfile.TemporaryDirectory() as td:
-        src = os.path.join(td, 's.s')
-        out = os.path.join(td, 'o.bin')
-        lbl = os.path.join(td, 'o.lbl')
-        with open(src, 'w') as f:
-            f.write(asm)
-        subprocess.run([str(ROOT / 'tools/xa65/xa/xa'), '-M', '-l', lbl,
-                        '-o', out, src],
-                       capture_output=True, text=True, check=True)
-        txt = open(lbl).read()
-    labels: dict[str, int] = {}
-    for line in txt.split('\n'):
-        m = re.match(r'(\w+),\s*0x([0-9a-fA-F]+)', line)
-        if m:
-            labels[m.group(1)] = int(m.group(2), 16)
+    if cfg.emit_data_from_usf and cfg.contiguous_data_layout:
+        orig_base = min(a for a in (cfg.freq_lo_addr, cfg.freq_hi_addr,
+                                    cfg.per_subtune_speed_addr,
+                                    cfg.instr_records_addr) if a)
+        meas_base = orig_base + 0x800
+        for _ in range(6):
+            asm, _la = compose_fc_asm_featuredriven(
+                usf, cfg, data_base_override=meas_base)
+            try:
+                _, labels = _xa65_assemble(asm, _la, return_labels=True)
+            except RuntimeError as e:
+                if 'negative length' in str(e):
+                    meas_base += 0x800
+                    continue
+                raise
+            engine_end = labels['__engine_end']
+            break
+        else:
+            raise RuntimeError('state_map_gen: base-float failed')
+        float_base = max(orig_base, engine_end)
+        asm, _la = compose_fc_asm_featuredriven(
+            usf, cfg, data_base_override=float_base)
+        _, labels = _xa65_assemble(asm, _la, return_labels=True)
+        return labels
+    asm, _la = compose_fc_asm_featuredriven(usf, cfg)
+    _, labels = _xa65_assemble(asm, _la, return_labels=True)
     return labels
 
 

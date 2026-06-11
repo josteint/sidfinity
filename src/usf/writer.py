@@ -380,7 +380,10 @@ def _write_orderlist(o: Orderlist) -> str:
             s += f'^{vi}'
         parts.append(s)
     if o.loop_to is not None:
-        parts.append(f'loop@{o.loop_to}')
+        s = f'loop@{o.loop_to}'
+        if o.loop_transpose is not None:
+            s += f'+{o.loop_transpose}'
+        parts.append(s)
     elif o.stop:
         parts.append('stop')
     return ' '.join(parts)

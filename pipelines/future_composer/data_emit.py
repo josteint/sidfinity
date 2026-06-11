@@ -173,7 +173,8 @@ def build_pattern_pool(music_subtunes: list, instr_as_wavecount: bool = False):
     return slot_streams, localmaps
 
 
-def encode_sequence(orderlist: Orderlist, localmap: dict[int, int]) -> bytes:
+def encode_sequence(orderlist: Orderlist, localmap: dict[int, int],
+                    persist_modifiers: bool = False) -> bytes:
     """Encode one voice's orderlist into an FC sequence byte stream.
 
     Transpose/voiceinc are delta-encoded (emitted only when they change,
@@ -181,14 +182,24 @@ def encode_sequence(orderlist: Orderlist, localmap: dict[int, int]) -> bytes:
     $40|r command (r = plays-1). The stream ends in $FE (stop) or $FF
     (wrap to start).
 
-    The first entry ALWAYS emits both modifiers (cur_t/cur_v start at a
-    sentinel): toneadd/voiceinc persist across the $FF wrap, so the
-    sequence must re-establish its start state on every loop — otherwise
-    a value set near the end of one loop leaks (invisibly, since these
-    commands emit no SID write) into the next loop's early patterns."""
+    Tel (`persist_modifiers=False`): the first entry ALWAYS emits both
+    modifiers (cur_t/cur_v start at a sentinel) — the sequence
+    re-establishes its start state on every loop, so a value set near the
+    end of one loop can't leak into the next loop's early patterns.
+
+    Standard (`persist_modifiers=True`): the engine's transpose state
+    carries over the $FF wrap. When the USF's `loop_transpose` is set
+    (the loop PICKS UP a carried value — `loop@N+T`), the encoder omits
+    the head transpose byte so the engine's persistence reproduces the
+    pass-2+ behavior (an inherited head always resolved to 0 on pass 1,
+    so starting the delta at 0 emits nothing there). When None, the head
+    byte is emitted explicitly — re-establish on every pass, like
+    originals whose loop head carries an explicit $80."""
     out = bytearray()
-    cur_t = -1
-    cur_v = -1
+    carried = (persist_modifiers
+               and getattr(orderlist, 'loop_transpose', None) is not None)
+    cur_t = 0 if carried else -1
+    cur_v = 0 if persist_modifiers else -1
     for i, pid in enumerate(orderlist.entries):
         t = orderlist.transpose_at(i)
         v = orderlist.voiceinc_at(i)
@@ -239,7 +250,8 @@ def build_music_data(music_subtunes: list, music_base: int,
     for sub in music_subtunes:
         for v in sub.voices:
             seqs[(sub.id - 1, v.id - 1)] = encode_sequence(
-                v.orderlist, localmaps[(sub.id, v.id)])
+                v.orderlist, localmaps[(sub.id, v.id)],
+                persist_modifiers=instr_as_wavecount)
 
     seq_table_addr = music_base
     seq_table_size = 6 * n_sub

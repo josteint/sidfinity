@@ -113,6 +113,14 @@ class Orderlist:
     entries: list[int] = field(default_factory=list)
     loop_to: Optional[int] = None      # position to jump to after the list
     stop: bool = False                  # true iff terminator is `stop`
+    # Loop PICKUP transpose (`loop@N+T`): the transpose in effect when the
+    # list wraps — the engine's transpose state CARRIES OVER the wrap, so a
+    # loop head with no explicit transpose plays passes 2+ under the
+    # end-of-list value (an audible pass-1-vs-2+ difference; standard FC,
+    # e.g. FBI_Crew_Intro_2 +2 semitones). None = the head re-establishes
+    # its stated transpose on every pass (explicit head byte — Tel + most
+    # tunes).
+    loop_transpose: Optional[int] = None
     transposes: list[int] = field(default_factory=list)
     voiceincs: list[int] = field(default_factory=list)
     repeats: list[int] = field(default_factory=list)

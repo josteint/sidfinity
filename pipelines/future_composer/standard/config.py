@@ -49,6 +49,24 @@ def fc_standard_config(sid_path: str, root: str | None = None) -> FCConfig:
     variant = body[0x2046 - _REF_LOAD]
     glide_hi = body[0x1B3F - _REF_LOAD]
     arp3 = tuple(body[0x1E86 - _REF_LOAD:0x1E89 - _REF_LOAD])
+    # $D416-write variant (the opcode at orig $1C78): STA / NOPed-out /
+    # a JSR hook that overrides the value with a constant.
+    d416_mode, d416_const = 'normal', 0
+    op_i = 0x1C78 - _REF_LOAD
+    op = body[op_i]
+    if op == 0xEA:
+        d416_mode = 'none'
+    elif op == 0x20:
+        tgt = (body[op_i + 1] | (body[op_i + 2] << 8)) - load
+        if (0 <= tgt < len(body) - 6 and body[tgt] == 0xA9
+                and body[tgt + 2:tgt + 5] == bytes((0x8D, 0x16, 0xD4))
+                and body[tgt + 5] == 0x60):
+            d416_mode, d416_const = 'const', body[tgt + 1]
+        else:
+            import sys
+            print(f'fc_standard_config: unrecognized $1C78 hook in '
+                  f'{sid_path} — keeping the normal $D416 write',
+                  file=sys.stderr)
     return _dc.replace(
         FC_STANDARD,
         name=f'fc_standard:{p.stem}',
@@ -56,6 +74,8 @@ def fc_standard_config(sid_path: str, root: str | None = None) -> FCConfig:
         std_vibrato_stale_tail=(variant == 0xDC),
         std_glide_hi_reg=glide_hi & 0x1F,
         std_arp3_init=arp3,
+        std_d416_mode=d416_mode,
+        std_d416_const=d416_const,
         **shifted,
     )
 

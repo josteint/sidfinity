@@ -539,6 +539,32 @@ effect's write). Also benign-by-construction: counter2 snapshot offset
 matches for the standard layout — RAM-only, stream-neutral) and the
 baked $1AF8 glide threshold (editor leftover, dead until the first $Ex).
 
+## SAMPLE TRIAGE round 2 (2026-06-11) — 7/12 FULL
+Three new family findings (each unlocked multiple tunes):
+1. **$D416-write variant** (the opcode at orig $1C78, the filter chain's
+   final SID write — the $2169,x shadow before it is never patched):
+   $8D normal ×2748 / $EA NOPed-out ×8 / $20 JSR-hook ×2 (FBI: LDA #$10;
+   STA $D416; RTS = a CONSTANT override; one unrecognized hook:
+   JBs_Freak-Out). cfg.std_d416_mode ('normal'/'none'/'const') +
+   std_d416_const, factory-probed. FBI 0.03% → 95.45% on this alone.
+2. **Loop-pickup transpose** (USF `loop@N+T`, schema growth on
+   Orderlist.loop_transpose): the engine's transpose CARRIES OVER the
+   $FF wrap. An inherited loop head (no $80 byte — FBI) plays passes 2+
+   under the end-of-list transpose; an explicit head (Prato) re-
+   establishes. Resolved per-entry transposes can't express the
+   difference — the new terminator carries it. Extract: explicit-head
+   detection; encode: omit the head byte iff loop_transpose set (an
+   inherited head always resolved to 0 on pass 1). NB the analogous
+   PERSISTED-LENGTH carry-over across the wrap (nootleng) is NOT yet
+   modeled — pass-2 head patterns entered with a different persisted
+   length would need a (fc_id, init_len) pattern the extract never
+   created. Surface when a tune exhibits it.
+3. state_map_gen's label build now mirrors the composer's contiguous
+   base-float (FBI's layout needed the widen-retry).
+REMAINING sample fails (5): Intense_Intro (1/84040), Exquisite_2
+(0/80760), Obelisk_1 (1/130975), Eurodance_Remix (99712/265150),
+Deneb (3 subtunes, all ~1). Triage next, write-log-first.
+
 ### THE TOOL (built for this): event-aligned state diff
 `tools/state_diff.py --on-write D418 --align-value 1F` — snapshots at
 every write to the trigger register and compares by GLOBAL EVENT INDEX

@@ -310,6 +310,11 @@ voice 1 {
 - `orderlist`: a sequence of pattern ids. A `loop@N` token gives the
   position to jump to after the orderlist ends (0-indexed). A trailing
   `stop` (no `loop@`) indicates an end-of-song with no loop.
+  `loop@N+T` — the loop **picks up** transpose `T`: the engine's
+  transpose state carries over the wrap, so the head entries play
+  passes 2+ under `T` (an audible pass-1-vs-2+ difference — standard
+  FC tunes whose loop head has no explicit transpose). Plain `loop@N`
+  means the head re-establishes its stated transpose on every pass.
 - Per-entry modifiers. An entry has the form `a[*b][+c][^d]` — the
   pattern id (operand) first, then a homogeneous list of
   `<operator><parameter>` modifiers:

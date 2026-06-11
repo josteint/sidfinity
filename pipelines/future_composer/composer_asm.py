@@ -963,7 +963,7 @@ def _emit_nextvoice_writes(write_order: tuple, use_byteand_mask: bool = True,
     return '\n'.join(chunks)
 
 
-def _emit_nextvoice_writes_standard() -> str:
+def _emit_nextvoice_writes_standard(cfg: FCConfig) -> str:
     """Standard (vanilla FC) per-voice tail: PW always, freq ONLY if changed
     since the last SID write (lastfreq shadow), ctrl always — order
     PWlo,PWhi,[freqhi,freqlo],ctrl. The vanilla player writes freq only on
@@ -982,7 +982,16 @@ def _emit_nextvoice_writes_standard() -> str:
         'stdnv_no17:\n'
         '        lda filt_pend                ; chain-armed $D416 write?\n'
         '        beq stdnv_nofl               ; (between PW and freq — the\n'
-        '        sta $d416                    ; orig $1C78 position)\n'
+        + {
+            'normal':
+        '        sta $d416                    ; orig $1C78 position)\n',
+            'const':
+        f'        lda #${cfg.std_d416_const:02X}                     '
+        '; $1C78 hook: constant override\n'
+        '        sta $d416                    ; (shadow keeps the computed)\n',
+            'none':
+        '        ; $D416 write NOPed out in this member ($1C78 = $EA)\n',
+        }[cfg.std_d416_mode] +
         '        lda #0\n'
         '        sta filt_pend\n'
         'stdnv_nofl:\n'
@@ -1984,7 +1993,7 @@ def _emit_playirq_dispatch(cfg: FCConfig) -> str:
             '        lda d400,x\n'
             '        sta $d400,y                  ; SID freq lo (note-load)\n'
             '        sta lastfreqlo,x\n')
-        nextvoice_writes = _emit_nextvoice_writes_standard()
+        nextvoice_writes = _emit_nextvoice_writes_standard(cfg)
         # gwo2 → standard chain (bypass the Tel effects entirely).
         gwo2_dispatch = '        jmp std_wave_chain'
         # reset the wave-envelope clock on note-load (mirrors orig $18D5
