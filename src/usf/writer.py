@@ -66,12 +66,19 @@ def _format_pitch(p: Pitch) -> str:
 # Block writers
 # ---------------------------------------------------------------------------
 
+def _quote(s: str) -> str:
+    """Quote a string for the USF grammar (ESCAPED_STRING): backslashes
+    and embedded double quotes must be escaped (HVSC titles contain
+    quotes, e.g. 'Jingle from the "Lenor" advert')."""
+    return '"' + s.replace('\\', '\\\\').replace('"', '\\"') + '"'
+
+
 def _write_psid(p: PsidMeta) -> list[str]:
     lines = [
         'psid {',
-        f'  title:      "{p.title}"',
-        f'  author:     "{p.author}"',
-        f'  released:   "{p.released}"',
+        f'  title:      {_quote(p.title)}',
+        f'  author:     {_quote(p.author)}',
+        f'  released:   {_quote(p.released)}',
         f'  clock:      {p.clock}',
         f'  sid:        {p.sid}',
         f'  start_song: {p.start_song}',

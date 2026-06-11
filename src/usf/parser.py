@@ -80,14 +80,21 @@ class _T(Transformer):
         return False
 
     # ----- psid -----
+    @staticmethod
+    def _unquote(tok) -> str:
+        # ESCAPED_STRING: strip the quotes, undo \" and \\ (single pass —
+        # the writer's _quote escapes embedded quotes/backslashes).
+        import re
+        return re.sub(r'\\(.)', r'\1', str(tok)[1:-1])
+
     def psid_title(self, items):
-        return ('title', str(items[0])[1:-1])
+        return ('title', self._unquote(items[0]))
 
     def psid_author(self, items):
-        return ('author', str(items[0])[1:-1])
+        return ('author', self._unquote(items[0]))
 
     def psid_released(self, items):
-        return ('released', str(items[0])[1:-1])
+        return ('released', self._unquote(items[0]))
 
     def psid_clock(self, items):
         return ('clock', str(items[0]))

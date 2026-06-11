@@ -4696,15 +4696,43 @@ def build_via_asm_featuredriven(cfg: FCConfig,
                 if 'negative length' in str(e):
                     meas_base += 0x800
                     continue
+                if 'Overflow error' in str(e) and meas_base > 0x8000:
+                    # High-load member: the orig-relative measurement base
+                    # pushes data equates past $FFFF. Engine size is
+                    # data-base-independent — measure mid-memory instead.
+                    meas_base = 0x8000
+                    continue
                 raise
             engine_end = labels['__engine_end']
             break
         if engine_end is None:
             raise RuntimeError('base-float: could not measure __engine_end')
         float_base = max(orig_base, engine_end)
-        asm, load_addr = compose_fc_asm_featuredriven(
-            usf, cfg, root=root, data_base_override=float_base)
-        code_bytes = _xa65_assemble(asm, load_addr)
+        if orig_base >= 0xA000:
+            # High-load member (Airwolf_88 at $F000 → orig_base $F564):
+            # honoring the orig-relative floor zero-fills a giant
+            # $3xxx-$F5xx gap into the PSID body, starving the host
+            # driver of free memory (the rebuild made 32 writes and
+            # died). The rebuild owns its layout — pack data right
+            # after the engine. Members below keep their layout (no
+            # churn for already-verified rebuilds).
+            float_base = engine_end
+        try:
+            asm, load_addr = compose_fc_asm_featuredriven(
+                usf, cfg, root=root, data_base_override=float_base)
+            code_bytes = _xa65_assemble(asm, load_addr)
+        except RuntimeError as e:
+            if 'Overflow error' not in str(e) or float_base <= engine_end:
+                raise
+            # High-load member (e.g. Airwolf_88 at $F000): keeping the
+            # data at the orig's first-data address runs the contiguous
+            # region past $FFFF. The rebuild owns its layout (write-log
+            # is the only target) — drop the orig_base floor and pack
+            # the data right after the engine instead.
+            float_base = engine_end
+            asm, load_addr = compose_fc_asm_featuredriven(
+                usf, cfg, root=root, data_base_override=float_base)
+            code_bytes = _xa65_assemble(asm, load_addr)
     else:
         asm, load_addr = compose_fc_asm_featuredriven(usf, cfg, root=root)
         code_bytes = _xa65_assemble(asm, load_addr)
