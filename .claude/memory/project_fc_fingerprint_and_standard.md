@@ -235,12 +235,21 @@ load-spread sample). Three new family findings:
    persisted-LENGTH carry across the wrap is NOT yet modeled (noted).
 3. state_map_gen label-build mirrors the composer's base-float.
 
-## RESUME HERE (2026-06-11 — 5 sample fails left, then the wide batch):
+## SAMPLE TRIAGE round 3 (2026-06-11): **10/12 FULL.** Three findings:
+filt_pend_f (a $D416=$00 cutoff is real — value can't be the flag);
+**freq_overrun** (USF block: the 160 image bytes after hinote, read by
+8-bit off-table indices of wave-relative/+$04 arp — content-by-reference,
+emitted after the composer's hinote); **runtime_slot wrapper-init
+detection** (factory runs the PSID init in py65 once and compares the
+post-init $1EA1 slot vs static; songs>1 ⇒ wrapper; engine_model supports
+runtime_slot on single-engine SIDs → per-subtune post-init extract).
+
+## RESUME HERE (2026-06-11 — 2 sample fails left, then the wide batch):
 0. MANDATORY 3 questions; RE=standard/RE_NOTES.md (top sections).
-1. Triage: Intense_Intro (1/84040), Exquisite_2 (0/80760), Obelisk_1
-   (1/130975), Eurodance_Remix (99712/265150 — deep, likely another
-   carry-over/effect case), Deneb (3 subtunes all ~1). Write-log-first;
-   the event-aligned differ second.
+1. Triage: Obelisk_1_copychain (1/130975), Deneb subs 0/1 (1/162616,
+   1/35927; sub 2 FULL — so the multi-song machinery works; likely a
+   per-subtune content/variant issue). Write-log-first; the event-aligned
+   differ second.
 2. Then the 2639-member batch bucketed by first-divergence signature.
 Verdict: verify_featuredriven(fc_standard_config(sid)); localize with
 find_first_divergence + state_diff --on-write D418 --align-value 1F.

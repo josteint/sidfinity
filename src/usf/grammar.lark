@@ -3,7 +3,7 @@
 // Lark grammar (LALR friendly). Whitespace and comments are ignored
 // between tokens. Top-level order is enforced by the start rule.
 
-start: psid_block params_block init_block freq_table_block? state_layout_block? song_end_block? init_behavior_block? master_vol_block? sfx_block? fc_aux_block* instrument_block* subtune_block*
+start: psid_block params_block init_block freq_table_block? freq_overrun_block? state_layout_block? song_end_block? init_behavior_block? master_vol_block? sfx_block? fc_aux_block* instrument_block* subtune_block*
 
 // FC aux tables/programs — grouped into one repeated rule (any order) so the
 // LALR table stays small; a long chain of optionals blows up construction.
@@ -111,6 +111,13 @@ isid_voice_field: "envelope_prime" ":" "(" number "," number ")"  -> isidv_env
 // look up engine constants for the freq region — the tune is
 // self-contained.
 freq_table_block: "freq_table" "{" byte_list "}"
+// Off-table freq lookup window: the bytes the player reads when an
+// effect's 8-bit table index runs PAST the freq table (standard FC
+// wave-relative / +$04 arp: table[note + offset] with note+offset > 95).
+// Content-by-reference — the player indexes blindly, so these bytes ARE
+// what plays at off-table indices. Emitted directly after the freq hi
+// table; absent = no off-table excursions observed.
+freq_overrun_block: "freq_overrun" "{" byte_list "}"
 
 // ----- state_layout (optional) -----
 // Off-table-arp statebuf layout — names which bytes the engine reads

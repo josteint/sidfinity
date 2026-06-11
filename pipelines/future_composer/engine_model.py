@@ -400,6 +400,9 @@ class FCSong:
     pulse_arp: list = field(default_factory=list)
     # Vanilla-FC wave-program envelope library: {sel: {'ctrl':[15],'freq':[15]}}
     std_wave_programs: dict = field(default_factory=dict)
+    # Off-table freq lookup window (standard): orig image bytes after the
+    # freq hi table, read by wave-relative / +$04 arp indices > 95.
+    freq_overrun: list = field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
@@ -931,9 +934,15 @@ def extract(cfg: FCConfig, root: str | None = None) -> FCSong:
             cfg.engines is None
             and cfg.subtune_layout == 'smc_template_with_sfx'
             and sub_idx >= cfg.music_subtune_count)
+        # runtime_slot on a single-engine SID: a custom init installs the
+        # active subtune's 6-byte seq record into the fixed runtime slot
+        # (standard-family wrapper inits, e.g. Intense_Intro) — the static
+        # image's slot is stale, so read post-init memory per subtune.
+        slot_needs_init = (
+            cfg.engines is None and cfg.subtune_layout == 'runtime_slot')
         if cfg.engines is None:
             mem = _run_init_in_py65(sid_path, subtune=sub_idx) \
-                if sfx_needs_init else mem_global
+                if (sfx_needs_init or slot_needs_init) else mem_global
             engine = None
         else:
             mem = _run_init_in_py65(sid_path, subtune=sub_idx)
@@ -999,6 +1008,15 @@ def extract(cfg: FCConfig, root: str | None = None) -> FCSong:
             mem_global, cfg, engine_for_shared),
         std_wave_programs=_decode_std_wave_programs(
             mem_global, cfg, instruments, engine_for_shared),
+        # Standard: capture the 160 image bytes after the freq hi table —
+        # the window 8-bit off-table indices (96..255) actually read
+        # (lonote[96+k] = hinote[k] is covered by table adjacency; the
+        # hinote overrun needs the orig's following bytes by value).
+        freq_overrun=(
+            [mem_global[resolve_address(cfg, engine_for_shared,
+                                        'freq_hi_addr')
+                        + cfg.freq_table_entries + i] for i in range(160)]
+            if getattr(cfg, 'pattern_format', 'tel') == 'standard' else []),
         **_decode_flat_aux(mem_global, cfg, engine_for_shared),
     )
 

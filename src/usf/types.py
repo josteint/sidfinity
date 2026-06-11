@@ -809,3 +809,10 @@ class UsfFile:
     # 15-entry tables {'ctrl': [...], 'freq': [...]} driving $D404 (waveform) and
     # $D400/$D401 (freq) each frame after note-load. Empty when unused.
     wave_programs: dict[int, dict] = field(default_factory=dict)
+    # Off-table freq lookup window (standard FC): the bytes the player
+    # reads when an effect's 8-bit table index runs past the 96-entry
+    # freq table (wave-relative / +$04 arp with note+offset > 95).
+    # Content-by-reference — emitted directly after the freq hi table so
+    # off-table indices resolve to the same values as the original.
+    # Empty = no off-table excursions.
+    freq_overrun: list[int] = field(default_factory=list)

@@ -67,6 +67,30 @@ def fc_standard_config(sid_path: str, root: str | None = None) -> FCConfig:
             print(f'fc_standard_config: unrecognized $1C78 hook in '
                   f'{sid_path} — keeping the normal $D416 write',
                   file=sys.stderr)
+    # Sequence-table provenance. The stock player reads the static 6-byte
+    # record at $1EA1 and has NO subtune indexing. Wrapper inits (e.g.
+    # Intense_Intro: copy a per-subtune record from a side table into the
+    # slot, then JMP into the stock init) leave the STATIC slot stale —
+    # in-image-looking but wrong. Ground truth: run the PSID init in py65
+    # once and compare the post-init slot against the static record;
+    # multi-song members need a wrapper by construction.
+    songs = struct.unpack('>H', d[0x0E:0x10])[0]
+    static_rec = bytes(body[0x1EA1 - _REF_LOAD:0x1EA1 - _REF_LOAD + 6])
+    slot_stale = songs > 1
+    if not slot_stale:
+        # only bother with py65 when the init isn't the stock entry
+        init_tgt = body[1] | (body[2] << 8)
+        if init_tgt != 0x2108 + delta:
+            from pipelines.future_composer.engine_model import (
+                _run_init_in_py65)
+            mem = _run_init_in_py65(str(p), subtune=0)
+            slot = bytes(mem[0x1EA1 + delta:0x1EA1 + delta + 6])
+            slot_stale = slot != static_rec
+    layout = {}
+    if slot_stale:
+        layout = dict(subtune_layout='runtime_slot',
+                      runtime_seq_ptrs_addr=0x1EA1 + delta,
+                      runtime_speed_addr=0x211D + delta)
     return _dc.replace(
         FC_STANDARD,
         name=f'fc_standard:{p.stem}',
@@ -76,6 +100,7 @@ def fc_standard_config(sid_path: str, root: str | None = None) -> FCConfig:
         std_arp3_init=arp3,
         std_d416_mode=d416_mode,
         std_d416_const=d416_const,
+        **layout,
         **shifted,
     )
 

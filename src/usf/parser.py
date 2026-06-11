@@ -724,6 +724,9 @@ class _T(Transformer):
         # items[0] is a byte_list (= list[int])
         return ('freq_table', items[0])
 
+    def freq_overrun_block(self, items):
+        return ('freq_overrun', items[0])
+
     def sl_n_voices(self, items):
         return ('n_voices', int(items[0]))
 
@@ -955,11 +958,14 @@ class _T(Transformer):
         wave_arp = []
         pulse_arp = []
         wave_programs = {}
+        freq_overrun = []
         for it in items:
             if isinstance(it, tuple):
                 k, v = it
                 if k == 'freq_table':
                     freq_table = v
+                elif k == 'freq_overrun':
+                    freq_overrun = v
                 elif k == 'state_layout':
                     state_layout = v
                 elif k == 'song_end':
@@ -1007,7 +1013,7 @@ class _T(Transformer):
             pulse_programs=pulse_programs, filter_programs=filter_programs,
             drum_programs=drum_programs, attack_len=attack_len,
             attack_wave=attack_wave, wave_arp=wave_arp, pulse_arp=pulse_arp,
-            wave_programs=wave_programs)
+            wave_programs=wave_programs, freq_overrun=freq_overrun)
 
 
 # ---------------------------------------------------------------------------

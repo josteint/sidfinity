@@ -565,6 +565,30 @@ REMAINING sample fails (5): Intense_Intro (1/84040), Exquisite_2
 (0/80760), Obelisk_1 (1/130975), Eurodance_Remix (99712/265150),
 Deneb (3 subtunes, all ~1). Triage next, write-log-first.
 
+## SAMPLE TRIAGE round 3 (2026-06-11) — 10/12 FULL
+Three more findings (Intense, Exquisite_2, Eurodance_Remix + Deneb[2]):
+1. **filt_pend $00 limitation**: $D416=$00 is a real cutoff (Intense's
+   envelope hits 0); the pending VALUE can't double as the flag → new
+   filt_pend_f armed/consumed alongside it.
+2. **freq_overrun** (USF block, content-by-reference): the wave-RELATIVE
+   mode / +$04 arp index `freqtab[note+offset]` with an 8-BIT index —
+   off-table indices (96..255) read the orig's bytes AFTER the freq
+   tables (e.g. Intense: hinote[110] = the $1E32 wavearp byte $40). The
+   extract captures the 160 image bytes after hinote; the composer emits
+   them right after its hinote so off-table lookups resolve to the same
+   values (lonote's overrun is covered by lo/hi adjacency). The same
+   argument as pulse-prog-by-reference, scaled up: the player indexes
+   blindly; what it reads IS what plays.
+3. **Wrapper inits / multi-song** (runtime_slot): some members' init
+   installs the active subtune's 6-byte seq record into the $1EA1 slot
+   from a side table (Intense: copy-loop at image+$800 with $2174=1;
+   Deneb: songs=3). The factory detects via py65 ground truth (run the
+   PSID init once, compare the post-init slot vs the static record;
+   songs>1 ⇒ wrapper by construction) → subtune_layout='runtime_slot'
+   (extract reads post-init memory per subtune; engine_model now
+   supports runtime_slot on single-engine SIDs).
+REMAINING: Obelisk_1 (1/130975), Deneb subs 0/1 (1/162616, 1/35927).
+
 ### THE TOOL (built for this): event-aligned state diff
 `tools/state_diff.py --on-write D418 --align-value 1F` — snapshots at
 every write to the trigger register and compares by GLOBAL EVENT INDEX

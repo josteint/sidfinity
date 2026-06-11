@@ -303,7 +303,10 @@ filtvoice:      .dsb 1, 0            ; standard filter-voice latch (orig $2175):
                                      ; filter-off default each frame
 filt_pend:      .dsb 1, 0            ; pending $D416 value armed by the chain,
                                      ; consumed by nextvoice between the PW and
-                                     ; freq writes (orig $1C78 position); 0=none
+                                     ; freq writes (orig $1C78 position)
+filt_pend_f:    .dsb 1, 0            ; ...and its armed flag ($D416=$00 is a
+                                     ; real cutoff — Intense_Intro — so the
+                                     ; value can't double as the flag)
 filt_pend17:    .dsb 1, 0            ; pending $D417 value (orig $1C4B; written
                                      ; BEFORE the $D416); 0=none ($2172+mask is
                                      ; never 0: mask is 1/2/4)
@@ -980,8 +983,9 @@ def _emit_nextvoice_writes_standard(cfg: FCConfig) -> str:
         '        lda #0\n'
         '        sta filt_pend17\n'
         'stdnv_no17:\n'
-        '        lda filt_pend                ; chain-armed $D416 write?\n'
+        '        lda filt_pend_f              ; chain-armed $D416 write?\n'
         '        beq stdnv_nofl               ; (between PW and freq — the\n'
+        '        lda filt_pend\n'
         + {
             'normal':
         '        sta $d416                    ; orig $1C78 position)\n',
@@ -993,7 +997,7 @@ def _emit_nextvoice_writes_standard(cfg: FCConfig) -> str:
         '        ; $D416 write NOPed out in this member ($1C78 = $EA)\n',
         }[cfg.std_d416_mode] +
         '        lda #0\n'
-        '        sta filt_pend\n'
+        '        sta filt_pend_f\n'
         'stdnv_nofl:\n'
         '        lda fw_mode,x                ; chain-armed freq-write mode?\n'
         '        beq stdnv_cf                 ; 0 → normal conditional freq\n'
@@ -1474,6 +1478,8 @@ stdfl_inc:
 stdfl_store:
         sta flt_sto,x                ; shadow (orig $2169,x)
         sta filt_pend                ; → $D416 via nextvoice
+        lda #1
+        sta filt_pend_f              ; ($00 is a real cutoff — flag separately)
         jmp stdfl_done
 stdfl_off:
         cpx filtvoice                ; bit clear: only the latched voice
@@ -1481,6 +1487,8 @@ stdfl_off:
         lda #$ff                     ; filter-off default
         sta flt_sto,x                ; (orig $1C73 stores it in the shadow too)
         sta filt_pend
+        lda #1
+        sta filt_pend_f
 stdfl_done:
         lda fx3sto
         and #$10
@@ -4016,7 +4024,9 @@ def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
             cur += size
 
         _take('freq_lo_addr', entries)
-        _take('freq_hi_addr', entries)
+        # freq_overrun rides directly after the hi table (off-table 8-bit
+        # indices must resolve to the orig's following bytes — see types).
+        _take('freq_hi_addr', entries + len(getattr(usf, 'freq_overrun', [])))
         _take('per_subtune_speed_addr', snelheid_len)
         _take('instr_records_addr', cfg.instr_count * 8)
         if cfg.vibtabwait_addr:
@@ -4068,7 +4078,8 @@ def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
         ('freq_lo',  cfg.freq_lo_addr,
                      cfg.freq_lo_addr + cfg.freq_table_entries),
         ('freq_hi',  cfg.freq_hi_addr,
-                     cfg.freq_hi_addr + cfg.freq_table_entries),
+                     cfg.freq_hi_addr + cfg.freq_table_entries
+                     + len(getattr(usf, 'freq_overrun', []))),
         ('snelheid', cfg.per_subtune_speed_addr,
                      cfg.per_subtune_speed_addr + snelheid_len),
         ('instruments', cfg.instr_records_addr,
@@ -4181,8 +4192,12 @@ def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
         return _emit_byte_list('lonote',
             [usf.freq_table[i*2] for i in range(limit)])
     def _emit_hi(limit):
-        return _emit_byte_list('hinote',
-            [usf.freq_table[i*2+1] for i in range(limit)])
+        # the section may extend past the table by the freq_overrun window
+        # (off-table 8-bit lookups read the orig's following bytes by value)
+        n_tab = min(limit, len(usf.freq_table) // 2)
+        vals = [usf.freq_table[i*2+1] for i in range(n_tab)]
+        vals += list(getattr(usf, 'freq_overrun', []))[:limit - n_tab]
+        return _emit_byte_list('hinote', vals)
     def _emit_vibtabwait(_n):
         slot_to_inst = {i.id - 1: i for i in usf.instruments}
         vals = [(slot_to_inst[s].vibrato.onset if s in slot_to_inst else 0)
