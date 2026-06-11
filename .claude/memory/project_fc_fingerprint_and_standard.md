@@ -259,20 +259,39 @@ The prog-0 slot remap "regressed" Jarre_2 purely because its on-disk USF
 predated the prog-0 capture (the equate then pointed past the emitted
 table). One write_canary_usf(FC_STANDARD) restored 16/16.
 
-## RESUME HERE (the WIDE batch — 2639 members):
-0. MANDATORY 3 questions; RE=standard/RE_NOTES.md (top sections — the
-   full per-tune triage playbook + variant census).
-1. Run the 2639-member list (regenerate via the freq-probe; sample code
-   in the memory/session) through fc_standard_config →
-   write_canary_usf → verify_featuredriven; bucket failures by
-   first-divergence signature; fix the biggest buckets first. Expect:
-   the ~19 oddball $2046 builds, the unrecognized $1C78 hook
-   (JBs_Freak-Out), persisted-LENGTH wrap carry-over (noted, unmodeled),
-   the glide-3rd-byte-is-a-command latent, CIA members (speed!=0
-   excluded from the 2639 shape), and new variant bytes.
-2. Mass-write USF + .sidfinity.sid for FULL members; refresh hvsc84.db.
+## RESUME HERE — make fc/standard UREADY (see [[feedback_uready_vocabulary]]
+for the 6-criteria gate; criterion 5's ledger entry is already in
+docs/refactor_1_remaining.md). Two blockers, in order:
+
+**A. The improvement round (uready criterion 3 — factored/reversible USF):**
+1. `freq_overrun` minimization: today the extract captures the 160 bytes
+   after hinote UNCONDITIONALLY for every standard member — ML-corpus
+   junk. Make it conditional: capture ONLY when some instrument can
+   index off-table — i.e. an inst with the wave program in RELATIVE mode
+   (+7 bit4 set AND +5 bit4 set) or the +$04 arp (fx3 bit2). Ideally go
+   further: prune to the reachable window (max note index + max offset)
+   or sparse index→value pairs. Re-verify the 12-SID sample + canaries
+   after (REGENERATE the canary USFs — the stale-USF gotcha).
+2. Batch hygiene: the factory should cleanly detect-and-flag (not
+   garbage-verdict) the ~19 oddball $2046 builds, unrecognized $1C78
+   hooks (JBs_Freak-Out), and CIA members.
+
+**B. The WIDE batch (uready criterion 4):** run the 2639-member list
+(regenerate via the freq-table probe at load+$564) through
+fc_standard_config → write_canary_usf → verify_featuredriven,
+PARALLELIZED (64 cores; per-worker tmp; songlength-scaled durations).
+Bucket failures by first-divergence signature; fix the biggest buckets
+first. Expected buckets: oddball builds, persisted-LENGTH wrap carry
+(noted, unmodeled — model like loop_transpose if real), glide-3rd-byte-
+is-a-command latent, new variant bytes. Then mass-write USF +
+.sidfinity.sid for FULL members + refresh hvsc84.db
+(tools/build_sid_db.py), and update the uready scoreboard + the
+refactor_1 trigger entry.
+
 Verdict: verify_featuredriven(fc_standard_config(sid)); localize with
-find_first_divergence + state_diff --on-write D418 --align-value 1F.
+find_first_divergence + state_diff --on-write D418 --align-value 1F
+(the event-aligned differ; "state matches + writelog diverges = an
+unemitted effect").
 
 Verdict tool: `verify_featuredriven(FC_STANDARD)` (shift becomes a real int once
 the note stream + base align). Diagnostic: per-frame writelog compare on
