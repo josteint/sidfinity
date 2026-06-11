@@ -75,21 +75,17 @@ from pipelines.future_composer.engine_model import (
 # ---------------------------------------------------------------------------
 
 _NOTE_NAMES = ('C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B')
-_MAX_OCTAVE = 9          # grammar accepts single-digit octave
 
 
 def _pitch_from_byte(p: int) -> Pitch:
     """FC pitch byte → `Pitch`. Pitches 0..95 index the 96-entry musical
-    freq table (8 octaves × 12 notes). Pitches above clamp to G-9."""
+    freq table (8 octaves × 12 notes); higher bytes are off-table reads
+    (freq_overrun content — e.g. a ghost-march tie note) and round-trip
+    via the grammar's 2-digit octave (max byte 255 = octave 21). The old
+    clamp to octave 9 silently CHANGED the read index."""
     if p < 0:
         p = 0
-    octave = p // 12
-    if octave > _MAX_OCTAVE:
-        octave = _MAX_OCTAVE
-        idx = 11           # B
-    else:
-        idx = p % 12
-    return Pitch(name=_NOTE_NAMES[idx], octave=octave)
+    return Pitch(name=_NOTE_NAMES[p % 12], octave=p // 12)
 
 
 # ---------------------------------------------------------------------------

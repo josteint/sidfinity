@@ -653,11 +653,12 @@ class _T(Transformer):
 
     # ----- notes + pitches + instrument refs + fx -----
     def pitch_named(self, items):
-        # NOTE_NAME like 'C-5' or 'D#3'
+        # NOTE_NAME like 'C-5' or 'D#3'; octave may be 2 digits (off-table
+        # pitches 97..255 — freq_overrun reads, e.g. ghost-march ties).
         tok = str(items[0])
         letter = tok[0]
         sep = tok[1]
-        octave = int(tok[2])
+        octave = int(tok[2:])
         name = letter if sep == '-' else letter + '#'
         return Pitch(name=name, octave=octave)
 

@@ -70,10 +70,25 @@ def encode_pattern(rows: list[NoteRow], instr_as_wavecount: bool = False) -> byt
     out = bytearray()
     prev_dur = None
     for row in rows:
-        # $F0 (no-retrigger / legato) goes FIRST: it sets the engine's
-        # newnote flag (skip ADSR/wave reload) then re-dispatches the rest
-        # of the note's chain via `skip`, so any wave/length/note that
-        # follows still applies.
+        if 'noretrig' in row.fx_flags and instr_as_wavecount:
+            # STANDARD tie (orig $18DD/$18F4 -> $1957): the byte AFTER
+            # the $Fx prefix IS the note — no re-dispatch — so instr/
+            # length must ride BEFORE the prefix: [instr?][len][$F0]
+            # [note]. Same emission-order class as the glide rule
+            # below. The note byte may be >= $80 (ghost-march ties,
+            # Baster_Blaster $C1) — emitting it after the prefix is the
+            # only way such a byte can be a note at all.
+            if row.instr is not None:
+                out.append(0xC0 | ((row.instr.id - 1) & 0x1F))
+            if row.duration != prev_dur:
+                out += _encode_length(row.duration)
+                prev_dur = row.duration
+            out += bytes((0xF0, byte_from_pitch(row.pitch)))
+            continue
+        # $F0 (no-retrigger / legato) goes FIRST (Tel): it sets the
+        # engine's newnote flag (skip ADSR/wave reload) then
+        # re-dispatches the rest of the note's chain via `skip`, so any
+        # wave/length/note that follows still applies.
         if 'noretrig' in row.fx_flags:
             out.append(0xF0)
 

@@ -296,11 +296,19 @@ def _parse_pattern_standard(raw: bytes) -> tuple[list[PatEvent], int]:
     i = 0
     while i < len(raw):
         b = raw[i]
-        if b == 0xFF:
+        if b == 0xFF and i > 0:
+            # $FF ends the pattern ONLY via the post-note/post-command
+            # peeks ($19CC / sub_19ED) — i.e. anywhere except offset 0.
             events.append(PatEnd())
             i += 1
             break
-        if (b & 0xF0) == 0xF0:           # $F0..$FE tie/no-retrigger
+        if (b & 0xF0) == 0xF0:           # $F0..$FF tie/no-retrigger
+            # NB the orig's tick-start dispatch ($18DD AND #$F0 CMP #$F0)
+            # does NOT exclude $FF: a pattern-INITIAL $FF acts as a tie
+            # whose note is whatever byte follows in RAM — the voice then
+            # marches through the following bytes until a post-note $FF.
+            # DEMOS rips park idle voices on such patterns
+            # (Baster_Blaster); the march content is captured by value.
             if i + 1 >= len(raw):
                 break
             events.append(PatNoGlide())          # carries the noretrig flag
@@ -898,6 +906,12 @@ def _decode_sequence(mem: bytes, start_addr: int,
                 pat_ids.append(b)
     raw = bytes(raw_buf)
     commands = _parse_sequence(raw)
+    if raw and raw[-1] not in (SEQ_END, SEQ_WRAP):
+        # Terminator-less stream: the engine's per-voice seq cursor is
+        # 8-bit, so after byte 255 it wraps to 0 — semantically a loop
+        # to start. DEMOS rips park idle voices on zero-filled seq
+        # regions with no $FE/$FF (Baster_Blaster V1).
+        commands.append(SeqWrap())
     return Sequence(start_addr=start_addr, bytes_raw=raw,
                     commands=commands, pattern_ids_used=pat_ids)
 
@@ -905,16 +919,25 @@ def _decode_sequence(mem: bytes, start_addr: int,
 def _decode_pattern(mem: bytes, pat_id: int, start_addr: int,
                     max_bytes: int = 512,
                     pattern_format: str = 'tel') -> Pattern:
-    raw_buf = bytearray()
-    for k in range(max_bytes):
-        b = mem[start_addr + k]
-        raw_buf.append(b)
-        if b == 0xFF:
-            break
-    raw = bytes(raw_buf)
-    parse = (_parse_pattern_standard if pattern_format == 'standard'
-             else _parse_pattern)
-    events, _consumed = parse(raw)
+    if pattern_format == 'standard':
+        # Positional capture: a pattern-INITIAL $FF is a tie, not an end
+        # (the $18DD dispatch has no $FF exclusion) — the voice marches
+        # through following RAM until a post-note $FF. Read the full
+        # 8-bit-cursor window and let the parser decide the consumed
+        # length. No end within 256 bytes = pattern-cursor wrap — capped
+        # here; a member exercising the wrap will flag in verify.
+        window = bytes(mem[start_addr + k] for k in range(256))
+        events, consumed = _parse_pattern_standard(window)
+        raw = window[:consumed]
+    else:
+        raw_buf = bytearray()
+        for k in range(max_bytes):
+            b = mem[start_addr + k]
+            raw_buf.append(b)
+            if b == 0xFF:
+                break
+        raw = bytes(raw_buf)
+        events, _consumed = _parse_pattern(raw)
     notes = sum(1 for e in events if isinstance(e, PatNote))
     return Pattern(id=pat_id, start_addr=start_addr, bytes_raw=raw,
                    events=events, notes_count=notes)

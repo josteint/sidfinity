@@ -322,6 +322,11 @@ arp3_tab:       .dsb 3, 0            ; standard +$04 arp offsets (orig $1E86-88:
                                      ; slot 0 static, slots 1-2 rewritten by
                                      ; every vibrato-skipped inst's $2030 path;
                                      ; song-init seeds the baked image values)
+tie_pend:       .dsb 3, 0            ; standard tie tick (one-shot): the orig
+                                     ; skips BOTH the $1986 reload AND the
+                                     ; chain on a tie fetch, so NO PW write
+                                     ; lands that frame -- set by the tie
+                                     ; dispatch, consumed by nextvoice's PW slot
 fw_mode:        .dsb 3, 0            ; standard freq-write mode, armed by the
                                      ; chain each frame, consumed (self-clearing)
                                      ; by nextvoice's freq slot:
@@ -1000,6 +1005,12 @@ def _emit_nextvoice_writes_standard(cfg: FCConfig) -> str:
         # patches the ADC operand at $1BD4 via SMC - clean compute here,
         # same writes). counter2 resets at note fetch, so load frames
         # (even parity) never jitter, matching the orig phase.
+        '        lda tie_pend,x               ; tie tick? (one-shot)\n'
+        '        beq stdnv_pw\n'
+        '        lda #0\n'
+        '        sta tie_pend,x               ; consume: orig writes no PW\n'
+        '        jmp stdnv_pwdone             ; ($1986 + chain both skipped)\n'
+        'stdnv_pw:\n'
         '        lda pulsehitemp,x            ; inst raw[0] (orig $214B,x)\n'
         '        and #$80\n'
         '        beq stdnv_nojit\n'
@@ -2162,6 +2173,23 @@ h10_gwb:
         sta byteand,x
 """
 
+    # Tie/no-retrigger NOTE dispatch. The standard orig ($18F4 -> $1957)
+    # plays the byte after the $Fx prefix as the note UNCONDITIONALLY --
+    # ghost-march ties carry bytes >= $80 (Baster_Blaster: $FF $C1) that
+    # the range dispatch would misread as commands, and a tie to note 0
+    # would fail the old `bne`. Tel keeps the re-dispatch (its orig
+    # $7C64 flow re-dispatches; Tel tie notes are always $01-$7F).
+    if getattr(cfg, 'pattern_format', 'tel') == 'standard':
+        tie_note_dispatch = (
+            '        lda #1\n'
+            '        sta tie_pend,x               ; tie tick: no PW write\n'
+            '        lda tabbytsto                ; (restore the note byte)\n'
+            '        jmp nolengset                ; tie note RAW (orig $1957)')
+    else:
+        tie_note_dispatch = ('        bne skip'
+                             '                     ; (always nonzero -- '
+                             'notes >$00)')
+
     # $Ex glide PARSE handler — Tel (slide-to-target: $Ex, delay, target) vs
     # standard (directional rate: $Ex, param, note → sgl_* state).
     if getattr(cfg, 'pattern_format', 'tel') == 'standard':
@@ -2395,7 +2423,7 @@ h3f_pattern:
         iny
         lda (zp3),y
         sta tabbytsto
-        bne skip                     ; (always nonzero — notes >$00)
+{tie_note_dispatch}
 
 dofilset:
         ; $F1 — filter set. Consume $F1, read value byte, write to
@@ -2454,7 +2482,7 @@ f0_or_f1_chained:
         iny
         lda (zp3),y
         sta tabbytsto
-        bne skip                     ; (always nonzero — notes >$00)
+{tie_note_dispatch}
 
 f1_chained:
         ; $F1 — filterset. Advance past $F1, read value byte, write
@@ -3557,6 +3585,7 @@ playirq_done:
         h10_body=h10_body,
         h11_release=h11_release,
         glide_parse=glide_parse,
+        tie_note_dispatch=tie_note_dispatch,
         pp_store_pw_setup=pp_store_pw_setup,
         pp_store_sta_d402_sid=pp_store_sta_d402_sid,
         pp_store_sta_d403_sid=pp_store_sta_d403_sid,
