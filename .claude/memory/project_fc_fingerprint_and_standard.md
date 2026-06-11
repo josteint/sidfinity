@@ -312,9 +312,18 @@ Plus earlier: USF string escaping (Lenor), 64K-wrap wave-ptr reads,
 high-load layout (orig_base>=$A000 packs after engine; measurement
 fallback $8000) — commits a6d14cf/633b2f5.
 
-**Score after re-run round 3: 2150 FULL / 522 partial / 1352 flagged
-of 4024.** Round 4 adds the DISPATCH MACHINE (witness Excite 19868 →
-70676): `_parse_pattern_standard` is now the orig's exact state
+**✅✅ WIDE BATCH COMPLETE (2026-06-11/12): 2419 FULL / 253 partial /
+1352 flagged of 4024 = 90.5% of the 2672-member family instruction-
+sequence exact at full songlength.** Mass-write DONE: 2419
+.sidfinity.sid alongside HVSC originals (0 errors), USFs on disk,
+hvsc84.db refreshed (2478 sidfinity_md5). Residual partial buckets:
+141 no-align (wrap-carry + unclassified — re-bucket after
+loop_length), 3 stale-X arp (Ace64), small tails (jsonl carries
+first_play_diff per member; tmp/fc_std_wide_results.jsonl — REGENERATE
+if /tmp... no, it's REPO tmp/, survives).
+
+Round 4's fix was the DISPATCH MACHINE (witness Excite 19868 →
+70676, c0a6b7b): `_parse_pattern_standard` is the orig's exact state
 machine — AFTER-CX ($193F→$1942: after a $Cx only $8x-or-note, ANY
 other byte incl. ghost pitches ≥$80 is the NOTE) + RESTRICTED
 (L_1930 after a glide param: $Cx → AFTER-CX / $8x → len+FULL / else
