@@ -291,32 +291,76 @@ def _parse_pattern_standard(raw: bytes) -> tuple[list[PatEvent], int]:
 
     The standard format reuses the existing PatEvent vocabulary — only the
     dispatch differs — so to_usf / the composer consume it unchanged.
+
+    DISPATCH STRUCTURE (exact, from the disasm — the ranges above are the
+    common case, but the orig is a little state machine, and rips exploit
+    the corners):
+
+      FULL ($18DD, every tick start): $Fx (INCLUDING a pattern-initial
+        $FF!) = tie → next byte is the note, ANY value; $Ex = glide,
+        consume param, go RESTRICTED; $Cx = instr, go AFTER-CX; $8x =
+        length, peek, back to FULL; else note.
+      AFTER-CX ($193F → $1942): peek $FF = end; $8x = length, peek, back
+        to FULL; else NOTE — any byte (an $Ex/$Fx/$Cx here is a pitch!).
+      RESTRICTED ($192E → L_1930, after a glide param): $Cx → AFTER-CX;
+        $8x → length, peek, FULL; else NOTE — any byte.
+      post-note/$8x/$Cx peeks ($19CC / sub_19ED): $FF = end. A $FF can
+        therefore only be a tie at the very start of the pattern.
+
+    Ghost-march corollary (Baster_Blaster): a pattern-initial $FF ties to
+    whatever byte follows in RAM and the voice marches through it until a
+    post-note $FF — the march content is captured by value, off-table
+    pitches (>= 96, up to 255) ride the 2-digit-octave USF pitch.
     """
     events: list[PatEvent] = []
     i = 0
-    while i < len(raw):
+    n = len(raw)
+
+    def _note(j: int) -> int:
+        events.append(PatNote(raw[j]))
+        return j + 1
+
+    def _setlen(j: int) -> int:
+        # The player plays (raw & $3F) + 1 ticks ($2127 = raw, DEC/BMI
+        # counts raw+1 underflows); USF carries the ACTUAL tick count.
+        # Consecutive $8x OVERWRITE ($2127 = raw each time, no tick) —
+        # collapse to the last so to_usf's Tel chaining never mis-adds.
+        ev = PatSetLength((raw[j] & 0x3F) + 1)
+        if events and isinstance(events[-1], PatSetLength):
+            events[-1] = ev
+        else:
+            events.append(ev)
+        return j + 1
+
+    def _after_cx(j: int) -> int:
+        # $1942 via the $193F peek: $8x-or-NOTE only. Returns next index,
+        # or -1 when the peek ended the pattern.
+        if j >= n:
+            return j
+        if raw[j] == 0xFF:
+            events.append(PatEnd())
+            return -(j + 2)              # signal: ended at j+1
+        if (raw[j] & 0xC0) == 0x80:
+            j = _setlen(j)
+            return j                     # back to FULL
+        return _note(j)                  # ANY other byte is the pitch
+
+    while i < n:
         b = raw[i]
         if b == 0xFF and i > 0:
-            # $FF ends the pattern ONLY via the post-note/post-command
-            # peeks ($19CC / sub_19ED) — i.e. anywhere except offset 0.
+            # post-note/post-command peek position ($19CC / sub_19ED)
             events.append(PatEnd())
             i += 1
             break
         if (b & 0xF0) == 0xF0:           # $F0..$FF tie/no-retrigger
-            # NB the orig's tick-start dispatch ($18DD AND #$F0 CMP #$F0)
-            # does NOT exclude $FF: a pattern-INITIAL $FF acts as a tie
-            # whose note is whatever byte follows in RAM — the voice then
-            # marches through the following bytes until a post-note $FF.
-            # DEMOS rips park idle voices on such patterns
-            # (Baster_Blaster); the march content is captured by value.
-            if i + 1 >= len(raw):
+            if i + 1 >= n:
                 break
             events.append(PatNoGlide())          # carries the noretrig flag
-            events.append(PatNote(raw[i + 1]))   # next byte is the note
+            events.append(PatNote(raw[i + 1]))   # next byte = note, ANY value
             i += 2
             continue
-        if (b & 0xF0) == 0xE0:           # $E0..$EF 3-byte glide
-            if i + 2 >= len(raw):
+        if (b & 0xF0) == 0xE0:           # $E0..$EF glide: [$Ex][param]...
+            if i + 1 >= n:
                 break
             param = raw[i + 1]
             events.append(PatGlide(
@@ -324,33 +368,34 @@ def _parse_pattern_standard(raw: bytes) -> tuple[list[PatEvent], int]:
                 direction='down' if (b & 0x01) else 'up',
                 speed=(((b & 0x0E) >> 1) << 8) | (param & 0xF0),
                 onset=param & 0x0F))
-            events.append(PatNote(raw[i + 2]))   # 3rd byte is the note
-            i += 3
+            i += 2
+            # RESTRICTED (L_1930): $Cx → AFTER-CX; $8x → len + FULL;
+            # else the byte IS the note (Excite: [$Ex][param][$8F][note]).
+            if i >= n:
+                break
+            if (raw[i] & 0xE0) == 0xC0:
+                events.append(PatInstrumentChange(raw[i] & 0x1F))
+                i = _after_cx(i + 1)
+            elif (raw[i] & 0xC0) == 0x80:
+                i = _setlen(i)
+            else:
+                i = _note(i)
+            if i < 0:
+                i = -i - 1
+                break
             continue
         if (b & 0xE0) == 0xC0:           # $C0..$DF instrument-select (0-31)
             events.append(PatInstrumentChange(b & 0x1F))
-            i += 1
+            i = _after_cx(i + 1)
+            if i < 0:
+                i = -i - 1
+                break
             continue
         if (b & 0xC0) == 0x80:           # $80..$BF note-length
-            # The standard player plays (raw & $3F) + 1 ticks per note (it
-            # loads $2127 = raw and its DEC/BMI counts raw+1 underflows).
-            # USF duration carries the ACTUAL tick count, so +1 here; the
-            # composer's setlen (nootleng = duration-1, DEC/BMI) then plays
-            # exactly duration ticks. Consecutive $8x bytes OVERWRITE in the
-            # standard player (the $1942 dispatch re-loops without consuming
-            # a tick, $2127 = raw each time) — collapse to the LAST so
-            # to_usf's Tel-style chaining never mis-adds them (DEMOS rips
-            # like 1st_Sound open patterns with $AF×5).
-            ev = PatSetLength((b & 0x3F) + 1)
-            if events and isinstance(events[-1], PatSetLength):
-                events[-1] = ev
-            else:
-                events.append(ev)
-            i += 1
+            i = _setlen(i)
             continue
         # $00..$7F: note
-        events.append(PatNote(b))
-        i += 1
+        i = _note(i)
     return events, i
 
 

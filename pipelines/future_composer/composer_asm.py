@@ -2173,6 +2173,20 @@ h10_gwb:
         sta byteand,x
 """
 
+    # AFTER-CX dispatch (orig $193F -> $1942): after a $Cx instrument the
+    # orig checks ONLY $8x-or-note -- ANY other byte (incl. ghost pitches
+    # >= $80) is the NOTE. The Tel fall-through (novoiceset's cmp #$80)
+    # would misread a ghost note as a length.
+    if getattr(cfg, 'pattern_format', 'tel') == 'standard':
+        after_cx_dispatch = (
+            '        lda tabbytsto                ; AFTER-CX (orig $1942)\n'
+            '        and #$C0\n'
+            '        cmp #$80\n'
+            '        beq novoiceset               ; $8x -> setlen path\n'
+            '        jmp nolengset                ; ANY other byte = note\n')
+    else:
+        after_cx_dispatch = '        ; falls through to novoiceset\n'
+
     # Tie/no-retrigger NOTE dispatch. The standard orig ($18F4 -> $1957)
     # plays the byte after the $Fx prefix as the note UNCONDITIONALLY --
     # ghost-march ties carry bytes >= $80 (Baster_Blaster: $FF $C1) that
@@ -2506,8 +2520,7 @@ noglideset:
         adc voiceinc,x
         sta wavecount,x
         jsr verhoogtest
-        ; falls through to novoiceset
-
+{after_cx_dispatch}
 novoiceset:
         ; Range $80-$BF = setlength. First byte: nootleng = (lo 6 bits) - 1.
         ; Subsequent $80-$BF bytes extend: nootleng += (lo 6 bits).
@@ -3585,6 +3598,7 @@ playirq_done:
         h10_body=h10_body,
         h11_release=h11_release,
         glide_parse=glide_parse,
+        after_cx_dispatch=after_cx_dispatch,
         tie_note_dispatch=tie_note_dispatch,
         pp_store_pw_setup=pp_store_pw_setup,
         pp_store_sta_d402_sid=pp_store_sta_d402_sid,

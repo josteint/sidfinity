@@ -312,8 +312,36 @@ Plus earlier: USF string escaping (Lenor), 64K-wrap wave-ptr reads,
 high-load layout (orig_base>=$A000 packs after engine; measurement
 fallback $8000) — commits a6d14cf/633b2f5.
 
-**Score after re-run round 2: 2129 FULL / 543 partial / 1352 flagged
-of 4024. Round 3 (the 543, post-ghost-march) RUNNING.**
+**Score after re-run round 3: 2150 FULL / 522 partial / 1352 flagged
+of 4024.** Round 4 adds the DISPATCH MACHINE (witness Excite 19868 →
+70676): `_parse_pattern_standard` is now the orig's exact state
+machine — AFTER-CX ($193F→$1942: after a $Cx only $8x-or-note, ANY
+other byte incl. ghost pitches ≥$80 is the NOTE) + RESTRICTED
+(L_1930 after a glide param: $Cx → AFTER-CX / $8x → len+FULL / else
+note — the documented glide-3rd-byte LATENT, now exercised:
+[$Ex][param][$8F][note]); composer got the gated after-$Cx dispatch
++ an encode guard for bare ghost pitches (to_usf must stamp instr on
+ghost rows if it ever fires).
+
+**NEXT BLOCKER, designed (do with the schema checklist!): the
+persisted-LENGTH wrap carry** (`loop_length`, the loop_transpose
+mirror; witnesses Excite @70676/91737 + Baster V1's wrap):
+- to_usf: at SeqWrap, if persisted_length != head entry's incoming
+  length AND the head fc-pattern's first note is length-INHERITED (no
+  $8x before it), annotate Orderlist.loop_length = wrap length; give
+  the head occurrence a DEDICATED usf pattern id.
+- grammar: `loop@N len=L` (alongside `loop@N+T`).
+- encode: omit the head pattern's first length byte iff loop_length
+  set — the composer's own nootleng PERSISTS across its $FF wrap
+  (the h2 $FF handler resets nootcount/cursors but NOT nootleng), so
+  the engine reproduces pass-1 (init nootleng 0 → 1 tick) and passes
+  2+ (carried) naturally — exactly the loop_transpose head-byte trick.
+- assert: the (fc, wrap_len) variant's rows equal the head variant's
+  except row-0 duration; build_pattern_pool's dedup key must include
+  the omission flag.
+- DO NOT unroll passes instead: the composer's $FF always wraps the
+  cursor to 0 and encode_sequence DROPS loop_to (tried, reverted —
+  broke Baster V1's early wrap).
 
 **NEXT after batch:** (1) re-run partials with fixed code; (2) bucket
 remaining by first_play_diff signature (the jsonl carries it), fix

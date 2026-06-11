@@ -150,7 +150,18 @@ def encode_pattern(rows: list[NoteRow], instr_as_wavecount: bool = False) -> byt
             else:
                 out.append(0x70 | ((row.instr.id - 1) & 0x0F))
 
-        out.append(byte_from_pitch(row.pitch))
+        pb = byte_from_pitch(row.pitch)
+        if instr_as_wavecount and pb >= 0x80 and row.instr is None:
+            # A ghost pitch (>= $80, off-table read) is only a NOTE byte
+            # in the tie / after-$Cx / post-glide-param positions — bare,
+            # it would dispatch as a command. The tie/glide branches
+            # handle theirs above; an instr carrier covers the rest. If
+            # this fires, to_usf needs to stamp the resolved instrument
+            # on ghost rows (fail loudly rather than corrupt the stream).
+            raise ValueError(
+                f'ghost pitch {pb:#04x} on a bare row (no instr/tie/'
+                f'glide carrier) — unencodable as a note byte')
+        out.append(pb)
     out.append(0xFF)
     return bytes(out)
 

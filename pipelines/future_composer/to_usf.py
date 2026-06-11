@@ -356,6 +356,7 @@ def _voice_to_usf(voice_id: int, seq, patterns: dict) -> VoiceBlock:
     persisted_length = 1            # engine nootleng+1 at song start
     loop_to: int | None = None
     stop = False
+    unrolled = False
 
     explicit_head_transpose = False     # a SeqTranspose BEFORE the first jump
     for cmd in seq.commands:
@@ -392,6 +393,16 @@ def _voice_to_usf(voice_id: int, seq, patterns: dict) -> VoiceBlock:
             break
         elif isinstance(cmd, SeqWrap):
             loop_to = 0
+            # KNOWN GAP — the persisted-LENGTH wrap carry (witness
+            # Excite @70676, Baster V1 wrap): when persisted_length here
+            # differs from the head entry's incoming length AND the head
+            # pattern's first note is length-inherited, passes 2+ play a
+            # different head duration. Unrolling does NOT work (the
+            # composer's $FF always wraps the cursor to 0; encode drops
+            # loop_to). The principled fix mirrors loop_transpose: an
+            # Orderlist `loop_length` annotation + encode omitting the
+            # head's first length byte so the composer's own persisting
+            # nootleng reproduces both passes. Next round.
             break
 
     usf_patterns: list[Pattern] = []
@@ -406,7 +417,10 @@ def _voice_to_usf(voice_id: int, seq, patterns: dict) -> VoiceBlock:
     # actually differs from re-establishing (carry != 0; an inherited
     # head always resolved to 0 on pass 1).
     loop_transpose = None
-    if loop_to is not None and not explicit_head_transpose and transpose:
+    if (loop_to is not None and not explicit_head_transpose and transpose
+            and not unrolled):
+        # (unrolled lists carry the wrap transpose positionally on the
+        # pass-2+ entries — no annotation needed)
         loop_transpose = transpose          # the running value at the wrap
 
     # Omit each modifier list when it carries no information.
