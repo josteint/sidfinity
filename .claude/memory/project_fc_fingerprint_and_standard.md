@@ -297,6 +297,24 @@ Entrail verified because bit7-SET arp insts reload X ($1D0A). Needs
 per-block X-exit modelling + freq_overrun delta growth. Witness:
 Ace64/Tune_10.
 
+**✅ THE GHOST-MARCH TIE CLASS (fee13f2, Baster_Blaster FULL)** — the
+dominant survivor bucket: pattern-INITIAL $FF is a TIE (the $18DD
+dispatch has no $FF exclusion); its note = whatever byte follows in
+RAM; the voice marches through following bytes until a POST-NOTE $FF
+($FF ends a pattern only via the $19CC/sub_19ED peeks). 8-bit seq +
+pattern cursors wrap at 256 (Baster V0's zero seq region genuinely
+runs into V1's). Five fixes: positional-$FF decode + full-window
+pattern capture + SeqWrap on terminator-less seqs; USF 2-digit octave
+(off-table pitches 97-255; the octave-9 clamp CHANGED the read idx);
+tie encode order [instr?][len][$F0][note]; tie dispatch jumps RAW to
+nolengset; tie ticks write NO PW (one-shot tie_pend in the tail).
+Plus earlier: USF string escaping (Lenor), 64K-wrap wave-ptr reads,
+high-load layout (orig_base>=$A000 packs after engine; measurement
+fallback $8000) — commits a6d14cf/633b2f5.
+
+**Score after re-run round 2: 2129 FULL / 543 partial / 1352 flagged
+of 4024. Round 3 (the 543, post-ghost-march) RUNNING.**
+
 **NEXT after batch:** (1) re-run partials with fixed code; (2) bucket
 remaining by first_play_diff signature (the jsonl carries it), fix
 biggest buckets (stale-X likely among them); (3) mass-write USF +
