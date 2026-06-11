@@ -590,6 +590,32 @@ song_sweep:
         ; falls through into silence_all (init silences $D400-$D415)
 """
 
+    if getattr(cfg, 'voice_loop_layout', None) == 'standard':
+        # Standard songout (seq $FE, orig $188C): halt flag then JMP $210B
+        # = the init's ASCENDING $D400..$D417 zero sweep (24 regs). The
+        # Tel-shape descending $15..$00 silence diverges at end-of-song
+        # ($FE-terminated DEMOS rips like 1st_Sound).
+        songout_block = """
+songout:
+        lda #1
+        sta testbyte
+        lda #0
+        ldx #0
+songout_clear:
+        sta $d400,x                  ; ascending $D400..$D417 (orig $210B)
+        inx
+        cpx #$18
+        bne songout_clear
+        rts
+"""
+    else:
+        songout_block = """
+songout:
+        lda #1
+        sta testbyte
+        ; fall through into silence_all
+        jmp silence_all
+"""
     return setup + sidwrite + """
 silence_all:
         lda #0
@@ -599,12 +625,7 @@ silence_loop:
         dex
         bpl silence_loop
         rts
-
-songout:
-        lda #1
-        sta testbyte
-        ; fall through into silence_all
-        jmp silence_all
+""" + songout_block + """
 
 ; ok2 — zero every byte from tabcount through the end of the engine
 ; state arrays, then reset the X-indexed counter2/tabcount/begcount/

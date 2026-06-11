@@ -328,11 +328,16 @@ def _parse_pattern_standard(raw: bytes) -> tuple[list[PatEvent], int]:
             # loads $2127 = raw and its DEC/BMI counts raw+1 underflows).
             # USF duration carries the ACTUAL tick count, so +1 here; the
             # composer's setlen (nootleng = duration-1, DEC/BMI) then plays
-            # exactly duration ticks. NB: consecutive $8x bytes OVERWRITE in
-            # the standard player (no Tel-style chaining); to_usf's chaining
-            # would mis-add them — no Jarre_2 pattern has adjacent $8x; gate
-            # in to_usf if a family SID does.
-            events.append(PatSetLength((b & 0x3F) + 1))
+            # exactly duration ticks. Consecutive $8x bytes OVERWRITE in the
+            # standard player (the $1942 dispatch re-loops without consuming
+            # a tick, $2127 = raw each time) — collapse to the LAST so
+            # to_usf's Tel-style chaining never mis-adds them (DEMOS rips
+            # like 1st_Sound open patterns with $AF×5).
+            ev = PatSetLength((b & 0x3F) + 1)
+            if events and isinstance(events[-1], PatSetLength):
+                events[-1] = ev
+            else:
+                events.append(ev)
             i += 1
             continue
         # $00..$7F: note
