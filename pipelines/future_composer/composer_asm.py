@@ -994,10 +994,32 @@ def _emit_nextvoice_writes_standard(cfg: FCConfig) -> str:
     note-load (done in nolengset, which also updates lastfreq) or when a
     freq-effect changes it; held/unchanged voices emit no freq write."""
     return (
+        # +$B0 PW write-time jitter (orig $1BB2-$1BDD): inst raw[0] bit7
+        # + odd counter2 -> the WRITTEN lo gets +$B0 and its CARRY rides
+        # into the written hi; the d402/d403 shadows stay clean (orig
+        # patches the ADC operand at $1BD4 via SMC - clean compute here,
+        # same writes). counter2 resets at note fetch, so load frames
+        # (even parity) never jitter, matching the orig phase.
+        '        lda pulsehitemp,x            ; inst raw[0] (orig $214B,x)\n'
+        '        and #$80\n'
+        '        beq stdnv_nojit\n'
+        '        lda counter2,x\n'
+        '        and #$01\n'
+        '        beq stdnv_nojit\n'
+        '        lda d402,x\n'
+        '        clc\n'
+        '        adc #$b0                     ; jittered pw lo\n'
+        '        sta $d402,y\n'
+        '        lda d403,x\n'
+        '        adc #$00                     ; carry from the lo add\n'
+        '        sta $d403,y\n'
+        '        jmp stdnv_pwdone\n'
+        'stdnv_nojit:\n'
         '        lda d402,x\n'
         '        sta $d402,y                  ; pw lo\n'
         '        lda d403,x\n'
         '        sta $d403,y                  ; pw hi\n'
+        'stdnv_pwdone:\n'
         '        lda filt_pend17              ; chain-armed $D417 write?\n'
         '        beq stdnv_no17               ; (before the $D416 — orig\n'
         '        sta $d417                    ; $1C4B position)\n'
