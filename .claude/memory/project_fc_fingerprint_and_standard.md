@@ -244,13 +244,33 @@ detection** (factory runs the PSID init in py65 once and compares the
 post-init $1EA1 slot vs static; songs>1 ⇒ wrapper; engine_model supports
 runtime_slot on single-engine SIDs → per-subtune post-init extract).
 
-## RESUME HERE (2026-06-11 — 2 sample fails left, then the wide batch):
-0. MANDATORY 3 questions; RE=standard/RE_NOTES.md (top sections).
-1. Triage: Obelisk_1_copychain (1/130975), Deneb subs 0/1 (1/162616,
-   1/35927; sub 2 FULL — so the multi-song machinery works; likely a
-   per-subtune content/variant issue). Write-log-first; the event-aligned
-   differ second.
-2. Then the 2639-member batch bucketed by first-divergence signature.
+## ✅✅ SAMPLE 12/12 FULL (2026-06-11, round 4). The last two: **pulse
+prog "0"** (fx2&7==0 indexes pulsetabel+$FC — the 4 bytes there ARE the
+effective program, captured by value, slot kmax+1, pulse_prog0_slot
+equate remap; my default-shortcut was Jarre-zeros luck) and the **Tel
+h11 ADSR-release suppressed for the standard layout** (standard insts
+freely use raw[0] bit4 → Deneb wrote spurious SR=$02; {h11_release} is
+Tel-only now).
+
+## GOTCHA — stale canary USFs: regression/verify parse the ON-DISK .usf;
+after ANY extract change (new decoder/fields), REGENERATE the canary USFs
+(write_canary_usf) before reading a canary failure as a code regression.
+The prog-0 slot remap "regressed" Jarre_2 purely because its on-disk USF
+predated the prog-0 capture (the equate then pointed past the emitted
+table). One write_canary_usf(FC_STANDARD) restored 16/16.
+
+## RESUME HERE (the WIDE batch — 2639 members):
+0. MANDATORY 3 questions; RE=standard/RE_NOTES.md (top sections — the
+   full per-tune triage playbook + variant census).
+1. Run the 2639-member list (regenerate via the freq-probe; sample code
+   in the memory/session) through fc_standard_config →
+   write_canary_usf → verify_featuredriven; bucket failures by
+   first-divergence signature; fix the biggest buckets first. Expect:
+   the ~19 oddball $2046 builds, the unrecognized $1C78 hook
+   (JBs_Freak-Out), persisted-LENGTH wrap carry-over (noted, unmodeled),
+   the glide-3rd-byte-is-a-command latent, CIA members (speed!=0
+   excluded from the 2639 shape), and new variant bytes.
+2. Mass-write USF + .sidfinity.sid for FULL members; refresh hvsc84.db.
 Verdict: verify_featuredriven(fc_standard_config(sid)); localize with
 find_first_divergence + state_diff --on-write D418 --align-value 1F.
 

@@ -1155,7 +1155,11 @@ stdarp_arm:
         lda fx2sto
         beq stdpp_done
         and #$07
-        beq stdpp_default
+        bne stdpp_idx                ; fx2&7==0: the orig indexes table+$FC
+        lda #pulse_prog0_slot        ; (8-bit wrap) — its effective 4 bytes
+                                     ; are captured by value as prog "0",
+                                     ; emitted in slot kmax+1
+stdpp_idx:
         asl
         asl
         sec
@@ -2015,6 +2019,30 @@ def _emit_playirq_dispatch(cfg: FCConfig) -> str:
     fx_noise_tick_chunk = _emit_fx_noise_tick(cfg)
     fx_pulse_run_body = _emit_fx_pulse_run(cfg)
 
+    # h11's Tel ADSR-release (pulsehitemp bit 4 + note-end + speedsto=1 →
+    # SR = h11_release_sr_value). The STANDARD player has no such feature —
+    # its instruments freely use raw[0] bit 4, which would trip the Tel
+    # check (Deneb wrote a spurious SR=$02) — so the block is Tel-only.
+    if cfg.voice_loop_layout == 'standard':
+        h11_release = ('        ; (Tel h11 ADSR-release omitted — the '
+                       'standard player has no such path)\n')
+    else:
+        h11_release = """        ; Intermediate-frame path entry + ADSR release check.
+        ; If pulsehitemp bit 4 set AND note just ended AND speedsto=1,
+        ; force ADSR release ($D406,y = h11_release_sr_value from cfg).
+        ; Cyb II: $02. Hawkeye: $01 (orig reuses LDA $9116 result here).
+        lda pulsehitemp,x
+        and #$10
+        beq gwo2
+        lda nootcount,x
+        bne gwo2
+        lda speedsto
+        cmp #1
+        bne gwo2
+        lda #h11_release_sr_value
+        sta $d406,y                  ; ADSR sustain/release tweak
+"""
+
     # h10 body — standard layout has its own tick gate-off; Tel layouts pick
     # per cfg.held_note_clears_stod404_gate.
     if cfg.voice_loop_layout == 'standard':
@@ -2583,21 +2611,7 @@ h10:
 {h10_body}        ; fall into h11
 
 h11:
-        ; Intermediate-frame path entry + ADSR release check.
-        ; If pulsehitemp bit 4 set AND note just ended AND speedsto=1,
-        ; force ADSR release ($D406,y = h11_release_sr_value from cfg).
-        ; Cyb II: $02. Hawkeye: $01 (orig reuses LDA $9116 result here).
-        lda pulsehitemp,x
-        and #$10
-        beq gwo2
-        lda nootcount,x
-        bne gwo2
-        lda speedsto
-        cmp #1
-        bne gwo2
-        lda #h11_release_sr_value
-        sta $d406,y                  ; ADSR sustain/release tweak
-
+{h11_release}
 gwo2:
         ; Effect-chain dispatcher entry — load instrument fx bytes into
         ; ZP cache, then walk the effect chain.
@@ -3498,6 +3512,7 @@ playirq_done:
         chain_exit=chain_exit,
         fx_noise_tick_chunk=fx_noise_tick_chunk,
         h10_body=h10_body,
+        h11_release=h11_release,
         glide_parse=glide_parse,
         pp_store_pw_setup=pp_store_pw_setup,
         pp_store_sta_d402_sid=pp_store_sta_d402_sid,
@@ -4041,8 +4056,10 @@ def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
             _arp_prog_sz = sum(1 + len(offs) for offs in usf.arp_programs.values())
             cur += 2 * _arp_count + _arp_prog_sz
         _pulse_kmax = max(usf.pulse_programs, default=0)
-        if _pulse_kmax and cfg.pulsetabel_addr:
-            _take('pulsetabel_addr', _pulse_kmax *
+        _pp_extra = (1 if (cfg.pulse_prog_format == 'standard'
+                           and 0 in usf.pulse_programs) else 0)
+        if (_pulse_kmax or _pp_extra) and cfg.pulsetabel_addr:
+            _take('pulsetabel_addr', (_pulse_kmax + _pp_extra) *
                   (4 if cfg.pulse_prog_format == 'standard' else 8))
         if cfg.filterbytes_addr and usf.filter_programs:
             if cfg.filter_prog_format == 'standard':
@@ -4124,9 +4141,12 @@ def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
     # slots 1..max(N); missing (unreferenced) slots get zero bytes (never read).
     pulse_kmax = max(usf.pulse_programs, default=0) if cfg.emit_data_from_usf else 0
     _pp_stride = 4 if cfg.pulse_prog_format == 'standard' else 8
-    if pulse_kmax and cfg.pulsetabel_addr:
+    _pp_extra = (1 if (cfg.pulse_prog_format == 'standard'
+                       and 0 in usf.pulse_programs) else 0)
+    if (pulse_kmax or _pp_extra) and cfg.pulsetabel_addr:
         raw_sections.append(('pulsetabel', cfg.pulsetabel_addr,
-                             cfg.pulsetabel_addr + pulse_kmax * _pp_stride))
+                             cfg.pulsetabel_addr
+                             + (pulse_kmax + _pp_extra) * _pp_stride))
 
     # filterbytes: Tel = 2-byte pointer table -> 10-byte cutoff-envelope
     # programs; standard = ONE 12-byte 6-band program [6 cutoffs][6
@@ -4222,7 +4242,13 @@ def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
     def _emit_pulsetabel(_n):
         out = ['; pulsetabel (USF-derived pulse-sweep programs)']
         std_pp = cfg.pulse_prog_format == 'standard'
-        for n in range(1, pulse_kmax + 1):
+        slots = list(range(1, pulse_kmax + 1))
+        if std_pp and 0 in usf.pulse_programs:
+            # prog "0" (the fx2&7==0 effective program — the orig's bytes
+            # at table+$FC, captured by value) rides in slot kmax+1; the
+            # chain remaps n==0 there via the pulse_prog0_slot equate.
+            slots.append(0)
+        for n in slots:
             p = usf.pulse_programs.get(n)
             if std_pp:
                 # standard 4-byte format [thr_a, step1, thr_b, step2] at
@@ -4404,6 +4430,7 @@ def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
         f'std_wave_ctrl = ${cfg.std_wave_ctrl_addr or 0:04X}',
         f'std_wave_freq = ${cfg.std_wave_freq_addr or 0:04X}',
         f'std_filter = ${cfg.filterbytes_addr or 0:04X}',
+        f'pulse_prog0_slot = {max(usf.pulse_programs, default=0) + 1}',
         f'wavearpwait = {cfg.wavearpwait}',
         f'pulsearpwait = {cfg.pulsearpwait}',
         f'fx_drum_d401_offset = ${cfg.fx_drum_d401_offset:02X}',

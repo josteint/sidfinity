@@ -589,6 +589,25 @@ Three more findings (Intense, Exquisite_2, Eurodance_Remix + Deneb[2]):
    supports runtime_slot on single-engine SIDs).
 REMAINING: Obelisk_1 (1/130975), Deneb subs 0/1 (1/162616, 1/35927).
 
+## SAMPLE TRIAGE round 4 (2026-06-11) — 12/12 FULL ✅✅
+The last two findings:
+1. **Pulse prog "0"** (Obelisk): my fx2&7==0 → default-step shortcut was
+   Jarre-specific. The orig indexes pulsetabel+$FC (8-bit (0-1)*4) and
+   the 4 bytes THERE form the instrument's effective program — Obelisk's
+   are [11 12 13 10] → step1=$12 (Jarre's are zeros → default, which is
+   why the shortcut ever worked; Prato's fx2&7==0 insts have fx2==0 =
+   no pulse at all). Captured by value as prog 0; emitted in slot
+   kmax+1; the chain remaps n==0 via the pulse_prog0_slot equate.
+2. **Tel h11 ADSR-release suppressed for the standard layout** (Deneb
+   subs 0/1): the shared h11 path force-writes SR=h11_release_sr_value
+   when pulsehitemp bit 4 is set at note-end — a TEL feature. Standard
+   instruments freely use raw[0] bit 4 (it's just the PW-hi nibble
+   range), so Deneb emitted a spurious SR=$02. The block is Tel-only
+   now ({h11_release} template var).
+Both diagnosed in minutes with the established loop: manual aligned
+flat-compare (insertion/value shape) → event-aligned state differ →
+inst/program probe.
+
 ### THE TOOL (built for this): event-aligned state diff
 `tools/state_diff.py --on-write D418 --align-value 1F` — snapshots at
 every write to the trigger register and compares by GLOBAL EVENT INDEX

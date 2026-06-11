@@ -622,9 +622,15 @@ def _decode_pulse_programs(mem: bytes, cfg: FCConfig,
         # is irrelevant (capturing them by VALUE keeps the rebuild's own
         # layout free). See standard/RE_NOTES.md (pulse $1E95).
         ns = sorted({(i.fx2 & 0x07) for i in instruments} - {0})
+        # fx2&7 == 0 with fx2 != 0: the player computes (0-1)*4 = $FC and
+        # reads table+$FC (8-bit index) — whatever 4 bytes sit there form
+        # the instrument's EFFECTIVE program (Obelisk: [11 12 13 10] →
+        # step1=$12). Captured by value as prog "0".
+        if any(i.fx2 and not (i.fx2 & 0x07) for i in instruments):
+            ns = [0] + ns
         progs: dict[int, dict] = {}
         for n in ns:
-            off = base + (n - 1) * 4
+            off = base + ((n - 1) * 4 if n else 0xFC)
             b = [mem[off + j] for j in range(4)]
             # Carry in the EXISTING Tel pulse-program shape so the USF
             # writer/reader round-trip unchanged. The emitter reinterprets
