@@ -259,34 +259,53 @@ The prog-0 slot remap "regressed" Jarre_2 purely because its on-disk USF
 predated the prog-0 capture (the equate then pointed past the emitted
 table). One write_canary_usf(FC_STANDARD) restored 16/16.
 
-## RESUME HERE — make fc/standard UREADY (see [[feedback_uready_vocabulary]]
-for the 6-criteria gate; criterion 5's ledger entry is already in
-docs/refactor_1_remaining.md). Two blockers, in order:
+## RESUME HERE — uready rounds A done, wide batch RUNNING (2026-06-11)
 
-**A. The improvement round (uready criterion 3 — factored/reversible USF):**
-1. `freq_overrun` minimization: today the extract captures the 160 bytes
-   after hinote UNCONDITIONALLY for every standard member — ML-corpus
-   junk. Make it conditional: capture ONLY when some instrument can
-   index off-table — i.e. an inst with the wave program in RELATIVE mode
-   (+7 bit4 set AND +5 bit4 set) or the +$04 arp (fx3 bit2). Ideally go
-   further: prune to the reachable window (max note index + max offset)
-   or sparse index→value pairs. Re-verify the 12-SID sample + canaries
-   after (REGENERATE the canary USFs — the stale-USF gotcha).
-2. Batch hygiene: the factory should cleanly detect-and-flag (not
-   garbage-verdict) the ~19 oddball $2046 builds, unrecognized $1C78
-   hooks (JBs_Freak-Out), and CIA members.
+**Round A DONE (commit 5c02a39):** (1) freq_overrun = reachable-window
+capture (`_std_freq_overrun`: per-voice orderlist walk, transpose +
+current inst carried across patterns AND the $FF wrap, per-inst deltas;
+Jarre 160→0, Intense 11, most 0; pairing matters — negative wave-rel
+vals only wrap under low notes). (2) Factory hygiene: typed
+`FCStandardUnsupported` (.reason buckets); membership probe = SHA1 of
+the 96 LO freq bytes ONLY (Tyranny has an edited hi byte); init header
+may aim straight at $2108+delta (~50 members); play must be load+6;
+CIA + $2046/$1C78 oddballs flagged. Probe: **2672 members / 1352
+flagged** of 4024.
 
-**B. The WIDE batch (uready criterion 4):** run the 2639-member list
-(regenerate via the freq-table probe at load+$564) through
-fc_standard_config → write_canary_usf → verify_featuredriven,
-PARALLELIZED (64 cores; per-worker tmp; songlength-scaled durations).
-Bucket failures by first-divergence signature; fix the biggest buckets
-first. Expected buckets: oddball builds, persisted-LENGTH wrap carry
-(noted, unmodeled — model like loop_transpose if real), glide-3rd-byte-
-is-a-command latent, new variant bytes. Then mass-write USF +
-.sidfinity.sid for FULL members + refresh hvsc84.db
-(tools/build_sid_db.py), and update the uready scoreboard + the
-refactor_1 trigger entry.
+**Wide batch (round B) RUNNING** detached: `tmp/run_wide.py` (Pool(8) —
+the CURRENT HOST IS 8-CORE, see [[project_current_host_8core]]);
+results stream to `tmp/fc_std_wide_results.jsonl` (crash-safe, resumes
+by skipping done SIDs). USE REPO tmp/, NEVER /tmp ([[feedback_repo_tmp_dir]]).
+Non-full USFs are deleted after verify; FULL members keep theirs.
+.sidfinity.sid mass-write + hvsc84.db refresh happen post-triage.
+
+**Triage fixes already landed mid-batch** (witnesses FULL, canaries
+16/16): chained-$8x collapse (9631060, 1st_Sound — DEMOS rips open
+patterns with $AF×5; standard $8x OVERWRITES, no tick); ascending
+songout clear (same commit — seq $FE → orig JMP $210B, 24 regs
+ascending; old descending silence diverged on every $FE-ended member);
+the +$B0 PW write-time jitter (1a39728, Ranx/Gylletanken/Popcorn —
+inst raw[0] bit7 + odd counter2, written-only, carry into written hi).
+The batch RAN WITH OLD CODE for early members → after it finishes,
+delete 'partial' records from the jsonl and re-run (the script resumes).
+
+**DEFERRED, fully diagnosed (RE_NOTES + commit 20887c9): the stale-X
+arp DEC** — fx3-bit2 insts with bit7 CLEAR enter $1D1E without X
+reload; DEC $2161,x hits a stale target; own ctr sticks at 3; arp3[3]
+= $1E89 (filter table byte 0) → freq reads at noho+192 off-table.
+Entrail verified because bit7-SET arp insts reload X ($1D0A). Needs
+per-block X-exit modelling + freq_overrun delta growth. Witness:
+Ace64/Tune_10.
+
+**NEXT after batch:** (1) re-run partials with fixed code; (2) bucket
+remaining by first_play_diff signature (the jsonl carries it), fix
+biggest buckets (stale-X likely among them); (3) mass-write USF +
+.sidfinity.sid for FULL + refresh hvsc84.db; (4) **regression
+portfolio: USER WANTS SAT-EXACT minimum multicover** (not greedy) over
+the member×feature matrix (factory knobs + effects exercised + $FE/
+chained-$8x/multi-sub traits), ≥2 coverage per dimension, bug-witness
+tie-break; full family batch becomes tier-2 (tools/fc_family_batch.py);
+(5) uready scoreboard + refactor_1 trigger entry update.
 
 Verdict: verify_featuredriven(fc_standard_config(sid)); localize with
 find_first_divergence + state_diff --on-write D418 --align-value 1F
