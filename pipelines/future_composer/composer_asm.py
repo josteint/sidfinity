@@ -2279,9 +2279,18 @@ h10_gwb:
         bcc h3f_pattern              ; $00-$7F → pattern jump (128 slots)
         cmp #$A0
         bcc h3_set_transpose         ; $80-$9F → transpose
-        cmp #$C0
-        bcc h3_set_repeat            ; $A0-$BF → repeat
-        ; $C0-$CF → voiceinc
+        cmp #$B0
+        bcc h3_set_voiceinc          ; $A0-$AF → voiceinc
+        ; $B0-$FD → repeat, r = byte - $B0 (0-63: the standard orig
+        ; allows 64 plays; an OR-packed 6-bit field can't ride under
+        ; $A0 — its bit 5 is set — so the repeat range is offset-coded)
+        sec
+        sbc #$B0
+        sta repeatsto,x
+        inc tabcount,x
+        jmp h2_take_step
+
+h3_set_voiceinc:
         and #$0F
         sta voiceinc,x
         inc tabcount,x
@@ -2290,12 +2299,6 @@ h10_gwb:
 h3_set_transpose:
         and #$1F
         sta toneadd,x
-        inc tabcount,x
-        jmp h2_take_step
-
-h3_set_repeat:
-        and #$1F
-        sta repeatsto,x
         inc tabcount,x
         jmp h2_take_step
 """

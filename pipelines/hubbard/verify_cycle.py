@@ -220,14 +220,36 @@ def _trichotomy_compare(fa: list, fb: list, close_tol: int = 64,
 
     # 2. Find ia = first index where the shifted match begins (music start).
     #    The init prefixes differ, so the match only kicks in after both inits.
+    #    Several candidate boundaries can window-match when the init ends in
+    #    a run of identical writes (a $01/$00 strobe whose $00 half mirrors
+    #    the rebuild's zero clear — Crocketts_Theme): prefer the first
+    #    candidate whose end-of-init STATE also matches (Check A), falling
+    #    back to the first window match. The state at the TRUE boundary is
+    #    reached once the whole strobe is inside the init prefix.
+    def _state_at(end_a, end_b):
+        sa_ = [0] * 0x19
+        sa_[0x18] = 0x0F
+        sb_ = list(sa_)
+        for reg, val in fa[:end_a]:
+            if 0 <= reg < 0x19:
+                sa_[reg] = val
+        for reg, val in fb[:end_b]:
+            if 0 <= reg < 0x19:
+                sb_[reg] = val
+        return sa_ == sb_
+
     ia = max(0, -d)
     limit = min(la - win, ia + max_init)
+    first_hit = None
     while ia <= limit:
         if fa[ia:ia + win] == fb[ia + d:ia + d + win]:
-            break
+            if first_hit is None:
+                first_hit = ia
+            if _state_at(ia, ia + d):
+                break
         ia += 1
     else:
-        ia = max(0, -d)
+        ia = first_hit if first_hit is not None else max(0, -d)
     ib = ia + d
 
     # Check B: aligned play stream.

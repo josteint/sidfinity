@@ -105,8 +105,17 @@ SeqCommand = (SeqPatternJump | SeqRepeats | SeqVoiceinc | SeqTranspose
               | SeqEnd | SeqWrap)
 
 
-def _parse_sequence(raw: bytes) -> list[SeqCommand]:
-    """Decode the sequence byte stream into structured commands."""
+def _parse_sequence(raw: bytes,
+                    seq_format: str = 'tel') -> list[SeqCommand]:
+    """Decode the sequence byte stream into structured commands.
+
+    `seq_format='standard'` — the vanilla player's dispatch ($1873-$18BE)
+    differs from Tel: $FE/$FF first, then bit7 → transpose (& $1F), then
+    bit6 → REPEATS (& $3F — the WHOLE $40-$7F range; the standard player
+    has NO voiceinc command), else $00-$3F pattern jump. Tel's $60-$7F =
+    voiceinc reading swallowed e.g. Crocketts_Theme's $60 = 'play the
+    next pattern 33 times'.
+    """
     out: list[SeqCommand] = []
     for b in raw:
         if b == SEQ_END:
@@ -115,6 +124,14 @@ def _parse_sequence(raw: bytes) -> list[SeqCommand]:
         if b == SEQ_WRAP:
             out.append(SeqWrap())
             break
+        if seq_format == 'standard':
+            if b & 0x80:
+                out.append(SeqTranspose(b & 0x1F))
+            elif b & 0x40:
+                out.append(SeqRepeats(b & 0x3F))
+            else:
+                out.append(SeqPatternJump(b))
+            continue
         if SEQ_TRANSPOSE_RANGE[0] <= b <= SEQ_TRANSPOSE_RANGE[1]:
             out.append(SeqTranspose(b & 0x1F))
         elif SEQ_VOICEINC_RANGE[0] <= b <= SEQ_VOICEINC_RANGE[1]:
@@ -936,7 +953,8 @@ def _decode_pattern_ptr_table(mem: bytes, cfg: FCConfig,
 
 
 def _decode_sequence(mem: bytes, start_addr: int,
-                     max_bytes: int = 256) -> Sequence:
+                     max_bytes: int = 256,
+                     seq_format: str = 'tel') -> Sequence:
     raw_buf = bytearray()
     pat_ids: list[int] = []
     seen_pat = set()
@@ -950,7 +968,7 @@ def _decode_sequence(mem: bytes, start_addr: int,
                 seen_pat.add(b)
                 pat_ids.append(b)
     raw = bytes(raw_buf)
-    commands = _parse_sequence(raw)
+    commands = _parse_sequence(raw, seq_format=seq_format)
     if raw and raw[-1] not in (SEQ_END, SEQ_WRAP):
         # Terminator-less stream: the engine's per-voice seq cursor is
         # 8-bit, so after byte 255 it wraps to 0 — semantically a loop
@@ -1138,7 +1156,9 @@ def extract(cfg: FCConfig, root: str | None = None) -> FCSong:
         sub_seqs: list[Sequence] = []
         sub_pat_ids: set[int] = set()
         for addr in (st.seq_v0_addr, st.seq_v1_addr, st.seq_v2_addr):
-            seq = _decode_sequence(mem, addr)
+            seq = _decode_sequence(
+                mem, addr,
+                seq_format=getattr(cfg, 'pattern_format', 'tel'))
             sub_seqs.append(seq)
             sub_pat_ids.update(seq.pattern_ids_used)
         sub_patterns: dict[int, Pattern] = {}

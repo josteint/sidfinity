@@ -27,8 +27,8 @@ and its own walker reads them, so we are not bound to FC's 64-pattern
 $00-$3F limit; see composer_asm h3_command_dispatch):
   $00-$7F pattern jump (= pool slot id, 128 patterns)
   $80|t   transpose (t = transpose & $1F)
-  $A0|r   repeat (play count-1; r = plays-1, 0-31 per command)
-  $C0|v   voiceinc  (v = voiceinc & $0F)
+  $B0+r   repeat (offset-coded, r = plays-1, 0-63)
+  $A0|v   voiceinc  (v = voiceinc & $0F)
   $FE     end (stop) / $FF wrap (loop)
 """
 from __future__ import annotations
@@ -247,14 +247,14 @@ def encode_sequence(orderlist: Orderlist, localmap: dict[int, int],
             out.append(0x80 | (t & 0x1F))      # $80-$9F transpose
             cur_t = t
         if v != cur_v:
-            out.append(0xC0 | (v & 0x0F))      # $C0-$CF voiceinc
+            out.append(0xA0 | (v & 0x0F))      # $A0-$AF voiceinc
             cur_v = v
         if rep > 1:
             r = rep - 1
-            if r > 0x1F:
-                raise ValueError(f'repeat count {rep} exceeds single $A0 '
-                                 f'command (max 32 plays); chaining TODO')
-            out.append(0xA0 | r)               # $A0-$BF repeat
+            if r > 0x3F:
+                raise ValueError(f'repeat count {rep} exceeds the $B0-$FD '
+                                 f'command (max 64 plays); chaining TODO')
+            out.append(0xB0 + r)               # $B0-$FD repeat (offset-coded)
         slot = localmap[pid]
         if slot > 0x7F:
             raise ValueError(f'pattern slot {slot} exceeds 127 (1-byte '
