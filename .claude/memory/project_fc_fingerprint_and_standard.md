@@ -348,15 +348,18 @@ ride under $A0 — bit 5 collision corrupted r>=32); voiceinc moved to
 $A0-$AF. Plus: the trichotomy boundary scan prefers a state-matching
 candidate (mid-strobe window matches).
 
-**OPEN POLICY QUESTION (ask the user with bucket sizes): init build
-variants.** Crocketts' init is `LDX #$01/TXA` (one byte off canonical)
-→ regs 1-23 end at $01 (held <1 frame, waveform 0 = silent); play
-stream exact, Check A genuinely ≠. Options: (a) extend init.sid with
-freq/ctrl prime fields (schema growth for a silent strobe leftover);
-(b) a factory-probed init-variant knob reproducing the $01 fill in the
-composer's reset (engine bookkeeping, not USF); (c) accept play-exact
-+ audio-equivalent as a distinct verdict tier. Bucket size known after
-round 6.
+**✅✅ TRIAGE CYCLE CLOSED (2026-06-12): 2528 FULL / 142 partial /
+1354 flagged = 94.6% of the 2672-member family.** Mass-write: 2528
+.sidfinity.sid (0 errors), hvsc84.db refreshed (2587 sidfinity_md5).
+Round 7's fix: vol_every_frame factory-probed from the $1833 LDA
+operand ($1F canonical / $0F Colourbar-class; oddball opcodes flagged).
+The RESIDUE IS A TRUE LONG TAIL: 142 partials across 90 DISTINCT
+first-divergence buckets (1-3 members each) — per-bucket triage ROI is
+exhausted. Known named classes within it: stale-X arp DEC (3, Ace64 —
+diagnosed in RE_NOTES), STATE-ONLY init build variants (2, Crocketts
+`LDX #$01/TXA` fill — play exact, Check A genuinely ≠; policy options
+in RE_NOTES/git log), 48 one-off no-aligns (mixed causes, each needs
+its own find_first_divergence session).
 
 **NEXT after batch:** (1) re-run partials with fixed code; (2) bucket
 remaining by first_play_diff signature (the jsonl carries it), fix
