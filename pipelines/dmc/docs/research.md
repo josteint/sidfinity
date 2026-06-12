@@ -1,5 +1,17 @@
 # DMC (Demo Music Creator)
 
+> **⚠ AUTHORITY NOTE (2026-06-12):** this file is web-sourced and several of
+> its format tables turned out WRONG when checked against the actual dominant
+> V4 player (family 1 of the census, 5401 SIDs). The authoritative reference
+> is the annotated disassembly at `pipelines/dmc/v4/disassembly.s`
+> (representative: Geometrical_Zaks). Known corrections, fixed inline below:
+> sector byte ranges (instrument/duration were swapped; glide is $C0-$DF;
+> $F0-$FF = VOL), instrument bytes 2/6/9 rotated, tune records use all
+> 8 bytes (speed+vol), zero page is $F8/$F9 (not $FB-$FF), wave table
+> specials are ">= $90 jumps back" (no $FE/$FF), hard-restart preset is
+> $0F0F, and the per-song data-table addresses are PACKER-PATCHED operands
+> (the fixed offsets below only hold for one default work-file layout).
+
 ## Overview
 
 - **HVSC count:** 10,738 tunes (largest single player in HVSC)
@@ -46,7 +58,7 @@
 |----------|--------|--------|
 | Code size | ~2000 bytes | <1900 bytes |
 | CPU time (1x) | ~23-27 rasterlines | ~28-33 rasterlines |
-| Zero page | $FB-$FF (5 bytes) | $FB-$FF (5 bytes) |
+| Zero page | $F8/$F9 (2 bytes; corrected from binary) | unverified |
 | Max instruments | 32 | 32 |
 | Max sectors | 64 | 96-127 (up to 250 rows each) |
 | Max subtunes | 8 | 8-31 |
@@ -95,18 +107,18 @@
 
 ### V4: 11 bytes per instrument, 32 max
 
-| Byte | Field | Description |
+| Byte | Field | Description (CORRECTED from the V4 binary, 2026-06-12) |
 |------|-------|-------------|
-| 0 | AD | Attack (hi nib) / Decay (lo nib) — written to SID $D405 |
-| 1 | SR | Sustain (hi nib) / Release (lo nib) — written to SID $D406 |
-| 2 | Wave | Wave table start position index (0-based into wave table) |
-| 3 | PW1 | Pulse width speed byte 1 |
-| 4 | PW2 | Pulse width speed byte 2 |
-| 5 | PW3 | Pulse width speed byte 3 |
-| 6 | PW-L | Pulse width modulation limit (border limiter) |
-| 7 | Vib1 | Vibrato: hi nib = pause/delay frames, lo nib = pitch swing range |
-| 8 | Vib2 | Vibrato extended range modulation |
-| 9 | Filt | Filter set number (0 = no filter, 1+ = filter definition index) |
+| 0 | AD | → $D405 at note init |
+| 1 | SR | → $D406 (sustain nibble replaceable by the $Fx VOL override) |
+| 2 | PW | hi nib = PW bound A (EOR $0F = bound B); lo nib = PW hi initial |
+| 3 | PW1 | Pulse speed nibbles, phase 0 (hi) / 1 (lo) |
+| 4 | PW2 | Pulse speed nibbles, phase 2 / 3 |
+| 5 | PW3 | Pulse speed nibbles, phase 4 / 5 (last nibble repeats) |
+| 6 | PW/Filt | hi nib = PW step base; lo nib = filter definition index |
+| 7 | Vib1 | hi nib × 8 = vibrato delay frames; lo nib = vibrato width |
+| 8 | Vib2 | vibrato ramp limit (width doubles per half-cycle until reached); for $40 instruments: per-note slide speed (bit7 = up) |
+| 9 | Wave | Wave table start index |
 | 10 | FX | Effect flags (see below) |
 
 ### V5: 8 bytes per instrument, 32 max
@@ -128,17 +140,18 @@
 
 ## Sector Data Format (variable-length note sequences)
 
-| Byte Range | Meaning |
+| Byte Range | Meaning (CORRECTED from the V4 binary, 2026-06-12) |
 |------------|---------|
-| $00-$5F | Note number (C-0 through B-7, 96 notes) |
-| $60-$7C | Duration command (AND $1F = ticks; duration 0 = 1 tick) |
-| $7D | Continuation/switch: disable ADSR reset on next note (legato/tie) |
-| $7E | Gate off: release current note |
-| $7F | End of sector (V4 terminator) |
-| $80-$9F | Instrument select (AND $1F = instrument number 0-31) |
-| $A0-$BF | GLD.xy — bit 4 = mode (0=glide between 2 following notes, 1=slide current note), low nibble = speed 0-F (NOT "$A0 + semitones"; see `dmc_sector_commands.md`) |
-| $C0-$DF | VOL.0x by elimination (the only remaining V4 editor command; sets sustain, 00=instrument default) — needs binary confirmation; see `dmc_sector_commands.md` |
-| $E0-$FF | No V4 editor command remains → likely unused in V4. In V5 $FF = sector end (packer scans for it); V5's full command encoding is undocumented |
+| $00-$5F | Note number (96 notes) |
+| $60-$7B | Instrument select (AND $1F) — prefix, loops |
+| $7C | Toggle soft-start mode (skip hard restart on following notes) |
+| $7D | SWITCH: gate-mask bit0 toggle (tie/legato); consumes a duration slot |
+| $7E | Rest (no retrigger; previous note releases per its flags) |
+| $7F | End of sector (peeked after each duration-consuming event) |
+| $80-$BF | Duration (AND $3F = ticks) — prefix, loops |
+| $C0-$DF | GLD.xy — bit4 = mode (0: [cmd][noteA][noteB] play A glide to B; 1: [cmd][noteB] slide current note to B), low nibble = speed |
+| $E0-$EF | alias of glide mode 0 (dispatch falls through; unused by editor) |
+| $F0-$FF | VOL.x: sustain-nibble override (0 = instrument default) — prefix, loops. CONFIRMED in binary (sub_184B) |
 
 **Timing:** Actual time in frames = (Tune Speed + 1) × Duration value. Sectors should synchronize across channels using integer multiples.
 
@@ -156,7 +169,7 @@
 
 ## Tune Pointer Table
 
-8 subtunes × 6 bytes each. Format: 3 interleaved 16-bit addresses (lo0, hi0, lo1, hi1, lo2, hi2) pointing to the track data start for each voice.
+8 bytes per subtune: 3 interleaved 16-bit track-data addresses (V1 lo,hi, V2 lo,hi, V3 lo,hi) + **speed** (byte 6) + **master volume** (byte 7). All 8 bytes are used (the "6 + 2 padding" claim was wrong).
 
 Player accesses via:
 ```
@@ -164,7 +177,7 @@ LDA tune_ptr_table,Y    ; lo byte (Y = voice * 2)
 LDA tune_ptr_table+1,Y  ; hi byte
 ```
 
-Subtune selection: subtune number × 8 (via ASL ×3) indexes this table. Only the first 6 bytes of each 8-byte subtune slot are used (last 2 are padding).
+Subtune selection: subtune number × 8 (via ASL ×3) indexes this table.
 
 ## Sector Pointer Table
 
@@ -183,10 +196,7 @@ Sequence of SID waveform/control register values, stepped frame-by-frame (1 entr
 - Bits 0-3: Control bits (bit 0=gate, bit 1=sync, bit 2=ring, bit 3=test)
 - Combined waveforms: $30=tri+saw, $50=tri+pulse, $60=saw+pulse
 
-**Special values:**
-- $FE: Hold (no waveform change this frame)
-- $FF: Terminate wave table (hold last value)
-- $9x (≥$90): Jump back x steps in wave table (loop). E.g. $91 = jump back 1 step (repeat previous entry)
+**Special values (corrected from binary):** ANY ctrl byte >= $90 is a jump-back of (value - $90) positions, then re-read ($91 = one-entry hold loop). There are NO $FE/$FF specials in the V4 player. The CTRL and FREQ arrays are two independent parallel tables (freq byte = semitone offset, or absolute $D401 value for drum-mode instruments).
 
 The gate bit in wave table entries is ANDed with a gate mask by the player before writing to SID $D404. The player controls gate on/off independently of the wave table waveform.
 
@@ -214,9 +224,12 @@ Some DMC versions use custom frequency tables (non-standard tuning).
 
 DMC uses the "modern testbit method" (shared with JCH player):
 
-1. 2+ frames before next note: ADSR set to preset ($0000, $0F00, or $F800), gate cleared
-2. First note frame: AD and SR values written, then $09 written to waveform register (test bit + gate)
-3. Second note frame: actual waveform value loaded from wave table, note is heard
+1. Note-fetch frame (tick): $08 (TEST, gate off) → ctrl; AD = SR = $0F
+2. Next frame: real AD/SR written, wave table starts, full freq/PW/ctrl writes
+3. Gate stays on 3 frames minimum ($1786 guard); non-holding instruments then
+   get the gate-off mask and the tail rides the SID release
+(Holding instruments ($10) keep gate until duration counter == 1; sub_17EC
+then writes AD = SR = $00 — the hard-restart precondition for the next note.)
 
 Works reliably on PAL only. Gives sharp, clean attack.
 
