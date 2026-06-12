@@ -41,9 +41,14 @@ paragraph.
 6. **Documented residue:** latents/quirks/accepted losses in RE_NOTES +
    memory; canaries wired into tools/regression.py.
 
-**Scoreboard (2026-06-11):** Hubbard '85 ✓ uready (71/71, §9 closed) ·
+**Scoreboard (2026-06-12):** Hubbard '85 ✓ uready (71/71, §9 closed) ·
 Companion strains ✓ · FC Tel (Cyb II + Hawkeye) ✓ (§9 closed, fully
-de-verbatim) · **FC standard: NOT yet uready** — blockers: freq_overrun
-unconditional capture (criterion 3), wide batch not run (criterion 4),
-refactor_1 ledger entry missing (criterion 5). Adrenalin subs 1-3:
-explicitly not attempted (documented outlier).
+de-verbatim) · **FC standard ✓ uready** — criterion 3: freq_overrun
+reachable-window (paired orderlist walk, most members 0 bytes);
+criterion 4: WIDE BATCH 2528/2672 FULL (94.6%) at full songlength,
+residue = 90 one-off buckets all signature-documented; criterion 6:
+the 11-member exact feature-cover portfolio (35 dimensions) wired into
+tools/regression.py (tier 1) + tools/fc_family_batch.py (tier 2);
+criterion 5's ledger entry in docs/refactor_1_remaining.md (pre-
+existing). Adrenalin subs 1-3: explicitly not attempted (documented
+outlier).
