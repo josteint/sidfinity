@@ -56,7 +56,8 @@ def _fx(flags: tuple, prefix: str):
     return None
 
 
-def encode_pattern(rows: list[NoteRow], instr_as_wavecount: bool = False) -> bytes:
+def encode_pattern(rows: list[NoteRow], instr_as_wavecount: bool = False,
+                   omit_first_len: bool = False) -> bytes:
     """Encode a USF pattern body (list of NoteRow) into an FC pattern byte
     stream terminated by $FF.
 
@@ -68,7 +69,12 @@ def encode_pattern(rows: list[NoteRow], instr_as_wavecount: bool = False) -> byt
     composer-parser ranges are distinct: $C0-$DF sets wavecount, $70-$7F selects
     an arp program — so the standard instrument MUST ride the $Cx path.)"""
     out = bytearray()
-    prev_dur = None
+    # omit_first_len (`loop@N len=L`): seed prev_dur with the first row's
+    # duration so no $8x is emitted for it — the engine's persisting
+    # nootleng then supplies the duration (pass 1: the start state;
+    # passes 2+: the carried end-of-list length), exactly the orig's
+    # length-inherited loop head.
+    prev_dur = rows[0].duration if (omit_first_len and rows) else None
     for row in rows:
         if 'noretrig' in row.fx_flags and instr_as_wavecount:
             # STANDARD tie (orig $18DD/$18F4 -> $1957): the byte AFTER
@@ -186,14 +192,21 @@ def build_pattern_pool(music_subtunes: list, instr_as_wavecount: bool = False):
     for sub in music_subtunes:
         for v in sub.voices:
             lm: dict[int, int] = {}
+            ol = v.orderlist
+            omit_ids = set()
+            if (getattr(ol, 'loop_length', None) is not None
+                    and ol.loop_to is not None and ol.entries):
+                omit_ids.add(ol.entries[ol.loop_to])
             for pat in v.patterns:
-                key = tuple(_row_key(r) for r in pat.rows)
+                omit = pat.id in omit_ids
+                key = (tuple(_row_key(r) for r in pat.rows), omit)
                 slot = key_to_slot.get(key)
                 if slot is None:
                     slot = len(slot_streams)
                     key_to_slot[key] = slot
                     slot_streams.append(encode_pattern(
-                        pat.rows, instr_as_wavecount=instr_as_wavecount))
+                        pat.rows, instr_as_wavecount=instr_as_wavecount,
+                        omit_first_len=omit))
                 lm[pat.id] = slot
             localmaps[(sub.id, v.id)] = lm
     return slot_streams, localmaps

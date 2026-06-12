@@ -390,6 +390,8 @@ def _write_orderlist(o: Orderlist) -> str:
         s = f'loop@{o.loop_to}'
         if o.loop_transpose is not None:
             s += f'+{o.loop_transpose}'
+        if o.loop_length is not None:
+            s += f' len={o.loop_length}'
         parts.append(s)
     elif o.stop:
         parts.append('stop')

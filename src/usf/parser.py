@@ -565,10 +565,14 @@ class _T(Transformer):
 
     # ----- voice / orderlist / patterns -----
     def ol_loop(self, items):
-        loop_tr = None
-        if len(items) > 1 and isinstance(items[1], tuple):
-            loop_tr = items[1][1]          # ('tr', T) from ol_transpose
-        return ('loop', (int(items[0]), loop_tr))
+        loop_tr = loop_len = None
+        for it in items[1:]:
+            if isinstance(it, tuple):
+                if it[0] == 'tr':
+                    loop_tr = it[1]        # ('tr', T) from ol_transpose
+                elif it[0] == 'll':
+                    loop_len = it[1]       # ('ll', L) from ol_looplen
+        return ('loop', (int(items[0]), loop_tr, loop_len))
 
     def ol_stop(self, _):
         return ('stop', None)
@@ -584,6 +588,9 @@ class _T(Transformer):
 
     def ol_voiceinc(self, items):
         return ('vi', int(items[0]))
+
+    def ol_looplen(self, items):
+        return ('ll', int(items[0]))
 
     def orderlist_entry(self, items):
         # a[*b][+c][^d] → ('entry', pattern_id, transpose, voiceinc, repeats)
@@ -612,6 +619,7 @@ class _T(Transformer):
         repeats = []
         loop_to = None
         loop_transpose = None
+        loop_length = None
         stop = False
         for it in items:
             kind = it[0]
@@ -622,7 +630,7 @@ class _T(Transformer):
                 voiceincs.append(vi)
                 repeats.append(rep)
             elif kind == 'loop':
-                loop_to, loop_transpose = it[1]
+                loop_to, loop_transpose, loop_length = it[1]
             elif kind == 'stop':
                 stop = True
         # Omit each modifier list when it carries no information (clean
@@ -635,6 +643,7 @@ class _T(Transformer):
             repeats = []
         return Orderlist(entries=entries, loop_to=loop_to, stop=stop,
                          loop_transpose=loop_transpose,
+                         loop_length=loop_length,
                          transposes=transposes, voiceincs=voiceincs,
                          repeats=repeats)
 

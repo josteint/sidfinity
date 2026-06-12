@@ -121,6 +121,14 @@ class Orderlist:
     # its stated transpose on every pass (explicit head byte — Tel + most
     # tunes).
     loop_transpose: Optional[int] = None
+    # Loop PICKUP length (`loop@N len=L`): the persisted note length (in
+    # ticks) in effect when the list wraps — the engine's length state
+    # CARRIES OVER the wrap, so a loop head whose first note states no
+    # length plays passes 2+ at L ticks while pass 1 used the engine's
+    # start-of-song state (an audible pass difference; standard FC, e.g.
+    # Excite's head note: 1 tick on pass 1, 4 ticks on passes 2+). None =
+    # the head re-establishes its stated duration on every pass.
+    loop_length: Optional[int] = None
     transposes: list[int] = field(default_factory=list)
     voiceincs: list[int] = field(default_factory=list)
     repeats: list[int] = field(default_factory=list)

@@ -315,6 +315,11 @@ voice 1 {
   passes 2+ under `T` (an audible pass-1-vs-2+ difference — standard
   FC tunes whose loop head has no explicit transpose). Plain `loop@N`
   means the head re-establishes its stated transpose on every pass.
+  `loop@N len=L` — the loop **picks up** note length `L` (ticks): the
+  engine's length state likewise carries over the wrap; the head
+  pattern's first note states no length, so it plays pass 1 at the
+  row's written duration (the start-of-song state) and passes 2+ at
+  `L`. May combine with the transpose pickup: `loop@N+T len=L`.
 - Per-entry modifiers. An entry has the form `a[*b][+c][^d]` — the
   pattern id (operand) first, then a homogeneous list of
   `<operator><parameter>` modifiers:

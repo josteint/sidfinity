@@ -77,6 +77,13 @@ from pipelines.future_composer.engine_model import (
 _NOTE_NAMES = ('C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B')
 
 
+def _row_eq_except_duration(a, b) -> bool:
+    """NoteRow equality ignoring duration (the loop_length inheritance
+    proof compares the wrap-length head rebuild against the head rows)."""
+    return (a.pitch == b.pitch and a.instr == b.instr
+            and a.fx_flags == b.fx_flags)
+
+
 def _pitch_from_byte(p: int) -> Pitch:
     """FC pitch byte → `Pitch`. Pitches 0..95 index the 96-entry musical
     freq table (8 octaves × 12 notes); higher bytes are off-table reads
@@ -423,6 +430,35 @@ def _voice_to_usf(voice_id: int, seq, patterns: dict) -> VoiceBlock:
         # pass-2+ entries — no annotation needed)
         loop_transpose = transpose          # the running value at the wrap
 
+    # Loop PICKUP length (`loop@N len=L`) — the loop_transpose mirror for
+    # nootleng: the engine's note-length state carries over the wrap, so a
+    # head whose first note is length-INHERITED (no $8x before it) plays
+    # passes 2+ at the end-of-list length while pass 1 used the start
+    # state. Annotated only when the head variant proves inheritance: the
+    # wrap-length rebuild of the head fc-pattern must equal the head rows
+    # except row 0's duration, each equal to its incoming length. The
+    # encoder then omits the head's first length byte and the composer's
+    # own persisting nootleng reproduces every pass (witness: Excite).
+    loop_length = None
+    if loop_to is not None and orderlist_entries:
+        head_usf = orderlist_entries[loop_to]
+        head_fc, head_len = next(
+            k for k, v in pattern_key_to_id.items() if v == head_usf)
+        wrap_len = persisted_length
+        if wrap_len != head_len and head_fc in patterns:
+            rows_w, _lw, _fw = _build_pattern_rows(patterns[head_fc],
+                                                   wrap_len)
+            head_rows, _hl = pattern_specs[head_usf]
+            if (len(rows_w) == len(head_rows) and head_rows
+                    and head_rows[0].duration == head_len
+                    and rows_w[0].duration == wrap_len
+                    and rows_w[1:] == head_rows[1:]
+                    and _row_eq_except_duration(rows_w[0], head_rows[0])):
+                loop_length = wrap_len
+            # else: deeper-than-row-0 inheritance or an explicit head —
+            # explicit heads need nothing; deep chains stay partial and
+            # re-bucket in the wide batch.
+
     # Omit each modifier list when it carries no information.
     if not any(orderlist_transposes):
         orderlist_transposes = []
@@ -433,6 +469,7 @@ def _voice_to_usf(voice_id: int, seq, patterns: dict) -> VoiceBlock:
     orderlist = Orderlist(entries=orderlist_entries,
                           loop_to=loop_to, stop=stop,
                           loop_transpose=loop_transpose,
+                          loop_length=loop_length,
                           transposes=orderlist_transposes,
                           voiceincs=orderlist_voiceincs,
                           repeats=orderlist_repeats)
