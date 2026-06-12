@@ -90,6 +90,14 @@ def fc_standard_config(sid_path: str, root: str | None = None) -> FCConfig:
     #   $DC = stale-tail write (Prato).
     # $1B3F (glide-up hi-write operand): $01 = freq hi (normal); $55 =
     #   mirror-write hack (Entrail). Stored as low 5 bits (mirror-equivalent).
+    # Per-frame $D418 value — the $1833 LDA operand ($1F canonical;
+    # builds exist with $0F = low-pass bit off, e.g. Colourbar_Designer).
+    # The composer already parameterizes this as vol_every_frame.
+    if body[0x1833 - _REF_LOAD] != 0xA9:
+        raise FCStandardUnsupported(
+            str(sid_path),
+            f'oddball $1833 vol write (opcode ${body[0x1833 - _REF_LOAD]:02X})')
+    vol_frame = body[0x1834 - _REF_LOAD]
     variant = body[0x2046 - _REF_LOAD]
     if variant not in (0xEB, 0xDC):
         raise FCStandardUnsupported(
@@ -150,6 +158,7 @@ def fc_standard_config(sid_path: str, root: str | None = None) -> FCConfig:
         std_arp3_init=arp3,
         std_d416_mode=d416_mode,
         std_d416_const=d416_const,
+        vol_every_frame=vol_frame,
         **layout,
         **shifted,
     )
