@@ -3,7 +3,7 @@
 ; ============================================================================
 ; Representative: hvsc84/MUSICIANS/C/Carter/Jarre_2.sid (load/init $1800)
 ;
-; THIS IS THE DOMINANT FC PLAYER: fingerprinting (tools/fc_fingerprint.py)
+; THIS IS THE DOMINANT FC PLAYER: fingerprinting (tools/engine_fingerprint.py)
 ; shows 3673 / 4024 HVSC FutureComposer SIDs (≈91%) share this exact player
 ; (relocation-invariant opcode skeleton). Migrating this one player covers the
 ; bulk of the FC catalogue. (Cyb II / Hawkeye / Adrenalin engine A are larger

@@ -18,7 +18,7 @@ RE into a lookup — point it at any FC SID (or a relocated sub-engine like
 Adrenalin's) and read off its cluster, then reuse a cluster-mate's known layout.
 
 Usage:
-    PYTHONPATH=tools/py65_lib:tools:src python3 tools/fc_fingerprint.py [--corpus]
+    PYTHONPATH=tools/py65_lib:tools:src python3 tools/engine_fingerprint.py [--corpus]
 """
 import sys, os, hashlib
 
@@ -66,15 +66,16 @@ def jaccard(a, b):
     return len(A & B) / len(A | B) if (A or B) else 0.0
 
 
-def cluster_corpus(threshold=0.85):
-    """Fingerprint every HVSC MoN/FutureComposer SID and cluster by version."""
+def cluster_corpus(threshold=0.85, engine_like='%FutureComposer%'):
+    """Fingerprint every HVSC SID whose engine matches `engine_like` and
+    cluster by player version. Default: MoN/FutureComposer — NB: LIKE '%MoN%'
+    is case-insensitive and would sweep in SoundMONitor, so match
+    FutureComposer explicitly."""
     import sqlite3
     root = os.path.join(os.path.dirname(__file__), '..')
     db = sqlite3.connect(os.path.join(root, 'hvsc84.db'))
-    # FC only — NB: LIKE '%MoN%' is case-insensitive and would sweep in
-    # SoundMONitor, so match FutureComposer explicitly.
     rows = list(db.execute(
-        "SELECT path FROM sids WHERE engine LIKE '%FutureComposer%'"))
+        "SELECT path FROM sids WHERE engine LIKE ?", (engine_like,)))
     fps = []           # (path, ops, exact_hash)
     errs = 0
     for (rel,) in rows:
@@ -114,14 +115,20 @@ def cluster_corpus(threshold=0.85):
 
 if __name__ == '__main__':
     if '--corpus' in sys.argv:
-        fps, exact, families, errs = cluster_corpus()
-        print(f'fingerprinted {len(fps)} FC SIDs ({errs} errors)')
+        like = '%FutureComposer%'
+        if '--engine' in sys.argv:
+            like = sys.argv[sys.argv.index('--engine') + 1]
+        fps, exact, families, errs = cluster_corpus(engine_like=like)
+        print(f'fingerprinted {len(fps)} SIDs matching {like!r} ({errs} errors)')
         print(f'distinct opcode-skeleton hashes: {len(exact)}')
         print(f'version families (Jaccard>=0.85): {len(families)}')
         fam_sorted = sorted(families.items(), key=lambda kv: -len(kv[1]))
         print('\ntop families by size:')
         for fam, members in fam_sorted[:15]:
             print(f'  {len(members):5d}  e.g. {members[0]}')
+
+        if 'FutureComposer' not in like:
+            sys.exit(0)
 
         # Task 34: where do Adrenalin's sub-engines land?
         from pipelines.future_composer.engine_model import _run_init_in_py65

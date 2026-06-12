@@ -1,19 +1,19 @@
 ---
 name: project_fc_fingerprint_and_standard
-description: "FC player-version fingerprint DB (tools/fc_fingerprint.py) + the dominant 'vanilla' FC player migration (pipelines/future_composer/standard/). 91% of HVSC FC (3673/4024) is ONE player → highest-leverage target. ✅ JARRE_2 SUB 0 FULL (2026-06-10): play 17164/17164 + trichotomy audio✓ — the standard player's first verified tune. Full effect chain done (pattern decoder, instrument-select, $40=wave_arp, $80=noise_tick, pulse sweep, wave ctrl+freq, vibrato, $D416 default, tick gate-off, note-duration +1, universal_reset init). RESUME: ear-test + RELOCATION → one config for the 3673-SID family rollout. See RESUME HERE."
+description: "FC player-version fingerprint DB (tools/engine_fingerprint.py) + the dominant 'vanilla' FC player migration (pipelines/future_composer/standard/). 91% of HVSC FC (3673/4024) is ONE player → highest-leverage target. ✅ JARRE_2 SUB 0 FULL (2026-06-10): play 17164/17164 + trichotomy audio✓ — the standard player's first verified tune. Full effect chain done (pattern decoder, instrument-select, $40=wave_arp, $80=noise_tick, pulse sweep, wave ctrl+freq, vibrato, $D416 default, tick gate-off, note-duration +1, universal_reset init). RESUME: ear-test + RELOCATION → one config for the 3673-SID family rollout. See RESUME HERE."
 metadata: 
   node_type: memory
   type: project
   originSessionId: fea5d0c1-61d2-49f9-8e14-4e5916b95622
 ---
 
-## FC player-version fingerprinting — `tools/fc_fingerprint.py`
+## FC player-version fingerprinting — `tools/engine_fingerprint.py`
 Relocation-invariant FC player identification. Traces reachable code from
 init+play (reuses `seed_disassembly.trace`), takes the OPCODE skeleton
 (relocation changes operands, not opcodes → reloc-invariant), clusters by exact
 SHA1 + opcode-4-gram Jaccard. Validated: same engine relocated → 0.94-1.0;
 different FC versions → ≤0.64 (Adrenalin engine A vs Cyb II vs Hawkeye).
-Run: `PYTHONPATH=tools/py65_lib:tools:src python3 tools/fc_fingerprint.py --corpus`.
+Run: `PYTHONPATH=tools/py65_lib:tools:src python3 tools/engine_fingerprint.py --corpus`.
 NB: the corpus query must use `LIKE '%FutureComposer%'` — `LIKE '%MoN%'` is
 case-insensitive and sweeps in SoundMONitor.
 
