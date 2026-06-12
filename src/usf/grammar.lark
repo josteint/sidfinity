@@ -34,6 +34,15 @@ filter_programs_block: "filter_programs" "{" filter_program* "}"
 // cutoff holds at `final`. Tel programs have 3 segments and no onset;
 // the standard FC program has 4 segments + an explicit onset threshold.
 filter_program: "prog" INT ":" "init" "=" number ("onset" "=" number)? "d418" "=" number "final" "=" number "end" "=" number fp_seg+
+// Duration-based cutoff envelope (DMC shape): res = resonance nibble,
+// mode = SID filter mode bits (LP/BP/HP mask), init = starting cutoff,
+// repeat = step index looped to after the last step, stop = cutoff
+// value that freezes the envelope. Each step(d, f) adds d (signed) to
+// the cutoff every frame for f frames. Same musical concept as the
+// threshold-based shape above — a different point in the same
+// piecewise-linear-envelope parameter space.
+              | "prog" INT ":" "res" "=" number "mode" "=" number "init" "=" number "repeat" "=" INT "stop" "=" number fp_step+   -> filter_program_dur
+fp_step: "step" "(" signed_int "," INT ")"
 fp_seg: "seg" number number
 
 // ----- drum programs (FC percussion library) -----
@@ -172,6 +181,13 @@ instrument_block: "instrument" INT instrument_name? "{" instrument_field+ "}"
 instrument_name:  CNAME
 instrument_field: "waveform" ":" byte_list                              -> inst_waveform
                 | "loop" ":" INT                                        -> inst_loop
+                // Parallel per-step freq values for the waveform
+                // envelope: each waveform step also has a pitch value —
+                // a signed semitone offset added to the note (arpeggio),
+                // or an absolute freq-hi byte when the instrument has
+                // the `drum` effect. Same musical concept as the FC
+                // standard wave program's dual ctrl/freq tables. (DMC)
+                | "wave_freq" ":" "[" (signed_int ("," signed_int)*)? "]" -> inst_wave_freq
                 | "pwm" ":" pwm_args                                    -> inst_pwm
                 | "adsr" ":" byte byte                                  -> inst_adsr
                 | "arp" ":" arp_args                                    -> inst_arp
@@ -196,6 +212,13 @@ pwm_kv: "mode" "=" CNAME           -> pwm_mode
       | "phase1_bound" "=" number  -> pwm_phase1_bound
       | "phase1_step" "=" number   -> pwm_phase1_step
       | "lo_or_mask" "=" number    -> pwm_lo_or_mask
+      // Per-direction-flip step-rate schedule: the PW ramp rate changes
+      // as the oscillation progresses (DMC's 6 phases). Each value is
+      // the effective per-frame step. Empty = constant `speed`.
+      | "speed_steps" "=" "[" (INT ("," INT)*)? "]" -> pwm_speed_steps
+      // Keep the PW oscillator running across note boundaries (no
+      // reset at note init) — legato pulse texture. (DMC flag $04)
+      | "keep_running" "=" bool    -> pwm_keep_running
 
 arp_args: arp_kv+
 arp_kv: "offsets" "=" "[" (signed_int ("," signed_int)*)? "]"   -> arp_offsets
@@ -217,6 +240,9 @@ vib_kv: "scale" "=" INT                 -> vib_scale
       | "amplitude" "=" INT             -> vib_amplitude
       | "speed" "=" INT                 -> vib_speed
       | "direction" "=" CNAME           -> vib_direction
+      // Swell ramp: vibrato depth DOUBLES each half-cycle until the
+      // ramp counter reaches this value (0 = fixed depth). (DMC)
+      | "ramp" "=" INT                  -> vib_ramp
 
 // FC v1 — pulse-program config (replaces opaque fc_fx2 byte).
 // `program` selects the engine's `pulsetabel` entry (1-7; 0 = disabled).
@@ -234,6 +260,9 @@ pulse_prog_kv: "program" "=" INT        -> pp_program
 // fully RE'd (v2 deferral).
 filter_prog_args: filter_prog_kv+
 filter_prog_kv: "program" "=" INT       -> fp_program
+              // Filter program continues across note boundaries (no
+              // re-init at note start) — legato filter. (DMC flag $02)
+              | "keep_running" "=" bool -> fpc_keep_running
               | "strange" "=" bool      -> fp_strange
               | "double_voice" "=" bool -> fp_double_voice
               | "aux_bits" "=" number   -> fp_aux_bits
@@ -250,9 +279,18 @@ effect_name: "tone_arp"        -> efx_tone_arp
            | "noise_tick"      -> efx_noise_tick
            | "pulse_run"       -> efx_pulse_run
            | "filter_program"  -> efx_filter_program
+           // First-frame noise burst: note attacks with max-freq gated
+           // noise for one frame before the wave envelope starts.
+           // (DMC cymbal flag $80)
+           | "noise_attack"    -> efx_noise_attack
 
 env_args: env_kv+
 env_kv: "release_ctrl" "=" number      -> env_release_ctrl
+      // Gate articulation: 'hold' (gate until note end — the classic
+      // tracker model, default), 'release_early' (gate drops a fixed
+      // few frames after attack; the tail rides the SID release —
+      // DMC's percussive default), 'open' (gate never drops).
+      | "gate_mode" "=" CNAME          -> env_gate_mode
 
 // Phase 1: per-instrument freq-slide config — replaces the per-
 // engine-parameterized `fx: freq_slide` flag.
@@ -263,6 +301,9 @@ slide_kv: "mode" "=" CNAME                  -> slide_mode
         | "lower_delta" "=" signed_int      -> slide_lower_delta
         | "step" "=" number                 -> slide_step
         | "high_oct_arp" "=" bool           -> slide_high_oct_arp
+        // Slide updates every OTHER frame (a global half-rate clock
+        // shared by all sliding voices). (DMC dual effect)
+        | "half_rate" "=" bool              -> slide_half_rate
 
 // Phase 1: per-instrument inc_by2 config — replaces the per-engine-
 // parameterized `fx: inc_by2` flag.
@@ -295,9 +336,10 @@ orderlist: orderlist_entry+ orderlist_terminator?
          | orderlist_terminator
 // entry: a[*b][+c][^d]  — a=pattern id, b=repeats, c=transpose, d=voiceinc.
 // Operand first, then a homogeneous list of <operator><parameter> modifiers.
-orderlist_entry: INT ol_repeat? ol_transpose? ol_voiceinc?
+orderlist_entry: INT ol_repeat? (ol_transpose | ol_transpose_neg)? ol_voiceinc?
 ol_repeat: "*" INT
 ol_transpose: "+" INT
+ol_transpose_neg: "-" INT
 ol_voiceinc: "^" INT
 ol_looplen: "len" "=" INT
 // loop@N — wrap to entry N, the head re-establishing its stated
@@ -337,6 +379,14 @@ fx_flag: "tie"                  -> fx_tie
        // FC $F0 marker: play this note WITHOUT retriggering the
        // instrument (skip ADSR/wave reload) — legato to a new pitch.
        | "noretrig"             -> fx_noretrig
+       // Gate-mask toggle event: flips the voice's gate bit for this
+       // row's duration slot without pitch change (DMC SWITCH $7D).
+       | "gate_toggle"          -> fx_gate_toggle
+       // Two-pitch glide: the row attacks at its own pitch and glides
+       // to this target (DMC GLD mode 0). With `noretrig`, the glide
+       // starts from the sounding note instead (DMC slide mode 1);
+       // speed comes from the existing `glide=N` flag.
+       | "glide_to" "=" NOTE_NAME -> fx_glide_to
 
 // digi
 digi_body: "sample" ":" SAMPLE_PATH

@@ -98,7 +98,8 @@ class Orderlist:
     length as `entries`:
 
     - `transposes[i]` — semitone / freq-table-index offset applied to
-      entry `i`'s notes (FC `SeqTranspose`; non-negative, 0 = none).
+      entry `i`'s notes (FC `SeqTranspose`, non-negative; DMC track
+      transposes are signed, -31..+31; 0 = none).
     - `voiceincs[i]` — wave-table-position offset applied to entry `i`
       (FC `SeqVoiceinc`; 0 = none). Modulates where instrument wave
       programs are read.
@@ -285,6 +286,14 @@ class PwmConfig:
     # uses $40 on its linear-PWM instruments. Per-instrument: each
     # inst's linear-PWM update gets its own mask.
     lo_or_mask: int = 0
+    # Per-direction-flip step-rate schedule (DMC): the bidirectional
+    # ramp's per-frame step changes as the oscillation progresses; one
+    # entry per direction flip, last entry repeats. Empty = constant
+    # `speed`.
+    speed_steps: list = field(default_factory=list)
+    # Keep the PW oscillator running across note boundaries (DMC's
+    # no-pulse-reset flag) — legato pulse texture.
+    keep_running: bool = False
 
 
 @dataclass
@@ -364,6 +373,9 @@ class VibratoConfig:
     amplitude: int = 0           # 0-15 (low nibble of fx1)
     speed: int = 0               # 0-7 (bits 4-6 of fx1, >> 4)
     direction: str = 'up'        # 'up' (bit 7 clear) | 'down' (set)
+    # Swell ramp (DMC): depth DOUBLES each half-cycle until the ramp
+    # counter reaches this value. 0 = fixed depth.
+    ramp: int = 0
 
 
 @dataclass
@@ -391,12 +403,16 @@ class FilterProgConfig:
     `program` (1-15; 0 = disabled) selects the filter program; the
     engine indexes filterbytes by program * 4.
 
+    `keep_running` (DMC): the filter envelope continues across note
+    boundaries instead of re-initializing — legato filter.
+
     `strange` enables the bidirectional cutoff sweep on $D416 (fx2.3).
     `double_voice` is the lo-freq detune trick (filcount bit 3 = $08).
     `aux_bits` carries fil_count's high-nibble bits whose musical
     meaning isn't fully RE'd yet (v2 deferral).
     """
     program: int = 0
+    keep_running: bool = False
     strange: bool = False
     double_voice: bool = False
     aux_bits: int = 0
@@ -419,8 +435,14 @@ class EnvelopeConfig:
     realizes it via delta arithmetic, jay_derrett via OR'd byte;
     both produce the same SID write. Schema carries the musical
     content (the resulting byte), not the mechanism.
+
+    `gate_mode` — gate articulation: 'hold' (gate until note end,
+    the classic tracker model, default), 'release_early' (gate drops
+    a fixed few frames after attack; the note tail rides the SID
+    release — DMC's percussive default), 'open' (gate never drops).
     """
     release_ctrl: int = 0
+    gate_mode: str = 'hold'      # 'hold' | 'release_early' | 'open' 
 
 
 @dataclass
@@ -436,6 +458,8 @@ class FreqSlideConfig:
                          bound 2's freq.
       'bidirectional'  — slide toward bound 1; at bound, flip
                          direction; slide toward bound 2; flip; repeat.
+      'run'            — unbounded linear slide for the whole note
+                         (DMC dual effect; pairs with `half_rate`).
 
     Bounds are SIGNED 16-bit deltas from the note's freq-table value
     (the engine adds them at note-start to get absolute target freqs).
@@ -451,6 +475,9 @@ class FreqSlideConfig:
     lower_delta: int = 0         # SIGNED 16-bit
     step: int = 0                # 16-bit unsigned
     high_oct_arp: bool = False
+    # Slide updates every other frame on a global half-rate clock
+    # shared by all sliding voices (DMC dual effect).
+    half_rate: bool = False
 
 
 @dataclass
@@ -484,6 +511,12 @@ class Instrument:
     name: Optional[str] = None
     waveform: list[int] = field(default_factory=list)
     loop: int = 0
+    # Parallel per-step freq values for the waveform envelope (DMC /
+    # FC-standard dual-table shape): signed semitone offsets added to
+    # the note per step, or absolute freq-hi bytes when the instrument
+    # has the 'drum' effect. Empty = no per-step pitch movement. Same
+    # length as `waveform`; `loop` applies to both.
+    wave_freq: list[int] = field(default_factory=list)
     pwm: PwmConfig = field(default_factory=PwmConfig)
     adsr: tuple = (0, 0)             # (ad, sr)
     arp: ArpConfig = field(default_factory=ArpConfig)

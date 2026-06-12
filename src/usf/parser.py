@@ -220,6 +220,9 @@ class _T(Transformer):
     def inst_loop(self, items):
         return ('loop', int(items[0]))
 
+    def inst_wave_freq(self, items):
+        return ('wave_freq', [int(x) for x in items])
+
     def pwm_mode(self, items):
         return ('mode', str(items[0]))
 
@@ -246,6 +249,12 @@ class _T(Transformer):
 
     def pwm_lo_or_mask(self, items):
         return ('lo_or_mask', items[0])
+
+    def pwm_speed_steps(self, items):
+        return ('speed_steps', [int(x) for x in items])
+
+    def pwm_keep_running(self, items):
+        return ('keep_running', items[0])
 
     def pwm_args(self, items):
         return PwmConfig(**dict(items))
@@ -301,6 +310,9 @@ class _T(Transformer):
     def vib_direction(self, items):
         return ('direction', str(items[0]))
 
+    def vib_ramp(self, items):
+        return ('ramp', int(items[0]))
+
     def vib_args(self, items):
         return VibratoConfig(**dict(items))
 
@@ -309,6 +321,9 @@ class _T(Transformer):
 
     def env_release_ctrl(self, items):
         return ('release_ctrl', items[0])
+
+    def env_gate_mode(self, items):
+        return ('gate_mode', str(items[0]))
 
     def env_args(self, items):
         return EnvelopeConfig(**dict(items))
@@ -331,6 +346,9 @@ class _T(Transformer):
 
     def slide_high_oct_arp(self, items):
         return ('high_oct_arp', items[0])
+
+    def slide_half_rate(self, items):
+        return ('half_rate', items[0])
 
     def slide_args(self, items):
         return FreqSlideConfig(**dict(items))
@@ -388,6 +406,9 @@ class _T(Transformer):
     def fp_aux_bits(self, items):
         return ('aux_bits', int(items[0]))
 
+    def fpc_keep_running(self, items):
+        return ('keep_running', bool(items[0]))
+
     def filter_prog_args(self, items):
         from src.usf.types import FilterProgConfig
         return FilterProgConfig(**dict(items))
@@ -403,6 +424,7 @@ class _T(Transformer):
     def efx_noise_tick(self, _):     return 'noise_tick'
     def efx_pulse_run(self, _):      return 'pulse_run'
     def efx_filter_program(self, _): return 'filter_program'
+    def efx_noise_attack(self, _):   return 'noise_attack'
 
     def effect_name(self, items):
         return items[0]
@@ -586,6 +608,9 @@ class _T(Transformer):
     def ol_transpose(self, items):
         return ('tr', int(items[0]))
 
+    def ol_transpose_neg(self, items):
+        return ('tr', -int(items[0]))
+
     def ol_voiceinc(self, items):
         return ('vi', int(items[0]))
 
@@ -734,6 +759,12 @@ class _T(Transformer):
     def fx_filter(self, items):
         return f'filter=${int(items[0]):02X}'
 
+    def fx_gate_toggle(self, _):
+        return 'gate_toggle'
+
+    def fx_glide_to(self, items):
+        return f'glide_to={str(items[0])}'
+
     def fx_noretrig(self, _):
         return 'noretrig'
 
@@ -877,6 +908,19 @@ class _T(Transformer):
 
     def fp_seg(self, items):
         return ('seg', (int(items[0]), int(items[1])))
+
+    def fp_step(self, items):
+        return ('step', (int(items[0]), int(items[1])))
+
+    def filter_program_dur(self, items):
+        n = int(items[0])
+        head = [it for it in items[1:]
+                if not (isinstance(it, tuple) and it[0] == 'step')]
+        steps = [it[1] for it in items[1:] if isinstance(it, tuple)
+                 and it[0] == 'step']
+        res, mode, init, repeat, stop = (int(v) for v in head)
+        return (n, {'res': res, 'mode': mode, 'init': init,
+                    'repeat': repeat, 'stop': stop, 'steps': steps})
 
     def filter_program(self, items):
         n = int(items[0])

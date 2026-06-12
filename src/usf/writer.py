@@ -166,6 +166,10 @@ def _write_pwm(p: PwmConfig) -> str:
         parts.append(f'phase1_step={_hex(p.phase1_step)}')
     if p.lo_or_mask:
         parts.append(f'lo_or_mask={_hex(p.lo_or_mask)}')
+    if p.speed_steps:
+        parts.append('speed_steps=[' + ', '.join(str(s) for s in p.speed_steps) + ']')
+    if p.keep_running:
+        parts.append('keep_running=true')
     return 'pwm:      ' + ' '.join(parts)
 
 
@@ -203,6 +207,8 @@ def _write_vibrato(v: VibratoConfig) -> str:
         parts.append(f'speed={v.speed}')
     if v.direction != 'up':
         parts.append(f'direction={v.direction}')
+    if v.ramp:
+        parts.append(f'ramp={v.ramp}')
     return 'vibrato:  ' + ' '.join(parts)
 
 
@@ -218,6 +224,8 @@ def _write_envelope(e: EnvelopeConfig) -> str | None:
     parts = []
     if e.release_ctrl:
         parts.append(f'release_ctrl={_hex(e.release_ctrl)}')
+    if e.gate_mode != 'hold':
+        parts.append(f'gate_mode={e.gate_mode}')
     if not parts:
         return None
     return 'envelope: ' + ' '.join(parts)
@@ -235,6 +243,8 @@ def _write_slide(s: FreqSlideConfig) -> str:
         parts.append(f'step={_hex(s.step, 4)}')
     if s.high_oct_arp:
         parts.append('high_oct_arp=true')
+    if s.half_rate:
+        parts.append('half_rate=true')
     return 'slide:    ' + ' '.join(parts)
 
 
@@ -282,6 +292,14 @@ def _write_filter_programs(progs: dict) -> list[str]:
     lines = ['filter_programs {']
     for n in sorted(progs):
         p = progs[n]
+        if 'res' in p:           # duration-based shape (DMC)
+            parts = [f'res={p["res"]}', f'mode={p["mode"]}',
+                     f'init={p["init"]}', f'repeat={p["repeat"]}',
+                     f'stop={p["stop"]}']
+            for d, f in p['steps']:
+                parts.append(f'step ({d}, {f})')
+            lines.append(f'  prog {n}: ' + ' '.join(parts))
+            continue
         parts = [f'init={p["init"]}']
         if p.get('onset'):
             parts.append(f'onset={p["onset"]}')
@@ -327,6 +345,9 @@ def _write_instrument(i: Instrument) -> list[str]:
         wave = ' '.join(_hex(b) for b in i.waveform)
         lines.append(f'  waveform: {wave}')
         lines.append(f'  loop:     {i.loop}')
+    if i.wave_freq:
+        wf = ', '.join(str(v) for v in i.wave_freq)
+        lines.append(f'  wave_freq: [{wf}]')
     lines.append(f'  {_write_pwm(i.pwm)}')
     lines.append(f'  adsr:     {_hex(i.adsr[0])} {_hex(i.adsr[1])}')
     lines.append(f'  {_write_arp(i.arp)}')
@@ -351,10 +372,13 @@ def _write_instrument(i: Instrument) -> list[str]:
             pp_parts.append(f'increment={pp.increment}')
         lines.append('  pulse_prog: ' + ' '.join(pp_parts))
     fp = i.filter_prog
-    if (fp.program or fp.strange or fp.double_voice or fp.aux_bits):
+    if (fp.program or fp.strange or fp.double_voice or fp.aux_bits
+            or fp.keep_running):
         fp_parts = []
         if fp.program:
             fp_parts.append(f'program={fp.program}')
+        if fp.keep_running:
+            fp_parts.append('keep_running=true')
         if fp.strange:
             fp_parts.append('strange=true')
         if fp.double_voice:
@@ -365,7 +389,8 @@ def _write_instrument(i: Instrument) -> list[str]:
     if i.effects:
         # Deterministic order matching the bit positions in fx3
         order = ['filter_program', 'pulse_run', 'tone_arp', 'pulse_arp',
-                 'drum', 'tonesweep_up', 'wave_arp', 'noise_tick']
+                 'drum', 'tonesweep_up', 'wave_arp', 'noise_tick',
+                 'noise_attack']
         emitted = [n for n in order if n in i.effects]
         lines.append('  effects: ' + ' '.join(emitted))
     lines.append('}')
@@ -382,7 +407,7 @@ def _write_orderlist(o: Orderlist) -> str:
         if rep != 1:
             s += f'*{rep}'
         if tr:
-            s += f'+{tr}'
+            s += f'+{tr}' if tr > 0 else f'{tr}'
         if vi:
             s += f'^{vi}'
         parts.append(s)
