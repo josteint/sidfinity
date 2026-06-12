@@ -10,7 +10,7 @@
 
 ## Per-engine project memories
 
-- [DMC migration](project_dmc.md) — THE FOCUS ENGINE (10,676 SIDs, largest family). Census: V4 canonical = 5401 (50.6%) = the target; annotated disassembly DONE (`pipelines/dmc/v4/disassembly.s`, rep Geometrical_Zaks). KEY: table addresses are PACKER-PATCHED operands → extract by dataflow. NEXT: config + extract + composer, write-log-first on Zaks.
+- [DMC migration](project_dmc.md) — THE FOCUS ENGINE (10,676 SIDs, largest family). Census: V4 canonical = 5401 (50.6%) = the target; annotated disassembly + **✅ ZAKS FULL (2026-06-12): all 3 subtunes exact at full songlength through SID→USF→SID**. Pipeline complete (extract w/ dataflow operands + path-resolved patterns; OUR composer engine; regression-wired). 3 fixes: idle-note voice_state priming (work-file leftover $1012-14 + record-0 idle), pulse nibble/base split, xa65 colon-in-comment gotcha. NEXT: ear test → factory → family-1 wide batch (5401).
 
 - [Commando — no drum engine](project_commando_no_drum_engine.md) — "the drum" is inst 4 played off the end of the freq table; the drum sub-engine never runs in subtune 0
 - [Chimera pipeline](project_chimera.md) — PSID rebuild (no KERNAL); music frame-exact + digi cycle-strict. Drove the digi pipeline + USF v2 + the no-verbatim-engine-bytes refactor. Includes the C64 banking gotcha that surfaced during the $B093 player_base shrink.

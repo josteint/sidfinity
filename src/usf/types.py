@@ -560,6 +560,11 @@ class InitVoice:
     pwm_dir: str = 'up'          # 'up' or 'down'
     instr: Optional[InstrumentRef] = None
     slide_v: int = 0
+    # Initial note-state the voice's effects idle on before its first
+    # note event (DMC: a voice whose track opens with rests still runs
+    # its full effect chain, reading this note for the wave-program
+    # freq lookups). None = the engine's zero state.
+    note: Optional[int] = None
 
 
 # ---------------------------------------------------------------------------

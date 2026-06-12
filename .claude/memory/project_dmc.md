@@ -74,17 +74,35 @@ factory must probe, FC-style.
   no transpose)/+$1D tune-select.
 - ZP $F8/$F9 only.
 
-## NEXT (migration loop)
-1. `pipelines/dmc/v4/config.py` + extract (dataflow operand reader →
-   instruments/wave/filter/tracks/sectors → USF; check
-   docs/usf_representation_principle.md FIRST per the tripwire).
-2. Composer emitters for the DMC write model (new family alongside
-   hubbard/companion/FC — composer_asm vs composer.py split TBD).
-3. Write-log-first iteration on Geometrical_Zaks (verify_featuredriven-
-   style verdict; find_first_divergence localizer).
-4. Then: relocation/factory rollout over family 1 (probe patched
-   operands); family 2 diff; V5 line later (sector encoding still
-   needs RE — see docs/dmc_v5_format_notes.md).
+## ✅ ZAKS FULL (2026-06-12) — pipeline COMPLETE end-to-end
+Geometrical_Zaks: ALL 3 subtunes instruction-sequence exact at full
+songlength (303565/266449/73661 play writes, trichotomy state ✓).
+Pipeline: pipelines/dmc/v4/extract (dataflow operands, path-resolved
+patterns w/ loop-unroll cycle detection, exact 5-stage dispatch incl.
+ghost $7F=instr31) → USF (schema growth: wave_freq, gate_mode, pwm
+speed_steps/keep_running, vibrato ramp, slide 'run'+half_rate,
+filter keep_running, noise_attack, signed ol transposes, duration
+filter_programs, gate_toggle + glide_to flags, InitVoice.note) →
+pipelines/dmc/composer_asm.py (OUR engine; own event encoding) →
+xa65 → PSID. Wired into tools/regression.py (DMC section).
+Artifacts at hvsc84/.../Geometrical_Zaks.{usf,sidfinity.sid}.
+
+THE THREE FIXES (full detail in pipelines/dmc/v4/RE_NOTES.md):
+(1) idle-note voice_state priming — rest-opening voices run effects
+on the WORK-FILE LEFTOVER $1012-14 note (init { voice N { note } });
+idle effects use instrument RECORD 0 (cleared cache) → extract
+force-includes record 0 as slot 0. (2) pulse base split — step =
+nibble + CACHED base; idle base=0; composer derives base = step&$0F.
+(3) xa65: ':' is a statement separator EVEN IN COMMENTS (sanitizer).
+
+## NEXT
+1. EAR TEST Zaks (user; py65/writelog miss dispatch bugs).
+2. Factory `dmc_v4_config(sid)`: probe the 7 operand sites + wrapper
+   inits (On_My_Way_to_X, Retro_Tech); probe gate-mask/$1019
+   leftovers; assert record0 wave_start==0 + off-table reads.
+3. Wide batch over family 1 (5401) FC-style; then family 2 diff
+   (0.732 V4-derived, 2889); V5 line needs sector-encoding RE.
+RESIDUE list in RE_NOTES.md (uready accounting started).
 
 ## Related
 [[project_fc_fingerprint_and_standard]] (the playbook this follows),

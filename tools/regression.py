@@ -366,6 +366,23 @@ def regress_jay_derrett() -> tuple[int, int]:
     return ok, fail
 
 
+def regress_dmc() -> tuple[int, int]:
+    """DMC family — Geometrical_Zaks (3 subtunes) through the full
+    SID → USF → SID pipeline, trichotomy verdict at full songlength."""
+    from pipelines.dmc.verify import verify_dmc
+    from pipelines.dmc.v4.config import ZAKS
+    ok = fail = 0
+    r = verify_dmc(ZAKS)
+    n_ok = sum(1 for s in r['subtunes'].values() if s['is_full'])
+    n = len(r['subtunes'])
+    print(f"  Geometrical_Zaks   {n_ok}/{n}")
+    if r['ok']:
+        ok += 1
+    else:
+        fail += 1
+    return ok, fail
+
+
 def main():
     print('Hubbard \'85:')
     h_ok, h_part, h_total = regress_hubbard()
@@ -378,6 +395,8 @@ def main():
     print(f'\nFuture Composer family (4 canaries: Cyb II + Hawkeye + '
           f'Adrenalin[0] + Jarre_2/standard):')
     fc_ok, fc_part, fc_fail = regress_future_composer()
+    print(f'\nDMC family (canary: Geometrical_Zaks/v4):')
+    dmc_ok, dmc_fail = regress_dmc()
 
     print(f'\nHubbard:    {h_ok} ok  +  {h_part} known-partial  +  '
           f'{h_total - h_ok - h_part} regressed  (of {h_total})')
@@ -385,9 +404,10 @@ def main():
     print(f'C64ME:      {cme_ok} ok  +  {cme_fail} regressed  (of 15)')
     print(f'Jay_Derrett:  {jd_ok} ok  +  {jd_fail} regressed  (of 17 wired / 20 total)')
     print(f'FC:         {fc_ok} ok  +  {fc_fail} regressed')
+    print(f'DMC:        {dmc_ok} ok  +  {dmc_fail} regressed')
 
     h_regressed = h_total - h_ok - h_part
-    if h_regressed or c_fail or cme_fail or jd_fail or fc_fail:
+    if h_regressed or c_fail or cme_fail or jd_fail or fc_fail or dmc_fail:
         sys.exit(1)
 
 

@@ -23,7 +23,7 @@ from __future__ import annotations
 import os
 
 from src.usf.types import (
-    UsfFile, PsidMeta, Params, InitState, InitSid, InitFilter,
+    UsfFile, PsidMeta, Params, InitState, InitSid, InitFilter, InitVoice,
     Instrument, PwmConfig, VibratoConfig, EnvelopeConfig,
     FreqSlideConfig, FilterProgConfig, ArpConfig,
     MusicSubtune, VoiceBlock, Orderlist, Pattern, NoteRow, Pitch,
@@ -123,7 +123,9 @@ def model_to_usf(m: DmcModel) -> UsfFile:
         psid=PsidMeta(title=m.title, author=m.author, released=m.released,
                       start_song=m.start_song),
         params=Params(fields={}),
-        init=InitState(),
+        init=InitState(voices=[
+            InitVoice(id=v + 1, note=m.idle_notes[v]) for v in range(3)
+            if m.idle_notes[v]]),
         instruments=[_instrument_to_usf(m.instruments[k])
                      for k in sorted(m.instruments)],
         subtunes=subtunes,

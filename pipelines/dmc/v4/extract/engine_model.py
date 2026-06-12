@@ -113,6 +113,7 @@ class DmcModel:
     freq_hi: list = field(default_factory=list)
     vibdepth: list = field(default_factory=list)     # 96 bytes incl. overlap
     d417_shadow: int = 0
+    idle_notes: tuple = (0, 0, 0)    # $1012-$1014 work-file leftovers
     title: str = ''
     author: str = ''
     released: str = ''
@@ -396,6 +397,7 @@ def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc84') -> DmcModel:
         freq_hi=[mem[cfg.freq_hi_addr + i] for i in range(96)],
         vibdepth=[mem[cfg.vibdepth_addr + i] for i in range(96)],
         d417_shadow=mem[cfg.d417_shadow_addr],
+        idle_notes=(mem[0x1012], mem[0x1013], mem[0x1014]),
         title=s.get('title', ''), author=s.get('author', ''),
         released=s.get('released', ''),
         n_subtunes=s.get('songs', 1), start_song=s.get('start_song', 1),
@@ -419,6 +421,10 @@ def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc84') -> DmcModel:
                 for r in rows:
                     used_instr.add(r.instr)
 
+    # The engine's note-init cache is cleared to 0 by init, so a voice
+    # idling before its first note runs record 0's pulse/wave mechanism.
+    # Record 0 must therefore always ship (and sit first in the list).
+    used_instr.add(0)
     for iid in sorted(used_instr):
         inst = _decode_instrument(mem, instr_base, iid, ctrl_tab, freq_tab)
         m.instruments[iid] = inst
