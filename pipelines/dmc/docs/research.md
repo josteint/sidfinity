@@ -111,7 +111,7 @@
 
 ### V5: 8 bytes per instrument, 32 max
 
-The exact mapping of the reduced 8-byte V5 format is **not publicly documented**. Likely the 3 pulse width bytes (PW1-PW3) are consolidated or removed. Needs reverse-engineering from V5 binaries.
+**RESOLVED at parameter level (2026-06-12)** — see `dmc_v5_format_notes.md`. The 8 params (editor order) are AD, SR, WV (wave-table ptr), PU (pulse-table ptr), FL (filter-table ptr), V1 (vib delay), V2 (vib speed), V3 (vib width, 3 bits); sound #00 sits at $4000-$4007 in the editor. PW1-3/PW-limit/FX-flags moved into the programmable 2-byte tables (drum mode = test bit in wave entries). Stored byte order still needs one binary confirmation.
 
 ### FX Flags (byte 10, V4)
 
@@ -136,9 +136,9 @@ The exact mapping of the reduced 8-byte V5 format is **not publicly documented**
 | $7E | Gate off: release current note |
 | $7F | End of sector (V4 terminator) |
 | $80-$9F | Instrument select (AND $1F = instrument number 0-31) |
-| $A0-$BF | Glide command ($A0 + semitones, portamento/slide) |
-| $C0-$DF | Additional commands (volume, etc.) — not fully documented |
-| $E0-$FF | Extended commands; $FF also serves as sector end in some V5 variants |
+| $A0-$BF | GLD.xy — bit 4 = mode (0=glide between 2 following notes, 1=slide current note), low nibble = speed 0-F (NOT "$A0 + semitones"; see `dmc_sector_commands.md`) |
+| $C0-$DF | VOL.0x by elimination (the only remaining V4 editor command; sets sustain, 00=instrument default) — needs binary confirmation; see `dmc_sector_commands.md` |
+| $E0-$FF | No V4 editor command remains → likely unused in V4. In V5 $FF = sector end (packer scans for it); V5's full command encoding is undocumented |
 
 **Timing:** Actual time in frames = (Tune Speed + 1) × Duration value. Sectors should synchronize across channels using integer multiples.
 
