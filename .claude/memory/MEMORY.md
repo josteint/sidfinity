@@ -10,6 +10,8 @@
 
 ## Per-engine project memories
 
+- [DMC migration](project_dmc.md) — THE FOCUS ENGINE (10,676 SIDs, largest family). Census: V4 canonical = 5401 (50.6%) = the target; annotated disassembly DONE (`pipelines/dmc/v4/disassembly.s`, rep Geometrical_Zaks). KEY: table addresses are PACKER-PATCHED operands → extract by dataflow. NEXT: config + extract + composer, write-log-first on Zaks.
+
 - [Commando — no drum engine](project_commando_no_drum_engine.md) — "the drum" is inst 4 played off the end of the freq table; the drum sub-engine never runs in subtune 0
 - [Chimera pipeline](project_chimera.md) — PSID rebuild (no KERNAL); music frame-exact + digi cycle-strict. Drove the digi pipeline + USF v2 + the no-verbatim-engine-bytes refactor. Includes the C64 banking gotcha that surfaced during the $B093 player_base shrink.
 - [Human Race effect audit](project_human_race_audit.md) — ALL FIVE HR effects collapse to existing shared-core effects (downslide ≡ freq_slide, drumarp ≡ fx_arp, skydive ≡ fx_incby2, PWmode ≡ fx_pwm, per-note slide ≡ fx_drumslide)
