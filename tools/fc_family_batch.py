@@ -1,0 +1,87 @@
+"""FC-standard FAMILY batch (tier 2): every HVSC FutureComposer SID
+through the factory -> USF -> featuredriven build -> writelog verify.
+
+Tier-1 (every change) is the 11-member feature-cover portfolio inside
+tools/regression.py. Run THIS at milestones / after standard-chain work:
+results stream to tmp/fc_std_wide_results.jsonl (resume-safe: delete the
+records you want re-verified — tmp/strip_stale.py pattern — and re-run).
+
+Results stream to tmp/fc_std_wide_results.jsonl (one JSON object per
+SID, crash-safe append). Statuses:
+  flagged  - fc_standard_config raised FCStandardUnsupported (reason)
+  full     - every subtune is_full at songlength*1.1+1s
+  partial  - some subtune diverges (first_play_diff signature kept)
+  error    - unexpected exception (traceback tail kept)
+
+Run:  PYTHONPATH=.:tools/py65_lib:tools:src python3 tmp/run_wide.py
+"""
+import json, os, sys, traceback
+from multiprocessing import Pool
+
+ROOT = '/home/jtr/sidfinity'
+sys.path.insert(0, ROOT)
+os.chdir(ROOT)
+os.environ['TMPDIR'] = os.path.join(ROOT, 'tmp', 'work')
+
+OUT = os.path.join(ROOT, 'tmp', 'fc_std_wide_results.jsonl')
+
+
+def run(sp):
+    from pipelines.future_composer.standard.config import (
+        fc_standard_config, FCStandardUnsupported)
+    from pipelines.future_composer.to_usf import write_canary_usf
+    from pipelines.future_composer.verify import verify_featuredriven
+    rec = {'sid': sp}
+    usf_path = None
+    try:
+        cfg = fc_standard_config('hvsc84/' + sp)
+        usf_path = write_canary_usf(cfg)
+        r = verify_featuredriven(cfg)
+        subs = {}
+        for s, v in r['subtunes'].items():
+            subs[str(s)] = {
+                'is_full': v['is_full'],
+                'play_match': v.get('play_match'),
+                'play_overlap': v.get('play_overlap'),
+                'shift_d': v.get('shift_d'),
+                'state_match': v.get('state_match'),
+                'state_diff': v.get('state_diff'),
+                'first_play_diff': v.get('first_play_diff'),
+                'len_post': (v.get('len_post_a'), v.get('len_post_b')),
+                'duration_used': v.get('duration_used'),
+            }
+        rec['status'] = 'full' if r['all_full'] else 'partial'
+        rec['subs'] = subs
+    except FCStandardUnsupported as e:
+        rec['status'] = 'flagged'
+        rec['reason'] = e.reason
+    except Exception:
+        rec['status'] = 'error'
+        rec['error'] = traceback.format_exc()[-600:]
+    if rec['status'] != 'full' and usf_path and os.path.exists(usf_path):
+        os.unlink(usf_path)          # keep hvsc84 clean of unverified USFs
+    return rec
+
+
+if __name__ == '__main__':
+    import sqlite3
+    db = sqlite3.connect(os.path.join(ROOT, 'hvsc84.db'))
+    sids = [p for (p,) in db.execute(
+        "SELECT path FROM sids WHERE engine LIKE '%FutureComposer%' "
+        "ORDER BY path")]
+    done = set()
+    if os.path.exists(OUT):
+        with open(OUT) as f:
+            done = {json.loads(line)['sid'] for line in f if line.strip()}
+    todo = [s for s in sids if s not in done]
+    print(f'{len(sids)} FC SIDs, {len(done)} done, {len(todo)} to run',
+          flush=True)
+    counts = {}
+    with Pool(8) as pool, open(OUT, 'a') as out:    # 8-core host
+        for i, rec in enumerate(pool.imap_unordered(run, todo), 1):
+            out.write(json.dumps(rec) + '\n')
+            out.flush()
+            counts[rec['status']] = counts.get(rec['status'], 0) + 1
+            if i % 50 == 0:
+                print(f'{i}/{len(todo)} {counts}', flush=True)
+    print('DONE', counts, flush=True)

@@ -20,6 +20,7 @@ Run:
     python3 tools/regression.py
 """
 
+import os
 import struct
 import sys
 from importlib import import_module
@@ -240,6 +241,32 @@ def regress_future_composer() -> tuple[int, int, int]:
         if sub_fail:
             status += f' ({sub_fail} REGRESSED)'
         print(f'  {name:18s} {status}')
+
+    # FC-standard PORTFOLIO (tier 1): the minimum member set covering
+    # every feature dimension the 2528-member FULL corpus exercises >=2x
+    # (selected by tools/select_regression_portfolio.py; the full family
+    # batch — tmp/run_wide.py lineage, tools/fc_family_batch.py — is the
+    # tier-2 verdict run at milestones). Each member verifies at full
+    # songlength from its on-disk USF.
+    import json as _json
+    pf_path = os.path.join(os.path.dirname(__file__),
+                           'fc_regression_portfolio.json')
+    if os.path.exists(pf_path):
+        from pipelines.future_composer.standard.config import (
+            fc_standard_config)
+        print('FC-standard portfolio '
+              '(feature-cover of the verified family):')
+        for sid in _json.load(open(pf_path))['portfolio']:
+            result = verify_featuredriven(fc_standard_config('hvsc84/' + sid))
+            subs = result['subtunes']
+            sub_ok = sum(1 for v in subs.values() if v['is_full'])
+            sub_fail = len(subs) - sub_ok
+            ok += sub_ok
+            fail += sub_fail
+            status = f'{sub_ok}/{len(subs)}'
+            if sub_fail:
+                status += f' ({sub_fail} REGRESSED)'
+            print(f'  {sid.split("/")[-1][:18]:18s} {status}')
     return ok, partial, fail
 
 
