@@ -398,9 +398,9 @@ def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc84') -> DmcModel:
         vibdepth=[mem[cfg.vibdepth_addr + i] for i in range(96)],
         d417_shadow=mem[cfg.d417_shadow_addr],
         idle_notes=(mem[0x1012], mem[0x1013], mem[0x1014]),
-        title=s.get('title', ''), author=s.get('author', ''),
+        title=s.get('name', ''), author=s.get('author', ''),
         released=s.get('released', ''),
-        n_subtunes=s.get('songs', 1), start_song=s.get('start_song', 1),
+        n_subtunes=s.get('songs', 1), start_song=s.get('start', 1),
     )
 
     n_filter = (instr_base if filtdef < instr_base else tunetab)  # unused
