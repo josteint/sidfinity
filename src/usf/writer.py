@@ -113,6 +113,8 @@ def _write_init_voice(v: InitVoice) -> str:
     parts.append(f'slide_v: {_hex(v.slide_v)}')
     if v.note is not None:
         parts.append(f'note: {v.note}')
+    if v.gate_mask is not None:
+        parts.append(f'gate_mask: {_hex(v.gate_mask)}')
     return f'  voice {v.id} {{ ' + '  '.join(parts) + ' }'
 
 

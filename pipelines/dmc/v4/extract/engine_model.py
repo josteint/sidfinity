@@ -114,6 +114,7 @@ class DmcModel:
     vibdepth: list = field(default_factory=list)     # 96 bytes incl. overlap
     d417_shadow: int = 0
     idle_notes: tuple = (0, 0, 0)    # $1012-$1014 work-file leftovers
+    idle_masks: tuple = (0, 0, 0)    # $100F-$1011 gate-mask leftovers
     title: str = ''
     author: str = ''
     released: str = ''
@@ -398,6 +399,7 @@ def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc84') -> DmcModel:
         vibdepth=[mem[cfg.vibdepth_addr + i] for i in range(96)],
         d417_shadow=mem[cfg.d417_shadow_addr],
         idle_notes=(mem[0x1012], mem[0x1013], mem[0x1014]),
+        idle_masks=(mem[0x100F], mem[0x1010], mem[0x1011]),
         title=s.get('name', ''), author=s.get('author', ''),
         released=s.get('released', ''),
         n_subtunes=s.get('songs', 1), start_song=s.get('start', 1),
@@ -432,4 +434,48 @@ def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc84') -> DmcModel:
             d = inst.filter_def
             if d not in m.filter_defs:
                 m.filter_defs[d] = _decode_filter_def(mem, filtdef, d)
+    _offtable_check(m)
     return m
+
+
+def _offtable_check(m: DmcModel) -> None:
+    """Certify reachable off-table reads. The original reads past its
+    96-entry freq tables into the engine state block; the composer
+    mirrors the STABLE prefix of that window (track-ptr slots excluded,
+    constants + speed + master vol included, k = 6..16). Reads landing
+    on live state (k >= 17) or the track-ptr slots (k <= 5) cannot be
+    reproduced without mirroring the original's whole runtime state —
+    flagged unsupported. Vibdepth overrun (note > 95 at note init,
+    reading into the instrument records) is likewise flagged."""
+    ks = set()
+    vib = set()
+
+    def add_note(n, inst):
+        if n > 95:
+            vib.add(n)              # note-load freq read + vibdepth read
+            ks.add(n - 96)
+        if inst is not None and not inst.drum:
+            for off in inst.wave_freq:
+                y = (n + off) & 0xFF
+                if y > 95:
+                    ks.add(y - 96)
+
+    for song in m.songs:
+        for vi, v in enumerate(song.voices):
+            # (idle-path reads before a voice's first hard note are NOT
+            # certified here: they land on early-song state that is
+            # still zero — matching the composer's zero window — and
+            # the verify gate catches the rare exception.)
+            for ei, e in enumerate(v.entries):
+                tr = v.transposes[ei] if v.transposes else 0
+                for r in v.patterns[e]:
+                    inst = m.instruments.get(r.instr)
+                    if r.note is not None:
+                        add_note(r.note + tr, inst)
+                    if r.glide_to is not None:
+                        add_note(r.glide_to + tr, inst)
+    bad = sorted(k for k in ks if k <= 5 or k >= 17)
+    if bad:
+        raise RuntimeError(f'unsupported:offtable_live k={bad[:8]}')
+    if vib:
+        raise RuntimeError(f'unsupported:offtable_vibdepth n={sorted(vib)[:8]}')

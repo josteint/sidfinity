@@ -565,6 +565,11 @@ class InitVoice:
     # its full effect chain, reading this note for the wave-program
     # freq lookups). None = the engine's zero state.
     note: Optional[int] = None
+    # Initial gate-mask state the voice idles under before its first
+    # note ($FF = pass-through, $FE = gate held off, 0 = ctrl muted).
+    # DMC work files ship this uncleared; audible only in the idle
+    # ctrl writes. None = 0.
+    gate_mask: Optional[int] = None
 
 
 # ---------------------------------------------------------------------------

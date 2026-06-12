@@ -124,8 +124,10 @@ def model_to_usf(m: DmcModel) -> UsfFile:
                       start_song=m.start_song),
         params=Params(fields={}),
         init=InitState(voices=[
-            InitVoice(id=v + 1, note=m.idle_notes[v]) for v in range(3)
-            if m.idle_notes[v]]),
+            InitVoice(id=v + 1,
+                      note=m.idle_notes[v] or None,
+                      gate_mask=m.idle_masks[v] or None)
+            for v in range(3) if m.idle_notes[v] or m.idle_masks[v]]),
         instruments=[_instrument_to_usf(m.instruments[k])
                      for k in sorted(m.instruments)],
         subtunes=subtunes,

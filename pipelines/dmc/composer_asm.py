@@ -208,7 +208,7 @@ def compose_dmc_asm(usf: UsfFile) -> str:
             f'inst {i.id}: pulse steps do not share a base nibble'
         ipwbase.append(base)
         isteps += [s & 0xF0 for s in ss] + [0, 0]       # stride 8
-    ifdef = [m.filter_slots.get(i.filter_prog.program, 0) * 8 for i in insts]
+    ifdef = [m.filter_slots.get(i.filter_prog.program, 0) for i in insts]
     ivdel = [i.vibrato.onset for i in insts]
     ivwid = [i.vibrato.amplitude for i in insts]
     ivram = []
@@ -259,13 +259,30 @@ def compose_dmc_asm(usf: UsfFile) -> str:
     pat_hi = _ptr_tab('>')
 
     idle = [0, 0, 0]
+    imask = [0, 0, 0]
     for v in usf.init.voices:
         if v.note is not None:
             idle[v.id - 1] = v.note
+        if v.gate_mask is not None:
+            imask[v.id - 1] = v.gate_mask
     data = []
     data.append('inote:\n' + _byt(idle))
+    data.append('imask:\n' + _byt(imask))
     data.append('freqlo:\n' + _byt(FREQ_LO))
     data.append('freqhi:\n' + _byt(FREQ_HI))
+    # off-table overrun window: the original reads past its freq tables
+    # into the engine state block; reads the extract certifies as
+    # reachable land on the stable prefix, mirrored here byte-for-byte
+    # (the original's $1707+ adjacency: 6 track-ptr slots, the three
+    # voice constant triplets, then speed + master volume — the last
+    # two are the LIVE variables, placed here so the values track).
+    data.append('ovrwin:   .dsb 6, 0\n'
+                'sidoff:   .byt $00, $07, $0E\n'
+                'fbit:     .byt $01, $02, $04\n'
+                'fmask:    .byt $FE, $FD, $FB\n'
+                'spd:      .dsb 1, 0\n'
+                'mvol:     .dsb 1, 0\n'
+                '          .dsb 143, 0')
     data.append('vibdepth:\n' + _byt(VIBDEPTH))
     for name, arr in [('iad', iad), ('isr', isr), ('ipwinit', ipwinit),
                       ('ipwmin', ipwmin), ('ipwmax', ipwmax),
@@ -338,6 +355,8 @@ ini_v:
         sta dur,x                    ; expires on the first tick
         lda inote,x                  ; idle note-state priming
         sta curnote,x
+        lda imask,x                  ; idle gate-mask priming
+        sta gatemask,x
         inx
         cpx #$03
         bne ini_v
@@ -386,6 +405,10 @@ vo_frame:
         jmp frame_entry
 
 fetch:
+        lda path,x                   ; pattern still in progress?
+        beq f_newpat                 ; (pat_end clears the hi byte)
+        jmp patrd
+f_newpat:
         lda trkpl,x
         sta $f8
         lda trkph,x
@@ -413,11 +436,17 @@ trk2:
         lda ($f8),y                  ; entry byte 1 = pattern id
         tay
         lda patlo,y
-        sta $f8
+        sta patl,x                   ; 16-bit running pattern pointer
+        sta $f8                      ; (patterns may exceed 255 bytes)
         lda pathi,y
+        sta path,x
         sta $f9
 patrd:
-        ldy patpos,x
+        lda patl,x
+        sta $f8
+        lda path,x
+        sta $f9
+        ldy #$00
         lda ($f8),y
         cmp #$01
         beq ev_note
@@ -431,31 +460,40 @@ patrd:
         jsr pat_end
         jmp fetch
 
+adv:                                 ; pattern ptr += A (16-bit)
+        clc
+        adc patl,x
+        sta patl,x
+        sta $f8
+        lda path,x
+        adc #$00
+        sta path,x
+        sta $f9
+        rts
+
 ev_rest:
-        iny
+        ldy #$01
         lda ($f8),y
         sta dur,x
-        iny
-        tya
-        sta patpos,x
+        lda #$02
+        jsr adv
         jsr peekend
         jmp run_effects
 
 ev_switch:
-        iny
+        ldy #$01
         lda ($f8),y
         sta dur,x
         lda gatemask,x
         eor #$01
         sta gatemask,x
-        iny
-        tya
-        sta patpos,x
+        lda #$02
+        jsr adv
         jsr peekend
         jmp run_effects
 
 ev_slide:                            ; glide mode 1: current -> target
-        iny
+        ldy #$01
         lda ($f8),y                  ; speed
         sta glsp,x
         iny
@@ -468,15 +506,14 @@ ev_slide:                            ; glide mode 1: current -> target
         iny
         lda ($f8),y                  ; duration
         sta dur,x
-        iny
-        tya
-        sta patpos,x
+        lda #$04
+        jsr adv
         jsr peekend
         jmp run_effects
 
 ev_note:
-        iny
-        lda ($f8),y                  ; flags: 1=soft 2=glide
+        ldy #$01
+        lda ($f8),y                  ; flags (1=soft 2=glide)
         sta evflags
         iny
         lda ($f8),y                  ; note
@@ -488,10 +525,7 @@ ev_note:
         sta fbl,x
         lda freqhi,y
         sta fbh,x
-        ldy patpos,x
-        iny
-        iny
-        iny
+        ldy #$03
         lda ($f8),y                  ; duration
         sta dur,x
         iny
@@ -500,10 +534,10 @@ ev_note:
         iny
         lda ($f8),y                  ; vol override
         sta volovr,x
-        iny
         lda evflags
         and #$02
         beq ev_n_noglide
+        ldy #$06
         lda ($f8),y                  ; glide speed
         sta glsp,x
         iny
@@ -511,16 +545,19 @@ ev_note:
         clc
         adc transp,x
         sta glb,x
-        iny
         lda curnote,x                ; glide start = this note
         sta gla,x
+        lda #$08
+        jsr adv
+        jmp ev_n_softq
 ev_n_noglide:
-        tya
-        sta patpos,x
+        lda #$06
+        jsr adv
+ev_n_softq:
         lda evflags
         and #$01
         beq ev_n_hard
-        jsr peekend                  ; soft: no retrigger - effects run now
+        jsr peekend                  ; soft (no retrigger) - effects run now
         jmp run_effects
 ev_n_hard:
         lda #$00                     ; hard restart prep
@@ -544,17 +581,17 @@ ev_n_hard:
         rts                          ; fetch frame writes nothing else
 
 pat_end:
-        lda #$00
-        sta patpos,x
         lda trkpos,x
         clc
         adc #$02
         sta trkpos,x
+        lda #$00
+        sta path,x                   ; mark: next fetch reads the track
         rts
 
 peekend:
-        ldy patpos,x
-        lda ($f8),y
+        ldy #$00
+        lda ($f8),y                  ; $f8/$f9 track the advanced position
         bne pk_done
         jsr pat_end
 pk_done:
@@ -629,8 +666,11 @@ ni_f_on:
         sta fstep
         sta fframe
         lda ifdef,y
-        sta fbase
-        tay
+        tay                          ; y = def slot (scalar tables)
+        asl
+        asl
+        asl
+        sta fbase                    ; slot*8 (step/duration tables)
         lda fdres,y
         sta fres
         lda fdmode,y
@@ -978,11 +1018,6 @@ pwwrite:
         sta $d404,y
         rts
 
-;; ===================== constants =====================
-sidoff: .byt $00, $07, $0E
-fbit:   .byt $01, $02, $04
-fmask:  .byt $FE, $FD, $FB
-
 ;; ===================== data (from USF) =====================
 {data_asm}
 
@@ -997,7 +1032,8 @@ volovr:   .dsb 3, 0
 trkpl:    .dsb 3, 0
 trkph:    .dsb 3, 0
 trkpos:   .dsb 3, 0
-patpos:   .dsb 3, 0
+patl:     .dsb 3, 0
+path:     .dsb 3, 0
 transp:   .dsb 3, 0
 fbl:      .dsb 3, 0
 fbh:      .dsb 3, 0
@@ -1028,9 +1064,7 @@ wctrl:    .dsb 3, 0
 guard:    .dsb 3, 0
 slal:     .dsb 3, 0
 slah:     .dsb 3, 0
-spd:      .dsb 1, 0
 spdctr:   .dsb 1, 0
-mvol:     .dsb 1, 0
 shadow17: .dsb 1, 0
 dualpar:  .dsb 1, 0
 fclaim:   .dsb 1, 0
