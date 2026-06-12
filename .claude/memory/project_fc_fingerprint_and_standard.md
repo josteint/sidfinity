@@ -332,25 +332,31 @@ note — the documented glide-3rd-byte LATENT, now exercised:
 + an encode guard for bare ghost pitches (to_usf must stamp instr on
 ghost rows if it ever fires).
 
-**NEXT BLOCKER, designed (do with the schema checklist!): the
-persisted-LENGTH wrap carry** (`loop_length`, the loop_transpose
-mirror; witnesses Excite @70676/91737 + Baster V1's wrap):
-- to_usf: at SeqWrap, if persisted_length != head entry's incoming
-  length AND the head fc-pattern's first note is length-INHERITED (no
-  $8x before it), annotate Orderlist.loop_length = wrap length; give
-  the head occurrence a DEDICATED usf pattern id.
-- grammar: `loop@N len=L` (alongside `loop@N+T`).
-- encode: omit the head pattern's first length byte iff loop_length
-  set — the composer's own nootleng PERSISTS across its $FF wrap
-  (the h2 $FF handler resets nootcount/cursors but NOT nootleng), so
-  the engine reproduces pass-1 (init nootleng 0 → 1 tick) and passes
-  2+ (carried) naturally — exactly the loop_transpose head-byte trick.
-- assert: the (fc, wrap_len) variant's rows equal the head variant's
-  except row-0 duration; build_pattern_pool's dedup key must include
-  the omission flag.
-- DO NOT unroll passes instead: the composer's $FF always wraps the
-  cursor to 0 and encode_sequence DROPS loop_to (tried, reverted —
-  broke Baster V1's early wrap).
+**✅ loop_length DONE (238563b, Excite FULL 91737/91737)** — `loop@N
+len=L` exactly as designed (annotation + head-first-$8x omission; the
+composer's persisting nootleng is the mechanism; no dedication needed
+— the dedup key (fc,incoming-len) makes omission valid for every
+occurrence; pool key carries the flag). Parser gotcha: the Orderlist
+CONSTRUCTION in parser.py must pass the new kwarg (the transformer
+handled `len=` but the value was dropped — silent None).
+
+**✅ STANDARD SEQ DISPATCH (2ae1f7f, Crocketts play-EXACT 95221/95221)**
+— $40-$7F is ALL 6-bit repeats (& $3F, up to 64 plays); the standard
+player has NO voiceinc. The composer's own partition grew an
+offset-coded repeat $B0-$FD (byte-$B0; an OR-packed 6-bit field can't
+ride under $A0 — bit 5 collision corrupted r>=32); voiceinc moved to
+$A0-$AF. Plus: the trichotomy boundary scan prefers a state-matching
+candidate (mid-strobe window matches).
+
+**OPEN POLICY QUESTION (ask the user with bucket sizes): init build
+variants.** Crocketts' init is `LDX #$01/TXA` (one byte off canonical)
+→ regs 1-23 end at $01 (held <1 frame, waveform 0 = silent); play
+stream exact, Check A genuinely ≠. Options: (a) extend init.sid with
+freq/ctrl prime fields (schema growth for a silent strobe leftover);
+(b) a factory-probed init-variant knob reproducing the $01 fill in the
+composer's reset (engine bookkeeping, not USF); (c) accept play-exact
++ audio-equivalent as a distinct verdict tier. Bucket size known after
+round 6.
 
 **NEXT after batch:** (1) re-run partials with fixed code; (2) bucket
 remaining by first_play_diff signature (the jsonl carries it), fix
