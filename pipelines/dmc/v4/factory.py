@@ -24,7 +24,7 @@ from __future__ import annotations
 import os
 
 from pipelines.dmc.v4.config import DMCV4Config
-from pipelines.dmc.engine_constants import FREQ_LO, FREQ_HI, VIBDEPTH
+from pipelines.dmc.engine_constants import VIBDEPTH
 
 _CANON_PATH = os.path.join(os.path.dirname(__file__), '..', 'docs',
                            'dmc4_player_embedded_1000.bin')
@@ -50,9 +50,15 @@ _INST_SAT = [(0x122B, 1), (0x1242, 2), (0x1358, 3), (0x1258, 6),
              (0x1289, 6), (0x12CD, 7), (0x12DD, 8), (0x12E3, 9),
              (0x123B, 10), (0x126A, 10), (0x127A, 10), (0x12E9, 10)]
 
+# track-loop hook site: canonical = 9D 26 17 (STA $1726,x = loop to 0);
+# the JSR $1042 variant reads the next track byte as the loop target.
+_LOOP_SITE = 0x10DF
+_LOOP_HOOK = bytes.fromhex('c8b1f89d261760')   # iny / lda ($f8),y / sta / rts
+
 # regions masked out of the identity compare (per-song / leftovers)
 _MASKED_RANGES = [
     (0x100C, 0x1050),    # player vars + copyright string
+    (0x1647, 0x1707),    # freq tables (per-tune tuning, carried in USF)
     (0x1707, 0x170D),    # track ptr leftovers
     (0x1716, 0x17C0),    # state leftovers
     (0x18E8, 0x18F0),    # gap before instruments
@@ -102,6 +108,23 @@ def dmc_v4_config(sid_path: str, hvsc_root: str = 'hvsc84') -> DMCV4Config:
             masked[a - 0x1000] = masked[a - 0x1000 + 1] = 1
     for a, _off in _FILT_SAT + _INST_SAT + _TUNE_SAT:
         masked[a - 0x1000] = masked[a - 0x1000 + 1] = 1
+    # track-loop hook probe (before the identity compare; the site is
+    # masked and validated here instead)
+    loop_target = False
+    site = bytes(mem[_LOOP_SITE:_LOOP_SITE + 3])
+    if site == bytes.fromhex('9d2617'):
+        pass                                     # canonical loop-to-0
+    elif site[0] == 0x20:                        # JSR hook
+        hook_at = site[1] | (site[2] << 8)
+        if bytes(mem[hook_at:hook_at + 7]) != _LOOP_HOOK:
+            raise DMCV4Unsupported(
+                'loop_hook_unknown',
+                bytes(mem[hook_at:hook_at + 14]).hex())
+        loop_target = True
+    else:
+        raise DMCV4Unsupported('loop_site_unknown', site.hex())
+    for i in range(_LOOP_SITE, _LOOP_SITE + 3):
+        masked[i - 0x1000] = 1
     # compare the player region $1000-$18E7 (code + fixed tables +
     # vibdepth); $18F0+ is song data
     for i in range(0x1000, 0x18E8):
@@ -136,11 +159,8 @@ def dmc_v4_config(sid_path: str, hvsc_root: str = 'hvsc84') -> DMCV4Config:
             'layout_disorder',
             ' '.join(f'{k}=${v:04X}' for k, v in sorted(vals.items())))
 
-    # ---- fixed tables (already covered by the identity compare, but
-    # assert explicitly so a masked-range slip can't hide them) ----
-    if bytes(mem[0x1647:0x1647 + 96]) != FREQ_LO or \
-       bytes(mem[0x16A7:0x16A7 + 96]) != FREQ_HI:
-        raise DMCV4Unsupported('custom_freq_table')
+    # ---- vibdepth stays a family constant (freq tables are per-tune
+    # tuning content, carried in USF) ----
     if bytes(mem[0x1888:0x1888 + 96]) != VIBDEPTH:
         raise DMCV4Unsupported('custom_vibdepth')
 
@@ -149,13 +169,8 @@ def dmc_v4_config(sid_path: str, hvsc_root: str = 'hvsc84') -> DMCV4Config:
     # init voice_state gate_mask priming — no flag needed.)
     if mem[0x1019]:
         raise DMCV4Unsupported('dual_parity_leftover', hex(mem[0x1019]))
-    # record-0 idle wave assumption: the cleared cache walks the wave
-    # table from index 0, which equals record 0's program only when its
-    # wave_start is 0. Only matters if some voice idles before its
-    # first note — checked cheaply here, precisely at extract time.
-    rec0_wave = mem[0x18F0 + 9]
-    if rec0_wave != 0:
-        raise DMCV4Unsupported('record0_wave_start', str(rec0_wave))
+    # (the idle wave walk from table index 0 is carried explicitly as
+    # wave_programs[0] — record 0's wave_start no longer matters)
 
     return DMCV4Config(
         sid_path=sid_path,
@@ -163,4 +178,5 @@ def dmc_v4_config(sid_path: str, hvsc_root: str = 'hvsc84') -> DMCV4Config:
         op_instr=0x1227, op_wavectrl=0x159C, op_wavefreq=0x15B9,
         op_filtdef=0x1296, op_tunetab=0x1051,
         op_secp_lo=0x1103, op_secp_hi=0x1108,
+        track_loop_target=loop_target,
     )

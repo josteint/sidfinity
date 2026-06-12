@@ -37,6 +37,10 @@ class DMCV4Config:
     d417_shadow_addr: int = 0x1018    # routing shadow — NOT cleared by
                                       # init; file-image leftover primes
                                       # the play stream's $D417 writes
+    # Track-loop variant (factory-probed): the canonical player's $FF
+    # loops to track position 0; the JSR-$1042 hook variant reads the
+    # NEXT track byte as the loop position ($FF nn).
+    track_loop_target: bool = False
 
 
 ZAKS = DMCV4Config(

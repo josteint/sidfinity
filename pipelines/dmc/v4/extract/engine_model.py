@@ -113,6 +113,9 @@ class DmcModel:
     freq_hi: list = field(default_factory=list)
     vibdepth: list = field(default_factory=list)     # 96 bytes incl. overlap
     d417_shadow: int = 0
+    idle_wave: tuple = ((), (), 0)   # wave walk from table index 0 (the
+                                     # cleared-cache idle path): ctrl,
+                                     # freq, loop
     idle_notes: tuple = (0, 0, 0)    # $1012-$1014 work-file leftovers
     idle_masks: tuple = (0, 0, 0)    # $100F-$1011 gate-mask leftovers
     title: str = ''
@@ -245,16 +248,18 @@ def _simulate_sector(mem, sec_addr: int, st: _Sticky) -> list:
             return rows
 
 
-def _walk_track(mem, track_addr: int, secp_lo: int, secp_hi: int) -> DmcVoice:
+def _walk_track(mem, track_addr: int, secp_lo: int, secp_hi: int,
+                loop_target: bool = False) -> DmcVoice:
     """Walk one voice's track (orderlist), path-resolving every sector
-    instance. Unrolls $FF loops until the sticky state at the wrap
-    repeats. Returns a DmcVoice with content-deduped patterns."""
+    instance. Unrolls $FF loops until (wrap position, sticky state)
+    repeats. `loop_target`: the JSR-$1042 player variant reads the byte
+    after $FF as the loop position (canonical loops to 0)."""
     v = DmcVoice()
     pat_key_to_id = {}
     st = _Sticky()
     transpose = 0
     pos = 0
-    wrap_states = {}        # sticky key at wrap -> entry index of that wrap
+    wrap_states = {}        # (pos, sticky) at wrap -> entry index
     guard = 0
     while True:
         guard += 1
@@ -265,12 +270,13 @@ def _walk_track(mem, track_addr: int, secp_lo: int, secp_hi: int) -> DmcVoice:
             v.stop = True
             return v
         if b == 0xFF:
-            key = st.key()
+            tgt = mem[track_addr + pos + 1] if loop_target else 0
+            key = (tgt, st.key())
             if key in wrap_states:
                 v.loop_to = wrap_states[key]
                 return v
             wrap_states[key] = len(v.entries)
-            pos = 0
+            pos = tgt
             continue
         if b >= 0x80:
             # mirror the 6502: SEC SBC #$A0; on borrow EOR #$1F, ADC #$01
@@ -405,7 +411,7 @@ def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc84') -> DmcModel:
         n_subtunes=s.get('songs', 1), start_song=s.get('start', 1),
     )
 
-    n_filter = (instr_base if filtdef < instr_base else tunetab)  # unused
+    m.idle_wave = _slice_wave(ctrl_tab, freq_tab, 0)
     # decode subtunes; collect referenced instruments + filter defs as
     # they surface
     used_instr = set()
@@ -414,7 +420,8 @@ def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc84') -> DmcModel:
         voices = []
         for vi in range(3):
             tp = _rd16(mem, rec + vi * 2)
-            voices.append(_walk_track(mem, tp, secp_lo, secp_hi))
+            voices.append(_walk_track(mem, tp, secp_lo, secp_hi,
+                                      loop_target=cfg.track_loop_target))
         song = DmcSong(id=sub + 1, speed=mem[rec + 6],
                        master_vol=mem[rec + 7], voices=voices)
         m.songs.append(song)

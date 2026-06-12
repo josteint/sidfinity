@@ -56,7 +56,7 @@ dnum_list: "=" "[" (number ("," number)*)? "]"
 // `prog N: ctrl=[..] freq=[..]` — parallel per-frame waveform ($D404) and
 // freq ($D400/01) tables, indexed by note frame-counter (capped 15).
 wave_programs_block: "wave_programs" "{" wave_program* "}"
-wave_program: "prog" INT ":" "ctrl" dnum_list "freq" dnum_list
+wave_program: "prog" INT ":" "ctrl" dnum_list "freq" dnum_list ("loop" "=" INT)?
 
 // ----- FC flat aux value tables -----
 // attack_len/attack_wave: per-wavecount note-attack; wave_arp/pulse_arp:

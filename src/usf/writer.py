@@ -335,7 +335,8 @@ def _write_wave_programs(progs: dict) -> list[str]:
         p = progs[n]
         c = ', '.join(str(x) for x in p['ctrl'])
         f = ', '.join(str(x) for x in p['freq'])
-        lines.append(f'  prog {n}: ctrl=[{c}] freq=[{f}]')
+        tail = f' loop={p["loop"]}' if 'loop' in p else ''
+        lines.append(f'  prog {n}: ctrl=[{c}] freq=[{f}]{tail}')
     lines.append('}')
     return lines
 

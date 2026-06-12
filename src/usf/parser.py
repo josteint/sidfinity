@@ -952,7 +952,10 @@ class _T(Transformer):
         return ('drum_programs', {n: prog for n, prog in items})
 
     def wave_program(self, items):
-        return (int(items[0]), {'ctrl': items[1], 'freq': items[2]})
+        d = {'ctrl': items[1], 'freq': items[2]}
+        if len(items) > 3:
+            d['loop'] = int(items[3])
+        return (int(items[0]), d)
 
     def wave_programs_block(self, items):
         return ('wave_programs', {n: prog for n, prog in items})

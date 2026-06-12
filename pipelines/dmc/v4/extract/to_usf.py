@@ -13,10 +13,9 @@ Maps the path-resolved DmcModel onto the engine-neutral USF schema:
   leftover → per-subtune init.sid priming (trichotomy: priming, not
   reset — the play loop's $D417 writes read this state)
 
-The freq tables and the per-note vibrato-depth curve are NOT carried:
-they are fixed engine constants of the DMC player family (the composer
-holds them as mechanism). The extract asserts the SID's tables match
-the canonical ones so deviating members are flagged, not mis-rebuilt.
+The freq table IS carried (per-tune tuning content — members ship
+edited or wholly different temperaments). The per-note vibrato-depth
+curve stays a fixed engine constant (mechanism, identical family-wide).
 """
 from __future__ import annotations
 
@@ -132,6 +131,15 @@ def model_to_usf(m: DmcModel) -> UsfFile:
                      for k in sorted(m.instruments)],
         subtunes=subtunes,
         filter_programs={d + 1: dict(v) for d, v in m.filter_defs.items()},
+        # tuning is per-tune musical content (members ship edited or
+        # wholly different temperaments): 96 lo + 96 hi bytes.
+        freq_table=list(m.freq_lo) + list(m.freq_hi),
+        # the idle wave program: what a voice's effects walk before its
+        # first note (the engine's cleared cache starts the wave table
+        # at index 0, independent of any instrument's start)
+        wave_programs={0: {'ctrl': list(m.idle_wave[0]),
+                           'freq': list(m.idle_wave[1]),
+                           'loop': m.idle_wave[2]}},
     )
 
 

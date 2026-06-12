@@ -141,17 +141,35 @@ class _Model:
                 'mvol': mvol, 'routing': routing,
             })
         assert len(self.patterns) <= 255, 'pattern pool overflow'
-        # wave program concatenation
+        # wave pool with the original's jump-back marker semantics:
+        # program bytes followed by $90+(len-loop). The idle program
+        # (wave_programs[0]) sits at pool index 0 — the engine's
+        # cleared wave position walks it before a voice's first note.
         self.wctrl = bytearray()
         self.wfreq = bytearray()
-        self.iwave = []          # (start, end, loop) absolute indices
-        for inst in self.instruments:
+        self.iwst = []
+
+        def add_prog(ctrl, freq, loop):
             s = len(self.wctrl)
-            self.wctrl += bytes(b & 0xFF for b in inst.waveform)
-            self.wfreq += bytes(b & 0xFF for b in (inst.wave_freq or
-                                                   [0] * len(inst.waveform)))
-            self.iwave.append((s, s + len(inst.waveform),
-                               s + min(inst.loop, max(0, len(inst.waveform) - 1))))
+            n = len(ctrl)
+            assert n >= 1 and 0 <= loop < n and n - loop <= 0x6F, \
+                f'wave program shape n={n} loop={loop}'
+            self.wctrl += bytes(b & 0xFF for b in ctrl)
+            self.wctrl.append(0x90 + n - loop)
+            self.wfreq += bytes(b & 0xFF for b in freq) + b'\x00'
+            return s
+
+        ip = usf.wave_programs.get(0)
+        if ip and ip['ctrl']:
+            add_prog(ip['ctrl'], ip['freq'], ip.get('loop', 0))
+        elif self.instruments:
+            i0 = self.instruments[0]
+            add_prog(i0.waveform, i0.wave_freq or [0] * len(i0.waveform),
+                     i0.loop)
+        for inst in self.instruments:
+            self.iwst.append(add_prog(
+                inst.waveform, inst.wave_freq or [0] * len(inst.waveform),
+                inst.loop))
         assert len(self.wctrl) <= 255, 'wave pool overflow'
 
     def iflags(self, inst) -> int:
@@ -219,9 +237,7 @@ def compose_dmc_asm(usf: UsfFile) -> str:
         else:
             ivram.append(i.vibrato.ramp & 0xFF)
     iflag = [m.iflags(i) for i in insts]
-    iwst = [w[0] for w in m.iwave]
-    iwend = [w[1] for w in m.iwave]
-    iwloop = [w[2] for w in m.iwave]
+    iwst = m.iwst
 
     fd = m.filter_defs
     fdres = [(d['res'] << 4) & 0xF0 for d in fd]
@@ -265,11 +281,16 @@ def compose_dmc_asm(usf: UsfFile) -> str:
             idle[v.id - 1] = v.note
         if v.gate_mask is not None:
             imask[v.id - 1] = v.gate_mask
+    if usf.freq_table:
+        assert len(usf.freq_table) == 192, len(usf.freq_table)
+        flo, fhi = usf.freq_table[:96], usf.freq_table[96:]
+    else:
+        flo, fhi = FREQ_LO, FREQ_HI
     data = []
     data.append('inote:\n' + _byt(idle))
     data.append('imask:\n' + _byt(imask))
-    data.append('freqlo:\n' + _byt(FREQ_LO))
-    data.append('freqhi:\n' + _byt(FREQ_HI))
+    data.append('freqlo:\n' + _byt(flo))
+    data.append('freqhi:\n' + _byt(fhi))
     # off-table overrun window: the original reads past its freq tables
     # into the engine state block; reads the extract certifies as
     # reachable land on the stable prefix, mirrored here byte-for-byte
@@ -288,8 +309,7 @@ def compose_dmc_asm(usf: UsfFile) -> str:
                       ('ipwmin', ipwmin), ('ipwmax', ipwmax),
                       ('ipwbase', ipwbase),
                       ('ifdef', ifdef), ('ivdel', ivdel), ('ivwid', ivwid),
-                      ('ivram', ivram), ('iflag', iflag), ('iwst', iwst),
-                      ('iwend', iwend), ('iwloop', iwloop)]:
+                      ('ivram', ivram), ('iflag', iflag), ('iwst', iwst)]:
         data.append(f'{name}:\n' + _byt(arr))
     data.append('isteps:\n' + _byt(isteps))
     for name, arr in [('fdres', fdres), ('fdmode', fdmode),
@@ -960,19 +980,25 @@ fx_vib_c:
         sta vibwid,x
 
 ;; ----- wave step + SID writes -----
+;; pool bytes >= $90 are jump-back markers (the original's semantics:
+;; position -= value - $90, then re-read)
 wavestep:
-        ldy cinst,x
         lda fxf,x
         and #$01                     ; drum mode?
         bne ws_drum
-        lda wavepos,x
-        cmp iwend,y
-        bne ws_rd
-        lda iwloop,y
-        sta wavepos,x
-ws_rd:
-        tay
+ws_rd0:
+        ldy wavepos,x
         lda wctab,y
+        cmp #$90
+        bcc ws_rd
+        sbc #$90                     ; (carry set)
+        sta tmp
+        tya
+        sec
+        sbc tmp
+        sta wavepos,x
+        jmp ws_rd0
+ws_rd:
         sta wctrl,x
         lda wftab,y
         clc
@@ -985,14 +1011,18 @@ ws_rd:
         inc wavepos,x
         jmp sidwrite
 ws_drum:
-        lda wavepos,x
-        cmp iwend,y
-        bne ws_drd
-        lda iwloop,y
-        sta wavepos,x
-ws_drd:
-        tay
+        ldy wavepos,x
         lda wctab,y
+        cmp #$90
+        bcc ws_drd
+        sbc #$90
+        sta tmp
+        tya
+        sec
+        sbc tmp
+        sta wavepos,x
+        jmp ws_drum
+ws_drd:
         sta wctrl,x
         lda #$00
         sta fbl,x
