@@ -200,6 +200,100 @@ def build_pipeline_map() -> dict[str, str]:
 
 
 # ---------------------------------------------------------------------------
+# Per-family documentation state (tools/engine_docs.json -> engine_docs table)
+# ---------------------------------------------------------------------------
+#
+# doc_state is a research-PROGRESS ladder, NOT a content-volume measure:
+#   NONE   no pipelines/<family>/ dir; never researched (absent from the table)
+#   LITTLE single stub research.md; no real sweep yet
+#   SOME   research-engine run / substantial corpus, with known gaps to chase
+#   OK     research-engine sweep complete; cleared to start disassembling
+# A family reaches OK by COMPLETING a research-engine sweep, regardless of how
+# much was found. The durable source of truth is tools/engine_docs.json; this
+# table just materialises it (re-applied on every build, and cheaply via
+# tools/apply_engine_docs.py after editing the JSON).
+
+# sids.engine (sidid string) -> pipelines/<family> dir, for the names that
+# don't fall out of plain normalisation (version suffixes, group/author
+# prefixes, punctuation). Plain cases are handled by engine_to_family().
+ENGINE_FAMILY_ALIAS = {
+    'GoatTracker_V2.x': 'goattracker', 'GoatTracker_V1.x': 'goattracker',
+    'MoN/FutureComposer': 'future_composer', 'MoN/Deenen': 'mon_deenen',
+    'JCH_NewPlayer': 'jch_newplayer', 'HardTrack_Composer': 'hardtrack',
+    'Hermit/SidWizard_V1.x': 'sidwizard', "Geir_Tjelta/SIDDuzz'It": 'sidduzzit',
+    'RoMuzak_V6.x': 'romuzak', 'RoMuzak_V7.x': 'romuzak',
+    'Digitalizer_V2.x': 'digitalizer', 'Digitalizer_V3.0': 'digitalizer',
+    'GMC/Superiors': 'gmc', 'X-Ample': 'xample',
+    'SidFactory_II/Laxity': 'sidfactory_ii', 'Laxity_NewPlayer_V21': 'laxity_newplayer',
+    'CheeseCutter_2.x': 'cheesecutter', "Ubik's_Musik": 'ubiks_musik',
+    'Rob_Hubbard': 'hubbard',
+    'DefleMask_v12': 'deflemask', 'DefleMask_v2': 'deflemask', 'DefleMask_v1': 'deflemask',
+    'Cyberlogic_SoundStudio': 'cyberlogic', 'EMS/Odie': 'ems_odie',
+    'Vibrants/Laxity': 'vibrants_laxity', 'Vibrants/JO': 'vibrants_jo',
+    'CyberTracker_exe': 'cybertracker', 'CyberTracker': 'cybertracker',
+    'LordsOfSonics/MS': 'lords_of_sonics', 'SynC': 'sync',
+    'NinjaTracker_V2.x': 'ninjatracker', 'NinjaTracker_V1.x': 'ninjatracker',
+    'Loadstar_SongSmith': 'loadstar_songsmith',
+    'Loadstar_SongSmith_v1': 'loadstar_songsmith',
+    'Loadstar_SongSmith_v2': 'loadstar_songsmith',
+    'Loadstar_SongSmith_v3': 'loadstar_songsmith',
+    'DMC_V6.x': 'dmc',
+}
+
+
+def engine_to_family(engine: str | None) -> str | None:
+    """Map a sids.engine string to its pipelines/<family> dir name."""
+    if engine is None:
+        return None
+    if engine in ENGINE_FAMILY_ALIAS:
+        return ENGINE_FAMILY_ALIAS[engine]
+    n = engine.lower()
+    n = re.sub(r'_v\d+(\.\w+)?$', '', n)                 # strip _V2.x / _V21
+    n = n.replace('/', '_').replace('-', '_').replace(' ', '_').replace("'", '')
+    return n
+
+
+def load_engine_docs() -> dict:
+    """Read tools/engine_docs.json: {family: {state, notes, updated}}."""
+    import json
+    p = ROOT / 'tools' / 'engine_docs.json'
+    if not p.exists():
+        return {}
+    return json.loads(p.read_text())
+
+
+def populate_engine_docs(db: sqlite3.Connection) -> int:
+    """Rebuild the engine_docs table from tools/engine_docs.json.
+
+    One row per family listed in the JSON, annotated with the sids.engine
+    strings that resolve to it and their total SID count. Idempotent: the
+    table is cleared and rewritten, so removing a family from the JSON drops
+    its row. Families absent from the JSON are, by convention, NONE.
+    """
+    import json
+    docs = load_engine_docs()
+    cur = db.cursor()
+    fam_engines: dict[str, list[str]] = {}
+    fam_count: dict[str, int] = {}
+    for engine, cnt in cur.execute('SELECT engine, COUNT(*) FROM sids GROUP BY engine'):
+        fam = engine_to_family(engine)
+        if fam is None:
+            continue
+        fam_engines.setdefault(fam, []).append(engine)
+        fam_count[fam] = fam_count.get(fam, 0) + cnt
+    cur.execute('DELETE FROM engine_docs')
+    for fam, meta in sorted(docs.items()):
+        engines = sorted(fam_engines.get(fam, []))
+        cur.execute(
+            'INSERT INTO engine_docs '
+            '(family, doc_state, notes, updated, engines, sid_count) '
+            'VALUES (?,?,?,?,?,?)',
+            (fam, meta.get('state', 'NONE'), meta.get('notes'),
+             meta.get('updated'), json.dumps(engines), fam_count.get(fam, 0)))
+    return len(docs)
+
+
+# ---------------------------------------------------------------------------
 # DB schema
 # ---------------------------------------------------------------------------
 
@@ -246,6 +340,18 @@ CREATE INDEX IF NOT EXISTS idx_engine ON sids(engine);
 CREATE INDEX IF NOT EXISTS idx_pipeline ON sids(pipeline);
 CREATE INDEX IF NOT EXISTS idx_md5 ON sids(md5);
 CREATE INDEX IF NOT EXISTS idx_excluded ON sids(excluded);
+
+-- Per-engine-family documentation state (see populate_engine_docs + the
+-- tools/engine_docs.json source of truth). One row per family.
+CREATE TABLE IF NOT EXISTS engine_docs (
+    family      TEXT PRIMARY KEY,    -- pipelines/<family> dir name
+    doc_state   TEXT NOT NULL,       -- NONE | LITTLE | SOME | OK
+    notes       TEXT,
+    updated     TEXT,                -- YYYY-MM-DD
+    engines     TEXT,                -- JSON array of sids.engine strings mapped here
+    sid_count   INTEGER              -- total SIDs across those engine strings
+);
+CREATE INDEX IF NOT EXISTS idx_doc_state ON engine_docs(doc_state);
 """
 
 
@@ -440,6 +546,10 @@ def main(argv: list[str] | None = None) -> int:
             dt = time.time() - t_sweep
             print(f'    {n_files:,} files | {n_hashed:,} hashed | '
                   f'{n_skipped:,} cached | {n_files/dt:.0f} files/s')
+
+    n_docs = populate_engine_docs(db)
+    if not args.quiet:
+        print(f'  engine_docs: {n_docs} families from tools/engine_docs.json')
 
     db.commit()
     db.close()

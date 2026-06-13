@@ -314,8 +314,40 @@ for path, title in db.execute(
 ): print(path, title)
 ```
 
-Schema in `tools/build_sid_db.py` (one table `sids`, indexes on
-engine / pipeline / md5).
+Schema in `tools/build_sid_db.py` (tables `sids` + `engine_docs`,
+indexes on engine / pipeline / md5).
+
+### Per-family documentation state — `engine_docs` table
+
+A second table records, per engine family, **how far we've researched its
+player** — so a future session can see at a glance which families are
+ready to disassemble vs which still need a research sweep. It's a
+research-PROGRESS ladder, NOT a content-volume measure:
+
+| `doc_state` | meaning |
+|---|---|
+| `NONE` | no `pipelines/<family>/` dir; never researched (family absent from the table) |
+| `LITTLE` | single stub `research.md`; no real sweep yet |
+| `SOME` | research-engine run / substantial corpus, but with known gaps to chase |
+| `OK` | research-engine sweep **complete** → cleared to start disassembling |
+
+A family reaches `OK` by *completing* a `research-player` sweep, regardless
+of how much was found. Source of truth is the version-controlled
+`tools/engine_docs.json` (`{family: {state, notes, updated}}`);
+`build_sid_db.py` materialises it into `engine_docs` (one row per family,
+annotated with the `sids.engine` strings that map to it + total SID count).
+The engine→family map lives in `build_sid_db.engine_to_family`.
+
+```python
+# families cleared to start RE:
+db.execute("SELECT family, sid_count FROM engine_docs WHERE doc_state='OK'")
+```
+
+After editing `engine_docs.json`, refresh just this table in seconds with
+`python3 tools/apply_engine_docs.py` (no full re-hash). **Single-writer DB
+in `delete` journal mode — don't run it while a build/pipeline write is mid
+-transaction** (it waits on a 30 s busy_timeout, but a concurrent writer
+without one could see "database is locked").
 
 ### When to re-run `tools/build_sid_db.py`
 
@@ -327,6 +359,8 @@ engine / pipeline / md5).
 | After re-running `sidid` | refresh engine column |
 | After `verify_all` (future hook) | refresh `verify_status` columns |
 | After editing `tools/excluded_sids.json` | refresh `excluded` + `exclusion_reason` columns |
+| After editing `tools/engine_docs.json` | refresh `engine_docs` (or just `tools/apply_engine_docs.py`) |
+| After a `research-player` sweep completes for a family | bump its `engine_docs.json` state (→ `OK`) |
 
 The script is idempotent — when in doubt, re-run with no flags. Use
 `--rebuild` to ignore mtime cache and re-hash everything.

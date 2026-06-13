@@ -1,0 +1,242 @@
+{
+  "20cc": {
+    "state": "LITTLE",
+    "notes": "single research.md first-pass overview; research-engine sweep not yet run.",
+    "updated": "2026-06-13"
+  },
+  "amp": {
+    "state": "LITTLE",
+    "notes": "single research.md first-pass overview; research-engine sweep not yet run.",
+    "updated": "2026-06-13"
+  },
+  "ariston": {
+    "state": "LITTLE",
+    "notes": "single research.md first-pass overview; research-engine sweep not yet run.",
+    "updated": "2026-06-13"
+  },
+  "cheesecutter": {
+    "state": "LITTLE",
+    "notes": "single research.md first-pass overview; research-engine sweep not yet run.",
+    "updated": "2026-06-13"
+  },
+  "companion": {
+    "state": "OK",
+    "notes": "research-engine sweep complete; gathered corpus present; cleared to start disassembly/annotation.",
+    "updated": "2026-06-13"
+  },
+  "cyberlogic": {
+    "state": "LITTLE",
+    "notes": "single research.md first-pass overview; research-engine sweep not yet run.",
+    "updated": "2026-06-13"
+  },
+  "cybertracker": {
+    "state": "LITTLE",
+    "notes": "single research.md first-pass overview; research-engine sweep not yet run.",
+    "updated": "2026-06-13"
+  },
+  "david_whittaker": {
+    "state": "LITTLE",
+    "notes": "single research.md first-pass overview; research-engine sweep not yet run.",
+    "updated": "2026-06-13"
+  },
+  "deflemask": {
+    "state": "LITTLE",
+    "notes": "single research.md first-pass overview; research-engine sweep not yet run.",
+    "updated": "2026-06-13"
+  },
+  "defmon": {
+    "state": "LITTLE",
+    "notes": "single research.md first-pass overview; research-engine sweep not yet run.",
+    "updated": "2026-06-13"
+  },
+  "digitalizer": {
+    "state": "LITTLE",
+    "notes": "single research.md first-pass overview; research-engine sweep not yet run.",
+    "updated": "2026-06-13"
+  },
+  "dmc": {
+    "state": "OK",
+    "notes": "research-engine sweep complete; gathered corpus present; cleared to start disassembly/annotation.",
+    "updated": "2026-06-13"
+  },
+  "electrosound": {
+    "state": "LITTLE",
+    "notes": "single research.md first-pass overview; research-engine sweep not yet run.",
+    "updated": "2026-06-13"
+  },
+  "ems_odie": {
+    "state": "LITTLE",
+    "notes": "single research.md first-pass overview; research-engine sweep not yet run.",
+    "updated": "2026-06-13"
+  },
+  "future_composer": {
+    "state": "OK",
+    "notes": "research-engine sweep complete; gathered corpus present; cleared to start disassembly/annotation.",
+    "updated": "2026-06-13"
+  },
+  "gmc": {
+    "state": "LITTLE",
+    "notes": "single research.md first-pass overview; research-engine sweep not yet run.",
+    "updated": "2026-06-13"
+  },
+  "goattracker": {
+    "state": "OK",
+    "notes": "research-engine sweep complete; gathered corpus present; cleared to start disassembly/annotation.",
+    "updated": "2026-06-13"
+  },
+  "hardtrack": {
+    "state": "LITTLE",
+    "notes": "single research.md first-pass overview; research-engine sweep not yet run.",
+    "updated": "2026-06-13"
+  },
+  "hubbard": {
+    "state": "OK",
+    "notes": "research-engine sweep complete; gathered corpus present; cleared to start disassembly/annotation.",
+    "updated": "2026-06-13"
+  },
+  "jch_newplayer": {
+    "state": "LITTLE",
+    "notes": "single research.md first-pass overview; research-engine sweep not yet run.",
+    "updated": "2026-06-13"
+  },
+  "jeff": {
+    "state": "LITTLE",
+    "notes": "single research.md first-pass overview; research-engine sweep not yet run.",
+    "updated": "2026-06-13"
+  },
+  "john_player": {
+    "state": "LITTLE",
+    "notes": "single research.md first-pass overview; research-engine sweep not yet run.",
+    "updated": "2026-06-13"
+  },
+  "laxity_newplayer": {
+    "state": "LITTLE",
+    "notes": "single research.md first-pass overview; research-engine sweep not yet run.",
+    "updated": "2026-06-13"
+  },
+  "loadstar_songsmith": {
+    "state": "LITTLE",
+    "notes": "single research.md first-pass overview; research-engine sweep not yet run.",
+    "updated": "2026-06-13"
+  },
+  "lords_of_sonics": {
+    "state": "LITTLE",
+    "notes": "single research.md first-pass overview; research-engine sweep not yet run.",
+    "updated": "2026-06-13"
+  },
+  "master_composer": {
+    "state": "LITTLE",
+    "notes": "single research.md first-pass overview; research-engine sweep not yet run.",
+    "updated": "2026-06-13"
+  },
+  "mon_deenen": {
+    "state": "LITTLE",
+    "notes": "single research.md first-pass overview; research-engine sweep not yet run.",
+    "updated": "2026-06-13"
+  },
+  "music_assembler": {
+    "state": "LITTLE",
+    "notes": "single research.md overview; research-player sweep IN PROGRESS (2026-06-13) \u2014 will move to OK on completion regardless of yield.",
+    "updated": "2026-06-13"
+  },
+  "musicshop": {
+    "state": "LITTLE",
+    "notes": "single research.md first-pass overview; research-engine sweep not yet run.",
+    "updated": "2026-06-13"
+  },
+  "ninjatracker": {
+    "state": "LITTLE",
+    "notes": "single research.md first-pass overview; research-engine sweep not yet run.",
+    "updated": "2026-06-13"
+  },
+  "odintracker": {
+    "state": "LITTLE",
+    "notes": "single research.md first-pass overview; research-engine sweep not yet run.",
+    "updated": "2026-06-13"
+  },
+  "prosonix": {
+    "state": "LITTLE",
+    "notes": "single research.md first-pass overview; research-engine sweep not yet run.",
+    "updated": "2026-06-13"
+  },
+  "reflextracker": {
+    "state": "LITTLE",
+    "notes": "single research.md first-pass overview; research-engine sweep not yet run.",
+    "updated": "2026-06-13"
+  },
+  "romuzak": {
+    "state": "LITTLE",
+    "notes": "single research.md first-pass overview; research-engine sweep not yet run.",
+    "updated": "2026-06-13"
+  },
+  "sidduzzit": {
+    "state": "LITTLE",
+    "notes": "single research.md first-pass overview; research-engine sweep not yet run.",
+    "updated": "2026-06-13"
+  },
+  "sidfactory_ii": {
+    "state": "LITTLE",
+    "notes": "single research.md first-pass overview; research-engine sweep not yet run.",
+    "updated": "2026-06-13"
+  },
+  "sidtracker64": {
+    "state": "LITTLE",
+    "notes": "single research.md first-pass overview; research-engine sweep not yet run.",
+    "updated": "2026-06-13"
+  },
+  "sidwinder": {
+    "state": "LITTLE",
+    "notes": "single research.md first-pass overview; research-engine sweep not yet run.",
+    "updated": "2026-06-13"
+  },
+  "sidwizard": {
+    "state": "LITTLE",
+    "notes": "single research.md first-pass overview; research-engine sweep not yet run.",
+    "updated": "2026-06-13"
+  },
+  "soedesoft": {
+    "state": "LITTLE",
+    "notes": "single research.md first-pass overview; research-engine sweep not yet run.",
+    "updated": "2026-06-13"
+  },
+  "soundmonitor": {
+    "state": "LITTLE",
+    "notes": "single research.md first-pass overview; research-engine sweep not yet run.",
+    "updated": "2026-06-13"
+  },
+  "sync": {
+    "state": "LITTLE",
+    "notes": "single research.md first-pass overview; research-engine sweep not yet run.",
+    "updated": "2026-06-13"
+  },
+  "system6581": {
+    "state": "LITTLE",
+    "notes": "single research.md first-pass overview; research-engine sweep not yet run.",
+    "updated": "2026-06-13"
+  },
+  "tfx": {
+    "state": "LITTLE",
+    "notes": "single research.md first-pass overview; research-engine sweep not yet run.",
+    "updated": "2026-06-13"
+  },
+  "ubiks_musik": {
+    "state": "LITTLE",
+    "notes": "single research.md first-pass overview; research-engine sweep not yet run.",
+    "updated": "2026-06-13"
+  },
+  "vibrants_jo": {
+    "state": "LITTLE",
+    "notes": "single research.md first-pass overview; research-engine sweep not yet run.",
+    "updated": "2026-06-13"
+  },
+  "vibrants_laxity": {
+    "state": "LITTLE",
+    "notes": "single research.md first-pass overview; research-engine sweep not yet run.",
+    "updated": "2026-06-13"
+  },
+  "xample": {
+    "state": "LITTLE",
+    "notes": "single research.md first-pass overview; research-engine sweep not yet run.",
+    "updated": "2026-06-13"
+  }
+}
