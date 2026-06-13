@@ -1,5 +1,12 @@
 # Soundmonitor
 
+> **⚠ 2026-06-13 — see `spec_extraction_plan.md` + `spec_write_model.md` for the AUTHORITATIVE replayer format** (grounded in the local JC64dis disasm `tmp/jc64/doc/example/SoundMonitor_shades.dis`). This `research.md` describes the **editor's on-screen data model**; the **MusicMaster replayer** (what 3625 HVSC SIDs run, and the extraction target) uses a DIFFERENT compiled layout:
+> - master sequence = **4 parallel 16-bit pointer arrays** (`voice{1,2,3}TableIndex` + `instrTableIndex`, 128 entries each) + 3 transpose byte-arrays + a `progIndexTable` order list ($FF=end → loop idx). NOT `SP TRK TR ST` rows.
+> - "sound patch" the replayer reads is a **64-byte ($40) record**, not 24. (24 = editor's user-editable count.) Full verbatim offset map in `spec_extraction_plan.md` §3.
+> - per-note byte carries ONLY note(+tie `$80`/rest `$00`); instrument is **per-order-position**, options come from instr fields + `specialCtrlVoice`. No options nibble inside note bytes.
+> - HVSC census (`hvsc84.db`): **3625** SIDs; init/play NOT fixed — `$C000/$C020` is 1182, but many relocations; two play-deltas (`+$20`, `+$475`). Anchor by code signature, not address.
+> - The namelessalgorithm blog (link below) was **unreachable** (404/403, archive blocked) when these specs were written.
+
 ## Overview
 
 - **HVSC count:** ~3,663 tunes

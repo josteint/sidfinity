@@ -200,8 +200,8 @@
     "updated": "2026-06-13"
   },
   "soundmonitor": {
-    "state": "LITTLE",
-    "notes": "single research.md first-pass overview; research-engine sweep not yet run.",
+    "state": "OK",
+    "notes": "research-player sweep complete (2026-06-13): original 64'er 10/1986 type-in article + 24-register sound-parameter table recovered (archive.org full OCR); local JC64dis hand-annotated disassembly decoded (compiled replayer layout, 64-byte sound records, per-frame write model); variant taxonomy mapped (Soundmonitor V1.0/1.1/1.3, Rockmonitor digi, ~20 sidid sub-variants); CIA-timed (writelog-per-irq verdict). Cleared to start disassembly. See pipelines/soundmonitor/docs/README.md.",
     "updated": "2026-06-13"
   },
   "sync": {

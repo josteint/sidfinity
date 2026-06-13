@@ -1,0 +1,7 @@
+# Bulky / compressed binary containers — reproducible from CSDb / Archive.org
+# (see each doc's provenance header), kept out of git. Small extracted .prg
+# fixtures ARE committed as reproducible RE targets.
+*.d64
+*.t64
+*.zip
+*.gz
