@@ -165,53 +165,77 @@ class _Sticky:
         return _Sticky(self.dur, self.instr, self.vol)
 
 
-def _simulate_sector(mem, sec_addr: int, st: _Sticky) -> list:
-    """Walk one sector with the player's exact dispatch; mutate `st`;
-    return the row list. The player's soft-start toggle starts at 0 in
-    every sector (reset at each $7F) and is carried per-row as `soft`.
-    """
+@dataclass
+class _SecFmt:
+    """Sector-command byte map. canon V4 and the family-2 V4-derived
+    build share the engine but remap the command bytes (family 2 moves
+    the terminator to $FF, drops VOL + soft-start, extends the
+    instrument range to $7F). The terminator is only checked in the
+    post-event PEEK — a terminator reached via DISPATCH is the ghost
+    path (canon $7F → instr 31; family2 $FF → glide), preserved by
+    letting it fall through to its range."""
+    term: int = 0x7F                 # sector terminator (peeked)
+    rest: int = 0x7E
+    switch: int = 0x7D
+    soft: 'int | None' = 0x7C        # soft-start toggle ($7C); None = none
+    vol_min: 'int | None' = 0xF0     # VOL prefix range start; None = none
+    instr_lo: int = 0x60
+    glide_min: int = 0xC0
+    dur_min: int = 0x80
+
+
+_SECFMT = {
+    'v4': _SecFmt(),
+    'family2': _SecFmt(term=0xFF, rest=0xFE, switch=0xFD, soft=None,
+                       vol_min=None),
+}
+
+
+def _simulate_sector(mem, sec_addr: int, st: _Sticky,
+                     fmt: _SecFmt = _SECFMT['v4']) -> list:
+    """Walk one sector with the player's dispatch; mutate `st`; return
+    the row list. Parametric over `fmt` (the command byte map)."""
     rows = []
     pos = 0
     soft = False
     guard = 0
 
     def peek_end():
-        nonlocal pos
-        if mem[sec_addr + pos] == 0x7F:
-            return True
-        return False
+        return mem[sec_addr + pos] == fmt.term
 
     while True:
         guard += 1
         if guard > 4096:
             raise RuntimeError(f'sector at ${sec_addr:04X} never ends')
         b = mem[sec_addr + pos]
-        # stage 1: $F0+ = VOL override prefix
-        if b >= 0xF0:
+        # VOL prefix (canon $F0+; family 2 has none)
+        if fmt.vol_min is not None and b >= fmt.vol_min:
             st.vol = b & 0x0F
             pos += 1
             continue
-        # stage 2: $7C = soft-start toggle prefix
-        if b == 0x7C:
+        # soft-start toggle (canon $7C; family 2 has none)
+        if fmt.soft is not None and b == fmt.soft:
             soft = not soft
             pos += 1
             continue
-        # stage 3: rest / switch / glide
-        if b == 0x7E:
+        # rest / switch (exact bytes, checked before the glide range so
+        # family 2's $FE/$FD are caught above $C0)
+        if b == fmt.rest:
             rows.append(DmcRow(note=None, duration=st.dur, instr=st.instr,
                                vol=st.vol))
             pos += 1
             if peek_end():
                 return rows
             continue
-        if b == 0x7D:
+        if b == fmt.switch:
             rows.append(DmcRow(note=None, duration=st.dur, instr=st.instr,
                                vol=st.vol, gate_toggle=True))
             pos += 1
             if peek_end():
                 return rows
             continue
-        if b >= 0xC0:
+        # glide / slide
+        if b >= fmt.glide_min:
             speed = b & 0x0F
             if b & 0x10:             # mode 1: slide current note to target
                 target = mem[sec_addr + pos + 1]
@@ -232,14 +256,14 @@ def _simulate_sector(mem, sec_addr: int, st: _Sticky) -> list:
                 if peek_end():
                     return rows
                 continue
-        # stage 4: duration prefix
-        if b >= 0x80:
+        # duration prefix
+        if b >= fmt.dur_min:
             st.dur = b & 0x3F
             pos += 1
             continue
-        # stage 5: instrument prefix (NB: a dispatched $7F lands here
-        # as instrument 31 — the ghost path) / note
-        if b >= 0x60:
+        # instrument prefix (a dispatched terminator falls here for
+        # canon = instr 31, the ghost path) / note
+        if b >= fmt.instr_lo:
             st.instr = b & 0x1F
             pos += 1
             continue
@@ -252,7 +276,8 @@ def _simulate_sector(mem, sec_addr: int, st: _Sticky) -> list:
 
 
 def _walk_track(mem, track_addr: int, secp_lo: int, secp_hi: int,
-                loop_target: bool = False) -> DmcVoice:
+                loop_target: bool = False,
+                fmt: _SecFmt = _SECFMT['v4']) -> DmcVoice:
     """Walk one voice's track (orderlist), path-resolving every sector
     instance. Unrolls $FF loops until (wrap position, sticky state)
     repeats. `loop_target`: the JSR-$1042 player variant reads the byte
@@ -292,7 +317,7 @@ def _walk_track(mem, track_addr: int, secp_lo: int, secp_hi: int,
             b = mem[track_addr + pos]
         sec = b
         sec_addr = mem[secp_lo + sec] | (mem[secp_hi + sec] << 8)
-        rows = _simulate_sector(mem, sec_addr, st)
+        rows = _simulate_sector(mem, sec_addr, st, fmt)
         key = tuple((r.note, r.duration, r.instr, r.vol, r.soft,
                      r.gate_toggle, r.glide_speed, r.glide_to,
                      r.glide_slide) for r in rows)
@@ -407,7 +432,11 @@ def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc84') -> DmcModel:
     tunetab = _rd16(mem, cfg.op_tunetab)
     secp_lo = _rd16(mem, cfg.op_secp_lo)
     secp_hi = _rd16(mem, cfg.op_secp_hi)
-    assert instr_base == cfg.base + 0x8F0, \
+    # canon/2-entry put the instrument table at base+$8F0; family 2
+    # relocates it ($17B0). Trust the operand read, bounded to the
+    # player's data region as a sanity floor (the factory validates the
+    # player identity separately).
+    assert cfg.base + 0x600 <= instr_base < cfg.base + 0x1000, \
         f'non-standard instrument base ${instr_base:04X}'
 
     n_wave = wavefreq - wavectrl
@@ -439,7 +468,8 @@ def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc84') -> DmcModel:
         for vi in range(3):
             tp = _rd16(mem, rec + vi * 2)
             voices.append(_walk_track(mem, tp, secp_lo, secp_hi,
-                                      loop_target=cfg.track_loop_target))
+                                      loop_target=cfg.track_loop_target,
+                                      fmt=_SECFMT[cfg.sector_format]))
         song = DmcSong(id=sub + 1, speed=mem[rec + 6],
                        master_vol=mem[rec + 7], voices=voices)
         m.songs.append(song)

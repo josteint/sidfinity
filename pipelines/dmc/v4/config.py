@@ -47,6 +47,11 @@ class DMCV4Config:
     # loops to track position 0; the JSR-$1042 hook variant reads the
     # NEXT track byte as the loop position ($FF nn).
     track_loop_target: bool = False
+    # Sector-command byte map (factory-probed). 'v4' = canonical
+    # (terminator $7F, VOL $F0+, soft-start $7C); 'family2' = the
+    # V4-derived variant (terminator $FF, no VOL/soft-start, instr range
+    # extended to $7F). See pipelines/dmc/v4/extract/engine_model._SECFMT.
+    sector_format: str = 'v4'
     # CIA multispeed (factory-probed): when the PSID play() is driven by
     # a CIA1 timer A (a multispeed wrapper at 2-6x), this is the timer
     # latch the original programs ($DC04/$DC05, read by running init in
