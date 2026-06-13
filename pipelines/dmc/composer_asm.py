@@ -274,6 +274,7 @@ def compose_dmc_asm(usf: UsfFile) -> str:
     pat_lo = _ptr_tab('<')
     pat_hi = _ptr_tab('>')
 
+    slide_phase = int(usf.params.fields.get('slide_phase', 0)) & 1
     idle = [0, 0, 0]
     imask = [0, 0, 0]
     for v in usf.init.voices:
@@ -330,6 +331,7 @@ def compose_dmc_asm(usf: UsfFile) -> str:
     data_asm = '\n'.join(data)
 
     return f"""
+SLIDE_PHASE = ${slide_phase:02X}
         * = $1000
         jmp init
         jmp playframe
@@ -368,6 +370,8 @@ ini_ptr:
         sta $d418                    ; priming (matches the family init)
         lda tunetab+2,y              ; +8 = $D417 routing-shadow priming
         sta shadow17
+        lda #SLIDE_PHASE             ; half-rate slide clock phase
+        sta dualpar
         ldx #$00
 ini_v:
         lda #$01

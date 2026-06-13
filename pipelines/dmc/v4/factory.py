@@ -165,10 +165,8 @@ def dmc_v4_config(sid_path: str, hvsc_root: str = 'hvsc84') -> DMCV4Config:
         raise DMCV4Unsupported('custom_vibdepth')
 
     # ---- leftover-state probes ----
-    # ($100F-$1011 gate-mask leftovers are CAPTURED by the extract as
-    # init voice_state gate_mask priming — no flag needed.)
-    if mem[0x1019]:
-        raise DMCV4Unsupported('dual_parity_leftover', hex(mem[0x1019]))
+    # ($100F-$1011 gate masks and the $1019 dual-clock phase are
+    # CAPTURED by the extract as priming — no flags needed.)
     # (the idle wave walk from table index 0 is carried explicitly as
     # wave_programs[0] — record 0's wave_start no longer matters)
 

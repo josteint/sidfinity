@@ -113,6 +113,8 @@ class DmcModel:
     freq_hi: list = field(default_factory=list)
     vibdepth: list = field(default_factory=list)     # 96 bytes incl. overlap
     d417_shadow: int = 0
+    dual_phase: int = 0              # $1019 leftover & 1 — initial phase
+                                     # of the half-rate slide clock
     idle_wave: tuple = ((), (), 0)   # wave walk from table index 0 (the
                                      # cleared-cache idle path): ctrl,
                                      # freq, loop
@@ -317,6 +319,17 @@ def _slice_wave(ctrl_tab: list, freq_tab: list, start: int):
     normalized into the slice (see disassembly: >= $90 jumps back
     (val - $90) positions and re-reads)."""
     n = len(ctrl_tab)
+    # a start sitting on a marker re-dispatches immediately (the
+    # original checks the marker before reading) — follow the chain
+    guard = 0
+    while start < n and ctrl_tab[start] >= 0x90:
+        back = ctrl_tab[start] - 0x90
+        if back == 0 or start - back < 0:
+            raise RuntimeError(f'unsupported:wave_marker_chain @{start}')
+        start -= back
+        guard += 1
+        if guard > 64:
+            raise RuntimeError('unsupported:wave_marker_chain loop')
     pos = start
     end = None
     while pos < n:
@@ -406,6 +419,7 @@ def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc84') -> DmcModel:
         d417_shadow=mem[cfg.d417_shadow_addr],
         idle_notes=(mem[0x1012], mem[0x1013], mem[0x1014]),
         idle_masks=(mem[0x100F], mem[0x1010], mem[0x1011]),
+        dual_phase=mem[0x1019] & 1,
         title=s.get('name', ''), author=s.get('author', ''),
         released=s.get('released', ''),
         n_subtunes=s.get('songs', 1), start_song=s.get('start', 1),
