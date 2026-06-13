@@ -190,8 +190,8 @@
     "updated": "2026-06-13"
   },
   "sidwizard": {
-    "state": "LITTLE",
-    "notes": "single research.md first-pass overview; research-engine sweep not yet run.",
+    "state": "OK",
+    "notes": "research-player sweep complete (2026-06-13): fully open source (player.asm/exporter.asm/SWM-spec.src/ChangeLog) + 27pp manual + version history + 4 decoded HVSC binaries. Exported layout, per-frame write model (V3->V2->V1, ghost vs lean SIDG=SID), version deltas (config knobs hr_adsr_order/init_writes_d418/driver_variant), CIA-vs-vblank (mostly vblank -> flat Mode-1) all captured. Scope: 1010 1SID tunes; exclude 38 multi-SID (psid_version>=3). KEY OPEN: pointer-table offset map per (version,drivertype). Cleared to start disassembly; canary Hermit/Magyar_Nepzenek.sid. See pipelines/sidwizard/docs/README.md.",
     "updated": "2026-06-13"
   },
   "soedesoft": {

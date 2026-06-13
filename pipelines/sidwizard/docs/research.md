@@ -1,5 +1,7 @@
 # SID-Wizard by Hermit
 
+> **⚠ 2026-06-13 — see [`README.md`](README.md) + `spec_extraction_plan.md` / `spec_write_model.md` for the source-grounded specs** (from the open-source `player.asm`/`exporter.asm` + the 1.4 manual + decoded HVSC binaries). Refinements to this overview: timing is **mostly vblank** in HVSC (PSID speed=0 for 992/1048; only 56 CIA — NOT the "CIA-based" default), so the in-scope target uses the **flat Mode-1** verdict; exported data sits **behind self-modified pointer tables** (not a tight concatenation — the per-(version,drivertype) offset map is the key OPEN); init clears $D400-$D417 + sets $D418=$0F (the **$D418 was dropped from the init clear in V1.5**); the lean 1-SID build writes `$D4xx` incrementally (`SIDG=SID`) with a **driver-variant-dependent** note-start order, while ghost/multi-SID builds use the fixed COMMONREGS loop. **Scope: 1010 1SID tunes (v2); exclude the 38 multi-SID (v3/v4, `_2SID`/`_3SID`) — they write $D420+/$D440+.**
+
 ## Overview
 
 - **HVSC count:** 1,074 tunes
