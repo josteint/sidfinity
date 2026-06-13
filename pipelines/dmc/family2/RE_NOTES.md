@@ -46,17 +46,41 @@ DIFFERENT SECTOR ENCODING. Hard evidence:
    - vibdepth: TBD (canon $1888; family-2 instr table at $17B0 frees
      $18xx — confirm where family-2 reads the per-note vib depth).
 
-2. **DIFFERENT SECTOR ENCODING — the blocker.** Family 2's sector-end
-   check (canon sub_11E6 @ $11E6) is **`CMP #$FF`**, NOT `CMP #$7F`.
-   So the sector TERMINATOR is **$FF**, and the whole sector-command
-   byte map is shifted (the canon $7F terminator / $F0-$FF VOL range no
-   longer hold). Sample sector @$1A2F:
-   `61 90 1D 29 1D 29 1D 29 1D 29 FF 60 90 02 FE FE FE FE FE FE FE FF ...`
-   — decodes plausibly as note/instr/duration with $FF as the end, but
-   the $7E/$7D/$7C/$F0 command semantics must be RE'd (the family-2
-   dispatch tests $60/$90/$C0/$FE/$FF, missing canon's $7x set in the
-   trace). This needs a family-2 sector decoder (extract) + the
-   composer's family-2 pattern encoding.
+2. **DIFFERENT SECTOR ENCODING — RE'd + DONE (commit 09176d4).** The
+   full family-2 command map (from the $110C dispatch + sub_11E6
+   CMP #$FF end-peek):
+     note $00-$5F · instr $60-$7F · duration $80-$BF · glide $C0-$DF
+     · switch $FD · rest $FE · END $FF · (no VOL, no soft-start)
+   vs canon (instr $60-$7B, soft $7C, switch $7D, rest $7E, end $7F,
+   VOL $F0+). `_simulate_sector` is now parametric over `_SecFmt`
+   (config.sector_format 'family2'). Family 2 BUILDS + decodes
+   correctly with this + canon sites + instr $17B0 + d417 $1034.
+
+## Remaining: effect-semantic differences (the write-log loop)
+
+Family 2's note-init TAIL ($12C9-$1300) differs from canon (the
+~119-byte chunk). Found so far (Kajun_Klog first divergence at the
+note-init):
+- **No note-init cymbal.** Canon falls into the $1300 cymbal check
+  after note-init; family 2's note-init ends `$12FD JMP $1591` (straight
+  to wave step), SKIPPING it. The $1300 cymbal check still exists (bit7
+  + $1786==2 guard, DEC guard) but is reached per-frame, not at
+  note-init — so the EXTRACT must NOT emit `noise_attack` from FX bit 7
+  for family 2 (inst 1 has byte10=$B0 bit7 set yet plays a normal pulse
+  note). The composer cymbal currently fires -> first divergence.
+- **Freq-based vibrato depth.** Canon $12F1 `LDA $1888,Y` (per-note
+  vibdepth table) -> $1792. Family 2 $12F1 `LDA $16A7,Y` (freq HI of the
+  current note) `LSR A` -> $178C. Different source + register. A
+  family-2 vibrato-depth mechanism to model.
+- vibdepth_addr ($1888) is IRRELEVANT for family 2 (the extract reads it
+  but never carries it — composer uses the VIBDEPTH constant; and family
+  2 doesn't use the $1888 table anyway).
+
+NEXT (write-log loop on Kajun_Klog): (1) suppress noise_attack for
+family 2 (or RE what FX bit 7 means); (2) model the freq-hi>>1 vibrato
+depth; (3) iterate find_first_divergence. Then factory variant
+(detect init JMP base+$37 -> sector_format='family2', op sites = canon,
+instr base from operand, d417=base+$34) + carved reference + wide batch.
 
 ## Migration plan (when picked up)
 
