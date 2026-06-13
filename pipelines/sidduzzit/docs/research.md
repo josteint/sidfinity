@@ -1,5 +1,7 @@
 # SID Duzz'It (SDI)
 
+> **⚠ 2026-06-13 — see [`README.md`](README.md)** + `spec_extraction_plan.md`/`spec_write_model.md`, grounded in the **open-source player** now kept in `docs/src/` (`SRC_SDI21-N50.asm` + the 65 KB `SDI.2.1.6-docs.txt` + Psylicium manual). Key refinement: **~25 `rem_*` assembly flags strip unused effects**, so the exported SID binary only contains code for the effects a tune uses → the **music-data region + table bases are NOT at fixed offsets**; they must be located by dataflow per tune (FC-style). V1.x ↔ V2.x are binary-incompatible (V1 NTSC tables / V2 PAL); HVSC is overwhelmingly V2 at $1000. Sibling Geir Tjelta engines (SIDSys/Comptech-X/Echo) are SEPARATE — not SDI.
+
 ## Overview
 
 - **HVSC count:** 994 tunes

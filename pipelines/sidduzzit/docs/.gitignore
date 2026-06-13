@@ -1,0 +1,8 @@
+# Raw PETSCII dumps are redundant with the decoded src/*.asm / *.txt — out of git.
+# Plus the usual binary containers (reproducible from SourceForge / the SDI release).
+*.raw
+*.d64
+*.zip
+*.prg
+*.sid
+*.gz

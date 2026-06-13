@@ -1,0 +1,11 @@
+SDI v2.1.7 released today 12.10.2014
+------------------------------------
+
+Fixed two bugs in the turbo assembler player sources:
+* The filtercutoff routine was missing a small compare routine for fast downwards subtraction.
+  This could result in difference in the sound output when compared to the editor.
+
+* If you started your song with a gatetimeout setting of Ax,Cx or Ex the first note strike
+  would sometimes not happen.
+
+Greetings from GRG and GT of SHAPE.

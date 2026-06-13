@@ -170,8 +170,8 @@
     "updated": "2026-06-13"
   },
   "sidduzzit": {
-    "state": "LITTLE",
-    "notes": "single research.md first-pass overview; research-engine sweep not yet run.",
+    "state": "OK",
+    "notes": "research-player sweep complete (2026-06-13, gather-only/sonnet): fully open source (TASS player SRC_SDI21-N50/SPD50.asm) + 65KB official docs + Psylicium manual, kept in docs/src/. Player API ($1000 init/$1003 play/$1006 fade/$1009 speedplay), 4 voices (3+conductor), 10-col-major instruments, waveform-bytecode + pulse/filter/vibrato program tables, FX+note sequencer all captured. KEY: ~25 rem_* assembly flags strip unused effects -> music-data/table bases NOT fixed-offset, must be dataflow-located per tune (FC/DMC-style). V1.x!=V2.x (NTSC vs PAL, incompatible); HVSC overwhelmingly V2 at $1000. Siblings SIDSys/Comptech-X/Echo are separate engines. OPENs deferred to migration (write order, rem_* fingerprint, speed-bit survey). Cleared to start. See pipelines/sidduzzit/docs/README.md.",
     "updated": "2026-06-13"
   },
   "sidfactory_ii": {
