@@ -85,8 +85,8 @@
     "updated": "2026-06-13"
   },
   "hardtrack": {
-    "state": "LITTLE",
-    "notes": "single research.md first-pass overview; research-engine sweep not yet run.",
+    "state": "OK",
+    "notes": "research-player sweep complete (2026-06-13): released elysium SDK source recovered + player disassembled byte-exact and verified vs siddump. Binary layout, per-frame write model ($D417 accumulation, V3->V2->V1, ADSR-on-note-on), single-format version taxonomy (V1.0/V1.1/V1.0+6speed; one sidid sig, all 1170), Polish provenance all captured. NO CIA multispeed in HVSC renders (flat Mode-1 verdict). DMC cousin (operand-derived tables -> dataflow extract transfers). Cleared to start disassembly; canary HT_7_1.sid. See pipelines/hardtrack/docs/README.md.",
     "updated": "2026-06-13"
   },
   "hubbard": {

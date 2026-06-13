@@ -1,0 +1,11 @@
+# Binary artifacts — kept locally for RE, out of git. The elysium SDK (.d64/
+# .zip) is reproducible from elysium.filety.pl; the extracted player/source
+# .bin are derived from it and their content is captured in csdb_player_source.md.
+# Committed (text): the *.md docs, the raw disassembly _artifacts/player_v1.0_disasm.s,
+# and the readme-decoder _artifacts/decrunch_readme.py.
+*.d64
+*.zip
+*.bin
+*.prg
+*.t64
+*.gz

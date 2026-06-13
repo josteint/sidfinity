@@ -1,5 +1,7 @@
 ## HardTrack Composer (1,170 tunes)
 
+> **⚠ 2026-06-13 — see [`README.md`](README.md) + `spec_extraction_plan.md` for the AUTHORITATIVE layout** (disassembled byte-exact from the player + the recovered elysium SDK source). This overview has several errors the sweep corrected: init=BASE+**$60** / play=BASE+**$D8** (the $1000/$1003 are a JMP table); freq tables at +**$588**/+**$5E8** (not +$880/+$8E0); instruments are **parallel SoA arrays with a variable per-tune count** (not interleaved pairs); patterns are **2-byte (note, command)** fixed-length steps; instrument select = byte **AND $1F** (32 max, not $7F); data-table bases are **operand-derived (DMC-style dataflow)**, not fixed offsets. And: **no CIA multispeed survives in HVSC renders** (all PSID speed=0 → flat Mode-1 verdict; the "6×" is an authoring feature).
+
 - **Authors:** Brush (code) and Longhair/Milosz Ignatowski (player routine), Elysium/Parados (Poland)
 - **Year:** 1992
 - **Source:** Available at elysium.filety.pl (depacker, editor, assembly source)
