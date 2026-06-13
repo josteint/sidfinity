@@ -95,7 +95,7 @@ force-includes record 0 as slot 0. (2) pulse base split — step =
 nibble + CACHED base; idle base=0; composer derives base = step&$0F.
 (3) xa65: ':' is a statement separator EVEN IN COMMENTS (sanitizer).
 
-## ✅✅ FAMILY-1: 2921/5401 FULL (54.1%) as of 2026-06-13
+## ✅✅ FAMILY-1: 2945/5401 FULL (54.5%) as of 2026-06-13
 Progression: 2257 (first sweep) -> 2656 (relocation: +399) -> 2921
 (2-entry layout + base=load: +265). Mass-written + db-refreshed (0
 errors, 2921 sidfinity_md5). Ear-test passed on Zaks. Portfolio
@@ -138,21 +138,15 @@ table from idx 0 → wave_programs[0] + jump-back marker pool semantics);
 DUAL-CLOCK PHASE ($1019 leftover → params.slide_phase).
 
 ## NEXT (ranked residue, all in RE_NOTES.md "Wide-batch residue buckets")
-1. **CIA-MULTISPEED wrappers (the old no_jumptable 276 — DIAGNOSED
-   2026-06-13, NOT packed; run_init hypothesis was WRONG).** The
-   canonical player sits at the LOAD address (220/276); the PSID play
-   vector drives it via a separate CIA-timer dispatcher at **2-6x**
-   (measured 92/183/274/275 Hz, non-integer). 50Hz VBI rebuild can't
-   match (our full stream = their first 1/Nth exactly). Needs a
-   MULTISPEED/CIA FEATURE: factory detects the CIA period ($DC04/05) ->
-   USF carries it (init-trichotomy "environment", cia1_period) ->
-   composer emits a CIA-timed rebuild (PSID speed bit + init programs
-   CIA1 timer A; exact-rate match, VBI×N won't do) -> verify per-IRQ
-   (`writelog_per_irq_capture` exists). GENERAL capability (~196 DMC +
-   other families). FOUNDATION LANDED (472baef): base=load detection +
-   typed `cia_multispeed` bucket (108 precise; ~150 need a jumptable
-   SCAN — player at neither play-3 nor load). [[feedback_init_trichotomy]]
-   "environment" bucket is exactly this.
+1. **CIA-MULTISPEED — FEATURE BUILT (eafc895), partial rollout.** +24 of
+   the 135 cia_multispeed bucket FULL. Residue within it: ~32 py65-init
+   programs no readable timer (init hangs / timer set in an IRQ handler /
+   different timer — could measure rate from writelog, risks drift);
+   ~29 non-canonical-under-CIA (2-entry or other build at base);
+   offtable-live limit. BIGGER: the 459 no_jumptable members are CIA
+   wrappers whose player is at NEITHER play-3 NOR load (relocated WITHIN
+   the file) — need a jumptable-SIGNATURE SCAN of the image to find the
+   base, then the CIA path applies. That scan is the next CIA unlock.
 2. 2nd loop-hook variant: EVAPORATED (relocation absorbed it; ~13
    ambiguous `7e18ea` members remain — not worth a dedicated fix).
 3. Remaining code-mismatch sub-builds (player_code_mismatch 495, down
