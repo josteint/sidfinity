@@ -131,11 +131,21 @@ table from idx 0 → wave_programs[0] + jump-back marker pool semantics);
 DUAL-CLOCK PHASE ($1019 leftover → params.slide_phase).
 
 ## NEXT (ranked residue, all in RE_NOTES.md "Wide-batch residue buckets")
-1. **PACKED / self-extracting (no_jumptable 276):** init runs a depacker
-   that materializes the player at runtime; static image at base=play-3
-   has no jumptable. Needs a py65 run_init probe (FC `_run_init_in_py65`
-   analogue) then re-probe the post-init image. Likely the biggest
-   remaining recoverable class.
+1. **CIA-MULTISPEED wrappers (the old no_jumptable 276 — DIAGNOSED
+   2026-06-13, NOT packed; run_init hypothesis was WRONG).** The
+   canonical player sits at the LOAD address (220/276); the PSID play
+   vector drives it via a separate CIA-timer dispatcher at **2-6x**
+   (measured 92/183/274/275 Hz, non-integer). 50Hz VBI rebuild can't
+   match (our full stream = their first 1/Nth exactly). Needs a
+   MULTISPEED/CIA FEATURE: factory detects the CIA period ($DC04/05) ->
+   USF carries it (init-trichotomy "environment", cia1_period) ->
+   composer emits a CIA-timed rebuild (PSID speed bit + init programs
+   CIA1 timer A; exact-rate match, VBI×N won't do) -> verify per-IRQ
+   (`writelog_per_irq_capture` exists). GENERAL capability (~196 DMC +
+   other families). FOUNDATION LANDED (472baef): base=load detection +
+   typed `cia_multispeed` bucket (108 precise; ~150 need a jumptable
+   SCAN — player at neither play-3 nor load). [[feedback_init_trichotomy]]
+   "environment" bucket is exactly this.
 2. Second loop-hook variant (loop_site_unknown ~299: `c8 20 4d` site =
    a different JSR hook addr — generalize the loop probe).
 3. Other code-mismatch sub-builds (player_code_mismatch ~1182:
