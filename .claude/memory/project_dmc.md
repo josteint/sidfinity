@@ -168,6 +168,17 @@ DUAL-CLOCK PHASE ($1019 leftover → params.slide_phase).
    base+\$37, instr base from operand, d417=base+\$34) + carved
    reference. Tractable, focused sub-migration. Jump-table init offset
    \$37 is the family-2 detect signature.
+   **WRITE-LOG LOOP IN PROGRESS (commit 6231114, NOT yet FULL):** pushed
+   Kajun_Klog's first divergence sector-layer -> frame 2 -> frame 7.
+   Sector decoder parametric (_SECFMT, DONE). Cymbal timing DONE
+   (params.cymbal_onset: family 2 fires the burst on FRAME 2 not 1).
+   BLOCKER @ frame 7: family 2's VIBRATO is a different mechanism
+   (note-init stores freq_hi>>1 to \$178C, NOT the \$1792 vstep which
+   stays 0; longer delay than byte7-hi). vib_depth_curve USF field added
+   (96B, by-ref) + serialized. NEXT: RE family 2's \$178C vibrato +
+   delay -> composer model; iterate (more note-init-tail effect
+   differences likely); then factory variant + reference + wide batch.
+   All gated -> family 1 + others unaffected (179 ok).
 7. V5 line (2181) needs full sector-format RE (separate engine).
 
 ## REGRESSION PORTFOLIO (2026-06-13): generalized + DMC wired
