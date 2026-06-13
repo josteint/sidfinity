@@ -21,6 +21,12 @@ from dataclasses import dataclass, field
 class DMCV4Config:
     sid_path: str                     # HVSC-relative path
     name: str = ''
+    # player base address. Canonical = $1000; relocated members carry
+    # the same engine at a different base (operand sites + fixed tables
+    # all shift by base - $1000). Extract reads from the relocated
+    # addresses; the composer always emits OUR engine at $1000, so the
+    # rebuild + verdict are base-independent (relocation is extract-only).
+    base: int = 0x1000
     # operand sites (address of the abs,y operand low byte)
     op_instr: int = 0x1227            # instrument records (always $18F0)
     op_wavectrl: int = 0x159C         # wave table CTRL array

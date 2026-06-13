@@ -406,20 +406,22 @@ def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc84') -> DmcModel:
     tunetab = _rd16(mem, cfg.op_tunetab)
     secp_lo = _rd16(mem, cfg.op_secp_lo)
     secp_hi = _rd16(mem, cfg.op_secp_hi)
-    assert instr_base == 0x18F0, f'non-standard instrument base ${instr_base:04X}'
+    assert instr_base == cfg.base + 0x8F0, \
+        f'non-standard instrument base ${instr_base:04X}'
 
     n_wave = wavefreq - wavectrl
     ctrl_tab = [mem[wavectrl + i] for i in range(n_wave)]
     freq_tab = [mem[wavefreq + i] for i in range(n_wave)]
 
+    b = cfg.base
     m = DmcModel(
         freq_lo=[mem[cfg.freq_lo_addr + i] for i in range(96)],
         freq_hi=[mem[cfg.freq_hi_addr + i] for i in range(96)],
         vibdepth=[mem[cfg.vibdepth_addr + i] for i in range(96)],
         d417_shadow=mem[cfg.d417_shadow_addr],
-        idle_notes=(mem[0x1012], mem[0x1013], mem[0x1014]),
-        idle_masks=(mem[0x100F], mem[0x1010], mem[0x1011]),
-        dual_phase=mem[0x1019] & 1,
+        idle_notes=(mem[b + 0x12], mem[b + 0x13], mem[b + 0x14]),
+        idle_masks=(mem[b + 0x0F], mem[b + 0x10], mem[b + 0x11]),
+        dual_phase=mem[b + 0x19] & 1,
         title=s.get('name', ''), author=s.get('author', ''),
         released=s.get('released', ''),
         n_subtunes=s.get('songs', 1), start_song=s.get('start', 1),
