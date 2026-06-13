@@ -95,14 +95,44 @@ force-includes record 0 as slot 0. (2) pulse base split — step =
 nibble + CACHED base; idle base=0; composer derives base = step&$0F.
 (3) xa65: ':' is a statement separator EVEN IN COMMENTS (sanitizer).
 
-## NEXT
-1. EAR TEST Zaks (user; py65/writelog miss dispatch bugs).
-2. Factory `dmc_v4_config(sid)`: probe the 7 operand sites + wrapper
-   inits (On_My_Way_to_X, Retro_Tech); probe gate-mask/$1019
-   leftovers; assert record0 wave_start==0 + off-table reads.
-3. Wide batch over family 1 (5401) FC-style; then family 2 diff
-   (0.732 V4-derived, 2889); V5 line needs sector-encoding RE.
-RESIDUE list in RE_NOTES.md (uready accounting started).
+## ✅✅ FAMILY-1 WIDE BATCH (2026-06-13): 2257/5401 FULL (41.8%)
+Full sweep on the fixed pipeline: **2257 full / 178 partial / 453
+error / 2513 unsupported.** Of the 2888 FACTORY-PASSING members, 78%
+instruction-sequence exact at full songlength. 2257 .usf +
+.sidfinity.sid mass-written (0 errors, tools/dmc_mass_write.py);
+hvsc84.db refreshed (2257 DMC sidfinity_md5 + usf_path).
+Ear test PASSED on Zaks (user).
+
+Factory `dmc_v4_config(sid)` (pipelines/dmc/v4/factory.py): masked
+identity compare vs the carved canonical player + multi-site operand
+consistency + typed DMCV4Unsupported reasons. Wide runner:
+tools/dmc_family_batch.py (Pool(8), crash-safe JSONL resume).
+Results: tmp/dmc_wide_results.jsonl (first_diff per partial member).
+
+5 triage classes solved this batch (all in RE_NOTES.md):
+gate-mask leftovers ($100F-11 → InitVoice.gate_mask); filter-def
+slot-vs-slot*8 indexing; 16-bit running pattern pointer (my event
+encoding inflates patterns >255B); the OFF-TABLE WINDOW (orig reads
+past freq tables into state — composer mirrors the stable prefix
+sidoff/fbit/fmask/spd/mvol, extract certifies reachable reads);
+TRACK LOOP-TO-TARGET variant (JSR-$1042 hook reads byte-after-$FF as
+loop pos; factory-probed); PER-TUNE FREQ TABLES (members ship edited
+temperaments → USF freq_table); IDLE WAVE PROGRAM (cleared-cache walks
+table from idx 0 → wave_programs[0] + jump-back marker pool semantics);
+DUAL-CLOCK PHASE ($1019 leftover → params.slide_phase).
+
+## NEXT (ranked residue, all in RE_NOTES.md "Wide-batch residue buckets")
+1. **RELOCATION CLASSES (~1800, highest value):** nonstandard_vectors
+   (1184, same skeleton at a different base — FC-reloc-factory analogue,
+   load-relative operand probe) + the relocated 2-entry layout (~621,
+   `player_code_mismatch` @ $1001: 2-entry jumptable, body shifted —
+   needs a 2nd canonical ref binary).
+2. Other code-mismatch sub-builds (~430: $1181/$1631/$12A8/...).
+3. Second loop-hook variant (~277: `c8 20 4d` site = different hook addr).
+4. offtable_live + zero-wave-table edge errors (453, mostly correctly
+   refused — genuinely live state).
+5. Partial long tail (178: bucket by first_diff in the jsonl).
+6. Then family 2 (0.732 V4-derived, 2889); V5 line needs sector-encoding RE.
 
 ## Related
 [[project_fc_fingerprint_and_standard]] (the playbook this follows),

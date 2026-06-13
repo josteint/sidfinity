@@ -10,7 +10,7 @@
 
 ## Per-engine project memories
 
-- [DMC migration](project_dmc.md) — THE FOCUS ENGINE (10,676 SIDs, largest family). Census: V4 canonical = 5401 (50.6%) = the target; annotated disassembly + **✅ ZAKS FULL (2026-06-12): all 3 subtunes exact at full songlength through SID→USF→SID**. Pipeline complete (extract w/ dataflow operands + path-resolved patterns; OUR composer engine; regression-wired). 3 fixes: idle-note voice_state priming (work-file leftover $1012-14 + record-0 idle), pulse nibble/base split, xa65 colon-in-comment gotcha. NEXT: ear test → factory → family-1 wide batch (5401).
+- [DMC migration](project_dmc.md) — THE FOCUS ENGINE (10,676 SIDs, largest family). Census: V4 canonical = 5401 (50.6%) = the target. **✅✅ FAMILY-1 WIDE BATCH (2026-06-13): 2257/5401 FULL** (78% of factory-passing), mass-written + db-refreshed; Zaks ear-test passed. Pipeline complete: dataflow-operand extract + path-resolved patterns → OUR composer engine → xa65, factory `dmc_v4_config` + wide runner `tools/dmc_family_batch.py`. Solved this run: gate-mask/dual-phase/$D417 leftovers as priming, loop-to-target variant, per-tune freq tables, idle wave program, off-table window, 16-bit pattern ptr. NEXT (RE_NOTES.md residue): relocation classes (~1800, FC-reloc-factory analogue) → other sub-builds → family 2 (2889) → V5.
 
 - [Commando — no drum engine](project_commando_no_drum_engine.md) — "the drum" is inst 4 played off the end of the freq table; the drum sub-engine never runs in subtune 0
 - [Chimera pipeline](project_chimera.md) — PSID rebuild (no KERNAL); music frame-exact + digi cycle-strict. Drove the digi pipeline + USF v2 + the no-verbatim-engine-bytes refactor. Includes the C64 banking gotcha that surfaced during the $B093 player_base shrink.
