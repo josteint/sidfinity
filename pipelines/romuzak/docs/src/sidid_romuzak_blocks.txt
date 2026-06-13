@@ -1,0 +1,76 @@
+---
+source_url: https://raw.githubusercontent.com/cadaver/sidid/master/sidid.cfg
+fetched_via: direct
+fetch_date: 2026-06-13
+author: cadaver (Lasse Öörni) + community contributors
+content_date: living file (latest commit as of 2026-06-13)
+reliability: primary
+---
+
+# Exact RoMuzak signature blocks from cadaver/sidid sidid.cfg
+
+## Block 1: RoMuzak_V6.x
+
+```
+RoMuzak_V6.x
+C9 ?? F0 ?? 0A 8D ?? ?? 0A 6D ?? ?? AA A0 00
+```
+
+Length: 15 bytes (including 2 ?? wildcards pairs + fixed bytes)
+
+6502 decode:
+  C9 ??       = CMP #imm      (compare A with sentinel — rest/tie value)
+  F0 ??       = BEQ rel       (branch if equal)
+  0A          = ASL A         (shift left 1 — note ×2)
+  8D ?? ??    = STA abs       (store to scratch)
+  0A          = ASL A         (shift left 1 more — note ×4)
+  6D ?? ??    = ADC abs       (add scratch — net effect: note×2 + note×4 = note×6? or note×2+base)
+  AA          = TAX           (index → X)
+  A0 00       = LDY #$00      (voice Y-offset = 0, first voice)
+
+## Block 2: RoMuzak_V7.x
+
+```
+RoMuzak_V7.x
+C9 ?? F0 ?? 48 29 07 0A 8D ?? ?? 0A 6D ?? ?? AA A0
+```
+
+Length: 17 bytes
+
+6502 decode:
+  C9 ??       = CMP #imm      (same sentinel check)
+  F0 ??       = BEQ rel       (branch if sentinel)
+  48          = PHA           (push A to stack — save full note byte)  [NEW in V7]
+  29 07       = AND #$07      (mask to low 3 bits)                     [NEW in V7]
+  0A          = ASL A         (same multiply sequence as V6 from here)
+  8D ?? ??    = STA abs
+  0A          = ASL A
+  6D ?? ??    = ADC abs
+  AA          = TAX
+  A0          = LDY #imm      (next byte not captured in pattern — probably #$00)
+
+V6 vs V7 difference: V7 adds PHA + AND #$07 between the branch and the multiply.
+  - V6: uses the raw note byte as frequency index
+  - V7: masks note byte to 3 bits before multiply (note encoding changed)
+    Likely: upper bits of note byte repurposed for octave or effect flags in V7
+
+## Source metadata from sidid.nfo
+
+RoMuzak_V6.x:
+  NAME:      RoMuzak_V6.x
+  AUTHOR:    Oliver Blasnik (ROM)
+  RELEASED:  1989 Digital Marketing
+  REFERENCE: https://csdb.dk/release/?id=17814
+  COMMENT:   (none)
+
+RoMuzak_V7.x:
+  NAME:      RoMuzak_V7.x
+  AUTHOR:    Oliver Blasnik (ROM)
+  RELEASED:  (not in nfo; CSDb gives 1990-03-15)
+  REFERENCE: https://csdb.dk/release/?id=17819
+  COMMENT:   (none)
+
+## Cross-reference: WilfredC64/player-id (config/sidid.cfg)
+
+Confirmed: same two entries with identical byte patterns.
+Source: https://github.com/WilfredC64/player-id (config/ directory, Rust rewrite)

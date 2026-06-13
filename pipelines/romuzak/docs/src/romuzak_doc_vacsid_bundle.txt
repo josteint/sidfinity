@@ -1,0 +1,582 @@
+---
+source_url: http://csdb.dk/getinternalfile.php/36832/vacsid.zip :: ROMUZAK.DOC
+fetched_via: curl (zip download) + unzip -p
+fetch_date: 2026-06-14
+author: Oliver Blasnik (ROM/Vacuum), 1996
+content_date: 1996-03-31 (VacSID Mekka Pre-Release; covers RoMuzak V6.2 + V7.9x)
+reliability: primary
+---
+
+ROMUZAK Doc's
+
+MEKKA PRE-RELEASE
+DISCLAIMER
+       VACUUM btw. the authors are not responsible for any
+       possible damage while using this software.
+This Textfile contains the GERMAN documentation of RoMuzak V6.x and the
+            additional documentation file of version 7.9x.
+ROMUZAK Version 6.2
+ROMED   Version 2.0
+-------------------
+(c)opyright by Lazer Cybernetics/
+              Digital Marketing
+(w)ritten   by Oliver Blasnik '89
+(p)roduced  by Digital Marketing
+-------------------
+Bei diesem Produkt handelt es sich um einen komfortablen Musik-Editor. Die
+erstellten Musikstuecke koennen problemlos in eigene Programme eingebunden
+werden, sowohl in Assembler als auch in Basic.
+Damit Umsteigern vom Future Composer die Sache nicht so schwer faellt,
+sind die Tastenfunktionen bzw. Soundbefehle teilweise uebernommen worden.
+Anleitung:
+----------
+Nach dem Start des Programmes werden 3 rechteckige Ausschnitte angezeigt,
+die sogenannten TRACKS. Ein Track entspricht einer Stimme des Soundchip
+im 64er/ 128er. Dieser verweist auf bestimmte Sectoren, in denen die tat-
+saechlichen Musikinformationen abgelegt sind (Pattern/ Sector-Technik).
+Die hexadezimalen Zahlen in einem Track koennen je nach Wertebereich ver-
+schiedene Auswirkungen haben. Dazu jedoch spaeter.
+Mit der Leertaste gelangt man in die Pull-down-Menues. Ein zweiter Druck
+schaltet diese wieder aus (aber das wollen wir ja nicht, oder???).
+Ist eines dieser Menues aufgeklappt, so kann man mit den Cursortasten
+hoch/ runter einen Punkt in einem Menue selektieren und per Return an-
+waehlen. Mit den Cursortasten links/ rechts gelangt man in die verschie-
+denen Menues. Es gibt insgesamt 5 Stueck, deren Bedeutung nun erlaeutert
+wird:
+PROJECT
+-------
+Dieses Menue enthaelt die Funktionen zum anhoeren der Musik, ggf. auch
+zum loeschen einer Melodie oder des gesamten Speichers. Ebenso sind
+hier die Diskettenfunktionen aufgefuehrt:
+ TUNE xx :  mit diesem Punkt kann man zwischen den 8 moeglichen Melodien
+            innerhalb eines Musikprogrammes waehlen.
+ PLAY    :  Startet die Musik neu. Es kann auch die F1-Taste benutzt werden.
+ STOP    :  erklaert sich wohl von selbst. Statt STOP kann auch F3 ge-
+            drueckt werden.
+ CONTINUE:  nach Anhalten der Musik ist ein weiterspielen ab der aktuellen
+            Stelle moeglich (F5-Taste).
+ FAST
+ FORWARD :  Mit der F7-Taste kann man die Musik schneller laufen lassen.
+ DELETE TUNE: loescht die aktuelle Melodie (00-07)
+ DELETE ALL : loescht alle Melodien und Sectoren im Speicher. Nur die
+              Sound-definitionen (s.u.) bleiben erhalten.
+ LOAD ALL:  Damit kann man eine Musik (8 Melodien) von Diskette laden.
+            Gibt man statt dem Filenamen ein $ ein, wird das Directory ge-
+            listet.
+ SAVE ALL:  Speichert alle Melodien im Speicher auf Diskette ab. Auch hier
+            kann $ fuer das Directory eingegeben werden.
+ DIRECTORY: Zeigt das Directory an. Die Ausgabe kann mit SHIFT angehalten
+            werden.
+ DOS COMAND:Es kann ein Floppy-Befehl eingegeben werden (z.B. Formatieren).
+ INFO:      Zeigt eine kurze Info an.
+TRACK
+-----
+Hier sind die Befehle aufgelistet, um eine Spur (TRACK) zu editieren:
+ EDIT TRACK 1 bis
+ EDIT TRACK 3 springen in die Tracks und man kann dort die Werte eingeben.
+              Der Cursor wird mit den Cursortasten, RETURN und HOME ge-
+              steuert. Werte werden mit den Tasten 0-9 sowie A-F eingegeben.
+              Zu beachten ist die hexadezimale Zahlendarstellung, die im
+              gesamten Programm benutzt wird.
+              Mit den Tasten DELETE und INSERT kann man ein Byte loeschen
+              bzw. um eines einruecken.
+              Die Zahlenwerte werden spaeter aufgelistet. Um in einen Sector
+              zu kommen, auf dessen Zahl man gerade steht, kann man SHIFT&
+              RETURN druecken. Zum TRACK gelangt man durch ein zweites SHIFT&
+              RETURN. Zwischen den drei TRACKS kann man auch mit CTRL& 1,2
+              bzw. 3 wechseln.
+ COPY 1>2
+ COPY 2>3
+ COPY 3>1     kopiert Tracks in andere hinein.
+ EXCH 1/2
+ EXCH 2/3
+ EXCH 3/1     vertauscht Tracks miteinander.
+SECTORS
+-------
+Es gibt insgesamt $40 (dez: 64) Sectoren, die Musikdaten enthalten koennen.
+Zum Editieren sind folgende Menuepunkte enthalten:
+ SECT xx     Zeigt den aktuellen Sector an. Waehlt man diesen Punkt an, so
+             kann man einen anderen Sector anwaehlen.
+ EDIT        Damit kann der aktuelle Sector editiert werden. Gueltig sind
+             die Cursortasten sowie '@', um den angezeigten Sector in einen
+             Zwischenspeicher zu kopieren, '[' und '&' um den Zwischen-
+             speicher an das Ende des angezeigten Sectors zu kopieren,
+             RETURN um eine Aenderung zu bestaetigen und SHIFT&RETURN, um
+             die Editierung zu beenden.
+ COPY        Kopiert den aktuellen Sector in einen anderen.
+ DELETE      Loescht den aktuellen Sector. Wenn der Sector 00 geloescht
+             werden soll, enthaelt er den Befehl PSE.20 .
+ EXCHANGE    Vertauscht den aktuellen Sector mit einem anderen.
+ GET SECTOR  kopiert den aktuellen Sector in den Zwischenspeicher
+ PUT SECTOR  kopiert den Zwischenspeicher an das Ende des aktuellen Sectors.
+(endlich schluss mit den aktuellen Sectors..)
+SOUND
+-----
+Sounds sind die Toene, mit denen eine Note gespielt werde sollen. Um diese
+zu editieren, ist der Befehl
+ EDIT        zustaendig (s.u.)
+ SET FILTER  fragt nach zwei neuen Werten, mit denen der SID-Filter ge-
+             steuert werden soll (s.u.)
+ SET SPEED   fragt nach der Geschwindigkeit der Musik. Normal ist 01.
+             Es koennen Werte zwischen 00 (sehr schnell, DUR.20 entspricht
+             etwa 0.6 Sekunden) und 07 (langsam, DUR.20 sind etwa 4.8 sek.)
+             eingegeben werden.
+EXTRAS
+------
+Dort sind weitere wichtige Funktionen enthalten:
+ EQUALIZER   Es wird eine Ausgabe eines GraphicEqualizers simuliert. Ausserdem
+             sind dort Anzeigen fuer: aktuelles Trackbyte 1-3, akt. Sector-
+             byte 1-3, akt. Soundnummer 1-3, Zeit seit Start der Musik. Aus
+             dieser Darstellung kommt man wieder mit RETURN.
+ CONVERTER:  Drei Converter erlauben es, Musikstuecke aus SOUNDMONITOR,
+             FUTURE COMPOSER 0.18 und der alten RoMuzak-Routine ab 3.2 in das
+             RoMuzak-Format 6.2 zu wandeln.
+    CVN Soundmon unterstuetzt keine Arpeggios und wandelt die Sounds nicht um.
+    Das war nicht moeglich zu integrieren, da der Soundmonitor 24 Bytes fuer
+    eine Soundbestimmung benutzt, RoMuzak jedoch nur 8. Die Geschwindigkeit
+    der Musik muss ggf. mit SET SPEED angeglichen werden.
+    CVN Future Composer wandelt Tracks und Sectoren zu 100%, Sounds zu 90%.
+    Arpeggios werden als Echo-Effekte umgewandelt. Das Pulse-Vibrato muss
+    neu gestimmt werden. Ggf. muessen die Drums neu editiert werden.
+    CVN RoMuzak wandelt Tracks und Sectoren zu 100%, Sounds zu 95%. Drums
+    muessen neu editiert werden, ebenso Arpeggios.
+ MEMORY MOVER   verschiebt ein fertiges Musikstueck des RoMuzak in einen an-
+                deren Speicherbereich. Es koennen Adressen zwischen $0400
+                und $f000 angegeben werden. Andere sind nicht unbedingt
+                sinnvoll.
+ ZEROPAGE MOVER verschiebt die benutzten Zeropage-Adressen auf 4 andere.
+                Benutzt sind $f8-$fb. Es koennen Werte zwischen $02 und
+                $fc angegeben werden. Wenn die neuen Adressen nicht zwischen
+                $02-$05 sowie $50-$57 liegen, kann die Musik noch im Editor
+                editiert werden. Andernfalls ist ein Absturz zu riskieren.
+ GREETINGS      sehr wichtig
+ RESET          hoffentlich wird er nie benutzt.....
+NAEHERES:
+=========
+Insgesamt verarbeitet die Musikroutine 8 verschiedene Track-Anzeigen (Melo-
+dien). Sie werden mit der PROJECT/TUNE-Funktion gewaehlt.
+Die Sektoren bleiben jedoch gleich, es kann also in der Melodie 3
+ein Sektor aus 1 gespielt werden etc.
+Die Musik besteht bei diesem System zuerst einmal aus einem Track (je
+Stimme des SID einer). In diesem Track wird auf einen Sektor verwie-
+sen. Dieser enthaelt erst die Notendaten, die dann gespielt werden.
+Im Track kann ausserdem ein TRANSPOSE selektiert werden, d.h. Noten
+im Sektor werden im eine bestimmte Zahl Halbnoten erhoeht. Transponiert
+man z.B. um 12 Halbtoene, so wird der Sektor eine Oktave hoeher ge-
+spielt. Eine aehnliche Funktion bietet der SOUNDTRANSPOSE, nur wirkt
+sich dieser nicht auf die Noten aus, sondern er erhoeht die gespielte
+Soundnummer (das Instrument) um einen bestimmten Wert, der gleiche
+Sektor kann also einfach mit einem anderen als dem angegebenen Sound
+gespielt werden.
+Weiterhin kann im Track kann ein REPEAT angegeben werden, dadurch wird ein
+Sector x-mal wiederholt, bis das naechste Track-Byte abgearbeitet
+wird.
+Werte zwischen $00-$3f werden hell dargestellt (Sprung auf Sectoren),
+alle Sonderbefehle werden dunkel angezeigt.
+Die bisher angesprochenen Funktionen hier im Ueberblick mit Ihrem Wert:
+
+Sektor spielen:    00-3f (hexadezimal!)
+
+Sektor wiederholen: 40-7f
+Der im naechsten Byte angegebene
+Sektor wird 40-xx+1 mal wiederholt.
+
+Noten Transpose:   80-bf
+Die nachfolgenden Noten werden um
+80-xx Halbtoene erhoeht.
+
+Sound Transpose:   c0-fb
+Die nachfolgenden Soundnummern werden
+um den Wert c0-xx erhoeht.
+
+BEISPIEL:
+00: 80 c0 43 01 02 8c 43 01 02 ff
+Setzt zuerst die 2 Transpose zurueck (Werte jeweils 0), spielt dann den
+Sektor 01 viermal und dann den Sektor 02 einmal. Nun wird der Note-
+Transpose auf 12 Halbtoene gesetzt und wieder 01 viermal und dann ein-
+mal 02 gepielt.
+Das Byte ff steht fuer RESTART, d.h. der Track beginnt von vorne.
+Es gibt weitere Track-Bytes:
+ff... startet den EINEN Track neu,
+fe... stoppt das gesamte Stueck,
+fd... startet ALLES neu,
+fc... springt in das im naechsten
+      Byte angegebene Byte und
+      faehrt dann fort:
+Bsp:
+00: 43 01 02 0a fc 03
+Die ersten 3 Bytes wie oben erlaeutert, dann wird 0a gespielt und mit dem
+fc 03-Befehl auf das Byte 03 positioniert und dort forgefahren, d.h. es
+entsteht eine Endlosschleife aus 0a spielen.
+
+Wird ein Wert veraendert, so wird diese Aenderung sofort im Speicher
+getaetigt, es ist nicht erforderlich, RETURN zu druecken.
+
+Bei Cursor hoch/ runter wird zuerst im sichbaren Bereich bewegt, stoesst
+der Cursor an die Grenzen, so scrollt das Window nach oben bzw. unten. Ein
+solches Window besteht aus 21 Zeilen je 12 Bytes (=252 Bytes).
+
+Um einen Sektor zu editieren geht man mit den Cursor auf ein Byte im Track
+und drueckt dort SHIFT&RETURN. Steht man auf einem Feld mit einem Wert
+groesser 3f, so passiert nichts, ist jedoch der Wert kleiner 40, springt
+der Cursor in das Sector-Feld, zeigt einen moeglicherweise schon beste-
+henden Sektor an und bietet dann die Moeglichkeit des Editierens. Zurueck
+zum Track kommt man durch erneutes Druecken auf SHIFT&RETURN.
+
+DEL loescht eine Zeile, INST fuegt eine ein. Durch Ueberschreiben mit den
+neuen Daten und Return werden diese uebernommen und in Grosschrift ange-
+zeigt. Ein Scrollen ist mit den Cursor hoch/runter-Tasten moeglich.
+
+Im Sector koennen folgende Befehle angewandt werden:
+1) Noten:
+Sie starten bei c-0 und enden bei b-7. c-3 bedeutet ein C in der 3. Oktave,
+d#2 waere das Dis in der 2. Oktave.
+
+2) Notenlaengen (Duration):
+Da die Noten mit einer variablen Laenge gespielt werden, ist es noetig, diese
+auch anzugeben. Folgt ein DUR.XX - Befehl, so werden die folgenden Noten mit
+der Laenge XX (Zahl von 01-20 hexadez.) gespielt, bis ein neuer DUR.XX kommt.
+
+3) Soundauswahl (Instrument):
+Es gibt maximal 32 verschiedene Instrumente zur Auswahl. Um diese Zu selek-
+tieren, dient der SND.XX -Befehl. Es wird ab diesem Befehl jede Note mit dem
+Sound XX (Zahl von 00-1f hex.) gespielt, bis ein neuer SND.XX -Befehl dies re-
+vidiert.
+
+4) Ziehen von Noten (Glide):
+Eine Note kann mit dem GLD.XYZ -Befehl von seiner Ursprungsfrequenz hoch-
+bzw. heruntergezogen werden. Dazu sind die Parameter X,Y und Z wichtig:
+X (+ oder -) gibt die Richtung des Glides an, -= runter, +=hoch
+Y (0 bis 7)  gibt die Zeit in DUR/2 an, waehrend der die Notenfrequenz un-
+  veraendert bleibt.
+Z (0-f)      gibt die Geschwindigkeit des Glides an: 0=kein Glide, f=maxi-
+  maler Glide.
+Der Glide muss vor der zu ziehenden Note angegeben werden. Er dauert so lange,
+bis eine neue Note angeschlagen wird. Wenn diese auch mir Glide gespielt wer-
+den soll, so muss erneut vor dieser ein GLD.-Befehl stehen.
+
+5) Autoportamento
+Um von einer Note zur anderen zu Ziehen, ist normalerweise ausprobieren noetig.
+Der APM.XX -Befehl jedoch zieht von der zuletzt gespielten Note bzw. Frequenz
+auf die nachfolgende mit einer Geschwindigkeit von XX (00=kein APM, 1f=
+maximaler APM). Wurde die Notenfrequenz erreicht, so schaltet sich APM ab.
+Der Vorteil dieser Funktion liegt bei der automatischen Berechnung der GLD.-
+parameter, die sonst noetig waeren.
+
+6) Continue
+Da eine Note maximal 20 Zeiteinheiten lang sein kann, ist mit dem CONT-Befehl
+eine Verlaengerung der letzten Note moeglich. Sie bekommt keinen neuen
+Anschlag sondern wird einfach in der akuellen DUR fortgesetzt. Um z.B. eine
+c-3 45 Einheiten lang zu spielen, waere folgendes noetig:
+DUR.20  (20 Einheiten)
+C-3     (Note)
+CONT    (+20)
+DUR.05
+CONT    (+5)
+
+7) Pause
+Um eine Pause zu spielen wird PSE.XX angewandt. XX ist ein Dur-Wert zwischen
+01 und 20, wenn XX=01, dann wird eine Pause in der aktuellen DUR gespielt.
+
+Sounds Editieren:
+-----------------
+Dies ist wohl der komplizierteste Teil im Editor. Damit moeglichst viele ver-
+schiedene Sounds implementiert werden koennen, wurde innerhalb der 8 Bytes,
+die einen Sound beschreibt, reichlich 'gequetscht'.
+
+Ich gehe davon aus, das die Bedeutung von Wellenform, Huellkurve, Tastver-
+haeltnis und Filter geklaert ist, wenn nicht, sehen Sie noch einmal im Hand-
+buch nach.
+
+Soundbytes:
+B0: Die erste Ziffer gibt das LowByte*16 des Tastverhaeltnisses
+    an, die zweite Ziffer das HiByte. Wenn SEEK gewaehlt wurde, steht
+    in diesem Byte der SEEK-Wert von 00-ff.
+B1: Dieses Byte ist gleich dem Wellenformregister (sid+4) im SID.
+B2: Die erste Ziffer gibt Attack der Huellkurve an, die zweite Decay.
+B3: s.o., nur Sustain und Release.
+B4: a) Drum-Type  (siehe B7)
+    b) Echo-Value (siehe B7)
+    c) SoundChange(siehe B7)
+B5: Frequenz-Vibrato
+    a) Wie FUTURE COMPOSER, d.h. die Bits 6-3 geben die Geschwindig-
+       keit an und die Bits 2-0 die Einschnittstaerke in die Fre-
+       quenz.
+    b) Die erste Ziffer gibt die Staerke an, die zweite die Ge-
+       schwindigkeit.
+       (Auswahl: siehe B7)
+B6: a) Tastverhaeltnis-Vibrato
+       Die erste Ziffer gibt die Staerke an, die zweite die Ge-
+       schwindigkeit.
+    b) CH80-Frequenz
+       Wenn CH80 gewaehlt wurde, so gibt dieses Byte die Frequenz
+       des Rauschgenerators an.
+       (siehe B7)
+    c) Wenn eine Frequence-Drum gewaehlt ist, so wird hier die Freq.
+       angegeben (siehe B7).
+B7: DAS Byte ueberhaupt. Hier erfolgt die gesamte Effektsteuerung.
+ Bit0 (01): Schaltet um auf Drum. Wird dieser Sound gewaehlt, so
+            wird eine Drum (Nummer zw. 0-7 in B4) gespielt.
+            Ist zusaetzlich Bit3 gesetzt, so wird die Drum nicht
+            in der Frequenz der Note gespielt, sondern in der in
+            B6 angegebenen Frequenz.
+            Wenn zusaetzlich Bit6 gesetzt ist, so entsteht eine
+            Echo-Drum, d.h. nach ablauf einer Drum wird dieselbe
+            nocheinmal gestartet, jedoch leiser. Dabei ist auf den
+            Release-Wert (B3) zu achten, er sollte hoeher als 0a sein.
+ Bit1 (02): Ein Arpeggio wird ausgewaehlt: Die aktuelle Note
+            wird um die in den naechsten Soundzeile angegebenen
+            Halbnoten erhoeht. Sind alle Bytes angegeben, so
+            setzt der Wert ff wieder auf das erste Arpeggio-
+            Byte.
+ Bit2 (04)  Echo: Eine Note wird zyklisch mit einer anderen
+            abgewechselt. Die Geschwindigkeit dieses Wechsels
+            wird in B4 mit der ersten Ziffer bestimmt, die zweite
+            Ziffer gibt die Anzahl der Halbnoeten an, die die 2.
+            Note hoeher liegt als die Grundnote.
+ Bit3 (08)  Schaltet B5: 0=FuComposer
+                         1=Normal
+ Bit4 (10)  SEEK: Das Tastverhaeltnis wird von 0000 aus erhoeht.
+            Der Wert der Erhoehung je DUR steht in B0.
+ Bit5 (20)  Schaltet den Filter dieser Stimme ein. Es sollte je-
+            doch nur eine hoehbare Stimme mit einem Filter-
+            Effekt belegt sein. Die Grundfrequenz sowie den
+            Additionswert koennen mit SOUNDS/EDIT FILTER
+            festgelegt werden. Der erste Wert bestimmt die
+            Grundfreq, der zweite Wert den Addfaktor.
+ Bit6 (40)  Ist dieses Bit auf 1, so schaltet die Wellenform
+            nach 2 Dur um auf $40 (Rechteck).
+ Bit7 (80)  Ist dieses Bit auf 1, so schaltet die Wellenform
+            fuer den ersten DUR auf Rauschen mit hoher Fre-
+            quenz.
+ Bit6&7 (c0) Sind BEIDE Bits auf 1, so wechselt die Wellen-
+            form alle halbe DUR zwischen B1 und Rauschen
+            mit einer in B6 angegebenen Frequenz (CH80).
+ Bit3&4 (0c) Sind BEIDE Bits auf 1, so ist der Soundchange
+            Effekt selektiert. Der Sound wird ganz normal
+            Angeschlagen. Die 1. Ziffer in B4 gibt die DUR
+            an, wielange dieser Sound bleibt. Ist diese
+            Zeit erreicht, wird auf den Sound in der 2.Ziffer
+            von B4 umgeschaltet.
+
+Abspielen der Musik ausserhalb des Editors:
+Laden des Musik-Files (das mit PROJECT/SAVE ALL gespeichrt wurde)
+Basic-Programmierer machen am Anfang Ihres Programmes (1.Zeile) ein:
+POKE56,128:CLR:SYS32774
+Wenn die Musik gestartet werden soll, dann geben Sie ein:
+POKE 780,Nummer der Musik:SYS32768
+Soll die Musik abgeschaltet werden:
+POKE 780,255:SYS32768
+Es ist aber sinnvoll, die Musik nach $c000 (49152) zu verlegen (mit dem
+Memory Mover), um keinen Speicher zu vergeuden. Dann sollte folgende
+Routine benutzt werden:
+0 a%=a%+1:ifa%=1then load "name der musik",8,1
+1 sys49158
+Start erfolgt mit: POKE780,  x:SYS49152
+Stop mit         : POKE780,255:SYS49152
+Assembler-Programmierer rufen jede (Raster-)IRQ die Routine $8003 auf.
+Ein Musik-Init erfolgt mit:
+LDA #nr
+JSR $8000
+Abschalten mit:
+LDA #FF
+JSR $8000
+Wenn die Musik im Speicher verschoben wurde, muss das neue High-Byte
+beruecksichtigt werden... (logisch, oder??)
+
+Zu beachten:
+------------
+1)  Es sollte darauf geachtet werde, dass die Musikroutine keinen 'leeren'
+Track/Sector spielt, z.B. wenn kein Trackbyte angegeben ist oder zwar
+welche angegeben sind, aber in den Sectoren befinden sich keine Noten.
+Dann gelangt die Routine in eine Endlosschleife- sie sucht nach Noten,
+bekommt aber keine (der Bildschirm wird rot). Dann kommt der vom Amiga
+bekannte GURU mit Decknamen BACKWAN und bringt die Sache wieder in Ordnung.
+2)  Die Soundtabelle sollte mit 8 mal ff als beendet gekenn-
+zeichnet werden, damit der Editor moeglichst Speichersparend arbeiten
+kann.
+Jeder Track soll mit einem $ff beendet werden, auch wenn z.B. ein $fc xx
+benutzt wurde. Also dann schreiben: .. .. fc xx ff .. .. ..
+Wenn die Endekennzeichnungen nicht benutzt wurden, kann das Musikfile
+insgesamt bis zu 25 Bloecke laenger werden...  Nicht unbedingt positiv..
+Die Normallaenge schwankt zwischen 12 und 15 Bloecken.
+Das waren alle Funktionen der Musik-Routine ROMUZAK Version 6.2.
+
+ Zusaetzliche Hinweise zum folgenden Text:
+-----------------------------------------
+ Die RoMuzak V7.96 behinhaltet ausser den unten genannten Features noch
+ folgende Befehle:
+ EXTRAS: NOTATION H/B
+ --------------------
+  Hiermit kann zwischen den zwei gelaeufigen Noten-Notationen fuer die
+  letzte Note einer Oktave geawehlt werden: H- oder B-.
+ SECTOREDIT:
+ -----------
+ folgende neue Befehle:
+  SRV.xx   stellt den Sustain- und Releasewert des aktuellen Sounds neu
+           ein. SRV.00= Wert aus der Soundtabelle. Dadurch koennen Echo-
+           und Ein/Ausblend-Effekte programmiert werden.
+  OCT.xy   Gibt die Startnote eines Sounds an:
+           y: 1-7= zu spielende Note    + y
+           y: 9-f= zu spielende Note +8 - y
+           X gibt die Zeitspanne an, in der die zu spielende Note erreicht
+            werden soll:
+           x: 0-7= nach x Dur's wird direkt umgeschaltet
+           x: 8-f= Glidewert: 8=langsam/ f=schnell
+Sonstiges
+---------
+* Der Fehler, dass manchmal bei Neustart der Musik durch $8003 die Routine
+  falsch laeuft, ist behoben.
+* LIVEPLAY ist in Arbeit, es gibt aber Probleme, die zu meistern sind...
+* Die DUR-Anzeige im Sector-Edit stimmt nicht, wenn Sectorblockbefehle (:xx
+  und .) benutzt werden. Das wird auch noch gemacht.
+* Mit auf der Disk ein Zeropage& Memorymover. Es koennen zwar nur V7.96-
+  Muzaks bearbeitet werden, dafuer akzeptiert das Programm auch schon
+  Memory- bzw. Zeropage-geMOVEDte Stuecke, die sooft wie man will ver-
+  schoben werden koennen. SAVE speichert z.Zt. noch ein Byte zuviel ab,
+  aber das wird alles noch. Nach SAVE kommt automatisch ein RESET. Warum?
+  Hm. Wer weiss, warum ich das gemacht habe.
+--------------------------------------------------------------------
+ Erlauterungen zum neuen RoMuzak V7.94 im Vergleich zur alten V6.3
+--------------------------------------------------------------------
+     RoMuzak V7.9x Features:
+     -----------------------
+  * FNR (Filter Noise Reduction)     : Kein Filterknacken bei Ein/Ausschalten
+  * ISR (In Sector Repeat)           : Repeat von Sectorteilen
+  * ISG (In Sector Goto)             : Direkter Sprung in anderen Sektor
+  * XSCS (Extended Sector Comandset) : 21 neue Sectorbefehle
+  * PBSE (Power Block Sector Editor) : Blockbefehle usw.
+  * XDSE (Extended Drumset Editor)   : Drums 08-0f Editierbar
+  * IRS (Intelligent Remark System)  : REM's im Sector moeglich
+  * SIMPLEX MODE                     : Einzelnes Abspielen der Stimmen
+  * XDXS (Ext. Data Exchange System) : LOAD&SAVE stark erweitert
+  * ILS (Intelligent Loading System) : LOAD ALL laedt auch alte RMZ's
+     Hier alles einzeln:
+     -------------------
+FNR  Wenn z. B. ein Filterbass + Drums ohne Filter in einer Stimme sind, gab
+     es bei der alten RMZ und anderen Musikroutinen ein Filterknacken. Dieses
+     wird durch FNR weitgehend unterdrueckt. FNR ist nicht abschaltbar.
+ISR  21 neue Sectorbefehle erlauben ein besonders komfortables Editieren von
+ISG  Musikstuecken und einen Klang, der an die Grenzen des SID stoesst. Ro-
+XSCS Muzak muss sich nicht mehr hinter Routinen wie z.B. die von Maniacs ver-
+IRS  stecken (der Mix "Tel It!" ist doch wohl Beispiel genug.)
+     Hier die Befehle:
+ VDL.xx  VIBRATODELAY
+         Verzoegert den Start des Vibratos um xx Zyklen.
+ ARP.xx  ARPEGGIO SELECT
+         Waehlt das zu spielende Arpeggio aus, wenn eine ARP-Stimme aktiv ist.
+         xx<20: Zeiger auf eine Arpeggio-Zeile in der Soundtabelle
+         xx>1F: Arpeggio-Wert (z.B. spielt ARP.37 ein $00 $03 $07)
+         Nach einen SND.xx-Befehl wird der im SOUND eingestellte Arp. gespielt.
+ REL.xx  RELEASE
+         Gibt an, nach wieviel Zyklen RELEASE eingeleitet wird.
+ ARL.xx  AUTORELEASE
+         noch nicht implementiert.
+ PNT.xx  PULLNOTES
+         Aehnlich wie APM. Nach dem PNT.xx kommen zwei Noten. Die erste gibt
+         die Startfrequenz an. Die Zweite Note gibt die Endfrequenz an. xx
+         ist die Geschwindigkeit von 00-1F (spaeter vielleicht bis FF).
+ ECH.xx  ECHO
+         Nach diesem Befehl wird zu jeder Note der Sustain-Wert des Sounds
+         um xx erhoeht. Werden nun schnell Noten gespielt, ergibt dies einen
+         Echo-Effekt. Danke an M. Schneider (X-Ample Architectures) !
+ ASS.xx  ARPEGGIOSPEED SELECT
+         Hiermit kann die Geschwindigkeit eines Arpeggios angegeben werden.
+ HGD.xx  HIGLIDE
+         Erhoeht staendig das High-Byte des Frequenzregisters um xx. Dieser
+         Effekt muss mit HGD.00 abgeschaltet werden.
+ PSW.xy  PULSESWEEP
+         Glide des Pulsewertes nach x in Speed y.
+         (Noch nicht so gut gemacht. Aendert sich noch, vielleicht so wie
+         der Filter.)
+ FDR.xx  FADER
+         Leiser/Lauterwerden der Musik. Bit7=0: FadeIn/ Bit7=1: FadeOut.
+         Geschwindigkeit in Bit 0-6. Wird Eingefaded, zuvor Lautstaerke auf 0.
+ VOL.xy  VOLUME
+         Setzt Lautstaerke y und Filterwert x. (Siehe D418)
+ FST.xx  FILTERSTART
+         Stellt den FilterFX-Startwert ein.
+ FAD.xx  FILTERADD
+         Stellt den FilterFX-Addwert ein.
+ FSW.xx  FILTERSWEEP
+         Startet einen FilterSweep von FST nach xx mit Speed FAD.
+         Dort angekommen, stoppt der Sweep. Solange xx<>0 ist, wird
+         bei einer Note D416 nicht zurueckgesetzt.
+ LCY.xx  LOOPCYCLES
+         Ist ein FilterFX (kein Sweep) eingeschaltet, kann mit dem Wert xx
+         a) die Richtung angegeben werden (Bit7) : 00 = down/ 80=up
+         b) die Anzahl der Richtungsaenderungen angegeben werden.
+         Beispiel: LCY.00= Der Filter geht von FST nach 00 mit Speed FAD
+                           und stoppt dann.
+                   LCY.01= Der Filter geht von FST nach 00 nach FST mit Spd FAD
+                           und stoppt dann.
+                   LCY.80= Der Filter geht von FST nach FF mit Speed FAD
+                           und stoppt dann.
+ SPD.xx  SPEED
+         Setzt die Geschwindigkeit der Musik.
+ RES.xx  RESET
+         Setzt alle internen Sonderbefehl-Parameter zurueck.
+ :xx     LOOPSTART
+ .       LOOPEND
+         Wiederholt alle Daten zwischen :xx und . xx mal.
+ GOTOxx  GOTO SECTOR
+         Springt nach Byte 00 des Sectors xx.
+ ->text  REMARK
+         Hinter dem Pfeil kann ein beliebiger Text angegeben werden.
+SIMPLEX
+     Die Stimmen der Musik koennen einzeln abgespielt werden:
+     a) Im Editor existiert der Menuepunkt PROJECT/SIMPLEX 00
+        dort koennen die zu spielenden Stimmen selektiert werden. Der Hex-
+        wert nach SIMPLEX im Pulldown-Menue gibt den SIMPLEX-Wert an.
+     b) Extern wird SIMPLEX ueber die Musik-Init gesteuert. Das High-Nibble
+        Der Musik-Nummer bei der Init muss den SIMPLEX-Wert enthalten.
+XDXS Neue LOAD/SAVES und eine intelligente LOAD ALL wurden eingebaut:
+ILS  PROJECT/LOAD konvertiert automatisch die Musik in die aktuelle Routine.
+     Somit koennen direkt RMZ6.3-Stuecke eingeladen werden.
+     Weitere Load/Saves sind mit CTRL&W (WRITE=SAVE) und CTRL&R (READ=LOAD)
+     erreichbar im:
+       TRACK       fuer das DATA-FILE.
+       SECTOR      fuer Sectordaten (siehe dort)
+       SOUNDEDITOR fuer das SOUNDSET
+       DRUMEDITOR  fuer das DRUMSET
+XDSE Ein Drumeditor (SOUND/EDIT DRUM) wurde implementiert. Editierbar sind
+     nun die Drums 08 bis 0F. Jede Drum besteht aus 2 Zeilen mit je 16 Zyklen.
+     In der ersten Zeile stehen die Wellenformen, eine $FF kennzeichnet das
+     Drum-Ende. In der zweiten Zeile stehen die Frequenzen. Eine Drum wird
+     von Byte 00 bis Byte 0F durchgearbeitet.
+     Aus dem Editor kommt man mit SHIFT&RETURN.
+PBSE Ein neuer Sectoreditor: Der Aufbau des Fensters:
+     Die erste Zeile enthaelt Daten ueber: Freie Bytes im Sector/ Sectornummer/
+     Laenge des Sectors in DUR's.
+     In jeder weiteren Zeile des Sectors stehen links der Bytewert (vergleich-
+     bar mit einer Zeilennummer) und rechts die Laenge des Sectors in DUR's bis
+     dahin.
+     Folgende neue Tastenfunktionen sind erreichbar:
+     COMMODORE +/- = Sectornummer +1 bzw. -1
+     SHIFT +/-     = Scrollen des Sectors. Abbruch mit Tastendruck.
+     CTRL&B        = Beginn des Block markieren
+     CTRL&E        = Ende des Block markieren
+     CTRL&@ (copy) = Block in der Buffer uebernehmen
+     CTRL&D        = Block loeschen
+     CTRL&C        = Block an Cursorposition kopieren
+     CTRL&'['      = Buffer an Cursorposition kopieren
+     @             = Ganzen Sector als Block markieren und in Buffer kopieren
+     '['           = Buffer an Ende des Sectors kopieren.
+     CTRL&Z        = Alle REM's im Sector loeschen
+     CTRL&W        = Ganzen Sector speichern
+     CTRL&R        = Sectordaten in den Buffer einladen
+     CLRHOME       = Gesamten Sector loeschen
+NEUE SOUNDBEFEHLE IM SOUNDEDITOR
+     FX06 = 1-Line-Arpeggio: In DX steht das Arpeggio.
+     FX02 = In DX steht die Arpeggio-Geschwindigkeit
+     FX41 +
+     FX49 = Im Hi-Nibble von DX steht der Echo-Wert. Ist er 0 oder groesser
+            als die Anzahl der Drumbytes, spielt die Drum nur einmal.
+     DRUM = Im Hi-Nibble von PL kann eine Soundnummer angegeben werden. Ist
+            sie 1-F, wird nach dem abspielen der Drum dieser Sound gespielt.
+SONSTIGES:
+NEU: SID-Reset bei Musik-Init
+NEU: EXTRAS/KILL REMARK loescht alle REM's in allen Sectoren
+NEU: OUT OF MEMORY statt Absturz bei MusikSaven.
+NEU: Maskiertes Directory beim Filenamen-Eingeben.
+NEU: Blinken des Cursors bzw. Balkens in den Windows.

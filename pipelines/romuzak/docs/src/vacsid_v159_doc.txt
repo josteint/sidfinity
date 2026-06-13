@@ -1,0 +1,121 @@
+---
+source_url: http://sta.c64.org/dosprg/vsid159.zip (VACSID.DOC extracted from ZIP archive)
+fetched_via: direct WebFetch of ZIP, text extracted via unzip + strings
+fetch_date: 2026-06-13
+author: Oliver Blasnik (R0M)
+content_date: 1997-10-19
+reliability: primary
+---
+
+
+                VacSid
+    
+    
+          Player    Version 1.59 Release 1
+   SiD    Selector  Version 3.12 Release 1
+    
+    
+        the ultimate SiD-Player
+        ( This is the same as VACSiD 1.58 but another DOS-Extender )
+        ( There were Problems running VACSiD on serveral PCs, so   )
+        ( I'd dun a quick hack and exchanged the DPMI-Extender.    )
+ DISCLAIMER
+        VACUUM, SANCTION btw. the author are not responsible for any
+        possible damage while using this software.
+ CONTENTS
+        This VacSiD archive comes with following files:
+        VACSID.EXE      The ultimate Player
+        VACSID.INI      Wind0ws-alike Configuration-File
+        VACSID.DOC      What you are reading just now
+        FILE_ID.DIZ     BBS-Description
+        DPMI16BI.OVL    Borland(tm) DPMI system
+	RTM.EXE         Borland(tm) DPMI system
+        As far as this files are unchanged this archive could be
+        spread for _non-commercial_ purposes. For commercial use
+        please read "Contacting" below.
+ FEATURES - HARDWARE C64
+        VacSiD is able to emulate the C64-soundchip, processor and
+        related hardware for playing 64-tunes on standard PC with
+        a Soundblaster(tm), Gravis Ultrasound(tm) or AMD Interwave(tm)
+        soundcard (PAS16 removed at the moment).
+        SiD (MOS6581)
+                - 3 FM-Voices, _completly_ emulated
+                - Real white noise, no samples
+                - 1 Digi-Channel, controlled through PlaySid-Registers
+                  _and_ unpatched NMI-Songs using CIA#2/Volume Registers
+                - Analoge filter emulation (not 100%)
+                - 2nd SiD switchable at D420 (aka "stereo-sid")
+        CPU (MOS6510)
+                - Full bankswitching emulated (64k RAM/20k ROM)
+                - All legal OP-Codes
+                - Partitially illegal OP-Codes
+                - Partitially decimal arithmetics
+                - NMI and IRQ available
+        CIA (MOS6526)
+                - CIA#1 and CIA#2 interrupt counters
+                - Interrupt lines connected to 6510-IRQ and 6510-NMI
+        VIC (MOS6567)
+                - D012/D011 available for "random" numbers
+                - Scanline-IRQ available
+        MEMORY
+                - 64k Host RAM Memory
+                - ROMs: BASIC, KERNAL, CHAR
+                - 2 single, independent RAM Banks at DE00 and DF00
+                - 1k*4 color-RAM at D800
+ FEATURES - HARDWARE PC
+        Following Soundcards are supported:
+                - SoundBlaster (tm)             : Mono  , up to 22kHz
+                - SoundBlaster Pro (tm)         : Mono  , up to 44kHz
+                - SoundBlaster 16 (tm)          : Stereo, up to 44kHz
+		- Gravis UltraSound		: Stereo, up to 44kHz
+		- AMD Interwave (GUS IW)	: Stereo, up to 64kHz
+		- Pro Audio Spectrum 16		: Stereo, up to 44kHz (*)
+                ( * = deleted, will be implemented in later versions again)
+        MINIMUM Requirements:
+                - 486/33 CPU (gives you mono-output at 22kHz)
+                - SB
+        BETTER:
+                - a VESA VLB/PCI VGA Card
+                - 486 2/66 CPU or better
+                - AMD Interwave (width 64kHz)
+        (44khz Stereo SB-Output on a Pentium75 uses approx. 40% CPU-
+         Ressources. So check out!)
+ FEATURES - SOFTWARE
+        VacSiD features:
+                - "Pseudo"- Stereo-Output
+                - Compressor/Limiter
+                - Playlists  
+                - Online-Help
+                - Comfortable File-Selector based on CubicPlayer
+                - SongMessage detection
+                - Highly configurable player
+ FILESELECTOR / MENU
+        Use it like Cubic, btw. check out F1 for Keys-description.
+        Reading RAR & ZIP & ARJ-Archives implemeted, also sub-directorys.
+ COMPATIBILITY
+        VacSiD recognizes following files as "SiD-Files":
+                - DAT with SID (SidPlay PC)
+                - DAT with INF (PlaySid AMIGA)
+                - DAT only (with PlaySid-Header)
+                - DAT only (without song-information) up to 90%
+        "Galway-Noises", which are special samples, are not
+        completely supported. (I don't have any informations about)
+ THANKS (273 times!)
+        Thanks will go to our 
+Testers. They'd done hard work :)
+        VACSiD <V1.00
+        - Tammo Hinrichs, Andreas Mautsch, Ralf Kraus, Gerhard Petruschat,
+          Daniel Schlenzig, Simon Kissel
+        VACSiD >V1.00
+        - some unnamed people
+ CONTACTING
+        For commercial use ASK the authors for an o.k.!
+        The same if you want to use VacSiD on any CD-ROM (there could
+        be an actual version and you probably don't know...)
+        --VACSiD DOES NOT RUN FROM CD-ROM DUE INTERNAL CACHING FILE--
+        If you recover any Bugs (there are quite a lot...) or wanna
+        give up some (positive?) critics, just mail up to:
+           eMail: r0m@tap.de
+           Phone: 06722-971103 [Voice     ]
+           H0ME:  http://homepages.shonline.de/o/Oliver.Blasnik/
+                    A VACUUM/SANCTION RELEASE IN 10/1997                    

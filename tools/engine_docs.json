@@ -165,9 +165,9 @@
     "updated": "2026-06-13"
   },
   "romuzak": {
-    "state": "LITTLE",
-    "notes": "single research.md first-pass overview; research-engine sweep not yet run.",
-    "updated": "2026-06-13"
+    "state": "OK",
+    "notes": "research-player sweep complete (2 waves). No public source/parser, BUT recovered the author's complete editor manual ROMUZAK.DOC (German, V6.2+V7.9x) from the VacSID zip (src/romuzak_doc_vacsid_bundle.txt) = a primary format spec: memory map (init/play/stop @ +0/3/6, ROMUZAK89 string @ +9, inst block @ +$18, 96-entry freq table @ +$A2), FC-V1.0-compatible track byte ranges ($00-BF same as FC + $C0-FB sound-transpose + $FC goto), instrument bytes B0-B7 (B6 PW-vibrato, B7 flag remap vs FC), drum table 2x16+$FF, 21 sector commands (VDL/ARP/REL/ECH/...), zero-page $F8-FB. sidid V6.x/V7.x decoded (V7 adds PHA+AND#7 note packing). FC-conversion mapping cross-ref'd vs local future_composer/docs. By Oliver Blasnik (ROM), Digital Marketing, German scene. OPEN (RE-phase): numeric sector-command dispatch bytes, exact effect register formulas, V7.96 dual-player layout, copyright-validation addr. 591 HVSC tunes (569 V6.x + 22 V7.x).",
+    "updated": "2026-06-14"
   },
   "sidduzzit": {
     "state": "OK",
