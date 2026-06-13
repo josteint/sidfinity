@@ -155,7 +155,20 @@ DUAL-CLOCK PHASE ($1019 leftover → params.slide_phase).
 4. offtable_live + zero-wave-table edge errors (636, mostly correctly
    refused — genuinely live per-voice runtime state; architectural limit).
 5. Partial long tail (275: bucket by first_diff in the jsonl).
-6. Then family 2 (0.732 V4-derived, 2889); V5 line needs sector-encoding RE.
+6. **Family 2 (2889, 0.732 V4-derived) — CHARACTERIZED + SCOPED
+   2026-06-13** (`pipelines/dmc/family2/RE_NOTES.md`, rep Kajun_Klog).
+   SAME V4 engine core (play body \$1085 + all-off \$162F byte-identical;
+   ~85% effect chain matches; freq \$1647/\$16A7; operand SITES at canon
+   addresses) with: (a) RELOCATED tables — instr \$17B0 (canon \$18F0,
+   same 11-byte format), \$D417 shadow \$1034, data tables at family-2
+   addrs; (b) THE BLOCKER — DIFFERENT SECTOR ENCODING: terminator is
+   \$FF not \$7F (sub_11E6 CMP #\$FF), whole command map shifted. Needs:
+   RE the family-2 sector byte map -> family-2 sector decoder (extract
+   only; composer/effects unchanged) + factory variant (init JMP
+   base+\$37, instr base from operand, d417=base+\$34) + carved
+   reference. Tractable, focused sub-migration. Jump-table init offset
+   \$37 is the family-2 detect signature.
+7. V5 line (2181) needs full sector-format RE (separate engine).
 
 ## REGRESSION PORTFOLIO (2026-06-13): generalized + DMC wired
 `tools/select_regression_portfolio.py` made engine-parametric (registry:
