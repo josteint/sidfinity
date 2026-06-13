@@ -122,8 +122,11 @@ def _load(sid_path: str):
     import sys
     sys.path.insert(0, os.path.join(os.path.dirname(__file__),
                                     '..', '..', '..', 'tools'))
+    import struct
     from seed_disassembly import parse_psid
     s = parse_psid(sid_path)
+    raw = open(sid_path, 'rb').read()
+    s['speed'] = struct.unpack('>I', raw[18:22])[0]   # PSID speed bitmask
     mem = bytearray(0x10000)
     for i, b in enumerate(s['payload']):
         if s['load'] + i < 0x10000:
@@ -138,20 +141,39 @@ def _rd16(mem, a):
 def dmc_v4_config(sid_path: str, hvsc_root: str = 'hvsc84') -> DMCV4Config:
     mem, s = _load(os.path.join(hvsc_root, sid_path))
 
-    # ---- base detection: the play vector is always the 2nd jump-table
-    # slot (base + 3), even when a relocated member has a CUSTOM init
-    # wrapper elsewhere (init may point off to a setup routine; play
-    # does not). So base = play - 3. Relocation is extract-only (the
-    # composer always emits at $1000; the writelog is base-independent —
-    # incl. the original's wrapper-init writes, handled by Check A). ----
-    base = s['play'] - 3
-    if not (0 < base) or s['load'] > base or base + 0x8E7 >= 0x10000:
+    # ---- base detection. The canonical jump table is `JMP base+$1D /
+    # JMP base+$85` (init / play handlers). Normally play = base+3, but a
+    # multispeed / CIA wrapper member's play vector points to its own
+    # dispatcher while the real player sits at the LOAD address. So try
+    # play-3 first (clean relocations), then load. Relocation is
+    # extract-only (the composer always emits at $1000; the writelog is
+    # base-independent — the original's wrapper init/play are captured
+    # as-is by the verify, handled by Check A + per-IRQ for CIA). ----
+    def _is_jumptable(b):
+        return (0 < b and s['load'] <= b and b + 0x8E7 < 0x10000
+                and mem[b] == 0x4C and mem[b + 3] == 0x4C
+                and (mem[b + 1] | (mem[b + 2] << 8)) == b + 0x1D
+                and (mem[b + 4] | (mem[b + 5] << 8)) == b + 0x85)
+
+    base = next((b for b in (s['play'] - 3, s['load']) if _is_jumptable(b)),
+                None)
+    if base is None:
+        b = s['play'] - 3
+        reason = ('no_jumptable' if 0 < b and s['load'] <= b
+                  else 'nonstandard_vectors')
         raise DMCV4Unsupported(
-            'nonstandard_vectors',
+            reason,
             f"load=${s['load']:04X} init=${s['init']:04X} play=${s['play']:04X}")
-    if mem[base] != 0x4C or mem[base + 3] != 0x4C:
+    # A wrapper member (play != base+3) drives the canonical player from a
+    # separate dispatcher. When the PSID speed bit is set, that dispatcher
+    # is a CIA-timer multispeed driver (~2-6x): the music plays faster, so
+    # the rebuild must run at the same CIA rate to match the write stream
+    # — a multispeed/CIA feature, not yet built. Bucket it precisely
+    # instead of building a single-speed rebuild that verifies partial.
+    if s['play'] != base + 3 and (s.get('speed', 0) & 1):
         raise DMCV4Unsupported(
-            'no_jumptable', f"base=${base:04X} {mem[base]:02X} {mem[base+3]:02X}")
+            'cia_multispeed',
+            f"play=${s['play']:04X} drives base=${base:04X} via CIA")
     delta = base - 0x1000
 
     def at(canon_addr):                 # canonical $1xxx addr -> mem index
