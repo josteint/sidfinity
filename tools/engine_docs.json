@@ -195,8 +195,8 @@
     "updated": "2026-06-13"
   },
   "soedesoft": {
-    "state": "LITTLE",
-    "notes": "single research.md first-pass overview; research-engine sweep not yet run.",
+    "state": "OK",
+    "notes": "research-player sweep complete (2026-06-13, gather-only/sonnet). CLOSED engine (Jeroen+Michiel Soede, Fire-Eagle, NL 1988-89; no public source). Translated German V3.1 manual gives the song-data model (Song->Block->Step->Bar; sound parts; arp/wave/pulse/filter effects); version taxonomy (V1.0=editor, V3.1 public, V3.2 Fire-Eagle-internal; V2.x gap); census (929, 8 init/play clusters, $6000 V3.1 batch=309, all PSID v2 VBlank). Byte-level layout OPEN -> RE during migration (JC64dis SoundMaster1.dis profile = bootstrap). Cleared to start. See pipelines/soedesoft/docs/README.md.",
     "updated": "2026-06-13"
   },
   "soundmonitor": {

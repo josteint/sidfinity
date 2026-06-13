@@ -1,5 +1,7 @@
 ## SoedeSoft / Soundmaster (950 tunes)
 
+> **⚠ 2026-06-13 — see [`README.md`](README.md)** + `csdb_manual_de.md` (translated German V3.1 manual) + `spec_extraction_plan.md`. Closed engine (no public source); the manual gives the song-data model (Song→Block→Step→Bar; sound parts; effects) but the byte-level layout is **OPEN — RE during migration** (JC64dis ships a `SoundMaster1.dis` profile as a bootstrap). Naming: SoedeSoft (group) = SoedeSound Editor (product) = Soundmaster (scene release) — same software; V1.0 = the editor, V3.1 public / V3.2 Fire-Eagle-internal.
+
 - **Authors:** Jeroen Soede (code/music routine) and Michiel Soede (editor/music), Netherlands
 - **Year:** 1988-1989
 - **Source:** Not public

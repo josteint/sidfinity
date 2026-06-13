@@ -121,7 +121,9 @@ separate Claude session may be editing the same repo concurrently):
   ran `git restore hvsc84.db` on the false premise that its read-only query
   had dirtied the file, reverting another session's live state — see
   `.claude/memory/feedback_subagents_no_git.md`.)
-- **Write ONLY inside `pipelines/<engine>/docs/`.** Do not modify any other
+- **Write ONLY inside `pipelines/<engine>/docs/`, and only ADD new files** —
+  never delete, rename, or overwrite an existing file (especially `research.md`,
+  which is pre-existing context). Do not modify any other
   repo file or `pipelines/<other-engine>/`. Keep useful third-party source
   (player asm, format specs) under `pipelines/<engine>/docs/src/` so it's
   committed and the docs' `file:line` citations don't rot. Put large
