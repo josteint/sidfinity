@@ -135,8 +135,8 @@
     "updated": "2026-06-13"
   },
   "music_assembler": {
-    "state": "LITTLE",
-    "notes": "single research.md overview; research-player sweep IN PROGRESS (2026-06-13) \u2014 will move to OK on completion regardless of yield.",
+    "state": "OK",
+    "notes": "research-player sweep complete (2026-06-13): manual vendored; player entry points + per-frame write model RE'd (two independent traces agree); packed format effectively documented via JC64dis hand-annotation + sidid anchor; variant taxonomy mapped. Cleared to start disassembly. See pipelines/music_assembler/docs/README.md.",
     "updated": "2026-06-13"
   },
   "musicshop": {

@@ -1,0 +1,907 @@
+# provenance:
+#   source_url: https://github.com/ice00/jc64  (doc/example/MusicAssembler.dis)
+#   fetched_via: git clone of ice00/jc64; gzip-decompressed the JC64dis .dis project file;
+#                extracted the printable annotation/label strings (this session, 2026-06-13)
+#   author: Stefano Tognon (Ice Team) — hand-annotated disassembly of MC_01.sid
+#           (tune "MC_01" by Marco Swagerman, 1988 Dutch USA Team), load $5000
+#   content_date: JC64dis project (ongoing); MASM player 1988
+#   reliability: HIGH — author-assigned routine labels + per-write comments, cross-checked
+#                against this session's independent disassembly of OPM/Sid_Slam.sid.
+#   note: raw string dump (labels + comment text, de-duplicated). See spec_player_jc64dis.md
+#         for the structured reading. The "W50xx" tokens in JC64dis are addresses (load $5000).
+# ---------------------------------------------------------------------------
+)/home/ice/hvsids/MUSICIANS/M/MC/MC_01.sid
+PSID file version 2
+Init Address: 5048
+Play Address: 5021
+UPSID
+MUSIC ASSEMBLER player
+-> lo/hi pointers for arpeggio table
+-> the lo/hi pointers for track
+-> Pattern data
+-> Tracks (3, 2, 1) pattern data
+-> arpeggio table
+-> hi/lo pointers for pattern table
+-> preset table
+jsr  initSound
+lda  #<IRQ
+ldy  #>IRQ
+sta  $0314                        ; Vector: Hardware Interrupt (IRQ)
+sty  $0315                        ; Vector: Hardware Interrupt (IRQ)
+stx  $DC0E                        ; Control register A of CIA #1
+stx  $D01A                        ; IRQ mask register
+jsr  PlaySound
+Play sound routine
+playSound
+Use preset voice 1
+Use preset voice 2
+Use preset voice 3
+( AND with FF or FE to release oscillator
+releaseCtrlAnd
+"Song speed (coded into the source)
+reloadVoiceIndex
+nextVoiceDurDelayCheck
+&Note is finished, use instrument again
+Max volume and low pass filter
+Init song
+initSongs
+Select volume and filter mode
+,Filter resonance control/voice input control
+Clear current voice
+Cycle all voices
+loopVoices
+RS-232 output buffer pointer
+Read first sequence in track
+Store sequence to play
+(Store transpose*16 of notes in sequences
+'Store number of repeat for the sequence
+sequenceIndex
+control
+trackIndex
+noteDuration
+sequence
+speedCounter
+Read sequence to play
+Track has finished sequences?
+releaseControl
+useSequence
+Read position in sequence to use
+Notes in 8 octaves
+Extract note duration
+noNote
+FE = oscillator will release
+(index for voice in Sid registers (fixed)
+voiceSidIndex
+noteToPlay
+freqLo
+freqHi
+Preset mark ?
+testPreset
+(Extract note duration (this is a legato)
+vibSpeedCounter
+pulseSpeedCounter
+pulseDir
+transpose
+extractPreset
+index is *8
+outNote
+5Add the transpose (high nibble to move as low nibble)
+Store index
+Note to play
+Reload index
+Re-read last value for sequence
+Slide (portamento) effect?
+readParEffectSlide
+%Read slide (portamento) low frequency
+&Read slide (portamento) high frequency
+arpeggioIndex
+slideLoFreq
+slideHiFreq
+vibratoDelay
+Store current voice
+isFilterEffect
+Extract value of filter velocity
+Read filter frame duration
+stopFilterVoice
+setFilterResCtrl
+$FF=oscillator will release
+setRelease
+End of sequence reached?
+)Repeat again the track as still positive?
+Read track index
+End of track reached?
+Reset track index
+updateTrackIndex
+clearSeqIndex
+updateSeqIndex
+frequencyHi
+Next voice
+useNextPreset
+&Load actual preset to use (already *8)
+usePreset
+Store preset index for later use
+Hold note?
+Reset arpeggio index in table
+Generator 1: Sustain/Release
+Generator 1: Attack/Decay
+Release oscillator
+Voice 1: Control registers
+Load preset index
+Control value
+Pulse value
+currentVoice
+filterCutOff
+filterFrameDur
+resetPulse
+Vibrato delay+speed value
+Force filter low
+Fx + arpeggio value
+Store Fx + arpeggio value
+filtering
+filter cut freq Hi to use
+filterHiPos
+"Subtract 10" by the velocity
+filterVelocity
+Filter cut frequency: hi byte
+Read Fx + arpeggio value
+checkArpeggio
+Arpeggio?
+filterRes
+freqHiCopy
+vibDirectionIndex
+skipArpeggio
+Frequency vibrato?
+Frequency vibrato effect
+makeFreqVibrato
+Load preset index (already *8)
+subVibrato
+Subtract vibrato level
+addVibrato
+Add vibrato level
+checkVibSpeedCounter
+Extract speed from vibrato value
+Reset vibrato speed counter
++Change direction based onto table of values
+checkPulseSlide
+"Pulse level + speed/add byte value
+1Store pulse level + speed/add value for later use
+Pulse slide ?
+Pulse slide effect
+makePulseSlide
+"Read pulse level + speed/add value
+checkPulseVibrato
+Pulse vibrato?
+Pulse vibrato effect
+makePulseVibrato
+addPulse
+Add level + speed/add byte value
+subPulse
+Sub level + speed/add byte value
+!Load level + speed/add byte value
+Extract speed
+Reset speed counter
+Invert pulse direction
+0Voice 1: Wave form pulsation amplitude (hi byte)
+0Voice 1: Wave form pulsation amplitude (lo byte)
+Slide (portamento)?
+3On odd value apply a Rattling slide every tow frame
+rattlingSlide
+addSlide
+$Voice 1: Frequency control (lo byte)
+$Voice 1: Frequency control (hi byte)
+outFreqNote
+actualPreset
+pulseLo
+pulseHi
+freqLoCopy
+Arpeggio effect
+makeArpeggio
+Read waveform for arpeggio
+4Read note offset (absolute or relative) for arpeggio
+Absolute note?
+.Relative note, so add to current note  to play
+Read filter low pass value
+noFilter
+$Read next value of arpeggio sequence
+Stop arpeggio?
+%Restart arpeggio sequence (it was FF)
+stopArpeggio
+goNextArpeggio
+noteArpPos
+frequencyLo
+arpeggioTableLo
+arpeggioTableHi
+trackLow
+trackHi
+Patterns (sequences)
+<1010 xxxx   -> Preset xxxx
+>101x xxxx   -> HOLD Duration xxxxx (legato)
+AA<=0101 0000  -> NOTE
+BB yyyx xxxx -> Duration xxxxx
+010x xxxx -> Hold xxxxx
+001x      -> Slide
+CC      -> slide low freq
+DD      -> slide high freq
+100 xxxx -> Filter
+CC      -> Cut off/speed
+DD      -> Duration effect
+AA>=011x xxxx  -> REST: Duration xxxxx with release
+$FF    End of pattern
+pattern9
+pattern5
+pattern7
+pattern6
+pattern19
+pattern18
+pattern10
+pattern15
+pattern4
+pattern2
+pattern27
+pattern11
+pattern14
+pattern17
+pattern8
+pattern12
+pattern3
+pattern28
+pattern29
+pattern30
+pattern24
+pattern25
+pattern26
+pattern23
+pattern16
+pattern0
+pattern31
+pattern20
+pattern22
+pattern21
+pattern13
+pattern1
+pattern32
+Track format:
+Sequence
+Transpose | Repeat
+FD xx: loop at xx position
+FF: loop
+trackVoice3
+trackVoice2
+trackVoice1
+Arpeggio:
+Wavewform
+Note (relative 00..7F/absolute 80..FF)
+Filter freq to apply
+arpeggio2
+arpeggio4
+arpeggio5
+arpeggio1
+arpeggio6
+arpeggio7
+arpeggio3
+arpeggio8
+arpeggio9
+arpeggio10
+arpeggio11
+arpeggio12
+arpeggio13
+arpeggio14
+patternTableHi
+patternTableLo
+Preset (instrument) format:
+Waveform
+Pulserate
+Pulse level+speed/pulse add byte
+Vibrato delay+speed
+Vibrato level
+FX+Arpeggio:
+0x arpeggio index
+10 frequency vibrato
+20 pulse vibrato
+40 pulse slide
+preset
+.byte "PSID"
+.byte >initSongs, <initSongs
+.byte >playSound, <playSound
+.word $0000                       ; speed
+.word $0000                       ; second and third SID address
+; MUSIC ASSEMBLER player
+; -> lo/hi pointers for arpeggio table
+; -> the lo/hi pointers for track
+; -> Pattern data
+; -> Tracks (3, 2, 1) pattern data
+; -> arpeggio table
+; -> hi/lo pointers for pattern table
+; -> preset table
+;      jsr  initSound
+;      lda  #<IRQ
+;      ldy  #>IRQ
+;      sta  $0314                        ; Vector: Hardware Interrupt (IRQ)
+;      sty  $0315                        ; Vector: Hardware Interrupt (IRQ)
+;      stx  $DC0E                        ; Control register A of CIA #1
+;      stx  $D01A                        ; IRQ mask register
+;IRQ:
+;      jsr  PlaySound
+; Play sound routine
+playSound:
+dec  speedCounter
+bmi  reloadVoiceIndex
+jsr  usePreset                    ; Use preset voice 1
+jsr  useNextPreset                ; Use preset voice 2
+jmp  useNextPreset                ; Use preset voice 3
+releaseCtrlAnd:                         ;  AND with FF or FE to release oscillator
+reloadVoiceIndex:
+lda  #$04                         ; Song speed (coded into the source)
+sta  speedCounter
+jsr  nextVoiceDurDelayCheck
+nextVoiceDurDelayCheck:
+dec  noteDuration,x
+jmp  usePreset                    ; Note is finished, use instrument again
+; Init song
+initSongs:
+lda  #$1F                         ; Max volume and low pass filter
+sta  $D418                        ; Select volume and filter mode
+sta  $D417                        ; Filter resonance control/voice input control
+sta  currentVoice+1               ; Clear current voice
+sta  sequenceIndex,x              ; Clear the area
+ldx  #$02                         ; Cycle all voices
+loopVoices:
+lda  trackLow,x
+lda  trackHi,x
+lda  ($FA),y                      ; Read first sequence in track
+sta  sequence,x                   ; Store sequence to play
+sta  transpose,x                  ; Store transpose*16 of notes in sequences
+sta  repeat,x                     ; Store number of repeat for the sequence
+bpl  loopVoices
+sequenceIndex:
+control:
+trackIndex:
+noteDuration:
+sequence:
+speedCounter:
+ldy  sequence,x                   ; Read sequence to play
+cpy  #$FE                         ; Track has finished sequences?
+bne  useSequence
+releaseControl:
+lda  control,x
+sta  control,x
+useSequence:
+lda  patternTableLo,y
+lda  patternTableHi,y
+ldy  sequenceIndex,x              ; Read position in sequence to use
+bmi  testPreset
+cmp  #$60                         ; Notes in 8 octaves
+bcc  outNote
+noNote:
+and  #$1F                         ; Extract note duration
+sta  noteDuration,x
+lda  #$FE                         ; FE = oscillator will release
+sta  releaseCtrlAnd,x
+jsr  releaseControl
+voiceSidIndex:                          ; index for voice in Sid registers (fixed)
+noteToPlay:
+freqLo:
+freqHi:
+testPreset:
+cmp  #$A0                         ; Preset mark ?
+bcc  extractPreset
+and  #$1F                         ; Extract note duration (this is a legato)
+vibSpeedCounter:
+pulseSpeedCounter:
+pulseDir:
+transpose:
+extractPreset:
+asl                               ; index is *8
+sta  actualPreset,x
+bcs  noNote
+outNote:
+lda  transpose,x                  ; Add the transpose (high nibble to move as low nibble)
+sta  noteToPlay,x
+sty  $FC                          ; Store index
+tay                               ; Note to play
+lda  frequencyLo,y
+sta  freqLo,x
+sta  freqLoCopy,x
+lda  frequencyHi,y
+sta  freqHi,x
+sta  freqHiCopy,x
+ldy  $FC                          ; Reload index
+lda  ($FA),y                      ; Re-read last value for sequence
+bmi  isFilterEffect
+and  #$20                         ; Slide (portamento) effect?
+beq  setRelease
+readParEffectSlide:
+lda  ($FA),y                      ; Read slide (portamento) low frequency
+sta  slideLoFreq,x
+sta  slideHiFreq,x                ; Read slide (portamento) high frequency
+jmp  setRelease
+arpeggioIndex:
+slideLoFreq:
+slideHiFreq:
+vibratoDelay:
+isFilterEffect:
+stx  currentVoice+1               ; Store current voice
+sta  filterCutOff+1
+and  #$0F                         ; Extract value of filter velocity
+sta  filterVelocity+1
+lda  ($FA),y                      ; Read filter frame duration
+bne  setFilterResCtrl
+stopFilterVoice:
+bne  setRelease
+setFilterResCtrl:
+sta  filterFrameDur+1
+lda  filterRes,x
+setRelease:
+lda  #$FF                         ; $FF=oscillator will release
+sta  vibSpeedCounter,x
+sta  vibDirectionIndex,x
+cmp  #$FF                         ; End of sequence reached?
+bne  updateSeqIndex
+bpl  clearSeqIndex                ; Repeat again the track as still positive?
+ldy  trackIndex,x                 ; Read track index
+cmp  #$FF                         ; End of track reached?
+bne  updateTrackIndex
+ldy  #$00                         ; Reset track index
+updateTrackIndex:
+sta  trackIndex,x
+clearSeqIndex:
+updateSeqIndex:
+sta  sequenceIndex,x
+frequencyHi:                            ; A4=440 HZ (PAL) | A4=457 HZ (NTSC)
+useNextPreset:
+inx                               ; Next voice
+usePreset:
+ldy  actualPreset,x               ; Load actual preset to use (already *8)
+sty  $FC                          ; Store preset index for later use
+and  #$40                         ; Hold note?
+bne  filtering
+sta  arpeggioIndex,x              ; Reset arpeggio index in table
+lda  preset,y                     ; A/D value
+lda  preset+1,y                   ; S/R value
+ldy  voiceSidIndex,x
+sta  $D406,y                      ; Generator 1: Sustain/Release
+sta  $D405,y                      ; Generator 1: Attack/Decay
+and  #$FE                         ; Release oscillator
+sta  $D404,y                      ; Voice 1: Control registers
+ldy  $FC                          ; Load preset index
+lda  preset+2,y                   ; Control value
+lda  preset+3,y                   ; Pulse value
+sta  pulseLo,x
+sta  pulseHi,x
+currentVoice:
+bne  resetPulse
+filterCutOff:
+sta  filterHiPos+1
+filterFrameDur:
+resetPulse:
+sta  pulseSpeedCounter,x
+sta  pulseDir,x
+lda  preset+5,y                   ; Vibrato delay+speed value
+sta  vibratoDelay,x
+ora  #$40                         ; Force filter low
+lda  preset+7,y                   ; Fx + arpeggio value
+sta  $FD,x                        ; Store Fx + arpeggio value
+filtering:
+cpx  currentVoice+1
+bne  checkArpeggio
+beq  checkArpeggio
+filterHiPos:
+lda  #$C0                         ; filter cut freq Hi to use
+filterVelocity:
+adc  #$F0                         ; "Subtract 10" by the velocity
+sta  $D416                        ; Filter cut frequency: hi byte
+checkArpeggio:
+lda  $FD,x                        ; Read Fx + arpeggio value
+and  #$0F                         ; Arpeggio?
+beq  skipArpeggio
+jsr  makeArpeggio
+jmp  checkPulseSlide
+filterRes:
+freqHiCopy:
+vibDirectionIndex:
+skipArpeggio:
+bne  checkPulseSlide
+lda  $FD,x                        ; Fx + arpeggio value
+and  #$10                         ; Frequency vibrato?
+beq  checkPulseSlide
+; Frequency vibrato effect
+makeFreqVibrato:
+dec  vibratoDelay,x
+bpl  checkPulseSlide
+inc  vibratoDelay,x
+lda  vibDirectionIndex,x
+bne  addVibrato
+subVibrato:
+ldy  $FC                          ; Load preset index (already *8)
+lda  freqLo,x
+sbc  preset+6,y                   ; Subtract vibrato level
+bcs  checkVibSpeedCounter
+dec  freqHi,x
+bne  checkVibSpeedCounter
+addVibrato:
+adc  preset+6,y                   ; Add vibrato level
+bcc  checkVibSpeedCounter
+inc  freqHi,x
+bcs  checkVibSpeedCounter         ; <This branch is redundant>
+checkVibSpeedCounter:
+inc  vibSpeedCounter,x
+and  #$0F                         ; Extract speed from vibrato value
+cmp  vibSpeedCounter,x            ; Limit reached?
+sta  vibSpeedCounter,x            ; Reset vibrato speed counter
+inc  vibDirectionIndex,x          ; Change direction based onto table of values
+checkPulseSlide:
+lda  preset+4,y                   ; Pulse level + speed/add byte value
+sta  $FC                          ; Store pulse level + speed/add value for later use
+and  #$40                         ; Pulse slide ?
+beq  checkPulseVibrato
+; Pulse slide effect
+makePulseSlide:
+lda  $FC                          ; Read pulse level + speed/add value
+adc  pulseLo,x
+adc  pulseHi,x
+checkPulseVibrato:
+and  #$20                         ; Pulse vibrato?
+; Pulse vibrato effect
+makePulseVibrato:
+lda  pulseDir,x
+beq  subPulse
+addPulse:
+lda  pulseLo,x
+adc  $FC                          ; Add level + speed/add byte value
+inc  pulseHi,x
+subPulse:
+sbc  $FC                          ; Sub level + speed/add byte value
+dec  pulseHi,x
+inc  pulseSpeedCounter,x
+lda  $FC                          ; Load level + speed/add byte value
+and  #$0F                         ; Extract speed
+cmp  pulseSpeedCounter,x          ; Limit reached?
+lda  #$00                         ; Reset speed counter
+eor  #$01                         ; Invert pulse direction
+lda  pulseHi,x
+sta  $D403,y                      ; Voice 1: Wave form pulsation amplitude (hi byte)
+sta  $D402,y                      ; Voice 1: Wave form pulsation amplitude (lo byte)
+and  #$20                         ; Slide (portamento)?
+beq  outFreqNote
+lda  slideLoFreq,x
+beq  addSlide
+rattlingSlide:
+lda  rattling,x                   ; On odd value apply a Rattling slide every tow frame
+bne  outFreqNote
+addSlide:
+lda  freqLoCopy,x
+adc  slideLoFreq,x
+sta  $D400,y                      ; Voice 1: Frequency control (lo byte)
+lda  freqHiCopy,x
+adc  slideHiFreq,x
+sta  $D401,y                      ; Voice 1: Frequency control (hi byte)
+outFreqNote:
+lda  freqHi,x
+actualPreset:
+pulseLo:
+pulseHi:
+freqLoCopy:
+; Arpeggio effect
+makeArpeggio:
+lda  arpeggioTableLo-1,y
+lda  arpeggioTableHi-1,y
+ldy  arpeggioIndex,x
+lda  ($FA),y                      ; Read waveform for arpeggio
+and  releaseCtrlAnd,x
+lda  ($FA),y                      ; Read note offset (absolute or relative) for arpeggio
+bmi  wasAbsolute                  ; Absolute note?
+adc  noteToPlay,x                 ; Relative note, so add to current note  to play
+sta  noteArpPos+1
+lda  ($FA),y                      ; Read filter low pass value
+beq  noFilter
+noFilter:
+lda  ($FA),y                      ; Read next value of arpeggio sequence
+cmp  #$FE                         ; Stop arpeggio?
+bcc  goNextArpeggio
+beq  stopArpeggio
+ldy  #$00                         ; Restart arpeggio sequence (it was FF)
+beq  goNextArpeggio
+stopArpeggio:
+goNextArpeggio:
+sta  arpeggioIndex,x
+noteArpPos:
+frequencyLo:                            ; A4=440 HZ (PAL) | A4=457 HZ (NTSC)
+.byte $BA, $D4, $F0, $0E, $2D, $4E, $71, $96
+arpeggioTableLo:
+.byte <arpeggio1, <arpeggio2, <arpeggio3, <arpeggio4, <arpeggio5, <arpeggio6, <arpeggio7, <arpeggio8
+.byte <arpeggio9, <arpeggio10, <arpeggio11, <arpeggio12, <arpeggio13, <arpeggio14, $C0, $E0
+arpeggioTableHi:
+.byte >arpeggio1, >arpeggio2, >arpeggio3, >arpeggio4, >arpeggio5, >arpeggio6, >arpeggio7, >arpeggio8
+.byte >arpeggio9, >arpeggio10, >arpeggio11, >arpeggio12, >arpeggio13, >arpeggio14, $34, $34
+trackLow:
+.byte <trackVoice1, <trackVoice2, <trackVoice3
+trackHi:
+.byte >trackVoice1, >trackVoice2, >trackVoice3
+; Patterns (sequences)
+;    <1010 xxxx   -> Preset xxxx
+;    >101x xxxx   -> HOLD Duration xxxxx (legato)
+;  AA<=0101 0000  -> NOTE
+;    BB yyyx xxxx -> Duration xxxxx
+;       010x xxxx -> Hold xxxxx
+;       001x      -> Slide
+;         CC      -> slide low freq
+;         DD      -> slide high freq
+;       100 xxxx -> Filter
+;         CC      -> Cut off/speed
+;         DD      -> Duration effect
+;  AA>=011x xxxx  -> REST: Duration xxxxx with release
+;  $FF    End of pattern
+pattern9:
+pattern5:
+pattern7:
+pattern6:
+pattern19:
+pattern18:
+pattern10:
+pattern15:
+pattern4:
+pattern2:
+pattern27:
+pattern11:
+pattern14:
+pattern17:
+pattern8:
+pattern12:
+pattern3:
+pattern28:
+pattern29:
+pattern30:
+pattern24:
+pattern25:
+pattern26:
+pattern23:
+pattern16:
+pattern0:
+pattern31:
+pattern20:
+pattern22:
+pattern21:
+pattern13:
+pattern1:
+pattern32:
+; Track format:
+;   Sequence
+;   Transpose | Repeat
+;   FD xx: loop at xx position
+;   FF: loop
+trackVoice3:
+trackVoice2:
+trackVoice1:
+; Arpeggio:
+;   Wavewform
+;   Note (relative 00..7F/absolute 80..FF)
+;   Filter freq to apply
+arpeggio2:
+arpeggio4:
+arpeggio5:
+arpeggio1:
+arpeggio6:
+arpeggio7:
+arpeggio3:
+arpeggio8:
+arpeggio9:
+arpeggio10:
+arpeggio11:
+arpeggio12:
+arpeggio13:
+arpeggio14:
+patternTableHi:
+.byte >pattern0, >pattern1, >pattern2, >pattern3, >pattern4, >pattern5, >pattern6, >pattern7
+.byte >pattern8, >pattern9, >pattern10, >pattern11, >pattern12, >pattern13, >pattern14, >pattern15
+.byte >pattern16, >pattern17, >pattern18, >pattern19, >pattern20, >pattern21, >pattern22, >pattern23
+.byte >pattern24, >pattern25, >pattern26, >pattern27, >pattern28, >pattern29, >pattern30, >pattern31
+.byte >pattern32, $00
+patternTableLo:
+.byte <pattern0, <pattern1, <pattern2, <pattern3, <pattern4, <pattern5, <pattern6, <pattern7
+.byte <pattern8, <pattern9, <pattern10, <pattern11, <pattern12, <pattern13, <pattern14, <pattern15
+.byte <pattern16, <pattern17, <pattern18, <pattern19, <pattern20, <pattern21, <pattern22, <pattern23
+.byte <pattern24, <pattern25, <pattern26, <pattern27, <pattern28, <pattern29, <pattern30, <pattern31
+.byte <pattern32, $00
+;Preset (instrument) format:
+; Waveform
+; Pulserate
+; Pulse level+speed/pulse add byte
+; Vibrato delay+speed
+; Vibrato level
+; FX+Arpeggio:
+;    0x arpeggio index
+;    10 frequency vibrato
+;    20 pulse vibrato
+;    40 pulse slide
+preset:
+.text "PSID"
+releaseCtrlAnd                          ;  AND with FF or FE to release oscillator
+voiceSidIndex                           ; index for voice in Sid registers (fixed)
+frequencyHi                             ; A4=440 HZ (PAL) | A4=457 HZ (NTSC)
+frequencyLo                             ; A4=440 HZ (PAL) | A4=457 HZ (NTSC)
+!text "PSID"
+!byte >initSongs, <initSongs
+!byte >playSound, <playSound
+!word $0000                       ; speed
+!word $0000                       ; second and third SID address
+!byte $BA, $D4, $F0, $0E, $2D, $4E, $71, $96
+!byte <arpeggio1, <arpeggio2, <arpeggio3, <arpeggio4, <arpeggio5, <arpeggio6, <arpeggio7, <arpeggio8
+!byte <arpeggio9, <arpeggio10, <arpeggio11, <arpeggio12, <arpeggio13, <arpeggio14, $C0, $E0
+!byte >arpeggio1, >arpeggio2, >arpeggio3, >arpeggio4, >arpeggio5, >arpeggio6, >arpeggio7, >arpeggio8
+!byte >arpeggio9, >arpeggio10, >arpeggio11, >arpeggio12, >arpeggio13, >arpeggio14, $34, $34
+!byte <trackVoice1, <trackVoice2, <trackVoice3
+!byte >trackVoice1, >trackVoice2, >trackVoice3
+!byte >pattern0, >pattern1, >pattern2, >pattern3, >pattern4, >pattern5, >pattern6, >pattern7
+!byte >pattern8, >pattern9, >pattern10, >pattern11, >pattern12, >pattern13, >pattern14, >pattern15
+!byte >pattern16, >pattern17, >pattern18, >pattern19, >pattern20, >pattern21, >pattern22, >pattern23
+!byte >pattern24, >pattern25, >pattern26, >pattern27, >pattern28, >pattern29, >pattern30, >pattern31
+!byte >pattern32, $00
+!byte <pattern0, <pattern1, <pattern2, <pattern3, <pattern4, <pattern5, <pattern6, <pattern7
+!byte <pattern8, <pattern9, <pattern10, <pattern11, <pattern12, <pattern13, <pattern14, <pattern15
+!byte <pattern16, <pattern17, <pattern18, <pattern19, <pattern20, <pattern21, <pattern22, <pattern23
+!byte <pattern24, <pattern25, <pattern26, <pattern27, <pattern28, <pattern29, <pattern30, <pattern31
+!byte <pattern32, $00
+.text  "PSID"
+.word $0000                       // speed
+.word $0000                       // second and third SID address
+// MUSIC ASSEMBLER player
+// -> lo/hi pointers for arpeggio table
+// -> the lo/hi pointers for track
+// -> Pattern data
+// -> Tracks (3, 2, 1) pattern data
+// -> arpeggio table
+// -> hi/lo pointers for pattern table
+// -> preset table
+//      jsr  initSound
+//      lda  #<IRQ
+//      ldy  #>IRQ
+//      sta  $0314                        ; Vector: Hardware Interrupt (IRQ)
+//      sty  $0315                        ; Vector: Hardware Interrupt (IRQ)
+//      stx  $DC0E                        ; Control register A of CIA #1
+//      stx  $D01A                        ; IRQ mask register
+//IRQ:
+//      jsr  PlaySound
+// Play sound routine
+jsr  usePreset                    // Use preset voice 1
+jsr  useNextPreset                // Use preset voice 2
+jmp  useNextPreset                // Use preset voice 3
+releaseCtrlAnd:                         //  AND with FF or FE to release oscillator
+lda  #$04                         // Song speed (coded into the source)
+jmp  usePreset                    // Note is finished, use instrument again
+// Init song
+lda  #$1F                         // Max volume and low pass filter
+sta  $D418                        // Select volume and filter mode
+sta  $D417                        // Filter resonance control/voice input control
+sta  currentVoice+1               // Clear current voice
+sta  sequenceIndex,x              // Clear the area
+ldx  #$02                         // Cycle all voices
+lda  ($FA),y                      // Read first sequence in track
+sta  sequence,x                   // Store sequence to play
+sta  transpose,x                  // Store transpose*16 of notes in sequences
+sta  repeat,x                     // Store number of repeat for the sequence
+ldy  sequence,x                   // Read sequence to play
+cpy  #$FE                         // Track has finished sequences?
+ldy  sequenceIndex,x              // Read position in sequence to use
+cmp  #$60                         // Notes in 8 octaves
+and  #$1F                         // Extract note duration
+lda  #$FE                         // FE = oscillator will release
+voiceSidIndex:                          // index for voice in Sid registers (fixed)
+cmp  #$A0                         // Preset mark ?
+and  #$1F                         // Extract note duration (this is a legato)
+asl                               // index is *8
+lda  transpose,x                  // Add the transpose (high nibble to move as low nibble)
+sty  $FC                          // Store index
+tay                               // Note to play
+ldy  $FC                          // Reload index
+lda  ($FA),y                      // Re-read last value for sequence
+and  #$20                         // Slide (portamento) effect?
+lda  ($FA),y                      // Read slide (portamento) low frequency
+sta  slideHiFreq,x                // Read slide (portamento) high frequency
+stx  currentVoice+1               // Store current voice
+and  #$0F                         // Extract value of filter velocity
+lda  ($FA),y                      // Read filter frame duration
+lda  #$FF                         // $FF=oscillator will release
+cmp  #$FF                         // End of sequence reached?
+bpl  clearSeqIndex                // Repeat again the track as still positive?
+ldy  trackIndex,x                 // Read track index
+cmp  #$FF                         // End of track reached?
+ldy  #$00                         // Reset track index
+frequencyHi:                            // A4=440 HZ (PAL) | A4=457 HZ (NTSC)
+inx                               // Next voice
+ldy  actualPreset,x               // Load actual preset to use (already *8)
+sty  $FC                          // Store preset index for later use
+and  #$40                         // Hold note?
+sta  arpeggioIndex,x              // Reset arpeggio index in table
+lda  preset,y                     // A/D value
+lda  preset+1,y                   // S/R value
+sta  $D406,y                      // Generator 1: Sustain/Release
+sta  $D405,y                      // Generator 1: Attack/Decay
+and  #$FE                         // Release oscillator
+sta  $D404,y                      // Voice 1: Control registers
+ldy  $FC                          // Load preset index
+lda  preset+2,y                   // Control value
+lda  preset+3,y                   // Pulse value
+lda  preset+5,y                   // Vibrato delay+speed value
+ora  #$40                         // Force filter low
+lda  preset+7,y                   // Fx + arpeggio value
+sta  $FD,x                        // Store Fx + arpeggio value
+lda  #$C0                         // filter cut freq Hi to use
+adc  #$F0                         // "Subtract 10" by the velocity
+sta  $D416                        // Filter cut frequency: hi byte
+lda  $FD,x                        // Read Fx + arpeggio value
+and  #$0F                         // Arpeggio?
+lda  $FD,x                        // Fx + arpeggio value
+and  #$10                         // Frequency vibrato?
+// Frequency vibrato effect
+ldy  $FC                          // Load preset index (already *8)
+sbc  preset+6,y                   // Subtract vibrato level
+adc  preset+6,y                   // Add vibrato level
+bcs  checkVibSpeedCounter         // <This branch is redundant>
+and  #$0F                         // Extract speed from vibrato value
+cmp  vibSpeedCounter,x            // Limit reached?
+sta  vibSpeedCounter,x            // Reset vibrato speed counter
+inc  vibDirectionIndex,x          // Change direction based onto table of values
+lda  preset+4,y                   // Pulse level + speed/add byte value
+sta  $FC                          // Store pulse level + speed/add value for later use
+and  #$40                         // Pulse slide ?
+// Pulse slide effect
+lda  $FC                          // Read pulse level + speed/add value
+and  #$20                         // Pulse vibrato?
+// Pulse vibrato effect
+adc  $FC                          // Add level + speed/add byte value
+sbc  $FC                          // Sub level + speed/add byte value
+lda  $FC                          // Load level + speed/add byte value
+and  #$0F                         // Extract speed
+cmp  pulseSpeedCounter,x          // Limit reached?
+lda  #$00                         // Reset speed counter
+eor  #$01                         // Invert pulse direction
+sta  $D403,y                      // Voice 1: Wave form pulsation amplitude (hi byte)
+sta  $D402,y                      // Voice 1: Wave form pulsation amplitude (lo byte)
+and  #$20                         // Slide (portamento)?
+lda  rattling,x                   // On odd value apply a Rattling slide every tow frame
+sta  $D400,y                      // Voice 1: Frequency control (lo byte)
+sta  $D401,y                      // Voice 1: Frequency control (hi byte)
+// Arpeggio effect
+lda  ($FA),y                      // Read waveform for arpeggio
+lda  ($FA),y                      // Read note offset (absolute or relative) for arpeggio
+bmi  wasAbsolute                  // Absolute note?
+adc  noteToPlay,x                 // Relative note, so add to current note  to play
+lda  ($FA),y                      // Read filter low pass value
+lda  ($FA),y                      // Read next value of arpeggio sequence
+cmp  #$FE                         // Stop arpeggio?
+ldy  #$00                         // Restart arpeggio sequence (it was FF)
+frequencyLo:                            // A4=440 HZ (PAL) | A4=457 HZ (NTSC)
+// Patterns (sequences)
+//    <1010 xxxx   -> Preset xxxx
+//    >101x xxxx   -> HOLD Duration xxxxx (legato)
+//  AA<=0101 0000  -> NOTE
+//    BB yyyx xxxx -> Duration xxxxx
+//       010x xxxx -> Hold xxxxx
+//       001x      -> Slide
+//         CC      -> slide low freq
+//         DD      -> slide high freq
+//       100 xxxx -> Filter
+//         CC      -> Cut off/speed
+//         DD      -> Duration effect
+//  AA>=011x xxxx  -> REST: Duration xxxxx with release
+//  $FF    End of pattern
+// Track format:
+//   Sequence
+//   Transpose | Repeat
+//   FD xx: loop at xx position
+//   FF: loop
+// Arpeggio:
+//   Wavewform
+//   Note (relative 00..7F/absolute 80..FF)
+//   Filter freq to apply
+//Preset (instrument) format:
+// Waveform
+// Pulserate
+// Pulse level+speed/pulse add byte
+// Vibrato delay+speed
+// Vibrato level
+// FX+Arpeggio:
+//    0x arpeggio index
+//    10 frequency vibrato
+//    20 pulse vibrato
+//    40 pulse slide

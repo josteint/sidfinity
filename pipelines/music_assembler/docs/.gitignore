@@ -1,0 +1,6 @@
+# Bulky / redundant binary specimens — kept locally for reverse-engineering,
+# kept OUT of git. Disk images and zips are reproducible from CSDb / Archive.org;
+# each research doc's provenance header records the exact source URL.
+# (The small .prg fixtures and the manual PDF/txt ARE committed as reference.)
+*.d64
+*.zip

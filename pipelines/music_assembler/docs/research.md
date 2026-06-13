@@ -8,22 +8,26 @@
 - **Documentation:** Manual PDF at https://csdb.dk/getinternalfile.php/137191/masm_manual_0_01b.pdf
 - **CSDb:** #94388
 
-## Status & RE gaps (2026-06-13)
+## Status (2026-06-13) — research-player sweep COMPLETE → `doc_state: OK`
 
-- **Migrated: 0 / 6,351.** No pipeline, no USF, no disassembly.s, no RE_NOTES.md yet.
-- **This doc is manual/CSDb-derived, not RE-derived.** It describes the
-  *editor's* data model. The **packed assembled-output format — the actual
-  extraction target — is NOT reverse-engineered.** The "Assembled Output
-  Format" section below is a placeholder: the player "disassembles intricate,
-  unreadable data while playing," and that packed stream is what a migration
-  must decode. This is the hard part and it is entirely open.
-- **No player source exists** — MA was a closed commercial Markt+Technik
-  product (cf. GoatTracker, where 13 versions of C source are bundled). The
-  player must be RE'd from a binary. Likely multiple packer/version variants
-  in HVSC (expect a version-group analysis akin to GT2's A/B/C/D).
-- **Manual PDF is linked (csdb getinternalfile 137191), not vendored locally.**
-  First acquisition step: pull it into this dir + run the `research-player`
-  skill, then seed a disassembly of a representative member.
+**This file is the editor-model overview; the research corpus + the RE path
+now live alongside it. → Read [`README.md`](README.md) first.**
+
+A six-cluster sweep ran 2026-06-13. What changed since this overview was written:
+- **Manual vendored** (`csdb_manual_0_01b.pdf`/`.txt`, `csdb_manual_notes.md`).
+- **Packed format effectively documented** — initially thought open, it's
+  resolved by a public JC64dis hand-annotation (`spec_player_jc64dis.md`) plus
+  **two independent end-to-end RE traces** that agree (`spec_player_RE_grounded.md`,
+  `spec_GAP_analysis.md` has the extraction checklist + per-frame write model).
+- **No player source** (closed Markt+Technik product) — but **JITT64** (GPL Java)
+  already imports MASM and is the top lead if RE stalls.
+- **Variant taxonomy mapped**: V1.0 (DUSAT) → V1.1/1.3/1.4 (Triad) → VoiceTracker
+  / Music Mixer / DoubleTracker / Ten Tracker; base sidid sig matches 6351/6351,
+  discriminate by fingerprint offset. Two PSID header conventions; multispeed
+  members exist (Trap C applies). ⚠ Name collision: a *different* "Music Assembler
+  V3.1" (Harald Rosenfeldt) must be excluded — see README.
+- **Migration still 0 / 6,351**; next is version-group fingerprinting then extract.
+
 - **Representative members** (curated candidates, from `docs/canary_picker.md` §3):
   `MUSICIANS/R/Rage/Kalle_Kloakk_part_8.sid`,
   `MUSICIANS/K/Kleinert_Tim/Arcade_Intro.sid`,
