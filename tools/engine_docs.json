@@ -125,8 +125,8 @@
     "updated": "2026-06-13"
   },
   "master_composer": {
-    "state": "LITTLE",
-    "notes": "single research.md first-pass overview; research-engine sweep not yet run.",
+    "state": "OK",
+    "notes": "research-player sweep complete (2026-06-13): engine fully decoded from the local JC64dis annotation + 2 ground-truthed disasms (Maniac.sid) + siddump. Page/block/bar model (block=16-reg full SID snapshot via outTimbre +$0AA; note $00 rest/$01-$63 freq/$64 gate-off), no effect engine. Corrections: CIA-timed (speed=$1 for 996/1019 -> per-IRQ verdict), table bases dataflow-derived per file (>=2 variants, DMC-style). Variants: Patrick_Payne = same player; Lope_Pulse_Sweep ~20 files = PW-sweep add-on; TFMX/MasterComposer = separate engine (exclude). No public manual; source not public but RE complete. Cleared to start; canary Kleimeyer_Paul/Maniac.sid. See pipelines/master_composer/docs/README.md.",
     "updated": "2026-06-13"
   },
   "mon_deenen": {

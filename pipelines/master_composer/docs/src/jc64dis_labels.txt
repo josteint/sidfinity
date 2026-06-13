@@ -1,0 +1,24 @@
+# JC64dis user labels for Master_Composer.dis (tune Maniac, relocated load $7580)
+# Extracted from gzip'd JC64dis serialization, byte token \x05'W'<4hex>\x01\x00\x09<label>
+$7587  playSound
+$75F1  nextBlock
+$7610  stopSound
+$762A  outTimbre
+$76C4  loopMulty
+$7700  noUsedKey
+$7729  releaseV1
+$7737  outNoteV1
+$776A  releaseV2
+$7778  outNoteV2
+$77AE  releaseV3
+$77BC  outNoteV3
+$7831  outCtrlV1
+$7842  outCtrlV2
+$7853  outCtrlV3
+$7940  pageIndex
+$7943  noteIndex
+$7944  keyAction
+$7D51  filterRes
+$7D91  filterVol
+$7ED1  noteTable
+$8012  irqRetVal

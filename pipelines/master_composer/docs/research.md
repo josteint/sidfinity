@@ -1,5 +1,7 @@
 ## Master Composer (1,075 tunes)
 
+> **⚠ 2026-06-13 — see [`README.md`](README.md) + `spec_extraction_plan.md`/`spec_write_model.md`** (decoded from the local JC64dis disasm + ground-truthed against real binaries via `siddump`). Corrections to this overview: it's **CIA-timed, NOT VBlank** (PSID speed=$1 for 996/1019 → the **per-IRQ** `--writelog-per-irq` verdict); the data-table bases are **dataflow-derived per file** (≥2 player relocations/variants — the fixed offset map below is one member's, not universal); note byte = `$00` rest / `$01-$63` freq index / **`$64` gate-off**; a block applies a **16-register full SID snapshot** (`outTimbre` +$0AA), waveform/gate per-note (gate retrigger). The `(Patrick_Payne)` sidid tag is the **same player** (an adjacent voice-slice anchor, not a fork); `(Lope_Pulse_Sweep)` (~20 files) is a real external PW-sweep add-on needing its own config; `TFMX/MasterComposer` (5 files) is a separate engine — exclude.
+
 - **Author:** Paul Kleimeyer
 - **Publisher:** Access Software, Inc.
 - **Year:** 1983-1984
