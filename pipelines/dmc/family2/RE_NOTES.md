@@ -76,11 +76,46 @@ note-init):
   but never carries it — composer uses the VIBDEPTH constant; and family
   2 doesn't use the $1888 table anyway).
 
-NEXT (write-log loop on Kajun_Klog): (1) suppress noise_attack for
-family 2 (or RE what FX bit 7 means); (2) model the freq-hi>>1 vibrato
-depth; (3) iterate find_first_divergence. Then factory variant
-(detect init JMP base+$37 -> sector_format='family2', op sites = canon,
-instr base from operand, d417=base+$34) + carved reference + wide batch.
+## Write-log loop progress (Kajun_Klog, divergence pushed forward)
+
+Sector layer → frame 2 → frame 3 → **frame 7** so far (each fix reveals
+the next effect difference). DONE:
+
+- **Cymbal timing (commit pending).** Family 2's noise burst fires on
+  FRAME 2 (frame 1 = normal note, frame 2 = $FFFF+$81, frame 3+ =
+  normal), NOT frame 1 like canon — the note-init `JMP $1591` skips the
+  cymbal, which fires per-frame via the $1300 guard==2 check. Modeled as
+  `params.cymbal_onset` (0 canon / 1 family2); the composer emits the
+  burst at note-init (0) or in run_effects at guard==2 (1). Frame 2 now
+  matches exactly. A musical timing parameter (§ principled).
+- **vib_depth_curve USF field** (96 bytes, family-wide engine content
+  by reference; empty = canon VIBDEPTH). Serialized (writer/parser).
+
+OPEN — **family-2 vibrato is a DIFFERENT MECHANISM (current blocker @
+frame 7).** Canon: note-init loads the per-note step from the $1888
+VIBDEPTH table → $1792 (vstep), delayed by byte7-hi. Family 2:
+note-init does `LDA $16A7,y (freq HI) / LSR / STA $178C` — a SEPARATE
+register, and $1792 (vstep) is left 0. Evidence: with vib_depth_curve
+= [0] (current placeholder, vibrato disabled) frames 3-6 match, then at
+**frame 7 the original drops V1 freq by $02 = freq_hi($05)>>1** — so
+family 2 DOES vibrato via freq_hi>>1, but with a longer delay (~6
+frames) than byte7-hi gives. Needs: disassemble family 2's $178C usage
++ its delay/application (the $13xx effect path, which DIFFERS from canon
+in the note-init tail) → a family-2 vibrato model in the composer
+(step = freq_hi>>1, family-2 delay). The current [0] placeholder is a
+partial (early frames exact, the delayed vibrato missing).
+
+NEXT: (1) RE family 2's vibrato ($178C step + delay) → composer model;
+(2) iterate find_first_divergence (more effect differences may follow —
+the ~119-byte note-init-tail divergence isn't fully decoded); (3) once
+Kajun is FULL, factory variant (detect init JMP base+$37 ->
+sector_format='family2' + cymbal_onset=1, op sites = canon, instr base
+from operand, d417=base+$34, vib curve) + carved reference + wide batch.
+
+Tractability note: family 2 is the same engine but its EFFECT CHAIN has
+several genuine differences (cymbal timing, vibrato mechanism, + the
+undecoded note-init tail). Each is a focused RE step — more than the
+2-entry/relocation variants, less than a new engine.
 
 ## Migration plan (when picked up)
 

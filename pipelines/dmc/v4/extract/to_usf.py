@@ -127,7 +127,8 @@ def model_to_usf(m: DmcModel) -> UsfFile:
         # multispeed CIA1 timer A latch (0 = single-speed VBI).
         params=Params(fields={
             **({'slide_phase': m.dual_phase} if m.dual_phase else {}),
-            **({'cia_period': m.cia_period} if m.cia_period else {})}),
+            **({'cia_period': m.cia_period} if m.cia_period else {}),
+            **({'cymbal_onset': 1} if m.family2 else {})}),
         init=InitState(voices=[
             InitVoice(id=v + 1,
                       note=m.idle_notes[v] or None,
@@ -146,6 +147,8 @@ def model_to_usf(m: DmcModel) -> UsfFile:
         wave_programs={0: {'ctrl': list(m.idle_wave[0]),
                            'freq': list(m.idle_wave[1]),
                            'loop': m.idle_wave[2]}},
+        # family-2's per-note vibrato step (freq-hi >> 1); empty for canon
+        vib_depth_curve=list(m.vib_depth_curve),
     )
 
 

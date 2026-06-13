@@ -275,6 +275,14 @@ def compose_dmc_asm(usf: UsfFile) -> str:
     pat_hi = _ptr_tab('>')
 
     slide_phase = int(usf.params.fields.get('slide_phase', 0)) & 1
+    # noise-attack (cymbal) onset: 0 = the burst fires at note-init
+    # (canon — frame 1); 1 = one frame later (family 2 — frame 2, gated
+    # by the post-note guard). A musical timing parameter of the effect.
+    cymbal_onset = int(usf.params.fields.get('cymbal_onset', 0)) & 1
+    # per-note vibrato depth curve (96 bytes). Family-wide engine content
+    # carried by reference: canon = the $1888 VIBDEPTH table; family 2 =
+    # freq-hi >> 1. Empty -> the canonical VIBDEPTH constant.
+    vib_curve = list(usf.vib_depth_curve) or list(VIBDEPTH)
     # CIA multispeed: when the original drives play() via a CIA1 timer
     # (PSID speed bit set), the rebuild programs the SAME timer A latch
     # so libsidplayfp calls OUR play() at the identical rate. 0 = VBI.
@@ -318,7 +326,7 @@ def compose_dmc_asm(usf: UsfFile) -> str:
                 'spd:      .dsb 1, 0\n'
                 'mvol:     .dsb 1, 0\n'
                 '          .dsb 143, 0')
-    data.append('vibdepth:\n' + _byt(VIBDEPTH))
+    data.append('vibdepth:\n' + _byt(vib_curve))
     for name, arr in [('iad', iad), ('isr', isr), ('ipwinit', ipwinit),
                       ('ipwmin', ipwmin), ('ipwmax', ipwmax),
                       ('ipwbase', ipwbase),
@@ -342,6 +350,32 @@ def compose_dmc_asm(usf: UsfFile) -> str:
     for i, blob in enumerate(m.patterns):
         data.append(f'pat_{i}:\n' + _byt(blob))
     data_asm = '\n'.join(data)
+
+    # note-init cymbal (canon onset 0) vs frame-2 cymbal (family-2 onset 1)
+    _cym_burst = (
+        '        ldy sidoff,x\n'
+        '        lda #$FF\n'
+        '        sta $d400,y\n'
+        '        sta $d401,y\n'
+        '        lda #$81\n'
+        '        sta $d404,y                  ; gated noise burst\n')
+    if cymbal_onset == 0:
+        cym_ni = ('        lda fxf,x\n'
+                  '        and #$80                     ; cymbal?\n'
+                  '        beq ni_wave\n'
+                  + _cym_burst + '        rts\n')
+        cym_rf = ''
+    else:
+        cym_ni = ''                  # frame 1 = normal note
+        cym_rf = ('        cmp #$02                     ; frame-2 cymbal?\n'
+                  '        bne rf_nocym\n'
+                  '        lda fxf,x\n'
+                  '        and #$80\n'
+                  '        beq rf_nocym\n'
+                  + _cym_burst +
+                  '        dec guard,x\n'
+                  '        rts\n'
+                  'rf_nocym:\n')
 
     return f"""
 SLIDE_PHASE = ${slide_phase:02X}
@@ -742,24 +776,14 @@ ni_vib:
 ni_vs:
         lda #$02
         sta guard,x                  ; gate logic off for 2 frames
-        lda fxf,x
-        and #$80                     ; cymbal?
-        beq ni_wave
-        ldy sidoff,x
-        lda #$FF
-        sta $d400,y
-        sta $d401,y
-        lda #$81
-        sta $d404,y                  ; gated noise burst, nothing else
-        rts
-ni_wave:
+{cym_ni}ni_wave:
         jmp wavestep
 
 ;; ----- running effects -----
 run_effects:
         lda guard,x
         beq fx_gate
-        dec guard,x
+{cym_rf}        dec guard,x
         jmp fx_pulse
 fx_gate:
         lda fxf,x

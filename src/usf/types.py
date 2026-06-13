@@ -867,3 +867,9 @@ class UsfFile:
     # off-table indices resolve to the same values as the original.
     # Empty = no off-table excursions.
     freq_overrun: list[int] = field(default_factory=list)
+    # Per-note vibrato depth curve (DMC family-wide engine content,
+    # carried by reference). 96 bytes — the modulation step the engine
+    # uses for a note's vibrato. canon = the $1888 VIBDEPTH table; the
+    # DMC family-2 build = freq-hi >> 1. Empty = the composer default
+    # (canonical VIBDEPTH).
+    vib_depth_curve: list[int] = field(default_factory=list)
