@@ -95,8 +95,8 @@
     "updated": "2026-06-13"
   },
   "jch_newplayer": {
-    "state": "LITTLE",
-    "notes": "single research.md first-pass overview; research-engine sweep not yet run.",
+    "state": "OK",
+    "notes": "research-player sweep complete (2026-06-13): grounded in released player source (CheeseCutter player_v4.acme = NP21.G4 by Laxity/VIB) + a maintained NP20 packed-binary parser (SID Factory II converter_jch.cpp) + codebase64 spec + a decoded HVSC binary. Per-frame write model, hard-restart semantics, two-encoding split (packed NP20.G4 vs NP21+ runtime), variant taxonomy (V1-V20, 3-author lineage), and DMC->JCH transfer map all captured. Cleared to start disassembly. See pipelines/jch_newplayer/docs/README.md.",
     "updated": "2026-06-13"
   },
   "jeff": {
