@@ -211,6 +211,8 @@ def dmc_features(sid: str) -> tuple[str, set] | None:
     # --- factory variant knobs ---
     if cfg.track_loop_target:
         f.add('knob:loop_target')
+    if cfg.op_tunetab == 0x180E:        # 2-entry layout (vs canon $1051)
+        f.add('knob:layout_2entry')
     if cfg.base != 0x1000:
         f.add('knob:relocated')
     if cfg.base >= 0xA000:

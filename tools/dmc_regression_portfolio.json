@@ -1,73 +1,79 @@
 {
  "engine": "dmc_v4",
  "portfolio": [
-  "MUSICIANS/H/Heinmueck/Akku_Reload.sid",
   "MUSICIANS/K/Kiss_Konrad/Deepspace_Travel.sid",
   "MUSICIANS/M/Mermaid/Bulbes.sid",
   "MUSICIANS/P/PFK/Home_Invasion_main.sid",
-  "MUSICIANS/P/PVCF/Worktunes/Hitec_5.sid"
+  "MUSICIANS/R/Rio/Brickout_Gamemusic.sid",
+  "MUSICIANS/V/Vincenzo/Non_plus_Ultra_tune_1.sid"
  ],
  "dimensions": {
   "fx:cymbal": [
-   "MUSICIANS/H/Heinmueck/Akku_Reload.sid",
    "MUSICIANS/K/Kiss_Konrad/Deepspace_Travel.sid",
    "MUSICIANS/M/Mermaid/Bulbes.sid",
-   "MUSICIANS/P/PFK/Home_Invasion_main.sid",
-   "MUSICIANS/P/PVCF/Worktunes/Hitec_5.sid"
+   "MUSICIANS/P/PFK/Home_Invasion_main.sid"
   ],
   "fx:drum": [
-   "MUSICIANS/H/Heinmueck/Akku_Reload.sid",
    "MUSICIANS/K/Kiss_Konrad/Deepspace_Travel.sid",
-   "MUSICIANS/P/PFK/Home_Invasion_main.sid"
+   "MUSICIANS/P/PFK/Home_Invasion_main.sid",
+   "MUSICIANS/V/Vincenzo/Non_plus_Ultra_tune_1.sid"
   ],
   "fx:dual_slide": [
    "MUSICIANS/K/Kiss_Konrad/Deepspace_Travel.sid",
-   "MUSICIANS/P/PFK/Home_Invasion_main.sid"
+   "MUSICIANS/P/PFK/Home_Invasion_main.sid",
+   "MUSICIANS/R/Rio/Brickout_Gamemusic.sid"
   ],
   "fx:filter": [
-   "MUSICIANS/H/Heinmueck/Akku_Reload.sid",
    "MUSICIANS/K/Kiss_Konrad/Deepspace_Travel.sid",
    "MUSICIANS/P/PFK/Home_Invasion_main.sid",
-   "MUSICIANS/P/PVCF/Worktunes/Hitec_5.sid"
+   "MUSICIANS/R/Rio/Brickout_Gamemusic.sid",
+   "MUSICIANS/V/Vincenzo/Non_plus_Ultra_tune_1.sid"
   ],
   "fx:filter_keep": [
    "MUSICIANS/P/PFK/Home_Invasion_main.sid",
-   "MUSICIANS/P/PVCF/Worktunes/Hitec_5.sid"
+   "MUSICIANS/R/Rio/Brickout_Gamemusic.sid",
+   "MUSICIANS/V/Vincenzo/Non_plus_Ultra_tune_1.sid"
   ],
   "fx:gate_hold": [
-   "MUSICIANS/H/Heinmueck/Akku_Reload.sid",
    "MUSICIANS/K/Kiss_Konrad/Deepspace_Travel.sid",
    "MUSICIANS/P/PFK/Home_Invasion_main.sid"
   ],
   "fx:gate_open": [
    "MUSICIANS/K/Kiss_Konrad/Deepspace_Travel.sid",
    "MUSICIANS/P/PFK/Home_Invasion_main.sid",
-   "MUSICIANS/P/PVCF/Worktunes/Hitec_5.sid"
+   "MUSICIANS/R/Rio/Brickout_Gamemusic.sid",
+   "MUSICIANS/V/Vincenzo/Non_plus_Ultra_tune_1.sid"
   ],
   "fx:gate_release_early": [
-   "MUSICIANS/H/Heinmueck/Akku_Reload.sid",
    "MUSICIANS/K/Kiss_Konrad/Deepspace_Travel.sid",
    "MUSICIANS/M/Mermaid/Bulbes.sid",
    "MUSICIANS/P/PFK/Home_Invasion_main.sid",
-   "MUSICIANS/P/PVCF/Worktunes/Hitec_5.sid"
+   "MUSICIANS/R/Rio/Brickout_Gamemusic.sid",
+   "MUSICIANS/V/Vincenzo/Non_plus_Ultra_tune_1.sid"
   ],
   "fx:pulse_keep": [
    "MUSICIANS/M/Mermaid/Bulbes.sid",
-   "MUSICIANS/P/PFK/Home_Invasion_main.sid"
+   "MUSICIANS/P/PFK/Home_Invasion_main.sid",
+   "MUSICIANS/R/Rio/Brickout_Gamemusic.sid"
   ],
   "fx:vib_delay": [
    "MUSICIANS/K/Kiss_Konrad/Deepspace_Travel.sid",
-   "MUSICIANS/P/PFK/Home_Invasion_main.sid"
+   "MUSICIANS/P/PFK/Home_Invasion_main.sid",
+   "MUSICIANS/R/Rio/Brickout_Gamemusic.sid"
   ],
   "fx:vib_ramp": [
    "MUSICIANS/K/Kiss_Konrad/Deepspace_Travel.sid",
    "MUSICIANS/M/Mermaid/Bulbes.sid",
-   "MUSICIANS/P/PFK/Home_Invasion_main.sid"
+   "MUSICIANS/P/PFK/Home_Invasion_main.sid",
+   "MUSICIANS/R/Rio/Brickout_Gamemusic.sid",
+   "MUSICIANS/V/Vincenzo/Non_plus_Ultra_tune_1.sid"
   ],
   "fx:vibrato": [
    "MUSICIANS/K/Kiss_Konrad/Deepspace_Travel.sid",
    "MUSICIANS/M/Mermaid/Bulbes.sid",
-   "MUSICIANS/P/PFK/Home_Invasion_main.sid"
+   "MUSICIANS/P/PFK/Home_Invasion_main.sid",
+   "MUSICIANS/R/Rio/Brickout_Gamemusic.sid",
+   "MUSICIANS/V/Vincenzo/Non_plus_Ultra_tune_1.sid"
   ],
   "knob:dual_phase": [
    "MUSICIANS/K/Kiss_Konrad/Deepspace_Travel.sid",
@@ -79,27 +85,30 @@
   ],
   "knob:idle_mask": [
    "MUSICIANS/K/Kiss_Konrad/Deepspace_Travel.sid",
-   "MUSICIANS/P/PFK/Home_Invasion_main.sid"
+   "MUSICIANS/P/PFK/Home_Invasion_main.sid",
+   "MUSICIANS/V/Vincenzo/Non_plus_Ultra_tune_1.sid"
   ],
   "knob:idle_note": [
-   "MUSICIANS/H/Heinmueck/Akku_Reload.sid",
    "MUSICIANS/K/Kiss_Konrad/Deepspace_Travel.sid",
    "MUSICIANS/M/Mermaid/Bulbes.sid",
    "MUSICIANS/P/PFK/Home_Invasion_main.sid",
-   "MUSICIANS/P/PVCF/Worktunes/Hitec_5.sid"
+   "MUSICIANS/R/Rio/Brickout_Gamemusic.sid",
+   "MUSICIANS/V/Vincenzo/Non_plus_Ultra_tune_1.sid"
   ],
   "knob:idle_wave": [
-   "MUSICIANS/H/Heinmueck/Akku_Reload.sid",
    "MUSICIANS/K/Kiss_Konrad/Deepspace_Travel.sid",
    "MUSICIANS/M/Mermaid/Bulbes.sid",
    "MUSICIANS/P/PFK/Home_Invasion_main.sid",
-   "MUSICIANS/P/PVCF/Worktunes/Hitec_5.sid"
+   "MUSICIANS/R/Rio/Brickout_Gamemusic.sid",
+   "MUSICIANS/V/Vincenzo/Non_plus_Ultra_tune_1.sid"
+  ],
+  "knob:layout_2entry": [
+   "MUSICIANS/R/Rio/Brickout_Gamemusic.sid",
+   "MUSICIANS/V/Vincenzo/Non_plus_Ultra_tune_1.sid"
   ],
   "knob:loop_target": [
-   "MUSICIANS/H/Heinmueck/Akku_Reload.sid",
    "MUSICIANS/K/Kiss_Konrad/Deepspace_Travel.sid",
-   "MUSICIANS/M/Mermaid/Bulbes.sid",
-   "MUSICIANS/P/PVCF/Worktunes/Hitec_5.sid"
+   "MUSICIANS/M/Mermaid/Bulbes.sid"
   ],
   "knob:relocated": [
    "MUSICIANS/K/Kiss_Konrad/Deepspace_Travel.sid",
@@ -108,13 +117,13 @@
   "knob:routing_shadow": [
    "MUSICIANS/K/Kiss_Konrad/Deepspace_Travel.sid",
    "MUSICIANS/P/PFK/Home_Invasion_main.sid",
-   "MUSICIANS/P/PVCF/Worktunes/Hitec_5.sid"
+   "MUSICIANS/V/Vincenzo/Non_plus_Ultra_tune_1.sid"
   ],
   "pat:gate_toggle": [
-   "MUSICIANS/H/Heinmueck/Akku_Reload.sid",
    "MUSICIANS/K/Kiss_Konrad/Deepspace_Travel.sid",
    "MUSICIANS/P/PFK/Home_Invasion_main.sid",
-   "MUSICIANS/P/PVCF/Worktunes/Hitec_5.sid"
+   "MUSICIANS/R/Rio/Brickout_Gamemusic.sid",
+   "MUSICIANS/V/Vincenzo/Non_plus_Ultra_tune_1.sid"
   ],
   "pat:glide": [
    "MUSICIANS/K/Kiss_Konrad/Deepspace_Travel.sid",
@@ -122,54 +131,54 @@
   ],
   "pat:slide": [
    "MUSICIANS/P/PFK/Home_Invasion_main.sid",
-   "MUSICIANS/P/PVCF/Worktunes/Hitec_5.sid"
+   "MUSICIANS/V/Vincenzo/Non_plus_Ultra_tune_1.sid"
   ],
   "pat:soft": [
    "MUSICIANS/K/Kiss_Konrad/Deepspace_Travel.sid",
-   "MUSICIANS/P/PFK/Home_Invasion_main.sid",
-   "MUSICIANS/P/PVCF/Worktunes/Hitec_5.sid"
+   "MUSICIANS/P/PFK/Home_Invasion_main.sid"
   ],
   "pat:vol": [
-   "MUSICIANS/H/Heinmueck/Akku_Reload.sid",
    "MUSICIANS/K/Kiss_Konrad/Deepspace_Travel.sid",
-   "MUSICIANS/P/PFK/Home_Invasion_main.sid"
+   "MUSICIANS/P/PFK/Home_Invasion_main.sid",
+   "MUSICIANS/R/Rio/Brickout_Gamemusic.sid",
+   "MUSICIANS/V/Vincenzo/Non_plus_Ultra_tune_1.sid"
   ],
   "struct:filter_defs": [
-   "MUSICIANS/H/Heinmueck/Akku_Reload.sid",
    "MUSICIANS/K/Kiss_Konrad/Deepspace_Travel.sid",
    "MUSICIANS/P/PFK/Home_Invasion_main.sid",
-   "MUSICIANS/P/PVCF/Worktunes/Hitec_5.sid"
+   "MUSICIANS/R/Rio/Brickout_Gamemusic.sid",
+   "MUSICIANS/V/Vincenzo/Non_plus_Ultra_tune_1.sid"
   ],
   "struct:inst_growth": [
-   "MUSICIANS/H/Heinmueck/Akku_Reload.sid",
    "MUSICIANS/K/Kiss_Konrad/Deepspace_Travel.sid",
    "MUSICIANS/P/PFK/Home_Invasion_main.sid",
-   "MUSICIANS/P/PVCF/Worktunes/Hitec_5.sid"
+   "MUSICIANS/R/Rio/Brickout_Gamemusic.sid",
+   "MUSICIANS/V/Vincenzo/Non_plus_Ultra_tune_1.sid"
   ],
   "struct:multi_subtune": [
-   "MUSICIANS/H/Heinmueck/Akku_Reload.sid",
-   "MUSICIANS/M/Mermaid/Bulbes.sid"
+   "MUSICIANS/M/Mermaid/Bulbes.sid",
+   "MUSICIANS/R/Rio/Brickout_Gamemusic.sid"
   ],
   "struct:per_tune_tuning": [
-   "MUSICIANS/H/Heinmueck/Akku_Reload.sid",
-   "MUSICIANS/P/PVCF/Worktunes/Hitec_5.sid"
+   "MUSICIANS/R/Rio/Brickout_Gamemusic.sid",
+   "MUSICIANS/V/Vincenzo/Non_plus_Ultra_tune_1.sid"
   ],
   "track:loop": [
-   "MUSICIANS/H/Heinmueck/Akku_Reload.sid",
    "MUSICIANS/K/Kiss_Konrad/Deepspace_Travel.sid",
    "MUSICIANS/M/Mermaid/Bulbes.sid",
-   "MUSICIANS/P/PFK/Home_Invasion_main.sid"
+   "MUSICIANS/P/PFK/Home_Invasion_main.sid",
+   "MUSICIANS/R/Rio/Brickout_Gamemusic.sid"
   ],
   "track:stop": [
    "MUSICIANS/M/Mermaid/Bulbes.sid",
-   "MUSICIANS/P/PVCF/Worktunes/Hitec_5.sid"
+   "MUSICIANS/V/Vincenzo/Non_plus_Ultra_tune_1.sid"
   ],
   "track:transpose": [
    "MUSICIANS/K/Kiss_Konrad/Deepspace_Travel.sid",
    "MUSICIANS/M/Mermaid/Bulbes.sid",
    "MUSICIANS/P/PFK/Home_Invasion_main.sid",
-   "MUSICIANS/P/PVCF/Worktunes/Hitec_5.sid"
+   "MUSICIANS/R/Rio/Brickout_Gamemusic.sid"
   ]
  },
- "corpus_full": 2656
+ "corpus_full": 2921
 }
