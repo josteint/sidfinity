@@ -45,6 +45,15 @@ _SITES = {
 _FILT_SAT = [(0x12AC, 1), (0x12B2, 2), (0x12B8, 3), (0x13E7, 4), (0x13ED, 10)]
 # tunetab satellite sites: operand = tunetab + 1 (the hi-byte reads)
 _TUNE_SAT = [(0x1057, 1), (0x1814, 1)]
+
+# 2ENTRY layout: the restructured-init regions that differ from canon
+# (the play body matches, so masking these lets the canon identity
+# compare pass). The 2-entry reads the tune table at $180E (tune setup,
+# also a canon site) rather than canon's $1051 init-tail site.
+_V2ENTRY_MASK = [(0x1000, 0x100C), (0x1050, 0x10B0), (0x162F, 0x1647),
+                 (0x17EC, 0x17FB), (0x184B, 0x187E)]
+_V2ENTRY_TUNETAB_SITE = 0x180E
+_V2ENTRY_TUNE_SAT = [(0x1814, 1)]
 # instrument satellite sites: operand = $18F0 + offset
 _INST_SAT = [(0x122B, 1), (0x1242, 2), (0x1358, 3), (0x1258, 6),
              (0x1289, 6), (0x12CD, 7), (0x12DD, 8), (0x12E3, 9),
@@ -149,14 +158,29 @@ def dmc_v4_config(sid_path: str, hvsc_root: str = 'hvsc84') -> DMCV4Config:
     # extract-only (the composer always emits at $1000; the writelog is
     # base-independent — the original's wrapper init/play are captured
     # as-is by the verify, handled by Check A + per-IRQ for CIA). ----
-    def _is_jumptable(b):
-        return (0 < b and s['load'] <= b and b + 0x8E7 < 0x10000
-                and mem[b] == 0x4C and mem[b + 3] == 0x4C
-                and (mem[b + 1] | (mem[b + 2] << 8)) == b + 0x1D
-                and (mem[b + 4] | (mem[b + 5] << 8)) == b + 0x85)
+    # Two jump-table layouts share the same play body but wire init
+    # differently. CANONICAL: `JMP base+$1D / JMP base+$85` (4-entry).
+    # 2ENTRY: `JMP base+$807 / JMP base+$50` (2-entry table, restructured
+    # init — ~621 members; the play body is byte-identical to canon, only
+    # the init/dispatch/all-off regions differ, and we emit our own init).
+    def _jt_layout(b):
+        if not (0 < b and s['load'] <= b and b + 0x8E7 < 0x10000
+                and mem[b] == 0x4C and mem[b + 3] == 0x4C):
+            return None
+        e0 = mem[b + 1] | (mem[b + 2] << 8)
+        e1 = mem[b + 4] | (mem[b + 5] << 8)
+        if e0 == b + 0x1D and e1 == b + 0x85:
+            return 'canonical'
+        if e0 == b + 0x807 and e1 == b + 0x50:
+            return '2entry'
+        return None
 
-    base = next((b for b in (s['play'] - 3, s['load']) if _is_jumptable(b)),
-                None)
+    base = layout = None
+    for b in (s['play'] - 3, s['load']):
+        layout = _jt_layout(b)
+        if layout:
+            base = b
+            break
     if base is None:
         b = s['play'] - 3
         reason = ('no_jumptable' if 0 < b and s['load'] <= b
@@ -191,14 +215,24 @@ def dmc_v4_config(sid_path: str, hvsc_root: str = 'hvsc84') -> DMCV4Config:
             nv = (val + delta) & 0xFFFF
             canon[pc - 0x1000 + 1] = nv & 0xFF
             canon[pc - 0x1000 + 2] = nv >> 8
+    # layout-local site/satellite maps (the 2-entry play body uses the
+    # canon sites; only the init-region tunetab access + the masked
+    # init regions differ).
+    sites_map = dict(_SITES)
+    tune_sat = _TUNE_SAT
+    mask_ranges = _MASKED_RANGES
+    if layout == '2entry':
+        sites_map = dict(_SITES, tunetab=[_V2ENTRY_TUNETAB_SITE])
+        tune_sat = _V2ENTRY_TUNE_SAT
+        mask_ranges = _MASKED_RANGES + _V2ENTRY_MASK
     masked = bytearray(0x1000)           # 1 = ignore, indexed by canon offset
-    for a, b in _MASKED_RANGES:
+    for a, b in mask_ranges:
         for i in range(a, b):
             masked[i - 0x1000] = 1
-    for sites in _SITES.values():
+    for sites in sites_map.values():
         for a in sites:
             masked[a - 0x1000] = masked[a - 0x1000 + 1] = 1
-    for a, _off in _FILT_SAT + _INST_SAT + _TUNE_SAT:
+    for a, _off in _FILT_SAT + _INST_SAT + tune_sat:
         masked[a - 0x1000] = masked[a - 0x1000 + 1] = 1
     # track-loop hook probe: the site holds STA (base+$726),x in the
     # canonical player; a JSR-hook variant reads the next track byte as
@@ -234,7 +268,7 @@ def dmc_v4_config(sid_path: str, hvsc_root: str = 'hvsc84') -> DMCV4Config:
 
     # ---- operand consistency (relocated absolute values) ----
     vals = {}
-    for name, sites in _SITES.items():
+    for name, sites in sites_map.items():
         vs = {_rd16(mem, at(a)) for a in sites}
         if len(vs) != 1:
             raise DMCV4Unsupported('operand_inconsistent',
@@ -245,7 +279,7 @@ def dmc_v4_config(sid_path: str, hvsc_root: str = 'hvsc84') -> DMCV4Config:
     for a, off in _FILT_SAT:
         if _rd16(mem, at(a)) != vals['filtdef'] + off:
             raise DMCV4Unsupported('operand_inconsistent', f'filtdef+{off}')
-    for a, off in _TUNE_SAT:
+    for a, off in tune_sat:
         if _rd16(mem, at(a)) != vals['tunetab'] + off:
             raise DMCV4Unsupported('operand_inconsistent', f'tunetab+{off}')
     for a, off in _INST_SAT:
@@ -278,7 +312,7 @@ def dmc_v4_config(sid_path: str, hvsc_root: str = 'hvsc84') -> DMCV4Config:
         name=os.path.splitext(os.path.basename(sid_path))[0],
         base=base,
         op_instr=at(0x1227), op_wavectrl=at(0x159C), op_wavefreq=at(0x15B9),
-        op_filtdef=at(0x1296), op_tunetab=at(0x1051),
+        op_filtdef=at(0x1296), op_tunetab=at(sites_map['tunetab'][0]),
         op_secp_lo=at(0x1103), op_secp_hi=at(0x1108),
         freq_lo_addr=at(0x1647), freq_hi_addr=at(0x16A7),
         vibdepth_addr=at(0x1888), d417_shadow_addr=at(0x1018),
