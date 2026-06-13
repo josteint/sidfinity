@@ -50,8 +50,8 @@
     "updated": "2026-06-13"
   },
   "digitalizer": {
-    "state": "LITTLE",
-    "notes": "single research.md first-pass overview; research-engine sweep not yet run.",
+    "state": "OK",
+    "notes": "research-player sweep complete (2 waves). Source NOT public, no open-source parser/spec exists -> reconstructed from (a) Olav Morkrid's recovered V3.0 help file (src/digitalizer_v3.0_instructions.txt: sequence byte encoding $00-1F inst / $20-3F arp / Sx sustain / Rx rel / portamento; wave+pulse+filter+arp sub-tables + 2 speeds), (b) decoded sidid signatures (V2.x relocatable, V3.0 fixed-addr, Olav_Moerkrid tracker player, OmegaSupreme_Digi 4-bit $D418 digi), (c) SDI/SID-Duzz'It as documented descendant (sdi_format_spec.md, DTZ2SDI converts Digitalizer V3.x->SDI). Tracker + integrated digi. Ancestor = Prosonix/SteinTronic (Stein Pedersen). Versions V2.2->V3.5; V3.5=GRG rewrite (no own sidid). OPEN (RE-phase): on-disk table layout, $7F vs $FF seq sentinel, digi model, per-effect register formulas, DTZ2SDI .d64 extract. 619 HVSC tunes (542 V2.x + 77 V3.0).",
     "updated": "2026-06-13"
   },
   "dmc": {

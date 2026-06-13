@@ -1,0 +1,60 @@
+---
+source_url: https://raw.githubusercontent.com/cadaver/sidid/master/sidid.cfg
+fetched_via: direct
+fetch_date: 2026-06-13
+author: cadaver (Lasse Ööyrni), signatures by Ian Coog/Ice00/Ninja/Yodelking/Wilfred/Prof.Chaos
+content_date: ongoing
+reliability: primary
+---
+
+# Raw sidid.cfg entries for Digitalizer and related players
+# Transcribed verbatim from cadaver/sidid and WilfredC64/player-id
+
+# ============================================================
+# SOURCE: cadaver/sidid (https://github.com/cadaver/sidid)
+# ============================================================
+
+Digitalizer_V3.0
+
+FE 3A 03 B1 FB C8 C9 80 90 22 C9 C0 B0 1E 69 80 9D 3D 03 9D 40 03 C9 3F D0 0C FE 3A 03 B1 FB C8 END
+
+Digitalizer_V2.x
+
+9D ?? ?? 0A 90 ?? B9 END
+
+Olav_Moerkrid
+
+29 80 60 DE ?? ?? ?? ?? ?? 20 ?? ?? 18 BD ?? ?? 7D ?? ?? 8D ?? ?? BD ?? ?? 7D ?? ?? 8D ?? ?? A4 END
+B9 ?? ?? 49 01 29 01 F0 ?? BD END
+F6 0C C8 B1 FC 30 0F C9 7F D0 E5 END
+
+Oeyvind_Jergan
+
+A2 78 A9 00 9D 34 03 CA 10 F8 A2 17 9D 00 D4 CA 10 FA A9 0F 8D
+A2 ?? 0A 0A 0A 18 0A 85 FE 90 01 E8 86 FF AE ?? ?? AD ?? ?? 9D ?? ?? AD ?? ?? 9D ?? ?? A9 00 9D
+
+Panorama
+
+AD ?? ?? D0 03 4C ?? ?? AD ?? ?? D0 03 4C ?? ?? AD ?? ?? D0 03 4C ?? ?? AD ?? ?? 29 01 D0
+
+# ============================================================
+# SOURCE: WilfredC64/player-id (https://github.com/WilfredC64/player-id)
+# ============================================================
+# Digitalizer entries IDENTICAL to cadaver/sidid — omitted for brevity
+# Olav_Moerkrid DIFFERS:
+
+Olav_Moerkrid (WilfredC64 version)
+
+98 18 7D ?? ?? A8 B9 ?? ?? C9 FF D0 ?? BD ?? ?? 18 E9 02 9D
+BC ?? ?? 99 01 D4 BD ?? ?? 99 00 D4 DE ?? ?? D0 ?? BC ?? ?? B9 ?? ?? 29 0F 0A
+4A 4A 4A 4A 85 ?? BD ?? ?? 38 E5 ?? 9D ?? ?? BD ?? ?? E9 00
+
+# ============================================================
+# NOTES ON FORMAT
+# ============================================================
+# ?? = any byte (wildcard)
+# END = signature match success (terminates one chained pattern)
+# AND = skip forward to next pattern (not present in these entries)
+# Scanner: linear scan from byte 0, no fixed offset
+# Multiple END lines for one player = chained patterns (all must match in sequence)
+# Entry starts with player name (non-hex, non-keyword token)

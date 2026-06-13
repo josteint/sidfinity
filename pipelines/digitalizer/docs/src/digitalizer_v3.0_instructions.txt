@@ -1,0 +1,160 @@
+---
+source_url: http://csdb.dk/getinternalfile.php/118523/Digitalizer-2.9(ff)%20v3.0.zip
+fetched_via: direct 2026-06-13
+fetch_date: 2026-06-13
+author: Olav Morkrid
+content_date: June 1992
+reliability: primary
+note: Extracted from digitalizer_v2.9(FF)(v3.0)-instructions.txt inside the CSDb zip.
+      6R6 (grg_shape) converted the C64 PETSCII help file to ASCII text on 2013-07-04.
+      This file is verbatim from that txt (redacted contact address lines).
+---
+
+   Instructions for DIGITALIZER V3.0
+  -----------------------------------
+
+This is just a small guidance for all
+the commands. To master them: PRACTICE!
+
+For help/tips write to this address:
+
+Olav Morkrid
+[address redacted]
+N-1415 [city redacted]
++47 [number redacted] (+47 [number redacted] after 1993)
+----------------------------------------
+
+Seq-editor
+------------
+
+[F1]     Goto TrkEdit
+RUN STOP Goto InstEdit
+HOME     Goto home/seq home
+CLR HOME Goto bottom
+CRSR     Move cursor
+INST/DEL Insert/delete
+,/.      16 steps up/down
+T        Tie on/off
+I        Declare for instrument
+P        Declare for portamento
+=        Goto current (follow player)
+SH N/M   Block start/end
+SH C     Copy
+SH D     Double sequence
+SH R     Replace current with entry
+SH E     Erase from pos
+SH K     Kill from pos
+(/)      Add empty bar at bottom
+</>      Transpose notes
+{/}      (Un)expand
+SPACE    Set empty bar
+
+00-1F    Instrument
+20-3F    Arpeggio
+S1-SF    Sustain add 1-15
+R0-RF    Rel/Att rate & Switch gate
+00-7F    Portamento Rate (-- = tie)
+A#7      Notes (a#7 = port)
+
+Inst-editor
+-------------
+
+RUN STOP Goto SeqEdit
+CRSR     Move cursor
+HOME     Goto home
+CLR HOME Clear instrument
+N        Enter instrument name
++/-      +/- instrument
+,/.      +/- arpeggio
+CT +/-   +/- speed 1
+SH +/-   +/- speed 2
+SH I     Instrument
+SH W     Waveform
+SH P     Pulse
+SH F     Filter
+SH A     Arpeggio
+SH M     Mark instrument
+SH C     Copy instrument
+INST/DEL Insert/delete
+
+01 = pulse/filter tie (only bit0 used)
+
+Trk-editor
+------------
+
+RETURN    Goto SeqEdit
+HOME      Goto start
+CLR HOME  Goto bottom
+CRSR U/D  Next step
+CRSR L/R  Move left/right
+INST/DEL  Insert/delete step
+R         Set restart bar
+S         Set stop bar
+
+Seq & Trk-edit
+----------------
+
+*         Switch track bank
++/-       +/- sequence
+SH +/-    +/- transpose
+UpArrow   Play from position
+
+Global Commands
+-----------------
+
+?         Guess you figured this one out
+/         Blank screen
+SH UpArrow Initialize (Confirm with "OK")
+SH :/;    +/- quantitize
+SH 1-3    Voiceoff
+SH RETURN READY.
+F1        Test arpeggio
+F3        Test instrument
+F5        Turn off
+F7        Play
+F2        Note+1
+F4        Note-1
+F6        Note+12 (1 octave)
+F8        Note-12 (1 octave)
+SH L      Load
+SH S      Save
+c= S      Dump
+@         Disk command
+
+----------------------------------------
+
+ Authors Comment
+-----------------
+
+I have been working on this musiceditor
+for 3-4 years now. When I finally
+decided to spread it, I had to reprogram
+it totally. I tried to make it as user-
+friendly as possible. If you find weak
+spots or bugs, contact me!
+
+I would like to thank prosonix for
+inspiration (vi kaller det herming!) and
+Geir/Mozicart for helpful discussions
+(I hope you got some help too!).
+
+If you want us to make music for you,
+please write me a letter. The rates are
+very friendly. The crew consists of:
+
+Lars Hoff            Prosonix
+Ole-Marius Pettersen Prosonix
+Stein Pedersen       Prosonix
+Geir Tjelta          Mozicart
+Trond Lindanger      Mozicart
+Henning Rokling      Panoramic
+Richard Nygaard      Panoramic
+Olav Morkrid         Panoramic
+
+----------------------------------------
+
+I hope you'll enjoy Digitalizer v3.0.
+                    -----------------
+
+                    OLAV M0RKRID
+                    June 1992
