@@ -115,6 +115,7 @@ class DmcModel:
     d417_shadow: int = 0
     dual_phase: int = 0              # $1019 leftover & 1 — initial phase
                                      # of the half-rate slide clock
+    cia_period: int = 0              # CIA1 timer A latch (multispeed); 0=VBI
     idle_wave: tuple = ((), (), 0)   # wave walk from table index 0 (the
                                      # cleared-cache idle path): ctrl,
                                      # freq, loop
@@ -422,6 +423,7 @@ def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc84') -> DmcModel:
         idle_notes=(mem[b + 0x12], mem[b + 0x13], mem[b + 0x14]),
         idle_masks=(mem[b + 0x0F], mem[b + 0x10], mem[b + 0x11]),
         dual_phase=mem[b + 0x19] & 1,
+        cia_period=cfg.cia_period,
         title=s.get('name', ''), author=s.get('author', ''),
         released=s.get('released', ''),
         n_subtunes=s.get('songs', 1), start_song=s.get('start', 1),

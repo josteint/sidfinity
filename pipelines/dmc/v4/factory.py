@@ -147,6 +147,41 @@ def _rd16(mem, a):
     return mem[a] | (mem[a + 1] << 8)
 
 
+def _cia_period_from_init(sid_path: str, subtune: int,
+                          max_cycles: int = 3_000_000) -> int:
+    """Run the PSID init in py65 and read the CIA1 timer A latch
+    ($DC04/$DC05) the wrapper programs — the multispeed play rate.
+    Returns 0 if init never returns or programs no timer."""
+    import sys
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__),
+                                    '..', '..', '..', 'tools', 'py65_lib'))
+    from py65.devices.mpu6502 import MPU
+    from py65.memory import ObservableMemory
+    from seed_disassembly import parse_psid
+    s = parse_psid(sid_path)
+    mpu = MPU()
+    mem = ObservableMemory()
+    for i, b in enumerate(s['payload']):
+        if s['load'] + i < 0x10000:
+            mem[s['load'] + i] = b
+    mpu.memory = mem
+    mpu.stPush(0x00)
+    mpu.stPush(0x00)               # RTS sentinel -> PC = $0001
+    mpu.pc = s['init']
+    mpu.a = subtune
+    mpu.x = mpu.y = 0
+    for _ in range(max_cycles):
+        if mpu.pc == 0x0001:
+            break
+        try:
+            mpu.step()
+        except Exception:
+            return 0
+    else:
+        return 0
+    return mem[0xDC04] | (mem[0xDC05] << 8)
+
+
 def dmc_v4_config(sid_path: str, hvsc_root: str = 'hvsc84') -> DMCV4Config:
     mem, s = _load(os.path.join(hvsc_root, sid_path))
 
@@ -191,13 +226,17 @@ def dmc_v4_config(sid_path: str, hvsc_root: str = 'hvsc84') -> DMCV4Config:
     # A wrapper member (play != base+3) drives the canonical player from a
     # separate dispatcher. When the PSID speed bit is set, that dispatcher
     # is a CIA-timer multispeed driver (~2-6x): the music plays faster, so
-    # the rebuild must run at the same CIA rate to match the write stream
-    # — a multispeed/CIA feature, not yet built. Bucket it precisely
-    # instead of building a single-speed rebuild that verifies partial.
+    # the rebuild must run at the same CIA rate. Recover the timer latch
+    # the wrapper programs by running its init in py65 — the composer
+    # emits the same latch + speed bit (see config.cia_period).
+    cia_period = 0
     if s['play'] != base + 3 and (s.get('speed', 0) & 1):
-        raise DMCV4Unsupported(
-            'cia_multispeed',
-            f"play=${s['play']:04X} drives base=${base:04X} via CIA")
+        cia_period = _cia_period_from_init(
+            os.path.join(hvsc_root, sid_path), s['start'] - 1)
+        if not (0x0100 <= cia_period <= 0xFFFF):
+            raise DMCV4Unsupported(
+                'cia_multispeed',
+                f"play=${s['play']:04X} CIA latch=${cia_period:04X} (unreadable)")
     delta = base - 0x1000
 
     def at(canon_addr):                 # canonical $1xxx addr -> mem index
@@ -316,5 +355,5 @@ def dmc_v4_config(sid_path: str, hvsc_root: str = 'hvsc84') -> DMCV4Config:
         op_secp_lo=at(0x1103), op_secp_hi=at(0x1108),
         freq_lo_addr=at(0x1647), freq_hi_addr=at(0x16A7),
         vibdepth_addr=at(0x1888), d417_shadow_addr=at(0x1018),
-        track_loop_target=loop_target,
+        track_loop_target=loop_target, cia_period=cia_period,
     )

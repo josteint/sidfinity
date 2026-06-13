@@ -123,9 +123,11 @@ def model_to_usf(m: DmcModel) -> UsfFile:
                       start_song=m.start_song),
         # slide_phase: initial phase bit of the global half-rate slide
         # clock (work-file leftover; shifts WHICH frames dual-effect
-        # voices update on — audible interleave phase)
-        params=Params(fields={'slide_phase': m.dual_phase}
-                      if m.dual_phase else {}),
+        # voices update on — audible interleave phase). cia_period: the
+        # multispeed CIA1 timer A latch (0 = single-speed VBI).
+        params=Params(fields={
+            **({'slide_phase': m.dual_phase} if m.dual_phase else {}),
+            **({'cia_period': m.cia_period} if m.cia_period else {})}),
         init=InitState(voices=[
             InitVoice(id=v + 1,
                       note=m.idle_notes[v] or None,

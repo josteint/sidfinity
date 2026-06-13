@@ -275,6 +275,19 @@ def compose_dmc_asm(usf: UsfFile) -> str:
     pat_hi = _ptr_tab('>')
 
     slide_phase = int(usf.params.fields.get('slide_phase', 0)) & 1
+    # CIA multispeed: when the original drives play() via a CIA1 timer
+    # (PSID speed bit set), the rebuild programs the SAME timer A latch
+    # so libsidplayfp calls OUR play() at the identical rate. 0 = VBI.
+    cia_period = int(usf.params.fields.get('cia_period', 0)) & 0xFFFF
+    cia_init = ''
+    if cia_period:
+        cia_init = (
+            '        lda #<CIA_PERIOD\n'
+            '        sta $dc04                    ; CIA1 timer A lo (play rate)\n'
+            '        lda #>CIA_PERIOD\n'
+            '        sta $dc05                    ; CIA1 timer A hi\n'
+            '        lda #$11\n'
+            '        sta $dc0e                    ; start timer A, continuous\n')
     idle = [0, 0, 0]
     imask = [0, 0, 0]
     for v in usf.init.voices:
@@ -332,6 +345,7 @@ def compose_dmc_asm(usf: UsfFile) -> str:
 
     return f"""
 SLIDE_PHASE = ${slide_phase:02X}
+CIA_PERIOD = ${cia_period:04X}
         * = $1000
         jmp init
         jmp playframe
@@ -392,7 +406,7 @@ ini_sid:
         inx
         cpx #$18
         bne ini_sid
-        rts
+{cia_init}        rts
 
 ;; ===================== play (once per frame) =====================
 playframe:
@@ -1132,9 +1146,13 @@ def _sanitize_asm(asm: str) -> str:
 def build_dmc_sid(usf: UsfFile) -> bytes:
     asm = _sanitize_asm(compose_dmc_asm(usf))
     code = assemble(asm)
+    # CIA multispeed: set the PSID speed bit for every subtune so
+    # libsidplayfp drives play() via the CIA1 timer A our init programs.
+    speed = ((1 << len(usf.subtunes)) - 1) if usf.params.fields.get(
+        'cia_period') else 0
     header = build_header(
         load=0, init=LOAD, play=LOAD + 3,
         songs=len(usf.subtunes), start_song=usf.psid.start_song,
-        speed=0, title=usf.psid.title, author=usf.psid.author,
+        speed=speed, title=usf.psid.title, author=usf.psid.author,
         released=usf.psid.released, flags=FLAGS_PAL_6581)
     return header + bytes([LOAD & 0xFF, LOAD >> 8]) + code

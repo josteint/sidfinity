@@ -47,6 +47,13 @@ class DMCV4Config:
     # loops to track position 0; the JSR-$1042 hook variant reads the
     # NEXT track byte as the loop position ($FF nn).
     track_loop_target: bool = False
+    # CIA multispeed (factory-probed): when the PSID play() is driven by
+    # a CIA1 timer A (a multispeed wrapper at 2-6x), this is the timer
+    # latch the original programs ($DC04/$DC05, read by running init in
+    # py65). The composer sets the PSID speed bit + programs the SAME
+    # latch so libsidplayfp drives our play() at the identical rate.
+    # 0 = single-speed VBI.
+    cia_period: int = 0
 
 
 ZAKS = DMCV4Config(
