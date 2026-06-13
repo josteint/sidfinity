@@ -95,12 +95,19 @@ force-includes record 0 as slot 0. (2) pulse base split — step =
 nibble + CACHED base; idle base=0; composer derives base = step&$0F.
 (3) xa65: ':' is a statement separator EVEN IN COMMENTS (sanitizer).
 
-## ✅✅ FAMILY-1 WIDE BATCH + RELOCATION (2026-06-13): 2656/5401 FULL (49.2%)
-First sweep: 2257 full. Then the **relocation-aware factory** recovered
-**+399** (the 1184 nonstandard_vectors re-run: 399 full / 97 partial /
-276 no_jumptable=packed / 131 code_mismatch / 77 loop_site / 183 error).
-**Total 2656 FULL**, mass-written + db-refreshed (0 errors). Ear-test
-passed on Zaks.
+## ✅✅ FAMILY-1: 2921/5401 FULL (54.1%) as of 2026-06-13
+Progression: 2257 (first sweep) -> 2656 (relocation: +399) -> 2921
+(2-entry layout + base=load: +265). Mass-written + db-refreshed (0
+errors, 2921 sidfinity_md5). Ear-test passed on Zaks. Portfolio
+re-derived twice (standard closeout); regress_dmc 6 ok (Zaks + 5).
+
+**2-ENTRY LAYOUT (commit 9212423):** the biggest code-mismatch bucket
+(688 @ $1001) is a re-assembled build with a 2-entry jumptable
+(JMP base+$807/base+$50) but a play body BYTE-IDENTICAL to canon. The
+factory detects layout from the jumptable signature; for 2-entry it
+masks the restructured init/dispatch/all-off regions + uses the $180E
+tunetab site (also valid for canon). ~290 of the 688 recovered (rest
+are 2-entry members with CIA/offtable). player_code_mismatch 1182->495.
 
 RELOCATION FACTORY (commit ab4b4c9): the same player at ANY base passes
 (Face2face $9000 FULL, verified $2000-$C000). Relocation is EXTRACT-ONLY
@@ -146,11 +153,11 @@ DUAL-CLOCK PHASE ($1019 leftover → params.slide_phase).
    typed `cia_multispeed` bucket (108 precise; ~150 need a jumptable
    SCAN — player at neither play-3 nor load). [[feedback_init_trichotomy]]
    "environment" bucket is exactly this.
-2. Second loop-hook variant (loop_site_unknown ~299: `c8 20 4d` site =
-   a different JSR hook addr — generalize the loop probe).
-3. Other code-mismatch sub-builds (player_code_mismatch ~1182:
-   2-entry-layout @ $1001 + $1181/$1631/$12A8/... — each a distinct
-   build, needs a 2nd canonical ref binary or per-region diff).
+2. 2nd loop-hook variant: EVAPORATED (relocation absorbed it; ~13
+   ambiguous `7e18ea` members remain — not worth a dedicated fix).
+3. Remaining code-mismatch sub-builds (player_code_mismatch 495, down
+   from 1182 after the 2-entry layout: $1181/$1631/$12A8/... — each a
+   distinct re-assembly, diminishing returns).
 4. offtable_live + zero-wave-table edge errors (636, mostly correctly
    refused — genuinely live per-voice runtime state; architectural limit).
 5. Partial long tail (275: bucket by first_diff in the jsonl).
