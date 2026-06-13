@@ -6,7 +6,7 @@ source_url:   http://elysium.filety.pl/  (FTP mirror of ftp.elysium.pl, "GamesAr
 local:        tmp/hardtrack/elysium_filelist.txt   (mirror listing, built 2019-03-03, READ-ONLY)
               tmp/hardtrack/OUT_PRZECZYTAJ_MNIE.prg (decoded read-me, READ-ONLY)
               tmp/hardtrack/*.d64                    (disk images, READ-ONLY)
-              pipelines/hardtrack/docs/_artifacts/sdk/extracted/  (already-extracted SDK binaries)
+              pipelines/hardtrack/docs/src/sdk/extracted/  (already-extracted SDK binaries)
 fetched_via:  local read of pre-fetched artifacts + Wayback CDX API cross-check
 fetch_date:   2026-06-13
 author:       site maintained by CenTraX/Agony Design; HardTrack content by Brush + Longhair/Elysium
@@ -72,7 +72,7 @@ files; the 6speed and Tape disks are single packed one-file releases.
  23 blk PRG  PRZECZYTAJ MNIE!  <- the Polish read-me (decoded & translated in §4)
 ```
 `HDT PLAYER`, `HDT DEPACKER`, `HDT RELOCATOR`, `MAIN` and the read-me were the files the
-prior agent extracted into `_artifacts/sdk/extracted/` (as `PLAYER_V1.*.bin`,
+prior agent extracted into `src/sdk/extracted/` (as `PLAYER_V1.*.bin`,
 `DEPACKER.SRC.bin`, `EDYTOR.SRC.bin`, `PACKER.SRC.bin`, `RELEASE_NOTES.bin`) and
 `tmp/hardtrack/OUT_*.prg`.
 
@@ -91,7 +91,7 @@ The bundled `.inf0` release note reads verbatim:
  44 blk PRG  HARDTRACK TAPE    <- single packed file, tape-loader build
 ```
 
-## 3. SDK binaries already extracted (`_artifacts/sdk/extracted/`)
+## 3. SDK binaries already extracted (`src/sdk/extracted/`)
 
 | file | size | notes (from `strings`) |
 |---|---|---|
@@ -132,7 +132,7 @@ absolute pointers — confirming the "engine holds absolute pointers per build" 
 
 The read-me on the V1.0 disk is a crunched self-displaying note (BASIC `SYS 2059`).
 It was decoded by emulating the depacker (one-off 6502 emulator at
-`_artifacts/decrunch_readme.py`); the cleartext lands in RAM at $3000–$3A6F as 40-column
+`src/decrunch_readme.py`); the cleartext lands in RAM at $3000–$3A6F as 40-column
 screen text. Reproduced verbatim, then translated. **This is the single most authoritative
 provenance artifact — the authors' own credits, in their own words.**
 
@@ -227,7 +227,7 @@ DECYZJI.
 > Note: the read-me lists no version number — it shipped on the V1.0 disk. V1.1 is a
 > later player-only revision (see `archive_authors_versions.md`).
 ```
-local one-off tool: pipelines/hardtrack/docs/_artifacts/decrunch_readme.py
+local one-off tool: pipelines/hardtrack/docs/src/decrunch_readme.py
 (minimal NMOS-6502 emulator; reads tmp/hardtrack/OUT_PRZECZYTAJ_MNIE.prg READ-ONLY,
  runs the crunched note's depacker, dumps the cleartext from $3000. Re-runnable.)
 ```

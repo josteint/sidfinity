@@ -37,7 +37,7 @@ rare V2 capture and an outlier.
 
 > The authoritative V1.0-vs-V1.1 player-code diff is in the local SDK
 > `RELEASE NOTES!!!` + `PLAYER V1.0` / `PLAYER V1.1` sources (in
-> `_artifacts/sdk/`), being decoded by the sibling asm agent. The community
+> `src/sdk/`), being decoded by the sibling asm agent. The community
 > sources only assert the *data format is identical*; the byte-level player
 > differences come from those sources, not from forums.
 
@@ -98,7 +98,7 @@ player-family breakdown + the `$1006` multispeed note already captured.
 ## Leads to follow
 
 - **Local SDK `RELEASE NOTES!!!` + `PLAYER V1.0`/`V1.1` sources** (already
-  extracted to `_artifacts/sdk/extracted/`, decoded by the sibling agent) — the
+  extracted to `src/sdk/extracted/`, decoded by the sibling agent) — the
   PRIMARY authority for the V1.0-vs-V1.1 player diff and the `$1006` question.
   Forums only confirm "same data format"; the byte diff lives there.
 - **`$1006` third vector** — disassemble a V1.0 and a V1.0+/[6 speed] HVSC player

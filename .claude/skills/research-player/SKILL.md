@@ -104,7 +104,11 @@ separate Claude session may be editing the same repo concurrently):
   had dirtied the file, reverting another session's live state — see
   `.claude/memory/feedback_subagents_no_git.md`.)
 - **Write ONLY inside `pipelines/<engine>/docs/`.** Do not modify any other
-  repo file, `pipelines/<other-engine>/`, or `tmp/`.
+  repo file or `pipelines/<other-engine>/`. Keep useful third-party source
+  (player asm, format specs) under `pipelines/<engine>/docs/src/` so it's
+  committed and the docs' `file:line` citations don't rot. Put large
+  downloads / scratch in a FRESH `tmp/<engine>_research/` dir — do NOT touch
+  any other `tmp/` subdir (another session may own e.g. `tmp/dmc_hunt/`).
 - **Open shared SQLite DBs read-only**: `sqlite3.connect('file:hvsc84.db?mode=ro', uri=True)`
   — never a writable connection (it must not be flipped to WAL).
 - The orchestrator (not the agents) writes `README.md` + `provenance_log.md`,

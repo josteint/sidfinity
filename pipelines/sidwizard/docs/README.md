@@ -22,6 +22,9 @@ manual (a prose format spec), full version history, and four decoded HVSC binari
    + the SWM format from `SWM-spec.src`.
 5. **`csdb_hermit_site_manual.md`** — the 1.4 manual: every musical-byte *semantic*
    (table command codes, the full FX catalogue, multispeed thresholds, HR types).
+6. **`src/`** — the actual upstream source kept in-repo (`exporter.asm`,
+   `player.asm`, `SWM-spec.src`, includes). The `github_*.md` docs cite it by
+   `file:line`. See `src/README.md`.
 
 ## Scope & census (read before any migration)
 

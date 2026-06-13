@@ -35,7 +35,7 @@ JC64dis is useful here only as a *disassembler tool* (its `.dis` format and the
 Java disassembler engine), not as a source of a pre-existing HardTrack
 annotation. SIDfinity's own hand-annotated `disassembly.s` for the
 representative HardTrack SID — informed by the Elysium SDK source in
-`_artifacts/sdk/extracted/` — will be the first structural annotation of this
+`src/sdk/extracted/` — will be the first structural annotation of this
 engine.
 
 ## Sources

@@ -1,7 +1,7 @@
 # HardTrack Composer — Player Source (decoded)
 
 > **Provenance**
-> - source: `local: pipelines/hardtrack/docs/_artifacts/sdk/extracted/RELEASE_NOTES.bin`
+> - source: `local: pipelines/hardtrack/docs/src/sdk/extracted/RELEASE_NOTES.bin`
 >   (= assembled V1.0 player @ $1000 + demo tune), cross-referenced against
 >   `PLAYER_V1.0.bin` / `PLAYER_V1.1.bin` (tokenised Elysium turbo-assembler SOURCE)
 >   and against the canonical HVSC tune `hvsc84/MUSICIANS/W/Wodnik/HT_7_1.sid`.
@@ -66,7 +66,7 @@ with the high bit set on the terminating char). Polish abbreviations, decoded:
 | `GORA` (`OPUSZ`) | góra/opuszczanie = up/down | glissando up / down |
 | `START`, `KBYTE`, `SBYTE` | start / kolejny=next / czytaj=read byte | stream-decode helpers |
 
-(Full 323-symbol dump is in `_artifacts/` decode logs; the table above is the subset
+(Full 323-symbol dump is in `src/` decode logs; the table above is the subset
 that maps onto live code.)
 
 ---

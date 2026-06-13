@@ -38,6 +38,8 @@ WebSID 4SID header spec.
 ## Note
 
 All six agents honored the hardened no-git / write-scoped / read-only-DB
-constraints — source was fetched via curl to gitignored `tmp/sw/` (no `git clone`),
-and the pre-existing `M hvsc84.db` / `M pipelines/dmc/v4/factory.py` (the concurrent
-DMC session) were left untouched.
+constraints — source was fetched via curl (no `git clone`); the pre-existing
+`M hvsc84.db` / `M pipelines/dmc/v4/factory.py` (the concurrent DMC session) were
+left untouched. The fetched upstream source has since been kept in-repo at
+`pipelines/sidwizard/docs/src/` (see its README) so the analysis docs' `file:line`
+citations stay valid.

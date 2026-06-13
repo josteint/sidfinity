@@ -4,7 +4,7 @@ provenance:
   local:
     - hvsc84/MUSICIANS/W/Wodnik/HT_7_1.sid   (canonical $1000 build; play routine disassembled byte-exact, $10D8..$1587)
     - hvsc84/MUSICIANS/R/Randy/Scortia.sid    (relocation cross-check)
-    - pipelines/hardtrack/docs/_artifacts/sdk/extracted/PLAYER_V1.0.bin / PLAYER_V1.1.bin (symbol tables)
+    - pipelines/hardtrack/docs/src/sdk/extracted/PLAYER_V1.0.bin / PLAYER_V1.1.bin (symbol tables)
   fetched_via: hand-written 6502 disassembler (tmp/hardtrack/work/dis.py) + siddump --writelog / --writelog-per-irq (libsidplayfp ground truth)
   fetch_date: 2026-06-13
   author: HardTrack Composer player by Longhair / Milosz Ignatowski (Elysium/Parados); analysis SIDfinity

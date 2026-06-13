@@ -1,7 +1,7 @@
 # HardTrack Composer — Release Notes & Player Versions (V1.0 vs V1.1)
 
 > **Provenance**
-> - source: `local: pipelines/hardtrack/docs/_artifacts/sdk/extracted/RELEASE_NOTES.bin`,
+> - source: `local: pipelines/hardtrack/docs/src/sdk/extracted/RELEASE_NOTES.bin`,
 >   `PLAYER_V1.0.bin`, `PLAYER_V1.1.bin` (Elysium SDK, already extracted).
 > - fetched_via: local artifacts + byte/string decode + structural diff of the two
 >   tokenised assembler sources.

@@ -10,7 +10,7 @@ source_url:   https://csdb.dk/release/?id=74928   (V1.0)
               https://www.c64scene.pl/viewtopic.php?t=584      (original + printed PL manual)
 local:        tmp/hardtrack/OUT_PRZECZYTAJ_MNIE.prg (decoded read-me — see archive_elysium_contents.md §4)
               tmp/hardtrack/Hardtrack_Composer_v1_-6speed-.inf0
-              pipelines/hardtrack/docs/_artifacts/sdk/extracted/PLAYER_V1.0.bin / PLAYER_V1.1.bin
+              pipelines/hardtrack/docs/src/sdk/extracted/PLAYER_V1.0.bin / PLAYER_V1.1.bin
 fetched_via:  WebFetch + WebSearch (CSDb, c64scene.pl, c64power.com); Wayback CDX API;
               local read of pre-fetched read-me/inf0/SDK binaries
 fetch_date:   2026-06-13

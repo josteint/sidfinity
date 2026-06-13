@@ -11,7 +11,7 @@ carry exact URLs.
 | elysium.filety.pl SDK (`hardtrack_sdk.zip` → `.d64`) | curl + D64 walk | player V1.0/V1.1 binaries + `EDYTOR/PACKER/DEPACKER.SRC` + `RELEASE_NOTES` |
 | `RELEASE_NOTES.bin` (= compiled V1.0 player PRG) + `HT_7_1.sid` | local disasm (`seed_disassembly.py`) + `siddump --writelog` | byte-exact player + verified per-frame write model |
 | `PLAYER_V1.0.bin` (tokenised) | local decode | 323-entry original Polish symbol table |
-| Polish readme (`OUT_PRZECZYTAJ_MNIE.prg`, crunched) | one-off 6502 emulator (`_artifacts/decrunch_readme.py`) | first-party authorship + credits, translated |
+| Polish readme (`OUT_PRZECZYTAJ_MNIE.prg`, crunched) | one-off 6502 emulator (`src/decrunch_readme.py`) | first-party authorship + credits, translated |
 | elysium.filety.pl mirror listing | local read (`tmp/hardtrack/elysium_filelist.txt`) | full HardTrack file inventory on the site |
 | CSDb #74928 / #36647 (+ forum #65313 Asterion format note) | direct / snippets | versions, credits, a format spec |
 | c64power.com topic 4120 (V2.0 dev thread, abby_=Dąbrowski) | direct (page 1) | V2.0 lineage + `$1006` multispeed vector |

@@ -2,9 +2,9 @@
 provenance:
   source_url: n/a (derived from local binaries)
   local:
-    - pipelines/hardtrack/docs/_artifacts/sdk/extracted/PLAYER_V1.0.bin  (editor RELOCATABLE-OBJECT/source form + symbol table — NOT a runnable image; bogus load $A909; embeds "PLAYER V1.0 BY LONGHAIR" + the player symbol table)
-    - pipelines/hardtrack/docs/_artifacts/sdk/extracted/PLAYER_V1.1.bin  (same, V1.1; bogus load $1309; embeds "PLAYER V1.1")
-    - pipelines/hardtrack/docs/_artifacts/sdk/extracted/RELEASE_NOTES.bin  (despite the name, the COMPILED V1.0 PLAYER image: PRG load=$1000, JMP table 4C 60 10 / 4C D8 10, STA $D417 at file $37B/$39F = BASE+$379/$39D — independently confirms the HT_7_1 offsets below)
+    - pipelines/hardtrack/docs/src/sdk/extracted/PLAYER_V1.0.bin  (editor RELOCATABLE-OBJECT/source form + symbol table — NOT a runnable image; bogus load $A909; embeds "PLAYER V1.0 BY LONGHAIR" + the player symbol table)
+    - pipelines/hardtrack/docs/src/sdk/extracted/PLAYER_V1.1.bin  (same, V1.1; bogus load $1309; embeds "PLAYER V1.1")
+    - pipelines/hardtrack/docs/src/sdk/extracted/RELEASE_NOTES.bin  (despite the name, the COMPILED V1.0 PLAYER image: PRG load=$1000, JMP table 4C 60 10 / 4C D8 10, STA $D417 at file $37B/$39F = BASE+$379/$39D — independently confirms the HT_7_1 offsets below)
     - hvsc84/MUSICIANS/W/Wodnik/HT_7_1.sid   (canonical $1000 standalone build, disassembled byte-exact)
     - hvsc84/MUSICIANS/R/Randy/Scortia.sid   (relocated $3000 multi-copy build)
   fetched_via: local disassembly (tmp/hardtrack/work/dis.py, a hand-written 6502 disassembler) + siddump --writelog / --writelog-per-irq

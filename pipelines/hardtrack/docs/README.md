@@ -80,7 +80,7 @@ shadow operand). No format-aware parser exists in any tool — SIDfinity will be
 |---|---|---|
 | Extraction plan + OPEN items | `spec_extraction_plan.md` | — |
 | Per-frame write model | `spec_write_model.md` | `sidid_signature_analysis.md` (`$D417`) |
-| Player source + symbol table | `csdb_player_source.md` | `_artifacts/player_v1.0_disasm.s` (raw) |
+| Player source + symbol table | `csdb_player_source.md` | `src/player_v1.0_disasm.s` (raw) |
 | Versions / release notes | `csdb_release_notes_and_versions.md` | `archive_authors_versions.md`, `forum_synthesis.md` |
 | Releases / authorship | `csdb_releases.md` | `forum_csdb_releases.md`, `archive_authors_versions.md` |
 | elysium SDK contents + readme | `archive_elysium_contents.md` | — |
@@ -115,7 +115,7 @@ Provenance headers on every file; `provenance_log.md` lists URLs hit/blocked.
 The elysium SDK (`hardtrack_sdk.d64` + zips) and extracted player/source `.bin`
 are git-ignored (kept locally for RE; reproducible from elysium.filety.pl — the
 source content is captured in `csdb_player_source.md`). Committed as text:
-`_artifacts/player_v1.0_disasm.s` (raw seed disasm) + `_artifacts/decrunch_readme.py`.
+`src/player_v1.0_disasm.s` (raw seed disasm) + `src/decrunch_readme.py`.
 
 ## Top leads
 

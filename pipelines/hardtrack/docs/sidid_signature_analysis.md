@@ -7,7 +7,7 @@
   - `tmp/dmc_hunt/sidid/sidid.cfg` (line 833)
   - `tmp/dmc_hunt/player-id/config/sidid.cfg` (line 855)
   - `tmp/dmc_hunt/DeepSID/utility/sidid_100/sidid.cfg` (line 808)
-- Player image disassembled (READ-ONLY): `pipelines/hardtrack/docs/_artifacts/sdk/extracted/RELEASE_NOTES.bin`
+- Player image disassembled (READ-ONLY): `pipelines/hardtrack/docs/src/sdk/extracted/RELEASE_NOTES.bin`
   — despite the filename this is the compiled **V1.0 player image** ($1000 load,
   embedded string `PLAYER 1.0 BY LONGHAIR/ELYSIUM`; JMP table `4C 60 10 / 4C D8 10`
   at the top = init $1060 / play $10D8).

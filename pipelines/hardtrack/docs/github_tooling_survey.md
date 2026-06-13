@@ -4,7 +4,7 @@
 > libsidplayfp). Conducted 2026-06-13 by the SIDfinity web-research agent. All
 > findings below are from live fetches of the named GitHub repos / raw files and
 > web search on 2026-06-13. This file records EXTERNAL tooling only — the
-> already-extracted Elysium SDK asm (`_artifacts/sdk/extracted/`) is a sibling
+> already-extracted Elysium SDK asm (`src/sdk/extracted/`) is a sibling
 > agent's territory.
 >
 > **Headline result: NO existing format-aware HardTrack parser/converter/player
@@ -91,7 +91,7 @@ decodes HardTrack patterns/instruments.** The only HardTrack-specific knowledge
 that exists publicly is:
   1. the **sidid / player-id signature** (engine *identification* only — see
      `github_player_id_signature.md`), and
-  2. the **Elysium SDK source** already pulled into `_artifacts/sdk/`
+  2. the **Elysium SDK source** already pulled into `src/sdk/`
      (sibling-agent territory).
 
 This makes the SIDfinity write-log verification model (libsidplayfp `--writelog`
