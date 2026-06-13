@@ -8,6 +8,31 @@
 - **Player license:** Free for any purpose including commercial (non-GPL)
 - **Key refs:** GoatTracker guide, ChiptuneSAK docs, cadaver's miniplayer repos
 
+## In this directory (read these before any GT2 work)
+
+This file is the format overview. The deep player RE lives alongside it
+(moved here 2026-06-13 from `deprecated/gt2_pipeline/docs/`; it documents
+the GoatTracker *player*, which is current knowledge — only the old
+USF-v1 *pipeline* is deprecated):
+
+| File | What it covers |
+|------|----------------|
+| `player_algorithm.md` (1184 ln) | The `mt_play` routine, frame by frame — dispatch, new-note init, effect ticks, loadregs paths. |
+| `player_variables.md` (639 ln) | Every channel-state variable (the stride-7 `mt_chn*` block) + globals, with meaning and lifetime. |
+| `table_algorithms.md` (738 ln) | Wave / pulse / filter / speed table stepping semantics — how each row is interpreted and advanced. |
+| `gt2_data_layout.md` (200 ln) | Packed/relocated SID data-section byte layout (the extraction target). |
+| `gt2_player_versions.md` (141 ln) | The **4 behavior groups (A/B/C/D)** across player versions 2.65–2.77: byte-level audio-affecting diffs, binary-detection recipes, proposed USF representation. |
+
+**Ground truth beyond these docs:** the actual GoatTracker source for 13
+versions (2.65–2.77) is bundled at
+`deprecated/gt2_pipeline/GoatTracker_<ver>/src/` — `gplay.c`, `greloc.c` /
+`gt2reloc.c`, `player.s`, plus `goat_tracker_commands.pdf` (the official
+manual) in each. Because the player is C-compiled with ~40 conditional
+flags that strip code per song, this source + the flag analysis is more
+useful than any single binary's disassembly. A prior SID→USF-v1 attempt
+(`gt2_decompile.py`, `gt2_to_usf.py`, `gt2_detect_version.py`, …) also
+lives in `deprecated/gt2_pipeline/` — review it before rewriting.
+
 ## Entry Points (exported SID)
 
 | Offset | Function |
