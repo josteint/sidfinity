@@ -1,5 +1,5 @@
-"""Select the FC-standard regression portfolio: the EXACT minimum set of
-FULL members covering every exercised feature dimension >= 2x.
+"""Select an engine family's regression portfolio: the EXACT minimum set
+of FULL members covering every exercised feature dimension >= 2x.
 
 Rationale (user decision 2026-06-11): for a feature-driven engine family,
 two members are redundant exactly when they exercise the same code paths.
@@ -10,11 +10,22 @@ or >=1 when only one member in the corpus has it), solved by branch and
 bound with a greedy seed bound — optimal at this scale in milliseconds,
 no SAT dependency. Bug-witness members win ties.
 
-Run (after a wide batch; reads tmp/fc_std_wide_results.jsonl):
-    PYTHONPATH=.:tools/py65_lib:tools:src python3 \
-        tools/select_regression_portfolio.py [--jobs 8]
+ENGINE-PARAMETRIC: each family is one entry in the ENGINES registry
+(wide-batch jsonl + output path + feature extractor + bug witnesses +
+jsonl SID key). `exact_multicover` and the driver are engine-blind;
+adding a family = a registry entry + a `<engine>_features` function.
 
-Output: tools/fc_regression_portfolio.json (the member list + the
+STANDARD CLOSEOUT STEP: once a family's wide batch is mass-written
+(family reaches its FULL coverage), derive its portfolio and wire it as
+tier-1 in tools/regression.py (the full family batch is tier-2). Do this
+again whenever a new fix lands a big new clump of FULLs — the portfolio
+is only as current as the last derivation.
+
+Run (after a wide batch):
+    PYTHONPATH=.:tools/py65_lib:tools:src python3 \
+        tools/select_regression_portfolio.py --engine {fc_standard|dmc_v4} [--jobs 8]
+
+Output: tools/<engine>_regression_portfolio.json (member list + the
 feature->members map) + a human summary on stdout.
 """
 from __future__ import annotations
@@ -29,11 +40,9 @@ from pathlib import Path
 ROOT = str(Path(__file__).resolve().parents[1])
 sys.path.insert(0, ROOT)
 
-RESULTS = os.path.join(ROOT, 'tmp', 'fc_std_wide_results.jsonl')
-OUT = os.path.join(ROOT, 'tools', 'fc_regression_portfolio.json')
-
-# Members that caught a real family bug during rollout — preferred on ties.
-BUG_WITNESSES = {
+# Members that caught a real FC-family bug during rollout — preferred
+# on ties.
+FC_WITNESSES = {
     'MUSICIANS/C/Carter/Jarre_2.sid', 'MUSICIANS/L/Luca/Prato.sid',
     'MUSICIANS/V/Venom/Entrail_Ranx_02_08.sid',
     'MUSICIANS/G/Griff/FBI_Crew_Intro_2.sid',
@@ -46,6 +55,15 @@ BUG_WITNESSES = {
     'DEMOS/0-9/1st_Sound.sid', 'DEMOS/M-R/Ranx.sid',
     'MUSICIANS/O/Odi/Jingle_from_the_Lenor_advert.sid',
     'MUSICIANS/S/Stember_Rudolf/Chaos_game.sid',
+}
+
+# Members that caught a real DMC-family bug during the v4 rollout.
+DMC_WITNESSES = {
+    'MUSICIANS/A/Amadeus_Slash_Design/Geometrical_Zaks.sid',  # idle/pulse
+    'DEMOS/G-L/Knallen_Wars_Remix.sid',          # loop-target + tuning
+    'MUSICIANS/C/Compod/Door_Was_Ajar.sid',      # 16-bit pattern ptr
+    'DEMOS/A-F/Face2face.sid',                   # relocation ($9000)
+    'MUSICIANS/A/Alien_WOW/Exclusive_4_Fungus.sid',   # dual-clock phase
 }
 
 
@@ -168,6 +186,121 @@ def member_features(sid: str) -> tuple[str, set] | None:
     return (sid, f)
 
 
+def dmc_features(sid: str) -> tuple[str, set] | None:
+    """DMC V4 feature set for one FULL member (factory + extract).
+
+    Same 20s-alarm discipline as the FC extractor."""
+    import signal
+
+    def _bail(_sig, _frm):
+        raise TimeoutError
+
+    signal.signal(signal.SIGALRM, _bail)
+    signal.alarm(20)
+    from pipelines.dmc.v4.factory import dmc_v4_config, DMCV4Unsupported
+    from pipelines.dmc.v4.extract.engine_model import extract
+    from pipelines.dmc.engine_constants import FREQ_LO, FREQ_HI
+    try:
+        cfg = dmc_v4_config(sid)         # HVSC-relative; factory joins root
+        m = extract(cfg)
+    except (DMCV4Unsupported, Exception):
+        return None
+    finally:
+        signal.alarm(0)
+    f: set[str] = set()
+    # --- factory variant knobs ---
+    if cfg.track_loop_target:
+        f.add('knob:loop_target')
+    if cfg.base != 0x1000:
+        f.add('knob:relocated')
+    if cfg.base >= 0xA000:
+        f.add('knob:high_load')
+    if m.dual_phase:
+        f.add('knob:dual_phase')
+    if m.d417_shadow:
+        f.add('knob:routing_shadow')
+    if any(m.idle_notes):
+        f.add('knob:idle_note')
+    if any(m.idle_masks):
+        f.add('knob:idle_mask')
+    if m.idle_wave[0]:
+        f.add('knob:idle_wave')
+    if bytes(m.freq_lo) != FREQ_LO or bytes(m.freq_hi) != FREQ_HI:
+        f.add('struct:per_tune_tuning')
+    # --- instrument effect dimensions (union over decoded insts) ---
+    for i in m.instruments.values():
+        if i.drum:
+            f.add('fx:drum')
+        if i.noise_attack:
+            f.add('fx:cymbal')
+        if i.filter_on:
+            f.add('fx:filter')
+        if i.filter_keep_running:
+            f.add('fx:filter_keep')
+        if i.pw_keep_running:
+            f.add('fx:pulse_keep')
+        if i.dual:
+            f.add('fx:dual_slide')
+        if i.vib_width:
+            f.add('fx:vibrato')
+            if i.vib_delay:
+                f.add('fx:vib_delay')
+            if not i.dual and i.vib_ramp:
+                f.add('fx:vib_ramp')
+        f.add(f'fx:gate_{i.gate_mode}')
+    if len(m.instruments) > 10:
+        f.add('struct:inst_growth')
+    if m.filter_defs:
+        f.add('struct:filter_defs')
+    if m.n_subtunes > 1:
+        f.add('struct:multi_subtune')
+    # --- pattern / track structure (union over all voices) ---
+    for song in m.songs:
+        for v in song.voices:
+            if v.stop:
+                f.add('track:stop')
+            if v.loop_to is not None:
+                f.add('track:loop')
+            if any(v.transposes):
+                f.add('track:transpose')
+            for rows in v.patterns:
+                for r in rows:
+                    if r.glide_speed and r.glide_to is not None:
+                        f.add('pat:glide')
+                    if r.glide_slide:
+                        f.add('pat:slide')
+                    if r.gate_toggle:
+                        f.add('pat:gate_toggle')
+                    if r.vol:
+                        f.add('pat:vol')
+                    if r.soft:
+                        f.add('pat:soft')
+    return (sid, f)
+
+
+# Engine registry: each family declares where its wide-batch results
+# live, where the portfolio goes, the feature extractor, the bug
+# witnesses, and the per-record SID key in the jsonl. Adding a family =
+# one entry + a `<engine>_features` function; exact_multicover and the
+# driver stay engine-blind.
+ENGINES = {
+    'fc_standard': {
+        'results': os.path.join(ROOT, 'tmp', 'fc_std_wide_results.jsonl'),
+        'out': os.path.join(ROOT, 'tools', 'fc_regression_portfolio.json'),
+        'features': member_features,
+        'witnesses': FC_WITNESSES,
+        'sid_key': 'sid',
+    },
+    'dmc_v4': {
+        'results': os.path.join(ROOT, 'tmp', 'dmc_wide_results.jsonl'),
+        'out': os.path.join(ROOT, 'tools', 'dmc_regression_portfolio.json'),
+        'features': dmc_features,
+        'witnesses': DMC_WITNESSES,
+        'sid_key': 'path',
+    },
+}
+
+
 def exact_multicover(universe: dict[str, int],
                      members: dict[str, set],
                      prefer: set[str]) -> list[str]:
@@ -257,17 +390,23 @@ def exact_multicover(universe: dict[str, int],
 
 def main():
     ap = argparse.ArgumentParser()
+    ap.add_argument('--engine', default='fc_standard', choices=sorted(ENGINES),
+                    help='which engine family to derive the portfolio for')
     ap.add_argument('--jobs', type=int, default=8)
     args = ap.parse_args()
     os.chdir(ROOT)
-    fulls = [json.loads(l)['sid'] for l in open(RESULTS)
+    eng = ENGINES[args.engine]
+    results, out = eng['results'], eng['out']
+    features, witnesses, sid_key = (
+        eng['features'], eng['witnesses'], eng['sid_key'])
+    fulls = [json.loads(l)[sid_key] for l in open(results)
              if json.loads(l)['status'] == 'full']
-    print(f'{len(fulls)} FULL members; deriving feature matrix...',
-          flush=True)
+    print(f'[{args.engine}] {len(fulls)} FULL members; '
+          f'deriving feature matrix...', flush=True)
     rows = []
     done = 0
     with Pool(args.jobs) as pool:
-        for r in pool.imap_unordered(member_features, fulls, chunksize=8):
+        for r in pool.imap_unordered(features, fulls, chunksize=8):
             done += 1
             if done % 250 == 0:
                 print(f'{done}/{len(fulls)} extracted', flush=True)
@@ -282,19 +421,20 @@ def main():
     dim_count = Counter(d for fs in members.values() for d in fs)
     universe = {d: min(2, n) for d, n in dim_count.items()}
     print(f'{len(universe)} feature dimensions', flush=True)
-    sol = exact_multicover(universe, members, BUG_WITNESSES)
+    sol = exact_multicover(universe, members, witnesses)
     sol.sort()
     cover = {d: sorted(m for m in sol if d in members[m])
              for d in sorted(universe)}
-    json.dump({'portfolio': sol, 'dimensions': cover,
+    json.dump({'engine': args.engine, 'portfolio': sol, 'dimensions': cover,
                'corpus_full': len(members)},
-              open(OUT, 'w'), indent=1)
-    print(f'EXACT minimum portfolio: {len(sol)} members -> {OUT}')
+              open(out, 'w'), indent=1)
+    print(f'EXACT minimum portfolio: {len(sol)} members -> {out}')
     for m in sol:
-        tag = '  [witness]' if m in BUG_WITNESSES else ''
+        tag = '  [witness]' if m in witnesses else ''
         print(f'  {m}{tag}')
     for d in sorted(universe):
-        print(f'  {dim_count[d]:5d}x {d}: {", ".join(p.split("/")[-1] for p in cover[d])}')
+        print(f'  {dim_count[d]:5d}x {d}: '
+              f'{", ".join(p.split("/")[-1] for p in cover[d])}')
 
 
 if __name__ == '__main__':

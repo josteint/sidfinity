@@ -1,0 +1,175 @@
+{
+ "engine": "dmc_v4",
+ "portfolio": [
+  "MUSICIANS/H/Heinmueck/Akku_Reload.sid",
+  "MUSICIANS/K/Kiss_Konrad/Deepspace_Travel.sid",
+  "MUSICIANS/M/Mermaid/Bulbes.sid",
+  "MUSICIANS/P/PFK/Home_Invasion_main.sid",
+  "MUSICIANS/P/PVCF/Worktunes/Hitec_5.sid"
+ ],
+ "dimensions": {
+  "fx:cymbal": [
+   "MUSICIANS/H/Heinmueck/Akku_Reload.sid",
+   "MUSICIANS/K/Kiss_Konrad/Deepspace_Travel.sid",
+   "MUSICIANS/M/Mermaid/Bulbes.sid",
+   "MUSICIANS/P/PFK/Home_Invasion_main.sid",
+   "MUSICIANS/P/PVCF/Worktunes/Hitec_5.sid"
+  ],
+  "fx:drum": [
+   "MUSICIANS/H/Heinmueck/Akku_Reload.sid",
+   "MUSICIANS/K/Kiss_Konrad/Deepspace_Travel.sid",
+   "MUSICIANS/P/PFK/Home_Invasion_main.sid"
+  ],
+  "fx:dual_slide": [
+   "MUSICIANS/K/Kiss_Konrad/Deepspace_Travel.sid",
+   "MUSICIANS/P/PFK/Home_Invasion_main.sid"
+  ],
+  "fx:filter": [
+   "MUSICIANS/H/Heinmueck/Akku_Reload.sid",
+   "MUSICIANS/K/Kiss_Konrad/Deepspace_Travel.sid",
+   "MUSICIANS/P/PFK/Home_Invasion_main.sid",
+   "MUSICIANS/P/PVCF/Worktunes/Hitec_5.sid"
+  ],
+  "fx:filter_keep": [
+   "MUSICIANS/P/PFK/Home_Invasion_main.sid",
+   "MUSICIANS/P/PVCF/Worktunes/Hitec_5.sid"
+  ],
+  "fx:gate_hold": [
+   "MUSICIANS/H/Heinmueck/Akku_Reload.sid",
+   "MUSICIANS/K/Kiss_Konrad/Deepspace_Travel.sid",
+   "MUSICIANS/P/PFK/Home_Invasion_main.sid"
+  ],
+  "fx:gate_open": [
+   "MUSICIANS/K/Kiss_Konrad/Deepspace_Travel.sid",
+   "MUSICIANS/P/PFK/Home_Invasion_main.sid",
+   "MUSICIANS/P/PVCF/Worktunes/Hitec_5.sid"
+  ],
+  "fx:gate_release_early": [
+   "MUSICIANS/H/Heinmueck/Akku_Reload.sid",
+   "MUSICIANS/K/Kiss_Konrad/Deepspace_Travel.sid",
+   "MUSICIANS/M/Mermaid/Bulbes.sid",
+   "MUSICIANS/P/PFK/Home_Invasion_main.sid",
+   "MUSICIANS/P/PVCF/Worktunes/Hitec_5.sid"
+  ],
+  "fx:pulse_keep": [
+   "MUSICIANS/M/Mermaid/Bulbes.sid",
+   "MUSICIANS/P/PFK/Home_Invasion_main.sid"
+  ],
+  "fx:vib_delay": [
+   "MUSICIANS/K/Kiss_Konrad/Deepspace_Travel.sid",
+   "MUSICIANS/P/PFK/Home_Invasion_main.sid"
+  ],
+  "fx:vib_ramp": [
+   "MUSICIANS/K/Kiss_Konrad/Deepspace_Travel.sid",
+   "MUSICIANS/M/Mermaid/Bulbes.sid",
+   "MUSICIANS/P/PFK/Home_Invasion_main.sid"
+  ],
+  "fx:vibrato": [
+   "MUSICIANS/K/Kiss_Konrad/Deepspace_Travel.sid",
+   "MUSICIANS/M/Mermaid/Bulbes.sid",
+   "MUSICIANS/P/PFK/Home_Invasion_main.sid"
+  ],
+  "knob:dual_phase": [
+   "MUSICIANS/K/Kiss_Konrad/Deepspace_Travel.sid",
+   "MUSICIANS/M/Mermaid/Bulbes.sid"
+  ],
+  "knob:high_load": [
+   "MUSICIANS/K/Kiss_Konrad/Deepspace_Travel.sid",
+   "MUSICIANS/P/PFK/Home_Invasion_main.sid"
+  ],
+  "knob:idle_mask": [
+   "MUSICIANS/K/Kiss_Konrad/Deepspace_Travel.sid",
+   "MUSICIANS/P/PFK/Home_Invasion_main.sid"
+  ],
+  "knob:idle_note": [
+   "MUSICIANS/H/Heinmueck/Akku_Reload.sid",
+   "MUSICIANS/K/Kiss_Konrad/Deepspace_Travel.sid",
+   "MUSICIANS/M/Mermaid/Bulbes.sid",
+   "MUSICIANS/P/PFK/Home_Invasion_main.sid",
+   "MUSICIANS/P/PVCF/Worktunes/Hitec_5.sid"
+  ],
+  "knob:idle_wave": [
+   "MUSICIANS/H/Heinmueck/Akku_Reload.sid",
+   "MUSICIANS/K/Kiss_Konrad/Deepspace_Travel.sid",
+   "MUSICIANS/M/Mermaid/Bulbes.sid",
+   "MUSICIANS/P/PFK/Home_Invasion_main.sid",
+   "MUSICIANS/P/PVCF/Worktunes/Hitec_5.sid"
+  ],
+  "knob:loop_target": [
+   "MUSICIANS/H/Heinmueck/Akku_Reload.sid",
+   "MUSICIANS/K/Kiss_Konrad/Deepspace_Travel.sid",
+   "MUSICIANS/M/Mermaid/Bulbes.sid",
+   "MUSICIANS/P/PVCF/Worktunes/Hitec_5.sid"
+  ],
+  "knob:relocated": [
+   "MUSICIANS/K/Kiss_Konrad/Deepspace_Travel.sid",
+   "MUSICIANS/P/PFK/Home_Invasion_main.sid"
+  ],
+  "knob:routing_shadow": [
+   "MUSICIANS/K/Kiss_Konrad/Deepspace_Travel.sid",
+   "MUSICIANS/P/PFK/Home_Invasion_main.sid",
+   "MUSICIANS/P/PVCF/Worktunes/Hitec_5.sid"
+  ],
+  "pat:gate_toggle": [
+   "MUSICIANS/H/Heinmueck/Akku_Reload.sid",
+   "MUSICIANS/K/Kiss_Konrad/Deepspace_Travel.sid",
+   "MUSICIANS/P/PFK/Home_Invasion_main.sid",
+   "MUSICIANS/P/PVCF/Worktunes/Hitec_5.sid"
+  ],
+  "pat:glide": [
+   "MUSICIANS/K/Kiss_Konrad/Deepspace_Travel.sid",
+   "MUSICIANS/P/PFK/Home_Invasion_main.sid"
+  ],
+  "pat:slide": [
+   "MUSICIANS/P/PFK/Home_Invasion_main.sid",
+   "MUSICIANS/P/PVCF/Worktunes/Hitec_5.sid"
+  ],
+  "pat:soft": [
+   "MUSICIANS/K/Kiss_Konrad/Deepspace_Travel.sid",
+   "MUSICIANS/P/PFK/Home_Invasion_main.sid",
+   "MUSICIANS/P/PVCF/Worktunes/Hitec_5.sid"
+  ],
+  "pat:vol": [
+   "MUSICIANS/H/Heinmueck/Akku_Reload.sid",
+   "MUSICIANS/K/Kiss_Konrad/Deepspace_Travel.sid",
+   "MUSICIANS/P/PFK/Home_Invasion_main.sid"
+  ],
+  "struct:filter_defs": [
+   "MUSICIANS/H/Heinmueck/Akku_Reload.sid",
+   "MUSICIANS/K/Kiss_Konrad/Deepspace_Travel.sid",
+   "MUSICIANS/P/PFK/Home_Invasion_main.sid",
+   "MUSICIANS/P/PVCF/Worktunes/Hitec_5.sid"
+  ],
+  "struct:inst_growth": [
+   "MUSICIANS/H/Heinmueck/Akku_Reload.sid",
+   "MUSICIANS/K/Kiss_Konrad/Deepspace_Travel.sid",
+   "MUSICIANS/P/PFK/Home_Invasion_main.sid",
+   "MUSICIANS/P/PVCF/Worktunes/Hitec_5.sid"
+  ],
+  "struct:multi_subtune": [
+   "MUSICIANS/H/Heinmueck/Akku_Reload.sid",
+   "MUSICIANS/M/Mermaid/Bulbes.sid"
+  ],
+  "struct:per_tune_tuning": [
+   "MUSICIANS/H/Heinmueck/Akku_Reload.sid",
+   "MUSICIANS/P/PVCF/Worktunes/Hitec_5.sid"
+  ],
+  "track:loop": [
+   "MUSICIANS/H/Heinmueck/Akku_Reload.sid",
+   "MUSICIANS/K/Kiss_Konrad/Deepspace_Travel.sid",
+   "MUSICIANS/M/Mermaid/Bulbes.sid",
+   "MUSICIANS/P/PFK/Home_Invasion_main.sid"
+  ],
+  "track:stop": [
+   "MUSICIANS/M/Mermaid/Bulbes.sid",
+   "MUSICIANS/P/PVCF/Worktunes/Hitec_5.sid"
+  ],
+  "track:transpose": [
+   "MUSICIANS/K/Kiss_Konrad/Deepspace_Travel.sid",
+   "MUSICIANS/M/Mermaid/Bulbes.sid",
+   "MUSICIANS/P/PFK/Home_Invasion_main.sid",
+   "MUSICIANS/P/PVCF/Worktunes/Hitec_5.sid"
+  ]
+ },
+ "corpus_full": 2656
+}

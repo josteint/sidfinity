@@ -95,13 +95,22 @@ force-includes record 0 as slot 0. (2) pulse base split — step =
 nibble + CACHED base; idle base=0; composer derives base = step&$0F.
 (3) xa65: ':' is a statement separator EVEN IN COMMENTS (sanitizer).
 
-## ✅✅ FAMILY-1 WIDE BATCH (2026-06-13): 2257/5401 FULL (41.8%)
-Full sweep on the fixed pipeline: **2257 full / 178 partial / 453
-error / 2513 unsupported.** Of the 2888 FACTORY-PASSING members, 78%
-instruction-sequence exact at full songlength. 2257 .usf +
-.sidfinity.sid mass-written (0 errors, tools/dmc_mass_write.py);
-hvsc84.db refreshed (2257 DMC sidfinity_md5 + usf_path).
-Ear test PASSED on Zaks (user).
+## ✅✅ FAMILY-1 WIDE BATCH + RELOCATION (2026-06-13): 2656/5401 FULL (49.2%)
+First sweep: 2257 full. Then the **relocation-aware factory** recovered
+**+399** (the 1184 nonstandard_vectors re-run: 399 full / 97 partial /
+276 no_jumptable=packed / 131 code_mismatch / 77 loop_site / 183 error).
+**Total 2656 FULL**, mass-written + db-refreshed (0 errors). Ear-test
+passed on Zaks.
+
+RELOCATION FACTORY (commit ab4b4c9): the same player at ANY base passes
+(Face2face $9000 FULL, verified $2000-$C000). Relocation is EXTRACT-ONLY
+(composer always emits at $1000; writelog base-independent incl. the
+original's wrapper-init writes via Check A). base = play-3 (robust to
+custom init wrappers — init may point elsewhere). Identity compare vs a
+RELOCATED canonical reference: self-ref operands ([$1000,$1900)) shifted
+by delta, computed once by tracing canon. Masked the 5 dead-code gap
+fragments (unreachable padding w/ relocated operands). vibdepth compared
+[6:96] (0-5 overlap code, relocate). config.base threads through extract.
 
 Factory `dmc_v4_config(sid)` (pipelines/dmc/v4/factory.py): masked
 identity compare vs the carved canonical player + multi-site operand
@@ -122,17 +131,28 @@ table from idx 0 → wave_programs[0] + jump-back marker pool semantics);
 DUAL-CLOCK PHASE ($1019 leftover → params.slide_phase).
 
 ## NEXT (ranked residue, all in RE_NOTES.md "Wide-batch residue buckets")
-1. **RELOCATION CLASSES (~1800, highest value):** nonstandard_vectors
-   (1184, same skeleton at a different base — FC-reloc-factory analogue,
-   load-relative operand probe) + the relocated 2-entry layout (~621,
-   `player_code_mismatch` @ $1001: 2-entry jumptable, body shifted —
-   needs a 2nd canonical ref binary).
-2. Other code-mismatch sub-builds (~430: $1181/$1631/$12A8/...).
-3. Second loop-hook variant (~277: `c8 20 4d` site = different hook addr).
-4. offtable_live + zero-wave-table edge errors (453, mostly correctly
-   refused — genuinely live state).
-5. Partial long tail (178: bucket by first_diff in the jsonl).
+1. **PACKED / self-extracting (no_jumptable 276):** init runs a depacker
+   that materializes the player at runtime; static image at base=play-3
+   has no jumptable. Needs a py65 run_init probe (FC `_run_init_in_py65`
+   analogue) then re-probe the post-init image. Likely the biggest
+   remaining recoverable class.
+2. Second loop-hook variant (loop_site_unknown ~299: `c8 20 4d` site =
+   a different JSR hook addr — generalize the loop probe).
+3. Other code-mismatch sub-builds (player_code_mismatch ~1182:
+   2-entry-layout @ $1001 + $1181/$1631/$12A8/... — each a distinct
+   build, needs a 2nd canonical ref binary or per-region diff).
+4. offtable_live + zero-wave-table edge errors (636, mostly correctly
+   refused — genuinely live per-voice runtime state; architectural limit).
+5. Partial long tail (275: bucket by first_diff in the jsonl).
 6. Then family 2 (0.732 V4-derived, 2889); V5 line needs sector-encoding RE.
+
+## REGRESSION PORTFOLIO (2026-06-13): generalized + DMC wired
+`tools/select_regression_portfolio.py` made engine-parametric (registry:
+engine -> jsonl/out/feature_fn/witnesses/sid_key; exact_multicover stays
+engine-blind). DMC feature extractor + `tools/dmc_regression_portfolio.json`
+wired as tier-1 in regress_dmc(). The closeout step is now standard
+(documented in CLAUDE.md + migrate skill): family reaches FULL coverage
+-> derive portfolio -> wire tier-1 (full family batch = tier-2).
 
 ## Related
 [[project_fc_fingerprint_and_standard]] (the playbook this follows),

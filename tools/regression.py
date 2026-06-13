@@ -367,19 +367,41 @@ def regress_jay_derrett() -> tuple[int, int]:
 
 
 def regress_dmc() -> tuple[int, int]:
-    """DMC family — Geometrical_Zaks (3 subtunes) through the full
-    SID → USF → SID pipeline, trichotomy verdict at full songlength."""
+    """DMC family — Geometrical_Zaks canary (3 subtunes) + the v4
+    PORTFOLIO (tier 1): the minimum member set covering every feature
+    dimension the 2656-member FULL corpus exercises >=2x (selected by
+    tools/select_regression_portfolio.py --engine dmc_v4; the full
+    family batch — tools/dmc_family_batch.py — is the tier-2 verdict).
+    All via the full SID → USF → SID pipeline, trichotomy verdict at
+    full songlength."""
     from pipelines.dmc.verify import verify_dmc
     from pipelines.dmc.v4.config import ZAKS
+    from pipelines.dmc.v4.factory import dmc_v4_config
+    import json as _json
     ok = fail = 0
-    r = verify_dmc(ZAKS)
-    n_ok = sum(1 for s in r['subtunes'].values() if s['is_full'])
-    n = len(r['subtunes'])
-    print(f"  Geometrical_Zaks   {n_ok}/{n}")
-    if r['ok']:
-        ok += 1
-    else:
-        fail += 1
+
+    def _run(label, cfg):
+        nonlocal ok, fail
+        r = verify_dmc(cfg)
+        n_ok = sum(1 for s in r['subtunes'].values() if s['is_full'])
+        n = len(r['subtunes'])
+        status = f'{n_ok}/{n}'
+        if not r['ok']:
+            status += ' (REGRESSED)'
+        print(f"  {label:24s} {status}")
+        if r['ok']:
+            ok += 1
+        else:
+            fail += 1
+
+    _run('Geometrical_Zaks', ZAKS)
+
+    pf_path = os.path.join(os.path.dirname(__file__),
+                           'dmc_regression_portfolio.json')
+    if os.path.exists(pf_path):
+        print('DMC v4 portfolio (feature-cover of the verified family):')
+        for sid in _json.load(open(pf_path))['portfolio']:
+            _run(sid.split('/')[-1][:24], dmc_v4_config(sid))
     return ok, fail
 
 
