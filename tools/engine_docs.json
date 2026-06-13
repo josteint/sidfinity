@@ -235,8 +235,8 @@
     "updated": "2026-06-13"
   },
   "xample": {
-    "state": "LITTLE",
-    "notes": "single research.md first-pass overview; research-engine sweep not yet run.",
+    "state": "OK",
+    "notes": "research-player sweep complete (2026-06-13, gather-only/sonnet). X-Ample/Compotech (Markus Schneider et al., X-Ample Architectures, Germany 1988-97; 380 HVSC tunes). Closed, BUT an annotated V3.2 TurboAss player source ships on the Compotech V2.1 D64 (CSDb #122614) -> player architecture + effect set captured (VBI, 3-voice bitmask, +7 stride; vibrato/glide/arp/drum/pulse/filter/echo/tremolo/fade/velocity). Lineage: Schneider driver -> Parsec V5.1 -> Compotech V1/V2.1; XTracker (V3.1/V4.1x/V4.2x) by SoNiC (separate author; V3.1 player byte-identical to V2.1) -> likely ONE data format + per-variant write-quirk flags. X-Ample_Digi = CIA2-NMI sample (Mode-2, out of scope; 0 confirmed in HVSC). Reflextracker is a DIFFERENT engine (not X-Ample). Census: layouts A(192)+B(118) ~82%, likely same player w/ flipped header. Song-data byte layout OPEN -> RE during migration. Cleared to start. See pipelines/xample/docs/README.md.",
     "updated": "2026-06-13"
   }
 }
