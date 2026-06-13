@@ -219,6 +219,8 @@ def dmc_features(sid: str) -> tuple[str, set] | None:
         f.add('knob:high_load')
     if m.dual_phase:
         f.add('knob:dual_phase')
+    if cfg.cia_period:
+        f.add('knob:cia_multispeed')
     if m.d417_shadow:
         f.add('knob:routing_shadow')
     if any(m.idle_notes):
