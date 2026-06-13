@@ -71,5 +71,44 @@ pre-split pulse nibble/base tables) → xa65 → PSID.
   not emitted — PSID playback never calls them.
 - **V5/V6/V7 + family 2** (the 0.732 V4-derived variant, 2889 SIDs):
   separate work; V5 sector encoding still needs RE.
-- **Ear test pending** (py65/writelog can't catch dispatch-rate bugs —
-  CLAUDE.md convention: ear-test every new engine).
+- **Ear test PASSED** (2026-06-12, user) on Geometrical_Zaks.
+
+## Wide-batch residue buckets (family 1 = 5401, ranked by size)
+
+Each is its own next-round triage target. Sizes from the first full
+sweep; the factory's typed reasons make these greppable in
+`tmp/dmc_wide_results.jsonl`.
+
+1. **Relocated 2-entry layout (~621, `player_code_mismatch` first
+   diff at $1001).** A whole sub-build: 2-entry jump table
+   (`$1000 JMP $1807` init / `$1003 JMP $1050` play) vs canonical's
+   4-entry, with the body shifted (play body $1050 vs $1085, etc.) and
+   vars starting $1006 not $100C. Same engine, different assembly —
+   needs a second canonical reference binary + a layout-variant probe
+   (FC reloc-factory analogue). HIGHEST-VALUE next target.
+2. **Other code-mismatch sub-builds (~430): first diff at $1181 (101),
+   $1631 (79), $12A8 (76), $163E (31), $1231 (24), $119B (22), ...**
+   each a distinct patch/variant; triage by diffing the region against
+   canonical.
+3. **Second loop-hook variant (~162, `loop_site_unknown` site bytes
+   `c8 20 4d` = INY/JSR $..4D).** Like the $1042 hook but a different
+   helper address; generalize the loop probe to accept any JSR whose
+   target matches the 7-byte hook signature, OR decode the hook to find
+   the loop-target semantics. + smaller site variants (`8d 9d 17` 15,
+   `7e 18 ea` 12, ...).
+4. **nonstandard_vectors (~1184).** init/play not at $1000/$1003 —
+   relocated members; needs the load-addr-relative operand probe
+   (most are probably canonical code at a different base).
+5. **dual_parity_leftover (486) — FIXED this session** (params.slide_phase).
+6. **offtable_live (errors, ~200).** wave-freq offset or note>95 reads
+   land on the LIVE state block ($1707+k for k≥17 or the track-ptr
+   slots k≤5). Consistent sub-buckets k=[159] (18), k=[30] (18),
+   k=[0] (14): worth checking whether $1707+k is a stable-zero byte
+   that the composer window could extend to cover, vs genuinely live.
+7. **wave n=0 (56) — FIXED this session** (marker-chain slice start).
+8. **`sector at $0000 never ends` (9).** tune-pointer record reads a
+   $0000 voice pointer — member declares more subtunes than it has
+   data for, or the tunetab operand probe is off for these. Guard +
+   investigate.
+9. **partial (140).** factory-passing but writelog diverges — the true
+   long tail; bucket by first_diff signature (carried in the jsonl).
