@@ -1,0 +1,721 @@
+SID Factory II
+  User Manual
+        Last updated 2026-03-14
+
+
+
+
+  Editor coded by Thomas Egeskov Petersen
+        Mac version by Michel de Bree
+   ASID implementation by Thomas Jansson
+    Manual written by Jens -Christian Huus
+Contents
+Contents ........................................................................................................................................................ 2
+Introduction .................................................................................................................................................. 4
+   Noteworthy features ................................................................................................................................ 4
+The Basics ...................................................................................................................................................... 5
+   Editor......................................................................................................................................................... 5
+   Options ...................................................................................................................................................... 6
+   Tracks ........................................................................................................................................................ 6
+   Song list ..................................................................................................................................................... 8
+   Bookmarks ................................................................................................................................................ 9
+   Visualizers ................................................................................................................................................. 9
+   Tables ...................................................................................................................................................... 10
+       Commands .......................................................................................................................................... 11
+       Instruments ......................................................................................................................................... 11
+       Wave ................................................................................................................................................... 12
+       Pulse .................................................................................................................................................... 12
+       Filter .................................................................................................................................................... 12
+       Arp ....................................................................................................................................................... 12
+       Init ....................................................................................................................................................... 12
+       HR ........................................................................................................................................................ 13
+       Tempo ................................................................................................................................................. 13
+   Multiple songs ......................................................................................................................................... 14
+   Changing drivers ..................................................................................................................................... 14
+   Changing the settings.............................................................................................................................. 15
+   Converting ............................................................................................................................................... 15
+   Packing .................................................................................................................................................... 16
+   ASID ......................................................................................................................................................... 17
+Controls ....................................................................................................................................................... 18
+   Startup .................................................................................................................................................... 18
+   Files ......................................................................................................................................................... 18
+   Playing ..................................................................................................................................................... 18
+   Tracks ...................................................................................................................................................... 19
+   Order list ................................................................................................................................................. 19
+Sequences ............................................................................................................................................... 20
+Tables ...................................................................................................................................................... 20
+Options .................................................................................................................................................... 21
+Song list ................................................................................................................................................... 21
+Bookmarks .............................................................................................................................................. 21
+Introduction
+SID Factory II is a cross-platform music editor for editing SID music that can be played on a Commodore
+64. The project was started by Thomas Egeskov Petersen (also known as Laxity) with the ambition of
+combining the emulation of MOS6510 code and SID sound with an editing environment that will provide
+close to full consistency between the work in progress and the final product.
+
+It is the modern successor to the native C64 editor from 2006.
+
+The editor has been compiled for Windows and Mac under GNU General Public License v2.
+
+As a cross-platform editor, SID Factory II joins the fierce competition of other cross-platform editors
+such as GoatTracker 2 and CheeseCutter. SID Factory II works in much the same manner as these editors
+by using SDL and a text interface, hitting hotkeys for notes, and typing hexadecimal values for
+instruments, commands, and support tables.
+
+Noteworthy features
+If you are already quite familiar with the latest C64 editors, you may be wondering what is so special
+about SID Factory II. Here is what we consider unique about it.
+
+    •   It packs the sequences in real time as you edit them. This means that what you hear is pretty
+        much what you get. Less nasty surprises when packing the tune in the end.
+    •   Because the sequences are packed in real time, they can be extremely long. The cap is currently
+        1024 rows, as long as the data in it can be packed below 256 bytes.
+    •   The song list on the left side gives a strong overview of the sequences, with spaced distances to
+        align everything correctly. You can also edit descriptions and copy ranges of sequences.
+    •   The driver system is modular and there is already a wide selection of drivers available, some of
+        which are designed to take up little memory while missing out on features.
+    •   You can have up to eight different bookmarks, all defined and managed in the small table in the
+        bottom left corner of the window.
+    •   Multi-song support for making game tracks. You can loop songs and stop jingles. All songs share
+        the same sequences and instruments.
+    •   The standard driver 11 (loaded as you start the editor) features both 12-bit pulse and filter
+        control as well as a separate arpeggio table for chords only.
+    •   The colors of the editor and the key definitions used can be modified in a configuration file to fit
+        how you want the editor to look as well as the keys you are most comfortable with.
+    •   The editor can convert from MOD (Amiga), SNG (GoatTracker 2) and CT (CheeseCutter) when
+        loading a tune as always
+    •   You can use hardware that supports the ASID protocol (e.g. TherapSID or USBSID-Pico). Press F1
+        in the startup screen to select the MIDI device you wish to use.
+
+Of course, the editor and its drivers also have all the modern features you would expect these days, such
+as table index hotkeys, muting channels, both instruments and commands at the same time, adjustable
+hard restart, pulse and filter programs, inserting the next unused sequence, and a whole lot more.
+The Basics
+Let us take you on a brief tour through the editor and show the areas. To make this easier, start out by
+loading a tune. Hit F10, enter the music folder, and open an SF2 file. (This is the file extension SID
+Factory II uses for its source tunes.)
+
+
+             TIP: When a confirmation dialog box pops up, you can also hit y or n to select.
+
+
+SF2 files are actually PRG files in disguise. You can open e.g. the VICE emulator and drag-and-drop an SF2
+file there. It even has a small interrupt driver. Just type SYS4093 and your source tune should play,
+showing the rastertime it uses.
+
+Editor
+You should now have returned to the editor with data all over the place. SID veterans may immediately
+recognize the order list and sequence tracks in the middle as well as the tables in the right side.
+
+
+
+
+In the left side, the song list provides an overview of the entire song. It shows the sequences numbers,
+and you can even copy and paste a range. You can also use it to go to and play from specific locations.
+Just below it, the bookmarks make it possible to add a marker that you can later go back to or even play
+from. You can have up to eight different bookmarks in a song.
+
+Each of the three channels has an order list with transposition and sequence number, and the latter is
+then displayed as the sequence next to it. The sequence edits instruments, commands and notes.
+
+The tables in the right side of the editor are tied to the driver version currently loaded. They may change
+their layout, sizes and meaning when another driver version is loaded. When starting SID Factory II, the
+default driver 11 is on the luxurious side with plenty of effects and commands available. If you hit the
+F12 key now, the window expands with a hotkey overlay that also explains these tables.
+
+Options
+There are a few option flags in the right side of the status bar in the top of the editor. Some of these
+have hotkeys, but most of them can be left-clicked too.
+
+
+
+
+You can choose between the 6581 or 8580 SID chip, sharp or flat notes (e.g. D#4 or Eb4 shown in the
+sequence) and you can toggle Highlights on or off. The latter turns notes and values green in the
+sequence whenever the instrument or command matches what is selected in their tables.
+
+
+             TIP: You can also use F9 to toggle 6581/8580, and Shift+F9 to toggle PAL/NTSC.
+
+
+
+Tracks
+The core of the editor is the three blue tracks for the SID voices. Click on any one and you can use the
+Enter key to toggle between the order list entry and its contents. The entry has the format XXYY, where
+XX is transpose and YY the sequence number. XX is usually A0 as the default. Type e.g. 94 for one
+octave lower, or AC for one octave higher.
+
+
+
+
+SID Factory II uses the same contiguous sequence stacking system as JCH’s original native C64 editor did.
+CheeseCutter also uses this. It means that all the sequences in each voice can be at various lengths
+independently from the neighbor tracks. The sequences are simply stacked on top of each other, like a
+game of perfect Tetris.
+
+Only, the bottom sequences won’t magically disappear, of course.
+
+The first column to the left is the instrument number, and the second is the command. You can also
+toggle tie note on or off with Shift+Enter. A ** in the instrument column indicates that the note is tied,
+which means that the effects of the note will not restart. This can be useful when using portamento.
+
+
+
+
+Notes are entered in the right-most column by hitting one of the many standard letter and number keys
+on the keyboard. They match the keys on a piano like this:
+
+
+
+
+You can replace with --- (gate off) with Space or with +++ (gate on) with Shift+Space. SID Factory II
+thus adheres to the same gate on/off system that JCH’s C64 editor did. This is different from how
+GoatTracker and CheeseCutter handles it. The SID chip uses an ADSR envelope to control the amplitude
+of each voice. If there are +++ below the note, the amplitude is attacked, decayed and sustained.
+Changing to --- later releases it.
+
+Using this gate system can sometimes be more work than the simpler gate off indicator used by most
+other modern C64 editors, but it does have its advantages. You have more control over continuous
+gating on and off during the lifetime of a note, and it’s visually logical.
+
+
+            TIP: You can “fill” upwards with Ctrl+Shift+Up, downwards with Ctrl+Shift+Down.
+
+
+SID Factory II is normally silent as you type in notes. However, if you hold down Shift while typing the
+notes, you can hear the currently chosen instrument playing. This also temporarily stops all editing,
+making it suitable for quickly testing a melody or an instrument. If you want to be able to hear the
+instrument as you type in the notes, click the Caps Lock key first.
+
+Use F3 to decrease the octave or F4 to increase the octave of the note you are typing. It is also possible
+to transpose all of the notes in the entire sequence directly. To transpose it one semitone, use Shift+F3
+and Shift+F4; for one octave use Ctrl+F3 and Ctrl+F4 (Shift+Cmd+F3 and Shift+Cmd+F4 in macOS).
+
+Deleting and inserting in a sequence moves the notes up or down, but it does not change the length of
+the sequence. If you want to do that too, you need to hold down Ctrl as well.
+
+It’s also possible to mark and copy parts of a sequence. Simply hold down Shift and move up or down to
+start marking an area. You can even mark across boundaries, into another sequence. Hit Ctrl+C to copy
+the marked area, then move to another place (even in another track) and then hit Ctrl+V to overwrite
+the area. If you want to insert instead, hit Ctrl+Shift+V.
+
+
+            TIP: Hit F5 to prepare a new sequence with many lines, or Shift+F5 to insert lines.
+
+
+Hit Enter again to return to the sequence number. You can also insert and delete here too, and you can
+hit Ctrl+F to insert the next unused sequence where old data is ignored. (If you want the next truly
+empty unused sequence, hit Ctrl+Shift+F instead.)
+
+To mute and unmute channels, use Ctrl+1, Ctrl+2 or Ctrl+3.
+
+Song list
+While inserting and deleting sequence positions or inside the sequences themselves, you may have
+noticed that things changed in the gray box in the left side of the editor. This is the song list overview. It
+shows the same sequence numbers as in the tracks, only without the transpositions and contents. This
+condenses it down for a nice overview of the entire song.
+
+
+
+
+You can click anywhere to browse a line up and down, home and end, or use page up/down. Clicking a
+line (or using Enter) will go to that spot in the song. Double-clicking (or using Ctrl+Enter) will go to that
+spot and play from there.
+It’s also possible to copy and paste several sequences in a row. Hold down Shift and move the cursor to
+mark several sequences, copy with Ctrl+C, then paste the range elsewhere with Ctrl+V. This will always
+insert the range thereby making the order list longer.
+
+
+             NOTE: Left click an empty spot next to sequence numbers to edit a description.
+
+
+
+Bookmarks
+The small blue box towards the bottom left corner is the list of bookmarks.
+
+
+
+
+You can define up to eight different bookmarks in a song. Each bookmark is selected from Alt+1 to
+Alt+8. To set a bookmark, hit Ctrl+M anywhere in the song – even in the middle of sequences. The row
+number is added as the bookmark number. You can now return to that spot with Ctrl+G.
+
+But more importantly, you can now also play from that spot with F2.
+
+Visualizers
+Below the box with bookmarks, in the bottom left corner, there’s a column of horizontal bars.
+
+
+
+
+The top three bars with the same colors represent the pulse values. When the pulse registers of the SID
+chip are changed each frame, it produces pulsating and this is represented by these bars shrinking or
+growing as the music plays. Each of the three voices have their own individual pulse registers, and the
+width of each register is 12 bits, which is a range from 0 to 4095.
+
+However, the pulsating is not unique all the way.
+
+It sounds thinnest at 0 and becomes more pronounced as you approach halfway, i.e. 2048. Then, as the
+pulsating grows from 2049 to 4095, it diminishes again. It’s exactly as if you were going backwards from
+2048 to 0. In other words, 0 and 4095, 10 and 4085, 1000 and 3095 all sound the same. This is the
+reason the bars have a center line. It indicates this is where the pulse is most pronounced.
+
+The bottom (darker gray) bar shows the filtering of the SID chip. Its single register is 11 bits and goes
+from 0 to 2047. Unlike the pulse registers, it doesn’t repeat itself – all of the 2048 bits there are unique.
+Unfortunately, there is only one filter register for the entire SID chip, although you can at least control
+which voices you want to be affected by the filtering. In fact, this can be seen in the pulse bars.
+The pulse bars represent voice one to three from top to bottom, and the background color of these bars
+change whenever filtering is turned on for that voice. Note that the filtering is not directly tied to the
+pulsating, it’s just a visual detail to help you know what voices are currently being filtered.
+
+In the image above, you can see that the gray color of the bottom filter bar is visible as the background
+color on voice one and two. This indicates that those voices are currently filtered while the third is not.
+How to control this depends on the player. In the default player, you can turn it on and off for voices
+either in the filter table or by setting flags in the instrument table.
+
+You can see where, when you press F12 to open the help overlay.
+
+Observing the bars is not only useful when adjusting the pulse and filter programming of the player, it
+also makes it clear when the left or right boundary is crossed. If you’re composing for the older 6581 SID
+chip, crossing a boundary may produce an audible click. This is something you would want to avoid.
+
+Tables
+Each driver available to SID Factory II has a text file in a sub folder called documentation, explaining all
+the tables. You can also just hit F12 to open an overlay with this information.
+
+Actually navigating the tables is as simple as using the cursor keys, tab across the tracks and tables, or
+clicking a table to enter that position in it. You can also page up/down or use the mouse wheel to scroll
+it. Numpad + and Numpad - changes the current instrument (Cmd+Up and Cmd+Down in macOS), and
+Ctrl+Numpad + and Ctrl+Numpad - the command (Shift+Cmd+Up and Shift+Cmd+Down in macOS).
+
+
+            TIP: First time you hit End (Fn+Right in macOS) it goes to the end of the used data.
+
+
+You can edit the descriptions for individual commands and instruments. Simple hit Enter and edit it,
+then hit Enter again to accept, or Esc to undo your typing.
+
+Some table bytes may have one or more bits for controlling minor details. For example, the standard
+driver 11 has a byte with flags in an instrument row. Normally you would have to add the bit values
+together in your head, like e.g. 80 and 40 is C0, but you don’t have to do that in SID Factory II. It has a
+bit selector built in. Just hit Shift+Enter on that value, and you can set the bits with the Space key as you
+cursor up and down. Then hit Enter to accept, or Esc to cancel.
+
+You can use Ctrl+Enter to go to a table index pointer. This is used not only in instruments but also in
+commands. For example, the standard driver 11 has index pointers for pulse, filter and wave tables. Hit
+Ctrl+Enter on any of these to enter that spot in one of those tables. If a command also uses an index
+pointer to a table, Ctrl+Enter works there too.
+
+SID Factory II is normally silent in the tables. However, if you hold down Shift while typing notes, you
+can hear the currently chosen instrument playing. This also temporarily stops all table input, making it
+suitable for quickly testing a melody or an instrument. You can repeatedly play the latest shifted note in
+the tables by pressing Space. If you use Ctrl+Space you will also apply the current command effect.
+Commands
+This is the table that is referred to from the middle numeric column in the sequences. Because of this it
+is not possible to insert and delete in it.
+
+
+
+
+If you hit F12 to open an expanded overlay, you can see a list of the commands offered by the currently
+loaded driver. Look for the magenta color.
+
+Instruments
+The instruments are referred to from the left numeric column in the sequences – and just like with the
+commands, it is thus not possible to insert and delete in it.
+
+
+
+
+The number of bytes and their purpose depends on the currently loaded driver, but typically at least the
+ADSR can be edited here. If there are support tables for e.g. waveforms, pulse or filter, there may also
+be index pointer bytes to rows in them. As mentioned before, you can jump to a row in one of these
+tables by placing the cursor on the index pointer value and then hit Ctrl+Enter.
+Wave
+If the driver offers a wave table, it usually sets the waveform in the left column, and the semitones add
+value in the right. For example, 11 0c means use the triangle waveform and play it one octave higher
+than what the note in the sequence states. However, if you add 80 to the right value, it will be a static
+note chosen directly from the table of frequency values. This is great for e.g. drums.
+
+A left value of 7f expects the right value to be an absolute pointer to a different row. For example, 7f
+02 means that it should wrap back to the third row in the table.
+
+The above rules are common but might change when a different driver is loaded.
+
+Pulse
+If the driver offers a pulse table, it is used to define the range and speeds of which the pulse travels to
+produce the swooping effects of waveform 41 as well as a few combined waveforms. Hit F12 to open an
+expanded overlay that explains the commands in this table. Look for the pink color.
+
+In some drivers, a simpler pulsating effect is defined in one or two bytes in the instrument.
+
+Filter
+If the driver offers a filter table, it is also used to define the range and speeds. Unlike pulse, the filter in
+the SID chip is a global effect that can then be applied to one or more channels using a bit mask. This bit
+mask consists of three bits, for values 1, 2 and 4.
+
+By combining these you can choose any combination of channels.
+
+For example, 1+2 = 3 adds the filter effect to the first two channels, 4 only to the third channel, while
+1+2+4 = 7 to all three channels. Typically, this bitmask is one of several settings in this table along with
+the filter cutoff start value and the resonance, but it depends on how the driver is written. Hit F12 to
+open an expanded overlay that explains the commands in the table. Look for the orange color.
+
+Note that some of the drivers available don’t even have any filter capabilities at all.
+
+Arp
+Some drivers have an arpeggio table that is separate from the wave table. This is primarily used to make
+arpeggio chords, typically referred to from the command table. The values are added as semitones to
+the note in the sequence. A value in the command may even set the speed of the arpeggio. Hit F12 to
+open an expanded overlay that explains the table. Look for the green color.
+
+In the default driver that loads when SID Factory II starts (driver 11) the arpeggio only affects the values
+in the wave table where semitone add values are set to 00. Other add values ignore the arpeggio.
+
+Init
+If the init table is present in the current driver, it points to a tempo table row and sets the main volume
+with 00 0f (the latter is the loudest volume possible in the SID chip). Multiple entries here are used for
+multi-songs. If you hit F12 to open the overlay, you can find its details in the box outlined in white.
+HR
+Most drivers utilize something called hard restart. In fact, most modern players on the C64 have some
+version of this technique. So, what is this?
+
+The ADSR for each channel defines the Attack, Decay, Sustain and Release of a note. How it increases in
+volume and then decays to a steady level as long as the note is gated on, which corresponds to holding
+down a piano key. As soon as you gate off – release the piano key – the release fades out the note. The
+ASDR is typically defined in the instrument table and can also be changed with commands.
+
+While ADSR is one of the best features of the SID chip, it is not perfect. If you were to, say, play a
+sequence full of smaller note durations, each kept gated on until the next note, then played it
+repeatedly without enabling hard restart in the instrument, you would probably hear the ADSR kind of
+stumble here and there. Of course, this depends on what values you put into the ADSR registers, and
+some values may also alleviate it, but it’s easy to keep running into this problem. The renowned C64
+composer Martin Galway called this “the school band effect” which is as apt a description as any.
+
+Hard restart was invented to defeat this ADSR bug.
+
+The hard restart prevention works by gating off and resetting the ADSR values a few frames before the
+next note triggers. How to design hard restart in a player varies a lot depending on the creator, but in
+SID Factory II, most drivers that use it triggers the effect exactly two frames before. Say you trigger a
+note and keep it gated on with +++ rows for a few rows, adding up to a total of 15 frames. The note is
+first triggered with the ADSR defined in the instrument. After 13 of its 15 frames have passed, the hard
+restart takes over. It gates off and applies a different set of ADSR. Depending on this new set of ADSR, it
+may cut off the remainder of the note, making it sound a tiny bit staccato. However, this also stabilizes
+the ADSR and makes sure the next note always triggers perfectly. No more stumbling.
+
+Defining this new ADSR is where the HR table comes in. In the default driver that loads when SID Factory
+II starts (driver 11) you can enable hard restart with a flag in the instrument and point to an ADSR value
+in the HR table. This is typically 0F 00 which brings the note down fast. There is usually no reason to
+change this, but as you become more proficient with composing, you may want to experiment. You can
+also leave it as is for most instruments and create a second ADSR set that you point to from another
+instrument. If you hit F12 to open the overlay, you can find the details in the cyan box with flags.
+
+Tempo
+If the current driver supports a tempo table, this is where the pace of the song is defined. In the default
+driver that loads when SID Factory II starts (driver 11) the accompanying init table points to it.
+
+A value in the tempo table defines the number of frames one row (or the smallest possible note) in a
+sequence lasts. Frames is the fastest possible update of the driver and is typically 50 times a second on
+PAL and 60 times a second on NTSC.
+
+Smaller values mean a faster tune. Depending on whether the driver uses hard restart and how this is
+set up, there may be a minimum value that works well with the driver. Usually this is 02, but if you are
+using a driver that doesn’t have hard restart (or uses a tight model of it) it may be smaller. The table
+won’t prevent you from trying small values, however, and sometimes they may work in a chain.
+You may have a chain of tempo values until the wrap byte 7f restarts it. Every time the driver exhausts
+a tempo value, it will count down on the next one. This makes it possible to make funky shuffle rhythms
+or e.g. 2½ speeds. Sometimes it can also be handy to match the speed of a real song you’re covering.
+
+Multiple songs
+Press the F7 key at any time to show a dialog box where you can manage multiple songs. You can select,
+rename, move, add, or delete songs. This is especially useful when making music for a game.
+
+
+
+
+After having selected a song, the gray information box in the bottom right corner should show you what
+is currently being edited.
+
+Individual songs have their own bookmarks, and you can set a different speed and volume in the Init
+table. However, all songs do share the same sequences and table data.
+
+The end of a song can have a loop (the default) or an end marker. With the cursor on the loop marker,
+you can change it to end by hitting Ctrl+L. Hit it again to toggle back to loop with the loop point set to
+the beginning of the song. You can also just set a loop point somewhere earlier with Ctrl+L too.
+
+Changing drivers
+Starting from scratch with a different driver is as simple as hitting F10, browsing to the folder with
+drivers (you can go back to a parent folder with Backspace) and loading it.
+
+Loading a different driver will change the layout of tables on the right side of the window. Different
+drivers have different capabilities. Some have much fewer tables but make up for it by being tiny.
+
+
+          TIP: To study the rastertime, drag-and-drop an SF2 file into VICE and type SYS4093.
+
+
+In each build archive, there is a sub folder called documentation where the details of each driver are
+listed and what the values in each table mean. You can also just hit F12 to open an overlay.
+
+Currently, the following drivers are available for SID Factory II:
+
+    •   Driver 11 – this is the standard driver loaded as the default. It is the luxury driver with the most
+        features and table data.
+    •   Driver 12 – this is an extremely simple driver that can only do the most basic effects.
+    •   Driver 13 – this is a driver that emulates the sound of Rob Hubbard’s driver. If you load the
+        demo song for it, you may recognize some of the instruments.
+    •   Driver 14 – this is an experimental version of the standard driver that allows for a short duration
+        of gate off, but also has a greater chance of instability.
+    •   Driver 15 – this tiny driver (mark I) is a slightly expanded version of driver 12 with a few more
+        effects, but it also uses more of the zero page area.
+    •   Driver 16 – this tiny driver (mark II) is like driver 15 but with no commands at all.
+
+It is also possible to change the driver in an existing source tune. To do this, first load the driver with
+F10, then hit Ctrl+F10 to import your source tune on top of it. This will probably only be useful for sub
+versions of the same major version driver. You could import a driver 11 tune into driver 12, but you
+would then have to overhaul the tables.
+
+Changing the settings
+You can change various settings in an INI file. If you load the config.ini file (located in the same directory
+where the executable file resides) you will find comments describing how to make persistent changes to
+be placed in a secondary user.ini file. The documentation that comes with the distribution contains a
+template called user.default.ini. You can use this as a starting point by renaming it to user.ini. On macOS
+and linux, your user.ini file should be placed in the folder ~/.config/sidfactory2/
+
+INI files for the color schemes are location in the color_schemes sub directory and can be selected by
+specifying a numeric value for an entry in the config.ini file. Again, refer to that file for more information
+about selecting a persistent color scheme.
+
+
+            NOTE: A proper dialog box for the settings will be added in a future version of SF2.
+
+
+You are welcome to try defining a new color scheme too. The rules are quite simple – copy and rename
+one of the INI files in the color_schemes sub directory, edit it, and change the hexadecimal RGB values
+there. You can create all new variable names and use them instead of values by prefixing them with a
+colon. Remember to also add new ColorScheme.Name and .Filename lines in config.ini too.
+
+If you manage to create a nice color scheme, consider sending it to us for future inclusion.
+
+Note: Custom color schemes are not supported on macOS yet.
+
+Converting
+SID Factory II also have the ability to convert from song formats made in other popular editors. Just hit
+F10 as usual and load MOD (4-voice music from Amiga), SNG (GoatTracker 2) or CT (CheeseCutter) to
+convert it to the latest sub version of driver 11.
+
+Since the cat is out of the bag, we might as well also tell you that you can load source tunes from JCH’s
+old NewPlayer 20.G4. It will be converted into a special driver that works almost exactly like it.
+            TIP: You can download a ZIP file with a ton of NP20 source tunes at our web site.
+
+
+A console will tell you about the conversion process. It’s not guaranteed that the conversion process will
+succeed. Some of the editors mentioned above have room for more instruments than SID Factory II
+does, and it’s also possible that the conversion into additional commands might overflow. If this
+happens you will have to simplify the tune in the original editor.
+
+Packing
+When you are finally done with your song, hit F6 to open the list of utilities.
+
+
+
+
+You can pack your song immediately using the dedicated menu item, but perhaps you should consider
+optimizing it first. This will remove unused instruments, commands and sequences while moving things
+closer together, taking up less memory.
+
+
+            NOTE: Currently, SID Factory II actually does not optimize the song when packing!
+
+
+Although you can optimize if you are running out of both commands and instruments fast, we
+recommend waiting until packing the song, if you can. The reason for this is that the tidying of tables
+may change a lot of the instrument and command numbers you are used to for that song. The song
+should of course not break, but it can be a little confusing to learn that the bass drum on 15 is now 11
+and the wave command on 1A is now 14.
+
+When selecting the packer option, you are first asked where you would like to place the tune in
+memory, and you can also change the zero page addresses used. Both the range and the size will then
+be reported.
+
+And now comes the important part.
+
+If you type a filename without an extension, it will save to a PRG file as the default. But if you want to
+save it as a SID file, you have to specify the .sid extension too. Now SID Factory II asks for the title,
+author and copyright strings, and then saves a SID file.
+ASID
+SID Factory II supports real hardware that can use the ASID protocol. To connect to a MIDI device, press
+the F1 key while looking at the startup screen, i.e. the one where credits are shown. (Make sure you
+have not chosen the setting where the startup screen is skipped.)
+
+This will show a small dialog list for choosing the MIDI output device.
+
+While in the main editor itself, you can click the Output field in the top bar (or press the Alt+O key) to
+toggle between ASID and the reSID emulator.
+
+To learn more about ASID, please go to: https://github.com/thomasj/asid-protocol
+Controls
+SID Factory II generally respects the logical use of keys such as Tab and Shift+Tab for next and previous
+input focus, Home and End (Fn+Left and Fn+Right in macOS) for start or end of input focus, etc.
+
+You can also undo and redo virtually anything with Ctrl+Z and Ctrl+Y (or Ctrl+X) keys.
+
+You can toggle an expanded version of the editor with a surrounding overlay using F12. This shows all
+the most important keys along with detailed information about the table values for the current driver.
+
+Press Alt+Enter to toggle fullscreen mode.
+
+Startup
+This is where you can see the credits. (This can be set to be automatically skipped in the settings, but if
+you do, you won’t be able to select a MIDI output device.)
+
+    •   F1 selects the MIDI output device for the ASID protocol (this requires external hardware).
+    •   F10 loads an SF2 file or a different driver.
+    •   Space enters the main editor.
+
+Files
+    •   F10 loads an SF2 file or a different driver.
+    •   F10 to convert from another format (MOD, SNG from GoatTracker 2, or CT from CheeseCutter).
+    •   F10, then load a specific driver, then hit Ctrl+F10 and load an SF2 file to add that driver to it.
+    •   F11 saves your song as a specific SF2 file.
+    •   Ctrl+S quick saves your song to the latest loaded or saved SF2 file.
+    •   F6 then select Pack to save as a PRG file.
+    •   F6 then select Pack and add extension .sid to save as a SID file.
+
+While in any file dialog:
+
+    •   Tab to toggle between browser or filename.
+    •   Hit A to Z to jump to the files starting with this letter. Repeating also works.
+    •   Delete to remove a file in a folder.
+    •   Backspace for browsing to a parent folder.
+    •   Enter to select a file.
+
+Playing
+SID Factory II does not have a separate function key for stopping, they all work as toggle keys. This cut
+down on function keys for other purposes. However, Esc will also stop a tune.
+
+    •   F1 plays from the start of the entire song.
+    •   F2 plays from the currently selected bookmark (see below about these).
+    •   Shift+F2 plays from the top of the sequence you are currently editing.
+    •   Ctrl+F2 (Cmd+F2 in macOS) plays from the current cursor position.
+    •   Ctrl+P toggles follow-play on and off.
+    •   Hold the key below Esc (Minus in macOS) for fast forward. Include Shift to go even faster.
+
+Tracks
+These are the general keys that work when you are editing an order list or a sequence.
+
+    •   Enter toggles between editing the order list or the sequence itself.
+    •   Tab and Shift+Tab for next or previous track (order list or sequence).
+    •   Home or End (Fn+Left or Fn+Right in macOS) for the absolute start or end of the entire song.
+    •   Ctrl+1, Ctrl+2 or Ctrl+3 turns voice tracks on or off.
+    •   Shift+Up/Down in a sequence to mark an area, then Ctrl+C to copy the contents.
+    •   Ctrl+V to paste a previously marked area in a sequence, overwriting an area of the same size.
+    •   Ctrl+Shift+V to paste a previously marked area, inserting it to make the sequence longer.
+    •   Ctrl+L sets the song loop position (the order list values then turn green). It also toggles between
+        loop and end marker when the cursor is at the end of a song.
+    •   Shift+F3 and Shift+F4 to decrease and increase the sequence itself by one semitone.
+    •   Ctrl+F3 and Ctrl+F4 (Shift+Cmd+F3 and Shift+Cmd+F4 in macOS) to decrease and increase the
+        sequence itself by one octave.
+    •   Alt+Up and Alt+Down to decrease and increase the white intervals.
+    •   Alt+Shift+Up and Alt+Shift+Down to “roll” the white intervals up or down.
+
+Order list
+This is where you edit the transpose value and the sequence number itself in a blue track voice.
+
+As soon as you start typing hexadecimal digits, the XXYY word turns white and you must press Enter to
+accept or Esc to cancel (cursor up or down is prohibited until this is done).
+
+    •   Insert and Delete (Shift+Backspace and Backspace in macOS) to insert and delete order list
+        entries. Backspace also works in Windows for deleting the previous entry.
+    •   Ctrl+C and Ctrl+V will copy and paste the entire sequence.
+    •   Ctrl+F to insert the next unused sequence (whether it has data in it is ignored).
+    •   Ctrl+Shift+F to insert the next unused empty sequence.
+    •   Ctrl+D to duplicate and replace the currently edited sequence.
+    • Ctrl+Shift+D to duplicate and append a sequence after the currently edited one.
+Sequences
+Notes are entered in the right-most column by hitting one of the many standard letters and number
+keys on the keyboard. They match the keys on a piano like this:
+
+
+
+
+If you hold down Shift while doing so, editing is temporarily paused and you can play with the current
+instrument. To both edit and play it, toggle the Caps Lock key on.
+
+    •   Ctrl+Left and Ctrl+Right (Cmd+Left and Cmd+Right in macOS) move between the three columns
+        in the sequence.
+    •   Insert and Delete (Shift+Backspace and Backspace in macOS) to insert and delete without
+        altering the size of the sequence. Backspace also works in Windows for deleting the previous
+        row without altering the size of the sequence.
+    •   Ctrl+Insert and Ctrl+Delete (Ctrl+Shift+Backspace and Ctrl+Backspace in macOS) to insert and
+        delete while also altering the size of the sequence. Ctrl+Backspace also works in Windows for
+        deleting the previous row while also altering the size of the sequence.
+    •   Space to erase an instrument or command value, or for a --- (gate off) event.
+    •   Shift+Space for a +++ (gate on) event.
+    •   Shift+Enter toggles a ** (tie note) on and off.
+    •   Ctrl+Space erases an entire row (i.e. the instrument, command and note).
+    •   Ctrl+I adds the value for the current instrument (hit it again to remove it).
+    •   Ctrl+O adds the value for the current command (hit it again to remove it).
+    •   F3 and F4 to decrease and increase the octave for notes being typed in.
+    •   F5 resizes a sequence to a specific number of rows (preserves data unless truncated).
+    •   Shift+F5 inserts a specific number of rows at the exact cursor position.
+    •   Ctrl+B splits a sequence. The existing upper part is resized while the lower part is new.
+
+Tables
+    •   Alt+[Letter] to jump to or from that table. Use the highlighted letter in the table name.
+    •   Tab or Shift+Tab for next or previous table.
+    •   Home (Fn+Left in macOS) for the absolute top of the table.
+    •   End (Fn+Right in macOS) for the end of actual data in the table. Hit it again for jumping to the
+        absolute bottom of the table.
+    •   Enter in commands or instruments to edit a description. Hit Enter to accept or Esc to undo.
+    •   Shift+Enter on a value to edit bits. Use up/down, Space to toggle bits, then Enter or Esc.
+    •   Ctrl+Enter on a table index pointer value jumps to that spot in the relevant table.
+    •   Insert and Delete (Shift+Backspace and Backspace in macOS) to insert and delete rows (except
+        in commands and instruments because of being referred to from sequences).
+    •   Space plays the last instrument you played while holding down Shift and hitting letter keys.
+    •   Ctrl+Space works as Space but also applies the effect of the current command.
+    •   Numpad + and Numpad (Cmd+Up and Cmd+Down in macOS) – changes the instrument.
+    •   Ctrl+Numpad + and Ctrl+Numpad (Shift+Cmd+Up and Shift+Cmd+Down in macOS) – changes
+        the command.
+    •   Ctrl+U to toggle between lower- and upper-case hex values in all tables.
+
+Options
+You can left click most options in the status bar, except PAL/NTSC. Use left- and right-click on the octave
+field to increase and decrease it (or use F3 and F4 directly).
+
+    •   F9 toggles between the 6581 or 8580 SID chip models.
+    •   Shift+F9 toggles between PAL and NTSC.
+    •   Shift+F7 reloads the settings
+    •   Ctrl+F7 selects the next color scheme
+    •   Alt+O toggles between ASID or reSID emulator (only works if you are utilizing ASID).
+    •   F6 opens the utilities menu.
+    •   F7 opens the songs menu.
+
+Song list
+This is the gray box located in the left side of the SID Factory II.
+
+    •   Enter (or left click) a row jumps to that spot in the song. If you cursor to an empty description
+        spot, it will start editing the text for it (you can also use left click for this).
+    •   Ctrl+Enter (or double-click) a row jumps to that spot in the song and plays from it.
+    •   Home (Fn+Left in macOS) for jumping to the top without scrolling the list. Hit it again for
+        jumping to the absolute top.
+    •   End (Fn+Right in macOS) for jumping to the bottom without scrolling the list. Hit it again for
+        jumping to the absolute bottom.
+    •   Shift+Up/Down in mark a range of sequences, then Ctrl+C to copy the range.
+    •   Ctrl+V to insert a previously marked range thereby making the order list longer.
+
+Bookmarks
+    •   Alt+1 to Alt+8 selects one of the eight bookmark slots.
+    •   Ctrl+M stores the current track position in the current bookmark slot.
+    •   Ctrl+G goes to the position indicated by the current bookmark slot.
+    •   F2 plays from the position indicated by the current bookmark slot.
+    •   Enter (or left click) a row jumps to that spot in the song.
+    •   Ctrl+Enter (or double-click) a row jumps to that spot in the song and plays from it.
+    •   Home or End (Fn+Left or Fn+Right in macOS) for the start or end of the list.
+
+
+
+We hope you'll have a lot of fun composing. Enjoy! =)
+
+   - The SF2 Team
+

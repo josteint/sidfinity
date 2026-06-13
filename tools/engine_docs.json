@@ -175,8 +175,8 @@
     "updated": "2026-06-13"
   },
   "sidfactory_ii": {
-    "state": "LITTLE",
-    "notes": "single research.md first-pass overview; research-engine sweep not yet run.",
+    "state": "OK",
+    "notes": "research-player sweep complete (2 waves). Format fully open from Chordian/sidfactory2 C++ (no 6502 asm in repo). Byte-exact: orderlist/sequence packing, instrument+wave/pulse/filter/HR/arp/tempo tables, command table, relocation/pack pipeline. Drivers 11-16 diffed; all single-speed (no multispeed). KEY: exported HVSC .sid strips the 0x1337 descriptor -> extractor must fingerprint driver + anchor on PSID init/update + driver-layout offsets. Open items (freq table, within-frame write order, driver11 sub-version probe) are all disasm-phase. 377 HVSC tunes.",
     "updated": "2026-06-13"
   },
   "sidtracker64": {
