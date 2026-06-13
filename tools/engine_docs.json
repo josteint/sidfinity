@@ -115,9 +115,9 @@
     "updated": "2026-06-13"
   },
   "loadstar_songsmith": {
-    "state": "LITTLE",
-    "notes": "single research.md first-pass overview; research-engine sweep not yet run.",
-    "updated": "2026-06-13"
+    "state": "OK",
+    "notes": "research-player sweep complete (1 broad wave, 4 clusters). US Loadstar disk-magazine hobbyist tool by Joe Garrett (Softdisk; precursor by Garrett+Gardner, Loadstar #27-28; re-documented Loadstar #237 by Dave Moorman). NOT a Sidplayer/.MUS tool (verified) and NOT a tracker -- notation-style: 3 voices, classical durations (W/H/Q/E/S+dot+rest), key/time sig, tempo ~30-260bpm, ~19 preset ADSR+waveform instruments, NO triplets/tied/filter/LFO/portamento (=clean USF target, pitch+duration+per-voice ADSR/waveform, no effect chain). Player init $CC00/play $CC48; note lookup (note-1)*2 into word freq table. 4 sidid variants byte-decoded (mature 308 reloc ABS-read / v1 19 ZP-indirect / v2 1 fixed $C290 / v3 3 reloc). On-disk native = m.SONG (notes) + w.SONG (1 block ADSR+timbre). Primary docs recovered: Loadstar 237 t.songsmith + converter docs (SIDSmith/SmithSID). OPEN (RE-phase): exact m-file note/duration interleave + freq table values via disasm. 331 HVSC tunes.",
+    "updated": "2026-06-14"
   },
   "lords_of_sonics": {
     "state": "LITTLE",

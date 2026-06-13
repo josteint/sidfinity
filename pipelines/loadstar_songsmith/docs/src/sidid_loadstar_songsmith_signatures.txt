@@ -1,0 +1,30 @@
+---
+source_url: https://raw.githubusercontent.com/cadaver/sidid/master/sidid.cfg
+fetched_via: direct
+fetch_date: 2026-06-14
+author: cadaver (Covert Bitops)
+content_date: unknown (file is continuously updated; fetched 2026-06-14)
+reliability: primary
+---
+
+# Exact signature blocks from cadaver/sidid sidid.cfg
+# Source: https://github.com/cadaver/sidid
+# These are the verbatim entry blocks as they appear in the file.
+# Format: name line, then one or more hex pattern lines (each ending with END or
+# implicit end-of-line in V2 format), then blank line separator.
+#
+# ?? = wildcard (any byte accepted at this position)
+# END = explicit pattern terminator
+# Multiple lines under the same name = alternative patterns (OR logic)
+
+Loadstar_SongSmith_v1
+B1 F9 E6 F9 D0 02 E6 FA C9 19 90 11 C9 1D 90 END
+
+Loadstar_SongSmith_v2
+38 E9 01 0A A8 B9 90 C2 8D 00 D4 C8 B9 90 C2 8D 01 D4 A0 ?? B1 ?? 8D ?? ?? 18 A5 ?? 69 ?? 85 ?? A5 ?? 69 ?? 85 ?? AD ?? ?? 8D 04 D4 CE ?? ?? AD END
+
+Loadstar_SongSmith_v3
+38 E9 ?? 0A A8 B9 ?? ?? 8D 00 D4 C8 B9 ?? ?? 8D 01 D4 AD ?? ?? 8D 04 D4 A0 ?? B1 ?? 8D ?? ?? 18 A5 ?? 69 ?? 85 ?? A5 ?? 69 00 85 ?? CE ?? ?? AD END
+
+Loadstar_SongSmith
+38 E9 ?? 0A A8 B9 ?? ?? 8D 00 D4 C8 B9 ?? ?? 8D 01 D4 AD ?? ?? 8D 04 D4 EE ?? ?? AC ?? ?? B1 ?? 8D ?? ?? EE ?? ?? CE ?? ?? AD END
