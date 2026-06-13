@@ -4,12 +4,30 @@ description: Research a C64 SID player engine online. Gathers documentation, sou
 argument-hint: [player-name]
 user-invocable: true
 allowed-tools: Agent Bash Read Write Glob Grep WebFetch WebSearch
-effort: max
+effort: medium
 ---
 
 # Research $ARGUMENTS Player Engine
 
 You are researching the **$ARGUMENTS** C64 SID player engine to gather everything needed to build a decompiler and USF converter for it.
+
+## Scope: GATHER + SUMMARISE only — NOT reverse-engineering (cost discipline)
+
+This task collects external knowledge and summarises it. It does **not** reverse-
+engineer the engine — that work belongs to the migration phase (`disassembly.s` +
+the extractor), which redoes it properly, so doing it here just burns tokens twice.
+
+- **DO:** fetch + read player source, format specs, manuals, sidid signatures,
+  version history, and *existing* annotated disassemblies; summarise them into the
+  docs; keep useful third-party source under `docs/src/`.
+- **DO NOT:** run `siddump`/py65, disassemble binaries byte-exact, decode packed
+  data, write emulators, or otherwise RE the engine yourself. If a claim needs RE
+  to confirm, record it as an **OPEN with the exact trace to run later** — don't
+  run it now. (`siddump`/py65 are out of scope despite `Bash` being available.)
+- **Model:** launch the research subagents on **sonnet** (`model: 'sonnet'` in each
+  `Agent()` call) — web research + summarisation is well within sonnet, and the
+  parts that needed Opus were the RE we're deliberately cutting. Reserve Opus for
+  the migration/RE phase. The orchestrating session can run at medium effort or lower.
 
 ## What we need (in priority order)
 
