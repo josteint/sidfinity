@@ -95,6 +95,21 @@ Launch 5-6 parallel background research agents, one per source cluster:
 - HVSC docs + SIDId + DeepSID
 - Disassemblies + technical articles (C=Hacking, scene magazines)
 
+**MANDATORY — every agent prompt MUST include these hard constraints** (a
+separate Claude session may be editing the same repo concurrently):
+- **Never run any `git` command** — no `restore` / `checkout` / `reset` /
+  `add` / `commit` / `clean` / `stash`. If a tracked file (e.g. `hvsc84.db`)
+  shows as modified, **leave it — it is not yours**. (A research agent once
+  ran `git restore hvsc84.db` on the false premise that its read-only query
+  had dirtied the file, reverting another session's live state — see
+  `.claude/memory/feedback_subagents_no_git.md`.)
+- **Write ONLY inside `pipelines/<engine>/docs/`.** Do not modify any other
+  repo file, `pipelines/<other-engine>/`, or `tmp/`.
+- **Open shared SQLite DBs read-only**: `sqlite3.connect('file:hvsc84.db?mode=ro', uri=True)`
+  — never a writable connection (it must not be flipped to WAL).
+- The orchestrator (not the agents) writes `README.md` + `provenance_log.md`,
+  so agents use distinct `{cluster}_*.md` filenames to avoid collisions.
+
 **IMPORTANT:** Tell each agent to collect not just information but also **leads** — URLs, names, tools, files, or references that look promising but that the agent didn't have time to fully chase. Each agent should end its output with a "## Leads to follow" section listing these.
 
 ### Phase 3: Follow leads (iterative)
