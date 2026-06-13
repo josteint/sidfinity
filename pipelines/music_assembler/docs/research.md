@@ -8,6 +8,29 @@
 - **Documentation:** Manual PDF at https://csdb.dk/getinternalfile.php/137191/masm_manual_0_01b.pdf
 - **CSDb:** #94388
 
+## Status & RE gaps (2026-06-13)
+
+- **Migrated: 0 / 6,351.** No pipeline, no USF, no disassembly.s, no RE_NOTES.md yet.
+- **This doc is manual/CSDb-derived, not RE-derived.** It describes the
+  *editor's* data model. The **packed assembled-output format — the actual
+  extraction target — is NOT reverse-engineered.** The "Assembled Output
+  Format" section below is a placeholder: the player "disassembles intricate,
+  unreadable data while playing," and that packed stream is what a migration
+  must decode. This is the hard part and it is entirely open.
+- **No player source exists** — MA was a closed commercial Markt+Technik
+  product (cf. GoatTracker, where 13 versions of C source are bundled). The
+  player must be RE'd from a binary. Likely multiple packer/version variants
+  in HVSC (expect a version-group analysis akin to GT2's A/B/C/D).
+- **Manual PDF is linked (csdb getinternalfile 137191), not vendored locally.**
+  First acquisition step: pull it into this dir + run the `research-player`
+  skill, then seed a disassembly of a representative member.
+- **Representative members** (curated candidates, from `docs/canary_picker.md` §3):
+  `MUSICIANS/R/Rage/Kalle_Kloakk_part_8.sid`,
+  `MUSICIANS/K/Kleinert_Tim/Arcade_Intro.sid`,
+  `MUSICIANS/0-9/4-Mat/Sub.sid`,
+  `MUSICIANS/H/Harmony_Productions/War_at_33.sid`,
+  `MUSICIANS/R/Remorhaz/Implosion.sid`.
+
 ## Key Concept
 
 Not a tracker — it "assembles" complete standalone executables. Saving bundles the player routine + compressed music data into a relocatable binary. Base address user-selectable $0400-$FF00. Play via `SYS <base>`.
