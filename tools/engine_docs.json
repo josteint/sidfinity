@@ -75,8 +75,8 @@
     "updated": "2026-06-13"
   },
   "gmc": {
-    "state": "LITTLE",
-    "notes": "single research.md first-pass overview; research-engine sweep not yet run.",
+    "state": "OK",
+    "notes": "research-player sweep complete (2026-06-13, gather-only/sonnet). GMC=Game Music Creator (Brian/Graffity, Hungary, Dec 1990; 446 V1 + 9 V2.0-revival HVSC tunes). CLOSED engine. HEADLINE: direct predecessor of DMC (same author, 8 weeks before DMC V1.2) -> the already-migrated DMC pipeline largely transfers (shared Tracks->Sectors, $1000/$1003, 8-subtune table, abs,X write dispatch; GMC sounds 16 bytes vs DMC V4 11 -> fresh instrument-decode). Engine model + version taxonomy (V1.0/V1.6/V2.0-revival; sidid V1 x16-ASL vs V2 nibble-split) + census (455; $18EA/$14EA dominant) captured. Byte-level OPEN -> RE during migration (bootstrap: HVMEC editor D64s + Fenek's 2006 reimplementation). Cleared to start. See pipelines/gmc/docs/README.md.",
     "updated": "2026-06-13"
   },
   "goattracker": {
