@@ -15,9 +15,9 @@
     "updated": "2026-06-13"
   },
   "cheesecutter": {
-    "state": "LITTLE",
-    "notes": "single research.md first-pass overview; research-engine sweep not yet run.",
-    "updated": "2026-06-13"
+    "state": "OK",
+    "notes": "research-player sweep complete (2026-06-14). CheeseCutter 2.x (Timo Taipalus/Abaddon, Triad; open-source D tracker, GPL; source local at tmp/dmc_hunt/CheeseCutter/). 302 HVSC SIDs. PLAYER = evolved JCH NP21.G4 (src/c64/player_v4.acme) -> effect chain/write model ALREADY in jch_newplayer + laxity_newplayer docs; this corpus = the CC-specific delta. KEY MIGRATION FACTS: (1) exported SID is ASSEMBLED FRESH PER TUNE (player_v4.acme text-substituted + song data merged via build.d) - not pre-linked; (2) VARIABLE INSNO per tune (numInstr+1, NOT always 48) - all instrument offsets scale with it = THE critical extractor detail; (3) per-tune effect stripping via 15 INCLUDE_* flags (dumpOptimized) -> player byte image+size varies per tune; INCLUDE_CMD_SET_WAVE($06) always FALSE; INCLUDE_FILTER=FALSE -> no $D415-17 writes (~half of tunes); (4) seq end-mark $bf (not NP20 $7f); (5) timing 1x=speed0/VBI, multispeed=speed0xffffffff/CIA $4cc7/mult. SIDID: 4 sub-sigs NON-EXCLUSIVE (one binary matches several; cfg-order picks) - all single-SID share ONE extraction path (2.5+=184, parent-only=108, 2.3-2.4=4 artifact, 2.0-2.2=0). 2SID stereo (9 PSIDv3, 2nd SID $D420, 6 voices {$00,$07,$0E,$20,$27,$2E}, filter interleaved D415/D435...) needs a 6-voice verdict; stereo branch never merged to master. Release timeline mapped to player strings cc4.03(2.7.1)/cc4.04(2.8)/cc4.07(2.9); exports carry NO version string. AUDIT before migration: 25 LMan init=$080D/play=0 + 4 Abaddon $0FED groups. Cleared to start disassembly. See pipelines/cheesecutter/docs/README.md.",
+    "updated": "2026-06-14"
   },
   "companion": {
     "state": "OK",
