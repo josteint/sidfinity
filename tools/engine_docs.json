@@ -1,8 +1,8 @@
 {
   "20cc": {
-    "state": "LITTLE",
-    "notes": "single research.md first-pass overview; research-engine sweep not yet run.",
-    "updated": "2026-06-13"
+    "state": "OK",
+    "notes": "research-player sweep complete (2026-06-14). 20CC = editor by Falco Paul (player) + Edwin van Santen/EVS (music), Dutch group '20th Century Composers' (Leiden, founded 1988-06-17). 209 HVSC SIDs, all PSID v2, 87% single-subtune. 'World's fastest routine' (4 raster lines). No public source BUT editor's in-tool F7 instructions recovered verbatim (src/20CC_Composer_Instructions.txt). **FC-INSPIRED, NOT an FC fork (settled): F7 text says 'almost the same as Future Composer but this is NOT the same!'; concrete binary diffs vs FC - vibrato=bit-rotation loop (FC=signed-delta), wave dispatch hi-2-bit $00/$40/$80/$C0 (FC=$40/$60), filter only on note-load (FC=per-frame program), Variant-B embeds instrument in note pitch (FC never); own sidid sig, no based-on flag. FC pipeline does NOT transfer wholesale.** TWO VARIANTS: A (174/209) load/init $1000 play $1003, ~2KB, state $1006-6F; B (35/209) load $0FFA play $1081, instrument-in-note-pitch (note&$1F=inst, $E0-FF=cmd) = separate extract path. WRITE MODEL (voice X=2,1,0, offsets $146D={00,07,0E}, all STA $D4xx,Y): freq-hi/lo, PW-lo/hi, **$D418 absolute written 3x/frame (beat-accent mechanism)**, $D404 ctrl/gate (note-load or frame_counter==2 HR); AD/SR $D405/06 + filter $D416/17 on instrument-load only; vibrato=bit-rotation; freq 96-note split table $1485/$14E5. DATA = 2 levels (vs FC's 3): sequence stream (ptr $1545, $00-3F loop/$40-5F repeat/$60-7F waveform-idx/$80-BF arp-swing-param/$C0-FE filter-porta/$FF end) + wave-programs (ptr $154B, hi-2-bit dispatch: $00-3F dur+inst, $40-7F dur+pulse, $80-BF dur+note, $C0-FE dur+freq-lo-hi, $FF end). Instruments 8-byte @ $15FB (byte4=$FF suppresses filter); settings $81=beat-accent $40=appreq(arp?). Features: 2x/3x/4x speed, hard+soft osc restart, sample play, PWM, voice-3 feedback. Address variety = relocation ($FFF/$1000=120, $1670 HeatWave=15, $E0xx=4, $F900=2, scattered=68). Migration first step: disassemble Variant-A Vlindertjes.sid ($106C) for auto-swing/beat-accent/glide algorithms + Variant-B note packing. Cleared to start disassembly. See pipelines/20cc/docs/README.md.",
+    "updated": "2026-06-14"
   },
   "amp": {
     "state": "OK",

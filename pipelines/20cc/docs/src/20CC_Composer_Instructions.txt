@@ -1,0 +1,104 @@
++--------------------------------------+
+| The Dual Compatible Music Editor v1  |
++--------------------------------------+
+
+ All functions are almost the same as
+ Future Composer ,but this is NOT the
+ same! Please keep that in yar mind!
+
+ Control 1 - Edit track #1
+  '  '   2 - Edit track #2
+  '  '   3 - Edit track #3
+  '  '   4 - Edit sounds
+
+ In trackedit : Control 5 - Block edit
+                (Prezz again=exit B.E)
+             a  b  c
+ Screen   1 xx xx xx  a=trackposition
+ displays 2 xx xx xx  b=blockposition
+          3 xx xx xx  c=blockduration
+
+ In Blockedit press RETURN to put work-
+ pad into block. Don't forget to press
+ return if ya wanna exit block edit!!
+
+ Soon more features in thiz editor!
+
++--------------------------------------+
+| The Dual Compatible Music Editor v1  |
++--------------------------------------+
+
+          Player Instructions*
+
+ Tracks 1-3 : 00-1F = Blocks
+              80-BF = Increase Note
+              C0-DF = Decrease Sound(?)
+              E0-FD = Increase Sound(?)
+                 FE = Stop Music
+                 FF = Restart Track
+
+ Sounds     : 00-0C = Save Snd memory
+              0C-0F = Snd memory(??)
+                a  b  c  d  e  f  g  h
+a=Wave on       xx xx xx xx xx xx xx xx
+b=Wave off
+c=Effect values
+d=ADSR(Attack,Decay,Sustain,Release)
+e=Pulse value
+f=Effect values
+g=Effect settings(#$81=beat,#$40appreq)
+h=Filterjobs, toneeffects(#$22,#$20??)
+
+Just try, copy values ,Real COOL player!
+
++--------------------------------------+
+| The Dual Compatible Music Editor v1  |
++--------------------------------------+
+          Player Instructions*
+
+ Blockedit 00-1F:  DUR.00 -Duration 00
+                   SND.00 -Sound 00
+                 GLD:00,x -Effect proc.
+                           note 00,x
+                   END    -End of block
+
+ -=>Always set first duration ,if ya
+    wanna change sound+duration
+
+   e.g. WRONG:SND.01  GOOD:DUR.03
+              DUR.03       SND.01
+
+ First line of each block ,must be a
+ duration setting. Blocks which have
+ no notes in it, just END mark won't
+ be accepted by player. Don't use
+ in track edit.
+
+ Editor is crash-protected. If player
+ crashes music stops, restart with F1
+
++--------------------------------------+
+| The Dual Compatible Music Editor v1  |
++--------------------------------------+
+
+-Creditz go for this player to :
+
+ I think: 20CC and should be Falco Paul
+
+-Creditz for this editor :sorry secret!
+
+-Why is this editor written.
+ (This editor should NOT be SPREADed!)
+
+-This editor was made to use various
+ players ,to make it more easier for
+ all those cool musicians, who make
+ lames sounds cause of lame players!
+ And really ,this is a really cool
+ player this time. New cool musicians
+ will arise ,with their quality on
+ making musix, not making players!
+
+-This not the plan of 20CC ,I quess.
+ But their will be alot of good results
+ to come. This editor combined 20CC!
