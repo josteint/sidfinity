@@ -200,6 +200,9 @@ instrument_field: "waveform" ":" byte_list                              -> inst_
                 // pipelines/future_composer/docs/usf_schema_v1.md.
                 | "pulse_prog" ":" pulse_prog_args                      -> inst_pulse_prog
                 | "filter_prog" ":" filter_prog_args                    -> inst_filter_prog
+                // DMC V5 — inline pulse-width sweep program (start PW +
+                // per-frame (add, frames) segments + optional loop).
+                | "pulse_sweep" ":" pulse_sweep_args                    -> inst_pulse_sweep
                 | "effects" ":" effects_args                            -> inst_effects
 
 pwm_args: pwm_kv+
@@ -258,6 +261,14 @@ pulse_prog_kv: "program" "=" INT        -> pp_program
 // sweep. `double_voice` is the lo-freq detune trick. `aux_bits` carries
 // the high-nibble bits of fil_count whose musical meaning isn't yet
 // fully RE'd (v2 deferral).
+// DMC V5 — per-instrument inline pulse-width sweep program. `start` is
+// the initial 16-bit PW; each `seg (add, frames)` adds `add` (signed) to
+// the PW every frame for `frames` frames; `loop` repeats from a relative
+// table-entry offset (omitted = the last segment holds for the note).
+pulse_sweep_args: "start" "=" number ps_seg+ ps_loop?
+ps_seg: "seg" "(" signed_int "," number ")"
+ps_loop: "loop" "=" INT
+
 filter_prog_args: filter_prog_kv+
 filter_prog_kv: "program" "=" INT       -> fp_program
               // Filter program continues across note boundaries (no
@@ -361,6 +372,10 @@ fx_flag: "tie"                  -> fx_tie
        | "song_pos" "=" INT     -> fx_song_pos
        | "section_end" "=" INT  -> fx_section_end
        | "set_dur" "=" number   -> fx_set_dur
+       // DMC V5 sticky instrument-select ($FC), positioned in the event
+       // stream (its byte position is read by the engine's gate-off
+       // lookahead, so it stays an ordered row marker, not a per-note tag).
+       | "set_instr" "=" INT    -> fx_set_instr
        | "fx" ":" CNAME         -> fx_named
        // FC family musical attributes (new in v0). Glide = portamento
        // with an N-frame onset delay; wave_adjust = per-note wave-table

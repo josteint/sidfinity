@@ -272,6 +272,15 @@ instrument 1 lead {
     base 0), `period=` (cycle length).
   - `vibrato`: `scale=` (depth).
   - `envelope`: hard-restart timing fields.
+  - `pulse_sweep`: an inline pulse-width sweep program (DMC V5) that
+    decodes away the engine's shared pulse-table pointer:
+    `pulse_sweep: start=$0514 seg (0, $9001) [seg (...)]* [loop=N]`.
+    `start` is the initial 16-bit pulse width; each `seg (add, frames)`
+    adds the signed 16-bit `add` to the PW every frame for `frames`
+    frames before advancing; `loop` (a relative segment-entry offset)
+    repeats from there (omitted = the last segment holds for the note).
+    An instrument WITHOUT `pulse_sweep` keeps the running PW oscillator
+    going across the note (`pwm: ... keep_running=true`).
 
 Field set is engine-determined. Fields not relevant to an engine
 omit cleanly.
@@ -374,6 +383,15 @@ Columns (whitespace-separated):
    directional constant-rate portamento: 16-bit rate added/subtracted
    to the note freq each frame, starting after N elapsed ticks of the
    note (standard FC $Ex).
+
+   Positioned sticky-state markers (DMC V5 sectors): `set_dur=$NN`
+   (duration reload, $FD) and `set_instr=N` (instrument-select, $FC)
+   are ORDERED prefix flags on the note/gate row that follows them in
+   the event stream. They stay positioned rows rather than per-note
+   tags because the engine's gate-off lookahead reads the raw next byte,
+   so a command's stream position is itself write-stream-significant. A
+   `tie` row (rest pitch + `tie`) is a hold/sustain of the current note
+   ($FE) for one more duration with no retrigger.
 
 A line with no pitch (`---`) and no instrument is a rest of the given
 duration.

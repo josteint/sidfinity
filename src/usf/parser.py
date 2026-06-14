@@ -16,7 +16,7 @@ from src.usf.types import (
     InitSid, InitSidVoice, InitFilter,
     Instrument, PwmConfig, ArpConfig, VibratoConfig, EnvelopeConfig,
     FreqSlideConfig, IncBy2Config, SongEndConfig, InitBehaviorConfig,
-    MasterVolConfig, SfxConfig,
+    MasterVolConfig, SfxConfig, PulseSweepConfig,
     MusicSubtune, DigiSubtune, SfxSubtune,
     VoiceBlock, Orderlist, Pattern, NoteRow, Pitch, InstrumentRef,
 )
@@ -416,6 +416,23 @@ class _T(Transformer):
     def inst_filter_prog(self, items):
         return ('filter_prog', items[0])
 
+    def ps_seg(self, items):
+        return ('seg', (int(items[0]), int(items[1])))
+
+    def ps_loop(self, items):
+        return ('loop', int(items[0]))
+
+    def pulse_sweep_args(self, items):
+        start = int(items[0])
+        segs = [it[1] for it in items[1:]
+                if isinstance(it, tuple) and it[0] == 'seg']
+        loop = next((it[1] for it in items[1:]
+                     if isinstance(it, tuple) and it[0] == 'loop'), None)
+        return PulseSweepConfig(start=start, segments=segs, loop=loop)
+
+    def inst_pulse_sweep(self, items):
+        return ('pulse_sweep', items[0])
+
     def efx_tone_arp(self, _):       return 'tone_arp'
     def efx_pulse_arp(self, _):      return 'pulse_arp'
     def efx_drum(self, _):           return 'drum'
@@ -737,6 +754,9 @@ class _T(Transformer):
 
     def fx_set_dur(self, items):
         return f'set_dur=${items[0]:02X}'
+
+    def fx_set_instr(self, items):
+        return f'set_instr={int(items[0])}'
 
     def fx_named(self, items):
         return f'fx:{items[0]}'

@@ -99,43 +99,60 @@ extract->model->composer); the USF layer + schema co-design is a
 follow-up (the model IS the musical content, so serialization is
 mechanical).
 
-## NEXT — USF layer (designed 2026-06-14; implement next)
+## ✅✅ USF layer — DONE (2026-06-14): Katusha FULL through USF
 
-The composer currently reads V5Model directly (prototype). To satisfy
-"always through USF", add `extract -> to_usf -> UsfFile -> from_usf ->
-V5Model -> build_v5_sid` (composer UNCHANGED — it keeps reading a model).
-Design (re-read docs/usf_representation_principle.md before coding):
+Pipeline is now `extract -> to_usf -> UsfFile -> from_usf -> V5Model ->
+build_v5_sid` (composer UNCHANGED — model-driven). Katusha verifies
+instruction-sequence exact THROUGH USF (trichotomy is_full + state_match,
+97955/97955 play; find_first_divergence 98880/98880 = 100%). Verdict:
+`pipelines/dmc/v5/verify_v5.py:verify_v5` (build_from_cfg goes through a
+real .usf file). Test: `tests/test_dmc_v5_usf.py`.
 
-REUSE existing USF types (no new schema):
+Files: `extract/to_usf.py` (model_to_usf + write_v5_usf), `from_usf.py`
+(usf_to_model), `verify_v5.py`.
+
+REUSED existing USF types:
 - AD/SR -> `Instrument.adsr`; vib delay/speed/width -> `VibratoConfig`
-  (onset / period / depth — parametric).
-- Per-instrument WAVE program: decode the wave-table slice from the
-  instrument's wave_ptr (follow $90 loops, like V4 `_slice_wave`) into
-  `waveform`/`wave_freq`/`loop`. DECODES AWAY the wave_ptr (§7 forbids
-  the `*Ptr` shape). Drum = test-bit ($08) entries -> abs freq-hi
-  (`effects: drum` per step or the FC dual-table convention).
-- Sectors -> `Pattern`/`NoteRow`: note = pitch; the 14 commands ->
-  `fx_flags` (dur/snd/gate/gate_tie/fade_in/fade_out/frq/flt/adr/srr/
-  vol/slide/glide). Orderlists -> `VoiceBlock.orderlist` (+ transposes,
-  loop). speed -> tempo; master_vol + $1015/$1016/$1017 leftovers ->
-  `init.sid` priming (filter mode + cutoff lo/hi).
-- freq table -> `freq_table` (per-tune tuning).
+  onset/speed/amplitude (inverted in from_usf).
+- WAVE program: `_slice_wave` follows the V5 $90 marker (ctrl==$90 -> the
+  parallel freq byte is the ABSOLUTE loop target) into
+  `Instrument.waveform`/`wave_freq`/`loop` — decodes away wave_ptr.
+  `wave_freq` kept RAW (each step's melodic-vs-abs mode is its own ctrl
+  bit 3, visible in `waveform`). Idle walk (table[0]) -> `wave_programs[0]`.
+- freq table -> `freq_table` (96 lo + 96 hi). speed -> tempo. master_vol +
+  $1015/$1016/$1017 leftovers -> `init.sid` (master_vol +
+  InitFilter cutoff_lo/cutoff_hi/res_routing).
+- Sectors -> `Pattern`/`NoteRow`: notes = pitch rows, gates ($FE) = `tie`
+  rows. Orderlists -> `Orderlist` (entries + signed transposes + loop;
+  loop byte-offset <-> entry index).
 
-NEW musical-content fields (principled per Rule 2 — sweep = content,
-interpreter stays in engine; NOT a kind-index):
-- per-instrument PULSE sweep program: decode the pulse-table slice from
-  pulse_ptr (start pair + (add,count) segments + $90 loop) into an inline
-  step list. Decodes away pulse_ptr.
-- per-instrument FILTER sweep program: same shape (voice-3-only).
-  Decodes away filter_ptr.
-  Candidate schema: extend `PulseProgConfig`/`FilterProgConfig` or add a
-  small `sweep { start, steps:[(add,frames)], loop }` form. Run the §9
-  4 tests + grep (`*Ptr`, `*Kind`) before committing.
+NEW schema (one principled field, spec-synced — types/grammar/parser/
+writer/docs/test):
+- `Instrument.pulse_sweep` (`PulseSweepConfig`): inline PW envelope
+  `start=$NNNN seg (add, frames) ... [loop=N]` — decodes away pulse_ptr.
+  Non-restarting instruments (ptr 0) carry `pwm.keep_running=true`; the
+  position-persistence the keep-running relies on is ENGINE MECHANISM
+  (per-voice pulse position), not stored content.
 
-`from_usf` rebuilds the V5Model (re-pack per-instrument programs into the
-shared wave/pulse/filter tables + reassign pointers — the inverse of the
-decode; the composer reads the model). Verify Katusha FULL through USF
-(should reproduce the current 100%). THEN the factory + wide batch below.
+KEY WRITE-LOG LESSON (cost one fix-round): V5 `gate_logic` reads the
+LOOKAHEAD byte — the raw next byte after a note/gate — to decide the
+hard-restart gate-off. So sector command BYTE POSITIONS are write-stream-
+significant; the `$FC` snd / `$FD` dur commands may NOT be reshuffled
+relative to the notes/gates. They are carried as ORDERED PREFIX FLAGS
+(`set_dur` / `set_instr`) on the following note/gate row, re-emitted
+verbatim. (First attempt stamped instr per-row + re-emitted on change ->
+moved a snd from before a gate to after it -> flipped one $D404 gate bit.)
+
+RESIDUE (family-wide, not Katusha): other sector commands
+(vol/slide/glide/frq/flt/fade/gate_toggle/adr/srr) raise `unsupported:`
+in to_usf; FILTER sweep (voice-3) has no schema yet (Katusha uses none —
+filter table is a single null entry); pulse programs that genuinely
+advance segments / loop are untested (Katusha's counts are near-infinite
+$90xx); sectors are decoded in isolation (Katusha self-establishes
+dur/snd per sector — path-resolution like V4 is needed if a member
+inherits sticky state across sectors).
+
+## THEN — factory + wide batch (unchanged plan below)
 
 ## THEN — factory + wide batch
 `dmc_v5_config` factory (jump-table detect init+$40/play+$A1, the

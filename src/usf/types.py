@@ -396,6 +396,29 @@ class PulseProgConfig:
 
 
 @dataclass
+class PulseSweepConfig:
+    """DMC V5 per-instrument pulse-width sweep program — an inline PW
+    envelope that decodes away the engine's shared pulse-table pointer
+    (USF representation principle §7: no `*Ptr` into an engine library).
+
+    Musical content: a parametric pulse-width contour. `start` is the
+    initial 16-bit pulse width written at note-on. Each segment adds
+    `add` (signed 16-bit) to the PW every frame for `frames` frames,
+    then advances to the next segment; `loop` (a relative table-entry
+    offset, or None) repeats from there. A near-`frames` value (the
+    engine's $90xx count) means "hold this segment for the whole note."
+
+    Instruments WITHOUT a pulse_sweep keep the running PW oscillator
+    going across the note (the engine's no-restart flag) — that legato
+    behaviour is `PwmConfig.keep_running`, and the position-persistence
+    it relies on is engine mechanism, not stored content.
+    """
+    start: int = 0
+    segments: list = field(default_factory=list)   # list[(add:int, frames:int)]
+    loop: Optional[int] = None                       # relative entry offset
+
+
+@dataclass
 class FilterProgConfig:
     """FC v1 — filter-program per-instrument config (replaces opaque
     fc_fil_count byte + fx2 bit 3 + fx3 bit 0).
@@ -537,6 +560,10 @@ class Instrument:
     # vibrato.amplitude/speed/direction carry the fx1 byte.
     pulse_prog: PulseProgConfig = field(default_factory=PulseProgConfig)
     filter_prog: FilterProgConfig = field(default_factory=FilterProgConfig)
+    # DMC V5 — per-instrument inline pulse-width sweep program (decodes
+    # away the shared pulse-table pointer). None = no restart (the PW
+    # oscillator keeps running; see PwmConfig.keep_running).
+    pulse_sweep: Optional['PulseSweepConfig'] = None
     # Effect flags from fx3 bits — names match the engine routines
     # they enable (see usf_schema_v1.md bit table). Empty set = no
     # effects active.
