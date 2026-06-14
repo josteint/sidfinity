@@ -73,6 +73,28 @@ pre-split pulse nibble/base tables) → xa65 → PSID.
   separate work; V5 sector encoding still needs RE.
 - **Ear test PASSED** (2026-06-12, user) on Geometrical_Zaks.
 
+## ✅ ROUND 1 sub-build recovery (2026-06-14): 2945 -> 3135 FULL (+190)
+
+The big `player_code_mismatch` buckets turned out to be EQUIVALENT-write
+sub-builds or PSID-sub-entry variation — the family-1 sub-builds use the
+SAME variant axes as DMC family 2. Fixed in `factory.py`:
+- **$1181 (130): rest/switch/slide-tail JMP $1591 (skip effects)** vs
+  canon JMP $1322 — the family-2 `rest_effects='skip'` behavior in
+  family-1 members. Probe $1180 -> `cfg.extra_params['rest_effects']`.
+- **$1631+$163E (136): all-off (+$06) / sfx (+$09) routines** vary per
+  sub-build but are NEVER executed during play() (verify only drives the
+  play vector). Masked $162F-$1647.
+- **$12A8 (80): filter $D418 write via a JSR helper** (STA $D418 + a
+  dead store) vs inline STA $D418 — identical write. Mask + validate.
+- **IMAGE-WIDE jump-table scan** for relocated-within-file players (at
+  neither play-3 nor load): +7 (most no_jumptable have NO jump table or
+  a CIA-timer the py65 init probe can't read).
+4 family-2 canaries + the v4 portfolio guard this in regress_dmc.
+RESIDUE still open: remaining sub-build sites ($1231 = a real SR-compute
+variant + different helper; $18B4; $1493; smaller), 364 no-jump-table
+(no findable base), 35 cia_multispeed (timer unreadable), the off-table
+architectural limit (~600, correctly refused).
+
 ## Wide-batch residue buckets (family 1 = 5401, ranked by size)
 
 Each is its own next-round triage target. Sizes from the first full

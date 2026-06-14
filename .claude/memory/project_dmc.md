@@ -95,11 +95,23 @@ force-includes record 0 as slot 0. (2) pulse base split — step =
 nibble + CACHED base; idle base=0; composer derives base = step&$0F.
 (3) xa65: ':' is a statement separator EVEN IN COMMENTS (sanitizer).
 
-## ✅✅ FAMILY-1: 2945/5401 FULL (54.5%) as of 2026-06-13
+## ✅✅ FAMILY-1: 3135/5401 FULL (58.0%) as of 2026-06-14
 Progression: 2257 (first sweep) -> 2656 (relocation: +399) -> 2921
-(2-entry layout + base=load: +265). Mass-written + db-refreshed (0
-errors, 2921 sidfinity_md5). Ear-test passed on Zaks. Portfolio
-re-derived twice (standard closeout); regress_dmc 6 ok (Zaks + 5).
+(2-entry layout + base=load: +265) -> 2945 (CIA) -> **3135 (round 1
+sub-build recovery: +190, 2026-06-14)**. Mass-written + db-refreshed
+(0 err; DMC total 5019 sidfinity builds = 3135 fam1 + 1884 fam2).
+**ROUND 1 (commit a8d59ae):** recovered player_code_mismatch + a few
+no_jumptable members — the family-1 sub-builds use the SAME variant
+axes as family 2: (a) IMAGE-WIDE jump-table scan for relocated-within-
+file players (+7; 364 have no jump table, 35 CIA-timer-unreadable);
+(b) $1181 = rest_effects='skip' (130 members, the family-2 rest knob in
+fam-1 — probe $1180); (c) $1631+$163E = all-off/sfx routines vary but
+NEVER run during play() -> masked $162F-$1647 (136); (d) $12A8 = filter
+$D418 via JSR helper (STA $D418 + dead store) -> mask+validate (80).
+player_code_mismatch re-run: 183 FULL + 73 partial. Residue: remaining
+sub-build sites ($1231 SR-variant + helper, $1008-resolved, $18B4,
+$1493, smaller), 364 no-jump-table, the off-table architectural limit
+(~600). Full regression green (0 regressed).
 
 **2-ENTRY LAYOUT (commit 9212423):** the biggest code-mismatch bucket
 (688 @ $1001) is a re-assembled build with a 2-entry jumptable
