@@ -100,9 +100,9 @@
     "updated": "2026-06-13"
   },
   "jeff": {
-    "state": "LITTLE",
-    "notes": "single research.md first-pass overview; research-engine sweep not yet run.",
-    "updated": "2026-06-13"
+    "state": "OK",
+    "notes": "research-player sweep complete (2026-06-14). Jeff = custom player(s) of Soren Lund ('Jeff'), Danish (1974-2013), Cyberzound Productions/Camelot. 192 HVSC SIDs (engine 'Jeff'), 178 his own. ~30 players + 2 editors over career; no public source. Editors: CZP Music Editor V2.0 (1996, never released, .d64 CSDb #122334) + X-SID (Viruz 2007, 6581.dk/xsid-viruz.rar). Jeff_Minter (2) is the unrelated Llamasoft dev. BINARY (V9.x dominant, $1000, version str '-PLAYER V9.6 (C) JEFF / CAMELOT-' @ $1020): 2 JMP trampolines; per-voice state $1040 (7B stride X=0/7/$0E); freq lo+hi 96-entry tables $10C4-$1183; arp/vib semitone offsets $1184; init $11A4; play+fx $12F0-$17B7; 16-bit address table $17C8 (orderlists->instruments->patterns); instrument programs + pattern data $18xx+. PATTERN: (dur,note)* term $FF (note $01-7B semitone, $7F tie, $7D rest). INSTRUMENT PROGRAM: (dur,wave)* ($41 pulse+gate/$21 saw/$81 noise/$FE loop). WRITE MODEL (VBI speed=0): $D418 unconditional first write/frame; per voice (X=0/7/$0E) $D415/16 filter(cond), $D402/03 PW, $D404 gate-off+oldwave (HARD RESTART), $D405/06 ADSR (new note not tie), $D400/01 freq (note or glide/vib), $D404 gate-on; $D417 init-only. Additive freq lookup ((ctr&$1F)*8 into split table). FEATURES (Remix64 interview): JCH-like 2-level track/seq; wave-freq/glide/detune/vibrato/ADSR-manip tables (tremolo/echo/reverb); heavy pulse+filter; multispeed via wave-freq tables; max $1C rastertime. VARIANT TAXONOMY (binary-confirmed, NOT all one engine): BullSID/FLT/BullSID3 = SAME V9.x core, init-only micro-variants (fold into one path); Jeff/Airwalk = OLDER different engine (V4, 3-ZP-pointer $F9/FA/FB); Jeff/XLarge = different tiny direct-table player; X-SID(2007) = genuine redesign (all regs/frame). Plus $FD0-era (19 SIDs, 1991-94) = earlier predecessor gen. CORPUS: 78.5% $1000/$1003, 6 multi-subtune (FLT 2-sub=6581+8580), all PSID v2; Soren Lund 85%, Duck LaRock 14. Migration first step: disassemble V9.x tune for instrument-program opcodes + address-table indexing; CZP Editor V2.0 .d64 (#122334) = format-by-example; handle $FD0/Airwalk-V4/XLarge/X-SID as separate small paths. Cleared to start disassembly. See pipelines/jeff/docs/README.md.",
+    "updated": "2026-06-14"
   },
   "john_player": {
     "state": "LITTLE",
