@@ -309,10 +309,23 @@ DUAL-CLOCK PHASE ($1019 leftover → params.slide_phase).
    $D416/$D415 partials: Grid/Reggae_2/Save_the_Kwiatki/Fire_Exit/
    A_Load_of_Cowbell/Lands/Bach_VC-220).** RESIDUE: Minoam 98.3% /
    Conanious 96.2% small end-of-song tail (V1/V2 SR + V3 freq late diffs,
-   the diverse partial long tail -- NOT filter). NEXT V5: run full
-   family-3/5 batch (1495) + mass-write (family closeout); then the
-   state-only Check-A (16) + freq/PW buckets; then family-4 (686, play
-   +$95). Full detail in pipelines/dmc/v5/RE_NOTES.md "FILTER ROUND 1/2".
+   the diverse partial long tail -- NOT filter).
+   **✅✅ FAMILY-3/5 CLOSEOUT (commit d46146f): 354/1495 FULL (23.7%; 42.4%
+   of the 835 supported full+partial).** Full batch (tmp/dmc_v5_full_results
+   .jsonl) -> mass-wrote all 354 .usf + .sidfinity.sid (0 err,
+   tools/dmc_v5_mass_write.py) + hvsc84.db refreshed. RESIDUE: 481 partial
+   (diverse long tail: Minoam/Conanious end-of-song V1/V2-SR + V3-freq tail,
+   + state-only Check-A + freq/PW buckets); 593 unsupported (no_jumptable
+   261 reloc/CIA + player_code_mismatch 266 sub-builds + note_out_of_range
+   27 + cia 13 + wave/pulse-overflow + trailing-cmds); 67 error
+   (_capture_env ptr-overflow 45 + unknown-sector-cmd 12 in relocated/corrupt
+   + timeout 8). NEXT V5 (ranked): (1) the no_jumptable+player_code_mismatch
+   527 unsupported = the SAME sub-build/relocation axes family-1/2 unlocked
+   (jumptable-signature image scan + 2-entry layout + masked code regions) —
+   highest leverage; (2) partial long tail (state-only Check-A, freq/PW,
+   end-of-song); (3) the 67 extract errors (_capture_env robustness); then
+   family-4 (686, play +$95, ~0.31 Jaccard, separate branch). Full detail
+   in pipelines/dmc/v5/RE_NOTES.md "FILTER ROUND 1/2".
 
 ## REGRESSION PORTFOLIO (2026-06-13): generalized + DMC wired
 `tools/select_regression_portfolio.py` made engine-parametric (registry:
