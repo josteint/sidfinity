@@ -99,7 +99,45 @@ extract->model->composer); the USF layer + schema co-design is a
 follow-up (the model IS the musical content, so serialization is
 mechanical).
 
-## NEXT — factory + wide batch
+## NEXT — USF layer (designed 2026-06-14; implement next)
+
+The composer currently reads V5Model directly (prototype). To satisfy
+"always through USF", add `extract -> to_usf -> UsfFile -> from_usf ->
+V5Model -> build_v5_sid` (composer UNCHANGED — it keeps reading a model).
+Design (re-read docs/usf_representation_principle.md before coding):
+
+REUSE existing USF types (no new schema):
+- AD/SR -> `Instrument.adsr`; vib delay/speed/width -> `VibratoConfig`
+  (onset / period / depth — parametric).
+- Per-instrument WAVE program: decode the wave-table slice from the
+  instrument's wave_ptr (follow $90 loops, like V4 `_slice_wave`) into
+  `waveform`/`wave_freq`/`loop`. DECODES AWAY the wave_ptr (§7 forbids
+  the `*Ptr` shape). Drum = test-bit ($08) entries -> abs freq-hi
+  (`effects: drum` per step or the FC dual-table convention).
+- Sectors -> `Pattern`/`NoteRow`: note = pitch; the 14 commands ->
+  `fx_flags` (dur/snd/gate/gate_tie/fade_in/fade_out/frq/flt/adr/srr/
+  vol/slide/glide). Orderlists -> `VoiceBlock.orderlist` (+ transposes,
+  loop). speed -> tempo; master_vol + $1015/$1016/$1017 leftovers ->
+  `init.sid` priming (filter mode + cutoff lo/hi).
+- freq table -> `freq_table` (per-tune tuning).
+
+NEW musical-content fields (principled per Rule 2 — sweep = content,
+interpreter stays in engine; NOT a kind-index):
+- per-instrument PULSE sweep program: decode the pulse-table slice from
+  pulse_ptr (start pair + (add,count) segments + $90 loop) into an inline
+  step list. Decodes away pulse_ptr.
+- per-instrument FILTER sweep program: same shape (voice-3-only).
+  Decodes away filter_ptr.
+  Candidate schema: extend `PulseProgConfig`/`FilterProgConfig` or add a
+  small `sweep { start, steps:[(add,frames)], loop }` form. Run the §9
+  4 tests + grep (`*Ptr`, `*Kind`) before committing.
+
+`from_usf` rebuilds the V5Model (re-pack per-instrument programs into the
+shared wave/pulse/filter tables + reassign pointers — the inverse of the
+decode; the composer reads the model). Verify Katusha FULL through USF
+(should reproduce the current 100%). THEN the factory + wide batch below.
+
+## THEN — factory + wide batch
 `dmc_v5_config` factory (jump-table detect init+$40/play+$A1, the
 operand sites above, carved reference) + reuse tools/dmc_family_batch.py
 over family-3/5 (1495). Then the family-4 branch (686, play +$95).
