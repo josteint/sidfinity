@@ -227,7 +227,22 @@ DUAL-CLOCK PHASE ($1019 leftover → params.slide_phase).
    dual_phase, remaining sub-build sites; then family 2's own sub-builds
    are largely done — move to V5 line (2181, separate engine) or family-1
    residue.
-7. V5 line (2181) needs full sector-format RE (separate engine).
+"7. **V5 line (2181) — ENGINE PROVEN (2026-06-14): Katusha FULL.** A
+   DISTINCT engine (Jaccard 0.136 to V4); full pipeline in pipelines/dmc/v5/
+   (disassembly.s Phase A + SCOPE.md + RE_NOTES.md). Phase A: annotated
+   disasm + the SECTOR COMMAND BYTE MAP cracked (notes<$80; cmds $F1-$FE:
+   SRR/ADR/VOL/gate/FD-/FD+/FRQ/FLT/SLD/GLD/SND/DUR/GATE; $FF END). 8-byte
+   instruments (AD,SR,WV,PU,FL,vibD,vibS,vibW); 3 programmable 2-byte
+   tables (wave/pulse/filter, $90 loop); full 11-bit cutoff $D415+$D416;
+   filter voice-3-only; vib step=freq<<width. Phase B: extract
+   (config.py + extract/engine_model.py -> V5Model, validated). Phase C:
+   composer_v5.py (clean re-authored engine driven by extracted song
+   data) -> Katusha FULL (trichotomy is_full, 97955/97955; 100%
+   write-log). Census: family-3 (Katusha) 1461 + family-5 34 = 1495
+   dominant; family-4 (Jupiter41) 686 distinct branch (play +$95, 0.310).
+   NEXT: dmc_v5_config factory + wide batch over family-3/5 (1495), then
+   family-4; then USF layer (currently prototype extract->model->composer,
+   not yet through USF).
 
 ## REGRESSION PORTFOLIO (2026-06-13): generalized + DMC wired
 `tools/select_regression_portfolio.py` made engine-parametric (registry:

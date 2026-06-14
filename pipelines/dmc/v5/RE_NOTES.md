@@ -74,7 +74,37 @@ Validated on Katusha:
   sector 1/2: dur 02, snd 01/02 fast arps
   sector 3: dur 04, snd 03 melody with rests
 
-## Phase C (composer + USF) — NEXT (the substantial build)
+## ✅✅ Phase C (composer) — Katusha FULL (2026-06-14)
+
+`pipelines/dmc/v5/composer_v5.py` — a clean re-authored V5 engine
+(labeled routines + relabeled state block) driven by the extracted song
+data (orderlists/sectors/instruments/freq/tables emitted via labels;
+index-based, relocatable). Katusha verifies instruction-sequence exact
+at full songlength (trichotomy is_full + state_match, 97955/97955 play
+writes; find_first_divergence 98880/98880 = 100%).
+
+The write-log loop (key fixes, each via find_first_divergence + py65):
+1. init clears state BEFORE loading track pointers (was wiping them).
+2. prime file-image leftovers $1015/$1016/$1017 (filtmode/cutoff).
+3. voice tick decs durctr every tick (removed an extra guard).
+4. step_commit (gate-off/slide/tied-note) falls through to wave_step +
+   writes the steady frame (note_on instead rts's — note_init2 next).
+5. pulse_run ALWAYS advances — PU=0 = "no restart", NOT "no run" (the
+   running-pulse-program semantics). This was the last fix to 100%.
+
+NOTE — composer keeps the V5 state at the original absolute addresses +
+data via labels; it's a faithful clean re-author (the per-frame logic
+must match to match the write stream). NOT yet through USF (prototype
+extract->model->composer); the USF layer + schema co-design is a
+follow-up (the model IS the musical content, so serialization is
+mechanical).
+
+## NEXT — factory + wide batch
+`dmc_v5_config` factory (jump-table detect init+$40/play+$A1, the
+operand sites above, carved reference) + reuse tools/dmc_family_batch.py
+over family-3/5 (1495). Then the family-4 branch (686, play +$95).
+
+## (historical) Phase C plan
 
 A NEW hand-authored V5 engine (the V4 `composer_asm.py` does NOT apply —
 8-byte instruments, table-based pulse/filter, full filter cutoff, the
