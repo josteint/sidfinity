@@ -219,29 +219,34 @@ params key — NO shared-schema additions. Result: X-Files + Believe newly
 FULL; whole cluster advances (Believe was 95%). Katusha still FULL; USF
 round-trip faithful (direct==USF first_play_diff).
 
-**Cause B — FILTER ENVELOPE KEEP-RUNNING continuation (the real cutoff
-drift; round 2, the BIGGER filter lever).** After cause A, the cluster
-members (Grid/Minoam/Conanious) still diverge mid-song with a $D415 (FCLO)
-drift while $D416 (FCHI) NEVER differs. Precise localisation (ordered FCLO
-sequence): at FCLO index 764 the orig RAMPS (+1/frame: 07,08,09,0A...) but
-the rebuild HOLDS (07,07,07...). So the rebuild's GLOBAL filterpos is in a
-DIFFERENT instrument's filter program than the orig at that point. Root
-cause: the filter envelope KEEPS RUNNING across V3 notes whose instrument
-has FL=0 (no filter restart) — Minoam's insts 3-6,8-13 are all FL=0, only
-0/1/2/7 reset. The per-instrument `_capture_env` envelopes match in
-ISOLATION (verified, 200 frames), but the de-fused per-instrument
-synthesis (from_usf: each inst its own copy + a $90 terminal) does NOT
-faithfully reproduce the orig's SHARED/FUSED-table running position when a
-keep-running note continues PAST one program into the next region of the
-shared table (vs the synthesis looping at the per-inst terminal). NB
-`_capture_env` also treats frames>=$9000 as terminal (Minoam inst 2's
-count is $9008 — entry 9 is a $90 marker read as a count), which the
-synthesis turns into a self-loop; the real engine flow differs. ROUND-2
-OPTIONS: (a) make the de-fused synthesis faithful to cross-program flow
-(complex); (b) carry the filter table as a SHARED content-by-reference
-table (reverts the per-inst parameterisation the user chose, but the
-keep-running continuation is exactly the shared-resource case). Decide
-write-log-first on Minoam (FCLO index 764).
+## ✅ FILTER ROUND 2 (2026-06-14, commit 24875f3) — keep-running filter_run
+
+**Cause B — FILTER KEEPS RUNNING across FL=0 notes (a run-GATING bug, NOT
+the synthesis-flow issue first hypothesised).** After cause A the cluster
+(Grid/Minoam/Conanious) still drifts mid-song: FCLO ($D415) drifts (orig
+RAMPS +1/frame, rebuild HOLDS) while FCHI ($D416) NEVER differs (the ramp
+step is (0,+1) -> fchi+=0). Per-instrument `_capture_env` envelopes match
+in ISOLATION (verified 200 frames) -> NOT a synthesis bug. ROOT CAUSE: the
+orig `filter_run_v3` ($1496) gates ONLY on `CPX #$02` (voice 3) — it runs
+EVERY V3 frame; FL=0 = "no filter RESTART", not "no filter RUN" (the SAME
+PU=0 semantics as pulse_run). The composer gated `filter_run` on the
+PER-NOTE `filtflag` (the instrument's FL byte), which an FL=0 note resets
+to 0 -> the composer SKIPPED filter_run on keep-running frames -> the
+cutoff held while the orig kept ramping. Katusha passed because its
+pre-filter null is a no-op (the gate happened not to matter). FIX: a
+STICKY `filt_run_on` flag, set once when any FL!=0 note inits the filter,
+never cleared; `filter_run` gates on it instead of `filtflag`
+(`filter_init` keeps the per-note gate, so FL=0 still = no restart). Only
+ADDS filter_run on keep-running frames so FULL members can't regress (their
+held positions were no-ops). The per-instrument `filter_env` representation
+is UNCHANGED — this was a run-gating bug, not a synthesis/flow problem, so
+the user-chosen parameterisation (option a, "faithful") stands without any
+table change. RESULT (80-sample): FULL 5->15 over the whole session (the
+filter rounds: +10 new FULL, NO regression; 7 of the 10 were original
+$D416/$D415 partials — Grid/Reggae_2/Save_the_Kwiatki/Fire_Exit/
+A_Load_of_Cowbell/Lands/Bach_VC-220). RESIDUE: Minoam 98.3% / Conanious
+96.2% have a small end-of-song tail (per-register late diffs show V1/V2 SR
++ V3 freq, not filter — the diverse partial long tail, separate bug).
 
 ## (historical) factory + wide-batch plan
 `dmc_v5_config` factory (jump-table detect init+$40/play+$A1, the

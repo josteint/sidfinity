@@ -291,11 +291,28 @@ DUAL-CLOCK PHASE ($1019 leftover → params.slide_phase).
    with FL=0 (no filter restart; Minoam insts 3-6,8-13 are FL=0) keeps the
    global filterpos running PAST one program into the next region. Also
    _capture_env treats frames>=$9000 as terminal (inst-2 count $9008 =
-   entry-9 $90 marker read as a count). ROUND-2 OPTIONS (decide write-log-
-   first on Minoam FCLO idx 764): (a) faithful cross-program flow in the
-   de-fused synthesis, or (b) carry the filter table as a SHARED
-   content-by-reference table (the keep-running case IS the shared-resource
-   case). Full detail in pipelines/dmc/v5/RE_NOTES.md "FILTER ROUND 1".
+   entry-9 $90 marker read as a count).
+   **✅ ROUND 2 (commit 24875f3): keep-running filter_run — a run-GATING
+   bug, NOT the synthesis-flow I'd hypothesised.** The orig filter_run_v3
+   ($1496) gates ONLY on CPX #$02 (V3) -> runs EVERY V3 frame (FL=0 = no
+   RESTART, not no RUN -- same PU=0 semantics as pulse). The composer gated
+   filter_run on the PER-NOTE filtflag (the inst FL), which an FL=0 note
+   resets to 0 -> skipped filter_run on keep-running frames -> cutoff HELD
+   while orig RAMPED (FCLO drifts, FCHI matches; Minoam FCLO idx 764).
+   Katusha passed (pre-filter null no-op). FIX: sticky filt_run_on flag
+   (set once on first FL!=0 note, never cleared); filter_run gates on it,
+   filter_init keeps the per-note gate (FL=0 still no restart). Only ADDS
+   filter_run on keep-running frames -> FULL members can't regress. The
+   per-instrument filter_env representation is UNCHANGED (user-chosen
+   parameterisation stands; no synthesis change). **80-SAMPLE: FULL 5->15
+   over the session (+10 new, 0 regressions; 7 of 10 were original
+   $D416/$D415 partials: Grid/Reggae_2/Save_the_Kwiatki/Fire_Exit/
+   A_Load_of_Cowbell/Lands/Bach_VC-220).** RESIDUE: Minoam 98.3% /
+   Conanious 96.2% small end-of-song tail (V1/V2 SR + V3 freq late diffs,
+   the diverse partial long tail -- NOT filter). NEXT V5: run full
+   family-3/5 batch (1495) + mass-write (family closeout); then the
+   state-only Check-A (16) + freq/PW buckets; then family-4 (686, play
+   +$95). Full detail in pipelines/dmc/v5/RE_NOTES.md "FILTER ROUND 1/2".
 
 ## REGRESSION PORTFOLIO (2026-06-13): generalized + DMC wired
 `tools/select_regression_portfolio.py` made engine-parametric (registry:
