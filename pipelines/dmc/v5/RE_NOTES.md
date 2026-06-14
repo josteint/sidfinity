@@ -58,8 +58,29 @@ interleaved 2-byte records.
 4. **family-4 branch (686, Jupiter41, play +$95):** distinct (~0.31
    Jaccard) — diff its disasm against family-3's once family-3 is FULL.
 
-## Next concrete step
+## ✅ Phase B (extract) — DONE + validated (2026-06-14)
 
-Phase B: seed the V5 extract (`pipelines/dmc/v5/extract/`) + `config.py`
-+ `factory.py` off the operand sites above; lift Katusha to a V5 model
-and start the write-log loop on a new composer.
+`pipelines/dmc/v5/config.py` (DMCV5Config, the operand sites above) +
+`extract/engine_model.py` (`extract(cfg) -> V5Model`). Lifts Katusha to
+a complete structured model — freq tables, 5 instruments (8-byte),
+wave(13)/pulse(7)/filter(1) tables, speed/mastervol, 3 orderlists (with
+loop), 4 sectors decoded into event streams. Region sizes from address
+deltas (instr|wave_ctrl|wave_freq|pulse_lo|pulse_hi|filter_lo|filter_hi).
+The sector-command decode (Phase-A byte map) is implemented + validated:
+sectors lift to sensible `dur/snd/note/gate/...` event streams.
+
+Validated on Katusha:
+  sector 0: dur 04, snd 00, a note+gate melody
+  sector 1/2: dur 02, snd 01/02 fast arps
+  sector 3: dur 04, snd 03 melody with rests
+
+## Phase C (composer + USF) — NEXT (the substantial build)
+
+A NEW hand-authored V5 engine (the V4 `composer_asm.py` does NOT apply —
+8-byte instruments, table-based pulse/filter, full filter cutoff, the
+14-command sector model). Must be RE-AUTHORED clean (the tenet forbids
+emitting verbatim/relocated player bytes). USF schema co-designed
+write-log-first: the 3 programmable tables (content-by-reference), fade,
+ADR/SRR, full cutoff, vib-step=freq<<width. Verdict: `verify_dmc`
+(engine-neutral, reuse). Then factory + wide batch (family-3/5, 1495),
+then the family-4 branch.
