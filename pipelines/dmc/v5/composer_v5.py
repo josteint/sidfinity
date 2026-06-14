@@ -512,6 +512,10 @@ ni_nopulse:
         sta filtflag
         beq ni_nofilt
         sta filterpos
+        sta filt_run_on         ; STICKY (FL!=0): once a note starts the
+                                ; filter it keeps running across later FL=0
+                                ; notes (orig runs filter_run every V3 frame;
+                                ; FL=0 = no restart, NOT no run)
 ni_nofilt:
         ;; first wave-table step
         ldy wavepos,x
@@ -638,7 +642,7 @@ pr_go:
 filter_run:
         cpx #$02
         bne glide_slide
-        lda filtflag
+        lda filt_run_on         ; keep-running: NOT the per-note filtflag
         beq glide_slide
         ldy filterpos
         lda filterlo,y
@@ -974,6 +978,7 @@ filtctr_lo: .dsb 1, 0
 filtctr_hi: .dsb 1, 0
 frqovr:   .dsb 1, 0
 filtflag: .dsb 1, 0
+filt_run_on: .dsb 1, 0
 pulseflag: .dsb 1, 0
 playskip: .dsb 1, 0
 tmp40:    .dsb 1, 0
