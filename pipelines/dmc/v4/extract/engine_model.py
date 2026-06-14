@@ -208,7 +208,11 @@ def _simulate_sector(mem, sec_addr: int, st: _Sticky,
     while True:
         guard += 1
         if guard > 4096:
-            raise RuntimeError(f'sector at ${sec_addr:04X} never ends')
+            # no terminator within bounds: the secp table / track points
+            # at non-sector data (a corrupt or differently-laid-out
+            # member). Refuse cleanly rather than crash.
+            raise RuntimeError(
+                f'unsupported:sector_decode no end at ${sec_addr:04X}')
         b = mem[sec_addr + pos]
         # VOL prefix (canon $F0+; family 2 has none)
         if fmt.vol_min is not None and b >= fmt.vol_min:

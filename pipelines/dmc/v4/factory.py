@@ -267,12 +267,12 @@ def dmc_v4_config(sid_path: str, hvsc_root: str = 'hvsc84') -> DMCV4Config:
             return 'canonical'
         if e0 == b + 0x807 and e1 == b + 0x50:
             return '2entry'
-        # family 2: init $37 / play $85 / all-off $62F / sfx $63E (4-entry,
-        # play body shared with canon, init + sector/effect tail differ).
-        if (e0 == b + 0x37 and e1 == b + 0x85 and mem[b + 6] == 0x4C
-                and mem[b + 9] == 0x4C
-                and (mem[b + 7] | (mem[b + 8] << 8)) == b + 0x62F
-                and (mem[b + 10] | (mem[b + 11] << 8)) == b + 0x63E):
+        # family 2: init $37 / play $85 (the distinctive signature). Some
+        # builds wire all 4 entries (all-off $62F / sfx $63E), others only
+        # init+play (the rest of $1006-$100B zeroed). The masked identity
+        # compare validates the actual player either way, so init+play is
+        # enough to dispatch.
+        if e0 == b + 0x37 and e1 == b + 0x85:
             return 'family2'
         return None
 
@@ -447,13 +447,20 @@ def _family2_build(mem, s, sid_path, base, delta, at, cia_period):
     # clears AD/SR=$00 (the relocated sub_17EC). Probe it; mask its 3 bytes
     # out of the code compare. (Other knobs stay validated by the compare;
     # a sub-build that varies them is rejected with a typed reason.)
-    probe = set(range(0x133D, 0x1340))
+    probe = set(range(0x133D, 0x1340))    # hold_gateoff variant
+    probe |= set(range(0x129F, 0x12A1))   # filter-mode-extract variant
     for i in range(0x1000, _F2_INSTR_BASE):
         if masked[i] or i in probe:
             continue
         if mem[at(i)] != canon[i - 0x1000]:
             raise DMCV4Unsupported('player_code_mismatch_f2',
                                    f'first diff at ${i:04X}')
+    # $129F filter-mode extraction: Kajun masks `AND #$0F`; a re-assembly
+    # variant uses `STA $9E` (a dead store — the following ASL x4 discards
+    # the hi nibble either way, so $D418 is identical). Both equivalent.
+    fmop = mem[at(0x129F)]
+    if not ((fmop == 0x29 and mem[at(0x129F) + 1] == 0x0F) or fmop == 0x85):
+        raise DMCV4Unsupported('filter_mode_variant', hex(fmop))
     gop = mem[at(0x133D)]
     if gop == 0x9D:                       # STA $100f,x — mask only
         hold_gateoff = 'mask_only'
