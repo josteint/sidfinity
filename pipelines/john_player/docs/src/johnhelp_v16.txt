@@ -1,0 +1,352 @@
+--- NEW FEATURES IN JOHN PLAYER V1.6 ---
+
+- Paste track C=+1-3 changed to C=+P
+- Help on current edit screen C=+H
+- Music relocator included in release
+
+
+
+--- NEW FEATURES IN JOHN PLAYER V1.5 ---
+
+- Added slide command
+- Note trig rewritten from scratch
+- Optimized 1 rasterline, now peaks at
+  7 starting lines (unless you totally
+  torture it)
+
+
+
+--- COMMON KEYS ------------------------
+
+Space     Play
+Run/Stop  Silence
+
+Cursors   Move around
+
++ and -   Block select
+[ and ]   Sound select
+< and >   Keyboard octave
+
+C=+C      Copy
+C=+V      Paste
+
+F1        Block Edit Screen
+F3        Sound Edit Screen
+F5        Sequencer/Info
+F7        Disk/Options Menu
+
+
+
+--- BLOCK EDIT SCREEN ------------------
+
+Most of the keys comprise a two octave
+keyboard which is used to enter notes.
+
+Hold Shift for tied notes (no retrig,
+only frequency is changed).
+
+Del       Delete step
+«         Enter 'Off' (gate bit off)
+Home      Go to top left corner
+
+Shift+    Enter command in cmd column
+Letter    (see Commands below)
+
+Shift+    Cut block
+Home
+
+C=+C      Copy block
+C=+V      Paste block
+
+C=+R      Replicate block at cursor
+
+C=+T      Copy track
+C=+P      Paste track
+
+C=+S      Swap track with buffer
+
+
+Replicate fills the block with the range
+above current cursor position:
+
+If cursor at step $10 steps $00-$0f are
+copied to $10-$1f.
+
+If cursor at step $08 steps $00-$07 are
+copied to $08-$0f, $10-$17 and $18-$1f.
+
+
+
+--- SOUND EDIT SCREEN ------------------
+
+Shift+    Play sound (on channel 1)
+Keyboard
+
+C=+C      Copy sound
+C=+V      Paste sound
+«         Key up (same as 'Off')
+
+Shift+    Play entire song instead of
+Space     repeating current block only
+
+
+All sounds share the same 64-step sound
+table. The columns are (left to right):
+
+Waveform  11:Triangle  41:Pulse wave
+          21:Sawtooth  51:Triangle+Pulse
+          31:Tri+Saw   81:Noise
+          15:Ring mod  43:Pulse/Sync
+          23:Saw/Sync
+
+Arpeggio  00-7E:Rel. note (semitones)
+          80-FF:Absolute pitch/2
+
+Filter    00-FF:Cutoff (added to Flt)
+
+
+If you want a hard restart the first
+step of all sounds should play waveform
+$09 (see preset sounds). Either use it
+with all sounds or none of the sounds.
+Otherwise the player can't keep the
+timing.
+
+Hard restart is not hard-wired to the
+playroutine because sometimes not using
+it gives a more desirable sound: The
+attack is softer and for example when
+using an initial click with the noise
+waveform at high pitch you get a nice
+sounding 'small soft click'.
+
+The same click with hard restart is more
+stable, but also much more harsh.
+
+
+Absolute pitch works in a special way:
+The value is shifted to left and written
+to high byte frequency register.
+
+81 (low)  $02nn     (low byte nn of 
+82        $04nn      frequency is not
+83        $06nn      changed from that
+.                    of the last note)
+.
+FF (high) $FEnn
+
+
+Filter cutoff value is added to which-
+ever value is set as filter base by the
+Flt command.
+
+For example, you can set up a filter
+envelope which ramps down from 7F to 00
+and then 'tweak' the filter using Flt.
+
+Wrapping is never checked so in this
+case the Flt values should never exceed
+80. (Unless this is the desired effect)
+
+
+Sound Parameters:
+
+Attack/Decay      AD (nybbles)
+Sustain/Release   SR (nybbles)
+
+Sound Trig Pos.   Defines sound range
+Sound End         in table (highlighted)
+Sound Loop        (always set loop pos.)
+
+PWM Init          01-0F (00 for no init)
+PWM Rate          01-FF (slow to fast)
+PWM Top Limit     02-10
+PWM Bottom Limit  00-0E
+
+Filt.Reso/Ch.Sel  reso 0-F, ch. sel 0-7
+Filt.Type/Volume  ftype 0-7, volume 0-F
+
+Only channel 1 notes read the filter
+parameters and filter table.
+
+Some ADSR values may bug, experiment. :)
+
+PWM Init must be bigger than PWM Bottom
+and smaller than PWM Top Limit. Values
+out of this range or equal to either of
+the limits may cause the modulation to
+stop.
+
+PWM Init 00 skips all PWM parameters and
+keeps the current PWM on channel (PWM is
+continued).
+
+
+
+--- SEQUENCER/INFO ---------------------
+
+Return    Insert current block at cursor
+Del       Delete block under cursor
+
+Shift+    Play starting from cursor
+Space
+
+T         Edit tag
+I         Edit info (6 lines)
+
+Only tag is attached to packed music.
+Info is saved with music data files and
+it's also used as scrolltext with Save
+Executable.
+
+Extra spaces are skipped when scrolling
+the text. (The scroller routine hangs if
+there's no text at all. I won't fix this
+because it's a good punishment for not
+writing a scrolltext)
+
+Loop position is entered after a zero:
+
+00       Loop at position 08
+08
+
+
+
+--- BLOCK COMMANDS ---------------------
+
+Shift+1st letter to enter command in
+block command column.
+
+Brk      Block break
+
+End      Block end
+         (used internally by the player
+         and can't be changed/removed)
+
+Tmp 0C   Set tempo
+         (06-FF, default 0C)
+
+Flt 00   Set filter cutoff base value
+         (this is added to cutoff values
+         read from sound table)
+
+Ini 00   Initialize modulation
+         (used with both vibrato and
+         slide, vibrato width 00-02)
+
+Mod 01   Select channel for modulation
+         (channel number 01-03)
+
+Off 01   Stop modulating channel
+         (channel number 01-03)
+
+Vib 02   Set vibrato rate or stop slide
+         (01-04, 00 stops slide without
+         resetting frequency)
+
+Sli 00   Start pitch slide
+         (00-7F up, FF-80 down)
+
+
+There is only one modulator which can be
+either vibrato or slide.
+
+You can modulate more than one channel
+at the same time, but all channels use
+the same modulation settings.
+
+
+Here's an example of using vibrato:
+
+Ini 00   Initialize, small vibrato width
+Mod 03   Select channel 3 modulation
+---      
+---      (any number of steps, vibrato
+---      is not yet activated)
+---       
+Vib 02   Start vibrato at rate 02
+---
+---      (any number of steps, vibrato
+---      continues)
+---
+Off 03   Stop vibrato on channel 3
+Vib 00   Vibrato off (saves cpu time :)
+---
+---
+
+
+There's also a simplified way but then
+you never know at which point of sine
+wave the modulation is started:
+
+Ini 01   Just initialize vibrato width
+Vib 02   and rate at start of song
+---
+---      (let the song go on)
+
+Then whenever you need it:
+---
+Mod 01   Start vibrato on channel 1
+---
+---      (any number of steps, vibrato
+---      continues)
+---
+Off 01   Stop vibrato on channel 1
+---
+---
+
+
+Here's an example of using pitch slide:
+
+Ini 00   Initialize modulation
+Mod 03   Select channel 3 modulation
+---
+---
+---      (again, slide is not
+---      yet activated)
+---
+Sli 10   Start sliding, speed 10
+---
+---      (slide continues)
+---
+---
+Off 03   Stop modulating channel 3
+---
+---
+
+Command Off also resets frequency to the
+original note.
+
+Alternatively, you can use the command
+Vib 00 to stop sliding - The reached
+frequency is then kept.
+
+Don't forget to stop modulating (Off 03)
+the channel before trigging a new note.
+
+
+
+--- NOTES ------------------------------
+
+- Packed music might not sound right if
+  restarted: channel modulation and some
+  sounds are not reset
+
+- Also, you should use the actual packed
+  file saved from John Player, not an
+  image that is ripped from memory after
+  playing that song
+
+- Yeah, I know the slide command isn't
+  that good but heck, you can't have it
+  all...
+
+- In case of emergency hit run/stop and
+  restore and type sys2061 or sys16384
+  (or sys4^7) to restart the editor
+
+
+John Player Editor Version 1.6
+(c)2001 by Aleksi Eeben (aleksi@cncd.fi)
+http://www.cncd.fi/aeeben
+
