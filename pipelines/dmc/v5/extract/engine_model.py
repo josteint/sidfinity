@@ -38,6 +38,13 @@ class V5Model:
     master_vol: int = 0x0F
     orderlists: list = field(default_factory=list)   # 3 x list[event]
     sectors: list = field(default_factory=list)      # list[list[event]]
+    orderlist_raw: list = field(default_factory=list)  # 3 x bytes (song data)
+    sector_raw: list = field(default_factory=list)     # list[bytes]
+    # file-image leftovers the player init does NOT clear (written to the
+    # SID before the filter table overwrites them — V4 $1018-shadow analog)
+    lo_filtmode: int = 0    # $1015 -> $D418 (mode nibble)
+    lo_fchi: int = 0        # $1016 -> $D416 (cutoff hi)
+    lo_fclo: int = 0        # $1017 -> $D415 (cutoff lo)
     title: str = ''
     author: str = ''
     released: str = ''
@@ -61,7 +68,7 @@ def _rd16(mem, a):
 
 
 # ----- orderlist (track) decode: $FF loop / $FE end / $FD,$FC transpose --
-def _decode_orderlist(mem, ptr: int) -> list:
+def _decode_orderlist(mem, ptr: int):
     out = []
     pos = 0
     guard = 0
@@ -70,10 +77,10 @@ def _decode_orderlist(mem, ptr: int) -> list:
         b = mem[ptr + pos]
         if b == 0xFF:
             out.append(('loop', mem[ptr + pos + 1]))
-            return out
+            return out, bytes(mem[ptr:ptr + pos + 2])
         if b == 0xFE:
             out.append(('end',))
-            return out
+            return out, bytes(mem[ptr:ptr + pos + 1])
         if b == 0xFD:
             out.append(('transpose', mem[ptr + pos + 1]))
             pos += 2
@@ -99,7 +106,7 @@ _CMD = {
 }
 
 
-def _decode_sector(mem, ptr: int) -> list:
+def _decode_sector(mem, ptr: int):
     out = []
     pos = 0
     guard = 0
@@ -108,7 +115,7 @@ def _decode_sector(mem, ptr: int) -> list:
         b = mem[ptr + pos]
         if b == 0xFF:
             out.append(('end',))
-            return out
+            return out, bytes(mem[ptr:ptr + pos + 1])
         if b < 0x80:
             out.append(('note', b))
             pos += 1
@@ -152,6 +159,8 @@ def extract(cfg, hvsc_root: str = 'hvsc84') -> V5Model:
         freq_lo=[mem[a_flo + i] for i in range(96)],
         freq_hi=[mem[a_fhi + i] for i in range(96)],
         speed=mem[a_order + 6], master_vol=mem[a_order + 7],
+        lo_filtmode=mem[cfg.base + 0x15], lo_fchi=mem[cfg.base + 0x16],
+        lo_fclo=mem[cfg.base + 0x17],
         title=s.get('name', ''), author=s.get('author', ''),
         released=s.get('released', ''),
     )
@@ -167,8 +176,12 @@ def extract(cfg, hvsc_root: str = 'hvsc84') -> V5Model:
 
     for v in range(3):
         tp = _rd16(mem, a_order + v * 2)
-        m.orderlists.append(_decode_orderlist(mem, tp))
+        ev, raw = _decode_orderlist(mem, tp)
+        m.orderlists.append(ev)
+        m.orderlist_raw.append(raw)
     for i in range(n_sectors):
         sp = mem[a_secp_lo + i] | (mem[a_secp_hi + i] << 8)
-        m.sectors.append(_decode_sector(mem, sp))
+        ev, raw = _decode_sector(mem, sp)
+        m.sectors.append(ev)
+        m.sector_raw.append(raw)
     return m
