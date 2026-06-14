@@ -88,6 +88,11 @@ _MASKED_RANGES = [
     (0x110F, 0x1113),    # dead-code gap
     (0x119A, 0x11A2),    # dead-code gap (holds a dead JMP $110C)
     (0x131B, 0x1322),    # dead-code gap
+    (0x162F, 0x1647),    # all-off (+$06) + sfx (+$09) routines — these are
+                         # the PSID sub-entries, NEVER executed during play()
+                         # (the verify only drives the play vector), so their
+                         # per-build variation is irrelevant to the write
+                         # stream. Sub-builds re-author them freely.
     (0x1647, 0x1707),    # freq tables (per-tune tuning, carried in USF)
     (0x1707, 0x170D),    # track ptr leftovers
     (0x1716, 0x17C0),    # state leftovers
@@ -283,6 +288,21 @@ def dmc_v4_config(sid_path: str, hvsc_root: str = 'hvsc84') -> DMCV4Config:
             base = b
             break
     if base is None:
+        # relocated-WITHIN-file: the player sits at neither play-3 nor
+        # load — typically a CIA/multispeed wrapper whose dispatcher is at
+        # play/load while the real player is elsewhere in the image. Scan
+        # for the first valid jump-table signature; the masked identity
+        # compare then validates it (a spurious 4C..4C match fails the
+        # compare cleanly as player_code_mismatch).
+        lo = s['load']
+        hi = min(0x10000, lo + len(s['payload']))
+        for b in range(lo, hi - 0x12):
+            if mem[b] == 0x4C and mem[b + 3] == 0x4C:
+                lay = _jt_layout(b)
+                if lay:
+                    base, layout = b, lay
+                    break
+    if base is None:
         b = s['play'] - 3
         reason = ('no_jumptable' if 0 < b and s['load'] <= b
                   else 'nonstandard_vectors')
@@ -364,6 +384,31 @@ def dmc_v4_config(sid_path: str, hvsc_root: str = 'hvsc84') -> DMCV4Config:
             bytes(mem[at(_LOOP_SITE):at(_LOOP_SITE) + 3]).hex())
     for i in range(_LOOP_SITE, _LOOP_SITE + 3):
         masked[i - 0x1000] = 1
+    # ---- canon sub-build knob probes: variants that either map to an
+    # existing composer knob or emit the same writes. Each masks its site
+    # so the variant passes the compare; the verify is the safety net. ----
+    extra = {}
+    # rest/switch/slide-tail dispatch ($1180): canon JMP $1322 (run
+    # effects); a sub-build JMP $1591 (wavestep) — the modulators hold one
+    # frame at each tie (the family-2 rest_effects='skip' behavior).
+    if mem[at(0x1180)] == 0x4C:
+        tgt = _rd16(mem, at(0x1180) + 1)
+        if tgt == reloc(0x1591):
+            extra['rest_effects'] = 'skip'
+        elif tgt != reloc(0x1322):
+            raise DMCV4Unsupported('rest_dispatch_unknown', hex(tgt))
+        for i in range(0x1180, 0x1183):
+            masked[i - 0x1000] = 1
+    # filter $D418 write ($12A8): canon inline STA $D418; a sub-build JSRs
+    # a helper that does STA $D418 (+ a dead store) — identical write.
+    if mem[at(0x12A8)] == 0x20:
+        h = _rd16(mem, at(0x12A8) + 1)
+        if not any(mem[h + k] == 0x8D
+                   and (mem[h + k + 1] | (mem[h + k + 2] << 8)) == 0xD418
+                   for k in range(9)):
+            raise DMCV4Unsupported('filter_write_helper_unknown', hex(h))
+        for i in range(0x12A8, 0x12AB):
+            masked[i - 0x1000] = 1
     # compare the player region (code + fixed tables + vibdepth);
     # operand BYTES are masked (they relocate); the surrounding opcodes
     # are base-invariant and must match canonical exactly.
@@ -425,6 +470,7 @@ def dmc_v4_config(sid_path: str, hvsc_root: str = 'hvsc84') -> DMCV4Config:
         freq_lo_addr=at(0x1647), freq_hi_addr=at(0x16A7),
         vibdepth_addr=at(0x1888), d417_shadow_addr=at(0x1018),
         track_loop_target=loop_target, cia_period=cia_period,
+        extra_params=extra,
     )
 
 
