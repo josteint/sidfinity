@@ -1,0 +1,84 @@
+# AMP DAT file structure — field notes from binary analysis
+# Source: amp_quality_1990.d64, files DAT.LUNAR STORM (T20:S7) and DAT.COOL ONE (T11:S0)
+# Analysis date: 2026-06-14
+
+## DAT File Overview
+
+Load address: $2FFA (little-endian bytes: FA 2F)
+Data starts at: $3000 (offset 6 from start of file after 2-byte load addr)
+
+File sizes observed:
+  DAT.LUNAR STORM:  6792 bytes (6790 after load addr) → spans $2FFA–$4A83
+  DAT.COOL ONE:     6472 bytes (6470 after load addr) → spans $2FFA–$4AC5
+
+## Header (6 bytes at $3000)
+
+Offset | Addr  | Size | Field                         | Example (Lunar) | Example (Cool)
+-------|-------|------|-------------------------------|-----------------|---------------
+  0    | $3000 | 1    | First song step               | $07 = 7         | $07 = 7
+  1    | $3001 | 1    | Last song step                | $0F = 15        | $0F = 15
+  2    | $3002 | 1    | Speed / tempo                 | $40 = 64        | $40 = 64
+  3    | $3003 | 1    | Unknown (always 0x00 seen)    | $00             | $00
+  4–5  | $3004 | 2    | Ptr to instrument data (LE)   | $1590 = 5520    | $1556 = 5462
+
+## Note/Pattern Data ($3006 onwards)
+
+Starts immediately after 6-byte header at offset $3006.
+
+Value distribution analysis of Lunar Storm:
+  0x00 (0):   66.7%  — empty cell / unset voice step
+  0x40 (64):   8.5%  — hold/tie token (suspected)
+  0x80 (128):  4.6%  — rest token (suspected)
+  0xC0 (192):  1.8%  — command class (suspected)
+  Other:        ~20%  — note values and special markers
+
+Bit-field hypothesis (HIGH 2 BITS = class, LOW 6 BITS = value):
+  00xxxxxx  →  note number 0–63
+  01xxxxxx  →  hold/tie (xxxxxx may encode duration or be 0)
+  10xxxxxx  →  rest or special; 10000000 = plain rest ($80)
+  11xxxxxx  →  command or instrument change
+
+Note encoding uses GERMAN chromatic notation table: CCDDEFFGGAAH##
+  = C, C#, D, D#, E, F, F#, G, G#, A, A#, H(=B♮), with sharps interleaved
+  (binary table at $1F26 in editor: 0x60 'C' 'C' 'D' 'D' 'E' 'F' 'F' 'G' 'G' 'A' 'A' 'H' '-' '#' '-' '#' '--' '#' '-' '#' '-' '#' '-')
+
+## Instrument Data Block
+
+The 16-bit little-endian pointer at $3004 points to the instrument/voice parameter block.
+At Lunar Storm pointer $1590: that offset from the FILE START ($2FFA) = $2FFA + $1590 = $4B8A
+... wait, from data start ($3000): $3000 + $1590 = $4590.
+
+At $4590 in Lunar Storm data: begins with $00 bytes, then (at $45C6): 3C 05 3D 06 00...
+  These small pairs (3C=60, 05=5, 3D=61, 06=6) may be instrument parameter bytes or pointers to instrument sub-tables.
+
+## File Extension Mapping (from editor binary string $1B87)
+
+SNG.VOI.NOT.DAT.
+
+Four file types saved separately by the editor:
+  .SNG  —  song order list (which sector/pattern plays at each step)
+  .VOI  —  voice/instrument definitions (the 16-parameter blocks)
+  .NOT  —  note patterns for each voice and step
+  .DAT  —  combined packed file (all three merged; used by games)
+
+The AMP PACKER utility (also on disk, loads at $0801, 8193 bytes) produces the .DAT file.
+
+## Disk Directory (Quality 1990 D64)
+
+Files:
+  PRG  'AMP  V2.3 EDITOR'     T17:S0   (14849 bytes, $0801–$4200)
+  PRG  'AMP  V2.3 PACKER'     T19:S0   (8193 bytes)
+  PRG  'DAT.LUNAR STORM'       T20:S7   (6792 bytes)
+  PRG  'DAT.ENOLA GAY'         T15:S2
+  PRG  'DAT.THINK NOW...'      T14:S9
+  PRG  'DAT.GHOSTBUSTERS'      T22:S2
+  PRG  'DAT.HIT IT ONCE'       T23:S0
+  PRG  'DAT.I JUST...'         T12:S0
+  PRG  'DAT.UNICORN'           T24:S5
+  PRG  'DAT.COOL ONE'          T11:S0   (6472 bytes)
+  PRG  'DAT.NEW IDEA #01'      T25:S7
+  PRG  'DAT.NEW IDEA #02'      T10:S1
+  PRG  'DAT.ZOOLOOK'           T26:S6
+  PRG  'DAT.DEPECHE MIX'       T9:S1
+  PRG  'DAT.RASTER RUN.'       T28:S2
+  PRG  'DAT.DELTA V2'          T7:S0

@@ -1,0 +1,446 @@
+AMP Player Disassembly Fragment — Anti_Airwolf_Tune.sid
+Source: MUSICIANS/B/Bakker_Nantco/Anti_Airwolf_Tune.sid
+Base: $1000, Init: $1000 (->$157E), Play: $1003 (->$14CE)
+Extracted: 2026-06-14 (binary read-only)
+
+; --- play_entry $14CE ---
+  $14CE: AD 12 10    LDA abs $1012
+  $14D1: F0 FA       BEQ $14CD
+  $14D3: A0 03       LDY # $03
+  $14D5: B9 A3 00    LDA abs,Y $00A3
+  $14D8: 99 9A 11    STA abs,Y $119A
+  $14DB: 88          DEY
+  $14DC: 10 F7       BPL $14D5
+  $14DE: AE          ???
+  $14DF: 14          ???
+  $14E0: 10 E0       BPL $14C2
+  $14E2: 15          ???
+  $14E3: B0 0B       BCS $14F0
+  $14E5: AD 0B 10    LDA abs $100B
+  $14E8: 3D 2F 10    AND abs,X $102F
+  $14EB: F0 03       BEQ $14F0
+  $14ED: 20 9E 11    JSR abs $119E
+  $14F0: A2 00       LDX # $00
+  $14F2: AD 0B 10    LDA abs $100B
+  $14F5: 3D 2F 10    AND abs,X $102F
+  $14F8: F0 03       BEQ $14FD
+  $14FA: 20 41 13    JSR abs $1341
+  $14FD: A2 07       LDX # $07
+  $14FF: AD 0B 10    LDA abs $100B
+  $1502: 3D 2F 10    AND abs,X $102F
+  $1505: F0 03       BEQ $150A
+  $1507: 20 41 13    JSR abs $1341
+  $150A: A2 0E       LDX # $0E
+  $150C: AD 0B 10    LDA abs $100B
+  $150F: 3D 2F 10    AND abs,X $102F
+  $1512: F0 03       BEQ $1517
+  $1514: 20 41 13    JSR abs $1341
+  $1517: AE          ???
+  $1518: 14          ???
+  $1519: 10 8A       BPL $14A5
+  $151B: 18          CLC
+  $151C: 69 07       ADC # $07
+  $151E: 8D 14 10    STA abs $1014
+  $1521: CD 10 10    CMP abs $1010
+  $1524: F0 01       BEQ $1527
+  $1526: 2C A9 00    BIT abs $00A9
+  $1529: 8D 14 10    STA abs $1014
+  $152C: C9 00       CMP # $00
+  $152E: D0 42       BNE $1572
+  $1530: AD 13 10    LDA abs $1013
+  $1533: 18          CLC
+  $1534: 69 02       ADC # $02
+  $1536: 8D 13 10    STA abs $1013
+  $1539: CD 0D 10    CMP abs $100D
+  $153C: D0 34       BNE $1572
+  $153E: A9 00       LDA # $00
+  $1540: 8D 13 10    STA abs $1013
+  $1543: 8D 6F 10    STA abs $106F
+  $1546: 8D 76 10    STA abs $1076
+  $1549: 8D 7D 10    STA abs $107D
+  $154C: 8D 5E 10    STA abs $105E
+  $154F: 8D 65 10    STA abs $1065
+  $1552: 8D 6C 10    STA abs $106C
+  $1555: EE 11 10    INC abs $1011
+  $1558: AD 11 10    LDA abs $1011
+  $155B: CD 0F 10    CMP abs $100F
+  $155E: D0 12       BNE $1572
+  $1560: AD 0B 10    LDA abs $100B
+  $1563: 29 80       AND # $80
+  $1565: F0 05       BEQ $156C
+  $1567: A9 00       LDA # $00
+  $1569: 8D 12 10    STA abs $1012
+  $156C: AD 0E 10    LDA abs $100E
+  $156F: 8D 11 10    STA abs $1011
+  $1572: A0 03       LDY # $03
+  $1574: B9 9A 11    LDA abs,Y $119A
+  $1577: 99 A3 00    STA abs,Y $00A3
+  $157A: 88          DEY
+  $157B: 10 F7       BPL $1574
+  $157D: 60          RTS
+
+; --- init_entry $157E ---
+  $157E: A5 A3       LDA zp $A3
+  $1580: 8D 9A 11    STA abs $119A
+  $1583: A5 A4       LDA zp $A4
+  $1585: 8D 9B 11    STA abs $119B
+  $1588: AD 09 10    LDA abs $1009
+  $158B: 85 A3       STA zp $A3
+  $158D: AD 0A 10    LDA abs $100A
+  $1590: 85 A4       STA zp $A4
+  $1592: A0 25       LDY # $25
+  $1594: B1 A3       LDA (zp),Y $A3
+  $1596: 8D CE 13    STA abs $13CE
+  $1599: 88          DEY
+  $159A: B1 A3       LDA (zp),Y $A3
+  $159C: 8D CD 13    STA abs $13CD
+  $159F: 88          DEY
+  $15A0: B1 A3       LDA (zp),Y $A3
+  $15A2: 8D 57 13    STA abs $1357
+  $15A5: 8D 5D 13    STA abs $135D
+  $15A8: 88          DEY
+  $15A9: B1 A3       LDA (zp),Y $A3
+  $15AB: 8D 56 13    STA abs $1356
+  $15AE: 8D 5C 13    STA abs $135C
+  $15B1: 88          DEY
+  $15B2: B1 A3       LDA (zp),Y $A3
+  $15B4: 8D 1C 14    STA abs $141C
+  $15B7: 88          DEY
+  $15B8: B1 A3       LDA (zp),Y $A3
+  $15BA: 8D 1B 14    STA abs $141B
+  $15BD: 88          DEY
+  $15BE: B1 A3       LDA (zp),Y $A3
+  $15C0: 8D 4E 14    STA abs $144E
+  $15C3: 8D CE 12    STA abs $12CE
+  $15C6: 88          DEY
+  $15C7: B1 A3       LDA (zp),Y $A3
+  $15C9: 8D 4D 14    STA abs $144D
+  $15CC: 8D CD 12    STA abs $12CD
+  $15CF: 88          DEY
+  $15D0: B1 A3       LDA (zp),Y $A3
+  $15D2: 99 F3 0F    STA abs,Y $0FF3
+  $15D5: 88          DEY
+  $15D6: C0          ???
+  $15D7: 17          ???
+  $15D8: D0 F6       BNE $15D0
+  $15DA: B1 A3       LDA (zp),Y $A3
+  $15DC: 99 16 10    STA abs,Y $1016
+  $15DF: A9 FF       LDA # $FF
+  $15E1: 99 00 D4    STA abs,Y $D400
+  $15E4: A9 00       LDA # $00
+  $15E6: 99 00 D4    STA abs,Y $D400
+  $15E9: 99 58 10    STA abs,Y $1058
+  $15EC: 88          DEY
+  $15ED: 10 EB       BPL $15DA
+  $15EF: 8D 15 D4    STA abs $D415
+  $15F2: 8D 14 10    STA abs $1014
+  $15F5: 8D 13 10    STA abs $1013
+  $15F8: 8D 15 10    STA abs $1015
+  $15FB: 8D 6F 10    STA abs $106F
+  $15FE: 8D 76 10    STA abs $1076
+  $1601: 8D 7D 10    STA abs $107D
+  $1604: A9 01       LDA # $01
+  $1606: 8D 58 10    STA abs $1058
+  $1609: 8D 5F 10    STA abs $105F
+  $160C: 8D 66 10    STA abs $1066
+  $160F: 8D 12 10    STA abs $1012
+  $1612: AD 0E 10    LDA abs $100E
+  $1615: 8D 11 10    STA abs $1011
+  $1618: AD 9A 11    LDA abs $119A
+  $161B: 85 A3       STA zp $A3
+  $161D: AD 9B 11    LDA abs $119B
+  $1620: 85 A4       STA zp $A4
+  $1622: 60          RTS
+  $1623: 20 7E 15    JSR abs $157E
+  $1626: 78          ???
+  $1627: A9 7F       LDA # $7F
+  $1629: 8D 0D DC    STA abs $DC0D
+  $162C: A9 01       LDA # $01
+  $162E: 8D 1A D0    STA abs $D01A
+
+; --- voice_note_proc $119E ---
+  $119E: BD 5E 10    LDA abs,X $105E
+  $11A1: F0 04       BEQ $11A7
+  $11A3: DE 5E 10    DEC abs,X $105E
+  $11A6: 60          RTS
+  $11A7: AC 11 10    LDY abs $1011
+  $11AA: BD 2E 10    LDA abs,X $102E
+  $11AD: AA          TAX
+  $11AE: BD 1A 10    LDA abs,X $101A
+  $11B1: 85 A3       STA zp $A3
+  $11B3: BD 1B 10    LDA abs,X $101B
+  $11B6: 85 A4       STA zp $A4
+  $11B8: B1 A3       LDA (zp),Y $A3
+  $11BA: 8D 82 10    STA abs $1082
+  $11BD: BD 16 10    LDA abs,X $1016
+  $11C0: 85 A3       STA zp $A3
+  $11C2: BD 17 10    LDA abs,X $1017
+  $11C5: 85 A4       STA zp $A4
+  $11C7: BD 18 10    LDA abs,X $1018
+  $11CA: 85 A5       STA zp $A5
+  $11CC: BD 19 10    LDA abs,X $1019
+  $11CF: 85 A6       STA zp $A6
+  $11D1: B1 A3       LDA (zp),Y $A3
+  $11D3: 85 A3       STA zp $A3
+  $11D5: B1 A5       LDA (zp),Y $A5
+  $11D7: 85 A4       STA zp $A4
+  $11D9: 86 A6       STX zp $A6
+  $11DB: AE          ???
+  $11DC: 14          ???
+  $11DD: 10 BC       BPL $119B
+  $11DF: 6F          ???
+  $11E0: 10 C8       BPL $11AA
+  $11E2: B1 A3       LDA (zp),Y $A3
+  $11E4: 85 A5       STA zp $A5
+  $11E6: 4A          LSR
+  $11E7: 4A          LSR
+  $11E8: 4A          LSR
+  $11E9: 4A          LSR
+  $11EA: 9D 5E 10    STA abs,X $105E
+  $11ED: C8          INY
+  $11EE: 98          TYA
+  $11EF: 9D 6F 10    STA abs,X $106F
+  $11F2: 88          DEY
+  $11F3: 88          DEY
+  $11F4: B1 A3       LDA (zp),Y $A3
+  $11F6: D0 01       BNE $11F9
+  $11F8: 60          RTS
+  $11F9: A8          TAY
+  $11FA: BD 34 10    LDA abs,X $1034
+  $11FD: 8D 83 10    STA abs $1083
+  $1200: 98          TYA
+  $1201: 85 A3       STA zp $A3
+  $1203: 24 A3       BIT zp $11A8
+  $1205: 30 04       BMI $120B
+  $1207: 18          CLC
+  $1208: 6D 82 10    ADC abs $1082
+  $120B: 29 7F       AND # $7F
+  $120D: 9D 34 10    STA abs,X $1034
+  $1210: A9 00       LDA # $00
+  $1212: 9D 30 10    STA abs,X $1030
+  $1215: 9D 31 10    STA abs,X $1031
+  $1218: BD 33 10    LDA abs,X $1033
+  $121B: 09 01       ORA # $01
+  $121D: 9D 33 10    STA abs,X $1033
+  $1220: A5 A5       LDA zp $A5
+  $1222: 0A          ASL
+  $1223: 0A          ASL
+  $1224: 0A          ASL
+  $1225: 0A          ASL
+  $1226: A8          TAY
+  $1227: A6 A6       LDX zp $A6
+  $1229: BD 1C 10    LDA abs,X $101C
+  $122C: 85 A3       STA zp $A3
+  $122E: BD 1D 10    LDA abs,X $101D
+  $1231: 85 A4       STA zp $A4
+  $1233: AE          ???
+  $1234: 14          ???
+  $1235: 10 B1       BPL $11E8
+  $1237: A3          ???
+  $1238: C8          INY
+  $1239: 9D 05 D4    STA abs,X $D405
+  $123C: B1 A3       LDA (zp),Y $A3
+  $123E: C8          INY
+  $123F: 9D 06 D4    STA abs,X $D406
+  $1242: B1 A3       LDA (zp),Y $A3
+  $1244: C8          INY
+  $1245: 0A          ASL
+  $1246: B0 1F       BCS $1267
+  $1248: 4A          LSR
+  $1249: 9D 43 10    STA abs,X $1043
+  $124C: 4A          LSR
+  $124D: 4A          LSR
+  $124E: 4A          LSR
+  $124F: 4A          LSR
+  $1250: 9D 71 10    STA abs,X $1071
+  $1253: A9 00       LDA # $00
+  $1255: 9D 49 10    STA abs,X $1049
+  $1258: BD 33 10    LDA abs,X $1033
+  $125B: 09 02       ORA # $02
+  $125D: 9D 33 10    STA abs,X $1033
+  $1260: B1 A3       LDA (zp),Y $A3
+  $1262: C8          INY
+  $1263: 9D 44 10    STA abs,X $1044
+  $1266: 09 C8       ORA # $C8
+  $1268: B1 A3       LDA (zp),Y $A3
+  $126A: C8          INY
+  $126B: 9D 45 10    STA abs,X $1045
+  $126E: 9D 6D 10    STA abs,X $106D
+  $1271: B1 A3       LDA (zp),Y $A3
+  $1273: C8          INY
+  $1274: 9D 46 10    STA abs,X $1046
+  $1277: B1 A3       LDA (zp),Y $A3
+  $1279: C8          INY
+  $127A: 9D 47 10    STA abs,X $1047
+  $127D: 9D 6E 10    STA abs,X $106E
+  $1280: B1 A3       LDA (zp),Y $A3
+  $1282: C8          INY
+  $1283: 9D 48 10    STA abs,X $1048
+  $1286: B1 A3       LDA (zp),Y $A3
+  $1288: C8          INY
+  $1289: C9 FF       CMP # $FF
+  $128B: F0 0D       BEQ $129A
+  $128D: 9D 5A 10    STA abs,X $105A
+  $1290: 9D 5D 10    STA abs,X $105D
+  $1293: B1 A3       LDA (zp),Y $A3
+  $1295: C8          INY
+  $1296: 9D 5B 10    STA abs,X $105B
+  $1299: 09 C8       ORA # $C8
+  $129B: B1 A3       LDA (zp),Y $A3
+  $129D: C8          INY
+  $129E: 9D 5C 10    STA abs,X $105C
+  $12A1: B1 A3       LDA (zp),Y $A3
+  $12A3: C8          INY
+  $12A4: 9D 58 10    STA abs,X $1058
+  $12A7: B1 A3       LDA (zp),Y $A3
+  $12A9: C8          INY
+  $12AA: 9D 59 10    STA abs,X $1059
+  $12AD: B1 A3       LDA (zp),Y $A3
+  $12AF: C8          INY
+  $12B0: 9D 32 10    STA abs,X $1032
+  $12B3: BD 5A 10    LDA abs,X $105A
+  $12B6: 1D 5B 10    ORA abs,X $105B
+  $12B9: F0 0D       BEQ $12C8
+  $12BB: B1 A3       LDA (zp),Y $A3
+  $12BD: C8          INY
+  $12BE: 8D 17 D4    STA abs $D417
+  $12C1: B1 A3       LDA (zp),Y $A3
+  $12C3: 29 F0       AND # $F0
+  $12C5: 8D 15 10    STA abs $1015
+  $12C8: BD 6D 10    LDA abs,X $106D
+  $12CB: A8          TAY
+  $12CC: B9 0E 1B    LDA abs,Y $1B0E
+  $12CF: 9D 70 10    STA abs,X $1070
+  $12D2: C8          INY
+  $12D3: 98          TYA
+  $12D4: 9D 6D 10    STA abs,X $106D
+  $12D7: 9D 45 10    STA abs,X $1045
+  $12DA: BD 32 10    LDA abs,X $1032
+  $12DD: 29 04       AND # $04
+  $12DF: F0 52       BEQ $1333
+  $12E1: AC 83 10    LDY abs $1083
+  $12E4: B9 D8 10    LDA abs,Y $10D8
+  $12E7: BC 34 10    LDY abs,X $1034
+  $12EA: 38          SEC
+  $12EB: F9          ???
+  $12EC: D8          ???
+  $12ED: 10 9D       BPL $128C
+  $12EF: 30 10       BMI $1301
+  $12F1: AC 83 10    LDY abs $1083
+  $12F4: B9 39 11    LDA abs,Y $1139
+  $12F7: BC 34 10    LDY abs,X $1034
+  $12FA: F9          ???
+  $12FB: 39          ???
+  $12FC: 11          ???
+  $12FD: 9D 31 10    STA abs,X $1031
+
+; --- filter_vol_sub $1341 ---
+  $1341: BD 5B 10    LDA abs,X $105B
+  $1344: 1D 5A 10    ORA abs,X $105A
+  $1347: F0 1D       BEQ $1366
+  $1349: BD 5D 10    LDA abs,X $105D
+  $134C: A8          TAY
+  $134D: DD 5B 10    CMP abs,X $105B
+  $1350: D0 03       BNE $1355
+  $1352: BC 5A 10    LDY abs,X $105A
+  $1355: B9 3D 1B    LDA abs,Y $1B3D
+  $1358: D0 04       BNE $135E
+  $135A: 88          DEY
+  $135B: B9 3D 1B    LDA abs,Y $1B3D
+  $135E: 8D 16 D4    STA abs $D416
+  $1361: C8          INY
+  $1362: 98          TYA
+  $1363: 9D 5D 10    STA abs,X $105D
+  $1366: AD 15 10    LDA abs $1015
+  $1369: 0D 0C 10    ORA abs $100C
+  $136C: 8D 18 D4    STA abs $D418
+  $136F: BD 33 10    LDA abs,X $1033
+  $1372: 29 02       AND # $02
+  $1374: D0 21       BNE $1397
+  $1376: BD 49 10    LDA abs,X $1049
+  $1379: 38          SEC
+  $137A: FD 44 10    SBC abs,X $1044
+  $137D: 9D 49 10    STA abs,X $1049
+  $1380: 9D 02 D4    STA abs,X $D402
+  $1383: BD 43 10    LDA abs,X $1043
+  $1386: E9 00       SBC # $1388
+  $1388: 29 0F       AND # $0F
+  $138A: 9D 43 10    STA abs,X $1043
+  $138D: 9D 03 D4    STA abs,X $D403
+  $1390: DD 71 10    CMP abs,X $1071
+  $1393: F0 23       BEQ $13B8
+  $1395: D0 29       BNE $13C0
+  $1397: BD 49 10    LDA abs,X $1049
+  $139A: 18          CLC
+  $139B: 7D 44 10    ADC abs,X $1044
+  $139E: 9D 49 10    STA abs,X $1049
+  $13A1: 9D 02 D4    STA abs,X $D402
+  $13A4: BD 43 10    LDA abs,X $1043
+  $13A7: 69 00       ADC # $00
+  $13A9: 29 0F       AND # $0F
+  $13AB: 9D 43 10    STA abs,X $1043
+  $13AE: 9D 03 D4    STA abs,X $D403
+  $13B1: 49 0F       EOR # $0F
+  $13B3: DD 71 10    CMP abs,X $1071
+  $13B6: D0 08       BNE $13C0
+  $13B8: BD 33 10    LDA abs,X $1033
+  $13BB: 49 02       EOR # $02
+  $13BD: 9D 33 10    STA abs,X $1033
+  $13C0: BD 5C 10    LDA abs,X $105C
+  $13C3: A8          TAY
+  $13C4: DD 58 10    CMP abs,X $1058
+  $13C7: D0 03       BNE $13CC
+  $13C9: BC 59 10    LDY abs,X $1059
+  $13CC: B9 46 1B    LDA abs,Y $1B46
+  $13CF: 85 A3       STA zp $A3
+  $13D1: 29 F7       AND # $F7
+  $13D3: 9D 04 D4    STA abs,X $D404
+  $13D6: C8          INY
+  $13D7: 98          TYA
+  $13D8: 9D 5C 10    STA abs,X $105C
+  $13DB: BD 72 10    LDA abs,X $1072
+  $13DE: 1D 73 10    ORA abs,X $1073
+  $13E1: F0 2B       BEQ $140E
+  $13E3: BD 30 10    LDA abs,X $1030
+  $13E6: 1D 31 10    ORA abs,X $1031
+  $13E9: D0 06       BNE $13F1
+  $13EB: 9D 72 10    STA abs,X $1072
+  $13EE: 9D 73 10    STA abs,X $1073
+  $13F1: BD 72 10    LDA abs,X $1072
+  $13F4: 18          CLC
+  $13F5: 7D 30 10    ADC abs,X $1030
+  $13F8: 9D 30 10    STA abs,X $1030
+  $13FB: 85 A5       STA zp $A5
+  $13FD: BD 73 10    LDA abs,X $1073
+
+; --- FREQ TABLE LO ($10D8, 96 bytes) ---
+  $10D8: 00 16 27 38 4B 5F 73 8A A1 BA D4 F0 0E 2D 4E 71
+  $10E8: 96 BD E7 13 42 74 A9 E0 1B 5A 9B E2 2C 7B CE 27
+  $10F8: 85 E8 51 C1 37 B4 37 C4 57 F5 9C 4E 09 D0 A3 82
+  $1108: 6E 68 6E 88 AF EB 39 9C 13 A1 46 04 DC D0 DC 10
+  $1118: 5E D6 72 38 26 42 8C 08 B8 A0 B8 20 BC AC E4 70
+  $1128: 4C 84 18 10 70 40 70 40 78 58 C8 E0 98 08 30 20
+
+; --- FREQ TABLE HI ($1139, 96 bytes) ---
+  $1139: 00 01 01 01 01 01 01 01 01 01 01 01 02 02 02 02
+  $1149: 02 02 02 03 03 03 03 03 04 04 04 04 05 05 05 06
+  $1159: 06 06 07 07 08 08 09 09 0A 0A 0B 0C 0D 0D 0E 0F
+  $1169: 10 11 12 13 14 15 17 18 1A 1B 1D 1F 20 22 24 27
+  $1179: 29 2B 2E 31 34 37 3A 3E 41 45 49 4E 52 57 5C 62
+  $1189: 68 6E 75 7C 83 8B 93 9C A5 AF B9 C4 D0 DD EA F8
+
+; --- AUX TABLES (vibrato/filter/glide) starting at $1B0E ---
+  $1B0E: 80 80 01 80 C0 C0 80 40 40 03 80 B0 E0 B0 80 50
+  $1B1E: 20 50 00 18 19 19 05 19 19 18 17 18 19 1A 00 FF
+  $1B2E: 1A 19 00 00 1A 80 00 00 FB FB 0C 80 00 04 07 00
+  $1B3E: 72 6A 62 5A 52 4A 00 40 00 01 89 11 11 10 00 01
+  $1B4E: 89 11 81 80 01 41 41 41 41 40 00 01 81 41 41 80
+  $1B5E: 00 01 81 41 41 40 00 01 89 41 41 40 01 81 81 81
+  $1B6E: 80 11 41 41 41 41 40 00
+
+; --- INSTRUMENT DATA V1 ($1A0E, ptr[3]) ---
+  $1A0E: 04 57 00 00 00 02 00 01 00 00 00 06 05 00 00 00
+  $1A1E: 05 87 00 00 00 02 01 09 00 00 06 0C 0B 00 00 00
+  $1A2E: 07 C8 08 00 00 02 09 10 00 00 12 18 17 30 00 00
+  $1A3E: 03 A9 08 00 00 02 10 14 00 00 18 1F 1E F0 00 00
+  $1A4E: 03 79 07 80 00 02 15 18 00 00 1E 24 23 00 00 00

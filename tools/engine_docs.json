@@ -5,9 +5,9 @@
     "updated": "2026-06-13"
   },
   "amp": {
-    "state": "LITTLE",
-    "notes": "single research.md first-pass overview; research-engine sweep not yet run.",
-    "updated": "2026-06-13"
+    "state": "OK",
+    "notes": "research-player sweep complete (2026-06-14). AMP = Advanced Music Programmer V2.3 by Andrew Miller (=Andras Molnar, 'Burton', Hungarian; Euratom/Quality/Hitech Studio Designs) w/ co-dev + songs by Markus Mueller ('Hayes'), 1988-90; published via Magic Disk 64 12/1991 (CP Verlag, Germany). 246 HVSC SIDs, all PSID v2 / VBL (no CIA). No public source/spec; structure from byte-stable HVSC inspection + binary credits string (src/). LAYOUT ($1000, 142/246, kernel byte-identical bar ~10 SMC bytes): $1000 JMP init/$1003 JMP play; $100B-15 song config (voice_enable/filter_route/order_len/repeat/pattern_count/speed); $1016-2D 12x2B LE pointers (3 voices x 4 track tables); $102E-8F per-voice state 7B stride X=0/7/14; $10D8 freq LO 96 / $1139 freq HI 96 (PAL, entry24=C2=$041B, entry0=silence); $119E-162D kernel. WRITE MODEL per play(): per-voice decode (AD/SR from instr program, freq+vibrato->$D400/01, PW $D402/03, wave+gate $D404); filter sub x3 (filter_table->$D416, master_vol|filter_mode->$D418); $D417 reso+routing; tempo+loop. SMC: init patches ~5 kernel addrs (vibrato x2/filter/glide x2) - rebuild emits clean code per CORE TENET. TRACK FORMAT per voice = 4 parallel byte arrays (note/transpose/instprog_lo/instprog_hi); instprog hi:lo = double-indirect ptr to wavetable-style instrument programs. INSTRUMENT (16 params): AD/SR/pulse-hi/add-pulse/vibrato s-e/accord(arp German Akkord) s-e/filter s-e/wave start1-end-start2/glide/filter $D417/$D418. NOTE encoding: hi-2-bit class + lo-6-bit note#, GERMAN note names (H=B), $80 rest/$40 hold/$00 empty. Editor 4-file format .SNG/.VOI/.NOT/.DAT. Address variety = relocation/packaging of ONE kernel (canonical $1000=142, +3-offset demo-hook=25, $C003/$2800/$E000 reloc); EARLY EURATOM 1988-89 $13xx (8 SIDs) MAY be a pre-v2.3 driver (2nd path?). Migration first step: disassemble canonical $1000 tune for note_byte->index formula + instrument-program terminator + gate/HR mechanism (~$14C8). LEAD: A.M.P. V2.3 Pack (CSDb #200544) reportedly has Cobra's docs. Cleared to start disassembly. See pipelines/amp/docs/README.md.",
+    "updated": "2026-06-14"
   },
   "ariston": {
     "state": "LITTLE",
