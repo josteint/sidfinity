@@ -41,7 +41,10 @@ def write_member(rel: str) -> tuple:
 
 
 def main():
-    full = [json.loads(l)['path'] for l in open(RESULTS)
+    results = RESULTS
+    if '--results' in sys.argv:
+        results = sys.argv[sys.argv.index('--results') + 1]
+    full = [json.loads(l)['path'] for l in open(results)
             if json.loads(l)['status'] == 'full']
     print(f'{len(full)} FULL members to write', flush=True)
     ok = err = 0

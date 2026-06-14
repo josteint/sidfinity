@@ -121,13 +121,54 @@ build-level `params`, defaulting to canon — family 1 + others untouched
 The `vib_depth_curve` USF field added in the prior session was REMOVED
 (derivable from the freq table; schema hygiene).
 
-NEXT (factory + wide batch): factory variant detecting the family-2 jump
-table (init JMP base+$37) → set the 5 params + `sector_format='family2'`
-+ op_tunetab=$1051 + d417_shadow=base+$34 + instr base from the $1227
-operand; carve a family-2 reference player for the identity compare;
-wide batch over the 2889 members. KAJUN config (validated):
-`op_tunetab=0x1051, d417_shadow_addr=0x1034, sector_format='family2'`,
-all other sites canon defaults.
+The `vib_depth_curve` USF field added in the prior session was REMOVED
+(derivable from the freq table; schema hygiene).
+
+## ✅✅ FACTORY + WIDE BATCH — 1884/2889 FULL (65.2%)
+
+`dmc_v4_config` gained a family-2 path (pipelines/dmc/v4/factory.py):
+detects the family-2 jump table (init JMP base+$37 / play +$85), masked
+identity-compares the player region against a carved family-2 reference
+(`pipelines/dmc/docs/dmc4_family2_player_1000.bin`, from Kajun, $1000-
+$17B0), relocation-aware, then derives the table addresses from the
+canon-compatible operand sites (tunetab via $1051, d417 base+$34, instr
+base $17B0 from the $1227 operand). The 5 family-2 write-stream knobs go
+into `cfg.extra_params` (factory-PROBED, not hardcoded — `hold_gateoff`
+varies across sub-builds: STA $100f,x mask-only vs JSR a helper that
+also clears AD/SR=$00). Runner: `tools/dmc_family_batch.py --members
+tmp/dmc_family2_members.json` (Pool(8), crash-safe).
+
+**Batch (2889 members): 1884 FULL (65.2%)** — exceeds family-1's 54.5%.
+Two triage rounds:
+- Round 0 = the 4 Kajun effect-chain diffs (above).
+- Round 1 (+43): `$129F` filter-mode variant (STA $9E dead store ≡ AND
+  #$0F — probe+mask) collapsed player_code_mismatch 74→53; 2-entry
+  family-2 jump table (init+play only, all-off/sfx zeroed) collapsed
+  no_jumptable 120→52. Sector-decode dead-ends now refuse cleanly
+  (unsupported:sector_decode).
+
+RESIDUE (data: tmp/dmc_f2_merged.json):
+- **Architectural limit ~580 (20%):** offtable_live 512 + zero_wave 62 +
+  wave_marker_chain 5 — the off-table reads land on genuinely live
+  per-voice runtime state (same ceiling family-1 hit; correctly refused).
+- **partial 279 (9.7%):** diverse FREQ/NOTE divergences — dominated by
+  freq-lo diffs ($D40E 57 / $D400 27 / $D407 26) + state=False/no-align
+  85. Investigated: NOT off-table per se — e.g. Short_Dream V3 plays
+  note 69 (orig) vs 66 (rebuild), a +3-semitone wave-program/arp
+  difference; Crush_01 V2 freq SWEEP to $F0 (glide). Per-member-diverse
+  long tail (note/wave-program/glide/edited-table edges); the code
+  matches Kajun (FULL), so it's DATA exercising paths Kajun doesn't.
+- **player_code_mismatch_f2 53 / no_jumptable 52 / sector_decode ~20:**
+  remaining sub-builds + relocated-within-file / corrupt-data members.
+- KNOWN BUG (not yet fixed, low ROI — needs a member WITH dual instrs):
+  the extract reads `dual_phase` (the $40 half-rate slide parity) from
+  $1019 (canon); family 2's parity is at $1035. Harmless for the many
+  family-2 members with no dual instruments; would need `cfg.dual_phase`
+  off=$35 for family 2.
+
+NEXT (further coverage, diminishing returns): the partial freq/note tail
+(per-member wave-program/glide RE), the dual_phase fix, the remaining
+sub-build sites (player_code_mismatch_f2 by $detail address).
 
 ## Migration plan (when picked up)
 
