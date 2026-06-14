@@ -238,11 +238,35 @@ DUAL-CLOCK PHASE ($1019 leftover → params.slide_phase).
    (config.py + extract/engine_model.py -> V5Model, validated). Phase C:
    composer_v5.py (clean re-authored engine driven by extracted song
    data) -> Katusha FULL (trichotomy is_full, 97955/97955; 100%
-   write-log). Census: family-3 (Katusha) 1461 + family-5 34 = 1495
-   dominant; family-4 (Jupiter41) 686 distinct branch (play +$95, 0.310).
-   NEXT: dmc_v5_config factory + wide batch over family-3/5 (1495), then
-   family-4; then USF layer (currently prototype extract->model->composer,
-   not yet through USF).
+   write-log). **✅ USF LAYER DONE (2026-06-14, commit 8e4c685): Katusha
+   FULL THROUGH USF** — extract -> to_usf -> .usf -> parse -> from_usf ->
+   V5Model -> composer (composer unchanged). New schema `pulse_sweep`
+   (PulseSweepConfig, spec-synced); wave decoded into Instrument.waveform/
+   wave_freq/loop; sectors -> Pattern with set_dur/set_instr ORDERED PREFIX
+   FLAGS (gate_logic reads the raw lookahead byte, so command byte position
+   is write-stream-significant — can't reshuffle snd/dur).
+   **✅ FACTORY + FULL SECTOR COMMANDS + PARAMETERIZED PULSE/FILTER (commit
+   a8776c2, 2026-06-14):** `dmc_v5_config` (factory.py: 2-entry jump-table
+   detect init+$40/play+$A1, family-4 play+$95 REJECTED, relocation-aware
+   masked compare vs Katusha ref — operand classes code+state relocate /
+   freq+data masked / SID+CIA absolute; typed DMCV5Unsupported). Full
+   sector set (vol/frq/fade/adr/srr/flt/gate_toggle/gate_tie/glide/slide).
+   PULSE/FILTER are SHARED/FUSED tables (packer overlaps programs; ~30%
+   lack $90, bleed) — carried NOT as a table but as per-instrument
+   `pulse_env`/`filter_env` = start + (rate,frames) phases + repeat (the
+   PWM/cutoff envelope, cross-engine w/ Hubbard/V4 PWM). Fusion dissolved
+   by CAPTURE-BY-SIMULATION (`_capture_env` follows $90 jumps, cycle-detects
+   on revisit, reach-bounded); from_usf SYNTHESIZES a de-fused table. All
+   5 sample-FULL members verify FULL through it. Batch:
+   tools/dmc_v5_family_batch.py. **WIDE-BATCH COVERAGE = COMPOSER-GATED
+   (6% on an 80-sample, NOT a representation issue — partials reproduce in
+   the DIRECT model path).** composer_v5 was proven only on Katusha;
+   bug-lever order from the batch: $D416/$D415 FILTER cutoff (22),
+   end-of-init state-only Check-A (16), freq/PW (7); + residue
+   (player_code_mismatch sub-builds, no_jumptable reloc/CIA, ~36%). NEXT:
+   composer rounds — FILTER FIRST, then state-only, then freq (V4-style
+   coverage climb). Census: family-3 1461 + family-5 34 = 1495; family-4
+   686 (play +$95, separate branch).
 
 ## REGRESSION PORTFOLIO (2026-06-13): generalized + DMC wired
 `tools/select_regression_portfolio.py` made engine-parametric (registry:

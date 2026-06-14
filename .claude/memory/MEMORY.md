@@ -35,6 +35,8 @@
 
 ## Working principles (read these before acting)
 
+- [Re-anchor at decision points](feedback_reanchor_at_decisions.md) — TRIPWIRE. At EVERY representation/correctness decision, re-run the CORE TENET (write-log only, never byte-identity) + USF principle (parametric/musical, never raw-bytes+opaque-index — ask "could this be parametric?" unprompted) + uready as adversarial CHECKS that could overturn the easy choice, not justifications for it. The tell of drift: citing a precedent to DEFEND an easy/safe choice instead of describing the test I ran to BEAT it.
+
 ### Ground truth & methodology
 - [Ground truth is sidplayfp](feedback_ground_truth.md) — NEVER use py65 or Python reimplementations as ground truth. Only `sidplayfp --writelog` is authoritative. The user's ear is the final judge.
 - [NO snapshot-per-frame verdict](feedback_no_snapshot_verdict.md) — the verdict is ALWAYS the write-log, NEVER per-frame register-state snapshots (Trap A). Reinvented in `verify_all` + removed 2026-06-07; it had false-passed 25 Hubbard subtunes (all of Monty's multispeed). py65 capture is for extraction only.
