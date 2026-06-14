@@ -59,6 +59,13 @@ class DMCV4Config:
     # latch so libsidplayfp drives our play() at the identical rate.
     # 0 = single-speed VBI.
     cia_period: int = 0
+    # Factory-probed engine write-stream params merged into USF params
+    # (the family-2 build knobs: cymbal_onset / vib_ramp / hold_gateoff /
+    # hard_restart / rest_effects). Family-2 sub-builds differ in some of
+    # these (e.g. the holding gate-off: mask-only vs an AD/SR-clearing
+    # helper), so the factory probes each from the member's code rather
+    # than hardcoding. Empty for canonical V4 (canon defaults apply).
+    extra_params: dict = field(default_factory=dict)
 
 
 ZAKS = DMCV4Config(

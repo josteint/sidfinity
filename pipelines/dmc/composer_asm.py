@@ -152,7 +152,10 @@ class _Model:
         def add_prog(ctrl, freq, loop):
             s = len(self.wctrl)
             n = len(ctrl)
-            assert n >= 1 and 0 <= loop < n and n - loop <= 0x6F, \
+            if n == 0:                       # wave_start past the table:
+                raise RuntimeError(          # off-table read (architectural
+                    'unsupported:zero_wave_table')   # limit; refuse cleanly)
+            assert 0 <= loop < n and n - loop <= 0x6F, \
                 f'wave program shape n={n} loop={loop}'
             self.wctrl += bytes(b & 0xFF for b in ctrl)
             self.wctrl.append(0x90 + n - loop)

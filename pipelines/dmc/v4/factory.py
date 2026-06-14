@@ -28,6 +28,19 @@ from pipelines.dmc.engine_constants import VIBDEPTH
 
 _CANON_PATH = os.path.join(os.path.dirname(__file__), '..', 'docs',
                            'dmc4_player_embedded_1000.bin')
+# Family-2 reference (carved from DEMOS/G-L/Kajun_Klog.sid, $1000-$17B0):
+# the V4-derived build with the relocated instrument table ($17B0) and the
+# $FF-terminator sector encoding. The play body + effect chain are
+# canon-compatible, but the init / note-init tail / gate-off / hard-restart
+# / rest dispatch / sector decoder differ — so family-2 members compare
+# against THIS reference, not canon. See pipelines/dmc/family2/RE_NOTES.md.
+_FAMILY2_PATH = os.path.join(os.path.dirname(__file__), '..', 'docs',
+                             'dmc4_family2_player_1000.bin')
+_F2_INSTR_BASE = 0x17B0      # code/data boundary (instr table base @ $1000)
+# family-2 data regions masked out of the identity compare (per-tune /
+# leftovers): vars + copyright, then freq tables + state up to the instr
+# table. The code is one contiguous run $1037-$1644.
+_F2_DATA_MASK = [(0x100C, 0x1037), (0x1647, _F2_INSTR_BASE)]
 
 # packer-patched operand sites: name -> list of operand addresses
 # (each site = 2 bytes lo/hi); per name all sites must agree
@@ -127,6 +140,52 @@ def _canon_reloc_instrs():
     return out
 
 
+_F2_REF = None      # (ref_bytes, masked[], reloc_instrs)
+
+
+def _family2_ref():
+    """Trace the carved family-2 reference once: return its byte image,
+    the compare mask (1 = ignore: data regions + per-song operand bytes +
+    non-reachable bytes), and the self-ref operand list (relocates with
+    base). Mirrors _canon_reloc_instrs but reachable-instruction-precise."""
+    global _F2_REF
+    if _F2_REF is not None:
+        return _F2_REF
+    import sys
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__),
+                                    '..', '..', '..', 'tools'))
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__),
+                                    '..', '..', '..', 'tools', 'py65_lib'))
+    from seed_disassembly import trace, _INST_LEN
+    ref = bytearray(open(_FAMILY2_PATH, 'rb').read())   # $1000-$17B0
+    mem = bytearray(0x10000)
+    mem[0x1000:0x1000 + len(ref)] = ref
+    # entries: init $1037 / play $1085 / all-off $162F / sfx $163E
+    _c, starts, _l, _j = trace(bytes(mem), 0, 0x1037, 0x1085, (0x162F, 0x163E))
+    masked = bytearray([1]) * _F2_INSTR_BASE        # default: ignore
+    reloc = []
+    for pc in sorted(starts):
+        if pc < 0x1000 or pc >= _F2_INSTR_BASE:
+            continue
+        L = _INST_LEN[mem[pc]]
+        if pc + L > _F2_INSTR_BASE:
+            continue
+        for i in range(pc, pc + L):
+            masked[i] = 0                           # compare this code byte
+        if L == 3:
+            op = mem[pc + 1] | (mem[pc + 2] << 8)
+            if _F2_INSTR_BASE <= op < 0x1C00:
+                masked[pc + 1] = masked[pc + 2] = 1  # per-song table operand
+            elif 0x1000 <= op < _F2_INSTR_BASE:
+                reloc.append((pc, op))               # self-ref (relocates)
+    # data regions + the jump table (validated separately) are never code
+    for a, b in _F2_DATA_MASK + [(0x1000, 0x100C)]:
+        for i in range(a, b):
+            masked[i] = 1
+    _F2_REF = (ref, masked, reloc)
+    return _F2_REF
+
+
 def _load(sid_path: str):
     import sys
     sys.path.insert(0, os.path.join(os.path.dirname(__file__),
@@ -208,6 +267,13 @@ def dmc_v4_config(sid_path: str, hvsc_root: str = 'hvsc84') -> DMCV4Config:
             return 'canonical'
         if e0 == b + 0x807 and e1 == b + 0x50:
             return '2entry'
+        # family 2: init $37 / play $85 / all-off $62F / sfx $63E (4-entry,
+        # play body shared with canon, init + sector/effect tail differ).
+        if (e0 == b + 0x37 and e1 == b + 0x85 and mem[b + 6] == 0x4C
+                and mem[b + 9] == 0x4C
+                and (mem[b + 7] | (mem[b + 8] << 8)) == b + 0x62F
+                and (mem[b + 10] | (mem[b + 11] << 8)) == b + 0x63E):
+            return 'family2'
         return None
 
     base = layout = None
@@ -244,6 +310,9 @@ def dmc_v4_config(sid_path: str, hvsc_root: str = 'hvsc84') -> DMCV4Config:
 
     def reloc(operand_val):             # canonical abs value -> relocated
         return operand_val + delta
+
+    if layout == 'family2':
+        return _family2_build(mem, s, sid_path, base, delta, at, cia_period)
 
     # ---- masked identity compare against the RELOCATED canonical
     # player. Build the reference image: canon with every self-ref
@@ -356,4 +425,72 @@ def dmc_v4_config(sid_path: str, hvsc_root: str = 'hvsc84') -> DMCV4Config:
         freq_lo_addr=at(0x1647), freq_hi_addr=at(0x16A7),
         vibdepth_addr=at(0x1888), d417_shadow_addr=at(0x1018),
         track_loop_target=loop_target, cia_period=cia_period,
+    )
+
+
+def _family2_build(mem, s, sid_path, base, delta, at, cia_period):
+    """Family-2 config: masked identity compare vs the carved family-2
+    reference (relocation-aware), then derive the packer-patched table
+    addresses from the canon-compatible operand sites. The 5 family-2
+    write-stream params (cymbal_onset / vib_ramp / hold_gateoff /
+    hard_restart / rest_effects) are emitted by the extract whenever
+    sector_format=='family2' — see pipelines/dmc/v4/extract/to_usf.py."""
+    ref, masked, reloc = _family2_ref()
+    canon = bytearray(ref)
+    if delta:
+        for pc, val in reloc:
+            nv = (val + delta) & 0xFFFF
+            canon[pc - 0x1000 + 1] = nv & 0xFF
+            canon[pc - 0x1000 + 2] = nv >> 8
+    # the holding gate-off ($133D) varies across family-2 sub-builds: some
+    # builds inline STA $100f,x (mask only), others JSR a helper that also
+    # clears AD/SR=$00 (the relocated sub_17EC). Probe it; mask its 3 bytes
+    # out of the code compare. (Other knobs stay validated by the compare;
+    # a sub-build that varies them is rejected with a typed reason.)
+    probe = set(range(0x133D, 0x1340))
+    for i in range(0x1000, _F2_INSTR_BASE):
+        if masked[i] or i in probe:
+            continue
+        if mem[at(i)] != canon[i - 0x1000]:
+            raise DMCV4Unsupported('player_code_mismatch_f2',
+                                   f'first diff at ${i:04X}')
+    gop = mem[at(0x133D)]
+    if gop == 0x9D:                       # STA $100f,x — mask only
+        hold_gateoff = 'mask_only'
+    elif gop == 0x20:                     # JSR helper — clears AD/SR=$00
+        hold_gateoff = 'adsr_clear'
+    else:
+        raise DMCV4Unsupported('hold_gateoff_unknown', hex(gop))
+    # packer-patched table addresses (canon-compatible sites; tunetab via
+    # $1051 since family 2 leaves the $180E site empty; instr base $17B0).
+    instr = _rd16(mem, at(0x1227))
+    wavectrl = _rd16(mem, at(0x159C))
+    wavefreq = _rd16(mem, at(0x15B9))
+    filtdef = _rd16(mem, at(0x1296))
+    tunetab = _rd16(mem, at(0x1051))
+    secp_lo = _rd16(mem, at(0x1103))
+    secp_hi = _rd16(mem, at(0x1108))
+    if not (base + 0x600 <= instr < base + 0x1000):
+        raise DMCV4Unsupported('nonstandard_instr_base_f2', hex(instr))
+    if not (instr < wavectrl < wavefreq < filtdef < tunetab
+            < secp_lo < secp_hi):
+        raise DMCV4Unsupported(
+            'layout_disorder_f2',
+            f'instr=${instr:04X} wc=${wavectrl:04X} wf=${wavefreq:04X} '
+            f'fd=${filtdef:04X} tt=${tunetab:04X} '
+            f'sl=${secp_lo:04X} sh=${secp_hi:04X}')
+    return DMCV4Config(
+        sid_path=sid_path,
+        name=os.path.splitext(os.path.basename(sid_path))[0],
+        base=base,
+        op_instr=at(0x1227), op_wavectrl=at(0x159C), op_wavefreq=at(0x15B9),
+        op_filtdef=at(0x1296), op_tunetab=at(0x1051),
+        op_secp_lo=at(0x1103), op_secp_hi=at(0x1108),
+        freq_lo_addr=at(0x1647), freq_hi_addr=at(0x16A7),
+        vibdepth_addr=at(0x1888), d417_shadow_addr=at(0x1034),
+        track_loop_target=False, cia_period=cia_period,
+        sector_format='family2',
+        extra_params={'cymbal_onset': 1, 'vib_ramp': 'step',
+                      'hold_gateoff': hold_gateoff, 'hard_restart': 'none',
+                      'rest_effects': 'skip'},
     )

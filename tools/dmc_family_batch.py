@@ -89,6 +89,14 @@ def run_member(rel: str) -> dict:
     except TimeoutError:
         return {'path': rel, 'status': 'error', 'reason': 'timeout'}
     except Exception as e:
+        # extract-level refusals (offtable_live, zero_wave_table, ...) are
+        # raised as RuntimeError('unsupported:<reason> ...') — a typed
+        # architectural-limit refusal, not a crash. Bucket as unsupported.
+        msg = str(e)
+        if msg.startswith('unsupported:'):
+            return {'path': rel, 'status': 'unsupported',
+                    'reason': msg[len('unsupported:'):].split()[0],
+                    'detail': msg[:80]}
         return {'path': rel, 'status': 'error',
                 'reason': f'{type(e).__name__}: {e}'[:160]}
     finally:
@@ -96,6 +104,7 @@ def run_member(rel: str) -> dict:
 
 
 def main():
+    global OUT
     members_file = None
     sample = 0
     args = sys.argv[1:]
@@ -105,6 +114,8 @@ def main():
             sample = int(args.pop(0))
         elif a == '--members':
             members_file = args.pop(0)
+        elif a == '--out':
+            OUT = args.pop(0)
     if members_file:
         members = json.load(open(members_file))
     else:

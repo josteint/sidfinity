@@ -117,6 +117,7 @@ class DmcModel:
                                      # of the half-rate slide clock
     cia_period: int = 0              # CIA1 timer A latch (multispeed); 0=VBI
     family2: bool = False            # the V4-derived family-2 build
+    extra_params: dict = field(default_factory=dict)  # factory-probed knobs
     idle_wave: tuple = ((), (), 0)   # wave walk from table index 0 (the
                                      # cleared-cache idle path): ctrl,
                                      # freq, loop
@@ -497,6 +498,7 @@ def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc84') -> DmcModel:
     # doubles the WIDTH). The composer derives the increment from the freq
     # table; the swell mechanism is the build-level params.vib_ramp flag.
     m.family2 = (cfg.sector_format == 'family2')
+    m.extra_params = dict(getattr(cfg, 'extra_params', {}))
     _offtable_check(m)
     return m
 

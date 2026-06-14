@@ -128,10 +128,8 @@ def model_to_usf(m: DmcModel) -> UsfFile:
         params=Params(fields={
             **({'slide_phase': m.dual_phase} if m.dual_phase else {}),
             **({'cia_period': m.cia_period} if m.cia_period else {}),
-            **({'cymbal_onset': 1, 'vib_ramp': 'step',
-                'hold_gateoff': 'mask_only',
-                'hard_restart': 'none',
-                'rest_effects': 'skip'} if m.family2 else {})}),
+            # family-2 build knobs (factory-probed; empty for canon)
+            **m.extra_params}),
         init=InitState(voices=[
             InitVoice(id=v + 1,
                       note=m.idle_notes[v] or None,
