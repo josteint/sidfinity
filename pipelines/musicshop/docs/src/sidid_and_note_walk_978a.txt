@@ -1,0 +1,86 @@
+# SIDId signature location and note-walk routine disassembly
+# Generated 2026-06-14 via READ-ONLY inspection of Maple_Leaf_Rag.sid
+# Address: runtime $978A (= payload offset $0194 from load $95F6)
+# All bytes identical across all MusicShop SIDs (shared code block)
+
+# SIDId signature (from sidid.cfg):
+# 09 80 91 ?? C8 18 B1 ?? 6D ?? ?? 48 C8 B1 ?? 6D ?? ?? 85 ?? 68 85
+# Matches: ORA #$80 / STA ($3F),Y / INY / CLC / LDA ($3F),Y / ADC $5C10 /
+#          PHA / INY / LDA ($3F),Y / ADC $5C11 / STA $40 / PLA / STA $3F
+
+# Note-walk routine context ($9770 - $97D0):
+# This routine is called when the per-voice down-counter reaches zero (new note needed).
+# It reads the next note event from the note stream via indirect-indexed pointer $3F/$40.
+# The pointer ($3F:$40) points into the runtime note data area ($78D4+).
+
+$9760: B1 3F      LDA ($3F),Y     ; read byte at ptr+Y
+$9762: 8D C3 7C   STA $7CC3       ; store (some voice param / freq write)
+$9765: C8         INY             ; advance Y
+$9766: B1 3F      LDA ($3F),Y     ; read next byte
+$9768: 8D E2 7E   STA $7EE2       ; store (another voice param)
+$976B: EA         NOP
+$976C: EA         NOP
+$976D: EA         NOP
+$976E: 20 46 59   JSR $5946       ; call main player (schedule writes to $D400+)
+$9771: 4C A8 58   JMP $58A8       ; return to main dispatch
+
+# NOTE-COMMAND HANDLER (entered with note-byte in A, X=raw byte, Y=1):
+$9774: C9 FD      CMP #$FD        ; is this a TIE marker ($FD)?
+$9776: F0 04      BEQ $977C       ; yes: jump to tie-handler
+$9778: C9 FA      CMP #$FA        ; is this an END marker ($FA)?
+$977A: D0 32      BNE $97AE       ; neither TIE nor END: jump to note-decode
+
+$977C: AA         TAX             ; X = note-byte (TIE or END)
+$977D: A0 01      LDY #$01        ; Y=1 (skip past byte 0 of record)
+$977F: B1 3F      LDA ($3F),Y     ; read byte1 at ptr+1
+$9781: 30 21      BMI $97A4       ; if bit7 set: REST handler (clears bit7, calls player)
+$9783: 8D 7A 7B   STA $7B7A       ; store note parameter (voice state)
+$9786: E0 FD      CPX #$FD        ; is raw byte (from X) == $FD (TIE)?
+$9788: D0 02      BNE $978C       ; not TIE: skip ORA
+$978A: 09 80      ORA #$80        ; [SIDId] SET BIT7 = mark this byte as TIE in stream
+$978C: 91 3F      STA ($3F),Y     ; WRITE BACK byte1 to note stream (self-modifying data!)
+$978E: C8         INY             ; Y=2 (byte2 = offset lo)
+$978F: 18         CLC
+$9790: B1 3F      LDA ($3F),Y     ; read byte2: offset_lo
+$9792: 6D 10 5C   ADC $5C10       ; add step_lo (note advance step size, low byte)
+$9795: 48         PHA             ; save new ptr_lo
+$9796: C8         INY             ; Y=3 (byte3 = offset hi)
+$9797: B1 3F      LDA ($3F),Y     ; read byte3: offset_hi
+$9799: 6D 11 5C   ADC $5C11       ; add step_hi (note advance step size, high byte)
+$979C: 85 40      STA $40         ; store new ptr_hi
+$979E: 68         PLA
+$979F: 85 3F      STA $3F         ; store new ptr_lo
+$97A1: 4C A8 58   JMP $58A8       ; return to main dispatch
+
+# REST HANDLER:
+$97A4: 29 7F      AND #$7F        ; clear bit7 = unmute
+$97A6: 91 3F      STA ($3F),Y     ; write back (clear rest flag in stream)
+$97A8: 20 46 59   JSR $5946       ; call player (silence this voice)
+$97AB: 4C A8 58   JMP $58A8
+
+# LOOP/END HANDLER:
+$97AE: C9 FC      CMP #$FC        ; is this a LOOP marker ($FC)?
+$97B0: D0 0F      BNE $97C1       ; no: fall through (end?)
+$97B2: AD 12 5C   LDA $5C12       ; load loop-back address flag
+$97B5: F0 07      BEQ $97BE       ; if 0: no loop target stored
+$97B7: A0 01      LDY #$01
+$97B9: B1 3F      LDA ($3F),Y     ; read loop-target address from stream
+$97BB: 8D 15 5C   STA $5C15       ; store loop target ($5C12-$5C15 = loop control)
+$97BE: 20 46 59   JSR $5946       ; call player
+$97C1: 60         RTS
+
+# SIMPLE +4 ADVANCE (used for fixed-step notes):
+$97C2: 18         CLC
+$97C3: A5 3F      LDA $3F
+$97C5: 69 04      ADC #$04        ; advance pointer by 4 bytes
+$97C7: 85 3F      STA $3F
+$97C9: A5 40      LDA $40
+$97CB: 69 00      ADC #$00        ; carry propagation
+$97CD: 85 40      STA $40
+$97CF: 60         RTS
+
+# DURATION/TEMPO TABLE ($97D0):
+# 8 entries: [0x00, 0x14, 0x28, 0x3C, 0x50, 0x64, 0x78, 0x8C]
+# = [0, 20, 40, 60, 80, 100, 120, 140] decimal
+# Multiples of 20. Likely CIA tick counts for note durations.
+# At 50Hz VBL: 20 ticks ≈ 0.4 sec (dotted eighth?) or CIA-rate dependent.

@@ -1,0 +1,75 @@
+# Music Shop SID payload layout map
+# Generated 2026-06-14 via READ-ONLY binary inspection of hvsc84 SIDs
+# Tool: python3 struct/manual decoding (no siddump/py65)
+#
+# ALL 182 MusicShop SIDs share:
+#   PSID header: load=0x0000 (embedded), init=$A04D, play=$575A, speed=1 (CIA)
+#   Actual load: $95F6 (confirmed from all samples)
+#
+# ---- PAYLOAD MEMORY MAP (file-side addresses) ----
+#
+# $95F6 - $A0FF  (2570 bytes): SHARED PLAYER STUBS
+#   Byte-identical across ALL 182 tunes.
+#   Contains:
+#     $95F6 - $9645: Play-stub entry (advances note stream pointers per voice)
+#     $9646 - $97C1: Note-walk routines (SIDId signature at $978A)
+#     $97C2 - $97CF: Fixed-4-byte pointer advance (+4 to $3F:$40)
+#     $97D0 - $97D7: Duration/tempo table [0,20,40,60,80,100,120,140] (8 entries, step 20)
+#     $97D8 - $A0FF: More player stubs (note scheduling, voice management)
+#
+# $A04D - $A0FF  (B3 bytes): INIT ROUTINE (also in the shared block above)
+#   Complex self-modifying copy loop:
+#     - Copies shared stub code from $95F6+ into low RAM
+#     - Copies song header ($A100-$A1FF) to $77D4-$78D3
+#     - Initialises voice state: pointers, counters
+#     - Two active copy regions: Y=$F5 (1 page), Y=$FA (5 pages)
+#       Y=$F5 dest: ~$575C (1 page) -- installs play-entry stub near $575A
+#       Y=$FA dest: ~$5E46 (5 pages = 1280 bytes)
+#     - Then patches $794C from header $77D5 (step size)
+#     - JSR $5E51, JSR $5A59 -- calls into Music Shop runtime
+#
+# $A100 - $A1FF  (256 bytes): SONG HEADER (song-specific, copied to $77D4-$78D3)
+#   Copied to runtime $77D4-$78D3 by init ($A09A: LDA $A100,Y / STA $77D4,Y loop).
+#   Layout at $77D4 (= $A100 offset + 0):
+#     [$77D4]    byte: always 0x02 (constant, possibly format version)
+#     [$77D5]    byte: step_size -- bytes per note column, varies per song (4..20 seen)
+#                     init writes this to $794C (note-advance step register)
+#     [$77D6-$77D7]: 0x74, 0x75 -- ZP address pair (constant) = zero-page note pointer regs
+#     [$77D8-$77D9]: 0x74, 0x75 -- same ZP pair again
+#     [$77DA]    byte: varies (tempo high? or voice count flag)
+#     [$77DB]    byte: varies (tempo value or beat divisor)
+#     [$77DC-$77DD]: varies (0x00 0x0A, 0x00 0x03, 0x03 0x00 seen)
+#     [$77DE-$77DF]: 0x00 0x00 (constant in samples)
+#     [$77E0-$77E1]: 0x4D, 0x53 = "MS" magic signature (constant)
+#     [$77E2-$77E3]: 0x00, 0x01 (format version? constant in samples)
+#     [$77E4 - $77F2]: Voice 1-3 parameter blocks, 5 bytes each:
+#                     byte0: 0xFF or 0x00 or 0x88 (enable/disable flag?)
+#                     byte1: ADSR attack:decay nibbles (e.g., 0x73 = attack=7, decay=3)
+#                     byte2: 0x41 or similar (pulse+gate waveform? or sustain:release?)
+#                     byte3: envelope sub-parameter (0x09, 0x0A, 0x07 seen)
+#                     byte4: 0x00 separator
+#       Example (Maple Leaf, 3 identical voices): FF 73 41 09 00 (each)
+#       Example (We_are_Champions):              FF 74 41 0A 00 / 88 E7 41 08 54 / FF E7 41 07 54
+#     [$77F3 - $78D3]: Remaining 224 bytes -- song-specific voice settings, preset data,
+#                     initial filter/pulse-width settings, repeat point addresses.
+#                     Includes repeating 5-byte blocks (further voice parameter sets).
+#
+# $A200 - (note_end): NOTE DATA (song-specific, copied to $78D4+)
+#   Copied to runtime $78D4+. Layout:
+#     First 12 bytes = 3 zero-filled note columns (initial silence, 3 * step_size zeros if step=4,
+#                      or 12 bytes regardless of step -- ALWAYS 12 zero bytes observed)
+#     Remaining: 477 * step_size bytes of actual note events
+#     TOTAL: 480 * step_size bytes for note data (ALWAYS 480 columns)
+#   Note column format (step_size bytes):
+#     The column encodes the time-slice for all active voices.
+#     Minimum confirmed: [freq_lo][freq_hi] pairs (2 bytes each) for each voice.
+#     Rest = 0x00 0x00 (both bytes zero).
+#     step_size varies, implying extra bytes for effects (vibrato, pulse-width, gate, etc.)
+#     Exact sub-structure of per-column bytes is UNCERTAIN (see gaps below).
+#   Special markers (confirmed from player code $9774-$97C1):
+#     0xFA: song end / silence all voices
+#     0xFD: tie note (carry previous note, sets bit7 flag in stream; player ORs 0x80)
+#     0xFC: loop-back (reads loop-target address from $5C12 area)
+#     bit7=1 in note byte (0x80-0xFF): rest/silence for that voice
+#
+# (tail): zero padding to page boundary
