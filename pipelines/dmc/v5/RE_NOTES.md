@@ -143,18 +143,54 @@ relative to the notes/gates. They are carried as ORDERED PREFIX FLAGS
 verbatim. (First attempt stamped instr per-row + re-emitted on change ->
 moved a snd from before a gate to after it -> flipped one $D404 gate bit.)
 
-RESIDUE (family-wide, not Katusha): other sector commands
-(vol/slide/glide/frq/flt/fade/gate_toggle/adr/srr) raise `unsupported:`
-in to_usf; FILTER sweep (voice-3) has no schema yet (Katusha uses none —
-filter table is a single null entry); pulse programs that genuinely
-advance segments / loop are untested (Katusha's counts are near-infinite
-$90xx); sectors are decoded in isolation (Katusha self-establishes
-dur/snd per sector — path-resolution like V4 is needed if a member
-inherits sticky state across sectors).
+The full sector command set is now handled (dur/snd/vol/frq/fade/adr/srr/
+flt/gate_toggle as ordered prefix flags; gate_tie $F4; glide $FB = note +
+glide; slide $FA = tie + glide). Sectors are still decoded in isolation
+(family members self-establish dur/snd per sector — path-resolution like
+V4 is residue if a member inherits sticky state across sectors).
 
-## THEN — factory + wide batch (unchanged plan below)
+## ✅✅ FACTORY + PARAMETERIZED PULSE/FILTER (2026-06-14)
 
-## THEN — factory + wide batch
+`dmc_v5_config(sid)` factory (`pipelines/dmc/v5/factory.py`): 2-entry
+jump-table detect (init+$40 / play+$A1; family-4 play+$95 REJECTED),
+relocation-aware masked identity-compare vs the Katusha reference. Operand
+classification (verified by tracing): code+state ([$1006,$170F) ∪
+[$17CF,$1878)) RELOCATE; freq+data tables ([$170F,$17CF) ∪ [$1878,$19D0))
+MASKED (packer-patched); SID/CIA (≥$19D0) absolute. Typed
+`DMCV5Unsupported` (player_code_mismatch / no_jumptable / family4_branch /
+cia_multispeed). Batch runner: `tools/dmc_v5_family_batch.py`.
+
+PULSE/FILTER REPRESENTATION — **parameterized, NOT a shared table.** The
+engine's pulse/filter tables are SHARED, FUSED resources (the packer
+overlaps per-instrument programs to save bytes; ~30% have no $90, programs
+bleed). Carrying them whole (content-by-reference flat table) is correct
+but ML-worst (raw-byte program = Pole B + opaque index = Pole A). The
+chosen form (user: "most principled / ML-optimal"): per-instrument
+`pulse_env` / `filter_env` = `start + [(rate, frames)] phases + repeat` —
+the PWM/cutoff envelope, the SAME musical family as Hubbard/DMC-V4 PWM
+(cross-engine, §9 test 4). The packer's fusion is dissolved by
+CAPTURE-BY-SIMULATION: `_capture_env` walks each instrument's reachable
+phases (FOLLOWS $90 jumps — a loop target may be a count slot the engine
+re-reads as a step — and detects a true cycle only on revisiting a
+captured position; bounded by _REACH_FRAMES so bleeding past the horizon
+is dropped). `from_usf` SYNTHESIZES a de-fused table (each instrument its
+own copy + a $90 terminal); keep-running (pulse_ptr 0 -> pwm.keep_running)
+continuations stay faithful because each continues whatever (faithfully
+synthesized) program the prior restart-instrument was running. Validated:
+all 5 sample-FULL members stay FULL through the parameterization (two
+capture bugs fixed: $90 at the last table slot was skipped; $90 to a
+count slot must be FOLLOWED+unrolled, not read as a phase index).
+
+WIDE-BATCH COVERAGE — gated by COMPOSER/EXTRACT, not the representation.
+80-member sample: 5 FULL (6%), 45 partial, 29 unsupported. The partials
+reproduce in the DIRECT model path (no USF) — `composer_v5.py` was only
+proven on Katusha. Bug distribution (the rounds, in lever order): $D416/
+$D415 filter cutoff (22), end-of-init state-only Check-A (16), freq/PW (7);
+plus expected residue (player_code_mismatch sub-builds, no_jumptable
+relocated-in-file/CIA, ~36%). NEXT: composer rounds — FILTER FIRST (the
+#1 lever), then state-only, then freq — like V4's coverage climb.
+
+## (historical) factory + wide-batch plan
 `dmc_v5_config` factory (jump-table detect init+$40/play+$A1, the
 operand sites above, carved reference) + reuse tools/dmc_family_batch.py
 over family-3/5 (1495). Then the family-4 branch (686, play +$95).

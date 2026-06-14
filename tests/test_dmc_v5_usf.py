@@ -20,26 +20,23 @@ sys.path.insert(0, os.path.join(ROOT, 'tools'))
 sys.path.insert(0, os.path.join(ROOT, 'tools', 'py65_lib'))
 
 
-def test_pulse_sweep_schema_roundtrip():
+def test_sweep_env_schema_roundtrip():
     from src.usf.types import (UsfFile, PsidMeta, Params, InitState,
-                               Instrument, PulseSweepConfig, PwmConfig)
+                               Instrument, SweepEnvelope, PwmConfig)
     from src.usf import writer, parser
     insts = [
         Instrument(id=0, adsr=(0x89, 0x9F),
-                   pulse_sweep=PulseSweepConfig(start=0x0514,
-                                                segments=[(0, 0x9001)])),
+                   pulse_env=SweepEnvelope(start=0x0514, phases=[(0, 0x9001)]),
+                   filter_env=SweepEnvelope(start=0xBD12,
+                                            phases=[(-252, 0x37)], loop=0)),
         Instrument(id=1, adsr=(8, 5), pwm=PwmConfig(keep_running=True)),
-        Instrument(id=2, adsr=(0x1F, 0x1F),
-                   pulse_sweep=PulseSweepConfig(start=0xFFFF,
-                                                segments=[(-252, 0x9005)],
-                                                loop=3)),
     ]
     u = UsfFile(psid=PsidMeta(title='T'), params=Params(), init=InitState(),
                 instruments=insts)
     u2 = parser.parse(writer.write(u))
-    assert u2.instruments[0].pulse_sweep == insts[0].pulse_sweep
-    assert u2.instruments[2].pulse_sweep == insts[2].pulse_sweep
-    assert u2.instruments[1].pulse_sweep is None
+    assert u2.instruments[0].pulse_env == insts[0].pulse_env
+    assert u2.instruments[0].filter_env == insts[0].filter_env
+    assert u2.instruments[1].pulse_env is None
     assert u2.instruments[1].pwm.keep_running
 
 
@@ -77,8 +74,8 @@ def test_katusha_full_through_usf():
 
 
 if __name__ == '__main__':
-    test_pulse_sweep_schema_roundtrip()
-    print('OK pulse_sweep schema round-trip')
+    test_sweep_env_schema_roundtrip()
+    print('OK pulse/filter sweep-envelope schema round-trip')
     test_set_instr_flag_roundtrip()
     print('OK set_instr/set_dur flag round-trip')
     test_katusha_full_through_usf()

@@ -396,26 +396,20 @@ class PulseProgConfig:
 
 
 @dataclass
-class PulseSweepConfig:
-    """DMC V5 per-instrument pulse-width sweep program — an inline PW
-    envelope that decodes away the engine's shared pulse-table pointer
-    (USF representation principle §7: no `*Ptr` into an engine library).
-
-    Musical content: a parametric pulse-width contour. `start` is the
-    initial 16-bit pulse width written at note-on. Each segment adds
-    `add` (signed 16-bit) to the PW every frame for `frames` frames,
-    then advances to the next segment; `loop` (a relative table-entry
-    offset, or None) repeats from there. A near-`frames` value (the
-    engine's $90xx count) means "hold this segment for the whole note."
-
-    Instruments WITHOUT a pulse_sweep keep the running PW oscillator
-    going across the note (the engine's no-restart flag) — that legato
-    behaviour is `PwmConfig.keep_running`, and the position-persistence
-    it relies on is engine mechanism, not stored content.
-    """
+class SweepEnvelope:
+    """DMC V5 per-instrument sweep contour (pulse-width OR filter cutoff) —
+    the parameterized form that dissolves the engine's shared, fused sweep
+    table (the editor's packer overlaps programs to save bytes; that
+    fusion is mechanism, not content). `start` is the initial value; each
+    `phases[i] = (rate, frames)` adds the signed `rate` to the value every
+    frame for `frames` frames, then advances; `loop` (a phase index, or
+    None) repeats from there. The reachable phases are captured per
+    instrument (bleeding deconstructed away), so this is its musical PW /
+    cutoff envelope — the same family as Hubbard / DMC-V4 PWM (init + ramp;
+    a future unification target)."""
     start: int = 0
-    segments: list = field(default_factory=list)   # list[(add:int, frames:int)]
-    loop: Optional[int] = None                       # relative entry offset
+    phases: list = field(default_factory=list)   # list[(rate:int, frames:int)]
+    loop: Optional[int] = None                    # phase index, or None
 
 
 @dataclass
@@ -560,10 +554,12 @@ class Instrument:
     # vibrato.amplitude/speed/direction carry the fx1 byte.
     pulse_prog: PulseProgConfig = field(default_factory=PulseProgConfig)
     filter_prog: FilterProgConfig = field(default_factory=FilterProgConfig)
-    # DMC V5 — per-instrument inline pulse-width sweep program (decodes
-    # away the shared pulse-table pointer). None = no restart (the PW
-    # oscillator keeps running; see PwmConfig.keep_running).
-    pulse_sweep: Optional['PulseSweepConfig'] = None
+    # DMC V5 — per-instrument pulse-width / filter-cutoff sweep envelopes
+    # (parameterized; dissolve the engine's shared/fused sweep tables).
+    # None = no sweep (for pulse, the oscillator keeps running across the
+    # note — see PwmConfig.keep_running).
+    pulse_env: Optional['SweepEnvelope'] = None
+    filter_env: Optional['SweepEnvelope'] = None
     # Effect flags from fx3 bits — names match the engine routines
     # they enable (see usf_schema_v1.md bit table). Empty set = no
     # effects active.

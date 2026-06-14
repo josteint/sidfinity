@@ -272,15 +272,19 @@ instrument 1 lead {
     base 0), `period=` (cycle length).
   - `vibrato`: `scale=` (depth).
   - `envelope`: hard-restart timing fields.
-  - `pulse_sweep`: an inline pulse-width sweep program (DMC V5) that
-    decodes away the engine's shared pulse-table pointer:
-    `pulse_sweep: start=$0514 seg (0, $9001) [seg (...)]* [loop=N]`.
-    `start` is the initial 16-bit pulse width; each `seg (add, frames)`
-    adds the signed 16-bit `add` to the PW every frame for `frames`
-    frames before advancing; `loop` (a relative segment-entry offset)
-    repeats from there (omitted = the last segment holds for the note).
-    An instrument WITHOUT `pulse_sweep` keeps the running PW oscillator
-    going across the note (`pwm: ... keep_running=true`).
+  - `pulse_env` / `filter_env`: per-instrument pulse-width / filter-cutoff
+    sweep envelopes (DMC V5) — the parameterized form that dissolves the
+    engine's shared, fused sweep tables (the editor's packer overlaps
+    programs to save bytes; that fusion is mechanism, not content).
+    `pulse_env: start=$0514 [repeat=N] seg (rate, frames) [seg (...)]*`.
+    `start` is the initial 16-bit value; each `seg (rate, frames)` adds
+    the signed `rate` to it every frame for `frames` frames before
+    advancing; `repeat=N` loops from phase index N (omitted = the last
+    phase holds). The reachable phases are captured per instrument
+    (bleeding deconstructed away); `from_usf` synthesises a de-fused
+    table the engine walks. Same musical family as Hubbard / DMC-V4 PWM
+    (init + ramp). An instrument WITHOUT `pulse_env` keeps the running PW
+    oscillator going across the note (`pwm: ... keep_running=true`).
 
 Field set is engine-determined. Fields not relevant to an engine
 omit cleanly.

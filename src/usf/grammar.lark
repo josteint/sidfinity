@@ -200,9 +200,11 @@ instrument_field: "waveform" ":" byte_list                              -> inst_
                 // pipelines/future_composer/docs/usf_schema_v1.md.
                 | "pulse_prog" ":" pulse_prog_args                      -> inst_pulse_prog
                 | "filter_prog" ":" filter_prog_args                    -> inst_filter_prog
-                // DMC V5 — inline pulse-width sweep program (start PW +
-                // per-frame (add, frames) segments + optional loop).
-                | "pulse_sweep" ":" pulse_sweep_args                    -> inst_pulse_sweep
+                // DMC V5 — per-instrument pulse-width / filter-cutoff sweep
+                // envelope: start value, optional `repeat` (loop phase),
+                // then `seg (rate, frames)` phases.
+                | "pulse_env" ":" swenv_args                              -> inst_pulse_env
+                | "filter_env" ":" swenv_args                             -> inst_filter_env
                 | "effects" ":" effects_args                            -> inst_effects
 
 pwm_args: pwm_kv+
@@ -260,14 +262,13 @@ pulse_prog_kv: "program" "=" INT        -> pp_program
 // (1-15; 0 = disabled). `strange` enables the bidirectional cutoff
 // sweep. `double_voice` is the lo-freq detune trick. `aux_bits` carries
 // the high-nibble bits of fil_count whose musical meaning isn't yet
-// fully RE'd (v2 deferral).
-// DMC V5 — per-instrument inline pulse-width sweep program. `start` is
-// the initial 16-bit PW; each `seg (add, frames)` adds `add` (signed) to
-// the PW every frame for `frames` frames; `loop` repeats from a relative
-// table-entry offset (omitted = the last segment holds for the note).
-pulse_sweep_args: "start" "=" number ps_seg+ ps_loop?
-ps_seg: "seg" "(" signed_int "," number ")"
-ps_loop: "loop" "=" INT
+// fully RE'd (v2 deferral). For DMC V5, `program` is the entry index into
+// the tune's shared `pulse_table` / `filter_table`.
+// DMC V5 sweep envelope: `start` value, optional `repeat` (loop-back phase
+// index — placed before the phases to keep the rule LALR(1)-unambiguous;
+// `repeat` is an established keyword), then `seg (rate, frames)` phases.
+swenv_args: "start" "=" number ("repeat" "=" INT)? swenv_seg*
+swenv_seg: "seg" "(" signed_int "," number ")"
 
 filter_prog_args: filter_prog_kv+
 filter_prog_kv: "program" "=" INT       -> fp_program
@@ -376,6 +377,17 @@ fx_flag: "tie"                  -> fx_tie
        // stream (its byte position is read by the engine's gate-off
        // lookahead, so it stays an ordered row marker, not a per-note tag).
        | "set_instr" "=" INT    -> fx_set_instr
+       // DMC V5 positioned sector commands (ordered prefix markers on the
+       // following note/gate row): filter freq-hi override ($F8), master
+       // fade in/out ($F7/$F6), live AD/SR register writes ($F2/$F1).
+       | "frq" "=" number       -> fx_frq
+       | "fade_in" "=" number   -> fx_fade_in
+       | "fade_out" "=" number  -> fx_fade_out
+       | "adr" "=" number       -> fx_adr
+       | "srr" "=" number       -> fx_srr
+       // DMC V5 gate-mask-toggle tie ($F4): hold current note one more
+       // duration AND flip the gate bit (vs `tie` = plain hold $FE).
+       | "gate_tie"             -> fx_gate_tie
        | "fx" ":" CNAME         -> fx_named
        // FC family musical attributes (new in v0). Glide = portamento
        // with an N-frame onset delay; wave_adjust = per-note wave-table

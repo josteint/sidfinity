@@ -376,14 +376,16 @@ def _write_instrument(i: Instrument) -> list[str]:
         if pp.increment:
             pp_parts.append(f'increment={pp.increment}')
         lines.append('  pulse_prog: ' + ' '.join(pp_parts))
-    if i.pulse_sweep is not None:
-        ps = i.pulse_sweep
-        parts = [f'start={_hex(ps.start, 4)}']
-        for add, frames in ps.segments:
-            parts.append(f'seg ({add}, {_hex(frames, 4)})')
-        if ps.loop is not None:
-            parts.append(f'loop={ps.loop}')
-        lines.append('  pulse_sweep: ' + ' '.join(parts))
+    for label, env in (('pulse_env', i.pulse_env),
+                       ('filter_env', i.filter_env)):
+        if env is None:
+            continue
+        parts = [f'start={_hex(env.start, 4)}']
+        if env.loop is not None:
+            parts.append(f'repeat={env.loop}')
+        for rate, frames in env.phases:
+            parts.append(f'seg ({rate}, {_hex(frames, 4)})')
+        lines.append(f'  {label}: ' + ' '.join(parts))
     fp = i.filter_prog
     if (fp.program or fp.strange or fp.double_voice or fp.aux_bits
             or fp.keep_running):

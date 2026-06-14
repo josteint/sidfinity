@@ -16,7 +16,7 @@ from src.usf.types import (
     InitSid, InitSidVoice, InitFilter,
     Instrument, PwmConfig, ArpConfig, VibratoConfig, EnvelopeConfig,
     FreqSlideConfig, IncBy2Config, SongEndConfig, InitBehaviorConfig,
-    MasterVolConfig, SfxConfig, PulseSweepConfig,
+    MasterVolConfig, SfxConfig, SweepEnvelope,
     MusicSubtune, DigiSubtune, SfxSubtune,
     VoiceBlock, Orderlist, Pattern, NoteRow, Pitch, InstrumentRef,
 )
@@ -416,22 +416,23 @@ class _T(Transformer):
     def inst_filter_prog(self, items):
         return ('filter_prog', items[0])
 
-    def ps_seg(self, items):
+    def swenv_seg(self, items):
         return ('seg', (int(items[0]), int(items[1])))
 
-    def ps_loop(self, items):
-        return ('loop', int(items[0]))
-
-    def pulse_sweep_args(self, items):
+    def swenv_args(self, items):
         start = int(items[0])
         segs = [it[1] for it in items[1:]
                 if isinstance(it, tuple) and it[0] == 'seg']
-        loop = next((it[1] for it in items[1:]
-                     if isinstance(it, tuple) and it[0] == 'loop'), None)
-        return PulseSweepConfig(start=start, segments=segs, loop=loop)
+        tail = [it for it in items[1:]
+                if not (isinstance(it, tuple) and it[0] == 'seg')]
+        loop = int(tail[0]) if tail else None
+        return SweepEnvelope(start=start, phases=segs, loop=loop)
 
-    def inst_pulse_sweep(self, items):
-        return ('pulse_sweep', items[0])
+    def inst_pulse_env(self, items):
+        return ('pulse_env', items[0])
+
+    def inst_filter_env(self, items):
+        return ('filter_env', items[0])
 
     def efx_tone_arp(self, _):       return 'tone_arp'
     def efx_pulse_arp(self, _):      return 'pulse_arp'
@@ -757,6 +758,24 @@ class _T(Transformer):
 
     def fx_set_instr(self, items):
         return f'set_instr={int(items[0])}'
+
+    def fx_frq(self, items):
+        return f'frq=${int(items[0]):02X}'
+
+    def fx_fade_in(self, items):
+        return f'fade_in=${int(items[0]):02X}'
+
+    def fx_fade_out(self, items):
+        return f'fade_out=${int(items[0]):02X}'
+
+    def fx_adr(self, items):
+        return f'adr=${int(items[0]):02X}'
+
+    def fx_srr(self, items):
+        return f'srr=${int(items[0]):02X}'
+
+    def fx_gate_tie(self, _):
+        return 'gate_tie'
 
     def fx_named(self, items):
         return f'fx:{items[0]}'

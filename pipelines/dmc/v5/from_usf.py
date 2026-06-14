@@ -24,19 +24,53 @@ def _note_num(p: Pitch) -> int:
     return p.octave * 12 + _NOTE_IDX[p.name]
 
 
+def _pitch_str_num(s: str) -> int:
+    """'C-4' / 'C#4' (a glide_to flag value) -> raw note index."""
+    name = s[0] + ('#' if s[1] == '#' else '')
+    return int(s[2:]) * 12 + _NOTE_IDX[name]
+
+
+def _flag_val(fl: str) -> int:
+    v = fl.split('=', 1)[1]
+    return int(v.lstrip('$'), 16) if v.startswith('$') else int(v)
+
+
 # --- sector rows -> raw bytes (event order preserved verbatim) ----------
-# Leading dur/snd commands are ordered prefix flags ($FD/$FC), emitted
-# before the row's main byte (a note pitch, or $FE for a `tie` gate).
+# Parameter commands are ORDERED prefix flags emitted before the row's
+# main byte. Main byte: a note pitch; $FE (`tie`); $F4 (`gate_tie`); or
+# $FB/$FA (glide on a note / slide on a hold). The verbatim ordering is
+# load-bearing -- the engine's gate-off lookahead reads the raw next byte.
+_PREFIX_BYTE = {
+    'set_dur': 0xFD, 'set_instr': 0xFC, 'vol': 0xF3, 'frq': 0xF8,
+    'fade_in': 0xF7, 'fade_out': 0xF6, 'adr': 0xF2, 'srr': 0xF1,
+    'filter': 0xF9,
+}
+
+
 def _encode_sector(rows) -> bytes:
     out = bytearray()
     for row in rows:
+        glide = glide_to = None
         for fl in row.fx_flags:
-            if fl.startswith('set_dur='):
-                out += bytes([0xFD, int(fl.split('=')[1].lstrip('$'), 16) & 0xFF])
-            elif fl.startswith('set_instr='):
-                out += bytes([0xFC, int(fl.split('=')[1]) & 0xFF])
-        if 'tie' in row.fx_flags:
-            out.append(0xFE)                         # gate (hold current note)
+            key = fl.split('=', 1)[0]
+            if key in _PREFIX_BYTE:
+                out += bytes([_PREFIX_BYTE[key], _flag_val(fl) & 0xFF])
+            elif fl == 'gate_toggle':
+                out.append(0xF5)
+            elif key == 'glide':
+                glide = _flag_val(fl)
+            elif key == 'glide_to':
+                glide_to = _pitch_str_num(fl.split('=', 1)[1])
+        if glide is not None:                # $FB note+glide / $FA hold+slide
+            if row.pitch.is_rest:
+                out += bytes([0xFA, glide & 0xFF, glide_to & 0xFF])
+            else:
+                out += bytes([0xFB, glide & 0xFF,
+                              _note_num(row.pitch) & 0xFF, glide_to & 0xFF])
+        elif 'gate_tie' in row.fx_flags:
+            out.append(0xF4)
+        elif 'tie' in row.fx_flags:
+            out.append(0xFE)
         else:
             out.append(_note_num(row.pitch) & 0xFF)
     out.append(0xFF)
@@ -100,33 +134,43 @@ def usf_to_model(usf: UsfFile) -> V5Model:
     if ip and ip['ctrl']:
         add_wave(ip['ctrl'], ip['freq'], ip.get('loop', 0))
 
-    # ---- re-pack the shared pulse table (null entry 0, then each
-    #      restarting instrument's sweep) ------------------------------
+    # ---- synthesize the de-fused pulse/filter tables from the per-
+    #      instrument envelopes (null entry 0, then each envelope's program;
+    #      a $90 terminal so the program holds its loop/last phase and
+    #      doesn't bleed into the next). The engine walks each instrument's
+    #      own copy, so keep-running continuations stay faithful. ----------
     pulse = [(0, 0)]
+    filt = [(0, 0)]
 
-    def add_pulse(ps):
-        s = len(pulse)
-        pulse.append(((ps.start >> 8) & 0xFF, ps.start & 0xFF))
-        for add, frames in ps.segments:
-            a = add & 0xFFFF
-            pulse.append(((a >> 8) & 0xFF, a & 0xFF))            # step
-            pulse.append(((frames >> 8) & 0xFF, frames & 0xFF))  # count
-        if ps.loop is not None:
-            pulse.append((0x90, (s + ps.loop) & 0xFF))
+    def add_env(table, env):
+        s = len(table)
+        table.append(((env.start >> 8) & 0xFF, env.start & 0xFF))   # init pair
+        for rate, frames in env.phases:
+            a = rate & 0xFFFF
+            table.append(((a >> 8) & 0xFF, a & 0xFF))               # step
+            table.append(((frames >> 8) & 0xFF, frames & 0xFF))     # count
+        lp = env.loop if env.loop is not None else max(0, len(env.phases) - 1)
+        tgt = s + 1 + 2 * lp if env.phases else s
+        table.append((0x90, tgt & 0xFF))
         return s
 
     for inst in usf.instruments:
         wptr = add_wave(inst.waveform, inst.wave_freq, inst.loop)
-        pptr = add_pulse(inst.pulse_sweep) if inst.pulse_sweep else 0
+        pptr = add_env(pulse, inst.pulse_env) if inst.pulse_env else 0
+        fptr = add_env(filt, inst.filter_env) if inst.filter_env else 0
         v = inst.vibrato
         m.instruments.append(V5Instrument(
             id=inst.id, ad=inst.adsr[0], sr=inst.adsr[1],
-            wave_ptr=wptr, pulse_ptr=pptr, filter_ptr=0,
+            wave_ptr=wptr, pulse_ptr=pptr, filter_ptr=fptr,
             vib_delay=v.onset, vib_speed=v.speed, vib_width=v.amplitude))
 
     m.wave = wave
     m.pulse = pulse
-    m.filter = [(0, 0)]                              # Katusha uses no filter
+    m.filter = filt
+    # pulsepos / filterpos / wavepos are byte-indexed in the engine
+    for nm, tbl in (('wave', wave), ('pulse', pulse), ('filter', filt)):
+        if len(tbl) > 256:
+            raise RuntimeError(f'unsupported:{nm}_table_overflow {len(tbl)}')
 
     # ---- sectors: content-dedup the per-voice patterns into one global
     #      pool; remap orderlist entries to it -------------------------

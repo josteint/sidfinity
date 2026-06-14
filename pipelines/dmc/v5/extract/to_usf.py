@@ -38,9 +38,16 @@ import os
 
 from src.usf.types import (
     UsfFile, PsidMeta, Params, InitState, InitSid, InitFilter,
-    Instrument, PwmConfig, VibratoConfig, PulseSweepConfig,
+    Instrument, PwmConfig, VibratoConfig, SweepEnvelope,
     MusicSubtune, VoiceBlock, Orderlist, Pattern, NoteRow, Pitch,
 )
+
+# A sweep program advances by `count` frames per segment; bound the
+# reachable-phase capture so the engine's table-fusion (programs bleeding
+# into one another) is dissolved — beyond this many frames no realistic
+# note (or keep-running continuation over a song) reaches.
+_REACH_FRAMES = 30000     # ~600s at 50Hz — longer than any real song
+_PHASE_CAP = 48
 from src.usf.writer import write_file
 from pipelines.dmc.v5.config import DMCV5Config
 from pipelines.dmc.v5.extract.engine_model import extract, V5Model
@@ -80,57 +87,72 @@ def _slice_wave(wave: list, start: int):
     raise RuntimeError(f'unsupported:wave_slice no $90 @{start}')
 
 
-# --- pulse program: init pair + (step, count) segment pairs + $90 loop --
-def _decode_pulse(pulse: list, ptr: int) -> PulseSweepConfig:
-    """Decode the pulse-table slice at `ptr` into a PulseSweepConfig.
-
-    Entry layout (V5): pulse[P] = init PW (stored lo=PW-hi, hi=PW-lo);
-    then alternating step/count entries. A step entry contributes a
-    signed 16-bit per-frame `add` (lo<<8|hi); the following count entry
-    is the 16-bit frame count (lo<<8|hi). A $90 in a step position is a
-    loop marker (jump to the parallel hi byte, absolute index). A $90 in
-    a count position is the engine's near-infinite count -> the segment
-    holds for the whole note (the program's last segment).
-    """
-    start = (pulse[ptr][0] << 8) | pulse[ptr][1]    # PW-hi<<8 | PW-lo
-    segs = []
+# --- sweep envelope capture (pulse OR filter) ----------------------------
+# Walk the engine's (step, count) phase stream from `ptr`, capturing the
+# REACHABLE phases (the table is a shared/fused resource; the bleeding past
+# the reachable horizon is the packer's space-saving mechanism — Rule 1).
+def _capture_env(table: list, ptr: int) -> SweepEnvelope:
+    start = (table[ptr][0] << 8) | table[ptr][1]
+    phases = []
     loop = None
     pos = ptr + 1
-    guard = 0
-    while pos < len(pulse):
-        guard += 1
-        if guard > 256:
-            raise RuntimeError(f'unsupported:pulse runaway @{ptr}')
-        lo, hi = pulse[pos]
-        if lo == 0x90:                       # loop marker at a step slot
-            loop = hi - ptr
+    cum = 0
+    pos_phase = {}                # table position a phase started at -> index
+    while pos < len(table):
+        if len(phases) >= _PHASE_CAP:
+            raise RuntimeError(f'unsupported:sweep_too_long @{ptr}')
+        lo, hi = table[pos]
+        if lo == 0x90:            # jump to the target byte position
+            tgt = hi
+            if tgt in pos_phase:  # revisiting a captured phase = a real cycle
+                loop = pos_phase[tgt]
+                break
+            pos = tgt              # otherwise FOLLOW it (the target may be a
+            continue               # count slot the engine re-reads as a step)
+        if pos + 1 >= len(table):  # step without its count
             break
-        add = (lo << 8) | hi
-        if add >= 0x8000:
-            add -= 0x10000
-        if pos + 1 >= len(pulse):
-            raise RuntimeError(f'unsupported:pulse truncated @{ptr}')
-        clo, chi = pulse[pos + 1]
+        pos_phase[pos] = len(phases)
+        rate = (lo << 8) | hi
+        if rate >= 0x8000:
+            rate -= 0x10000
+        clo, chi = table[pos + 1]
         frames = (clo << 8) | chi
-        segs.append((add, frames))
-        if clo == 0x90:                      # near-infinite count: last seg
-            break
+        phases.append((rate, frames))
+        cum += frames
         pos += 2
-    else:
-        raise RuntimeError(f'unsupported:pulse no terminator @{ptr}')
-    return PulseSweepConfig(start=start, segments=segs, loop=loop)
+        if frames >= 0x9000 or cum > _REACH_FRAMES:   # terminal / reached
+            break
+    return SweepEnvelope(start=start, phases=phases, loop=loop)
 
 
 # --- sectors -> pattern rows ---------------------------------------------
-# Each note/gate becomes a row; the leading dur ($FD) / instrument-select
-# ($FC) commands attach to the FOLLOWING row as ORDERED prefix flags
-# (`set_dur` / `set_instr`). Their byte position is preserved verbatim
-# because the engine's gate-off lookahead reads the raw next byte -- so a
-# command may not be reshuffled relative to the notes/gates around it.
-# Katusha's vocabulary is dur/snd/note/gate/end; other sector commands
-# (vol/slide/glide/frq/flt/fade/gate_toggle/srr/adr) are family residue
-# and raise here so a member that uses them is flagged, not mis-encoded.
-_HANDLED = {'dur', 'snd', 'note', 'gate', 'end'}
+# Each note/gate becomes a row; the leading parameter commands ($FD dur,
+# $FC snd, $F3 vol, $F8 frq, $F7/$F6 fade, $F2/$F1 adr/srr, $F9 flt,
+# $F5 gate_toggle) attach to the FOLLOWING row as ORDERED prefix flags.
+# Their byte position is preserved verbatim because the engine's gate-off
+# lookahead reads the raw next byte -- a command may not be reshuffled
+# relative to the notes/gates around it. The note/gate main events:
+# note (<$80), gate ($FE)=tie, gate_tie ($F4), glide ($FB)=note+glide,
+# slide ($FA)=tie+glide.
+
+# event name -> (prefix flag formatter): single-arg positioned commands
+_PREFIX = {
+    'dur': lambda v: f'set_dur=${v:02X}',
+    'snd': lambda v: f'set_instr={v}',
+    'vol': lambda v: f'vol={v}',
+    'frq': lambda v: f'frq=${v:02X}',
+    'fade_in': lambda v: f'fade_in=${v:02X}',
+    'fade_out': lambda v: f'fade_out=${v:02X}',
+    'adr': lambda v: f'adr=${v:02X}',
+    'srr': lambda v: f'srr=${v:02X}',
+    'flt': lambda v: f'filter=${v:02X}',
+}
+
+
+def _note_byte(n: int) -> Pitch:
+    if n > 119:
+        raise RuntimeError(f'unsupported:note_out_of_range {n}')
+    return _pitch(n)
 
 
 def _sector_rows(events: list) -> list:
@@ -139,23 +161,42 @@ def _sector_rows(events: list) -> list:
     pending = []                         # leading commands, in order
     for e in events:
         cmd = e[0]
-        if cmd not in _HANDLED:
-            raise RuntimeError(f'unsupported:sector_cmd {cmd}')
-        if cmd == 'dur':
-            dur = e[1]
-            pending.append(f'set_dur=${dur:02X}')
-        elif cmd == 'snd':
-            pending.append(f'set_instr={e[1]}')
+        if cmd in _PREFIX:
+            if cmd == 'dur':
+                dur = e[1]
+            pending.append(_PREFIX[cmd](e[1]))
+        elif cmd == 'gate_toggle':       # $F5: flip gate flag (no duration)
+            pending.append('gate_toggle')
         elif cmd == 'note':
-            rows.append(NoteRow(pitch=_pitch(e[1]), duration=dur,
+            rows.append(NoteRow(pitch=_note_byte(e[1]), duration=dur,
                                 fx_flags=tuple(pending)))
             pending = []
         elif cmd == 'gate':              # $FE: hold current note, no retrigger
             rows.append(NoteRow(pitch=Pitch.rest(), duration=dur,
                                 fx_flags=tuple(pending) + ('tie',)))
             pending = []
+        elif cmd == 'gate_tie':          # $F4: hold + toggle gate-mask bit
+            rows.append(NoteRow(pitch=Pitch.rest(), duration=dur,
+                                fx_flags=tuple(pending) + ('gate_tie',)))
+            pending = []
+        elif cmd == 'glide':             # $FB spd cur tgt: note + glide
+            _, spd, cur, tgt = e
+            rows.append(NoteRow(
+                pitch=_note_byte(cur), duration=dur,
+                fx_flags=tuple(pending)
+                + (f'glide={spd}', f'glide_to={_note_byte(tgt)}')))
+            pending = []
+        elif cmd == 'slide':             # $FA spd tgt: hold + glide to target
+            _, spd, tgt = e
+            rows.append(NoteRow(
+                pitch=Pitch.rest(), duration=dur,
+                fx_flags=tuple(pending)
+                + (f'glide={spd}', f'glide_to={_note_byte(tgt)}')))
+            pending = []
         elif cmd == 'end':
             break
+        else:
+            raise RuntimeError(f'unsupported:sector_cmd {cmd}')
     if pending:                          # trailing commands before $FF
         raise RuntimeError(f'unsupported:trailing_sector_cmds {pending}')
     return rows
@@ -191,23 +232,23 @@ def _orderlist(events: list) -> Orderlist:
 
 
 def _instrument_to_usf(ins, model: V5Model):
-    """Map a V5Instrument to a USF Instrument (wave + pulse decoded
-    away). `model` supplies the shared wave/pulse tables."""
+    """Map a V5Instrument to a USF Instrument. The wave program is decoded
+    inline (self-looping, separable); pulse/filter are entry indices into
+    the tune's shared tables (carried whole by model_to_usf)."""
     wc, wf, wl = _slice_wave(model.wave, ins.wave_ptr)
-    pwm = PwmConfig()
-    pulse_sweep = None
-    if ins.pulse_ptr:
-        pulse_sweep = _decode_pulse(model.pulse, ins.pulse_ptr)
-    else:
-        pwm = PwmConfig(keep_running=True)
+    # pulse_ptr == 0 = no restart (the PW oscillator keeps running across
+    # the note); a real entry index restarts the sweep there.
     return Instrument(
         id=ins.id,
         waveform=list(wc),
         loop=wl,
         wave_freq=[b & 0xFF for b in wf],
         adsr=(ins.ad, ins.sr),
-        pwm=pwm,
-        pulse_sweep=pulse_sweep,
+        pwm=PwmConfig(keep_running=(ins.pulse_ptr == 0)),
+        pulse_env=(_capture_env(model.pulse, ins.pulse_ptr)
+                   if ins.pulse_ptr else None),
+        filter_env=(_capture_env(model.filter, ins.filter_ptr)
+                    if ins.filter_ptr else None),
         vibrato=VibratoConfig(onset=ins.vib_delay, speed=ins.vib_speed,
                               amplitude=ins.vib_width),
     )
