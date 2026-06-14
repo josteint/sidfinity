@@ -267,6 +267,35 @@ DUAL-CLOCK PHASE ($1019 leftover → params.slide_phase).
    composer rounds — FILTER FIRST, then state-only, then freq (V4-style
    coverage climb). Census: family-3 1461 + family-5 34 = 1495; family-4
    686 (play +$95, separate branch).
+   **✅ FILTER ROUND 1 (2026-06-14, commits 8bea641 + f598c2a + 0057347):**
+   The "$D416/$D415 cutoff (22)" bucket was TWO causes (the first-divergence
+   reg just NAMES the filter — it's the first play-frame write). CAUSE A
+   (the ~10-member lead-in cluster "orig $D416=$00 / new $D418=$0F at pos 0")
+   = THREE uncleared STARTUP LEFTOVERS in the $1006-$103F gap the init clear
+   loop ($17D5-$1845) misses: $1013 spdctr (speed COUNTER -> startup phase:
+   when !=0 the first non-skip play runs effects-on-leftover N frames before
+   the first fetch; Katusha's=$00 so the cleared composer matched it),
+   $100F,x current NOTE (lead-in wave_step freq lookup), $101C fade-frac
+   accumulator (first FD ramps master vol off-by-one; init clears the fade
+   SPEEDS not this phase). FIX: extract lo_spdctr/lo_notes/lo_mvolfrac; prime
+   in init; carry through USF via existing `speed_ctr_init` params + V4
+   `InitVoice.note` + new `fade_frac_init` params key — NO shared-schema
+   additions. X-Files + Believe newly FULL (80-sample 5->7); Katusha FULL;
+   USF round-trip faithful. CAUSE B (round 2, the BIGGER filter lever, still
+   gates Grid/Minoam/Conanious): FILTER ENVELOPE KEEP-RUNNING continuation.
+   Post-A the cutoff DRIFTS mid-song — FCLO ($D415) drifts (orig RAMPS,
+   rebuild HOLDS at Minoam FCLO index 764) while FCHI ($D416) NEVER differs.
+   Per-instrument _capture_env envelopes match in ISOLATION, but the
+   de-fused per-inst synthesis (each inst its own copy + $90 terminal) does
+   NOT reproduce the orig SHARED/FUSED-table running position when a note
+   with FL=0 (no filter restart; Minoam insts 3-6,8-13 are FL=0) keeps the
+   global filterpos running PAST one program into the next region. Also
+   _capture_env treats frames>=$9000 as terminal (inst-2 count $9008 =
+   entry-9 $90 marker read as a count). ROUND-2 OPTIONS (decide write-log-
+   first on Minoam FCLO idx 764): (a) faithful cross-program flow in the
+   de-fused synthesis, or (b) carry the filter table as a SHARED
+   content-by-reference table (the keep-running case IS the shared-resource
+   case). Full detail in pipelines/dmc/v5/RE_NOTES.md "FILTER ROUND 1".
 
 ## REGRESSION PORTFOLIO (2026-06-13): generalized + DMC wired
 `tools/select_regression_portfolio.py` made engine-parametric (registry:
