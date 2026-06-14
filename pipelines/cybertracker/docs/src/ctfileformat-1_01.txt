@@ -1,6 +1,7 @@
 CyberTracker V1.01 Music/Instrument file-format spec (by CyberBrain/NoName, 2001)
-Source: http://noname.c64.org/download.php/ctmisc/ctfileformat-1_01.html
-Retrieved via Wayback Machine capture 2025-10-01; HTML wrapper stripped.
+Source: https://web.archive.org/web/20251001020254/http://noname.c64.org:80/download.php/ctmisc/ctfileformat-1_01.html
+Original: http://noname.c64.org/download.php/ctmisc/ctfileformat-1_01.html
+Wayback capture 2025-10-01 (20251001020254); downloaded by user 2026-06-14; HTML wrapper stripped.
 ================================================================================
 
 Cyber-Tracker V1.01 Music/Instrument-fileformat (FIXED VERSION:13/11/2001)

@@ -41,7 +41,7 @@ public manual (saved under `src/`); the byte-level file layout is the open gap (
 | noname.c64.org/download.php/ct_v101_fileformat_fixed.zip | curl empty / unfetchable | binary ZIP; sandbox curl no egress; WebFetch can't unzip |
 | web.archive.org (ZIP + justsolve mirror) | blocked | WebFetch refuses web.archive.org in this env |
 | justsolve.archiveteam.org `CyberTracker_module` / `_instrument` | ECONNREFUSED | site down this session |
-| **noname.c64.org/download.php/ctmisc/ctfileformat-1_01.html** (Wayback 2025-10-01) | **OBTAINED (user-supplied)** | the author's byte-format spec → `cluster_byte_format.md` + `src/ctfileformat-1_01.txt`. **#1 gap CLOSED.** |
+| `web.archive.org/web/20251001020254/http://noname.c64.org:80/download.php/ctmisc/ctfileformat-1_01.html` | **OBTAINED** (user downloaded the Wayback capture 2026-06-14; capture dated 2025-10-01) | the author's byte-format spec → `cluster_byte_format.md` + `src/ctfileformat-1_01.txt`. **#1 gap CLOSED.** |
 
 ## Failures / blocked (retry later)
 - ~~byte-level `.ct`/`.ci` file-format spec~~ — **RESOLVED** (user fetched the Wayback HTML

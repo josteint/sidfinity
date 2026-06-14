@@ -1,6 +1,7 @@
 <!--
-source_url: http://noname.c64.org/download.php/ctmisc/ctfileformat-1_01.html
-fetched_via: wayback 2025-10-01 (capture), retrieved 2026-06-14 (user-supplied HTML)
+source_url: https://web.archive.org/web/20251001020254/http://noname.c64.org:80/download.php/ctmisc/ctfileformat-1_01.html
+original_url: http://noname.c64.org/download.php/ctmisc/ctfileformat-1_01.html
+fetched_via: wayback (capture 20251001020254 = 2025-10-01), downloaded by user 2026-06-14
 fetch_date: 2026-06-14
 author: Bjarke Nørgaard Laustsen ("CyberBrain" / No Name)
 content_date: 2001-11-13 (V1.01 fixed)
@@ -10,8 +11,10 @@ reliability: primary (author's own byte-level file-format spec)
 # CyberTracker — byte-level file format (V1.01, author's spec)
 
 This closes the #1 migration gap. CyberBrain's own `.ct`/`.ci` file-format spec was
-recovered (Wayback capture of `noname.c64.org/download.php/ctmisc/ctfileformat-1_01.html`)
-and saved verbatim at [`src/ctfileformat-1_01.txt`](src/ctfileformat-1_01.txt). Key fact
+recovered from the Wayback Machine capture
+`web.archive.org/web/20251001020254/http://noname.c64.org:80/download.php/ctmisc/ctfileformat-1_01.html`
+(captured 2025-10-01; downloaded by the user 2026-06-14) and saved verbatim at
+[`src/ctfileformat-1_01.txt`](src/ctfileformat-1_01.txt). Key fact
 from the author: **"there's absolutely no packing going on anywhere in the files"** — the
 on-disk tables are the raw runtime tables. The only V1.00→V1.01 change: V1.01 saves only
 the *used* pattern memory (not the whole pool).
