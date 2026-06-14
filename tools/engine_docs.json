@@ -60,9 +60,9 @@
     "updated": "2026-06-13"
   },
   "electrosound": {
-    "state": "LITTLE",
-    "notes": "single research.md first-pass overview; research-engine sweep not yet run.",
-    "updated": "2026-06-13"
+    "state": "OK",
+    "notes": "research-player sweep complete (2026-06-14). Electrosound 64 (Orpheus Ltd. / Steve Mellin, 1985, COMMERCIAL). 297 HVSC SIDs. NO public source AND NO published disassembly exist -> from-scratch RE target; byte-level format is migration-phase work. CAPTURED: (1) ONE relocatable player - play() IRQ = BASE+$0A65 (79% of corpus confirm play_addr&$FF==$65; minor builds +$0A75/$0A7A, <=3 builds), init = BASE+$0518, song data at BASE+$007C, IRQ patch sites +$007B/+$0084; fixed ZP state $02AB=tune# $02FF=speed $02AD=tempo(dynamic) $02F9=enable; CIA1-timer driven; NON-looping. Address variety = ripper packing conventions (4 init-stub styles), NOT engine variants - same binary. Dominant bases $4000 (Leitch) + $1000 (Dunn/Stormont). (2) Musical model from manual/Zzap: up to 10 instruments w/ full SID regs + 5 modulators (targets pitch/PW/cutoff/key-down/key-up; per-mod delay/speed/depth/direction[up/down/vibrato/shuffle]/restart); 20 sequences <=240 steps, 3 instruments locked to 3 voices, per-seq tempo, 24 fixed drum sounds on rest; up to 5 tracks MOD-style chaining. (3) TUNING A=423.9 Hz NOT 440 -> USF codec needs a custom note table. (4) Reputed slowest/worst player = full register writes every frame (dense deterministic stream). Electronic_Speech_Sys (5) is SEPARATE. Migration first step: disassemble a canonical $1000/$4000 SID for instrument/sequence/drum byte layout. Cleared to start disassembly. See pipelines/electrosound/docs/README.md.",
+    "updated": "2026-06-14"
   },
   "ems_odie": {
     "state": "LITTLE",
