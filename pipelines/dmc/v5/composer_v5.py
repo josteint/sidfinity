@@ -168,9 +168,7 @@ voice:
         lda speed
         cmp spdctr              ; tick frame?
         bne vo_eff
-        lda durctr,x
-        beq vo_eff
-        dec durctr,x
+        dec durctr,x            ; (orig decs on every tick when active)
         beq vo_fetch
 vo_eff:
         jmp run_effects
@@ -441,25 +439,29 @@ no_ad:
         sta $d400,y
         sta $d401,y
         inc secpos,x
-        jmp step_lookahead
+        jsr step_lookahead
+        rts                     ; note_on: no write this frame (note_init2 next)
 
-;; ----- step commit (gate-off step / glide tail) -----
+;; ----- step commit (gate-off step / slide / tied note) -----
 step_commit:
         lda durrel,x
         sta durctr,x
         inc secpos,x
+        jsr step_lookahead
+        jmp wave_step           ; falls into the steady write (matches orig)
+
 step_lookahead:
         ldy secpos,x
         lda ($f8),y
         sta lookahead,x
         cmp #$ff
-        bne sc_done
+        bne sl_done
         lda #$00
         sta secpos,x
         sta gateflag,x          ; clear gate flag at sector end (matches orig)
         sta volovr,x            ; ($17e7) cleared at sector end
         inc trkpos,x
-sc_done:
+sl_done:
         rts
 
 ;; ===================== run effects =====================
@@ -525,9 +527,9 @@ ni_pulse:
         beq ni_pdone
         ldy pulsepos,x
         beq ni_pdone
-        lda pulselo,y
+        lda pulsehi,y           ; orig: pwlo = pulsehi[y]
         sta pwlo,x
-        lda pulsehi,y
+        lda pulselo,y           ; orig: pwhi = pulselo[y]
         sta pwhi,x
         lda #$00
         sta pwctr_lo,x
@@ -557,9 +559,9 @@ ni_fdone:
         lda #$00
         sta accl,x
         sta acch,x
-        sta pw2flag,x
-        sta pwdir,x
-        sta pwstep,x
+        sta vibdbl,x
+        sta vibdir,x
+        sta vibctr,x
         sta vstep_lo,x
         sta vstep_hi,x
         ;; vib step = base-note freq << width
@@ -576,42 +578,240 @@ vs_loop:
         cpy vibwidth
         bne vs_loop
 vs_done:
-        jmp sid_write
+        jmp gate_logic
 
-;; ----- steady effects -----
+;; ----- steady effects: pulse / filter(v3) / glide / vibrato / fade / wave / gate / write
 eff_steady:
-        ;; pulse run
+;; pulse_run: advance PW accum; (add,count) pairs; $90 loop
         lda pulseflag
-        beq es_glide
-        ;; (simplified: advance accum by table; loop on $90)
+        beq filter_run
         ldy pulsepos,x
         lda pulselo,y
         cmp #$90
-        bne es_p_go
-        lda pulsehi_dummy
-es_p_go:
-es_glide:
-        ;; glide/slide
+        bne pr_go
+        lda pulsehi,y
+        sta pulsepos,x
+        tay
+        lda pulselo,y
+pr_go:
+        sta schi
+        lda pulsehi,y
+        sta sclo
+        iny
+        lda pwlo,x
+        clc
+        adc sclo
+        sta pwlo,x
+        lda pwhi,x
+        adc schi
+        sta pwhi,x
+        lda pwctr_lo,x
+        clc
+        adc #$01
+        sta pwctr_lo,x
+        lda pwctr_hi,x
+        adc #$00
+        sta pwctr_hi,x
+        cmp pulselo,y
+        bne filter_run
+        lda pwctr_lo,x
+        cmp pulsehi,y
+        bne filter_run
+        lda #$00
+        sta pwctr_lo,x
+        sta pwctr_hi,x
+        inc pulsepos,x
+        inc pulsepos,x
+filter_run:
+        cpx #$02
+        bne glide_slide
+        lda filtflag
+        beq glide_slide
+        ldy filterpos
+        lda filterlo,y
+        cmp #$90
+        bne fr_go
+        lda filterhi,y
+        sta filterpos
+        tay
+        lda filterlo,y
+fr_go:
+        sta schi
+        lda filterhi,y
+        sta sclo
+        iny
+        lda fclo
+        clc
+        adc sclo
+        sta fclo
+        lda fchi
+        adc schi
+        sta fchi
+        lda filtctr_lo
+        clc
+        adc #$01
+        sta filtctr_lo
+        lda filtctr_hi
+        adc #$00
+        sta filtctr_hi
+        cmp filterlo,y
+        bne glide_slide
+        lda filtctr_lo
+        cmp filterhi,y
+        bne glide_slide
+        lda #$00
+        sta filtctr_lo
+        sta filtctr_hi
+        inc filterpos
+        inc filterpos
+glide_slide:
         lda glspeed,x
-        beq es_vib
-es_vib:
-        ;; vibrato (after delay)
+        bne gs_active
+        jmp vibrato
+gs_active:
+        lda curnote,x
+        cmp gltarget,x
+        bcs gs_down
+        lda accl,x
+        clc
+        adc glspeed,x
+        sta accl,x
+        lda acch,x
+        adc #$00
+        sta acch,x
+        lda freqlov,x
+        clc
+        adc accl,x
+        sta glsc_lo
+        lda freqhiv,x
+        adc acch,x
+        sta glsc_hi
+        ldy gltarget,x
+        cmp freqhi,y
+        bne gs_skipvib
+        jmp gs_arrive
+gs_down:
+        lda accl,x
+        sec
+        sbc glspeed,x
+        sta accl,x
+        lda acch,x
+        sbc #$00
+        sta acch,x
+        lda freqlov,x
+        clc
+        adc accl,x
+        sta glsc_lo
+        lda freqhiv,x
+        adc acch,x
+        sta glsc_hi
+        ldy gltarget,x
+        cmp freqhi,y
+        bcc gs_arrive
+        bne gs_skipvib
+        lda glsc_lo
+        cmp freqlo,y
+        bcs gs_skipvib
+gs_arrive:
+        lda gltarget,x
+        sta curnote,x
+        tay
+        lda freqlo,y
+        sta freqlov,x
+        lda freqhi,y
+        sta freqhiv,x
+        lda #$00
+        sta accl,x
+        sta acch,x
+        sta glspeed,x
+        jmp vibrato
+gs_skipvib:
+        jmp fade
+vibrato:
+        lda gateflag,x
+        beq vib_go
+        lda #$00
+        sta accl,x
+        sta acch,x
+        jmp fade
+vib_go:
         lda vibspd,x
-        beq es_fade
-es_fade:
-        jmp do_fade
-
-do_fade:
+        bne vib_on
+        jmp fade
+vib_on:
+        lda vibdel,x
+        beq vib_run
+        dec vibdel,x
+        jmp fade
+vib_run:
+        lda vibdir,x
+        bne vib_dn
+        lda accl,x
+        clc
+        adc vstep_lo,x
+        sta accl,x
+        lda acch,x
+        adc vstep_hi,x
+        sta acch,x
+        inc vibctr,x
+        lda vibctr,x
+        cmp vibspd,x
+        bne fade
+        lda #$00
+        sta vibctr,x
+        inc vibdir,x
+        lda vibdbl,x
+        bne fade
+        asl vstep_lo,x
+        rol vstep_hi,x
+        inc vibdbl,x
+        jmp fade
+vib_dn:
+        lda accl,x
+        sec
+        sbc vstep_lo,x
+        sta accl,x
+        lda acch,x
+        sbc vstep_hi,x
+        sta acch,x
+        inc vibctr,x
+        lda vibctr,x
+        cmp vibspd,x
+        bne fade
+        lda #$00
+        sta vibctr,x
+        dec vibdir,x
+fade:
         lda fadeout
         beq fade_in
-        ;; (fade-out path omitted in MVP)
+        lda mvolfrac
+        sec
+        sbc fadeout
+        sta mvolfrac
+        lda mvol0
+        sbc #$00
+        sta mvol0
+        bne fade_in
+        lda #$00
+        sta fadeout
 fade_in:
+        lda fadein
+        beq write_vol
+        lda mvolfrac
+        clc
+        adc fadein
+        sta mvolfrac
+        lda mvol0
+        adc #$00
+        sta mvol0
+        cmp #$0f
+        bne write_vol
+        lda #$00
+        sta fadein
+write_vol:
         lda mvol0
         ora filtmode
         sta $d418
-        jmp wave_step
-
-;; ----- wave step (steady) -----
 wave_step:
         ldy wavepos,x
         lda wavectrl,y
@@ -642,7 +842,45 @@ ws_mel:
 ws_adv:
         inc wavepos,x
 
-;; ----- SID write (gate logic + per-voice writes) -----
+;; ----- gate logic: lookahead-based gate-off + hard restart -----
+gate_logic:
+        ldy sidoff,x
+        lda lookahead,x
+        cmp #$fe
+        beq sid_write
+        cmp #$f4
+        beq sid_write
+        cmp #$fa
+        beq sid_write
+        cmp #$f2
+        beq sid_write
+        cmp #$f1
+        beq sid_write
+        cmp #$f5
+        beq gl_f5
+        lda gateflag,x
+        bne sid_write
+gl_chk1:
+        lda durctr,x
+        cmp #$01
+        bne gl_chk2
+        lda #$00
+        sta $d406,y
+        jmp sid_write
+gl_f5:
+        lda gateflag,x
+        beq sid_write
+        jmp gl_chk1
+gl_chk2:
+        lda durctr,x
+        cmp #$02
+        bne sid_write
+        lda spdctr
+        bne sid_write
+        lda #$f6
+        sta gatemask,x
+
+;; ----- SID write (per-voice) -----
 sid_write:
         ldy sidoff,x
         lda freqlov,x
@@ -660,8 +898,6 @@ sid_write:
         and gatemask,x
         sta $d404,y
         rts
-
-pulsehi_dummy: .byt $00
 """
 
 
@@ -699,9 +935,9 @@ pwlo:     .dsb 3, 0
 pwhi:     .dsb 3, 0
 pwctr_lo: .dsb 3, 0
 pwctr_hi: .dsb 3, 0
-pw2flag:  .dsb 3, 0
-pwdir:    .dsb 3, 0
-pwstep:   .dsb 3, 0
+vibdbl:   .dsb 3, 0
+vibdir:   .dsb 3, 0
+vibctr:   .dsb 3, 0
 accl:     .dsb 3, 0
 acch:     .dsb 3, 0
 vstep_lo: .dsb 3, 0
@@ -715,6 +951,11 @@ fadein:   .dsb 1, 0
 fadeout:  .dsb 1, 0
 vibwidth: .dsb 1, 0
 mvol0:    .dsb 1, 0
+mvolfrac: .dsb 1, 0
+sclo:     .dsb 1, 0
+schi:     .dsb 1, 0
+glsc_lo:  .dsb 1, 0
+glsc_hi:  .dsb 1, 0
 filterpos: .dsb 1, 0
 filtctr_lo: .dsb 1, 0
 filtctr_hi: .dsb 1, 0
