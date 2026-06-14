@@ -168,17 +168,32 @@ DUAL-CLOCK PHASE ($1019 leftover → params.slide_phase).
    base+\$37, instr base from operand, d417=base+\$34) + carved
    reference. Tractable, focused sub-migration. Jump-table init offset
    \$37 is the family-2 detect signature.
-   **WRITE-LOG LOOP IN PROGRESS (commit 6231114, NOT yet FULL):** pushed
-   Kajun_Klog's first divergence sector-layer -> frame 2 -> frame 7.
-   Sector decoder parametric (_SECFMT, DONE). Cymbal timing DONE
-   (params.cymbal_onset: family 2 fires the burst on FRAME 2 not 1).
-   BLOCKER @ frame 7: family 2's VIBRATO is a different mechanism
-   (note-init stores freq_hi>>1 to \$178C, NOT the \$1792 vstep which
-   stays 0; longer delay than byte7-hi). vib_depth_curve USF field added
-   (96B, by-ref) + serialized. NEXT: RE family 2's \$178C vibrato +
-   delay -> composer model; iterate (more note-init-tail effect
-   differences likely); then factory variant + reference + wide batch.
-   All gated -> family 1 + others unaffected (179 ok).
+   **✅ KAJUN_KLOG FULL (commit d9a0cda, 2026-06-14):** write-log loop
+   complete — instruction-sequence exact at full songlength (verify_dmc
+   66674/66674, trichotomy state ok; writelog 100%). The prior "vibrato
+   blocker" was FOUR family-2 effect-chain diffs, ALL rooted in family 2
+   relocating its instr table over \$17B0-\$17FF (clobbering canon's
+   sub_17EC + sub_17FB ADSR helpers + re-laying the note-init tail/rest
+   dispatch). Each = a typed canon-defaulting param (full regression
+   green, no family regressed):
+   (1) `vib_ramp=step` — family 2 RAMPS the 16-bit vstep by freq_hi(note)>>1
+   each half-cycle (\$157F-8E) with fixed width; canon doubles WIDTH with
+   a fixed \$1888-table step. Increment DERIVED from the freq table ->
+   the prior vib_depth_curve USF field REMOVED (derivable; schema
+   hygiene). New vsteph/vdep regs; triangle add/sub now 16-bit.
+   (2) `hold_gateoff=mask_only` — holding gate-off = mask only, no AD/SR=0.
+   (3) `hard_restart=none` — hard restart = TEST bit only, no AD/SR=0F0F.
+   (4) `rest_effects=skip` — rest/switch/slide-tail JMP \$1591 (wavestep),
+   NOT the effect chain (canon JMP \$1322) -> vibrato+pulse HOLD one frame
+   at each tie boundary (the subtle periodic stall; found via flat
+   write-log + sector-dispatch disasm, NOT snapshots).
+   KAJUN config (validated, not yet checked in): op_tunetab=0x1051,
+   d417_shadow_addr=0x1034, sector_format='family2', else canon defaults.
+   **NEXT:** factory variant (detect init JMP base+\$37 -> set the 5
+   params + family2 sites) + carved family-2 reference + wide batch over
+   the 2889 members. (METHOD NOTE: per-frame siddump snapshots = Trap C;
+   stay on the flat write-log + --writelog-per-irq + event-aligned
+   --on-write for diagnosis — see [[feedback_verification_modes]].)
 7. V5 line (2181) needs full sector-format RE (separate engine).
 
 ## REGRESSION PORTFOLIO (2026-06-13): generalized + DMC wired
