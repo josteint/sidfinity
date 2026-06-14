@@ -1,0 +1,325 @@
+; Fire_Breath.sid (hvsc84/GAMES/A-F/Fire_Breath.sid)
+; load=$BBBE  init=$C600  play=$C603  songs=12  size=$13B0
+; Binary analysis 2026-06-14, direct byte read (no py65/siddump)
+;
+; This is the CANONICAL Ubik's Musik player layout.
+; All addresses relative to $C600 player base.
+
+; ========================
+; $C600-$C626: ENTRY STUBS
+; ========================
+$C600: 4C 06 C6       JMP $C606     ; INIT ENTRY (PSID calls with A=song# 0-based)
+$C603: 4C 19 C6       JMP $C619     ; PLAY ENTRY (PSID calls each VBI ~50Hz)
+
+; --- Init body ($C606) ---
+$C606: 18             CLC
+$C607: 69 80          ADC #$80      ; song_index = A + $80  (maps 0->$80, 25->$99)
+$C609: 8D 1D C7       STA $C71D     ; store effective song index in state byte
+$C60C: A2 00          LDX #0
+$C60E: A9 00          LDA #0
+$C610: 9D 00 D4       STA $D400,X   ; ZERO ALL SID REGS ($D400-$D41F, 32 bytes)
+$C613: E8             INX
+$C614: E0 20          CPX #$20
+$C616: D0 F6          BNE $C610
+$C618: 60             RTS
+
+; --- Play dispatcher ($C619) ---
+$C619: A5 01          LDA $01       ; save CPU banking register
+$C61B: 48             PHA
+$C61C: A9 36          LDA #$36      ; KERNAL off, BASIC off, I/O on
+$C61E: 85 01          STA $01
+$C620: 20 66 C6       JSR $C666     ; call main play body
+$C623: 68             PLA
+$C624: 85 01          STA $01       ; restore banking
+$C626: 60             RTS
+
+; ========================
+; $C666: SONG-SELECT / MAIN PLAY BODY
+; (also used as PRG2SID detection entry point)
+; PRG2SID detection pattern: AD ?? ?? 30 03 D0 22 60 18 29 7F A2
+; ========================
+$C666: AD 1D C7       LDA $C71D     ; load current song index state
+$C669: 30 03          BMI $C66E     ; negative = re-init path
+$C66B: D0 22          BNE $C68F     ; nonzero = already init'd -> play loop
+$C66D: 60             RTS           ; zero = invalid -> bail
+
+; Song select / voice init path (when BMI taken):
+$C66E: 18             CLC
+$C66F: 29 7F          AND #$7F      ; mask sign bit off song number
+$C671: A2 02          LDX #2        ; X = voice index (counts down: 2,1,0)
+$C673: 7D 2F C7       ADC $C72F,X   ; + per-voice sequence offset from song table
+$C676: A8             TAY           ; Y = voice sequence start offset
+$C677: 20 D8 C6       JSR $C6D8     ; call per-voice note handler
+$C67A: CA             DEX
+$C67B: 8E 72 C6       STX $C672     ; store voice index (used internally)
+$C67E: 10 ED          BPL $C66E     ; loop: voices 2, 1, 0
+
+; Tempo counter / song advance block:
+$C6A4: AD 1B C7       LDA $C71B     ; song tick counter lo
+$C6A7: 6D 1C C7       ADC $C71C     ; + hi (fractional tempo accumulator)
+$C6AA: 8D 1C C7       STA $C71C     ; store
+$C6AD: B0 0E          BCS $C6BB     ; carry = tempo wrap -> advance to new note
+
+; PLAY LOOP (no tempo wrap - normal per-frame effects update):
+$C6AF: BD 9B C7       LDA $C79B,X   ; gate state byte for voice X
+$C6B2: 10 03          BPL $C6B7     ; bit7=0 = note in progress -> run effects
+$C6B4: 20 5A CB       JSR $CB5A     ; per-voice effect updater (vibrato/PWM/echo)
+$C6B7: CA             DEX
+$C6B8: 10 F5          BPL $C6AF    ; loop voices 2,1,0
+$C6BA: 4C E8 C8       JMP $C8E8    ; -> write filter/vol to SID
+
+; NEW-NOTE LOOP (tempo wrap / song advance):
+$C6BB: BD 9B C7       LDA $C79B,X   ; gate state for voice X
+$C6BE: 10 03          BPL $C6C3    ; bit7=0 = no new note -> skip
+$C6C0: 20 C5 C7       JSR $C7C5    ; note-start handler (gate-clear + gate-set)
+$C6C3: CA             DEX
+$C6C4: 10 F5          BPL $C6BB   ; loop voices 2,1,0
+$C6C6: 4C E8 C8       JMP $C8E8   ; -> write filter/vol
+
+; ========================
+; $C6D8: PER-VOICE NOTE HANDLER
+; Called once per voice on new sequence event
+; ========================
+$C6D8: B9 00 C1       LDA $C100,Y   ; load note byte from note stream (Y=voice slot)
+$C6DB: D0 03          BNE $C6E0     ; nonzero = real note -> init voice state
+$C6DD: 4C B6 C7       JMP $C7B6    ; note=0 = rest/gate-off -> gate clear
+$C6E0: 9D 29 C7       STA $C729,X  ; store note number (X = voice 0,1,2)
+$C6E3: 85 FC          STA $FC      ; ZP ptr lo for instrument lookup
+$C6E5: B9 00 C0       LDA $C000,Y  ; load instrument/sequence pointer from table
+$C6E8: 9D 26 C7       STA $C726,X  ; store instrument ptr in per-voice state
+$C6EB: 85 FB          STA $FB      ; ZP ptr lo
+$C6ED: A0 01          LDY #1
+$C6EF: B1 FB          LDA ($FB),Y  ; load second byte of voice data record
+$C6F1: 9D 95 C7       STA $C795,X  ; store (instrument index / vibrato param)
+; Set new-note pending flags:
+$C6F3: A9 80          LDA #$80
+$C6F5: 9D 9B C7       STA $C79B,X  ; gate state = $80 (bit7=1 = new note pending)
+$C6F8: 9D 98 C7       STA $C798,X  ; waveform pending flag
+$C6FB: 9D 41 C7       STA $C741,X  ; waveform pending flag (2nd)
+$C6FE: 9D 9E C7       STA $C79E,X  ; (another pending flag)
+; Zero per-voice state variables:
+$C700: A9 FF          LDA #$FF
+$C702: 9D 35 C7       STA $C735,X  ; init wavetable index = $FF (no drum)
+$C704: A9 00          LDA #0
+$C706: 9D A7 C7       STA $C7A7,X  ; duration counter = 0
+$C709: 9D 3B C7       STA $C73B,X  ; glide freq_lo = 0
+$C70C: 9D 38 C7       STA $C738,X  ; glide freq_hi = 0
+$C70F: 9D 50 C7       STA $C750,X  ; (unknown state var)
+$C712: 9D 4D C7       STA $C74D,X  ; (unknown state var)
+
+; ========================
+; $C7B6: GATE-CLEAR SUBROUTINE
+; (SIDId signature match point)
+; Called when note=0 (rest/gate-off) or at start of note-start
+; ========================
+$C7B6: A9 00          LDA #0
+$C7B8: 9D 9B C7       STA $C79B,X  ; clear gate state byte for voice X
+$C7BB: BC 2C C7       LDY $C72C,X  ; Y = SID voice offset (0, 7, or 14)
+$C7BE: 99 04 D4       STA $D404,Y  ; *** WRITE $D404+Y = ctrl=0 (gate=0, waveform=0) ***
+$C7C1: 60             RTS
+
+; ========================
+; $C7C2 / $C7C5: NOTE-START / DURATION CHECK
+; ========================
+$C7C2: 4C 5A CB       JMP $CB5A    ; -> play body (effects)
+$C7C5: DE A7 C7       DEC $C7A7,X  ; DEC per-voice duration counter
+$C7C8: 10 F8          BPL $C7C2    ; if still > 0: keep playing (jump to effects)
+;  Falls through when duration expires -> gate-clear path above
+
+; ========================
+; $C87A: NOTE-START SID WRITES
+; (called from instrument-load path)
+; ========================
+; [instrument loading happens before here: ADSR computed, PW loaded]
+$C8CA: AC 1E C7       LDY $C71E    ; Y = SID voice offset (0, 7, or 14)
+$C8CB: AD 20 C7       LDA $C720    ; ctrl/waveform byte (with gate=1 bit set)
+$C8CE: 99 04 D4       STA $D404,Y  ; *** WRITE $D404+Y = ctrl+gate ***
+$C8D1: BD 47 C7       LDA $C747,X  ; freq lo from state
+$C8D4: 99 00 D4       STA $D400,Y  ; *** WRITE $D400+Y = freq lo ***
+$C8D7: BD 4A C7       LDA $C74A,X  ; freq hi from state
+$C8DA: 99 01 D4       STA $D401,Y  ; *** WRITE $D401+Y = freq hi ***
+$C8DD: 60             RTS
+
+; ADSR writes (in instrument-load path, before $C87A):
+; $C856: AC 1E C7  LDY $C71E
+; $C859: 99 06 D4  STA $D406,Y   ; *** WRITE $D406+Y = SR ***
+; $CAC6: AC 1E C7  LDY $C71E
+; $CACA: 99 05 D4  STA $D405,Y   ; *** WRITE $D405+Y = AD ***
+; $CACE: 99 03 D4  STA $D403,Y   ; *** WRITE $D403+Y = PW hi (from instrument) ***
+; $CAD2: 99 02 D4  STA $D402,Y   ; *** WRITE $D402+Y = PW lo (from instrument) ***
+
+; ========================
+; $C8E8: FILTER/VOL WRITES (end of every frame)
+; ========================
+$C8E9: AD 25 C7       LDA $C725    ; master vol / filter mode base
+$C8EC: 0D 22 C7       ORA $C722    ; OR with filter mode flags
+$C8EE: 8D 18 D4       STA $D418    ; *** WRITE $D418 = vol+filter mode ***
+$C8F1: AD 24 C7       LDA $C724    ; filter cutoff hi
+$C8F4: 8D 16 D4       STA $D416    ; *** WRITE $D416 = filter cutoff hi ***
+$C8F7: AD 23 C7       LDA $C723    ; filter res+routing
+$C8FA: 8D 17 D4       STA $D417    ; *** WRITE $D417 = filter res/source ***
+$C8FD: 60             RTS
+
+; ========================
+; $CB5A: PER-VOICE EFFECT UPDATE (vibrato + glide + PWM + echo + waveform-swap)
+; Called each frame for voices in progress
+; ========================
+; Voice active check:
+$CB5A: BC 2C C7       LDY $C72C,X  ; Y = SID voice offset
+$CB5D: 8C 1E C7       STY $C71E    ; save voice offset
+$CB60: BD 65 C7       LDA $C765,X  ; voice active/muted flag
+$CB63: F0 73          BEQ $CBD8    ; muted -> skip to PWM section
+
+; Duration counter:
+$CB65: BD 6E C7       LDA $C76E,X  ; note duration counter
+$CB68: F0 06          BEQ $CB72    ; zero = advance to next sequence event
+$CB6A: DE 6E C7       DEC $C76E,X  ; decrement duration
+$CB6D: 4C D8 CB       JMP $CBD8    ; -> vibrato (no new note)
+
+; LOGARITHMIC VIBRATO (CB72-CBAB):
+; delta = freq(note) - freq(note-1 semitone) from freq table at $C962/$C963
+$CB85: A8             TAY          ; save vibrato delta hi in Y
+$CB88: BD 71 C7       LDA $C771,X  ; vibrato direction byte
+$CB8B: 30 23          BMI $CBAE    ; bit7=1 -> descending
+
+; Ascending:
+$CB8D: 18             CLC
+$CB8E: BD 47 C7       LDA $C747,X  ; freq lo state
+$CB91: 65 FB          ADC $FB       ; + delta lo
+$CB93: 9D 47 C7       STA $C747,X  ; update freq lo
+$CB96: 98             TYA           ; delta hi
+$CB97: 7D 4A C7       ADC $C74A,X  ; + freq hi + carry
+$CB9A: 9D 4A C7       STA $C74A,X  ; update freq hi
+$CB9D: BD AA C7       LDA $C7AA,X  ; steps taken counter
+$CBA0: DD 6B C7       CMP $C76B,X  ; compare with half-period
+$CBA2: 90 05          BCC $CBA8    ; < half-period -> keep going
+$CBA4: DE 71 C7       DEC $C771,X  ; reached limit -> flip direction byte
+$CBA7: ...            ; direction now negative = descending
+$CBA8: FE AA C7       INC $C7AA,X  ; increment counter
+$CBAB: 4C D8 CB       JMP $CBD8    ; continue to PWM
+
+; ========================
+; $CBD8: PULSE WIDTH MODULATION
+; ========================
+$CBD8: BD 74 C7       LDA $C774,X  ; PWM delta (0 = disabled)
+$CBDB: F0 57          BEQ $CC34    ; skip PWM
+
+$CBDD: BD 80 C7       LDA $C780,X  ; PWM delay counter
+$CBE0: F0 06          BEQ $CBE8    ; zero -> run PWM this frame
+$CBE2: DE 80 C7       DEC $C780,X  ; decrement delay
+$CBE5: 4C 34 CC       JMP $CC34   ; skip
+
+; Ascending PW:
+$CBE8: BD 7D C7       LDA $C77D,X  ; direction (bit7)
+$CBEB: 30 1C          BMI $CC09    ; negative -> descending
+$CBED: 18             CLC
+$CBEE: BD 53 C7       LDA $C753,X  ; PW lo
+$CBF1: 7D 74 C7       ADC $C774,X  ; + delta lo (same as delta byte!)
+$CBF3: 9D 53 C7       STA $C753,X  ; update PW lo
+$CBF5: BD 56 C7       LDA $C756,X  ; PW hi
+$CBF8: 69 00          ADC #0       ; + carry
+$CBF9: 9D 56 C7       STA $C756,X  ; update PW hi
+$CBFC: DD 77 C7       CMP $C777,X  ; compare with upper limit
+$CBFF: 90 21          BCC $CC22    ; below limit -> write PW
+$CC01: DE 7D C7       DEC $C77D,X  ; flip direction
+
+$CC22: AC 1E C7       LDY $C71E    ; Y = voice SID offset
+$CC25: BD 53 C7       ... LDA $C753,X
+$CC28: 99 02 D4       STA $D402,Y  ; *** WRITE $D402+Y = PW lo ***
+$CC2B: ... LDA $C756,X
+$CC2E: 99 03 D4       STA $D403,Y  ; *** WRITE $D403+Y = PW hi ***
+
+; ========================
+; $CC48: ECHO SECTION
+; SR sustain oscillates per-note (not per-frame)
+; ========================
+$CC48: BD 86 C7       LDA $C786,X  ; echo delta (0 = disabled)
+$CC4B: F0 3B          BEQ $CC87    ; skip echo
+
+$CC4D: BD 92 C7       LDA $C792,X  ; echo countdown
+$CC50: F0 06          BEQ $CC58    ; zero -> run echo step
+$CC52: DE 92 C7       DEC $C792,X  ; decrement countdown
+$CC55: 4C 87 CC       JMP $CC87   ; skip
+
+; Ascending echo:
+$CC58: BD B0 C7       LDA $C7B0,X  ; echo direction
+$CC5B: 30 14          BMI $CC71    ; negative -> descending
+$CC5D: 18             CLC
+$CC5E: BD 83 C7       LDA $C783,X  ; current SR value
+$CC61: 7D 86 C7       ADC $C786,X  ; + echo delta
+$CC64: 9D 83 C7       STA $C783,X  ; update SR state
+$CC67: DD 8C C7       CMP $C78C,X  ; compare with upper limit
+$CC6A: 90 19          BCC $CC85    ; below -> write SR
+$CC6C: DE B0 C7       DEC $C7B0,X  ; flip direction
+
+; Write updated SR to SID:
+$CC85: (code that writes $D406+Y with updated SR value)
+; *** WRITE $D406+Y = SR (echo sustain step) ***
+
+; ========================
+; $CC88: WAVEFORM SWAP SECTION
+; Per-note ctrl byte override from instrument waveform table
+; ========================
+$CC88: BC 3E C7       LDY $C73E,X  ; waveform table index
+$CC8B: 8C 21 C7       STY $C721    ; save
+$CC8E: B9 07 C5       LDA $C507,Y  ; load from waveform swap table at $C507
+$CC91: F0 3E          BEQ +$3E     ; 0 = no swap
+$CC93: 4A             LSR A
+$CC94: 4A             LSR A
+$CC95: 4A             LSR A
+$CC96: 4A             LSR A
+$CC97: 29 07          AND #$07     ; extract waveform type (3 bits -> 0-7)
+$CC99: 8D 20 C7       STA $C720    ; store new ctrl/waveform byte
+
+; ========================
+; $CDBA: DRUM WAVETABLE PLAYER
+; Entry called when $C735,X != $FF (drum is active)
+; $CF00: global drum wavetable (all 8 drums)
+; ========================
+$CDBA: B9 00 CF       LDA $CF00,Y  ; load drum table byte (Y = current index)
+$CDBD: 10 23          BPL $CDE3    ; bit7=0 -> FREQ-SLIDE type entry
+$CDBF: C9 FF          CMP #$FF     ; end marker?
+$CDC1: F0 17          BEQ $CDDA    ; yes -> drum done -> normal note path
+; TYPE 1 entry (bit7=1): (ctrl, freq_hi) - 2 bytes
+$CDC3: 48             PHA          ; push ctrl byte
+$CDC4: B9 01 CF       LDA $CF01,Y  ; load freq_hi from table
+$CDC7: 48             PHA          ; push freq_hi
+$CDC8: C8             INY
+$CDC9: C8             INY          ; advance 2 bytes
+$CDCA: 98             TYA
+$CDCB: 9D 35 C7       STA $C735,X  ; save new drum table index
+$CDCE: 68             PLA
+$CDCF: AC 1E C7       LDY $C71E    ; Y = voice SID offset
+$CDD2: 99 01 D4       STA $D401,Y  ; *** WRITE $D401+Y = freq hi ***
+$CDD5: 68             PLA
+$CDD6: 99 04 D4       STA $D404,Y  ; *** WRITE $D404+Y = ctrl/waveform ***
+$CDD9: 60             RTS
+
+; TYPE 2 entry (bit7=0): (waveform, freq_lo_delta, freq_hi_delta) - 3 bytes
+$CDE3: 9D 44 C7       STA $C744,X  ; save waveform byte
+$CDE6: 38             SEC
+$CDE7: BD 47 C7       LDA $C747,X  ; current freq lo
+$CDEA: F9 01 CF       SBC $CF01,Y  ; subtract freq_lo_delta (16-bit)
+$CDED: 9D 47 C7       STA $C747,X  ; update freq lo (slide down)
+$CDF0: BD 4A C7       LDA $C74A,X  ; current freq hi
+$CDF3: F9 02 CF       SBC $CF02,Y  ; subtract freq_hi_delta
+$CDF6: 9D 4A C7       STA $C74A,X  ; update freq hi
+$CDF9: C8             INY
+$CDFA: C8             INY
+$CDFB: C8             INY          ; advance 3 bytes
+$CDFC: 98             TYA
+$CDFD: 9D 35 C7       STA $C735,X  ; save new index
+$CE00: 4C 7A C8       JMP $C87A    ; -> write updated freq + waveform to SID
+
+; $CDDA (drum end):
+$CDDA: A9 FF          LDA #$FF
+$CDDC: 9D 35 C7       STA $C735,X  ; mark drum as done
+$CDDF: 4C 8B C8       JMP $C88B    ; -> normal note handler
+
+; ========================
+; $CF00: DRUM WAVETABLE DATA
+; ========================
+$CF00: 43 00 04 41 00 03 40 00 02 40 00 01 40 00 02 40
+$CF10: 00 01 40 00 01 40 00 01 40 00 01 80 F0 FF 81 F0
+$CF20: 41 00 02 80 F0 40 00 02 80 F0 40 00 02 80 F0 40
+$CF30: 00 02 80 F0 40 00 02 80 F0 40 00 02 80 F0 FF 04

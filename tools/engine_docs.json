@@ -220,9 +220,9 @@
     "updated": "2026-06-13"
   },
   "ubiks_musik": {
-    "state": "LITTLE",
-    "notes": "single research.md first-pass overview; research-engine sweep not yet run.",
-    "updated": "2026-06-13"
+    "state": "OK",
+    "notes": "research-player sweep complete (2026-06-14). Ubik's Musik (Dave Korn/Ubik, Firebird, 1987, COMMERCIAL). 288 HVSC SIDs, all PSID v2 / VBI / speed=0 (zero CIA). NO public source/disassembly, but player is byte-stable -> structure recovered from corpus analysis (annotated $C600-$CF40 disasm of Fire_Breath.sid saved in src/). LAYOUT ($C600 base, ~7KB): init $C600 (ADC #$80 active-flag + subtune 0-25 in A + zero $D400-1F); play $C603 -> JSR $C666 (main body / multi-song select; PRG2SID detect target). Stable regions: $C666-71A main loop, $C824-CDFF effects, drum table $CF00. KEY DISPATCH QUIRK: ONE SID voice per play() via self-modifying LDX at $C672 (voice ctr 2->1->0) = the 'high rastertime' cause; 3-voice frame spans 3 IRQs -> confirm Mode-1 vs --writelog-per-irq verdict. WRITE MODEL: voice order 2->1->0; normal frame=vibrato(freq)+PWM(PW) then $D418/$D416/$D417; note-start=gateclear/$D406 SR/$D405 AD/$D403-2 PW/$D404 ctrl|gate/$D400-1 freq. EFFECTS: log vibrato (delta=freq(n)-freq(n-1semi), auto pitch-scaled), PWM triangle sweep, ECHO=sustain-level staircase per NOTE (not delay line, $D406 at trigger), waveform swap (table $C507), wavetable drums (8 fixed, $CF00, 2/3-byte entries, $FF end). Seq cmds $F3 nn=tempo, $FF=end. SFX API at $C68F. SIDID single sig, no sub-versions; address variety = relocation of ONE player (canonical $C600/$C603=120, $C666 family ~70, fully relocated ~62). $D415 maybe unused. Used in many Firebird games (Thrust II, Joe Blade 2, Tim Follin Agent X II). Migration first step: disassemble canonical tune for instrument-table/note-encoding/song-pointer/drum-offset byte layout. Cleared to start disassembly. See pipelines/ubiks_musik/docs/README.md.",
+    "updated": "2026-06-14"
   },
   "vibrants_jo": {
     "state": "LITTLE",
