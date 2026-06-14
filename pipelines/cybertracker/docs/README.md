@@ -32,10 +32,20 @@ fixed-layout one and covers ~51% of all tunes from a single disassembly).
 
 | Topic | File | Reliability |
 |---|---|---|
+| **Byte-level `.ct`/`.ci` file format (author's own spec)** | `cluster_byte_format.md` | primary (author spec) |
+| ↳ verbatim spec text | `src/ctfileformat-1_01.txt` | primary |
 | Per-frame write model + binary structure + the 2-variant relationship | `cluster_write_model_and_variants.md` | secondary (binary) |
 | Full feature/data model from the manual + effect catalogue | `cluster_manual_and_format.md` | primary (manual) |
 | ↳ verbatim manual text | `src/manual_online_fetched.md` | primary |
 | HVSC corpus / address build-classes / scene | `cluster_corpus_and_scene.md` | primary (DB) |
+
+> **✅ The #1 gap is CLOSED.** CyberBrain's own `.ct`/`.ci` byte-format spec
+> (`ct fileformat V1.01`, 13/11/2001) was recovered and is in `cluster_byte_format.md`
+> (+ `src/ctfileformat-1_01.txt`): header magic, every length-prefixed table offset, the
+> 3-byte pattern-cell encoding, the 768-point split-table envelopes, track/multi-effect
+> layouts. **"No packing anywhere in the files"** — on-disk tables are the raw runtime
+> tables. The DATA model now needs no RE; only the file↔in-memory ($10xx/$53A2) offset
+> binding remains (one disassembly).
 
 ## What's solved
 
@@ -76,25 +86,25 @@ HVSC DOCUMENTS/STIL mention.
 
 ## What remains (migration-phase RE)
 
-The musical model + write model are well-mapped; the **byte-level file layout is the gap**:
-- **Disassemble one `_exe` ($53A2) tune** (covers 51% from one disasm) + one native `_ct`
-  tune to recover: the **pattern byte encoding** (note/inst/effect per line), the **768-point
-  envelope-program binary layout** (8 types), the **track 16-bit-LE pattern-pointer lists**
-  (terminated $0000), the `_exe` song-data layout at $5600+, and the multi-subtune pointer table.
+The musical model, write model, AND the byte-level **file** format are now mapped (the
+file spec is in `cluster_byte_format.md`). Remaining migration work:
+- **Bind the file tables to the in-memory layout** by disassembling one `_exe` ($53A2)
+  tune (covers 51% from one disasm) + one native `_ct` tune — i.e. map the file's
+  VIBDPT/ADSR/ENVX-Y/PATTERNS/PTNLEN/TRKMEM tables to their $10xx / $53A2 runtime addresses
+  (the file spec says they're the raw unpacked tables, so this is a 1:1 relocation map).
 - **Encode the two write-orders** (`_ct` interleaved vs `_exe` all-lo-then-hi) as a USF/config
   flag — the Mode-1 verdict depends on it.
 - **Filter "lowest channel wins"** conflict resolution — exact per-frame write behaviour.
 - No CIA → the flat Mode-1 path applies family-wide.
 
-## Top leads (the #1 is the byte-format spec)
+## Top leads
 
-1. **`ct_v101_fileformat_fixed.zip`** ("CyberTracker V1.01 fileformat guide", 13/11/2001) at
-   `noname.c64.org/download.php/` — a Word doc with the byte layout. WebFetch can't pull the
-   ZIP and web.archive.org is blocked from this environment; retry from a networked host (it
-   would close most of the migration RE up front).
-2. **justsolve archiveteam wiki** pages `CyberTracker_module` / `CyberTracker_instrument`
-   (ECONNREFUSED this session) — may hold a prior researcher's byte map.
-3. CSDb #2601/#25 editor disks + the Executable Maker / Packer tools — their save code is the
-   format spec.
+1. ~~`ct_v101_fileformat_fixed.zip` byte-format spec~~ — **OBTAINED** (user-supplied Wayback
+   capture; see `cluster_byte_format.md` + `src/ctfileformat-1_01.txt`).
+2. The same `noname.c64.org/download.php/ctmisc/` Wayback directory may hold other CyberBrain
+   notes (player internals, Executable-Maker layout) — worth a directory listing from a
+   networked host.
+3. CSDb #2601/#25 editor disks + the Executable Maker / Packer tools — useful for the
+   file↔memory offset binding if the disassembly is ambiguous.
 
 Full provenance in each file + `provenance_log.md`.

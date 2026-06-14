@@ -38,12 +38,13 @@ public manual (saved under `src/`); the byte-level file layout is the open gap (
 ## Phase 3 — lead-follow (orchestrator)
 | Source | Status | Notes |
 |---|---|---|
-| noname.c64.org/download.php/ct_v101_fileformat_fixed.zip | curl empty / unfetchable | binary ZIP (Word doc inside); sandbox curl no egress; WebFetch can't unzip |
+| noname.c64.org/download.php/ct_v101_fileformat_fixed.zip | curl empty / unfetchable | binary ZIP; sandbox curl no egress; WebFetch can't unzip |
 | web.archive.org (ZIP + justsolve mirror) | blocked | WebFetch refuses web.archive.org in this env |
 | justsolve.archiveteam.org `CyberTracker_module` / `_instrument` | ECONNREFUSED | site down this session |
+| **noname.c64.org/download.php/ctmisc/ctfileformat-1_01.html** (Wayback 2025-10-01) | **OBTAINED (user-supplied)** | the author's byte-format spec → `cluster_byte_format.md` + `src/ctfileformat-1_01.txt`. **#1 gap CLOSED.** |
 
 ## Failures / blocked (retry later)
-- **The byte-level `.ct`/`.ci` file-format spec** (`ct_v101_fileformat_fixed.zip` + the
-  justsolve wiki) — the single highest-value remaining item; unreachable from this
-  environment. Retry from a networked host; it would front-load most of the migration RE.
+- ~~byte-level `.ct`/`.ci` file-format spec~~ — **RESOLVED** (user fetched the Wayback HTML
+  capture; the HTML version of the same doc, not the ZIP).
 - CSDb 503 intermittent on some release pages.
+- Remaining: file↔in-memory ($10xx/$53A2) offset binding (one disassembly, migration phase).
