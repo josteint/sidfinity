@@ -187,13 +187,34 @@ DUAL-CLOCK PHASE ($1019 leftover → params.slide_phase).
    NOT the effect chain (canon JMP \$1322) -> vibrato+pulse HOLD one frame
    at each tie boundary (the subtle periodic stall; found via flat
    write-log + sector-dispatch disasm, NOT snapshots).
-   KAJUN config (validated, not yet checked in): op_tunetab=0x1051,
-   d417_shadow_addr=0x1034, sector_format='family2', else canon defaults.
-   **NEXT:** factory variant (detect init JMP base+\$37 -> set the 5
-   params + family2 sites) + carved family-2 reference + wide batch over
-   the 2889 members. (METHOD NOTE: per-frame siddump snapshots = Trap C;
-   stay on the flat write-log + --writelog-per-irq + event-aligned
-   --on-write for diagnosis — see [[feedback_verification_modes]].)
+   (METHOD NOTE: per-frame siddump snapshots = Trap C; stay on the flat
+   write-log + --writelog-per-irq + event-aligned --on-write for
+   diagnosis — see [[feedback_verification_modes]].)
+   **✅✅ FAMILY-2 WIDE BATCH: 1884/2889 FULL (65.2%, commits b0349d3 /
+   4e0161d, 2026-06-14)** — exceeds family-1's 54.5%. Mass-written
+   (.usf+.sidfinity.sid, 0 err) + db-refreshed (7416 total sidfinity
+   builds). `dmc_v4_config` family-2 path: detect jump table init+$37/
+   play+$85 (4-entry OR 2-entry), masked identity-compare vs carved
+   reference `pipelines/dmc/docs/dmc4_family2_player_1000.bin`
+   (reloc-aware), table addrs from canon-compatible sites (tunetab $1051,
+   d417 base+$34, instr $17B0 from $1227). The 5 knobs → factory-PROBED
+   `cfg.extra_params` (hold_gateoff VARIES: mask_only vs adsr_clear-via-
+   helper-at-$1018). Runner tools/dmc_family_batch.py (--members/--out).
+   Triage round 1 (+43): $129F filter-mode (STA $9E dead store ≡ AND #$0F,
+   probe+mask) + 2-entry jump table (init+play only). 4 family-2 canaries
+   wired into regress_dmc (Kajun/Lameness/Fury/Bells = variant cover).
+   RESIDUE (tmp/dmc_f2_merged.json): architectural off-table ~580 (20%,
+   offtable_live 512+zero_wave 62; correctly refused, same ceiling as
+   family 1); partial 279 (diverse freq/NOTE divergences — e.g. Short_Dream
+   V3 note 69-vs-66 +3-semitone wave-program/arp diff, Crush_01 V2 freq
+   sweep; per-member-diverse long tail, code matches Kajun so it's DATA);
+   player_code_mismatch 53 + no_jumptable 52 + sector_decode ~20 (more
+   sub-builds / relocated-in-file / corrupt). KNOWN BUG (low ROI):
+   dual_phase read from $1019 not family-2's $1035 (harmless w/o dual
+   instruments). NEXT (diminishing returns): partial freq/note tail,
+   dual_phase, remaining sub-build sites; then family 2's own sub-builds
+   are largely done — move to V5 line (2181, separate engine) or family-1
+   residue.
 7. V5 line (2181) needs full sector-format RE (separate engine).
 
 ## REGRESSION PORTFOLIO (2026-06-13): generalized + DMC wired

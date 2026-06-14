@@ -402,6 +402,17 @@ def regress_dmc() -> tuple[int, int]:
         print('DMC v4 portfolio (feature-cover of the verified family):')
         for sid in _json.load(open(pf_path))['portfolio']:
             _run(sid.split('/')[-1][:24], dmc_v4_config(sid))
+
+    # family-2 canaries (the V4-derived build, 1884/2889 FULL): cover the
+    # variant axes — hold_gateoff {mask_only, adsr_clear}, jump table
+    # {4-entry, 2-entry}, $129F filter-mode {AND #$0F, STA $9E}. All go
+    # through the factory's family-2 path + the 5 probed knobs.
+    print('DMC family-2 canaries (variant cover):')
+    for sid in ('DEMOS/G-L/Kajun_Klog.sid',               # mask_only,4-entry
+                'MUSICIANS/A/Albartus_Jan/Lameness.sid',  # adsr_clear
+                'MUSICIANS/B/Bakewell_Dwayne/Fury.sid',   # 2-entry
+                'MUSICIANS/M/MAC2/Bells_Are_Sounding.sid'):  # $129F STA $9E
+        _run(sid.split('/')[-1][:24], dmc_v4_config(sid))
     return ok, fail
 
 
