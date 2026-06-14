@@ -582,9 +582,8 @@ vs_done:
 
 ;; ----- steady effects: pulse / filter(v3) / glide / vibrato / fade / wave / gate / write
 eff_steady:
-;; pulse_run: advance PW accum; (add,count) pairs; $90 loop
-        lda pulseflag
-        beq filter_run
+;; pulse_run: advance PW accum; (add,count) pairs; $90 loop. ALWAYS runs
+;; (PU=0 means "no restart", not "no run" — the pulse keeps advancing).
         ldy pulsepos,x
         lda pulselo,y
         cmp #$90
