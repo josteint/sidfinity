@@ -1,0 +1,2690 @@
+;컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴�
+;Player for TFX v2.8
+;
+;(c) Ray/Unreal 1995-2002
+;
+;Last revision:20/11/96
+;              28/06/97
+;
+;better on addy $xx00
+;
+;컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴�
+
+; only use for debugging :)
+useBufferedWrites = 0
+dangerousOptimization = 1
+
+.if usingEditor = 1
+        .include "EditorGlobals.ass"
+.else
+        * = $1000
+        .include "Commy.ass"
+        .include "../config.ass"
+        gamePlayer = 0
+.endif
+
+zpl             = $b1
+zph             = $b2
+fta             = zph
+
+syd             .macro dst,rg
+                .if debugplr=1
+                    jsr sta_sid_@dst@:_@rg
+                .else
+                        .if useBufferedWrites = 1
+                                sta buffer+(@dst-$d400),@rg
+                        .else
+                                       sta @dst,@rg
+                        .endif
+                .endif
+                .endmacro
+
+longbne .macro where
+        beq *+5
+        jmp @where
+.endmacro
+
+longbcc .macro where
+        bcs *+5
+        jmp @where
+.endmacro
+
+longbcs .macro where
+        bcc *+5
+        jmp @where
+.endmacro
+
+longbeq .macro where
+        bne *+5
+        jmp @where
+.endmacro
+
+; a special version of the loadvar macro that juggles X for
+; the dual filter stuffs.  Word.
+loadVarIndirect   .macro table , offset 
+        .export varTable
+        .export @table
+        .export fta
+        .export ftb
+        .private
+        lda @table+@offset,y        ; +3
+        .if useVariables=1
+                .if (useAllVariables = 1) ||  (@table = wavetab2)
+                        .if @table = wavetab2
+                                cmp #$8a        ; +2 = 5
+                        .else
+                                cmp #$a3
+                        .endif
+                        bne next        ; +2 = 7
+                        iny                ; +1 = 8
+                        lda fta            ; +2 = 10
+                        clc                ; +1 = 11
+                        nop                ; +1 = 12
+                        adc @table+@offset,y
+                        tax
+                        lda varTable,x
+                        ldx ftb
+                .endif
+        next
+        .endif
+        .public
+.endmacro
+
+loadVar        .macro table , offset 
+        .export varTable
+        .export @table
+        .private
+        lda @table+@offset,y        ; +3
+        .if useVariables=1
+                .if (useAllVariables = 1) ||  (@table = wavetab2)
+                        .if @table = wavetab2
+                                cmp #$8a        ; +2 = 5
+                        .else
+                                cmp #$a3
+                        .endif
+                        bne next        ; +2 = 7
+                        iny                ; +1 = 8
+                        stx zpl                ; +2 = 10
+                        txa                ; +1 = 11
+                        clc                ; +1 = 12
+                        adc @table+@offset,y
+                        tax
+                        lda varTable,x
+                        ldx zpl
+                .endif
+        next
+        .endif
+        .public
+.endmacro
+
+init            jmp pinit0
+pln             .if debugplr=1
+                    jmp nplay_debug
+                .else
+                    jmp nplay
+                .endif
+pls             jmp splay
+.if gamePlayer = 1
+        playFX          jmp playEffect
+.endif
+
+.if usingEditor = 1
+depackTables
+                .word wtt0a,wrr0a,pll0a,fll0a
+                .word sss0a
+                .word wrr0a,pll0a,fll0a,sll0a
+                .word wtt0a
+                .word $3a00,$3b00,$3c00,$3d00
+                .word $3e00
+                .word psetup
+                .word vvvl,vvvh
+                .text "!tfx2.99"
+semtxt          .text "smrt vsem abstinentum !!!!"
+psetup          .byte 0,0,0,0,0,0,0,0,0
+                .byte 0,0,0,0,0,0,0,0,0
+.else
+        .text "tfx2.99"
+        .include "../song.ass"
+.endif
+
+
+tnote2          .byte $01,$01,$01,$01,$01
+                .byte $01,$01,$01,$01,$01,$01
+                .byte $02,$02,$02,$02,$02,$02
+                .byte $02,$03,$03,$03,$03,$03
+                .byte $04,$04,$04,$04,$05,$05
+                .byte $05,$06,$06,$07,$07,$07
+                .byte $08,$08,$09,$09,$0a,$0b
+                .byte $0b,$0c,$0d,$0e,$0e,$0f
+                .byte $10,$11,$12,$13,$15,$16
+                .byte $17,$19,$1a,$1c,$1d,$1f
+                .byte $21,$23,$25,$27,$2a,$2c
+                .byte $2f,$32,$35,$38,$3b,$3f
+                .byte $43,$47,$4b,$4f,$54,$59
+                .byte $5e,$64,$6a,$70,$77,$7e
+                .byte $86,$8e,$96,$9f,$a8,$b3
+                .byte $bd,$c8,$d4,$e1,$ee,$fd ;,$fe
+
+tnote1          .byte $1c,$2d,$3e,$47,$66
+                .byte $7b,$91,$a9,$c3,$dd,$fa
+                .byte $18,$38,$5a,$7d,$a3,$cc
+                .byte $f6,$23,$53,$86,$bb,$f4
+                .byte $30,$70,$b4,$fb,$47,$98
+                .byte $ed,$47,$a7,$0c,$77,$e9
+                .byte $61,$e1,$68,$f7,$8f,$30
+                .byte $da,$8f,$4e,$18,$ef,$d2
+                .byte $c3,$c3,$d1,$ef,$1f,$60
+                .byte $b5,$1e,$9c,$31,$df,$a5
+                .byte $87,$86,$a2,$df,$3e,$c1
+                .byte $6b,$3c,$39,$63,$be,$4b
+                .byte $0f,$0c,$45,$bf,$7d,$83
+                .byte $d6,$79,$73,$c7,$7c,$97
+                .byte $1e,$18,$8b,$7e,$fa,$06
+                .byte $ac,$f3,$e6,$8f,$f8,$96 ;,$cb
+
+
+pinit0          asl a                            ;init player
+                asl a
+                asl a
+                sta initc+1
+                tay
+sll6a           lda sledy+$06,y
+                sta speed+1
+sll7a           lda sledy+$07,y
+                sta volume+1
+                ldx #1
+                stx cntspd+1
+                dex
+.if useFade = 1
+                stx fplay+1
+                stx fadework+1
+.endif
+                jsr initc
+                jsr initc
+initc           ldy #$00
+sll0a           lda sledy,y
+                sta aksled,x
+sll3a           lda sledy+3,y
+                sta aksled+1,x
+                lda #$01
+                sta durcnt,x
+                sta cplay1,x
+.if useAgate = 1
+                sta agate,x
+.endif
+.if useSetrlen = 1
+                sta restartFrames,x
+.endif
+                lda #0
+                syd sid_v0_ad,x
+                syd sid_v0_sr,x
+                lda #$08
+                syd sid_v0_ctrl,x
+                lda #$ff
+                sta gater,x
+                ldy #7
+                lda #0
+initc1          sta nul1,x
+                sta nul2,x
+                sta nul3,x
+.if gamePlayer=1
+                sta effectHold,x
+                sta effectHold+7,x
+                sta effectHold+14,x
+.endif
+                inx
+                dey
+                bne initc1
+                inc initc+1
+                rts
+
+
+speed0          sty cntspd+1                     ;play normal
+                jsr newsnd0
+                ldx #$07
+                jsr newsnd0
+                ldx #$0e
+                jsr newsnd0
+                jmp ponospd
+nplay           
+.if useBufferedWrites = 1
+                jsr writeBuffered
+.endif
+                lda zph
+                pha
+                lda zpl
+                pha
+                ldx #$00
+cntspd          ldy #$00
+                stx fltgo+1
+                dey
+                bpl speed0
+speed           ldy #$00
+                sty cntspd+1
+                jsr nkplay
+                ldx #$07
+                jsr nkplay
+                ldx #$0e
+                jsr nkplay
+ponospd         pla
+                sta zpl
+                pla
+                sta zph
+.if useFade = 1
+fadework        lda #0
+                beq fade0
+fadefig         ldy #0
+                bne fade21
+fadecnt         ldy #0
+                clc
+                adc volume+1
+                sta volume+1
+                bcc fade100
+                bne fade20
+                beq fade22
+fade100         cmp #$00
+                bne fade20
+                lda #0
+fade22          sta fadework+1
+fade21          dey
+fade20          sty fadefig+1
+fade0
+.endif
+
+poend
+volume          lda #$00
+flttype         ora #$00
+                sta sid_ctrl
+.if useComplexFilter = 1
+                ldy fltpos2
+                cpy #0
+                beq nnnx
+
+                lda fltfrqlo
+                clc
+                adc fltfrqlo2
+                ; save carry flag for next add!
+                php
+                .rep 5
+                        lsr
+                .endrep
+                sta sid_flt_frq_lo
+                plp
+                lda fltfrqhi
+                adc fltfrqhi2
+                sec
+                sbc #$80
+                sta sid_flt_frq_hi
+
+                jmp nnny
+nnnx
+                lda fltfrqlo
+                .rep 5
+                        lsr
+                .endrep
+                sta sid_flt_frq_lo
+                lda fltfrqhi
+                sta sid_flt_frq_hi
+nnny
+.else
+                lda fltfrqlo
+                .rep 5
+                        lsr
+                .endrep
+                sta sid_flt_frq_lo
+                lda fltfrqhi
+                sta sid_flt_frq_hi
+.endif
+fplay           lda #$00
+notf                and #$00
+fltres          ora #$00
+                sta sid_flt_ctrl
+wait00          rts
+
+
+plnspd0         jmp newsnd0
+nkplay          lda cplay1,x
+                beq plnspd0
+                dec durcnt,x
+                lda durcnt,x
+.if useSetrlen = 1
+                cmp restartFrames,x
+                beq restartNow
+.endif
+                cmp #0
+                bne plnspd0
+
+
+restartNow
+                lda newsec,x
+                bne nonext
+
+                lda aksled,x                     ; next track positon
+                sta zpl
+                lda aksled+1,x
+                sta zpl+1
+
+                ldy trkpos,x
+nexttr0         lda (zpl),y
+                bpl nospecb
+                cmp #$ff
+                bne noloop
+                iny
+                lda (zpl),y
+                tay
+                bcs nexttr0
+noloop          cmp #$fe
+                bne noend
+                lda #$00
+                sta cplay1,x
+                jmp newsnd0
+
+noend           sec
+                sbc #$a0
+                bcs notrdwn
+                eor #$1f
+                adc #$01
+notrdwn         sta transf,x
+                iny
+                lda (zpl),y
+nospecb         sta aktsec,x
+                lda #$00
+                sta secpos,x
+.if useSwitch = 1
+                sta switchr,x
+.endif
+.if useNopulse = 1
+                sta nopulser,x
+.endif
+.if useNoflt = 1
+                sta nofltr,x
+.endif
+.if useVol = 1
+                sta volumer,x
+.endif
+                iny
+                tya
+                sta trkpos,x
+                sta newsec,x
+
+nonext          ldy aktsec,x
+vvvl            lda sectorsl,y
+                sta zpl
+vvvh            lda sectorsh,y
+                sta zph
+                lda durfig,x
+                clc
+                adc durcnt,x
+                sta durcnt,x
+                ldy secpos,x
+                dey
+nexts2          iny
+.if usingEditor = 1
+        nexts1  lda (zpl),y
+                iny
+.else
+        nexts1  lda repeatCount,x
+                beq noRepeat
+                dec repeatCount,x
+                jmp qpouse
+        noRepeat
+                lda (zpl),y
+                iny
+                cmp #$e6
+                beq setRepeat
+.endif
+                cmp #$60
+                bcc nnote
+                cmp #$fd
+                beq qpouse
+                cmp #$fe
+                bne nqgate
+qgate           lda #$fe
+                sta gater,x
+qpouse          ;lda durcnt,x                        ; if we aren't playing a note, let the dur counter run out!
+                ;longbne plnspd0
+                tya                              ; pouse (---)
+                sta secpos,x
+                lda (zpl),y
+                cmp #$ff
+                bne *+7
+                lda #$00
+                sta newsec,x
+                jmp newsnd0
+.if usingEditor = 0
+setRepeat
+                lda (zpl),y
+                iny
+                sta repeatCount,x
+                jmp qpouse
+.endif
+nqgate          cmp #$80
+                bcc qsound
+                cmp #$c0
+                bcc qdur
+.if useVol
+                cmp #$d0
+                bcc qvol
+.endif
+                jmp cmmp2
+
+qsound          and #$1f                         ; set sound
+                sta psound,x
+                bcc nexts1
+
+; this is gonna fuck things up for us, right now...
+qdur            and #$3f                         ; set duration
+;.if useSetrlen = 1
+                ; this is nasty, and a waste of r-time
+                pha
+                clc
+                adc durcnt,x
+                sec
+                sbc durfig,x
+                sta durcnt,x
+                pla
+;.else
+;                sta durcnt,x
+;.endif
+                sta durfig,x
+
+                bcs nexts1
+
+.if useVol
+qvol            asl a                            ; set volume
+                asl a
+                asl a
+                asl a
+                sta volumer,x
+                bcc nexts1
+.endif
+
+nnote           clc                    ;find note in sector
+                adc transf,x
+playnote        
+.if gamePlayer = 1
+		sta pigfukka+1
+                lda effectHold,x
+                bne playgld
+pigfukka	lda #00
+.endif
+		sta pnote,x
+.if useGlideSlide = 1
+                lda #0
+                sta gldspd,x
+.endif
+playgld        
+                lda (zpl),y
+                cmp #$ff
+                bne noReset             ; used to read '*+7'
+                lda #$00
+                sta newsec,x
+noReset
+                tya                    ;here is S/SLIDE ending place
+                sta secpos,x
+.if gamePlayer = 1
+                ; fixme: will break if called on last note :)
+                lda effectHold,x
+                bne kl9b
+                tya
+.endif
+                sta nsound,x
+playnote2       lda psound,x
+                asl a
+                asl a
+                asl a
+                sta sndpos,x
+                tay
+.if useSwitch = 1
+                lda switchr,x
+                bne kl9b
+.endif
+sss2a           lda sounds+$02,y
+                sta wavepos,x
+                tay
+.if useSetrlen = 1
+                lda restartFrames,x
+                sta restartWork,x
+                beq norestart
+.endif
+wrr0h           loadVar wavetab2,0 
+                syd sid_v0_sr,x
+                lda #0
+                sta waveSpos,x
+                sta waveSpd,x
+                syd sid_v0_ad,x
+wtt0v           lda wavetab1,y
+                syd sid_v0_ctrl,x
+                iny
+                tya
+                sta wavepos,x
+.if useSetrlen = 1
+                dec restartWork,x
+.endif
+kl9b            rts
+
+.if useSetrlen = 1
+norestart
+                iny
+                tya
+                sta wavepos,x
+                jmp restartDone
+.endif
+
+.if useGlideSlide = 1
+qslide          lda (zpl),y                      ;*** SLIDE
+                sta gldspd,x                     ;slide from actual note to
+                iny                              ;destination
+                lda (zpl),y
+                clc
+nng             adc transf,x
+                sta gldfn,x
+                iny
+                lda pnote,x
+                sta gldst,x
+                jmp qpouse
+.endif
+
+.if useSetp = 1
+qsetp           lda (zpl),y                      ; set pulse freq
+                sta plsst,x
+                pha
+                asl a
+                asl a
+                asl a
+                asl a
+                sta plslo,x
+                pla
+                lsr a
+                lsr a
+                lsr a
+                lsr a
+                sta plshi,x
+                jmp nexts2
+.endif
+
+.if useFvol = 1
+qfvol           lda (zpl),y                      ; set global volume
+                sta volume+1
+                jmp nexts2
+.endif
+
+.if useSetft = 1
+qsetft          lda (zpl),y                      ; set filter type
+                pha
+                asl a
+                asl a
+                asl a
+                asl a
+                sta fltres+1
+                pla
+                and #$f0
+                sta flttype+1
+                jmp nexts2
+.endif
+
+.if useAgate = 1
+sagate          lda (zpl),y                      ; set auto gate value
+                sta agate,x
+                jmp nexts2
+.endif
+
+.if useSwitch = 1
+qswitch         lda switchr,x                    ; reverse switch register
+                eor #$01
+                sta switchr,x
+                jmp nexts1
+.endif
+
+.if useNopulse = 1
+qnopulse                                        ; no pulse
+                lda nopulser,x
+                eor #$01
+                sta nopulser,x
+                jmp nexts1
+.endif
+
+.if useNoflt = 1
+qnoflt
+                lda nofltr,x
+                eor #$04
+                sta nofltr,x
+                jmp nexts1
+.endif
+
+
+.if useFxTable = 1
+	.if useVariables = 1
+	        fxTable = *-16					; optimization :)
+	.else
+		fxTable
+			.word 0,0,0,0,0,0,0,0
+	.endif
+        .if useNopulse = 1
+                        .word qnopulse                ; $e8 - no pulse
+        .else
+                        .word 0
+        .endif
+
+        .if useVibdepth = 1
+                        .word qvibdpth                ; $e9 - vib depth
+        .else
+                        .word 0
+        .endif
+        .if useVibspeed = 1
+                        .word qvibspd                ; $ea - vib speed
+        .else
+                        .word 0
+        .endif
+        .if useSetspeed = 1
+                        .word qspeed                ; $eb - speed
+        .else
+                        .word 0
+        .endif
+        .if useSetrlen = 1
+                        .word qrlen                ; $ec - restart length
+        .else
+                        .word 0
+        .endif
+        .if useControl = 1
+                        .word qcontrol                ; $ed - control override
+        .else
+                        .word 0
+        .endif
+        .if useGlideSlide = 1
+                        .word qglide                ; $ee - glide
+                        .word qslide                ; $ef - slide
+        .else
+                        .word 0, 0
+        .endif
+        .if useFade = 1
+                        .word qfdp                ; $f0 - fade in
+                        .word qfdm                ; $f1 - fade out
+        .else
+                        .word 0, 0
+        .endif
+        .if useAd = 1
+                        .word qad                ; $f2 - set ad
+        .else
+                        .word 0
+        .endif
+        .if useSr = 1
+                        .word qsr                ; $f3 - set sr
+        .else
+                        .word 0
+        .endif
+        .if useAdn = 1
+                        .word qadn                ; $f4 - set adn
+        .else
+                        .word 0
+        .endif
+        .if useSrn = 1
+                        .word qsrn                ; $f5 - set srn
+        .else                
+                        .word 0
+        .endif
+        .if useAgate = 1
+                        .word sagate                ; $f6 - agate
+        .else
+                        .word 0
+        .endif
+        .if useNoflt = 1
+                        .word qnoflt                ; $f7 - noflt
+        .else
+                        .word 0
+        .endif
+        .if useSetff = 1
+                        .word qsetff                ; $f8 - setff
+        .else
+                        .word 0
+        .endif
+        .if useSetft = 1
+                        .word qsetft                ; $f9 - setft
+        .else
+                        .word 0
+        .endif
+        .if useSetp = 1
+                        .word qsetp                ; $fa - set pule width
+        .else
+                        .word 0
+        .endif
+        .if useFvol = 1
+                        .word qfvol                ; $fb - global volume
+        .else
+                        .word 0
+        .endif
+        .if useSwitch = 1
+                        .word qswitch                ; $fc - switch
+        .else
+                        .word 0
+        .endif
+			; these should never ever happen!
+                        ;.word 0                        ; $fc - ---
+                        ;.word 0                        ; $fe - gate
+                        ;.word 0                        ; $ff - end
+                        
+        cmmp2           
+                        .if useVariables = 1
+                        cmp #$e7
+                        bcc varSet
+                        .else
+                        ; only need to sec if we havn't already cleared
+                        ; because of bcc above!
+                        sec
+                        .endif
+                        sbc #$e0
+                        asl
+                        stx xselfmod2+1
+                        
+        ;                -- this doens't work - I lose channel 3?!?!?!  wtf?!
+        ;                tax
+        ;                lda fxTable+1,x
+        ;                beq nofx
+        ;                pha
+        ;                lda fxTable,x
+        ;                pha
+        ;xselfmod2        ldx #00
+        ;                rts
+        ;                -- old code here so that i can uncomment to import ;)
+                        tax
+                        lda fxTable,x
+                        beq nofx
+                        sta fxselfmod+1
+                        lda fxTable+1,x
+                        sta fxselfmod+2
+        xselfmod2        ldx #00
+        fxselfmod        jmp $1234
+.else
+cmmp2           
+        .if useVariables = 1
+                cmp #$e7
+                bcc varSet
+        .endif
+        
+        .if useNopulse = 1
+                cmp #$e8
+                beq qnopulse
+        .endif
+
+        .if useVibdepth = 1
+                cmp #$e9
+                beq qvibdpth
+        .endif
+        .if useVibspeed = 1
+                cmp #$ea
+                beq qvibspd
+        .endif
+        .if useSetspeed = 1
+                cmp #$eb
+                beq qspeed
+        .endif
+        .if useSetrlen = 1
+                cmp #$ec
+                beq qrlen
+        .endif
+        .if useControl = 1
+                cmp #$ed
+                beq qcontrol
+        .endif
+        .if useGlideSlide = 1
+                cmp #$ee
+                beq qglide
+                cmp #$ef
+                beq qslide
+        .endif
+        .if useFade = 1
+                cmp #$f0
+                beq qfdp
+                cmp #$f1
+                beq qfdm
+        .endif
+        .if useAd = 1
+                cmp #$f2
+                beq qad
+        .endif
+        .if useSr = 1
+                cmp #$f3
+                beq qsr
+        .endif
+        .if useAdn = 1
+                cmp #$f4
+                beq qadn
+        .endif
+        .if useSrn = 1
+                cmp #$f5
+                beq qsrn
+        .endif
+        .if useAgate = 1
+                cmp #$f6
+                beq sagate
+        .endif
+        .if useNoflt = 1
+                cmp #$f7
+                beq qnoflt
+        .endif
+        .if useSetff = 1
+                cmp #$f8
+                beq qsetff
+        .endif
+        .if useSetft = 1
+                cmp #$f9
+                beq qsetft
+        .endif
+        .if useSetp = 1
+                cmp #$fa
+                beq qsetp
+        .endif
+        .if useFvol = 1
+                cmp #$fb
+                beq qfvol
+        .endif
+        .if useSwitch = 1
+                cmp #$fc
+                beq qswitch
+        .endif
+.endif
+nofx
+                inc $d020
+                jmp nexts2
+                
+.if useVariables = 1
+varSet
+                and #$0f
+                sta varSelfmod+1
+                txa ; save channel
+                pha
+                clc    ; channel = 7xchannel, +varnum
+varSelfmod        adc #00
+                tax
+                lda (zpl),y
+                sta varTable,x
+                pla ; get the nice channel back, that's a nice player...
+                tax
+                jmp nexts2
+.endif
+                
+.if useVibspeed = 1
+qvibspd
+                lda (zpl),y                        ; set vibrato speed
+                sta vibspd,x
+                jmp nexts2
+.endif
+
+.if useVibdepth = 1
+qvibdpth
+                lda (zpl),y                         ; set vibrato depth
+                sta vib1,x
+                jmp nexts2
+.endif
+
+.if useFade = 1
+qfdp            lda (zpl),y                      ; gloval fade in
+                sta fadecnt+1
+                sta fadefig+1
+                ldy #$01
+                sty fadework+1
+                dey
+                lda volume+1
+                sta fade100+1
+                sty volume+1
+                jmp nexts2
+
+qfdm            lda (zpl),y                      ; global fade out
+                sta fadecnt+1
+                sta fadefig+1
+                lda #$ff
+                sta fadework+1
+                jmp nexts2
+.endif
+
+.if useAd = 1
+qad             lda (zpl),y                      ; set SID ad
+                syd sid_v0_ad,x
+                jmp nexts2
+
+.endif
+
+.if useControl = 1
+qcontrol                                        ; set control override
+                lda (zpl),y
+                sta controlOverride,x
+                jmp nexts2
+.endif
+
+.if useSetspeed = 1
+qspeed                                                ; set song speed
+                lda (zpl),y
+                sta speed+1
+                jmp nexts2
+.endif
+
+.if useSetrlen = 1
+qrlen                                                ; set hard restart length
+                lda (zpl),y
+                sta restartFrames,x
+                jmp nexts2
+.endif
+
+.if useSr = 1
+qsr             lda (zpl),y                      ; set SID sr
+                syd sid_v0_sr,x
+                jmp nexts2
+.endif
+
+.if useAdn = 1
+qadn            lda (zpl),y                      ; set NOTE ad
+                sta jead,x
+                jmp nexts2
+.endif
+.if useSrn = 1
+qsrn            lda (zpl),y                      ; set NOTE sr
+                sta jesr,x
+                jmp nexts2
+.endif
+
+.if useSetff = 1
+qsetff          lda (zpl),y                      ; set filter frequence
+                sta fltfrqhi
+                sta fltst+1
+                lda #0
+                sta fltfrqlo
+                jmp nexts2
+.endif
+
+.if useGlideSlide = 1
+qglide          lda (zpl),y                      ;*** GLIDE
+                sta gldspd,x                     ;slide from note1 to note2
+                iny
+                lda (zpl),y
+                cmp #$60
+                bcc nng2
+                and #$1f
+                sta psound,x
+                iny
+                clc
+                lda (zpl),y
+nng2            adc transf,x
+                sta gldst,x
+                sta pnote,x
+                iny
+                lda (zpl),y
+                adc transf,x
+                sta gldfn,x
+                iny
+                jmp playgld
+.endif
+
+newsnd0        
+.if gamePlayer = 1
+                lda effectHold,x
+                beq noFx
+                dec effectHold,x
+noFx
+.endif
+                lda nsound,x                     ; set note sound registers
+                longbeq playnt0
+.if useSetrlen = 1
+                lda restartWork,x
+                beq restartDone
+                dec restartWork,x
+                rts
+restartDone
+.endif
+                lda #$00
+                sta nsound,x
+                sta waveps,x
+.if useSwitch = 1
+        .if gamePlayer = 1
+                lda effectHold,x
+                bne noSwitchFx
+                lda switchr,x
+                longbne playnt0
+noSwitchFx
+		lda #0
+        .else
+                lda switchr,x
+                longbne playnt0
+        .endif
+.endif
+.if useVibrato = 1
+                sta udvibnrm,x
+                sta vib1cnt,x
+                sta vib2cnt,x                    ; set sid registers
+                sta vibspdc,x
+.endif
+                sta noterfrq,x
+                sta noterfrq+1,x
+                sta relmode,x
+                lda #$ff
+                sta gater,x
+                ldy sndpos,x
+sss5a           lda sounds+$05,y
+                sta sndfx,x
+                and #$08                     ;filter set
+                beq flt100
+                lda sndfx,x
+.if useNoflt = 1
+                ora nofltr,x
+.endif
+                and #$04
+                bne flt101
+sss4a           lda sounds+$04,y
+                sta fltpos
+                lda #0
+.if useComplexFilter = 1
+                sta fltpos2
+                sta fltfrqhi2
+                sta fltfrqlo2
+                sta fltaddhi2
+                sta fltaddlo2
+.endif
+                sta fltaddhi
+                sta fltaddlo
+                sta fltdel
+flt101          lda fplay+1
+                ora proflt,x
+                bne flt102
+flt100          lda fplay+1
+                and profltn,x
+flt102          sta fplay+1
+                lda jesr,x
+                bne up1
+.if useVol = 1
+                lda volumer,x
+                cmp #$01
+.endif
+sss1a           lda sounds+$01,y
+.if useVol = 1
+                bcc up1
+                and #$0f
+                ora volumer,x
+.endif
+up1             syd sid_v0_sr,x
+                lda jead,x
+                bne up3
+sss0a           lda sounds+$00,y
+up3             syd sid_v0_ad,x
+
+                lda sndfx,x                      ;pulse set
+.if useNopulse = 1
+                ora nopulser,x
+.endif
+                and #$21
+                bne ut1
+                sta plsadd,x
+                sta plsadd+1,x
+                sta plsdel,x
+.if useComplexPulse = 1
+                sta plsadd2,x
+                sta plsadd2+1,x
+                sta plsdel2,x
+.endif
+sss3a           lda sounds+$03,y
+                sta plspos,x
+                lda #0
+.if useComplexPulse = 1
+                sta plspos2,x
+.endif
+ut1
+
+
+
+.if useVibrato = 1
+sss6a           lda sounds+$06,y                 ;vibrato set
+                ; need to reset because of inline commands
+                ;beq zaa
+                pha
+                and #$f0
+                lsr a
+                lsr a
+                sta vibdel,x
+                pla
+                and #$0f
+                sta vib1,x
+
+sss7a           lda sounds+$07,y
+                pha
+                and #$0f
+                sta vib2,x
+                pla
+                lsr a
+                lsr a
+                lsr a
+                lsr a
+                sta vibspd,x
+.endif
+                ldy pnote,x
+                lda tnote2,y
+zaa             sta relvibn,x
+holdvel         lda #2
+                sta holdcnt,x
+                lda sndfx,x
+                and #$20
+.if useSetp = 1
+                ora plsst,x
+                beq *+5
+                jmp playflt
+.endif
+                ; play first pulse line.  bitch.
+                ldy plspos,x
+pll0q           loadVar pulse,0
+                jmp noPulsePlay
+
+
+
+playnt0         
+                lda sndfx,x                      ;play note routine
+                and #$10
+.if useSwitch = 1
+                ora switchr,x
+.endif
+                bne playspds
+                lda sndfx,x
+                and #%11000000
+                beq nospef
+                lda durcnt,x
+.if useSetrlen = 1
+                sec
+                sbc restartFrames,x
+.endif
+.if useAgate = 1
+                cmp agate,x
+                bne nogatee
+.else
+                cmp #1                                        ; i believe this is correct!
+                bne nogatee
+.endif
+                lda sndfx,x
+                bmi playsndg
+                lda #0
+                syd sid_v0_sr,x
+                beq playsndg
+
+nospef          dec holdcnt,x
+                bne playspds
+playsndg        lda #$fe
+                sta gater,x
+nogatee
+
+playspds       
+.if useGlideSlide = 1
+                lda gldspd,x                     ;play slide note
+                beq vibplay
+                ldy pnote,x
+                lda gldst,x
+                cmp gldfn,x
+                bcs glddwn
+                lda noterfrq,x
+                adc gldspd,x            ; known clc due to adc above!
+                sta noterfrq,x
+                bcc *+5
+                inc noterfrq+1,x
+                clc
+                adc tnote1,y
+                sta gldup1+1
+                lda noterfrq+1,x
+                adc tnote2,y
+                ldy gldfn,x
+                cmp tnote2,y
+                bcc nvibrat0
+                bne nvibrat0
+gldup1          lda #0
+                cmp tnote1,y
+                bcc nvibrat0
+                bcs gldout
+
+glddwn          lda noterfrq,x
+                sec
+                sbc gldspd,x
+                sta noterfrq,x
+                bcs *+5
+                dec noterfrq+1,x
+                clc
+                adc tnote1,y
+                sta glddwn1+1
+                lda noterfrq+1,x
+                adc tnote2,y
+                ldy gldfn,x
+                cmp tnote2,y
+                beq glddwn1
+                bcs nvibrat0
+                bcc gldout
+glddwn1         lda #0
+                cmp tnote1,y
+                bcs nvibrat0
+
+gldout          tya
+                sta pnote,x
+                lda #$00
+                sta gldspd,x
+                sta noterfrq,x
+                sta noterfrq+1,x
+nvibrat0        jmp vibko
+.endif
+
+vibplay
+.if useVibrato = 1
+                ;lda relvibn,x                    ;play vibrato
+                ; check for zero depth instead, so we can fuck iwth it inline
+                lda vib1,x
+                beq vibko
+                lda vibdel,x
+                beq vbdelok
+                dec vibdel,x
+                jmp povib
+vbdelok         lda vibspdc,x
+                bne povib0
+                lda udvibnrm,x
+                bne vbndw
+                lda noterfrq,x
+                clc
+                adc relvibn,x
+                sta noterfrq,x
+                bcc *+5
+                inc noterfrq+1,x
+                inc vib1cnt,x
+                lda vib1cnt,x
+                cmp vib1,x
+                beq vibsame
+                bne povib
+vbndw           lda noterfrq,x
+                sec
+                sbc relvibn,x
+                sta noterfrq,x
+                bcs *+5
+                dec noterfrq+1,x
+                inc vib1cnt,x
+                lda vib1cnt,x
+                cmp vib1,x
+                bne povib
+vibsame         lda #$00
+                sta vib1cnt,x
+                lda udvibnrm,x
+                eor #$01
+                sta udvibnrm,x
+                lda vib2cnt,x
+                cmp vib2,x
+                beq povib
+                inc vib2cnt,x
+                lda vib1,x
+                clc
+                adc vib1,x
+                sta vib1,x
+povib           lda vibspd,x
+                sta vibspdc,x
+                jmp vibko
+povib0          dec vibspdc,x
+.endif
+vibko
+
+
+
+.if useComplexPulse = 0
+playpls         lda sndfx,x                      ;play pulse tab
+                and #$20
+.if useSetp = 1
+                ora plsst,x
+.endif
+                longbne nepls
+
+                ldy plspos,x
+                lda plsadd,x
+                longbne pls19
+                lda plsdel,x
+                beq pls5
+                dec plsdel,x
+                jmp pls0
+pls5
+pll0a                  loadVar pulse,0
+                cmp #$63               ;jump
+                bne pls13
+pulseJump
+pll1a           lda pulse+1,y
+                tay
+pll0b           loadVar pulse,0
+                jmp pjumped
+
+pls13           cmp #$c3                ; jump with gate
+                bne pjumped
+                lda gater,x
+                and #1
+                bne pulseJump
+                iny
+                iny
+                jmp pll0a
+
+pjumped         
+
+                ; set!  fuck.... seriously.  just fuck.
+                cmp #$e3
+                bne noAccSet
+                iny
+pll0jj1         loadVar pulse,0
+                sta plshi,x
+                iny
+pll0jj2         loadVar pulse,0
+                sta plslo,x
+                iny
+                jmp pls25
+noAccSet
+                cmp #$83
+                bne noSet
+                iny
+pll0jj3         loadVar pulse,0
+                jmp pls10
+noSet
+
+                cmp #$23               ;add
+                bne pls2
+                iny
+pll0c           loadVar pulse,0
+                sta plsadd,x
+                lda #0
+pls77           sta plsadd+1,x
+                iny
+pll0d           loadVar pulse,0          ;set end frequence
+                pha
+                lsr a
+                lsr a
+                lsr a
+                lsr a
+                sta plshif,x
+                pla
+                asl a
+                asl a
+                asl a
+                asl a
+                sta plslof,x
+                jmp pls19
+pls2            cmp #$13               ;delay
+                bne pls18
+pll1d           loadVar pulse,1
+                sta plsdel,x
+                iny
+                iny
+                longbne pls25
+pls18           cmp #$43               ;sub
+                bne pls10
+                iny
+pll0e           loadVar pulse,0
+                eor #$ff
+                clc
+                adc #1
+                sta plsadd,x
+                lda #$ff
+                bne pls77
+ 
+                ; this is the meat - do the current add/sub!
+                ; should we add a sinus table lookup here?  would
+                ; be neet! :) prolly for tfx3
+                ;  - jj
+pls19           lda plslo,x
+.if dangerousOptimization = 1
+                clc
+.endif
+                adc plsadd,x
+                sta plslo,x
+                and #$f0
+                sta pls55+1
+                lda plshi,x
+                adc plsadd+1,x
+                sta plshi,x
+                pha
+                lda plsadd+1,x
+                bne negativePulse
+                lda #$90        ; bcc
+                sta finalpComp
+                pla
+                cmp plshif,x
+                beq pls55       ; == - do lower bits compare
+                bcs clearPulse  ; < - successfull
+                bcc pls25       ; > - continue doing pulse program
+negativePulse
+                lda #$b0        ; bcs
+                sta finalpComp
+                pla
+                cmp plshif,x
+                beq pls55       ; ==
+                bcc clearPulse  ; <
+                bcs pls25       ; >
+pls55           lda #$00
+                cmp plslof,x
+                beq pls25
+finalpComp      bne pls25       ; gets changed to > or < depending on direction!
+clearPulse      lda #0
+                sta plsadd,x
+                ;sta plsadd+1,x ; this shouldn't be nessesary...
+                beq pls25
+pls10           pha
+                lsr a
+                lsr a
+                lsr a
+                lsr a
+                sta plshi,x
+                syd sid_v0_pwidth_hi,x
+                pla
+                asl a
+                asl a
+                asl a
+                asl a
+                sta plslo,x
+                syd sid_v0_pwidth_lo,x
+                iny
+pls25           tya
+                sta plspos,x
+pls0
+
+nepls
+.else
+playpls
+                lda sndfx,x                      ;play pulse tab
+                and #$20
+.if useSetp = 1
+                ora plsst,x
+.endif
+                bne fffx         ; return if pulse disabled!
+              
+                lda #<plspos2
+                sta ppselfmod+1
+.if dangerousOptimization = 0
+                lda #>plspos2
+                sta ppselfmod+2
+.endif
+                jsr playplsFunc
+                ldy plspos2,x
+                cpy #0
+                beq nopulse2
+                txa
+                pha
+                clc
+                adc #(plspos2-plspos)
+                tax
+                
+                ; yes, this is fucked.  the reason is, 
+                ; we want to write to the FIRST tables
+                ; position, but x is pointing to the channel
+                ; in the SECOND table.  d'oh.
+                lda #<(plspos-(plspos2-plspos))
+                sta ppselfmod+1
+.if dangerousOptimization = 0
+                lda #>(plspos-(plspos2-plspos))
+                sta ppselfmod+2
+.endif
+                jsr playplsFunc
+                pla
+                tax
+                lda plslo2,x
+                clc
+                adc plslo,x
+                syd sid_v0_pwidth_lo,x
+                lda plshi2,x
+                adc plshi,x
+                sec
+                sbc #08
+                syd sid_v0_pwidth_hi,x
+                jmp fffx
+nopulse2
+                lda plslo,x
+                syd sid_v0_pwidth_lo,x
+                lda plshi,x
+                syd sid_v0_pwidth_hi,x
+fffx
+.endif
+
+noPulsePlay
+
+
+playflt                                          ;filter play
+                lda sndfx,x
+                and #$08
+                bne fltgo
+flt00           jmp flt0
+fltgo           lda #$00
+fltst           ora #$00
+                bne flt00
+flt1p           inc fltgo+1
+; use the inline version if we only have one filter
+.if useComplexFilter = 0
+                ldy fltpos
+                ; compare both hi and lo!
+                lda fltaddhi
+                longbne flt19
+                lda fltaddlo
+                longbne flt19
+                lda fltdel
+                beq flt5
+                dec fltdel
+                jmp localflt0
+flt5
+fll0a           loadVar filter,0
+                cmp #$63               ;jump
+                bne flt11
+filterJump
+fll1a           lda filter+1,y
+                tay
+fll0b           loadVar filter,0
+                jmp fjumped
+                
+flt11           cmp #$c3                ; jump with gate
+                bne fjumped
+                lda gater,x
+                and #1
+                bne filterJump
+                iny
+                iny
+                jmp fll0a
+fjumped
+
+
+                cmp #$83               ;set
+                beq isSetDeriv
+		cmp #$e3
+		bne flt13
+isSetDeriv	pha
+fll1b           loadVar filter,1
+                cmp #0
+                beq doFilter
+                pha
+                lda #$ff
+                sta notf+1
+                pla
+                jmp finishfilt
+doFilter        
+                pha
+                lda #$00
+                sta notf+1
+                pla
+finishfilt        pha
+                and #$f0
+                sta flttype+1
+                pla
+                asl a
+                asl a
+                asl a
+                asl a
+                sta fltres+1
+                iny
+                iny
+fll0c           loadVar filter,0
+                sta fltfrqhi,x
+		iny
+		; do lower byte if required
+		pla
+		cmp #$83
+		beq fuck6510
+fll0jj0         loadVar filter,0
+                sta fltfrqlo,x
+		iny
+fuck6510        jmp flt25
+
+flt13           cmp #$23               ;add
+                bne flt2
+                iny
+fll0d           loadVar filter,0
+                jmp flt19b
+flt2            cmp #$13               ;delay
+                bne flt18
+fll1d           loadVar filter,1
+                sta fltdel
+                iny
+                iny
+                bne flt25
+flt18           cmp #$43               ;sub
+                bne flt10
+                iny
+fll0e           loadVar filter,0
+                eor #$ff
+                adc #1
+flt19b          ; store shifted....
+                pha
+                .rep 5
+                        asl
+                .endrep
+                sta fltaddlo
+                pla
+                ; this is terrible.
+                cmp #$80
+                ror
+                cmp #$80
+                ror
+                cmp #$80
+                ror
+                sta fltaddhi
+                iny
+fll0f           loadVar filter,0
+                sta fltfrqf
+
+                ; do the addition here.
+flt19           lda fltaddlo
+                clc
+                adc fltfrqlo
+                sta fltfrqlo
+                lda fltaddhi
+                adc fltfrqhi
+                sta fltfrqhi
+                cmp fltfrqf
+                bne flt25
+                lda #0
+                sta fltaddhi
+                sta fltaddlo
+                beq flt25
+flt10           sta fltfrqhi
+                iny
+flt25           tya
+                sta fltpos
+localflt0
+.else
+                ; otherwise, call it
+                stx fta
+                ldx #0
+                ; selfmod in fltpos2 for spl command
+                lda #<fltpos2
+                sta fltpos2mod+1
+                lda #>fltpos2
+                sta fltpos2mod+2
+                jsr playFilter
+                lda fltpos2
+                beq singleFilter
+                ldx #(fltpos2-fltpos)
+                ; selfmod in fltpos for spl command
+                lda #<fltpos
+                sta fltpos2mod+1
+                lda #>fltpos
+                sta fltpos2mod+2
+                jsr playFilter
+singleFilter
+                ldx fta
+.endif
+
+flt0
+
+
+
+playwave        ldy waveSpos,x
+                dey
+                bmi playIt
+                tya
+                sta waveSpos,x
+                jmp powave
+playIt
+                lda waveSpd,x
+                sta waveSpos,x
+                ldy wavepos,x          ;play wave tab
+                lda waveps,x           ;do pouse
+                longbne w_poused
+
+wave_loop
+wrr0a           loadVar wavetab2,0
+                cmp #$87
+                bne wtpl1
+doJump                
+wrr1a           lda wavetab2+1,y                 ; new line
+                tay
+wrr0b           loadVar wavetab2,0
+                jmp noJWG
+
+wtpl1                  cmp #$8b
+                bne noJWG
+                ;; fooish        
+                lda gater,x
+                and #1
+                bne doJump
+noGate
+                iny
+                iny
+                jmp wave_loop
+noJWG
+                cmp #$80               ;no command
+                longbcc wave_next_noload
+                cmp #$8d
+                longbcs wave_next_noload
+                cmp #$89
+                longbeq w_setsr
+                cmp #$8c
+                longbeq w_setspd
+                cmp #$88
+                beq w_setad
+                cmp #$81
+                beq w_pouse
+                and #$07
+                sta relmode,x          ;set mode
+                iny
+                lsr a
+                bcc wtp55
+                lda #0
+                sta notewfrq,x         ;set frq mode on
+                sta notewfrq+1,x
+                longbeq wave_loop
+wtp55           lda sndfx,x
+                and #$02
+                beq w_norel            ;relative position mode on->no set
+                lda pnote,x
+                pha
+                asl a
+                asl a
+                asl a
+                asl a
+                sta notewfrq,x
+                pla
+                lsr a
+                lsr a
+                lsr a
+                lsr a
+                sta notewfrq+1,x
+                iny
+                jmp wave_loop
+
+w_pouse
+wrr1z           loadVar wavetab2,1       ;set pouse
+                sta waveps,x
+                iny
+                iny
+                tya
+                sta wavepos,x
+w_poused        dec waveps,x           ;pouse timer down
+                ; guh.  i am going to throw up.  i can't believe i did this.
+                lda delfu,x
+                sta wtpl30+1
+                jmp wave_next0
+
+w_setad
+wrr1v           loadVar wavetab2,1       ;set ad
+                syd sid_v0_ad,x
+                iny
+                iny
+                jmp wave_loop
+
+w_setsr
+wrr1u           loadVar wavetab2,1       ;set sr
+                syd sid_v0_sr,x
+                iny
+                iny
+                jmp wave_loop
+
+
+w_norel         sty wtyy+1             ;note real frq
+                ldy pnote,x
+                lda tnote1,y
+                sta notewfrq,x
+                lda tnote2,y
+                sta notewfrq+1,x
+wtyy            ldy #$00
+
+wave_next
+wrr0g           loadVar wavetab2,0
+wave_next_noload
+                sta wtpl30+1           ; save out!
+wtt0a
+                lda wavetab1,y         ;wave type
+                sta wavetyp,x
+                iny
+                tya
+                sta wavepos,x
+wave_next0      
+wave_slide_ok   lda relmode,x
+                beq wtpl30
+                ; check for HRD mode
+                cmp #$02
+                bne notHrd
+                lda wtpl30+1
+                clc
+                adc transf,x
+                jmp cvvc
+notHrd
+                lsr a
+                lsr a
+                bcs wtpl33
+
+                lda wtpl30+1                ; HI mode
+                adc notewfrq+1,x
+                syd sid_v0_freq_hi,x
+                lda notewfrq,x  
+                syd sid_v0_freq_lo,x
+                jmp wtplo
+
+wtpl33
+                lda wtpl30+1                ; HL mode
+                asl a
+                asl a
+                asl a
+                asl a
+                clc
+                adc notewfrq,x
+                php
+                syd sid_v0_freq_lo,x
+wrr0f           loadVar wavetab2,0
+                lsr a
+                lsr a
+                lsr a
+                lsr a
+                plp
+                adc notewfrq+1,x
+                syd sid_v0_freq_hi,x
+                jmp wtplo
+
+.if useGlideSlide = 1
+                lda gldspd,x           ;glide not finish
+                beq wave_slide_ok
+                lda relmode,x
+                longbeq wtpl30
+                lda pnote,x
+                jmp cvvc
+.endif
+
+wtpl30                ; normal mode
+                lda #00
+                ; hi ray :).  your 'del' code was an ugly, ugly hack.
+                ; however, mine is worse... 
+                ; --jj
+                sta delfu,x
+                clc
+                adc pnote,x
+cvvc            sta wavenot,x
+                tay
+                lda tnote1,y
+                clc
+                adc noterfrq,x
+storeSid                
+                syd sid_v0_freq_lo,x
+                lda tnote2,y
+                adc noterfrq+1,x
+                syd sid_v0_freq_hi,x
+
+wtplo
+powave
+                lda wavetyp,x          ;LO type
+                and gater,x
+.if useControl = 1
+                ora controlOverride,x
+.endif
+                syd sid_v0_ctrl,x
+                rts
+
+w_setspd        
+wrr1x                loadVar wavetab2,1
+                sta waveSpd,x
+                sta waveSpos,x
+                iny
+                iny
+                jmp wave_loop
+
+.if useComplexPulse = 1
+playplsFunc         
+
+                ldy plspos,x
+                lda plsadd,x
+                longbne pls19
+                lda plsdel,x
+                beq pls5
+                dec plsdel,x
+                rts
+pls5
+pll0a           loadVar pulse,0
+                cmp #$63               ;jump
+                bne pls13
+pulseJump
+pll1a           lda pulse+1,y
+                tay
+pll0b           loadVar pulse,0
+                jmp pjumped
+
+pls13           cmp #$c3                ; jump with gate
+                bne pjumped
+                lda gater,x
+                and #1
+                bne pulseJump
+                iny
+                iny
+                jmp pll0a
+
+pjumped         
+                cmp #$d3                ; split
+                bne noSplit
+                iny
+pll0w           loadVar pulse,0
+ppselfmod       sta plspos2,x
+                iny
+                jmp pls5
+noSplit
+
+
+                ; set!  fuck.... seriously.  just fuck.
+                cmp #$e3
+                bne noAccSet
+                iny
+pll0jj1         loadVar pulse,0
+                sta plshi,x
+                iny
+pll0jj2         loadVar pulse,0
+                sta plslo,x
+                iny
+                jmp pls25
+noAccSet
+                cmp #$83
+                bne noSet
+                iny
+pll0jj3         loadVar pulse,0
+                jmp pls10
+noSet
+
+                cmp #$23               ;add
+                bne pls2
+                iny
+pll0c           loadVar pulse,0
+                sta plsadd,x
+                lda #0
+pls77           sta plsadd+1,x
+                iny
+pll0d           loadVar pulse,0          ;set end frequence
+                pha
+                lsr a
+                lsr a
+                lsr a
+                lsr a
+                sta plshif,x
+                pla
+                asl a
+                asl a
+                asl a
+                asl a
+                sta plslof,x
+                jmp pls19
+pls2            cmp #$13               ;delay
+                bne pls18
+pll1d           loadVar pulse,1
+                sta plsdel,x
+                iny
+                iny
+                longbne pls25
+pls18           cmp #$43               ;sub
+                bne pls10
+                iny
+pll0e           loadVar pulse,0
+                eor #$ff
+                clc
+                adc #1
+                sta plsadd,x
+                lda #$ff
+                bne pls77
+
+                ; this is the meat - do the current add/sub!
+                ; should we add a sinus table lookup here?  would
+                ; be neet! :) prolly for tfx3
+                ;  - jj
+pls19           lda plslo,x
+.if dangerousOptimization = 1
+                clc
+.endif
+                adc plsadd,x
+                sta plslo,x
+                and #$f0
+                sta pls55+1
+                lda plshi,x
+                adc plsadd+1,x
+                sta plshi,x
+                pha
+                lda plsadd+1,x
+                bne negativePulse
+                lda #$90        ; bcc
+                sta finalpComp
+                pla
+                cmp plshif,x
+                beq pls55       ; == - do lower bits compare
+                bcs clearPulse  ; < - successfull
+                bcc pls25       ; > - continue doing pulse program
+negativePulse
+                lda #$b0        ; bcs
+                sta finalpComp
+                pla
+                cmp plshif,x
+                beq pls55       ; ==
+                bcc clearPulse  ; <
+                bcs pls25       ; >
+pls55           lda #$00
+                cmp plslof,x
+                beq pls25
+finalpComp      bne pls25       ; gets changed to > or < depending on direction!
+clearPulse      lda #0
+                sta plsadd,x
+                ;sta plsadd+1,x ; this shouldn't be nessesary...
+                beq pls25
+pls10           pha
+                lsr a
+                lsr a
+                lsr a
+                lsr a
+                sta plshi,x
+                pla
+                asl a
+                asl a
+                asl a
+                asl a
+                sta plslo,x
+                iny
+pls25           tya
+                sta plspos,x
+pls0
+
+nepls
+                rts
+.endif
+
+fltaddhi         .byte $00
+fltaddlo        .byte 0
+fltpos         .byte $00
+fltdel         .byte $00
+fltfrqf        .byte $00
+fltfrqhi        .byte $00
+fltfrqlo        .byte $00
+.if useComplexFilter = 1
+fltaddhi2         .byte $00
+fltaddlo2       .byte $00
+fltpos2         .byte $00
+fltdel2         .byte $00
+fltfrqf2        .byte $00
+fltfrqhi2       .byte $00
+fltfrqlo2       .byte $00
+ftb             .byte $00
+.endif
+.if useComplexFilter = 1
+playFilter
+                ldy fltpos,x
+                ; compare both hi and lo!
+                lda fltaddhi,x
+                longbne flt19
+                lda fltaddlo,x
+                longbne flt19
+                lda fltdel,x
+                beq flt5
+                dec fltdel,x
+                jmp localflt0
+flt5
+fll0a           loadVarIndirect filter,0
+                cmp #$63               ;jump
+                bne flt11
+filterJump
+fll1a           lda filter+1,y
+                tay
+fll0b           loadVarIndirect filter,0
+                jmp fjumped
+                
+flt11           cmp #$c3                ; jump with gate
+                bne fjumped
+                ; juggle x  - zpl contians channel x, store filter x in zph :)
+                stx ftb
+                ldx fta
+                lda gater,x
+                ldx ftb
+                and #1
+                bne filterJump
+                iny
+                iny
+                jmp fll0a
+fjumped
+                ; code below only for complex filter
+                cmp #$d3                ; split
+                bne noSplitf
+                iny
+fll0w           loadVarIndirect filter,0
+fltpos2mod      sta fltpos2
+                iny
+                jmp flt5
+noSplitf
+                ; end of complex only part!
+
+                cmp #$83               ;set
+                beq isSetDeriv
+		cmp #$e3
+		bne flt13
+isSetDeriv	pha
+fll1b           loadVarIndirect filter,1
+                cmp #0
+                beq doFilter
+                pha
+                lda #$ff
+                sta notf+1
+                pla
+                jmp finishfilt
+doFilter        
+                pha
+                lda #$00
+                sta notf+1
+                pla
+finishfilt        pha
+                and #$f0
+                sta flttype+1
+                pla
+                asl a
+                asl a
+                asl a
+                asl a
+                sta fltres+1
+                iny
+                iny
+fll0c           loadVarIndirect filter,0
+                sta fltfrqhi,x
+		iny
+		; do lower byte if required
+		pla
+		cmp #$83
+		beq fuck6510
+fll0jj0         loadVarIndirect filter,0
+                sta fltfrqlo,x
+		iny
+fuck6510        jmp flt25
+
+
+flt13           cmp #$23               ;add
+                bne flt2
+                iny
+fll0d           loadVarIndirect filter,0
+                jmp flt19b
+flt2            cmp #$13               ;delay
+                bne flt18
+fll1d           loadVarIndirect filter,1
+                sta fltdel,X
+                iny
+                iny
+                bne flt25
+flt18           cmp #$43               ;sub
+                bne flt10
+                iny
+fll0e           loadVarIndirect filter,0
+                eor #$ff
+                adc #1
+flt19b          ; store shifted....
+                pha
+                .rep 5
+                        asl
+                .endrep
+                sta fltaddlo,x
+                pla
+                ; this is terrible.
+                cmp #$80
+                ror
+                cmp #$80
+                ror
+                cmp #$80
+                ror
+                sta fltaddhi,x
+                iny
+fll0f           loadVarIndirect filter,0
+                sta fltfrqf,X
+
+                ; do the addition here.
+flt19           lda fltaddlo,x
+                clc
+                adc fltfrqlo,x
+                sta fltfrqlo,x
+                lda fltaddhi,x
+                adc fltfrqhi,x
+                sta fltfrqhi,x
+                cmp fltfrqf,x
+                bne flt25
+                lda #0
+                sta fltaddhi,X
+                sta fltaddlo,X
+                beq flt25
+flt10           sta fltfrqhi,x
+                iny
+flt25           tya
+                sta fltpos,x
+localflt0
+                rts
+.endif
+
+.if gamePlayer = 1
+playEffect      sta pnote,x
+                sta nsound,x
+.if useGlideSlide = 1
+                lda #0
+                sta gldspd,x
+.endif
+                tya
+                asl
+                asl
+                asl
+                sta sndpos,x
+                tay
+                lda restartFrames,x
+                pha
+                lda init-1
+                sta restartFrames,x
+                jsr sss2a
+                pla
+                sta restartFrames,x
+                lda init-2
+                sta effectHold,x
+                rts
+.endif
+
+;컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴�
+
+
+                                           ;*** byte data
+
+.if useSetrlen = 1
+restartFrames        .byte 0
+restartWork        .byte 0
+.endif
+.if useControl = 1
+controlOverride        .byte 0
+.endif
+delfu                .byte 0
+.if useNopulse = 1
+nopulser        .byte 0
+.endif
+waveSpd                .byte 0
+waveSpos        .byte 0
+
+                .byte 0,0,0,0,0,0,0,0,0
+                .byte 0,0,0,0,0,0,0,0,0
+
+nul1
+trkpos          .byte $00
+secpos          .byte $00
+transf          .byte $00
+newsec          .byte $00
+.if useGlideSlide = 1
+gldst           .byte $00
+gldfn           .byte $00
+gldspd          .byte $00
+.endif
+                .byte $00
+                .byte $00
+                .byte $00
+                .byte $00
+                .byte $00
+                .byte $00
+                .byte $00
+                .byte $00
+                .byte $00
+                .byte $00
+                .byte $00
+                .byte $00
+                .byte $00
+                .byte $00
+
+nul2
+holdcnt         .byte $00
+.if useSwitch = 1
+switchr         .byte $00
+.endif
+.if useVol = 1
+volumer         .byte $00
+.endif
+wavenot         .byte $00
+sndfx           .byte $00
+relmode         .byte $00
+waveps          .byte $00
+
+                .byte $00
+                .byte $00
+                .byte $00
+                .byte $00
+                .byte $00
+                .byte $00
+                .byte $00
+                .byte $00
+                .byte $00
+                .byte $00
+                .byte $00
+                .byte $00
+                .byte $00
+                .byte $00
+nul3
+
+;.if useVibrato = 1
+.if 1 = 1
+vibdel          .byte $00
+udvibnrm        .byte $00
+vib1cnt         .byte $00
+vib2cnt         .byte $00
+vib1            .byte $00
+vib2            .byte $00
+repeatCount     .byte $00                 
+
+                .byte $00
+                .byte $00
+                .byte $00
+                .byte $00
+                .byte $00
+                .byte $00
+                .byte $00
+                .byte $00
+                .byte $00
+                .byte $00
+                .byte $00
+                .byte $00
+                .byte $00
+                .byte $00
+.endif 
+
+durcnt          .byte $03
+gater           .byte $00
+pnote           .byte $00
+durfig          .byte $03
+psound          .byte $00
+cplay1          .byte $00
+plsst           .byte $00
+
+                .byte $03
+                .byte $00
+                .byte $00
+                .byte $03
+                .byte $00
+                .byte $00
+                .byte $00
+                .byte $03
+                .byte $00
+                .byte $00
+                .byte $03
+                .byte $00
+                .byte $00
+                .byte $00
+
+relvibn         .byte $00
+vibspd          .byte $00
+vibspdc         .byte $00
+aktsec          .byte $00
+notewfrq        .byte $00
+                .byte $00
+sndpos          .byte $00
+
+                .byte $00
+                .byte $00
+                .byte $00
+                .byte $00
+                .byte $00
+                .byte $00
+                .byte $00
+                .byte $00
+                .byte $00
+                .byte $00
+                .byte $00
+                .byte $00
+                .byte $00
+                .byte $00
+
+profltn         .byte $fe
+proflt          .byte $01
+aksled          .byte $00
+                .byte $00
+wavepos         .byte $00
+agate           .byte $00
+nofltr          .byte $00     ;wasfree
+                
+                .byte $fd
+                .byte $02
+                .byte $00
+                .byte $00
+                .byte $00
+                .byte $00
+                .byte $00
+
+                .byte $fb
+                .byte $04
+                .byte $00
+                .byte $00
+                .byte $00
+                .byte $00
+                .byte $00
+
+
+
+
+; put the two sets of pulse vars together!!
+plspos       .byte $00
+plslo          .byte $00
+plshi          .byte $00
+plsdel         .byte $00
+plslof          .byte $00
+plshif          .byte $00
+wavetyp         .byte $00
+                
+                .byte $00
+                .byte $00
+                .byte $00
+                .byte $00
+                .byte $00
+                .byte $00
+                .byte $00
+
+                .byte $00
+                .byte $00
+                .byte $00
+                .byte $00
+                .byte $00
+                .byte $00
+                .byte $00
+
+plsadd          .byte $00
+                .byte $00
+jesr            .byte $00
+jead            .byte $00
+nsound          .byte $00
+noterfrq        .byte $00
+                .byte $00
+                
+                .byte $00
+                .byte $00
+                .byte $00
+                .byte $00
+                .byte $00
+                .byte $00
+                .byte $00
+
+                .byte $00
+                .byte $00
+                .byte $00
+                .byte $00
+                .byte $00
+                .byte $00
+                .byte $00
+.if useComplexPulse = 1
+plspos2       .byte $00
+plslo2          .byte $00
+plshi2          .byte $00
+plsdel2         .byte $00
+plslof2          .byte $00
+plshif2          .byte $00
+free            .byte $00     ;wasfree
+                
+                .byte $00
+                .byte $00
+                .byte $00
+                .byte $00
+                .byte $00
+                .byte $00
+                .byte $00
+
+                .byte $00
+                .byte $00
+                .byte $00
+                .byte $00
+                .byte $00
+                .byte $00
+                .byte $00
+
+; why all of the wasted bytes?  well, because we
+; can't pad this out, since it's _only_ visible in dual pulse mode,
+; and plsadd2 is a 16bit var
+plsadd2         .byte $00
+                .byte $00
+effectHold      .byte $00
+                .byte $00
+                .byte $00
+                .byte $00
+                .byte $00     ;wasfree
+                
+                .byte $00
+                .byte $00
+                .byte $00
+                .byte $00
+                .byte $00
+                .byte $00
+                .byte $00
+
+                .byte $00
+                .byte $00
+                .byte $00
+.endif
+
+.if useVariables = 1
+varTable
+                .byte $00
+                .byte $00
+                .byte $00
+                .byte $00
+                .byte $00
+                .byte $00
+                .byte $00
+
+                .byte $00
+                .byte $00
+                .byte $00
+                .byte $00
+                .byte $00
+                .byte $00
+                .byte $00
+                
+                .byte $00
+                .byte $00
+                .byte $00
+                .byte $00
+                .byte $00
+                .byte $00
+                .byte $00
+.endif
+                .if debugplr=1
+sid_buf         .rep $2f
+                  .byte $00
+                .endrep
+sta_sid         pha
+                tya
+                clc
+                stx sta_sid2+1
+sta_sid2        adc #$00
+                tay
+                sta $d400,y
+                sta sid_buf,y
+                pla
+                rts
+
+debug_st        =$0400+22*40
+debug_std8      =$d800+22*40
+hextab          .code "0123456789abcdef"
+
+sta_sid_sid_v0_ad_x             sta sid_v0_ad,x
+                                sta sid_buf+sid_v0_ad-$d400,x
+                                rts
+sta_sid_sid_v0_sr_x             sta sid_v0_sr,x
+                                sta sid_buf+sid_v0_sr-$d400,x
+                                rts
+sta_sid_sid_v0_ctrl_x           sta sid_v0_ctrl,x
+                                sta sid_buf+sid_v0_ctrl-$d400,x
+                                rts
+sta_sid_sid_v0_pwidth_lo_x      sta sid_v0_pwidth_lo,x
+                                sta sid_buf+sid_v0_pwidth_lo-$d400,x
+                                rts
+sta_sid_sid_v0_pwidth_hi_x      sta sid_v0_pwidth_hi,x
+                                sta sid_buf+sid_v0_pwidth_hi-$d400,x
+                                rts
+sta_sid_sid_v0_freq_lo_x        sta sid_v0_freq_lo,x
+                                sta sid_buf+sid_v0_freq_lo-$d400,x
+                                rts
+sta_sid_sid_v0_freq_hi_x        sta sid_v0_freq_hi,x
+                                sta sid_buf+sid_v0_freq_hi-$d400,x
+                                rts
+
+plot_ch         .macro ch
+                lda sid_buf+1+7*@ch
+                ldx #$00+40*@ch
+                jsr plot_num
+                lda sid_buf+0+7*@ch
+                ldx #$02+40*@ch
+                jsr plot_num
+
+                lda sid_buf+3+7*@ch
+                ldx #$05+40*@ch
+                jsr plot_num
+                lda sid_buf+2+7*@ch
+                ldx #$07+40*@ch
+                jsr plot_num
+
+                lda sid_buf+4+7*@ch
+                ldx #$0a+40*@ch
+                jsr plot_num
+
+                lda sid_buf+5+7*@ch
+                ldx #$0d+40*@ch
+                jsr plot_num
+
+                lda sid_buf+6+7*@ch
+                ldx #$10+40*@ch
+                jsr plot_num
+
+                lda #$20
+                sta debug_st+40*@ch+$04
+                sta debug_st+40*@ch+$09
+                sta debug_st+40*@ch+$0c
+                sta debug_st+40*@ch+$0f
+                sta debug_st+40*@ch+$12
+                sta debug_st+40*@ch+$13
+                sta debug_st+40*@ch+$14
+                sta debug_st+40*@ch+$15
+                sta debug_st+40*@ch+$16
+                sta debug_st+40*@ch+$17
+                .endmacro
+
+plot_num        pha
+                lsr
+                lsr
+                lsr
+                lsr
+                tay
+                lda hextab,y
+                sta debug_st,x
+                pla
+                and #$0f
+                tay
+                lda hextab,y
+                sta debug_st+1,x
+                lda #$01
+                sta debug_std8,x
+                sta debug_std8,x
+                rts
+plot_sp         lda #$20
+                sta debug_st,x
+                lda #$01
+                sta debug_std8,x
+                rts
+nplay_debug     jsr nplay
+                plot_ch 0
+                plot_ch 1
+                plot_ch 2
+                rts
+
+                .endif
+
+.if gamePlayer = 1 && useComplexPulse = 0
+effectHold      .byte 0,0,0,0,0,0,0
+                .byte 0,0,0,0,0,0,0
+                .byte 0,0,0,0,0,0,0
+.endif 
+
+                ; this function, it doesn't actually... do...
+                ; anything.... word up.  I hate you.
+splay           
+                ldx #$00                         ;multi play
+                stx fltgo+1
+                jsr playnt0
+                ldx #$07
+                jsr playnt0
+                ldx #$0e
+                jsr playnt0
+                jmp poend
+
+; remove the '=*' here, because it exposes a bug in ray's assembler!
+plend          =*
+

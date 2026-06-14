@@ -1,0 +1,101 @@
+The TFX music editor Version 2.97 News
+
+Copyright 1995-2004 Unreal
+
+-------------------------------------------------------------------------------
+
+Table of Contents
+
+What's new in TFX 2.97
+
+What's new in TFX 2.97
+
+  * 2.99: Intermittent pulse bug fixed
+
+  * 2.99: Length calculation hanging the editor really fixed this time, we
+    think...
+
+  * 2.99: The "note down" option (which controls whether you go onto the next
+    line automatically when you enter notes) actually works again. Go figure.
+
+  * 2.99: added sac - set accurate - 16bit set command to the pulse/filter
+    tables.
+
+  * 2.99: make player behave correctly when sliding and using hard note mode
+    simeltaneously.
+
+  * 2.99: Fixed 'set' bug in pulse tables. jaymz==moron.
+
+  * 2.99: Added sound effect mode for games - call init+9 with the note in 'a',
+    the channel*7 in 'x', the instrument in 'y', the minimum play time (i.e.
+    the time that the main player will NOT be allowed to generate new notes
+    over your effect) in init-1, and the hard restart time in init-2.
+
+  * 2.99: control the hard restart used for midi mode with shift-@ and shift-@,
+    with a display in the top right corner
+
+  * 2.99: some player memory use optimizations
+
+  * 2.98: Less bugs, Better Tasting, More Filling. Now with 20% more waldorf.
+
+  * 2.98: Variable hard restart - Hard restart time can now be anywhere from
+    zero to 255 frames. TFX will keep triger (i.e. when hard restart
+    *finishes*) syncronised between channels, and so it is perfectly safe to
+    use different values in each channel. At least, that's the theory. It
+    usually even works.
+
+  * 2.98: Pulse width can no longer "overshoot" it's target - it checks less
+    than/greater than now. (however, zero crossings are still an issue, so we
+    don't recommend attempting to match on pulse=0)
+
+  * 2.98: Table variables - you can set one of six variables in the sector
+    editor, and then use those in your tables, as if you'd written that number
+    there. This allows you to change the behaviour of the wave/pulse/filter
+    table from within your song (Note: This doesn't work with Jump commands,
+    but it does work with everything else, including trigger). v2.97 also adds
+    symbolic view/editing of the variables inside the pattern - press '=' to
+    toggle display of variables as numbers or as notes (in either mode, you can
+    enter either numbers or notes into them, depending on your needs).
+
+  * 2.98: Control Override - Now you can control Ring Modulation, OSC Sync,
+    Test, Gate, and even the waveform from within the sector editor.
+
+  * 2.98: More Vibrato Control - Commands to change the vibrato speed/depth
+    within sectors
+
+  * 2.98: Hard Note Mode - This will play the note value associated with that
+    number, where $30 is middle c, $31 is c#, etc (a table of notes is included
+    in this document). In TFX3, you will be able to specify a note symbolicly
+    in this mode, but this is TFX2, so you have to use numbers - this is
+    incredibly useful with the Table Variables, tho.
+
+  * 2.98: Jump while gated - all tables now have a 'JWG' command, which will
+    jump *if* the gate is set.
+
+  * 2.98: Filter type 00 will turn the filter off, for your unfiltered drum/
+    filtered bass sound :)
+
+  * 2.98: Pulse and filter carry in editor - you can now set a flag in the
+    sector editor with the 'nopls' (c=p) and 'noflt' (c=f) commands, which will
+    prevent the pulse/filter table pointers from being reset on new note
+    trigger
+
+  * 2.98: Optional two operator pulse/filter programs (finalPulse = pulse1 +
+    pulse2 only, right now) through the "split table" (SPL, c=q) command - use
+    the 'complextable' version of the player.
+
+  * 2.98: Ability to change the speed at which the wavetable is executed - see
+    the 'spd' wave table command.
+
+  * 2.98: Import for TFX v2.7, v2.8 and v2.9 files, and a new on-disk format
+    that is portable between players, and there is multiple player versions
+    included for varying needs (less ram/rastertime, better quality, etc). Be
+    aware that when importing from another player, sometimes the "note count"
+    parameter will be corrupted!
+
+  * 2.98: Greater filter control precision - control all 11 bits of cutoff
+    frequence instead of just the upper eight.
+
+  * 2.98: The "hyperpacker" PC tool, for re-packing songs with reduced player/
+    compressed data to save memory.
+

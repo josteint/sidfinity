@@ -215,9 +215,9 @@
     "updated": "2026-06-13"
   },
   "tfx": {
-    "state": "LITTLE",
-    "notes": "single research.md first-pass overview; research-engine sweep not yet run.",
-    "updated": "2026-06-13"
+    "state": "OK",
+    "notes": "research-player sweep complete (2026-06-14). TFX editor by Lada 'Ray' Lostak / Unreal (CZECH not Polish; UI by PseudoGrafx; later fixes/docs Jaymz Julian), 1995-2005. 269 HVSC SIDs, all PSID v2. BEST-SOURCED family yet: recovered the ACTUAL player source (src/Player-v2.99.ass, signed Ray/Unreal), full v2.99 manual, key-guide, changelog, AND a PC unpacker (src/hyperPacker-v2.99.c) exposing the on-disk layout - all from official Tfx_2_99.zip (unreal64.net). KEY: TFX DESCENDS FROM DMC (Ray confirmed; 1996 DMC->TFX converter) -> leverage pipelines/dmc/ (already OK). LAYOUT ($1000 base, v2.x): 9-byte 3x JMP (init $10FA/play $1003/SFX $1914), version+title string $1009-37, freq lo $103A hi $109A (96B each), 8-byte subtune descriptors ~$1BCF, patterns follow; 8KB image $1000-2FFF. WRITE MODEL per voice: SR->AD->ctrl->PWhi->PWlo->freqhi->freqlo then $D418/$D416/$D417. PATTERN bytes: $00-5F note, $60-7F sec-speed, $80-BF duration, $C0-CF ADSR, $D0-ED instr/event, $EE vib, $EF glide, $F1-FF global fx. FEATURES (manual): sector seq <=80 sectors/5 subsongs; 8-byte instruments <=32; wave(2B: NRM/SHI/SHL/RHI/RHL/HRD), pulse(SAC 16-bit v2.99, SPL split v2.97), filter(all 11 bits v2.98+) tables; 6 table vars; multispeed 1-12x/72x-per-ch + $1003/$1006 split; ~20 sector effects (GLIDE/SLIDE/RLEN hard-restart-len/CTRL/FADE...). SIDID single sig all versions. Version split: V1.x (play=$1100, freq table @ $1000, DIFFERENT map - Group B/E2, ~36 SIDs) vs V2.x (play=$1003, manual layout). v2.94 anomaly: 32-entry lo-table + 36B dispatch block. CIA multispeed subset (Timer-A + frame-skip DEC) -> --writelog-per-irq. Migration first step: disassemble canonical $1000 v2.x tune to bind Player.ass/hyperPacker.c offsets; then map v1.x layout (no v1.x manual exists). Cleared to start disassembly. See pipelines/tfx/docs/README.md.",
+    "updated": "2026-06-14"
   },
   "ubiks_musik": {
     "state": "OK",

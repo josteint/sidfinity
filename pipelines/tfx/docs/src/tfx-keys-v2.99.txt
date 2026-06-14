@@ -1,0 +1,419 @@
+The TFX music editor Version 2.97 User's Guide - Quick Reference
+
+Copyright 1995-2003 Unreal
+
+-------------------------------------------------------------------------------
+
+Table of Contents
+
+Global Keys
+Track editor Keys
+Sector Editor Keys
+
+    General Keys
+    Commands
+
+Instrument Editor
+
+    General Keys
+    Table Editor Keys
+
+Global Keys
+
+These are the keys that you can use in any window or menu. (Note: where [Shift]
+is listed, it is only required when you are NOT in MIDI mode, and when you are
+in midi mode, shift is required for all other commands :)
+
++-----------------------------------------------------------------------------+
+|       key       |                        Description                        |
+|-----------------+-----------------------------------------------------------|
+|F1               |Play the current song from the start                       |
+|-----------------+-----------------------------------------------------------|
+|F3               |Stop playing of the current song                           |
+|-----------------+-----------------------------------------------------------|
+|                 |If nothing has changed in the song since it was stopped,   |
+|F5               |continue from the current position, otherwise start playing|
+|                 |from the song. (Note that loading and saving will also     |
+|                 |cause this command to restart the song)                    |
+|-----------------+-----------------------------------------------------------|
+|F7               |Fast Forward (Only active while the key is held)           |
+|-----------------+-----------------------------------------------------------|
+|Control          |Open up the main menu if it's not already open, otherwise  |
+|                 |cancel whichever window is open.                           |
+|-----------------+-----------------------------------------------------------|
+|                 |Toggle between Edit and Play modes (This can be over ridden|
+|                 |by holding shift with a key - i.e. if you're in edit only  |
+|                 |mode, holding shift will play whichever note you are       |
+|                 |holding, and vice versa for when you are in play only      |
+|                 |mode).                                                     |
+|                 |                                                           |
+|run/stop         |In play mode, no matter where you are in the editor, the   |
+|                 |note that you pressed will be played with the currently    |
+|                 |selected instrument. In edit mode, things will behave as   |
+|                 |you would expect them to.                                  |
+|                 |                                                           |
+|                 |Note that Play mode is refered to interchangibly as "Midi  |
+|                 |Mode".                                                     |
+|-----------------+-----------------------------------------------------------|
+|[Shift] + -      |Increase/Decrease working Octave                           |
+|-----------------+-----------------------------------------------------------|
+|[Shift] @ *      |Increase/Decrease hard restart for midi/jam mode           |
+|-----------------+-----------------------------------------------------------|
+|[Shift] : ;      |Increase/Decrease working Instrument                       |
+|-----------------+-----------------------------------------------------------|
+|a-z,@*^^:;=,./   |Plays the relevant note or instrument (see below)          |
+|1-0.L            |                                                           |
+|-----------------+-----------------------------------------------------------|
+|[Shift] a-f 0-9  |Writes number onto cursor position                         |
+|-----------------+-----------------------------------------------------------|
+|                 |Slows down playing 1,2,4,8x (You can hold down multiple    |
+|F2,F4,F6,F8      |keys at once to get differnt values... i.e. F2 and F6 for  |
+|                 |5x (1+4)                                                   |
+|-----------------+-----------------------------------------------------------|
+|Commodore+Restore|Reinitialize the Editor (Lifesaver! :)                     |
+|-----------------+-----------------------------------------------------------|
+|cursor keys      |Do the obvious thing ;)                                    |
+|-----------------+-----------------------------------------------------------|
+|[Shift] ,.       |Page up/down                                               |
+|-----------------+-----------------------------------------------------------|
+|clr              |Clears the contents of the current window                  |
+|-----------------+-----------------------------------------------------------|
+|home             |moves the cursor to the top of the current window          |
+|-----------------+-----------------------------------------------------------|
+|insert/delete    |insert/delete line (if there is anything to delete or space|
+|                 |to insert ;)                                               |
++-----------------------------------------------------------------------------+
+
+Track editor Keys
+
++-----------------------------------------------------------------------------+
+|    Key     |  Command   |                    Description                    |
+|------------+------------+---------------------------------------------------|
+|[Shift]     |            |Enter the selected sector.                         |
+|Return      |            |                                                   |
+|------------+------------+---------------------------------------------------|
+|Commodore m |            |Select the subsong to edit (press 1-5 after        |
+|            |            |pressing c= m)                                     |
+|------------+------------+---------------------------------------------------|
+|Commodore s |            |Save the current cursor position (1-5)             |
+|------------+------------+---------------------------------------------------|
+|Commodore g |            |Recalk saved cursor position (1-5).                |
+|------------+------------+---------------------------------------------------|
+|Commodore x |            |eXchange the current track with another (1-3)      |
+|------------+------------+---------------------------------------------------|
+|Commodore @ |            |Copy the contents of the current position to the   |
+|            |            |clipboard.                                         |
+|------------+------------+---------------------------------------------------|
+|Commodore * |            |Paste the clipboard at the current position.       |
+|------------+------------+---------------------------------------------------|
+|<-          |            |Play in trace mode from the start of the song.     |
+|------------+------------+---------------------------------------------------|
+|Commodore <-|            |Play in tract mode from the current position.      |
+|------------+------------+---------------------------------------------------|
+|[Shift] <-  |            |Start tracing the currently playing song           |
+|------------+------------+---------------------------------------------------|
+|Return      |            |Go down to the next line                           |
+|------------+------------+---------------------------------------------------|
+|Commodore + |TRANSPOSE   |Transpose sounds down X semitones                  |
+|            |+$xx        |                                                   |
+|------------+------------+---------------------------------------------------|
+|Commodore - |TRANSPOSE   |Transpose sounds up X semitones.                   |
+|            |-$xx        |                                                   |
+|------------+------------+---------------------------------------------------|
+|Commodore e |END         |Stop playing the song.                             |
+|------------+------------+---------------------------------------------------|
+|Commodore l |LOOP line   |Loop back to given line                            |
++-----------------------------------------------------------------------------+
+
+Sector Editor Keys
+
+General Keys
+
++-----------------------------------------------------------------------------+
+|   Key    |                             Function                             |
+|----------+------------------------------------------------------------------|
+|=         |Toggle Symbolic/Numeric view of variables                         |
+|----------+------------------------------------------------------------------|
+|Commodore |Go to the next/previous sector                                    |
+|, .       |                                                                  |
+|----------+------------------------------------------------------------------|
+|[Shift] n |Transpose notes from cursor to END up/down one semitone           |
+|m         |                                                                  |
+|----------+------------------------------------------------------------------|
+|[Shift] v |Toggles "Voice Mode" (wether notes are played as you enter them or|
+|          |note)                                                             |
+|----------+------------------------------------------------------------------|
+|          |Play the current sector in trace mode. Hit any key to stop        |
+|<-        |playing, or the <- key to just switch off trace mode, but keep    |
+|          |playing.                                                          |
+|----------+------------------------------------------------------------------|
+|[Shift] <-|Play current sector in loop mode without tracing                  |
+|----------+------------------------------------------------------------------|
+|Commodore |Play current sector from this line.                               |
+|<-        |                                                                  |
+|----------+------------------------------------------------------------------|
+|[Shift]   |                                                                  |
+|Commodore |Start tracing the currently playing sector                        |
+|<-        |                                                                  |
+|----------+------------------------------------------------------------------|
+|Commodore |Copy from current position to clipboard (Doesn't copy the commands|
+|(up arrow)|of the first note, but copies everything else until the end of the|
+|          |sector)                                                           |
+|----------+------------------------------------------------------------------|
+|Commodore |Paste at the current position                                     |
+|*         |                                                                  |
+|----------+------------------------------------------------------------------|
+|Commodore |Instrument Mode #1 (Discussed later)                              |
+|1         |                                                                  |
+|----------+------------------------------------------------------------------|
+|Commodore |Instrument Mode #2 (Discussed later)                              |
+|2         |                                                                  |
+|----------+------------------------------------------------------------------|
+|Commodore |Instrument Mode #3 (Discussed later)                              |
+|3         |                                                                  |
++-----------------------------------------------------------------------------+
+
+Commands
+
++-----------------------------------------------------------------------------+
+|   Key   |Function |                       Description                       |
+|---------+---------+---------------------------------------------------------|
+|Commodore|---      |Pause for one note/row (aka Empty Row, if you're using   |
+|-        |         |this like a track based editor :)                        |
+|---------+---------+---------------------------------------------------------|
+|Commodore|END      |End this sector.                                         |
+|+        |         |                                                         |
+|---------+---------+---------------------------------------------------------|
+|Commodore|         |                                                         |
+|(up      |GATE     |Gate Off/Note Off                                        |
+|arrow)   |         |                                                         |
+|---------+---------+---------------------------------------------------------|
+|Commodore|AD       |Set the Attack/Decay for the *current* playing note.     |
+|a        |$00-$FE  |                                                         |
+|---------+---------+---------------------------------------------------------|
+|Commodore|SR       |Set the Sustain/Release for the *current* playing note.  |
+|s        |$00-$FE  |                                                         |
+|---------+---------+---------------------------------------------------------|
+|Commodore|ADN      |Set the Attack/Decay for the *next* note played.         |
+|q        |$00-$FE  |                                                         |
+|---------+---------+---------------------------------------------------------|
+|Commodore|SRN      |Set the Sustain/Release for the *next* note played.      |
+|w        |$00-$FE  |                                                         |
+|---------+---------+---------------------------------------------------------|
+|Commodore|         |Toggle restarting the tables on a new note trigger. If   |
+|x        |SWITCH   |switch is set, only the frequency of the notes will be   |
+|         |         |changed when a new note is triggered.                    |
+|---------+---------+---------------------------------------------------------|
+|Commodore|DUR      |Set the current Duration value (ticks per line)          |
+|d        |$00-$3F  |                                                         |
+|---------+---------+---------------------------------------------------------|
+|Commodore|GLIDE    |Glide from this note to the note on the next line.       |
+|g        |$00-$FE  |                                                         |
+|---------+---------+---------------------------------------------------------|
+|Commodore|SLIDE    |Slide from the current playing note to this note.        |
+|h        |$00-$FE  |                                                         |
+|---------+---------+---------------------------------------------------------|
+|Commodore|VOL $0-$F|Set the volume (actully sustain level ;) of this note.   |
+|v        |         |                                                         |
+|---------+---------+---------------------------------------------------------|
+|Commodore|FVOL     |Set the global volume                                    |
+|b        |$0-$F    |                                                         |
+|---------+---------+---------------------------------------------------------|
+|Commodore|SETFF    |Set the filter frequency.                                |
+|7        |$00-$FE  |                                                         |
+|---------+---------+---------------------------------------------------------|
+|Commodore|SETFT    |Set the filter type.                                     |
+|8        |$00-$FE  |                                                         |
+|---------+---------+---------------------------------------------------------|
+|Commodore|SETPF    |Set the pulse width                                      |
+|p        |$00-$FE  |                                                         |
+|---------+---------+---------------------------------------------------------|
+|Commodore|A GATE   |Set the auto-gate timeout to X frames (not as simple as  |
+|y        |$00-$FE  |it sounds, see notes below)                              |
+|---------+---------+---------------------------------------------------------|
+|Commodore|FADE+    |Fade the global volume from 0 to X                       |
+|j        |$0-$F    |                                                         |
+|---------+---------+---------------------------------------------------------|
+|Commodore|FADE-    |Fade the global volume from X to 0                       |
+|k        |$0-$F    |                                                         |
+|---------+---------+---------------------------------------------------------|
+|Commodore|SETVAR1-6|Set table variable n                                     |
+|1-6      |$0-$FE   |                                                         |
+|---------+---------+---------------------------------------------------------|
+|Commodore|CTRL     |Set control bits override (the control byte will be Or'd |
+|c        |$00-$FE  |with this value)                                         |
+|---------+---------+---------------------------------------------------------|
+|Commodore|RLEN     |Set the length of hard restart for this channel (in      |
+|r        |$00-$FE  |frames)                                                  |
+|---------+---------+---------------------------------------------------------|
+|Commodore|SPED     |Set the global speed                                     |
+|t        |$00-$FE  |                                                         |
+|---------+---------+---------------------------------------------------------|
+|Commodore|VSPD     |Set the vibrato speed                                    |
+|i        |$00-$FE  |                                                         |
+|---------+---------+---------------------------------------------------------|
+|Commodore|VDEP     |Set the vibrato depth                                    |
+|o        |$00-$FE  |                                                         |
+|---------+---------+---------------------------------------------------------|
+|Commodore|NOPL     |Toggle 'no pulse reset' mode                             |
+|n        |         |                                                         |
+|---------+---------+---------------------------------------------------------|
+|Commodore|NOFL     |Toggle 'no filter reset' mode                            |
+|f        |         |                                                         |
++-----------------------------------------------------------------------------+
+
+Instrument Editor
+
+General Keys
+
++-----------------------------------------------------------------------------+
+|   Key   |                            Description                            |
+|---------+-------------------------------------------------------------------|
+|[Shift]  |Switch between Table / Instrument editor                           |
+|Return   |                                                                   |
+|---------+-------------------------------------------------------------------|
+|Return   |Go back to the place from whence you came ;)                       |
+|---------+-------------------------------------------------------------------|
+|Commodore|Save current instrument                                            |
+|p        |                                                                   |
+|---------+-------------------------------------------------------------------|
+|Commodore|Save all instruments                                               |
+|l        |                                                                   |
+|---------+-------------------------------------------------------------------|
+|Commodore|Load instrument into the current position (it's tables are rather  |
+|o        |handily merged into the current song :)                            |
+|---------+-------------------------------------------------------------------|
+|Commodore|Load all instruments                                               |
+|k        |                                                                   |
+|---------+-------------------------------------------------------------------|
+|Commodore|Find next set of empty positions in the tables, and sets the       |
+|f        |current instrument to use them.                                    |
++-----------------------------------------------------------------------------+
+
+Table Editor Keys
+
++-----------------------------------------------------------------------------+
+|   Key   |Table |Command|   Description    |         |      |   |            |
+|---------+------+-------+------------------+---------+------+---+------------|
+|Commodore|      |       |Set the speed at  |         |      |   |            |
+|a        |wave  |SPD    |which the wave    |         |      |   |            |
+|         |      |       |table is executed |         |      |   |            |
+|---------+------+-------+------------------+---------+------+---+------------|
+|Commodore|      |       |Set the wave table|         |      |   |            |
+|c        |wave  |RHL    |to relative low   |         |      |   |            |
+|         |      |       |freqency mode     |         |      |   |            |
+|---------+------+-------+------------------+---------+------+---+------------|
+|Commodore|      |       |Set the wave table|         |      |   |            |
+|x        |wave  |RHI    |to relative Hi    |         |      |   |            |
+|         |      |       |Frequency mode    |         |      |   |            |
+|---------+------+-------+------------------+---------+------+---+------------|
+|Commodore|      |       |Set the wave table|         |      |   |            |
+|c        |wave  |RHL    |to relative low   |         |      |   |            |
+|         |      |       |freqency mode     |         |      |   |            |
+|---------+------+-------+------------------+---------+------+---+------------|
+|         |      |       |Set the high byte |         |      |   |            |
+|Commodore|wave  |SHI    |of the sid        |         |      |   |            |
+|w        |      |$xx    |frequency register|         |      |   |            |
+|         |      |       |to X              |         |      |   |            |
+|---------+------+-------+------------------+---------+------+---+------------|
+|         |      |       |Set the high byte |         |      |   |            |
+|Commodore|      |SHL    |of the sid        |         |      |   |            |
+|e        |wave  |$xy    |frequency register|         |      |   |            |
+|         |      |       |to $0x and the low|         |      |   |            |
+|         |      |       |byte to $y0       |         |      |   |            |
+|---------+------+-------+------------------+---------+------+---+------------|
+|Commodore|      |AD     |Set the attack/   |         |      |   |            |
+|r        |wave  |$xx    |decay register to |         |      |   |            |
+|         |      |       |X                 |         |      |   |            |
+|---------+------+-------+------------------+---------+------+---+------------|
+|Commodore|      |SR     |Set the sustain/  |         |      |   |            |
+|t        |wave  |$xx    |release register  |         |      |   |            |
+|         |      |       |to X              |         |      |   |            |
+|---------+------+-------+------------------+---------+------+---+------------|
+|         |      |       |Set the wave table|         |      |   |            |
+|         |      |       |to use "normal"   |         |      |   |            |
+|Commodore|wave  |NRM    |mode (i.e.        |         |      |   |            |
+|n        |      |       |transpose, like   |         |      |   |            |
+|         |      |       |every other editor|         |      |   |            |
+|         |      |       |:)                |         |      |   |            |
+|---------+------+-------+------------------+---------+------+---+------------|
+|Commodore|wave, |JMP    |                  |         |      |   |            |
+|j        |pulse,|$xx    |Jump to position X|         |      |   |            |
+|         |filter|       |                  |         |      |   |            |
+|---------+------+-------+------------------+---------+------+---+------------|
+|Commodore|wave, |JWG    |Jump to position X|         |      |   |            |
+|g        |pulse,|$xx    |*if* the note is  |         |      |   |            |
+|         |filter|       |currently held    |         |      |   |            |
+|---------+------+-------+------------------+---------+------+---+------------|
+|         |      |       |Jump opposite     |         |      |   |            |
+|Commodore|pulse,|SPL    |pulse/filter split|         |      |   |            |
+|q        |filter|$xx    |program to        |         |      |   |            |
+|         |      |       |position X        |         |      |   |            |
+|---------+------+-------+------------------+---------+------+---+------------|
+|Commodore|wave, |DEL    |                  |         |      |   |            |
+|d        |pulse,|$xx    |Delay for X frames|         |      |   |            |
+|         |filter|       |                  |         |      |   |            |
+|---------+------+-------+------------------+---------+------+---+------------|
+|         |      |       |Enter 'Hard Note  |         |      |   |            |
+|         |      |       |Mode' - Each      |         |      |   |            |
+|Commodore|wave, |       |number represents |         |      |   |            |
+|h        |pulse,|HRD    |a physical note,  |         |      |   |            |
+|         |filter|       |with $30 as middle|         |      |   |            |
+|         |      |       |C ($31=C#, $32=D, |         |      |   |            |
+|         |      |       |etc)              |         |      |   |            |
+|---------+------+-------+------------------+---------+------+---+------------|
+|         |      |       |Use variable X    |         |      |   |            |
+|         |      |       |(Note: actually   |         |      |   |            |
+|         |wave, |       |variable X+1, to  |         |      |   |            |
+|Commodore|pulse,|USE    |save raster time -|         |      |   |            |
+|u        |filter|$xx    |so 'use 0' will   |         |      |   |            |
+|         |      |       |use varable #1,   |         |      |   |            |
+|         |      |       |'use 1' will use  |         |      |   |            |
+|         |      |       |variable #2, etc) |         |      |   |            |
+|---------+------+-------+------------------+---------+------+---+------------|
+|         |      |       |Add X to the      |         |      |   |            |
+|         |      |       |current value     |         |      |   |            |
+|         |      |       |until it reaches Y|         |      |   |            |
+|         |      |       |(Note: for pulse, |         |      |   |            |
+|         |      |       |this matches      |         |      |   |            |
+|         |      |       |$yy0... for       |         |      |   |            |
+|Commodore|pulse,|ADD    |example, if your  |         |      |   |            |
+|a        |filter|$xx    |pulse table adds  |         |      |   |            |
+|         |      |$yy    |an odd number, it |         |      |   |            |
+|         |      |       |may not reach     |         |      |   |            |
+|         |      |       |$yy0, but, say    |         |      |   |            |
+|         |      |       |$yy1, and then the|         |      |   |            |
+|         |      |       |add will loop     |         |      |   |            |
+|         |      |       |infinitly! Be     |         |      |   |            |
+|         |      |       |careful :)        |         |      |   |            |
+|---------+------+-------+------------------+---------+------+---+------------|
+|         |      |       |Subtract X from   |         |      |   |            |
+|         |      |SUB    |the current value |         |      |   |            |
+|Commodore|pulse,|$xx    |until it reaches Y|         |      |   |            |
+|b        |filter|$yy    |(Warning for ADD  |         |      |   |            |
+|         |      |       |applies here, too |         |      |   |            |
+|         |      |       |:)                |         |      |   |            |
+|---------+------+-------+------------------+---------+------+---+------------|
+|         |      |       |Set the filter    |         |      |   |            |
+|Commodore|      |SET    |parameters (first |         |      |   |            |
+|s        |filter|$xx    |parameter is type/|         |      |   |            |
+|         |      |$yy    |resonance, second |         |      |   |            |
+|         |      |       |is cutoff freq)   |         |      |   |            |
+|---------+------+-------+------------------+---------+------+---+------------|
+|         |      |       |                  |         |      |   |Set the     |
+|         |      |       |                  |         |      |   |filter      |
+|         |      |       |                  |         |      |   |parameters  |
+|         |      |       |                  |         |      |   |accuratly   |
+|Commodore|      |SET    |Set the pulse     |Commodore|      |SAC|(first      |
+|s        |pulse |$xx    |width to $xx0     |t        |filter|$xx|parameter is|
+|         |      |       |                  |         |      |$yy|type/       |
+|         |      |       |                  |         |      |   |resonance,  |
+|         |      |       |                  |         |      |   |second and  |
+|         |      |       |                  |         |      |   |third are   |
+|         |      |       |                  |         |      |   |cutoff freq)|
+|---------+------+-------+------------------+---------+------+---+------------|
+|         |      |       |Set the pulse     |         |      |   |            |
+|Commodore|pulse |SAC    |width to $xxxx    |         |      |   |            |
+|t        |      |$xx    |(two parameters,  |         |      |   |            |
+|         |      |       |hi then low)      |         |      |   |            |
++-----------------------------------------------------------------------------+

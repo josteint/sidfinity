@@ -1,0 +1,1607 @@
+The TFX music editor Version 2.97 User's Guide
+
+Copyright 1995-2004 Unreal
+
+-------------------------------------------------------------------------------
+
+Table of Contents
+
+1. Introduction
+
+    Why TFX?
+    Credits and Thanks
+
+2. What's new in TFX 2.97
+
+    Features
+
+3. Using TFX
+
+    Starting up
+    Files
+
+        General
+        Loading Files
+        Saving Files
+
+    Instruments
+
+        Keys
+        General
+        Instrument Parameters
+        Flags
+
+    Tables
+
+        Keys
+        Wave Table
+        Pulse Table
+        Filter Table
+
+    Track Editor
+
+        Keys
+        General Usage
+        Track editor commands
+
+    Sector Editor
+
+        Keys
+        General Usage
+        Basic editing
+        Instrument Modes
+        Status display
+        Effects
+        Multiple Effects
+
+    Multiframe Music
+    Configuring TFX
+
+        General options
+        Init
+        About
+
+Chapter 1. Introduction
+
+Table of Contents
+
+Why TFX?
+Credits and Thanks
+
+Why TFX?
+
+TFX allows you to create music in a comfortable editing environment, while not
+sacrificing power for the privelidge of doing so. TFX is one of the most
+powerful C64 music editors available today, while still being easy to use for
+the musician (who usually isn't a coder ;)
+
+It allows up to $50 (80) sectors per song, and up to 5 independent songs in one
+file, utilising a memory range from $1000-$2fff (8 KBytes). It can create music
+that udpates the sid in all channels at up to 600hz (12x each frame), and can
+create instruments that update the sid at up to 3600hz (72x each frame!).
+
+The TFX editor is fully command oriented, with auto table reduction to reduce
+the size of your music to the minumum possible. The command tables can control
+(almost) any parameter of the sid.
+
+Within the standard wave table, you can do such things as modify the AD/SR
+values, set the sid frequency registers directly, as well as the usual relative
+tables.
+
+The filter table will allow you to set and modify any of the filter parameters
+from inside the table, including resonance, band, and type. This means that you
+can, for example, easily do a resonance sweep, or create an instrument which
+changes the filter type each frame.
+
+In all tables, you have commands to add, delay, and jump around the table, in
+order to make your life as simple or as complex as you wish!
+
+Credits and Thanks
+
+The TFX editor was coded by Ray (ray@unreal64.net), with some minor player
+modifications by A Life in Hell (jaymz@unreal64.net). It was originally
+designed by PseudoGrafx (pg@pinknet.cz). This documentation was written by Ray
+(ray@unreal64.net) and A Life in Hell (jaymz@unreal64.net).
+
+The songs included on the examples disk are by their respective authors, who
+are: (list of demo songs and authors would go here, if I'd done it).
+
+Finally. TFX would not be the editor that it is today without the input of beta
+testing team, so thanks to you guys for putting up with the downside of late
+night coding binges.
+
+Chapter 2. What's new in TFX 2.97
+
+Table of Contents
+
+Features
+
+Features
+
+  * 2.99: Intermittent pulse bug fixed
+
+  * 2.99: Length calculation hanging the editor really fixed this time, we
+    think...
+
+  * 2.99: The "note down" option (which controls whether you go onto the next
+    line automatically when you enter notes) actually works again. Go figure.
+
+  * 2.99: added sac - set accurate - 16bit set command to the pulse/filter
+    tables.
+
+  * 2.99: make player behave correctly when sliding and using hard note mode
+    simeltaneously.
+
+  * 2.99: Fixed 'set' bug in pulse tables. jaymz==moron.
+
+  * 2.99: Added sound effect mode for games - call init+9 with the note in 'a',
+    the channel*7 in 'x', the instrument in 'y', the minimum play time (i.e.
+    the time that the main player will NOT be allowed to generate new notes
+    over your effect) in init-1, and the hard restart time in init-2.
+
+  * 2.99: control the hard restart used for midi mode with shift-@ and shift-@,
+    with a display in the top right corner
+
+  * 2.99: some player memory use optimizations
+
+  * 2.98: Less bugs, Better Tasting, More Filling. Now with 20% more waldorf.
+
+  * 2.98: Variable hard restart - Hard restart time can now be anywhere from
+    zero to 255 frames. TFX will keep triger (i.e. when hard restart
+    *finishes*) syncronised between channels, and so it is perfectly safe to
+    use different values in each channel. At least, that's the theory. It
+    usually even works.
+
+  * 2.98: Pulse width can no longer "overshoot" it's target - it checks less
+    than/greater than now. (however, zero crossings are still an issue, so we
+    don't recommend attempting to match on pulse=0)
+
+  * 2.98: Table variables - you can set one of six variables in the sector
+    editor, and then use those in your tables, as if you'd written that number
+    there. This allows you to change the behaviour of the wave/pulse/filter
+    table from within your song (Note: This doesn't work with Jump commands,
+    but it does work with everything else, including trigger). v2.97 also adds
+    symbolic view/editing of the variables inside the pattern - press '=' to
+    toggle display of variables as numbers or as notes (in either mode, you can
+    enter either numbers or notes into them, depending on your needs).
+
+  * 2.98: Control Override - Now you can control Ring Modulation, OSC Sync,
+    Test, Gate, and even the waveform from within the sector editor.
+
+  * 2.98: More Vibrato Control - Commands to change the vibrato speed/depth
+    within sectors
+
+  * 2.98: Hard Note Mode - This will play the note value associated with that
+    number, where $30 is middle c, $31 is c#, etc (a table of notes is included
+    in this document). In TFX3, you will be able to specify a note symbolicly
+    in this mode, but this is TFX2, so you have to use numbers - this is
+    incredibly useful with the Table Variables, tho.
+
+  * 2.98: Jump while gated - all tables now have a 'JWG' command, which will
+    jump *if* the gate is set.
+
+  * 2.98: Filter type 00 will turn the filter off, for your unfiltered drum/
+    filtered bass sound :)
+
+  * 2.98: Pulse and filter carry in editor - you can now set a flag in the
+    sector editor with the 'nopls' (c=p) and 'noflt' (c=f) commands, which will
+    prevent the pulse/filter table pointers from being reset on new note
+    trigger
+
+  * 2.98: Optional two operator pulse/filter programs (finalPulse = pulse1 +
+    pulse2 only, right now) through the "split table" (SPL, c=q) command - use
+    the 'complextable' version of the player.
+
+  * 2.98: Ability to change the speed at which the wavetable is executed - see
+    the 'spd' wave table command.
+
+  * 2.98: Import for TFX v2.7, v2.8 and v2.9 files, and a new on-disk format
+    that is portable between players, and there is multiple player versions
+    included for varying needs (less ram/rastertime, better quality, etc). Be
+    aware that when importing from another player, sometimes the "note count"
+    parameter will be corrupted!
+
+  * 2.98: Greater filter control precision - control all 11 bits of cutoff
+    frequence instead of just the upper eight.
+
+  * 2.98: The "hyperpacker" PC tool, for re-packing songs with reduced player/
+    compressed data to save memory.
+
+Chapter 3. Using TFX
+
+Table of Contents
+
+Starting up
+Files
+
+    General
+    Loading Files
+    Saving Files
+
+Instruments
+
+    Keys
+    General
+    Instrument Parameters
+    Flags
+
+Tables
+
+    Keys
+    Wave Table
+    Pulse Table
+    Filter Table
+
+Track Editor
+
+    Keys
+    General Usage
+    Track editor commands
+
+Sector Editor
+
+    Keys
+    General Usage
+    Basic editing
+    Instrument Modes
+    Status display
+    Effects
+    Multiple Effects
+
+Multiframe Music
+Configuring TFX
+
+    General options
+    Init
+    About
+
+Starting up
+
+These are the keys that you can use in any window or menu. (Note: where [Shift]
+is listed, it is only required when you are NOT in MIDI mode, and when you are
+in midi mode, shift is required for all other commands :)
+
++-----------------------------------------------------------------------------+
+|       key       |                        Description                        |
+|-----------------+-----------------------------------------------------------|
+|F1               |Play the current song from the start                       |
+|-----------------+-----------------------------------------------------------|
+|F3               |Stop playing of the current song                           |
+|-----------------+-----------------------------------------------------------|
+|                 |If nothing has changed in the song since it was stopped,   |
+|F5               |continue from the current position, otherwise start playing|
+|                 |from the song. (Note that loading and saving will also     |
+|                 |cause this command to restart the song)                    |
+|-----------------+-----------------------------------------------------------|
+|F7               |Fast Forward (Only active while the key is held)           |
+|-----------------+-----------------------------------------------------------|
+|Control          |Open up the main menu if it's not already open, otherwise  |
+|                 |cancel whichever window is open.                           |
+|-----------------+-----------------------------------------------------------|
+|                 |Toggle between Edit and Play modes (This can be over ridden|
+|                 |by holding shift with a key - i.e. if you're in edit only  |
+|                 |mode, holding shift will play whichever note you are       |
+|                 |holding, and vice versa for when you are in play only      |
+|                 |mode).                                                     |
+|                 |                                                           |
+|run/stop         |In play mode, no matter where you are in the editor, the   |
+|                 |note that you pressed will be played with the currently    |
+|                 |selected instrument. In edit mode, things will behave as   |
+|                 |you would expect them to.                                  |
+|                 |                                                           |
+|                 |Note that Play mode is refered to interchangibly as "Midi  |
+|                 |Mode".                                                     |
+|-----------------+-----------------------------------------------------------|
+|[Shift] + -      |Increase/Decrease working Octave                           |
+|-----------------+-----------------------------------------------------------|
+|[Shift] @ *      |Increase/Decrease hard restart for midi/jam mode           |
+|-----------------+-----------------------------------------------------------|
+|[Shift] : ;      |Increase/Decrease working Instrument                       |
+|-----------------+-----------------------------------------------------------|
+|a-z,@*^^:;=,./   |Plays the relevant note or instrument (see below)          |
+|1-0.L            |                                                           |
+|-----------------+-----------------------------------------------------------|
+|[Shift] a-f 0-9  |Writes number onto cursor position                         |
+|-----------------+-----------------------------------------------------------|
+|                 |Slows down playing 1,2,4,8x (You can hold down multiple    |
+|F2,F4,F6,F8      |keys at once to get differnt values... i.e. F2 and F6 for  |
+|                 |5x (1+4)                                                   |
+|-----------------+-----------------------------------------------------------|
+|Commodore+Restore|Reinitialize the Editor (Lifesaver! :)                     |
+|-----------------+-----------------------------------------------------------|
+|cursor keys      |Do the obvious thing ;)                                    |
+|-----------------+-----------------------------------------------------------|
+|[Shift] ,.       |Page up/down                                               |
+|-----------------+-----------------------------------------------------------|
+|clr              |Clears the contents of the current window                  |
+|-----------------+-----------------------------------------------------------|
+|home             |moves the cursor to the top of the current window          |
+|-----------------+-----------------------------------------------------------|
+|insert/delete    |insert/delete line (if there is anything to delete or space|
+|                 |to insert ;)                                               |
++-----------------------------------------------------------------------------+
+
+The first thing you'll want to do, is configure TFX using the main menu. To
+enter the main menu, press control. Once inside the menu, you can press control
+to back out of any dialog or menu, and return to the previous menu/dialog.
+
+You can navigate the menu and all dialogs using the cursor keys and return.
+
+Files
+
+General
+
+TFX Files have the prefix "_". This is how the editor knows which files belong
+to us. In front of files that can be used in editor is an additional charecter.
+For music it's "m", setup is "s", single instrument is "i" and a set of
+instruments is "ii".
+
+Loading Files
+
+When you select "Load" off the file menu, a dialog will be displayed, with a
+listing of all TFX songs found on the current disk.
+
+You can press 'D' to reread the directory listing. Do the usual cursor/return
+navigating that you've always done. :P
+
+If the selected file isn't a TFX file, the message "No TFX player found" will
+be shown, and the contents of the editor will NOT be overwritten. :)
+
+*** *** *** *** ***
+*** Please Note ***
+*** *** *** *** ***
+
+Due to a bug in VICE, you need to have it set to use Full 1541 emulation when
+loading files, or else it will show "No files found". We don't know why this
+occours ;). You can turn it off after you have loaded the directory listing. We
+have no idea why, or if this is a problem in other emulators. This is an
+emulation problem. We are not fixing it. SEP.
+
+We also take this oppertunity to point of that all of the current sid emulators
+are not terribly TFX friendly (that includes resid/sidplay2, right now - for
+me, resid seems to require an additional frame for certain ADSR things to work,
+and some of TFX's filter effects sound TERRIBLE in it) when start using some of
+the more advanced features of the wave and filter table.
+
+You have been warned. Real C64 rules ;).
+
+*** *** *** *** ***
+***             ***
+*** *** *** *** ***
+
+Saving Files
+
+Files are automatically packed for you when saved to disk, with a $1000/$1003
+(/$1006 for multispeed) player. When the packing is complete, the editor will
+tell you how much memory the actual file takes.
+
+You also are given the oppertunity to add a message to the file. You know you
+want world peace ;) Oh, yeah, some people put credits here, too. Me, I put a
+message of world peace, but I'm an idiot :P
+
+But I digress. Wildly.
+
+Then, the music is written to the disk, and (if you're replacing a file) the
+older file removed. This happens in exactly the above stated order, so that any
+error that occours during saving won't clobber your existing file. :)
+
+It is suggested to use "Save As" to backup your files, unless you're making
+very small changes. This way, you can always go back to an older file if you
+screw this one up :) (and yes, I've done that more times than I can count :P)
+(*USUALLY - TFX IS NOT INFALLIBLE. DON'T BLAME US IF YOU LOSE YOUR FILE, OKAY?*
+Ray says: It is removed by the "@:" disc command, so, if there is an error on
+disc, the original file is NOT destryed, but we still recomened you sometimes
+use the save as command. Never believe in the magnetic circle :D)
+
+Note that when entering a filename for Save As (or any file dialog within TFX),
+the editor adds the required identifying charecters ("_", etc) to the filename
+for you, so you don't have to do this.
+
+If everything goes to hell, an error dialog is shown telling you what went
+wrong (Disk Full, etc), and your file isn't saved!
+
+TFX doesn't use any disc turbo's, it only relies on KERNAL or your cartrige/
+turbo. So, if you have problems with your cart/turbo, instead of sending us
+bombs, instead send us beer, money, and girls - and send the aformentioned
+bombs to the creators of your cart. TFX is tested with a FC III and works well
+with it's loader. We havn't tested any other carts.
+
+Instruments
+
+Keys
+
++-----------------------------------------------------------------------------+
+|   Key   |                            Description                            |
+|---------+-------------------------------------------------------------------|
+|[Shift]  |Switch between Table / Instrument editor                           |
+|Return   |                                                                   |
+|---------+-------------------------------------------------------------------|
+|Return   |Go back to the place from whence you came ;)                       |
+|---------+-------------------------------------------------------------------|
+|Commodore|Save current instrument                                            |
+|p        |                                                                   |
+|---------+-------------------------------------------------------------------|
+|Commodore|Save all instruments                                               |
+|l        |                                                                   |
+|---------+-------------------------------------------------------------------|
+|Commodore|Load instrument into the current position (it's tables are rather  |
+|o        |handily merged into the current song :)                            |
+|---------+-------------------------------------------------------------------|
+|Commodore|Load all instruments                                               |
+|k        |                                                                   |
+|---------+-------------------------------------------------------------------|
+|Commodore|Find next set of empty positions in the tables, and sets the       |
+|f        |current instrument to use them.                                    |
++-----------------------------------------------------------------------------+
+
+General
+
+After selecting "Instruments..." from the main menu, you are taken to a the
+instrument editor.
+
+The first time you look at this screen, you will think "Goddamn, this is
+complicated!"
+
+The second time you look at this screen, you will think "This is even more
+complicated than I thought!!!!"
+
+The third time, it will look well arranged and easy to use.
+
+The information window, at the top of the screen, shows the current filter
+frequency, pulse frequency and of course note frequency (including vibrato) of
+the channel which you have selected for "midi mode" (more on midi mode later).
+
+There is two ways of displaying filter information. Direct resonance/type
+parameters, and a "graphical" representation of the type. Three F's are
+displayed in the status area, representing the 3 filter bands (Low, Bandpass,
+and High Pass). When the F is white, that band is enabled.
+
+Below that, are shown the current table positions, and the current working
+octaves for the top and bottom of the keyboard.
+
+Instrument Parameters
+
+ADSR | WT | PT | FT |  FLAGS   | VDL | VDP | VS
+0000 | 00 | 00 | 00 | 00000000 |  0  |  0  | 00
+
++-----------------------------------------------------------------------------+
+|     |Attack/Decay/Sustain/Release. The standard sid envelope parameters, you|
+|ADSR |know them, you love them ;). *** we should also write next note 'SID' -|
+|     |now sid works. Many ppl on #c-64 say that if SHOULD help coz majority  |
+|     |of them 'know what ADSR' do, but don't understand "why"                |
+|-----+-----------------------------------------------------------------------|
+|WT   |Initial wave table pointer. *** 'start of table' rather                |
+|-----+-----------------------------------------------------------------------|
+|PT   |Initial pulse table pointer.                                           |
+|-----+-----------------------------------------------------------------------|
+|FT   |Initial filter table pointer.                                          |
+|-----+-----------------------------------------------------------------------|
+|FLAGS|Miscelaneous Instrument Flags - explained below.                       |
+|-----+-----------------------------------------------------------------------|
+|VDL  |Vibrato Delay                                                          |
+|-----+-----------------------------------------------------------------------|
+|VDP  |Vibrato Depth                                                          |
+|-----+-----------------------------------------------------------------------|
+|VS   |Vibrato Speed                                                          |
++-----------------------------------------------------------------------------+
+
+Flags
+
+On the bottom right of the screen, you will see a list of words that you can't
+actully get to (not at all conincidentally, the list below :). This list is a
+visual representation of what the flags setting contains. Items are highlighted
+when they are selected for your viewing convinence. The flags from left to
+right are on the list from top to bottom.
+
++-----------------------------------------------------------------------------+
+|No    |Don't reset the pulse table at each note trigger. Note that if there  |
+|Pulse |is no pulse table currently playing, the results will be unpredictable|
+|Reset |(the player will probably do bad things ;) (should we change this to  |
+|      |only continue on same instrument ala sid duzz it?)                    |
+|------+----------------------------------------------------------------------|
+|      |Changes relative note commands in the wave table from being relative  |
+|rnote |to the frequency, to being relative to the note value right shifted 4 |
+|pos hl|bits (so, say are using middle C, which is note $40, then the relative|
+|      |commands will be relative to sid frequency $400)                      |
+|------+----------------------------------------------------------------------|
+|      |Don't reset the filter table at each note trigger. This works exactly |
+|      |like 'No Pulse', but for the filter tables. If you are filtering      |
+|      |multiple channels, then only one should have control of the filters - |
+|no flt|instruments that will be played on "slave" channels should have this  |
+|set   |flag set. TFX will atempt to resolve when you try and filter multiple |
+|      |channels - but only once can control the parameters, of course, and   |
+|      |this allows finer control over which instruments will do so, than just|
+|      |letting TFX decide.                                                   |
+|------+----------------------------------------------------------------------|
+|Filter|Turns on/off filtering for this instrument.                           |
+|------+----------------------------------------------------------------------|
+|Hold  |Turns off automatic gating of this instrument. If this is enabled, the|
+|manual|instrument's gate will be held on until you explicitly issue a GATE   |
+|      |command. *** see down about 'holdings' etc.                           |
+|------+----------------------------------------------------------------------|
+|pulse |Don't execute pulse table at all. Don't write anything to the pulse   |
+|off   |width registers.                                                      |
+|------+----------------------------------------------------------------------|
+|hold  |Don't hold the note at all                                            |
+|off   |                                                                      |
+|------+----------------------------------------------------------------------|
+|hold  |Hold until a GATE command is issued                                   |
+|gate  |                                                                      |
++-----------------------------------------------------------------------------+
+
+Tables
+
+Keys
+
++-----------------------------------------------------------------------------+
+|   Key   |Table |Command|   Description    |         |      |   |            |
+|---------+------+-------+------------------+---------+------+---+------------|
+|Commodore|      |       |Set the speed at  |         |      |   |            |
+|a        |wave  |SPD    |which the wave    |         |      |   |            |
+|         |      |       |table is executed |         |      |   |            |
+|---------+------+-------+------------------+---------+------+---+------------|
+|Commodore|      |       |Set the wave table|         |      |   |            |
+|c        |wave  |RHL    |to relative low   |         |      |   |            |
+|         |      |       |freqency mode     |         |      |   |            |
+|---------+------+-------+------------------+---------+------+---+------------|
+|Commodore|      |       |Set the wave table|         |      |   |            |
+|x        |wave  |RHI    |to relative Hi    |         |      |   |            |
+|         |      |       |Frequency mode    |         |      |   |            |
+|---------+------+-------+------------------+---------+------+---+------------|
+|Commodore|      |       |Set the wave table|         |      |   |            |
+|c        |wave  |RHL    |to relative low   |         |      |   |            |
+|         |      |       |freqency mode     |         |      |   |            |
+|---------+------+-------+------------------+---------+------+---+------------|
+|         |      |       |Set the high byte |         |      |   |            |
+|Commodore|wave  |SHI    |of the sid        |         |      |   |            |
+|w        |      |$xx    |frequency register|         |      |   |            |
+|         |      |       |to X              |         |      |   |            |
+|---------+------+-------+------------------+---------+------+---+------------|
+|         |      |       |Set the high byte |         |      |   |            |
+|Commodore|      |SHL    |of the sid        |         |      |   |            |
+|e        |wave  |$xy    |frequency register|         |      |   |            |
+|         |      |       |to $0x and the low|         |      |   |            |
+|         |      |       |byte to $y0       |         |      |   |            |
+|---------+------+-------+------------------+---------+------+---+------------|
+|Commodore|      |AD     |Set the attack/   |         |      |   |            |
+|r        |wave  |$xx    |decay register to |         |      |   |            |
+|         |      |       |X                 |         |      |   |            |
+|---------+------+-------+------------------+---------+------+---+------------|
+|Commodore|      |SR     |Set the sustain/  |         |      |   |            |
+|t        |wave  |$xx    |release register  |         |      |   |            |
+|         |      |       |to X              |         |      |   |            |
+|---------+------+-------+------------------+---------+------+---+------------|
+|         |      |       |Set the wave table|         |      |   |            |
+|         |      |       |to use "normal"   |         |      |   |            |
+|Commodore|wave  |NRM    |mode (i.e.        |         |      |   |            |
+|n        |      |       |transpose, like   |         |      |   |            |
+|         |      |       |every other editor|         |      |   |            |
+|         |      |       |:)                |         |      |   |            |
+|---------+------+-------+------------------+---------+------+---+------------|
+|Commodore|wave, |JMP    |                  |         |      |   |            |
+|j        |pulse,|$xx    |Jump to position X|         |      |   |            |
+|         |filter|       |                  |         |      |   |            |
+|---------+------+-------+------------------+---------+------+---+------------|
+|Commodore|wave, |JWG    |Jump to position X|         |      |   |            |
+|g        |pulse,|$xx    |*if* the note is  |         |      |   |            |
+|         |filter|       |currently held    |         |      |   |            |
+|---------+------+-------+------------------+---------+------+---+------------|
+|         |      |       |Jump opposite     |         |      |   |            |
+|Commodore|pulse,|SPL    |pulse/filter split|         |      |   |            |
+|q        |filter|$xx    |program to        |         |      |   |            |
+|         |      |       |position X        |         |      |   |            |
+|---------+------+-------+------------------+---------+------+---+------------|
+|Commodore|wave, |DEL    |                  |         |      |   |            |
+|d        |pulse,|$xx    |Delay for X frames|         |      |   |            |
+|         |filter|       |                  |         |      |   |            |
+|---------+------+-------+------------------+---------+------+---+------------|
+|         |      |       |Enter 'Hard Note  |         |      |   |            |
+|         |      |       |Mode' - Each      |         |      |   |            |
+|Commodore|wave, |       |number represents |         |      |   |            |
+|h        |pulse,|HRD    |a physical note,  |         |      |   |            |
+|         |filter|       |with $30 as middle|         |      |   |            |
+|         |      |       |C ($31=C#, $32=D, |         |      |   |            |
+|         |      |       |etc)              |         |      |   |            |
+|---------+------+-------+------------------+---------+------+---+------------|
+|         |      |       |Use variable X    |         |      |   |            |
+|         |      |       |(Note: actually   |         |      |   |            |
+|         |wave, |       |variable X+1, to  |         |      |   |            |
+|Commodore|pulse,|USE    |save raster time -|         |      |   |            |
+|u        |filter|$xx    |so 'use 0' will   |         |      |   |            |
+|         |      |       |use varable #1,   |         |      |   |            |
+|         |      |       |'use 1' will use  |         |      |   |            |
+|         |      |       |variable #2, etc) |         |      |   |            |
+|---------+------+-------+------------------+---------+------+---+------------|
+|         |      |       |Add X to the      |         |      |   |            |
+|         |      |       |current value     |         |      |   |            |
+|         |      |       |until it reaches Y|         |      |   |            |
+|         |      |       |(Note: for pulse, |         |      |   |            |
+|         |      |       |this matches      |         |      |   |            |
+|         |      |       |$yy0... for       |         |      |   |            |
+|Commodore|pulse,|ADD    |example, if your  |         |      |   |            |
+|a        |filter|$xx    |pulse table adds  |         |      |   |            |
+|         |      |$yy    |an odd number, it |         |      |   |            |
+|         |      |       |may not reach     |         |      |   |            |
+|         |      |       |$yy0, but, say    |         |      |   |            |
+|         |      |       |$yy1, and then the|         |      |   |            |
+|         |      |       |add will loop     |         |      |   |            |
+|         |      |       |infinitly! Be     |         |      |   |            |
+|         |      |       |careful :)        |         |      |   |            |
+|---------+------+-------+------------------+---------+------+---+------------|
+|         |      |       |Subtract X from   |         |      |   |            |
+|         |      |SUB    |the current value |         |      |   |            |
+|Commodore|pulse,|$xx    |until it reaches Y|         |      |   |            |
+|b        |filter|$yy    |(Warning for ADD  |         |      |   |            |
+|         |      |       |applies here, too |         |      |   |            |
+|         |      |       |:)                |         |      |   |            |
+|---------+------+-------+------------------+---------+------+---+------------|
+|         |      |       |Set the filter    |         |      |   |            |
+|Commodore|      |SET    |parameters (first |         |      |   |            |
+|s        |filter|$xx    |parameter is type/|         |      |   |            |
+|         |      |$yy    |resonance, second |         |      |   |            |
+|         |      |       |is cutoff freq)   |         |      |   |            |
+|---------+------+-------+------------------+---------+------+---+------------|
+|         |      |       |                  |         |      |   |Set the     |
+|         |      |       |                  |         |      |   |filter      |
+|         |      |       |                  |         |      |   |parameters  |
+|         |      |       |                  |         |      |   |accuratly   |
+|Commodore|      |SET    |Set the pulse     |Commodore|      |SAC|(first      |
+|s        |pulse |$xx    |width to $xx0     |t        |filter|$xx|parameter is|
+|         |      |       |                  |         |      |$yy|type/       |
+|         |      |       |                  |         |      |   |resonance,  |
+|         |      |       |                  |         |      |   |second and  |
+|         |      |       |                  |         |      |   |third are   |
+|         |      |       |                  |         |      |   |cutoff freq)|
+|---------+------+-------+------------------+---------+------+---+------------|
+|         |      |       |Set the pulse     |         |      |   |            |
+|Commodore|pulse |SAC    |width to $xxxx    |         |      |   |            |
+|t        |      |$xx    |(two parameters,  |         |      |   |            |
+|         |      |       |hi then low)      |         |      |   |            |
++-----------------------------------------------------------------------------+
+
+Wave Table
+
+The wave table display is split into 2 parts, like most editors.
+
+In normal mode, The first byte is split into 4 bits and a nibble, these being
+wave type and parameter (Gate, Ringmod, Osc Sync, Test).
+
+The meaning of the second byte is depends on the selected 'wave table mode'.
+The wave table modes, is switched by commands within the wave table, which can
+be specified at any time. The default mode is "Normal" mode. Is recomended that
+combine modes as you need them..
+
+so the following:
+
+
+l    W G R S T
+i    a a i y e
+n    v t n n s
+e    e e g c t
+|    | | | | |
+v    v v v v v
+00   2 1 0 1 0  00
+
+Would be an OSC Sync'd sawtooth waveform
+
+If you place a command (nrm/shi - whatever) in the right column, then the left
+column (wave type) is ignored. ***(See general note about commands and how
+editor work with commands / its parametres)***.
+
+When a note is triggered, assuming that restart length is greater than zero,
+the first line in this instrument's note table is sent to the sid to restart
+it, with the right column being placed in the SR register during the hard
+restart period. This should *not* be gated.
+
+A few words about hard restart: There are many ways to restart the sid, and
+each of them creates a different sound. Setting "00000 FF" for a single frame
+will achieve a very quick restart, which sounds quite good. If you want to use
+the more traditional "00001 00" hard restart (09 00 in other players :), you
+will need to set the hard restart length to *2* frames, in order to make that
+useful. But, the advantage is, your notes will have a much stronger attack -
+you can hear this quite clearly on percussion instruments, for example. You can
+set restart length to zero, which will cause this line to not be executed at
+all, but if you are working for low raster time, you may wish to not do this,
+and hence another option, is to place the note's SR value there to create a
+note which doens't restart, achieving the same smooth sound, without the extra
+raster overhead of doing both trigger *and* wavetable play in a single frame.
+
+The wave table will execute commands each frame until it reaches a non-command
+line. It is possible to create an infinite loop, for example:
+
+00   0 0 0 0 0  SHI
+01   0 0 0 0 0  JMP
+02   0 0 0 0 0  00
+
+Since no normal parameter is ever reached. You can break out of this loop by
+pressing commodore+restore to reinit the player.
+
+00   0 0 0 0 0  SHI
+01   0 0 0 0 0  NRM
+02   4 1 0 0 0  00
+03   0 0 0 0 0  JMP
+04   0 0 0 0 0  02
+
+SHI is here redundant, because it is overriden by NRM mode. So don't do this -
+you'll only waste raster time :)
+
+Normal Mode
+
+Normal mode is set after note trigger or explicitly by 'nrm' command. In this
+mode, the second byte is a semitone offset, like most editors.
+
+00   4 1 0 0 0  00
+
+would correspond to 00-41 in the JCH/DMC/SDI editors (and most others), and
+will play a pulse tone with the gate on, not transposed, whereas
+
+00   4 1 0 0 0  01
+
+will play a pulse tone transposed up one semitone (c-4 -> c#4)
+
+Hard Frequency Mode
+
+Hard frequency modes is set by using the 'SHI' or 'SHL' command. In this mode
+the second byte is written directly to the SID frequency registers. If you look
+at the percussion instruments in the demo track, these should make sense.
+
+00   0 0 0 0 0  SHI  (or SHL)
+01   4 1 0 0 0  08
+02   4 1 0 0 0  06
+03   4 1 0 0 0  04
+04   4 1 0 0 0  02
+05   4 1 0 0 0  01
+
+There are 2 hard frequency modes. "SHI" will set only the High byte of the sid,
+whereas "SHL" will set both the high and low bytes.
+
+The SID frequency register takes a 16 bit value ($0000 to $ffff). If were to
+use $45 as a parameter:
+
+SHI will set the frequency to $4500
+
+SHL will set the frequency to $0450 (that why it is named 'hl' - it will set
+both the high and low bytes).
+
+As you can see, SHL mode can be used only for low frequences. Right now, we
+don't have an additional command which to set high nibble.
+
+Why do we have two commands? SHL mode allows you create much 'nicer' bass
+sounds than setting only the high frequncy register, since its steps are 16
+times smaller.
+
+Don't forget that you can combine modes. If you wish to play a hihat at the
+start of an instrument, for example, you can do it easily with following
+commands, as shown below in the class hard restarted pulse instrument example
+that you proabbly know from every other modern player ever:
+
+00   0 0 0 0 1  FF
+01   0 0 0 0 0  SHI
+02   8 1 0 0 0  FF
+03   0 0 0 0 0  NRM
+04   4 1 0 0 0  00
+
+On the first frame, the mode is change to SHI (Set Hi Frequency), and the
+frequency set to $ff00. On the second frame, the table is set back to normal
+more, and the original note is played. This instrument also resets the sid
+noise counter on trigger, to get a reliable sound from the noise waveform.
+
+Relative frequency mode
+
+Relative frequency mode is set using the 'RHI' or 'RHL' commands. In this mode
+right column is a frequency to be added to current note frequency.
+
+In other words, they take the current sid frequency, add our value too it, and
+push it back. This can be used to create, for example, a non-standard vibrato.
+(the example below is a sawtooth vibrato)
+
+00   0 0 0 0 1  FF
+01   4 1 0 0 0  RHI  (or RHL)
+02   4 1 0 0 0  08
+03   4 1 0 0 0  06
+04   4 1 0 0 0  04
+05   4 1 0 0 0  02
+06   4 1 0 0 0  00
+07   4 1 0 0 0  JMP
+08   4 1 0 0 0  01
+
+If the 'rnote hl' bit is set on this instrument, then instead of the frequency
+of current playing note, it will its its index, like in hard note mode, but
+with different sized note steps (if you play note c-0, it is like hard
+frequency mode, but if you play C#0, d-0, etc, you will find that steps are
+muhc smaller than normal (the full seven octave range will only span a few
+actual notes).
+
+Hard note mode
+
+Hard note mode is sets exlicitly by 'HRD'. In this mode, right column means
+'hard note id' - $40 for c4. Sometime it is useful. Is recomened to combine
+with other modes / commands, in order to attempt to play two things in the one
+channel.
+
+Hard note mode is most useful with table variables - you can create an arbitary
+two note sound with the following table:
+
+00  0 0 0 0 1  FF
+01  0 0 0 0 0  NRM
+02  4 1 0 0 0  00
+03  0 0 0 0 0  HRD
+04  0 0 0 0 0  USE
+05  4 1 0 0 0  0
+06  0 0 0 0 0  JMP
+07  0 0 0 0 0  01
+
+And then you simply set variable 1 to the second note that you want to play.
+
+Other Commands
+
+You can set the ADSR values in the wave table using the AD/SR commands. A value
+of $00 will restore the original ADSR values.
+
+DEL $xx will delay for a number of frames. This is useful in multispeed tracks,
+or when doing "combined" instruments (like hihat/bass/tone combos)
+
+JMP $xx will jump to given line. When you insert into the table, the JMP's
+parameter will be modifed to point to where you told it to, because that would
+really wreck your afternoon, otherwise.
+
+Pulse Table
+
+The pulse table is quite simple.... it works like a lot of other pulse tables
+you may have used.
+
+l
+i  v
+n  a
+e  l
+|  |
+v  v
+00 56
+
+Value can be command and its parameter or direct pulse width entry. The sid's
+pulse width is 12 bits wide ($000 -> $fff), but pulse table only represents 8
+bits, hence a direct pulse entry will only set the high 8 bits. So, $56 means
+'$560' to be stored. There is no need to 'have' 4 lower bits in hard sets.
+However, all other commands (ADD/SUB) work over the full range.
+
++----------------------------------------------------------------+
+|SET $xx|will set the pulse width to $xx0                        |
+|-------+--------------------------------------------------------|
+|ADD $xx|add every frame $xx till it will reach freq in next line|
+|-------+--------------------------------------------------------|
+|SUB $xx|subtracts in the same way - but substracts              |
+|-------+--------------------------------------------------------|
+|DEL $xX|delay for a number of frames.                           |
+|-------+--------------------------------------------------------|
+|JMP $xx|works just as it does in the wave table                 |
++----------------------------------------------------------------+
+
+Example for ADD/SUB:
+
+00 12
+01 ADD
+02 01     <- parameter
+02 13
+04 JMP
+06 00
+
+Causes a 'sawtooth' vibrato with pulse. It will go from $120 to $130 by $001
+each frame. Note that if you try and subtract until you hit zero, the pulse
+width will wrap around to $fff, which is greater than zero, so better match 1
+instead :).
+
+TFX v2.97 introduces an experimental split mode for the pulse program, where
+you have two pulse programs executing simeltanously (which is useful if, for
+example, you wish to have a long pulse sweep, but also a small pulse vibrato on
+top of that, along with of course many other uses). This is activated by using
+the "SPL $xx" command, which will start the other program running from pulse
+table position $xx. You can use this command at any time in either program, to
+control the position of the other. TFX currently only supports additive mixing
+of them, with the second pulse table being offset rather than signed so that
+you can do negative adds easily well (finalPulse = pulse1 + (pulse2-$0800)).
+
+Filter Table
+
+The filter table mostly works just like the pulse table, but with pulse width
+of course exchanged for filter frequency. Because of filter is 8 bit, it
+coresponds directly with its frequency.
+
+All commands work same way, except that 'SET' now takes two parmeters, 'SET $ab
+$cc', which sets Type of filter (a) and Resonance (b) and the cutoff to $cc.
+(In the past, "add" and "sub" only accepted exact matches, and so you had to be
+careful with your add/sub commands. This is no longer true).
+
+Example - filter for dum, going from 8 to 0.
+
+00 SET
+01 3F       <- resoance: $f, type $3 (lo+mid)
+02 08
+03 SUB
+04 01
+05 00
+06 JMP
+07 05
+
+Feel free to change filter type/resonance at runtime. It makes nice sounds :).
+
+Track Editor
+
+Keys
+
++-----------------------------------------------------------------------------+
+|    Key     |  Command   |                    Description                    |
+|------------+------------+---------------------------------------------------|
+|[Shift]     |            |Enter the selected sector.                         |
+|Return      |            |                                                   |
+|------------+------------+---------------------------------------------------|
+|Commodore m |            |Select the subsong to edit (press 1-5 after        |
+|            |            |pressing c= m)                                     |
+|------------+------------+---------------------------------------------------|
+|Commodore s |            |Save the current cursor position (1-5)             |
+|------------+------------+---------------------------------------------------|
+|Commodore g |            |Recalk saved cursor position (1-5).                |
+|------------+------------+---------------------------------------------------|
+|Commodore x |            |eXchange the current track with another (1-3)      |
+|------------+------------+---------------------------------------------------|
+|Commodore @ |            |Copy the contents of the current position to the   |
+|            |            |clipboard.                                         |
+|------------+------------+---------------------------------------------------|
+|Commodore * |            |Paste the clipboard at the current position.       |
+|------------+------------+---------------------------------------------------|
+|<-          |            |Play in trace mode from the start of the song.     |
+|------------+------------+---------------------------------------------------|
+|Commodore <-|            |Play in tract mode from the current position.      |
+|------------+------------+---------------------------------------------------|
+|[Shift] <-  |            |Start tracing the currently playing song           |
+|------------+------------+---------------------------------------------------|
+|Return      |            |Go down to the next line                           |
+|------------+------------+---------------------------------------------------|
+|Commodore + |TRANSPOSE   |Transpose sounds down X semitones                  |
+|            |+$xx        |                                                   |
+|------------+------------+---------------------------------------------------|
+|Commodore - |TRANSPOSE   |Transpose sounds up X semitones.                   |
+|            |-$xx        |                                                   |
+|------------+------------+---------------------------------------------------|
+|Commodore e |END         |Stop playing the song.                             |
+|------------+------------+---------------------------------------------------|
+|Commodore l |LOOP line   |Loop back to given line                            |
++-----------------------------------------------------------------------------+
+
+General Usage
+
+This is the window TFX starts in. It displays 3 coloums, being the sector lists
+for the three channels.
+
+Enter the sector numbers in the track list, and hit shift-return on any given
+sector number to edit that sector. You can also enter commands into the track
+list by pressing the appropriate key combination (see the top of this file :)
+
+When in trace play mode, the cursor will dissapear, and the currently playing
+track will be highlighted. You cannot edit while in trace play mode... you must
+either leave trace mode or stop playing first. (Pressing any key will do this).
+
+The information window, at the top of the screen, shows the play time, the
+current sector/row number for each of the three tracks, the position in the
+track window, the current working instrument, and the current/max raster time
+used.
+
+Track editor commands
+
+END - stops playing LOOP $xx - jumps in given line (again: editor cares about
+line and if you insert/delete something, it agains point to right value)
+
+TRANSPOSE will transpose up/down your music by a number of semitones. As
+mentioned in the command list, it operates directly, not as an offset, which
+means that if you use, say, TRANSPOSE +02, you use TRANSPOSE +/-00 to get back
+to your original key, *not* TRANSPOSE -02!!
+
+Note that this command *must* be followed by a valid sector, or else the player
+will get confused. If this happens, you can just hit commodore-restore, and you
+will regain control of the editor (phew! :)
+
+it will start playing all channels from horizonatl position, e.g.:
+
+| | 01 | 34 | | 56 | 31 | | 11 | 39 | |
+| | 02 | 34 | | 57 | 32 | | 12 | 3a | |
+| | 03 | 34 | | 58 | 31 | | 13 | 3b | |
+| | 04 | 35 | | 59 | 32 | | 14 | 3c | | <- here is cursor
+| | 05 | 35 | | 60 | 31 | | 15 | 3d | |
+
+start play at positions 04/59/14... We recomend to use 'same' length for
+patterns, bue it is yours thing :)
+
+Sector Editor
+
+Keys
+
++-----------------------------------------------------------------------------+
+|   Key    |                             Function                             |
+|----------+------------------------------------------------------------------|
+|=         |Toggle Symbolic/Numeric view of variables                         |
+|----------+------------------------------------------------------------------|
+|Commodore |Go to the next/previous sector                                    |
+|, .       |                                                                  |
+|----------+------------------------------------------------------------------|
+|[Shift] n |Transpose notes from cursor to END up/down one semitone           |
+|m         |                                                                  |
+|----------+------------------------------------------------------------------|
+|[Shift] v |Toggles "Voice Mode" (wether notes are played as you enter them or|
+|          |note)                                                             |
+|----------+------------------------------------------------------------------|
+|          |Play the current sector in trace mode. Hit any key to stop        |
+|<-        |playing, or the <- key to just switch off trace mode, but keep    |
+|          |playing.                                                          |
+|----------+------------------------------------------------------------------|
+|[Shift] <-|Play current sector in loop mode without tracing                  |
+|----------+------------------------------------------------------------------|
+|Commodore |Play current sector from this line.                               |
+|<-        |                                                                  |
+|----------+------------------------------------------------------------------|
+|[Shift]   |                                                                  |
+|Commodore |Start tracing the currently playing sector                        |
+|<-        |                                                                  |
+|----------+------------------------------------------------------------------|
+|Commodore |Copy from current position to clipboard (Doesn't copy the commands|
+|(up arrow)|of the first note, but copies everything else until the end of the|
+|          |sector)                                                           |
+|----------+------------------------------------------------------------------|
+|Commodore |Paste at the current position                                     |
+|*         |                                                                  |
+|----------+------------------------------------------------------------------|
+|Commodore |Instrument Mode #1 (Discussed later)                              |
+|1         |                                                                  |
+|----------+------------------------------------------------------------------|
+|Commodore |Instrument Mode #2 (Discussed later)                              |
+|2         |                                                                  |
+|----------+------------------------------------------------------------------|
+|Commodore |Instrument Mode #3 (Discussed later)                              |
+|3         |                                                                  |
++-----------------------------------------------------------------------------+
+
+General Usage
+
++----+---+-------+ <-- sector editor window :)
+|NOTE|INS|COMMAND|
++----+---+-------+
+|A 4 |02 |VOL 0A |
+|--- |.. |... .. |
+|C#3 |02 |VOL 06 |
+|... |.. |DUR 07 |  <- see note #1
+|--- |.. |... .. |
+|END |.. |... .. |
+|--- |.. |... .. |
++----+---+-------+
+
+note #1: you can use multiple commands per note. When you do, the note and
+instrumnet columns are filled with dots, and are not editable.
+
+There are two ways to create your sectors. You can:
+
+ 1. Set the speed on the top row with DUR, or ever just use DUR 01, and set the
+    speed globally in the options menu. Of course, if you take the global
+    route, you can't change speed mid song ;)
+
+    Then, you can just use it like a standard track editor, with --- as an
+    empty row as usual. This does, however, use more memory than the second
+    method, which means that you can't put as much in each sector - each sector
+    can only be up to 255 bytes!
+
+ 2. Set DUR to be the length of each note. Some people (me ;) find this method
+    more difficult, but some say it's worth the time. DMC/Future Composer/Et al
+    use this method.
+
+Because I use the first method, that is what I'll concentrate one. Extrapolate
+to the second at your own will :).
+
+Basic editing
+
+As you can see in the above diagram, the sector editor is seperated into three
+coloums, Note, Instrument, and Effect.
+
+So, the first you will probably want to do, is select an instrument. Do this
+with shift : and shift ;.
+
+Once you have selected an instrument, move up and down the sector with the
+cursor keys, and press one of the keys listed below to enter your note.
+
+If you are in midi mode, you will need to hold shift with the key, in order to
+have it enter into the track editor (run-stop toggles this mode)
+
+High octave
++--+-+-+-+--+--+-+-+-+-+-+--+--+-+-+-+--+
+|  |2| |3|  |  |5| |6| |7|  |  |9| |0|  |
+|  +-+ +-+  |  +-+ +-+ +-+  |  +-+ +-+  |
+| q | w | e | r | t | y | u | i | o | p |
++---+---+---+---+---+---+---+---+---+---+
+
+Low octave
++--+-+-+-+--+--+-+-+-+-+-+--+--+-+-+-+--+
+|  |s| |d|  |  |g| |h| |j|  |  |l| |;|  |
+|  +-+ +-+  |  +-+ +-+ +-+  |  +-+ +-+  |
+| z | x | c | v | b | n | m | , | . | / |
++---+---+---+---+---+---+---+---+---+---+
+
+As you enter a note, TFX will move the cursor onto the next line for you,
+unless the next line is an END, in which case the cursor will stop there (Isn't
+that useful? It is if you don't watch screen while playing... :)
+
+To add an effect to a note, we move into the effect coloum, and simple press
+the approprate effect key (see the key combos at the top of this file). Then we
+can set any parameters which go with that effect in the same way that we enter
+everything else :)
+
+Overwriting a note will not change it's effects, so if you wish to change a
+note *and* it's effects, you must do this explicitly.
+
+Note that you cannot use "$ff" as a command parameter under any circumstances,
+as this is reserved for internal use by TFX. Don't worry, the editor won't
+allow you to enter it, even if you try :)
+
+Two of the sector commands actully belong in the note coloum, END and GATE.
+
+END signifies the end of the current sector. Once this is reached, TFX will
+move on to the next sector in the track list, as you would expect.
+
+GATE will cause the currently playing note to switch off it's gate (i.e. a note
+off event).
+
+Instrument Modes
+
+There are 3 "Instrument modes" in TFX, selectable with commodore 1, 2 or 3:
+
+ 1. Set both instrument and note, but all instruments following this one take
+    the same instrument unless explicitly changed.
+
+    This is the default editing mode. This mode performs like most other
+    editors when entering notes. However, when you change a value in the note
+    coloum, all instruments of the same type below the cursor will also change.
+    So if you have:
+
+    C-4 10
+    C-4 10
+    C-4 10
+    C-4 11
+
+    and change the second line's instrument to 12, you will end up with:
+
+    C-4 10
+    C-4 12
+    C-4 12
+    C-4 11
+
+    This makes it easy to change an entire sections instruments all in one go.
+    Of course, you can just reset the next lines instrument to 10 to get:
+
+    C-4 10
+    C-4 12
+    C-4 10
+    C-4 11
+
+    The reason this behaves like this, is that it only actully internally
+    stores an instrument change event when the instrument is changed, in order
+    to save memory. so the original example is actully stored internally as
+
+    C-4 10
+    C-4
+    C-4
+    C-4 11
+
+    When viewed in this way, this behavior makes perfect sense :). What you
+    need to watch out for, however, is the following. Lets say you have:
+
+    C-4 10
+    C-4 10
+    C-4 10
+    C-4 10
+
+    And then you change the 3rd value to 11, showing:
+
+    C-4 10
+    C-4 10
+    C-4 11
+    C-4 11
+
+    Which is stored internally as:
+
+    C-4 10
+    C-4
+    C-4 11
+    C-4
+
+    Now, you change that 11 back to a 10, and the internal representation
+    changes to:
+
+    C-4 10
+    C-4
+    C-4 10
+    C-4
+
+    So, we're back to having 4 C-4 10's in a row. Now, change the first 10 to a
+    12, and you'll get the following result:
+
+    C-4 12
+    C-4 12
+    C-4 10
+    C-4 10
+
+    why? because the second 10 is still there, resetting the instrument back to
+    10. However, if you press delete in the instrument coloum of that row, the
+    internal 10 will be deleted, and then you will get the result you would
+    expect :)
+
+ 2. Note always uses last instrument. In this mode, any note you enter will
+    always use the instruments of notes above it.
+
+ 3. Each note has seperate instrument. In this mode, each instrument has it's
+    own note entry, and instruments can be changed completly independently.
+    Note that when you leave the sector it will revert to mode #1 to save
+    memory.
+
+Status display
+
+There are 5 important status displays in the top window for sector editing:
+
++-----------------------------------------------------------------------------+
+|           |This shows the current cursor position in bytes (the first value)|
+|           |and lines (the second value). Two sectors with the same numnber  |
+|           |of lines and the same DUR value will be the same length, whereas |
+|Position   |bytes is the actual memory taken up by the sector. Sectors can be|
+|           |a maximum of 256 bytes long. If you reachined position $f0 editor|
+|           |start flashing border on EVERY change to inform you: you're      |
+|           |neraly at possibilites.                                          |
+|-----------+-----------------------------------------------------------------|
+|           |This shows the length of your sector in *ticks*. This is the most|
+|           |accurate way to make sure that your sectors are all the same     |
+|Length     |length, as position is affected by the DUR value of notes and    |
+|           |such. However, it is not as simple as position, so lazy people   |
+|           |(like me ;) won't always use it :P                               |
+|-----------+-----------------------------------------------------------------|
+|(picture of|                                                                 |
+|2 joined   |The current selected instrument.                                 |
+|quarter    |                                                                 |
+|notes)     |                                                                 |
+|-----------+-----------------------------------------------------------------|
+|Treble clef|The currently selected octave for the top and bottom halves of   |
+|           |the keyboard respectivly                                         |
+|-----------+-----------------------------------------------------------------|
+|           |The currently selected voice mode. When it is white, notes will  |
+|Voice      |be played as they are entered. When it is black, notes will be   |
+|           |entered silently.                                                |
++-----------------------------------------------------------------------------+
+
+Effects
+
++-----------------------------------------------------------------------------+
+|   Key   |Function |                       Description                       |
+|---------+---------+---------------------------------------------------------|
+|Commodore|---      |Pause for one note/row (aka Empty Row, if you're using   |
+|-        |         |this like a track based editor :)                        |
+|---------+---------+---------------------------------------------------------|
+|Commodore|END      |End this sector.                                         |
+|+        |         |                                                         |
+|---------+---------+---------------------------------------------------------|
+|Commodore|         |                                                         |
+|(up      |GATE     |Gate Off/Note Off                                        |
+|arrow)   |         |                                                         |
+|---------+---------+---------------------------------------------------------|
+|Commodore|AD       |Set the Attack/Decay for the *current* playing note.     |
+|a        |$00-$FE  |                                                         |
+|---------+---------+---------------------------------------------------------|
+|Commodore|SR       |Set the Sustain/Release for the *current* playing note.  |
+|s        |$00-$FE  |                                                         |
+|---------+---------+---------------------------------------------------------|
+|Commodore|ADN      |Set the Attack/Decay for the *next* note played.         |
+|q        |$00-$FE  |                                                         |
+|---------+---------+---------------------------------------------------------|
+|Commodore|SRN      |Set the Sustain/Release for the *next* note played.      |
+|w        |$00-$FE  |                                                         |
+|---------+---------+---------------------------------------------------------|
+|Commodore|         |Toggle restarting the tables on a new note trigger. If   |
+|x        |SWITCH   |switch is set, only the frequency of the notes will be   |
+|         |         |changed when a new note is triggered.                    |
+|---------+---------+---------------------------------------------------------|
+|Commodore|DUR      |Set the current Duration value (ticks per line)          |
+|d        |$00-$3F  |                                                         |
+|---------+---------+---------------------------------------------------------|
+|Commodore|GLIDE    |Glide from this note to the note on the next line.       |
+|g        |$00-$FE  |                                                         |
+|---------+---------+---------------------------------------------------------|
+|Commodore|SLIDE    |Slide from the current playing note to this note.        |
+|h        |$00-$FE  |                                                         |
+|---------+---------+---------------------------------------------------------|
+|Commodore|VOL $0-$F|Set the volume (actully sustain level ;) of this note.   |
+|v        |         |                                                         |
+|---------+---------+---------------------------------------------------------|
+|Commodore|FVOL     |Set the global volume                                    |
+|b        |$0-$F    |                                                         |
+|---------+---------+---------------------------------------------------------|
+|Commodore|SETFF    |Set the filter frequency.                                |
+|7        |$00-$FE  |                                                         |
+|---------+---------+---------------------------------------------------------|
+|Commodore|SETFT    |Set the filter type.                                     |
+|8        |$00-$FE  |                                                         |
+|---------+---------+---------------------------------------------------------|
+|Commodore|SETPF    |Set the pulse width                                      |
+|p        |$00-$FE  |                                                         |
+|---------+---------+---------------------------------------------------------|
+|Commodore|A GATE   |Set the auto-gate timeout to X frames (not as simple as  |
+|y        |$00-$FE  |it sounds, see notes below)                              |
+|---------+---------+---------------------------------------------------------|
+|Commodore|FADE+    |Fade the global volume from 0 to X                       |
+|j        |$0-$F    |                                                         |
+|---------+---------+---------------------------------------------------------|
+|Commodore|FADE-    |Fade the global volume from X to 0                       |
+|k        |$0-$F    |                                                         |
+|---------+---------+---------------------------------------------------------|
+|Commodore|SETVAR1-6|Set table variable n                                     |
+|1-6      |$0-$FE   |                                                         |
+|---------+---------+---------------------------------------------------------|
+|Commodore|CTRL     |Set control bits override (the control byte will be Or'd |
+|c        |$00-$FE  |with this value)                                         |
+|---------+---------+---------------------------------------------------------|
+|Commodore|RLEN     |Set the length of hard restart for this channel (in      |
+|r        |$00-$FE  |frames)                                                  |
+|---------+---------+---------------------------------------------------------|
+|Commodore|SPED     |Set the global speed                                     |
+|t        |$00-$FE  |                                                         |
+|---------+---------+---------------------------------------------------------|
+|Commodore|VSPD     |Set the vibrato speed                                    |
+|i        |$00-$FE  |                                                         |
+|---------+---------+---------------------------------------------------------|
+|Commodore|VDEP     |Set the vibrato depth                                    |
+|o        |$00-$FE  |                                                         |
+|---------+---------+---------------------------------------------------------|
+|Commodore|NOPL     |Toggle 'no pulse reset' mode                             |
+|n        |         |                                                         |
+|---------+---------+---------------------------------------------------------|
+|Commodore|NOFL     |Toggle 'no filter reset' mode                            |
+|f        |         |                                                         |
++-----------------------------------------------------------------------------+
+
+Most of the effects are self-explainitory, but some of them have some...
+interesting quirks ;)
+
+GLIDE/SLIDE: If the note that this is invoked on, and the note on the next line
+do not share the same instrument, the player will crash, and you will need to
+press commodore-restore to regain control of the editor. If something went
+wrong, don't forget that fact, if you see 'same' instrument, doesn't necessary
+mean it is 'same' - see previous example and 'delete' at isntrument column !!!
+(this is needed due performance). These commands also NEED TO BE LAST in the
+command list !!!
+
+(Ray says: it will not CRASH, it wil just do somethign what you for sure not
+expect. One way is to crash.)
+
+(A Life in Hell says: It crashed for me! :)
+
+SWITCH: This command toggles a flag which decides whether note events trigger a
+new note, or just adjust the frequency of the currently playing note. Like
+glide, this will cause the player to behave unexpectedly if you try and change
+instruments while the flag is set.
+
+A GATE: When using automatically gated notes, this sets the number of ticks
+*before* the end of the current of the current line in which to gate.
+
+What this means, is that if you're workign at DUR 04, and you select an A GATE
+of 01 (the default, btw), the note will be turned off after 3 ticks. If DUR is
+6, it will be turned off after 5 ticks. Always X ticks before the end of the
+line, where X is the given to A GATE. This is quite usefull for multiframed
+music.
+
+If you select an A GATE value of zero, notes will note be ungated, and you will
+have the same "Volume reudction" problems that occour in multispeed tunes with
+the default settings.
+
+If you select an A GATE value of above the current DUR value, the note will
+never be turned off!
+
+See note about 'note length' inside 'instrument' editor.
+
+Multiple Effects
+
+TFX allows you to have up to 64 effects per line. By default, each line only
+has one effect attached to it, however you can add a second effect by pressing
+insert *while in the effect coloum* of the line you want an extra effect on.
+
+Thde note column for this new line will display "...", meaning that this line
+is not a real line, but just an extra effect line for the line above. It will
+also not be counted in the line counter, so you can safely use multiple effects
+per note without having to work to caluclate your sector lengths :).
+
+Sweeet :P
+
+Multiframe Music
+
+TFX will allow you to create music anywhere between 1x and 12x for all
+channels, and up to 72x for any single channel. However, you need to keep the
+following things in mind when doing so:
+
+ 1. Above 10x, you *must* use the ADC tables to position your rasters
+    correctly, or else the player will run over itself sometimes, and cause
+    your music to not play correctly. This is because, at these speeds, the TFX
+    player is taking up to 90%-100% of the c64's CPU. Try to make vectors with
+    12 framed zak :)
+
+ 2. If you do not increase the Note count parameter, you will have problems
+    with notes running over each other, becasuse the sid does not reset the
+    gate quickly enough. The sign of this, is the notes playing with ever
+    decreasing volume. This applies less if you are using the $1006 player (see
+    below) and you disable adding to the note count on $1006 calls.
+
+There is 2 ways of making multiframe music in TFX. In the default mode, the
+player will simply be called several times per frame. There is another mode,
+selected by turning on the "Play mode" option, where the $1003 (main) player is
+only called once per frame, and the rest of the frames calls are to a $1006
+player, which only updates the tables. The $1006 player can be configured to
+only update certain parameters, as seen in the defplay option. You can range
+anywhere from only updating the waveform, to a full player.
+
+One useful thing you can do, if you wish to change a singleframe music into a
+multiframe one, is to select the $1003/$1006 player, and set the player to not
+update the note count. Then, all of the instrument parameters will be updated
+multiframe, but the note position will not, so your song will play the notes at
+the same speed, but all of the instruments will be updated multiple times per
+frame.
+
+When using the $1006 player, you can choose how many times each frame that each
+channel is called, allowing you to have, say, 1 channel at 1x, and the other
+two channels at 4x. In the options dialog, there settings for Channel 1, 2, and
+3 just below the speed option. If any of these are set to 0, the player will be
+called only once per frame for that channel.
+
+If it is set to one or more, the player will be called that many times for each
+$1006 call. So if you have a 4x music, and you have a channel set to be called
+2 times, that channel will be updated 8x per frame.
+
+Engh theory, some example - let's say we have 5 framed zak:
+
+ADC Table for 5x music:
+
+ADC 3c > 3c > 3c
+    3c   3c   3c
+    3c   3c   3c
+    3c   3c   3c
+
+If you select 'play mode' then you need to play song by: 1x $1003 (first one is
+always $1003) and 4x $1006.
+
+If you don't select 'play mode' then you need to ply song by 5x $1003. For
+demos, etc. is recomened use $1006 (sounds) rather $1003 because it takes lees
+time. If you use $1006 (sound player) see 'defplay' and 'ch speeds' above. It
+have meaning then.
+
+If you want to manually changes space between frames (necessary for high framed
+zak) select 'USE ADC' table switch.
+
+Table is processed from left->right top->down. For 5 framed zaks, only 5 values
+are used. First is awlays ignored. Now move cursor to 'second' 3c. By commo +-
+you can change 'space' between its frame. If you want to save raster time, but
+you want to keep 'faster' duration, you can make song like:
+
+$1003 $1006 $1003 $1006
+
+How ? Pretty easy. 'Use adc', select play mode (so, you have 4 time zak with
+$1003 and 3x $1006). Now go to 3rd 'adc' value and press c= + $ (US currency).
+As you can see, now you have what you wanted. That why ADC can be changed by
+multiples of 2. 1 is used for determinning what to play ($1003/$1006).
+
+Example: Demo song, 2 frames, SECOND frame max 3 raster lines.
+
+ 1. 'play mode' - on
+
+ 2. 'use adc' - on
+
+ 3. ch 1 - 0
+
+ 4. ch 2 - 0
+
+ 5. ch 3 - 1
+
+ 6. defplay -> 'filter' + 'wave'
+
+ 7. adjust 'adc' to play second frame in correct distance (ask coder) - it is
+    important for miscellaneous sounds ! (coder can play framed with $40
+    distance for ex.)
+
+What it means ? Song will be played by $1003/$1006. For you it means:
+
+Song is '1' time (duration, note lengths, etc.). Channel 0 and 1 is 'one
+framed'. BUT (it is a point :) channel 3 is 2 framed - its filter and wave
+table processing.
+
+Don't afraid, it is not as complicated as looks :)
+
+Configuring TFX
+
+General options
+
+In the options dialog, accessable from the main menu, you can set a number of
+environment configurations for TFX. These include:
+
+Palette
+
+There are 4 color schemes available to you, to suit your eyes and/or monitor/TV
+:). Choose the one which you like :-P
+
+Keys
+
+This sets the parameters for the keyboard, specifically the delay and speed of
+key repeat, and the delay for destructive commands. All values are specified in
+frames (1/50th of a second for pal, 1/60th for ntsc ;)
+
+Editor
+
+This sets miscelanious options for editing your song :).
+
++-----------------------------------------------------------------------------+
+|       |Select wether the multiframe player should only call $1003, or wether|
+|Play   |it should also call $1006 to update multiframe instruments. When this|
+|Mode   |is set, the $1006 players will only update the parameters set in the |
+|       |defplay section, otherwise it will update *all* parameters every     |
+|       |call.                                                                |
+|-------+---------------------------------------------------------------------|
+|Edit   |Selects how the scrolling in the order editor works. When on, the    |
+|Mode   |orders will all scroll together. When off, they will scroll          |
+|       |seperatly.                                                           |
+|-------+---------------------------------------------------------------------|
+|       |This will use the ADC table to specify the number of lines between   |
+|Use ADC|each call of the multiframe player, instead of calling each one at an|
+|       |equal interval.                                                      |
+|-------+---------------------------------------------------------------------|
+|       |The number of frames to be played BEFORE the note gate is turned on. |
+|       |This is required for, so that each note is released for long enough  |
+|       |to allow the next one to start. This ia particularly important if you|
+|Note   |are not using hard restart on all of your instruments, and/or you are|
+|Count  |working on multiframe musics.                                        |
+|       |                                                                     |
+|       |Compare and contrast with the "A GATE" command, which works at the   |
+|       |end of the note rahter than the beginning.                           |
+|-------+---------------------------------------------------------------------|
+|Midi   |Toggle wether the keyboard without shift plays notes only (on), or   |
+|Mode   |enters values into the editor (off). Holding down shift with a key   |
+|       |always does the opposite of the default.                             |
+|-------+---------------------------------------------------------------------|
+|Midi   |Sepcifies which channel Midi Mode plays notes in.                    |
+|Chan   |                                                                     |
+|-------+---------------------------------------------------------------------|
+|ADC    |When editing multiframe music, the ADC table, if enabled, specifies  |
+|Table  |the numebr of lines between each frame.                              |
+|-------+---------------------------------------------------------------------|
+|Speed  |Number of frames per tick.                                           |
+|-------+---------------------------------------------------------------------|
+|Volume |The default global volume.                                           |
+|-------+---------------------------------------------------------------------|
+|Ch 1,  |These specify the number of times per call that the parameters for   |
+|Ch 2,  |each channel will be updated. See the section below on multispeed    |
+|Ch 3,  |music.                                                               |
+|-------+---------------------------------------------------------------------|
+|Frame  |The number of times per frame the music routine is called. Valid     |
+|       |speeds are 1 (50/60hz) through 12 (600/720hz)                        |
+|-------+---------------------------------------------------------------------|
+|       |This selects which parameters are updated in the $1006 player. This  |
+|       |can be useful, for example, to update the note position only once per|
+|Defplay|frame, while still updating the wave/arpeggio/pulse/etc, allowing you|
+|       |to easily experiment with different speeds. It is also useful for    |
+|       |lowering the raster times of the $1006 calls, so you can use higher  |
+|       |speeds more easily.                                                  |
++-----------------------------------------------------------------------------+
+
+Load and Save
+
+Pretty self explainitory... Load and Save your options to disk :). Options
+files are compatable with all versions fo TFX 2.x, however not 1.x (or the
+forthcoming 3.x ;)
+
+Init
+
+This will erase everything. The apocalypse if coming! Well, only if you select
+"ALL" ;). If you select "Tracks", TFX will erase everything except for the
+instrument tables.
+
+You will be asked one more time if you really mean it, and then it's all over
+;)
+
+About
+
+Some absolutely redundant information about TFX :).
+
