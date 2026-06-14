@@ -1,0 +1,184 @@
+=== SND01 - First Frame Waveform ===
+    fIRST FRAME WAVEFORM HELP        pAGE 01-------------------------        -------tHIS IS THE DIRECT WAVEFORM THAT IS
+PLAYED FOR THE FIRST FRAME OF A NOTE.
+tHIS IS THE FASTEST WAY TO SET UP THE
+FIRST FRAME INSTEAD OF SCANNING THROUGH
+THE APPROPRIATE WAVEFORM TABLE AND
+SETTING THE APPROPRIATE FIRST FRAME OF
+THE WAVEFORM.
+
+valid waveforms (gateon):
+01 09 11 13 15 17 21 23 25 27 31 33 35
+37 41 43 45 47 51 53 55 57 61 63 65 67
+81
+
+valid waveforms (gateoff):
+00 08 10 12 14 16 20 22 24 26 30 32 34
+36 40 42 44 46 50 52 54 56 60 62 64 66
+80
+
+
+=== SND02 - GateOff/Waveform to Play ===
+    gATEOFF/WAVEFORM TO PLAY         pAGE 01-------------------------        -------tHIS REGISTER SERVES 2 PURPOSES.
+
+tHE LOWER 5 BITS SELECT WHICH WAVEFORM
+TABLE WILL BE PLAYED ($00-$17 RANGE).
+
+bITS 6-8 IS HOW MANY FRAMES BEFORE THE
+END OF THE NOTE WHEN THE NOTE WILL
+SWITCH TO GATEOFF
+
+gateoff period values:
+$20: 1 FRAME LEFT GATEOFF
+$40: 2 FRAMES LEFT GATEOFF
+$60: 3 FRAMES LEFT GATEOFF
+$80: 4 FRAMES LEFT GATEOFF
+$a0: 5 FRAMES LEFT GATEOFF
+$c0: 6 FRAMES LEFT GATEOFF
+$e0: 7 FRAMES LEFT GATEOFF
+
+--- PAGE ---
+  gATEOFF/WAVEFORM TO PLAY         pAGE 02-------------------------        -------iF YOU WANT TO PLAY WAVEFORM TABLE $0A
+WITH A 3 FRAME GATEOFF, YOU SHOULD USE
+THE FOLLOWING VALUE:
+                    $0A+$60=$6A
+
+oNE WORD OF WARNING. nEVER SET THE
+GATEOFF PERIOD WITHIN 2 FRAMES AROUND
+YOUR TEMPO SPEED. iF YOU ARE USING
+TEMPO SPEED 8, YOUR GATEOFF VALUE SHOULDBE NO LARGER THAN 6 ($C0), OR GATING NEWNOTES WITH A DURATION OF ONLY 1 WON'T
+WORK PROPERLY.
+
+
+=== SND03 - Attack/Decay ===
+    aTTACK/DECAY REGISTER            pAGE 01---------------------            -------tHE LEFT DIGIT REPRESENTS THE ATTACK
+VALUE. tHE RIGHT DIGIT REPRESENTS THE
+DECAY VALUE.
+
+
+=== SND04 - Sustain/Release ===
+    sUSTAIN/RELEASE REGISTER         pAGE 01------------------------         -------tHE LEFT DIGIT REPRESENTS THE SUSTAIN
+VALUE. tHE RIGHT DIGIT REPRESENTS THE
+RELEASE VALUE.
+
+
+=== SND05 - Pulse Lo/Hi ===
+    pULSE LO/HI REGISTER             pAGE 01--------------------             -------tHIS SETS THE START LEVEL OF THE PULSE
+WIDTH.
+bY SETTING IT TO $3a, THE PULSE LEVEL
+WILL BE $0A30 (IN 16-BIT TERMS).
+tHE PULSE WIDTH IS ONLY A 14-BIT LEVEL
+(0-16383)
+
+
+=== SND06 - Pulse Width Rate ===
+    pULSE WIDTH RATE                 pAGE 01----------------                 -------tHIS REGISTER SETS THE PULSE CYCLE
+INCREMENT RATE. iT RANGES FROM $00 (NO
+CYCLING) TO $FF (FULL CYCLING)
+
+
+=== SND07 - Pulse Cycle Delay ===
+    pULSE CYCLE DELAY                pAGE 01-----------------                -------tHIS REGISTER SETS HOW MANY FRAMES TO
+DELAY FOR BEFORE PULSE WIDTH CYCLING
+COMMENCES.
+iT RANGES FROM $00 (NO DELAY) TO $FF
+(LARGEST DELAY OF 5.05 SECONDS).
+
+
+=== SND08 - Pulse Width Min/Max ===
+    pULSE WIDTH MIN MAX REGISTER     pAGE 01----------------------------     -------tHIS REGISTER SETS THE MINIMUM AND
+MAXIMUM THAT THE PULSE WIDTH HIGH BYTE
+CAN CYCLE BETWEEN. bY SETTING IT TO $1E
+PROHIBITS THE PULSE FROM GOING BELOW
+$0100 AND FROM GOING ABOVE $0E00. tHE
+PULSE WIDTH WILL JUST PING-PONG BETWEEN
+THESE RANGES.
+
+bY SETTING IT TO $00, THE PULSE WIDTH
+MAXIMUM IS IGNORED, AND IT WILL CONTINUETO INCREMENT ENDLESSLY.
+
+
+=== SND09 - Vibrato Delay ===
+    vIBRATO DELAY REGISTER           pAGE 01----------------------           -------tHIS REGISTER IS HOW LONG THE VIBRATO
+WILL DELAY BEFORE COMMENCING.
+iT RANGES FROM $00 (NO DELAY) UP TO $FF
+(MAXIMUM DELAY OF 5.05 SECONDS).
+
+
+=== SND10 - Osc Delay/Vibrato Rate ===
+    oSC DELAY/VIBRATO RATE           pAGE 01----------------------           -------tHIS DOUBLE PURPOSE REGISTER SETS UP THEOSCILLATING GLIDE DELAY VALUE IN THE
+LEFT HAND DIGIT, AND THE VIBRATO RATE
+(DPETH) IN THE RIGHT HAND DIGIT.
+
+tHE VIBRATO DEPTH VARIES FROM 0 (heavy)
+DOWN TO 7 (almost non existent).
+
+
+=== SND11 - Vibrato Speed ===
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    vIBRATO SPEED REGISTER           pAGE 01----------------------           -------tHIS IS THE CYCLE SPEED OF THE VIBRATO.
+iT RANGES FROM $00 (vibrato off) TO $3f
+(longest cycle).
+
+fOR SENSIBLE MUSICAL USE, VALUES BETWEEN$00 AND $05 IS OK. aNYTHING HIGHER IS
+MORE SUITED TO SOUND EFFECTS.
+
+tHE VIBRATO CYCLE WILL LAST FOR 3 TIMES
+AS MANY FRAMES AS YOU SPECIFY IN THIS
+REGISTER.
+
+
+=== SND12 - Sound Type (multi-purpose) ===
+    sOUND TYPE (MULTI PURPOSE REG)   pAGE 01------------------------------   -------tHIS REGISTER IS A MULTI PURPOSE
+REGISTER. iT'S OPERATION MAINLY DEPENDS
+ON THE SETTING OF THE RIGHT HAND DIGIT.
+
+iF THE RIGHT HAND DIGIT IS A 0, THEN THESOUND IS SET TO A VIBRATO TYPE.
+
+iF THE RIGHT HAND DIGIT IS A 1, THEN THESOUND IS SET TO AN ARPEGGIO TYPE.
+
+iF THE RIGHT HAND DIGIT IS A 2, THEN THESOUND IS SET TO OSC GLIDE (DOWN).
+
+iF THE RIGHT HAND DIGIT IS A 3, THEN THESOUND IS SET TO OSC GLIDE (UP).
+
+iF THE RIGHT HAND DIGIT IS A 5, THEN THEARPEGGIO TABLE IS TRANSFORMED INTO A
+HIGH BYTE FREQUENCY OUTPUT TABLE.
+
+--- PAGE ---
+  sOUND TYPE (MULTI PURPOSE REG)   pAGE 02------------------------------   -------iF THE RIGHT HAND DIGIT IS EITHER 2 OR 3THE LEFT HAND DIGIT IS THE INCREMENT/
+DECREMENT RATE FOR THE GLIDE. $0 IS
+NON-EXISTENT, WHILST $f IS THE FASTEST.
+
+wHEN THE GLIDE GETS TO IT'S MAXIMUM, THESOUND AUTOMATICALLY DEFAULTS TO VIBRATO.
+iF THE RIGHT HAND DIGIT IS EITHER 1 OR 5THE LEFT HAND DIGIT SPECIFIES HOW MANY
+FRAMES WILL DELAY BEFORE GETTING ANOTHERARPEGGIO/HIGH FREQUENCY OUTPUT FROM THE
+ARPEGGIO TABLE. $0 IS THE FASTEST WHILST$f IS THE SLOWEST.
+
+
+=== SND13 - Filter Highbyte Start ===
+    fILTER HIGHBYTE START REGISTER   pAGE 01------------------------------   -------tHIS REGISTER JUST SETS THE HIGHBYTE
+LEVEL FOR THE FILTER. iT IS ALSO SET AS
+THE SOURCE LEVEL BEFORE PLAYING ANY
+FILTER TABLES.
+
+iF YOU SET THE LEVEL TO $c4, THEN THE
+FILTER SOURCE LEVEL WILL BE $c400 AS
+THE FILTERS ARE 16-BIT.
+
+
+=== SND14 - Filter Table to Play ===
+    fILTER TABLE TO PLAY REGISTER    pAGE 01-----------------------------    -------tHIS JUST SETS WHICH FILTER TABLE TO
+PLAY ALONGSIDE YOUR SOUND EFFECT.
+tHERE ARE $18 FILTER TABLES POSSIBLE
+ALL NUMBERED FROM $00-$17.
+
+yOU WILL NOTICE THAT THE SOUND EDITOR
+WON'T ALLOW YOU TO TYPE HIGHER NUMBERS,
+AND IF YOU TRY, IT WILL FORCE $17 AS THEMAXIMUM NUMBER.
+
+
+=== SND15 - Arpeggio Override ===
+    aRPEGGIO OVERRIDE REGISTER       pAGE 01--------------------------       -------tHIS REGISTER IS FOR SETTING A SOUND
+WITH A FIXED ARPEGGIO NUMBER. sETTING ITBETWEEN $00 AND $17 WILL SELECT A DIRECTARPEGGIO FOR THIS SOUND. sETTING IT TO
+$FF WILL ALLOW THE SEQUENCE COMMANDS TO
+SELECT WHICH ARPEGGIO TABLE TO PLAY.
+
