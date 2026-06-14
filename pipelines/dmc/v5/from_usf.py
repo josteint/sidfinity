@@ -107,6 +107,17 @@ def usf_to_model(usf: UsfFile) -> V5Model:
     mvol = sid.master_vol if sid and sid.master_vol is not None else 0x0F
     flt = sid.filter if sid else None
 
+    # $1013 speed-counter startup phase (init never clears it).
+    spdctr = 0
+    if sub.params and sub.params.fields:
+        spdctr = int(sub.params.fields.get('speed_ctr_init', 0))
+    # $100F,x per-voice leftover note the lead-in effects frame(s) idle on.
+    notes = [0, 0, 0]
+    if sub.init and sub.init.voices:
+        for iv in sub.init.voices:
+            if iv.note is not None and 1 <= iv.id <= 3:
+                notes[iv.id - 1] = iv.note
+
     m = V5Model(
         freq_lo=list(usf.freq_table[:96]),
         freq_hi=list(usf.freq_table[96:192]),
@@ -114,6 +125,7 @@ def usf_to_model(usf: UsfFile) -> V5Model:
         lo_filtmode=flt.res_routing if flt else 0,
         lo_fchi=flt.cutoff_hi if flt else 0,
         lo_fclo=flt.cutoff_lo if flt else 0,
+        lo_spdctr=spdctr, lo_notes=notes,
         title=usf.psid.title, author=usf.psid.author,
         released=usf.psid.released,
     )

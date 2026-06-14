@@ -37,7 +37,7 @@ from __future__ import annotations
 import os
 
 from src.usf.types import (
-    UsfFile, PsidMeta, Params, InitState, InitSid, InitFilter,
+    UsfFile, PsidMeta, Params, InitState, InitSid, InitFilter, InitVoice,
     Instrument, PwmConfig, VibratoConfig, SweepEnvelope,
     MusicSubtune, VoiceBlock, Orderlist, Pattern, NoteRow, Pitch,
 )
@@ -271,10 +271,17 @@ def model_to_usf(m: V5Model) -> UsfFile:
 
     sub = MusicSubtune(
         id=1, tempo=m.speed, voices=voices,
-        init=InitState(sid=InitSid(
-            master_vol=m.master_vol,
-            filter=InitFilter(cutoff_lo=m.lo_fclo, cutoff_hi=m.lo_fchi,
-                              res_routing=m.lo_filtmode))))
+        # $1013 speed-counter the init never clears: the startup phase
+        # (lead-in frame count before the first note fetch). Same key the
+        # Hubbard/Title-Tunes composers use for the init speed-counter value.
+        params=Params(fields={'speed_ctr_init': m.lo_spdctr}),
+        init=InitState(
+            sid=InitSid(
+                master_vol=m.master_vol,
+                filter=InitFilter(cutoff_lo=m.lo_fclo, cutoff_hi=m.lo_fchi,
+                                  res_routing=m.lo_filtmode)),
+            # $100F,x leftover note the lead-in effects frame(s) idle on.
+            voices=[InitVoice(id=v + 1, note=m.lo_notes[v]) for v in range(3)]))
 
     instruments = [_instrument_to_usf(ins, m) for ins in m.instruments]
     # idle wave walk (cleared wave position 0 -> what a voice's effects

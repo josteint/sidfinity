@@ -45,6 +45,17 @@ class V5Model:
     lo_filtmode: int = 0    # $1015 -> $D418 (mode nibble)
     lo_fchi: int = 0        # $1016 -> $D416 (cutoff hi)
     lo_fclo: int = 0        # $1017 -> $D415 (cutoff lo)
+    # $1013 speed-counter: init sets $1012 (reload) but NEVER clears $1013,
+    # so the speed counter starts at a file-image leftover. This sets the
+    # song's startup PHASE — how many leftover-effects frames play before the
+    # first note fetches (tick = speed==spdctr). Katusha's leftover is $00
+    # (immediate first tick); others are non-zero (a 1+ frame lead-in).
+    lo_spdctr: int = 0      # $1013 speed-counter startup phase
+    # $100F,x per-voice current NOTE — also in the uncleared $1006-$103F gap.
+    # Only OBSERVABLE when lo_spdctr delays the first tick: the lead-in
+    # effects frame(s) run wave_step on this leftover note (freq-table lookup)
+    # before the first fetch overwrites it. With lo_spdctr=0 it never matters.
+    lo_notes: list = field(default_factory=lambda: [0, 0, 0])  # $100F-$1011
     title: str = ''
     author: str = ''
     released: str = ''
@@ -160,7 +171,8 @@ def extract(cfg, hvsc_root: str = 'hvsc84') -> V5Model:
         freq_hi=[mem[a_fhi + i] for i in range(96)],
         speed=mem[a_order + 6], master_vol=mem[a_order + 7],
         lo_filtmode=mem[cfg.base + 0x15], lo_fchi=mem[cfg.base + 0x16],
-        lo_fclo=mem[cfg.base + 0x17],
+        lo_fclo=mem[cfg.base + 0x17], lo_spdctr=mem[cfg.base + 0x13],
+        lo_notes=[mem[cfg.base + 0x0F + i] for i in range(3)],
         title=s.get('name', ''), author=s.get('author', ''),
         released=s.get('released', ''),
     )

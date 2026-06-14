@@ -64,6 +64,9 @@ def _emit_data(m) -> str:
     d.append('pulsehi:\n' + _byt([hi for lo, hi in m.pulse]))
     d.append('filterlo:\n' + _byt([lo for lo, hi in m.filter] or [0]))
     d.append('filterhi:\n' + _byt([hi for lo, hi in m.filter] or [0]))
+    # per-voice leftover note ($100F-$1011): the lead-in effects frame(s)
+    # read it before the first fetch (only observable when lo_spdctr>0).
+    d.append('initnotes:\n' + _byt((list(m.lo_notes) + [0, 0, 0])[:3]))
     return '\n'.join(d)
 
 
@@ -105,6 +108,8 @@ ini_ptr:
         sta fchi
         lda #LEFT_FCLO
         sta fclo
+        lda #LEFT_SPDCTR        ; init does NOT clear $1013 (speed counter):
+        sta spdctr              ; the file-image leftover sets startup phase
         ldx #$00
         lda #$01
 ini_v:
@@ -122,6 +127,13 @@ ini_v2:
         inx
         cpx #$03
         bne ini_v2
+        ldx #$00
+ini_nt:
+        lda initnotes,x         ; prime per-voice leftover note ($100F,x)
+        sta curnote,x
+        inx
+        cpx #$03
+        bne ini_nt
         ldx #$00
         txa
 ini_sid:
@@ -968,7 +980,8 @@ state_end:
 """
     consts = (f'LEFT_FILTMODE = ${m.lo_filtmode:02X}\n'
               f'LEFT_FCHI = ${m.lo_fchi:02X}\n'
-              f'LEFT_FCLO = ${m.lo_fclo:02X}\n')
+              f'LEFT_FCLO = ${m.lo_fclo:02X}\n'
+              f'LEFT_SPDCTR = ${m.lo_spdctr:02X}\n')
     return consts + _ENGINE + '\n' + _emit_data(m) + '\n' + state
 
 
