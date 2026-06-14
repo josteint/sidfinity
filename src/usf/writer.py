@@ -609,14 +609,6 @@ def write(usf: UsfFile) -> str:
                                       for b in usf.freq_overrun[i:i + 16]))
         ov.append('}')
         lines.extend(ov)
-    if getattr(usf, 'vib_depth_curve', None):
-        lines.append('')
-        vd = ['vib_depth_curve {']
-        for i in range(0, len(usf.vib_depth_curve), 16):
-            vd.append('  ' + ' '.join(_hex(b)
-                                      for b in usf.vib_depth_curve[i:i + 16]))
-        vd.append('}')
-        lines.extend(vd)
     if usf.state_layout is not None:
         lines.append('')
         lines.extend(_write_state_layout(usf.state_layout))

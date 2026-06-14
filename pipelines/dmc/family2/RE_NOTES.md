@@ -76,46 +76,58 @@ note-init):
   but never carries it — composer uses the VIBDEPTH constant; and family
   2 doesn't use the $1888 table anyway).
 
-## Write-log loop progress (Kajun_Klog, divergence pushed forward)
+## ✅ KAJUN_KLOG FULL — write-log loop complete (4 effect-chain diffs)
 
-Sector layer → frame 2 → frame 3 → **frame 7** so far (each fix reveals
-the next effect difference). DONE:
+Kajun_Klog now verifies instruction-sequence exact at full songlength
+(`verify_dmc`: 1 subtune, 66674/66674 play writes, trichotomy state ✓;
+`find_first_divergence` 67414/67414 = 100%). The write-log loop pushed
+the first divergence sector → frame 7 → 15 → 16 → 100% by RE'ing FOUR
+genuine family-2 effect-chain differences from canon. ALL four come from
+ONE root: **family 2 relocated its instrument table over $17B0-$17FF**,
+which clobbered canon's two ADSR-helper subroutines (`sub_17EC`,
+`sub_17FB`) and forced inline mask-only / skip variants; plus the
+note-init tail + rest dispatch were re-laid-out. All gated behind typed
+build-level `params`, defaulting to canon — family 1 + others untouched
+(full regression green).
 
-- **Cymbal timing (commit pending).** Family 2's noise burst fires on
-  FRAME 2 (frame 1 = normal note, frame 2 = $FFFF+$81, frame 3+ =
-  normal), NOT frame 1 like canon — the note-init `JMP $1591` skips the
-  cymbal, which fires per-frame via the $1300 guard==2 check. Modeled as
-  `params.cymbal_onset` (0 canon / 1 family2); the composer emits the
-  burst at note-init (0) or in run_effects at guard==2 (1). Frame 2 now
-  matches exactly. A musical timing parameter (§ principled).
-- **vib_depth_curve USF field** (96 bytes, family-wide engine content
-  by reference; empty = canon VIBDEPTH). Serialized (writer/parser).
+1. **Cymbal timing — `cymbal_onset: 1`.** Burst fires on FRAME 2 (note-init
+   `$12FD JMP $1591` skips it; the `$1300` guard==2 check fires it one
+   frame later), not frame 1 like canon.
+2. **Vibrato swell — `vib_ramp: step`.** Canon loads a FIXED per-note step
+   from the `$1888` VIBDEPTH table → `$1792` and DOUBLES the half-cycle
+   width as it swells (`$1583 ADC $1774`). Family 2 instead holds a fixed
+   width and RAMPS the 16-bit step: note-init `$12F1 LDA $16A7,y (freq HI)
+   / LSR / STA $178C`, then each half-cycle boundary `$157F-$158E` does
+   `vstep ($1792/$1795) += $178C` (i.e. `+= freq_hi(note)>>1`). The
+   per-note increment is DERIVED from the freq table the composer already
+   carries — no data field needed. Composer: new `vsteph`/`vdep` regs;
+   the triangle add/sub is now 16-bit (`adc vsteph` ≡ `adc #$00` for canon
+   since vsteph stays 0).
+3. **Holding gate-off — `hold_gateoff: mask_only`.** Canon `$133D JSR $17ec`
+   (gate mask `$FE` + AD/SR=$00). Family 2 inlines `$133D STA $100f,x`
+   (mask only) — no `$D405/$D406=$00` write (sub_17EC is under the
+   relocated instr table).
+4. **Hard restart — `hard_restart: none`.** Canon `$11DB JSR $17fb`
+   (TEST `$08`→ctrl + AD/SR=$0F0F). Family 2 inlines `$11DB STA $d404,y`
+   (TEST bit only) — no `$D405/$D406=$0F` (sub_17FB clobbered).
+5. **Rest/switch/slide skip effects — `rest_effects: skip`.** Canon's
+   rest($FE)/switch($FD)/slide-tail dispatch ends `$1180 JMP $1322`
+   (full effect chain). Family 2 ends `$1180 JMP $1591` (wavestep) — so
+   on a tie boundary the vibrato + pulse program HOLD for that one frame
+   (re-emit cached freq/pw). This was the subtle one: a periodic 1-frame
+   modulator stall, found via the flat per-voice write-log + the
+   family-2 sector-dispatch disasm (NOT snapshots).
 
-OPEN — **family-2 vibrato is a DIFFERENT MECHANISM (current blocker @
-frame 7).** Canon: note-init loads the per-note step from the $1888
-VIBDEPTH table → $1792 (vstep), delayed by byte7-hi. Family 2:
-note-init does `LDA $16A7,y (freq HI) / LSR / STA $178C` — a SEPARATE
-register, and $1792 (vstep) is left 0. Evidence: with vib_depth_curve
-= [0] (current placeholder, vibrato disabled) frames 3-6 match, then at
-**frame 7 the original drops V1 freq by $02 = freq_hi($05)>>1** — so
-family 2 DOES vibrato via freq_hi>>1, but with a longer delay (~6
-frames) than byte7-hi gives. Needs: disassemble family 2's $178C usage
-+ its delay/application (the $13xx effect path, which DIFFERS from canon
-in the note-init tail) → a family-2 vibrato model in the composer
-(step = freq_hi>>1, family-2 delay). The current [0] placeholder is a
-partial (early frames exact, the delayed vibrato missing).
+The `vib_depth_curve` USF field added in the prior session was REMOVED
+(derivable from the freq table; schema hygiene).
 
-NEXT: (1) RE family 2's vibrato ($178C step + delay) → composer model;
-(2) iterate find_first_divergence (more effect differences may follow —
-the ~119-byte note-init-tail divergence isn't fully decoded); (3) once
-Kajun is FULL, factory variant (detect init JMP base+$37 ->
-sector_format='family2' + cymbal_onset=1, op sites = canon, instr base
-from operand, d417=base+$34, vib curve) + carved reference + wide batch.
-
-Tractability note: family 2 is the same engine but its EFFECT CHAIN has
-several genuine differences (cymbal timing, vibrato mechanism, + the
-undecoded note-init tail). Each is a focused RE step — more than the
-2-entry/relocation variants, less than a new engine.
+NEXT (factory + wide batch): factory variant detecting the family-2 jump
+table (init JMP base+$37) → set the 5 params + `sector_format='family2'`
++ op_tunetab=$1051 + d417_shadow=base+$34 + instr base from the $1227
+operand; carve a family-2 reference player for the identity compare;
+wide batch over the 2889 members. KAJUN config (validated):
+`op_tunetab=0x1051, d417_shadow_addr=0x1034, sector_format='family2'`,
+all other sites canon defaults.
 
 ## Migration plan (when picked up)
 

@@ -279,10 +279,40 @@ def compose_dmc_asm(usf: UsfFile) -> str:
     # (canon — frame 1); 1 = one frame later (family 2 — frame 2, gated
     # by the post-note guard). A musical timing parameter of the effect.
     cymbal_onset = int(usf.params.fields.get('cymbal_onset', 0)) & 1
-    # per-note vibrato depth curve (96 bytes). Family-wide engine content
-    # carried by reference: canon = the $1888 VIBDEPTH table; family 2 =
-    # freq-hi >> 1. Empty -> the canonical VIBDEPTH constant.
-    vib_curve = list(usf.vib_depth_curve) or list(VIBDEPTH)
+    # vibrato swell mechanism (two builds of the same engine ramp the
+    # triangle differently): 'width' (canon) holds a fixed per-note step
+    # (the $1888 VIBDEPTH table) and DOUBLES the half-cycle width as it
+    # swells in; 'step' (family 2) holds a fixed width and RAMPS the step
+    # by freq_hi(note)>>1 each half-cycle (16-bit). The per-note increment
+    # is derived from the freq table the composer already carries.
+    vib_ramp = str(usf.params.fields.get('vib_ramp', 'width'))
+    # holding-instrument gate-off: 'adsr_clear' (canon) also zeroes AD+SR
+    # (the original's sub_17EC); 'mask_only' (family 2) just drops the gate
+    # bit via the mask. Family 2 relocated its instrument table over
+    # sub_17EC and inlines a mask-only gate-off, so holding voices keep
+    # their AD/SR at note-end (no $D405/$D406=$00 write).
+    hold_gateoff = str(usf.params.fields.get('hold_gateoff', 'adsr_clear'))
+    hold_adsr_clear = ('' if hold_gateoff == 'mask_only' else
+                       '        ldy sidoff,x\n'
+                       '        lda #$00\n'
+                       '        sta $d405,y                  ; AD = 0\n'
+                       '        sta $d406,y                  ; SR = 0\n')
+    # hard-restart envelope preset: 'preset' (canon) writes AD=$0F SR=$0F
+    # (the original's sub_17FB) on the note-fetch frame; 'none' (family 2)
+    # writes only the $08 TEST bit (its relocated instrument table clobbers
+    # sub_17FB, so the hard restart drops the AD/SR=$0F0F writes).
+    hard_restart = str(usf.params.fields.get('hard_restart', 'preset'))
+    hard_restart_adsr = ('' if hard_restart == 'none' else
+                         '        lda #$0F\n'
+                         '        sta $d405,y                  ; AD = $0F\n'
+                         '        sta $d406,y                  ; SR = $0F\n')
+    # rest / switch / slide (duration events that don't retrigger): canon
+    # runs the full effect chain on the fetch frame ('run'); family 2 skips
+    # straight to the wave step ('skip', the original's JMP $1591) — so the
+    # vibrato + pulse program hold for that one frame (a one-frame modulator
+    # stall at each tie boundary).
+    rest_effects = str(usf.params.fields.get('rest_effects', 'run'))
+    rest_jmp = 'wavestep' if rest_effects == 'skip' else 'run_effects'
     # CIA multispeed: when the original drives play() via a CIA1 timer
     # (PSID speed bit set), the rebuild programs the SAME timer A latch
     # so libsidplayfp calls OUR play() at the identical rate. 0 = VBI.
@@ -326,7 +356,7 @@ def compose_dmc_asm(usf: UsfFile) -> str:
                 'spd:      .dsb 1, 0\n'
                 'mvol:     .dsb 1, 0\n'
                 '          .dsb 143, 0')
-    data.append('vibdepth:\n' + _byt(vib_curve))
+    data.append('vibdepth:\n' + _byt(list(VIBDEPTH)))
     for name, arr in [('iad', iad), ('isr', isr), ('ipwinit', ipwinit),
                       ('ipwmin', ipwmin), ('ipwmax', ipwmax),
                       ('ipwbase', ipwbase),
@@ -376,6 +406,38 @@ def compose_dmc_asm(usf: UsfFile) -> str:
                   '        dec guard,x\n'
                   '        rts\n'
                   'rf_nocym:\n')
+
+    # vibrato note-init step setup + half-cycle swell (canon vs family 2)
+    if vib_ramp == 'step':
+        # family 2: vstep/vsteph already 0 (note-init clear); the per-note
+        # increment = freq_hi(note) >> 1 (the original's $16A7>>1 -> $178C).
+        ni_vib_depth = (
+            '        ldy curnote,x\n'
+            '        lda freqhi,y                 ; family-2 vib increment\n'
+            '        lsr                          ; = freq_hi(note) >> 1\n'
+            '        sta vdep,x\n')
+        vib_swell = (
+            '        lda vstep,x                  ; swell: step += increment\n'
+            '        clc\n'
+            '        adc vdep,x\n'
+            '        sta vstep,x\n'
+            '        lda vsteph,x\n'
+            '        adc #$00\n'
+            '        sta vsteph,x')
+    else:
+        ni_vib_depth = (
+            '        ldy curnote,x\n'
+            '        lda vibdepth,y               ; per-note vibrato depth\n'
+            '        sta vstep,x\n'
+            '        lda vibwid,x\n'
+            '        bne ni_vs\n'
+            '        lda #$00\n'
+            '        sta vstep,x                  ; width 0 -> no modulation\n'
+            'ni_vs:\n')
+        vib_swell = (
+            '        lda vibwid,x                 ; swell: width doubles\n'
+            '        asl\n'
+            '        sta vibwid,x')
 
     return f"""
 SLIDE_PHASE = ${slide_phase:02X}
@@ -550,7 +612,7 @@ ev_rest:
         lda #$02
         jsr adv
         jsr peekend
-        jmp run_effects
+        jmp {rest_jmp}
 
 ev_switch:
         ldy #$01
@@ -562,7 +624,7 @@ ev_switch:
         lda #$02
         jsr adv
         jsr peekend
-        jmp run_effects
+        jmp {rest_jmp}
 
 ev_slide:                            ; glide mode 1: current -> target
         ldy #$01
@@ -581,7 +643,7 @@ ev_slide:                            ; glide mode 1: current -> target
         lda #$04
         jsr adv
         jsr peekend
-        jmp run_effects
+        jmp {rest_jmp}
 
 ev_note:
         ldy #$01
@@ -643,10 +705,7 @@ ev_n_hard:
         ldy sidoff,x
         lda #$08
         sta $d404,y                  ; TEST bit
-        lda #$0F
-        sta $d405,y                  ; AD = $0F
-        sta $d406,y                  ; SR = $0F
-        lda #$FF
+{hard_restart_adsr}        lda #$FF
         sta gatemask,x
         sta pend,x
         jsr peekend
@@ -680,6 +739,7 @@ fe_ni:
         sta pend,x
         sta pwl,x                    ; PW accum lo cleared unconditionally
         sta vstep,x
+        sta vsteph,x                 ; vib step hi (family-2 16-bit ramp; 0 canon)
         lda curinst,x
         sta cinst,x                  ; cache: soft notes don't re-init
         tay
@@ -766,15 +826,7 @@ ni_vib:
         sta wavepos,x
         lda iflag,y
         sta fxf,x
-        ldy curnote,x
-        lda vibdepth,y               ; per-note vibrato depth
-        sta vstep,x
-        lda vibwid,x
-        bne ni_vs
-        lda #$00
-        sta vstep,x                  ; width 0 -> no modulation
-ni_vs:
-        lda #$02
+{ni_vib_depth}        lda #$02
         sta guard,x                  ; gate logic off for 2 frames
 {cym_ni}ni_wave:
         jmp wavestep
@@ -794,11 +846,7 @@ fx_gate:
         bne fx_pulse
         lda #$FE
         sta gatemask,x
-        ldy sidoff,x
-        lda #$00
-        sta $d405,y
-        sta $d406,y
-        jmp fx_pulse
+{hold_adsr_clear}        jmp fx_pulse
 fx_g2:
         lda fxf,x
         and #$08                     ; open gate?
@@ -992,7 +1040,7 @@ fx_vib:
         adc vstep,x
         sta accl,x
         lda acch,x
-        adc #$00
+        adc vsteph,x                 ; 16-bit step (vsteph=0 for canon)
         sta acch,x
         jmp fx_vib_c
 fx_vib_dn:
@@ -1001,7 +1049,7 @@ fx_vib_dn:
         sbc vstep,x
         sta accl,x
         lda acch,x
-        sbc #$00
+        sbc vsteph,x
         sta acch,x
 fx_vib_c:
         inc vibctr,x
@@ -1017,10 +1065,7 @@ fx_vib_c:
         cmp cvram,x
         beq wavestep
         inc rampctr,x
-        lda vibwid,x                 ; swell: width doubles
-        asl
-        sta vibwid,x
-
+{vib_swell}
 ;; ----- wave step + SID writes -----
 ;; pool bytes >= $90 are jump-back markers (the original's semantics:
 ;; position -= value - $90, then re-read)
@@ -1130,6 +1175,8 @@ vibdel:   .dsb 3, 0
 vibwid:   .dsb 3, 0
 cvram:    .dsb 3, 0
 vstep:    .dsb 3, 0
+vsteph:   .dsb 3, 0
+vdep:     .dsb 3, 0
 wavepos:  .dsb 3, 0
 fxf:      .dsb 3, 0
 wctrl:    .dsb 3, 0

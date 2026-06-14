@@ -117,7 +117,6 @@ class DmcModel:
                                      # of the half-rate slide clock
     cia_period: int = 0              # CIA1 timer A latch (multispeed); 0=VBI
     family2: bool = False            # the V4-derived family-2 build
-    vib_depth_curve: list = field(default_factory=list)  # per-note vib step
     idle_wave: tuple = ((), (), 0)   # wave walk from table index 0 (the
                                      # cleared-cache idle path): ctrl,
                                      # freq, loop
@@ -491,15 +490,13 @@ def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc84') -> DmcModel:
             d = inst.filter_def
             if d not in m.filter_defs:
                 m.filter_defs[d] = _decode_filter_def(mem, filtdef, d)
-    # family 2: cymbal fires one frame later (frame 2); the TABLE-driven
-    # vibrato step ($1792) is never set at note-init (canon loads it from
-    # the $1888 VIBDEPTH table) — family 2 stores freq-hi>>1 to a separate
-    # register $178C instead, so the table vibrato contributes 0. Carry a
-    # zero depth curve (any genuine family-2 vibrato via $178C surfaces in
-    # the write-log loop if a note uses it).
+    # family 2: cymbal fires one frame later (frame 2, params.cymbal_onset),
+    # and the vibrato swells differently — note-init stores freq_hi(note)>>1
+    # to $178C and RAMPS the 16-bit step ($1792/$1795) by it each half-cycle
+    # (canon instead loads a fixed step from the $1888 VIBDEPTH table and
+    # doubles the WIDTH). The composer derives the increment from the freq
+    # table; the swell mechanism is the build-level params.vib_ramp flag.
     m.family2 = (cfg.sector_format == 'family2')
-    if m.family2:
-        m.vib_depth_curve = [0] * 96
     _offtable_check(m)
     return m
 
