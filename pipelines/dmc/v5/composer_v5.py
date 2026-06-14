@@ -110,6 +110,8 @@ ini_ptr:
         sta fclo
         lda #LEFT_SPDCTR        ; init does NOT clear $1013 (speed counter):
         sta spdctr              ; the file-image leftover sets startup phase
+        lda #LEFT_MVOLFRAC      ; nor $101C (fade fractional accumulator):
+        sta mvolfrac            ; the first fade ramps from this leftover phase
         ldx #$00
         lda #$01
 ini_v:
@@ -981,7 +983,8 @@ state_end:
     consts = (f'LEFT_FILTMODE = ${m.lo_filtmode:02X}\n'
               f'LEFT_FCHI = ${m.lo_fchi:02X}\n'
               f'LEFT_FCLO = ${m.lo_fclo:02X}\n'
-              f'LEFT_SPDCTR = ${m.lo_spdctr:02X}\n')
+              f'LEFT_SPDCTR = ${m.lo_spdctr:02X}\n'
+              f'LEFT_MVOLFRAC = ${m.lo_mvolfrac:02X}\n')
     return consts + _ENGINE + '\n' + _emit_data(m) + '\n' + state
 
 

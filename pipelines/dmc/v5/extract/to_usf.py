@@ -274,7 +274,8 @@ def model_to_usf(m: V5Model) -> UsfFile:
         # $1013 speed-counter the init never clears: the startup phase
         # (lead-in frame count before the first note fetch). Same key the
         # Hubbard/Title-Tunes composers use for the init speed-counter value.
-        params=Params(fields={'speed_ctr_init': m.lo_spdctr}),
+        params=Params(fields={'speed_ctr_init': m.lo_spdctr,
+                              'fade_frac_init': m.lo_mvolfrac}),
         init=InitState(
             sid=InitSid(
                 master_vol=m.master_vol,

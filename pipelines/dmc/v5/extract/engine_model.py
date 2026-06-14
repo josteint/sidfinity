@@ -56,6 +56,11 @@ class V5Model:
     # effects frame(s) run wave_step on this leftover note (freq-table lookup)
     # before the first fetch overwrites it. With lo_spdctr=0 it never matters.
     lo_notes: list = field(default_factory=lambda: [0, 0, 0])  # $100F-$1011
+    # $101C fade fractional accumulator — also uncleared. Init clears the fade
+    # SPEEDS ($1018/$1019) but not this sub-integer phase, so a tune whose
+    # first FD+/FD- runs starts the master-vol ramp from this leftover phase
+    # (off-by-one in $D418 vol otherwise). Unread until a fade is active.
+    lo_mvolfrac: int = 0    # $101C fade fractional phase
     title: str = ''
     author: str = ''
     released: str = ''
@@ -173,6 +178,7 @@ def extract(cfg, hvsc_root: str = 'hvsc84') -> V5Model:
         lo_filtmode=mem[cfg.base + 0x15], lo_fchi=mem[cfg.base + 0x16],
         lo_fclo=mem[cfg.base + 0x17], lo_spdctr=mem[cfg.base + 0x13],
         lo_notes=[mem[cfg.base + 0x0F + i] for i in range(3)],
+        lo_mvolfrac=mem[cfg.base + 0x1C],
         title=s.get('name', ''), author=s.get('author', ''),
         released=s.get('released', ''),
     )
