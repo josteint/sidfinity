@@ -40,9 +40,9 @@
     "updated": "2026-06-13"
   },
   "deflemask": {
-    "state": "LITTLE",
-    "notes": "single research.md first-pass overview; research-engine sweep not yet run.",
-    "updated": "2026-06-13"
+    "state": "OK",
+    "notes": "research-player sweep complete (2026-06-14). DefleMask (Delek), modern cross-platform tracker; C64 SID is one of many targets. TARGET = the 6502 player + song-data embedded in the .SID EXPORT, not the .DMF authoring format. 310 HVSC SIDs across THREE structurally different export players (tag = app version): DefleMask_v1 (1 SID, byte-at-a-time reg/val stream), DefleMask_v2 (69, Y-indexed write-queue blit, app v0.9-0.11), DefleMask_v12 (240=77%, app v0.12+/v1.x). v12 = clean register-bank BLITTER: LDX#$18/LDA $04,X/STA $D400,X/DEX/BPL writes all 25 regs D418->D400 every frame from a ZP shadow (Mode-1-deterministic). v12 song layout after ~253B player: $110A CIA-rate, $110C song-ptr, $110E 25-byte register-reorder table, $1127 bit-field-compressed stream (control byte flags which regs changed). ZP self-modifying fetch routine (do NOT reproduce per CORE TENET). v12 WRITES CIA1 $DC04/5 (hw-incompat bugs #216/#353). Effect catalogue + SID instrument model derived from Furnace (DefleMask never open-sourced the player); 3 DMF spec versions saved. All 310 = PSID v2, vblank speed=0, single-subtune. Reflextracker (137) is a SEPARATE engine. Migration first step: disassemble one v12 .sid for the bit-field decode off-by-one. Cleared to start disassembly. See pipelines/deflemask/docs/README.md.",
+    "updated": "2026-06-14"
   },
   "defmon": {
     "state": "LITTLE",

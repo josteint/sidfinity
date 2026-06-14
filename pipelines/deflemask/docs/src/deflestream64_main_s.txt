@@ -1,0 +1,129 @@
+; deflestream64 src/c64/main.s
+; Source: https://github.com/chiptunecafe/deflestream64/blob/master/src/c64/main.s
+; Author: rytone (chiptunecafe)
+; Fetched via: WebFetch 2026-06-14
+; License: MIT
+; Note: This is the STREAMING player (VGM-based, streams data off disk via Krill's Loader).
+; It is NOT the embedded player inside DefleMask .SID exports.
+; It demonstrates the VGM command format DefleMask exports use.
+
+section "Basic Autostart"
+.org $0801
+    .word next, 10
+    .byte $9e
+    .text " 2064"
+    .byte 0
+next:
+    .word 0
+
+section "Main"
+.org $810
+    sei
+    jmp install_loader
+error:
+    lda #$02
+    sta $d021
+    jmp error
+
+install_loader:
+    jsr $1000
+    bcs error
+    lda #$05
+    sta $01
+    lda #$7f
+    sta $dc0d
+    sta $dd0d
+    lda $dc0d
+    lda $dd0d
+    asl $d019
+    ldx #$7e
+    txs
+    ldx #$00
+copy_resident:
+    lda resident,x
+    sta $0180,x
+    lda resident+$100,x
+    sta $0280,x
+    lda resident+$200,x
+    sta $0380,x
+    inx
+    bne copy_resident
+    lda #$20
+clear_loop:
+    sta $0400,x
+    sta $0500,x
+    sta $0600,x
+    sta $0700,x
+    inx
+    bne clear_loop
+    ; ... (screen setup / loader bootstrap omitted)
+
+; --- IRQ handler: VGM stream playback ---
+irq:
+    pha
+    txa
+    pha
+    tya
+    pha
+    dec $d021
+    lda $21
+    cmp #$90
+    bcc no_loop
+    lda #$00
+    sta $20
+    lda #$10
+    sta $21
+no_loop:
+    ldy #$00
+register_loop:
+    lda ($20),y         ; read command byte from stream
+    cmp #$ff
+    beq not_data        ; $FF = not a data byte
+    tax                 ; X = SID register index
+    iny
+    lda ($20),y         ; read value byte
+    sta $d400,x         ; write to SID $D400+X
+    iny
+    jmp register_loop
+not_data:
+    iny
+    lda ($20),y
+    cmp #$ff
+    bne song_not_ended
+    dey
+    jmp song_ended
+song_not_ended:
+    iny
+song_ended:
+    tya
+    clc
+    adc $20
+    sta $20
+    bcc no_ptr_carry
+    inc $21
+no_ptr_carry:
+    inc $d021
+    asl $d019
+    pla
+    tay
+    pla
+    tax
+    pla
+    rti
+
+; --- VGM Stream Format (from deflestream64 main.rs) ---
+; Each "page" in the stream is 256 bytes = 128 two-byte commands.
+; Commands:
+;   $xx $vv  (where $xx = SID register 0-24, $vv = value): write $vv to $D400+$xx
+;   $FF $00  : end of frame (advance to next frame)
+;   $FF $FF  : end of song
+; ZP $20/$21 = current stream read pointer
+; Loop: when $21 >= $90, reset to $10 (wraps within 64-page bank window $1000-$8FFF)
+
+; --- VGM format note (from main.rs) ---
+; DefleMask exports SID data as VGM (Video Game Music) files.
+; VGM SID command 0xB6 = register write: [reg, value]
+; VGM command 0x61 = wait N samples
+; VGM command 0x63 = wait 1 frame (50Hz)
+; VGM command 0x66 = end of data
+; deflestream64 converts this to the simpler ($reg,$val)/($FF,$xx) format above.
