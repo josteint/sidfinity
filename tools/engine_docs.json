@@ -180,9 +180,9 @@
     "updated": "2026-06-13"
   },
   "sidtracker64": {
-    "state": "LITTLE",
-    "notes": "single research.md first-pass overview; research-engine sweep not yet run.",
-    "updated": "2026-06-13"
+    "state": "OK",
+    "notes": "research-player sweep complete (2026-06-14). SidTracker64 = modern iOS/iPad tracker by Daniel Larsson (Pernod), 2015 (last app update v1.0.5 Oct 2019). 259 HVSC SIDs, all PSID v2, 86% 8580+PAL. Closed-source app -> TARGET = the 6502 player + song data in the .SID EXPORT (not the .s64 authoring format). NO public source/spec; structure recovered from byte-stable HVSC inspection. PLAYER: init=load_addr (3-byte JMP trampoline), play=load_addr+$0003; player code 1930-2258 bytes across ~14 size-variants = APP VERSIONS (version detectable by code size); work area ~$6A bytes after code, then static tables; relocation (user load addr) added v1.0.5 - same code relocated. SMC per-song slots: $105F tempo, $107D orderlist-len, $101D filter mode, $101F/$1D filter routing. WRITE MODEL per play(): voice-writer x3 (X=0,7,14)->$D400-06; $D415/16 filter; $D417 routing; $D418=$0F|vol; tempo counter->step advance; per-voice duration countdown. Sidid sig 29 FE 9D 04 D4 = AND #$FE gate-clear hard-restart; 18 69 = glide ADC #$44/page-advance/note-step. PATTERN: $00-7F duration ticks, $80-FF note+instrument (2-3B), 128-byte page boundary w/ loop marker; orderlist 8 parallel lo/hi tables. FEATURES: 32 instruments (ADSR+wavetable+pulse+filter tables+vibrato+PWM sweep), 8 waveforms, sync/ring/hard-restart, arp=wavetable hi-freq mode; patterns 3 voices + 1 FX TRACK (per-step vol/filter/BPM); per-step glide/sustain/vibrato/tie. **TIMING: BPM-based, player ALWAYS sets CIA Timer A even when PSID speed=VBI; 47% carry CIA flag but CIA used internally in all -> plan --writelog-per-irq verdict family-wide (BPM != 50Hz).** Migration first step: disassemble canonical $1000 export for work-area/freq-table/instrument-block/wavetable encodings + the FX-track stream. Cleared to start disassembly. See pipelines/sidtracker64/docs/README.md.",
+    "updated": "2026-06-14"
   },
   "sidwinder": {
     "state": "LITTLE",
