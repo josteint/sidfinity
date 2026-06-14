@@ -110,9 +110,9 @@
     "updated": "2026-06-13"
   },
   "laxity_newplayer": {
-    "state": "LITTLE",
-    "notes": "single research.md first-pass overview; research-engine sweep not yet run.",
-    "updated": "2026-06-13"
+    "state": "OK",
+    "notes": "research-player sweep complete (2026-06-14). KEY: Laxity_NewPlayer_V21 IS NP21.G4 = the same player documented OK under jch_newplayer (CheeseCutter player_v4.acme = 'JCH NP 21.G4 by Laxity/VIB'); this corpus is the V21-specific delta. Captured: full NP21 effect/command routines read from player_v4.acme in full (the JCH README's open lead #3 = the write oracle) — per-voice write order D400/D401/D406(SR)/D405(AD)/D402/D403/D404, tsync 3-frame HR state machine, 4 HR types incl. $Ax 'Laxity restart' (AD preserved, G5 addition via inst Byte C), all 9 super-table effects, inline $40-$ff seq commands, 4-byte pulse/filter rows, wave column-B semantics; SIDId signatures (V21 anchors on STA $D404,Y + CMP #$FF + DEC abs,X; vs Glover/Vibrants-Laxity/SF2); sub-variant taxonomy G4(26563)->G5(33785, Byte-C HR)->B6, no NP21.Q (Q is JCH's NP20 era), NP21.G6 is Samar not Laxity; corpus stats (313 SIDs, 92% $1000/$1003, DRAX+G-Fellow=83%). Canonical base corpus in pipelines/jch_newplayer/docs/. Cleared to start disassembly. See pipelines/laxity_newplayer/docs/README.md.",
+    "updated": "2026-06-14"
   },
   "loadstar_songsmith": {
     "state": "OK",
