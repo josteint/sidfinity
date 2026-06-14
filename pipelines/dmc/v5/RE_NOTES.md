@@ -190,6 +190,59 @@ plus expected residue (player_code_mismatch sub-builds, no_jumptable
 relocated-in-file/CIA, ~36%). NEXT: composer rounds — FILTER FIRST (the
 #1 lever), then state-only, then freq — like V4's coverage climb.
 
+## ✅ FILTER ROUND 1 (2026-06-14) — startup-leftover priming (commits 8bea641, f598c2a)
+
+The "$D416/$D415 filter cutoff (22)" bucket was TWO distinct causes; the
+first-divergence register only NAMED the filter (it's the first write of
+the play frame). Diagnosed via find_first_divergence + per-IRQ + ordered
+FCHI/FCLO sequence diff.
+
+**Cause A — uncleared STARTUP LEFTOVERS (the lead-in cluster, ~10 of the
+22; "orig $D416=$00 / new $D418=$0F at play pos 0").** The V5 init sets
+$1012 (speed reload) but the clear loop ($1067-$106E) only covers
+$17D5-$1845, so THREE work-RAM bytes in the $1006-$103F gap keep their
+file-image leftover values:
+  - $1013 spdctr (speed COUNTER). When !=0 the first non-skip play() runs
+    effects-on-leftover for N frames BEFORE the first note fetch (tick =
+    speed==spdctr); those lead-in frames write freq from the leftover note.
+    Katusha's $1013=$00 (0 lead-in frames) so the cleared-to-0 composer
+    matched it; members with $1013!=0 diverged at play write 0.
+  - $100F,x per-voice current NOTE. Read by the lead-in frames' wave_step
+    (ADC $100f,x freq-table lookup) before the first fetch overwrites it.
+  - $101C fade fractional accumulator. Init clears the fade SPEEDS
+    $1018/$1019 but not this sub-integer phase, so a tune's first FD+/FD-
+    ramps master vol from the leftover phase ($D418 vol off-by-one).
+FIX: extract lo_spdctr/lo_notes/lo_mvolfrac; prime spdctr/curnote/mvolfrac
+in init; carry through USF via the existing cross-engine `speed_ctr_init`
+params key + `InitVoice.note` (V4 idle-note) + a new `fade_frac_init`
+params key — NO shared-schema additions. Result: X-Files + Believe newly
+FULL; whole cluster advances (Believe was 95%). Katusha still FULL; USF
+round-trip faithful (direct==USF first_play_diff).
+
+**Cause B — FILTER ENVELOPE KEEP-RUNNING continuation (the real cutoff
+drift; round 2, the BIGGER filter lever).** After cause A, the cluster
+members (Grid/Minoam/Conanious) still diverge mid-song with a $D415 (FCLO)
+drift while $D416 (FCHI) NEVER differs. Precise localisation (ordered FCLO
+sequence): at FCLO index 764 the orig RAMPS (+1/frame: 07,08,09,0A...) but
+the rebuild HOLDS (07,07,07...). So the rebuild's GLOBAL filterpos is in a
+DIFFERENT instrument's filter program than the orig at that point. Root
+cause: the filter envelope KEEPS RUNNING across V3 notes whose instrument
+has FL=0 (no filter restart) — Minoam's insts 3-6,8-13 are all FL=0, only
+0/1/2/7 reset. The per-instrument `_capture_env` envelopes match in
+ISOLATION (verified, 200 frames), but the de-fused per-instrument
+synthesis (from_usf: each inst its own copy + a $90 terminal) does NOT
+faithfully reproduce the orig's SHARED/FUSED-table running position when a
+keep-running note continues PAST one program into the next region of the
+shared table (vs the synthesis looping at the per-inst terminal). NB
+`_capture_env` also treats frames>=$9000 as terminal (Minoam inst 2's
+count is $9008 — entry 9 is a $90 marker read as a count), which the
+synthesis turns into a self-loop; the real engine flow differs. ROUND-2
+OPTIONS: (a) make the de-fused synthesis faithful to cross-program flow
+(complex); (b) carry the filter table as a SHARED content-by-reference
+table (reverts the per-inst parameterisation the user chose, but the
+keep-running continuation is exactly the shared-resource case). Decide
+write-log-first on Minoam (FCLO index 764).
+
 ## (historical) factory + wide-batch plan
 `dmc_v5_config` factory (jump-table detect init+$40/play+$A1, the
 operand sites above, carved reference) + reuse tools/dmc_family_batch.py
