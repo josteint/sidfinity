@@ -1,0 +1,304 @@
+---
+source_url: https://archive.org/download/jch_c64_zip/jch_c64.zip -> ED_TEXTS.ZIP -> 20_G4_IN.TXT
+fetched_via: curl + unzip 2026-06-15
+fetch_date: 2026-06-15
+author: Jens-Christian Huus (JCH) of Vibrants
+content_date: 1991-07-xx (Update version 3, July 1991)
+reliability: primary
+---
+
+* ADDENDUM 20/8-1995: This is the instructions for the very last and most
+* advanced player version I made for the editor. If you are to make music in
+* the editor (it be in a PC emulator or on the C64 directly) - and the raster-
+* time is less important - then THIS is the player you should use! If you
+* know rastertime is important, have a look at player v17 or v19 instead.
+
+
+Instructions for NewPlayer v20.G4 and further updates.
+
+Typed by JCH, May 1991. Update version 3, July 1991.
+
+Here's yet another NewPlayer, combining the complexity of NP v18 with the
+advantage of having a much shorter rastertime - plus a few new features
+thrown in as well! NewPlayer v20 was built upon v18, but quite a few
+functions have been changed and added, like throwing away the hard restart
+command and installing an on/off function for it in the 8-byte instrument
+instead - much like NP v14. Other new things as half-speeds and completely
+redesigned puls and filter step-programming makes it a fresh change from the
+other NewPlayers. Again, it is highly recommended that you have already read
+and understood the instructions for NewPlayer v14, v15 and v18 in order to
+get the most out of these instructions. To keep it short I will often refer
+to NP v18 whenever I am discussing a table where only, say, one single byte
+have been changed.
+
+
+The 8-Byte instrument table.
+
+         00  00  00  00  00  00  00  00
+         --  --  --  --  --  --  --  --
+         A   B   C   D   E   F   G   H
+
+The only byte changed from v18 to the new v20 is byte C. All other bytes
+works EXACTLY as in NewPlayer v18.
+
+Byte C used to control the hifreq-drum mode in v18 only (ON or OFF), but in
+v20 it has been split up into controlling three functions: Hifreq, hard
+restart on/off and the speed of the chosen arpeggio-table. The first nibble
+can be either 0, 4, 8 or C. The 4 sets hifreq, and 8 hard restart. So, if you
+want hifreq drums you write a $40, and if hard restart is preferred as well
+you add $80 to it which gives $C0 in all. The hard restart has a stuck timer
+at $2 built inside the music-routine and cannot be changed. This shouldn't
+bother you at all, since this timer-value is the best you can have anyway!
+The timervalue of $2 however makes it impossible for you to play at any lower
+tune speed than 2, more about this later though.
+
+The second nibble in byte C controls the SPEED of the arpeggio, 0 is fastest
+and F is very very slow. This is a function found in many music routines, but
+has first been introduced into this player v20. It saves you a lot of time,
+imagine having a wide number of chords in a tune - all with 00, 03, 07 steps
+(and so on), the fastest chord arpeggio - then later, you actually COULD use
+a somewhat slower chord "speed", to change the mood of the music. Then
+instead of having to alter ALL those damn chord arpeggio's you just alter
+this speed nibble. This selector also works in hifreq mode.
+
+Some examples:
+
+         40 - Hifreq on, hard restart off, arpeggio speed 00 (fastest).
+         83 - Hifreq off, hard restart on, arpeggio speed 03 (slower).
+         01 - No hifreq or hard restart (off), arpeggio speed 01.
+         CF - Both hifreq and hard restart on, arpeggio VEEEERY slow!
+
+
+The super/slide table.
+
+Not much has happened in this table, the hard restart command ($8x) has been
+discarded, otherwise all other commands also found in NP v18, are present -
+like speed-change, volumen, sustain, chord-change, slide and vibrato etc.
+
+However one thing that is nice to know is that the speed-change option (When
+you use "E0 0x") has been improved. Now it can't bring the voices out of
+synchronization, no matter where you put it in the sequence! If you're
+familiar with player v18 you'll know this was quite a problem in that player.
+
+The very first position of the super table has been reserved for use as a
+"Hard restart" setting. Start all your "Sxx" commands off at position $01.
+More about this setting later.
+
+
+The arpeggio-table.
+
+This table can do everything it could in NP v18, plus a new little detail
+added in; the $7E endmark. Normally you've always been using $7F with a loop
+pointer (like a sample), but some players (like LAXITY's and JOZZ's to
+mention a few) also offers the $7E endmark, which simply repeats the very
+last step all the time. Very small addition really, as you could achieve the
+same thing easily with $7F, but what the heck. However, using the $7E endmark
+COULD cause mistunderstandings in the PACKER! The NP-packer has been designed
+to check the length of the arpeggio table by hunting for the $7F mark, so if
+you've used a $7E in the last arpeggio program the packer will erase it.
+Actually, it will erase everything until it DOES meet a $7F endmark - imagine
+you haven't used any $7F at all, and you can see that the entire arpeggio
+table could be erased completely inside the packer! OK, but what do I do to
+prevent that? Simple, just make sure the very LAST arpeggio program uses a
+$7F endmark, and you won't get any problems. By the way, sorry for not
+highlighting the $7E mark with light-green like the $7F endmark, but the
+editor wasn't designed for this kind of future expansion. I hope you
+understand.
+
+
+The Pulsating table.
+
+Both this table and the filter table have been completely redesigned in this
+player. Get ready to learn a completely new system, the same system as used
+in LAXITY's player. This kind of step-programming is both much easier to use,
+and more difficult at the same time! Simply because you have almost no
+special bits to look out for, but on the other hand you must take care of all
+boundary settings yourself. The byte functions themselves are quite easy to
+explain:
+
+         00  00  00  00
+         --  --  --  --
+         A   B   C   D
+
+Byte A sets the start puls. This is exactly the same as byte 4 in the old
+system, the first nibble is the low-puls and the last is hi. SO as you know,
+$08 is a very loud puls while $10 is very weak. A special byte command
+however is value $FF which won't set a new puls, but tell the music-routine
+NOT to set a new puls but continue using the puls it is currently working
+with. This is useful when calling new sets in the step programming.
+
+Byte B sets the speed of the pulsating, ranging from $00 to $FF.
+
+Byte C defines the life time of the set, $00-$7F frames. When the time has
+expired the music routine will call the next set, as defined in byte D. This
+is the only byte using a bit - BIT 7 to determine puls speed direction -
+unlike the old system, where you had all sorts of bits to look out for,
+especially in byte 3. Back to business, The 7th bit sets the direction of the
+puls-speed, 0=up, 1=down. Meaning, that you must add the duration with $80 to
+puls downwards! Speeds available are therefore $00-$FF (in byte B) with byte
+C's bit 7 determining the direction of the speed, adding or subtracting.
+
+Byte D sets a pointer to the next set whenever the frame counter in byte C
+has expired. The pointers used are simply the very same as in the puls table,
+the pointer like 0C: XX XX XX XX, this is f.ex set number $0C.
+
+As you can see it isn't as hard to understand this new system as the older
+one was. The difficult part however is actually getting USED to running a
+clever puls in this system, which ain't as straight-forward as it seems. In
+the old system you had boundary nibbles in the same set, but as you don't
+have this here you must "jump" between two sets adding and subtracting the
+speeds in order to simulate a swinging puls.
+
+Let's assume you want to start at puls $0C and move towards the $0F, then
+somewhere along the path you want to start a puls swing.
+
+         00: 0C 40 08 04
+         04: FF 40 84 08
+         08: FF 40 04 04
+
+In set 00 it starts at puls 0C, and then adds with $40 for 8 frames, then
+goes to set number 04. Here it continues with whatever puls it might have,
+now subtracting with 40 (because $80 is added to byte C!) for 4 frames. After
+running the 4 frames it goes to set 08, continuing again with the last puls,
+now adding instead for 4 frames, then GOES BACK to SET 04! As you can see in
+this example, the puls routine will keep on alternating between set 04 and 08
+as long as the instrument lasts. Subtracting and adding with 40 all the time
+then gives the impression of a swinging controlled puls with boundary
+control. This method of controlling the puls program gives much more
+flexibility than the old system. Just altering one of the frame counter's
+slightly in either set 04 or 08 would make the puls sound swinging, yet
+giving the impression of "moving inspite of the swinging", so to speak.
+
+
+The filter-sweep table.
+
+The step-programming bytes are almost exactly alike in the filter table. Byte
+A sets the start filter, 00-FE (FF uses the current filter freq), byte C the
+frames and byte D the pointer to the next set. However, the speed counter in
+Byte B is slightly different.
+
+Instead of having a bit 7 to determine the direction of the filter adding
+(the "speed") I use the power of wrapping bytes. In other words, to save
+raster time this byte is actually only capable of adding! So how can you
+subtract with this byte? Simply by reversing it!! This may seem confusing to
+the musician not fully into hexadecimal numbers and m/c programming, but as
+you know, the byte values used in all tables can go from $00 to $FF. If a
+machine code routine is made in an assembler which adds with 1 all the time
+to a byte, then it will automatically wrap back to the $00 as soon as it
+reaches the $FF... This is very common and natural to most people, but let's
+say you were adding with $FF instead of 1! Then the byte value $00 would be
+added with $FF, giving $FF (quite logical!), the second time it will be added
+it says $FE, simply because of the way a byte "wraps"! So as you can see, you
+can "simulate" a subtracting of 1 by adding with $FF! This is what you can
+use with succes in the speed byte of the filter-sweep table.
+
+If you type $10 in byte B, you will be adding with $10 as wanted, but if you
+type $F0 you will be subtracting with $10! This might take some time to get
+used to if you not a programmer, but you'll soon get the hang of it!
+
+
+The first 4 bytes in the filter-sweep table.
+
+As usual the first 4 bytes in the filter table has been reserved, meaning
+that you must start all filter programs from pointer position 04. The first 4
+bytes has been used almost fully in NP v20 this time.
+
+         02  03  00  00
+         --  --  --  --
+         A   B   C   D
+
+Byte A & B are the half speed selectors, I will return to them later.
+
+Byte C is unused in v20.G3 and up. In older versions, it was used as the
+raster decrease byte. However, since the decreasing can't be "heard" in the
+v20 series I changed it into being set automatically somewhere else, when
+packing!
+
+Byte D is the filter-sweep to voice controller, working exactly as in NP v15
+and NP v18.
+
+
+How to make music using half-speeds.
+
+Before going into details about how to use half-speeds, one word of warning.
+Using the "+CHANGE SPEED" merge-file in the disk-menu you can make sure the
+SHIFT-B command ("follow-play") follows the eventual speed change using the
+"E0" command in the super-table, but the editor wasn't originally designed to
+cope with the new "half-speed" facility. The SHIFT-B option can't under any
+circumstances follow the odd half-speeds, it will simply loose track of the
+music itself and go out of synchronization. If you are very dependant of the
+SHIFT-B function (I know some are), then I advise you to compose in a "clean"
+speed - then you can always set the music to the desired half-speed when the
+music has been finished!
+
+* ADDENDUM 20/8-1995: The "+CHANGE SPEED" merge-file is built-in to the newest
+* editor v3.04 included in this package. This will make sure that "E0" speed-
+* change commands will work with SHIFT-B, but remember that it will still not
+* understand the half-speed settings possible in player v20.
+
+This music-routine version can, as previously mentioned, only use tune speeds
+2 up to 9. It cannot work at speed 0 nor 1, because of the hard restart
+programming, amongst many other technical reasons (I sure got out of that one
+easy, didn't I!). However, the speeds 0 and 1 CAN be selected (using SHIFT S
+and D as usual) as a special option to tell the music routine to work in a
+special speed mode. Whenever you set the tune-speed to 0 or 1, the routine
+will look at the very first TWO numbers in the filter-table and switch
+between them. In these two bytes you can therefore type f.ex $02 and $03 to
+simulate speed 2 and a half!
+
+The option of selecting speed 0 or 1 (with SHIFT S/D) to point at the two
+speed bytes in the filter table can be accessed with the "speed-change"
+command inside the supercommand table as well. Imagine starting at a clean
+speed 4, then later accessing "E0 01". Then the music routine will
+automatically use the half-speed bytes defined in the filter table, as usual.
+Now remember that the SHIFT-B command inside the editor CANNOT follow the
+half-speed, instead it will try to follow the pseudo speed 0 or 1, which is
+completely wrong.
+
+In the speed bytes (the filter table) you can mix any half-speed you like.
+Actually you can type 00 or 01 too, but this isn't advisable because the
+music routine can't run at these speeds! Note that mixing speeds as $02 and
+$04 is actually the same as a clean speed $03! Otherwise you are free to mix
+whatever speed you want, as long as you keep both values between $02 and $09.
+
+
+Inside the packer.
+
+In older versions (below v20.G3) you could set a raster-decrease flag using
+the F6 "Control-bytes" key, but in the newer updates it is set automatically
+when the tunes has been packed. The reason for doing this is that the
+music-player won't skip the arpeggio nor the slide routine while setting this
+byte... In 99.9% of all tunes made in v20 you will NOT be able to hear the
+difference anyway! When packed the player normally keeps the raster-time at
+around $21 scanlines, which is quite an improvement compared to the dreaded
+NP v18.
+
+
+Undesired side-affects.
+
+No big bugs ought to be hunting in v20. One small irritating detail could be
+the fact that an empty sequence assumes a "filter on" in that voice. Meaning
+that a bass made in f.ex voice 1 while voice 2 and 3 are completely empty
+will sound like all three voices are filtered (i.e. low volumen). But as soon
+as you make something in the other voices this effect will dissappear. It
+shouldn't worry you too much really.
+
+The hard restart implemented in this player version is quite hard, and has a
+stuck timer at $2 which cannot be changed. The nature of the hard restart can
+be altered by changing the release part of the instrument's ADSR to make sure
+the hard restart gets the desired effect. However the hard restart ADSR can
+be changed in the first position of the SUPER commands table too, normally
+the values found here is 0F 00. This is a very "hard" hard restart setting,
+but try other values like f.ex 00 01 or 0F 04 to get other effects.
+
+Last, the promised decreased raster-time at $21 (mentioned earlier) is the
+average time when using vibrato in one or two voices. Because NP v20 is using
+the same calculated vibrato routine as NP v15 and v18, it is possible that
+heavy use of vibrato can cause unexpected raster flips in packed state.
+Otherwise the rastertime looks very controlled, kinda like LAXITY's
+raster-time if I may say so...!
+
+Anyway, good luck with the player!
+
+
+Jens-Christian Huus.

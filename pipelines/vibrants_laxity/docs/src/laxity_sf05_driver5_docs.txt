@@ -1,0 +1,170 @@
+---
+source_url: https://csdb.dk/getinternalfile.php/29773/20060901_SID_Factory_0_5.zip -> Docs/SidFactory_Driver v5.00d_Documentation.txt
+fetched_via: curl 2026-06-15
+fetch_date: 2026-06-15
+author: Thomas Egeskov Petersen (Laxity)
+content_date: 2006-07-25
+reliability: primary
+---
+
+SID Factory driver 5.00d
+========================
+
+d denotes development version
+
+Driver 5 is a standard music driver with calculated vibrato and no aim at execution speed. 
+
+Instrument
+----------
+
+aa bb cc dd ee ff gg hh
+
+aa	- Attack/Decay
+bb 	- Sustain/Release
+cc  - Instrument properties 1
+			Restart settings (bit 7-6) 
+		/ Arpeggio mode enable (bit 5) 
+		/ Oscilator reset (bit 4)
+		/ Hard restart table pointer (bit 3-0)
+dd  - Instrument properties 2
+			Pulse and filter settings (bits 7-6) 
+		/ Arpeggio delta delay (bits 0-5).
+ee  - Resonance setting (If this one is non-zero, filter will enable for the channel the instrument is set on)
+ff  - Filter table pointer
+gg  - Pulse table pointer
+hh  - Wave table pointer
+
+cc 	bit 7 = Hard restart enabled
+		bit 6 = N/A
+		bit 5	= Arpeggio instrument
+		bit 4 = Reset oscilators
+		bit 0-3	= Hard restart table pointer
+		bit's 7 and 6 are non-combinable.
+		
+dd  bit 7 = Filter is only reset on instrument set command (row 1 in sequence)
+		bit 6 = Pulse is only reset on instrument set command (row 1 in sequence)
+
+Wave table
+----------
+
+aa bb
+
+aa = Note offset (If bit 7 is true, the note is fixed)
+bb = Waveform
+
+if aa=$7x it's a wave table command
+
+	7f = Jump to position bb
+	7e = Set wave table delay to bb
+	7d = Wait bb ticks (not implemented yet)
+
+
+Arpeggio table
+--------------
+
+aa
+
+aa = Note offset
+
+if aa=$7x "repeat X steps from the top of the current arpeggio"-command.
+
+
+
+Pulse table
+-----------
+
+aa bb cc
+
+if aa < $10 (Add to pulse)
+
+	aa = add pulse high
+	bb = add pulse low
+	cc = execution time (in frames/updates)
+	
+if aa = $7f (Jump to index)
+
+	aa = $7f
+	bb = unused (could maybe be used for jump count?)
+	cc = new index
+	
+if aa >= $80 & aa < $90
+
+	aa = $8x where x is the new high pulse value
+	bb = new low pulse value
+	cc = execution time (in frames/update - effectively wait time)
+
+
+Filter table
+------------
+
+if aa < $10 (Add to pulse)
+
+	0a = add filter low value (Beware, these are the opposite of the pulse table, where this one is the high part!)
+	bb = add filter high
+	cc = execution time (in frames/updates)
+	
+if aa = $7f (Jump to index)
+
+	aa = $7f
+	bb = unused (could maybe be used for jump count?)
+	cc = new index
+	
+if aa >= $80 & aa < $90
+
+	aa = $8x where x is insignificant
+	bb = new high filter value
+	cc = execution time (in frames/update - effectively wait time)
+
+
+Commands
+--------
+
+0x aa ?b, Set slide 
+					aabb is the added value to the current frequency value (only additive)
+
+1x aa bb, Set vibrato
+					aa = Frequency
+					?b = Amplitude
+					
+2x ?? aa, Set arpeggio pointer
+
+					aa = Arpeggio index
+				
+3x aa bb, Set filter and/or pulse table pointer
+			
+					x - Bit 0 means AA is a filter table pointer
+					  - Bit 1 means BB is a pulse table pointer
+					  
+					Ex.
+					
+					x = 0, means AA and BB remain undefined
+					
+					x = 1, means AA is set as new filter table pointer
+					x = 2, means BB is set as new pulse table pointer
+					x = 3, means AA is set as new filter table pointer AND BB is set as new pulse table pointer
+
+4x aa bb, Set wave and/or pulse table pointer
+			
+					x - Bit 0 means AA is a wave table pointer
+					  - Bit 1 means BB is a pulse table pointer
+					  
+					Ex.
+					
+					x = 0, means AA and BB remain undefined
+					
+					x = 1, means AA is set as new wave table pointer
+					x = 2, means BB is set as new pulse table pointer
+					x = 3, means AA is set as new wave table pointer AND BB is set as new pulse table pointer
+					
+8x AD SR, ADSR is set for the scope of the current instrument, including the current note event.
+
+9x AD SR, (Direct)ADSR is set for the current note event only, and reset to the previous ADSR value on next event in the instrument scope
+				 
+f0 xx ??, Set new tempo.
+					xx = pointer into tempo table
+				 
+				 
+BUGS
+----
+
+Hard restart override is buggy when tempo is 2 and two note events are following upon each other.

@@ -1,0 +1,49 @@
+JCH NP 21.G6 by Glover/Samar
+
+INSTR:
+AA BB CD EF GH II JJ KK
+AABB: ADSR
+C: 1-st wavetable byte delay
+D: whole actual wavetable delay (good for arpeggios)
+E: unused
+F:	0: no hard restart 00-7F , 80-DF hard restart (?)
+	1: drumsound (00-DF) (?)
+	
+GG: unused
+HH: Filtertable ($FF - smooth filter change)
+II: Pulsetable ($FF - smooth filter change)
+JJ: Wavetable
+
+--------------------------------------------------
+PULSETABLE:
+AA: HI pluse byte / add value
+BB: LO pluse byte / add value
+CC: add value
+DD: next line number ($7F=end) 
+
+--------------------------------------------------
+FILTERTABLE: AA BC DD EE
+
+AA: x0 Filter resonance
+B:  x0 Filter type 
+C:  xy x LO nibble of filter frequency for smoother freq change.
+       y - resonance change
+DD: 00 filtertype and resonance
+    01-FF set frequency and resonance
+EE: next line number ($7F=end) 
+
+--------------------------------------------------
+SPECIAL TABLE: AB CD
+A:0 Glide UP (BCD speed)
+A:1 Glide DOWN (BCD speed)
+A:2 Vibrato B:speed, CD: add value
+A:3x set Sustain/Release (C: sustain/ D: release)
+A:4x set tempo (C: 1-st value, D: 2-nd value)
+A:5x set filter frequency CD: 00-FF (overrides actual freq)
+A:6x 60-7F set new Filtertable for instrument 00-1F (instr 00=60, instr 1F=7F) CD: Filtertable pointer
+A:8x 80-9F set new Pulsetable for instrument 00-1F (instr 00=60, instr 1F=7F) CD: Pulsetable pointer
+A:Ax A0-BF set new Wavetable for instrument 00-1F (instr 00=60, instr 1F=7F) CD: Wavetable pointer
+A:Cx C0-DF set new wave speed for instrument 00-1F (instr 00=60, instr 1F=7F)
+A:Ex D set music volume 0-F (eg. E004 -set vol to 04)
+A:Fx Precise vibrato B: depth, C: speed, D: add value
+	

@@ -1,0 +1,542 @@
+
+NewPlayer v15.G6 instructions (and further version-updates in the v15 series)
+컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴�
+
+Typing begun 2/7-1990 by JCH of VIBRANTS.
+
+Here is the instructions for the new v15 player - well, not completely, it is
+still nessecary that you know the editor and the player v14 as things like
+the arpeggio table (etc) are not mentioned in these instructions - because
+they're not changed from v14. So, keep the v14 instructions together with
+these! Anyway I hope these instructions are clear enough.
+
+
+SUPER-TABLE
+컴컴컴컴컴�
+
+The main change in v15 is the that "Slide-table" have been enlarged into a
+"Super-table" (Well, The "S"-command in the sequences still had to have a
+name that started with a "S", so...!), controlling both slide, vibrato, hard
+restart and arpeggio-change mixed togther in one and the same table. So, in
+player v15 you simply have to call them with a "Sxx" in the sequence whenever
+you want one of them, and it doesn't matter if you mix them in between
+each other in the table - because a "recognize-" bitpattern have been defined
+for each command. This way the musicplayer always knows what is what. Only
+YOU have to check out what is what in order to call the right "Sxx" in the
+right spot.
+
+Right - let's have a look at all the commands in the "Super-table".
+
+SLIDE. This command now look's like this:
+
+         00 00
+         -----
+         AB CD
+
+Nibble A = Recognize, direction and "ignore"-bit; may only be 0, 1, 2 or 3.
+Nibble B, C and D = forms a 3-digit speed control for sliding.
+
+This command actually works exactly like in player v14, the "POSTCODE" is the
+only thing that have been changed. So this is how the command could look
+like:
+
+         00 80 = Slide up with speed $80, start at a note.
+         10 80 = Slide up with speed $80, start at a +++ or a ---.
+         20 80 = Slide down with speed $80, start at a note.
+         30 80 = Slide down with speed $80, start at a +++ or ---.
+
+Do remember to use the proper command at notes or +++/---, if you happen to
+put a "00 80" at a +++ or --- in the sequence you can hear a funny error; it
+takes the slide command one time too many - at the next note too! The music
+routine MUST know where you intend to put the slide, at a note or somewhere
+else. Also notice you can have slide-speeds up to $FFF which is incredibly
+fast indeed.
+
+VIBRATO. Now, in player v15, you must call the vibrato from the sequence (and
+not from the 8-byte instrument) using the "Sxx"-command. This is the ONLY way
+you can get vibrato, but it's also the smartest. It does have one drawback
+though; in the editor's play-mode ("F2") there is no vibrato on the
+instrument. You quickly get used to this though as you realise how great is
+really is to control where, when and what vibrato's you put on one and the
+same instrument. You will be surprised to see how great a control you have
+over it, f.ex. there is a "vibrato-feel" in player v15 again (it was in v13
+but not in v14) but no "maximum" setting as you can stop the "feeling" with
+TWO vibrato commands in the sequence; One that begins the vibrato adding
+("feeling") and one later on in the same note that has a certain maximum
+value. Then, when you listen to the sequence with "F1" or "F3", you hear how
+the vibrato get's bigger and bigger until it reaches the second "Sxx"
+command, activating the "stop here" vibrato. Imagine how complex and
+interesting vibrato's you could define using these commands... well, let's
+have a look at it, OK!
+
+         00 00
+         -----
+         AB CD
+
+Nibble A = Recognize and "ignore"-bit; may only be 4 or 6.
+Nibble B = Add value, 0-F, the one I call "feeling"!
+Nibble C = Vibrato speed, 0-F.
+Nibble D = Vibrato width, 0-7.
+
+Here the A-nibble can be 4 for vibrato's put at a note and 6 for vibrato's
+put at a +++ or ---. The latter is the one that is mostly used. The B-nibble
+is a kind of "add"-value to the vibrato-width, a 1 adds with 1 width every
+frame (music-call) and F adds a F (which is too exaggerated really). 0 turns
+off the vibrato. The next two nibbles, C and D, is used for defining the
+vibrato speed and width, as usual. What is not usual though is that the
+values used here works somewhat different than in the other players I've
+made. That's because there's a new vibrato-routine in player v15! The routine
+is ultra-precise in all frequencies because of a calculation routine JESPER
+OLSEN so kindly supported me with (Thanks, Jesper!). It is the same routine
+that he, LAXITY and CHARLES DEENEN (amongst many others) uses, it was
+originally done by ROB HUBBARD - It makes sure the vibrato sounds equal no
+matter what octave you put it on. Anyway it means that the width control is
+now upside down. The first nibble, the speed, is as usual; 1 is a very quick
+vibrato and F sounds more like a police sirene. Normally it's 3. The last
+nibble is the width then, and here a 0 is a maximum width while 7 hardly
+gives any vibrato at all. 8-F are not used really but it wont harm to use
+these values. Normally you use values from 0 to 3. Now take a look at these
+examples again...
+
+         40 13 = Vibrato speed 1, width 3, no feeling and put at a note.
+         41 37 = Vibrato speed 3 and a width at 7 (almost no swinging) which
+                 gets bigger with +1 per frame (music call) - feeling! Again
+                 this command is put at a note in the sequence.
+         60 21 = Vibrato speed 2, width 1, no feeling. This one should be put
+                 at a +++ or --- in the sequence, much like a slide.
+
+Again you MUST remember to use a 4 in the first nibble for vibrato's ("Sxx")
+sitting beside a note and 6 for vibrato's sitting at a +++ or a ---,
+otherwise you'll get the same funny error as in slide; it might "forget" to
+turn off the  vibrato at the next note! By the way did you notice that the
+vibrato-delay has vanished? Well, this function is not needed in a system
+like this. Why should it, when it's now possible to define when to trigger ON
+the vibrato, by simply putting the "Sxx" at a +++/--- somewhat after the
+note!
+
+HARD RESTART. This facility is now also to be found in the "Super"-table. But
+why is that? In player v14 it was something that was just adjusted in the
+instrument itself and then it was fully automatic! Well, that WAS very nice,
+but it took a hell of a lot of rastertime because of some technical problems.
+This new way of doing it is a lot smarter and more flexible too, you can even
+use the command for ECHO and REVERB effects! This is how the command looks...
+
+         00 00
+         -----
+         AB CD
+
+Nibble A = this is only a recognize nibble. It's always 8!
+Nibble B = sets the duration-timer.
+Nibble C and D forms a byte = the new SUSTAIN value (The S in ADSR).
+
+The duration nibble works very much like in player v14; 0 turns off the hard
+restart and the maximum value should be the GAME SPEED, whilest the best, and
+most used value, is 2. As you already know, the music-routine needs TWO
+frames before the hard restart really sounds good. The entire byte (formed by
+nibble C and D) is only to set a new SUSTAIN value and should be $00 in order
+to make the hard restart effective, but if you change this value you can get
+ECHO and REVERB effects out of this command too! If your instrument f.ex.
+normally has an SUSTAIN/RELEASE value at $C8 (byte 2 in the 8-byte
+instrument), which is a reasonably high volumen, then try with a command
+saying 84 48 if your game speed is 4. Then, in a sequence with a lot of notes
+using that instrument, put a "Sxx" pointing to the 84 48 in the
+"Super-table". As you can hear some of the notes, the one you put the "Sxx"
+by, sounds lower in volumen, and that does sound a little ECHO-like, doesn't
+it! On the other hand, if you'd put it a little lower down after the note, on
+a +++, you could have made a REVERB effect with the command instead - the
+possibilities are big! By the way, concerning the hard restart timer, it's
+not dangerous to have a timer bigger than the gamespeed in player v15, okay
+the hard restart then doesn't work at all, but at least the voices won't "cut"
+or "get out of synchronization" like it did in player v14! The command then
+simply just won't work, that's all. Here's some examples of how to use the
+command...
+
+         82 00 = Most used hard restart - timer 2 and SUSTAIN $00. The timer
+                 defines when to trigger the command, so if you have a game-
+                 speed at 5 and this command put it at the last +++ just be-
+                 fore the next note, then it will be activated 2 frames before
+                 the next note. In game speed 5 all +++ and --- steps lasts 5
+                 frames. So, on that last +++ it will activate on 5-2=3... The
+                 Third frame of it. It'll sound like it's "cut off"...
+         84 38 = At timer 4 (4 frames before next step, a bigger step than in
+                 the previous example), a $38 will be put into the SUSTAIN. If
+                 the sustain originally was f.ex. $C8, it will sound as the
+                 volumen of the sound is lowered. If the value was LOWER than
+                 the command, AND you put it on a +++/---, then the sound will
+                 be cut off much like hard restart. Hey, wait a minute you ask,
+                 why this? Well, I'm sorry but the SID-chip cannot get a new
+                 sustain value that is higher than before without triggering a
+                 new ADSR, that's the way it works - not my fault you see...
+
+Right, let's assume you have a sequence containing notes as you usually put
+them, and now you want to have some good, oldfashioned hard restart on it!
+Then all you have to do is this...
+
+         I05 C-1   A little tip: It's usually easier to use pos. $00 in the
+         --- +++   "Super"-table for hard restart (like 82 00), because then
+         --- +++   all you have to do is type a "S" all the way down in the
+         S00 +++   sequence - you know that it puts a "00" after it automatic-
+         --- F-1   ally every time. Remember, this is the "Sxx" command that
+         S00 +++   you might use most often, right!?
+         --- G-1
+         S00 +++
+         I01 C-4   (This simulates a bassline with a drum, where I05 is the
+         S00 +++   bass and I01 is the snaredrum.)
+         I05 C-1
+         S00 +++
+         --- D#1
+         S00 +++
+         --- F-1
+         S00 +++   (End of sequence!)
+
+It's possible to put the "Sxx" command further up than just before the next
+note, f. ex. if you want to "CUT" a sound very early. That's okay, it sounds
+good in the editor BUT THERE IS A CATCH HERE which ONLY concerns the hard re-
+start command (plus it's usage as ECHO or REVERB command)!! When you pack the
+music with the NP-Packer, the "CUT" will seem to have moved down. Why? That's
+unfortunatly a long story. You see, in the editor all +++, --- and notes are
+devided into small duration steps, all of 0 in length. Then, when packing,
+the packer will run through all these small steps to see how it can shorten
+them down into a smaller amount of bytes. F.ex, if you have a note going like
+this:
+
+C-4  +++ +++ +++ +++ --- --- ---
+
+...then it would look like this in the memory of the C64: 80 - 30 - 80 - 7E -
+80 - 7E - 80 - 7E - 80 - 7E - 80 - 00 - 80 - 00 - 80 - 00 ...if you look in
+the memory of a sequence using a monitor you'll see it is true. 30 is the
+number for note C-4, 7E is the number for a continue (+++) and 00 is the
+number for a rest (---). 80 means "duration length 00". Now, if you run this
+sequence in the packer it will be packed down to this format: 84 - 30 - 82 -
+00. It's smaller but it IS the same; a C-4 lasting for 4 durations and a rest
+lasting for 2 durations. A 00 duration is as long in frames as the game
+speed. So that's really what you adjust with the SHIFT S and D keys in the
+editor; the lenght of every little 00-duration! Very well, you might say
+then, but why do I need to know all this? Because this will explain why the
+"Sxx" pointing to the hard restart seems to have moved down. Can you see why,
+now that you know what happens in the packer? In the editor the command will
+be activated when the     little 00-duration step reaches the hard restart
+timer value. As explained before, if the game speed is 4 and the timer is 2
+then it's activated at the second frame in the 00-duration. But, when the
+tune is packed and the duration of the note might be, well let's say 4, then
+the hard restart timer will wait until it's reached THE LAST 2 DURATION's of
+the entire note!! Well, fine, I see the problem now you say. How do I solve
+it? Well, it's very easy really. Just put a ***, Ixx, Sxx or change from +++
+into --- just beneath the command. Look at these examples:
+
+         I05 C-4
+         --- +++
+         S00 +++   (S00 is pointing to 82 00 in these examples)
+         --- +++
+         --- +++   This is wrong. In the packer it will seem to have moved down
+         --- D-4   to the step just before the next note.)
+
+There are several ways of doing it right, like this:
+
+         I05 C-4
+         --- +++
+         S00 +++
+         *** +++   A new S00 or perhaps a I05 would do the job too.
+         --- +++
+         --- D-4
+
+There is a special exception to this rule though; if you put the "Sxx" on a
++++ and have a --- immediatly after it will work. Look back to the example on
+how the bytes were packed and you can see why. So, this is what DOES work:
+
+         I05 C-4
+         --- +++
+         S00 +++
+         --- ---
+         --- ---
+         --- D-4
+
+Just another thing while talking about the packer: there is a little bug in
+it which i have never bothered to correct yet: you cannot have +++ after ---.
+So a sequence like this...
+
+         I03 A#5
+         --- +++
+         --- ---
+         --- +++
+         --- ---
+         --- C-4
+
+Will be packed so it plays like this...
+
+         I03 A#5
+         --- +++
+         --- ---
+         --- ---
+         --- ---
+         --- C-4
+
+But to achieve the same you just modify the first example into...
+
+         I03 A#5
+         --- +++
+         --- ---
+         *** A#5
+         --- ---
+         --- C-4
+
+Actually this has nothing special to do with player v15, I just noticed this
+bug recently (I've never tried this before you see), but I'll keep this in
+mind when I enhance the next packer. For this player v15 you must use the
+packer I made for it, NP-packer v4.0 (and up), the bug mentioned before is
+unfortunately still in this packer, sorry. Okay, back to business, the thing
+with a *** after a "Sxx" business ofcourse also goes for the hard restart
+command when used as a REVERB or ECHO command. It's even more important here,
+because they're almost always put shortly after (or ON the) note, where the
+real hard restart command is often used right before the next note. Now, do
+remember that the thing with a *** after and so on is only used with hard
+restart "Sxx" commands. The other "Sxx" commands; vibrato, slide and
+arpeggio-change, works differently and won't need that detail no matter where
+they're put in the sequence.
+
+One last example remains with this command; it is possible to put hard
+restart on the quick notes too, like this:
+
+         I05 C-1
+         S00 +++
+         S00 F-1
+         S00 G-1
+         S00 F-1   (etc...!)
+
+Remember though that if the game speed is, say, 4 and the hard restart timer
+is 4 too then the quick notes will be cut almost unhearable...
+
+One more thing: Now that you might end up putting a lot more "Sxx" in the
+sequences in this player than ever before a problem may arise. Normally the
+packer can take care of up to 4 times SHIFT-RETURN in the editor, but if a
+sequence is too complex (a command almost every step!) then the packer might,
+well, it could go as far as to crash! If this ever happens you must load your
+source tune into the editor again and split the sequence up into two smaller
+sequences - I'm sure you do know how to do this! Anyway it would be beyond the
+scope of these instructions to explain how to do that, look in some instruc-
+tions for the editor if you want to know how to do that. If you used to com-
+pose in such big sequences then try to convince yourself that you should use
+smaller sequences, like 2 times SHIFT-RETURN.
+
+ARPEGGIO-CHANGE. Now comes the last command in the "Super"-table in player v15.
+It's a command you use to alter an instruments arpeggio-pointer value with, it
+was made because DRAX wanted me to do it - he said there was too few instru-
+ments available in the 8-byte table for all the chords needed in a complete
+game soundtrack, so I gave in and satisfied him with this compromise. It IS
+somewhat difficult to use, and personally I'd still prefer to use instruments
+only... but anyway!
+
+         00 00
+         -----
+         AB CD
+
+Nibble A and B forms a byte = defines a pointer to instrument number. C0-DF.
+Nibble C and D forms a byte = the new arpeggio pointer value. 00-FF.
+
+The offset for the player to recognize this command is C0. You can adress any
+of the available 1F instrument, so, the first byte can be from C0 to DF. Now
+take a look at these examples:
+
+         C5 32 = Instrument #05 needs a new pointer 32 to the table that you
+                 enter with the "L"-key - the arpeggio table.
+         D1 08 = Here it's instrument #11 who gets a pointer to 08.
+
+The trick could then be to f.ex. change a typical chord-instruments arpeggio,
+perhaps normally pointing to a 0-3-7 chord, into an arpeggio pointing at a
+0-4-7. This way you can save instruments - but there's a drawback. You cannot
+put a "Ixx" and "Sxx" together so if you have a sequence that you use
+frequently with a "Ixx" in the start and some ARPEGGIO-CHANGE commands
+further down in the same sequence, then you might get problems when reusing
+this sequence. Of course, you could just put a "Sxx" horizontally in one of
+the other voices though, as this command has it's own instrument pointer.
+Another thing that is nice to know is that this command NEVER activates on a
++++/---. If you put it there, it waits until it reaches the next note before
+the arpeggio is changed into a new pointer. The command is not that
+user-friendly though as you can't just type "L" and "G" as usual to get to
+the command's arpeggio quick, remember the "G" only look's at byte 8 in the
+instrument table. I think it's best to write down all the arpeggio's
+available to keep track of what you're doing. But there's another damn
+drawback to this command, it manipulates directly with the instrument's
+arpeggio-pointers. Just try to run the music for a while and the enter the
+instrument table as usual with the "Z" key to see what I mean. By the way, in
+player v15 there's TWO arpeggio pointers in the instrument, one for gate-on
+(+++) and one for gate-off (---) (more about that later on) and this command
+always stores the new arpeggio in both bytes.
+
+Well, that it for the "Super"-table. Now it's time to have a look at the
+8-byte instrument table as I've changed this too...
+
+
+THE 8-BYTE INSTRUMENT
+컴컴컴컴컴컴컴컴컴컴�
+
+This table has actually become a little easier to adjust now because the
+vibrato went out. Instead you now have 2 arpeggio-pointers instead of 1 and
+the filter resonance is also present in this table, as it moved out of the
+filter table. So this is how the table looks like in player v15...
+
+         00  C8  00  F1  04  08  0A  0D
+         --  --  --  --  --  --  --  --
+         A   B   C   D   E   F   G   H
+
+Byte A & B you'll still find ADSR, while the entire byte C chooses hifreq
+mode on or off. This is the mode you used in player v14 for drums and the
+like - set it to 00 if you want to use normal note-frequensies, or any other
+value other than 00 for hifreq mode. Byte D has been divided into 2 nibbles
+again; the first is used to define the filter resonance (usually F) and the
+next nibble is the usual filter on/off switch combined with filter passband,
+it works exactly like it did in player v14. Byte E is a pointer to the filter
+table and byte F is a pointer to the pulsating table. And then finally
+there's the two last bytes in this table - byte G & H. These both now point
+to the arpeggio table (the one you visit with the "L"-key) but byte G is the
+arpeggio bit that will be played on "+++" (gate on) while the byte H
+arpeggio will be activated on "---" (gate off). However, if the two bytes are
+equal then only byte G will be played (byte H will be totally ignored). Also
+notice that if you use the ARPEGGIO-CHANGE command (called with a "Sxx") on
+an instrument then the arpeggio chosed in that command will be stored in both
+byte G & H. This feature cannot be changed in the player. Anyway, as the
+editor originally was designed for arpeggio's in byte 8 only, some drawback's
+arrives - when you enter an arpeggio start with "L" then "G" it will show the
+start of byte H. In other words, you cannot easily access the byte G arpeggio
+with some sort of another "G" key as there is none! So, you must cursor to
+the right spot yourself... okay, this is acceptable, but another drawback is
+the automatic adjustments of byte 8 when using insert and delete in the
+arpeggio-table. Needless to say, the byte H will be updated when leaving the
+arpeggio-table, but not byte G. Never mind, you can live with these minor
+irritations until I might decide to enhance my editor again (perhaps in the
+year of 1998!?)...Anyway, the new feature with a gate on and a gate off
+arpeggio opens up some new possibilities in making new and more complex
+instrument's - it's worth fiddling with, I think!
+
+* ADDENDUM 20/8-1995: The editor was later enhanced in the v3 series to make
+* both arpeggio pointers available with the "G" and "H" keys. :)
+
+
+THE FILTER-TABLE
+컴컴컴컴컴컴컴컴
+
+A little minor detail have been changed in the main filter-table, the fourth
+byte in every "set" of the step-programmable filter-sweep. Here it used to
+have a filter start value combined with resonance, but since the resonance
+moved down to the 8-byte instrument, the entire byte now is filter start
+only. If the byte here was like $8F before (in player v14) then it meant
+filter start $80 and resonance $F. But now, in player v15, a byte of $84
+would just mean filter start $84, very straight forward. Not that it makes
+such a big difference, but anyway! Some BUGS from player v14 have been
+corrected in this table too; the step-programming DIDN'T WORK properly! If
+programmed over more than 2 sets it just wouldn't work. Now, in player v15,
+it works correctly. Also a minor frame mistake was corrected in both puls and
+filter tables. The frame counter was too "rough", now it has a better
+"resolution", it's more precise if I may say so.
+
+But now to the last thing that been changed in the filter-table, the first 4
+reserved bytes, the ones that you can adjust in the packer too with the "F6"
+key ("CTRL-BYTES"). These bytes are still reserved, so you must always start
+at position 04 in the filter-table when using it. While composing, you must
+ALWAYS leave the first three bytes at 00, otherwise your music sounds like a
+record found in a trashcan! These values is a luxury made for adjusting the
+maximum rastertime used - in the packer. After packing a tune you can enter
+the "CTRL-BYTES" and fiddle with them in order to lower the rastertime - the
+values you can use are as follows...
+
+         00  00  00  00
+         --------------
+         A   B   C   D
+
+Byte A, B and C goes for voice 1, 2 and 3 - that should be easy to
+understand! Each of these threee bytes can be either 00, 01 or 02...
+
+         00 = This means that maximum rastertime are used in this voice. The
+              music-player won't skip anything in the player at all.
+         01 = Means that the music-player will skip some frames here and there
+              when possible, but ONLY when vibrato is ON in the voice! If the
+              vibrato is OFF, no compromises will be made at all. This feature
+              was made because the new vibrato routine takes a lot of raster-
+              time when used in more than one voice at the same time.
+         02 = Maximum reduce in rastertime! Now the player will skip here and                 there at all times, not just when vibrato is ON. But what do I
+              mean "here and there"? Well, it's all spots where the "flips" in
+              rastertime is highest; when going from "+++" to "---", when using
+              the "***" (tienote) and when executing commands like "Sxx". When
+              "skipping", the real-time routines will be bypassed - that's the
+              "solid" part of the rastertime, where vibrato, arpeggio, puls and
+              filter-sweep are running at all times normally.
+
+So, what you do after packing a tune is to start the tune in the packer-menu
+with "F3" and enter the CTRL-BYTES with "F6". Then while listening you try
+some of the above values in the first three bytes - if you think it harms the
+music too much (like when a +++ in a chord goes to a ---, causing a "hiccup")
+then you could set it back - or you could still accept the difference of
+course! If you MUST use 02 in all three bytes because of rastertime problems,
+then it is nice to know that it helps using "+++" everywhere in the editor's
+source tune - because then the lost frame at +++ to --- spots can be avoided.
+Still there will always be some other minor difference in the tune - but
+remember that YOU are the most critical person, because you composed it! In
+other words, the public might never notice these differences anyway. If you
+have a 00 in all three voices then player v15 CAN take 4.5 chars of
+raster-time, well, in some extreme occations it might even take 5! However if
+you put a 02 in all three voices you COULD on the other hand get down to 3.5
+chars of rastertime - so it always worth trying I think!
+
+Now I have discussed the first three bytes of the filter-table, but the
+fourth byte has a usage too - it's being used as a voice-selector for the
+filter-sweep control. You know that the filtering in the SID-chip controls
+filtering for one set of registers only - and not for each of the three
+voices (unfortunately!), so I originally designed the music-player so that
+the first voice calculated and set the registers used in a filter-sweep
+routine. But this is exactly what I changed in player v15 - in the fourth
+byte, you can specify which voice takes care of the calculations - 00, 01 or
+02. Careful though - if you set the value to any other value than these, then
+the filter-sweep will be non-existent in all three voices! Right, I hear you
+cry. Why all this trouble? Why not just let the first voice run the damn
+routine! Does it really matter? Well, in a packed tune, you're right - but in
+the editor, not quite! Have you ever tried (in player v14) having filter in
+voice 2 and then turn off voice 1 with the CTRL-1 key in the editor? Did you
+then notice that the filter-sweeping disappeared!? THAT'S because voice 1 ran
+it - but now, in v15, you could just type 01 in the filter-table's fourth
+byte and this problem would be totally gone...
+
+Now I finally got to the end of this "BOOK" of player v15! Now always remember
+to use NP-packer v4.0 (or later) when you want to pack a tune made in player
+v15 - If, however, you manage to loose it some day and all you can find is
+v3.1 (Do you REALLY mess up your disks like that!?) then it IS possible to
+use the v3.1 packer to some extent - BUT! The 4 CTRL-BYTES in the
+filter-table AND the CHANGE-ARPEGGIO command will not work at all. Of course,
+if you're not using any of these you couldn't care less, but if I were you
+I'd stick to the new NP-packer v4.0 - that should work 100% with this new
+player!
+
+Concerning these "BUGS" you might have noticed that the start of this
+"BOOK" mentioned player v15.G6 - in case you get any of the older v15 players
+(maybe as a source-tune composed by another fellow) then you might want to
+know what faults there might be with these players...
+
+v15.G5 - The hard restart/ADSR is slightly more inaccurate.
+
+v15.G4 - When starting a tune (packed or unpacked) the first second of the tune
+         might "stumble" or loose a note.
+
+v15.G3 - The hard restart/ADSR here is even more inaccurate.
+
+v15.G2 - This player had a filter-bug; when using filter in voice 2 or 3 the
+         resonance would be stuck at value 0 (the worst possible!). Also, the
+         fourth byte in the filter-table (used for controlling which voice
+         should control the filter-sweep) wasn't invented in these players.
+
+v15.G1 - The slide command could only go to $FF in speed. Not too good, as it
+         originally was designed for speeds up to $FFF...
+
+v15.G0 - This player was never given out by me (JCH). I doubt if you ever get
+         it. It was unfinished, a kind of "preview" player.
+
+As you might guess, the "BUGS" or whatever found in a player, follows down in
+the versions. In other words, v15.G1 is both inaccurate in ADSR, has a filter
+AND a slide bug and so on, and so on... Please! Stick to v15.G6, OK!
+
+* ADDENDUM 20/8-1995: Probably needless to say, if you are new to my editor
+* and player systems, use player v20.G4 which is the very latest and most
+* advanced player I did. It uses less rastertime than v15 and is easier too
+* understand.
+
+
+These instructions were finished 4/7-1990 by JCH/VIBRANTS.
+

@@ -1,0 +1,5697 @@
+;-------------------------------------------------------------------------------
+; JCH's NewPlayer EDITOR v3.03 (C) Jens-Christian Huus 1988, 1991.......<Ed#37> 
+;-------------------------------------------------------------------------------
+; Tryk 'Y' for at overfõre:  BUFFER...$0900-$093F (TrackCopy buffer)
+; 			  >  DISK1....$0A00-$0E3F (Diskmenu's print-frame)				
+;			  >  MUSIC....$0F00-$45D3 (Drax's 'FUNKY')	
+;			  >  DISK2....$C800-$CFE0 (Diskmenu's code)
+;			  >  JMPS.....$CF00-$CFFF (Sys$CF00 og jmp($CFFE))
+;			     TABLES...$E000-$E2BD (Player version tables)
+; Dette skal laves om...(>)  NEWFR....$E2D0-$E437 ('/' table-window plots)
+;-------------------------------------------------------------------------------
+; Desuden er reserveret:     EASS.....$8000-$84FF (Einstein's EASS code)
+;			     STARTER..$9FFC-$9FFF (Husk at fjerne det senere)
+;			     EDITOR...$A000-$???? (Denne assembler listing!)			
+;			     PLOTBUF..$E440-$E5A7 (table-window plot store)
+;			     COLBUF...$E5B0-$E6EF (table-window color store)
+;-------------------------------------------------------------------------------
+voicon		= $a0	; Oktav-buggen fra Ed v3.00 er fixet!
+vol		= $a2	; 
+credits		= $a4	;  
+tpoin		= $a6   ; 
+sinit		= $a8	; 
+ain		= $aa	;   
+getinit		= $ac	; 
+getcom		= $ae	; 
+get2		= $b0	;   
+getins		= $b2	; 
+real		= $b4	; 
+setsid		= $b6	; 
+notes		= $b8	; 
+fintun		= $ba	; 
+arp1		= $bc	; 
+arp2		= $be	; 
+filttab		= $c0	; 
+pulstab		= $c2	; 
+instr		= $c4	; 
+v1		= $c6	; 
+v2		= $c8	; 
+v3		= $ca	; 
+lobyt		= $cc	; 
+hibyt		= $ce	; 
+slidtab		= $d0	; 
+s0		= $d2	; 
+s1		= $d4	; 
+s2		= $d6	; 
+s3		= $d8	; 
+gat		= $da	;  
+nog		= $dc	; 
+trans1		= $de	; 
+sflag           = $e0   ;
+not		= $e2	; 
+vhzl		= $e4	; 
+vhzh		= $e6	;  
+next		= $e8	; 
+insnr		= $ea	; 
+ge02		= $ec	;
+;-------------------------------------------------------------------------------
+scr		= $b7	; BUGS:
+cur		= $b9	; ----
+cur2		= $bb	;
+tab		= $fd	; 
+tab2		= $57	; Hvis voices er OFF og der resettes fejler HUNT'en.
+zer		= $41	; 
+vvv		= $43	;
+ss0		= $45	;
+llobyt		= $47	;
+hhibyt		= $49	;
+seql		= $51	;
+seqh		= $54	;
+itab		= $f7	;
+ipos		= $f9	;
+icur		= $9d	;
+dum		= $fb	;
+dum3		= $b0	;
+v07e		= $c1	;
+scz		= $59	; 
+;-------------------------------------------------------------------------------
+		*= $9ffc
+
+		lda #$36
+		sta $01
+		jmp start
+		jmp dinit
+
+info		.text ' JCH'
+		.by $27
+		.text 'S EDITOR V3.03, (C) JCH, 1988-91 '                                    
+;-------------------------------------------------------------------------------
+keyread		;stx kr
+		;lda #$2f
+		;sta $00
+		;lda #$36
+		;sta $01
+		;ldy #$80
+krd		;dey
+		;bne krd
+		;lda #$35
+		;sta $01
+		;ldx kr
+		rts
+
+kr		;.by 0
+
+ffe4	  	lda #$2f
+		sta $00
+		lda #$36
+		sta $01
+		jsr $ffe4
+		pha
+		lda #$35
+		sta $01
+		pla
+		rts
+
+basp		;sta vvv
+		;sty vvv+1
+		;lda #0
+		;sta bas3
+bas1		;ldy bas3
+		;lda (vvv),y
+		;bne bas2
+		;rts
+bas2		;ldy #$2f
+		;sty $00
+		;ldy #$36
+		;sty $01	
+		;jsr $ffd2
+		;ldy #$35
+		;sty $01
+                ;inc bas3
+		;jmp bas1 
+
+basp2		sta vvv
+		sty vvv+1
+		lda #0
+		sta bas3
+bas21		ldy bas3
+		lda (vvv),y
+		bne bas22
+		rts
+bas22		jsr $ffd2
+		inc bas3
+		jmp bas21
+
+bas3		.by 0
+;-------------------------------------------------------------------------------
+setnmi		sei		; Shut off NMI
+		lda #$7f       
+		sta $dd0d
+		ldx #$00
+		stx $dc0e
+		inx
+		stx $d01a
+		lda #$2f
+		sta $00
+		lda #$35
+		sta $01
+		lda #<non
+		sta $fffe
+		sta $0314
+		lda #>non
+		sta $ffff
+		sta $0315
+		lda #<nmi
+		sta $fffa
+		sta $0318
+		lda #>nmi
+		sta $fffb
+		sta $0319
+		lda #$60
+		sta $dd07
+		lda #$01
+		sta $dd0f
+		lda #$82    
+		sta $dd0d
+		lda #$3a
+		sta $d012
+		cli
+		rts		
+
+nmi		;sta ppa
+		;lda $dd0d
+		;lda ppa
+		bit $dd0d
+		rti
+
+ppa		.by 0
+pa		.by 0
+px		.by 0
+py		.by 0
+bcont		.by 0
+gange		.by 0
+volume 		.by 0
+;-------------------------------------------------------------------------------
+vl		.by 0,0,0
+vh		.by 0,0,0
+vl2		.by 0,0,0
+vh2		.by 0,0,0
+vl3		.by 0,0,0
+vh3		.by 0,0,0
+vml		.by 0,0,0
+vmh		.by 0,0,0
+
+frame		lda #0
+		sta $d021
+		sta $d020
+		lda #11
+		sta $d011
+		lda #<fram1
+		ldy #>fram1
+		jsr basp2
+		
+		lda #16
+		sta temp
+
+fr2		lda #<fram2
+		ldy #>fram2
+		jsr basp2
+		dec temp
+		bne fr2
+		lda #<fram3
+		ldy #>fram3
+		jsr basp2
+		lda #<fram6
+		ldy #>fram6
+		jsr basp2
+		lda #125
+		sta 2023
+		lda #5
+		sta 56295
+		lda $1000
+		cmp #$4c
+		bne fr5
+		lda $1002
+		cmp #$10
+		bne fr5
+		lda $1003
+		cmp #$4c
+		bne fr5
+		lda #$1b
+		sta $d011
+		rts
+
+fr5		jsr remin 
+		lda #$1b
+		sta $d011
+fr55		lda #<fram0
+		sta tab
+		lda #>fram0
+		sta tab+1
+		jsr fadein
+		lda #0
+		sta 198
+fr6		jsr $ffe4
+		beq fr6
+		jsr fadeout
+		jsr remout
+		jmp ($cffe)
+
+fram0		.text ' NEWPLAYER TEST IN '
+		.text '$1000-$1003 FAILED '
+
+oc		= 1862
+buffer		= $0900
+
+cl		.by 0,0,0
+ch		.by 0,0,0
+scrtab		.by 3,15,27
+scrta2		.by 0,0,0
+scrta3		.by 0,0,0
+restart 	.by 0	
+ok		.by 0
+col		.by 0
+lines		.by 0
+octav		.by 0
+step		.by 0
+ste2		.by 0
+ste3		.by 0
+cline		.by 0
+emode		.by 0
+temp		.by 0
+temp2		.by 0
+temp3		.by 0
+temp4		.by 0
+temp5		.by 0
+blnk		.by 0,0
+hold		.by 0,0
+hold2		.by 0
+notee		.by 0
+oct		.by 0
+voice		.by 0
+topy		.by 0,0,0
+cyp		.by 0,0,0
+yval		.by 0,0,0
+trans		.by 0
+super		.by 0
+speed		.by 0
+com		.by 0
+zakk		.by 0,0,0,0,0,0
+kmode		.by 0
+nmode		.by 0
+lin		.by 0
+iarp2		.by 0
+wint		.by 0
+exopen		.by 0,0
+vmode		.by 0
+stmode		.by 0
+tables		.by 0
+arpmode		.by 0
+dont		.by 0
+noplot		.by 0
+cudel		.by 0,0
+;-------------------------------------------------------------------------------
+noirq		sei            
+		ldx #0
+		stx $dc0e
+		inx
+		stx $d01a
+		lda #$2f
+		sta $00
+		lda #$35
+		sta $01
+		lda #<non
+		sta $fffe
+		sta $0314
+		lda #>non
+		sta $ffff
+		sta $0315
+		lda #58
+		sta $d012
+		cli
+		rts
+
+non		sta pa
+		stx px
+		sty py
+		lsr $d019
+		lda #$1b
+		sta $d011
+		lda #0
+		sta playirqon	
+non1		lda $01
+		cmp #$36
+		bne non2
+		lda bcont
+		bne no2
+  		jsr $ea87
+no2		pla
+		pla
+		pla	
+		jmp non3	
+non2		lda #$2f
+		sta $00
+		lda #$36
+		sta $01
+		lda bcont	
+		bne no3
+		jsr $ea87
+no3		lda #$35
+		sta $01
+non3		jsr wcupdate
+		lda pa
+		ldx px
+		ldy py
+		rti
+;-------------------------------------------------------------------------------
+setirq		ldx #7
+		txa
+		ldy #tpoin
+		jsr zero
+		lda #1
+		ldx #2
+si13		ldy #voicon
+		jsr zero
+		dex 
+		bpl si13
+		lda #0
+		jsr $1000
+		sei
+		jsr tcset
+		ldx #0
+		stx $dc0e
+		inx
+		stx $d01a
+		lda #<irq
+		sta $fffe
+		sta $0314
+		lda #>irq
+		sta $ffff
+		sta $0315
+		lda #$38
+		sta $d012
+		lda #$ca
+		ldy #next
+		ldx #0
+		jsr zero
+		cli
+		rts
+
+irq		sta pa
+		stx px
+		sty py
+		lsr $d019
+ir0		lda $d012
+		cmp #$3a
+		bne ir0
+		ldy #$09
+ir00		dey
+		bne ir00
+		lda dont
+		bne ir10
+		lda #15
+		sta $d020
+		jsr $1003
+		lda #0
+		sta $d020
+		jsr tcupdate
+ir10		dec bcou
+		bpl ir20  
+		lda speed
+		sta bcou
+		lda #1
+		sta ok
+ir20		;jsr keyread		
+		lda #$1b
+		sta $d011
+		lda #1
+		sta playirqon
+		jmp non1 
+
+playirqon	.by $00
+;-------------------------------------------------------------------------------
+istep		.by 0
+iste2		.by 0
+irow		.by 0
+iodd		.by 0
+icol		.by 0
+iyg		.by 0
+iyk		.by 0
+iposs		.by 0,0
+iy4s		.by 0
+stmax		.by 0
+ialong		.by 0
+ialong2		.by 0
+its		.by 0
+inon		.by 0
+ic2		.by 0,0
+it2		.by 0,0
+ststep		.by 0
+ins		.by 0
+
+ibank		.by 0,0,0,0,0,0,0,0,0,0
+		.by 0,0,0,0,0,0,0,0,0,0
+sbank		.by 0,0,0,0,0,0,0,0,0,0
+		.by 0,0,0,0,0,0,0,0,0,0
+pbank		.by 0,0,0,0,0,0,0,0,0,0
+		.by 0,0,0,0,0,0,0,0,0,0
+fbank		.by 0,0,0,0,0,0,0,0,0,0
+		.by 0,0,0,0,0,0,0,0,0,0
+abank		.by 0,0,0,0,0,0,0,0,0,0
+		.by 0,0,0,0,0,0,0,0,0,0
+;-------------------------------------------------------------------------------
+modp		.by $00
+	
+start		jsr frame
+		ldy #$00	; check for 'PL' and '-' in credits in player.
+		sty modp
+		sty noplot
+		sty stmode
+		sty kmode
+		sty tables
+		sty arpmode
+		iny 
+		sty vmode
+		lda $0ff4	; $0ff4 holds the quan-value for SHIFT-RETURN.
+		bne sx64
+		lda #15
+sx64		sta qq1
+		sec
+		sbc #1
+		sta qq2
+		lda $1021
+		cmp #$50
+		bne stc0
+		lda $1022
+		cmp #$4c
+		bne stc0
+		lda $103f
+		cmp #$2d
+		bne stc0
+		sta $1020
+		sta modp
+stc0		jsr setnmi
+		lda #$2f
+		sta $00
+		lda #$35
+		sta $01
+		
+		jsr set07e
+		lda #255
+		sta 650
+		lda #16
+		sta lin
+		ldx #0
+		stx nmode
+		stx wint
+
+		jsr resetvol
+
+		lda $0fff
+		bne stc1
+		jsr wcset
+stc1		lda #$30
+		sta internal
+		sta internal+1
+
+   		;ldy #next
+		;jsr zerx
+		lda #$ca
+		ldy #next
+		ldx #0
+		jsr zero
+
+		ldy #fintun
+		lda $0f00,y
+		sta vvv
+		lda $0f01,y
+		sta vvv+1
+		lda #0
+		sta temp
+		sta temp2
+sta0		ldy temp
+		lda (vvv),y
+		jsr hexh
+		ldy temp2
+		sta fin2,y
+		ldy temp
+		lda (vvv),y
+		jsr hexl
+		ldy temp2
+		sta fin2+1,y
+		lda temp2
+		clc
+		adc #4
+		sta temp2
+		inc temp
+		lda temp
+		cmp #3
+		bne sta0
+
+sta1		lda #1
+		ldy #voicon
+		jsr zero
+		inx
+		cpx #3
+		bne sta1
+
+		ldx #6
+		ldy #tpoin
+		jsr zerx
+		sta speed
+		jsr putsped
+
+		lda #48
+		sta oct
+		lda #$34
+		sta oc
+
+		jsr noirq
+
+		jsr jinit
+		lda #83
+		sta 1981
+		lda #80
+		sta 1982
+		lda #15
+		sta 56253
+		sta 56254
+
+		jsr storemark
+
+		jsr iinit
+		jsr slinit
+		jsr pinit
+		jsr finit
+		jsr ainit
+	
+sta2		jsr resv
+	
+		lda #<1152
+		sta cur
+		lda #>1152
+		sta cur+1
+	
+		ldy #0
+		sty super
+		sty dont
+		sty bcont
+		sty step
+		sty ste2
+		sty cline
+		sty col
+		sty voice
+		sty topy
+		sty topy+1
+		sty topy+2
+		sty cyp
+		sty cyp+1
+		sty cyp+2
+		sty com
+		sty exopen+1
+		iny
+		sty zmax
+;-------------------------------------------------------------------------------
+mainn		jsr getco
+                	
+mai2		jsr cursor
+		
+		;jsr dummy
+		
+mai3		lda #$00	; Reset cursor blink variables
+		sta hold
+		sta hold+1
+		sta blnk
+		sta blnk+1
+		
+mai4		lda #$00	; (Attention all keys!)	
+		sta $dc00
+		lda $dc01	; Cursor delay routines
+		cmp #$ff
+		beq mai5
+		inc cudel
+		bne mai4
+		dec cudel+1
+		bne mai4
+		lda #3
+		sta cudel+1
+		jmp sca0	
+mai5		lda #56
+		sta cudel+1
+		lda #0
+		sta com
+		
+sca0		lda #<scan
+		sta scz
+		lda #>scan
+		sta scz+1
+
+		jsr sp
+			
+		ldx #$00
+		
+sca1		ldy #$00	; New main keyboard scan routine
+		lda (scz),y
+		sta $dc00
+		iny
+		lda $dc01
+		cmp (scz),y
+		bne scax
+		iny
+		lda (scz),y
+		sta $dc00
+		iny
+		lda $dc01
+		cmp (scz),y
+		bne scax
+		iny 
+		lda (scz),y
+		sta call		
+		iny
+		lda (scz),y
+		sta call+1
+		jmp (call)
+		
+scax		lda scz
+		clc
+		adc #6
+		sta scz
+		lda scz+1
+		adc #0
+		sta scz+1
+		jsr blink
+		inx
+		cpx #maxkeys
+		bne sca1
+		jmp sca0
+		
+scan		.by $bf,$ef,$fe,$7f,<curup,>curup	;Cursor up
+		.by $ff,$ff,$fe,$7f,<curdown,>curdown	;Cursor down
+		.by $bf,$ef,$fe,$fb,<curleft,>curleft	;Cursor left
+		.by $ff,$ff,$fe,$fb,<currig,>currig	;Cursor right
+		.by $ff,$ff,$7f,$df,<commod,>commod	;Commodore key
+		.by $ff,$ff,$7f,$fd,<forward,>forward	;<- (fast forward)
+		.by $bf,$ef,$fe,$bf,<delete,>delete	;F6
+		.by $bf,$ef,$fe,$df,<stopmus,>stopmus	;F4
+		.by $bf,$ef,$fe,$f7,<octdown,>octdown	;F8
+		.by $bf,$ef,$fe,$ef,<playkey,>playkey	;F2
+		.by $bf,$ef,$fe,$fd,<shifret,>shifret	;Shift-Return
+		.by $ff,$ff,$fe,$fd,<return,>return	;Return
+		.by $bf,$ef,$fe,$fe,<inser,>inser	;Inst
+		.by $ff,$ff,$fe,$bf,<f5togg,>f5togg	;F5
+		.by $ff,$ff,$fe,$df,<f3play,>f3play	;F3
+		.by $ff,$ff,$fe,$ef,<playf1,>playf1	;F1
+		.by $ff,$ff,$7f,$7f,<mai4,>mai4		;Runstop
+		.by $bf,$ef,$df,$fd,<polyply,>polyply	;Shift-P
+		.by $ff,$ff,$fe,$f7,<octup,>octup	;F7
+		.by $bf,$ef,$f7,$fb,<goto,>goto		;Shift-G
+		.by $fd,$bf,$7f,$fb,<ctrle,>ctrle	;Ctrl-E
+		.by $ff,$ff,$7f,$bb,<ctrlq,>ctrlq	;Ctrl-Q
+		.by $7f,$fb,$fd,$fd,<ctrlw,>ctrlw	;Ctrl-W
+		.by $ff,$ff,$bf,$e7,<shihome,>shihome	;Shift-home
+		.by $ff,$ff,$bf,$cf,<ligmed,>ligmed	;Shift-"="
+		.by $ff,$ff,$fd,$5f,<speeddo,>speeddo	;Shift-S
+		.by $fd,$7f,$fb,$fb,<speedup,>speedup	;Shift-D
+		.by $ff,$ff,$fd,$6f,<trackco,>trackco	;Shift-Z
+		.by $ff,$ff,$fd,$7b,<trackdu,>trackdu	;Shift-A
+		.by $fd,$7f,$fb,$fd,<rdefine,>rdefine	;Shift-R
+		.by $fd,$7f,$fb,$df,<finetun,>finetun 	;Shift-F
+		.by $fd,$7f,$fb,$ef,<clearal,>clearal	;Shift-C
+		.by $bf,$ef,$ef,$ef,<clearta,>clearta	;Shift-M
+		.by $bf,$ef,$df,$ef,<copydi,>copydi  	;Shift-"."
+		.by $ff,$ff,$bf,$6f,<copycu,>copycu  	;Shift-"/"
+		.by $ff,$ff,$7f,$fa,<ctrl1,>ctrl1  	;Ctrl-1
+		.by $ff,$ff,$7f,$f3,<ctrl2,>ctrl2  	;Ctrl-2
+		.by $7f,$fb,$fd,$fe,<ctrl3,>ctrl3  	;Ctrl-3
+		.by $fd,$7f,$f7,$7f,<curstay,>curstay	;Shift-V
+		.by $fd,$7f,$ef,$7f,<curmode,>curmode	;Shift-N
+		.by $fd,$7f,$f7,$ef,<boast,>boast  	;Shift-B
+		.by $fd,$7f,$fb,$7f,<exit,>exit		;Shift-X
+                .by $ff,$ff,$bf,$af,<fillplu,>fillplu   ;Shift-""
+                .by $7f,$fb,$bf,$bf,<fillmin,>fillmin   ;Ctrl-""
+		.by $bf,$ef,$df,$bf,<voldec,>voldec  	;Shift-"@"
+		.by $ff,$ff,$bf,$ed,<volinc,>volinc  	;Shift-"*"
+		.by $fd,$7f,$ef,$fd,<inform,>inform  	;Shift-I
+		.by $ff,$ff,$fd,$ef,<ztable,>ztable  	;Z
+		.by $ff,$ff,$fb,$7f,<xtable,>xtable  	;X
+		.by $ff,$ff,$df,$df,<colon,>colon  	;":"
+		.by $ff,$ff,$bf,$fb,<semico,>semico  	;";"
+		.by $ff,$ff,$df,$fe,<plus,>plus  	;"+"
+		.by $ff,$ff,$bf,$7f,<window,>window  	;"/"
+		.by $ff,$ff,$df,$fb,<arpegg,>arpegg  	;L
+		.by $ff,$ff,$ef,$f7,<hexc,>hexc  	;0
+		.by $ff,$ff,$7f,$fe,<hexc,>hexc  	;1
+		.by $ff,$ff,$7f,$f7,<hexc,>hexc		;2
+		.by $ff,$ff,$fd,$fe,<hexc,>hexc  	;3
+		.by $ff,$ff,$fd,$f7,<hexc,>hexc  	;4
+		.by $ff,$ff,$fb,$fe,<hexc,>hexc  	;5
+		.by $ff,$ff,$fb,$f7,<hexc,>hexc  	;6
+		.by $ff,$ff,$f7,$fe,<hexc,>hexc  	;7
+		.by $ff,$ff,$f7,$f7,<hexc,>hexc  	;8
+		.by $ff,$ff,$ef,$fe,<hexc,>hexc  	;9
+		.by $ff,$ff,$fd,$fb,<hexc,>hexc  	;A
+		.by $ff,$ff,$f7,$ef,<hexc,>hexc  	;B
+		.by $ff,$ff,$fb,$ef,<hexc,>hexc  	;C
+		.by $ff,$ff,$fb,$fb,<hexc,>hexc  	;D
+		.by $ff,$ff,$fd,$bf,<hexc,>hexc  	;E
+		.by $ff,$ff,$fb,$df,<hexc,>hexc  	;F
+		.by $ff,$ff,$bf,$fd,<tieno,>tieno  	;"*"
+		.by $fd,$7f,$7f,$ef,<plusses,>plusses	;SHIFT-Space
+		.by $ff,$ff,$7f,$ef,<minuses,>minuses 	;Space
+		.by $ff,$ff,$f7,$fb,<arpgoto,>arpgoto	;G (arpeggio)
+		.by $ff,$ff,$f7,$df,<arpgot2,>arpgot2	;H (arpeggio)
+		.by $ff,$ff,$ef,$fb,<arpjump,>arpjump	;J (arpeggio)
+		
+maxkeys		= 76
+		
+call		.by 0,0
+;-------------------------------------------------------------------------------
+blink		lda hold+1	; Blink cursor (after holding it first)
+		cmp #10
+		beq bl2
+		inc hold
+		bne bl3
+		inc hold+1
+bl3		rts
+bl2		inc blnk
+		bne bl3
+		inc blnk+1
+		lda blnk+1
+		cmp #10
+		bne bl3
+		lda #0
+		sta blnk
+		sta blnk+1
+		jmp cursor
+;-------------------------------------------------------------------------------
+commod		lda com         ; 'C='
+		bne kec
+		lda kmode
+		bne keb
+		lda #42
+		sta 1065
+		sta 1066
+		lda #1
+		sta com
+		sta kmode
+		sta $d829
+		sta $d82a
+		jmp mai4
+		
+keb		ldy #0
+		sty kmode
+		iny
+		sty com
+		ldy #83
+		sty 1065
+		iny
+		sty 1066
+		lda #5
+		sta $d829
+		sta $d82a
+kec		jmp mai4
+;-------------------------------------		
+forward		lda playirqon	; <-- (fast forward)
+	  	beq kec
+ke0		lda #1
+		sta dont
+		jsr $1003
+		jsr tcupdate
+		lda #$7f
+		sta $dc00
+		lda $dc01
+		cmp #$fd
+		beq ke0
+		lda #0
+		sta dont
+		jmp mai4
+;--------------------------------------		
+curdown		jsr curson	; DOWN
+		jsr cursor
+		lda tables
+		beq ke17
+		jmp tabdown	; tables
+	
+ke17		lda super
+		beq ke18
+		jsr fix
+		jsr dojmp       ; track
+		jmp mai2
+ke18		jsr char0       ; seq
+		jmp cursdown
+;--------------------------------------	
+curup		jsr curson	; UP
+		jsr cursor
+		lda tables
+		beq ke21
+		jmp tabup	; tables
+
+ke21		lda super	
+		beq ke28
+		jsr fix
+		ldx voice
+		lda cl,x        ; track
+		cmp vl2,x
+		bne ke22
+		lda ch,x
+		cmp vh2,x
+		beq ke23
+ke22		ldx voice
+		jsr sh2
+ke23		jmp mai2
+ke28		jmp cursup      ; seq
+;-------------------------------------
+currig		jsr curson	; RIGHT
+		jsr cursor
+		lda tables
+		beq ke3g
+		jmp tabright	; tables
+
+ke3g		lda super
+		beq ke30
+		inc col
+		lda col         ; track
+		beq ke3a
+		lda #1
+		sta temp
+		jsr ty2
+		jmp mai2
+ke3a		lda #252
+		sta col
+		lda cur
+		sec
+		sbc #3
+		sta cur
+		lda cur+1
+		sbc #0
+		sta cur+1
+		jmp mai2
+ke30		lda col         ; seq
+		cmp #3
+		bcs ke31
+		jsr tyy
+		jmp mai2
+ke31		lda voice
+		cmp #2
+		beq ke39
+		jsr char0
+		inc voice
+		lda cur
+		clc
+		adc #8
+		sta cur
+		lda cur+1
+		adc #0
+		sta cur+1
+		lda #0
+		sta col
+ke39		jmp mai2
+;-------------------------------------	
+curleft		jsr curson	; LEFT
+		jsr cursor
+		lda tables
+		beq ke44
+		jmp tableft	; tables
+
+ke44		lda super
+		beq ke4x
+		dec col
+		lda col         ; track
+		cmp #251
+		beq ke4a
+		jsr ent
+		jmp mai2
+ke4a		lda #255
+		sta col
+		lda cur
+		clc
+		adc #3
+		sta cur
+		lda cur+1
+		adc #0
+		sta cur+1
+		jmp mai2
+ke4x		lda col
+		beq ke41
+		dec col         ; seq
+		lda col
+		cmp #2
+		bne ke40
+		jsr ent
+ke40		jsr ent
+mai		jmp mai2
+ke41		lda voice
+		beq mai
+		jsr char0
+		dec voice
+		lda cur
+		sec
+		sbc #8
+		sta cur
+		lda cur+1
+		sbc #0
+		sta cur+1
+		lda #3
+		sta col
+		jmp mai2
+;-------------------------------------
+delete		lda tables	; F6 (delete)
+		beq ke5m			
+		cmp #5
+		beq ke5n
+		jmp mai4
+ke5n		jmp tabdel	; arpeggio table
+		
+ke5m		lda super	; compose mode
+		beq ke5t
+		ldx voice       ; track
+		lda cl,x
+		sta vvv
+		lda ch,x
+		sta vvv+1
+ke5a		ldy #2
+		lda (vvv),y
+		dey
+		dey
+		sta (vvv),y
+		lda vvv
+		clc
+		adc #1
+		sta vvv
+		lda vvv+1
+		adc #0
+		sta vvv+1
+		lda vvv
+		cmp vml,x
+		bne ke5a
+		lda vvv+1
+		cmp vmh,x
+		bne ke5a
+		lda ste2
+		sta step
+		jmp mainn
+ke5t		ldx voice       ; seq
+		lda cl,x
+		sta vvv
+		lda ch,x
+		sta vvv+1
+		jsr getseq
+		lda seql,x
+		sec
+		sbc #3
+		sta cur2
+		lda seqh,x
+		sta cur2+1
+		ldy #0
+		lda (cur2),y
+		cmp cyp,x
+		beq mai6
+		lda cur2
+		clc
+		adc #3
+		sta cur2
+		ldy cyp,x
+		iny
+		iny
+ke55		lda (cur2),y
+		dey
+		dey
+		sta (cur2),y
+		iny
+		iny
+		iny
+		cpy #216
+		bne ke55
+		lda cur2
+		sec
+		sbc #3
+		sta cur2
+		ldy #0
+		lda (cur2),y
+		sec
+		sbc #2
+		sta (cur2),y
+		lda ste2
+		sta step
+		jmp mainn
+mai6		jmp mai2
+;-------------------------------------
+return		lda tables
+		beq ke5d
+		jmp mai4
+ke5d		jsr curson      ; RETURN (put dat)
+		jsr cursor
+		lda super
+		beq ke5h
+		jsr fix         ; track
+		lda ste2
+		sta step
+		jmp mainn
+ke5h		jsr enter1      ; seq
+		jmp cursdown
+;-------------------------------------
+inser		lda tables	; INST (insert)
+		beq ink
+		cmp #5
+		beq ing
+		jmp mai4
+ing		jmp tabins
+
+ink		lda super         	
+		beq ke5j
+		ldx voice       ; track
+		lda vml,x
+		sec
+		sbc #4
+		sta vvv
+		lda vmh,x
+		sbc #0
+		sta vvv+1
+		lda cl,x
+		sec
+		sbc #1
+		sta temp
+		lda ch,x
+		sbc #0
+		sta temp2
+ke5k		ldy #0
+		lda (vvv),y
+		iny
+		iny
+		sta (vvv),y
+		lda vvv
+		sec
+		sbc #1
+		sta vvv
+		lda vvv+1
+		sbc #0
+		sta vvv+1
+		lda vvv
+		cmp temp
+		bne ke5k
+		lda vvv+1
+		cmp temp2
+		bne ke5k
+		lda cl,x
+		sta vvv
+		lda ch,x
+		sta vvv+1
+		lda #$8c
+		ldy #0
+		sta (vvv),y
+		tya
+		iny
+		sta (vvv),y
+		lda ste2
+		sta step
+		jmp mainn
+ke5j		jsr insert      ; seq
+		lda ste2
+		sta step
+		jmp mainn
+;-------------------------------------
+f5togg    	lda tables
+		beq ke67
+		jmp mai4
+ke67		jsr curson      ; F5 (track/seq)
+		jsr cursor
+		lda super
+		bne ke62
+		jsr char0
+		lda #1
+		sta super
+		jsr upjmp
+ke6a		lda col         ; go track
+		cmp #252
+		beq ke6c
+		cmp #3
+		bne ke6b
+		jsr ent
+ke6b		dec col
+		jsr ent
+		jmp ke6a
+ke6c		jmp mai2
+ke62		lda #0          ; go seq
+		sta super
+		jsr curson
+		jsr cursor
+		jsr fix2
+ke69		inc col
+		lda #1
+		sta temp
+		jsr ty2
+		lda col
+		bne ke69
+		jmp mai2
+;-------------------------------------
+f3play		ldx #0		; F3 (zak on)
+		ldy #v1
+		jsr zput
+		inx
+		ldy #v2
+		jsr zput
+		inx
+		ldy #v3
+		jsr zput
+		jsr setirq
+		jmp mai4
+;-------------------------------------
+playf1		jsr f1play	; F1 (zak s.p.)
+		jsr setirq
+		jmp mai4
+;-------------------------------------		
+polyply		jsr curson      ; SHIFT-P (poly-play on)
+		jsr cursor
+		lda #6
+		ldx #0
+		ldy #1
+		jsr dinit
+ke800o		lda superkey
+		bne ke800o
+ke80            lda superkey
+		cmp #1
+		bne ke81
+		jsr sbcoct
+		jmp ke800o
+ke81		cmp #2
+		bne ke82
+		jsr addoct
+		jmp ke800o
+ke82		cmp #3
+		bne ke80
+;-------------------------------------		
+stopmus		jsr noirq       ; F4 (all off)
+		lda #0
+		sta poly
+		tay
+ke8b		sta $d400,y
+		iny
+		cpy #24
+		bne ke8b
+		jmp mai4
+;-------------------------------------
+octdown		jsr addoct	; F8 (oct down)
+blin		jmp mai4
+;-------------------------------------
+octup		jsr sbcoct      ; F7 (oct up)
+		jmp mai4
+;-------------------------------------
+goto		lda tables
+		beq kex050
+		jmp mai4
+kex050		jsr curson	; SHIFT-G (goto start-point)
+		jsr cursor
+		lda super
+		bne kex060
+		jsr char0
+		jmp kex061
+kex060		jsr fix2	
+kex061		jsr stargo
+		jsr getco		
+		lda #1
+		sta super
+		jsr upjmp
+kex051		lda col         ; go track
+		cmp #252
+		beq kex053
+		cmp #3
+		bne kex054
+		jsr ent
+kex054		dec col
+		jsr ent
+		jmp kex051
+kex053		jmp mai2
+;-------------------------------------
+playkey		lda #0		; F2 (single-voice SFX keyboard on).
+		ldx #2
+kex099		ldy #voicon
+		jsr zero
+		dex
+		bpl kex099
+		tax
+		tay
+		jsr dinit
+		jmp mai4
+;-------------------------------------		
+ctrlq		lda #6		; CTRL-Q (musicplay on using voice 1)
+		ldx #0
+		ldy #0
+		jsr dinit
+		jmp mai4
+		
+ctrlw		lda #5		; CTRL-W (musicplay on using voice 2)
+		ldx #1
+		ldy #0
+		jsr dinit
+		jmp mai4
+		
+ctrle		lda #3		; CTRL-E (musicplay on using voice 3)
+		ldx #2
+                ldy #0
+		jsr dinit
+ctr		jmp mai4
+;-------------------------------------		
+shihome		lda tables
+		bne ctr
+		jsr curson      ; SHIFT-HOME (home)
+		jsr cursor
+		lda super
+		bne ke1g
+		jsr char0
+		jmp sta2
+ke1g		jsr fix2
+		jmp sta2
+;-------------------------------------		
+ligmed		lda tables
+		bne ctr
+		jsr curson      ; SHIFT '=' (home)
+		jsr cursor
+  		lda super
+		beq ke1s
+		jsr fix2        ; track
+		jsr resv
+		ldx voice
+		lda #<1145
+		clc
+		adc scrtab,x
+		sta cur
+		lda #>1145
+		adc #0
+		sta cur+1
+		lda #252
+		sta col
+ke1z		lda #0
+		sta step
+		sta ste2
+		sta cline
+		sta topy
+		sta topy+1
+		sta topy+2
+		sta cyp
+		sta cyp+1
+		sta cyp+2
+		jmp mainn
+ke1s		jsr char0       ; seq
+kewl   		jsr resv
+		ldx voice
+		lda #<1149
+		clc
+		adc scrtab,x
+		sta cur
+		lda #>1149
+		adc #0
+		sta cur+1
+		lda #0
+		sta col
+		jmp ke1z
+;-------------------------------------		
+speeddo		lda speed       ; SHIFT-S (speed)
+		beq blin2
+		dec speed
+		jsr putsped
+blin2		jmp mai4
+		
+speedup		lda speed       ; SHIFT-D (speed)
+		cmp #9
+		beq blin2
+		inc speed
+		jsr putsped
+blin9		jmp mai4
+;-------------------------------------		
+trackco		lda tables
+		bne blin9
+		lda kmode	; SHIFT-Z (pclip)
+		bne blin9
+		lda super
+		beq blin9
+		jsr curson
+		jsr cursor
+		jsr fix2
+		jsr zcopy
+		jmp ke401
+;-------------------------------------		
+trackdu		lda tables
+		bne blin9
+		lda kmode	; SHIFT-A (paste)
+		bne blin9
+		lda super
+		beq blin9
+		jsr curson
+		jsr cursor
+		jsr fix2
+		ldx voice
+		lda cl,x
+		sta vvv
+		lda ch,x
+		sta vvv+1
+		ldy zmax
+ke231		lda buffer,y
+		sta (vvv),y
+		dey
+		bpl ke231
+		jmp ke401
+;-------------------------------------
+rdefine		lda tables
+		beq ke250
+		jmp mai4
+ke250		lda kmode	; SHIFT-R (define new quantize for SHIFT-RET.)	
+		bne blin9
+		jsr curson
+		jsr cursor
+		lda super
+		bne ke251
+		jsr char0
+		jmp ke252
+ke251		jsr fix2
+ke252		jsr newquan
+		jmp ke401
+;-------------------------------------		
+finetun		lda kmode	; SHIFT-F (ftune)
+		bne blin9
+		jsr curson
+		jsr cursor
+		lda tables
+		bne ke256
+		lda super
+		bne ke255
+		jsr char0
+		jmp ke256
+ke255		jsr fix2
+ke256		jsr fine
+		jmp ke401
+;-------------------------------------		
+clearal		lda kmode	; SHIFT-C (clear music)
+		bne blin10
+		lda #1
+		jsr clearall
+		jmp sta2
+;-------------------------------------		
+clearta		lda kmode	; SHIFT-M (clear all tables)
+		bne blin10
+		lda #0
+		jsr clearall
+cltx		jmp mai4  
+;-------------------------------------		
+copydi		lda tables
+		bne cltx 
+		lda kmode	; SHIFT-'.'
+		bne blin10
+		jsr curson
+		jsr cursor
+		lda super
+		bne ke403
+		jsr char0
+		jmp ke404
+ke403		jsr fix2
+ke404		jsr copy1       ; (copy xx-yy)
+ke401		lda ste2
+		sta step
+		jmp mainn
+blin10		jmp mai4
+;-------------------------------------		
+copycu		lda tables
+		bne blin10
+		lda kmode	; SHIFT-'/'
+		bne blin10
+		jsr curson
+		jsr cursor
+		lda super
+		bne ke503
+		jsr char0
+		jmp ke504
+ke503		jsr fix2
+ke504		jsr copy2       ; (copy xx-cur)
+		jmp ke401
+;-------------------------------------		
+ctrl1		ldy #0		; CTRL-1 (voices on/off)
+		jsr toggle
+		jmp mai4
+		
+ctrl2		ldy #1		; CTRL-2
+		jsr toggle
+		jmp mai4
+		
+ctrl3		ldy #2		; CTRL-3
+		jsr toggle
+blin3		jmp mai4
+;-------------------------------------		
+ztable		lda tables
+		beq zt2	
+		jmp gocomp
+		
+zt2		lda kmode	; 'Z' com/instr
+		bne blin3
+		jsr curson
+		jsr cursor
+		lda super
+		beq ke603
+		jsr fix2
+		jmp ke604
+ke603		jsr char0
+ke604		lda #<ibank
+		sta vvv
+		lda #>ibank
+		sta vvv+1
+		jsr iget
+		lda #1
+		sta tables
+		jmp mai2	
+
+gocomp		jsr istore
+		lda #0
+		sta tables
+		sta arpmode
+		jmp kesk	
+;-------------------------------------		
+xtable		lda tables
+		beq xt2
+		jmp gocomp		
+		
+xt2		lda kmode	; 'X' com/slide
+		bne blin3
+		jsr curson
+		jsr cursor
+		lda super
+		beq ke623
+		jsr fix2
+		jmp ke624
+ke623		jsr char0
+ke624		lda #<sbank
+		sta vvv
+		lda #>sbank
+		sta vvv+1
+		jsr iget
+		lda #2
+		sta tables
+		jmp mai2
+;-------------------------------------		
+colon		lda tables
+		beq cot2	
+		jmp gocomp
+		
+cot2		lda kmode	; ':' com/puls.
+		bne blin4
+		lda nmode
+		beq blin4
+		jsr curson
+		jsr cursor
+		lda super
+		beq ke633
+		jsr fix2
+		jmp ke634
+ke633		jsr char0
+ke634		lda #<pbank
+		sta vvv
+		lda #>pbank
+		sta vvv+1
+		jsr iget
+		lda #3
+		sta tables
+		jmp mai2
+blin4		jmp mai4
+;-------------------------------------		
+semico		lda tables
+		beq sec2
+		jmp gocomp	
+		
+sec2		lda kmode	; ';' com/filt.
+		bne blin4
+		lda nmode
+		beq blin4
+		jsr curson
+		jsr cursor
+		lda super
+		beq ke643
+		jsr fix2
+		jmp ke644
+ke643		jsr char0
+ke644		lda #<fbank
+		sta vvv
+		lda #>fbank
+		sta vvv+1
+		jsr iget
+		lda #4
+		sta tables
+kemai2		jmp mai2
+;-------------------------------------		
+arpegg		lda tables
+		beq arz2	
+		jmp gocomp
+		
+arz2		lda kmode	; 'L' com/arp.
+		bne blin4
+		lda nmode
+		beq blin4
+		jsr curson
+		jsr cursor
+		lda super
+		beq ke648
+		jsr fix2
+		jmp ke649
+ke648		jsr char0
+ke649		lda #<abank
+		sta vvv
+		lda #>abank
+		sta vvv+1
+		jsr iget
+		lda #5
+		sta tables
+		lda #13
+		sta arpmode
+		jmp mai2
+blin0		jmp mai4
+;-------------------------------------		
+shifret		lda tables
+		bne blin0
+		lda super       ; SHIFT-RETURN (super-insert i sequence)
+		bne blin0
+		jsr insert
+		ldy #0
+		lda (cur2),y
+		cmp #2
+		beq ke65a
+		lda qq1
+		cmp #1
+		beq ke65d
+		sta temp3
+		jmp ke65b
+ke65a		lda qq2
+		beq ke65c
+		sta temp3
+ke65b		jsr insert
+		dec temp3
+		bne ke65b
+ke65c		lda ste2
+		sta step
+		jmp mainn
+ke65d		jsr insert
+		jmp ke65c
+;-------------------------------------	
+plus		lda tables
+		bne blin0
+		lda super	' '+' zakkstart
+		beq blin5
+		lda kmode
+		bne blin5
+		ldx #0
+		ldy #0
+ke681		lda cl,x
+		sta zakk,y
+		lda ch,x
+		sta zakk+1,y
+		inx
+		iny
+		iny
+		cpx #3
+		bne ke681
+		lda ste2
+		sta ste3
+		lda #0
+		sta 56253
+		sta 56254
+		lda #83
+		sta 1981
+		lda #80
+		sta 1982
+		ldy #2
+ke682		lda facol,y
+		sta 56253
+		sta 56254
+		ldx #0
+		lda #20
+		sta temp
+ke683		dex
+		bne ke683
+		dec temp
+		bne ke683
+		iny
+		cpy #13
+		bne ke682
+		lda #15
+		sta 56253
+		sta 56254
+blin5		jmp mai4
+;-------------------------------------
+window		jsr curson	; '/' new frame
+		jsr cursor
+kesk		lda nmode
+		beq ke692
+		jmp ke695
+ke692		lda #1
+		sta nmode
+		lda tables
+		bne ke696
+		lda super
+		beq ke694
+		jsr fix
+		jmp ke696
+ke694		jsr char0
+ke691		lda cline
+		cmp #8
+		bcc ke693
+		jsr calcup
+		dec cline
+		lda cur
+		sec
+		sbc #40
+		sta cur
+		lda cur+1
+		sbc #0
+		sta cur+1
+		jmp ke691
+ke693		jsr enter1
+ke696		jsr newfr
+		lda #<abank
+		sta vvv
+		lda #>abank
+		sta vvv+1
+		jsr iget
+		lda #13
+		sta arpmode
+		jsr iprin
+		jsr istore
+		lda #0
+		sta arpmode
+		lda #<pbank
+		sta vvv
+		lda #>pbank
+		sta vvv+1
+		jsr iget
+		jsr iprin
+		jsr istore
+		lda #<fbank
+		sta vvv
+		lda #>fbank
+		sta vvv+1
+		jsr iget
+		jsr iprin
+		jsr istore
+		lda #8
+		sta lin
+		lda ste2
+		sta step
+		jmp mainn
+ke695		lda #0
+		sta nmode
+		lda tables
+		bne ke698
+		lda super
+		beq ke697
+		jsr fix
+		jmp ke698
+ke697		jsr char0
+ke698		jsr oldfr
+		lda #16
+		sta lin
+		lda ste2
+		sta step
+		jmp mainn
+;-------------------------------------
+curstay		jsr togv	; SHIFT-V (cursor mode +/0)
+		jmp mai4
+;-------------------------------------
+curmode		lda stmode	; SHIFT-N (soundtracker mode +/0)
+		bne ke752
+		lda #1
+		sta stmode
+		lda #43
+		sta 1901
+		jmp mai4
+ke752		lda #0
+		sta stmode
+		lda #48
+		sta 1901
+ke753		jmp mai4
+;-------------------------------------		
+boast		lda tables
+		bne ke753
+                jsr curson      ; SHIFT-B (Blër!/Boast!)
+		jsr cursor
+		lda super	
+		beq keok	
+		lda #0          ; go seq
+		sta super
+		jsr fix2
+ke869		inc col
+		lda #1
+		sta temp
+		jsr ty2
+		lda col
+		bne ke869
+keok  		jsr char0       ; seq
+koo		lda #0
+		sta restart
+		jsr stargo		
+		jsr f1play
+		lda #1
+		sta bcont
+		jsr getco
+		jsr setirq
+		lda speed 
+		sta bcou
+		lda #$00
+		sta ok
+bcont1		jsr curson
+		lda restart
+		bne koo
+		lda #$7f
+		sta $dc00
+		lda $dc01
+		cmp #$7f
+		bne bc1
+		lda #0
+		sta bcont
+		jsr noirq
+		lda #0
+		tay
+bc0		sta $d400,y
+		iny
+		cpy #24
+		bne bc0
+		lda ste2
+		sta step
+		jmp mainn
+bc1		lda ok
+		beq bcont1
+		lda #0
+		sta ok
+		;dec bcou
+		;bpl bcont1
+		;lda speed
+		;sta bcou
+bc2		jsr cursor
+		jmp cursdown
+
+bcou		.by 0
+;-------------------------------------
+exit		jsr curson	; SHIFT-X (user!)
+		jsr cursor
+		jsr res07e
+		lda #7
+		tax
+		ldy #tpoin
+		jsr zero
+		lda #1
+		ldx #2
+ke9000		ldy #voicon
+		jsr zero
+		dex
+		bpl ke9000
+		lda modp
+		beq ke901
+		lda #$00
+		sta $1020
+ke901		lda tables
+		bne keout
+		lda super
+		bne ke904
+		jsr char0
+		jmp keout
+ke904		jsr fix2
+keout		sei
+		lda #<$fe47
+		sta $0318
+		lda #>$fe47
+		sta $0319
+		jmp ($cffe)
+;-------------------------------------
+fillplu		lda tables
+		beq ke999c
+		jmp mai4
+ke999c		lda #$7e	; SHIFT-'pil op' (put '+++' until next note)
+		sta gange
+ke999o		lda super
+		bne ablin
+		ldx voice
+		lda cl,x
+		sta vvv
+		lda ch,x
+		sta vvv+1
+		jsr getseq
+		lda seql,x
+		sta cur2
+		lda seqh,x
+		sta cur2+1
+		ldy cyp,x
+ke999z		iny
+ke999a		lda (cur2),y
+		beq ke999h
+		cmp #$7e
+		beq ke999h
+		jsr char0
+ablin		jmp mai4
+ke999h		lda gange
+		sta (cur2),y
+		iny
+		lda (cur2),y
+		cmp #$7f
+		bne ke999z
+		jsr char0
+ke999b		jmp mai4
+
+fillmin		lda tables
+		bne ke999b
+		lda #$00	; CTRL-'pil op' (put '---' until next note)
+		sta gange
+		jmp ke999o
+;-------------------------------------
+voldec		jsr decvol	; SHIFT-'@' (dec volume)	
+		jmp mai4
+
+volinc		jsr incvol	; SHIFT-'*' (inc volume)
+blinao		jmp mai4
+;-------------------------------------
+inform		lda kmode	; SHIFT-'I' ('info')
+		bne blinao
+		jsr curson
+		jsr cursor
+		jsr remin
+		lda #<info
+		sta tab
+		lda #>info
+		sta tab+1
+		jsr fadein
+ki31		lda #$00
+		sta $dc00
+		lda $dc01
+		cmp #$ff
+		beq ki31
+		jsr fadeout
+		jsr remout
+blil		jmp mai4
+;-------------------------------------		
+ke99		ldy kmode       ; (type!)
+		bne blil 
+		sta temp
+		ldy super
+		beq ke90
+		lda temp
+		beq blil
+		ldy #0
+ke9a		cmp hex,y
+		beq ke91
+		iny
+		cpy #16
+		bne ke9a
+		jmp mai2
+ke91		ldy #0
+		sta (cur),y
+		lda vmode
+		bne ke911
+		jmp mai2
+ke911		inc col
+		lda col
+		beq ke92
+		lda #1
+		sta temp
+		jsr ty2
+		jmp mai2
+ke92		jmp ke3a
+ke90		jsr type
+		jmp blink
+;-------------------------------------------------------------------------------
+fix		jsr curson
+		jsr cursor
+		lda #0
+		sta temp2
+f1		lda col
+		cmp #252
+		beq f2
+		dec col
+		jsr ent
+		inc temp2
+		jmp f1
+f2		ldx voice
+		lda cl,x
+		sta tab
+		lda ch,x
+		sta tab+1
+		ldy #0          ; trn
+		lda (cur),y
+		jsr gh
+		asl 
+		asl
+		asl
+		asl
+		sta temp
+		iny
+		lda (cur),y
+		jsr gh
+		clc
+		adc temp
+		ldy #0
+		sta (tab),y
+		ldy #2          ; seq
+		lda (cur),y
+		jsr gh
+		asl
+		asl
+		asl
+		asl
+		sta temp
+		iny
+		lda (cur),y
+		jsr gh
+		clc
+		adc temp
+		cmp #$72
+		bcc f23
+		lda #0
+f23		ldy #1
+		sta (tab),y
+		lda vmode
+		bne f33
+f3		dec temp2
+		bpl f4
+f33		rts
+
+f4		inc col
+		lda #1
+		sta temp
+		jsr ty2
+		jmp f3
+fix2		jsr fix
+		lda ste2
+		sta step
+		jmp getco
+		;jmp dummy
+;-------------------------------------------------------------------------------
+putsped		lda speed
+		ldx #6
+		ldy #tpoin
+		jsr zero
+		lda speed
+		clc
+		adc #$30
+		sta 1942
+		rts
+;-------------------------------------------------------------------------------
+gh		ldx #0
+gh1		cmp hex,x
+		beq gh2
+		inx
+		cpx #16
+		bne gh1
+gh2		txa
+		rts
+;-------------------------------------------------------------------------------
+toggle		lda (v07e),y
+		cmp #$19
+		bne tog1  
+		lda voic2,y
+		sta (v07e),y
+		ldx tospc,y
+		jsr togon
+		jmp tog2
+tog1		lda #$19
+		sta (v07e),y
+		ldx tospc,y
+		jsr togoff
+tog2		lda voic2,y
+		tay
+		lda #$00
+		sta $d400,y
+		sta $d401,y
+		sta $d402,y
+		sta $d403,y
+		sta $d404,y
+		sta $d405,y
+		sta $d406,y
+		rts
+
+voic2		.by 0,7,14
+tospc		.by 8,20,32
+;-------------------------------------------------------------------------------
+cursor		ldy #0	
+		
+		lda tables 
+		beq cur2	
+		
+		lda (icur),y
+		eor #$80
+		sta (icur),y
+		rts			
+		
+cur2		lda (cur),y
+		eor #$80
+		sta (cur),y
+		rts
+;-------------------------------------------------------------------------------
+curson		ldy #0
+		
+		lda tables
+		beq cur3
+		
+		lda (icur),y
+		ora #$80
+		sta (icur),y
+		rts
+		
+cur3		lda (cur),y
+		ora #$80
+		sta (cur),y
+		rts
+;-------------------------------------------------------------------------------
+type		cmp #0
+		beq nothing
+ty1		pha
+		lda col
+		cmp #3
+		bcs notetyp
+		pla
+		ldy #0
+		sta (cur),y
+tyy		lda #1
+		sta temp
+		inc col
+		lda col
+		cmp #3          ; mid space
+		bne ty2
+		lda #2
+		sta temp
+ty2		lda cur
+		clc
+		adc temp
+		sta cur
+		lda cur+1
+		adc #0
+		sta cur+1
+nothing		rts
+;-------------------------------------------------------------------------------
+notetyp		ldx voice
+		lda cl,x
+		sta vvv
+		lda ch,x
+		sta vvv+1
+		jsr getseq
+		lda seql,x
+		sta cur2
+		lda seqh,x
+		sta cur2+1
+		lda cyp,x
+		sta temp2
+		ldx #0
+		pla
+		cmp #$20
+		bne not1
+		lda #0          ; rest
+		ldy temp2
+		iny
+		sta (cur2),y
+		ldy #0
+		lda #$2d
+not0		sta (cur),y
+		iny
+		sta (cur),y
+		iny
+		sta (cur),y
+		jmp nex
+
+not1		cmp #$a0        ; cont
+		bne not2
+		lda #$7e
+		ldy temp2
+		iny
+		sta (cur2),y
+		ldy #0
+		lda #$2b
+		jmp not0
+not2		cmp tast2,x
+		beq not3
+		inx
+		cpx #24
+		bne not2
+		rts
+
+not3		lda #0
+		sta temp
+		txa             ; note
+		clc
+		adc oct
+		ldy temp2
+		iny
+		sta (cur2),y
+		txa
+		cmp #12
+		bcc not4
+		sec
+		sbc #12         ; if keys > 12
+		ldy #1
+		sty temp        ; inc octave...
+not4		asl
+		pha
+		tay
+		lda noder,y
+		ldy #0
+		sta (cur),y
+		pla
+		tay
+		lda noder+1,y
+		ldy #1
+		sta (cur),y
+		lda oc
+		clc
+		adc temp
+		ldy #2
+		sta (cur),y
+
+nex		lda stmode
+		beq nx2
+		pla ;pop
+		pla
+		jmp ke18
+nx2		rts
+
+tast2		.text 'Q2W3ER5T6Y7U'
+		.text 'I9O0P@-*'
+		.by 92
+		.text '^'
+;-------------------------------------------------------------------------------
+enter1		lda #1
+		sta emode
+enter2		lda col
+		beq char1
+		cmp #3
+		bne en1
+		jsr ent
+en1		dec col
+		jsr ent
+		jmp enter2
+char0		lda col
+		sta temp3
+		lda cur
+		sta temp4
+		lda cur+1
+		sta temp5
+		lda #0
+		sta emode
+		jmp enter2
+
+char1		ldx voice       ; get seq
+		lda cl,x
+		sta vvv
+		lda ch,x
+		sta vvv+1
+		jsr getseq
+		lda seql,x
+		sta cur2
+		lda seqh,x
+		sta cur2+1
+c0		ldy #0
+		lda (cur),y
+		cmp #'I'        ; I..
+		bne c00         ; ^
+		jmp char3
+c00		cmp #'S'        ; S..
+		bne c1          ; ^
+		ldy #1
+		lda (cur),y     ; S3.
+		ldy #0          ;  ^
+c01		cmp hex,y
+		beq c02
+		iny
+		cpy #4
+		bne c01
+		lda #'0'
+		ldy #0
+		jmp c022
+c02		pha
+		tya
+		asl
+		asl
+		asl
+		asl
+		tay
+		pla
+c022		sty temp
+		ldy #1
+		sta (cur),y
+		ldy #2
+		lda (cur),y     ; S3f
+		ldy #0          ;   ^
+c03		cmp hex,y
+		beq c04
+		iny
+		cpy #16
+		bne c03
+		lda #'0'
+		ldy #0
+c04		sty temp2
+		ldy #2
+		sta (cur),y
+		lda #$c0        ; add as slide
+		clc
+		adc temp
+		clc
+		adc temp2
+		ldy cyp,x
+		sta (cur2),y
+		jmp enend
+c1		cmp #'*'
+		bne c44
+		lda #$90        ; ***
+		ldy cyp,x
+		sta (cur2),y
+		lda #'*'
+c2		ldy #1
+		sta (cur),y
+		iny
+		sta (cur),y
+		jmp enend
+;-------------------------------------------------------------------------------
+c44		lda #$80        
+		ldy cyp,x
+		sta (cur2),y
+		lda #$2d
+		ldy #0
+		sta (cur),y
+		jmp c2
+
+char3		ldy #1
+		lda #0
+		sta temp2       ; I1.
+		lda (cur),y     ;  ^
+		cmp #'1'
+		beq c55
+		lda #'0'
+		jmp c4
+c55		lda #$10
+		sta temp2
+		lda #'1'
+c4		ldy #1
+		sta (cur),y
+char4		ldy #2
+		lda (cur),y     ; I1f
+		ldy #0          ;   ^
+c5		cmp hex,y
+		beq c6
+		iny
+		cpy #16
+		bne c5
+		lda #'0'
+		ldy #0
+c6		sty temp
+		ldy #2
+		sta (cur),y
+		lda #$a0        ; add as instr
+		clc
+		adc temp
+		clc
+		adc temp2
+		ldy cyp,x
+		sta (cur2),y
+enend		lda emode
+		bne ene2
+		lda temp3
+		sta col
+		lda temp4
+		sta cur
+		lda temp5
+		sta cur+1
+ene2		lda ste2
+		sta step
+		jmp getco
+;-------------------------------------------------------------------------------
+ent		lda cur         
+		sec
+		sbc #1
+		sta cur
+		lda cur+1
+		sbc #0
+		sta cur+1
+		rts
+;-------------------------------------------------------------------------------
+dumpos		= 1068
+dumpos2 	= 1068+12
+dumpos3		= 1068+24
+
+dummy		;lda #<dumpos
+		;sta dum
+		;lda #>dumpos
+		;sta dum+1
+		;ldx #0
+		;jsr dumdum
+		;lda #<dumpos2
+		;sta dum
+		;lda #>dumpos2
+		;sta dum+1
+		;ldx #1
+		;jsr dumdum
+		;lda #<dumpos3
+		;sta dum
+		;lda #>dumpos3
+		;sta dum+1
+		;ldx #2
+		;;;jmp dumdum
+
+dumdum		;lda cl,x
+		;sta vvv
+		;lda ch,x
+		;sta vvv+1
+		;jsr getseq
+		;lda seql,x
+		;sta dum3
+		;lda seqh,x
+		;sta dum3+1
+		;lda cyp,x
+		;sta dum4
+		;lda dum3
+		;clc
+		;adc dum4
+		;jsr hexh
+		;ldy #2
+		;sta (dum),y
+		;lda dum3
+		;clc
+		;adc dum4
+		;jsr hexl
+		;ldy #3
+		;sta (dum),y
+		;lda dum3
+		;clc
+		;adc dum4
+		;lda dum3+1
+		;adc #0
+		;jsr hexh
+		;ldy #0
+		;sta (dum),y
+		;lda dum3
+		;clc
+		;adc dum4
+		;lda dum3+1
+		;adc #0
+		;jsr hexl
+		;ldy #1
+		;sta (dum),y
+		;ldy dum4
+		;lda (dum3),y
+		;pha
+		;jsr hexh
+		;ldy #5
+		;sta (dum),y
+		;pla
+		;jsr hexl
+		;ldy #6
+		;sta (dum),y
+		;rts
+
+dum4		;.by 0
+;-------------------------------------------------------------------------------
+clearall	ldy #5
+		sta csu3
+		lda csu3
+		bne nopa
+nop1		lda cone,y
+		sta cthree,y
+		dey
+		bpl nop1
+		jmp nopp
+nopa		lda ctwo,y
+		sta cthree,y
+		dey
+		bpl nopa
+nopp		jsr noirq
+		lda #0
+		tay
+nopcx		sta $d400,y
+		iny
+		cpy #24
+		bne nopcx
+		jsr curson
+		jsr cursor
+		lda #160
+		sta csu2
+		jsr remin
+		lda #<csu1
+		sta tab
+		lda #>csu1
+		sta tab+1
+		jsr fadein
+		lda #<1100
+		sta tab
+		lda #>1100
+		sta tab+1
+		jsr prompt
+		sta csu2
+		lda temp
+		beq noca
+		lda csu3
+		bne nopx
+		jsr clear3
+		jmp noca
+nopx		jsr clear2
+noca		lda #<csu1
+		sta tab
+		lda #>csu1
+		sta tab+1
+		jsr fadeout
+		jmp remout
+
+csu3		.by 0
+
+cone		.text 'TABS, '
+ctwo		.text 'ALL...'
+
+csu1		.text '  CLEAR ' 
+cthree		.text 'ALL...ARE Y'
+		.text 'OU SURE (Y/N) ? '
+
+csu2		.by 160,32,32
+;-------------------------------------------------------------------------------
+fine		jsr curson      ; finetuning
+		jsr cursor
+		jsr remin
+		ldy #fintun
+		lda $0f00,y
+		sta vvv
+		lda $0f01,y
+		sta vvv+1
+		lda #<fin1
+		sta tab
+		lda #>fin1
+		sta tab+1
+		jsr fadein
+		lda #<1091
+		sta tab
+		lda #>1091
+		sta tab+1
+		jsr inbyte
+		cpy #$99
+		beq finx
+		ldy #0
+		sta (vvv),y
+		lda temp
+		sta fin2
+		lda temp2
+		sta fin2+1
+		lda #<1095
+		sta tab
+		lda #>1095
+		sta tab+1
+		jsr inbyte
+		cpy #$99
+		beq finx
+		ldy #1
+		sta (vvv),y
+		lda temp
+		sta fin3
+		lda temp2
+		sta fin3+1
+		lda #<1099
+		sta tab
+		lda #>1099
+		sta tab+1
+		jsr inbyte
+		cpy #$99
+		beq finx
+		ldy #2
+		sta (vvv),y
+		lda temp
+		sta fin4
+		lda temp2
+		sta fin4+1
+finx		lda #<fin1
+		sta tab
+		lda #>fin1
+		sta tab+1
+		jsr fadeout
+		jmp remout
+
+fin1		.text '  FINETUNING VOICES '
+		.text '1-3: $'
+fin2		.text '00 $'
+fin3		.text '00 $'
+fin4		.text '00  '
+;-------------------------------------------------------------------------------
+newquan		jsr curson      ; set new quantize value for SHIFT-RETURN		
+		jsr cursor
+		jsr remin
+		lda #<qua1
+		sta tab
+		lda #>qua1
+		sta tab+1
+		jsr fadein
+		lda #<1099
+		sta tab
+		lda #>1099
+		sta tab+1
+qq0		jsr inbyte
+		cmp #$02
+		bcc qq0
+		cmp #$61
+		bcs qq0
+		sec 
+		sbc #1		
+		sta $0ff4	; 0ff4 makes sure the saved source-tune 
+		sta qq1		; remembers the new quantize value.
+		sec
+		sbc #1 
+		sta qq2		
+		lda temp
+		sta qua2
+		lda temp2
+		sta qua2+1
+		lda #<qua1
+		sta tab
+		lda #>qua1
+		sta tab+1
+		jsr fadeout
+		jmp remout
+
+qq1		.by 0
+qq2		.by 0
+
+qua1		.text '  DEFINE NEW SUPER-INSERT VALUE: $'
+qua2		.text '00  '
+;-------------------------------------------------------------------------------
+copy1		jsr curson      ; copy xx-yy
+		jsr cursor
+		jsr remin
+		lda #<cop1
+		sta tab
+		lda #>cop1
+		sta tab+1
+		jsr fadein
+		lda #<1089
+		sta tab
+		lda #>1089
+		sta tab+1
+		jsr inbyte
+		cpy #$99
+		beq copbb
+		pha
+		lda temp
+		sta cop2
+		lda temp2
+		sta cop2+1
+		lda #<1096
+		sta tab
+		lda #>1096
+		sta tab+1
+		jsr inbyte
+		cpy #$99
+		beq copba
+		pha
+		lda temp
+		sta cop3
+		lda temp2
+		sta cop3+1
+		lda #<cop1
+		sta tab
+		lda #>cop1
+		sta tab+1
+		jsr fadeout
+		pla
+		sta temp        ; to
+		lda ss0
+		sta tab
+		lda ss0+1
+		clc
+		adc temp
+		sta tab+1
+		pla
+		sta temp2       ; from
+		lda ss0
+		sta tab2
+		lda ss0+1
+		clc
+		adc temp2
+		sta tab2+1
+		ldy #0
+copa		lda (tab2),y
+		sta (tab),y
+		iny
+		cpy #225
+		bne copa
+		jmp remout
+
+copba		pla
+copbb		lda #<cop1
+		sta tab
+		lda #>cop1
+		sta tab+1
+		jsr fadeout
+		jmp remout	
+
+cop1		.text '    COPY SEQUENCE F'
+		.text 'ROM $'
+cop2		.text '00'
+		.text ' TO $'
+cop3		.text '00     '
+;-------------------------------------------------------------------------------
+copy2		jsr curson      ; copy xx-cur
+		jsr cursor
+		jsr remin
+		lda #<cop4
+		sta tab
+		lda #>cop4
+		sta tab+1
+		jsr fadein
+		lda #<1086
+		sta tab
+		lda #>1086
+		sta tab+1
+		jsr inbyte
+		cpy #$99
+		beq copcc
+		pha
+		lda temp
+		sta cop5
+		lda temp2
+		sta cop5+1
+		lda #<cop4
+		sta tab
+		lda #>cop4
+		sta tab+1
+		jsr fadeout
+		ldx voice       ; to
+		lda cl,x
+		sta vvv
+		lda ch,x
+		sta vvv+1
+		ldy #1
+		lda (vvv),y
+		sta temp
+		lda ss0
+		sta tab
+		lda ss0+1
+		clc
+		adc temp
+		sta tab+1
+		pla
+		sta temp2       ; from
+		lda ss0
+		sta tab2
+		lda ss0+1
+		clc
+		adc temp2
+		sta tab2+1
+		ldy #0
+copb		lda (tab2),y
+		sta (tab),y
+		iny
+		cpy #225
+		bne copb
+		jmp remout
+
+copcc		lda #<cop4
+		sta tab
+		lda #>cop4
+		sta tab+1
+		jsr fadeout
+		jmp remout
+
+cop4		.text ' COPY SEQUENCE FROM $'
+cop5		.text '00 TO CURSOR-SEQ '
+;-------------------------------------------------------------------------------
+inbyte		lda #0
+		sta 198
+		sta temp3
+		sta temp4
+		sta temp5
+		tay
+		jmp ib22
+
+ib0		jsr ffe4
+		cmp #29
+		bne ib01
+ib0a		jsr inoff
+		lda temp5
+		bne ibtl
+		jmp trigh
+ib01		cmp #157
+		bne ib02
+		jsr inoff
+		lda temp5
+		bne ibtl
+		jmp trigh
+ibtl		jmp tleft
+ib02		cmp #3
+		bne ib022
+		jsr inoff
+		ldy #$99
+		rts
+ib022		cmp #13
+		bne ib03
+		jsr inoff
+		lda temp5
+		beq ibxb
+		jsr dtab
+ibxb		ldy #0
+		lda (tab),y
+		sta temp
+		jsr gh
+		asl
+		asl
+		asl
+		asl
+		sta temp5
+		iny
+		lda (tab),y
+		sta temp2
+		jsr gh
+		clc
+		adc temp5
+		ldy #0
+		rts
+
+ib03		ldy #0
+ib1		cmp hex,y
+		beq ib3
+		iny
+		cpy #16
+		bne ib1
+ib2		inc temp3
+		bne ib0
+		inc temp4
+		lda temp4
+		cmp #6
+		bne ib0
+		ldy #0
+		sty temp4
+ib22		lda (tab),y
+		eor #$80
+		sta (tab),y
+		jmp ib0
+ib3		ldy #0
+		sta (tab),y
+		jmp ib0a
+inoff		ldy #0
+		lda (tab),y
+		and #$7f
+		sta (tab),y
+		rts
+
+trigh		lda tab
+		clc
+		adc #1
+		sta tab
+		lda tab+1
+		adc #0
+		sta tab+1
+		ldy #1
+		sty temp5
+		dey
+		jmp ib22
+
+tleft		jsr dtab
+		ldy #0
+		sty temp5
+		jmp ib22
+dtab		lda tab
+		sec
+		sbc #1
+		sta tab
+		lda tab+1
+		sbc #0
+		sta tab+1
+		rts
+;-------------------------------------------------------------------------------
+prompt		lda #0
+		sta 198
+		sta temp2
+		sta temp3
+p1		jsr ffe4
+		cmp #89         ; yes
+		bne p2
+		ldy #0
+		sta (tab),y
+		iny
+		sty temp
+		rts
+
+p2		cmp #78         ; no
+		bne p3
+		ldy #0
+		sta (tab),y
+		sty temp
+		rts
+
+p3		inc temp2
+		bne p1
+		inc temp3
+		lda temp3
+		cmp #40
+		bne p1
+		ldy #0
+		sty temp3
+		lda (tab),y
+		eor #$80
+		sta (tab),y
+		jmp p1
+;-------------------------------------------------------------------------------
+fadein		ldx #0
+fa1		ldy #0
+fa2		lda (tab),y
+		sta $0429,y
+		lda facol,x
+		sta $d829,y
+		iny
+		cpy #38
+		bne fa2
+		lda #0
+		sta temp
+		lda #20
+		sta temp2
+fa3		dec temp
+		bne fa3
+		dec temp2
+		bne fa3
+		inx
+		cpx #7
+		bne fa1
+		rts
+
+facol		.by 0,0,11,4,12,15,1
+facol2		.by 1,15,12,4,11,0,0
+;-------------------------------------------------------------------------------
+fadeout		ldx #0
+fa10		ldy #0
+fa20		lda (tab),y
+		sta $0429,y
+		lda facol2,x
+		sta $d829,y
+		iny
+		cpy #38
+		bne fa20
+		lda #0
+		sta temp
+		lda #20
+		sta temp2
+fa30		dec temp
+		bne fa30
+		dec temp2
+		bne fa30
+		inx
+		cpx #7
+		bne fa10
+		rts
+;-------------------------------------------------------------------------------
+remin		lda #1
+		sta noplot
+		ldy #0
+rem1		lda $0400,y
+		sta remx1,y
+		lda remx2,y
+		sta $0400,y
+		iny
+		cpy #120
+		bne rem1
+		rts
+
+remx1		.text '                    '
+		.text '                    '
+		.text '                    '
+		.text '                    '
+		.text '                    '
+		.text '                    '
+		.by 0,0,0,0
+
+remx2		.by $70,$40,$40,$40,$40,$40,$40,$40,$40,$40,$40,$40,$40,$40
+		.by $40,$40,$40,$40,$40,$40,$40,$40,$40,$40,$40,$40,$40,$40 
+		.by $40,$40,$40,$40,$40,$40,$40,$40,$40,$40,$40,$6e,$5d,$20	
+		.by $20,$20,$20,$20,$20,$20,$20,$20,$20,$20,$20,$20,$20,$20
+		.by $20,$20,$20,$20,$20,$20,$20,$20,$20,$20,$20,$20,$20,$20
+		.by $20,$20,$20,$20,$20,$20,$20,$20,$20,$5d,$6b,$40,$40,$72
+		.by $40,$40,$40,$40,$40,$40,$40,$40,$40,$40,$40,$72,$40,$40
+		.by $40,$40,$40,$40,$40,$40,$40,$40,$40,$72,$40,$40,$40,$40
+		.by $40,$40,$40,$40,$40,$40,$40,$73,0,0,0,0
+
+remout		ldy #0
+rem2		lda remx1,y
+		sta $0400,y
+		lda #5
+		sta $d800,y
+		iny
+		cpy #120
+		bne rem2
+		lda #0
+		sta noplot
+		rts
+;-------------------------------------------------------------------------------
+clear2		jsr wcset	; Clear all sequences		
+
+		lda ss0
+		sta tab
+		lda ss0+1
+		clc
+		adc #1
+		sta tab+1
+cc1		ldy #0          ; seq
+cc2		lda (ss0),y
+		sta (tab),y
+		iny
+		bne cc2
+		inc tab+1
+		lda tab+1
+		cmp #$9f        ; max $a000!
+		bne cc1
+		lda vl2         ; track
+		sta tab
+		lda vh2
+		sta tab+1
+		ldx #12
+cc3		ldy #0
+cc4		lda #$ff
+		sta (tab),y
+		iny
+		lda #0
+		sta (tab),y
+		iny
+		bne cc4
+		dex
+		beq cc5
+		inc tab+1
+		jmp cc3
+cc5		ldx #2
+cc6		lda vl2,x       ; $8c00 start
+		sta tab
+		lda vh2,x
+		sta tab+1
+		lda #$8c
+		ldy #0
+		sta (tab),y
+		dex
+		bpl cc6
+		rts
+;-------------------------------------------------------------------------------
+iprin		lda iposs	; print out hex bytes, for all tables.
+		sta ipos
+		lda iposs+1
+		sta ipos+1
+		lda iyg
+		sta iy
+		lda iste2
+		sta istep
+		lda iy4s
+		sta iy4
+ipr1		jsr ipstep
+		ldy #0
+		sty iy1
+ipr2		ldy iy
+		lda (itab),y
+		jsr hexh
+		jsr ip
+		ldy iy
+		lda (itab),y
+		jsr hexl
+		jsr ip
+		inc iy
+		inc iy1
+		lda iy1
+		cmp its
+		beq ipr3
+		lda #32
+		clc
+		adc arpmode
+		jsr ip
+		lda tables
+		cmp #5
+		bne ipr2
+		dec iy
+		inc itab+1
+		jmp ipr2
+ipr3		dec iy4
+		bne ipr4
+		lda tables
+		cmp #5
+		bne ipx
+		dec itab+1
+ipx		jmp lgreen
+ipr4		lda istep
+		clc
+		adc ststep
+		sta istep
+		cmp stmax
+		bne ipr5
+		lda #0
+		sta istep
+ipr5		lda ipos
+		clc
+		adc ialong
+		sta ipos
+		lda ipos+1
+		adc #0
+		sta ipos+1
+		lda tables
+		cmp #5
+		bne ipr1
+		dec itab+1
+		jmp ipr1
+ipstep		lda istep
+		jsr hexh
+		jsr ip
+		lda istep
+		jsr hexl
+		jsr ip
+		lda #58
+ip		ldy #0
+		sta (ipos),y
+		lda ipos
+		clc
+		adc #1
+		sta ipos
+		lda ipos+1
+		adc #0
+		sta ipos+1
+		rts
+
+lgreen		lda tables
+		cmp #5
+		beq lg10
+		rts
+lg10		lda #<$05e4
+		sta tab
+		lda #>$05e4
+		sta tab+1		
+		lda #<$d9e4
+		sta tab2
+		lda #>$d9e4
+		sta tab2+1
+		lda #6
+		sta lglin
+
+lg10g		ldy #0
+lg20		lda (tab),y
+		cmp #$37
+		bne lg60
+		iny
+		lda (tab),y
+		cmp #$46
+		bne lg60
+
+		lda #13
+lg30		ldy #0
+lg40		sta (tab2),y
+		iny
+		cpy #5
+		bne lg40
+		jmp lg70
+
+lg60		lda #5
+		jmp lg30
+
+lg70		jsr tab40
+		lda tab2
+		clc
+		adc #40
+		sta tab2
+		lda tab2+1
+		adc #0
+		sta tab2+1
+		dec lglin
+		bpl lg10g
+		rts
+
+iy		.by 0
+iy1		.by 0
+iy4		.by 0
+imode		.by 0
+lglin		.by 0
+
+tab40		lda tab
+		clc
+		adc #40
+		sta tab
+		lda tab+1
+		adc #0
+		sta tab+1
+		rts
+;-------------------------------------------------------------------------------
+tabdown		jsr ibmem	; DOWN in a table
+		jsr ibdown
+		lda arpmode
+		cmp #13
+		bne iin2a
+		inc iyk
+		jmp iin2b
+		
+iin2a		lda iyk
+		clc
+		adc its
+		sta iyk
+iin2b		lda ins
+		clc
+		adc inon
+		sta ins
+		lda irow
+		cmp iy4s
+		beq iin21
+iin20		jmp mai2
+iin21		jsr ibup
+		lda iste2
+		clc
+		adc ststep
+		sta iste2
+		cmp stmax
+		bne iin22
+		lda #0
+		sta iste2
+iin22		lda iyg
+		clc
+		adc its
+		sta iyg
+		lda arpmode
+		cmp #13
+		bne iin23
+		dec iyg
+iin23		jsr iprin
+		jmp mai2
+;------------------------------------		
+tabup		jsr ibmem	; UP in a table
+		jsr ibup
+		lda arpmode
+		cmp #13
+		bne iin3a
+		dec iyk
+		jmp iin3b
+
+iin3a		lda iyk
+		sec
+		sbc its
+		sta iyk
+iin3b		lda ins
+		sec
+		sbc inon
+		sta ins
+		lda irow
+		bpl iin20
+		jsr ibdown
+		lda iste2
+		sec
+		sbc ststep
+		sta iste2
+		cmp #$fc
+		bcc iin4
+		lda arpmode
+		cmp #13
+		beq iin4
+		lda stmax
+		sec
+		sbc ststep
+		sta iste2
+iin4		lda iyg
+		sec
+		sbc its
+		sta iyg
+		lda arpmode
+		cmp #13
+		bne iin5p
+		inc iyg
+iin5p		jsr iprin
+		jmp mai2
+;--------------------------------------
+tabright	jsr ibmem	; RIGHT in a table
+		jsr ibadc
+		lda iodd
+		cmp #2
+		bne iin12
+		lda #255
+		sta iodd
+		jsr ibadc
+		inc iyk
+		inc icol
+		lda icol
+		cmp its
+		bne iin12a
+		lda arpmode
+		cmp #13
+		beq iin11b
+		lda iyk
+		sec
+		sbc its
+		sta iyk
+		jmp iin11c
+iin11b		lda #0
+		sta iarp2
+		dec iyk
+iin11c		lda icur
+		sec
+		sbc ialong2
+		sta icur
+		lda icur+1
+		sbc #0
+		sta icur+1
+		lda #0
+		sta icol
+		sta iodd
+iin12		jmp mai2
+iin12a		lda arpmode
+		cmp #13
+		bne iin12b
+		dec iyk
+		lda #1
+		sta iarp2
+iin12b		jmp mai2
+;--------------------------------------
+tableft		jsr ibmem	; LEFT in a table 
+		jsr ibsbc
+		lda iodd
+		bpl iin12
+		lda #2
+		sta iodd
+		jsr ibsbc
+		dec iyk
+		dec icol
+		bpl iin31
+		lda arpmode
+		cmp #13
+		beq iin30g
+		lda iyk
+		clc
+		adc its
+		sta iyk
+		jmp iin30h
+iin30g		lda #1
+		sta iarp2
+		inc iyk
+iin30h		lda icur
+		clc
+		adc ialong2
+		sta icur
+		lda icur+1
+		adc #0
+		sta icur+1
+		lda its
+		sec
+		sbc #1
+		sta icol
+		lda #1
+		sta iodd
+		jmp mai2
+iin31		lda arpmode
+		cmp #13
+		bne iin31b
+		inc iyk
+		lda #0
+		sta iarp2
+iin31b		jmp mai2
+;--------------------------------------
+tabins		lda arpmode	; INSERT in arpeggio
+		cmp #13
+		bne iblii
+		jsr checkvers
+		jsr iains
+		jmp mai2
+
+tabdel		lda arpmode
+		cmp #13
+		bne iblii
+		jsr checkvers
+		jsr iadel
+iblii		jmp mai2
+;--------------------------------------
+arpgoto		lda #71         ; 'G' goto 'arp' according to byte 6 or 7,
+		sta iw		; depending on player version.
+		lda arpmode
+		cmp #13
+		bne iblii
+		jsr igoto
+		jmp mai2
+		
+arpgot2		lda #72		; 'H' goto 'arp' according to byte 7,
+		sta iw		; only available in some player versions.
+		lda arpmode
+		cmp #13
+		bne iblii
+		jsr igoto
+		jmp mai2
+		
+arpjump		lda arpmode	; 'J' goto last unused spot in arpeggio.
+		cmp #13
+		bne ibli
+		jsr iboff
+		jsr ibmem
+		jsr ainit
+		ldy #$ff
+iin41		lda (itab),y
+		cmp #$7f
+		beq iin42
+		dey		
+		bne iin41
+iin42		iny
+		sty iyg
+		sty iyk
+		sty iste2
+		jsr iprin
+		jmp mai2	
+;--------------------------------------
+polyp20		lda #6          ; SHIFT-P (poly-play on)
+		ldx #0
+                ldy #1
+		jsr dinit
+iinback		lda superkey
+		bne iinback		
+iin600          inc temp3	; own cursor-blink routine.
+		bne iin6001
+		inc temp4
+		lda temp4
+		cmp #20
+		bne iin6001
+		ldy #0
+		sty temp4
+		lda (icur),y
+		eor #$80
+		sta (icur),y
+iin6001		lda superkey	; special keys are tested during poly-play.
+		cmp #1		; look in 'polyscan' for a list over them...
+		bne iin601
+		jsr sbcoct
+		jmp iinback
+iin601		cmp #2
+		bne iin602
+		jsr addoct
+		jmp iinback
+iin602		cmp #4
+		bne iin603
+		jmp iin008
+iin603		cmp #5
+		bne iin604
+		jmp iin007
+iin604		cmp #3
+		bne iin600
+		lda #$00
+		sta temp4
+		jmp iin51
+;--------------------------------------
+itype		ldy imode
+		beq ity0
+		jmp iblin
+ity0		ldy #0
+ity1		cmp hex,y
+		beq ity2
+		iny
+		cpy #16
+		bne ity1
+		jmp iblin
+ity2		ldy #0
+		sta (icur),y
+		jsr lgreen
+		lda vmode
+		bne ity3
+		jsr ibmem
+		jmp iblin
+ity3		jmp iin11
+;-------------------------------------------------------------------------------
+
+
+;-------------------------------------------------------------------------------
+zcopy		jsr remin
+		lda #<zcop
+		sta tab
+		lda #>zcop
+		sta tab+1
+		jsr fadein
+zc0		lda #<1073
+		sta tab
+		lda #>1073
+		sta tab+1
+		jsr inbyte
+		cpy #$99
+		beq zcx
+		cmp #$00
+		beq zc0
+		cmp #$80
+		bcs zc0
+		asl
+		tax
+		dex
+		stx zmax
+		lda temp
+		sta zc2
+		lda temp2
+		sta zc2+1
+		ldx voice
+		lda cl,x
+		sta vvv
+		lda ch,x
+		sta vvv+1
+		ldy zmax
+zc1		lda (vvv),y
+		sta buffer,y
+		dey
+		bpl zc1
+zcx		lda #<zcop
+		sta tab
+		lda #>zcop
+		sta tab+1
+		jsr fadeout
+		jmp remout
+
+zcop		.text ' WRITE $'
+zc2		.text '00 SEQ'
+		.by $27
+		.text 'S AH'
+		.text 'EAD INTO PAPERCLIP '
+
+zmax		.by 0
+;-------------------------------------------------------------------------------
+ploton		ldy scrta2,x
+		sta (scr),y
+		inc scrta2,x
+		rts
+;-------------------------------------------------------------------------------
+hexh		and #$f0
+		lsr
+		lsr
+		lsr
+		lsr
+		tay
+		lda hex,y
+		rts
+
+hexl		and #$0f
+		tay
+		lda hex,y
+		rts
+
+hex		.text '0123456789ABCDEF'
+
+noder  	 	.text 'C-C#D-D#E-F-'
+		.text 'F#G-G#A-A#B-'
+;-------------------------------------------------------------------------------
+newfr		ldy #$00    		;color the space green while   
+nf2		lda $d9b8,y		;storing the old colors
+		sta $e5b0,y		;in $E588-$xxxx.
+		lda $da58,y
+		sta $e650,y
+		lda #$05
+		sta $d9b8,y
+		sta $da58,y
+		iny
+		cpy #160
+		bne nf2
+
+		ldy #$00
+nf3		lda $05b8,y		;plot newframe while
+		sta $e440,y		;storing the old plots
+		lda $e2d0,y		;in $E440-$E57F.
+		sta $05b8,y
+		iny
+		cpy #160
+		bne nf3
+	
+		ldy #$00
+nf4		lda $0658,y
+		sta $e4e0,y
+		lda $e370,y
+		sta $0658,y
+		iny
+		cpy #200
+		bne nf4
+		rts
+;-------------------------------------------------------------------------------
+oldfr		ldy #$00		;plot out buffers
+of2		lda $e5b0,y		;thus showing frame
+		sta $d9b8,y		;without extra windows.
+		lda $e650,y
+		sta $da58,y
+		iny
+		cpy #160
+		bne of2
+
+		ldy #$00
+of3		lda $e440,y
+		sta $05b8,y
+		iny
+		cpy #160
+		bne of3
+
+		ldy #$00
+of4		lda $e4e0,y
+		sta $0658,y
+		iny
+		cpy #200
+		bne of4
+
+                ldx tospc               ;restore voice ON/OFF colours.
+		lda $d878,x
+		sta tcolo
+		jsr togit
+		ldx tospc+1
+		lda $d878,x
+		sta tcolo
+		jsr togit
+		ldx tospc+2
+		lda $d878,x
+		sta tcolo
+		jsr togit
+		rts
+;-------------------------------------------------------------------------------
+ibdown		lda icur
+		clc
+		adc #40
+		sta icur
+		lda icur+1
+		adc #0
+		sta icur+1
+		inc irow
+		rts
+
+ibup		lda icur
+		sec
+		sbc #40
+		sta icur
+		lda icur+1
+		sbc #0
+		sta icur+1
+		dec irow
+		rts
+
+ibadc		lda icur
+		clc
+		adc #1
+		sta icur
+		lda icur+1
+		adc #0
+		sta icur+1
+		inc iodd
+		rts
+
+ibsbc		lda icur
+		sec
+		sbc #1
+		sta icur
+		lda icur+1
+		sbc #0
+		sta icur+1
+		dec iodd
+		rts
+
+ibmem		lda iodd
+		beq ibm2
+		jsr ibsbc
+		ldy #0
+		lda (icur),y
+		sta temp
+		iny
+		lda (icur),y
+		sta temp2
+		jsr ibadc
+		jmp ibm3
+
+ibm2		ldy #0
+		lda (icur),y
+		sta temp
+		iny
+		lda (icur),y
+		sta temp2
+ibm3		lda temp
+		jsr gh
+		asl
+		asl
+		asl
+		asl
+		sta temp5
+		lda temp2
+		jsr gh
+		clc
+		adc temp5
+		sta temp5
+		lda arpmode
+		cmp #13
+		bne ibm4
+		lda itab+1
+		clc
+		adc iarp2
+		sta itab+1
+		lda temp5
+		ldy iyk
+		sta (itab),y
+		lda itab+1
+		sec
+		sbc iarp2
+		sta itab+1
+		rts
+
+ibm4		lda temp5
+		ldy iyk
+		sta (itab),y
+		rts
+;-------------------------------------------------------------------------------
+togv		lda vmode
+		bne tog9
+		lda #1
+		sta vmode
+		lda #43
+		sta 1902
+		rts
+
+tog9		lda #0
+		sta vmode
+		lda #48
+		sta 1902
+		rts
+;-------------------------------------------------------------------------------
+dinit		sty poly
+		stx dtemp
+		ldx #7
+		ldy #tpoin
+		jsr zero
+		lda #0
+		ldx dtemp		
+		ldy #voicon
+		jsr zero
+		lda #0
+		jsr $1000
+		sei
+		ldx #0
+		stx $dc0e
+		inx
+		stx $d01a
+		lda #<drun
+		sta $fffe
+		sta $0314
+		lda #>drun
+		sta $ffff
+		sta $0315
+		lda #$38
+		sta $d012
+		lda #0
+		sta hold2
+		lda #254
+		ldy #gat
+		ldx dtemp
+                jsr zero
+                lda poly
+                beq dit0
+                lda #254
+                ldx #1
+                jsr zero
+                inx
+                jsr zero
+                lda #0
+                sta pn
+                sta pn+1
+                sta pn+2
+dit0		jsr din
+		cli
+		rts
+
+dtemp		.by $00
+pn              .by $00,$00,$00
+
+drun		sta pa
+		stx px
+		sty py
+		lsr $d019
+dr0		lda $d012
+		cmp #$3a
+		bne dr0
+		ldy #$08
+dr00		dey
+		bne dr00
+		lda #0
+		sta playirqon
+                lda poly
+                beq dr01
+		lda #11
+		sta $d020
+                lda poly
+                beq dr01
+                jsr polyscan
+                ldx #2
+                stx dtemp
+dr10            ldx dtemp
+                lda pnotes,x	; main poly-play routine
+                cmp pn,x
+		beq dr20
+		cmp #$ff
+                bne dr15
+		lda #$fe
+		sta pn,x
+                lda #254
+                jmp dr200
+dr15            sta pn,x        ; init note in poly-play
+		clc
+		adc oct
+		sta notee
+		lda #255
+		ldy #gat
+		ldx dtemp
+		jsr zero
+		jsr din               
+                jmp dr21
+dr20            lda #255        ; holding note in poly-play 
+dr200		ldy #gat
+		jsr zero
+		ldy #real
+		jsr jssr              
+dr21            dec dtemp 
+                bpl dr10
+                jmp deg2
+
+dr01		lda #15
+                sta $d020
+                ldx #0
+		;jsr keyread
+		lda $c5
+dr1		cmp tast,x
+		beq dr2
+		inx
+		cpx #24
+		bne dr1
+		jmp cont1
+dr2		lda hold2
+		bne cont2
+		inc hold2
+		txa
+		clc
+		adc oct
+		sta notee
+		lda #255
+		ldy #gat
+		ldx dtemp
+		jsr zero
+		jsr din
+		jmp de
+
+cont1		lda #0
+		sta hold2
+		lda #254
+		ldy #gat
+		ldx dtemp
+		jsr zero
+cont2		ldx dtemp
+		ldy #real
+		jsr jssr
+de		lda #11
+		sta $d020
+		jsr playtoo
+deg2		lda #0
+		sta $d020
+		lda #$1b
+		sta $d011
+		jmp non1
+
+din		lda #0
+		ldy #nog
+		ldx dtemp
+		jsr zero
+		ldy #trans1
+		jsr zero
+		ldy #sflag
+		jsr zero
+		lda notee
+		ldy #not
+		jsr zero
+		asl
+		tax
+		ldy #notes
+		jsr zerx
+		ldy #vhzl
+		sta temp
+		txa
+		pha
+		lda temp
+		ldx dtemp
+		jsr zero
+		pla
+		tax
+		inx
+		ldy #notes
+		jsr zerx
+		ldy #vhzh
+		ldx dtemp
+		jsr zero
+		lda #$60
+		ldy #next
+		ldx #0
+		jsr zero
+		lda ins
+		ldy #insnr
+		ldx dtemp
+		jsr zero
+		ldy #ge02
+		jmp jssr
+
+tast		.by 62,59,9,8,14,17,16,22,19
+		.by 25,24,30,33,32,38,35,41
+		.by 46,43,49,48,54,51,0
+
+poly		.by 0
+
+playtoo		lda #$ca
+		ldy #next
+		ldx #0
+		jsr zero
+		
+		jsr $1003
+				
+		lda #$60
+		ldy #next
+		ldx #0		; go to zero.
+;-------------------------------------------------------------------------------
+zero		sty zer         ; sta
+		ldy #$0f
+		sty zer+1
+		ldy #0
+		pha
+		lda (zer),y
+		sta ze+1
+		iny
+		lda (zer),y
+		sta ze+2
+		pla
+ze		sta $ffff,x
+		rts
+
+zerx		sty zer         ; lda
+		ldy #$0f
+		sty zer+1
+		ldy #0
+		pha
+		lda (zer),y
+		sta zx+1
+		iny
+		lda (zer),y
+		sta zx+2
+		pla
+zx		lda $ffff,x
+		rts
+
+jssr		sty js+1
+js		jmp ($0f00)
+;-------------------------------------------------------------------------------
+iains		jsr iboff	; insert in arpeggio-table
+		lda itab
+		sta vvv
+		lda itab+1
+		clc
+		adc #1
+		sta vvv+1
+		lda iyk
+		sec
+		sbc #1
+		sta temp
+		ldy #254
+ia2		lda (itab),y
+		iny
+		sta (itab),y
+		cmp #$7f
+		bne ia21
+		lda v14v15
+		beq ia21
+	        dey
+		lda (vvv),y
+		clc
+		adc #1
+		jmp ia22  		  
+ia21		dey 
+		lda (vvv),y
+ia22		iny
+		sta (vvv),y
+		dey
+		dey
+		cpy temp
+		bne ia2
+		ldy iyk
+		lda #0
+		sta (itab),y
+		sta (vvv),y
+		lda #1		; add 1 to arpeggio-pointer in i-table
+		sta temp2
+		jsr insfix
+		jmp iprin
+
+iadel		jsr iboff	; delete in arpeggio-table
+		lda itab
+		sta vvv
+		lda itab+1
+		clc
+		adc #1
+		sta vvv+1
+		ldy iyk
+		iny
+ia3		lda (itab),y
+		dey
+		sta (itab),y
+		cmp #$7f
+		bne ia31
+		lda v14v15
+		beq ia31
+		iny
+		lda (vvv),y
+		sec
+		sbc #1
+		jmp ia32
+ia31		iny
+		lda (vvv),y
+ia32		dey
+		sta (vvv),y
+		iny
+		iny
+		bne ia3
+		ldy #255
+		lda #0
+		sta (itab),y
+		sta (vvv),y
+		lda #255	; subtract 1 from arp-pointer in i-table
+		sta temp2
+		jsr insfix
+		jmp iprin
+
+insfix		ldy #instr	; after inst/del in arpeggio-table:
+		lda $0f00,y	; adjust arpeggio-pointers in the
+		sta vvv		; instrument-table...
+		lda $0f01,y
+		sta vvv+1
+		jsr checkv2
+		lda iyk
+		clc
+		adc #1
+		sta temp
+		ldy #7
+inf21		lda (vvv),y
+		cmp temp
+		bcs inf3
+inf22		lda v15
+		beq inf23		
+		dey
+		lda (vvv),y
+		cmp temp
+		bcc inf222
+		clc
+		adc temp2
+		sta (vvv),y
+inf222		iny
+inf23		tya
+		clc
+		adc #8
+		tay
+		cpy #7
+		bne inf21
+		rts
+inf3		clc
+		adc temp2
+		sta (vvv),y
+		jmp inf22
+
+igoto		jsr checkv2
+		lda iw
+		cmp #72
+		beq igo0
+		lda #6
+		sta igg
+		lda v15
+		bne igo01
+		inc igg
+		jmp igo01
+igo0		lda v15
+		bne igo00
+		rts
+igo00		lda #7
+		sta igg
+igo01		jsr iboff
+		jsr ibmem
+		jsr ainit
+		ldy #instr
+		lda $0f00,y
+		sta vvv
+		lda $0f01,y
+		sta vvv+1
+		lda ins
+		clc
+		adc igg
+		tay
+		lda (vvv),y
+		sta temp
+igo2		inc iyg
+		inc iyk
+		inc iste2
+		dec temp
+		bne igo2
+		jmp iprin
+
+igg		.by 0
+iw		.by 0
+;-------------------------------------------------------------------------------
+wcupdate	jsr wcup
+		lda noplot
+		beq wc00
+		rts
+wc00		lda $0fff
+		sta 1072
+		lda $0ffe
+		sta 1071
+		lda $0ffd
+		sta 1069
+		lda $0ffc
+		sta 1068
+		rts
+
+wcup		inc wctim
+		lda wctim
+		cmp #50
+		beq wc20
+		rts
+wc20		lda #$00
+		sta wctim
+		inc internal
+		lda internal
+		cmp #$3a
+		beq wc30
+		rts
+wc30		lda #$30
+		sta internal
+		inc internal+1
+		lda internal+1
+		cmp #$36
+		beq wc40
+		rts
+wc40		lda #$30
+		sta internal+1
+		inc $0fff
+		lda $0fff
+		cmp #$3a
+		beq wc50
+		rts
+wc50		lda #$30
+		sta $0fff
+		inc $0ffe
+		lda $0ffe
+		cmp #$36
+		beq wc60
+		rts
+wc60		lda #$30
+		sta $0ffe
+		inc $0ffd
+		lda $0ffd
+		cmp #$3a
+		beq wc70
+		rts
+wc70		lda #$30
+		sta $0ffd
+		inc $0ffc
+		lda $0ffc
+		cmp #$3a
+		beq wc80
+		rts
+wc80		lda #$30
+		sta $0ffc
+		rts
+
+wctim		.by $00
+internal	.by $00,$00
+;-------------------------------------------------------------------------------
+tcset		lda #$30	; tune-clock routines
+		sta secl
+		sta sech
+		sta minl
+		sta minh
+		lda #$00
+		sta tctim
+		rts
+
+tctim		.by $00
+
+secl		.by $00
+sech		.by $00
+minl		.by $00
+minh		.by $00
+
+tcupdate	lda noplot
+		bne tc10
+
+		lda secl
+		sta 1078
+		lda sech
+		sta 1077
+		lda minl
+		sta 1075
+		lda minh
+		sta 1074
+		
+tc10		inc tctim
+		lda tctim
+		cmp #50
+		beq tc20
+		rts
+tc20		lda #$00
+		sta tctim
+		inc secl
+		lda secl
+		cmp #$3a
+		beq tc30
+		rts
+tc30		lda #$30
+		sta secl
+		inc sech
+		lda sech
+		cmp #$36
+		beq tc40
+		rts
+tc40		lda #$30
+		sta sech
+		inc minl
+		lda minl
+		cmp #$3a
+		beq tc50
+		rts
+tc50		lda #$30
+		sta minl
+		inc minh
+		lda minh
+		cmp #$36
+		beq tc60
+		rts
+tc60		lda #$30
+		sta minh
+		rts
+;-----------------------------------------------------------------------------
+wcset		lda #$30	; work-clock routines
+		sta internal
+		sta internal+1
+		sta $0fff
+		sta $0ffe
+		sta $0ffd
+		sta $0ffc
+		lda #$00
+		sta wctim
+		rts
+;-------------------------------------------------------------------------------
+
+;-------------------------------------------------------------------------------
+fram1		.by 14,8,30,147
+		.text '∞¿¿≤¿¿¿¿¿≤¿¿¿¿¿≤¿¿¿¿'
+		.text '¿¿¿¿¿¿¿¿¿¿¿¿¿¿¿¿¿≤¿Æ' 
+		.text '›”‘›00:00›00:00›    '
+		.text '                 › ›'
+		.text '´¿¿€¿¿¿¿¿±¿¿¿¿¿€¿¿¿¿'
+		.text '¿¿¿¿¿¿¿≤¿¿¿¿¿¿¿¿¿±¿≥'
+		.by 0
+fram2		.text '›  ›õ           ›'
+		.text 'õ           '
+		.text '›õ           ›'
+		.by 0
+fram3		.text '´¿¿±¿¿¿¿¿¿¿¿¿¿¿±¿¿¿¿'
+		.text '¿¿¿¿¿¿¿€¿¿¿¿¿¿¿¿≤¿¿≥'
+		.text '›                   '
+		.text '       ›        ›œ0›'
+		.text '›                   '
+		.text '       ›        ›0+›'
+		.text '›                   '
+		.text '       ›        ›”0›'
+		.text '›                   '
+		.text '       ›        ›  ›'
+		.by 0
+fram6		.text '≠¿¿¿¿¿¿¿¿¿¿¿¿¿¿¿¿¿¿¿'
+		.text '¿¿¿¿¿¿¿±¿¿¿¿¿¿¿¿±¿¿'
+		.by 19,17,17,17,0
+
+newfr1		;.by 19,17,17,17,17,17,17	;bruges ikke mere.
+		;.by 17,17,17,17,17,30
+		;.text '´¿¿±¿¿¿¿¿≤¿¿¿¿¿±¿¿¿¿'
+		;.text '¿¿¿¿≤¿¿±¿¿¿¿¿¿¿¿¿¿¿≥'
+		;.by 0
+newfr2		;.text '›        ›          '
+		;.text '    ›              ›'
+		;.by 0
+newfr3		;.text '´¿¿¿¿¿¿¿¿±¿¿¿¿¿¿¿¿¿¿'
+		;.text '¿¿¿¿±¿¿≤¿¿¿¿¿¿¿¿≤¿¿≥'
+		;.by 0
+
+oldfr1		;.by 19,17,17,17,17,17,17	;bruges ikke mere.
+		;.by 17,17,17,17,17,30,0
+oldfr3		;.text '´¿¿±¿¿¿¿¿¿¿¿¿¿¿±¿¿¿¿'
+		;.text '¿¿¿¿¿¿¿€¿¿¿¿¿¿¿¿≤¿¿≥'
+		;.by 0
+
+;remx2		;.text '∞¿¿¿¿¿¿¿¿¿¿¿¿¿¿¿¿¿¿¿'
+		;.text '¿¿¿¿¿¿¿¿¿¿¿¿¿¿¿¿¿¿¿Æ'
+		;.text '›ê                   '
+		;.text '                   ›'
+		;.text '´¿¿≤¿¿¿¿¿¿¿¿¿¿¿≤¿¿¿¿'
+		;.text '¿¿¿¿¿¿¿≤¿¿¿¿¿¿¿¿¿¿¿≥'
+		;.by 0	
+;-------------------------------------------------------------------------------
+		*= $cf00
+
+startup		lda #$36
+		sta $01
+		jmp $a000
+
+goback		sei
+		lda #$37
+		sta $01
+		jsr $fda3
+		jsr $fd15
+		jsr $ff5b
+		jmp $8009 	;JMP to EASS receiver program
+
+		*= $cffe
+
+		.by <goback,>goback
+;-------------------------------------------------------------------------------
+; Alt mellem $CFFE og $E700 bliver destrueret - fint, Einstein !!
+;-------------------------------------------------------------------------------
+		*= $e700
+
+checkvers 	lda #$00
+		sta v14v15
+  		lda $0fee	; check for 'v14' or 'v15'            
+		cmp #$31
+		bne cv40
+		lda $0fef
+		cmp #$34
+		beq cv50
+		cmp #$35
+		beq cv50
+cv40		lda $0ff3       ; bit 0000000x on = 'v14v15' activated.
+		and #$01
+		cmp #$01
+		beq cv50
+		rts
+cv50		lda #$01
+		sta v14v15
+		rts
+
+v14v15		.by $00		; if 01 then all '7F XX' in the arpeggio-
+				; table will be adjusted.
+checkv2		lda #$00
+		sta v15
+		lda $0fee
+		cmp #$31
+		bne cv60
+		lda $0fef
+		cmp #$35
+		beq cv80
+cv60		lda $0ff3
+		and #$02
+		cmp #$02
+		beq cv80
+		rts
+cv80		lda #$01
+		sta v15
+		rts
+
+v15		.by $00	; if 01 then all 2 arp-pointers in the 
+				; instrument-table will be adjusted.
+;-------------------------------------------------------------------------------
+set07e		lda #<$1000	; Hunt for 00-07-0E
+		sta v07e
+		lda #>$1000
+		sta v07e+1
+		
+se10		ldy #$00
+		lda (v07e),y
+		bne se20
+		iny
+		lda (v07e),y
+		cmp #$07
+		bne se20
+		iny
+		lda (v07e),y
+		cmp #$0e
+		bne se20
+		rts
+
+se20		lda v07e
+		clc
+		adc #1
+		sta v07e
+		lda v07e+1
+		adc #0
+		sta v07e+1
+		cmp #$22
+		bne se10
+
+		jsr remin	; 00-07-0E was not found (!?)
+		lda #<wt
+ 		sta tab
+		lda #>wt
+		sta tab+1
+		jsr fadein
+		lda #$00
+		sta $c6
+se40		jsr ffe4
+		beq se40
+		jsr fadeout
+		lda #<$0efd	; dummy adress... 	
+		sta v07e
+		lda #>$0efd
+		sta v07e+1
+		jmp remout
+
+wt		.text ' "VOICE" NOT FOUND, CTRL 1-3 DISABLED ' 
+
+res07e		lda #$00	; reset 00-07-0E if set to 19 somewhere...!
+		tay
+		sta (v07e),y
+		lda #$07
+		iny
+		sta (v07e),y
+		lda #$0e
+		iny
+		sta (v07e),y
+		rts
+;-------------------------------------------------------------------------------							 
+togoff		lda #11
+		sta tcolo
+		jmp togit
+
+togon		lda #5
+		sta tcolo
+
+togit		tya
+		pha
+		txa
+		tay
+
+		lda #<$d878
+		sta tab
+		lda #>$d878
+		sta tab+1
+
+		lda nmode
+		beq tog70
+		lda #7
+		sta tolin
+		jmp tog80
+
+tog70		lda #15
+		sta tolin
+
+tog80		lda tcolo
+
+		ldx #0
+tog90		sta (tab),y
+		iny
+		inx
+		cpx #7
+		bne tog90
+		dey
+		dey
+		dey
+		dey
+		dey
+		dey
+		dey		
+
+		jsr tab40		
+
+		dec tolin
+		bpl tog80
+	
+		pla
+		tay
+		rts
+		
+tcolo		.by $00
+tolin		.by $00
+;------------------------------------------------------------------------------------
+setvol		ldy #vol
+		lda $0f00,y
+		sta tab
+		lda $0f01,y
+		sta tab+1
+		rts
+
+resetvol	jsr setvol	; print volume in top right corner
+		
+		ldy #0
+		lda (tab),y
+		and #$0f
+		sta volume
+iv10		tay
+		lda hex,y
+		sta 1102
+		rts		
+
+incvol		lda volume	; inc volume
+		cmp #$0f
+		bne iv20
+		rts
+
+iv20		jsr setvol		
+
+		inc volume
+		ldy #0
+		lda (tab),y
+		clc
+		adc #1
+		sta (tab),y
+		;sta $d418
+		and #$0f
+		jmp iv10
+	
+decvol		lda volume	; dec volume
+		bne iv30
+		rts
+
+iv30		jsr setvol		
+
+		dec volume
+		ldy #0
+		lda (tab),y
+		sec
+		sbc #1
+		sta (tab),y
+		;sta $d418
+		and #$0f
+		jmp iv10
+;----------------------------------------------------------------------------------
+storemark	lda ss0		; just testing!
+		clc
+		adc #226
+		sta tab
+		lda ss0+1
+		adc #1
+		sta tab+1
+
+		lda #$23
+		ldy #0
+		sta (tab),y	
+		rts		
+;--------------------------------------------------------------------------------
+keyscan		;sei
+		ldx #$07
+		lda #$7f
+k10		sta $dc00
+		pha
+k20		lda $dc01
+		cmp $dc01
+		bne k20
+		sta table,x
+		pla
+		sec
+		ror
+		dex
+		bpl k10			
+		;cli
+		rts
+;----------------------------------------------------------------------------------
+polyscan	jsr keyscan	; checks for up to three keys at once,
+				; but first checks for these keys...
+		lda table	;
+		cmp #$f7	; SUPERKEY	RESULT	
+		bne zx1		; --------------------
+		lda #1		; 1		F7
+		sta superkey	; 2		F8
+		lda table+6	; 3		F4/runstop
+		cmp #$ef	; 4		CRSR up
+		bne zxx		; 5		CRSR down
+		inc superkey	;
+		jmp zxx		; ...and then checks the keyboard!
+zx1		lda table
+		cmp #$df
+		bne zx2
+		lda table+6
+		cmp #$ef
+		bne zx2
+zx11		lda #3
+		sta superkey
+		jmp zxx
+zx2		lda table+7
+		cmp #$7f
+		beq zx11
+		lda table
+		cmp #$7f
+		bne zxxno
+		lda #5
+		sta superkey
+		lda table+6
+		cmp #$ef
+		bne zxx
+		dec superkey
+
+zxx		lda superkey
+		cmp super2
+		bne zxx2
+		jmp zxx1
+zxxno		lda #0
+		sta super2
+zxx1		lda #0
+		sta superkey
+		jmp zxx3		
+zxx2 		sta super2
+
+zxx3		ldx #2
+		stx cou
+t14		ldx cou
+		ldy pnotes,x
+		lda code1,y
+		tax
+		lda table,x
+		eor #$ff
+		and code2,y
+		cmp code2,y
+		bne t45
+t18		dec cou
+		bpl t14
+		rts		
+
+t45		lda #$ff
+		ldx cou
+		sta pnotes,x
+		
+		ldy #0               		
+t00		lda code1,y
+		tax
+		lda table,x
+		eor #$ff
+		and code2,y
+		cmp code2,y
+		beq typec
+t05		iny
+		cpy #24
+		bne t00
+                jmp t18
+		
+typec		tya
+		cmp pnotes
+		beq t05
+		cmp pnotes+1
+		beq t05
+		cmp pnotes+2
+		beq t05
+		ldx cou
+		sta pnotes,x
+		jmp t18
+		
+cou		.by 0
+pnotes		.by 0,0,0
+superkey	.by 0
+super2		.by 0
+
+code1		.by 7,7,1,1,1,2,2,2,2,3,3,3,4,4,4,4,5,5,5,6,6,6,6,0
+
+code2		.by $40,$08,$02,$01,$40,$02,$01,$40,$08,$02,$01,$40,$02
+		.by $01,$40,$08,$02,$40,$08,$02,$01,$40,$08,$01
+
+table		.by 0,0,0,0,0,0,0,0
+;-------------------------------------------------------------------------------
+calcup  	ldx #2
+cal2		lda cyp,x
+		sec
+		sbc #2
+		sta cyp,x
+		cmp #254
+		bne ca44        ; start
+ca33		lda cl,x
+		sec
+		sbc #2
+		sta cl,x
+		sta vvv
+		lda ch,x
+		sbc #0
+		sta ch,x
+		sta vvv+1
+		jsr getseq
+		lda seql,x
+		sec
+		sbc #3
+		sta tab
+		lda seqh,x
+		sbc #0
+		sta tab+1
+		ldy #0
+		lda (tab),y
+		sta cyp,x
+ca44		dex
+		bpl cal2
+		rts
+;-------------------------------------------------------------------------------
+calcdown	ldx #2
+cal1		lda cyp,x
+		clc
+		adc #2
+		sta cyp,x
+		lda cl,x
+		sta vvv
+		lda ch,x
+		sta vvv+1
+		jsr getseq
+		lda seql,x
+		sta tab
+		lda seqh,x
+		sta tab+1
+		ldy cyp,x
+		lda (tab),y
+		cmp #$7f        ; end
+		bne ca11
+		lda #0
+		sta cyp,x
+		lda cl,x
+		clc
+		adc #2
+		sta cl,x
+		lda ch,x
+		adc #0
+		sta ch,x
+ca11		dex
+		bpl cal1
+		rts
+;-------------------------------------------------------------------------------
+clear3		ldy #arp1	; clear all tables
+		jsr clit
+		ldy #arp2
+		jsr clit
+		ldy #filttab
+		jsr clit
+		ldy #pulstab
+		jsr clit
+		ldy #instr
+		jsr clit
+		ldy #slidtab
+		jsr clit
+
+		jsr iinit
+		jsr slinit
+		jsr pinit
+		lda nmode
+		beq cli5
+		jsr iprin
+cli5		jsr finit
+		lda nmode
+		beq cli6
+		jsr iprin
+cli6		jsr ainit
+		lda nmode
+		beq cli7
+		lda #13
+		sta arpmode
+		jmp iprin
+cli7		rts
+
+clit		lda $0f00,y
+		sta tab
+		lda $0f01,y
+		sta tab+1
+		ldy #$00
+		tya
+clq		sta (tab),y
+		iny
+		bne clq		
+		rts
+;-------------------------------------------------------------------------------
+jinit		ldy #v1
+		lda $0f00,y
+		sta vl
+		sta vl2
+		sta cl
+		sta zakk
+		lda $0f01,y
+		sta vh
+		sta vh2
+		sta ch
+		sta zakk+1
+		ldy #v2
+		lda $0f00,y
+		sta vl+1
+		sta vl2+1
+		sta cl+1
+		sta vml
+		sta zakk+2
+		lda $0f01,y
+		sta vh+1
+		sta vh2+1
+		sta ch+1
+		sta vmh
+		sta zakk+3
+		ldy #v3
+		lda $0f00,y
+		sta vl+2
+		sta vl2+2
+		sta cl+2
+		sta vml+1
+		sta zakk+4
+		lda $0f01,y
+		sta vh+2
+		sta vh2+2
+		sta ch+2
+		sta vmh+1
+		sta zakk+5
+		ldy #s0
+		lda $0f00,y
+		sta vml+2
+		sec
+		sbc #2
+		sta ss0
+		lda $0f01,y
+		sta vmh+2
+		sbc #0
+		sta ss0+1
+		ldy #lobyt
+		lda $0f00,y
+		sta llobyt
+		lda $0f01,y
+		sta llobyt+1
+		ldy #hibyt
+		lda $0f00,y
+		sta hhibyt
+		lda $0f01,y
+		sta hhibyt+1
+		rts
+;-------------------------------------------------------------------------------
+resv		ldx #2         
+re2		lda vl2,x
+		sta vl,x
+		sta cl,x
+		lda vh2,x
+		sta vh,x
+		sta ch,x
+		dex
+		bpl re2
+		rts		
+;-------------------------------------------------------------------------------
+getseq		ldy #0
+		lda (vvv),y
+		sta trans
+		ldy #1
+		lda (vvv),y
+		sta temp
+		ldy #0
+		lda (llobyt),y
+		clc
+		adc #2
+		sta seql,x
+		lda (hhibyt),y
+		clc
+		adc temp
+		sta seqh,x
+		rts
+;-------------------------------------------------------------------------------
+slinit		ldy #0          
+		tya
+slini2		sta istep,y
+		iny
+		cpy #20
+		bne slini2
+		lda #4
+		sta iy4s
+		lda #$80
+		sta stmax
+		lda #32
+		sta ialong
+		lda #6
+		sta ialong2
+		lda #2
+		sta its
+		lda #0
+		sta inon
+		lda #1
+		sta ststep
+		ldy #slidtab
+		lda $0f00,y
+		sta itab
+		lda $0f01,y
+		sta itab+1
+		lda #<1855
+		sta icur
+		lda #>1855
+		sta icur+1
+		lda #<1852
+		sta iposs
+		lda #>1852
+		sta iposs+1
+		jsr iprin
+		lda #<sbank
+		sta vvv
+		lda #>sbank
+		sta vvv+1
+		jmp istore
+;-------------------------------------------------------------------------------
+pinit		ldy #0         
+		tya
+pini2		sta istep,y
+		iny
+		cpy #20
+		bne pini2
+		lda #7
+		sta iy4s
+		lda #0
+		sta stmax
+		lda #26
+		sta ialong
+		lda #12
+		sta ialong2
+		lda #4
+		sta its
+		sta ststep
+		lda #0
+		sta inon
+		ldy #pulstab
+		lda $0f00,y
+		sta itab
+		lda $0f01,y
+		sta itab+1
+		lda #<1517
+		sta icur
+		lda #>1517
+		sta icur+1
+		lda #<1514
+		sta iposs
+		lda #>1514
+		sta iposs+1
+		lda #<pbank
+		sta vvv
+		lda #>pbank
+		sta vvv+1
+		jmp istore
+;-------------------------------------------------------------------------------
+ainit		ldy #0         
+		tya
+aini2		sta istep,y
+		iny
+		cpy #20
+		bne aini2
+		lda #7
+		sta iy4s
+		lda #0
+		sta stmax
+		sta iarp2
+		lda #32
+		sta ialong
+		lda #6
+		sta ialong2
+		lda #2
+		sta its
+		lda #1
+		sta ststep
+		lda #0
+		sta inon
+		ldy #arp1
+		lda $0f00,y
+		sta itab
+		lda $0f01,y
+		sta itab+1
+		lda #<1508
+		sta icur
+		lda #>1508
+		sta icur+1
+		lda #<1505
+		sta iposs
+		lda #>1505
+		sta iposs+1
+		lda #<abank
+		sta vvv
+		lda #>abank
+		sta vvv+1
+		jmp istore
+;-------------------------------------------------------------------------------
+finit		ldy #0          
+		tya
+fini2		sta istep,y
+		iny
+		cpy #20
+		bne fini2
+		lda #7
+		sta iy4s
+		lda #0
+		sta stmax
+		lda #26
+		sta ialong
+		lda #12
+		sta ialong2
+		lda #4
+		sta its
+		sta ststep
+		lda #0
+		sta inon
+		ldy #filttab
+		lda $0f00,y
+		sta itab
+		lda $0f01,y
+		sta itab+1
+		lda #<1532
+		sta icur
+		lda #>1532
+		sta icur+1
+		lda #<1529
+		sta iposs
+		lda #>1529
+		sta iposs+1
+		lda #<fbank
+		sta vvv
+		lda #>fbank
+		sta vvv+1
+		jmp istore
+;-------------------------------------------------------------------------------
+iinit		ldy #0          
+		tya
+iini2		sta istep,y
+		iny
+		cpy #21
+		bne iini2
+		lda #4
+		sta iy4s
+		lda #$20
+		sta stmax
+		lda #14
+		sta ialong
+		lda #24
+		sta ialong2
+		lda #8
+		sta its
+		sta inon
+		lda #1
+		sta ststep
+		ldy #instr
+		lda $0f00,y
+		sta itab
+		lda $0f01,y
+		sta itab+1
+		lda #<1828
+		sta icur
+		lda #>1828
+		sta icur+1
+		lda #<1825
+		sta iposs
+		lda #>1825
+		sta iposs+1
+		jsr iprin
+		lda #<ibank
+		sta vvv
+		lda #>ibank
+		sta vvv+1
+		jmp istore
+;-------------------------------------------------------------------------------
+istore		ldy #0
+ist2		lda istep,y
+		sta (vvv),y
+		iny
+		cpy #20
+		bne ist2
+		ldy #15
+		lda itab
+		sta (vvv),y
+		iny
+		lda itab+1
+		sta (vvv),y
+		iny
+		lda icur
+		sta (vvv),y
+		iny
+		lda icur+1
+		sta (vvv),y
+		rts
+;-------------------------------------------------------------------------------
+iget		ldy #0          
+ig2		lda (vvv),y
+		sta istep,y
+		iny
+		cpy #20
+		bne ig2
+		ldy #15
+		lda (vvv),y
+		sta itab
+		sta it2
+		iny
+		lda (vvv),y
+		sta itab+1
+		sta it2+1
+		iny
+		lda (vvv),y
+		sta icur
+		sta ic2
+		iny
+		lda (vvv),y
+		sta icur+1
+		sta ic2+1
+		rts
+;-------------------------------------------------------------------------------
+f1play		ldx #0		; dump STARTPOINT into tpoin's
+f11p		lda zakk,x
+		ldy #tpoin
+		jsr zero
+		inx
+		cpx #6
+		bne f11p
+		rts
+;-------------------------------------------------------------------------------
+addoct		lda oc
+		cmp #$30
+		beq adx
+		dec oc
+		lda oct
+		sec
+		sbc #12
+		sta oct
+adx		rts
+
+sbcoct		lda oc
+		cmp #$36
+		beq adx
+		inc oc
+		lda oct
+		clc
+		adc #12
+		sta oct   
+		rts
+;-------------------------------------------------------------------------------
+stargo		ldx #0		; Set track pointers to STARTPOINT.
+		ldy #0
+sg55		lda zakk,y
+		sta vl,x
+		sta cl,x
+		lda zakk+1,y
+		sta vh,x
+		sta ch,x
+		iny
+		iny
+		inx
+		cpx #3
+		bne sg55
+
+		lda ste3
+		sta ste2
+		sta step
+
+		ldx voice
+		lda #<1149
+		clc
+		adc scrtab,x
+		sta cur
+		lda #>1149
+		adc #0
+		sta cur+1
+		lda #0
+		sta col
+		sta cline
+		sta topy
+		sta topy+1
+		sta topy+2
+		sta cyp
+		sta cyp+1
+		sta cyp+2
+		rts
+;-------------------------------------------------------------------------------
+sp		ldx #0
+		ldy #0
+sp1		lda cl,x
+		cmp zakk,y
+		bne sp2
+		lda ch,x
+		cmp zakk+1,y
+		beq spp
+sp2		iny
+		iny
+		inx
+		cpx #3
+		bne sp1
+		lda #32
+		sta 1981
+		sta 1982
+		rts
+
+spp		lda #83
+		sta 1981
+		lda #80
+		sta 1982
+		rts
+;-------------------------------------------------------------------------------
+zput		sty temp
+		lda $0f00,y
+		ldy #tpoin
+		jsr zero
+		inx
+		ldy temp
+		lda $0f01,y
+		ldy #tpoin
+		jmp zero
+;-------------------------------------------------------------------------------
+insert		ldx voice	; insert in a sequence.
+		lda cl,x
+		sta vvv
+		lda ch,x
+		sta vvv+1
+		jsr getseq
+		lda seql,x
+		sec
+		sbc #3
+		sta cur2
+		lda seqh,x
+		sbc #0
+		sta cur2+1
+		ldy #0
+		lda (cur2),y
+		cmp #$be
+		bne ins1t
+		rts
+ins1t		lda seql,x
+		sta cur2
+		lda seqh,x
+		sta cur2+1 
+		lda cyp,x
+		sec
+		sbc #2
+		sta temp
+		ldy #216
+ins2		lda (cur2),y
+		iny
+		iny
+		sta (cur2),y
+		dey
+		dey
+		dey
+		cpy temp
+		bne ins2
+		lda #$80
+		ldy cyp,x
+		sta (cur2),y
+		iny
+		lda #0          ; $80+rest
+		sta (cur2),y
+		lda cur2
+		sec
+		sbc #3
+		sta cur2
+		ldy #0
+		lda (cur2),y
+		clc
+		adc #2
+		sta (cur2),y
+		rts
+;-------------------------------------------------------------------------------
+resc		ldx #2
+res2		lda vl,x
+		sta cl,x
+		lda vh,x
+		sta ch,x
+		dex
+		bpl res2
+		rts
+;-------------------------------------------------------------------------------
+incvoic		ldx #2
+in1		lda topy,x
+		clc
+		adc #2
+		sta topy,x
+		lda vl,x
+		sta vvv
+		lda vh,x
+		sta vvv+1
+		jsr getseq
+		lda seql,x
+		sta tab
+		lda seqh,x
+		sta tab+1
+		ldy topy,x
+		lda (tab),y
+		cmp #$7f        ; end
+		bne in11
+		lda #0
+		sta topy,x
+		lda vl,x
+		clc
+		adc #2
+		sta vl,x
+		lda vh,x
+		adc #0
+		sta vh,x
+in11		dex
+		bpl in1
+		rts
+;-------------------------------------------------------------------------------
+decvoic		ldx #2
+de2		lda topy,x
+		sec
+		sbc #2
+		sta topy,x
+		cmp #254
+		bne de22        ; start
+de11		lda vl,x
+		sec
+		sbc #2
+		sta vl,x
+		sta vvv
+		lda vh,x
+		sbc #0
+		sta vh,x
+		sta vvv+1
+		jsr getseq
+		lda seql,x
+		sec
+		sbc #3
+		sta tab
+		lda seqh,x
+		sbc #0
+		sta tab+1
+		ldy #0
+		lda (tab),y
+		sta topy,x
+de22		dex
+		bpl de2
+		rts
+;-------------------------------------------------------------------------------
+dojmp		ldx voice
+		lda cl,x
+		sta tab
+		lda ch,x
+		sta tab+1
+		ldy #0
+		lda (tab),y
+		cmp #$ff
+		beq do3
+		ldx voice
+		lda cl,x
+		sta vvv
+		lda ch,x
+		sta vvv+1
+		jsr getseq
+		lda seql,x
+		sec
+		sbc #3
+		sta cur2
+		lda seqh,x
+		sbc #0
+		sta cur2+1
+		ldy #0
+		lda (cur2),y
+		clc
+		adc #2
+		sta temp2
+		jsr resc
+do1		jsr incvoic
+		jsr calcdown
+		inc ste2
+		lda ste2
+		sta step
+		dec temp2
+		dec temp2
+		bne do1
+do3		lda ste2
+		sta step
+		jmp getco
+;-------------------------------------------------------------------------------
+upjmp		jsr curson
+		jsr cursor
+sh1		ldx voice
+		lda cyp,x
+		beq sh43
+sh2		jsr calcup
+		lda cline
+		bne sh3
+		jsr decvoic
+		dec ste2
+		lda ste2
+		sta step
+		jmp sh1
+sh3		dec cline
+		lda cur
+		sec
+		sbc #40
+		sta cur
+		lda cur+1
+		sbc #0
+		sta cur+1
+		jmp sh1
+sh43		lda cline
+		beq sh44
+		jsr incvoic
+		inc ste2
+		lda ste2
+		sta step
+		dec cline
+		lda cur
+		sec
+		sbc #40
+		sta cur
+		lda cur+1
+		sbc #0
+		sta cur+1
+		jmp sh43
+sh44		jsr resc
+		lda ste2
+		sta step
+;-------------------------------------------------------------------------------
+getco   	jsr plotinit
+ge1		jsr nextline
+		inc step
+		ldx #2
+ge2		jsr gett1
+		jsr checkend
+		dex
+		bpl ge2
+		dec lines
+		bne ge1
+		rts
+;-------------------------------------------------------------------------------
+gett1		lda vl3,x
+		sta vvv
+		lda vh3,x
+		sta vvv+1
+		jsr getseq
+		lda seql,x
+		sta tab
+		lda seqh,x
+		sta tab+1
+gg1		ldy yval,x
+		bne gg2
+		lda trans       ; trn
+		jsr hexh
+		jsr ploton
+		lda trans
+		jsr hexl
+		jsr ploton
+		lda temp        ; seq #
+		jsr hexh
+		jsr ploton
+		lda temp
+		jsr hexl
+		jsr ploton
+		jmp g1
+gg2		lda #$20
+		jsr ploton
+		jsr ploton
+		jsr ploton
+		jsr ploton
+g1		ldy yval,x
+		lda (tab),y
+		pha
+		and #$f0
+		cmp #$90        ; gatbit
+		bne g2
+		pla
+		lda #$2a
+		jmp g4
+g2		and #$e0
+		cmp #$a0        ; instr
+		bne g21
+		lda #'I'
+		jsr ploton
+		pla
+		pha
+		and #$10
+		jsr hexh
+		jsr ploton
+		pla
+		jsr hexl
+		jsr ploton
+		jmp g5
+g21		and #$c0
+		cmp #$c0        ; slide
+		bne g3
+		lda #'S'
+		jsr ploton
+		pla
+		pha
+		and #$30
+		jsr hexh
+		jsr ploton
+		pla
+		jsr hexl
+		jsr ploton
+		jmp g5
+g3		pla
+		lda #$2d
+g4		jsr ploton
+		jsr ploton
+		jsr ploton
+g5		jsr note
+ge		inc yval,x
+		rts
+;-------------------------------------------------------------------------------
+checkend	ldy yval,x
+		lda (tab),y
+		cmp #$7f
+		bne che2
+		lda #0
+		sta yval,x
+		jmp incvl3
+che2		rts
+;-------------------------------------------------------------------------------
+note		lda #$20
+		jsr ploton
+		inc yval,x
+		ldy yval,x
+		lda (tab),y
+		beq rest
+		cmp #$7e
+		beq cont
+		ldy #0
+		sty octav
+n0		sec
+		cmp #12
+		bcc n2
+n1		inc octav
+		sec
+		sbc #12
+		jmp n0
+n2		asl  
+		pha
+		tay
+		lda noder,y
+		jsr ploton
+		pla
+		tay
+		lda noder+1,y
+		jsr ploton
+		lda octav
+		jsr hexl
+		jmp ploton
+cont		lda #$2b        ; +++
+		jsr ploton
+		jsr ploton
+		jmp ploton
+rest		lda #$2d        ; ---
+		jsr ploton
+		jsr ploton
+		jmp ploton
+;-------------------------------------------------------------------------------
+incvl3		lda vl3,x
+		clc
+		adc #2
+		sta vl3,x
+		lda vh3,x
+		adc #0
+		sta vh3,x
+		rts
+;-------------------------------------------------------------------------------
+plotinit	lda lin
+		sta lines
+		lda #<1105
+		sta scr
+		lda #>1105
+		sta scr+1
+		ldx #2
+plo2		lda topy,x
+		sta yval,x
+		lda vl,x
+		sta vl3,x
+		lda vh,x
+		sta vh3,x
+		dex
+		bpl plo2
+		jmp resline
+;-------------------------------------------------------------------------------
+nextline	lda scr
+		clc
+		adc #40
+		sta scr
+		lda scr+1
+		adc #0
+		sta scr+1
+		lda step
+		jsr hexh
+		ldy #0
+		sta (scr),y
+		lda step
+		jsr hexl
+		ldy #1
+		sta (scr),y
+resline		lda scrtab
+		sta scrta2
+		lda scrtab+1
+		sta scrta2+1
+		lda scrtab+2
+		sta scrta2+2
+		rts
+;-------------------------------------------------------------------------------
+cursdown	ldx voice
+		lda cl,x
+		sta vvv
+		lda ch,x
+		sta vvv+1
+		jsr getseq
+		lda seql,x
+		sta cur2
+		lda seqh,x
+		sta cur2+1
+		ldy cyp,x
+		iny
+		iny
+		lda (cur2),y    ; seq end
+		cmp #$7f ;$80
+		bne cd2
+		lda cl,x
+		sta tab
+		lda ch,x
+		sta tab+1
+		ldy #2          ; jmp end
+		lda (tab),y
+		cmp #$ff
+		beq noway
+cd2		jsr calcdown
+		lda cline
+		clc
+		adc #1
+		cmp lin
+		bne noscrld
+scrld		jsr incvoic
+		inc ste2
+		lda ste2
+		sta step
+		lda bcont
+		beq scrl2
+		jsr getco
+		jmp bcont1
+scrl2		jmp mainn
+noway		lda #1
+		sta restart
+		lda bcont
+		beq now2
+		jmp bcont1
+now2		jmp mai2 
+noscrld		inc cline
+		lda cur
+		clc
+		adc #40
+		sta cur
+		lda cur+1
+		adc #0
+		sta cur+1
+		lda bcont
+		beq now2
+		jmp bcont1
+		jmp mai2
+;-------------------------------------------------------------------------------
+cursup		jsr char0
+		lda cl
+		cmp vl2
+		bne cu2
+		lda ch
+		cmp vh2         ; check top!
+		bne cu2
+		lda cyp
+		bne cu2
+		jmp mai2
+cu2		jsr calcup
+		lda cline
+		bne noscrlu
+scrlu		jsr decvoic
+		dec ste2
+		lda ste2
+		sta step
+		jmp mainn
+noscrlu		dec cline
+		lda cur
+		sec
+		sbc #40
+		sta cur
+		lda cur+1
+		sbc #0
+		sta cur+1
+		jmp mai2
+
+;-------------------------------------------------------------------------------
+; Opgaver som skal laves/rettes i fremtidige Editor versioner (Om RAM'men vil!)
+;-------------------------------------------------------------------------------
+; Bug: Hvis oktav-buggen stadig lurer fra ED v3.00 sÜ fjern den.
+; New: Hunt-routinen for 00-07-0E skal ekspanderes til ogsÜ at klare $19'ere.
+; New: FF00 blokering skal fjernes sÜ den kan by-passes ligesom FE00 kan.
+;      Istedet PAUSER cursoren et nano-sekund nÜr den passerer disse marks.
+; Bug: Korriger det kage der sker nÜr man trykker RUNSTOP pÜ SHIFT-R funktionen.
+;      Desuden skal SHIFT-R definitionen resette til $10 nÜr man clear'er.
+; New: Det her bliver en ordentlig mundfuld, nuvel; Alle keyboard routinerne    
+;      skal laves om til $DC00/$DC01 reads sÜ du bliver HELT uafhëngig af ROM
+;      routinerne. Til dette formÜl skal du bruge en table med $DC00/$DC01 tal
+;      og JMP labels. F.ex. $02,$34,$12,$03,Cursorleft hvor de fõrste to tal er
+;      evt. SHIFT taster og de nëste to er selve tasten, efterfulgt af selve
+;      JMP adressen. SÜledes kan du lave en simpel lõkke og du kan splejse bÜde
+;      Compose-mode og Table-mode key-read routinerne ind i EEN routine (ved
+;      hjëlp af en MODE selector variabel).
+; Bug: NÜr du har fixet det fõrnëvnte kan du fÜ rettet de irriterende tast
+;      mangler der er i f.ex Table-mode, hvor spole knappen helt mangler.
+; New: Lav en spole knap i SHIFT-B mode, som fungerer ved at der simpelt hen
+;      lëgges speed 1 i music routinen sÜ lënge spole knappen er nedtrykket.
+; Bug: Efter du har lavet den nye tastatur routine mÜ du hellere checke om den
+;      djëvelske loc. $01 bug stadig er der, som gõr at den sidste editor ver-
+;      sion ikke virkede pÜ hverken Commodore 128 eller Commodore SX-64. Den
+;      burde vëre vëk siden der ikke bank-shiftes mere... ellers mÜ du prõve
+;      at AND'e loc. $01 vërdien nogle af stederne hvor loc. $01 bruges.
+;      ADDENDUM 20/8-1995: Lige prëcis dette er forskellen mellem v3.03 og
+;      v3.04, hvor problemet er rettet - editoren virker nu fint pÜ C128/SX-64.
+; New: NÜr tastatur routinen er overstÜet kommer anden store opgave; At lave
+;      hele compose formatet om fra I00 C-4 til A0 C-4, hvor steptallet vok-
+;      ser fra 00 til 0000 (Se en prõve i Turbo assembler). Sideopgaver her-
+;      til bliver at lave Z tabellen's pointere om fra 00-1F til A0-BF, samt
+;      X tabellen's pointere om til C0-FF. Desuden vil der over steptallene
+;      stÜ "STEP", og nÜr der er locket, "LOCK".
+; New: Mht. A0 C-4 syndromet sÜ husk at lave det sÜ kun de hexadecimale tal
+;      accepteres, samt "*" til normal $90 tienote og SPACE til at slette.      
+;      Men da man nu kan taste evt. nye store duration tal og mange andre 
+;      interessante ting skal der dog vëre een speciel intern behandling af
+;      $7F (endmark), den skal samtidig ëndre pÜ seq-length byten sÜ der
+;      ikke gÜr kage i det. Vurder om visse andre kommandoer ogsÜ krëver
+;      extra intern behandling...
+; New: Som en tvilling til SHIFT RETURN skal der laves en CTRL RETURN som 
+;      SLETTER efter SHIFT-R definition, istedet for at inserte.
+; New: Ny tast: Denne tast vil skippe "end/wrap-marks", forstÜet pÜ den mÜde
+;      at hvert taste-tryk vil bringe dig hen til den nëste multi tune.
+;      Internt krëver dette en hunt routine for nëste end/wrap-mark samt om
+;      market bliver efterfulgt af en ny sequence = en ny melumdut!
+; New1:To nye taster: Den ene skal putte en defineret "Sxx" kommando (som er
+;      defineret i en tredie tast) ned fõr alle noder i den sequence som din
+;      cursor stÜr pÜ. Den anden tast gõr det samme, men i HELE melodien.
+;      Dette er brugbart i player v15 og v18...
+; New2:Det skal nu vëre muligt at taste en nem "Ixx" (nok snarere byte nÜr
+;      formatet jo bliver lavet om) med EEN tast som er defineret i en anden.
+;      MÜske endda FLERE definerede kommandoer hvoraf f.ex den fõrste af dem
+;      bliver brugt til den funktion som blev beskrevet i "New1".
+; Bug: Ved load af ny tune bliver den nye SHIFT-R definition sat... dette
+;      vidste vi alle sammen godt, men den bliver ikke sat ind i SELVE 
+;      SHIFT-R input'eren, vel? Det mÜ du hellere rette min dreng.
+; Bug: Ved LOAD og ved SHIFT-C skal startpoint resettes til starten igen.
+;      Dette vil mÜske ogsÜ fixe den bug som gõr at SHIFT-B kager steppene.
+; New: Double (og flere) speed funktioner til quick-speed players. Ved selve 
+;      den "PLAY" tast som afspiller JSR $1006 skal der lige checkes om der
+;      ER en quick-speed player i RAM ved at teste for $4C i $1006, er der
+;      ikke det fremkommer et error message. Derudover skal der vëre taster
+;      og funktioner for definition af antal extra calls samt afstandende 
+;      mellem $1003/$1006 kaldende. Evt. lav som bonus en rëkke forud-ind-
+;      stillinger som brugeren kan vëlge imellem! Hvis der senere loades en
+;      normal player by-passes quick-play funktionerne. Forõvrigt vil det
+;      nok vëre smart hvis diverse satte funktioner lëgges ned i playerens
+;      data space (lige fõr $0FFF) sÜ en indloadet tune fortëller editoren
+;      hvordan den skal kõres i interruptet!
+; New: En ret logisk nyhed; CLR/HOME gÜr til pos.00 i alle tables!
+; New: Ved wrap i SHIFT-B mode skal tune-clock'en blinke sin max tid ligesom
+;      Delux driveren gõr det.
+; Bug: Desuden skal wrap i SHIFT-B mode ikke genkalde JSR $1000, det laver
+;      et ubehageligt lille klik. Desvërre vil det ved ulige lange tracks
+;      frembringe et problem nÜr init'ten er fjernet...hmmmm...
+; New: En fed ny nem tast skal automatisk (i tracks) taste den sidst brugte
+;      sequence PLUS EN. Aldrig mere checke de sidste sequencer for at se
+;      hvor den nëste "ubrugte" sequence er. Samtidig repeteres den transpose
+;      som blev brugt i tracket's forrige sequence...smart!
+; New: Slide-tabellen bliver forvandlet til instrument-navne nÜr man gÜr ind
+;      i Z - tabellen, og KUN DER! LigesÜ snart den forlades kommer slide-
+;      tabellen tilbage igen. Instrument navnene (i lysegrÜt) fõlger automa-
+;      tisk Z - tabellens cursor scroll'ninger og alle navnene kan du evt.
+;      lagre evt i slidetabel+$80 (der er plads) eller efter nogle sequencer.
+;      Fõrstnëvnte krëver en lille ëndring i packeren...!!
+; Bug: Brug af SHIFT PIL-OP kan kage i skërmens $0400 tal...?? Hvorfor?
+; Bug: Startpoint (PLUS) bõr altsÜ kunne tastes IHVERTFALD i sequencens
+;      fõrste linie (ved siden af tracktallet), ellers er det for lamt!
+; Bug: SHIFT Q, W, E skal flyttes over pÜ CTRL Q, W, E hvis den nye tastatur
+;      routine ellers tillader det. Det gjorde den gamle ikke... Desuden skal
+;      de selvfõlgelig spille fra startpoint, og IKKE absolut start!
+; Bug: Polyplay (SHIFT-P) bryder sig ikke om at en eller flere stemmer er
+;      slÜet fra. Evt ret det ved at SHIFT-P automatisk slÜr alle stemmer til!
+; New: Hvis tastaturet er urõrt i ca. 10-15 sekunder skrives der PAUSE hen
+;      over work-clock'en og den stopper med at tëlle, indtil tastaturet bliver
+;      rõrt ved igen!
+; New: Speed Change option'en er en selvfõlge i den nye editor. Der bliver
+;      bare checket den sëdvanlige bit for om det er en player som bruger den
+;      funktion, desuden skal hvert speed change ikke alene ëndre speed'en i
+;      SHIFT-B men ogsÜ ëndre speed tallet nede i hjõrnet. Dog sÜdan sÜ at
+;      nÜr man stopper sÜ bliver den gamle speed value stattet ned igen!
+; New: Det med at tallet bliver ëndret skal ogsÜ gëlde for volumen i toppen
+;      nÜr f.ex player v18 piller ved volumen i en sequence under play!
+; Bug: Det skal ikke vëre muligt at kopiere sequencer fra ulovlige hõjder!
+; 
+; Dette var alle de seneste forslag fra lommebogen, skrevet d. 29/3-1991.
+;
+

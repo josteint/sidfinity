@@ -1,0 +1,202 @@
+---
+source_url: https://csdb.dk/getinternalfile.php/29773/20060901_SID_Factory_0_5.zip -> Docs/SidFactory_Driver v6.02d_Documentation.txt
+fetched_via: curl 2026-06-15
+fetch_date: 2026-06-15
+author: Thomas Egeskov Petersen (Laxity)
+content_date: 2006-08-31
+reliability: primary
+---
+
+SID Factory driver 6.02
+=======================
+
+Driver 6 is a "fast" music driver without calculated vibrato and 
+aims at a maximum execution spike at around $18 scanlines. 
+
+Instrument
+----------
+
+aa bb cc dd ee ff
+
+aa	- Attack/Decay
+bb 	- Sustain/Release
+cc  - Instrument properties
+			Restart settings 					 (bit 7 / $80) 
+			Filter pointer set enable  (bit 6 / $40)
+			Pulse pointer set disable	 (bit 5 / $20)
+			Oscilator reset						 (bit 4 / $10)  (Changed from $08 in driver 6.02 and forward
+			Hard restart release value (bit 3-0 / $00-$0f)
+dd  - Filter table pointer (Set if bit 6 of Instrument properties is set)
+ee  - Pulse table pointer (NOT set if bit 5 of Instrument properties is set)
+ff  - Wave table pointer
+
+
+Wave table
+----------
+
+aa bb
+
+aa = Note offset (If bit 7 is true, the note is fixed)
+bb = Waveform
+
+if aa=$7f, Jump to $bb
+
+Pulse table
+-----------
+
+aa bb
+
+if aa < $80
+
+	aa = Execution time of current pulse program step
+	bb = Pulse sweep value (reversed nibble).
+	
+	Pulse sweep is store in reversed nibble. (See appendix 1)
+	
+if aa >= $80 (Set pulse value)
+
+	bb = New pulse value (if bb = xy, then new pulse width is: $0yx0)
+	
+if aa = $7f (Jump to index)
+
+	aa = $7f
+	bb = new index
+	
+
+Filter table
+------------
+
+aa bb
+
+
+==> explanation of bb? works well though. why pulse hasn't the same behavior? :)
+
+
+if aa < $80,
+	aa = time to execute filter program step
+	bb = add to current filter value
+
+
+==> pulse = filter
+
+
+
+if aa = $80 (Set pulse value)
+	aa = $80
+	bb = new pulse value
+	
+if aa = $7f (Jump to index)
+
+	aa = $7f
+	bb = new index
+	
+	
+Init table
+----------
+
+aa bb cc
+
+aa = Tempo table index
+
+
+==> first comes filtersetting, then volume.
+
+
+bb = Volume / Filter bandpass setting (i.e. $1f = $f volume $1 bandpass!)
+cc = Filter Resonance / Filter channel enabled (i.e. $f1 = $f resonance, $01 = enable filter channel)
+
+Note that filter enable settings are bit:
+
+bit 0 / $01 = channel 1
+bit 1 / $02 = channel 2
+bit 2 / $04 = channel 3
+
+
+Commands
+--------
+
+0X XX, Set slide up
+					XXX is the value added to the current frequency value 
+
+1X XX, Set slide down
+					XXX is the value subtracted from the current frequency value 
+
+2X YY, Set vibrato
+					X = Frequency
+					YY = Amplitude, absolute value added/subtracted to/from frequence value
+
+3X YY, Set Filter parameters					
+					X  = Band width
+					YY = Resonance and filter select bits
+
+4x YY, Set Filter program pointer
+					YY = new filter program pointer
+					
+5x YY, Set pulse program pointer
+					YY = new pulse program pointer
+
+6x YY, Set wave table pointer
+					YY = new wave table pointer				 
+					
+8D SR, Set (A)DSR 
+					Attack is always set to 0.. Bummer!
+				 
+BUGS
+----
+
+Initialization sometimes creates artifacts of some obscure sound.
+Hard restart override is buggy when tempo is 2 and two note events are following upon each other.
+
+
+
+Appendix 1 - Reversed nibble
+----------------------------
+
+Driver 6.00+ uses reversed nibbles for pulse width. This implicates the most 
+significant nibble is the least significant part of the pulse width
+and the least significant nibble is the most significant part of the pulse width.
+
+Assume the pulse width (in reversed) is set to: xy
+
+Then x is the least significant part, and y the most significant. In case of the pulse
+width, the SID uses a 12bit variable to indicate it - $0xxx. Now the pulse width from the 
+reversed format is stored like this (the pulse width still being xy in reversed): $0yx0.
+
+So a pulse width of $0800 is f.x. expressed as $08 in reversed. 
+
+The hard part of the reversed nibble format is when adding and subtracting is 
+required. Logically this looks a bit odd, and can be confusing at first. Let's 
+say I would like to at $0010 to my current pulse width (which is still $0800).. 
+This can be done using $10 as my reversed nibble addition modifier. so 
+$08+$10=$18. This implicates that the new pulse width is $0810. Addition is 
+streight forward. Subtraction is not. 
+
+Internally in the player modifiers are ALWAYS added, so to subtrack from the 
+current pulse width, you need to understand that 8-bit numbers loop when the 
+result of an add operation overflows (i.e. goes over $ff). This can be used to 
+do subtrackion. In the case of revered nibbles you need to do it like this:
+
+Lets say you want to subtrack some value from the current pulse width which is 
+by now $0810 (That'd be $18 as reversed nibble, remember?). So lets try an 
+subtrack those $10 we added before. This can be done by doing like so:
+
+$18 (current pulse width) + $ef = $08. Confusing?.. I know. Anyway, assume you 
+don't need to understand what is actually going on a think of it like this:
+
+I want to subtract a value from the current pulse, ok.. I always start by write 
+$ff to the subtraction modifier!.. I want to subract $10, sure: $ff-$10 = $ef .. 
+Hey, there's the add modifer from before. Yes.. $18-$10 = $08, but $18+$ef is 
+also = $08.
+
+Rule of thumb: 
+
+Addition values for subtraction operations on reversed nubbled can be calculated 
+like this:
+
+AddVal=$ff-SubVal 
+
+Remember that AddVal and SubVal are also expressed as reversed nibble values,
+otherwise the statement will be wrong!
+
+
+

@@ -1,0 +1,178 @@
+
+                   COMPLETE KEY-GUIDE FOR JCH EDITOR V3.02
+                   컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴�
+
+KEY TO TYPE        FUNCTION
+컴컴컴컴컴�        컴컴컴컴
+
+F1                 Play music from start-point (SP), defined with the "+"-key.
+F3                 Play from the absolute beginning.
+F5                 Toggle between track or sequence mode.
+F7/F8              Octave up/down.
+F2                 Turn SFX keyboard mode on.
+F4                 Turn off ALL interrupt play.
+F6                 DELETE in tracks, sequences or arpeggio-table.
+CTRL 1-3           Turn voices on/off.
+<- (arrow)         Fast forward in play-mode.
+SHIFT B            Follow-play (Break with the runstop key). Uses start-point!
+SHIFT Q            Play music in voice 2 and 3 while using voice 1 in SFX mode.
+SHIFT W            Play music in voice 1 and 3 while using voice 2 in SFX mode.
+SHIFT E            Play music in voice 1 and 2 while using voice 3 in SFX mode.
+SHIFT @/*          Overall volumen up/down.
+INST               Insert in tracks, sequences or arpeggio-table.
+SHIFT RETURN       Insert as many spaces in a sequence as defined with SHIFT R.
+SHIFT R            Define number of inserts made with SHIFT RETURN.
+SHIFT S/D          Music speed up/down.
+SHIFT C            Clear composition only. Tables are untouched.
+SHIFT M            Clear tables only. Composition remains untouched.
+"="                Home in current mode and voice.
+SHIFT HOME         Home in voice 1's sequence-mode.
+SHIFT "."          Copy FROM sequence - TO sequence.
+SHIFT "/"          Copy FROM sequence - TO the sequence beneath the cursor.
+"/"                Open/close the extra table window.
+"Z"                Toggle in/out of 8-byte instrument-table.
+"X"                Toggle in/out of slide/super-table.
+"L"                Toggle in/out of arpeggio-table.
+":"                Toggle in/out of pulsate-table.
+";"                Toggle in/out of filtersweep-table.
+"G"                Enter start of current arpeggio (arpeggio-table only).
+"H"                Same as "G" but for use in players like version 15.
+"J"                Go to the last position in the arpeggio-table.
+"C="               Toggle lock of keyboard for SFX keyboard ("F2").
+"+"                Define start-point for "F1" playing (SP).
+SHIFT G            Go to start-point (defined with the "+" key).
+SHIFT F            Finetune all three voices.
+RETURN             Use as normal.
+CRSR-keys          Use as normal.
+SPACE              REST ("---") in sequence-mode.
+SHIFT SPACE        CONT ("+++") in sequence-mode.
+SHIFT-""          Fill with "+++" from cursor-pos down to the next note.
+CTRL-""           Fill with "---" from cursor-pos down to the next note.
+SHIFT X            Enter diskette menu.
+SHIFT V            Cursor right/Cursor stay (x+/x0) on hexadecimal numbers.
+SHIFT N            Cursor down/Cursor stay (+x/0x) when typing notes.
+SHIFT Z            Define number of track-numbers to be copied into a buffer.
+SHIFT A            Paste the buffer into the track beneath the cursor.
+SHIFT I            Information about editor version.
+SHIFT P            Poly-play (multi keyboard check!). When entering this mode
+                   you can only use F7/F8 (octave up/down) besides the CRSR up
+                   and down IF you are in one of the tables. Exit this function
+                   with either runstop or F4.
+
+
+                   ENHANCEMENTS FROM EDITOR V2.53 TO V3.02
+                   컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴�
+
+Besides the new key facilities which have been added to the list above, there
+are a number of additional features and corrections built into the new
+editor.
+
+* Automatic arpeggio adjust in both player 14 (Direct Arpeggio Pointers) and
+  player 15 (D.A.P. and adjustment of both byte 6 AND 7 in the "Z"-table.)
+
+* The "V" key have been moved to SHIFT-"V" because it sat rather illogical.
+
+* The extra-window (accessed with the "/"-key) is put up much faster.
+
+* Boundary-check in sequences. Now you cannot open a sequence with more than
+  $60 note-steps, using either INST or SHIFT RETURN.
+
+* CTRL 1-3 have been greatly modified. Now there is no ON/OFF indication, in-
+  stead it will be highlited using a grey scheme in the selected voice. Also,
+  when putting a voice ON again it will still follow the music unlike ED v2.53.
+  CAUTION! This method requires direct manipulation with the music-routine. I
+  therefore advice you NEVER to press the reset-button in the editor itself. If
+  you must reset, first go to the disk-menu using SHIFT-X. This will automati-
+  cally reset the music-routine. (This function may be improved in the future!)
+
+* Fast forward now works at fastest possible speed.
+
+* A tune-clock has been installed. This clock will tell you how long a tune
+  lasts, it is always reset when starting the music. It is also reset when
+  the follow-play function (SHIFT B) wraps around the music.
+
+* Also a work-clock has been installed. This time counting in minutes and
+  hours, it will tell you how long you have been fiddling with a tune! Needless
+  to say, it will follow the music-routine onto the disk when saved.
+
+* Now a big bug from ED v2.53 has been corrected too; it is now possible to
+  exit all top text messages (byte inputs), with the RUNSTOP key.
+
+* Every wrap-mark (7F-XX) in the arpeggio table will be light green.
+
+* Another bug has been corrected from ED v2.53; it is now impossible to type a
+  sequence number higher than $71. If you say, type "8CA4" it will be automa-
+  tically changed into "8C00".
+
+* The SHIFT S and D function (change tune speed) is now also available inside
+  the tables.
+
+* Notice that the POUND key have been moved to the "+" key instead. This is be-
+  cause it blocked for the use of the "G#" note that should be on the POUND
+  key. Also, it is now (of technical reasons) only possible to activate the
+  "+" in the track-mode (the grey numbers!).
+
+* A very little bug correction: DELETE (F6) in the arpeggio table now won't
+  produce any weird "00-01" in the top of the table (and downwards).
+
+
+
+
+
+                   APPERANCE OF UNFORTUNATE BUGS IN ED v3.02
+                   컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴컴�
+
+Yes, it's true! Because I was in a great hurry when compiling this editor ver-
+sion I managed to smuggle in a great number of NEW bugs into it. I will now
+list those I got so far so you won't be surprised when you meet them
+yourself. Of course I will try to correct all of them whenever I feel in
+the mood of co- ding on the editor again. You see, the process of turning a
+source-code from the EASS (amiga to C64 system) assembler into a packed
+editor is a long and tiresome process. So, I hope you'll forgive me for these
+bugs for the time being!
+
+* The editor crashes totally on a Commodore 128. However, just press the Caps-
+  Lock key before running the editor. On the SX-64 you are lost though!
+
+  * ADDENDUM 19/8-1995: I managed to find this bug in ED v3.04 and the editor
+  * now works perfectly on both the C128 and the SX-64.
+
+* Sometimes SHIFT B accidently bugs the STEP-counter (leftside of editor) when
+  starting from scratch. This bug shouldn't worry you too much though.
+
+* The "SFX play along with music playing too" functions, SHIFT Q, W and E have
+  been put on a rather unfortunate place on the keyboard. They are too easily
+  activated by accidence.
+
+* The start-point isn't cleared when clearing with SHIFT C or loading another
+  tune. This may be the reason why the STEP thing (read above) bugs.
+
+* The new runstop option on top texts (byte inputs) bugs when used on the new
+  SHIFT R function. It plots in two "@" signs and uses a random number.
+
+* Both poly-play, SHIFT Q, W, E and F2 seems to have been disabled if you turn
+  off voice 1 with CTRL 1. The bug is not bad though as you just toggle voice 1
+  ON again...
+
+* The fast forward function (the LEFT ARROW key) cannot be accessed in tables.
+
+* The use of SHIFT "" (fill with "+++" until next note) CAN mess up other voi-
+  ces sequences. This is best seen if the other voices has been filled with the
+  FF00 endmark. Still, as it is only the screen-plotting it messes up it really
+  isn't anything to bother about.
+
+* If pressing the reset-button in the editor itself when voices have been turn-
+  ed off a "bug" appears when SYS'ing to the editor again. "VOICON NOT FOUND"
+  it says, and you notice that the CTRL 1-3 keys have been disabled. This is
+  why it's dangerous to press the reset-button inside the editor. If you MUST
+  press reset, go to the disk-menu using SHIFT X as the "VOICON" is reset too
+  when entering the disk-menu. If however you did do it all wrong then all is
+  not lost. Here's how you save your tune from total disaster... The "VOICON"
+  refers to a memory location consisting of these three bytes: 00, 07 and 0E.
+  When the editor wants to turn, say, voice one OFF it simply puts a $19 into
+  the first byte so it now says: 19, 07 and 0E. Imagine you pressed reset when
+  you at the same time had voice 2 and 3 turned off. Then all you have to do is
+  to enter a machine-code monitor and type ".H 1500 1800 00 19 19"... and when
+  found, you just change'em into the usual 00, 07 and 0E again - and voila! The
+  CTRL 1-3 keys are back again...!
+
