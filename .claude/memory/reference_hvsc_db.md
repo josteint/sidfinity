@@ -1,18 +1,26 @@
 ---
 name: hvsc84-db
-description: "hvsc84.db — SQLite index of every HVSC #84 SID with engine classification + our build status. Run tools/build_sid_db.py to refresh after migrations / new builds / HVSC updates."
+description: "hvsc84.csv (+ engine_docs.csv) — the HVSC #84 index, git-tracked CSV queried via DuckDB (src/sid_db). Migrated 2026-06-15 from the old hvsc84.db SQLite blob. Run tools/build_sid_db.py to refresh."
 metadata: 
   node_type: memory
   type: reference
   originSessionId: 0dddd211-01d5-48ea-b899-54adc79e22ae
 ---
 
-`hvsc84.db` at the project root indexes every `.sid` file under
+**2026-06-15: migrated SQLite (`hvsc84.db`) → git-trackable CSV + DuckDB.**
+The index is now `hvsc84.csv` (path-sorted, one row per SID — build-status
+changes show as readable git line diffs instead of a 21MB binary blob churn)
++ `engine_docs.csv`. Queried via DuckDB through `src/sid_db.py`. The old
+`hvsc84.db` is deleted + gitignored. Full pipeline regression stayed green
+across the migration.
+
+`hvsc84.csv` at the project root indexes every `.sid` file under
 `hvsc84/` with PSID/RSID header fields, engine classification (from
 sidid), HVSC songlength, and our per-SID build status.
 
-Built by `tools/build_sid_db.py`. Re-runnable, idempotent. ~20 s
-incremental (mtime cache), ~45 s cold.
+Built by `tools/build_sid_db.py` (walk/hash/classify unchanged; only the
+storage swapped to CSV). Re-runnable, idempotent. ~20 s incremental (mtime
+cache from the existing CSV), preserves write-through `verify_*` columns.
 
 ## Why this exists
 
@@ -35,31 +43,41 @@ Key columns:
 - `pipeline` — `'pipelines/hubbard/<engine>'` if migrated, else NULL
 - `usf_path` — relative path to our `.usf` if it exists
 - `sidfinity_md5` — md5 of our rebuilt `.sidfinity.sid` if it exists
-- `verify_status` — `'ok'` | `'fail'` | NULL (NOT YET WIRED — future verify_all hook)
+- `verify_status` — `'ok'` | `'fail'` | NULL (wired: `verify_all` write-through
+  via `src/sid_db.record_verify`)
 
-Indexes on `engine`, `pipeline`, `md5`.
+Empty CSV field == SQL NULL. Schema (columns + DuckDB types) is defined in
+`src/sid_db.py` (`SIDS_TYPES`).
 
-## Querying — no sqlite3 CLI, use Python
+## Querying — via DuckDB through `src/sid_db` (source `src/env.sh` first)
+
+`src/sid_db.connect()` returns a DuckDB connection with `sids` +
+`engine_docs` views over the CSVs, wrapped so `db.execute(sql, params)`
+returns an iterable of tuples (sqlite3-style, + `.fetchall()/.fetchone()`).
+`sid_db.query(sql, params)` is the one-shot helper. DuckDB SQL is
+SQLite-compatible for these queries (LIKE, GROUP BY, `?` params,
+`ORDER BY random()`, IS NULL on empty fields). The duckdb **Python module**
+lives in `.pylocal` (gitignored, on env.sh PYTHONPATH); ad-hoc CLI use:
+`read_csv('hvsc84.csv', header=true, nullstr='')`.
 
 ```python
-import sqlite3
-db = sqlite3.connect('hvsc84.db')
-
+from src import sid_db
 # Coverage by engine
-for row in db.execute("""
+for row in sid_db.query("""
     SELECT engine, COUNT(*),
-           SUM(pipeline IS NOT NULL) AS migrated,
-           SUM(sidfinity_md5 IS NOT NULL) AS built
-    FROM sids GROUP BY engine ORDER BY 2 DESC LIMIT 20
-"""): print(row)
+           SUM(CASE WHEN pipeline IS NOT NULL THEN 1 ELSE 0 END) AS migrated,
+           SUM(CASE WHEN sidfinity_md5 IS NOT NULL THEN 1 ELSE 0 END) AS built
+    FROM sids GROUP BY engine ORDER BY 2 DESC LIMIT 20"""): print(row)
 
 # Unmigrated Rob_Hubbard tunes by length
-for path, title, length in db.execute("""
+for path, title, length in sid_db.query("""
     SELECT path, title, songlength_s FROM sids
     WHERE engine='Rob_Hubbard' AND pipeline IS NULL
-    ORDER BY songlength_s DESC LIMIT 10
-"""): print(f'{length:5.0f}s  {title}  ({path})')
+    ORDER BY songlength_s DESC LIMIT 10"""): print(f'{length:5.0f}s  {title}')
 ```
+
+(NB: DuckDB has no `SUM(bool)`; use `SUM(CASE WHEN ... THEN 1 ELSE 0 END)`
+or `COUNT(*) FILTER (WHERE ...)`.)
 
 ## Auto-updates from the pipeline
 
@@ -69,8 +87,12 @@ The pipeline writes back to the DB automatically via `src/sid_db.py`:
 - `pipelines.build_from_usf.build_from_usf()`     → `sidfinity_md5`
 - `pipelines.hubbard.verify.verify_all()` → `verify_status`, `verify_ok_subs`, `verify_total_subs`, `last_verified_at`
 
-All wrapped in try/except — best-effort, never blocks the build. If
-`hvsc84.db` doesn't exist yet, the writes silently no-op.
+Write-through does a CSV read-modify-write (the file has no row-level
+update) — fine for the single-threaded interactive-build / regression paths
+that use it (the parallel batches build to `tmp/` and never write-through;
+they refresh via an explicit `build_sid_db.py` run after mass-write). If
+`hvsc84.csv` doesn't exist yet, or the row is absent (a brand-new SID), the
+writes silently no-op — re-run `build_sid_db.py` to insert.
 
 ## When to manually re-run `tools/build_sid_db.py`
 

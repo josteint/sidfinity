@@ -78,7 +78,7 @@
 
 ## References
 
-- [HVSC index DB](reference_hvsc_db.md) — `hvsc84.db` at repo root. SQLite catalogue of every HVSC #84 SID with engine classification + per-SID build status. Query with Python (no `sqlite3` CLI). Refresh via `tools/build_sid_db.py` after migrations / new builds / HVSC updates.
+- [HVSC index DB](reference_hvsc_db.md) — `hvsc84.csv` (+ `engine_docs.csv`) at repo root: git-trackable CSV catalogue of every HVSC #84 SID with engine classification + per-SID build status, queried via DuckDB through `src/sid_db` (`from src import sid_db; sid_db.query(...)`; source env.sh first). **Migrated 2026-06-15 from the old `hvsc84.db` SQLite blob** (gone/gitignored; duckdb py-module in `.pylocal`). Refresh via `tools/build_sid_db.py`; cheap engine_docs-only refresh via `tools/apply_engine_docs.py`.
 - [Songlength overrides](reference_songlength_overrides.md) — `tools/songlength_overrides.json`. Durable corrections to HVSC's Songlengths.md5 when a duration is clearly anomalous (defaulted ~4s for a 56s natural-loop tune). Survives HVSC re-fetches.
 - [USF v2 format](reference_usf_v2_format.md) — the on-disk .usf format + sidecar FLACs. Spec at `docs/usf_format.md`. Custom DSL, Lark grammar, `.usf` + N `.sample{N}.flac`.
 - [Digi pipeline](reference_digi_pipeline.md) — USF2 digi support; extract → Sample/FLAC → pack → SID. Cycle-strict via `siddump --writelog`. First engine: Chimera 1-bit wavetoggle.
