@@ -147,7 +147,10 @@ def _detect_v5(mem, s):
         if jt_addr == s['load'] and it == jt_addr + 0x40 and pt == jt_addr + 0x95:
             return None, None, jt_addr, 'family4'
         base = (pt - 0xA1) & 0xFFFF
-        if base >= s['load'] and base + 0x1900 <= 0x10000:
+        # only code+state relocate with base (the data tables are patched
+        # to arbitrary addresses); the reachable code/state span is
+        # $1006-$1845 -> base+$845. Data-table fit is the masked compare's job.
+        if base >= s['load'] and base + 0x848 <= 0x10000:
             return base, it, jt_addr, 'v5'
     return None, None, None, None
 
