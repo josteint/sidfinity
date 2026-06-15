@@ -27,6 +27,17 @@ class V5Instrument:
 
 
 @dataclass
+class V5Subtune:
+    """One subtune's orderlist record: 3 per-voice orderlists + speed + vol.
+    The data tables (sectors/instruments/freq/wave/pulse/filter) are shared
+    across subtunes at the V5Model level."""
+    orderlists: list = field(default_factory=list)     # 3 x list[event]
+    orderlist_raw: list = field(default_factory=list)  # 3 x bytes (song data)
+    speed: int = 2
+    master_vol: int = 0x0F
+
+
+@dataclass
 class V5Model:
     freq_lo: list = field(default_factory=list)     # 96
     freq_hi: list = field(default_factory=list)      # 96
@@ -34,11 +45,16 @@ class V5Model:
     wave: list = field(default_factory=list)         # list[(ctrl, freq)]
     pulse: list = field(default_factory=list)        # list[(lo, hi)]
     filter: list = field(default_factory=list)       # list[(lo, hi)]
-    speed: int = 2
-    master_vol: int = 0x0F
-    orderlists: list = field(default_factory=list)   # 3 x list[event]
-    sectors: list = field(default_factory=list)      # list[list[event]]
-    orderlist_raw: list = field(default_factory=list)  # 3 x bytes (song data)
+    speed: int = 2                                   # subtune 0 (mirror)
+    master_vol: int = 0x0F                            # subtune 0 (mirror)
+    orderlists: list = field(default_factory=list)   # subtune 0: 3 x list[event]
+    sectors: list = field(default_factory=list)      # list[list[event]] (SHARED)
+    orderlist_raw: list = field(default_factory=list)  # subtune 0: 3 x bytes
+    # per-subtune orderlist records (3 track ptrs + speed + master vol each).
+    # The init indexes ordrec by song# (`ASL*3; TAY`); sectors/instruments/
+    # freq/wave/pulse/filter tables are SHARED across subtunes. Single-subtune
+    # members have one entry (song# always 0 -> Y=0).
+    subtunes: list = field(default_factory=list)     # list[V5Subtune]
     sector_raw: list = field(default_factory=list)     # list[bytes]
     # file-image leftovers the player init does NOT clear (written to the
     # SID before the filter table overwrites them — V4 $1018-shadow analog)
@@ -192,11 +208,23 @@ def extract(cfg, hvsc_root: str = 'hvsc84') -> V5Model:
     m.pulse = [(mem[a_pl + i], mem[a_ph + i]) for i in range(n_pulse)]
     m.filter = [(mem[a_fl + i], mem[a_fh + i]) for i in range(n_filter)]
 
-    for v in range(3):
-        tp = _rd16(mem, a_order + v * 2)
-        ev, raw = _decode_orderlist(mem, tp)
-        m.orderlists.append(ev)
-        m.orderlist_raw.append(raw)
+    # per-subtune orderlist records: record N at a_order + N*8 (3 track
+    # pointers + speed + master vol). The data tables above are shared.
+    n_sub = max(1, s.get('songs', 1))
+    for sub in range(n_sub):
+        rec = a_order + sub * 8
+        st = V5Subtune(speed=mem[rec + 6], master_vol=mem[rec + 7])
+        for v in range(3):
+            tp = _rd16(mem, rec + v * 2)
+            ev, raw = _decode_orderlist(mem, tp)
+            st.orderlists.append(ev)
+            st.orderlist_raw.append(raw)
+        m.subtunes.append(st)
+    # mirror subtune 0 onto the top-level fields (single-subtune readers)
+    m.orderlists = m.subtunes[0].orderlists
+    m.orderlist_raw = m.subtunes[0].orderlist_raw
+    m.speed = m.subtunes[0].speed
+    m.master_vol = m.subtunes[0].master_vol
     for i in range(n_sectors):
         sp = mem[a_secp_lo + i] | (mem[a_secp_hi + i] << 8)
         ev, raw = _decode_sector(mem, sp)

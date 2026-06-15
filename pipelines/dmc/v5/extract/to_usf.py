@@ -262,27 +262,34 @@ def model_to_usf(m: V5Model) -> UsfFile:
     for p in sector_pat.values():
         p.length = sum(r.duration for r in p.rows)
 
-    voices = []
-    for vi in range(3):
-        ol = _orderlist(m.orderlists[vi])
-        used = sorted(set(ol.entries))
-        pats = [sector_pat[s] for s in used]
-        voices.append(VoiceBlock(id=vi + 1, orderlist=ol, patterns=pats))
-
-    sub = MusicSubtune(
-        id=1, tempo=m.speed, voices=voices,
-        # $1013 speed-counter the init never clears: the startup phase
-        # (lead-in frame count before the first note fetch). Same key the
-        # Hubbard/Title-Tunes composers use for the init speed-counter value.
-        params=Params(fields={'speed_ctr_init': m.lo_spdctr,
-                              'fade_frac_init': m.lo_mvolfrac}),
-        init=InitState(
-            sid=InitSid(
-                master_vol=m.master_vol,
-                filter=InitFilter(cutoff_lo=m.lo_fclo, cutoff_hi=m.lo_fchi,
-                                  res_routing=m.lo_filtmode)),
-            # $100F,x leftover note the lead-in effects frame(s) idle on.
-            voices=[InitVoice(id=v + 1, note=m.lo_notes[v]) for v in range(3)]))
+    # one MusicSubtune per orderlist record. The data tables (sectors above,
+    # instruments/freq/wave_programs below) are SHARED at the top level; each
+    # subtune carries only its 3 voices (orderlists) + tempo + master vol.
+    # The file-image leftovers (filter cutoff, $1013 speed-counter / $101C
+    # fade-frac startup phases, $100F idle notes) are GLOBAL -> subtune 0.
+    sub_data = m.subtunes or [m]
+    usf_subs = []
+    for si, st in enumerate(sub_data):
+        voices = []
+        for vi in range(3):
+            ol = _orderlist(st.orderlists[vi])
+            used = sorted(set(ol.entries))
+            pats = [sector_pat[s] for s in used]
+            voices.append(VoiceBlock(id=vi + 1, orderlist=ol, patterns=pats))
+        sid = InitSid(
+            master_vol=st.master_vol,
+            filter=(InitFilter(cutoff_lo=m.lo_fclo, cutoff_hi=m.lo_fchi,
+                               res_routing=m.lo_filtmode) if si == 0 else None))
+        usf_subs.append(MusicSubtune(
+            id=si + 1, tempo=st.speed, voices=voices,
+            # speed_ctr_init = the Hubbard/Title-Tunes init speed-counter key.
+            params=(Params(fields={'speed_ctr_init': m.lo_spdctr,
+                                   'fade_frac_init': m.lo_mvolfrac})
+                    if si == 0 else None),
+            init=InitState(
+                sid=sid,
+                voices=([InitVoice(id=v + 1, note=m.lo_notes[v])
+                         for v in range(3)] if si == 0 else []))))
 
     instruments = [_instrument_to_usf(ins, m) for ins in m.instruments]
     # idle wave walk (cleared wave position 0 -> what a voice's effects
@@ -295,7 +302,7 @@ def model_to_usf(m: V5Model) -> UsfFile:
         params=Params(),
         init=InitState(),
         instruments=instruments,
-        subtunes=[sub],
+        subtunes=usf_subs,
         # per-tune tuning: 96 lo + 96 hi
         freq_table=list(m.freq_lo) + list(m.freq_hi),
         wave_programs={0: {'ctrl': list(idle_c),

@@ -206,10 +206,9 @@ def dmc_v5_config(sid_path: str, hvsc_root: str = 'hvsc84') -> DMCV5Config:
         raise DMCV5Unsupported('player_code_mismatch',
                                f'init skeleton at ${it:04X}')
 
-    # ---- multi-subtune (song-indexed orderlist record) needs a multi-song
-    #      build the V5 composer doesn't emit yet (single-song PSID); flag. ----
-    if s.get('songs', 1) > 1:
-        raise DMCV5Unsupported('multi_subtune', f"songs={s['songs']}")
+    # ---- multi-subtune (song-indexed orderlist record) is emitted as a
+    #      multi-song PSID: the composer's init reads song# from A and indexes
+    #      ordrec by song#*8; the extract reads one record per subtune. ----
 
     # ---- CIA multispeed: a wrapper member (play vector not the jump table)
     #      whose PSID speed bit is set runs from a CIA-timer dispatcher; the

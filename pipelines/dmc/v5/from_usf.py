@@ -186,20 +186,34 @@ def usf_to_model(usf: UsfFile) -> V5Model:
         if len(tbl) > 256:
             raise RuntimeError(f'unsupported:{nm}_table_overflow {len(tbl)}')
 
-    # ---- sectors: content-dedup the per-voice patterns into one global
-    #      pool; remap orderlist entries to it -------------------------
+    # ---- sectors: content-dedup the patterns of ALL subtunes' voices into
+    #      one shared global pool; remap orderlist entries to it -----------
+    from pipelines.dmc.v5.extract.engine_model import V5Subtune
     pool, by_bytes, remap = [], {}, {}
-    for voice in sub.voices:
-        for pat in voice.patterns:
-            enc = _encode_sector(pat.rows)
-            idx = by_bytes.get(enc)
-            if idx is None:
-                idx = len(pool)
-                pool.append(enc)
-                by_bytes[enc] = idx
-            remap[pat.id] = idx
+    for usub in usf.subtunes:
+        for voice in usub.voices:
+            for pat in voice.patterns:
+                enc = _encode_sector(pat.rows)
+                idx = by_bytes.get(enc)
+                if idx is None:
+                    idx = len(pool)
+                    pool.append(enc)
+                    by_bytes[enc] = idx
+                remap[pat.id] = idx
     m.sectors = [None] * len(pool)
     m.sector_raw = list(pool)
-    m.orderlist_raw = [_encode_orderlist(v.orderlist, remap)
-                       for v in sub.voices]
+
+    # ---- per-subtune orderlist records (tempo -> speed, init.sid.master_vol
+    #      -> master vol, the 3 voices -> orderlists) -------------------------
+    for usub in usf.subtunes:
+        usid = usub.init.sid if (usub.init and usub.init.sid) else None
+        smvol = (usid.master_vol if usid and usid.master_vol is not None
+                 else 0x0F)
+        m.subtunes.append(V5Subtune(
+            speed=usub.tempo, master_vol=smvol,
+            orderlist_raw=[_encode_orderlist(v.orderlist, remap)
+                           for v in usub.voices]))
+    m.orderlist_raw = m.subtunes[0].orderlist_raw
+    m.speed = m.subtunes[0].speed
+    m.master_vol = m.subtunes[0].master_vol
     return m

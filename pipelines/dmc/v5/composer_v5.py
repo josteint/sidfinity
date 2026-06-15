@@ -33,14 +33,20 @@ def _emit_data(m) -> str:
     # song data (relocatable: notes/indices/values only) ------------------
     # orderlist pointer record: 3 x (lo,hi) -> the orderlist streams, then
     # speed + master vol.
+    # ordrec = one 8-byte record per subtune (3 orderlist ptrs + speed +
+    # master vol); the init indexes it by song#*8. Single-subtune = 1 record.
+    subs = m.subtunes or [m]      # fall back to the top-level fields
     rec = []
-    for v in range(3):
-        rec.append(f'<ol_{v}')
-        rec.append(f'>ol_{v}')
-    d.append('ordrec:\n        .byt ' + ', '.join(rec) +
-             f', ${m.speed:02X}, ${m.master_vol:02X}')
-    for v in range(3):
-        d.append(f'ol_{v}:\n' + _byt(m.orderlist_raw[v]))
+    for si, st in enumerate(subs):
+        for v in range(3):
+            rec.append(f'<ol_{si}_{v}')
+            rec.append(f'>ol_{si}_{v}')
+        rec.append(f'${st.speed:02X}')
+        rec.append(f'${st.master_vol:02X}')
+    d.append('ordrec:\n        .byt ' + ', '.join(rec))
+    for si, st in enumerate(subs):
+        for v in range(3):
+            d.append(f'ol_{si}_{v}:\n' + _byt(st.orderlist_raw[v]))
     # sector pointer tables (lo/hi parallel) + sector streams
     d.append('secp_lo:\n        .byt ' +
              ', '.join(f'<sec_{i}' for i in range(len(m.sectors))))
@@ -79,6 +85,10 @@ _ENGINE = r"""
 
 ;; ===================== init =====================
 init:
+        asl                     ; A = song# * 8 (PSID init passes song# in A;
+        asl                     ; the orderlist record is the only song-indexed
+        asl                     ; thing — sectors/instruments/tables are shared)
+        pha                     ; save across the state clear
         ldx #$00                ; clear the state block FIRST (before we
         txa                     ; load the track pointers / speed into it)
 ini_st:
@@ -86,8 +96,9 @@ ini_st:
         inx
         cpx #(state_end - state0)
         bne ini_st
+        pla
+        tay                     ; Y = song# * 8 (0 for single-subtune)
         ldx #$00
-        ldy #$00
 ini_ptr:
         lda ordrec,y
         sta trkptl,x
@@ -996,7 +1007,8 @@ state_end:
 def build_v5_sid(m) -> bytes:
     from pipelines.dmc.composer_asm import _sanitize_asm
     code = assemble(_sanitize_asm(emit_v5_asm(m)))
-    header = build_header(load=0, init=LOAD, play=LOAD + 3, songs=1,
+    n_songs = len(m.subtunes) if m.subtunes else 1
+    header = build_header(load=0, init=LOAD, play=LOAD + 3, songs=n_songs,
                           start_song=1, speed=0, title=m.title,
                           author=m.author, released=m.released,
                           flags=FLAGS_PAL_6581)
