@@ -1,0 +1,15 @@
+Part of Odin Tracker 1.13.
+
+C64 packer.
+depacker.s includes the packed binary created by the packer
+and the result of compiling depacker.s is the final product.
+
+c64pack.cpp     packer running on PC (host platform, that is)
+depacker.s      depacker for C64
+Makefile        = makefile.unx
+makefile.unx    makefile for Unix (GNU make)
+makefile.vc     makefile for Windows (nmake)
+makefile.wc     makefile for DOS (wmake)
+
+Packed binaries differ from the ones created
+up until Odin Tracker 1.11 source package.

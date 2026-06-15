@@ -1,0 +1,424 @@
+PÄ     Welcome to Odin Trackerõ
+
+Welcome to Odin Tracker 1.13 for C64
+released by Zed on 17 Apr 2001.
+
+Use Up/Down/Left/Right to navigate back
+and forth in this help. Any other key
+exits.
+
+If the editor happens to hang, restart
+it with SYS2064 after reset.Å
+PÄ     Song structureõ
+
+The song is structured in the good old
+tracker style. The orderlist found in
+the top left corner contains pattern
+numbers. Each pattern consist of 3
+track numbers and the transpose values
+for each of them. You can see these
+above the pattern display.Å
+PÄ     Global keysõ
+
+These keys work in all editor screens.
+
+      SPACE   play song/stop playing
+SHIFT+SPACE   play pattern
+
+   F1   show this help
+   F2   context help (well, sort of)
+   F3   orderlist editor
+   F5   pattern editor
+   F7   instrument editor
+   F4   config menu
+   F6   specials menu
+   F8   disk menu
+  ./,   select instrument
+  -/+   inc/dec order position
+ C=+I   init SID and player
+
+RUNSTOP and SHIFT+RUNSTOP work like
+TAB and SHIFT+TAB on PC.
+
+Controlling voices
+  C=+1..3   mute/unmute voice 1,2,3
+     C=+4   mute/unmute all voiceÅ
+PÄ     Instrument editor (press F7)õ
+
+Here are the instrument parameters.
+(MSB means Most Significant Bit,
+LSB means Least Significant Bit.)
+
+  0-1. Attack/Decay/Sustain/Release
+    2. Wave table start: index of first
+       element in wave table.
+    3. Wave table end: index of last
+       element in wave table.
+    4. Wave table loop: if the player
+       has reached the end index, it
+       continues from this index. If
+       you want no loop, set end=loop.
+  5-7. Arpeggio table start/end/loop:
+       All similar to wave table.
+    8. Vibrato delay: number of ticks
+       before starting instrument
+       vibrato.
+    9. Vibrato depth/speed: high nybble
+       is depth, low nybble is speed.
+       Larger number means deeper and
+       faster vibrato.Å
+PÄ     Instrument editor (cont)õ
+
+   10. Pulse width: 8 MSBs of initial
+       pulse width.
+   11. Pulse speed: value added to the
+       8 LSBs of pulse width in each
+       tick.
+   12. Pulse limits: high nybble is 4
+       MSBs of lower limit, low nybble
+       is 4 MSBs of upper limit.
+13-15. Filter table start/end/loop:
+       All similar to wave/arp table.
+
+The wave table bytes are dumped to SID
+waveform registers in each tick. When
+$FF is found in the wave table, wave-
+form and ADSR parameters are set to 0.
+This helps creating sharp short sounds.
+The arpeggio table bytes are added to
+the note, so looping $00,$04,$07 should
+create a major chord, for example.
+Arpeggio bytes >= $80 are absolute note
+values, note is set to byte-$80.
+Not even track transpose is added.Å
+PÄ     Instrument editor (cont)õ
+
+Filters now work quite a bit different
+than in version 1.0x. Do this:
+
+Select filter type with track effect
+F9x, filter input and resonance with
+effect Exx, just as in versions 1.0x.
+The filter cutoff frequency's 8 MSBs
+will be read from the filter table
+using start/end/loop indices specified
+in the instrument you select with FEx.
+
+Huh. Damn complicated, but it should be
+powerful. You can always override the
+filter table's cutoff frequency with
+effect Cxx.
+
+Remember that instrument 0 cannot be
+defined.Å
+PÄ     Instrument editor, keyboardõ
+
+Moving around
+  CURSORS,HOME   as expected
+       RUNSTOP   next field
+      SHIFT+RS   previous field
+     =/SHIFT+=   page up/down in tables
+        RETURN   go to wave/arp/filter
+                 table (and back)
+          C=+N   edit instrument name
+           ./,   select instrument
+      INST/DEL   in tables only
+
+Copying instruments
+  C=+X   cut instrument
+  C=+C   copy instrument
+  C=+V   paste instrument
+
+Keyjazz
+        CTRL+1..7   select octave
+  SHIFT+Z..M,Q..P   test instrumentÅ
+PÄ     Instrument editor, keyboardõ
+
+Editing filter table
+  C=+B/C=+E   mark block begin/end
+       C=+R   unselect block
+  C=+Q/C=+A   increment/decrement data
+              in block
+       C=+F   fill block with data
+              linearly interpolated
+              between block begin/endÅ
+PÄ     Pattern editor (press F5)õ
+
+Looks like in any other tracker:
+note, instrument, effect and effect
+parameter for all 3 voices.
+Don't forget that you edit separate
+tracks, unlike in MOD. You can see the
+track number and transpose value above
+the track's data. Transpose $0C is an
+octave up, $8C is an octave down.
+
+There are many key combinations to
+remember, but some of them should be
+familiar from other programs.Å
+PÄ     Pattern editor, effectsõ
+
+0  Do nothing.
+1  If parameter<$80 slide down, else
+   slide up by parameter-$80.
+2  Set pulse width. Parameter is 8 MSBs
+   if pulse width.
+3  Slide to note. Just like in MOD.
+4  Vibrato. High nybble is depth, low
+   is speed. Temporarily overrides
+   instrument vibrato.
+5  Set pulse speed. See instrument
+   editor.
+6  Set pulse limits. See instrument
+   editor.
+7  Set Attack/Decay.
+8  Set Sustain/Release.
+9  Set waveform. Overrides wave table.
+A  Arpeggio. Parameters like in MOD,
+   Overrides arpeggio table.
+B  Order jump. Just like in MOD.Å
+PÄ     Pattern editor, effects (cont)õ
+
+C  Set filter cutoff frequency.
+   Parameter is 8 MSBs of frequency.
+   Overrides filter table.
+D  Pattern break. Parameter is hex,
+   unlike in MOD.
+E  Filter resonance/input control.
+   High nybble is resonance, bit 0,1,2
+   enable filter for voice 1,2,3.
+F  If parameter<$80, set speed.
+     Speed 0 stops the player.
+   If parameter=$8x, set global
+     volume to x.
+   If parameter=$9x, set filter mode.
+     bit 0: low pass, bit 1: band pass,
+     bit 2: high pass, bit 3: cut off
+     voice 3's output.
+   If parameter=$Ax, fine slide down.
+   If parameter=$Bx, fine slide up.
+   If parameter=$Cx, note cut.
+   If parameter=$Ex, select instrument
+     that controls the filter cutoff
+   If parameter=$Fx, set hard restart
+     ticks to x. See tips.Å
+PÄ     Pattern editor, keyboardõ
+
+Moving around
+   CURSORS,HOME   as expected
+        RUNSTOP   next voice
+  SHIFT+RUNSTOP   previous voice
+      =/SHIFT+=   page down/up
+       INST/DEL   as expected
+      \/SHIFT+\   del/ins in all tracks
+         RETURN   play from current row
+
+Entering notes
+        CTRL+1..7   select octave
+        Z..M,Q..P   enter notes
+  SHIFT+Z..M,Q..P   keyjazz
+                /   enter note off
+                ^   delete note/effect
+              ./,   select instrument
+        _/SHIFT+_   inc/dec cursor step
+
+Editing song structure
+   */@   inc/dec pattern for curr order
+   ;/:   inc/dec track for curr voice
+  C=+Y   enter track number for voiceÅ
+PÄ     Pattern editor, keyboard (cont)õ
+
+Editing track transpose
+  C=+W/C=+S   inc/dec track transpose
+       C=+D   enter track transpose
+
+Copying effects
+  C=+G/C=+F   grab/drop effect
+
+Selection keys
+  C=+B/C=+E   mark block begin/end
+       C=+T   select whole track
+       C=+R   unselect block
+
+Block operations
+       C=+X   cut block
+       C=+C   copy block
+       C=+V   paste block (overwrite)
+       C=+M   paste block (mix)
+  C=+Q/C=+A   transpose block up/down
+              (all instruments)
+  C=+P/C=+L   transpose block up/down
+              (current instrument only)
+       C=+Z   undo last block operationÅ
+PÄ     Pattern editor, tipsõ
+
+If there is no instrument in the track
+besides a note, instrument vibrato and
+pulse width will not be reset.
+When entering notes, select instrument
+0 to avoid entering an instrument
+number at the same time.
+
+The Gate bit in SID is released when
+the wave table element has bit 0 clear,
+and also when a note off is found in
+the track.
+To create long sounds, set bit 0 to 1
+in each wave table element for the
+instrument, and enter a note off into
+the track when you want to start
+decaying the note.
+
+Add filter effects. Filters are there
+to give realism to the sound.Å
+PÄ     Pattern editor, tips (cont)õ
+
+The number of ticks for hard restart
+before the new note can be set with
+effect FFx for each voice separately.
+The default value is 2 ticks.
+Use FF0 to effectively disable hard
+restart and tie notes together.
+Hard restart is always disabled when
+slide to note effect is used.
+
+Reuse tracks (possibly with track
+transpose) whenever possible to save
+memory. (Each track costs 192 bytes.)
+Use absolute arpeggio for drums so that
+they do not get transposed.
+
+WARNING: Effects don't remember their
+parameters like they do in MODs. E.g.
+entering 300 does not continue sliding
+with the previous setting, but stops
+sliding. Always enter the parameters!Å
+PÄ     Orderlist editor (press F3)õ
+
+You will not use this very often, most
+editing can be done from the pattern
+editor using =/- for navigating in
+orderlist and */@ to change pattern
+number.
+
+Moving around
+   CURSORS,HOME   as expected
+       INST,DEL   as expected
+      SHIFT+A,Z   page up/down
+      =/SHIFT+=   page up/down, too
+  SHIFT+Q,W,E,R   go to position $00,
+                  $40,$80,$C0
+
+Enter order numbers using 0-9,A-F or
+use */@.Å
+PÄ     Config menu (press F4)õ
+
+Set up your favourite colors.
+
+      RETURN  update srceen
+  SHIFT+1..4  load default color sets
+
+Press F4 again to restore current
+colors.
+
+If you find a particularly nice color
+set, send it to me. :)Å
+PÄ     Specials menu (press F6)õ
+
+Clear song clears tracks, patterns and
+orderlist but keeps instruments.
+
+You can replace instruments in a set
+of tracks or all tracks in a set of
+patterns. Remember that instrument 0
+means no instrument.
+
+Swapping tracks also operates in a set
+of patterns you enter.
+
+Song start positions list the first
+orderlist indices for the subsongs.
+This works in packed songs only.
+Use effect Bxx to loop the songs.
+RETURN closes this small editor.
+
+You can escape all input fields using
+RUN/STOP.Å
+PÄ     Disk menu (press F8)õ
+
+The fileformat has changed in version
+1.1x. If a song you just loaded sounds
+like garbage, it may be the old format
+and needs to be loaded using "Import
+1.0x song".
+WARNING: the filter settings will not
+be imported, and you will NEVER be able
+to load the new format into 1.0x!
+
+Save song saves memory from $4000 to
+the end of the last track used in the
+song with no playroutine. Songs are
+saved RLE-packed to save space.
+
+Read/write tracks make it possible to
+remix songs.
+
+Please read the next page before using
+the packer/relocator.Å
+PÄ     Disk menu, packerõ
+
+WARNING: You will absolutely §never§ be
+able to load packed songs back into the
+tracker! Always keep an unpacked copy.
+
+Before starting the packer, put $FF
+after the last position used in the
+order list and in the song start
+positions list to avoid saving
+unnecessary data.
+Unused tracks are automatically
+discarded, but unused intruments are
+not remapped. Use a continous block of
+instruments to minimize file size.
+
+You can relocate the player to page
+boundaries. You can save everything
+into a single file, or save the tracks
+in a separate file. Useful when you do
+not have enough continous memory free.
+Don't specify overlapping areas, or
+you'll suffer.Å
+PÄ     Disk menu, packer (cont)õ
+
+To use your songs:
+  Init: LDA <songnumber>
+        JSR $xx00
+  Play: JSR $xx03
+  Stop: JSR $xx06
+(xx is where you relocated the player.)
+
+The player uses zeropage variables
+$FB-$FE and takes around $30
+rasterlines. (Yuck.)
+
+I am thinking about a packer that will
+create smaller files by actually
+packing stuff.Å
+PÄ
+
+Well, that's it. You figure out the
+rest. :)
+
+Suggestions on improvements are
+welcome. Just tell me what you want.
+
+The packer may feature bugs, mail me if
+something suspicious happens.
+
+I'm still waiting for more tunes.
+
+http://www.inf.bme.hu/-zed/tracker
+mailto:zed@inf.bme.hu
+
+
+Wotan mit uns.Å

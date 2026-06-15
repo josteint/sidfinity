@@ -1,0 +1,2 @@
+; ALWAYS UPDATE THIS FROM vplayer.lst !!!
+VPLAYER_CODE_END = $b610

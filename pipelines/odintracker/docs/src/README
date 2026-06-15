@@ -1,0 +1,24 @@
+Here is everything you need to build Odin Tracker 1.13
+on DOS, Windows and Linux host platforms.
+
+To compile C64 code, you need DASM.
+I used the one I downloaded from Cadaver's page,
+made a Unix makefile and hacked asm.h to compile without errors.
+You can download it from the tracker's download page.
+<http://www.inf.bme.hu/~zed/tracker/download.hmtl>
+
+Some utils are scattered in the subdirectories, see those READMEs, too.
+To compile the utils you need gcc (Linux) or Watcom C++ (DOS) or
+Microsoft Visual C++ (Windows).
+
+labels.awk      AWK script to convert DASM symbol dump to Vice label file.
+6510.s          Number of bytes in 6510 instructions.
+defines.s       Many constants.
+eplayer.s       Editor's player.
+kernal.s        Entry points of kernal routines plus keycodes.
+tracker.s       Editor's main module.
+vplayer.s       Relocatable player.
+vplayeri.s      Damn hack to tell the relocator where the player's code ends.
+makefile.unx    makefile for Unix (GNU make)
+makefile.vc     makefile for Windows (nmake)
+makefile.wc     makefile for DOS (wmake)

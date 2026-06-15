@@ -1,0 +1,11 @@
+Part of Odin Tracker 1.13.
+
+Util to create the frequency table.
+If B-7 does not fit into 16 bits it is clipped to 0xffff.
+(Happens unless you target NTSC C64 models.)
+
+freqtab.cpp     calculate the frequency table from C64 clock speed and base A
+Makefile        = makefile.unx
+makefile.unx    makefile for Unix (GNU make)
+makefile.vc     makefile for Windows (nmake)
+makefile.wc     makefile for DOS (wmake)
