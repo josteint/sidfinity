@@ -292,31 +292,39 @@ data-section emitters + `_Inputs` adapters + `_inputs_from_usf` +
 | `tools/regression.py` | Full pipeline regression — Hubbard `verify_all` + companion `compare_instruction_stream` + 5TT. Lists pre-existing partials so they're not mistaken for regressions. |
 | `tools/siddump.cpp` | C++ register dumper (libsidplayfp). `--writelog` for cycle timing, `--pc-trace` for CPU PC trace. |
 
-## HVSC index database — `hvsc84.db`
+## HVSC index database — `hvsc84.csv` (+ `engine_docs.csv`), via DuckDB
 
-A SQLite catalogue of every SID in `hvsc84/` with classification +
-build status. The pipeline updates this DB automatically (build → `sidfinity_md5`, USF write → `usf_path`, verify → `verify_*`). Initial population + full rebuild via `tools/build_sid_db.py` (re-runnable, idempotent,
-~20 s incremental). Use it for:
+A catalogue of every SID in `hvsc84/` with classification + build status,
+stored as a **git-tracked CSV** (`hvsc84.csv`, path-sorted — build-status
+changes show as readable line diffs) and queried via **DuckDB**. (Migrated
+2026-06-15 from the old `hvsc84.db` SQLite blob, which is gone/gitignored.)
+The pipeline updates the CSV automatically (build → `sidfinity_md5`, USF
+write → `usf_path`, verify → `verify_*`) via the `src/sid_db.record_*`
+write-through. Initial population + full rebuild via `tools/build_sid_db.py`
+(re-runnable, idempotent, ~20 s incremental — preserves `verify_*`). Use for:
 
 - **engine-by-engine iteration** (instead of folder-by-folder)
 - **coverage queries** ("how many Rob_Hubbard tunes are migrated?")
 - **migration candidate selection** ("show me the longest unmigrated
   tunes by engine X, sorted by songlength")
 
-There's **no `sqlite3` CLI** on this system — query with Python:
+Query via the `src/sid_db` helper (DuckDB views `sids` + `engine_docs` over
+the CSVs; sqlite3-style `db.execute(sql, params)` → rows):
 
 ```python
-import sqlite3
-db = sqlite3.connect('hvsc84.db')
-for path, title in db.execute(
+from src import sid_db                 # needs env.sh sourced (PYTHONPATH)
+for path, title in sid_db.query(
     "SELECT path, title FROM sids "
     "WHERE engine='Rob_Hubbard' AND pipeline IS NULL "
-    "ORDER BY songlength_s DESC LIMIT 10"
-): print(path, title)
+    "ORDER BY songlength_s DESC LIMIT 10"): print(path, title)
+# or: db = sid_db.connect(); db.execute(...).fetchall()
 ```
 
-Schema in `tools/build_sid_db.py` (tables `sids` + `engine_docs`,
-indexes on engine / pipeline / md5).
+The DuckDB **Python module** lives in `.pylocal` (gitignored; on env.sh's
+PYTHONPATH). For ad-hoc CLI use, `read_csv('hvsc84.csv', header=true,
+nullstr='')`. Schema (columns/types) + the read/write helpers live in
+`src/sid_db.py`; the walk/hash/classify that builds the CSV is in
+`tools/build_sid_db.py`. Tables: `sids` + `engine_docs`.
 
 ### Per-family documentation state — `engine_docs` table
 
@@ -335,20 +343,21 @@ research-PROGRESS ladder, NOT a content-volume measure:
 A family reaches `OK` by *completing* a `research-player` sweep, regardless
 of how much was found. Source of truth is the version-controlled
 `tools/engine_docs.json` (`{family: {state, notes, updated}}`);
-`build_sid_db.py` materialises it into `engine_docs` (one row per family,
+`build_sid_db.py` materialises it into `engine_docs.csv` (one row per family,
 annotated with the `sids.engine` strings that map to it + total SID count).
 The engine→family map lives in `build_sid_db.engine_to_family`.
 
 ```python
 # families cleared to start RE:
-db.execute("SELECT family, sid_count FROM engine_docs WHERE doc_state='OK'")
+sid_db.query("SELECT family, sid_count FROM engine_docs WHERE doc_state='OK'")
 ```
 
-After editing `engine_docs.json`, refresh just this table in seconds with
-`python3 tools/apply_engine_docs.py` (no full re-hash). **Single-writer DB
-in `delete` journal mode — don't run it while a build/pipeline write is mid
--transaction** (it waits on a 30 s busy_timeout, but a concurrent writer
-without one could see "database is locked").
+After editing `engine_docs.json`, refresh just `engine_docs.csv` in seconds
+with `python3 tools/apply_engine_docs.py` (reads `hvsc84.csv` for counts, no
+re-walk). The CSV write-through (`record_*`) does a full CSV rewrite, so it's
+for the **single-threaded** interactive-build / regression paths only — the
+parallel batches build to `tmp/` and never write-through (they refresh via an
+explicit `build_sid_db.py` run after mass-write).
 
 ### When to re-run `tools/build_sid_db.py`
 
@@ -388,13 +397,18 @@ reason, excluded_date}`, then re-run `tools/build_sid_db.py`.
 
 To query excluded SIDs:
 ```python
-db.execute("SELECT path, exclusion_reason FROM sids WHERE excluded=1")
+sid_db.query("SELECT path, exclusion_reason FROM sids WHERE excluded=1")
 ```
 
 ## Build environment
 
 64-core EPYC, 512 GB RAM, dual 3090 GPUs. No sudo — everything from source in-tree.
-xa65 assembler at `tools/xa65/xa/xa`. CUDA at `/usr/bin/nvcc`.
+xa65 assembler at `tools/xa65/xa/xa`. CUDA at `/usr/bin/nvcc`. Python packages
+install into `.pylocal/` (on `env.sh`'s PYTHONPATH; gitignored) via
+`pip install --no-cache-dir --target .pylocal/lib/python3.12/site-packages <pkg>`
+(PEP 668 blocks a plain `pip install`). DuckDB (the index query engine) lives
+there. **Always source `src/env.sh`** before running tools — it puts `.pylocal`
++ `src` on PYTHONPATH (so `import duckdb` / `from src import sid_db` resolve).
 
 ## Project structure
 
