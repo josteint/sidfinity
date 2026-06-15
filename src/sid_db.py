@@ -5,11 +5,13 @@ content changes as readable line diffs instead of a binary blob):
   - hvsc84.csv      one row per HVSC .sid (built by tools/build_sid_db.py)
   - engine_docs.csv per-engine-family research state (from tools/engine_docs.json)
 
-Read/query: `connect()` returns a DuckDB connection with `sids` + `engine_docs`
-registered as views over the CSVs, wrapped so consumers keep the sqlite3-style
-`db.execute(sql, params)` -> iterable-of-tuples API. `query(sql, params)` is a
-one-shot helper. The DuckDB CLI can also read these CSVs directly for ad-hoc
-analysis (e.g. `read_csv('hvsc84.csv', header=true, nullstr='')`).
+Read/query: `query(sql, params)` and `connect().execute(sql, params)` shell out
+to the **DuckDB CLI binary** (found on PATH, then ~/.local/bin/duckdb) over the
+CSVs, returning sqlite3-style tuples. This deliberately does NOT use the duckdb
+Python module — so DB reads need only `duckdb` on PATH, with no env.sh /
+PYTHONPATH / .pylocal dependency (the brittle part this avoids). Nothing here
+imports duckdb. The same CLI works for ad-hoc analysis:
+`duckdb -c "SELECT … FROM read_csv('hvsc84.csv', header=true, nullstr='', escape='\"')"`.
 
 Write-through: producers call `record_usf` / `record_rebuild` / `record_verify`
 after writing outputs so the index stays current without a full rebuild. These
@@ -26,7 +28,10 @@ from __future__ import annotations
 import csv
 import datetime
 import hashlib
+import json
 import os
+import shutil
+import subprocess
 import tempfile
 from pathlib import Path
 from typing import Iterable
@@ -74,8 +79,88 @@ def _read_csv_clause(path: Path, types: dict[str, str]) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Query side — DuckDB views over the CSVs
+# Query side — shell out to the DuckDB CLI binary over the CSVs.
+#
+# Reads go through the `duckdb` CLI (found on PATH / ~/.local/bin), NOT the
+# Python module — so DB queries need only `duckdb` on PATH, no env.sh /
+# PYTHONPATH / .pylocal. (Writes use the `csv` module below; nothing here
+# imports duckdb.) Each query() spawns one `duckdb` process that read_csv's
+# the CSV, so don't call query() inside a tight per-row loop — read_all() +
+# filter in Python for that.
 # ---------------------------------------------------------------------------
+_DUCKDB_BIN = None
+
+
+def _duckdb_bin() -> str:
+    """Locate the DuckDB CLI: PATH, then ~/.local/bin, then the snap inner
+    binary. Cached. Raises with install guidance if absent."""
+    global _DUCKDB_BIN
+    if _DUCKDB_BIN:
+        return _DUCKDB_BIN
+    cand = shutil.which('duckdb')
+    if not cand:
+        for p in (Path.home() / '.local' / 'bin' / 'duckdb',
+                  Path('/snap/duckdb/current/duckdb')):
+            if p.exists():
+                cand = str(p)
+                break
+    if not cand:
+        raise RuntimeError(
+            'duckdb CLI not found (PATH / ~/.local/bin/duckdb). Install the '
+            'standalone CLI, e.g. download duckdb_cli-linux-amd64.zip to '
+            '~/.local/bin/duckdb.')
+    _DUCKDB_BIN = cand
+    return cand
+
+
+def _lit(v) -> str:
+    """SQL literal for a bound param (internal/trusted inputs only)."""
+    if v is None:
+        return 'NULL'
+    if isinstance(v, bool):
+        return 'TRUE' if v else 'FALSE'
+    if isinstance(v, (int, float)):
+        return repr(v)
+    return "'" + str(v).replace("'", "''") + "'"
+
+
+def _bind(sql: str, params: Iterable) -> str:
+    """Substitute `?` placeholders with escaped literals (no literal `?` may
+    appear inside the query's own strings — none of ours do)."""
+    params = list(params)
+    if not params:
+        return sql
+    parts = sql.split('?')
+    if len(parts) - 1 != len(params):
+        raise ValueError(f'{len(parts) - 1} placeholders vs {len(params)} params')
+    return parts[0] + ''.join(_lit(p) + seg for p, seg in zip(params, parts[1:]))
+
+
+def _setup_sql() -> str:
+    """CREATE VIEW sids / engine_docs over the CSVs (our dialect)."""
+    s = []
+    if CSV_PATH.exists():
+        s.append('CREATE VIEW sids AS SELECT * FROM '
+                 + _read_csv_clause(CSV_PATH, SIDS_TYPES) + ';')
+    if ENGINE_DOCS_CSV.exists():
+        s.append('CREATE VIEW engine_docs AS SELECT * FROM '
+                 + _read_csv_clause(ENGINE_DOCS_CSV, ENGINE_DOCS_TYPES) + ';')
+    return ' '.join(s)
+
+
+def query(sql: str, params: Iterable = ()) -> list[tuple]:
+    """Run `sql` (with `?` params) against the CSV index via the duckdb CLI;
+    return a list of tuples (columns in SELECT order, sqlite3-style)."""
+    full = _setup_sql() + ' ' + _bind(sql, params)
+    proc = subprocess.run([_duckdb_bin(), '-json', '-c', full],
+                          capture_output=True, text=True)
+    if proc.returncode != 0:
+        raise RuntimeError(f'duckdb query failed: {proc.stderr.strip()}\nSQL: {sql}')
+    out = proc.stdout.strip()
+    rows = json.loads(out) if out else []
+    return [tuple(r.values()) for r in rows]
+
+
 class _Result(list):
     """sqlite3-cursor-ish: iterable list of tuples + fetchall/fetchone."""
     def fetchall(self):
@@ -86,45 +171,26 @@ class _Result(list):
 
 
 class _Conn:
-    """Adapter so consumers keep `db.execute(sql, params)` returning rows."""
-    def __init__(self, con):
-        self._con = con
-
+    """Adapter so consumers keep the sqlite3-style `db.execute(sql, params)`
+    -> iterable-of-tuples API. Each execute() is one CLI query."""
     def execute(self, sql: str, params: Iterable = ()):
-        return _Result(self._con.execute(sql, list(params)).fetchall())
+        return _Result(query(sql, params))
 
     def close(self):
-        self._con.close()
+        pass
 
     def __enter__(self):
         return self
 
     def __exit__(self, *a):
-        self.close()
+        pass
 
 
 def connect() -> _Conn:
-    """DuckDB connection with `sids` + `engine_docs` views over the CSVs.
-    Missing CSVs simply mean the view is absent (queries then raise, as a
-    missing SQLite db would)."""
-    import duckdb
-    con = duckdb.connect()
-    if CSV_PATH.exists():
-        con.execute('CREATE VIEW sids AS SELECT * FROM '
-                    + _read_csv_clause(CSV_PATH, SIDS_TYPES))
-    if ENGINE_DOCS_CSV.exists():
-        con.execute('CREATE VIEW engine_docs AS SELECT * FROM '
-                    + _read_csv_clause(ENGINE_DOCS_CSV, ENGINE_DOCS_TYPES))
-    return _Conn(con)
-
-
-def query(sql: str, params: Iterable = ()) -> list[tuple]:
-    """One-shot query; opens a connection, runs `sql`, returns rows."""
-    con = connect()
-    try:
-        return con.execute(sql, params).fetchall()
-    finally:
-        con.close()
+    """Return a connection-like adapter; `.execute(sql, params)` runs against
+    the CSV index via the duckdb CLI. No persistent state (each query reopens
+    the CSVs), so `.close()` is a no-op."""
+    return _Conn()
 
 
 # ---------------------------------------------------------------------------

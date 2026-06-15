@@ -49,16 +49,20 @@ Key columns:
 Empty CSV field == SQL NULL. Schema (columns + DuckDB types) is defined in
 `src/sid_db.py` (`SIDS_TYPES`).
 
-## Querying — via DuckDB through `src/sid_db` (source `src/env.sh` first)
+## Querying — `src/sid_db` shells out to the DuckDB CLI binary
 
-`src/sid_db.connect()` returns a DuckDB connection with `sids` +
-`engine_docs` views over the CSVs, wrapped so `db.execute(sql, params)`
-returns an iterable of tuples (sqlite3-style, + `.fetchall()/.fetchone()`).
-`sid_db.query(sql, params)` is the one-shot helper. DuckDB SQL is
-SQLite-compatible for these queries (LIKE, GROUP BY, `?` params,
-`ORDER BY random()`, IS NULL on empty fields). The duckdb **Python module**
-lives in `.pylocal` (gitignored, on env.sh PYTHONPATH); ad-hoc CLI use:
-`read_csv('hvsc84.csv', header=true, nullstr='')`.
+**2026-06-15 (round 2): reads go through the `duckdb` CLI binary, not the
+python module.** `src/sid_db.query(sql, params)` / `connect().execute(...)`
+spawn `duckdb -json -c "<view setup>; <sql>"` (binary found on PATH →
+`~/.local/bin/duckdb`), parse JSON, return sqlite3-style tuples (+ `_Result`
+`.fetchall()/.fetchone()`, iterable). **So DB reads need only `duckdb` on
+PATH — NO env.sh / PYTHONPATH / .pylocal** (the python-module path was
+brittle: env.sh sourcing kept failing in agent shells). The python `duckdb`
+module is NOT installed. Writes (`record_*`, build) use the `csv` module — no
+duckdb at all. `?` params, LIKE, `random()` work; **no `SUM(bool)`** (use
+`SUM(CASE WHEN … THEN 1 ELSE 0 END)`). Each `query()` re-reads the CSV (one
+subprocess) — for a per-row loop use `read_all()` instead. Ad-hoc CLI:
+`duckdb -c "SELECT … FROM read_csv('hvsc84.csv', header=true, nullstr='', escape='\"')"`.
 
 ```python
 from src import sid_db

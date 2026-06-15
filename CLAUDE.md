@@ -308,23 +308,27 @@ write-through. Initial population + full rebuild via `tools/build_sid_db.py`
 - **migration candidate selection** ("show me the longest unmigrated
   tunes by engine X, sorted by songlength")
 
-Query via the `src/sid_db` helper (DuckDB views `sids` + `engine_docs` over
-the CSVs; sqlite3-style `db.execute(sql, params)` → rows):
+Query via the `src/sid_db` helper — it **shells out to the `duckdb` CLI binary**
+(`~/.local/bin/duckdb`, on PATH), so it needs only `duckdb` on PATH, **no
+env.sh / PYTHONPATH** (it just needs `src` importable for `import sid_db`,
+which the tools add to `sys.path` themselves). sqlite3-style:
 
 ```python
-from src import sid_db                 # needs env.sh sourced (PYTHONPATH)
+from src import sid_db
 for path, title in sid_db.query(
     "SELECT path, title FROM sids "
     "WHERE engine='Rob_Hubbard' AND pipeline IS NULL "
     "ORDER BY songlength_s DESC LIMIT 10"): print(path, title)
-# or: db = sid_db.connect(); db.execute(...).fetchall()
+# or: db = sid_db.connect(); db.execute(sql, params).fetchall()/.fetchone()
 ```
 
-The DuckDB **Python module** lives in `.pylocal` (gitignored; on env.sh's
-PYTHONPATH). For ad-hoc CLI use, `read_csv('hvsc84.csv', header=true,
-nullstr='')`. Schema (columns/types) + the read/write helpers live in
-`src/sid_db.py`; the walk/hash/classify that builds the CSV is in
-`tools/build_sid_db.py`. Tables: `sids` + `engine_docs`.
+Each `query()` spawns one `duckdb` process that re-reads the CSV — fine for
+occasional queries; for a per-row loop use `sid_db.read_all()` (csv module) and
+filter in Python. DuckDB SQL: no `SUM(bool)` (use `SUM(CASE WHEN … THEN 1 ELSE
+0 END)`); `?` params, LIKE, `random()` all work. Schema (columns/types) + the
+read/write helpers live in `src/sid_db.py`; the walk/hash/classify that builds
+the CSV is in `tools/build_sid_db.py`. Tables: `sids` + `engine_docs`. Ad-hoc
+CLI: `duckdb -c "SELECT … FROM read_csv('hvsc84.csv', header=true, nullstr='', escape='\"')"`.
 
 ### Per-family documentation state — `engine_docs` table
 
@@ -406,9 +410,16 @@ sid_db.query("SELECT path, exclusion_reason FROM sids WHERE excluded=1")
 xa65 assembler at `tools/xa65/xa/xa`. CUDA at `/usr/bin/nvcc`. Python packages
 install into `.pylocal/` (on `env.sh`'s PYTHONPATH; gitignored) via
 `pip install --no-cache-dir --target .pylocal/lib/python3.12/site-packages <pkg>`
-(PEP 668 blocks a plain `pip install`). DuckDB (the index query engine) lives
-there. **Always source `src/env.sh`** before running tools — it puts `.pylocal`
-+ `src` on PYTHONPATH (so `import duckdb` / `from src import sid_db` resolve).
+(PEP 668 blocks a plain `pip install`). Source `src/env.sh` before running
+tools — it puts `.pylocal` + `src` on PYTHONPATH.
+
+**DuckDB = the CLI binary at `~/.local/bin/duckdb`** (v1.5.3, on PATH,
+per-user — NOT in the repo, NOT the python module). `src/sid_db` shells out to
+it for index reads, so **DB queries need only `duckdb` on PATH — no env.sh /
+PYTHONPATH / .pylocal** (deliberate: the python-module path was brittle). The
+python `duckdb` module is NOT installed/used. Ad-hoc:
+`duckdb -c "SELECT … FROM read_csv('hvsc84.csv', header=true, nullstr='', escape='\"')"`.
+(The snap `duckdb` at `/snap/bin/duckdb` is broken — `snap-confine` error — don't use it.)
 
 ## Project structure
 
