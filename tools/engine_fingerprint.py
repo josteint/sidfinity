@@ -71,9 +71,11 @@ def cluster_corpus(threshold=0.85, engine_like='%FutureComposer%'):
     cluster by player version. Default: MoN/FutureComposer — NB: LIKE '%MoN%'
     is case-insensitive and would sweep in SoundMONitor, so match
     FutureComposer explicitly."""
-    import sqlite3
+    import sys
     root = os.path.join(os.path.dirname(__file__), '..')
-    db = sqlite3.connect(os.path.join(root, 'hvsc84.db'))
+    sys.path.insert(0, os.path.abspath(root))
+    from src import sid_db
+    db = sid_db.connect()
     rows = list(db.execute(
         "SELECT path FROM sids WHERE engine LIKE ?", (engine_like,)))
     fps = []           # (path, ops, exact_hash)

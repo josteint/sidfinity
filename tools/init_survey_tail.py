@@ -124,7 +124,10 @@ def survey(rows, label):
 
 
 def main():
-    db = sqlite3.connect('hvsc84.db')
+    import sys as _sys, os as _os
+    _sys.path.insert(0, _os.path.join(_os.path.dirname(__file__), '..'))
+    from src import sid_db
+    db = sid_db.connect()
 
     # 1. Long tail — top 100 of the tail engines (ranks 101-200)
     tail_rows = db.execute(

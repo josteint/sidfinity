@@ -326,9 +326,11 @@ def main():
         key=lambda p: p.stem)
     # Filter out .sidfinity.sid rebuilds
     sid_paths = [p for p in sid_paths if 'sidfinity' not in p.stem]
-    # Also filter to known Jay_Derrett family — query DB.
-    import sqlite3
-    db = sqlite3.connect(str(ROOT / 'hvsc84.db'))
+    # Also filter to known Jay_Derrett family — query the DB.
+    import sys as _sys
+    _sys.path.insert(0, str(ROOT))
+    from src import sid_db
+    db = sid_db.connect()
     valid = set()
     for r in db.execute(
         "SELECT path FROM sids WHERE engine='Companion/Jay_Derrett'"):

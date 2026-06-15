@@ -86,7 +86,10 @@ def bucket_for(feat, n_eng_writes):
 
 
 def main():
-    db = sqlite3.connect('hvsc84.db')
+    import sys as _sys, os as _os
+    _sys.path.insert(0, _os.path.join(_os.path.dirname(__file__), '..'))
+    from src import sid_db
+    db = sid_db.connect()
 
     # Top 100 engines
     engines = db.execute(

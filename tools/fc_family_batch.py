@@ -64,8 +64,10 @@ def run(sp):
 
 
 if __name__ == '__main__':
-    import sqlite3
-    db = sqlite3.connect(os.path.join(ROOT, 'hvsc84.db'))
+    import sys as _sys
+    _sys.path.insert(0, ROOT)
+    from src import sid_db
+    db = sid_db.connect()
     sids = [p for (p,) in db.execute(
         "SELECT path FROM sids WHERE engine LIKE '%FutureComposer%' "
         "ORDER BY path")]
