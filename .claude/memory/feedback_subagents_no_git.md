@@ -11,4 +11,13 @@ When spawning research-player / multi-agent fan-out subagents — ESPECIALLY whi
 
 **Why:** during the 2026-06-13 soundmonitor research sweep, a subagent saw `hvsc84.db` as `M` in `git status`, wrongly assumed its own read-only (`mode=ro`) SELECT had touched the file, and ran `git restore hvsc84.db` "to clean up" — reverting the live DB to the last commit and undoing an `engine_docs` doc-state bump. It could have clobbered the concurrent DMC session's uncommitted DB writes (it didn't — they had committed). Recovered by re-running `tools/apply_engine_docs.py`. A `mode=ro` connection CANNOT write the file, so the `M` was pre-existing real state — the agent acted destructively on a false premise.
 
-**How to apply:** in every fan-out agent prompt add a hard line — "Do NOT run any `git` command. Write ONLY inside `<dir>`. If a tracked file looks modified, leave it — it is not yours." Open shared SQLite DBs read-only (`file:...?mode=ro`, uri=True); that part worked this run (no WAL flip), the git mutation was the new failure mode. Best durable fix: bake this into the `research-player` skill's agent-instruction template. Related: [[feedback_repo_tmp_dir]], [[feedback_worktree_commit]].
+**How to apply:** in every fan-out agent prompt add a hard line — "Do NOT run any `git` command. Write ONLY inside `<dir>`. If a tracked file looks modified, leave it — it is not yours." Best durable fix: bake this into the `research-player` skill's agent-instruction template. Related: [[feedback_repo_tmp_dir]], [[feedback_worktree_commit]].
+
+**UPDATE (2026-06-15): the index is now a git-tracked CSV, not SQLite.**
+`hvsc84.db` is gone; the catalogue is `hvsc84.csv` (+ `engine_docs.csv`),
+queried via DuckDB through `src/sid_db` (the old `mode=ro` SQLite advice is
+moot). The git-mutation hazard is now SHARPER: `hvsc84.csv` is a 60k-line
+file that `build_sid_db.py` / the write-through legitimately rewrite, so it
+shows as `M` during normal work — agents must NOT `git restore` /
+`git checkout` it. To refresh engine_docs after editing engine_docs.json,
+run `python3 tools/apply_engine_docs.py` (now writes `engine_docs.csv`).

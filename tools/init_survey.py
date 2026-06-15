@@ -21,7 +21,6 @@ The output is per-SID detail + per-engine aggregate + a stress-test
 of the trichotomy categories.
 """
 
-import sqlite3
 import sys
 import os
 from collections import Counter, defaultdict

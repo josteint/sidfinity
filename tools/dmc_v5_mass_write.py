@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Mass-write DMC V5 (family-3/5) FULL members + refresh hvsc84.db.
+"""Mass-write DMC V5 (family-3/5) FULL members; then refresh hvsc84.csv.
 
 Reads tmp/dmc_v5_full_results.jsonl, and for every member with status
 'full' writes its .usf + .sidfinity.sid alongside the HVSC original (via
-the real SID -> USF -> SID pipeline). Then refresh the DB separately with
-`python3 tools/build_sid_db.py`.
+the real SID -> USF -> SID pipeline). Then refresh the index separately with
+`python3 tools/build_sid_db.py` (writes hvsc84.csv; DuckDB-queried via
+src/sid_db).
 
 Usage:
     PYTHONPATH=tools/py65_lib:tools:src python3 tools/dmc_v5_mass_write.py \

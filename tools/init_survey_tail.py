@@ -14,7 +14,6 @@ Stress-test the trichotomy: do these weirder SIDs fit the same
 buckets, or does the long tail surface something new?
 """
 
-import sqlite3
 import sys
 import os
 import random

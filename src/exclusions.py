@@ -13,9 +13,9 @@ Use:
     if is_excluded(sid_path):
         raise PipelineError(f'{sid_path}: {exclusion_reason(sid_path)}')
 
-The exclusion data also flows into `hvsc84.db` via
-`tools/build_sid_db.py` (columns `excluded` BOOL + `exclusion_reason`
-TEXT) so queries like "how many SIDs are excluded, and why?" work
+The exclusion data also flows into the index (`hvsc84.csv`) via
+`tools/build_sid_db.py` (columns `excluded` + `exclusion_reason`)
+so queries like "how many SIDs are excluded, and why?" work
 without re-reading the JSON.
 """
 
