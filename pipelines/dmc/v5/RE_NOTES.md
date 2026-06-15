@@ -248,6 +248,43 @@ A_Load_of_Cowbell/Lands/Bach_VC-220). RESIDUE: Minoam 98.3% / Conanious
 96.2% have a small end-of-song tail (per-register late diffs show V1/V2 SR
 + V3 freq, not filter — the diverse partial long tail, separate bug).
 
+## ✅✅ RELOCATED / WRAPPER-INIT UNLOCK (2026-06-15, commits 0e3c319 + 023c1b6 + 5f3a0de)
+
+The `no_jumptable` (261) + `player_code_mismatch` (266) unsupported buckets
+were 477/527 the SAME family-3/5 player with a RELOCATED or WRAPPED init.
+TWO sub-shapes (both found by dumping the jump table + init/play targets):
+  - **wrapper/relocated init** (most `no_jumptable`): jump table at load,
+    play entry -> base+$A1 (standard), but the INIT entry points elsewhere
+    (e.g. $1CE9) — the init is byte-identical to the std init, just MOVED;
+    the orderlist record is read by that moved init (operand at init+7).
+  - **re-prefixed init** (most `player_code_mismatch` "opcode at $1040"):
+    jump table +$40/+$A1, init at $1040 but its first bytes differ
+    (`0A 0A 0A` = ASL*3 song-index vs Katusha `A9 00` = LDA #0). Single-
+    subtune (A=0 -> Y=0) so the orderlist read still works at init+7.
+Old factory keyed base off the jump-table LOCATION (fixed +$40/+$A1) and
+compared the WHOLE player (init+play) -> any moved/re-prefixed init -> reject.
+
+FIX (the family-1/2 sub-build playbook, V5 form) in `factory.py`:
+  - `base = play_target - $A1` (the play routine is the reliable anchor; the
+    jump table's play entry gives base regardless of where the init lives).
+  - validate the PLAY-reachable body ONLY (`_v5_play_ref`, $10A1-$170E);
+  - validate the init by its orderlist-copy SKELETON at the jump table's
+    init target (`<4-byte prefix> A2 00 B9 lo hi 9D <17CF+delta>`) and read
+    `op_orderlist = init_target + 7` (the moved init's actual load operand);
+  - base-plausibility = `base + $848 <= $10000` (only code+state
+    $1006-$1845 relocate; data tables are packer-patched — masked compare's
+    job. The earlier $1900 margin wrongly rejected high-load base=$F000
+    builds -> 2 regressions, fixed);
+  - **multi_subtune** (ASL*3 prefix, `songs>1`, 36 members) typed-deferred —
+    needs a multi-song PSID build the composer doesn't emit yet.
+RESULT: ~300 members unsupported -> supported; **FULL 354 -> 461/1495
+(+107; 30.8%; 41.9% of supported)**; all 461 mass-written + db refreshed.
+RESIDUE: player_code_mismatch 152 (deeper code variants — bucket by
+play-body first-diff PC), multi_subtune 36, note_out_of_range 36,
+no_jumptable 22, error 108 (extract robustness), 640 partial (long tail).
+NEXT: multi-song emit (multi_subtune) > partial long tail > deeper variants
+> extract errors > family-4 (686, play +$95).
+
 ## (historical) factory + wide-batch plan
 `dmc_v5_config` factory (jump-table detect init+$40/play+$A1, the
 operand sites above, carved reference) + reuse tools/dmc_family_batch.py

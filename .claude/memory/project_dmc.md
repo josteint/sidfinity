@@ -319,13 +319,35 @@ DUAL-CLOCK PHASE ($1019 leftover → params.slide_phase).
    261 reloc/CIA + player_code_mismatch 266 sub-builds + note_out_of_range
    27 + cia 13 + wave/pulse-overflow + trailing-cmds); 67 error
    (_capture_env ptr-overflow 45 + unknown-sector-cmd 12 in relocated/corrupt
-   + timeout 8). NEXT V5 (ranked): (1) the no_jumptable+player_code_mismatch
-   527 unsupported = the SAME sub-build/relocation axes family-1/2 unlocked
-   (jumptable-signature image scan + 2-entry layout + masked code regions) —
-   highest leverage; (2) partial long tail (state-only Check-A, freq/PW,
-   end-of-song); (3) the 67 extract errors (_capture_env robustness); then
-   family-4 (686, play +$95, ~0.31 Jaccard, separate branch). Full detail
-   in pipelines/dmc/v5/RE_NOTES.md "FILTER ROUND 1/2".
+   + timeout 8).
+   **✅✅ RELOCATED/WRAPPER-INIT UNLOCK (commits 0e3c319 + 023c1b6 + 5f3a0de):
+   354 -> 461/1495 FULL (+107; 30.8% of 1495, 41.9% of supported).** The
+   no_jumptable (261) + player_code_mismatch (266) buckets were 477/527 the
+   SAME family-3/5 player with a RELOCATED or WRAPPED init: play body still
+   at base+$A1, but the init MOVED elsewhere and/or its A-reg prefix differs
+   (LDA #0 single vs ASL*3 song-indexed). Old factory keyed base off the
+   jumptable LOCATION (+$40/+$A1) and compared the WHOLE player -> any
+   moved/re-prefixed init rejected. FIX (family-1/2 sub-build playbook, V5
+   form): base = play_target - $A1 (play is the reliable anchor); validate
+   the PLAY-reachable body only (_v5_play_ref $10A1-$170E); validate the
+   init by its orderlist-copy SKELETON at the jumptable's init target +
+   read op_orderlist from THAT init's actual load operand (init_target+7) ->
+   relocated/wrapped init handled. base-plausibility margin = base+$848
+   (only code+state $1006-$1845 relocate; data tables are packer-patched;
+   the $1900 margin wrongly rejected high-load base=$F000 builds -> 2
+   regressions, fixed). multi_subtune (36, ASL*3 song-indexed orderlist,
+   songs>1) typed-deferred (needs multi-song PSID emit). ~300 members moved
+   unsupported->supported; all 461 FULL mass-written + db refreshed.
+   RESIDUE NOW (286 unsupported + 640 partial + 108 error): player_code_
+   mismatch 152 (deeper code variants — bucket by play-body first-diff PC),
+   multi_subtune 36 (multi-song emit feature), note_out_of_range 36,
+   no_jumptable 22, error 108 (extract robustness: _capture_env ptr-overflow
+   + unknown-sector-cmd in relocated/corrupt). NEXT V5 (ranked): (1)
+   multi_subtune multi-song emit (36 + likely helps other DMC families);
+   (2) the 640 partial long tail (state-only Check-A, freq/PW, end-of-song
+   V1/V2-SR+V3-freq); (3) player_code_mismatch 152 deeper variants;
+   (4) extract-error robustness; then family-4 (686, play +$95, separate
+   branch). Full detail in pipelines/dmc/v5/RE_NOTES.md.
 
 ## REGRESSION PORTFOLIO (2026-06-13): generalized + DMC wired
 `tools/select_regression_portfolio.py` made engine-parametric (registry:
