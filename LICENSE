@@ -1,3 +1,18 @@
+SIDfinity — License
+===================
+
+Copyright (c) 2026 Jostein Trondal
+
+All original SIDfinity work in this repository is released under the MIT
+License, the text of which appears below. This covers the project's own
+source and documentation — the Python pipeline and composer (src/,
+pipelines/), the Python tooling (tools/*.py), the tests, and the docs.
+
+Some files in this repository are NOT original SIDfinity work and carry
+their own, separate licenses. The MIT grant below does NOT apply to them.
+They are enumerated under "Third-party components" further down.
+
+------------------------------------------------------------------------
 MIT License
 
 Copyright (c) 2026 Jostein Trondal
@@ -19,24 +34,91 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+------------------------------------------------------------------------
 
----
 
-This license applies to the SIDfinity pipeline code (src/), documentation
-(docs/), and the V2 player code generator (src/player/codegen_v2.py).
+Third-party components
+======================
 
-The following components have separate licenses:
+This repository redistributes the third-party material listed below.
+Each item retains its own copyright and license; the MIT grant above does
+not apply to these files.
 
-  tools/siddump.cpp      GPL v2 (links libsidplayfp)
-  tools/sidrender.cpp    GPL v2 (links libsidplayfp)
-  tools/test_libsid.cpp  GPL v2 (links libsidplayfp)
-  tools/gt2asm.c         GPL v2 (wraps GoatTracker assembler code)
-  tools/libsidplayfp/    GPL v2 (see tools/libsidplayfp/COPYING)
-  tools/xa65/            GPL v2 (see tools/xa65/xa/COPYING)
+1. libsidplayfp  —  GNU GPL v2 or later
+   Files:
+     tools/libsidplayfp-overlay/    (committed headers/sources)
+     tools/siddump.cpp              (original SIDfinity code that links libsidplayfp)
+   Copyright 2011-2025 Leandro Nini <drfiemost@users.sourceforge.net>
+   Copyright 2007-2010 Antti Lankila
+   Copyright 2000-2001 Simon White
+   and the libsidplayfp contributors.
+   Licensed under the GNU General Public License, version 2 or later.
+   Full license text: tools/libsidplayfp-overlay/COPYING
 
-The SIDfinity player algorithms are based on Lasse Öörni's GoatTracker V2
-playroutine, released under the following terms:
+   tools/siddump.cpp is original SIDfinity code, but it includes and links
+   libsidplayfp; the resulting binary is a combined work distributed under
+   the GPL v2. tools/build.sh additionally clones and builds the full
+   libsidplayfp library and the xa65 assembler (both GPL v2) into gitignored
+   directories — those build trees are not part of this distribution.
 
-  "This playroutine source code does not fall under the GPL license!
-   Use it, or song binaries created from it freely for any purpose,
-   commercial or noncommercial."
+2. GoatTracker  —  GNU GPL v2  (in deprecated/)
+   Files:
+     deprecated/gt2_pipeline/GoatTracker_2.65/ … GoatTracker_2.77/
+   Copyright Lasse Öörni and the GoatTracker contributors.
+   Licensed under the GNU General Public License, version 2.
+   Full license text: each tree's "copying" file
+   (e.g. deprecated/gt2_pipeline/GoatTracker_2.77/copying).
+
+   These trees also bundle:
+     - reSID, Copyright Dag Lem and contributors — GNU GPL v2
+       (deprecated/gt2_pipeline/GoatTracker_*/src/resid/)
+     - SDL (sdl.dll), the Simple DirectMedia Layer — GNU LGPL
+       (see each tree's readme_sdl.txt for the LGPL notice and source URL)
+
+   PLAYROUTINE EXCEPTION. The playroutine sources src/player.s and
+   src/altplayer.s within each GoatTracker tree — and
+   deprecated/old_player/sidfinity_gt2.asm, which is derived from them —
+   carry the author's explicit notice:
+
+     "This playroutine source code does not fall under the GPL license!
+      Use it, or song binaries created from it freely for any purpose,
+      commercial or noncommercial."
+
+   Some SIDfinity player-code-generation work (notably the deprecated V2
+   code generator under deprecated/v2_codegen/ and deprecated/old_player/)
+   was originally based on this GoatTracker V2 playroutine.
+
+3. SIDdecompiler  —  MIT
+   File:
+     pipelines/hubbard/docs/siddecompiler_full_source.cpp
+   Copyright (c) 2017 Stein Pedersen
+   Licensed under the MIT License (the copyright and permission notice are
+   retained in the file's header). Source:
+   https://github.com/Galfodo/SIDdecompiler
+
+4. Third-party Commodore 64 software and SID music  —  preservation
+   The files below are the property of their respective authors. They are
+   included solely for research, interoperability, and preservation in the
+   spirit of the High Voltage SID Collection (HVSC). They are NOT covered by
+   the MIT license above, are provided with no warranty, and will be removed
+   on request by a rights holder.
+
+   C64 music-editor / player binaries:
+     pipelines/future_composer/artifacts/*.prg     (Future Composer family)
+     pipelines/john_player/docs/src/**             (John Player editor)
+     pipelines/music_assembler/docs/*.prg          (Music Assembler / Triad)
+     pipelines/soundmonitor/docs/vendor/*.prg      (Sound Monitor)
+     pipelines/dmc/docs/*.bin                       (DMC player code)
+     deprecated/dmc_wip/dmc/binaries/*.prg          (Demo Music Creator)
+
+   SID tunes and SIDfinity rebuilds of copyrighted compositions:
+     deprecated/gt2_grading/demo/*.sid
+     deprecated/usf1_pipelines/*/build/*.sid
+     pipelines/hubbard/five_title_tunes/work_subs/*.sid
+
+5. HVSC catalogue metadata
+   hvsc84.db contains catalogue metadata only — file paths, tune titles,
+   author names, song lengths, and content hashes derived from the High
+   Voltage SID Collection (https://www.hvsc.c64.org/). It contains no SID
+   audio and no binary tune data. The HVSC collection itself is not included
+   in this repository.
