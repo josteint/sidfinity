@@ -53,15 +53,11 @@ class DMCV5Unsupported(Exception):
         super().__init__(f'{reason}: {detail}' if detail else reason)
 
 
-_REF = None      # list[(pc, len, ref_bytes, operand_class)]
+_REF = None         # full (init+play) reachable-instruction reference
+_PLAY_REF = None    # play-ONLY reachable reference (init excluded)
 
 
-def _v5_ref():
-    """Trace the Katusha player once; return the reachable-instruction
-    reference (pc, length, bytes, operand class). Cached."""
-    global _REF
-    if _REF is not None:
-        return _REF
+def _build_ref(init_pc):
     import sys
     sys.path.insert(0, os.path.join(os.path.dirname(__file__),
                                     '..', '..', '..', 'tools'))
@@ -74,7 +70,7 @@ def _v5_ref():
     mem = bytearray(0x10000)
     for i, b in enumerate(s['payload']):
         mem[s['load'] + i] = b
-    _c, starts, _l, _j = trace(bytes(mem), 0, 0x1040, 0x10A1, ())
+    _c, starts, _l, _j = trace(bytes(mem), 0, init_pc, 0x10A1, ())
     ref = []
     for pc in sorted(p for p in starts if 0x1000 <= p < 0x1A00):
         L = _INST_LEN[mem[pc]]
@@ -82,8 +78,25 @@ def _v5_ref():
             continue
         cls = (_opclass(mem[pc + 1] | (mem[pc + 2] << 8)) if L == 3 else None)
         ref.append((pc, L, bytes(mem[pc:pc + L]), cls))
-    _REF = ref
     return ref
+
+
+def _v5_ref():
+    """Full reachable-instruction reference (init+play). Cached."""
+    global _REF
+    if _REF is None:
+        _REF = _build_ref(0x1040)
+    return _REF
+
+
+def _v5_play_ref():
+    """PLAY-only reachable reference ($10A1..$170E) — excludes init, so it
+    validates members whose init is relocated/wrapped (the player body is
+    still the family-3/5 player at base+$A1 even when the init moved). Cached."""
+    global _PLAY_REF
+    if _PLAY_REF is None:
+        _PLAY_REF = _build_ref(0x10A1)
+    return _PLAY_REF
 
 
 def _load(sid_path: str):
@@ -101,50 +114,59 @@ def _load(sid_path: str):
     return mem, s
 
 
-def _detect_base(mem, s):
-    """Find the V5 player base via the 2-entry jump table. Returns
-    (base, layout) where layout in {'v5','family4'}, or (None, reason)."""
-    def jt(b):
-        if not (0 < b and s['load'] <= b and b + 0xA1 < 0x10000
+def _detect_v5(mem, s):
+    """Locate the V5 player from its 2-entry jump table. entry0 = init
+    target, entry1 = play target. The PLAY routine is the reliable anchor:
+    base = play_target - $A1 (Katusha play is at base+$A1). The INIT target
+    is read separately and may be RELOCATED/WRAPPED away from base+$40 (a
+    re-linked build moves the init elsewhere; the play body stays at
+    base+$A1) — so base is derived from play, not init. Returns
+    (base, init_target, jt_addr, layout) with layout in {'v5','family4'},
+    or (None, None, None, None)."""
+    def jt_at(b):
+        if not (s['load'] <= b and b + 5 < 0x10000
                 and mem[b] == 0x4C and mem[b + 3] == 0x4C):
             return None
-        e0 = mem[b + 1] | (mem[b + 2] << 8)
-        e1 = mem[b + 4] | (mem[b + 5] << 8)
-        if e0 == b + 0x40 and e1 == b + 0xA1:
-            return 'v5'
-        if e0 == b + 0x40 and e1 == b + 0x95:
-            return 'family4'           # Jupiter41 branch — distinct engine
-        return None
-    for b in (s['play'] - 3, s['load']):
-        lay = jt(b)
-        if lay:
-            return b, lay
-    # relocated-within-file (CIA/multispeed wrapper, player elsewhere):
-    # scan for the first valid jump-table signature; the masked compare
-    # then validates it.
-    lo, hi = s['load'], min(0x10000, s['load'] + len(s['payload']))
-    for b in range(lo, hi - 0xA2):
-        if mem[b] == 0x4C and mem[b + 3] == 0x4C:
-            lay = jt(b)
-            if lay:
-                return b, lay
-    return None, None
+        return (mem[b + 1] | (mem[b + 2] << 8),
+                mem[b + 4] | (mem[b + 5] << 8))
+    cands = []
+    for b in (s['load'], s['play'] - 3):
+        r = jt_at(b)
+        if r:
+            cands.append((b, r[0], r[1]))
+    if not cands:
+        lo, hi = s['load'], min(0x10000, s['load'] + len(s['payload']))
+        for b in range(lo, hi - 6):
+            if mem[b] == 0x4C and mem[b + 3] == 0x4C:
+                r = jt_at(b)
+                if r:
+                    cands.append((b, r[0], r[1]))
+                    break
+    for jt_addr, it, pt in cands:
+        # family-4 (Jupiter41) = standard jump table at load with play+$95
+        if jt_addr == s['load'] and it == jt_addr + 0x40 and pt == jt_addr + 0x95:
+            return None, None, jt_addr, 'family4'
+        base = (pt - 0xA1) & 0xFFFF
+        if base >= s['load'] and base + 0x1900 <= 0x10000:
+            return base, it, jt_addr, 'v5'
+    return None, None, None, None
 
 
 def dmc_v5_config(sid_path: str, hvsc_root: str = 'hvsc84') -> DMCV5Config:
     mem, s = _load(os.path.join(hvsc_root, sid_path))
-    base, layout = _detect_base(mem, s)
-    if base is None:
+    base, init_target, jt_addr, layout = _detect_v5(mem, s)
+    if base is None and layout != 'family4':
         raise DMCV5Unsupported(
             'no_jumptable',
             f"load=${s['load']:04X} init=${s['init']:04X} play=${s['play']:04X}")
     if layout == 'family4':
-        raise DMCV5Unsupported('family4_branch', f'base=${base:04X}')
+        raise DMCV5Unsupported('family4_branch', f'jt=${jt_addr:04X}')
     delta = base - 0x1000
 
-    # ---- masked identity compare vs the relocated Katusha reference ----
-    ref = _v5_ref()
-    for pc, L, rbytes, cls in ref:
+    # ---- masked identity compare of the PLAY-reachable body vs the
+    #      relocated Katusha reference. The init is validated separately
+    #      (it may be relocated/wrapped) so we don't compare it here. ----
+    for pc, L, rbytes, cls in _v5_play_ref():
         a = pc + delta
         if a + L > 0x10000:
             raise DMCV5Unsupported('oob', f'${pc:04X}')
@@ -167,21 +189,39 @@ def dmc_v5_config(sid_path: str, hvsc_root: str = 'hvsc84') -> DMCV5Config:
             raise DMCV5Unsupported('player_code_mismatch',
                                    f'immediate at ${pc:04X}')
 
-    # ---- CIA multispeed: a wrapper member (play != base+3) whose PSID
-    #      speed bit is set runs the player from a CIA-timer dispatcher.
-    #      Not yet supported by the V5 verify (VBI-only); flag it. ----
-    if s['play'] != base + 3 and (s.get('speed', 0) & 1):
-        raise DMCV5Unsupported('cia_multispeed', f"play=${s['play']:04X}")
+    # ---- init skeleton: the V5 init copies the orderlist record into the
+    #      track pointers — `<4-byte A-prefix> A2 00 B9 lo hi 9D <17CF+delta>`.
+    #      Validate that shape at init_target (wherever the init lives) and
+    #      read the orderlist-record operand site from it (init_target+7).
+    #      The 4-byte prefix varies (LDA #0 single-subtune vs ASL*3 song-
+    #      indexed multi-subtune) so only the copy skeleton is checked. ----
+    it = init_target
+    tcf = (0x17CF + delta) & 0xFFFF
+    if not (it + 12 < 0x10000 and mem[it + 3] == 0xA8 and mem[it + 4] == 0xA2
+            and mem[it + 6] == 0xB9 and mem[it + 9] == 0x9D
+            and (mem[it + 10] | (mem[it + 11] << 8)) == tcf):
+        raise DMCV5Unsupported('player_code_mismatch',
+                               f'init skeleton at ${it:04X}')
 
-    def at(off):
-        return off + delta
+    # ---- multi-subtune (song-indexed orderlist record) needs a multi-song
+    #      build the V5 composer doesn't emit yet (single-song PSID); flag. ----
+    if s.get('songs', 1) > 1:
+        raise DMCV5Unsupported('multi_subtune', f"songs={s['songs']}")
+
+    # ---- CIA multispeed: a wrapper member (play vector not the jump table)
+    #      whose PSID speed bit is set runs from a CIA-timer dispatcher; the
+    #      V5 verify is VBI-only, so flag it. ----
+    if s['play'] != jt_addr + 3 and (s.get('speed', 0) & 1):
+        raise DMCV5Unsupported('cia_multispeed', f"play=${s['play']:04X}")
 
     d = DMCV5Config(sid_path=sid_path,
                     name=os.path.splitext(os.path.basename(sid_path))[0],
                     base=base)
-    # relocate every operand site to the member's base
-    for f in ('op_orderlist', 'op_secp_lo', 'op_secp_hi', 'op_instr',
-              'op_freq_lo', 'op_freq_hi', 'op_wave_ctrl', 'op_wave_freq',
-              'op_pulse_lo', 'op_pulse_hi', 'op_filter_lo', 'op_filter_hi'):
-        setattr(d, f, at(getattr(d, f)))
+    # play-body operand sites relocate with the base; the orderlist site is
+    # read from the (possibly relocated/wrapped) init's actual load operand.
+    for f in ('op_secp_lo', 'op_secp_hi', 'op_instr', 'op_freq_lo',
+              'op_freq_hi', 'op_wave_ctrl', 'op_wave_freq', 'op_pulse_lo',
+              'op_pulse_hi', 'op_filter_lo', 'op_filter_hi'):
+        setattr(d, f, getattr(d, f) + delta)
+    d.op_orderlist = it + 7
     return d
