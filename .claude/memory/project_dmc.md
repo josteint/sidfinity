@@ -342,12 +342,31 @@ DUAL-CLOCK PHASE ($1019 leftover → params.slide_phase).
    mismatch 152 (deeper code variants — bucket by play-body first-diff PC),
    multi_subtune 36 (multi-song emit feature), note_out_of_range 36,
    no_jumptable 22, error 108 (extract robustness: _capture_env ptr-overflow
-   + unknown-sector-cmd in relocated/corrupt). NEXT V5 (ranked): (1)
-   multi_subtune multi-song emit (36 + likely helps other DMC families);
-   (2) the 640 partial long tail (state-only Check-A, freq/PW, end-of-song
-   V1/V2-SR+V3-freq); (3) player_code_mismatch 152 deeper variants;
-   (4) extract-error robustness; then family-4 (686, play +$95, separate
-   branch). Full detail in pipelines/dmc/v5/RE_NOTES.md.
+   + unknown-sector-cmd in relocated/corrupt).
+   **✅✅ MULTI-SUBTUNE SUPPORT (commits b4994d0 + 21e767d): 461 -> 466/1495
+   FULL (31.2%; 41.4% of supported), 0 regressions.** Song-indexed orderlist
+   record (init reads song# from A: ASL*3; PHA across state clear; PLA; TAY;
+   index ordrec by song#*8); data tables (sectors/instr/freq/wave/pulse/
+   filter) SHARED across subtunes; one MusicSubtune per record (per-sub
+   tempo/master_vol/voices; global leftovers on subtune 0). UNIFIED with
+   single-subtune (song#=0 -> Y=0, identical). 5-file change (engine_model
+   V5Subtune + extract N records; composer ordrec N + song-indexed init +
+   PSID songs=N; to_usf N MusicSubtunes; from_usf pool sectors across all
+   subtunes; factory rejection removed). +5 fully FULL (members need ALL
+   subtunes FULL; 138 subtune-songs all build correctly); 34 moved
+   unsupported->supported. All 466 mass-written + db refreshed.
+   RESIDUE NOW (252 unsupported + 660 partial + 117 error): player_code_
+   mismatch 160 (deeper code variants), note_out_of_range 38, trailing/wave/
+   pulse/cia/no_jumptable misc; error 117 (extract robustness). NEXT V5
+   (ranked): (1) the 660 partial long tail (state-only Check-A, freq/PW,
+   end-of-song V1/V2-SR+V3-freq — biggest by count, but diverse); (2)
+   player_code_mismatch 160 deeper variants (bucket by play-body first-diff
+   PC); (3) extract-error robustness (117); then family-4 (686, play +$95,
+   separate branch). Full detail in pipelines/dmc/v5/RE_NOTES.md.
+   **PENDING (user request, deferred to after duckdb install): migrate the
+   DB from SQLite (hvsc84.db, 21MB binary blob) to a git-trackable CSV +
+   DuckDB for queries — scoped: 11 consumers, src/sid_db.py write-through is
+   the friction point (CSV can't row-update; concurrent writers race).**
 
 ## REGRESSION PORTFOLIO (2026-06-13): generalized + DMC wired
 `tools/select_regression_portfolio.py` made engine-parametric (registry:

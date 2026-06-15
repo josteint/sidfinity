@@ -285,6 +285,31 @@ no_jumptable 22, error 108 (extract robustness), 640 partial (long tail).
 NEXT: multi-song emit (multi_subtune) > partial long tail > deeper variants
 > extract errors > family-4 (686, play +$95).
 
+## ✅✅ MULTI-SUBTUNE SUPPORT (2026-06-15, commits b4994d0 + 21e767d)
+
+Multi-subtune members index the orderlist record by song#: the init does
+`ASL*3; TAY` -> Y = song#*8, then copies record N (3 track ptrs + speed +
+master vol) into the work RAM. The data tables (sectors/instruments/freq/
+wave/pulse/filter) are SHARED across subtunes; only the orderlist record +
+its referenced orderlist streams are per-subtune.
+
+5-file change: `engine_model` (V5Subtune dataclass; extract reads one record
+per song at op_orderlist+N*8, tables shared, top-level fields mirror subtune
+0) -> `composer_v5` (ordrec = one 8-byte record per subtune; init reads
+song# from A: `ASL*3; PHA` across the state clear; `PLA; TAY`; index ordrec
+by song#*8; PSID `songs` = subtune count — UNIFIED with single-subtune since
+song#=0 gives Y=0, identical play) -> `to_usf` (one MusicSubtune per record,
+per-sub tempo/master_vol/voices; the GLOBAL file-image leftovers — filter
+cutoff, speed_ctr_init/fade_frac_init, idle notes — on subtune 0) ->
+`from_usf` (pool sectors across ALL subtunes' voices into one shared pool;
+read per-subtune speed/mvol/orderlists) -> `factory` (multi_subtune
+rejection removed). RESULT: FULL 461 -> 466/1495 (+5; 31.2%, 41.4% of
+supported), 0 regressions; 34 moved unsupported->supported; all 138
+subtune-songs build correctly. A member counts FULL only if ALL its subtunes
+are FULL, so the fully-FULL gain is modest — the partial multi-subtune
+members have a subtune hitting the diverse long-tail bug. Single-subtune
+unaffected (init change transparent). All 466 mass-written + db refreshed.
+
 ## (historical) factory + wide-batch plan
 `dmc_v5_config` factory (jump-table detect init+$40/play+$A1, the
 operand sites above, carved reference) + reuse tools/dmc_family_batch.py
