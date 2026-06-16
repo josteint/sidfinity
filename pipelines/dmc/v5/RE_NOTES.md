@@ -310,6 +310,41 @@ are FULL, so the fully-FULL gain is modest — the partial multi-subtune
 members have a subtune hitting the diverse long-tail bug. Single-subtune
 unaffected (init change transparent). All 466 mass-written + db refreshed.
 
+## ✅✅ PARTIAL LONG TAIL round 1 — FILTER OFF-TABLE read (2026-06-16, commit ba63846)
+
+The biggest partial cluster (the FCLO/FCHI first-divergence bucket, ~70+
+members; e.g. Bayliss A_Wonder/Alone_in_Bed: FCLO ramps +$39/+$29 vs orig
++$14, diverging at frame ~4). Root cause: the filter table is the LAST data
+region, so its lo/hi-array delta (a_fh-a_fl) does NOT bound the program. A
+TINY filter table (e.g. 2 entries) whose instruments all use filter ptr 1
+runs filter_init (set start) then filter_run advances filterpos PAST the
+array boundary, reading the OVERLAPPING lo/hi arrays + the bytes after them
+as further (step,count) phases — the ramp lives OFF-TABLE. (Confirmed:
+A_Wonder a_fl=$1E42/a_fh=$1E44, n=2, but the +$14 ramp step/count sit at
+a_fl+2.../a_fh+2... right after the arrays, decoded by simulating the raw
+memory.)
+
+FIX (extract + capture, no schema/composer change):
+- engine_model: read the filter table generously — n_filter = min(256,
+  memtop) (filterpos is a byte; off-table bytes are exactly what the orig
+  reads; reads past payload are 0, matching siddump's zero-fill). The
+  wave/pulse tables are NOT last (bounded by the next table) so they keep
+  the delta sizing. This also fixed ~28 _capture_env ptr-out-of-range errors.
+- to_usf _capture_env: count==0 = the engine's 16-bit phase counter wraps
+  (65536 frames) = a TERMINAL HOLD (treat frames 0 as 0x10000). The
+  off-table zero-region decodes to (0,0) entries that otherwise spin to
+  PHASE_CAP -> unsupported:sweep_too_long. (NB the direct model path already
+  worked — it emits the 256-entry table verbatim; only the USF capture path
+  needed this.)
+
+RESULT (full family-3/5 batch): FULL 466 -> 543/1495 (+77; 36.3% of 1495,
+47.1% of supported), 0 regressions; partial 660->610, errors 117->89. All
+543 mass-written + db refreshed. RESIDUE: 610 partial (now led by the
+Minoam-style END-OF-SONG tail — V1/V2 SR + V3 freq late diffs — + freq/PW),
+player_code_mismatch 160, note_out_of_range 38, error 89, +2 new
+filter_table_overflow (synthesized off-table env > 256 entries; rare).
+NEXT: the end-of-song / freq-PW partial tail; then deeper variants.
+
 ## (historical) factory + wide-batch plan
 `dmc_v5_config` factory (jump-table detect init+$40/play+$A1, the
 operand sites above, carved reference) + reuse tools/dmc_family_batch.py

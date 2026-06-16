@@ -357,12 +357,25 @@ DUAL-CLOCK PHASE ($1019 leftover → params.slide_phase).
    unsupported->supported. All 466 mass-written + db refreshed.
    RESIDUE NOW (252 unsupported + 660 partial + 117 error): player_code_
    mismatch 160 (deeper code variants), note_out_of_range 38, trailing/wave/
-   pulse/cia/no_jumptable misc; error 117 (extract robustness). NEXT V5
-   (ranked): (1) the 660 partial long tail (state-only Check-A, freq/PW,
-   end-of-song V1/V2-SR+V3-freq — biggest by count, but diverse); (2)
-   player_code_mismatch 160 deeper variants (bucket by play-body first-diff
-   PC); (3) extract-error robustness (117); then family-4 (686, play +$95,
-   separate branch). Full detail in pipelines/dmc/v5/RE_NOTES.md.
+   pulse/cia/no_jumptable misc; error 117 (extract robustness).
+   **✅✅ PARTIAL LONG TAIL round 1 — FILTER OFF-TABLE (commit ba63846):
+   466 -> 543/1495 FULL (+77; 36.3% of 1495, 47.1% of supported), 0
+   regressions.** Biggest partial cluster (FCLO/FCHI bucket ~70+) = the
+   filter table is the LAST data region so a_fh-a_fl does NOT bound it; tiny
+   tables (2 entries, all insts FL=1) run filter_run PAST the array into the
+   overlapping lo/hi arrays + following bytes (ramp lives OFF-TABLE). FIX
+   (extract+capture, no composer change): read filter table generously
+   (n_filter=min(256,memtop) — filterpos is a byte; off-table bytes = what
+   orig reads, 0 past payload = siddump zero-fill); _capture_env count==0 =
+   counter wraps 65536 = TERMINAL HOLD (off-table zero-region was spinning to
+   sweep_too_long). Also fixed ~28 _capture_env ptr-overflow errors
+   (117->89). Direct path already worked (emits table verbatim); only USF
+   capture needed it. partial 660->610, all 543 mass-written + db refreshed.
+   NEXT V5 (ranked): (1) partial tail now led by the Minoam-style END-OF-SONG
+   tail (V1/V2 SR + V3 freq late diffs) + freq/PW; (2) player_code_mismatch
+   160 deeper variants (bucket by play-body first-diff PC); (3) extract-error
+   robustness (89, incl 2 new filter_table_overflow); then family-4 (686,
+   play +$95). Full detail in pipelines/dmc/v5/RE_NOTES.md "PARTIAL LONG TAIL".
    **PENDING (user request, deferred to after duckdb install): migrate the
    DB from SQLite (hvsc84.db, 21MB binary blob) to a git-trackable CSV +
    DuckDB for queries — scoped: 11 consumers, src/sid_db.py write-through is
