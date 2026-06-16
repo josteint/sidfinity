@@ -79,12 +79,16 @@ the families distinct; X-Ample material here is lineage context only.
 ## Gap analysis
 
 - **Fillable from released materials (→ migration phase, NOT this sweep):** the entire
-  byte-level format. Two ground-truth sources to acquire: (1) the **Parsec Music Editor
-  V5.1 D64** (CSDb #10744) — disassemble its player + read its in-editor data layout;
-  (2) **"Docs 2 Compotech"** (CSDb #253740) — a documentation disk that may contain a
-  written format spec for the evolved engine. These make a clean spec achievable without
-  blind RE. (Version lineage v2.0→…→v5.1 is in `disasm_findings.md` — expect minor
-  per-version format drift.)
+  byte-level format. Ground-truth source to acquire: the **Parsec Music Editor V5.1 D64**
+  (CSDb #10744) — disassemble its player + read its in-editor data layout. This makes a
+  clean spec achievable without blind RE. (Version lineage v2.0→…→v5.1 is in
+  `disasm_findings.md` — expect minor per-version format drift.)
+  - **"Docs 2 Compotech" (CSDb #253740) — DOWNLOADED + CHECKED, dead end for a spec.**
+    Both disk images are in `src/` (see `src/compotech_disks_NOTES.md`). The "docs" PRG
+    is a scene greetings/credits scroller, NOT a format manual. The companion disk holds
+    the actual **Compotech** editor/player — but Compotech is the separate **`xample`**
+    family, not LordsOfSonics/MS, so it's relevant to a future *xample* migration, not
+    this one.
 - **Fillable from our binaries:** confirm the 5 dispatch-variant clusters and the
   payload+8 header field meanings against a `V_PLAY_INIT` disassembly.
 - **Probably unfillable / low-value online:** no open-source parser/decompiler exists

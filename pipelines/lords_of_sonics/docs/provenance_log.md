@@ -32,12 +32,18 @@ Every source attempted, with status. Future waves: don't re-fetch these.
   SIDdecompiler, DeepSID).
 - No published annotated disassembly of the player.
 
-## Key not-yet-executed leads (belong to migration phase, not this sweep)
+## CSDb #253740 "Docs 2 Compotech" — DOWNLOADED + CHECKED (2026-06-16)
+Both disk images fetched via csdb.dk/storage redirect and saved to `src/`
+(`d2ct.d64`, `Compotech The Force full release.d64`). Directory parsed + the
+docs PRG text decoded in pure Python. **Result: dead end for a format spec** —
+the "docs" PRG is a scene greetings/credits scroller, not a manual; the
+companion disk holds the Compotech editor/player but Compotech = the separate
+`xample` family. Full write-up: `src/compotech_disks_NOTES.md`.
+
+## Key not-yet-executed lead (belongs to migration phase, not this sweep)
 - **Download Parsec Music Editor V5.1 D64 (CSDb #10744)** and disassemble its player
-  stub + read its data layout → authoritative format spec.
-- **Download "Docs 2 Compotech" (CSDb #253740)** — documentation disk that may carry a
-  written format spec for the evolved engine.
-  Downloading + decoding a D64 is RE-adjacent (out of GATHER scope here), deferred to migration.
+  stub + read its data layout → authoritative format spec for THIS family.
+  Disassembling a player is RE (out of GATHER scope here), deferred to migration.
 
 ## Notes
 - X-Ample / Compotech is a SEPARATE sidid family (`xample`, already OK). Material on it
