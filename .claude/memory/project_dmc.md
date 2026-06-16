@@ -384,15 +384,30 @@ DUAL-CLOCK PHASE ($1019 leftover → params.slide_phase).
    off-by-one" was downstream of this loop). partial 610->470, all 683
    mass-written + db refreshed. **METHODOLOGY (CLAUDE.md): from here, iterate
    on a STRATIFIED SUBSET (~120, by first-diff bucket + FULL slice, ~5min),
-   full-batch ONLY at closeout.** NEXT V5 (ranked): (1) bucket the 470
-   partials (now led by the EARLY-diverging <50% set + remaining late diffs);
-   (2) player_code_mismatch 160 deeper variants; (3) extract-error robustness
-   (89, incl 2 filter_table_overflow); then family-4 (686, +$95).
-   Full detail in pipelines/dmc/v5/RE_NOTES.md "PARTIAL LONG TAIL round 1/2".
-   **PENDING (user request, deferred to after duckdb install): migrate the
-   DB from SQLite (hvsc84.db, 21MB binary blob) to a git-trackable CSV +
-   DuckDB for queries — scoped: 11 consumers, src/sid_db.py write-through is
-   the friction point (CSV can't row-update; concurrent writers race).**
+   full-batch ONLY at closeout.**
+   **✅✅ ROUND 3 — LOOP-POSITION + TRANSPOSE RE-ESTABLISHMENT (commit e882c10):
+   683 -> 842/1495 FULL (+159), 0 regressions** (the USF round-trip loop-target
+   bugs: to_usf loop_to via group-start bytes + loop_transpose re-establishment,
+   negative loop@N-T grammar). **✅ ROUND 4 — this session (commits 575492b +
+   40f496d): 842 -> 848/1495 FULL (56.7%), 0 regressions.** Two parts: (a) a
+   carry-target loop fix — round-3 only handled loops targeting the transpose
+   PREFIX (re-establish); a loop can also target the entry byte PAST the prefix
+   (CARRY, transpose persists over the wrap), which fell to loop_to=0 and
+   REGRESSED 5 ex-FULL members (Metropolitan/Fast_and_Slow/Trance/Techno_2/
+   Deep_Inside). _orderlist now maps each byte to (entry, is_prefix); monotonic.
+   (b) wrapper/trampoline detection (follow a 1-hop `JMP base+$A1`; resolve init
+   skeleton among [jt-target, JMP-follow, base+$40]) — +Background_Pleasure.
+   **TOOL: `tools/divergence_census.py`** (see [[reference_divergence_census]]) —
+   clusters the residue. KEY FINDING: **detection ≠ FULL** — the 153
+   player_code_mismatch are NOT the FULL bottleneck (detecting them just exposes
+   downstream bugs); the **310 verify-partials are**, clustered as: 67
+   check_A_state_only (init-priming, near-FULL — TOP TARGET), ~60 V1 pulse-width,
+   ~75 frequency (vibrato/glide), ~21 filter cutoff. NEXT V5 (ranked): (1) the
+   check_A_state_only init-priming cluster (67); (2) the pulse/freq partial
+   clusters; (3) player_code_mismatch deeper variants; then family-4 (+$95).
+   Full detail in pipelines/dmc/v5/RE_NOTES.md.
+   **DONE: DB migrated SQLite -> git-tracked CSV (hvsc84.csv) + DuckDB CLI
+   (see [[reference_hvsc_db.md]] / CLAUDE.md).**
 
 ## REGRESSION PORTFOLIO (2026-06-13): generalized + DMC wired
 `tools/select_regression_portfolio.py` made engine-parametric (registry:

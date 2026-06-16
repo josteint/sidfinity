@@ -374,6 +374,46 @@ note_out_of_range 38, error 89. NEXT: bucket the 470 partials by first-diff
 (use a STRATIFIED SUBSET for iteration per CLAUDE.md — don't full-batch each
 experiment); then deeper variants + family-4 (686, play +$95).
 
+## PARTIAL LONG TAIL round 3 — loop-position + transpose RE-ESTABLISHMENT (commit e882c10)
+
+FULL 683 -> 842/1495 (+159), 0 regressions. Two USF orderlist round-trip bugs
+near the loop: (1) to_usf loop_to records each entry's GROUP-START byte
+(transpose prefix if present) so a loop target at a $FD/$FC prefix is found
+(was falling to loop_to=0); (2) loop-target transpose RE-ESTABLISHMENT (reuses
+FC's Orderlist.loop_transpose) — the orig re-applies the transpose each wrap;
+from_usf force-emits it. USF DSL gained negative loop@N-T (for $FC targets).
+
+## PARTIAL LONG TAIL round 4 — carry-target loop fix + wrapper detection + triage tool
+
+FULL 842 -> 848/1495 (56.7%), 0 regressions.
+
+(a) **Carry-target loop fix** (commit 40f496d): round-3 handled loops targeting
+the transpose PREFIX (re-establish) but NOT loops targeting the entry SECTOR
+byte PAST the prefix (CARRY — the player keeps the running transpose over the
+wrap). Those matched no group-start byte and fell to loop_to=0, REGRESSING 5
+ex-FULL members (Metropolitan, Fast_and_Slow, Trance, Techno_2, Deep_Inside —
+e.g. Deep_Inside v1 loops to byte $07, the entry just past an `fd 00` prefix).
+_orderlist now maps each byte offset to (entry, is_prefix): sector byte ->
+(i, carry), prefix byte -> (i, re-establish); a loop target lands on exactly
+one (offsets unique). Monotonic — only rescues past-prefix loop_to=0 fallbacks.
+
+(b) **Wrapper / trampoline detection** (commit 575492b): follow a 1-hop
+`JMP base+$A1` relink stub to the real player base; resolve the init skeleton
+among [jt-target, JMP-follow, base+$40]. +Background_Pleasure (carry fix pushed
+it 98.4%->FULL). The masked compare was factored into return-first-divergence
+helpers (_diff_play_body/_diff_init_skel) shared by the raising dmc_v5_config
+and a new non-raising v5_diagnose.
+
+**Triage tool — tools/divergence_census.py** (commit 575492b): clusters the
+non-FULL residue. KEY FINDING: **detection != FULL** — the 153
+player_code_mismatch are NOT the FULL bottleneck (the 7 wrapper members it
+detects stay non-FULL; detecting just exposes downstream bugs). The 310
+verify-PARTIALS are; --partials clusters them by first writelog divergence:
+**67 check_A_state_only** (init-priming, play-matches-state-differs, near-FULL
+— TOP NEXT TARGET), ~60 V1 pulse-width, ~75 frequency (vibrato/glide), ~21
+filter cutoff. (A by-hand "$10A1 = 52 trampolines" guess was corrected by the
+tool to 2 — the cluster was heterogeneous; split opcode clusters by the byte.)
+
 ## (historical) factory + wide-batch plan
 `dmc_v5_config` factory (jump-table detect init+$40/play+$A1, the
 operand sites above, carved reference) + reuse tools/dmc_family_batch.py

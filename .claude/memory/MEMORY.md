@@ -52,6 +52,7 @@
 - [User strategic pattern](feedback_user_strategic_pattern.md) — propose options before code; honest scope; pause after each step
 - [Commit early](feedback_commit_early.md) — commit immediately after each verified improvement
 - [Repo tmp/ not /tmp](feedback_repo_tmp_dir.md) — ALL scratch artifacts go in the gitignored repo-local `tmp/`, never the system /tmp (it gets wiped; ate the FC member lists)
+- [Background jobs via harness](feedback_background_jobs_harness.md) — long batches MUST use Bash `run_in_background: true`, never `nohup&` in a foreground call (killed when the tool shell exits → waiter reports STALE output). Also: the family batches RESUME from the OUT jsonl (skip done paths) — delete it to force a clean re-run. Sanity-check result mtime vs the fix's mtime.
 - [No co-author in commits](feedback_no_coauthor.md) — never add `Co-Authored-By`
 - [Do the actual work](feedback_do_the_work.md) — implement ALL optimizations, don't punt
 - [Worktree agents must commit](feedback_worktree_commit.md) — always tell agents to `git add` + commit
@@ -86,6 +87,7 @@
 - [Audit tool](reference_audit_tool.md) — `src/usf/audit.py`: PC-traced per-voice SID-write capture. Use for Rule 1 collapse audits when voice attribution matters.
 - [Tokenization for ML](reference_tokenization.md) — USF is NOT tokens; tokenization is a downstream conversion when ML training starts. REMI-style is the proven starting point.
 - [Hubbard PWM bounds](reference_hubbard_pwm_bounds.md) — pulsework's $08/$0E direction-flip thresholds are HARDCODED, not per-instrument
+- [Divergence census tool](reference_divergence_census.md) — `tools/divergence_census.py`: clusters a family's non-FULL residue into ranked root-cause buckets (detect-rejects by live first-divergence; partials by writelog first_diff). Found: detection ≠ FULL; partials are the DMC-V5 bottleneck.
 
 ## Deprecated memories
 
