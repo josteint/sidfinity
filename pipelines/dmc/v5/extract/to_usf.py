@@ -212,45 +212,46 @@ def _orderlist(events: list) -> Orderlist:
     entries, transposes = [], []
     transpose = 0
     loop_to = None
+    loop_reestablish = False
     stop = False
-    # byte offset -> entry index, so a loop target (a byte offset in the raw
-    # stream) maps to the orderlist position. Record each entry's GROUP-START
-    # byte — the leading $FD/$FC transpose prefix if present, else the sector
-    # byte — because a loop target commonly points at a transpose ($FF wraps to
-    # a leading transpose, which the player re-dispatches; from_usf encodes the
-    # loop the same way). Recording only the sector byte sent such targets to
-    # loop_to=0 (the fallback), replaying the loop from the wrong position.
-    byte_of_entry = []
-    prefixed = []             # entry i begins with a $FD/$FC transpose prefix?
+    # Map raw byte offset -> (entry index, is_transpose_prefix). A loop target
+    # is a byte offset that lands on ONE of two things (byte offsets are
+    # unique): an entry's SECTOR byte, or an entry's leading $FD/$FC transpose
+    # PREFIX. The distinction is the loop's transpose semantics:
+    #   - target = PREFIX byte  -> the player re-dispatches the transpose each
+    #     wrap (RE-ESTABLISH); loop_transpose carries the value.
+    #   - target = SECTOR byte (past the prefix, or an unprefixed entry) -> the
+    #     player CARRIES the running transpose over the wrap; loop_transpose
+    #     stays None.
+    # Recording only the prefix byte sent past-the-prefix targets to loop_to=0;
+    # recording only the sector byte sent prefix targets there. Record both.
+    byte_map = {}
     byte_pos = 0
-    group_start = None        # byte where the current entry's group begins
+    prefix_start = None       # byte where the pending entry's $FD/$FC prefix began
     for e in events:
         if e[0] == 'sector':
-            byte_of_entry.append(group_start if group_start is not None
-                                 else byte_pos)
-            prefixed.append(group_start is not None)
-            group_start = None
+            i = len(entries)
+            byte_map[byte_pos] = (i, False)           # sector byte = carry
+            if prefix_start is not None:
+                byte_map[prefix_start] = (i, True)    # prefix byte = re-establish
+            prefix_start = None
             entries.append(e[1])
             transposes.append(transpose)
             byte_pos += 1
         elif e[0] == 'transpose':
-            if group_start is None:
-                group_start = byte_pos                # transpose prefix start
+            if prefix_start is None:
+                prefix_start = byte_pos               # transpose prefix start
             t = e[1]
             transpose = t - 256 if t >= 128 else t   # signed
             byte_pos += 2
         elif e[0] == 'loop':
             tgt = e[1]                                # raw byte offset
-            loop_to = byte_of_entry.index(tgt) if tgt in byte_of_entry else 0
+            loop_to, loop_reestablish = byte_map.get(tgt, (0, False))
         elif e[0] == 'end':
             stop = True
-    # Loop RE-ESTABLISHES the transpose iff its target byte is an explicit
-    # $FD/$FC prefix (the player re-applies it each wrap); else the engine
-    # CARRIES the transpose over the wrap. loop_transpose=None means carry
-    # (FC's loop-pickup-transpose semantics, reused).
     loop_transpose = (transposes[loop_to]
-                      if (loop_to is not None and loop_to < len(prefixed)
-                          and prefixed[loop_to]) else None)
+                      if (loop_reestablish and loop_to is not None
+                          and loop_to < len(transposes)) else None)
     ol = Orderlist(entries=entries, loop_to=loop_to, stop=stop,
                    loop_transpose=loop_transpose,
                    transposes=transposes if any(transposes) else [])
