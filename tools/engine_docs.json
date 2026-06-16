@@ -120,9 +120,9 @@
     "updated": "2026-06-14"
   },
   "lords_of_sonics": {
-    "state": "LITTLE",
-    "notes": "single research.md first-pass overview; research-engine sweep not yet run.",
-    "updated": "2026-06-13"
+    "state": "OK",
+    "notes": "research-player sweep complete (2026-06-16). Engine = C64 driver by Markus Schneider ('MS'; aliases Diflex/Synth-Man), written 1988 as a Soundmonitor replacement for Jens Blidon; the two founded German group Lords of Sonics. 123 HVSC SIDs shared across many composers (Blidon, Babyface/Kagan Demir, A-Man, Spang, Ice, Mc Olly, SMC, game rips). KEY: the driver WAS publicly released as The Parsec Music Editor V5.1 (1989, Mnemonic Designs, CSDb #10744 has a .d64) -> format recoverable by disassembling the editor's player stub. Lineage: LOS/MS -> Parsec -> (Schneider joins X-Ample 1989) -> Compotech V2.x; Compotech/X-Ample are a SEPARATE sidid family (xample). sidid LordsOfSonics/MS = 2-line play sig + (Parsec) init sub-variant (in docs/src). Play routine: X=voice (2->0), Y=SID reg offset (0/7/14), double-indexed freq table, bit-2 gate test. PSID load=0 (real load = first 2 payload bytes); canonical layout V_PLAY_INIT (87/123) = [lo hi] JMP play/JMP init; engine header ~payload+8. Outliers: No_Mercy (13 subtunes, play=$0000), Timezone, Blax, A-Man NOP3 cluster. See docs/README.md.",
+    "updated": "2026-06-16"
   },
   "master_composer": {
     "state": "OK",
@@ -225,9 +225,9 @@
     "updated": "2026-06-14"
   },
   "vibrants_jo": {
-    "state": "LITTLE",
-    "notes": "single research.md first-pass overview; research-engine sweep not yet run.",
-    "updated": "2026-06-13"
+    "state": "OK",
+    "notes": "research-player sweep complete (2026-06-16, 4 parallel sonnet agents + orchestrator). Engine = custom C64 player by Poul-Jesper Olsen ('JO'), handles Rock/Technic, Amok/Vibrants, DENMARK. 130 HVSC SIDs: 102 in MUSICIANS/J/JO/, 24 in MUSICIANS/H/HJE/ (Hans Juergen Ehrentraut), 4 in MUSICIANS/D/DRAX/Worktunes/. Active C64 period ~1988-1992; he also wrote custom AdLib + Amiga + Roland MT-32 + MS-DOS players. CENTRAL FINDING: NO public source or disassembly found. JO composed 'in an assembler listing' (no editor released, hand-assembled binary per tune). The sidid fingerprint (10 OR-combined patterns) is the only machine-readable format knowledge. Player is DISTINCT from JCH NewPlayer family: JO invented hard-restart (ADSR gate-off via test-bit) which JCH copied into NewPlayer v11. All 130 SIDs are VBL/50Hz (speed=0), no CIA tunes. Player is relocatable; wide load address spread (/bin/bash800-). ARCHITECTURE (from sidid decode): 3-voice loop X=2..0; ZP pointer + Y-walk for data streams (BC/B1 pairs); sentinel-terminated note streams (0, 0, , , ); instrument select byte >=  (index=(byte-)*8, 8-byte records); gate-off = AD=0 SR=0 Ctrl=/bin/bash8 (test bit); CLC+ADC freq delta (glide/vibrato); ZP voice state 0-A (58 bytes from Grid.sid init); init resets all ZP + SID registers + sets master vol F. Multi-subtune dispatch confirmed (up to 7 subtunes). NOTE ENCODING HYPOTHESIS: <0=raw note index, 0=gate sentinel, +=instrument select, =block end, =sequence end/loop. NO HJE or DRAX variants detected by sidid - all use identical fingerprint. LAYOUT: init at load or load+3/6; play = init+3 or init+6 (JMP dispatch table at top of binary); data/instr tables between dispatch and engine code; engine code often at HIGH end (Amok_Title pattern); code size 635-6705B avg ~2966B. EXCLUSIONS from JO/ dir: JO_goes_Myth=MoN/Bjerregaard, Multi_Move=MoN/FutureComposer (migrated), Grid=unclassified. LEADS: seed_disassembly.py target Airwolf_Theme.sid (2769B, Cluster A, canonical) or Grid.sid (635B, stripped minimum). play=25c cluster (Gamlere/Gamlest/Rob_Lam_Fejl) has fixed play address - good 3-tune sanity set. First_Digi (play=/bin/bash000) needs special digi handling. High-memory tunes (-) need banking audit. See pipelines/vibrants_jo/docs/README.md.",
+    "updated": "2026-06-16"
   },
   "vibrants_laxity": {
     "state": "OK",
