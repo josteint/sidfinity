@@ -151,8 +151,115 @@ def _detect_v5(mem, s):
         # to arbitrary addresses); the reachable code/state span is
         # $1006-$1845 -> base+$845. Data-table fit is the masked compare's job.
         if base >= s['load'] and base + 0x848 <= 0x10000:
+            # relink-stub trampoline: a wrapper puts `JMP real_base+$A1` at
+            # base+$A1 (the DMC play body starts A5 F8 = LDA $F8, never a $4C
+            # JMP). Follow one hop to the real player. The init stub is
+            # resolved separately (it may bounce too, or the real init sits at
+            # +$40 when a custom wrapper-init falls through to it).
+            if mem[base + 0xA1] == 0x4C:
+                rpt = mem[base + 0xA1 + 1] | (mem[base + 0xA1 + 2] << 8)
+                rbase = (rpt - 0xA1) & 0xFFFF
+                if rbase >= s['load'] and rbase + 0x848 <= 0x10000:
+                    base = rbase
             return base, it, jt_addr, 'v5'
     return None, None, None, None
+
+
+# ---- masked compare, factored so both the raising config builder and the
+#      non-raising residue-triage diagnosis share ONE implementation. -------
+_DIFF_MSG = {'opcode': 'opcode', 'reloc': 'reloc operand',
+             'abs': 'abs operand', 'imm': 'immediate'}
+
+
+def _diff_play_body(mem, delta, ref):
+    """First divergence of the PLAY-reachable body vs the relocated reference,
+    or None if it matches. Returns (pc, kind, member_val, ref_val) with kind in
+    {'oob','opcode','reloc','abs','imm'}. Pure: no raise, no side effects."""
+    for pc, L, rbytes, cls in ref:
+        a = pc + delta
+        if a + L > 0x10000:
+            return (pc, 'oob', 0, 0)
+        if mem[a] != rbytes[0]:
+            return (pc, 'opcode', mem[a], rbytes[0])
+        if L == 3:
+            mv = mem[a + 1] | (mem[a + 2] << 8)
+            rv = rbytes[1] | (rbytes[2] << 8)
+            if cls == 'patched':
+                continue
+            if cls == 'reloc':
+                if mv != (rv + delta) & 0xFFFF:
+                    return (pc, 'reloc', mv, (rv + delta) & 0xFFFF)
+            elif mv != rv:
+                return (pc, 'abs', mv, rv)
+        elif mem[a + 1:a + L] != rbytes[1:]:
+            return (pc, 'imm', mem[a + 1], rbytes[1])
+    return None
+
+
+def _diff_init_skel(mem, it, delta):
+    """('init_skeleton', it) if the init copy skeleton at `it` is wrong, else
+    None. The 4-byte prefix varies (single vs song-indexed); only the
+    `A8 A2 00 B9 lo hi 9D <17CF+delta>` copy skeleton is checked."""
+    tcf = (0x17CF + delta) & 0xFFFF
+    ok = (it + 12 < 0x10000 and mem[it + 3] == 0xA8 and mem[it + 4] == 0xA2
+          and mem[it + 6] == 0xB9 and mem[it + 9] == 0x9D
+          and (mem[it + 10] | (mem[it + 11] << 8)) == tcf)
+    return None if ok else ('init_skeleton', it)
+
+
+def _resolve_init(mem, it, base, delta):
+    """Locate the init copy skeleton. Candidates, in order: the jumptable's
+    init target; one JMP hop from it (a relink stub trampolines init too); the
+    standard base+$40 (a wrapper's custom init falls through to the real one
+    there). Returns the skeleton address, or None if none validate. Standard
+    members hit the first candidate, so existing behaviour is unchanged."""
+    cands = [it]
+    if mem[it] == 0x4C:
+        cands.append(mem[it + 1] | (mem[it + 2] << 8))
+    cands.append((base + 0x40) & 0xFFFF)
+    for c in cands:
+        if _diff_init_skel(mem, c, delta) is None:
+            return c
+    return None
+
+
+def v5_diagnose(sid_path: str, hvsc_root: str = 'hvsc84') -> dict:
+    """Non-raising detection diagnosis for residue triage (the engine behind
+    `tools/divergence_census.py`). Walks the SAME stages as `dmc_v5_config`
+    but RECORDS the first failure instead of raising, so a whole family's
+    detect-reject residue can be clustered by first-divergence site.
+
+    Returns a dict with `status` in
+    {'ok','load_error','no_base','family4','oob','player_code_mismatch',
+     'init_skeleton','cia_multispeed'} plus, when meaningful, base/delta/init
+     and (site, kind) for a player_code_mismatch."""
+    try:
+        mem, s = _load(os.path.join(hvsc_root, sid_path))
+    except Exception as e:                       # noqa: BLE001 - triage report
+        return {'status': 'load_error', 'detail': type(e).__name__}
+    base, it, jt, layout = _detect_v5(mem, s)
+    if layout == 'family4':
+        return {'status': 'family4', 'jt': jt}
+    if base is None:
+        return {'status': 'no_base', 'load': s['load'],
+                'play': s['play'], 'init': s['init']}
+    delta = base - 0x1000
+    out = {'base': base, 'delta': delta & 0xFFFF, 'init': it,
+           'play': s['play'], 'load': s['load']}
+    d = _diff_play_body(mem, delta, _v5_play_ref())
+    if d is not None:
+        pc, kind, mv, rv = d
+        if kind == 'oob':
+            return {**out, 'status': 'oob', 'site': pc}
+        return {**out, 'status': 'player_code_mismatch', 'site': pc,
+                'kind': kind, 'member': mv, 'ref': rv}
+    rit = _resolve_init(mem, it, base, delta)
+    if rit is None:
+        return {**out, 'status': 'init_skeleton', 'site': it}
+    out['init'] = rit
+    if s['play'] != jt + 3 and (s.get('speed', 0) & 1):
+        return {**out, 'status': 'cia_multispeed'}
+    return {**out, 'status': 'ok'}
 
 
 def dmc_v5_config(sid_path: str, hvsc_root: str = 'hvsc84') -> DMCV5Config:
@@ -167,44 +274,20 @@ def dmc_v5_config(sid_path: str, hvsc_root: str = 'hvsc84') -> DMCV5Config:
     delta = base - 0x1000
 
     # ---- masked identity compare of the PLAY-reachable body vs the
-    #      relocated Katusha reference. The init is validated separately
-    #      (it may be relocated/wrapped) so we don't compare it here. ----
-    for pc, L, rbytes, cls in _v5_play_ref():
-        a = pc + delta
-        if a + L > 0x10000:
+    #      relocated Katusha reference, then the init copy skeleton. Both use
+    #      the shared diff helpers (see `v5_diagnose`); the init is validated
+    #      separately (it may be relocated/wrapped). ----
+    d = _diff_play_body(mem, delta, _v5_play_ref())
+    if d is not None:
+        pc, kind, _mv, _rv = d
+        if kind == 'oob':
             raise DMCV5Unsupported('oob', f'${pc:04X}')
-        if mem[a] != rbytes[0]:
-            raise DMCV5Unsupported('player_code_mismatch',
-                                   f'opcode at ${pc:04X}')
-        if L == 3:
-            mv = mem[a + 1] | (mem[a + 2] << 8)
-            rv = rbytes[1] | (rbytes[2] << 8)
-            if cls == 'patched':
-                continue
-            if cls == 'reloc':
-                if mv != (rv + delta) & 0xFFFF:
-                    raise DMCV5Unsupported('player_code_mismatch',
-                                           f'reloc operand at ${pc:04X}')
-            elif mv != rv:
-                raise DMCV5Unsupported('player_code_mismatch',
-                                       f'abs operand at ${pc:04X}')
-        elif mem[a + 1:a + L] != rbytes[1:]:
-            raise DMCV5Unsupported('player_code_mismatch',
-                                   f'immediate at ${pc:04X}')
-
-    # ---- init skeleton: the V5 init copies the orderlist record into the
-    #      track pointers — `<4-byte A-prefix> A2 00 B9 lo hi 9D <17CF+delta>`.
-    #      Validate that shape at init_target (wherever the init lives) and
-    #      read the orderlist-record operand site from it (init_target+7).
-    #      The 4-byte prefix varies (LDA #0 single-subtune vs ASL*3 song-
-    #      indexed multi-subtune) so only the copy skeleton is checked. ----
-    it = init_target
-    tcf = (0x17CF + delta) & 0xFFFF
-    if not (it + 12 < 0x10000 and mem[it + 3] == 0xA8 and mem[it + 4] == 0xA2
-            and mem[it + 6] == 0xB9 and mem[it + 9] == 0x9D
-            and (mem[it + 10] | (mem[it + 11] << 8)) == tcf):
         raise DMCV5Unsupported('player_code_mismatch',
-                               f'init skeleton at ${it:04X}')
+                               f'{_DIFF_MSG[kind]} at ${pc:04X}')
+    it = _resolve_init(mem, init_target, base, delta)
+    if it is None:
+        raise DMCV5Unsupported('player_code_mismatch',
+                               f'init skeleton at ${init_target:04X}')
 
     # ---- multi-subtune (song-indexed orderlist record) is emitted as a
     #      multi-song PSID: the composer's init reads song# from A and indexes
