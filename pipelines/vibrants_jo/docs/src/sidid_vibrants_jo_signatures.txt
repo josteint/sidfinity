@@ -1,0 +1,69 @@
+---
+source_url: https://raw.githubusercontent.com/cadaver/sidid/master/sidid.cfg
+fetched_via: direct
+fetch_date: 2026-06-16
+author: cadaver (Lasse Oorni) + contributors
+content_date: ongoing (last known update pre-2026)
+reliability: primary
+---
+
+# Vibrants/JO and Vibrants/Laxity sidid signatures
+# Extracted from cadaver/sidid sidid.cfg (GitHub)
+# Also confirmed in WilfredC64/player-id config/sidid.cfg
+
+# Format:
+#   [PlayerName]         - section header (player name, max 24 chars, no spaces)
+#   HEX HEX ?? HEX END  - signature pattern: ?? = wildcard, END = terminate
+#   AND                  - skip-ahead: scan forward for next byte then continue
+#   Multiple patterns = OR (any match = engine identified)
+#   Scan range: entire file buffer from offset 0 (no fixed SID section restriction)
+
+[Vibrants/JO]
+C9 80 D0 ?? BC ?? ?? C8 B1 END
+29 7F DD ?? ?? D0 ?? A9 ?? 9D ?? ?? FE ?? ?? FE END
+BC ?? ?? B1 ?? C9 F0 D0 ?? C8 B1 ?? 18 7D ?? ?? 9D ?? ?? C8 B1 ?? 9D ?? ?? FE ?? ?? FE ?? ?? FE END
+BC ?? ?? B1 ?? C9 FF D0 ?? A9 00 9D ?? ?? DE ?? ?? D0 ?? A9 01 9D ?? ?? FE END
+BC ?? ?? B1 ?? C9 60 90 ?? 38 E9 60 9D ?? ?? FE ?? ?? BC ?? ?? B1 ?? D0 ?? 9D ?? ?? FE END
+B9 ?? ?? 85 ?? DE ?? ?? ?? ?? BC ?? ?? B1 ?? C9 END
+A2 ?? CE ?? ?? 10 ?? AD ?? ?? 8D ?? ?? EE ?? ?? EE ?? ?? EE END
+C9 D0 90 ?? E9 D0 0A 0A 0A 9D END
+A2 02 BC ?? ?? A9 00 99 05 D4 99 06 D4 A9 08 99 04 D4 CA 10 ?? 60 END
+30 03 4C ?? ?? A9 00 9D ?? ?? A9 08 99 04 D4 98 48 A0 00 BD END
+
+# Notes on Vibrants/JO signatures:
+# - Sig 1: C9 80 D0 ?? BC ?? ?? C8 B1
+#   CMP #$80 / BNE ?? / LDY abs,x / INY / LDA (zp),y
+#   Note-value check pattern: $80 = note boundary sentinel
+#
+# - Sig 3: BC ?? ?? B1 ?? C9 F0 ...
+#   LDY abs,x / LDA (zp),y / CMP #$F0 / BNE ... / INY / LDA (zp),y
+#   Pattern: load from indirect table, compare against command byte $F0
+#
+# - Sig 4: BC ?? ?? B1 ?? C9 FF ...
+#   Similar but checks $FF (end-of-sequence / restart marker)
+#
+# - Sig 5: BC ?? ?? B1 ?? C9 60 90 ?? 38 E9 60 ...
+#   Checks $60 (note value 96? or command $60), then SEC/SBC #$60 (subtract $60)
+#   Suggests notes stored as values where >=60h = special command
+#
+# - Sig 8: C9 D0 90 ?? E9 D0 0A 0A 0A 9D
+#   CMP #$D0 / BCC / SBC #$D0 / ASL / ASL / ASL / STA abs,x
+#   Suggests instrument index packed: value >= $D0 -> subtract $D0, shift left 3 = instrument select
+#
+# - Sig 9: A2 02 BC ?? ?? A9 00 99 05 D4 99 06 D4 A9 08 99 04 D4 CA 10 ?? 60
+#   LDX #2 / LDY abs,x / LDA #0 / STA $D405,y / STA $D406,y / LDA #8 / STA $D404,y / DEX / BPL / RTS
+#   This is the gate-off routine: loops X=2,1,0 (3 voices), writes AD=0, SR=0, Ctrl=8 (test bit, gate off)
+#   This is the INIT/reset part that silences all voices.
+#
+# - Sig 10: 30 03 4C ?? ?? A9 00 9D ?? ?? A9 08 99 04 D4 98 48 A0 00 BD
+#   BMI +3 / JMP / LDA #0 / STA abs,x / LDA #8 / STA $D404,y / TYA / PHA / LDY #0 / LDA abs,x
+#   Confirmed present in Airwolf_Theme.sid at file offset $6FB.
+
+[Vibrants/Laxity]
+18 7D ?? ?? 0A A8 B9 ?? ?? 48 B9 ?? ?? AC ?? ?? 99 01 D4 68 99 00 D4 END
+FE ?? ?? BD ?? ?? 99 04 D4 4C ?? ?? BD ?? ?? 29 ?? F0 ?? A9 ?? 99 04 D4 END
+A9 ?? 8D ?? ?? 60 A2 ?? CE ?? ?? 10 ?? CE ?? ?? CE ?? ?? CE ?? ?? AD ?? ?? 8D END
+C9 ?? B0 ?? 29 ?? 48 A9 ?? 9D ?? ?? 68 0A 0A 9D ?? ?? 4C ?? ?? 29 END
+AD ?? ?? 18 79 ?? ?? 8D ?? ?? 8D 16 D4 2C ?? ?? 70 ?? D9 ?? ?? 90 END
+
+# Laxity player CSDb reference: https://csdb.dk/release/?id=122333
