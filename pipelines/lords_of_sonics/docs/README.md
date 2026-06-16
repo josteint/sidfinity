@@ -39,6 +39,7 @@ the families distinct; X-Ample material here is lineage context only.
 | **`src/sidid_signatures.txt`** | Verbatim `sidid.cfg` blocks: the LordsOfSonics/MS 2-line play signature + `(Parsec)` init sub-variant, plus the full X-Ample family blocks (Compotech_V2.x, Sonic/SDS, Thomas_Detert, XTracker 4.1x/4.2x, X-Ample_Digi) for lineage comparison. |
 | `github_findings.md` | Hand-decoded play routine + Parsec init routine opcode-by-opcode (freq double-index lookup, Y=voice register stride 7, X=voice loop 2→0, bit-2 gate test, waveform mask). |
 | `github_wilfred_deepsid.md`, `github_parsec_versions_and_interview.md` | sidid/player-id/DeepSID detection details; Parsec version history + Schneider interview notes. |
+| `disasm_findings.md` | Disassembly/tech-article/German-magazine sweep. Confirms **no published RE exists**, but recovered an **embedded version-history block** (Move.sid: v2.0→2.2→2.3 [Geir Tjelta]→2.4→v4.1 [Lingo.sid]→v5.1 [Parsec]), a V5.1 binary sketch, and the **"Docs 2 Compotech"** documentation-disk lead. |
 | `archive_web_research.md` | Wayback/web sweep (616 lines) — Remix64 interview, VGMPF, group/career history. |
 | `forum_findings.md` | Forum/wiki/Usenet sweep (German scene). |
 | `csdb_group_lords_of_sonics.md`, `csdb_group_x_ample.md`, `csdb_release_parsec_music_editor.md`, `csdb_release_compotech.md`, `csdb_scener_markus_schneider.md`, `csdb_scener_jens_blidon.md` | CSDb pages: group #757, scener Schneider #6003 / Blidon #2205, Parsec #10744, Compotech #122614. |
@@ -77,10 +78,13 @@ the families distinct; X-Ample material here is lineage context only.
 
 ## Gap analysis
 
-- **Fillable from the released editor (→ migration phase, NOT this sweep):** the entire
-  byte-level format — download the **Parsec Music Editor V5.1 D64** (CSDb #10744),
-  disassemble its player + read its in-editor data layout. This is the #1 next action
-  and makes a clean spec achievable.
+- **Fillable from released materials (→ migration phase, NOT this sweep):** the entire
+  byte-level format. Two ground-truth sources to acquire: (1) the **Parsec Music Editor
+  V5.1 D64** (CSDb #10744) — disassemble its player + read its in-editor data layout;
+  (2) **"Docs 2 Compotech"** (CSDb #253740) — a documentation disk that may contain a
+  written format spec for the evolved engine. These make a clean spec achievable without
+  blind RE. (Version lineage v2.0→…→v5.1 is in `disasm_findings.md` — expect minor
+  per-version format drift.)
 - **Fillable from our binaries:** confirm the 5 dispatch-variant clusters and the
   payload+8 header field meanings against a `V_PLAY_INIT` disassembly.
 - **Probably unfillable / low-value online:** no open-source parser/decompiler exists

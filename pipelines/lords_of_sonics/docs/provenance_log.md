@@ -23,7 +23,8 @@ Every source attempted, with status. Future waves: don't re-fetch these.
 |---|---|
 | Wayback Machine (web.archive.org) | mostly blocked by fetch tool |
 | csdb.dk (some pages) | intermittent HTTP 503 — retry on direct IDs |
-| Several agents (CSDb/Pouet, Archive, Forums, HVSC-headers, Disasm) | hit session-token limit mid-run; most had already written their docs file before cutoff |
+| Several agents (CSDb/Pouet, Archive, Forums, HVSC-headers) | hit session-token limit mid-run, but all had written their docs file (with closing Leads section) before cutoff — verified intact |
+| Disasm/tech-articles cluster | died before writing on first attempt; **re-run successfully** (disasm_findings.md, 438 lines) — recovered the embedded version-history block + "Docs 2 Compotech" lead |
 
 ## Confirmed NOT FOUND
 - No open-source parser/decompiler/importer for the LordsOfSonics/Parsec format
@@ -31,10 +32,12 @@ Every source attempted, with status. Future waves: don't re-fetch these.
   SIDdecompiler, DeepSID).
 - No published annotated disassembly of the player.
 
-## Key not-yet-executed lead (belongs to migration phase, not this sweep)
+## Key not-yet-executed leads (belong to migration phase, not this sweep)
 - **Download Parsec Music Editor V5.1 D64 (CSDb #10744)** and disassemble its player
-  stub + read its data layout → authoritative format spec. Downloading + decoding a
-  D64 is RE-adjacent (out of GATHER scope here), so deferred to migration.
+  stub + read its data layout → authoritative format spec.
+- **Download "Docs 2 Compotech" (CSDb #253740)** — documentation disk that may carry a
+  written format spec for the evolved engine.
+  Downloading + decoding a D64 is RE-adjacent (out of GATHER scope here), deferred to migration.
 
 ## Notes
 - X-Ample / Compotech is a SEPARATE sidid family (`xample`, already OK). Material on it
