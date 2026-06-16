@@ -371,18 +371,24 @@ DUAL-CLOCK PHASE ($1019 leftover → params.slide_phase).
    sweep_too_long). Also fixed ~28 _capture_env ptr-overflow errors
    (117->89). Direct path already worked (emits table verbatim); only USF
    capture needed it. partial 660->610, all 543 mass-written + db refreshed.
-   NEXT V5 (ranked): (1) **the END-OF-SONG / LOOP-BOUNDARY cluster — the
-   biggest remaining lever but a genuine DEEP round (diverse symptom).** Of
-   the 610 partials, 292 diverge at >=95% (just after the orderlist $FF loop;
-   songlength*1.1 captures ~1.1 loops). 98 of the 105 V1sr-first-diff members
-   are in it. Cause = some per-voice state isn't carried/reset correctly
-   across the loop wrap; the SYMPTOM varies (Minoam = PULSE count off-by-one,
-   V3phi PW ramp shifts one position @5974; others = V1 SR / freq). Pick one,
-   trace the loop transition (the frame where orderlist wraps), find the
-   mis-carried state. (271 partials diverge EARLY <50% = a separate diverse
-   set.) (2) player_code_mismatch 160 deeper variants; (3) extract-error
-   robustness (89, incl 2 filter_table_overflow); then family-4 (686, +$95).
-   Full detail in pipelines/dmc/v5/RE_NOTES.md "PARTIAL LONG TAIL".
+   **✅✅ PARTIAL LONG TAIL round 2 — LOOP-TARGET TRANSPOSE (commit ddaed0c):
+   543 -> 683/1495 FULL (+140 — biggest single win; 45.7% of 1495, 59.2% of
+   supported), 0 regressions.** The end-of-song cluster (292 partials @>=95%,
+   just after the orderlist $FF loop) was ONE root cause despite the diverse
+   symptom: the composer's $FF handler treated the loop-target byte as a
+   sector#, but MANY orderlists loop back to a LEADING $FC/$FD transpose
+   (Minoam: all 3 voices loop to pos 0 = $FC). The orig's $FF -> $111F
+   re-dispatches the loop target through the $FD/$FC checks. FIX (1 line):
+   $FF handler `jmp tf_chk_fd` (sector# targets fall through unchanged; a
+   FULL can't regress — never hit the path). Minoam FULL (its "pulse
+   off-by-one" was downstream of this loop). partial 610->470, all 683
+   mass-written + db refreshed. **METHODOLOGY (CLAUDE.md): from here, iterate
+   on a STRATIFIED SUBSET (~120, by first-diff bucket + FULL slice, ~5min),
+   full-batch ONLY at closeout.** NEXT V5 (ranked): (1) bucket the 470
+   partials (now led by the EARLY-diverging <50% set + remaining late diffs);
+   (2) player_code_mismatch 160 deeper variants; (3) extract-error robustness
+   (89, incl 2 filter_table_overflow); then family-4 (686, +$95).
+   Full detail in pipelines/dmc/v5/RE_NOTES.md "PARTIAL LONG TAIL round 1/2".
    **PENDING (user request, deferred to after duckdb install): migrate the
    DB from SQLite (hvsc84.db, 21MB binary blob) to a git-trackable CSV +
    DuckDB for queries — scoped: 11 consumers, src/sid_db.py write-through is

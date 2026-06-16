@@ -345,6 +345,35 @@ player_code_mismatch 160, note_out_of_range 38, error 89, +2 new
 filter_table_overflow (synthesized off-table env > 256 entries; rare).
 NEXT: the end-of-song / freq-PW partial tail; then deeper variants.
 
+## ✅✅ PARTIAL LONG TAIL round 2 — LOOP-TARGET TRANSPOSE (2026-06-16, commit ddaed0c)
+
+The END-OF-SONG cluster (292 of 610 partials diverging at >=95%, just after
+the orderlist $FF loop; songlength*1.1 captures ~1.1 loops). Root cause: the
+composer's $FF loop handler set trkpos to the loop position, read the
+loop-target byte, then jumped straight to tf_sector (treating it as a
+sector#). But MANY orderlists loop back to a LEADING $FC/$FD transpose
+command (e.g. Minoam: all 3 voices loop to pos 0 = $FC). The orig's $FF
+handler jumps to $111F = the $FD/$FC re-dispatch, applying the transpose at
+the loop target; the composer skipped it -> wrong note (+ downstream
+pulse/SR drift -- the symptom looked diverse but the root cause was the same
+loop) on EVERY loop iteration.
+
+FIX (composer, 1 line): $FF handler now `jmp tf_chk_fd` (re-dispatch the
+loop-target byte through the $FD/$FC transpose checks, then fall through to
+tf_sector) -- structurally identical to the orig's $FF -> $111F. A sector#
+loop target falls through unchanged, so non-transpose loops are unaffected;
+a FULL member can't regress (it never hit this path). Verified the
+trkpos/transp arithmetic matches the orig exactly.
+
+RESULT (full family-3/5 batch): FULL 543 -> 683/1495 (+140 — the biggest
+single win; 45.7% of 1495, 59.2% of supported), 0 regressions; partial
+610->470. Minoam now FULL (its "pulse off-by-one" was downstream of this
+loop). All 683 mass-written + db refreshed. RESIDUE: 470 partial (the
+EARLY-diverging <50% set + remaining late diffs), player_code_mismatch 160,
+note_out_of_range 38, error 89. NEXT: bucket the 470 partials by first-diff
+(use a STRATIFIED SUBSET for iteration per CLAUDE.md — don't full-batch each
+experiment); then deeper variants + family-4 (686, play +$95).
+
 ## (historical) factory + wide-batch plan
 `dmc_v5_config` factory (jump-table detect init+$40/play+$A1, the
 operand sites above, carved reference) + reuse tools/dmc_family_batch.py
