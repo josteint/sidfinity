@@ -371,11 +371,18 @@ DUAL-CLOCK PHASE ($1019 leftover → params.slide_phase).
    sweep_too_long). Also fixed ~28 _capture_env ptr-overflow errors
    (117->89). Direct path already worked (emits table verbatim); only USF
    capture needed it. partial 660->610, all 543 mass-written + db refreshed.
-   NEXT V5 (ranked): (1) partial tail now led by the Minoam-style END-OF-SONG
-   tail (V1/V2 SR + V3 freq late diffs) + freq/PW; (2) player_code_mismatch
-   160 deeper variants (bucket by play-body first-diff PC); (3) extract-error
-   robustness (89, incl 2 new filter_table_overflow); then family-4 (686,
-   play +$95). Full detail in pipelines/dmc/v5/RE_NOTES.md "PARTIAL LONG TAIL".
+   NEXT V5 (ranked): (1) **the END-OF-SONG / LOOP-BOUNDARY cluster — the
+   biggest remaining lever but a genuine DEEP round (diverse symptom).** Of
+   the 610 partials, 292 diverge at >=95% (just after the orderlist $FF loop;
+   songlength*1.1 captures ~1.1 loops). 98 of the 105 V1sr-first-diff members
+   are in it. Cause = some per-voice state isn't carried/reset correctly
+   across the loop wrap; the SYMPTOM varies (Minoam = PULSE count off-by-one,
+   V3phi PW ramp shifts one position @5974; others = V1 SR / freq). Pick one,
+   trace the loop transition (the frame where orderlist wraps), find the
+   mis-carried state. (271 partials diverge EARLY <50% = a separate diverse
+   set.) (2) player_code_mismatch 160 deeper variants; (3) extract-error
+   robustness (89, incl 2 filter_table_overflow); then family-4 (686, +$95).
+   Full detail in pipelines/dmc/v5/RE_NOTES.md "PARTIAL LONG TAIL".
    **PENDING (user request, deferred to after duckdb install): migrate the
    DB from SQLite (hvsc84.db, 21MB binary blob) to a git-trackable CSV +
    DuckDB for queries — scoped: 11 consumers, src/sid_db.py write-through is
