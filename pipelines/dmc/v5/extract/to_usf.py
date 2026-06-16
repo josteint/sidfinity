@@ -213,17 +213,29 @@ def _orderlist(events: list) -> Orderlist:
     transpose = 0
     loop_to = None
     stop = False
-    # byte offset -> entry index, so a loop target (a byte offset in the
-    # raw stream) maps to the orderlist position.
+    # byte offset -> entry index, so a loop target (a byte offset in the raw
+    # stream) maps to the orderlist position. Record each entry's GROUP-START
+    # byte — the leading $FD/$FC transpose prefix if present, else the sector
+    # byte — because a loop target commonly points at a transpose ($FF wraps to
+    # a leading transpose, which the player re-dispatches; from_usf encodes the
+    # loop the same way). Recording only the sector byte sent such targets to
+    # loop_to=0 (the fallback), replaying the loop from the wrong position.
     byte_of_entry = []
+    prefixed = []             # entry i begins with a $FD/$FC transpose prefix?
     byte_pos = 0
+    group_start = None        # byte where the current entry's group begins
     for e in events:
         if e[0] == 'sector':
-            byte_of_entry.append(byte_pos)
+            byte_of_entry.append(group_start if group_start is not None
+                                 else byte_pos)
+            prefixed.append(group_start is not None)
+            group_start = None
             entries.append(e[1])
             transposes.append(transpose)
             byte_pos += 1
         elif e[0] == 'transpose':
+            if group_start is None:
+                group_start = byte_pos                # transpose prefix start
             t = e[1]
             transpose = t - 256 if t >= 128 else t   # signed
             byte_pos += 2
@@ -232,7 +244,15 @@ def _orderlist(events: list) -> Orderlist:
             loop_to = byte_of_entry.index(tgt) if tgt in byte_of_entry else 0
         elif e[0] == 'end':
             stop = True
+    # Loop RE-ESTABLISHES the transpose iff its target byte is an explicit
+    # $FD/$FC prefix (the player re-applies it each wrap); else the engine
+    # CARRIES the transpose over the wrap. loop_transpose=None means carry
+    # (FC's loop-pickup-transpose semantics, reused).
+    loop_transpose = (transposes[loop_to]
+                      if (loop_to is not None and loop_to < len(prefixed)
+                          and prefixed[loop_to]) else None)
     ol = Orderlist(entries=entries, loop_to=loop_to, stop=stop,
+                   loop_transpose=loop_transpose,
                    transposes=transposes if any(transposes) else [])
     return ol
 

@@ -357,7 +357,7 @@ ol_looplen: "len" "=" INT
 // loop@N — wrap to entry N, the head re-establishing its stated
 // transpose. loop@N+T — wrap CARRYING transpose T over (the engine's
 // state persists; the head plays passes 2+ under T — standard FC).
-orderlist_terminator: "loop" "@" INT ol_transpose? ol_looplen?  -> ol_loop
+orderlist_terminator: "loop" "@" INT (ol_transpose | ol_transpose_neg)? ol_looplen?  -> ol_loop
                     | "stop"                        -> ol_stop
 
 pattern_block: "pattern" INT "length" "=" INT "{" note_row* "}"

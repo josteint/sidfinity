@@ -84,7 +84,13 @@ def _encode_orderlist(ol, remap: dict) -> bytes:
     for i, e in enumerate(ol.entries):
         entry_byte.append(len(out))
         tr = ol.transpose_at(i)
-        if tr != cur_tr:
+        # Force the transpose at the loop target when the loop RE-ESTABLISHES
+        # it (loop_transpose set): the orig has an explicit $FD/$FC there that
+        # re-applies the transpose each wrap, even when redundant in pass 1.
+        # Without this the loop carries the last entry's transpose -> wrong
+        # note on passes 2+.
+        force = (ol.loop_transpose is not None and i == ol.loop_to)
+        if tr != cur_tr or force:
             if tr >= 0:
                 out += bytes([0xFD, tr & 0xFF])      # positive transpose
             else:
