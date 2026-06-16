@@ -79,10 +79,12 @@ the families distinct; X-Ample material here is lineage context only.
 ## Gap analysis
 
 - **Fillable from released materials (→ migration phase, NOT this sweep):** the entire
-  byte-level format. Ground-truth source to acquire: the **Parsec Music Editor V5.1 D64**
-  (CSDb #10744) — disassemble its player + read its in-editor data layout. This makes a
-  clean spec achievable without blind RE. (Version lineage v2.0→…→v5.1 is in
-  `disasm_findings.md` — expect minor per-version format drift.)
+  byte-level format. Ground-truth source **already stashed locally**: the **Parsec Music
+  Editor V5.1 D64** (CSDb #10744) is in `src/Parsec_5_1-Mnemonic_Designs.d64` (editor PRG
+  `(M)PARSEC V5.1`), plus `src/Parsec_4_info.t64` — see `src/parsec_v5_1_NOTES.md`. The
+  migration disassembles its player + reads the in-editor data layout. This makes a clean
+  spec achievable without blind RE. (Version lineage v2.0→…→v5.1 is in `disasm_findings.md`
+  — expect minor per-version format drift.)
   - **"Docs 2 Compotech" (CSDb #253740) — DOWNLOADED + CHECKED, dead end for a spec.**
     Both disk images are in `src/` (see `src/compotech_disks_NOTES.md`). The "docs" PRG
     is a scene greetings/credits scroller, NOT a format manual. The companion disk holds
