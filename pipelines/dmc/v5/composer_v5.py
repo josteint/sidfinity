@@ -213,8 +213,11 @@ vo_fetch:
         lda ($f8),y             ; loop position
         sta trkpos,x
         tay
-        lda ($f8),y
-        jmp tf_sector_a
+        lda ($f8),y             ; loop-target byte: RE-DISPATCH through the
+        jmp tf_chk_fd           ; transpose checks (orig $FF -> $111F), so a
+                                ; loop target of $FD/$FC applies its transpose
+                                ; (many orderlists loop to a leading $FC/$FD);
+                                ; a sector# target falls through to tf_sector.
 tf_chk_fe:
         cmp #$fe
         bne tf_chk_fd
