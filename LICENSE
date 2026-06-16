@@ -115,6 +115,8 @@ not apply to these files.
      deprecated/gt2_grading/demo/*.sid
      deprecated/usf1_pipelines/*/build/*.sid
      pipelines/hubbard/five_title_tunes/work_subs/*.sid
+     readme_assets/*.sid                            (example tunes used by the README;
+                                                     e.g. Gorilla © Pyry Hakalisto / spq)
 
 5. HVSC catalogue metadata
    hvsc84.db contains catalogue metadata only — file paths, tune titles,
