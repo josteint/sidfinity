@@ -117,6 +117,12 @@ def _capture_env(table: list, ptr: int) -> SweepEnvelope:
             rate -= 0x10000
         clo, chi = table[pos + 1]
         frames = (clo << 8) | chi
+        # count==0 means the engine's 16-bit phase counter wraps (65536
+        # frames) before advancing — i.e. a terminal hold. This is also what
+        # the off-table zero-region of a small (last-table) filter program
+        # decodes to; without this the (0,0) entries spin forever -> PHASE_CAP.
+        if frames == 0:
+            frames = 0x10000
         phases.append((rate, frames))
         cum += frames
         pos += 2

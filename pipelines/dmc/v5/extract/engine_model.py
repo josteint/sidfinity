@@ -183,7 +183,14 @@ def extract(cfg, hvsc_root: str = 'hvsc84') -> V5Model:
     # filter_hi | <end>)
     n_wave = a_wf - a_wc
     n_pulse = a_ph - a_pl
-    n_filter = a_fh - a_fl
+    # The filter table is the LAST data region, so its lo/hi-array delta does
+    # NOT bound the program: tiny tables (e.g. 2 entries) whose instruments all
+    # use ptr 1 run filter_run PAST the array boundary, reading the overlapping
+    # lo/hi arrays + the bytes after them as further (step,count) phases (the
+    # ramp lives off-table). filterpos is a byte, so read up to 256 entries
+    # (capped at the memory top); reads past the payload are 0 (siddump
+    # zero-fills RAM identically), and _capture_env bounds reachability per ptr.
+    n_filter = min(256, 0x10000 - a_fl, 0x10000 - a_fh)
     n_instr = (a_wc - a_instr) // 8
     n_sectors = a_secp_hi - a_secp_lo
 
