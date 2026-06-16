@@ -1,0 +1,16 @@
+---
+source_url: https://raw.githubusercontent.com/libsidplayfp/libsidplayfp/master/src/sidplayfp/sidtune/sidid.cfg
+fetched_via: direct (curl)
+fetch_date: 2026-06-15
+reliability: UNAVAILABLE — HTTP 404
+note: The libsidplayfp sidid.cfg could not be fetched. The path
+      src/sidplayfp/sidtune/sidid.cfg returned 404. The file may have been
+      removed (libsidplayfp may have dropped bundled sidid.cfg in newer versions)
+      or moved to a different path.
+---
+
+FETCH STATUS: FAILED (HTTP 404)
+
+libsidplayfp historically included a copy of sidid.cfg for player detection.
+In current versions it may rely on an external sidid installation instead.
+The MoN signatures would be identical to cadaver/sidid — see sidid_cfg_cadaver.txt.

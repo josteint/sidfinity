@@ -130,9 +130,9 @@
     "updated": "2026-06-13"
   },
   "mon_deenen": {
-    "state": "LITTLE",
-    "notes": "single research.md first-pass overview; research-engine sweep not yet run.",
-    "updated": "2026-06-13"
+    "state": "OK",
+    "notes": "research-player sweep complete (2026-06-15 + follow-up wave 2026-06-16). Cleared to start disassembling. Maniacs of Noise driver ('Musicfile') by Charles Deenen + variants by Jeroen Tel, Reyn Ouwehand. HVSC tag MoN/Deenen = 135 SIDs (Tel 72 / Deenen 19 / Ouwehand 16 + minor); load $1000; 3-voice; commercial game music ~1988-93; TurboAssembler, binary-only (no public spec/source). RECOVERED: RE'd ACME player source for EVERY variant from github realdmx/c64_6581_sid_players -> docs/src/*.asm (Deenen Test Tune 1/2 + SFX Player, Tel Cybernoid2, Ouwehand Armada + Dutch Breeze, Bjerregaard Myth + James Bond 3); repo fully inventoried (nothing more for MoN). COMMON CORE (Deenen/Tel/Ouwehand): 8-byte instrument [waveform,AD,SR,gate_len,pulse_fx,fx1=vibrato,fx2=pulse_sweep,fx3=arp/drum/flags]; 96-note freq table C0-B7; sequence stream $C0-DF=instrument $80-BF=note-len $00-7F=pitch $FF=loop $FE=end; per-voice effects vibrato/pulse-sweep/glide/arp/drum/filter; speedbyte tempo. *** CRITICAL DISAMBIGUATION (3 separate HVSC tags): MoN/Deenen=135 (THIS engine, family mon_deenen); MoN/FutureComposer=4024 (the FC standard player, family future_composer) -- and the parenthesised sidid sub-IDs (MoN/Cyb2),(MoN/TTWII),(MoN/JTS),(MoN/RWE),(MoN/Bantam) AND (MoN/Deenen_Digi) all roll up to MoN/FutureComposer NOT MoN/Deenen, so the 16 digi tunes belong to the FC family, not here; MoN/Bjerregaard=77 (Bjerregaard's FORK -- AD/SR-first instrument order, diff sequence opcode ranges, 'second sustain', global tempo -- its own engine). *** Music_Assembler (6351 SIDs, Dutch USA-Team) is unrelated despite sharing the sidid.cfg. sidid signatures all in docs/src/sidid_cfg_cadaver.txt; Monase tool contents + SFX .SFX format decoded in docs/followup_csdb_findings.md. Detection already works (no sidid config to maintain): repo does not run sidid live; engine column comes from cached dump deprecated/gt2_grading/data/sidid_full.txt which already tags all 135 as MoN/Deenen; there is no tools/sidid.cfg. MIGRATION TODO (not research): seed_disassembly.py a rep SID (Cybernoid II / Mantalos) -> disassembly.s + extractor, cross-ref docs/src/*.asm. Full index: pipelines/mon_deenen/docs/README.md + provenance_log.md.",
+    "updated": "2026-06-16"
   },
   "music_assembler": {
     "state": "OK",

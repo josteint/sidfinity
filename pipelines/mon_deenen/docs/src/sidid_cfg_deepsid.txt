@@ -1,0 +1,18 @@
+---
+source_url: https://raw.githubusercontent.com/Chordian/deepsid/master/php/sidid.cfg
+fetched_via: direct (curl)
+fetch_date: 2026-06-15
+reliability: UNAVAILABLE — HTTP 404 on all attempted branch names (master, main, refs/heads/master)
+note: The DeepSID sidid.cfg could not be fetched. The repo Chordian/deepsid exists but the
+      path php/sidid.cfg returned 404 via both curl and WebFetch. The file may have been moved
+      or the branch name differs. Try: https://github.com/Chordian/deepsid/find/HEAD
+---
+
+FETCH STATUS: FAILED (HTTP 404)
+
+The DeepSID project (https://github.com/Chordian/deepsid) uses the cadaver/sidid format.
+Based on cross-referencing with cadaver/sidid and WilfredC64/player-id (both successful),
+the MoN signatures are identical across all three tools — see sidid_cfg_cadaver.txt for
+the authoritative content.
+
+The cadaver/sidid repo is the upstream source for DeepSID's sidid.cfg.

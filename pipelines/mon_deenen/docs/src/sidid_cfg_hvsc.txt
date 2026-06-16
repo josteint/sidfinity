@@ -1,0 +1,18 @@
+---
+source_url: https://raw.githubusercontent.com/hvsc-org/HVSC-SIDID/main/sidid.cfg
+fetched_via: direct (curl)
+fetch_date: 2026-06-15
+reliability: UNAVAILABLE — HTTP 404
+note: The HVSC-SIDID repo (hvsc-org/HVSC-SIDID) returned 404 on both main and master
+      branches. This repo may be private, renamed, or not yet created under that path.
+      Tried also: HorridoSid/hvsc-sidid.
+---
+
+FETCH STATUS: FAILED (HTTP 404)
+
+The HVSC sidid.cfg could not be fetched from the expected GitHub location.
+The MoN signatures are preserved in cadaver/sidid and WilfredC64/player-id —
+see sidid_cfg_cadaver.txt for the authoritative content.
+The cadaver/sidid nfo credits "Ian Coog, Ice00, Ninja, Yodelking, Wilfred/HVSC
+& Prof. Chaos" as contributors to the signatures, indicating HVSC crew
+collaboration with cadaver's tool.
