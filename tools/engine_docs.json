@@ -145,9 +145,9 @@
     "updated": "2026-06-14"
   },
   "ninjatracker": {
-    "state": "LITTLE",
-    "notes": "single research.md first-pass overview; research-engine sweep not yet run.",
-    "updated": "2026-06-13"
+    "state": "OK",
+    "notes": "research-player sweep complete (2026-06-16). Minimal native C64 tracker by Lasse Oorni (Cadaver) of Covert Bitops (same author as GoatTracker), designed for minimum rastertime. 111 HVSC SIDs (18 V1.x + 93 V2.x); mostly Cadaver's games + modern commercial titles (Sarah Jane Avory: Zeta Wing/Sam's Journey/Briley Witch). BEST CASE: full PLAYER SOURCE is public and saved to docs/src/ (nt2play_v204.s = V2 engine, ntplay_v1.s = V1 engine) plus the GT2NT2 converter gt2nt2.c (writes the NT2 binary = byte-layout ground truth) + distribution readmes + sidid V1/V2 sigs. Format fully specified, NO RE needed. API: nt_newmusic (21 self-mod fixups, relocatable) / nt_playsong / nt_music; V2 uses 2 ZP bytes. Gamemusic binary = 6-byte size header {wave,pulse,filt,cmd,legatocmd,patt} + packed sections (player code NOT stored with music). Patterns: raw=(note<<1)|has_cmd, notes $18-$BE=C-1..B-7, dur byte >=$C0; cmd $01-$7F normal / $81-$FF legato. Orderlist: $00 loop, $01-$7F patt, $80-$BF/$C0-$FF transpose down/up. 2-column tables (wave/pulse/filter). Hard-restart V2.03+ = 2+1 silent frames. V1 and V2 are DISTINCT engines (full rewrite; sidid sigs share no bytes; V1=5 ZP bytes, 3-col tables, no commands/legato/filter/hard-restart). All VBL/50Hz; play=init+3 canonical; 2 play=$0000 data-only members. See docs/README.md + docs/format_spec.md.",
+    "updated": "2026-06-16"
   },
   "odintracker": {
     "state": "OK",

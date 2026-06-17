@@ -1,0 +1,78 @@
+---
+source_url: https://raw.githubusercontent.com/cadaver/sidid/master/sidid.cfg
+fetched_via: curl
+fetch_date: 2026-06-17
+author: Lasse Öörni (Cadaver) / Covert Bitops
+content_date: unknown (repository current as of fetch date)
+reliability: primary
+---
+
+NinjaTracker sidid.cfg signatures (verbatim from cadaver/sidid GitHub repository)
+==================================================================================
+
+SOURCE: https://github.com/cadaver/sidid — cadaver is both the author of NinjaTracker
+        and of the sidid tool, so these signatures have first-party authority.
+
+NOTE: Both local copies (e.g. tmp/dmc_hunt/sidid/sidid.cfg) and the upstream GitHub
+      repository agree on the following entries.
+
+--- NinjaTracker_V1.x ---
+
+NinjaTracker_V1.x
+FE ?? ?? ?? ?? BD ?? ?? 9D ?? ?? ?? ?? ?? ?? 7D ?? ?? 9D ?? ?? 9D 00 D4 BD ?? ?? 7D ?? ?? 4C END
+
+Disassembly interpretation of the V1.x signature bytes:
+  FE ?? ?? ??  = INC abs,X  (increment at abs+X; part of subtune/pattern pointer update)
+  ?? BD ?? ??  = LDA abs,X  (load a byte from a table)
+  9D ?? ??     = STA abs,X  (store to destination table)
+  ?? ?? ?? ??  = (wildcards: likely address bytes or other opcodes)
+  7D ?? ??     = ADC abs,X  (add with carry from table — accumulator arithmetic)
+  9D ?? ??     = STA abs,X  (store result)
+  ?? 9D 00 D4  = STA $D400  (write to SID register at base address — anchor write)
+  BD ?? ??     = LDA abs,X
+  7D ?? ??     = ADC abs,X
+  4C           = JMP abs    (unconditional jump — likely end of play routine dispatch)
+
+The anchor $9D 00 D4 = STA $D400,X establishes this is an X-indexed SID write loop.
+The INC abs,X + LDA/ADC abs,X + STA abs,X pattern is characteristic of a table-driven
+frequency/waveform update loop typical of V1.x play routines.
+
+--- NinjaTracker_V2.x ---
+
+NinjaTracker_V2.x
+C9 0C 90 ?? BD ?? ?? B0 ?? 4A 09 FE 9D ?? ?? 90 END
+
+Disassembly interpretation of the V2.x signature bytes:
+  C9 0C        = CMP #$0C    (compare accumulator with 12 — likely pattern/command boundary check)
+  90 ??        = BCC rel     (branch if carry clear — i.e. branch if < 12)
+  BD ?? ??     = LDA abs,X   (load from indexed table)
+  B0 ??        = BCS rel     (branch if carry set)
+  4A           = LSR A       (logical shift right — bit manipulation)
+  09 FE        = ORA #$FE    (OR with $FE — force bit 0 clear, bits 1-7 set; used for wave/gate masking)
+  9D ?? ??     = STA abs,X   (store modified value to SID voice register buffer)
+  90           = BCC         (branch continuation)
+
+Key opcode observations for V2.x:
+  - CMP #$0C ($0C = 12): suggests the player handles note values 0-11 specially vs. >=12
+    (likely: notes 0-11 are rests or silent; notes >=12 are pitched notes)
+  - ORA #$FE: used to force the gate bit (bit 0) high in the waveform byte
+    ($FE = 1111 1110; OR with $FE sets bits 1-7, preserves bit 0 as-is from the STA;
+     actually $FE sets all bits 1-7 high = forces waveform+ring/sync bits on, used to
+     build the control register before merging gate from the gate state)
+  - LSR A + ORA #$FE pattern: LSR shifts bit 0 into carry, then ORA #$FE forces
+    bits 1-7 — this is a compact way to extract/process the gate bit separately
+    from the waveform byte in the control register
+  - The CMP #$0C branch structure suggests a 2-column layout where low values
+    are special commands / rests
+
+ADDITIONAL CONTEXT from Cadaver's description (tools page + CSDb):
+  V2 "commands (also used as instruments)": instruments in V2 can be command entries
+  that alter playback behavior, not just sound parameters.
+  V2 has "2-column tables" — waveform/instrument data organized in two parallel columns.
+  V2 has "slide function that stops at target pitch" — portamento with pitch target.
+
+SIDID VERSION CONTEXT:
+  The sidid tool is authored by Cadaver himself. The NinjaTracker signatures were
+  therefore written with direct knowledge of the player binary — they are ground truth.
+  Both the local copies (from various prior research sessions) and the upstream GitHub
+  repository contain identical NinjaTracker_V1.x and NinjaTracker_V2.x entries.

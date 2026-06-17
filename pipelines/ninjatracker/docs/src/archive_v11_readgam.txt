@@ -1,0 +1,81 @@
+Gamemusic version info
+----------------------
+
+Has added sound effect capability. Octave 0 has been removed from the
+playroutine to conserve memory.
+
+Sound effects can be made with GoatTracker and converted with the included
+INS2NT utility.
+
+
+Sound effect data format
+------------------------
+
+Offset  Meaning
+0       Pulsewidth, nybbles reversed
+1       Attack/Decay
+2       Sustain/Release
+3-n     Notes & Waves
+
+A note has the byte range $8C-$DF (C-1 - B-7). To also change waveform on the
+same frame, a byte in the range $01-$81 must follow the note. Byte $00 ends
+the sound effect.
+
+Example:
+$08, $00, $C9 ;Pulsewidth 80, Attack/Decay 00, Sustain/Release C9
+$C8, $81      ;Note + Waveform
+$B0, $41      ;  --||--
+$A8           ;Note only
+$C4, $80      ;Note + Waveform
+$C2           ;Note only
+$C0           ;  --||--
+$BE           ;  --||--
+$BC           ;  --||--
+$BA           ;  --||--
+$00           ;End sound effect
+
+Playroutine functions
+---------------------
+
+The playroutine (ntplay.s) is now distributed as source-only, it isn't saved
+with packed songs at all. The music can be loaded into any address in memory,
+and it can actually move in memory if you wish so :)
+
+Sound effects use now 2-frame hardrestart for reliability. In theory this
+allows to use maximum sustain level ($F) in sound effects without bugs -
+experiment yourself.
+
+Initialize playroutine:
+-----------------------
+
+(After loading music or moving it, do this first. Caution: uses same zeropage
+addresses as the playroutine. While this is working, please do not call the
+playroutine)
+
+  lda #<musicdata_address
+  ldx #>musicdata_address
+  jsr relocatemusic
+
+Initialize song:
+----------------
+
+  lda #songnumber (0,1,2.. etc)
+  jsr playtune
+
+Initialize sound effect:
+------------------------
+
+  lda #<effect_address
+  ldx #>effect_address
+  ldy #channel (channel register index 0, 7 or 14)
+  jsr playsfx
+
+The playroutine itself:
+-----------------------
+
+(Plays one frame of music/effects - call from interrupt)
+
+  jsr music
+
+
+
