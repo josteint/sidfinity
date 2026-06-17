@@ -400,12 +400,23 @@ DUAL-CLOCK PHASE ($1019 leftover → params.slide_phase).
    **TOOL: `tools/divergence_census.py`** (see [[reference_divergence_census]]) —
    clusters the residue. KEY FINDING: **detection ≠ FULL** — the 153
    player_code_mismatch are NOT the FULL bottleneck (detecting them just exposes
-   downstream bugs); the **310 verify-partials are**, clustered as: 67
-   check_A_state_only (init-priming, near-FULL — TOP TARGET), ~60 V1 pulse-width,
-   ~75 frequency (vibrato/glide), ~21 filter cutoff. NEXT V5 (ranked): (1) the
-   check_A_state_only init-priming cluster (67); (2) the pulse/freq partial
-   clusters; (3) player_code_mismatch deeper variants; then family-4 (+$95).
-   Full detail in pipelines/dmc/v5/RE_NOTES.md.
+   downstream bugs); the verify-PARTIALS are.
+   **✅ ROUND 5 — STATIC PULSE/FILTER HOLD (commit 266a5b5): 848 -> 875/1495
+   FULL (+27, 58.5%), 0 regressions.** The "67 check_A_state_only" cluster was a
+   RED HERRING — 0 were init-priming; all were `shift_d=None` trichotomy
+   alignment failures (early play divergences desync the midpoint landmark;
+   init prefixes match, d=0). TRUE first-divergence histogram: ~34 pulse-width
+   (clean 2x-ramp signature), ~18 filter, ~13 frequency. Root cause of the
+   pulse cluster: `from_usf.add_env` emitted `[start][$90->start]` for a STATIC
+   env (phases=[]); the engine re-reads the START pair as an ADD step → ramps
+   +start.hi/frame instead of holding (Hardcore_DMC $D403: orig holds 8; rebuild
+   8,16,24,32...). Fix: static env loops on a ZERO-ADD with count==0
+   (65536-frame hold). Shared by pulse+filter. Also `verify_cycle` fallback now
+   reports first_play_diff (16c4053, diagnostic). NEXT V5 (ranked): (1) the ~18
+   FILTER + ~13 FREQUENCY first-divergence clusters (distinct bugs — filter is
+   non-2x cutoff divergence, freq likely vibrato/glide); (2) remaining
+   non-static pulse partials; (3) player_code_mismatch variants; then family-4
+   (+$95). Full detail in pipelines/dmc/v5/RE_NOTES.md.
    **DONE: DB migrated SQLite -> git-tracked CSV (hvsc84.csv) + DuckDB CLI
    (see [[reference_hvsc_db.md]] / CLAUDE.md).**
 

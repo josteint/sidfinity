@@ -407,12 +407,35 @@ and a new non-raising v5_diagnose.
 **Triage tool — tools/divergence_census.py** (commit 575492b): clusters the
 non-FULL residue. KEY FINDING: **detection != FULL** — the 153
 player_code_mismatch are NOT the FULL bottleneck (the 7 wrapper members it
-detects stay non-FULL; detecting just exposes downstream bugs). The 310
-verify-PARTIALS are; --partials clusters them by first writelog divergence:
-**67 check_A_state_only** (init-priming, play-matches-state-differs, near-FULL
-— TOP NEXT TARGET), ~60 V1 pulse-width, ~75 frequency (vibrato/glide), ~21
-filter cutoff. (A by-hand "$10A1 = 52 trampolines" guess was corrected by the
-tool to 2 — the cluster was heterogeneous; split opcode clusters by the byte.)
+detects stay non-FULL; detecting just exposes downstream bugs). The
+verify-PARTIALS are. (A by-hand "$10A1 = 52 trampolines" guess was corrected by
+the tool to 2 — the cluster was heterogeneous; split opcode clusters by the byte.)
+
+## PARTIAL LONG TAIL round 5 — static pulse/filter HOLD (commit 266a5b5)
+
+FULL 848 -> 875/1495 (+27, 58.5%), 0 regressions.
+
+The "67 check_A_state_only" bucket was a RED HERRING: 0 were init-priming. All
+were `shift_d=None` trichotomy ALIGNMENT FAILURES — early play-stream
+divergences that desync the midpoint landmark (the init prefixes MATCH, d=0).
+The `[sub, False]` first_diff (no play diff recorded on the fallback path) made
+them indistinguishable from a true Check-A state diff. The TRUE first-divergence
+register histogram (flat prefix from 0): **~34 pulse-width** (this fix), ~18
+filter, ~13 frequency.
+
+Pulse-width root cause: clean 2x-per-frame ramp. `from_usf.add_env` emitted
+`[start][$90 -> start]` for a STATIC env (phases=[]); pulse_run/filter_run treat
+the $90 loop target as the next ADD step and re-read the START pair as a step,
+so PW ramps +start.hi/frame instead of holding (Hardcore_DMC V1 $D403: orig
+holds 8; rebuild 8,16,24,32,40...). Fix: a static env now loops on a ZERO-ADD
+with count==0 (65536-frame hold): `[start][00 00][00 00][$90 -> the zero-ADD]`.
+Shared by pulse + filter (both call add_env); phases!=0 path unchanged. Also
+`verify_cycle` shift_d=None fallback now reports first_play_diff (16c4053,
+diagnostic) so future batches don't mis-bucket these.
+
+NEXT: the ~18 FILTER + ~13 FREQUENCY first-divergence clusters (distinct bugs —
+filter is non-2x cutoff divergence; freq likely vibrato/glide); then remaining
+non-static pulse partials; player_code_mismatch variants; family-4 (+$95).
 
 ## (historical) factory + wide-batch plan
 `dmc_v5_config` factory (jump-table detect init+$40/play+$A1, the
