@@ -57,6 +57,7 @@
 - [Do the actual work](feedback_do_the_work.md) — implement ALL optimizations, don't punt
 - [Worktree agents must commit](feedback_worktree_commit.md) — always tell agents to `git add` + commit
 - [Subagents: no git mutations](feedback_subagents_no_git.md) — fan-out/research agents must be forbidden from `git restore`/`checkout`/etc.; one reverted live DB state on a false premise. Open shared DBs `mode=ro`.
+- [research-player leaf agents](feedback_research_player_leaf_agents.md) — TRIPWIRE. Fan-out research agents (general-purpose) recursively spawn their OWN sub-agents; a "6-agent" sweep became 30+ and blew the session token limit. Every agent prompt MUST open with a LEAF constraint (no Agent/Task tool, no sub-spawning). Skill fixed in a9a1049. Report the TRUE live agent count, not the number launched.
 - [Meta-process](feedback_meta_process.md) — at natural pauses, re-evaluate if the current approach is still highest ROI and whether memories / CLAUDE.md reflect reality
 - [VOCABULARY: "uready"](feedback_uready_vocabulary.md) — unification-ready: the 6-criteria gate for leaving an engine family (orig-free §9, no escape hatches, factored/reversible USF, representative verification, feature-dimension accounting, documented residue). "Is this engine uready?" = can we move on without the composer-skeleton unification (refactor_1 Move 1) suffering for it. Scoreboard kept in the memory.
 
