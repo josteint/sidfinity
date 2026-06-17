@@ -20,6 +20,7 @@ roadmap.
 | Tool | Use case | Memory pointer |
 |---|---|---|
 | `tools/find_first_divergence.py` | Locate first (reg, val) mismatch in writelog between orig + rebuild. Names voice/role. | [feedback_writelog_divergence_recipe](.claude/memory/feedback_writelog_divergence_recipe.md) |
+| `tools/divergence_census.py` | RESIDUE TRIAGE for a wide family: census a batch jsonl by status+reason, then cluster detect-rejects (live first-divergence site) or verify partials (`--partials`, by first writelog reg/role) into ranked root-cause buckets w/ representatives. Automates stratify-by-first-diff. Wired: dmc_v5. Proved detection≠FULL. | [reference_divergence_census](.claude/memory/reference_divergence_census.md) |
 | `siddump --memwatch HEX[,HEX...]` + `\|P:<count>` | Per-frame RAM snapshot at specific addresses + per-frame PSID play() invocation count (Trap C diagnostic). libsidplayfp-accurate (ground truth, not py65). | (in this file + CLAUDE.md) |
 | `tools/state_diff.py` | Wrapper around `--memwatch`: takes orig+rebuild SIDs + an address-mapping file, finds first frame where any mapped pair diverges. Detects Trap C via IRQ-count delta. | (in this file + CLAUDE.md) |
 | `tools/state_diff.py --on-write TRIG --align-value VV` | EVENT-ALIGNED state diff (Trap-C-free): snapshots at every write to TRIG, compares by global event index. For engines writing a fixed reg once per play() (standard FC: D418/1F). "writelog diverges + state matches" = a missing/extra effect EMISSION. Found Entrail's +$04 arp. | (in this file + CLAUDE.md) |
