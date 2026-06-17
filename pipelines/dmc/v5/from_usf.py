@@ -169,9 +169,18 @@ def usf_to_model(usf: UsfFile) -> V5Model:
             a = rate & 0xFFFF
             table.append(((a >> 8) & 0xFF, a & 0xFF))               # step
             table.append(((frames >> 8) & 0xFF, frames & 0xFF))     # count
-        lp = env.loop if env.loop is not None else max(0, len(env.phases) - 1)
-        tgt = s + 1 + 2 * lp if env.phases else s
-        table.append((0x90, tgt & 0xFF))
+        if env.phases:
+            lp = env.loop if env.loop is not None else len(env.phases) - 1
+            table.append((0x90, (s + 1 + 2 * lp) & 0xFF))      # loop onto a step
+        else:
+            # Static env (no sweep): HOLD the start value. A bare `$90 -> start`
+            # makes the engine's run-loop re-read the START pair as an ADD step
+            # (ramping +start.hi per frame — the dominant V5 pulse/filter bug).
+            # Instead sit on a zero-ADD with a count==0 (= 65536-frame wrap), so
+            # the value is held; the $90 loops back onto that zero-ADD.
+            table.append((0x00, 0x00))            # s+1: zero ADD (held)
+            table.append((0x00, 0x00))            # s+2: count 0 -> 65536-frame hold
+            table.append((0x90, (s + 1) & 0xFF))  # s+3: loop onto the zero ADD
         return s
 
     for inst in usf.instruments:
