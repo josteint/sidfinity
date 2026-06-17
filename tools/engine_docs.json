@@ -36,8 +36,8 @@
   },
   "david_whittaker": {
     "state": "LITTLE",
-    "notes": "single research.md first-pass overview; research-engine sweep not yet run.",
-    "updated": "2026-06-13"
+    "notes": "research-player sweep 2026-06-17 was INTERRUPTED by the session token limit (recursive sub-agent fan-out; skill since fixed). Salvaged ONE high-value artifact: pipelines/david_whittaker/docs/src/Whittaker_David_Panther.asm -- a full annotated ACME disassembly of Panther (1986 Mastertronic) by dmx87 (1476 lines, named command handlers cmd_Pulse/cmd_PulseHi/csetwave/ptempo -> the command-stream interpreter playroutine). 110 HVSC tunes; player is hand-coded MML-style, evolved across games (expect multiple driver variants). STILL OPEN (re-run /research-player): sidid variant/signature count (= # driver versions, top priority), dmx87 source origin repo (more tunes?), cross-platform port docs, the 4 HVSC DOCUMENTS mentions (Update00/02.hvs + 2 announcements). See pipelines/david_whittaker/docs/README.md + provenance_log.md.",
+    "updated": "2026-06-17"
   },
   "deflemask": {
     "state": "OK",

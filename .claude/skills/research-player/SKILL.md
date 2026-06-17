@@ -113,8 +113,23 @@ Launch 5-6 parallel background research agents, one per source cluster:
 - HVSC docs + SIDId + DeepSID
 - Disassemblies + technical articles (C=Hacking, scene magazines)
 
+**Launch each agent as a LEAF (non-recursive) worker.** The research agents are
+spawned as general-purpose agents, which hold the `Agent` tool and will otherwise
+recursively spawn their OWN helper sub-agents — a 6-agent sweep became 30+ live
+agents and blew the session token limit (2026-06-17). There is no Write-capable
+agent type that lacks the `Agent` tool, so this MUST be enforced at the prompt
+level: the FIRST hard constraint below forbids sub-spawning, and it is not
+optional. One cluster = exactly one agent that does all its own work. Keep the
+sweep to **5-6 agents total** and do NOT launch follow-up waves that themselves
+fan out.
+
 **MANDATORY — every agent prompt MUST include these hard constraints** (a
 separate Claude session may be editing the same repo concurrently):
+- **You are a LEAF agent — NEVER spawn sub-agents.** Do NOT use the `Agent` /
+  `Task` tool, and do NOT start background tasks or delegate to other agents.
+  Perform ALL searching, fetching, reading, and file-writing YOURSELF within this
+  single agent. (Research agents recursively spawning helpers caused a token
+  blow-up + session-limit kill — one agent = one worker, no exceptions.)
 - **Never run any `git` command** — no `restore` / `checkout` / `reset` /
   `add` / `commit` / `clean` / `stash`. If a tracked file (e.g. `hvsc84.db`)
   shows as modified, **leave it — it is not yours**. (A research agent once
