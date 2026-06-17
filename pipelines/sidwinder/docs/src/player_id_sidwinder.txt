@@ -1,0 +1,40 @@
+# source: https://github.com/WilfredC64/player-id
+# fetched: 2026-06-17
+# config directory: https://api.github.com/repos/WilfredC64/player-id/contents/config
+
+## WilfredC64/player-id — SidWinder Coverage
+
+The player-id repository (Rust implementation by Wilfred Bos) ships the following
+config files in its config/ directory:
+
+  config/sidid.cfg   (76,823 bytes — primary signature database)
+  config/sidid.nfo   (44,603 bytes — player notes / attribution)
+  config/tedid.cfg   (834 bytes — TED chip player signatures)
+
+The sidid.cfg in this repo is a fork/copy of cadaver/sidid's sidid.cfg.
+The SidWinder entry is IDENTICAL to the cadaver/sidid version:
+
+  SidWinder
+  AD ?? ?? F0 ?? CE ?? ?? 88 4C ?? ?? B9 ?? ?? C9 ?? 90 ?? F0 ?? B9 ?? ?? 8D ?? ?? A8 END
+
+The sidid.nfo attribution entry is also identical:
+
+  SidWinder
+     AUTHOR: Balázs Takács (Taki)
+   RELEASED: 1999 Natural Beat
+  REFERENCE: https://csdb.dk/release/?id=66494
+
+## Detection Algorithm
+
+player-id uses the BNDM (Backward Nondeterministic DAWG Matching) algorithm to
+scan SID binaries for signatures. Unlike cadaver/sidid (which is a standalone C
+binary), player-id is a Rust library + CLI tool designed for cross-platform use.
+
+Signature contributors listed in the repo: Wilfred Bos, iAN CooG, Professor Chaos,
+Cadaver, Ninja, Ice00, Yodelking.
+
+## Conclusion
+
+No additional SidWinder-specific content beyond the shared sidid.cfg was found in
+the WilfredC64/player-id repository. No Rust-level special-casing for SidWinder.
+The single signature entry is the only detection method used.

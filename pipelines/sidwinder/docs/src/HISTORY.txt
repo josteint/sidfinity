@@ -1,0 +1,115 @@
+
+Editor
+-------
+
+  - V01.14 (Taki/NB)
+
+    Not meant to be a professional tool, basically a quick-and-dirty hack put
+    together in a few weeks.  Lots of minor bugs.  Never released.
+
+  - V01.20 (Taki/NB)
+
+    An improved version based on the V01.14 editor.  Most bugs fixed, numerous
+    changes to accomodate the V01.2x player structure.  Never released.
+
+  - V01.21 (Taki/NB)
+
+    Nothing really new; it's just a V01.20 with minor patches to fit the new
+    player's parameters.  Never released.
+
+  - V01.22 (Taki/NB)
+
+    Slightly improved version still based on V01.20.  Some bugs fixed (sorry,
+    don't remember which).  Done in 1994, first public release in 1999.  Lost
+    all source files for this version :-(
+
+  - V01.23 (TLC/Coroners 2000.03.12)
+
+    - First release under GPL
+    - Reanimated source code from the V01.20 source and the V01.22 executable
+    - The code now also compiles to Plus/4 (with SID-card)
+    - Removed load/save memory image support
+    - SFX mode was recoded (no clicks, skips playing channel 2/3)
+    - SFX/liveplay mode no longer uses sector $5f
+    - Track on/off was integrated into the editor player (no clicks, no
+      reserved bytes in the arpeggio table)
+    - New code for sector play mode (now simply skips playing channel 2/3)
+    - Up to 16x player speed (16 calls per frame), supported by the editor
+    - The 'trace values' display is updated even in 16x speed mode.
+    - Recoded raster irq routine (player calls are spread equally over the
+      frame)
+    - 'Ins at pos 0 (in track editing)' bug fixed
+    - Changed key for Finish command in the sector editor (now SHIFT+F)
+
+
+Player
+-------
+
+  - V00.xx (Taki/NB)
+
+    Development versions, ain't worth to mention.  None really worked :-)
+
+  - V01.0x (Taki/NB)
+
+    First working routines but with dozens of bugs.  Took too much rastertime.
+    No tool suite created for these players.  Never released.
+
+  - V01.14 (Taki/NB)
+
+    First player actually used for creating tunes :-)  Modest rastertime, nice
+    features (all effects step-programmable).  Special hard restart using test
+    bit.  Two serious bugs (jump loops hang the player, filter effect skipped
+    in certain cases).  First player with a tool suite.  Never released.
+
+  - V01.20 (Taki/NB)
+
+    Reduced sector instruction set for more instruments and faster operation.
+    Optimized sound effect routines, bug fixes.  Much shorter rastertime than
+    that of V01.14, still maintaining advanced sound quality.  Disadvantage:
+    absolute frequency parameters for glide and vibrato.  Never released.
+
+  - V01.21 (Taki/NB)
+
+    Slightly modified V01.20 player.  The original slide routine required too
+    much rastertime for the first frame of the notes.  This modified version
+    saves on rastertime but sounds glitchy.  Nobody ever used this one.
+
+  - V01.22 (Taki/NB)
+
+    A further optimized version of V01.20.  Provides the same features as the
+    old player, while taking 10..15% less rastertime.  Has the same negative
+    points as V01.20 concerning the absolute frequency (see above).  Finished
+    in 1994, first public release in 1999 (source included).
+
+  - V01.23 (TLC/Coroners 2000.03.12)
+
+    - Just a few minor modifications.
+      - Frq tables are available for both platforms
+      - Key-bit masking for trkon/trkoff in the editor player
+      - A bit modified initialization routine, to avoid clicks in SFX mode
+      - No start(1,2,3) pointer support for the "production" player
+    - Now 'relocatable' code (all addresses and locations are calculated
+      relative to the player start address)
+
+
+Packer
+-------
+
+  - V01.14 to V01.22 (Taki/NB)
+
+    Since the old packers are rather user unfriendly and most of the sources
+    have been unfortunately lost, TLC decided not to continue this line but
+    create a completely new packer for his versions of SIDwinder.
+
+  - V01.23 (TLC/Coroners 2000.03.12)
+
+    - First release of this line
+    - Packs songs created in editors V01.2x
+    - Runs both on C64 and Plus/4
+    - Loads song data files
+    - Module parsing and eliminating all unused data
+    - Relocates player code to selected start address
+    - Selectable SID base address
+    - Selectable SID frq table version
+    - Selectable used zeropage pointer address
+

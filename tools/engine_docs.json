@@ -185,9 +185,9 @@
     "updated": "2026-06-14"
   },
   "sidwinder": {
-    "state": "LITTLE",
-    "notes": "single research.md first-pass overview; research-engine sweep not yet run.",
-    "updated": "2026-06-13"
+    "state": "OK",
+    "notes": "research-player sweep complete (2026-06-17). GRAIL RECOVERED: full V01.23 GPL source archive (zimmers.net SIDwinder_V0123_src.zip) fetched + committed under pipelines/sidwinder/docs/src/ -- PLAYER.ASM (V01.23), PLAY0122.ASM (V01.22 for diff), PACKER.ASM (packer/relocator = the PACKED on-disk format HVSC tunes use), ED.ASM (editor/in-memory format), SIDR/VIEWER.ASM, + SIDW0122.txt manual + SUMMARY/GENERAL/PROGRAMM docs. No format parser exists in any other tool (SF2/CheeseCutter/GT/libsidplayfp/VICE -- only the sidid label). Engine: Taki/Natural Beat 1994, V01.22 public 1999, V01.23 GPL 2000-03-15 (Plus/4 port by Levente Harsfalvi/TLC). 117 HVSC SIDs, single sidid signature (no version split). Format: 3-voice PAL VBI-driven (speed=0), multispeed to 16x, entry $1000/$1003/$1006, 32 subtunes/96 sectors/64 instruments, 7-byte instruments + 4 effect tables (wave-arp/filter/PW/slide-vib; $FF jump, $FE drum), hard-restart per note/sector, glide=absolute-freq quirk. Name collision: Raistlin/Genesis 'SIDwinder' 2025 = unrelated modern analyzer (flagged). Cleared to disassemble. KEY OPEN (RE-phase, no more online needed): packed-format byte map from PACKER.ASM; V01.22-vs-V01.23 player diff; per-version axis confirm across 117 SIDs. See pipelines/sidwinder/docs/README.md.",
+    "updated": "2026-06-17"
   },
   "sidwizard": {
     "state": "OK",

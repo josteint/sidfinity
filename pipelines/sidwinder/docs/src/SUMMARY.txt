@@ -1,0 +1,256 @@
+This is the summary of features file of SIDwinder V01.23
+
+01 Brief list of features
+-------------------------
+
+ - up to 32 subtunes in one music file
+ - up to 96 sectors (256 instructions per sector)
+ - up to 64 different instruments
+ - up to 16 times music speed (supported by the editor)
+ - volume register ($1673) and volume control register ($165D) for
+   independent external volume control
+
+
+02 Keys
+-------
+
+02.01 General
+-------------
+
+ F1		play/restart actual music
+ F3		stop any kind of playing
+ F5		continue stopped playing
+ F7		fast forward (while held down)
+ F2		play a single sector
+ F4		enter liveplay (sfx) mode
+ F6		select next subtune of $01...$1F
+ F8		select previous subtune of $01...$1F
+ <-		toggle track+sector screen / sound screen
+ , . /		toggle on/off SID channels 1/2/3
+
+In the Plus/4 version, the keys are mapped to their respective equivalents.
+
+ F1		play/restart actual music
+ F2		stop any kind of playing
+ F3		continue stopped playing
+ HELP		fast forward (while held down)
+ F4		play a single sector
+ F5		enter liveplay (sfx) mode
+ F6		select next subtune of $01...$1F
+ F7		select previous subtune of $01...$1F
+ ESC		toggle track+sector screen / sound screen
+ , . /		toggle on/off SID channels 1/2/3
+
+
+02.02 Editor subparts
+---------------------
+
+ SHIFT+1,2,3	track editor
+ SHIFT+4	sector editor
+ SHIFT+5	glide/slide table edit
+ SHIFT+6	disk menu
+ SHIFT+7	music options
+
+In the sound editor:
+
+ SHIFT+1	sound editor (main parameters)
+ SHIFT+2	wave/arpeggio table
+ SHIFT+3	filter table
+ SHIFT+4	pulse width table
+ SHIFT+5	glide/slide table
+ SHIFT+6	slide/vibrato table
+ SHIFT+7	track start positions
+
+
+02.03 Track editor
+------------------
+
+ +		Tr+XX
+ -		Tr-XX
+ SHIFT S	...XX  (sector number)
+ SHIFT V	VolXX
+ SHIFT D	DecXX
+ SHIFT I	IncXX
+ SHIFT H	HltVS
+ SHIFT J	JmpXX
+ (Pound)	Set subsong start pointer to cursor position
+ DEL		Delete command at cursor position
+ INS		Insert ...00 at cursor position
+ SHIFT RETURN	Enter sector editor (sector selected by the cursor)
+
+INS and DEL updates all affected Start pointers and Jmpxx commands.
+
+
+02.04 Sector editor
+-------------------
+
+ SHIFT S	Snd.XX
+ SHIFT D	Dur.XX
+ SHIFT V	Gld.XX
+ -		------
+ SHIFT H	 +++
+ SHIFT F	Finish
+ SHIFT + or ;	select next sector of $00...$5F
+ SHIFT - or :	select previous sector of $00...$5F
+ RETURN		copy the whole actual sector to a buffer
+ up arrow	paste the buffer into the actual sector
+ DEL		Delete command at cursor position
+ INS		Insert --- at cursor position
+
+
+02.05 Sound editor screen
+-------------------------
+
+ +/-		select next/previous instrument of $00...$3F
+ SHIFT +/-	increment/decrement pitch of test note
+ SPACE		test actual instrument (in liveplay mode)
+ RETURN		copy the actual instrument into a buffer
+ up arrow	paste buffer into the actual instrument
+ SHIFT RETURN	enter effect table (selected by the cursor)
+
+ INS		insert command at current position
+ DEL		delete command at current position
+
+The Ins and Del keys are present in all effect columns; they both update all
+affected jumps and other references.
+
+
+03 Commands
+-----------
+
+03.01 Track commands
+--------------------
+
+ ...XX  	play sector number $00...$5F
+ Tr+XX  	transpose up by $00...$3F semitones
+ Tr-XX  	transpose down by $00...$3F semitones
+ VolXX  	set a constant global volume of $00...$0F
+ DecXX  	decremental volume slide at speed $01...$07
+ IncXX  	incremental volume slide at speed $01...$07
+ HltVS  	halt volume slide, keep the current volume
+ JmpXX  	jump to position $XX in the track table
+
+All commands occupy a single byte, except for Jmpxx.
+
+A sector replay may be preceded only by the following ordered list of
+instructions:
+
+	one JmpXX,
+	one of IncXX, DecXX, HltVS or VolXX,
+	one of Tr-XX or Tr+XX
+
+
+03.02 Sector commands
+---------------------
+
+ Snd.XX		select a sound/instrument of $00...$3F
+ Dur.XX		set note duration to $01...$40 frames
+ C-1 - A#8	play note (selected instrument, for selected duration)
+ Gld.XX		glide ($01...$0F) or slide ($11...$1F)
+ ------		a delay unit, plus release actual note
+  +++		hold actual note, stay in sustain stage
+ Finish		End of sector
+
+Like the track commands, the sector commands also must follow a predefined
+order.
+
+ one Snd.XX,
+ one Dur.XX,
+ one of glide, slide, ---, +++ or a single note,
+ one Finish
+
+
+03.03 Sound editor
+------------------
+
+ The 7 digits are denoted like this:
+
+ - Attack, Decay
+ - Sustain, Release
+ - Gateoff counter
+ - Wave/arpeggio table position
+ - Filter table position
+ - Pulse width table position
+ - Slide table position
+
+Attack and decay are the respective volume envelope settings for the SID. The
+gateoff counter decreases with every frame, and toggles the channel key bit
+off when reached 0. The remaining position pointers are pointers to the
+appropriate effect program tables.
+
+A $00 in the Filter, Pulse or Slide position means that the effect will be
+switched off, whereas entering $ff results in not touching the effect machine
+parameters at all (an active effect, if any, will keep on running).
+
+
+03.04 Wave/Arpeggio table
+-------------------------
+
+ WF	$00...$8F -- current waveform = WF, arpeggio offset = AR
+	$90...$FE -- repeat last waveform with a new arpeggio offset
+	$FF       -- jump to the position specified by AR
+ AR	arpeggio offset or
+	jump position
+
+
+03.05 Filter table
+------------------
+
+ RP	$00...$FD -- repeated addition to frequency and resonance
+	$FE       -- select filtertype specified by FH
+	$FF       -- jump to the position specified by FH
+ FH	addition to cutoff frequency high byte or
+	filtertype (bits 6 to 4) or
+	jump position
+ RL	addition to resonance (bits 7 to 4) and
+	addition to frequency low byte (bits 2 to 0)
+
+When a filtered instrument is initialized, all the filter parameters, including
+the filtertype, are set to zero.  That means, the initial cutoff frequency and
+resonance must be 'added' to these zero values by the filter program.  You must
+set the filtertype, too, otherwise it will remain zero (which means, the filter
+won't pass anything at all).  The player will update $D418 with the result of a
+logical OR between the current volume and the filtertype you specify, therefore
+you should always set the lowest four bits of the filtertype to zero.
+
+
+03.06 Pulse width table
+-----------------------
+
+ RP	$00...$FE -- repeated addition to pulse width
+	$FF       -- jump to the position specified by PH
+ PH	addition to pulse width high byte or
+	jump position
+ PL	addition to pulse width low byte
+
+Similarly to the filter effect, whenever the pulse effect is reinitialized, the
+pulse width registers will be set to zero.  The first line of the pulse program
+usually adds an initial pulse width (a larger value), which the next few lines
+increase or decrease.
+
+
+03.07 Slide/Vibrato table
+-------------------------
+
+ RP	$00...$FD -- repeated addition to actual frequency
+	$FE       -- set absolute frequency FH/FL (drum mode)
+	$FF       -- jump to the position specified by FH
+ FH	addition to frequency high byte or
+	absolute frequency high byte or
+	jump position
+ FL	addition to frequency low byte or
+	absolute frequency low byte
+
+While a glide/slide command is executed, the vibrato is inactive, but keeps
+in sync.
+
+
+04 Miscellaneous
+----------------
+
+ - Please fill the sectors up sequentially. If not, when saving, all sectors
+   after the first empty one will simply be lost. In the editor save routine,
+   a sector is considered used if there is at least one Finish command in it.
+ - If a track contains no JmpXX instruction (preferably, at the end of the
+   sector list of the track), then it's considered to be unused and thus will
+   not be saved.

@@ -1,0 +1,230 @@
+For programmers...
+------------------
+
+
+SIDwinder (V01.23 and later) is a cross development project. All ASM sources
+are in ASCII text format and can be compiled with Table Driven Assembler
+(3.0.1 or above). TASM can be downloaded from various FTP sites (search for
+TASM301.zip with your favourite FTP search engine). For compiling, you'll
+also need my linker program, ComLink (V0.98) available at
+
+  FTP://ftp.funet.fi/pub/cbm/crossplatform/transfer/CBM-to-PC/
+
+(These programs run under DOS, so compiling the code needs a DOS compatible
+computer and operating system.)
+
+The syntax of the ASM sources obviously follow the syntax of Table Driven
+Assembler. You _may be able to compile them with other cross assemblers,
+as long as they support the same syntax (the better the compatibility, the
+less fiddling to make the sources compile). In first step, I'd _strongly
+suggest to get Table Driven ASM and _then waste your time to make the sources
+compile with other assemblers.
+
+You're allowed to distribute your new code as long as you follow the rules
+of the GNU GPL - and as an extra requirement, as long as your modifications
+don't make the compiling process be screwed up more than it actually is.
+(Forget ways like quick converting the binary includes to ASM source and
+inserting them into the current source files by hand.) From the other hand,
+you're encouraged to find ways to port the sources to free environments
+(Linux and freeware cross assemblers). TASM is proprietary (shareware) :-(...
+So are the common known DOS versions.
+
+
+As I should have mentioned elsewhere, SIDwinder's sources compile to two
+platforms, C64 and Plus/4. This is achieved with conditional assembly -
+fortunately, the assembler supports macros. With defining some special
+macros and inserting conditionals into the source code, the assembler
+compiles the appropriate pieces of code to the object file. If you look into
+the sources, you'll see a lot of #ifdef ... #endif structures. These are
+organized to define the right constants for the compiling, and sometimes
+also to compile small (too differing) code pieces explicitely. ...That's all
+about it. It was possible to do, since the C64 and the Plus/4 are quite the
+same (except for the memory map, the colors and the I/O) to this depth of
+programming.
+
+Now some about the organizing of the sources inside. All start with
+descriptions on their tasks, the files you need to compile them and a legal
+notice. Then you find system dependent definitions - as you see, these are
+selected by the conditional labels, 'C64' and 'P4'. The definitions cover
+static binary includes (supported by the external linking program 'ComLink',
+see its document), system variables, color values, memory map info, I/O
+addresses, Kernal ROM entries and so on. Then common definitions follow,
+standard Kernal ROM entries, screen memory positions (calculated from the
+above defined screen base address and offsets). Then the code itselves.
+
+
+To compile...
+-------------
+
+For example, you want to compile the editor for C64 platform. O.K. Let's
+suppose, you have the TASM301 pack and ComLink 0.98 installed somewhere
+(even in the current directory), and you also have all needed files for
+compiling (if you have the SIDwinder source archive, you do). Then simply
+enter at the prompt:
+
+    tasm -65 -dc64 ed.asm
+
+(tasm, 6502 instruction set, define 'c64', source filename).
+
+Hopefully, you've got several files, including "ed.lst", "ed.ext" and
+"ed.obj". O.K. Enter
+
+    comlink -thx ed.obj
+
+(comlink, hexadecimal object file + export file parsing (for linking binary
+includes), object filename).
+
+Hope you got an "ed.bin" file.
+
+Similarly, all other sources compile in the same manner. If you want the code
+compile to Plus/4, simply substitute the 'c64' (after the -d switch) by 'p4'.
+
+(Sometimes it's hard to get the code into a C64 or a C64 emulator, since it
+is about 240 blocks long. The standard routines will happily load the file
+to the color RAM, the VIC, SID and so on. To avoid this, (1) pack the image
+with PUcrunch, (2) use a C64 emulator like VICE and load the .bin file from
+its monitor, (3) or use ComLink + a real C64 and link to the C64 memory
+through a cable as it is written in its document or (4) invent your own
+tricks - all in all, it is possible since I also did it somehow ;-) ).
+
+
+The editor...
+-------------
+
+This is the longest and most complex source code of this pack. Originally,
+this was a C64 Turbo Assembler code. Because of the limited source code
+length of this assembler, Taki had to split the source to three pieces and
+edit/compile them separately :-(. The current code consists of the PETSCII
+SEQ files generated from the code of the ed V01.20 (converted to ASCII),
+several short code pieces that were inserted from the rebuilt source of V01.22
+and a lot of modifications / new routines. Because of the nature of the
+reverse engineered code, you'll see a lot of xFACE and iDB11 type of labels.
+(People used to complain about such an unfriendly code - but after thinking it
+over, except for the variables whose address depend on the compiling, I can
+say I like 'x0400' better than 'screen'. You can agree or disagree with this
+opinion. I think most Commodore assembly ('oldskool') coders would agree with
+it, especially if they coded in ML monitor).
+
+But let me continue it. The source is not well commented, but a good coder
+can read and understand it (Real Programmers don't need comments - the code
+is obvious ;-) ). At the critical points, you most probably find short notes
+on the actual task of the appropriate code.
+
+Basically, the editor is built around the keyboard handler. The editor
+functions are implemented with separate loops that both call the same
+keyboard handler for keys, and then do the actual task. The kernal scnkey
+routine, together with the replay info screen update routine is also called
+from this keyboard handler, instead of calling them from the IRQ routine.
+
+The IRQ routine is optimized for the task of the multispeed player. Almost
+nothing but the player calls are done from this part of the code. The
+exceptions are the strobes for the getkey routine, activating the scnkey and
+the screen update routines once a frame. The in-rasterline timing is based on
+the CIA timer 1 (or the TED timer 1 in Plus/4), to avoid flickering.
+
+(The IRQ was coded in a manner that it runs both with ROMs disabled and
+enabled, without problems.)
+
+The I/O routines are based on the standard Kernal calls. ...Well, no need
+for fast custom I/O routines.
+
+Except for the I/O routines, the editor runs with all ROMs mapped out
+(01 = $35).
+
+I think, Plus/4 freaks will find the code a little bit unfriendly, since
+even the TED border color registers and such obvious references are referred
+to as 'xD020'. If you're a Plus/4 coder and you don't know the C64
+equivalents of these references, you'll probably live hard times if you want
+to get into the code.
+
+
+The player
+----------
+
+Also originates from a C64 Turbo Assembler file. It was sligtly modified.
+
+ - You find two different static frequency value tables, selected by the
+   macrodefinitions 'c64' and 'p4'.
+ - All labels are calculated from the 'pstart' label value.
+ - Further conditionals are provided for the purpose of compiling the
+   gate-mask AND's for the editor player, and omitting reading start
+   pointers in the player version included to the packer.
+
+As you may figured out, the player is more likely an include file to the
+editor and the packer. It also compiles by itselves in one, however.
+
+I don't want to comment this part much, since I'm not the appropriate person
+to do it - if you have serious questions, you should contact Taki (as long
+as they cover subjects on the deep operation of the player).
+
+
+The packer
+----------
+
+This is a new part, and it was coded entirely on PC (no predecessor code
+from the C64). There are parts borrowed from the editor, especially, the I/O
+routines and a lot of label definitions.
+
+The process starts with loading the music data, and setting a lot of
+internal parameters, asking them from the user. The user interface is
+simple, but it is protected from most malicious attacks :-). The parameters
+can be set to _any, theoretically possible values (you can relocate a music
+to $0000 and so on). Once again, with Taki's words, assembly programmers
+don't have to be forced behind rules, they know what they're doing ;-). After
+setting them, the packing process starts.
+
+First, the program eliminates all Start pointers you set in the editor. The
+start pointer values are simply added to the appropriate track table start
+address pointers (thus saving a few bytes in the player initialization and
+in the module data).
+
+The packing algorithm examines all data thoroughly, and signs data area usage.
+
+  - Used elements in a track table are determined by the track start and the
+    first JMPxx command.
+  - A sector is used, if at least one reference from an _used area of a track
+    table was found
+  - The sector length is determined by the first FINISH command in the sector
+  - 'x' glide table element is used, if a GLD.0x or GLD.1x was found in at
+    least one used sector
+  - 'xx' instrument is used, if at least one SND.xx was found as above.
+  - The used elements of the effect tables are determined by the entry points
+    (pointed by the sound setting bytes) and a tracing algorithm. All elements
+    the parser goes through are marked used. The tracing stops if the next
+    element to be parsed is marked used.
+
+All areas considered unused are sorted out in the linking process. All
+references are updated (if an instrument setting is unused, all SND.xx commands
+referring to the instruments above the deleted one are decremented; the same
+applies to the glide table and all effect tables).
+
+When everything is done, the program saves the resulting linked program file
+to the disk and then jumps to the reset routine.
+
+
+The ASCII viewer
+----------------
+
+This code is not well related to the music editor. But since it is so small,
+both in size and complexity, I don't really want to release it separately
+and do all documenting. First, when I planned to release the pack, I thought
+I was better to convert the docs to 40 cols PETSCII format and include them
+on the distribution disks. But after I started to reedit one document to 40
+columns, I soon dropped the idea. Instead, I wrote this small viewer routine.
+
+In short, it is based on a custom 4x8 pixels charset and a display routine
+that works in hi-res bitmap mode. Another subpart is the I/O which is also
+based on standard kernal I/O calls (check the source).
+
+The viewer can print the ASCII text on a standard PETSCII printer. This
+involves more programming of the CBM serial bus, and a bit of ASCII to
+PETSCII conversion - see it in the code, I don't really want to comment it
+here.
+
+The base of the charset was ripped from a very early 80 column screen
+emulator (...I don't know its name, nor the author :-( ). Then it was
+stripped and edited, in order to make it shorter and to contain all standard
+ASCII chars (Final III monitor rulez ;-) ).
+
+Fortunately, the code uses quite small memory, so even a C-16 meets the
+viewer's requirements...

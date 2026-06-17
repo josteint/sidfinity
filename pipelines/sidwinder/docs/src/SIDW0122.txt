@@ -1,0 +1,804 @@
+
+	INSTRUCTIONS FOR TAKI'S SIDWINDER V01.22  (FIRST PUBLIC RELEASE)
+		Version 1.1 (minor patches to V1.0), 30 Jun 1999
+			Copyright 1994-1999 Natural beat
+
+
+Chapter 0	Disclaimer
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of merchantability or fitness for a
+particular purpose.  In case you didn't get the idea or you're a lawyer, please
+read the rest of this chapter.  For the curious ones, let 'THIS PROGRAM' denote
+the whole SIDwinder V01.22 package in the following two paragraphs.
+
+BECAUSE THIS PROGRAM IS LICENSED FREE OF CHARGE, THERE IS NO WARRANTY FOR THIS
+PROGRAM, TO THE EXTENT PERMITTED BY APPLICABLE LAW.  THIS PROGRAM IS PROVIDED
+"AS IS" WITHOUT WARRANTY OF ANY KIND, EITHER EXPRESSED OR IMPLIED, INCLUDING,
+BUT NOT LIMITED TO THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
+PARTICULAR PURPOSE.  THE ENTIRE RISK AS TO THE QUALITY AND PERFORMANCE OF THIS
+PROGRAM IS WITH YOU.  SHOULD THIS PROGRAM PROVE DEFECTIVE, YOU ASSUME THE COST
+OF ALL NECESSARY SERVICING, REPAIR OR CORRECTION.
+
+IN NO EVENT UNLESS REQUIRED BY APPLICABLE LAW WILL NATURAL BEAT, THE COPYRIGHT
+HOLDER BE LIABLE TO YOU FOR DAMAGES, INCLUDING ANY GENERAL, SPECIAL, INCIDENTAL
+OR CONSEQUENTIAL DAMAGES ARISING OUT OF THE USE OF THIS PROGRAM (INCLUDING BUT
+NOT LIMITED TO LOSS OF DATA OR DATA BEING RENDERED INACCURATE OR A FAILURE OF
+THIS PROGRAM TO OPERATE WITH ANY OTHER PROGRAMS), EVEN IF THE COPYRIGHT HOLDER
+HAS BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.
+
+
+Chapter 1	General misinformation
+
+1.1.	A word of warning
+
+Well, now you're probably happy to have one of the best musicplayers available
+on the C64 scene.  I guess you'll be quite disappointed very soon.  Of course,
+this package is fully functional, I didn't hide any 'nice surprises' which you
+first encounter right before trying to save your opus magnum.  However, please
+notice that this is definitely not a user friendly music editor.  Originally I
+designed the whole package for internal use only, so I didn't care much about
+its look and feel.  I coded what I required, but nothing more -- you should be
+pretty good at basic hex and binary calculations, for example.  In addition, if
+you wish to utilize the most advanced features of this player, you must learn a
+few tiny but important details of its inner operation.  Using my player, a good
+musician can beat most -- if not all -- of the popular routines, both in sound
+quality, rastertime and memory usage.  In improper hands, however, this player
+may seem to be completely useless: if you don't make use of its advantages, you
+can create a tune of the same quality in other editors with much less trouble.
+So please remember, my player is only as good as the musician who uses it.
+
+Oh, before I forget it, please also remember to follow these steps before you
+sue me for creating the worst music editor package ever:
+
+	- read all of these instructions
+	- read all of these instructions
+	- read all of these instructions
+	- start playing around with the editor
+
+(in that order).  You have been warned.
+
+1.2.	Brief list of features
+
+	* up to 32 subtunes in one music file
+	* up to 96 sectors (256 instructions per sector)
+	* up to 64 different instruments
+	* up to 10 times music speed (supported by the editor)
+	* four step-programmable effects (arpeggio, filter, pulse, vibrato)
+	* volume register ($168E) for independent external volume control
+	* automatical hard restart (with first frame skip)
+	* multiple player entry points ($1003 for the first call every frame,
+	  $1006 for any subsequent calls within a frame)
+	* maximum effect resolution (every single $1003 or $1006 call updates
+	  all of the active effects, including glide/slide)
+	* low rastertime (a practical maximum of $14 scanlines for the $1003
+	  routine and $10 lines for the $1006 routine)
+	* highest warp speed in the Federation Starfleet (up to warp factor
+	  9.95 in emergencies) :-)
+
+1.3.	General functions
+
+Okay, get down to the business.  First, let me cover a few general keys:
+
+	F1		play/restart actual music
+	F3		stop any kind of playing
+	F5		continue stopped playing
+	F7		fast forward (while held down)
+	F2		play a single sector
+	F4		enter liveplay (sfx) mode
+	F6		select next subtune of $00...$1F
+	F8		select previous subtune of $00...$1F
+	left arrow	track+sector screen / sound screen
+	, . /		toggle on/off SID channels 1/2/3
+
+The first few ones are fairly common in many music editors.  Pressing F2 will
+start playing the selected sector (on the first channel), useful while testing
+your chords, for example.  The F4 function must sound familiar to some of you
+DMC V4.0 users out there -- it allows you to play the notes you type into the
+sector editor immediately.  Whenever the cursor crosses a Snd.XX instruction,
+the appropriate instrument will be selected, in other words, all the following
+notes will be played on that instrument.  You can use the liveplay mode on the
+sound editor screen as well: select the desired test note and instrument (see
+section 3.1. below), then press the SPACE bar.  Warning: as both the liveplay
+mode and the sector-player operate on the first SID channel, please make sure
+that this channel is switched on before you use these functions.
+
+Using the F6/F8 keys, you can select one of the $20 subtunes contained in one
+single music file.  These tunes share the same set of sectors and instruments,
+but each of them has its own track arrangement, thereby providing a convenient
+way to compose soundtracks for games.
+
+The three keys between M and the right SHIFT are assigned to the SID channels,
+respectively; pressing one of them will switch the corresponding channel on or
+off.  Since this function is not implemented in the player itself, I was forced
+to use a quick and dirty hack to mute the channels.  The results: an ugly noise
+on the supposedly silent channels, a couple of reserved values in the arpeggio
+table, and a bunch of musicians taking me for an idiot :-)
+
+
+Chapter 2	The track+sector screen
+
+This screen is made up of three track editors, a sector editor, a special table
+for the glide/slide instructions, a disk menu and a few further displays.  Each
+of these may be accessed by pressing SHIFT together with a number key.  In the
+next few sections we'll discuss them in closer detail.
+
+2.1.	Track editor (SHIFT 1/2/3)
+
+This is quite similar to the track editors you have seen in a number of other
+music editors already.  The following instructions are available this time:
+
+	+		Tr+XX  (transpose up by $00...$3F semitones)
+	-		Tr-XX  (transpose down by $00...$3F semitones)
+	SHIFT S		...XX  (play sector number $00...$5F)
+	SHIFT V		VolXX  (set a constant global volume of $00...$0F)
+	SHIFT D		DecXX  (decremental volume slide at speed $01...$07)
+	SHIFT I		IncXX  (incremental volume slide at speed $01...$07)
+	SHIFT H		HltVS  (halt volume slide, keep the current volume)
+	SHIFT J		JmpXX  (jump to position $XX in the track table)
+
+Except for JmpXX, all these are one-byte instructions, occupying as little room
+as possible.  If you start a volume slide, it will automatically continue until
+it reaches either silence or the maximum volume, unless you issue a VolXX or a
+HltVS instruction (in which case the volume remains constant, of course).  All
+the volume instructions produce obviously a global effect, so you don't need to
+(you should not) issue them for more than one track a time.
+
+For technical reasons, there is a predefined order for these instructions that
+you must follow.  The general idea behind this hack is that you would never put
+a transpose instruction right behind another one.  The same goes for the volume
+slides and the jumps, too -- you never require more than one of each in a row,
+except for the sector replay, of course.  So, in my player, a sector replay may
+be preceded only by the following ordered list of instructions:
+
+	one JmpXX,
+	one of IncXX, DecXX, HltVS or VolXX,
+	one of Tr-XX or Tr+XX
+
+This is not necessarily a sequential order, but the order of execution (unless
+a JmpXX is executed, the two orders are the same).  Either one or more of these
+items (jump, volume control or transpose) may be missing; if they are present,
+however, they must appear in the order defined above.  It also implies that you
+may not jump to another JmpXX instruction, but I think that wouldn't make much
+sense anyway.  Please notice that the editor won't warn you if you violate the
+rules -- it isn't user friendly, remember?  Assembly programmers don't need to
+be forced behind rules, they know what they're doing :-)  And please don't ask
+me what happens if you violate them after all -- just believe me that you won't
+like the results.
+
+2.2.	Sector editor (SHIFT 4)
+
+You may access the sector editor from the tracks by pressing SHIFT RETURN, too,
+by which combination you may as well return to the track editor where you came
+from.  If you press SHIFT RETURN on a track instruction that specifies a sector
+replay, the editor will display that particular sector: it seems to be a little
+bit user friendly after all :-)  Let's see the keyfunctions available here:
+
+	SHIFT S		Snd.XX  (select a sound/instrument of $00...$3F)
+	SHIFT D		Dur.XX  (set note duration to $01...$40 frames)
+	SHIFT V		Gld.XX  (glide ($00...$0F) or slide ($10...$1F))
+	-		------  (a delay unit, plus release actual note)
+	SHIFT H		 +++    (hold actual note, stay in sustain stage)
+	SHIFT E		Finish  (also known as -END- of current sector)
+	SHIFT +	or ;	select next sector of $00...$5F
+	SHIFT - or :	select previous sector of $00...$5F
+	RETURN		copy the whole actual sector to a buffer
+	up arrow	paste the buffer into the actual sector
+
+Nice, but where are Vol.XX, Rel.XX and the rest of your favourite instructions?
+They were sacrificed on the altar of simplicity.  Yes, I removed them, in order
+to reduce the rastertime -- in return, you are granted as much as $40 different
+instruments.  However, if you just can't live without Vol.XX and Rel.XX, simply
+duplicate a sound setting and change the appropriate ADSR values.  Although it
+may seem to be complicated, if you are creative, you can make use of the extra
+instruments in many other way than just emulating those instructions.
+
+Like in DMC V4.0, the Gld.XX instruction may perform two different tasks: let's
+call them glide (Gld.0X) and slide (Gld.1X) to avoid confusion.  Gld.0X must be
+followed by two notes; the instruction starts a new note (the first one), then
+glides towards the second one.  Gld.1X requires a single note; this instruction
+keeps the actual note and slides towards the note you specified.  Unlike in DMC
+V4.0, however, the second digit of Gld.XX's argument does not directly contain
+a glide/slide speed.  Instead, it points to the corresponding line of the glide
+table, containing 16-bit absolute glide speed values.  The moral of the story:
+now you can glide/slide as slow as you wish, even in a multi-speed music, but
+you're stuck with absolute (non-adaptive) glide/slide speeds.
+
+Probably it's needless to say, but my player features a hardwired hard restart,
+which means, you can't switch it off -- on the other hand, I can't imagine why
+you wouldn't want to use it.  By the way, please don't use note duration values
+below $04, as this may confuse the hard restart routine -- nope, unlike you may
+expect, it won't switch off automatically.  If you wish to play sounds shorter
+than 4 frames, do it with the arpeggio table instead.
+
+For technical reasons, my player issues a hard restart automatically at the end
+of each sector; that will cut any active notes, of course.  I guess some of you
+won't like this feature, but this way it was possible to restrict the lookahead
+of the hard restart routine to the current sector, saving lots of rastertime in
+certain cases.  You can circumvent the problem by aligning your sectors to note
+strikes (if you require a delay before the first note, please make the previous
+sector appropriately longer instead).  See, I told you it won't be easy to use
+this player in a proper way :-)
+
+Sector $5F is reserved for the purposes of the liveplay function.  Please don't
+modify its contents unless you really know what you're doing.  Actually you may
+use this sector just like any other one in your music (the player itself won't
+mind it), but then don't expect the liveplay mode to work in the way described
+above.  If you positively need to use even that last sector of the memory, take
+my advice and don't press F4 while sector $5F contains valuable data, since it
+would cause a few bytes (normally required by liveplay mode) to be overwritten.
+There's a similar rule for sector $5E: as a default, it's empty.  You may write
+whatever you wish into it, but please remember that this sector is responsible
+for the silence of the 2nd and 3rd track while a single sector is being played
+or the liveplay function is active.
+
+Much like in the case of track instructions, sector instructions must be issued
+in a predefined order.  Please always follow this structure:
+
+	one Snd.XX,
+	one Dur.XX,
+	one of glide, slide, ---, +++ or a single note,
+        one Finish
+
+Of course, only the third line is mandatory, one or more of the remaining items
+may be missing.  Now you know the rules, but why this order restriction at all?
+Well, if you may code the order of the instructions into the player, you'll get
+a lot less cases to examine in the track/sector routine, which makes the whole
+player a couple of rasterlines shorter.  But why does the musician have to know
+about all these details?  Why not create an editor-player with no restrictions,
+making the life of musicians easier, and an optimized production-player, which
+would replace the general editor-player during packing?  Why not let the packer
+take care of the dirty details?  Well, I've seen editors that make it this way,
+and believe me, they're a pain in the ass.  Once you think all your instruments
+sound perfect, then you pack your tune and... damn it, the hard restart on the
+bass fails again.  Sometimes even the slightest differences between the timing
+of the editor/production players can ruin your favourite instrument.  Therefore
+I decided to keep the very same player after packing the tune, even though this
+requires a bit of extra care while composing.
+
+2.3.	Trace values
+
+If the speed of the current tune is 6 times or less, a couple of parameters for
+each of the three tracks will be displayed here continuously.  Here's what the
+mystical abbreviations stand for:
+
+	TRK	actual position in the track table
+	SCT	actual position within the played sector
+	SND	actually played sound/instrument number
+	DUR	current note duration (measured in frames)
+	ACT	frames left until the next sector instruction
+	OFF	frames left until release (gate off counter)
+
+The Sector Length value is another useful piece of information, displayed right
+beside the parameters listed above.  It shows the full duration of the actually
+edited sector in frames -- hopefully a handy tool for eliminating the infamous
+'shit, that sector must be too short' effect :-)
+
+2.4.	Glide table (SHIFT 5)
+
+You may specify 16-bit values in this table, the glide/slide speeds.  Since the
+glide/slide routine uses these values directly (without taking the frequency of
+the actual note into account), the glide/slide speed depends on the note being
+played, too.  Yes, I know it's a bad idea, I'll make it better next time :-)
+
+2.5.	Disk menu (SHIFT 6)
+
+Use the cursor keys to choose your favourite one of the following items:
+
+	Load file	load music or data file
+	Save data	save compressed data file
+	Save tune	save damn long unpacked music file
+	D.command	issue a disk command
+
+You can save the music either as a bare memory image or in a packed form, which
+is usually much shorter, of course.  This packed data file does not contain the
+player code yet, it's only a bunch of sectors and instruments.  It's convenient
+to use as long as you edit the tune; it's loaded and saved pretty quickly.  For
+technical reasons, however, the SIDwinder V01.22 packer doesn't understand this
+file format.  So you must save the tune as a memory image first, if you wish to
+pack and use it as a standalone music.  I'm sorry for this inconvenience, but I
+really don't have the time to code a decent packer.  (A little hint to all you
+volunteers out there: before trying to hack a new packer together, please think
+of supporting all the features of the current one...  If you seriously consider
+coding a new packer for my SIDwinder package, I'd like you to contact me first
+in order to discuss a few non-obvious technical details.)
+
+Speaking of the packer, probably you know that most players feature an ID field
+at $1020.  Here you can sign the music, leave a nice message to the ones trying
+to rip your tune, etc.  As you expected, however, my great packer won't let you
+edit this field, so it must be patched manually -- well, a good musician should
+be able to handle a disk editor :-)  Feel free to change my signature after you
+packed and saved the final version of the tune, but please leave the player ID
+alone (change only the $20 bytes from $1020 to $103F).  Thank you.
+
+The disk command option should be fairly obvious; you can issue here almost any
+standard DOS command, plus you may enter $ to display the directory.  You might
+even want to do tricks like $:*=U (guess what it does!).
+
+Please always remember to fill your sectors and instruments sequentially; when
+packing a music file, all sectors and instruments following the first empty one
+will be lost.  Warning: if an instrument contains a zero ADSR envelope setting,
+it is considered to be unused and will be discarded when packing.
+
+There's another quirk in the way the loader operates.  Loading a new file won't
+erase all the previously filled sectors from the editor, only the ones used by
+the new tune.  If there were any further sectors afterwards in the memory, they
+will remain intact.  You might consider this either a bug or a feature; if you
+now save your tune, these old sectors will be saved together with the new ones
+(which is probably not what you want), but this bug may be useful for importing
+sectors from another tune.  You decide.  On the other hand, if you're about to
+start composing a completely new tune, I'd strongly recommend you to press that
+red reset button and reload the editor -- instead of trying to clear everything
+by hand.  This is the safest and easiest way, not to mention that it saves you
+from the temptation of ripping some instruments :-)
+
+2.6.	Music options (SHIFT 7)
+
+Press RETURN to toggle between editing the the actual track start positions and
+the music speed.  Track start positions make it possible to place more than one
+subtune's track arrangement in one table.  There are eight track tables for $20
+total subtunes, so in one track table you should store track arrangements that
+belong to four subtunes.  For example, the track table you use for subtune $00
+can contain arrangements for subtune $08, $10 and $18 as well.  To separate the
+arrangements found in a track table, we use track start positions; each subtune
+has a set of pointers that show the actual start positions for its track table.
+If you, for example, used the area from $00 to $35 in track 1 for subtune $01,
+you would set a start position of $36 for the 1st track of subtune $09 (as they
+share the same track table).  Likewise, if track 2 of subtune $05 occupies the
+area between $00 and $16, you would use $17 as the start position value in the
+case of subtune $0d, track 2.  I hope you got the picture.  (Of course, in case
+you don't use more than 8 subtunes, you may just stick to the $00 default start
+positions and forget the rest of the story.)
+
+As you can see in the example above, you should align the arrangements tight to
+each other.  If your arrangements are misaligned, the memory inbetween will be
+simply wasted (even after packing), which unfortunately does matter if you have
+only 64 kbytes of it.  If you don't believe me, ask a C64 demo coder -- he will
+convince you that the most serious bottleneck of this computer is not its lack
+of CPU power or graphic resolution, but the limited size of memory.  So please
+be kind to demo coders and spare as much of the track tables as you can :-)
+
+After packing, you can choose the subtune to be played in the usual way: simply
+load the appropriate number ($00...$1F) into the accumulator and call the init
+routine at $1000.  If AR contains a valid subtune number, this call will figure
+out the correct track start positions and fill the internal pointers with them.
+By the way, while you're in a track editor, you may press the pound key to set
+the track start position to the location of the cursor.  This function operates
+separately for each track, or course.
+
+You can press RETURN to set the music speed for the current subtune.  The value
+you enter is actually the number of $1006 calls per frame; for example, set the
+speed value to $07 if you wish to compose an eight times music.  As these speed
+values are saved together with the tune, even the packed tunes contain them --
+that means, a clever music driver could be able to determine the speed required
+for each subtune.  This speed table is located at $1692 after packing, plus you
+can find its length (the total number of subtunes) at $1594.  As far as I know,
+however, such a music driver doesn't exist yet; not even my Cubic Player knows
+the trick (for good reasons, though).
+
+
+Chapter 3	The sound editor screen
+
+This screen contains everything you need for creating high quality instruments:
+a sound editor with room for $40 presets, four tables for the step-programmable
+effects (arpeggio, filter, pulse and vibrato), plus a glide speed table and an
+overview of the track start positions.  As usual, you can enter each of them by
+pressing SHIFT and the corresponding number key from 1 to 7.
+
+3.1.	Sound editor (SHIFT 1)
+
+The upper few lines of this screen belong to the sound editor.  Apart from the
+bytes of the current instrument, you can see here a help display.  It will give
+a brief description of the actual value selected by the cursor, thereby making
+it hopefully a bit easier for the poor musician to navigate in such a jungle of
+hex numbers.  (Who said this editor wasn't user friendly anyway?)  Well, let's
+take a look the keys available in the sound editor:
+
+	+/-		select next/previous instrument of $00...$3F
+	SHIFT +/-	increment/decrement pitch of test note
+	SPACE		test actual instrument (in liveplay mode)
+	RETURN		copy the actual instrument into a buffer
+	up arrow	paste buffer into the actual instrument
+	SHIFT RETURN	enter effect table (selected by the cursor)
+
+An instrument consists of a sound preset (which is seven bytes long) and a few
+programs in the effect tables discussed later.  These seven bytes are: AD, SR,
+gate off counter and the effect pointers (arpeggio, filter, pulse and vibrato).
+The first two are the usual envelope settings, of course.  The gate off counter
+specifies how many frames the player should wait before starting to release the
+given instrument.  If you set this value to zero, the instrument will remain in
+the sustain stage until the next note appears (no gate effect).  Please notice
+that a +++ sector instruction always delays the gate off event (it temporarily
+freezes the value of the counter), while a --- instruction alone doesn't ensure
+that the note will be released, it merely lets the counter run.  If the no gate
+effect is active, the release phase won't begin until a hard restart (caused by
+either the next note or the end of the actual sector), despite any other sector
+instructions.  That means, the gate off counter has a kind of priority over the
+--- sector instruction.  By the way, you may turn the gate bit off directly in
+the arpeggio table as well: this is the top priority, as the player will never
+turn the gate bit on by itself (it may only do an AND #$FE on the waveforms you
+specify).  On the other hand, this usually requires a longer arpeggio program,
+especially in the case of chords.  I'm sure all you DMC V5.0 users know what I
+mean, it's just one of the nice misfeatures of Brian's routine :-)  In general,
+the preferred method is to leave the gate bit on in the whole arpeggio program,
+and let the gate off counter turn it off for you whenever necessary.
+
+The four effect pointers define the positions where the effect programs for the
+selected instrument begin.  If a pointer is set to zero, the appropriate effect
+will be inactive, except for the arpeggio (which is always running, of course).
+If you set the pointer to $FF, the effect won't be initialized, in other words,
+the previously active effect program will continue to run.  Again, this doesn't
+apply for arpeggio.  You may enter the effect tables via a shortcut: choose the
+corresponding effect pointer by the cursor keys and press SHIFT RETURN.  Press
+this combination again to return to the sound editor.
+
+From time to time you may wish to hear your new instrument in action.  You can
+use the liveplay mode here, too: press F4 to start the player, select the pitch
+of the test note by the SHIFT +/- keys and press SPACE to hear the result.
+
+3.2.	Arpeggio table (SHIFT 2)
+
+Accessible from the sound editor alternatively by pressing SHIFT RETURN on the
+arpeggio pointer.  This table consists of three columns (## WF AR), which serve
+the following functions:
+
+	##	index of position
+	WF	$00...$8F -- current waveform = WF, arpeggio offset = AR
+		$90...$FE -- repeat last waveform with a new arpeggio offset
+		$FF       -- jump to the position specified by AR
+	AR	arpeggio offset or
+		jump position
+
+As you expected, the meaning of AR depends on the WF byte; if it equals to $FF,
+AR will be interpreted as a jump position (the ## number of the line where the
+arpeggio should continue), otherwise as an arpeggio offset (a signed value that
+specifies the distance in semitones between the base note of the instrument and
+the note actually played).  WF values from $00 to $8F specify a waveform, just
+like in DMC V4.0 and similar editors.  The remaining values would be useless as
+waveforms, so I assigned a repeat function to them.  These bytes cause the last
+valid waveform to be repeated WF-$8F times, with a new arpeggio offset.  Using
+the repeat commands, you can spare a great deal of space in the arpeggio table,
+especially in multi-speed tunes.  For example, let's see how I would program a
+nice major chord for a quattro speed music:
+
+	## WF AR
+	--------
+	1E 41 00	waveform = $41, arpeggio = $00
+	1F 94 00	repeat it five times
+	20 95 04	repeat six times, arpeggio = $04
+	21 95 07	repeat six times, arpeggio = $07
+	22 FF 1E	let's return to $1E
+
+That's no more than five lines; such an arpeggio would cost you nineteen lines
+in a DMC-like player!  Of course, you may jump to a repeat command as well, but
+please don't jump to another $FF command (the player is optimized in a way that
+it won't check for the $FF byte after the first one, saving a few cycles where
+you need it most).  Even if I wouldn't mention this at the rest of the effects,
+jumping to a further $FF (jump) command is illegal in the other tables as well.
+This means no practical limitation, of course (a jump like that would be a pure
+waste of memory anyway).  As usual, please remember that the editor won't warn
+you if you enter illegal jumps, they just plain old won't work.
+
+Maybe you noticed that, as a default, all the arpeggio pointers are initialized
+to $03.  Did you?  I told you to read this first before you load the editor and
+start playing around with it! :-)  Well, the first three lines of the arpeggio
+table are reserved for the channel on/off function:
+
+	## WF AR
+	--------
+	00 08 00	waveform = $08 (silence)
+	01 FE 00	a long repeat
+	02 FF 01	in an endless loop
+
+This loop cuts the actual waveform and stays here forever.  Whenever you mute a
+channel, its arpeggio pointer will be redirected to the arpeggio program above.
+It's a stinking lame solution, I know.  However, maybe there's a bit of a good
+idea in it after all: just take a look at that repeat!  Of course, you could as
+well remove the second line, it would produce the same silence.  But, as repeat
+commands are 'cheaper' in rastertime than jumps, in cases like this (where the
+jump acts more like a 'stop' command), you should insert a long repeat in front
+of the jump command.  This trick can spare you a few lines of rastertime if you
+use it in the other tables as well.  For example, let's see a typical bass:
+
+	## WF AR
+	--------
+	0A 81 00	let's call it cymbal fx :-)
+	0B 41 00
+	0C FE 00	this way we repeat 111 times
+	0D FF 0C	before the first jump occurs!
+
+In a relatively low speed music (and with a short note duration), it's possible
+that the jump won't be executed at all!  This hack is so ultimately simple and
+efficient, you can't afford not to use it.
+
+3.3.	Filter table (SHIFT 3)
+
+This table consists of four columns (## RP FH RL), and lets you control all the
+filter related parameters the SID offers: filtertype, resonance and all 11 bits
+of the cutoff frequency.  Let's take a detailed look at it:
+
+	##	index of position
+	RP	$00...$FD -- repeated addition to frequency and resonance
+		$FE       -- select filtertype specified by FH
+		$FF       -- jump to the position specified by FH
+	FH	addition to cutoff frequency high byte or
+		filtertype (bits 6 to 4) or
+		jump position
+	RL	addition to resonance (bits 7 to 4) and
+		addition to frequency low byte (bits 2 to 0)
+
+When a filtered instrument is initialized, all the filter parameters, including
+the filtertype, are set to zero.  That means, the initial cutoff frequency and
+resonance must be 'added' to these zero values by the filter program.  You must
+set the filtertype, too, otherwise it will remain zero (which means, the filter
+won't pass anything at all).  The player will update $D418 with the result of a
+logical OR between the current volume and the filtertype you specify, therefore
+you should always set the lowest four bits of the filtertype to zero.  You can
+select the filter passband by the bits 6 to 4 (for example, $40 for a highpass
+filter or $50 for a notch filter).  If you wish, you may optionally switch the
+third SID channel off by setting the highest bit to 1.
+
+By the way, the $FE (set filtertype) command is a bit similar to the Snd.XX or
+Dur.XX instructions: it's processed virtually in the same time as the next line
+of the filter program.  This next line must contain a repeat command; a further
+$FE command or a jump is not allowed here, but I'm quite sure you have guessed
+these rules.  Of course, jumping to an $FE command is legal and lawful.
+
+The repeat cycles are done one time more than specified (RP = $01 means repeat
+twice).  In each cycle, three additions will take place: the highest four bits
+of RL will be added to the current resonance, the lowest three bits of RL will
+be added to the $D415 value, and finally FH plus a possible carry will be added
+to the $D416 value.  Yes, the filter code provides a correct overflow handling
+from the three valid bits of $D415 to the $D416 register, unlike in most other
+players.  Whenever $D415 increases over $07 or decreases under $00, $D416 will
+be modified accordingly.  This allows you to control the cutoff frequency with
+an eight times finer resolution than in most of the common players.  And don't
+you tell me it's too complicated: the whole carry calculation takes exactly 4
+(four) machine cycles!  Try to beat that :-)
+
+Well, that's about the good news, but now let's see the bad ones.  There is no
+separate command for subtraction: if you wish to decrease any of the registers,
+treat them as signed values (in two's complement code), and add the appropriate
+negative value.  This is a little bit tricky (or annoying, for that matter) in
+the case of the cutoff frequency, since you must handle all the 11 bits as one
+integer number.  For example, -1 would look like $FF $07 and -2 like $FF $06 in
+our case; entering them as FH and RL would decrease $D415 by one or two.
+
+It is very important that the third ($08) bit of RL must be zero in every case,
+otherwise the overflow routine will fail to work properly.  It's a consequence
+of my strange but effective idea to calculate the resonance and the low byte of
+the cutoff frequency with the same ADC instruction.  To separate the results, a
+zero bit is required in both operands.  Since the filter routine itself doesn't
+mask that bit, you'll have to do it: please make sure that the second digit of
+RL contains a value between 0 and 7.  Please notice that the filter editor will
+let you enter illegal values as well, and if you do, both the resonance and the
+cutoff frequency calculation will be incorrect.
+
+Let's create a filter program for the above mentioned bass instrument:
+
+	## RP FH RL
+	-----------
+	09 FE 10 00	select lowpass filtertype and...
+	0A 00 C8 37	...set cutoff frequency to $C8 $07 and resonance to $03
+	0B 03 D0 20	subtract $30 from freq and add $02 to resonance 4 times
+	0C 08 FF 06	subtract $02 from cutoff frequency low byte 9 times
+	0D FD 00 00	stay here for $FE (254) frames (saves rastertime)
+	0E FF 0D 00	jump to $0D again
+
+It's also important that the SID's filter registers are controlled only by the
+filtered instruments played on the first channel.  If you use such instruments
+on any other channels, they will be filtered with the same effect that runs on
+the first channel.  In other words, the filter parameters won't be affected by
+those instruments, only the channel selection bits in $D417.  So it's possible
+to use filter on more channels, as long as channel 1 is one of them.
+
+3.4.	Pulse width table (SHIFT 4)
+
+This is another table with four columns (## RP PH PL), but wait, it's much less
+complicated than the filter table...  Hey, anybody still reading? :-)
+
+	##	index of position
+	RP	$00...$FE -- repeated addition to pulse width
+		$FF       -- jump to the position specified by PH
+	PH	addition to pulse width high byte or
+		jump position
+	PL	addition to pulse width low byte
+
+Similarly to the filter effect, whenever the pulse effect is reinitialized, the
+pulse width registers will be set to zero.  The first line of the pulse program
+usually adds an initial pulse width (a larger value), which the next few lines
+increase or decrease.  As usual, you can subtract a value from the pulse width
+by adding its two's complement.  I'm sorry for you DMC V5.0 users, but the star
+key doesn't work here, get yourselves a hex calculator instead...
+
+Although I hope it's obvious, here's a simple pulse program for example:
+
+	## RP PH PL
+	-----------
+	27 00 02 80	set the initial pulse width to $0280
+	28 07 00 40	add $40 to pulse width value 8 times
+	29 17 00 0C	add $0C to pulse width value 24 times
+	2A 17 FF F4	subtract $0C from pulse width 24 times
+	2B FF 29 00	jump to $29 (repeat the inner cycle)
+
+Just like in the filter table, repeats are one cycle longer than the RP values.
+Of course, the SID will use only the lowest 12 bits of the result, so it would
+make no difference if you wrote $0FF4 instead of $FFF4.  It's up to you whether
+you keep the complement value or fill these nybbles with your phone number :-)
+
+3.5.	Glide table (SHIFT 5)
+
+The same glide/slide speed table we have discussed at the track+sector screen
+(see section 2.4. above).
+
+3.6.	Slide/vibrato table (SHIFT 6)
+
+Okay, I admit the name is confusing.  This slide has nothing to do with the one
+I mentioned as I explained the Gld.XX instruction.  The rather unfortunate idea
+of calling this a slide table originates from the early days of SIDwinder.  As
+it might be misleading, let me refer to this table as vibrato table (reflecting
+its primary function as well).  It consists of four columns (## RP FH FL):
+
+	##	index of position
+	RP	$00...$FD -- repeated addition to actual frequency
+		$FE	  -- set absolute frequency FH/FL (drum mode)
+		$FF	  -- jump to the position specified by FH
+	FH	addition to frequency high byte or
+		absolute frequency high byte or
+		jump position
+	FL	addition to frequency low byte or
+		absolute frequency low byte
+
+This effect allows you to modify the frequency of an instrument with a relative
+offset value.  This 16-bit offset is step-programmable, similarly to the pulse
+width, plus you have the option to use absolute frequency values (instead of a
+relative adjustment to the frequency of the actual note).  You can specify such
+an absolute frequency by the $FE command; FH and FL will be written directly to
+the appropriate SID registers.  Unlike the $FE (set filtertype) command in the
+filter table, this $FE command is executed alone, in its own time share, so you
+are allowed to use more than one of them in a row.  Actually sometimes you have
+to do so, since you can't put a repeat on these commands -- it's a considerable
+disadvantage.  As usual, you may jump to a repeat or an $FE command as well.
+
+The offset value this effect produces will be added to a base frequency, which
+is determined by the actual note and the arpeggio effect.  If you periodically
+increase and decrease the offset, you can produce a vibrato effect.  Using the
+absolute frequency command, it's easy to create various drum instruments.  But
+a creative musician can achieve a lot more complex effects with this table; if
+you mix this effect with your waveform programs, you can almost do wonders.
+
+As long as a glide/slide sector instruction is being executed, the vibrato will
+become temporarily ineffective.  In other words, it won't affect the frequency
+of the voice (except for the $FE commands), but the vibrato program will still
+run in the background (that is, if you synchronized the vibrato with any other
+effects, the glide/slide instruction won't bring your vibrato out of sync).
+
+Let's create a nice expanding vibrato:
+
+	## RP FH FL
+	-----------
+	13 FE FA CE	$FACE directly to the SID
+	14 07 00 00	delay for 8 frames
+	15 02 00 05	add $05 to the frequency 3 times
+	16 05 FF FA	subtract $05 from the frequency 6 times
+	17 02 00 05	add $05 to the frequency 3 times
+	18 02 00 0C	add $0C to the frequency 3 times
+	19 05 FF F4	subtract $0C from the frequency 6 times
+	1A 02 00 0C	add $0C to the frequency 3 times
+	1B 02 00 19	add $19 to the frequency 3 times
+	1C 05 FF E7	subtract $19 from the frequency 6 times
+	1D 02 00 19	add $19 to the frequency 3 times
+	1E FF 1B 00	repeat the last cycle
+
+Please notice that the vibrato is built up symmetrically; you should first add
+some values to the frequency, then return to the original pitch, then subtract
+preferably the same values and return again, so that the DC average (well, how
+should I call it?) of the frequency remains constant.
+
+To be honest, even I don't like to type such a huge program to create a simple
+vibrato, it's quite annoying indeed.  But this routine is much faster than most
+other vibrato solutions, and it's ultimately flexible.  However, the problem I
+explained at the glide table applies here as well: since the effect is based on
+absolute values, the vibrato won't be adapted automatically to the actual note,
+so it will sound wider or narrower, depending on the notes.
+
+3.7.	Track start positions (SHIFT 7)
+
+Nothing special, it's just an overview of the track start positions you defined
+for each of your subtunes.  See section 2.6. for details.
+
+
+Chapter 4	Tips'n'tricks
+
+4.1.	Fading like a pro
+
+Volume control has always been a problem since musicplayers exist, some people
+still don't seem to understand why it's so important that you leave $D418 alone
+while the music is running.  However, usually it isn't easy to find the correct
+register of the player where you may change the volume without causing further
+trouble.  As soon as the first players with internal volume slide capabilities
+appeared, the situation turned even worse: if you'd like to fade off the tune,
+first you'll have to deactivate the internal volume control routine.  Although
+you can find the source code of my player on the disk image, here's the correct
+method to fade off a tune made in SIDwinder V01.22: during the fade, write the
+desired volume ($00...$0F) to $168E and a $00 byte to $1678 every frame.  This
+zero byte ensures that no internal volume slide will disturb the operation.
+
+4.2.	How to beat the crowd
+
+Finally, let me give you a few little hints how to keep the rastertime of your
+tunes at a tolerable level.  Okay, the player itself is optimized, but much of
+my efforts are useless without the active cooperation of the musician.  Please
+take the time and make your tunes perfect in this relation, too: with a little
+extra care, you can reduce the rastertime by usually at least one or two lines,
+or spare a hundred bytes of memory.  I think it's worth the trouble.
+
+The first rule: please try to avoid the glide/slide instructions.  Despite the
+long hours I spent on optimizing the glide routine, it's still the worst piece
+of the whole player code.  Especially the slide init tends to gulp a couple of
+scanlines over the average, and I think I can't help it.  So please only glide
+or slide when necessary, and never do it in more than one track a time.
+
+Most of the rastertime peaks occur when many instructions are executed together
+or when counters expire.  In the former case, you can help by rearranging your
+instructions: for example, if a Snd.XX Dur.XX Gld.XX sequence seems to cause a
+peak, try to place the Snd.XX or the Dur.XX before the previous note.  You may
+as well remove them completely, if possible.  By the way, it is absolutely not
+necessary to start each sector with a Snd.XX and a Dur.XX, you can simply omit
+them and use the previous instrument and note duration.
+
+In the latter case, you should try to avoid the bad coincidences when multiple
+counters expire at the same time.  Please try to construct your effect programs
+from the coder's point of view: for example, jumps shouldn't occur and repeats
+shouldn't finish in more than one effect a time.  Don't use round numbers, they
+are quite likely to cross each other's path sooner or later.  Prime numbers are
+a fine choice, if you're into maths :-)  And please, please never use the same
+instrument in more than one track a time, it would cause all the bad events to
+coincide.  Duplicate the instrument instead, and change at least the length of
+the repeat commands.
+
+If you're optimizing your music for memory usage, please keep in mind that the
+packer determines the length of your sectors and effect tables by scanning them
+backwards and stopping at the first non-blank line.  That means, it's strongly
+recommended to remove the trash (if any) after the real end of your sectors and
+tables, plus to eliminate all the unused effect programs.  Please make sure as
+well that you enter the correct number when the packer asks you for the maximal
+init value; setting it too high will result in an excessive memory usage.
+
+Many people (especially JCH editor experts) don't like the concept of variable
+note durations that much; they say it makes your notes difficult to time.  Some
+of them try to solve the problem by using a single (and rather short) duration
+for the whole tune.  Although this does help while composing, this technique is
+known to produce huge sectors, almost completely filled with delays.  If you're
+smart, you can 'compress' most of these delays by Dur.XX instructions, saving a
+considerable amount of memory.  You may have to search for a compromise between
+rastertime and memory usage, since this 'duration packing' might conflict with
+the optimal sector instruction arrangement I explained above.  However, please
+remember: the choice is yours, and if you're patient enough, you can make your
+tunes both rastertime and memory efficient.
+
+4.3.	Closing words
+
+Well, that's all I think you should know if you wish to use my SIDwinder to its
+full potential.  If you're interested in further technical details, please take
+a look at the source code, it's worth it -- although it's a rather old piece of
+code, I think I couldn't make it much better even today.  (Well, I did discover
+a few unnecessary CLC's in that damned glide routine, but it's too late... and
+who cares anyway, I'll kick the glide routine next time.)  You'll find a couple
+of demotunes on the disk image: as long as you are only experimenting with the
+player, you're welcome and encouraged to analyze them.  If you like this editor
+and decide to use it regularly, I'd really like you to send me some of your own
+tunes.  Of course, I won't spread them if you don't want me to.  You see, I'm
+just curious what the rest of the world can do with this package :-)
+
+Have fun with SIDwinder V01.22 and never forget the good old Sixtyfour.
+
+Signed,
+
+Balazs Takacs
+Taki/Natural beat
+
+E-mail: takinb@sch.bme.hu (presumably available until 2001)
+S-mail: Balazs Takacs, Thokoly str. 26, 9300 Csorna, Hungary
+Natural beat's homepage: http://www.sch.bme.hu/~takinb
+

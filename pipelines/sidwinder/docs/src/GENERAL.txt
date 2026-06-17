@@ -1,0 +1,470 @@
+(C) 1994-1999 Balázs Takács
+(C) 1999-2000 Levente Hársfalvi
+
+
+Welcome to the documentation of SIDwinder, the ultimate SID music composer
+package...
+
+This text holds information about the story and the rather general things
+around this editor.
+
+
+Table of Contents
+-----------------
+
+01 The story
+01.01 In the beginning...
+01.02 Taki's point of view...
+01.03 Finally...
+02 Thanks...
+03 How to start...
+04 Detailed info
+04.01 The editor
+04.02 The packer
+04.03 The ASCII viewer
+05 Possible improvements...
+06 Contact
+
+
+
+01 The story
+-------------
+
+This is - as you, I think, guessed well without my explanation - a music
+composer package with the appropriate tools. Please let me first tell a few
+general things behind the development of this package.
+
+
+01.01 In the beginning...
+--------------------------
+
+First, I'm not a C64 SID musician at all. Not even a 'fundamental' C64
+programmer and scener. I just like good musics, and good _synth musics in
+particular (...whatever good musics in which oscillators, filters, envelope
+generators are involved :-)). My past was rather spent on the Plus/4 scene
+since I became a Plus/4 programmer. I coded lots of music 'player' routines
+on the Plus/4 - these are often referred as 'music converter routines',
+since they make play original C64 tunes on the Plus/4 someway. I've dreamt
+of coding a good music composer since a long time (...come and read those
+20-30 pages of text I wrote back in '94 as plans / parameters / fileformat
+etc. of the DreamTracker ;-) ). However, I never got around to code just a
+single byte of the editor; the reasons should be all about the fact that I
+never had the appropriate hardware (or if so, the knowledge for the
+hardware), the examples, not to mention that I used to be lazy :-/. There
+were no _real examples for me on the Plus/4 scene - all 'music composer'
+packs had problems somehow, or maybe it was just me who was sick of them so
+much :-/. From the other hand, I had no real contact to the C64 scene back
+then, thus I had no access to the recent C64 SID music editors - so I never
+really had example of good editors. I only knew Future Composer, the
+Rockmonitor series and the V1.0 Voicetracker - all had their problems IMO, I
+never managed to learn their sometimes weird usage - obsolete player
+parameters, lack of readable / even correct documents and so on.
+
+From the other hand, years have passed. Still nobody introduced a _really
+useable music editor for the Plus/4. The reasons, if we look for some,
+may be behind some facts. The main problem, the good old black (O.K. you're
+right - charcoal grey ;-) ) dustbin was introduced without decent sound
+capabilities, the TED is really annoying in contrast of the wonderful SID
+chip. Really few people made attempts even trying to compose on this machine.
+With this, also few people were interested in the tools one could use for
+creating tunes on/for the Plus/4. After the early 90's, most Plus/4 sceners
+rather used 'converted' musics that were originally composed on the C64. Not
+much later, in around 1992, few people (Csory, BSZ and finally, Solder)
+designed SID cards to make play the SID tunes better than _any converter
+routines could do.
+
+With the presence of the SID card, someone could have also converted a
+native C64 music composer package to the Plus/4. ...I don't really know of
+such an attempt, maybe, only an old Future Composer version that was slightly
+modified to play through the SID card. ...Lack of interest? ...Maybe. Another
+reason could be that C64 music editors were really proprietary back then.
+Except few known examples, like the above ones and the DMC series, one could
+have hardly got just a copy of a good music composer package, still not
+speaking of the source code that should have been _impossible to obtain. Facts
+are facts, after all. This is sad, but the spirit was rather different to the
+one signed with Richard Stallman, the Free Software concept...
+
+As I see, nobody, except few people tried to compose something using native
+Plus/4 composer tools. The majority rather took a C64 and did something using
+DMC, or - most likely - simply ripped tunes and used them with no permissions
+from the authors at all.
+
+Years have passed, again. From my viewpoint, I learnt a lot of practical
+knowledge that could have helped me to realise the dream. The most important
+one is cross-development: it is much easier to edit sources and compile the
+code on a dumb, but powerful PC than on a Commodore platform. Table Driven
+Assembler is still my favourite. Later, I coded a small utility, ComLink,
+supporting the additional small tasks this method involves. In the meantime,
+a lot of C64 programs became accessible for me, because they got uploaded
+to various FTP sites (the spirit has changed a lot, after all...).
+
+In the summer of 1998, I started converting Voicetracker, but I soon gave it
+up. I reverse engineered the code, but after doing all modifications to make
+the stuff compile and made it _start running on the Plus/4, _everytime I
+made just the _slightest modification, it crashed :-(. This behaviour shows
+that something was wrong, still in the reverse engineering process... (some
+indirect memory references should have been missed in the original code).
+
+One year later, Taki announced releasing his SIDwinder V01.22 pack. I
+downloaded and checked it - and found it very nice! This was the very first
+music composer pack for me that came with full - and _very well written -
+documentation, tips and so on coming right from the author. The pack also
+included all needed utils and a lot of example songs (composed by Taki) in
+loadable source format. ...I still haven't mentioned that Taki's player was
+really well optimized and had good effects to play with ;-).
+
+I think the opportunity of converting SIDwinder had some real points I
+couldn't have missed: the editor and the player were good, had good
+documentation - and after all, I could contact with the author himself and
+ask him for the sources, and some help. I simply couldn't resist myself to
+do so :-)...
+
+
+01.02 Taki's point of view...
+-----------------------------
+(Written by Balázs Takács (Taki / Natural Beat), creator of SIDwinder series
+himself)
+
+Some of you might be curious to know how the different versions of SIDwinder
+relate to each other. TLC kindly allowed me to waste a few words here about
+the background of the development and a bit of history. So here we go...
+
+The original SIDwinder V01.22 is about six years old now, I coded the player
+and the tools back in 1994. For various reasons lying in the strange nature
+of the old C64 scene, the package remained unreleased over the years. Then,
+just about a year ago, a friend of mine asked for the editor -- so I decided
+to finally release the SIDwinder V01.22 package to the public.
+
+For a while, I was considering whether I should enclose the assembly source
+files or not. I decided not to do so, because I wasn't particularly proud
+of the editor and the rest of the tools. Unlike my player, which is highly
+optimized, the tools were coded rather in a quick-and-dirty fashion. They
+weren't intended to be released ever: back then the only goal I had in mind
+was to put those tools together as fast as possible, so that I can finally
+do something useful with my player. Besides, I could hardly imagine anyone
+willing to tinker with such old and useless stuff.
+
+To make a long story short, I released the binaries with the player source
+only, which is the most valuable part after all -- in my opinion. Although
+I planned first to release the package under the protection of the GNU GPL
+(General Public License), I dropped the idea, since it would have required
+the complete source to be included, of course.
+
+A few months later I received an email from TLC. He was planning to create
+a Plus/4 conversion of my SIDwinder V01.22, and asked whether I could send
+him the source files which I failed to provide with the package. I agreed,
+but as soon as I tried to actually collect the sources, I painfully noticed
+that those old files simply vanished into the thin air. As it turned out,
+somehow I lost a whole disk of source files, including all sources for this
+version -- except for the V01.22 player itself, thank goodness.
+
+All I could send TLC instead were the source files of an earlier SIDwinder
+(to be precise, V01.20). Although those versions are indeed very similar,
+they were certainly different enough to take TLC a month of hard work (not
+to mention the bonus of having to mess around with memory layouts, keyboard
+mappings and various obscurities I left in there without a single comment).
+It must have been a tough nut to crack, but he succeeded in it; I must say,
+I was indeed amazed as I saw the first results! TLC didn't only manage to
+fully accomplish the Plus/4 conversion, but also improved my editor in many
+ways and fixed a few bugs that I overlooked.
+
+My packer has always been some sort of an experimental work; it was rather
+spartan, regarding both its functionality and user interface. As my source
+files were gone, TLC decided to develop his own packer instead of trying to
+reassemble the old binary code -- which was utterly useless anyway. For a
+second time, he surprised me and the Plus/4 scene with a fabulous tool: his
+packer thoroughly optimizes the memory usage and removes every unnecessary
+component while compacting the music data. Furthermore, it comes with lots
+of built-in functions which you would normally find in separate tools only:
+just look at the various relocation options.
+
+All in all, TLC has done a great job; I'm sure that both sides of the 8-bit
+scene will value his efforts highly. Now I'm handing the microphone back to
+the author himself. Thanks for your attention.
+
+
+01.03 Finally...
+----------------
+
+As Taki said, I had to re-generate the sources from the previous editor
+code and the disassembled V01.22 editor code, using some smart (Recomment...
+thanks to Jouko Valta and André Fachat) and some simpler (self-coded
+quick-and-dirty Pascal diff) routines. Then I slightly edited the source
+- partially to make it compile to Plus/4, and partially to eliminate a few
+features that I considered annoying; why not to do it, if I was right in the
+business ;-).
+
+(As a short remark to Taki's kind words regarding the work I did: it was all
+some kind of a second or third division league game compared to his work of
+creating this series, doing his experiments, the player, the editor and so
+on...).
+
+I then coded a new packer, because of the reasons mentioned above. It is still
+also much likely an experimental work, so please excuse its sometimes strange
+behaviour - rather, you're encouraged to report bugs if you find some ;-).
+
+While coding, I kept my eyes on _not doing anything that causes the code not
+to compile to C64 anymore. This raised a question - I asked Taki because I
+wanted to do a Plus/4 conversion, but then I had _both a C64 and a Plus/4
+editor with the slightly modified code; the SIDwinder V01.22 I had became
+_not V01.22 inside anymore. Then what? I asked Taki if I should release the
+editor also for the C64 platform; he kindly agreed, and after some talks
+about the version name/numbering/marking of the 'new' series, this became
+the SIDwinder V01.23 pack you just hold in your hands ;-).
+
+Finally, in agreement with Taki's opinion, I decided to make _all sources
+available to the public, since this makes sure that whoever wants to fiddle
+with the editor code - this way, may implement valuable features -, can
+definitely do this.
+
+
+02 Thanks...
+------------
+
+  - Balázs Takács (Taki / Natural Beat) - for making this all possible
+  - Luca Carrafiello (Luca / Fire) - beta testing and demosongs
+  - Jouko Valta, André Fachat - Recomment reassembler
+  - Pasi Ojala - PUcrunch
+  - Speech Technology, Inc. - Table Driven Assembler
+  - Ettore Perazzoli, Daniel Sladic, ...the VICE team - VICE
+  - Mike Dailly - Minus4 1.6.2
+  - Balázs Kovács (Joe / STA) - Star Commander
+  - RIT Research Labs - DosNavigator V1.42
+  - Peter Schepers - 64Copy
+  - Borland Inc. - Borland Pascal and C
+
+Special HiYa! goes to Coyote / Coroners.
+
+
+03 How to start...
+------------------
+
+In general, the editor is almost the same as you may know as SIDwinder V01.22.
+I only changed really a few things - you'll only notice that I fixed a few of
+those bugs / drawbacks Taki mentions in his well written document of the
+original editor.
+
+For this reason, please read Taki's document that I decided to include to the
+pack in original, with no modifications at all :-). Another document that will
+probably help you in the first steps is the summary of features file. After
+thinking it over again, I'd _strongly suggest to print out both documents and
+keep them by hand. (You can do this either on a PC (or rather _any ASCII
+compatible printer/computer/operating system) or your funky MPS series PETSCII
+Commodore printer ;-). In this latter case, use the viewer routine's print
+function.)
+
+
+04 Detailed info
+----------------
+
+04.01 The editor
+----------------
+
+Well, really not much to tell about this part, since Taki documented it well
+already (have I told you to go and read it? ;-) ). There are just a few things
+you should know to avoid surprises.
+
+First, there is no support for saving / loading bare memory images, as it was
+present in all previous versions. The reason is simple: they became not
+neccessary anymore. Until V01.22, the bare memory image was used for the
+packer (it could load only this form). The V01.23 loads the same short
+fileformat you used to save your musics.
+
+(BTW, implementing them would have been hard anyway, because of the new
+(different) memory map of the editor.)
+
+You can load and edit songs created in the editors V01.2x (well, probably
+V01.22 because the others were not public). The song data format was not
+touched in any ways, except for the identity field (V01.22 --> V01.23).
+
+When you're composing multispeed music, especially 4x and above, you'll notice
+that the player calls are spread around the frame (approximately equal time
+intervals between the calls).
+
+Some other issues. The first few lines in the arpeggio table are not reserved
+for the channel off function of the editor anymore. This function was
+implemented with gate bit masking in the player instead. You can now use all
+rows in the arpeggio table, plus you'll hear no awful clicking when you
+switch off a channel.
+
+Similarly, the last sector, $5f is no longer reserved for the liveplay function
+ - you're free to use it for your own purposes. When talking about this
+function, I must mention that it was also recoded a bit - you'll hear no
+clicks when you test your instruments.
+
+Just one more thing to note: the editor was designed for PAL machines only.
+The SID frequency value tables are for the PAL clock(s), and so are the IRQ
+handler routines. The editor is not intended to run in NTSC machines for the
+moment, though, it may start and run on them. Porting the editor to NTSC
+won't be a hard work - just a matter of some coding.
+
+
+04.02 The packer
+----------------
+
+This is an entirely new part of the package. When I was at the point of
+reconstructing the old program code, I rather decided to rewrite everything
+from scratch instead. This way, it was possible for me to keep the whole
+mechanism under control - I could start with the loader, the memory map and
+so on. I could also implement all features I wanted instead of tinkering with
+the original - separate - relocator code.
+
+Packer V01.23 loads the compact data format the editor handles. You can also
+load and pack songs created in the previous editors of the V01.2x series.
+
+The packing starts with some passes of parsing the data. In the packer code,
+this is implemented with 'full' data examination (infos on the algorithm
+can be found in the programmers info file).
+
+This packer is a bit more forgiving to the composer regarding loose data,
+instruments and so on than the predecessor packer routine was. You don't have
+to edit all unnecessary data out from your music by hand before packing -
+the packer will do that.
+
+From the other hand, the packer needs a bit of precaution from you, because of
+these tricks.
+
+  - First and most important, if you compose soundtracks containing more
+    subsongs, take care of NEVER letting your track tables overlap each other.
+    Overlapping can occur in every 8th subsongs, by mis-aligning the
+    appropriate start pointers of the subsongs (check Taki's SIDwinder document
+    on the purpose of Start pointers). If you do this, the packer will fail to
+    determine the length of the track tables of the subsongs, and this will
+    lead it to crash. So, before saving your song that you'll pack, always
+    check the start pointers in the sound editor screen - if your song contains
+    only one subsong, be sure to set all of them to 0.
+  - Take care of 'closing' your tables correctly - always place a JMPxx to the
+    end of your song data in the track tables, FINISH to the end of the sector
+    datas (these are BTW also needed by the editor I/O routines) and jump
+    commands to the end of the last effects of the effect tables.
+
+If you follow these suggestions, you'll most probably have no problems with the
+packer.
+
+Since it is a new routine and still hasn't been under intensive testing,
+you may find bugs when you use it. If you experience such behaviour, please
+contact me.
+
+The user interface of the packer is rather spartian; the same feeling as it
+was coded in the good old BASIC ;-). From the other hand, it should do all
+tasks you need in such a subject.
+
+  - Filename. Should be obvious. You have to enter the filename of your song
+    (the data file you saved from SIDwinder), or you can ask for directory
+    (of the current disk) by '$'.
+
+  - Number of subsongs (mostly, '1' :-) ).
+
+  - Start address in memory. The address you want the packed song to start at.
+    The value must be given in hexadecimal, without prefix (e.g. '1000').
+
+  - Reserved zeropage word. The player uses just one pointer on the zeropage,
+    and this is the $fb-$fc pair in the original SIDwinder player. Usually,
+    you don't have to do much with this setting - just enter 'fb'. Sometimes,
+    if your program, e.g. a demopart uses certain areas in the zeropage, you
+    can select another for the player to make them not to hurt each other.
+    (Thanks to Taki for suggesting me this feature).
+
+  - SID baseaddress. This doesn't seem to be much useful for a C64 musician -
+    just enter 'd400'. For the Plus/4 users, you should select it to $fd40 by
+    default (...I suggest to read the other file ('Plus/4 users'...)).
+
+  - Freqtable. This has also something to do with the platform you want your
+    song to be played on. Regardless to what platform you used when you
+    created the song, you should select the appropriate table for the _target
+    platform.
+    (The C64 SID and the SID in the Plus/4 SID card runs at a slightly
+    different clock - that's why they need different frq table. For more info
+    see the 'chapter' I mentioned above).
+
+  - Identity field edit. You have 32 chars to describe your handle, the title
+    of the song or whatever you find important to note in the music data :-).
+    The packer copies this text in screencode to the player start address +
+    $20 ($1020 by default). You find a 'ruler' above the input line. ...Well,
+    really minimal user interface, but it works.
+
+Then hopefully, your song gets packed (if the packing doesn't finish in _few
+seconds, that's bad luck since it crashed. Please contact me). Enter the
+filename you want your packed file to be saved to. That's all.
+
+
+04.03 The ASCII viewer
+----------------------
+
+I haven't wasted much words regarding this piece of code, although I think it
+has its valuable features.
+
+  - Standard ASCII compatibility. Nonstandard ASCII chars are either converted
+    to space or their respective equivalents in the standard charset (e.g.
+    Hungarian accented letters).
+  - Can both view and print texts (printing on standard PETSCII printers, not
+    well tested).
+  - 80 columns display. 4x8 charset.
+  - End of line is determined by linefeeds ($0a). CR's ($0d) are skipped.
+  - TAB capability (TABs are converted to spaces)
+  - Standard file I/O, not well buffered (except for printing; a 256 byte
+    buffer is used).
+  - Runs on a C64, or a Plus/4 (even with 16K of RAM, so C-16 owners can also
+    use it).
+
+In the viewer screen the Return, Space, Home and <- (on Plus/4: ESC) keys work
+(page down, line down, go top and back to load text, respectively).
+
+
+05 Possible improvements...
+---------------------------
+
+Well, there are so much I can't even count :-(.
+
+- First of all, the player should not use absolute frequency data for the
+  effects at all.
+
+- Digi channel(s). ...Would imply a lot of things to do, like:
+
+   - The above one (frq value independent effects)
+   - Reorganized editor (at least, track editor - to edit more than 3
+     channels, and new sound editor)
+   - Dynamic memory allocation in the editor (since it won't fit into the
+     memory anyway)
+   - A completely new NMI routine, in order to make those sounds play...
+
+ - Reorganized code for subsongs (because I hate 'start pointers')
+
+ - A lot of things in the editor code, to make it more user friendly. New
+   editor features, colors...
+
+ - Play native Plus/4 sounds through the TED (maybe simultaneously with the
+   SID channels).
+
+...And so on.
+
+Please don't seriously count on me to do these improvements. I like this
+editor, but I think I should find some better use of my time... But you can
+do all improvements, if you found the appearance of this pack promising.
+
+
+06 Contact
+----------
+
+- Balázs Takács (Taki/Natural beat)
+
+  E-mail: takinb@sch.bme.hu (presumably available until 2001)
+  S-mail: Balázs Takács, Thokoly str. 26, 9300 Csorna, Hungary
+
+- Levente Hársfalvi (sometimes, but not really often, known as TLC / Coroners)
+
+  E-mail: levente@terrasoft.hu
+  S-mail: Levente Hársfalvi, Gorkij 33, 7200 Dombóvár, Hungary
+
+
+Hopefully this pack, the sources and possible later versions will be available
+at:
+
+- Natural Beat's homepage: http://www.sch.bme.hu/~takinb
+- The c64.rulez.org ftp site:
+  ftp://c64.rulez.org/pub/c64/Tools/Music/Editor/
+  ftp://c64.rulez.org/pub/plus4/Tools/Music/
+
+- The Funet ftp site:
+  ftp://ftp.funet.fi/pub/cbm/c64/audio/editors/
+  ftp://ftp.funet.fi/pub/cbm/plus4/Tools/Music/
