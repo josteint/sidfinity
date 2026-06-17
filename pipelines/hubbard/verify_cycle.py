@@ -208,6 +208,13 @@ def _trichotomy_compare(fa: list, fb: list, close_tol: int = 64,
             if fa[i] != fb[i]:
                 break
             m += 1
+        # Expose the prefix-break point so an alignment failure stays
+        # LOCALISABLE (diagnostic only — verdict fields unchanged). Without
+        # this, run_member records first_diff=[sub, False] for these, which is
+        # indistinguishable from a true Check-A state diff and mis-buckets in
+        # divergence_census. The init prefixes usually match here (d=0), so m
+        # is the real first play-stream divergence.
+        first_play_diff = (m, fa[m], fb[m]) if m < min(la, lb) else None
         return {
             'mode': 'trichotomy', 'shift_d': None,
             'init_len_a': 0, 'init_len_b': 0,
@@ -215,6 +222,7 @@ def _trichotomy_compare(fa: list, fb: list, close_tol: int = 64,
             'play_match': m, 'play_overlap': n,
             'play_full': m == n == la == lb, 'close': la == lb,
             'len_post_a': la, 'len_post_b': lb,
+            'first_play_diff': first_play_diff,
             'is_full': m == n == la == lb,
         }
 
