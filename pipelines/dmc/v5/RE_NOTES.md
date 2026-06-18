@@ -465,6 +465,42 @@ sweep, or a (0,0)/count==0 HOLD when absent (so filter_run never reads an OOB
 count). Extract: _capture_env(has_start=False) reads the idle program from
 filter position 0 when entry 0 is a real ADD. Full tools/regression.py GREEN.
 
+## PARTIAL LONG TAIL round 7 — song-derived sweep capture horizon + walk-cap (commit 5b32e79)
+
+FULL 889 -> 891/1495 (+2), 0 regressions; timeout 10 -> 0, +9 capture_loop.
+
+`_capture_env`'s sweep capture was bounded by a FIXED `_REACH_FRAMES=30000` —
+"capture this many frames then stop." A magic number unrelated to the song,
+safe only because 30000 > every 1x song's verify window. Replaced by the actual
+per-song horizon: `reach = min(songlen*1.1, 1500) * 50` play-frames (= the
+verify window; verified V5 members are all vblank — CIA/multispeed rejected
+upstream — so 50Hz is exact). Computed in write_v5_usf from cached
+Songlengths.md5; threaded model_to_usf -> _instrument_to_usf / idle ->
+_capture_env. Fallback 30000 when songlength unknown.
+
+WHY a horizon (not "capture the whole program to its loop/hold"): from_usf
+DE-FUSES the editor packer's overlapped/byte-shared programs into a fresh table,
+so a complete capture can exceed the original's 256-entry cap. Bounding at the
+window (what the verify actually plays) keeps the de-fused table fitting. Helps
+both ends: SMALLER for short songs (fixed filter_table_overflow on Hot_Island,
+Progress = the +2) / LARGER for >545s songs (closes the old fixed-30000
+under-capture hole). A real $90 loop or hold terminal still wins when it occurs
+before `reach`.
+
+WALK-CAP (separate seatbelt, in READS not frames): a malformed table where a
+$90 targets another $90 in a cycle (appending no phase) made the walk spin
+forever — a 900s batch timeout, or an infinite hang in any tool without a
+timeout. `_WALK_CAP=5000` now raises `unsupported:capture_loop` instantly. The
+idle-filter capture is best-effort (a malformed idle table -> no default_filter,
+composer holds; never a member-wide error).
+
+(Provenance: the owner questioned "why 30000, not songlen*1.1?" — the instinct
+was right. An interim "capture the complete program" over-corrected and
+overflowed 2 de-fused tables before this landed on the per-song window. The
+deeper lesson: extraction is STATIC, but the write-log verdict is the judge —
+REACH passed only because verify windows stayed under it; the horizon makes the
+capture provably cover exactly what the write-log checks.)
+
 NEXT (ranked by size): (1) NON-static pulse partials (~80 — the static-pulse
 fix only got the static subset; sweeping pulses are a separate bug); (2)
 FREQUENCY (~13, vibrato/glide); (3) NON-idle filter bugs (Emulating_Vinkuna,

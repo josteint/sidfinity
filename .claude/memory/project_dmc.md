@@ -426,6 +426,23 @@ DUAL-CLOCK PHASE ($1019 leftover → params.slide_phase).
    cutoff). Composer runs filter_run for V3 from frame 0 (gate removed; pos 0 =
    the idle sweep, or a (0,0) hold). Shared USF plumbing (types/grammar/parser/
    writer/docs) — full tools/regression.py GREEN (0 cross-engine regressions).
+   **✅ ROUND 7 — SONG-DERIVED SWEEP CAPTURE HORIZON + walk-cap (commit 5b32e79):
+   889 -> 891/1495, 0 regressions.** `_capture_env`'s fixed `_REACH_FRAMES=30000`
+   capture budget (a magic number, safe only because 30000 > every 1x song's
+   window) replaced by the actual per-song horizon `reach = min(songlen*1.1,
+   1500)*50` play-frames (verified V5 = all vblank; CIA rejected, so 50Hz exact),
+   computed in write_v5_usf from cached Songlengths.md5, threaded to _capture_env.
+   Needed (not "capture whole program") because from_usf DE-FUSES the packer's
+   byte-overlapped programs, so a full capture can exceed the 256-entry table;
+   bounding at the window keeps it fitting. Helps both ways: SMALLER for short
+   songs (fixed filter_table_overflow: Hot_Island, Progress = the +2) / LARGER
+   for >545s (closes the old under-capture hole). Plus `_WALK_CAP=5000` iteration
+   seatbelt (reads, not frames): a malformed $90->$90 chain spun _capture_env
+   forever (900s batch timeouts / infinite hang in tools) — now an instant
+   `unsupported:capture_loop` (timeout 10->0, +9 capture_loop). Idle-filter
+   capture best-effort. (Came out of the owner's "why 30000, not songlen*1.1?"
+   question — their instinct was right; "capture complete program" over-corrected
+   into 2 overflow regressions before landing on the per-song window.)
    NEXT V5 (ranked): (1) NON-static pulse partials (~80, the biggest remaining —
    static-pulse fix only got the static subset); (2) FREQUENCY clusters (~13,
    vibrato/glide); (3) NON-idle filter bugs (Emulating_Vinkuna/Cooksey/
