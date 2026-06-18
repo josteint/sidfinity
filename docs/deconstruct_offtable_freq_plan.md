@@ -14,46 +14,48 @@ the CORE TENET (CLAUDE.md), and the init trichotomy (`docs/sid_init_report.md`).
 
 ---
 
-## The design THESIS (what "musical" means here, and why it's correct)
+## The design THESIS (corrected 2026-06-18 — the off-table read is NOT pitch)
 
-An off-table read is `freq_table[offset + note]` with the index past 96. Three
-facts pin the right representation:
+**A first thesis ("extend the tuning to its true length") was WRONG and is
+rejected.** Investigation of a real case (Elysium inst8/9) showed the off-table
+read is *not a pitch* and the region is *not a tuning*:
 
-1. **The value read IS a frequency the voice plays** → musical output we must
-   reproduce (CORE TENET: the `$D400/$D401` write stream is the target).
-2. **It is note-dependent** (same wave step, different notes → different indices
-   → different freqs) → it is intrinsically *a table indexed by pitch*, not a
-   per-step constant.
-3. **The bytes are STATIC at read time** (content-by-reference reproduces the
-   full-songlength write-log; verified directly on Elysium: the off-table region
-   is one distinct value-tuple over 12 s). → they behave as **fixed tuning
-   entries for pitch indices > 95**, not live engine state.
+- inst8/9 is a **percussion/drum**: 2 TEST-bit frames (oscillator-reset = click
+  attack) + a sawtooth "sustain" step whose `+64` wave offset pushes the index
+  off-table.
+- The off-table "frequency" is assembled from **two unrelated tables read as
+  lo/hi**: `freq_lo[124] = freq_hi[28]` (the freq-HI table read as the lo byte)
+  and `freq_hi[124]` = 28 bytes past the freq-hi table = the wave/pulse region.
+  Result: an irregular sub-bass/near-silent body — the drum's body, not a pitch.
+- So the bytes are **largely data the USF ALREADY carries** (the freq-hi table;
+  the wave/pulse region). `freq_overrun` partly *duplicates* existing USF content.
 
-**Therefore the musical form is: the freq table (the tuning) is simply LONGER
-than 96 entries.** The "overrun" is *the tuning at its true reachable length*;
-wave/arp steps index it **uniformly** (in-table and beyond are the same lookup).
-The "off-table" concept — and the blob — **dissolves**. The model sees a tuning
-table + pitch indexing, both already first-class musical, with nothing special
-to learn (the §7 test: "must the model learn each value from scratch?" → no; it
-learns "pitch i has frequency F_i," uniform with the chromatic 96).
+**Corrected thesis.** An off-table read is the engine reading *adjacent musical
+tables / its state region* as a frequency, to realize a musical **EFFECT** (here,
+a percussion body; other cases may be out-of-range overtones, sweeps, textures —
+the census determines the set). The musical intent is the **effect**, never the
+bytes. Per the CORE TENET we owe the original nothing but its write stream:
 
-**CORE-TENET alignment.** The original read only works because the engine's
-state region sits contiguously after the freq table (an *engine-positional*
-artifact). We emit our OWN explicit extended freq_table and relocate work RAM
-elsewhere — killing the positional dependency while preserving the write stream.
-We are free to invent the layout; only the writes must match.
+1. **Deconstruct the EFFECT** each off-table case produces (wave-step waveform /
+   TEST-bit / freq behaviour + the resulting `$D400/$D401` contour + note-dep).
+2. **Represent that effect parametrically** in the USF (drum/percussion program,
+   absolute-freq body, a wave-step's real freq behaviour — by effect type).
+3. **Reproduce the identical write-log with our OWN composer**, by any means —
+   the values are often derivable from tables the USF already holds. Be creative;
+   there is always logic to the madness (unless Frank Zappa wrote the SID).
 
-**Trichotomy alignment.** Where the off-table region double-duties as the
-engine's state region, the *same bytes* have two roles. We DECOUPLE them: the
-*tuning* role → `freq_table` (musical content); the *engine-state init* role →
-`init.sid` priming / `state_layout` (the trichotomy's priming/leftover). Two
-representations of one value's two roles, no longer the same memory.
+**Never** extend-the-tuning, **never** keep-blob, **never** exclude — those
+preserve mechanism or duck the work. We find the logic and re-implement it.
 
-**Honesty caveat (open question O1).** For Case-2 entries (state-derived, not a
-chromatic continuation) the tail is "unusual frequencies." They are still the
-frequencies the voice plays (musical), so a single `freq_table` of true length
-is honest-enough; a tagged chromatic/extended split is a possible refinement —
-decided in Phase 2.
+**CORE-TENET alignment.** The original read works only by engine-positional
+luck (the table it lands in sits right after the freq table). We invent our own
+layout/engine and emit whatever reproduces the write stream — we owe the original
+table nothing.
+
+**Trichotomy alignment.** Where the landed bytes are the engine's state region,
+their *engine-state init* role → `init.sid`/`state_layout`; their role *as the
+effect's freq source* → the effect's parametric representation. One value, two
+roles, decoupled — no shared opaque memory.
 
 ---
 
@@ -82,43 +84,49 @@ decided in Phase 2.
 - [ ] Confirm the THESIS above still holds against the principles (adversarial
       check, not justification — [[feedback_reanchor_at_decisions]]).
 
-## Phase 1 — Diagnose (measure, do NOT assume)
+## Phase 1 — Deconstruct the LOGIC / identify the effect (census by EFFECT TYPE)
 
-- [ ] Build `tools/offtable_freq_census.py`: per Class-B instance + member,
-      classify the off-table region as
-      **Case 1** (coherent chromatic-ish continuation),
-      **Case 2** (static state-derived freqs — Elysium), or
-      **Case 3** (DYNAMIC — engine writes the read offsets before they're read;
-      content-by-reference would FAIL → un-deconstructable).
-- [ ] Static-vs-dynamic test per member: memwatch the off-table-read offsets per
-      play() — 1 distinct tuple ⇒ static (deconstructable); >1 ⇒ Case 3.
+Not "classify tuning-coherence" (the old, wrong axis). For every off-table case,
+find the MUSICAL EFFECT it produces and bucket by effect type.
+
+- [ ] Build `tools/offtable_effect_census.py`: per off-table-using instrument,
+      capture (a) the wave-program steps (waveform / TEST-bit / melodic-vs-abs /
+      loop), (b) the actual `$D400/$D401` freq contour the off-table step(s)
+      produce (writelog), (c) note-dependence (does the contour change with the
+      played note?), (d) WHAT the off-table index lands in (freq-hi table?
+      wave/pulse region? state region? — via the address arithmetic).
+- [ ] Bucket by **effect type**, e.g.: *percussion/drum body* (TEST-bit attack +
+      sub-bass/near-silent off-table sustain — the Elysium pattern); *out-of-range
+      overtone* (offset intended as a high harmonic, clamped/wrapped by the
+      table edge); *borrowed-table-as-freq* (lands in another musical table whose
+      bytes the USF already carries); *texture/noise*; *other (find the logic)*.
+- [ ] For each bucket: is the produced freq DERIVABLE from data the USF already
+      holds (freq-hi table, wave/pulse tables)? If yes, no new content is needed —
+      only a composer strategy. Record the derivation.
 - [ ] Census the four instances (FC `freq_overrun`, DMC-v5 `freq_overrun`,
-      Hubbard SFX `extended_freq`, Hubbard 320-tail): member counts, Case 1/2/3
-      split, **max reachable index N** (the extended-tuning length needed).
-- [ ] Record the Case-3 count (the documented residue ceiling for option (a)).
+      Hubbard SFX `extended_freq`, Hubbard 320-tail): per-effect-type member
+      counts + representatives. There is always logic; if a case truly has none,
+      flag it explicitly (do NOT default to keep-blob/exclude).
 
-## Phase 2 — Design the unified representation (decision points → confirm with human)
+## Phase 2 — Represent each effect parametrically (be creative)
 
-- [ ] **Schema shape:** `freq_table` carries its TRUE reachable length (one
-      tuning, lo[N] + hi[N], N ≤ 256). REMOVE `freq_overrun` and
-      `SfxSubtune.extended_freq`; reframe the Hubbard 320-tail as tuning.
-- [ ] **lo/hi contiguity:** preserve the layout invariant the off-table reads
-      need — `freqlo[N]` then `freqhi[N]` contiguous (the freq_overrun fix
-      already lays them out this way); verify `freqlo[i>95]` reading into
-      `freqhi` still resolves under the extended length.
-- [ ] **Reachability:** the extension covers `[96 .. max reachable index]`
-      contiguously (gaps filled with the actual static bytes — never read but
-      needed for contiguous indexing); reachability-minimal beyond max.
-- [ ] **Decouple double-duty (trichotomy):** tuning-value → `freq_table`;
-      engine-state init value → `init.sid`/`state_layout`. Composer emits the
-      explicit extended freq_table + relocates work RAM.
-- [ ] **O1 — honesty refinement decision:** single `freq_table` (length N) vs a
-      tagged `chromatic[96] + extended[]` split. Pick the minimal-but-honest
-      form; justify against §7. **(surface to human)**
-- [ ] **O2 — Case 3 policy:** dynamic-state members → keep content-by-reference
-      (documented B2) OR exclude (`tools/excluded_sids.json`). **(surface)**
-- [ ] **Cross-engine check:** confirm the one form serves all four instances
-      (FC arp/+$04, DMC wave, Hubbard SFX sweep, Hubbard arp extension).
+- [ ] Per effect type, design the musical USF representation (e.g. *percussion*
+      → a drum/percussion instrument with TEST-bit attack + an absolute-freq
+      body; *out-of-range overtone* → the wave step's intended offset + a clamped
+      freq the composer emits; *borrowed-table* → reference the existing USF
+      table, composer derives the value from it). The model must learn the
+      EFFECT, not bytes-at-offset.
+- [ ] Define the composer strategy to reproduce the write-log for each: prefer
+      DERIVING the off-table value from existing USF tables (no duplication) over
+      emitting it; if a small explicit value is unavoidable, it must be typed as
+      the effect's parameter (e.g. "drum body freq"), never a raw `freq_overrun`.
+- [ ] **Decouple double-duty (trichotomy):** state-region landings → split the
+      engine-state-init role (`init.sid`/`state_layout`) from the effect-freq role.
+- [ ] **Eliminate the blob fields:** plan removal of `freq_overrun` +
+      `SfxSubtune.extended_freq` + the "320/128 state tail" framing once every
+      effect type has a parametric home.
+- [ ] **Cross-engine check:** confirm the effect taxonomy + representations span
+      all four instances (one set of musical primitives, §9.4).
 
 ## Phase 3 — Schema implementation (the usf_sync discipline — all together)
 
@@ -131,18 +139,22 @@ decided in Phase 2.
 - [ ] Tests: round-trip a long freq_table; assert no freq_overrun field.
 - [ ] (feedback_usf_sync: spec + all converters + player + tests in one change.)
 
-## Phase 4 — Per-engine migration (write-log-gated, one commit each)
+## Phase 4 — Per-engine migration (per identified effect; write-log-gated, one commit each)
 
-- [ ] **DMC v5** — extract emits extended `freq_table` (drop `_freq_overrun`);
-      composer indexes uniformly (the contiguous layout already exists). Verify
-      the +44 stay FULL. *(Also closes the C3 minimization gap by construction.)*
-- [ ] **FC standard** — extract emits extended `freq_table` (drop
-      `_std_freq_overrun`'s separate field; keep its reachability logic for the
-      length). Verify the wide-batch pass-rate is unchanged.
-- [ ] **Hubbard SFX** — `extended_freq` → the SFX freq lookup over the extended
-      tuning. Verify Commando/Monty SFX subtunes FULL.
-- [ ] **Hubbard 320-tail engines** — reframe the tail as tuning + decouple the
-      work-RAM/state role into `state_layout`/`init`. Verify those engines FULL.
+Each instance migrates by REPLACING its blob with the Phase-2 parametric effect
+representation + composer strategy (derive-from-existing-USF where possible).
+
+- [ ] **DMC v5** — replace `_freq_overrun` with the effect representations its
+      census found (e.g. percussion-body absolute-freq + derive-from-tables for
+      borrowed-table cases). Verify the +44 stay FULL; no `freq_overrun` emitted.
+- [ ] **FC standard** — replace `_std_freq_overrun` per its census effect types;
+      reuse its reachability logic only to bound derivation. Verify wide-batch
+      pass-rate unchanged.
+- [ ] **Hubbard SFX** — `extended_freq` → the SFX effect's parametric form.
+      Verify Commando/Monty SFX subtunes FULL.
+- [ ] **Hubbard 320-tail engines** — the arp-extension effect represented
+      parametrically; decouple the work-RAM/state role (`state_layout`/`init`).
+      Verify those engines FULL.
 
 ## Phase 5 — Verify & prove (per instance, then globally)
 
@@ -168,17 +180,24 @@ decided in Phase 2.
 
 ## Risks & open questions
 
-- **O1 (honesty):** single vs tagged freq_table for Case-2 tails (Phase 2).
-- **O2 (Case 3):** dynamic-state members are un-deconstructable by option (a) —
-  the residue ceiling; policy in Phase 2 (content-by-reference vs exclude).
-- **R1 (scope):** four engine families + a shared-schema change = multi-session.
-  Land per-instance, write-log-gated, one commit each; DMC v5 first (smallest,
+- *(O1/O2 from the first draft are DEAD: O1 assumed an extended tuning — it isn't
+  one; O2 proposed keep-blob/exclude — rejected. The real open question is the
+  effect TAXONOMY, resolved by the Phase-1 census.)*
+- **Q1 — effect taxonomy unknown until the census.** Phase 1 must enumerate the
+  effect types (percussion-body, out-of-range overtone, borrowed-table, …) and
+  confirm each has a clean parametric home. A genuinely-no-logic case (if any) is
+  flagged explicitly, not blob'd/excluded.
+- **Q2 — note-dependence per effect.** A note-dependent off-table contour can't
+  be one absolute value; the representation must capture it as the effect's
+  parameter (or derive it). Census measures note-dependence per instrument.
+- **R1 (scope):** four families + a shared-schema change = multi-session. Land
+  per-instance, write-log-gated, one commit each; DMC v5 first (smallest,
   freshest, also closes its C3 gap).
-- **R2 (regression surface):** the schema change touches `src/usf/` (shared) →
-  full `tools/regression.py` before every commit, not just the touched family.
-- **R3 (FC reachability):** FC's `_std_freq_overrun` already does a minimized
-  reachable-window walk — reuse that logic to size the extended `freq_table`
-  length, don't re-derive (convergence-ledger consult).
+- **R2 (regression surface):** removing the blob fields touches `src/usf/`
+  (shared) → full `tools/regression.py` before every commit.
+- **R3 (derive, don't duplicate):** prefer composer derivation of the off-table
+  value from tables the USF already holds (freq-hi, wave/pulse) over emitting any
+  explicit value — the blob is partly redundant with existing USF content.
 
 ## Sequencing (recommended)
 
