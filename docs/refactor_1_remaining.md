@@ -90,6 +90,108 @@ branches (signaling the structural move is needed) or will have
 absorbed new engines into the existing feature dimensions (signaling
 the dimensions are sound).
 
+### DMC v4↔v5 cross-engine reuse review (2026-06-18)
+
+DMC migrated as **two full composers** beside the `emit_asm` skeleton:
+`pipelines/dmc/composer_asm.py` (`build_dmc_sid`; v4 + family-2) and
+`pipelines/dmc/v5/composer_v5.py` (`build_v5_sid`; family 3/4/5). So the
+build-dispatch fan-out is now `emit_asm` (5 branches) **+ 2 standalone DMC
+skeletons** — branch growth at the dispatch level, not inside `emit_asm`.
+Both DMC composers are clean on the §8/§9 leak scans (no engine-name
+dispatch, no `: bytes`/`*_idx`/`*Ptr`/`*Kind`, no verbatim-byte emission).
+
+**Vindicated (reused, same form across v4 ↔ v5)** — these dimensions are
+sound: `freq_table`, the song structure (subtunes/voices/orderlist/patterns/
+`NoteRow`, incl. `Orderlist.transposes`), `init`+`init.sid` priming,
+`Instrument.adsr`, **the wave envelope** (`waveform`+`wave_freq`+`loop` —
+byte-identical form — plus `wave_programs[0]` as the idle wave),
+`Instrument.vibrato` (shared `onset`+`amplitude` core), and
+`PwmConfig.keep_running` (the one PwmConfig field v5 keeps is the one v4
+also uses).
+
+**Forked dimensions (same musical concept, two USF forms)** — the silent
+divergence this review exists to catch, now surfaced. Four pending
+unify-vs-keep decisions for Move 1:
+
+1. **Pulse-width sweep.** v4 = `Instrument.pwm` (PwmConfig: bounded
+   bidirectional oscillator — `mode='bidirectional'`, `init`/`min_hi`/
+   `max_hi` bounds, `speed_steps` per-flip rate schedule). v5 =
+   `Instrument.pulse_env` (`SweepEnvelope`: `start` + `phases[(rate,frames)]`
+   + `loop`). SweepEnvelope is the **superset** (a bidirectional oscillator =
+   `start` + `[(+s,n),(−s,n)]`, `loop=0`); the schema doc already names
+   PwmConfig "a future unification target."
+   **GATE PASSED (2026-06-18):** simulated v4's exact oscillator (BNE-exact
+   bound check, speed_steps schedule, 16-bit wrap) over 1,868 real instruments
+   in 200 v4 FULL members, derived the equivalent SweepEnvelope, re-walked it
+   (v5 semantics), compared PW frame-by-frame — **100% expressible exactly**
+   (incl. the min>max wrap-around runaway), 99.9% compact-loop (≤10 phases;
+   runaways = 2 phases within a song horizon, handled by `_capture_env`'s
+   reach + cap + terminal-hold). So the bound-checked-vs-frame-counted concern
+   is resolved: equivalent on the write stream.
+   *Converter algorithm (for the Move-1 landing — the gate script was scratch):*
+   simulate v4's oscillator faithfully (note-init `composer_asm.py:743-784`:
+   pwl=0, pwh=`init&0x0F`, dir=up, phase=0; per-frame `fx_pulse:859-901`:
+   `step = (speed_steps[phase]&0xF0)+(speed_steps[0]&0x0F)`, add/sub 16-bit,
+   flip dir only when the HIGH byte lands exactly on `min_hi`/`max_hi` via BNE,
+   advance phase on each flip capped at 5); group the value stream into
+   maximal constant-(diff mod 65536) runs = `SweepEnvelope.phases`; set `loop`
+   to the phase-level period of the saturated (phase-5) tail; a rate-0 tail or
+   no-period (runaway) = terminal (`loop=None`). v4's emitted pulse table then
+   becomes v5's `(add,count)`-pair + `$90`-loop format, walked by a `pulse_run`
+   clone — that's the D.2 runtime convergence.
+   DECISION = **unify onto SweepEnvelope** (sound). BUT landing it is NOT a
+   field swap: the convert-at-the-composer-boundary shortcut is circular, so
+   the clean unify requires giving v4's composer a pulse **phase-walker** (the
+   shape of v5's `pulse_run`) and retiring the bound-oscillator runtime — i.e.
+   this is the **Move-1 D.2 runtime convergence** (per-voice state + runtime),
+   touching the 4,786-member v4 FULL family, verify-gated. Recommend landing
+   it AS the Move-1 effort (DMC isn't uready yet; nothing consumes the forked
+   USF files until tokenization, which is downstream), not as a one-off now.
+
+2. **Filter-cutoff sweep.** v4 = `Instrument.filter_prog.program` →
+   `UsfFile.filter_programs[N]` (indexed library: `{res,mode,init,repeat,
+   stop,steps:[(rate,frames)×6]}`). v5 = `Instrument.filter_env`
+   (`SweepEnvelope`, inline). **v4's `filter_programs.steps` is ALREADY
+   `(rate,frames)` pairs** — near-isomorphic to `SweepEnvelope.phases`
+   (`init`→`start`, `repeat`→`loop`; the `res`/`mode` header maps to the
+   already-separate `init.sid.filter.res_routing`). Cleanest unify candidate.
+   DECISION: unify onto SweepEnvelope — or keep the indexed-library form
+   (shared with FC's `filter_programs`; preserves the editor's program-share).
+
+3. **Glide / portamento.** v4 = `Instrument.freq_slide_config`
+   (`mode='run'`, unbounded continuous slide — per-INSTRUMENT, same form as
+   Hubbard's skydive). v5 = `NoteRow.fx_flags` inline (`glide=spd` /
+   `glide_to=pitch` — per-NOTE-EVENT, aligns with FC-standard's target-style
+   portamento). Both attachment points already exist corpus-wide. DECISION:
+   likely genuinely-two-behaviors (continuous instrument slide vs
+   note-triggered portamento-to-target) — keep both as the two poles of one
+   portamento dimension; do not force into one.
+
+4. **Idle/default sweeps.** v5 has `UsfFile.default_pulse` (per-voice) +
+   `UsfFile.default_filter` (V3-global) — play-time sweeps the engine runs
+   unconditionally from table position 0. v4 has NONE (its pulse/filter are
+   note-triggered only). DECISION: keep v5-only (single-consumer is justified
+   — it encodes a real v5 engine behavior, not a leak). A future engine with
+   idle sweeps reuses it.
+
+**Escape-hatch surface to revisit (not a v4↔v5 divergence):** both use
+`Params.fields` with disjoint string keys — v4: `slide_phase`,`cia_period`
+(+ family-2: `cymbal_onset`,`vib_ramp`,`hold_gateoff`,`hard_restart`,
+`rest_effects`); v5: `speed_ctr_init`,`fade_frac_init`. The family-2 keys
+are behavior-named (good); the `*_init`/`*_phase`/`cia_period` keys are
+uncleared init-phase state (borderline §7 — affect the write stream, so not
+pure bookkeeping, but not musical content either). Flag for a future pass.
+
+**Diff vs last review:** the only previously-recorded divergence was DMC
+`SweepEnvelope` vs FC `filter_programs`/`pulse_programs`. This review adds
+the DMC-INTERNAL v4↔v5 fork (3 musical concepts, 2 forms) — the first time
+one engine family is shown representing the same concept two ways. DMC v4/v5
+are NOT yet individually uready (criterion 4: v5 ~61%, v4 ~58-65% FULL;
+residue not fully triaged/excluded), so they don't yet add to the Move-1
+trigger count — but they supply the richest divergence evidence to date. The
+implication: Move 1's skeleton must reconcile the PW/filter forms (decisions
+1+2) BEFORE folding DMC in, or it bakes the fork into the unified shape.
+
 ---
 
 ## Move 2 (digi fold) — landable any time
