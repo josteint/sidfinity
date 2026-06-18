@@ -415,6 +415,7 @@ def model_to_usf(m: V5Model, reach: int | None = None) -> UsfFile:
                            'loop': idle_l}},
         default_filter=default_filter,
         default_pulse=default_pulse,
+        freq_overrun=list(m.freq_overrun),
     )
 
 

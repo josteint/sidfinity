@@ -41,6 +41,11 @@ class V5Subtune:
 class V5Model:
     freq_lo: list = field(default_factory=list)     # 96
     freq_hi: list = field(default_factory=list)      # 96
+    # off-table freq-hi window (DMC v5 analog of FC freq_overrun): the image
+    # bytes after the 96-entry freq tables that the melodic wave path reads
+    # when (wave_freq[step]+curnote)&$FF passes 95. Content-by-reference,
+    # emitted right after freqhi so off-table indices resolve as in the orig.
+    freq_overrun: list = field(default_factory=list)
     instruments: list = field(default_factory=list)  # list[V5Instrument]
     wave: list = field(default_factory=list)         # list[(ctrl, freq)]
     pulse: list = field(default_factory=list)        # list[(lo, hi)]
@@ -249,4 +254,45 @@ def extract(cfg, hvsc_root: str = 'hvsc84') -> V5Model:
         ev, raw = _decode_sector(mem, sp)
         m.sectors.append(ev)
         m.sector_raw.append(raw)
+    m.freq_overrun = _freq_overrun(mem, a_fhi, m)
     return m
+
+
+def _freq_overrun(mem, a_fhi: int, m) -> list:
+    """Reachable off-table freq-hi window (DMC v5 analog of FC freq_overrun).
+
+    The melodic wave path computes `(wave_freq[step] + curnote) & $FF` and
+    reads freqlo/freqhi at that index; indices past 95 fall off the 96-entry
+    tables into the following image bytes, which the orig plays as real freqs
+    (e.g. Elysium inst8/9: wave_freq=64 + note 60 = index 124 → freq_hi 0).
+    Capture only what the tune can REACH — every melodic wave value × every
+    note (incl. glide/slide targets + idle notes) × every orderlist transpose,
+    a conservative over-approximation. The window is contiguous from offset 96
+    to the max reachable index so the composer can lay it right after freqhi.
+    Empty when nothing reaches off-table. An under-capture can't pass silently:
+    the next data section sits right after the window, so it diverges in verify.
+    """
+    melodic = {f for (c, f) in m.wave if not (c & 0x08)}
+    if not melodic:
+        return []
+    notes = set(m.lo_notes)
+    for sec in m.sectors:
+        for e in sec:
+            if e[0] == 'note':
+                notes.add(e[1])
+            elif e[0] == 'glide':            # (spd, cur, tgt)
+                notes.add(e[2]); notes.add(e[3])
+            elif e[0] == 'slide':            # (spd, tgt)
+                notes.add(e[2])
+    transps = {0}
+    for st in m.subtunes:
+        for ol in st.orderlists:
+            for e in ol:
+                if e[0] == 'transpose':
+                    transps.add(e[1])
+    curnotes = {(n + t) & 0xFF for n in notes for t in transps}
+    oot = {(f + cn) & 0xFF for f in melodic for cn in curnotes}
+    oot = {i for i in oot if 96 <= i <= 255}
+    if not oot:
+        return []
+    return [mem[(a_fhi + i) & 0xFFFF] for i in range(96, max(oot) + 1)]

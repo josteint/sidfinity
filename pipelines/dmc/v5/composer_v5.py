@@ -62,7 +62,11 @@ def _emit_data(m) -> str:
     d.append('instr:\n' + _byt(instr))
     # freq tables
     d.append('freqlo:\n' + _byt(m.freq_lo))
-    d.append('freqhi:\n' + _byt(m.freq_hi))
+    # freqhi + the off-table freq_overrun window ride contiguously: melodic
+    # wave reads freqhi,y / freqlo,y with y up to 255, falling past the 96-entry
+    # tables into the orig's following image bytes (content-by-reference).
+    d.append('freqhi:\n' + _byt(m.freq_hi)
+             + (('\n' + _byt(m.freq_overrun)) if getattr(m, 'freq_overrun', None) else ''))
     # the 3 programmable 2-byte tables (split lo/hi parallel arrays)
     d.append('wavectrl:\n' + _byt([c for c, f in m.wave]))
     d.append('wavefreq:\n' + _byt([f for c, f in m.wave]))

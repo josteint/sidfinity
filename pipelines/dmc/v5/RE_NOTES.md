@@ -618,6 +618,32 @@ now the same PW program orig runs, captured parametrically — no mechanism copi
 Residual 10: the +12 start-offset trio (Triiod/X-Bass/Summer_Zak), a few pwhi/V3
 pulse, and 2 that GRADUATED to the freq cluster (pulse fixed, freq now first-diff).
 
+## PARTIAL LONG TAIL round 11 — off-table FREQ lookup (freq_overrun) (+44)
+
+The freq cluster (163, the dominant partial residue) localized Trap-C-FREE via
+the C4 technique (`assemble(return_labels)` + memwatch our wave-state vs orig's
+disasm addresses — no "spinning" like prior sessions): at the divergence the note
+(curnote) matches, only the freq output differs. Root cause (Elysium inst8/9):
+the melodic wave path computes `(wave_freq[step] + curnote) & $FF` and reads
+freqlo/freqhi there; index 64+60=124 falls past the 96-entry tables. orig's
+off-table byte is real content (freq_hi[124]=0); we emitted only 96 entries, so
+the read hit garbage. This is the SAME problem FC solved with `freq_overrun` —
+recorded as convergence-ledger C6 (consult-the-ledger working as designed).
+
+FIX: ported FC's `freq_overrun` TECHNIQUE (not code — v5 is a separate composer).
+`engine_model._freq_overrun` captures the reachable off-table freq-hi window
+(melodic wave values × notes/glide/slide targets × transposes, conservative);
+threaded through USF (`freq_overrun` field, already shared); `composer_v5._emit_data`
+emits it contiguously after `freqhi` so off-table indices resolve. Content-by-
+reference → cannot regress. RESULT: **+44/163** freq partials → FULL, 200/200
+regression clean.
+
+The residual 119 are a SEPARATE sub-cause: the de-fused WAVE PROGRAM steps to a
+different LOGICAL position than orig (mine's wavepos lands elsewhere → different
+wave_freq → different index → different freq), even at a matching note. Ceti_22 /
+Elysium-V2 are this — next sub-investigation. (Also: v5's freq_overrun capture is
+conservative, not minimized like FC's uready-round-A; minimize later.)
+
 ## (historical) factory + wide-batch plan
 `dmc_v5_config` factory (jump-table detect init+$40/play+$A1, the
 operand sites above, carved reference) + reuse tools/dmc_family_batch.py

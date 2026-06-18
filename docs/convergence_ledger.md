@@ -67,6 +67,7 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
 | "no program" detection · leading (0,0) · idle position 0 | C3 | methodology |
 | localize runtime divergence · writelog diverges, cause internal · memwatch | C4 | methodology |
 | detection ≠ FULL · residue triage · accept-at-detect | C5 | methodology |
+| off-table FREQ lookup · index past freq table · wave-relative note offset | C6 | recurring (FC + v5) |
 
 ---
 
@@ -118,6 +119,26 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
   the FC event-aligned `state_diff` idea to our own composed engines.
 - **Boundary:** when `find_first_divergence` localizes the register but not the
   cause; needs a hand-annotated orig `disassembly.s` for the orig addresses.
+
+### C6 — Off-table FREQ-table lookup (index past the N-entry freq table)
+- **Canonical:** when a melodic/effect path adds a table-relative offset to a
+  note and the 8-bit index `(offset + note) & $FF` passes the freq table, the
+  read falls into the following image bytes, which the orig plays as REAL freqs
+  (content-by-reference, not a bug to clamp). Capture the reachable off-table
+  window and emit it **contiguously right after the freq-hi table** so off-table
+  indices resolve as in the orig. Schema: `UsfFile.freq_overrun`.
+- **Status:** `recurring` (FC standard + DMC v5). The schema field + USF I/O are
+  shared; capture+emit is per-composer (FC `composer_asm` vs v5 `composer_v5`) →
+  a Move-1 factor-candidate. Distinct from **C2** (off-table PROGRAM tables; this
+  is off-table DATA lookup).
+- **Boundary:** reachability = melodic offset values × played notes × transposes
+  (conservative over-approx; an under-capture diverges in verify, never silent —
+  the next data section sits right after the window).
+- **Consumers:** FC standard (`engine_model._std_freq_overrun`, reachable-window
+  minimized); DMC v5 (`engine_model._freq_overrun`, **+44 FULL** 2026-06-18 —
+  capture not yet minimized like FC's uready-round-A; minimization is a follow-up).
+  NB: only the off-table SUBSET of v5's freq partials; a separate wave-program
+  STEPPING sub-cause (de-fused wavepos lands on a different logical step) remains.
 
 ### C5 — Detection ≠ FULL
 - **Canonical:** accepting a member past the factory's detection gate just moves
