@@ -530,6 +530,34 @@ round-6 un-gated filter_run; pulse_run was never gated, so its single `(0,0)` +
 benign OOB-count read was always correct.) Lesson: a no-idle layout "cleanup"
 is NOT free — the de-fused table is position-sensitive.
 
+## DETECT-REJECT round 1 — work-RAM scratch relocation (reloc@$10E5)
+
+`divergence_census --cluster player_code_mismatch` ranked the 153 PCM
+detect-rejects; the top cluster (41) diverged at `$10E5` (and `$1119`),
+`[reloc] ref=$1006 member=$22xx`. Probe (`tmp/reloc_probe.py`): both sites are
+the SAME work var (`LDA $1006,x` = voice-active flag), the ONLY two divergences,
+and the freq table ($170F) + data region ($1878) are byte-identical to Katusha
+at delta=0. So these are the **exact family-3/5 player with only the $1006-$103F
+work-RAM scratch block relocated** (a relink moved it up near a wrapper). That
+block is RUNTIME STATE, not musical content, and the composer rebuilds its own
+engine — so its address is a don't-care for detection AND extraction.
+
+FIX (factory.py): new `'state'` opclass for operands valued in the scratch gap
+`_STATE=((0x1006,0x1040),)`; `_diff_play_body` skips the operand compare for
+`'state'` (like `'patched'`). CODE operands in the same `_CODE_STATE` span still
+relocate by delta exactly (checked first by range order). **Detection-loosening
+only → cannot reject any previously-accepted member (zero regression risk).**
+
+RESULT (live re-cluster of the 153): 8 newly accepted (VBI) → **+5 FULL**
+(Olsen/{Ah,Fuzzy,Short_Zak}, Kordiaukis/{Octavarium,Rotting_Christ}); 3 partial
+(join the freq/pulse partial residue). The fix also SURFACED **32 cia_multispeed**
+members (previously blocked at the reloc check — they're wrapper members with the
+PSID speed bit set; VBI-only verify can't validate them → a distinct, larger
+problem) + 106 still mismatching at other sites ($10A1 opcode variants, $1385
+JSR-patch, $16C7 BIT-nop) + 7 init_skeleton. Reaffirms the census lesson:
+**detection ≠ FULL** — accepting at detection just moves a member to its next
+failure mode.
+
 ## (historical) factory + wide-batch plan
 `dmc_v5_config` factory (jump-table detect init+$40/play+$A1, the
 operand sites above, carved reference) + reuse tools/dmc_family_batch.py

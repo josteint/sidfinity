@@ -35,11 +35,23 @@ from pipelines.dmc.v5.config import DMCV5Config
 _FREQ = (0x170F, 0x17CF)          # freq lo+hi tables (patched per tune)
 _DATA = (0x1878, 0x19D0)          # orderlist rec + sector/instr/wave/pulse/filter
 _CODE_STATE = ((0x1006, 0x170F), (0x17CF, 0x1878))  # code + work RAM/state
+# Work-RAM scratch gap ($1006-$103F, 58 bytes: voice-active flags + scratch).
+# Some relink variants move this block independently of the code (e.g. up near
+# a wrapper), so a `LDA $1006,x` read points elsewhere though the player is
+# otherwise byte-identical. It's RUNTIME STATE, not musical content, and the
+# composer rebuilds its own engine — so its address is a don't-care for both
+# detection and extraction. Classed 'state' (operand not compared), distinct
+# from CODE operands in the same `_CODE_STATE` span which must still relocate
+# by delta exactly.
+_STATE = ((0x1006, 0x1040),)
 
 
 def _opclass(v: int) -> str:
     if _FREQ[0] <= v < _FREQ[1] or _DATA[0] <= v < _DATA[1]:
         return 'patched'
+    for lo, hi in _STATE:
+        if lo <= v < hi:
+            return 'state'
     for lo, hi in _CODE_STATE:
         if lo <= v < hi:
             return 'reloc'
@@ -184,7 +196,7 @@ def _diff_play_body(mem, delta, ref):
         if L == 3:
             mv = mem[a + 1] | (mem[a + 2] << 8)
             rv = rbytes[1] | (rbytes[2] << 8)
-            if cls == 'patched':
+            if cls in ('patched', 'state'):
                 continue
             if cls == 'reloc':
                 if mv != (rv + delta) & 0xFFFF:
