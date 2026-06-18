@@ -159,7 +159,24 @@ def usf_to_model(usf: UsfFile) -> V5Model:
     #      a $90 terminal so the program holds its loop/last phase and
     #      doesn't bleed into the next). The engine walks each instrument's
     #      own copy, so keep-running continuations stay faithful. ----------
-    pulse = [(0, 0)]
+    # ---- pulse table position 0 = the per-voice DEFAULT (idle) PW program when
+    #      present (pulse_run runs it from pulsepos=0). When ABSENT, keep the
+    #      single null (0,0) entry — NOT a 3-entry hold: pulse_run was never
+    #      gated, so the single (0,0) with its benign OOB-count read is exactly
+    #      the 891-FULL behavior; the 3-entry hold shifts the de-fused table and
+    #      regressed 135 members (see RE_NOTES dead-end). The idle has no start
+    #      entry (PW continues from the cleared 0). ----------
+    pulse = []
+    dp = usf.default_pulse
+    if dp is not None and dp.phases:
+        for rate, frames in dp.phases:
+            a = rate & 0xFFFF
+            pulse.append(((a >> 8) & 0xFF, a & 0xFF))                  # ADD
+            pulse.append(((frames >> 8) & 0xFF, frames & 0xFF))        # count
+        lp = dp.loop if dp.loop is not None else len(dp.phases) - 1
+        pulse.append((0x90, (2 * lp) & 0xFF))                          # loop onto a phase
+    else:
+        pulse = [(0, 0)]                                               # null pos 0 (891 behavior)
 
     # ---- filter table position 0 = the V3 DEFAULT (idle) filter program, run
     #      from frame 0 (filterpos starts at 0). The real default_filter sweep

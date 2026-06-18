@@ -903,3 +903,11 @@ class UsfFile:
     # continues from the `init.sid.filter` priming and applies these phases.
     # None = no idle sweep (the cutoff holds at the priming value).
     default_filter: Optional['SweepEnvelope'] = None
+    # Default (idle) pulse-width sweep (DMC V5, per-voice). The PW modulation a
+    # voice runs from pulse position 0 (pulse_run is unconditional; pulsepos is
+    # cleared to 0 at init) until an instrument with a pulse program (PU ptr !=0)
+    # restarts it. The pulse twin of `default_filter` (same SweepEnvelope form,
+    # play-time content). Captured only when pulse position 0 is a real ADD
+    # program; absent ⇒ the PW holds (the engine's null pos-0). One shared
+    # program (pulse position 0) all voices index.
+    default_pulse: Optional['SweepEnvelope'] = None

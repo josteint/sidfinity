@@ -375,6 +375,20 @@ def model_to_usf(m: V5Model, reach: int | None = None) -> UsfFile:
         if idle and any(rate != 0 for rate, _ in idle.phases):
             default_filter = idle
 
+    # idle (default) per-voice PULSE-WIDTH sweep: pulse-table position 0, run by
+    # a voice from pulsepos=0 (pulse_run is unconditional) before/between its
+    # own pulse programs. Pulse twin of the idle filter; PW starts at 0 (cleared
+    # at init). Captured only when pos 0 is a real ADD ((0,0) = no idle).
+    default_pulse = None
+    if m.pulse and tuple(m.pulse[0]) != (0, 0):
+        try:
+            idle_p = _capture_env(m.pulse, 0, has_start=False,
+                                  start_val=0, reach=reach)
+        except RuntimeError:
+            idle_p = None
+        if idle_p and any(rate != 0 for rate, _ in idle_p.phases):
+            default_pulse = idle_p
+
     return UsfFile(
         psid=PsidMeta(title=m.title, author=m.author, released=m.released,
                       start_song=1),
@@ -388,6 +402,7 @@ def model_to_usf(m: V5Model, reach: int | None = None) -> UsfFile:
                            'freq': [b & 0xFF for b in idle_f],
                            'loop': idle_l}},
         default_filter=default_filter,
+        default_pulse=default_pulse,
     )
 
 

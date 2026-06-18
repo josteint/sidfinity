@@ -264,6 +264,19 @@ the composer continues from the `init.sid.filter` priming and applies these
 phases (the idle program has no start of its own). Absent ⇒ the cutoff holds
 at the priming value.
 
+## `default_pulse { ... }` (DMC V5 idle pulse-width sweep)
+
+```
+default_pulse { start=$0000 seg (49, $FFFF) }
+```
+
+Optional. The pulse twin of `default_filter`: the **default (idle) pulse-width
+sweep** a voice runs from pulse position 0 (`pulse_run` is unconditional;
+`pulsepos` clears to 0 at init) until an instrument with a pulse program restarts
+it. Same `swenv_args` form (a PW `SweepEnvelope`, Rule 1), **play-time content**,
+one shared program all voices index. Captured only when pulse position 0 is a
+real ADD program; absent ⇒ the PW holds (the engine's null pos-0).
+
 ## `instrument N name { ... }`
 
 ```
