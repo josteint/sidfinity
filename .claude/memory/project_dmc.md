@@ -412,11 +412,25 @@ DUAL-CLOCK PHASE ($1019 leftover → params.slide_phase).
    +start.hi/frame instead of holding (Hardcore_DMC $D403: orig holds 8; rebuild
    8,16,24,32...). Fix: static env loops on a ZERO-ADD with count==0
    (65536-frame hold). Shared by pulse+filter. Also `verify_cycle` fallback now
-   reports first_play_diff (16c4053, diagnostic). NEXT V5 (ranked): (1) the ~18
-   FILTER + ~13 FREQUENCY first-divergence clusters (distinct bugs — filter is
-   non-2x cutoff divergence, freq likely vibrato/glide); (2) remaining
-   non-static pulse partials; (3) player_code_mismatch variants; then family-4
-   (+$95). Full detail in pipelines/dmc/v5/RE_NOTES.md.
+   reports first_play_diff (16c4053, diagnostic).
+   **✅ ROUND 6 — DEFAULT (IDLE) V3 FILTER SWEEP (commit 86d3259): 875 -> 889/1495
+   FULL (+14, 59.5%), 0 regressions.** The engine runs filter_run_v3 for V3
+   EVERY frame from filterpos=0, where filter-table position 0 is a DEFAULT
+   (idle) cutoff sweep no instrument points at — applied to the leftover cutoff
+   from song start (for tunes whose V3 never plays a filtered note, this is the
+   whole filter motion, e.g. Glory_Kingdom). The composer nulled entry 0 + gated
+   filter_run on a sticky filt_run_on flag → never ran the idle. FIX (principled
+   per the rep-principle + init trichotomy): new top-level USF `default_filter`
+   (a SweepEnvelope — same form as Instrument.filter_env, Rule 1) carrying the
+   PLAY-TIME sweep; init.sid.filter keeps only the priming STATE (initial
+   cutoff). Composer runs filter_run for V3 from frame 0 (gate removed; pos 0 =
+   the idle sweep, or a (0,0) hold). Shared USF plumbing (types/grammar/parser/
+   writer/docs) — full tools/regression.py GREEN (0 cross-engine regressions).
+   NEXT V5 (ranked): (1) NON-static pulse partials (~80, the biggest remaining —
+   static-pulse fix only got the static subset); (2) FREQUENCY clusters (~13,
+   vibrato/glide); (3) NON-idle filter bugs (Emulating_Vinkuna/Cooksey/
+   Art_of_Noise); (4) player_code_mismatch variants; then family-4 (+$95). Full
+   detail in pipelines/dmc/v5/RE_NOTES.md.
    **DONE: DB migrated SQLite -> git-tracked CSV (hvsc84.csv) + DuckDB CLI
    (see [[reference_hvsc_db.md]] / CLAUDE.md).**
 

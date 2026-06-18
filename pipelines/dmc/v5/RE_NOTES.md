@@ -437,6 +437,39 @@ NEXT: the ~18 FILTER + ~13 FREQUENCY first-divergence clusters (distinct bugs �
 filter is non-2x cutoff divergence; freq likely vibrato/glide); then remaining
 non-static pulse partials; player_code_mismatch variants; family-4 (+$95).
 
+## PARTIAL LONG TAIL round 6 — default (idle) V3 filter sweep (commit 86d3259)
+
+FULL 875 -> 889/1495 (+14, 59.5%), 0 regressions.
+
+The engine runs filter_run_v3 for V3 EVERY frame from filterpos=0, where
+filter-table position 0 is a DEFAULT (idle) cutoff sweep no instrument points
+at — applied to the leftover cutoff from song start, before/between explicit
+filter notes (for tunes whose V3 never plays a filtered note, this IS the whole
+filter motion, e.g. Glory_Kingdom). The composer nulled entry 0 and gated
+filter_run on a sticky filt_run_on flag (its own comment flagged this as an
+approximation), so it never ran the idle — Little_Sara $D415/$D416 held (0,182)
+2 frames where the orig swept to (8,190) via entry-0 ADD (8,8).
+
+Representation (principled per docs/usf_representation_principle + the init
+trichotomy): the idle filter is the SAME musical object as a per-instrument
+filter (a cutoff SweepEnvelope, Rule 1). It is PLAY-TIME content (a sweep the
+play loop performs), NOT init priming — so init.sid.filter keeps only the
+starting cutoff STATE; the new top-level USF `default_filter` carries the SWEEP
+(phases). Musically named, no engine index, read by the engine-blind composer.
+Shared USF plumbing: UsfFile.default_filter (SweepEnvelope), grammar
+default_filter_block (reuses swenv_args), parser + writer + docs/usf_format.md.
+
+Composer: filter_run runs for V3 from frame 0 (filt_run_on gate removed;
+filterpos init=0 via state clear). from_usf emits position 0 = the default_filter
+sweep, or a (0,0)/count==0 HOLD when absent (so filter_run never reads an OOB
+count). Extract: _capture_env(has_start=False) reads the idle program from
+filter position 0 when entry 0 is a real ADD. Full tools/regression.py GREEN.
+
+NEXT (ranked by size): (1) NON-static pulse partials (~80 — the static-pulse
+fix only got the static subset; sweeping pulses are a separate bug); (2)
+FREQUENCY (~13, vibrato/glide); (3) NON-idle filter bugs (Emulating_Vinkuna,
+Cooksey, Art_of_Noise); (4) player_code_mismatch variants; family-4 (+$95).
+
 ## (historical) factory + wide-batch plan
 `dmc_v5_config` factory (jump-table detect init+$40/play+$A1, the
 operand sites above, carved reference) + reuse tools/dmc_family_batch.py
