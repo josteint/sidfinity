@@ -46,8 +46,15 @@ from src.usf.types import (
 # reachable-phase capture so the engine's table-fusion (programs bleeding
 # into one another) is dissolved — beyond this many frames no realistic
 # note (or keep-running continuation over a song) reaches.
-_REACH_FRAMES = 30000     # ~600s at 50Hz — longer than any real song
-_PHASE_CAP = 48
+_PHASE_CAP = 48           # max distinct phases captured (program-size bound)
+_WALK_CAP = 5000          # max table reads before declaring the bytes corrupt.
+                          # A real sweep terminates (loop / hold / end) in <~50
+                          # reads; only a malformed $90-chain (a $90 pointing at
+                          # another $90 in a cycle, appending no phase) spins —
+                          # this is the seatbelt that turns that into a clean
+                          # `unsupported` instead of an infinite loop. NOT a
+                          # frame/song bound (capture depth is set by the
+                          # program's own loop/hold/end + _PHASE_CAP).
 from src.usf.writer import write_file
 from pipelines.dmc.v5.config import DMCV5Config
 from pipelines.dmc.v5.extract.engine_model import extract, V5Model
@@ -92,13 +99,23 @@ def _slice_wave(wave: list, start: int):
 # REACHABLE phases (the table is a shared/fused resource; the bleeding past
 # the reachable horizon is the packer's space-saving mechanism — Rule 1).
 def _capture_env(table: list, ptr: int, has_start: bool = True,
-                 start_val: int = 0) -> SweepEnvelope:
+                 start_val: int = 0, reach: int | None = None) -> SweepEnvelope:
     # has_start=True: table[ptr] is the loaded START value, phases begin at
     # ptr+1 (per-instrument pulse/filter — filter_init/pulse_init load the
     # start). has_start=False: ptr is already the first ADD pair, phases begin
     # at ptr, and start_val (the priming cutoff) is recorded for completeness
     # — the V3 idle filter, which has no start entry and continues from the
     # init.sid.filter cutoff.
+    #
+    # `reach` = the CAPTURE HORIZON in play-frames = the verify window
+    # (songlength*1.1*playrate). Stop once the captured phases cover that many
+    # frames: the rebuild only ever PLAYS `reach` frames, so capturing past it
+    # is wasted AND can overflow the de-fused table (we un-share the packer's
+    # overlapped programs, so a full capture can exceed the original's 256
+    # entries — that's what truncating beyond the window prevents). A LOOP/hold
+    # terminal hits first when it occurs before `reach`. None = no horizon
+    # (capture to the natural terminal). This is the song-derived bound, NOT a
+    # magic number; `_WALK_CAP` below is a SEPARATE seatbelt (reads, not frames).
     if has_start:
         start = (table[ptr][0] << 8) | table[ptr][1]
         pos = ptr + 1
@@ -109,7 +126,12 @@ def _capture_env(table: list, ptr: int, has_start: bool = True,
     loop = None
     cum = 0
     pos_phase = {}                # table position a phase started at -> index
+    iters = 0
     while pos < len(table):
+        iters += 1
+        if iters > _WALK_CAP:     # malformed table (e.g. a $90->$90 cycle that
+            raise RuntimeError(   # appends no phase) — bail clean, don't spin.
+                f'unsupported:capture_loop @{ptr}')
         if len(phases) >= _PHASE_CAP:
             raise RuntimeError(f'unsupported:sweep_too_long @{ptr}')
         lo, hi = table[pos]
@@ -137,7 +159,9 @@ def _capture_env(table: list, ptr: int, has_start: bool = True,
         phases.append((rate, frames))
         cum += frames
         pos += 2
-        if frames >= 0x9000 or cum > _REACH_FRAMES:   # terminal / reached
+        if reach is not None and cum > reach:   # past the verify window
+            break
+        if frames >= 0x9000:       # terminal hold — value stays put
             break
     return SweepEnvelope(start=start, phases=phases, loop=loop)
 
@@ -269,10 +293,11 @@ def _orderlist(events: list) -> Orderlist:
     return ol
 
 
-def _instrument_to_usf(ins, model: V5Model):
+def _instrument_to_usf(ins, model: V5Model, reach: int | None = None):
     """Map a V5Instrument to a USF Instrument. The wave program is decoded
     inline (self-looping, separable); pulse/filter are entry indices into
-    the tune's shared tables (carried whole by model_to_usf)."""
+    the tune's shared tables (carried whole by model_to_usf). `reach` = the
+    per-song capture horizon (see _capture_env)."""
     wc, wf, wl = _slice_wave(model.wave, ins.wave_ptr)
     # pulse_ptr == 0 = no restart (the PW oscillator keeps running across
     # the note); a real entry index restarts the sweep there.
@@ -283,16 +308,16 @@ def _instrument_to_usf(ins, model: V5Model):
         wave_freq=[b & 0xFF for b in wf],
         adsr=(ins.ad, ins.sr),
         pwm=PwmConfig(keep_running=(ins.pulse_ptr == 0)),
-        pulse_env=(_capture_env(model.pulse, ins.pulse_ptr)
+        pulse_env=(_capture_env(model.pulse, ins.pulse_ptr, reach=reach)
                    if ins.pulse_ptr else None),
-        filter_env=(_capture_env(model.filter, ins.filter_ptr)
+        filter_env=(_capture_env(model.filter, ins.filter_ptr, reach=reach)
                     if ins.filter_ptr else None),
         vibrato=VibratoConfig(onset=ins.vib_delay, speed=ins.vib_speed,
                               amplitude=ins.vib_width),
     )
 
 
-def model_to_usf(m: V5Model) -> UsfFile:
+def model_to_usf(m: V5Model, reach: int | None = None) -> UsfFile:
     # one Pattern per global sector (shared across voices); each voice
     # carries the Patterns its orderlist references.
     sector_pat = {i: Pattern(id=i, length=0, rows=_sector_rows(ev))
@@ -329,7 +354,7 @@ def model_to_usf(m: V5Model) -> UsfFile:
                 voices=([InitVoice(id=v + 1, note=m.lo_notes[v])
                          for v in range(3)] if si == 0 else []))))
 
-    instruments = [_instrument_to_usf(ins, m) for ins in m.instruments]
+    instruments = [_instrument_to_usf(ins, m, reach=reach) for ins in m.instruments]
     # idle wave walk (cleared wave position 0 -> what a voice's effects
     # read before its first note).
     idle_c, idle_f, idle_l = _slice_wave(m.wave, 0)
@@ -341,9 +366,13 @@ def model_to_usf(m: V5Model) -> UsfFile:
     # real ADD ((0,0) = no idle -> the cutoff holds at the priming value).
     default_filter = None
     if m.filter and tuple(m.filter[0]) != (0, 0):
-        idle = _capture_env(m.filter, 0, has_start=False,
-                            start_val=((m.lo_fchi << 8) | m.lo_fclo))
-        if any(rate != 0 for rate, _ in idle.phases):
+        try:                       # best-effort: a malformed idle table -> no
+            idle = _capture_env(    # default_filter (composer holds), not a
+                m.filter, 0, has_start=False,   # member-wide error.
+                start_val=((m.lo_fchi << 8) | m.lo_fclo), reach=reach)
+        except RuntimeError:
+            idle = None
+        if idle and any(rate != 0 for rate, _ in idle.phases):
             default_filter = idle
 
     return UsfFile(
@@ -362,10 +391,35 @@ def model_to_usf(m: V5Model) -> UsfFile:
     )
 
 
+_SL_DB = None       # cached Songlengths.md5 (loaded once per process)
+
+
+def _verify_window_frames(cfg: DMCV5Config, hvsc_root: str) -> int:
+    """The sweep CAPTURE HORIZON (= `reach`) in 50Hz play-frames: the verify
+    window. verify plays each subtune for clamp(songlen*1.1, 5, 1500) s and the
+    shared sweep tables must cover the LONGEST subtune. Verified V5 members are
+    all vblank (CIA/multispeed are rejected upstream), so 50Hz is exact. Falls
+    back to 30000 (~600s, the old fixed horizon) when the songlength is
+    unknown."""
+    global _SL_DB
+    try:
+        from src.songlengths import load_database, get_durations
+        if _SL_DB is None:
+            _SL_DB = load_database(
+                os.path.join(hvsc_root, 'DOCUMENTS', 'Songlengths.md5'))
+        durs = get_durations(os.path.join(hvsc_root, cfg.sid_path), _SL_DB)
+    except Exception:
+        durs = None
+    if not durs:
+        return 30000
+    win_s = max(min(d * 1.1, 1500.0) for d in durs)
+    return int(win_s * 50) + 200        # + small margin over the play window
+
+
 def write_v5_usf(cfg: DMCV5Config, out_dir: str,
                  hvsc_root: str = 'hvsc84') -> str:
     m = extract(cfg, hvsc_root=hvsc_root)
-    usf = model_to_usf(m)
+    usf = model_to_usf(m, reach=_verify_window_frames(cfg, hvsc_root))
     base = os.path.splitext(os.path.basename(cfg.sid_path))[0]
     out = os.path.join(out_dir, base + '.usf')
     write_file(usf, out)
