@@ -36,6 +36,7 @@
 ## Working principles (read these before acting)
 
 - [Re-anchor at decision points](feedback_reanchor_at_decisions.md) — TRIPWIRE. At EVERY representation/correctness decision, re-run the CORE TENET (write-log only, never byte-identity) + USF principle (parametric/musical, never raw-bytes+opaque-index — ask "could this be parametric?" unprompted) + uready as adversarial CHECKS that could overturn the easy choice, not justifications for it. The tell of drift: citing a precedent to DEFEND an easy/safe choice instead of describing the test I ran to BEAT it.
+- [Convergence ledger](feedback_convergence_ledger.md) — TRIPWIRE. Before implementing ANY non-trivial solution, CONSULT `docs/convergence_ledger.md` (Index lookup by problem-class) for the canonical form instead of inventing variant #15; RECORD every solution after (1st sight, not just ≥2×); canonicalize on the 2nd. The weak link is consulting BEFORE solving — tell of drift: I went "diagnosed → coding the fix" without ever opening the ledger.
 
 ### Ground truth & methodology
 - [Ground truth is sidplayfp](feedback_ground_truth.md) — NEVER use py65 or Python reimplementations as ground truth. Only `sidplayfp --writelog` is authoritative. The user's ear is the final judge.
