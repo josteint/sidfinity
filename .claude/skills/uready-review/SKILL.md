@@ -113,11 +113,13 @@ Then **update** (these writes are the only mutations a review makes):
   uready status + date).
 - the **Move-1 ledger** in `docs/refactor_1_remaining.md` (criterion-5 feature
   accounting + the pending divergence decisions).
-- the **[convergence ledger](../../../docs/convergence_ledger.md)** — for every
-  solution the Phase-2 matrix shows used **≥2×** (reused OR divergent), add/refresh
-  an entry: the canonical (idiomatic-for-us) form, its shared-code location or
-  factor-candidate status + occurrence count, and the boundary conditions. This is
-  how the review pre-decides Move-1 convergence incrementally. (Record only — do
+- the **[convergence ledger](../../../docs/convergence_ledger.md)** — the review
+  is the periodic maintainer (per-solve recording is the everyday CLAUDE.md
+  reflex). Ensure EVERY solution the Phase-2 matrix surfaces has an entry (log any
+  missing as `logged`); then PROMOTE the ones used **≥2×** (reused OR divergent) to
+  `recurring` — pick the one canonical form, set its shared-code location or
+  `factor-candidate` status + occurrence count + boundary. Refresh the Index. This
+  is how the review pre-decides Move-1 convergence incrementally. (Record only — do
   NOT factor code; that's Move 1.)
 
 ## What "good" looks like

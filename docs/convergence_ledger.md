@@ -27,18 +27,46 @@ This ledger's unique value is the **technique/algorithm catalog** — the
 
 ## How to use it
 
-- **Before** solving a sub-problem that feels familiar in any engine work,
-  scan this ledger for the problem-class. If it's here, use the canonical
-  solution (call the shared code, or implement the recorded form).
-- **After** solving something generalizable, or when the
-  [`/uready-review`](../.claude/skills/uready-review/SKILL.md) cross-engine pass
-  finds a solution used **≥2×**, add/refresh an entry: pick the canonical form,
-  record where the shared code is (or mark it a factor-candidate with the count),
-  and the boundary. Factor on the **2nd** occurrence in spirit — record it; the
-  code-factoring waits for Move 1. `/uready-review` is the ledger's maintainer.
+Three separate timings — do NOT conflate them (the record happens first so the
+recurrence is later found by lookup, not by memory):
+
+- **CONSULT — before choosing how to solve any non-trivial problem.** Scan the
+  Index below by problem-class; if there's an entry, use its solution (call the
+  shared code, or implement the recorded form) instead of inventing a variant.
+  A consult is a targeted lookup keyed by the problem, not a full read.
+- **RECORD — log EVERY solution to a non-trivial problem, on first sight**
+  (status `logged`), even if it has occurred only once. This is the point: a
+  recorded 1st occurrence makes the 2nd a cheap lookup. Don't wait for a repeat.
+- **CANONICALIZE / FACTOR — on the 2nd occurrence.** When a problem-class recurs
+  (the [`/uready-review`](../.claude/skills/uready-review/SKILL.md) cross-engine
+  pass flags **≥2×**, or you notice it directly), pick the one canonical form
+  (status `recurring`) and either point at shared code (`shared`) or mark it a
+  Move-1 `factor-candidate`. The ≥2× threshold governs ONLY this step — never
+  whether something is recorded. The code-factoring itself waits for Move 1.
+
+`/uready-review` is the periodic maintainer (cross-checks + promotes); per-solve
+recording is the everyday reflex (see the CLAUDE.md "before pipeline work" list).
 
 Entry schema: **Problem class** | **Canonical solution** | **Status** |
 **Boundary / when it applies** | **Consumers (seen)**.
+
+**Status:** `logged` (seen 1×, provisional form) · `recurring` (≥2×, canonical
+form chosen) · `factor-candidate` (recurring, awaiting Move-1 code-factoring) ·
+`shared` (one implementation exists; consumers call it) · `methodology` (a
+practice, not code to factor).
+
+If the Index outgrows a quick scan, migrate to a queryable store (the
+`hvsc84.csv` → DuckDB precedent) — keep consults O(lookup), never O(read-all).
+
+## Index (problem-class → entry)
+
+| Problem class / keywords | Entry | Status |
+|---|---|---|
+| value swept over time · PW / cutoff contour · oscillator · ramp | C1 | shared |
+| byte-indexed program table · runs off-table · table extent / size | C2 | factor-candidate (3×) |
+| "no program" detection · leading (0,0) · idle position 0 | C3 | methodology |
+| localize runtime divergence · writelog diverges, cause internal · memwatch | C4 | methodology |
+| detection ≠ FULL · residue triage · accept-at-detect | C5 | methodology |
 
 ---
 
