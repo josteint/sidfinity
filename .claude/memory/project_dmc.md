@@ -443,11 +443,20 @@ DUAL-CLOCK PHASE ($1019 leftover → params.slide_phase).
    capture best-effort. (Came out of the owner's "why 30000, not songlen*1.1?"
    question — their instinct was right; "capture complete program" over-corrected
    into 2 overflow regressions before landing on the per-song window.)
-   NEXT V5 (ranked): (1) NON-static pulse partials (~80, the biggest remaining —
-   static-pulse fix only got the static subset); (2) FREQUENCY clusters (~13,
-   vibrato/glide); (3) NON-idle filter bugs (Emulating_Vinkuna/Cooksey/
-   Art_of_Noise); (4) player_code_mismatch variants; then family-4 (+$95). Full
-   detail in pipelines/dmc/v5/RE_NOTES.md.
+   **DEAD-END (do not repeat): "default_pulse" idle-pulse mirror — REVERTED
+   (891 unchanged).** The pulse cluster's dominant `rebuild=0` sub-pattern looks
+   like the idle-FILTER bug, but the obvious pulse twin (default_pulse: idle
+   sweep at pulse pos 0) gave 891 -> 786 (gained 30, REGRESSED 135). Filter idle
+   works because the orig runs filter_run UNCONDITIONALLY for V3; PULSE is
+   per-voice + the orig pulse_run is GATED (per-voice pulse-active, ~$1841) — it
+   does NOT run pos-0 for every voice. The composer's pulse_run is un-gated, so
+   null pos-0 (hold) is correct for the ~135 no-idle members. Recovering the +30
+   needs the per-voice pulse-active GATE modeled in the composer first. Full
+   write-up in RE_NOTES "DEAD-END". NEXT V5 (ranked): (1) FREQUENCY clusters
+   (~143 across V1/V2/V3 freq regs — now the BIGGEST, likely vibrato/glide);
+   (2) NON-static pulse WITH the gate modeled (~82); (3) NON-idle filter bugs
+   (Emulating_Vinkuna/Cooksey/Art_of_Noise); (4) player_code_mismatch; family-4
+   (+$95). Full detail in pipelines/dmc/v5/RE_NOTES.md.
    **DONE: DB migrated SQLite -> git-tracked CSV (hvsc84.csv) + DuckDB CLI
    (see [[reference_hvsc_db.md]] / CLAUDE.md).**
 

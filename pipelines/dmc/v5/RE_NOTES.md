@@ -501,10 +501,31 @@ deeper lesson: extraction is STATIC, but the write-log verdict is the judge —
 REACH passed only because verify windows stayed under it; the horizon makes the
 capture provably cover exactly what the write-log checks.)
 
-NEXT (ranked by size): (1) NON-static pulse partials (~80 — the static-pulse
-fix only got the static subset; sweeping pulses are a separate bug); (2)
-FREQUENCY (~13, vibrato/glide); (3) NON-idle filter bugs (Emulating_Vinkuna,
-Cooksey, Art_of_Noise); (4) player_code_mismatch variants; family-4 (+$95).
+NEXT (ranked by size): (1) NON-static pulse partials (~82 — see the DEAD-END
+below for what does NOT work); (2) FREQUENCY (~143 across V1/V2/V3 freq regs —
+actually the BIGGEST cluster now, likely vibrato/glide); (3) NON-idle filter
+bugs (Emulating_Vinkuna, Cooksey, Art_of_Noise); (4) player_code_mismatch
+variants; family-4 (+$95).
+
+## DEAD-END (do not repeat): "default_pulse" idle-pulse mirror — REVERTED
+
+The pulse cluster's dominant sub-pattern is `rebuild=0` (orig's PW ramps, e.g.
+Doomed_Planet V2 $D409 = 0,49,98,147,196 = pulse[0]=(0,49) idle loop; rebuild
+holds 0). It LOOKS exactly like the idle-FILTER bug, so the obvious fix was a
+`default_pulse` (pulse twin of `default_filter`): capture pulse-table position 0
+as an idle sweep, emit it at pulse pos 0, let pulse_run run it from pulsepos=0.
+
+**This is WRONG. Full batch: 891 -> 786 (gained 30, REGRESSED 135).** The filter
+idle works because the orig runs filter_run UNCONDITIONALLY for V3. But PULSE is
+PER-VOICE and the orig's pulse_run is GATED (per-voice pulse-active, ~$1841 = PU
+ptr!=0) — it does NOT run the position-0 program for every voice from frame 0.
+The composer's pulse_run is UN-gated, so a null position-0 (hold) was the correct
+approximation for the ~135 no-idle members; a real idle program there made their
+voices ramp spuriously. The +30 (Doomed-like) ARE real, but recovering them needs
+the per-voice pulse-active GATE reproduced in the composer (so the idle runs only
+where the orig runs it), not a shared position-0 program. The whole default_pulse
+change (USF field/grammar/parser/writer/extract/from_usf) was reverted; the
+committed state is 891. Re-attempt only WITH the gating modeled + verified.
 
 ## (historical) factory + wide-batch plan
 `dmc_v5_config` factory (jump-table detect init+$40/play+$A1, the
