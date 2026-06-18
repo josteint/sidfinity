@@ -642,6 +642,15 @@ def write(usf: UsfFile) -> str:
     if usf.sfx is not None:
         lines.append('')
         lines.extend(_write_sfx(usf.sfx))
+    if getattr(usf, 'default_filter', None) is not None:
+        df = usf.default_filter
+        parts = [f'start={_hex(df.start, 4)}']
+        if df.loop is not None:
+            parts.append(f'repeat={df.loop}')
+        for rate, frames in df.phases:
+            parts.append(f'seg ({rate}, {_hex(frames, 4)})')
+        lines.append('')
+        lines.append('default_filter { ' + ' '.join(parts) + ' }')
     if usf.arp_programs:
         lines.append('')
         lines.extend(_write_arp_programs(usf.arp_programs))

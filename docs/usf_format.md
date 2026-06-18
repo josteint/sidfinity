@@ -245,6 +245,25 @@ note-attack frame count and `$D404` waveform for wave index `w` (the engine's
 `counter2 & 3`) and `pulse_arp` cycles `$D403` pulse-hi (`counter2 & 7`). The
 composer emits each at its engine address.
 
+## `default_filter { ... }` (DMC V5 idle V3 filter sweep)
+
+```
+default_filter { start=$B600 repeat=0 seg (2056, $3808) seg (-100, $0032) }
+```
+
+Optional. The **default (idle) filter-cutoff sweep** the engine applies to
+voice 3 by default — from song start, before/between explicit per-instrument
+filter notes (for a tune whose V3 never plays a filtered note, this is the
+whole filter motion). Same `start=` / `repeat=` / `seg (rate, frames)` form as
+an instrument's `filter_env` (one musical object, per the representation
+principle): a cutoff sweep. This is **play-time content** — a sweep the play
+loop performs — *not* init priming; the initial cutoff **state** stays in
+`init.sid.filter` (the init trichotomy: priming = initial state, this =
+behaviour). `start` records that initial cutoff for a complete SweepEnvelope;
+the composer continues from the `init.sid.filter` priming and applies these
+phases (the idle program has no start of its own). Absent ⇒ the cutoff holds
+at the priming value.
+
 ## `instrument N name { ... }`
 
 ```

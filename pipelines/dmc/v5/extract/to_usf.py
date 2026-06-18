@@ -91,11 +91,22 @@ def _slice_wave(wave: list, start: int):
 # Walk the engine's (step, count) phase stream from `ptr`, capturing the
 # REACHABLE phases (the table is a shared/fused resource; the bleeding past
 # the reachable horizon is the packer's space-saving mechanism — Rule 1).
-def _capture_env(table: list, ptr: int) -> SweepEnvelope:
-    start = (table[ptr][0] << 8) | table[ptr][1]
+def _capture_env(table: list, ptr: int, has_start: bool = True,
+                 start_val: int = 0) -> SweepEnvelope:
+    # has_start=True: table[ptr] is the loaded START value, phases begin at
+    # ptr+1 (per-instrument pulse/filter — filter_init/pulse_init load the
+    # start). has_start=False: ptr is already the first ADD pair, phases begin
+    # at ptr, and start_val (the priming cutoff) is recorded for completeness
+    # — the V3 idle filter, which has no start entry and continues from the
+    # init.sid.filter cutoff.
+    if has_start:
+        start = (table[ptr][0] << 8) | table[ptr][1]
+        pos = ptr + 1
+    else:
+        start = start_val
+        pos = ptr
     phases = []
     loop = None
-    pos = ptr + 1
     cum = 0
     pos_phase = {}                # table position a phase started at -> index
     while pos < len(table):
@@ -323,6 +334,18 @@ def model_to_usf(m: V5Model) -> UsfFile:
     # read before its first note).
     idle_c, idle_f, idle_l = _slice_wave(m.wave, 0)
 
+    # idle (default) V3 filter sweep: filter-table position 0 is a default
+    # cutoff program the engine runs from frame 0 (no instrument points at it;
+    # filterpos starts at 0). PLAY-TIME content, not init priming — the start
+    # cutoff STATE stays in init.sid.filter. Capture only when entry 0 is a
+    # real ADD ((0,0) = no idle -> the cutoff holds at the priming value).
+    default_filter = None
+    if m.filter and tuple(m.filter[0]) != (0, 0):
+        idle = _capture_env(m.filter, 0, has_start=False,
+                            start_val=((m.lo_fchi << 8) | m.lo_fclo))
+        if any(rate != 0 for rate, _ in idle.phases):
+            default_filter = idle
+
     return UsfFile(
         psid=PsidMeta(title=m.title, author=m.author, released=m.released,
                       start_song=1),
@@ -335,6 +358,7 @@ def model_to_usf(m: V5Model) -> UsfFile:
         wave_programs={0: {'ctrl': list(idle_c),
                            'freq': [b & 0xFF for b in idle_f],
                            'loop': idle_l}},
+        default_filter=default_filter,
     )
 
 

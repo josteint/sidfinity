@@ -890,3 +890,16 @@ class UsfFile:
     # off-table indices resolve to the same values as the original.
     # Empty = no off-table excursions.
     freq_overrun: list[int] = field(default_factory=list)
+    # Default (idle) filter-cutoff sweep (DMC V5 V3-global). The cutoff
+    # modulation the engine applies by DEFAULT — from song start, before/
+    # between explicit per-instrument filter notes (for tunes whose V3 never
+    # plays a filtered note, this IS the whole filter motion). Same musical
+    # object and parametric form as `Instrument.filter_env` (a SweepEnvelope),
+    # per the representation principle's cluster-by-behaviour rule. This is
+    # PLAY-TIME content (a sweep the play loop performs), NOT init priming —
+    # the starting cutoff STATE stays in `init.sid.filter` (the init
+    # trichotomy: priming = initial state; this = behaviour). `start` records
+    # that starting cutoff for a complete/uniform SweepEnvelope; the composer
+    # continues from the `init.sid.filter` priming and applies these phases.
+    # None = no idle sweep (the cutoff holds at the priming value).
+    default_filter: Optional['SweepEnvelope'] = None

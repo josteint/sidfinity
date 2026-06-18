@@ -3,7 +3,12 @@
 // Lark grammar (LALR friendly). Whitespace and comments are ignored
 // between tokens. Top-level order is enforced by the start rule.
 
-start: psid_block params_block init_block freq_table_block? freq_overrun_block? state_layout_block? song_end_block? init_behavior_block? master_vol_block? sfx_block? fc_aux_block* instrument_block* subtune_block*
+start: psid_block params_block init_block freq_table_block? freq_overrun_block? state_layout_block? song_end_block? init_behavior_block? master_vol_block? sfx_block? default_filter_block? fc_aux_block* instrument_block* subtune_block*
+
+// ----- default (idle) filter sweep (DMC V5 V3-global) -----
+// The default cutoff modulation the engine applies before/between explicit
+// filter notes — same `swenv_args` form as a per-instrument filter_env.
+default_filter_block: "default_filter" "{" swenv_args "}"
 
 // FC aux tables/programs — grouped into one repeated rule (any order) so the
 // LALR table stays small; a long chain of optionals blows up construction.

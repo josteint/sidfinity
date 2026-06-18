@@ -434,6 +434,10 @@ class _T(Transformer):
     def inst_filter_env(self, items):
         return ('filter_env', items[0])
 
+    def default_filter_block(self, items):
+        # items[0] = the SweepEnvelope from swenv_args (the idle V3 sweep).
+        return ('default_filter', items[0])
+
     def efx_tone_arp(self, _):       return 'tone_arp'
     def efx_pulse_arp(self, _):      return 'pulse_arp'
     def efx_drum(self, _):           return 'drum'
@@ -1062,6 +1066,7 @@ class _T(Transformer):
         pulse_arp = []
         wave_programs = {}
         freq_overrun = []
+        default_filter = None
         for it in items:
             if isinstance(it, tuple):
                 k, v = it
@@ -1097,6 +1102,8 @@ class _T(Transformer):
                     pulse_arp = v
                 elif k == 'wave_programs':
                     wave_programs = v
+                elif k == 'default_filter':
+                    default_filter = v
             elif isinstance(it, PsidMeta):
                 psid = it
             elif isinstance(it, Params):
@@ -1116,7 +1123,8 @@ class _T(Transformer):
             pulse_programs=pulse_programs, filter_programs=filter_programs,
             drum_programs=drum_programs, attack_len=attack_len,
             attack_wave=attack_wave, wave_arp=wave_arp, pulse_arp=pulse_arp,
-            wave_programs=wave_programs, freq_overrun=freq_overrun)
+            wave_programs=wave_programs, freq_overrun=freq_overrun,
+            default_filter=default_filter)
 
 
 # ---------------------------------------------------------------------------

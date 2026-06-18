@@ -160,7 +160,25 @@ def usf_to_model(usf: UsfFile) -> V5Model:
     #      doesn't bleed into the next). The engine walks each instrument's
     #      own copy, so keep-running continuations stay faithful. ----------
     pulse = [(0, 0)]
-    filt = [(0, 0)]
+
+    # ---- filter table position 0 = the V3 DEFAULT (idle) filter program, run
+    #      from frame 0 (filterpos starts at 0). The real default_filter sweep
+    #      when present, else a (0,0) HOLD (zero-ADD, count==0 = 65536-frame
+    #      hold, $90 self-loop) so the composer can run filter_run for V3 every
+    #      frame without an out-of-bounds count read. The idle program has NO
+    #      start entry (it continues from the init.sid.filter priming cutoff) —
+    #      its ADD/count pairs begin at position 0. ----------
+    filt = []
+    df = usf.default_filter
+    if df is not None and df.phases:
+        for rate, frames in df.phases:
+            a = rate & 0xFFFF
+            filt.append(((a >> 8) & 0xFF, a & 0xFF))                # ADD
+            filt.append(((frames >> 8) & 0xFF, frames & 0xFF))      # count
+        lp = df.loop if df.loop is not None else len(df.phases) - 1
+        filt.append((0x90, (2 * lp) & 0xFF))                        # loop onto a phase
+    else:
+        filt = [(0, 0), (0, 0), (0x90, 0)]                          # hold at pos 0
 
     def add_env(table, env):
         s = len(table)

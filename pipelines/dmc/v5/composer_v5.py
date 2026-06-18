@@ -525,11 +525,10 @@ ni_nopulse:
         lda instr+4,y           ; filter ptr
         sta filtflag
         beq ni_nofilt
-        sta filterpos
-        sta filt_run_on         ; STICKY (FL!=0): once a note starts the
-                                ; filter it keeps running across later FL=0
-                                ; notes (orig runs filter_run every V3 frame;
-                                ; FL=0 = no restart, NOT no run)
+        sta filterpos           ; FL!=0 restarts the V3 filter at this program;
+                                ; FL=0 = no restart (the running idle/instrument
+                                ; sweep continues). filter_run runs for V3 every
+                                ; frame from filterpos=0 regardless (idle default).
 ni_nofilt:
         ;; first wave-table step
         ldy wavepos,x
@@ -654,10 +653,12 @@ pr_go:
         inc pulsepos,x
         inc pulsepos,x
 filter_run:
-        cpx #$02
+        cpx #$02                ; V3 only
         bne glide_slide
-        lda filt_run_on         ; keep-running: NOT the per-note filtflag
-        beq glide_slide
+        ;; the orig runs filter_run_v3 for V3 EVERY frame from filterpos=0 —
+        ;; filter-table position 0 is the DEFAULT (idle) filter program (a real
+        ;; default_filter sweep, or a (0,0) hold). No filt_run_on gate: the idle
+        ;; sweep must run from frame 0, before any per-instrument filter note.
         ldy filterpos
         lda filterlo,y
         cmp #$90
@@ -992,7 +993,6 @@ filtctr_lo: .dsb 1, 0
 filtctr_hi: .dsb 1, 0
 frqovr:   .dsb 1, 0
 filtflag: .dsb 1, 0
-filt_run_on: .dsb 1, 0
 pulseflag: .dsb 1, 0
 playskip: .dsb 1, 0
 tmp40:    .dsb 1, 0
