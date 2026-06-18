@@ -50,6 +50,7 @@
 ### Working with the user
 - [User nudge pattern](feedback_user_nudge_pattern.md) — question implausible explanations, brainstorm across math fields, extract don't reconstruct
 - [User strategic pattern](feedback_user_strategic_pattern.md) — propose options before code; honest scope; pause after each step
+- [Completeness over dominant-cause](feedback_completeness_over_dominant_cause.md) — the user wants ALL DMC SIDs to FULL, not ROI/dominant-cause triage. Clustering = a tool to batch fixes; work through EVERY failure mode (incl. the long tail), drop the "is it worth it" hedging on coverage work.
 - [Commit early](feedback_commit_early.md) — commit immediately after each verified improvement
 - [Repo tmp/ not /tmp](feedback_repo_tmp_dir.md) — ALL scratch artifacts go in the gitignored repo-local `tmp/`, never the system /tmp (it gets wiped; ate the FC member lists)
 - [Background jobs via harness](feedback_background_jobs_harness.md) — long batches MUST use Bash `run_in_background: true`, never `nohup&` in a foreground call (killed when the tool shell exits → waiter reports STALE output). Also: the family batches RESUME from the OUT jsonl (skip done paths) — delete it to force a clean re-run. Sanity-check result mtime vs the fix's mtime.
