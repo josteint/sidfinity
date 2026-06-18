@@ -443,20 +443,24 @@ DUAL-CLOCK PHASE ($1019 leftover → params.slide_phase).
    capture best-effort. (Came out of the owner's "why 30000, not songlen*1.1?"
    question — their instinct was right; "capture complete program" over-corrected
    into 2 overflow regressions before landing on the per-song window.)
-   **DEAD-END (do not repeat): "default_pulse" idle-pulse mirror — REVERTED
-   (891 unchanged).** The pulse cluster's dominant `rebuild=0` sub-pattern looks
-   like the idle-FILTER bug, but the obvious pulse twin (default_pulse: idle
-   sweep at pulse pos 0) gave 891 -> 786 (gained 30, REGRESSED 135). Filter idle
-   works because the orig runs filter_run UNCONDITIONALLY for V3; PULSE is
-   per-voice + the orig pulse_run is GATED (per-voice pulse-active, ~$1841) — it
-   does NOT run pos-0 for every voice. The composer's pulse_run is un-gated, so
-   null pos-0 (hold) is correct for the ~135 no-idle members. Recovering the +30
-   needs the per-voice pulse-active GATE modeled in the composer first. Full
-   write-up in RE_NOTES "DEAD-END". NEXT V5 (ranked): (1) FREQUENCY clusters
-   (~143 across V1/V2/V3 freq regs — now the BIGGEST, likely vibrato/glide);
-   (2) NON-static pulse WITH the gate modeled (~82); (3) NON-idle filter bugs
-   (Emulating_Vinkuna/Cooksey/Art_of_Noise); (4) player_code_mismatch; family-4
-   (+$95). Full detail in pipelines/dmc/v5/RE_NOTES.md.
+   **✅ ROUND 8 — DEFAULT (IDLE) PER-VOICE PULSE SWEEP (commit a4c70c8): 891 ->
+   913/1495 FULL (+22, 61.1%), 0 regressions.** Pulse twin of default_filter: the
+   `rebuild=0` cluster is a real idle pulse program at pulse pos 0 (Doomed V2
+   $D409 = 0,49,98,147,196 = pulse[0]=(0,49) loop) the composer nulled. Carry as
+   `default_pulse` (PW SweepEnvelope), emit at pulse pos 0; pulse_run runs it from
+   pulsepos=0 (UNCONDITIONAL — `run_effects` JMPs to pulse_run; NO per-voice gate;
+   $1841 only gates the note-time LOAD). **CORRECTION to a wrong earlier note: I
+   hypothesized a "per-voice pulse-active gate" — there is NONE.** The first cut
+   regressed 891->786 (-135) NOT from the idle ramp (all 135 regressed have
+   pulse[0]=(0,0), no idle) but from changing the NO-IDLE case from single (0,0)
+   to a 3-entry hold (shifted the de-fused table). Fix: keep single (0,0) for
+   no-idle (byte-identical → can't regress); emit idle only when pulse[0] is a
+   real ADD. Lesson: a no-idle "layout cleanup" is NOT free (de-fused table is
+   position-sensitive). NEXT V5 (ranked): (1) FREQUENCY clusters (~143 across
+   V1/V2/V3 freq regs — BIGGEST, likely vibrato/glide); (2) remaining pulse
+   partials w/ a SECONDARY divergence (idle now fixed: Doomed/Amiga-Zak); (3)
+   NON-idle filter bugs (Emulating_Vinkuna/Cooksey/Art_of_Noise); (4)
+   player_code_mismatch; family-4 (+$95). Full detail in RE_NOTES.
    **DONE: DB migrated SQLite -> git-tracked CSV (hvsc84.csv) + DuckDB CLI
    (see [[reference_hvsc_db.md]] / CLAUDE.md).**
 

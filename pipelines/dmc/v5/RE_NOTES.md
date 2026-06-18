@@ -501,31 +501,34 @@ deeper lesson: extraction is STATIC, but the write-log verdict is the judge —
 REACH passed only because verify windows stayed under it; the horizon makes the
 capture provably cover exactly what the write-log checks.)
 
-NEXT (ranked by size): (1) NON-static pulse partials (~82 — see the DEAD-END
-below for what does NOT work); (2) FREQUENCY (~143 across V1/V2/V3 freq regs —
-actually the BIGGEST cluster now, likely vibrato/glide); (3) NON-idle filter
-bugs (Emulating_Vinkuna, Cooksey, Art_of_Noise); (4) player_code_mismatch
+NEXT (ranked by size): (1) FREQUENCY (~143 across V1/V2/V3 freq regs — the
+BIGGEST cluster now, likely vibrato/glide); (2) remaining pulse partials with a
+SECONDARY divergence (idle now fixed, e.g. Doomed/Amiga-Zak); (3) NON-idle
+filter bugs (Emulating_Vinkuna, Cooksey, Art_of_Noise); (4) player_code_mismatch
 variants; family-4 (+$95).
 
-## DEAD-END (do not repeat): "default_pulse" idle-pulse mirror — REVERTED
+## PARTIAL LONG TAIL round 8 — default (idle) per-voice PULSE sweep (commit a4c70c8)
 
-The pulse cluster's dominant sub-pattern is `rebuild=0` (orig's PW ramps, e.g.
-Doomed_Planet V2 $D409 = 0,49,98,147,196 = pulse[0]=(0,49) idle loop; rebuild
-holds 0). It LOOKS exactly like the idle-FILTER bug, so the obvious fix was a
-`default_pulse` (pulse twin of `default_filter`): capture pulse-table position 0
-as an idle sweep, emit it at pulse pos 0, let pulse_run run it from pulsepos=0.
+FULL 891 -> 913/1495 (+22), 0 regressions. The pulse cluster's dominant
+`rebuild=0` sub-pattern is a real idle pulse program at pulse position 0 (e.g.
+Doomed V2 $D409 = 0,49,98,147,196 = pulse[0]=(0,49) loop) that the composer
+nulled. Fix: carry it as `default_pulse` (pulse twin of `default_filter` — a PW
+SweepEnvelope, play-time content), emit at pulse pos 0; pulse_run runs it from
+pulsepos=0 (UNCONDITIONAL — `run_effects` JMPs straight to pulse_run; there is NO
+per-voice gate; `$1841` only gates the note-time pulse LOAD, not the steady run).
 
-**This is WRONG. Full batch: 891 -> 786 (gained 30, REGRESSED 135).** The filter
-idle works because the orig runs filter_run UNCONDITIONALLY for V3. But PULSE is
-PER-VOICE and the orig's pulse_run is GATED (per-voice pulse-active, ~$1841 = PU
-ptr!=0) — it does NOT run the position-0 program for every voice from frame 0.
-The composer's pulse_run is UN-gated, so a null position-0 (hold) was the correct
-approximation for the ~135 no-idle members; a real idle program there made their
-voices ramp spuriously. The +30 (Doomed-like) ARE real, but recovering them needs
-the per-voice pulse-active GATE reproduced in the composer (so the idle runs only
-where the orig runs it), not a shared position-0 program. The whole default_pulse
-change (USF field/grammar/parser/writer/extract/from_usf) was reverted; the
-committed state is 891. Re-attempt only WITH the gating modeled + verified.
+**The instructive false start (do not repeat the layout part):** the first cut
+regressed 891 -> 786 (-135). The cause was NOT the idle ramp and NOT a missing
+"gate" (an earlier note wrongly hypothesized a per-voice pulse-active gate — the
+disassembly's `run_effects` disproves it). ALL 135 regressed members have
+`pulse[0]=(0,0)` (no idle). The bug was changing the NO-IDLE case from the single
+`(0,0)` entry to a 3-entry hold `[(0,0),(0,0),($90,0)]`, which shifted the
+de-fused pulse table. FIX: keep the single `(0,0)` for no-idle members
+(byte-identical to the prior FULL state → cannot regress); emit the idle ONLY
+when `pulse[0]` is a real ADD. (The filter's 3-entry hold WAS needed because
+round-6 un-gated filter_run; pulse_run was never gated, so its single `(0,0)` +
+benign OOB-count read was always correct.) Lesson: a no-idle layout "cleanup"
+is NOT free — the de-fused table is position-sensitive.
 
 ## (historical) factory + wide-batch plan
 `dmc_v5_config` factory (jump-table detect init+$40/play+$A1, the
