@@ -581,12 +581,16 @@ FULL, 24/24 regression-FULL clean. The remaining 35 are OTHER pulse sub-bugs
 (orig=0↔mine=val holds, a +12 start offset, V2/V3 variants) — a heterogeneous
 cluster, drain separately.
 
-FOLLOW-UP (same bug class, confirmed): the `wave_slice` ERROR cluster (11) is the
-identical off-table case on the WAVE table — `_slice_wave` raises "no $90" because
-the program's loop marker is past `n_wave = a_wf - a_wc` (Compotune wave_ptr 68
-finds its $90 only with the table extended to 256). Apply the same `min(256,…)`
-bound to `n_wave`. (Distinct from the ~150 freq partials, which are a wave-freq
-VALUE bug, not off-table.)
+FOLLOW-UP — WAVE off-table (same bug class), DONE (+6): the `wave_slice` ERROR
+cluster (11) is the identical off-table case on the WAVE table — `_slice_wave`
+raises "no $90" because the program's loop marker is past `n_wave = a_wf - a_wc`
+(Compotune wave_ptr 68 finds its $90 only with the table extended to 256). Applied
+the same `min(256,…)` bound to `n_wave`. RESULT: **+6/11** → FULL, 24/24 regression
+clean. Residual 4: 2 `wave_table_overflow` (the de-fused wave program now exceeds
+the 256-entry table cap — a separate downstream cap sub-bug the longer capture
+exposes) + 2 still `wave_slice` (program > 256 / different structure) + 1 partial.
+(Distinct from the ~150 freq partials, which are a wave-freq VALUE bug, not
+off-table.)
 
 ## (historical) factory + wide-batch plan
 `dmc_v5_config` factory (jump-table detect init+$40/play+$A1, the

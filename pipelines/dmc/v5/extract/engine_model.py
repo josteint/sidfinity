@@ -181,7 +181,12 @@ def extract(cfg, hvsc_root: str = 'hvsc84') -> V5Model:
     # region sizes from address deltas (the packer lays tables contiguously:
     # instr | wave_ctrl | wave_freq | pulse_lo | pulse_hi | filter_lo |
     # filter_hi | <end>)
-    n_wave = a_wf - a_wc
+    # The wave table has the same off-table case as pulse/filter: wavepos is a
+    # byte, so a program longer than the ctrl array runs past a_wf-a_wc into the
+    # overlapping freq/pulse arrays, and its $90 loop marker can live off-table
+    # (e.g. Compotune wave_ptr 68: no $90 within a_wf-a_wc=71, found at 256).
+    # _slice_wave reads only up to len(wave) and bounds via the $90 + a 256 guard.
+    n_wave = min(256, 0x10000 - a_wc, 0x10000 - a_wf)
     # Like the filter table below, the pulse program is NOT bounded by the
     # lo/hi-array delta: pulsepos is a byte, and an instrument whose program is
     # longer than the lo array runs pulse_run PAST it, reading the overlapping
