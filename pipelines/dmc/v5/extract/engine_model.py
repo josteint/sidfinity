@@ -182,7 +182,14 @@ def extract(cfg, hvsc_root: str = 'hvsc84') -> V5Model:
     # instr | wave_ctrl | wave_freq | pulse_lo | pulse_hi | filter_lo |
     # filter_hi | <end>)
     n_wave = a_wf - a_wc
-    n_pulse = a_ph - a_pl
+    # Like the filter table below, the pulse program is NOT bounded by the
+    # lo/hi-array delta: pulsepos is a byte, and an instrument whose program is
+    # longer than the lo array runs pulse_run PAST it, reading the overlapping
+    # hi/filter arrays + bytes after as further (step,count) phases (the ramp
+    # lives off-table — e.g. Lectro_64 inst pulse_ptr 17 starts at $7777 then
+    # ramps +8 from pos 18, which is past a_ph-a_pl=18). Read up to 256 entries;
+    # _capture_env bounds the reachable program per ptr (loop/terminal/reach).
+    n_pulse = min(256, 0x10000 - a_pl, 0x10000 - a_ph)
     # The filter table is the LAST data region, so its lo/hi-array delta does
     # NOT bound the program: tiny tables (e.g. 2 entries) whose instruments all
     # use ptr 1 run filter_run PAST the array boundary, reading the overlapping

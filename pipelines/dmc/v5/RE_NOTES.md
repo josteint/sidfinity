@@ -558,6 +558,36 @@ JSR-patch, $16C7 BIT-nop) + 7 init_skeleton. Reaffirms the census lesson:
 **detection ≠ FULL** — accepting at detection just moves a member to its next
 failure mode.
 
+## PARTIAL LONG TAIL round 9 — PULSE off-table program (+17)
+
+The pulse-partial cluster (52, census `--partials` reg $D402/$D409/$D410/$D403)
+top sub-pattern: a long match then PW-lo holds where orig RAMPS (Lectro_64:
+matches 41s, then orig PW-lo ramps +8/frame from $77 while mine holds at $77).
+Cause: the pulse table was bounded by `n_pulse = a_ph - a_pl` (the lo-array
+length), but `pulsepos` is a byte — an instrument whose program is longer than
+the lo array runs `pulse_run` PAST it, reading the overlapping hi/filter arrays
++ trailing bytes as further (step,count) phases. Lectro inst pulse_ptr 17 starts
+at $7777 (table[17]) so its phases begin at pos 18 = past `a_ph-a_pl`=18 →
+`_capture_env` saw `pos>=len(table)` → empty phases → HOLD. The ramp ((0,8) rate
++ (67,28)=17180-frame count) lives off-table. This is the EXACT case already
+handled for the filter table (the last region); pulse just wasn't bounded the
+same way.
+
+FIX (engine_model.py): `n_pulse = min(256, 0x10000-a_pl, 0x10000-a_ph)` (was
+`a_ph-a_pl`); `_capture_env` bounds the reachable program per ptr (loop/terminal/
+reach), so it only ADDS correct phases for off-table-running programs and leaves
+in-table ones unchanged → cannot regress. RESULT: **+17/52** pulse partials →
+FULL, 24/24 regression-FULL clean. The remaining 35 are OTHER pulse sub-bugs
+(orig=0↔mine=val holds, a +12 start offset, V2/V3 variants) — a heterogeneous
+cluster, drain separately.
+
+FOLLOW-UP (same bug class, confirmed): the `wave_slice` ERROR cluster (11) is the
+identical off-table case on the WAVE table — `_slice_wave` raises "no $90" because
+the program's loop marker is past `n_wave = a_wf - a_wc` (Compotune wave_ptr 68
+finds its $90 only with the table extended to 256). Apply the same `min(256,…)`
+bound to `n_wave`. (Distinct from the ~150 freq partials, which are a wave-freq
+VALUE bug, not off-table.)
+
 ## (historical) factory + wide-batch plan
 `dmc_v5_config` factory (jump-table detect init+$40/play+$A1, the
 operand sites above, carved reference) + reuse tools/dmc_family_batch.py
