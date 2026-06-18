@@ -68,6 +68,7 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
 | localize runtime divergence · writelog diverges, cause internal · memwatch | C4 | methodology |
 | detection ≠ FULL · residue triage · accept-at-detect | C5 | methodology |
 | off-table FREQ lookup · index past freq table · wave-relative note offset | C6 | recurring (FC + v5) |
+| ANTI-PATTERN: verbatim/opaque musical bytes · leapfrog · content-by-reference blob | C7 | methodology (recurring) |
 
 ---
 
@@ -125,6 +126,45 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
   the FC event-aligned `state_diff` idea to our own composed engines.
 - **Boundary:** when `find_first_divergence` localizes the register but not the
   cause; needs a hand-annotated orig `disassembly.s` for the orig addresses.
+
+### C7 — ANTI-PATTERN: original bytes carrying musical intent that bypass / opaquely sit in the USF
+- **The smell (user's, since project inception):** bytes from the original SID
+  that encode MUSICAL information end up in the output SID without being produced
+  from first principles by musical content in the USF. Three severities — keep
+  them distinct:
+  - **Class A — leapfrog:** orig bytes → output, BYPASSING the USF entirely. The
+    ML never sees them. Worst when the bytes are musical (A2). *Status across the
+    live verdict pipelines: NONE* (all composers build orig-free except synthesized
+    metadata + digi PCM). FC's `compose_fc_asm`/`build_via_asm`/`_emit_verbatim_region`
+    were the only leapfrog and are session-1 scaffold — gated off live (every config
+    sets `emit_data_from_usf=True`); the dead functions were removed 2026-06-18.
+  - **Class B — opaque blob IN the USF:** bytes round-trip through the USF (§9-clean)
+    but as a raw content-by-reference list with no musical structure → the ML sees a
+    black box. **This is the live residual.** Instances: `freq_overrun` (FC std + DMC
+    v5, see C6), `SfxSubtune.extended_freq` (Hubbard SFX off-table sweep), some
+    Hubbard engines' 320-byte `freq_table` (192 musical + 128 state tail read by arp
+    extension; the notenum-overlap engines — Commando itself is a clean 192).
+  - **Class C — justified:** the bytes ARE the natural musical form (`freq_table`
+    tuning, digi PCM). Not the anti-pattern.
+- **Why B recurs (the mechanism):** an engine indexes PAST a freq table
+  (`index = offset + note > table_size`) into its own state/scratch region, and
+  those bytes get PLAYED as frequencies. The same bytes are BOTH engine state AND
+  read-as-freq — content-by-reference captures them (write-stream correct) but
+  presents them opaquely. Largely **B2** (state read as freq, incidental) not
+  **B1** (deliberate extended tuning): the off-table bytes don't form a coherent
+  monotonic tuning (Elysium window = state/scratch, not a tuning continuation).
+- **Decision (per instance, the human's — surface, don't cargo-cult):**
+  (a) **deconstruct to musical** — represent each off-table step's RESULTING freq
+  as an absolute freq/note (hard: note-dependent → effectively an extended tuning
+  table, and for B2 the extra entries are state-derived); (b) **document + minimize**
+  — reachability-minimal capture, flagged "engine reads state-as-freq" (the ML sees
+  a small, labeled blob; DMC v5's `freq_overrun` is NOT minimized yet — a C3-gap);
+  (c) **exclude** the tune as engine-quirk-dependent.
+- **Status:** `methodology` (recurring). **Before adding any new content-by-reference
+  / `bytes`-typed USF field, CONSULT this entry and pick (a)/(b)/(c) deliberately.**
+  Audit hook: `/uready-review` should flag every content-by-reference/`bytes` USF
+  field as a B-class candidate. (Distinct from C6, which is the off-table-freq
+  TECHNIQUE; C7 is the anti-pattern lens over it + extended_freq + the freq_table tail.)
 
 ### C6 — Off-table FREQ-table lookup (index past the N-entry freq table)
 - **Canonical:** when a melodic/effect path adds a table-relative offset to a

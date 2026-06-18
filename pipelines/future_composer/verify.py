@@ -41,7 +41,7 @@ from pipelines.hubbard.verify_cycle import (
 from pipelines.future_composer.config import FCConfig
 from pipelines.future_composer.composer import build_canary
 from pipelines.future_composer.composer_asm import (
-    build_via_asm, build_via_asm_featuredriven,
+    build_via_asm_featuredriven,
 )
 
 
@@ -144,16 +144,6 @@ def verify_baseline(cfg: FCConfig, **kw) -> dict:
     return verify_canary(cfg, build_canary, **kw)
 
 
-def verify_asm(cfg: FCConfig, **kw) -> dict:
-    """Verify frame-equivalence using the byte-preserving asm
-    composer (verbatim engine bytes + USF-derived data tables).
-
-    Since the rebuild is byte-identical to HVSC, this is redundant
-    with the md5 check. Kept for symmetry.
-    """
-    return verify_canary(cfg, build_via_asm, **kw)
-
-
 def verify_featuredriven(cfg: FCConfig, **kw) -> dict:
     """Verify frame-equivalence using the FEATUREDRIVEN asm composer
     (engine code emitted from USF features; data tables USF-derived).
@@ -208,5 +198,5 @@ if __name__ == '__main__':
     for cfg in [CYBERNOID_II, HAWKEYE]:
         print('\nBINARY-PATCH PATH:')
         print(_format_verdict(verify_baseline(cfg)))
-        print('\nASM PATH:')
-        print(_format_verdict(verify_asm(cfg)))
+        print('\nFEATURE-DRIVEN PATH:')
+        print(_format_verdict(verify_featuredriven(cfg)))
