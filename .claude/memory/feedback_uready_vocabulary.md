@@ -52,3 +52,22 @@ tools/regression.py (tier 1) + tools/fc_family_batch.py (tier 2);
 criterion 5's ledger entry in docs/refactor_1_remaining.md (pre-
 existing). Adrenalin subs 1-3: explicitly not attempted (documented
 outlier).
+
+**Scoreboard update (2026-06-18, `/uready-review` all-families):** the four
+above remain ✓ uready (FC Tel de-verbatim RE-CONFIRMED against an agent
+false-positive — the live verdict `verify_featuredriven` builds via
+`build_via_asm_featuredriven`; `build_via_asm`+`_emit_verbatim_region` are
+session-1 legacy/dead, flag for removal). **DMC (v4+v5) added — NOT yet
+uready:** C1✓ (build orig-free), C2✓ (no engine-dispatch, parametric USF),
+**C3 GAP** (`freq_overrun` capture not reachability-minimal — conservative
+full-160 for high-melodic members; FC minimized in its uready-round-A),
+**C4 GAP** (wide batch ~1041/1495 ~70%, residue censused but not fully
+triaged — freq wave-stepping 119, filter 24, cia_multispeed ~39; no v5
+regression portfolio derived), C5✓ (cross-engine review + convergence
+ledger), C6✓ (RE_NOTES 11 rounds + [[project_dmc]]). Move-1 trigger still
+MET (4 uready ≥ 2); DMC adds the richest divergence evidence (first family
+with an INTRA-family fork, v4↔v5). Cross-engine: `freq_overrun` flipped
+single-consumer→REUSED (FC std + DMC v5). The convergence ledger
+([`docs/convergence_ledger.md`](../../docs/convergence_ledger.md), new this
+session) is now the incremental pre-decider Move 1 consumes; this review is
+its periodic maintainer.

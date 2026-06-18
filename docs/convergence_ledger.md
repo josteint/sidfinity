@@ -81,9 +81,15 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
 - **Boundary:** piecewise-constant-rate contours. A bounded bidirectional
   oscillator is the special case `start + [(+s,n),(−s,n)], loop=0` — verified
   losslessly expressible (decision-1 gate, 2026-06-18).
-- **Consumers:** DMC `pulse_env`, `filter_env`, `default_pulse`, `default_filter`.
-  **DMC-v4 `PwmConfig`** is a DIVERGENT second form of the same DOF →
-  [Move-1 decision 1](refactor_1_remaining.md): unify onto `SweepEnvelope`.
+- **Consumers (canonical):** DMC `pulse_env`, `filter_env`, `default_pulse`,
+  `default_filter`.
+- **DIVERGENT forms of the same DOF across families** (Move-1 decisions D1/D2,
+  see [refactor_1_remaining.md](refactor_1_remaining.md) all-families review
+  2026-06-18 — unify onto `SweepEnvelope`): Hubbard `pwm` (linear/bidi) · FC
+  `pulse_prog`+`pulse_programs` and `filter_prog`+`filter_programs` (indexed
+  library — the §7-adjacent form) · DMC-v4 `pwm` (bidi) + `filter_programs`
+  (its `steps` are already `(rate,frames)` ≈ phases). 4 PW forms + 3 filter
+  forms across the corpus; even DMC v4↔v5 disagree (intra-family fork).
 
 ### C2 — Engine program table indexed by a byte pointer (program runs off-table)
 - **Canonical:** bound the captured table by `min(256, 0x10000-a_lo,

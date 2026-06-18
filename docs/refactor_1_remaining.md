@@ -192,6 +192,36 @@ trigger count — but they supply the richest divergence evidence to date. The
 implication: Move 1's skeleton must reconcile the PW/filter forms (decisions
 1+2) BEFORE folding DMC in, or it bakes the fork into the unified shape.
 
+### All-families uready review (2026-06-18) — cross-family divergence decisions
+
+Periodic `/uready-review` (scope: all). Trigger MET (4 uready: Hubbard,
+Companion, FC Tel, FC standard; DMC not yet — C3 freq_overrun-minimization +
+C4 residue-triage gaps). Leak scans clean. The dispatch is GROWING branches
+(DMC added 2 standalone composers beside `emit_asm` + FC's `composer_asm`) while
+the feature DIMENSIONS are absorbing — so Move 1 should converge composers around
+the already-validated dimensions below, not invent new ones. The full cross-family
+divergence list Move 1 must reconcile (extends the DMC-only decisions 1-4 above):
+
+- **D1 — PW sweep → `SweepEnvelope`** (4 forms: Hubbard `pwm` linear/bidi · FC
+  `pulse_prog`+`pulse_programs` indexed-lib · DMC-v4 `pwm` bidi · DMC-v5
+  `pulse_env`). Decision-1 gate proved the bounded oscillator is losslessly a
+  SweepEnvelope; FC's indexed-library is the §7-adjacent form.
+- **D2 — Filter sweep → `SweepEnvelope`** (FC + DMC-v4 `filter_programs` indexed-
+  lib, whose `steps` are already `(rate,frames)` ≈ phases · DMC-v5 `filter_env`).
+  NB an INTRA-family fork: DMC v4 vs v5 disagree.
+- **D3 — Glide:** per-instrument continuous slide (Hubbard, v4) vs note-event
+  portamento (FC, v5) — likely genuinely two behaviors; keep both poles.
+- **D4 — Vibrato depth:** Hubbard `scale` (log right-shift) vs FC/DMC `amplitude`
+  (linear) — unify the depth axis, or keep as shape variants?
+- **D5 — Arpeggio:** per-inst `arp.offsets` (Hubbard) vs global `arp_programs`
+  library (FC) — unify?
+
+**Vindicated this review:** `freq_overrun` flipped single-consumer → REUSED (FC
+standard + DMC v5) — a dimension that looked FC-specific is now shared; recorded
+canonical in the [convergence ledger](convergence_ledger.md) C6. The reused
+dimensions (freq_table, wave envelope, ADSR, `init.sid`) confirm the feature
+space is sound; the divergences D1-D5 are the work.
+
 ---
 
 ## Move 2 (digi fold) — landable any time
