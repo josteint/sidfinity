@@ -187,6 +187,7 @@ Then:
 1. **Check the engine's project memory** — `.claude/memory/project_<engine>.md`. Reads any prior session's root-cause analysis so you don't re-investigate from scratch.
 2. **Re-read `docs/usf_representation_principle.md` IN FULL** before designing or changing any USF instrument/effect representation. Load-bearing — see [`feedback_usf_representation_principle`](.claude/memory/feedback_usf_representation_principle.md).
 3. **Check `deprecated/` for prior attempts** before rewriting something from scratch.
+4. **Consult the [convergence ledger](docs/convergence_ledger.md)** when a sub-problem feels familiar (a value swept over time, a byte-indexed program table that runs off-table, a runtime divergence to localize, …) — use the recorded canonical solution instead of inventing variant #15. Add/refresh an entry after solving something generalizable, or when `/uready-review` finds a solution used ≥2×. It's a record that pre-decides Move-1 convergence, not a refactor.
 
 ## Doing a Hubbard '85 engine migration
 

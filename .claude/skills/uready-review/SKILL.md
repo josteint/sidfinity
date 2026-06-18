@@ -108,11 +108,17 @@ Produce a report (to the user) with:
    or absorbing engines into existing dimensions (dimensions sound).
 5. **Diff vs last review** — what changed since the scoreboard's last date.
 
-Then **update** (these two writes are the only mutations a review makes):
+Then **update** (these writes are the only mutations a review makes):
 - the **scoreboard** in `.claude/memory/feedback_uready_vocabulary.md` (per-family
   uready status + date).
 - the **Move-1 ledger** in `docs/refactor_1_remaining.md` (criterion-5 feature
   accounting + the pending divergence decisions).
+- the **[convergence ledger](../../../docs/convergence_ledger.md)** — for every
+  solution the Phase-2 matrix shows used **≥2×** (reused OR divergent), add/refresh
+  an entry: the canonical (idiomatic-for-us) form, its shared-code location or
+  factor-candidate status + occurrence count, and the boundary conditions. This is
+  how the review pre-decides Move-1 convergence incrementally. (Record only — do
+  NOT factor code; that's Move 1.)
 
 ## What "good" looks like
 

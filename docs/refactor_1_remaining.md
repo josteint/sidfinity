@@ -227,6 +227,12 @@ the unified pipeline.
 
 ## Move 1 (composer skeleton unification) — deferred
 
+**Move 1 consumes the [convergence ledger](convergence_ledger.md).** Each
+recurring sub-problem's canonical (idiomatic-for-us) solution is pre-decided
+there as we migrate engines (a record, not a refactor); Move 1's job is to
+factor the recorded **factor-candidates** into shared code. The decisions are
+already made, so the unification is mechanical, not archaeological.
+
 The structural work to fully close §8 in the composer is: **collapse
 the engine-family-flavored branches in `emit_asm` into one
 feature-parametric skeleton.** The lifts done in Phase B (every chunk
