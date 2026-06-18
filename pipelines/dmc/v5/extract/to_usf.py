@@ -378,16 +378,28 @@ def model_to_usf(m: V5Model, reach: int | None = None) -> UsfFile:
     # idle (default) per-voice PULSE-WIDTH sweep: pulse-table position 0, run by
     # a voice from pulsepos=0 (pulse_run is unconditional) before/between its
     # own pulse programs. Pulse twin of the idle filter; PW starts at 0 (cleared
-    # at init). Captured only when pos 0 is a real ADD ((0,0) = no idle).
+    # at init). Capture pos 0 FAITHFULLY — a leading (0,0) is a valid zero-rate
+    # phase whose count is at pos 1, NOT "no idle" (e.g. Symphony: +0 for 256
+    # frames then +80 ramp; Digital_Rain: +0 for 2048). The old `pulse[0]!=(0,0)
+    # + any-nonzero-rate` gate dropped both, so the composer's null pos-0 either
+    # held where orig ramps (A) or bled into the adjacent instrument program
+    # where orig holds (B). Emit None ONLY for a TRIVIAL terminal hold (a single
+    # zero-rate phase with count >= 0x9000) — that's the genuine no-idle case,
+    # kept as the single (0,0) null to preserve the 891-FULL layout (round-8: a
+    # fabricated multi-entry hold there shifted the de-fused table + regressed).
     default_pulse = None
-    if m.pulse and tuple(m.pulse[0]) != (0, 0):
+    if m.pulse:
         try:
             idle_p = _capture_env(m.pulse, 0, has_start=False,
                                   start_val=0, reach=reach)
         except RuntimeError:
             idle_p = None
-        if idle_p and any(rate != 0 for rate, _ in idle_p.phases):
-            default_pulse = idle_p
+        if idle_p and idle_p.phases:
+            ph = idle_p.phases
+            trivial_hold = (len(ph) == 1 and ph[0][0] == 0
+                            and ph[0][1] >= 0x9000)
+            if not trivial_hold:
+                default_pulse = idle_p
 
     return UsfFile(
         psid=PsidMeta(title=m.title, author=m.author, released=m.released,

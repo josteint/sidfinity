@@ -592,6 +592,32 @@ exposes) + 2 still `wave_slice` (program > 256 / different structure) + 1 partia
 (Distinct from the ~150 freq partials, which are a wave-freq VALUE bug, not
 off-table.)
 
+## PARTIAL LONG TAIL round 10 — default_pulse leading-(0,0) phase (+25)
+
+After round-9 off-table (+17), the pulse cluster's residual 35 were NOT a data
+bug — proven via memwatch: at the divergence the full V1 note-state (gateflag,
+secpos, trkpos, durctr, notestart) is IDENTICAL between orig and mine; only PW
+differs. orig's `pulsepos` advances 0→2 purely by RUNNING the pos-0 idle program
+([(0,256),(80,…)] = +0 for 256 frames then +80 ramp); mine's idle held. Root
+cause: the round-8 `default_pulse` detection gated on `pulse[0] != (0,0)` + a
+nonzero-rate phase — but **a leading (0,0) is a valid zero-rate phase** whose
+count is at pos 1, not "no idle". So:
+- A (mine holds, orig ramps): orig idle = +0-then-ramp, mine captured None → held.
+- B (mine ramps, orig holds): orig idle = pure +0 hold, mine's null pos-0 BLED
+  into the adjacent instrument program (its de-fused pos-1 = an inst start) →
+  spurious ramp.
+
+FIX (extract/to_usf.py): capture pos-0 FAITHFULLY via
+`_capture_env(pulse, 0, has_start=False)` (drop both gates); emit `default_pulse`
+unless the idle is a TRIVIAL terminal hold (single zero-rate phase, count
+>= 0x9000) — that genuine no-idle case stays the single (0,0) null to preserve
+the 891-FULL de-fused layout (round-8 showed a fabricated multi-entry hold there
+shifts pptrs + regresses). RESULT: pulse cluster **42/52 FULL** (off-table 17 +
+default_pulse 25), **200/200 regression clean**. CORE TENET: mine's pos-0 idle is
+now the same PW program orig runs, captured parametrically — no mechanism copied.
+Residual 10: the +12 start-offset trio (Triiod/X-Bass/Summer_Zak), a few pwhi/V3
+pulse, and 2 that GRADUATED to the freq cluster (pulse fixed, freq now first-diff).
+
 ## (historical) factory + wide-batch plan
 `dmc_v5_config` factory (jump-table detect init+$40/play+$A1, the
 operand sites above, carved reference) + reuse tools/dmc_family_batch.py
