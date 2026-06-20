@@ -1,3 +1,9 @@
+> **SUPERSEDED (2026-06-20) by `docs/offtable_statebuf_plan.md`.** Same goal, but
+> this draft predates the round-12/13 findings (the off-table read is the engine's
+> `trkptr`/work-RAM read as a freq; ~81% never reach it) and the realization that
+> the project already ships the principled mechanism — a typed `StateLayoutMirror`
+> (Commando/Hubbard), not a parametric "effect" reinvention. Kept for history.
+
 # Plan — deconstruct the off-table-freq opaque-blob anti-pattern to musical form
 
 **Goal (option (a) from the C7 analysis):** eliminate every Class-B opaque
