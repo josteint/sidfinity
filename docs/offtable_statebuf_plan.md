@@ -1,3 +1,10 @@
+> **SUPERSEDED (2026-06-20) by `docs/offtable_freq_plan.md`.** The deciding
+> criterion became ML-training-optimality, which rules out the `StateLayoutMirror`
+> mechanism this plan proposed (the model would learn engine-state-layout metadata,
+> not music) in favour of representing each off-table read as an explicit
+> **frequency** on its wave step. Kept for the reasoning trail (why "blessed" ≠
+> optimal here). The round-12/13/14 findings carry over.
+
 # Plan — replace the off-table-freq blob with a typed state mirror (DMC v5 → FC)
 
 **Supersedes** `docs/deconstruct_offtable_freq_plan.md` (same goal — kill the

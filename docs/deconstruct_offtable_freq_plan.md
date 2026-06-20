@@ -1,8 +1,8 @@
-> **SUPERSEDED (2026-06-20) by `docs/offtable_statebuf_plan.md`.** Same goal, but
-> this draft predates the round-12/13 findings (the off-table read is the engine's
-> `trkptr`/work-RAM read as a freq; ~81% never reach it) and the realization that
-> the project already ships the principled mechanism — a typed `StateLayoutMirror`
-> (Commando/Hubbard), not a parametric "effect" reinvention. Kept for history.
+> **SUPERSEDED (2026-06-20) by `docs/offtable_freq_plan.md`** (via the interim
+> `offtable_statebuf_plan.md`). This draft predates the round-12/13/14 findings and
+> the ML-optimality deciding criterion. The final plan represents off-table reads
+> as an explicit per-step **frequency** (ML-musical), not a parametric "effect"
+> reinvention and not the `StateLayoutMirror` the interim plan proposed. History.
 
 # Plan — deconstruct the off-table-freq opaque-blob anti-pattern to musical form
 
