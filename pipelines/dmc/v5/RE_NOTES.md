@@ -690,6 +690,34 @@ the principles WORKING (refusing to encode an address as music), not a duck.
 STRATEGIC CALL pending: reproduce-the-mechanism vs bookkeeping-capture + documented
 residue.
 
+## Round 13 (2026-06-20): IS the overshoot ever AUDIBLE? — ground-truth (libsidplayfp)
+
+Question: does any SID overshoot the freq table and play the value as audible sound?
+Method: predict off-table (lo,hi) freq pairs from the file image (FULL members →
+file image == runtime at reached reads), capture the libsidplayfp `--writelog`,
+reconstruct per-voice (freq,ctrl) + master vol, count frames where a predicted
+off-table pair plays on a waveform+gate voice with vol>0.
+
+**ANSWER: YES, but rare + static analysis MASSIVELY over-counts.** Static (wave-
+program × all-notes) predicted e.g. 40 audible overshoots for Happy_Man → **0**
+actual (instruments only play specific notes, not every note in the song). Of 32
+FULL off-table members sampled: only **6 REACH** an off-table read at all; only
+**2 reach it AUDIBLY**. Concrete audible cases (ground truth):
+- `MUSICIANS/A/Angee/Compotune.sid` — V3 pulse bass `$0A00` (~150Hz), 44 frames.
+- `MUSICIANS/B/Bayliss_Richard/Dead_End.sid` — V2 noise drum `$FF00`, 17 frames.
+
+**Big practical consequence:** the `freq_overrun` verbatim blob is emitted in
+100% of v5 FULLs but **dead padding for ~81%** (never reached → removing it there
+is FREE, zero regression). Only ~19% reach the read (need the byte for writelog-
+exactness); ~6% audibly. Note the audible values seen ($0A, $FF) look like
+constants/counters, NOT track-pointer addresses ($10-$1A) — HYPOTHESIS (unverified):
+the audible overshoots land on stable/decodable bytes while the address-reads are
+the never-reached / inaudible ones. If true, the clean-decode path FULLs the
+audible cases and the messy trkptr-address cases are never heard anyway.
+NEXT: (1) precisely census reached-vs-unreached over all v5 (drop blob where
+unreached — free de-verbatim of the majority); (2) test the audible-lands-on-
+stable hypothesis.
+
 ## (historical) factory + wide-batch plan
 `dmc_v5_config` factory (jump-table detect init+$40/play+$A1, the
 operand sites above, carved reference) + reuse tools/dmc_family_batch.py
