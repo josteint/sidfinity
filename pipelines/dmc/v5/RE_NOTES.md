@@ -644,6 +644,52 @@ wave_freq → different index → different freq), even at a matching note. Ceti
 Elysium-V2 are this — next sub-investigation. (Also: v5's freq_overrun capture is
 conservative, not minimized like FC's uready-round-A; minimize later.)
 
+## Round 12 (2026-06-20): WHAT the off-table read actually IS — provenance census + packer RE
+
+Driven by "why are RAM scratch bytes in the SID if not a kind of init?" + "RE the
+packer to see if it places anything after the freq table."
+
+**Packer RE (`docs/src/DMC_V5.0_PACKER.prg`, uncrunched — disasm in
+`docs/src/packer.disasm.txt`):** reads editor source tables (`$4000` instruments,
+`$4200-$4700`), embeds a player template (the spacing-3 work-RAM pattern at a
+`$0900` working base = the `$17CF+` Katusha block shifted), builds a *relocatable*
+output. Places **no deliberate table after the freq slot** — the after-freq region
+is the player per-voice WORK RAM. (Depacker is crunched; the player disassembly +
+factory operand list are the layout authority anyway.)
+
+**Provenance census (504 off-table members, all `fhi_off=$76F`):** map each
+off-table HI read address `a_fhi+Y` (canonical offset `$76F+Y`) onto the work-RAM
+var via `disassembly.s`. The off-table read lands on:
+- **~84% ADVANCING state** — dominantly `trkptr` (first 6 work-RAM bytes, right
+  after freqhi, so the smallest overshoot Y≈96-101 hits them) + `trkpos`/`secpos`.
+  `trkptr` is the per-voice **track-read cursor = a memory ADDRESS** (orderlist-
+  loaded track base + byte-advance). So the dominant off-table "frequency" is
+  **the engine playing its own track pointer (an address) as a pitch** — pure
+  mechanism, no musical pitch.
+- ~10% PER-FRAME counters (durctr/wavepos/pulsepos/pw/vib accumulators).
+- ~4% static note-params (durrel/instr/vib settings).
+
+**Refuted prediction (confirmation-bias guard):** "advancing-landing → partial"
+is FALSE. FULL off-table members = 83% advancing-landing; PARTIAL = 86% — same.
+Landing-class does NOT decide pass/fail; the determinant is whether the
+freq_overrun STATIC snapshot still equals the RUNTIME value when each *reached*
+off-table read fires (init-state vs evolved-state) — a runtime fact.
+
+**Honest conclusion.** Both user instincts right: it's NOT random scratch (it's
+the structured track pointer/counters), and its value STARTS as init state (track-
+start address loaded at init = the file-image byte freq_overrun captures). BUT the
+value is engine-POSITIONAL (`trkptr` = layout address). The CORE TENET forbids
+layout-matching ("shifting data addresses" = the named hack = P1, rejected), and
+clean layout-independent code cannot synthesize an address → the advancing-`trkptr`
+writes are, in the project's own terms, **not cleanly reproducible as music**.
+`freq_overrun` recovers the read-before-evolution subset by capturing the init
+address (trichotomy "engine bookkeeping" — positional, OUT of musical USF, NOT a
+pitch). The evolved subset needs engine-state-mechanism reproduction (P1-class) or
+per-frame replay — both rejected. The rare genuinely-mechanism boundary; this is
+the principles WORKING (refusing to encode an address as music), not a duck.
+STRATEGIC CALL pending: reproduce-the-mechanism vs bookkeeping-capture + documented
+residue.
+
 ## (historical) factory + wide-batch plan
 `dmc_v5_config` factory (jump-table detect init+$40/play+$A1, the
 operand sites above, carved reference) + reuse tools/dmc_family_batch.py
