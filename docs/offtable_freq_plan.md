@@ -22,6 +22,17 @@ The USF feeds an ML model. Judge every representation by **what the model learns
 So the off-table output is represented as a **frequency** (a musical pitch the
 model learns), never bytes-at-offset and never a state-layout mirror.
 
+> **MEASUREMENT RESOLVED (round 15, verify-gated, authoritative).** Of 1217
+> members with a non-empty blob: **997 dead-padding** (drop the blob), **44
+> load-bearing** (all STABLE by definition → absolute-freq, exact), **176 partial
+> *with* the blob** (pre-existing partials — index/wavepos bugs, dynamic state,
+> non-freq — the blob is NOT their fix; untouched by this work). Therefore the
+> de-verbatim is **LOSSLESS** (no FULL lost), and **`StateLayoutMirror` is NOT
+> needed** — a load-bearing *dynamic* tier cannot exist (a static snapshot only
+> fixes stable reads). The Phase-4 go/no-go below is thus already answered: **no
+> residue is introduced by this work.** Recovering the 176 is separate future
+> coverage.
+
 ---
 
 ## What the off-table read is (re-anchored 2026-06-20, rounds 12-14)
@@ -56,9 +67,11 @@ note-relative melodic form and the TEST/drum form): the step carries the explici
   "this percussion/bass step plays at pitch F." Musical, engine-neutral, exact.
 - **Never-reached step** (the ~81%): carry nothing extra; the next data table
   follows `freqhi`. No training noise, no blob.
-- **Dynamic `trkptr` step** (per-frame glitch): **NOT** a musical pitch — do not
-  encode it as an absolute freq (that teaches the model a false constant pitch).
-  Out of the musical layer; the honest residue (see below).
+- **Dynamic reads do not occur among the load-bearing set** (round 15: a static
+  snapshot can only fix a stable read, so every blob-fixed member is stable). A
+  dynamic off-table read would instead be a *pre-existing partial* (the 176) that
+  the blob never fixed — those are separate coverage work, untouched here. So this
+  de-verbatim has **no dynamic residue to handle**.
 
 Note-dependence: a step played at several notes reads several indices → store the
 freq per reached note (a small map; one value for the single-note drum case).
@@ -114,16 +127,15 @@ not a derivation rule).
       absolute-freq step. Reuse the reachability bound; minimal capture.
 - [ ] Replace `_freq_overrun` with this per-step capture.
 
-## Phase 4 — Measure & split the residue (go/no-go, with user)
+## Phase 4 — Measure the residue — ✅ DONE (round 15)
 
-- [ ] Build + verify the stratified subset. Stable steps → FULL (clean, musical).
-      Regressions = members reaching the dynamic `trkptr` glitch.
-- [ ] Census the regressions: `trkptr_hi` (near-constant page → typeable as
-      bookkeeping const) vs `trkptr_lo` (advancing → genuine glitch). Confirms the
-      round-13 hypothesis (audible/reached = clean) at scale.
-- [ ] **Decision point (surface to user):** dynamic glitches → honest partial
-      (kept out of the musical layer) vs heavier positional bookkeeping. Never
-      re-blob, never fake a musical pitch.
+Verify-gated measurement (build with/without the blob, diff): **44 load-bearing
+(all stable), 997 dead-padding, 176 pre-existing partials the blob never fixed.**
+The de-verbatim introduces **no residue** (44 → absolute-freq stay FULL, 997 stay
+FULL, 176 unchanged). No `StateLayoutMirror` tier exists. Nothing to decide here.
+- [x] Residue sized: zero residue from the de-verbatim itself.
+- [ ] (separate future coverage) classify the 176 partials' true causes (index/
+      wavepos vs genuine dynamic counter vs other) — NOT part of this de-verbatim.
 
 ## Phase 5 — Verify (subset → full batch), regression-gated
 
@@ -154,10 +166,10 @@ not a derivation rule).
 
 ## Risks & open questions
 
-- **R1 — dynamic `trkptr` glitch is irreducible & non-musical.** It is neither a
-  stable pitch (don't fake one) nor clean bookkeeping (per-frame). Honest partial
-  for the members that reach it; Phase 4 sizes it (likely small — most never reach,
-  audible cases look clean).
+- **R1 — RESOLVED (round 15).** The de-verbatim has no residue: load-bearing
+  members are all stable (→ absolute-freq), dead-padding drops cleanly, and the 176
+  dynamic/other partials were never blob-fixed (pre-existing, untouched). No
+  dynamic glitch needs handling *in this work*; recovering the 176 is separate.
 - **R2 — note-dependent multi-value steps.** A step played at many notes needs a
   per-note freq map; keep it minimal (only reached notes). If a step is genuinely
   many-valued and dynamic, it's the R1 glitch, not a map.

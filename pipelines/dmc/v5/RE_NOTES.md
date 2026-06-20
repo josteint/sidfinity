@@ -718,6 +718,42 @@ NEXT: (1) precisely census reached-vs-unreached over all v5 (drop blob where
 unreached — free de-verbatim of the majority); (2) test the audible-lands-on-
 stable hypothesis.
 
+## Round 15 (2026-06-21): authoritative load-bearing measurement (verify-gated)
+
+Built every non-empty-blob member WITH and WITHOUT freq_overrun (monkeypatch
+`_freq_overrun -> []`) and diffed the writelog verdict. Of 1217 members with a
+non-empty blob:
+- **997 (82%) DEAD-PADDING** — FULL both ways; the blob does nothing → drop it
+  (free de-verbatim, the ~81% the round-13 audibility census predicted).
+- **44 LOAD-BEARING** (= the historic +44) — FULL with, PARTIAL without. Stable
+  reads. Characterized (value-matching, reliable for stable): dominantly
+  **layout-independent** (filtpos+, pulsepos, glidetgt, gateflag, vol, instr,
+  transp, wavepos), only 2 on `trkptr_hi` (near-constant page) → **all clean
+  absolute-freq candidates** (ML-musical fixed pitch).
+- **176 PARTIAL-WITH-BLOB** — ~70 other-cause (non-freq / freq-but-not-offtable),
+  ~9 no-diff, ~**97 off-table-dynamic**.
+
+**RESOLVED (the 176 are NOT the blob's problem).** The 176 are partial *with* the
+blob, so the blob is not their fix — replacing/dropping it leaves them unchanged.
+Spot-check confirmed: e.g. Bax/Sixtime first_diff is reg 14 (v2 freq **lo**), and
+a lo off-table read at idx 96-191 lands in the `freqhi` *table* (in the USF), i.e.
+a wave-position/index divergence, not an off-table-data problem. And the 44
+load-bearing are **all stable by definition** — a static snapshot can only fix a
+stable read; a dynamic read lands in `partial-with-blob`, never `load-bearing`. So:
+- **44 load-bearing → absolute-freq wave step** (all stable → ML-clean, exact).
+- **997 dead-padding → drop the blob.**
+- **176 partials → untouched** (pre-existing, separate causes: index/wavepos bugs,
+  dynamic state, non-freq).
+
+Consequences: the de-verbatim is **LOSSLESS** (no FULL lost), ML-clean, and
+**StateLayoutMirror is NOT needed** — there is no load-bearing *dynamic* tier (it
+can't exist by the definition of load-bearing). The earlier "+70-90 recoverable
+via StateLayoutMirror" was an artifact of static value-matching being unreliable on
+dynamic reads; genuine recoverable coverage in the 176 (index fixes, maybe a few
+real dynamic counters) is SEPARATE future work, not this de-verbatim. The
+absolute-freq plan (`offtable_freq_plan.md`) is correct; drop its StateLayoutMirror
+mentions + its "dynamic residue" framing (the de-verbatim has no residue).
+
 ## (historical) factory + wide-batch plan
 `dmc_v5_config` factory (jump-table detect init+$40/play+$A1, the
 operand sites above, carved reference) + reuse tools/dmc_family_batch.py
