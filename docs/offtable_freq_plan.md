@@ -145,13 +145,16 @@ FULL, 176 unchanged). No `StateLayoutMirror` tier exists. Nothing to decide here
 
 - [x] Subset green: 42/44 load-bearing FULL, 60/60 dead-padding FULL.
 - [x] Full v5 batch (step-keyed): 1039 FULL vs 1041 freq_overrun baseline.
-- [x] **Offset-keyed + offset-0 base-read capture (round 17): 1040 FULL** (recovers
-      Redemption_6_4 via the vib_setup base read; 0 regressed). vs the 1041
-      baseline, only `Planet_Love` remains — re-diagnosed as a **wave-position
-      divergence** (NOT glide; the orig's glide state is all-zero at the
-      divergence), part of the broader residual-119 class.
-- [x] Mass-wrote 1040 `.usf`+`.sidfinity.sid` + `build_sid_db.py` refresh;
-      committed (no Co-Authored-By). `freq_overrun` blob eliminated from v5.
+- [x] Offset-keyed + offset-0 base-read capture: 1040 (recovers Redemption_6_4).
+- [x] **Idle-program off-table capture: 1041 FULL = the freq_overrun baseline,
+      0 regressed — FULLY LOSSLESS.** The off-table capture is complete: wave-
+      program steps + offset-0 base reads (vib/note/glide-arrival) + the lead-in
+      idle program. Both former "−2" bugs were **capture gaps**, not glide/
+      vibrato/wave-position effect bugs (Redemption = vib_setup base read;
+      Planet_Love = idle program). See RE_NOTES rounds 17-18.
+- [x] Mass-wrote 1041 `.usf`+`.sidfinity.sid` + `build_sid_db.py` refresh;
+      committed (no Co-Authored-By). `freq_overrun` blob eliminated from v5;
+      off-table reads are ML-musical per-instrument frequencies.
 
 ## Phase 6 — FC unification (Move-1 payoff)
 
