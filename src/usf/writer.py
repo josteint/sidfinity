@@ -353,6 +353,10 @@ def _write_instrument(i: Instrument) -> list[str]:
     if i.wave_freq:
         wf = ', '.join(str(v) for v in i.wave_freq)
         lines.append(f'  wave_freq: [{wf}]')
+    if getattr(i, 'offtable_freq', None):
+        entries = ' '.join(f'at({s}, {n}, {lo}, {hi})'
+                           for s, n, lo, hi in i.offtable_freq)
+        lines.append(f'  offtable_freq: {entries}')
     lines.append(f'  {_write_pwm(i.pwm)}')
     lines.append(f'  adsr:     {_hex(i.adsr[0])} {_hex(i.adsr[1])}')
     lines.append(f'  {_write_arp(i.arp)}')

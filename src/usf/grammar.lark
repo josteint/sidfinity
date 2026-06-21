@@ -212,6 +212,16 @@ instrument_field: "waveform" ":" byte_list                              -> inst_
                 | "pulse_env" ":" swenv_args                              -> inst_pulse_env
                 | "filter_env" ":" swenv_args                             -> inst_filter_env
                 | "effects" ":" effects_args                            -> inst_effects
+                // DMC V5 off-table arpeggio frequency: a wave step whose
+                // (offset+note) index runs past the 96-entry freq table into
+                // engine state plays that state byte as a frequency. Captured as
+                // the EXPLICIT 16-bit freq produced, keyed by (wave step,
+                // effective note): `at(step, note, freq_lo, freq_hi)`. Replaces
+                // the freq_overrun blob; ML sees frequencies, not bytes-at-offset.
+                | "offtable_freq" ":" ofreq_entry+                      -> inst_offtable_freq
+
+// off-table arpeggio freq entry: at(step, note, freq_lo, freq_hi)
+ofreq_entry: "at" "(" number "," number "," number "," number ")"
 
 pwm_args: pwm_kv+
 pwm_kv: "mode" "=" CNAME           -> pwm_mode

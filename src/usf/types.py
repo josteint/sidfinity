@@ -534,6 +534,15 @@ class Instrument:
     # has the 'drum' effect. Empty = no per-step pitch movement. Same
     # length as `waveform`; `loop` applies to both.
     wave_freq: list[int] = field(default_factory=list)
+    # Off-table arpeggio frequencies (DMC v5). When a wave step's note-relative
+    # index `(wave_freq[step] + note) & $FF` runs past the 96-entry freq table
+    # into per-voice engine state, the original plays that state byte as a
+    # frequency. We capture the EXPLICIT 16-bit frequency the step produces,
+    # keyed by (wave step, effective note) — a musical pitch attributed to the
+    # instrument's arpeggio, NOT a raw memory window. Note-keyed because the
+    # produced freq depends on the played note (idx = offset + note). Each entry
+    # is `(step, note, freq_lo, freq_hi)`. Replaces the `freq_overrun` blob.
+    offtable_freq: list[tuple] = field(default_factory=list)
     pwm: PwmConfig = field(default_factory=PwmConfig)
     adsr: tuple = (0, 0)             # (ad, sr)
     arp: ArpConfig = field(default_factory=ArpConfig)

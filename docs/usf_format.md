@@ -317,6 +317,20 @@ instrument 1 lead {
     table the engine walks. Same musical family as Hubbard / DMC-V4 PWM
     (init + ramp). An instrument WITHOUT `pulse_env` keeps the running PW
     oscillator going across the note (`pwm: ... keep_running=true`).
+  - `wave_freq`: `[...]` — parallel per-step pitch values for `waveform`
+    (signed semitone offsets added to the note, or absolute freq-hi bytes
+    for drum steps). Same length as `waveform`; `loop` applies to both.
+  - `offtable_freq`: `at(step, note, freq_lo, freq_hi) ...` (DMC V5). When a
+    wave step's note-relative index `(wave_freq[step] + note) & $FF` runs past
+    the 96-entry freq table into per-voice engine state, the original engine
+    plays that state byte as a frequency. This captures the EXPLICIT 16-bit
+    frequency the step produces, keyed by `(wave step, effective note)` — a
+    musical pitch attributed to the instrument's arpeggio, NOT a raw memory
+    window. Note-keyed because the produced freq depends on the played note.
+    The composer builds its freq lookup from these and emits the value
+    directly (no out-of-bounds read). Replaces the deprecated `freq_overrun`
+    blob (a verbatim post-table byte window); the model sees frequencies,
+    never bytes-at-an-offset.
 
 Field set is engine-determined. Fields not relevant to an engine
 omit cleanly.

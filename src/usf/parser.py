@@ -223,6 +223,13 @@ class _T(Transformer):
     def inst_wave_freq(self, items):
         return ('wave_freq', [int(x) for x in items])
 
+    def ofreq_entry(self, items):
+        # at(step, note, freq_lo, freq_hi)
+        return tuple(int(x) for x in items)
+
+    def inst_offtable_freq(self, items):
+        return ('offtable_freq', [tuple(e) for e in items])
+
     def pwm_mode(self, items):
         return ('mode', str(items[0]))
 
