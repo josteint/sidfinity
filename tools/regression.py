@@ -1,20 +1,19 @@
-"""Full pipeline regression — Hubbard '85 + companion + FC family.
+"""Full pipeline regression — Hubbard '85 + companion + FC + DMC families.
 
-Phase 8.22 baseline. Builds every known USF through the dissolved
-composer and verifies it against the original SID. Two verification
-modes:
+Builds every canary/portfolio member through the composer and verifies it
+against the original SID's write-log. Verification surfaces per family:
 
-  - Hubbard '85: md5 of per-frame $D400-$D418 register snapshots
-    (`pipelines.hubbard.verify.verify_all`) — fast, frame-accurate.
-  - Companion strains: cycle-strict instruction-stream compare
-    (`compare_instruction_stream(skip_init=True)`) — needed since
-    these engines use a different verification surface.
+  - Hubbard '85: `pipelines.hubbard.verify.verify_all` (write-log overlap).
+  - Companion strains + 5TT: `compare_instruction_stream` (cycle-strict).
+  - C64ME / Jay_Derrett: prefix / instruction-stream compares.
+  - FC + DMC: `verify_featuredriven` / `verify_dmc` (trichotomy).
 
-All pre-existing partials are now resolved (Fairlight via the
-`is_full` accepting either skip_init=False or =True; Melonmania sub 1
-via the per-subtune `voice_enable_mask` knob; 5_Title_Tunes sub 2
-via dropping the composer init's silence-clear loop that was
-producing 24 phantom $D400-$D418=$00 writes orig didn't emit).
+PARALLEL: every per-member verify is an independent task (build to a distinct
+path + capture + compare); they run across a Pool(8) — the same pool-safety the
+family batch tools (fc_family_batch / dmc_family_batch) already rely on. Tasks
+return structured results; the main process prints them grouped per family in
+the original order and aggregates the verdict. Set REGRESSION_JOBS=1 to force
+sequential (debugging).
 
 Run:
     python3 tools/regression.py
@@ -23,15 +22,9 @@ Run:
 import os
 import struct
 import sys
-from importlib import import_module
+from multiprocessing import Pool
 
 sys.path.insert(0, '.')
-
-from pipelines.build_from_usf import build_from_usf
-from pipelines.hubbard.verify import verify_all
-from pipelines.hubbard.verify_cycle import (
-    writelog_capture, compare_instruction_stream,
-)
 
 
 HUBBARD_ENGINES = [
@@ -63,8 +56,6 @@ COMPANION_USFS = [
     'hvsc84/GAMES/S-Z/Soldier_of_Fortune.usf',
     'hvsc84/MUSICIANS/H/Hubbard_Rob/Up_up_and_Away.usf',
     'hvsc84/MUSICIANS/H/Hoernell_Karl/Melonmania.usf',
-    # Bowden-engine variants (relocated / inline-tempo layout, etc.) —
-    # surface other Companion-tagged SIDs we hadn't pinned in regression.
     'hvsc84/DEMOS/M-R/Roundabout.usf',
     'hvsc84/GAMES/G-L/Hyper_Blast.usf',
     'hvsc84/GAMES/M-R/Memory_1991.usf',
@@ -73,14 +64,8 @@ COMPANION_USFS = [
     'hvsc84/MUSICIANS/H/Hubbard_Rob/5_Title_Tunes.usf',
 ]
 
-# Pre-existing partial subtunes (carried since before the composer
-# rewrite). Not regressions; not failures.
+# Pre-existing partial subtunes (carried since before the composer rewrite).
 KNOWN_PARTIAL: dict[str, set[int]] = {}
-
-# Hubbard '85 subtunes carrying a known-partial at 1.5x (the
-# default verify window). Empty today — Confuzion sub 0 was the last
-# entry and was resolved by the `loop_silences_song` knob landing on
-# its config (see [[project_hubbard_song_end_fade]]).
 KNOWN_PARTIAL_HUBBARD: dict[str, set[int]] = {}
 
 
@@ -89,358 +74,349 @@ def _n_subs(sid: str) -> int:
         return struct.unpack('>H', f.read(0x10)[0x0E:0x10])[0]
 
 
-def regress_hubbard() -> tuple[int, int, int]:
-    """Md5-of-frame-snapshot verify across all Hubbard '85 engines.
-    Returns (ok, partial, total)."""
-    ok = partial = total = 0
-    for nick, cn, fn in HUBBARD_ENGINES:
-        cfg = getattr(import_module(f'pipelines.hubbard.{nick}.config'), cn)
-        out = f'{HUBBARD_BASE}/{fn}.sidfinity.sid'
-        build_from_usf(f'{HUBBARD_BASE}/{fn}.usf', out)
-        rows = list(verify_all([(cfg, out)]).values())[0][0]
-        known = KNOWN_PARTIAL_HUBBARD.get(nick, set())
-        sub_ok = sub_partial = sub_fail = 0
-        for st, b in rows:
-            if b:
-                sub_ok += 1
-            elif st in known:
-                sub_partial += 1
-            else:
-                sub_fail += 1
-        ok += sub_ok
-        partial += sub_partial
-        total += len(rows)
-        status = f'{sub_ok}/{len(rows)}'
-        if sub_partial:
-            status += f' ({sub_partial} known-partial)'
-        if sub_fail:
-            status += ' FAIL'
-        print(f'  {fn:32s} {status}')
-    return ok, partial, total
+# --------------------------------------------------------------------------
+# Per-family workers — each returns a result dict:
+#   {family, group?, line, ok, partial, fail, total}
+# (counts in the family's NATIVE aggregation unit, matching the old summary).
+# --------------------------------------------------------------------------
+
+def _w_hubbard(nick: str, cn: str, fn: str) -> dict:
+    from importlib import import_module
+    from pipelines.build_from_usf import build_from_usf
+    from pipelines.hubbard.verify import verify_all
+    cfg = getattr(import_module(f'pipelines.hubbard.{nick}.config'), cn)
+    out = f'{HUBBARD_BASE}/{fn}.sidfinity.sid'
+    build_from_usf(f'{HUBBARD_BASE}/{fn}.usf', out)
+    rows = list(verify_all([(cfg, out)]).values())[0][0]
+    known = KNOWN_PARTIAL_HUBBARD.get(nick, set())
+    sub_ok = sub_partial = sub_fail = 0
+    for st, b in rows:
+        if b:
+            sub_ok += 1
+        elif st in known:
+            sub_partial += 1
+        else:
+            sub_fail += 1
+    status = f'{sub_ok}/{len(rows)}'
+    if sub_partial:
+        status += f' ({sub_partial} known-partial)'
+    if sub_fail:
+        status += ' FAIL'
+    return {'family': 'Hubbard', 'line': f'  {fn:32s} {status}',
+            'ok': sub_ok, 'partial': sub_partial, 'fail': sub_fail,
+            'total': len(rows)}
 
 
-def regress_companion() -> tuple[int, int, int]:
-    """Cycle-strict instruction-stream compare across companion strains
-    + the 5TT unified engine. Returns (ok, partial, fail)."""
-    ok = partial = fail = 0
-    for usf in COMPANION_USFS:
-        name = usf.split('/')[-1].replace('.usf', '')
-        sid = usf.replace('.usf', '.sid')
-        out = usf.replace('.usf', '.sidfinity.sid')
-        build_from_usf(usf, out)
-        ns = _n_subs(sid)
-        known = KNOWN_PARTIAL.get(name, set())
-        sub_ok = sub_partial = sub_fail = 0
-        # Back_to_the_Future needs a slightly longer capture window: its
-        # banking-trampoline orig spreads init writes across two VBI frames
-        # while the rebuild's init lands all in frame 0; at 6s the truncation
-        # boundary falls between same-content frames in the two runs, giving
-        # different totals. By 8s both stabilize at the same write count.
-        duration = 8.0 if 'Back_to_the_Future' in usf else 6.0
-        for st in range(ns):
-            a = writelog_capture(sid, st, duration=duration)
-            b = writelog_capture(out, st, duration=duration)
-            # Legacy mode while we work out the right semantics for
-            # strict Check A under structurally-different init bytes
-            # (Phase A in docs/sid_init_report.md §5 — needs cycle-
-            # precise init-RTS marker, not VBI frame 0 boundary).
-            r = compare_instruction_stream(a, b)
-            if r['is_full']:
-                sub_ok += 1
-            elif st in known:
-                sub_partial += 1
-            else:
-                sub_fail += 1
-        ok += sub_ok
-        partial += sub_partial
-        fail += sub_fail
-        status = f'{sub_ok}/{ns}'
-        if sub_partial:
-            status += f' ({sub_partial} known-partial)'
-        if sub_fail:
-            status += f' ({sub_fail} REGRESSED)'
-        print(f'  {name:32s} {status}')
-    return ok, partial, fail
+def _w_companion(usf: str) -> dict:
+    from pipelines.build_from_usf import build_from_usf
+    from pipelines.hubbard.verify_cycle import (
+        writelog_capture, compare_instruction_stream)
+    name = usf.split('/')[-1].replace('.usf', '')
+    sid = usf.replace('.usf', '.sid')
+    out = usf.replace('.usf', '.sidfinity.sid')
+    build_from_usf(usf, out)
+    ns = _n_subs(sid)
+    known = KNOWN_PARTIAL.get(name, set())
+    sub_ok = sub_partial = sub_fail = 0
+    duration = 8.0 if 'Back_to_the_Future' in usf else 6.0
+    for st in range(ns):
+        a = writelog_capture(sid, st, duration=duration)
+        b = writelog_capture(out, st, duration=duration)
+        r = compare_instruction_stream(a, b)
+        if r['is_full']:
+            sub_ok += 1
+        elif st in known:
+            sub_partial += 1
+        else:
+            sub_fail += 1
+    status = f'{sub_ok}/{ns}'
+    if sub_partial:
+        status += f' ({sub_partial} known-partial)'
+    if sub_fail:
+        status += f' ({sub_fail} REGRESSED)'
+    return {'family': 'Companion', 'line': f'  {name:32s} {status}',
+            'ok': sub_ok, 'partial': sub_partial, 'fail': sub_fail,
+            'total': ns}
 
 
-def regress_c64me() -> tuple[int, int]:
-    """Commodore_64_Music_Examples — 15 subtunes via the C64ME-specific
-    build.py composer. Uses PREFIX-match semantics rather than is_full
-    because the rebuild's play loop takes more cycles per VBI than orig,
-    so siddump captures fewer writes from reb in the same wall-clock
-    duration (even though every captured reb write matches orig)."""
+def _w_c64me(st: int) -> dict:
+    from pipelines.hubbard.verify_cycle import writelog_capture
     from pipelines.companion.c64_music_examples.build import (
-        build_subtune_sid, build_subtune_sid_b, build_subtune_sid_v2,
-    )
+        build_subtune_sid, build_subtune_sid_b, build_subtune_sid_v2)
     SID = 'hvsc84/MUSICIANS/H/Hubbard_Rob/Commodore_64_Music_Examples.sid'
-    ok = fail = 0
-    for st in range(15):
-        out = SID.replace('.sid', f'.sub{st}.sidfinity.sid')
-        if st in (0, 2, 3):
-            sid_bytes = build_subtune_sid(st)
-        elif st == 1:
-            sid_bytes = build_subtune_sid_b(st)
-        else:
-            sid_bytes = build_subtune_sid_v2(st)
-        with open(out, 'wb') as f:
-            f.write(sid_bytes)
-        a = writelog_capture(SID, st, duration=15.0)
-        b = writelog_capture(out, 0, duration=15.0)
-        fa = [(r, v) for f in a for c, r, v in f]
-        fb = [(r, v) for f in b for c, r, v in f]
-        n = min(len(fa), len(fb))
-        div = next((i for i in range(n) if fa[i] != fb[i]), None)
-        if div is None and len(fb) > 0:
-            ok += 1
-            status = 'OK'
-        else:
-            fail += 1
-            status = f'diverge#{div}'
-        print(f'  sub {st:2d}: orig {len(fa):>5d} reb {len(fb):>5d}  {status}')
-    return ok, fail
+    out = SID.replace('.sid', f'.sub{st}.sidfinity.sid')
+    if st in (0, 2, 3):
+        sid_bytes = build_subtune_sid(st)
+    elif st == 1:
+        sid_bytes = build_subtune_sid_b(st)
+    else:
+        sid_bytes = build_subtune_sid_v2(st)
+    with open(out, 'wb') as f:
+        f.write(sid_bytes)
+    a = writelog_capture(SID, st, duration=15.0)
+    b = writelog_capture(out, 0, duration=15.0)
+    fa = [(r, v) for f in a for c, r, v in f]
+    fb = [(r, v) for f in b for c, r, v in f]
+    n = min(len(fa), len(fb))
+    div = next((i for i in range(n) if fa[i] != fb[i]), None)
+    ok = div is None and len(fb) > 0
+    status = 'OK' if ok else f'diverge#{div}'
+    return {'family': 'C64ME',
+            'line': f'  sub {st:2d}: orig {len(fa):>5d} reb {len(fb):>5d}  {status}',
+            'ok': int(ok), 'partial': 0, 'fail': int(not ok), 'total': 1}
 
 
-def regress_future_composer() -> tuple[int, int, int]:
-    """Future Composer family — `verify_featuredriven` (cycle-strict
-    instruction-stream via `compare_instruction_stream`, per-subtune
-    duration from Songlengths.md5 * 1.1 + 1s). Returns (ok, partial, fail).
-
-    Each canary builds through `build_via_asm_featuredriven` and verifies
-    every subtune at full songlength."""
-    from pipelines.future_composer.verify import verify_featuredriven
-    from pipelines.future_composer.cybernoid_ii.config import CYBERNOID_II
-    from pipelines.future_composer.hawkeye.config import HAWKEYE
-    from pipelines.future_composer.adrenalin.config import ADRENALIN
-    from pipelines.future_composer.standard.config import FC_STANDARD
-
-    # (name, cfg, subtunes) — subtunes=None means all. Adrenalin is restricted
-    # to sub 0: it's a 3-engine compilation where subs 1/2/3 are independent
-    # data pools needing multi-song FC support (see project_adrenalin memory);
-    # sub 0 is the clean FC canary and verifies via the trichotomy verdict.
-    # Jarre_2 = the STANDARD ("vanilla") FC player — the dominant family
-    # (91% of HVSC FC); first verified 2026-06-10 (trichotomy, audio✓).
-    canaries = [
-        ('Cybernoid_II', CYBERNOID_II, None),
-        ('Hawkeye',      HAWKEYE,      None),
-        ('Adrenalin[0]', ADRENALIN,    [0]),
-        ('Jarre_2',      FC_STANDARD,  None),
-    ]
-    ok = partial = fail = 0
-    for name, cfg, subtunes in canaries:
-        result = verify_featuredriven(cfg, subtunes=subtunes)
-        subs = result['subtunes']
-        sub_ok = sub_fail = 0
-        for st, info in subs.items():
-            if info['is_full']:
-                sub_ok += 1
-            else:
-                sub_fail += 1
-        ok += sub_ok
-        fail += sub_fail
-        status = f'{sub_ok}/{len(subs)}'
-        if sub_fail:
-            status += f' ({sub_fail} REGRESSED)'
-        print(f'  {name:18s} {status}')
-
-    # FC-standard PORTFOLIO (tier 1): the minimum member set covering
-    # every feature dimension the 2528-member FULL corpus exercises >=2x
-    # (selected by tools/select_regression_portfolio.py; the full family
-    # batch — tmp/run_wide.py lineage, tools/fc_family_batch.py — is the
-    # tier-2 verdict run at milestones). Each member verifies at full
-    # songlength from its on-disk USF.
-    import json as _json
-    pf_path = os.path.join(os.path.dirname(__file__),
-                           'fc_regression_portfolio.json')
-    if os.path.exists(pf_path):
-        from pipelines.future_composer.standard.config import (
-            fc_standard_config)
-        print('FC-standard portfolio '
-              '(feature-cover of the verified family):')
-        for sid in _json.load(open(pf_path))['portfolio']:
-            result = verify_featuredriven(fc_standard_config('hvsc84/' + sid))
-            subs = result['subtunes']
-            sub_ok = sum(1 for v in subs.values() if v['is_full'])
-            sub_fail = len(subs) - sub_ok
-            ok += sub_ok
-            fail += sub_fail
-            status = f'{sub_ok}/{len(subs)}'
-            if sub_fail:
-                status += f' ({sub_fail} REGRESSED)'
-            print(f'  {sid.split("/")[-1][:18]:18s} {status}')
-    return ok, partial, fail
-
-
-def regress_jay_derrett() -> tuple[int, int]:
-    """Jay_Derrett family — 17 SIDs currently passing byte-exact:
-    - 10 PSID-compatible (siddump --writelog both sides): 6 Cluster A
-      (Jetboys, Lifeforce, Mandroid, Ninja_Hamster, Vengeance, ZIP),
-      3 Cluster B PSID (Counterforce, Destruct, Stratton), 1
-      Cluster C (Discovery).
-    - 3 RSID IRQ-driven (orig via py65 IRQ-vector capture, reb via
-      siddump): Osmium, Thundercross, Trigger_Happy.
-    - 4 Type B (Equalizer-shape engine): Equalizer, Death_or_Glory
-      (B1), Sqij (B4 — high-byte-note resolution via py65 simulation),
-      Dracula (B1, CIA-driven, prefix-match — reb's CIA rate gives
-      slightly different siddump capture boundary).
-    Returns (ok, fail). Of 20 total Jay_Derrett SIDs in HVSC #84:
-    17 wired, 3 pending (Spindizzy_USA_Version, Road_Warrior,
-    Traxxion)."""
-    from pipelines.companion.jay_derrett.build import (
-        build_sid, params_from_extracted_json, capture_writes_via_py65,
-    )
+def _w_jd(kind: str, name: str) -> dict:
+    """Jay_Derrett — kind in {psid, typeb, rsid}."""
     import json
     from pathlib import Path
-    PSID_SIDS = [
-        'Counterforce', 'Destruct', 'Discovery', 'Jetboys', 'Lifeforce',
-        'Mandroid', 'Ninja_Hamster', 'Stratton', 'Vengeance', 'ZIP',
-    ]
-    TYPE_B_SIDS = ['Equalizer', 'Death_or_Glory', 'Sqij', 'Dracula']
-    # Dracula uses prefix-match (CIA-driven dispatch — reb's capture
-    # boundary in siddump may include 6-16 extra trailing writes).
-    TYPE_B_PREFIX_MATCH = {'Dracula'}
-    RSID_IRQ_SIDS = ['Osmium', 'Thundercross', 'Trigger_Happy']
+    from pipelines.hubbard.verify_cycle import (
+        writelog_capture, compare_instruction_stream)
     base = 'hvsc84/MUSICIANS/D/Derrett_Jay'
     extracted = 'pipelines/companion/jay_derrett/_extracted'
-    ok = fail = 0
 
-    def _build(name):
-        params = params_from_extracted_json(f'{extracted}/{name}.json')
-        jd = json.load(open(f'{extracted}/{name}.json'))
+    def _build(nm):
+        from pipelines.companion.jay_derrett.build import (
+            build_sid, params_from_extracted_json)
+        params = params_from_extracted_json(f'{extracted}/{nm}.json')
+        jd = json.load(open(f'{extracted}/{nm}.json'))
         vbr = [(v['ptr_min'], v['ptr_min'] + len(v['bytes']))
                for v in jd['voice_bytes']]
-        Path(f'{base}/{name}.sidfinity.sid').write_bytes(
-            build_sid(f'{base}/{name}.sid', params, voice_byte_ranges=vbr))
+        Path(f'{base}/{nm}.sidfinity.sid').write_bytes(
+            build_sid(f'{base}/{nm}.sid', params, voice_byte_ranges=vbr))
 
-    for name in PSID_SIDS:
+    if kind == 'psid':
         _build(name)
         a = writelog_capture(f'{base}/{name}.sid', 0, duration=6.0)
         b = writelog_capture(f'{base}/{name}.sidfinity.sid', 0, duration=6.0)
         r = compare_instruction_stream(a, b)
-        if r['is_full']:
-            ok += 1; status = 'OK'
-        else:
-            fail += 1
-            status = f"FAIL match_all={r['match_all']}/{r['len_all_a']}"
-        print(f'  {name:18s} (psid)  {status}')
-
-    # Type B (Equalizer-shape) — uses its own type_b.py emit
-    from pipelines.companion.jay_derrett.type_b import build_type_b_sid
-    from pathlib import Path as _Path
-    for name in TYPE_B_SIDS:
-        out = _Path(f'{base}/{name}.sidfinity.sid')
+        ok = r['is_full']
+        status = 'OK' if ok else f"FAIL match_all={r['match_all']}/{r['len_all_a']}"
+        tag = 'psid'
+    elif kind == 'typeb':
+        from pipelines.companion.jay_derrett.type_b import build_type_b_sid
+        out = Path(f'{base}/{name}.sidfinity.sid')
         out.write_bytes(build_type_b_sid(name))
         a = writelog_capture(f'{base}/{name}.sid', 0, duration=6.0)
         b = writelog_capture(str(out), 0, duration=6.0)
         r = compare_instruction_stream(a, b)
-        if name in TYPE_B_PREFIX_MATCH:
-            passed = r['match_all'] == r['len_all_a']
-            status_detail = (f"match_all={r['match_all']}/{r['len_all_a']} "
-                             f"(prefix; reb_extras="
-                             f"{r['len_all_b'] - r['match_all']})")
+        if name == 'Dracula':            # CIA-driven → prefix-match
+            ok = r['match_all'] == r['len_all_a']
+            detail = (f"match_all={r['match_all']}/{r['len_all_a']} "
+                      f"(prefix; reb_extras={r['len_all_b'] - r['match_all']})")
         else:
-            passed = r['is_full']
-            status_detail = (f"match_all={r['match_all']}/{r['len_all_a']}")
-        if passed:
-            ok += 1; status = 'OK'
-        else:
-            fail += 1
-            status = f'FAIL {status_detail}'
-        print(f'  {name:18s} (typeb) {status}')
-
-    for name in RSID_IRQ_SIDS:
+            ok = r['is_full']
+            detail = f"match_all={r['match_all']}/{r['len_all_a']}"
+        status = 'OK' if ok else f'FAIL {detail}'
+        tag = 'typeb'
+    else:  # rsid
+        from pipelines.companion.jay_derrett.build import (
+            capture_writes_via_py65)
         _build(name)
         orig = capture_writes_via_py65(f'{base}/{name}.sid', 0, n_frames=50)
         reb = writelog_capture(f'{base}/{name}.sidfinity.sid', 0, duration=1.0)
         fa = [(r, v) for f in orig for c, r, v in f]
-        fb_all = [(r, v) for f in reb for c, r, v in f]
-        fb = fb_all[2:]  # skip reb's init $D418 writes
+        fb = [(r, v) for f in reb for c, r, v in f][2:]  # skip reb init $D418
         n = min(len(fa), len(fb))
         div = next((i for i in range(n) if fa[i] != fb[i]), None)
-        if div is None and n > 500:
-            ok += 1; status = 'OK'
-        else:
-            fail += 1
-            status = f'FAIL diverge#{div} ({n} matched)'
-        print(f'  {name:18s} (rsid)  {status}')
-
-    return ok, fail
+        ok = div is None and n > 500
+        status = 'OK' if ok else f'FAIL diverge#{div} ({n} matched)'
+        tag = 'rsid'
+    return {'family': 'Jay_Derrett',
+            'line': f'  {name:18s} ({tag})  {status}',
+            'ok': int(ok), 'partial': 0, 'fail': int(not ok), 'total': 1}
 
 
-def regress_dmc() -> tuple[int, int]:
-    """DMC family — Geometrical_Zaks canary (3 subtunes) + the v4
-    PORTFOLIO (tier 1): the minimum member set covering every feature
-    dimension the 2656-member FULL corpus exercises >=2x (selected by
-    tools/select_regression_portfolio.py --engine dmc_v4; the full
-    family batch — tools/dmc_family_batch.py — is the tier-2 verdict).
-    All via the full SID → USF → SID pipeline, trichotomy verdict at
-    full songlength."""
+def _w_fc_canary(modpath: str, attr: str, name: str, subtunes) -> dict:
+    from importlib import import_module
+    from pipelines.future_composer.verify import verify_featuredriven
+    cfg = getattr(import_module(modpath), attr)
+    result = verify_featuredriven(cfg, subtunes=subtunes)
+    subs = result['subtunes']
+    sub_ok = sum(1 for v in subs.values() if v['is_full'])
+    sub_fail = len(subs) - sub_ok
+    status = f'{sub_ok}/{len(subs)}'
+    if sub_fail:
+        status += f' ({sub_fail} REGRESSED)'
+    return {'family': 'FC', 'line': f'  {name:18s} {status}',
+            'ok': sub_ok, 'partial': 0, 'fail': sub_fail, 'total': len(subs)}
+
+
+def _w_fc_portfolio(sid: str) -> dict:
+    from pipelines.future_composer.verify import verify_featuredriven
+    from pipelines.future_composer.standard.config import fc_standard_config
+    result = verify_featuredriven(fc_standard_config('hvsc84/' + sid))
+    subs = result['subtunes']
+    sub_ok = sum(1 for v in subs.values() if v['is_full'])
+    sub_fail = len(subs) - sub_ok
+    status = f'{sub_ok}/{len(subs)}'
+    if sub_fail:
+        status += f' ({sub_fail} REGRESSED)'
+    return {'family': 'FC', 'group': 'FC-standard portfolio (feature-cover of '
+            'the verified family):',
+            'line': f'  {sid.split("/")[-1][:18]:18s} {status}',
+            'ok': sub_ok, 'partial': 0, 'fail': sub_fail, 'total': len(subs)}
+
+
+def _w_dmc(label: str, kind: str, ref: str, group: str | None) -> dict:
+    """DMC — kind 'zaks' (module attr ref) or 'cfg' (sid for dmc_v4_config)."""
     from pipelines.dmc.verify import verify_dmc
-    from pipelines.dmc.v4.config import ZAKS
-    from pipelines.dmc.v4.factory import dmc_v4_config
-    import json as _json
-    ok = fail = 0
+    if kind == 'zaks':
+        from pipelines.dmc.v4.config import ZAKS
+        cfg = ZAKS
+    else:
+        from pipelines.dmc.v4.factory import dmc_v4_config
+        cfg = dmc_v4_config(ref)
+    r = verify_dmc(cfg)
+    n_ok = sum(1 for s in r['subtunes'].values() if s['is_full'])
+    n = len(r['subtunes'])
+    status = f'{n_ok}/{n}'
+    if not r['ok']:
+        status += ' (REGRESSED)'
+    res = {'family': 'DMC', 'line': f'  {label:24s} {status}',
+           'ok': int(r['ok']), 'partial': 0, 'fail': int(not r['ok']),
+           'total': 1}
+    if group:
+        res['group'] = group
+    return res
 
-    def _run(label, cfg):
-        nonlocal ok, fail
-        r = verify_dmc(cfg)
-        n_ok = sum(1 for s in r['subtunes'].values() if s['is_full'])
-        n = len(r['subtunes'])
-        status = f'{n_ok}/{n}'
-        if not r['ok']:
-            status += ' (REGRESSED)'
-        print(f"  {label:24s} {status}")
-        if r['ok']:
-            ok += 1
-        else:
-            fail += 1
 
-    _run('Geometrical_Zaks', ZAKS)
+# --------------------------------------------------------------------------
+# Task dispatch (picklable: top-level fn + plain-data args)
+# --------------------------------------------------------------------------
 
-    pf_path = os.path.join(os.path.dirname(__file__),
-                           'dmc_regression_portfolio.json')
-    if os.path.exists(pf_path):
-        print('DMC v4 portfolio (feature-cover of the verified family):')
-        for sid in _json.load(open(pf_path))['portfolio']:
-            _run(sid.split('/')[-1][:24], dmc_v4_config(sid))
+_WORKERS = {
+    'hubbard': _w_hubbard, 'companion': _w_companion, 'c64me': _w_c64me,
+    'jd': _w_jd, 'fc_canary': _w_fc_canary, 'fc_portfolio': _w_fc_portfolio,
+    'dmc': _w_dmc,
+}
 
-    # family-2 canaries (the V4-derived build, 1884/2889 FULL): cover the
-    # variant axes — hold_gateoff {mask_only, adsr_clear}, jump table
-    # {4-entry, 2-entry}, $129F filter-mode {AND #$0F, STA $9E}. All go
-    # through the factory's family-2 path + the 5 probed knobs.
-    print('DMC family-2 canaries (variant cover):')
-    for sid in ('DEMOS/G-L/Kajun_Klog.sid',               # mask_only,4-entry
-                'MUSICIANS/A/Albartus_Jan/Lameness.sid',  # adsr_clear
-                'MUSICIANS/B/Bakewell_Dwayne/Fury.sid',   # 2-entry
-                'MUSICIANS/M/MAC2/Bells_Are_Sounding.sid'):  # $129F STA $9E
-        _run(sid.split('/')[-1][:24], dmc_v4_config(sid))
-    return ok, fail
+
+def _run_task(task: tuple) -> dict:
+    order, kind, args = task
+    res = _WORKERS[kind](*args)
+    res['order'] = order
+    return res
+
+
+def _build_tasks() -> list:
+    """Flat task list in the original print order."""
+    import json
+    tasks = []
+
+    def add(kind, *args):
+        tasks.append((len(tasks), kind, args))
+
+    for nick, cn, fn in HUBBARD_ENGINES:
+        add('hubbard', nick, cn, fn)
+    for usf in COMPANION_USFS:
+        add('companion', usf)
+    for st in range(15):
+        add('c64me', st)
+    for nm in ('Counterforce', 'Destruct', 'Discovery', 'Jetboys', 'Lifeforce',
+               'Mandroid', 'Ninja_Hamster', 'Stratton', 'Vengeance', 'ZIP'):
+        add('jd', 'psid', nm)
+    for nm in ('Equalizer', 'Death_or_Glory', 'Sqij', 'Dracula'):
+        add('jd', 'typeb', nm)
+    for nm in ('Osmium', 'Thundercross', 'Trigger_Happy'):
+        add('jd', 'rsid', nm)
+    fc = 'pipelines.future_composer'
+    add('fc_canary', f'{fc}.cybernoid_ii.config', 'CYBERNOID_II', 'Cybernoid_II', None)
+    add('fc_canary', f'{fc}.hawkeye.config', 'HAWKEYE', 'Hawkeye', None)
+    add('fc_canary', f'{fc}.adrenalin.config', 'ADRENALIN', 'Adrenalin[0]', [0])
+    add('fc_canary', f'{fc}.standard.config', 'FC_STANDARD', 'Jarre_2', None)
+    pf = os.path.join(os.path.dirname(__file__), 'fc_regression_portfolio.json')
+    if os.path.exists(pf):
+        for sid in json.load(open(pf))['portfolio']:
+            add('fc_portfolio', sid)
+    add('dmc', 'Geometrical_Zaks', 'zaks', '', None)
+    dpf = os.path.join(os.path.dirname(__file__), 'dmc_regression_portfolio.json')
+    if os.path.exists(dpf):
+        grp = 'DMC v4 portfolio (feature-cover of the verified family):'
+        for sid in json.load(open(dpf))['portfolio']:
+            add('dmc', sid.split('/')[-1][:24], 'cfg', sid, grp)
+    grp2 = 'DMC family-2 canaries (variant cover):'
+    for sid in ('DEMOS/G-L/Kajun_Klog.sid',
+                'MUSICIANS/A/Albartus_Jan/Lameness.sid',
+                'MUSICIANS/B/Bakewell_Dwayne/Fury.sid',
+                'MUSICIANS/M/MAC2/Bells_Are_Sounding.sid'):
+        add('dmc', sid.split('/')[-1][:24], 'cfg', sid, grp2)
+    return tasks
+
+
+# Family print order + headers.
+_FAMILY_ORDER = [
+    ('Hubbard', "Hubbard '85:"),
+    ('Companion', 'Companion + 5TT:'),
+    ('C64ME', 'C64 Music Examples (prefix-match):'),
+    ('Jay_Derrett', 'Jay_Derrett family (17 of 20 SIDs wired):'),
+    ('FC', 'Future Composer family (4 canaries: Cyb II + Hawkeye + '
+           'Adrenalin[0] + Jarre_2/standard):'),
+    ('DMC', 'DMC family (canary: Geometrical_Zaks/v4):'),
+]
 
 
 def main():
-    print('Hubbard \'85:')
-    h_ok, h_part, h_total = regress_hubbard()
-    print(f'\nCompanion + 5TT:')
-    c_ok, c_part, c_fail = regress_companion()
-    print(f'\nC64 Music Examples (prefix-match):')
-    cme_ok, cme_fail = regress_c64me()
-    print(f'\nJay_Derrett family (17 of 20 SIDs wired):')
-    jd_ok, jd_fail = regress_jay_derrett()
-    print(f'\nFuture Composer family (4 canaries: Cyb II + Hawkeye + '
-          f'Adrenalin[0] + Jarre_2/standard):')
-    fc_ok, fc_part, fc_fail = regress_future_composer()
-    print(f'\nDMC family (canary: Geometrical_Zaks/v4):')
-    dmc_ok, dmc_fail = regress_dmc()
+    # The per-task builds run in parallel; suppress the per-build hvsc84.csv
+    # write-through (a full-CSV rewrite — racy under Pool). Regression is a
+    # verification gate, not a record step, so it never needs to touch the CSV.
+    os.environ['SIDFINITY_NO_DB_WRITE'] = '1'
+    tasks = _build_tasks()
+    jobs = int(os.environ.get('REGRESSION_JOBS', '8'))
+    n = len(tasks)
+    print(f'Regression: {n} tasks across {jobs} workers '
+          f'(live progress in completion order)\n', flush=True)
 
-    print(f'\nHubbard:    {h_ok} ok  +  {h_part} known-partial  +  '
-          f'{h_total - h_ok - h_part} regressed  (of {h_total})')
+    def _tick(i, r):
+        mark = 'ok' if not r['fail'] else 'FAIL'
+        label = r['line'].strip().split('  ')[0][:28]
+        print(f'  [{i:>2}/{n}] {mark:>4}  {label}', flush=True)
+
+    results = []
+    if jobs <= 1:
+        for i, t in enumerate(tasks, 1):
+            r = _run_task(t); results.append(r); _tick(i, r)
+    else:
+        with Pool(jobs) as pool:
+            for i, r in enumerate(pool.imap_unordered(_run_task, tasks), 1):
+                results.append(r); _tick(i, r)
+    print()
+    results.sort(key=lambda r: r['order'])
+
+    agg = {}            # family -> [ok, partial, fail, total]
+    for fam, header in _FAMILY_ORDER:
+        print(header)
+        seen_groups = set()
+        a = [0, 0, 0, 0]
+        for r in results:
+            if r['family'] != fam:
+                continue
+            if r.get('group') and r['group'] not in seen_groups:
+                seen_groups.add(r['group'])
+                print(r['group'])
+            print(r['line'])
+            a[0] += r['ok']; a[1] += r['partial']
+            a[2] += r['fail']; a[3] += r['total']
+        agg[fam] = a
+        print()
+
+    h_ok, h_part, _, h_total = agg['Hubbard']
+    h_reg = h_total - h_ok - h_part
+    c_ok, c_part, c_fail, _ = agg['Companion']
+    cme_ok, _, cme_fail, _ = agg['C64ME']
+    jd_ok, _, jd_fail, _ = agg['Jay_Derrett']
+    fc_ok, _, fc_fail, _ = agg['FC']
+    dmc_ok, _, dmc_fail, _ = agg['DMC']
+
+    print(f'Hubbard:    {h_ok} ok  +  {h_part} known-partial  +  '
+          f'{h_reg} regressed  (of {h_total})')
     print(f'Companion:  {c_ok} ok  +  {c_part} known-partial  +  {c_fail} regressed')
     print(f'C64ME:      {cme_ok} ok  +  {cme_fail} regressed  (of 15)')
     print(f'Jay_Derrett:  {jd_ok} ok  +  {jd_fail} regressed  (of 17 wired / 20 total)')
     print(f'FC:         {fc_ok} ok  +  {fc_fail} regressed')
     print(f'DMC:        {dmc_ok} ok  +  {dmc_fail} regressed')
 
-    h_regressed = h_total - h_ok - h_part
-    if h_regressed or c_fail or cme_fail or jd_fail or fc_fail or dmc_fail:
+    if h_reg or c_fail or cme_fail or jd_fail or fc_fail or dmc_fail:
         sys.exit(1)
 
 

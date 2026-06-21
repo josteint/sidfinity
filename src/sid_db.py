@@ -282,7 +282,14 @@ def _md5(path: str | os.PathLike) -> str:
 
 def _update_row(rel: str, updates: dict) -> None:
     """Apply `updates` to the row with path==rel and rewrite the CSV.
-    No-op if the CSV or the row is absent (re-run build_sid_db.py to insert)."""
+    No-op if the CSV or the row is absent (re-run build_sid_db.py to insert).
+
+    Each call rewrites the ENTIRE CSV, so it is unsafe under concurrency:
+    parallel callers (the Pool-based regression, the family batches) set
+    SIDFINITY_NO_DB_WRITE and refresh once afterwards via build_sid_db.py.
+    Guarding here covers every write-through (record_usf/_rebuild/_verify)."""
+    if os.environ.get('SIDFINITY_NO_DB_WRITE'):
+        return
     rows = read_all()
     if rel not in rows:
         return

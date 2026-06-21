@@ -39,6 +39,8 @@ def build_from_usf(usf_path: str, out_path: str, codec=None) -> str:
     with open(out_path, 'wb') as f:
         f.write(sid_bytes)
 
+    # record_rebuild does a full hvsc84.csv rewrite; it self-suppresses under
+    # SIDFINITY_NO_DB_WRITE (set by parallel callers — see src.sid_db._update_row).
     try:
         from src.sid_db import record_rebuild
         record_rebuild(out_path)
