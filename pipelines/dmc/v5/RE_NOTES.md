@@ -809,11 +809,26 @@ partial for other reasons.)
 the divergence: speed $17ED=0, accum $1835/$1838=0, target $17F0=0 — glide INACTIVE.
 The freq is wave-program-driven (`$1811` steps FF,0C,08,06,05,04,01 = an arpeggio/
 percussion pitch drop). Our rebuild diverges to $4104. So it's a **WAVE-POSITION
-divergence** (the de-fused wave program steps to a different logical wavepos ->
-different `wave_freq[wavepos]` -> different/off-table idx) — the known residual class
-(RE_NOTES residual-119: Ceti_22 / Elysium-V2). NOT a glide bug. Diagnose via the
-rebuild's wavepos (composer xa65 labels; state_map_gen is FC-only) vs the orig's
-$17F3 — likely shared with several residual partials, a broader investigation.
+divergence**. CORRECTED below.
+
+## Round 18 (2026-06-21): Planet_Love RESOLVED — idle-program off-table gap -> 1041 (LOSSLESS)
+
+Traced the rebuild's wavepos (via composer xa65 `return_labels`) vs orig's $17F3:
+**wavepos MATCHED** (both 7 post-INC) at the divergence — so NOT a wave-position
+divergence either. The frame-9 wave step uses wavepos **6** (pre-INC): the IDLE
+program's step 6 (`wave_freq[6]=$E0`) x idle note 26 -> idx **250** (off-table). The
+value at idx 250 is STABLE ($0100, file-image == runtime every frame) — orig reads
+$0100; our rebuild read $4104 because `ext[250]` was UNCOVERED: the IDLE program
+(wave index 0, played at lo_notes during the lead-in) was not in the per-instrument
+walk. FIX: `_assign_offtable_freq` now also captures the idle program x lo_notes
+(attributed to instrument 0; composer dedups by idx). Planet_Love -> FULL, 25/25
+FULL sample clean.
+
+**BOTH "-2" bugs were CAPTURE GAPS, not effect bugs.** Neither was glide/vibrato/
+wave-position — both were missing off-table read SITES: (Redemption) the vib_setup
+offset-0 base read; (Planet_Love) the lead-in idle program. The off-table capture
+is now COMPLETE: wave-program steps + offset-0 base reads + the idle program.
+RESULT: **1041 FULL = the freq_overrun baseline, blob eliminated — fully lossless.**
 
 ## (historical) factory + wide-batch plan
 `dmc_v5_config` factory (jump-table detect init+$40/play+$A1, the

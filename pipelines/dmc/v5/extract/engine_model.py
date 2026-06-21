@@ -360,6 +360,31 @@ def _assign_offtable_freq(mem, a_flo: int, a_fhi: int, m) -> None:
                                   mem[(a_fhi + idx) & 0xFFFF]))
         ins.offtable_freq = sorted(recs)
 
+    # The lead-in IDLE program (wave index 0) plays at lo_notes before a voice's
+    # first note (cleared wavepos). Its off-table reads are NOT covered by the
+    # per-instrument walk above (the idle is not in m.instruments) — e.g.
+    # Planet_Love's idle step 6 (offset $E0) x lo_note 26 -> idx 250. Capture them
+    # too, attributed to instrument 0 (the composer builds ext[idx] from the union
+    # of all records, so attribution is functional; the idle is the lead-in, not
+    # instrument 0's arpeggio).
+    if m.instruments and any(m.lo_notes):
+        try:
+            ic, ifr, _ = _slice_wave(m.wave, 0)
+        except Exception:
+            ic = ifr = []
+        recs = set(m.instruments[0].offtable_freq)
+        for c, off in zip(ic, ifr):
+            if c & 0x08:
+                continue
+            for n in set(m.lo_notes):
+                for t in transps:
+                    cn = (n + t) & 0xFF
+                    idx = (off + cn) & 0xFF
+                    if idx > 95:
+                        recs.add((off, cn, mem[(a_flo + idx) & 0xFFFF],
+                                  mem[(a_fhi + idx) & 0xFFFF]))
+        m.instruments[0].offtable_freq = sorted(recs)
+
 
 def _freq_overrun(mem, a_fhi: int, m) -> list:
     """Reachable off-table freq-hi window (DMC v5 analog of FC freq_overrun).
