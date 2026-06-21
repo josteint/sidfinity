@@ -227,7 +227,8 @@ def usf_to_model(usf: UsfFile) -> V5Model:
         m.instruments.append(V5Instrument(
             id=inst.id, ad=inst.adsr[0], sr=inst.adsr[1],
             wave_ptr=wptr, pulse_ptr=pptr, filter_ptr=fptr,
-            vib_delay=v.onset, vib_speed=v.speed, vib_width=v.amplitude))
+            vib_delay=v.onset, vib_speed=v.speed, vib_width=v.amplitude,
+            offtable_freq=list(getattr(inst, 'offtable_freq', []) or [])))
 
     m.wave = wave
     m.pulse = pulse

@@ -60,13 +60,31 @@ def _emit_data(m) -> str:
         instr += [ins.ad, ins.sr, ins.wave_ptr, ins.pulse_ptr,
                   ins.filter_ptr, ins.vib_delay, ins.vib_speed, ins.vib_width]
     d.append('instr:\n' + _byt(instr))
-    # freq tables
-    d.append('freqlo:\n' + _byt(m.freq_lo))
-    # freqhi + the off-table freq_overrun window ride contiguously: melodic
-    # wave reads freqhi,y / freqlo,y with y up to 255, falling past the 96-entry
-    # tables into the orig's following image bytes (content-by-reference).
-    d.append('freqhi:\n' + _byt(m.freq_hi)
-             + (('\n' + _byt(m.freq_overrun)) if getattr(m, 'freq_overrun', None) else ''))
+    # freq tables, extended IN-BOUNDS with the off-table arpeggio frequencies.
+    # A melodic wave step reads freqlo,y / freqhi,y with y = (offset + note); when
+    # that index runs past the 96-entry tables the orig played an engine-state
+    # byte as a frequency. We place the EXPLICIT freq (from each instrument's
+    # `offtable_freq`) at that index, so the lookup stays in-bounds — no OOB read,
+    # no freq_overrun window, no verbatim blob. (`offtable_freq` is the ML-musical
+    # per-(step,note) frequency; idx = wave program's freq at `step` + note.)
+    ext_lo = list(m.freq_lo)
+    ext_hi = list(m.freq_hi)
+    ov = {}
+    for ins in m.instruments:
+        for step, note, lo, hi in getattr(ins, 'offtable_freq', []) or []:
+            off = m.wave[ins.wave_ptr + step][1]
+            idx = (off + note) & 0xFF
+            if idx > 95:
+                ov[idx] = (lo, hi)
+    if ov:
+        top = max(ov)
+        ext_lo += [0] * (top + 1 - len(ext_lo))
+        ext_hi += [0] * (top + 1 - len(ext_hi))
+        for idx, (lo, hi) in ov.items():
+            ext_lo[idx] = lo
+            ext_hi[idx] = hi
+    d.append('freqlo:\n' + _byt(ext_lo))
+    d.append('freqhi:\n' + _byt(ext_hi))
     # the 3 programmable 2-byte tables (split lo/hi parallel arrays)
     d.append('wavectrl:\n' + _byt([c for c, f in m.wave]))
     d.append('wavefreq:\n' + _byt([f for c, f in m.wave]))

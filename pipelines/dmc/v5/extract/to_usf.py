@@ -57,7 +57,7 @@ _WALK_CAP = 5000          # max table reads before declaring the bytes corrupt.
                           # program's own loop/hold/end + _PHASE_CAP).
 from src.usf.writer import write_file
 from pipelines.dmc.v5.config import DMCV5Config
-from pipelines.dmc.v5.extract.engine_model import extract, V5Model
+from pipelines.dmc.v5.extract.engine_model import extract, V5Model, _slice_wave
 
 NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
 
@@ -66,32 +66,8 @@ def _pitch(note: int) -> Pitch:
     return Pitch(name=NOTE_NAMES[note % 12], octave=note // 12)
 
 
-# --- wave program: follow the $90 jump-back marker (V5: ctrl==$90 -> the
-#     parallel freq byte is the ABSOLUTE loop-target index). --------------
-def _slice_wave(wave: list, start: int):
-    """Return (ctrl, freq, loop) for the wave program at `start`. `loop`
-    is the relative index the marker jumps back to."""
-    n = len(wave)
-    ctrl, freq = [], []
-    pos = start
-    guard = 0
-    while pos < n:
-        guard += 1
-        if guard > 256:
-            raise RuntimeError(f'unsupported:wave_slice runaway @{start}')
-        c, f = wave[pos]
-        if c == 0x90:
-            target = f                       # absolute loop-target index
-            if target >= start:
-                return ctrl, freq, target - start
-            # loop target before the slice: unroll the cyclic tail so the
-            # heard sequence is [start..pos) + [target..start) with loop 0
-            return (ctrl + [wave[k][0] for k in range(target, start)],
-                    freq + [wave[k][1] for k in range(target, start)], 0)
-        ctrl.append(c)
-        freq.append(f)
-        pos += 1
-    raise RuntimeError(f'unsupported:wave_slice no $90 @{start}')
+# --- wave program slicing: `_slice_wave` moved to engine_model so the extract's
+#     off-table step indexing matches the wave_freq this module emits.
 
 
 # --- sweep envelope capture (pulse OR filter) ----------------------------
@@ -314,6 +290,7 @@ def _instrument_to_usf(ins, model: V5Model, reach: int | None = None):
                     if ins.filter_ptr else None),
         vibrato=VibratoConfig(onset=ins.vib_delay, speed=ins.vib_speed,
                               amplitude=ins.vib_width),
+        offtable_freq=list(ins.offtable_freq),
     )
 
 
@@ -415,7 +392,9 @@ def model_to_usf(m: V5Model, reach: int | None = None) -> UsfFile:
                            'loop': idle_l}},
         default_filter=default_filter,
         default_pulse=default_pulse,
-        freq_overrun=list(m.freq_overrun),
+        # off-table reads now ride per-instrument `offtable_freq` (ML-musical);
+        # the freq_overrun blob is no longer emitted for v5.
+        freq_overrun=[],
     )
 
 

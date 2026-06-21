@@ -24,6 +24,11 @@ class V5Instrument:
     vib_delay: int
     vib_speed: int
     vib_width: int     # & $07
+    # Off-table arpeggio frequencies (the ML-musical replacement for the
+    # freq_overrun blob): per (wave step, effective note) the explicit
+    # (freq_lo, freq_hi) the step produces when (offset+note) runs past the
+    # 96-entry freq table into engine state. List of (step, note, lo, hi).
+    offtable_freq: list = field(default_factory=list)
 
 
 @dataclass
@@ -254,8 +259,99 @@ def extract(cfg, hvsc_root: str = 'hvsc84') -> V5Model:
         ev, raw = _decode_sector(mem, sp)
         m.sectors.append(ev)
         m.sector_raw.append(raw)
-    m.freq_overrun = _freq_overrun(mem, a_fhi, m)
+    # Off-table arpeggio frequencies, per instrument (replaces the freq_overrun
+    # blob). m.freq_overrun stays empty for v5; see _assign_offtable_freq.
+    m.freq_overrun = []
+    _assign_offtable_freq(mem, a_flo, a_fhi, m)
     return m
+
+
+def _slice_wave(wave: list, start: int):
+    """Return (ctrl, freq, loop) for the wave program at `start`. `loop` is the
+    relative index the $90 marker jumps back to. (Shared with to_usf — kept here
+    so the extract's step indexing matches the USF's emitted wave_freq.)"""
+    n = len(wave)
+    ctrl, freq = [], []
+    pos = start
+    guard = 0
+    while pos < n:
+        guard += 1
+        if guard > 256:
+            raise RuntimeError(f'unsupported:wave_slice runaway @{start}')
+        c, f = wave[pos]
+        if c == 0x90:
+            target = f                       # absolute loop-target index
+            if target >= start:
+                return ctrl, freq, target - start
+            return (ctrl + [wave[k][0] for k in range(target, start)],
+                    freq + [wave[k][1] for k in range(target, start)], 0)
+        ctrl.append(c)
+        freq.append(f)
+        pos += 1
+    raise RuntimeError(f'unsupported:wave_slice no $90 @{start}')
+
+
+def _assign_offtable_freq(mem, a_flo: int, a_fhi: int, m) -> None:
+    """Set `offtable_freq` on each instrument: per (wave step, effective note)
+    the explicit (lo,hi) frequency the step produces when its note-relative
+    index `(wave_freq[step] + note) & $FF` runs past the 96-entry freq table.
+    Ties each instrument's wave program to the notes it is actually played at
+    (orderlist walk: snd-tracked instrument + transpose). The ML-musical
+    replacement for the pooled freq_overrun window — frequencies attributed to
+    the arpeggio, not bytes-at-offset. (The lead-in idle program at index 0 is
+    NOT captured here; if a tune relies on an idle off-table read it shows up as
+    a verify regression — handled separately.)"""
+    # per-instrument melodic steps: list of (step_index, freq_offset)
+    inst_steps = {}
+    for ins in m.instruments:
+        try:
+            ctrl, freq, _ = _slice_wave(m.wave, ins.wave_ptr)
+        except Exception:
+            inst_steps[ins.id] = None        # unresolvable slice -> skip
+            continue
+        inst_steps[ins.id] = [(s, f) for s, (c, f) in enumerate(zip(ctrl, freq))
+                              if not (c & 0x08)]
+    # orderlist walk: per instrument, the effective notes it is played at
+    osets = ([st.orderlists for st in m.subtunes] if m.subtunes
+             else ([m.orderlists] if m.orderlists else []))
+    transps = {0}
+    for ols in osets:
+        for ol in ols:
+            for e in ol:
+                if e[0] == 'transpose':
+                    transps.add(e[1])
+    inst_notes = {}
+    for ols in osets:
+        for ol in ols:
+            cur = None
+            for e in ol:
+                if e[0] != 'sector':
+                    continue
+                if e[1] >= len(m.sectors):
+                    continue
+                for se in m.sectors[e[1]]:
+                    if se[0] == 'snd':
+                        cur = se[1]
+                    elif se[0] in ('note', 'glide', 'slide'):
+                        ns = ([se[1]] if se[0] == 'note'
+                              else [se[2], se[3]] if se[0] == 'glide' else [se[2]])
+                        inst_notes.setdefault(cur, set()).update(ns)
+    # build the records
+    for ins in m.instruments:
+        steps = inst_steps.get(ins.id)
+        if not steps:
+            continue
+        notes = inst_notes.get(ins.id, set())
+        recs = set()
+        for s, off in steps:
+            for n in notes:
+                for t in transps:
+                    cn = (n + t) & 0xFF
+                    idx = (off + cn) & 0xFF
+                    if idx > 95:
+                        recs.add((s, cn, mem[(a_flo + idx) & 0xFFFF],
+                                  mem[(a_fhi + idx) & 0xFFFF]))
+        ins.offtable_freq = sorted(recs)
 
 
 def _freq_overrun(mem, a_fhi: int, m) -> list:
@@ -271,6 +367,14 @@ def _freq_overrun(mem, a_fhi: int, m) -> list:
     to the max reachable index so the composer can lay it right after freqhi.
     Empty when nothing reaches off-table. An under-capture can't pass silently:
     the next data section sits right after the window, so it diverges in verify.
+
+    NB this STATIC over-approximation cannot de-verbatim much (contiguous-to-max
+    + a note may be too short to advance the wave to the overshooting step). The
+    runtime-accurate de-verbatim (drop the blob where the read is never actually
+    reached — ~81% per the round-13 audibility census) is VERIFY-GATED in
+    tools/dmc_v5_deverbatim.py: build with [] and keep empty iff it still
+    verifies FULL, else fall back to this capture. So this stays the proven
+    backstop; the batch decides empty-vs-blob per member by the writelog verdict.
     """
     melodic = {f for (c, f) in m.wave if not (c & 0x08)}
     if not melodic:
