@@ -475,15 +475,10 @@ class FCSong:
     pulse_arp: list = field(default_factory=list)
     # Vanilla-FC wave-program envelope library: {sel: {'ctrl':[15],'freq':[15]}}
     std_wave_programs: dict = field(default_factory=dict)
-    # Off-table freq lookup window (standard): orig image bytes after the
-    # freq hi table, read by wave-relative / +$04 arp indices > 95.
-    # DEPRECATED — replaced by per-instrument `offtable_freq` (Phase 6); kept
-    # empty for back-compat until the freq_overrun field is removed (Phase 7).
-    freq_overrun: list = field(default_factory=list)
     # Off-table freq reads as ML-musical per-instrument records (the v5 form):
     # {inst_id: [(offset, note, lo, hi)]}, idx=(offset+note)&$FF. `offset` is a
     # wave/arp delta (0 = note-load/glide-arrival base read, 1 = vibrato, wave
-    # freq-program values, arp3 offsets). Replaces the freq_overrun blob.
+    # freq-program values, arp3 offsets). The off-table-read representation.
     offtable_freq: dict = field(default_factory=dict)
 
 
@@ -660,7 +655,7 @@ def _std_offtable_freq(mem: bytes, cfg: FCConfig,
                        subtunes: list, instruments: list,
                        wave_programs: dict) -> dict:
     """Per-instrument off-table freq records (standard) — the v5 `offtable_freq`
-    form that replaces the freq_overrun blob. Returns {inst_id: [(offset, note,
+    form (the off-table-read representation). Returns {inst_id: [(offset, note,
     lo, hi)]}, idx=(offset+note)&$FF, lo/hi = the orig's off-table freq bytes.
 
     Reachable capture of the image bytes after hinote (standard).
@@ -1228,8 +1223,7 @@ def extract(cfg: FCConfig, root: str | None = None) -> FCSong:
         # Standard: off-table 8-bit freq lookups (idx = note + wave/arp delta)
         # that pass the 96-entry table read the orig's following image bytes.
         # Captured as per-instrument `offtable_freq` records (the ML-musical v5
-        # form); freq_overrun blob deprecated -> empty. See _std_offtable_freq.
-        freq_overrun=[],
+        # form). See _std_offtable_freq.
         offtable_freq=(
             _std_offtable_freq(mem_global, cfg, engine_for_shared,
                                subtunes, instruments, std_wave_programs)

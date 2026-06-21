@@ -894,13 +894,9 @@ class UsfFile:
     # 15-entry tables {'ctrl': [...], 'freq': [...]} driving $D404 (waveform) and
     # $D400/$D401 (freq) each frame after note-load. Empty when unused.
     wave_programs: dict[int, dict] = field(default_factory=dict)
-    # Off-table freq lookup window (standard FC): the bytes the player
-    # reads when an effect's 8-bit table index runs past the 96-entry
-    # freq table (wave-relative / +$04 arp with note+offset > 95).
-    # Content-by-reference — emitted directly after the freq hi table so
-    # off-table indices resolve to the same values as the original.
-    # Empty = no off-table excursions.
-    freq_overrun: list[int] = field(default_factory=list)
+    # (Off-table freq reads are now carried per-instrument as
+    # `Instrument.offtable_freq` — the old `freq_overrun` opaque window was
+    # removed 2026-06-21 once FC + DMC v5 were both off it; see C6/C7.)
     # Default (idle) filter-cutoff sweep (DMC V5 V3-global). The cutoff
     # modulation the engine applies by DEFAULT — from song start, before/
     # between explicit per-instrument filter notes (for tunes whose V3 never

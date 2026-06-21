@@ -192,16 +192,25 @@ FULL, 176 unchanged). No `StateLayoutMirror` tier exists. Nothing to decide here
 - [x] Mass-wrote 2528 `.usf`+`.sidfinity.sid`; `build_sid_db.py` refresh;
       committed (no Co-Authored-By).
 
-## Phase 7 — Schema cleanup + prevent recurrence
+## Phase 7 — Schema cleanup + prevent recurrence — ✅ DONE 2026-06-21
 
-- [ ] Remove the `freq_overrun` field once DMC v5 + FC are off it (usf_sync).
-- [ ] §9.2 leak scan clean.
-- [ ] Update convergence-ledger C6/C7: canonical resolution = "off-table reads →
-      explicit per-step **frequency** (ML-musical); NEVER a verbatim window or a
-      state-layout mirror; dynamic positional glitches → honest residue, out of
-      the musical layer."
+- [x] Removed the `freq_overrun` field from the shared schema + all USF I/O
+      (usf_sync): `src/usf/types.py` (field), `grammar.lark` (start rule +
+      `freq_overrun_block`), `parser.py` (transformer + assembly + kwarg),
+      `writer.py` (emission block). Plus the dead consumers: FC `FCSong.freq_overrun`
+      + its constructor kwarg; DMC v5 `V5Model.freq_overrun` + the dead
+      `_freq_overrun` backstop function + the `from_usf` kwarg; the FC composer's
+      legacy fallback (`_offtable_window` now returns `[]` when empty);
+      `select_regression_portfolio` feature switched freq_overrun → offtable_freq.
+- [x] §9.2 leak scan clean: no live code references `freq_overrun` (remaining
+      mentions are historical comments/RE_NOTES + the canonical ledger entry).
+- [x] Verified: schema roundtrip (offtable_freq survives, no freq_overrun token);
+      FC full regression green (all families, 0 regressed); v5 canaries
+      (Katusha/Redemption_6_4/Planet_Love/Picket_Fences/Druk_Bezig) all FULL.
+- [x] convergence-ledger C6/C7 updated (Phase 6): C6 canonicalized to the
+      per-instrument frequency form; C7 freq_overrun marked resolved.
 - [ ] `/uready-review`: standing B-class audit flags any new bytes-at-offset freq
-      field.
+      field (the audit hook persists; no action this session).
 
 ---
 

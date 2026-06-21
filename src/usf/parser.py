@@ -721,7 +721,7 @@ class _T(Transformer):
     # ----- notes + pitches + instrument refs + fx -----
     def pitch_named(self, items):
         # NOTE_NAME like 'C-5' or 'D#3'; octave may be 2 digits (off-table
-        # pitches 97..255 — freq_overrun reads, e.g. ghost-march ties).
+        # pitches 97..255 — off-table reads, e.g. ghost-march ties).
         tok = str(items[0])
         letter = tok[0]
         sep = tok[1]
@@ -825,9 +825,6 @@ class _T(Transformer):
     def freq_table_block(self, items):
         # items[0] is a byte_list (= list[int])
         return ('freq_table', items[0])
-
-    def freq_overrun_block(self, items):
-        return ('freq_overrun', items[0])
 
     def sl_n_voices(self, items):
         return ('n_voices', int(items[0]))
@@ -1076,7 +1073,6 @@ class _T(Transformer):
         wave_arp = []
         pulse_arp = []
         wave_programs = {}
-        freq_overrun = []
         default_filter = None
         default_pulse = None
         for it in items:
@@ -1084,8 +1080,6 @@ class _T(Transformer):
                 k, v = it
                 if k == 'freq_table':
                     freq_table = v
-                elif k == 'freq_overrun':
-                    freq_overrun = v
                 elif k == 'state_layout':
                     state_layout = v
                 elif k == 'song_end':
@@ -1137,7 +1131,7 @@ class _T(Transformer):
             pulse_programs=pulse_programs, filter_programs=filter_programs,
             drum_programs=drum_programs, attack_len=attack_len,
             attack_wave=attack_wave, wave_arp=wave_arp, pulse_arp=pulse_arp,
-            wave_programs=wave_programs, freq_overrun=freq_overrun,
+            wave_programs=wave_programs,
             default_filter=default_filter, default_pulse=default_pulse)
 
 

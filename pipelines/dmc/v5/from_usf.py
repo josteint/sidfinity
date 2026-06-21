@@ -129,7 +129,6 @@ def usf_to_model(usf: UsfFile) -> V5Model:
     m = V5Model(
         freq_lo=list(usf.freq_table[:96]),
         freq_hi=list(usf.freq_table[96:192]),
-        freq_overrun=list(getattr(usf, 'freq_overrun', []) or []),
         speed=sub.tempo, master_vol=mvol,
         lo_filtmode=flt.res_routing if flt else 0,
         lo_fchi=flt.cutoff_hi if flt else 0,

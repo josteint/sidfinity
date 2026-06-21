@@ -177,8 +177,8 @@ def member_features(sid: str) -> tuple[str, set] | None:
                 wraps = True
         if wraps and not explicit_head and t:
             f.add('seq:loop_transpose')
-    if song.freq_overrun:
-        f.add('struct:freq_overrun')
+    if getattr(song, 'offtable_freq', None):
+        f.add('struct:offtable_freq')
     if song.psid_songs > 1:
         f.add('struct:multi_subtune')
     if song.std_wave_programs:

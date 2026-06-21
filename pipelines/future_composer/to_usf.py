@@ -87,7 +87,7 @@ def _row_eq_except_duration(a, b) -> bool:
 def _pitch_from_byte(p: int) -> Pitch:
     """FC pitch byte → `Pitch`. Pitches 0..95 index the 96-entry musical
     freq table (8 octaves × 12 notes); higher bytes are off-table reads
-    (freq_overrun content — e.g. a ghost-march tie note) and round-trip
+    (an off-table freq — e.g. a ghost-march tie note) and round-trip
     via the grammar's 2-digit octave (max byte 255 = octave 21). The old
     clamp to octave 9 silently CHANGED the read index."""
     if p < 0:
@@ -211,7 +211,7 @@ def _inst_to_usf(inst: FCInstrument, offtable: list | None = None) -> Instrument
     waveform = [pulse_hi, ctrl_byte]; adsr = (ad, sr). The four FC
     effect bytes (fil_count, fx1, fx2, fx3) are decomposed into named
     fields per usf_schema_v1.md. `offtable` = this instrument's off-table
-    freq records `(offset, note, lo, hi)` (replaces the freq_overrun blob).
+    freq records `(offset, note, lo, hi)` (the off-table-read form).
     """
     import dataclasses as _dc
     fields = _decompose_fx_bytes(inst.fil_count, inst.fx1, inst.fx2,
@@ -565,7 +565,6 @@ def fcsong_to_usf(song: FCSong, root: str | None = None) -> UsfFile:
         wave_arp=list(song.wave_arp),
         pulse_arp=list(song.pulse_arp),
         wave_programs=dict(song.std_wave_programs),
-        freq_overrun=list(song.freq_overrun),
     )
 
 

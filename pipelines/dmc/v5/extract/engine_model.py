@@ -46,11 +46,8 @@ class V5Subtune:
 class V5Model:
     freq_lo: list = field(default_factory=list)     # 96
     freq_hi: list = field(default_factory=list)      # 96
-    # off-table freq-hi window (DMC v5 analog of FC freq_overrun): the image
-    # bytes after the 96-entry freq tables that the melodic wave path reads
-    # when (wave_freq[step]+curnote)&$FF passes 95. Content-by-reference,
-    # emitted right after freqhi so off-table indices resolve as in the orig.
-    freq_overrun: list = field(default_factory=list)
+    # (off-table freq reads ride per-instrument `V5Instrument.offtable_freq`;
+    # the old contiguous freq_overrun window was removed 2026-06-21.)
     instruments: list = field(default_factory=list)  # list[V5Instrument]
     wave: list = field(default_factory=list)         # list[(ctrl, freq)]
     pulse: list = field(default_factory=list)        # list[(lo, hi)]
@@ -259,9 +256,8 @@ def extract(cfg, hvsc_root: str = 'hvsc84') -> V5Model:
         ev, raw = _decode_sector(mem, sp)
         m.sectors.append(ev)
         m.sector_raw.append(raw)
-    # Off-table arpeggio frequencies, per instrument (replaces the freq_overrun
-    # blob). m.freq_overrun stays empty for v5; see _assign_offtable_freq.
-    m.freq_overrun = []
+    # Off-table arpeggio frequencies, per instrument (the off-table-read form;
+    # see _assign_offtable_freq).
     _assign_offtable_freq(mem, a_flo, a_fhi, m)
     return m
 
@@ -384,51 +380,3 @@ def _assign_offtable_freq(mem, a_flo: int, a_fhi: int, m) -> None:
                         recs.add((off, cn, mem[(a_flo + idx) & 0xFFFF],
                                   mem[(a_fhi + idx) & 0xFFFF]))
         m.instruments[0].offtable_freq = sorted(recs)
-
-
-def _freq_overrun(mem, a_fhi: int, m) -> list:
-    """Reachable off-table freq-hi window (DMC v5 analog of FC freq_overrun).
-
-    The melodic wave path computes `(wave_freq[step] + curnote) & $FF` and
-    reads freqlo/freqhi at that index; indices past 95 fall off the 96-entry
-    tables into the following image bytes, which the orig plays as real freqs
-    (e.g. Elysium inst8/9: wave_freq=64 + note 60 = index 124 → freq_hi 0).
-    Capture only what the tune can REACH — every melodic wave value × every
-    note (incl. glide/slide targets + idle notes) × every orderlist transpose,
-    a conservative over-approximation. The window is contiguous from offset 96
-    to the max reachable index so the composer can lay it right after freqhi.
-    Empty when nothing reaches off-table. An under-capture can't pass silently:
-    the next data section sits right after the window, so it diverges in verify.
-
-    NB this STATIC over-approximation cannot de-verbatim much (contiguous-to-max
-    + a note may be too short to advance the wave to the overshooting step). The
-    runtime-accurate de-verbatim (drop the blob where the read is never actually
-    reached — ~81% per the round-13 audibility census) is VERIFY-GATED in
-    tools/dmc_v5_deverbatim.py: build with [] and keep empty iff it still
-    verifies FULL, else fall back to this capture. So this stays the proven
-    backstop; the batch decides empty-vs-blob per member by the writelog verdict.
-    """
-    melodic = {f for (c, f) in m.wave if not (c & 0x08)}
-    if not melodic:
-        return []
-    notes = set(m.lo_notes)
-    for sec in m.sectors:
-        for e in sec:
-            if e[0] == 'note':
-                notes.add(e[1])
-            elif e[0] == 'glide':            # (spd, cur, tgt)
-                notes.add(e[2]); notes.add(e[3])
-            elif e[0] == 'slide':            # (spd, tgt)
-                notes.add(e[2])
-    transps = {0}
-    for st in m.subtunes:
-        for ol in st.orderlists:
-            for e in ol:
-                if e[0] == 'transpose':
-                    transps.add(e[1])
-    curnotes = {(n + t) & 0xFF for n in notes for t in transps}
-    oot = {(f + cn) & 0xFF for f in melodic for cn in curnotes}
-    oot = {i for i in oot if 96 <= i <= 255}
-    if not oot:
-        return []
-    return [mem[(a_fhi + i) & 0xFFFF] for i in range(96, max(oot) + 1)]

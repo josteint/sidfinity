@@ -330,9 +330,10 @@ instrument 1 lead {
     `base-note freq << width`, the note's own freq, glide arrival). Note-keyed
     because the produced freq depends on the played note. The composer builds
     its freq lookup in-bounds from these (`idx = offset + note`) and emits the
-    value directly (no out-of-bounds read). Replaces the deprecated
-    `freq_overrun` blob (a verbatim post-table byte window); the model sees
-    frequencies, never bytes-at-an-offset.
+    value directly (no out-of-bounds read). This is the off-table-read
+    representation (it superseded the removed `freq_overrun` verbatim
+    post-table byte window); the model sees frequencies, never
+    bytes-at-an-offset.
 
 Field set is engine-determined. Fields not relevant to an engine
 omit cleanly.

@@ -616,14 +616,6 @@ def write(usf: UsfFile) -> str:
     if usf.freq_table is not None:
         lines.append('')
         lines.extend(_write_freq_table(usf.freq_table))
-    if getattr(usf, 'freq_overrun', None):
-        lines.append('')
-        ov = ['freq_overrun {']
-        for i in range(0, len(usf.freq_overrun), 16):
-            ov.append('  ' + ' '.join(_hex(b)
-                                      for b in usf.freq_overrun[i:i + 16]))
-        ov.append('}')
-        lines.extend(ov)
     if usf.state_layout is not None:
         lines.append('')
         lines.extend(_write_state_layout(usf.state_layout))

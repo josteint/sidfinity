@@ -3,7 +3,7 @@
 // Lark grammar (LALR friendly). Whitespace and comments are ignored
 // between tokens. Top-level order is enforced by the start rule.
 
-start: psid_block params_block init_block freq_table_block? freq_overrun_block? state_layout_block? song_end_block? init_behavior_block? master_vol_block? sfx_block? default_filter_block? default_pulse_block? fc_aux_block* instrument_block* subtune_block*
+start: psid_block params_block init_block freq_table_block? state_layout_block? song_end_block? init_behavior_block? master_vol_block? sfx_block? default_filter_block? default_pulse_block? fc_aux_block* instrument_block* subtune_block*
 
 // ----- default (idle) filter / pulse sweeps (DMC V5) -----
 // The default cutoff / PW modulation the engine applies before/between explicit
@@ -126,13 +126,8 @@ isid_voice_field: "envelope_prime" ":" "(" number "," number ")"  -> isidv_env
 // look up engine constants for the freq region — the tune is
 // self-contained.
 freq_table_block: "freq_table" "{" byte_list "}"
-// Off-table freq lookup window: the bytes the player reads when an
-// effect's 8-bit table index runs PAST the freq table (standard FC
-// wave-relative / +$04 arp: table[note + offset] with note+offset > 95).
-// Content-by-reference — the player indexes blindly, so these bytes ARE
-// what plays at off-table indices. Emitted directly after the freq hi
-// table; absent = no off-table excursions observed.
-freq_overrun_block: "freq_overrun" "{" byte_list "}"
+// (Off-table freq reads are now carried per-instrument as `offtable_freq`
+// — the old `freq_overrun` opaque-window block was removed 2026-06-21.)
 
 // ----- state_layout (optional) -----
 // Off-table-arp statebuf layout — names which bytes the engine reads
@@ -218,7 +213,7 @@ instrument_field: "waveform" ":" byte_list                              -> inst_
                 // the EXPLICIT 16-bit freq produced, keyed by (offset, effective
                 // note): `at(offset, note, freq_lo, freq_hi)`; idx=(offset+note).
                 // offset = a wave step's semitone offset, or 0 for the base read
-                // (vib step / note freq / glide arrival). Replaces freq_overrun.
+                // (vib step / note freq / glide arrival). The off-table-read form.
                 | "offtable_freq" ":" ofreq_entry+                      -> inst_offtable_freq
 
 // off-table arpeggio freq entry: at(offset, note, freq_lo, freq_hi)
@@ -478,7 +473,7 @@ bool: "true"      -> bool_true
 
 // ----- tokens -----
 HEX: "$" /[0-9a-fA-F]+/
-NOTE_NAME.2: /[A-G][#-][0-9][0-9]?/   // 2-digit octave: off-table pitches (97..255 = freq_overrun reads)
+NOTE_NAME.2: /[A-G][#-][0-9][0-9]?/   // 2-digit octave: off-table pitches (97..255 = off-table reads)
 SAMPLE_PATH.2: /[A-Za-z0-9_.][A-Za-z0-9_.\-]*\.flac/
 
 %import common.CNAME

@@ -392,9 +392,7 @@ def model_to_usf(m: V5Model, reach: int | None = None) -> UsfFile:
                            'loop': idle_l}},
         default_filter=default_filter,
         default_pulse=default_pulse,
-        # off-table reads now ride per-instrument `offtable_freq` (ML-musical);
-        # the freq_overrun blob is no longer emitted for v5.
-        freq_overrun=[],
+        # off-table reads ride per-instrument `offtable_freq` (ML-musical).
     )
 
 
