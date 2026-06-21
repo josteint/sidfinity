@@ -754,6 +754,43 @@ real dynamic counters) is SEPARATE future work, not this de-verbatim. The
 absolute-freq plan (`offtable_freq_plan.md`) is correct; drop its StateLayoutMirror
 mentions + its "dynamic residue" framing (the de-verbatim has no residue).
 
+## Round 16 (2026-06-21): offtable_freq SHIPPED + what the blob actually IS
+
+**The blob, fully understood.** The freq tables are at FIXED `$170F`/`$176F`; the
+first data table (orderlist) is always `$1878+`. The fixed gap `$17CF-$1877` holds
+the player's INITIAL ENGINE STATE + the per-voice track sequences. Verified: the
+work-RAM trkptr at `$17CF` (`48 52 6C / 18 18 18`) == the orderlist record's
+pointers at `$1878` (`$1848 $1852 $186C`); trkptr_hi=`$18` is the orderlist page,
+constant across tunes. So the off-table read (unchecked `freqlo/hi[offset+note]`,
+no bounds check) sonifies the engine's own memory — orderlist POINTERS (addresses),
+counters, and track-sequence bytes. NOT authored pitch.
+
+**Documentation (online sweep: CSDb, codebase64, Chipmusic, Lemon64, Chordian,
+GitHub, the 2025 closed-source DMC4 Editor by Brian).** The off-table is
+UNDOCUMENTED anywhere. But it is the v5 expression of a DOCUMENTED DMC-family drum
+idiom: DMC4/7's wavetable FX bit 0 = "DRUM EFFECT: pitch values step in higher
+range" (TND tutorial). v5 dropped the FX byte; its drum/fixed-freq sounds come via
+the TEST-bit mode (documented) + the off-table overshoot (emergent). The player
+binary is the sole authority.
+
+**Audibility (ground truth, 44 load-bearing):** ~14 AUDIBLE (noise drums + tri/
+pulse tones — incl. Message_Unknown's sustained tri lead), ~30 inaudible / writelog-
+only. So `offtable_freq` is the drum/fixed-freq primitive for the audible; the
+inaudible are bookkeeping (audibility derivable downstream from gate/sequence).
+
+**SHIPPED.** Extract emits per-instrument `offtable_freq` (step,note,lo,hi);
+composer builds in-bounds extended freqlo/freqhi from it; `freq_overrun` blob gone.
+Authoritative batch: **1039 FULL** (vs 1041 freq_overrun baseline) — net **-2**,
+exactly the 2 coincidence-masked members. Mass-written + db-refreshed.
+
+**The -2 (SEPARATE work, NOT off-table):** `Behdad_Arman/Redemption_6_4` (0
+off-table records; diverges on an in-table freq @ reg0) + `Simon_Laszlo/Planet_Love`
+(its 1 real off-table read captured; diverges on a COMPUTED glide/vibrato freq).
+Both were FULL only because the blob's ~160 bytes shifted later-table addresses and
+accidentally masked a pre-existing glide/vibrato/freq-computation bug. Dropping the
+blob (correct) exposed them → they join the partials as a separate glide/vibrato
+investigation.
+
 ## (historical) factory + wide-batch plan
 `dmc_v5_config` factory (jump-table detect init+$40/play+$A1, the
 operand sites above, carved reference) + reuse tools/dmc_family_batch.py

@@ -117,18 +117,19 @@ not a derivation rule).
 - [x] Round-trip test (G4): note-keyed + multi-value + idx>=192 survive
       write->parse, no leakage. Full regression green (0 regressed, all families).
 
-## Phase 2 — Composer: emit absolute-freq, drop the blob
+## Phase 2 — Composer: emit absolute-freq, drop the blob — ✅ DONE
 
-- [ ] `composer_v5`: a wave-step path that writes `ctrl` + the explicit freq
-      (no off-table read, no TEST side-effect on `$D404`).
-- [ ] Stop emitting `freq_overrun`; remove the window after `freqhi`.
+- [x] `composer_v5` builds extended in-bounds freqlo/freqhi from `offtable_freq`
+      (idx = program freq[step]+note); no OOB read, no window, no TEST side-effect.
+- [x] `freq_overrun` no longer emitted for v5.
 
-## Phase 3 — Extract: deconstruct off-table steps to frequencies
+## Phase 3 — Extract: deconstruct off-table steps to frequencies — ✅ DONE
 
-- [ ] For each off-table melodic step, compute the freq it produces at each
-      reached note (lo from the freq table, hi = the work-RAM byte); emit the
-      absolute-freq step. Reuse the reachability bound; minimal capture.
-- [ ] Replace `_freq_overrun` with this per-step capture.
+- [x] `engine_model._assign_offtable_freq` walks each voice's orderlist
+      (snd-tracked instrument + transpose) and records per-instrument
+      `(step, note, lo, hi)` for every reached off-table read; `_slice_wave`
+      moved to engine_model for consistent step indexing; `m.freq_overrun=[]`.
+- [x] to_usf emits `Instrument.offtable_freq`; from_usf threads it into the model.
 
 ## Phase 4 — Measure the residue — ✅ DONE (round 15)
 
@@ -140,12 +141,14 @@ FULL, 176 unchanged). No `StateLayoutMirror` tier exists. Nothing to decide here
 - [ ] (separate future coverage) classify the 176 partials' true causes (index/
       wavepos vs genuine dynamic counter vs other) — NOT part of this de-verbatim.
 
-## Phase 5 — Verify (subset → full batch), regression-gated
+## Phase 5 — Verify (subset → full batch), regression-gated — ✅ DONE
 
-- [ ] Subset green (no regression vs its FULL members).
-- [ ] Full v5 batch (background): FULL count ≥ baseline (stable clean wins offset
-      any honest residue; report both). `tools/regression.py` clean before commit.
-- [ ] Mass-write + `build_sid_db.py` refresh; commit (no Co-Authored-By).
+- [x] Subset green: 42/44 load-bearing FULL, 60/60 dead-padding FULL.
+- [x] Full v5 batch: **1039 FULL** (vs 1041 freq_overrun baseline) — net **-2**,
+      exactly the 2 coincidence-masked pre-existing bugs (Redemption_6_4,
+      Planet_Love); all else identical. Phase-1 schema already regression-green.
+- [x] Mass-wrote 1039 `.usf`+`.sidfinity.sid` (0 err) + `build_sid_db.py` refresh;
+      committed (no Co-Authored-By). `freq_overrun` blob eliminated from v5.
 
 ## Phase 6 — FC unification (Move-1 payoff)
 
