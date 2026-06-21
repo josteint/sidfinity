@@ -81,6 +81,7 @@ def _instrument_to_usf(inst) -> Instrument:
         loop=inst.wave_loop,
         wave_freq=wave_freq,
         adsr=(inst.ad, inst.sr),
+        offtable_freq=list(inst.offtable_freq),
         pwm=PwmConfig(mode='bidirectional',
                       init=inst.pw_init_hi << 8,
                       min_hi=inst.pw_bound_a, max_hi=inst.pw_bound_b,

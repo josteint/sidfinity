@@ -341,6 +341,28 @@ def compose_dmc_asm(usf: UsfFile) -> str:
         flo, fhi = usf.freq_table[:96], usf.freq_table[96:]
     else:
         flo, fhi = FREQ_LO, FREQ_HI
+    # off-table freq window (the v5 `offtable_freq` form): place the explicit
+    # (lo, hi) each off-table read produces at its window position, so reads on
+    # the track-ptr region (k<=5) / live state (k>=17) resolve to the original's
+    # value instead of being rejected. freqlo/freqhi/window are contiguous, so a
+    # read at idx hits window pos idx-96 (the HI read) and, for idx>=192, pos
+    # idx-192 (the LO read lands deeper via table double-adjacency). Positions
+    # 6..16 stay co-located (live spd/mvol + the sidoff/fbit/fmask constants) —
+    # so members that only read there are byte-identical to before.
+    ovr = [0] * 160
+    for inst in insts:
+        for off, note, lo, hi in getattr(inst, 'offtable_freq', []) or []:
+            idx = (off + note) & 0xFF
+            if idx < 96:
+                continue
+            ph = idx - 96
+            if not (6 <= ph <= 16):
+                ovr[ph] = hi
+            if idx >= 192:
+                pl = idx - 192
+                if not (6 <= pl <= 16):
+                    ovr[pl] = lo
+
     data = []
     data.append('inote:\n' + _byt(idle))
     data.append('imask:\n' + _byt(imask))
@@ -352,13 +374,13 @@ def compose_dmc_asm(usf: UsfFile) -> str:
     # (the original's $1707+ adjacency: 6 track-ptr slots, the three
     # voice constant triplets, then speed + master volume — the last
     # two are the LIVE variables, placed here so the values track).
-    data.append('ovrwin:   .dsb 6, 0\n'
+    data.append('ovrwin:\n' + _byt(ovr[0:6]) + '\n'
                 'sidoff:   .byt $00, $07, $0E\n'
                 'fbit:     .byt $01, $02, $04\n'
                 'fmask:    .byt $FE, $FD, $FB\n'
                 'spd:      .dsb 1, 0\n'
                 'mvol:     .dsb 1, 0\n'
-                '          .dsb 143, 0')
+                + _byt(ovr[17:160]))
     data.append('vibdepth:\n' + _byt(list(VIBDEPTH)))
     for name, arr in [('iad', iad), ('isr', isr), ('ipwinit', ipwinit),
                       ('ipwmin', ipwmin), ('ipwmax', ipwmax),

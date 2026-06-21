@@ -70,6 +70,12 @@ class DmcInstrument:
     wave_ctrl: list = field(default_factory=list)   # sliced program
     wave_freq: list = field(default_factory=list)   # parallel
     wave_loop: int = 0
+    # off-table arpeggio frequencies (the v5 `offtable_freq` form, ported to
+    # v4): per (wave-program offset, played note) the explicit (lo, hi) the freq
+    # read produces when `(note + offset) & $FF` runs past the 96-entry table.
+    # idx = (offset + note) & $FF; entry = (offset, note, lo, hi). Replaces the
+    # conservative `offtable_live` rejection for the STABLE-when-read reads.
+    offtable_freq: list = field(default_factory=list)
 
 
 @dataclass
@@ -503,48 +509,61 @@ def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc84') -> DmcModel:
     # table; the swell mechanism is the build-level params.vib_ramp flag.
     m.family2 = (cfg.sector_format == 'family2')
     m.extra_params = dict(getattr(cfg, 'extra_params', {}))
-    _offtable_check(m)
+    _assign_offtable_freq(m, mem, cfg.freq_lo_addr, cfg.freq_hi_addr)
     return m
 
 
-def _offtable_check(m: DmcModel) -> None:
-    """Certify reachable off-table reads. The original reads past its
-    96-entry freq tables into the engine state block; the composer
-    mirrors the STABLE prefix of that window (track-ptr slots excluded,
-    constants + speed + master vol included, k = 6..16). Reads landing
-    on live state (k >= 17) or the track-ptr slots (k <= 5) cannot be
-    reproduced without mirroring the original's whole runtime state —
-    flagged unsupported. Vibdepth overrun (note > 95 at note init,
-    reading into the instrument records) is likewise flagged."""
-    ks = set()
+def _assign_offtable_freq(m: DmcModel, mem, flo_addr: int,
+                          fhi_addr: int) -> None:
+    """Capture each reachable off-table freq read as a per-instrument
+    `(offset, note, lo, hi)` record — the v5 `offtable_freq` form, ported to v4.
+
+    The original reads past its 96-entry freq tables into the engine state
+    block; v4's old `_offtable_check` mirrored only the STABLE prefix (k=6..16:
+    constants + speed + master vol) via the composer's co-located window and
+    REJECTED any read on the track-ptr slots (k<=5) or live state (k>=17). This
+    instead records the EXPLICIT (lo, hi) the read produces (read from the file
+    image), so the composer can place those exact values at the matching window
+    positions — recovering the STABLE-when-read reads (the value the original
+    reads early, before the state evolves; the v5 read-before-evolution result).
+    Genuinely per-frame-dynamic reads (a track pointer that has advanced) stay a
+    verify residue, not a build error.
+
+    The k=6..16 records are still emitted but the composer keeps those positions
+    co-located (live spd/mvol/constants) — so members that only read there are
+    byte-identical to before (no regression).
+
+    Note-load reads past the table (note > 95) ALSO read the separate vibdepth
+    table — a distinct off-table read that is NOT an offtable_freq — so note>95
+    is still flagged `offtable_vibdepth` (handled separately)."""
+    from collections import defaultdict
+    recs = defaultdict(set)            # inst id -> {(off, note, lo, hi)}
     vib = set()
 
-    def add_note(n, inst):
+    def add_note(n, inst_id):
+        inst = m.instruments.get(inst_id)
         if n > 95:
-            vib.add(n)              # note-load freq read + vibdepth read
-            ks.add(n - 96)
-        if inst is not None and not inst.drum:
-            for off in inst.wave_freq:
-                y = (n + off) & 0xFF
-                if y > 95:
-                    ks.add(y - 96)
+            vib.add(n)                 # note-load vibdepth overrun (separate)
+        if inst is None or inst.drum:
+            return
+        for off in inst.wave_freq:
+            y = (n + off) & 0xFF
+            if y > 95:
+                recs[inst_id].add((off & 0xFF, n & 0xFF,
+                                   mem[(flo_addr + y) & 0xFFFF],
+                                   mem[(fhi_addr + y) & 0xFFFF]))
 
     for song in m.songs:
-        for vi, v in enumerate(song.voices):
-            # (idle-path reads before a voice's first hard note are NOT
-            # certified here: they land on early-song state that is
-            # still zero — matching the composer's zero window — and
-            # the verify gate catches the rare exception.)
+        for v in song.voices:
             for ei, e in enumerate(v.entries):
                 tr = v.transposes[ei] if v.transposes else 0
                 for r in v.patterns[e]:
-                    inst = m.instruments.get(r.instr)
                     if r.note is not None:
-                        add_note(r.note + tr, inst)
+                        add_note(r.note + tr, r.instr)
                     if r.glide_to is not None:
-                        add_note(r.glide_to + tr, inst)
-    bad = sorted(k for k in ks if k <= 5 or k >= 17)
-    if bad:
-        raise RuntimeError(f'unsupported:offtable_live k={bad[:8]}')
+                        add_note(r.glide_to + tr, r.instr)
+    for iid, s in recs.items():
+        if iid in m.instruments:
+            m.instruments[iid].offtable_freq = sorted(s)
     if vib:
         raise RuntimeError(f'unsupported:offtable_vibdepth n={sorted(vib)[:8]}')
