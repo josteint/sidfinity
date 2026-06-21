@@ -71,9 +71,8 @@ def _emit_data(m) -> str:
     ext_hi = list(m.freq_hi)
     ov = {}
     for ins in m.instruments:
-        for step, note, lo, hi in getattr(ins, 'offtable_freq', []) or []:
-            off = m.wave[ins.wave_ptr + step][1]
-            idx = (off + note) & 0xFF
+        for offset, note, lo, hi in getattr(ins, 'offtable_freq', []) or []:
+            idx = (offset + note) & 0xFF
             if idx > 95:
                 ov[idx] = (lo, hi)
     if ov:

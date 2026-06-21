@@ -336,20 +336,27 @@ def _assign_offtable_freq(mem, a_flo: int, a_fhi: int, m) -> None:
                         ns = ([se[1]] if se[0] == 'note'
                               else [se[2], se[3]] if se[0] == 'glide' else [se[2]])
                         inst_notes.setdefault(cur, set()).update(ns)
-    # build the records
+    # build the records: per (OFFSET, effective note) the explicit (lo,hi) the
+    # off-table read produces. `offset` is a wave-program step's semitone offset
+    # OR 0 for the BASE read — `freqtable[effective_note]`, used by vib_setup
+    # (vib step = base-note freq << width), the note's own freq, and glide
+    # arrival. That offset-0 read off-tables when a note wraps past 95 via
+    # transpose (e.g. Redemption_6_4 V1 -> effective note 252), a site the
+    # wave-step walk alone misses. idx = (offset + note) & $FF.
     for ins in m.instruments:
-        steps = inst_steps.get(ins.id)
-        if not steps:
-            continue
         notes = inst_notes.get(ins.id, set())
+        if not notes:
+            continue
+        offsets = {off for _, off in (inst_steps.get(ins.id) or [])}
+        offsets.add(0)                       # base / vib / glide-arrival read
         recs = set()
-        for s, off in steps:
+        for off in offsets:
             for n in notes:
                 for t in transps:
                     cn = (n + t) & 0xFF
                     idx = (off + cn) & 0xFF
                     if idx > 95:
-                        recs.add((s, cn, mem[(a_flo + idx) & 0xFFFF],
+                        recs.add((off, cn, mem[(a_flo + idx) & 0xFFFF],
                                   mem[(a_fhi + idx) & 0xFFFF]))
         ins.offtable_freq = sorted(recs)
 
