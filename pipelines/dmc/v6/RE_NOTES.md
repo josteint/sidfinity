@@ -92,9 +92,43 @@ voice. $D417=$F2 fixed at init (res+routing).
 - $12EB: operand of an LDA, written $28 (init) / $08 ($1333) / set by the slide —
   emit clean code producing the same $D4xx writes.
 
+## Extract status (2026-06-21)
+
+- ✅ **Lifter** (`engine_model.extract`): binary → V6Model, verified on the rep.
+- ✅ **to_usf** (`to_usf.model_to_usf`): V6Model → UsfFile, reusing v5 dimensions.
+  Produces a complete round-tripping USF. Mappings:
+  - freq → `freq_table` (96 lo + 96 hi); ADSR → `Instrument.adsr`; tempo (the
+    `$100F` reload literal, +1 = frames/row) → `MusicSubtune.tempo`.
+  - wave program (ctrl + offset, `$FF`-loop) → `waveform`/`wave_freq`/`loop`.
+  - PW oscillator → `pulse_env` (`SweepEnvelope`) via simulate-and-convert.
+  - filter (cutoff/count/step) → `filter_env` (`SweepEnvelope` one-shot ramp).
+  - patterns → `NoteRow` rows (sticky dur/instr as fx_flags); orderlists →
+    `Orderlist` (wrap to 0).
+
+### Open representation items (decide during composer+verify)
+- **PW shape.** The shared PW LUT (`$13FD`/`$143D`) is a CLEAN 12-bit triangle
+  (`PW16[accum]` = 2 linear runs, $200↔$E00). V6's per-frame PW = triangle at
+  phase `accum = pw_init + t·pw_step (mod 256)`. For a step that divides the
+  triangle evenly this is a few-phase SweepEnvelope; for a COPRIME step (e.g.
+  inst2 step=$11) the sampled triangle is quasi-periodic → ~67 phases (faithful
+  but verbose, exceeds v5's `_PHASE_CAP=48`). The ML-optimal form is likely a
+  PARAMETRIC triangle-LFO (`pwm {shape:triangle, init_phase, step}` over the
+  shared shape — §4/§10 growth along the musical axis), NOT a 67-phase sweep.
+  First build uses the SweepEnvelope (correctness); refine to the parametric
+  oscillator once writelog-verified. (Distinct from ledger D1's bounded-oscillator
+  → SweepEnvelope; V6's is a continuous LUT-phase LFO — a genuinely different
+  behavior.)
+- **pitch_delay (octave slide).** DEFERRED — not yet in USF. `$1314`: after
+  `pitch_delay` frames, add `freq_hi[note+12]` to the `$FE/$FF` detune for 3
+  frames (a fast octave-up attack blip), then SMC-stop (`$12EB=$08`). Used by
+  i0/i13/i15/i18 in the rep. The extract emits a `warnings.warn` per use so the
+  gap is explicit. Map it (freq_slide-style or a small per-inst pitch-attack
+  field) when the composer hits its divergence.
+
 ## Migration plan (mirrors V5)
 1. ✅ Player RE first pass (this doc + annotated disassembly).
-2. **Extract** `pipelines/dmc/v6/extract/engine_model.py` + `to_usf.py`: lift
+2. ✅ **Extract** `engine_model.py` (lifter) + `to_usf.py` (USF) — rep verified +
+   round-trips. (Was:) lift
    (freq_table, per-inst ADSR/PW/wave-prog/filter, 3 orderlists, patterns, wave
    programs) → USF, reusing v5's USF dimensions where they coincide. Dataflow-trace
    the data-table addresses (they relocate per SID).

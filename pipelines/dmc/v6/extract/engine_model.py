@@ -37,6 +37,7 @@ OFF_OL_V2   = 0x804
 OFF_OL_V3   = 0x835
 OFF_PAT_LO  = 0x84E     # 16 pattern pointers (lo)
 OFF_PAT_HI  = 0x85E     # 16 pattern pointers (hi)
+OFF_TEMPO   = 0x0EA     # the $100F tick-divider RELOAD literal (play: LDA #imm)
 
 N_INST_SLOTS = 22       # per-inst tables are 22 entries
 N_PATTERNS   = 16
@@ -84,6 +85,7 @@ class V6PatInstrument:
 @dataclass
 class V6Model:
     load: int = 0x1000
+    tempo: int = 2          # $100F tick-divider reload (frames/row = tempo+1)
     freq_lo: list = field(default_factory=list)      # 96
     freq_hi: list = field(default_factory=list)      # 96
     pw_lut_lo: list = field(default_factory=list)     # 64 (shared PW shape)
@@ -186,6 +188,7 @@ def extract(path: str) -> V6Model:
         return list(body[s:s + n])
 
     m = V6Model(load=load, **meta)
+    m.tempo = body[OFF_TEMPO]               # play's LDA #imm -> $100F reload
     m.freq_lo = tbl(OFF_FREQ_LO, FREQ_ENTRIES)
     m.freq_hi = tbl(OFF_FREQ_HI, FREQ_ENTRIES)
     m.pw_lut_lo = tbl(OFF_PW_LO, 64)
