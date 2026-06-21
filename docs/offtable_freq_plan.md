@@ -107,12 +107,15 @@ not a derivation rule).
       §4.4. Confirm the ML criterion is the adversarial check, not a justification.
 - [ ] Consult convergence-ledger C6/C7 (this plan is their canonical resolution).
 
-## Phase 1 — USF: the absolute-frequency wave step
+## Phase 1 — USF: the absolute-frequency wave step — ✅ DONE
 
-- [ ] Design the wave-step absolute-freq form (16-bit freq, optional per-note map)
-      in `src/usf/{types,grammar.lark,parser,writer}.py` + `docs/usf_format.md`
-      (usf_sync: spec + converters + player + tests together).
-- [ ] Round-trip test (G4): a wave program with an absolute-freq step.
+- [x] `Instrument.offtable_freq: list[(step, note, lo, hi)]` — NOTE-KEYED (the
+      44-shape check forced it: 55/98 load-bearing steps are multi-value) + full
+      lo+hi (29 steps reach idx>=192 where lo is also state). `src/usf/types.py`
+      + `grammar.lark` (`at(step,note,lo,hi)`) + `parser.py`/`writer.py` +
+      `docs/usf_format.md`.
+- [x] Round-trip test (G4): note-keyed + multi-value + idx>=192 survive
+      write->parse, no leakage. Full regression green (0 regressed, all families).
 
 ## Phase 2 — Composer: emit absolute-freq, drop the blob
 
