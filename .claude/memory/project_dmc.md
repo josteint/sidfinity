@@ -95,7 +95,29 @@ force-includes record 0 as slot 0. (2) pulse base split — step =
 nibble + CACHED base; idle base=0; composer derives base = step&$0F.
 (3) xa65: ':' is a statement separator EVEN IN COMMENTS (sanitizer).
 
-## ✅✅ FAMILY-1: 3135/5401 FULL (58.0%) as of 2026-06-14
+## ✅✅ FAMILY-1: 3328/5401 FULL (61.6%) as of 2026-06-22 — off-table port
+**OFF-TABLE RECOVERY (2026-06-22, +193):** ported v5's `offtable_freq` to v4 —
+the biggest family-1 residue bucket was `offtable_live` (665 members: off-table
+freq reads past the 96-entry table, previously REJECTED as k<=5 track-ptr / k>=17
+live state). The extract now CAPTURES each read's explicit (offset,note,lo,hi) by
+VALUE (stable-when-read = the read-before-evolution result), and the composer
+places them in the freq overrun window (dual lo/hi landing via freqlo/freqhi/
+window adjacency; positions 6..16 stay co-located live spd/mvol -> existing FULLs
+byte-identical, 0 regressed). Commits: 83d7c7c (freq port, +149) + 89fa81f
+(vibdepth follow-on, +44). The vibdepth follow-on handles note>95 (TWO reads: the
+note's own freq via an offset-0 offtable_freq record + the vibdepth table via a
+new note-keyed `UsfFile.offtable_vibdepth` field + composer overrun window). NB
+the offset-0 base read does the bulk of the vibdepth recovery (vibwid=0 members);
+the `offtable_vibdepth` window itself is load-bearing for only ~2 of 45 vibdepth
+FULLs (vibwid!=0) — principled (note-keyed musical, same class as offtable_freq)
+but marginal. Re-batch (665 off-table-affected): **193 FULL / 452 partial / 20
+unsup+err**. Mass-written (193, 0 err) + db-refreshed. Residue: the 452 partials
+(now BUILDABLE = diagnosable; many have separate non-off-table divergences) +
+genuinely-per-frame-dynamic track-ptr reads. Off-table arc now spans all 3 DMC
+consumers (v5, FC, v4). Next family-1 buckets: no_jumptable (364) +
+player_code_mismatch (203) + the 452 partials.
+
+## (historical) FAMILY-1: 3135/5401 FULL (58.0%) as of 2026-06-14
 Progression: 2257 (first sweep) -> 2656 (relocation: +399) -> 2921
 (2-entry layout + base=load: +265) -> 2945 (CIA) -> **3135 (round 1
 sub-build recovery: +190, 2026-06-14)**. Mass-written + db-refreshed
