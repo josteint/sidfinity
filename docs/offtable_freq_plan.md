@@ -144,10 +144,13 @@ FULL, 176 unchanged). No `StateLayoutMirror` tier exists. Nothing to decide here
 ## Phase 5 — Verify (subset → full batch), regression-gated — ✅ DONE
 
 - [x] Subset green: 42/44 load-bearing FULL, 60/60 dead-padding FULL.
-- [x] Full v5 batch: **1039 FULL** (vs 1041 freq_overrun baseline) — net **-2**,
-      exactly the 2 coincidence-masked pre-existing bugs (Redemption_6_4,
-      Planet_Love); all else identical. Phase-1 schema already regression-green.
-- [x] Mass-wrote 1039 `.usf`+`.sidfinity.sid` (0 err) + `build_sid_db.py` refresh;
+- [x] Full v5 batch (step-keyed): 1039 FULL vs 1041 freq_overrun baseline.
+- [x] **Offset-keyed + offset-0 base-read capture (round 17): 1040 FULL** (recovers
+      Redemption_6_4 via the vib_setup base read; 0 regressed). vs the 1041
+      baseline, only `Planet_Love` remains — re-diagnosed as a **wave-position
+      divergence** (NOT glide; the orig's glide state is all-zero at the
+      divergence), part of the broader residual-119 class.
+- [x] Mass-wrote 1040 `.usf`+`.sidfinity.sid` + `build_sid_db.py` refresh;
       committed (no Co-Authored-By). `freq_overrun` blob eliminated from v5.
 
 ## Phase 6 — FC unification (Move-1 payoff)

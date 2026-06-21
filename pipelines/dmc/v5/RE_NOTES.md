@@ -787,9 +787,33 @@ exactly the 2 coincidence-masked members. Mass-written + db-refreshed.
 off-table records; diverges on an in-table freq @ reg0) + `Simon_Laszlo/Planet_Love`
 (its 1 real off-table read captured; diverges on a COMPUTED glide/vibrato freq).
 Both were FULL only because the blob's ~160 bytes shifted later-table addresses and
-accidentally masked a pre-existing glide/vibrato/freq-computation bug. Dropping the
-blob (correct) exposed them → they join the partials as a separate glide/vibrato
-investigation.
+accidentally masked a pre-existing freq-computation bug. Dropping the blob (correct)
+exposed them.
+
+## Round 17 (2026-06-21): offset-keyed offtable_freq + base read -> 1040; the -2 re-diagnosed
+
+**Schema refined to OFFSET-keyed** `(offset, note, lo, hi)`, idx=(offset+note)&$FF.
+Besides wave-program step offsets, now capture the **offset-0 BASE read** =
+`freqtable[effective_note]` used by vib_setup (vib step = base-note freq << width),
+the note's own freq, and glide arrival — a site the wave-step-only walk missed.
+Composer computes idx directly (drops the wave_ptr lookup). Batch: **1040 FULL**
+(step-keyed 1039 + Redemption_6_4 recovered, 0 regressed). Mass-written + db-
+refreshed.
+
+**Redemption_6_4 RESOLVED** — it was exactly the base-read gap: V1's note wraps to
+effective 252 via transpose, so vib_setup's `freqtable[252]` base read off-tabled
+and was uncaptured. (Only ~1 of the 17 eff>95 partials recovered; the other 16 are
+partial for other reasons.)
+
+**Planet_Love RE-DIAGNOSED — NOT glide.** Trace of the ORIGINAL's V1 glide state at
+the divergence: speed $17ED=0, accum $1835/$1838=0, target $17F0=0 — glide INACTIVE.
+The freq is wave-program-driven (`$1811` steps FF,0C,08,06,05,04,01 = an arpeggio/
+percussion pitch drop). Our rebuild diverges to $4104. So it's a **WAVE-POSITION
+divergence** (the de-fused wave program steps to a different logical wavepos ->
+different `wave_freq[wavepos]` -> different/off-table idx) — the known residual class
+(RE_NOTES residual-119: Ceti_22 / Elysium-V2). NOT a glide bug. Diagnose via the
+rebuild's wavepos (composer xa65 labels; state_map_gen is FC-only) vs the orig's
+$17F3 — likely shared with several residual partials, a broader investigation.
 
 ## (historical) factory + wide-batch plan
 `dmc_v5_config` factory (jump-table detect init+$40/play+$A1, the
