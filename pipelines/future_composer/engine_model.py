@@ -477,7 +477,14 @@ class FCSong:
     std_wave_programs: dict = field(default_factory=dict)
     # Off-table freq lookup window (standard): orig image bytes after the
     # freq hi table, read by wave-relative / +$04 arp indices > 95.
+    # DEPRECATED — replaced by per-instrument `offtable_freq` (Phase 6); kept
+    # empty for back-compat until the freq_overrun field is removed (Phase 7).
     freq_overrun: list = field(default_factory=list)
+    # Off-table freq reads as ML-musical per-instrument records (the v5 form):
+    # {inst_id: [(offset, note, lo, hi)]}, idx=(offset+note)&$FF. `offset` is a
+    # wave/arp delta (0 = note-load/glide-arrival base read, 1 = vibrato, wave
+    # freq-program values, arp3 offsets). Replaces the freq_overrun blob.
+    offtable_freq: dict = field(default_factory=dict)
 
 
 # ---------------------------------------------------------------------------
@@ -648,11 +655,15 @@ def _decode_std_wave_programs(mem: bytes, cfg: FCConfig,
     return progs
 
 
-def _std_freq_overrun(mem: bytes, cfg: FCConfig,
-                      engine: EngineInstance | None,
-                      subtunes: list, instruments: list,
-                      wave_programs: dict) -> list:
-    """Reachable-window capture of the image bytes after hinote (standard).
+def _std_offtable_freq(mem: bytes, cfg: FCConfig,
+                       engine: EngineInstance | None,
+                       subtunes: list, instruments: list,
+                       wave_programs: dict) -> dict:
+    """Per-instrument off-table freq records (standard) — the v5 `offtable_freq`
+    form that replaces the freq_overrun blob. Returns {inst_id: [(offset, note,
+    lo, hi)]}, idx=(offset+note)&$FF, lo/hi = the orig's off-table freq bytes.
+
+    Reachable capture of the image bytes after hinote (standard).
 
     The standard player indexes lonote/hinote with 8-bit indices that can
     pass the 96-entry table; off-table reads must resolve to the orig's
@@ -717,7 +728,10 @@ def _std_freq_overrun(mem: bytes, cfg: FCConfig,
             delta_cache[idx] = d
         return delta_cache[idx]
 
-    reach: set[int] = set()
+    import collections as _collections
+    lo_base = resolve_address(cfg, engine, 'freq_lo_addr')
+    hi_base = resolve_address(cfg, engine, 'freq_hi_addr')
+    recs: dict = _collections.defaultdict(set)   # inst_id -> {(offset,note,lo,hi)}
     for st in subtunes:
         pats = st.patterns or {}
         for seq in (st.seqs or ()):
@@ -736,15 +750,16 @@ def _std_freq_overrun(mem: bytes, cfg: FCConfig,
                                 cur = e.instr_id
                             elif isinstance(e, PatNote):
                                 noho = (e.pitch + transpose) & 0xFF
-                                reach.update((noho + d) & 0xFF
-                                             for d in _deltas(cur))
+                                for d in _deltas(cur):
+                                    idx = (noho + d) & 0xFF
+                                    if idx >= entries:
+                                        recs[cur].add(
+                                            (d & 0xFF, noho,
+                                             mem[lo_base + idx],
+                                             mem[hi_base + idx]))
                 if not wrapped:
                     break
-    top = max((i for i in reach if i >= entries), default=None)
-    if top is None:
-        return []
-    base = resolve_address(cfg, engine, 'freq_hi_addr') + entries
-    return [mem[base + i] for i in range(top - entries + 1)]
+    return {k: sorted(v) for k, v in recs.items()}
 
 
 def _decode_arp_programs(mem: bytes, cfg: FCConfig,
@@ -1210,14 +1225,15 @@ def extract(cfg: FCConfig, root: str | None = None) -> FCSong:
         drum_programs=_decode_drum_programs(
             mem_global, cfg, engine_for_shared),
         std_wave_programs=std_wave_programs,
-        # Standard: the bytes after the freq hi table that off-table 8-bit
-        # indices can actually reach (lonote[96+k] = hinote[k] is covered
-        # by table adjacency; the hinote overrun needs the orig's bytes by
-        # value). Reachable-window capture — see _std_freq_overrun.
-        freq_overrun=(
-            _std_freq_overrun(mem_global, cfg, engine_for_shared,
-                              subtunes, instruments, std_wave_programs)
-            if getattr(cfg, 'pattern_format', 'tel') == 'standard' else []),
+        # Standard: off-table 8-bit freq lookups (idx = note + wave/arp delta)
+        # that pass the 96-entry table read the orig's following image bytes.
+        # Captured as per-instrument `offtable_freq` records (the ML-musical v5
+        # form); freq_overrun blob deprecated -> empty. See _std_offtable_freq.
+        freq_overrun=[],
+        offtable_freq=(
+            _std_offtable_freq(mem_global, cfg, engine_for_shared,
+                               subtunes, instruments, std_wave_programs)
+            if getattr(cfg, 'pattern_format', 'tel') == 'standard' else {}),
         **_decode_flat_aux(mem_global, cfg, engine_for_shared),
     )
 

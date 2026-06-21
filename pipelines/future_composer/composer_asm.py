@@ -3855,6 +3855,41 @@ def _fixup_verbatim_pointers(mem: bytearray, cfg, shift: int,
                 shift_at(rec_base + 6 + n*2, rec_base + 6 + n*2 + 1)
 
 
+def _offtable_window(usf: UsfFile) -> list:
+    """Rebuild the hinote off-table window from per-instrument `offtable_freq`
+    (the ML-musical replacement for the freq_overrun blob). The rebuild lays the
+    freq tables out contiguously — `freqlo[entries]`, `freqhi[entries]`, then
+    this window — so an off-table read at `idx` traverses by table adjacency:
+
+      - the HI read `freqhi[idx]` (idx >= entries) lands at window pos
+        `idx - entries`, value = the record's `hi`;
+      - the LO read `freqlo[idx]` (idx >= 2*entries) lands deeper in the SAME
+        window at pos `idx - 2*entries`, value = the record's `lo`
+        (for entries <= idx < 2*entries the lo read lands in the in-bounds
+        `freqhi` table, which adjacency already reproduces — no window byte).
+
+    Both writes to a shared position resolve to the same underlying byte
+    (`mem[hi_base+idx]` == `mem[lo_base+idx+entries]` by the same adjacency), so
+    there is no conflict. True gaps (positions no read reaches) stay 0 — the old
+    contiguous blob filled them with unread bytes, which silently masked the lo
+    read's window landing. Falls back to the legacy `freq_overrun` blob when no
+    instrument carries offtable_freq (non-migrated / Tel paths). Composer-
+    internal — the USF itself carries only the typed `offtable_freq`."""
+    entries = len(usf.freq_table) // 2
+    pos: dict = {}                       # window position -> byte
+    for ins in usf.instruments:
+        for offset, note, lo, hi in getattr(ins, 'offtable_freq', []) or []:
+            idx = (offset + note) & 0xFF
+            if idx >= entries:           # HI read lands in the window
+                pos[idx - entries] = hi
+            if idx >= 2 * entries:       # LO read also lands in the window
+                pos[idx - 2 * entries] = lo
+    if not pos:
+        return list(getattr(usf, 'freq_overrun', []) or [])
+    top = max(pos)
+    return [pos.get(k, 0) for k in range(top + 1)]
+
+
 def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
                                   root: str | None = None,
                                   data_base_override: int | None = None
@@ -4005,7 +4040,7 @@ def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
         _take('freq_lo_addr', entries)
         # freq_overrun rides directly after the hi table (off-table 8-bit
         # indices must resolve to the orig's following bytes — see types).
-        _take('freq_hi_addr', entries + len(getattr(usf, 'freq_overrun', [])))
+        _take('freq_hi_addr', entries + len(_offtable_window(usf)))
         _take('per_subtune_speed_addr', snelheid_len)
         _take('instr_records_addr', cfg.instr_count * 8)
         if cfg.vibtabwait_addr:
@@ -4060,7 +4095,7 @@ def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
                      cfg.freq_lo_addr + cfg.freq_table_entries),
         ('freq_hi',  cfg.freq_hi_addr,
                      cfg.freq_hi_addr + cfg.freq_table_entries
-                     + len(getattr(usf, 'freq_overrun', []))),
+                     + len(_offtable_window(usf))),
         ('snelheid', cfg.per_subtune_speed_addr,
                      cfg.per_subtune_speed_addr + snelheid_len),
         ('instruments', cfg.instr_records_addr,
@@ -4180,7 +4215,7 @@ def compose_fc_asm_featuredriven(usf: UsfFile, cfg: FCConfig,
         # (off-table 8-bit lookups read the orig's following bytes by value)
         n_tab = min(limit, len(usf.freq_table) // 2)
         vals = [usf.freq_table[i*2+1] for i in range(n_tab)]
-        vals += list(getattr(usf, 'freq_overrun', []))[:limit - n_tab]
+        vals += _offtable_window(usf)[:limit - n_tab]
         return _emit_byte_list('hinote', vals)
     def _emit_vibtabwait(_n):
         slot_to_inst = {i.id - 1: i for i in usf.instruments}

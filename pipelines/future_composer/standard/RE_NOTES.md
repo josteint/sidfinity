@@ -760,3 +760,45 @@ reloads X. Modelling needs per-block X-exit analysis (which chain
 blocks ran per inst combo decides the DEC target — deterministic but
 fiddly). ALSO requires freq_overrun to include delta=filterbytes[0]
 (and the ctr=0 slot reads) for such insts once modelled.
+[2026-06-21: "freq_overrun" above now means `offtable_freq` — see below.
+A future stale-X fix records the extra reads as per-instrument
+`offtable_freq` entries (offset=filterbytes[0], etc.), not blob bytes.]
+
+## ✅ OFF-TABLE FREQ DE-VERBATIM (2026-06-21) — freq_overrun blob → offtable_freq
+The `freq_overrun` opaque window (raw image bytes after the hi table,
+indexed by off-table reads) is replaced by ML-musical per-instrument
+`offtable_freq` records `(offset, note, lo, hi)`, idx=(offset+note)&$FF —
+the SAME form DMC v5 adopted. The off-table output is now a FREQUENCY the
+model learns (a drum/tone pitch), attributed to the instrument + note that
+plays it, not a byte at a memory offset. Plan + criterion:
+`docs/offtable_freq_plan.md`.
+
+- **Extract** (`engine_model._std_offtable_freq`): the identical reachability
+  walk (per-voice orderlist; transpose + sounding instrument carried, $FF-wrap
+  2nd pass; deltas = {0 note-load/glide, 1 vibrato, wave-prog freq vals, arp3
+  offsets}) now emits per-instrument records instead of a contiguous window.
+- **to_usf**: records thread onto `Instrument.offtable_freq`; records for
+  filtered-out (empty-raw) instruments attach to inst[0] (composer unions all
+  instruments' records to rebuild the window).
+- **Composer** (`composer_asm._offtable_window`): rebuilds the internal hinote
+  window from `offtable_freq`. FC's mature data-table layout is unchanged.
+
+- **THE NON-OBVIOUS BUG (cost 8 regressions, then fixed):** the off-table read
+  is BOTH `freqlo[idx]` and `freqhi[idx]`. With the rebuild's contiguous tables
+  (`freqlo[entries]`,`freqhi[entries]`,window), table adjacency makes the LO read
+  at idx≥2·entries land at window pos `idx−2·entries` — DEEPER than the HI read's
+  pos `idx−entries`. The old blob filled the whole window so the LO landing was
+  always covered; the first per-instrument window filled only the HI position →
+  the LO read hit a zeroed gap (At_War etc.). Fix: populate BOTH positions from
+  each record (`pos[idx−entries]=hi`, `pos[idx−2·entries]=lo`); they provably
+  resolve to the same underlying byte (`mem[hi_base+idx] == mem[lo_base+idx+
+  entries]` by the same adjacency), so no conflict. **Lesson: a contiguous
+  verbatim window silently masks reach-model under-captures within its span;
+  exact musical capture exposes every read site — which is the point.**
+
+- **Result:** 2528 FULL = the freq_overrun baseline, 0 net regressed. The lone
+  remaining diff (World_Record_1, the longest FC tune, 1.66M writes) was a
+  trichotomy `close_tol` artifact (play stream 100% bit-exact; post-overlap TAIL
+  66 > the flat 64): the tail delta is a fixed init-shift boundary effect, NOT
+  length-proportional, so `close_tol` bumped 64→80 (verify_cycle.py). Full
+  regression green across all families.

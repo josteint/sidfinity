@@ -205,12 +205,13 @@ def _decompose_fx_bytes(fil_count: int, fx1: int, fx2: int,
                 filter_prog=filter_prog, effects=effects)
 
 
-def _inst_to_usf(inst: FCInstrument) -> Instrument:
+def _inst_to_usf(inst: FCInstrument, offtable: list | None = None) -> Instrument:
     """FC 8-byte instrument record → USF Instrument (v1 schema).
 
     waveform = [pulse_hi, ctrl_byte]; adsr = (ad, sr). The four FC
     effect bytes (fil_count, fx1, fx2, fx3) are decomposed into named
-    fields per usf_schema_v1.md.
+    fields per usf_schema_v1.md. `offtable` = this instrument's off-table
+    freq records `(offset, note, lo, hi)` (replaces the freq_overrun blob).
     """
     import dataclasses as _dc
     fields = _decompose_fx_bytes(inst.fil_count, inst.fx1, inst.fx2,
@@ -221,6 +222,7 @@ def _inst_to_usf(inst: FCInstrument) -> Instrument:
         id=inst.id + 1,           # USF uses 1-based instrument ids
         waveform=[inst.pulse_hi, inst.waveform],
         adsr=(inst.ad, inst.sr),
+        offtable_freq=list(offtable or []),
         **fields,
     )
 
@@ -533,8 +535,18 @@ def fcsong_to_usf(song: FCSong, root: str | None = None) -> UsfFile:
     sid_path = str(Path(root) / song.cfg.sid_path)
     psid = _read_psid_meta(sid_path)
 
-    instruments = [_inst_to_usf(i) for i in song.instruments
-                   if any(i.raw)]
+    instruments = [_inst_to_usf(i, song.offtable_freq.get(i.id, []))
+                   for i in song.instruments if any(i.raw)]
+    # off-table records for instruments filtered out above (empty raw) would be
+    # lost; attach them to the first kept instrument so the composer's window is
+    # complete (it builds ext from the union of all instruments' offtable_freq).
+    if instruments and song.offtable_freq:
+        kept = {i.id - 1 for i in instruments}
+        orphan = sorted({r for iid, rs in song.offtable_freq.items()
+                         if iid not in kept for r in rs})
+        if orphan:
+            instruments[0].offtable_freq = sorted(
+                {tuple(r) for r in instruments[0].offtable_freq} | set(orphan))
     subtunes = [_subtune_to_usf(s, song) for s in song.subtunes]
 
     return UsfFile(

@@ -140,10 +140,12 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
     sets `emit_data_from_usf=True`); the dead functions were removed 2026-06-18.
   - **Class B — opaque blob IN the USF:** bytes round-trip through the USF (§9-clean)
     but as a raw content-by-reference list with no musical structure → the ML sees a
-    black box. **This is the live residual.** Instances: `freq_overrun` (FC std + DMC
-    v5, see C6), `SfxSubtune.extended_freq` (Hubbard SFX off-table sweep), some
-    Hubbard engines' 320-byte `freq_table` (192 musical + 128 state tail read by arp
-    extension; the notenum-overlap engines — Commando itself is a clean 192).
+    black box. **`freq_overrun` is RESOLVED (2026-06-21):** both consumers (FC std +
+    DMC v5) deconstructed to musical per-instrument `offtable_freq` frequencies via
+    C7-option-(a) — see C6; the field itself is pending removal (plan Phase 7).
+    Remaining B instances: `SfxSubtune.extended_freq` (Hubbard SFX off-table sweep),
+    some Hubbard engines' 320-byte `freq_table` (192 musical + 128 state tail read by
+    arp extension; the notenum-overlap engines — Commando itself is a clean 192).
   - **Class C — justified:** the bytes ARE the natural musical form (`freq_table`
     tuning, digi PCM). Not the anti-pattern.
 - **Why B recurs (the mechanism):** an engine indexes PAST a freq table
@@ -167,24 +169,35 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
   TECHNIQUE; C7 is the anti-pattern lens over it + extended_freq + the freq_table tail.)
 
 ### C6 — Off-table FREQ-table lookup (index past the N-entry freq table)
-- **Canonical:** when a melodic/effect path adds a table-relative offset to a
-  note and the 8-bit index `(offset + note) & $FF` passes the freq table, the
-  read falls into the following image bytes, which the orig plays as REAL freqs
-  (content-by-reference, not a bug to clamp). Capture the reachable off-table
-  window and emit it **contiguously right after the freq-hi table** so off-table
-  indices resolve as in the orig. Schema: `UsfFile.freq_overrun`.
-- **Status:** `recurring` (FC standard + DMC v5). The schema field + USF I/O are
-  shared; capture+emit is per-composer (FC `composer_asm` vs v5 `composer_v5`) →
-  a Move-1 factor-candidate. Distinct from **C2** (off-table PROGRAM tables; this
-  is off-table DATA lookup).
-- **Boundary:** reachability = melodic offset values × played notes × transposes
-  (conservative over-approx; an under-capture diverges in verify, never silent —
-  the next data section sits right after the window).
-- **Consumers:** FC standard (`engine_model._std_freq_overrun`, reachable-window
-  minimized); DMC v5 (`engine_model._freq_overrun`, **+44 FULL** 2026-06-18 —
-  capture not yet minimized like FC's uready-round-A; minimization is a follow-up).
-  NB: only the off-table SUBSET of v5's freq partials; a separate wave-program
-  STEPPING sub-cause (de-fused wavepos lands on a different logical step) remains.
+- **Canonical (CANONICALIZED 2026-06-21, both consumers):** when a melodic/effect
+  path adds a table-relative offset to a note and the 8-bit index
+  `(offset + note) & $FF` passes the freq table, the read falls into the following
+  image bytes, which the orig plays as REAL freqs (content-by-reference, not a bug
+  to clamp). **Deconstruct each off-table read to a musical FREQUENCY attributed to
+  the instrument + note that plays it** — per-instrument `Instrument.offtable_freq`
+  records `(offset, note, lo, hi)`, idx=(offset+note)&$FF (the ML learns a
+  drum/tone pitch, not a byte at a memory offset). The composer rebuilds whatever
+  internal window/layout it needs FROM those records (engine-blind); the USF never
+  carries the opaque window. This is C7-option-(a) realized. ❌ DO NOT emit a
+  contiguous `freq_overrun` window — that is the superseded form (it silently masks
+  reach-model under-captures within its span; see the LO-read bug below).
+- **Status:** `canonical` (FC standard + DMC v5, both migrated to `offtable_freq`).
+  Schema + USF I/O shared; the composer reconstruction is per-composer (FC
+  `composer_asm._offtable_window` vs v5 `composer_v5`) → a Move-1 factor-candidate.
+  Distinct from **C2** (off-table PROGRAM tables; this is off-table DATA lookup).
+- **Boundary:** reachability = offset values × played notes × transposes
+  (conservative over-approx). With exact per-read capture an under-capture diverges
+  in verify (never silent). **GOTCHA — the dual lo/hi read:** the off-table read is
+  BOTH `freqlo[idx]` and `freqhi[idx]`; with contiguous freqlo[entries],
+  freqhi[entries],window the LO read at idx≥2·entries lands DEEPER in the same
+  window (pos idx−2·entries) than the HI read (pos idx−entries). The composer must
+  populate BOTH positions (provably the same byte, `mem[hi_base+idx] ==
+  mem[lo_base+idx+entries]`). A contiguous window hides this; exact capture exposes
+  it (FC At_War class, 2026-06-21).
+- **Consumers:** FC standard (`engine_model._std_offtable_freq` → 2528 FULL,
+  freq_overrun blob eliminated, 2026-06-21); DMC v5 (`engine_model._assign_offtable_freq`
+  → 1041 FULL, blob eliminated, 2026-06-21). Both `freq_overrun`-free; the schema
+  field removal is the pending cleanup (`docs/offtable_freq_plan.md` Phase 7).
 
 ### C5 — Detection ≠ FULL
 - **Canonical:** accepting a member past the factory's detection gate just moves

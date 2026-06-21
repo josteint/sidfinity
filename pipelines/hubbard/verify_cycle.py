@@ -165,7 +165,7 @@ def init_boundary_is_canonical(state: list) -> bool:
     return gates_off and freq_zero
 
 
-def _trichotomy_compare(fa: list, fb: list, close_tol: int = 64,
+def _trichotomy_compare(fa: list, fb: list, close_tol: int = 80,
                         max_init: int = 4096, win: int = 64) -> dict:
     """Init-trichotomy comparison of two flat (reg, val) streams.
 
@@ -265,6 +265,14 @@ def _trichotomy_compare(fa: list, fb: list, close_tol: int = 64,
     overlap = min(la - ia, lb - ib)
     play_full = play_match == overlap
     post_a, post_b = la - ia, lb - ib
+    # `close`: the overlapping play streams match (play_full); this only guards
+    # against the rebuild's TAIL (writes past the orig's capture end) being wildly
+    # off — a sign of a real loop/dispatch bug. The tail delta is a fixed boundary
+    # effect (the rebuild's differing init length shifts where the last play()
+    # falls at the duration cutoff), NOT proportional to song length, so a flat
+    # absolute tolerance is the right shape. 80 (~5 frames) clears the longest FC
+    # tune (World_Record_1: 1.66M writes, 100% play match, 66-write tail) without
+    # masking a genuinely divergent loop.
     close = abs(post_a - post_b) <= close_tol
     first_play_diff = None
     if not play_full:

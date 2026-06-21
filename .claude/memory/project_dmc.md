@@ -472,6 +472,36 @@ wired as tier-1 in regress_dmc(). The closeout step is now standard
 (documented in CLAUDE.md + migrate skill): family reaches FULL coverage
 -> derive portfolio -> wire tier-1 (full family batch = tier-2).
 
+## Off-table-freq de-verbatim (v5) — DONE 2026-06-21, LOSSLESS
+
+The v5 `freq_overrun` blob (verbatim post-freq-table bytes, the C7 anti-pattern) is
+ELIMINATED. Replaced by per-instrument `Instrument.offtable_freq` = list of
+`(offset, note, freq_lo, freq_hi)`, `idx=(offset+note)&$FF` (USF schema in
+src/usf/{types,grammar,parser,writer}; extract `_assign_offtable_freq`; composer
+`composer_v5` builds in-bounds extended freqlo/freqhi from it — no OOB read).
+**1041 FULL = the freq_overrun baseline, 0 regressed.** Full design + evidence:
+`docs/offtable_freq_plan.md` + `pipelines/dmc/v5/RE_NOTES.md` rounds 11-18.
+
+WHAT THE OFF-TABLE IS (verified, rounds 12-18): the player's wave-program freq
+lookup `freqlo/hi[wave_offset+note]` has NO bounds check; for notes that overshoot
+past the 96-entry table it sonifies the engine's own work-RAM (orderlist POINTERS
+= addresses, counters, track-sequence bytes) in the fixed `$17CF-$1877` gap.
+UNDOCUMENTED (full online sweep) but the v5 expression of the documented DMC4/7
+"DRUM EFFECT = pitch steps in higher range" idiom; player binary is sole authority
+(kept under `pipelines/dmc/docs/src/`). ~1/3 of load-bearing reads are audible
+(noise drums / tri tones), ~2/3 inaudible. Capture SITES (all needed): wave-program
+steps + offset-0 BASE read (vib_setup `base-note freq<<width`, note freq, glide
+arrival) + the lead-in IDLE program (wave index 0) x lo_notes.
+
+LESSON: the "load-bearing residue" bugs (Redemption_6_4, Planet_Love) were CAPTURE
+GAPS (missing off-table read sites), NOT glide/vibrato/wave-position effect bugs —
+my diagnosis was wrong twice until I TRACED (state via composer xa65 return_labels
+vs orig memwatch) instead of assuming. **Phase 6 DONE 2026-06-21:** FC migrated to
+the SAME `offtable_freq` mechanism (cross-family unification — 2528 FULL lossless;
+see [[project_fc_fingerprint_and_standard]]), surfacing the dual lo/hi-read window
+bug + the close_tol 64→80 boundary fix. Phase 7 (remove the `freq_overrun` field
+from the shared schema, now both consumers are off it) is the remaining cleanup.
+
 ## Related
 [[project_fc_fingerprint_and_standard]] (the playbook this follows),
 [[feedback_dataflow_over_heuristics]] (the operand-patching finding is

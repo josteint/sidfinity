@@ -384,6 +384,38 @@ instrument fmt, effect chain, write model all differ) — not a config variant.
 All changes gated → FC canaries (Cyb II/Hawkeye/Adrenalin) stay 15/15; FC
 composer (composer_asm.py) is separate from Hubbard/Companion (composer.py).
 
+## ✅✅ OFF-TABLE FREQ DE-VERBATIM (2026-06-21) — freq_overrun blob → offtable_freq, LOSSLESS
+The `freq_overrun` opaque window (raw image bytes after the hi table, read by
+off-table 8-bit indices) is replaced by ML-musical per-instrument
+`offtable_freq` records `(offset, note, lo, hi)`, idx=(offset+note)&$FF — the
+SAME form DMC v5 adopted ([[project_dmc]]). Off-table output is now a FREQUENCY
+attributed to its instrument+note, not a byte at a memory offset. Plan:
+`docs/offtable_freq_plan.md`. Files: extract `_std_freq_overrun`→
+`_std_offtable_freq` (same reach walk, per-inst records); `to_usf` threads onto
+`Instrument.offtable_freq` (+ orphan handling → inst[0]); composer
+`composer_asm._offtable_window` rebuilds the internal hinote window (FC's mature
+layout unchanged); `freq_overrun` emission dropped for FC.
+
+**Result: 2528 FULL = the freq_overrun baseline, 0 net regressed.** Two things
+surfaced: (1) **THE LO-READ WINDOW BUG** — the off-table read is BOTH
+`freqlo[idx]` and `freqhi[idx]`; by table adjacency (rebuild lays
+freqlo[entries],freqhi[entries],window contiguous) the LO read at idx≥2·entries
+lands DEEPER in the same window (pos idx−2·entries) than the HI read (pos
+idx−entries). The old contiguous blob filled the whole window so the LO landing
+was always covered; the first per-inst window populated only the HI position → 7
+members regressed (At_War, Baster_Blaster, …) via a zeroed LO byte. Fix:
+`_offtable_window` writes BOTH positions; they provably resolve to the same byte
+(`mem[hi_base+idx]==mem[lo_base+idx+entries]`), no conflict. Lesson: a contiguous
+verbatim window silently masks reach-model under-captures within its span. (2)
+**close_tol 64→80** (`verify_cycle.py`) — World_Record_1 (longest FC tune, 1.66M
+writes) was play-stream 100% bit-exact but its post-overlap TAIL (66) tripped the
+flat 64-write trichotomy guard; the tail delta is a fixed init-shift boundary
+effect, NOT length-proportional, so a flat tolerance is right and 64 was just
+slightly low. One-directional change (a looser tail guard can't newly-fail a
+music-exact stream). Full regression green across ALL families. Mass-wrote 2528
+.usf+.sidfinity.sid + hvsc84.csv refresh. **Phase 7 (remove the freq_overrun
+schema field) is now unblocked** — both v5 + FC are off it.
+
 ## Related
 [[project_adrenalin]] (the outlier that triggered this pivot),
 [[project_fc_principled_composer]], [[project_fingerprint_db]] (the deferred
