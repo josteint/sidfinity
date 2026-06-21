@@ -826,6 +826,12 @@ class _T(Transformer):
         # items[0] is a byte_list (= list[int])
         return ('freq_table', items[0])
 
+    def ovd_entry(self, items):
+        return tuple(int(x) for x in items)        # (note, depth)
+
+    def offtable_vibdepth_block(self, items):
+        return ('offtable_vibdepth', [tuple(e) for e in items])
+
     def sl_n_voices(self, items):
         return ('n_voices', int(items[0]))
 
@@ -1075,11 +1081,14 @@ class _T(Transformer):
         wave_programs = {}
         default_filter = None
         default_pulse = None
+        offtable_vibdepth = []
         for it in items:
             if isinstance(it, tuple):
                 k, v = it
                 if k == 'freq_table':
                     freq_table = v
+                elif k == 'offtable_vibdepth':
+                    offtable_vibdepth = v
                 elif k == 'state_layout':
                     state_layout = v
                 elif k == 'song_end':
@@ -1131,7 +1140,7 @@ class _T(Transformer):
             pulse_programs=pulse_programs, filter_programs=filter_programs,
             drum_programs=drum_programs, attack_len=attack_len,
             attack_wave=attack_wave, wave_arp=wave_arp, pulse_arp=pulse_arp,
-            wave_programs=wave_programs,
+            wave_programs=wave_programs, offtable_vibdepth=offtable_vibdepth,
             default_filter=default_filter, default_pulse=default_pulse)
 
 

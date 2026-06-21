@@ -616,6 +616,12 @@ def write(usf: UsfFile) -> str:
     if usf.freq_table is not None:
         lines.append('')
         lines.extend(_write_freq_table(usf.freq_table))
+    if getattr(usf, 'offtable_vibdepth', None):
+        lines.append('')
+        lines.append('offtable_vibdepth {')
+        for note, depth in usf.offtable_vibdepth:
+            lines.append(f'  at({note}, {depth})')
+        lines.append('}')
     if usf.state_layout is not None:
         lines.append('')
         lines.extend(_write_state_layout(usf.state_layout))

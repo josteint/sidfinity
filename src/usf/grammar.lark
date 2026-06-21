@@ -3,7 +3,7 @@
 // Lark grammar (LALR friendly). Whitespace and comments are ignored
 // between tokens. Top-level order is enforced by the start rule.
 
-start: psid_block params_block init_block freq_table_block? state_layout_block? song_end_block? init_behavior_block? master_vol_block? sfx_block? default_filter_block? default_pulse_block? fc_aux_block* instrument_block* subtune_block*
+start: psid_block params_block init_block freq_table_block? offtable_vibdepth_block? state_layout_block? song_end_block? init_behavior_block? master_vol_block? sfx_block? default_filter_block? default_pulse_block? fc_aux_block* instrument_block* subtune_block*
 
 // ----- default (idle) filter / pulse sweeps (DMC V5) -----
 // The default cutoff / PW modulation the engine applies before/between explicit
@@ -128,6 +128,11 @@ isid_voice_field: "envelope_prime" ":" "(" number "," number ")"  -> isidv_env
 freq_table_block: "freq_table" "{" byte_list "}"
 // (Off-table freq reads are now carried per-instrument as `offtable_freq`
 // — the old `freq_overrun` opaque-window block was removed 2026-06-21.)
+
+// Off-table vibrato-depth reads (DMC v4): note-keyed vibrato depths for notes
+// that overshoot the 96-entry vibdepth table (note > 95). at(note, depth).
+offtable_vibdepth_block: "offtable_vibdepth" "{" ovd_entry+ "}"
+ovd_entry: "at" "(" number "," number ")"
 
 // ----- state_layout (optional) -----
 // Off-table-arp statebuf layout — names which bytes the engine reads

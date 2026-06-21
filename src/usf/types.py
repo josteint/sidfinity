@@ -897,6 +897,14 @@ class UsfFile:
     # (Off-table freq reads are now carried per-instrument as
     # `Instrument.offtable_freq` — the old `freq_overrun` opaque window was
     # removed 2026-06-21 once FC + DMC v5 were both off it; see C6/C7.)
+    # Off-table VIBRATO-DEPTH reads (DMC v4): when a note overshoots the
+    # 96-entry vibdepth table (note > 95, via transpose) the engine reads the
+    # following image byte as the note's vibrato step. The vibdepth analog of
+    # `offtable_freq` — note-keyed musical content (the vibrato depth that note
+    # plays at), captured by VALUE so the composer reproduces it. Each entry is
+    # `(note, depth)`, note > 95. The overrun lands on STATIC instrument-record
+    # bytes (not runtime state), so the captured value is exact.
+    offtable_vibdepth: list[tuple] = field(default_factory=list)
     # Default (idle) filter-cutoff sweep (DMC V5 V3-global). The cutoff
     # modulation the engine applies by DEFAULT — from song start, before/
     # between explicit per-instrument filter notes (for tunes whose V3 never

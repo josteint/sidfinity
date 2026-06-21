@@ -381,7 +381,20 @@ def compose_dmc_asm(usf: UsfFile) -> str:
                 'spd:      .dsb 1, 0\n'
                 'mvol:     .dsb 1, 0\n'
                 + _byt(ovr[17:160]))
-    data.append('vibdepth:\n' + _byt(list(VIBDEPTH)))
+    # vibdepth table (96-entry constant) + the off-table overrun window: a
+    # note>95 reads `vibdepth[note]` past the table; place the captured depth at
+    # pos note-96 so the read resolves to the original's value (it landed on
+    # static instr-record bytes). Empty -> just the constant (byte-identical).
+    _vibovr = getattr(usf, 'offtable_vibdepth', None) or []
+    _vd = list(VIBDEPTH)
+    if _vibovr:
+        _top = max(n for n, _ in _vibovr)
+        _win = [0] * (_top - 95)
+        for _note, _depth in _vibovr:
+            if _note >= 96:
+                _win[_note - 96] = _depth
+        _vd = _vd + _win
+    data.append('vibdepth:\n' + _byt(_vd))
     for name, arr in [('iad', iad), ('isr', isr), ('ipwinit', ipwinit),
                       ('ipwmin', ipwmin), ('ipwmax', ipwmax),
                       ('ipwbase', ipwbase),

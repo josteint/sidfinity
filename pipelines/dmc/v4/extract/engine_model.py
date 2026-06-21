@@ -118,6 +118,10 @@ class DmcModel:
     freq_lo: list = field(default_factory=list)
     freq_hi: list = field(default_factory=list)
     vibdepth: list = field(default_factory=list)     # 96 bytes incl. overlap
+    # off-table vibrato-depth reads (note > 95): {note: depth} — the value the
+    # engine reads past the 96-entry vibdepth table (lands on static instr
+    # records). The vibdepth analog of offtable_freq.
+    offtable_vibdepth: dict = field(default_factory=dict)
     d417_shadow: int = 0
     dual_phase: int = 0              # $1019 leftover & 1 — initial phase
                                      # of the half-rate slide clock
@@ -509,12 +513,13 @@ def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc84') -> DmcModel:
     # table; the swell mechanism is the build-level params.vib_ramp flag.
     m.family2 = (cfg.sector_format == 'family2')
     m.extra_params = dict(getattr(cfg, 'extra_params', {}))
-    _assign_offtable_freq(m, mem, cfg.freq_lo_addr, cfg.freq_hi_addr)
+    _assign_offtable_freq(m, mem, cfg.freq_lo_addr, cfg.freq_hi_addr,
+                          cfg.vibdepth_addr)
     return m
 
 
 def _assign_offtable_freq(m: DmcModel, mem, flo_addr: int,
-                          fhi_addr: int) -> None:
+                          fhi_addr: int, vibdepth_addr: int) -> None:
     """Capture each reachable off-table freq read as a per-instrument
     `(offset, note, lo, hi)` record — the v5 `offtable_freq` form, ported to v4.
 
@@ -533,17 +538,27 @@ def _assign_offtable_freq(m: DmcModel, mem, flo_addr: int,
     co-located (live spd/mvol/constants) — so members that only read there are
     byte-identical to before (no regression).
 
-    Note-load reads past the table (note > 95) ALSO read the separate vibdepth
-    table — a distinct off-table read that is NOT an offtable_freq — so note>95
-    is still flagged `offtable_vibdepth` (handled separately)."""
+    Note-load reads past the table (note > 95, via transpose) make TWO off-table
+    reads: the note's own freq (captured here as an offset-0 offtable_freq
+    record) AND the separate vibdepth table (the vibrato step) — captured into
+    `m.offtable_vibdepth` ({note: depth}), which `to_usf` emits as
+    `UsfFile.offtable_vibdepth` for the composer's vibdepth overrun window. Both
+    land on STATIC bytes (freq tail / instrument records), so the captured values
+    are exact. No more `offtable_vibdepth` rejection."""
     from collections import defaultdict
     recs = defaultdict(set)            # inst id -> {(off, note, lo, hi)}
-    vib = set()
+    vibovr = {}                        # note>95 -> off-table vibdepth byte
 
     def add_note(n, inst_id):
         inst = m.instruments.get(inst_id)
         if n > 95:
-            vib.add(n)                 # note-load vibdepth overrun (separate)
+            # the note's OWN off-table freq (offset-0 base read): the pitch the
+            # note plays at when it overshoots the 96-entry table (via transpose).
+            recs[inst_id].add((0, n & 0xFF, mem[(flo_addr + n) & 0xFFFF],
+                               mem[(fhi_addr + n) & 0xFFFF]))
+            # the note's off-table VIBDEPTH read (vibdepth[note], note>95) —
+            # lands on static instr-record bytes, used as the vibrato step.
+            vibovr[n & 0xFF] = mem[(vibdepth_addr + n) & 0xFFFF]
         if inst is None or inst.drum:
             return
         for off in inst.wave_freq:
@@ -565,5 +580,4 @@ def _assign_offtable_freq(m: DmcModel, mem, flo_addr: int,
     for iid, s in recs.items():
         if iid in m.instruments:
             m.instruments[iid].offtable_freq = sorted(s)
-    if vib:
-        raise RuntimeError(f'unsupported:offtable_vibdepth n={sorted(vib)[:8]}')
+    m.offtable_vibdepth = vibovr

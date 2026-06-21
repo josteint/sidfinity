@@ -149,6 +149,9 @@ def model_to_usf(m: DmcModel) -> UsfFile:
         wave_programs={0: {'ctrl': list(m.idle_wave[0]),
                            'freq': list(m.idle_wave[1]),
                            'loop': m.idle_wave[2]}},
+        # off-table vibrato-depth reads (note>95) — the vibdepth analog of
+        # offtable_freq; composer places these past the vibdepth table.
+        offtable_vibdepth=sorted(m.offtable_vibdepth.items()),
     )
 
 
