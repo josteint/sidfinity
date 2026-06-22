@@ -295,10 +295,21 @@ def _build_via_dataflow(sid_path: str, hvsc_root: str):
     loc = dataflow.locate(mem, base)
     if loc is None:
         return None
+    # CIA multispeed (same as the canon path): if the speed bit is set, run the
+    # init and recover the timer latch so the rebuild runs at the same rate.
+    # Lenient on an unreadable latch (fall back to single-speed; the verify gate
+    # catches a mis-rated build as a partial) — the dataflow path is itself a
+    # best-effort fallback.
+    cia_period = 0
+    if s.get('speed', 0) & 1:
+        cp = _cia_period_from_init(os.path.join(hvsc_root, sid_path),
+                                   s['start'] - 1)
+        if 0x0100 <= cp <= 0xFFFF:
+            cia_period = cp
     return DMCV4Config(
         sid_path=sid_path,
         name=os.path.splitext(os.path.basename(sid_path))[0],
-        base=base, cia_period=0, extra_params={}, **loc)
+        base=base, cia_period=cia_period, extra_params={}, **loc)
 
 
 def _build_via_canon(sid_path: str, hvsc_root: str = 'hvsc84') -> DMCV4Config:
@@ -364,20 +375,31 @@ def _build_via_canon(sid_path: str, hvsc_root: str = 'hvsc84') -> DMCV4Config:
         raise DMCV4Unsupported(
             reason,
             f"load=${s['load']:04X} init=${s['init']:04X} play=${s['play']:04X}")
-    # A wrapper member (play != base+3) drives the canonical player from a
-    # separate dispatcher. When the PSID speed bit is set, that dispatcher
-    # is a CIA-timer multispeed driver (~2-6x): the music plays faster, so
-    # the rebuild must run at the same CIA rate. Recover the timer latch
-    # the wrapper programs by running its init in py65 — the composer
-    # emits the same latch + speed bit (see config.cia_period).
+    # CIA multispeed. When the PSID speed bit is set the player runs off the
+    # CIA1 timer A, not the 50 Hz VBI — at ~2-6x speed, so the rebuild must
+    # run at the same CIA rate or it logs proportionally fewer writes (the
+    # dominant CIA-partial signature: full overlap match, len_post_a = k *
+    # len_post_b). The timer comes from the init in TWO ways and BOTH must be
+    # recovered: (a) a separate wrapper dispatcher (play != base+3), or
+    # (b) the CANONICAL player's own init programming $DC04/$DC05 with
+    # play == base+3 (the common case: e.g. latch $1331 => 4x, $2663 => 2x).
+    # So gate on the speed bit alone and read the latch the init leaves.
+    # The composer emits the same latch + speed bit (see config.cia_period).
     cia_period = 0
-    if s['play'] != base + 3 and (s.get('speed', 0) & 1):
+    if s.get('speed', 0) & 1:
         cia_period = _cia_period_from_init(
             os.path.join(hvsc_root, sid_path), s['start'] - 1)
         if not (0x0100 <= cia_period <= 0xFFFF):
-            raise DMCV4Unsupported(
-                'cia_multispeed',
-                f"play=${s['play']:04X} CIA latch=${cia_period:04X} (unreadable)")
+            # A wrapper member IS multispeed but we can't read its rate ->
+            # can't rebuild it faithfully. A canonical-play member with the
+            # speed bit set but no readable latch falls back to single-speed
+            # (the prior behavior — no worse than before).
+            if s['play'] != base + 3:
+                raise DMCV4Unsupported(
+                    'cia_multispeed',
+                    f"play=${s['play']:04X} CIA latch=${cia_period:04X} "
+                    "(unreadable)")
+            cia_period = 0
     delta = base - 0x1000
 
     def at(canon_addr):                 # canonical $1xxx addr -> mem index

@@ -31,6 +31,21 @@ OUT = os.path.join(ROOT, 'tmp', 'dmc_wide_results.jsonl')
 _db = None
 
 
+def _cia_speed(sid_path: str) -> int:
+    """PSID/RSID 32-bit `speed` field (bytes 0x12-0x16, big-endian). Bit N set
+    => subtune N is CIA-timed (multispeed), clear => vblank. 0 for non-PSID."""
+    with open(sid_path, 'rb') as f:
+        b = f.read(0x16)
+    if len(b) < 0x16 or b[:4] not in (b'PSID', b'RSID'):
+        return 0
+    return int.from_bytes(b[0x12:0x16], 'big')
+
+
+def _is_cia_subtune(speed: int, st: int) -> bool:
+    """True iff subtune `st` (0-indexed) is CIA-timed (bit 31 reused beyond 32)."""
+    return bool((speed >> min(st, 31)) & 1)
+
+
 def _worker_init():
     global _db
     from src.songlengths import load_database
@@ -48,7 +63,8 @@ def run_member(rel: str) -> dict:
         from pipelines.dmc.v4.extract.to_usf import write_dmc_usf
         from pipelines.dmc.composer_asm import build_dmc_sid
         from pipelines.hubbard.verify_cycle import (
-            writelog_capture, compare_instruction_stream)
+            writelog_capture, writelog_per_irq_capture,
+            compare_instruction_stream)
         from src.songlengths import get_durations
         from src.usf.parser import parse_file
         from seed_disassembly import parse_psid
@@ -67,14 +83,26 @@ def run_member(rel: str) -> dict:
             open(tmp_sid, 'wb').write(rebuilt)
             durs = get_durations(orig, _db)
             n = parse_psid(orig)['songs']
+            speed = _cia_speed(orig)
             subs = {}
             ok = True
             first_diff = None
             for sub in range(n):
                 dur = (durs[sub] if durs and sub < len(durs) else 110) * 1.1
                 dur = max(5.0, min(dur, 1500.0))
-                a = writelog_capture(orig, subtune=sub, duration=dur)
-                b = writelog_capture(tmp_sid, subtune=sub, duration=dur)
+                # CIA-timed (multispeed) subtunes: play() does not align with
+                # siddump's 19656-cycle frame buckets, so the flat per-frame
+                # capture phases init+play differently for orig vs rebuild
+                # (Trap C specialised to CIA) — capture PER play() instead.
+                # The rebuild installs a matching CIA timer (composer_asm
+                # cia_period), so the play-for-play streams align. Init is
+                # dropped on both sides, so trichotomy recovers d=0 and reduces
+                # to overlap+close (state_match trivially true), matching the
+                # Hubbard/FC per-IRQ verdict. Vblank subtunes unchanged.
+                cap = (writelog_per_irq_capture if _is_cia_subtune(speed, sub)
+                       else writelog_capture)
+                a = cap(orig, subtune=sub, duration=dur)
+                b = cap(tmp_sid, subtune=sub, duration=dur)
                 r = compare_instruction_stream(a, b, mode='trichotomy')
                 # Record the trichotomy fields that let a census categorize a
                 # partial WITHOUT re-running verify (the lesson from the no-first-
