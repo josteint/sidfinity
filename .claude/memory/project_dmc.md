@@ -95,6 +95,25 @@ force-includes record 0 as slot 0. (2) pulse base split — step =
 nibble + CACHED base; idle base=0; composer derives base = step&$0F.
 (3) xa65: ':' is a statement separator EVEN IN COMMENTS (sanitizer).
 
+## ✅✅ FAMILY-1: 3771/5401 FULL (69.8%) as of 2026-06-22 — STEP 3 (unblock-builds): + off-table WAVE
+**off-table-WAVE (+7 FULL +27 buildable, commit 4da2878).** The off-table-freq
+playbook applied to wave: an instrument whose wave_start (byte 9) points past the
+wave ctrl table reads the freq table / following data region AS wave ctrl+freq.
+Extend the read window; `_slice_wave` bounds IN-table starts to n_wave (byte-
+identical, zero regression — canary Geometrical_Zaks stays FULL) and slices OFF-
+table starts over the extension. Of 117 zero_wave_table: 7 FULL, 27 buildable
+(effect_div), **80 wave_marker_chain** (circular off-table — refused cleanly), 3
+wave-pool-overflow.
+- **THE 80 wave_marker_chain ARE RECOVERABLE (next sub-target).** They're refused
+  because the off-table program's loop jumps back onto a region containing a marker
+  byte. But that's a MULTI-HOP marker chain that SETTLES, not infinite: Jim inst 10
+  reads off-table [$0D,$08,$06,$04,$02,$00], $FF marker -> idx5=$91 marker -> idx4
+  ($11), then idx5=$91 -> idx4 ping-pong = SUSTAIN $11. So the true program is
+  [$0D,$08,$06,$04,$02,$00,$11] looping on $11. Needs a recursive marker-chain
+  RESOLVER (follow hops to the settling loop, emit the flat program). Current
+  slicer refuses these; a resolver would recover much of the 80. HIGH-yield deeper
+  effort.
+
 ## ✅✅ FAMILY-1: 3764/5401 FULL (69.7%) as of 2026-06-22 — STEP 3 (unblock-builds): no_jumptable base fix
 **STEP 3 = unblock-builds (least-dependent set after the multispeed rate fixes;
 a member that can't build can't be FULL).** Census of the 442 error+unsupported
