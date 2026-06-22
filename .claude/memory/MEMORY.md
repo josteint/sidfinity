@@ -73,6 +73,7 @@
 - [Use 6502 mindset](feedback_6502_mindset.md) — all bugs are pointer errors; think in exact byte offsets
 - [C64 banking when relocating](feedback_c64_banking_relocation.md) — relocating code into $A000-$BFFF? Audit every `sta $01` inside it. A banking flip takes effect on the very next fetch; if that fetch is also in the banked range it reads ROM.
 - [Bug investigation methodology](feedback_bug_investigation.md) — pick one bad subtune, trace the first wrong frame, fix root cause
+- [Residue-triage order](feedback_residue_triage_order.md) — large wide-family residue: fully census FIRST, then attack in DEPENDENCY order (measure→fix-verdict→unblock-builds→fix-effects→accept-architectural-limit-last), never biggest-bucket-first. Each earlier class re-buckets the residue; a verdict fix can flip ~150 false-partials to FULL at zero composer cost.
 - [Full decompile before Hubbard work](feedback_full_decompile_hubbard.md) — disassemble init+play first for every new Hubbard SID
 - [Trust binary not disassembly](feedback_disassembly_data_section.md) — `!by` directives can be wrong about initial data; read the actual bytes
 - [Deconstruct, don't reproduce the trick](feedback_deconstruct_not_reproduce.md) — reproduce the exact instruction stream with clean code; the trick to avoid is Hubbard's space-saving MECHANISM, not the output. Investigate odd behaviour (what/audible?) before discarding.

@@ -76,8 +76,17 @@ def run_member(rel: str) -> dict:
                 a = writelog_capture(orig, subtune=sub, duration=dur)
                 b = writelog_capture(tmp_sid, subtune=sub, duration=dur)
                 r = compare_instruction_stream(a, b, mode='trichotomy')
+                # Record the trichotomy fields that let a census categorize a
+                # partial WITHOUT re-running verify (the lesson from the no-first-
+                # diff re-localization): when first_play_diff is None the play
+                # stream matched over the overlap, so the partial is NOT an effect
+                # divergence — it's length/CIA (close=False, len_post_a<<len_post_b
+                # = orig vblank-stub vs rebuild full play) or init-state
+                # (state_match=False, play matched). state_match+close+len_post
+                # distinguish those; first_diff carries the reg when there IS one.
                 subs[sub] = [bool(r['is_full']), r['play_match'],
-                             r['play_overlap']]
+                             r['play_overlap'], bool(r['state_match']),
+                             bool(r['close']), r['len_post_a'], r['len_post_b']]
                 if not r['is_full']:
                     ok = False
                     if first_diff is None:
