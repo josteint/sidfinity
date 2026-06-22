@@ -358,12 +358,26 @@ def _signed8(b):
     return b - 256 if b >= 128 else b
 
 
-def _slice_wave(ctrl_tab: list, freq_tab: list, start: int):
+def _slice_wave(ctrl_tab: list, freq_tab: list, start: int, n_inbound=None):
     """Follow the wave table from `start` to its first jump-back byte
     (>= $90); return (ctrl, freq, loop) with the cyclic region
     normalized into the slice (see disassembly: >= $90 jumps back
-    (val - $90) positions and re-reads)."""
-    n = len(ctrl_tab)
+    (val - $90) positions and re-reads).
+
+    `ctrl_tab`/`freq_tab` may be EXTENDED past the wave table (covering the
+    bytes the original reads when an instrument's wave_start sits past the
+    table — an off-table WAVE read, the wave analogue of off-table freq).
+    `n_inbound` is the real wave-table size: an IN-TABLE start (< n_inbound)
+    is sliced bounded to n_inbound, byte-identical to the unextended call (so
+    no built member regresses); an OFF-TABLE start (>= n_inbound) is sliced
+    over the full extended length, capturing the off-table program. Defaults
+    to len(ctrl_tab) (the unextended single-table behaviour)."""
+    if n_inbound is None:
+        n_inbound = len(ctrl_tab)
+    # In-table slices stay bounded to the real table (today's behaviour);
+    # off-table slices use the extended window.
+    n = n_inbound if start < n_inbound else len(ctrl_tab)
+    offtable = start >= n_inbound
     # a start sitting on a marker re-dispatches immediately (the
     # original checks the marker before reading) — follow the chain
     guard = 0
@@ -393,12 +407,19 @@ def _slice_wave(ctrl_tab: list, freq_tab: list, start: int):
     # loop target before the start: cycle = [loop_pos..end-1]; the
     # heard sequence is [start..end-1] then the cycle repeating, which
     # equals list [start..end-1]+[loop_pos..start-1] with loop=0.
+    # An OFF-TABLE program whose loop region re-enters a stretch that itself
+    # contains a marker byte is a circular marker chain (the engine re-reads
+    # bytes that re-dispatch again) — not a flat program. Refuse it cleanly
+    # rather than emit a pool byte >= $90 the player would mis-read as a
+    # marker (e.g. Jim inst 10: off-table loop back onto index 5 = $91).
+    if offtable and any(b >= 0x90 for b in ctrl_tab[loop_pos:start]):
+        raise RuntimeError(f'unsupported:wave_marker_chain @{start}')
     return (ctrl_tab[start:end] + ctrl_tab[loop_pos:start],
             freq_tab[start:end] + freq_tab[loop_pos:start], 0)
 
 
 def _decode_instrument(mem, base: int, iid: int,
-                       ctrl_tab, freq_tab) -> DmcInstrument:
+                       ctrl_tab, freq_tab, n_inbound=None) -> DmcInstrument:
     b = [mem[base + iid * 11 + k] for k in range(11)]
     fx = b[10]
     pw_base = b[6] >> 4
@@ -411,7 +432,7 @@ def _decode_instrument(mem, base: int, iid: int,
         gate = 'open'
     else:
         gate = 'release_early'
-    wc, wf, wl = _slice_wave(ctrl_tab, freq_tab, b[9])
+    wc, wf, wl = _slice_wave(ctrl_tab, freq_tab, b[9], n_inbound)
     return DmcInstrument(
         id=iid, ad=b[0], sr=b[1],
         pw_init_hi=b[2] & 0x0F, pw_bound_a=b[2] >> 4,
@@ -459,8 +480,15 @@ def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc84') -> DmcModel:
         f'non-standard instrument base ${instr_base:04X}'
 
     n_wave = wavefreq - wavectrl
-    ctrl_tab = [mem[wavectrl + i] for i in range(n_wave)]
-    freq_tab = [mem[wavefreq + i] for i in range(n_wave)]
+    # Extend the read window past the wave table so an instrument whose
+    # wave_start sits past it (an off-table WAVE read — the wave analogue of
+    # off-table freq) is sliced from the bytes the original actually reads
+    # (the freq table + following data region). _slice_wave bounds IN-table
+    # starts to n_wave (byte-identical to the unextended slice), so the
+    # extension only affects the previously-refused off-table instruments.
+    ext = min(0x10000 - max(wavectrl, wavefreq), max(n_wave, 0) + 0x180)
+    ctrl_tab = [mem[wavectrl + i] for i in range(ext)]
+    freq_tab = [mem[wavefreq + i] for i in range(ext)]
 
     b = cfg.base
     m = DmcModel(
@@ -478,7 +506,7 @@ def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc84') -> DmcModel:
         n_subtunes=s.get('songs', 1), start_song=s.get('start', 1),
     )
 
-    m.idle_wave = _slice_wave(ctrl_tab, freq_tab, 0)
+    m.idle_wave = _slice_wave(ctrl_tab, freq_tab, 0, n_wave)
     # decode subtunes; collect referenced instruments + filter defs as
     # they surface
     used_instr = set()
@@ -503,7 +531,8 @@ def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc84') -> DmcModel:
     # Record 0 must therefore always ship (and sit first in the list).
     used_instr.add(0)
     for iid in sorted(used_instr):
-        inst = _decode_instrument(mem, instr_base, iid, ctrl_tab, freq_tab)
+        inst = _decode_instrument(mem, instr_base, iid, ctrl_tab, freq_tab,
+                                  n_wave)
         m.instruments[iid] = inst
         if inst.filter_on:
             d = inst.filter_def
