@@ -377,7 +377,14 @@ def _slice_wave(ctrl_tab: list, freq_tab: list, start: int, n_inbound=None):
     # In-table slices stay bounded to the real table (today's behaviour);
     # off-table slices use the extended window.
     n = n_inbound if start < n_inbound else len(ctrl_tab)
-    offtable = start >= n_inbound
+    # OFF-table starts are resolved by simulating the engine's wave-position
+    # walk (markers hop back and re-read, possibly multi-hop) until the walk
+    # SETTLES into a loop — recovering the flat program even when the chain
+    # re-enters a marker (Jim inst 10: off-table bytes then a 1-step ping-pong
+    # = a sustained byte). The in-table path below is the proven, byte-identical
+    # slice (no built member regresses).
+    if start >= n_inbound:
+        return _resolve_wave_chain(ctrl_tab, freq_tab, start)
     # a start sitting on a marker re-dispatches immediately (the
     # original checks the marker before reading) — follow the chain
     guard = 0
@@ -407,15 +414,43 @@ def _slice_wave(ctrl_tab: list, freq_tab: list, start: int, n_inbound=None):
     # loop target before the start: cycle = [loop_pos..end-1]; the
     # heard sequence is [start..end-1] then the cycle repeating, which
     # equals list [start..end-1]+[loop_pos..start-1] with loop=0.
-    # An OFF-TABLE program whose loop region re-enters a stretch that itself
-    # contains a marker byte is a circular marker chain (the engine re-reads
-    # bytes that re-dispatch again) — not a flat program. Refuse it cleanly
-    # rather than emit a pool byte >= $90 the player would mis-read as a
-    # marker (e.g. Jim inst 10: off-table loop back onto index 5 = $91).
-    if offtable and any(b >= 0x90 for b in ctrl_tab[loop_pos:start]):
-        raise RuntimeError(f'unsupported:wave_marker_chain @{start}')
     return (ctrl_tab[start:end] + ctrl_tab[loop_pos:start],
             freq_tab[start:end] + freq_tab[loop_pos:start], 0)
+
+
+def _resolve_wave_chain(ctrl_tab: list, freq_tab: list, start: int):
+    """Flatten an OFF-table wave read by SIMULATING the engine's wave-position
+    walk: each step resolves markers (>= $90 hops back val-$90 and re-reads,
+    possibly several times), then emits (ctrl, freq) at the settled position
+    and advances +1. The walk SETTLES into a loop once it revisits a position
+    already emitted — that revisit is the loop point. Returns (ctrl, freq, loop)
+    or raises wave_marker_chain for a degenerate chain (hops out of range, or
+    no settle within the guard). This recovers chains the flat slicer can't —
+    e.g. Jim inst 10: [$0D,$08,$06,$04,$02,$00] then a $FF->$91 hop pair that
+    ping-pongs index 4<->5 = a sustained $11 (program loops on the final byte).
+    """
+    n = len(ctrl_tab)
+    ctrl, freq = [], []
+    seen = {}                       # settled position -> emit index (loop pt)
+    pos = start
+    for _ in range(512):
+        hops = 0
+        while 0 <= pos < n and ctrl_tab[pos] >= 0x90:
+            pos -= (ctrl_tab[pos] - 0x90)
+            hops += 1
+            if hops > 128:
+                raise RuntimeError(f'unsupported:wave_marker_chain @{start}')
+        if not (0 <= pos < n):       # walked off the readable window -> hold
+            break
+        if pos in seen:
+            return ctrl, freq, seen[pos]
+        seen[pos] = len(ctrl)
+        ctrl.append(ctrl_tab[pos])
+        freq.append(freq_tab[pos])
+        pos += 1
+    if not ctrl:
+        raise RuntimeError(f'unsupported:wave_marker_chain @{start}')
+    return ctrl, freq, max(0, len(ctrl) - 1)
 
 
 def _decode_instrument(mem, base: int, iid: int,
