@@ -165,7 +165,7 @@ def init_boundary_is_canonical(state: list) -> bool:
     return gates_off and freq_zero
 
 
-def _trichotomy_compare(fa: list, fb: list, close_tol: int = 80,
+def _trichotomy_compare(fa: list, fb: list, close_tol: int = 176,
                         max_init: int = 4096, win: int = 64) -> dict:
     """Init-trichotomy comparison of two flat (reg, val) streams.
 
@@ -270,9 +270,13 @@ def _trichotomy_compare(fa: list, fb: list, close_tol: int = 80,
     # off — a sign of a real loop/dispatch bug. The tail delta is a fixed boundary
     # effect (the rebuild's differing init length shifts where the last play()
     # falls at the duration cutoff), NOT proportional to song length, so a flat
-    # absolute tolerance is the right shape. 80 (~5 frames) clears the longest FC
-    # tune (World_Record_1: 1.66M writes, 100% play match, 66-write tail) without
-    # masking a genuinely divergent loop.
+    # absolute tolerance is the right shape. The MAGNITUDE scales with multispeed:
+    # at 4x CIA (DMC) the cutoff straddles a few play()s of ~17+ steady writes
+    # each, so the band is ~2-4x a 1x tune's. 176 clears the 9 DMC CIA close-tail
+    # members (|tail| 85-170, all full play+state match) and the longest FC tune
+    # (World_Record_1: 1.66M writes, 66-write tail) without masking a genuinely
+    # divergent loop (a real loop/dispatch bug is thousands of writes off, not
+    # <176). Bumped 80->176 2026-06-22 (was 64->80 for World_Record_1).
     close = abs(post_a - post_b) <= close_tol
     first_play_diff = None
     if not play_full:
