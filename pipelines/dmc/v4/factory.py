@@ -246,7 +246,55 @@ def _cia_period_from_init(sid_path: str, subtune: int,
     return mem[0xDC04] | (mem[0xDC05] << 8)
 
 
+# canon-path failures that signal a re-assembled / moved layout the
+# dataflow extractor can recover (the player IS a DMC v4, just relocated
+# internally). Verify-gated downstream — a mislocation yields a partial.
+_DATAFLOW_RETRY = {'player_code_mismatch', 'loop_site_unknown',
+                   'loop_hook_unknown', 'operand_inconsistent',
+                   'layout_disorder', 'nonstandard_instr_base'}
+
+
 def dmc_v4_config(sid_path: str, hvsc_root: str = 'hvsc84') -> DMCV4Config:
+    """Primary canonical-layout build; on a moved-layout rejection, fall back
+    to the layout-independent dataflow extractor (pipelines.dmc.v4.dataflow)."""
+    try:
+        return _build_via_canon(sid_path, hvsc_root)
+    except DMCV4Unsupported as e:
+        if e.reason not in _DATAFLOW_RETRY:
+            raise
+        cfg = _build_via_dataflow(sid_path, hvsc_root)
+        if cfg is None:
+            raise
+        return cfg
+
+
+def _build_via_dataflow(sid_path: str, hvsc_root: str):
+    """Build a config by locating every table via opcode-skeleton signatures
+    (handles re-assembled players whose routines + operand sites moved). Returns
+    None if the base or any table can't be located; the verify gate is the net."""
+    from pipelines.dmc.v4 import dataflow
+    mem, s = _load(os.path.join(hvsc_root, sid_path))
+    load = s['load']
+
+    def _jt(b):
+        return (0 < b and load <= b and b + 6 < 0x10000 and mem[b] == 0x4C
+                and mem[b + 3] == 0x4C and (mem[b + 1] | (mem[b + 2] << 8)) == b + 0x1D)
+    base = next((b for b in (s['play'] - 3, load) if _jt(b)), None)
+    if base is None:
+        hi = min(0x10000, load + len(s['payload']))
+        base = next((b for b in range(load, hi - 6) if _jt(b)), None)
+    if base is None:
+        return None
+    loc = dataflow.locate(mem, base)
+    if loc is None:
+        return None
+    return DMCV4Config(
+        sid_path=sid_path,
+        name=os.path.splitext(os.path.basename(sid_path))[0],
+        base=base, cia_period=0, extra_params={}, **loc)
+
+
+def _build_via_canon(sid_path: str, hvsc_root: str = 'hvsc84') -> DMCV4Config:
     mem, s = _load(os.path.join(hvsc_root, sid_path))
 
     # ---- base detection. The canonical jump table is `JMP base+$1D /
