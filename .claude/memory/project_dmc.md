@@ -95,7 +95,28 @@ force-includes record 0 as slot 0. (2) pulse base split — step =
 nibble + CACHED base; idle base=0; composer derives base = step&$0F.
 (3) xa65: ':' is a statement separator EVEN IN COMMENTS (sanitizer).
 
-## ✅✅ FAMILY-1: 3468/5401 FULL (64.2%) as of 2026-06-22 — + dataflow extractor
+## ✅✅ FAMILY-1: 3558/5401 FULL (65.9%) as of 2026-06-22 — + JT-less locator
+**JT-LESS BASE LOCATOR (2026-06-22, +90):** the `no_jumptable` residue (364)
+aren't jump-table-less — they HAVE a JMP table at load with NON-canonical targets
+(e.g. Yardies init->+\$807/play->+\$85; Master_and_Servant init->+\$7D/play->+\$E5)
+that the factory's `_jt_layout` (fixed e0/e1 patterns) rejected. The dataflow trace
+FOLLOWS the JMPs to the handlers regardless of target offset, so the dataflow
+extractor handles them with base=load (work RAM at load+\$0F.., canonical). Wired
+(commit a263477): 'no_jumptable' added to `_DATAFLOW_RETRY`; `_build_via_dataflow`
+accepts base=load when any JMP table sits at load. Re-batch of 364: **90 FULL
+(25%)** + 172 build (partial) + 71 still no_jumptable (genuinely NO JMP table at
+load — headerless/different entry; need another locator) + 31 err/other.
+Mass-written + db-refreshed.
+
+**SESSION FAMILY-1 TOTAL: 3135 -> 3558 (+423, 58.0% -> 65.9%):** off-table
+offtable_freq port +149, vibdepth follow-on +44, post-init capture +70, dataflow
+extractor (player_code_mismatch) +70, JT-less locator (no_jumptable) +90. Two
+Core-Tenet breakthroughs: post-init capture (the "dynamic residue" was a file-image
+mis-capture) + the dataflow extractor (opcode-skeleton operand location for moved
+layouts). Remaining: 71 truly-headerless no_jumptable, 22 unlocatable
+player_code_mismatch, the partials (off-table dynamic + newly-buildable).
+
+## (historical) FAMILY-1: 3468/5401 FULL (64.2%) as of 2026-06-22 — + dataflow extractor
 **DATAFLOW EXTRACTOR (2026-06-22, +70):** the `player_code_mismatch` residue (203)
 is RE-ASSEMBLED DMC v4 players — the routines AND their operand sites moved (e.g.
 the `$1231` family, 24 members: SR helper relocated to base+$25A, wave/filter/
