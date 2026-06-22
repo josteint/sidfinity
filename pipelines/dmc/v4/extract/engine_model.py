@@ -515,6 +515,12 @@ def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc84') -> DmcModel:
     m.extra_params = dict(getattr(cfg, 'extra_params', {}))
     _assign_offtable_freq(m, mem, cfg.freq_lo_addr, cfg.freq_hi_addr,
                           cfg.vibdepth_addr)
+    # off-table source bytes are in the engine's work RAM; init writes them, so
+    # the runtime value differs from the file image. Correct to what the engine
+    # actually reads (post-init, ground truth) — recovers the constant reads the
+    # file-image capture mis-valued (the "dynamic residue" that wasn't).
+    _correct_offtable_postinit(m, path, cfg.freq_lo_addr, cfg.freq_hi_addr,
+                               cfg.vibdepth_addr)
     return m
 
 
@@ -581,3 +587,65 @@ def _assign_offtable_freq(m: DmcModel, mem, flo_addr: int,
         if iid in m.instruments:
             m.instruments[iid].offtable_freq = sorted(s)
     m.offtable_vibdepth = vibovr
+
+
+def _postinit_values(sid_path: str, addrs) -> dict:
+    """Post-init values of work-RAM bytes via siddump --memwatch (libsidplayfp
+    = ground truth). The off-table source bytes live in the engine's work RAM
+    AFTER the freq tables; the engine's INIT writes them, so the value the
+    original actually READS at runtime is NOT the file-image byte. Capture what
+    the engine reads (Core Tenet: observe the writes, don't mirror the
+    mechanism). Returns {addr: value} only for bytes CONSTANT across the sample
+    (init-written-then-stable -> reproducible); bytes that VARY frame-to-frame
+    are genuinely dynamic and omitted (caller keeps the file image; they remain
+    honest residue)."""
+    if not addrs:
+        return {}
+    import subprocess
+    sd = os.path.join(os.path.dirname(__file__), '..', '..', '..', '..',
+                      'tools', 'siddump')
+    al = sorted(set(a & 0xFFFF for a in addrs))
+    try:
+        out = subprocess.run(
+            [sd, sid_path, '--duration', '6', '--raw',
+             '--memwatch', ','.join(f'{a:04X}' for a in al)],
+            capture_output=True, text=True, timeout=90).stdout
+    except Exception:
+        return {}
+    seen = {}
+    for line in out.splitlines():
+        if 'M:' not in line:
+            continue
+        for tok in line.split('M:')[1].split('|')[0].split(':'):
+            if '=' in tok:
+                a, v = tok.split('=')
+                seen.setdefault(int(a, 16), set()).add(int(v, 16))
+    return {a: next(iter(vs)) for a, vs in seen.items() if len(vs) == 1}
+
+
+def _correct_offtable_postinit(m: DmcModel, sid_path: str, flo_addr: int,
+                               fhi_addr: int, vibdepth_addr: int) -> None:
+    """Replace the file-image off-table values with the original's POST-INIT
+    values (the bytes the engine actually reads). Recovers the
+    init-written-then-constant reads that the file-image capture got wrong."""
+    addrs = set()
+    for ins in m.instruments.values():
+        for off, note, lo, hi in ins.offtable_freq:
+            idx = (off + note) & 0xFF
+            if idx > 95:
+                addrs.add(flo_addr + idx)
+                addrs.add(fhi_addr + idx)
+    for note in m.offtable_vibdepth:
+        addrs.add(vibdepth_addr + note)
+    post = _postinit_values(sid_path, addrs)
+    if not post:
+        return
+    for ins in m.instruments.values():
+        new = []
+        for off, note, lo, hi in ins.offtable_freq:
+            idx = (off + note) & 0xFF
+            new.append((off, note, post.get((flo_addr + idx) & 0xFFFF, lo),
+                        post.get((fhi_addr + idx) & 0xFFFF, hi)))
+        ins.offtable_freq = sorted(set(new))
+    m.offtable_vibdepth = {n: post.get((vibdepth_addr + n) & 0xFFFF, d)
+                           for n, d in m.offtable_vibdepth.items()}
