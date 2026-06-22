@@ -95,6 +95,32 @@ force-includes record 0 as slot 0. (2) pulse base split — step =
 nibble + CACHED base; idle base=0; composer derives base = step&$0F.
 (3) xa65: ':' is a statement separator EVEN IN COMMENTS (sanitizer).
 
+## ✅✅ FAMILY-1: 3759/5401 FULL (69.6%) as of 2026-06-22 — STEP 2: multispeed (CIA + internal) + verdict
+**THREE deltas this step-2 campaign, in dependency order (+387 over the 3372
+jsonl base):** CIA-multispeed +367 (below) -> close_tol verdict bump +9 -> internal
+play-repeat +11. All committed + mass-written + db-refreshed.
+
+**VERDICT BUMP — close_tol 80->176 (+9, commit 5b097f1).** All 9 close-tail
+partials were CIA tunes: full play+state match, only the TAIL length differed
+(|la-lb| 85-170). The tail tolerance is a fixed init-shift boundary effect whose
+MAGNITUDE scales with multispeed (4x CIA => cutoff straddles a few play()s of
+~17+ writes). Same class as FC World_Record_1 (64->80), scaled. Cross-family
+constant (FC+Hubbard) -> user-approved before bumping; full regression clean
+(loosening only turns FAIL->PASS).
+
+**INTERNAL MULTISPEED — play_repeat (+11, commit 93c86d1).** A class with NO PSID
+speed bit (High_Speed/X-Static/Ministry_of_Noise...) whose play vector is a
+wrapper doing N x `JSR <play>` (terminated by RTS or a tail-call `JMP <play>`),
+running the engine N times per VBI. Rebuild ran 1x -> Nx too few writes.
+`factory._detect_play_repeat` reads N from the wrapper (both forms); cfg.play_repeat
+-> USF param `play_repeat` -> composer emits the JT play entry as an N-fold
+`jsr playframe` wrapper. Gated on speed bit CLEAR (mutually exclusive with CIA).
+19 candidates: 11 FULL, 5 re-bucketed to genuine effect_div (rate now correct,
+real effect bug revealed — the methodology working), 3 build-detection failures.
+play_repeat=1 emits byte-identical output (regression clean). NOTE: more
+internal-ms likely hide in effect_div (Nx that diverges mid-stream before the
+length runs out) — re-scan when attacking effect_div.
+
 ## ✅✅ FAMILY-1: 3739/5401 FULL (69.2%) as of 2026-06-22 — STEP 2: CIA verdict + multispeed rate
 **CIA MULTISPEED (2026-06-22, +367 over the 3372 jsonl base; authoritative
 re-batch of all 2029 non-FULL).** Step 2 of the residue dependency order
