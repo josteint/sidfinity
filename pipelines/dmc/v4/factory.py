@@ -322,12 +322,17 @@ def _build_via_dataflow(sid_path: str, hvsc_root: str):
     if base is None:
         hi = min(0x10000, load + len(s['payload']))
         base = next((b for b in range(load, hi - 6) if _jt(b)), None)
-    if base is None and mem[load] == 0x4C and mem[load + 3] == 0x4C:
+    if base is None:
         # JT-less (`no_jumptable`): a jump table with NON-canonical targets
         # (e.g. init->+$7D / +$807, play->+$E5 / +$85). The dataflow trace
-        # follows the JMPs to the handlers regardless of the target offsets;
-        # base = load (the player's work RAM sits at load+$0F.., canonical).
-        base = load
+        # follows the JMPs to the handlers regardless of the target offsets, so
+        # ANY `4C .. 4C` table at play-3 or load is a base candidate. play-3 is
+        # the common $0FF4-prefix case: a CIA-timer init wrapper at load=$0FF4
+        # with the real JT at $1000 = play-3 (JMP $1751 / $1075, non-canonical).
+        for cb in (s['play'] - 3, load):
+            if 0 < cb and load <= cb and mem[cb] == 0x4C and mem[cb + 3] == 0x4C:
+                base = cb
+                break
     if base is None:
         return None
     loc = dataflow.locate(mem, base)
