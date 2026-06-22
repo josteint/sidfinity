@@ -95,7 +95,25 @@ force-includes record 0 as slot 0. (2) pulse base split — step =
 nibble + CACHED base; idle base=0; composer derives base = step&$0F.
 (3) xa65: ':' is a statement separator EVEN IN COMMENTS (sanitizer).
 
-## ✅✅ FAMILY-1: 3328/5401 FULL (61.6%) as of 2026-06-22 — off-table port
+## ✅✅ FAMILY-1: 3398/5401 FULL (62.9%) as of 2026-06-22 — off-table port + post-init
+**POST-INIT CAPTURE (2026-06-22, +70 more):** the "374 dynamic-residue freq
+partials" were a CAPTURE BUG, not an architectural limit (Core-Tenet meditation).
+The off-table source bytes live in the engine's work RAM AFTER the freq tables;
+the engine's INIT writes them, so the value the original READS at runtime != the
+file-image byte I captured. siddump --memwatch on the original shows those bytes
+are CONSTANT for the whole song (e.g. Have_a_Drink \$170A: file-image \$68 ->
+runtime \$1A). Fix (commit 354fc73): `_correct_offtable_postinit` reads the
+off-table source bytes' post-init values via siddump --memwatch (ground truth)
+and replaces the file-image values; only CONSTANT-across-sample bytes used
+(init-written-then-stable). Re-batch of the 452 partials: +70 FULL. The TRUE
+residue is now (a) genuinely-dynamic reads — bytes that increment per frame, e.g.
+Small_Introzak k31/k32 cycle 0..15 (the StateLayoutMirror case, REJECTED) — and
+(b) co-location edges (off-table reads landing on k15/k16 = the rebuild's own
+spd/mvol, e.g. Silent_Tears). Lesson: capture what the engine READS (post-init),
+not the file image; don't mirror the state machine. **Off-table partial sub-census
+(by first-divergence): 83% freq, then vol/master 29, filter 7, ctrl 5.**
+
+## (historical) FAMILY-1: 3328/5401 FULL (61.6%) as of 2026-06-22 — off-table port
 **OFF-TABLE RECOVERY (2026-06-22, +193):** ported v5's `offtable_freq` to v4 —
 the biggest family-1 residue bucket was `offtable_live` (665 members: off-table
 freq reads past the 96-entry table, previously REJECTED as k<=5 track-ptr / k>=17
