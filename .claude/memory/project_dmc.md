@@ -95,6 +95,37 @@ force-includes record 0 as slot 0. (2) pulse base split — step =
 nibble + CACHED base; idle base=0; composer derives base = step&$0F.
 (3) xa65: ':' is a statement separator EVEN IN COMMENTS (sanitizer).
 
+## ✅✅ FAMILY-1: 3764/5401 FULL (69.7%) as of 2026-06-22 — STEP 3 (unblock-builds): no_jumptable base fix
+**STEP 3 = unblock-builds (least-dependent set after the multispeed rate fixes;
+a member that can't build can't be FULL).** Census of the 442 error+unsupported
+residue, then attacked the cheapest.
+
+**no_jumptable base fix (+5 FULL +4 buildable, commit 97fd5bb).** The $0FF4-prefix
+members have a CIA-timer init wrapper at load=$0FF4 and the real JMP table at
+$1000 = play-3 with NON-canonical targets (JMP $1751/$1075). Base detection failed:
+`_jt` required target==base+$1D, the JT-less fallback only checked `load` (=the
+wrapper). Now accept ANY 4C..4C table at play-3 or load. Of 71: 5 FULL, 4 buildable
+(effect_div), 54 base-found-but-dataflow.locate-FAILS (re-assembled variant —
+locate's opcode signatures miss tunetab/wavectrl/d417), 8 truly headerless.
+
+**KEY FINDING — the unblock-builds residue is uniformly DEEP (no more cheap
+mislocations); each bucket is a feature/variant investigation:**
+- **zero_wave_table 117**: REAL off-table WAVE reads (the off-table-freq playbook
+  applied to wave: an instrument's wave_start (byte 9) points past the wave ctrl
+  table into the freq table / data region). Census of 30: off-table distance mixed
+  (5 exact-boundary, 15 far >32, recurring starts 145/255). HARD edge case: Jim
+  inst 10 (wave_start=110=n_wave) reads off-table then a $FF marker jumps back 111
+  onto index 5 which is ITSELF a marker ($91) -> circular marker chain. Zero-
+  regression design: extend the read window ONLY for start>=n_wave (in-table
+  slicing byte-identical, no FULL regresses). Feature-level + post-init capture if
+  the off-table region is work RAM.
+- **sector_decode 81 + track-never-settles 21**: sector pointers VALID/in-range
+  (not a mislocation) — the decode walks a sector with no end marker -> sector-
+  FORMAT variant. Needs format RE.
+- **no_jumptable 54**: re-assembled variant, needs a reference carve (family-2 style).
+- **cia_multispeed 67** (py65 can't read the wrapper's latch), **wave-pool-overflow
+  37** (composer's len(wctrl)<=255 — byte index limit), **headerless 8**.
+
 ## ✅✅ FAMILY-1: 3759/5401 FULL (69.6%) as of 2026-06-22 — STEP 2: multispeed (CIA + internal) + verdict
 **THREE deltas this step-2 campaign, in dependency order (+387 over the 3372
 jsonl base):** CIA-multispeed +367 (below) -> close_tol verdict bump +9 -> internal
