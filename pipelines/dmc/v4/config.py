@@ -59,6 +59,10 @@ class DMCV4Config:
     # latch so libsidplayfp drives our play() at the identical rate.
     # 0 = single-speed VBI.
     cia_period: int = 0
+    # INTERNAL multispeed (vblank, NO PSID speed bit): the PSID play vector
+    # points to a wrapper that does N x `JSR <play>` then RTS, so one VBI runs
+    # the engine N times. The composer emits the same N-fold play. 1 = once.
+    play_repeat: int = 1
     # Factory-probed engine write-stream params merged into USF params
     # (the family-2 build knobs: cymbal_onset / vib_ramp / hold_gateoff /
     # hard_restart / rest_effects). Family-2 sub-builds differ in some of

@@ -129,6 +129,8 @@ def model_to_usf(m: DmcModel) -> UsfFile:
         params=Params(fields={
             **({'slide_phase': m.dual_phase} if m.dual_phase else {}),
             **({'cia_period': m.cia_period} if m.cia_period else {}),
+            # internal-multispeed play-repeat count (>1 = play() loops Nx/VBI)
+            **({'play_repeat': m.play_repeat} if m.play_repeat > 1 else {}),
             # family-2 build knobs (factory-probed; empty for canon)
             **m.extra_params}),
         init=InitState(voices=[

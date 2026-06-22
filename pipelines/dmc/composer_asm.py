@@ -329,6 +329,19 @@ def compose_dmc_asm(usf: UsfFile) -> str:
             '        sta $dc05                    ; CIA1 timer A hi\n'
             '        lda #$11\n'
             '        sta $dc0e                    ; start timer A, continuous\n')
+    # internal multispeed (vblank, NO speed bit): the play vector runs the
+    # engine N times per VBI. Emit the JT play entry as an N-fold JSR wrapper
+    # (the original's `JSR play x N : RTS`), so each VBI logs N play()s worth of
+    # writes — matching the orig's per-frame write count under flat capture.
+    play_repeat = max(1, int(usf.params.fields.get('play_repeat', 1)))
+    if play_repeat > 1:
+        play_entry = 'playrepeat'
+        play_wrapper = ('playrepeat:\n'
+                        + '        jsr playframe\n' * play_repeat
+                        + '        rts\n\n')
+    else:
+        play_entry = 'playframe'
+        play_wrapper = ''
     idle = [0, 0, 0]
     imask = [0, 0, 0]
     for v in usf.init.voices:
@@ -482,7 +495,7 @@ SLIDE_PHASE = ${slide_phase:02X}
 CIA_PERIOD = ${cia_period:04X}
         * = $1000
         jmp init
-        jmp playframe
+        jmp {play_entry}
 
 ;; ===================== init (A = subtune) =====================
 init:
@@ -543,7 +556,7 @@ ini_sid:
 {cia_init}        rts
 
 ;; ===================== play (once per frame) =====================
-playframe:
+{play_wrapper}playframe:
         dec spdctr
         bpl pf_notick
         lda spd

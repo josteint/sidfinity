@@ -246,6 +246,44 @@ def _cia_period_from_init(sid_path: str, subtune: int,
     return mem[0xDC04] | (mem[0xDC05] << 8)
 
 
+def _detect_play_repeat(mem, play: int, base: int, load: int) -> int:
+    """INTERNAL multispeed: a play vector that is N consecutive `JSR T` (same
+    target T) terminated by RTS runs the engine N times per VBI (e.g. High_Speed
+    play=$1E80 = `JSR $1003` x4 : RTS). Returns N (>=2) or 1. A leading JMP at
+    the play vector is followed once. Verify-gated: a misread N yields a partial.
+    """
+    if play == base + 3:
+        return 1
+    pc = play
+    target = None
+    n = 0
+    for _ in range(20):
+        if not (load <= pc < 0x10000 - 2):
+            return 1
+        op = mem[pc]
+        if op == 0x20:                       # JSR abs
+            t = mem[pc + 1] | (mem[pc + 2] << 8)
+            if target is None:
+                target = t
+            elif t != target:
+                return 1
+            n += 1
+            pc += 3
+        elif op == 0x60:                     # RTS terminates the wrapper
+            return n if (n >= 2 and target is not None and target >= load) else 1
+        elif op == 0x4C:                     # JMP abs
+            t = mem[pc + 1] | (mem[pc + 2] << 8)
+            if n == 0 and target is None:    # leading indirection: follow once
+                pc = t
+            elif n >= 1 and t == target:     # tail-call final play (X-Static:
+                return n + 1                 # JSR x3 + JMP = 4 plays)
+            else:
+                return 1
+        else:
+            return 1
+    return 1
+
+
 # canon-path failures that signal a re-assembled / moved layout the
 # dataflow extractor can recover (the player IS a DMC v4, just relocated
 # internally). Verify-gated downstream — a mislocation yields a partial.
@@ -306,10 +344,13 @@ def _build_via_dataflow(sid_path: str, hvsc_root: str):
                                    s['start'] - 1)
         if 0x0100 <= cp <= 0xFFFF:
             cia_period = cp
+    play_repeat = (1 if (s.get('speed', 0) & 1)
+                   else _detect_play_repeat(mem, s['play'], base, load))
     return DMCV4Config(
         sid_path=sid_path,
         name=os.path.splitext(os.path.basename(sid_path))[0],
-        base=base, cia_period=cia_period, extra_params={}, **loc)
+        base=base, cia_period=cia_period, play_repeat=play_repeat,
+        extra_params={}, **loc)
 
 
 def _build_via_canon(sid_path: str, hvsc_root: str = 'hvsc84') -> DMCV4Config:
@@ -400,6 +441,9 @@ def _build_via_canon(sid_path: str, hvsc_root: str = 'hvsc84') -> DMCV4Config:
                     f"play=${s['play']:04X} CIA latch=${cia_period:04X} "
                     "(unreadable)")
             cia_period = 0
+    # INTERNAL multispeed (vblank wrapper, no speed bit) — independent of CIA.
+    play_repeat = (1 if (s.get('speed', 0) & 1)
+                   else _detect_play_repeat(mem, s['play'], base, s['load']))
     delta = base - 0x1000
 
     def at(canon_addr):                 # canonical $1xxx addr -> mem index
@@ -409,7 +453,8 @@ def _build_via_canon(sid_path: str, hvsc_root: str = 'hvsc84') -> DMCV4Config:
         return operand_val + delta
 
     if layout == 'family2':
-        return _family2_build(mem, s, sid_path, base, delta, at, cia_period)
+        return _family2_build(mem, s, sid_path, base, delta, at, cia_period,
+                              play_repeat)
 
     # ---- masked identity compare against the RELOCATED canonical
     # player. Build the reference image: canon with every self-ref
@@ -547,11 +592,13 @@ def _build_via_canon(sid_path: str, hvsc_root: str = 'hvsc84') -> DMCV4Config:
         freq_lo_addr=at(0x1647), freq_hi_addr=at(0x16A7),
         vibdepth_addr=at(0x1888), d417_shadow_addr=at(0x1018),
         track_loop_target=loop_target, cia_period=cia_period,
+        play_repeat=play_repeat,
         extra_params=extra,
     )
 
 
-def _family2_build(mem, s, sid_path, base, delta, at, cia_period):
+def _family2_build(mem, s, sid_path, base, delta, at, cia_period,
+                   play_repeat=1):
     """Family-2 config: masked identity compare vs the carved family-2
     reference (relocation-aware), then derive the packer-patched table
     addresses from the canon-compatible operand sites. The 5 family-2
@@ -619,6 +666,7 @@ def _family2_build(mem, s, sid_path, base, delta, at, cia_period):
         freq_lo_addr=at(0x1647), freq_hi_addr=at(0x16A7),
         vibdepth_addr=at(0x1888), d417_shadow_addr=at(0x1034),
         track_loop_target=False, cia_period=cia_period,
+        play_repeat=play_repeat,
         sector_format='family2',
         extra_params={'cymbal_onset': 1, 'vib_ramp': 'step',
                       'hold_gateoff': hold_gateoff, 'hard_restart': 'none',
