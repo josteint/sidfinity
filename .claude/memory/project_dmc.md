@@ -95,7 +95,18 @@ force-includes record 0 as slot 0. (2) pulse base split — step =
 nibble + CACHED base; idle base=0; composer derives base = step&$0F.
 (3) xa65: ':' is a statement separator EVEN IN COMMENTS (sanitizer).
 
-## ✅✅ FAMILY-1: 3771/5401 FULL (69.8%) as of 2026-06-22 — STEP 3 (unblock-builds): + off-table WAVE
+## ✅✅ FAMILY-1: 3801/5401 FULL (70.4%) as of 2026-06-22 — STEP 3 (unblock-builds): off-table WAVE + resolver
+**off-table-WAVE + marker-chain RESOLVER (zero_wave_table 117 -> 37 FULL + 71
+buildable; commits 4da2878 + the resolver).** The recursive resolver
+(_resolve_wave_chain) replaced the premature circular-chain refusal: it simulates
+the engine's wave-position walk (resolve markers -> emit -> advance) until it
+revisits a settled position = the loop. Recovered Jim/Arround_Me etc. as FULL.
+Net over the bucket: 37 FULL, 71 buildable (effect_div), 6 degenerate marker-chain
+(hit the 512/128 guard), 3 wave-pool-overflow. The +30 FULL from the resolver
+crossed family-1 past 70%. Only off-table starts route to the resolver; in-table
+is the proven byte-identical slice (regression clean throughout).
+
+## (historical) FAMILY-1: 3771/5401 FULL (69.8%) — off-table WAVE (pre-resolver)
 **off-table-WAVE (+7 FULL +27 buildable, commit 4da2878).** The off-table-freq
 playbook applied to wave: an instrument whose wave_start (byte 9) points past the
 wave ctrl table reads the freq table / following data region AS wave ctrl+freq.
