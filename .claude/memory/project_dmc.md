@@ -108,7 +108,29 @@ accepts base=load when any JMP table sits at load. Re-batch of 364: **90 FULL
 load — headerless/different entry; need another locator) + 31 err/other.
 Mass-written + db-refreshed.
 
-**SESSION FAMILY-1 TOTAL: 3135 -> 3558 (+423, 58.0% -> 65.9%):** off-table
+**RESIDUE CENSUS (2026-06-22, after re-localizing the no-first-diff partials).**
+The 1843 non-FULL fully categorized; the 7 actionable buckets in dependency order
+(measure -> fix-verdict -> unblock-builds -> fix-effects -> accept-limit):
+- **freq ~726** (509 state-match = off-table-DYNAMIC residue, the StateLayoutMirror
+  limit; +217 other freq) — the architectural floor, tackle LAST.
+- **length/CIA ~154** (the "no_fpd" partials: play stream matches over the overlap,
+  only LENGTHS differ -> orig vblank-stub vs rebuild full play = the CIA/multispeed
+  artifact). FIX VIA THE CIA-AWARE PER-IRQ VERDICT (exists for FC/Hubbard), not the
+  composer. STEP 2 — the biggest single lever, a verdict fix.
+- **error 206** ("sector ... never ends" runaway + "wave shape n=0") — extract
+  robustness; unblock-builds.
+- **vol fade ~145** (master-vol ramp not reproduced) — one coherent modelable effect.
+- **unsupported ~410**: offtable_live 78, no_jumptable 71 (truly headerless),
+  loop_hook 68, cia_multispeed 67, player_code_mismatch 40 (unlocatable), loop_site
+  27, sector_decode 24, zero_wave 22.
+- **small effects ~99** (adsr/ctrl/filter/pulse).
+Re-localizing the 249 no-first-diff partials (re-run verify_dmc, extract
+first_play_diff): 154 length/CIA + 67 freq + 24 small effects + 4 now-FULL (stale
+records recovered). Lesson: batch first_diff truncates to [sub,state_match] when
+first_play_diff is None (length/init mismatch) -> looks "uncategorized"; re-verify
+to localize. NEXT = step 2 (CIA verdict).
+
+**SESSION FAMILY-1 TOTAL: 3135 -> 3562 (+427, 58.0% -> 66.0%):** off-table
 offtable_freq port +149, vibdepth follow-on +44, post-init capture +70, dataflow
 extractor (player_code_mismatch) +70, JT-less locator (no_jumptable) +90. Two
 Core-Tenet breakthroughs: post-init capture (the "dynamic residue" was a file-image
