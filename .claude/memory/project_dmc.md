@@ -95,7 +95,27 @@ force-includes record 0 as slot 0. (2) pulse base split — step =
 nibble + CACHED base; idle base=0; composer derives base = step&$0F.
 (3) xa65: ':' is a statement separator EVEN IN COMMENTS (sanitizer).
 
-## ✅✅ FAMILY-1: 3398/5401 FULL (62.9%) as of 2026-06-22 — off-table port + post-init
+## ✅✅ FAMILY-1: 3468/5401 FULL (64.2%) as of 2026-06-22 — + dataflow extractor
+**DATAFLOW EXTRACTOR (2026-06-22, +70):** the `player_code_mismatch` residue (203)
+is RE-ASSEMBLED DMC v4 players — the routines AND their operand sites moved (e.g.
+the `$1231` family, 24 members: SR helper relocated to base+$25A, wave/filter/
+sector tables moved), so the factory's fixed-offset extraction + byte-compare gate
+fail. New `pipelines/dmc/v4/dataflow.py` locates every table by its canonical
+OPCODE-SKELETON signature (relocation-invariant — the opcodes around each read
+don't change when a routine moves; match them in the variant's traced code, the
+operand there is the table address) + the track-loop hook -> loop_target. Wired as
+a factory FALLBACK (commit 10ca8bd): `dmc_v4_config` tries the canon path, then
+`_build_via_dataflow` on a moved-layout rejection (player_code_mismatch /
+loop_site_unknown / operand_inconsistent / layout_disorder / nonstandard_instr_base).
+Canon path first -> normal members unchanged (regression green, 0 regressed);
+verify-gated (mislocation -> partial, never false FULL). Re-batch of the 185
+player_code_mismatch: **70 FULL (38%)** + 84 build (now partial/diagnosable) + 22
+still unlocatable (harder variants) + 9 other. Mass-written + db-refreshed.
+NB: handles re-assembled players that HAVE a jump table; `no_jumptable` (364, no
+locatable JT) needs a separate JT-less base locator (future). The opcode-skeleton
+locator + factory-fallback pattern is reusable for any moved-layout engine.
+
+## (historical) FAMILY-1: 3398/5401 FULL (62.9%) as of 2026-06-22 — off-table port + post-init
 **POST-INIT CAPTURE (2026-06-22, +70 more):** the "374 dynamic-residue freq
 partials" were a CAPTURE BUG, not an architectural limit (Core-Tenet meditation).
 The off-table source bytes live in the engine's work RAM AFTER the freq tables;
