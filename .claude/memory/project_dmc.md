@@ -95,7 +95,52 @@ force-includes record 0 as slot 0. (2) pulse base split — step =
 nibble + CACHED base; idle base=0; composer derives base = step&$0F.
 (3) xa65: ':' is a statement separator EVEN IN COMMENTS (sanitizer).
 
-## ✅✅ FAMILY-1: 3558/5401 FULL (65.9%) as of 2026-06-22 — + JT-less locator
+## ✅✅ FAMILY-1: 3739/5401 FULL (69.2%) as of 2026-06-22 — STEP 2: CIA verdict + multispeed rate
+**CIA MULTISPEED (2026-06-22, +367 over the 3372 jsonl base; authoritative
+re-batch of all 2029 non-FULL).** Step 2 of the residue dependency order
+(measure->fix-verdict->...; see [[feedback_residue_triage_order]]). The "length/CIA"
+partials were NOT a pure verdict artifact — the per-IRQ verdict fix alone flipped
+0/30. It RE-BUCKETED the residue (exactly as the methodology predicts) and exposed
+the real cause: the rebuild ran SINGLE-SPEED while the orig multispeeds off the
+CIA1 timer. TWO fixes, commit 46cd1ae:
+1. **Verdict (per-IRQ capture):** `dmc_family_batch.py` now routes speed-bit
+   subtunes through `writelog_per_irq_capture` (Trap C for CIA — flat per-50Hz
+   capture phases init+play differently for orig vs a rebuild with different init
+   length). Init dropped both sides -> trichotomy recovers d=0, reduces to
+   overlap+close. Same machinery FC/Hubbard use.
+2. **Rate recovery (the real lever):** the factory only read the CIA timer latch
+   when `play != base+3` (a wrapper dispatcher). But the CANONICAL DMC init
+   programs $DC04/$DC05 ITSELF with play==base+3 (latch $1331=>4x, $2663=>2x).
+   Gate the latch read on the speed bit alone (canon path) + mirror on the
+   dataflow path (was hardcoded cia_period=0). Flows cfg.cia_period -> USF params
+   -> composer (installs CIA timer + sets speed bits).
+
+Sample 30 CIA partials: 0 -> 11 FULL. Also dropped unsupported 688->380 +
+error 199->62 (the re-batch recovered formerly-unbuildable members).
+
+**PARTIAL RESIDUE NOW (1220, rich-record bucketed):** effect_div 680 (genuine
+play-stream divergences, lengths now align — the biggest ACTIONABLE bucket =
+STEP 3) | state_div 512 (end-of-init priming mismatch; includes the off-table
+DYNAMIC freq floor = the architectural-limit bucket, LAST) | rate_or_loop_mult 13
+| close_tail<=256 9 | len_gap_nonmult 6.
+
+**TWO NEW FINDINGS (both small, both recorded for later):**
+- **close-tail = ALL 9 are CIA** (|la-lb| 85-170). Genuine FULLs (full overlap
+  match + state match, only tail length differs) failed by the flat close_tol=80,
+  which is calibrated for 1x tunes; at 4x multispeed one play() at the duration
+  cutoff = ~40 writes, so the boundary band is ~2-4x larger. SAME class as FC
+  World_Record_1 (close_tol 64->80), scaled for multispeed. A flat bump to ~176
+  recovers all 9 — but it's a CROSS-FAMILY verdict constant (FC+Hubbard), so
+  DECISION DEFERRED to the user, not bumped unilaterally.
+- **INTERNAL-MULTISPEED (13+, speed bit CLEAR):** High_Speed / Speed_It_Up /
+  X-Static / Melodic_Trance etc. run 2x/4x with NO PSID speed bit — the player's
+  single vblank play() loops the engine N times INTERNALLY. Distinct from the CIA
+  mechanism: needs a composer play-repeat count (detect the wrapper loop, emit
+  repeat=N, composer calls inner play N x). NEW composer feature, step-3+. Likely
+  MORE such members hide in effect_div (internal repeat that diverges mid-stream
+  rather than as a clean length-multiple).
+
+## (historical) FAMILY-1: 3558/5401 FULL (65.9%) as of 2026-06-22 — + JT-less locator
 **JT-LESS BASE LOCATOR (2026-06-22, +90):** the `no_jumptable` residue (364)
 aren't jump-table-less — they HAVE a JMP table at load with NON-canonical targets
 (e.g. Yardies init->+\$807/play->+\$85; Master_and_Servant init->+\$7D/play->+\$E5)
