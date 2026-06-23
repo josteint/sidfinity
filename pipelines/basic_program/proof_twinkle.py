@@ -41,8 +41,11 @@ def capture_real(sid_path, duration):
                         str(duration)], capture_output=True, text=True)
     frames = []
     for line in r.stdout.splitlines():
-        if ',' not in line.split('|')[0]:
-            continue   # skip the 2 header lines (json + column names)
+        # a per-frame register-dump line starts with a 2-hex-digit byte; skip
+        # the JSON header ('{...') and the column-name header ('V1_FREQ_LO,...')
+        if not (len(line) >= 2 and all(c in '0123456789abcdefABCDEF'
+                                        for c in line[:2])):
+            continue
         writes = []
         if '|W:' in line:
             toks = line.split('|W:', 1)[1].strip().split(':')
