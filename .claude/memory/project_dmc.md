@@ -95,6 +95,16 @@ force-includes record 0 as slot 0. (2) pulse base split — step =
 nibble + CACHED base; idle base=0; composer derives base = step&$0F.
 (3) xa65: ':' is a statement separator EVEN IN COMMENTS (sanitizer).
 
+## ✅✅ FAMILY-1: 3954/5401 FULL (73.2%) as of 2026-06-23 — STEP 5: mask_only gate-off +147
+**MASK_ONLY gate-off applied (+147 FULL, family-1 70.6%->73.2%).** Of 728 mask_only
+candidates: 147 FULL flips, 119 not_maskonly (late-clearers correctly excluded by
+the full-songlength scan — the regression-safety working), 462 still partial (other
+divergences). Flips written via tmp/mask_apply.py (mask_only-DIRECT build, inline
+.sidfinity.sid write); merged + db-refreshed. NB the flips CLUSTER in long songs
+(median 189s) — the list-order-first chunk was ~2% flip, the long-song tail ~75%;
+the strided-sample 18.8% was the right overall estimate. Detection/retry committed
+(9cb637f); see below for the mechanism + the late-clearer regression lesson.
+
 ## ✅ FREQ FLOOR — STEP 5 first fix: mask_only gate-off (~137 FULLs, 2026-06-23)
 First concrete recovery of the (refuted) freq floor. A class of family-1 members
 run a MASK-ONLY holding gate-off (the original never zeroes AD+SR), but the
