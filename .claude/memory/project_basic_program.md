@@ -136,9 +136,20 @@ single step has all regs (superset must be the ordered UNION of all steps, not a
 both is ONE unified generalization paying off across gated AND legato.** Coverage trajectory this session:
 10% -> 22% (templates) -> 27% (rests) -> 35% (legato).
 
-**NEXT (build the family, not yet done):** the unified `_superset_templates` fix — ordered-union superset
-(off_superset) + positional/dup-reg matching — benefits 37 tunes; then too_few/near-miss cleanup; the 1
-digi tune (Black_Box_V8_Demo, Mode 2);
+**ORDERED-UNION SUPERSET DONE (commit 50e5c90): 35% -> 40%.** `_union_order` builds the superset as the
+ordered UNION of all step reg-seqs (precedence DAG over adjacent regs + Kahn topo-sort + subsequence
+verify), replacing the max-reg-step pick. Captures off_superset (one-voice-per-step alternating V1/V2/V3).
+Swapped into `_superset_templates.derive` (attack+release; benefits gated AND legato). Probe 32/81 (40%).
+**KEY: the two root causes turned out to be DIFFERENT problems, not one — off_superset was the tractable
+half (union order); dup_reg is mostly ARPEGGIO (`04 00 01 00 01 00 01...` = freq written a VARIABLE number
+of times per step; example_05, Head_Coach), a variable-length intra-step sequence (like Ahoy multi-rate)
+= genuinely hard, DEFERRED (_union_order returns None on intra-step dup).** Remaining: variable_template 22
++ legato_variable 9 (mostly arpeggio) + length_fail 5 (overlap-EXACT but length off — timing/loop, e.g.
+Toonypoo reb 2980 vs orig 4132) + too_few 9 + overlap_diverge 4. Session arc: 10%->22%->27%->35%->40%.
+
+**NEXT (build the family, not yet done):** arpeggio/dup_reg (variable-length intra-step freq runs — the
+big hard bucket ~31); length_fail timing near-misses (overlap-exact, ~5, maybe loop-detect); the 1 digi
+tune (Black_Box_V8_Demo, Mode 2);
 fold the proof scripts into proper `pipelines/basic_program/{extract,build,verify}` + wire the
 `verdict_basic` duration_tol comparator + a regression portfolio; then a stratified-subset batch over
 the 486 (the lift handles single + multi-voice chord-per-step; remaining variants: Ahoy-style legato
