@@ -294,7 +294,7 @@ _DATAFLOW_RETRY = {'player_code_mismatch', 'loop_site_unknown',
 
 
 def _orig_clears_adsr(sid_path: str, subtune: int = 0,
-                      duration: float = 100.0) -> bool:
+                      duration: float = 30.0) -> bool:
     """Write-stream probe for the holding gate-off MODE. The canon player's
     sub_17EC clears AD+SR to $00 (both, same voice, same frame) at a holding
     instrument's gate-off; a mask-only variant never does. Capture the original
