@@ -95,6 +95,30 @@ force-includes record 0 as slot 0. (2) pulse base split — step =
 nibble + CACHED base; idle base=0; composer derives base = step&$0F.
 (3) xa65: ':' is a statement separator EVEN IN COMMENTS (sanitizer).
 
+## ✅ FREQ FLOOR — STEP 5 first fix: mask_only gate-off (~137 FULLs, 2026-06-23)
+First concrete recovery of the (refuted) freq floor. A class of family-1 members
+run a MASK-ONLY holding gate-off (the original never zeroes AD+SR), but the
+composer defaulted to adsr_clear (canon sub_17EC) and emitted a spurious AD/SR=$00
+the orig lacks — which SHIFTS the stream and shows up as a (freq/sr/ad) divergence.
+Bouncing_Box: 5%->100% FULL with hold_gateoff=mask_only.
+- **DETECTION = the CORE TENET (observe the write stream, not the mechanism):**
+  does the original EVER zero AD+SR (both, same voice) post-init? Never => mask_only.
+  `factory.frames_clear_adsr(frames)`.
+- **MUST scan the FULL songlength** — a holding instr can first gate off late
+  (Szybka_1/Ann at 34-42s); a bounded 30s factory probe FALSE-NEGATIVED late-
+  clearers -> false mask_only -> ~5% FULL REGRESSION (3/60). So the detection is a
+  BATCH-RETRY (commit 9cb637f) that REUSES the verify's full-songlength orig
+  capture: only NON-full members whose orig never clears are rebuilt mask_only +
+  re-verified (kept iff FULL/more-FULL). Safe (FULLs never retried), reliable, free
+  (no extra capture). hold_gateoff threaded into the result -> dmc_mass_write.
+- **Measured flip rate: 18.8%** (15/80 strided of 728 mask_only candidates; 17/80
+  correctly excluded as late-clearers). => ~137 FULLs across the candidates.
+- LESSON: long-song verification is the cost ceiling here — freq-floor partials
+  have MEDIAN songlength 189s (they diverge late = long), so a full re-verify of
+  the 728 is multi-hour even at siddump's 42x realtime. Measure flip-rate on a
+  STRIDED sample first; apply via mask_only-DIRECT build (skip the known-partial
+  default build) writing flips inline (tmp/mask_apply.py).
+
 ## 🔬 FREQ FLOOR REFUTED (2026-06-23) — the 860 are a STRUCTURED RECOVERABLE TAIL, not architectural
 **The "off-table-dynamic floor / StateLayoutMirror limit" framing for the ~860 freq
 partials is WRONG.** Meditated on the Core Tenet (the freq write stream is
