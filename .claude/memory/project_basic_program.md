@@ -53,7 +53,24 @@ artifacts. Key generalizable findings:
 - Hubbard composer NOT reused (it adds per-frame writes BASIC tunes lack) — per CORE TENET the family
   gets its own runtime.
 
-**NEXT (build the family, not yet done):** generalize the lift to multi-voice (Ahoy-style legato +
-V3 sub-note cycling), looping tunes (orderlist loop vs stop), the 1 digi tune (Mode 2); fold
-`capture_real` + the minimal player into proper `pipelines/basic_program/{extract,build,verify}` +
-a `duration_tol` comparator + regression wiring. Survey raw: `tmp/basic_program_research/survey.jsonl`.
+**Multi-voice generalization DONE (commit 12e6b68): Baby_Elephant_Walk FULL + Twinkle regression.**
+`pipelines/basic_program/proof_multivoice.py`. Step model `[attack]·hold·[release]·gap`; Baby =
+3-voice chord-per-step (gate-then-freq, waves saw/pulse/saw), Twinkle = 1-voice (freq-then-gate) —
+same code. Overlap EXACT for both (Baby 1677/1677, Twinkle 60/60) = every (reg,val) reproduced in
+order across all voices. Key pieces: the cross-voice WRITE ORDER is a per-tune structural template
+derived from the capture (gate-vs-freq order + voice sequence) — NOT in USF; per-voice waveforms →
+instruments; freq 0 = silent-but-gated voice (verbatim); loop detection (`_find_loop`: Baby intro=9
+period=134, loops back; Twinkle ENDs); 16-bit initial-delay reproduces the ~9s DATA-read setup.
+**Family verdict = `verdict_basic` = overlap-exact + proportional `duration_tol` (0.15)**: free-running
+BASIC can't frame-exactly match a 50Hz player (per-step sub-frame rounding + Trap-C accumulate over a
+multi-min loop), so Hubbard's strict |len|<=64 doesn't apply — the duration_tol C6 anticipated. Baby's
+~12% wall-clock length drift is tempo quantization; the write STREAM is exact. REFINEMENT (noted, not
+built): absolute-frame step scheduling (fire step k at its captured absolute frame) would stop the
+per-step rounding accumulating and tighten the length.
+
+**NEXT (build the family, not yet done):** the 1 digi tune (Black_Box_V8_Demo, Mode 2 cycle-exact);
+fold the proof scripts into proper `pipelines/basic_program/{extract,build,verify}` + wire the
+`verdict_basic` duration_tol comparator + a regression portfolio; then a stratified-subset batch over
+the 486 (the lift handles single + multi-voice chord-per-step; remaining variants: Ahoy-style legato
+where gate stays on + freq-only changes, independent per-voice timing, SYS-to-ML hybrids). Survey raw:
+`tmp/basic_program_research/survey.jsonl`.
