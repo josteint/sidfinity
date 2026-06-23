@@ -125,8 +125,20 @@ all voices -> superset must be the ordered UNION of all steps, not a max step) +
 now: FULL 22 / variable_template 26 / legato 19 / too_few 8 / overlap_diverge 4 / length_fail 2 (incl.
 American_Flag: overlap EXACT 403/403 but len diff 68, just over the +-64 -> loop/window boundary).
 
-**NEXT (build the family, not yet done):** finish variable_template — union-superset (off_superset 9) +
-positional mask (dup_reg 15); then legato 19 (#2 lever); the 1 digi tune (Black_Box_V8_Demo, Mode 2);
+**LEGATO DONE (commit ce7337f): 27% -> 35%.** segment() routes legato (small gate-off count): one-time
+gate-on + setup -> INIT, steps = pure freq active-runs (boundary = freq group after a hold), no release.
+`build_player_legato` = 1-phase (each fire emits attack at its abs frame, advances, targets next step;
+no gate-off), reuses per-register mask + abs-frame + rho + loop. Cancion_de_cuna + Golden_Brown FULL.
+Probe 28/81 FULL (35%). **The remaining big buckets CONVERGE on TWO shared `_superset_templates`
+limitations across variable_template (26) + legato_variable (11) = 37 tunes: (1) dup_reg — a reg written
+2x/step (reg-keyed superset can't represent repeats; needs POSITIONAL matching); (2) off_superset — no
+single step has all regs (superset must be the ordered UNION of all steps, not a max-reg step). Fixing
+both is ONE unified generalization paying off across gated AND legato.** Coverage trajectory this session:
+10% -> 22% (templates) -> 27% (rests) -> 35% (legato).
+
+**NEXT (build the family, not yet done):** the unified `_superset_templates` fix — ordered-union superset
+(off_superset) + positional/dup-reg matching — benefits 37 tunes; then too_few/near-miss cleanup; the 1
+digi tune (Black_Box_V8_Demo, Mode 2);
 fold the proof scripts into proper `pipelines/basic_program/{extract,build,verify}` + wire the
 `verdict_basic` duration_tol comparator + a regression portfolio; then a stratified-subset batch over
 the 486 (the lift handles single + multi-voice chord-per-step; remaining variants: Ahoy-style legato
