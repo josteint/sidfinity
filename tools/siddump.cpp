@@ -111,6 +111,9 @@ int main(int argc, char* argv[])
             "  --memtrace     Append memory access trace\n"
             "  --pcm          Output raw 16-bit signed PCM to stdout\n"
             "  --force-rsid   Process RSID files (normally skipped)\n"
+            "  --roms-dir DIR Dir with C64 kernal/basic/chargen ROM files (needed to\n"
+            "                 actually run RSID + C64-BASIC tunes; default\n"
+            "                 $HOME/.local/share/sidplayfp)\n"
             "  --pc-trace FILE START END  Dump CPU PC trace to FILE for frames START..END\n"
             "  --memwatch HEX[,HEX...]    Per-frame snapshot of RAM at these addresses (post-play)\n"
             "                             (e.g. --memwatch 90C5,90C8,90CB,9116). Output lines:\n"
@@ -139,6 +142,7 @@ int main(int argc, char* argv[])
     bool memtrace = false;
     bool pcm = false;
     bool force_rsid = false;
+    const char* roms_dir = nullptr;          // null -> default ~/.local/share/sidplayfp
     const char* pc_trace_path = nullptr;
     int pc_trace_start_frame = -1;
     int pc_trace_end_frame = -1;
@@ -166,6 +170,8 @@ int main(int argc, char* argv[])
             pcm = true;
         } else if (strcmp(argv[i], "--force-rsid") == 0) {
             force_rsid = true;
+        } else if (strcmp(argv[i], "--roms-dir") == 0 && i + 1 < argc) {
+            roms_dir = argv[++i];
         } else if (strcmp(argv[i], "--pc-trace") == 0 && i + 3 < argc) {
             pc_trace_path = argv[++i];
             pc_trace_start_frame = atoi(argv[++i]);
@@ -257,6 +263,46 @@ int main(int argc, char* argv[])
     cfg.frequency = 48000;
     cfg.sidEmulation = &builder;
     cfg.powerOnDelay = 0;  // deterministic
+
+    // Load real C64 ROMs (KERNAL / BASIC / CHARGEN) so RSID tunes — and in
+    // particular the C64-BASIC family (RSID flags bit 1, load=init=play=0,
+    // tokenized BASIC at $0801) — actually execute. Without them libsidplayfp
+    // runs with stub ROMs and the BASIC interpreter never runs, so the tune
+    // emits ~nothing (a single $D418 write then silence). setRoms() stores the
+    // pointers (no copy), so the buffers MUST outlive playback -> static.
+    // Default dir matches the sidplayfp CLI data dir; override with --roms-dir.
+    static uint8_t kernalRom[8192];
+    static uint8_t basicRom[8192];
+    static uint8_t chargenRom[4096];
+    {
+        std::string dir;
+        if (roms_dir) {
+            dir = roms_dir;
+        } else {
+            const char* home = getenv("HOME");
+            dir = std::string(home ? home : ".") + "/.local/share/sidplayfp";
+        }
+        auto loadRom = [&](const char* name, uint8_t* buf, size_t sz) -> bool {
+            std::string path = dir + "/" + name;
+            FILE* f = fopen(path.c_str(), "rb");
+            if (!f) return false;
+            size_t n = fread(buf, 1, sz, f);
+            fclose(f);
+            return n == sz;
+        };
+        bool haveK = loadRom("kernal",  kernalRom,  sizeof kernalRom);
+        bool haveB = loadRom("basic",   basicRom,   sizeof basicRom);
+        bool haveC = loadRom("chargen", chargenRom, sizeof chargenRom);
+        if (haveK && haveB && haveC) {
+            engine.setRoms(kernalRom, basicRom, chargenRom);
+        } else {
+            fprintf(stderr,
+                "Warning: C64 ROMs not fully loaded from %s "
+                "(kernal=%d basic=%d chargen=%d); RSID/BASIC tunes may be silent. "
+                "Pass --roms-dir <dir> with kernal/basic/chargen files.\n",
+                dir.c_str(), haveK, haveB, haveC);
+        }
+    }
 
     if (!engine.config(cfg)) {
         fprintf(stderr, "Error configuring engine: %s\n", engine.error());
