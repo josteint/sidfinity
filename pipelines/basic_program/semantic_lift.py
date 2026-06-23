@@ -311,6 +311,7 @@ def build_player(model):
     em('play:'); em('        lda done'); em('        beq pl_load'); em('        rts')
     em('pl_load:')
     em('        lda splo'); em(f'        sta {SP}'); em('        lda sphi'); em(f'        sta {SP}+1')
+    em('pl_chk:')                                       # catch-up: fire every step due this frame
     em('        lda framehi'); em('        cmp curtgthi'); em('        bcc pl_wait'); em('        bne pl_fire')
     em('        lda framelo'); em('        cmp curtgtlo'); em('        bcs pl_fire')
     em('pl_wait:'); em('        jmp pl_inc')
@@ -322,7 +323,7 @@ def build_player(model):
             em(f'        lda #${val:02X}'); em(f'        sta $D4{reg:02X}')
         else:
             em(f'        ldy #${4+slot:02X}'); em(f'        lda ({SP}),y'); em(f'        sta $D4{reg:02X}'); slot += 1
-    em('        jsr set_rel_target'); em('        lda #$01'); em('        sta phase'); em('        jmp pl_inc')
+    em('        jsr set_rel_target'); em('        lda #$01'); em('        sta phase'); em('        jmp pl_chk')
     em('pl_release:')
     slot = 0
     for reg, kind, val in rel_t:
@@ -343,7 +344,7 @@ def build_player(model):
         em('        lda loopbasehi'); em(f'        adc #${(period>>8)&0xFF:02X}'); em('        sta loopbasehi')
     else:
         em('        lda #$01'); em('        sta done'); em('        jmp pl_inc')
-    em('pl_setatk:'); em('        jsr set_atk_target'); em('        lda #$00'); em('        sta phase')
+    em('pl_setatk:'); em('        jsr set_atk_target'); em('        lda #$00'); em('        sta phase'); em('        jmp pl_chk')
     em('pl_inc:')
     em(f'        lda {SP}'); em('        sta splo'); em(f'        lda {SP}+1'); em('        sta sphi')
     em('        inc framelo'); em('        bne pl_ret'); em('        inc framehi'); em('pl_ret:'); em('        rts')
@@ -409,13 +410,14 @@ def build_player_masked(model):
     em('play:'); em('        lda done'); em('        beq pl_load'); em('        rts')
     em('pl_load:')
     em('        lda splo'); em(f'        sta {SP}'); em('        lda sphi'); em(f'        sta {SP}+1')
+    em('pl_chk:')                                       # catch-up: fire every step due this frame
     em('        lda framehi'); em('        cmp curtgthi'); em('        bcc pl_wait'); em('        bne pl_fire')
     em('        lda framelo'); em('        cmp curtgtlo'); em('        bcs pl_fire')
     em('pl_wait:'); em('        jmp pl_inc')
     em('pl_fire:'); em('        lda phase'); em('        beq pl_attack'); em('        jmp pl_release')
     em('pl_attack:')
     emit_template(atk_t, 4, aps_base)
-    em('        jsr set_rel_target'); em('        lda #$01'); em('        sta phase'); em('        jmp pl_inc')
+    em('        jsr set_rel_target'); em('        lda #$01'); em('        sta phase'); em('        jmp pl_chk')
     em('pl_release:')
     emit_template(rel_t, 4 + nam, rps_base)
     em('        clc'); em(f'        lda {SP}'); em(f'        adc #${stride:02X}'); em(f'        sta {SP}')
@@ -431,7 +433,7 @@ def build_player_masked(model):
         em('        lda loopbasehi'); em(f'        adc #${(period>>8)&0xFF:02X}'); em('        sta loopbasehi')
     else:
         em('        lda #$01'); em('        sta done'); em('        jmp pl_inc')
-    em('pl_setatk:'); em('        jsr set_atk_target'); em('        lda #$00'); em('        sta phase')
+    em('pl_setatk:'); em('        jsr set_atk_target'); em('        lda #$00'); em('        sta phase'); em('        jmp pl_chk')
     em('pl_inc:')
     em(f'        lda {SP}'); em('        sta splo'); em(f'        lda {SP}+1'); em('        sta sphi')
     em('        inc framelo'); em('        bne pl_ret'); em('        inc framehi'); em('pl_ret:'); em('        rts')
@@ -484,6 +486,7 @@ def build_player_legato(model):
     em('play:'); em('        lda done'); em('        beq pl_load'); em('        rts')
     em('pl_load:')
     em('        lda splo'); em(f'        sta {SP}'); em('        lda sphi'); em(f'        sta {SP}+1')
+    em('pl_chk:')                                       # catch-up: fire every step due this frame
     em('        lda framehi'); em('        cmp curtgthi'); em('        bcc pl_wait'); em('        bne pl_fire')
     em('        lda framelo'); em('        cmp curtgtlo'); em('        bcs pl_fire')
     em('pl_wait:'); em('        jmp pl_inc')
@@ -512,7 +515,7 @@ def build_player_legato(model):
         em('        lda loopbasehi'); em(f'        adc #${(period>>8)&0xFF:02X}'); em('        sta loopbasehi')
     else:
         em('        lda #$01'); em('        sta done'); em('        jmp pl_inc')
-    em('pl_setatk:'); em('        jsr set_atk_target')
+    em('pl_setatk:'); em('        jsr set_atk_target'); em('        jmp pl_chk')
     em('pl_inc:')
     em(f'        lda {SP}'); em('        sta splo'); em(f'        lda {SP}+1'); em('        sta sphi')
     em('        inc framelo'); em('        bne pl_ret'); em('        inc framehi'); em('pl_ret:'); em('        rts')
