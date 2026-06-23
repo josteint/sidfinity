@@ -95,6 +95,36 @@ force-includes record 0 as slot 0. (2) pulse base split — step =
 nibble + CACHED base; idle base=0; composer derives base = step&$0F.
 (3) xa65: ':' is a statement separator EVEN IN COMMENTS (sanitizer).
 
+## 🔬 FREQ FLOOR REFUTED (2026-06-23) — the 860 are a STRUCTURED RECOVERABLE TAIL, not architectural
+**The "off-table-dynamic floor / StateLayoutMirror limit" framing for the ~860 freq
+partials is WRONG.** Meditated on the Core Tenet (the freq write stream is
+deterministic + finite — deconstruct to the musical effect, never declare an
+unrepresentable dynamic read) and LOOKED with the reliable flat tools. The 860 are
+varied, fixable freq bugs — NOT a wall:
+- **METHODOLOGY TRAP (important):** the per-siddump-FRAME freq view is TRAP-C
+  contaminated — orig/rebuild bucket play() differently, so it shows phantom
+  "one-frame phase offsets" that are NOT real. The FLAT stream (`flat_div` /
+  `find_first_divergence`, cycle-dropped) is ground truth: there the registers
+  ALIGN and the divergence is a genuine same-position VALUE diff. Do NOT diagnose
+  freq from the per-frame view.
+- **flat_div value patterns (860):** value-diff 424 / reb_ZERO 251 / tiny-diff<=4
+  138 / orig_ZERO 47. But the CAUSE is varied (confirmed by grounded
+  find_first_divergence on representatives): WRONG IN-TABLE NOTE (Adventure_SF V2
+  $08B4 is a real table note — a note/transpose/pattern bug, NOT off-table) |
+  GLIDE intermediate freq (Plantation V1 $2532, lo off $70, 4 glide rows) |
+  out-of-table effect-modulated freq (Long_Time $F300) | OFF-TABLE IDLE note
+  (For_Insider_04 idle=254 -> orig reads 151F, rebuild window=0 — but RARE, 2/80) |
+  one-frame note-init transients (freq-hi written late -> stale frame 0).
+- **No single big lever** — it's a long tail of per-cause freq bugs. Attack order
+  by likely cluster size: glide/slide intermediate-freq computation (the disasm
+  glide is $141C-$1442; half-rate slide clock phase `dual_phase`/`SLIDE_PHASE` is a
+  suspect for a COMMON offset), then wrong-note/transpose, then vibrato rounding,
+  then off-table-idle (small). Each is a focused fix that RE-BUCKETS the rest.
+- Reframes the project: this ~16%-of-family-1 bucket is RECOVERABLE per-cause, not
+  a floor — family-1 can go well above 70.6%. NOT yet fixed this session (mapped,
+  not landed — forcing a fix on the varied tail without per-cause diagnosis would
+  violate the principles).
+
 ## ✅✅ FAMILY-1: 3812/5401 FULL (70.6%) as of 2026-06-23 — STEP 4 (non-freq effects): filter overrun
 **STEP 4 = non-freq effects. RELIABLE clustering required a methodology fix first:**
 the batch's trichotomy `first_play_diff` lands on whatever reg sits at its recovered
