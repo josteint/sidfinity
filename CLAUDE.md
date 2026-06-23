@@ -102,10 +102,16 @@ position is observation, not signal. Don't try to make cycles match for
 tracker music; same writes in the same order at different cycles within
 a frame are equivalent.
 
-**Trap C — siddump frame buckets ≠ PSID `play()` invocations.** siddump
-runs 19688 cycles per loop iteration; PAL VBI is 19656. So per siddump
-"frame" the PSID `play()` vector fires usually 1, sometimes 0, sometimes
-2 times. Consequences:
+**Trap C — siddump frame buckets ≠ PSID `play()` invocations.** siddump's
+loop calls `engine.play(cyclesPerFrame=19688)`, but `cyclesPerFrame` counts
+**event-scheduler ticks** (`c64::clock()`=`eventScheduler.clock()`, each <1
+CPU cycle), so a siddump "frame" advances only **~18,000 CPU cycles** — NOT
+19,688, and NOT the 19,656-cycle PAL play period. So per siddump "frame" the
+PSID `play()` (which fires every 19,656 cycles = true 50 Hz) runs **~0.92×**:
+usually 1, regularly 0, rarely 2. (NB: this is the OPPOSITE direction from the
+old "19688 > 19656 so sometimes 2" framing — ~18,000 < 19,656.) Full detail +
+the ρ unit-conversion this forces for RSID-vs-PSID timing:
+[[reference_siddump_frame_cycles]]. Consequences:
 
 - `compare_instruction_stream` is ROBUST (flat concatenation across
   frames; sequence is identical regardless of bucket boundary).

@@ -84,6 +84,7 @@
 
 ## References
 
+- [siddump frame cycles](reference_siddump_frame_cycles.md) — TRIPWIRE: a siddump "frame" ≈ ~18,000 CPU cycles (it runs `cyclesPerFrame=19688` EVENT-SCHEDULER ticks, each <1 CPU cyc), NOT the 19,656-cycle PAL play period. plays/frame ρ≈0.919. Doesn't affect the flat Mode-1 verdict; DOES bite absolute-cycle math + free-running-RSID-vs-PSID timing (computing cycle as frame×19688 overestimates ×1.088). We've mis-derived this twice. CLAUDE.md Trap C was the source of the wrong "19688 cycles" mental model (now corrected).
 - [HVSC index DB](reference_hvsc_db.md) — `hvsc84.csv` (+ `engine_docs.csv`) at repo root: git-trackable CSV catalogue of every HVSC #84 SID with engine classification + per-SID build status, queried via DuckDB through `src/sid_db` (`from src import sid_db; sid_db.query(...)`; source env.sh first). **Migrated 2026-06-15 from the old `hvsc84.db` SQLite blob** (gone/gitignored; duckdb py-module in `.pylocal`). Refresh via `tools/build_sid_db.py`; cheap engine_docs-only refresh via `tools/apply_engine_docs.py`.
 - [Songlength overrides](reference_songlength_overrides.md) — `tools/songlength_overrides.json`. Durable corrections to HVSC's Songlengths.md5 when a duration is clearly anomalous (defaulted ~4s for a 56s natural-loop tune). Survives HVSC re-fetches.
 - [USF v2 format](reference_usf_v2_format.md) — the on-disk .usf format + sidecar FLACs. Spec at `docs/usf_format.md`. Custom DSL, Lark grammar, `.usf` + N `.sample{N}.flac`.
