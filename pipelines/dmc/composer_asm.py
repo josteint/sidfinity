@@ -248,12 +248,21 @@ def compose_dmc_asm(usf: UsfFile) -> str:
     fdinit = [d['init'] for d in fd]
     fdrep = [d['repeat'] for d in fd]
     fdstop = [d['stop'] for d in fd]
+    # 12-byte stride mirroring the original 16-byte def's contiguity (sizes at
+    # def+4, durations at def+10): a `repeat` index > 5 OVERRUNS the 6 sizes
+    # into the 6 durations (the engine reads size = def+4+index, so index 6..11
+    # = the duration bytes) — that's the rising-to-stop sweep (e.g. repeat 10 ->
+    # size = duration[4]). The duration overrun reads 0 = "stay on this step
+    # until cutoff == stop", matching the engine's freeze-at-stop. Was an 8-byte
+    # stride (6 sizes + 2 pad) which broke the overrun -> wrong rise step.
     fdstep = []
     fddur = []
     for d in fd:
         steps = (d['steps'] + [(0, 0)] * 6)[:6]
-        fdstep += [s & 0xFF for s, _ in steps] + [0, 0]
-        fddur += [f & 0xFF for _, f in steps] + [0, 0]
+        sizes = [s & 0xFF for s, _ in steps]
+        durs = [f & 0xFF for _, f in steps]
+        fdstep += sizes + durs
+        fddur += durs + [0] * 6
 
     # ---- tune records + tracks + patterns ----
     tune_lines = []
@@ -850,10 +859,13 @@ ni_f_on:
         sta fframe
         lda ifdef,y
         tay                          ; y = def slot (scalar tables)
-        asl
-        asl
-        asl
-        sta fbase                    ; slot*8 (step/duration tables)
+        asl                          ; 2*slot
+        asl                          ; 4*slot
+        sta fbase
+        asl                          ; 8*slot
+        clc
+        adc fbase                    ; 12*slot (step table: 6 sizes + 6 durs)
+        sta fbase
         lda fdres,y
         sta fres
         lda fdmode,y
