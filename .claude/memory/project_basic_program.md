@@ -68,6 +68,20 @@ multi-min loop), so Hubbard's strict |len|<=64 doesn't apply — the duration_to
 built): absolute-frame step scheduling (fire step k at its captured absolute frame) would stop the
 per-step rounding accumulating and tighten the length.
 
+**Absolute-frame scheduling DONE (commit dbc567f) + a key TOOLING finding.** The player now fires
+step k at its captured ABSOLUTE frame (16-bit frame counter vs per-step atk[k]/rel[k] targets;
+loopbase += measured loop period each wrap) — removes per-step dur+gap accumulation; rebuild is
+tempo-faithful on real hardware. Overlap stays EXACT (Baby 1710/1710, Twinkle 60/60). **FINDING: the
+residual verdict length-diff is a SIDDUMP MEASUREMENT BIAS, not a rebuild error.** siddump invokes
+EVERY PSID's play() at ~0.92x/frame (~21,400 cycles, NOT VBI 19,656) — proven on a trivial
+init/play=rts PSID AND real Hubbard rebuilds (all show 0.92). The RSID-BASIC original runs FREE
+(|P:0/frame, BASIC pace in the main loop). So siddump frames a free-running RSID and a VBI PSID at
+DIFFERENT rates (~8.7%). Scaling the rebuild's targets by 0.92 makes the length diff EXACTLY 0 (proves
+residual == rate bias), but we DON'T scale — that would make the rebuild ~8.7% fast on real hardware
+(ear is the judge, [[feedback_ground_truth]]). `duration_tol` absorbs the tool bias. Hubbard tunes are
+unaffected (both orig + rebuild are PSIDs at the same 0.92). REFINEMENT: a tighter hardware-faithful
+verdict would normalize the length by the PSID-play-rate in the COMPARATOR (not the rebuild).
+
 **NEXT (build the family, not yet done):** the 1 digi tune (Black_Box_V8_Demo, Mode 2 cycle-exact);
 fold the proof scripts into proper `pipelines/basic_program/{extract,build,verify}` + wire the
 `verdict_basic` duration_tol comparator + a regression portfolio; then a stratified-subset batch over
