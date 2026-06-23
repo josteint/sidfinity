@@ -147,9 +147,19 @@ of times per step; example_05, Head_Coach), a variable-length intra-step sequenc
 + legato_variable 9 (mostly arpeggio) + length_fail 5 (overlap-EXACT but length off — timing/loop, e.g.
 Toonypoo reb 2980 vs orig 4132) + too_few 9 + overlap_diverge 4. Session arc: 10%->22%->27%->35%->40%.
 
+**CATCH-UP LOOP DONE (commit fdab2c7): 40% -> 41%.** Players fired ONE step/play(); FAST tunes (multiple
+note-steps per siddump frame, e.g. Toonypoo one-voice-per-step ~9 writes/frame) fell behind -> rebuild
+overlap-exact but truncated. Fix: catch-up loop (load sp once; `while frame>=curtgt: fire; recheck` via
+jmp pl_chk after each fire), all 3 players. Toonypoo FULL. CORRECTNESS fix (fast tunes were broken); only
++1 on this sample (few fast tunes here). length_fail 5->4 — remaining are DISTINCT causes (missed-loop
+e.g. Techno-Rock_Fugue, degenerate e.g. Bowling 6-step), not one clean fix. Session arc:
+10%->22%->27%->35%->40%->41%.
+
 **NEXT (build the family, not yet done):** arpeggio/dup_reg (variable-length intra-step freq runs — the
-big hard bucket ~31); length_fail timing near-misses (overlap-exact, ~5, maybe loop-detect); the 1 digi
-tune (Black_Box_V8_Demo, Mode 2);
+big hard bucket: variable_template 22 + legato_variable 9); scattered length_fail (missed-loop +
+degenerate, small); the 1 digi tune (Black_Box_V8_Demo, Mode 2). Also: productionize = USF-file round-trip
+(map const->instrument / perstep-freq->notes / $D418->dynamics into USF v2) + fold proof scripts into
+pipelines/basic_program/{extract,build,verify} + regression. Probe driver: `semantic_probe.py`.
 fold the proof scripts into proper `pipelines/basic_program/{extract,build,verify}` + wire the
 `verdict_basic` duration_tol comparator + a regression portfolio; then a stratified-subset batch over
 the 486 (the lift handles single + multi-voice chord-per-step; remaining variants: Ahoy-style legato
