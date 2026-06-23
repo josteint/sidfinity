@@ -92,13 +92,23 @@ def lift_mv(frames):
     sigs = [tuple(tuple(p['vf'].get(vc, [0, 0])) for vc in sorted(voices))
             for p in parsed]
     intro, period = _find_loop(sigs)
-    loop_to = None
+    loop_to, loop_period = None, 0
     if period is not None:
-        parsed = parsed[:intro + period]
         loop_to = intro
+        # loop period in FRAMES — measure from the capture if it reached the
+        # 2nd iteration's loop head (step intro+period), so the absolute-frame
+        # schedule stays anchored to the original each loop instead of summing
+        # per-step deltas. Fall back to summed dur+gap if the capture is short.
+        if intro + period < len(parsed):
+            loop_period = (parsed[intro + period]['on_frame']
+                           - parsed[intro]['on_frame'])
+        else:
+            loop_period = sum(parsed[k]['dur'] + parsed[k]['gap']
+                              for k in range(intro, intro + period))
+        parsed = parsed[:intro + period]
     return {'init': init, 'order': order, 'voices': sorted(voices),
             'waves': waves, 'steps': parsed, 'loop_to': loop_to,
-            'start_frame': start_frame,
+            'loop_period': loop_period, 'start_frame': start_frame,
             'attack': parsed[0]['attack'], 'release': parsed[0]['release']}
 
 def _find_loop(sigs, min_run=8):
@@ -113,15 +123,24 @@ def _find_loop(sigs, min_run=8):
             return max(0, (i + 1) - P), P
     return None, None
 
+CTRLREG = {1: 0x04, 2: 0x0b, 3: 0x12}              # voice -> ctrl register
+
 # ------------------------------------------------------------- emit asm ----
 def build_player_asm(L):
+    """ABSOLUTE-FRAME scheduling: a 16-bit frame counter fires each step's
+    attack/release at its captured ABSOLUTE frame (no summed per-step deltas,
+    so rounding doesn't accumulate). `loopbase` advances by the measured loop
+    period each wrap, anchoring every loop iteration to the original."""
     steps = L['steps']
     N = len(steps)
     waves = L['waves']
+    loop_to = L.get('loop_to')
+    period = L.get('loop_period', 0)
     lines = []; em = lines.append
     em(f'* = ${LOAD:04X}')
     em('        jmp init')
     em('        jmp play')
+    # --- init: program writes, zero state, curtgt = atk[0] ---
     em('init:')
     prog_init = L['init']
     if prog_init[:1] == DRIVER_PREFIX:
@@ -130,87 +149,104 @@ def build_player_asm(L):
         em(f'        lda #${val:02X}')
         em(f'        sta $D4{reg:02X}')
     em('        lda #$00')
-    em('        sta stepidx')
-    em('        sta phase')
-    em('        sta done')
-    em('        lda #$01')
-    em('        sta countdown')
-    # 16-bit initial delay = the original's setup time before the first note
-    # (e.g. a long FOR..READ DATA scan), so the rebuild plays the same number
-    # of steps inside the capture window instead of skipping the dead-air intro.
-    sf = max(0, L.get('start_frame', 0))
-    em(f'        lda #${sf & 0xFF:02X}')
-    em('        sta delaylo')
-    em(f'        lda #${(sf >> 8) & 0xFF:02X}')
-    em('        sta delayhi')
+    for s in ('stepidx', 'phase', 'done', 'framelo', 'framehi',
+              'loopbaselo', 'loopbasehi'):
+        em(f'        sta {s}')
+    em('        ldx #$00')
+    em('        jsr set_atk_target')         # curtgt = atk[0] (incl. setup delay)
     em('        rts')
+    # --- play ---
     em('play:')
     em('        lda done')
-    em('        bne pl_ret')
-    # initial-delay countdown (16-bit): test-zero FIRST, then decrement
-    em('        lda delaylo')
-    em('        ora delayhi')
-    em('        beq pl_norm')         # delay elapsed -> normal stepping
-    em('        lda delaylo')
-    em('        bne dl_dec')
-    em('        dec delayhi')
-    em('dl_dec:')
-    em('        dec delaylo')
+    em('        beq pl_go')
     em('        rts')
-    em('pl_norm:')
-    em('        dec countdown')
-    em('        beq advance')
-    em('pl_ret:')
-    em('        rts')
-    em('advance:')
+    em('pl_go:')
+    em('        lda framehi')                # fire iff frame >= curtgt (16-bit)
+    em('        cmp curtgthi')
+    em('        bcc pl_wait')
+    em('        bne pl_fire')
+    em('        lda framelo')
+    em('        cmp curtgtlo')
+    em('        bcs pl_fire')
+    em('pl_wait:')                           # not yet -> tick the frame counter
+    em('        jmp pl_inc')
+    em('pl_fire:')
     em('        lda phase')
-    em('        bne release')
-    # attack phase: emit on/freq writes in template order, set dur, phase=1
-    em('attack:')
+    em('        bne pl_release')
+    # attack: emit on/freq writes in template order; next target = rel[step]
     em('        ldx stepidx')
     for role, vc in L['attack']:
         if role == 'on':
             em(f'        lda #${(waves[vc] | 0x01):02X}')
-            em(f'        sta $D4{[k for k,vv in CTRL.items() if vv==vc][0]:02X}')
+            em(f'        sta $D4{CTRLREG[vc]:02X}')
         elif role == 'hi':
             em(f'        lda v{vc}hi,x')
             em(f'        sta $D4{FHI[vc]:02X}')
         elif role == 'lo':
             em(f'        lda v{vc}lo,x')
             em(f'        sta $D4{FLO[vc]:02X}')
-    em('        lda durtab,x')
-    em('        sta countdown')
+    em('        ldx stepidx')
+    em('        jsr set_rel_target')
     em('        lda #$01')
     em('        sta phase')
-    em('        rts')
-    # release phase: gate-off writes, set gap, advance step (or finish)
-    em('release:')
+    em('        jmp pl_inc')
+    # release: gate-off writes; advance step (loop or finish); target = atk[step]
+    em('pl_release:')
     em('        ldx stepidx')
     for role, vc in L['release']:
         em(f'        lda #${waves[vc]:02X}')
-        em(f'        sta $D4{[k for k,vv in CTRL.items() if vv==vc][0]:02X}')
-    em('        lda gaptab,x')
-    em('        sta countdown')
-    em('        lda #$00')
-    em('        sta phase')
+        em(f'        sta $D4{CTRLREG[vc]:02X}')
     em('        inc stepidx')
     em('        lda stepidx')
     em(f'        cmp #${N & 0xFF:02X}')
-    em('        bne rel_done')
-    if L.get('loop_to') is not None:               # loop back to the intro skip
-        em(f'        lda #${L["loop_to"] & 0xFF:02X}')
+    em('        bne pl_setatk')
+    if loop_to is not None:                          # wrap to the intro skip
+        em(f'        lda #${loop_to & 0xFF:02X}')
         em('        sta stepidx')
-    else:                                          # tune ENDs -> halt
+        em('        clc')                             # loopbase += period
+        em('        lda loopbaselo')
+        em(f'        adc #${period & 0xFF:02X}')
+        em('        sta loopbaselo')
+        em('        lda loopbasehi')
+        em(f'        adc #${(period >> 8) & 0xFF:02X}')
+        em('        sta loopbasehi')
+    else:                                            # tune ENDs -> halt
         em('        lda #$01')
         em('        sta done')
-    em('rel_done:')
+        em('        jmp pl_inc')
+    em('pl_setatk:')
+    em('        ldx stepidx')
+    em('        jsr set_atk_target')
+    em('        lda #$00')
+    em('        sta phase')
+    em('pl_inc:')
+    em('        inc framelo')
+    em('        bne pl_ret')
+    em('        inc framehi')
+    em('pl_ret:')
     em('        rts')
-    em('stepidx:   .byte 0')
-    em('phase:     .byte 0')
-    em('countdown: .byte 0')
-    em('done:      .byte 0')
-    em('delaylo:   .byte 0')
-    em('delayhi:   .byte 0')
+    # curtgt = table[x] + loopbase (16-bit)
+    em('set_atk_target:')
+    em('        clc')
+    em('        lda atklo,x')
+    em('        adc loopbaselo')
+    em('        sta curtgtlo')
+    em('        lda atkhi,x')
+    em('        adc loopbasehi')
+    em('        sta curtgthi')
+    em('        rts')
+    em('set_rel_target:')
+    em('        clc')
+    em('        lda rello,x')
+    em('        adc loopbaselo')
+    em('        sta curtgtlo')
+    em('        lda relhi,x')
+    em('        adc loopbasehi')
+    em('        sta curtgthi')
+    em('        rts')
+    for s in ('stepidx', 'phase', 'done', 'framelo', 'framehi',
+              'loopbaselo', 'loopbasehi', 'curtgtlo', 'curtgthi'):
+        em(f'{s}: .byte 0')
 
     def block(label, data):
         em(f'{label}:')
@@ -219,8 +255,10 @@ def build_player_asm(L):
     for vc in L['voices']:
         block(f'v{vc}hi', [steps[s]['vf'].get(vc, [0, 0])[0] for s in range(N)])
         block(f'v{vc}lo', [steps[s]['vf'].get(vc, [0, 0])[1] for s in range(N)])
-    block('durtab', [steps[s]['dur'] for s in range(N)])
-    block('gaptab', [steps[s]['gap'] for s in range(N)])
+    block('atklo', [steps[s]['on_frame'] & 0xFF for s in range(N)])
+    block('atkhi', [(steps[s]['on_frame'] >> 8) & 0xFF for s in range(N)])
+    block('rello', [steps[s]['off_frame'] & 0xFF for s in range(N)])
+    block('relhi', [(steps[s]['off_frame'] >> 8) & 0xFF for s in range(N)])
     return '\n'.join(lines)
 
 def build_psid(L, title='proof'):
@@ -233,10 +271,18 @@ def build_psid(L, title='proof'):
 def verdict_basic(res, tol_frac=0.15):
     """Basic_Program verdict = OVERLAP-exact (every (reg,val) the original
     emits is reproduced in order) + a DURATION tolerance on the total length.
-    Free-running BASIC timing can't be frame-exactly matched by a 50Hz player
-    (per-step ±1-frame quantization accumulates), so the strict |len|<=64 of
-    Hubbard does not apply — a proportional duration_tol is the right verdict
-    for this family (anticipated by the C6 research)."""
+
+    Absolute-frame scheduling (the player fires step k at its captured absolute
+    frame) removes per-step accumulation, so the rebuild is tempo-faithful on
+    real hardware. The residual length diff in the VERDICT is a siddump
+    measurement bias, NOT a rebuild error: the RSID-BASIC original runs
+    free (no play() vector) while the PSID rebuild's play() is invoked at
+    siddump's PSID rate (~0.92x/frame for EVERY PSID, incl. a trivial one and
+    real Hubbard tunes). Scaling the rebuild's targets by that 0.92 makes the
+    length diff EXACTLY 0 — proving the residual IS the rate bias — but we do
+    NOT scale, because that would make the rebuild ~8.7% fast on real hardware
+    (the ear is the final judge). So a proportional duration_tol absorbs the
+    tool bias (the duration_tol the C6 research anticipated)."""
     a, b = res['len_all_a'], res['len_all_b']
     overlap_ok = res['match_all'] == min(a, b)
     length_ok = abs(a - b) <= max(64, tol_frac * max(a, b))

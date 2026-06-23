@@ -57,12 +57,40 @@ the C6 research anticipated). `verdict_basic` = `match_all == min(len)` AND
 `|len_a-len_b| <= max(64, 0.15·max(len))`. Baby's length diff is 225 (~12%, the
 accumulated tempo quantization over ~3 loops); the write STREAM itself is exact.
 
+## Absolute-frame scheduling + the siddump rate-bias finding
+
+The player now uses **absolute-frame scheduling**: a 16-bit frame counter fires each
+step's attack/release at its **captured absolute frame** (`atk[k]`/`rel[k]`), and a
+`loopbase` advances by the measured loop period each wrap. This removes the per-step
+`dur+gap` summation, so per-step rounding no longer accumulates and each loop stays
+anchored to the original.
+
+It exposed the real cause of the residual length diff — **a siddump measurement
+bias, not a rebuild error**:
+
+- The RSID-BASIC original runs FREE (no `play()` vector; `|P:0` every frame — its
+  writes fall into siddump's 19,688-cycle frame buckets at BASIC's pace).
+- The PSID rebuild's `play()` is invoked by siddump at **~0.92×/frame** — and this
+  rate is UNIVERSAL: a trivial `init/play=rts` PSID and real Hubbard rebuilds show
+  the identical 0.92 (every PSID's `play()` effectively fires every ~21,400 cycles in
+  siddump, not VBI's 19,656).
+- So siddump frames a free-running RSID and a VBI PSID at **different frame rates** —
+  an ~8.7% bias. **Scaling the rebuild's targets by 0.92 makes the verdict length
+  diff EXACTLY 0** (overlap still 1902/1902) — proving the residual IS this rate bias.
+- We do **NOT** scale: the unscaled rebuild is tempo-faithful on real hardware (a step
+  ≈ 211,302 cycles via VBI vs the original's ≈ 211,646); scaling would make it ~8.7%
+  fast on hardware (the ear is the final judge). So `verdict_basic` keeps a
+  proportional `duration_tol` to absorb the *tool* bias.
+
+Hubbard tunes are unaffected because there BOTH the original and the rebuild are
+PSIDs, played at the same 0.92 rate.
+
 ## Honest residue / refinements
 
-- The wall-clock length differs by ~12% (tempo quantization). The write stream is
-  exact; tightening the length would need **absolute-frame step scheduling** (fire
-  step k at its captured absolute frame, so per-step rounding doesn't accumulate)
-  instead of summed per-step `dur+gap` countdowns. Noted, not yet built.
+- The verdict's length comparison is biased by the siddump RSID-vs-PSID play-rate
+  (~8.7%); `duration_tol=0.15` absorbs it. A tighter, hardware-faithful verdict would
+  normalize the length by the known PSID-play-rate in the COMPARATOR (not the
+  rebuild) — a production-verify refinement.
 - Lockstep-chord assumption: all voices share step boundaries (true for Baby and the
   common BASIC idiom). Tunes with independent per-voice timing (rare in BASIC — hard
   to write) would need per-voice step clocks.
