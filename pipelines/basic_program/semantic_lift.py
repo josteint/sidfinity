@@ -133,6 +133,38 @@ def _modal(seqs):
     from collections import Counter
     return Counter(tuple(r for r, v in s) for s in seqs).most_common(1)[0][0]
 
+def _union_order(seqs):
+    """Ordered UNION of the step reg-sequences (off_superset): a single order such
+    that every step is an order-preserving subsequence. Build a precedence DAG from
+    adjacent regs, topo-sort (Kahn, reg-value tie-break for determinism), verify.
+    Returns None on a within-step dup (arpeggio — deferred) or a precedence cycle."""
+    import heapq, collections
+    for sq in seqs:
+        if len(set(sq)) != len(sq):
+            return None                                # intra-step dup -> arpeggio
+    nodes = set(); succ = collections.defaultdict(set); indeg = collections.defaultdict(int)
+    for sq in seqs:
+        nodes.update(sq)
+        for a, b in zip(sq, sq[1:]):
+            if a != b and b not in succ[a]:
+                succ[a].add(b); indeg[b] += 1
+    ready = [n for n in nodes if indeg[n] == 0]; heapq.heapify(ready)
+    order = []
+    while ready:
+        n = heapq.heappop(ready); order.append(n)
+        for m in sorted(succ[n]):
+            indeg[m] -= 1
+            if indeg[m] == 0:
+                heapq.heappush(ready, m)
+    if len(order) != len(nodes):
+        return None                                    # precedence cycle
+    pos = {r: i for i, r in enumerate(order)}
+    for sq in seqs:
+        idx = [pos[r] for r in sq]
+        if idx != sorted(idx):
+            return None
+    return order
+
 def _superset_templates(steps):
     """Variable-template handling via a PER-REGISTER mask. A step writes a SUBSET
     of a superset register order (rests = a voice's regs absent; a freq-inherited
@@ -147,18 +179,9 @@ def _superset_templates(steps):
         seqs = [regseq(s, key) for s in steps if s[key]]
         if not seqs:
             return []
-        order = max(seqs, key=len)                     # superset order = max-reg step
-        if len(set(order)) != len(order):
-            return None                                # dup reg in a step -> bail
-        allregs = set(r for sq in seqs for r in sq)
-        if not allregs <= set(order):
-            return None                                # some step has an off-superset reg
-        for s in steps:
-            if not s[key]:
-                continue
-            pres = set(regseq(s, key))
-            if regseq(s, key) != [r for r in order if r in pres]:
-                return None                            # not order-preserving subset
+        order = _union_order(seqs)                     # ordered union of all steps
+        if order is None:
+            return None                                # arpeggio (intra-step dup) or cycle
         t = []
         for reg in order:
             vals = [dict(s[key])[reg] for s in steps if s[key] and reg in dict(s[key])]
