@@ -26,6 +26,10 @@ from pipelines.basic_program.proof_twinkle import capture_real, flatten
 CTRL = {0x04, 0x0b, 0x12}
 FREQ = {0x00, 0x01, 0x07, 0x08, 0x0e, 0x0f}
 DRIVER_PREFIX = [(0x18, 0x0F)]
+# register -> voice (1/2/3); regs not listed (filter $15-17, vol $18) are GLOBAL
+VOICEREG = {b + o: v for v, b in ((1, 0x00), (2, 0x07), (3, 0x0e)) for o in range(7)}
+def voice_of(reg):
+    return VOICEREG.get(reg)              # None = global (always emitted)
 
 def _music_start(stream):
     """Index of the first music write: first gate-on, backed up over its freq."""
@@ -117,6 +121,53 @@ def _modal(seqs):
     from collections import Counter
     return Counter(tuple(r for r, v in s) for s in seqs).most_common(1)[0][0]
 
+def _superset_templates(steps):
+    """Variable-template handling via a PER-REGISTER mask. A step writes a SUBSET
+    of a superset register order (rests = a voice's regs absent; a freq-inherited
+    step = only gate regs). Derive the superset order (the max-register step),
+    require every step's reg-seq == superset filtered to that step's present regs
+    (order-preserving), classify each superset reg const/perstep (over steps where
+    present), and set per-step attack/release masks (bit i = superset entry i
+    present). Returns (atk_t4, atk_ps_regs, rel_t4, rel_ps_regs) or None."""
+    def regseq(s, key):
+        return [r for r, v in s[key]]
+    def derive(key):
+        seqs = [regseq(s, key) for s in steps if s[key]]
+        if not seqs:
+            return []
+        order = max(seqs, key=len)                     # superset order = max-reg step
+        if len(set(order)) != len(order):
+            return None                                # dup reg in a step -> bail
+        allregs = set(r for sq in seqs for r in sq)
+        if not allregs <= set(order):
+            return None                                # some step has an off-superset reg
+        for s in steps:
+            if not s[key]:
+                continue
+            pres = set(regseq(s, key))
+            if regseq(s, key) != [r for r in order if r in pres]:
+                return None                            # not order-preserving subset
+        t = []
+        for reg in order:
+            vals = [dict(s[key])[reg] for s in steps if s[key] and reg in dict(s[key])]
+            kind = 'const' if len(set(vals)) == 1 else 'perstep'
+            t.append((reg, kind, vals[0] if kind == 'const' else None, voice_of(reg)))
+        return t
+    atk_t = derive('attack')
+    if atk_t is None:
+        return None
+    rel_t = derive('release')
+    if rel_t is None:
+        return None
+    atk_order = [t[0] for t in atk_t]; rel_order = [t[0] for t in rel_t]
+    for s in steps:
+        ap = set(r for r, v in s['attack'])
+        s['atk_mask'] = sum(1 << i for i, r in enumerate(atk_order) if r in ap)
+        rp = set(r for r, v in s['release']) if s['release'] else set()
+        s['rel_mask'] = sum(1 << i for i, r in enumerate(rel_order) if r in rp)
+    return (atk_t, [r for r, k, v, vo in atk_t if k == 'perstep'],
+            rel_t, [r for r, k, v, vo in rel_t if k == 'perstep'])
+
 def build_model(sid, dur):
     """Lift to a build-ready model, or {'unsupported': reason}. Handles the
     CONSISTENT-template case: every step writes the same registers in the same
@@ -139,10 +190,17 @@ def build_model(sid, dur):
         steps.pop()
     if len(steps) < 2:
         return {'unsupported': 'too_few_after_trim'}
+    masked = False
     if not all(ok(s) for s in steps):
-        return {'unsupported': 'variable_template'}    # mid-song variation (rests)
-    atk_t, atk_ps = derive_template([s['attack'] for s in steps])
-    rel_t, rel_ps = derive_template([s['release'] for s in steps])
+        # mid-song variation: try the superset + per-step voice-active MASK (rests)
+        sup = _superset_templates(steps)
+        if sup is None:
+            return {'unsupported': 'variable_template'}
+        atk_t, atk_ps, rel_t, rel_ps = sup
+        masked = True
+    else:
+        atk_t, atk_ps = derive_template([s['attack'] for s in steps])
+        rel_t, rel_ps = derive_template([s['release'] for s in steps])
     if atk_t is None or rel_t is None:
         return {'unsupported': 'template_derive'}
     # frames + durations + loop
@@ -163,7 +221,7 @@ def build_model(sid, dur):
     loop_period = round(loop_period * rho)
     return {'init': init, 'steps': steps, 'atk_template': atk_t, 'atk_ps': atk_ps,
             'rel_template': rel_t, 'rel_ps': rel_ps, 'loop_to': loop_to,
-            'loop_period': loop_period, 'clock': clk, 'rho': rho}
+            'loop_period': loop_period, 'clock': clk, 'rho': rho, 'masked': masked}
 
 def analyze(sid, dur):  # debug view
     frames = capture_real(sid, dur)
@@ -262,10 +320,101 @@ def build_player(model):
         em('        .byte ' + ', '.join(f'${b:02X}' for b in rec))
     return '\n'.join(L)
 
+def build_player_masked(model):
+    """Like build_player but with a PER-REGISTER step mask (rests / freq-inherited
+    steps): each superset entry is emitted iff its mask bit is set for this step.
+    Record: [atk_lo,atk_hi,rel_lo,rel_hi, <atk mask bytes>, <rel mask bytes>,
+    <atk perstep vals>, <rel perstep vals>]. Mask bit i (LSB-first, byte i//8)
+    = superset entry i present. perstep slot layout is the superset (fixed
+    offsets); absent entries carry a dummy and aren't read."""
+    init, atk_t, rel_t = model['init'], model['atk_template'], model['rel_template']
+    steps = model['steps']; N = len(steps)
+    aps, rps = model['atk_ps'], model['rel_ps']
+    nam = (len(atk_t) + 7) // 8                          # attack mask bytes
+    nrm = (len(rel_t) + 7) // 8                          # release mask bytes
+    aps_base = 4 + nam + nrm                             # attack perstep base offset
+    rps_base = aps_base + len(aps)
+    stride = 4 + nam + nrm + len(aps) + len(rps)
+    loop_to, period = model['loop_to'], model['loop_period']
+    L = []; em = L.append; sk = [0]
+    def emit_template(tmpl, mask_off0, ps_base):
+        slot = 0
+        for i, (reg, kind, val, voice) in enumerate(tmpl):
+            em(f'        ldy #${mask_off0 + i//8:02X}'); em(f'        lda ({SP}),y')
+            em(f'        and #${1 << (i % 8):02X}'); em(f'        beq sk{sk[0]}')
+            if kind == 'const':
+                em(f'        lda #${val:02X}'); em(f'        sta $D4{reg:02X}')
+            else:
+                em(f'        ldy #${ps_base + slot:02X}'); em(f'        lda ({SP}),y'); em(f'        sta $D4{reg:02X}')
+            em(f'sk{sk[0]}:'); sk[0] += 1
+            if kind == 'perstep':
+                slot += 1
+    em(f'* = ${LOAD:04X}'); em('        jmp init'); em('        jmp play')
+    em('init:')
+    pi = init[1:] if init[:1] == DRIVER_PREFIX else init
+    for reg, val in pi:
+        em(f'        lda #${val:02X}'); em(f'        sta $D4{reg:02X}')
+    em('        lda #$00')
+    for s in ('phase', 'done', 'framelo', 'framehi', 'loopbaselo', 'loopbasehi'):
+        em(f'        sta {s}')
+    em('        lda #<steprecs'); em('        sta splo'); em(f'        sta {SP}')
+    em('        lda #>steprecs'); em('        sta sphi'); em(f'        sta {SP}+1')
+    em('        jsr set_atk_target'); em('        rts')
+    em('play:'); em('        lda done'); em('        beq pl_load'); em('        rts')
+    em('pl_load:')
+    em('        lda splo'); em(f'        sta {SP}'); em('        lda sphi'); em(f'        sta {SP}+1')
+    em('        lda framehi'); em('        cmp curtgthi'); em('        bcc pl_wait'); em('        bne pl_fire')
+    em('        lda framelo'); em('        cmp curtgtlo'); em('        bcs pl_fire')
+    em('pl_wait:'); em('        jmp pl_inc')
+    em('pl_fire:'); em('        lda phase'); em('        beq pl_attack'); em('        jmp pl_release')
+    em('pl_attack:')
+    emit_template(atk_t, 4, aps_base)
+    em('        jsr set_rel_target'); em('        lda #$01'); em('        sta phase'); em('        jmp pl_inc')
+    em('pl_release:')
+    emit_template(rel_t, 4 + nam, rps_base)
+    em('        clc'); em(f'        lda {SP}'); em(f'        adc #${stride:02X}'); em(f'        sta {SP}')
+    em(f'        lda {SP}+1'); em('        adc #$00'); em(f'        sta {SP}+1')
+    eoff = N * stride
+    em(f'        lda {SP}'); em(f'        cmp #<(steprecs+{eoff})'); em('        bne pl_setatk')
+    em(f'        lda {SP}+1'); em(f'        cmp #>(steprecs+{eoff})'); em('        bne pl_setatk')
+    if loop_to is not None:
+        loff = loop_to * stride
+        em(f'        lda #<(steprecs+{loff})'); em(f'        sta {SP}')
+        em(f'        lda #>(steprecs+{loff})'); em(f'        sta {SP}+1')
+        em('        clc'); em('        lda loopbaselo'); em(f'        adc #${period&0xFF:02X}'); em('        sta loopbaselo')
+        em('        lda loopbasehi'); em(f'        adc #${(period>>8)&0xFF:02X}'); em('        sta loopbasehi')
+    else:
+        em('        lda #$01'); em('        sta done'); em('        jmp pl_inc')
+    em('pl_setatk:'); em('        jsr set_atk_target'); em('        lda #$00'); em('        sta phase')
+    em('pl_inc:')
+    em(f'        lda {SP}'); em('        sta splo'); em(f'        lda {SP}+1'); em('        sta sphi')
+    em('        inc framelo'); em('        bne pl_ret'); em('        inc framehi'); em('pl_ret:'); em('        rts')
+    em('set_atk_target:'); em('        clc')
+    em('        ldy #$00'); em(f'        lda ({SP}),y'); em('        adc loopbaselo'); em('        sta curtgtlo')
+    em('        ldy #$01'); em(f'        lda ({SP}),y'); em('        adc loopbasehi'); em('        sta curtgthi'); em('        rts')
+    em('set_rel_target:'); em('        clc')
+    em('        ldy #$02'); em(f'        lda ({SP}),y'); em('        adc loopbaselo'); em('        sta curtgtlo')
+    em('        ldy #$03'); em(f'        lda ({SP}),y'); em('        adc loopbasehi'); em('        sta curtgthi'); em('        rts')
+    for s in ('splo', 'sphi', 'phase', 'done', 'framelo', 'framehi',
+              'loopbaselo', 'loopbasehi', 'curtgtlo', 'curtgthi'):
+        em(f'{s}: .byte 0')
+    em('steprecs:')
+    a_order = [t[0] for t in atk_t]; r_order = [t[0] for t in rel_t]
+    for s in steps:
+        amap = dict(s['attack']); rmap = dict(s['release']) if s['release'] else {}
+        rec = [s['on_frame'] & 0xFF, (s['on_frame'] >> 8) & 0xFF,
+               s['off_frame'] & 0xFF, (s['off_frame'] >> 8) & 0xFF]
+        rec += [(s['atk_mask'] >> (8*b)) & 0xFF for b in range(nam)]
+        rec += [(s['rel_mask'] >> (8*b)) & 0xFF for b in range(nrm)]
+        rec += [amap.get(reg, 0) & 0xFF for reg in aps]
+        rec += [rmap.get(reg, 0) & 0xFF for reg in rps]
+        em('        .byte ' + ', '.join(f'${b:02X}' for b in rec))
+    return '\n'.join(L)
+
 def build_psid(model, title='probe'):
-    body = assemble(build_player(model))
+    asm = build_player_masked(model) if model.get('masked') else build_player(model)
     return build_header(load=LOAD, init=LOAD, play=LOAD+3, songs=1, start_song=1,
-                        speed=0, title=title, author='x', released='x') + body
+                        speed=0, title=title, author='x', released='x') + assemble(asm)
 
 def verify(sid_rel, dur=20.0, title='probe'):
     from pipelines.hubbard.verify_cycle import writelog_capture, compare_instruction_stream
