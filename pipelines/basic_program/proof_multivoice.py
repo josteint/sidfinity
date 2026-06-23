@@ -14,7 +14,7 @@ vs freq-before-gate, voice sequence) is a structural per-tune parameter derived
 from the capture — NOT musical content. Per-voice pitch + duration + waveform
 are the musical content (→ USF). A template-driven player replays the order.
 """
-import os, sys
+import os, sys, re
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, ROOT); sys.path.insert(0, os.path.join(ROOT, 'src'))
 from pipelines.hubbard.verify_cycle import (writelog_capture,
@@ -25,6 +25,43 @@ from pipelines.basic_program.proof_twinkle import capture_real, flatten
 
 LOAD = 0x1000
 CTRL = {0x04: 1, 0x0b: 2, 0x12: 3}                 # ctrl reg -> voice
+
+# --- siddump frame / play-period unit conversion (rho) ----------------------
+# The original is RSID (free-running, CPU-cycle paced); the rebuild is a PSID
+# whose play() the C64 fires at the true VIC frame rate (PAL 19656 cyc = 50Hz).
+# But siddump steps the emulator via engine.play(cyclesPerFrame) where
+# cyclesPerFrame counts EVENT-SCHEDULER ticks, and one tick < 1 CPU cycle — so a
+# siddump "frame" only advances ~18000 CPU cycles, NOT one play period. So an
+# onset measured in siddump-frame units must be scaled by rho = (CPU cycles per
+# siddump frame)/(play period) = plays-per-siddump-frame to express it in the
+# player's play-period clock. rho ~0.919 (PAL); measured per-clock so it tracks
+# NTSC too. With it, the rebuild's writes land at the original's exact cycles
+# (gate-on absolute-cycle ratio -> 1.000), i.e. correct 50Hz, no tempo error.
+_RHO_CACHE = {}
+def measure_rho(clock='PAL', sid_model=6581):
+    if clock in _RHO_CACHE:
+        return _RHO_CACHE[clock]
+    import subprocess, tempfile
+    clk = {'PAL': 1, 'NTSC': 2, 'both': 3}.get(clock, 1)
+    flags = (clk << 2) | ({6581: 1, 8580: 2}.get(sid_model, 1) << 4)
+    asm = "* = $1000\n  jmp i\n  jmp p\ni:\n rts\np:\n rts\n"
+    sid = build_header(load=0x1000, init=0x1000, play=0x1003, songs=1,
+                       start_song=1, speed=0, title='r', author='r',
+                       released='r', flags=flags) + assemble(asm)
+    with tempfile.NamedTemporaryFile(suffix='.sid', delete=False) as f:
+        f.write(sid); path = f.name
+    out = subprocess.run([os.path.join(ROOT, 'tools/siddump'), path,
+                          '--memwatch', 'D404', '--duration', '20'],
+                         capture_output=True, text=True).stdout
+    plays = frames = 0
+    for ln in out.splitlines():
+        m = re.search(r'\|P:(\d+)', ln)
+        if m:
+            plays += int(m.group(1)); frames += 1
+    os.unlink(path)
+    rho = plays / frames if frames else 1.0
+    _RHO_CACHE[clock] = rho
+    return rho
 FHI = {1: 0x01, 2: 0x08, 3: 0x0f}
 FLO = {1: 0x00, 2: 0x07, 3: 0x0e}
 FREQREG = {0x00: (1, 'lo'), 0x01: (1, 'hi'), 0x07: (2, 'lo'), 0x08: (2, 'hi'),
@@ -32,7 +69,7 @@ FREQREG = {0x00: (1, 'lo'), 0x01: (1, 'hi'), 0x07: (2, 'lo'), 0x08: (2, 'hi'),
 DRIVER_PREFIX = [(0x18, 0x0F)]
 
 # ---------------------------------------------------------------- lift ----
-def lift_mv(frames):
+def lift_mv(frames, clock='PAL'):
     stream = flatten(frames)                       # (frame_idx, reg, val)
     # music start: first gate-on, then back up over the freq writes feeding it
     g0 = next(i for i, (f, r, v) in enumerate(stream)
@@ -106,9 +143,17 @@ def lift_mv(frames):
             loop_period = sum(parsed[k]['dur'] + parsed[k]['gap']
                               for k in range(intro, intro + period))
         parsed = parsed[:intro + period]
+    # convert absolute frame targets from siddump-frame units to the player's
+    # play-period clock (see measure_rho) so the rebuild's writes land at the
+    # original's exact emulated cycles (correct 50Hz, no tempo drift).
+    rho = measure_rho(clock)
+    for p in parsed:
+        p['on_frame'] = round(p['on_frame'] * rho)
+        p['off_frame'] = round(p['off_frame'] * rho)
+    loop_period = round(loop_period * rho)
     return {'init': init, 'order': order, 'voices': sorted(voices),
             'waves': waves, 'steps': parsed, 'loop_to': loop_to,
-            'loop_period': loop_period, 'start_frame': start_frame,
+            'loop_period': loop_period, 'start_frame': start_frame, 'rho': rho,
             'attack': parsed[0]['attack'], 'release': parsed[0]['release']}
 
 def _find_loop(sigs, min_run=8):
@@ -268,31 +313,32 @@ def build_psid(L, title='proof'):
     return hdr + body
 
 # ----------------------------------------------------------------- main ----
-def verdict_basic(res, tol_frac=0.15):
-    """Basic_Program verdict = OVERLAP-exact (every (reg,val) the original
-    emits is reproduced in order) + a DURATION tolerance on the total length.
+def verdict_basic(res, tol=64):
+    """Basic_Program verdict = OVERLAP-exact (every (reg,val) the original emits
+    is reproduced in order) + a tight length tolerance (Hubbard's |len|<=64).
 
-    Absolute-frame scheduling (the player fires step k at its captured absolute
-    frame) removes per-step accumulation, so the rebuild is tempo-faithful on
-    real hardware. The residual length diff in the VERDICT is a siddump
-    measurement bias, NOT a rebuild error: the RSID-BASIC original runs
-    free (no play() vector) while the PSID rebuild's play() is invoked at
-    siddump's PSID rate (~0.92x/frame for EVERY PSID, incl. a trivial one and
-    real Hubbard tunes). Scaling the rebuild's targets by that 0.92 makes the
-    length diff EXACTLY 0 — proving the residual IS the rate bias — but we do
-    NOT scale, because that would make the rebuild ~8.7% fast on real hardware
-    (the ear is the final judge). So a proportional duration_tol absorbs the
-    tool bias (the duration_tol the C6 research anticipated)."""
+    Absolute-frame scheduling (fire step k at its captured frame) + the rho unit
+    conversion (siddump-frame -> play-period clock, see measure_rho) make the
+    rebuild's writes land at the original's EXACT emulated cycles, so the length
+    matches to ~0 (no rate drift). The rebuild plays at the true VIC frame rate
+    (50Hz PAL); there is no emulation-vs-hardware difference — rho only corrects
+    that siddump's engine.play(cyclesPerFrame) advances cyclesPerFrame
+    event-scheduler ticks (~18000 CPU cycles), not one 19656-cycle play period."""
     a, b = res['len_all_a'], res['len_all_b']
     overlap_ok = res['match_all'] == min(a, b)
-    length_ok = abs(a - b) <= max(64, tol_frac * max(a, b))
+    length_ok = abs(a - b) <= tol
     return overlap_ok and length_ok, overlap_ok, length_ok
 
 def run(sid_rel, dur, title):
+    import json, subprocess
     sid = os.path.join(ROOT, sid_rel)
-    L = lift_mv(capture_real(sid, dur))
+    hdr = json.loads(subprocess.run([os.path.join(ROOT, 'tools/siddump'), sid,
+                     '--duration', '1'], capture_output=True, text=True
+                     ).stdout.splitlines()[0])
+    clock = hdr['clock']
+    L = lift_mv(capture_real(sid, dur), clock=clock)
     print(f"\n=== {title} ===")
-    print(f"  voices={L['voices']} order={L['order']} "
+    print(f"  voices={L['voices']} order={L['order']} clock={clock} rho={L['rho']:.4f} "
           f"waves={{{', '.join('%d:$%02X'%(k,v) for k,v in sorted(L['waves'].items()))}}} "
           f"steps={len(L['steps'])} loop_to={L['loop_to']}")
     out = os.path.join(ROOT, f'tmp/basic_program_research/{title}.sidfinity.sid')

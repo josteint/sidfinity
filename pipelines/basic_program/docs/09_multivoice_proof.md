@@ -47,50 +47,54 @@ write-log stream).
   before the first note; a 16-bit initial-delay countdown reproduces that so the
   rebuild doesn't skip the dead-air intro.
 
-## Verdict for the family — overlap-exact + duration_tol
+## Verdict for the family — overlap-exact + strict |len|<=64
 
-The Hubbard strict `|len_a-len_b| <= 64` does NOT fit free-running BASIC: a 50Hz
-player can't frame-exactly match BASIC's `FOR/NEXT` timing (per-step sub-frame
-rounding + siddump Trap-C bucketing accumulate over a multi-minute loop). So the
-family verdict is **overlap-exact + a proportional `duration_tol`** (the tolerance
-the C6 research anticipated). `verdict_basic` = `match_all == min(len)` AND
-`|len_a-len_b| <= max(64, 0.15·max(len))`. Baby's length diff is 225 (~12%, the
-accumulated tempo quantization over ~3 loops); the write STREAM itself is exact.
+`verdict_basic` = `match_all == min(len)` (overlap exact) AND `|len_a-len_b| <= 64`
+(Hubbard's strict tolerance). After the absolute-frame scheduling + `rho` unit
+conversion below, the rebuild's writes land at the original's exact cycles, so the
+length diff is **0** (Baby 1902/1902, Twinkle 60/60) — no loose duration tolerance
+is needed. (An earlier draft of this proof used a proportional `duration_tol` to
+absorb what turned out to be a fixable unit bug; see below.)
 
-## Absolute-frame scheduling + the siddump rate-bias finding
+## Absolute-frame scheduling + the rho unit-conversion (cycle-exact tempo)
 
-The player now uses **absolute-frame scheduling**: a 16-bit frame counter fires each
-step's attack/release at its **captured absolute frame** (`atk[k]`/`rel[k]`), and a
-`loopbase` advances by the measured loop period each wrap. This removes the per-step
-`dur+gap` summation, so per-step rounding no longer accumulates and each loop stays
-anchored to the original.
+The player uses **absolute-frame scheduling**: a 16-bit frame counter fires each
+step's attack/release at its **captured frame** (`atk[k]`/`rel[k]`), and a `loopbase`
+advances by the measured loop period each wrap — no per-step `dur+gap` summation, so
+rounding can't accumulate and each loop stays anchored.
 
-It exposed the real cause of the residual length diff — **a siddump measurement
-bias, not a rebuild error**:
+That exposed a real tempo bug — and chasing it down corrected an earlier WRONG
+conclusion (there is **no** emulation-vs-hardware difference):
 
-- The RSID-BASIC original runs FREE (no `play()` vector; `|P:0` every frame — its
-  writes fall into siddump's 19,688-cycle frame buckets at BASIC's pace).
-- The PSID rebuild's `play()` is invoked by siddump at **~0.92×/frame** — and this
-  rate is UNIVERSAL: a trivial `init/play=rts` PSID and real Hubbard rebuilds show
-  the identical 0.92 (every PSID's `play()` effectively fires every ~21,400 cycles in
-  siddump, not VBI's 19,656).
-- So siddump frames a free-running RSID and a VBI PSID at **different frame rates** —
-  an ~8.7% bias. **Scaling the rebuild's targets by 0.92 makes the verdict length
-  diff EXACTLY 0** (overlap still 1902/1902) — proving the residual IS this rate bias.
-- We do **NOT** scale: the unscaled rebuild is tempo-faithful on real hardware (a step
-  ≈ 211,302 cycles via VBI vs the original's ≈ 211,646); scaling would make it ~8.7%
-  fast on hardware (the ear is the final judge). So `verdict_basic` keeps a
-  proportional `duration_tol` to absorb the *tool* bias.
+- The rebuild's `play()` fires at the **true VIC frame rate** — PAL 19,656 CPU cycles
+  = 50 Hz (verified: consecutive play-entry PHI1 cycles are exactly 19,656 apart). The
+  rebuild is NOT slow on hardware.
+- But siddump steps the emulator via `engine.play(cyclesPerFrame=19688)`, where
+  `cyclesPerFrame` counts **event-scheduler ticks** (`c64::clock()` =
+  `eventScheduler.clock()`), and one tick is **< 1 CPU cycle** — so a siddump "frame"
+  advances only ~18,000 CPU cycles, NOT one 19,656-cycle play period.
+- So an onset measured in **siddump-frame units** (~18,000 cyc) is in the wrong clock
+  for a player that advances per **play-period** (19,656 cyc). The fix is a unit
+  conversion: scale targets by **rho = plays-per-siddump-frame** (= CPU-cyc-per-frame /
+  play-period ≈ **0.919** PAL; `measure_rho` derives it per-clock from a trivial PSID's
+  `|P:` rate, so it tracks NTSC too).
+- With rho, the rebuild's writes land at the original's **exact emulated cycles**:
+  gate-on absolute-cycle ratio reb/orig → **1.000** (from 1.088), and the verdict
+  length diff → **0** (Baby 1902/1902, Twinkle 60/60). Verdict tightened to the strict
+  Hubbard `|len|<=64`.
 
-Hubbard tunes are unaffected because there BOTH the original and the rebuild are
-PSIDs, played at the same 0.92 rate.
+Earlier I wrongly called the 1.088 a "measurement bias" and declined to scale, on the
+false premise that the PSID plays at 50 Hz in siddump but the rebuild would be 8.7%
+fast on hardware. It does play at 50 Hz; the 1.088 was the siddump-frame-vs-play-period
+unit mismatch, and scaling by rho is the correct, hardware-faithful fix.
+
+Hubbard tunes never hit this because there BOTH original and rebuild are PSIDs, so the
+flat `(reg,val)` comparison is bucketing-agnostic and the unit mismatch cancels.
 
 ## Honest residue / refinements
 
-- The verdict's length comparison is biased by the siddump RSID-vs-PSID play-rate
-  (~8.7%); `duration_tol=0.15` absorbs it. A tighter, hardware-faithful verdict would
-  normalize the length by the known PSID-play-rate in the COMPARATOR (not the
-  rebuild) — a production-verify refinement.
+- `rho` corrects a siddump emulation-timing detail (event-tick "frame" ≠ CPU-cycle
+  play period); it's self-calibrated per clock from a trivial PSID's `|P:` rate.
 - Lockstep-chord assumption: all voices share step boundaries (true for Baby and the
   common BASIC idiom). Tunes with independent per-voice timing (rare in BASIC — hard
   to write) would need per-voice step clocks.
