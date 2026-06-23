@@ -23,7 +23,8 @@ sys.path[:0] = [os.path.join(ROOT, 'tools', 'py65_lib'),
 RESULTS = os.path.join(ROOT, 'tmp', 'dmc_wide_results.jsonl')
 
 
-def write_member(rel: str) -> tuple:
+def write_member(item) -> tuple:
+    rel, hold_gateoff = item if isinstance(item, (list, tuple)) else (item, None)
     try:
         from pipelines.dmc.v4.factory import dmc_v4_config
         from pipelines.dmc.v4.extract.to_usf import write_dmc_usf
@@ -33,7 +34,13 @@ def write_member(rel: str) -> tuple:
         cfg = dmc_v4_config(rel, hvsc_root=hvsc)
         out_dir = os.path.dirname(os.path.join(hvsc, rel))
         usf_path = write_dmc_usf(cfg, out_dir, hvsc_root=hvsc)
-        sid = build_dmc_sid(parse_file(usf_path))
+        usf = parse_file(usf_path)
+        # the batch's write-stream retry may have chosen mask_only (a member
+        # whose original never clears AD+SR) — apply it so the written SID
+        # matches the verified verdict.
+        if hold_gateoff:
+            usf.params.fields['hold_gateoff'] = hold_gateoff
+        sid = build_dmc_sid(usf)
         base = os.path.splitext(os.path.join(hvsc, rel))[0]
         open(base + '.sidfinity.sid', 'wb').write(sid)
         return (rel, True, '')
@@ -45,8 +52,8 @@ def main():
     results = RESULTS
     if '--results' in sys.argv:
         results = sys.argv[sys.argv.index('--results') + 1]
-    full = [json.loads(l)['path'] for l in open(results)
-            if json.loads(l)['status'] == 'full']
+    full = [(json.loads(l)['path'], json.loads(l).get('hold_gateoff'))
+            for l in open(results) if json.loads(l)['status'] == 'full']
     print(f'{len(full)} FULL members to write', flush=True)
     ok = err = 0
     errs = []

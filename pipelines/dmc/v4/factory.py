@@ -293,21 +293,19 @@ _DATAFLOW_RETRY = {'player_code_mismatch', 'loop_site_unknown',
                    'no_jumptable'}
 
 
-def _orig_clears_adsr(sid_path: str, subtune: int = 0,
-                      duration: float = 30.0) -> bool:
-    """Write-stream probe for the holding gate-off MODE. The canon player's
+def frames_clear_adsr(frames) -> bool:
+    """Write-stream signature of the holding gate-off MODE. The canon player's
     sub_17EC clears AD+SR to $00 (both, same voice, same frame) at a holding
-    instrument's gate-off; a mask-only variant never does. Capture the original
-    and look for that signature (post-init). Returns True if the original EVER
-    clears AD+SR (=> adsr_clear), False if never (=> mask_only). CORE-TENET
-    detection: we don't model the (tangled) mechanism — we observe what the
-    write stream DOES and parametrise the composer to reproduce it. Conservative
-    + verify-gated: a note-init with a zero envelope also trips True (-> keeps
-    the adsr_clear default, never a false mask_only), so this only flips members
-    whose original genuinely never zeroes AD+SR together."""
-    from pipelines.hubbard.verify_cycle import writelog_capture
+    instrument's gate-off; a mask-only variant never does. Scans a PRE-CAPTURED
+    original write-log (post-init) and returns True if it EVER clears AD+SR (=>
+    adsr_clear), False if never (=> mask_only candidate). CORE-TENET detection:
+    don't model the (tangled) mechanism — observe what the write stream DOES.
+    MUST be given a FULL-songlength capture: a holding instrument can first gate
+    off late (e.g. 34-42s in Szybka_1/Ann), so a short window false-negatives
+    into a regression. The caller (the verify batch) reuses its full-songlength
+    orig capture, so the scan is free + reliable. Conservative: a zero-envelope
+    note-init also trips True -> keeps adsr_clear, never a false mask_only."""
     pairs = ((0x05, 0x06), (0x0C, 0x0D), (0x13, 0x14))   # V1/V2/V3 (AD, SR)
-    frames = writelog_capture(sid_path, subtune=subtune, duration=duration)
     for fi, fr in enumerate(frames):
         if fi == 0:
             continue                                     # skip init clear
@@ -323,29 +321,20 @@ def _orig_clears_adsr(sid_path: str, subtune: int = 0,
 def dmc_v4_config(sid_path: str, hvsc_root: str = 'hvsc84') -> DMCV4Config:
     """Primary canonical-layout build; on a moved-layout rejection, fall back
     to the layout-independent dataflow extractor (pipelines.dmc.v4.dataflow).
-    Then apply the write-stream hold_gateoff probe (family-1: family-2 already
-    sets its own)."""
+
+    hold_gateoff (mask_only vs adsr_clear) is NOT decided here — the reliable
+    detection needs a FULL-songlength orig scan, which the verify batch does by
+    reusing its orig capture (see frames_clear_adsr); a bounded factory probe
+    false-negatives on late-gate-off members and regresses FULLs."""
     try:
-        cfg = _build_via_canon(sid_path, hvsc_root)
+        return _build_via_canon(sid_path, hvsc_root)
     except DMCV4Unsupported as e:
         if e.reason not in _DATAFLOW_RETRY:
             raise
         cfg = _build_via_dataflow(sid_path, hvsc_root)
         if cfg is None:
             raise
-    # hold_gateoff: if the layout path didn't already decide it (family-2 does
-    # via its own code probe), detect it from the original's write stream — the
-    # composer defaults to adsr_clear (canon sub_17EC), but a member whose
-    # original NEVER zeroes AD+SR is mask-only and the clear is a spurious extra
-    # write (the dominant freq-floor "reb writes AD/SR=0 the orig doesn't"). The
-    # verify gate is the net for a mis-probe.
-    if 'hold_gateoff' not in cfg.extra_params:
-        try:
-            if not _orig_clears_adsr(os.path.join(hvsc_root, sid_path)):
-                cfg.extra_params['hold_gateoff'] = 'mask_only'
-        except Exception:
-            pass
-    return cfg
+        return cfg
 
 
 def _build_via_dataflow(sid_path: str, hvsc_root: str):

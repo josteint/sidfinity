@@ -59,7 +59,8 @@ def run_member(rel: str) -> dict:
                   lambda *a: (_ for _ in ()).throw(TimeoutError()))
     signal.alarm(1500)
     try:
-        from pipelines.dmc.v4.factory import dmc_v4_config, DMCV4Unsupported
+        from pipelines.dmc.v4.factory import (dmc_v4_config, DMCV4Unsupported,
+                                              frames_clear_adsr)
         from pipelines.dmc.v4.extract.to_usf import write_dmc_usf
         from pipelines.dmc.composer_asm import build_dmc_sid
         from pipelines.hubbard.verify_cycle import (
@@ -77,73 +78,82 @@ def run_member(rel: str) -> dict:
                     'reason': e.reason, 'detail': e.detail[:80]}
         orig = os.path.join(hvsc, rel)
         with tempfile.TemporaryDirectory() as td:
-            usf_path = write_dmc_usf(cfg, td, hvsc_root=hvsc)
-            rebuilt = build_dmc_sid(parse_file(usf_path))
-            tmp_sid = os.path.join(td, 'r.sid')
-            open(tmp_sid, 'wb').write(rebuilt)
             durs = get_durations(orig, _db)
             n = parse_psid(orig)['songs']
             speed = _cia_speed(orig)
-            subs = {}
-            ok = True
-            first_diff = None
-            flat_div = None
+            # Capture the original ONCE per subtune (reused for the mask_only
+            # retry below — full-songlength, so the AD/SR-clear scan is reliable).
+            origs = {}
             for sub in range(n):
                 dur = (durs[sub] if durs and sub < len(durs) else 110) * 1.1
                 dur = max(5.0, min(dur, 1500.0))
+                cia = _is_cia_subtune(speed, sub)
                 # CIA-timed (multispeed) subtunes: play() does not align with
-                # siddump's 19656-cycle frame buckets, so the flat per-frame
-                # capture phases init+play differently for orig vs rebuild
-                # (Trap C specialised to CIA) — capture PER play() instead.
-                # The rebuild installs a matching CIA timer (composer_asm
-                # cia_period), so the play-for-play streams align. Init is
-                # dropped on both sides, so trichotomy recovers d=0 and reduces
-                # to overlap+close (state_match trivially true), matching the
-                # Hubbard/FC per-IRQ verdict. Vblank subtunes unchanged.
-                cap = (writelog_per_irq_capture if _is_cia_subtune(speed, sub)
-                       else writelog_capture)
-                a = cap(orig, subtune=sub, duration=dur)
-                b = cap(tmp_sid, subtune=sub, duration=dur)
-                r = compare_instruction_stream(a, b, mode='trichotomy')
-                # Record the trichotomy fields that let a census categorize a
-                # partial WITHOUT re-running verify (the lesson from the no-first-
-                # diff re-localization): when first_play_diff is None the play
-                # stream matched over the overlap, so the partial is NOT an effect
-                # divergence — it's length/CIA (close=False, len_post_a<<len_post_b
-                # = orig vblank-stub vs rebuild full play) or init-state
-                # (state_match=False, play matched). state_match+close+len_post
-                # distinguish those; first_diff carries the reg when there IS one.
-                subs[sub] = [bool(r['is_full']), r['play_match'],
-                             r['play_overlap'], bool(r['state_match']),
-                             bool(r['close']), r['len_post_a'], r['len_post_b']]
-                if not r['is_full']:
-                    ok = False
-                    if first_diff is None:
-                        fd = r.get('first_play_diff')
-                        first_diff = ([sub, bool(r['state_match'])]
-                                      + (list(map(list, fd[1:])) if fd else []))
-                    # RELIABLE localization for clustering: the FLAT-prefix first
-                    # (reg,val) divergence (cycle dropped). The trichotomy
-                    # first_play_diff lands on whatever reg sits at its recovered
-                    # alignment offset and is unreliable when shift_d mis-recovers
-                    # (it spuriously reports $D418) — but DMC inits MATCH (the
-                    # universal_reset writes coincide with the original's), so the
-                    # flat prefix breaks at the TRUE first effect divergence. Only
-                    # for vblank subtunes (CIA per-irq has init dropped + may
-                    # genuinely shift); CIA keeps the trichotomy first_diff.
-                    if flat_div is None and not _is_cia_subtune(speed, sub):
-                        fla = [(w[1], w[2]) for fr in a for w in fr]
-                        flb = [(w[1], w[2]) for fr in b for w in fr]
-                        mm = 0
-                        lim = min(len(fla), len(flb))
-                        while mm < lim and fla[mm] == flb[mm]:
-                            mm += 1
-                        if mm < lim:
-                            flat_div = [sub, mm, fla[mm][0], fla[mm][1],
-                                        flb[mm][1]]
+                # siddump's 19656-cycle frame buckets (Trap C) — capture PER
+                # play(). Vblank subtunes use the flat per-frame capture.
+                cap = writelog_per_irq_capture if cia else writelog_capture
+                origs[sub] = (cap(orig, subtune=sub, duration=dur), dur, cia)
+
+            def build_and_verify(hold_gateoff=None):
+                usf = parse_file(write_dmc_usf(cfg, td, hvsc_root=hvsc))
+                if hold_gateoff:
+                    usf.params.fields['hold_gateoff'] = hold_gateoff
+                tmp_sid = os.path.join(td, 'r.sid')
+                open(tmp_sid, 'wb').write(build_dmc_sid(usf))
+                subs = {}; ok = True; first_diff = None; flat_div = None
+                for sub in range(n):
+                    a, dur, cia = origs[sub]
+                    cap = writelog_per_irq_capture if cia else writelog_capture
+                    b = cap(tmp_sid, subtune=sub, duration=dur)
+                    r = compare_instruction_stream(a, b, mode='trichotomy')
+                    subs[sub] = [bool(r['is_full']), r['play_match'],
+                                 r['play_overlap'], bool(r['state_match']),
+                                 bool(r['close']), r['len_post_a'],
+                                 r['len_post_b']]
+                    if not r['is_full']:
+                        ok = False
+                        if first_diff is None:
+                            fd = r.get('first_play_diff')
+                            first_diff = ([sub, bool(r['state_match'])]
+                                          + (list(map(list, fd[1:])) if fd else []))
+                        # RELIABLE localization for clustering: the FLAT-prefix
+                        # first (reg,val) divergence (cycle dropped). Trichotomy's
+                        # first_play_diff lands on whatever reg sits at its
+                        # recovered offset (spurious $D418 on shift mis-recovery);
+                        # DMC inits MATCH so the flat prefix breaks at the TRUE
+                        # divergence. Vblank only (CIA per-irq drops init).
+                        if flat_div is None and not cia:
+                            fla = [(w[1], w[2]) for fr in a for w in fr]
+                            flb = [(w[1], w[2]) for fr in b for w in fr]
+                            mm = 0
+                            lim = min(len(fla), len(flb))
+                            while mm < lim and fla[mm] == flb[mm]:
+                                mm += 1
+                            if mm < lim:
+                                flat_div = [sub, mm, fla[mm][0], fla[mm][1],
+                                            flb[mm][1]]
+                return subs, ok, first_diff, flat_div
+
+            subs, ok, first_diff, flat_div = build_and_verify()
+            hold_gateoff = None
+            # MASK-ONLY retry (freq-floor / sr,ad recovery): the composer defaults
+            # to adsr_clear (canon sub_17EC clears AD+SR at a holding gate-off);
+            # a member whose ORIGINAL never zeroes AD+SR is mask-only, and that
+            # clear is a spurious extra write. Detect from the WRITE STREAM
+            # (Core Tenet) — reusing the full-songlength orig captures so a
+            # late-gate-off member isn't false-negatived (the 30s-probe trap that
+            # regressed FULLs). Only retry NON-full members, so a FULL adsr_clear
+            # member is never touched.
+            if not ok and not any(frames_clear_adsr(origs[s][0])
+                                  for s in range(n)):
+                s2, ok2, fd2, fl2 = build_and_verify('mask_only')
+                nfull = lambda ss: sum(1 for v in ss.values() if v[0])
+                if ok2 or nfull(s2) > nfull(subs):
+                    subs, ok, first_diff, flat_div = s2, ok2, fd2, fl2
+                    hold_gateoff = 'mask_only'
             return {'path': rel, 'status': 'full' if ok else 'partial',
                     'subs': subs, 'first_diff': first_diff,
-                    'flat_div': flat_div}
+                    'flat_div': flat_div, 'hold_gateoff': hold_gateoff}
     except TimeoutError:
         return {'path': rel, 'status': 'error', 'reason': 'timeout'}
     except Exception as e:
