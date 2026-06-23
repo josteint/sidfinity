@@ -18,16 +18,45 @@ import os, sys, math
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, ROOT); sys.path.insert(0, os.path.join(ROOT, 'src'))
 
-from pipelines.hubbard.verify_cycle import writelog_capture, compare_instruction_stream
+import subprocess, re
+from pipelines.hubbard.verify_cycle import (writelog_capture,
+                                            compare_instruction_stream, SIDDUMP)
 from src.composer_runtime.xa65 import assemble
 from src.composer_runtime.psid import build_header
+from src.usf import (UsfFile, PsidMeta, Params, InitState, InitSid, Instrument,
+                     MusicSubtune, VoiceBlock, Pattern, NoteRow, Orderlist,
+                     Pitch, InstrumentRef, write_file, parse_file)
 
 SID = os.path.join(ROOT, 'hvsc84/DEMOS/UNKNOWN/Twinkle_BASIC.sid')
 LOAD = 0x1000
+NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
 
 # ---------------------------------------------------------------- lift ----
+def capture_real(sid_path, duration):
+    """Capture writelog with REAL frame indices (every siddump frame is a
+    line; writelog_capture drops empty frames, losing hold-duration). Returns
+    list-of-frames where index = real frame number, each = [(cyc,reg,val),...].
+    """
+    r = subprocess.run([SIDDUMP, sid_path, '--writelog', '--duration',
+                        str(duration)], capture_output=True, text=True)
+    frames = []
+    for line in r.stdout.splitlines():
+        if ',' not in line.split('|')[0]:
+            continue   # skip the 2 header lines (json + column names)
+        writes = []
+        if '|W:' in line:
+            toks = line.split('|W:', 1)[1].strip().split(':')
+            for i in range(0, len(toks) - 2, 3):
+                try:
+                    writes.append((int(toks[i]), int(toks[i+1], 16),
+                                   int(toks[i+2], 16)))
+                except ValueError:
+                    pass
+        frames.append(writes)
+    return frames
+
 def flatten(frames):
-    """frames (list of [(reg,val),...]) -> list of (frame_idx, reg, val)."""
+    """frames (list of [(cyc,reg,val),...]) -> list of (frame_idx, reg, val)."""
     out = []
     for fi, fr in enumerate(frames):
         for cyc, reg, val in fr:
@@ -194,25 +223,110 @@ def build_psid(L):
                        title='Twinkle', author='unknown', released='proof')
     return hdr + body, asm
 
+# ----------------------------------------------------- USF round-trip ----
+def model_to_usf(L):
+    """Lifted model -> USF v2 (shared schema). Musical content only:
+    one triangle instrument, a per-tune freq_table, and a single voice whose
+    pattern alternates note-row (hold) + rest-row (gap)."""
+    rows = []
+    for n in L['notes']:
+        rows.append(NoteRow(pitch=Pitch(name=n['name'], octave=n['octave']),
+                            duration=max(n['dur_frames'], 1),
+                            instr=InstrumentRef(id=1)))
+        rows.append(NoteRow(pitch=Pitch.rest(),
+                            duration=max(n.get('gap_frames', 5), 1)))
+    length = sum(r.duration for r in rows)
+    voice1 = VoiceBlock(id=1, orderlist=Orderlist(entries=[1], stop=True),
+                        patterns=[Pattern(id=1, length=length, rows=rows)])
+    sub = MusicSubtune(id=0, tempo=1, voices=[
+        voice1,
+        VoiceBlock(id=2, orderlist=Orderlist(stop=True)),
+        VoiceBlock(id=3, orderlist=Orderlist(stop=True))])
+    return UsfFile(
+        psid=PsidMeta(title='Twinkle', author='unknown', released='proof',
+                      clock='PAL', sid=6581, start_song=1, speed=0),
+        params=Params(fields={}),
+        init=InitState(sid=InitSid(master_vol=dict(L['init']).get(0x18, 0x0F))),
+        instruments=[Instrument(id=1, waveform=[L['wave']],
+                                adsr=(L['ad'], L['sr']))],
+        freq_table=list(L['ftab']),
+        subtunes=[sub])
+
+def playerdata_from_usf(usf):
+    """Reconstruct the player inputs from a PARSED USF (proves the build
+    consumes the .usf, not the in-memory lift)."""
+    instr = usf.instruments[0]
+    ad, sr = instr.adsr
+    wave = instr.waveform[0]
+    vol = usf.init.sid.master_vol
+    ftab = bytes(usf.freq_table)
+    sub = usf.subtunes[0]
+    pat = sub.voices[0].patterns[0]
+    notes = []
+    rows = pat.rows
+    for i in range(0, len(rows) - 1, 2):
+        note, rest = rows[i], rows[i + 1]
+        semi = NAMES.index(note.pitch.name)
+        ni = (note.pitch.octave << 4) | semi
+        notes.append({'note_index': ni, 'dur_frames': note.duration,
+                      'gap_frames': rest.duration})
+    # init = program writes only (driver supplies the leading $D418=$0F)
+    return {'init': [(0x05, ad), (0x06, sr), (0x18, vol)], 'notes': notes,
+            'ftab': ftab, 'wave': wave, 'ad': ad, 'sr': sr}
+
 # ----------------------------------------------------------------- main ----
+def note_onset_frames(frames):
+    """Real frame index of each gate-on (reg 04 with gate bit) — for rhythm."""
+    onsets = []
+    for fi, fr in enumerate(frames):
+        for cyc, reg, val in fr:
+            if reg == 0x04 and (val & 0x01):
+                onsets.append(fi)
+    return onsets
+
 def main():
     dur = 12.0
-    orig = writelog_capture(SID, subtune=0, duration=dur)
-    L = lift(orig)
-    print(f"lifted: {len(L['notes'])} notes; init={['%02X:%02X'%(r,v) for r,v in L['init']]}")
-    print("  note seq:", " ".join(f"{n['name']}{n['octave']}" for n in L['notes'][:20]))
-    print("  durs    :", " ".join(str(min(n['dur_frames'],255)) for n in L['notes'][:20]))
-    sid_bytes, asm = build_psid(L)
+    # --- SID -> musical model (real durations from raw-frame capture) ---
+    orig_real = capture_real(SID, dur)
+    L = lift(orig_real)
+    print(f"lifted: {len(L['notes'])} notes; "
+          f"init(prog)={['%02X:%02X'%(r,v) for r,v in L['init'][1:]]}")
+    print("  note seq:", " ".join(f"{n['name']}{n['octave']}" for n in L['notes']))
+    print("  hold/gap frames:",
+          " ".join(f"{n['dur_frames']}/{n.get('gap_frames','?')}" for n in L['notes'][:8]), "...")
+    # --- model -> .usf (write) -> .usf (parse): SID -> USF -> SID ---
+    usf_obj = model_to_usf(L)
+    usf_path = os.path.join(ROOT, 'tmp/basic_program_research/Twinkle.usf')
+    os.makedirs(os.path.dirname(usf_path), exist_ok=True)
+    write_file(usf_obj, usf_path)
+    usf_parsed = parse_file(usf_path)
+    print(f"wrote + reparsed {usf_path}")
+    # --- USF -> PSID (build consumes the PARSED usf) ---
+    PD = playerdata_from_usf(usf_parsed)
+    sid_bytes, asm = build_psid(PD)
     out = os.path.join(ROOT, 'tmp/basic_program_research/Twinkle.sidfinity.sid')
-    os.makedirs(os.path.dirname(out), exist_ok=True)
     with open(out, 'wb') as f:
         f.write(sid_bytes)
     print(f"built PSID -> {out} ({len(sid_bytes)} bytes)")
+    # --- VERDICT: flat (reg,val) writelog match (project Mode-1) ---
+    orig = writelog_capture(SID, subtune=0, duration=dur)
     rebuilt = writelog_capture(out, subtune=0, duration=dur)
     res = compare_instruction_stream(orig, rebuilt, skip_init=False)
-    print("VERDICT (flat, skip_init=False):", res)
-    res2 = compare_instruction_stream(orig, rebuilt, skip_init=True)
-    print("VERDICT (flat, skip_init=True): ", res2)
+    print(f"\nWRITELOG VERDICT (flat): is_full={res['is_full']} "
+          f"match={res['match']}/{res['len_a']} (orig) vs {res['len_b']} (reb)")
+    # --- RHYTHM: compare note onsets (frame gaps), tolerant ---
+    reb_real = capture_real(out, dur)
+    o_on, r_on = note_onset_frames(orig_real), note_onset_frames(reb_real)
+    o_gaps = [o_on[i+1]-o_on[i] for i in range(len(o_on)-1)]
+    r_gaps = [r_on[i+1]-r_on[i] for i in range(len(r_on)-1)]
+    n = min(len(o_gaps), len(r_gaps))
+    maxdiff = max((abs(o_gaps[i]-r_gaps[i]) for i in range(n)), default=0)
+    # A 50Hz player can't align frame-exactly to BASIC's free-running FOR/NEXT
+    # timing (+ siddump Trap-C bucket drift), so a few frames' slack is inherent
+    # and within the duration_tol these tunes need.
+    print(f"RHYTHM: {len(o_on)} onsets orig / {len(r_on)} reb; "
+          f"max inter-onset frame-gap diff = {maxdiff} frames "
+          f"({maxdiff/50.0:.2f}s; <=~5 = faithful within BASIC quantization)")
 
 if __name__ == '__main__':
     main()
