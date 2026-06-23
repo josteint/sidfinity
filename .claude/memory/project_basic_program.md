@@ -85,6 +85,19 @@ siddump-frame-vs-play-period unit mismatch, and scaling by rho is the correct ha
 caught it: "i doubt there is a 9% difference between emulated and real hardware.") Hubbard etc. never hit
 this — both sides PSID, so the flat (reg,val) compare is bucketing-agnostic and the mismatch cancels.
 
+**COVERAGE PROBE (commit b38da6a): 8/81 (10%) FULL** with the freq+gate lift. Dominant gap (~52%
+overlap_diverge, 23 on ctl regs) = the per-step writes are RICHER than freq+gate (per-note vol/accent
+e.g. Deutschlandlied vol=0F->08->06, per-note ADSR, gate-value/order variants, legato). All of it is
+MUSICAL (maps to USF v2 instruments/master_vol/etc.) -> the principled fix is a SEMANTIC richer lift
+into existing USF v2 (NOT generic per-step register-deltas = the [[feedback_no_writelog_replay]] trap,
+NOT a bytes escape-hatch). Reuse deprecated `gt2_pipeline/converters/regtrace_to_usf.py` (~80% of the
+lift algorithm: freq_to_note_pal, gate-transition note boundaries, tempo). **PORT CAVEAT (user, do not
+forget): the old regtrace_to_usf consumes per-frame SNAPSHOTS (Trap A — loses within-frame order +
+can't model the things we need); the port MUST consume the `--writelog` ordered (reg,val) stream
+instead.** Probe failure buckets: overlap_diverge 42 / lift_crash 16 / build_fail 6 (branch-out-of-range
+= the +-127 trampoline bug) / lift_no_gate 4 (legato gate-once + GET) / too_many_steps 4 (N>255, 8-bit
+stepidx) / length_fail 1. Cheap wins in progress: branch trampolines + 16-bit step indexing.
+
 **NEXT (build the family, not yet done):** the 1 digi tune (Black_Box_V8_Demo, Mode 2 cycle-exact);
 fold the proof scripts into proper `pipelines/basic_program/{extract,build,verify}` + wire the
 `verdict_basic` duration_tol comparator + a regression portfolio; then a stratified-subset batch over

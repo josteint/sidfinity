@@ -50,8 +50,6 @@ def probe_one(args):
     res['voices'] = len(L['voices']); res['steps'] = N; res['order'] = L['order']
     if N == 0:
         res.update(status='no_steps'); return res
-    if N > 255:
-        res.update(status='too_many_steps', detail=f'{N}'); return res
     try:
         sidbytes = build_psid(L, 'probe')
         with tempfile.NamedTemporaryFile(suffix='.sid', delete=False) as f:

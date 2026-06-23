@@ -171,21 +171,31 @@ def _find_loop(sigs, min_run=8):
 CTRLREG = {1: 0x04, 2: 0x0b, 3: 0x12}              # voice -> ctrl register
 
 # ------------------------------------------------------------- emit asm ----
+SP = '$FB'                                          # ZP step-record pointer (lo/hi)
+
 def build_player_asm(L):
     """ABSOLUTE-FRAME scheduling: a 16-bit frame counter fires each step's
-    attack/release at its captured ABSOLUTE frame (no summed per-step deltas,
-    so rounding doesn't accumulate). `loopbase` advances by the measured loop
-    period each wrap, anchoring every loop iteration to the original."""
+    attack/release at its captured ABSOLUTE frame (no summed per-step deltas);
+    `loopbase` advances by the measured loop period each wrap.
+
+    Per-step data is packed into fixed-stride records walked by a 16-bit step
+    pointer (no 8-bit step limit). The pointer lives in persistent RAM (`splo`/
+    `sphi`) and is copied to ZP $FB/$FC per play-call for `(zp),y` indexing — the
+    KERNAL IRQ runs between play() calls, not during, so $FB/$FC are safe scratch.
+    Record layout per step: [atk_lo, atk_hi, rel_lo, rel_hi, (v_hi, v_lo)*nvoices]."""
     steps = L['steps']
     N = len(steps)
     waves = L['waves']
+    voices = L['voices']
     loop_to = L.get('loop_to')
     period = L.get('loop_period', 0)
+    stride = 4 + 2 * len(voices)
+    vidx = {vc: i for i, vc in enumerate(voices)}    # voice -> record slot
     lines = []; em = lines.append
     em(f'* = ${LOAD:04X}')
     em('        jmp init')
     em('        jmp play')
-    # --- init: program writes, zero state, curtgt = atk[0] ---
+    # --- init: program writes, zero state, sp=steprecs, curtgt = atk[0] ---
     em('init:')
     prog_init = L['init']
     if prog_init[:1] == DRIVER_PREFIX:
@@ -194,18 +204,26 @@ def build_player_asm(L):
         em(f'        lda #${val:02X}')
         em(f'        sta $D4{reg:02X}')
     em('        lda #$00')
-    for s in ('stepidx', 'phase', 'done', 'framelo', 'framehi',
-              'loopbaselo', 'loopbasehi'):
+    for s in ('phase', 'done', 'framelo', 'framehi', 'loopbaselo', 'loopbasehi'):
         em(f'        sta {s}')
-    em('        ldx #$00')
+    em('        lda #<steprecs')
+    em(f'        sta splo')
+    em(f'        sta {SP}')
+    em('        lda #>steprecs')
+    em(f'        sta sphi')
+    em(f'        sta {SP}+1')
     em('        jsr set_atk_target')         # curtgt = atk[0] (incl. setup delay)
     em('        rts')
     # --- play ---
     em('play:')
     em('        lda done')
-    em('        beq pl_go')
+    em('        beq pl_load')
     em('        rts')
-    em('pl_go:')
+    em('pl_load:')                           # RAM step-pointer -> ZP scratch
+    em(f'        lda splo')
+    em(f'        sta {SP}')
+    em(f'        lda sphi')
+    em(f'        sta {SP}+1')
     em('        lda framehi')                # fire iff frame >= curtgt (16-bit)
     em('        cmp curtgthi')
     em('        bcc pl_wait')
@@ -217,37 +235,49 @@ def build_player_asm(L):
     em('        jmp pl_inc')
     em('pl_fire:')
     em('        lda phase')
-    em('        bne pl_release')
+    em('        beq pl_attack')              # trampoline: attack code is long
+    em('        jmp pl_release')
     # attack: emit on/freq writes in template order; next target = rel[step]
-    em('        ldx stepidx')
+    em('pl_attack:')
     for role, vc in L['attack']:
         if role == 'on':
             em(f'        lda #${(waves[vc] | 0x01):02X}')
             em(f'        sta $D4{CTRLREG[vc]:02X}')
-        elif role == 'hi':
-            em(f'        lda v{vc}hi,x')
-            em(f'        sta $D4{FHI[vc]:02X}')
-        elif role == 'lo':
-            em(f'        lda v{vc}lo,x')
-            em(f'        sta $D4{FLO[vc]:02X}')
-    em('        ldx stepidx')
+        elif role in ('hi', 'lo'):
+            off = 4 + 2 * vidx[vc] + (0 if role == 'hi' else 1)
+            reg = FHI[vc] if role == 'hi' else FLO[vc]
+            em(f'        ldy #${off:02X}')
+            em(f'        lda ({SP}),y')
+            em(f'        sta $D4{reg:02X}')
     em('        jsr set_rel_target')
     em('        lda #$01')
     em('        sta phase')
     em('        jmp pl_inc')
-    # release: gate-off writes; advance step (loop or finish); target = atk[step]
+    # release: gate-off writes; advance sp by stride (loop or finish)
     em('pl_release:')
-    em('        ldx stepidx')
     for role, vc in L['release']:
         em(f'        lda #${waves[vc]:02X}')
         em(f'        sta $D4{CTRLREG[vc]:02X}')
-    em('        inc stepidx')
-    em('        lda stepidx')
-    em(f'        cmp #${N & 0xFF:02X}')
+    em('        clc')                                 # sp += stride
+    em(f'        lda {SP}')
+    em(f'        adc #${stride:02X}')
+    em(f'        sta {SP}')
+    em(f'        lda {SP}+1')
+    em('        adc #$00')
+    em(f'        sta {SP}+1')
+    end_off = N * stride                              # sp == steprecs+end_off -> wrapped
+    em(f'        lda {SP}')
+    em(f'        cmp #<(steprecs+{end_off})')
     em('        bne pl_setatk')
-    if loop_to is not None:                          # wrap to the intro skip
-        em(f'        lda #${loop_to & 0xFF:02X}')
-        em('        sta stepidx')
+    em(f'        lda {SP}+1')
+    em(f'        cmp #>(steprecs+{end_off})')
+    em('        bne pl_setatk')
+    if loop_to is not None:                           # wrap to the intro skip
+        loop_off = loop_to * stride
+        em(f'        lda #<(steprecs+{loop_off})')
+        em(f'        sta {SP}')
+        em(f'        lda #>(steprecs+{loop_off})')
+        em(f'        sta {SP}+1')
         em('        clc')                             # loopbase += period
         em('        lda loopbaselo')
         em(f'        adc #${period & 0xFF:02X}')
@@ -255,55 +285,60 @@ def build_player_asm(L):
         em('        lda loopbasehi')
         em(f'        adc #${(period >> 8) & 0xFF:02X}')
         em('        sta loopbasehi')
-    else:                                            # tune ENDs -> halt
+    else:                                             # tune ENDs -> halt
         em('        lda #$01')
         em('        sta done')
         em('        jmp pl_inc')
     em('pl_setatk:')
-    em('        ldx stepidx')
     em('        jsr set_atk_target')
     em('        lda #$00')
     em('        sta phase')
-    em('pl_inc:')
+    em('pl_inc:')                                     # ZP step-pointer -> RAM, tick frame
+    em(f'        lda {SP}')
+    em(f'        sta splo')
+    em(f'        lda {SP}+1')
+    em(f'        sta sphi')
     em('        inc framelo')
     em('        bne pl_ret')
     em('        inc framehi')
     em('pl_ret:')
     em('        rts')
-    # curtgt = table[x] + loopbase (16-bit)
+    # curtgt = (sp)[0,1] + loopbase  (attack target, 16-bit)
     em('set_atk_target:')
     em('        clc')
-    em('        lda atklo,x')
+    em('        ldy #$00')
+    em(f'        lda ({SP}),y')
     em('        adc loopbaselo')
     em('        sta curtgtlo')
-    em('        lda atkhi,x')
+    em('        ldy #$01')
+    em(f'        lda ({SP}),y')
     em('        adc loopbasehi')
     em('        sta curtgthi')
     em('        rts')
+    # curtgt = (sp)[2,3] + loopbase  (release target)
     em('set_rel_target:')
     em('        clc')
-    em('        lda rello,x')
+    em('        ldy #$02')
+    em(f'        lda ({SP}),y')
     em('        adc loopbaselo')
     em('        sta curtgtlo')
-    em('        lda relhi,x')
+    em('        ldy #$03')
+    em(f'        lda ({SP}),y')
     em('        adc loopbasehi')
     em('        sta curtgthi')
     em('        rts')
-    for s in ('stepidx', 'phase', 'done', 'framelo', 'framehi',
+    for s in ('splo', 'sphi', 'phase', 'done', 'framelo', 'framehi',
               'loopbaselo', 'loopbasehi', 'curtgtlo', 'curtgthi'):
         em(f'{s}: .byte 0')
-
-    def block(label, data):
-        em(f'{label}:')
-        for o in range(0, len(data), 16):
-            em('        .byte ' + ', '.join(f'${b:02X}' for b in data[o:o+16]))
-    for vc in L['voices']:
-        block(f'v{vc}hi', [steps[s]['vf'].get(vc, [0, 0])[0] for s in range(N)])
-        block(f'v{vc}lo', [steps[s]['vf'].get(vc, [0, 0])[1] for s in range(N)])
-    block('atklo', [steps[s]['on_frame'] & 0xFF for s in range(N)])
-    block('atkhi', [(steps[s]['on_frame'] >> 8) & 0xFF for s in range(N)])
-    block('rello', [steps[s]['off_frame'] & 0xFF for s in range(N)])
-    block('relhi', [(steps[s]['off_frame'] >> 8) & 0xFF for s in range(N)])
+    # --- packed per-step records ---
+    em('steprecs:')
+    for k in range(N):
+        rec = [steps[k]['on_frame'] & 0xFF, (steps[k]['on_frame'] >> 8) & 0xFF,
+               steps[k]['off_frame'] & 0xFF, (steps[k]['off_frame'] >> 8) & 0xFF]
+        for vc in voices:
+            hi, lo = steps[k]['vf'].get(vc, [0, 0])
+            rec += [hi & 0xFF, lo & 0xFF]
+        em('        .byte ' + ', '.join(f'${b:02X}' for b in rec))
     return '\n'.join(lines)
 
 def build_psid(L, title='proof'):
