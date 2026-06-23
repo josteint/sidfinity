@@ -53,35 +53,47 @@ def segment(frames):
     start = _music_start(stream)
     if start is None:
         return [(r, v) for f, r, v in stream], [], 0, False
+    g0 = next(i for i, (f, r, v) in enumerate(stream) if r in CTRL and (v & 1))
+    n_off = sum(1 for f, r, v in stream[g0:] if r in CTRL and not (v & 1))
+    legato = n_off < max(3, (len(stream) - g0) // 200)  # ~no per-note gate-off
+    if legato:
+        # one-time gate-on + setup are INIT; steps are pure freq active-runs.
+        fa = next((i for i in range(g0, len(stream)) if stream[i][1] in FREQ), None)
+        if fa is None:
+            return [(r, v) for f, r, v in stream], [], 0, True
+        init = [(r, v) for f, r, v in stream[:fa]]
+        start_frame = stream[fa][0]
+        music = stream[fa:]
+        byframe = {}
+        for f, r, v in music:
+            byframe.setdefault(f, []).append((r, v))
+        steps = []
+        frs = sorted(byframe); i = 0
+        while i < len(frs):
+            f0 = frs[i]; w = list(byframe[f0]); j = i + 1
+            while j < len(frs) and frs[j] == frs[j-1] + 1:
+                w += byframe[frs[j]]; j += 1
+            steps.append({'attack': w, 'on_frame': f0, 'release': None,
+                          'off_frame': None, 'next': None})
+            i = j
+        for k in range(len(steps) - 1):
+            steps[k]['next'] = steps[k+1]['on_frame']
+        return init, steps, start_frame, True
+    # GATED: music starts at the first gate-on (backed over its freq);
+    # a step ends after each gate-off GROUP, split into attack + release.
     init = [(r, v) for f, r, v in stream[:start]]
     start_frame = stream[start][0]
     music = stream[start:]
-    n_off = sum(1 for f, r, v in music if r in CTRL and not (v & 1))
-    legato = n_off < max(3, len(music) // 200)        # ~no per-note gate-off
-    raw = []                                          # list of step write-lists [(f,r,v)..]
-    if not legato:
-        cur = []
-        for idx, (f, r, v) in enumerate(music):
-            cur.append((f, r, v))
-            if r in CTRL and not (v & 1):
-                nxt = music[idx+1] if idx + 1 < len(music) else None
-                nxt_gc = nxt is not None and nxt[1] in CTRL and not (nxt[2] & 1)
-                if not nxt_gc:
-                    raw.append(cur); cur = []
-        # drop a trailing incomplete step (no gate-off group)
-    else:
-        # split at each gate-on (or freq-hi after a non-freq write) = new note
-        cur = []
-        for idx, (f, r, v) in enumerate(music):
-            if cur and ((r in CTRL and (v & 1)) or
-                        (r in FREQ and cur and cur[-1][1] not in FREQ)):
+    raw = []; cur = []
+    for idx, (f, r, v) in enumerate(music):
+        cur.append((f, r, v))
+        if r in CTRL and not (v & 1):
+            nxt = music[idx+1] if idx + 1 < len(music) else None
+            nxt_gc = nxt is not None and nxt[1] in CTRL and not (nxt[2] & 1)
+            if not nxt_gc:
                 raw.append(cur); cur = []
-            cur.append((f, r, v))
-        if cur:
-            raw.append(cur)
     steps = []
     for st in raw:
-        # release = trailing maximal gate-clear ctrl group (empty for legato)
         ri = len(st)
         while ri > 0 and st[ri-1][1] in CTRL and not (st[ri-1][2] & 1):
             ri -= 1
@@ -93,7 +105,7 @@ def segment(frames):
                       'off_frame': rel[0][0] if rel else None, 'next': None})
     for k in range(len(steps) - 1):
         steps[k]['next'] = steps[k+1]['on_frame']
-    return init, steps, start_frame, legato
+    return init, steps, start_frame, False
 
 def derive_template(seqs):
     """seqs = list of per-step write lists (each [(reg,val)..], same length+regs).
@@ -177,30 +189,39 @@ def build_model(sid, dur):
     import struct
     frames = capture_real(sid, dur)
     init, steps, start_frame, legato = segment(frames)
-    if legato:
-        return {'unsupported': 'legato'}
     if len(steps) < 2:
         return {'unsupported': 'too_few_steps'}
-    # drop trailing steps that don't match the modal templates (capture cut-off)
-    am, rm = _modal([s['attack'] for s in steps]), _modal([s['release'] for s in steps if s['release']])
-    def ok(s):
-        return (tuple(r for r, v in s['attack']) == am and s['release'] is not None
-                and tuple(r for r, v in s['release']) == rm)
-    while steps and not ok(steps[-1]):
-        steps.pop()
-    if len(steps) < 2:
-        return {'unsupported': 'too_few_after_trim'}
-    masked = False
-    if not all(ok(s) for s in steps):
-        # mid-song variation: try the superset + per-step voice-active MASK (rests)
+    if legato:
+        # attack-only steps (gate set once in init). Drop trailing partial-note
+        # groups, then use the per-register mask (covers consistent + rests).
+        am = set(_modal([s['attack'] for s in steps]))
+        while len(steps) > 2 and set(r for r, v in steps[-1]['attack']) < am:
+            steps.pop()
         sup = _superset_templates(steps)
         if sup is None:
-            return {'unsupported': 'variable_template'}
+            return {'unsupported': 'legato_variable'}
         atk_t, atk_ps, rel_t, rel_ps = sup
         masked = True
     else:
-        atk_t, atk_ps = derive_template([s['attack'] for s in steps])
-        rel_t, rel_ps = derive_template([s['release'] for s in steps])
+        # drop trailing steps not matching the modal templates (capture cut-off)
+        am, rm = _modal([s['attack'] for s in steps]), _modal([s['release'] for s in steps if s['release']])
+        def ok(s):
+            return (tuple(r for r, v in s['attack']) == am and s['release'] is not None
+                    and tuple(r for r, v in s['release']) == rm)
+        while steps and not ok(steps[-1]):
+            steps.pop()
+        if len(steps) < 2:
+            return {'unsupported': 'too_few_after_trim'}
+        masked = False
+        if not all(ok(s) for s in steps):
+            sup = _superset_templates(steps)        # mid-song variation (rests)
+            if sup is None:
+                return {'unsupported': 'variable_template'}
+            atk_t, atk_ps, rel_t, rel_ps = sup
+            masked = True
+        else:
+            atk_t, atk_ps = derive_template([s['attack'] for s in steps])
+            rel_t, rel_ps = derive_template([s['release'] for s in steps])
     if atk_t is None or rel_t is None:
         return {'unsupported': 'template_derive'}
     # frames + durations + loop
@@ -217,11 +238,13 @@ def build_model(sid, dur):
     rho = measure_rho(clk)
     for s in steps:
         s['on_frame'] = round(s['on_frame'] * rho)
-        s['off_frame'] = round(s['off_frame'] * rho)
+        if s['off_frame'] is not None:                 # legato has no release frame
+            s['off_frame'] = round(s['off_frame'] * rho)
     loop_period = round(loop_period * rho)
     return {'init': init, 'steps': steps, 'atk_template': atk_t, 'atk_ps': atk_ps,
             'rel_template': rel_t, 'rel_ps': rel_ps, 'loop_to': loop_to,
-            'loop_period': loop_period, 'clock': clk, 'rho': rho, 'masked': masked}
+            'loop_period': loop_period, 'clock': clk, 'rho': rho, 'masked': masked,
+            'legato': legato}
 
 def analyze(sid, dur):  # debug view
     frames = capture_real(sid, dur)
@@ -411,8 +434,87 @@ def build_player_masked(model):
         em('        .byte ' + ', '.join(f'${b:02X}' for b in rec))
     return '\n'.join(L)
 
+def build_player_legato(model):
+    """1-phase player for LEGATO tunes: gate is set once in init, then each step
+    only writes freq (+ any per-note timbre) — NO per-note release. Each fire emits
+    the step's attack at its absolute frame, advances, and targets the next step's
+    frame. Record: [on_lo, on_hi, <atk mask bytes>, <atk perstep vals>]."""
+    init, atk_t = model['init'], model['atk_template']
+    steps = model['steps']; N = len(steps)
+    aps = model['atk_ps']
+    nam = (len(atk_t) + 7) // 8
+    ps_base = 2 + nam
+    stride = 2 + nam + len(aps)
+    loop_to, period = model['loop_to'], model['loop_period']
+    L = []; em = L.append; sk = [0]
+    em(f'* = ${LOAD:04X}'); em('        jmp init'); em('        jmp play')
+    em('init:')
+    pi = init[1:] if init[:1] == DRIVER_PREFIX else init
+    for reg, val in pi:
+        em(f'        lda #${val:02X}'); em(f'        sta $D4{reg:02X}')
+    em('        lda #$00')
+    for s in ('done', 'framelo', 'framehi', 'loopbaselo', 'loopbasehi'):
+        em(f'        sta {s}')
+    em('        lda #<steprecs'); em('        sta splo'); em(f'        sta {SP}')
+    em('        lda #>steprecs'); em('        sta sphi'); em(f'        sta {SP}+1')
+    em('        jsr set_atk_target'); em('        rts')
+    em('play:'); em('        lda done'); em('        beq pl_load'); em('        rts')
+    em('pl_load:')
+    em('        lda splo'); em(f'        sta {SP}'); em('        lda sphi'); em(f'        sta {SP}+1')
+    em('        lda framehi'); em('        cmp curtgthi'); em('        bcc pl_wait'); em('        bne pl_fire')
+    em('        lda framelo'); em('        cmp curtgtlo'); em('        bcs pl_fire')
+    em('pl_wait:'); em('        jmp pl_inc')
+    em('pl_fire:')
+    slot = 0
+    for i, (reg, kind, val, voice) in enumerate(atk_t):
+        em(f'        ldy #${2 + i//8:02X}'); em(f'        lda ({SP}),y')
+        em(f'        and #${1 << (i % 8):02X}'); em(f'        beq sk{sk[0]}')
+        if kind == 'const':
+            em(f'        lda #${val:02X}'); em(f'        sta $D4{reg:02X}')
+        else:
+            em(f'        ldy #${ps_base + slot:02X}'); em(f'        lda ({SP}),y'); em(f'        sta $D4{reg:02X}')
+        em(f'sk{sk[0]}:'); sk[0] += 1
+        if kind == 'perstep':
+            slot += 1
+    em('        clc'); em(f'        lda {SP}'); em(f'        adc #${stride:02X}'); em(f'        sta {SP}')
+    em(f'        lda {SP}+1'); em('        adc #$00'); em(f'        sta {SP}+1')
+    eoff = N * stride
+    em(f'        lda {SP}'); em(f'        cmp #<(steprecs+{eoff})'); em('        bne pl_setatk')
+    em(f'        lda {SP}+1'); em(f'        cmp #>(steprecs+{eoff})'); em('        bne pl_setatk')
+    if loop_to is not None:
+        loff = loop_to * stride
+        em(f'        lda #<(steprecs+{loff})'); em(f'        sta {SP}')
+        em(f'        lda #>(steprecs+{loff})'); em(f'        sta {SP}+1')
+        em('        clc'); em('        lda loopbaselo'); em(f'        adc #${period&0xFF:02X}'); em('        sta loopbaselo')
+        em('        lda loopbasehi'); em(f'        adc #${(period>>8)&0xFF:02X}'); em('        sta loopbasehi')
+    else:
+        em('        lda #$01'); em('        sta done'); em('        jmp pl_inc')
+    em('pl_setatk:'); em('        jsr set_atk_target')
+    em('pl_inc:')
+    em(f'        lda {SP}'); em('        sta splo'); em(f'        lda {SP}+1'); em('        sta sphi')
+    em('        inc framelo'); em('        bne pl_ret'); em('        inc framehi'); em('pl_ret:'); em('        rts')
+    em('set_atk_target:'); em('        clc')
+    em('        ldy #$00'); em(f'        lda ({SP}),y'); em('        adc loopbaselo'); em('        sta curtgtlo')
+    em('        ldy #$01'); em(f'        lda ({SP}),y'); em('        adc loopbasehi'); em('        sta curtgthi'); em('        rts')
+    for s in ('splo', 'sphi', 'done', 'framelo', 'framehi',
+              'loopbaselo', 'loopbasehi', 'curtgtlo', 'curtgthi'):
+        em(f'{s}: .byte 0')
+    em('steprecs:')
+    for s in steps:
+        amap = dict(s['attack'])
+        rec = [s['on_frame'] & 0xFF, (s['on_frame'] >> 8) & 0xFF]
+        rec += [(s['atk_mask'] >> (8*b)) & 0xFF for b in range(nam)]
+        rec += [amap.get(reg, 0) & 0xFF for reg in aps]
+        em('        .byte ' + ', '.join(f'${b:02X}' for b in rec))
+    return '\n'.join(L)
+
 def build_psid(model, title='probe'):
-    asm = build_player_masked(model) if model.get('masked') else build_player(model)
+    if model.get('legato'):
+        asm = build_player_legato(model)
+    elif model.get('masked'):
+        asm = build_player_masked(model)
+    else:
+        asm = build_player(model)
     return build_header(load=LOAD, init=LOAD, play=LOAD+3, songs=1, start_song=1,
                         speed=0, title=title, author='x', released='x') + assemble(asm)
 
