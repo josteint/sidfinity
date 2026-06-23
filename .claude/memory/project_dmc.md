@@ -95,6 +95,34 @@ force-includes record 0 as slot 0. (2) pulse base split — step =
 nibble + CACHED base; idle base=0; composer derives base = step&$0F.
 (3) xa65: ':' is a statement separator EVEN IN COMMENTS (sanitizer).
 
+## ✅✅ FAMILY-1: 3812/5401 FULL (70.6%) as of 2026-06-23 — STEP 4 (non-freq effects): filter overrun
+**STEP 4 = non-freq effects. RELIABLE clustering required a methodology fix first:**
+the batch's trichotomy `first_play_diff` lands on whatever reg sits at its recovered
+alignment offset and SPURIOUSLY reports $D418 when shift_d mis-recovers (a phantom
+"D418 cluster"). DMC inits MATCH (universal_reset == orig init writes), so the
+FLAT-prefix (reg,val, cycle-dropped) divergence is the TRUE first effect divergence
+— now recorded as batch `flat_div`. Re-localized all 1275 partials. Reliable
+clusters: **FREQ 860** (the off-table-dynamic floor = STEP 5, LAST) | non-freq ~217:
+sr 49 / ctrl 42 / **filt_cut 42** / pw 37 / ad 28 / D418 13 / filt_res 6 | no-flat-div
+(CIA/length) 198. NB the per-VOICE clusters (sr/ad/ctrl/pw) are CONTAMINATED by
+note divergences (a wrong note writes wrong sr/ad/freq; flat_div picks whichever
+reg is written first) — they're really freq/note issues. The CLEAN effect clusters
+are the GLOBAL filter regs ($D416/$D417, written LAST each frame -> everything
+before matched -> isolated).
+
+**FILTER repeat-overrun (+11 FULL, commit 9abd8cd).** The filter step-index, after
+step 5, loads `repeat` (def+2); when repeat>5 it OVERRUNS the 6 step-sizes into the
+durations (the engine reads size=def+4+index, so index 6..11 = the duration bytes)
+-> the rising-to-stop sweep (Fine: repeat=10 -> size=duration[4]=2, rise +2 to
+stop=15 then freeze). The composer had compacted the def to an 8-byte stride (6
+sizes + 2 pad), so the overrun read padding -> wrong rise (+1). Fixed: 12-byte
+stride [6 sizes][6 durations] (mirrors the original contiguous def+4..15) + duration
+overrun = 0 (stay-until-stop). filt cluster 48 -> 11 FULL + 37 partial (the 37 have
+OTHER divergences after the filter). This is the 5th instance of the off-table-
+overrun pattern (freq/pulse/wave×2/filter) — ledger C2 canonicalize. NEXT non-freq:
+the remaining filt partials' post-filter divergence; then the note-contaminated
+sr/ctrl/pw (really note/freq issues, overlap STEP 5).
+
 ## ✅✅ FAMILY-1: 3801/5401 FULL (70.4%) as of 2026-06-22 — STEP 3 (unblock-builds): off-table WAVE + resolver
 **off-table-WAVE + marker-chain RESOLVER (zero_wave_table 117 -> 37 FULL + 71
 buildable; commits 4da2878 + the resolver).** The recursive resolver

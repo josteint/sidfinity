@@ -63,7 +63,7 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
 | Problem class / keywords | Entry | Status |
 |---|---|---|
 | value swept over time · PW / cutoff contour · oscillator · ramp | C1 | shared |
-| byte-indexed program table · runs off-table · table extent / size | C2 | factor-candidate (3×) |
+| byte-indexed program table · runs off-table · table extent / size · index overruns into adjacent array | C2 | factor-candidate (5×+: freq/pulse/wave/filter) |
 | "no program" detection · leading (0,0) · idle position 0 | C3 | methodology |
 | localize runtime divergence · writelog diverges, cause internal · memwatch | C4 | methodology |
 | detection ≠ FULL · residue triage · accept-at-detect | C5 | methodology |
@@ -103,7 +103,16 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
 - **Boundary:** byte-indexed `(step,count)` or `(ctrl,freq)` program tables laid
   out contiguously by a packer.
 - **Consumers:** DMC v5 filter (orig), pulse (+17 FULL), wave (+6 FULL) — all
-  2026-06-18.
+  2026-06-18. **DMC v4 (2026-06-23):** wave off-table (`_slice_wave` extended +
+  `_resolve_wave_chain` for multi-hop marker chains, zero_wave_table 117 -> 37
+  FULL); FILTER step-index overrun (the `repeat` byte > 5 indexes past the 6
+  step-sizes into the durations — the engine reads `size = def+4+index`, so a
+  contiguous `[6 sizes][6 durations]` layout reproduces the rise-to-stop sweep;
+  the composer had an 8-byte `[6 sizes][2 pad]` stride that broke it, +11 FULL).
+  The lesson recurs at EVERY table the packer lays contiguously: capture/lay-out
+  the adjacent bytes the overrun index reads (or SIMULATE the walk and emit the
+  resolved sequence — the wave marker-chain resolver), never bound by the array's
+  nominal length. **Seen 5×+ now (freq C6, pulse, wave×2, filter) — canonicalize.**
 
 ### C3 — "No program" detection at table position 0
 - **Canonical:** a leading `(0,0)` is a VALID zero-rate phase (its count is at
