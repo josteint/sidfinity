@@ -98,7 +98,24 @@ instead.** Probe failure buckets: overlap_diverge 42 / lift_crash 16 / build_fai
 = the +-127 trampoline bug) / lift_no_gate 4 (legato gate-once + GET) / too_many_steps 4 (N>255, 8-bit
 stepidx) / length_fail 1. Cheap wins in progress: branch trampolines + 16-bit step indexing.
 
-**NEXT (build the family, not yet done):** the 1 digi tune (Black_Box_V8_Demo, Mode 2 cycle-exact);
+**SEMANTIC LIFT DONE (10%->22%): `pipelines/basic_program/semantic_lift.py` + `semantic_probe.py`.**
+Ported the regtrace_to_usf IDEA onto the --writelog stream (NOT per-frame snapshots). Model: segment
+writelog (real frames) into active-runs separated by silent FOR/NEXT holds; a STEP = attack run (note
+start: freq/gate-on + per-note timbre) + optional release run (gate-off group). Per-step TEMPLATE: each
+reg is CONST (same every step = instrument/waveform, emitted inline) or PERSTEP (varies = note freq /
+$D418 dynamics / per-note timbre, packed in the step record, emitted via (sp),y). Principled (const=
+instrument, perstep-freq=notes, $D418=dynamics), reuses the absolute-frame+rho+16bit-ptr+loop player.
+Trims trailing capture-cut steps before the consistency check. **Stratified probe 18/81 FULL (22%, up
+from 8/81=10%).** The opaque overlap_diverge 52 bucket RESOLVED into clean named levers: **#1
+unsup_variable_template 31 (RESTS — voices conditionally silent so the per-step reg set varies; needs a
+per-step voice-active MASK = the note pattern, emit only active slots) + #2 unsup_legato 19 (gate set
+once + freq-only; 1-phase attack-only steps, note boundary = freq change)** + too_few 8 + overlap_diverge
+3 (near-misses) + length_fail 2 (loop-detect miss). Rests+legato = ~62% of the sample -> handling both
+pushes coverage well past 50%. STILL proof-grade (no USF-file round-trip yet; productionize = map
+const->instrument / perstep-freq->notes / $D418->dynamics into USF v2 + regression).
+
+**NEXT (build the family, not yet done):** rests (variable_template, #1 lever) -> legato (#2); the 1 digi
+tune (Black_Box_V8_Demo, Mode 2 cycle-exact);
 fold the proof scripts into proper `pipelines/basic_program/{extract,build,verify}` + wire the
 `verdict_basic` duration_tol comparator + a regression portfolio; then a stratified-subset batch over
 the 486 (the lift handles single + multi-voice chord-per-step; remaining variants: Ahoy-style legato
