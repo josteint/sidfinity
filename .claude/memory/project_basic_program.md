@@ -114,8 +114,19 @@ once + freq-only; 1-phase attack-only steps, note boundary = freq change)** + to
 pushes coverage well past 50%. STILL proof-grade (no USF-file round-trip yet; productionize = map
 const->instrument / perstep-freq->notes / $D418->dynamics into USF v2 + regression).
 
-**NEXT (build the family, not yet done):** rests (variable_template, #1 lever) -> legato (#2); the 1 digi
-tune (Black_Box_V8_Demo, Mode 2 cycle-exact);
+**RESTS via per-register mask DONE (commit ad3b783): 22% -> 27% (Deutschlandlied FULL).**
+`_superset_templates`: superset register order (max-reg step), every step must = superset filtered to
+its present regs (order-preserving subset), per-step PER-REGISTER mask (bit i = superset entry i present);
+`build_player_masked` emits each superset entry iff its mask bit set. Handles silent-voice rests +
+freq-inherited steps (Deutschlandlied step0 = gate-only). Gain modest (+4 FULL). Remaining
+variable_template (26) PRECISELY diagnosed: **dup_reg_in_step 15** (a reg written 2x/step -> the reg-keyed
+superset can't represent repeats; needs POSITIONAL masking) + **off_superset_reg 9** (no single step has
+all voices -> superset must be the ordered UNION of all steps, not a max step) + 2 now-pass. Probe buckets
+now: FULL 22 / variable_template 26 / legato 19 / too_few 8 / overlap_diverge 4 / length_fail 2 (incl.
+American_Flag: overlap EXACT 403/403 but len diff 68, just over the +-64 -> loop/window boundary).
+
+**NEXT (build the family, not yet done):** finish variable_template — union-superset (off_superset 9) +
+positional mask (dup_reg 15); then legato 19 (#2 lever); the 1 digi tune (Black_Box_V8_Demo, Mode 2);
 fold the proof scripts into proper `pipelines/basic_program/{extract,build,verify}` + wire the
 `verdict_basic` duration_tol comparator + a regression portfolio; then a stratified-subset batch over
 the 486 (the lift handles single + multi-voice chord-per-step; remaining variants: Ahoy-style legato
