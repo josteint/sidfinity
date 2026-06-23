@@ -87,6 +87,7 @@ def run_member(rel: str) -> dict:
             subs = {}
             ok = True
             first_diff = None
+            flat_div = None
             for sub in range(n):
                 dur = (durs[sub] if durs and sub < len(durs) else 110) * 1.1
                 dur = max(5.0, min(dur, 1500.0))
@@ -121,8 +122,28 @@ def run_member(rel: str) -> dict:
                         fd = r.get('first_play_diff')
                         first_diff = ([sub, bool(r['state_match'])]
                                       + (list(map(list, fd[1:])) if fd else []))
+                    # RELIABLE localization for clustering: the FLAT-prefix first
+                    # (reg,val) divergence (cycle dropped). The trichotomy
+                    # first_play_diff lands on whatever reg sits at its recovered
+                    # alignment offset and is unreliable when shift_d mis-recovers
+                    # (it spuriously reports $D418) — but DMC inits MATCH (the
+                    # universal_reset writes coincide with the original's), so the
+                    # flat prefix breaks at the TRUE first effect divergence. Only
+                    # for vblank subtunes (CIA per-irq has init dropped + may
+                    # genuinely shift); CIA keeps the trichotomy first_diff.
+                    if flat_div is None and not _is_cia_subtune(speed, sub):
+                        fla = [(w[1], w[2]) for fr in a for w in fr]
+                        flb = [(w[1], w[2]) for fr in b for w in fr]
+                        mm = 0
+                        lim = min(len(fla), len(flb))
+                        while mm < lim and fla[mm] == flb[mm]:
+                            mm += 1
+                        if mm < lim:
+                            flat_div = [sub, mm, fla[mm][0], fla[mm][1],
+                                        flb[mm][1]]
             return {'path': rel, 'status': 'full' if ok else 'partial',
-                    'subs': subs, 'first_diff': first_diff}
+                    'subs': subs, 'first_diff': first_diff,
+                    'flat_div': flat_div}
     except TimeoutError:
         return {'path': rel, 'status': 'error', 'reason': 'timeout'}
     except Exception as e:
