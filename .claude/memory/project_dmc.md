@@ -133,7 +133,27 @@ mechanism, for a resting voice. (NB instr-0 wave_freq=[0,0,0]; the freq comes fr
 the idle_wave's freq column producing note indices — check how the composer maps
 the idle-wave freq column to the SID freq for a gate-off voice.)
 
-#### ROOT CAUSE FOUND (Funky_Witch, 2026-06-23): dataflow idle-note/mask MISLOCATION
+#### FIX IMPLEMENTED (2026-06-25): dataflow curnote/gatemask locator + idle-wave off-table
+Two commits land the resting-voice fix:
+1. **dataflow locates curnote/gatemask** (commit 7b9a49a): `dataflow.locate` finds
+   the per-voice curnote ($1012) / gatemask ($100F) STATE addresses by opcode
+   signature (re-assembled variants shift them — Funky_Witch curnote $1013,
+   gatemask $1010); extract reads idle_notes/idle_masks from the located addrs
+   (canon base-offset fallback). EXTRACT-ONLY — the addrs do NOT enter the USF
+   (verified; Core Tenet intact). Regression clean + 0/12 FULL-dataflow regressed.
+2. **idle-wave off-table capture** (in ecd1b16 — swept into a parallel basic_program
+   commit by that session's `git add -A`; intact in HEAD): `_assign_offtable_freq`
+   now captures the idle-wave's off-table reads (resting voice freewheels
+   m.idle_wave with curnote = its idle note; offsets + idle note overshoot the
+   96-entry table) into instr-0's offtable_freq (window is instrument-agnostic),
+   post-init-corrected. Regression clean.
+Funky_Witch: flat-match 26 -> 95 (curnote) -> 3597 (idle-wave off-table); still
+has deeper divergences (a deep member). Combined-fix flip rate on the freq tail:
+MEASURING (strided sample). NB CROSS-SESSION: a parallel basic_program session uses
+`git add -A`/`commit -a` and swept an uncommitted DMC edit into its commit — the
+change is safe but watch attribution.
+
+#### ROOT CAUSE (Funky_Witch, 2026-06-23): dataflow idle-note/mask MISLOCATION
 The idle_wave freq OFFSETS are extracted correctly ([221,13,8,221,51]); the bug is
 `curnote` (the idle note). wavestep does `note = wftab[wavepos] + curnote`; composer
 primes curnote=idle_note. Funky_Witch V1: composer curnote=0 -> 221+0=221 OFF-TABLE
