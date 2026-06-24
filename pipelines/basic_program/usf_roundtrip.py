@@ -140,6 +140,20 @@ def model_to_usf(model, title='bp'):
     for i, e in enumerate(rel):
         k = 0 if e[1] == 'const' else 1
         fields[f'bp_rel{i}'] = (e[0] << 16) | (k << 8) | ((e[2] or 0) & 0xFF)
+    # voice-rest derivation reproduces voice slots, but not voiceless-const
+    # per-step activity (e.g. a per-note $D418 re-poke). Store explicit masks
+    # only when that derivation would be wrong (Ahoy-class minority).
+    need_masks = False
+    for s in steps:
+        act = {vc for vc in voices if vfreq(s, vc) is not None}
+        da = sum(1 << i for i, e in enumerate(atk) if e[3] is None or e[3] in act)
+        dr = sum(1 << i for i, e in enumerate(rel) if e[3] is None or e[3] in act)
+        if da != s.get('atk_mask', da) or dr != s.get('rel_mask', dr):
+            need_masks = True; break
+    if need_masks:
+        fields['bp_has_masks'] = 1
+        for k, s in enumerate(steps):
+            fields[f'bp_mask{k}'] = (s.get('atk_mask', 0) << 16) | s.get('rel_mask', 0)
     return UsfFile(
         psid=PsidMeta(title=title, author='basic_program', released='sidfinity',
                       clock=model['clock'], sid=6581, start_song=1, speed=0),
@@ -172,6 +186,7 @@ def usf_to_model(usf):
     per_step = 2 if gated else 1                       # gated row pair: note(hold)+rest(gap)
     aps = [e[0] for e in atk if e[1] == 'perstep']; rps = [e[0] for e in rel if e[1] == 'perstep']
     nsteps = min(len(r) for r in vrows.values()) // per_step
+    has_masks = f.get('bp_has_masks', 0) == 1
     steps = []
     onf = f.get('bp_start_frame', 0)
     for k in range(nsteps):
@@ -179,9 +194,12 @@ def usf_to_model(usf):
         hold = max(1, vrows[voices[0]][hi].duration)
         gap = max(1, vrows[voices[0]][hi + 1].duration) if gated else 0
         active = {vc for vc in voices if not vrows[vc][hi].pitch.is_rest}
+        mask_a = (f[f'bp_mask{k}'] >> 16) & 0xFFFF if has_masks else None
+        mask_r = f[f'bp_mask{k}'] & 0xFFFF if has_masks else None
         attack = []; release = []; amask = 0; rmask = 0
         for i, (reg, kind, val, vc) in enumerate(atk):
-            if vc is not None and vc not in active:
+            present = ((mask_a >> i) & 1) if has_masks else (vc is None or vc in active)
+            if not present:
                 continue
             amask |= (1 << i)
             if kind == 'const':
@@ -190,7 +208,8 @@ def usf_to_model(usf):
                 fq = _pitch_freq(vrows[vc][hi].pitch, ftab) or 0
                 attack.append((reg, (fq >> 8) & 0xFF if reg in FHI.values() else fq & 0xFF))
         for i, (reg, kind, val, vc) in enumerate(rel):
-            if vc is not None and vc not in active:
+            present = ((mask_r >> i) & 1) if has_masks else (vc is None or vc in active)
+            if not present:
                 continue
             rmask |= (1 << i)
             release.append((reg, val if kind == 'const' else 0))
