@@ -227,6 +227,8 @@ def usf_to_model(usf):
 
 # ------------------------------------------------------------- verify -----
 def roundtrip(sid_rel, dur=20.0):
+    """Full path SID -> model -> .usf -> model -> SID -> writelog vs orig (pool-safe)."""
+    import tempfile
     from pipelines.hubbard.verify_cycle import writelog_capture, compare_instruction_stream
     from pipelines.basic_program.proof_multivoice import verdict_basic
     sid = os.path.join(ROOT, 'hvsc84', sid_rel)
@@ -235,17 +237,42 @@ def roundtrip(sid_rel, dur=20.0):
         return {'status': 'unsupported:' + m['unsupported']}
     if not is_clean(m):
         return {'status': 'not_clean'}
-    usf_path = os.path.join(ROOT, 'tmp/basic_program_research/rt.usf')
-    write_file(model_to_usf(m), usf_path)
-    m2 = usf_to_model(parse_file(usf_path))
-    out = os.path.join(ROOT, 'tmp/basic_program_research/rt.sid')
-    with open(out, 'wb') as fo:
-        fo.write(build_psid(m2))
-    r = compare_instruction_stream(writelog_capture(sid, 0, dur),
-                                   writelog_capture(out, 0, dur), skip_init=False)
+    fd_u, usf_path = tempfile.mkstemp(suffix='.usf'); os.close(fd_u)
+    fd_s, out = tempfile.mkstemp(suffix='.sid'); os.close(fd_s)
+    try:
+        write_file(model_to_usf(m), usf_path)
+        m2 = usf_to_model(parse_file(usf_path))
+        with open(out, 'wb') as fo:
+            fo.write(build_psid(m2))
+        r = compare_instruction_stream(writelog_capture(sid, 0, dur),
+                                       writelog_capture(out, 0, dur), skip_init=False)
+    finally:
+        for p in (usf_path, out):
+            if os.path.exists(p): os.unlink(p)
     ok, ov, ln = verdict_basic(r)
     return {'status': 'FULL' if ok else ('overlap_diverge' if not ov else 'length_fail'),
             'match': r['match_all'], 'len_a': r['len_all_a'], 'len_b': r['len_all_b']}
+
+
+def verify_usf(usf_rel, sid_rel, dur):
+    """Production-path verdict: an EXISTING .usf -> model -> SID -> writelog vs the
+    HVSC original. This is the regression check (the .usf is the persisted artifact;
+    the model is reconstructed from it, not re-derived from the SID)."""
+    import tempfile
+    from pipelines.hubbard.verify_cycle import writelog_capture, compare_instruction_stream
+    from pipelines.basic_program.proof_multivoice import verdict_basic
+    sid = os.path.join(ROOT, 'hvsc84', sid_rel)
+    m2 = usf_to_model(parse_file(os.path.join(ROOT, 'hvsc84', usf_rel)))
+    with tempfile.NamedTemporaryFile(suffix='.sid', delete=False) as fo:
+        fo.write(build_psid(m2)); out = fo.name
+    try:
+        r = compare_instruction_stream(writelog_capture(sid, 0, dur),
+                                       writelog_capture(out, 0, dur), skip_init=False)
+    finally:
+        os.unlink(out)
+    ok, ov, ln = verdict_basic(r)
+    return {'ok': ok, 'match': r['match_all'], 'len_a': r['len_all_a'], 'len_b': r['len_all_b']}
+
 
 if __name__ == '__main__':
     for rel in ['DEMOS/UNKNOWN/Twinkle_BASIC.sid', 'DEMOS/A-F/Cancion_de_cuna_BASIC.sid',

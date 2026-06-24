@@ -281,6 +281,19 @@ def _w_dmc(label: str, kind: str, ref: str, group: str | None) -> dict:
     return res
 
 
+def _w_basic(sid: str, dur: float, group: str | None) -> dict:
+    """Basic_Program — full SID->USF->SID round-trip of one member."""
+    from pipelines.basic_program.usf_roundtrip import roundtrip
+    r = roundtrip(sid, dur)
+    ok = r.get('status') == 'FULL'
+    status = 'FULL' if ok else r.get('status', '?')
+    res = {'family': 'Basic_Program', 'line': f'  {sid.split("/")[-1][:24]:24s} {status}',
+           'ok': int(ok), 'partial': 0, 'fail': int(not ok), 'total': 1}
+    if group:
+        res['group'] = group
+    return res
+
+
 # --------------------------------------------------------------------------
 # Task dispatch (picklable: top-level fn + plain-data args)
 # --------------------------------------------------------------------------
@@ -288,7 +301,7 @@ def _w_dmc(label: str, kind: str, ref: str, group: str | None) -> dict:
 _WORKERS = {
     'hubbard': _w_hubbard, 'companion': _w_companion, 'c64me': _w_c64me,
     'jd': _w_jd, 'fc_canary': _w_fc_canary, 'fc_portfolio': _w_fc_portfolio,
-    'dmc': _w_dmc,
+    'dmc': _w_dmc, 'basic': _w_basic,
 }
 
 
@@ -341,6 +354,11 @@ def _build_tasks() -> list:
                 'MUSICIANS/B/Bakewell_Dwayne/Fury.sid',
                 'MUSICIANS/M/MAC2/Bells_Are_Sounding.sid'):
         add('dmc', sid.split('/')[-1][:24], 'cfg', sid, grp2)
+    bpf = os.path.join(os.path.dirname(__file__), 'basic_program_regression_portfolio.json')
+    if os.path.exists(bpf):
+        grp = 'Basic_Program portfolio (round-trip feature-cover):'
+        for m in json.load(open(bpf))['portfolio']:
+            add('basic', m['sid'], m['dur'], grp)
     return tasks
 
 
@@ -353,6 +371,7 @@ _FAMILY_ORDER = [
     ('FC', 'Future Composer family (4 canaries: Cyb II + Hawkeye + '
            'Adrenalin[0] + Jarre_2/standard):'),
     ('DMC', 'DMC family (canary: Geometrical_Zaks/v4):'),
+    ('Basic_Program', 'Basic_Program family (RSID-BASIC round-trip portfolio):'),
 ]
 
 
@@ -407,6 +426,7 @@ def main():
     jd_ok, _, jd_fail, _ = agg['Jay_Derrett']
     fc_ok, _, fc_fail, _ = agg['FC']
     dmc_ok, _, dmc_fail, _ = agg['DMC']
+    bp_ok, _, bp_fail, _ = agg['Basic_Program']
 
     print(f'Hubbard:    {h_ok} ok  +  {h_part} known-partial  +  '
           f'{h_reg} regressed  (of {h_total})')
@@ -415,8 +435,9 @@ def main():
     print(f'Jay_Derrett:  {jd_ok} ok  +  {jd_fail} regressed  (of 17 wired / 20 total)')
     print(f'FC:         {fc_ok} ok  +  {fc_fail} regressed')
     print(f'DMC:        {dmc_ok} ok  +  {dmc_fail} regressed')
+    print(f'Basic_Program: {bp_ok} ok  +  {bp_fail} regressed')
 
-    if h_reg or c_fail or cme_fail or jd_fail or fc_fail or dmc_fail:
+    if h_reg or c_fail or cme_fail or jd_fail or fc_fail or dmc_fail or bp_fail:
         sys.exit(1)
 
 
