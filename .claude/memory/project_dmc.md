@@ -95,6 +95,28 @@ force-includes record 0 as slot 0. (2) pulse base split — step =
 nibble + CACHED base; idle base=0; composer derives base = step&$0F.
 (3) xa65: ':' is a statement separator EVEN IN COMMENTS (sanitizer).
 
+## 🔬 FREQ TAIL after mask_only (2026-06-23) — HETEROGENEOUS, no single clean lever
+After the mask_only win (+147), the REMAINING freq residue is a hard, heterogeneous
+long-tail — NOT one more coherent bug. Confirmed by grounded flat-stream diagnosis
+of early-diverging representatives (each a DISTINCT mechanism):
+- **resting/idle-voice freq**: a voice that starts on rests (note=None) — orig
+  writes a non-zero freq (idle-note freq OR instr-0 wave-arp), rebuild writes 0/
+  wrong. Funky_Witch V1 (idle_note=0=010C but orig plays note-15 027D via instr-0
+  wave-arp); For_Insider_04 (idle_note=254 OFF-TABLE -> orig reads 151F, window=0).
+- **wrong in-table note**: Adventure_SF V2 plays $08B4 (a real table note) vs reb
+  $09A4 — a pattern/transpose/note-decode bug.
+- **glide intermediate**: Plantation V1 (lo off $70 during a 4-row glide).
+- **out-of-table effect modulation**: Long_Time V2 $F300 (no glide/vib detected).
+Classifier on 60 earliest freq partials: 43 note/other + 17 glide (but the "glide"
+ones diverge on the NOTE, not the glide rate — Funky_Witch). LESSON: these are
+slow to iterate (median songlength 189s -> full-songlength verify each) and each
+sub-cause is its own subtle dive. Diminishing returns vs the mask_only clump.
+NEXT (options, not yet chosen): (a) idle/resting-voice freq as a possible coherent
+lever (appears 2x); (b) off-table active-note capture completeness (if wrong-notes
+are uncaptured off-table reads); (c) pivot to higher-leverage family-2 partials /
+V5 line. The architectural-floor framing stays REFUTED — it's recoverable, just
+per-mechanism.
+
 ## ✅✅ FAMILY-1: 3954/5401 FULL (73.2%) as of 2026-06-23 — STEP 5: mask_only gate-off +147
 **MASK_ONLY gate-off applied (+147 FULL, family-1 70.6%->73.2%).** Of 728 mask_only
 candidates: 147 FULL flips, 119 not_maskonly (late-clearers correctly excluded by
