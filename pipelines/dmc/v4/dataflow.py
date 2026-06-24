@@ -43,6 +43,14 @@ _CANON_READ = {
 # data tables the canon code references by absolute operand (no fixed read site)
 _CANON_DATA = {'freq_lo': 0x1647, 'freq_hi': 0x16A7,
                'vibdepth': 0x1888, 'd417': 0x1018}
+# per-voice STATE blocks whose INITIAL (file-image) values are the idle note /
+# idle gate-mask a resting (gate-off, freewheeling) voice uses. Canon: curnote
+# at $1012, gatemask at $100F — but a re-assembled variant lays the state block
+# out differently (Funky_Witch: curnote $1013, gatemask $1010, NOT a uniform
+# shift), so the extract must LOCATE these, not assume base+0x12 / base+0x0F.
+# Located by the operand of the first canon instruction that references each
+# (curnote: $1168 LDA $1012,x; gatemask: $11E0 STA $100f,x).
+_CANON_STATE = {'curnote': 0x1012, 'gatemask': 0x100F}
 # the track-loop hook ($10DF): canon STA $1726,x (loop-to-0, track_loop_target
 # =False); a JSR-hook variant reads the next track byte (=True). Located by
 # opcode signature so a moved hook is still classified (verify gate is the net).
@@ -149,6 +157,18 @@ def locate(mem: bytearray, base: int) -> dict | None:
             return None
         data[name] = rd16(site)
 
+    # per-voice STATE blocks (curnote / gatemask): locate the variant's address
+    # so the extract reads the right idle note / idle mask. Falls back to the
+    # canon base-offset (None) if not locatable; the verify gate is the net.
+    state = {}
+    for name, addr in _CANON_STATE.items():
+        site = None
+        for w in (6, 9, 12):
+            site = _locate_site(vI, vseq, _sig_op(addr, w))
+            if site is not None:
+                break
+        state[name] = rd16(site) if site is not None else None
+
     # track-loop hook: locate the canon STA $1726,x site; if found, the loop
     # uses the loop-to-0 form (track_loop_target=False), else the JSR form.
     loop_site = None
@@ -165,5 +185,6 @@ def locate(mem: bytearray, base: int) -> dict | None:
         'op_secp_hi': sites['secp_hi'],
         'freq_lo_addr': data['freq_lo'], 'freq_hi_addr': data['freq_hi'],
         'vibdepth_addr': data['vibdepth'], 'd417_shadow_addr': data['d417'],
+        'curnote_addr': state['curnote'], 'gatemask_addr': state['gatemask'],
         'track_loop_target': track_loop_target,
     }

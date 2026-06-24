@@ -526,13 +526,19 @@ def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc84') -> DmcModel:
     freq_tab = [mem[wavefreq + i] for i in range(ext)]
 
     b = cfg.base
+    # idle note / gate-mask = the file-image initial values of the per-voice
+    # curnote / gatemask STATE blocks. Canon: base+0x12 / base+0x0F; a
+    # re-assembled variant lays them out differently and the dataflow extractor
+    # LOCATES them (cfg.curnote_addr / cfg.gatemask_addr) — fall back to canon.
+    cn = cfg.curnote_addr if cfg.curnote_addr is not None else b + 0x12
+    gm = cfg.gatemask_addr if cfg.gatemask_addr is not None else b + 0x0F
     m = DmcModel(
         freq_lo=[mem[cfg.freq_lo_addr + i] for i in range(96)],
         freq_hi=[mem[cfg.freq_hi_addr + i] for i in range(96)],
         vibdepth=[mem[cfg.vibdepth_addr + i] for i in range(96)],
         d417_shadow=mem[cfg.d417_shadow_addr],
-        idle_notes=(mem[b + 0x12], mem[b + 0x13], mem[b + 0x14]),
-        idle_masks=(mem[b + 0x0F], mem[b + 0x10], mem[b + 0x11]),
+        idle_notes=(mem[cn], mem[cn + 1], mem[cn + 2]),
+        idle_masks=(mem[gm], mem[gm + 1], mem[gm + 2]),
         dual_phase=mem[b + 0x19] & 1,
         cia_period=cfg.cia_period,
         play_repeat=cfg.play_repeat,

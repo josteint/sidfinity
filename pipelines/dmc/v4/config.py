@@ -43,6 +43,13 @@ class DMCV4Config:
     d417_shadow_addr: int = 0x1018    # routing shadow — NOT cleared by
                                       # init; file-image leftover primes
                                       # the play stream's $D417 writes
+    # Per-voice STATE blocks whose file-image initial values are the idle note
+    # / idle gate-mask a resting (gate-off, freewheeling) voice uses. Canon:
+    # curnote $1012, gatemask $100F (= base+0x12 / base+0x0F). A re-assembled
+    # variant lays them out differently; the dataflow extractor LOCATES them
+    # (None => fall back to the canon base offset in extract).
+    curnote_addr: int = None
+    gatemask_addr: int = None
     # Track-loop variant (factory-probed): the canonical player's $FF
     # loops to track position 0; the JSR-$1042 hook variant reads the
     # NEXT track byte as the loop position ($FF nn).
