@@ -117,6 +117,39 @@ are uncaptured off-table reads); (c) pivot to higher-leverage family-2 partials 
 V5 line. The architectural-floor framing stays REFUTED — it's recoverable, just
 per-mechanism.
 
+### RESTING-VOICE / IDLE-WAVE cluster = the biggest concrete freq lever (~248)
+Sized it (tmp/resting_size.py): of 735 freq partials, 248 have the diverging voice
+START on rests (238 idle-note-in-table + 10 off-table). GROUNDED diagnosis
+(Funky_Witch V1): the voice is GATE-OFF the whole time (ctrl $80/$40/$54 — SILENT,
+INAUDIBLE), but it FREEWHEELS its IDLE-WAVE (m.idle_wave ctrl [$81,$40,$40,$81,$55]
+matches orig modulo the gate-mask bit) — producing an evolving freq+ctrl write
+sequence (027D=n15, 27DF=n63, 1DDF=n58, 1B01) that the composer's idle-wave
+execution does NOT reproduce (reb writes 0000/0238/01A9/13EF — different freq). So
+this is the COMPOSER'S IDLE-WAVE FREQ EXECUTION for resting/gate-off voices —
+write-log-only (inaudible) but counts for the exact-match verdict, and COHERENT
+(one mechanism, ~248 members), NOT heterogeneous. THE next freq lever to attack:
+diff the composer's wavestep/idle-wave freq computation vs the orig's wave-freq
+mechanism, for a resting voice. (NB instr-0 wave_freq=[0,0,0]; the freq comes from
+the idle_wave's freq column producing note indices — check how the composer maps
+the idle-wave freq column to the SID freq for a gate-off voice.)
+
+#### ROOT CAUSE FOUND (Funky_Witch, 2026-06-23): dataflow idle-note/mask MISLOCATION
+The idle_wave freq OFFSETS are extracted correctly ([221,13,8,221,51]); the bug is
+`curnote` (the idle note). wavestep does `note = wftab[wavepos] + curnote`; composer
+primes curnote=idle_note. Funky_Witch V1: composer curnote=0 -> 221+0=221 OFF-TABLE
+-> reb writes 0; orig uses curnote=50 -> 221+50=15 -> n15 (027D) ✓ (13+50=63 ✓,
+8+50=58 ✓). So V1's idle note should be 50, not 0. WHY: Funky_Witch is a DATAFLOW
+(re-assembled-variant) member; `extract.engine_model` reads idle_notes at CANON
+offsets (b+0x12/13/14) and idle_masks at (b+0x0F/10/11), but THIS VARIANT's state
+block is laid out differently (V1 note=b+0x13=50, V1 mask=b+0x11=FE — notes +1,
+masks +2 vs canon; NOT a uniform shift). So the dataflow path mis-locates the
+idle-note + idle-mask block. FIX: the dataflow extractor must LOCATE the idle-note
+/ idle-mask reads (the init's `LDA <addr>,x : STA curnote,x` / gatemask sites) by
+opcode signature like the other tables, instead of assuming canon b+0x0F/0x12.
+SCOPE: likely systematic across the dataflow members in the 248 resting-voice
+cluster — size by how many are dataflow + have a shifted state block. This is the
+concrete next dive (a dataflow signature extension, NOT a composer change).
+
 ## ✅✅ FAMILY-1: 3954/5401 FULL (73.2%) as of 2026-06-23 — STEP 5: mask_only gate-off +147
 **MASK_ONLY gate-off applied (+147 FULL, family-1 70.6%->73.2%).** Of 728 mask_only
 candidates: 147 FULL flips, 119 not_maskonly (late-clearers correctly excluded by
