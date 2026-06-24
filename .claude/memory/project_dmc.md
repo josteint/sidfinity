@@ -148,8 +148,10 @@ Two commits land the resting-voice fix:
    96-entry table) into instr-0's offtable_freq (window is instrument-agnostic),
    post-init-corrected. Regression clean.
 Funky_Witch: flat-match 26 -> 95 (curnote) -> 3597 (idle-wave off-table); still
-has deeper divergences (a deep member). Combined-fix flip rate on the freq tail:
-MEASURING (strided sample). NB CROSS-SESSION: a parallel basic_program session uses
+has deeper divergences (a deep member). **APPLIED (2026-06-25): +42 FULL** — of the
+248 rest_start cluster, 42 flipped (~17%), 206 stay partial (deeper divergences
+beyond the resting voice). Family-1 73.2% -> **74.0% (3996/5401)**; mass-written
+(tmp/resting_apply.py, inline flip write) + db-refreshed. NB CROSS-SESSION: a parallel basic_program session uses
 `git add -A`/`commit -a` and swept an uncommitted DMC edit into its commit — the
 change is safe but watch attribution.
 
