@@ -1,6 +1,6 @@
 ---
 name: project_basic_program
-description: "Basic_Program family (486 RSID-BASIC tunes) — research done, capture unblocked, Twinkle proof FULL"
+description: "Basic_Program family (486 RSID-BASIC tunes) — PRODUCTIONIZED round-trip: 137/486 FULL through real USF v2, mass-written + regression"
 metadata: 
   node_type: memory
   type: project
@@ -155,13 +155,41 @@ jmp pl_chk after each fire), all 3 players. Toonypoo FULL. CORRECTNESS fix (fast
 e.g. Techno-Rock_Fugue, degenerate e.g. Bowling 6-step), not one clean fix. Session arc:
 10%->22%->27%->35%->40%->41%.
 
-**NEXT (build the family, not yet done):** arpeggio/dup_reg (variable-length intra-step freq runs — the
-big hard bucket: variable_template 22 + legato_variable 9); scattered length_fail (missed-loop +
-degenerate, small); the 1 digi tune (Black_Box_V8_Demo, Mode 2). Also: productionize = USF-file round-trip
-(map const->instrument / perstep-freq->notes / $D418->dynamics into USF v2) + fold proof scripts into
-pipelines/basic_program/{extract,build,verify} + regression. Probe driver: `semantic_probe.py`.
-fold the proof scripts into proper `pipelines/basic_program/{extract,build,verify}` + wire the
-`verdict_basic` duration_tol comparator + a regression portfolio; then a stratified-subset batch over
-the 486 (the lift handles single + multi-voice chord-per-step; remaining variants: Ahoy-style legato
-where gate stays on + freq-only changes, independent per-voice timing, SYS-to-ML hybrids). Survey raw:
-`tmp/basic_program_research/survey.jsonl`.
+**✅ PRODUCTIONIZE DONE — REAL USF v2 ROUND-TRIP: 137/486 (28.2%) FULL at full songlength, mass-written + regression.**
+`pipelines/basic_program/usf_roundtrip.py` (`model_to_usf` / `usf_to_model` / `roundtrip` / `verify_usf`)
++ `family_batch.py` (full-songlength through-USF coverage + `--write` mass-write, resumable). The semantic
+model splits cleanly: pitch/rhythm/timbre/tuning are MUSICAL → real USF v2 (per-voice NoteRows pitch+duration,
+rests = silent voices, instruments = const waveform, freq_table = tuning); the non-musical per-tune WRITE
+MODEL (template slots + kind, init, loop, rho, start_frame) packs into USF v2 scalar `params {}` as ints
+(bp_atk{i}=reg<<16|kind<<8|val, bp_init{i}, bp_loop_*, bp_rho_milli, bp_start_frame, bp_legato). build_psid
+reconstructs from the parsed .usf and reproduces the exact writelog. 137 `.usf` + `.sidfinity.sid` written
+next to HVSC originals; DB registers usf_path/sidfinity_md5 + pipeline=`pipelines/basic_program` (137);
+6-member feature-cover portfolio wired into `tools/regression.py` (tier: full SID→USF→SID round-trip FULL).
+
+THREE round-trip bugs fixed this session (the gap from 16%→28%):
+1. **Stale `s['next']`** — durations must come from the NEXT step's ρ-scaled `on_frame`, not the pre-ρ
+   `s['next']` (build_model ρ-scales on_frame but leaves 'next' stale) → span was ~2.8× too long.
+2. **Dropped `start_frame` offset** — the first step's absolute on_frame (e.g. Baby's 406-frame intro
+   silence) is a scalar param (`bp_start_frame`); without it the rebuild starts early and loops extra times.
+3. **Lossless per-tune freq ALPHABET** (`_assign_slots`) — distinct POKEd freqs that quantize to the same
+   equal-tempered note name collided in the 256-byte freq_table (it holds one freq per (octave,semitone)).
+   The freq_table is per-tune CONTENT (USF principle Rule 2), so each distinct freq gets its OWN slot at its
+   nearest name, linear-probing on collision (≤96 usable slots; >96 = glide/vibrato → too_many_pitches,
+   deferred). Measured: 25 no-collision / 11 collision-fit96 / 0 over96 on the stride-6 sample → fixes ALL.
+4. **Voiceless-const per-step activity** (`bp_has_masks`+`bp_mask{k}`) — usf_to_model derived per-step masks
+   from voice-rests, which can't see a voiceless const's activity (e.g. a per-note $D418=15 re-poke on SOME
+   steps). Detect when rest-derivation is insufficient (Ahoy-class) → store explicit masks; common path
+   (voices all-or-nothing) unchanged. Ahoy_Magazine 581/581 FULL. (+41 FULL: 96→137.)
+
+**RESIDUE (349, by dependency order — all are LIFT limits or richer-musical, NOT round-trip-encoding):**
+build_model DECLINES for ~half: unsup_variable_template 134 + unsup_legato_variable 52 (both = `_union_order`
+returns None on ARPEGGIO/intra-step-dup or cycle — the big hard bucket, variable-length intra-step freq runs)
++ too_few_after_trim 32 + too_few_steps 20 (degenerate/short). Round-trip-clean but failing: length_fail 46
+(loop-detect / window miss — overlap-exact but length off) + overlap_diverge 35 (remaining mismatches) +
+not_clean 27 (RICHER FULL — perstep non-freq like per-note vol/ADSR; USF NoteRow can't carry → needs a
+dynamics/instrument-param representation) + build_fail 3. The 1 digi tune (Black_Box_V8_Demo) → Mode 2.
+
+**NEXT (highest-leverage first):** (1) ARPEGGIO/dup_reg — the variable-length intra-step freq sequence
+(`_union_order` None); biggest single lever (~186 tunes incl. legato_variable). (2) length_fail loop-detect
+(46, mechanical). (3) not_clean richer-FULL (27 — map perstep $D418→dynamics / per-note ADSR→instrument).
+Iterate via `family_batch.py` (resumable, `--write` to mass-write). Survey raw: `tmp/basic_program_research/survey.jsonl`.

@@ -197,6 +197,15 @@ def build_pipeline_map() -> dict[str, str]:
         out[str(five_tt.relative_to(HVSC))] = (
             'pipelines/hubbard/five_title_tunes')
 
+    # Basic_Program: no per-tune config — the family batch mass-writes a
+    # `<name>_BASIC.usf` next to each FULL member. Map those siblings (only if
+    # not already claimed by another pipeline; the .sid is the round-trip source).
+    for usf in HVSC.rglob('*_BASIC.usf'):
+        sid = usf.with_suffix('.sid')
+        if sid.exists():
+            rel = str(sid.relative_to(HVSC))
+            out.setdefault(rel, 'pipelines/basic_program')
+
     return out
 
 
