@@ -42,6 +42,31 @@ def _note_index(freq16):
     semi = midi % 12
     return ((octv << 4) | semi), NAMES[semi], octv
 
+def _slot_pitch(slot):                                 # freq_table slot -> (name, octave)
+    return NAMES[slot & 0xF], (slot >> 4) & 0x7
+
+def _assign_slots(freqs):
+    """Lossless freq16 -> freq_table-slot map. Each distinct freq lands at its
+    nearest equal-tempered slot (so note names stay musically meaningful), and
+    collisions linear-probe to the next free valid slot (semitone<12, octave<8).
+    The freq_table is per-tune content (Rule 2) so a per-tune alphabet is exact.
+    Returns None if the tune has > the 96 usable slots (glide/vibrato — deferred)."""
+    if len(freqs) > 96:
+        return None
+    slot = {}; taken = set()
+    for f in sorted(freqs):
+        s = _note_index(f)[0]
+        probes = 0
+        while s in taken or (s & 0xF) >= 12:
+            s += 1
+            if s > 0x7B:
+                s = 0
+            probes += 1
+            if probes > 128:
+                return None
+        slot[f] = s; taken.add(s)
+    return slot
+
 # --------------------------------------------------------- model -> usf ----
 def model_to_usf(model, title='bp'):
     atk = [_t4(e) for e in model['atk_template']]
@@ -54,7 +79,12 @@ def model_to_usf(model, title='bp'):
         if hi in d and lo in d:
             return (d[hi] << 8) | d[lo]
         return None
-    # build per-tune freq table (note_index -> exact bytes) + per-voice rows
+    # per-tune lossless freq alphabet (distinct freq -> unique freq_table slot)
+    allfreqs = {fq for s in steps for vc in voices if (fq := vfreq(s, vc)) is not None}
+    slotmap = _assign_slots(allfreqs)
+    if slotmap is None:
+        raise ValueError('too_many_pitches')
+    # build per-tune freq table (slot -> exact bytes) + per-voice rows
     gated = len(rel) > 0
     ftab = bytearray(256)
     vrows = {vc: [] for vc in voices}
@@ -71,8 +101,8 @@ def model_to_usf(model, title='bp'):
             if f is None:
                 vrows[vc].append(NoteRow(pitch=Pitch.rest(), duration=hold))
             else:
-                ni, nm, octv = _note_index(f)
-                ftab[ni] = (f >> 8) & 0xFF; ftab[128 + ni] = f & 0xFF
+                slot = slotmap[f]; nm, octv = _slot_pitch(slot)
+                ftab[slot] = (f >> 8) & 0xFF; ftab[128 + slot] = f & 0xFF
                 vrows[vc].append(NoteRow(pitch=Pitch(name=nm, octave=octv),
                                          duration=hold, instr=InstrumentRef(id=vc)))
             if gated:

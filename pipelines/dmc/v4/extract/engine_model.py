@@ -657,6 +657,21 @@ def _assign_offtable_freq(m: DmcModel, mem, flo_addr: int,
                         add_note(r.note + tr, r.instr)
                     if r.glide_to is not None:
                         add_note(r.glide_to + tr, r.instr)
+    # IDLE-WAVE off-table reads: a voice that starts on rests freewheels the
+    # idle wave (m.idle_wave, the cleared-cache path) with curnote = its idle
+    # note — and the idle-wave freq offsets + idle note can overshoot the
+    # 96-entry table (e.g. Funky_Witch idle_note 50 + offset 51 = idx 101). The
+    # per-instrument note loop above never covers the idle path, so capture it
+    # here (curnote = each voice's idle note). Records go to instr 0 (always
+    # shipped) — the off-table window is instrument-agnostic (idx -> value).
+    idle_freq = list(m.idle_wave[1]) if m.idle_wave and m.idle_wave[1] else []
+    for cn in set(m.idle_notes):
+        for off in idle_freq:
+            y = (cn + off) & 0xFF
+            if y > 95:
+                recs[0].add((off & 0xFF, cn & 0xFF,
+                             mem[(flo_addr + y) & 0xFFFF],
+                             mem[(fhi_addr + y) & 0xFFFF]))
     for iid, s in recs.items():
         if iid in m.instruments:
             m.instruments[iid].offtable_freq = sorted(s)
