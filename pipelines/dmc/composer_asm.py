@@ -148,18 +148,33 @@ class _Model:
         self.wctrl = bytearray()
         self.wfreq = bytearray()
         self.iwst = []
+        # The wave position is a single byte, so the whole pool must fit in
+        # 256 bytes (assert below). The original packer SHARES wave programs:
+        # instruments with an identical (ctrl, freq, loop) program read from
+        # one pooled copy. The composer emits per-instrument programs; without
+        # dedup a member with many same-timbre instruments inflates the pool
+        # past 255 (the "wave pool overflow" error). Sharing is byte-identical
+        # for the write stream (each instrument re-inits wavepos to its start
+        # per note and reads the same byte sequence), so dedup is pure packing.
+        _wseen = {}
 
         def add_prog(ctrl, freq, loop):
-            s = len(self.wctrl)
             n = len(ctrl)
             if n == 0:                       # wave_start past the table:
                 raise RuntimeError(          # off-table read (architectural
                     'unsupported:zero_wave_table')   # limit; refuse cleanly)
             assert 0 <= loop < n and n - loop <= 0x6F, \
                 f'wave program shape n={n} loop={loop}'
-            self.wctrl += bytes(b & 0xFF for b in ctrl)
+            cb = bytes(b & 0xFF for b in ctrl)
+            fb = bytes(b & 0xFF for b in freq)
+            key = (cb, fb, loop)
+            if key in _wseen:                # identical program already pooled
+                return _wseen[key]
+            s = len(self.wctrl)
+            self.wctrl += cb
             self.wctrl.append(0x90 + n - loop)
-            self.wfreq += bytes(b & 0xFF for b in freq) + b'\x00'
+            self.wfreq += fb + b'\x00'
+            _wseen[key] = s
             return s
 
         ip = usf.wave_programs.get(0)
