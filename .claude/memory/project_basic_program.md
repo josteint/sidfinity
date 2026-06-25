@@ -1,6 +1,6 @@
 ---
 name: project_basic_program
-description: "Basic_Program family (486 RSID-BASIC tunes) — PRODUCTIONIZED round-trip: 137/486 FULL through real USF, mass-written + regression"
+description: "Basic_Program family (486 RSID-BASIC tunes) — PRODUCTIONIZED round-trip: 163/486 (33.5%) FULL through real USF, mass-written + regression"
 metadata: 
   node_type: memory
   type: project
@@ -181,15 +181,31 @@ THREE round-trip bugs fixed this session (the gap from 16%→28%):
    steps). Detect when rest-derivation is insufficient (Ahoy-class) → store explicit masks; common path
    (voices all-or-nothing) unchanged. Ahoy_Magazine 581/581 FULL. (+41 FULL: 96→137.)
 
-**RESIDUE (349, by dependency order — all are LIFT limits or richer-musical, NOT round-trip-encoding):**
-build_model DECLINES for ~half: unsup_variable_template 134 + unsup_legato_variable 52 (both = `_union_order`
-returns None on ARPEGGIO/intra-step-dup or cycle — the big hard bucket, variable-length intra-step freq runs)
-+ too_few_after_trim 32 + too_few_steps 20 (degenerate/short). Round-trip-clean but failing: length_fail 46
-(loop-detect / window miss — overlap-exact but length off) + overlap_diverge 35 (remaining mismatches) +
-not_clean 27 (RICHER FULL — perstep non-freq like per-note vol/ADSR; USF NoteRow can't carry → needs a
-dynamics/instrument-param representation) + build_fail 3. The 1 digi tune (Black_Box_V8_Demo) → Mode 2.
+**✅ NTSC CLOCK-FLAG FIX (2026-06-25): 137→163 FULL (28.2%→33.5%).** `build_psid` hardcoded `FLAGS_PAL_6581`,
+so NTSC tunes' rebuilds were captured by siddump at 50Hz not 60Hz → the rebuild got through LESS music per
+wall-second → an overlap-exact but SHORT (truncated-prefix) flat stream = length_fail. The flat (reg,val)
+verdict drops timing, so a clock mismatch shows as length, NOT divergence. Diagnosis: `capture_real` gave the
+orig 2520 frames vs the rebuild 2100 for the same 42s (60 vs 50 fps) with per-bin writes identical where both
+exist (NOT tempo-stretch — a frame-count mismatch). 34/46 length_fail were NTSC; the SHORT ones already passed
+(deficit < the |len|≤64 tol; deficit grows with songlength). Fix: derive clock bits from `model['clock']`
+(NTSC→2, PAL→1, flags=`(bits<<2)|(1<<4)`). +26 length_fail→FULL; 40 already-FULL NTSC stay FULL; PAL untouched.
+American_Flag added as the NTSC regression canary. length_fail 46→19.
 
-**NEXT (highest-leverage first):** (1) ARPEGGIO/dup_reg — the variable-length intra-step freq sequence
-(`_union_order` None); biggest single lever (~186 tunes incl. legato_variable). (2) length_fail loop-detect
-(46, mechanical). (3) not_clean richer-FULL (27 — map perstep $D418→dynamics / per-note ADSR→instrument).
-Iterate via `family_batch.py` (resumable, `--write` to mass-write). Survey raw: `tmp/basic_program_research/survey.jsonl`.
+**RESIDUE (323, by dependency order — all are LIFT limits or richer-musical, NOT round-trip-encoding):**
+build_model DECLINES for ~half: unsup_variable_template 134 + unsup_legato_variable 52 = 186, of which
+**172 are true ARPEGGIO** (intra-step register repeat: a reg POKEd ≥2× per step = a fast freq run inside one
+note; `_union_order` is register-keyed so can't represent repeats — needs POSITIONAL template matching) +
+**14 precedence cycles** + too_few_after_trim 32 + too_few_steps 20 (degenerate/short). Round-trip-clean but
+failing: length_fail **19** (the SECOND loop sub-problem — loop NOT detected or loop_period slightly off; ~17
+short, 2 overshoot e.g. Crac_Mur/Cave_of_the_Ice_Ape) + overlap_diverge 36 (23 diverge in first 10% =
+structural; 6 are >90% near-misses) + not_clean 27 (RICHER FULL — perstep non-freq like per-note vol/ADSR;
+USF NoteRow can't carry → needs a dynamics/instrument-param representation) + build_fail 3. 1 digi
+(Black_Box_V8_Demo) → Mode 2.
+
+**NEXT (highest-leverage first):** (1) length_fail loop-period/detection (19, the residual loop sub-problem
+after the clock fix — mostly `_find_loop` missing the period or computing it slightly wrong; some genuinely
+degenerate). (2) ARPEGGIO/dup_reg (172) — the variable-length intra-step freq sequence; biggest single lever,
+needs positional (not register-keyed) template matching = a real design step. (3) not_clean richer-FULL (27 —
+map perstep $D418→dynamics / per-note ADSR→instrument). Iterate via `family_batch.py` (resumable, `--write` to
+mass-write); per-cause probes live in `tmp/` (lf_probe / lf_timeline / lf_clockfix). Survey raw:
+`tmp/basic_program_research/survey.jsonl`.
