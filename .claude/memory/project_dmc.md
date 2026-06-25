@@ -7,6 +7,69 @@ metadata:
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
 ---
 
+## ✅✅ FAMILY-1: 4035/5401 FULL (74.7%, 2026-06-25 session 2) — +39: wave-pool dedup +5, CIA writelog-rate +20, palimpsest re-verify +14
+THREE deltas, all committed + mass-written (4035 .usf+.sidfinity.sid, 0 err) + db-refreshed (hvsc84.csv commit 355a785):
+
+1. **WAVE-POOL DEDUP (commit c73a1d0, +5 FULL; ledger C8).** Composer emitted a
+   SEPARATE wave-program copy per instrument into the byte-indexed pool
+   (wctab/wftab in composer_asm.py); a member with many same-timbre instruments
+   overflowed 255 (wave pos is ONE byte) -> "wave pool overflow" hard build error
+   (40 members). Dedup identical (ctrl,freq,loop) programs -> one pooled copy
+   (mirrors the orig packer); BYTE-IDENTICAL write stream (each inst re-inits
+   wavepos per note + reads the same byte sequence). 40 errors -> 37 build (5
+   FULL: Synthology/Heartbreak/Portal_tune_5/Electric_Jesus/Dr_Nabla, 32 partial
+   = now diagnosable), 3 still overflow (Marek_Bilinski_1/Riders/Abject_17 =
+   ALL-UNIQUE programs -> need SUFFIX-OVERLAP packing, the NEXT tier, not built).
+   Canary Zaks FULL (it exercises the dedup path — output byte-differs from the
+   stale committed file but write-stream-identical).
+
+2. **CIA-MULTISPEED RATE FROM WRITELOG (commit 2114f21, +20 FULL; ledger C9).**
+   The 67 cia_multispeed members are WRAPPER tunes (play!=base+3) whose init
+   programs the CIA1 timer in a way py65 CAN'T follow (init hangs / timer set in
+   an IRQ / unsupported opcode) -> the factory rejected them. libsidplayfp runs
+   the init correctly, so the rate is MEASURABLE from the GROUND-TRUTH writelog:
+   `factory._cia_period_from_writelog` counts play()s per PAL frame from
+   `siddump --writelog-per-irq --per-irq-debug` (nentries/frame, base=abs PHI1
+   clock), rounds N to the integer multispeed factor, returns latch = 19656/N-1
+   (the EXACT canon $2663=2x / $1331=4x; N measured within 0.01 of integer ->
+   robust). Wired as a FALLBACK at the existing rejection (only the
+   py65-unreadable wrapper path -> ZERO regression to existing FULLs; canon-play
+   members unchanged). 67 -> 20 FULL + 36 partial + 11 RE-BUCKETED to
+   nonstandard_instr_base (a DIFFERENT downstream layout issue = dataflow-
+   extractor territory, residue-triage C5 working). Scanland (2x) FULL 199022.
+
+3. **PALIMPSEST RE-VERIFY (+14 FULL).** ⚠️ METHODOLOGY: `tmp/dmc_wide_results.jsonl`
+   is a RESUME-PALIMPSEST of many factory versions (the batch skips done paths),
+   so its unsupported/error REASONS are STALE/multi-version (a member tagged
+   sector_decode may now fail differently) AND its recorded `first_diff` is the
+   UNRELIABLE TRICHOTOMY one (phantom D418 — confirmed: I_Am_Ready's "D418
+   $0F->$00" was REALLY V1 freqhi off-table, lo-match/hi-diff). Re-verified all
+   1080 palimpsest-partials with current code -> 14 are actually FULL (stale,
+   predating resting-voice/mask_only). USE the batch flat_div / find_first_
+   divergence, NEVER the jsonl first_diff. Merged authoritative jsonl =
+   tmp/dmc_wide_results.jsonl (now current; pre-session backup =
+   .pre_session.bak.jsonl).
+
+RELIABLE FLAT-DIV CENSUS (686 partials w/ flat_div): freq 81%, HETEROGENEOUS
+(CONFIRMED no clean >=30 lever — I_Am_Ready off-table active note lo-match/hi-
+diff, Mr_Wain V1 drum abs-freq wave-step phase = distinct mechanisms). Buckets:
+freqLO valdiff 254 / freq reb=0 137 (mostly the KNOWN resting/silent-voice
+residue, V3-heavy) / freqHI orig=0 48 (scattered) / tiny<=4 44. The freq tail is
+the deep per-cause residue the memory already characterized — no fresh lever.
+
+SECTOR_DECODE (deprioritized — architectural/principle-violating): the 58
+low-addr ($00xx) failures = a voice loops to byte-after-$FF (the JSR-$1042 hook
+loops to the loop-target byte, not 0) into adjacent tunetab/runtime memory and
+SONIFIES it (verified I_Like_Cornflakes: loop_target=False diverges ONLY at the
+loop tail 90739/90872 -> orig genuinely plays the garbage). Reproducing needs
+runtime-memory garbage sectors. The other 30 low-addr are loop_target=False with
+a different cause. Matches memory's "sector_decode = deep" assessment.
+
+RESIDUE NOW (merged authoritative): full 4035 / partial 1134 / unsupported 204
+/ error 28. NEXT (all diminishing returns): wave-pool SUFFIX-OVERLAP (the 3
+all-unique-program members) + the 11 nonstandard_instr_base (dataflow extractor)
++ the heterogeneous freq tail (per-cause only) + family-2 / V5 lines.
+
 ## DMC — the focus engine after FC standard went uready (2026-06-12)
 
 Largest HVSC family: 10,676 SIDs (`engine LIKE 'DMC%'` in hvsc84.db).
