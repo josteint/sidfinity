@@ -105,12 +105,34 @@ def run_member(rel: str) -> dict:
                     a, dur, cia = origs[sub]
                     cap = writelog_per_irq_capture if cia else writelog_capture
                     b = cap(tmp_sid, subtune=sub, duration=dur)
-                    r = compare_instruction_stream(a, b, mode='trichotomy')
-                    subs[sub] = [bool(r['is_full']), r['play_match'],
+                    # CIA (multispeed) tail tolerance scales with the multispeed
+                    # factor N (= play()s per PAL frame, measured from the
+                    # per-IRQ capture): the duration-cutoff boundary straddles
+                    # ~N play()s, so a 4x tune's close-tail band is ~4x a 1x
+                    # tune's (|tail| up to ~770 vs the flat 176). N=2 -> 512,
+                    # N=4 -> 1024.
+                    ctol = 176
+                    if cia:
+                        ctol = max(176, 256 * max(1, round(len(a) / (dur * 50.0))))
+                    r = compare_instruction_stream(a, b, mode='trichotomy',
+                                                   close_tol=ctol)
+                    is_full = bool(r['is_full'])
+                    # PLAYBACK-SAFETY GATE: a recovery admitted ONLY by the
+                    # scaled CIA tolerance (tail > the base 176) is accepted iff
+                    # it is AUDIO-GUARANTEED — state_match + full play overlap +
+                    # the init boundary canonical (gates off + freq 0) on both
+                    # sides, which formally proves identical audio
+                    # (verify_cycle.init_boundary_is_canonical). Never loosen on
+                    # an unprovable case.
+                    if (is_full
+                            and abs(r['len_post_a'] - r['len_post_b']) > 176
+                            and not r['audio_guaranteed']):
+                        is_full = False
+                    subs[sub] = [is_full, r['play_match'],
                                  r['play_overlap'], bool(r['state_match']),
                                  bool(r['close']), r['len_post_a'],
                                  r['len_post_b']]
-                    if not r['is_full']:
+                    if not is_full:
                         ok = False
                         if first_diff is None:
                             fd = r.get('first_play_diff')

@@ -324,7 +324,8 @@ def _trichotomy_compare(fa: list, fb: list, close_tol: int = 176,
 
 def compare_instruction_stream(a: list[Frame], b: list[Frame],
                                 skip_init: bool = True,
-                                mode: str = 'legacy') -> dict:
+                                mode: str = 'legacy',
+                                close_tol: int = 176) -> dict:
     """Compare the (reg, val) sequence the SID receives in two runs.
 
     Two modes:
@@ -429,7 +430,7 @@ def compare_instruction_stream(a: list[Frame], b: list[Frame],
         # When the inits already coincide (shift 0, no init prefix) this
         # reduces to a full prefix match — so engines that reproduce their
         # init verbatim (Cyb II, Hawkeye) are unaffected.
-        return _trichotomy_compare(flat_all_a, flat_all_b)
+        return _trichotomy_compare(flat_all_a, flat_all_b, close_tol=close_tol)
 
     # Legacy mode.
     match_all = _prefix(flat_all_a, flat_all_b)
