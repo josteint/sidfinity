@@ -42,6 +42,23 @@ def _music_start(stream):
         s -= 1
     return s
 
+def _split_attack(atk):
+    """Split a frame-tagged write list [(f,r,v),...] into sub-steps, starting a NEW
+    sub whenever a register repeats. A repeat = an arpeggio/vibrato per-tick freq
+    update inside one held note; splitting turns it into a sequence of fast freq
+    sub-steps (fired by the absolute-frame player's catch-up loop), so the per-step
+    template has each register at most once. Non-arp steps (no repeat) pass through
+    unchanged as a single sub."""
+    subs = []; cur = []; seen = set()
+    for f, r, v in atk:
+        if r in seen:
+            subs.append(cur); cur = []; seen = set()
+        cur.append((f, r, v)); seen.add(r)
+    if cur:
+        subs.append(cur)
+    return subs
+
+
 def segment(frames):
     """-> (init, steps, start_frame, legato). Steps carry the FULL ordered writes.
 
@@ -70,11 +87,12 @@ def segment(frames):
         steps = []
         frs = sorted(byframe); i = 0
         while i < len(frs):
-            f0 = frs[i]; w = list(byframe[f0]); j = i + 1
+            f0 = frs[i]; w = [(f0, r, v) for r, v in byframe[f0]]; j = i + 1
             while j < len(frs) and frs[j] == frs[j-1] + 1:
-                w += byframe[frs[j]]; j += 1
-            steps.append({'attack': w, 'on_frame': f0, 'release': None,
-                          'off_frame': None, 'next': None})
+                w += [(frs[j], r, v) for r, v in byframe[frs[j]]]; j += 1
+            for sub in _split_attack(w):               # arpeggio/vibrato -> sub-steps
+                steps.append({'attack': [(r, v) for f, r, v in sub], 'on_frame': sub[0][0],
+                              'release': None, 'off_frame': None, 'next': None})
             i = j
         for k in range(len(steps) - 1):
             steps[k]['next'] = steps[k+1]['on_frame']
@@ -100,9 +118,12 @@ def segment(frames):
         atk, rel = st[:ri], st[ri:]
         if not atk:
             continue
-        steps.append({'attack': [(r, v) for f, r, v in atk], 'on_frame': atk[0][0],
-                      'release': [(r, v) for f, r, v in rel] if rel else None,
-                      'off_frame': rel[0][0] if rel else None, 'next': None})
+        subs = _split_attack(atk)                      # arpeggio/vibrato -> sub-steps
+        for si, sub in enumerate(subs):
+            last = si == len(subs) - 1                 # gate-off rides the last sub only
+            steps.append({'attack': [(r, v) for f, r, v in sub], 'on_frame': sub[0][0],
+                          'release': [(r, v) for f, r, v in rel] if (rel and last) else None,
+                          'off_frame': rel[0][0] if (rel and last) else None, 'next': None})
     for k in range(len(steps) - 1):
         steps[k]['next'] = steps[k+1]['on_frame']
     return init, steps, start_frame, False

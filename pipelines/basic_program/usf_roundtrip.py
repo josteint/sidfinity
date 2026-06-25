@@ -240,7 +240,11 @@ def roundtrip(sid_rel, dur=20.0):
     fd_u, usf_path = tempfile.mkstemp(suffix='.usf'); os.close(fd_u)
     fd_s, out = tempfile.mkstemp(suffix='.sid'); os.close(fd_s)
     try:
-        write_file(model_to_usf(m), usf_path)
+        try:
+            usf = model_to_usf(m)
+        except ValueError as e:                        # e.g. too_many_pitches (vibrato > 96 slots)
+            return {'status': str(e)}
+        write_file(usf, usf_path)
         m2 = usf_to_model(parse_file(usf_path))
         with open(out, 'wb') as fo:
             fo.write(build_psid(m2))
