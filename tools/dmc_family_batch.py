@@ -139,14 +139,20 @@ def run_member(rel: str) -> dict:
                             first_diff = ([sub, bool(r['state_match'])]
                                           + (list(map(list, fd[1:])) if fd else []))
                         # RELIABLE localization for clustering: the FLAT-prefix
-                        # first (reg,val) divergence (cycle dropped). Trichotomy's
-                        # first_play_diff lands on whatever reg sits at its
-                        # recovered offset (spurious $D418 on shift mis-recovery);
-                        # DMC inits MATCH so the flat prefix breaks at the TRUE
-                        # divergence. Vblank only (CIA per-irq drops init).
-                        if flat_div is None and not cia:
-                            fla = [(w[1], w[2]) for fr in a for w in fr]
-                            flb = [(w[1], w[2]) for fr in b for w in fr]
+                        # first (reg,val) divergence (cycle dropped) of the PLAY
+                        # stream. CRITICAL: SKIP FRAME 0 — it holds the init,
+                        # and the composer emits its OWN universal-reset init, so
+                        # a raw flat compare reports an init-priming artifact
+                        # (e.g. D416 $00 vs $08) at ~pos 26 instead of the real
+                        # play divergence. Matches tools/find_first_divergence
+                        # (--skip-init default). For CIA the per-IRQ capture
+                        # already DROPS the init prefix, so no frame-0 skip.
+                        if flat_div is None:
+                            skip0 = 0 if cia else 1
+                            fla = [(w[1], w[2]) for k, fr in enumerate(a)
+                                   if k >= skip0 for w in fr]
+                            flb = [(w[1], w[2]) for k, fr in enumerate(b)
+                                   if k >= skip0 for w in fr]
                             mm = 0
                             lim = min(len(fla), len(flb))
                             while mm < lim and fla[mm] == flb[mm]:
