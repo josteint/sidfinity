@@ -211,6 +211,45 @@ def _rd16(mem, a):
     return mem[a] | (mem[a + 1] << 8)
 
 
+def _cia_period_from_writelog(sid_path: str, subtune: int,
+                              dur: float = 3.0) -> int:
+    """Measure the multispeed CIA period from the GROUND-TRUTH writelog
+    (libsidplayfp) when py65 can't read the latch (init hangs / unsupported
+    opcode / timer set in an IRQ handler). The player's IRQ fires every L+1
+    cycles; over a PAL frame (19656 cyc) it runs N = 19656/(L+1) play()s.
+    Measure N = total play()s / PAL-frames from `--writelog-per-irq
+    --per-irq-debug` (nentries per siddump frame; base = absolute PHI1 clock),
+    round to the integer multispeed factor, and return the canonical latch
+    19656/N - 1 (e.g. N=2 -> $2663, N=4 -> $1331 — the exact DMC inits).
+    Returns 0 if not measurable / single-speed (N rounds to <2)."""
+    import subprocess
+    import re
+    sd = os.path.join(os.path.dirname(__file__), '..', '..', '..',
+                      'tools', 'siddump')
+    try:
+        out = subprocess.run(
+            [sd, sid_path, '--writelog-per-irq', '--per-irq-debug',
+             '--duration', str(dur), '--subtune', str(subtune)],
+            capture_output=True, text=True, timeout=90).stderr
+    except Exception:
+        return 0
+    frames = []
+    for line in out.splitlines():
+        m = re.search(r'frame=\d+ base=(\d+) nentries=(\d+)', line)
+        if m:
+            frames.append((int(m.group(1)), int(m.group(2))))
+    if len(frames) < 20:
+        return 0
+    total = sum(f[1] for f in frames)
+    span = frames[-1][0] - frames[0][0]        # base = absolute PHI1 clock
+    if span <= 0:
+        return 0
+    n = round(total / (span / 19656.0))
+    if n < 2:
+        return 0
+    return 19656 // n - 1
+
+
 def _cia_period_from_init(sid_path: str, subtune: int,
                           max_cycles: int = 3_000_000) -> int:
     """Run the PSID init in py65 and read the CIA1 timer A latch
@@ -471,11 +510,19 @@ def _build_via_canon(sid_path: str, hvsc_root: str = 'hvsc84') -> DMCV4Config:
             # speed bit set but no readable latch falls back to single-speed
             # (the prior behavior — no worse than before).
             if s['play'] != base + 3:
-                raise DMCV4Unsupported(
-                    'cia_multispeed',
-                    f"play=${s['play']:04X} CIA latch=${cia_period:04X} "
-                    "(unreadable)")
-            cia_period = 0
+                # py65 couldn't read the latch (init hangs / unsupported
+                # opcode / timer programmed in an IRQ). Measure the rate from
+                # the ground-truth writelog (libsidplayfp runs the init
+                # correctly) instead of rejecting.
+                cia_period = _cia_period_from_writelog(
+                    os.path.join(hvsc_root, sid_path), s['start'] - 1)
+                if not (0x0100 <= cia_period <= 0xFFFF):
+                    raise DMCV4Unsupported(
+                        'cia_multispeed',
+                        f"play=${s['play']:04X} CIA latch unreadable "
+                        "(py65 + writelog)")
+            else:
+                cia_period = 0
     # INTERNAL multispeed (vblank wrapper, no speed bit) — independent of CIA.
     play_repeat = (1 if (s.get('speed', 0) & 1)
                    else _detect_play_repeat(mem, s['play'], base, s['load']))
