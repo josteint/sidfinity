@@ -1,6 +1,6 @@
 ---
 name: project_basic_program
-description: "Basic_Program family (486 RSID-BASIC tunes) — PRODUCTIONIZED round-trip: 163/486 (33.5%) FULL through real USF, mass-written + regression"
+description: "Basic_Program family (486 RSID-BASIC tunes) — PRODUCTIONIZED round-trip: 187/486 (38.5%) FULL through real USF, mass-written + regression"
 metadata: 
   node_type: memory
   type: project
@@ -191,21 +191,33 @@ exist (NOT tempo-stretch — a frame-count mismatch). 34/46 length_fail were NTS
 (NTSC→2, PAL→1, flags=`(bits<<2)|(1<<4)`). +26 length_fail→FULL; 40 already-FULL NTSC stay FULL; PAL untouched.
 American_Flag added as the NTSC regression canary. length_fail 46→19.
 
-**RESIDUE (323, by dependency order — all are LIFT limits or richer-musical, NOT round-trip-encoding):**
-build_model DECLINES for ~half: unsup_variable_template 134 + unsup_legato_variable 52 = 186, of which
-**172 are true ARPEGGIO** (intra-step register repeat: a reg POKEd ≥2× per step = a fast freq run inside one
-note; `_union_order` is register-keyed so can't represent repeats — needs POSITIONAL template matching) +
-**14 precedence cycles** + too_few_after_trim 32 + too_few_steps 20 (degenerate/short). Round-trip-clean but
-failing: length_fail **19** (the SECOND loop sub-problem — loop NOT detected or loop_period slightly off; ~17
-short, 2 overshoot e.g. Crac_Mur/Cave_of_the_Ice_Ape) + overlap_diverge 36 (23 diverge in first 10% =
-structural; 6 are >90% near-misses) + not_clean 27 (RICHER FULL — perstep non-freq like per-note vol/ADSR;
-USF NoteRow can't carry → needs a dynamics/instrument-param representation) + build_fail 3. 1 digi
-(Black_Box_V8_Demo) → Mode 2.
+**✅ ARPEGGIO/VIBRATO SPLIT (2026-06-26): 163→187 FULL (33.5%→38.5%).** An arpeggio/vibrato note is a held
+note whose freq is re-POKEd per tick (arp cycling a chord, or vibrato wobble) — `segment` lumped it into ONE
+step with the freq register written N times → `_union_order` None (intra-step dup) → unsupported. `_split_attack`
+splits a step's attack into sub-steps at each register repeat → each freq update is a fast freq sub-step (fired
+by the abs-frame player's catch-up loop); gate-off rides only the last sub. THREE correctness subtleties: (1)
+the split is CONDITIONAL — a CONSISTENT intra-step dup (same shape every note, e.g. ctrl re-poked) is handled
+positionally by `derive_template`, so `build_model` tries the UNSPLIT segmentation FIRST (== the pre-arp path,
+provably can't regress any prior FULL — Xmas-Card class) and only falls back to `segment(split_dups=True)` on a
+template/too_few build-failure; (2) a `force_split` override + `best_attempt()` VERIFY-LEVEL retry recovers
+tunes whose unsplit model BUILDS but VERIFIES wrong where splitting wins (Pearl_Diver — the build-level fallback
+can't see verify-failures); (3) `family_batch.process()` refactored onto `best_attempt` (shared orig-writelog
+capture, returns the verified usf+sid bytes for byte-exact mass-write). Vibrato with >96 distinct freqs hits
+`too_many_pitches`→build_fail (the freq alphabet caps at 96 slots) — deferred. Head_Coach (arp) + Xmas-Card
+(consistent-dup) added as portfolio canaries (now 9). 187 mass-written, 0 orphans, DB refreshed.
 
-**NEXT (highest-leverage first):** (1) length_fail loop-period/detection (19, the residual loop sub-problem
-after the clock fix — mostly `_find_loop` missing the period or computing it slightly wrong; some genuinely
-degenerate). (2) ARPEGGIO/dup_reg (172) — the variable-length intra-step freq sequence; biggest single lever,
-needs positional (not register-keyed) template matching = a real design step. (3) not_clean richer-FULL (27 —
-map perstep $D418→dynamics / per-note ADSR→instrument). Iterate via `family_batch.py` (resumable, `--write` to
-mass-write); per-cause probes live in `tmp/` (lf_probe / lf_timeline / lf_clockfix). Survey raw:
+**RESIDUE (299, by dependency order — all are LIFT limits or richer-musical, NOT round-trip-encoding):**
+unsup_variable_template 67 + unsup_legato_variable 29 = 96 (the arp/intra-dup cases the split did NOT resolve —
+deeper variants: precedence cycles, or split-then-still-variable) + too_few_after_trim 59 + too_few_steps 9
+(degenerate/short; the split grew too_few_after_trim by re-bucketing former variable_template) + not_clean 53
+(RICHER FULL — perstep non-freq; the split EXPOSED per-tick non-freq writes, e.g. per-tick ctrl/PW → needs a
+dynamics/instrument-param representation) + overlap_diverge 45 + length_fail 26 (loop-period) + build_fail 9
+(mostly vibrato too_many_pitches). 1 digi (Black_Box_V8_Demo) → Mode 2.
+
+**NEXT (highest-leverage first):** (1) not_clean richer-FULL (53, now the biggest clean lever — map perstep
+$D418→dynamics / per-tick ctrl+PW→instrument params; the arp split surfaced many). (2) the remaining arp/dup
+(96 variable_template+legato_variable — precedence cycles + deeper variants). (3) length_fail loop-period (26 —
+`_find_loop` miss/slightly-off; some degenerate). (4) vibrato too_many_pitches (raise/rethink the 96-slot freq
+alphabet, or parametric vibrato). Iterate via `family_batch.py` (resumable, `--write` to mass-write); per-cause
+probes live in `tmp/` (lf_probe / lf_timeline / arp_struct / arp_frames). Survey raw:
 `tmp/basic_program_research/survey.jsonl`.
