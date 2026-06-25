@@ -35,45 +35,25 @@ def _dur(songlen):
 
 def process(args):
     relpath, songlen, do_write = args
-    sid = os.path.join(ROOT, 'hvsc84', relpath)
     dur = _dur(songlen)
+    base = os.path.splitext(os.path.basename(relpath))[0]
     res = {'path': relpath}
     try:
-        m = build_model(sid, dur)
+        status, match, la, lb, usf, sid_bytes = RT.best_attempt(relpath, dur, title=base[:31])
     except Exception as e:
         res.update(status='lift_crash', detail=type(e).__name__ + ': ' + str(e)[:60]); return res
-    if 'unsupported' in m:
-        res.update(status='unsup_' + m['unsupported']); return res
-    if not RT.is_clean(m):
+    if status.startswith('unsupported:'):
+        res.update(status='unsup_' + status.split(':', 1)[1]); return res
+    if status == 'too_many_pitches':
+        res.update(status='build_fail', detail='too_many_pitches'); return res
+    if status == 'not_clean':
         res.update(status='not_clean'); return res
-    # round-trip through a real .usf (per-pid temp; final dest only on FULL)
-    base = os.path.splitext(os.path.basename(relpath))[0]
-    os.makedirs(TMPDIR, exist_ok=True)
-    usf_tmp = os.path.join(TMPDIR, f'{os.getpid()}_{base}.usf')
-    sid_tmp = os.path.join(TMPDIR, f'{os.getpid()}_{base}.sid')
-    try:
-        write_file(RT.model_to_usf(m, title=base[:31]), usf_tmp)
-        m2 = RT.usf_to_model(parse_file(usf_tmp))
-        with open(sid_tmp, 'wb') as f:
-            f.write(build_psid(m2))
-        r = compare_instruction_stream(writelog_capture(sid, 0, dur),
-                                       writelog_capture(sid_tmp, 0, dur), skip_init=False)
-    except Exception as e:
-        for p in (usf_tmp, sid_tmp):
-            if os.path.exists(p): os.unlink(p)
-        res.update(status='build_fail', detail=type(e).__name__ + ': ' + str(e)[:60]); return res
-    ok, ov, ln = verdict_basic(r)
-    res.update(match=r['match_all'], len_a=r['len_all_a'], len_b=r['len_all_b'])
-    if ok:
-        res['status'] = 'FULL'
-        if do_write:                                  # mass-write next to the HVSC original
-            dst = os.path.join(ROOT, 'hvsc84', os.path.dirname(relpath))
-            os.replace(usf_tmp, os.path.join(dst, base + '.usf'))
-            os.replace(sid_tmp, os.path.join(dst, base + '.sidfinity.sid'))
-    else:
-        res['status'] = 'overlap_diverge' if not ov else 'length_fail'
-    for p in (usf_tmp, sid_tmp):
-        if os.path.exists(p): os.unlink(p)
+    res.update(status=status, match=match, len_a=la, len_b=lb)
+    if status == 'FULL' and do_write:                 # mass-write next to the HVSC original
+        dst = os.path.join(ROOT, 'hvsc84', os.path.dirname(relpath))
+        write_file(usf, os.path.join(dst, base + '.usf'))
+        with open(os.path.join(dst, base + '.sidfinity.sid'), 'wb') as f:
+            f.write(sid_bytes)
     return res
 
 

@@ -226,36 +226,56 @@ def usf_to_model(usf):
             'clock': usf.psid.clock, 'masked': True, 'legato': bool(f['bp_legato'])}
 
 # ------------------------------------------------------------- verify -----
-def roundtrip(sid_rel, dur=20.0):
-    """Full path SID -> model -> .usf -> model -> SID -> writelog vs orig (pool-safe)."""
+def _attempt_model(m, sid, dur, orig_wl, title='bp'):
+    """Build a rebuild from model m and verify against the (cached) orig writelog.
+    Returns (status, match, len_a, len_b, usf_or_None, sid_bytes_or_None). Pool-safe."""
     import tempfile
     from pipelines.hubbard.verify_cycle import writelog_capture, compare_instruction_stream
     from pipelines.basic_program.proof_multivoice import verdict_basic
-    sid = os.path.join(ROOT, 'hvsc84', sid_rel)
-    m = build_model(sid, dur)
     if 'unsupported' in m:
-        return {'status': 'unsupported:' + m['unsupported']}
+        return ('unsupported:' + m['unsupported'], 0, 0, 0, None, None)
     if not is_clean(m):
-        return {'status': 'not_clean'}
-    fd_u, usf_path = tempfile.mkstemp(suffix='.usf'); os.close(fd_u)
-    fd_s, out = tempfile.mkstemp(suffix='.sid'); os.close(fd_s)
+        return ('not_clean', 0, 0, 0, None, None)
     try:
-        try:
-            usf = model_to_usf(m)
-        except ValueError as e:                        # e.g. too_many_pitches (vibrato > 96 slots)
-            return {'status': str(e)}
-        write_file(usf, usf_path)
-        m2 = usf_to_model(parse_file(usf_path))
-        with open(out, 'wb') as fo:
-            fo.write(build_psid(m2))
-        r = compare_instruction_stream(writelog_capture(sid, 0, dur),
-                                       writelog_capture(out, 0, dur), skip_init=False)
+        usf = model_to_usf(m, title=title)
+    except ValueError as e:                            # e.g. too_many_pitches (vibrato > 96 slots)
+        return (str(e), 0, 0, 0, None, None)
+    fd, up = tempfile.mkstemp(suffix='.usf'); os.close(fd)
+    fd, sp = tempfile.mkstemp(suffix='.sid'); os.close(fd)
+    try:
+        write_file(usf, up)
+        sid_bytes = build_psid(usf_to_model(parse_file(up)))
+        with open(sp, 'wb') as fo:
+            fo.write(sid_bytes)
+        r = compare_instruction_stream(orig_wl, writelog_capture(sp, 0, dur), skip_init=False)
     finally:
-        for p in (usf_path, out):
+        for p in (up, sp):
             if os.path.exists(p): os.unlink(p)
     ok, ov, ln = verdict_basic(r)
-    return {'status': 'FULL' if ok else ('overlap_diverge' if not ov else 'length_fail'),
-            'match': r['match_all'], 'len_a': r['len_all_a'], 'len_b': r['len_all_b']}
+    status = 'FULL' if ok else ('overlap_diverge' if not ov else 'length_fail')
+    return (status, r['match_all'], r['len_all_a'], r['len_all_b'], usf, sid_bytes)
+
+
+def best_attempt(sid_rel, dur, title='bp'):
+    """Verify the auto model; if it BUILT but verified diverge/length_fail, retry the
+    force-split variant (the auto-fallback only fires on build-failure, so an unsplit
+    model that builds-but-diverges where splitting would win is otherwise missed).
+    Returns (status, match, len_a, len_b, usf_or_None, sid_bytes_or_None)."""
+    from pipelines.hubbard.verify_cycle import writelog_capture
+    sid = os.path.join(ROOT, 'hvsc84', sid_rel)
+    orig_wl = writelog_capture(sid, 0, dur)
+    res = _attempt_model(build_model(sid, dur), sid, dur, orig_wl, title)
+    if res[0] in ('overlap_diverge', 'length_fail'):   # built but wrong -> try the split variant
+        res2 = _attempt_model(build_model(sid, dur, force_split=True), sid, dur, orig_wl, title)
+        if res2[0] == 'FULL':
+            return res2
+    return res
+
+
+def roundtrip(sid_rel, dur=20.0):
+    """Full path SID -> model -> .usf -> model -> SID -> writelog vs orig (pool-safe)."""
+    st, mt, la, lb, _u, _s = best_attempt(sid_rel, dur)
+    return {'status': st, 'match': mt, 'len_a': la, 'len_b': lb}
 
 
 def verify_usf(usf_rel, sid_rel, dur):

@@ -59,8 +59,14 @@ def _split_attack(atk):
     return subs
 
 
-def segment(frames):
+def segment(frames, split_dups=False):
     """-> (init, steps, start_frame, legato). Steps carry the FULL ordered writes.
+
+    split_dups: when True, a step's attack is split into sub-steps at each register
+    repeat (arpeggio/vibrato per-tick freq updates). OFF by default because a
+    CONSISTENT intra-step dup (same shape every step, e.g. ctrl re-poked every note)
+    is handled positionally by derive_template — splitting it would fragment the
+    shape. build_model retries with split_dups=True only when the unsplit path fails.
 
     GATED tunes: a step ends after each gate-off GROUP (a maximal run of gate-clear
     ctrl writes); the step splits into attack (everything before that trailing
@@ -90,7 +96,7 @@ def segment(frames):
             f0 = frs[i]; w = [(f0, r, v) for r, v in byframe[f0]]; j = i + 1
             while j < len(frs) and frs[j] == frs[j-1] + 1:
                 w += [(frs[j], r, v) for r, v in byframe[frs[j]]]; j += 1
-            for sub in _split_attack(w):               # arpeggio/vibrato -> sub-steps
+            for sub in (_split_attack(w) if split_dups else [w]):  # arp/vibrato -> sub-steps
                 steps.append({'attack': [(r, v) for f, r, v in sub], 'on_frame': sub[0][0],
                               'release': None, 'off_frame': None, 'next': None})
             i = j
@@ -118,7 +124,7 @@ def segment(frames):
         atk, rel = st[:ri], st[ri:]
         if not atk:
             continue
-        subs = _split_attack(atk)                      # arpeggio/vibrato -> sub-steps
+        subs = _split_attack(atk) if split_dups else [atk]  # arp/vibrato -> sub-steps
         for si, sub in enumerate(subs):
             last = si == len(subs) - 1                 # gate-off rides the last sub only
             steps.append({'attack': [(r, v) for f, r, v in sub], 'on_frame': sub[0][0],
@@ -224,15 +230,33 @@ def _superset_templates(steps):
     return (atk_t, [r for r, k, v, vo in atk_t if k == 'perstep'],
             rel_t, [r for r, k, v, vo in rel_t if k == 'perstep'])
 
-def build_model(sid, dur):
-    """Lift to a build-ready model, or {'unsupported': reason}. Handles the
-    CONSISTENT-template case: every step writes the same registers in the same
-    order (each reg const or perstep). Variable templates (rests / legato) are
-    deferred."""
+def build_model(sid, dur, force_split=None):
+    """Lift to a build-ready model, or {'unsupported': reason}. Tries the unsplit
+    segmentation first (consistent templates incl. consistent intra-step dup, via
+    derive_template); only if that fails on a template/dup reason does it retry with
+    split_dups=True (arpeggio/vibrato per-tick freq sub-steps).
+
+    force_split (True/False) bypasses the auto-fallback and segments that way only
+    — used by the verifier to retry the split variant when the unsplit model BUILDS
+    but verifies wrong (the catch-up loop case auto-fallback can't see)."""
+    frames = capture_real(sid, dur)
+    if force_split is not None:
+        init, steps, start_frame, legato = segment(frames, split_dups=force_split)
+        return _build_model_from_steps(sid, init, steps, legato)
+    result = None
+    for split_dups in (False, True):
+        init, steps, start_frame, legato = segment(frames, split_dups=split_dups)
+        result = _build_model_from_steps(sid, init, steps, legato)
+        if ('unsupported' not in result or result['unsupported'] not in (
+                'variable_template', 'legato_variable', 'too_few_after_trim',
+                'too_few_steps', 'template_derive')):
+            return result
+    return result
+
+
+def _build_model_from_steps(sid, init, steps, legato):
     from pipelines.basic_program.proof_multivoice import measure_rho, _find_loop
     import struct
-    frames = capture_real(sid, dur)
-    init, steps, start_frame, legato = segment(frames)
     if len(steps) < 2:
         return {'unsupported': 'too_few_steps'}
     if legato:
