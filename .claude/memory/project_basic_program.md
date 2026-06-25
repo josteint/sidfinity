@@ -210,11 +210,13 @@ capture, returns the verified usf+sid bytes for byte-exact mass-write). Vibrato 
 unsup_variable_template 67 + unsup_legato_variable 29 = 96 (the arp/intra-dup cases the split did NOT resolve —
 deeper variants: precedence cycles, or split-then-still-variable) + too_few_after_trim 59 + too_few_steps 9
 (degenerate/short; the split grew too_few_after_trim by re-bucketing former variable_template) + not_clean 53
-(RICHER FULL — perstep non-freq; the split EXPOSED per-tick non-freq writes, e.g. per-tick ctrl/PW → needs a
+(NOT FULL — perstep non-freq; the split EXPOSED per-tick non-freq writes, e.g. per-tick ctrl/PW → needs a
 dynamics/instrument-param representation) + overlap_diverge 45 + length_fail 26 (loop-period) + build_fail 9
 (mostly vibrato too_many_pitches). 1 digi (Black_Box_V8_Demo) → Mode 2.
 
-**NEXT (highest-leverage first):** (1) not_clean richer-FULL (53, now the biggest clean lever — map perstep
+**NEXT (highest-leverage first):** (1) not_clean (53, now the biggest lever — NOT FULL today; the lift models
+them but USF can't yet carry their per-note non-pitch content. FULL keeps its exact meaning: rebuilt-from-USF
+SID emits the same writelog as the original. These reach FULL once USF represents the extra content — map perstep
 $D418→dynamics / per-tick ctrl+PW→instrument params; the arp split surfaced many). (2) the remaining arp/dup
 (96 variable_template+legato_variable — precedence cycles + deeper variants). (3) length_fail loop-period (26 —
 `_find_loop` miss/slightly-off; some degenerate). (4) vibrato too_many_pitches (raise/rethink the 96-slot freq
