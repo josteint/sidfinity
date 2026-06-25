@@ -69,6 +69,8 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
 | detection ≠ FULL · residue triage · accept-at-detect | C5 | methodology |
 | off-table FREQ lookup · index past freq table · wave-relative note offset | C6 | recurring (FC + v5) |
 | ANTI-PATTERN: verbatim/opaque musical bytes · leapfrog · content-by-reference blob | C7 | methodology (recurring) |
+| de-fused per-entity pool exceeds byte-index capacity · "pool overflow" · separate copies per instrument | C8 | logged |
+| runtime param unreadable by py65 (init hangs / IRQ-set / bad opcode) · measure from libsidplayfp writelog | C9 | logged |
 
 ---
 
@@ -217,3 +219,36 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
 - **Boundary:** any wide-family residue triage.
 - **Consumers:** DMC v5 reloc@$10E5 (2026-06-18: cleared the reloc gate → 32
   surfaced as cia_multispeed, only 5 reached FULL).
+
+### C8 — A de-fused per-entity program pool overflows the engine's byte index
+- **Canonical:** the engine stores N programs in one table indexed by a single
+  byte (position ≤ 255); the composer emits a SEPARATE copy per entity, so a
+  member with many same-shape entities inflates the pool past 255 → hard build
+  error. **Dedup identical programs** (key on the exact emitted bytes + loop):
+  identical entities point at one pooled copy. Byte-identical for the write
+  stream — each entity re-inits its position to its start per use and reads the
+  same byte sequence. This is what the original packer does (programs share).
+- **Status:** logged (DMC v4 wave pool, 2026-06-25).
+- **Boundary:** dedup is pure packing (zero write-stream change) and recovers
+  exact-duplicate programs only. SUFFIX/substring overlap (a program that is a
+  tail of another) is the next packing tier — needed for the residue that
+  exceeds 255 even after dedup (DMC: Marek_Bilinski_1 / Riders / Abject_17, all
+  all-unique programs). Not yet built.
+- **Consumers:** DMC v4 `composer_asm.py` wave pool (`add_prog` dedup cache,
+  commit c73a1d0 — 40 overflow members → 37 build, +5 FULL).
+
+### C9 — A runtime parameter py65 can't read → measure it from the writelog
+- **Canonical:** when a build-time parameter is set by code py65 can't execute
+  (init hangs, the value is programmed in an IRQ handler, or an unsupported
+  opcode aborts the trace), DON'T reject the member — MEASURE the parameter from
+  the GROUND-TRUTH writelog (libsidplayfp runs the real CPU). Sibling of C4
+  (localize a divergence via memwatch); both replace a py65 limitation with a
+  libsidplayfp observation.
+- **Status:** logged (DMC v4 CIA multispeed rate, 2026-06-25).
+- **Boundary:** works when the parameter is OBSERVABLE in the write timing /
+  memory. CIA multispeed rate: count play()s per PAL frame from
+  `--writelog-per-irq --per-irq-debug` (`nentries`/frame, `base`=abs PHI1
+  clock), round N to the integer factor, latch = 19656/N − 1 (the exact
+  canonical $2663=2x / $1331=4x). The rounding makes it robust (N within 0.01).
+- **Consumers:** DMC v4 `factory._cia_period_from_writelog` (commit 2114f21 —
+  67 py65-unreadable cia_multispeed members → 56 build, +20 FULL).
