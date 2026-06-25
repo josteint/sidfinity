@@ -243,11 +243,14 @@ def _attempt_model(m, sid, dur, orig_wl, title='bp'):
     fd, up = tempfile.mkstemp(suffix='.usf'); os.close(fd)
     fd, sp = tempfile.mkstemp(suffix='.sid'); os.close(fd)
     try:
-        write_file(usf, up)
-        sid_bytes = build_psid(usf_to_model(parse_file(up)))
-        with open(sp, 'wb') as fo:
-            fo.write(sid_bytes)
-        r = compare_instruction_stream(orig_wl, writelog_capture(sp, 0, dur), skip_init=False)
+        try:
+            write_file(usf, up)
+            sid_bytes = build_psid(usf_to_model(parse_file(up)))
+            with open(sp, 'wb') as fo:
+                fo.write(sid_bytes)
+            r = compare_instruction_stream(orig_wl, writelog_capture(sp, 0, dur), skip_init=False)
+        except Exception:                              # degenerate model (e.g. empty voices)
+            return ('build_fail', 0, 0, 0, None, None)
     finally:
         for p in (up, sp):
             if os.path.exists(p): os.unlink(p)
