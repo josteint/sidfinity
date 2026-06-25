@@ -7,6 +7,65 @@ metadata:
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
 ---
 
+## ✅✅ SESSION 2 cont. (2026-06-26): FAMILY-1 4048 (74.9%) + FAMILY-2 2216 (76.7%) + V5 CIA infra
+Three more deltas after the family-1 +39 below. Full `tools/regression.py` GREEN
+(0 regressed across Hubbard/Companion/C64ME/Jay_Derrett/FC/DMC/Basic_Program).
+
+1. **CLOSE-TAIL CIA TOLERANCE (commit 73058a9, family-1 +13 FULL).** The CIA
+   per-IRQ verdict failed genuine FULLs on a duration-cutoff BOUNDARY artifact:
+   the rebuild's shorter universal-reset init shifts where the last play() lands
+   at the songlength*1.1 capture cutoff, so it logs a few extra TAIL play()s.
+   That tail delta scales with the multispeed factor N (cutoff straddles ~N
+   play()s), so the flat `close_tol=176` (calibrated for 1x) rejected 4x tunes
+   whose tail runs to ~770. FIX: `compare_instruction_stream` gained a
+   `close_tol` param (default 176 → non-DMC unchanged); `dmc_family_batch` scales
+   `close_tol = max(176, 256*N)` for CIA subtunes (N = play()s/PAL-frame measured
+   from the per-IRQ capture). **PLAYBACK-SAFETY GATE (user condition "guaranteed
+   no playback risk"):** a recovery past the base 176 is accepted ONLY if
+   `r['audio_guaranteed']` — state_match + full play overlap + BOTH init
+   boundaries canonical (gates-off + freq-0), which the
+   `verify_cycle.init_boundary_is_canonical` docstring FORMALLY PROVES gives
+   identical audio. DMC init is canonical (clears SID, sets only test bits) so
+   audio_guaranteed≡is_full for DMC. VALIDATED: Works_Music (tail 636) +
+   It_Really_Is_Snowing (tail 773) recover audio-guaranteed; Double_Drive (tail
+   85 BUT play_full=False = a real within-song divergence) correctly NOT
+   recovered → the gate is selective + safe (my raw census of "24 close-tail"
+   was an over-count; the real recoverable set is the play_full ones). Re-ran the
+   67 CIA + 40 wave-pool members: +13 FULL, 0 regressions. NB the V5 batch does
+   NOT yet have this gate (port `dmc_v5_family_batch` if V5 CIA close-tails matter
+   — but V5 CIA mostly re-buckets to note_out_of_range/wave_table_overflow).
+
+2. **FAMILY-2 DRIFT RECOVERY (+332 FULL → 2216/2889, 76.7%).** Family-2's last
+   batch was 2026-06-14; 12 days of SHARED extract/composer fixes (resting-voice,
+   off-table, wave-pool dedup, etc.) landed since in code family-2 also uses, but
+   its non-FULL were never re-verified. Re-ran the 1005 non-FULL through the
+   (unchanged-interface) `dmc_family_batch` with current code → 332 now FULL
+   (partial/unsup/err → full), 0 regressions. Mass-written (332, 0 err) +
+   db-refreshed. This was NOT new code — pure re-verification drift recovery.
+   LESSON: after a wide-family fix wave, RE-RUN sister families' non-FULL — they
+   silently accrue the shared-code gains. (Family-2 has only 1 cia_multispeed
+   member, so this was drift, NOT the CIA work.) Authoritative jsonl:
+   tmp/dmc_f2_merged.json (re-run = tmp/dmc_f2_rerun.jsonl).
+
+3. **V5 CIA-MULTISPEED PORT (commit db49b51, infra; low immediate FULL yield).**
+   V5 had NO CIA infra (composer = VBI-only, no cia_period). 7-file port of the
+   ledger-C9 mechanism: composer_v5 programs CIA1 timer A in init + sets PSID
+   speed bit; cia_period threads config→V5Model→USF params→from_usf; factory
+   `_cia_period_from_writelog` (same as v4) + fallback at the cia_multispeed
+   rejection; `dmc_v5_family_batch` captures speed-bit subtunes per-IRQ. ALL
+   ADDITIVE — cia_period=0 byte-identical (Katusha canary FULL; the 1041 V5 FULLs
+   safe). The 39 V5 cia_multispeed members now build+verify per-IRQ but mostly
+   RE-BUCKET to compounding issues (note_out_of_range / wave_table_overflow /
+   unknown sector cmd) → ~0-few immediate FULL (ledger C5 "detection ≠ FULL").
+   Durable infra; the V5 wave_table_overflow is the C8 dedup's V5 analog (a
+   follow-on port to composer_v5). Results: tmp/dmc_v5_cia_results.jsonl.
+
+SESSION-2 TOTAL: family-1 3996→4048 (+52), family-2 1884→2216 (+332). DMC total
+sidfinity builds up ~+384. NEXT (all diminishing/per-cause): family-1 freq tail
+(heterogeneous), wave-pool suffix-overlap (3), nonstandard_instr_base (11),
+V5 composer_v5 wave dedup + CIA downstream, family-2 residue (offtable_live
+architectural ~512).
+
 ## ✅✅ FAMILY-1: 4035/5401 FULL (74.7%, 2026-06-25 session 2) — +39: wave-pool dedup +5, CIA writelog-rate +20, palimpsest re-verify +14
 THREE deltas, all committed + mass-written (4035 .usf+.sidfinity.sid, 0 err) + db-refreshed (hvsc84.csv commit 355a785):
 
