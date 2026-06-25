@@ -46,7 +46,7 @@ gained `transposes` / `voiceincs` / `repeats` (each optional, parallel to
 — operand (pattern id) first, then homogeneous `<op><param>` modifiers:
 *b=repeats(plays), +c=transpose(semitones, FC non-negative 0-31),
 ^d=voiceinc. Operators are plain single chars (clean under LALR). See
-[[reference_usf_v2_format]].
+[[reference_usf_format]].
 
 - **transpose** = pitch transpose (FC `$80-$FF` toneadd, `& $1F`, added to
   freq-table index; non-negative). Baking it inflates pool past FC's

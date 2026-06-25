@@ -77,4 +77,4 @@ explicitly — there's one place to look.
 
 - [[feedback_usf_representation_principle]] — Rule 2 is what drove this
 - [[project_companion_principled_usf]] — Phase 1 (Companion strains)
-- [[project_usf2_refactor]] — the broader USF v2 effort
+- [[project_usf_refactor]] — the broader USF effort

@@ -1,17 +1,17 @@
 ---
 name: migrate-hubbard-engine
-description: Migrate a Rob Hubbard 1985-era SID engine to the shared USF2 core (pipelines/hubbard/) and produce a byte-exact rebuild. Use when starting work on a new Hubbard engine — Human Race, Hunter Patrol, Thing on a Spring, One Man and His Droid, etc. Encodes the procedure proven on Commando, Devils Galop, Monty, Action Biker and Chimera.
+description: Migrate a Rob Hubbard 1985-era SID engine to the shared USF core (pipelines/hubbard/) and produce a byte-exact rebuild. Use when starting work on a new Hubbard engine — Human Race, Hunter Patrol, Thing on a Spring, One Man and His Droid, etc. Encodes the procedure proven on Commando, Devils Galop, Monty, Action Biker and Chimera.
 argument-hint: [engine-name]
 user-invocable: true
 allowed-tools: Bash Read Write Edit Glob Grep Agent
 effort: max
 ---
 
-# Migrate the $ARGUMENTS engine to USF2
+# Migrate the $ARGUMENTS engine to USF
 
 Goal: `$ARGUMENTS` plays back **byte-exact** — every subtune's per-frame
 SID-register-write stream matches the original — through the pipeline
-SID → extract → USF2 → codegen → rebuilt SID, on the shared Hubbard '85
+SID → extract → USF → codegen → rebuilt SID, on the shared Hubbard '85
 core at `pipelines/hubbard/`.
 
 Ten engines are already done this way (Commando, Devils Galop,
@@ -97,7 +97,7 @@ from pipelines.build_from_usf import build_from_usf
 from pipelines.hubbard.inst_program import capture, REG_NAMES
 from pipelines.hubbard.verify import subtune_frames
 from pipelines.<engine>.config import CFG
-from pipelines.<engine>.extract.to_usf_v2 import write_<engine>_usf
+from pipelines.<engine>.extract.to_usf import write_<engine>_usf
 write_<engine>_usf(CFG, 'demo/hubbard')
 build_from_usf('demo/hubbard/<Engine>.usf', 'demo/hubbard/<Engine>.sid')
 def fmt(fw): return ' '.join(f'{["V1","V2","V3"][p//7]}.{REG_NAMES[p%7]}={v:02X}' for p,v in fw) or '-'
@@ -292,7 +292,7 @@ where Y wraps high, suspect these knobs first** — the existing
 - **digi** — genuine cycle-timed sample playback (e.g. Chimera's
   `$C000` 1-bit wavetoggle, or `$D418` 4-bit PCM). The frame-granular
   `inst_program.capture` cannot verify it. **Digi is no longer a
-  boundary** — see [[reference_digi_pipeline]] for the USF2 digi
+  boundary** — see [[reference_digi_pipeline]] for the USF digi
   pipeline (D0..D3c done on Chimera): extract → Sample/FLAC sidecar
   → `pack_digi` → SID, verified cycle-strict via
   `siddump --writelog`. For a new engine whose extra subtunes are
@@ -316,7 +316,7 @@ where Y wraps high, suspect these knobs first** — the existing
   commit` — no `Co-Authored-By`.
 - `cp /tmp/<engine>.sid demo/hubbard/<Engine>.sid` and `git add -f` it
   (the showcase pair: `<Engine>_original.sid` + `<Engine>.sid`).
-- Update `project_<engine>.md`, `project_usf2_refactor.md`, `MEMORY.md`
+- Update `project_<engine>.md`, `project_usf_refactor.md`, `MEMORY.md`
   and `docs/usf_instrument_program_plan.md` (the Phase 6.2 checklist).
 - **Evolve this skill** — see below.
 

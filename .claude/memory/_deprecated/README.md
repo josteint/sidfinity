@@ -5,7 +5,7 @@ they no longer load on session start. Source preserved for archaeology.
 
 ## Categories
 
-**Pre-USF-v2 era (Lean codegen, Grade A counting, das_model):**
+**Pre-USF era (Lean codegen, Grade A counting, das_model):**
 - `project_das_model.md` — Lean 4 verified compiler architecture
 - `project_pipeline_status.md` — Grade A status from before byte-exact
 - `project_hubbard_strategy_2026_05.md` — pre-byte-exact "generalize das_model_gen" strategy
@@ -30,7 +30,7 @@ they no longer load on session start. Source preserved for archaeology.
 - `project_toneporta_bug.md`
 
 **Completed migration / refactor phases (superseded by current code):**
-- `project_usf2_refactor.md` — USF v2 refactor; superseded by composer dissolution
+- `project_usf_refactor.md` — USF refactor; superseded by composer dissolution
 - `project_usf3.md` — references deleted `usf3_build_from_usf.py`; "v3" terminology no longer used
 - `project_pipelines_layout.md` — duplicates CLAUDE.md's layout section; some paths outdated
 - `project_hubbard_principled_usf.md` — Phase 2 mechanism-fields-to-engine_constants migration

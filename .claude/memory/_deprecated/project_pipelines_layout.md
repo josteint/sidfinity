@@ -1,6 +1,6 @@
 ---
 name: pipelines-layout-2026-05-27
-description: "Current pipelines/ layout after the USF v2 reorg. Hubbard '85 engines under pipelines/hubbard/<engine>/; companion separate; deprecated paths sequestered."
+description: "Current pipelines/ layout after the USF reorg. Hubbard '85 engines under pipelines/hubbard/<engine>/; companion separate; deprecated paths sequestered."
 metadata: 
   node_type: memory
   type: project
@@ -62,7 +62,7 @@ original in the HVSC tree:
 ```
 hvsc84/MUSICIANS/H/Hubbard_Rob/
     Commando.sid               ← HVSC original, untouched
-    Commando.usf               ← our USF v2 export
+    Commando.usf               ← our USF export
     Commando.sidfinity.sid     ← our rebuild
     Chimera.sample2.flac       ← digi sidecars (chimera-style engines)
 ```

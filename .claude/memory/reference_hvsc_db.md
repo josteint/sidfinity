@@ -122,5 +122,5 @@ Companion:                26 (13 migrated, 13 built)
 
 ## Related
 
-- [[reference_usf_v2_format]] — the USF v2 format the `.usf` files use
+- [[reference_usf_format]] — the USF format the `.usf` files use
 - [[project_pipelines_layout]] — where the pipelines live

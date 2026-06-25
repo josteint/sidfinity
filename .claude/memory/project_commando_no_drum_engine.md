@@ -22,7 +22,7 @@ off-table space-saving trick as inst 7's octave arpeggio — see
 [[feedback_deconstruct_not_reproduce]]. The gritty percussive texture
 is a consequence of the short freq table, not a percussion engine.
 
-**Why this matters:** the [[project_usf2_refactor]] plan's Phase 5
+**Why this matters:** the [[project_usf_refactor]] plan's Phase 5
 ("the hard case") for SUBTUNE 0 is just "handle inst 4's off-table
 cross-voice reads + its inc_by2 effect" — a bounded task. The drum
 sub-engine genuinely never runs in the music subtunes (0/1/2).
@@ -39,7 +39,7 @@ mode $30, skip $C0), bytes 1-7 = V1 SID register block, bytes 8-14 =
 V2 block, byte 15 = sweep end index. byte 1 is aliased as both V1
 freq_lo and the sweep start index; byte 8 as both V2 freq_lo and the
 gate-flags/V2-offset. So a SFX = a 2-voice register snapshot + a
-freq-table pitch sweep. See [[project_usf2_refactor]] for the SFX
+freq-table pitch sweep. See [[project_usf_refactor]] for the SFX
 USF-representation plan.
 
 **How to apply:** when an instrument plays at a pitch >= 96, its freq

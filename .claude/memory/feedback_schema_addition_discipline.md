@@ -7,7 +7,7 @@ metadata:
   originSessionId: 0dddd211-01d5-48ea-b899-54adc79e22ae
 ---
 
-When a USF v2 schema addition feels imminent, **stop and follow the
+When a USF schema addition feels imminent, **stop and follow the
 checklist below**. Adding the wrong field, even temporarily, costs
 real time and leaves git-history cruft.
 

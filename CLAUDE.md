@@ -171,7 +171,7 @@ pipelines/
 
 Older paths live under `deprecated/`:
 - `deprecated/lean_codegen/` — the per-engine Lean 4 codegen
-- `deprecated/usf1_pipelines/` — engines that never migrated off USF v1
+- `deprecated/usf1_pipelines/` — engines that predate the current USF representation
 
 `tools/regression.py` runs the full pipeline regression (Hubbard +
 companion). Use it as the verdict after any composer change.
@@ -436,7 +436,7 @@ python `duckdb` module is NOT installed/used. Ad-hoc:
 pipelines/              active engines — hubbard/ (Hubbard '85 family) + companion/
 src/                    USF shared source — usf/ (grammar + reader/writer),
                         hubbard_emu.py, effect_detect.py, songlengths.py,
-                        gt_parser.py, env.sh. Everything pre-USF-v2 moved
+                        gt_parser.py, env.sh. Everything pre-USF moved
                         to deprecated/<topic>/.
 docs/                   specifications and reference docs
 tools/                  build tools (xa65, siddump, libsidplayfp)
@@ -446,11 +446,11 @@ deprecated/             earlier project phases — see deprecated/<topic>/README
 
 ## Earlier workstreams (now under `deprecated/`)
 
-Pre-USF-v2 work lives in `deprecated/<topic>/` clusters, each with its
+Pre-USF work lives in `deprecated/<topic>/` clusters, each with its
 own README. The most relevant ones to know about:
 
 - `deprecated/gt2_pipeline/` — the GT2 / GoatTracker conversion pipeline
-  (static binary → USF v1) + bundled GoatTracker source distributions +
+  (static binary → the original pre-refactor USF) + bundled GoatTracker source distributions +
   the universal register-trace fallback
 - `deprecated/v2_codegen/` — the GT2-era per-song 6502 codegen (V2/V3
   + Z3 + GPU optimisers)
@@ -459,7 +459,7 @@ own README. The most relevant ones to know about:
 - `deprecated/lean_codegen/` — the original per-engine Lean 4 codegen
   + Lean formal-methods tools
 - `deprecated/usf1_pipelines/` — engines and helpers that never moved
-  off USF v1
+  off the original pre-refactor USF
 - `deprecated/sidxray/` — player reverse-engineering toolkit
 - `pipelines/<engine>/docs/` — per-engine research material (format
   specs, disassemblies, version differences). Created via the

@@ -1,5 +1,5 @@
 ---
-name: project_usf2_refactor
+name: project_usf_refactor
 description: Current plan — the USF instrument-as-program refactor. Supersedes the das_model_gen/Hubbard-discovery direction. GT2 work is deprecated.
 metadata: 
   node_type: memory
@@ -146,8 +146,8 @@ digi subtunes 2, 3 cycle-strict via siddump --writelog (the digi
 fix (PSID play 0 → follow the $0314/$0315 vector), the configurable
 arp period, AND the digi pipeline (D0..D3c, 2026-05-23).
 
-**USF v2 on-disk format (2026-05-24): LANDED — load-bearing.** A real
-`.usf` file format now exists ([[reference_usf_v2_format]]). The
+**USF on-disk format (2026-05-24): LANDED — load-bearing.** A real
+`.usf` file format now exists ([[reference_usf_format]]). The
 codegen reads only the USF + sidecar FLACs — no peek at the original
 SID. **All five migrated Hubbard '85 engines are on the USF-only path:
 Chimera, Devils Galop, Action Biker, Commando, Monty. 46/46 subtunes
@@ -165,7 +165,7 @@ time in five places (load_sid, decode_all, config.extract,
 config.resetspd, raw freq_bytes). "Always through USF" was a half-
 truth — the in-memory dataclasses flowed between extract and codegen,
 but the codegen also peeked at the binary as a silent safety net.
-With USF v2 on disk, gaps in the representation become parse errors
+With USF on disk, gaps in the representation become parse errors
 instead of silently working. User explicitly demanded this discipline
 on 2026-05-23.
 

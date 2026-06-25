@@ -1,21 +1,21 @@
 ---
 name: chimera-pipeline-state
-description: "Chimera — MIGRATED to USF2, all 4 subtunes (2 music + 2 digi) through USF; music frame-exact via py65, digi cycle-strict via writelog."
+description: "Chimera — MIGRATED to USF, all 4 subtunes (2 music + 2 digi) through USF; music frame-exact via py65, digi cycle-strict via writelog."
 metadata: 
   node_type: memory
   type: project
   originSessionId: 0dddd211-01d5-48ea-b899-54adc79e22ae
 ---
 
-Rob Hubbard's *Chimera* (1985 Firebird). USF2 demo SID:
+Rob Hubbard's *Chimera* (1985 Firebird). USF demo SID:
 `demo/hubbard/Chimera_original.sid` (12440 bytes; copy of
 `data/C64Music/MUSICIANS/H/Hubbard_Rob/Chimera.sid`).
 
-**USF2 status (2026-05-24): COMPLETE + on the USF-only pipeline.**
+**USF status (2026-05-24): COMPLETE + on the USF-only pipeline.**
 Chimera is `pipelines/chimera/config.py` on the shared Hubbard '85
-core + `pipelines/chimera/extract/to_usf_v2.py` adapter writing
+core + `pipelines/chimera/extract/to_usf.py` adapter writing
 `Chimera.usf` + `Chimera.sample{2,3}.flac` (see
-[[reference_usf_v2_format]]). All 4 subtunes pass verify_all:
+[[reference_usf_format]]). All 4 subtunes pass verify_all:
 
 - Music subtunes 0, 1: 6000/6000 frame-exact via py65.
 - Digi subtunes 2, 3: 108/108 + 138/138 writelog cycle-strict (when

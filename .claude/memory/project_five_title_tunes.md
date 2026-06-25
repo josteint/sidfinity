@@ -1,6 +1,6 @@
 ---
 name: project_five_title_tunes
-description: "5 Title Tunes — UNIFIED single-engine instruction-sequence exact (5/5 subtunes, 7950 bytes vs original 11849). One Hubbard '85 engine plays all 5 tunes via per-subtune runtime tables (params, ovseed, instrument-base, orderlist). Drove three codegen extensions: per-subtune engine params, per-subtune ovseed, USF v2 per-subtune params block. Replaces an earlier 5-engine compound (20836 bytes)."
+description: "5 Title Tunes — UNIFIED single-engine instruction-sequence exact (5/5 subtunes, 7950 bytes vs original 11849). One Hubbard '85 engine plays all 5 tunes via per-subtune runtime tables (params, ovseed, instrument-base, orderlist). Drove three codegen extensions: per-subtune engine params, per-subtune ovseed, USF per-subtune params block. Replaces an earlier 5-engine compound (20836 bytes)."
 metadata: 
   node_type: memory
   type: project
@@ -48,7 +48,7 @@ work_subs/sub_{0..4}.sid                         (5 standalone PSIDs)
     │
     ▼ v2/extract/engine_model.py — forked Chimera
     │
-    ▼ pipelines.hubbard.to_usf_v2.write_usf  ×5
+    ▼ pipelines.hubbard.to_usf.write_usf  ×5
     │
 demo/hubbard/5_Title_Tunes_{0..4}.usf            (5 USFs, one per sub)
     │
@@ -177,7 +177,7 @@ sub_0's first 3 insts → wrong PWM / freq / ctrl → silenced sub_1).
   3. Per-subtune ovseed via init-time copy — engine copies the
      selected sub's 18-byte ovseed into the `ovseed:` data block
      before the existing iniov loop runs.
-  4. USF v2 schema extension: `params { ... }` block inside a
+  4. USF schema extension: `params { ... }` block inside a
      music subtune. Optional; overrides engine-level params for
      that subtune.
   5. `inst_generalize` fix from yesterday (linear-PW with
@@ -185,7 +185,7 @@ sub_0's first 3 insts → wrong PWM / freq / ctrl → silenced sub_1).
 
 ## Related
 
-- [[project_usf2_refactor]] — overall USF v2 status (Phase 6.2 done +
+- [[project_usf_refactor]] — overall USF status (Phase 6.2 done +
   COMPOUND demonstrated + UNIFIED replaces compound).
 - [[reference_engine_image_verbatim]] — alternative path when an engine
   can't be parametrized; not used here (5TT was fully parametrizable).

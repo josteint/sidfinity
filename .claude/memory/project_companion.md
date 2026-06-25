@@ -61,7 +61,7 @@ with 32 bytes past `$8D` (the bytes the orig engine would read).
 shipped `.sid` is built from it alone (no binary access at build
 time, per the [[feedback_always_through_usf]] principle).
 
-USF v2 schema unchanged; Companion's music fits cleanly:
+USF schema unchanged; Companion's music fits cleanly:
 - 5 music subtunes, each with its own `params { ... }` + `init { ... }`
 - 15 instruments (5 subs × 3 voices, locked timbres with ctrl/pw/ad/sr)
 - Each voice: orderlist=[1] stop + 1 pattern (the song-proper rows)
@@ -112,6 +112,6 @@ games). Plus Vic Berry's 1988-89 tools.
 
 ## Related
 
-- [[project_usf2_refactor]] — overall pipeline status
+- [[project_usf_refactor]] — overall pipeline status
 - [[feedback_usf_representation_principle]] — when (if) to extend
-  USF v2 to cleanly represent Companion-shape engines.
+  USF to cleanly represent Companion-shape engines.

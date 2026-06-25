@@ -9,7 +9,7 @@ finishing an engine migration — pause and run the checklist:
 
 1. **Check ROI.** Is the current approach still the highest-value
    thing to do? The frontier shifts: early-project parser bugs gave
-   way to USF v2 design, which gave way to per-engine migrations,
+   way to USF design, which gave way to per-engine migrations,
    which gave way to the composer dissolution, etc. Always ask
    "is THIS still where my hour buys the most progress?"
 

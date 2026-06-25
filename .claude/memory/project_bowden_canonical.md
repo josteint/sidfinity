@@ -9,7 +9,7 @@ metadata:
 
 `pipelines/companion/bowden_canonical/` — second Companion engine
 strain after Hubbard's 1984 `pipelines/companion/` (Up_up_and_Away).
-**17 SIDs** in HVSC #84 instruction-sequence exact through the SID → USF v2 → SID
+**17 SIDs** in HVSC #84 instruction-sequence exact through the SID → USF → SID
 pipeline, BOTH at the per-frame snapshot level (md5 of $D400-$D418)
 AND at the cycle-strict instruction-stream level (siddump --writelog
 flat (reg,val) sequence comparison):
@@ -120,5 +120,5 @@ identity), via:
 - [[project_companion]] — sister strain (Hubbard 1984 Companion,
   pipelines/companion/, Up_up_and_Away instruction-sequence exact)
 - [[feedback_6502_mindset]] — the carry-leak class of bug
-- [[reference_usf_v2_format]] — USF v2 grammar; init_pos lives in
+- [[reference_usf_format]] — USF grammar; init_pos lives in
   subtune.params.fields since InitVoice fields are Hubbard-shaped

@@ -32,7 +32,7 @@ sparse memory would let its depth fade. Correct. The doc carries the
 depth; this memory only guarantees the doc gets opened.
 
 **How to apply:** treat the doc as binding for every effect-representation
-decision in [[project_usf2_refactor]] Phases 6–7. Related: the engine
+decision in [[project_usf_refactor]] Phases 6–7. Related: the engine
 holds *mechanism*, never an indexed library — the sibling of
 [[feedback_deconstruct_not_reproduce]] (reproduce the behaviour with
 clean code; discard the space-saving mechanism).

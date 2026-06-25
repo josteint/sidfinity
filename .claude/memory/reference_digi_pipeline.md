@@ -1,13 +1,13 @@
 ---
 name: reference_digi_pipeline
-description: "USF2 digi pipeline — extract → Sample/FLAC sidecar → pack → SID. Cycle-strict via siddump --writelog. First engine: Chimera (1-bit wavetoggle)."
+description: "USF digi pipeline — extract → Sample/FLAC sidecar → pack → SID. Cycle-strict via siddump --writelog. First engine: Chimera (1-bit wavetoggle)."
 metadata: 
   node_type: memory
   type: reference
   originSessionId: 0dddd211-01d5-48ea-b899-54adc79e22ae
 ---
 
-The USF2 digi support, phased D0..D5 in `docs/usf_digi_plan.md`.
+The USF digi support, phased D0..D5 in `docs/usf_digi_plan.md`.
 Phases D0..D3c are done (2026-05-23, commits 8052172..922f59c).
 
 ## Files

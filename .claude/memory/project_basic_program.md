@@ -1,6 +1,6 @@
 ---
 name: project_basic_program
-description: "Basic_Program family (486 RSID-BASIC tunes) — PRODUCTIONIZED round-trip: 137/486 FULL through real USF v2, mass-written + regression"
+description: "Basic_Program family (486 RSID-BASIC tunes) — PRODUCTIONIZED round-trip: 137/486 FULL through real USF, mass-written + regression"
 metadata: 
   node_type: memory
   type: project
@@ -37,7 +37,7 @@ writes from musical content.
 
 **Twinkle proof FULL (commits 3d58742 + 14c0158): SID→USF→SID, writelog 60/60 is_full=True + rhythm faithful.**
 `pipelines/basic_program/proof_twinkle.py`. Loop: capture → lift to (notes, per-tune freq_table,
-triangle instrument, init) → write+reparse a real `.usf` (USF v2) → build a MINIMAL DEDICATED
+triangle instrument, init) → write+reparse a real `.usf` (USF) → build a MINIMAL DEDICATED
 PSID player from the parsed USF → flat (reg,val) match + rhythm (inter-onset frame-gap) check.
 `docs/example_Twinkle.usf` is pure musical content (note names + durations + tuning), zero
 artifacts. Key generalizable findings:
@@ -88,8 +88,8 @@ this — both sides PSID, so the flat (reg,val) compare is bucketing-agnostic an
 **COVERAGE PROBE (commit b38da6a): 8/81 (10%) FULL** with the freq+gate lift. Dominant gap (~52%
 overlap_diverge, 23 on ctl regs) = the per-step writes are RICHER than freq+gate (per-note vol/accent
 e.g. Deutschlandlied vol=0F->08->06, per-note ADSR, gate-value/order variants, legato). All of it is
-MUSICAL (maps to USF v2 instruments/master_vol/etc.) -> the principled fix is a SEMANTIC richer lift
-into existing USF v2 (NOT generic per-step register-deltas = the [[feedback_no_writelog_replay]] trap,
+MUSICAL (maps to USF instruments/master_vol/etc.) -> the principled fix is a SEMANTIC richer lift
+into existing USF (NOT generic per-step register-deltas = the [[feedback_no_writelog_replay]] trap,
 NOT a bytes escape-hatch). Reuse deprecated `gt2_pipeline/converters/regtrace_to_usf.py` (~80% of the
 lift algorithm: freq_to_note_pal, gate-transition note boundaries, tempo). **PORT CAVEAT (user, do not
 forget): the old regtrace_to_usf consumes per-frame SNAPSHOTS (Trap A — loses within-frame order +
@@ -112,7 +112,7 @@ per-step voice-active MASK = the note pattern, emit only active slots) + #2 unsu
 once + freq-only; 1-phase attack-only steps, note boundary = freq change)** + too_few 8 + overlap_diverge
 3 (near-misses) + length_fail 2 (loop-detect miss). Rests+legato = ~62% of the sample -> handling both
 pushes coverage well past 50%. STILL proof-grade (no USF-file round-trip yet; productionize = map
-const->instrument / perstep-freq->notes / $D418->dynamics into USF v2 + regression).
+const->instrument / perstep-freq->notes / $D418->dynamics into USF + regression).
 
 **RESTS via per-register mask DONE (commit ad3b783): 22% -> 27% (Deutschlandlied FULL).**
 `_superset_templates`: superset register order (max-reg step), every step must = superset filtered to
@@ -155,12 +155,12 @@ jmp pl_chk after each fire), all 3 players. Toonypoo FULL. CORRECTNESS fix (fast
 e.g. Techno-Rock_Fugue, degenerate e.g. Bowling 6-step), not one clean fix. Session arc:
 10%->22%->27%->35%->40%->41%.
 
-**✅ PRODUCTIONIZE DONE — REAL USF v2 ROUND-TRIP: 137/486 (28.2%) FULL at full songlength, mass-written + regression.**
+**✅ PRODUCTIONIZE DONE — REAL USF ROUND-TRIP: 137/486 (28.2%) FULL at full songlength, mass-written + regression.**
 `pipelines/basic_program/usf_roundtrip.py` (`model_to_usf` / `usf_to_model` / `roundtrip` / `verify_usf`)
 + `family_batch.py` (full-songlength through-USF coverage + `--write` mass-write, resumable). The semantic
-model splits cleanly: pitch/rhythm/timbre/tuning are MUSICAL → real USF v2 (per-voice NoteRows pitch+duration,
+model splits cleanly: pitch/rhythm/timbre/tuning are MUSICAL → real USF (per-voice NoteRows pitch+duration,
 rests = silent voices, instruments = const waveform, freq_table = tuning); the non-musical per-tune WRITE
-MODEL (template slots + kind, init, loop, rho, start_frame) packs into USF v2 scalar `params {}` as ints
+MODEL (template slots + kind, init, loop, rho, start_frame) packs into USF scalar `params {}` as ints
 (bp_atk{i}=reg<<16|kind<<8|val, bp_init{i}, bp_loop_*, bp_rho_milli, bp_start_frame, bp_legato). build_psid
 reconstructs from the parsed .usf and reproduces the exact writelog. 137 `.usf` + `.sidfinity.sid` written
 next to HVSC originals; DB registers usf_path/sidfinity_md5 + pipeline=`pipelines/basic_program` (137);

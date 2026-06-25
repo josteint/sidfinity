@@ -38,5 +38,5 @@ between ~2.6 kHz and ~50-240 Hz every frame) and is part of Commando as
 shipped. The clean implementation does not overlap a table with state —
 it explicitly reads the other voices' note indices and writes them as
 freq. Same stream, no trick. inst 7 is therefore a genuinely
-cross-voice-coupled instrument; that is fine, the USF2 schema has
+cross-voice-coupled instrument; that is fine, the USF schema has
 `otherVoice*` references for exactly this.
