@@ -1025,15 +1025,34 @@ state_end:
               f'LEFT_FCLO = ${m.lo_fclo:02X}\n'
               f'LEFT_SPDCTR = ${m.lo_spdctr:02X}\n'
               f'LEFT_MVOLFRAC = ${m.lo_mvolfrac:02X}\n')
-    return consts + _ENGINE + '\n' + _emit_data(m) + '\n' + state
+    engine = _ENGINE
+    # CIA multispeed: when the original drives play() via a CIA1 timer (PSID
+    # speed bit set), program the SAME timer A latch in our init so libsidplayfp
+    # calls OUR play() at the identical rate. cia_period 0 = VBI (no-op).
+    cia_period = int(getattr(m, 'cia_period', 0)) & 0xFFFF
+    if cia_period:
+        consts += f'CIA_PERIOD = ${cia_period:04X}\n'
+        cia_init = ('        lda #<CIA_PERIOD\n'
+                    '        sta $dc04                ; CIA1 timer A lo (play rate)\n'
+                    '        lda #>CIA_PERIOD\n'
+                    '        sta $dc05                ; CIA1 timer A hi\n'
+                    '        lda #$11\n'
+                    '        sta $dc0e                ; start timer A, continuous\n')
+        engine = engine.replace(
+            '        sta playskip\n        rts',
+            '        sta playskip\n' + cia_init + '        rts')
+    return consts + engine + '\n' + _emit_data(m) + '\n' + state
 
 
 def build_v5_sid(m) -> bytes:
     from pipelines.dmc.composer_asm import _sanitize_asm
     code = assemble(_sanitize_asm(emit_v5_asm(m)))
     n_songs = len(m.subtunes) if m.subtunes else 1
+    # CIA multispeed: set the PSID speed bit for every subtune so libsidplayfp
+    # drives play() via the CIA1 timer A our init programs (cia_period 0 = VBI).
+    speed = ((1 << n_songs) - 1) if int(getattr(m, 'cia_period', 0)) else 0
     header = build_header(load=0, init=LOAD, play=LOAD + 3, songs=n_songs,
-                          start_song=1, speed=0, title=m.title,
+                          start_song=1, speed=speed, title=m.title,
                           author=m.author, released=m.released,
                           flags=FLAGS_PAL_6581)
     return header + bytes([LOAD & 0xFF, LOAD >> 8]) + code

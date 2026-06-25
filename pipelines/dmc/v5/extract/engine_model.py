@@ -84,6 +84,10 @@ class V5Model:
     # first FD+/FD- runs starts the master-vol ramp from this leftover phase
     # (off-by-one in $D418 vol otherwise). Unread until a fade is active.
     lo_mvolfrac: int = 0    # $101C fade fractional phase
+    # CIA multispeed timer A latch (0 = VBI). A wrapper member with the PSID
+    # speed bit runs play() off the CIA1 timer; the rate is measured from the
+    # ground-truth writelog in the factory (py65 can't run the wrapper init).
+    cia_period: int = 0
     title: str = ''
     author: str = ''
     released: str = ''
@@ -221,6 +225,7 @@ def extract(cfg, hvsc_root: str = 'hvsc84') -> V5Model:
         lo_fclo=mem[cfg.base + 0x17], lo_spdctr=mem[cfg.base + 0x13],
         lo_notes=[mem[cfg.base + 0x0F + i] for i in range(3)],
         lo_mvolfrac=mem[cfg.base + 0x1C],
+        cia_period=int(getattr(cfg, 'cia_period', 0)) & 0xFFFF,
         title=s.get('name', ''), author=s.get('author', ''),
         released=s.get('released', ''),
     )

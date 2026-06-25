@@ -381,7 +381,8 @@ def model_to_usf(m: V5Model, reach: int | None = None) -> UsfFile:
     return UsfFile(
         psid=PsidMeta(title=m.title, author=m.author, released=m.released,
                       start_song=1),
-        params=Params(),
+        params=Params(fields=({'cia_period': m.cia_period}
+                              if getattr(m, 'cia_period', 0) else {})),
         init=InitState(),
         instruments=instruments,
         subtunes=usf_subs,

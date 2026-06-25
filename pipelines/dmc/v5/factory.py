@@ -65,6 +65,43 @@ class DMCV5Unsupported(Exception):
         super().__init__(f'{reason}: {detail}' if detail else reason)
 
 
+def _cia_period_from_writelog(sid_path: str, subtune: int,
+                              dur: float = 3.0) -> int:
+    """Measure the multispeed CIA period from the GROUND-TRUTH writelog
+    (libsidplayfp) — V5's CIA wrapper members can't be run by py65. Same
+    method as the v4 factory (ledger C9): the player's IRQ fires every L+1
+    cycles, running N = 19656/(L+1) play()s per PAL frame; count play()s /
+    PAL-frames from `--writelog-per-irq --per-irq-debug`, round N to the
+    integer multispeed factor, return latch 19656/N - 1 (N=2 -> $2663,
+    N=4 -> $1331). Returns 0 if not measurable / single-speed."""
+    import subprocess
+    import re
+    sd = os.path.join(os.path.dirname(__file__), '..', '..', '..',
+                      'tools', 'siddump')
+    try:
+        out = subprocess.run(
+            [sd, sid_path, '--writelog-per-irq', '--per-irq-debug',
+             '--duration', str(dur), '--subtune', str(subtune)],
+            capture_output=True, text=True, timeout=90).stderr
+    except Exception:
+        return 0
+    frames = []
+    for line in out.splitlines():
+        m = re.search(r'frame=\d+ base=(\d+) nentries=(\d+)', line)
+        if m:
+            frames.append((int(m.group(1)), int(m.group(2))))
+    if len(frames) < 20:
+        return 0
+    total = sum(f[1] for f in frames)
+    span = frames[-1][0] - frames[0][0]
+    if span <= 0:
+        return 0
+    n = round(total / (span / 19656.0))
+    if n < 2:
+        return 0
+    return 19656 // n - 1
+
+
 _REF = None         # full (init+play) reachable-instruction reference
 _PLAY_REF = None    # play-ONLY reachable reference (init excluded)
 
@@ -308,12 +345,19 @@ def dmc_v5_config(sid_path: str, hvsc_root: str = 'hvsc84') -> DMCV5Config:
     # ---- CIA multispeed: a wrapper member (play vector not the jump table)
     #      whose PSID speed bit is set runs from a CIA-timer dispatcher; the
     #      V5 verify is VBI-only, so flag it. ----
+    cia_period = 0
     if s['play'] != jt_addr + 3 and (s.get('speed', 0) & 1):
-        raise DMCV5Unsupported('cia_multispeed', f"play=${s['play']:04X}")
+        # Wrapper member driven by the CIA1 timer (py65 can't run its init).
+        # Measure the rate from the ground-truth writelog (libsidplayfp); the
+        # composer programs the same timer + the V5 batch verifies per-IRQ.
+        cia_period = _cia_period_from_writelog(
+            os.path.join(hvsc_root, sid_path), s['start'] - 1)
+        if not (0x0100 <= cia_period <= 0xFFFF):
+            raise DMCV5Unsupported('cia_multispeed', f"play=${s['play']:04X}")
 
     d = DMCV5Config(sid_path=sid_path,
                     name=os.path.splitext(os.path.basename(sid_path))[0],
-                    base=base)
+                    base=base, cia_period=cia_period)
     # play-body operand sites relocate with the base; the orderlist site is
     # read from the (possibly relocated/wrapped) init's actual load operand.
     for f in ('op_secp_lo', 'op_secp_hi', 'op_instr', 'op_freq_lo',

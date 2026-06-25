@@ -36,6 +36,7 @@ class DMCV5Config:
     op_pulse_hi: int = 0x13C7    # pulse-table arg HI ($19BF)
     op_filter_lo: int = 0x13F0   # filter-table arg LO ($19C6)
     op_filter_hi: int = 0x13F6   # filter-table arg HI ($19C7)
+    cia_period: int = 0          # CIA1 timer A latch for multispeed (0 = VBI)
 
 
 KATUSHA = DMCV5Config(sid_path='DEMOS/G-L/Katusha.sid', name='katusha')

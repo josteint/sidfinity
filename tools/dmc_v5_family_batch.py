@@ -43,9 +43,11 @@ def run_member(rel: str) -> dict:
         from pipelines.dmc.v5.factory import dmc_v5_config, DMCV5Unsupported
         from pipelines.dmc.v5.verify_v5 import build_from_cfg
         from pipelines.hubbard.verify_cycle import (
-            writelog_capture, compare_instruction_stream)
+            writelog_capture, writelog_per_irq_capture,
+            compare_instruction_stream)
         from src.songlengths import get_durations
         from seed_disassembly import parse_psid
+        import struct
 
         hvsc = os.path.join(ROOT, 'hvsc84')
         try:
@@ -61,14 +63,21 @@ def run_member(rel: str) -> dict:
         try:
             durs = get_durations(orig, _db)
             n = parse_psid(orig)['songs']
+            # PSID speed bits (offset $12): a set bit => that subtune runs off
+            # the CIA1 timer (multispeed). Capture those PER play() (Trap C for
+            # CIA — the flat per-frame capture phases init+play differently for
+            # orig vs a rebuild with a different init length).
+            speed = struct.unpack('>I', open(orig, 'rb').read()[0x12:0x16])[0]
             subs = {}
             ok = True
             first_diff = None
             for sub in range(n):
                 dur = (durs[sub] if durs and sub < len(durs) else 110) * 1.1
                 dur = max(5.0, min(dur, 1500.0))
-                a = writelog_capture(orig, subtune=sub, duration=dur)
-                b = writelog_capture(tmp, subtune=sub, duration=dur)
+                cia = bool(speed & (1 << sub)) if sub < 32 else bool(speed & 1)
+                cap = writelog_per_irq_capture if cia else writelog_capture
+                a = cap(orig, subtune=sub, duration=dur)
+                b = cap(tmp, subtune=sub, duration=dur)
                 r = compare_instruction_stream(a, b, mode='trichotomy')
                 subs[sub] = [bool(r['is_full']), r['play_match'],
                              r['play_overlap']]
