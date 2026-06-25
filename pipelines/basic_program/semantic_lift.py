@@ -541,8 +541,14 @@ def build_psid(model, title='probe'):
         asm = build_player_masked(model)
     else:
         asm = build_player(model)
+    # Clock flag MUST match the original: siddump drives play() at the header's
+    # rate (PAL 50Hz / NTSC 60Hz), so a PAL rebuild of an NTSC tune gets through
+    # less music per second -> overlap-exact but a short (truncated-prefix) stream.
+    clock_bits = {'PAL': 1, 'NTSC': 2}.get(model.get('clock'), 1)
+    flags = (clock_bits << 2) | (1 << 4)               # clock bits 2-3 + 6581 (bit 4)
     return build_header(load=LOAD, init=LOAD, play=LOAD+3, songs=1, start_song=1,
-                        speed=0, title=title, author='x', released='x') + assemble(asm)
+                        speed=0, title=title, author='x', released='x',
+                        flags=flags) + assemble(asm)
 
 def verify(sid_rel, dur=20.0, title='probe'):
     from pipelines.hubbard.verify_cycle import writelog_capture, compare_instruction_stream
