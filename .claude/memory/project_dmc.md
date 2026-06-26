@@ -50,31 +50,36 @@ and ENCODING-specific state (wavepos) need separate work. Adding a map row for a
 NON-byte-identical variable would REGRESS FULLs that read that idx via the static capture
 — so every new row needs byte-identity verification first.
 
-## 🧱 RESIDUE IS IDIOSYNCRATIC — NO COHERENT CLUSTERS (2026-06-26 session 3, CONFIRMED)
-Re-verified all 1089 partials with current code (tmp/dmc_partial_reverify.jsonl). Deep-
-dived 5 representatives (Rodney, For_Insider_1, Presentation, NOFX_tune_2, Technoland_2)
-+ censused first-divergence buckets. CONCLUSION: the family-1 residue (1089 partials) is
-a HARD, IDIOSYNCRATIC LONG TAIL — each member has its OWN root cause (off-table state /
-glide-vibrato accumulator drift / gate-off timing / wrong-voice-sequencing / cymbal value
-/ wrong note). ~80% are FREQ divergences but they do NOT form fixable clusters.
-**CRITICAL METHODOLOGY LESSON: the first-divergence REGISTER is NOT a cluster key.** The
-"SR cluster" (~11 members, reg $0D V2 SR $00->$41) looked systematic but Technoland_2's V2
-is TOTALLY wrong from frame 1 (orig ctrl=$61 playing, rebuild ctrl=$0C test-held) — the SR
-is just the FIRST reg that differs in a member whose whole V2 is mis-sequenced. Likewise
-"offtable freq" buckets mix true state-reads with glide/vibrato drift. Clustering by
-flat_div reg/value OVER-PROMISES; the real cause needs a per-member trajectory dive.
-**ONE SYSTEMATIC FIX FOUND (commit 202ce45): cymbal noise-burst value.** The cymbal writes
-an immediate to $D400/$D401 (canon $FFFF); a few demos PATCH the operand (Presentation
-$DF). Composer hardcoded $FF -> now extracts it (`_cymbal_burst_byte`, layout-independent
-regex) into params.cymbal_burst (gated cb!=$FF => 5399 members byte-identical, zero
-regression). Only 1 family-1 member patched ($DF), but it's the right "extract-don't-
-hardcode" form. Presentation 0/1 -> FULL.
-IMPLICATION: pushing family-1 past ~75% is a per-MEMBER slog (~1 member/fix), not a few
-levers. Highest-yield remaining: the bit-exact freq-accumulator (vibrato/glide) arithmetic
-— it's added to EVERY freq write ($1735/$1738), so getting it byte-exact could flip many
-at once (the one place a systematic win might still exist). Off-table redirect = built but
-modest. Next concrete: re-verify mass-write after the census; then attack vibrato/glide
-accumulator precision as the candidate systematic lever.
+## ✅ RESIDUE IS SYSTEMATIC, NOT IDIOSYNCRATIC (2026-06-26 session 3 — corrected by user)
+I first (WRONGLY) concluded the residue was a per-member idiosyncratic slog, having
+clustered by the FIRST-DIVERGENCE REGISTER (a misleading key — Technoland_2 showed as
+"V2 SR" but its real bug is V2 mis-sequencing). The USER pushed back: family-1 is ONE
+well-defined player (5400/5401 byte-identical cymbal code — composers did NOT fork it),
+so the bugs are in OUR composer/extract handling of SHARED features; fix one => unlock
+many. THE USER WAS RIGHT. Lesson: cluster by ROOT-CAUSE FEATURE, never the first-div reg;
+and don't call a residue idiosyncratic until you've clustered by cause, not symptom.
+**OFF-TABLE READS ARE THE PROOF — they read the engine's SHARED STATE BLOCK ($1707-$17A6).**
+Census of WHICH variable each off-table partial reads (tmp/ot_fast.py — orig-only:
+flat_div pos -> frame via writelog -> memwatch; DISAMBIGUATE with the lo+hi PAIR, a single
+byte value matches many addrs): the reads are systematic but spread, led by basefreq (15),
+then accum/glide/pw/transp/dur/vibrato-state. Mapping the EXACTLY-TRACKING state in the
+read-redirect (composer_asm.DMC_OFFTABLE_STATE, now 25 vars: transp/fbl/fbh/accl/acch/dur/
+glsp/gla/glb/pend/pwl/pwh + pwphase/pwdir/vibdir/vibctr/rampctr/vibdel/vibwid/cvram/wctrl/
+vstep/vsteph/slal/slah) recovers them with ZERO regression (the composer maintains these
+byte-identically, so the redirect == the static capture for FULLs, > it for partials).
+Focused tests: TIER1+2 = 9/17 recovered 0 regress; +TIER3 = 10/22 recovered 0 regress,
+30/30 FULLs held. Commits 1ab8c46 + 331d11c. **Generator gotchas:** omit `cpy #256` when a
+range runs to idx 255; the long redirect overran `bne ws_drum` -> invert+jmp.
+**STILL RESIDUE (the genuine hard tail, NOT idiosyncratic but harder):** (a) ENCODING-
+specific state — wavepos/sectorpos/trkptr live in the ORIG's encoding the composer
+flattened differently, so they don't track byte-identically (mapping them WOULD regress);
+needs an orig-faithful shadow. (b) undocumented $171E/$174D/$178F bytes. (c) cleared $1789
+($00, never written by composer). (d) glide/vibrato drift that diverges on a SPECIFIC late
+event (For_Insider_1 frame 6521), not gradual — the freq-accum arithmetic itself MATCHES
+orig (verified glide HI-byte-arrival + triangle-vibrato accumulate). Also commit 202ce45:
+cymbal noise-burst value extracted (Presentation $DF; 1 member, the rare genuine 1-off).
+NEXT: full re-verify (tmp/dmc_ot_reverify.jsonl) -> count + mass-write; then the
+encoding-specific state (orig-faithful wavepos/sector shadow) as the next systematic tier.
 
 ## 🔬 FAMILY-1 GRIND (2026-06-26): residue is the hard tail; SONG-EXACT lever = +32 (pending verdict ratification)
 Exhaustive per-cause grind of the 1121 partials. KEY OUTCOMES:
