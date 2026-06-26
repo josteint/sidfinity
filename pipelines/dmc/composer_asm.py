@@ -64,9 +64,24 @@ NOTE_IDX = {n: i for i, n in enumerate(
 ORIG_FLO = 0x1647   # original freqlo table base (FIXED, code-addressed)
 ORIG_FHI = 0x16A7   # original freqhi table base (FIXED)
 
-# (orig_state_addr, composer_label, n_bytes)
+# (orig_state_addr, composer_label, n_bytes). Each must track BYTE-IDENTICALLY
+# with the orig (a non-identical row regresses FULLs that read it via the static
+# capture). The set below is the EXACTLY-TRACKING per-voice musical state the
+# composer maintains; encoding-specific state (wavepos/sectorpos/trkptr) and
+# undocumented bytes are deliberately NOT mapped (they don't track identically).
 DMC_OFFTABLE_STATE = [
-    (0x173B, 'dur', 3),    # per-voice duration counter (DEC per tick)
+    (0x172C, 'transp', 3),   # transpose (signed semitones)
+    (0x172F, 'fbl', 3),      # base freq lo (note table lookup) — most-read
+    (0x1732, 'fbh', 3),      # base freq hi
+    (0x1735, 'accl', 3),     # freq offset accumulator lo (vibrato/glide)
+    (0x1738, 'acch', 3),     # freq offset accumulator hi
+    (0x173B, 'dur', 3),      # per-voice duration counter (DEC per tick)
+    (0x1741, 'glsp', 3),     # glide speed nibble
+    (0x1744, 'gla', 3),      # glide start note
+    (0x1747, 'glb', 3),      # glide target note
+    (0x174A, 'pend', 3),     # new-note pending flag
+    (0x1750, 'pwl', 3),      # pulse width lo
+    (0x1753, 'pwh', 3),      # pulse width hi
 ]
 
 
@@ -86,11 +101,15 @@ def _gen_offtable_redirect(state_map, orig_base, win_min, static_load,
         if off < win_min or off + nb > 256:
             continue                     # not in this read's off-table window
         nxt = f'{store_label}_n{i}'
+        # upper-bound check is unnecessary when the range runs to idx 255
+        # (off+nb == 256): idx is a byte, so `cpy #256` is both invalid and
+        # always-in-range. Emit only the lower bound there.
+        upper = ('' if off + nb >= 256 else
+                 f'        cpy #{off + nb}\n        bcs {nxt}\n')
         parts.append(
             f'        cpy #{off}\n'
             f'        bcc {nxt}\n'
-            f'        cpy #{off + nb}\n'
-            f'        bcs {nxt}\n'
+            + upper +
             f'        lda {label}-{off},y          ; live {label} (off-table)\n'
             f'        jmp {store_label}\n'
             f'{nxt}:')
@@ -1220,7 +1239,9 @@ fx_vib_c:
 wavestep:
         lda fxf,x
         and #$01                     ; drum mode?
-        bne ws_drum
+        beq ws_notdrum               ; (jmp: ws_drum is past the off-table redirect)
+        jmp ws_drum
+ws_notdrum:
 ws_rd0:
         ldy wavepos,x
         lda wctab,y
