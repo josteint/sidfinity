@@ -364,6 +364,11 @@ def compose_dmc_asm(usf: UsfFile) -> str:
     # (canon — frame 1); 1 = one frame later (family 2 — frame 2, gated
     # by the post-note guard). A musical timing parameter of the effect.
     cymbal_onset = int(usf.params.fields.get('cymbal_onset', 0)) & 1
+    # cymbal noise-burst freq value: the immediate written to $D400/$D401 for
+    # the gated-noise attack. Canon is $FFFF (LDA #$FF), but the value is an
+    # extracted per-member operand — a few demos patch it (e.g. Presentation's
+    # $DF) for a different noise timbre. Read from the binary, default $FF.
+    cymbal_burst = int(usf.params.fields.get('cymbal_burst', 0xFF)) & 0xFF
     # vibrato swell mechanism (two builds of the same engine ramp the
     # triangle differently): 'width' (canon) holds a fixed per-note step
     # (the $1888 VIBDEPTH table) and DOUBLES the half-cycle width as it
@@ -517,7 +522,7 @@ def compose_dmc_asm(usf: UsfFile) -> str:
     # note-init cymbal (canon onset 0) vs frame-2 cymbal (family-2 onset 1)
     _cym_burst = (
         '        ldy sidoff,x\n'
-        '        lda #$FF\n'
+        f'        lda #${cymbal_burst:02X}\n'
         '        sta $d400,y\n'
         '        sta $d401,y\n'
         '        lda #$81\n'

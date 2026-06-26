@@ -357,6 +357,19 @@ def frames_clear_adsr(frames) -> bool:
     return False
 
 
+def _cymbal_burst_byte(path: str):
+    """The immediate operand of the cymbal noise-burst write (LDA #imm; STA
+    $D400,y; STA $D401,y; LDA #$81; STA $D404,y). Canon is $FF; a few demos
+    patch it for a different noise timbre (e.g. Presentation's $DF). Read from
+    the file image so it is layout-independent. None if the pattern is absent."""
+    import re
+    data = open(path, 'rb').read()
+    doff = int.from_bytes(data[6:8], 'big')
+    m = re.search(rb'\xa9(.)\x99\x00\xd4\x99\x01\xd4\xa9\x81\x99\x04\xd4',
+                  data[doff:])
+    return m.group(1)[0] if m else None
+
+
 def dmc_v4_config(sid_path: str, hvsc_root: str = 'hvsc84') -> DMCV4Config:
     """Primary canonical-layout build; on a moved-layout rejection, fall back
     to the layout-independent dataflow extractor (pipelines.dmc.v4.dataflow).
@@ -366,14 +379,18 @@ def dmc_v4_config(sid_path: str, hvsc_root: str = 'hvsc84') -> DMCV4Config:
     reusing its orig capture (see frames_clear_adsr); a bounded factory probe
     false-negatives on late-gate-off members and regresses FULLs."""
     try:
-        return _build_via_canon(sid_path, hvsc_root)
+        cfg = _build_via_canon(sid_path, hvsc_root)
     except DMCV4Unsupported as e:
         if e.reason not in _DATAFLOW_RETRY:
             raise
         cfg = _build_via_dataflow(sid_path, hvsc_root)
         if cfg is None:
             raise
-        return cfg
+    # extracted per-member cymbal noise-burst value (canon $FF; rare patches)
+    cb = _cymbal_burst_byte(os.path.join(hvsc_root, sid_path))
+    if cb is not None and cb != 0xFF:
+        cfg.extra_params['cymbal_burst'] = cb
+    return cfg
 
 
 def _build_via_dataflow(sid_path: str, hvsc_root: str):
