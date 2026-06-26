@@ -42,6 +42,64 @@ NOTE_IDX = {n: i for i, n in enumerate(
 
 
 # ---------------------------------------------------------------------------
+# Off-table read-redirect (CORE TENET technique; USF carries nothing extra)
+# ---------------------------------------------------------------------------
+# The wave step rebases a freq-table index as wftab[pos] + curnote. When the
+# result exceeds the 96-entry table it overshoots freqlo/freqhi ($1647/$16A7)
+# into the engine's live STATE region ($1707-$17A6), so the read SONIFIES a
+# live variable (e.g. idx 244 = $173B = the per-voice duration counter). Our
+# composer reproduces the write by reading its OWN byte-identical live variable
+# instead of a static window byte.
+#
+# This is the Move-1-unifiable form (filter 3, feedback_three_filters): a
+# SHARED generator (_gen_offtable_redirect) consumes a per-engine DATA map
+# (idx -> composer state variable). The composer's state layout stays uniform;
+# the per-engine difference is the map alone — NOT a layout-mirror that would
+# couple the composer's memory map to each engine.
+#
+# To extend: add (orig_addr, composer_label, n_bytes) rows as members surface
+# reads hitting other live state. The variable must track byte-identically
+# (counters/ptrs/pos); DRIFTING accumulators (freq/PW) need the composer
+# arithmetic made bit-exact first. Map derived from pipelines/dmc/v4/disassembly.s.
+ORIG_FLO = 0x1647   # original freqlo table base (FIXED, code-addressed)
+ORIG_FHI = 0x16A7   # original freqhi table base (FIXED)
+
+# (orig_state_addr, composer_label, n_bytes)
+DMC_OFFTABLE_STATE = [
+    (0x173B, 'dur', 3),    # per-voice duration counter (DEC per tick)
+]
+
+
+def _gen_offtable_redirect(state_map, orig_base, win_min, static_load,
+                           store_label):
+    """Emit the wave-step off-table redirect for one read (lo or hi).
+
+    For each state variable whose table index (orig_addr - orig_base) lands in
+    the off-table window [win_min, 255], emit a range check that reads our live
+    variable; else fall through to ``static_load``. Y holds the rebased index.
+    Returns asm text; the caller places the ``store_label:`` that the in-range
+    branches jmp to. Engine-blind — reused per engine with its own map."""
+    parts = []
+    i = 0
+    for addr, label, nb in state_map:
+        off = addr - orig_base
+        if off < win_min or off + nb > 256:
+            continue                     # not in this read's off-table window
+        nxt = f'{store_label}_n{i}'
+        parts.append(
+            f'        cpy #{off}\n'
+            f'        bcc {nxt}\n'
+            f'        cpy #{off + nb}\n'
+            f'        bcs {nxt}\n'
+            f'        lda {label}-{off},y          ; live {label} (off-table)\n'
+            f'        jmp {store_label}\n'
+            f'{nxt}:')
+        i += 1
+    parts.append(f'        {static_load}')
+    return '\n'.join(parts)
+
+
+# ---------------------------------------------------------------------------
 # USF -> internal song model
 # ---------------------------------------------------------------------------
 
@@ -513,6 +571,13 @@ def compose_dmc_asm(usf: UsfFile) -> str:
             '        lda vibwid,x                 ; swell: width doubles\n'
             '        asl\n'
             '        sta vibwid,x')
+
+    # Off-table read-redirect (per-engine map -> shared generator). lo reads
+    # hit state for idx 192-255; hi reads for idx 96-255.
+    ws_lo_redirect = _gen_offtable_redirect(
+        DMC_OFFTABLE_STATE, ORIG_FLO, 192, 'lda freqlo,y', 'ws_rd_los')
+    ws_hi_redirect = _gen_offtable_redirect(
+        DMC_OFFTABLE_STATE, ORIG_FHI, 96, 'lda freqhi,y', 'ws_rd_his')
 
     return f"""
 SLIDE_PHASE = ${slide_phase:02X}
@@ -1169,29 +1234,13 @@ ws_rd:
         clc
         adc curnote,x                ; semitone offset -> table rebase
         tay
-        ; OFF-TABLE READ-REDIRECT (PoC): the original's freqlo[idx] for idx in
-        ; the engine state region sonifies a LIVE variable (idx 244-246 =
-        ; $173B-D = the per-voice duration counter). Reproduce the write by
-        ; reading our OWN live dur counter instead of the static window byte.
-        ; idx->variable map is engine knowledge (composer-side), USF unchanged.
-        cpy #244
-        bcc ws_rd_lo
-        cpy #247
-        bcs ws_rd_lo
-        lda dur-244,y                ; live duration counter (tracks exactly)
-        jmp ws_rd_los
-ws_rd_lo:
-        lda freqlo,y
+        ; OFF-TABLE READ-REDIRECT: off-table indices sonify live engine state
+        ; ($1707-$17A6); reproduce by reading our own byte-identical variable.
+        ; Generated from DMC_OFFTABLE_STATE (composer-side map; USF unchanged).
+{ws_lo_redirect}
 ws_rd_los:
         sta fbl,x
-        cpy #148                     ; hi-read of the dur counter ($173B-D via
-        bcc ws_rd_hi                 ; freqhi+148): the C6 twin of the lo read
-        cpy #151
-        bcs ws_rd_hi
-        lda dur-148,y                ; live duration counter (hi read)
-        jmp ws_rd_his
-ws_rd_hi:
-        lda freqhi,y
+{ws_hi_redirect}
 ws_rd_his:
         sta fbh,x
         inc wavepos,x
