@@ -108,14 +108,27 @@ def model_to_usf(model, title='bp'):
     rel = [_vfix(e) for e in model['rel_template']]
     voices = sorted({v for e in atk + rel if (v := e[3])})
     steps = model['steps']
-    # freq value per (voice, step) from the step's attack writes; None = rest
-    def vfreq(s, vc):
-        d = dict(s['attack']); hi, lo = FHI[vc], FLO[vc]
-        if hi in d and lo in d:
-            return (d[hi] << 8) | d[lo]
-        return None
+    # Effective (running) freq per step/voice. A voice may write only the CHANGED
+    # freq byte (stateful freq) — the note's pitch is (running hi, running lo).
+    # Active = wrote a freq byte (None = no freq this step; timbre-only / re-trigger
+    # steps are handled elsewhere). Full-freq tunes are unchanged (both bytes every note).
+    eff = []
+    run_hi = {}; run_lo = {}
+    for r, v in model['init']:
+        for vc in voices:
+            if r == FHI[vc]: run_hi[vc] = v
+            elif r == FLO[vc]: run_lo[vc] = v
+    for s in steps:
+        d = dict(s['attack']); row = {}
+        for vc in voices:
+            wh, wl = FHI[vc] in d, FLO[vc] in d
+            if wh: run_hi[vc] = d[FHI[vc]]
+            if wl: run_lo[vc] = d[FLO[vc]]
+            row[vc] = ((run_hi[vc] << 8) | run_lo[vc]) \
+                if ((wh or wl) and vc in run_hi and vc in run_lo) else None
+        eff.append(row)
     # per-tune lossless freq alphabet (distinct freq -> unique freq_table slot)
-    allfreqs = {fq for s in steps for vc in voices if (fq := vfreq(s, vc)) is not None}
+    allfreqs = {fq for row in eff for fq in row.values() if fq is not None}
     slotmap = _assign_slots(allfreqs)
     if slotmap is None:
         raise ValueError('too_many_pitches')
@@ -160,7 +173,7 @@ def model_to_usf(model, title='bp'):
         hold = max(1, (off - on)) if (gated and off is not None) else max(1, nxt - on)
         gap = max(1, nxt - off) if (gated and off is not None) else 1
         for vc in voices:
-            f = vfreq(s, vc)
+            f = eff[k][vc]
             if f is None:
                 # timbre-only step: the voice writes a perstep-timbre reg but no note
                 # (instrument setup for an upcoming note). Carry the instrument on the
@@ -206,8 +219,10 @@ def model_to_usf(model, title='bp'):
               'bp_init_n': len(model['init'])}
     for i, (reg, val) in enumerate(model['init']):
         fields[f'bp_init{i}'] = (reg << 8) | (val & 0xFF)
-    def _kind(e):                                      # kind 2 = from instrument
-        return 2 if (e[3], e[0]) in inst_slots else (0 if e[1] == 'const' else 1)
+    def _kind(e):                                      # kind 2 = from instrument (perstep timbre only)
+        if e[1] == 'perstep' and (e[3], e[0]) in inst_slots:
+            return 2
+        return 0 if e[1] == 'const' else 1             # a CONST timbre slot stays const
     for i, e in enumerate(atk):
         fields[f'bp_atk{i}'] = (e[0] << 16) | (_kind(e) << 8) | ((e[2] or 0) & 0xFF)
     for i, e in enumerate(rel):
@@ -216,8 +231,8 @@ def model_to_usf(model, title='bp'):
     # per-step activity (e.g. a per-note $D418 re-poke). Store explicit masks
     # only when that derivation would be wrong (Ahoy-class minority).
     need_masks = False
-    for s in steps:
-        act = {vc for vc in voices if vfreq(s, vc) is not None}
+    for k, s in enumerate(steps):
+        act = {vc for vc in voices if eff[k][vc] is not None}
         da = sum(1 << i for i, e in enumerate(atk) if e[3] is None or e[3] in act)
         dr = sum(1 << i for i, e in enumerate(rel) if e[3] is None or e[3] in act)
         if da != s.get('atk_mask', da) or dr != s.get('rel_mask', dr):
