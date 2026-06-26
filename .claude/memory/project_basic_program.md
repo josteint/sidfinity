@@ -1,6 +1,6 @@
 ---
 name: project_basic_program
-description: "Basic_Program family (486 RSID-BASIC tunes) — PRODUCTIONIZED round-trip: 187/486 (38.5%) FULL through real USF, mass-written + regression"
+description: "Basic_Program family (486 RSID-BASIC tunes) — PRODUCTIONIZED round-trip: 192/486 (39.5%) FULL through real USF, mass-written + regression"
 metadata: 
   node_type: memory
   type: project
@@ -214,12 +214,31 @@ deeper variants: precedence cycles, or split-then-still-variable) + too_few_afte
 dynamics/instrument-param representation) + overlap_diverge 45 + length_fail 26 (loop-period) + build_fail 9
 (mostly vibrato too_many_pitches). 1 digi (Black_Box_V8_Demo) → Mode 2.
 
-**NEXT (highest-leverage first):** (1) not_clean (53, now the biggest lever — NOT FULL today; the lift models
-them but USF can't yet carry their per-note non-pitch content. FULL keeps its exact meaning: rebuilt-from-USF
-SID emits the same writelog as the original. These reach FULL once USF represents the extra content — map perstep
-$D418→dynamics / per-tick ctrl+PW→instrument params; the arp split surfaced many). (2) the remaining arp/dup
-(96 variable_template+legato_variable — precedence cycles + deeper variants). (3) length_fail loop-period (26 —
-`_find_loop` miss/slightly-off; some degenerate). (4) vibrato too_many_pitches (raise/rethink the 96-slot freq
-alphabet, or parametric vibrato). Iterate via `family_batch.py` (resumable, `--write` to mass-write); per-cause
-probes live in `tmp/` (lf_probe / lf_timeline / arp_struct / arp_frames). Survey raw:
-`tmp/basic_program_research/survey.jsonl`.
+**✅ PER-NOTE INSTRUMENTS (Phase 1) + SONG-END LOOP FIX (2026-06-26): 187→192 FULL, not_clean 53→27, 0 regr.**
+PRINCIPLED + SCHEMA-FREE: per-note per-voice TIMBRE (waveform/ad/sr/pulse-width) = a per-note INSTRUMENT change,
+represented by a finite set of USF `Instrument`s selected by `NoteRow.instr` (Rule 2: instrument = const musical
+content; the engine holds mechanism). The note's instrument = its RUNNING/effective timbre (engine re-writes a
+reg only when it changes — the stateful case, captured by the existing per-step mask). ctrl→waveform[0],
+ad/sr→adsr, pw→pwm.init. is_clean now rejects only perstep GLOBAL regs (filter $D415-17 / master-vol $D418 = NOT
+per-voice instrument props → Phase 2). Three integration fixes were the actual unblock (the player/lift, not the
+representation): (a) **SONG-END detection** in build_model — if the WRITELOG goes silent well before the capture
+window (last_write < 0.85*window), the song plays ONCE → DON'T apply a spurious internal-phrase loop (`_find_loop`
+false positive) or the rebuild over-emits ~2× by replaying (Musette direct build 728 vs orig 339 → fixed). Use
+the last WRITE frame, NOT the last step (a tune that loops with a trailing gap still fills the window — Musichetta
+ratio 1.00). (b) the player only knows const/perstep, so usf_to_model RESOLVES inst slots into each step's writes
+then presents them as plain perstep. (c) **KIND-AWARE voice**: inst slots are voice-tied (REG_VOICE); const/
+perstep-freq keep the freq-only voice (VOICE_OF) so a non-freq CONST (e.g. V2 ctrl written every step) stays
+VOICELESS = always-present — fixes a Musichetta-class regression where const V2 ctrl got wrongly voice-gated and
+skipped on V2 rests. Musette/Frogs/Musichetta FULL. Canary: Musette (portfolio, 10 members).
+
+**RESIDUE (294): not_clean 27** (remaining: rest-step timbre writes = build_fail ~20 [timbre POKEd on a step with
+no note → no instrument home; inst_val raises]; + perstep GLOBAL filter/vol = Phase 2) + **arp/dup 96**
+(variable_template 67 + legato_variable 29 — precedence cycles + deeper variants) + too_few 68 (degenerate/short)
++ overlap_diverge 47 + length_fail 25 (loop-period) + build_fail (vibrato too_many_pitches). 1 digi → Mode 2.
+
+**NEXT (highest-leverage first):** (1) **rest-step timbre** (the build_fail ~20 — a timbre write on a no-note step;
+needs attaching the timbre to the NEXT note's instrument, or a standalone register-poke event). (2) Phase 2:
+perstep GLOBAL filter ($D415-17) + master-vol ($D418) = per-note dynamics/filter — chip-global, NOT instrument
+props, needs a representation decision (MasterVolConfig / SweepEnvelope / new musical field — schema-discipline).
+(3) length_fail loop-period (25). (4) the remaining arp/dup (96). Iterate via `family_batch.py`; per-cause probes
+in `tmp/` (notclean_probe / arp_struct / lf_*). Survey raw: `tmp/basic_program_research/survey.jsonl`.

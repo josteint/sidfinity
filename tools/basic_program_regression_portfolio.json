@@ -9,6 +9,7 @@
     {"sid": "DEMOS/Commodore/Golden_Brown_BASIC.sid", "dur": 40.7, "feat": "freq-collision alphabet (coll=2) long"},
     {"sid": "DEMOS/A-F/American_Flag_BASIC.sid", "dur": 42.0, "feat": "NTSC clock flag (60Hz capture rate)"},
     {"sid": "GAMES/G-L/Head_Coach_BASIC.sid", "dur": 15.0, "feat": "arpeggio (split into per-tick freq sub-steps)"},
-    {"sid": "DEMOS/S-Z/Xmas-Card_BASIC.sid", "dur": 15.0, "feat": "consistent intra-step dup (unsplit derive_template; guards the split regression)"}
+    {"sid": "DEMOS/S-Z/Xmas-Card_BASIC.sid", "dur": 15.0, "feat": "consistent intra-step dup (unsplit derive_template; guards the split regression)"},
+    {"sid": "MUSICIANS/V/Vogel_James/Musette_BASIC.sid", "dur": 47.3, "feat": "per-note instruments (running timbre via NoteRow.instr) + song-end (no false loop)"}
   ]
 }
