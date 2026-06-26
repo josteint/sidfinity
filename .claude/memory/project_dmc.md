@@ -7,6 +7,38 @@ metadata:
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
 ---
 
+## 💡 OFF-TABLE FLOOR IS SOLVABLE (2026-06-26) — NOT a fundamental limit (corrects an earlier wrong claim)
+I earlier (wrongly) called the off-table dynamic reads a fundamental ceiling that
+needs reversing the no-state-mirroring principle. WRONG — two corrections from the
+user: (1) the CORE TENET is a PERMISSIVE filter (use ANY runtime technique for
+writelog equality, INCLUDING reproducing the original's techniques); "not a
+blueprint" = "not OBLIGATED to mirror", not "forbidden". The RESTRICTIVE filter is
+the USF PRINCIPLES, and they constrain only the USF SCHEMA (ML-optimality), not the
+composer runtime. (2) StateLayoutMirror is NOT the only way, and done right it does
+NOT hurt the USF.
+**THE INSIGHT:** off-table reads (freqlo/freqhi[idx], idx>95) sonify the engine's
+OWN LIVE STATE in $1707-$17A6 (e.g. idx 244 = $173B = the per-voice DURATION COUNTER,
+which the composer computes BYTE-IDENTICALLY — proven). Reproduce the write by having
+the composer read its OWN live variable. The idx->variable map is COMPOSER-SIDE engine
+knowledge (from the disasm), so the USF is UNCHANGED — in fact we can later DELETE the
+static `Instrument.offtable_freq` captured bytes (the C7 content-by-reference pattern)
+=> CLEANER USF. So this is ML-POSITIVE.
+**✅ VALIDATED (PoC in composer_asm.py ws_rd):** redirect freqlo[244-246]/freqhi[148-150]
+to the live `dur` counter. Intro_Music_1 match prefix 2 -> 34 (V1 dur lo-read) -> 186
+(V3 dur hi-read, the C6 twin: freqlo+244 == freqhi+148). Canary Geometrical_Zaks stays
+FULL (the redirect always emits the orig's value, so no FULL can regress). Each redirect
+fixes one read + reveals the next state variable — exactly as predicted.
+**THE CLEAN GENERAL FORM:** the window region freqlo+192.. == freqhi+96.. maps 1:1 onto
+the orig state block $1707-$17A6. Lay the composer's OWN per-voice state out at those
+offsets => freqlo[idx]/freqhi[idx] AUTO-ALIAS the right live variable, NO special-case
+code, and the C6 dual-read falls out free. That's the elegant build (a layout reorg)
+vs my hardcoded-range PoC. CAVEAT: this fixes reads hitting EXACTLY-TRACKING state
+(dur/speed counters, ptrs, pos, transpose — the silent-voice floor). Reads hitting
+DRIFTING state (freq/PW accumulators $1735/$1750) also need the composer's arithmetic
+made bit-exact first — a separate per-effect fix. NEXT: build the full layout-mirror (or
+generalized read-redirect) + delete the static offtable_freq captures it subsumes. This
+DISSOLVES the ~74% off-table residue into ordinary work — family-1 can go well past 75%.
+
 ## 🔬 FAMILY-1 GRIND (2026-06-26): residue is the hard tail; SONG-EXACT lever = +32 (pending verdict ratification)
 Exhaustive per-cause grind of the 1121 partials. KEY OUTCOMES:
 

@@ -1169,9 +1169,30 @@ ws_rd:
         clc
         adc curnote,x                ; semitone offset -> table rebase
         tay
+        ; OFF-TABLE READ-REDIRECT (PoC): the original's freqlo[idx] for idx in
+        ; the engine state region sonifies a LIVE variable (idx 244-246 =
+        ; $173B-D = the per-voice duration counter). Reproduce the write by
+        ; reading our OWN live dur counter instead of the static window byte.
+        ; idx->variable map is engine knowledge (composer-side), USF unchanged.
+        cpy #244
+        bcc ws_rd_lo
+        cpy #247
+        bcs ws_rd_lo
+        lda dur-244,y                ; live duration counter (tracks exactly)
+        jmp ws_rd_los
+ws_rd_lo:
         lda freqlo,y
+ws_rd_los:
         sta fbl,x
+        cpy #148                     ; hi-read of the dur counter ($173B-D via
+        bcc ws_rd_hi                 ; freqhi+148): the C6 twin of the lo read
+        cpy #151
+        bcs ws_rd_hi
+        lda dur-148,y                ; live duration counter (hi read)
+        jmp ws_rd_his
+ws_rd_hi:
         lda freqhi,y
+ws_rd_his:
         sta fbh,x
         inc wavepos,x
         jmp sidwrite
