@@ -162,7 +162,16 @@ def model_to_usf(model, title='bp'):
         for vc in voices:
             f = vfreq(s, vc)
             if f is None:
-                vrows[vc].append(NoteRow(pitch=Pitch.rest(), duration=hold))
+                # timbre-only step: the voice writes a perstep-timbre reg but no note
+                # (instrument setup for an upcoming note). Carry the instrument on the
+                # rest row so the timbre write resolves; the stored mask emits only the
+                # timbre regs (no freq). Voices that wrote a PARTIAL freq stay plain rests.
+                if vc in inst_voices and any(r in dict(s['attack']) for r in pt[vc]) \
+                        and FHI[vc] not in dict(s['attack']) and FLO[vc] not in dict(s['attack']):
+                    vrows[vc].append(NoteRow(pitch=Pitch.rest(), duration=hold,
+                                             instr=InstrumentRef(id=note_instr(vc, s))))
+                else:
+                    vrows[vc].append(NoteRow(pitch=Pitch.rest(), duration=hold))
             else:
                 slot = slotmap[f]; nm, octv = _slot_pitch(slot)
                 ftab[slot] = (f >> 8) & 0xFF; ftab[128 + slot] = f & 0xFF
