@@ -28,16 +28,53 @@ to the live `dur` counter. Intro_Music_1 match prefix 2 -> 34 (V1 dur lo-read) -
 (V3 dur hi-read, the C6 twin: freqlo+244 == freqhi+148). Canary Geometrical_Zaks stays
 FULL (the redirect always emits the orig's value, so no FULL can regress). Each redirect
 fixes one read + reveals the next state variable — exactly as predicted.
-**THE CLEAN GENERAL FORM:** the window region freqlo+192.. == freqhi+96.. maps 1:1 onto
-the orig state block $1707-$17A6. Lay the composer's OWN per-voice state out at those
-offsets => freqlo[idx]/freqhi[idx] AUTO-ALIAS the right live variable, NO special-case
-code, and the C6 dual-read falls out free. That's the elegant build (a layout reorg)
-vs my hardcoded-range PoC. CAVEAT: this fixes reads hitting EXACTLY-TRACKING state
-(dur/speed counters, ptrs, pos, transpose — the silent-voice floor). Reads hitting
-DRIFTING state (freq/PW accumulators $1735/$1750) also need the composer's arithmetic
-made bit-exact first — a separate per-effect fix. NEXT: build the full layout-mirror (or
-generalized read-redirect) + delete the static offtable_freq captures it subsumes. This
-DISSOLVES the ~74% off-table residue into ordinary work — family-1 can go well past 75%.
+**THE CLEAN GENERAL FORM = PARAMETRIC READ-REDIRECT, *not* layout-mirror.** I first
+thought the elegant build was a layout-mirror (lay the composer's state at freqlo+192..
+== freqhi+96.. so reads AUTO-ALIAS). The user's Move-1 question (filter 3,
+[[feedback_three_filters]]) CORRECTED this: the layout-mirror COUPLES the composer's
+memory layout to each engine — 50 engines = 50 layouts, doesn't unify. The unifiable
+form is a per-engine DATA map (idx->state-variable) + a SHARED generator; the composer's
+state layout stays uniform. "Elegant for one engine ≠ unifiable for fifty."
+**✅ BUILT (commit 932d528):** `_gen_offtable_redirect` (engine-blind generator) +
+`DMC_OFFTABLE_STATE` map in composer_asm.py. Behaviour-preserving (single dur row =
+byte-identical to the PoC). Grows by adding `(orig_addr, label, n)` rows.
+**BUT — REACH IS MODEST (measured 2026-06-26):** re-verifying the 1089 partials with the
+dur-counter redirect recovered only ~6/505 (~1%). Most off-table reads do NOT hit the
+easy dur counter: (a) many hit HARD state — Rodney idx 212 = $171B filter-def-index (lo)
++ $177B V2-wavepos (hi); wavepos is in the ORIG's wave ENCODING, which the composer does
+NOT track byte-identically, so the redirect can't read it without an orig-encoding shadow.
+(b) the "offtable freq" census bucket is CONTAMINATED with glide/vibrato accumulator drift
+(For_Insider_1 frame 6521 = no off-table state byte matches; it's arithmetic). CAVEAT
+stands: redirect only fixes EXACTLY-TRACKING state; DRIFTING accumulators ($1735/$1750)
+and ENCODING-specific state (wavepos) need separate work. Adding a map row for a
+NON-byte-identical variable would REGRESS FULLs that read that idx via the static capture
+— so every new row needs byte-identity verification first.
+
+## 🧱 RESIDUE IS IDIOSYNCRATIC — NO COHERENT CLUSTERS (2026-06-26 session 3, CONFIRMED)
+Re-verified all 1089 partials with current code (tmp/dmc_partial_reverify.jsonl). Deep-
+dived 5 representatives (Rodney, For_Insider_1, Presentation, NOFX_tune_2, Technoland_2)
++ censused first-divergence buckets. CONCLUSION: the family-1 residue (1089 partials) is
+a HARD, IDIOSYNCRATIC LONG TAIL — each member has its OWN root cause (off-table state /
+glide-vibrato accumulator drift / gate-off timing / wrong-voice-sequencing / cymbal value
+/ wrong note). ~80% are FREQ divergences but they do NOT form fixable clusters.
+**CRITICAL METHODOLOGY LESSON: the first-divergence REGISTER is NOT a cluster key.** The
+"SR cluster" (~11 members, reg $0D V2 SR $00->$41) looked systematic but Technoland_2's V2
+is TOTALLY wrong from frame 1 (orig ctrl=$61 playing, rebuild ctrl=$0C test-held) — the SR
+is just the FIRST reg that differs in a member whose whole V2 is mis-sequenced. Likewise
+"offtable freq" buckets mix true state-reads with glide/vibrato drift. Clustering by
+flat_div reg/value OVER-PROMISES; the real cause needs a per-member trajectory dive.
+**ONE SYSTEMATIC FIX FOUND (commit 202ce45): cymbal noise-burst value.** The cymbal writes
+an immediate to $D400/$D401 (canon $FFFF); a few demos PATCH the operand (Presentation
+$DF). Composer hardcoded $FF -> now extracts it (`_cymbal_burst_byte`, layout-independent
+regex) into params.cymbal_burst (gated cb!=$FF => 5399 members byte-identical, zero
+regression). Only 1 family-1 member patched ($DF), but it's the right "extract-don't-
+hardcode" form. Presentation 0/1 -> FULL.
+IMPLICATION: pushing family-1 past ~75% is a per-MEMBER slog (~1 member/fix), not a few
+levers. Highest-yield remaining: the bit-exact freq-accumulator (vibrato/glide) arithmetic
+— it's added to EVERY freq write ($1735/$1738), so getting it byte-exact could flip many
+at once (the one place a systematic win might still exist). Off-table redirect = built but
+modest. Next concrete: re-verify mass-write after the census; then attack vibrato/glide
+accumulator precision as the candidate systematic lever.
 
 ## 🔬 FAMILY-1 GRIND (2026-06-26): residue is the hard tail; SONG-EXACT lever = +32 (pending verdict ratification)
 Exhaustive per-cause grind of the 1121 partials. KEY OUTCOMES:
