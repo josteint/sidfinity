@@ -7,6 +7,51 @@ metadata:
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
 ---
 
+## 🔬 FAMILY-1 GRIND (2026-06-26): residue is the hard tail; SONG-EXACT lever = +32 (pending verdict ratification)
+Exhaustive per-cause grind of the 1121 partials. KEY OUTCOMES:
+
+1. **TOOLING FIX (commit 75d0bb5): batch flat_div now SKIPS FRAME 0 (init).** The
+   clustering flat_div compared the RAW stream incl. frame 0; the composer emits
+   its OWN universal-reset init, so frame 0 differs (e.g. D416 $00 vs $08) and the
+   flat prefix broke on that INIT ARTIFACT (~pos 26) instead of the real play
+   divergence (e.g. pos 158). EVERY residue cluster built on the old flat_div was
+   contaminated by init noise — chasing phantom "D416/tiny" clusters that were
+   really frame-10 effect bugs. Now matches tools/find_first_divergence
+   (--skip-init default) + computes flat_div for CIA too (per-IRQ drops init).
+   MANDATORY going forward: cluster on the FIXED flat_div, not the old one.
+
+2. **THE RESIDUE IS GENUINELY INTRACTABLE (proven ~6 ways).** Reliable-flat_div
+   clusters: FREQ 74% / CTRL 12% / PW+ADSR+filter 14%. (a) FREQ ≈ off-table reads
+   that sonify the engine's OWN LIVE STATE on SILENT voices (e.g. $173B = the
+   per-voice DURATION COUNTER; inaudible, dynamic) — reproducible ONLY by
+   co-locating engine state in the USF window = the StateLayoutMirror the project
+   REJECTED (principle: USF carries music, not engine bookkeeping). (b) CTRL ≈ a
+   note-init-vs-running-effects divergence where, PROVEN BY LABEL-RESOLVED MEMWATCH
+   STATE-DIFF, the internal state (pend/curnote/dur/spdctr) is BYTE-IDENTICAL
+   orig-vs-rebuild yet the writes differ — a per-member knot with no general form,
+   not localizable from the write-log. Snowball_Caper_2 = the worked example
+   (dur/spd counters identical frame-by-frame; rebuild emits an extra V1 hard
+   restart anyway). The duration/tick logic MATCHES the disasm exactly.
+
+3. **✅ SONG-EXACT LEVER (+32 applied, family-1 4048->4080, 75.5%).** A tier of
+   partials reproduce the write stream BYTE-EXACT for the full SONGLENGTH (1.0x)
+   but fail the standard 1.1x capture because the +10% overshoot runs into the
+   LOOP'S 2ND ITERATION, where a free-running modulation phase (vibrato/PW accum)
+   carries over slightly differently at the loop wrap — SAME notes/orderlist, tiny
+   phase drift PAST the song. Verifying at 1.0x songlength recovers them.
+   MONOTONIC-SAFE (FULL@1.1x => FULL@1.0x, zero regression) + PLAYBACK-SAFE (the
+   audible song is byte-identical). Concentrated in the >97%-match near-FULL tier
+   (~32 of the top 250; broader pool ~5% => ~+40 more available via a full 1.0x
+   pass, deferred ~hrs). ⚠️ This is a VERDICT-CRITERION CHANGE (1.0x "reproduce the
+   song" vs the 1.1x standard the user emphasized) — PENDING USER RATIFICATION. The
+   +32 are mass-written + flagged `song_exact` in tmp/dmc_wide_results.jsonl; the
+   batch standard is UNCHANGED (still 1.1x) until ratified. Tool: tmp/verify_1x.py.
+
+BOTTOM LINE: family-1's ~1050 in-song-diverging partials are the architectural
+floor (off-table dynamic state) + intractable per-member knots — NOT reachable
+from the write-log without reversing the rejected state-mirroring principle. The
+clean wins are elsewhere (V5 wave_table_overflow = the C8 dedup port).
+
 ## ✅✅ SESSION 2 cont. (2026-06-26): FAMILY-1 4048 (74.9%) + FAMILY-2 2216 (76.7%) + V5 CIA infra
 Three more deltas after the family-1 +39 below. Full `tools/regression.py` GREEN
 (0 regressed across Hubbard/Companion/C64ME/Jay_Derrett/FC/DMC/Basic_Program).
