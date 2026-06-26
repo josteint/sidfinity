@@ -15,25 +15,52 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 sys.path.insert(0, ROOT); sys.path.insert(0, os.path.join(ROOT, 'src'))
 from src.usf import (UsfFile, PsidMeta, Params, InitState, InitSid, Instrument,
                      MusicSubtune, VoiceBlock, Pattern, NoteRow, Orderlist,
-                     Pitch, InstrumentRef, write_file, parse_file)
+                     Pitch, InstrumentRef, PwmConfig, write_file, parse_file)
 from pipelines.basic_program.semantic_lift import build_model, build_psid, FREQ as _F
 from pipelines.basic_program import semantic_lift as S
 
 FREQ = {0x00, 0x01, 0x07, 0x08, 0x0e, 0x0f}
 FHI = {1: 0x01, 2: 0x08, 3: 0x0f}; FLO = {1: 0x00, 2: 0x07, 3: 0x0e}
-VOICE_OF = {0x00: 1, 0x01: 1, 0x07: 2, 0x08: 2, 0x0e: 3, 0x0f: 3}
 NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
 
+# Per-voice register map. Per-note variation in a voice's TIMBRE regs
+# (ctrl=waveform / ad / sr / pulse-width) = a per-note INSTRUMENT change (USF
+# Instrument + NoteRow.instr) — schema-free, principle Rule 2. GLOBAL regs
+# (filter $D415-17, master-vol $D418) are NOT per-voice instrument properties
+# -> deferred to Phase 2.
+REG_VOICE = {}; REG_FIELD = {}
+for _v, _base in ((1, 0), (2, 7), (3, 14)):
+    for _off, _f in enumerate(['flo', 'fhi', 'pwlo', 'pwhi', 'ctrl', 'ad', 'sr']):
+        REG_VOICE[_base + _off] = _v; REG_FIELD[_base + _off] = _f
+VOICE_OF = {r: REG_VOICE[r] for r in FREQ}
+TIMBRE = {r for r, f in REG_FIELD.items() if f in ('ctrl', 'ad', 'sr', 'pwlo', 'pwhi')}
+GLOBAL_REGS = {0x15, 0x16, 0x17, 0x18}     # filter + master vol — Phase 2
+
+
+def _perstep_timbre(model):
+    """{voice: sorted [perstep timbre regs]} — the per-note instrument fields."""
+    pt = {}
+    for tmpl in (model['atk_template'], model['rel_template']):
+        for reg, kind, *_ in tmpl:
+            if kind == 'perstep' and reg in TIMBRE:
+                pt.setdefault(REG_VOICE[reg], set()).add(reg)
+    return {vc: sorted(rs) for vc, rs in pt.items()}
+
+
 def is_clean(model):
-    """True iff every perstep register is a freq register (pitch-only variation)."""
+    """Round-trippable iff no perstep GLOBAL reg (filter $D415-17 / master-vol $D418
+    — Phase 2). Per-note pitch -> NoteRow pitch; per-note per-voice TIMBRE
+    (waveform/ad/sr/pw) -> NoteRow.instr (the note's running/effective timbre; the
+    engine re-writes a reg only when it changes, captured by the per-step mask).
+    Global per-note changes have no instrument home -> deferred."""
     for tmpl in (model['atk_template'], model['rel_template']):
         for ent in tmpl:
-            if ent[1] == 'perstep' and ent[0] not in FREQ:
+            if ent[1] == 'perstep' and ent[0] in GLOBAL_REGS:
                 return False
     return True
 
-def _t4(ent):                                          # normalize 3/4-tuple template entry
-    return ent if len(ent) == 4 else (ent[0], ent[1], ent[2], VOICE_OF.get(ent[0]))
+def _t4(ent):                                          # normalize entry + authoritative voice
+    return (ent[0], ent[1], ent[2], REG_VOICE.get(ent[0]))  # semantic_lift voice_of is freq-only
 
 def _note_index(freq16):
     f = freq16 * 985248.0 / 16777216.0
@@ -69,8 +96,16 @@ def _assign_slots(freqs):
 
 # --------------------------------------------------------- model -> usf ----
 def model_to_usf(model, title='bp'):
-    atk = [_t4(e) for e in model['atk_template']]
-    rel = [_t4(e) for e in model['rel_template']]
+    pt = _perstep_timbre(model)                        # {vc: [perstep timbre regs]}
+    inst_voices = set(pt)
+    inst_slots = {(vc, r) for vc in inst_voices for r in pt[vc]}
+
+    def _vfix(e):                                      # voice: inst -> voice-tied; else freq-voice / voiceless
+        r = e[0]
+        v = REG_VOICE[r] if (REG_VOICE.get(r), r) in inst_slots else VOICE_OF.get(r)
+        return (r, e[1], e[2], v)
+    atk = [_vfix(e) for e in model['atk_template']]
+    rel = [_vfix(e) for e in model['rel_template']]
     voices = sorted({v for e in atk + rel if (v := e[3])})
     steps = model['steps']
     # freq value per (voice, step) from the step's attack writes; None = rest
@@ -84,6 +119,34 @@ def model_to_usf(model, title='bp'):
     slotmap = _assign_slots(allfreqs)
     if slotmap is None:
         raise ValueError('too_many_pitches')
+    # per-note instruments: voices whose TIMBRE varies per note (is_clean verified
+    # those regs present every active step). The note's instrument is the bundle of
+    # its perstep-timbre attack values -> a distinct Instrument; the engine writes
+    # them at note start. ctrl -> waveform, ad/sr -> adsr, pw -> pwm.init.
+    instrs = []
+    bundle_id = {}; _next = [100]
+    run = {}                                           # running (effective) timbre state
+    for _r, _v in model['init']:
+        if _r in TIMBRE:
+            run[_r] = _v
+    def note_instr(vc, s):
+        if vc not in inst_voices:
+            return vc                                  # non-inst voice: one instrument id=vc
+        d = dict(s['attack'])
+        for r in pt[vc]:                               # update running timbre from this note's writes
+            if r in d:
+                run[r] = d[r]
+        vals = tuple(run.get(r, 0) for r in pt[vc])    # effective timbre (carries stateful regs)
+        key = (vc, vals)
+        if key not in bundle_id:
+            iid = _next[0]; _next[0] += 1; bundle_id[key] = iid
+            fb = {REG_FIELD[r]: v for r, v in zip(pt[vc], vals)}
+            wave = [fb['ctrl']] if 'ctrl' in fb else []
+            pw = ((fb.get('pwhi', 0) or 0) << 8) | (fb.get('pwlo', 0) or 0)
+            pwm = PwmConfig(init=pw) if ('pwlo' in fb or 'pwhi' in fb) else PwmConfig()
+            instrs.append(Instrument(id=iid, waveform=wave,
+                                     adsr=(fb.get('ad', 0) or 0, fb.get('sr', 0) or 0), pwm=pwm))
+        return bundle_id[key]
     # build per-tune freq table (slot -> exact bytes) + per-voice rows
     gated = len(rel) > 0
     ftab = bytearray(256)
@@ -104,14 +167,14 @@ def model_to_usf(model, title='bp'):
                 slot = slotmap[f]; nm, octv = _slot_pitch(slot)
                 ftab[slot] = (f >> 8) & 0xFF; ftab[128 + slot] = f & 0xFF
                 vrows[vc].append(NoteRow(pitch=Pitch(name=nm, octave=octv),
-                                         duration=hold, instr=InstrumentRef(id=vc)))
+                                         duration=hold, instr=InstrumentRef(id=note_instr(vc, s))))
             if gated:
                 vrows[vc].append(NoteRow(pitch=Pitch.rest(), duration=gap))
-    # instruments (musical view): waveform from a voice's gate-on const ctrl
-    instrs = []
+    # non-inst voices: one instrument (waveform from the gate-on const ctrl)
     for vc in voices:
-        wave = next((e[2] for e in atk if e[0] == {1:4,2:0xb,3:0x12}[vc] and e[1]=='const'), 0x10)
-        instrs.append(Instrument(id=vc, waveform=[wave & 0xF0], adsr=(0, 0)))
+        if vc not in inst_voices:
+            wave = next((e[2] for e in atk if e[0] == {1:4,2:0xb,3:0x12}[vc] and e[1]=='const'), 0x10)
+            instrs.append(Instrument(id=vc, waveform=[wave & 0xF0], adsr=(0, 0)))
     vblocks = []
     for vc in (1, 2, 3):
         if vc in voices:
@@ -134,12 +197,12 @@ def model_to_usf(model, title='bp'):
               'bp_init_n': len(model['init'])}
     for i, (reg, val) in enumerate(model['init']):
         fields[f'bp_init{i}'] = (reg << 8) | (val & 0xFF)
+    def _kind(e):                                      # kind 2 = from instrument
+        return 2 if (e[3], e[0]) in inst_slots else (0 if e[1] == 'const' else 1)
     for i, e in enumerate(atk):
-        k = 0 if e[1] == 'const' else 1
-        fields[f'bp_atk{i}'] = (e[0] << 16) | (k << 8) | ((e[2] or 0) & 0xFF)
+        fields[f'bp_atk{i}'] = (e[0] << 16) | (_kind(e) << 8) | ((e[2] or 0) & 0xFF)
     for i, e in enumerate(rel):
-        k = 0 if e[1] == 'const' else 1
-        fields[f'bp_rel{i}'] = (e[0] << 16) | (k << 8) | ((e[2] or 0) & 0xFF)
+        fields[f'bp_rel{i}'] = (e[0] << 16) | (_kind(e) << 8) | ((e[2] or 0) & 0xFF)
     # voice-rest derivation reproduces voice slots, but not voiceless-const
     # per-step activity (e.g. a per-note $D418 re-poke). Store explicit masks
     # only when that derivation would be wrong (Ahoy-class minority).
@@ -168,20 +231,38 @@ def _pitch_freq(p, ftab):
     ni = (p.octave << 4) | NAMES.index(p.name)
     return (ftab[ni] << 8) | ftab[128 + ni]
 
+_KINDS = {0: 'const', 1: 'perstep', 2: 'inst'}
+
+
 def usf_to_model(usf):
     f = usf.params.fields
     atk = []; rel = []
+    def _pvoice(reg, kind):                            # inst slots voice-tied; else freq-voice / voiceless
+        return REG_VOICE.get(reg) if kind == 'inst' else VOICE_OF.get(reg)
     for i in range(f['bp_atk_n']):
-        x = f[f'bp_atk{i}']; reg = x >> 16; kind = 'const' if ((x >> 8) & 1) == 0 else 'perstep'
-        atk.append((reg, kind, (x & 0xFF) if kind == 'const' else None, VOICE_OF.get(reg)))
+        x = f[f'bp_atk{i}']; reg = x >> 16; kind = _KINDS[(x >> 8) & 0xFF]
+        atk.append((reg, kind, (x & 0xFF) if kind == 'const' else None, _pvoice(reg, kind)))
     for i in range(f['bp_rel_n']):
-        x = f[f'bp_rel{i}']; reg = x >> 16; kind = 'const' if ((x >> 8) & 1) == 0 else 'perstep'
-        rel.append((reg, kind, (x & 0xFF) if kind == 'const' else None, VOICE_OF.get(reg)))
+        x = f[f'bp_rel{i}']; reg = x >> 16; kind = _KINDS[(x >> 8) & 0xFF]
+        rel.append((reg, kind, (x & 0xFF) if kind == 'const' else None, _pvoice(reg, kind)))
     init = [((f[f'bp_init{i}'] >> 8) & 0xFF, f[f'bp_init{i}'] & 0xFF) for i in range(f['bp_init_n'])]
     ftab = list(usf.freq_table)
     sub = usf.subtunes[0]
     vrows = {vb.id: vb.patterns[0].rows for vb in sub.voices if vb.patterns}
     voices = sorted(vrows)
+    # per-note instrument table: id -> (ctrl, ad, sr, pw16), for kind='inst' slots
+    itab = {ins.id: (ins.waveform[0] if ins.waveform else 0, ins.adsr[0], ins.adsr[1],
+                     ins.pwm.init if ins.pwm else 0) for ins in usf.instruments}
+
+    def inst_val(vc, hi, reg, release=False):
+        note = vrows[vc][hi]
+        if note.instr is None:                         # timbre written on a rest step (no note) — defer
+            raise ValueError('not_clean')
+        ctrl, ad, sr, pw = itab[note.instr.id]
+        fld = REG_FIELD[reg]
+        if fld == 'ctrl':
+            return (ctrl & 0xFE) if release else ctrl
+        return {'ad': ad, 'sr': sr, 'pwlo': pw & 0xFF, 'pwhi': (pw >> 8) & 0xFF}[fld]
     gated = len(rel) > 0
     per_step = 2 if gated else 1                       # gated row pair: note(hold)+rest(gap)
     aps = [e[0] for e in atk if e[1] == 'perstep']; rps = [e[0] for e in rel if e[1] == 'perstep']
@@ -204,7 +285,9 @@ def usf_to_model(usf):
             amask |= (1 << i)
             if kind == 'const':
                 attack.append((reg, val))
-            else:
+            elif kind == 'inst':                       # per-note timbre from the note's instrument
+                attack.append((reg, inst_val(vc, hi, reg)))
+            else:                                      # perstep freq from the note's pitch
                 fq = _pitch_freq(vrows[vc][hi].pitch, ftab) or 0
                 attack.append((reg, (fq >> 8) & 0xFF if reg in FHI.values() else fq & 0xFF))
         for i, (reg, kind, val, vc) in enumerate(rel):
@@ -212,15 +295,24 @@ def usf_to_model(usf):
             if not present:
                 continue
             rmask |= (1 << i)
-            release.append((reg, val if kind == 'const' else 0))
+            if kind == 'inst':
+                release.append((reg, inst_val(vc, hi, reg, release=True)))
+            else:
+                release.append((reg, val if kind == 'const' else 0))
         steps.append({'attack': attack, 'release': release or None,
                       'on_frame': onf, 'off_frame': (onf + hold) if gated else None,
                       'next': None, 'atk_mask': amask, 'rel_mask': rmask})
         onf += hold + gap
     for k in range(len(steps) - 1):
         steps[k]['next'] = steps[k + 1]['on_frame']
-    return {'init': init, 'steps': steps, 'atk_template': atk, 'rel_template': rel,
-            'atk_ps': aps, 'rel_ps': rps,
+    # the player only knows const/perstep; inst slots were resolved into each step's
+    # writes above, so present them to the player as plain perstep (per-step value).
+    def _to_ps(t):
+        return [(reg, 'perstep' if kind == 'inst' else kind, val, vc) for reg, kind, val, vc in t]
+    atk_o, rel_o = _to_ps(atk), _to_ps(rel)
+    return {'init': init, 'steps': steps, 'atk_template': atk_o, 'rel_template': rel_o,
+            'atk_ps': [e[0] for e in atk_o if e[1] == 'perstep'],
+            'rel_ps': [e[0] for e in rel_o if e[1] == 'perstep'],
             'loop_to': None if f['bp_loop_to'] < 0 else f['bp_loop_to'],
             'loop_period': f['bp_loop_period'], 'rho': f['bp_rho_milli'] / 1000.0,
             'clock': usf.psid.clock, 'masked': True, 'legato': bool(f['bp_legato'])}

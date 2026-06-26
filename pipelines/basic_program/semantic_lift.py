@@ -240,13 +240,15 @@ def build_model(sid, dur, force_split=None):
     — used by the verifier to retry the split variant when the unsplit model BUILDS
     but verifies wrong (the catch-up loop case auto-fallback can't see)."""
     frames = capture_real(sid, dur)
+    window = len(frames)
+    last_write = max((i for i, fr in enumerate(frames) if fr), default=0)  # song-end signal
     if force_split is not None:
         init, steps, start_frame, legato = segment(frames, split_dups=force_split)
-        return _build_model_from_steps(sid, init, steps, legato)
+        return _build_model_from_steps(sid, init, steps, legato, window, last_write)
     result = None
     for split_dups in (False, True):
         init, steps, start_frame, legato = segment(frames, split_dups=split_dups)
-        result = _build_model_from_steps(sid, init, steps, legato)
+        result = _build_model_from_steps(sid, init, steps, legato, window, last_write)
         if ('unsupported' not in result or result['unsupported'] not in (
                 'variable_template', 'legato_variable', 'too_few_after_trim',
                 'too_few_steps', 'template_derive')):
@@ -254,7 +256,7 @@ def build_model(sid, dur, force_split=None):
     return result
 
 
-def _build_model_from_steps(sid, init, steps, legato):
+def _build_model_from_steps(sid, init, steps, legato, window=0, last_write=0):
     from pipelines.basic_program.proof_multivoice import measure_rho, _find_loop
     import struct
     if len(steps) < 2:
@@ -295,7 +297,13 @@ def _build_model_from_steps(sid, init, steps, legato):
     # frames + durations + loop
     clk = {1: 'PAL', 2: 'NTSC', 3: 'PAL'}.get((struct.unpack('>H', open(sid,'rb').read()[118:120])[0] >> 2) & 3, 'PAL')
     sigs = [tuple(s['attack']) for s in steps]
-    intro, period = _find_loop(sigs)
+    # Song-end detection: if the WRITELOG goes silent well before the capture window
+    # ends (the last write is early), the song plays ONCE then stops — a (possibly
+    # spurious) internal-phrase loop must NOT be applied or the rebuild over-emits by
+    # replaying. Uses the last WRITE frame (not the last step): a tune that loops with
+    # a trailing gap still has writes filling the window.
+    ends = window and last_write < window * 0.85
+    intro, period = (None, None) if ends else _find_loop(sigs)
     loop_to, loop_period = None, 0
     if period is not None:
         loop_to = intro
