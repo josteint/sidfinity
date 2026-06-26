@@ -1,6 +1,6 @@
 ---
 name: project_basic_program
-description: "Basic_Program family (486 RSID-BASIC tunes) — PRODUCTIONIZED round-trip: 197/486 (40.5%) FULL through real USF, mass-written + regression"
+description: "Basic_Program family (486 RSID-BASIC tunes) — PRODUCTIONIZED round-trip: 216/486 (44.4%) FULL through real USF, mass-written + regression"
 metadata: 
   node_type: memory
   type: project
@@ -240,14 +240,23 @@ PARTIAL-FREQ (a note writing ONE freq byte + timbre, the other byte CARRIED = st
 still build_fail, needs the running-freq generalization (vfreq must return the effective (running hi, running lo)
 and treat a freq-byte/gate-on write as active).
 
-**RESIDUE (289): not_clean 27** (perstep GLOBAL filter $D415-17 / master-vol $D418 = Phase 2 — chip-global, NOT
-instrument props) + **arp/dup 96** (variable_template 67 + legato_variable 29 — precedence cycles + deeper
-variants) + too_few 68 + overlap_diverge 48 + length_fail 29 (loop-period) + build_fail 21 (vibrato
-too_many_pitches 11 + PARTIAL-FREQ ~10). 1 digi → Mode 2.
+**✅ RUNNING-FREQ / partial-freq (2026-06-26): 197→216 FULL (+19!), 0 regr.** A voice may write only the CHANGED
+freq byte (the other CARRIED) — `vfreq` required both, misreading partial-freq notes as rests (build_fail) or
+diverging on glides. Replaced `vfreq` with an `eff` running-freq table: track running (hi,lo) per voice (seeded
+from init); a note's pitch = effective (running hi, running lo); active = wrote a freq byte. Full-freq tunes
+UNCHANGED (both bytes every note → identical). Also fixed `_kind`: a CONST timbre slot (e.g. a fixed gate-off
+RELEASE ctrl) stays const even when that (voice, reg) is a perstep inst slot in the ATTACK — was wrongly tagged
+inst → crash. HIGH-VALUE: +19 (helped build_fail partial-freq AND overlap_diverge GLIDES 48→30). Lead_De-tuned
+FULL. Some Bond_Alan (Glass_Jaw build_fail, Interlace diverge) still need more.
 
-**NEXT (highest-leverage first):** (1) **partial-freq** (build_fail ~10 — running-freq generalization: track
-running (hi,lo) per voice, a note writing one byte or gate-on carries the other byte; also fixes some glide).
-(2) Phase 2: perstep GLOBAL filter ($D415-17) + master-vol ($D418) = per-note dynamics/filter — chip-global,
-needs a representation decision (MasterVolConfig / SweepEnvelope / new musical field — schema-discipline).
-(3) length_fail loop-period (29). (4) the remaining arp/dup (96). Iterate via `family_batch.py`; per-cause probes
-in `tmp/` (notclean_probe / arp_struct / lf_*). Survey raw: `tmp/basic_program_research/survey.jsonl`.
+**RESIDUE (270): not_clean 27** (perstep GLOBAL filter $D415-17 / master-vol $D418 = Phase 2 — chip-global, NOT
+instrument props) + **arp/dup 96** (variable_template 67 + legato_variable 29 — precedence cycles + deeper
+variants) + too_few 68 + overlap_diverge 30 + length_fail 34 (loop-period) + build_fail 15 (vibrato
+too_many_pitches 11 + a few partial-freq stragglers). 1 digi → Mode 2.
+
+**NEXT (highest-leverage first):** (1) Phase 2: perstep GLOBAL filter ($D415-17) + master-vol ($D418) = per-note
+dynamics/filter — chip-global, needs a representation decision (MasterVolConfig / SweepEnvelope / new musical
+field — schema-discipline). (2) length_fail loop-period (34). (3) the remaining arp/dup (96 — precedence cycles
++ variants). (4) overlap_diverge 30 + the partial-freq stragglers (Glass_Jaw/Interlace). Iterate via
+`family_batch.py`; per-cause probes in `tmp/` (notclean_probe / arp_struct / lf_*). Survey raw:
+`tmp/basic_program_research/survey.jsonl`.
