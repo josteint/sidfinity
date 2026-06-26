@@ -1,6 +1,6 @@
 ---
 name: project_basic_program
-description: "Basic_Program family (486 RSID-BASIC tunes) — PRODUCTIONIZED round-trip: 192/486 (39.5%) FULL through real USF, mass-written + regression"
+description: "Basic_Program family (486 RSID-BASIC tunes) — PRODUCTIONIZED round-trip: 197/486 (40.5%) FULL through real USF, mass-written + regression"
 metadata: 
   node_type: memory
   type: project
@@ -231,14 +231,23 @@ perstep-freq keep the freq-only voice (VOICE_OF) so a non-freq CONST (e.g. V2 ct
 VOICELESS = always-present — fixes a Musichetta-class regression where const V2 ctrl got wrongly voice-gated and
 skipped on V2 rests. Musette/Frogs/Musichetta FULL. Canary: Musette (portfolio, 10 members).
 
-**RESIDUE (294): not_clean 27** (remaining: rest-step timbre writes = build_fail ~20 [timbre POKEd on a step with
-no note → no instrument home; inst_val raises]; + perstep GLOBAL filter/vol = Phase 2) + **arp/dup 96**
-(variable_template 67 + legato_variable 29 — precedence cycles + deeper variants) + too_few 68 (degenerate/short)
-+ overlap_diverge 47 + length_fail 25 (loop-period) + build_fail (vibrato too_many_pitches). 1 digi → Mode 2.
+**✅ TIMBRE-ONLY rest-step (2026-06-26): 192→197 FULL, 0 regr.** The "rest-step timbre" build_fail was a voice
+writing a perstep-timbre reg on a step with NO note (instrument SETUP for an upcoming note); inst_val crashed on
+the rest row's missing instrument. Fix: a TIMBRE-ONLY step (writes a perstep-timbre reg but NEITHER freq byte)
+carries the instrument on its rest NoteRow, so the stored mask emits only the timbre regs (no freq). 14/20 were
+Bond_Alan tunes (a common authoring style). Chain-Reaction/Tybbernyde FULL. The OTHER rest-step sub-case is
+PARTIAL-FREQ (a note writing ONE freq byte + timbre, the other byte CARRIED = stateful freq; Lead_De-tuned) —
+still build_fail, needs the running-freq generalization (vfreq must return the effective (running hi, running lo)
+and treat a freq-byte/gate-on write as active).
 
-**NEXT (highest-leverage first):** (1) **rest-step timbre** (the build_fail ~20 — a timbre write on a no-note step;
-needs attaching the timbre to the NEXT note's instrument, or a standalone register-poke event). (2) Phase 2:
-perstep GLOBAL filter ($D415-17) + master-vol ($D418) = per-note dynamics/filter — chip-global, NOT instrument
-props, needs a representation decision (MasterVolConfig / SweepEnvelope / new musical field — schema-discipline).
-(3) length_fail loop-period (25). (4) the remaining arp/dup (96). Iterate via `family_batch.py`; per-cause probes
+**RESIDUE (289): not_clean 27** (perstep GLOBAL filter $D415-17 / master-vol $D418 = Phase 2 — chip-global, NOT
+instrument props) + **arp/dup 96** (variable_template 67 + legato_variable 29 — precedence cycles + deeper
+variants) + too_few 68 + overlap_diverge 48 + length_fail 29 (loop-period) + build_fail 21 (vibrato
+too_many_pitches 11 + PARTIAL-FREQ ~10). 1 digi → Mode 2.
+
+**NEXT (highest-leverage first):** (1) **partial-freq** (build_fail ~10 — running-freq generalization: track
+running (hi,lo) per voice, a note writing one byte or gate-on carries the other byte; also fixes some glide).
+(2) Phase 2: perstep GLOBAL filter ($D415-17) + master-vol ($D418) = per-note dynamics/filter — chip-global,
+needs a representation decision (MasterVolConfig / SweepEnvelope / new musical field — schema-discipline).
+(3) length_fail loop-period (29). (4) the remaining arp/dup (96). Iterate via `family_batch.py`; per-cause probes
 in `tmp/` (notclean_probe / arp_struct / lf_*). Survey raw: `tmp/basic_program_research/survey.jsonl`.
