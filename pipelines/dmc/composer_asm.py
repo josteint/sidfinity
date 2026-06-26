@@ -82,6 +82,19 @@ DMC_OFFTABLE_STATE = [
     (0x174A, 'pend', 3),     # new-note pending flag
     (0x1750, 'pwl', 3),      # pulse width lo
     (0x1753, 'pwh', 3),      # pulse width hi
+    (0x1762, 'pwphase', 3),  # PW phase index
+    (0x1765, 'pwdir', 3),    # PW direction
+    (0x1768, 'vibdir', 3),   # vibrato direction
+    (0x176B, 'vibctr', 3),   # vibrato step counter
+    (0x176E, 'rampctr', 3),  # vibrato ramp counter
+    (0x1771, 'vibdel', 3),   # vibrato delay counter
+    (0x1774, 'vibwid', 3),   # vibrato width
+    (0x1777, 'cvram', 3),    # vibrato ramp limit
+    (0x1780, 'wctrl', 3),    # current wave ctrl byte
+    (0x1792, 'vstep', 3),    # vibrato step size lo
+    (0x1795, 'vsteph', 3),   # vibrato step size hi
+    (0x1798, 'slal', 3),     # dual-effect slide accumulator lo
+    (0x179B, 'slah', 3),     # dual-effect slide accumulator hi
 ]
 
 
