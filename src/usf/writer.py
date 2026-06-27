@@ -1,4 +1,4 @@
-"""USF v2 — writer.
+"""USF — writer.
 
 Serialize a `UsfFile` model to `.usf` text. The output is deterministic
 and round-trip stable: `parse(write(model))` returns an equivalent
@@ -486,6 +486,14 @@ def _write_subtune(s) -> list[str]:
                 lines.append('  ' + line)
         for v in s.voices:
             lines.extend(_write_voice(v))
+        if s.global_track:
+            lines.append('  global {')
+            for e in s.global_track:
+                parts = [f'{k}={_hex(v)}' for k, v in
+                         (('dyn', e.dyn), ('cutoff', e.cutoff), ('res', e.res),
+                          ('mode', e.mode), ('route', e.route)) if v is not None]
+                lines.append(f'    at {e.step} ' + ' '.join(parts))
+            lines.append('  }')
         lines.append('}')
         return lines
     if isinstance(s, DigiSubtune):

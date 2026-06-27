@@ -357,8 +357,24 @@ subtune_body: music_body
 // `is_sfx`: FC family — distinguishes SFX-kind subtunes that are
 // structurally identical to music (3-voice note streams) but whose
 // runtime semantics differ (engine doesn't sustain gate on song-end).
-music_body: "tempo" ":" INT is_sfx_field? params_block? init_block? voice_block voice_block voice_block
+music_body: "tempo" ":" INT is_sfx_field? params_block? init_block? voice_block voice_block voice_block global_block?
 is_sfx_field: "is_sfx" ":" bool
+
+// ----- global automation track (optional) -----
+// Chip-global musical state that varies over the song: DYNAMICS (master
+// volume) and FILTER (cutoff / resonance / mode / routing) — the SID's
+// only global ($D415-$D418) controls, which aren't per-voice so they can't
+// ride a NoteRow. A sparse sequence of events keyed by step index; each
+// names the fields that change (running-state carry for the rest). The
+// composer re-packs these into the $D415-$D418 bytes at the template
+// positions: $D418=(mode<<4)|dyn, $D417=(res<<4)|route, $D416=cutoff.
+global_block: "global" "{" global_event* "}"
+global_event: "at" INT g_field+
+g_field: "dyn" "=" number      -> g_dyn
+       | "cutoff" "=" number    -> g_cutoff
+       | "res" "=" number       -> g_res
+       | "mode" "=" number      -> g_mode
+       | "route" "=" number     -> g_route
 
 voice_block: "voice" INT "{" "orderlist" ":" orderlist pattern_block* "}"
 orderlist: orderlist_entry+ orderlist_terminator?

@@ -11,6 +11,7 @@
     {"sid": "GAMES/G-L/Head_Coach_BASIC.sid", "dur": 15.0, "feat": "arpeggio (split into per-tick freq sub-steps)"},
     {"sid": "DEMOS/S-Z/Xmas-Card_BASIC.sid", "dur": 15.0, "feat": "consistent intra-step dup (unsplit derive_template; guards the split regression)"},
     {"sid": "MUSICIANS/V/Vogel_James/Musette_BASIC.sid", "dur": 47.3, "feat": "per-note instruments (running timbre via NoteRow.instr) + song-end (no false loop)"},
-    {"sid": "MUSICIANS/B/Bond_Alan/Lead_De-tuned_BASIC.sid", "dur": 15.0, "feat": "running-freq partial-freq notes (one freq byte carried) + timbre-only rest-step + const release ctrl"}
+    {"sid": "MUSICIANS/B/Bond_Alan/Lead_De-tuned_BASIC.sid", "dur": 15.0, "feat": "running-freq partial-freq notes (one freq byte carried) + timbre-only rest-step + const release ctrl"},
+    {"sid": "MUSICIANS/B/Bond_Alan/Moog_Swing_BASIC.sid", "dur": 15.0, "feat": "global automation track (cutoff sweep + filter mode/res/route + master-vol dynamics on the shared per-subtune global track)"}
   ]
 }

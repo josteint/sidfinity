@@ -1,4 +1,4 @@
-"""USF v2 — parser.
+"""USF — parser.
 
 Lark-based parser that produces typed AST classes from src.usf.types.
 Grammar lives in src/usf/grammar.lark.
@@ -19,6 +19,7 @@ from src.usf.types import (
     MasterVolConfig, SfxConfig, SweepEnvelope,
     MusicSubtune, DigiSubtune, SfxSubtune,
     VoiceBlock, Orderlist, Pattern, NoteRow, Pitch, InstrumentRef,
+    GlobalEvent,
 )
 
 
@@ -503,8 +504,21 @@ class _T(Transformer):
     def is_sfx_field(self, items):
         return ('is_sfx', bool(items[0]))
 
+    # ----- global automation track -----
+    def g_dyn(self, items):    return ('dyn', int(items[0]))
+    def g_cutoff(self, items): return ('cutoff', int(items[0]))
+    def g_res(self, items):    return ('res', int(items[0]))
+    def g_mode(self, items):   return ('mode', int(items[0]))
+    def g_route(self, items):  return ('route', int(items[0]))
+
+    def global_event(self, items):
+        return GlobalEvent(step=int(items[0]), **dict(items[1:]))
+
+    def global_block(self, items):
+        return ('_global', list(items))
+
     def music_body(self, items):
-        # 'tempo' ':' INT is_sfx_field? params_block? init_block? voice*3
+        # 'tempo' ':' INT is_sfx_field? params_block? init_block? voice*3 global_block?
         tempo = int(items[0])
         rest = list(items[1:])
         is_sfx = False
@@ -516,10 +530,13 @@ class _T(Transformer):
             params = rest.pop(0)
         if rest and isinstance(rest[0], InitState):
             init = rest.pop(0)
+        global_track = []
+        if rest and isinstance(rest[-1], tuple) and rest[-1][0] == '_global':
+            global_track = rest.pop()[1]
         voices = rest
         return ('music', {'tempo': tempo, 'voices': voices,
                           'params': params, 'init': init,
-                          'is_sfx': is_sfx})
+                          'is_sfx': is_sfx, 'global_track': global_track})
 
     def digi_body(self, items):
         return ('digi', {'sample': str(items[0])})
@@ -611,7 +628,8 @@ class _T(Transformer):
                 voices=body_data['voices'],
                 params=body_data.get('params'),
                 init=body_data.get('init'),
-                is_sfx=body_data.get('is_sfx', False))
+                is_sfx=body_data.get('is_sfx', False),
+                global_track=body_data.get('global_track', []))
         elif kind == 'digi':
             return DigiSubtune(id=sub_id, sample=body_data['sample'])
         else:
@@ -1149,7 +1167,7 @@ class _T(Transformer):
 # ---------------------------------------------------------------------------
 
 def parse(text: str) -> UsfFile:
-    """Parse a USF v2 source string into a typed `UsfFile`."""
+    """Parse a USF source string into a typed `UsfFile`."""
     try:
         tree = _parser().parse(text)
     except LarkError as e:

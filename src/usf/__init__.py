@@ -1,6 +1,6 @@
-"""USF v2 — the on-disk Unified SID Format for SID music.
+"""USF — the on-disk Unified SID Format for SID music.
 
-The codegen's load-bearing input. See docs/usf_v2_format.md for the
+The codegen's load-bearing input. See docs/usf_format.md for the
 spec; types.py / parser.py / writer.py / validate.py for the impl.
 """
 
@@ -12,7 +12,7 @@ from src.usf.types import (
     MasterVolConfig, SfxConfig,
     PulseProgConfig, FilterProgConfig,
     Subtune, MusicSubtune, DigiSubtune, SfxSubtune,
-    VoiceBlock, Orderlist, Pattern, NoteRow, Pitch, InstrumentRef,
+    VoiceBlock, Orderlist, Pattern, NoteRow, Pitch, InstrumentRef, GlobalEvent,
 )
 from src.usf.parser import parse, parse_file, UsfParseError
 from src.usf.writer import write, write_file
@@ -25,7 +25,7 @@ __all__ = [
     'EnvelopeConfig', 'FreqSlideConfig', 'IncBy2Config',
     'SongEndConfig', 'InitBehaviorConfig', 'MasterVolConfig', 'SfxConfig',
     'PulseProgConfig', 'FilterProgConfig',
-    'Subtune', 'MusicSubtune', 'DigiSubtune', 'SfxSubtune',
+    'Subtune', 'MusicSubtune', 'DigiSubtune', 'SfxSubtune', 'GlobalEvent',
     'VoiceBlock', 'Orderlist', 'Pattern', 'NoteRow',
     'Pitch', 'InstrumentRef',
     'parse', 'parse_file', 'UsfParseError',

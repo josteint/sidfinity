@@ -1,6 +1,6 @@
 ---
 name: project_basic_program
-description: "Basic_Program family (486 RSID-BASIC tunes) — PRODUCTIONIZED round-trip: 216/486 (44.4%) FULL through real USF, mass-written + regression"
+description: "Basic_Program family (486 RSID-BASIC tunes) — PRODUCTIONIZED round-trip: 224/486 (46.1%) FULL through real USF, mass-written + regression"
 metadata: 
   node_type: memory
   type: project
@@ -249,14 +249,33 @@ RELEASE ctrl) stays const even when that (voice, reg) is a perstep inst slot in 
 inst → crash. HIGH-VALUE: +19 (helped build_fail partial-freq AND overlap_diverge GLIDES 48→30). Lead_De-tuned
 FULL. Some Bond_Alan (Glass_Jaw build_fail, Interlace diverge) still need more.
 
-**RESIDUE (270): not_clean 27** (perstep GLOBAL filter $D415-17 / master-vol $D418 = Phase 2 — chip-global, NOT
-instrument props) + **arp/dup 96** (variable_template 67 + legato_variable 29 — precedence cycles + deeper
-variants) + too_few 68 + overlap_diverge 30 + length_fail 34 (loop-period) + build_fail 15 (vibrato
-too_many_pitches 11 + a few partial-freq stragglers). 1 digi → Mode 2.
+**✅ GLOBAL AUTOMATION TRACK (Phase 2, 2026-06-27): 216→224 FULL (44.4%→46.1%), not_clean 27→0, 0 regr.**
+The chip-GLOBAL state (master volume $D418 + filter $D415-18) is NOT a per-voice instrument prop, so it can't ride
+`NoteRow.instr` — it belongs to the whole subtune. Represented as a **single shared per-subtune global automation
+track**: a list of `GlobalEvent(step, dyn?, cutoff?, res?, mode?, route?)` on `MusicSubtune.global_track`, where each
+field is a NAMED musical control decomposed from the registers ($D418 = mode<<4 | dyn; $D417 = res<<4 | route; $D416
+= cutoff hi). PRINCIPLED per the representation TRIPWIRE — the forbidden shape is OPAQUE register dumps / library
+indices, NOT multiple-named-fields-per-row (a `GlobalEvent` is exactly like a `NoteRow`'s pitch+dur+instr+flags: many
+named fields, one row). One shared track (not separate vol/filter streams): SID's only global controls ARE these few
+regs, and the engine writes them interleaved in a fixed per-tune order — splitting them loses nothing and the
+composer re-packs the exact register bytes; write ORDER comes from the per-tune template (unchanged). User settled
+the design ("i dont really see the problem of a shared track... why couldnt we just do multiple commands"). Shared-USF
+plumbing: grammar `global_block?` (backward-compat, 40/40 existing .usf still parse), `GlobalEvent` type + parser/
+writer/`__init__` export. basic_program: `is_clean` accepts perstep GLOBAL_TRACK regs ($D416-18; perstep $D415-lo
+still rejected); `model_to_usf` decomposes a running-global-state diff into GlobalEvents (only emit a field when it
+CHANGES); `usf_to_model` re-packs via `gpack` + applies each step's GlobalEvent before emitting, kind='global' slots
+emit the packed reg, `_to_ps` maps global→perstep for the player. Moog_Swing (filter-sweep: cutoff ramp + mode/res/
+route cycling LP/BP/HP) + Xmas + 6 more FULL; Moog_Swing added as canary (now 12). The 19 other former-not_clean
+tunes now flow through and reveal their REAL next blocker (length/loop, overlap, vibrato build) — correctly, they
+were masked by the not_clean rejection. Text round-trip proven end-to-end (best_attempt does write_file→parse_file).
 
-**NEXT (highest-leverage first):** (1) Phase 2: perstep GLOBAL filter ($D415-17) + master-vol ($D418) = per-note
-dynamics/filter — chip-global, needs a representation decision (MasterVolConfig / SweepEnvelope / new musical
-field — schema-discipline). (2) length_fail loop-period (34). (3) the remaining arp/dup (96 — precedence cycles
-+ variants). (4) overlap_diverge 30 + the partial-freq stragglers (Glass_Jaw/Interlace). Iterate via
-`family_batch.py`; per-cause probes in `tmp/` (notclean_probe / arp_struct / lf_*). Survey raw:
+**RESIDUE (262, not_clean ELIMINATED): arp/dup 96** (variable_template 67 + legato_variable 29 — precedence cycles +
+deeper variants) + too_few 68 (after_trim 59 + steps 9) + length_fail 42 (loop-period; +8 ex-not_clean) +
+overlap_diverge 36 (+6 ex-not_clean) + build_fail 20 (vibrato too_many_pitches + partial-freq stragglers; +5
+ex-not_clean). 1 digi (Black_Box_V8_Demo) → Mode 2.
+
+**NEXT (highest-leverage first):** (1) length_fail loop-period (42 — overlap-EXACT but length off; loop-detect
+misses + window boundary). (2) the arp/dup 96 (precedence cycles + split-then-still-variable). (3) overlap_diverge
+36 + partial-freq stragglers (Glass_Jaw/Interlace). (4) too_few 68 (degenerate/short). (5) vibrato too_many_pitches
+(freq alphabet >96). Iterate via `family_batch.py` (resumes from the OUT jsonl; delete to force clean). Survey raw:
 `tmp/basic_program_research/survey.jsonl`.

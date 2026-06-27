@@ -1,7 +1,7 @@
-"""USF v2 — AST / model dataclasses.
+"""USF — AST / model dataclasses.
 
 These are what the parser yields and the writer accepts. See
-docs/usf_v2_format.md for the on-disk format the dataclasses
+docs/usf_format.md for the on-disk format the dataclasses
 correspond to.
 
 Conventions:
@@ -165,6 +165,27 @@ class VoiceBlock:
     patterns: list[Pattern] = field(default_factory=list)
 
 
+@dataclass
+class GlobalEvent:
+    """One event on the chip-global automation track — at `step`, the named
+    fields take new values (others carry the running state). The fields are
+    MUSICAL (decomposed from the SID's global registers); the composer packs
+    them back: `$D418=(mode<<4)|dyn`, `$D417=(res<<4)|route`, `$D416=cutoff`.
+
+      `dyn`    — master volume 0-15 ($D418 low nibble) = dynamics.
+      `cutoff` — filter cutoff hi byte ($D416).
+      `res`    — filter resonance 0-15 ($D417 high nibble).
+      `mode`   — filter mode bits 0-15 ($D418 high nibble: LP/BP/HP/3off).
+      `route`  — filter routing 0-15 ($D417 low nibble: which voices filtered).
+    """
+    step: int
+    dyn: Optional[int] = None
+    cutoff: Optional[int] = None
+    res: Optional[int] = None
+    mode: Optional[int] = None
+    route: Optional[int] = None
+
+
 # ---------------------------------------------------------------------------
 # Subtunes
 # ---------------------------------------------------------------------------
@@ -197,6 +218,9 @@ class MusicSubtune:
     # (5 Title Tunes) where each sub's per-voice load-time state
     # differs. When None (most engines), top-level init applies.
     init: 'InitState | None' = None
+    # Chip-global automation (master volume + filter). Empty for engines that
+    # don't use it; basic_program tunes that vary $D418/$D415-17 per note fill it.
+    global_track: list[GlobalEvent] = field(default_factory=list)
     kind: str = 'music'
 
 

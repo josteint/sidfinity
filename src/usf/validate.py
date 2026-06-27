@@ -1,4 +1,4 @@
-"""USF v2 — semantic validators (layers 2-4 of the spec).
+"""USF — semantic validators (layers 2-4 of the spec).
 
 Layer 1 (grammar) lives in the parser. These passes run AFTER parsing
 and BEFORE codegen. They produce precise, actionable error messages.

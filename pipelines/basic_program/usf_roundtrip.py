@@ -15,7 +15,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 sys.path.insert(0, ROOT); sys.path.insert(0, os.path.join(ROOT, 'src'))
 from src.usf import (UsfFile, PsidMeta, Params, InitState, InitSid, Instrument,
                      MusicSubtune, VoiceBlock, Pattern, NoteRow, Orderlist,
-                     Pitch, InstrumentRef, PwmConfig, write_file, parse_file)
+                     Pitch, InstrumentRef, PwmConfig, GlobalEvent, write_file, parse_file)
 from pipelines.basic_program.semantic_lift import build_model, build_psid, FREQ as _F
 from pipelines.basic_program import semantic_lift as S
 
@@ -47,15 +47,17 @@ def _perstep_timbre(model):
     return {vc: sorted(rs) for vc, rs in pt.items()}
 
 
+GLOBAL_TRACK = {0x16, 0x17, 0x18}                      # decomposable into the global automation track
+
+
 def is_clean(model):
-    """Round-trippable iff no perstep GLOBAL reg (filter $D415-17 / master-vol $D418
-    — Phase 2). Per-note pitch -> NoteRow pitch; per-note per-voice TIMBRE
-    (waveform/ad/sr/pw) -> NoteRow.instr (the note's running/effective timbre; the
-    engine re-writes a reg only when it changes, captured by the per-step mask).
-    Global per-note changes have no instrument home -> deferred."""
+    """Round-trippable. Per-note PITCH -> NoteRow pitch; per-note per-voice TIMBRE
+    (waveform/ad/sr/pw) -> NoteRow.instr; per-note chip-GLOBAL state ($D416 cutoff /
+    $D417 res+route / $D418 vol+mode) -> the global automation track (Phase 2). Only
+    a perstep $D415 (cutoff lo) is still unhandled -> deferred."""
     for tmpl in (model['atk_template'], model['rel_template']):
         for ent in tmpl:
-            if ent[1] == 'perstep' and ent[0] in GLOBAL_REGS:
+            if ent[1] == 'perstep' and ent[0] in GLOBAL_REGS and ent[0] not in GLOBAL_TRACK:
                 return False
     return True
 
@@ -208,7 +210,25 @@ def model_to_usf(model, title='bp'):
                                   rows=vrows[vc])]))
         else:
             vblocks.append(VoiceBlock(id=vc, orderlist=Orderlist(stop=True)))
-    sub = MusicSubtune(id=0, tempo=1, voices=vblocks)
+    # chip-global automation: decompose the perstep GLOBAL regs into musical fields
+    # ($D418=mode<<4|dyn, $D417=res<<4|route, $D416=cutoff); sparse running-state
+    # events keyed by step. The composer re-packs the bytes at the template position.
+    gtrack = []; run_g = {}
+    for k, s in enumerate(steps):
+        d = dict(s['attack']); d.update(dict(s['release']) if s['release'] else {})
+        chg = {}
+        for reg in (0x16, 0x17, 0x18):
+            if reg not in d:
+                continue
+            fv = ({'cutoff': d[reg]} if reg == 0x16 else
+                  {'res': d[reg] >> 4, 'route': d[reg] & 0xF} if reg == 0x17 else
+                  {'mode': d[reg] >> 4, 'dyn': d[reg] & 0xF})
+            for f, v in fv.items():
+                if run_g.get(f) != v:
+                    run_g[f] = v; chg[f] = v
+        if chg:
+            gtrack.append(GlobalEvent(step=k, **chg))
+    sub = MusicSubtune(id=0, tempo=1, voices=vblocks, global_track=gtrack)
     # structural write-model -> packed scalar params
     fields = {'bp': 1, 'bp_legato': int(model['legato']),
               'bp_start_frame': steps[0]['on_frame'] if steps else 0,
@@ -219,7 +239,9 @@ def model_to_usf(model, title='bp'):
               'bp_init_n': len(model['init'])}
     for i, (reg, val) in enumerate(model['init']):
         fields[f'bp_init{i}'] = (reg << 8) | (val & 0xFF)
-    def _kind(e):                                      # kind 2 = from instrument (perstep timbre only)
+    def _kind(e):                                      # 2 = from instrument; 3 = from global track
+        if e[1] == 'perstep' and e[0] in GLOBAL_TRACK:
+            return 3
         if e[1] == 'perstep' and (e[3], e[0]) in inst_slots:
             return 2
         return 0 if e[1] == 'const' else 1             # a CONST timbre slot stays const
@@ -255,7 +277,7 @@ def _pitch_freq(p, ftab):
     ni = (p.octave << 4) | NAMES.index(p.name)
     return (ftab[ni] << 8) | ftab[128 + ni]
 
-_KINDS = {0: 'const', 1: 'perstep', 2: 'inst'}
+_KINDS = {0: 'const', 1: 'perstep', 2: 'inst', 3: 'global'}
 
 
 def usf_to_model(usf):
@@ -287,6 +309,12 @@ def usf_to_model(usf):
         if fld == 'ctrl':
             return (ctrl & 0xFE) if release else ctrl
         return {'ad': ad, 'sr': sr, 'pwlo': pw & 0xFF, 'pwhi': (pw >> 8) & 0xFF}[fld]
+    # chip-global automation: run the global track to pack the $D416/17/18 bytes
+    gevents = {e.step: e for e in sub.global_track}; run_g = {}
+    def gpack(reg):
+        if reg == 0x18: return ((run_g.get('mode', 0) & 0xF) << 4) | (run_g.get('dyn', 0) & 0xF)
+        if reg == 0x17: return ((run_g.get('res', 0) & 0xF) << 4) | (run_g.get('route', 0) & 0xF)
+        return run_g.get('cutoff', 0) & 0xFF           # $D416
     gated = len(rel) > 0
     per_step = 2 if gated else 1                       # gated row pair: note(hold)+rest(gap)
     aps = [e[0] for e in atk if e[1] == 'perstep']; rps = [e[0] for e in rel if e[1] == 'perstep']
@@ -298,6 +326,11 @@ def usf_to_model(usf):
         hi = k * per_step
         hold = max(1, vrows[voices[0]][hi].duration)
         gap = max(1, vrows[voices[0]][hi + 1].duration) if gated else 0
+        ge = gevents.get(k)                            # advance the global state this step
+        if ge:
+            for fld in ('dyn', 'cutoff', 'res', 'mode', 'route'):
+                if getattr(ge, fld) is not None:
+                    run_g[fld] = getattr(ge, fld)
         active = {vc for vc in voices if not vrows[vc][hi].pitch.is_rest}
         mask_a = (f[f'bp_mask{k}'] >> 16) & 0xFFFF if has_masks else None
         mask_r = f[f'bp_mask{k}'] & 0xFFFF if has_masks else None
@@ -311,6 +344,8 @@ def usf_to_model(usf):
                 attack.append((reg, val))
             elif kind == 'inst':                       # per-note timbre from the note's instrument
                 attack.append((reg, inst_val(vc, hi, reg)))
+            elif kind == 'global':                     # chip-global dynamics/filter from the global track
+                attack.append((reg, gpack(reg)))
             else:                                      # perstep freq from the note's pitch
                 fq = _pitch_freq(vrows[vc][hi].pitch, ftab) or 0
                 attack.append((reg, (fq >> 8) & 0xFF if reg in FHI.values() else fq & 0xFF))
@@ -321,6 +356,8 @@ def usf_to_model(usf):
             rmask |= (1 << i)
             if kind == 'inst':
                 release.append((reg, inst_val(vc, hi, reg, release=True)))
+            elif kind == 'global':
+                release.append((reg, gpack(reg)))
             else:
                 release.append((reg, val if kind == 'const' else 0))
         steps.append({'attack': attack, 'release': release or None,
@@ -332,7 +369,7 @@ def usf_to_model(usf):
     # the player only knows const/perstep; inst slots were resolved into each step's
     # writes above, so present them to the player as plain perstep (per-step value).
     def _to_ps(t):
-        return [(reg, 'perstep' if kind == 'inst' else kind, val, vc) for reg, kind, val, vc in t]
+        return [(reg, 'perstep' if kind in ('inst', 'global') else kind, val, vc) for reg, kind, val, vc in t]
     atk_o, rel_o = _to_ps(atk), _to_ps(rel)
     return {'init': init, 'steps': steps, 'atk_template': atk_o, 'rel_template': rel_o,
             'atk_ps': [e[0] for e in atk_o if e[1] == 'perstep'],
