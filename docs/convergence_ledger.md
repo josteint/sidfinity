@@ -71,6 +71,7 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
 | ANTI-PATTERN: verbatim/opaque musical bytes · leapfrog · content-by-reference blob | C7 | methodology (recurring) |
 | de-fused per-entity pool exceeds byte-index capacity · "pool overflow" · separate copies per instrument | C8 | logged |
 | runtime param unreadable by py65 (init hangs / IRQ-set / bad opcode) · measure from libsidplayfp writelog | C9 | logged |
+| chip-global $D415-$D418 automation during a song · master vol / filter varies · global_track vs MasterVolConfig/filter_programs · explicit-event vs parametric | C10 | logged |
 
 ---
 
@@ -252,3 +253,49 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
   canonical $2663=2x / $1331=4x). The rounding makes it robust (N within 0.01).
 - **Consumers:** DMC v4 `factory._cia_period_from_writelog` (commit 2114f21 —
   67 py65-unreadable cia_multispeed members → 56 build, +20 FULL).
+
+### C10 — Chip-global ($D415-$D418) automation that varies during a song (master vol + filter)
+- **The DOF:** master volume + filter cutoff/res/mode/route — chip-GLOBAL state
+  (one per SID, not per voice), changing across the song. Distinct from C1, which
+  is the *per-instrument* swept contour; this is the *whole-subtune* global track.
+- **Canonical — choose by MUSICAL STRUCTURE, not by engine:**
+  - **PARAMETRIC** (mechanism + a few knobs; the engine GENERATES the per-frame
+    values) when a formula/table drives it: `MasterVolConfig` (fade formula, e.g.
+    Confuzion `clamp(BASE − voice1_orderpos)`), `master_vol_every_frame`/`_every_note`
+    (re-assert a fixed value), `FilterProgConfig`/`filter_programs` + DMC
+    `default_filter` + instrument `filter_env` (filter cutoff-ENVELOPE programs ≈
+    C1 `SweepEnvelope`), `init.sid { master_vol, filter{…} }` (one-time priming).
+    Values are derived at runtime, never enumerated.
+  - **EXPLICIT** per-step event list — `MusicSubtune.global_track` = list of
+    `GlobalEvent(step, dyn?/cutoff?/res?/mode?/route?)`, NAMED musical fields
+    decomposed from the registers ($D418=mode<<4|dyn, $D417=res<<4|route,
+    $D416=cutoff), running-state (emit a field only when it changes) — ONLY when
+    the automation is **arbitrary authored data with no recoverable mechanism**:
+    the trace-lift case (basic_program hand-POKEs, e.g. Deutschlandlied
+    `vol 0F→08→06`). The composer re-packs the exact register bytes; write ORDER
+    comes from the per-tune template.
+  - This is the SAME explicit-vs-parametric axis used one level up at per-VOICE
+    scope: `NoteRow` (explicit melody) vs `VibratoConfig`/`ArpConfig` (parametric
+    per-frame contour). We don't store vibrato-bent freqs as NoteRows; likewise
+    don't store a formula-driven fade as a `dyn` event list.
+- **ANTI-PATTERN (do NOT do this):** converting a parametric form to `global_track`
+  (e.g. "make all FULL SIDs use the global track"). It is the C7 opaque/dump
+  direction — explodes file size (Confuzion: 2 knobs → ~hundreds of `at N dyn=X`
+  rows), discards the musical mechanism, and degrades ML-legibility. The
+  representation must track the structure, not the engine.
+- **Status:** logged (basic_program `global_track` added 2026-06-27, commit cd81a61;
+  the parametric forms predate it).
+- **Boundary / Move-1 convergence TODO:** (1) `global_track` is currently
+  basic_program-only but is a GENERIC primitive — make it SHARED for any engine
+  with genuinely-arbitrary global automation. (2) The DUAL: basic_program emits
+  `global_track` explicitly even when the captured sequence IS parametric
+  (Moog_Swing cutoff = a sawtooth sweep stored as 190 explicit events) — a
+  sweep-detecting trace-lift could lift those to a filter-program (C1). (3) The
+  register family now has N coexisting representations (`global_track`,
+  `MasterVolConfig`, `master_vol_every_*`, `FilterProgConfig`, `default_filter`,
+  `filter_env`, `init.sid.filter`) splitting along parametric×explicit ×
+  global×per-instrument × init×runtime — `/uready-review` should reconcile. The
+  filter-program parametric forks are already tracked under C1's divergent-forms note.
+- **Consumers:** basic_program `global_track` (224 FULL); `MasterVolConfig`
+  (Hubbard Confuzion/TOAS); `FilterProgConfig` (FC Jarre_2); `default_filter` /
+  `filter_env` (DMC v5). See C1 (per-instrument sweep) and C7 (opaque-dump lens).

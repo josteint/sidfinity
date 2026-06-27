@@ -279,3 +279,12 @@ misses + window boundary). (2) the arp/dup 96 (precedence cycles + split-then-st
 36 + partial-freq stragglers (Glass_Jaw/Interlace). (4) too_few 68 (degenerate/short). (5) vibrato too_many_pitches
 (freq alphabet >96). Iterate via `family_batch.py` (resumes from the OUT jsonl; delete to force clean). Survey raw:
 `tmp/basic_program_research/survey.jsonl`.
+
+**CONVERGENCE (ledger C10, 2026-06-27):** the `global_track` is the EXPLICIT-event form of chip-global $D415-$D418
+automation; the OTHER engines already represent the same registers PARAMETRICALLY (`MasterVolConfig` fade formula,
+`FilterProgConfig`/`default_filter`/`filter_env` programs, `init.sid.filter`) — do NOT convert those to global_track
+(that's the C7 opaque-dump direction; Confuzion's fade = 2 knobs, not hundreds of dyn events). Choose by musical
+STRUCTURE (parametric = mechanism+knobs the engine generates; explicit = arbitrary authored data, the trace-lift
+case), same axis as NoteRow vs VibratoConfig. Move-1 TODOs in C10: make global_track a SHARED primitive; consider a
+sweep-detecting lift so basic_program's parametric sweeps (Moog_Swing cutoff = 190 explicit events for a sawtooth)
+become filter-programs. Not a rewrite-the-FULLs task.
