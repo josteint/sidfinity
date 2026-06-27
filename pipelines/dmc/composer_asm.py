@@ -95,6 +95,9 @@ DMC_OFFTABLE_STATE = [
     (0x1795, 'vsteph', 3),   # vibrato step size hi
     (0x1798, 'slal', 3),     # dual-effect slide accumulator lo
     (0x179B, 'slah', 3),     # dual-effect slide accumulator hi
+    (0x1756, 'cpwmax', 3),   # PW bound A (instr byte 2 hi nibble)
+    (0x1759, 'cpwmin', 3),   # PW bound B (= bound A EOR $0F)
+    (0x175F, 'cpwbase', 3),  # PW step base (instr byte 6 hi nibble)
 ]
 
 
