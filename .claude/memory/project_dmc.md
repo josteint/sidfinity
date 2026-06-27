@@ -50,7 +50,31 @@ and ENCODING-specific state (wavepos) need separate work. Adding a map row for a
 NON-byte-identical variable would REGRESS FULLs that read that idx via the static capture
 — so every new row needs byte-identity verification first.
 
-## ✅ RESIDUE IS SYSTEMATIC, NOT IDIOSYNCRATIC (2026-06-26 session 3 — corrected by user)
+## 🔑 RESIDUE IS ~20-50 KNOBS, NOT IDIOSYNCRATIC (2026-06-26 session 3 — user corrected me TWICE)
+The user's framing (which I twice under-weighted): family-1 is a FINITE engine, so the
+residue is a FINITE set of mis-implemented "knobs" (mechanisms), each covering MANY SIDs —
+likely ~20-50, NOT 1300 unique problems. My "idiosyncratic" claim was a LOGICAL ERROR: I
+traced ~6 members, each hit a different mechanism, and I concluded "all different." But if
+the residue is ~30 knobs × ~40 SIDs each, 6 random traces ALMOST CERTAINLY hit 6 different
+knobs — so my observation is exactly what the knob hypothesis predicts and does NOT
+distinguish it from 1300-unique. Evidence actually favors finite knobs: off-table fixes each
+transferred to MANY (dur +7, 25-var map +48, PW-bound +~9); the "heterogeneous SR cluster
+(48)" is a FEW knobs sharing a symptom (Hardcore=wave-extraction, Technoland_2=sequencing),
+not 48 unique bugs. THE METHOD (user's): fix one SID's TRUE root cause (per-SID pc-trace, NOT
+the symptom census) in the shared composer/extractor; it transfers automatically to all
+same-knob SIDs; batch the (slow) transfer re-verify across several knob fixes; the knob count
+emerges from the cumulative residue drop. Caveat: expect a small tail of genuine 1-offs
+(cymbal $DF) + HARD knobs (bit-exact vibrato arithmetic) — ~20-50 knobs likely => ~95%, then
+a stubborn last few %. KNOBS IDENTIFIED SO FAR: (1) off-table state-block reads = exactly-
+tracking-state read-redirect map [DONE, +48+9, ~tapped]; (2) cymbal-burst value [DONE, 1-off];
+(3) HARDCORE'S KNOB = WAVE-PROGRAM EXTRACTION: composer mis-extracts some instruments' wave
+programs (Hardcore inst25 lifted as constant `$21 x6` saw, but orig plays `$00/$0C/$06`
+sync/ring modulation — wave-ctrl $1780=$00 orig vs $21 rebuild, gate-mask $100F=$FF so NOT a
+mask issue; the all-identical $21x6 = extractor read the wrong region). DEEPER than off-table
+(it's in the EXTRACTOR — diff binary vs lifted wave program). NEXT: debug the inst-wave-
+program extractor; measure its fan-out (how many members have mis-lifted wave programs).
+
+## ✅ off-table sub-finding (superseded framing): SYSTEMATIC, NOT IDIOSYNCRATIC (2026-06-26 session 3)
 I first (WRONGLY) concluded the residue was a per-member idiosyncratic slog, having
 clustered by the FIRST-DIVERGENCE REGISTER (a misleading key — Technoland_2 showed as
 "V2 SR" but its real bug is V2 mis-sequencing). The USER pushed back: family-1 is ONE
