@@ -449,6 +449,52 @@ Columns (whitespace-separated):
 A line with no pitch (`---`) and no instrument is a rest of the given
 duration.
 
+### Global automation track (`global { ... }`)
+
+```
+subtune 0 music {
+  tempo: 1
+  voice 1 { ... }
+  voice 2 { ... }
+  voice 3 { ... }
+
+  global {
+    at 0   dyn=$0F res=$0F mode=$07 route=$04
+    at 1   cutoff=$58
+    at 32  mode=$06 route=$03
+  }
+}
+```
+
+Optional, at most one per music subtune; omitted when empty. The global
+track carries **chip-global** musical automation — state that belongs to
+the whole subtune, not to any one voice, so it cannot ride a voice's
+`NoteRow`. On the SID the only such controls are the master-volume and
+filter registers (`$D415`-`$D418`), so the track decomposes them into
+**named musical fields** rather than raw register bytes:
+
+- `dyn` — master volume / dynamics (`$D418` low nibble, 0-15).
+- `mode` — filter mode bits (`$D418` high nibble: LP/BP/HP/voice-3-off).
+- `res` — filter resonance (`$D417` high nibble).
+- `route` — filter routing, which voices pass through the filter
+  (`$D417` low nibble).
+- `cutoff` — filter cutoff, high 8 bits (`$D416`).
+
+Each `at N` event names the step index `N` (same step axis as the voice
+patterns) and lists only the fields that **change** at that step; a field
+holds its last value until the next event that names it (running state).
+The composer re-packs the named fields into the exact `$D415`-`$D418`
+register writes; the per-tune write template fixes their ORDER relative to
+the voice writes, so the global track says *what* the global state is at
+each step, never *when within the frame* it is written.
+
+This is a single shared track (not separate volume / filter streams): the
+SID's global controls are few and the engine writes them interleaved in
+one fixed order, so splitting them would lose nothing and gain nothing. A
+`GlobalEvent` is structurally just like a `NoteRow` — several named fields
+on one row — which is what keeps it principled; the forbidden shape is an
+opaque register dump or a library index, not multiple-named-fields-per-row.
+
 ### `subtune N digi`
 
 ```
@@ -464,7 +510,7 @@ field matches the parent USF's `engine:`.
 ### `subtune N sfx`
 
 (Reserved for Commando-style 16-byte SFX records — covered in a
-follow-up spec when SFX is migrated to USF v2. For now, an `sfx`
+follow-up spec when SFX is migrated to USF. For now, an `sfx`
 subtune block contains engine-specific fields TBD.)
 
 ## Validation layers
