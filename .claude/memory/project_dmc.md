@@ -78,8 +78,22 @@ needs an orig-faithful shadow. (b) undocumented $171E/$174D/$178F bytes. (c) cle
 event (For_Insider_1 frame 6521), not gradual — the freq-accum arithmetic itself MATCHES
 orig (verified glide HI-byte-arrival + triangle-vibrato accumulate). Also commit 202ce45:
 cymbal noise-burst value extracted (Presentation $DF; 1 member, the rare genuine 1-off).
-NEXT: full re-verify (tmp/dmc_ot_reverify.jsonl) -> count + mass-write; then the
-encoding-specific state (orig-faithful wavepos/sector shadow) as the next systematic tier.
+**✅ DONE (commit f7ae439): FAMILY-1 4080 -> 4128 FULL (76.4%), +48 mass-written.** The
+25-var off-table map recovered 44/538 off-table-freq partials (~6% — most off-table-freq
+partials read UNMAPPED encoding-specific state or are glide/vibrato drift, NOT mapped state)
++ dur-counter/cymbal carryover = 48 net. Honest magnitude: the off-table state-block map is
+a real SYSTEMATIC win but MODEST (~48), because the truly-recoverable subset (exactly-
+tracking-state readers) is ~36-44, not the whole off-table bucket. Zero regression.
+NEXT TIERS (user deferred, picked "finish count + mass-write" 2026-06-26): (1) cleared/undoc
+bytes $1789-$1791 = $00 -> const-zero map (~10, easy, needs a const-source generator variant
+since the current generator does indexed per-voice reads). (2) ENCODING-specific state
+(orig-faithful wavepos/sector/trkptr shadow — composer tracks the orig's wave-table walk in
+lockstep; ~15, DEEP — the composer flattened the wave table so reconstructing the orig step
+count is the hard part). (3) different cause cluster (gate-timing/wrong-voice-sequencing).
+TOOLS built this session: tmp/ot_fast.py (orig-only off-table variable census, pos->frame
+via writelog + memwatch + lo/hi PAIR disambiguation), tmp/ot_fastverify.py (short-dur proxy
+verify). Re-verify of PARTIALS is SLOW (~2/min — all get the mask_only retry); narrow to the
+relevant subset (off-table-freq) not all 1089.
 
 ## 🔬 FAMILY-1 GRIND (2026-06-26): residue is the hard tail; SONG-EXACT lever = +32 (pending verdict ratification)
 Exhaustive per-cause grind of the 1121 partials. KEY OUTCOMES:
