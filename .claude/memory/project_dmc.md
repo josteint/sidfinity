@@ -84,9 +84,17 @@ partials read UNMAPPED encoding-specific state or are glide/vibrato drift, NOT m
 + dur-counter/cymbal carryover = 48 net. Honest magnitude: the off-table state-block map is
 a real SYSTEMATIC win but MODEST (~48), because the truly-recoverable subset (exactly-
 tracking-state readers) is ~36-44, not the whole off-table bucket. Zero regression.
-NEXT TIERS (user deferred, picked "finish count + mass-write" 2026-06-26): (1) cleared/undoc
-bytes $1789-$1791 = $00 -> const-zero map (~10, easy, needs a const-source generator variant
-since the current generator does indexed per-voice reads). (2) ENCODING-specific state
+NEXT TIERS: ❌ (1) CLEARED-BYTES TIER REFUTED (2026-06-26). Mapped $1789-$1791 (confirmed
+always $00: init-cleared $1718-$179D + only $1789 written=$00 + empirically $00 across 8
+members) -> a 9-byte const-zero array `ofzero`. RESULT: 0 recoveries + 1 regression
+(Piano-Rap_II, whose $1789-$1791 is ALSO $00 — regression unexplained, likely close-tail
+flake from the +9-byte state_end shift). REVERTED. LESSON: the off-table census's "$00
+reads" are UNRELIABLE — $00 is a COMMON value, so a $00 freq divergence is usually NOT an
+off-table state read of a cleared byte but a DRUM/note-freq path (ws_drd reads the wave byte
+directly, BYPASSING the wave-step redirect) or a vibrato-accum=0. Top_One_Mix's "idx232->
+$178F=$00" was a coincidental match; ofzero left its frame-1 fhi unchanged ($0F), proving the
+read never went through the redirect. Do NOT const-zero-map off-table $00 reads. The
+remaining tiers: (2) ENCODING-specific state
 (orig-faithful wavepos/sector/trkptr shadow — composer tracks the orig's wave-table walk in
 lockstep; ~15, DEEP — the composer flattened the wave table so reconstructing the orig step
 count is the hard part). (3) different cause cluster (gate-timing/wrong-voice-sequencing).
