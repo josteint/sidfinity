@@ -243,6 +243,16 @@ def model_to_usf(model, title='bp'):
     fields['bp_songend_n'] = len(song_end)
     for i, (reg, val) in enumerate(song_end):
         fields[f'bp_songend{i}'] = (reg << 8) | (val & 0xFF)
+    pw_sweeps = model.get('pw_sweeps') or {}            # per-voice pulse-width SweepEnvelope (C1)
+    fields['bp_pwsw_voices'] = sum(1 << (vc - 1) for vc in pw_sweeps)   # bitmask of modulated voices
+    fields['bp_mod_start'] = model.get('mod_start', 0)  # play-frame the sweep begins
+    fields['bp_mod_inc'] = model.get('mod_inc', 0)      # fractional tick rate (per play, /256)
+    for vc, (start, phases, loop) in pw_sweeps.items():
+        fields[f'bp_pwsw{vc}_start'] = start & 0xFF
+        fields[f'bp_pwsw{vc}_loop'] = loop if loop is not None else -1
+        fields[f'bp_pwsw{vc}_nph'] = len(phases)
+        for i, (rate, frames_) in enumerate(phases):
+            fields[f'bp_pwsw{vc}_ph{i}'] = ((rate & 0xFFFF) << 16) | (frames_ & 0xFFFF)
     def _kind(e):                                      # 2 = from instrument; 3 = from global track
         if e[1] == 'perstep' and e[0] in GLOBAL_TRACK:
             return 3
@@ -298,6 +308,15 @@ def usf_to_model(usf):
     init = [((f[f'bp_init{i}'] >> 8) & 0xFF, f[f'bp_init{i}'] & 0xFF) for i in range(f['bp_init_n'])]
     song_end = [((f[f'bp_songend{i}'] >> 8) & 0xFF, f[f'bp_songend{i}'] & 0xFF)
                 for i in range(f.get('bp_songend_n', 0))]
+    from pipelines.basic_program.semantic_lift import _expand_sweep
+    pw_tables = {}                                      # per-voice pulse-width sweep -> value table
+    for vc in (1, 2, 3):
+        if f.get('bp_pwsw_voices', 0) & (1 << (vc - 1)):
+            phases = [((f[f'bp_pwsw{vc}_ph{i}'] >> 16) & 0xFFFF, f[f'bp_pwsw{vc}_ph{i}'] & 0xFFFF)
+                      for i in range(f[f'bp_pwsw{vc}_nph'])]
+            pw_tables[vc] = _expand_sweep(f[f'bp_pwsw{vc}_start'], phases, None)
+    mod_start = f.get('bp_mod_start', 0)
+    mod_inc = f.get('bp_mod_inc', 0)
     ftab = list(usf.freq_table)
     sub = usf.subtunes[0]
     vrows = {vb.id: vb.patterns[0].rows for vb in sub.voices if vb.patterns}
@@ -383,7 +402,7 @@ def usf_to_model(usf):
             'loop_to': None if f['bp_loop_to'] < 0 else f['bp_loop_to'],
             'loop_period': f['bp_loop_period'], 'rho': f['bp_rho_milli'] / 1000.0,
             'clock': usf.psid.clock, 'masked': True, 'legato': bool(f['bp_legato']),
-            'song_end': song_end}
+            'song_end': song_end, 'pw_tables': pw_tables, 'mod_start': mod_start, 'mod_inc': mod_inc}
 
 # ------------------------------------------------------------- verify -----
 def _compare_with_extend(orig_wl, reb_sid, dur, loops):
@@ -467,6 +486,10 @@ def best_attempt(sid_rel, dur, title='bp'):
         res4 = _attempt_model(build_model(sid, dur, detect_song_end=True), sid, dur, orig_wl, title)
         if res4[0] == 'FULL':
             return res4
+    if res[0] in ('overlap_diverge', 'length_fail'):   # free-running PW sweep modulation
+        res5 = _attempt_model(build_model(sid, dur, detect_modulation=True), sid, dur, orig_wl, title)
+        if res5[0] == 'FULL':
+            return res5
     return res
 
 
