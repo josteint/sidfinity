@@ -99,6 +99,7 @@ DMC_OFFTABLE_STATE = [
     (0x1759, 'cpwmin', 3),   # PW bound B (= bound A EOR $0F)
     (0x175F, 'cpwbase', 3),  # PW step base (instr byte 6 hi nibble)
     (0x1726, 'otrk', 3),     # track byte-offset (derived from orderlist pos)
+    (0x1783, 'wnote', 3),    # arp note = wave-offset + curnote (derived in wavestep)
 ]
 
 
@@ -1283,6 +1284,9 @@ ws_rd:
         lda wftab,y
         clc
         adc curnote,x                ; semitone offset -> table rebase
+        sta wnote,x                  ; orig $1783: arp note (wave offset+curnote),
+                                     ; stored every melodic wave-step. Read
+                                     ; off-table as a freq by the modulation idiom.
         tay
         ; OFF-TABLE READ-REDIRECT: off-table indices sonify live engine state
         ; ($1707-$17A6); reproduce by reading our own byte-identical variable.
@@ -1396,6 +1400,7 @@ tmp:      .dsb 1, 0
 tmp2:     .dsb 1, 0
 evflags:  .dsb 1, 0
 otrk:     .dsb 3, 0                  ; orig track byte-offset shadow (= $1726)
+wnote:    .dsb 3, 0                  ; orig arp-note shadow (= $1783)
 state_end:
         .byt $00
 """
