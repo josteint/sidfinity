@@ -1,14 +1,29 @@
 #!/usr/bin/env python3
 """effect_chain_profiler.py — attribute each SID write to its CPU PC.
 
-For each write to a target SID register (or all $D4xx), find the CPU
-PC at the cycle of that write. Lets you answer "which routine wrote
-this $D408 = $47?" in one command, without having to manually trace
-through the engine code.
+For each write to a target SID register (or all $D4xx), report the CPU
+PC that performed it. Lets you answer "which routine wrote this
+$D408 = $47?" in one command, without manually tracing the engine.
 
 Internally runs `siddump --writelog --pc-trace` over a chosen frame
-range, then matches each write's cycle to the corresponding PC trace
-entry.
+range. The PC of each write is read DIRECTLY off the store instruction
+in the pc-trace — every pc-trace line carries the PC, the A/X/Y
+registers, and the RESOLVED effective address, e.g.
+
+    160d t 47 00 00 ...  99 00 d4  STAay d400,Y [d400]
+
+means PC $160D wrote A=$47 to $D400. So attribution is EXACT — there is
+no cycle reconstruction. The pc-trace `[d4xx]` stores are zipped
+ordinally with the writelog (the Nth store in the trace IS the Nth
+write in the writelog); the writelog supplies frame numbers and a
+desync sanity-check.
+
+(Earlier versions rebuilt each write's absolute cycle as
+`frame * 19688 + rel_cycle` and binary-searched the PC trace for the
+nearest sample. That `19688` is the Trap-C pitfall — a siddump frame
+advances ~18,000 CPU cycles, not 19688 — so the reconstructed cycle
+drifted and the lookup landed in the PSID driver's idle spin loop
+($04A5) instead of the real writer. The ordinal-zip avoids cycles.)
 
 Usage:
     python3 tools/effect_chain_profiler.py SID --subtune N \\
@@ -24,7 +39,7 @@ Usage:
     python3 tools/effect_chain_profiler.py SID --subtune 0 --frames 1-3
 
 Output format:
-    f<frame>  c<cycle>  $D4XX = $VV  PC=$YYYY  (instruction mnemonic)
+    f<frame>  $D4XX <role>  $VV   PC=$YYYY
 """
 from __future__ import annotations
 
@@ -39,19 +54,29 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 SIDDUMP = ROOT / 'tools' / 'siddump'
 
+# A pc-trace data line, e.g.:
+#   160d t 47 00 00 01f4 2f 37 00110100  99 00 d4  STAay d400,Y [d400]
+#   PC   _ A  X  Y  ...                              mnem        [effaddr]
+_PC_LINE = re.compile(
+    r'^\s*([0-9a-fA-F]{4})\s+\S\s+'        # PC, the f/t flag
+    r'([0-9a-fA-F]{2})\s+'                 # A
+    r'([0-9a-fA-F]{2})\s+'                 # X
+    r'([0-9a-fA-F]{2})\b')                 # Y
+_STORE = re.compile(r'\b(ST[AXY])\w*', re.I)        # STA / STX / STY (+addr mode)
+_EFFADDR = re.compile(r'\[d4([0-9a-fA-F]{2})\]', re.I)
+_CYCLE = re.compile(r'\((\d+)\)')
 
-_CYCLES_PER_FRAME_PAL = 63 * 312 + 32  # 19688
 
+def _capture(sid_path: str, subtune: int, start_frame: int, end_frame: int):
+    """Run siddump and return the ordered $D4xx store stream.
 
-def _capture_writelog_and_pc(sid_path: str, subtune: int,
-                              start_frame: int, end_frame: int
-                              ) -> tuple[list[tuple], list[tuple[int, int]]]:
-    """Run siddump capturing writelog + pc-trace for the frame range.
-
-    Returns (writes, pc_samples):
-      writes — list of (frame, abs_cycle, reg, val) tuples where
-               abs_cycle is converted to the same cycle scheme as PC trace.
-      pc_samples — sorted list of (abs_cycle, PC) tuples.
+    Returns [(pc, reg, val, cycle)] for every `ST[AXY]` instruction whose
+    RESOLVED effective address is $D400..$D418, read DIRECTLY off the
+    pc-trace line (PC, A/X/Y, effective address, and cycle are all on the
+    same line). No cycle reconstruction, no writelog zip — the pc-trace IS
+    ground truth for what the CPU executed, so every store is real and its
+    PC is exact. Frame/play() grouping is recovered downstream from the
+    cycle gaps (the ~19k-cycle idle between play() invocations).
     """
     duration = (end_frame + 2) / 50.0
     with tempfile.NamedTemporaryFile(suffix='.pc', delete=False) as f:
@@ -61,94 +86,43 @@ def _capture_writelog_and_pc(sid_path: str, subtune: int,
             [str(SIDDUMP), sid_path,
              '--subtune', str(subtune + 1),
              '--duration', str(duration),
-             '--writelog', '--raw',
              '--pc-trace', pc_path,
              str(start_frame), str(end_frame)],
             capture_output=True, text=True)
         if r.returncode not in (0, 2):
             print(f'siddump error (rc={r.returncode}):\n{r.stderr}',
                   file=sys.stderr)
-            return [], []
-        # Parse pc-trace FIRST so we can determine the per-frame cycle base.
-        # Format pair-of-lines:
-        #   header: " PC  I  A  X  ...  Instruction (CYCLE)"
-        #   data:   "PCPC f ..."
-        pc_samples: list[tuple[int, int]] = []
-        with open(pc_path) as f:
-            current_cycle: int | None = None
-            for tline in f:
-                m_cycle = re.search(r'\((\d+)\)', tline)
-                if m_cycle:
-                    current_cycle = int(m_cycle.group(1))
-                    continue
-                m_pc = re.match(r'\s*([0-9a-fA-F]{4})\b', tline)
-                if m_pc and current_cycle is not None:
-                    try:
-                        pc_samples.append(
-                            (current_cycle, int(m_pc.group(1), 16)))
-                    except ValueError:
-                        pass
-                    current_cycle = None
-        pc_samples.sort()
-        # First absolute cycle in pc-trace ≈ absolute cycle at the start of
-        # `start_frame`. Compute per-frame base cycles for alignment.
-        abs_at_start_frame = pc_samples[0][0] if pc_samples else 0
+            return []
 
-        # Parse writelog. The writelog cycle field is RELATIVE to each
-        # siddump frame's play() invocation; convert to absolute and
-        # filter to the pc-trace range so cycles match the PC samples.
-        writes = []
-        f_idx = -1
-        for line in r.stdout.splitlines():
-            stripped = line.strip()
-            # Treat each output line as one frame, even if it has no |W:.
-            if not stripped or stripped.startswith('{') or stripped.startswith('V1_'):
-                # JSON header / column header — skip without counting as frame
-                continue
-            f_idx += 1
-            if not (start_frame <= f_idx <= end_frame):
-                continue
-            if '|W:' not in line:
-                continue
-            _, w = line.split('|W:', 1)
-            # Strip trailing |M / |P / |I sections so toks only has writes
-            w_section = w.strip().split('|', 1)[0]
-            toks = w_section.split(':')
-            for i in range(0, len(toks) - 2, 3):
-                try:
-                    rel_cycle = int(toks[i])
-                    reg = int(toks[i + 1], 16)
-                    val = int(toks[i + 2], 16)
-                    # Frame f_idx's start abs cycle = abs_at_start_frame
-                    # + (f_idx - start_frame) * cycles_per_frame.
-                    abs_cycle = (abs_at_start_frame
-                                 + (f_idx - start_frame) * _CYCLES_PER_FRAME_PAL
-                                 + rel_cycle)
-                    writes.append((f_idx, abs_cycle, reg, val))
-                except ValueError:
-                    pass
-        return writes, pc_samples
+        pcw: list[tuple[int, int, int, int | None]] = []
+        cur_cycle: int | None = None
+        with open(pc_path) as f:
+            for line in f:
+                mc = _CYCLE.search(line)
+                if mc and 'Instruction' in line:
+                    cur_cycle = int(mc.group(1))
+                    continue
+                me = _EFFADDR.search(line)
+                if not me:
+                    continue
+                reg = int(me.group(1), 16)
+                if reg > 0x18:                 # $D419+ are read regs / paddle
+                    continue
+                mst = _STORE.search(line)
+                if not mst:                    # a LOAD from $D4xx — not a write
+                    continue
+                ml = _PC_LINE.match(line)
+                if not ml:
+                    continue
+                pc = int(ml.group(1), 16)
+                a, x, y = (int(ml.group(2), 16), int(ml.group(3), 16),
+                           int(ml.group(4), 16))
+                mn = mst.group(1).upper()
+                val = x if mn == 'STX' else y if mn == 'STY' else a
+                pcw.append((pc, reg, val, cur_cycle))
+        return pcw
     finally:
         os.unlink(pc_path)
-
-
-def _find_pc_for_cycle(pc_samples: list[tuple[int, int]],
-                       abs_cycle: int) -> int | None:
-    """Binary search for the latest PC trace entry at or before abs_cycle."""
-    if not pc_samples:
-        return None
-    lo, hi = 0, len(pc_samples) - 1
-    best = -1
-    while lo <= hi:
-        mid = (lo + hi) // 2
-        if pc_samples[mid][0] <= abs_cycle:
-            best = mid
-            lo = mid + 1
-        else:
-            hi = mid - 1
-    if best < 0:
-        return None
-    return pc_samples[best][1]
 
 
 def _voice_role(reg: int) -> str:
@@ -187,30 +161,42 @@ def main() -> int:
     if args.register:
         reg_filter = set()
         for tok in args.register.split(','):
-            tok = tok.strip()
-            # Allow either D408 or just 08 — strip the leading $D4 if present
-            v = int(tok, 16)
+            v = int(tok.strip(), 16)
             if v >= 0xD400:
                 v -= 0xD400
             reg_filter.add(v)
 
-    writes, pc_samples = _capture_writelog_and_pc(args.sid, args.subtune,
-                                                    sf, ef)
-    if not writes:
-        print(f'No writes captured. siddump stderr above may explain.',
+    pcw = _capture(args.sid, args.subtune, sf, ef)
+    if not pcw:
+        print('No $D4xx stores captured. siddump stderr above may explain.',
               file=sys.stderr)
         return 1
+
+    # Group stores into play() invocations by cycle gap. Within one play()
+    # the $D4xx stores cluster within ~a few hundred cycles; consecutive
+    # play()s are ~19656 cycles (one PAL frame) apart. A gap over PLAY_GAP
+    # therefore marks a new play(). This is the honest unit (siddump's frame
+    # buckets are NOT play() invocations — Trap C — so we don't pretend to
+    # label by siddump frame). Play 0 = the first play() in the range; for a
+    # capture that starts at frame F it corresponds to ~frame F.
+    PLAY_GAP = 4000
+    play_idx = 0
     print(f'# {args.sid} subtune {args.subtune} frames {sf}-{ef}')
-    print(f'# {len(writes)} write(s), {len(pc_samples)} PC samples')
+    print(f'# {len(pcw)} $D4xx store(s); play() boundaries by cycle gap '
+          f'(>{PLAY_GAP} cyc). PC = the exact store instruction.')
     print()
-    print(f'  frame  abs_cycle  register         val   PC')
-    for f_idx, abs_cycle, reg, val in writes:
+    print('  play  register             val   PC      cycle')
+    prev_cyc: int | None = None
+    for pc, reg, val, cyc in pcw:
+        if prev_cyc is not None and cyc is not None and cyc - prev_cyc > PLAY_GAP:
+            play_idx += 1
+            print()
+        prev_cyc = cyc
         if reg_filter is not None and reg not in reg_filter:
             continue
-        pc = _find_pc_for_cycle(pc_samples, abs_cycle)
-        pc_s = f'${pc:04X}' if pc is not None else '?????'
-        print(f'  f{f_idx:<4}  c{abs_cycle:<10}  '
-              f'$D4{reg:02X} {_voice_role(reg):<18}  ${val:02X}    {pc_s}')
+        cyc_s = f'c{cyc}' if cyc is not None else ''
+        print(f'  p{sf + play_idx:<4}  $D4{reg:02X} {_voice_role(reg):<18}  '
+              f'${val:02X}    ${pc:04X}   {cyc_s}')
     return 0
 
 
