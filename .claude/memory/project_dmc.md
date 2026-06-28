@@ -67,12 +67,23 @@ emerges from the cumulative residue drop. Caveat: expect a small tail of genuine
 (cymbal $DF) + HARD knobs (bit-exact vibrato arithmetic) — ~20-50 knobs likely => ~95%, then
 a stubborn last few %. KNOBS IDENTIFIED SO FAR: (1) off-table state-block reads = exactly-
 tracking-state read-redirect map [DONE, +48+9, ~tapped]; (2) cymbal-burst value [DONE, 1-off];
-(3) HARDCORE'S KNOB = WAVE-PROGRAM EXTRACTION: composer mis-extracts some instruments' wave
-programs (Hardcore inst25 lifted as constant `$21 x6` saw, but orig plays `$00/$0C/$06`
-sync/ring modulation — wave-ctrl $1780=$00 orig vs $21 rebuild, gate-mask $100F=$FF so NOT a
-mask issue; the all-identical $21x6 = extractor read the wrong region). DEEPER than off-table
-(it's in the EXTRACTOR — diff binary vs lifted wave program). NEXT: debug the inst-wave-
-program extractor; measure its fan-out (how many members have mis-lifted wave programs).
+(3) ✅ HARDCORE'S KNOB = 8-BIT INSTRUMENT-OFFSET WRAP (commit 3cae4fd). The player indexes
+instrument records via the 6502 Y register: `LDA $18F0,Y` with Y = instrument# * 11. Y is
+8-BIT, so the offset WRAPS mod 256. For inst# >= 24 (24*11=264 > 255) the record start is
+`(#*11) & 0xFF` — a tightly-packed table reuses its low bytes for high instruments. The
+extractor used the UN-wrapped offset (`base + iid*11`) and read past the table into the wave
+ctrl table -> garbage for inst 24-31. Fix: `off = (iid*11) & 0xFF` in `_decode_instrument`.
+SAFE: 23*11=253 < 256, so inst 0-23 unchanged (zero regression); only 24-31 corrected.
+Hardcore inst24: unwrapped $19F8 (saw $81/$41) vs wrapped $18F8 (real AD=$00/SR=$00/wstart=$F0
+modulation). Hardcore pos 0 -> frame 93.
+**METHODOLOGY LESSON (the user caught this, I'd wrongly leaned "pathological garbage"):** when
+a trace shows the orig reading "out-of-range / garbage" data, DO NOT conclude the SID is
+broken — the packer is almost always right; suspect OUR OWN extractor first (an 8-bit
+wrap / wrong base / wrong stride). The user's instinct ("a real packer wouldn't emit a broken
+SID; check the docs/packer/STIL") was correct and is the rule going forward. Cross-ref
+[[feedback_6502_mindset]] (all bugs are pointer errors; think in exact byte offsets — incl.
+8-bit index wrap). FAN-OUT: every member referencing instrument# >= 24 (measuring via broad
+transfer test).
 
 ## ✅ off-table sub-finding (superseded framing): SYSTEMATIC, NOT IDIOSYNCRATIC (2026-06-26 session 3)
 I first (WRONGLY) concluded the residue was a per-member idiosyncratic slog, having
