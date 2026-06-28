@@ -97,7 +97,7 @@ def _assign_slots(freqs):
     return slot
 
 # --------------------------------------------------------- model -> usf ----
-def model_to_usf(model, title='bp'):
+def model_to_usf(model, title='bp', gap_exact=False):
     pt = _perstep_timbre(model)                        # {vc: [perstep timbre regs]}
     inst_voices = set(pt)
     inst_slots = {(vc, r) for vc in inst_voices for r in pt[vc]}
@@ -173,7 +173,15 @@ def model_to_usf(model, title='bp'):
         on = s['on_frame']; off = s['off_frame']
         nxt = steps[k+1]['on_frame'] if k + 1 < len(steps) else on + med
         hold = max(1, (off - on)) if (gated and off is not None) else max(1, nxt - on)
-        gap = max(1, nxt - off) if (gated and off is not None) else 1
+        # gap may be 0 (back-to-back notes: the gate-off frame == the next gate-on frame).
+        # Forcing max(1,...) inflates every such step by 1 frame -> a progressive timing
+        # drift that accumulates past the |len|<=64 tolerance on LONG tunes (500+ steps).
+        # gap_exact keeps it exact so on_frames reconstruct losslessly through USF; it's a
+        # best_attempt verify-fallback (default max(1,...)) because a rho-rounding-collapsed
+        # nxt-off=0 is sometimes SPURIOUS (two distinct frames merged) -> gap=0 would reorder
+        # same-frame writes; the 3 tunes where that happens stay FULL via the default.
+        gmin = 0 if gap_exact else 1
+        gap = max(gmin, nxt - off) if (gated and off is not None) else 1
         for vc in voices:
             f = eff[k][vc]
             if f is None:
@@ -355,7 +363,7 @@ def usf_to_model(usf):
     for k in range(nsteps):
         hi = k * per_step
         hold = max(1, vrows[voices[0]][hi].duration)
-        gap = max(1, vrows[voices[0]][hi + 1].duration) if gated else 0
+        gap = vrows[voices[0]][hi + 1].duration if gated else 0   # exact (0 = back-to-back notes)
         ge = gevents.get(k)                            # advance the global state this step
         if ge:
             for fld in ('dyn', 'cutoff', 'res', 'mode', 'route'):
@@ -433,7 +441,7 @@ def _compare_with_extend(orig_wl, reb_sid, dur, loops):
     return r, False
 
 
-def _attempt_model(m, sid, dur, orig_wl, title='bp'):
+def _attempt_model(m, sid, dur, orig_wl, title='bp', gap_exact=False):
     """Build a rebuild from model m and verify against the (cached) orig writelog.
     Returns (status, match, len_a, len_b, usf_or_None, sid_bytes_or_None). Pool-safe."""
     import tempfile
@@ -444,7 +452,7 @@ def _attempt_model(m, sid, dur, orig_wl, title='bp'):
     if not is_clean(m):
         return ('not_clean', 0, 0, 0, None, None)
     try:
-        usf = model_to_usf(m, title=title)
+        usf = model_to_usf(m, title=title, gap_exact=gap_exact)
     except ValueError as e:                            # e.g. too_many_pitches (vibrato > 96 slots)
         return (str(e), 0, 0, 0, None, None)
     fd, up = tempfile.mkstemp(suffix='.usf'); os.close(fd)
@@ -474,27 +482,41 @@ def best_attempt(sid_rel, dur, title='bp'):
     """Verify the auto model; if it BUILT but verified diverge/length_fail, retry the
     force-split variant (the auto-fallback only fires on build-failure, so an unsplit
     model that builds-but-diverges where splitting would win is otherwise missed).
+    Runs the whole fallback chain twice: first with the default gap encoding, then (only
+    if still length_fail) with the drift-free gap_exact encoding — a length_fail-only
+    fallback so the 3 tunes whose rho-rounding-collapsed gap=0 would REORDER same-frame
+    writes stay FULL via the default. gap_exact must compose with every variant (e.g.
+    Barn_Razing needs min_trim + gap_exact), hence the full second pass.
     Returns (status, match, len_a, len_b, usf_or_None, sid_bytes_or_None)."""
     from pipelines.hubbard.verify_cycle import writelog_capture
     sid = os.path.join(ROOT, 'hvsc84', sid_rel)
     orig_wl = writelog_capture(sid, 0, dur)
-    res = _attempt_model(build_model(sid, dur), sid, dur, orig_wl, title)
-    if res[0] in ('overlap_diverge', 'length_fail'):   # built but wrong -> try the split variant
-        res2 = _attempt_model(build_model(sid, dur, force_split=True), sid, dur, orig_wl, title)
-        if res2[0] == 'FULL':
-            return res2
-    if res[0] == 'length_fail':                         # short play-once tail -> keep final steps
-        res3 = _attempt_model(build_model(sid, dur, min_trim=True), sid, dur, orig_wl, title)
-        if res3[0] == 'FULL':
-            return res3
-    if res[0] in ('overlap_diverge', 'length_fail'):   # trailing master-vol=0 fade -> song-end
-        res4 = _attempt_model(build_model(sid, dur, detect_song_end=True), sid, dur, orig_wl, title)
-        if res4[0] == 'FULL':
-            return res4
-    if res[0] in ('overlap_diverge', 'length_fail'):   # free-running PW sweep modulation
-        res5 = _attempt_model(build_model(sid, dur, detect_modulation=True), sid, dur, orig_wl, title)
-        if res5[0] == 'FULL':
-            return res5
+
+    def _try(gap_exact):
+        res = _attempt_model(build_model(sid, dur), sid, dur, orig_wl, title, gap_exact=gap_exact)
+        if res[0] in ('overlap_diverge', 'length_fail'):   # built but wrong -> the split variant
+            res2 = _attempt_model(build_model(sid, dur, force_split=True), sid, dur, orig_wl, title, gap_exact=gap_exact)
+            if res2[0] == 'FULL':
+                return res2
+        if res[0] == 'length_fail':                        # short play-once tail -> keep final steps
+            res3 = _attempt_model(build_model(sid, dur, min_trim=True), sid, dur, orig_wl, title, gap_exact=gap_exact)
+            if res3[0] == 'FULL':
+                return res3
+        if res[0] in ('overlap_diverge', 'length_fail'):   # trailing master-vol=0 fade -> song-end
+            res4 = _attempt_model(build_model(sid, dur, detect_song_end=True), sid, dur, orig_wl, title, gap_exact=gap_exact)
+            if res4[0] == 'FULL':
+                return res4
+        if res[0] in ('overlap_diverge', 'length_fail'):   # free-running PW sweep modulation
+            res5 = _attempt_model(build_model(sid, dur, detect_modulation=True), sid, dur, orig_wl, title, gap_exact=gap_exact)
+            if res5[0] == 'FULL':
+                return res5
+        return res
+
+    res = _try(False)
+    if res[0] == 'length_fail':                            # accumulated-timing drift on a long tune
+        resg = _try(True)
+        if resg[0] == 'FULL':
+            return resg
     return res
 
 
