@@ -148,6 +148,38 @@ via writelog + memwatch + lo/hi PAIR disambiguation), tmp/ot_fastverify.py (shor
 verify). Re-verify of PARTIALS is SLOW (~2/min — all get the mask_only retry); narrow to the
 relevant subset (off-table-freq) not all 1089.
 
+## 🔬 FAMILY-1 GRIND (2026-06-28): off-table-read class DONE; residue is freq-EFFECT drift
+Encoding-specific off-table class essentially COMPLETE + the off-table-read vein is exhausted.
+- **otrk ($1726, commit 84c0f13) + wnote ($1783, commit 5b3ca36) added to the off-table map.**
+  Both DERIVED from data the composer already has (otrk=(trkpos>>1)+1 from orderlist pos;
+  wnote=wave-offset+curnote = the arp note our wavestep computes at `adc curnote,x`). Hardcore
+  partial->FULL (otrk); Non_plus_Ultra_tune_2 partial->FULL (wnote). 0 real regressions (the 1
+  proxy "regression" Love_with_Sylwia was a STALE-BASELINE palimpsest — fully-reverted build
+  still diverged at the same pos, so otrk/wnote innocent; dmc_wide_results.jsonl status='full'
+  is UNRELIABLE for members built by old code).
+- **sectorpos ($1729) DEPRIORITIZED.** It's the hard encoding-specific case (our composer's
+  tagged-event pattern format ≠ orig's packed byte stream: orig $1729 = byte-offset into the
+  sector, +1/event +1/prefix(inst/dur/vol/$7C) emit-on-change; +2/+3 for glide mode1/0).
+  Byte-cost model fully RE'd (disasm $1837/$17C5/$17DA/$1113 + sub_11E6) + confirmed by trace
+  (Retro_Tunel V2 deltas +1 sticky / +2 glide). Reconstructable in the composer by tracking
+  running inst/dur per voice, BUT fragile to redundant-prefix editor quirks AND — per the
+  FRESH census below — only ~1 member, NOT worth it. SAFE to add later (FULLs don't read it).
+- **FRESH off-table census (current otrk+wnote code, 70 partials) is DECISIVE: 50/70 (71%) =
+  "no-pair-match" = freq drift, NOT a clean off-table state read.** The off-table state-read
+  buckets collapsed to SINGLETONS (sectorpos 1, durreload 1, gltarget 1, + scattered undoc
+  bytes). The off-table-read knob vein is DONE. (Validated censusing-first: building sectorpos
+  blind would recover ~1-17, not a ketchup.)
+- **RESIDUE IS NOW FREQ-EFFECT DRIFT.** Of 198 partials: pos<20 note-init=3, pos>10k LATE=135
+  (68%). Late-drift by reg class (n=143): freqlo 92 / freqhi 24 / ctrl 12 / pwlo 8 / filt 5.
+  Mechanism (traced Blacha V3): held note for ~15 frames, then a GLIDE the orig performs
+  (+$20/frame steady ramp $47->$67->$87->...) but our rebuild does NOT (small osc-and-hold) —
+  i.e. a glide/vibrato/wave-arp effect handled differently, reached only late. The ctrl
+  sub-cluster (12, orig often clean $41 pulse+gate) smells like wave-program-position drift
+  (the wave prog rebases base freq @ $15C3, so wavepos drift corrupts BOTH ctrl + freqlo).
+  NEXT: full batch -> cluster late-drift by EFFECT MECHANISM (glide-onset / vibrato-onset /
+  wave-arp) -> attack largest mechanism. The "ketchup" now lives in shared EFFECT bugs, not
+  off-table knobs. Batch tmp/dmc_otrk_reverify.jsonl re-verifying the 1228 non-FULLs (otrk+wnote).
+
 ## 🔬 FAMILY-1 GRIND (2026-06-26): residue is the hard tail; SONG-EXACT lever = +32 (pending verdict ratification)
 Exhaustive per-cause grind of the 1121 partials. KEY OUTCOMES:
 
