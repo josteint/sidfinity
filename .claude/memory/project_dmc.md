@@ -105,10 +105,20 @@ byte-identically, so the redirect == the static capture for FULLs, > it for part
 Focused tests: TIER1+2 = 9/17 recovered 0 regress; +TIER3 = 10/22 recovered 0 regress,
 30/30 FULLs held. Commits 1ab8c46 + 331d11c. **Generator gotchas:** omit `cpy #256` when a
 range runs to idx 255; the long redirect overran `bne ws_drum` -> invert+jmp.
-**STILL RESIDUE (the genuine hard tail, NOT idiosyncratic but harder):** (a) ENCODING-
-specific state — wavepos/sectorpos/trkptr live in the ORIG's encoding the composer
-flattened differently, so they don't track byte-identically (mapping them WOULD regress);
-needs an orig-faithful shadow. (b) undocumented $171E/$174D/$178F bytes. (c) cleared $1789
+**STILL RESIDUE:** (a) ❌ I WRONGLY EXCLUDED "encoding-specific" state (wavepos/sectorpos/
+trkpos) as "can't track byte-identically, needs a deep shadow." CORRECTED BY USER (2x): that
+is a CORE-TENET VIOLATION + a three-filters error. The composer is FREE to reproduce the
+orig's representation, AND the value is DERIVABLE from what the USF already holds — no USF
+change, no stored byte-offsets, no faithful-shadow invention, just the canonical off-table
+redirect pointed at a DERIVED counter. PROVEN: orig track byte-offset $1726 = (trkpos>>1)+1
+(orig track = leading-transpose byte + 1-byte sectors; our trkpos is 2 bytes/entry), computed
+per-voice at `voice:`, mapped (commit 84c0f13). Hardcore first-div frame 93 -> 12631; +recov
+(Crystal), 0 regr. LESSON: when an off-table read hits "encoding-specific" engine state, DERIVE
+it from the composer's existing data — don't exclude it. SAME for wavepos ($177A) + sectorpos
+($1729) = the rest of the class (NEXT; otrk alone is ~1.5%, the full class is the ketchup).
+Common-case only so far (mid-list transpose RE-ASSERTIONS — the editor re-states $A0/+0 after
+N sectors — + loop targets shift the byte-offset; otrk's simple formula is then off by the
+re-assertion count: a follow-up, captured-or-derived). (b) undocumented $171E/$174D/$178F bytes. (c) cleared $1789
 ($00, never written by composer). (d) glide/vibrato drift that diverges on a SPECIFIC late
 event (For_Insider_1 frame 6521), not gradual — the freq-accum arithmetic itself MATCHES
 orig (verified glide HI-byte-arrival + triangle-vibrato accumulate). Also commit 202ce45:
