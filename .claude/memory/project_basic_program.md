@@ -1,6 +1,6 @@
 ---
 name: project_basic_program
-description: "Basic_Program family (486 RSID-BASIC tunes) — PRODUCTIONIZED round-trip: 235/486 (48.4%) FULL through real USF, mass-written + regression"
+description: "Basic_Program family (486 RSID-BASIC tunes) — PRODUCTIONIZED round-trip: 248/486 (51.0%) FULL through real USF, mass-written + regression"
 metadata: 
   node_type: memory
   type: project
@@ -299,17 +299,31 @@ trim: their tail breaks the template — Singalong/Let_it_Be regressed under unc
 fallback). +4 (El-Shaddai, English_Tune, A_Musical_Round, Spy_Music). build_model gained `min_trim`; best_attempt
 adds the 3rd retry after force_split.
 
-**RESIDUE (251): arp/dup 96** (variable_template 67 + legato_variable 29 — precedence cycles + deeper variants) +
-too_few 68 (after_trim 59 + steps 9) + length_fail 31 (per-frame PWM/filter 6 = richer lift; final-note-tail /
-under_segment residue ~17; loop-real-diverge 3; 1 long) + overlap_diverge 36 + build_fail 20 (vibrato
-too_many_pitches + partial-freq stragglers). 1 digi (Black_Box_V8_Demo) → Mode 2.
+**✅ FREQ-HI SEED (overlap_diverge round 1, 2026-06-27): 235→248 FULL (48.4%→51.0%), 0 regr.** overlap_diverge (36)
+clustered by first-divergence site (od census, `tmp/`): DOMINANT = `V1fhi reb=$00` ~13 (rebuild emits freq-HI=$00
+where orig has nonzero) + song-end `mvol=$00` fade mis-looped 3 + ordering/ctl misc. Root cause of the dominant
+cluster: in `model_to_usf` the running-freq `eff` table seeded `run_hi/run_lo` ONLY from init writes, then gated
+`row[vc] = (hi<<8|lo) if (wh or wl) and vc in run_hi and vc in run_lo else None`. A voice writing freq-HI-ONLY (a
+coarse pitch sweep/glide, lo never written) failed `vc in run_lo` → row=None → the note became a REST → the perstep
+mask still emitted V1fhi with `_pitch_freq(rest)=0` → `V1fhi=$00`. The SID freq regs RESET to 0, so a hi-only write
+genuinely means freq `(hi, 0)`. Fix: seed `run_hi/run_lo = {vc:0 for vc in voices}` (chip reset state). 0-regression
+(a FULL tune writing hi-only would already have diverged). +13 (Earthworms, Moonlight, Two_Lines_of_Code 1+2,
+Alien_Attack, Angry_Ninja, Infinitesimal, M7_Shot, Dog_Fight, Spaceshuttle, Drum_Controller, Little_Brain,
+Wail_of_the_Banshee). A few glide-heavy sweeps moved buckets (M8_Sound/Tron → length_fail correct-but-short;
+Interlace → too_many_pitches >96 freqs). Canary: Earthworms (portfolio 15).
 
-**NEXT (highest-leverage first):** (1) length_fail remainder — under_segment 4 (segment by onset not just silent gap)
-+ per-frame PWM/filter 6 (lift pulse-width-modulation + filter sweep parametrically — connects to PwmConfig / global
-track / ledger C1 SweepEnvelope) + the final-note-tail residue. (2) the arp/dup 96 (precedence cycles +
-split-then-still-variable). (3) overlap_diverge 36 + partial-freq stragglers (Glass_Jaw/Interlace). (4) too_few 68.
-(5) vibrato too_many_pitches (freq alphabet >96). Iterate via `family_batch.py` (resumes from the OUT jsonl; delete
-to force clean). Survey raw: `tmp/basic_program_research/survey.jsonl`.
+**RESIDUE (238): arp/dup 96** (variable_template 67 + legato_variable 29 — precedence cycles + deeper variants) +
+too_few 68 (after_trim 59 + steps 9) + overlap_diverge 23 (REMAINING: song-end mvol=$00 fade mis-looped ~5 e.g.
+Silver_Bells/Let_it_Snow/Oh_Suzannah/Bach_Minuet — orig fades master-vol to 0 at end, model found a false loop; +
+ctl/order misc) + length_fail 31 (per-frame PWM/filter 6 = richer lift; final-note-tail / under_segment ~17;
+loop-real-diverge 3; +glide sweeps) + build_fail 21 (vibrato/glide too_many_pitches). 1 digi (Black_Box_V8_Demo) → Mode 2.
+
+**NEXT (highest-leverage first):** (1) overlap_diverge round 2 — song-end `mvol=$00` fade (orig ends with master-vol
+→0 = silence; model wrongly loops → detect trailing mvol=0 as song-end, cf. the Hubbard song-end fade). (2) length_fail
+remainder — under_segment 4 + per-frame PWM/filter 6 (parametric PWM + filter sweep, ledger C1 SweepEnvelope). (3) the
+arp/dup 96 (precedence cycles + split-then-still-variable). (4) too_few 68. (5) glide/vibrato too_many_pitches (freq
+alphabet >96 — the sweeps that exceed 96 distinct freqs; a glide effect would compress them). Iterate via
+`family_batch.py` (resumes from the OUT jsonl; delete to force clean). Survey raw: `tmp/basic_program_research/survey.jsonl`.
 
 **CONVERGENCE (ledger C10, 2026-06-27):** the `global_track` is the EXPLICIT-event form of chip-global $D415-$D418
 automation; the OTHER engines already represent the same registers PARAMETRICALLY (`MasterVolConfig` fade formula,

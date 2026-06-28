@@ -14,6 +14,7 @@
     {"sid": "MUSICIANS/B/Bond_Alan/Lead_De-tuned_BASIC.sid", "dur": 15.0, "feat": "running-freq partial-freq notes (one freq byte carried) + timbre-only rest-step + const release ctrl"},
     {"sid": "MUSICIANS/B/Bond_Alan/Moog_Swing_BASIC.sid", "dur": 15.0, "feat": "global automation track (cutoff sweep + filter mode/res/route + master-vol dynamics on the shared per-subtune global track)"},
     {"sid": "MUSICIANS/K/Karlsson_Peter/Love_Me_Tender_BASIC.sid", "dur": 42.9, "feat": "looping tune recovered by the extend-and-verify path (rebuild runs ~1/rho slower so the fixed window cuts it mid-loop; verified by reproducing the orig's entire writelog as an exact prefix in an extended capture, no length tolerance)"},
-    {"sid": "DEMOS/A-F/English_Tune_BASIC.sid", "dur": 70.5, "feat": "min_trim verify-fallback: a complete final section (thinner texture) the aggressive trailing-trim would over-drop; kept via the masked path when min_trim verifies FULL"}
+    {"sid": "DEMOS/A-F/English_Tune_BASIC.sid", "dur": 70.5, "feat": "min_trim verify-fallback: a complete final section (thinner texture) the aggressive trailing-trim would over-drop; kept via the masked path when min_trim verifies FULL"},
+    {"sid": "MUSICIANS/K/Kidd_Clark_and_Kathy/Earthworms_BASIC.sid", "dur": 15.0, "feat": "freq-hi-only writes (coarse pitch sweep, lo carried/unset) — running-freq seeded to the SID reset state (0) so a hi-only write resolves to (hi,0) instead of becoming a rest emitting freq-hi=$00"}
   ]
 }

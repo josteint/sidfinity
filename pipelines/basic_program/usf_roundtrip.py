@@ -115,7 +115,7 @@ def model_to_usf(model, title='bp'):
     # Active = wrote a freq byte (None = no freq this step; timbre-only / re-trigger
     # steps are handled elsewhere). Full-freq tunes are unchanged (both bytes every note).
     eff = []
-    run_hi = {}; run_lo = {}
+    run_hi = {vc: 0 for vc in voices}; run_lo = {vc: 0 for vc in voices}   # SID freq regs reset to 0
     for r, v in model['init']:
         for vc in voices:
             if r == FHI[vc]: run_hi[vc] = v
