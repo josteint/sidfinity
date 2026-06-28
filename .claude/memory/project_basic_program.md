@@ -1,6 +1,6 @@
 ---
 name: project_basic_program
-description: "Basic_Program family (486 RSID-BASIC tunes) — PRODUCTIONIZED round-trip: 252/486 (51.9%) FULL through real USF, mass-written + regression"
+description: "Basic_Program family (486 RSID-BASIC tunes) — PRODUCTIONIZED round-trip: 253/486 (52.1%) FULL through real USF, mass-written + regression"
 metadata: 
   node_type: memory
   type: project
@@ -326,24 +326,32 @@ as a best_attempt VERIFY-FALLBACK (`detect_song_end=True`, tried only on overlap
 The zero-all sub-cluster (Hymna_CCCP/Johnny_Reb/Prospector/Sounds_of_Dixie) needs the silence-all captured
 mid-stream — deferred.
 
-**RESIDUE (234): arp/dup 96** (variable_template 67 + legato_variable 29 — precedence cycles + deeper variants) +
+**RESIDUE (233): arp/dup 96** (variable_template 67 + legato_variable 29 — precedence cycles + deeper variants) +
 too_few 68 (after_trim 59 + steps 9) + overlap_diverge 19 (zero-all silence-all ~4 + early ctl/order/freq misc) +
-length_fail 31 (per-frame PWM/filter 6 = richer lift; final-note-tail / under_segment ~17; loop-real-diverge 3) +
-build_fail 21 (vibrato/glide too_many_pitches). 1 digi (Black_Box_V8_Demo) → Mode 2.
+length_fail 30 (per-frame PWM/filter 5 = richer lift, Cascading now FULL; final-note-tail / under_segment ~17;
+loop-real-diverge 3) + build_fail 21 (vibrato/glide too_many_pitches). 1 digi (Black_Box_V8_Demo) → Mode 2.
 
-**🔶 PER-FRAME PWM MODULATION ENGINE (WIP, commit 7e5c62a, 2026-06-28):** the per-frame PWM/filter cluster (6) is a
-free-running MODULATION engine, not a single fix — `detect_modulation` best_attempt fallback (0-regression, no tune
-FULL yet). Capture = per-voice PW-hi sweep → `SweepEnvelope` (RLE writelog per-frame deltas; ledger C1, the
-`default_pulse` continuous analog), round-trips exactly. Player (masked+legato) = 6502 sweep walker, FRACTIONAL rate
-(`mod_inc`/256 ticks per play() = BASIC-loop rate not 50Hz), notes re-timed onto the sweep clock (`on_tick`), sweep
-emitted BEFORE the note (orig order [PW][note]), PW stripped pre-segmentation. PROVEN single-section (Cascading 1st
-259 writes exact, from 2). REMAINING LAYERS (each deep, multi-session): section-varying sweep (pauses/changes between
-sections — Cascading diverges i=259), the underlying length_fail (noloop-continues), per-voice gating (masked tunes
-where the sweep follows one voice — Doom_Comer), arp + filter-sweep variants. Methodology that worked: divide-and-
-conquer on the FIRST DIVERGENCE (`find_first_divergence`-style), one cause at a time (gating→rate→interleaving→order).
+**✅ PER-FRAME PWM SWEEP-PROGRAM ENGINE (commit f2eaabf, 2026-06-28): 252→253 FULL, Cascading FULL, 0 regr.** The
+per-frame PWM cluster is a free-running MODULATION engine (`detect_modulation` best_attempt fallback). The key
+correction vs the WIP single-`SweepEnvelope` form: the real signal is a per-voice multi-section sweep PROGRAM (~40
+sections/voice, voices INDEPENDENT) — `_capture_pw_program` lifts each voice's PW-hi ($03/$0A/$11) write seq into a
+value-table of distinct period bytes + RLE sections `(offset, period_len, repeats)` (a PWM automation orderlist,
+ledger C1; dedup via `_find_sub` reuses identical period runs so all 3 voices fit the ≤255 table guard). Player
+(masked+legato) = 6502 sweep walker (`_emit_pw_mod_asm`, trampoline `pwm_skip: jmp pwm_done` for the ±127 branch
+limit), FRACTIONAL rate (`mod_inc`/256 ticks per play() = BASIC-loop rate not 50Hz, `mod_inc=round(256*pw_writes/
+active)`), notes re-timed onto the sweep-tick clock (`on_tick` = cumulative tick count, NOT rho-scaled frames), sweep
+emitted BEFORE the note check (orig order [PW][note] — legato calls emit_pw_mod after pl_load), PW stripped from
+frames pre-segmentation (parametric, so not re-split into raw sub-steps). USF: `bp_pwprog{vc}_*` params (value-table
+4-bytes/int + sections). Cascading FULL (match 10382/10418, all 3 voices, full program matched). Canary added
+(portfolio now 17). Methodology that cracked it: divide-and-conquer on the FIRST DIVERGENCE, one cause at a time
+(gating→rate→interleaving→write-order→section-varying), each fix a new divergence index. The deleted single-sweep
+helpers (`_minimal_period`/`_sweep_from_values`/`_expand_sweep`) were insufficient — a program, not one envelope.
+REMAINING modulation tunes (5): per-voice gating + arp (Pong_Strikes_Back, Doom_Comer) or filter-$D416 modulation
+(Sullen, Pepper_Spray, Brickout — $16 sweep not yet handled, only PW $03/$0A/$11).
 
-**NEXT (highest-leverage first):** (1) length_fail remainder — the PWM modulation engine above (resume from 7e5c62a)
-+ under_segment 4. (2) overlap_diverge zero-all silence + the early-divergence misc
+**NEXT (highest-leverage first):** (1) length_fail remainder — the 5 remaining PWM modulation tunes (resume from
+f2eaabf): per-voice gating + arp (Pong/Doom_Comer), filter-$D416 sweep (Sullen/Pepper/Brickout — extend the
+sweep-program to $16) + under_segment 4. (2) overlap_diverge zero-all silence + the early-divergence misc
 (M5_Gong / Crazy_Conveyors / Kiosk / Dark_Tower — match<50, real per-tune emission bugs to trace). (3) the arp/dup 96
 (precedence cycles + split-then-still-variable). (4) too_few 68. (5) glide/vibrato too_many_pitches (freq alphabet >96
 — a glide effect would compress the sweeps). Iterate via `family_batch.py` (resumes from the OUT jsonl; delete to

@@ -87,14 +87,21 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
   oscillator is the special case `start + [(+s,n),(−s,n)], loop=0` — verified
   losslessly expressible (decision-1 gate, 2026-06-18).
 - **Consumers (canonical):** DMC `pulse_env`, `filter_env`, `default_pulse`,
-  `default_filter`. **basic_program per-frame PWM (WIP, commit 7e5c62a)** — a
-  free-running per-voice pulse-width sweep captured by RLE-ing the writelog's
-  per-frame deltas into the same `(rate,frames)` phases (the `default_pulse`
-  continuous analog, not per-instrument). Player = a 6502 sweep walker advancing
-  at a FRACTIONAL rate (mod_inc/256 ticks per play() = the BASIC-loop rate, not
-  50Hz). Proven for single-section sweeps (Cascading first 259 writes exact);
-  remaining = section-varying sweeps (the sweep pauses/changes between sections),
-  per-voice gating, arp/filter variants. Confirms C1 generalizes to a 5th family.
+  `default_filter`. **basic_program per-frame PWM — ✅ LANDED (commit f2eaabf,
+  Cascading FULL)** — a free-running per-voice pulse-width sweep PROGRAM: each
+  voice runs an independent automation orderlist (a value-table of distinct
+  period bytes + RLE sections `(offset, period_len, repeats)`; dedup reuses
+  identical period runs). The single-`SweepEnvelope` form was insufficient — the
+  real signal is a multi-section program (~40 sections/voice), so it generalizes
+  the contour into a sectioned orderlist (still parametric/musical, NOT a raw
+  period table — the table holds only distinct periods, sections index them).
+  This is the `default_pulse` continuous analog, not per-instrument. Player =
+  a 6502 sweep walker advancing at a FRACTIONAL rate (mod_inc/256 ticks per
+  play() = the BASIC-loop rate, not 50Hz); notes re-timed onto the sweep-tick
+  clock; PW emitted before the note check ([PW][note] within a tick). Confirms
+  C1 generalizes to a 5th family. Remaining basic_program modulation tunes need
+  per-voice gating + arp (Pong/Doom_Comer) or filter-`$D416` modulation
+  (Sullen/Pepper/Brickout, not yet handled).
 - **DIVERGENT forms of the same DOF across families** (Move-1 decisions D1/D2,
   see [refactor_1_remaining.md](refactor_1_remaining.md) all-families review
   2026-06-18 — unify onto `SweepEnvelope`): Hubbard `pwm` (linear/bidi) · FC
