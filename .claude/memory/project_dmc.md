@@ -164,21 +164,33 @@ Encoding-specific off-table class essentially COMPLETE + the off-table-read vein
   (Retro_Tunel V2 deltas +1 sticky / +2 glide). Reconstructable in the composer by tracking
   running inst/dur per voice, BUT fragile to redundant-prefix editor quirks AND — per the
   FRESH census below — only ~1 member, NOT worth it. SAFE to add later (FULLs don't read it).
-- **FRESH off-table census (current otrk+wnote code, 70 partials) is DECISIVE: 50/70 (71%) =
-  "no-pair-match" = freq drift, NOT a clean off-table state read.** The off-table state-read
-  buckets collapsed to SINGLETONS (sectorpos 1, durreload 1, gltarget 1, + scattered undoc
-  bytes). The off-table-read knob vein is DONE. (Validated censusing-first: building sectorpos
-  blind would recover ~1-17, not a ketchup.)
-- **RESIDUE IS NOW FREQ-EFFECT DRIFT.** Of 198 partials: pos<20 note-init=3, pos>10k LATE=135
-  (68%). Late-drift by reg class (n=143): freqlo 92 / freqhi 24 / ctrl 12 / pwlo 8 / filt 5.
-  Mechanism (traced Blacha V3): held note for ~15 frames, then a GLIDE the orig performs
-  (+$20/frame steady ramp $47->$67->$87->...) but our rebuild does NOT (small osc-and-hold) —
-  i.e. a glide/vibrato/wave-arp effect handled differently, reached only late. The ctrl
-  sub-cluster (12, orig often clean $41 pulse+gate) smells like wave-program-position drift
-  (the wave prog rebases base freq @ $15C3, so wavepos drift corrupts BOTH ctrl + freqlo).
-  NEXT: full batch -> cluster late-drift by EFFECT MECHANISM (glide-onset / vibrato-onset /
-  wave-arp) -> attack largest mechanism. The "ketchup" now lives in shared EFFECT bugs, not
-  off-table knobs. Batch tmp/dmc_otrk_reverify.jsonl re-verifying the 1228 non-FULLs (otrk+wnote).
+- ❌❌ **"OFF-TABLE VEIN EXHAUSTED" was WRONG — RETRACTED (user-caught, 2026-06-28).** I claimed
+  the off-table-read class collapsed to singletons (71% drift). TWO tool failures inflated the
+  "drift" bucket: (1) `effect_chain_profiler` mis-attributed clean off-table writes to the PSID
+  driver spin loop $04A5 (Trap-C cycle-reconstruction bug — FIXED commit ec10551, now reads PC
+  off the pc-trace line directly), making me call clean DMC tunes (Object_of_Art, Disco_Mix)
+  "custom-code edge cases"; (2) `tmp/ot_fast.py` sampled engine state at the FRAME BOUNDARY (the
+  off-table read happens MID-frame, state changed) + filtered to reads where BOTH freq bytes land
+  in state $1707+ (missing the arp 96-191 case where the LO byte reads the HI-freq-table). Both
+  pushed off-table reads into "no-pair-match=drift". LESSON (3rd time, see Hardcore C11): when a
+  tool says "garbage / drift / not-clean", SUSPECT THE TOOL first.
+- **TRUE off-table fraction (reliable detector `tmp/offtable_truefrac.py`, 250-sample): 22% of
+  freq divergences are OFF-TABLE READS, ~78% in-table (vib/glide/wrong-note).** Detector = at the
+  divergence frame, is the ORIG's BASE freq ($172f/$1732+v = freq_lo_addr+0xE8/0xEB+v) an actual
+  entry in the 96-note freq table? NOT-in-table ⟺ wave-arp indexed past the table (base off-table
+  ⟺ arp>=96; vib/glide keep base in-table, accum does the offset — so NO false positives, it's a
+  LOWER BOUND). 794/983 partials (81%) are freq lo/hi divergences -> ~175 members are off-table
+  reads (NOT the +5 / singletons I claimed). The recoverable otrk/wnote vein is the BIGGEST single
+  bucket, not exhausted. These fail despite the 28-entry map => they read UNMAPPED state vars /
+  uncovered indices. NEXT: identify which state vars the 55 off-table members hit (on-write capture
+  state contemporaneously), cluster, map the derivable ones (otrk/wnote move at scale).
+- The in-table 78% = {vibrato, glide, wrong-note, drift} — a MIX, some recoverable (glide-onset
+  traced on Blacha = orig glides +$20/frame, rebuild osc-and-holds; wrong-note = extract bug). Not
+  all "hard drift". Sub-classify after the off-table vars are mapped.
+- Honest otrk+wnote bank: +5 confirmed FULL at full songlength (Crystal/Riders/Eros_n_Psycho/
+  Nasty_Track/Chrimbo_Tune_95). My spot-test "recoveries" (Hardcore=already full in store;
+  Non_plus_Ultra=80s-proxy false-positive, still diverges past 80s) did NOT hold — short-proxy
+  recoveries MUST be confirmed at full songlength.
 
 ## 🔬 FAMILY-1 GRIND (2026-06-26): residue is the hard tail; SONG-EXACT lever = +32 (pending verdict ratification)
 Exhaustive per-cause grind of the 1121 partials. KEY OUTCOMES:
