@@ -100,6 +100,16 @@ DMC_OFFTABLE_STATE = [
     (0x175F, 'cpwbase', 3),  # PW step base (instr byte 6 hi nibble)
     (0x1726, 'otrk', 3),     # track byte-offset (derived from orderlist pos)
     (0x1783, 'wnote', 3),    # arp note = wave-offset + curnote (derived in wavestep)
+    # NOTE: wavepos ($177A) + fcut ($171C) are read off-table by Object_of_Art's
+    # wave program (arp=213 -> hi=wavepos, lo=fcut). Mapping them was net-negative
+    # (0 recoveries, 1 regression / 33 FULLs): the HI byte sonifies the ABSOLUTE
+    # wave position, but our composer re-packs the wave pool with its own offsets
+    # (iwst), so our wavepos diverges from the orig's (+5 for Object_of_Art's
+    # V2/V3) — the off-table read can't match without reproducing the orig's
+    # wave-pool LAYOUT byte-for-byte (the hard C11 encoding-specific class).
+    # Mapping also regressed a FULL whose off-table read matched via the static
+    # overrun byte. So: off-table-wavepos reads are BLOCKED on the wave-pool
+    # layout, not addable as a redirect entry. See ledger C11 / project_dmc.
 ]
 
 

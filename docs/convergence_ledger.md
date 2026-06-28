@@ -326,4 +326,23 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
   table — e.g. the DMC wave POSITION ($177A is 8-bit, so a wave program crossing
   $FF wraps to wctab[0]; `_slice_wave` reads linearly past it — a candidate
   unfixed instance). Audit other `mem[base + i*stride]` extracts for the same.
+- **HARD BOUNDARY — off-table reads that sonify the ABSOLUTE wave position
+  (2026-06-28, Object_of_Art).** When a wave program's arp index runs off-table
+  and lands on `$177A` (wavepos itself), the orig plays the absolute wave
+  POSITION as a frequency. This is NOT addable to the C6 off-table redirect map:
+  our composer RE-PACKS the wave pool with its own offsets (`iwst` in
+  composer_asm — idle-program-first + dedup + instrument-order), so our wavepos
+  diverges from the orig's (Object_of_Art V2/V3 = orig+5). The off-table read can
+  only match if the composer reproduces the orig packer's wave-pool layout
+  BYTE-FOR-BYTE (offsets + sharing) — the encoding-specific-layout class (sibling
+  of sectorpos). Object_of_Art: first-div LO byte = `fcut` ($171C, derivable,
+  cleanly mappable) but HI byte = wavepos (blocked). Mapping wavepos+fcut was
+  net-NEGATIVE: 0 recoveries (wavepos wrong) + 1 FULL regression.
+- **METHODOLOGY — the C6 off-table redirect map is NOT free; measure regressions.**
+  Adding a `(addr, var, n)` entry can REGRESS a FULL whose off-table read happened
+  to match via the STATIC freq-table overrun byte (the value the read got before
+  the redirect). Always run a FULL-songlength transfer test (partials for
+  recovery + a FULL sample for regression) before committing a new map entry;
+  otrk/wnote were lucky on small samples. Reading $171C/$177A regressed
+  Humppa_Demo (1/33 FULLs).
 - **Consumers:** DMC v4 `_decode_instrument` (commit 3cae4fd).
