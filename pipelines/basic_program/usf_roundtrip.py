@@ -243,16 +243,18 @@ def model_to_usf(model, title='bp'):
     fields['bp_songend_n'] = len(song_end)
     for i, (reg, val) in enumerate(song_end):
         fields[f'bp_songend{i}'] = (reg << 8) | (val & 0xFF)
-    pw_sweeps = model.get('pw_sweeps') or {}            # per-voice pulse-width SweepEnvelope (C1)
-    fields['bp_pwsw_voices'] = sum(1 << (vc - 1) for vc in pw_sweeps)   # bitmask of modulated voices
+    pw_program = model.get('pw_program') or {}          # per-voice PW sweep PROGRAM (C1 orderlist)
+    fields['bp_pwprog_voices'] = sum(1 << (vc - 1) for vc in pw_program)   # bitmask of modulated voices
     fields['bp_mod_start'] = model.get('mod_start', 0)  # play-frame the sweep begins
     fields['bp_mod_inc'] = model.get('mod_inc', 0)      # fractional tick rate (per play, /256)
-    for vc, (start, phases, loop) in pw_sweeps.items():
-        fields[f'bp_pwsw{vc}_start'] = start & 0xFF
-        fields[f'bp_pwsw{vc}_loop'] = loop if loop is not None else -1
-        fields[f'bp_pwsw{vc}_nph'] = len(phases)
-        for i, (rate, frames_) in enumerate(phases):
-            fields[f'bp_pwsw{vc}_ph{i}'] = ((rate & 0xFFFF) << 16) | (frames_ & 0xFFFF)
+    for vc, (tab, secs) in pw_program.items():
+        fields[f'bp_pwprog{vc}_ntab'] = len(tab)        # value table (4 bytes per int)
+        for i in range((len(tab) + 3) // 4):
+            ch = (tab[4 * i:4 * i + 4] + [0, 0, 0, 0])[:4]
+            fields[f'bp_pwprog{vc}_t{i}'] = (ch[0] << 24) | (ch[1] << 16) | (ch[2] << 8) | ch[3]
+        fields[f'bp_pwprog{vc}_nsec'] = len(secs)       # sections: (offset, period_len, repeats)
+        for i, (off, ln, rep) in enumerate(secs):
+            fields[f'bp_pwprog{vc}_s{i}'] = (off << 16) | (ln << 8) | rep
     def _kind(e):                                      # 2 = from instrument; 3 = from global track
         if e[1] == 'perstep' and e[0] in GLOBAL_TRACK:
             return 3
@@ -308,13 +310,16 @@ def usf_to_model(usf):
     init = [((f[f'bp_init{i}'] >> 8) & 0xFF, f[f'bp_init{i}'] & 0xFF) for i in range(f['bp_init_n'])]
     song_end = [((f[f'bp_songend{i}'] >> 8) & 0xFF, f[f'bp_songend{i}'] & 0xFF)
                 for i in range(f.get('bp_songend_n', 0))]
-    from pipelines.basic_program.semantic_lift import _expand_sweep
-    pw_tables = {}                                      # per-voice pulse-width sweep -> value table
+    pw_program = {}                                     # per-voice PW sweep program (value table + sections)
     for vc in (1, 2, 3):
-        if f.get('bp_pwsw_voices', 0) & (1 << (vc - 1)):
-            phases = [((f[f'bp_pwsw{vc}_ph{i}'] >> 16) & 0xFFFF, f[f'bp_pwsw{vc}_ph{i}'] & 0xFFFF)
-                      for i in range(f[f'bp_pwsw{vc}_nph'])]
-            pw_tables[vc] = _expand_sweep(f[f'bp_pwsw{vc}_start'], phases, None)
+        if f.get('bp_pwprog_voices', 0) & (1 << (vc - 1)):
+            ntab = f[f'bp_pwprog{vc}_ntab']; tab = []
+            for i in range((ntab + 3) // 4):
+                x = f[f'bp_pwprog{vc}_t{i}']
+                tab += [(x >> 24) & 0xFF, (x >> 16) & 0xFF, (x >> 8) & 0xFF, x & 0xFF]
+            secs = [((f[f'bp_pwprog{vc}_s{i}'] >> 16) & 0xFF, (f[f'bp_pwprog{vc}_s{i}'] >> 8) & 0xFF,
+                     f[f'bp_pwprog{vc}_s{i}'] & 0xFF) for i in range(f[f'bp_pwprog{vc}_nsec'])]
+            pw_program[vc] = (tab[:ntab], secs)
     mod_start = f.get('bp_mod_start', 0)
     mod_inc = f.get('bp_mod_inc', 0)
     ftab = list(usf.freq_table)
@@ -402,7 +407,7 @@ def usf_to_model(usf):
             'loop_to': None if f['bp_loop_to'] < 0 else f['bp_loop_to'],
             'loop_period': f['bp_loop_period'], 'rho': f['bp_rho_milli'] / 1000.0,
             'clock': usf.psid.clock, 'masked': True, 'legato': bool(f['bp_legato']),
-            'song_end': song_end, 'pw_tables': pw_tables, 'mod_start': mod_start, 'mod_inc': mod_inc}
+            'song_end': song_end, 'pw_program': pw_program, 'mod_start': mod_start, 'mod_inc': mod_inc}
 
 # ------------------------------------------------------------- verify -----
 def _compare_with_extend(orig_wl, reb_sid, dur, loops):

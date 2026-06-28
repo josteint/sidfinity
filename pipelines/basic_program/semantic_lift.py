@@ -249,57 +249,104 @@ def _song_end_writes(frames, steps):
 PWHI = {1: 0x03, 2: 0x0a, 3: 0x11}                     # per-voice pulse-width hi reg
 
 
-def _minimal_period(seq, checks=8):
-    """smallest P>=2 s.t. seq is P-periodic over its first checks*P samples
-    (tolerates a partial final period). None if not periodic."""
-    n = len(seq)
-    for P in range(2, n // 2 + 1):
-        if all(seq[i] == seq[i - P] for i in range(P, min(n, checks * P))):
-            return P
-    return None
+def _seq_reps(seq, i, P):
+    n = len(seq); r = 0
+    while i + (r + 1) * P <= n and seq[i + r * P:i + (r + 1) * P] == seq[i:i + P]:
+        r += 1
+    return r
 
 
-def _sweep_from_values(vals):
-    """A per-tick value sequence -> (value_table, SweepEnvelope tuple (start, phases, loop)).
-    The SweepEnvelope is the PARAMETRIC form (ledger C1) carried in USF; the table is the
-    player's expansion. phases = RLE of the per-tick deltas INCLUDING the wrap delta; loop=0."""
-    P = _minimal_period(vals)
-    if P is None or P > 64:
-        return None
-    table = vals[:P]
-    deltas = [table[(i + 1) % P] - table[i] for i in range(P)]    # incl wrap back to start
-    phases = []
-    i = 0
-    while i < len(deltas):
-        d = deltas[i]; n = 1
-        while i + n < len(deltas) and deltas[i + n] == d: n += 1
-        phases.append((d & 0xFFFF, n)); i += n                   # signed rate stored mod 65536
-    return table, (table[0], phases, 0)
+def _dominant_period(seq, i, maxp=16):
+    """period P at position i with MAX coverage (P*repeats); ties -> smallest P."""
+    n = len(seq); best = (0, 1)
+    for P in range(1, min(maxp, n - i) + 1):
+        cov = P * _seq_reps(seq, i, P)
+        if cov > best[0]:
+            best = (cov, P)
+    return best[1] if best[0] else (n - i)
 
 
-def _expand_sweep(start, phases, loop):
-    """SweepEnvelope tuple -> value_table (one period). Inverse of _sweep_from_values."""
-    table = []; v = start
-    for rate, frames in phases:
-        if rate >= 0x8000: rate -= 0x10000                       # signed
-        for _ in range(frames):
-            table.append(v & 0xFF); v += rate
-    return table
-
-
-def _capture_pw_sweeps(frames):
-    """Detect free-running per-voice pulse-width modulation (a sweep written ~every
-    active frame) and capture each as a SweepEnvelope. {voice: (start, phases, loop)}."""
+def _capture_pw_program(frames):
+    """Per-voice pulse-width MODULATION captured as a sweep PROGRAM (a PWM-automation
+    orderlist, ledger C1/§7): the per-tick value sequence is run-length-encoded at the
+    PERIOD level into (period, repeats) sections. Returns {voice: (value_table, sections)}
+    where value_table = the concatenated distinct section periods and sections =
+    [(offset_into_table, period_len, repeats), ...]. The player walks it (one parametric
+    sweep per section), so the USF never carries the raw per-tick trace."""
     out = {}
     nf = len(frames)
     for vc, reg in PWHI.items():
         seq = [v for fr in frames for (c, r, v) in fr if r == reg]
         if len(seq) < nf * 0.10 or len(seq) < 16:               # not heavily modulated
             continue
-        sw = _sweep_from_values(seq)
-        if sw is not None:
-            out[vc] = sw[1]
+        tab = []; secs = []; i = 0
+        while i < len(seq):
+            P = _dominant_period(seq, i)
+            r = max(1, _seq_reps(seq, i, P))
+            period = seq[i:i + P]
+            off = _find_sub(tab, period)               # reuse identical period bytes if already present
+            if off is None:
+                off = len(tab); tab.extend(period)
+            secs.append((off, P, min(255, r)))
+            i += r * P
+        if len(tab) <= 255 and all(rep <= 255 for _, _, rep in secs):  # byte offsets/reps
+            out[vc] = (tab, secs)
     return out
+
+
+def _find_sub(tab, sub):
+    """offset of `sub` as a contiguous run already in `tab`, or None."""
+    n = len(sub)
+    for o in range(len(tab) - n + 1):
+        if tab[o:o + n] == sub:
+            return o
+    return None
+
+
+def _emit_pw_mod_asm(em, pw_program, mod_start, mod_inc):
+    """Per-tick emit of the PW sweep PROGRAM: gated to start at mod_start, ticking at the
+    fractional rate (mod_inc/256 per play()), each voice walking its (section,repeat,tick)
+    program independently. Labels pwm_done / pwm_go / pwa{vc} are unique per player."""
+    if not pw_program:
+        return
+    # gate (frame >= mod_start) + fractional rate; branch-over-jmp trampoline keeps every
+    # conditional branch short (the per-voice walkers below exceed the +-127 branch range).
+    em('        lda framehi'); em(f'        cmp #${(mod_start >> 8) & 0xFF:02X}')
+    em('        bcc pwm_skip'); em('        bne pwm_go')
+    em('        lda framelo'); em(f'        cmp #${mod_start & 0xFF:02X}'); em('        bcc pwm_skip')
+    em('pwm_go:')
+    em('        lda pwacc'); em('        clc'); em(f'        adc #${mod_inc:02X}'); em('        sta pwacc')
+    em('        bcs pwm_emit')                          # fractional rate: tick only on overflow
+    em('pwm_skip:'); em('        jmp pwm_done')
+    em('pwm_emit:')
+    for vc in sorted(pw_program):
+        nsec = len(pw_program[vc][1])
+        em(f'        ldx pwsec_v{vc}')
+        em(f'        cpx #${nsec:02X}'); em(f'        bcs pwa{vc}')     # program done -> hold
+        em(f'        lda pwsoff_v{vc},x'); em('        clc'); em(f'        adc pwtk_v{vc}'); em('        tay')
+        em(f'        lda pwtab_v{vc},y'); em(f'        sta $D4{PWHI[vc]:02X}')
+        em(f'        inc pwtk_v{vc}'); em(f'        lda pwtk_v{vc}'); em(f'        cmp pwslen_v{vc},x'); em(f'        bne pwa{vc}')
+        em(f'        lda #$00'); em(f'        sta pwtk_v{vc}')
+        em(f'        inc pwrep_v{vc}'); em(f'        lda pwrep_v{vc}'); em(f'        cmp pwsrep_v{vc},x'); em(f'        bne pwa{vc}')
+        em(f'        lda #$00'); em(f'        sta pwrep_v{vc}'); em(f'        inc pwsec_v{vc}')
+        em(f'pwa{vc}:')
+    em('pwm_done:')
+
+
+def _pw_state_bytes(pw_program):
+    sb = ['pwacc'] if pw_program else []
+    for vc in sorted(pw_program):
+        sb += [f'pwsec_v{vc}', f'pwrep_v{vc}', f'pwtk_v{vc}']
+    return tuple(sb)
+
+
+def _emit_pw_data_asm(em, pw_program):
+    for vc in sorted(pw_program):
+        tab, secs = pw_program[vc]
+        em(f'pwtab_v{vc}: .byte ' + ', '.join(f'${v:02X}' for v in tab))
+        em(f'pwsoff_v{vc}: .byte ' + ', '.join(f'${o:02X}' for o, l, r in secs))
+        em(f'pwslen_v{vc}: .byte ' + ', '.join(f'${l:02X}' for o, l, r in secs))
+        em(f'pwsrep_v{vc}: .byte ' + ', '.join(f'${r:02X}' for o, l, r in secs))
 
 
 def build_model(sid, dur, force_split=None, min_trim=False, detect_song_end=False, detect_modulation=False):
@@ -320,21 +367,21 @@ def build_model(sid, dur, force_split=None, min_trim=False, detect_song_end=Fals
     frames = capture_real(sid, dur)
     window = len(frames)
     last_write = max((i for i, fr in enumerate(frames) if fr), default=0)  # song-end signal
-    pw_sweeps = _capture_pw_sweeps(frames) if detect_modulation else {}
-    # The modulated PW-hi writes are reproduced parametrically by the SweepEnvelope
+    pw_program = _capture_pw_program(frames) if detect_modulation else {}
+    # The modulated PW-hi writes are reproduced parametrically by the sweep PROGRAM
     # at runtime, so STRIP them before segmentation (else segment splits them into
-    # raw per-tick sub-steps = the no-replay trap, redundant with the sweep).
+    # raw per-tick sub-steps = the no-replay trap, redundant with the program).
     seg_frames = frames
     mod_start_raw = 0; pw_writes = 0
-    if pw_sweeps:
-        modregs = {PWHI[vc] for vc in pw_sweeps}
+    if pw_program:
+        modregs = {PWHI[vc] for vc in pw_program}
         seg_frames = [[w for w in fr if w[1] not in modregs] for fr in frames]
         mod_start_raw = next((i for i, fr in enumerate(frames)
                               if any(w[1] in modregs for w in fr)), 0)   # first PW-sweep frame
-        vc0 = min(pw_sweeps)
+        vc0 = min(pw_program)
         pw_writes = sum(1 for fr in frames for w in fr if w[1] == PWHI[vc0])   # ticks (one voice)
     cum_pw = None
-    if pw_sweeps:                                       # cumulative sweep-ticks per original frame
+    if pw_program:                                     # cumulative sweep-ticks per original frame
         cum_pw = [0] * (window + 1); _c = 0
         for fi, fr in enumerate(frames):
             if fi >= mod_start_raw:
@@ -354,13 +401,13 @@ def build_model(sid, dur, force_split=None, min_trim=False, detect_song_end=Fals
     def _inject(m):
         if isinstance(m, dict) and 'unsupported' not in m:
             rho = m.get('rho', 1.0) or 1.0
-            m['pw_sweeps'] = pw_sweeps
+            m['pw_program'] = pw_program
             m['mod_start'] = round(mod_start_raw * rho)                  # play-frame the sweep begins
             # Fractional emit rate: the sweep ticks at the BASIC-loop rate, not 50Hz.
             # mod_inc/256 ticks per play() -> over the active window emits exactly pw_writes.
             active = max(1, round((window - mod_start_raw) * rho))
-            m['mod_inc'] = min(255, max(1, round(256 * pw_writes / active))) if pw_sweeps else 0
-            if pw_sweeps and m['mod_inc']:
+            m['mod_inc'] = min(255, max(1, round(256 * pw_writes / active))) if pw_program else 0
+            if pw_program and m['mod_inc']:
                 # Re-time each note onto the play-frame where the sweep reaches its
                 # captured tick count -> notes and sweep share ONE clock (no drift).
                 inv = 256.0 / m['mod_inc']
@@ -586,27 +633,12 @@ def build_player_masked(model):
     stride = 4 + nam + nrm + len(aps) + len(rps)
     loop_to, period = model['loop_to'], model['loop_period']
     song_end = model.get('song_end') or []             # trailing silence emitted once at halt
-    pw_tables = model.get('pw_tables') or {}            # {voice: per-tick pulse-width value table}
-    pw_period = len(next(iter(pw_tables.values()))) if pw_tables else 0
+    pw_program = model.get('pw_program') or {}          # {voice: (value_table, sections)}
     mod_start = model.get('mod_start', 0)               # play-frame the sweep begins
     mod_inc = model.get('mod_inc', 0)                   # fractional tick rate (per play, /256)
     L = []; em = L.append; sk = [0]
-    def emit_pw_mod():                                  # free-running per-tick PW sweep from mod_start
-        if not pw_tables:
-            return
-        em('        lda framehi'); em(f'        cmp #${(mod_start >> 8) & 0xFF:02X}')   # frame < mod_start?
-        em('        bcc pwm_done'); em('        bne pwm_go')
-        em('        lda framelo'); em(f'        cmp #${mod_start & 0xFF:02X}'); em('        bcc pwm_done')
-        em('pwm_go:')
-        em('        lda pwacc'); em('        clc'); em(f'        adc #${mod_inc:02X}'); em('        sta pwacc')
-        em('        bcc pwm_done')                       # fractional rate: tick only on overflow
-        em('        ldx pwtick')
-        for vc in sorted(pw_tables):
-            em(f'        lda pwtab_v{vc},x'); em(f'        sta $D4{PWHI[vc]:02X}')
-        em('        inc pwtick'); em('        lda pwtick')
-        em(f'        cmp #${pw_period:02X}'); em('        bne pwm_done')
-        em('        lda #$00'); em('        sta pwtick')
-        em('pwm_done:')
+    def emit_pw_mod():
+        _emit_pw_mod_asm(em, pw_program, mod_start, mod_inc)
     def emit_template(tmpl, mask_off0, ps_base):
         slot = 0
         for i, (reg, kind, val, voice) in enumerate(tmpl):
@@ -671,10 +703,9 @@ def build_player_masked(model):
     em('        ldy #$03'); em(f'        lda ({SP}),y'); em('        adc loopbasehi'); em('        sta curtgthi'); em('        rts')
     for s in (('splo', 'sphi', 'phase', 'done', 'framelo', 'framehi',
                'loopbaselo', 'loopbasehi', 'curtgtlo', 'curtgthi')
-              + (('pwtick', 'pwacc') if pw_tables else ())):
+              + _pw_state_bytes(pw_program)):
         em(f'{s}: .byte 0')
-    for vc in sorted(pw_tables):                        # per-voice PW sweep value tables
-        em(f'pwtab_v{vc}: .byte ' + ', '.join(f'${v:02X}' for v in pw_tables[vc]))
+    _emit_pw_data_asm(em, pw_program)                   # per-voice PW sweep program tables
     em('steprecs:')
     a_order = [t[0] for t in atk_t]; r_order = [t[0] for t in rel_t]
     for s in steps:
@@ -701,27 +732,12 @@ def build_player_legato(model):
     stride = 2 + nam + len(aps)
     loop_to, period = model['loop_to'], model['loop_period']
     song_end = model.get('song_end') or []             # trailing silence emitted once at halt
-    pw_tables = model.get('pw_tables') or {}            # {voice: per-tick pulse-width value table}
-    pw_period = len(next(iter(pw_tables.values()))) if pw_tables else 0
+    pw_program = model.get('pw_program') or {}          # {voice: (value_table, sections)}
     mod_start = model.get('mod_start', 0)
     mod_inc = model.get('mod_inc', 0)
     L = []; em = L.append; sk = [0]
-    def emit_pw_mod():                                  # free-running per-tick PW sweep from mod_start
-        if not pw_tables:
-            return
-        em('        lda framehi'); em(f'        cmp #${(mod_start >> 8) & 0xFF:02X}')
-        em('        bcc pwm_done'); em('        bne pwm_go')
-        em('        lda framelo'); em(f'        cmp #${mod_start & 0xFF:02X}'); em('        bcc pwm_done')
-        em('pwm_go:')
-        em('        lda pwacc'); em('        clc'); em(f'        adc #${mod_inc:02X}'); em('        sta pwacc')
-        em('        bcc pwm_done')                       # fractional rate: tick only on overflow
-        em('        ldx pwtick')
-        for vc in sorted(pw_tables):
-            em(f'        lda pwtab_v{vc},x'); em(f'        sta $D4{PWHI[vc]:02X}')
-        em('        inc pwtick'); em('        lda pwtick')
-        em(f'        cmp #${pw_period:02X}'); em('        bne pwm_done')
-        em('        lda #$00'); em('        sta pwtick')
-        em('pwm_done:')
+    def emit_pw_mod():
+        _emit_pw_mod_asm(em, pw_program, mod_start, mod_inc)
     em(f'* = ${LOAD:04X}'); em('        jmp init'); em('        jmp play')
     em('init:')
     pi = init[1:] if init[:1] == DRIVER_PREFIX else init
@@ -777,10 +793,9 @@ def build_player_legato(model):
     em('        ldy #$01'); em(f'        lda ({SP}),y'); em('        adc loopbasehi'); em('        sta curtgthi'); em('        rts')
     for s in (('splo', 'sphi', 'done', 'framelo', 'framehi',
                'loopbaselo', 'loopbasehi', 'curtgtlo', 'curtgthi')
-              + (('pwtick', 'pwacc') if pw_tables else ())):
+              + _pw_state_bytes(pw_program)):
         em(f'{s}: .byte 0')
-    for vc in sorted(pw_tables):                        # per-voice PW sweep value tables
-        em(f'pwtab_v{vc}: .byte ' + ', '.join(f'${v:02X}' for v in pw_tables[vc]))
+    _emit_pw_data_asm(em, pw_program)                   # per-voice PW sweep program tables
     em('steprecs:')
     for s in steps:
         amap = dict(s['attack'])
