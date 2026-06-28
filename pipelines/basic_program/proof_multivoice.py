@@ -358,7 +358,11 @@ def verdict_basic(res, tol=64):
     matches to ~0 (no rate drift). The rebuild plays at the true VIC frame rate
     (50Hz PAL); there is no emulation-vs-hardware difference — rho only corrects
     that siddump's engine.play(cyclesPerFrame) advances cyclesPerFrame
-    event-scheduler ticks (~18000 CPU cycles), not one 19656-cycle play period."""
+    event-scheduler ticks (~18000 CPU cycles), not one 19656-cycle play period.
+
+    A LOOPING tune whose rebuild came up short in this fixed window (it would emit
+    the rest given more frames) is handled by `_attempt_model`'s extend-and-verify
+    pass, NOT by loosening this tolerance — see there."""
     a, b = res['len_all_a'], res['len_all_b']
     overlap_ok = res['match_all'] == min(a, b)
     length_ok = abs(a - b) <= tol

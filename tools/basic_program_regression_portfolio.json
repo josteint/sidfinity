@@ -12,6 +12,7 @@
     {"sid": "DEMOS/S-Z/Xmas-Card_BASIC.sid", "dur": 15.0, "feat": "consistent intra-step dup (unsplit derive_template; guards the split regression)"},
     {"sid": "MUSICIANS/V/Vogel_James/Musette_BASIC.sid", "dur": 47.3, "feat": "per-note instruments (running timbre via NoteRow.instr) + song-end (no false loop)"},
     {"sid": "MUSICIANS/B/Bond_Alan/Lead_De-tuned_BASIC.sid", "dur": 15.0, "feat": "running-freq partial-freq notes (one freq byte carried) + timbre-only rest-step + const release ctrl"},
-    {"sid": "MUSICIANS/B/Bond_Alan/Moog_Swing_BASIC.sid", "dur": 15.0, "feat": "global automation track (cutoff sweep + filter mode/res/route + master-vol dynamics on the shared per-subtune global track)"}
+    {"sid": "MUSICIANS/B/Bond_Alan/Moog_Swing_BASIC.sid", "dur": 15.0, "feat": "global automation track (cutoff sweep + filter mode/res/route + master-vol dynamics on the shared per-subtune global track)"},
+    {"sid": "MUSICIANS/K/Karlsson_Peter/Love_Me_Tender_BASIC.sid", "dur": 42.9, "feat": "looping tune recovered by the extend-and-verify path (rebuild runs ~1/rho slower so the fixed window cuts it mid-loop; verified by reproducing the orig's entire writelog as an exact prefix in an extended capture, no length tolerance)"}
   ]
 }

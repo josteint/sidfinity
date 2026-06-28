@@ -1,6 +1,6 @@
 ---
 name: project_basic_program
-description: "Basic_Program family (486 RSID-BASIC tunes) — PRODUCTIONIZED round-trip: 224/486 (46.1%) FULL through real USF, mass-written + regression"
+description: "Basic_Program family (486 RSID-BASIC tunes) — PRODUCTIONIZED round-trip: 231/486 (47.5%) FULL through real USF, mass-written + regression"
 metadata: 
   node_type: memory
   type: project
@@ -269,15 +269,32 @@ route cycling LP/BP/HP) + Xmas + 6 more FULL; Moog_Swing added as canary (now 12
 tunes now flow through and reveal their REAL next blocker (length/loop, overlap, vibrato build) — correctly, they
 were masked by the not_clean rejection. Text round-trip proven end-to-end (best_attempt does write_file→parse_file).
 
-**RESIDUE (262, not_clean ELIMINATED): arp/dup 96** (variable_template 67 + legato_variable 29 — precedence cycles +
-deeper variants) + too_few 68 (after_trim 59 + steps 9) + length_fail 42 (loop-period; +8 ex-not_clean) +
-overlap_diverge 36 (+6 ex-not_clean) + build_fail 20 (vibrato too_many_pitches + partial-freq stragglers; +5
-ex-not_clean). 1 digi (Black_Box_V8_Demo) → Mode 2.
+**✅ LOOPING EXTEND-AND-VERIFY (length_fail Fix A, 2026-06-27): 224→231 FULL (46.1%→47.5%), 0 regr.** length_fail
+census (42, 41 short): a LOOPING rebuild's play() runs ~1/rho SLOWER than the orig's free-running BASIC, so the
+fixed songlength×1.1 capture window cuts the rebuild mid-loop → it's a correct PREFIX but short past the |len|≤64
+tol. Fix (`_compare_with_extend` in usf_roundtrip, used by BOTH `_attempt_model` and `verify_usf`): when the rebuild
+is a short exact-prefix AND the tune loops (`loop_to` set) AND short by >64, RE-CAPTURE the rebuild for more frames
+(`dur*(a/b)*1.2`, cap 240s) and accept iff the orig's ENTIRE writelog is reproduced as an exact prefix (orig ⊑
+extended-rebuild, match_all==len_a). NO tolerance widened — this is literally "the rebuild emits the same writelog
+as the original," just given enough frames to finish (CORE TENET clean; the user's FULL definition preserved). A
+play-once rebuild has HALTED (done=1) so it never grows → genuine short tails (trailing-trim) stay failed; a loop
+that truly DIVERGES when extended fails the exact-prefix check and stays failed (Computer_Shake/Legion_of_One/
+Shake_n_Vaccine — real loop-body divergence, correctly NOT passed). Recovered 7 (Love_Me_Tender, Fog, Galaga_Chords,
+Yellow_Submarine, Arkansas_Traveller, Kandenslit, House_of_Cards). Canary: Love_Me_Tender (portfolio now 13). The
+DEEP length_fail residue (Fix B, NOT done) = ~31 noloop tunes that play once when the orig keeps going (short up to
+3846): `_find_loop` needs ≥8 IDENTICAL backward-run chords; these have all-distinct tail chords (transposing melody /
+per-frame vibrato/filter modulation) → no exact-chord loop to detect. Needs a smarter loop detector (rhythm-periodic
+but pitch-transposed) or a richer evolving-content model — investigate which before fixing.
 
-**NEXT (highest-leverage first):** (1) length_fail loop-period (42 — overlap-EXACT but length off; loop-detect
-misses + window boundary). (2) the arp/dup 96 (precedence cycles + split-then-still-variable). (3) overlap_diverge
-36 + partial-freq stragglers (Glass_Jaw/Interlace). (4) too_few 68 (degenerate/short). (5) vibrato too_many_pitches
-(freq alphabet >96). Iterate via `family_batch.py` (resumes from the OUT jsonl; delete to force clean). Survey raw:
+**RESIDUE (255): arp/dup 96** (variable_template 67 + legato_variable 29 — precedence cycles + deeper variants) +
+too_few 68 (after_trim 59 + steps 9) + length_fail 35 (Fix-B deep cluster: ~31 noloop evolving-content + 3
+real-loop-divergence + 1 long) + overlap_diverge 36 + build_fail 20 (vibrato too_many_pitches + partial-freq
+stragglers). 1 digi (Black_Box_V8_Demo) → Mode 2.
+
+**NEXT (highest-leverage first):** (1) length_fail Fix B — the ~31 noloop evolving-content tunes (smarter
+loop detection for rhythm-periodic-but-transposed, or richer model; investigate first). (2) the arp/dup 96
+(precedence cycles + split-then-still-variable). (3) overlap_diverge 36 + partial-freq stragglers
+(Glass_Jaw/Interlace). (4) too_few 68 (degenerate/short). (5) vibrato too_many_pitches (freq alphabet >96). Iterate via `family_batch.py` (resumes from the OUT jsonl; delete to force clean). Survey raw:
 `tmp/basic_program_research/survey.jsonl`.
 
 **CONVERGENCE (ledger C10, 2026-06-27):** the `global_track` is the EXPLICIT-event form of chip-global $D415-$D418

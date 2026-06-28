@@ -379,6 +379,29 @@ def usf_to_model(usf):
             'clock': usf.psid.clock, 'masked': True, 'legato': bool(f['bp_legato'])}
 
 # ------------------------------------------------------------- verify -----
+def _compare_with_extend(orig_wl, reb_sid, dur, loops):
+    """Compare the orig writelog vs the rebuild SID captured at `dur`. If the
+    rebuild is a correct but SHORT prefix AND the tune LOOPS, re-capture it for
+    more frames and accept ONLY iff the orig's ENTIRE writelog is then reproduced
+    exactly (orig is an exact prefix of the longer rebuild) — "the rebuild emits
+    the same writelog as the original", no length tolerance. A looping rebuild
+    runs ~1/rho slower than the orig's free-running BASIC, so the fixed window can
+    cut it mid-loop; a play-once rebuild has HALTED (done=1) and never grows, so a
+    genuine short tail (e.g. trailing-trim) is not rescued. A loop that truly
+    DIVERGES from the orig when extended fails the exact-prefix check and stays
+    length_fail. Returns (compare_result, extended_full)."""
+    from pipelines.hubbard.verify_cycle import writelog_capture, compare_instruction_stream
+    r = compare_instruction_stream(orig_wl, writelog_capture(reb_sid, 0, dur), skip_init=False)
+    a0, b0 = r['len_all_a'], r['len_all_b']
+    if loops and r['match_all'] == min(a0, b0) and a0 - b0 > 64:   # only would-be length_fail
+
+        ext = min(dur * (a0 / max(b0, 1)) * 1.2 + 2, 240.0)
+        r2 = compare_instruction_stream(orig_wl, writelog_capture(reb_sid, 0, ext), skip_init=False)
+        if r2['match_all'] == r2['len_all_a']:            # whole orig reproduced as prefix
+            return r2, True
+    return r, False
+
+
 def _attempt_model(m, sid, dur, orig_wl, title='bp'):
     """Build a rebuild from model m and verify against the (cached) orig writelog.
     Returns (status, match, len_a, len_b, usf_or_None, sid_bytes_or_None). Pool-safe."""
@@ -395,19 +418,23 @@ def _attempt_model(m, sid, dur, orig_wl, title='bp'):
         return (str(e), 0, 0, 0, None, None)
     fd, up = tempfile.mkstemp(suffix='.usf'); os.close(fd)
     fd, sp = tempfile.mkstemp(suffix='.sid'); os.close(fd)
+    extended_full = False
     try:
         try:
             write_file(usf, up)
             sid_bytes = build_psid(usf_to_model(parse_file(up)))
             with open(sp, 'wb') as fo:
                 fo.write(sid_bytes)
-            r = compare_instruction_stream(orig_wl, writelog_capture(sp, 0, dur), skip_init=False)
+            r, extended_full = _compare_with_extend(orig_wl, sp, dur, m.get('loop_to') is not None)
         except Exception:                              # degenerate model (e.g. empty voices)
             return ('build_fail', 0, 0, 0, None, None)
     finally:
         for p in (up, sp):
             if os.path.exists(p): os.unlink(p)
-    ok, ov, ln = verdict_basic(r)
+    if extended_full:
+        ok, ov = True, True
+    else:
+        ok, ov, _ln = verdict_basic(r)
     status = 'FULL' if ok else ('overlap_diverge' if not ov else 'length_fail')
     return (status, r['match_all'], r['len_all_a'], r['len_all_b'], usf, sid_bytes)
 
@@ -446,11 +473,11 @@ def verify_usf(usf_rel, sid_rel, dur):
     with tempfile.NamedTemporaryFile(suffix='.sid', delete=False) as fo:
         fo.write(build_psid(m2)); out = fo.name
     try:
-        r = compare_instruction_stream(writelog_capture(sid, 0, dur),
-                                       writelog_capture(out, 0, dur), skip_init=False)
+        orig_wl = writelog_capture(sid, 0, dur)
+        r, extended_full = _compare_with_extend(orig_wl, out, dur, m2.get('loop_to') is not None)
     finally:
         os.unlink(out)
-    ok, ov, ln = verdict_basic(r)
+    ok = extended_full or verdict_basic(r)[0]
     return {'ok': ok, 'match': r['match_all'], 'len_a': r['len_all_a'], 'len_b': r['len_all_b']}
 
 
