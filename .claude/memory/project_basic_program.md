@@ -1,6 +1,6 @@
 ---
 name: project_basic_program
-description: "Basic_Program family (486 RSID-BASIC tunes) — PRODUCTIONIZED round-trip: 253/486 (52.1%) FULL through real USF, mass-written + regression"
+description: "Basic_Program family (486 RSID-BASIC tunes) — PRODUCTIONIZED round-trip: 266/486 (54.7%) FULL through real USF, mass-written + regression"
 metadata: 
   node_type: memory
   type: project
@@ -326,10 +326,11 @@ as a best_attempt VERIFY-FALLBACK (`detect_song_end=True`, tried only on overlap
 The zero-all sub-cluster (Hymna_CCCP/Johnny_Reb/Prospector/Sounds_of_Dixie) needs the silence-all captured
 mid-stream — deferred.
 
-**RESIDUE (233): arp/dup 96** (variable_template 67 + legato_variable 29 — precedence cycles + deeper variants) +
-too_few 68 (after_trim 59 + steps 9) + overlap_diverge 19 (zero-all silence-all ~4 + early ctl/order/freq misc) +
-length_fail 30 (per-frame PWM/filter 5 = richer lift, Cascading now FULL; final-note-tail / under_segment ~17;
-loop-real-diverge 3) + build_fail 21 (vibrato/glide too_many_pitches). 1 digi (Black_Box_V8_Demo) → Mode 2.
+**RESIDUE (220, after gap-exactness): arp/dup 96** (variable_template 67 + legato_variable 29 — precedence cycles +
+deeper variants) + too_few 68 (after_trim 59 + steps 9) + overlap_diverge 19 (zero-all silence-all ~4 + early
+ctl/order/freq misc) + length_fail 20 (filter/PW modulation 5 + bigger shortfalls Tron/Knightrider/Legion = loop/section
++ Glass_Jaw/Scrilling/Victory small-short) + build_fail 17 (vibrato/glide too_many_pitches + release-less crash). 1 digi
+(Black_Box_V8_Demo) → Mode 2.
 
 **✅ PER-FRAME PWM SWEEP-PROGRAM ENGINE (commit f2eaabf, 2026-06-28): 252→253 FULL, Cascading FULL, 0 regr.** The
 per-frame PWM cluster is a free-running MODULATION engine (`detect_modulation` best_attempt fallback). The key
@@ -349,13 +350,42 @@ helpers (`_minimal_period`/`_sweep_from_values`/`_expand_sweep`) were insufficie
 REMAINING modulation tunes (5): per-voice gating + arp (Pong_Strikes_Back, Doom_Comer) or filter-$D416 modulation
 (Sullen, Pepper_Spray, Brickout — $16 sweep not yet handled, only PW $03/$0A/$11).
 
-**NEXT (highest-leverage first):** (1) length_fail remainder — the 5 remaining PWM modulation tunes (resume from
-f2eaabf): per-voice gating + arp (Pong/Doom_Comer), filter-$D416 sweep (Sullen/Pepper/Brickout — extend the
-sweep-program to $16) + under_segment 4. (2) overlap_diverge zero-all silence + the early-divergence misc
-(M5_Gong / Crazy_Conveyors / Kiosk / Dark_Tower — match<50, real per-tune emission bugs to trace). (3) the arp/dup 96
-(precedence cycles + split-then-still-variable). (4) too_few 68. (5) glide/vibrato too_many_pitches (freq alphabet >96
-— a glide effect would compress the sweeps). Iterate via `family_batch.py` (resumes from the OUT jsonl; delete to
-force clean). Survey raw: `tmp/basic_program_research/survey.jsonl`.
+**✅ FILTER-$D416 SWEEP CHANNEL (commit d03434a, 2026-06-29): FOUNDATION, 0 new FULL, 0 regr.** Extended the sweep-program
+engine to the filter cutoff $D416 as register-keyed channel 4 (`MODREG={1:$03,2:$0A,3:$11,4:$16}`; the `default_filter`
+analog, ledger C1/C10 — a swept $D416 lifts to the sweep-program, NOT hundreds of explicit global_track events = the C7
+opaque-dump direction). 3 pieces: (a) INIT-BOUNDARY (`_first_note_frame`) — the init is MULTI-FRAME and interleaves the
+sweep's first value(s) with one-time envelope setup, so capture/strip the sweep from the LOOP region only (frames ≥
+first-note); the init region keeps its filter writes VERBATIM (flat-matches). (b) MODULATION TAIL (`modtick` counter +
+`notesdone`) — a free-running sweep (filter still sweeping after the melody ends) continues past the last note until the
+program is fully played (modtick ≥ mod_total), THEN halts. (c) all 3 players unified to emit the sweep at pl_load BEFORE
+notes via `_emit_mod_sweep_and_tail` (build_player gained the hooks too — Brickout is masked=False). ADVANCES every filter
+tune (Brickout first-div i=3 → i=160, init now matches) but lands NONE alone — each has a distinct orthogonal blocker:
+Brickout = short note model (length_fail) + variable-template final section; Sullen = MULTI-RATE channels (filter ticks 4×
+faster than V3 PW — single mod_inc clock can't represent it); Pepper/Doom_Comer = release-less-step crash (masked player
+record needs off_frame); Pong = too_few. These are the loop/length residue, not filter-specific.
+
+**✅ GAP-EXACTNESS / DRIFT-FREE TIMING (commit 33c12de, 2026-06-29): 253→266 FULL (+13!), 0 regr.** length_fail census
+showed a cluster of LONG tunes short by a small amount (exact-prefix). ROOT CAUSE: the USF stored the inter-note gap as
+`max(1, nxt-off)` (model_to_usf + usf_to_model both floored). For BACK-TO-BACK notes (gate-off frame == next gate-on,
+real gap 0) it forced +1 frame EVERY such step → a PROGRESSIVE timing drift accumulating ~0.6 frame/step → 500+-step
+tunes drift past the |len|≤64 tolerance (Bachs: last step 6565→6886, +321 frames), reconstructing on_frames LATE and
+dropping the tail. The model was exact; the loss was purely the gap floor. FIX: a `gap_exact` encoding (gmin=0,
+lossless on_frame reconstruction), wired as a length_fail-only VERIFY-FALLBACK — best_attempt now runs the whole
+fallback chain TWICE (`_try(gap_exact)`: default gap, then gap_exact). FALLBACK not default because a rho-rounding-
+COLLAPSED nxt-off=0 is sometimes SPURIOUS (two distinct frames merged) → gap=0 would REORDER same-frame writes; the 3
+tunes where that happens (Chromatic_Boogie/Mull_of_Kentyre/Riffraff went FULL→overlap_diverge under unconditional gap=0)
+stay FULL via the default and never trigger pass 2. gap_exact COMPOSES with every variant (Barn_Razing needs min_trim +
+gap_exact), hence the full second pass. +13 (Bachs/Piano/Minuet/Polonaise/Traitor/Old_Amps/Taking_Steps/Where_I_Want/
+Momo_Color/Videobreak_11/Barn_Razing/Dance_of_the_Damned/Allt_Som_Jag). LESSON: a musical-duration round-trip that
+sums rounded per-step durations accumulates drift on long tunes — keep the deltas EXACT (allow 0).
+
+**NEXT (highest-leverage first):** (1) length_fail remainder (~20 left): Glass_Jaw/Scrilling/Victory (small short, NOT
+gap-recovered — Victory build-crashes on release-less steps; Scrilling is legato) + the bigger shortfalls (Tron 3616,
+Knightrider 922, Legion_of_One 905 — loop/section structure) + the filter modulation tunes (need multi-rate channels /
+short-notes). (2) the masked-player RELEASE-LESS-STEP crash (`off_frame & 0xFF` on None — Victory/Doom_Comer/Pepper) —
+a real latent bug, fix the record packing to handle off_frame=None (rel_mask=0 → off unused). (3) overlap_diverge
+zero-all silence + early-divergence misc. (4) arp/dup 96. (5) too_few 68. Iterate via `family_batch.py` (resumes from
+the OUT jsonl; delete to force clean). Survey raw: `tmp/basic_program_research/survey.jsonl`.
 
 **CONVERGENCE (ledger C10, 2026-06-27):** the `global_track` is the EXPLICIT-event form of chip-global $D415-$D418
 automation; the OTHER engines already represent the same registers PARAMETRICALLY (`MasterVolConfig` fade formula,
