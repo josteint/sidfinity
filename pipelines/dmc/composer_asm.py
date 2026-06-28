@@ -98,6 +98,7 @@ DMC_OFFTABLE_STATE = [
     (0x1756, 'cpwmax', 3),   # PW bound A (instr byte 2 hi nibble)
     (0x1759, 'cpwmin', 3),   # PW bound B (= bound A EOR $0F)
     (0x175F, 'cpwbase', 3),  # PW step base (instr byte 6 hi nibble)
+    (0x1726, 'otrk', 3),     # track byte-offset (derived from orderlist pos)
 ]
 
 
@@ -707,6 +708,13 @@ pf_notick:
 
 ;; ===================== per-voice tick/fetch =====================
 voice:
+        lda trkpos,x                 ; otrk = orig track byte-offset ($1726),
+        lsr                          ; derived from our own orderlist position:
+        clc                          ; our trkpos is 2 bytes/entry; the original
+        adc #$01                     ; track has a leading transpose byte then
+        sta otrk,x                   ; 1-byte sectors, so $1726 = entry#+1 =
+                                     ; (trkpos>>1)+1. Read off-table as a freq by
+                                     ; the "engine state as pitch" modulation idiom.
         lda vactive,x
         beq vo_frame
         lda spd
@@ -1387,6 +1395,7 @@ fres:     .dsb 1, 0
 tmp:      .dsb 1, 0
 tmp2:     .dsb 1, 0
 evflags:  .dsb 1, 0
+otrk:     .dsb 3, 0                  ; orig track byte-offset shadow (= $1726)
 state_end:
         .byt $00
 """
