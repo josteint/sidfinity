@@ -72,6 +72,7 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
 | de-fused per-entity pool exceeds byte-index capacity · "pool overflow" · separate copies per instrument | C8 | logged |
 | runtime param unreadable by py65 (init hangs / IRQ-set / bad opcode) · measure from libsidplayfp writelog | C9 | logged |
 | chip-global $D415-$D418 automation during a song · master vol / filter varies · global_track vs MasterVolConfig/filter_programs · explicit-event vs parametric | C10 | logged |
+| engine reads a table via an 8-bit index register (`base,Y` w/ Y=#*stride) · orig "reads garbage"/looks broken · extractor must wrap `(#*stride)&0xFF` · suspect OUR extractor not the packer | C11 | logged |
 
 ---
 
@@ -299,3 +300,30 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
 - **Consumers:** basic_program `global_track` (224 FULL); `MasterVolConfig`
   (Hubbard Confuzion/TOAS); `FilterProgConfig` (FC Jarre_2); `default_filter` /
   `filter_env` (DMC v5). See C1 (per-instrument sweep) and C7 (opaque-dump lens).
+
+### C11 — Engine indexes a table via an 8-bit register → the offset WRAPS mod 256
+- **The bug class:** the player reaches a record/table entry with a 6502 INDEX
+  register (`LDA base,Y` / `,X`), and the index is computed as `entry# * stride`.
+  The register is 8-BIT, so once `entry# * stride >= 256` the access WRAPS
+  (`(entry# * stride) & 0xFF`) — a tightly-packed table deliberately reuses its
+  low bytes for high entries. A by-hand extractor that reads `mem[base +
+  entry#*stride]` with FULL-WIDTH arithmetic reads PAST the table (into whatever
+  follows) and lifts garbage for the high entries.
+- **Canonical fix:** mirror the register width — `off = (entry# * stride) & 0xFF`
+  (or the engine's actual index width). SAFE BY CONSTRUCTION: entries below the
+  wrap threshold are byte-identical (no change), so it can only fix, never
+  regress. ALWAYS read the indexing instruction (is it `,Y`/`,X` 8-bit, or a
+  16-bit pointer?) before trusting a `base + i*stride` extract.
+- **TELL / how it presents:** the orig appears to read "out-of-range / garbage"
+  data and the SID seems "broken" — but a real packer does NOT emit broken SIDs.
+  When a trace shows an out-of-range/garbage read, SUSPECT THE EXTRACTOR (8-bit
+  wrap / wrong base / wrong stride) FIRST, not the data. (DMC user-caught,
+  2026-06-27.) Sibling of [[feedback_6502_mindset]]: all bugs are pointer errors;
+  think in exact byte offsets — including index-register width.
+- **Status:** logged (DMC v4 instrument record offset `#*11 & 0xFF`, commit
+  3cae4fd; instr >= 24 → ~6% of partials recovered, 0 regression).
+- **Boundary / watch-list:** the SAME class applies to ANY 8-bit-indexed engine
+  table — e.g. the DMC wave POSITION ($177A is 8-bit, so a wave program crossing
+  $FF wraps to wctab[0]; `_slice_wave` reads linearly past it — a candidate
+  unfixed instance). Audit other `mem[base + i*stride]` extracts for the same.
+- **Consumers:** DMC v4 `_decode_instrument` (commit 3cae4fd).
