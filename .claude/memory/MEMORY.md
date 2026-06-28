@@ -57,6 +57,7 @@
 - [Commit early](feedback_commit_early.md) — commit immediately after each verified improvement
 - [Repo tmp/ not /tmp](feedback_repo_tmp_dir.md) — ALL scratch artifacts go in the gitignored repo-local `tmp/`, never the system /tmp (it gets wiped; ate the FC member lists)
 - [Background jobs via harness](feedback_background_jobs_harness.md) — long batches MUST use Bash `run_in_background: true`, never `nohup&` in a foreground call (killed when the tool shell exits → waiter reports STALE output). Also: the family batches RESUME from the OUT jsonl (skip done paths) — delete it to force a clean re-run. Sanity-check result mtime vs the fix's mtime.
+- [No self-matching waiters](feedback_no_self_matching_waiters.md) — TRIPWIRE. NEVER `while pgrep -f 'PATTERN'; do sleep N; done` — the pattern matches the waiter's OWN argv → infinite loop, leaked ~15 stuck sleeps in one session. Wait for the harness `<task-notification>` instead; if you must poll, match a string that can't appear in the poller's argv. On a shared host, identify your procs vs the parallel session's by bash-snapshot id before any kill.
 - [No co-author in commits](feedback_no_coauthor.md) — never add `Co-Authored-By`
 - [Do the actual work](feedback_do_the_work.md) — implement ALL optimizations, don't punt
 - [Worktree agents must commit](feedback_worktree_commit.md) — always tell agents to `git add` + commit
