@@ -310,8 +310,8 @@ def usf_to_model(usf):
     init = [((f[f'bp_init{i}'] >> 8) & 0xFF, f[f'bp_init{i}'] & 0xFF) for i in range(f['bp_init_n'])]
     song_end = [((f[f'bp_songend{i}'] >> 8) & 0xFF, f[f'bp_songend{i}'] & 0xFF)
                 for i in range(f.get('bp_songend_n', 0))]
-    pw_program = {}                                     # per-voice PW sweep program (value table + sections)
-    for vc in (1, 2, 3):
+    pw_program = {}                                     # modulation sweep program (ch 1-3 = PW, 4 = filter)
+    for vc in (1, 2, 3, 4):
         if f.get('bp_pwprog_voices', 0) & (1 << (vc - 1)):
             ntab = f[f'bp_pwprog{vc}_ntab']; tab = []
             for i in range((ntab + 3) // 4):

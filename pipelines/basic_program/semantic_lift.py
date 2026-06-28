@@ -246,7 +246,12 @@ def _song_end_writes(frames, steps):
     return tail if (tail and tail[-1] == (0x18, 0x00)) else []
 
 
-PWHI = {1: 0x03, 2: 0x0a, 3: 0x11}                     # per-voice pulse-width hi reg
+MODREG = {1: 0x03, 2: 0x0a, 3: 0x11, 4: 0x16}          # free-running modulation channels:
+#   1-3 = per-voice pulse-width hi ($D403/$D40A/$D411); 4 = filter cutoff hi ($D416).
+#   A swept $D416 is the `default_filter` analog of the per-voice PW sweep (ledger C1) —
+#   same DOF (a swept byte to a fixed reg), so channel 4 reuses the whole sweep-program
+#   path. $D416 is a global-track reg, so the build_model strip (modregs) also removes it
+#   from the global-track decomposition (the ledger C10 sweep-detecting lift).
 
 
 def _seq_reps(seq, i, P):
@@ -266,6 +271,16 @@ def _dominant_period(seq, i, maxp=16):
     return best[1] if best[0] else (n - i)
 
 
+def _first_note_frame(frames):
+    """Frame index of the first note (first gate-on). Everything before is one-time
+    INIT (kept verbatim, incl. any interleaved sweep priming); the modulation sweep
+    program is captured from this frame onward (the loop body)."""
+    for fi, fr in enumerate(frames):
+        if any(r in CTRL and (v & 1) for (c, r, v) in fr):
+            return fi
+    return 0
+
+
 def _capture_pw_program(frames):
     """Per-voice pulse-width MODULATION captured as a sweep PROGRAM (a PWM-automation
     orderlist, ledger C1/§7): the per-tick value sequence is run-length-encoded at the
@@ -275,7 +290,7 @@ def _capture_pw_program(frames):
     sweep per section), so the USF never carries the raw per-tick trace."""
     out = {}
     nf = len(frames)
-    for vc, reg in PWHI.items():
+    for vc, reg in MODREG.items():
         seq = [v for fr in frames for (c, r, v) in fr if r == reg]
         if len(seq) < nf * 0.10 or len(seq) < 16:               # not heavily modulated
             continue
@@ -319,12 +334,14 @@ def _emit_pw_mod_asm(em, pw_program, mod_start, mod_inc):
     em('        bcs pwm_emit')                          # fractional rate: tick only on overflow
     em('pwm_skip:'); em('        jmp pwm_done')
     em('pwm_emit:')
+    em('        inc modticklo'); em('        bne pwm_tk'); em('        inc modtickhi')   # count ticks
+    em('pwm_tk:')
     for vc in sorted(pw_program):
         nsec = len(pw_program[vc][1])
         em(f'        ldx pwsec_v{vc}')
         em(f'        cpx #${nsec:02X}'); em(f'        bcs pwa{vc}')     # program done -> hold
         em(f'        lda pwsoff_v{vc},x'); em('        clc'); em(f'        adc pwtk_v{vc}'); em('        tay')
-        em(f'        lda pwtab_v{vc},y'); em(f'        sta $D4{PWHI[vc]:02X}')
+        em(f'        lda pwtab_v{vc},y'); em(f'        sta $D4{MODREG[vc]:02X}')
         em(f'        inc pwtk_v{vc}'); em(f'        lda pwtk_v{vc}'); em(f'        cmp pwslen_v{vc},x'); em(f'        bne pwa{vc}')
         em(f'        lda #$00'); em(f'        sta pwtk_v{vc}')
         em(f'        inc pwrep_v{vc}'); em(f'        lda pwrep_v{vc}'); em(f'        cmp pwsrep_v{vc},x'); em(f'        bne pwa{vc}')
@@ -334,10 +351,40 @@ def _emit_pw_mod_asm(em, pw_program, mod_start, mod_inc):
 
 
 def _pw_state_bytes(pw_program):
-    sb = ['pwacc'] if pw_program else []
+    sb = ['pwacc', 'modticklo', 'modtickhi', 'notesdone'] if pw_program else []
     for vc in sorted(pw_program):
         sb += [f'pwsec_v{vc}', f'pwrep_v{vc}', f'pwtk_v{vc}']
     return tuple(sb)
+
+
+def _mod_total_ticks(pw_program):
+    """Total ticks the longest modulation channel plays (= its $D4xx write count).
+    The player ticks until modtick reaches this, so a sweep that runs PAST the last
+    note (e.g. a filter cutoff still sweeping after the melody ends) finishes."""
+    if not pw_program:
+        return 0
+    return max(sum(l * r for o, l, r in secs) for tab, secs in pw_program.values())
+
+
+def _emit_mod_sweep_and_tail(em, emit_pw_mod, pw_program, mod_total, song_end):
+    """At pl_load, BEFORE the note firing (orig per-frame order is [sweep][note]): tick
+    the modulation sweep, then if the notes are already done (notesdone, set at the last
+    step instead of `done`) skip firing and keep ticking until the program is fully
+    played (modtick >= mod_total), THEN emit the song-end + halt. Falls through to pl_chk
+    (fire the notes) while notes remain. No-op without a program (player unchanged).
+    Labels pl_thalt / pl_tnext are unique per player (emitted once)."""
+    emit_pw_mod()                                      # sweep BEFORE the notes
+    if not pw_program:
+        return
+    em('        lda notesdone'); em('        beq pl_chk')   # notes remain -> fire them
+    em('        lda modtickhi'); em(f'        cmp #${(mod_total >> 8) & 0xFF:02X}')
+    em('        bcc pl_tnext'); em('        bne pl_thalt')
+    em('        lda modticklo'); em(f'        cmp #${mod_total & 0xFF:02X}'); em('        bcc pl_tnext')
+    em('pl_thalt:')
+    for _sereg, _seval in song_end:                    # emit the song-end silence, then halt
+        em(f'        lda #${_seval:02X}'); em(f'        sta $D4{_sereg:02X}')
+    em('        lda #$01'); em('        sta done')
+    em('pl_tnext:'); em('        jmp pl_inc')           # tail: skip firing, just advance the frame
 
 
 def _emit_pw_data_asm(em, pw_program):
@@ -367,25 +414,32 @@ def build_model(sid, dur, force_split=None, min_trim=False, detect_song_end=Fals
     frames = capture_real(sid, dur)
     window = len(frames)
     last_write = max((i for i, fr in enumerate(frames) if fr), default=0)  # song-end signal
-    pw_program = _capture_pw_program(frames) if detect_modulation else {}
-    # The modulated PW-hi writes are reproduced parametrically by the sweep PROGRAM
-    # at runtime, so STRIP them before segmentation (else segment splits them into
-    # raw per-tick sub-steps = the no-replay trap, redundant with the program).
+    # The modulation sweep is captured from the LOOP region only (frames at/after the
+    # first note). The INIT region (one-time setup, before the first note) is multi-frame
+    # and may interleave the sweep's first value(s) with envelope setup — those stay
+    # VERBATIM in init (kept, not stripped), so the program is the loop-body sweep and the
+    # init flat-matches. boundary = first-note frame.
+    boundary = _first_note_frame(frames) if detect_modulation else 0
+    pw_program = _capture_pw_program(frames[boundary:]) if detect_modulation else {}
+    # The modulated sweep writes are reproduced parametrically by the sweep PROGRAM at
+    # runtime, so STRIP them (from the LOOP region only) before segmentation (else segment
+    # splits them into raw per-tick sub-steps = the no-replay trap, redundant w/ the program).
     seg_frames = frames
     mod_start_raw = 0; pw_writes = 0
     if pw_program:
-        modregs = {PWHI[vc] for vc in pw_program}
-        seg_frames = [[w for w in fr if w[1] not in modregs] for fr in frames]
+        modregs = {MODREG[vc] for vc in pw_program}
+        seg_frames = [([w for w in fr if w[1] not in modregs] if fi >= boundary else list(fr))
+                      for fi, fr in enumerate(frames)]
         mod_start_raw = next((i for i, fr in enumerate(frames)
-                              if any(w[1] in modregs for w in fr)), 0)   # first PW-sweep frame
+                              if i >= boundary and any(w[1] in modregs for w in fr)), boundary)
         vc0 = min(pw_program)
-        pw_writes = sum(1 for fr in frames for w in fr if w[1] == PWHI[vc0])   # ticks (one voice)
+        pw_writes = sum(1 for fr in frames[boundary:] for w in fr if w[1] == MODREG[vc0])  # loop ticks
     cum_pw = None
     if pw_program:                                     # cumulative sweep-ticks per original frame
         cum_pw = [0] * (window + 1); _c = 0
         for fi, fr in enumerate(frames):
             if fi >= mod_start_raw:
-                _c += sum(1 for w in fr if w[1] == PWHI[vc0])
+                _c += sum(1 for w in fr if w[1] == MODREG[vc0])
             cum_pw[fi + 1] = _c
     def _annot(steps):
         # Annotate each step (PRE rho-scaling, so on_frame is the original frame index)
@@ -543,7 +597,13 @@ def build_player(model):
     stride = 4 + natk + nrel
     loop_to, period = model['loop_to'], model['loop_period']
     song_end = model.get('song_end') or []             # trailing silence emitted once at halt
+    pw_program = model.get('pw_program') or {}          # {channel: (value_table, sections)}
+    mod_start = model.get('mod_start', 0)               # play-frame the sweep begins
+    mod_inc = model.get('mod_inc', 0)                   # fractional tick rate (per play, /256)
+    mod_total = _mod_total_ticks(pw_program)            # ticks before the sweep tail halts
     L = []; em = L.append
+    def emit_pw_mod():
+        _emit_pw_mod_asm(em, pw_program, mod_start, mod_inc)
     em(f'* = ${LOAD:04X}'); em('        jmp init'); em('        jmp play')
     em('init:')
     pi = init[1:] if init[:1] == DRIVER_PREFIX else init
@@ -558,6 +618,7 @@ def build_player(model):
     em('play:'); em('        lda done'); em('        beq pl_load'); em('        rts')
     em('pl_load:')
     em('        lda splo'); em(f'        sta {SP}'); em('        lda sphi'); em(f'        sta {SP}+1')
+    _emit_mod_sweep_and_tail(em, emit_pw_mod, pw_program, mod_total, song_end)   # sweep BEFORE notes + tail
     em('pl_chk:')                                       # catch-up: fire every step due this frame
     em('        lda framehi'); em('        cmp curtgthi'); em('        bcc pl_wait'); em('        bne pl_fire')
     em('        lda framelo'); em('        cmp curtgtlo'); em('        bcs pl_fire')
@@ -590,11 +651,14 @@ def build_player(model):
         em('        clc'); em('        lda loopbaselo'); em(f'        adc #${period&0xFF:02X}'); em('        sta loopbaselo')
         em('        lda loopbasehi'); em(f'        adc #${(period>>8)&0xFF:02X}'); em('        sta loopbasehi')
     else:
-        for _sereg, _seval in song_end:                # emit the song-end silence, then halt
-            em(f'        lda #${_seval:02X}'); em(f'        sta $D4{_sereg:02X}')
-        em('        lda #$01'); em('        sta done'); em('        jmp pl_inc')
+        if pw_program:                                  # defer halt: let the sweep tail finish
+            em('        lda #$01'); em('        sta notesdone'); em('        jmp pl_inc')
+        else:
+            for _sereg, _seval in song_end:            # emit the song-end silence, then halt
+                em(f'        lda #${_seval:02X}'); em(f'        sta $D4{_sereg:02X}')
+            em('        lda #$01'); em('        sta done'); em('        jmp pl_inc')
     em('pl_setatk:'); em('        jsr set_atk_target'); em('        lda #$00'); em('        sta phase'); em('        jmp pl_chk')
-    em('pl_inc:')
+    em('pl_inc:')                                       # (sweep ticks at pl_load, before notes)
     em(f'        lda {SP}'); em('        sta splo'); em(f'        lda {SP}+1'); em('        sta sphi')
     em('        inc framelo'); em('        bne pl_ret'); em('        inc framehi'); em('pl_ret:'); em('        rts')
     em('set_atk_target:'); em('        clc')
@@ -603,9 +667,11 @@ def build_player(model):
     em('set_rel_target:'); em('        clc')
     em('        ldy #$02'); em(f'        lda ({SP}),y'); em('        adc loopbaselo'); em('        sta curtgtlo')
     em('        ldy #$03'); em(f'        lda ({SP}),y'); em('        adc loopbasehi'); em('        sta curtgthi'); em('        rts')
-    for s in ('splo', 'sphi', 'phase', 'done', 'framelo', 'framehi',
-              'loopbaselo', 'loopbasehi', 'curtgtlo', 'curtgthi'):
+    for s in (('splo', 'sphi', 'phase', 'done', 'framelo', 'framehi',
+               'loopbaselo', 'loopbasehi', 'curtgtlo', 'curtgthi')
+              + _pw_state_bytes(pw_program)):
         em(f'{s}: .byte 0')
+    _emit_pw_data_asm(em, pw_program)                   # modulation sweep program tables
     em('steprecs:')
     aps, rps = model['atk_ps'], model['rel_ps']
     for s in steps:
@@ -633,9 +699,10 @@ def build_player_masked(model):
     stride = 4 + nam + nrm + len(aps) + len(rps)
     loop_to, period = model['loop_to'], model['loop_period']
     song_end = model.get('song_end') or []             # trailing silence emitted once at halt
-    pw_program = model.get('pw_program') or {}          # {voice: (value_table, sections)}
+    pw_program = model.get('pw_program') or {}          # {channel: (value_table, sections)}
     mod_start = model.get('mod_start', 0)               # play-frame the sweep begins
     mod_inc = model.get('mod_inc', 0)                   # fractional tick rate (per play, /256)
+    mod_total = _mod_total_ticks(pw_program)            # ticks before the sweep tail halts
     L = []; em = L.append; sk = [0]
     def emit_pw_mod():
         _emit_pw_mod_asm(em, pw_program, mod_start, mod_inc)
@@ -665,6 +732,7 @@ def build_player_masked(model):
     em('play:'); em('        lda done'); em('        beq pl_load'); em('        rts')
     em('pl_load:')
     em('        lda splo'); em(f'        sta {SP}'); em('        lda sphi'); em(f'        sta {SP}+1')
+    _emit_mod_sweep_and_tail(em, emit_pw_mod, pw_program, mod_total, song_end)   # sweep BEFORE notes + tail
     em('pl_chk:')                                       # catch-up: fire every step due this frame
     em('        lda framehi'); em('        cmp curtgthi'); em('        bcc pl_wait'); em('        bne pl_fire')
     em('        lda framelo'); em('        cmp curtgtlo'); em('        bcs pl_fire')
@@ -687,12 +755,14 @@ def build_player_masked(model):
         em('        clc'); em('        lda loopbaselo'); em(f'        adc #${period&0xFF:02X}'); em('        sta loopbaselo')
         em('        lda loopbasehi'); em(f'        adc #${(period>>8)&0xFF:02X}'); em('        sta loopbasehi')
     else:
-        for _sereg, _seval in song_end:                # emit the song-end silence, then halt
-            em(f'        lda #${_seval:02X}'); em(f'        sta $D4{_sereg:02X}')
-        em('        lda #$01'); em('        sta done'); em('        jmp pl_inc')
+        if pw_program:                                  # defer halt: let the sweep tail finish
+            em('        lda #$01'); em('        sta notesdone'); em('        jmp pl_inc')
+        else:
+            for _sereg, _seval in song_end:            # emit the song-end silence, then halt
+                em(f'        lda #${_seval:02X}'); em(f'        sta $D4{_sereg:02X}')
+            em('        lda #$01'); em('        sta done'); em('        jmp pl_inc')
     em('pl_setatk:'); em('        jsr set_atk_target'); em('        lda #$00'); em('        sta phase'); em('        jmp pl_chk')
-    em('pl_inc:')
-    emit_pw_mod()                                      # per-tick PW sweep during note holds
+    em('pl_inc:')                                       # (sweep ticks at pl_load, before notes)
     em(f'        lda {SP}'); em('        sta splo'); em(f'        lda {SP}+1'); em('        sta sphi')
     em('        inc framelo'); em('        bne pl_ret'); em('        inc framehi'); em('pl_ret:'); em('        rts')
     em('set_atk_target:'); em('        clc')
@@ -732,9 +802,10 @@ def build_player_legato(model):
     stride = 2 + nam + len(aps)
     loop_to, period = model['loop_to'], model['loop_period']
     song_end = model.get('song_end') or []             # trailing silence emitted once at halt
-    pw_program = model.get('pw_program') or {}          # {voice: (value_table, sections)}
+    pw_program = model.get('pw_program') or {}          # {channel: (value_table, sections)}
     mod_start = model.get('mod_start', 0)
     mod_inc = model.get('mod_inc', 0)
+    mod_total = _mod_total_ticks(pw_program)            # ticks before the sweep tail halts
     L = []; em = L.append; sk = [0]
     def emit_pw_mod():
         _emit_pw_mod_asm(em, pw_program, mod_start, mod_inc)
@@ -750,9 +821,9 @@ def build_player_legato(model):
     em('        lda #>steprecs'); em('        sta sphi'); em(f'        sta {SP}+1')
     em('        jsr set_atk_target'); em('        rts')
     em('play:'); em('        lda done'); em('        beq pl_load'); em('        rts')
-    em('pl_load:')
+    em('pl_load:')                                       # (sweep ticks below at pl_load, before notes)
     em('        lda splo'); em(f'        sta {SP}'); em('        lda sphi'); em(f'        sta {SP}+1')
-    emit_pw_mod()                                      # PW sweep BEFORE notes (orig order: [PW][note])
+    _emit_mod_sweep_and_tail(em, emit_pw_mod, pw_program, mod_total, song_end)   # sweep BEFORE notes + tail
     em('pl_chk:')                                       # catch-up: fire every step due this frame
     em('        lda framehi'); em('        cmp curtgthi'); em('        bcc pl_wait'); em('        bne pl_fire')
     em('        lda framelo'); em('        cmp curtgtlo'); em('        bcs pl_fire')
@@ -781,9 +852,12 @@ def build_player_legato(model):
         em('        clc'); em('        lda loopbaselo'); em(f'        adc #${period&0xFF:02X}'); em('        sta loopbaselo')
         em('        lda loopbasehi'); em(f'        adc #${(period>>8)&0xFF:02X}'); em('        sta loopbasehi')
     else:
-        for _sereg, _seval in song_end:                # emit the song-end silence, then halt
-            em(f'        lda #${_seval:02X}'); em(f'        sta $D4{_sereg:02X}')
-        em('        lda #$01'); em('        sta done'); em('        jmp pl_inc')
+        if pw_program:                                  # defer halt: let the sweep tail finish
+            em('        lda #$01'); em('        sta notesdone'); em('        jmp pl_inc')
+        else:
+            for _sereg, _seval in song_end:            # emit the song-end silence, then halt
+                em(f'        lda #${_seval:02X}'); em(f'        sta $D4{_sereg:02X}')
+            em('        lda #$01'); em('        sta done'); em('        jmp pl_inc')
     em('pl_setatk:'); em('        jsr set_atk_target'); em('        jmp pl_chk')
     em('pl_inc:')
     em(f'        lda {SP}'); em('        sta splo'); em(f'        lda {SP}+1'); em('        sta sphi')
