@@ -239,6 +239,10 @@ def model_to_usf(model, title='bp'):
               'bp_init_n': len(model['init'])}
     for i, (reg, val) in enumerate(model['init']):
         fields[f'bp_init{i}'] = (reg << 8) | (val & 0xFF)
+    song_end = model.get('song_end') or []             # song-end silence (bookend of init)
+    fields['bp_songend_n'] = len(song_end)
+    for i, (reg, val) in enumerate(song_end):
+        fields[f'bp_songend{i}'] = (reg << 8) | (val & 0xFF)
     def _kind(e):                                      # 2 = from instrument; 3 = from global track
         if e[1] == 'perstep' and e[0] in GLOBAL_TRACK:
             return 3
@@ -292,6 +296,8 @@ def usf_to_model(usf):
         x = f[f'bp_rel{i}']; reg = x >> 16; kind = _KINDS[(x >> 8) & 0xFF]
         rel.append((reg, kind, (x & 0xFF) if kind == 'const' else None, _pvoice(reg, kind)))
     init = [((f[f'bp_init{i}'] >> 8) & 0xFF, f[f'bp_init{i}'] & 0xFF) for i in range(f['bp_init_n'])]
+    song_end = [((f[f'bp_songend{i}'] >> 8) & 0xFF, f[f'bp_songend{i}'] & 0xFF)
+                for i in range(f.get('bp_songend_n', 0))]
     ftab = list(usf.freq_table)
     sub = usf.subtunes[0]
     vrows = {vb.id: vb.patterns[0].rows for vb in sub.voices if vb.patterns}
@@ -376,7 +382,8 @@ def usf_to_model(usf):
             'rel_ps': [e[0] for e in rel_o if e[1] == 'perstep'],
             'loop_to': None if f['bp_loop_to'] < 0 else f['bp_loop_to'],
             'loop_period': f['bp_loop_period'], 'rho': f['bp_rho_milli'] / 1000.0,
-            'clock': usf.psid.clock, 'masked': True, 'legato': bool(f['bp_legato'])}
+            'clock': usf.psid.clock, 'masked': True, 'legato': bool(f['bp_legato']),
+            'song_end': song_end}
 
 # ------------------------------------------------------------- verify -----
 def _compare_with_extend(orig_wl, reb_sid, dur, loops):
@@ -456,6 +463,10 @@ def best_attempt(sid_rel, dur, title='bp'):
         res3 = _attempt_model(build_model(sid, dur, min_trim=True), sid, dur, orig_wl, title)
         if res3[0] == 'FULL':
             return res3
+    if res[0] in ('overlap_diverge', 'length_fail'):   # trailing master-vol=0 fade -> song-end
+        res4 = _attempt_model(build_model(sid, dur, detect_song_end=True), sid, dur, orig_wl, title)
+        if res4[0] == 'FULL':
+            return res4
     return res
 
 

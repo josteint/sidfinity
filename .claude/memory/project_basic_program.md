@@ -1,6 +1,6 @@
 ---
 name: project_basic_program
-description: "Basic_Program family (486 RSID-BASIC tunes) — PRODUCTIONIZED round-trip: 248/486 (51.0%) FULL through real USF, mass-written + regression"
+description: "Basic_Program family (486 RSID-BASIC tunes) — PRODUCTIONIZED round-trip: 252/486 (51.9%) FULL through real USF, mass-written + regression"
 metadata: 
   node_type: memory
   type: project
@@ -312,18 +312,31 @@ Alien_Attack, Angry_Ninja, Infinitesimal, M7_Shot, Dog_Fight, Spaceshuttle, Drum
 Wail_of_the_Banshee). A few glide-heavy sweeps moved buckets (M8_Sound/Tron → length_fail correct-but-short;
 Interlace → too_many_pitches >96 freqs). Canary: Earthworms (portfolio 15).
 
-**RESIDUE (238): arp/dup 96** (variable_template 67 + legato_variable 29 — precedence cycles + deeper variants) +
-too_few 68 (after_trim 59 + steps 9) + overlap_diverge 23 (REMAINING: song-end mvol=$00 fade mis-looped ~5 e.g.
-Silver_Bells/Let_it_Snow/Oh_Suzannah/Bach_Minuet — orig fades master-vol to 0 at end, model found a false loop; +
-ctl/order misc) + length_fail 31 (per-frame PWM/filter 6 = richer lift; final-note-tail / under_segment ~17;
-loop-real-diverge 3; +glide sweeps) + build_fail 21 (vibrato/glide too_many_pitches). 1 digi (Black_Box_V8_Demo) → Mode 2.
+**✅ SONG-END SILENCE (overlap_diverge round 2, 2026-06-27): 248→252 FULL (51.0%→51.9%), 0 regr.** 9/23
+overlap_diverge tunes end with master-vol=$00 (the engine silences itself). Two shapes: (a) bare `mvol=00` after the
+notes (a fade to silence; the orig plays ONCE but the model found a FALSE internal loop → rebuild loops instead of
+ending) — the CLEAN cluster, diverges only at i=a−1; (b) a full zero-everything silence-all sequence + mvol=0 (these
+also diverge EARLY for other reasons — not this fix). Fix = a `song_end` write sequence: the engine's stop-routine
+output, captured as the SYMMETRIC BOOKEND of `init` (same packed `bp_songend{i}` round-trip as `bp_init{i}`).
+`_song_end_writes` grabs every write after the last note step's gate-off frame when the writelog ends in mvol=$00;
+its presence forces `ends=True` (play-once, no loop); the 3 players emit it once at the halt before `sta done`. Wired
+as a best_attempt VERIFY-FALLBACK (`detect_song_end=True`, tried only on overlap_diverge/length_fail) → structurally
+0-regression; non-song-end tunes get `song_end=[]` = byte-identical asm + `bp_songend_n=0` (old .usf unaffected,
+`.get` default). +4 (Silver_Bells, Let_it_Snow, Oh_Suzannah, Bach_Minuet — last two EXACT). Canary: Silver_Bells.
+The zero-all sub-cluster (Hymna_CCCP/Johnny_Reb/Prospector/Sounds_of_Dixie) needs the silence-all captured
+mid-stream — deferred.
 
-**NEXT (highest-leverage first):** (1) overlap_diverge round 2 — song-end `mvol=$00` fade (orig ends with master-vol
-→0 = silence; model wrongly loops → detect trailing mvol=0 as song-end, cf. the Hubbard song-end fade). (2) length_fail
-remainder — under_segment 4 + per-frame PWM/filter 6 (parametric PWM + filter sweep, ledger C1 SweepEnvelope). (3) the
-arp/dup 96 (precedence cycles + split-then-still-variable). (4) too_few 68. (5) glide/vibrato too_many_pitches (freq
-alphabet >96 — the sweeps that exceed 96 distinct freqs; a glide effect would compress them). Iterate via
-`family_batch.py` (resumes from the OUT jsonl; delete to force clean). Survey raw: `tmp/basic_program_research/survey.jsonl`.
+**RESIDUE (234): arp/dup 96** (variable_template 67 + legato_variable 29 — precedence cycles + deeper variants) +
+too_few 68 (after_trim 59 + steps 9) + overlap_diverge 19 (zero-all silence-all ~4 + early ctl/order/freq misc) +
+length_fail 31 (per-frame PWM/filter 6 = richer lift; final-note-tail / under_segment ~17; loop-real-diverge 3) +
+build_fail 21 (vibrato/glide too_many_pitches). 1 digi (Black_Box_V8_Demo) → Mode 2.
+
+**NEXT (highest-leverage first):** (1) length_fail remainder — under_segment 4 + per-frame PWM/filter 6 (parametric
+PWM + filter sweep, ledger C1 SweepEnvelope). (2) overlap_diverge zero-all silence + the early-divergence misc
+(M5_Gong / Crazy_Conveyors / Kiosk / Dark_Tower — match<50, real per-tune emission bugs to trace). (3) the arp/dup 96
+(precedence cycles + split-then-still-variable). (4) too_few 68. (5) glide/vibrato too_many_pitches (freq alphabet >96
+— a glide effect would compress the sweeps). Iterate via `family_batch.py` (resumes from the OUT jsonl; delete to
+force clean). Survey raw: `tmp/basic_program_research/survey.jsonl`.
 
 **CONVERGENCE (ledger C10, 2026-06-27):** the `global_track` is the EXPLICIT-event form of chip-global $D415-$D418
 automation; the OTHER engines already represent the same registers PARAMETRICALLY (`MasterVolConfig` fade formula,

@@ -230,7 +230,23 @@ def _superset_templates(steps):
     return (atk_t, [r for r, k, v, vo in atk_t if k == 'perstep'],
             rel_t, [r for r, k, v, vo in rel_t if k == 'perstep'])
 
-def build_model(sid, dur, force_split=None, min_trim=False):
+def _song_end_writes(frames, steps):
+    """The trailing SILENCE the engine emits to stop the song. When the writelog
+    ends with master-vol=$00 (the tune silences itself), capture every write AFTER
+    the last note step's gate-off frame — the silence sequence (mvol=0, optionally
+    voice/filter zeroing) that segment() leaves out of the note steps. The engine's
+    stop-routine output, the symmetric bookend of `init`. [] if the tune doesn't
+    silence itself this way."""
+    flat = [(r, v) for fr in frames for (c, r, v) in fr]
+    if not flat or flat[-1] != (0x18, 0x00) or not steps:
+        return []
+    last = steps[-1]
+    bnd = last.get('off_frame') or last.get('on_frame') or 0
+    tail = [(r, v) for i in range(bnd + 1, len(frames)) for (c, r, v) in frames[i]]
+    return tail if (tail and tail[-1] == (0x18, 0x00)) else []
+
+
+def build_model(sid, dur, force_split=None, min_trim=False, detect_song_end=False):
     """Lift to a build-ready model, or {'unsupported': reason}. Tries the unsplit
     segmentation first (consistent templates incl. consistent intra-step dup, via
     derive_template); only if that fails on a template/dup reason does it retry with
@@ -240,17 +256,21 @@ def build_model(sid, dur, force_split=None, min_trim=False):
     — used by the verifier to retry the split variant when the unsplit model BUILDS
     but verifies wrong (the catch-up loop case auto-fallback can't see).
     min_trim keeps complete differing final steps (drops only capture-cutoff tail) —
-    a best_attempt verify-fallback for play-once tunes the aggressive trim cut short."""
+    a best_attempt verify-fallback for play-once tunes the aggressive trim cut short.
+    detect_song_end captures a trailing master-vol=$00 silence as the song-end (forces
+    play-once + emits the silence) — a best_attempt fallback for false-loop fade-outs."""
     frames = capture_real(sid, dur)
     window = len(frames)
     last_write = max((i for i, fr in enumerate(frames) if fr), default=0)  # song-end signal
     if force_split is not None:
         init, steps, start_frame, legato = segment(frames, split_dups=force_split)
-        return _build_model_from_steps(sid, init, steps, legato, window, last_write, min_trim)
+        se = _song_end_writes(frames, steps) if detect_song_end else None
+        return _build_model_from_steps(sid, init, steps, legato, window, last_write, min_trim, se)
     result = None
     for split_dups in (False, True):
         init, steps, start_frame, legato = segment(frames, split_dups=split_dups)
-        result = _build_model_from_steps(sid, init, steps, legato, window, last_write, min_trim)
+        se = _song_end_writes(frames, steps) if detect_song_end else None
+        result = _build_model_from_steps(sid, init, steps, legato, window, last_write, min_trim, se)
         if ('unsupported' not in result or result['unsupported'] not in (
                 'variable_template', 'legato_variable', 'too_few_after_trim',
                 'too_few_steps', 'template_derive')):
@@ -258,7 +278,7 @@ def build_model(sid, dur, force_split=None, min_trim=False):
     return result
 
 
-def _build_model_from_steps(sid, init, steps, legato, window=0, last_write=0, min_trim=False):
+def _build_model_from_steps(sid, init, steps, legato, window=0, last_write=0, min_trim=False, song_end=None):
     from pipelines.basic_program.proof_multivoice import measure_rho, _find_loop
     import struct
     if len(steps) < 2:
@@ -315,7 +335,10 @@ def _build_model_from_steps(sid, init, steps, legato, window=0, last_write=0, mi
     # spurious) internal-phrase loop must NOT be applied or the rebuild over-emits by
     # replaying. Uses the last WRITE frame (not the last step): a tune that loops with
     # a trailing gap still has writes filling the window.
-    ends = window and last_write < window * 0.85
+    # A trailing master-vol=$00 (the engine silences itself) is an explicit SONG-END
+    # marker: the song plays ONCE then stops, so a (false) internal-phrase loop must
+    # not be applied. The captured silence writes are emitted once at the halt.
+    ends = (window and last_write < window * 0.85) or bool(song_end)
     intro, period = (None, None) if ends else _find_loop(sigs)
     loop_to, loop_period = None, 0
     if period is not None:
@@ -333,7 +356,7 @@ def _build_model_from_steps(sid, init, steps, legato, window=0, last_write=0, mi
     return {'init': init, 'steps': steps, 'atk_template': atk_t, 'atk_ps': atk_ps,
             'rel_template': rel_t, 'rel_ps': rel_ps, 'loop_to': loop_to,
             'loop_period': loop_period, 'clock': clk, 'rho': rho, 'masked': masked,
-            'legato': legato}
+            'legato': legato, 'song_end': list(song_end or [])}
 
 def analyze(sid, dur):  # debug view
     frames = capture_real(sid, dur)
@@ -362,6 +385,7 @@ def build_player(model):
     natk = len(model['atk_ps']); nrel = len(model['rel_ps'])
     stride = 4 + natk + nrel
     loop_to, period = model['loop_to'], model['loop_period']
+    song_end = model.get('song_end') or []             # trailing silence emitted once at halt
     L = []; em = L.append
     em(f'* = ${LOAD:04X}'); em('        jmp init'); em('        jmp play')
     em('init:')
@@ -409,6 +433,8 @@ def build_player(model):
         em('        clc'); em('        lda loopbaselo'); em(f'        adc #${period&0xFF:02X}'); em('        sta loopbaselo')
         em('        lda loopbasehi'); em(f'        adc #${(period>>8)&0xFF:02X}'); em('        sta loopbasehi')
     else:
+        for _sereg, _seval in song_end:                # emit the song-end silence, then halt
+            em(f'        lda #${_seval:02X}'); em(f'        sta $D4{_sereg:02X}')
         em('        lda #$01'); em('        sta done'); em('        jmp pl_inc')
     em('pl_setatk:'); em('        jsr set_atk_target'); em('        lda #$00'); em('        sta phase'); em('        jmp pl_chk')
     em('pl_inc:')
@@ -449,6 +475,7 @@ def build_player_masked(model):
     rps_base = aps_base + len(aps)
     stride = 4 + nam + nrm + len(aps) + len(rps)
     loop_to, period = model['loop_to'], model['loop_period']
+    song_end = model.get('song_end') or []             # trailing silence emitted once at halt
     L = []; em = L.append; sk = [0]
     def emit_template(tmpl, mask_off0, ps_base):
         slot = 0
@@ -498,6 +525,8 @@ def build_player_masked(model):
         em('        clc'); em('        lda loopbaselo'); em(f'        adc #${period&0xFF:02X}'); em('        sta loopbaselo')
         em('        lda loopbasehi'); em(f'        adc #${(period>>8)&0xFF:02X}'); em('        sta loopbasehi')
     else:
+        for _sereg, _seval in song_end:                # emit the song-end silence, then halt
+            em(f'        lda #${_seval:02X}'); em(f'        sta $D4{_sereg:02X}')
         em('        lda #$01'); em('        sta done'); em('        jmp pl_inc')
     em('pl_setatk:'); em('        jsr set_atk_target'); em('        lda #$00'); em('        sta phase'); em('        jmp pl_chk')
     em('pl_inc:')
@@ -537,6 +566,7 @@ def build_player_legato(model):
     ps_base = 2 + nam
     stride = 2 + nam + len(aps)
     loop_to, period = model['loop_to'], model['loop_period']
+    song_end = model.get('song_end') or []             # trailing silence emitted once at halt
     L = []; em = L.append; sk = [0]
     em(f'* = ${LOAD:04X}'); em('        jmp init'); em('        jmp play')
     em('init:')
@@ -580,6 +610,8 @@ def build_player_legato(model):
         em('        clc'); em('        lda loopbaselo'); em(f'        adc #${period&0xFF:02X}'); em('        sta loopbaselo')
         em('        lda loopbasehi'); em(f'        adc #${(period>>8)&0xFF:02X}'); em('        sta loopbasehi')
     else:
+        for _sereg, _seval in song_end:                # emit the song-end silence, then halt
+            em(f'        lda #${_seval:02X}'); em(f'        sta $D4{_sereg:02X}')
         em('        lda #$01'); em('        sta done'); em('        jmp pl_inc')
     em('pl_setatk:'); em('        jsr set_atk_target'); em('        jmp pl_chk')
     em('pl_inc:')
