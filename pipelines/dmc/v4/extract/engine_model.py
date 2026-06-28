@@ -455,7 +455,13 @@ def _resolve_wave_chain(ctrl_tab: list, freq_tab: list, start: int):
 
 def _decode_instrument(mem, base: int, iid: int,
                        ctrl_tab, freq_tab, n_inbound=None) -> DmcInstrument:
-    b = [mem[base + iid * 11 + k] for k in range(11)]
+    # the player indexes the record via the 8-bit Y register (LDA $18F0,Y with
+    # Y = instrument# * 11), so the offset WRAPS mod 256. For iid >= 24
+    # (24*11=264 > 255) the record start is (iid*11) & 0xFF, NOT iid*11 — a
+    # tightly-packed table reuses the low bytes for its high instruments.
+    # iid 0-23 are unaffected (23*11=253 < 256), so this never regresses them.
+    off = (iid * 11) & 0xFF
+    b = [mem[base + off + k] for k in range(11)]
     fx = b[10]
     pw_base = b[6] >> 4
     nibs = [b[3] & 0xF0, (b[3] & 0x0F) << 4,
