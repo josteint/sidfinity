@@ -331,8 +331,19 @@ too_few 68 (after_trim 59 + steps 9) + overlap_diverge 19 (zero-all silence-all 
 length_fail 31 (per-frame PWM/filter 6 = richer lift; final-note-tail / under_segment ~17; loop-real-diverge 3) +
 build_fail 21 (vibrato/glide too_many_pitches). 1 digi (Black_Box_V8_Demo) → Mode 2.
 
-**NEXT (highest-leverage first):** (1) length_fail remainder — under_segment 4 + per-frame PWM/filter 6 (parametric
-PWM + filter sweep, ledger C1 SweepEnvelope). (2) overlap_diverge zero-all silence + the early-divergence misc
+**🔶 PER-FRAME PWM MODULATION ENGINE (WIP, commit 7e5c62a, 2026-06-28):** the per-frame PWM/filter cluster (6) is a
+free-running MODULATION engine, not a single fix — `detect_modulation` best_attempt fallback (0-regression, no tune
+FULL yet). Capture = per-voice PW-hi sweep → `SweepEnvelope` (RLE writelog per-frame deltas; ledger C1, the
+`default_pulse` continuous analog), round-trips exactly. Player (masked+legato) = 6502 sweep walker, FRACTIONAL rate
+(`mod_inc`/256 ticks per play() = BASIC-loop rate not 50Hz), notes re-timed onto the sweep clock (`on_tick`), sweep
+emitted BEFORE the note (orig order [PW][note]), PW stripped pre-segmentation. PROVEN single-section (Cascading 1st
+259 writes exact, from 2). REMAINING LAYERS (each deep, multi-session): section-varying sweep (pauses/changes between
+sections — Cascading diverges i=259), the underlying length_fail (noloop-continues), per-voice gating (masked tunes
+where the sweep follows one voice — Doom_Comer), arp + filter-sweep variants. Methodology that worked: divide-and-
+conquer on the FIRST DIVERGENCE (`find_first_divergence`-style), one cause at a time (gating→rate→interleaving→order).
+
+**NEXT (highest-leverage first):** (1) length_fail remainder — the PWM modulation engine above (resume from 7e5c62a)
++ under_segment 4. (2) overlap_diverge zero-all silence + the early-divergence misc
 (M5_Gong / Crazy_Conveyors / Kiosk / Dark_Tower — match<50, real per-tune emission bugs to trace). (3) the arp/dup 96
 (precedence cycles + split-then-still-variable). (4) too_few 68. (5) glide/vibrato too_many_pitches (freq alphabet >96
 — a glide effect would compress the sweeps). Iterate via `family_batch.py` (resumes from the OUT jsonl; delete to

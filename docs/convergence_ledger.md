@@ -87,7 +87,14 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
   oscillator is the special case `start + [(+s,n),(−s,n)], loop=0` — verified
   losslessly expressible (decision-1 gate, 2026-06-18).
 - **Consumers (canonical):** DMC `pulse_env`, `filter_env`, `default_pulse`,
-  `default_filter`.
+  `default_filter`. **basic_program per-frame PWM (WIP, commit 7e5c62a)** — a
+  free-running per-voice pulse-width sweep captured by RLE-ing the writelog's
+  per-frame deltas into the same `(rate,frames)` phases (the `default_pulse`
+  continuous analog, not per-instrument). Player = a 6502 sweep walker advancing
+  at a FRACTIONAL rate (mod_inc/256 ticks per play() = the BASIC-loop rate, not
+  50Hz). Proven for single-section sweeps (Cascading first 259 writes exact);
+  remaining = section-varying sweeps (the sweep pauses/changes between sections),
+  per-voice gating, arp/filter variants. Confirms C1 generalizes to a 5th family.
 - **DIVERGENT forms of the same DOF across families** (Move-1 decisions D1/D2,
   see [refactor_1_remaining.md](refactor_1_remaining.md) all-families review
   2026-06-18 — unify onto `SweepEnvelope`): Hubbard `pwm` (linear/bidi) · FC
