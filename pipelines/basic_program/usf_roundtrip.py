@@ -452,6 +452,10 @@ def best_attempt(sid_rel, dur, title='bp'):
         res2 = _attempt_model(build_model(sid, dur, force_split=True), sid, dur, orig_wl, title)
         if res2[0] == 'FULL':
             return res2
+    if res[0] == 'length_fail':                         # short play-once tail -> keep final steps
+        res3 = _attempt_model(build_model(sid, dur, min_trim=True), sid, dur, orig_wl, title)
+        if res3[0] == 'FULL':
+            return res3
     return res
 
 

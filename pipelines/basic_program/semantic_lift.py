@@ -230,7 +230,7 @@ def _superset_templates(steps):
     return (atk_t, [r for r, k, v, vo in atk_t if k == 'perstep'],
             rel_t, [r for r, k, v, vo in rel_t if k == 'perstep'])
 
-def build_model(sid, dur, force_split=None):
+def build_model(sid, dur, force_split=None, min_trim=False):
     """Lift to a build-ready model, or {'unsupported': reason}. Tries the unsplit
     segmentation first (consistent templates incl. consistent intra-step dup, via
     derive_template); only if that fails on a template/dup reason does it retry with
@@ -238,17 +238,19 @@ def build_model(sid, dur, force_split=None):
 
     force_split (True/False) bypasses the auto-fallback and segments that way only
     — used by the verifier to retry the split variant when the unsplit model BUILDS
-    but verifies wrong (the catch-up loop case auto-fallback can't see)."""
+    but verifies wrong (the catch-up loop case auto-fallback can't see).
+    min_trim keeps complete differing final steps (drops only capture-cutoff tail) —
+    a best_attempt verify-fallback for play-once tunes the aggressive trim cut short."""
     frames = capture_real(sid, dur)
     window = len(frames)
     last_write = max((i for i, fr in enumerate(frames) if fr), default=0)  # song-end signal
     if force_split is not None:
         init, steps, start_frame, legato = segment(frames, split_dups=force_split)
-        return _build_model_from_steps(sid, init, steps, legato, window, last_write)
+        return _build_model_from_steps(sid, init, steps, legato, window, last_write, min_trim)
     result = None
     for split_dups in (False, True):
         init, steps, start_frame, legato = segment(frames, split_dups=split_dups)
-        result = _build_model_from_steps(sid, init, steps, legato, window, last_write)
+        result = _build_model_from_steps(sid, init, steps, legato, window, last_write, min_trim)
         if ('unsupported' not in result or result['unsupported'] not in (
                 'variable_template', 'legato_variable', 'too_few_after_trim',
                 'too_few_steps', 'template_derive')):
@@ -256,7 +258,7 @@ def build_model(sid, dur, force_split=None):
     return result
 
 
-def _build_model_from_steps(sid, init, steps, legato, window=0, last_write=0):
+def _build_model_from_steps(sid, init, steps, legato, window=0, last_write=0, min_trim=False):
     from pipelines.basic_program.proof_multivoice import measure_rho, _find_loop
     import struct
     if len(steps) < 2:
@@ -273,13 +275,24 @@ def _build_model_from_steps(sid, init, steps, legato, window=0, last_write=0):
         atk_t, atk_ps, rel_t, rel_ps = sup
         masked = True
     else:
-        # drop trailing steps not matching the modal templates (capture cut-off)
         am, rm = _modal([s['attack'] for s in steps]), _modal([s['release'] for s in steps if s['release']])
         def ok(s):
             return (tuple(r for r, v in s['attack']) == am and s['release'] is not None
                     and tuple(r for r, v in s['release']) == rm)
-        while steps and not ok(steps[-1]):
-            steps.pop()
+        # Trailing-trim. DEFAULT (aggressive): drop every trailing step that differs
+        # from the modal template — removes capture-cutoff partials, but also
+        # over-trims a complete final section with a thinner texture (Polimus lost 93
+        # real-note steps -> short). MIN_TRIM variant (a best_attempt verify-fallback,
+        # never the default -> 0 regression): drop ONLY genuine capture-cutoff tail
+        # (no release = gate-off never captured), KEEP complete differing final steps
+        # for the masked path. Some tunes NEED the aggressive trim (their tail breaks
+        # the template), so min_trim is tried only when the aggressive build is short.
+        if min_trim:
+            while steps and steps[-1]['release'] is None:
+                steps.pop()
+        else:
+            while steps and not ok(steps[-1]):
+                steps.pop()
         if len(steps) < 2:
             return {'unsupported': 'too_few_after_trim'}
         masked = False
