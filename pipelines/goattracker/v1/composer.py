@@ -76,6 +76,7 @@ class _Tables:
         # full filter table (engine steps it); fall back to entry-0 placeholder.
         self.filttbl = list(p.get('filttbl_bytes', [self.filt[1], 0, 0, 0]))
         self.nowavedelay = bool(p.get('nowavedelay', False))
+        self.player = p.get('player', 'tracker')   # 'tracker'|'gamemusic' (player2)
         # optimized-layout variant: filter is EVENT-DRIVEN (written by setfilter,
         # not a per-frame exec), per-voice order is loadregs-before-pulse, init
         # chntick = tempo (not gatetimer+2).
@@ -138,7 +139,7 @@ class _Tables:
             base += len(v.patterns)
 
     def _voice_tables(self, v, base):
-        pat_bytes = [(pat.id, _encode_pattern(pat.rows))
+        pat_bytes = [(pat.id, _encode_pattern(pat.rows, self.player))
                      for pat in sorted(v.patterns, key=lambda p: p.id)]
         ol = v.orderlist
         order = bytearray()
@@ -161,10 +162,10 @@ class _Tables:
         return {'order': bytes(order), 'patterns': pat_bytes}
 
 
-def _encode_pattern(rows) -> bytes:
+def _encode_pattern(rows, player='tracker') -> bytes:
     out = bytearray()
     for r in rows:
-        cmd, param = _fx_to_cmd(r.fx_flags)
+        cmd, param = _fx_to_cmd(r.fx_flags, player)
         if r.pitch.is_rest and not r.fx_flags and r.duration > 1:
             out.append((256 - r.duration) & 0xFF)         # packed rest
             continue
@@ -187,28 +188,38 @@ def _encode_pattern(rows) -> bytes:
     return bytes(out)
 
 
-def _fx_to_cmd(flags):
+def _fx_to_cmd(flags, player='tracker'):
     for f in flags:
         if f == 'keyoff':
             continue
-        if f.startswith('arp='):
+        if f.startswith('arp='):                       # cmd 0 (both players)
             x, y, s = (int(t) for t in f[4:].split(','))
             return 0, (s << 7) | ((x & 7) << 4) | (y & 0xF)
-        if f.startswith('glide_up='):
-            return 1, int(f.split('=')[1])
-        if f.startswith('glide_down='):
-            return 2, int(f.split('=')[1])
-        if f.startswith('porta='):
+        if f.startswith('porta='):                     # cmd 3 (both)
             return 3, int(f.split('=')[1])
-        if f.startswith('vibrato='):
+        if f.startswith('vibrato='):                   # cmd 4 (both)
             a, w = (int(t) for t in f[8:].split(','))
             return 4, ((a & 0xF) << 4) | (w & 0xF)
-        if f.startswith('filter='):
-            return 5, int(f.split('=')[1])
-        if f.startswith('srr='):
+        if f.startswith('srr='):                       # cmd 6 (both: SR/SETSUSTAIN)
             return 6, int(f.split('=')[1])
-        if f.startswith('tempo='):
+        if f.startswith('tempo='):                     # cmd 7 (both)
             return 7, int(f.split('=')[1])
+        if player == 'gamemusic':                      # player2 command set
+            if f.startswith('glide_up='):              # cmd 1, signed porta (up)
+                return 1, int(f.split('=')[1]) & 0x7F
+            if f.startswith('glide_down='):            # cmd 1, signed porta (down=bit7)
+                return 1, (int(f.split('=')[1]) & 0x7F) | 0x80
+            if f.startswith('fcutadd='):               # cmd 2, SETCUTOFFADD
+                return 2, int(f.split('=')[1])
+            if f.startswith('fctrl='):                 # cmd 5, SETFILTER ($D417)
+                return 5, int(f.split('=')[1])
+            continue
+        if f.startswith('glide_up='):                  # player1: cmd 1 (porta up)
+            return 1, int(f.split('=')[1])
+        if f.startswith('glide_down='):                # player1: cmd 2 (porta down)
+            return 2, int(f.split('=')[1])
+        if f.startswith('filter='):                    # player1: cmd 5 (filter ptr)
+            return 5, int(f.split('=')[1])
     return None, None
 
 
