@@ -7,6 +7,27 @@ metadata:
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
 ---
 
+## 🔬 V5 FAMILY-4 (686 SIDs, Jupiter41) — Phase A RE DONE (2026-06-29)
+
+Started the family-4 migration (`pipelines/dmc/family4/`: disassembly.s seed +
+RE_NOTES.md). **KEY FINDING (corrected mid-RE): family-4 = family-3's V5 DATA
+FORMAT, RELOCATED, with a DIFFERENT PLAYER** — NOT a from-scratch engine.
+- SHARED with family-3: track format ($FF loop/$FE stop/$FD$FC transpose),
+  sector command map (~1:1: $F1 srr/$F2 adr/$F3 vol/$F4-5 gate/$F6-7 fade/$F8 frq/
+  $F9 flt/$FA slide/$FB glide/$FC snd/$FD dur/$FE gate), 8-byte instrument record.
+- DIFFERENT (the ~0.31 Jaccard = player code): 3-entry jump table (init $1040/
+  play $1095/3rd $10D3); 2-phase `$1016` timing (DEC/BMI alternates MAIN $1373
+  vs TICK $10E1); `$D416`-ONLY filter ($1019+$1853, no $D415); zero-page $FA/$FB;
+  + 2 new sector cmds $EF/$F0 (wave/vib). Table bases relocated: song $1A40,
+  sector-ptr $2209/$224B, instr $228D, freq $1779, wave/pulse prog $23A3/$23BC.
+- The V5 factory ALREADY detects it (`layout='family4'`, rejects family4_branch).
+- **Phase B/C = the family-2 playbook**: factory dispatch + dataflow relocated
+  bases → reuse the V5 extract → family-4 composer variant (2-phase timing +
+  $D416 filter) → carve a Jupiter41 reference for masked dispatch → wide batch.
+- Remaining Phase-A detail: $147B effects, $1654 SID-write ORDER, $EF/$F0
+  semantics, measure the $1016 2-phase (multispeed-2 vs tempo), census the 686.
+- Members: `tmp/v5_family4_members.json`. Commits 1fd69df, 02baf25.
+
 ## ✅ V5 (family-3/5): 1088/1495 FULL (72.8%, 2026-06-29) — glide-wrap +27, idle-filter +20
 
 Session 2026-06-29 V5 total: 1041 → 1088 (+47), all 0-regression.
