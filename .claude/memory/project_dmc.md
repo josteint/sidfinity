@@ -7,6 +7,45 @@ metadata:
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
 ---
 
+## ✅ FAMILY-2: 2294/2889 FULL (79.4%, 2026-06-29) — build+verify-as-judge round (+78 session)
+
+Session 2026-06-29 took family-2 2216 → 2294 (+78). The wins were all the SAME
+principle — **the write stream judges, not code identity** (CORE TENET) — applied
+to dispatch/detection, not new effects:
+- **build+verify-gate (aaa914c, +21):** replaced the family-2 player-code
+  hard-reject (`player_code_mismatch_f2`) with a `break` + build+verify. Play-body
+  diffs are write-stream-benign; operands extract from canonical sites regardless.
+- **all-off/sfx mask (3128dd4, +5):** `_F2_DATA_MASK` masks $162F-instr_base
+  (all-off/sfx never execute during play()), matching canon's `_MASKED_RANGES`.
+- **re-verify palimpsest (+40):** re-ran non-FULL with current code (0 regressions).
+- **init-shift dispatch (2a07a7e, +12) — ledger [[C13]]:** `_jt_layout` now accepts
+  `play+$85` with `init∈[+$30,+$40]` as family2. These variants keep the canonical
+  play body at +$85 but shift the init header a few bytes (+$38..$3A vs +$37); we
+  emit our own init so the shift is irrelevant. Validated 12 FULL / 2 partial /
+  0 false-accept. Mass-written + DB-refreshed.
+
+**BUILD-FAIL RESIDUE FULLY CHARACTERIZED (50 unsupported + 12 error + 533 partial).**
+Don't re-census — these are DEEP per-variant, low per-hour yield (the +12 was the
+last cheap structural win):
+- **partials 533** = 76% FREQ (lo+hi 406) — the known-hard structured freq tail
+  (per-cause, no single lever; same as family-1). CTRL 55 / SR 33 likely
+  note-contaminated. FL_HI 15 = clean global. THIS is the FULL bottleneck, not
+  the build-fails (per [[C5]]).
+- **sector_decode 29** = two sub-causes: (a) garbage secp over-run (track byte
+  indexes an empty secp slot → sec_addr=$0000/out-of-range; secp tables are tiny,
+  e.g. 7 entries, so index≥N reads the adjacent hi-table); (b) valid sec_addr,
+  no $FF terminator — the LAST sector runs into $FE filler (2_Grenadiere sec6
+  $1A99); orig plays 82s with all voices active = the song LOOPS on all-voices-
+  stop, so "idle-on-filler" is the WRONG model — needs track-level loop/restart RE.
+- **no_jumptable 14 (tail)** = play+$86 (whole-table +1 shift) / play+$85 far-init
+  ($+18,$+A50 — dispatch as family2 → only PARTIAL, not worth loosening the window)
+  / high-offset relocated JTs ($C20/$BC0) / garbage.
+- **errors 12** = all in `_walk_track`: PSID `songs` over-reports; subtune 0 fine
+  but later subtunes read a garbage tunetab row (James_Pond: songs=3 but tunetab
+  has 1 row; sub1 is a byte-identical ALIAS of sub0, sub2 genuinely differs yet
+  isn't in the 8-byte-stride table → this member's subtune-select mechanism
+  differs from canonical tunetab+sub*8). Needs per-member subtune-dispatch RE.
+
 ## 💡 OFF-TABLE FLOOR IS SOLVABLE (2026-06-26) — NOT a fundamental limit (corrects an earlier wrong claim)
 I earlier (wrongly) called the off-table dynamic reads a fundamental ceiling that
 needs reversing the no-state-mirroring principle. WRONG — two corrections from the
