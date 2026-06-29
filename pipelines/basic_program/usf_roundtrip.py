@@ -496,11 +496,15 @@ def best_attempt(sid_rel, dur, title='bp'):
 
     def _try(gap_exact):
         res = _attempt_model(build_model(sid, dur), sid, dur, orig_wl, title, gap_exact=gap_exact)
-        if res[0] in ('overlap_diverge', 'length_fail'):   # built but wrong -> the split variant
+        # too_few_after_trim = the AGGRESSIVE trailing-trim dropped a heterogeneous step
+        # sequence below 2 steps. The model has real content (raw segment had 60-600+
+        # steps); min_trim keeps it. Treat too_few like a built-but-wrong retry candidate.
+        toofew = res[0].startswith('unsupported:too_few')
+        if res[0] in ('overlap_diverge', 'length_fail') or toofew:  # built but wrong/over-trimmed
             res2 = _attempt_model(build_model(sid, dur, force_split=True), sid, dur, orig_wl, title, gap_exact=gap_exact)
             if res2[0] == 'FULL':
                 return res2
-        if res[0] == 'length_fail':                        # short play-once tail -> keep final steps
+        if res[0] == 'length_fail' or toofew:              # short tail / over-trim -> keep final steps
             res3 = _attempt_model(build_model(sid, dur, min_trim=True), sid, dur, orig_wl, title, gap_exact=gap_exact)
             if res3[0] == 'FULL':
                 return res3
@@ -515,7 +519,7 @@ def best_attempt(sid_rel, dur, title='bp'):
         return res
 
     res = _try(False)
-    if res[0] == 'length_fail':                            # accumulated-timing drift on a long tune
+    if res[0] == 'length_fail' or res[0].startswith('unsupported:too_few'):  # drift / over-trim
         resg = _try(True)
         if resg[0] == 'FULL':
             return resg
