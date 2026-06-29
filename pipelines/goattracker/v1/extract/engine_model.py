@@ -372,7 +372,10 @@ def parse_wave_program(mem, layout: Layout, wave_ptr) -> tuple[list[WaveStep], O
         if nxt_left == 0xFF:                           # LOOPWAVE marker at idx+1
             tgt = mem[layout.notetbl + idx + 1]
             if tgt == 0:
-                loop_to = len(steps) - 1               # stays (target 0)
+                # tgt 0 → STOP the wave (waveptr→0); the engine's continuous fx
+                # (arp/porta/toneporta/vibrato) then runs (v153 mt_waveexec:
+                # `lda notetbl+1,y; beq` → waveptr=0). NOT a loop-to-last-step.
+                loop_to = -1                           # STOP sentinel
             else:
                 # new ptr = tgt + wave_ptr - 2 (loop target relative to inst start)
                 new_idx = (tgt + wave_ptr - 2) & 0xFF

@@ -111,9 +111,11 @@ class _Tables:
                     self.wnote.append(right & 0xFF)
                 # marker: wctrl=$FF, wnote = ABSOLUTE loop-target index (our own
                 # clean scheme — engine loads it directly, no carry arithmetic).
+                # lp == -1 → STOP (wnote=0 → engine sets waveptr=0, continuous
+                # fx takes over — the toneporta slide etc.).
                 lp = inst.loop if inst.loop is not None else (len(steps) - 1)
                 self.wctrl.append(0xFF)
-                self.wnote.append((start + lp) & 0xFF)
+                self.wnote.append(0 if lp < 0 else (start + lp) & 0xFF)
 
         sub = usf.subtunes[0]
         # Global pattern slots: each voice's USF patterns (0-based contiguous)
@@ -489,8 +491,9 @@ t0_toneport:
         sta chnnote,x
         lda #$ff
         sta chnnewnote,x
-        jmp pulseexec            ; legato: chnnote set, freq applies NEXT play
-                                 ; (skip this frame's waveexec - matches orig)
+        jmp tick0done            ; legato: wave (if running) was NOT restarted;
+                                 ; once it STOPs (tgt=0) the continuous toneporta
+                                 ; slides chnfreq toward freqtbl[chnnote]
 t0_filter:
         jsr setfilter
         jmp tick0done
