@@ -34,20 +34,43 @@ def _pitch(note: int) -> Pitch:
     return Pitch(name=_NOTE_NAMES[note % 12], octave=note // 12)
 
 
-def _row_fx(cmd, param) -> tuple:
+def _row_fx(cmd, param, player='tracker') -> tuple:
     """Per-row command → fx_flags tuple (ledger C14). Decomposed to musical
     parameters. Existing grammar tokens (porta/glide_up/glide_down/srr/filter/
     tempo) are reused; `arp` + `vibrato` are GT-specific carriers (grammar
-    extension pending — composer reads these from the in-memory model)."""
+    extension pending — composer reads these from the in-memory model).
+
+    Two command sets (RE_NOTES §12): player1 (tracker) and player2 (gamemusic).
+    cmd 0/3/4/7 (arp/toneporta/vibrato/tempo) coincide; player2 differs on
+    1 (signed portamento), 2 (SETCUTOFFADD — global filter cutoff sweep rate),
+    5 (SETFILTER — global filter ctrl $D417), 6 (SETSUSTAIN — voice SR, same
+    musical effect as player1's cmd6)."""
     if cmd is None:
         return ()
-    if cmd == 0:                               # arpeggio: cycle root,+X,+Y
+    if cmd == 0:                               # arpeggio: cycle root,+X,+Y (BOTH)
         # Always emit (even param 0): a cmd-row SETS the active continuous
         # effect to arp, CLEARING any inherited effect (note-only rows inherit).
         x = (param >> 4) & 0x07                # 2nd-note offset (semitones)
         y = param & 0x0F                       # 3rd-note offset
         speed = (param >> 7) & 1               # bit7: 1 = fast (1 frame/step), 0 = slow (2)
         return (f'arp={x},{y},{speed}',)
+    if player == 'gamemusic':                  # player2 / gamemusic command set
+        if cmd == 1:                           # signed portamento (asl; dir=bit7)
+            return (f'glide_up={param}',) if param < 0x80 \
+                else (f'glide_down={param & 0x7f}',)
+        if cmd == 2:                           # SETCUTOFFADD: global cutoff sweep rate
+            return (f'fcutadd={param}',)
+        if cmd == 3:                           # tone portamento
+            return (f'porta={param}',)
+        if cmd == 4:                           # vibrato
+            return (f'vibrato={(param >> 4) & 0x0F},{param & 0x0F}',)
+        if cmd == 5:                           # SETFILTER: global filter ctrl ($D417)
+            return (f'fctrl={param}',)
+        if cmd == 6:                           # SETSUSTAIN: voice SR ($D406)
+            return (f'srr={param}',)
+        if cmd == 7:                           # SETTEMPO (bit7: this-channel vs all)
+            return (f'tempo={param}',)
+        return ()
     if cmd == 1:                               # portamento up (continuous)
         return (f'glide_up={param}',)
     if cmd == 2:                               # portamento down
@@ -65,7 +88,7 @@ def _row_fx(cmd, param) -> tuple:
     return ()
 
 
-def _rows_to_usf(rows) -> list[NoteRow]:
+def _rows_to_usf(rows, player='tracker') -> list[NoteRow]:
     """Faithful row-stream: one NoteRow per GT row.
 
     note 0-$5D → pitched note; $5E → keyoff (rest pitch + 'keyoff'); $5F →
@@ -76,7 +99,7 @@ def _rows_to_usf(rows) -> list[NoteRow]:
         if r.rest_rows:                                # packed rest
             out.append(NoteRow(pitch=Pitch.rest(), duration=r.rest_rows))
             continue
-        flags = _row_fx(r.cmd, r.param)
+        flags = _row_fx(r.cmd, r.param, player)
         # Set instr ONLY on a real instrument change (orig inst field != 0).
         # Note-only rows (no cmd) inherit BOTH the instrument and the active
         # effect via engine state — emitting neither keeps that inheritance.
@@ -132,7 +155,7 @@ def model_to_usf(song: V1Song) -> UsfFile:
             remap = {pn: i for i, pn in enumerate(used)}
             pats = []
             for pn in used:
-                rows = _rows_to_usf(song.patterns[pn].rows)
+                rows = _rows_to_usf(song.patterns[pn].rows, L.player)
                 pats.append(Pattern(id=remap[pn],
                                     length=sum(r.duration for r in rows),
                                     rows=rows))
@@ -152,6 +175,7 @@ def model_to_usf(song: V1Song) -> UsfFile:
 
     params = Params(fields={
         'engine': 'goattracker_v1',
+        'player': L.player,                     # 'tracker' (player1) | 'gamemusic' (player2)
         'gatetimer': L.gatetimer,
         'hr_ad': L.hr_ad,
         'hr_sr': L.hr_sr,
