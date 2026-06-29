@@ -270,17 +270,26 @@ def detect_layout(sid: Sid) -> Layout:
     hr_sr = mem[sr_h[0] + 1] if sr_h else 0
 
     # freq table — PER-PLAYER (V1.x sub-versions ship different tables!).
-    # arpfreq: lda freqlo,y; sta x; lda freqhi,y; sta x → B9 ?? ?? 9D ?? ?? B9
-    # ?? ?? 9D. The freqlo/freqhi pair are 96 ($60) bytes apart; other matches
-    # (the new-note instwave/instad load) are not — disambiguate on that.
+    # V1.5 arpfreq: lda freqlo,y; sta chnfreqlo,x; lda freqhi,y; sta chnfreqhi,x
+    #   → B9 ?? ?? 9D ?? ?? B9 ?? ?? 9D (tables 96 apart; disambiguate on that).
+    # player2 arpfreq ALSO writes $D400/$D401: lda freqlo,y; sta chnfreqlo,x; sta
+    #   $D400,x; lda freqhi,y; sta chnfreqhi,x; sta $D401,x → an EXTRA 9D 00 D4 /
+    #   9D 01 D4, which the V1.5 pattern misses → freqlo=op@+1, freqhi=op@+10.
     freqlo = freqhi = 0
-    for h in _find(mem, lo, hi, [0xB9, None, None, 0x9D, None, None,
-                                 0xB9, None, None, 0x9D]):
-        o1 = _w(mem, h + 1)
-        o2 = _w(mem, h + 7)
-        if abs(o1 - o2) == 96:
-            freqhi, freqlo = (o1, o2) if o1 < o2 else (o2, o1)
-            break
+    if is_gamemusic:
+        h = _find(mem, lo, hi, [0xB9, None, None, 0x9D, None, None, 0x9D, 0x00,
+                                0xD4, 0xB9, None, None, 0x9D, None, None, 0x9D,
+                                0x01, 0xD4])
+        if h:
+            freqlo, freqhi = _w(mem, h[0] + 1), _w(mem, h[0] + 10)
+    else:
+        for h in _find(mem, lo, hi, [0xB9, None, None, 0x9D, None, None,
+                                     0xB9, None, None, 0x9D]):
+            o1 = _w(mem, h + 1)
+            o2 = _w(mem, h + 7)
+            if abs(o1 - o2) == 96:
+                freqhi, freqlo = (o1, o2) if o1 < o2 else (o2, o1)
+                break
     return Layout(instbase=instbase, wavetbl=wavetbl, notetbl=notetbl,
                   patttbllo=patttbllo, patttblhi=patttblhi,
                   songtbllo=songtbllo, songtblhi=songtblhi, filttbl=filttbl,
