@@ -166,7 +166,22 @@ global cutoff sweep = ledger C10 chip-global automation); command semantics diff
 setvolume/playsfx (SFX+setvolume game-only → IGNORE for PSID). Full RE + migration plan
 in RE_NOTES §12. MIGRATION = variant extraction branch (modest — most tables shared) +
 a player2 composer body (the lift) selected by a `player='gamemusic'` knob; USF model
-SHARED. Single biggest V1 lever (~374 tunes), multi-step sub-project. gatetimer 30 = optimized-init tunes whose HR-flag
+SHARED. Single biggest V1 lever (~374 tunes), multi-step sub-project.
+
+**✅ PLAYER2 EXTRACTOR BRANCH LANDED (d7f8800) → EXTRACTION 57.1%→90.0% this session
+(+466 OK / 1359).** `Layout.player='tracker'|'gamemusic'`; detect via SMC filter-sweep
+anchor; for player2 skip filttbl + gatetimer and resolve song/patt by player2's loads
+(PATT=85-zp getnewnotes pair; SONG=init per-channel address store `B9 ?? ?? 9D ?? ?? B9
+?? ?? 9D` with diff==3*nsubtunes). +338 player2 tunes read into V1Song. Sample split:
+~26% gamemusic / ~74% tracker. Joker+Menace47 still 'tracker'+FULL (no detector
+collision — player1 filter uses zp A5/65/85, not SMC immediates). **READ path only.**
+REMAINING extract residue (136): filttbl 39 (2SID/other), gatetimer 30 (player1 gt
+variant), pattern-overran 30 + IndexError 17 (wrong/edge detection), instrument-cluster
+10, songtbl/patttbl 7, wave-runaway 3. **NEXT = player2 COMPOSE (the lift for FULL):**
+(1) to_usf player2 command map (2=SETCUTOFFADD, 6=SETSUSTAIN) + instfilter→per-inst
+filter(cutoff+type) + global filter sweep as C10 automation; (2) a player2 composer
+body (direct $D404, global SMC filter, player2 commands) under `player='gamemusic'`.
+Until then player2 tunes EXTRACT but don't compose/verify (not FULL yet). gatetimer 30 = optimized-init tunes whose HR-flag
 gatetimer anchor `4A A9 gt 9D ?? ?? B0` misses (medium). pattern-overran 20 = my
 generalized song/patt picks a false-positive when no diff-3 table exists (orderlist
 refs an out-of-range pattern) — needs a self-consistency validator or better detect.
