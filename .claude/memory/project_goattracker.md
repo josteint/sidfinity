@@ -31,16 +31,22 @@ when NOWAVEDELAY + other flags) — a substantially different player: different
 channel-var positions, init sets chntick=TEMPO (not gt+2 → different first-row
 write-stream TIMING), and a different gate-check + setfiltersub structure. They
 fail MULTIPLE detection anchors (filttbl `A8 B9 ?? ?? F0`, gatetimer
-`A9 ?? 9D ?? ?? A9 ?? 9D ?? ?? A9 FF`, some wavetbl). Rep: DEMOS/A-F/Alive.sid
-(init `A9 05 9D chntempo 9D chntick`, no second `A9`; `BD ?? ?? C9 ?? F0` gate
-anchor absent). DONE this session toward it: dual wavetbl anchor (V1.5 `C9 08`
-OR no-delay `F0 03 9D`) + `nowavedelay` composer prologue + per-tune
-`default_tempo` extraction (gatetimer anchor tempo-wildcarded). NEXT for the
-optimized variant: RE its channel layout + gate/init from `Alive` (and
-`docs/src/v1_player1_125.s` = the pre-delay player) → variant detection anchors
-+ confirm whether the write-stream differs only by init-tick timing (then the
-SAME clean engine + a `inittick=tempo` knob suffices) or more. THEN: Imdunk's
-gate/note tail (voice3 ctrl $20 gate-off vs $21), grammar ext for arp/vibrato fx,
+`A9 ?? 9D ?? ?? A9 ?? 9D ?? ?? A9 FF`, some wavetbl). Rep: DEMOS/A-F/Alive.sid. **DECISIVELY a SUB-ENGINE, not a knob** (RE'd its full
+play loop — see RE_NOTES §11). Confirmed differences vs V1.5: no-delay wave-exec;
+different channel-var layout THROUGHOUT; init chntick=TEMPO (not gt+2); gate via a
+`$13f7` HR-countdown (set to gt on new-note: `lsr; lda #gt; sta hrflag,x; bcs`;
+NOT chntick==gatetimer); different hard restart (NO `hr_sr` write). Decoded
+values for Alive: filttbl=$15c7, gatetimer=2, tempo=5, setfiltersub @ $1315.
+DONE this session toward it (all V1.5-safe, committed): dual wavetbl anchor
+(`C9 08` OR `F0 03 9D`) + `nowavedelay` prologue; optimized gatetimer anchor
+(`4A A9 <gt> 9D ?? ?? B0`) + tempo (double-store init) + `inittick_is_tempo`
+composer knob; tolerant hr_ad/hr_sr. BUT: build still FAILS (xa65 overflow) —
+the optimized layout's OTHER anchors (instbase/notetbl/song/patt) find WRONG
+addresses → garbage data. So it needs DEDICATED extraction (re-derive ALL anchors
+for the optimized layout) + likely a variant ENGINE path (the `$13f7` HR/gate +
+no-hr_sr differ from V1.5's write stream). A multi-session sub-engine; the RE
+groundwork (channel-var map, mechanism) is in RE_NOTES §11. THEN: Imdunk's
+gate/note tail (voice3 ctrl $20 gate-off vs $21), grammar ext arp/vibrato fx,
 relocation factory, wide batch. Quick batch: tmp/v1_sample.txt + `v1/verify.py`.
 
 (history below — superseded by the CONVERGED status above)
