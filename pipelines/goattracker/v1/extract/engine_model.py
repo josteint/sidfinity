@@ -96,8 +96,10 @@ class Layout:
     gatetimer: int         # ticks-before-next-note (hard-restart window)
     hr_ad: int             # hard-restart $D405 value
     hr_sr: int             # hard-restart $D406 value
+    default_tempo: int = 5 # initial chntempo (per-tune; ticks/row)
     freqlo: int = 0        # freq table lo base (per-player; 96 entries)
     freqhi: int = 0        # freq table hi base
+    nowavedelay: bool = False  # no delayed-wave variant (no `cmp #$08`)
 
 
 def detect_layout(sid: Sid) -> Layout:
@@ -129,8 +131,16 @@ def detect_layout(sid: Sid) -> Layout:
     if instbase is None or best < 4:
         raise ValueError('V1 instrument-table cluster not found')
 
-    # wavetbl: `lda mt_wavetbl,y; cmp #$08`  -> B9 <lo> <hi> C9 08
-    h = one([0xB9, None, None, 0xC9, 0x08], 1, 'wavetbl')
+    # wavetbl: two variants —
+    #   V1.5 delayed-wave: `lda mt_wavetbl,y; cmp #$08`     (B9 ?? ?? C9 08)
+    #   no-delay:          `lda mt_wavetbl,y; beq; sta chnwave,x` (B9 ?? ?? F0 03 9D)
+    nowavedelay = False
+    h = _find(mem, lo, hi, [0xB9, None, None, 0xC9, 0x08])
+    if not h:
+        h = _find(mem, lo, hi, [0xB9, None, None, 0xF0, 0x03, 0x9D])
+        nowavedelay = True
+    if not h:
+        raise ValueError('V1 anchor not found: wavetbl')
     wavetbl = _w(mem, h[0] + 1)
 
     # notetbl: `lda mt_notetbl,y; bmi; clc; adc mt_chnnote,x`
@@ -154,10 +164,12 @@ def detect_layout(sid: Sid) -> Layout:
     patttbllo, patttblhi = _w(mem, patt_a + 1), _w(mem, patt_a + 6)
     songtbllo, songtblhi = _w(mem, song_a + 1), _w(mem, song_a + 6)
 
-    # gatetimer: initial-tick `lda #$05; sta chntempo,x; lda #gt+2; sta chntick,x; lda #$ff`
-    #   A9 05 9D ?? ?? A9 ?? 9D ?? ?? A9 FF
-    h = one([0xA9, 0x05, 0x9D, None, None, 0xA9, None, 0x9D, None, None,
+    # gatetimer + default tempo: `lda #TEMPO; sta chntempo,x; lda #gt+2;
+    #   sta chntick,x; lda #$ff`  → A9 <tempo> 9D ?? ?? A9 <gt+2> 9D ?? ?? A9 FF.
+    # TEMPO is per-tune (NOT always $05) — wildcard it and extract.
+    h = one([0xA9, None, 0x9D, None, None, 0xA9, None, 0x9D, None, None,
              0xA9, 0xFF], 6, 'gatetimer')
+    default_tempo = mem[h[0] + 1]
     gatetimer = (mem[h[0] + 6] - 2) & 0xFF
 
     # hard-restart AD/SR: `lda #imm; sta $d405,x` / `sta $d406,x`
@@ -182,7 +194,8 @@ def detect_layout(sid: Sid) -> Layout:
                   patttbllo=patttbllo, patttblhi=patttblhi,
                   songtbllo=songtbllo, songtblhi=songtblhi, filttbl=filttbl,
                   gatetimer=gatetimer, hr_ad=hr_ad, hr_sr=hr_sr,
-                  freqlo=freqlo, freqhi=freqhi)
+                  default_tempo=default_tempo,
+                  freqlo=freqlo, freqhi=freqhi, nowavedelay=nowavedelay)
 
 
 # ---------------------------------------------------------------------------

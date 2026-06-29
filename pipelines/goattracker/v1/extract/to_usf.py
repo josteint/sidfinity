@@ -144,7 +144,8 @@ def model_to_usf(song: V1Song) -> UsfFile:
             )
             voices.append(VoiceBlock(id=ch_idx + 1, orderlist=usf_ol,
                                      patterns=pats))
-        subtunes.append(MusicSubtune(id=s_idx + 1, tempo=5, voices=voices))
+        subtunes.append(MusicSubtune(id=s_idx + 1, tempo=L.default_tempo,
+                                     voices=voices))
 
     instruments = [_instr_to_usf(song.instruments[k])
                    for k in sorted(song.instruments)]
@@ -154,11 +155,13 @@ def model_to_usf(song: V1Song) -> UsfFile:
         'gatetimer': L.gatetimer,
         'hr_ad': L.hr_ad,
         'hr_sr': L.hr_sr,
-        'default_tempo': 5,
+        'default_tempo': L.default_tempo,
         # init filter state (setfiltersub(0)): d416, d417, d418type, filttime, filtstep
         'filt_init': list(song.init_filter),
         'funk': list(song.funk),
     })
+    if L.nowavedelay:                               # no delayed-wave variant
+        params.fields['nowavedelay'] = True
     # Full filter table — the engine steps through it (4-byte entries) when an
     # instrument's filter ptr or a setfilter cmd selects a program. (TODO: this
     # is a raw blob; the principled form is musical filter programs — C7/C10.)

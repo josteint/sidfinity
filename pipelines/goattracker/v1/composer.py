@@ -75,6 +75,7 @@ class _Tables:
         self.funk = list(p.get('funk', [0, 0]))
         # full filter table (engine steps it); fall back to entry-0 placeholder.
         self.filttbl = list(p.get('filttbl_bytes', [self.filt[1], 0, 0, 0]))
+        self.nowavedelay = bool(p.get('nowavedelay', False))
         # freq table is PER-PLAYER (carried in USF); fall back to v153 constant.
         # Length is 2*N (lo then hi); N=128 captures the off-table window (C6).
         if usf.freq_table and len(usf.freq_table) >= 192:
@@ -210,6 +211,22 @@ def _fx_to_cmd(flags):
 # ---------------------------------------------------------------------------
 
 def _engine(t: _Tables) -> str:
+    # wave-exec prologue differs by variant: V1.5 has delayed-wave (0-7 = delay
+    # via chnarpcount), the no-delay variant just skips on 0 / stores otherwise.
+    if t.nowavedelay:
+        wave_prologue = ("        lda wctrl,y\n"
+                         "        beq we_skipwave          ; 0 = no waveform change\n"
+                         "        sta chnwave,x")
+    else:
+        wave_prologue = ("        lda wctrl,y\n"
+                         "        cmp #8                   ; 0-7 = delay\n"
+                         "        bcs we_nodelay\n"
+                         "        cmp chnarpcount,x\n"
+                         "        beq we_skipwave\n"
+                         "        inc chnarpcount,x\n"
+                         "        jmp pulseexec\n"
+                         "we_nodelay:\n"
+                         "        sta chnwave,x")
     return f"""
 GATETIMER = ${t.gatetimer:02x}
 INITTICK  = ${(t.gatetimer + 2) & 0xff:02x}
@@ -569,15 +586,7 @@ tick0nonew:
 
 ; ===== wave table exec =====
 waveexec:
-        lda wctrl,y
-        cmp #8
-        bcs we_nodelay
-        cmp chnarpcount,x
-        beq we_skipwave
-        inc chnarpcount,x
-        jmp pulseexec
-we_nodelay:
-        sta chnwave,x
+{wave_prologue}
 we_skipwave:
         lda wnote,y
         bmi we_abs
