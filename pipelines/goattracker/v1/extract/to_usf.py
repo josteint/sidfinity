@@ -169,11 +169,6 @@ def model_to_usf(song: V1Song) -> UsfFile:
     # is a raw blob; the principled form is musical filter programs — C7/C10.)
     if any(b for b in song.filttbl_bytes[4:]):    # >entry0 has real data
         params.fields['filttbl_bytes'] = list(song.filttbl_bytes)
-    # Per-voice idle chip priming (chnfreqlo/hi + chnpulse/dir pre-load): only
-    # carried when non-zero (a gate-off/idle voice's freq+pulse registers hold
-    # the SID-file pre-load until its first note; init clears Block 1 only).
-    if any(any(c) for c in song.idle_chip):
-        params.fields['idle_chip'] = [list(c) for c in song.idle_chip]
 
     return UsfFile(
         psid=PsidMeta(title=sid.name, author=sid.author, released=sid.released,
