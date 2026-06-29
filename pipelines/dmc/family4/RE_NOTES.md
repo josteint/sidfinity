@@ -230,14 +230,19 @@ note-on+RTS without wave-stepping; the wave-step/$1654 happens in a separate
 pass). The family-3 composer does **per-voice INTERLEAVED** (V1 note-init+
 wave-step, V2 …). Writes 56-62 match (V1 note-on identical) then the order
 diverges at write 63 (orig=V2 note-on $D40D, rebuild=V1 freq $D400).
-**→ Reaching FULL needs the composer to emit family-4's play() STRUCTURE** (a
-note-on pass over all voices, then a wave-step pass), gated on m.family4 — a
-real composer restructuring, NOT a knob. Prereq: finish tracing the exact
-$1095/$10E1/$1373/$147B/$1654/$10D3 call graph to nail the per-frame write order
-(which voices note-on vs wave-step on the MAIN vs the TICK/$1016 frame, and the
-role of the 3rd JT entry $10D3=$1654×3). C-2 (filter) is comparatively easy once
-the order is right (Jupiter41 filter is near-static: skip $D415, $D418 mode $30,
-$D416=$2E).
+**→ This is ledger [[C16]] (per-frame WRITE-ORDER differs). CONSULT 2026-06-29
+REFRAMED it: NOT a wholesale composer rewrite — PARAMETRIZE the composer's
+EMISSION order (precedent: FC `nextvoice_write_order`, a config tuple of the
+register-write order). The CORE TENET licenses "re-arranged effect-chain
+emitters". The family-4 analogue = a composer knob (gated on m.family4) that
+splits the per-voice emit into a NOTE-ON pass (SR/AD/CTRL for fetching voices)
+then a WAVE-STEP pass (FREQ/PW/CTRL).**
+PREREQ (C16 methodology — TRACE FIRST, don't guess scope): finish tracing the
+exact $1095/$10E1/$1373/$147B/$1654/$10D3 call graph and write the LITERAL
+register sequence for 2-3 frames (which voices note-on vs wave-step on the MAIN
+vs the TICK/$1016 frame; the role of the 3rd JT entry $10D3=$1654×3). Then the
+emission-order knob is bounded. C-2 (filter) is easy once the order is right
+(Jupiter41 filter near-static: skip $D415, $D418 mode $30, $D416=$2E).
 
 ### Reference (the original first-divergence dump for posterity)
 Building Jupiter41 with the family-3 V5 composer gives the right DATA but the

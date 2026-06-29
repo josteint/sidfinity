@@ -77,6 +77,7 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
 | engine variant dispatch · player jump-table init offset shifted but play body at canonical offset · "no_jumptable"/code-mismatch reject · dispatch on the PLAY-body signature not init (we emit our own init) | C13 | logged |
 | command-per-row tracker effect (note + fx + param per row) · porta/vibrato/arp/filter/tempo on a row · NOT per-instrument · how to represent in NoteRow | C14 | recurring (FC + GoatTracker V1) |
 | INAUDIBLE writes in the $D400-$D418 stream · idle/gate-off voice freewheels freq/pulse from editor-leftover pre-load · strict compare flags a divergence that makes NO sound · DON'T carry the state — audio-equivalence verdict | C15 | logged (designed+validated, DEFERRED) |
+| per-frame WRITE-ORDER differs · orig batches note-on writes (SR/AD/CTRL) separately from wave-step writes (freq/PW/CTRL) or uses a different voice interleave · rebuild emits a different order · NOT a wholesale composer rewrite — PARAMETRIZE the composer's EMISSION order (precedent: FC `nextvoice_write_order`) | C16 | logged |
 
 ---
 
@@ -547,3 +548,43 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
   state is audible (legit) or could be an audio-equivalence drop instead.** When this is
   adopted, it belongs in the shared comparator (`pipelines/hubbard/verify_cycle.py`) as
   a new mode, not per-engine.
+
+
+### C16 — Per-frame SID write-ORDER differs across engines
+- **The problem class:** two engines in the same family emit the SAME per-frame
+  $D400-$D418 writes but in a DIFFERENT ORDER. Within a frame the order matters
+  (Mode 1: gate edges, test bit, ADSR delay, $D418 clicks), so the rebuild
+  diverges even though the VALUES are right and the cycles don't matter. Two
+  granularities seen: (a) WITHIN-VOICE register order (which of FREQ_LO/HI,
+  PW_LO/HI, CTRL a voice writes and in what order); (b) ACROSS-VOICE / PASS
+  structure — e.g. DMC V5 family-4's 2-phase player does a NOTE-ON pass
+  (SR/AD/CTRL for voices that fetched this frame) and a SEPARATE WAVE-STEP pass
+  (FREQ/PW/CTRL), so the stream is `V1 note-on · V2 note-on · …wave-steps…`,
+  whereas the family-3 composer does it PER-VOICE INTERLEAVED (V1 note-init +
+  wave-step, then V2 …).
+- **TELL / how it presents:** the writelog match holds through the leadin, then
+  forks where the orig writes one voice's note-on register but the rebuild
+  writes another voice's freq (or the same voice's freq vs the next voice's
+  ctrl). Sweeping the leadin/timing does NOT move the fork (it's structural, not
+  a phase offset). The VALUES on both sides are individually present nearby —
+  only the interleave differs.
+- **Canonical solution:** PARAMETRIZE the composer's EMISSION order; do NOT
+  rewrite the player or fake it. The CORE TENET explicitly licenses "completely
+  re-arranged effect-chain emitters" — the composer is free to emit in whatever
+  order matches the write-log. Precedent: FC's
+  `pipelines/future_composer/composer_asm.py:_emit_nextvoice_writes(write_order)`
+  — a config tuple of the 0-4 register offsets a voice writes, threaded as
+  `nextvoice_write_order`. For the across-voice/pass case, the analogue is a
+  composer knob that splits the per-voice emit into a note-on pass + a wave-step
+  pass (gated on the engine flag, e.g. `m.family4`).
+- **METHODOLOGY — TRACE THE EXACT ORDER FIRST (don't guess the scope).** Before
+  declaring "needs a big restructuring," fully trace the per-frame call graph and
+  write the literal register-write sequence for 2-3 frames; the reorder is almost
+  always a bounded emission-order knob, not a rewrite. (DMC family-4: I prematurely
+  scoped it as a multi-session composer rewrite before tracing — this consult +
+  the FC precedent reframed it as a parametrize-emission-order knob.)
+- **Status:** logged (consult 2026-06-29, DMC V5 family-4 — diagnosed, the
+  emission-order knob is the next step). FC `nextvoice_write_order` is the shipped
+  precedent for the within-voice granularity.
+- **Consumers (seen):** FC `nextvoice_write_order` (shipped, within-voice). DMC
+  V5 family-4 (the across-voice 2-pass case; pending).
