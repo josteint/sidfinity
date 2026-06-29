@@ -101,6 +101,7 @@ class Layout:
     freqlo: int = 0        # freq table lo base (per-player; 96 entries)
     freqhi: int = 0        # freq table hi base
     nowavedelay: bool = False  # no delayed-wave variant (no `cmp #$08`)
+    player: str = 'tracker'    # 'tracker' (player1/V1.x) or 'gamemusic' (player2)
 
 
 def detect_layout(sid: Sid) -> Layout:
@@ -112,6 +113,14 @@ def detect_layout(sid: Sid) -> Layout:
         if not hits:
             raise ValueError(f'V1 anchor not found: {what}')
         return hits
+
+    # PLAYER2 (gamemusic mode, Cadaver) detection (RE_NOTES §12): a GLOBAL
+    # self-modifying filter sweep `clc; lda #imm; adc #imm; sta self; sta $D416`
+    # → A9 ?? 69 ?? 8D ?? ?? 8D 16 D4. player2 has NO filttbl + NO gatetimer (HR is
+    # immediate); the instrument/wave/song/patt tables share player1's byte format.
+    is_gamemusic = bool(_find(mem, lo, hi,
+                              [0xA9, None, 0x69, None, 0x8D, None, None,
+                               0x8D, 0x16, 0xD4]))
 
     # instbase: the instrument table is the ONLY table loaded (lda abs,Y = B9)
     # at many distinct offsets within an 8-byte window (fields 0,1,2,3,6,7);
@@ -160,43 +169,66 @@ def detect_layout(sid: Sid) -> Layout:
     #   skip-on-zero: `tay; lda filttbl,y; beq` -> A8 B9 <lo> <hi> F0
     #   write-direct: `tay; lda filttbl,y; sta $D417` (no beq; writes ctrl every
     #     call) -> A8 B9 <lo> <hi> 8D 17 D4   (163 tunes; 1394 / Dont_You_Want_Me)
-    h = _find(mem, lo, hi, [0xA8, 0xB9, None, None, 0xF0])
-    if not h:
-        h = _find(mem, lo, hi, [0xA8, 0xB9, None, None, 0x8D, 0x17, 0xD4])
-    if not h:
-        raise ValueError('V1 anchor not found: filttbl')
-    filttbl = _w(mem, h[0] + 2)
+    if is_gamemusic:
+        filttbl = 0           # player2 has no filttbl (global SMC filter + instfilter)
+    else:
+        h = _find(mem, lo, hi, [0xA8, 0xB9, None, None, 0xF0])
+        if not h:
+            h = _find(mem, lo, hi, [0xA8, 0xB9, None, None, 0x8D, 0x17, 0xD4])
+        if not h:
+            raise ValueError('V1 anchor not found: filttbl')
+        filttbl = _w(mem, h[0] + 2)
 
-    # patttbl + songtbl: both `lda LO,y; sta zp; lda HI,y; sta zp+1`. The ZP temp
-    # varies by build ($FC/$FD canonical; $AA/$AB, $40/$41, $D6/$D7 in variants),
-    # so WILDCARD the ZP and require the two stores to be CONSECUTIVE ZP bytes:
-    #   B9 <lo> <hi> 85 z B9 <Lo> <Hi> 85 (z+1)
-    pairs = []
-    for a in range(lo, hi - 9):
-        if (mem[a] == 0xB9 and mem[a + 3] == 0x85 and mem[a + 5] == 0xB9
-                and mem[a + 8] == 0x85 and mem[a + 9] == (mem[a + 4] + 1) & 0xFF):
-            pairs.append(a)
-    # distinct (lo_base, hi_base) candidates with valid, plausibly-sized tables
-    cand = []
-    for a in pairs:
-        c = (_w(mem, a + 1), _w(mem, a + 6))
-        if (lo <= c[0] < hi and lo <= c[1] < hi
-                and 0 < (c[1] - c[0]) < 256 and c not in cand):
-            cand.append(c)
-    if len(cand) < 2:
-        raise ValueError('V1 anchor not found: songtbl/patttbl')
-    # The SONG table has exactly 3*nsubtunes entries (3 orderlists/subtune); the
-    # PATTERN table has #patterns. Assign by that diff (robust) — the getnewnotes/
-    # sequencer code ORDER is REVERSED in the optimized-layout variant.
     nsong = 3 * sid.songs
-    song_pair = next((c for c in cand if (c[1] - c[0]) == nsong), None)
-    if song_pair is not None:
-        songtbllo, songtblhi = song_pair
-        patttbllo, patttblhi = next(c for c in cand if c != song_pair)
-    else:  # ambiguous → fall back to code order (getnewnotes before sequencer)
-        cand.sort()
-        patttbllo, patttblhi = cand[0]
-        songtbllo, songtblhi = cand[1]
+    if is_gamemusic:
+        # player2: the PATTERN table is loaded `lda patttbllo,y; sta $FC; ...`
+        # (B9 ?? ?? 85 z B9 ?? ?? 85 z+1); the SONG table is loaded in init as a
+        # per-channel ADDRESS store `lda songtbllo,y; sta chnsongadrlo,x; lda
+        # songtblhi,y; sta chnsongadrhi,x` (B9 ?? ?? 9D ?? ?? B9 ?? ?? 9D),
+        # identified by lo/hi diff == 3*nsubtunes.
+        patt_c = [(_w(mem, a + 1), _w(mem, a + 6)) for a in range(lo, hi - 9)
+                  if mem[a] == 0xB9 and mem[a + 3] == 0x85 and mem[a + 5] == 0xB9
+                  and mem[a + 8] == 0x85 and mem[a + 9] == (mem[a + 4] + 1) & 0xFF]
+        song_c = [(_w(mem, a + 1), _w(mem, a + 7)) for a in range(lo, hi - 9)
+                  if mem[a] == 0xB9 and mem[a + 3] == 0x9D and mem[a + 6] == 0xB9
+                  and mem[a + 9] == 0x9D and (_w(mem, a + 7) - _w(mem, a + 1)) == nsong]
+        patt_c = [c for c in patt_c if lo <= c[0] < hi and lo <= c[1] < hi and 0 < c[1] - c[0] < 256]
+        song_c = [c for c in song_c if lo <= c[0] < hi and lo <= c[1] < hi]
+        if not patt_c or not song_c:
+            raise ValueError('V1 anchor not found: songtbl/patttbl')
+        # patt: prefer a pair whose diff != 3*ns (the real pattern table)
+        patttbllo, patttblhi = next((c for c in patt_c if c[1] - c[0] != nsong), patt_c[0])
+        songtbllo, songtblhi = song_c[0]
+    else:
+        # patttbl + songtbl: both `lda LO,y; sta zp; lda HI,y; sta zp+1`. The ZP temp
+        # varies by build ($FC/$FD canonical; $AA/$AB, $40/$41, $D6/$D7 in variants),
+        # so WILDCARD the ZP and require the two stores to be CONSECUTIVE ZP bytes:
+        #   B9 <lo> <hi> 85 z B9 <Lo> <Hi> 85 (z+1)
+        pairs = []
+        for a in range(lo, hi - 9):
+            if (mem[a] == 0xB9 and mem[a + 3] == 0x85 and mem[a + 5] == 0xB9
+                    and mem[a + 8] == 0x85 and mem[a + 9] == (mem[a + 4] + 1) & 0xFF):
+                pairs.append(a)
+        # distinct (lo_base, hi_base) candidates with valid, plausibly-sized tables
+        cand = []
+        for a in pairs:
+            c = (_w(mem, a + 1), _w(mem, a + 6))
+            if (lo <= c[0] < hi and lo <= c[1] < hi
+                    and 0 < (c[1] - c[0]) < 256 and c not in cand):
+                cand.append(c)
+        if len(cand) < 2:
+            raise ValueError('V1 anchor not found: songtbl/patttbl')
+        # The SONG table has exactly 3*nsubtunes entries (3 orderlists/subtune); the
+        # PATTERN table has #patterns. Assign by that diff (robust) — the getnewnotes/
+        # sequencer code ORDER is REVERSED in the optimized-layout variant.
+        song_pair = next((c for c in cand if (c[1] - c[0]) == nsong), None)
+        if song_pair is not None:
+            songtbllo, songtblhi = song_pair
+            patttbllo, patttblhi = next(c for c in cand if c != song_pair)
+        else:  # ambiguous → fall back to code order (getnewnotes before sequencer)
+            cand.sort()
+            patttbllo, patttblhi = cand[0]
+            songtbllo, songtblhi = cand[1]
 
     # gatetimer + default tempo. Two init structures:
     #  V1.5 normal: `lda #TEMPO; sta chntempo; lda #gt+2; sta chntick; lda #$ff`
@@ -206,20 +238,29 @@ def detect_layout(sid: Sid) -> Layout:
     #    gatetimer is the HR-flag preset `lsr; lda #gt; sta hrflag,x; bcs`
     #    → 4A A9 <gt> 9D ?? ?? B0.
     inittick_is_tempo = False
-    h = _find(mem, lo, hi, [0xA9, None, 0x9D, None, None, 0xA9, None, 0x9D,
-                            None, None, 0xA9, 0xFF])
-    if h:
-        default_tempo = mem[h[0] + 1]
-        gatetimer = (mem[h[0] + 6] - 2) & 0xFF
+    if is_gamemusic:
+        # player2 init: `lda #TEMPO; sta chntick; sta chntempo; sta chnnewnote;
+        #   lda #ENDPATT; sta chnpattptr` → A9 <t> 9D ?? ?? 9D ?? ?? 9D ?? ?? A9.
+        # No gatetimer (HR is immediate $00 at new-note). Default tempo 5.
+        hi2 = _find(mem, lo, hi, [0xA9, None, 0x9D, None, None, 0x9D, None,
+                                  None, 0x9D, None, None, 0xA9])
+        default_tempo = mem[hi2[0] + 1] if hi2 else 5
+        gatetimer = 0
     else:
-        ht = _find(mem, lo, hi, [0xA9, None, 0x9D, None, None, 0x9D, None,
-                                 None, 0xA9, 0xFF])
-        hg = _find(mem, lo, hi, [0x4A, 0xA9, None, 0x9D, None, None, 0xB0])
-        if not ht or not hg:
-            raise ValueError('V1 anchor not found: gatetimer')
-        default_tempo = mem[ht[0] + 1]
-        gatetimer = mem[hg[0] + 2]
-        inittick_is_tempo = True
+        h = _find(mem, lo, hi, [0xA9, None, 0x9D, None, None, 0xA9, None, 0x9D,
+                                None, None, 0xA9, 0xFF])
+        if h:
+            default_tempo = mem[h[0] + 1]
+            gatetimer = (mem[h[0] + 6] - 2) & 0xFF
+        else:
+            ht = _find(mem, lo, hi, [0xA9, None, 0x9D, None, None, 0x9D, None,
+                                     None, 0xA9, 0xFF])
+            hg = _find(mem, lo, hi, [0x4A, 0xA9, None, 0x9D, None, None, 0xB0])
+            if not ht or not hg:
+                raise ValueError('V1 anchor not found: gatetimer')
+            default_tempo = mem[ht[0] + 1]
+            gatetimer = mem[hg[0] + 2]
+            inittick_is_tempo = True
 
     # hard-restart AD/SR: `lda #imm; sta $d405,x` / `sta $d406,x`. Tolerant:
     # the optimized variant uses a different HR mechanism (may lack one/both).
@@ -246,7 +287,8 @@ def detect_layout(sid: Sid) -> Layout:
                   gatetimer=gatetimer, hr_ad=hr_ad, hr_sr=hr_sr,
                   default_tempo=default_tempo,
                   inittick_is_tempo=inittick_is_tempo,
-                  freqlo=freqlo, freqhi=freqhi, nowavedelay=nowavedelay)
+                  freqlo=freqlo, freqhi=freqhi, nowavedelay=nowavedelay,
+                  player='gamemusic' if is_gamemusic else 'tracker')
 
 
 # ---------------------------------------------------------------------------
@@ -507,25 +549,32 @@ def extract(sid: Sid) -> V1Song:
         if inst.filter:
             filt_ptrs.add(inst.filter)
 
-    # 4. Filter entries (referenced by instruments + setfilter commands).
-    for pat in patterns.values():
-        for r in pat.rows:
-            if r.cmd == 5 and r.param:
-                filt_ptrs.add(r.param)
+    # 4. Filter. player1: a filttbl of 4-byte program entries (referenced by
+    #    inst.filter pointers + setfilter cmds). player2 (gamemusic): NO filttbl —
+    #    the filter is a GLOBAL SMC sweep + per-instrument instfilter byte (RE_NOTES
+    #    §12); inst.filter is a cutoff+type VALUE, not a pointer. Skip filttbl bits.
     filters: dict[int, FilterEntry] = {}
-    for fp in sorted(filt_ptrs):
-        filters[fp] = parse_filter_entry(mem, L, fp)
-
-    init_filter = _sim_setfilter0(mem, L.filttbl)
-    funk = (mem[L.filttbl + 2], mem[L.filttbl + 3])
-    # Full contiguous filter table: filttbl is the last pointer-target structure
-    # before the orderlist data, so it ends at the first orderlist address. The
-    # engine steps through it (4-byte entries) via the next-step byte.
-    order_addrs = [_ptr(mem, L.songtbllo, L.songtblhi, s * 3 + ch)
-                   for s in range(sid.songs) for ch in range(3)]
-    after = [a for a in order_addrs if L.filttbl < a <= L.filttbl + 256]
-    fend = min(after) if after else L.filttbl + 4
-    filttbl_bytes = [mem[L.filttbl + i] for i in range(max(4, fend - L.filttbl))]
+    if L.player == 'gamemusic':
+        init_filter = (0, 0, 0x0F, 0, 0)
+        funk = (0, 0)
+        filttbl_bytes = []
+    else:
+        for pat in patterns.values():
+            for r in pat.rows:
+                if r.cmd == 5 and r.param:
+                    filt_ptrs.add(r.param)
+        for fp in sorted(filt_ptrs):
+            filters[fp] = parse_filter_entry(mem, L, fp)
+        init_filter = _sim_setfilter0(mem, L.filttbl)
+        funk = (mem[L.filttbl + 2], mem[L.filttbl + 3])
+        # Full contiguous filter table: filttbl is the last pointer-target structure
+        # before the orderlist data, so it ends at the first orderlist address. The
+        # engine steps through it (4-byte entries) via the next-step byte.
+        order_addrs = [_ptr(mem, L.songtbllo, L.songtblhi, s * 3 + ch)
+                       for s in range(sid.songs) for ch in range(3)]
+        after = [a for a in order_addrs if L.filttbl < a <= L.filttbl + 256]
+        fend = min(after) if after else L.filttbl + 4
+        filttbl_bytes = [mem[L.filttbl + i] for i in range(max(4, fend - L.filttbl))]
     # Capture 128 entries (not 96): wave-program relative notes mask to &$7F
     # (0-127), so notes can run PAST the 96-entry table into the following image
     # bytes, which the engine plays as real freqs (C6 off-table read). Capturing
