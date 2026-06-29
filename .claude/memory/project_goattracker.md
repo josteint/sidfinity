@@ -144,9 +144,25 @@ SAME class — re-examine there too. KEY LESSON (kept): residue tunes have MULTI
 STACKED divergences (idle-freq → pulse-mod → real-bug) — fixing the idle layer only
 exposes the next genuine bug, doesn't flip FULL alone.
 
-**LEVER 2 — extract_err (35) = anchor variants: wavetbl 20, filttbl 8, songtbl/patttbl
-3, gatetimer 2, index 2.** More layout sub-variants where the detect anchors miss.
-Unblocks detection (then those tunes join the freqlo bucket → Lever 1).
+**LEVER 2 — extract anchors. ✅ EXTRACT 57.1%→65.0% this session (+108 OK / 1359),
+4 commits** (full census `tmp/v1_extract_census.py` over all 1359 drove it):
+- wavetbl variant-3 (d5a030c): no-delay build writes $D404 DIRECTLY in wave-exec
+  `B9 ?? ?? F0 06 9D ?? ?? 9D 04 D4` (sta $D404,x disambiguates from +3 form).
+- filttbl direct-write (d5a030c): `A8 B9 ?? ?? 8D 17 D4` (setfiltersub writes $D417
+  every call, no beq) → +73 OK.
+- songtbl/patttbl ZP-generalized (3e8fa12): the ptr-load `lda LO,y;sta zp;lda HI,y;
+  sta zp+1` uses a build-varying ZP ($FC/$FD canonical; $AA/$AB, $40/$41, $D6/$D7) →
+  wildcard ZP, require consecutive stores, keep the 3*nsubtunes diff-rule. 43→1.
+- pattern-walk bound (f814452): clean reject instead of IndexError crash.
+**REMAINING extract buckets (475 fail): filttbl 413 + gatetimer 30 + pattern-overran
+20 + instrument-cluster 10.** The BIG one (filttbl 413) is NOT an anchor — it's the
+**no-delay/computed-filter PLAYER BUILD** (Eighties_Megahit): wave-exec writes $D404
+direct + the filter is a COMPUTED SWEEP (`adc #0; sta $D416…`), NO `lda filttbl,y`
+table lookup at all. A distinct player → its own RE sub-project (filter subsystem +
+likely more), not an anchor. gatetimer 30 = optimized-init tunes whose HR-flag
+gatetimer anchor `4A A9 gt 9D ?? ?? B0` misses (medium). pattern-overran 20 = my
+generalized song/patt picks a false-positive when no diff-3 table exists (orderlist
+refs an out-of-range pattern) — needs a self-consistency validator or better detect.
 
 Secondary: Drrsh-style DEEP partials (converge ~57% then a per-effect freq diverge —
 rarer, per-cause). pwlo partials (11) are mostly the parked optimized variant.
