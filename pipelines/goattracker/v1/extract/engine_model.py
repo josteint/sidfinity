@@ -132,14 +132,21 @@ def detect_layout(sid: Sid) -> Layout:
     if instbase is None or best < 4:
         raise ValueError('V1 instrument-table cluster not found')
 
-    # wavetbl: two variants —
-    #   V1.5 delayed-wave: `lda mt_wavetbl,y; cmp #$08`     (B9 ?? ?? C9 08)
-    #   no-delay:          `lda mt_wavetbl,y; beq; sta chnwave,x` (B9 ?? ?? F0 03 9D)
+    # wavetbl: three variants —
+    #   V1.5 delayed-wave: `lda mt_wavetbl,y; cmp #$08`         (B9 ?? ?? C9 08)
+    #   no-delay (ctrl via loadregs): `lda wavetbl,y; beq +3; sta chnwave,x`
+    #                                                            (B9 ?? ?? F0 03 9D)
+    #   no-delay (ctrl WRITTEN DIRECTLY in wave-exec): `lda wavetbl,y; beq +6;
+    #     sta chnwave,x; sta $D404,x`   (B9 ?? ?? F0 06 9D ?? ?? 9D 04 D4) — the
+    #     `9D 04 D4` (sta $D404,x) disambiguates from the +3 form. 339 tunes.
     nowavedelay = False
     h = _find(mem, lo, hi, [0xB9, None, None, 0xC9, 0x08])
     if not h:
-        h = _find(mem, lo, hi, [0xB9, None, None, 0xF0, 0x03, 0x9D])
         nowavedelay = True
+        h = _find(mem, lo, hi, [0xB9, None, None, 0xF0, 0x03, 0x9D])
+        if not h:
+            h = _find(mem, lo, hi, [0xB9, None, None, 0xF0, 0x06, 0x9D,
+                                    None, None, 0x9D, 0x04, 0xD4])
     if not h:
         raise ValueError('V1 anchor not found: wavetbl')
     wavetbl = _w(mem, h[0] + 1)
@@ -149,8 +156,15 @@ def detect_layout(sid: Sid) -> Layout:
     h = one([0xB9, None, None, 0x30, None, 0x18, 0x7D], 1, 'notetbl')
     notetbl = _w(mem, h[0] + 1)
 
-    # filttbl: `mt_setfiltersub: tay; lda mt_filttbl,y; beq` -> A8 B9 <lo> <hi> F0
-    h = one([0xA8, 0xB9, None, None, 0xF0], 2, 'filttbl')
+    # filttbl: two setfiltersub variants —
+    #   skip-on-zero: `tay; lda filttbl,y; beq` -> A8 B9 <lo> <hi> F0
+    #   write-direct: `tay; lda filttbl,y; sta $D417` (no beq; writes ctrl every
+    #     call) -> A8 B9 <lo> <hi> 8D 17 D4   (163 tunes; 1394 / Dont_You_Want_Me)
+    h = _find(mem, lo, hi, [0xA8, 0xB9, None, None, 0xF0])
+    if not h:
+        h = _find(mem, lo, hi, [0xA8, 0xB9, None, None, 0x8D, 0x17, 0xD4])
+    if not h:
+        raise ValueError('V1 anchor not found: filttbl')
     filttbl = _w(mem, h[0] + 2)
 
     # patttbl + songtbl: both `lda LO,y; sta $fc; lda HI,y; sta $fd`
