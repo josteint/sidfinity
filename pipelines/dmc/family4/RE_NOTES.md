@@ -220,6 +220,26 @@ family-3 speed counter. PROGRESS:
 
 ### C-1 STATUS: ✅ done (commit cc63144) — non-filter match 25→60 on Jupiter41.
 
+## C16 KNOBS APPLIED (commits f33dde5, 2acfbec) — match 60→86, all principled
+The consult (C16) was right — it's emission-order KNOBS, not a rewrite. Traced
+the exact per-frame order and landed 3 family-4-gated knobs (family-3 7/7 FULL):
+1. **note-on FRQ-skip** — family-4's note-on writes ONLY SR/AD/CTRL (no FREQ=$0)
+   on the TICK frame; family-3 writes FREQ=$0000 there. (60→73)
+2. **pulse lo/hi SWAP** — family-4 adds $23BC→PW_lo / $23A3→PW_hi; the composer
+   does PW_lo+=pulse_hi, so swap op_pulse_lo/hi in FAMILY4_SITES. (73→86)
+3. **leadin durctr=2** — family-4 init seeds $17E5,x=2 (family-3 default 1); the
+   2-phase ticks on even frames → first note-on at frame 2. durctr=2 + lo_spdctr=0
+   = the principled combo (no magic number; was a magic lo_spdctr=4). (match 86)
+
+### NEXT divergence (write 86 / 13824): per-note duration/effect
+orig V1 holds freq $27DF (CTL $11, gate ON) mid-note; rebuild V1 = freq $0451,
+CTL $10 (gate OFF) — the rebuild's first note ends ~2 frames early. The note has
+NO glide command ($FD 03 = dur 3 ticks), so suspect (a) the family-4 $FE/$FC
+sector-command DURATION decode (the note byte $3C is followed by $FE — family-4's
+$FE gate cmd reads its own arg differently than family-3's), or (b) vibrato. This
+is the next per-note iteration (then C-2 filter). The path is proven: each knob
+advances the match; FULL is a focused continuation, not a rewrite.
+
 ## ⚠️ C-3 REAL BLOCKER (found 2026-06-29): the 2-phase splits the WRITE ORDER
 Sweeping lo_spdctr (0..4) maxes the non-filter match at ~63 then forks — and the
 fork is a WRITE-ORDER difference, not values/leadin. At the first-note frame
