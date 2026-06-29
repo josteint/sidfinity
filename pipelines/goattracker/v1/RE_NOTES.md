@@ -247,5 +247,50 @@ OPEN: once the optimized extractor reads correctly, build with the shared engine
 + `inittick=tempo` and DIFF — the first-divergence says whether an HR knob is the
 only remaining behavioral difference. Cross-ref `docs/src/v1_player1_125.s`.
 
+## 12. PLAYER2 — the "gamemusic-mode" routine (the BIGGEST non-V1.5 bucket, ~374)
+
+**Identity (CONFIRMED, full source available):** the 413-tune "filttbl-fail" bucket
+is **player2 = Cadaver's gamemusic-mode playroutine** (`docs/src/v1_player2_125.s`,
+"Musicroutine 11.2 by Lasse Öörni, with sound effect support"). 374/413 match the
+detector below (the other 39 are 2SID/other). This is a DISTINCT player from
+player1 (V1.5 tracker) — different filter model + SFX + entry points — NOT just a
+layout variant. Rep: `DEMOS/A-F/Eighties_Megahit.sid`.
+
+**Detector:** the GLOBAL self-modifying filter sweep in `mt_play`:
+`clc; lda #imm; adc #imm; sta self; sta $D416` → anchor `A9 ?? 69 ?? 8D ?? ?? 8D 16 D4`
+(+ wave-exec writes `$D404` directly — the wavetbl variant-3 anchor already added).
+
+**SHARED with player1 (same byte format → reuse the extractors):** instrument
+8-byte record (instad, instsr, instpulse, instpulsespd, instpulselow, instpulsehigh,
+**instfilter**, instwave), wavetbl, notetbl, songtbllo/hi, patttbllo/hi, the pattern
+format (NOCMD / FIRSTPACKEDREST / 3-byte cmd rows), orderlist (`$FF`=LOOPSONG +
+restart byte).
+
+**DIFFERS from player1 — the migration work:**
+- **NO filttbl.** The filter is GLOBAL + self-modifying: `mt_filtcutoff`(SMC accum)
+  `+= mt_filtcutoffadd` each frame → `$D416`; `mt_filtctrl` → `$D417`;
+  `mt_filttype|mt_volume` → `$D418`. Per-instrument **`instfilter`** byte (newnoteinit
+  l.341): if non-zero, sets cutoff=`instfilter`, type=`instfilter<<4`. → represent
+  as a per-instrument filter param (cutoff+type, MUSICAL) + the global cutoff sweep =
+  **ledger C10** (chip-global `$D415-$D418` automation).
+- **Command semantics differ:** 0=arp, 1=PORTAMENTO, **2=SETCUTOFFADD** (filter sweep
+  rate — NOT porta-down), 3=toneporta, 4=vibrato, 5=SETFILTER, **6=SETSUSTAIN** (NOT
+  set-SR), 7=settempo. The extractor's `_row_fx` needs a player2 command map.
+- **Wave-exec writes `$D404` directly** (l.207/379) — no-delay style.
+- **4 entry points:** init / play / **setvolume** / **playsfx**. setvolume + SFX are
+  GAME-only → NOT called in PSID playback → **IGNORE for music extraction** (the
+  "sound effect playing?" check at l.314 is inert when no SFX is active).
+- **Init** (l.192-221): per-channel clear + tempo=tick=5, pattptr=ENDPATT; then global
+  filter cleared (`$D415`=0, filtctrl=0, filtcutoffadd=0).
+
+**MIGRATION PLAN (proposed):** variant extraction branch in the V1 extractor (detect
+player2 → skip filttbl; read `instfilter` per instrument; the global filter is a C10
+automation track; player2 command map) + a **player2 composer body** (direct `$D404`,
+global SMC filter sweep, player2 command semantics) selected by a `player='gamemusic'`
+knob. USF model SHARED (one GoatTracker-family model, per the one-family-one-composer
+rule). SFX ignorable for PSID. This is the single biggest V1 lever (~374 tunes) and a
+multi-step sub-project (extractor branch is modest — most tables are shared; the
+composer body is the lift).
+
 ## Canary
 `hvsc84/MUSICIANS/T/Topaz/Joker.sid` — V1.5, single-subtune, load $1000, compact.

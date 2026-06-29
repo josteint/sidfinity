@@ -155,11 +155,18 @@ exposes the next genuine bug, doesn't flip FULL alone.
   wildcard ZP, require consecutive stores, keep the 3*nsubtunes diff-rule. 43→1.
 - pattern-walk bound (f814452): clean reject instead of IndexError crash.
 **REMAINING extract buckets (475 fail): filttbl 413 + gatetimer 30 + pattern-overran
-20 + instrument-cluster 10.** The BIG one (filttbl 413) is NOT an anchor — it's the
-**no-delay/computed-filter PLAYER BUILD** (Eighties_Megahit): wave-exec writes $D404
-direct + the filter is a COMPUTED SWEEP (`adc #0; sta $D416…`), NO `lda filttbl,y`
-table lookup at all. A distinct player → its own RE sub-project (filter subsystem +
-likely more), not an anchor. gatetimer 30 = optimized-init tunes whose HR-flag
+20 + instrument-cluster 10.** The BIG one (filttbl 413) is **IDENTIFIED: it's PLAYER2 = Cadaver's gamemusic-mode
+routine** (full source `docs/src/v1_player2_125.s`; 374/413 match, rest=2SID/other).
+NOT byte-RE — documented player. Detector: global SMC filter sweep `A9 ?? 69 ?? 8D ??
+?? 8D 16 D4` (+ direct-$D404 wave-exec). SHARED format w/ player1 (8-byte instruments,
+wavetbl/notetbl, songtbl/patttbl, pattern format) → reuse extractors. DIFFERS: NO
+filttbl (filter is GLOBAL SMC sweep + per-instrument `instfilter` byte = cutoff+type;
+global cutoff sweep = ledger C10 chip-global automation); command semantics differ
+(2=SETCUTOFFADD not porta-down, 6=SETSUSTAIN not SR); direct $D404; entries init/play/
+setvolume/playsfx (SFX+setvolume game-only → IGNORE for PSID). Full RE + migration plan
+in RE_NOTES §12. MIGRATION = variant extraction branch (modest — most tables shared) +
+a player2 composer body (the lift) selected by a `player='gamemusic'` knob; USF model
+SHARED. Single biggest V1 lever (~374 tunes), multi-step sub-project. gatetimer 30 = optimized-init tunes whose HR-flag
 gatetimer anchor `4A A9 gt 9D ?? ?? B0` misses (medium). pattern-overran 20 = my
 generalized song/patt picks a false-positive when no diff-3 table exists (orderlist
 refs an out-of-range pattern) — needs a self-consistency validator or better detect.
