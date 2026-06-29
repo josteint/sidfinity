@@ -101,6 +101,7 @@ class Layout:
     freqlo: int = 0        # freq table lo base (per-player; 96 entries)
     freqhi: int = 0        # freq table hi base
     nowavedelay: bool = False  # no delayed-wave variant (no `cmp #$08`)
+    chnfreq_base: int = 0  # mt_chnfreqlo (Block-2 base; voice v at +v, v=0/7/14)
 
 
 def detect_layout(sid: Sid) -> Layout:
@@ -209,13 +210,20 @@ def detect_layout(sid: Sid) -> Layout:
     # arpfreq: lda freqlo,y; sta x; lda freqhi,y; sta x → B9 ?? ?? 9D ?? ?? B9
     # ?? ?? 9D. The freqlo/freqhi pair are 96 ($60) bytes apart; other matches
     # (the new-note instwave/instad load) are not — disambiguate on that.
-    freqlo = freqhi = 0
+    freqlo = freqhi = chnfreq_base = 0
     for h in _find(mem, lo, hi, [0xB9, None, None, 0x9D, None, None,
                                  0xB9, None, None, 0x9D]):
         o1 = _w(mem, h + 1)
         o2 = _w(mem, h + 7)
         if abs(o1 - o2) == 96:
+            # mt_arpfreq: lda freqtbllo,y / sta chnfreqlo,x / lda freqtblhi,y /
+            # sta chnfreqhi,x. The store operands (h+4, h+10) give the per-voice
+            # chnfreq variable base — the idle (gate-off) voice's freq register
+            # holds the SID-file pre-loaded value (chip priming; init clears only
+            # Block 1, NOT chnfreq). chnfreqlo pairs with the freqtbllo load.
             freqhi, freqlo = (o1, o2) if o1 < o2 else (o2, o1)
+            # chnfreqlo = the store paired with the freqtbllo load
+            chnfreq_base = _w(mem, h + 4) if o1 == freqlo else _w(mem, h + 10)
             break
     return Layout(instbase=instbase, wavetbl=wavetbl, notetbl=notetbl,
                   patttbllo=patttbllo, patttblhi=patttblhi,
@@ -223,7 +231,8 @@ def detect_layout(sid: Sid) -> Layout:
                   gatetimer=gatetimer, hr_ad=hr_ad, hr_sr=hr_sr,
                   default_tempo=default_tempo,
                   inittick_is_tempo=inittick_is_tempo,
-                  freqlo=freqlo, freqhi=freqhi, nowavedelay=nowavedelay)
+                  freqlo=freqlo, freqhi=freqhi, nowavedelay=nowavedelay,
+                  chnfreq_base=chnfreq_base)
 
 
 # ---------------------------------------------------------------------------
@@ -305,6 +314,10 @@ class V1Song:
     freq_lo: list = field(default_factory=list)   # 96 bytes (per-player table)
     freq_hi: list = field(default_factory=list)
     filttbl_bytes: list = field(default_factory=list)  # full filter table (4B/entry)
+    # Per-voice idle chip priming: the SID file pre-loads chnfreqlo/hi + chnpulse/
+    # dir (Block 2, NOT cleared by init); a gate-off/idle voice's freq+pulse
+    # registers hold these until its first note. [(freqlo,freqhi,pulse,dir)×3].
+    idle_chip: list = field(default_factory=list)
 
 
 def _sim_setfilter0(mem, filttbl) -> tuple:
@@ -507,11 +520,19 @@ def extract(sid: Sid) -> V1Song:
     # the reachable window reproduces those reads as per-tune content.
     freq_lo = [mem[L.freqlo + i] for i in range(128)] if L.freqlo else []
     freq_hi = [mem[L.freqhi + i] for i in range(128)] if L.freqhi else []
+    # Per-voice idle chip priming (Block 2, voice v at chnfreq_base+v, v=0/7/14):
+    # chnfreqlo(+0), chnfreqhi(+1), chnpulse(+2), chnpulsedir(+3).
+    idle_chip = []
+    if L.chnfreq_base:
+        b = L.chnfreq_base
+        for v in (0, 7, 14):
+            idle_chip.append((mem[b + v], mem[b + 1 + v],
+                              mem[b + 2 + v], mem[b + 3 + v]))
     return V1Song(sid=sid, layout=L, subtunes=subtunes, patterns=patterns,
                   instruments=instruments, filters=filters,
                   init_filter=init_filter, funk=funk,
                   freq_lo=freq_lo, freq_hi=freq_hi,
-                  filttbl_bytes=filttbl_bytes)
+                  filttbl_bytes=filttbl_bytes, idle_chip=idle_chip)
 
 
 # ---------------------------------------------------------------------------

@@ -76,6 +76,8 @@ class _Tables:
         # full filter table (engine steps it); fall back to entry-0 placeholder.
         self.filttbl = list(p.get('filttbl_bytes', [self.filt[1], 0, 0, 0]))
         self.nowavedelay = bool(p.get('nowavedelay', False))
+        # per-voice idle chip priming [(freqlo,freqhi,pulse,dir)×3] or [] (zeros).
+        self.idle_chip = p.get('idle_chip', [])
         # optimized-layout variant: filter is EVENT-DRIVEN (written by setfilter,
         # not a per-frame exec), per-voice order is loadregs-before-pulse, init
         # chntick = tempo (not gatetimer+2).
@@ -852,16 +854,36 @@ _BSS_VARS = [
 ]
 
 
-def _bss() -> str:
+def _idle_array(col) -> str:
+    """15-byte per-channel array (X=0/7/14) pre-loaded with idle_chip[v][col]."""
+    bs = [0] * 15
+    for v in range(3):
+        bs[v * 7] = col[v]
+    return '.byt ' + ','.join(str(b) for b in bs)
+
+
+def _bss(t: '_Tables' = None) -> str:
     out = []
     # globals
     for g in ('initpos', 'filtstep', 'filttime', 'filtcut', 'filtctrl',
               'filttype', 'volmask', 'filtcutadd', 'vibcmp', 'notenum',
               'tplo', 'tphi'):
         out.append(f'{g}:  .dsb 1, 0')
+    # idle chip priming: chnfreqlo/hi + chnpulse/dir hold the SID-file pre-load
+    # for gate-off/idle voices (init clears Block 1 only, NOT these). Mirrors
+    # orig's mechanism exactly: the value lives in the RAM image, never cleared.
+    ic = (t.idle_chip if t else None) or []
+    idle = {}
+    if ic:
+        cols = list(zip(*ic))   # (freqlo×3, freqhi×3, pulse×3, dir×3)
+        idle = {'chnfreqlo': cols[0], 'chnfreqhi': cols[1],
+                'chnpulse': cols[2], 'chnpulsedir': cols[3]}
     # per-channel arrays (X = 0/7/14 → 15 bytes each)
     for v in _BSS_VARS:
-        out.append(f'{v}:  .dsb 15, 0')
+        if v in idle:
+            out.append(f'{v}:  {_idle_array(idle[v])}')
+        else:
+            out.append(f'{v}:  .dsb 15, 0')
     return '\n'.join(out)
 
 
@@ -910,7 +932,7 @@ def compose_v1_asm(usf: UsfFile) -> str:
         A.append(b)
     for b in patt_blocks:
         A.append(b)
-    A.append(_bss())
+    A.append(_bss(t))
     return '\n'.join(A)
 
 
