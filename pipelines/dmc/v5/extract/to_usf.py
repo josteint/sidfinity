@@ -347,10 +347,16 @@ def model_to_usf(m: V5Model, reach: int | None = None) -> UsfFile:
     # idle (default) V3 filter sweep: filter-table position 0 is a default
     # cutoff program the engine runs from frame 0 (no instrument points at it;
     # filterpos starts at 0). PLAY-TIME content, not init priming — the start
-    # cutoff STATE stays in init.sid.filter. Capture only when entry 0 is a
-    # real ADD ((0,0) = no idle -> the cutoff holds at the priming value).
+    # cutoff STATE stays in init.sid.filter. Capture pos 0 FAITHFULLY: a leading
+    # (0,0) is a valid zero-rate HOLD phase whose count is at pos 1 (e.g.
+    # Cooksey: hold ~20 frames then ramp $1415/frame), NOT "no idle" — the old
+    # `m.filter[0] != (0,0)` gate dropped exactly those swept-after-a-hold idle
+    # programs (the FL_LO partial cluster), so the composer held the priming
+    # cutoff forever where the orig sweeps. (Same fix the default_pulse twin
+    # below already got in round-8.) The `any rate != 0` check below keeps a
+    # PURE-hold idle (the cutoff genuinely holds at the priming value) as None.
     default_filter = None
-    if m.filter and tuple(m.filter[0]) != (0, 0):
+    if m.filter:
         try:                       # best-effort: a malformed idle table -> no
             idle = _capture_env(    # default_filter (composer holds), not a
                 m.filter, 0, has_start=False,   # member-wide error.
