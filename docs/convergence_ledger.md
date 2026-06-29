@@ -76,6 +76,7 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
 | accumulated per-step rounding drift in a round-trip · USF stores DELTAS (durations), player sums them to ABSOLUTE positions · a min/floor on each delta drifts over a long song · short tunes pass, long tunes length_fail · keep deltas EXACT (allow 0) | C12 | logged |
 | engine variant dispatch · player jump-table init offset shifted but play body at canonical offset · "no_jumptable"/code-mismatch reject · dispatch on the PLAY-body signature not init (we emit our own init) | C13 | logged |
 | command-per-row tracker effect (note + fx + param per row) · porta/vibrato/arp/filter/tempo on a row · NOT per-instrument · how to represent in NoteRow | C14 | recurring (FC + GoatTracker V1) |
+| INAUDIBLE writes in the $D400-$D418 stream · idle/gate-off voice freewheels freq/pulse from editor-leftover pre-load · strict compare flags a divergence that makes NO sound · DON'T carry the state — audio-equivalence verdict | C15 | logged (designed+validated, DEFERRED) |
 
 ---
 
@@ -481,3 +482,55 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
 - **Consumers:** `pipelines/dmc/v4/factory.py` `_jt_layout`. WATCH-LIST: any
   feature-driven family whose detection compares init/dispatch code — the
   verdict is the play stream, so dispatch should key on the play body.
+
+### C15 — Inaudible writes in the write-log stream (idle/gate-off voice freewheel)
+- **The problem:** an engine writes `$D400-$D418` for a voice that produces **no
+  sound** — most commonly a voice that hasn't played its first note (or has gone
+  silent) and freewheels freq/pulse from the SID-file's **pre-loaded editor-leftover
+  state** (the player's per-voice RAM vars the init doesn't clear). These writes are
+  in the stream, so the strict `(reg,val)` compare flags a divergence — but they are
+  **inaudible**, and our clean composer naturally writes *different* (cleaner) silent
+  bytes than the original's leftover freewheel. This is the mid-song analog of "init
+  bytes differ but state matches" (`docs/sid_init_report.md` §5/§6.4 — the verdict
+  already drops the inaudible init frame).
+- **WRONG answer (don't):** carry the per-voice idle state as USF params to make the
+  strict compare pass (GoatTracker V1 `idle_chip`, reverted bb7b097). It injects
+  **inaudible editor-leftover ENGINE state** into USF — trichotomy §4.4 bookkeeping,
+  not musical priming (the voice is `ctrl=$00`/no-waveform; the pre-load is overwritten
+  before it ever sounds) → C7 anti-pattern (engine state masquerading as musical bytes),
+  pollutes ML data. It's also INSUFFICIENT (see the sync caveat below).
+- **Canonical solution — audio-equivalence verdict** (a `compare` mode, not a USF
+  field): walk both streams tracking each voice's ctrl; **drop freq/pulse writes to a
+  voice while `(ctrl & $F0)==0`** (no waveform selected ⇒ silent — NOT `ctrl==0`: a
+  voice in release `$10` is still audible and must be kept). Compare the filtered
+  streams; all ctrl/gate/AD-SR/`$D415-$D418` writes are always kept. USF stays clean.
+- **Mandatory guard (the one real hole) — hard-sync / ring-mod:** a silent voice N's
+  oscillator feeds consumer voice `(N+1)%3` when that consumer has sync(bit1 `$02`) or
+  ringmod(bit2 `$04`) set → N's **freq is then audible via the consumer** and the effect
+  is in the oscillator domain (NOT in N's write stream → not self-guarding). Pre-scan
+  the stream; if consumer C uses sync/ringmod, permanently protect source `(C+2)%3`'s
+  freq (keep it). Pulse never feeds sync (still droppable). Validated: GoatTracker V1
+  *Memoires* uses sync — the guard correctly KEEPS its idle freq and exposes that the
+  naive (guardless) filter was a FALSE PASS.
+- **Self-guarding cases (no extra handling):** toneporta/slide from an idle voice — the
+  held idle freq is the slide start, but after re-gate the voice is audible (ctrl≠0) so
+  the slide's per-frame freq writes are KEPT and diverge if the start differed → caught.
+- **Status:** 📋 logged — DESIGNED + VALIDATED (`tmp/audioeq_validate.py` /
+  `audioeq_sample.py`, ephemeral) but **DEFERRED, NOT IMPLEMENTED** (2026-06-29, GoatTracker V1).
+  Deferred because the immediate coverage is small (+1 in a 60-tune sample — most
+  strict-partials have *real audible* bugs underneath the idle noise, so dropping the
+  idle writes only exposes the next genuine bug; it doesn't reach FULL alone), and it's
+  a change to the **sacred write-log verdict** — not worth it for a +1 today. Its real
+  value is correctness (audio-identical tunes stop being falsely "partial") + a clean
+  residue (every remaining divergence is a genuine audible bug). Until adopted,
+  idle-divergent-but-audio-identical tunes are a documented **"audio-identical /
+  strict-partial" residue class** — re-verify them under audio-equivalence before
+  counting them as real partials.
+- **Boundary / when it applies:** any engine that leaves voices idle/gate-off mid-song
+  with freewheeling freq/pulse. The silent test is `(ctrl & $F0)==0`; the sync guard is
+  mandatory; AD/SR/filter/master-vol always kept.
+- **WATCH-LIST / consumers (seen):** GoatTracker V1 (designed). **DMC `idle_wave` /
+  resting-voice (project_dmc) is the same class — re-examine whether its carried idle
+  state is audible (legit) or could be an audio-equivalence drop instead.** When this is
+  adopted, it belongs in the shared comparator (`pipelines/hubbard/verify_cycle.py`) as
+  a new mode, not per-engine.

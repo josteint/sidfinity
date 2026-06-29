@@ -124,34 +124,25 @@ gate-off/resting voices. This is the SAME root as the optimized-Alive silence �
 fixing it helps BOTH paths. HIGHEST LEVERAGE (also flips the unblocked extract_err
 tunes once detection widens).
 
-**✅ IDLE-CHIP PRIMING LANDED (commit 649384b).** Extract per-voice (freqlo,freqhi,
-pulse,dir) from SID RAM at `chnfreq_base+v` (v=0/7/14; chnfreq_base = the arpfreq
-anchor's store operand, free) → params `idle_chip` (only when non-zero) → emitted
-into the chnfreq/pulse BSS arrays (mirrors orig: the value lives in the RAM image,
-init clears Block 1 ONLY, never Block 2). Verified: Joker+Menace47 still FULL
-(all-zero idle_chip = no-op); Memoires div@3→9, Bomdibom div@3→30. Triage net:
-freqlo 23→19, pwlo 11→15 (4 tunes advanced past the freq divergence onto a pulse
-one), noDiv still 4. KEY LESSON: residue tunes have MULTIPLE STACKED divergences
-(idle-freq → pulse-mod → freewheel) — fixing one layer advances the first-div but
-doesn't flip to FULL until all layers for that tune are fixed. NEXT LAYER (UNIFIED root — both advanced tunes hit it): **idle voices FREEWHEEL
-their pulse + wave program from PRE-LOADED ENGINE STATE.** Bomdibom div@30: v1 is
-IDLE (freq=$02be = pre-load, ctrl=$00) yet its PULSE modulates (orig $02=c1 vs reb
-$61) — my pulse exec is byte-identical to orig, so the divergence is the INSTRUMENT
-the idle voice modulates with: mine forces chninstnum=1 at init, orig keeps the
-pre-loaded chninstnum (Block 3, NOT cleared). Memoires v3: idle (ctrl=$00) but its
-WAVE program runs (orig modulates pre-load $2e1e→$2dde) — needs pre-loaded chnwaveptr
-(Block 1? — but Block 1 IS cleared; so chnwaveptr freewheel needs more RE) + chnnote
-+ chnarpcount. So the FULL idle priming = the SID-file's pre-loaded per-voice ENGINE
-state (chninstnum, chnnote, chnwaveptr, chnarpcount, chnfx...), not just the chip
-registers (freq/pulse) already done. ⚠️ PRINCIPLED DECISION PENDING: this is the
-editor's LEFTOVER engine state, INAUDIBLE (gate off) but in the write stream (CORE
-TENET forces matching it). Options: (a) carry full per-voice initial engine state as
-typed priming [matches stream; carries editor-leftover engine state — borderline vs
-USF principle]; (b) accept as documented engine-state-dependent residue class [USF
-clean; tunes stay partial]; (c) investigate if the freewheel state is DERIVABLE (=
-first instrument? = note-0 default?) → principled if so. RECOMMEND (c) first. DMC
-precedent (idle_wave + idle note) leans toward (a) being acceptable. Work next on
-the V1.5 path.
+**✅ RESOLVED via principled re-anchor — idle_chip REVERTED (bb7b097); audio-equivalence
+verdict DESIGNED+VALIDATED but DEFERRED → ledger C15.** The idle freewheel writes are
+INAUDIBLE (idle voice = ctrl=$00/no-waveform; pre-load is overwritten before it sounds)
+= trichotomy §4.4 engine bookkeeping, NOT musical → carrying them (idle_chip: extract
+chnfreq/pulse from `chnfreq_base+v` → params → BSS) is C7 anti-pattern + INSUFFICIENT
+(a sync/ringmod-source idle voice's freq IS audible & freewheels — a constant pre-load
+can't reproduce it). RIGHT answer = **audio-equivalence verdict** (drop freq/pulse
+writes while `(ctrl&$F0)==0`, with the sync/ringmod guard: keep a silent source's freq
+if consumer `(N+1)%3` syncs/ringmods). Validated: Bomdibom→FULL w/o idle_chip;
+Joker/Menace47 no regression; Drrsh real bug still caught; the guard caught Memoires
+(uses sync) as a naive-filter FALSE PASS. DEFERRED (user choice B, 2026-06-29): small
+immediate coverage (+1 / 60-sample — most strict-partials have REAL audible bugs under
+the idle noise) and it changes the sacred verdict; not worth it for +1 now. **Until
+adopted: idle-divergent tunes are an "audio-identical / strict-partial" residue class
+— re-verify under audio-equivalence before counting as real partials.** Full record +
+hardened filter spec + edge cases in ledger C15. DMC `idle_wave`/resting-voice is the
+SAME class — re-examine there too. KEY LESSON (kept): residue tunes have MULTIPLE
+STACKED divergences (idle-freq → pulse-mod → real-bug) — fixing the idle layer only
+exposes the next genuine bug, doesn't flip FULL alone.
 
 **LEVER 2 — extract_err (35) = anchor variants: wavetbl 20, filttbl 8, songtbl/patttbl
 3, gatetimer 2, index 2.** More layout sub-variants where the detect anchors miss.
@@ -159,9 +150,14 @@ Unblocks detection (then those tunes join the freqlo bucket → Lever 1).
 
 Secondary: Drrsh-style DEEP partials (converge ~57% then a per-effect freq diverge —
 rarer, per-cause). pwlo partials (11) are mostly the parked optimized variant.
-V1 ROADMAP: (1) resting-voice idle-wave freewheel [big freqlo fix, DMC precedent],
-(2) widen extract anchors (wavetbl/filttbl), (3) deep per-effect partials, (4) optimized
-engine body. Batch runner: `tmp/v1_batch.py N` (uses sid_db.query, capped-dur triage).
+**V1 ROADMAP (revised after choice B — extract anchors are the bigger lever; only
+31/60 sample even BUILT):** (1) **widen extract anchors — wavetbl 20 + filttbl 8 +
+songtbl/patttbl 3 + gatetimer 2** (each is a layout sub-variant where the byte-pattern
+anchor misses; unblocks detection → those tunes then join the verify residue); (2) real
+audible per-effect partial bugs (now cleanly exposed once idle noise is set aside —
+Drrsh@5007, Memoires audible tail); (3) audio-equivalence verdict (ledger C15) when
+worth the verdict change; (4) optimized engine body. Batch runner: `tmp/v1_batch.py N`
+(sid_db.query, capped-dur triage); `tmp/audioeq_*.py` = the C15 filter prototype.
 
 (history below — superseded by the CONVERGED status above)
 `pipelines/goattracker/v1/` has `disassembly.s` (annotated, canary Joker) +
