@@ -93,7 +93,10 @@ def _emit_data(m) -> str:
     d.append('filterhi:\n' + _byt([hi for lo, hi in m.filter] or [0]))
     # per-voice leftover note ($100F-$1011): the lead-in effects frame(s)
     # read it before the first fetch (only observable when lo_spdctr>0).
-    d.append('initnotes:\n' + _byt((list(m.lo_notes) + [0, 0, 0])[:3]))
+    # family-4: the curnote leftover lives at $1012-$1014 (f4_idle_notes) and
+    # is ALWAYS the lead-in freq (C-1).
+    _idle = m.f4_idle_notes if getattr(m, 'family4', False) else m.lo_notes
+    d.append('initnotes:\n' + _byt((list(_idle) + [0, 0, 0])[:3]))
     return '\n'.join(d)
 
 
