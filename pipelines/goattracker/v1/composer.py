@@ -76,8 +76,11 @@ class _Tables:
         # full filter table (engine steps it); fall back to entry-0 placeholder.
         self.filttbl = list(p.get('filttbl_bytes', [self.filt[1], 0, 0, 0]))
         self.nowavedelay = bool(p.get('nowavedelay', False))
-        # optimized variant inits chntick = tempo (not gatetimer+2)
-        self.inittick = self.deftempo if p.get('inittick_is_tempo') \
+        # optimized-layout variant: filter is EVENT-DRIVEN (written by setfilter,
+        # not a per-frame exec), per-voice order is loadregs-before-pulse, init
+        # chntick = tempo (not gatetimer+2).
+        self.optimized = bool(p.get('inittick_is_tempo'))
+        self.inittick = self.deftempo if self.optimized \
             else (self.gatetimer + 2) & 0xFF
         # freq table is PER-PLAYER (carried in USF); fall back to v153 constant.
         # Length is 2*N (lo then hi); N=128 captures the off-table window (C6).
@@ -230,6 +233,40 @@ def _engine(t: _Tables) -> str:
                          "        jmp pulseexec\n"
                          "we_nodelay:\n"
                          "        sta chnwave,x")
+    # Optimized variant: the filter is EVENT-DRIVEN (setfilter writes $D416/
+    # $D417/$D418 directly; no per-frame filter exec), and the init writes the
+    # filter once via setfilter(0). V1.5: per-frame filter exec writes the
+    # shadows; setfilter only sets shadows.
+    if t.optimized:
+        filter_exec = ''
+        init_filter = ('        lda #0\n'
+                       '        jsr setfilter            ; write init filter once\n')
+        sf_d417, sf_d418, sf_d416 = ('        sta $d417\n',
+                                     '        and volmask\n        sta $d418\n',
+                                     '        sta $d416\n')
+    else:
+        filter_exec = (
+            '        lda filttime\n'
+            '        bne pf_mod\n'
+            '        lda filtstep\n'
+            '        beq pf_skip\n'
+            '        jsr setfilter\n'
+            '        jmp pf_skip\n'
+            'pf_mod: dec filttime\n'
+            '        lda filtcut\n'
+            '        clc\n'
+            '        adc filtcutadd\n'
+            '        sta filtcut\n'
+            'pf_skip:\n'
+            '        lda filtcut\n'
+            '        sta $d416\n'
+            '        lda filtctrl\n'
+            '        sta $d417\n'
+            '        lda filttype\n'
+            '        and volmask\n'
+            '        sta $d418')
+        init_filter = ''
+        sf_d417 = sf_d418 = sf_d416 = ''
     return f"""
 GATETIMER = ${t.gatetimer:02x}
 INITTICK  = ${t.inittick:02x}
@@ -262,25 +299,7 @@ init:
 
 ; ===== play =====
 play:
-        lda filttime
-        bne pf_mod
-        lda filtstep
-        beq pf_skip
-        jsr setfilter
-        jmp pf_skip
-pf_mod: dec filttime
-        lda filtcut
-        clc
-        adc filtcutadd
-        sta filtcut
-pf_skip:
-        lda filtcut
-        sta $d416
-        lda filtctrl
-        sta $d417
-        lda filttype
-        and volmask
-        sta $d418
+{filter_exec}
         ldx #0
         jsr execchn
         ldx #7
@@ -301,7 +320,7 @@ execchn:
         bne ec_initnf
         lda #0
         sta $d415                ; first channel cutoff lo = 0
-ec_initnf:
+{init_filter}ec_initnf:
         lda #DEFTEMPO
         sta chntempo,x
         lda #INITTICK
@@ -787,12 +806,12 @@ setfilter:
         lda filttbl,y
         beq sf_mod
         sta filtctrl
-        lda filttbl+1,y
+{sf_d417}        lda filttbl+1,y
         sta filttype
-        lda filttbl+2,y
+{sf_d418}        lda filttbl+2,y
         beq sf_cutskip
         sta filtcut
-sf_cutskip:
+{sf_d416}sf_cutskip:
         lda #0
         beq sf_common
 sf_mod: lda filttbl+2,y
