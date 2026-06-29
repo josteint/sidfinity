@@ -47,6 +47,18 @@ FORMAT, RELOCATED, with a DIFFERENT PLAYER** — NOT a from-scratch engine.
   V5 lo_notes analog); C-2 FILTER ($D416-only 8-bit cutoff $1019+$1853 + $D418
   mode + $101A mvol-fade; rebuild emits ~27k extra $D415); C-3 2-phase $1016 note
   TIMING. Then verify_dmc + carve Jupiter41 ref + wide batch ~635 → DMC ~71%→~76%.
+  - **C-1 DONE (commit cc63144):** feed f4_idle_notes to the composer's initnotes
+    (it already primes curnote from there). Jupiter41 non-filter match 25→60.
+  - **C-3 PARTIAL (commit caabfd5):** speed=1 extracts right (= 2-phase tick rate,
+    no rate knob needed). lo_spdctr was reading $1013 = V2 CURNOTE (garbage
+    36-frame delay) → zeroed. REMAINING C-3 = leadin LENGTH: orig 1st note gates
+    ~frame 2 (write ~60), rebuild gates ~write 24 (too early); family-4 init seeds
+    durctr $17E5=2, composer seeds 1 → composer knob: seed durctr=2 for family-4
+    (leadin is sensitive — verify, don't over/undershoot).
+  - **C-2 FILTER not started** (the ~27k extra $D415 + $D418 mode + $D416-only
+    8-bit cutoff). Jupiter41 filter is nearly static ($D416=$2E, $D418=$3F,
+    $D415 never written). All family-3 V5 unaffected (knobs gated on m.family4;
+    6/6 FULL sanity each step).
 - Members: `tmp/v5_family4_members.json`. Commits 1fd69df/02baf25/824cc9a/88f18bc.
 
 ## ✅ V5 (family-3/5): 1088/1495 FULL (72.8%, 2026-06-29) — glide-wrap +27, idle-filter +20
