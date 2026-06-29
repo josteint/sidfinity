@@ -263,6 +263,7 @@ class V1Song:
     funk: tuple = (0, 0)
     freq_lo: list = field(default_factory=list)   # 96 bytes (per-player table)
     freq_hi: list = field(default_factory=list)
+    filttbl_bytes: list = field(default_factory=list)  # full filter table (4B/entry)
 
 
 def _sim_setfilter0(mem, filttbl) -> tuple:
@@ -444,6 +445,14 @@ def extract(sid: Sid) -> V1Song:
 
     init_filter = _sim_setfilter0(mem, L.filttbl)
     funk = (mem[L.filttbl + 2], mem[L.filttbl + 3])
+    # Full contiguous filter table: filttbl is the last pointer-target structure
+    # before the orderlist data, so it ends at the first orderlist address. The
+    # engine steps through it (4-byte entries) via the next-step byte.
+    order_addrs = [_ptr(mem, L.songtbllo, L.songtblhi, s * 3 + ch)
+                   for s in range(sid.songs) for ch in range(3)]
+    after = [a for a in order_addrs if L.filttbl < a <= L.filttbl + 256]
+    fend = min(after) if after else L.filttbl + 4
+    filttbl_bytes = [mem[L.filttbl + i] for i in range(max(4, fend - L.filttbl))]
     # Capture 128 entries (not 96): wave-program relative notes mask to &$7F
     # (0-127), so notes can run PAST the 96-entry table into the following image
     # bytes, which the engine plays as real freqs (C6 off-table read). Capturing
@@ -453,7 +462,8 @@ def extract(sid: Sid) -> V1Song:
     return V1Song(sid=sid, layout=L, subtunes=subtunes, patterns=patterns,
                   instruments=instruments, filters=filters,
                   init_filter=init_filter, funk=funk,
-                  freq_lo=freq_lo, freq_hi=freq_hi)
+                  freq_lo=freq_lo, freq_hi=freq_hi,
+                  filttbl_bytes=filttbl_bytes)
 
 
 # ---------------------------------------------------------------------------

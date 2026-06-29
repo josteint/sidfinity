@@ -159,10 +159,11 @@ def model_to_usf(song: V1Song) -> UsfFile:
         'filt_init': list(song.init_filter),
         'funk': list(song.funk),
     })
-    # Filter table (only when present — canary has none).
-    if song.filters:
-        params.fields['filttbl'] = {
-            fp: [f.b0, f.b1, f.b2, f.b3] for fp, f in song.filters.items()}
+    # Full filter table — the engine steps through it (4-byte entries) when an
+    # instrument's filter ptr or a setfilter cmd selects a program. (TODO: this
+    # is a raw blob; the principled form is musical filter programs — C7/C10.)
+    if any(b for b in song.filttbl_bytes[4:]):    # >entry0 has real data
+        params.fields['filttbl_bytes'] = list(song.filttbl_bytes)
 
     return UsfFile(
         psid=PsidMeta(title=sid.name, author=sid.author, released=sid.released,

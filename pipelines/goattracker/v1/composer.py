@@ -73,6 +73,8 @@ class _Tables:
         fi = p.get('filt_init', [0, 0, 0x0F, 0, 0])
         self.filt = list(fi) + [0, 0, 0x0F, 0, 0][len(fi):]
         self.funk = list(p.get('funk', [0, 0]))
+        # full filter table (engine steps it); fall back to entry-0 placeholder.
+        self.filttbl = list(p.get('filttbl_bytes', [self.filt[1], 0, 0, 0]))
         # freq table is PER-PLAYER (carried in USF); fall back to v153 constant.
         # Length is 2*N (lo then hi); N=128 captures the off-table window (C6).
         if usf.freq_table and len(usf.freq_table) >= 192:
@@ -863,7 +865,7 @@ def compose_v1_asm(usf: UsfFile) -> str:
     A.append(_byts('wctrl', t.wctrl))
     A.append(_byts('wnote', t.wnote))
     A.append(_byts('funktbl', t.funk))
-    A.append(_byts('filttbl', [t.filt[1], 0, 0, 0]))  # entry 0 placeholder
+    A.append(_byts('filttbl', t.filttbl))             # full filter table
     A.append('songlo:\n        .byt ' + ', '.join(song_lo))
     A.append('songhi:\n        .byt ' + ', '.join(song_hi))
     A.append('pattlo:\n        .byt ' + (', '.join(slot_lo) if slot_lo else '$00'))
