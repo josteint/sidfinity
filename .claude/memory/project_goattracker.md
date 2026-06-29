@@ -93,13 +93,25 @@ arp is a per-row musical fx, not a new kind.
    per-effect, NOT timing.** Diagnosis method: `siddump --writelog-per-irq`
    (Trap-C-free) + `--memwatch-on-write d418 <ram>` (RAM labels via
    `assemble(...,return_labels=True)`).
-   **OPEN (next, ~div 887):** voice3 toneporta SLIDE — slow toneporta params
-   (e.g. $53) SLIDE toward target (1+ intermediate freqs) while fast ($ff) jump;
-   AND the active command-state diverges there (mine chnfx=arp where orig is
-   sliding) → a command-inheritance edge case + the continuous-toneporta-slide
-   vs wave-program interaction (does the slide run when waveptr!=0?). Needs RE of
-   V1 toneporta+wave. Then grammar ext for arp/vibrato fx (text round-trip),
-   relocation factory, wide batch.
+   **OPEN (next, ~div 887): TONEPORTA SLIDE — the `jmp pulseexec` fix (d) is a
+   JUMP approximation; orig actually SLIDES.** Confirmed: orig slides note60→62
+   as $22a0 → $269c (+$3fc = param $ff<<2) → snaps $26dd. So toneporta is a
+   genuine continuous slide (speed = param<<2, snap on arrival); fast params
+   ($ff) reach in ~1 step (look like a jump → why the hack got 32%), slow
+   ($53/$af) take several. THE PUZZLE: in v153 the continuous-fx path (incl.
+   toneporta slide, mt_tickntoneport) runs ONLY when chnwaveptr==0, but ALL
+   Joker insts have LOOPING wave programs (waveptr!=0) that set freq=freqtbl
+   [chnnote] every frame — which would OVERRIDE the slide. Yet orig slides. So
+   either (i) the slid inst's wave program STOPS (waveptr→0; check if a wave
+   cmd $E0-$EF stops it, or the loop-target/end differs from my forced-loop
+   extraction), or (ii) Joker's build runs the slide despite the wave (variant),
+   or (iii) my instrument/command STATE diverged at that point (memwatch was
+   inconclusive — used stale labels). NEXT: RE the V1 toneporta↔wave interaction
+   (read mt_waveexec + mt_tickntoneport + the wave-cmd dispatch in
+   docs/src/v1_player1_v153.s); verify mine's chninstnum/chnfx/chnwaveptr at the
+   div with CORRECT labels (recompute after each code change). Likely revert the
+   `jmp pulseexec` hack once the real slide is implemented. Then grammar ext for
+   arp/vibrato fx (text round-trip), relocation factory, wide batch.
 Then reloc factory + stratified-subset iteration; full batch at closeout (the
 [[project_fc_fingerprint_and_standard]] playbook). Mirror DMC infra:
 composer_asm.py + v4/factory.py + extract/. Harness refs: `src.composer_runtime.
