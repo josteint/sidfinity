@@ -231,14 +231,29 @@ the exact per-frame order and landed 3 family-4-gated knobs (family-3 7/7 FULL):
    2-phase ticks on even frames → first note-on at frame 2. durctr=2 + lo_spdctr=0
    = the principled combo (no magic number; was a magic lo_spdctr=4). (match 86)
 
-### NEXT divergence (write 86 / 13824): per-note duration/effect
-orig V1 holds freq $27DF (CTL $11, gate ON) mid-note; rebuild V1 = freq $0451,
-CTL $10 (gate OFF) — the rebuild's first note ends ~2 frames early. The note has
-NO glide command ($FD 03 = dur 3 ticks), so suspect (a) the family-4 $FE/$FC
-sector-command DURATION decode (the note byte $3C is followed by $FE — family-4's
-$FE gate cmd reads its own arg differently than family-3's), or (b) vibrato. This
-is the next per-note iteration (then C-2 filter). The path is proven: each knob
-advances the match; FULL is a focused continuation, not a rewrite.
+### ✅ WAVE-SPEED counter — the steady-vs-sweep root cause (commit 5617d66, match 86→92)
+write 86 was NOT a duration bug — the orig HOLDS each note 6 frames; the rebuild
+SWEPT every frame. Root cause: the family-4 wave-step ($1654) has a per-instrument
+wave-SPEED counter ($1845 reload / $1848 counter, gating the $17FD advance), seeded
+from **instrument byte 6 ($2293) >> 4** (=5 for inst 8 → advance every 6 frames).
+family-3 has no such counter. Three family-4-gated composer knobs (family-3 9/9 FULL):
+1. **wave-speed counter** (wavespd/wavespc per-voice; ws_adv holds N frames/step;
+   backward-compatible — speed 0 = advance every frame = family-3 unchanged).
+2. **note-on no-pre-advance** (family-4 note-on does NO wave step, so the per-frame
+   wave_step starts AT the wave_ptr — don't `inc wavepos` on note-on).
+3. **vib-disable** (family-4 byte 6 = wave speed, NOT vib_speed; bytes 5/7 unused —
+   vibrato is the $F0 sector cmd. Zero the per-instr vib setup, else $50 read as a
+   huge vib_speed → +$21 freq jitter, was $2800 vs $27DF). **V1 now byte-exact.**
+
+### NEXT divergence (write 92 / 13824): V2 drum transient (1 frame too long)
+V2 is inst 8 used as a DRUM (note 48): noise attack `DD00/81` then a linear
+downward pitch slide `0D00→0200` (NOT the wave-program arpeggio — a separate drum
+pitch envelope, likely the $1842 freq-lo bias or a glide). The streams run
+PARALLEL but the rebuild holds the noise transient `DD00/81` ONE extra frame
+(×2 vs orig ×1) — the no-pre-advance fix (correct for V1's held note) over-holds
+V2's 1-frame transient. Needs the family-4 hard-restart/transient FIRST-step
+timing (when the speed counter gates the first step) + the drum downward-slide
+mechanism. Then V3, then C-2 filter. V1-exact proves the wave-speed approach.
 
 ## ⚠️ C-3 REAL BLOCKER (found 2026-06-29): the 2-phase splits the WRITE ORDER
 Sweeping lo_spdctr (0..4) maxes the non-filter match at ~63 then forks — and the

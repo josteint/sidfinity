@@ -84,6 +84,21 @@ FORMAT, RELOCATED, with a DIFFERENT PLAYER** — NOT a from-scratch engine.
     by $FE may be a 2-byte [note][param] vs family-3's 1-byte). Then C-2 filter.
     Path PROVEN (each knob advances the match). METHOD LESSON: CONSULT the ledger
     BEFORE scoping a fix as "big/next-session".
+  - **✅ WAVE-SPEED counter — the steady-vs-sweep root cause (commit 5617d66,
+    match 86→92, V1 byte-exact).** write 86 was NOT a duration bug: the orig HOLDS
+    each note 6 frames; the rebuild SWEPT every frame. family-4's wave-step ($1654)
+    has a per-instrument wave-SPEED counter ($1845/$1848 gating the $17FD advance),
+    seeded from **instrument byte 6 ($2293) >> 4** (=5 for inst 8). family-3 lacks
+    it. 3 family-4-gated knobs (family-3 9/9 FULL): (1) wave-speed counter
+    (wavespd/wavespc; ws_adv holds N frames/step; speed 0 = family-3 unchanged);
+    (2) note-on no-pre-advance (family-4 note-on does no wave step → don't inc
+    wavepos); (3) vib-disable (byte 6 = wave speed not vib_speed; $50 was read as a
+    huge vib_speed → +$21 jitter). NEXT (write 92): V2 = inst 8 as a DRUM (noise
+    attack DD00/81 + linear downward pitch slide 0D00→0200); rebuild holds the
+    transient 1 frame too long (no-pre-advance over-holds V2's 1-frame transient).
+    Needs the hard-restart FIRST-step timing + the drum slide mechanism. Then V3,
+    then C-2 filter. METHOD: diagnose freq from the FLAT per-voice (freq,ctl) seq
+    (Trap-C-free) — the steady-vs-sweep + the ×2-vs-×1 transient jump straight out.
 - Members: `tmp/v5_family4_members.json`. Commits 1fd69df/02baf25/824cc9a/88f18bc.
 
 ## ✅ V5 (family-3/5): 1088/1495 FULL (72.8%, 2026-06-29) — glide-wrap +27, idle-filter +20
