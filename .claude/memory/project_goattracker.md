@@ -81,6 +81,26 @@ running. Needs the optimized init to fetch+load the first note in the first
 play() (structural). (3) per-voice order loadregs(00/01/04)-before-pulse(02/03).
 (4) $13f7/no-hr_sr hard restart. The optimized COMPOSITION is a multi-cycle
 structural phase (≈ a 2nd engine body selected by knobs); 1 of ~4 knobs landed.
+
+**⚠️ REVISED SCOPE (this turn, deeper probe of Alive): the optimized COMPOSITION
+is NOT a few knobs — it needs a variant ENGINE BODY (like DMC v5), reading the
+shared USF.** The EXTRACTION genuinely shares the USF model (10 tunes extract;
+song/patt assignment VERIFIED correct — orderlists at the 3-entry table hold real
+pattern numbers, patterns at the 18-entry table). But building Alive with the
+shared V1.5 body + knobs produces SILENCE — the note/freq path doesn't work.
+THREE layered causes found (each its own RE): (1) **resting-voice idle-wave
+freewheel** — orig f0 has all voices freq-set (00=6d) but ctrl=$00 (ungated/
+silent); the patterns genuinely START WITH RESTS (`5f 00 00`), so the f0 freqs
+are a RESTING voice running its wave program (DMC `idle_wave` analog), not played
+notes. Mine leaves resting voices at freq 0. (2) **1-based filttbl init** — GT
+filttbl ptr 0 = the OFF entry, so my setfilter(0) reads the off-entry → $D418=$00
+(orig $0f from a 1-based entry); the init filter ptr is NOT 0. (3) init plays
+music on f0 (no silent deferred-init frame) + per-voice loadregs-before-pulse +
+$13f7 HR. CONCLUSION: treat the optimized variant as a DEDICATED future
+engine-body migration (shared USF + variant extract DONE; variant composer body
+TODO) — not a continuation. KEPT this turn (all V1.5-safe, Joker+Menace47 FULL):
+filter-event-driven knob + sf_d418 direct-write (no & volmask). Optimized tunes
+currently build as div-0 partials (accurate WIP, not false-FULL).
 THEN (V1.5 path): Imdunk's
 gate/note tail (voice3 ctrl $20 gate-off vs $21), grammar ext arp/vibrato fx,
 relocation factory, wide batch. Quick batch: tmp/v1_sample.txt + `v1/verify.py`.

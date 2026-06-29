@@ -241,8 +241,10 @@ def _engine(t: _Tables) -> str:
         filter_exec = ''
         init_filter = ('        lda #0\n'
                        '        jsr setfilter            ; write init filter once\n')
+        # optimized setfiltersub writes $D418 = filttbl[1] DIRECTLY (no & volmask
+        # — the master vol lives in the high nibble of the same byte).
         sf_d417, sf_d418, sf_d416 = ('        sta $d417\n',
-                                     '        and volmask\n        sta $d418\n',
+                                     '        sta $d418\n',
                                      '        sta $d416\n')
     else:
         filter_exec = (
