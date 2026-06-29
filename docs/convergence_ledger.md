@@ -362,6 +362,26 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
   recovery + a FULL sample for regression) before committing a new map entry;
   otrk/wnote were lucky on small samples. Reading $171C/$177A regressed
   Humppa_Demo (1/33 FULLs).
+- **HARD BOUNDARY — off-table reads sonifying DYNAMIC work-RAM (DMC family-2 freq
+  tail, 2026-06-29).** 429/533 family-2 partials diverge on an off-table read; the
+  dominant case (Death_Comes V2 first note, arp 121 → $1720) sonifies the FILTER
+  CLAIM FLAG ($1720: $00 at frame start, voice+1 on claim). Two clean fixes both
+  REJECTED on the 0-regression rule — record so they're not re-tried:
+  (1) *post-init value instead of file image* (`_postinit_values` earliest
+  fallback for varying bytes): +7 family-2 but −2 family-1 (Fear reads its byte
+  DEEP at frame 442 where it = the file image; no static discriminator between
+  "read early = init value" and "read deep = file image").
+  (2) *map $1720 → the composer's live `fclaim`*: +0 recovery, −1 family-1
+  (Long_Night) — the composer's `fclaim` doesn't track the orig's $1720 at the
+  READ MOMENT (voice/claim ordering differs). So live-state redirect needs
+  byte-IDENTICAL state evolution, which a re-implemented engine rarely has.
+  The only clean lever is the earliest-value fix as a VERIFY-FALLBACK (try
+  file-image default, retry earliest for partials, accept iff FULL → +7, 0-regr
+  by construction; deferred — re-extract-retry plumbing not worth +7). The real
+  fix is an EVENT-DRIVEN capture (record the ACTUAL value the orig reads at the
+  read frame via memwatch-on-write base-hi, like `tmp/capturable.py`) — correct by
+  construction, recovers the value-consistent reads. Family-2 freq tail accepted
+  as the hard residue (matches family-1's freq-floor "no single lever").
 - **Consumers:** DMC v4 `_decode_instrument` (commit 3cae4fd).
 
 

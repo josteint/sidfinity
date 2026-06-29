@@ -31,6 +31,18 @@ last cheap structural win):
   (per-cause, no single lever; same as family-1). CTRL 55 / SR 33 likely
   note-contaminated. FL_HI 15 = clean global. THIS is the FULL bottleneck, not
   the build-fails (per [[C5]]).
+  - **FREQ TAIL ROOT-CAUSED (2026-06-29) = OFF-TABLE DYNAMIC READS (hard C11):**
+    re-verified all 533 with current code (0 free recoveries — palimpsest
+    flat_div was STALE; Live's "pos 27" was really pos 94871=71% deep). Off-table
+    classifier: **429/533 (80%) diverge on an off-table read.** Pinned on
+    Death_Comes (V2 first note arp 121 → $1720 = the FILTER CLAIM FLAG): composer
+    used pre-init file-image $03, engine reads post-init $00. TWO clean fixes
+    REJECTED (0-regr rule): earliest-value-instead-of-file-image +7/−2 (Fear deep
+    read = file image); map $1720→fclaim +0/−1 (fclaim timing ≠ orig). Only clean
+    lever = earliest-as-VERIFY-FALLBACK (+7, deferred) or EVENT-DRIVEN capture
+    (the right fix, unbuilt). Accepted as the hard residue → pivoted to V5. Detail
+    in ledger [[C11]] HARD BOUNDARY (dynamic work-RAM). Tooling left in tmp/:
+    f2_classify_divergence.py, f2_partials_reverify.jsonl, f2_offtable_partials.json.
 - **sector_decode 29** = two sub-causes: (a) garbage secp over-run (track byte
   indexes an empty secp slot → sec_addr=$0000/out-of-range; secp tables are tiny,
   e.g. 7 entries, so index≥N reads the adjacent hi-table); (b) valid sec_addr,
