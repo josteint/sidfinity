@@ -52,6 +52,9 @@ FAMILY4_SITES = {
     'op_orderlist': 0x1047, 'op_secp_lo': 0x1147, 'op_secp_hi': 0x114C,
     'op_instr': 0x1339, 'op_freq_lo': 0x1686, 'op_freq_hi': 0x168F,
     'op_wave_ctrl': 0x1658, 'op_wave_freq': 0x165F,
-    'op_pulse_lo': 0x14C6, 'op_pulse_hi': 0x14D0,
+    # pulse: family-4's pulse_run adds $23BC->PW_lo / $23A3->PW_hi, but the
+    # composer does PW_lo += pulse_hi / PW_hi += pulse_lo — so op_pulse_lo must
+    # read $23A3 ($14D0) and op_pulse_hi $23BC ($14C6) (swapped vs the raw read).
+    'op_pulse_lo': 0x14D0, 'op_pulse_hi': 0x14C6,
     'op_filter_lo': 0x1496, 'op_filter_hi': 0x14A7,
 }

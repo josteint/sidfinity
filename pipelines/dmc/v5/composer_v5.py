@@ -1029,6 +1029,16 @@ state_end:
               f'LEFT_SPDCTR = ${m.lo_spdctr:02X}\n'
               f'LEFT_MVOLFRAC = ${m.lo_mvolfrac:02X}\n')
     engine = _ENGINE
+    # family-4 (Jupiter41) WRITE-ORDER knob (ledger C16): family-4's note-on
+    # writes ONLY SR/AD/CTRL on the TICK frame — it does NOT write FREQ=$0000
+    # (the wave-step on the NEXT frame writes the real freq). The family-3
+    # note-on writes FREQ=$0000 here; drop those 2 writes for family-4 so the
+    # note-on emission order matches (note-on pass = SR/AD/CTRL only).
+    if getattr(m, 'family4', False):
+        engine = engine.replace(
+            '        sta notestart,x\n        lda #$00\n'
+            '        sta $d400,y\n        sta $d401,y\n        inc secpos,x',
+            '        sta notestart,x\n        inc secpos,x')
     # CIA multispeed: when the original drives play() via a CIA1 timer (PSID
     # speed bit set), program the SAME timer A latch in our init so libsidplayfp
     # calls OUR play() at the identical rate. cia_period 0 = VBI (no-op).
