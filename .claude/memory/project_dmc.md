@@ -59,6 +59,18 @@ FORMAT, RELOCATED, with a DIFFERENT PLAYER** — NOT a from-scratch engine.
     8-bit cutoff). Jupiter41 filter is nearly static ($D416=$2E, $D418=$3F,
     $D415 never written). All family-3 V5 unaffected (knobs gated on m.family4;
     6/6 FULL sanity each step).
+  - **⚠️ C-3 REAL BLOCKER (commit f2780d4): the 2-phase splits the WRITE ORDER.**
+    Sweeping lo_spdctr maxes the non-filter match at ~63 then FORKS on ORDER (not
+    values/leadin): family-4 BATCHES the note-on pass (SR/AD/CTRL for fetching
+    voices) THEN the wave-step pass (freq/PW/ctrl) — the 2-phase $1016 separates
+    note-on from the $1654 wave-step. The family-3 composer INTERLEAVES per-voice
+    (V1 note-init+wave-step, V2 …). So FULL needs the composer to emit family-4's
+    play() STRUCTURE (note-on pass over all voices, then wave-step pass), gated on
+    m.family4 — a real composer restructuring, NOT a knob. PREREQ: finish tracing
+    the exact $1095/$10E1/$1373/$147B/$1654/$10D3 call graph + per-frame write
+    order. This is THE focused next task for family-4 FULL. (Lesson: the lo_spdctr
+    sweep was the diagnostic that proved it — the write-order forks regardless of
+    leadin, so it's structural.)
 - Members: `tmp/v5_family4_members.json`. Commits 1fd69df/02baf25/824cc9a/88f18bc.
 
 ## ✅ V5 (family-3/5): 1088/1495 FULL (72.8%, 2026-06-29) — glide-wrap +27, idle-filter +20
