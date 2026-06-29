@@ -541,6 +541,10 @@ note_init2:
         sta vibwidth
         lda instr+2,y           ; wave ptr
         sta wavepos,x
+        ;; WAVESPD
+        lda #$00                ; wave-speed reload (family-3: advance every frame)
+        sta wavespd,x
+        sta wavespc,x
         lda instr+3,y           ; pulse ptr
         sta pulseflag
         beq ni_nopulse
@@ -896,7 +900,15 @@ ws_mel:
         lda freqhi,y
         sta freqhiv,x
 ws_adv:
+        lda wavespc,x           ; wave-speed counter: hold N frames per step
+        beq ws_adv_now          ; 0 -> advance now (family-3: speed always 0)
+        dec wavespc,x
+        jmp ws_done
+ws_adv_now:
         inc wavepos,x
+        lda wavespd,x
+        sta wavespc,x
+ws_done:
 
 ;; ----- gate logic: lookahead-based gate-off + hard restart -----
 gate_logic:
@@ -977,6 +989,8 @@ glspeed:  .dsb 3, 0
 gltarget: .dsb 3, 0
 curnote:  .dsb 3, 0
 wavepos:  .dsb 3, 0
+wavespd:  .dsb 3, 0
+wavespc:  .dsb 3, 0
 pulsepos: .dsb 3, 0
 vibdel:   .dsb 3, 0
 vibspd:   .dsb 3, 0
@@ -1046,6 +1060,36 @@ state_end:
             '        sta durctr,x\n        sta vactive,x',
             '        pha\n        lda #$02\n        sta durctr,x\n'
             '        pla\n        sta vactive,x')
+        # family-4 wave-SPEED counter: the instrument's byte 6 ($2293,y) >> 4 is
+        # the wave-step advance period ($1845/$1848 in the orig). family-3 has no
+        # speed (advances every frame). Without this the wave program sweeps every
+        # frame instead of holding each step N frames (the steady-note divergence).
+        engine = engine.replace(
+            '        ;; WAVESPD\n        lda #$00'
+            '                ; wave-speed reload (family-3: advance every frame)\n'
+            '        sta wavespd,x\n        sta wavespc,x',
+            '        ;; WAVESPD\n        lda instr+6,y\n        lsr\n        lsr\n'
+            '        lsr\n        lsr\n        sta wavespd,x\n        sta wavespc,x')
+        # family-4 note-on does NO wave step (only SR/AD/CTRL); the per-frame
+        # wave_step starts at the wave_ptr and holds it `speed` frames. So the
+        # note-on first-step must NOT pre-advance wavepos (family-3 does).
+        engine = engine.replace(
+            '        ldy wavepos,x\n        inc wavepos,x\n        lda wavectrl,y',
+            '        ldy wavepos,x\n        lda wavectrl,y')
+        # family-4 instruments have NO per-instrument vibrato: byte 6 is the WAVE
+        # speed (read by the WAVESPD block), and bytes 5/7 are unused (vibrato is
+        # the $F0 sector command). Zero the composer's per-instrument vib setup so
+        # it doesn't read byte 6 ($50) as a huge vib_speed (spurious freq jitter).
+        engine = engine.replace(
+            '        lda instr+5,y           ; vib delay\n'
+            '        sta vibdel,x\n'
+            '        lda instr+6,y           ; vib speed\n'
+            '        sta vibspd,x\n'
+            '        lda instr+7,y           ; vib width &7\n'
+            '        and #$07\n'
+            '        sta vibwidth',
+            '        lda #$00\n        sta vibdel,x\n        sta vibspd,x\n'
+            '        sta vibwidth')
     # CIA multispeed: when the original drives play() via a CIA1 timer (PSID
     # speed bit set), program the SAME timer A latch in our init so libsidplayfp
     # calls OUR play() at the identical rate. cia_period 0 = VBI (no-op).
