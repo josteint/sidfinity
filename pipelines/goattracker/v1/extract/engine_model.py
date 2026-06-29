@@ -167,27 +167,36 @@ def detect_layout(sid: Sid) -> Layout:
         raise ValueError('V1 anchor not found: filttbl')
     filttbl = _w(mem, h[0] + 2)
 
-    # patttbl + songtbl: both `lda LO,y; sta $fc; lda HI,y; sta $fd`
-    #   B9 <lo> <hi> 85 FC B9 <Lo> <Hi> 85 FD
-    pairs = one([0xB9, None, None, 0x85, 0xFC, 0xB9, None, None, 0x85, 0xFD],
-                1, 'songtbl/patttbl')
-    if len(pairs) < 2:
-        raise ValueError('expected 2 songtbl/patttbl pointer loads')
-    # Each pair loads a (lo_base, hi_base) pointer table; hi-lo == #entries. The
-    # SONG table has exactly 3*nsubtunes entries (3 orderlists/subtune); the
-    # PATTERN table has #patterns. Assign by that diff (robust) — the code ORDER
-    # of getnewnotes vs sequencer is REVERSED in the optimized-layout variant, so
-    # the old "lower address = pattern" rule mis-assigned them there.
-    cand = [(_w(mem, a + 1), _w(mem, a + 6)) for a in pairs[:2]]
+    # patttbl + songtbl: both `lda LO,y; sta zp; lda HI,y; sta zp+1`. The ZP temp
+    # varies by build ($FC/$FD canonical; $AA/$AB, $40/$41, $D6/$D7 in variants),
+    # so WILDCARD the ZP and require the two stores to be CONSECUTIVE ZP bytes:
+    #   B9 <lo> <hi> 85 z B9 <Lo> <Hi> 85 (z+1)
+    pairs = []
+    for a in range(lo, hi - 9):
+        if (mem[a] == 0xB9 and mem[a + 3] == 0x85 and mem[a + 5] == 0xB9
+                and mem[a + 8] == 0x85 and mem[a + 9] == (mem[a + 4] + 1) & 0xFF):
+            pairs.append(a)
+    # distinct (lo_base, hi_base) candidates with valid, plausibly-sized tables
+    cand = []
+    for a in pairs:
+        c = (_w(mem, a + 1), _w(mem, a + 6))
+        if (lo <= c[0] < hi and lo <= c[1] < hi
+                and 0 < (c[1] - c[0]) < 256 and c not in cand):
+            cand.append(c)
+    if len(cand) < 2:
+        raise ValueError('V1 anchor not found: songtbl/patttbl')
+    # The SONG table has exactly 3*nsubtunes entries (3 orderlists/subtune); the
+    # PATTERN table has #patterns. Assign by that diff (robust) — the getnewnotes/
+    # sequencer code ORDER is REVERSED in the optimized-layout variant.
     nsong = 3 * sid.songs
     song_pair = next((c for c in cand if (c[1] - c[0]) == nsong), None)
-    if song_pair is not None and cand[0] != cand[1]:
+    if song_pair is not None:
         songtbllo, songtblhi = song_pair
-        patttbllo, patttblhi = cand[1] if cand[0] == song_pair else cand[0]
+        patttbllo, patttblhi = next(c for c in cand if c != song_pair)
     else:  # ambiguous → fall back to code order (getnewnotes before sequencer)
-        p = sorted(pairs)
-        patttbllo, patttblhi = _w(mem, p[0] + 1), _w(mem, p[0] + 6)
-        songtbllo, songtblhi = _w(mem, p[1] + 1), _w(mem, p[1] + 6)
+        cand.sort()
+        patttbllo, patttblhi = cand[0]
+        songtbllo, songtblhi = cand[1]
 
     # gatetimer + default tempo. Two init structures:
     #  V1.5 normal: `lda #TEMPO; sta chntempo; lda #gt+2; sta chntick; lda #$ff`
