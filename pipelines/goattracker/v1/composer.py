@@ -489,7 +489,8 @@ t0_toneport:
         sta chnnote,x
         lda #$ff
         sta chnnewnote,x
-        jmp tick0done
+        jmp pulseexec            ; legato: chnnote set, freq applies NEXT play
+                                 ; (skip this frame's waveexec - matches orig)
 t0_filter:
         jsr setfilter
         jmp tick0done
