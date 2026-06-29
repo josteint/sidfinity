@@ -206,7 +206,19 @@ $F0)` — orig $3F (mode $30), rebuild $0F. → composer knob: $D416-only 8-bit
 cutoff path + the $D418 mode bits + the $101A master-vol-fade.
 
 **C-3. TIMING** ($1016 2-phase note tempo): note-advance every other frame vs the
-family-3 speed counter → re-time the note stream.
+family-3 speed counter. PROGRESS:
+- ✅ speed=1 extracts correctly → the family-3 composer ticks every 2 frames
+  (= the 2-phase rate). No timing knob needed for the RATE.
+- ✅ `lo_spdctr` was read from `$1013` = family-4's V2 CURNOTE ($24=36), not a
+  speed counter → a bogus 36-frame startup delay. ZEROED for family-4 (correct;
+  member-independent). [`lo_fchi/fclo/filtmode` stay — C-2's filter domain.]
+- ⏳ REMAINING: the LEADIN LENGTH. orig's first note gates ~frame 2 (write ~60);
+  with lo_spdctr=0 the rebuild gates at write ~24 (too early). The family-4 init
+  seeds the per-voice DURATION counter `$17E5,x = 2`; the composer seeds
+  `durctr=1`. → composer knob: seed durctr=2 for family-4 (test; the leadin is
+  sensitive — verify it lands the first note at the orig's frame, not over/under).
+
+### C-1 STATUS: ✅ done (commit cc63144) — non-filter match 25→60 on Jupiter41.
 
 ### Reference (the original first-divergence dump for posterity)
 Building Jupiter41 with the family-3 V5 composer gives the right DATA but the

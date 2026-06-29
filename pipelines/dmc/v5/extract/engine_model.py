@@ -278,6 +278,14 @@ def extract(cfg, hvsc_root: str = 'hvsc84') -> V5Model:
         d = cfg.base - 0x1000
         m.f4_idle_notes = [mem[0x1012 + d + v] for v in range(3)]
         m.f4_filtmode = mem[0x1018 + d]
+        # C-3: lo_spdctr was read from $1013 = V2 CURNOTE in family-4 (not a
+        # speed counter) → a bogus 36-frame startup delay. Zero it; speed=1
+        # already gives the 2-phase tick rate. lo_notes (idle) is overridden by
+        # f4_idle_notes in the composer, so zero it too. (lo_fchi/lo_fclo/
+        # lo_filtmode stay as-is — the filter is C-2's domain; zeroing them
+        # makes to_usf emit an empty init.sid filter block.)
+        m.lo_spdctr = m.lo_mvolfrac = 0
+        m.lo_notes = [0, 0, 0]
     return m
 
 
