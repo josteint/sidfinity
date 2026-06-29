@@ -396,6 +396,8 @@ def parse_pattern(mem, num, addr) -> Pattern:
     guard = 0
     while guard < 8192:
         guard += 1
+        if pos >= len(mem) - 2:                        # bad patt pointer → no $FF
+            raise ValueError('V1: pattern walk overran memory (bad patt pointer)')
         b = mem[pos]; pos += 1
         if b == 0xFF:                                  # ENDPATT
             break
