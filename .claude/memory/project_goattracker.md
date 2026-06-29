@@ -205,17 +205,20 @@ chnwave block via `BD ?? ?? 29 FE 9D 04 D4` +1. The idle freewheel = the engine 
 the PRE-LOADED continuous effect (arp/porta) on the pre-loaded note (Faderik v1: arp
 cdat=$0c on note $41). Init zeros chnwavetbl/chnpulsedir/chnsongptr, KEEPS chnnote/
 chnfreq/chncommand/chncmddata/chnarpcount/chnvibcount/chnpulse. FINISH = emit idle
-priming + diff-converge. **⚠️ RE IMPASSE (RE_NOTES §12d):** orig play#1 writes v1
-freq WITHOUT pulse (per-IRQ-confirmed, not a bucket artifact), but EVERY player2
-freq-write path falls through to loadpulse → impossible per the source as read; +
-the v1 idle freq $2e38 matches neither freqtbl[chnnote] nor voice-1's chnfreq (it
-matches voice-3's slot) → voice-mapping/freq-source also unclear. LIKELY FIX = ledger
-C16 (player2 emits pulse CONDITIONALLY, not loadpulse-every-frame like _engine_v2 →
-parametrize the composer's per-frame emission). BLOCKER: `siddump --pc-trace` produces
-NO output file (tried start 0/1 ± --frames) — the instruction-level trace that would
-crack play#1 is broken; fixing it (or using memwatch-on-write/effect_chain_profiler)
-is the prerequisite. player2 FULL = fix the trace tool → crack play#1 → C16-parametrize
-→ converge. Took it as far as productive this session. **KEY correctness result this turn: PCM
+priming + diff-converge. **✅ CRACKED via pc-trace (RE_NOTES §12d) — NOT an impasse;
+the earlier "no pc-trace file" was just siddump off PATH.** Faderik's player2 is a
+SUB-VERSION of v1_player2_125.s differing in per-frame EMISSION STRUCTURE (C16). The
+pc-trace shows: (1) arpfreq writes freq → nextchn (NO loadpulse after); (2) pulse
+written in the pulse-MOD path BEFORE freq, conditional (skipped on the sequencer
+frame, carry-set) → per-frame order pulse-THEN-freq, and freq-without-pulse on f1;
+(3) per-player freq table (Faderik freqtbl[65]=$2e38≠standard $2e79) — player2's
+arpfreq has an EXTRA `9D $d400` so the existing arpfreq anchor misses it. **3 FIXES TO
+CONVERGE (all understood): (a) player2 freq-table anchor `B9 ?? ?? 9D ?? ?? 9D ?? ??
+B9 ?? ?? 9D`; (b) C16 emission restructure — pulse-in-mod-before-freq, arpfreq/
+continuous-fx → nextchn (no loadpulse-always); (c) idle priming (emit chnnote/
+chncommand/chncmddata/chnarpcount).** All 3 needed before f1 converges (first div =
+idle freq). Tractable convergence, not RE. TOOL LESSON: pc-trace needs env.sh/full
+path; it's the unlock for player2 — don't conclude "impasse" from a PATH error. **KEY correctness result this turn: PCM
 audio comparison CANNOT be a verdict (rebuilds are per-frame-exact not cycle-exact,
 Trap B); the audio-equivalence soundness is decided by the TEST BIT (phase reset),
 not by rendering — proven, recorded in ledger C15.** gatetimer 30 = optimized-init tunes whose HR-flag

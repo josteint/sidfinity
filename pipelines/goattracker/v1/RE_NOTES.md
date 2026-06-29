@@ -380,32 +380,38 @@ $02/$03), which the obvious arp→loadpulse path doesn't produce — the exact s
 loadpulse-skip behavior needs diff-driven nailing. This is the finish-line work: emit
 the idle priming, then converge the first-divergence per-voice write-by-write.
 
-### 12d. player2 idle-prefix — RE IMPASSE (status, 2026-06-29)
+### 12d. player2 — CRACKED via pc-trace (NOT an impasse; the 3 fixes to converge)
 
-Hit a genuine wall converging the idle prefix. The contradiction: orig Faderik
-**play#1 writes v1 freq ($00/$01=$2e38) WITHOUT pulse** ($02/$03), and v2/v3 write
-NOTHING — confirmed NOT a frame-bucket artifact (per-IRQ `writelog_per_irq_capture`
-shows it; Faderik is PSID vblank speed=0). But in player2's source EVERY $D400/$D401
-write path (arpfreq l.469, freqadd l.562, freqsub l.572, toneporta→arpfreq) FALLS
-THROUGH / jmps to `loadpulse` (l.476, writes $D402/$D403). So freq-without-pulse is
-impossible per the source as I read it → I'm missing something about play#1.
-Compounding puzzles: the v1 idle freq $2e38 matches neither `freqtbl[extracted
-chnnote]` nor the extracted chnfreq for voice-1's slot (it matches voice-3's slot),
-so the voice mapping / freq source is also unclear.
+The "impasse" was a false alarm: `siddump` was just off PATH (source `src/env.sh`
+or use `tools/siddump`). With the pc-trace working (`tools/siddump SID --pc-trace
+FILE START END --frames N`), Faderik's play#1/#2 are fully explained. Faderik's
+player2 is a **different sub-version** from `v1_player2_125.s`, differing exactly in
+the per-frame EMISSION STRUCTURE (ledger C16). The pc-trace ground truth:
 
-**LIKELY RESOLUTION = ledger C16** (per-frame emission-order/structure): player2's
-per-frame WRITE STRUCTURE differs from `_engine_v2` — mine does `loadpulse`
-unconditionally for every voice every frame; player2 evidently emits pulse
-CONDITIONALLY (only when a pulse program is active / on certain frames). Fix is to
-PARAMETRIZE the composer's emission (which writes, in what order, per frame), guided
-by an instruction-level diff — NOT more static RE.
+1. **`arpfreq → nextchn` (NO loadpulse after freq).** The freq write (`STA $D400,X`
+   @ $c27d, `STA $D401,X` @ $c286) is followed by `lda chnnext,x; tax; jmp chnloop`
+   (nextchn) — it does NOT fall through to loadpulse. (v1_player2_125.s DOES fall to
+   loadpulse — that's the version mismatch.)
+2. **Pulse is written in the pulse-MOD path** (`STA $D402/$D403` @ $c1c8/$c1cb),
+   BEFORE the freq, and ONLY when the mod runs — it's skipped (`bcs pulseok2`) on
+   the frame after the sequencer (carry set). So per-frame order is **pulse-THEN-freq**
+   (orig f2 = `02 03 … 00 01`), and on a sequencer frame (f1) pulse is skipped →
+   freq-without-pulse. THIS is the C16 fix: my `_engine_v2` does freq-then-pulse with
+   pulse-always (loadpulse after arpfreq) — must flip to pulse-in-mod-before-freq,
+   arpfreq→nextchn.
+3. **Per-player freq table.** Faderik `freqtbl[65]=$2e38` (≠ standard `$2e79`), read
+   `LDA $c3b8,Y` / `LDA $c358,Y`. player2's arpfreq is `B9 freqlo,y; 9D chnfreqlo,x;
+   9D $d400,x; B9 freqhi,y; …` — an EXTRA `9D` ($D400 store) vs V1.5, so the existing
+   arpfreq anchor `B9 ?? ?? 9D ?? ?? B9 …` likely MISSES player2 → freqtbl not
+   extracted → composer falls back to the wrong (standard) table. Add a player2
+   arpfreq anchor (`B9 ?? ?? 9D ?? ?? 9D ?? ?? B9 ?? ?? 9D`) to extract its table.
 
-**BLOCKER:** the definitive tool (`siddump --pc-trace FILE START END`) is NOT
-producing an output file (tried start 0/1, with/without --frames). Getting pc-trace
-working (or `--memwatch-on-write`/effect_chain_profiler on player2) is the prerequisite
-to crack play#1 — it shows the exact PC path that writes v1 freq + whether/where pulse
-is (not) written. THEN parametrize per C16 and converge. Engine is built + runs; this
-is the finish-line RE that needs the right tool, not brute static reading.
+**THE 3 FIXES TO CONVERGE player2 (all understood, multi-step):** (a) extract
+player2's freq table (new arpfreq anchor); (b) C16 emission restructure (pulse in mod
+path before freq, arpfreq/continuous-fx → nextchn, no loadpulse-always); (c) idle
+priming (§12c: emit chnnote/chncommand/chncmddata/chnarpcount so the idle arp/effect
+freewheels correctly). All three are needed before f1 converges (the first divergence
+is the idle freq). Engine builds+runs; this is now a tractable convergence, not RE.
 
 ## Canary
 `hvsc84/MUSICIANS/T/Topaz/Joker.sid` — V1.5, single-subtune, load $1000, compact.
