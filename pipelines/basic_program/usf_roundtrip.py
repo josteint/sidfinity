@@ -109,6 +109,8 @@ def model_to_usf(model, title='bp', gap_exact=False):
     atk = [_vfix(e) for e in model['atk_template']]
     rel = [_vfix(e) for e in model['rel_template']]
     voices = sorted({v for e in atk + rel if (v := e[3])})
+    if not voices:                                     # no pitched voice (e.g. a gate-only
+        raise ValueError('no_note_voices')             # SFX/click w/ a fixed waveform, no freq)
     steps = model['steps']
     # Effective (running) freq per step/voice. A voice may write only the CHANGED
     # freq byte (stateful freq) — the note's pitch is (running hi, running lo).
