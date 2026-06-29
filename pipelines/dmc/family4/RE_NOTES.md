@@ -220,6 +220,25 @@ family-3 speed counter. PROGRESS:
 
 ### C-1 STATUS: ✅ done (commit cc63144) — non-filter match 25→60 on Jupiter41.
 
+## ⚠️ C-3 REAL BLOCKER (found 2026-06-29): the 2-phase splits the WRITE ORDER
+Sweeping lo_spdctr (0..4) maxes the non-filter match at ~63 then forks — and the
+fork is a WRITE-ORDER difference, not values/leadin. At the first-note frame
+(orig writes, one frame): **V1 note-on (SR/AD/CTRL), V2 note-on, THEN the
+wave-steps (freq/PW/ctrl) for the voices** — i.e. family-4 BATCHES the note-on
+pass separately from the wave-step pass (the 2-phase: the TICK path does
+note-on+RTS without wave-stepping; the wave-step/$1654 happens in a separate
+pass). The family-3 composer does **per-voice INTERLEAVED** (V1 note-init+
+wave-step, V2 …). Writes 56-62 match (V1 note-on identical) then the order
+diverges at write 63 (orig=V2 note-on $D40D, rebuild=V1 freq $D400).
+**→ Reaching FULL needs the composer to emit family-4's play() STRUCTURE** (a
+note-on pass over all voices, then a wave-step pass), gated on m.family4 — a
+real composer restructuring, NOT a knob. Prereq: finish tracing the exact
+$1095/$10E1/$1373/$147B/$1654/$10D3 call graph to nail the per-frame write order
+(which voices note-on vs wave-step on the MAIN vs the TICK/$1016 frame, and the
+role of the 3rd JT entry $10D3=$1654×3). C-2 (filter) is comparatively easy once
+the order is right (Jupiter41 filter is near-static: skip $D415, $D418 mode $30,
+$D416=$2E).
+
 ### Reference (the original first-divergence dump for posterity)
 Building Jupiter41 with the family-3 V5 composer gives the right DATA but the
 family-3 PLAYER write stream. First divergence + the deltas to fix:
