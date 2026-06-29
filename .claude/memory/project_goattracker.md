@@ -11,15 +11,30 @@ GoatTracker = 2nd-largest HVSC family after DMC: **8,670 SIDs** (7,311 V2 +
 1,359 V1). Family-doc state `OK`. **Active focus: V1** (the *original*
 GoatTracker 1.x by Cadaver, NOT GoatTracker 2 — user-directed 2026-06-29).
 
-**Status: ✅ CANARY FULLY CONVERGED (Topaz/Joker, 54798/54798 writes exact at
-full songlength). First GoatTracker V1 tune instruction-sequence-exact through
-the full SID→USF→SID pipeline.** Extractor + to_usf + clean composer all working.
-KEY final fix: wave-program `$FF`-marker with note-target byte 0 = STOP
-(waveptr→0), NOT loop — after stop, the continuous fx runs, so a legato toneporta
-SLIDES (speed=param<<2). `parse_wave_program` tgt==0 → loop_to=-1; composer emits
-marker wnote=0. NEXT: other tunes diverge early (Imdunk div@50, Menace47 div@88 —
-features Joker lacks, e.g. vibrato cmd4); then grammar ext for arp/vibrato fx
-(text round-trip), relocation factory, wide batch.
+**Status: ✅ 2 tunes FULLY CONVERGED (Topaz/Joker + Dexter/Menace47, instruction-
+sequence-exact at full songlength). Working V1.5 engine + full SID→USF→SID
+pipeline.** Imdunk at 18%. KEY fixes this session (each high-leverage):
+- wave-program `$FF`-marker note-target byte 0 = STOP (waveptr→0), NOT loop —
+  after stop the continuous fx runs, so a legato toneporta SLIDES
+  (speed=param<<2). `parse_wave_program` tgt==0 → loop_to=-1; composer marker
+  wnote=0. (This converged the canary fully.)
+- porta carry: `clc` before freqadd / `sec` before freqsub (freqsub's sbc needs
+  carry set; portadown was off by 1). (→ Menace47 FULL.)
+- full filter table emission (engine steps it; was a 4-byte placeholder).
+- per-player freq table (extract 128 entries incl. C6 off-table window).
+
+**⚠️ VARIANT LANDSCAPE (big next-phase finding):** detection currently keys on a
+V1.5-specific wavetbl anchor `B9 ?? ?? C9 08` (the `cmp #$08` delayed-wave check).
+In a 42-tune load-$1000 sample: 34 ERROR "wavetbl not found" (a NO-DELAY variant
+— no `cmp #$08`, different wave-exec; pre-V1.5 / NOWAVEDELAY), 8 build (1 FULL +
+7 partial small freq/porta divs). So the V1.5 with-delay variant my engine
+handles is the MINORITY; the **no-delay variant dominates** → broad coverage's
+top priority. The notetbl anchor (`B9 ?? ?? 30 ?? 18 7D`) STILL matches no-delay
+tunes (so findable); need a no-delay detection path + wave-exec variant (config
+knob `nowavedelay`). NEXT: (1) no-delay variant support (biggest leverage),
+(2) Imdunk's gate/note tail (voice3 ctrl $20 gate-off vs mine $21), (3) grammar
+ext for arp/vibrato fx (text round-trip), (4) relocation factory + wide batch.
+Quick batch: sample tmp/v1_sample.txt; `v1/verify.py` per tune.
 
 (history below — superseded by the CONVERGED status above)
 `pipelines/goattracker/v1/` has `disassembly.s` (annotated, canary Joker) +
