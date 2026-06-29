@@ -74,6 +74,7 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
 | chip-global $D415-$D418 automation during a song · master vol / filter varies · global_track vs MasterVolConfig/filter_programs · explicit-event vs parametric | C10 | logged |
 | engine reads a table via an 8-bit index register (`base,Y` w/ Y=#*stride) · orig "reads garbage"/looks broken · extractor must wrap `(#*stride)&0xFF` · suspect OUR extractor not the packer | C11 | logged |
 | accumulated per-step rounding drift in a round-trip · USF stores DELTAS (durations), player sums them to ABSOLUTE positions · a min/floor on each delta drifts over a long song · short tunes pass, long tunes length_fail · keep deltas EXACT (allow 0) | C12 | logged |
+| engine variant dispatch · player jump-table init offset shifted but play body at canonical offset · "no_jumptable"/code-mismatch reject · dispatch on the PLAY-body signature not init (we emit our own init) | C13 | logged |
 
 ---
 
@@ -401,3 +402,34 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
 - **Consumers:** basic_program `model_to_usf(gap_exact=)` + `best_attempt` 2-pass.
   WATCH-LIST: any other delta-encoded round-trip (DMC duration counters, note
   durations in trackers) — audit for a `max(1,…)`/`round` on the per-step delta.
+
+### C13 — Engine-variant dispatch: shifted init, canonical play body
+- **The bug class:** a player family has sub-variants that differ ONLY in the
+  init/dispatch header while the per-frame PLAY body — the code that emits the
+  `$D4xx` write stream — sits at the SAME relative offset as the canonical
+  member. A dispatch keyed on the init handler's offset (or a full-image code
+  compare) rejects these variants (`no_jumptable` / `player_code_mismatch`),
+  even though their play body is byte-identical and every operand site is in the
+  unshifted body. Because the composer EMITS ITS OWN init (universal reset +
+  typed priming, never reproducing the original's init writes — see the CORE
+  TENET and the init-trichotomy), the init handler's layout is IRRELEVANT to the
+  write-stream verdict; only the play body matters.
+- **TELL / how it presents:** a cluster of build-fails whose jump table has the
+  canonical PLAY target (e.g. DMC family-2 `JMP base+$85`) but an init target a
+  few bytes off (`base+$38..$3A` vs the canonical `base+$37`). The play body
+  decodes cleanly; only the init region differs.
+- **Canonical fix:** dispatch on the PLAY-body signature, NOT the init offset.
+  Accept the variant, extract operands from the (unshifted) canonical play-body
+  sites, emit your own init, and let BUILD+VERIFY (the write stream) be the
+  judge. A loosened dispatch can never false-FULL — a genuinely-different engine
+  that happens to share the play offset extracts garbage operands and verifies
+  partial, not full. Keep the init-offset window tight enough to be principled
+  (near the family's real init region) but don't gate on an exact match.
+- **Status:** logged (DMC family-2 `_jt_layout` play+$85 / init∈[+$30,+$40],
+  commit 2a07a7e; +12 FULL / 2 correctly-partial / 0 false-accept). Composes with
+  the earlier build+verify-gate change (aaa914c) that replaced the family-2
+  code-identity hard-reject with a `break` + build+verify judge — same principle
+  (the write stream judges, not code identity), one round apart.
+- **Consumers:** `pipelines/dmc/v4/factory.py` `_jt_layout`. WATCH-LIST: any
+  feature-driven family whose detection compares init/dispatch code — the
+  verdict is the play stream, so dispatch should key on the play body.
