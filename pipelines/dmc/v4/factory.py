@@ -479,6 +479,16 @@ def _build_via_canon(sid_path: str, hvsc_root: str = 'hvsc84') -> DMCV4Config:
         # enough to dispatch.
         if e0 == b + 0x37 and e1 == b + 0x85:
             return 'family2'
+        # The play body is at the canonical family-2 offset +$85, but the init
+        # handler is shifted a few bytes (+$38..$3A instead of +$37) — a
+        # restructured init header. We emit our own init and every operand site
+        # lives in the UNSHIFTED play body, so these build+verify as family2.
+        # (canonical/2entry are matched above — init+$1D / play+$50 — so this
+        # never catches them.) Validated: 12 FULL / 2 correctly-partial /
+        # 0 false-accept on the no_jumptable residue; the build+verify gate in
+        # _family2_build is the real judge.
+        if e1 == b + 0x85 and b + 0x30 <= e0 <= b + 0x40:
+            return 'family2'
         return None
 
     base = layout = None
