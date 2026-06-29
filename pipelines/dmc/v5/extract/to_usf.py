@@ -167,7 +167,15 @@ _PREFIX = {
 
 
 def _note_byte(n: int) -> Pitch:
-    if n > 119:
+    # A raw note/glide-target byte (0-255). Values >95 are OFF-TABLE indices —
+    # the player reads past the 96-entry freq table, and (for glide/slide
+    # targets) the player adds the running transpose first: the effective index
+    # is (n + transpose) & $FF, which usually wraps back in-table (the target is
+    # stored transpose-relative, e.g. raw $FE = "transpose-2"). The 2-digit-
+    # octave NOTE_NAME (e.g. $FE -> "D-21") round-trips losslessly through
+    # _pitch / _pitch_str_num, and from_usf re-emits `& $FF`, so the byte is
+    # preserved. (The old >119 reject predated 2-digit-octave off-table pitches.)
+    if not 0 <= n <= 255:
         raise RuntimeError(f'unsupported:note_out_of_range {n}')
     return _pitch(n)
 
