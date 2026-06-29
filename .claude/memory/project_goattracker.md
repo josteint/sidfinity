@@ -64,16 +64,26 @@ arp is a per-row musical fx, not a new kind.
    **NEXT: `to_usf.py`** (model→UsfFile): per-row cmds→fx_flags (C14), inst→
    PwmConfig/waveform/wave_freq/loop + FilterProgConfig, note $5E=keyoff/$5F=rest,
    duration from tempo. Then `config.py`.
-2. **Composer**: CLEAN reimplementation (NOT transliteration — RE_NOTES §10)
-   of a GT-V1-equivalent engine in xa65, treating `v1_player1_v153.s` as
-   semantics documentation only. NO SMC / patched immediates / packed layout /
-   funktempo-slot-reuse; our own clean layout, data emitted from USF. (Each
-   family has its own composer; engine-blindness = no content-sniffing WITHIN
-   one composer.) Reproduce write OUTPUTS incl. `$D404=$09` testbit-on-new-note.
-3. **Verify** canary writelog (instruction-sequence exact,
-   [[feedback_verification_modes]]); then reloc factory + stratified-subset
-   iteration; full batch at closeout (the [[project_fc_fingerprint_and_standard]]
-   playbook). Mirror DMC infra: composer_asm.py + v4/factory.py + extract/.
+2. **Composer** (`v1/composer.py`): data-emission + xa65 + PSID harness DONE
+   (assembles, builds a 2592-byte SID for Joker; `build_v1_sid`/`compose_v1_asm`).
+   Data layout chosen: separate per-field instrument arrays (instad/instsr/...
+   indexed by 1-based id, NO *8), wave arrays in GT shape (wctrl/wnote + $FF
+   marker + relative loop tgt=loop+2 so waveexec is a faithful v153 transcription),
+   freq table = baked constant, song/pattern pointer tables (per-voice slot base).
+   `_encode_pattern`/`_fx_to_cmd` invert to_usf. **ENGINE IS STUBBED** (`_ENGINE`
+   = init/play rts) — the clean v153 transcription is the NEXT focused task:
+   filter exec (always writes $D416/17/18), 3-voice loop (X=0/7/14), deferred
+   first-play init via RAM flag, tick/funktempo, tick0 seq+newnote, waveexec,
+   continuous fx (arp/porta/toneporta/vibrato), pulse bounce, gatetimer+HR,
+   loadregs. RAM globals (no SMC), rts-trick cmd dispatch, constants
+   GATETIMER/HR_AD/HR_SR/DEFTEMPO. Reproduce write OUTPUTS incl. $D404=$09 testbit.
+3. **Verify**: build canary -> `writelog_capture` both -> `compare_instruction_stream`
+   ([[feedback_verification_modes]]); iterate first-divergence. Then grammar
+   extension for arp/vibrato fx (text round-trip), factory, wide batch.
+Then reloc factory + stratified-subset iteration; full batch at closeout (the
+[[project_fc_fingerprint_and_standard]] playbook). Mirror DMC infra:
+composer_asm.py + v4/factory.py + extract/. Harness refs: `src.composer_runtime.
+xa65.assemble`, `.psid.build_header`, `pipelines.hubbard.verify_cycle`.
 
 See [[feedback_check_existing_engine_docs]], [[feedback_residue_triage_order]],
 [[project_fc_fingerprint_and_standard]] (the closest analog: one vanilla player +
