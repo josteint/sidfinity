@@ -1,17 +1,14 @@
 """GoatTracker V1 composer — UsfFile -> our own clean 6502 engine -> xa65 -> PSID.
 
 CLEAN REIMPLEMENTATION of the V1.5 algorithm (RE_NOTES §10), NOT a
-transliteration: RAM globals (no SMC), our own data layout (separate
-per-field instrument arrays; rts-trick command dispatch), gatetimer/HR/tempo
-as plain constants. We reproduce the WRITE STREAM (incl. $D404=$09 testbit on
-new-note), not the original's byte tricks. Data tables are regenerated from the
-USF musical content — no original bytes are emitted.
+transliteration: RAM globals (no SMC), our own data layout (separate per-field
+instrument arrays, branch-chain command dispatch), gatetimer/HR/tempo as plain
+constants. We reproduce the WRITE STREAM (incl. $D404=$09 testbit on new-note),
+not the original's byte tricks. All tables are regenerated from USF musical
+content — no original bytes are emitted.
 
-The wave-table layout is regenerated in GT's own (wavetbl/notetbl + $FF-marker)
-shape so the wave-exec is a direct clean transcription of v153's mt_waveexec —
-the lowest-divergence-risk choice for the per-frame (waveform, freq) sequence.
-
-Status: FIRST DRAFT — bring-up against the canary writelog in progress.
+The wave-table layout is regenerated in GT's own (wctrl/wnote + $FF-marker)
+shape so wave-exec is a faithful clean transcription of v153's mt_waveexec.
 """
 from __future__ import annotations
 
@@ -21,8 +18,7 @@ from src.composer_runtime.psid import build_header, FLAGS_PAL_6581
 
 LOAD = 0x1000
 
-# The V1.5 freq table is a PLAYER CONSTANT (RE_NOTES §2) — emitted verbatim
-# for every tune (engine machinery, not per-tune content).
+# V1.5 freq table — a PLAYER CONSTANT (RE_NOTES §2), emitted verbatim.
 FREQ_HI = [
     0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x02,
     0x02,0x02,0x02,0x02,0x02,0x02,0x03,0x03,0x03,0x03,0x03,0x04,
@@ -53,7 +49,6 @@ def _note_num(p: Pitch) -> int:
 
 
 def _byts(name, data, per=16) -> str:
-    """Emit a labelled .byt block."""
     out = [f'{name}:']
     for i in range(0, len(data), per):
         out.append('        .byt ' + ', '.join(f'${b & 0xFF:02x}'
@@ -64,12 +59,10 @@ def _byts(name, data, per=16) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Data model: flatten the USF into engine tables
+# Flatten the USF into engine tables
 # ---------------------------------------------------------------------------
 
 class _Tables:
-    """Build the engine's data tables from the USF (canary: 1 subtune)."""
-
     def __init__(self, usf: UsfFile):
         self.usf = usf
         p = usf.params.fields
@@ -77,33 +70,35 @@ class _Tables:
         self.hr_ad = int(p.get('hr_ad', 0))
         self.hr_sr = int(p.get('hr_sr', 0))
         self.deftempo = int(p.get('default_tempo', 5))
+        fi = p.get('filt_init', [0, 0, 0x0F, 0, 0])
+        self.filt = list(fi) + [0, 0, 0x0F, 0, 0][len(fi):]
+        self.funk = list(p.get('funk', [0, 0]))
+        # freq table is PER-PLAYER (carried in USF); fall back to v153 constant.
+        # Length is 2*N (lo then hi); N=128 captures the off-table window (C6).
+        if usf.freq_table and len(usf.freq_table) >= 192:
+            half = len(usf.freq_table) // 2
+            self.freqlo = list(usf.freq_table[:half])
+            self.freqhi = list(usf.freq_table[half:2 * half])
+        else:
+            self.freqlo = FREQ_LO
+            self.freqhi = FREQ_HI
 
-        # Instruments — separate per-field arrays, indexed by 1-based id.
         insts = {i.id: i for i in usf.instruments}
         self.ninst = (max(insts) + 1) if insts else 1
-        self.instad = [0] * self.ninst
-        self.instsr = [0] * self.ninst
-        self.instpulse = [0] * self.ninst
-        self.instpulsespd = [0] * self.ninst
-        self.instpulselo = [0] * self.ninst
-        self.instpulsehi = [0] * self.ninst
-        self.instfilter = [0] * self.ninst
-        self.instwave = [0] * self.ninst         # start index into wave arrays
-
-        # Wave arrays (GT shape: wctrl/wnote + $FF marker + relative loop tgt).
-        # Index 0 reserved = "no program".
-        self.wctrl = [0]
-        self.wnote = [0]
-        for iid in range(1, self.ninst):
+        n = self.ninst
+        self.instad = [0] * n; self.instsr = [0] * n
+        self.instpulse = [0] * n; self.instpulsespd = [0] * n
+        self.instpulselo = [0] * n; self.instpulsehi = [0] * n
+        self.instfilter = [0] * n; self.instwave = [0] * n
+        self.wctrl = [0]; self.wnote = [0]            # index 0 = no program
+        for iid in range(1, n):
             inst = insts.get(iid)
             if inst is None:
                 continue
             ad, sr = inst.adsr
-            self.instad[iid] = ad
-            self.instsr[iid] = sr
+            self.instad[iid] = ad; self.instsr[iid] = sr
             self.instpulse[iid] = inst.pwm.init
-            spd = inst.pwm.speed & 0xFE          # bit0 = hard-restart flag (0 = HR on, the default)
-            self.instpulsespd[iid] = spd
+            self.instpulsespd[iid] = inst.pwm.speed & 0xFE  # bit0=HR flag (0=HR on)
             self.instpulselo[iid] = inst.pwm.min_hi
             self.instpulsehi[iid] = inst.pwm.max_hi
             self.instfilter[iid] = inst.filter_prog.program
@@ -114,81 +109,74 @@ class _Tables:
                 for left, right in steps:
                     self.wctrl.append(left & 0xFF)
                     self.wnote.append(right & 0xFF)
-                # loop marker: tgt = loop_step + 2 (newptr = tgt + start - 2)
+                # marker: wctrl=$FF, wnote = ABSOLUTE loop-target index (our own
+                # clean scheme — engine loads it directly, no carry arithmetic).
                 lp = inst.loop if inst.loop is not None else (len(steps) - 1)
                 self.wctrl.append(0xFF)
-                self.wnote.append((lp + 2) & 0xFF)
+                self.wnote.append((start + lp) & 0xFF)
 
-        # Orderlists + patterns (canary: subtune 0). Per voice: concatenate the
-        # per-voice patterns into one byte stream + a pointer table; the
-        # orderlist holds offsets. We keep it simple: song table -> per-channel
-        # orderlist bytes; pattern table -> per (voice,patternid) byte streams.
         sub = usf.subtunes[0]
-        self.voices = []     # list of dict(orderbytes, patterns=[bytes], loop_off)
+        # Global pattern slots: each voice's USF patterns (0-based contiguous)
+        # map to a flat slot table; the orderlist stores the GLOBAL slot so the
+        # engine indexes pattlo,chnpattnum directly. (Slots must stay < $D0 to
+        # avoid colliding with orderlist REPEAT/TRANS/LOOP markers.)
+        self.voices = []
+        base = 0
         for v in sub.voices:
-            self.voices.append(self._voice_tables(v))
+            self.voices.append(self._voice_tables(v, base))
+            base += len(v.patterns)
 
-    def _voice_tables(self, v):
-        # Encode each pattern to a GT-style byte stream.
-        pat_bytes = []
-        for pat in sorted(v.patterns, key=lambda p: p.id):
-            pat_bytes.append((pat.id, _encode_pattern(pat.rows)))
-        # Orderlist bytes: transpose/repeat prefixes + pattern ids + loop.
+    def _voice_tables(self, v, base):
+        pat_bytes = [(pat.id, _encode_pattern(pat.rows))
+                     for pat in sorted(v.patterns, key=lambda p: p.id)]
         ol = v.orderlist
         order = bytearray()
-        entry_off = []      # entry index -> byte offset
+        entry_off = []
         cur_trans = 0
         for i, pn in enumerate(ol.entries):
             t = ol.transpose_at(i)
             if t != cur_trans:
-                order.append((t + 0xF0) & 0xFF)     # TRANS ($E0=-16..$FE=+14)
+                order.append((t + 0xF0) & 0xFF)
                 cur_trans = t
             rep = ol.repeat_at(i)
             if rep > 1:
                 order.append((0xD0 + (rep - 1)) & 0xFF)
             entry_off.append(len(order))
-            order.append(pn)
-        loop_off = entry_off[ol.loop_to] if ol.loop_to is not None and entry_off \
-            else 0
-        order.append(0xFF)          # LOOPSONG
+            order.append((base + pn) & 0xFF)            # GLOBAL slot
+        loop_off = entry_off[ol.loop_to] if (ol.loop_to is not None
+                                             and entry_off) else 0
+        order.append(0xFF)
         order.append(loop_off)
         return {'order': bytes(order), 'patterns': pat_bytes}
 
 
 def _encode_pattern(rows) -> bytes:
-    """USF rows -> GT pattern byte stream (RE_NOTES §4)."""
     out = bytearray()
     for r in rows:
-        # decode fx_flags -> (cmd, param)
         cmd, param = _fx_to_cmd(r.fx_flags)
         if r.pitch.is_rest and not r.fx_flags and r.duration > 1:
-            # packed rest of N rows
-            out.append((256 - r.duration) & 0xFF)
+            out.append((256 - r.duration) & 0xFF)         # packed rest
             continue
         if r.pitch.is_rest:
             note = 0x5E if 'keyoff' in r.fx_flags else 0x5F
         else:
             note = _note_num(r.pitch)
+        inst = r.instr.id if r.instr else 0
         if cmd is not None:
-            inst = r.instr.id if r.instr else 0
-            out.append(note)                 # note WITH command (<$60)
+            out.append(note)                              # note WITH command
             out.append(((inst & 0x1F) << 3) | (cmd & 7))
             out.append(param & 0xFF)
+        elif inst:
+            out.append(note)                              # instr change needs cmd form
+            out.append(((inst & 0x1F) << 3) | 0)
+            out.append(0)
         else:
-            # note WITHOUT command — but instrument changes need the cmd form.
-            inst = r.instr.id if r.instr else 0
-            if inst:
-                out.append(note)
-                out.append(((inst & 0x1F) << 3) | 0)   # cmd 0 (arp) param 0 = noop
-                out.append(0)
-            else:
-                out.append((note + 0x60) & 0xFF)       # note-only ($60-$BF)
-    out.append(0xFF)             # ENDPATT
+            out.append((note + 0x60) & 0xFF)              # note-only ($60-$BF)
+    out.append(0xFF)
     return bytes(out)
 
 
 def _fx_to_cmd(flags):
-    """fx_flags tuple -> (cmd, param) or (None, None). Inverse of to_usf._row_fx."""
     for f in flags:
         if f == 'keyoff':
             continue
@@ -214,100 +202,689 @@ def _fx_to_cmd(flags):
 
 
 # ---------------------------------------------------------------------------
-# Engine assembly (clean transcription of v1_player1_v153.s)
+# Engine — clean transcription of v1_player1_v153.s mt_play
 # ---------------------------------------------------------------------------
 
-def compose_v1_asm(usf: UsfFile) -> str:
-    t = _Tables(usf)
+def _engine(t: _Tables) -> str:
+    return f"""
+GATETIMER = ${t.gatetimer:02x}
+INITTICK  = ${(t.gatetimer + 2) & 0xff:02x}
+HR_AD = ${t.hr_ad:02x}
+HR_SR = ${t.hr_sr:02x}
+DEFTEMPO = ${t.deftempo:02x}
+temp1 = $fc
+temp2 = $fd
 
-    # Build per-voice data sections + the song/pattern pointer tables.
-    order_blocks = []
-    patt_ptr_lo, patt_ptr_hi, patt_blocks = [], [], []
-    song_lo, song_hi = [], []
-    pat_label_id = 0
-    for ch, vt in enumerate(t.voices):
-        song_lo.append(f'<order_{ch}')
-        song_hi.append(f'>order_{ch}')
-        order_blocks.append(_byts(f'order_{ch}', vt['order']))
-        # patterns for this voice, keyed by USF pattern id -> global label
-        for pid, pb in vt['patterns']:
-            lbl = f'patt_{ch}_{pid}'
-            patt_blocks.append(_byts(lbl, pb))
-    # Pattern pointer table indexed by (voice, pattern id). The engine reads
-    # chnpattnum directly; we build a flat per-voice scheme: chnpattnum stores
-    # a global pattern slot. Simpler: build one pattern pointer table over all
-    # (voice,pid) slots, and the orderlist entries already store the USF pid;
-    # but pids repeat across voices. Use a per-voice base offset.
-    # --- flatten: assign every (voice,pid) a global slot ---
-    slot_lo, slot_hi = [], []
-    voice_base = []
-    slot = 0
-    for ch, vt in enumerate(t.voices):
-        voice_base.append(slot)
-        # map pid -> slot in order of pid
-        pids = sorted(pid for pid, _ in vt['patterns'])
-        for pid in pids:
-            slot_lo.append(f'<patt_{ch}_{pid}')
-            slot_hi.append(f'>patt_{ch}_{pid}')
-            slot += 1
-
-    asm = []
-    A = asm.append
-    A(f'        * = ${LOAD:04x}')
-    A('        jmp init')
-    A('        jmp play')
-    A('')
-    A(f'GATETIMER = ${t.gatetimer:02x}')
-    A(f'HR_AD = ${t.hr_ad:02x}')
-    A(f'HR_SR = ${t.hr_sr:02x}')
-    A(f'DEFTEMPO = ${t.deftempo:02x}')
-    A('temp1 = $fc')
-    A('temp2 = $fd')
-    A('')
-    A(_ENGINE)
-    A('')
-    # ---- data ----
-    A(_byts('freqlo', FREQ_LO))
-    A(_byts('freqhi', FREQ_HI))
-    A(_byts('instad', t.instad))
-    A(_byts('instsr', t.instsr))
-    A(_byts('instpulse', t.instpulse))
-    A(_byts('instpulsespd', t.instpulsespd))
-    A(_byts('instpulselo', t.instpulselo))
-    A(_byts('instpulsehi', t.instpulsehi))
-    A(_byts('instfilter', t.instfilter))
-    A(_byts('instwave', t.instwave))
-    A(_byts('wctrl', t.wctrl))
-    A(_byts('wnote', t.wnote))
-    # song table (per-channel orderlist pointers)
-    A('songlo:\n        .byt ' + ', '.join(song_lo))
-    A('songhi:\n        .byt ' + ', '.join(song_hi))
-    # pattern pointer table (flat slots)
-    A('pattlo:\n        .byt ' + (', '.join(slot_lo) if slot_lo else '$00'))
-    A('patthi:\n        .byt ' + (', '.join(slot_hi) if slot_hi else '$00'))
-    # per-voice pattern base offsets (slot = voice_base[ch] + pid)
-    A('voicebase:\n        .byt ' + ', '.join(str(b) for b in voice_base))
-    A('')
-    for b in order_blocks:
-        A(b)
-    for b in patt_blocks:
-        A(b)
-    return '\n'.join(asm)
-
-
-# The engine — placeholder for the clean transcription (next iteration writes
-# the full mt_play flow). Kept minimal so the data layout + build harness
-# assemble and we can diff incrementally.
-_ENGINE = """
+; ===== init =====
 init:
+        sta temp1                ; A = subtune
+        asl
+        clc
+        adc temp1                ; subtune*3
+        sta initpos
+        lda #${t.filt[0]:02x}
+        sta filtcut
+        lda #${t.filt[1]:02x}
+        sta filtctrl
+        lda #${t.filt[2]:02x}
+        sta filttype
+        lda #$ff
+        sta volmask
+        lda #${t.filt[3]:02x}
+        sta filttime
+        lda #${t.filt[4]:02x}
+        sta filtstep
         rts
+
+; ===== play =====
 play:
+        lda filttime
+        bne pf_mod
+        lda filtstep
+        beq pf_skip
+        jsr setfilter
+        jmp pf_skip
+pf_mod: dec filttime
+        lda filtcut
+        clc
+        adc filtcutadd
+        sta filtcut
+pf_skip:
+        lda filtcut
+        sta $d416
+        lda filtctrl
+        sta $d417
+        lda filttype
+        and volmask
+        sta $d418
+        ldx #0
+        jsr execchn
+        ldx #7
+        jsr execchn
+        ldx #14
+        jsr execchn
+        lda #$ff
+        sta initpos              ; mark init complete
+        rts
+
+; ===== one channel (X = 0/7/14) =====
+execchn:
+        lda initpos
+        bmi ec_noinit
+        sta chnsongnum,x
+        inc initpos
+        cpx #0
+        bne ec_initnf
+        lda #0
+        sta $d415                ; first channel cutoff lo = 0
+ec_initnf:
+        lda #DEFTEMPO
+        sta chntempo,x
+        lda #INITTICK
+        sta chntick,x
+        lda #$ff
+        sta chnpattptr,x
+        sta chnnewnote,x
+        lda #1
+        sta chninstnum,x
+        jmp loadregs
+
+ec_noinit:
+        dec chntick,x
+        bne ec_chktickn
+        jmp tick0
+ec_chktickn:
+        bpl ec_noreload
+        lda chntempo,x
+        cmp #2
+        bcs ec_nofunk
+        tay
+        eor #1
+        sta chntempo,x
+        lda funktbl,y
+ec_nofunk:
+        sta chntick,x
+ec_noreload:
+        ldy chnwaveptr,x
+        beq ec_fxrun
+        jmp waveexec
+ec_fxrun:
+        lda #0
+        sta temp2                ; speed hi = 0
+        ldy chnfx,x
+        lda chnfxparam,x
+        cpy #1
+        beq tn_portaup
+        cpy #2
+        beq tn_portadown
+        cpy #3
+        beq tn_toneport
+        cpy #4
+        beq tn_vibrato
+        cpy #0
+        beq tn_arp
+        jmp pulseexec            ; fx 5/6/7 idle
+
+; ----- continuous effects (tick N) -----
+tn_arp:
+        cmp #0
+        beq tn_arpzero
+        jmp arpeggio
+tn_arpzero:
+        jmp pulseexec            ; arp param 0 = no-op
+
+tn_portaup:
+        jsr makespeed
+        jmp freqadd
+tn_portadown:
+        jsr makespeed
+        jmp freqsub
+
+tn_vibrato:
+        tay
+        and #$f0
+        sta temp1                ; speed (delta hi bits)
+        tya
+        and #$0f
+        sta vibcmp
+        lda chnarpcount,x
+        bmi vib_nodir
+        cmp vibcmp
+        bcc vib_nodir2
+        beq vib_nodir
+        eor #$ff
+vib_nodir:
+        clc
+vib_nodir2:
+        adc #2
+        sta chnarpcount,x
+        lsr
+        bcc freqadd
+        bcs freqsub
+
+tn_toneport:
+        ldy chnnote,x
+        cmp #0
+        beq tp_found2            ; speed 0 = tie
+        jsr makespeed
+        lda freqlo,y
+        sec
+        sbc chnfreqlo,x
+        sta tplo
+        lda freqhi,y
+        sbc chnfreqhi,x
+        sta tphi
+        bmi tp_down
+tp_up:  lda temp2
+        cmp tphi
+        bne tp_up_nl
+        lda temp1
+        cmp tplo
+tp_up_nl:
+        bcs tp_found
+freqadd:
+        lda chnfreqlo,x
+        adc temp1
+        sta chnfreqlo,x
+        lda chnfreqhi,x
+        adc temp2
+        sta chnfreqhi,x
+        jmp pulseexec
+tp_down:
+        lda tplo
+        clc
+        adc temp1
+        sta tplo
+        lda tphi
+        adc temp2
+        sta tphi
+        bpl tp_found
+        sec
+freqsub:
+        lda chnfreqlo,x
+        sbc temp1
+        sta chnfreqlo,x
+        lda chnfreqhi,x
+        sbc temp2
+        sta chnfreqhi,x
+        jmp pulseexec
+tp_found:
+        lda #0
+tp_found2:
+        sta chnfxparam,x
+        jmp arpfreqreset
+
+arpeggio:
+        asl
+        lda chnarpcount,x
+        pha
+        adc #1
+        cmp #6
+        bcc arp_nov
+        lda #0
+arp_nov:
+        sta chnarpcount,x
+        pla
+        lsr
+        cmp #1
+        bcc arp1
+        bne arp0
+arp2:   lda chnfxparam,x
+        and #$0f
+        jmp arp_f2
+arp0:   lda #0
+        jmp arp_f2
+arp1:   lda chnfxparam,x
+        and #$70
+        lsr
+        lsr
+        lsr
+        lsr
+arp_f2: clc
+        adc chnnote,x
+        tay
+        jmp arpfreq
+
+; ===== tick 0 =====
+tick0:
+        lda chnnewfx,x
+        tay
+        and #$f8
+        beq t0_skipinst
+        lsr
+        lsr
+        lsr
+        sta chninstnum,x
+t0_skipinst:
+        tya
+        and #$07
+        sta chnfx,x
+        tay
+        lda chnnewfxparam,x
+        sta chnfxparam,x
+        ; tick0 dispatch on Y
+        cpy #3
+        beq t0_toneport
+        cpy #5
+        beq t0_filter
+        cpy #6
+        beq t0_sr
+        cpy #7
+        beq t0_tempo
+        cpy #0
+        beq t0_arp
+t0_idle:
+        jmp tick0done
+t0_arp:
+        cmp #0
+        beq t0_idle              ; param 0
+        lda chnnewnote,x
+        bpl t0_idle              ; new note coming -> skip
+        ldy chnwaveptr,x
+        bne t0_idle              ; wave running -> skip
+        jmp arpeggio
+t0_toneport:
+        lda chnnewnote,x
+        bmi t0_idle
+        sta chnnote,x
+        lda #$ff
+        sta chnnewnote,x
+        jmp tick0done
+t0_filter:
+        jsr setfilter
+        jmp tick0done
+t0_sr:
+        sta $d406,x
+        jmp tick0done
+t0_tempo:
+        bmi t0_tempo_one
+        sta chntempo
+        sta chntempo+7
+        sta chntempo+14
+        jmp tick0done
+t0_tempo_one:
+        cmp #$ef
+        beq t0_timing
+        bcs t0_fader
+        and #$7f
+        sta chntempo,x
+        jmp tick0done
+t0_timing:
+        jmp tick0done
+t0_fader:
+        sta volmask
+        jmp tick0done
+
+tick0done:
+        lda chnnewnote,x
+        bmi tick0nonew
+        ; --- new note init ---
+        sta chnnote,x
+        lda #$ff
+        sta chnnewnote,x
+        sta chngate,x
+        ldy chninstnum,x
+        lda instpulse,y
+        beq nn_skippulse
+        and #$f0
+        sta chnpulsedir,x
+        sta $d402,x
+        lda instpulse,y
+        and #$0f
+        sta chnpulse,x
+        sta $d403,x
+nn_skippulse:
+        lda instwave,y
+        sta chnwaveptr,x
+        lda instad,y
+        sta $d405,x
+        lda chnfx,x
+        cmp #6
+        beq nn_skipsr
+        lda instsr,y
+        sta $d406,x
+nn_skipsr:
+        lda #$09                 ; testbit first-frame ctrl
+        sta chnwave,x
+        sta $d404,x
+        lda instfilter,y
+        beq nn_nofilt
+        jsr setfilter
+nn_nofilt:
+        jmp nextchn
+
+tick0nonew:
+        ldy chnwaveptr,x
+        bne waveexec
+        jmp pulseexec
+        ; fall into waveexec
+
+; ===== wave table exec =====
+waveexec:
+        lda wctrl,y
+        cmp #8
+        bcs we_nodelay
+        cmp chnarpcount,x
+        beq we_skipwave
+        inc chnarpcount,x
+        jmp pulseexec
+we_nodelay:
+        sta chnwave,x
+we_skipwave:
+        lda wnote,y
+        bmi we_abs
+        clc
+        adc chnnote,x
+we_abs: and #$7f
+        sta temp1
+        lda wctrl+1,y            ; peek next step's ctrl
+        cmp #$ff
+        bne we_noend             ; not the loop marker: advance
+        lda wnote+1,y            ; marker: absolute loop-target index
+        jmp we_setptr
+we_noend:
+        iny
+        tya
+we_setptr:
+        sta chnwaveptr,x
+        ldy temp1
+arpfreqreset:
+        lda #0
+        sta chnarpcount,x
+arpfreq:
+        lda freqlo,y
+        sta chnfreqlo,x
+        lda freqhi,y
+        sta chnfreqhi,x
+
+; ===== pulse exec + gate timer =====
+pulseexec:
+        lda chntick,x
+        cmp #GATETIMER
+        beq getnewnotes
+        lda chnpattptr,x
+        cmp #$ff
+        bne normalpulse
+        jmp sequencer
+normalpulse:
+        ldy chninstnum,x
+        lda instpulsespd,y
+        and #$fe
+        beq pulseok
+        sta temp1
+        lda chnpulsedir,x
+        lsr
+        bcs pulsesub
+        asl
+        adc temp1
+        pha
+        lda chnpulse,x
+        adc #0
+        sta chnpulse,x
+        cmp instpulsehi,y
+        jmp pulsedone
+pulsesub:
+        asl
+        sec
+        sbc temp1
+        pha
+        lda chnpulse,x
+        sbc #0
+        sta chnpulse,x
+        cmp instpulselo,y
+pulsedone:
+        sta $d403,x
+        pla
+        adc #0
+        sta chnpulsedir,x
+        sta $d402,x
+pulseok:
+        jmp loadregs
+
+packedrest:
+        ldy chnpackrest,x
+        bne pr_common
+        sta chnpackrest,x
+pr_common:
+        inc chnpackrest,x
+        bne pr_cont
+        inc chnpattptr,x
+pr_cont:
+        jmp rest
+
+; ===== fetch new note from pattern =====
+getnewnotes:
+        ldy chnpattnum,x
+        lda pattlo,y
+        sta temp1
+        lda patthi,y
+        sta temp2
+        ldy chnpattptr,x
+        lda (temp1),y
+        iny
+        cmp #$60
+        bcc gn_cmd
+        cmp #$c0
+        bcs packedrest
+        sbc #$5f
+        sta notenum
+        bcs gn_nocmd
+gn_cmd: sta notenum
+        lda (temp1),y
+        sta chnnewfx,x
+        iny
+        lda (temp1),y
+        sta chnnewfxparam,x
+        iny
+gn_nocmd:
+        lda (temp1),y
+        cmp #$ff
+        beq gn_endpatt
+        tya
+gn_endpatt:
+        sta chnpattptr,x
+        lda notenum
+        cmp #$5e
+        beq gn_keyoff
+        bcs rest                 ; > $5e (rest)
+        clc
+        adc chntrans,x
+        sta chnnewnote,x
+        lda chnnewfx,x
+        and #$07
+        cmp #3
+        beq rest                 ; toneporta: no HR
+        ldy chninstnum,x
+        lda instpulsespd,y
+        lsr
+        bcs gn_nohr
+        lda #HR_AD
+        sta $d405,x
+        lda #HR_SR
+        sta $d406,x
+gn_nohr:
+gn_keyoff:
+        lda #$fe
+        sta chngate,x
+rest:
+
+; ===== register writes =====
+loadregs:
+        lda chnfreqlo,x
+        sta $d400,x
+        lda chnfreqhi,x
+        sta $d401,x
+        lda chnwave,x
+        and chngate,x
+        sta $d404,x
+nextchn:
+        rts
+
+; ===== sequencer (orderlist advance) =====
+sequencer:
+        ldy chnsongnum,x
+        lda songlo,y
+        sta temp1
+        lda songhi,y
+        sta temp2
+        lda chnrepeat,x
+        beq seq_norep
+        dec chnrepeat,x
+        jmp seq_done2
+seq_norep:
+        ldy chnsongptr,x
+seq_loop:
+        lda (temp1),y
+        iny
+        cmp #$d0
+        bcc seq_done
+        cmp #$e0
+        bcs seq_trans
+        sbc #$cf
+        sta chnrepeat,x
+        bcs seq_loop
+seq_trans:
+        cmp #$ff
+        bcc seq_notrans
+        lda (temp1),y
+        tay
+        jmp seq_loop
+seq_notrans:
+        sbc #$ef
+        sta chntrans,x
+        jmp seq_loop
+seq_done:
+        sta chnpattnum,x
+        tya
+        sta chnsongptr,x
+seq_done2:
+        inc chnpattptr,x
+        jmp loadregs
+
+; ===== set filter (A = filter step ptr) =====
+setfilter:
+        tay
+        lda filttbl,y
+        beq sf_mod
+        sta filtctrl
+        lda filttbl+1,y
+        sta filttype
+        lda filttbl+2,y
+        beq sf_cutskip
+        sta filtcut
+sf_cutskip:
+        lda #0
+        beq sf_common
+sf_mod: lda filttbl+2,y
+        sta filtcutadd
+        lda filttbl+1,y
+sf_common:
+        sta filttime
+        tya
+        beq sf_nonext
+        lda filttbl+3,y
+sf_nonext:
+        sta filtstep
+        rts
+
+; ===== 16-bit speed from param (param<<2) =====
+makespeed:
+        asl
+        rol temp2
+        asl
+        rol temp2
+        sta temp1
         rts
 """
 
 
+# ---------------------------------------------------------------------------
+# BSS (channel state + globals) — loaded zeroed from the file
+# ---------------------------------------------------------------------------
+
+_BSS_VARS = [
+    'chntick', 'chntempo', 'chnsongnum', 'chnsongptr', 'chnpattnum',
+    'chnpattptr', 'chnrepeat', 'chntrans', 'chnpackrest', 'chnnewfx',
+    'chnnewfxparam', 'chnfx', 'chnfxparam', 'chnnote', 'chnnewnote',
+    'chninstnum', 'chngate', 'chnwave', 'chnwaveptr', 'chnarpcount',
+    'chnfreqlo', 'chnfreqhi', 'chnpulse', 'chnpulsedir',
+]
+
+
+def _bss() -> str:
+    out = []
+    # globals
+    for g in ('initpos', 'filtstep', 'filttime', 'filtcut', 'filtctrl',
+              'filttype', 'volmask', 'filtcutadd', 'vibcmp', 'notenum',
+              'tplo', 'tphi'):
+        out.append(f'{g}:  .dsb 1, 0')
+    # per-channel arrays (X = 0/7/14 → 15 bytes each)
+    for v in _BSS_VARS:
+        out.append(f'{v}:  .dsb 15, 0')
+    return '\n'.join(out)
+
+
+def compose_v1_asm(usf: UsfFile) -> str:
+    t = _Tables(usf)
+    order_blocks, patt_blocks = [], []
+    song_lo, song_hi = [], []
+    slot_lo, slot_hi, voice_base = [], [], []
+    slot = 0
+    for ch, vt in enumerate(t.voices):
+        song_lo.append(f'<order_{ch}'); song_hi.append(f'>order_{ch}')
+        order_blocks.append(_byts(f'order_{ch}', vt['order']))
+        voice_base.append(slot)
+        for pid, pb in sorted(vt['patterns']):
+            slot_lo.append(f'<patt_{ch}_{pid}')
+            slot_hi.append(f'>patt_{ch}_{pid}')
+            patt_blocks.append(_byts(f'patt_{ch}_{pid}', pb))
+            slot += 1
+
+    A = []
+    A.append(f'        * = ${LOAD:04x}')
+    A.append('        jmp init')
+    A.append('        jmp play')
+    A.append(_engine(t))
+    A.append('')
+    A.append(_byts('freqlo', t.freqlo))
+    A.append(_byts('freqhi', t.freqhi))
+    A.append(_byts('instad', t.instad))
+    A.append(_byts('instsr', t.instsr))
+    A.append(_byts('instpulse', t.instpulse))
+    A.append(_byts('instpulsespd', t.instpulsespd))
+    A.append(_byts('instpulselo', t.instpulselo))
+    A.append(_byts('instpulsehi', t.instpulsehi))
+    A.append(_byts('instfilter', t.instfilter))
+    A.append(_byts('instwave', t.instwave))
+    A.append(_byts('wctrl', t.wctrl))
+    A.append(_byts('wnote', t.wnote))
+    A.append(_byts('funktbl', t.funk))
+    A.append(_byts('filttbl', [t.filt[1], 0, 0, 0]))  # entry 0 placeholder
+    A.append('songlo:\n        .byt ' + ', '.join(song_lo))
+    A.append('songhi:\n        .byt ' + ', '.join(song_hi))
+    A.append('pattlo:\n        .byt ' + (', '.join(slot_lo) if slot_lo else '$00'))
+    A.append('patthi:\n        .byt ' + (', '.join(slot_hi) if slot_hi else '$00'))
+    A.append('voicebase:\n        .byt ' + ', '.join(str(b) for b in voice_base))
+    for b in order_blocks:
+        A.append(b)
+    for b in patt_blocks:
+        A.append(b)
+    A.append(_bss())
+    return '\n'.join(A)
+
+
+def _sanitize(asm: str) -> str:
+    out = []
+    for line in asm.split('\n'):
+        if ';' in line:
+            code, _, comment = line.partition(';')
+            line = code + '; ' + comment.replace(':', '-').strip()
+        out.append(line)
+    return '\n'.join(out)
+
+
 def build_v1_sid(usf: UsfFile) -> bytes:
-    asm = compose_v1_asm(usf)
+    asm = _sanitize(compose_v1_asm(usf))
     code = assemble(asm)
     header = build_header(
         load=0, init=LOAD, play=LOAD + 3,
@@ -324,7 +901,7 @@ if __name__ == '__main__':
     path = sys.argv[1] if len(sys.argv) > 1 else \
         'hvsc84/MUSICIANS/T/Topaz/Joker.sid'
     usf = model_to_usf(extract(parse_sid(path)))
-    asm = compose_v1_asm(usf)
-    print(f'asm {len(asm.splitlines())} lines')
     sid = build_v1_sid(usf)
-    print(f'built SID: {len(sid)} bytes (header 124 + load 2 + code {len(sid)-126})')
+    out = 'tmp/joker.sidfinity.sid'
+    open(out, 'wb').write(sid)
+    print(f'built {out}: {len(sid)} bytes')

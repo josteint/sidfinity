@@ -42,8 +42,8 @@ def _row_fx(cmd, param) -> tuple:
     if cmd is None:
         return ()
     if cmd == 0:                               # arpeggio: cycle root,+X,+Y
-        if param == 0:
-            return ()                          # arp 0 = no-op
+        # Always emit (even param 0): a cmd-row SETS the active continuous
+        # effect to arp, CLEARING any inherited effect (note-only rows inherit).
         x = (param >> 4) & 0x07                # 2nd-note offset (semitones)
         y = param & 0x0F                       # 3rd-note offset
         speed = (param >> 7) & 1               # bit7: 1 = fast (1 frame/step), 0 = slow (2)
@@ -77,7 +77,10 @@ def _rows_to_usf(rows) -> list[NoteRow]:
             out.append(NoteRow(pitch=Pitch.rest(), duration=r.rest_rows))
             continue
         flags = _row_fx(r.cmd, r.param)
-        instr = InstrumentRef(id=r.instr) if r.instr else None
+        # Set instr ONLY on a real instrument change (orig inst field != 0).
+        # Note-only rows (no cmd) inherit BOTH the instrument and the active
+        # effect via engine state — emitting neither keeps that inheritance.
+        instr = InstrumentRef(id=r.instr) if r.new_instr else None
         if r.note == REST or r.note > REST:            # rest / sustain
             out.append(NoteRow(pitch=Pitch.rest(), duration=1, instr=instr,
                                fx_flags=flags))
@@ -152,6 +155,9 @@ def model_to_usf(song: V1Song) -> UsfFile:
         'hr_ad': L.hr_ad,
         'hr_sr': L.hr_sr,
         'default_tempo': 5,
+        # init filter state (setfiltersub(0)): d416, d417, d418type, filttime, filtstep
+        'filt_init': list(song.init_filter),
+        'funk': list(song.funk),
     })
     # Filter table (only when present — canary has none).
     if song.filters:
@@ -165,6 +171,10 @@ def model_to_usf(song: V1Song) -> UsfFile:
         init=InitState(),
         instruments=instruments,
         subtunes=subtunes,
+        # freq table is PER-PLAYER (V1.x sub-versions differ) — carry it as
+        # per-tune musical content (tuning), 96 lo + 96 hi.
+        freq_table=(list(song.freq_lo) + list(song.freq_hi))
+        if song.freq_lo else None,
     )
 
 

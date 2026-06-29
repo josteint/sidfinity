@@ -77,9 +77,21 @@ arp is a per-row musical fx, not a new kind.
    continuous fx (arp/porta/toneporta/vibrato), pulse bounce, gatetimer+HR,
    loadregs. RAM globals (no SMC), rts-trick cmd dispatch, constants
    GATETIMER/HR_AD/HR_SR/DEFTEMPO. Reproduce write OUTPUTS incl. $D404=$09 testbit.
-3. **Verify**: build canary -> `writelog_capture` both -> `compare_instruction_stream`
-   ([[feedback_verification_modes]]); iterate first-divergence. Then grammar
-   extension for arp/vibrato fx (text round-trip), factory, wide batch.
+3. **Verify** (`v1/verify.py`): build+flat-compare. **Canary converges to
+   flat-position 145/1380 (~11%)** — init + filter + voices 1/2 + first notes
+   all match. Fixes landed during bring-up (each advanced the divergence):
+   (a) freq table is PER-PLAYER (extract 128 entries incl. the C6 off-table
+   window — wave relative notes mask &$7F → read past the 96-entry table);
+   (b) wave-loop emitted as ABSOLUTE target (own clean scheme, no carry math);
+   (c) TONEPORTA/note-only INHERITANCE — note-only rows (Row.cmd None) inherit
+   the prev cmd + instrument; emit cmd-flag for ALL cmd-rows (incl. arp0, which
+   CLEARS the effect), set instr only on real change (Row.new_instr). This fixed
+   the spurious off-table wave-restarts (lengths now 1380=1380).
+   **OPEN (next): 1-frame-early note change on the toneporta/continuous tick0**
+   — orig holds note57 one frame longer; ctrl stream matches, only freq is 1
+   early. Use `siddump --writelog-per-irq` (Trap-C-free), NOT per-siddump-frame
+   counting, to nail it. Then grammar extension for arp/vibrato fx (text
+   round-trip), factory, wide batch.
 Then reloc factory + stratified-subset iteration; full batch at closeout (the
 [[project_fc_fingerprint_and_standard]] playbook). Mirror DMC infra:
 composer_asm.py + v4/factory.py + extract/. Harness refs: `src.composer_runtime.

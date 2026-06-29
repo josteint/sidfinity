@@ -184,5 +184,25 @@ running off the 96-entry table → C6).
 - Note-without-command off-by-one ($60→note 1; how C0 nocmd is encoded).
 Settle each against the writelog during canary bring-up, not by guessing.
 
+## 10. Composer principle — CLEAN REIMPLEMENTATION, not transliteration
+The composer must NOT transliterate `v1_player1_v153.s` into xa65. That source
+is dense with the exact MECHANISMS the CORE TENET says to drop:
+- self-modifying code (`mt_chnloop+1`, `mt_volume+1`, jump-target patching),
+- `dc.b $ff,$00` patched-immediate slots (gatetimer, HR AD/SR baked into operands),
+- greloc's overlapping/packed virtual-address layout,
+- the funktempo-reuses-filttbl-slot-0 hack.
+Treat the source as **authoritative DOCUMENTATION of the write-stream semantics**
+(like the V2 docs), then write a CLEAN engine from the USF musical model: real
+RAM variables (no SMC), our own data layout, gatetimer/HR-AD/SR as plain
+constants, funktempo as a clean construct. Reproduce the write OUTPUTS (incl. the
+`$D404=$09` testbit-on-new-note write — a real output, not a trick), NOT the
+original's structure. The algorithm we reproduce (wave-program stepping, arp
+cycling, pulse bounce, gate timing) is the musical MACHINERY and legitimately
+lives in the composer (USF principle §4/§6); the MODEL learns from USF, not the
+composer. Guardrails (the three filters): regenerate every table from USF (no
+HVSC bytes leapfrogged), keep USF parametric/musical (no engine-positional or
+opaque bytes), engine-blind within the one composer (no USF-content sniffing to
+dispatch). See [[feedback_deconstruct_not_reproduce]] + the CORE TENET.
+
 ## Canary
 `hvsc84/MUSICIANS/T/Topaz/Joker.sid` — V1.5, single-subtune, load $1000, compact.

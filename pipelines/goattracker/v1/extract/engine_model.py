@@ -96,6 +96,8 @@ class Layout:
     gatetimer: int         # ticks-before-next-note (hard-restart window)
     hr_ad: int             # hard-restart $D405 value
     hr_sr: int             # hard-restart $D406 value
+    freqlo: int = 0        # freq table lo base (per-player; 96 entries)
+    freqhi: int = 0        # freq table hi base
 
 
 def detect_layout(sid: Sid) -> Layout:
@@ -164,10 +166,23 @@ def detect_layout(sid: Sid) -> Layout:
     hr_ad = mem[ad_h[0] + 1]
     hr_sr = mem[sr_h[0] + 1]
 
+    # freq table — PER-PLAYER (V1.x sub-versions ship different tables!).
+    # arpfreq: lda freqlo,y; sta x; lda freqhi,y; sta x → B9 ?? ?? 9D ?? ?? B9
+    # ?? ?? 9D. The freqlo/freqhi pair are 96 ($60) bytes apart; other matches
+    # (the new-note instwave/instad load) are not — disambiguate on that.
+    freqlo = freqhi = 0
+    for h in _find(mem, lo, hi, [0xB9, None, None, 0x9D, None, None,
+                                 0xB9, None, None, 0x9D]):
+        o1 = _w(mem, h + 1)
+        o2 = _w(mem, h + 7)
+        if abs(o1 - o2) == 96:
+            freqhi, freqlo = (o1, o2) if o1 < o2 else (o2, o1)
+            break
     return Layout(instbase=instbase, wavetbl=wavetbl, notetbl=notetbl,
                   patttbllo=patttbllo, patttblhi=patttblhi,
                   songtbllo=songtbllo, songtblhi=songtblhi, filttbl=filttbl,
-                  gatetimer=gatetimer, hr_ad=hr_ad, hr_sr=hr_sr)
+                  gatetimer=gatetimer, hr_ad=hr_ad, hr_sr=hr_sr,
+                  freqlo=freqlo, freqhi=freqhi)
 
 
 # ---------------------------------------------------------------------------
@@ -179,9 +194,10 @@ class Row:
     """One decoded pattern row. note: 0-$5D real note (C0..A7); $5E keyoff;
     $5F rest; or a packed-rest run (rest_rows>0)."""
     note: int                  # raw note value (see above); -1 if pure packed rest
-    instr: int                 # current instrument number (1-based; 0 = unchanged-carry)
-    cmd: Optional[int] = None  # 0-7, or None (note-only row)
+    instr: int                 # current instrument number (1-based; carried)
+    cmd: Optional[int] = None  # 0-7, or None (note-only row — INHERITS prev cmd)
     param: Optional[int] = None
+    new_instr: bool = False    # True iff this row's cmd byte set inst field != 0
     rest_rows: int = 0         # >0 → packed rest of this many row-slots
 
 
@@ -239,6 +255,26 @@ class V1Song:
     patterns: dict[int, Pattern]
     instruments: dict[int, Instr]
     filters: dict[int, FilterEntry]
+    # Init filter state from setfiltersub(0) at song init (RE_NOTES §1): the
+    # engine reads filttbl[0..3] even on no-filter tunes, setting a constant
+    # $D416/$D417/$D418-type the play loop writes every frame. (d416, d417,
+    # d418type, filttime, filtstep) + funk(filttbl[2],[3]).
+    init_filter: tuple = (0, 0, 0x0F, 0, 0)
+    funk: tuple = (0, 0)
+    freq_lo: list = field(default_factory=list)   # 96 bytes (per-player table)
+    freq_hi: list = field(default_factory=list)
+
+
+def _sim_setfilter0(mem, filttbl) -> tuple:
+    """Simulate setfiltersub(ptr=0) → (d416, d417, d418type, filttime, filtstep)."""
+    b0, b1, b2 = mem[filttbl], mem[filttbl + 1], mem[filttbl + 2]
+    if b0 != 0:                                  # static
+        d417 = b0
+        d418type = b1
+        d416 = b2 if b2 != 0 else 0
+        return (d416, d417, d418type, 0, 0)
+    # mod path: filtcutadd=b2, filttime=b1, filtstep=0 (ptr==0)
+    return (0, 0, 0x0F, b1, 0)
 
 
 def _ptr(mem, lo_base, hi_base, idx):
@@ -304,9 +340,11 @@ def parse_pattern(mem, num, addr) -> Pattern:
             param = mem[pos]; pos += 1
             inst = (fx & 0xF8) >> 3
             cmd = fx & 0x07
-            if inst != 0:
+            new_instr = inst != 0
+            if new_instr:
                 cur_instr = inst
-            pat.rows.append(Row(note=note, instr=cur_instr, cmd=cmd, param=param))
+            pat.rows.append(Row(note=note, instr=cur_instr, cmd=cmd,
+                                param=param, new_instr=new_instr))
         elif b < 0xC0:                                 # note WITHOUT command (1-byte)
             # sbc #$5F runs with carry CLEAR (after cmp #$c0, b<$c0) → b-$60.
             note = b - 0x60                            # $60→C0($00) .. $BD→A7, $BE=keyoff, $BF=rest
@@ -401,8 +439,18 @@ def extract(sid: Sid) -> V1Song:
     for fp in sorted(filt_ptrs):
         filters[fp] = parse_filter_entry(mem, L, fp)
 
+    init_filter = _sim_setfilter0(mem, L.filttbl)
+    funk = (mem[L.filttbl + 2], mem[L.filttbl + 3])
+    # Capture 128 entries (not 96): wave-program relative notes mask to &$7F
+    # (0-127), so notes can run PAST the 96-entry table into the following image
+    # bytes, which the engine plays as real freqs (C6 off-table read). Capturing
+    # the reachable window reproduces those reads as per-tune content.
+    freq_lo = [mem[L.freqlo + i] for i in range(128)] if L.freqlo else []
+    freq_hi = [mem[L.freqhi + i] for i in range(128)] if L.freqhi else []
     return V1Song(sid=sid, layout=L, subtunes=subtunes, patterns=patterns,
-                  instruments=instruments, filters=filters)
+                  instruments=instruments, filters=filters,
+                  init_filter=init_filter, funk=funk,
+                  freq_lo=freq_lo, freq_hi=freq_hi)
 
 
 # ---------------------------------------------------------------------------
