@@ -102,6 +102,12 @@ class Layout:
     freqhi: int = 0        # freq table hi base
     nowavedelay: bool = False  # no delayed-wave variant (no `cmp #$08`)
     player: str = 'tracker'    # 'tracker' (player1/V1.x) or 'gamemusic' (player2)
+    p2_pulse_in_mod: bool = False  # player2 subA: pulse written in mod path before
+                                   # freq, arpfreq→nextchn (vs subB loadpulse-after)
+    chnnote_base: int = 0      # player2 Block A base (chnnote+0,freqlo+1,freqhi+2,
+                               # newnote+3,command+4,cmddata+5,instnum+6) stride-7
+    chnwave_base: int = 0      # player2 Block B base (chnwave+0,wavetbl+1,pulse+2,
+                               # pulsedir+3,arpcount+4,vibcount+5,songptr+6) stride-7
 
 
 def detect_layout(sid: Sid) -> Layout:
