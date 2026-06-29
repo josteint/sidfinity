@@ -11,7 +11,17 @@ GoatTracker = 2nd-largest HVSC family after DMC: **8,670 SIDs** (7,311 V2 +
 1,359 V1). Family-doc state `OK`. **Active focus: V1** (the *original*
 GoatTracker 1.x by Cadaver, NOT GoatTracker 2 — user-directed 2026-06-29).
 
-**Status: RESEARCH + RE_NOTES + disassembly-annotation DONE; extractor next.**
+**Status: ✅ CANARY FULLY CONVERGED (Topaz/Joker, 54798/54798 writes exact at
+full songlength). First GoatTracker V1 tune instruction-sequence-exact through
+the full SID→USF→SID pipeline.** Extractor + to_usf + clean composer all working.
+KEY final fix: wave-program `$FF`-marker with note-target byte 0 = STOP
+(waveptr→0), NOT loop — after stop, the continuous fx runs, so a legato toneporta
+SLIDES (speed=param<<2). `parse_wave_program` tgt==0 → loop_to=-1; composer emits
+marker wnote=0. NEXT: other tunes diverge early (Imdunk div@50, Menace47 div@88 —
+features Joker lacks, e.g. vibrato cmd4); then grammar ext for arp/vibrato fx
+(text round-trip), relocation factory, wide batch.
+
+(history below — superseded by the CONVERGED status above)
 `pipelines/goattracker/v1/` has `disassembly.s` (annotated, canary Joker) +
 `RE_NOTES.md` (full engine semantics + data layout + extraction plan). No
 extractor/composer/config yet. **Layout VALIDATED against Joker**: instruments
