@@ -339,9 +339,11 @@ tn_arpzero:
 
 tn_portaup:
         jsr makespeed
+        clc                      ; freqadd's adc needs carry clear
         jmp freqadd
 tn_portadown:
         jsr makespeed
+        sec                      ; freqsub's sbc needs carry set
         jmp freqsub
 
 tn_vibrato:
