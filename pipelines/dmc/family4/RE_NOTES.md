@@ -5,12 +5,16 @@
 `tmp/v5_family4_members.json`). The V5 factory already DETECTS this family
 (`_detect_v5` → `layout='family4'`) and rejects it with `family4_branch`.
 
-**Verdict so far:** family-4 is a distinct V5 *version* — it SHARES the V5
-track/sector data model with family-3 (Katusha) but has a DIFFERENT player
-(timing, per-voice dispatch, filter) and a DIFFERENT instrument format. ~0.31
-Jaccard to family-3. A real migration, but the family-3 extract/compose
-infrastructure is largely reusable with parametrization + the new instrument
-decode + the new player mechanics.
+**Verdict (revised after mapping the note handler):** family-4 is family-3's V5
+DATA FORMAT, RELOCATED, driven by a DIFFERENT PLAYER. It shares the track
+format, the sector-command map (nearly 1:1 — see table), AND the 8-byte
+instrument record format. The ~0.31 Jaccard is the PLAYER code (different
+timing, filter, per-voice dispatch, zero-page), NOT the data model. So this is
+closer to the **family-2-vs-V4 relocation+knobs** playbook than to a from-scratch
+engine: the family-3 EXTRACT is largely reusable with relocated addresses; the
+real work is (a) factory dispatch + dataflow the relocated table bases, (b) two
+extra sector commands ($EF, $F0), (c) the composer player mechanics (the $1016
+2-phase timing + $D416-only filter). Much more tractable than the initial scope.
 
 Seed disassembly: `pipelines/dmc/family4/disassembly.s` (auto-traced from the
 3 jump-table entries; 1759 reachable bytes; awaiting full hand annotation).
@@ -55,34 +59,62 @@ Track = stream of **sector#** (`< $80`) + track markers:
 - sector# → `$FA/$FB = ($2209[sec], $224B[sec])` (**sector pointer table**:
   lo `$2209`, hi `$224B`), then walk the sector from pos `$17E2,x`.
 
-## SECTOR commands ($1150 dispatch; `< $80` = note → `$1314`)
-Mostly the SAME bytes as family-3 (✅), with family-4-specific ones (⚠):
-| byte | family-4 | family-3 |
-|---|---|---|
-| `$F0` | ⚠ **wave/vib note setup** (`& $07` = vib width → `$1856`; freq`<<`width; hi nibble → `$1809,x` wave?) | (none) |
-| `$F3 nn` | `$17F1,x = nn` (vol/param) | vol |
-| `$F4` | toggle `$1821,x` bit0 (gate_tie) → gate path | gate_tie |
-| `$F5` | toggle `$17F4,x` (EOR $FF) | gate_toggle |
-| `$F8 nn` | `$1853 = nn` (filter cutoff add → `$D416`) | frq (filter base) |
-| `$F9 nn` | nn`<<4`\|`$04`→`$D417` (res) ; nn`&$F0`→`$1018` | flt (type\|res) |
-| `$FA s,t` | slide: spd `$17F7,x`, target `$17FA,x = t+transpose` | slide |
-| `$FB s,a,b` | glide: spd `$17F7,x`, A `$1012,x = a+tr`, B `$17FA,x = b+tr` | glide |
-| `$FC nn` | ⚠ `$17EB,x = nn` + sector-pos (NOT snd) | snd |
-| `$FD nn` | dur `$17E8,x = nn` | dur |
-| `$FE [note][$FF?]` | gate: reload dur, note → `$1827,x`; trailing `$FF`=sector end (reset pos, INC track) → `JMP $1654` | gate |
-- TODO: confirm `$F1`/`$F2` (srr/adr) and `$F6`/`$F7` (fade) presence; map the
-  note handler `$1314` and the `$1654` SID-write; whether `$FC`=instrument-select.
+## SECTOR commands ($1150 dispatch; `< $80` = note → `$1314`) — NEARLY == family-3
+| byte | family-4 | family-3 | match |
+|---|---|---|---|
+| `$EF nn` | ⚠ `$1842,x = nn` (per-voice param; TBD) | (none) | NEW |
+| `$F0 [n]` | ⚠ wave/vib note setup (`n&$07`=vib width→`$1856`; freq`<<`width; hi nib→`$1809,x`) | (none) | NEW |
+| `$F1 nn` | `$D406,y = nn` (SR, y=$100C,x voice base) | srr | ✅ |
+| `$F2 nn` | `$D405,y = nn` (AD) | adr | ✅ |
+| `$F3 nn` | `$17F1,x = nn` (vol override) | vol | ✅ |
+| `$F4` | toggle `$1821,x` bit0 (gate_tie) | gate_tie | ✅ |
+| `$F5` | toggle `$17F4,x` (gate_toggle) | gate_toggle | ✅ |
+| `$F6 nn` | `$1855 = nn` (fade_out) | fade_out | ✅ |
+| `$F7 nn` | `$1854 = nn` (fade_in) | fade_in | ✅ |
+| `$F8 nn` | `$1853 = nn` (filter cutoff add → `$D416`) | frq | ✅ |
+| `$F9 nn` | nn`<<4`\|`$04`→`$D417` (res); nn`&$F0`→`$1018` | flt | ✅ |
+| `$FA s,t` | slide: spd `$17F7,x`, target `$17FA,x = t+tr` | slide | ✅ |
+| `$FB s,a,b` | glide: spd `$17F7,x`, A→`$1012,x`, B→`$17FA,x` (+tr) | glide | ✅ |
+| `$FC nn` | **snd**: `$17EB,x = nn` (inst#; ×8 → `$184B,x` instr index) | snd | ✅ |
+| `$FD nn` | dur `$17E8,x = nn` | dur | ✅ |
+| `$FE [note][$FF?]` | gate: reload dur, note → `$1827,x`; trailing `$FF` = sector end (reset pos, INC track) → `JMP $1654` | gate | ✅ |
+| (else) | INC sector pos, skip | — | |
 
-## Instruments — DIFFERENT layout (`$2292` parallel arrays)
-The MAIN routine `$1373` reads instrument fields from **`$2292/$2293/$2294,Y`**
-(Y = `$184B,x`, the per-voice instrument index — NOT scaled by 8):
-- `$2293,Y & $0F` → `$1809,x` (a count/len; if 0 skip)
-- `$2292,Y` → `$1806,x`
-- `$2294,Y & $F0 >>3` → `$1812,x` ; `$2294,Y & $07` → `$1856` (vib width)
-- so instruments are **parallel byte arrays** at `$2292`(+0), `$2293`(+1),
-  `$2294`(+2) indexed by id, vs family-3's contiguous 8-byte records. Full
-  field map TODO (more arrays likely at `$2295+`, `$2209` overlaps the sector
-  ptr lo — need the operand-site reads in `$1373`/`$1314`).
+## note handler ($1314) + note-on ($1323)
+- `$1314`: `note + transpose($17EE,x) → $1012,x` (curnote). If `$17F4,x` (gate-
+  toggle flag) set → `JMP $11D0` (skip note-on, just gate); else `$1323`.
+- `$1323` note-on: 2nd byte → `$1827,x`; inst index `$17EB,x ×8 → $184B,x`; if
+  no vol-override (`$17F1,x`==0): load AD `$228D[i*8]` → `$D405,y`, SR
+  `$228E[i*8]` → `$D406,y`; `$D404,y = $09` (gate+test); `$1815,x = $09`
+  (note-start flag for `$1373`).
+
+## Instruments — 8-byte records at $228D (SAME format as family-3, relocated)
+`$17EB,x` (the `$FC` inst#) `×8` = the record index `$184B,x`. Fields (base+i*8):
+- `$228D` +0 = **AD** ; `$228E` +1 = **SR** ; +2,3,4 = TBD
+- `$2292` +5 = **WV ptr** ; `$2293` +6 = **PU ptr** (low nibble in `$1373`) ;
+  `$2294` +7 = **FL ptr / vib** (`&$F0>>3`, `&$07`=vib width)
+So NOT parallel arrays — it's the standard V5 8-byte instrument record at base
+`$228D`. (My first read mistook base+offset[i*8] for parallel arrays.)
+
+## Instrument 8-byte record ($228D base) — full field map (from $1373 note-init)
+| off | addr | field | use |
+|---|---|---|---|
+| +0 | `$228D` | AD | → `$D405` at note-on |
+| +1 | `$228E` | SR | → `$D406` (low nibble OR'd with vol-override hi when `$F3` set) |
+| +2 | `$228F` | → `$17FD,x` | (param; vib/pw?) |
+| +3 | `$2290` | program ptr | if ≠0: indexes `$23A3`/`$23BC` tables → `$182D,x`/`$182A,x` |
+| +4 | `$2291` | V3-only | (filter ptr; read only when `x==2`) |
+| +5 | `$2292` | wave ptr | → `$1806,x` |
+| +6 | `$2293` | low nib = wave count → `$1809,x`; hi nib → `$1845/$1848,x` (pulse) |
+| +7 | `$2294` | hi nib `>>3` → `$1812,x` (pulse ptr); low 3 bits → vib width `$1856` |
+
+## KEY TABLE ADDRESSES (Jupiter41; dataflow these per-member)
+- song/orderlist record table: **`$1A40`** (+song*8)
+- sector pointer table: lo **`$2209`**, hi **`$224B`**
+- instrument records: **`$228D`** (8 bytes each)
+- freq table: **`$1779`** (curnote → freq, `$180C`)
+- wave/pulse program tables: **`$23A3`**, **`$23BC`** (indexed by instr +3 byte)
+- filter cutoff: running `$1019` + add `$1853` (`$F8` cmd) → `$D416`
 
 ## Migration delta vs family-3 (what the port needs)
 1. **Factory dispatch**: accept `layout='family4'` (already detected); base = load.
@@ -96,10 +128,29 @@ The MAIN routine `$1373` reads instrument fields from **`$2292/$2293/$2294,Y`**
 5. **Sector decode**: reuse the family-3 walker; reparametrize the command map
    (most bytes match; override `$F0`/`$FC`).
 
-## Remaining Phase-A work
-- [ ] note handler `$1314` + effects `$1373` (vib/glide/pulse/wave/filter writes)
-- [ ] `$1654` (the per-voice SID write — freq/PW/ctrl)
-- [ ] full instrument field map (`$2292`+ arrays)
-- [ ] freq table base + wave/pulse table bases + `$F0` semantics
-- [ ] confirm the `$1016` 2-phase = multispeed-2 vs tempo (measure vs writelog)
-- [ ] census the 686 for sub-variants (are play+$95 members uniform?)
+## Phase-A status: SUBSTANTIALLY COMPLETE
+Mapped: jump table, init, play (2-phase timing + filter), tick/track walk,
+the full sector command map (≈1:1 with family-3 + `$EF`/`$F0`), note handler,
+note-on, the 8-byte instrument record, and the key table addresses. Verdict
+corrected to "family-3 format relocated + different player" (tractable).
+
+### Remaining Phase-A detail (smaller; the standard V5 effect chain, relocated)
+- [ ] steady effects `$147B` (per-frame vib/glide/pulse/wave accumulation)
+- [ ] `$1654` per-voice SID write (freq `$1812`+vib `$180C`/`$180F` → `$D400/1`,
+      PW `$1827` → `$D402/3`, ctrl `$1815`/wave → `$D404`) — confirm the write
+      ORDER (the writelog-exact target)
+- [ ] `$EF`/`$F0` semantics (the two family-4-only sector commands)
+- [ ] `$1016` 2-phase: measure vs writelog — is it multispeed-2 (play() runs the
+      tick path every other frame) or a tempo halving? Affects the verify path.
+- [ ] census the 686 for sub-variants (uniform play+$95? table-base spread?)
+
+## Phase B/C plan (the family-2 playbook)
+1. **Factory**: stop rejecting `layout='family4'`; build a `family4` config
+   (base=load; dataflow the table operand sites above).
+2. **Extract**: reuse the family-3 V5 extract with relocated bases + the
+   `$EF`/`$F0` commands; same track/sector/instrument decode.
+3. **Composer**: a family-4 variant of the V5 engine — the 2-phase `$1016`
+   timing, `$D416`-only filter, `$FA/$FB` zero-page. Reuse the rest.
+4. **Verdict**: `verify_dmc` (engine-neutral). Carve a Jupiter41 reference for
+   the masked-identity dispatch (like `dmc4_family2_player_1000.bin`).
+5. Wide batch over the 686.
