@@ -193,7 +193,23 @@ vol), cmd2=setcutoffadd/cmd5=setfilter-global, wave-exec writes $D404 direct (sp
 freq/pulse), immediate HR + instfilter→global filter, init. It's a multi-turn bring-up
 (core play-model timing differs) → write the routines + converge a canary (Faderik)
 via find_first_divergence. Until done, player2 tunes EXTRACT+to_usf but don't compose
-(not FULL). ~374 tunes ride on it. gatetimer 30 = optimized-init tunes whose HR-flag
+(not FULL). ~374 tunes ride on it.
+
+**✅ _engine_v2 WRITTEN + BUILDS + RUNS (75a9e55)** — clean port of player2's play
+routine, dispatched by `t.player=='gamemusic'`. Faderik builds; global filter sweep +
+play model correct; player1 unaffected. REMAINING = the strict idle-prefix
+reproduction (C15 phase gate: player2 doesn't reset phase → idle freq audible → must
+reproduce, NOT audio-equivalence — confirmed via test-bit; see ledger C15). **Idle
+state located** (RE_NOTES §12c): chnnote block via notetbl-anchor **+7** operand,
+chnwave block via `BD ?? ?? 29 FE 9D 04 D4` +1. The idle freewheel = the engine running
+the PRE-LOADED continuous effect (arp/porta) on the pre-loaded note (Faderik v1: arp
+cdat=$0c on note $41). Init zeros chnwavetbl/chnpulsedir/chnsongptr, KEEPS chnnote/
+chnfreq/chncommand/chncmddata/chnarpcount/chnvibcount/chnpulse. FINISH = emit idle
+priming + diff-converge (open puzzle: orig f1 writes freq WITHOUT pulse — exact
+slow-arp/loadpulse-skip behavior to nail). **KEY correctness result this turn: PCM
+audio comparison CANNOT be a verdict (rebuilds are per-frame-exact not cycle-exact,
+Trap B); the audio-equivalence soundness is decided by the TEST BIT (phase reset),
+not by rendering — proven, recorded in ledger C15.** gatetimer 30 = optimized-init tunes whose HR-flag
 gatetimer anchor `4A A9 gt 9D ?? ?? B0` misses (medium). pattern-overran 20 = my
 generalized song/patt picks a false-positive when no diff-3 table exists (orderlist
 refs an out-of-range pattern) — needs a self-consistency validator or better detect.

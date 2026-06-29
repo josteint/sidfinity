@@ -356,5 +356,29 @@ Then build the canary → `tools/find_first_divergence.py` → fix the first per
 write-order/value diff → iterate (the standard bring-up loop). ~26% of V1 (~374
 tunes) ride on this. Verdict = STRICT Mode-1 (idle reproduced, no audio-equivalence).
 
+### 12c. player2 engine — STATUS + the idle-prefix finish (in progress)
+
+**`_engine_v2` is WRITTEN + BUILDS + RUNS** (composer.py, dispatched by
+`t.player=='gamemusic'`; Faderik builds, global filter sweep + play model correct).
+Player1 unaffected. The REMAINING gap is the strict idle-prefix reproduction.
+
+**Idle-state extraction (block bases located):**
+- chnnote block (Block A, stride-7: chnnote+0, chnfreqlo+1, chnfreqhi+2, chnnewnote+3,
+  chncommand+4, chncmddata+5, chninstnum+6) — base = the **notetbl anchor's operand**
+  `B9 ?? ?? 30 ?? 18 7D <chnnote>` at **+7** (NOT +6 — +6 is the $7D opcode).
+- chnwave block (Block B, stride-7: chnwave+0, chnwavetbl+1, chnpulse+2, chnpulsedir+3,
+  chnarpcount+4, chnvibcount+5, chnsongptr+6) — base via keyoff anchor
+  `BD <chnwave> 29 FE 9D 04 D4` at +1.
+
+**The idle freewheel = the engine running the PRE-LOADED continuous effect on the
+pre-loaded note** (Faderik v1: chncommand=0/arp, chncmddata=$0c, chnnote=$41 → arp over
+freqtbl). player2 init ZEROS chnwavetbl/chnpulsedir/chnsongptr but KEEPS chnnote/chnfreq/
+chncommand/chncmddata/chnarpcount/chnvibcount/chnwave/chnpulse. So to reproduce: emit the
+KEPT vars into the BSS (idle priming) + ensure pi_loop zeros only the zeroed ones.
+**Open puzzle for convergence:** orig f1 writes v1 freq WITHOUT pulse (only $00/$01, no
+$02/$03), which the obvious arp→loadpulse path doesn't produce — the exact slow-arp /
+loadpulse-skip behavior needs diff-driven nailing. This is the finish-line work: emit
+the idle priming, then converge the first-divergence per-voice write-by-write.
+
 ## Canary
 `hvsc84/MUSICIANS/T/Topaz/Joker.sid` — V1.5, single-subtune, load $1000, compact.
