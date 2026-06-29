@@ -67,7 +67,21 @@ writes $15/$17/$18 once at f0, never again); (2) per-voice write ORDER is
 loadregs(freq/ctrl 00/01/04) BEFORE pulse(02/03) — V1.5 does pulse before
 loadregs; (3) the $13f7/no-hr_sr hard restart; (4) inittick=tempo (done). These
 restructure the engine's per-frame write sequence → conditional engine sections,
-multi-cycle build+diff. THEN (V1.5 path): Imdunk's
+multi-cycle build+diff.
+
+**COMPOSER KNOBS — progress (commit 8bf0118):** (1) ✅ filter-event-driven LANDED
+— `_engine` branches on `t.optimized`: setfilter writes $D416/$D417/$D418
+directly (sf_d417/d418/d416), per-frame filter exec skipped, init writes filter
+once via setfilter(0). Alive's per-frame filter writes gone; V1.5 unchanged
+(Joker+Menace47 FULL). REMAINING (each a build/diff cycle, all on Alive, div now
+at pos 0 = init timing): (2) init must PLAY MUSIC on f0 — orig f0 already loads
+all 3 voices' freq/pulse/ctrl (no silent deferred-init frame), but mine's f0 is
+silent (deferred init `jmp loadregs`), so mine is ~1 frame behind + pulse not yet
+running. Needs the optimized init to fetch+load the first note in the first
+play() (structural). (3) per-voice order loadregs(00/01/04)-before-pulse(02/03).
+(4) $13f7/no-hr_sr hard restart. The optimized COMPOSITION is a multi-cycle
+structural phase (≈ a 2nd engine body selected by knobs); 1 of ~4 knobs landed.
+THEN (V1.5 path): Imdunk's
 gate/note tail (voice3 ctrl $20 gate-off vs $21), grammar ext arp/vibrato fx,
 relocation factory, wide batch. Quick batch: tmp/v1_sample.txt + `v1/verify.py`.
 
