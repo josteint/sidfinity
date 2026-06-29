@@ -205,8 +205,17 @@ chnwave block via `BD ?? ?? 29 FE 9D 04 D4` +1. The idle freewheel = the engine 
 the PRE-LOADED continuous effect (arp/porta) on the pre-loaded note (Faderik v1: arp
 cdat=$0c on note $41). Init zeros chnwavetbl/chnpulsedir/chnsongptr, KEEPS chnnote/
 chnfreq/chncommand/chncmddata/chnarpcount/chnvibcount/chnpulse. FINISH = emit idle
-priming + diff-converge (open puzzle: orig f1 writes freq WITHOUT pulse — exact
-slow-arp/loadpulse-skip behavior to nail). **KEY correctness result this turn: PCM
+priming + diff-converge. **⚠️ RE IMPASSE (RE_NOTES §12d):** orig play#1 writes v1
+freq WITHOUT pulse (per-IRQ-confirmed, not a bucket artifact), but EVERY player2
+freq-write path falls through to loadpulse → impossible per the source as read; +
+the v1 idle freq $2e38 matches neither freqtbl[chnnote] nor voice-1's chnfreq (it
+matches voice-3's slot) → voice-mapping/freq-source also unclear. LIKELY FIX = ledger
+C16 (player2 emits pulse CONDITIONALLY, not loadpulse-every-frame like _engine_v2 →
+parametrize the composer's per-frame emission). BLOCKER: `siddump --pc-trace` produces
+NO output file (tried start 0/1 ± --frames) — the instruction-level trace that would
+crack play#1 is broken; fixing it (or using memwatch-on-write/effect_chain_profiler)
+is the prerequisite. player2 FULL = fix the trace tool → crack play#1 → C16-parametrize
+→ converge. Took it as far as productive this session. **KEY correctness result this turn: PCM
 audio comparison CANNOT be a verdict (rebuilds are per-frame-exact not cycle-exact,
 Trap B); the audio-equivalence soundness is decided by the TEST BIT (phase reset),
 not by rendering — proven, recorded in ledger C15.** gatetimer 30 = optimized-init tunes whose HR-flag

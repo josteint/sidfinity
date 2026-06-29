@@ -380,5 +380,32 @@ $02/$03), which the obvious arp→loadpulse path doesn't produce — the exact s
 loadpulse-skip behavior needs diff-driven nailing. This is the finish-line work: emit
 the idle priming, then converge the first-divergence per-voice write-by-write.
 
+### 12d. player2 idle-prefix — RE IMPASSE (status, 2026-06-29)
+
+Hit a genuine wall converging the idle prefix. The contradiction: orig Faderik
+**play#1 writes v1 freq ($00/$01=$2e38) WITHOUT pulse** ($02/$03), and v2/v3 write
+NOTHING — confirmed NOT a frame-bucket artifact (per-IRQ `writelog_per_irq_capture`
+shows it; Faderik is PSID vblank speed=0). But in player2's source EVERY $D400/$D401
+write path (arpfreq l.469, freqadd l.562, freqsub l.572, toneporta→arpfreq) FALLS
+THROUGH / jmps to `loadpulse` (l.476, writes $D402/$D403). So freq-without-pulse is
+impossible per the source as I read it → I'm missing something about play#1.
+Compounding puzzles: the v1 idle freq $2e38 matches neither `freqtbl[extracted
+chnnote]` nor the extracted chnfreq for voice-1's slot (it matches voice-3's slot),
+so the voice mapping / freq source is also unclear.
+
+**LIKELY RESOLUTION = ledger C16** (per-frame emission-order/structure): player2's
+per-frame WRITE STRUCTURE differs from `_engine_v2` — mine does `loadpulse`
+unconditionally for every voice every frame; player2 evidently emits pulse
+CONDITIONALLY (only when a pulse program is active / on certain frames). Fix is to
+PARAMETRIZE the composer's emission (which writes, in what order, per frame), guided
+by an instruction-level diff — NOT more static RE.
+
+**BLOCKER:** the definitive tool (`siddump --pc-trace FILE START END`) is NOT
+producing an output file (tried start 0/1, with/without --frames). Getting pc-trace
+working (or `--memwatch-on-write`/effect_chain_profiler on player2) is the prerequisite
+to crack play#1 — it shows the exact PC path that writes v1 freq + whether/where pulse
+is (not) written. THEN parametrize per C16 and converge. Engine is built + runs; this
+is the finish-line RE that needs the right tool, not brute static reading.
+
 ## Canary
 `hvsc84/MUSICIANS/T/Topaz/Joker.sid` — V1.5, single-subtune, load $1000, compact.
