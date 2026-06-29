@@ -124,6 +124,22 @@ gate-off/resting voices. This is the SAME root as the optimized-Alive silence �
 fixing it helps BOTH paths. HIGHEST LEVERAGE (also flips the unblocked extract_err
 tunes once detection widens).
 
+**✅ IDLE-CHIP PRIMING LANDED (commit 649384b).** Extract per-voice (freqlo,freqhi,
+pulse,dir) from SID RAM at `chnfreq_base+v` (v=0/7/14; chnfreq_base = the arpfreq
+anchor's store operand, free) → params `idle_chip` (only when non-zero) → emitted
+into the chnfreq/pulse BSS arrays (mirrors orig: the value lives in the RAM image,
+init clears Block 1 ONLY, never Block 2). Verified: Joker+Menace47 still FULL
+(all-zero idle_chip = no-op); Memoires div@3→9, Bomdibom div@3→30. Triage net:
+freqlo 23→19, pwlo 11→15 (4 tunes advanced past the freq divergence onto a pulse
+one), noDiv still 4. KEY LESSON: residue tunes have MULTIPLE STACKED divergences
+(idle-freq → pulse-mod → freewheel) — fixing one layer advances the first-div but
+doesn't flip to FULL until all layers for that tune are fixed. NEXT LAYERS (now the
+first-div on the advanced tunes): (a) PULSE-MODULATION (Bomdibom div@30: orig $02=c1
+vs reb $61 — pulse program modulates differently after ~10 frames; v1 IS playing,
+not idle); (b) FREEWHEELING-WAVE idle voice (Memoires v3: pre-load $2e1e but orig
+modulates →$2dde via a running wave program at gate-off — chnwaveptr≠0 case, harder
+than constant-idle). Work these next on the V1.5 path.
+
 **LEVER 2 — extract_err (35) = anchor variants: wavetbl 20, filttbl 8, songtbl/patttbl
 3, gatetimer 2, index 2.** More layout sub-variants where the detect anchors miss.
 Unblocks detection (then those tunes join the freqlo bucket → Lever 1).
