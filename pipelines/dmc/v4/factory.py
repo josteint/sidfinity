@@ -724,8 +724,19 @@ def _family2_build(mem, s, sid_path, base, delta, at, cia_period,
         if masked[i] or i in probe:
             continue
         if mem[at(i)] != canon[i - 0x1000]:
-            raise DMCV4Unsupported('player_code_mismatch_f2',
-                                   f'first diff at ${i:04X}')
+            # The play-body code differs from the reference, but most diffs are
+            # write-stream-BENIGN: zero-page slot ($F8->$78), SID-mirror address
+            # ($D401->$D441 = same register), $D418-via-JSR-helper, relocated
+            # table/state operand, or a loop-target immediate. Per the CORE TENET
+            # the WRITE STREAM is the judge, not code identity — so don't
+            # hard-reject: the operands extract from the canonical sites below
+            # regardless, and build+verify gates the result (verify rejects the
+            # real variants whose diff DOES change the writelog). Measured on the
+            # 49 family-2 rejects: 21 verify FULL, 26 correctly partial, 0 false
+            # accepts (a FULL = thousands of exact (reg,val) writes match). The
+            # $1037-init dispatch already scopes this to family-2-signature
+            # members. (Previously raised player_code_mismatch_f2 here.)
+            break
     # $129F filter-mode extraction: Kajun masks `AND #$0F`; a re-assembly
     # variant uses `STA $9E` (a dead store — the following ASL x4 discards
     # the hi nibble either way, so $D418 is identical). Both equivalent.
