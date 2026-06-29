@@ -340,9 +340,21 @@ chncmddata, chnvibcount, chnwavetbl (player2's wave pointer ≈ V1.5 chnwaveptr 
 reuse chnwaveptr). Globals filtcut/filtcutadd/filtctrl/filttype already exist.
 SFX (playsfx) is game-only → never emit (PSID never calls it).
 
+7. **IDLE NOTE (correctness — ledger C15 phase gate).** player2 does NOT set the
+   test bit ($08) at note-on (first wave-step ctrls are $21/$81/$41…, no $08), so it
+   does NOT reset the oscillator phase. A voice that idles (gate-off) before its first
+   note freewheels freq = freqtbl[pre-loaded chnnote], and that idle freq advances the
+   phase accumulator → AFFECTS the gate-on waveform onset → AUDIBLE. So unlike V1.5
+   (which resets phase via $09 and where the idle freq is provably inaudible → drop it),
+   player2 must REPRODUCE the idle freq: extract the per-voice pre-loaded chnnote (the
+   idle note; per-tune editor-leftover — Faderik $2e38, Improper $0000) and init the
+   engine's chnnote to it so the idle prefix write stream matches under the STRICT
+   Mode-1 verdict. Sound-affecting state IS musical (DMC idle_wave/idle-note precedent).
+   Do NOT use audio-equivalence for player2 — it's unsound here (the phase fear is real).
+
 Then build the canary → `tools/find_first_divergence.py` → fix the first per-voice
 write-order/value diff → iterate (the standard bring-up loop). ~26% of V1 (~374
-tunes) ride on this.
+tunes) ride on this. Verdict = STRICT Mode-1 (idle reproduced, no audio-equivalence).
 
 ## Canary
 `hvsc84/MUSICIANS/T/Topaz/Joker.sid` — V1.5, single-subtune, load $1000, compact.
