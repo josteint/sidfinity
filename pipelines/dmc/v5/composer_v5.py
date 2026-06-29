@@ -1039,6 +1039,13 @@ state_end:
             '        sta notestart,x\n        lda #$00\n'
             '        sta $d400,y\n        sta $d401,y\n        inc secpos,x',
             '        sta notestart,x\n        inc secpos,x')
+        # family-4 init seeds the per-voice DURATION counter to 2 ($17E5,x=2);
+        # the family-3 default is 1. The 2-phase ticks on even frames so the
+        # first note-on lands at frame 2 (durctr 2->1->0). Preserve vactive=$01.
+        engine = engine.replace(
+            '        sta durctr,x\n        sta vactive,x',
+            '        pha\n        lda #$02\n        sta durctr,x\n'
+            '        pla\n        sta vactive,x')
     # CIA multispeed: when the original drives play() via a CIA1 timer (PSID
     # speed bit set), program the SAME timer A latch in our init so libsidplayfp
     # calls OUR play() at the identical rate. cia_period 0 = VBI (no-op).
