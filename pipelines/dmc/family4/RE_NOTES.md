@@ -187,7 +187,28 @@ player — the family-2 relocation+knobs playbook. Ready for Phase B.
   wave tables) and the **FULL pipeline runs end-to-end** (extract→USF→compose→
   build→verify). family-3 V5 unaffected (6/6 FULL sanity). 32/34 sample build.
 
-## Phase C — composer player knobs (the remaining work; from the first diverge)
+## Phase C — STARTED (diagnostics done; work list below)
+Building Jupiter41 with the family-3 composer: data is right, player write
+stream differs. Three concrete issues found (in divergence order):
+
+**C-1. LEADIN curnote leftover (the first divergence).** orig V1 freq `$0C8F`
+(= freq_table[43]) vs rebuild `$011C` (= freq_table[1]) at frame 1 — BEFORE the
+first note gates. `$1012` (curnote) is NOT in the init-cleared range ($17DF..),
+so the engine reads the FILE-IMAGE leftover ($1012=43 for Jupiter41) as the idle
+freq during the leadin; the composer's idle curnote differs. The first GATED
+note (60) decodes correctly. → capture the family-4 curnote leftover ($1012,x,
+3 bytes) like the V5 `lo_notes` idle handling; composer primes them.
+
+**C-2. FILTER** (the ~27k extra writes + $D418): family-4 writes **only $D416**
+(8-bit cutoff = running `$1019` + base `$1853`); composer writes both $D415 &
+$D416 (11-bit). And `$D418 = $101A (mvol fade) | $1018 (filter MODE from $F9 &
+$F0)` — orig $3F (mode $30), rebuild $0F. → composer knob: $D416-only 8-bit
+cutoff path + the $D418 mode bits + the $101A master-vol-fade.
+
+**C-3. TIMING** ($1016 2-phase note tempo): note-advance every other frame vs the
+family-3 speed counter → re-time the note stream.
+
+### Reference (the original first-divergence dump for posterity)
 Building Jupiter41 with the family-3 V5 composer gives the right DATA but the
 family-3 PLAYER write stream. First divergence + the deltas to fix:
 1. **Filter**: orig `$D418=$3F` (filter MODE bits $30 set) vs rebuild `$0F`;

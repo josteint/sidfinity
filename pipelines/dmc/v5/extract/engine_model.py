@@ -88,6 +88,12 @@ class V5Model:
     # speed bit runs play() off the CIA1 timer; the rate is measured from the
     # ground-truth writelog in the factory (py65 can't run the wrapper init).
     cia_period: int = 0
+    # the Jupiter41 V5 variant (play +$95): same data, different player. The
+    # composer emits the family-4 mechanics (2-phase $1016 timing, $D416-only
+    # 8-bit filter + $D418 mode, $1012 leadin-curnote leftover). Phase C.
+    family4: bool = False
+    f4_idle_notes: list = field(default_factory=lambda: [0, 0, 0])  # $1012-$1014
+    f4_filtmode: int = 0    # $1018 (filter MODE nibble from $F9) -> $D418
     title: str = ''
     author: str = ''
     released: str = ''
@@ -264,6 +270,14 @@ def extract(cfg, hvsc_root: str = 'hvsc84') -> V5Model:
     # Off-table arpeggio frequencies, per instrument (the off-table-read form;
     # see _assign_offtable_freq).
     _assign_offtable_freq(mem, a_flo, a_fhi, m)
+    # family-4 (Jupiter41): capture the player-specific leftovers the composer
+    # needs (Phase C). curnote $1012-$1014 is NOT cleared by init → the leadin
+    # freq before the first note; $1018 = the filter MODE nibble → $D418.
+    if getattr(cfg, 'family4', False):
+        m.family4 = True
+        d = cfg.base - 0x1000
+        m.f4_idle_notes = [mem[0x1012 + d + v] for v in range(3)]
+        m.f4_filtmode = mem[0x1018 + d]
     return m
 
 

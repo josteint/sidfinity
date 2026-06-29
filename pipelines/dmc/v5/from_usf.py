@@ -139,6 +139,12 @@ def usf_to_model(usf: UsfFile) -> V5Model:
         title=usf.psid.title, author=usf.psid.author,
         released=usf.psid.released,
     )
+    # family-4 (Jupiter41) player flag + leftovers (Phase C composer knobs)
+    pf = usf.params.fields if usf.params and usf.params.fields else {}
+    if int(pf.get('family4', 0)):
+        m.family4 = True
+        m.f4_filtmode = int(pf.get('f4_filtmode', 0))
+        m.f4_idle_notes = [int(pf.get('f4_note%d' % i, 0)) for i in range(3)]
 
     # ---- re-pack the shared wave table (idle program at index 0, then
     #      each instrument's program) and reassign pointers -------------
