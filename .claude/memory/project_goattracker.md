@@ -50,16 +50,26 @@ arp is a per-row musical fx, not a new kind.
   (`deprecated/gt2_pipeline/GoatTracker_2.77/src/gsong.c`).
 - Index: `docs/v1_README.md`; provenance: `docs/v1_provenance_log.md`.
 
-## Next steps (extractor phase — start here)
-1. **Extractor** (`v1/extract/engine_model.py` + `to_usf.py` + `config.py`):
-   dataflow-read the table bases from the player's `lda <tbl>,Y` operands at
-   fixed offsets relative to play (robust across V1.5 tunes), + song globals
-   (gatetimer, HR AD/SR) from patched immediates. Parse instruments (8B),
-   wave/note programs (per-inst slice via inst.wave + loop), filter table, song
-   table→orderlists, pattern table→patterns. Emit USF. See RE_NOTES §2,§8.
-2. **Composer**: adapt the free-licensed `v1_player1_v153.s` into our xa65
-   engine, emit data tables from USF. (Each family has its own composer; this is
-   fine — engine-blindness is about not content-sniffing WITHIN one composer.)
+## Next steps (extractor phase)
+1. **Extractor binary→model DONE + validated** (`v1/extract/engine_model.py`):
+   `parse_sid` + `detect_layout` (anchor/cluster table-base + globals detection,
+   variant-tolerant) + `extract` → `V1Song` (orderlists, patterns, instruments
+   + wave programs, filter table). Validated on Joker/Imdunk/Menace47. KEY decode
+   fixes already in: instbase via B9-operand clustering (PHA/PLA variants break
+   single anchors); note-without-cmd = `b-$60` (carry-clear sbc, NOT b-$5f);
+   filttbl anchor `A8 B9 ?? ?? F0`; song(diff-3)/patt pair by code-order. Run
+   `python3 pipelines/goattracker/v1/extract/engine_model.py` for the smoke dump.
+   NOTE: Xetris-class (load $4000, older/gamemusic variant) fails the $fc/$fd
+   pair anchor → factory concern for later.
+   **NEXT: `to_usf.py`** (model→UsfFile): per-row cmds→fx_flags (C14), inst→
+   PwmConfig/waveform/wave_freq/loop + FilterProgConfig, note $5E=keyoff/$5F=rest,
+   duration from tempo. Then `config.py`.
+2. **Composer**: CLEAN reimplementation (NOT transliteration — RE_NOTES §10)
+   of a GT-V1-equivalent engine in xa65, treating `v1_player1_v153.s` as
+   semantics documentation only. NO SMC / patched immediates / packed layout /
+   funktempo-slot-reuse; our own clean layout, data emitted from USF. (Each
+   family has its own composer; engine-blindness = no content-sniffing WITHIN
+   one composer.) Reproduce write OUTPUTS incl. `$D404=$09` testbit-on-new-note.
 3. **Verify** canary writelog (instruction-sequence exact,
    [[feedback_verification_modes]]); then reloc factory + stratified-subset
    iteration; full batch at closeout (the [[project_fc_fingerprint_and_standard]]
