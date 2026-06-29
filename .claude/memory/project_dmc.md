@@ -71,6 +71,19 @@ FORMAT, RELOCATED, with a DIFFERENT PLAYER** — NOT a from-scratch engine.
     order. This is THE focused next task for family-4 FULL. (Lesson: the lo_spdctr
     sweep was the diagnostic that proved it — the write-order forks regardless of
     leadin, so it's structural.)
+  - **✅ C16 CONSULT RESOLVED THE FRAMING (commits f33dde5/2acfbec/39ae337): it's
+    KNOBS, not a rewrite.** The ledger consult (C16: parametrize emission order;
+    precedent FC nextvoice_write_order) corrected my premature "wholesale rewrite"
+    call. Traced the exact order + landed 3 family-4-gated knobs (family-3 7/7 FULL
+    each): (1) note-on FRQ-skip (family-4 note-on = SR/AD/CTRL only, no FREQ=$0;
+    60→73); (2) pulse lo/hi swap in FAMILY4_SITES (73→86); (3) leadin durctr=2
+    (init seeds $17E5=2; principled w/ lo_spdctr=0, no magic; match 86). Jupiter41
+    non-filter match 60→86/13824 — **NOT yet FULL**; next divergence (write 86) = a
+    per-note DURATION/effect (orig holds freq $27DF gate-on, rebuild gate-offs early
+    $0451 → suspect the family-4 $FE/$FC sector duration decode: note $3C followed
+    by $FE may be a 2-byte [note][param] vs family-3's 1-byte). Then C-2 filter.
+    Path PROVEN (each knob advances the match). METHOD LESSON: CONSULT the ledger
+    BEFORE scoping a fix as "big/next-session".
 - Members: `tmp/v5_family4_members.json`. Commits 1fd69df/02baf25/824cc9a/88f18bc.
 
 ## ✅ V5 (family-3/5): 1088/1495 FULL (72.8%, 2026-06-29) — glide-wrap +27, idle-filter +20
