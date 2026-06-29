@@ -47,6 +47,22 @@ other families untouched.
   the analogous idle-pulse-program gap (unverified). Memwatch proof: rebuild
   filtctr_lo reaches the count $14 but filterpos never advances because the
   roundtripped filter table is the null+`$90` default, not the real sweep.
+  **ADSR 12 (all AD+SR) = DISTINCT, harder.** First_Inspirations: V2 note-init
+  orig AD=$41/SR=$41 vs rebuild AD=$A9/SR=$C3 — NEITHER matches the extracted
+  instrument (all insts AD=$00), so it's the runtime ADSR computation: instrument
+  AD/SR + VOL-override ($F3 → $17E7,x sustain) + ADR/SRR live-set ($F2/$F1) +
+  HARD-RESTART (sector lookahead: durctr==1 → SR=0, durctr==2 → restart;
+  disassembly.s:145). Composer's hard-restart/VOL-override interplay diverges. Not
+  a quick fix.
+  **PULSE 10 = related to the re-pack but per-instrument + heterogeneous.** Dance:
+  orig V1 PW SWEEPS (FF FE FD…) but rebuild HOLDS 0 — a per-instrument pulse
+  program (pulse_ptr=1) not reproducing. The pulse table is ALSO re-packed in the
+  roundtrip (pulse_ptr shifts 1→3,5→7 from the `$90` terminals); some members
+  sweep-vs-hold, others have the opposite (orig=0/reb=nonzero). Mixed.
+  **VERDICT: the 4 clusters are DISTINCT causes, NOT one fix.** FILTER idle-sweep
+  is the cleanest (~20). PULSE shares the table re-pack mechanism but is per-inst +
+  messy. ADSR + FREQ are separate/hard. Recommended order: FILTER default_filter
+  capture first.
 - cia_multispeed 39, no_jumptable 14, trailing_sector_cmds 13, wave/pulse overflow.
 NB the Jun-21 `tmp/dmc_v5_full_results.jsonl` predates the Jun-25 CIA port — re-run
 with current code before trusting its non-FULL buckets (palimpsest).
