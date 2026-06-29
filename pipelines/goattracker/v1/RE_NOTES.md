@@ -204,5 +204,42 @@ HVSC bytes leapfrogged), keep USF parametric/musical (no engine-positional or
 opaque bytes), engine-blind within the one composer (no USF-content sniffing to
 dispatch). See [[feedback_deconstruct_not_reproduce]] + the CORE TENET.
 
+## 11. The OPTIMIZED-LAYOUT variant (dominant non-V1.5 sub-version) — RE notes
+Rep: `DEMOS/A-F/Alive.sid` (load $1000). This is `player_variables.md`'s
+"Optimized Variable Layout" — a substantially RESTRUCTURED player, NOT just
+"no delayed-wave". Decoded play body ($1040-$120D):
+- **init flag**: SMC at `$1043` operand (`lda #flag; bmi noinit; inc $1043`),
+  flag = subtune-derived, → $FF after init. Init path ($1046-$1079) clears vars,
+  sets `chntempo=$1422` AND `chntick=$1423` both to TEMPO (`$05`) — **init-tick =
+  tempo, NOT gt+2** (changes first-row write-stream timing vs V1.5).
+- **tick mechanism** ($107C): `ldy chntick; bne; <chntick==0 → tick0 $1250>;
+  bpl; <neg → reload chntempo>; dey; tya; sta chntick` — decrement via LDY/DEY/STA
+  (V1.5 uses `dec chntick; beq`). Same net effect; NO `cmp #gatetimer` in the
+  pulse path.
+- **sequencer** ($1095-$10C6): orderlist walk (cmp #$D0 REPEAT / #$E0 TRANS /
+  #$FF LOOPSONG), triggered by `chnpattptr($1420)==$FF`.
+- **wave-exec** ($116A): no-delay (`lda wctrl,y; beq; sta chnwave,x`).
+- **arp** ($119E): SAME structure as V1.5 (asl/arpcount/cmp #$06/...).
+- **loadregs** ($11E0): `$D400/$D401` freq, `$D404` wave. New-note AD/SR
+  ($11F2): `lda $13f7,x; bne skip` — **`$13f7` is the HR/gate-state flag** gating
+  the AD/SR write (the optimized variant's hard-restart mechanism, restructured).
+- Channel vars (optimized layout): chntick $1422, chntempo $1423, chnpattptr
+  $1420, chnsongptr $141E, chnrepeat $140F, chntrans $1424, chnpattnum $1421,
+  chnwave $1409, chnwaveptr $140A, chnarpcount $140D, instnum $13FA, chnnote
+  $13F4, chnfreqlo/hi $13F5/$13F6, chnfxparam $13F9, HR-flag $13F7, ?$13F8.
+
+**Why it's a sub-engine, not a knob:** the tick/sequencer/HR control flow +
+channel layout all differ, and init-tick=tempo + the `$13f7` HR mechanism likely
+change the write-stream timing. Detection fails its V1.5 anchors (filttbl
+`A8 B9 ?? ?? F0`, gatetimer, some wavetbl). My composer is layout-agnostic
+(own clean engine), so the OPEN QUESTION is: does the optimized variant produce
+the SAME `$D4xx` write stream as V1.5 given the same data (then a clean engine +
+`inittick=tempo` + the right HR knob converges it, with only new extraction
+anchors needed), or does the HR/gate timing genuinely differ (then a variant
+engine path)? NEXT: build extraction anchors for the optimized layout (find
+filttbl via its setfiltersub, gatetimer via the $13f7 mechanism), then build with
+the V1.5 engine + inittick=tempo and DIFF — the first-divergence tells you which.
+Cross-ref `docs/src/v1_player1_125.s` (V1.25 = the pre-delay player).
+
 ## Canary
 `hvsc84/MUSICIANS/T/Topaz/Joker.sid` — V1.5, single-subtune, load $1000, compact.
