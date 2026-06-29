@@ -227,6 +227,513 @@ def _fx_to_cmd(flags, player='tracker'):
 # Engine — clean transcription of v1_player1_v153.s mt_play
 # ---------------------------------------------------------------------------
 
+def _engine_v2(t: _Tables) -> str:
+    """player2 (gamemusic-mode) engine — clean port of v1_player2_125.s (RE_NOTES
+    §12/§12b). SMC immediates → RAM vars (filtcut/filtcutadd/filtctrl/filttype);
+    chnnext linked list → X=0/7/14 jsr loop; SFX dropped (PSID never calls playsfx).
+    Reads OUR data layout (songlo/songhi orderlists via the sequencer, pattlo/patthi
+    +chnpattnum patterns, instXXX, wctrl/wnote, freqlo/hi). Global filter sweep at
+    frame start, then per-voice; $D404 written DIRECTLY in wave-exec; immediate HR;
+    instfilter→global cutoff+type on note-trigger. Idle-note reproduction (the
+    C15 phase gate) is layered on after the audible stream converges."""
+    DEF = t.deftempo
+    return f"""
+ENDPATT = $ff
+temp1 = $fc
+temp2 = $fd
+temp3 = $fe
+
+; ===== init (deferred: first play does the setup = orig frame 0) =====
+init:
+        sta temp1                ; A = subtune
+        asl
+        clc
+        adc temp1                ; subtune*3 (orderlist base)
+        sta initpos
+        rts
+
+play:
+        lda initpos
+        bmi pm_music
+        ; ----- deferred init -----
+        ldx #0
+pi_loop:
+        lda initpos
+        sta chnsongnum,x
+        inc initpos
+        lda #0
+        sta chnsongptr,x
+        sta chnwavetbl,x
+        sta chnpulsedir,x
+        sta chnrepeat,x
+        sta chntrans,x
+        sta $d404,x              ; idle ctrl = 0
+        lda #{DEF}
+        sta chntick,x
+        sta chntempo,x
+        sta chnnewnote,x         ; nonzero → no newnoteinit until a note loads
+        lda #$ff
+        sta chnpattptr,x
+        txa
+        clc
+        adc #7
+        tax
+        cpx #21
+        bcc pi_loop
+        lda #0
+        sta $d415
+        sta filtcut
+        sta filtcutadd
+        sta filtctrl
+        sta filttype
+        lda #$ff
+        sta initpos
+        rts
+
+; ===== per-frame music =====
+pm_music:
+        clc                      ; global filter sweep
+        lda filtcut
+        adc filtcutadd
+        sta filtcut
+        sta $d416
+        lda filtctrl
+        sta $d417
+        lda filttype
+        ora #$0f                 ; master volume nibble (default $0f)
+        sta $d418
+        ldx #0
+        jsr chnexec
+        ldx #7
+        jsr chnexec
+        ldx #14
+        jsr chnexec
+        rts
+
+; ===== one channel =====
+chnexec:
+        ldy chntick,x
+        beq cn_newnotes
+        bpl cn_noreload
+        ldy chntempo,x
+cn_noreload:
+        dey
+        tya
+        sta chntick,x
+        lda chnpattptr,x
+        cmp #ENDPATT
+        bcs cn_seq               ; pattptr==ENDPATT → advance orderlist
+        clc
+        jmp effects
+cn_seq:
+        jmp sequencer            ; sets pattnum/pattptr, sec, jmp effects2
+
+; ----- fetch a new row at tick 0 -----
+cn_newnotes:
+        lda #$ff
+        sta chntick,x
+        ldy chnpattnum,x
+        lda pattlo,y
+        sta temp1
+        lda patthi,y
+        sta temp2
+        ldy chnpattptr,x
+        lda (temp1),y
+        iny
+        cmp #$60
+        bcc gn_cmd
+        cmp #$c0
+        bcs gn_packrest
+        sbc #$5f
+        sta temp3
+        bcs gn_nocmd
+gn_cmd:
+        sta temp3
+        lda (temp1),y
+        and #$f8
+        beq gn_skipinst
+        lsr
+        lsr
+        lsr
+        sta chninstnum,x
+gn_skipinst:
+        lda (temp1),y
+        and #$07
+        sta chncommand,x
+        iny
+        lda (temp1),y
+        sta chncmddata,x
+        iny
+gn_nocmd:
+        lda (temp1),y
+        cmp #ENDPATT
+        beq gn_endpatt
+        tya
+gn_endpatt:
+        sta chnpattptr,x
+        ldy chncommand,x
+        lda temp3
+        cmp #$5e                 ; keyoff or rest?
+        beq gn_keyoff
+        bcs gn_rest
+gn_normalnote:
+        clc
+        adc chntrans,x
+        sta chnnote,x
+        cpy #3                   ; toneportamento? (no HR, no new-note)
+        beq gn_rest
+        lda #0
+        sta chnnewnote,x         ; normal new note
+        sta $d405,x              ; immediate hard restart
+        sta $d406,x
+gn_keyoff:
+        lda chnwave,x            ; keyoff: clear gate bit
+        and #$fe
+        sta $d404,x
+gn_rest:
+        ; tick0 command dispatch (Y = chncommand)
+        lda chncmddata,x
+        cpy #2
+        beq t0_setcutoffadd
+        cpy #5
+        beq t0_setfilter
+        cpy #6
+        beq t0_setsustain
+        cpy #7
+        beq t0_settempo
+        cpy #3
+        beq t0_starttp
+        jmp effects2             ; arp/porta/vibrato are continuous (tickN)
+gn_packrest:
+        ldy chnpackrest,x
+        bne gp_common
+        sta chnpackrest,x
+gp_common:
+        inc chnpackrest,x
+        bne gp_cont
+        inc chnpattptr,x
+gp_cont:
+        jmp effects2
+
+t0_starttp:
+        lda #$fe
+        sta chnvibcount,x
+        jmp effects2
+t0_setcutoffadd:
+        sta filtcutadd
+        jmp effects2
+t0_setfilter:
+        sta filtctrl
+        jmp effects2
+t0_setsustain:
+        sta $d406,x
+        jmp effects2
+t0_settempo:
+        bmi t0_tempo_one
+        sta chntempo
+        sta chntempo+7
+        sta chntempo+14
+        jmp effects2
+t0_tempo_one:
+        and #$7f
+        sta chntempo,x
+        jmp effects2
+
+; ===== new-note init (chnnewnote==0) =====
+newnoteinit:
+        lda #1
+        sta chnnewnote,x
+        lda #$fe
+        sta chnarpcount,x
+        sta chnvibcount,x
+        ldy chninstnum,x
+        lda instfilter,y         ; instfilter → GLOBAL cutoff + type
+        beq nn_nofilt
+        sta filtcut
+        asl
+        asl
+        asl
+        asl
+        sta filttype
+nn_nofilt:
+        lda instpulse,y
+        beq nn_skippulse
+        sta chnpulse,x
+        sta $d402,x
+        sta $d403,x
+        lda #$80
+        bne nn_skippulse2
+nn_skippulse:
+        lda chnpulsedir,x
+        ora #$80
+nn_skippulse2:
+        sta chnpulsedir,x
+        jmp nextchn
+
+; ===== effects =====
+effects:
+        clc
+effects2:
+        ldy chninstnum,x
+        lda chnnewnote,x
+        beq newnoteinit
+        bcs ef_pulseok2          ; carry set (from sequencer) → skip pulse mod
+        lda chnpulsedir,x
+        bpl ef_noadsrinit
+        and #$7f
+        sta chnpulsedir,x
+        lda instwave,y
+        sta chnwavetbl,x         ; start wave program (our wctrl/wnote index)
+        lda wctrl,y
+        sta chnwave,x
+        sta $d404,x
+        lda instad,y
+        sta $d405,x
+        lda instsr,y
+        sta $d406,x
+        lda instwave,y
+        bne ef_skipwavetbl       ; wave program runs this frame
+ef_noadsrinit:
+        lsr
+        lda chnpulse,x
+        bcs ef_pulsesub
+        adc instpulsespd,y
+        adc #0
+        sta chnpulse,x
+        and #$0f
+        cmp instpulsehi,y
+        bcc ef_pulseok2
+        lda #1
+        bne ef_pulsesetdir
+ef_pulsesub:
+        sbc instpulsespd,y
+        sbc #0
+        sta chnpulse,x
+        and #$0f
+        cmp instpulselo,y
+        bcs ef_pulseok2
+        lda #0
+ef_pulsesetdir:
+        sta chnpulsedir,x
+ef_pulseok2:
+        ldy chnwavetbl,x
+        bne ef_dowavetbl
+        ldy chncommand,x
+        beq ef_arpeggio
+        lda chncmddata,x
+        cpy #1
+        bne ef_nt1
+        jmp portamento
+ef_nt1:
+        cpy #3
+        bne ef_nt3
+        jmp toneportamento
+ef_nt3:
+        cpy #4
+        bne ef_nt4
+        jmp vibrato
+ef_nt4:
+        jmp loadpulse            ; cmds 2/5/6/7 = tick0-only
+ef_skipwavetbl:
+        jmp loadpulse
+
+; ----- wave table exec (writes $D404 directly) -----
+ef_dowavetbl:
+        lda wctrl,y
+        beq ew_skipwave
+        sta chnwave,x
+        sta $d404,x
+ew_skipwave:
+        lda wnote,y
+        bmi ew_abs
+        clc
+        adc chnnote,x
+ew_abs:
+        and #$7f
+        sta temp1
+        lda wctrl+1,y
+        cmp #$ff
+        bne ew_noend
+        lda wnote+1,y
+        jmp ew_setptr
+ew_noend:
+        iny
+        tya
+ew_setptr:
+        sta chnwavetbl,x
+        ldy temp1
+        jmp arpfreq
+
+ef_arpeggio:
+        ldy chncmddata,x
+        beq loadpulse            ; no arp param
+        bpl ea_fast
+        lda chntick,x
+        and #1
+        bne loadpulse
+ea_fast:
+        ldy chnarpcount,x
+        bmi ea_arp1
+        bne ea_arp2
+ea_arp0:
+        ldy chnnote,x
+        lda #$ff
+        bne ea_setcount
+ea_arp2:
+        lda chncmddata,x
+        and #$0f
+        clc
+        adc chnnote,x
+        tay
+        lda #0
+        beq ea_setcount
+ea_arp1:
+        lda chncmddata,x
+        and #$70
+        lsr
+        lsr
+        lsr
+        lsr
+        clc
+        adc chnnote,x
+        tay
+        lda #1
+ea_setcount:
+        sta chnarpcount,x
+arpfreq:
+        lda freqlo,y
+        sta chnfreqlo,x
+        sta $d400,x
+        lda freqhi,y
+        sta chnfreqhi,x
+        sta $d401,x
+loadpulse:
+        lda chnpulse,x
+        sta $d402,x
+        sta $d403,x
+nextchn:
+        rts
+
+; ----- continuous pitch effects -----
+portamento:
+        asl
+        sta temp1
+        bcc freqadd
+        bcs freqsub
+vibrato:
+        sta temp1
+        and #$0e
+        sta temp2
+        lda chnvibcount,x
+        bmi vb_nodir2
+        cmp temp2
+        bcc vb_nodir
+        eor #$ff
+        jmp vb_done
+vb_nodir2:
+        clc
+vb_nodir:
+        adc #2
+vb_done:
+        sta chnvibcount,x
+        lsr
+        bcc freqadd
+        bcs freqsub
+toneportamento:
+        ldy chnnote,x
+        asl
+        sta temp1
+        bcs tp_down
+tp_up:
+        lda chnfreqhi,x
+        cmp freqhi,y
+        beq tp_upchklo
+        bcc freqadd
+        bcs tp_found
+tp_upchklo:
+        lda chnfreqlo,x
+        cmp freqlo,y
+        bcc freqadd
+        bcs tp_found
+tp_down:
+        lda chnfreqhi,x
+        cmp freqhi,y
+        beq tp_dnchklo
+        bcs freqsub
+        bcc tp_found
+tp_dnchklo:
+        lda chnfreqlo,x
+        cmp freqlo,y
+        beq tp_found
+        bcs freqsub
+tp_found:
+        jmp arpfreq
+freqadd:
+        lda chnfreqlo,x
+        sta $d400,x
+        adc temp1
+        sta chnfreqlo,x
+        lda chnfreqhi,x
+        sta $d401,x
+        adc #0
+        sta chnfreqhi,x
+        jmp loadpulse
+freqsub:
+        lda chnfreqlo,x
+        sta $d400,x
+        sbc temp1
+        sta chnfreqlo,x
+        lda chnfreqhi,x
+        sta $d401,x
+        sbc #0
+        sta chnfreqhi,x
+        jmp loadpulse
+
+; ===== sequencer (orderlist advance, our format) → effects2 with carry SET =====
+sequencer:
+        ldy chnsongnum,x
+        lda songlo,y
+        sta temp1
+        lda songhi,y
+        sta temp2
+        lda chnrepeat,x
+        beq sq_norep
+        dec chnrepeat,x
+        jmp sq_done2
+sq_norep:
+        ldy chnsongptr,x
+sq_loop:
+        lda (temp1),y
+        iny
+        cmp #$d0
+        bcc sq_pat
+        cmp #$e0
+        bcs sq_trans
+        sbc #$cf
+        sta chnrepeat,x
+        bcs sq_loop
+sq_trans:
+        cmp #$ff
+        bcc sq_notrans
+        lda (temp1),y
+        tay
+        jmp sq_loop
+sq_notrans:
+        sbc #$ef
+        sta chntrans,x
+        jmp sq_loop
+sq_pat:
+        sta chnpattnum,x
+        tya
+        sta chnsongptr,x
+sq_done2:
+        lda #0
+        sta chnpattptr,x         ; start of pattern
+        sec
+        jmp effects2
+"""
+
+
 def _engine(t: _Tables) -> str:
     # wave-exec prologue differs by variant: V1.5 has delayed-wave (0-7 = delay
     # via chnarpcount), the no-delay variant just skips on 0 / stores otherwise.
@@ -860,6 +1367,8 @@ _BSS_VARS = [
     'chnnewfxparam', 'chnfx', 'chnfxparam', 'chnnote', 'chnnewnote',
     'chninstnum', 'chngate', 'chnwave', 'chnwaveptr', 'chnarpcount',
     'chnfreqlo', 'chnfreqhi', 'chnpulse', 'chnpulsedir',
+    # player2 (gamemusic) per-channel vars
+    'chncommand', 'chncmddata', 'chnvibcount', 'chnwavetbl',
 ]
 
 
@@ -896,7 +1405,7 @@ def compose_v1_asm(usf: UsfFile) -> str:
     A.append(f'        * = ${LOAD:04x}')
     A.append('        jmp init')
     A.append('        jmp play')
-    A.append(_engine(t))
+    A.append(_engine_v2(t) if t.player == 'gamemusic' else _engine(t))
     A.append('')
     A.append(_byts('freqlo', t.freqlo))
     A.append(_byts('freqhi', t.freqhi))
