@@ -338,7 +338,13 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
   2026-06-27.) Sibling of [[feedback_6502_mindset]]: all bugs are pointer errors;
   think in exact byte offsets — including index-register width.
 - **Status:** logged (DMC v4 instrument record offset `#*11 & 0xFF`, commit
-  3cae4fd; instr >= 24 → ~6% of partials recovered, 0 regression).
+  3cae4fd; instr >= 24 → ~6% of partials recovered, 0 regression). ALSO DMC v5
+  glide/slide targets (commit 65ac05f, +27): targets are stored TRANSPOSE-RELATIVE
+  (raw $FE), player does `(target+transpose)&$FF` → usually wraps back in-table; the
+  extractor's stale `>119` reject (`note_out_of_range`) predated 2-digit-octave
+  off-table pitches — raising it to 255 round-trips the byte losslessly. Same lesson:
+  the orig "reads garbage"/the byte looks out-of-range, but it's the WRAP — fix the
+  extractor, not the data.
 - **Boundary / watch-list:** the SAME class applies to ANY 8-bit-indexed engine
   table — e.g. the DMC wave POSITION ($177A is 8-bit, so a wave program crossing
   $FF wraps to wctab[0]; `_slice_wave` reads linearly past it — a candidate

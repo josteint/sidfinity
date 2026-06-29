@@ -7,6 +7,34 @@ metadata:
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
 ---
 
+## ✅ V5 (family-3/5): 1068/1495 FULL (71.4%, 2026-06-29) — glide-wrap fix +27
+
+Pivoted to V5 after family-2 froze on the hard freq tail. V5 is a MATURE engine
+(composer_v5 + factory + extract + batch, ~1041 FULL pre-session), NOT early-stage.
+**+27 via the glide-wrap fix (commit 65ac05f, ledger [[C11]]):** `note_out_of_range`
+(38) was a STALE `>119` reject in `to_usf._note_byte` predating 2-digit-octave
+off-table pitches. V5 glide/slide targets ($FB/$FA) are stored TRANSPOSE-RELATIVE
+(raw $FE = "transpose−2"); the player does `(target+transpose)&$FF`, usually
+wrapping back IN-TABLE. The off-table pitch ($FE→"D-21") round-trips losslessly via
+`_pitch`/`_pitch_str_num`, and `from_usf` re-emits `&$FF` so the byte is preserved.
+27/38 → FULL, 9 partial, 2 other-refusal; **0 regressions** (the reject only ever
+fired for these members; existing FULLs never hit n>119). to_usf.py is V5-only so
+other families untouched.
+
+**V5 residue (1495 total): partial 176, unsupported 212, error 39.** Characterized:
+- **player_code_mismatch 113 = MOSTLY GENUINE VARIANTS** (NOT an over-strict gate
+  like family-2 — a bypass gave only ~2 FULL; the rest expose real divergences).
+  Biggest sub-cluster: **$10A1 master-vol FADE variant (49)** — decoded the fade
+  block ($111B:$111C accumulator→$D418, $1118 up / $1119 down rate); composer
+  already models fade (sector cmds $F6/$F7) but these also have a DIFFERENT init
+  skeleton ($1634), so they need real per-variant RE (init/orderlist + fade-source).
+  Others: $1385 (16, wave_slice), $16C7 (16, partials+trailing_sector_cmds).
+- **partial 176** — not yet characterized; likely the off-table freq tail (hard,
+  same class as family-2/V4). NEXT V5 lever to investigate.
+- cia_multispeed 39, no_jumptable 14, trailing_sector_cmds 13, wave/pulse overflow.
+NB the Jun-21 `tmp/dmc_v5_full_results.jsonl` predates the Jun-25 CIA port — re-run
+with current code before trusting its non-FULL buckets (palimpsest).
+
 ## ✅ FAMILY-2: 2294/2889 FULL (79.4%, 2026-06-29) — build+verify-as-judge round (+78 session)
 
 Session 2026-06-29 took family-2 2216 → 2294 (+78). The wins were all the SAME
