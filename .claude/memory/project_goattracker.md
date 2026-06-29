@@ -133,12 +133,25 @@ init clears Block 1 ONLY, never Block 2). Verified: Joker+Menace47 still FULL
 freqlo 23→19, pwlo 11→15 (4 tunes advanced past the freq divergence onto a pulse
 one), noDiv still 4. KEY LESSON: residue tunes have MULTIPLE STACKED divergences
 (idle-freq → pulse-mod → freewheel) — fixing one layer advances the first-div but
-doesn't flip to FULL until all layers for that tune are fixed. NEXT LAYERS (now the
-first-div on the advanced tunes): (a) PULSE-MODULATION (Bomdibom div@30: orig $02=c1
-vs reb $61 — pulse program modulates differently after ~10 frames; v1 IS playing,
-not idle); (b) FREEWHEELING-WAVE idle voice (Memoires v3: pre-load $2e1e but orig
-modulates →$2dde via a running wave program at gate-off — chnwaveptr≠0 case, harder
-than constant-idle). Work these next on the V1.5 path.
+doesn't flip to FULL until all layers for that tune are fixed. NEXT LAYER (UNIFIED root — both advanced tunes hit it): **idle voices FREEWHEEL
+their pulse + wave program from PRE-LOADED ENGINE STATE.** Bomdibom div@30: v1 is
+IDLE (freq=$02be = pre-load, ctrl=$00) yet its PULSE modulates (orig $02=c1 vs reb
+$61) — my pulse exec is byte-identical to orig, so the divergence is the INSTRUMENT
+the idle voice modulates with: mine forces chninstnum=1 at init, orig keeps the
+pre-loaded chninstnum (Block 3, NOT cleared). Memoires v3: idle (ctrl=$00) but its
+WAVE program runs (orig modulates pre-load $2e1e→$2dde) — needs pre-loaded chnwaveptr
+(Block 1? — but Block 1 IS cleared; so chnwaveptr freewheel needs more RE) + chnnote
++ chnarpcount. So the FULL idle priming = the SID-file's pre-loaded per-voice ENGINE
+state (chninstnum, chnnote, chnwaveptr, chnarpcount, chnfx...), not just the chip
+registers (freq/pulse) already done. ⚠️ PRINCIPLED DECISION PENDING: this is the
+editor's LEFTOVER engine state, INAUDIBLE (gate off) but in the write stream (CORE
+TENET forces matching it). Options: (a) carry full per-voice initial engine state as
+typed priming [matches stream; carries editor-leftover engine state — borderline vs
+USF principle]; (b) accept as documented engine-state-dependent residue class [USF
+clean; tunes stay partial]; (c) investigate if the freewheel state is DERIVABLE (=
+first instrument? = note-0 default?) → principled if so. RECOMMEND (c) first. DMC
+precedent (idle_wave + idle note) leans toward (a) being acceptable. Work next on
+the V1.5 path.
 
 **LEVER 2 — extract_err (35) = anchor variants: wavetbl 20, filttbl 8, songtbl/patttbl
 3, gatetimer 2, index 2.** More layout sub-variants where the detect anchors miss.
