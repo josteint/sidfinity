@@ -504,6 +504,19 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
   voice while `(ctrl & $F0)==0`** (no waveform selected ⇒ silent — NOT `ctrl==0`: a
   voice in release `$10` is still audible and must be kept). Compare the filtered
   streams; all ctrl/gate/AD-SR/`$D415-$D418` writes are always kept. USF stays clean.
+- **⚠️ SOUNDNESS GATE — phase reset at note-on (the test bit).** The audio-equivalence
+  drop is only sound if the idle voice's freq does NOT reach the audio. But a freq write
+  to a silent (`ctrl & $F0 == 0`) voice STILL advances the oscillator PHASE accumulator,
+  and the phase at the next gate-on affects the waveform onset — UNLESS the engine resets
+  the phase with the **test bit ($08)** at note-on. So the drop is sound IFF the engine
+  sets the test bit when (re)gating a voice. GoatTracker **V1.5/player1**: new-note ctrl
+  = `$09` (test+gate) → phase reset → idle freq PROVABLY inaudible → audio-equivalence
+  SOUND. GoatTracker **player2/gamemusic**: first wave-step ctrl has NO `$08` → phase NOT
+  reset → idle freq IS audible (gate-on phase) → audio-equivalence UNSOUND; instead
+  REPRODUCE the idle freq (carry the per-voice idle note — sound-affecting state IS
+  musical, DMC idle_wave precedent). NB this is NOT provable by rendering PCM and
+  comparing: our rebuilds are per-frame-exact, not cycle-exact, so the audio differs on
+  cycle timing (Trap B) even when correct. The proof is the test-bit analysis, not audio.
 - **Mandatory guard (the one real hole) — hard-sync / ring-mod:** a silent voice N's
   oscillator feeds consumer voice `(N+1)%3` when that consumer has sync(bit1 `$02`) or
   ringmod(bit2 `$04`) set → N's **freq is then audible via the consumer** and the effect
