@@ -228,18 +228,24 @@ Rep: `DEMOS/A-F/Alive.sid` (load $1000). This is `player_variables.md`'s
   chnwave $1409, chnwaveptr $140A, chnarpcount $140D, instnum $13FA, chnnote
   $13F4, chnfreqlo/hi $13F5/$13F6, chnfxparam $13F9, HR-flag $13F7, ?$13F8.
 
-**Why it's a sub-engine, not a knob:** the tick/sequencer/HR control flow +
-channel layout all differ, and init-tick=tempo + the `$13f7` HR mechanism likely
-change the write-stream timing. Detection fails its V1.5 anchors (filttbl
-`A8 B9 ?? ?? F0`, gatetimer, some wavetbl). My composer is layout-agnostic
-(own clean engine), so the OPEN QUESTION is: does the optimized variant produce
-the SAME `$D4xx` write stream as V1.5 given the same data (then a clean engine +
-`inittick=tempo` + the right HR knob converges it, with only new extraction
-anchors needed), or does the HR/gate timing genuinely differ (then a variant
-engine path)? NEXT: build extraction anchors for the optimized layout (find
-filttbl via its setfiltersub, gatetimer via the $13f7 mechanism), then build with
-the V1.5 engine + inittick=tempo and DIFF — the first-divergence tells you which.
-Cross-ref `docs/src/v1_player1_125.s` (V1.25 = the pre-delay player).
+**Framing (corrected — re-run the CORE TENET): this is a VARIANT EXTRACTION PATH
++ shared composer + knobs, NOT a separate engine.** The composer reproduces the
+WRITE STREAM with its own clean, layout-agnostic engine, so the original's
+internal differences (channel layout, init structure, pattern/instrument
+ENCODING) only affect READING the binary into the (engine-neutral) USF musical
+model — i.e. the EXTRACTOR. It's the SAME tracker (GoatTracker V1, compiled with
+NOWAVEDELAY + the optimized layout), so the musical content is identical → one
+USF model, one composer (per the USF principle's one-family-one-composer rule;
+cf. DMC family-1/family-2 = variant extraction + knobs, not two engines). The
+only WRITE-STREAM-relevant differences are behavioral KNOBS: `inittick=tempo`
+(added) + the `$13f7`/no-`hr_sr` hard restart (verify if a knob is needed).
+**Extraction differences to handle:** song/patt pair assignment (code order is
+REVERSED vs V1.5 → use the diff rule: song table hi-lo == 3*nsubtunes); +
+re-derive instrument-table extent + pattern/instrument decode for the optimized
+layout (my V1.5 decode yielded instrument#s past the real table → wave runaway).
+OPEN: once the optimized extractor reads correctly, build with the shared engine
++ `inittick=tempo` and DIFF — the first-divergence says whether an HR knob is the
+only remaining behavioral difference. Cross-ref `docs/src/v1_player1_125.s`.
 
 ## Canary
 `hvsc84/MUSICIANS/T/Topaz/Joker.sid` — V1.5, single-subtune, load $1000, compact.

@@ -40,19 +40,19 @@ values for Alive: filttbl=$15c7, gatetimer=2, tempo=5, setfiltersub @ $1315.
 DONE this session toward it (all V1.5-safe, committed): dual wavetbl anchor
 (`C9 08` OR `F0 03 9D`) + `nowavedelay` prologue; optimized gatetimer anchor
 (`4A A9 <gt> 9D ?? ?? B0`) + tempo (double-store init) + `inittick_is_tempo`
-composer knob; tolerant hr_ad/hr_sr. CONCLUSION (decisive): the optimized variant is a COMPLETE SEPARATE PLAYER —
-every subsystem differs incl. the PATTERN/INSTRUMENT decode (its wavetbl is 45B
-but the pattern decode yields instrument#s whose wave-start indices 65/64/196
-point PAST the table → runaway → garbage build). So it's a FROM-SCRATCH MIGRATION
-(re-derive instrument layout + pattern format + wave + gate + HR + init), NOT a
-knobbed variant of my V1.5 engine. SHELVED with a clean-reject guard
-(`extract` raises 'wave runaway (unsupported layout variant)' when a wave program
-has no $FF terminator in 256 steps) so it doesn't build garbage / false-partial.
-The V1.5-safe pieces (per-tune tempo, dual wavetbl anchor, nowavedelay prologue,
-optimized gatetimer/inittick anchors) are KEPT (Joker + Menace47 still FULL). RE
-groundwork (channel-var map + mechanisms) in RE_NOTES §11. When resuming the
-optimized variant, treat it as a NEW engine (own extract + composer engine;
-`docs/src/v1_player1_125.s` = the pre-delay reference). THEN (V1.5 path): Imdunk's
+composer knob; tolerant hr_ad/hr_sr. CONCLUSION (corrected framing — re-ran CORE TENET): the optimized variant is a
+VARIANT EXTRACTION PATH + shared composer + knobs, NOT a separate engine. The
+composer reproduces the WRITE STREAM with its own layout-agnostic engine, so the
+original's internal differences (channel layout, init, pattern/instr ENCODING)
+only affect the EXTRACTOR (reading the binary into the engine-neutral USF). It's
+the SAME tracker → one USF model + one composer (USF principle; cf. DMC
+family-1/2 = variant extract + knobs). Write-stream knobs: `inittick=tempo`
+(added) + `$13f7`/no-`hr_sr` HR (verify). EXTRACTION fixes needed: (1) song/patt
+pair assignment — code-order is REVERSED vs V1.5; use the DIFF rule (song hi-lo
+== 3*nsubtunes) — IN PROGRESS; (2) re-derive instrument-extent + pattern/instr
+decode for the optimized layout. Clean-reject guard kept (`extract` raises 'wave
+runaway' when no $FF terminator in 256 steps). V1.5-safe pieces KEPT (Joker +
+Menace47 FULL). RE groundwork in RE_NOTES §11. THEN (V1.5 path): Imdunk's
 gate/note tail (voice3 ctrl $20 gate-off vs $21), grammar ext arp/vibrato fx,
 relocation factory, wide batch. Quick batch: tmp/v1_sample.txt + `v1/verify.py`.
 

@@ -157,13 +157,23 @@ def detect_layout(sid: Sid) -> Layout:
     #   B9 <lo> <hi> 85 FC B9 <Lo> <Hi> 85 FD
     pairs = one([0xB9, None, None, 0x85, 0xFC, 0xB9, None, None, 0x85, 0xFD],
                 1, 'songtbl/patttbl')
-    pairs = sorted(pairs)
     if len(pairs) < 2:
         raise ValueError('expected 2 songtbl/patttbl pointer loads')
-    # getnewnotes (pattern) precedes sequencer (song) in the player.
-    patt_a, song_a = pairs[0], pairs[1]
-    patttbllo, patttblhi = _w(mem, patt_a + 1), _w(mem, patt_a + 6)
-    songtbllo, songtblhi = _w(mem, song_a + 1), _w(mem, song_a + 6)
+    # Each pair loads a (lo_base, hi_base) pointer table; hi-lo == #entries. The
+    # SONG table has exactly 3*nsubtunes entries (3 orderlists/subtune); the
+    # PATTERN table has #patterns. Assign by that diff (robust) — the code ORDER
+    # of getnewnotes vs sequencer is REVERSED in the optimized-layout variant, so
+    # the old "lower address = pattern" rule mis-assigned them there.
+    cand = [(_w(mem, a + 1), _w(mem, a + 6)) for a in pairs[:2]]
+    nsong = 3 * sid.songs
+    song_pair = next((c for c in cand if (c[1] - c[0]) == nsong), None)
+    if song_pair is not None and cand[0] != cand[1]:
+        songtbllo, songtblhi = song_pair
+        patttbllo, patttblhi = cand[1] if cand[0] == song_pair else cand[0]
+    else:  # ambiguous → fall back to code order (getnewnotes before sequencer)
+        p = sorted(pairs)
+        patttbllo, patttblhi = _w(mem, p[0] + 1), _w(mem, p[0] + 6)
+        songtbllo, songtblhi = _w(mem, p[1] + 1), _w(mem, p[1] + 6)
 
     # gatetimer + default tempo. Two init structures:
     #  V1.5 normal: `lda #TEMPO; sta chntempo; lda #gt+2; sta chntick; lda #$ff`
