@@ -23,18 +23,25 @@ pipeline.** Imdunk at 18%. KEY fixes this session (each high-leverage):
 - full filter table emission (engine steps it; was a 4-byte placeholder).
 - per-player freq table (extract 128 entries incl. C6 off-table window).
 
-**⚠️ VARIANT LANDSCAPE (big next-phase finding):** detection currently keys on a
-V1.5-specific wavetbl anchor `B9 ?? ?? C9 08` (the `cmp #$08` delayed-wave check).
-In a 42-tune load-$1000 sample: 34 ERROR "wavetbl not found" (a NO-DELAY variant
-— no `cmp #$08`, different wave-exec; pre-V1.5 / NOWAVEDELAY), 8 build (1 FULL +
-7 partial small freq/porta divs). So the V1.5 with-delay variant my engine
-handles is the MINORITY; the **no-delay variant dominates** → broad coverage's
-top priority. The notetbl anchor (`B9 ?? ?? 30 ?? 18 7D`) STILL matches no-delay
-tunes (so findable); need a no-delay detection path + wave-exec variant (config
-knob `nowavedelay`). NEXT: (1) no-delay variant support (biggest leverage),
-(2) Imdunk's gate/note tail (voice3 ctrl $20 gate-off vs mine $21), (3) grammar
-ext for arp/vibrato fx (text round-trip), (4) relocation factory + wide batch.
-Quick batch: sample tmp/v1_sample.txt; `v1/verify.py` per tune.
+**⚠️ VARIANT LANDSCAPE — the dominant non-V1.5 variant is the OPTIMIZED-LAYOUT
+sub-version, NOT just "no delayed-wave".** In a 42-tune load-$1000 sample only
+~8 are the V1.5 (delayed-wave, normal-layout) variant my engine handles; ~34 are
+the optimized layout (`player_variables.md` "Optimized Variable Layout", used
+when NOWAVEDELAY + other flags) — a substantially different player: different
+channel-var positions, init sets chntick=TEMPO (not gt+2 → different first-row
+write-stream TIMING), and a different gate-check + setfiltersub structure. They
+fail MULTIPLE detection anchors (filttbl `A8 B9 ?? ?? F0`, gatetimer
+`A9 ?? 9D ?? ?? A9 ?? 9D ?? ?? A9 FF`, some wavetbl). Rep: DEMOS/A-F/Alive.sid
+(init `A9 05 9D chntempo 9D chntick`, no second `A9`; `BD ?? ?? C9 ?? F0` gate
+anchor absent). DONE this session toward it: dual wavetbl anchor (V1.5 `C9 08`
+OR no-delay `F0 03 9D`) + `nowavedelay` composer prologue + per-tune
+`default_tempo` extraction (gatetimer anchor tempo-wildcarded). NEXT for the
+optimized variant: RE its channel layout + gate/init from `Alive` (and
+`docs/src/v1_player1_125.s` = the pre-delay player) → variant detection anchors
++ confirm whether the write-stream differs only by init-tick timing (then the
+SAME clean engine + a `inittick=tempo` knob suffices) or more. THEN: Imdunk's
+gate/note tail (voice3 ctrl $20 gate-off vs $21), grammar ext for arp/vibrato fx,
+relocation factory, wide batch. Quick batch: tmp/v1_sample.txt + `v1/verify.py`.
 
 (history below — superseded by the CONVERGED status above)
 `pipelines/goattracker/v1/` has `disassembly.s` (annotated, canary Joker) +
