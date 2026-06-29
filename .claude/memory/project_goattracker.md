@@ -105,6 +105,35 @@ THEN (V1.5 path): Imdunk's
 gate/note tail (voice3 ctrl $20 gate-off vs $21), grammar ext arp/vibrato fx,
 relocation factory, wide batch. Quick batch: tmp/v1_sample.txt + `v1/verify.py`.
 
+**📊 80-TUNE COVERAGE TRIAGE (this turn, tmp/v1_batch.py — random sample, capped
+durations so noDiv=provisional-FULL not a songlength verdict): partial 41 / extract_err
+35 / noDiv 4 / (optimized-in-sample 14).** Two dominant levers:
+
+**LEVER 1 — freqlo partials (23, the dominant partial role) = RESTING/IDLE-VOICE
+WAVE FREEWHEEL (confirmed root, this turn).** The GT analog of DMC `idle_wave`
+(project_dmc already solved this class). DISCRIMINATOR: Joker/Menace47 (FULL) have
+a REAL NOTE in their first pattern row → mine loads it → converges; Memoires/Bomdibom
+(partial) start with a KEYOFF ($5e/note94) or rest → orig FREEWHEELS `freqtbl[curnote]`
+(Memoires v1 = freqtbl[60]=$22d0, ungated ctrl=$00) while MINE leaves resting freq=0.
+Confirmed NOT an orderlist off-by (songtbl/orderlist-start bytes verified correct,
+patt6 genuinely first & genuinely a keyoff). TODO: RE what init sets curnote to
+(orig v1 idles at note60=C5 — likely a fixed editor default; v3 idles at $2e1e which
+is NOT a clean freqtbl entry, so curnote default may be per-voice or note-derived —
+needs the wave-program freewheel mechanism nailed) + run the wave program for
+gate-off/resting voices. This is the SAME root as the optimized-Alive silence →
+fixing it helps BOTH paths. HIGHEST LEVERAGE (also flips the unblocked extract_err
+tunes once detection widens).
+
+**LEVER 2 — extract_err (35) = anchor variants: wavetbl 20, filttbl 8, songtbl/patttbl
+3, gatetimer 2, index 2.** More layout sub-variants where the detect anchors miss.
+Unblocks detection (then those tunes join the freqlo bucket → Lever 1).
+
+Secondary: Drrsh-style DEEP partials (converge ~57% then a per-effect freq diverge —
+rarer, per-cause). pwlo partials (11) are mostly the parked optimized variant.
+V1 ROADMAP: (1) resting-voice idle-wave freewheel [big freqlo fix, DMC precedent],
+(2) widen extract anchors (wavetbl/filttbl), (3) deep per-effect partials, (4) optimized
+engine body. Batch runner: `tmp/v1_batch.py N` (uses sid_db.query, capped-dur triage).
+
 (history below — superseded by the CONVERGED status above)
 `pipelines/goattracker/v1/` has `disassembly.s` (annotated, canary Joker) +
 `RE_NOTES.md` (full engine semantics + data layout + extraction plan). No
