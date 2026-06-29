@@ -1,6 +1,6 @@
 ---
 name: project_basic_program
-description: "Basic_Program family (486 RSID-BASIC tunes) — PRODUCTIONIZED round-trip: 266/486 (54.7%) FULL through real USF, mass-written + regression"
+description: "Basic_Program family (486 RSID-BASIC tunes) — PRODUCTIONIZED round-trip: 278/486 (57.2%) FULL through real USF, mass-written + regression"
 metadata: 
   node_type: memory
   type: project
@@ -326,11 +326,11 @@ as a best_attempt VERIFY-FALLBACK (`detect_song_end=True`, tried only on overlap
 The zero-all sub-cluster (Hymna_CCCP/Johnny_Reb/Prospector/Sounds_of_Dixie) needs the silence-all captured
 mid-stream — deferred.
 
-**RESIDUE (220, after gap-exactness): arp/dup 96** (variable_template 67 + legato_variable 29 — precedence cycles +
-deeper variants) + too_few 68 (after_trim 59 + steps 9) + overlap_diverge 19 (zero-all silence-all ~4 + early
-ctl/order/freq misc) + length_fail 20 (filter/PW modulation 5 + bigger shortfalls Tron/Knightrider/Legion = loop/section
-+ Glass_Jaw/Scrilling/Victory small-short) + build_fail 17 (vibrato/glide too_many_pitches + release-less crash). 1 digi
-(Black_Box_V8_Demo) → Mode 2.
+**RESIDUE (208, after too_few fallback): arp/dup 96** (variable_template 67 + legato_variable 29 — heterogeneous
+templates, same root as the remaining too_few) + too_few 56 (after_trim 47 + steps 9 — give variable_template under
+min_trim) + overlap_diverge 19 (zero-all silence-all ~4 + early ctl/order/freq misc) + length_fail 20 (filter/PW
+modulation 5 + bigger shortfalls Tron/Knightrider/Legion = loop/section + Glass_Jaw/Scrilling/Victory small-short) +
+build_fail 15 (vibrato/glide too_many_pitches 13) + no_note_voices 2 (pitchless SFX). 1 digi (Black_Box_V8_Demo) → Mode 2.
 
 **✅ PER-FRAME PWM SWEEP-PROGRAM ENGINE (commit f2eaabf, 2026-06-28): 252→253 FULL, Cascading FULL, 0 regr.** The
 per-frame PWM cluster is a free-running MODULATION engine (`detect_modulation` best_attempt fallback). The key
@@ -379,13 +379,31 @@ gap_exact), hence the full second pass. +13 (Bachs/Piano/Minuet/Polonaise/Traito
 Momo_Color/Videobreak_11/Barn_Razing/Dance_of_the_Damned/Allt_Som_Jag). LESSON: a musical-duration round-trip that
 sums rounded per-step durations accumulates drift on long tunes — keep the deltas EXACT (allow 0).
 
-**NEXT (highest-leverage first):** (1) length_fail remainder (~20 left): Glass_Jaw/Scrilling/Victory (small short, NOT
-gap-recovered — Victory build-crashes on release-less steps; Scrilling is legato) + the bigger shortfalls (Tron 3616,
-Knightrider 922, Legion_of_One 905 — loop/section structure) + the filter modulation tunes (need multi-rate channels /
-short-notes). (2) the masked-player RELEASE-LESS-STEP crash (`off_frame & 0xFF` on None — Victory/Doom_Comer/Pepper) —
-a real latent bug, fix the record packing to handle off_frame=None (rel_mask=0 → off unused). (3) overlap_diverge
-zero-all silence + early-divergence misc. (4) arp/dup 96. (5) too_few 68. Iterate via `family_batch.py` (resumes from
-the OUT jsonl; delete to force clean). Survey raw: `tmp/basic_program_research/survey.jsonl`.
+**✅ TOO_FEW → min_trim/force_split FALLBACK (commit 9687321, 2026-06-29): 266→278 FULL (+12!), 0 regr.** too_few census
+(68): 49 SEGMENT FINE (raw segment 60-600+ steps!) but the AGGRESSIVE trailing-trim drops the HETEROGENEOUS step
+sequence below 2 → unsup:too_few_after_trim. min_trim (keep complete differing final steps) often rebuilds them. BUG:
+best_attempt only fired its fallbacks on overlap_diverge/length_fail, NEVER on `unsupported:too_few_*` — so min_trim/
+force_split were skipped for exactly the tunes needing them. Fix: treat too_few as a built-but-over-trimmed retry
+candidate (force_split + min_trim + the gap_exact 2nd pass). ADDITIVE, 0-regression BY CONSTRUCTION (the new branches
+fire only on too_few/unsupported results + only return on FULL, so no existing FULL is touched). +12 (Musicale_Demo/
+Bright_Eyes/Melodie/Streets_of_Lond/Infinite_Inferno/Missioncode_CX-13/Trail_West/Good_Mourning/Rivers/Robot_Rock/
+Tiptoes/Hill_Street_Blues). The remaining too_few (47) give variable_template under min_trim (same root as the
+variable_template bucket). NB the batch is now slower (too_few tunes run the full chain ×2 before falling back).
+
+**🔍 RELEASE-LESS-STEP CRASH = PHANTOM (verified 2026-06-29).** The masked-player `off_frame & 0xFF`-on-None crash only
+fires in a DIRECT build_model→build_psid shortcut. The real pipeline (best_attempt) ALWAYS round-trips through USF, and
+usf_to_model reconstructs gated off_frame as an int (onf+hold) — so build_psid never sees None. No pipeline tune's
+status depends on it; do NOT chase it. (The 4 build_fail-no-detail tunes were 2 genuine min()-on-empty = pitchless SFX,
+now guarded as `no_note_voices` (commit 52f8c13), + 2 not_clean.) Victory's real blocker is structural: a mixed
+gated/held-note tune (196 gate-ons / 54 gate-offs) with a V1-solo final section — forcing legato gives legato_variable.
+
+**NEXT (highest-leverage first):** (1) variable_template 67 + legato_variable 29 + the remaining too_few 47-via-min_trim
+= the SAME heterogeneous-template root (~140 tunes, the biggest lever but structural: mixed gated/held-note sections,
+arp/dup, the union-order superset's dup_reg gap). (2) length_fail remainder (~20): bigger shortfalls Tron 3616 /
+Knightrider 922 / Legion_of_One 905 (loop/section structure) + filter multi-rate channels (Sullen) + held-notes. (3)
+overlap_diverge 19 (zero-all silence + early per-tune emission bugs). (4) too_many_pitches 13 (vibrato >96 — needs a
+glide/vibrato effect representation). Iterate via `family_batch.py` (resumes from the OUT jsonl; delete to force clean).
+METHOD THAT WORKS: census a bucket for a SHARED lever (gap-exactness +13, too_few-fallback +12 both came this way).
 
 **CONVERGENCE (ledger C10, 2026-06-27):** the `global_track` is the EXPLICIT-event form of chip-global $D415-$D418
 automation; the OTHER engines already represent the same registers PARAMETRICALLY (`MasterVolConfig` fade formula,
