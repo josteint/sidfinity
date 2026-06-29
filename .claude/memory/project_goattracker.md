@@ -182,10 +182,18 @@ variant), pattern-overran 30 + IndexError 17 (wrong/edge detection), instrument-
 'gamemusic'; player2 cmds 2→fcutadd (global cutoff sweep), 5→fctrl ($D417), 6→srr,
 1→signed glide; arp/porta/vibrato/tempo shared. Global filter fully captured by the
 per-row cmds + per-inst instfilter (no separate C10 track). Validated 66 p2+206 p1
-to_usf, 0 crashes. (2) STILL TODO — a **player2 composer body** (direct $D404,
-global SMC filter sweep, player2 command semantics, instfilter→global cutoff+type on
-note-trigger) selected by `player='gamemusic'`; comparable to the V1.5 engine
-bring-up. Until then player2 tunes EXTRACT+to_usf but don't compose/verify (not FULL). gatetimer 30 = optimized-init tunes whose HR-flag
+to_usf, 0 crashes. (2) ✅ player-aware pattern
+ENCODER done (c57a402: _fx_to_cmd/_encode_pattern/_Tables.player — player2 cmd1
+signed-porta/cmd2 fcutadd/cmd5 fctrl; byte format shared). (3) STILL TODO — the
+**`_engine_v2` asm body** selected by `t.player=='gamemusic'`. FULLY SPEC'd in
+RE_NOTES §12b (routine-by-routine): REUSE V1.5 sequencer/getnewnotes/arpeggio/
+makespeed/freqadd-sub/toneporta/pulseexec (read our shared layout); CHANGE 6 player2
+behaviors — note-fetch at tick0 (no gatetimer), simpler filter sweep ($D418=filttype|
+vol), cmd2=setcutoffadd/cmd5=setfilter-global, wave-exec writes $D404 direct (split
+freq/pulse), immediate HR + instfilter→global filter, init. It's a multi-turn bring-up
+(core play-model timing differs) → write the routines + converge a canary (Faderik)
+via find_first_divergence. Until done, player2 tunes EXTRACT+to_usf but don't compose
+(not FULL). ~374 tunes ride on it. gatetimer 30 = optimized-init tunes whose HR-flag
 gatetimer anchor `4A A9 gt 9D ?? ?? B0` misses (medium). pattern-overran 20 = my
 generalized song/patt picks a false-positive when no diff-3 table exists (orderlist
 refs an out-of-range pattern) — needs a self-consistency validator or better detect.
