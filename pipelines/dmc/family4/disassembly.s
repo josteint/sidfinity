@@ -27,12 +27,19 @@
 ;                     $FD/$FC transpose. sector ptr = ($2209[sec],$224B[sec]).
 ;   $1150 sector    — command dispatch (>=$80); $F0/$F3/$F4/$F5/$F8/$F9/$FA/$FB/
 ;                     $FC/$FD/$FE (mostly == family-3; see RE_NOTES table).
-;   $1314 note      — TODO (note/wave/freq setup).
-;   $1373 effects   — MAIN per-voice (note-init reads instruments $2292/$2293/
-;                     $2294,Y parallel arrays; vib/glide/pulse/wave). TODO.
-;   $1654 SID write — per-voice freq/PW/ctrl. TODO.
-; KEY ADDRESSES: song $1A40 · sector-ptr lo $2209 / hi $224B · instr $2292 ·
-;   freq lookup $1779 · cutoff base $1853 ($F8 cmd) + $1019.
+;   $1314 note      — note+transpose -> $1012; note-on $1323 loads instr AD/SR,
+;                     ctrl $09; sets note-start flag $1815,x.
+;   $1373 effects   — MAIN per-voice. note-init reads the 8-byte instrument
+;                     record at $228D (AD/SR/+2/+3 prog/+4 V3filt/+5 wave/+6/+7);
+;                     freq table lookup; vib step. Steady -> $147B.
+;   $147B steady    — effect chain: FILTER prog (V3, $23D5/$242C) -> PULSE prog
+;                     ($23A3/$23BC) -> GLIDE ($183C/$183F accum) -> JSR $1654.
+;   $1654 wavestep  — wave ctrl $2325 / arg $2364 ($90 loop); freq lo $1719 +
+;                     hi $1779 (+arp, +$EF bias $1842); gate/hard-restart; then
+;                     SID WRITE per voice: D400 D401 D402 D403 D404 (in order).
+; KEY ADDRESSES: song $1A40 · sector-ptr lo $2209 / hi $224B · instr $228D ·
+;   freq lo $1719 / hi $1779 · pulse prog $23A3/$23BC · filter prog $23D5/$242C ·
+;   wave $2325/$2364 · cutoff $1019 + $1853 ($F8) -> $D416.
 ; ============================================================================
 
 ; ======= init: =======

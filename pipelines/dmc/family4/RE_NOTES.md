@@ -128,21 +128,56 @@ So NOT parallel arrays — it's the standard V5 8-byte instrument record at base
 5. **Sector decode**: reuse the family-3 walker; reparametrize the command map
    (most bytes match; override `$F0`/`$FC`).
 
-## Phase-A status: SUBSTANTIALLY COMPLETE
-Mapped: jump table, init, play (2-phase timing + filter), tick/track walk,
-the full sector command map (≈1:1 with family-3 + `$EF`/`$F0`), note handler,
-note-on, the 8-byte instrument record, and the key table addresses. Verdict
-corrected to "family-3 format relocated + different player" (tractable).
+## Effect chain ($147B steady → $1654 wave-step) — standard V5, relocated
+Per voice, every frame (the MAIN routine $1373 note-init falls through to, and
+$147B runs for, the steady path), in ORDER:
+1. **FILTER program** (V3 only, x==2, if $1857 active): pos $1803; add table
+   **`$23D5`**, count **`$242C`**, `$90` loop. `$1019 += $23D5[pos]` (cutoff acc).
+2. **PULSE program** (all voices): pos $1800,x; lo-add **`$23BC`**, hi-add
+   **`$23A3`**, count, `$90` loop. PW accum `$182A,x`(lo)/`$182D,x`(hi).
+3. **GLIDE/SLIDE**: speed `$17F7,x`, target `$17FA,x`; ramp freq accum
+   `$183C,x`/`$183F,x` toward `$1779[target]`; arrival snaps. → `$1654`.
+4. **WAVE step `$1654`**: pos `$17FD,x`; ctrl table **`$2325`**, arg table
+   **`$2364`**, `$90` loop ($2325[p]==$90 → p=$2364[p]). Drum (ctrl & $08):
+   freq-hi direct = `$2364[p]`. Melodic: arp = `$2364[p] + curnote`; freq lo =
+   `$1719[arp] + $1842,x` ($EF offset), freq hi = `$1779[arp]`. wave-step
+   duration `$1848`/$1845`. Then GATE/hard-restart ($17E5==1 → SR=0).
 
-### Remaining Phase-A detail (smaller; the standard V5 effect chain, relocated)
-- [ ] steady effects `$147B` (per-frame vib/glide/pulse/wave accumulation)
-- [ ] `$1654` per-voice SID write (freq `$1812`+vib `$180C`/`$180F` → `$D400/1`,
-      PW `$1827` → `$D402/3`, ctrl `$1815`/wave → `$D404`) — confirm the write
-      ORDER (the writelog-exact target)
-- [ ] `$EF`/`$F0` semantics (the two family-4-only sector commands)
-- [ ] `$1016` 2-phase: measure vs writelog — is it multispeed-2 (play() runs the
-      tick path every other frame) or a tempo halving? Affects the verify path.
-- [ ] census the 686 for sub-variants (uniform play+$95? table-base spread?)
+## SID WRITE ORDER (the writelog-exact target — $16F0, per voice y=$100C,x)
+```
+$D400,y = $1818,x + $183C,x   ; FREQ LO  (table freq + glide accum lo)
+$D401,y = $181B,x + $183F,x   ; FREQ HI
+$D402,y = $182A,x             ; PW LO    (pulse accum lo)
+$D403,y = $182D,x             ; PW HI
+$D404,y = $181E,x AND $1821,x ; CTRL     (wave ctrl AND gate mask $1821)
+```
+Voices V1→V2→V3 each emit that 5-write block (via $1654); then play() writes
+`$D416` once (cutoff hi). Plus: AD/SR ($D405/$D406) at note-on + $F1/$F2 cmds;
+$D417 (res) at $F9. Freq tables: **lo `$1719`, hi `$1779`** (96-entry, V5).
+$EF = a per-voice freq-lo BIAS ($1842,x, added in the wave-step).
+
+## Timing ($1016): 2-frame note tempo, NOT multispeed
+$1016 resets to 1 (fixed) and DECs each play(): MAIN/TICK alternate every frame,
+so the NOTE-ADVANCE (tick) runs every OTHER frame — a fixed 2-frame tempo tick;
+note durations ($17E8/$17E5) carry the rhythm. **SID writes happen EVERY frame**
+(both paths call $1654), so it is a normal 50 Hz VBLANK tune — `verify_dmc`'s
+standard per-frame writelog applies (no CIA / no per-IRQ). [confirm by writelog.]
+
+## CENSUS of the 686 (fingerprint bucket)
+`_detect_v5` over all 686: **635 = `family4`** (ALL with play offset +$95 —
+uniform), 36 = `v5` (the family-3 layout — borderline fingerprints that already
+build via the family-3 path), 15 = rejected (None). Load addrs: 577 @ `$1000`,
+~58 relocated (`$E000`/`$A000`/`$5000`/`$0FD0`/...). So family-4 is UNIFORM (one
+play variant) with a modest relocation spread → the family-2 relocation+knobs
+playbook fits cleanly. Migration target ≈ 635.
+
+## Phase-A status: ✅ COMPLETE
+Fully mapped (init, play+2-phase timing, tick/track, sector command map,
+note/note-on, 8-byte instrument record, the FULL effect chain [filter/pulse/
+glide/wave], the SID write ORDER, freq tables, $EF/$F0). Timing CONFIRMED
+VBLANK (PSID speed bit 0; SID writes every frame; verify_dmc applies). Census
+done (635 uniform). Verdict: family-3's V5 format relocated + a different
+player — the family-2 relocation+knobs playbook. Ready for Phase B.
 
 ## Phase B/C plan (the family-2 playbook)
 1. **Factory**: stop rejecting `layout='family4'`; build a `family4` config
