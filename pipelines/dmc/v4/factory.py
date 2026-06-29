@@ -38,9 +38,11 @@ _FAMILY2_PATH = os.path.join(os.path.dirname(__file__), '..', 'docs',
                              'dmc4_family2_player_1000.bin')
 _F2_INSTR_BASE = 0x17B0      # code/data boundary (instr table base @ $1000)
 # family-2 data regions masked out of the identity compare (per-tune /
-# leftovers): vars + copyright, then freq tables + state up to the instr
-# table. The code is one contiguous run $1037-$1644.
-_F2_DATA_MASK = [(0x100C, 0x1037), (0x1647, _F2_INSTR_BASE)]
+# leftovers): vars + copyright, then the all-off/sfx PSID sub-entries
+# ($162F-$1646, NEVER executed during play() — sub-builds re-author them
+# freely, same rationale as canon's _MASKED_RANGES), then freq tables +
+# state up to the instr table. The reachable PLAY code is $1037-$162E.
+_F2_DATA_MASK = [(0x100C, 0x1037), (0x162F, _F2_INSTR_BASE)]
 
 # packer-patched operand sites: name -> list of operand addresses
 # (each site = 2 bytes lo/hi); per name all sites must agree
