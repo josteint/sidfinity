@@ -179,13 +179,25 @@ VBLANK (PSID speed bit 0; SID writes every frame; verify_dmc applies). Census
 done (635 uniform). Verdict: family-3's V5 format relocated + a different
 player — the family-2 relocation+knobs playbook. Ready for Phase B.
 
-## Phase B/C plan (the family-2 playbook)
-1. **Factory**: stop rejecting `layout='family4'`; build a `family4` config
-   (base=load; dataflow the table operand sites above).
-2. **Extract**: reuse the family-3 V5 extract with relocated bases + the
-   `$EF`/`$F0` commands; same track/sector/instrument decode.
-3. **Composer**: a family-4 variant of the V5 engine — the 2-phase `$1016`
-   timing, `$D416`-only filter, `$FA/$FB` zero-page. Reuse the rest.
-4. **Verdict**: `verify_dmc` (engine-neutral). Carve a Jupiter41 reference for
-   the masked-identity dispatch (like `dmc4_family2_player_1000.bin`).
-5. Wide batch over the 686.
+## Phase B — ✅ DONE (commit 88f18bc): factory dispatch + extract
+- `DMCV5Config.family4` flag + `FAMILY4_SITES` (the 12 operand-site PCs,
+  verified 12/12 against Jupiter41). `_family4_config` builds the config
+  (base=load; sites + delta). The V5 extract reuses the shared data decode —
+  **Jupiter41 extracts cleanly** (1 subtune, 19 instr, 96 freq, pulse/filter/
+  wave tables) and the **FULL pipeline runs end-to-end** (extract→USF→compose→
+  build→verify). family-3 V5 unaffected (6/6 FULL sanity). 32/34 sample build.
+
+## Phase C — composer player knobs (the remaining work; from the first diverge)
+Building Jupiter41 with the family-3 V5 composer gives the right DATA but the
+family-3 PLAYER write stream. First divergence + the deltas to fix:
+1. **Filter**: orig `$D418=$3F` (filter MODE bits $30 set) vs rebuild `$0F`;
+   and the rebuild emits ~27k EXTRA writes = the family-3 `$D415` (cutoff lo)
+   it writes every frame that family-4 NEVER writes. → composer knob:
+   `$D416`-only filter + the family-4 `$D418` filter-mode derivation (`$1018`
+   from `$F9`).
+2. **Timing**: the 2-phase `$1016` note tempo (advance every other frame) vs
+   the family-3 speed counter → the note stream re-times. → composer timing knob.
+3. Confirm the note/freq decode once filter+timing align (the frame-1 freq
+   diff $0C8F vs $011C is likely the timing offset, not a decode bug).
+4. **Verdict**: `verify_dmc`. Carve a Jupiter41 reference for masked dispatch.
+5. Wide batch over the ~635.
