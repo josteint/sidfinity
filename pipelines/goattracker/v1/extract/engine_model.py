@@ -461,6 +461,13 @@ def extract(sid: Sid) -> V1Song:
                      pulselow=mem[base + 4], pulsehigh=mem[base + 5],
                      filter=mem[base + 6], wave=mem[base + 7])
         inst.wave_steps, inst.wave_loop = parse_wave_program(mem, L, inst.wave)
+        # Guard: a wave program with no $FF terminator within 256 steps (loop_to
+        # stays None) is a runaway — the inst.wave index is past the real
+        # wavetbl, which means the extraction model doesn't fit this binary
+        # (e.g. the optimized-layout sub-version, whose instrument/pattern format
+        # differs — see RE_NOTES §11). Reject cleanly rather than emit garbage.
+        if inst.wave_loop is None and len(inst.wave_steps) >= 256:
+            raise ValueError('V1: wave runaway (unsupported layout variant)')
         instruments[inum] = inst
         if inst.filter:
             filt_ptrs.add(inst.filter)
