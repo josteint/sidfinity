@@ -71,6 +71,7 @@ def run_member(rel: str) -> dict:
             subs = {}
             ok = True
             first_diff = None
+            flat_div = None
             for sub in range(n):
                 dur = (durs[sub] if durs and sub < len(durs) else 110) * 1.1
                 dur = max(5.0, min(dur, 1500.0))
@@ -87,8 +88,27 @@ def run_member(rel: str) -> dict:
                         fd = r.get('first_play_diff')
                         first_diff = ([sub, bool(r['state_match'])]
                                       + (list(map(list, fd[1:])) if fd else []))
+                    # RELIABLE clustering localizer (trichotomy first_diff has
+                    # phantom-D418 noise): the FLAT-prefix first (reg,val)
+                    # divergence of the PLAY stream. SKIP frame 0 (init) for the
+                    # vblank capture (composer emits its own universal-reset
+                    # init); the per-IRQ (CIA) capture already drops the init.
+                    if flat_div is None:
+                        skip0 = 0 if cia else 1
+                        fla = [(w[1], w[2]) for k, fr in enumerate(a)
+                               if k >= skip0 for w in fr]
+                        flb = [(w[1], w[2]) for k, fr in enumerate(b)
+                               if k >= skip0 for w in fr]
+                        mm = 0
+                        lim = min(len(fla), len(flb))
+                        while mm < lim and fla[mm] == flb[mm]:
+                            mm += 1
+                        if mm < lim:
+                            flat_div = [sub, mm, fla[mm][0], fla[mm][1],
+                                        flb[mm][1]]
             return {'path': rel, 'status': 'full' if ok else 'partial',
-                    'subs': subs, 'first_diff': first_diff}
+                    'subs': subs, 'first_diff': first_diff,
+                    'flat_div': flat_div}
         finally:
             os.unlink(tmp)
     except TimeoutError:

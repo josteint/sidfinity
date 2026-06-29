@@ -29,8 +29,24 @@ other families untouched.
   already models fade (sector cmds $F6/$F7) but these also have a DIFFERENT init
   skeleton ($1634), so they need real per-variant RE (init/orderlist + fade-source).
   Others: $1385 (16, wave_slice), $16C7 (16, partials+trailing_sector_cmds).
-- **partial 176** — not yet characterized; likely the off-table freq tail (hard,
-  same class as family-2/V4). NEXT V5 lever to investigate.
+- **partial 176 — CHARACTERIZED (2026-06-29, reliable flat_div via the now-
+  flat_div-enabled `dmc_v5_family_batch`):** FREQ 118 (67%, V2_FHI/V1_FHI/V1_FLO…)
+  = the hard off-table freq tail (same C11 class as family-2/V4, NOT a clean
+  lever). FILTER 26 (15%, FL_LO 20) / ADSR 12 / PULSE 10 / CTRL 1.
+  **FILTER cluster ROOT-CAUSED = the IDLE/DEFAULT filter sweep is not captured.**
+  Traced Cooksey_2009: orig V3 filter cutoff SWEEPS (idle program at filterpos=0
+  auto-advances after a ~20-frame hold, ramps $1415/frame); rebuild holds the
+  initial cutoff (B600) FOREVER. The filter table extracts correctly, but
+  `write_v5_usf` re-packs the filter table FROM PER-INSTRUMENT programs only
+  (to_usf docstring: "FILTER sweeps are residue... needs a `filter_sweep` field"),
+  and Cooksey's sweep is the IDLE default (ALL instruments filter_ptr=0, nothing
+  points into it) → LOST in the roundtrip. This is the V5 analog of V4's
+  `default_filter`. The fix = capture the idle filter program (filterpos-0 sweep)
+  as a USF default_filter/filter_sweep; the composer already RUNS filterpos-0
+  every frame, so it just needs the data. ~20 FL_LO members. PULSE 10 is likely
+  the analogous idle-pulse-program gap (unverified). Memwatch proof: rebuild
+  filtctr_lo reaches the count $14 but filterpos never advances because the
+  roundtripped filter table is the null+`$90` default, not the real sweep.
 - cia_multispeed 39, no_jumptable 14, trailing_sector_cmds 13, wave/pulse overflow.
 NB the Jun-21 `tmp/dmc_v5_full_results.jsonl` predates the Jun-25 CIA port — re-run
 with current code before trusting its non-FULL buckets (palimpsest).
