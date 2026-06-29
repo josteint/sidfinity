@@ -37,11 +37,16 @@ FORMAT, RELOCATED, with a DIFFERENT PLAYER** — NOT a from-scratch engine.
   data decode — Jupiter41 extracts clean + the FULL pipeline runs end-to-end.
   family-3 V5 unaffected (only layout='family4' hits the new path); full
   regression GREEN. 32/34 sample build.
-- **NEXT = Phase C (composer player knobs)** — from the first divergence building
-  Jupiter41 with the family-3 composer: (1) FILTER — family-4 writes ONLY $D416
-  (+ $D418 mode bits $30 from $F9/$1018), rebuild emits ~27k extra $D415; (2) the
-  2-phase $1016 note TIMING re-times the stream. Add as composer knobs, then
-  verify_dmc + carve Jupiter41 ref + wide batch ~635. ≈635 -> DMC ~71%->~76%.
+- **Phase C STARTED (commit 8b1f3b1): foundation done.** Threaded the `family4`
+  flag + player leftovers through extract→to_usf params→from_usf→model
+  (round-trips; family-3 unaffected, 7/7 FULL). Captured: `f4_idle_notes`
+  ($1012-$1014 curnote, NOT init-cleared = the leadin freq; Jupiter41=[43,36,29],
+  V1=43→$0C8F✓), `f4_filtmode` ($1018→$D418 mode; =$30✓). RE_NOTES has the
+  3-issue work list. **Remaining = the composer knobs (gate on m.family4):**
+  C-1 leadin curnote (prime $1012 idle from f4_idle_notes — the FIRST divergence,
+  V5 lo_notes analog); C-2 FILTER ($D416-only 8-bit cutoff $1019+$1853 + $D418
+  mode + $101A mvol-fade; rebuild emits ~27k extra $D415); C-3 2-phase $1016 note
+  TIMING. Then verify_dmc + carve Jupiter41 ref + wide batch ~635 → DMC ~71%→~76%.
 - Members: `tmp/v5_family4_members.json`. Commits 1fd69df/02baf25/824cc9a/88f18bc.
 
 ## ✅ V5 (family-3/5): 1088/1495 FULL (72.8%, 2026-06-29) — glide-wrap +27, idle-filter +20
