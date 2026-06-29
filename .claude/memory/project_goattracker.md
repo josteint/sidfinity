@@ -178,10 +178,14 @@ collision — player1 filter uses zp A5/65/85, not SMC immediates). **READ path 
 REMAINING extract residue (136): filttbl 39 (2SID/other), gatetimer 30 (player1 gt
 variant), pattern-overran 30 + IndexError 17 (wrong/edge detection), instrument-cluster
 10, songtbl/patttbl 7, wave-runaway 3. **NEXT = player2 COMPOSE (the lift for FULL):**
-(1) to_usf player2 command map (2=SETCUTOFFADD, 6=SETSUSTAIN) + instfilter→per-inst
-filter(cutoff+type) + global filter sweep as C10 automation; (2) a player2 composer
-body (direct $D404, global SMC filter, player2 commands) under `player='gamemusic'`.
-Until then player2 tunes EXTRACT but don't compose/verify (not FULL yet). gatetimer 30 = optimized-init tunes whose HR-flag
+(1) ✅ to_usf player2 command map DONE (d47d5ef): params['player']='tracker'|
+'gamemusic'; player2 cmds 2→fcutadd (global cutoff sweep), 5→fctrl ($D417), 6→srr,
+1→signed glide; arp/porta/vibrato/tempo shared. Global filter fully captured by the
+per-row cmds + per-inst instfilter (no separate C10 track). Validated 66 p2+206 p1
+to_usf, 0 crashes. (2) STILL TODO — a **player2 composer body** (direct $D404,
+global SMC filter sweep, player2 command semantics, instfilter→global cutoff+type on
+note-trigger) selected by `player='gamemusic'`; comparable to the V1.5 engine
+bring-up. Until then player2 tunes EXTRACT+to_usf but don't compose/verify (not FULL). gatetimer 30 = optimized-init tunes whose HR-flag
 gatetimer anchor `4A A9 gt 9D ?? ?? B0` misses (medium). pattern-overran 20 = my
 generalized song/patt picks a false-positive when no diff-3 table exists (orderlist
 refs an out-of-range pattern) — needs a self-consistency validator or better detect.
