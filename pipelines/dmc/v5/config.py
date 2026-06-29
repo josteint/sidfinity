@@ -37,6 +37,21 @@ class DMCV5Config:
     op_filter_lo: int = 0x13F0   # filter-table arg LO ($19C6)
     op_filter_hi: int = 0x13F6   # filter-table arg HI ($19C7)
     cia_period: int = 0          # CIA1 timer A latch for multispeed (0 = VBI)
+    family4: bool = False        # the Jupiter41 V5 variant (play +$95): same
+                                 # data format, different player (2-phase $1016
+                                 # timing, $D416-only filter) + $EF/$F0 sector
+                                 # cmds. Operand sites overridden by the factory.
 
 
 KATUSHA = DMCV5Config(sid_path='DEMOS/G-L/Katusha.sid', name='katusha')
+
+# family-4 (Jupiter41) operand sites — the $1000-based code PCs (the abs,Y
+# operand LOW byte). The factory relocates them by (load-$1000). See
+# pipelines/dmc/family4/RE_NOTES.md for the full site derivation.
+FAMILY4_SITES = {
+    'op_orderlist': 0x1047, 'op_secp_lo': 0x1147, 'op_secp_hi': 0x114C,
+    'op_instr': 0x1339, 'op_freq_lo': 0x1686, 'op_freq_hi': 0x168F,
+    'op_wave_ctrl': 0x1658, 'op_wave_freq': 0x165F,
+    'op_pulse_lo': 0x14C6, 'op_pulse_hi': 0x14D0,
+    'op_filter_lo': 0x1496, 'op_filter_hi': 0x14A7,
+}

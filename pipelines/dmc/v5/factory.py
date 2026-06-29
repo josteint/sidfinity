@@ -311,6 +311,22 @@ def v5_diagnose(sid_path: str, hvsc_root: str = 'hvsc84') -> dict:
     return {**out, 'status': 'ok'}
 
 
+def _family4_config(sid_path, mem, s, jt_addr) -> DMCV5Config:
+    """Build the config for the family-4 (Jupiter41) V5 variant. Same data
+    format as family-3, relocated, with a different player — so the extract
+    reuses the V5 decode at the family-4 operand sites (FAMILY4_SITES + delta).
+    The composer player knobs (2-phase timing, $D416-only filter) are Phase C."""
+    from pipelines.dmc.v5.config import FAMILY4_SITES
+    base = jt_addr                              # family-4 base = the jump table
+    delta = base - 0x1000
+    d = DMCV5Config(sid_path=sid_path,
+                    name=os.path.splitext(os.path.basename(sid_path))[0],
+                    base=base, family4=True)
+    for f, pc in FAMILY4_SITES.items():
+        setattr(d, f, pc + delta)
+    return d
+
+
 def dmc_v5_config(sid_path: str, hvsc_root: str = 'hvsc84') -> DMCV5Config:
     mem, s = _load(os.path.join(hvsc_root, sid_path))
     base, init_target, jt_addr, layout = _detect_v5(mem, s)
@@ -319,7 +335,7 @@ def dmc_v5_config(sid_path: str, hvsc_root: str = 'hvsc84') -> DMCV5Config:
             'no_jumptable',
             f"load=${s['load']:04X} init=${s['init']:04X} play=${s['play']:04X}")
     if layout == 'family4':
-        raise DMCV5Unsupported('family4_branch', f'jt=${jt_addr:04X}')
+        return _family4_config(sid_path, mem, s, jt_addr)
     delta = base - 0x1000
 
     # ---- masked identity compare of the PLAY-reachable body vs the
