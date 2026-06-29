@@ -31,11 +31,18 @@ FORMAT, RELOCATED, with a DIFFERENT PLAYER** — NOT a from-scratch engine.
   VBLANK (speed bit 0, SID writes every frame — verify_dmc per-frame applies, no
   CIA). CENSUS: 635/686 uniform family4 (play+$95), 36 actually family-3-layout
   (build via existing path), 15 rejected; 577@$1000 + ~58 relocated.
-- **NEXT = Phase B**: factory dispatch (stop rejecting layout='family4'; dataflow
-  the relocated table bases above) + reuse V5 extract + family-4 composer variant
-  (2-phase $1016 timing + $D416-only filter + $FA/$FB zp) + carve Jupiter41 ref +
-  wide batch over ~635. Migration target ≈ 635 -> would lift DMC ~71%->~76%.
-- Members: `tmp/v5_family4_members.json`. Commits 1fd69df/02baf25/824cc9a.
+- **Phase B DONE (commit 88f18bc):** factory dispatch + extract working.
+  `DMCV5Config.family4` flag + `FAMILY4_SITES` (12 operand PCs, verified 12/12);
+  `_family4_config` (base=load; sites+delta). The V5 extract REUSES the shared
+  data decode — Jupiter41 extracts clean + the FULL pipeline runs end-to-end.
+  family-3 V5 unaffected (only layout='family4' hits the new path); full
+  regression GREEN. 32/34 sample build.
+- **NEXT = Phase C (composer player knobs)** — from the first divergence building
+  Jupiter41 with the family-3 composer: (1) FILTER — family-4 writes ONLY $D416
+  (+ $D418 mode bits $30 from $F9/$1018), rebuild emits ~27k extra $D415; (2) the
+  2-phase $1016 note TIMING re-times the stream. Add as composer knobs, then
+  verify_dmc + carve Jupiter41 ref + wide batch ~635. ≈635 -> DMC ~71%->~76%.
+- Members: `tmp/v5_family4_members.json`. Commits 1fd69df/02baf25/824cc9a/88f18bc.
 
 ## ✅ V5 (family-3/5): 1088/1495 FULL (72.8%, 2026-06-29) — glide-wrap +27, idle-filter +20
 
