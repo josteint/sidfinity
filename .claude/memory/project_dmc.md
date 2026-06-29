@@ -24,9 +24,18 @@ FORMAT, RELOCATED, with a DIFFERENT PLAYER** — NOT a from-scratch engine.
 - **Phase B/C = the family-2 playbook**: factory dispatch + dataflow relocated
   bases → reuse the V5 extract → family-4 composer variant (2-phase timing +
   $D416 filter) → carve a Jupiter41 reference for masked dispatch → wide batch.
-- Remaining Phase-A detail: $147B effects, $1654 SID-write ORDER, $EF/$F0
-  semantics, measure the $1016 2-phase (multispeed-2 vs tempo), census the 686.
-- Members: `tmp/v5_family4_members.json`. Commits 1fd69df, 02baf25.
+- **Phase A now COMPLETE (commit 824cc9a):** full effect chain mapped (filter
+  prog $23D5/$242C, pulse $23A3/$23BC, glide, wave $2325/$2364 $90-loop); FREQ
+  TABLES lo $1719 / hi $1779; SID WRITE ORDER per voice = D400 D401 D402 D403
+  D404 (then D416 once); $EF = per-voice freq-lo bias ($1842,x); timing CONFIRMED
+  VBLANK (speed bit 0, SID writes every frame — verify_dmc per-frame applies, no
+  CIA). CENSUS: 635/686 uniform family4 (play+$95), 36 actually family-3-layout
+  (build via existing path), 15 rejected; 577@$1000 + ~58 relocated.
+- **NEXT = Phase B**: factory dispatch (stop rejecting layout='family4'; dataflow
+  the relocated table bases above) + reuse V5 extract + family-4 composer variant
+  (2-phase $1016 timing + $D416-only filter + $FA/$FB zp) + carve Jupiter41 ref +
+  wide batch over ~635. Migration target ≈ 635 -> would lift DMC ~71%->~76%.
+- Members: `tmp/v5_family4_members.json`. Commits 1fd69df/02baf25/824cc9a.
 
 ## ✅ V5 (family-3/5): 1088/1495 FULL (72.8%, 2026-06-29) — glide-wrap +27, idle-filter +20
 
