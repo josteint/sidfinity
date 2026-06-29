@@ -236,7 +236,10 @@ mt_chnad, mt_chnsr, mt_chngatetimer, mt_chnlastnote
 
 ## V1 vs V2 Differences
 
-- V1 IDs: `GTS3`, `GTS4`; V2: `GTS5`
+- **CORRECTED 2026-06-29 (V1 research wave):** the *original GoatTracker V1.x*
+  song ID is **`GTS!`** (verified against the V1.25 + V1.53 readmes/source).
+  `GTS3`/`GTS4` are early *GoatTracker 2* formats (GTS5 = V2.59+). The deep V1
+  reference now lives in the `v1_*.md` docs + `docs/src/v1_*` player source.
 - V1 had arpeggio command; V2 replaced with wave tables
 - V2 added 63 instruments, uniform step-programming tables, more commands
 - V2 can load V1 songs
