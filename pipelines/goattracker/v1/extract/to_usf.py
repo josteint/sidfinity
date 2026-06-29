@@ -162,6 +162,8 @@ def model_to_usf(song: V1Song) -> UsfFile:
     })
     if L.nowavedelay:                               # no delayed-wave variant
         params.fields['nowavedelay'] = True
+    if L.inittick_is_tempo:                          # optimized variant: init chntick=tempo
+        params.fields['inittick_is_tempo'] = True
     # Full filter table — the engine steps through it (4-byte entries) when an
     # instrument's filter ptr or a setfilter cmd selects a program. (TODO: this
     # is a raw blob; the principled form is musical filter programs — C7/C10.)

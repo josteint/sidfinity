@@ -97,6 +97,7 @@ class Layout:
     hr_ad: int             # hard-restart $D405 value
     hr_sr: int             # hard-restart $D406 value
     default_tempo: int = 5 # initial chntempo (per-tune; ticks/row)
+    inittick_is_tempo: bool = False  # optimized variant: init chntick=tempo (not gt+2)
     freqlo: int = 0        # freq table lo base (per-player; 96 entries)
     freqhi: int = 0        # freq table hi base
     nowavedelay: bool = False  # no delayed-wave variant (no `cmp #$08`)
@@ -164,19 +165,35 @@ def detect_layout(sid: Sid) -> Layout:
     patttbllo, patttblhi = _w(mem, patt_a + 1), _w(mem, patt_a + 6)
     songtbllo, songtblhi = _w(mem, song_a + 1), _w(mem, song_a + 6)
 
-    # gatetimer + default tempo: `lda #TEMPO; sta chntempo,x; lda #gt+2;
-    #   sta chntick,x; lda #$ff`  → A9 <tempo> 9D ?? ?? A9 <gt+2> 9D ?? ?? A9 FF.
-    # TEMPO is per-tune (NOT always $05) — wildcard it and extract.
-    h = one([0xA9, None, 0x9D, None, None, 0xA9, None, 0x9D, None, None,
-             0xA9, 0xFF], 6, 'gatetimer')
-    default_tempo = mem[h[0] + 1]
-    gatetimer = (mem[h[0] + 6] - 2) & 0xFF
+    # gatetimer + default tempo. Two init structures:
+    #  V1.5 normal: `lda #TEMPO; sta chntempo; lda #gt+2; sta chntick; lda #$ff`
+    #    → A9 <t> 9D ?? ?? A9 <gt+2> 9D ?? ?? A9 FF   (gatetimer = inittick-2).
+    #  optimized:   `lda #TEMPO; sta chntempo; sta chntick; ...; lda #$ff`
+    #    → A9 <t> 9D ?? ?? 9D ?? ?? A9 FF   (init-tick = TEMPO, not gt+2); the
+    #    gatetimer is the HR-flag preset `lsr; lda #gt; sta hrflag,x; bcs`
+    #    → 4A A9 <gt> 9D ?? ?? B0.
+    inittick_is_tempo = False
+    h = _find(mem, lo, hi, [0xA9, None, 0x9D, None, None, 0xA9, None, 0x9D,
+                            None, None, 0xA9, 0xFF])
+    if h:
+        default_tempo = mem[h[0] + 1]
+        gatetimer = (mem[h[0] + 6] - 2) & 0xFF
+    else:
+        ht = _find(mem, lo, hi, [0xA9, None, 0x9D, None, None, 0x9D, None,
+                                 None, 0xA9, 0xFF])
+        hg = _find(mem, lo, hi, [0x4A, 0xA9, None, 0x9D, None, None, 0xB0])
+        if not ht or not hg:
+            raise ValueError('V1 anchor not found: gatetimer')
+        default_tempo = mem[ht[0] + 1]
+        gatetimer = mem[hg[0] + 2]
+        inittick_is_tempo = True
 
-    # hard-restart AD/SR: `lda #imm; sta $d405,x` / `sta $d406,x`
-    ad_h = one([0xA9, None, 0x9D, 0x05, 0xD4], 1, 'hr_ad')
-    sr_h = one([0xA9, None, 0x9D, 0x06, 0xD4], 1, 'hr_sr')
-    hr_ad = mem[ad_h[0] + 1]
-    hr_sr = mem[sr_h[0] + 1]
+    # hard-restart AD/SR: `lda #imm; sta $d405,x` / `sta $d406,x`. Tolerant:
+    # the optimized variant uses a different HR mechanism (may lack one/both).
+    ad_h = _find(mem, lo, hi, [0xA9, None, 0x9D, 0x05, 0xD4])
+    sr_h = _find(mem, lo, hi, [0xA9, None, 0x9D, 0x06, 0xD4])
+    hr_ad = mem[ad_h[0] + 1] if ad_h else 0
+    hr_sr = mem[sr_h[0] + 1] if sr_h else 0
 
     # freq table — PER-PLAYER (V1.x sub-versions ship different tables!).
     # arpfreq: lda freqlo,y; sta x; lda freqhi,y; sta x → B9 ?? ?? 9D ?? ?? B9
@@ -195,6 +212,7 @@ def detect_layout(sid: Sid) -> Layout:
                   songtbllo=songtbllo, songtblhi=songtblhi, filttbl=filttbl,
                   gatetimer=gatetimer, hr_ad=hr_ad, hr_sr=hr_sr,
                   default_tempo=default_tempo,
+                  inittick_is_tempo=inittick_is_tempo,
                   freqlo=freqlo, freqhi=freqhi, nowavedelay=nowavedelay)
 
 

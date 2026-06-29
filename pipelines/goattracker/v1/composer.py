@@ -76,6 +76,9 @@ class _Tables:
         # full filter table (engine steps it); fall back to entry-0 placeholder.
         self.filttbl = list(p.get('filttbl_bytes', [self.filt[1], 0, 0, 0]))
         self.nowavedelay = bool(p.get('nowavedelay', False))
+        # optimized variant inits chntick = tempo (not gatetimer+2)
+        self.inittick = self.deftempo if p.get('inittick_is_tempo') \
+            else (self.gatetimer + 2) & 0xFF
         # freq table is PER-PLAYER (carried in USF); fall back to v153 constant.
         # Length is 2*N (lo then hi); N=128 captures the off-table window (C6).
         if usf.freq_table and len(usf.freq_table) >= 192:
@@ -229,7 +232,7 @@ def _engine(t: _Tables) -> str:
                          "        sta chnwave,x")
     return f"""
 GATETIMER = ${t.gatetimer:02x}
-INITTICK  = ${(t.gatetimer + 2) & 0xff:02x}
+INITTICK  = ${t.inittick:02x}
 HR_AD = ${t.hr_ad:02x}
 HR_SR = ${t.hr_sr:02x}
 DEFTEMPO = ${t.deftempo:02x}
