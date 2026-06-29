@@ -1,0 +1,188 @@
+# GoatTracker V1 — reverse-engineering notes
+
+Engine: original GoatTracker 1.x (Cadaver / Covert Bitops). HVSC engine
+`GoatTracker_V1.x`, 1,359 SIDs (1,347 single-SID + 12 dual-SID to exclude).
+**Dominant player = V1.5** (delayed-wave `cmp #$08`, testbit hard restart).
+
+**Ground truth: `pipelines/goattracker/docs/src/v1_player1_v153.s`** (the full
+free-licensed V1.5 playroutine). This file maps that source to the packed-SID
+data layout, the write stream, and the USF representation. Read the source
+alongside; do NOT re-derive. V2 docs (`player_algorithm.md` etc.) are a Rosetta
+stone, not authoritative.
+
+---
+
+## 1. Player skeleton (from v1_player1_v153.s)
+
+```
+$base+0  jmp init
+$base+3  jmp play
+init:    sta init_adc+1 ; asl ; adc init_adc+1 ; sta mt_chnloop+1 ; rts
+         ; → mt_chnloop init operand = subtune*3 (deferred; real init on 1st play)
+play:    save $fc/$fd; FILTER exec (global); write $D416/$D417/$D418;
+         then for X in 0,7,14: channel exec; restore $fc/$fd; rts
+```
+
+Per-channel exec (X = 0/7/14 = SID voice offset AND channel-var stride):
+- **First play after init** (`mt_chnloop+1` >= 0): clear sequencer vars, set
+  songnum = subtune*3 + channel, tempo=$05, tick=gatetimer+2, force
+  pattptr=ENDPATT + newnote, → loadregs. (This is the deferred song init.)
+- **`mt_noinit`**: `dec mt_chntick`; ==0 → tick0; <0 → reload tempo (funktempo
+  if tempo<2) then tickN; else tickN.
+- **tickN**: if waveptr!=0 run wave-table exec; else run the active continuous
+  fx (arp/portaup/portadown/toneporta/vibrato via `mt_tickntbl`).
+- **tick0**: decode newfx byte (= inst*8 | cmd); set instrument (if inst!=0)
+  + active fx; run the tick-0 cmd (`mt_tick0tbl`); then if newnote pending →
+  new-note init (load instrument: pulse, wave ptr, AD, SR, testbit ctrl $09,
+  filter); else continue to wave/pulse exec.
+- **pulse exec** → **gate-timer check** (`cmp #GATETIMER`; if tick==gatetimer →
+  fetch new note from pattern) → **loadregs** ($D400/$D401 freq, $D404 wave&gate).
+
+### Write stream per channel per frame (the verification target)
+Filter (once/frame, global): `$D416` cutoff, `$D417` ctrl, `$D418` type|vol.
+Per voice: `$D402/$D403` pulse (on new-note + during pulse modulation),
+`$D405/$D406` AD/SR (on new-note + hard restart), `$D404` ctrl ($09 testbit on
+new-note frame, then waveform&gate), `$D400/$D401` freq (every frame via
+loadregs). Order matters within frame (gate edges, testbit).
+
+---
+
+## 2. Packed-SID data layout (virtual → relocated)
+
+Player source virtual bases (greloc relocates each independently):
+
+| Virtual | Label | Content |
+|---|---|---|
+| `$4000` | `mt_instXX` | Instruments, **8 bytes/record, stride 8** (record N at $4000+N*8). |
+| `$4100` | `mt_wavetbl` | Wave-program left column (waveform $08-$FF / delay $00-$07). |
+| `$4200` | `mt_notetbl` | Wave-program right column (note: rel if bit7 clear → +chnnote; abs if bit7 set). |
+| `$4300/$4400` | `mt_songtbllo/hi` | Orderlist pointer table, indexed by songnum = subtune*3+channel. |
+| `$4500/$4600` | `mt_patttbllo/hi` | Pattern pointer table, indexed by pattnum. |
+| `$4700` | `mt_filttbl` | Filter table, **4 bytes/entry** (entry at +ptr; ptr is a byte offset, multiple of 4). Step 0 reserved (funktempo reuses bytes 2-3). |
+| (in player) | `mt_freqtbllo/hi` | **96-entry freq table — PLAYER CONSTANT** (baked in, identical every tune). Not per-tune. |
+
+**Instrument record (8 bytes):**
+| Off | Field | Meaning |
+|---|---|---|
+| 0 | AD | → $D405 on new-note |
+| 1 | SR | → $D406 on new-note (unless cmd 6 sustain-override active) |
+| 2 | pulse | new-note PW: `(byte&$F0)`→$D402, `(byte&$0F)`→$D403 (hi nibble) + sets dir |
+| 3 | pulsespd | bit0 = **0→do hard restart / 1→no HR**; `&$FE` = pulse modulation speed (0 = no pulse mod) |
+| 4 | pulselow | pulse-$D403 low bounce limit |
+| 5 | pulsehigh | pulse-$D403 high bounce limit |
+| 6 | filter | filter-table ptr (0 = don't change filter on new-note) |
+| 7 | wave | wave-program start ptr (1-based into wavetbl/notetbl; 0 = no wave) |
+
+**Wave program** (per-instrument slice of the shared wavetbl/notetbl, starting
+at `inst.wave`): each step = (left=wavetbl[y], right=notetbl[y]).
+- left `$00-$07`: **delay** (compare to arpcount; hold the step N frames, no wave change).
+- left `$08-$FF`: **waveform control byte** → chnwave (ANDed with gate at $D404).
+- right: note. bit7 set → absolute note `&$7F`; clear → relative `+chnnote &$7F`.
+- **loop/end**: when `wavetbl[y+1] == $FF`: if `notetbl[y+1]==0` → loop stays
+  (target 0); else new ptr = `notetbl[y+1] + inst.wave - 2` (loop target is
+  RELATIVE to the instrument's wave start). Else advance by 1.
+- A frequency load resets arpcount (`mt_arpfreqresetvib`).
+
+**Filter table entry (4 bytes at filttbl+ptr):**
+| Off | Static-mode (byte0 != 0) | Mod-mode (byte0 == 0) |
+|---|---|---|
+| 0 | $D417 ctrl (res+routing) | 0 = modulation marker |
+| 1 | $D418 type|vol (passband) | filttime (mod duration) |
+| 2 | $D416 cutoff (0 = skip cutoff) | filtcutoffadd (signed cutoff step/frame) |
+| 3 | next-step ptr (0 at entry 0 = stop) | next-step ptr |
+
+---
+
+## 3. Orderlist (song) format — `mt_sequencer`
+Bytes at songtbl[songnum]:
+- `$00-$CF`: pattern number → set pattnum, play it.
+- `$D0-$DF` REPEAT: repeat the next pattern `byte-$CF` extra times.
+- `$E0-$EF` TRANSDOWN / `$F0-$FE` TRANSUP: set channel transpose = `byte-$EF`
+  (signed: $E0=-16 … $FE=+15), applied to subsequent notes.
+- `$FF` LOOPSONG: next byte = restart position index; jump there.
+
+## 4. Pattern format — `mt_getnewnotes`
+Bytes at patttbl[pattnum]:
+- `$00-$5F`: note **with command** (3-byte row): note (0-$5D, $5E=KEYOFF,
+  $5F=REST) + fx byte (inst*8|cmd) + fxparam byte.
+- `$60-$BF`: note **without command** (1-byte row): note = `byte-$5F`.
+- `$C0-$FE`: **packed rest** (rest for `256-byte` frames; counter incs to wrap).
+- `$FF` ENDPATT: end → forces sequencer to fetch next orderlist entry.
+
+Note→newnote: `note + chntrans`. KEYOFF clears gate ($FE). Toneporta (cmd 3)
+suppresses hard restart + gate-off (legato). Hard restart (if inst pulsespd
+bit0==0): write HR-AD→$D405, HR-SR→$D406, gate off.
+
+## 5. The 8 commands (low 3 bits of the fx byte)
+| # | tick0 | tickN | Param meaning |
+|---|---|---|---|
+| 0 | arp setup | arpeggio | `$XY`: X(bits4-6)=2nd offset, Y(bits0-3)=3rd offset; cycles root→+X→+Y, 2 frames each. Suppressed while wave-program runs. |
+| 1 | idle | portaup | speed (16-bit via `mt_makespeed`: param<<2) |
+| 2 | idle | portadown | speed |
+| 3 | toneporta (set target, legato) | toneporta | speed ($00 = tie/instant) |
+| 4 | idle | vibrato | `$XY`: X(&$F0)=speed/half-cycle, Y(&$0F)=depth |
+| 5 | set filter ptr | idle | filter-table ptr |
+| 6 | set SR ($D406) | idle | SR value (also sets sustain-override so new-note won't reload SR) |
+| 7 | tempo/fader/timing | idle | global tempo; `$80-$EE`→channel tempo `&$7F`; `$EF`→timing mark; `$F0-$FF`→master fader (`mt_volume`) |
+
+## 6. Song globals — patched into the player (`dc.b $ff,$00` slots)
+greloc patches these immediates from the .sng; extract from the binary:
+- **gatetimer** (cmp at `mt_pulseexec`+3; and `+2` as initial tick `lda #gatetimer+2`).
+- **hard-restart AD** (`lda #ADPARAM` before `sta $d405`).
+- **hard-restart SR** (`lda #SRPARAM` before `sta $d406`).
+Constants: default tempo `$05`; master vol init `$0F`; testbit new-note ctrl `$09`.
+
+---
+
+## 7. USF representation (decided; follows FC precedent — NO schema change)
+
+Per-row commands → **`NoteRow.fx_flags` strings** (exactly as FC encodes
+glide/filter/wave_adjust — `pipelines/future_composer/to_usf.py`). Musical,
+parametric, no new schema. Proposed flag vocabulary:
+`arp=X,Y` · `portaup=N` · `portadown=N` · `toneporta=N` · `vibrato=X,Y` ·
+`filter=N` · `sr=$XX` · `tempo=N`/`chtempo=N`/`fader=$XX`/`timingmark`.
+
+Mapping to existing schema:
+- **Instruments** → `Instrument.adsr` (AD,SR); pulse 4-scalar → `PwmConfig`
+  (bidirectional: init from byte2, min_hi=pulselow, max_hi=pulsehigh,
+  speed=pulsespd&$FE, plus a HR flag → `freq?`/envelope); wave program →
+  `Instrument.waveform` (ctrl bytes + delays) + `Instrument.wave_freq` (note
+  rel/abs) + `Instrument.loop`; filter ptr → `FilterProgConfig.program`.
+- **Filter table** → `filter_programs` library (cutoff/res/route/mod), keyed by ptr.
+- **Patterns** → `Pattern`/`NoteRow` (pitch, duration, instr, fx_flags).
+- **Orderlists** → `Orderlist` (entries + `transposes` + `repeats` + `loop_to`).
+- **Freq table** = engine constant (composer emits the baked 96-entry table;
+  USF need not carry it — verify, revisit only if a tune diverges).
+- **Song globals** → `Params` / init: gatetimer, HR AD/SR, default tempo.
+- **Arp**: per-row `arp=X,Y`. (Cluster-by-behaviour: same musical concept as
+  ArpConfig but row-scoped — kept as a row fx like FC's per-row effects.)
+
+Convergence-ledger consult: pulse 4-scalar bounce = C1 SweepEnvelope family
+(bidirectional special case); filter table = C1/C10; off-table reads not yet
+seen for V1 (freq table is a constant, fixed 96 entries — watch for arp/porta
+running off the 96-entry table → C6).
+
+---
+
+## 8. Extraction plan (dataflow, per feedback_dataflow_over_heuristics)
+1. Locate player at load addr; confirm V1.5 via markers (delayed-wave `c9 08`,
+   testbit `a9 09`).
+2. Read the relocated table base addresses from the player's instruction
+   operands (the `lda <tbl>,y` sites — virtual $4000/$4100/.../$4700) — gives
+   instbase, wavetbl, notetbl, songtbllo/hi, patttbllo/hi, filttbl.
+3. Read song globals (gatetimer, HR AD/SR) from the patched immediates.
+4. Parse instruments (8B records), wave/note programs (per-inst slices via
+   inst.wave + loop resolution), filter table, song table → orderlists,
+   pattern table → patterns.
+5. Emit USF; build via the V1 composer; verify writelog (instruction-sequence
+   exact, [[feedback_verification_modes]]).
+
+## 9. Open questions to settle during extract/compose (from research)
+- Exact half-speed arp counter behaviour (param X>=8 path) vs the cycling above.
+- Filter static/mod chaining + funktempo's filttbl[0] bytes 2-3 reuse.
+- Packed wave-program loop-target arithmetic (`notetbl[y+1]+inst.wave-2`) edge cases.
+- Note-without-command off-by-one ($60→note 1; how C0 nocmd is encoded).
+Settle each against the writelog during canary bring-up, not by guessing.
+
+## Canary
+`hvsc84/MUSICIANS/T/Topaz/Joker.sid` — V1.5, single-subtune, load $1000, compact.

@@ -11,8 +11,14 @@ GoatTracker = 2nd-largest HVSC family after DMC: **8,670 SIDs** (7,311 V2 +
 1,359 V1). Family-doc state `OK`. **Active focus: V1** (the *original*
 GoatTracker 1.x by Cadaver, NOT GoatTracker 2 — user-directed 2026-06-29).
 
-**Status: RESEARCH DONE, disassembly/extract not started.** No
-`pipelines/goattracker/<engine>/` code yet — only `docs/`.
+**Status: RESEARCH + RE_NOTES + disassembly-annotation DONE; extractor next.**
+`pipelines/goattracker/v1/` has `disassembly.s` (annotated, canary Joker) +
+`RE_NOTES.md` (full engine semantics + data layout + extraction plan). No
+extractor/composer/config yet. **Layout VALIDATED against Joker**: instruments
+@ $1553 (8-byte stride), wavetbl $157a / notetbl $158a, patttbl lo/hi $159b/$159e
+— matches v1_player1_v153.s exactly. **Representation DECIDED** (ledger C14):
+per-row commands → `NoteRow.fx_flags` strings (FC precedent), NO schema change;
+arp is a per-row musical fx, not a new kind.
 
 ## V1 at a glance (the migration target)
 - 1,359 SIDs; **1,347 single-SID** + 12 dual-SID/2SID (exclude). **95.6%
@@ -44,16 +50,20 @@ GoatTracker 1.x by Cadaver, NOT GoatTracker 2 — user-directed 2026-06-29).
   (`deprecated/gt2_pipeline/GoatTracker_2.77/src/gsong.c`).
 - Index: `docs/v1_README.md`; provenance: `docs/v1_provenance_log.md`.
 
-## Next steps (the plan, paused before disassembly)
-1. Fingerprint the 1,359 binaries → pick dominant sub-version + a clean canary
-   (dominant player, load $1000, single-subtune, has audio).
-2. `tools/seed_disassembly.py` → `pipelines/goattracker/v1/disassembly.s`,
-   hand-annotate header against `v1_player1_v153.s`. Write `v1/RE_NOTES.md`.
-3. Extract (`engine_model.py`+`to_usf.py`) + `config.py`; arpeggio → parametric
-   musical effect (likely [[feedback_usf_representation_principle]] ArpConfig).
-4. Compose via the universal engine-blind composer → `siddump --writelog` verify
-   ([[feedback_verification_modes]] trichotomy); reloc factory + stratified-subset
-   iteration; full batch at closeout.
+## Next steps (extractor phase — start here)
+1. **Extractor** (`v1/extract/engine_model.py` + `to_usf.py` + `config.py`):
+   dataflow-read the table bases from the player's `lda <tbl>,Y` operands at
+   fixed offsets relative to play (robust across V1.5 tunes), + song globals
+   (gatetimer, HR AD/SR) from patched immediates. Parse instruments (8B),
+   wave/note programs (per-inst slice via inst.wave + loop), filter table, song
+   table→orderlists, pattern table→patterns. Emit USF. See RE_NOTES §2,§8.
+2. **Composer**: adapt the free-licensed `v1_player1_v153.s` into our xa65
+   engine, emit data tables from USF. (Each family has its own composer; this is
+   fine — engine-blindness is about not content-sniffing WITHIN one composer.)
+3. **Verify** canary writelog (instruction-sequence exact,
+   [[feedback_verification_modes]]); then reloc factory + stratified-subset
+   iteration; full batch at closeout (the [[project_fc_fingerprint_and_standard]]
+   playbook). Mirror DMC infra: composer_asm.py + v4/factory.py + extract/.
 
 See [[feedback_check_existing_engine_docs]], [[feedback_residue_triage_order]],
 [[project_fc_fingerprint_and_standard]] (the closest analog: one vanilla player +

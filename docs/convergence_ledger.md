@@ -75,6 +75,7 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
 | engine reads a table via an 8-bit index register (`base,Y` w/ Y=#*stride) · orig "reads garbage"/looks broken · extractor must wrap `(#*stride)&0xFF` · suspect OUR extractor not the packer | C11 | logged |
 | accumulated per-step rounding drift in a round-trip · USF stores DELTAS (durations), player sums them to ABSOLUTE positions · a min/floor on each delta drifts over a long song · short tunes pass, long tunes length_fail · keep deltas EXACT (allow 0) | C12 | logged |
 | engine variant dispatch · player jump-table init offset shifted but play body at canonical offset · "no_jumptable"/code-mismatch reject · dispatch on the PLAY-body signature not init (we emit our own init) | C13 | logged |
+| command-per-row tracker effect (note + fx + param per row) · porta/vibrato/arp/filter/tempo on a row · NOT per-instrument · how to represent in NoteRow | C14 | recurring (FC + GoatTracker V1) |
 
 ---
 
@@ -363,6 +364,27 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
   Humppa_Demo (1/33 FULLs).
 - **Consumers:** DMC v4 `_decode_instrument` (commit 3cae4fd).
 
+
+### C14 — Command-per-row tracker effects (note + effect + param per row)
+- **The problem class:** unlike instrument-effect-driven engines (Hubbard / DMC
+  where effects are per-instrument configs), classic trackers attach an EFFECT
+  COMMAND + PARAM to each pattern ROW (ProTracker-style): porta up/down, tone
+  porta, vibrato, arpeggio, set-filter, set-SR, set-tempo. `NoteRow` has no
+  effect+param field — only `pitch/duration/instr/fx_flags`.
+- **Canonical:** encode each per-row command as a **`NoteRow.fx_flags` string**
+  with its parameter — `glide={delay}`, `glide_up=$XXXX`, `wave_adjust=N`,
+  `filter=$XX`, `noretrig` (FC); `arp=X,Y`, `portaup=N`, `portadown=N`,
+  `toneporta=N`, `vibrato=X,Y`, `filter=N`, `sr=$XX`, `tempo=N` (GoatTracker V1).
+  Musical + parametric (each is a named effect with a continuous param), NOT an
+  engine-library index → passes the USF principle WITHOUT a schema change. The
+  composer parses the flag strings and emits the effect code.
+- **Status:** `recurring` (FC `to_usf` established it; GoatTracker V1 reuses).
+  Boundary: the flag VOCABULARY is per-family (each tracker's command set) but
+  the MECHANISM (typed strings on the row) is shared. Move-1 candidate: a typed
+  `RowCommand` union could replace the strings if the vocabulary stabilises — but
+  strings are the current shared form; do NOT add a schema field per family.
+- **Consumers:** FC (`pipelines/future_composer/to_usf.py` `_pattern_to_rows`),
+  GoatTracker V1 (planned, RE_NOTES §7).
 
 ### C12 — Accumulated per-step rounding drift in a delta-encoded round-trip
 - **The bug class:** the USF (or any parametric form) stores a sequence as

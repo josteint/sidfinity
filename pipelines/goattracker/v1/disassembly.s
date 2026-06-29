@@ -20,6 +20,29 @@
 ;                        first-play JSR $12EA = deferred song init).
 ;
 ; Auto-traced 880 reachable code bytes from init+play.
+;
+; SEED LABEL → SOURCE (v1_player1_v153.s) cross-reference:
+;   init       = init (sta init_adc+1; asl; adc; sta mt_chnloop+1)
+;   play→$1040 = play (save $fc/$fd; filter exec; channel loop X=0,7,14)
+;   sub_12EA   = first-play deferred song-init / sequencer region
+;
+; VALIDATED TABLE-BASE MAP (canary Joker; read from the player's lda <tbl>,Y
+; operands — this is the per-tune relocation the extractor must read):
+;   instruments  $1553  (8-byte records, stride 8: AD,SR,pulse,pulsespd,
+;                         pulselow,pulsehigh,filter,wave = base+0..+7)
+;     instad $1553 instsr $1554 instpulse $1555 instpulsespd $1556
+;     instpulselow $1557 instpulsehigh $1558 instfilter $1559 instwave $155a
+;   wavetbl      $157a   (left col: waveform $08-$FF / delay $00-$07)
+;   notetbl      $158a   (right col: note rel(bit7=0)/abs(bit7=1))
+;   patttbllo    $159b   patttblhi $159e   (→ 3 patterns here)
+;   song table + filttbl: $160F-$1612 region (deferred-init reads them)
+;   freqtbllo/hi: PLAYER CONSTANT (baked, 96 entries) — not per-tune.
+;   Song globals (gatetimer, HR AD/SR): patched immediates — see RE_NOTES §6.
+;
+; The player body is byte-identical across V1.5 tunes modulo relocation +
+; these patched operands/immediates → the extractor reads each table base from
+; the fixed instruction offset relative to play (dataflow, not heuristics).
+; Full semantics + extraction plan: RE_NOTES.md.
 ; ============================================================================
 
 ; ======= init: =======
