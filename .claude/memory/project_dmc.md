@@ -7,7 +7,18 @@ metadata:
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
 ---
 
-## ✅ V5 (family-3/5): 1068/1495 FULL (71.4%, 2026-06-29) — glide-wrap fix +27
+## ✅ V5 (family-3/5): 1088/1495 FULL (72.8%, 2026-06-29) — glide-wrap +27, idle-filter +20
+
+Session 2026-06-29 V5 total: 1041 → 1088 (+47), all 0-regression.
+**+20 idle/default FILTER sweep (commit 7ec73c0):** the `default_filter` capture in
+`to_usf` had a stale `m.filter[0] != (0,0)` gate that dropped idle filter programs
+starting with a (0,0) HOLD before the sweep (Cooksey: hold ~20 frames then ramp
+$1415/frame) — composer held the priming cutoff forever where the orig sweeps (the
+FL_LO partial cluster). Dropped the gate (the `any rate != 0` check already excludes
+a pure hold); SAME fix the `default_pulse` twin already had (round-8). Full FILTER
+cluster (FL_LO 15 + FL_HI/CTL 5) → FULL; full 1495 batch 0-regression.
+PROCESS WIN: the `default_pulse` code was the reference — when two twin features
+(pulse/filter idle sweep) exist, a fix to one should be mirrored to the other.
 
 Pivoted to V5 after family-2 froze on the hard freq tail. V5 is a MATURE engine
 (composer_v5 + factory + extract + batch, ~1041 FULL pre-session), NOT early-stage.
