@@ -292,5 +292,57 @@ rule). SFX ignorable for PSID. This is the single biggest V1 lever (~374 tunes) 
 multi-step sub-project (extractor branch is modest — most tables are shared; the
 composer body is the lift).
 
+### 12b. player2 COMPOSER BODY — adaptation spec (engine `_engine_v2`, TODO)
+
+Read path DONE (extract + to_usf + the `player='gamemusic'` pattern-encoder). The
+remaining piece is the engine asm `_engine_v2(t)` in composer.py, selected by
+`t.player=='gamemusic'`. Write it by ADAPTING the working V1.5 `_engine` (which
+already reads our data layout: songlo/songhi orderlists, pattlo/patthi+voicebase
+patterns, instXXX, wctrl/wnote, freqlo/hi) — REUSE these as-is, CHANGE only the
+player2 behaviors. Canary: a small player2 tune (e.g. `DEMOS/A-F/Faderik.sid`, 4
+insts; or `Improper_C0nnections`). Routine-by-routine (vs v1_player2_125.s):
+
+REUSE verbatim from `_engine`: the `sequencer` (orderlist walk — our format),
+`getnewnotes` pattern fetch + note decode, `arpeggio`, `makespeed`, `freqadd`/
+`freqsub`/`tp_*` toneporta, `pulseexec` pulse modulation (player2's is the SAME
+add/sub-with-bounds logic), `packedrest`.
+
+CHANGE for player2:
+1. **Note-fetch timing.** player2 fetches the row AT tick0 (`ldy chntick; beq
+   newnotes`), NOT at chntick==GATETIMER. So there is NO gatetimer-ahead getnewnotes
+   in pulseexec — drop the `cmp #GATETIMER; beq getnewnotes` and fetch+process the
+   row directly in the tick0 path. (No GATETIMER constant; no HR window.)
+2. **Filter exec** (frame start, before channels): SIMPLER than V1.5 — no filttbl
+   step. Just `lda filtcut; clc; adc filtcutadd; sta filtcut; sta $D416; lda filtctrl;
+   sta $D417; lda filttype; ora #$0f (volume); sta $D418`. (player2 $D418 = filttype
+   OR volume-nibble, where volume defaults $0f; NOT V1.5's `and volmask`.)
+3. **Commands** (the `_fx_to_cmd` numbers are already player2-correct): cmd1 =
+   SIGNED porta (`asl param; bcc freqadd; bcs freqsub` — reuse freqadd/freqsub);
+   cmd2 = SETCUTOFFADD tick0 set (`sta filtcutadd`); cmd5 = SETFILTER tick0 set
+   (`sta filtctrl` → global $D417); cmd6 = SETSUSTAIN (`sta $D406,x` — same as V1.5
+   cmd6); cmd0/3/4/7 (arp/toneporta/vibrato/tempo) reuse V1.5.
+4. **Wave-exec writes $D404 DIRECTLY** (`lda wctrl,y; beq skip; sta chnwave,x; sta
+   $D404,x`); player2's freq is written in arpfreq (`sta $D400/$D401`), pulse in
+   loadpulse (`sta $D402/$D403`). So there is NO combined V1.5 `loadregs` — split
+   the writes: ctrl in wave-exec, freq in arpfreq, pulse in a loadpulse tail. Match
+   player2's per-voice write ORDER exactly (the convergence crux).
+5. **Hard restart is immediate** on a new normal note: `lda #$00; sta $D405,x; sta
+   $D406,x` (no HR_AD/HR_SR constants, no gatetimer window). New-note then loads
+   instad/instsr, sets pulse from instpulse, and **instfilter → global filter**:
+   `lda instfilter,y; beq +; sta filtcutoff; asl×4; sta filttype` (sets the GLOBAL
+   cutoff+type on trigger — NOT a per-voice filter).
+6. **init**: per-channel chntick=chntempo=chnnewnote=5, pattptr=ENDPATT; clear the
+   global filter (filtcutoff=filtcutoffadd=filtctrl=filttype=0, $D415=0). Keep the
+   deferred-init structure (first play = orig frame 0, dropped by the verdict).
+
+BSS additions player2 needs (add to `_BSS_VARS`, harmless for player1): chncommand,
+chncmddata, chnvibcount, chnwavetbl (player2's wave pointer ≈ V1.5 chnwaveptr — can
+reuse chnwaveptr). Globals filtcut/filtcutadd/filtctrl/filttype already exist.
+SFX (playsfx) is game-only → never emit (PSID never calls it).
+
+Then build the canary → `tools/find_first_divergence.py` → fix the first per-voice
+write-order/value diff → iterate (the standard bring-up loop). ~26% of V1 (~374
+tunes) ride on this.
+
 ## Canary
 `hvsc84/MUSICIANS/T/Topaz/Joker.sid` — V1.5, single-subtune, load $1000, compact.
