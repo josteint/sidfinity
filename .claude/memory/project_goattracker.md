@@ -52,7 +52,22 @@ pair assignment — code-order is REVERSED vs V1.5; use the DIFF rule (song hi-l
 == 3*nsubtunes) — IN PROGRESS; (2) re-derive instrument-extent + pattern/instr
 decode for the optimized layout. Clean-reject guard kept (`extract` raises 'wave
 runaway' when no $FF terminator in 256 steps). V1.5-safe pieces KEPT (Joker +
-Menace47 FULL). RE groundwork in RE_NOTES §11. THEN (V1.5 path): Imdunk's
+Menace47 FULL). RE groundwork in RE_NOTES §11.
+
+**✅ EXTRACTION PATH DONE (this turn): the song/patt diff-rule unblocked the
+optimized variant** — in the 42-tune sample, extract-OK jumped 8→18, of which
+**10 are the optimized variant**, now extracting cleanly into the shared USF
+model (proves: extraction-variant + shared composer, not a separate engine).
+Remaining detect-errs: filttbl(20)/wavetbl(4) = FURTHER layout sub-variants
+(more anchors needed). **COMPOSER KNOBS needed to converge the optimized write
+stream (characterized from Alive frames, NOT yet implemented):** (1) filter is
+EVENT-DRIVEN — written only via setfiltersub (init + new-note instfilter + cmd5
++ program step), NOT a per-frame exec (V1.5 writes $16/$17/$18 every frame; Alive
+writes $15/$17/$18 once at f0, never again); (2) per-voice write ORDER is
+loadregs(freq/ctrl 00/01/04) BEFORE pulse(02/03) — V1.5 does pulse before
+loadregs; (3) the $13f7/no-hr_sr hard restart; (4) inittick=tempo (done). These
+restructure the engine's per-frame write sequence → conditional engine sections,
+multi-cycle build+diff. THEN (V1.5 path): Imdunk's
 gate/note tail (voice3 ctrl $20 gate-off vs $21), grammar ext arp/vibrato fx,
 relocation factory, wide batch. Quick batch: tmp/v1_sample.txt + `v1/verify.py`.
 
