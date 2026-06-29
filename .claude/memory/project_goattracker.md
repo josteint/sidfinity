@@ -78,20 +78,28 @@ arp is a per-row musical fx, not a new kind.
    loadregs. RAM globals (no SMC), rts-trick cmd dispatch, constants
    GATETIMER/HR_AD/HR_SR/DEFTEMPO. Reproduce write OUTPUTS incl. $D404=$09 testbit.
 3. **Verify** (`v1/verify.py`): build+flat-compare. **Canary converges to
-   flat-position 145/1380 (~11%)** — init + filter + voices 1/2 + first notes
-   all match. Fixes landed during bring-up (each advanced the divergence):
+   flat-position 887/2776 (~32%)** at full songlength — init + filter + voices
+   1/2 + row0 + fast toneporta all match. Fixes landed (each advanced the div):
    (a) freq table is PER-PLAYER (extract 128 entries incl. the C6 off-table
    window — wave relative notes mask &$7F → read past the 96-entry table);
    (b) wave-loop emitted as ABSOLUTE target (own clean scheme, no carry math);
    (c) TONEPORTA/note-only INHERITANCE — note-only rows (Row.cmd None) inherit
-   the prev cmd + instrument; emit cmd-flag for ALL cmd-rows (incl. arp0, which
-   CLEARS the effect), set instr only on real change (Row.new_instr). This fixed
-   the spurious off-table wave-restarts (lengths now 1380=1380).
-   **OPEN (next): 1-frame-early note change on the toneporta/continuous tick0**
-   — orig holds note57 one frame longer; ctrl stream matches, only freq is 1
-   early. Use `siddump --writelog-per-irq` (Trap-C-free), NOT per-siddump-frame
-   counting, to nail it. Then grammar extension for arp/vibrato fx (text
-   round-trip), factory, wide batch.
+   prev cmd+instr; emit cmd-flag for ALL cmd-rows (incl. arp0 = CLEARS effect),
+   set instr only on real change (Row.new_instr);
+   (d) TONEPORTA LEGATO applies NEXT play — t0_toneport jmps pulseexec (skip this
+   frame's waveexec); Joker's build differs from v153 (which runs waveexec at
+   toneporta tick0). 11%→32%. **chntick countdown PROVEN byte-identical orig vs
+   reb (direct memwatch compare) — row timing is correct; divergences are
+   per-effect, NOT timing.** Diagnosis method: `siddump --writelog-per-irq`
+   (Trap-C-free) + `--memwatch-on-write d418 <ram>` (RAM labels via
+   `assemble(...,return_labels=True)`).
+   **OPEN (next, ~div 887):** voice3 toneporta SLIDE — slow toneporta params
+   (e.g. $53) SLIDE toward target (1+ intermediate freqs) while fast ($ff) jump;
+   AND the active command-state diverges there (mine chnfx=arp where orig is
+   sliding) → a command-inheritance edge case + the continuous-toneporta-slide
+   vs wave-program interaction (does the slide run when waveptr!=0?). Needs RE of
+   V1 toneporta+wave. Then grammar ext for arp/vibrato fx (text round-trip),
+   relocation factory, wide batch.
 Then reloc factory + stratified-subset iteration; full batch at closeout (the
 [[project_fc_fingerprint_and_standard]] playbook). Mirror DMC infra:
 composer_asm.py + v4/factory.py + extract/. Harness refs: `src.composer_runtime.
