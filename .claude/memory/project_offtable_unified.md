@@ -54,6 +54,21 @@ from heuristic to correctness requirement. No green verdict yet (needs the full
 all-programs build). Earlier "ptr-19 walk model wrong" framing is SUPERSEDED by the
 coupling — the real issue is the shared-table coupling, not just one pointer's walk.
 
+FULL-BUILD ATTEMPT (2026-06-30): started the all-programs build; SEGMENTATION is the
+core obstacle (which frames = which program, in the play()-frame model). Findings:
+(1) re-init is INVISIBLE in the writelog (init writes internal $182a/$182d, not $D4xx;
+only pulse_run writes once/frame) → can't segment from SID writelog alone. (2) the
+play-sim is UNRELIABLE: off by 2.09× in frames + ~6× in note-count vs writelog gate-ons
+(the 2-phase $1016 MAIN/TICK timing + tie/gate model). (3) robust path = EVENT-DRIVEN
+`siddump --memwatch-on-write 180x 180x,182y,182z` (per-voice pulsepos+PW on each
+pulsepos write = play-aligned; re-inits = pulsepos resets carrying the ptr). Exists in
+siddump but needs per-voice parsing + play-frame (`--writelog-per-irq`) reconciliation.
+The full family-4 build is a MULTI-SESSION effort — segmentation infra is the real work;
+fit + integration are easy. Approach/design VALIDATED, implementation blocked on
+segmentation. Next build order: event-driven pulsepos capture → per-segment per-irq
+contour → greedy constant-delta fit (revive strip_decompose) → replace `_capture_env`
+wholesale, gate on zero FULL-regression. Scripts: `tmp/of_step*.py`, `tmp/proto_*.py`.
+
 STAGING: Phase 1 = observe-and-fit ALL pulse programs completely (breaks the coupling),
 NOT per-instrument. Phase 2 unify offtable_freq code. Phase 3 port the contour FIT.
 Defer Z3/e-graph unless greedy proves insufficient.

@@ -206,6 +206,43 @@ current independent-capture-into-shared-table approach cannot escape.
 (a passing fix requires the full all-programs observe-and-fit build, which the coupling
 finding now shows is necessary — not optional). Prototype scripts: `tmp/proto_*.py`.
 
+### Full-build attempt (2026-06-30) — SEGMENTATION is the core obstacle
+
+Began the full all-programs build. The REALIZE (observe the PW contour) and FIT steps
+are straightforward; the hard part is **segmenting** the per-voice PW contour by
+program (which frames belong to which instrument's pulse program) in the *play()-frame*
+model the verdict uses. Three concrete findings:
+
+1. **The re-init is INVISIBLE in the writelog.** The pulse init writes the engine's
+   INTERNAL PW state ($182a/$182d), not the SID registers; only `pulse_run` writes
+   `$D4xx`, once per frame. So a re-init (byte3≠0 load) produces NO distinct writelog
+   signal (no double-write). Segmentation cannot be done from the SID writelog alone.
+2. **The play-sim is UNRELIABLE for segmentation.** Its note-on schedule is off from
+   the writelog gate-on edges by a consistent **2.09× in frame count** AND **~6× in
+   note count** (761 play-sim note-ons vs 118 writelog gate-ons over the same span).
+   Cause: the engine's 2-phase `$1016` (MAIN/TICK) timing (~2 frames per tick) plus a
+   tie/gate model the simple `frame += cur_dur` sim doesn't capture. So the play-sim
+   can't supply reliable segment boundaries without first nailing the exact tick→frame
+   and note/tie semantics.
+3. **The robust path is EVENT-DRIVEN internal-state capture** (the C11 "correct by
+   construction"): `siddump --memwatch-on-write 180x 180x,182y,182z` snapshots the
+   per-voice pulsepos + PW on every write to `$180x` (the pulsepos store) — one event
+   per `pulse_run` advance = play-aligned, and re-inits show as pulsepos resets that
+   directly carry the ptr. This exists in siddump (output: `|E<n>:addr=val:…` appended
+   per frame) but needs: per-voice trigger handling, output parsing, and reconciliation
+   with the play()-frame model (`--writelog-per-irq`) for the contour durations.
+
+**Honest scope:** the full family-4 build is a multi-session engineering effort — the
+segmentation infrastructure (event-driven internal capture + play-frame alignment +
+the 2-phase timing model) is the real work, on top of the (easy) fit and the
+all-instruments integration + zero-regression gate. The APPROACH and DESIGN are
+validated; the IMPLEMENTATION is blocked on this segmentation layer. Recommended next
+build order: (a) event-driven pulsepos capture per voice → reliable segments tagged by
+ptr; (b) `--writelog-per-irq` contour per segment → play-frame deltas; (c) greedy
+constant-delta fit (revive `strip_decompose`); (d) replace `_capture_env` wholesale for
+family-4, gate on zero regression across FULL members. Build scripts: `tmp/of_step*.py`,
+`tmp/proto_*.py`.
+
 ## Risks / honest scope
 
 - Substantial refactor touching DMC v4/v5, FC, Hubbard extract paths; migration must
