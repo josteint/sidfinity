@@ -17,11 +17,29 @@ def _flat(frames):
     return [(r, v) for f in frames[1:] for (c, r, v) in f]
 
 
-def verify(orig_path: str, duration: float = 4.0, out: str | None = None):
+def _songlength(orig_path: str):
+    """Authoritative capture length: HVSC songlength (s). NB a bare duration=None
+    makes siddump capture ZERO frames → a vacuous FULL false-pass; the verdict
+    MUST span the whole song ([[feedback_subtune_frames_not_arbitrary]])."""
+    rel = orig_path[len('hvsc84/'):] if orig_path.startswith('hvsc84/') else orig_path
+    try:
+        from src import sid_db
+        r = sid_db.query("SELECT songlength_s FROM sids WHERE path=?", [rel])
+        if r and r[0][0]:
+            return float(r[0][0])
+    except Exception:
+        pass
+    return None
+
+
+def verify(orig_path: str, duration: float | None = None, out: str | None = None):
     usf = model_to_usf(extract(parse_sid(orig_path)))
     sid = build_v1_sid(usf)
     out = out or 'tmp/_gtv1_verify.sid'
     open(out, 'wb').write(sid)
+    if duration is None:                     # songlength × 1.1 (never None→0 frames)
+        sl = _songlength(orig_path)
+        duration = max(8.0, sl * 1.1) if sl else 30.0
     a = _flat(writelog_capture(orig_path, 0, duration=duration))
     b = _flat(writelog_capture(out, 0, duration=duration))
     n = min(len(a), len(b))
