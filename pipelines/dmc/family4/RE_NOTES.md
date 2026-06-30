@@ -320,7 +320,20 @@ unless step-doubling ($1812=byte7>>4). So a per-voice `vibrev` flag set on the U
 reversal (the inc-vibdir path), cleared each frame at vib_on entry; write_vol skips
 $D418 when vibspd!=0 && vibrev!=0 (commit 8a8e8b8).
 
-### NEXT (write 56000, ~67s): V3 pulse program advance
+### NEXT (write 56000, ~67s): V3 OFF-TABLE pulse program
+V3 ramps PW_lo += $20 (matched), then the orig advances to PW_hi += $08 (→$2460→
+$2C60→$3460, holds), but the rebuild's pulse loops $5C↔$5E (spurious re-packed $90).
+ROOT: family-4's pulse COUNT is 8-bit ($23BC[pos+1]); _capture_env read it 16-bit
+(folding garbage $23A3[pos+1] into the count), inflating cum so `reach` truncated the
+program early → re-pack capped it with a $90 loop. Added count8bit (commit 6a840e3) —
+correct for non-off-table family-4 PWM. BUT Jupiter41's V3 pulse pointer is OFF-TABLE
+(no real $90 loop; program runs past its end into a terminal hold), so the 8-bit walk
+runs past _PHASE_CAP=48 → falls back to the 16-bit bound → still the spurious loop.
+The off-table pulse (C2/C11) needs the off-table playbook: capture the bytes the orig
+plays past the nominal program end (the terminal hold), analogous to freq_overrun.
+Then verify FULL SONG.
+
+### (superseded) V3 pulse program advance
 V3 ramps PW_lo += $20 (matched: 1C20→1C40→1C60), then the orig advances to a step
 adding $08 to PW_hi (→$2460→$2C60→$3460, then holds for a new note), but the rebuild
 stays on the $20 low-add step (1C80→1CA0→1CC0). The pulse program doesn't advance to
