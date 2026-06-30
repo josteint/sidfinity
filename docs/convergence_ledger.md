@@ -587,4 +587,11 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
   emission-order knob is the next step). FC `nextvoice_write_order` is the shipped
   precedent for the within-voice granularity.
 - **Consumers (seen):** FC `nextvoice_write_order` (shipped, within-voice). DMC
-  V5 family-4 (the across-voice 2-pass case; pending).
+  V5 family-4 (the across-voice 2-pass case; pending). **GoatTracker V1 player1
+  OPTIMIZED variant (shipped 2026-06-30, commit 3f20ab5):** `optimized`-gated knob
+  moves the per-voice pulse write from pulseexec (before freq, conditional on
+  instpulsespd!=0) to AFTER loadregs's $D404 (unconditional, every frame) = player2's
+  loadpulse-after-freq order. 435-tune bucket (`v1_pwlo`/`v1_freqlo` div<50, half of
+  player1's partials). I MIS-SCOPED it as a "flow restructure" first; the C16 consult
+  + the FC precedent reframed it to a bounded knob (the same lesson C16 already
+  records for DMC family-4 — trace first, don't pre-scope a rewrite).

@@ -262,15 +262,24 @@ all values match). Captured Blueseczka (optimized) vs Joker (V1.5 FULL):
   freq, ctrl (REVERSED), AND `pulseexec` SKIPS the pulse write when instpulsespd==0
   (`lda instpulsespd,y; and #$fe; beq pulseok`) — so non-PWM voices write no pulse,
   and the order is wrong. (V1.5 Joker = FULL because V1.5 orig matches this.)
-- **FIX (next session — NON-trivial flow restructure, regression-guard the 84 FULL
-  player1 tunes):** add an `optimized`-gated emission where per voice the order is
-  loadregs (freq, ctrl) THEN an UNCONDITIONAL pulse write ($D402/$D403 = chnpulse,
-  PWM only updates chnpulse). This is the player2 loadpulse-after-freq structure
-  with player1 semantics. The `_engine` flow has multiple `jmp pulseexec`/`jmp
-  loadregs` entries, so it's a real reorder, not a one-liner — do it carefully on a
-  fresh session and DIFF Joker (must stay FULL) + Blueseczka after. Likely also
-  needs the f1/first-note pulse-timing checked (reb's pulse currently lags one
-  frame on the optimized init). This single fix targets ~435 tunes.
+- **FIX — ✅ LANDED as a C16 emission-ORDER KNOB (commit 3f20ab5), NOT a restructure.**
+  I first mis-scoped this as a "non-trivial flow restructure" — exactly the anti-pattern
+  ledger **C16** warns against ("trace the order first; it's almost always a bounded
+  emission-order knob, not a rewrite"; FC `nextvoice_write_order` is the precedent).
+  After the user's re-anchor + the C16 consult: gated on `t.optimized`, pulseexec still
+  MODULATES chnpulse/chnpulsedir but does NOT emit $D402/$D403 (pd_d403/pd_d402=''),
+  and loadregs emits them every frame after $D404 (opt_pulse) — the player2 loadpulse-
+  after-freq structure. V1.5 byte-identical (Joker FULL), player2 untouched (Faderik
+  FULL). The 16-bit pulse is $D402=chnpulsedir(lo), $D403=chnpulse(hi).
+  **Blueseczka div 3→33: the ORDER cause is FIXED.** Remaining div@33 is a SEPARATE
+  cause — the pulse-mod sweep lags ONE FRAME (orig $20→$40→$60 per frame from f2; reb
+  $20→$20→$40, first modulation one frame late). This is a new-note/pulse-mod START
+  timing issue (analogous to player2's tick0-defer), NOT the emission order. So the
+  435-tune bucket needs BOTH the C16 order knob (done) AND the pulse-mod-start timing
+  fix (next). NOTE (C15, recorded): for player1.5 the idle-frame divergence here is
+  AUDIBLY EQUIVALENT (phase reset via $09 test+gate → idle freq inaudible; freq/pulse
+  order latched same-frame) — under the (deferred) audio-equivalence verdict most of
+  the 435 would pass with no change; we're on the STRICT verdict by user choice.
 
 ## 12. PLAYER2 — the "gamemusic-mode" routine (the BIGGEST non-V1.5 bucket, ~374)
 
