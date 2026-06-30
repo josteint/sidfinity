@@ -273,9 +273,34 @@ Filter is a distinct family-4 subsystem (filtmode $D418=$30 done, cc8cb46):
   the V5 _CMD map decodes it as 'frq' (harmless to the freq — composer's frq is a
   no-op — but its value must route to filtbase). NB the filter cmds ($F8 base/$F9
   res+mode) are intertwined; the extract must capture their args for family-4.
-Plan (analogous to the pulse fix): (1) 8-bit filter counter; (2) fchi 1-byte sweep;
-(3) $D416 = fchi + filtbase, $D415 init-only; (4) route $F8→filtbase + $D417 res.
-orig $D416 seq: 00 5E 5E 2E×many (sweeps); distinct ~20 values.
+DONE (commit 95b5ddc): filtbase var + $F8→filtbase + $D416=fchi+filtbase + 8-bit
+filter_run + no per-frame $D415. filtbase works ($D0); MVOL matches; $D415 gone.
+
+### ✅ FILTER FULLY UNDERSTOOD (memwatch of the orig's $1019/$1853/$1803/$184E)
+For Jupiter41 the filter is **STATIC**, NOT swept — my sweep machinery was the wrong
+model. Ground truth (orig memwatch):
+- **$1019 = $5E CONSTANT** — it is the FILE-IMAGE byte at $1019 (mem[$1019]=$5E),
+  never touched: V3 stays idle (inst 0) so its filter-program init/sweep never runs.
+  $1803 (filterpos) = 0 constant; $184E counts but $242C[1]=0 so it never advances;
+  $23D5[0]=0 so even the running add is 0 → $1019 frozen at the file-image $5E.
+- **$1853 = $00 → $D0** (set by $F8 $D0, ~frame 3). $1857=$35 (from $F9, filter on).
+- **$D416 = $1019 + $1853 = $5E (early) → $5E+$D0 = $2E** (matches orig 00 5E 5E 2E…).
+So the orig $D416 seq is 2 distinct values, NOT a 20-value sweep — the ~20 distinct
+$D416 values over the whole song are LATER (real filter notes on V3), out of the
+first-divergence window.
+
+THE REBUILD BUG: the composer's V3 runs a filter PROGRAM during idle (note-on
+filter-init sets filterpos from inst byte4 ($01/$29…), then filter_run sweeps fchi
+to $D0) — the orig's idle V3 does none of that ($1019 stays the file-image $5E).
+
+### REMAINING FIX (clear, multi-part):
+1. **fchi init = file-image $1019** (mem[base+$19]=$5E) for family-4, NOT lo_fchi($00).
+   Capture as an f4 param (analogous to f4_filtmode). LEFT_FCHI := that for family-4.
+2. **Don't run V3's filter program during idle** for family-4 (the note-on filter-init
+   + filter_run sweep must be no-ops when V3 is idle) — so fchi stays the static $5E.
+   Then $D416 = $5E + filtbase matches. NB later real V3 filter notes (the ~20-value
+   sweep region) will then need the program to actually run — verify the full song,
+   not just the first window, before declaring FULL.
 
 ## ⚠️ C-3 REAL BLOCKER (found 2026-06-29): the 2-phase splits the WRITE ORDER
 Sweeping lo_spdctr (0..4) maxes the non-filter match at ~63 then forks — and the
