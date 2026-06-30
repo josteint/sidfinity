@@ -377,19 +377,30 @@ metric, MISLEADING when orig/rebuild INIT LENGTHS differ (drops a fixed init pre
 mis-aligns the play streams). TRUST the flat `match` (56000) = the off-table pulse.
 Lesson: for family-4 (different init length), use `compare_instruction_stream`'s flat
 `match`/`is_full`, not find_first_divergence's post-init position.
-**Deeper tooling gap (blocks the horizon fix):** BOTH find_first_divergence AND an
-ad-hoc raw flat counter mis-localize for family-4 because orig/rebuild INIT LENGTHS
-DIFFER — a raw flat compare mis-aligns the play streams. `compare_instruction_stream`
-gives the trustworthy VERDICT (match count) but NOT the localized (reg,role). Proof
-the raw localizers lie: the horizon regression's ad-hoc "div = $D40A=$08 @ flat-7416
-(~8.8s)" is CONTRADICTED by memwatch — orig $D40A is $00 for the entire first 14s. So
-the play-sim horizon regresses the VERDICT (56000→7416, reliable) but the *cause*
-can't be pinned without an INIT-ALIGNED flat localizer (the post-init-shift recovery
-that compare_instruction_stream already does internally, exposed as a per-write
-diff). BUILD THAT TOOL FIRST before resuming the horizon fix — chasing raw-flat
-divergence details for family-4 burns time on phantoms (Trap-C class). Until then the
-off-table pulse stays the architectural blocker; the play-sim horizon is the right
-direction but un-landable without reliable localization.
+**The regression IS localizable (self-correction):** the ad-hoc flat counter agrees
+with the verdict (both 56000 committed / 7416 horizon), so flat position 7416 IS the
+divergence: orig writes $D40A=$08 (V2 PW hi) where the rebuild writes $00 — the
+rebuild MISSES a V2 PW-hi=$08 write. (A memwatch of $D40A shows $00 for 14s, but that
+is TRAP A — the orig writes $08 then $00 within the SAME frame; the frame-boundary
+snapshot only keeps the final $00. The write-log is right; don't trust register
+snapshots for within-frame order.) **PRECISE ROOT (confirmed):** dumped inst 3/4/13/14/15 start bytes in BOTH committed
+(ptab=119) and horizon (ptab=163) builds — pulselo[ptr]=$08 in ALL (start NOT
+corrupted; de-fusion shift REFUTED). So the regression is MID-SWEEP, not the note-on.
+The decisive logic: committed's inst 14/15 = 16-bit collapse `(+0,1),(-512,65536)` =
+`-512 forever` and matches the orig to 56000; horizon's 8-bit = `(+0,1),(-512,256),
+(+0,23),(+0,132),(+8192,256)` and matches only to 7416. The VERDICT prefers the
+16-bit. THEREFORE the orig's inst 14/15 (ptr 19) actually ramps `-512` for a LONG
+time, and **`_capture_env`'s 8-bit off-table walk MIS-MODELS ptr 19** (it claims the
+walk leaves the -512 step after 256 frames into +0/+8192, but the orig stays on
+-512). Contrast ptr 2 (inst 17), where the 8-bit walk is CORRECT (recovers the real
++$08 PW_hi sweep = the 56000 fix). So different off-table pointers walk differently
+and `_capture_env` matches some (ptr 2) but not others (ptr 19) — the advance/count/
+$90-loop/parity model is wrong for ptr 19. **THE blocker:** make `_capture_env`'s
+off-table walk bit-exact to the orig's pulse engine ($14B4 advance + the
+$23A3/$23BC count/loop semantics) for ALL pointers, verified against a memwatch of
+the orig's PW per off-table pointer. The play-sim horizon is correct and necessary
+(bounds the table) but insufficient alone — the capture's off-table WALK must match
+first. Horizon prototype in the session transcript; NOT committed.
 
 ### 📊 FAMILY-4 WIDE-SAMPLE CENSUS (80/686 members, 2026-06-30) — 0 FULL
 First batch through `dmc_v5_family_batch.py` after this session's gated knobs
