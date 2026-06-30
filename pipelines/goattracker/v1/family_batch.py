@@ -13,7 +13,7 @@ anchor miss / wave runaway) / build_fail / error / timeout. Records player
 (tracker=player1 / gamemusic=player2) for per-player rates.
 
 Usage:
-    PYTHONPATH=src:. python3 tools/gt_v1_family_batch.py [--sample N] [--out FILE]
+    PYTHONPATH=src:. python3 pipelines/goattracker/v1/family_batch.py [--sample N] [--out FILE]
 
 --sample N : run only every len/N-th member (load-spread triage)
 """
@@ -27,7 +27,9 @@ import sys
 import tempfile
 from multiprocessing import Pool
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# this file lives at pipelines/goattracker/v1/ → repo root is 4 dirs up
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(
+    os.path.dirname(os.path.abspath(__file__)))))
 sys.path[:0] = [os.path.join(ROOT, 'src'), ROOT]
 
 OUT = os.path.join(ROOT, 'tmp', 'gt_v1_results.jsonl')

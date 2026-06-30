@@ -301,8 +301,8 @@ DON'T jump the FULL count because each tune has SEVERAL divergences (fixing one 
 the next). This is the realistic wide-family grind: incrementally harden the engine/
 extraction, each variant fix helps audio even before FULL.
 
-**✅ AUTHORITATIVE WIDE BATCH (2026-06-30, `tools/gt_v1_family_batch.py` +
-`gt_v1_census.py`, FULL-songlength verify over all 1359):** **164/1359 FULL (12%)** —
+**✅ AUTHORITATIVE WIDE BATCH (2026-06-30, `pipelines/goattracker/v1/family_batch.py` +
+`pipelines/goattracker/v1/census.py`, FULL-songlength verify over all 1359):** **164/1359 FULL (12%)** —
 **player1 (tracker) 84/884 (9.5%)**, **player2 (gamemusic) 80/341 (23.5%)**, detect_fail
 134, build_fail 3. KEY INVERSION: player2 (this session's focus) is now BETTER than
 player1; **player1 is the bigger problem.** Tools: batch verifies at songlength×1.1
@@ -375,7 +375,7 @@ undercounts (masks FULL on long tunes + boundary-truncates). Re-checked the div=
 Reggae_1/Rusty_Gate = div=None w/ TINY tail diff (7/17 writes — song-end capture
 boundary, effectively converged); Zonik = reb ~3000 short (real loop/end); Addiction =
 real div@83. So div=None is NOT one cause, and the TRUE FULL rate is >3/30. NEXT
-SESSION: build `tools/gt_v1_family_batch.py` (FC-standard-shaped) that verifies at FULL
+SESSION: build `pipelines/goattracker/v1/family_batch.py` (FC-standard-shaped) that verifies at FULL
 songlength (NEVER a duration cap / arbitrary 12s — both undercount) + a divergence census
 to get the accurate rate and rank real buckets. Then attack: deep partials (Lovin 28144,
 Sanxzodiz/Scenial ~15-20k), Zonik-style short (loop/end), the genuine early divergences.

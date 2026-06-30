@@ -8,7 +8,7 @@ convergence grind. The 'len' bucket (matched over the overlap, only total length
 differs) is reported separately: these are near-converged (often a song-end
 capture-boundary tail).
 
-Usage:  PYTHONPATH=src:. python3 tools/gt_v1_census.py [--results FILE] [--player tracker|gamemusic]
+Usage:  PYTHONPATH=src:. python3 pipelines/goattracker/v1/census.py [--results FILE] [--player tracker|gamemusic]
 """
 from __future__ import annotations
 
@@ -17,7 +17,9 @@ import json
 import os
 import sys
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# this file lives at pipelines/goattracker/v1/ → repo root is 4 dirs up
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(
+    os.path.dirname(os.path.abspath(__file__)))))
 
 
 def reg_role(reg: int) -> str:
