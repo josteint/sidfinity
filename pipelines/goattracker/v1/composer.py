@@ -428,7 +428,9 @@ gp_common:
         bne gp_cont
         inc chnpattptr,x
 gp_cont:
-        jmp effects2
+        ldy chncommand,x         ; packed rest re-runs the INHERITED tick0 cmd each
+        jmp gn_rest              ; row (orig mt_packedrest → mt_rest), e.g. a held
+                                 ; SETSUSTAIN keeps re-writing SR during the rest
 
 t0_starttp:
         lda #$fe
