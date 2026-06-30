@@ -113,8 +113,18 @@ FORMAT, RELOCATED, with a DIFFERENT PLAYER** — NOT a from-scratch engine.
     drums/ADSR/vol) is byte-exact. **FINAL PIECE = C-2 filter** (Jupiter41 still
     `partial`): $D416-only = $1019(sweep, prog $23D5/$242C) + $1853(base); $D415=$00
     init-only; $D417=$54 res; **$F8 is the FILTER-BASE cmd for fam-4 (sets $1853),
-    NOT 'frq'**. filtmode $D418=$30 done (cc8cb46, f4_filtmode). Plan: 8-bit filter
-    counter + fchi 1-byte sweep + $D416=fchi+filtbase + route $F8→filtbase + $D417.
+    NOT 'frq'**. filtmode $D418=$30 done (cc8cb46, f4_filtmode). Filter STRUCTURE
+    done (95b5ddc: filtbase var + $F8→filtbase + $D416=fchi+filtbase + 8-bit ctr +
+    no per-frame $D415; filtbase works, MVOL matches). **FILTER FULLY UNDERSTOOD via
+    orig memwatch (e8a135d): for Jupiter41 it's STATIC, NOT swept — $1019=$5E is the
+    FILE-IMAGE byte at $1019 (V3 idle/inst0 → filter program never runs; $1803=0,
+    add=0 → $1019 frozen); $1853=0→$D0 ($F8); $D416=$1019+$1853 = $5E→$2E. The sweep
+    machinery was the wrong model for the first window.** REBUILD BUG: composer's V3
+    runs a filter PROGRAM during idle (note-on filter-init from inst byte4 + sweep →
+    fchi=$D0), orig doesn't. FIX (clear): (1) fchi init = file-image $1019 (mem[base+
+    $19], an f4 param) not lo_fchi; (2) don't run V3's filter program during idle for
+    family-4. Then verify FULL song (later real V3 filter notes DO sweep — the ~20
+    distinct $D416 values are out of the first-divergence window).
 - Members: `tmp/v5_family4_members.json`. Commits 1fd69df/02baf25/824cc9a/88f18bc.
 
 ## ✅ V5 (family-3/5): 1088/1495 FULL (72.8%, 2026-06-29) — glide-wrap +27, idle-filter +20
