@@ -300,7 +300,32 @@ move divergences progressively DEEPER + fix correctness (runaway wave programs) 
 DON'T jump the FULL count because each tune has SEVERAL divergences (fixing one reveals
 the next). This is the realistic wide-family grind: incrementally harden the engine/
 extraction, each variant fix helps audio even before FULL.
-**⚠️ SAMPLE-CAP UNDERCOUNTS:** the ~3/30 used a 75s duration CAP for speed, which
+
+**✅ AUTHORITATIVE WIDE BATCH (2026-06-30, `tools/gt_v1_family_batch.py` +
+`gt_v1_census.py`, FULL-songlength verify over all 1359):** **164/1359 FULL (12%)** —
+**player1 (tracker) 84/884 (9.5%)**, **player2 (gamemusic) 80/341 (23.5%)**, detect_fail
+134, build_fail 3. KEY INVERSION: player2 (this session's focus) is now BETTER than
+player1; **player1 is the bigger problem.** Tools: batch verifies at songlength×1.1
+(Pool(8), resume-safe jsonl `tmp/gt_v1_results.jsonl`, records player + div_sig); census
+clusters partials by (player, first-div register-role, depth). **RANKED BUCKETS (the
+real levers):**
+1. **player1 optimized-layout WRITE ORDER (v1_pwlo div<50 ×302 + v1_freqlo div<50 ×133
+   = 435 tunes, THE #1 LEVER).** Pure per-frame write-ORDER diff (all values match):
+   ORIG writes PER-VOICE [v1 freq,ctrl,pw][v2 freq,ctrl,pw][v3 …]; MINE writes all-voices
+   freq+ctrl THEN pulse. These are ALL the optimized-layout variant (nowavedelay=True +
+   inittick_is_tempo=True) — a substantially different player my engine emits in V1.5
+   order. Fix = parametrize player1's per-frame emission to per-voice freq/ctrl/pulse for
+   the optimized variant (C16 write-order parametrization). HALF of player1's partials.
+2. **detect_fail 134** (mostly `V1 anchor not found: gatetimer` — the optimized
+   gatetimer anchor `4A A9 gt 9D ?? ?? B0` misses a sub-variant; + 17 IndexError).
+3. **deep partials div>=10k** (~150 across both: v2/v3_freqlo, v_ctrl — match long then
+   one effect; per-cause). 4. **len bucket** (~46, both players — near-converged
+   song-end tails). 5. player2 v1_pwlo div<50 ×27 + v_ctrl scattered.
+NEXT: the player1 optimized-layout write-order fix is the single highest-leverage item
+(435 tunes). Then detect_fail (gatetimer anchor), then deep partials per-cause.
+
+**⚠️ SAMPLE-CAP UNDERCOUNTS (historical, now superseded by the batch above):** the ~3/30
+used a 75s duration CAP for speed, which
 undercounts (masks FULL on long tunes + boundary-truncates). Re-checked the div=None
 "cluster" at FULL songlength: **Yummy_Pizza = actually FULL** (179s, cap masked it);
 Reggae_1/Rusty_Gate = div=None w/ TINY tail diff (7/17 writes — song-end capture
