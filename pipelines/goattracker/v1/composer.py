@@ -415,7 +415,10 @@ gn_rest:
         beq t0_settempo
         cpy #3
         beq t0_starttp
-        jmp effects2             ; arp/porta/vibrato are continuous (tickN)
+        jmp nextchn              ; tick0: skip effects2 — newnoteinit deferred to
+                                 ; the NEXT play() (orig: all tick0 cmds → cmddonothing
+                                 ; → nextchn, so the gate-off/hard-restart frame writes
+                                 ; no pulse/freq; the note's pulse loads one frame later)
 gn_packrest:
         ldy chnpackrest,x
         bne gp_common
@@ -430,26 +433,26 @@ gp_cont:
 t0_starttp:
         lda #$fe
         sta chnvibcount,x
-        jmp effects2
+        jmp nextchn
 t0_setcutoffadd:
         sta filtcutadd
-        jmp effects2
+        jmp nextchn
 t0_setfilter:
         sta filtctrl
-        jmp effects2
+        jmp nextchn
 t0_setsustain:
         sta $d406,x
-        jmp effects2
+        jmp nextchn
 t0_settempo:
         bmi t0_tempo_one
         sta chntempo
         sta chntempo+7
         sta chntempo+14
-        jmp effects2
+        jmp nextchn
 t0_tempo_one:
         and #$7f
         sta chntempo,x
-        jmp effects2
+        jmp nextchn
 
 ; ===== new-note init (chnnewnote==0) =====
 newnoteinit:
@@ -494,17 +497,22 @@ effects2:
         bpl ef_noadsrinit
         and #$7f
         sta chnpulsedir,x
-        lda instwave,y
-        sta chnwavetbl,x         ; start wave program (our wctrl/wnote index)
-        lda wctrl,y
+        lda instwave,y           ; A = instwave POINTER (wctrl/wnote start index)
+        sta chnwavetbl,x         ; (0 if no wave; ew_skipwave overwrites if !=0)
+        stx temp1                ; orig X-swap: keep Y=chninstnum, use X=instwave
+        tax                      ; X = instwave
+        lda wctrl,x              ; initial ctrl = wctrl[instwave]  (wctrl[0]=0)
+        ldx temp1                ; restore X = voice
         sta chnwave,x
-        sta $d404,x
-        lda instad,y
+        sta $d404,x              ; ctrl FIRST (orig order: ctrl, AD, SR)
+        lda instad,y             ; AD (Y still = chninstnum)
         sta $d405,x
-        lda instsr,y
+        lda instsr,y             ; SR
         sta $d406,x
-        lda instwave,y
-        bne ef_skipwavetbl       ; wave program runs this frame
+        lda instwave,y           ; A = instwave
+        tay                      ; Y = instwave (index the wave program)
+        bne ef_skipwavetbl       ; instwave!=0 → run wave program (freq) this frame
+        ; instwave==0 → pulse-mod with Y=0 (orig: noadsrinit w/ Y=instwave=0)
 ef_noadsrinit:
         lsr
         lda chnpulse,x
@@ -550,7 +558,9 @@ ef_nt3:
 ef_nt4:
         jmp loadpulse            ; cmds 2/5/6/7 = tick0-only
 ef_skipwavetbl:
-        jmp loadpulse
+        jmp ew_skipwave          ; Y=instwave: run the first wave step (freq) now,
+                                 ; matching orig mt_skipwave (NOT loadpulse — that
+                                 ; skipped the freq + wrote pulse on the wrong frame)
 
 ; ----- wave table exec (writes $D404 directly) -----
 ef_dowavetbl:
