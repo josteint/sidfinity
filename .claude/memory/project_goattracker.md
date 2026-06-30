@@ -380,26 +380,34 @@ songlength (NEVER a duration cap / arbitrary 12s — both undercount) + a diverg
 to get the accurate rate and rank real buckets. Then attack: deep partials (Lovin 28144,
 Sanxzodiz/Scenial ~15-20k), Zonik-style short (loop/end), the genuine early divergences.
 
-**✅ BATCH+CENSUS BUILT + RUN (2026-06-30); DEEP-PARTIAL freq cluster = C6 (off-table).**
-39 V1.5 (non-optimized) deep partials (div≥3000) share a sig: reb=$ba(186) where orig is
-small ($08/$44) — Tarantula/Dojo/Last_Ninja/Still_Alive (all v_freqlo). Cause: an off-table
-freq read (wave-relative note offset, idx=(off+note)&$FF) lands PAST my contiguous 128-entry
-freq_lo/freq_hi capture → reb reads a table-adjacent byte while orig reads the real binary
-byte. **Ledger C6 is CANONICALIZED: do NOT emit a contiguous freq window (the superseded
-form that "silently masks reach-model under-captures" — exactly this bug); migrate to per-
-read `Instrument.offtable_freq` records (offset,note,lo,hi); composer rebuilds engine-blind
-(FC + DMC v5 precedent, shared schema).** So GT V1's freq_lo/freq_hi(128) is the superseded
-form → migrate. SHARED fix (converts off-table-freq deep partials across many tunes), but a
-schema piece (extract per-read detection + composer rebuild), not a one-liner.
-**SESSION-END MAP — every remaining GT V1 bucket is SUBSTANTIAL (no quick wins):** (1)
-optimized variant (435, biggest) = all-or-nothing multi-cause + multi-sub-variant ZOO
+**✅ BATCH+CENSUS BUILT + RUN (2026-06-30). C6 offtable_freq MIGRATION DONE (commit
+8a743d1, correctness-neutral).** GT V1's freq capture migrated from the superseded
+contiguous 128-entry window to per-inst `offtable_freq` records (`extract/to_usf.
+_offtable_freq` + composer rebuild). USF carries the 96-entry tuning + `(idx,0,lo,hi)`
+records for reachable off-table reads (wave/arp/**bare-note** idx≥96, cross-pattern
+instrument-carry walk). **CORRECTION — the deep partials are NOT C6.** I hypothesized
+the reb=$ba(186) deep partials (Tarantula/Dojo/Last_Ninja, div≥3000) were off-table, but
+VERIFIED: $ba is IN-table (idx 8/76), so reb reads a WRONG NOTE INDEX (a freq-COMPUTATION
+divergence — glide/toneporta/vibrato/arp), not off-table. GT notes ≤93 + offset ≤15 →
+idx ≤~110 < the 128-window, so off-table-past-window reads don't exist in GT V1; the
+migration is ML-cleanliness only, **0 FULL-count change (164→164, 0 status changes vs
+baseline)**. LESSON (ledger C6): the contiguous-window→records change SHIFTS the composer
+freqlo/freqhi BSS size per-tune → page-crossing cycle drift → song-end-boundary `sig=len`
+flips (8 tunes, all `sig=len`, NO value divergence — Trap B); FIXED by padding the
+internal array to a stable ≥128. Diffing a pre-migration baseline jsonl was what isolated
+the `sig=len` noise from a real regression.
+**SESSION-END MAP — remaining GT V1 buckets (no quick wins, the count is genuinely hard):**
+(1) optimized variant (435, biggest) = all-or-nothing multi-cause + multi-sub-variant ZOO
 (C16 ✓, fetch-tick ✓; remaining HR-$13f7 look-ahead, per-frame filter/volume sub-variant
-split, freq-timing) — major multi-session RE. (2) deep-partial freq (39+ V1.5) = C6
-offtable_freq migration (schema, shared). (3) detect_fail (134) = gatetimer-anchor miss →
-fixing makes them BUILD but join the optimized partial pool (not direct FULL). (4) len
-bucket (46) = song-end-boundary tails, near-converged. 164/1359 (12%) won't jump without
-one landing fully; recommended order: C6 migration (shared, V1.5, cleanest real-FULL path)
-→ optimized sub-variant census+knobs → detect_fail. **KEY correctness result earlier: PCM
+split, freq-timing) — major multi-session RE. (2) **deep-partial freq (39+ V1.5) = WRONG-
+NOTE freq computation (NOT C6)** — reb's glide/toneporta/vibrato/arp lands on a different
+note index deep in the song; per-tune-ish, the real convergence work for these. (3)
+detect_fail (134) = gatetimer-anchor miss → fixing makes them BUILD but join the optimized
+partial pool (not direct FULL). (4) len bucket (46) = song-end-boundary tails, near-
+converged (a small-tail tolerance in verify would recover these + is principled — the
+music matches, only the capture-cutoff partial frame differs). 164/1359 (12%) FULL.
+Batch+census now live at `pipelines/goattracker/v1/{family_batch,census}.py` (FULL-
+songlength verify, per-player rate, divergence buckets). **KEY correctness result earlier: PCM
 audio comparison CANNOT be a verdict (rebuilds are per-frame-exact not cycle-exact,
 Trap B); the audio-equivalence soundness is decided by the TEST BIT (phase reset),
 not by rendering — proven, recorded in ledger C15.** gatetimer 30 = optimized-init tunes whose HR-flag

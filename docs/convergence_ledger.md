@@ -213,10 +213,24 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
   carries the opaque window. This is C7-option-(a) realized. ❌ DO NOT emit a
   contiguous `freq_overrun` window — that is the superseded form (it silently masks
   reach-model under-captures within its span; see the LO-read bug below).
-- **Status:** `canonical` (FC standard + DMC v5, both migrated to `offtable_freq`).
-  Schema + USF I/O shared; the composer reconstruction is per-composer (FC
-  `composer_asm._offtable_window` vs v5 `composer_v5`) → a Move-1 factor-candidate.
-  Distinct from **C2** (off-table PROGRAM tables; this is off-table DATA lookup).
+- **Status:** `canonical` (FC standard + DMC v5 + GoatTracker V1, all migrated to
+  `offtable_freq`). Schema + USF I/O shared; the composer reconstruction is per-composer
+  (FC `composer_asm._offtable_window` · v5 `composer_v5` · GT V1 `_Tables` freqlo/freqhi
+  rebuild) → a Move-1 factor-candidate. Distinct from **C2** (off-table PROGRAM tables;
+  this is off-table DATA lookup).
+- **GT V1 consumer (2026-06-30, commit 8a743d1):** `extract/to_usf._offtable_freq` —
+  per-inst reachable reads (wave/arp/**bare-note** idx≥96, via a cross-pattern
+  instrument-carry walk; the bare-note read `freq[note]` for note+transpose≥96 was the
+  key case the FC/DMC players don't have). Encoded `(idx,0,lo,hi)` (GT's freq table is
+  global → idx is the off-table note index). **TWO GT-V1-specific lessons:** (1) the
+  composer must PAD its internal freqlo/freqhi to a stable ≥128 size — a per-tune-varying
+  array size shifts the BSS, changes page-crossing branch cycles, and drifts the song-end
+  capture boundary by a partial frame (a `sig=len` flip, Trap B — NOT a value divergence;
+  diffing a pre-migration baseline was what isolated it). (2) The migration here is
+  CORRECTNESS-NEUTRAL ML-cleanliness, NOT a convergence fix: GT V1 reads cap at idx≤~110
+  (note≤93 + offset), the old 128-window already covered them, so 0 FULL-count change
+  (164→164, 0 status changes vs baseline). Verify before assuming an off-table read is
+  the divergence cause (the GT V1 deep partials looked like C6 but are wrong-NOTE).
 - **Boundary:** reachability = offset values × played notes × transposes
   (conservative over-approx). With exact per-read capture an under-capture diverges
   in verify (never silent). **GOTCHA — the dual lo/hi read:** the off-table read is
