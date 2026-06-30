@@ -689,6 +689,32 @@ force-includes record 0 as slot 0. (2) pulse base split — step =
 nibble + CACHED base; idle base=0; composer derives base = step&$0F.
 (3) xa65: ':' is a statement separator EVEN IN COMMENTS (sanitizer).
 
+## 📊 V5 FAMILY-4 (Jupiter41, 686) — WIDE-SAMPLE CENSUS 2026-06-30: 0 FULL, early-stage
+First 80/686 through `dmc_v5_family_batch.py` (build routes via `_family4_config`).
+**0 FULL** — family-4 is a MULTI-SESSION migration with 5 substantial blocker classes
+(none are quick wins; verified by localizing one of each):
+- **off-table pulse/filter = biggest build-blocker (20/80)** — pulse_table_overflow 8
+  + sweep_too_long 8 + filter_table_overflow 4. MECHANISM CRACKED (RE_NOTES + commit
+  86c294c): pulse re-inits ONLY on byte3≠0 instrument loads ($13F4 BEQ), so the sweep
+  PERSISTS across notes (256+ frames, not the 48-frame note). Walk runs odd positions
+  ($07/$09/$0B) past the EVEN $90 loops → reads count bytes off-table → long sweep →
+  de-fuses to 513>256. Note-duration bound REFUTED (max 48 vs 256+). Correct fix =
+  per-instrument re-init horizon (play-sim) + DROP 16-bit fallback (family-4 counts
+  ALWAYS 8-bit). Global-bound REGRESSES (56000→7416). Possibly needs larger sweep repr.
+- **family-4 sector format ($F0/$EF + others) = 16/80 build errors** — NOT a 2-line add:
+  family-4's sector dispatch ($1150) has DIFFERENT semantics than V5's `_CMD` ($FD=
+  transpose not dur; $F0=wave-shift setup 2B; $EF→$1842 2B). Needs a family-4 sector
+  decoder + USF map + composer emit. Jupiter41 happens not to use these.
+- **partials (35) = genuine wrong-note-data** — e.g. Moonlight_Shadow frame-1: orig
+  freq $010C + waveform $40(pulse); rebuild $2F00 + $00. NOT a write-order knob; a
+  note/wave-program decode bug. Largest bucket; likely shared sub-roots to mine.
+- **USF-gen escape bug (3)** — stray `}` token → UsfParseError.
+- misc unsupported 6 (player_code_mismatch 3, capture_loop 2, trailing 1).
+**Jupiter41 (rep) itself = partial**, first ~67s write-exact (this session's gated
+knobs landed: V3-filter unlock, vibrato byte6&$0F, $D418 vib-skip, wave-speed), blocked
+at ~67s by its own off-table pulse. Dependency-ordered plan in family4/RE_NOTES.md.
+LESSON: family-4 is NOT close — treat like family-1/2 (multi-session, per-feature).
+
 ## 🔬 FREQ TAIL after mask_only (2026-06-23) — HETEROGENEOUS, no single clean lever
 After the mask_only win (+147), the REMAINING freq residue is a hard, heterogeneous
 long-tail — NOT one more coherent bug. Confirmed by grounded flat-stream diagnosis
