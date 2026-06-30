@@ -311,7 +311,23 @@ extract). Plus `filtactive`: the orig's V3 sweep is gated by $1857 (set by $F9 ~
 2-3), not frame 0 — set in sd_f9, gate filter_run on it (the sweep was ~2 frames
 early). $D416 sweep now matches ~388 writes (was 318).
 
-### ⚠️ "sweep timing lag" (write 7203) = the missing per-instrument filter RE-INIT
+### ✅✅ PRINCIPLED FILTER + VIBRATO (match 7203 → 32043 / 63.7%, this session)
+PRINCIPLED filter fix (commit 2a457aa) — checked against USF §7 + ledger C1/C8 (the
+"verbatim table + orig byte4 indices" idea I was about to write was the §7 LEAK;
+rejected after re-reading the principle). Each family-4 instrument's filter program
+is an 8-bit (add,count) SweepEnvelope (_capture_env_f4 has_start=True: start=
+filterlo[byte4], phases from byte4+1), de-fused per instrument (C8), re-packed by
+add_env_f4; filter_ptr is the composer's OWN re-packed index — NO raw table, NO engine
+indices in USF. V3 re-init now fires. Composer: filter init is V3-ONLY (CPX #$02); the
+cpx clobbered Z so `beq ni_nofilt` skipped `sta filterpos` — reload filtflag (THE
+unlock: 7203→31994). VIBRATO (commit 49b2da5): family-4 HAS per-instrument vibrato
+(note-on $138F, state machine $157C); same byte map as family-3 EXCEPT vibspd =
+byte6 & $0F (high nibble = wave speed). vibdel=byte5 (onset), vibwidth=byte7&7.
+31994→32043. NEXT (write 32043): the orig's oscillating-vib path ($158F) bypasses the
+per-voice $D418 ($1651) — naive "skip when vibspd!=0 && vibdel==0" OVER-skips; needs
+the exact $1612-vs-$1651 condition. Then vib step-doubling ($1812=byte7>>4) + tail.
+
+### (historical) "sweep timing lag" (write 7203) = the missing per-instrument filter RE-INIT
 NOT a timing bug. Traced via filterpos walk: the orig walks 0(intro)→02..18 (default
 program), then a V3 note RE-INITS the filter — filterpos = byte4($01)+1 = $02,
 $1019 = filterlo[$01] = $23D5[$01] = $84 (= the $54 = $84+$D0 jump). V3 plays inst-0
