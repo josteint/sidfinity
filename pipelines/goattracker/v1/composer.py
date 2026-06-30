@@ -260,6 +260,10 @@ def _engine_v2(t: _Tables) -> str:
                           f'              ; test-bit oscillator-reset init')
     else:
         init_ctrl_emit = '        sta $d404,x              ; idle ctrl = 0'
+    # init filter: orig's deferred init zeros $D415/filtctrl/filtcutadd but LEAVES the
+    # filtcut ($D416) + filttype ($D418 hi) SMC slots at their static values (so a
+    # pre-set global filter is live from frame 1, before any note). Mirror that.
+    fc_init, ft_init = t.filt[0] & 0xFF, t.filt[2] & 0xFF
     return f"""
 ENDPATT = $ff
 temp1 = $fc
@@ -305,10 +309,12 @@ pi_loop:
         bcc pi_loop
         lda #0
         sta $d415
-        sta filtcut
         sta filtcutadd
         sta filtctrl
-        sta filttype
+        lda #${fc_init:02x}
+        sta filtcut              ; init filter cutoff (orig keeps the SMC value)
+        lda #${ft_init:02x}
+        sta filttype             ; init filter type (orig keeps the SMC value)
         lda #$ff
         sta initpos
         rts

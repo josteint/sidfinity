@@ -613,7 +613,19 @@ def extract(sid: Sid) -> V1Song:
     #    §12); inst.filter is a cutoff+type VALUE, not a pointer. Skip filttbl bits.
     filters: dict[int, FilterEntry] = {}
     if L.player == 'gamemusic':
-        init_filter = (0, 0, 0x0F, 0, 0)
+        # player2: read the GLOBAL filter SMC slots (RE_NOTES §12). The deferred init
+        # zeros $D415/filtctrl/filtcutadd but LEAVES filtcut ($D416) + filttype ($D418
+        # hi) at their static values, so a pre-set global filter is live from frame 1.
+        #   mt_filtcutoff: lda #cut; adc #add; sta filtcutoff+1; sta $D416
+        #     → A9 <cut> 69 <add> 8D ?? ?? 8D 16 D4
+        #   mt_filttype:   lda #type; ora #vol; sta $D418 → A9 <type> 09 <vol> 8D 18 D4
+        fc = _find(mem, sid.load, sid.end,
+                   [0xA9, None, 0x69, None, 0x8D, None, None, 0x8D, 0x16, 0xD4])
+        ft = _find(mem, sid.load, sid.end,
+                   [0xA9, None, 0x09, None, 0x8D, 0x18, 0xD4])
+        cut = mem[fc[0] + 1] if fc else 0
+        ftype = mem[ft[0] + 1] if ft else 0
+        init_filter = (cut, 0, ftype, 0, 0)
         funk = (0, 0)
         filttbl_bytes = []
     else:
