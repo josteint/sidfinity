@@ -282,12 +282,25 @@ def detect_layout(sid: Sid) -> Layout:
     #   $D400,x; lda freqhi,y; sta chnfreqhi,x; sta $D401,x → an EXTRA 9D 00 D4 /
     #   9D 01 D4, which the V1.5 pattern misses → freqlo=op@+1, freqhi=op@+10.
     freqlo = freqhi = 0
+    chnnote_base = chnwave_base = 0
+    p2_pulse_in_mod = False
     if is_gamemusic:
         h = _find(mem, lo, hi, [0xB9, None, None, 0x9D, None, None, 0x9D, 0x00,
                                 0xD4, 0xB9, None, None, 0x9D, None, None, 0x9D,
                                 0x01, 0xD4])
         if h:
             freqlo, freqhi = _w(mem, h[0] + 1), _w(mem, h[0] + 10)
+            # sub-version (RE_NOTES §12d): subB (loadpulse-after-freq) has `9D 02 D4`
+            # (sta $D402) a few bytes AFTER the arpfreq anchor; subA (pulse-in-mod-
+            # before-freq, arpfreq→nextchn) does not. subA is the majority (45:18).
+            p2_pulse_in_mod = b'\x9d\x02\xd4' not in bytes(mem[h[0] + 18:h[0] + 30])
+        # idle-priming block bases (RE_NOTES §12c) — stride-7, voice v at base+v:
+        #   chnnote block: notetbl anchor `B9 ?? ?? 30 ?? 18 7D <chnnote>` operand @+7
+        nb = _find(mem, lo, hi, [0xB9, None, None, 0x30, None, 0x18, 0x7D])
+        chnnote_base = _w(mem, nb[0] + 7) if nb else 0
+        #   chnwave block: keyoff `lda chnwave,x; and #$FE; sta $D404,x` operand @+1
+        kf = _find(mem, lo, hi, [0xBD, None, None, 0x29, 0xFE, 0x9D, 0x04, 0xD4])
+        chnwave_base = _w(mem, kf[0] + 1) if kf else 0
     else:
         for h in _find(mem, lo, hi, [0xB9, None, None, 0x9D, None, None,
                                      0xB9, None, None, 0x9D]):
@@ -303,7 +316,9 @@ def detect_layout(sid: Sid) -> Layout:
                   default_tempo=default_tempo,
                   inittick_is_tempo=inittick_is_tempo,
                   freqlo=freqlo, freqhi=freqhi, nowavedelay=nowavedelay,
-                  player='gamemusic' if is_gamemusic else 'tracker')
+                  player='gamemusic' if is_gamemusic else 'tracker',
+                  p2_pulse_in_mod=p2_pulse_in_mod,
+                  chnnote_base=chnnote_base, chnwave_base=chnwave_base)
 
 
 # ---------------------------------------------------------------------------
@@ -385,6 +400,12 @@ class V1Song:
     freq_lo: list = field(default_factory=list)   # 96 bytes (per-player table)
     freq_hi: list = field(default_factory=list)
     filttbl_bytes: list = field(default_factory=list)  # full filter table (4B/entry)
+    # player2 idle priming (RE_NOTES §12c): per-voice pre-loaded channel state the
+    # init KEEPS (not zeroed), which drives the gate-off idle freewheel. The idle
+    # freq affects the gate-on phase (player2 has no test-bit phase reset → C15),
+    # so it must be reproduced. Per voice: (note, freqlo, freqhi, command, cmddata,
+    # wave, pulse, arpcount, vibcount). [] for player1.
+    idle_priming: list = field(default_factory=list)
 
 
 def _sim_setfilter0(mem, filttbl) -> tuple:
@@ -596,11 +617,27 @@ def extract(sid: Sid) -> V1Song:
     # the reachable window reproduces those reads as per-tune content.
     freq_lo = [mem[L.freqlo + i] for i in range(128)] if L.freqlo else []
     freq_hi = [mem[L.freqhi + i] for i in range(128)] if L.freqhi else []
+    # player2 idle priming: per-voice kept-state from the two blocks (note/freqlo/
+    # freqhi/command/cmddata from chnnote block; wave/pulse/arpcount/vibcount from
+    # chnwave block). Only when both bases located + any non-zero.
+    idle_priming = []
+    if L.player == 'gamemusic' and L.chnnote_base and L.chnwave_base:
+        nb, wb = L.chnnote_base, L.chnwave_base
+        for v in (0, 7, 14):
+            idle_priming.append((
+                mem[nb + v], mem[nb + 1 + v], mem[nb + 2 + v],   # note, freqlo, freqhi
+                mem[nb + 4 + v], mem[nb + 5 + v],                # command, cmddata
+                mem[wb + v], mem[wb + 2 + v],                    # wave, pulse
+                mem[wb + 4 + v], mem[wb + 5 + v],                # arpcount, vibcount
+                mem[nb + 6 + v]))                                # instnum (drives
+                                                                 # pulse-mod/ADSR/wave
+        if not any(any(t) for t in idle_priming):
+            idle_priming = []
     return V1Song(sid=sid, layout=L, subtunes=subtunes, patterns=patterns,
                   instruments=instruments, filters=filters,
                   init_filter=init_filter, funk=funk,
                   freq_lo=freq_lo, freq_hi=freq_hi,
-                  filttbl_bytes=filttbl_bytes)
+                  filttbl_bytes=filttbl_bytes, idle_priming=idle_priming)
 
 
 # ---------------------------------------------------------------------------

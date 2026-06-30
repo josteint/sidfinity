@@ -77,6 +77,8 @@ class _Tables:
         self.filttbl = list(p.get('filttbl_bytes', [self.filt[1], 0, 0, 0]))
         self.nowavedelay = bool(p.get('nowavedelay', False))
         self.player = p.get('player', 'tracker')   # 'tracker'|'gamemusic' (player2)
+        self.p2_pulse_in_mod = bool(p.get('p2_pulse_in_mod', False))  # subA emission
+        self.idle_priming = p.get('idle_priming', [])  # per-voice gate-off freewheel
         # optimized-layout variant: filter is EVENT-DRIVEN (written by setfilter,
         # not a per-frame exec), per-voice order is loadregs-before-pulse, init
         # chntick = tempo (not gatetimer+2).
@@ -237,6 +239,16 @@ def _engine_v2(t: _Tables) -> str:
     instfilter→global cutoff+type on note-trigger. Idle-note reproduction (the
     C15 phase gate) is layered on after the audible stream converges."""
     DEF = t.deftempo
+    # Emission sub-version (RE_NOTES §12d, ledger C16). subB (loadpulse-after-freq):
+    # arpfreq falls to loadpulse which writes $D402/$D403 every voice every frame.
+    # subA (majority): pulse is written IN the mod path (before freq, skipped on the
+    # sequencer frame), and arpfreq/continuous-fx go straight to nextchn (loadpulse
+    # is empty). Parametrized so both sub-versions compose from the one engine.
+    pw = '        lda chnpulse,x\n        sta $d402,x\n        sta $d403,x\n'
+    if t.p2_pulse_in_mod:
+        loadpulse_body, pulsewrite_body = '', pw
+    else:
+        loadpulse_body, pulsewrite_body = pw, ''
     return f"""
 ENDPATT = $ff
 temp1 = $fc
@@ -502,7 +514,7 @@ ef_noadsrinit:
         sta chnpulse,x
         and #$0f
         cmp instpulsehi,y
-        bcc ef_pulseok2
+        bcc ef_pulsewrite
         lda #1
         bne ef_pulsesetdir
 ef_pulsesub:
@@ -511,11 +523,14 @@ ef_pulsesub:
         sta chnpulse,x
         and #$0f
         cmp instpulselo,y
-        bcs ef_pulseok2
+        bcs ef_pulsewrite
         lda #0
 ef_pulsesetdir:
         sta chnpulsedir,x
-ef_pulseok2:
+ef_pulsewrite:
+        ; subA: pulse written here (after the mod ran; skipped on the sequencer
+        ; frame, where line `bcs ef_pulseok2` jumps PAST this). subB: empty.
+{pulsewrite_body}ef_pulseok2:
         ldy chnwavetbl,x
         bne ef_dowavetbl
         ldy chncommand,x
@@ -608,10 +623,7 @@ arpfreq:
         sta chnfreqhi,x
         sta $d401,x
 loadpulse:
-        lda chnpulse,x
-        sta $d402,x
-        sta $d403,x
-nextchn:
+{loadpulse_body}nextchn:
         rts
 
 ; ----- continuous pitch effects -----
@@ -1372,16 +1384,33 @@ _BSS_VARS = [
 ]
 
 
-def _bss() -> str:
+_IDLE_VARS = ['chnnote', 'chnfreqlo', 'chnfreqhi', 'chncommand', 'chncmddata',
+              'chnwave', 'chnpulse', 'chnarpcount', 'chnvibcount', 'chninstnum']
+
+
+def _bss(t=None) -> str:
     out = []
     # globals
     for g in ('initpos', 'filtstep', 'filttime', 'filtcut', 'filtctrl',
               'filttype', 'volmask', 'filtcutadd', 'vibcmp', 'notenum',
               'tplo', 'tphi'):
         out.append(f'{g}:  .dsb 1, 0')
+    # player2 idle priming: pre-load the kept channel-state vars (the deferred init
+    # does NOT zero these) so the gate-off idle freewheel reproduces the orig's
+    # (C15 phase gate — RE_NOTES §12c). Per-voice values at X=0/7/14.
+    idle = {}
+    if t is not None and getattr(t, 'idle_priming', None):
+        cols = list(zip(*t.idle_priming))      # 9 columns, each (v0,v1,v2)
+        idle = {n: cols[i] for i, n in enumerate(_IDLE_VARS)}
     # per-channel arrays (X = 0/7/14 → 15 bytes each)
     for v in _BSS_VARS:
-        out.append(f'{v}:  .dsb 15, 0')
+        if v in idle:
+            bs = [0] * 15
+            for vi in range(3):
+                bs[vi * 7] = idle[v][vi]
+            out.append(f'{v}:  .byt ' + ', '.join(str(b) for b in bs))
+        else:
+            out.append(f'{v}:  .dsb 15, 0')
     return '\n'.join(out)
 
 
@@ -1430,7 +1459,7 @@ def compose_v1_asm(usf: UsfFile) -> str:
         A.append(b)
     for b in patt_blocks:
         A.append(b)
-    A.append(_bss())
+    A.append(_bss(t))
     return '\n'.join(A)
 
 

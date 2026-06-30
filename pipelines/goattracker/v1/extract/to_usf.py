@@ -193,6 +193,12 @@ def model_to_usf(song: V1Song) -> UsfFile:
     # is a raw blob; the principled form is musical filter programs — C7/C10.)
     if any(b for b in song.filttbl_bytes[4:]):    # >entry0 has real data
         params.fields['filttbl_bytes'] = list(song.filttbl_bytes)
+    if L.player == 'gamemusic':
+        # subA emission: pulse-in-mod-before-freq, arpfreq→nextchn (the majority).
+        params.fields['p2_pulse_in_mod'] = bool(L.p2_pulse_in_mod)
+        # per-voice idle priming (the gate-off freewheel state; C15 phase gate).
+        if song.idle_priming:
+            params.fields['idle_priming'] = [list(t) for t in song.idle_priming]
 
     return UsfFile(
         psid=PsidMeta(title=sid.name, author=sid.author, released=sid.released,
