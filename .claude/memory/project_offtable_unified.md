@@ -97,15 +97,22 @@ VALIDATED: ptr 2 (inst 17) AND ptr 7 off-table contours extracted CORRECTLY (the
 / -512 sweeps `_capture_env` missed). Re-init signal = pulsepos DROP (drop-only); the
 "jump-to-ptr+1" signal false-splits because programs jump UP via $90 (ptr 7: 8->20->22,
 20=ptr19+1).
-⛔ STUCK at match=7416 (vs committed 56000) — and it's EXACTLY 7416 for EVERY fit choice,
-so the blocker is NOT the fit: it's the DE-FUSION TABLE-GROWTH SIDE-EFFECT. The correct
-(larger) off-table envs grow the shared pulse table (119->127), shift the de-fused
-layout, and a byte3=0 V2 note continues a PW that reads differently ($08 orig vs $00).
-=> the de-fused re-pack is LAYOUT-SENSITIVE; any size change cascades via the byte3=0
-PW-continuation chain. THE REAL REMAINING WORK is COMPOSER-side: make pulse playback
-NOT layout-sensitive (fixed-size per-program slots, or byte3=0 continuation reads the
-self-contained envelope not the shared-table tail). REALIZE+FIT pipeline is validated;
-the de-fusion layout-sensitivity is the blocker.
+✅ FIT SOLVED: reading the per-phase COUNT from the table (pulsehi[pp+1], canonical) +
+the observed RATE makes the fit CONVERGE EXACTLY to `_capture_env`'s 8-bit walk (ptr 2 →
+(+32,224),(+32,2),(+2048,256),(+0,8),(+512,240)). So observe-and-fit's only real job is
+bounding the off-table walk; the contour representation is correct.
+⛔ 7416 BLOCKER is COMPOSER pulse-COUNTER TIMING, not the fit (persists for BOTH
+observe-and-fit AND `_capture_env`+horizon). Verified: orig HOLDS V2 PW=$0800 (pulsepos
+8=ptr7) longer than the rebuild — the rebuild's counter hits the 256 count sooner and
+ramps to $00 at 7416 while the orig still holds. TWO HYPOTHESES REFUTED: (a) layout-
+sensitivity (the counts now match the canonical walk = content not size); (b) byte3=0
+counter-reset (disasm $13F7 BEQ $1411 SKIPS the whole pulse init incl. the $140B counter
+reset when byte3=0 — so it does NOT reset). LIVE hypothesis (UNCONFIRMED): the pulse
+counter increments per-frame in the composer vs per-MAIN-frame (2-phase $1016) in the
+orig — a 256-MAIN-frame hold = ~307 real frames; if the composer counts real frames it
+ends early. NEXT: capture orig counter $1830 + the $1016 phase per frame vs rebuild to
+nail it. Lesson: I made 2 wrong mechanism guesses before nailing the fit; the FIT is the
+validated win, the counter-timing is the unresolved composer-side blocker.
 
 STAGING: Phase 1 = observe-and-fit ALL pulse programs completely (breaks the coupling),
 NOT per-instrument. Phase 2 unify offtable_freq code. Phase 3 port the contour FIT.

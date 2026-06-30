@@ -310,7 +310,33 @@ adds-not-frames AND wrap-aware (net/rate collapses on the wrapping PW); run-sele
 must prefer the most-off-table run; hybrid criterion is "8-bit overflows" not
 "PW off-table" (ptr 19 looks in-table but its 16-bit fallback reads garbage).
 
-**Not yet passing (match=7416 vs committed 56000) — the blocker is DEEPER than the fit.**
+**RESOLVED diagnosis (2026-06-30, supersedes the layout-sensitivity guess below):**
+the FIT IS SOLVED, and the 7416 blocker is composer/de-fusion, not the fit. Reading the
+per-phase COUNT from the table (`pulsehi[pp+1]`, the fixed canonical value) while keeping
+the observed RATE makes the fit CONVERGE EXACTLY to `_capture_env`'s 8-bit walk:
+ptr 2 → `(+32,224),(+32,2),(+2048,256),(+0,8),(+512,240)`, ptr 7 → `(+0,256),(+0,1),
+(-512,256)`. (The earlier 7416-causing bug was the OBSERVED hold count undercounting —
+ptr 7 holds pulsepos 8 for a 256-frame table count but a cut run saw only 30; fixed by
+the table-count read.) Since the fit now equals the canonical walk, observe-and-fit's
+only real contribution is BOUNDING the off-table walk — and **7416 persists for BOTH
+observe-and-fit AND `_capture_env`+horizon**, proving it is not the fit method but a
+composer / de-fusion issue. VERIFIED observation (memwatch): the orig HOLDS V2 PW=$0800
+(pulsepos 8 = ptr 7) for a long time; the rebuild's hold ends EARLIER (advances and ramps
+PW to $00 at flat-7416 while the orig is still holding) — i.e. the rebuild's pulse
+COUNTER reaches the 256 count sooner than the orig's. **The precise mechanism is NOT yet
+nailed** — two hypotheses were tested and REFUTED: (a) de-fusion layout-sensitivity (the
+fit content, not just size, is what matters — the counts now match the canonical walk);
+(b) byte3=0 note-load resetting the counter (disasm `$13F7 BEQ $1411` SKIPS the whole
+pulse init incl. the `$140B` counter reset when byte3=0 — so byte3=0 does NOT reset it).
+The live hypothesis is a pulse-COUNTER / 2-phase-`$1016`-timing mismatch (whether the
+counter increments on every frame vs only MAIN frames — the orig's 1-in-6 holds would
+make a 256-MAIN-frame hold last ~307 real frames; if the composer counts real frames it
+ends at 256), but this is UNCONFIRMED. So: the off-table contour FIT is solved & validated
+(converges to the canonical walk); the remaining blocker is a composer pulse-counter
+timing issue that needs dedicated diagnosis (capture the orig's counter `$1830` + the
+`$1016` phase per frame vs the rebuild's).
+
+**(superseded guess) Not yet passing (match=7416) — "layout-sensitivity":**
 Worked through the segmentation thoroughly: the correct re-init signal for Jupiter41 is
 a pulsepos DROP (a program's own off-table walk advances +2 or jumps UP via a `$90`
 marker — e.g. ptr 7 walks 8→20→22 — so only a DOWNWARD jump is a re-init; the
