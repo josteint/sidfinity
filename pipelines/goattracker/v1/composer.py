@@ -831,6 +831,19 @@ def _engine(t: _Tables) -> str:
             '        sta $d418')
         init_filter = ''
         sf_d417 = sf_d418 = sf_d416 = ''
+    # C16 emission-ORDER knob (ledger C16, FC nextvoice_write_order precedent): the
+    # optimized-layout variant writes the pulse UNCONDITIONALLY per voice AFTER
+    # freq/ctrl (the player2 loadpulse-after-freq structure), where V1.5 writes it
+    # in pulseexec (before freq, and only when instpulsespd!=0). So for optimized,
+    # pulseexec still MODULATES chnpulse/chnpulsedir but does NOT emit $D402/$D403;
+    # loadregs emits them every frame after $D404. Gated on `optimized` → V1.5 (the
+    # FULL canaries) is byte-identical. pd_*='' leaves a harmless blank asm line.
+    if t.optimized:
+        pd_d403 = pd_d402 = ''
+        opt_pulse = ('        lda chnpulsedir,x\n        sta $d402,x\n'
+                     '        lda chnpulse,x\n        sta $d403,x\n')
+    else:
+        pd_d403, pd_d402, opt_pulse = '        sta $d403,x', '        sta $d402,x', ''
     return f"""
 GATETIMER = ${t.gatetimer:02x}
 INITTICK  = ${t.inittick:02x}
@@ -1236,11 +1249,11 @@ pulsesub:
         sta chnpulse,x
         cmp instpulselo,y
 pulsedone:
-        sta $d403,x
+{pd_d403}
         pla
         adc #0
         sta chnpulsedir,x
-        sta $d402,x
+{pd_d402}
 pulseok:
         jmp loadregs
 
@@ -1320,7 +1333,7 @@ loadregs:
         lda chnwave,x
         and chngate,x
         sta $d404,x
-nextchn:
+{opt_pulse}nextchn:
         rts
 
 ; ===== sequencer (orderlist advance) =====
