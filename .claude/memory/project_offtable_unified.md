@@ -89,6 +89,24 @@ within one pulsepos — off-table-perturbed period) need the revived `strip_deco
 the clean ones — re-fitting inst 17 grows the table and cascades). So: green verdict needs
 the strip_decompose decomposer + all-programs integration + zero-FULL-regression gate.
 
+DECOMPOSER BUILT (2026-06-30, `tmp/of_decomposer.py`): revived strip_decompose's
+`effect_detect.constant_delta` as the ramp fitter (handles holds by construction).
+Pipeline: event-driven segment -> group by program (pp=ptr+1) -> per-pulsepos
+constant_delta (wrap-aware adds count) -> map byte3=pp-1 -> use-on-8bit-overflow hybrid.
+VALIDATED: ptr 2 (inst 17) AND ptr 7 off-table contours extracted CORRECTLY (the +$2048
+/ -512 sweeps `_capture_env` missed). Re-init signal = pulsepos DROP (drop-only); the
+"jump-to-ptr+1" signal false-splits because programs jump UP via $90 (ptr 7: 8->20->22,
+20=ptr19+1).
+⛔ STUCK at match=7416 (vs committed 56000) — and it's EXACTLY 7416 for EVERY fit choice,
+so the blocker is NOT the fit: it's the DE-FUSION TABLE-GROWTH SIDE-EFFECT. The correct
+(larger) off-table envs grow the shared pulse table (119->127), shift the de-fused
+layout, and a byte3=0 V2 note continues a PW that reads differently ($08 orig vs $00).
+=> the de-fused re-pack is LAYOUT-SENSITIVE; any size change cascades via the byte3=0
+PW-continuation chain. THE REAL REMAINING WORK is COMPOSER-side: make pulse playback
+NOT layout-sensitive (fixed-size per-program slots, or byte3=0 continuation reads the
+self-contained envelope not the shared-table tail). REALIZE+FIT pipeline is validated;
+the de-fusion layout-sensitivity is the blocker.
+
 STAGING: Phase 1 = observe-and-fit ALL pulse programs completely (breaks the coupling),
 NOT per-instrument. Phase 2 unify offtable_freq code. Phase 3 port the contour FIT.
 Defer Z3/e-graph unless greedy proves insufficient.

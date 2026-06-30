@@ -310,18 +310,28 @@ adds-not-frames AND wrap-aware (net/rate collapses on the wrapping PW); run-sele
 must prefer the most-off-table run; hybrid criterion is "8-bit overflows" not
 "PW off-table" (ptr 19 looks in-table but its 16-bit fallback reads garbage).
 
-**Not yet passing (match=7416 vs committed 56000):** the COUPLING requires EVERY
-off-table program to be byte-exact (a byte3=0 note continues the PW, so a wrong prior
-contour cascades — the 7416 divergence is V2 continuing a wrong PW). ptr 7 is the
-blocker: it's a more complex off-table program (its `+$2048` ramp WRAPS the 8-bit
-pulsepos past 255, then ramp/hold pieces), and the re-init segmentation (pulsepos-drop
-AND PW-resets-to-start) splits it into ramp/hold fragments, so the selected run is a
-high-PW HOLD not the full ramp. The remaining work is robustifying the segmentation +
-decomposition for these wrap/ramp/hold off-table programs (a cleaner re-init signal —
-e.g. capturing the pulse COUNTER reset, or the note-on event, instead of inferring
-re-inits from pulsepos+PW). The core thesis (observe-and-fit + strip_decompose extracts
-the off-table contour) is VALIDATED on ptr 2; the all-programs robustness is the
-remaining engineering. Scripts: `tmp/of_decomposer.py`, `tmp/diag_ptr7.py`.
+**Not yet passing (match=7416 vs committed 56000) — the blocker is DEEPER than the fit.**
+Worked through the segmentation thoroughly: the correct re-init signal for Jupiter41 is
+a pulsepos DROP (a program's own off-table walk advances +2 or jumps UP via a `$90`
+marker — e.g. ptr 7 walks 8→20→22 — so only a DOWNWARD jump is a re-init; the
+"jump-to-ptr+1" signal false-splits because ptr 7 jumps up to pulsepos 20 = ptr 19's
++1). With drop-only, ptr 2 AND ptr 7 are captured. **But the verdict is stuck at exactly
+7416 regardless of which fits are used** — meaning it is NOT a specific fit being wrong,
+it is the **de-fusion table-growth side-effect itself**: the correct (larger) off-table
+envs grow the shared pulse table (119→127), shifting the de-fused layout, and a
+`byte3=0` V2 note at ~frame 50 *continues* a PW that now reads differently (`$08` orig
+vs `$00` rebuild). So the coupling is not just "fit every program" — it is that the
+de-fused re-pack is **layout-sensitive**, and any size change cascades through the
+byte3=0 PW-continuation chain.
+
+**The real remaining work** is therefore on the COMPOSER / de-fusion side, not the fit:
+make the pulse playback NOT layout-sensitive — e.g. fixed-size per-program slots so a
+program's size change doesn't shift others, or a byte3=0 continuation that reads the
+self-contained envelope rather than the shared table tail. The observe-and-fit REALIZE
++ FIT pipeline is VALIDATED (ptr 2 + ptr 7 off-table contours extracted correctly via
+`constant_delta`); the blocker is the de-fusion layout-sensitivity that makes the
+all-programs swap cascade. Scripts: `tmp/of_decomposer.py`, `tmp/diag_ptr7.py`,
+`tmp/pulsepos_segmenter.py`.
 
 ## Risks / honest scope
 
