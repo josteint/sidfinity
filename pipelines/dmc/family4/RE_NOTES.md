@@ -348,6 +348,49 @@ the residue-triage "architectural-limit-last" class.
 **Scope (80-member sample):** off-table sweep is the SINGLE biggest build-blocker
 (pulse_table_overflow 8 + sweep_too_long 8 + filter_table_overflow 4 = 20/80).
 
+### 🔧 PLAY-SIM HORIZON ATTEMPT (2026-06-30) — fixes V3, regresses V2; PARKED
+Built the per-voice re-init horizon (max frames between byte3≠0 note-ons; sim walks
+each orderlist's sector seq twice, tracking cur_inst via 'snd', cur_dur via 'dur',
+reinit at 'note' when instruments[cur_inst].pulse_ptr≠0). **Jupiter41 horizon=618.**
+Used as the pulse-capture reach (8-bit, no 16-bit fallback). RESULT (verdict
+`compare_instruction_stream`): the horizon-8-bit capture is CORRECT for V3 (inst 17,
+ptr 2): captures `(+32,224),(+32,2),(+2048,256),…` — the +$08 PW_hi phase that the
+16-bit `+32-forever` collapse missed (= the 56000 divergence). BUT it REGRESSES V2
+(inst 14/15, ptr 19) from 56000→7416: inst 14/15's 8-bit env is
+`(+0,1),(-512,256),(+0,23),(+0,132),(+8192,256)`; its re-packed START is verified
+CORRECT (pulselo[115]=$08), so the break is NOT the start. Hypothesis: inst 14/15's
+play-interval is SHORT, so its 16-bit collapse (`-512 forever`, only the 1st phase
+ever plays) was fine; the 8-bit's later phases only diverge if the COMPOSER's
+pulse-reinit timing (byte3≠0 detection) differs from the orig, making inst 14/15's
+program play past its 1st phase. NEXT: verify the composer's byte3≠0 reinit matches
+the orig exactly (it may reinit on the wrong events), OR apply horizon-8-bit ONLY to
+the instrument whose 16-bit diverges (inst 17), keeping 16-bit for short-interval
+off-table insts (inst 14/15). Prototype code is in the session transcript; not
+committed (would regress). Pulse re-pack uses `add_env` (16-bit layout) for family-4
+even though counts are 8-bit — works because count_lo coincides with the 8-bit read
+for counts ≤256; a dedicated `add_env_f4_pulse` (8-bit) may be cleaner.
+
+### ⚠️ TOOLING CAVEAT: find_first_divergence vs the verdict
+For Jupiter41, `find_first_divergence` reports "frame 2 / position 22" but the VERDICT
+(`compare_instruction_stream`) gives match=56000. The 22 is its `match_post_init`
+metric, MISLEADING when orig/rebuild INIT LENGTHS differ (drops a fixed init prefix →
+mis-aligns the play streams). TRUST the flat `match` (56000) = the off-table pulse.
+Lesson: for family-4 (different init length), use `compare_instruction_stream`'s flat
+`match`/`is_full`, not find_first_divergence's post-init position.
+**Deeper tooling gap (blocks the horizon fix):** BOTH find_first_divergence AND an
+ad-hoc raw flat counter mis-localize for family-4 because orig/rebuild INIT LENGTHS
+DIFFER — a raw flat compare mis-aligns the play streams. `compare_instruction_stream`
+gives the trustworthy VERDICT (match count) but NOT the localized (reg,role). Proof
+the raw localizers lie: the horizon regression's ad-hoc "div = $D40A=$08 @ flat-7416
+(~8.8s)" is CONTRADICTED by memwatch — orig $D40A is $00 for the entire first 14s. So
+the play-sim horizon regresses the VERDICT (56000→7416, reliable) but the *cause*
+can't be pinned without an INIT-ALIGNED flat localizer (the post-init-shift recovery
+that compare_instruction_stream already does internally, exposed as a per-write
+diff). BUILD THAT TOOL FIRST before resuming the horizon fix — chasing raw-flat
+divergence details for family-4 burns time on phantoms (Trap-C class). Until then the
+off-table pulse stays the architectural blocker; the play-sim horizon is the right
+direction but un-landable without reliable localization.
+
 ### 📊 FAMILY-4 WIDE-SAMPLE CENSUS (80/686 members, 2026-06-30) — 0 FULL
 First batch through `dmc_v5_family_batch.py` after this session's gated knobs
 (filter/vibrato/wave-speed/$D418-skip). Build path routes (`dmc_v5_config` →
