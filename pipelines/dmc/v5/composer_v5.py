@@ -1203,6 +1203,10 @@ state_end:
             '        sta vibspd,x',
             '        lda instr+6,y           ; family-4: vib period = byte6 & $0F\n'
             '        and #$0f\n        sta vibspd,x')
+        # NOTE: family-4's orig skips the per-voice $D418 write on the oscillating-vib
+        # path ($158F jumps to $1654, bypassing $1651) — but a naive "skip when
+        # vibspd!=0 && vibdel==0" over-skips (the orig writes $D418 at some vibrating
+        # frames). The exact $1612-vs-$1651 path condition needs RE. Deferred.
     # CIA multispeed: when the original drives play() via a CIA1 timer (PSID
     # speed bit set), program the SAME timer A latch in our init so libsidplayfp
     # calls OUR play() at the identical rate. cia_period 0 = VBI (no-op).
