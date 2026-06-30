@@ -247,6 +247,31 @@ OPEN: once the optimized extractor reads correctly, build with the shared engine
 + `inittick=tempo` and DIFF — the first-divergence says whether an HR knob is the
 only remaining behavioral difference. Cross-ref `docs/src/v1_player1_125.s`.
 
+### 11a. THE #1 WIDE-FAMILY LEVER (2026-06-30 batch census): optimized PER-VOICE
+### PULSE write structure — 435 tunes (`v1_pwlo`/`v1_freqlo` div<50)
+The full-songlength batch (`tools/gt_v1_family_batch.py`) puts player1 at 84/884
+FULL (9.5%) and the SINGLE biggest partial bucket (435 tunes, HALF of player1's
+partials) at an early write-stream divergence that is PURE STRUCTURE (idle frame,
+all values match). Captured Blueseczka (optimized) vs Joker (V1.5 FULL):
+- **ORIG optimized per-frame, PER VOICE:** `freqlo, freqhi, ctrl, pwlo, pwhi`
+  (`00 01 04 02 03` | `07 08 0b 09 0a` | `0e 0f 12 10 11`) — i.e. loadregs (freq+
+  ctrl) THEN pulse, and the **pulse is written UNCONDITIONALLY every frame for
+  every voice** (chnpulse → $D402/$D403), modulated if instpulsespd!=0. No global
+  filter ($D416/7/8) — already handled by the `optimized` knob (filter_exec='').
+- **MINE (`_engine`, V1.5):** `pulseexec → loadregs` so per-voice order is pulse,
+  freq, ctrl (REVERSED), AND `pulseexec` SKIPS the pulse write when instpulsespd==0
+  (`lda instpulsespd,y; and #$fe; beq pulseok`) — so non-PWM voices write no pulse,
+  and the order is wrong. (V1.5 Joker = FULL because V1.5 orig matches this.)
+- **FIX (next session — NON-trivial flow restructure, regression-guard the 84 FULL
+  player1 tunes):** add an `optimized`-gated emission where per voice the order is
+  loadregs (freq, ctrl) THEN an UNCONDITIONAL pulse write ($D402/$D403 = chnpulse,
+  PWM only updates chnpulse). This is the player2 loadpulse-after-freq structure
+  with player1 semantics. The `_engine` flow has multiple `jmp pulseexec`/`jmp
+  loadregs` entries, so it's a real reorder, not a one-liner — do it carefully on a
+  fresh session and DIFF Joker (must stay FULL) + Blueseczka after. Likely also
+  needs the f1/first-note pulse-timing checked (reb's pulse currently lags one
+  frame on the optimized init). This single fix targets ~435 tunes.
+
 ## 12. PLAYER2 — the "gamemusic-mode" routine (the BIGGEST non-V1.5 bucket, ~374)
 
 **Identity (CONFIRMED, full source available):** the 413-tune "filttbl-fail" bucket
