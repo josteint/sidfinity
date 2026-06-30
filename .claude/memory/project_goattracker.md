@@ -284,14 +284,27 @@ Addiction, Reggae_1, Yummy_Pizza, Rusty_Gate — match over overlap, different t
   NOT zeroed by the deferred init, so a pre-set filter is live from frame 1. Detect
   mt_filtcutoff (`A9 ?? 69 ?? 8D ?? ?? 8D 16 D4`) + mt_filttype (`A9 ?? 09 ?? 8D 18 D4`);
   pi_loop sets filtcut/filttype to those (not 0). A_Goat_Day div 0→58.
-- **A_Goat_Day div@58 = subB PULSE MODEL (NEXT):** reb writes an EXTRA v2 pulse (09=04)
-  in the note-load region; orig's v2 takes a path skipping loadpulse. A_Goat_Day is subB
-  (p2_pulse_in_mod=False) — Faderik (the FULL canary) was subA. The subB pulse model
-  (loadpulse-after-freq writing pulse every voice/frame) needs its own note-load
-  investigation, analogous to subA's tick0-defer/ADSR-init work. LIKELY high-leverage
-  (all subB tunes). Then: div=None (length), deep partials (Lovin 28144 — matches ~38s).
-No GT-V1 batch tool yet — build `tools/gt_v1_family_batch.py` (FC-standard-shaped) + a
-divergence census; it MUST use songlength-based verify (never duration=None / arbitrary). **KEY correctness result earlier: PCM
+- **subB note-load (commits a490b73 + 5b940c4) — A_Goat_Day div 0→58→299:** TWO subB
+  fixes. (1) **wavetbl +6-anchor reorder:** the loose `B9 ?? ?? F0 03 9D` wavetbl anchor
+  false-positived INSIDE the interleaved instrument table (A_Goat_Day wavetbl landed at
+  instbase+2 → runaway 100+ step wave programs → garbage ctrl). Try the SPECIFIC +6
+  direct-ctrl form `B9 ?? ?? F0 06 9D ?? ?? 9D 04 D4` first (can't match a +3 loadregs
+  tune). HIGH-LEVERAGE correctness (many subB tunes had garbage wave programs). (2)
+  **newnoteinit-pulse knob (`p2_nn_writes_pulse`):** some subB players' newnoteinit sets
+  chnpulse ONLY (no $D402/$D403 write) and rely on loadpulse every frame; detect via
+  `B9 ?? ?? F0 ?? 9D ?? ?? 9D 02 D4`. Composer makes the nn pulse write conditional.
+
+**HONEST FAMILY STATE (songlength verify, sample 30): ~3/30 FULL (~10%).** The many
+fixes this session (deftempo, init-ctrl, init-filter, wavetbl, nn-pulse) are REAL — they
+move divergences progressively DEEPER + fix correctness (runaway wave programs) — but
+DON'T jump the FULL count because each tune has SEVERAL divergences (fixing one reveals
+the next). This is the realistic wide-family grind: incrementally harden the engine/
+extraction, each variant fix helps audio even before FULL. NEXT high-leverage buckets:
+**div=None/len-mismatch (5: Zonik/Addiction/Reggae_1/Yummy_Pizza/Rusty_Gate** — match
+over overlap, different total length — likely ONE common end/length cause → check first)
++ deep partials (Lovin 28144, Sanxzodiz/Scenial ~15-20k — match long then one effect).
+Build `tools/gt_v1_family_batch.py` (FC-standard-shaped) + divergence census; MUST use
+songlength-based verify (never duration=None / arbitrary 12s). **KEY correctness result earlier: PCM
 audio comparison CANNOT be a verdict (rebuilds are per-frame-exact not cycle-exact,
 Trap B); the audio-equivalence soundness is decided by the TEST BIT (phase reset),
 not by rendering — proven, recorded in ledger C15.** gatetimer 30 = optimized-init tunes whose HR-flag
