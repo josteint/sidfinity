@@ -160,10 +160,15 @@ def detect_layout(sid: Sid) -> Layout:
     h = _find(mem, lo, hi, [0xB9, None, None, 0xC9, 0x08])
     if not h:
         nowavedelay = True
-        h = _find(mem, lo, hi, [0xB9, None, None, 0xF0, 0x03, 0x9D])
+        # Try the SPECIFIC +6 direct-ctrl form (`9D 04 D4` suffix) BEFORE the loose
+        # +3 loadregs form — the bare `B9 ?? ?? F0 03 9D` false-positives inside the
+        # interleaved instrument table for some player2 tunes (A_Goat_Day → wavetbl
+        # landed at instbase+2 → runaway wave programs). The +6 anchor can't match a
+        # +3 (loadregs) tune (it has no `sta chnwave,x; sta $D404,x` in the wave-exec).
+        h = _find(mem, lo, hi, [0xB9, None, None, 0xF0, 0x06, 0x9D,
+                                None, None, 0x9D, 0x04, 0xD4])
         if not h:
-            h = _find(mem, lo, hi, [0xB9, None, None, 0xF0, 0x06, 0x9D,
-                                    None, None, 0x9D, 0x04, 0xD4])
+            h = _find(mem, lo, hi, [0xB9, None, None, 0xF0, 0x03, 0x9D])
     if not h:
         raise ValueError('V1 anchor not found: wavetbl')
     wavetbl = _w(mem, h[0] + 1)
