@@ -311,7 +311,24 @@ extract). Plus `filtactive`: the orig's V3 sweep is gated by $1857 (set by $F9 ~
 2-3), not frame 0 — set in sd_f9, gate filter_run on it (the sweep was ~2 frames
 early). $D416 sweep now matches ~388 writes (was 318).
 
-### ✅✅ PRINCIPLED FILTER + VIBRATO (match 7203 → 32043 / 63.7%, this session)
+### ✅✅✅ FIRST ~67s OF JUPITER41 MATCH (match 7203 → 56000 / write-exact to ~67s)
+This session, after the principle-check: principled per-instrument filter (→31994),
+vibrato (→32043), then the vib-reversal $D418 skip (→56000/~67s). The $D418 detail:
+the orig skips the per-voice $D418 ONLY on the vib UP-reversal frame ($158F→$1654);
+every other oscillating frame WRITES it ($15B0 BNE $1612); the DOWN reversal writes
+unless step-doubling ($1812=byte7>>4). So a per-voice `vibrev` flag set on the UP
+reversal (the inc-vibdir path), cleared each frame at vib_on entry; write_vol skips
+$D418 when vibspd!=0 && vibrev!=0 (commit 8a8e8b8).
+
+### NEXT (write 56000, ~67s): V3 pulse program advance
+V3 ramps PW_lo += $20 (matched: 1C20→1C40→1C60), then the orig advances to a step
+adding $08 to PW_hi (→$2460→$2C60→$3460, then holds for a new note), but the rebuild
+stays on the $20 low-add step (1C80→1CA0→1CC0). The pulse program doesn't advance to
+the high-byte-add step in the rebuild — a per-(note/instrument) pulse-program count or
+extraction detail (NOT a lo/hi swap — the low-add applies correctly to both). Then the
+tail + DOWN-reversal step-doubling generalization. VERIFY FULL SONG (run_member).
+
+### (historical) PRINCIPLED FILTER + VIBRATO (match 7203 → 32043 / 63.7%)
 PRINCIPLED filter fix (commit 2a457aa) — checked against USF §7 + ledger C1/C8 (the
 "verbatim table + orig byte4 indices" idea I was about to write was the §7 LEAK;
 rejected after re-reading the principle). Each family-4 instrument's filter program
