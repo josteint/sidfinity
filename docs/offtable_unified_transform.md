@@ -44,6 +44,33 @@ The four *representation classes* the project has used, and the convergent answe
   matching the orig's layout/state-evolution, so these are a documented limit, not
   a bug (DMC family-2 claim-flag, Object_of_Art `wavepos`, the 84% `trkptr` subset).
 
+### Cross-engine convergence + clarifications (2026-06-30)
+
+A parallel session migrated **GoatTracker V1**'s off-table freq reads to the canonical
+`offtable_freq` records (commit 8a743d1), making GT V1 the **4th engine** on the unified
+form (Hubbard, DMC, FC, GT V1) — independent corroboration that this is the right frame.
+Two things to fold in:
+
+- **NEW census case — the bare-note read.** A high note (`note + transpose ≥ 96`) reads
+  `freqtable[note]` with **no offset at all** (the note-load / arp-0 / toneporta target).
+  Distinct from the wave-relative and arp-offset reads; "the key inclusion" in GT V1.
+  Expect it in other engines too.
+
+- **Padding is COMPOSER-side, never USF.** The GT V1 composer pads its internal
+  `freqlo/freqhi` to a constant ≥128 size (`composer.py`) so the rebuilt binary's
+  downstream addresses don't shift per-tune (cycle-drift → Trap-B `sig=len` flips — the
+  same de-fusion layout-sensitivity the DMC pulse hit). The **USF carries only
+  `freq_lo[:96] + freq_hi[:96]` + the records** (`extract/to_usf.py:282`) — zero padding,
+  zero ML impact. This constant-size padding is the now-PROVEN layout-stability fix to
+  reuse when the pulse decomposer grows the pulse table.
+
+- **The records are the only USF over-capture — and observe tightens them.** The
+  static-reach records are the *reachable* set (a fail-loud safety margin: under-capture
+  diverges loudly, over-capture is harmless), not the *emitted* set. They are real
+  attributed freqs, not garbage. Observe (full-song) drops the unreached ones safely —
+  proven on Electric_Drum (11→7 records, stayed FULL). So the trajectory is: opaque blob
+  → reachable records (canonical) → emitted records (observe), each strictly cleaner ML.
+
 ## The core reframe — two mistakes we keep making
 
 Every hard off-table bug we have hit (the family-4 ptr-19 regression, the
