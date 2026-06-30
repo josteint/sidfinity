@@ -243,7 +243,18 @@ frame where orig doesn't** (the new-note ADSR-init vs pulse-mod path selection; 
 systematic across notes). 4 systematic fixes landed this session-segment (freq table /
 subA emission / idle priming / chninstnum>>3). Player2 FULL = a continued per-frame
 convergence grind (each systematic fix moves first_div forward; pc-trace + find_first_
-divergence are the loop). Pc-trace works: `tools/siddump SID --pc-trace FILE A B --frames N`. **KEY correctness result this turn: PCM
+divergence are the loop). Pc-trace works: `tools/siddump SID --pc-trace FILE A B --frames N`.
+
+**div@58 ANALYSIS (the next divergence, NOT yet fixed):** per-IRQ shows ALL 3 voices'
+note-load is one play() late in mine (orig: newnoteinit play#5 → ADSR-init #6 → pulse
+#7; mine: newnoteinit #6 → ADSR-init #7). BUT the obvious fix (init chntick=DEF-1)
+OVERSHOOT — it made notes one play EARLY (div 58→41) AND diverged inside the idle (so
+chntick DOES affect the idle, not just the notes). So it's NOT a simple init-tick
+off-by-one — the newnoteinit→ADSR-init→pulse→tick interaction is subtle. NEXT: pc-trace
+MINE vs ORIG instruction-by-instruction across the note-load (play#5-7) to see the exact
+timing/path difference, rather than guessing the tick. (DEF-1 reverted; div@58 is the
+best state.) This is intricate per-frame convergence — each divergence is its own subtle
+fix; player2 FULL is a multi-session grind from here. **KEY correctness result this turn: PCM
 audio comparison CANNOT be a verdict (rebuilds are per-frame-exact not cycle-exact,
 Trap B); the audio-equivalence soundness is decided by the TEST BIT (phase reset),
 not by rendering — proven, recorded in ledger C15.** gatetimer 30 = optimized-init tunes whose HR-flag
