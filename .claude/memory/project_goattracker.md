@@ -299,12 +299,17 @@ fixes this session (deftempo, init-ctrl, init-filter, wavetbl, nn-pulse) are REA
 move divergences progressively DEEPER + fix correctness (runaway wave programs) — but
 DON'T jump the FULL count because each tune has SEVERAL divergences (fixing one reveals
 the next). This is the realistic wide-family grind: incrementally harden the engine/
-extraction, each variant fix helps audio even before FULL. NEXT high-leverage buckets:
-**div=None/len-mismatch (5: Zonik/Addiction/Reggae_1/Yummy_Pizza/Rusty_Gate** — match
-over overlap, different total length — likely ONE common end/length cause → check first)
-+ deep partials (Lovin 28144, Sanxzodiz/Scenial ~15-20k — match long then one effect).
-Build `tools/gt_v1_family_batch.py` (FC-standard-shaped) + divergence census; MUST use
-songlength-based verify (never duration=None / arbitrary 12s). **KEY correctness result earlier: PCM
+extraction, each variant fix helps audio even before FULL.
+**⚠️ SAMPLE-CAP UNDERCOUNTS:** the ~3/30 used a 75s duration CAP for speed, which
+undercounts (masks FULL on long tunes + boundary-truncates). Re-checked the div=None
+"cluster" at FULL songlength: **Yummy_Pizza = actually FULL** (179s, cap masked it);
+Reggae_1/Rusty_Gate = div=None w/ TINY tail diff (7/17 writes — song-end capture
+boundary, effectively converged); Zonik = reb ~3000 short (real loop/end); Addiction =
+real div@83. So div=None is NOT one cause, and the TRUE FULL rate is >3/30. NEXT
+SESSION: build `tools/gt_v1_family_batch.py` (FC-standard-shaped) that verifies at FULL
+songlength (NEVER a duration cap / arbitrary 12s — both undercount) + a divergence census
+to get the accurate rate and rank real buckets. Then attack: deep partials (Lovin 28144,
+Sanxzodiz/Scenial ~15-20k), Zonik-style short (loop/end), the genuine early divergences. **KEY correctness result earlier: PCM
 audio comparison CANNOT be a verdict (rebuilds are per-frame-exact not cycle-exact,
 Trap B); the audio-equivalence soundness is decided by the TEST BIT (phase reset),
 not by rendering — proven, recorded in ledger C15.** gatetimer 30 = optimized-init tunes whose HR-flag
