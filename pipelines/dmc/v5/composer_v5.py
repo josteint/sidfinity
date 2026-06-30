@@ -1086,6 +1086,18 @@ state_end:
             'ni_ws_adv:\n        inc wavepos,x\n        lda wavespd,x\n'
             '        sta wavespc,x\n'
             'ni_ws_done:\n        lda wavectrl,y')
+        # family-4 pulse_run uses an 8-bit step counter ($1830 vs $23BC[pos+1]),
+        # not the family-3 16-bit counter (pulselo[pos+1]:pulsehi[pos+1]). With the
+        # 16-bit check, family-4's nonzero pulselo[pos+1] ($23A3) makes pwctr_hi(0)
+        # != pulselo[pos+1] so the pulse never advances (PW frozen at the 0-add
+        # step — V3's PWM sweep never starts). Use an 8-bit counter for family-4.
+        engine = engine.replace(
+            '        lda pwctr_lo,x\n        clc\n        adc #$01\n'
+            '        sta pwctr_lo,x\n        lda pwctr_hi,x\n        adc #$00\n'
+            '        sta pwctr_hi,x\n        cmp pulselo,y\n        bne filter_run\n'
+            '        lda pwctr_lo,x\n        cmp pulsehi,y\n        bne filter_run',
+            '        inc pwctr_lo,x\n        lda pwctr_lo,x\n'
+            '        cmp pulsehi,y\n        bne filter_run')
         # family-4 melodic wave-step propagates the CARRY from (wavefreq+curnote)
         # into freqlo via `adc frqbias,x` with NO clc (the orig's $1688 lacks one):
         # when wavefreq+curnote >= 256 the freq is +1. frqbias is the $EF freq-lo
