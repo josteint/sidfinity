@@ -303,7 +303,24 @@ the default program (note-on never resets filterpos from an instrument byte4);
 semantics confirmed: count=0 means 256 frames (the 8-bit counter wraps 255→0, then
 0==0 advances) — my `inc filtctr_lo; cmp` handles that.
 
-### ⛔ REMAINING ROOT CAUSE: the USF roundtrip corrupts the family-4 filter program
+### ✅ USF FILTER ENCODING FIXED (commit 6e11d60, full-stream 5911 → 7203 / 14.3%)
+to_usf `_capture_env_f4` (8-bit walk: add=filterlo[pos], count=filterhi[pos+1], $90
+loop) + a matching 8-bit from_usf decode (add→filterlo[2k], count→filterhi[2k+1],
+$90→2*lp), both family-4-gated. Roundtrip now FAITHFUL (walk-relevant bytes ==
+extract). Plus `filtactive`: the orig's V3 sweep is gated by $1857 (set by $F9 ~frame
+2-3), not frame 0 — set in sd_f9, gate filter_run on it (the sweep was ~2 frames
+early). $D416 sweep now matches ~388 writes (was 318).
+
+### NEXT divergence (write 7203): filter sweep TIMING lag over the cycle
+$1853 is constant ($D0); $1019 ACCUMULATES across the program's loop (pos 30 → pos 2,
+no reset) — the orig sweeps $1019 UP to $84 by the first loop, but the rebuild LAGS
+(still ~$36): the rebuild's sweep takes MORE frames to reach the $90 loop. Counts are
+faithful (roundtrip-verified), so suspect: the count=0→256 intro vs the orig, the
+filtactive start frame vs orig's $F9 frame, or a per-step count-application off-by-one
+accumulating over ~350 frames. NOT the USF encoding (now faithful) — a residual
+filter_run timing detail. Then verify FULL SONG (run_member).
+
+### (historical) ROOT CAUSE that the above fixed: USF roundtrip corrupted the program
 The EXTRACT is correct (m.filter == raw $23D5/$242C). But to_usf→from_usf
 RE-SYNTHESIZES `filt` from `usf.default_filter` using the family-3 **16-bit
 (rate, frames) phase encoding** (from_usf.py ~L197-207): each phase → an ADD pair
