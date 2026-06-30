@@ -258,14 +258,25 @@ frame does hard-restart (AD=0/SR=0/gate-off) + cmd-tick0-action then nextchn —
 pulse (newnoteinit) is +1 frame, gate-on/freq (ADSR-init) is +2 frames.**
 
 **PLAYER2 FAMILY RESIDUE (next work):** GT V1 = 1359 (884 player1 + 339 player2 +136
-detect_fail). Sample of 45 player2 verified post-fix: **8 FULL, 37 partial.** So Faderik
-was ONE variant; the family has more buckets. Partial clusters by first_div: **div=3**
-(Lovin_SID/No_Effort_Left/Krak_Zak_2/Magnetic_Moons — early, idle-priming/freq-table) /
-**div=44** (Improper_C0nnections/Yummy_Pizza/Scenial/Wobbly_the_Duck — SAME length olen==
-rlen → within-frame order/value) / **div=0** (A_Goat_Day/Truck_Driver/beastie_boys —
-immediate, init/detect) / div=56/60. NEXT: census these buckets (the div=44 same-length
-cluster looks high-leverage = an order/value fix like #6/#7). No GT-V1 batch tool yet —
-build `tools/gt_v1_family_batch.py` (FC-standard-shaped) for the wide run. **KEY correctness result earlier: PCM
+detect_fail). Sample of 45 player2 (12s verify): **10 FULL** after the div=44 fix below
+(was 8). Buckets remaining (first_div hist): **div=3 (10 — BIGGEST)** / div=0 (3) /
+div=6 (3) / div=60 (2) / None-but-len-differ (2) / scattered. CONVERTED clusters:
+- **div=44 → FULL (commit f1ba30f): init test-bit ctrl.** Some players' deferred init
+  does `lda #$08; sta chnwave; sta $D404` (test-bit oscillator reset) so the first
+  hard-restart reads chnwave w/ the test bit. Detect imm via `A9 ?? 9D <chnwave> 9D 04
+  D4` (`p2_init_ctrl`, default 0 = source/Faderik form — priming holds chnwave), emit in
+  pi_loop. Improper_C0nnections FULL.
+- **div=3 (NEXT, biggest, NOT fixed):** static image Block A/B is ALL-ZERO except
+  chninstnum ($08→idx1); orig's FIRST play is idle (filter only, voices write nothing)
+  while reb does an early hard-restart (note-fetch one frame too early) — orig's pulse
+  sweeps from $f0 down (newnoteinit instpulse at PC ~$11bd), reb from 0 up. Root cause is
+  init-set channel state / first-note timing (the static image doesn't hold it; orig's
+  init or first row differs). LIKELY needs: detect whether the first row is a rest, OR
+  a py65 post-init channel-state snapshot for the priming (CAUTION: Faderik's static
+  image IS a mid-play freewheel snapshot — do NOT blindly re-run init for those; only
+  the all-zero-image tunes need the init-state capture). Investigate which.
+No GT-V1 batch tool yet — build `tools/gt_v1_family_batch.py` (FC-standard-shaped) for
+the wide run + a divergence census. **KEY correctness result earlier: PCM
 audio comparison CANNOT be a verdict (rebuilds are per-frame-exact not cycle-exact,
 Trap B); the audio-equivalence soundness is decided by the TEST BIT (phase reset),
 not by rendering — proven, recorded in ledger C15.** gatetimer 30 = optimized-init tunes whose HR-flag
