@@ -293,7 +293,31 @@ THE REBUILD BUG: the composer's V3 runs a filter PROGRAM during idle (note-on
 filter-init sets filterpos from inst byte4 ($01/$29…), then filter_run sweeps fchi
 to $D0) — the orig's idle V3 does none of that ($1019 stays the file-image $5E).
 
-### REMAINING FIX (clear, multi-part):
+### ✅ FILTER SWEEPS (commit 0a8fa72, full-stream match 85 → 5911 / 11.8%)
+CORRECTED the "static filter" error — it was a 16-frame-window artifact (the SAME
+short-window trap). Over 80s the orig's $1019 DOES sweep via the DEFAULT filter
+program (filterpos walks 0,2,4,6… while V3 stays idle). Three fixes landed:
+(1) fchi init = file-image $1019 (f4_fcinit=$5E); (2) force filtflag=0 → V3 stays on
+the default program (note-on never resets filterpos from an instrument byte4);
+(3) drop note_init2's $D418 (the note-LOAD writes only SR/AD/CTRL — C16). Counter
+semantics confirmed: count=0 means 256 frames (the 8-bit counter wraps 255→0, then
+0==0 advances) — my `inc filtctr_lo; cmp` handles that.
+
+### ⛔ REMAINING ROOT CAUSE: the USF roundtrip corrupts the family-4 filter program
+The EXTRACT is correct (m.filter == raw $23D5/$242C). But to_usf→from_usf
+RE-SYNTHESIZES `filt` from `usf.default_filter` using the family-3 **16-bit
+(rate, frames) phase encoding** (from_usf.py ~L197-207): each phase → an ADD pair
+(rate.hi,rate.lo) + a count pair (frames.hi,frames.lo) + a $90 loop. Family-4's
+program is **8-bit (add=$23D5[pos], count=$242C[pos+1])** — so the roundtrip shifts
+it and inserts a spurious $90 (144). The composer then walks a corrupted program →
+filterpos stuck / wrong sweep. **Diagnosis: EXTRACT m.filter[0..10] matches raw;
+ROUNDTRIP m.filter differs (prepends (0,0), inserts (144,0)).**
+FIX: carry the family-4 filter program FAITHFULLY through USF — either a typed
+(add,count) default-filter encoding for family-4, or the raw program prefix as an
+f4 field. Then the existing filter_run (8-bit counter, default program) sweeps
+correctly. VERIFY FULL SONG (run_member), not a short window.
+
+### EARLIER REMAINING (superseded by the above):
 1. **fchi init = file-image $1019** (mem[base+$19]=$5E) for family-4, NOT lo_fchi($00).
    Capture as an f4 param (analogous to f4_filtmode). LEFT_FCHI := that for family-4.
 2. **Don't run V3's filter program during idle** for family-4 (the note-on filter-init
