@@ -79,6 +79,7 @@ class _Tables:
         self.player = p.get('player', 'tracker')   # 'tracker'|'gamemusic' (player2)
         self.p2_pulse_in_mod = bool(p.get('p2_pulse_in_mod', False))  # subA emission
         self.idle_priming = p.get('idle_priming', [])  # per-voice gate-off freewheel
+        self.p2_init_ctrl = int(p.get('p2_init_ctrl', 0))  # test-bit reset init
         # optimized-layout variant: filter is EVENT-DRIVEN (written by setfilter,
         # not a per-frame exec), per-voice order is loadregs-before-pulse, init
         # chntick = tempo (not gatetimer+2).
@@ -249,6 +250,16 @@ def _engine_v2(t: _Tables) -> str:
         loadpulse_body, pulsewrite_body = '', pw
     else:
         loadpulse_body, pulsewrite_body = pw, ''
+    # init ctrl (RE_NOTES §12): some players' deferred init does `lda #imm;
+    # sta chnwave; sta $D404` (imm=$08 test-bit oscillator reset) so the first
+    # hard-restart reads chnwave with the test bit set. imm=0 = the source form
+    # (no chnwave store; idle priming, if any, holds chnwave) → keep $D404=0.
+    if t.p2_init_ctrl:
+        init_ctrl_emit = (f'        lda #${t.p2_init_ctrl:02x}\n'
+                          f'        sta chnwave,x\n        sta $d404,x'
+                          f'              ; test-bit oscillator-reset init')
+    else:
+        init_ctrl_emit = '        sta $d404,x              ; idle ctrl = 0'
     return f"""
 ENDPATT = $ff
 temp1 = $fc
@@ -279,7 +290,7 @@ pi_loop:
         sta chnpulsedir,x
         sta chnrepeat,x
         sta chntrans,x
-        sta $d404,x              ; idle ctrl = 0
+{init_ctrl_emit}
         lda #{DEF}
         sta chntick,x
         sta chntempo,x

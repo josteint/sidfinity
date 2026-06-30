@@ -108,6 +108,8 @@ class Layout:
                                # newnote+3,command+4,cmddata+5,instnum+6) stride-7
     chnwave_base: int = 0      # player2 Block B base (chnwave+0,wavetbl+1,pulse+2,
                                # pulsedir+3,arpcount+4,vibcount+5,songptr+6) stride-7
+    p2_init_ctrl: int = 0      # player2 init ctrl: `lda #imm; sta chnwave; sta $D404`
+                               # (test-bit $08 oscillator reset variant; 0 = source)
 
 
 def detect_layout(sid: Sid) -> Layout:
@@ -284,6 +286,7 @@ def detect_layout(sid: Sid) -> Layout:
     freqlo = freqhi = 0
     chnnote_base = chnwave_base = 0
     p2_pulse_in_mod = False
+    p2_init_ctrl = 0
     if is_gamemusic:
         h = _find(mem, lo, hi, [0xB9, None, None, 0x9D, None, None, 0x9D, 0x00,
                                 0xD4, 0xB9, None, None, 0x9D, None, None, 0x9D,
@@ -301,6 +304,15 @@ def detect_layout(sid: Sid) -> Layout:
         #   chnwave block: keyoff `lda chnwave,x; and #$FE; sta $D404,x` operand @+1
         kf = _find(mem, lo, hi, [0xBD, None, None, 0x29, 0xFE, 0x9D, 0x04, 0xD4])
         chnwave_base = _w(mem, kf[0] + 1) if kf else 0
+        #   init ctrl (RE_NOTES §12): some players' deferred init does
+        #   `lda #imm; sta chnwave,x; sta $D404,x` (imm=$08 test-bit oscillator
+        #   reset). The source writes $D404=0 with no chnwave store, so this
+        #   pattern is absent → init_ctrl stays 0.
+        if chnwave_base:
+            ic = _find(mem, lo, hi, [0xA9, None, 0x9D, chnwave_base & 0xFF,
+                                     (chnwave_base >> 8) & 0xFF, 0x9D, 0x04, 0xD4])
+            if ic:
+                p2_init_ctrl = mem[ic[0] + 1]
     else:
         for h in _find(mem, lo, hi, [0xB9, None, None, 0x9D, None, None,
                                      0xB9, None, None, 0x9D]):
@@ -318,7 +330,8 @@ def detect_layout(sid: Sid) -> Layout:
                   freqlo=freqlo, freqhi=freqhi, nowavedelay=nowavedelay,
                   player='gamemusic' if is_gamemusic else 'tracker',
                   p2_pulse_in_mod=p2_pulse_in_mod,
-                  chnnote_base=chnnote_base, chnwave_base=chnwave_base)
+                  chnnote_base=chnnote_base, chnwave_base=chnwave_base,
+                  p2_init_ctrl=p2_init_ctrl)
 
 
 # ---------------------------------------------------------------------------

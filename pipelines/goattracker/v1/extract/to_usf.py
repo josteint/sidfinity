@@ -196,6 +196,8 @@ def model_to_usf(song: V1Song) -> UsfFile:
     if L.player == 'gamemusic':
         # subA emission: pulse-in-mod-before-freq, arpfreq→nextchn (the majority).
         params.fields['p2_pulse_in_mod'] = bool(L.p2_pulse_in_mod)
+        if L.p2_init_ctrl:                       # test-bit oscillator-reset init
+            params.fields['p2_init_ctrl'] = int(L.p2_init_ctrl)
         # per-voice idle priming (the gate-off freewheel state; C15 phase gate).
         if song.idle_priming:
             params.fields['idle_priming'] = [list(t) for t in song.idle_priming]
