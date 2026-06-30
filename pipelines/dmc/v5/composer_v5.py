@@ -1042,8 +1042,11 @@ state_end:
     # family-4's filter mode is the static $1018 byte (f4_filtmode), not the
     # family-3 lo_filtmode leftover (e.g. Jupiter41 = $30 → $D418 high nibble).
     _filtmode = m.f4_filtmode if getattr(m, 'family4', False) else m.lo_filtmode
+    # family-4's filter cutoff starts at the file-image $1019 (f4_fcinit), swept by
+    # the default filter program; family-3 uses the lo_fchi leftover.
+    _fchi = m.f4_fcinit if getattr(m, 'family4', False) else m.lo_fchi
     consts = (f'LEFT_FILTMODE = ${_filtmode:02X}\n'
-              f'LEFT_FCHI = ${m.lo_fchi:02X}\n'
+              f'LEFT_FCHI = ${_fchi:02X}\n'
               f'LEFT_FCLO = ${m.lo_fclo:02X}\n'
               f'LEFT_SPDCTR = ${m.lo_spdctr:02X}\n'
               f'LEFT_MVOLFRAC = ${m.lo_mvolfrac:02X}\n')
@@ -1113,6 +1116,22 @@ state_end:
             '        lda pwctr_lo,x\n        cmp pulsehi,y\n        bne filter_run',
             '        inc pwctr_lo,x\n        lda pwctr_lo,x\n'
             '        cmp pulsehi,y\n        bne filter_run')
+        # family-4's note-LOAD writes only SR/AD/CTRL (C16) — NOT $D418. The orig's
+        # note-load (TICK) doesn't touch $D418; the per-voice write_vol path emits it
+        # for the non-loading voices. note_init2's $D418 is an extra write for fam-4.
+        engine = engine.replace(
+            '        lda filtmode\n        ora mvol0\n        sta $d418\n'
+            '        lda instr_n,x',
+            '        lda instr_n,x')
+        # family-4 keeps V3 on the DEFAULT filter program (filterpos walks from 0,
+        # swept continuously by filter_run); the orig never runs a per-instrument
+        # filter init for V3 (it stays idle / inst 0). Force filtflag=0 so the
+        # note-on never resets filterpos/fchi from an instrument byte4 — otherwise
+        # the rebuild jumps filterpos to a byte4 value and corrupts the sweep.
+        engine = engine.replace(
+            '        lda instr+4,y           ; filter ptr\n        sta filtflag',
+            '        lda #$00                ; family-4: no per-instr filter\n'
+            '        sta filtflag')
         # family-4 FILTER (C-2): $D416-only = fchi($1019 sweep) + filtbase($1853);
         # no per-frame $D415 (init clear leaves it $00). $F8 sets the filter base
         # ($1853) not frqovr; $F9 (sd_f9, already family-4-shaped) sets $D417 res +

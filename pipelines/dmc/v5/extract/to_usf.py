@@ -399,6 +399,7 @@ def model_to_usf(m: V5Model, reach: int | None = None) -> UsfFile:
             **({'cia_period': m.cia_period} if getattr(m, 'cia_period', 0)
                else {}),
             **({'family4': 1, 'f4_filtmode': m.f4_filtmode,
+                'f4_fcinit': m.f4_fcinit,
                 'f4_note0': m.f4_idle_notes[0], 'f4_note1': m.f4_idle_notes[1],
                 'f4_note2': m.f4_idle_notes[2]}
                if getattr(m, 'family4', False) else {}),

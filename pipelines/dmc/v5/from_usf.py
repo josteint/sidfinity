@@ -144,6 +144,7 @@ def usf_to_model(usf: UsfFile) -> V5Model:
     if int(pf.get('family4', 0)):
         m.family4 = True
         m.f4_filtmode = int(pf.get('f4_filtmode', 0))
+        m.f4_fcinit = int(pf.get('f4_fcinit', 0))
         m.f4_idle_notes = [int(pf.get('f4_note%d' % i, 0)) for i in range(3)]
 
     # ---- re-pack the shared wave table (idle program at index 0, then

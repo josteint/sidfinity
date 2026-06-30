@@ -94,6 +94,8 @@ class V5Model:
     family4: bool = False
     f4_idle_notes: list = field(default_factory=lambda: [0, 0, 0])  # $1012-$1014
     f4_filtmode: int = 0    # $1018 (filter MODE nibble from $F9) -> $D418
+    f4_fcinit: int = 0      # $1019 file-image (initial filter cutoff, swept by the
+                            # default filter program from filterpos 0) -> $D416 base
     title: str = ''
     author: str = ''
     released: str = ''
@@ -278,6 +280,7 @@ def extract(cfg, hvsc_root: str = 'hvsc84') -> V5Model:
         d = cfg.base - 0x1000
         m.f4_idle_notes = [mem[0x1012 + d + v] for v in range(3)]
         m.f4_filtmode = mem[0x1018 + d]
+        m.f4_fcinit = mem[0x1019 + d]
         # C-3: lo_spdctr was read from $1013 = V2 CURNOTE in family-4 (not a
         # speed counter) → a bogus 36-frame startup delay. Zero it; speed=1
         # already gives the 2-phase tick rate. lo_notes (idle) is overridden by
