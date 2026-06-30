@@ -250,11 +250,18 @@ note-load is one play() late in mine (orig: newnoteinit play#5 → ADSR-init #6 
 #7; mine: newnoteinit #6 → ADSR-init #7). BUT the obvious fix (init chntick=DEF-1)
 OVERSHOOT — it made notes one play EARLY (div 58→41) AND diverged inside the idle (so
 chntick DOES affect the idle, not just the notes). So it's NOT a simple init-tick
-off-by-one — the newnoteinit→ADSR-init→pulse→tick interaction is subtle. NEXT: pc-trace
-MINE vs ORIG instruction-by-instruction across the note-load (play#5-7) to see the exact
-timing/path difference, rather than guessing the tick. (DEF-1 reverted; div@58 is the
-best state.) This is intricate per-frame convergence — each divergence is its own subtle
-fix; player2 FULL is a multi-session grind from here. **KEY correctness result this turn: PCM
+off-by-one — the newnoteinit→ADSR-init→pulse→tick interaction is subtle. **SOURCE REVIEW + pc-trace RESOLVED the tick theory (negative result):** Faderik's
+deferred init sets `chntick=5` (pc-trace: c455=5/c456=5/c42a=5 = chntick/chntempo/
+chnnewnote) — IDENTICAL to subB (v1_player2_125.s l.208) and to MINE. So chntick=5 is
+correct, **DEF-1 was a wrong guess, and the one-play-late is NOT the init tick.** Don't
+re-chase the tick. The reb is +1236 writes longer than orig over the song (not just one
+late note) → likely SYSTEMATIC extra writes (the subA pulse model writing pulse on
+frames orig doesn't, e.g. the ADSR-init/new-note frame, OR the loadpulse-vs-mod split).
+NEXT: pc-trace MINE's rebuild vs ORIG instruction-by-instruction across the note-load
+(the first $D405 AD-write is orig frame 6, PC ~c130) to see which path writes the extra
+pulse — `tools/siddump tmp/faderik.reb.sid --pc-trace ...` on BOTH and diff the SID-write
+PCs. (DEF-1 reverted; div@58 is the best state, all 4 systematic fixes committed.) This
+is intricate per-frame convergence; player2 FULL is a multi-session grind from here. **KEY correctness result this turn: PCM
 audio comparison CANNOT be a verdict (rebuilds are per-frame-exact not cycle-exact,
 Trap B); the audio-equivalence soundness is decided by the TEST BIT (phase reset),
 not by rendering — proven, recorded in ledger C15.** gatetimer 30 = optimized-init tunes whose HR-flag
