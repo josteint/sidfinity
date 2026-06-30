@@ -243,6 +243,32 @@ constant-delta fit (revive `strip_decompose`); (d) replace `_capture_env` wholes
 family-4, gate on zero regression across FULL members. Build scripts: `tmp/of_step*.py`,
 `tmp/proto_*.py`.
 
+### ✅ Event-driven pulsepos segmenter — BUILT + VALIDATED (2026-06-30)
+
+Step (a) is done — `tmp/pulsepos_segmenter.py`. It triggers on the per-voice SID PW-hi
+write (`$D403/$D40A/$D411` = one `pulse_run` SID write per play-frame) and snapshots the
+FULL internal accumulator as RAM (`pulsepos`, `PW-lo`, `PW-hi` — readable/unmasked,
+unlike the 12-bit-masked `$D4xx`). It segments by re-init (pulsepos drop), groups by
+program (post-reinit pulsepos = ptr+1), and returns each program's longest realized
+contour — play-aligned, no walk re-implementation, no frame-model guessing.
+
+VALIDATED on Jupiter41 across all 3 voices: it cleanly enumerates every pulse program
+and flags the off-table ones (V2 ptr=7 maxPWhi=$FE, V2 default $FE, **V3 ptr=2 / inst 17
+maxPWhi=$FC**). V3 ptr=2's contour is the odd-position walk `[3,5,7]` ramping PW_lo +$20
+then PW_hi +$08 — its tail is `7:2460 7:2C60 7:3460…`, the EXACT values from the
+flat-56000 divergence `_capture_env` missed. So the realize step is correct by
+construction and the off-table sweeps are captured.
+
+Remaining for the green verdict (the FIT + integrate): the observed contour contains
+per-frame timing HOLDS (the 2-phase `$1016` MAIN/TICK — ~1 in 5 frames the PW doesn't
+change). The SweepEnvelope must encode the LOGICAL program (per-MAIN-frame adds), with
+the composer's own pulse timing reproducing the holds — so the fit removes the holds,
+RLE-encodes the logical (rate, count) phases, detects the loop, then maps each contour
+to its instrument (start_pw == pulse[byte3]) and replaces `_capture_env` for all
+programs at once (breaking the coupling). Open question to confirm first: does the
+family-4 composer's `pulse_run` already reproduce the 2-phase hold cadence (if yes, the
+logical-program fit is straightforward; if no, the holds must be modeled).
+
 ## Risks / honest scope
 
 - Substantial refactor touching DMC v4/v5, FC, Hubbard extract paths; migration must
