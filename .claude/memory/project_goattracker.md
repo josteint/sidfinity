@@ -230,7 +230,20 @@ free-running pulse accumulator (+= instpulsespd, wraps; v2 $01→$41→$81→$c1
 chnpulsedir in idle priming (chnwave+3) + DON'T zero it in pi_loop for subA + a subA
 pulse-mod variant (accumulate chnpulsedir += instpulsespd, write chnpulsedir; dir-flip
 logic TBD from a wider trace). Then v2/v3 pulse match → f2 converges. The subA pulse-mod
-is the final structural piece for the player2 majority. **KEY correctness result this turn: PCM
+is the final structural piece for the player2 majority.
+
+**✅ UPDATE — subA pulse RESOLVED via chninstnum>>3 (commit ae9dd66) → Faderik div
+12→58 (f1-f5 converge).** The pulse value was wrong because player2 stores chninstnum
+as inst*8 (interleaved byte offset; pc-trace v2=$10→instpulsespd[$10]=inst-2's field)
+while OUR engine stores the inst INDEX (lsr×3 on note-load) → idle chninstnum must be
+>>3, else it reads the wrong instrument's pulsespd. (NOT a separate-arrays layout —
+instruments ARE interleaved; chninstnum is just the *8 offset.) **CURRENT: Faderik
+div@58 (f6, first real notes) — mine writes an EXTRA v2 pulse ($09/$0a) on the new-note
+frame where orig doesn't** (the new-note ADSR-init vs pulse-mod path selection; likely
+systematic across notes). 4 systematic fixes landed this session-segment (freq table /
+subA emission / idle priming / chninstnum>>3). Player2 FULL = a continued per-frame
+convergence grind (each systematic fix moves first_div forward; pc-trace + find_first_
+divergence are the loop). Pc-trace works: `tools/siddump SID --pc-trace FILE A B --frames N`. **KEY correctness result this turn: PCM
 audio comparison CANNOT be a verdict (rebuilds are per-frame-exact not cycle-exact,
 Trap B); the audio-equivalence soundness is decided by the TEST BIT (phase reset),
 not by rendering — proven, recorded in ledger C15.** gatetimer 30 = optimized-init tunes whose HR-flag
