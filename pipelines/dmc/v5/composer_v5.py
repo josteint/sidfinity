@@ -1070,12 +1070,21 @@ state_end:
             '        sta wavespd,x\n        sta wavespc,x',
             '        ;; WAVESPD\n        lda instr+6,y\n        lsr\n        lsr\n'
             '        lsr\n        lsr\n        sta wavespd,x\n        sta wavespc,x')
-        # family-4 note-on does NO wave step (only SR/AD/CTRL); the per-frame
-        # wave_step starts at the wave_ptr and holds it `speed` frames. So the
-        # note-on first-step must NOT pre-advance wavepos (family-3 does).
+        # family-4 note-init first-step must use the SAME speed-gated advance as
+        # the per-frame ws_adv: family-3 unconditionally advances (`inc wavepos`)
+        # after the first step, but family-4's first step IS a real wave step
+        # under the speed counter. Without this, a speed-0 instrument emits its
+        # first wave value TWICE (note_init2 reads pos N without advancing, then
+        # eff_steady re-reads pos N) — the V2 drum's extra DD00 frame. With it:
+        # speed 0 advances now (one DD00), speed>0 holds (V1's 6-frame note).
         engine = engine.replace(
             '        ldy wavepos,x\n        inc wavepos,x\n        lda wavectrl,y',
-            '        ldy wavepos,x\n        lda wavectrl,y')
+            '        ldy wavepos,x\n'
+            '        lda wavespc,x\n        beq ni_ws_adv\n        dec wavespc,x\n'
+            '        jmp ni_ws_done\n'
+            'ni_ws_adv:\n        inc wavepos,x\n        lda wavespd,x\n'
+            '        sta wavespc,x\n'
+            'ni_ws_done:\n        lda wavectrl,y')
         # family-4 instruments have NO per-instrument vibrato: byte 6 is the WAVE
         # speed (read by the WAVESPD block), and bytes 5/7 are unused (vibrato is
         # the $F0 sector command). Zero the composer's per-instrument vib setup so
