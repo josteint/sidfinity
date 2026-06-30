@@ -1129,17 +1129,20 @@ state_end:
         # filter init for V3 (it stays idle / inst 0). Force filtflag=0 so the
         # note-on never resets filterpos/fchi from an instrument byte4 — otherwise
         # the rebuild jumps filterpos to a byte4 value and corrupts the sweep.
-        # family-4: V3 plays inst-0 notes that RE-INIT the filter (filterpos=byte4+1,
-        # fchi=filterlo[byte4]) — but the USF roundtrip re-packs the filter table and
-        # re-assigns every instrument's filter_ptr to a re-packed index, so the
-        # rebuild re-inits from the WRONG byte4 (wrong instrument). Until the raw
-        # program + orig byte4 are carried faithfully, force filtflag=0 (no per-instr
-        # re-init): the default program alone matches ~7203 writes; the re-init path
-        # (write 7203+) needs the faithful-index fix. See RE_NOTES.
+        # family-4: V3 plays inst-0 notes that RE-INIT the filter (note-on sets
+        # filterpos=filter_ptr, fchi=filterlo[filter_ptr]=the start cutoff, then
+        # INC; filter_run sweeps from there). filter_ptr is now the composer's
+        # OWN re-packed index (from the per-instrument 8-bit SweepEnvelope capture),
+        # so `lda instr+4,y` reads the right program. The orig's filter init ($1411)
+        # is V3-ONLY (CPX #$02) — so filtflag = byte4 only for V3; V1/V2 get 0 (their
+        # notes must NOT touch the global filter state).
         engine = engine.replace(
             '        lda instr+4,y           ; filter ptr\n        sta filtflag',
-            '        lda #$00                ; family-4: per-instr filter re-init\n'
-            '        sta filtflag            ; needs faithful filter_ptr (TODO)')
+            '        lda instr+4,y           ; filter ptr (V3-only)\n'
+            '        cpx #$02\n        beq f4_flt_v3\n        lda #$00\n'
+            'f4_flt_v3:\n        sta filtflag\n'
+            '        lda filtflag            ; restore Z (cpx clobbered it) for'
+            ' the\n                                ; following `beq ni_nofilt`')
         # family-4: the V3 filter sweep is gated by $1857 (set by $F9), so it does
         # NOT run until the first $F9 fires (~frame 2-3). The composer otherwise
         # sweeps from frame 0 → the whole sweep is ~2 frames early. Set filtactive

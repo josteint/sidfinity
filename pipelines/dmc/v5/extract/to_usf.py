@@ -142,17 +142,29 @@ def _capture_env(table: list, ptr: int, has_start: bool = True,
     return SweepEnvelope(start=start, phases=phases, loop=loop)
 
 
-def _capture_env_f4(table: list, ptr: int, start_val: int,
+def _capture_env_f4(table: list, ptr: int, start_val: int = 0,
+                    has_start: bool = False,
                     reach: int | None = None) -> SweepEnvelope:
     """family-4 filter program: 8-bit (add, count) steps, walked 2 table
     positions per step. `add` = table[pos][0] (filterlo[pos], signed 8-bit);
     `count` = table[pos+1][1] (filterhi[pos+1]); a $90 at table[pos][0] loops
     to table[pos][1]. The 16-bit `_capture_env` misreads this (it fuses the two
     bytes of each pair into one 16-bit value), so family-4 needs its own walk.
-    count==0 means the 8-bit counter wraps (256 frames)."""
+    count==0 means the 8-bit counter wraps (256 frames).
+
+    has_start=True (per-instrument filter, $1421): the engine loads
+    $1019 = filterlo[ptr] as the START cutoff and begins the sweep at ptr+1
+    (filterpos = byte4 then INC). has_start=False (V3 default/idle program,
+    filterpos 0): no start entry — start_val is the priming cutoff (f4_fcinit),
+    phases begin at ptr."""
+    if has_start:
+        start = table[ptr][0]          # filterlo[byte4] = the loaded cutoff
+        pos = ptr + 1
+    else:
+        start = start_val
+        pos = ptr
     phases: list = []
     loop = None
-    pos = ptr
     pos_phase: dict = {}
     cum = 0
     iters = 0
@@ -180,7 +192,7 @@ def _capture_env_f4(table: list, ptr: int, start_val: int,
         pos += 2
         if reach is not None and cum > reach:
             break
-    return SweepEnvelope(start=start_val, phases=phases, loop=loop)
+    return SweepEnvelope(start=start, phases=phases, loop=loop)
 
 
 # --- sectors -> pattern rows ---------------------------------------------
@@ -335,8 +347,12 @@ def _instrument_to_usf(ins, model: V5Model, reach: int | None = None):
         pwm=PwmConfig(keep_running=(ins.pulse_ptr == 0)),
         pulse_env=(_capture_env(model.pulse, ins.pulse_ptr, reach=reach)
                    if ins.pulse_ptr else None),
-        filter_env=(_capture_env(model.filter, ins.filter_ptr, reach=reach)
-                    if ins.filter_ptr else None),
+        filter_env=(
+            (_capture_env_f4(model.filter, ins.filter_ptr, has_start=True,
+                             reach=reach)
+             if getattr(model, 'family4', False)
+             else _capture_env(model.filter, ins.filter_ptr, reach=reach))
+            if ins.filter_ptr else None),
         vibrato=VibratoConfig(onset=ins.vib_delay, speed=ins.vib_speed,
                               amplitude=ins.vib_width),
         offtable_freq=list(ins.offtable_freq),

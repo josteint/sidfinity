@@ -237,10 +237,32 @@ def usf_to_model(usf: UsfFile) -> V5Model:
             table.append((0x90, (s + 1) & 0xFF))  # s+3: loop onto the zero ADD
         return s
 
+    def add_env_f4(table, env):
+        # family-4 8-bit (add, count) layout: filterlo[s] = start cutoff (the
+        # engine's $1019 = filterlo[byte4] re-init), then the sweep at s+1:
+        # filterlo[2k+1] = add, filterhi[2k+2] = count; $90 loops to phase lp.
+        # The de-fused per-instrument copy (ledger C8); fptr is the composer's
+        # own re-packed index, never serialized.
+        s = len(table)
+        table.append((env.start & 0xFF, 0))               # filterlo[s] = start
+        for add, count in env.phases:
+            table.append((add & 0xFF, 0))                 # filterlo = add
+            table.append((0, count & 0xFF))               # filterhi = count (256->0)
+        if env.phases:
+            lp = env.loop if env.loop is not None else len(env.phases) - 1
+            table.append((0x90, (s + 1 + 2 * lp) & 0xFF))
+        else:
+            table.append((0x00, 0x00))                    # zero-ADD hold
+            table.append((0x00, 0x00))                    # count 0 -> 256-frame hold
+            table.append((0x90, (s + 1) & 0xFF))
+        return s
+
+    _f4 = getattr(m, 'family4', False)
     for inst in usf.instruments:
         wptr = add_wave(inst.waveform, inst.wave_freq, inst.loop)
         pptr = add_env(pulse, inst.pulse_env) if inst.pulse_env else 0
-        fptr = add_env(filt, inst.filter_env) if inst.filter_env else 0
+        fptr = ((add_env_f4(filt, inst.filter_env) if _f4
+                 else add_env(filt, inst.filter_env)) if inst.filter_env else 0)
         v = inst.vibrato
         m.instruments.append(V5Instrument(
             id=inst.id, ad=inst.adsr[0], sr=inst.adsr[1],
