@@ -1194,20 +1194,15 @@ state_end:
             '        adc curnote,x\n        tay\n'
             '        lda freqlo,y\n        adc frqbias,x\n        sta freqlov,x\n'
             '        lda freqhi,y\n        adc #$00\n        sta freqhiv,x')
-        # family-4 instruments have NO per-instrument vibrato: byte 6 is the WAVE
-        # speed (read by the WAVESPD block), and bytes 5/7 are unused (vibrato is
-        # the $F0 sector command). Zero the composer's per-instrument vib setup so
-        # it doesn't read byte 6 ($50) as a huge vib_speed (spurious freq jitter).
+        # family-4 vibrato (note-on $138F; state machine $157C): onset delay = byte5
+        # ($1806), period = byte6 & $0F ($1809 — the UP/DOWN step count; byte6's HIGH
+        # nibble is the wave speed), width = byte7 & $07. Same byte map as family-3
+        # EXCEPT vibspd masks to byte6's low nibble (family-3 uses the whole byte).
         engine = engine.replace(
-            '        lda instr+5,y           ; vib delay\n'
-            '        sta vibdel,x\n'
             '        lda instr+6,y           ; vib speed\n'
-            '        sta vibspd,x\n'
-            '        lda instr+7,y           ; vib width &7\n'
-            '        and #$07\n'
-            '        sta vibwidth',
-            '        lda #$00\n        sta vibdel,x\n        sta vibspd,x\n'
-            '        sta vibwidth')
+            '        sta vibspd,x',
+            '        lda instr+6,y           ; family-4: vib period = byte6 & $0F\n'
+            '        and #$0f\n        sta vibspd,x')
     # CIA multispeed: when the original drives play() via a CIA1 timer (PSID
     # speed bit set), program the SAME timer A latch in our init so libsidplayfp
     # calls OUR play() at the identical rate. cia_period 0 = VBI (no-op).
