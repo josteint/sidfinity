@@ -75,7 +75,8 @@ def _pitch(note: int) -> Pitch:
 # REACHABLE phases (the table is a shared/fused resource; the bleeding past
 # the reachable horizon is the packer's space-saving mechanism — Rule 1).
 def _capture_env(table: list, ptr: int, has_start: bool = True,
-                 start_val: int = 0, reach: int | None = None) -> SweepEnvelope:
+                 start_val: int = 0, reach: int | None = None,
+                 count8bit: bool = False) -> SweepEnvelope:
     # has_start=True: table[ptr] is the loaded START value, phases begin at
     # ptr+1 (per-instrument pulse/filter — filter_init/pulse_init load the
     # start). has_start=False: ptr is already the first ADD pair, phases begin
@@ -125,13 +126,21 @@ def _capture_env(table: list, ptr: int, has_start: bool = True,
         if rate >= 0x8000:
             rate -= 0x10000
         clo, chi = table[pos + 1]
-        frames = (clo << 8) | chi
-        # count==0 means the engine's 16-bit phase counter wraps (65536
-        # frames) before advancing — i.e. a terminal hold. This is also what
-        # the off-table zero-region of a small (last-table) filter program
-        # decodes to; without this the (0,0) entries spin forever -> PHASE_CAP.
-        if frames == 0:
-            frames = 0x10000
+        if count8bit:
+            # family-4 pulse: the count is the 8-bit pulsehi[pos+1] ($23BC) only;
+            # pulselo[pos+1] ($23A3) is unused garbage that a 16-bit read would
+            # fold into the count, inflating `cum` so `reach` truncates early and
+            # the re-pack caps the program with a spurious $90 loop. count==0 wraps
+            # at 256 (the 8-bit counter), not 65536.
+            frames = chi if chi != 0 else 256
+        else:
+            frames = (clo << 8) | chi
+            # count==0 means the engine's 16-bit phase counter wraps (65536
+            # frames) before advancing — i.e. a terminal hold. This is also what
+            # the off-table zero-region of a small (last-table) filter program
+            # decodes to; without this the (0,0) entries spin forever -> PHASE_CAP.
+            if frames == 0:
+                frames = 0x10000
         phases.append((rate, frames))
         cum += frames
         pos += 2
@@ -330,6 +339,22 @@ def _orderlist(events: list) -> Orderlist:
     return ol
 
 
+def _pulse_env_for(model, ptr, reach):
+    """Per-instrument pulse env. family-4's pulse count is 8-bit; capture it that
+    way so a multi-step PWM program isn't truncated early. But an OFF-TABLE pulse
+    pointer (program bleeds into garbage) has no real loop — under 8-bit counts the
+    walk runs past _PHASE_CAP, whereas the 16-bit read's huge garbage counts make
+    `cum > reach` bound it. So fall back to the 16-bit capture on overflow."""
+    if not ptr:
+        return None
+    if getattr(model, 'family4', False):
+        try:
+            return _capture_env(model.pulse, ptr, reach=reach, count8bit=True)
+        except RuntimeError:
+            pass
+    return _capture_env(model.pulse, ptr, reach=reach)
+
+
 def _instrument_to_usf(ins, model: V5Model, reach: int | None = None):
     """Map a V5Instrument to a USF Instrument. The wave program is decoded
     inline (self-looping, separable); pulse/filter are entry indices into
@@ -345,8 +370,7 @@ def _instrument_to_usf(ins, model: V5Model, reach: int | None = None):
         wave_freq=[b & 0xFF for b in wf],
         adsr=(ins.ad, ins.sr),
         pwm=PwmConfig(keep_running=(ins.pulse_ptr == 0)),
-        pulse_env=(_capture_env(model.pulse, ins.pulse_ptr, reach=reach)
-                   if ins.pulse_ptr else None),
+        pulse_env=_pulse_env_for(model, ins.pulse_ptr, reach),
         filter_env=(
             (_capture_env_f4(model.filter, ins.filter_ptr, has_start=True,
                              reach=reach)
@@ -443,7 +467,8 @@ def model_to_usf(m: V5Model, reach: int | None = None) -> UsfFile:
     if m.pulse:
         try:
             idle_p = _capture_env(m.pulse, 0, has_start=False,
-                                  start_val=0, reach=reach)
+                                  start_val=0, reach=reach,
+                                  count8bit=getattr(m, 'family4', False))
         except RuntimeError:
             idle_p = None
         if idle_p and idle_p.phases:
