@@ -292,6 +292,37 @@ the all-programs integration + the zero-FULL-regression gate is the remaining de
 chunk. Build scripts: `tmp/of_fit_explore.py`, `tmp/of_check_holds.py`,
 `tmp/pulsepos_segmenter.py`.
 
+### DECOMPOSER BUILT — strip_decompose pulled in; ptr-2 validated, ptr-7 is the edge case (2026-06-30)
+
+`tmp/of_decomposer.py`. Revives `effect_detect.constant_delta` (the proven ramp fitter)
+as the per-phase primitive: it returns the dominant non-zero delta + consistency, which
+HANDLES THE HOLDS by construction (consistency is over non-zero deltas). The decomposer:
+segment by re-init → group runs by program (pp=ptr+1) → per pulsepos-group emit
+(rate=dominant Δ, count=number-of-adds via wrap-aware sdelta) → map byte3=pp−1 → and
+(HYBRID) use the observed fit ONLY when `_capture_env` 8-bit OVERFLOWS (the fragile /
+layout-dependent programs); clean looping programs keep `_capture_env` (its `$90` loop
+the contour can't reveal — observe-and-fit can't tell a loop-back from a re-init).
+
+**Validated:** ptr 2 (inst 17) decomposes CORRECTLY: `(+32,223),(+32,1),(+2048,255),…`
+— the off-table `+$08` sweep `_capture_env` missed, with the right wrap-aware count.
+constant_delta is the right tool. Bugs found+fixed along the way: count must be
+adds-not-frames AND wrap-aware (net/rate collapses on the wrapping PW); run-selection
+must prefer the most-off-table run; hybrid criterion is "8-bit overflows" not
+"PW off-table" (ptr 19 looks in-table but its 16-bit fallback reads garbage).
+
+**Not yet passing (match=7416 vs committed 56000):** the COUPLING requires EVERY
+off-table program to be byte-exact (a byte3=0 note continues the PW, so a wrong prior
+contour cascades — the 7416 divergence is V2 continuing a wrong PW). ptr 7 is the
+blocker: it's a more complex off-table program (its `+$2048` ramp WRAPS the 8-bit
+pulsepos past 255, then ramp/hold pieces), and the re-init segmentation (pulsepos-drop
+AND PW-resets-to-start) splits it into ramp/hold fragments, so the selected run is a
+high-PW HOLD not the full ramp. The remaining work is robustifying the segmentation +
+decomposition for these wrap/ramp/hold off-table programs (a cleaner re-init signal —
+e.g. capturing the pulse COUNTER reset, or the note-on event, instead of inferring
+re-inits from pulsepos+PW). The core thesis (observe-and-fit + strip_decompose extracts
+the off-table contour) is VALIDATED on ptr 2; the all-programs robustness is the
+remaining engineering. Scripts: `tmp/of_decomposer.py`, `tmp/diag_ptr7.py`.
+
 ## Risks / honest scope
 
 - Substantial refactor touching DMC v4/v5, FC, Hubbard extract paths; migration must
