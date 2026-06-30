@@ -629,8 +629,9 @@ def extract(sid: Sid) -> V1Song:
                 mem[nb + 4 + v], mem[nb + 5 + v],                # command, cmddata
                 mem[wb + v], mem[wb + 2 + v],                    # wave, pulse
                 mem[wb + 4 + v], mem[wb + 5 + v],                # arpcount, vibcount
-                mem[nb + 6 + v]))                                # instnum (drives
-                                                                 # pulse-mod/ADSR/wave
+                mem[nb + 6 + v] >> 3))                           # instnum — player2
+                # stores inst*8 (the interleaved byte offset); OUR engine stores the
+                # inst INDEX (it does lsr×3 on note-load), so convert with >>3.
         if not any(any(t) for t in idle_priming):
             idle_priming = []
     return V1Song(sid=sid, layout=L, subtunes=subtunes, patterns=patterns,
