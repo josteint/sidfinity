@@ -842,8 +842,14 @@ def _engine(t: _Tables) -> str:
         pd_d403 = pd_d402 = ''
         opt_pulse = ('        lda chnpulsedir,x\n        sta $d402,x\n'
                      '        lda chnpulse,x\n        sta $d403,x\n')
+        # optimized fetches the new note at chntick==0 (RE_NOTES §11 "chntick==0 →
+        # tick0", "NO cmp #gatetimer in the pulse path") — GATETIMER is the HR-flag
+        # preset, NOT the fetch offset. V1.5 fetches at chntick==GATETIMER (the
+        # hard-restart window). Decouple: drop the cmp for optimized → fetch at 0.
+        tick_fetch_cmp = ''
     else:
         pd_d403, pd_d402, opt_pulse = '        sta $d403,x', '        sta $d402,x', ''
+        tick_fetch_cmp = '        cmp #GATETIMER\n'
     return f"""
 GATETIMER = ${t.gatetimer:02x}
 INITTICK  = ${t.inittick:02x}
@@ -1216,8 +1222,7 @@ arpfreq:
 ; ===== pulse exec + gate timer =====
 pulseexec:
         lda chntick,x
-        cmp #GATETIMER
-        beq getnewnotes
+{tick_fetch_cmp}        beq getnewnotes
         lda chnpattptr,x
         cmp #$ff
         bne normalpulse
