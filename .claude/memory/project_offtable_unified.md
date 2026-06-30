@@ -69,6 +69,26 @@ segmentation. Next build order: event-driven pulsepos capture → per-segment pe
 contour → greedy constant-delta fit (revive strip_decompose) → replace `_capture_env`
 wholesale, gate on zero FULL-regression. Scripts: `tmp/of_step*.py`, `tmp/proto_*.py`.
 
+SEGMENTER BUILT + VALIDATED (2026-06-30, `tmp/pulsepos_segmenter.py`): triggers on the
+per-voice SID PW-hi write ($D403/$D40A/$D411 = one pulse_run write/play-frame), snapshots
+the FULL internal accumulator as RAM (pulsepos+PWlo+PWhi, unmasked). Segments by re-init
+(pulsepos drop), groups by program (pp=ptr+1), returns each program's longest play-aligned
+contour. Across 3 voices it enumerates every program + flags off-table ones; V3 ptr=2
+(inst 17) captures the odd-walk [3,5,7] PW_lo+$20 then PW_hi+$08, tail 7:2460 7:2C60 = the
+EXACT flat-56000 values _capture_env missed. Correct by construction.
+
+FIT structure SETTLED (the remaining work = the robust decomposer): (1) the 1-in-6 holds
+are the COMPOSER's job (committed rebuild matches the verdict, so its timing reproduces
+them) → SweepEnvelope count is IN FRAMES, fit doesn't model holds. (2) pulsepos is
+LAYOUT-SPECIFIC (committed rebuild has a different walk) → use it for SEGMENTATION ONLY;
+the CONTOUR (PW values) is the fit target. (3) instrument mapping = byte3 = pp-1; start =
+orig pulse[ptr] decode. (4) inst 17 fits CLEANLY: (+32,270),(.,3),(+2048,136 self-loop) =
+exactly the missed contour. (5) the SAWTOOTH programs (PW ramps then RESETS irregularly
+within one pulsepos — off-table-perturbed period) need the revived `strip_decompose`
+(ramp+loop+zero-residual). Coupling forces ALL programs re-fit together (can't ship just
+the clean ones — re-fitting inst 17 grows the table and cascades). So: green verdict needs
+the strip_decompose decomposer + all-programs integration + zero-FULL-regression gate.
+
 STAGING: Phase 1 = observe-and-fit ALL pulse programs completely (breaks the coupling),
 NOT per-instrument. Phase 2 unify offtable_freq code. Phase 3 port the contour FIT.
 Defer Z3/e-graph unless greedy proves insufficient.

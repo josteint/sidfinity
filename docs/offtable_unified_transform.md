@@ -259,15 +259,38 @@ then PW_hi +$08 — its tail is `7:2460 7:2C60 7:3460…`, the EXACT values from
 flat-56000 divergence `_capture_env` missed. So the realize step is correct by
 construction and the off-table sweeps are captured.
 
-Remaining for the green verdict (the FIT + integrate): the observed contour contains
-per-frame timing HOLDS (the 2-phase `$1016` MAIN/TICK — ~1 in 5 frames the PW doesn't
-change). The SweepEnvelope must encode the LOGICAL program (per-MAIN-frame adds), with
-the composer's own pulse timing reproducing the holds — so the fit removes the holds,
-RLE-encodes the logical (rate, count) phases, detects the loop, then maps each contour
-to its instrument (start_pw == pulse[byte3]) and replaces `_capture_env` for all
-programs at once (breaking the coupling). Open question to confirm first: does the
-family-4 composer's `pulse_run` already reproduce the 2-phase hold cadence (if yes, the
-logical-program fit is straightforward; if no, the holds must be modeled).
+### The FIT — structure settled, robust decomposer is the remaining work (2026-06-30)
+
+Explored the observed-contour → SweepEnvelope mapping. Findings that pin the fit's shape:
+
+- **The holds are the composer's job, not the fit's.** The observed contour has a
+  consistent **1-in-6** hold cadence (a frame where PW doesn't change). The COMMITTED
+  rebuild matches the verdict, so the composer already reproduces these holds via its
+  own timing. ⇒ the SweepEnvelope encodes count IN FRAMES (the engine count, holds
+  included); the fit does NOT model holds.
+- **pulsepos is layout-specific — segmentation only.** The committed rebuild has a
+  DIFFERENT pulsepos walk (its de-fused re-pack chooses its own offsets), so the orig's
+  pulsepos can't be carried into USF. It's used only to SEGMENT the orig and tag the
+  program; the **contour** (the PW value sequence) is the fit target, and the composer
+  plays it via its own walk.
+- **Instrument mapping is byte3 = pp − 1** (post-reinit pulsepos = ptr+1). For each
+  instrument with byte3=B, its pulse_env = the program segmented at pp=B+1. Start =
+  the orig `pulse[ptr]` decode (`pulselo[ptr]<<8 | pulsehi[ptr]`).
+- **Inst 17 (the blocker) fits cleanly:** start `$0020`, `(+32, 270)` [pulsepos 3,
+  PW_lo +$20], a 3-frame transition [pulsepos 5], `(+2048, 136+)` [pulsepos 7, PW_hi
+  +$08 off-table], last phase self-loops. Exactly the contour `_capture_env` missed.
+- **The sawtooth programs are messier** (PW ramps then RESETS irregularly within one
+  pulsepos — a loop with off-table-perturbed period), which is precisely where the
+  revived `strip_decompose` (ramp + loop + zero-residual) earns its place.
+
+So the fit = group contour by pulsepos → per-phase (rate = dominant non-zero delta,
+count = frames) → loop = pulsepos cycle (or self-loop for off-table-forever) → map by
+byte3=pp−1 → replace `_capture_env` for ALL programs at once (self-contained contours
+break the coupling). The clean cases are mechanical; the sawtooth/irregular cases need
+the `strip_decompose` decomposer + the MDL/zero-residual gate. That robust decomposer +
+the all-programs integration + the zero-FULL-regression gate is the remaining dedicated
+chunk. Build scripts: `tmp/of_fit_explore.py`, `tmp/of_check_holds.py`,
+`tmp/pulsepos_segmenter.py`.
 
 ## Risks / honest scope
 
