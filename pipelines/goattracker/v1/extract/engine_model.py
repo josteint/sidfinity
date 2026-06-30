@@ -249,10 +249,19 @@ def detect_layout(sid: Sid) -> Layout:
     if is_gamemusic:
         # player2 init: `lda #TEMPO; sta chntick; sta chntempo; sta chnnewnote;
         #   lda #ENDPATT; sta chnpattptr` → A9 <t> 9D ?? ?? 9D ?? ?? 9D ?? ?? A9.
-        # No gatetimer (HR is immediate $00 at new-note). Default tempo 5.
-        hi2 = _find(mem, lo, hi, [0xA9, None, 0x9D, None, None, 0x9D, None,
-                                  None, 0x9D, None, None, 0xA9])
-        default_tempo = mem[hi2[0] + 1] if hi2 else 5
+        # No gatetimer (HR is immediate $00 at new-note). The generic pattern ALSO
+        # matches the zero-init group (`lda #0; sta chnsongptr; sta chnwavetbl; sta
+        # chnpulsedir`), which would give tempo=0 → chntick=0 (spurious immediate
+        # note-fetch) — so disambiguate: the tempo init's 3RD store is chnnewnote
+        # (chnnote_base+3). Compute chnnewnote here (chnnote_base is detected below).
+        nb_anchor = _find(mem, lo, hi, [0xB9, None, None, 0x30, None, 0x18, 0x7D])
+        chnnewnote_addr = (_w(mem, nb_anchor[0] + 7) + 3) if nb_anchor else None
+        default_tempo = 5
+        for m in _find(mem, lo, hi, [0xA9, None, 0x9D, None, None, 0x9D, None,
+                                     None, 0x9D, None, None, 0xA9]):
+            if chnnewnote_addr is None or _w(mem, m + 9) == chnnewnote_addr:
+                default_tempo = mem[m + 1]
+                break
         gatetimer = 0
     else:
         h = _find(mem, lo, hi, [0xA9, None, 0x9D, None, None, 0xA9, None, 0x9D,
