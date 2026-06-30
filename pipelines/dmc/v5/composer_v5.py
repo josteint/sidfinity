@@ -991,6 +991,7 @@ curnote:  .dsb 3, 0
 wavepos:  .dsb 3, 0
 wavespd:  .dsb 3, 0
 wavespc:  .dsb 3, 0
+frqbias:  .dsb 3, 0
 pulsepos: .dsb 3, 0
 vibdel:   .dsb 3, 0
 vibspd:   .dsb 3, 0
@@ -1085,6 +1086,18 @@ state_end:
             'ni_ws_adv:\n        inc wavepos,x\n        lda wavespd,x\n'
             '        sta wavespc,x\n'
             'ni_ws_done:\n        lda wavectrl,y')
+        # family-4 melodic wave-step propagates the CARRY from (wavefreq+curnote)
+        # into freqlo via `adc frqbias,x` with NO clc (the orig's $1688 lacks one):
+        # when wavefreq+curnote >= 256 the freq is +1. frqbias is the $EF freq-lo
+        # bias (default 0; $EF decode deferred — Jupiter41 doesn't use it). Hits
+        # BOTH the per-frame ws_mel and the note-init ni_w_mel (identical blocks).
+        engine = engine.replace(
+            '        adc curnote,x\n        tay\n'
+            '        lda freqlo,y\n        sta freqlov,x\n'
+            '        lda freqhi,y\n        sta freqhiv,x',
+            '        adc curnote,x\n        tay\n'
+            '        lda freqlo,y\n        adc frqbias,x\n        sta freqlov,x\n'
+            '        lda freqhi,y\n        adc #$00\n        sta freqhiv,x')
         # family-4 instruments have NO per-instrument vibrato: byte 6 is the WAVE
         # speed (read by the WAVESPD block), and bytes 5/7 are unused (vibrato is
         # the $F0 sector command). Zero the composer's per-instrument vib setup so
