@@ -107,12 +107,19 @@ observe-and-fit AND `_capture_env`+horizon). Verified: orig HOLDS V2 PW=$0800 (p
 ramps to $00 at 7416 while the orig still holds. TWO HYPOTHESES REFUTED: (a) layout-
 sensitivity (the counts now match the canonical walk = content not size); (b) byte3=0
 counter-reset (disasm $13F7 BEQ $1411 SKIPS the whole pulse init incl. the $140B counter
-reset when byte3=0 — so it does NOT reset). LIVE hypothesis (UNCONFIRMED): the pulse
-counter increments per-frame in the composer vs per-MAIN-frame (2-phase $1016) in the
-orig — a 256-MAIN-frame hold = ~307 real frames; if the composer counts real frames it
-ends early. NEXT: capture orig counter $1830 + the $1016 phase per frame vs rebuild to
-nail it. Lesson: I made 2 wrong mechanism guesses before nailing the fit; the FIT is the
-validated win, the counter-timing is the unresolved composer-side blocker.
+reset when byte3=0 — so it does NOT reset). 2-phase counter hypothesis ALSO REFUTED: orig counter $1831 increments once per
+play-frame (the memwatch repeats are Trap-C 0-play siddump frames, not skips). The
+counter data REVEALS the real picture: it resets at VARYING values (7C->00 then 11->00)
+with pulsepos staying 08 — so the orig holds V2 PW=$0800 via REPEATED ptr-7 RE-INITS at
+varying note intervals (NOT one 256-count hold). The rebuild diverges by ADVANCING/
+ramping where the orig RE-INITED and held => the rebuild MISSED a ptr-7 re-init (a
+note-timing / re-init-timing difference), OR its ptr-7 program advances when the orig's
+re-inits. PRECISE MECHANISM UNRESOLVED after refuting 3 hypotheses (layout-sensitivity /
+byte3=0-counter-reset / 2-phase-counter). NEXT (fresh diagnosis): compare orig vs rebuild
+ptr-7 re-init FRAMES + the note schedule on V2 — the divergence is in WHEN ptr 7 re-inits
+/ how long its notes are, not the off-table contour. THE VALIDATED WIN: the off-table
+contour FIT is solved (converges to the canonical walk). Lesson: made 3 wrong mechanism
+guesses; the FIT is the real result, the re-init-timing is the unresolved blocker.
 
 STAGING: Phase 1 = observe-and-fit ALL pulse programs completely (breaks the coupling),
 NOT per-instrument. Phase 2 unify offtable_freq code. Phase 3 port the contour FIT.

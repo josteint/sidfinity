@@ -328,10 +328,12 @@ nailed** — two hypotheses were tested and REFUTED: (a) de-fusion layout-sensit
 fit content, not just size, is what matters — the counts now match the canonical walk);
 (b) byte3=0 note-load resetting the counter (disasm `$13F7 BEQ $1411` SKIPS the whole
 pulse init incl. the `$140B` counter reset when byte3=0 — so byte3=0 does NOT reset it).
-The live hypothesis is a pulse-COUNTER / 2-phase-`$1016`-timing mismatch (whether the
-counter increments on every frame vs only MAIN frames — the orig's 1-in-6 holds would
-make a 256-MAIN-frame hold last ~307 real frames; if the composer counts real frames it
-ends at 256), but this is UNCONFIRMED. So: the off-table contour FIT is solved & validated
+A third hypothesis (2-phase counter timing) was ALSO REFUTED: the orig counter `$1831`
+increments once per play-frame (the memwatch repeats are Trap-C 0-play frames). The
+counter data instead reveals the orig holds `$0800` via REPEATED ptr-7 RE-INITS at
+VARYING note intervals (counter resets 7C→00 then 11→00, pulsepos stays 08) — so the
+rebuild diverges by ADVANCING where the orig RE-INITED; i.e. a re-init / note-timing
+difference on V2, NOT the contour. PRECISE MECHANISM UNRESOLVED after 3 refuted guesses. So: the off-table contour FIT is solved & validated
 (converges to the canonical walk); the remaining blocker is a composer pulse-counter
 timing issue that needs dedicated diagnosis (capture the orig's counter `$1830` + the
 `$1016` phase per frame vs the rebuild's).
