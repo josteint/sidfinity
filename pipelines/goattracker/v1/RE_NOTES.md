@@ -413,5 +413,26 @@ priming (§12c: emit chnnote/chncommand/chncmddata/chnarpcount so the idle arp/e
 freewheels correctly). All three are needed before f1 converges (the first divergence
 is the idle freq). Engine builds+runs; this is now a tractable convergence, not RE.
 
+### 12e. player2 — fixes (a)(b)(c) LANDED → Faderik div 3→12 (commit 1de261a)
+
+All three fixes are in (engine_model + to_usf + composer): (a) per-player freq table;
+(b) subA emission restructure (`p2_pulse_in_mod` knob: pulse written in the mod path
+before freq, skipped on the sequencer frame → freq-without-pulse on f1; arpfreq/fx →
+nextchn, loadpulse empty); (c) idle priming — extract per-voice kept channel state
+(note/freqlo/freqhi/command/cmddata/wave/pulse/arpcount/vibcount/**instnum**) from the
+two block bases, emit into BSS. **f1 (idle freewheel) + v1 now fully converge.**
+
+**REMAINING BLOCKER (div@12, v2 pulse): subA's PULSE MODEL differs from my engine.**
+pc-trace of Faderik's pulse-mod: `lda chnpulsedir; lsr→dir; lda chnpulsedir; bcs sub;
+adc/sbc instpulsespd; sta chnpulsedir; sta $D402/$D403`. So **`chnpulsedir` IS the
+pulse accumulator** (a free-running low byte, += instpulsespd, wraps), and it is
+**pre-loaded, NOT zeroed by init** (v2 = `$01` → +`$40`/frame → `$41,$81,$c1,…`). My
+engine (subB / v1_player2_125.s) uses `chnpulse` (12-bit, bounded by instpulsehi/lo)
+and writes that. To finish subA: (1) ALSO emit `chnpulsedir` in the idle priming
+(chnwave_base+3); (2) add a subA pulse-mod variant — accumulate in chnpulsedir
+`+= instpulsespd` (direction via a bit; exact dir-flip logic still to pin from a wider
+trace), write chnpulsedir. Then v2/v3 pulse should match and f2 converges. This is the
+last structural piece for the subA majority.
+
 ## Canary
 `hvsc84/MUSICIANS/T/Topaz/Joker.sid` — V1.5, single-subtune, load $1000, compact.

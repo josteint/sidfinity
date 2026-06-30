@@ -218,7 +218,19 @@ B9 ?? ?? 9D`; (b) C16 emission restructure — pulse-in-mod-before-freq, arpfreq
 continuous-fx → nextchn (no loadpulse-always); (c) idle priming (emit chnnote/
 chncommand/chncmddata/chnarpcount).** All 3 needed before f1 converges (first div =
 idle freq). Tractable convergence, not RE. TOOL LESSON: pc-trace needs env.sh/full
-path; it's the unlock for player2 — don't conclude "impasse" from a PATH error. **KEY correctness result this turn: PCM
+path; it's the unlock for player2 — don't conclude "impasse" from a PATH error.
+
+**✅ FIXES (a)(b)(c) LANDED (commit 1de261a) → Faderik div 3→12 — f1 (idle freewheel)
++ v1 FULLY CONVERGE.** subA emission knob `p2_pulse_in_mod`; idle priming emits per-
+voice kept state incl INSTNUM from the 2 block bases (chnnote_base = notetbl-anchor+7;
+chnwave_base = `BD ?? ?? 29 FE 9D 04 D4`+1). Player1 still FULL. **LAST BLOCKER
+(div@12, v2 pulse, RE_NOTES §12e): subA's pulse MODEL differs — `chnpulsedir` is the
+free-running pulse accumulator (+= instpulsespd, wraps; v2 $01→$41→$81→$c1), pre-loaded
+& NOT zeroed by init (subB zeroes it + uses chnpulse bounded). To finish: emit
+chnpulsedir in idle priming (chnwave+3) + DON'T zero it in pi_loop for subA + a subA
+pulse-mod variant (accumulate chnpulsedir += instpulsespd, write chnpulsedir; dir-flip
+logic TBD from a wider trace). Then v2/v3 pulse match → f2 converges. The subA pulse-mod
+is the final structural piece for the player2 majority. **KEY correctness result this turn: PCM
 audio comparison CANNOT be a verdict (rebuilds are per-frame-exact not cycle-exact,
 Trap B); the audio-equivalence soundness is decided by the TEST BIT (phase reset),
 not by rendering — proven, recorded in ledger C15.** gatetimer 30 = optimized-init tunes whose HR-flag
