@@ -277,12 +277,21 @@ Two REAL fixes this session (progress, NOT full for those tunes):
   store == chnnewnote (chnnote_base+3). Lovin_SID div 3 → **28144** (~38s, NOT full).
 RESIDUE buckets (TRUE first_div, songlength verify): **div=None/len-mismatch (5:** Zonik,
 Addiction, Reggae_1, Yummy_Pizza, Rusty_Gate — match over overlap, different total len) /
-**div=0 (3:** A_Goat_Day, Truck_Driver, beastie_boys — immediate, init/detect) / div=60
-(2) / scattered early (48/51/56/82/87/151/170/307/12) / DEEP (Lovin 28144, Sanxzodiz
-15023, Scenial 19869 — match long then one effect diverges). NEXT: div=0 cluster
-(immediate — likely detect/init) + div=None (length) are highest-leverage. No GT-V1 batch
-tool yet — build `tools/gt_v1_family_batch.py` (FC-standard-shaped) + a divergence census,
-and it MUST use songlength-based verify. **KEY correctness result earlier: PCM
+**div=0 (3:** A_Goat_Day, Truck_Driver, beastie_boys) / div=60 (2) / scattered early
+(48/51/56/82/87/151/170/307/12) / DEEP (Lovin 28144, Sanxzodiz 15023, Scenial 19869).
+- **div=0 → init filter SMC (commit e955448):** player2 init_filter was hardcoded
+  (0,0,0x0F,0,0). The global filter SMC slots filtcut ($D416) + filttype ($D418 hi) are
+  NOT zeroed by the deferred init, so a pre-set filter is live from frame 1. Detect
+  mt_filtcutoff (`A9 ?? 69 ?? 8D ?? ?? 8D 16 D4`) + mt_filttype (`A9 ?? 09 ?? 8D 18 D4`);
+  pi_loop sets filtcut/filttype to those (not 0). A_Goat_Day div 0→58.
+- **A_Goat_Day div@58 = subB PULSE MODEL (NEXT):** reb writes an EXTRA v2 pulse (09=04)
+  in the note-load region; orig's v2 takes a path skipping loadpulse. A_Goat_Day is subB
+  (p2_pulse_in_mod=False) — Faderik (the FULL canary) was subA. The subB pulse model
+  (loadpulse-after-freq writing pulse every voice/frame) needs its own note-load
+  investigation, analogous to subA's tick0-defer/ADSR-init work. LIKELY high-leverage
+  (all subB tunes). Then: div=None (length), deep partials (Lovin 28144 — matches ~38s).
+No GT-V1 batch tool yet — build `tools/gt_v1_family_batch.py` (FC-standard-shaped) + a
+divergence census; it MUST use songlength-based verify (never duration=None / arbitrary). **KEY correctness result earlier: PCM
 audio comparison CANNOT be a verdict (rebuilds are per-frame-exact not cycle-exact,
 Trap B); the audio-equivalence soundness is decided by the TEST BIT (phase reset),
 not by rendering — proven, recorded in ledger C15.** gatetimer 30 = optimized-init tunes whose HR-flag
