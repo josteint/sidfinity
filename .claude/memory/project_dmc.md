@@ -99,6 +99,22 @@ FORMAT, RELOCATED, with a DIFFERENT PLAYER** — NOT a from-scratch engine.
     Needs the hard-restart FIRST-step timing + the drum slide mechanism. Then V3,
     then C-2 filter. METHOD: diagnose freq from the FLAT per-voice (freq,ctl) seq
     (Trap-C-free) — the steady-vs-sweep + the ×2-vs-×1 transient jump straight out.
+  - **✅✅ NON-FILTER STREAM BYTE-EXACT (match 86 → 13793/13824, ~100%; commits
+    1343366/35ae98d/6c2bc31/6ed3ae2; family-3 FULL throughout).** Chain of fam-4
+    knobs: (1) speed-gated note-init advance (92→161; note-init first-step must use
+    the SAME speed-gated advance as ws_adv, else a speed-0 drum emits its 1st wave
+    value twice — V2's DD00); (2) melodic wave-step CARRY propagation (161→**4651**;
+    orig's $1688 `adc $1842` has NO clc → the carry from adc(wavefreq+curnote) lands
+    in freqlo, +1 when sum>=256; added `adc frqbias,x` to ws_mel+ni_w_mel — MASSIVE
+    unlock); (3) 8-bit pulse counter (4651→5837; family-4 counts with 8-bit $1830 vs
+    $23BC[pos+1], not family-3's 16-bit — V3 PWM never swept); (4) vol-override
+    AD=$00 (5837→**13793**; vol-override note-on $1352 forces AD=$00, SR carries the
+    vol level — unlocked the ENTIRE rest). The MUSICAL CONTENT (notes/waves/pulse/
+    drums/ADSR/vol) is byte-exact. **FINAL PIECE = C-2 filter** (Jupiter41 still
+    `partial`): $D416-only = $1019(sweep, prog $23D5/$242C) + $1853(base); $D415=$00
+    init-only; $D417=$54 res; **$F8 is the FILTER-BASE cmd for fam-4 (sets $1853),
+    NOT 'frq'**. filtmode $D418=$30 done (cc8cb46, f4_filtmode). Plan: 8-bit filter
+    counter + fchi 1-byte sweep + $D416=fchi+filtbase + route $F8→filtbase + $D417.
 - Members: `tmp/v5_family4_members.json`. Commits 1fd69df/02baf25/824cc9a/88f18bc.
 
 ## ✅ V5 (family-3/5): 1088/1495 FULL (72.8%, 2026-06-29) — glide-wrap +27, idle-filter +20

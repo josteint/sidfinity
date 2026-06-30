@@ -245,15 +245,35 @@ family-3 has no such counter. Three family-4-gated composer knobs (family-3 9/9 
    vibrato is the $F0 sector cmd. Zero the per-instr vib setup, else $50 read as a
    huge vib_speed → +$21 freq jitter, was $2800 vs $27DF). **V1 now byte-exact.**
 
-### NEXT divergence (write 92 / 13824): V2 drum transient (1 frame too long)
-V2 is inst 8 used as a DRUM (note 48): noise attack `DD00/81` then a linear
-downward pitch slide `0D00→0200` (NOT the wave-program arpeggio — a separate drum
-pitch envelope, likely the $1842 freq-lo bias or a glide). The streams run
-PARALLEL but the rebuild holds the noise transient `DD00/81` ONE extra frame
-(×2 vs orig ×1) — the no-pre-advance fix (correct for V1's held note) over-holds
-V2's 1-frame transient. Needs the family-4 hard-restart/transient FIRST-step
-timing (when the speed counter gates the first step) + the drum downward-slide
-mechanism. Then V3, then C-2 filter. V1-exact proves the wave-speed approach.
+### ✅✅ NON-FILTER STREAM BYTE-EXACT (match 86 → 13793/13824, ~100%)
+A chain of family-4-gated composer knobs took the non-filter stream from 86 writes
+to byte-exact (commits 5617d66 → 6ed3ae2; family-3 FULL throughout):
+- **speed-gated note-init advance** (1343366, 92→161): the note-init first-step
+  must apply the SAME speed-gated advance as ws_adv (not a plain no-advance), else
+  a speed-0 drum emits its first wave value twice. Fixed V2's DD00 drum transient.
+- **melodic wave-step CARRY propagation** (35ae98d, 161→4651): the orig's $1688
+  does `adc $1842` (bias) with NO clc, so the carry from clc/adc(wavefreq+curnote)
+  lands in freqlo — +1 when wavefreq+curnote>=256 ($0431 vs $0430). Added
+  `adc frqbias,x` (carry+bias) to ws_mel + ni_w_mel. MASSIVE: 161→4651.
+- **8-bit pulse counter** (6c2bc31, 4651→5837): family-4 counts pulse steps with
+  an 8-bit counter ($1830 vs $23BC[pos+1]), not the family-3 16-bit — V3's PWM
+  sweep never advanced under the 16-bit check.
+- **vol-override AD=$00** (6ed3ae2, 5837→13793): the vol-override note-on ($1352)
+  forces AD=$00 (SR carries the vol level). Unlocked the ENTIRE rest of the stream.
+The remaining 31 = capture-tail length. **The musical content is byte-exact.**
+
+### FINAL PIECE — C-2 filter (Jupiter41 still `partial`): $D416-only sweep
+Filter is a distinct family-4 subsystem (filtmode $D418=$30 done, cc8cb46):
+- **$D416 = $1019(sweep) + $1853(base)** written every play() ($10AD). $1019 is the
+  1-byte cutoff swept by the filter program $23D5(add)/$242C(count); $1853 = base.
+- **$D415 = $00 ONCE** at init (family-3 writes fclo every frame — skip for fam-4).
+- **$D417 = $54** resonance (set on filter note).
+- **$F8 is the FILTER-BASE command** for family-4 (sets $1853), NOT 'frq' — the V5
+  _CMD map decodes it as 'frq' (harmless to the freq — composer's frq is a no-op —
+  but its value must route to filtbase). $F9='flt' inits the filter program.
+Plan (analogous to the pulse fix): (1) 8-bit filter counter; (2) fchi 1-byte sweep;
+(3) $D416 = fchi + filtbase, $D415 init-only; (4) route $F8→filtbase + $D417 res.
+orig $D416 seq: 00 5E 5E 2E×many (sweeps); distinct ~20 values.
 
 ## ⚠️ C-3 REAL BLOCKER (found 2026-06-29): the 2-phase splits the WRITE ORDER
 Sweeping lo_spdctr (0..4) maxes the non-filter match at ~63 then forks — and the
