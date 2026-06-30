@@ -1019,6 +1019,7 @@ filtmode: .dsb 1, 0
 fchi:     .dsb 1, 0
 fclo:     .dsb 1, 0
 filtbase: .dsb 1, 0
+filtactive: .dsb 1, 0
 fadein:   .dsb 1, 0
 fadeout:  .dsb 1, 0
 vibwidth: .dsb 1, 0
@@ -1132,6 +1133,18 @@ state_end:
             '        lda instr+4,y           ; filter ptr\n        sta filtflag',
             '        lda #$00                ; family-4: no per-instr filter\n'
             '        sta filtflag')
+        # family-4: the V3 filter sweep is gated by $1857 (set by $F9), so it does
+        # NOT run until the first $F9 fires (~frame 2-3). The composer otherwise
+        # sweeps from frame 0 → the whole sweep is ~2 frames early. Set filtactive
+        # in sd_f9 ($F9) and gate the V3 filter_run on it.
+        engine = engine.replace(
+            '        and #$f0\n        sta filtmode\n        inc secpos,x',
+            '        and #$f0\n        sta filtmode\n        lda #$01\n'
+            '        sta filtactive\n        inc secpos,x')
+        engine = engine.replace(
+            '        cpx #$02                ; V3 only\n        bne glide_slide',
+            '        cpx #$02                ; V3 only\n        bne glide_slide\n'
+            '        lda filtactive\n        beq glide_slide')
         # family-4 FILTER (C-2): $D416-only = fchi($1019 sweep) + filtbase($1853);
         # no per-frame $D415 (init clear leaves it $00). $F8 sets the filter base
         # ($1853) not frqovr; $F9 (sd_f9, already family-4-shaped) sets $D417 res +

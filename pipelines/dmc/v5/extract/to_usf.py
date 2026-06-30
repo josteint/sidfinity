@@ -142,6 +142,47 @@ def _capture_env(table: list, ptr: int, has_start: bool = True,
     return SweepEnvelope(start=start, phases=phases, loop=loop)
 
 
+def _capture_env_f4(table: list, ptr: int, start_val: int,
+                    reach: int | None = None) -> SweepEnvelope:
+    """family-4 filter program: 8-bit (add, count) steps, walked 2 table
+    positions per step. `add` = table[pos][0] (filterlo[pos], signed 8-bit);
+    `count` = table[pos+1][1] (filterhi[pos+1]); a $90 at table[pos][0] loops
+    to table[pos][1]. The 16-bit `_capture_env` misreads this (it fuses the two
+    bytes of each pair into one 16-bit value), so family-4 needs its own walk.
+    count==0 means the 8-bit counter wraps (256 frames)."""
+    phases: list = []
+    loop = None
+    pos = ptr
+    pos_phase: dict = {}
+    cum = 0
+    iters = 0
+    while pos < len(table):
+        iters += 1
+        if iters > _WALK_CAP:
+            raise RuntimeError(f'unsupported:capture_loop @{ptr}')
+        if len(phases) >= _PHASE_CAP:
+            raise RuntimeError(f'unsupported:sweep_too_long @{ptr}')
+        lo, hi = table[pos]
+        if lo == 0x90:                 # $90 -> loop to target position `hi`
+            if hi in pos_phase:
+                loop = pos_phase[hi]
+                break
+            pos = hi
+            continue
+        if pos + 1 >= len(table):
+            break
+        pos_phase[pos] = len(phases)
+        add = lo if lo < 0x80 else lo - 0x100
+        count = table[pos + 1][1]
+        frames = count if count != 0 else 256
+        phases.append((add, frames))
+        cum += frames
+        pos += 2
+        if reach is not None and cum > reach:
+            break
+    return SweepEnvelope(start=start_val, phases=phases, loop=loop)
+
+
 # --- sectors -> pattern rows ---------------------------------------------
 # Each note/gate becomes a row; the leading parameter commands ($FD dur,
 # $FC snd, $F3 vol, $F8 frq, $F7/$F6 fade, $F2/$F1 adr/srr, $F9 flt,
@@ -358,9 +399,13 @@ def model_to_usf(m: V5Model, reach: int | None = None) -> UsfFile:
     default_filter = None
     if m.filter:
         try:                       # best-effort: a malformed idle table -> no
-            idle = _capture_env(    # default_filter (composer holds), not a
-                m.filter, 0, has_start=False,   # member-wide error.
-                start_val=((m.lo_fchi << 8) | m.lo_fclo), reach=reach)
+            if getattr(m, 'family4', False):   # family-4: 8-bit (add,count) walk
+                idle = _capture_env_f4(m.filter, 0,
+                                       start_val=m.f4_fcinit, reach=reach)
+            else:                   # default_filter (composer holds), not a
+                idle = _capture_env(    # member-wide error.
+                    m.filter, 0, has_start=False,
+                    start_val=((m.lo_fchi << 8) | m.lo_fclo), reach=reach)
         except RuntimeError:
             idle = None
         if idle and any(rate != 0 for rate, _ in idle.phases):

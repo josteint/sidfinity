@@ -196,7 +196,17 @@ def usf_to_model(usf: UsfFile) -> V5Model:
     #      its ADD/count pairs begin at position 0. ----------
     filt = []
     df = usf.default_filter
-    if df is not None and df.phases:
+    if getattr(m, 'family4', False) and df is not None and df.phases:
+        # family-4: 8-bit (add, count) program. add -> filterlo[2k]; count ->
+        # filterhi[2k+1]; the other byte of each pair is unread by the 2-step
+        # walk, so leave it 0. count 256 -> byte 0 (the engine's 8-bit counter
+        # wraps). $90 loops to position 2*lp.
+        for add, count in df.phases:
+            filt.append((add & 0xFF, 0))
+            filt.append((0, count & 0xFF))
+        lp = df.loop if df.loop is not None else len(df.phases) - 1
+        filt.append((0x90, (2 * lp) & 0xFF))
+    elif df is not None and df.phases:
         for rate, frames in df.phases:
             a = rate & 0xFFFF
             filt.append(((a >> 8) & 0xFF, a & 0xFF))                # ADD
