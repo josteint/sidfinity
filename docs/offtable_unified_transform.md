@@ -95,6 +95,32 @@ classifier + one fitter + one composer reconstruction. After it runs, `to_usf`
 becomes trivial (the off-table reads are already resolved into `SweepEnvelope` /
 `offtable_freq` on the clean model).
 
+### Principle guards (from the re-anchor check — load-bearing, not optional)
+
+The transform changes the EXTRACTION METHOD, not the USF SCHEMA: its output is the
+already-vetted `SweepEnvelope` / `offtable_freq`, so §7 and the trichotomy pass at the
+schema level by construction. The risk is entirely in the METHOD, and three guards
+keep it on the right side of the principles, the core tenet, and ledger C11:
+
+- **G1 — no trajectory dump (core tenet / no-writelog-replay).** Observation is a
+  MEASUREMENT INSTRUMENT at extract time; the STORED form is always the parametric
+  musical fit. FIT is zero-residual-or-fall-back, and the fallback is **bounded
+  `offtable_freq` or HARD RESIDUE — never explicit per-frame phases.** A `SweepEnvelope`
+  of N single-frame `(delta,1)` phases is a write-log replay in disguise = the
+  C7-Class-B blob we deleted (`freq_overrun`).
+- **G2 — CLASSIFY by READ ADDRESS, not fit quality (§7 / ledger C11 hard boundary).**
+  A successful clean fit is NOT evidence of reproducibility: an engine-positional value
+  (`trkptr`, `wavepos`) fits a PERFECT linear ramp yet cannot be reproduced by the
+  re-packed composer. The gate keys on the orig read's effective address (taint /
+  memwatch): inside a musical table region → reproducible (resolve); work-RAM /
+  pointer / live flag → HARD RESIDUE (exclude). This is the most important guard —
+  without it the transform is WORSE than today, smuggling in residue cases that
+  currently fail loudly.
+- **G3 — segment on the trichotomy init boundary, not the frame counter.** The play-sim
+  attribution must split init from play with the same init-aware alignment
+  `compare_instruction_stream` uses, or differing init lengths (family-4) re-create the
+  phantom-divergence mis-attribution.
+
 ## Reusable assets from git history (the abandoned mathematics)
 
 The conceptual scaffolding is one rediscovered doc:
