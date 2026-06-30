@@ -995,6 +995,7 @@ frqbias:  .dsb 3, 0
 pulsepos: .dsb 3, 0
 vibdel:   .dsb 3, 0
 vibspd:   .dsb 3, 0
+vibrev:   .dsb 3, 0
 notectr:  .dsb 3, 0
 notestart: .dsb 3, 0
 freqlov:  .dsb 3, 0
@@ -1203,10 +1204,27 @@ state_end:
             '        sta vibspd,x',
             '        lda instr+6,y           ; family-4: vib period = byte6 & $0F\n'
             '        and #$0f\n        sta vibspd,x')
-        # NOTE: family-4's orig skips the per-voice $D418 write on the oscillating-vib
-        # path ($158F jumps to $1654, bypassing $1651) — but a naive "skip when
-        # vibspd!=0 && vibdel==0" over-skips (the orig writes $D418 at some vibrating
-        # frames). The exact $1612-vs-$1651 path condition needs RE. Deferred.
+        # family-4: the orig skips the per-voice $D418 write ONLY on a vib REVERSAL
+        # frame — the oscillating path WRITES $D418 every frame ($15B0 BNE $1612)
+        # EXCEPT when the counter hits the bound and the direction flips ($158F jumps
+        # to $1654, bypassing $1651). Set a `vibrev` flag on reversal (cleared each
+        # frame at vib_on entry) and skip $D418 when vibspd!=0 && vibrev!=0.
+        engine = engine.replace(
+            'vib_on:\n        lda vibdel,x',
+            'vib_on:\n        lda #$00\n        sta vibrev,x\n        lda vibdel,x')
+        # only the UP reversal unconditionally skips $D418 ($158F→$1654); the DOWN
+        # reversal skips ONLY when step-doubling is on ($15FB: BEQ $1612 writes when
+        # $1812=byte7>>4 == 0). Jupiter41's vib instruments have no step-doubling, so
+        # set vibrev on the UP reversal only (the `inc vibdir,x` path).
+        engine = engine.replace(
+            '        sta vibctr,x\n        inc vibdir,x',
+            '        sta vibctr,x\n        inc vibrev,x\n        inc vibdir,x')
+        engine = engine.replace(
+            'write_vol:\n        lda mvol0\n        ora filtmode\n        sta $d418',
+            'write_vol:\n        lda vibspd,x\n        beq f4wv_w\n'
+            '        lda vibrev,x\n        bne f4wv_skip\n'
+            'f4wv_w:\n        lda mvol0\n        ora filtmode\n        sta $d418\n'
+            'f4wv_skip:')
     # CIA multispeed: when the original drives play() via a CIA1 timer (PSID
     # speed bit set), program the SAME timer A latch in our init so libsidplayfp
     # calls OUR play() at the identical rate. cia_period 0 = VBI (no-op).
