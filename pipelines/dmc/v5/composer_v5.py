@@ -1038,7 +1038,10 @@ tmp40:    .dsb 1, 0
 state_end:
         .byt $00
 """
-    consts = (f'LEFT_FILTMODE = ${m.lo_filtmode:02X}\n'
+    # family-4's filter mode is the static $1018 byte (f4_filtmode), not the
+    # family-3 lo_filtmode leftover (e.g. Jupiter41 = $30 → $D418 high nibble).
+    _filtmode = m.f4_filtmode if getattr(m, 'family4', False) else m.lo_filtmode
+    consts = (f'LEFT_FILTMODE = ${_filtmode:02X}\n'
               f'LEFT_FCHI = ${m.lo_fchi:02X}\n'
               f'LEFT_FCLO = ${m.lo_fclo:02X}\n'
               f'LEFT_SPDCTR = ${m.lo_spdctr:02X}\n'
