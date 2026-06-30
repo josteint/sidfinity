@@ -276,7 +276,20 @@ all values match). Captured Blueseczka (optimized) vs Joker (V1.5 FULL):
   $20→$20→$40, first modulation one frame late). This is a new-note/pulse-mod START
   timing issue (analogous to player2's tick0-defer), NOT the emission order. So the
   435-tune bucket needs BOTH the C16 order knob (done) AND the pulse-mod-start timing
-  fix (next). NOTE (C15, recorded): for player1.5 the idle-frame divergence here is
+  fix (next).
+  **2nd knob — FETCH-TICK (commit 44d3af3):** optimized fetches the row at chntick==0
+  (not chntick==GATETIMER); gated `tick_fetch_cmp=''`. Blueseczka 33→63, MM7-Bass 30→60.
+  **3rd cause — HR/FETCH DECOUPLING (NEXT, the $13f7 mechanism, intricate):** traced
+  Blueseczka div@63 — orig's v2 hard-restart (AD=0, $D40C/D) is at chntick==GATETIMER==2
+  (the look-ahead window, ~2 frames before the note's gate-on at chntick==0), gated by
+  $13f7 (`lda $13f7,x; bne skip`). MINE does the HR inside the note-load (gn_normalnote),
+  which the fetch-tick knob moved to chntick==0 → reb's HR is one frame EARLY (orig frame
+  ~6.5, reb ~5.5). So in the optimized variant the ROW-FETCH (chntick==0) and the HARD-
+  RESTART (chntick==GATETIMER) are DECOUPLED; V1.5 couples them (both at GATETIMER). The
+  fix needs a separate optimized HR pass (do AD/SR=0 at chntick==GATETIMER via a look-
+  ahead, NOT at the row-fetch) — a note-load restructure, careful work (gated → V1.5/
+  player2 safe). After that the residual pulse-mod skip should also align (same root).
+  NOTE (C15, recorded): for player1.5 the idle-frame divergence here is
   AUDIBLY EQUIVALENT (phase reset via $09 test+gate → idle freq inaudible; freq/pulse
   order latched same-frame) — under the (deferred) audio-equivalence verdict most of
   the 435 would pass with no change; we're on the STRICT verdict by user choice.
