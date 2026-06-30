@@ -378,7 +378,28 @@ real div@83. So div=None is NOT one cause, and the TRUE FULL rate is >3/30. NEXT
 SESSION: build `tools/gt_v1_family_batch.py` (FC-standard-shaped) that verifies at FULL
 songlength (NEVER a duration cap / arbitrary 12s — both undercount) + a divergence census
 to get the accurate rate and rank real buckets. Then attack: deep partials (Lovin 28144,
-Sanxzodiz/Scenial ~15-20k), Zonik-style short (loop/end), the genuine early divergences. **KEY correctness result earlier: PCM
+Sanxzodiz/Scenial ~15-20k), Zonik-style short (loop/end), the genuine early divergences.
+
+**✅ BATCH+CENSUS BUILT + RUN (2026-06-30); DEEP-PARTIAL freq cluster = C6 (off-table).**
+39 V1.5 (non-optimized) deep partials (div≥3000) share a sig: reb=$ba(186) where orig is
+small ($08/$44) — Tarantula/Dojo/Last_Ninja/Still_Alive (all v_freqlo). Cause: an off-table
+freq read (wave-relative note offset, idx=(off+note)&$FF) lands PAST my contiguous 128-entry
+freq_lo/freq_hi capture → reb reads a table-adjacent byte while orig reads the real binary
+byte. **Ledger C6 is CANONICALIZED: do NOT emit a contiguous freq window (the superseded
+form that "silently masks reach-model under-captures" — exactly this bug); migrate to per-
+read `Instrument.offtable_freq` records (offset,note,lo,hi); composer rebuilds engine-blind
+(FC + DMC v5 precedent, shared schema).** So GT V1's freq_lo/freq_hi(128) is the superseded
+form → migrate. SHARED fix (converts off-table-freq deep partials across many tunes), but a
+schema piece (extract per-read detection + composer rebuild), not a one-liner.
+**SESSION-END MAP — every remaining GT V1 bucket is SUBSTANTIAL (no quick wins):** (1)
+optimized variant (435, biggest) = all-or-nothing multi-cause + multi-sub-variant ZOO
+(C16 ✓, fetch-tick ✓; remaining HR-$13f7 look-ahead, per-frame filter/volume sub-variant
+split, freq-timing) — major multi-session RE. (2) deep-partial freq (39+ V1.5) = C6
+offtable_freq migration (schema, shared). (3) detect_fail (134) = gatetimer-anchor miss →
+fixing makes them BUILD but join the optimized partial pool (not direct FULL). (4) len
+bucket (46) = song-end-boundary tails, near-converged. 164/1359 (12%) won't jump without
+one landing fully; recommended order: C6 migration (shared, V1.5, cleanest real-FULL path)
+→ optimized sub-variant census+knobs → detect_fail. **KEY correctness result earlier: PCM
 audio comparison CANNOT be a verdict (rebuilds are per-frame-exact not cycle-exact,
 Trap B); the audio-equivalence soundness is decided by the TEST BIT (phase reset),
 not by rendering — proven, recorded in ledger C15.** gatetimer 30 = optimized-init tunes whose HR-flag
