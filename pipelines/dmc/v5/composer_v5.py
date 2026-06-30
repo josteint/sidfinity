@@ -1018,6 +1018,7 @@ spdctr:   .dsb 1, 0
 filtmode: .dsb 1, 0
 fchi:     .dsb 1, 0
 fclo:     .dsb 1, 0
+filtbase: .dsb 1, 0
 fadein:   .dsb 1, 0
 fadeout:  .dsb 1, 0
 vibwidth: .dsb 1, 0
@@ -1112,6 +1113,33 @@ state_end:
             '        lda pwctr_lo,x\n        cmp pulsehi,y\n        bne filter_run',
             '        inc pwctr_lo,x\n        lda pwctr_lo,x\n'
             '        cmp pulsehi,y\n        bne filter_run')
+        # family-4 FILTER (C-2): $D416-only = fchi($1019 sweep) + filtbase($1853);
+        # no per-frame $D415 (init clear leaves it $00). $F8 sets the filter base
+        # ($1853) not frqovr; $F9 (sd_f9, already family-4-shaped) sets $D417 res +
+        # filtmode. The filter_run uses an 8-bit counter (like the pulse) and only
+        # the fchi byte gets the $23D5 add (no fclo carry into fchi).
+        engine = engine.replace(
+            '        iny\n        lda ($f8),y\n        sta frqovr',
+            '        iny\n        lda ($f8),y\n        sta filtbase')
+        engine = engine.replace(
+            '        lda fclo\n        sta $d415\n        lda fchi\n'
+            '        sta $d416\n        rts',
+            '        lda fchi\n        clc\n        adc filtbase\n'
+            '        sta $d416\n        rts')
+        engine = engine.replace(
+            '        lda fclo\n        clc\n        adc sclo\n        sta fclo\n'
+            '        lda fchi\n        adc schi\n        sta fchi\n'
+            '        lda filtctr_lo\n        clc\n        adc #$01\n'
+            '        sta filtctr_lo\n        lda filtctr_hi\n        adc #$00\n'
+            '        sta filtctr_hi\n        cmp filterlo,y\n        bne glide_slide\n'
+            '        lda filtctr_lo\n        cmp filterhi,y\n        bne glide_slide\n'
+            '        lda #$00\n        sta filtctr_lo\n        sta filtctr_hi\n'
+            '        inc filterpos\n        inc filterpos',
+            '        lda fchi\n        clc\n        adc schi\n        sta fchi\n'
+            '        inc filtctr_lo\n        lda filtctr_lo\n'
+            '        cmp filterhi,y\n        bne glide_slide\n'
+            '        lda #$00\n        sta filtctr_lo\n'
+            '        inc filterpos\n        inc filterpos')
         # family-4 melodic wave-step propagates the CARRY from (wavefreq+curnote)
         # into freqlo via `adc frqbias,x` with NO clc (the orig's $1688 lacks one):
         # when wavefreq+curnote >= 256 the freq is +1. frqbias is the $EF freq-lo
