@@ -80,6 +80,7 @@ class _Tables:
         self.p2_pulse_in_mod = bool(p.get('p2_pulse_in_mod', False))  # subA emission
         self.idle_priming = p.get('idle_priming', [])  # per-voice gate-off freewheel
         self.p2_init_ctrl = int(p.get('p2_init_ctrl', 0))  # test-bit reset init
+        self.p2_nn_writes_pulse = bool(p.get('p2_nn_writes_pulse', True))
         # optimized-layout variant: filter is EVENT-DRIVEN (written by setfilter,
         # not a per-frame exec), per-voice order is loadregs-before-pulse, init
         # chntick = tempo (not gatetimer+2).
@@ -264,6 +265,10 @@ def _engine_v2(t: _Tables) -> str:
     # filtcut ($D416) + filttype ($D418 hi) SMC slots at their static values (so a
     # pre-set global filter is live from frame 1, before any note). Mirror that.
     fc_init, ft_init = t.filt[0] & 0xFF, t.filt[2] & 0xFF
+    # newnoteinit pulse: source/subA write instpulse to $D402/$D403; some subB
+    # players set chnpulse only and let loadpulse (every frame) emit it.
+    nn_pulse_write = ('        sta $d402,x\n        sta $d403,x\n'
+                      if t.p2_nn_writes_pulse else '')
     return f"""
 ENDPATT = $ff
 temp1 = $fc
@@ -493,9 +498,7 @@ nn_nofilt:
         lda instpulse,y
         beq nn_skippulse
         sta chnpulse,x
-        sta $d402,x
-        sta $d403,x
-        lda #$80
+{nn_pulse_write}        lda #$80
         bne nn_skippulse2
 nn_skippulse:
         lda chnpulsedir,x

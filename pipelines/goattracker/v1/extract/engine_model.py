@@ -110,6 +110,8 @@ class Layout:
                                # pulsedir+3,arpcount+4,vibcount+5,songptr+6) stride-7
     p2_init_ctrl: int = 0      # player2 init ctrl: `lda #imm; sta chnwave; sta $D404`
                                # (test-bit $08 oscillator reset variant; 0 = source)
+    p2_nn_writes_pulse: bool = True  # newnoteinit writes $D402/$D403 (source/subA).
+                               # Some subB players set chnpulse only + rely on loadpulse
 
 
 def detect_layout(sid: Sid) -> Layout:
@@ -301,6 +303,7 @@ def detect_layout(sid: Sid) -> Layout:
     chnnote_base = chnwave_base = 0
     p2_pulse_in_mod = False
     p2_init_ctrl = 0
+    p2_nn_writes_pulse = True
     if is_gamemusic:
         h = _find(mem, lo, hi, [0xB9, None, None, 0x9D, None, None, 0x9D, 0x00,
                                 0xD4, 0xB9, None, None, 0x9D, None, None, 0x9D,
@@ -327,6 +330,12 @@ def detect_layout(sid: Sid) -> Layout:
                                      (chnwave_base >> 8) & 0xFF, 0x9D, 0x04, 0xD4])
             if ic:
                 p2_init_ctrl = mem[ic[0] + 1]
+        # newnoteinit pulse write (RE_NOTES §12): the source/subA newnoteinit does
+        # `lda instpulse,y; beq +; sta chnpulse,x; sta $D402,x; sta $D403,x` (B9 ?? ??
+        # F0 ?? 9D ?? ?? 9D 02 D4). Some subB players set chnpulse only (no $D402/3
+        # write) and rely on loadpulse every frame → no such pattern (A_Goat_Day).
+        p2_nn_writes_pulse = bool(_find(mem, lo, hi,
+            [0xB9, None, None, 0xF0, None, 0x9D, None, None, 0x9D, 0x02, 0xD4]))
     else:
         for h in _find(mem, lo, hi, [0xB9, None, None, 0x9D, None, None,
                                      0xB9, None, None, 0x9D]):
@@ -345,7 +354,7 @@ def detect_layout(sid: Sid) -> Layout:
                   player='gamemusic' if is_gamemusic else 'tracker',
                   p2_pulse_in_mod=p2_pulse_in_mod,
                   chnnote_base=chnnote_base, chnwave_base=chnwave_base,
-                  p2_init_ctrl=p2_init_ctrl)
+                  p2_init_ctrl=p2_init_ctrl, p2_nn_writes_pulse=p2_nn_writes_pulse)
 
 
 # ---------------------------------------------------------------------------
