@@ -311,7 +311,31 @@ extract). Plus `filtactive`: the orig's V3 sweep is gated by $1857 (set by $F9 ~
 2-3), not frame 0 — set in sd_f9, gate filter_run on it (the sweep was ~2 frames
 early). $D416 sweep now matches ~388 writes (was 318).
 
-### NEXT divergence (write 7203): filter sweep TIMING lag over the cycle
+### ⚠️ "sweep timing lag" (write 7203) = the missing per-instrument filter RE-INIT
+NOT a timing bug. Traced via filterpos walk: the orig walks 0(intro)→02..18 (default
+program), then a V3 note RE-INITS the filter — filterpos = byte4($01)+1 = $02,
+$1019 = filterlo[$01] = $23D5[$01] = $84 (= the $54 = $84+$D0 jump). V3 plays inst-0
+notes (byte4=$01) that re-init; "force filtflag=0" disabled this so the rebuild only
+runs the default program (caps at 7203). Reverting force=0 makes it WORSE (→101):
+the rebuild re-inits from the WRONG byte4 ($51 = inst 8, not $01 = inst 0).
+
+ROOT CAUSE (deeper than timing): the USF roundtrip **re-packs the filter table and
+re-assigns every instrument's `filter_ptr`** to a re-packed index. For family-4 ALL
+instruments share the single $23D5/$242C program and index it at their ORIG byte4 —
+the re-pack destroys those indices. My _capture_env_f4 made the default PROGRAM
+faithful but not the instrument INDICES into it (extract inst-0 filter_ptr=$1F vs
+orig byte4=$01; the rebuild plays inst 8 filter_ptr=$51). The non-filter stream MASKS
+this (inst 8's ad/sr/wave/pulse == inst 0's, so the notes match; only the filter
+byte4 differs).
+
+FULL FIX (a USF-representation change, bigger than a knob): carry the family-4 filter
+table as a SHARED verbatim resource at orig indices + preserve each instrument's orig
+byte4 (`filter_ptr`), bypassing the from_usf re-pack. Then the per-instrument re-init
+reads the right byte4 and the re-init path (write 7203+) matches. Also handle the
+intro/idle (don't re-init during the 256-frame intro before V3's first real note).
+Current stable state: force filtflag=0, match 7203 (default program only).
+
+### (historical) "sweep timing lag" framing — superseded by the re-init finding above:
 $1853 is constant ($D0); $1019 ACCUMULATES across the program's loop (pos 30 → pos 2,
 no reset) — the orig sweeps $1019 UP to $84 by the first loop, but the rebuild LAGS
 (still ~$36): the rebuild's sweep takes MORE frames to reach the $90 loop. Counts are
