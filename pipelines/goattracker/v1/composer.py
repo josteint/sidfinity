@@ -88,7 +88,7 @@ class _Tables:
         self.inittick = self.deftempo if self.optimized \
             else (self.gatetimer + 2) & 0xFF
         # freq table is PER-PLAYER (carried in USF); fall back to v153 constant.
-        # Length is 2*N (lo then hi); N=128 captures the off-table window (C6).
+        # Length is 2*N (lo then hi); the in-table tuning is 96 entries.
         if usf.freq_table and len(usf.freq_table) >= 192:
             half = len(usf.freq_table) // 2
             self.freqlo = list(usf.freq_table[:half])
@@ -96,6 +96,33 @@ class _Tables:
         else:
             self.freqlo = FREQ_LO
             self.freqhi = FREQ_HI
+        # C6: rebuild the OFF-TABLE tail (idx ≥ 96) from per-instrument
+        # `offtable_freq` records (replaces the superseded contiguous window).
+        # idx = (offset+note)&$FF; the table is extended to the max reached idx
+        # so an unmodeled read past it hits the next section → diverges in verify
+        # (never silently masked, the whole point of the records form).
+        maxidx = len(self.freqlo) - 1
+        offt = []
+        for ins in usf.instruments:
+            for offset, note, lo, hi in getattr(ins, 'offtable_freq', None) or []:
+                idx = (offset + note) & 0xFF
+                offt.append((idx, lo, hi))
+                maxidx = max(maxidx, idx)
+        while len(self.freqlo) <= maxidx:
+            self.freqlo.append(0)
+            self.freqhi.append(0)
+        for idx, lo, hi in offt:
+            self.freqlo[idx] = lo
+            self.freqhi[idx] = hi
+        # LAYOUT STABILITY: emit at a constant ≥128-entry size regardless of how
+        # many records a tune has. Otherwise the array size varies per tune, the
+        # following BSS/code shifts, page-crossing branch penalties change, and the
+        # accumulated cycle drift moves the song-end capture boundary by a partial
+        # frame (Trap B — a `sig=len` flip, not a real divergence). 0-pad gaps are
+        # unread (the reachable reads are all in `offt`), so this stays correct.
+        while len(self.freqlo) < 128:
+            self.freqlo.append(0)
+            self.freqhi.append(0)
 
         insts = {i.id: i for i in usf.instruments}
         self.ninst = (max(insts) + 1) if insts else 1

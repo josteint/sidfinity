@@ -12,6 +12,7 @@ present (the canary has none).
 """
 from __future__ import annotations
 
+import collections
 import os
 
 from src.usf.types import (
@@ -116,7 +117,7 @@ def _rows_to_usf(rows, player='tracker') -> list[NoteRow]:
     return out
 
 
-def _instr_to_usf(inst: Instr) -> Instrument:
+def _instr_to_usf(inst: Instr, offt_recs: list | None = None) -> Instrument:
     """GT instrument → USF Instrument. Wave program as waveform(ctrl)+
     wave_freq(note rel/abs raw) + loop; pulse as PwmConfig; hard-restart flag
     (pulsespd bit0 == 0) → effects {'hard_restart'}."""
@@ -136,7 +137,69 @@ def _instr_to_usf(inst: Instr) -> Instrument:
     return Instrument(
         id=inst.num, waveform=waveform, wave_freq=wave_freq, loop=loop,
         adsr=(inst.ad, inst.sr), pwm=pwm, filter_prog=fp,
+        offtable_freq=offt_recs or [],
     )
+
+
+def _offtable_freq(song: V1Song) -> dict:
+    """C6 — off-table freq-table reads as per-instrument `offtable_freq` records.
+
+    The freq table is 96 entries (one per note). A wave-relative note offset
+    (`(note+off)&$7F`) or an arpeggio (`(note+off)&$FF`) can push the index
+    ≥ 96; the read then falls into the following image bytes, which the orig
+    plays as REAL frequencies (content-by-reference). Capture the REACHABLE
+    reads — per instrument, its wave/arp offsets × every note actually played
+    (over the patterns' transposes) — encoded as `(idx, 0, lo, hi)` so the
+    composer rebuilds the off-table tail engine-blind (`(off+note)&$FF == idx`;
+    ledger C6, FC `_std_offtable_freq` precedent). Replaces the superseded
+    contiguous 128-entry window (which silently masked under-captures). Empty
+    when nothing reaches off-table → the USF carries only the 96-entry tuning.
+    """
+    flo, fhi = song.freq_lo, song.freq_hi
+    if not flo:
+        return {}
+    N, cap = 96, len(flo)                              # cap = the captured reach (128)
+    # Per instrument: the notes it actually plays (note+transpose) + its arp
+    # offsets, walking each channel's orderlist with the instrument CARRIED
+    # across patterns (a pattern can open with a note-only row inheriting the
+    # prior pattern's instrument — parse_pattern resets per-pattern, so carry here).
+    inst_notes = collections.defaultdict(set)
+    inst_arps = collections.defaultdict(set)
+    for chans in song.subtunes:
+        for ol in chans:
+            cur = 0
+            for ei, pn in enumerate(ol.entries):
+                T = ol.transposes[ei] if ol.transposes else 0
+                pat = song.patterns.get(pn)
+                if not pat:
+                    continue
+                for r in pat.rows:
+                    if r.new_instr:
+                        cur = r.instr
+                    if r.note is not None and 0 <= r.note < KEYOFF:
+                        inst_notes[cur].add((r.note + T) & 0xFF)
+                    if r.cmd == 0 and r.param:          # arp: cmddata nibbles = offsets
+                        inst_arps[cur].update(((r.param >> 4) & 0x07, r.param & 0x0F))
+    out: dict = {}
+    for k, inst in song.instruments.items():
+        notes = inst_notes.get(k, set())
+        idxs: set[int] = set(notes)                    # BARE note read (note-load /
+        #                                                arp0 / toneporta target = freq[note])
+        for s in inst.wave_steps:                      # wave-program note offsets
+            w = s.right
+            if w & 0x80:                               # absolute wave note
+                idxs.add(w & 0x7F)
+            else:                                      # relative: + the played note
+                for n in notes:
+                    idxs.add((n + w) & 0x7F)
+        for a in inst_arps.get(k, ()):                 # arpeggio offsets
+            for n in notes:
+                idxs.add((n + a) & 0xFF)
+        recs = [(idx, 0, flo[idx], fhi[idx])
+                for idx in sorted(idxs) if N <= idx < cap]
+        if recs:
+            out[k] = recs
+    return out
 
 
 def model_to_usf(song: V1Song) -> UsfFile:
@@ -170,7 +233,8 @@ def model_to_usf(song: V1Song) -> UsfFile:
         subtunes.append(MusicSubtune(id=s_idx + 1, tempo=L.default_tempo,
                                      voices=voices))
 
-    instruments = [_instr_to_usf(song.instruments[k])
+    offt = _offtable_freq(song)                 # C6 off-table reads → per-inst records
+    instruments = [_instr_to_usf(song.instruments[k], offt.get(k))
                    for k in sorted(song.instruments)]
 
     params = Params(fields={
@@ -212,8 +276,10 @@ def model_to_usf(song: V1Song) -> UsfFile:
         instruments=instruments,
         subtunes=subtunes,
         # freq table is PER-PLAYER (V1.x sub-versions differ) — carry it as
-        # per-tune musical content (tuning), 96 lo + 96 hi.
-        freq_table=(list(song.freq_lo) + list(song.freq_hi))
+        # per-tune musical content (tuning): the 96-entry table (lo+hi). Off-table
+        # reads (idx ≥ 96) are NOT a contiguous window here — they're per-inst
+        # `offtable_freq` records (C6); the composer rebuilds the tail from those.
+        freq_table=(list(song.freq_lo[:96]) + list(song.freq_hi[:96]))
         if song.freq_lo else None,
     )
 
