@@ -267,10 +267,12 @@ Filter is a distinct family-4 subsystem (filtmode $D418=$30 done, cc8cb46):
 - **$D416 = $1019(sweep) + $1853(base)** written every play() ($10AD). $1019 is the
   1-byte cutoff swept by the filter program $23D5(add)/$242C(count); $1853 = base.
 - **$D415 = $00 ONCE** at init (family-3 writes fclo every frame — skip for fam-4).
-- **$D417 = $54** resonance (set on filter note).
-- **$F8 is the FILTER-BASE command** for family-4 (sets $1853), NOT 'frq' — the V5
-  _CMD map decodes it as 'frq' (harmless to the freq — composer's frq is a no-op —
-  but its value must route to filtbase). $F9='flt' inits the filter program.
+- **$F9 <arg>** ($126F) sets BOTH resonance $D417=(arg<<4)|$04 (arg!=0; else 0) AND
+  filtmode $1018=arg&$F0. So $D417=$54 ⇐ $F9 $05. ($F9 is 'flt' in the _CMD map.)
+- **$F8 is the FILTER-BASE command** for family-4 ($129B sets $1853), NOT 'frq' —
+  the V5 _CMD map decodes it as 'frq' (harmless to the freq — composer's frq is a
+  no-op — but its value must route to filtbase). NB the filter cmds ($F8 base/$F9
+  res+mode) are intertwined; the extract must capture their args for family-4.
 Plan (analogous to the pulse fix): (1) 8-bit filter counter; (2) fchi 1-byte sweep;
 (3) $D416 = fchi + filtbase, $D415 init-only; (4) route $F8→filtbase + $D417 res.
 orig $D416 seq: 00 5E 5E 2E×many (sweeps); distinct ~20 values.
