@@ -1086,6 +1086,17 @@ state_end:
             'ni_ws_adv:\n        inc wavepos,x\n        lda wavespd,x\n'
             '        sta wavespc,x\n'
             'ni_ws_done:\n        lda wavectrl,y')
+        # family-4 vol-override note-on ($1352) writes AD=$00 (not the instrument
+        # AD): the SR carries the vol level (volovr<<4 | instr_SR&$0f) and the AD
+        # is forced to $00. family-3 keeps the instrument AD. Force AD=$00 on the
+        # vol-override path; the non-override path is unchanged.
+        engine = engine.replace(
+            '        ora tmp40\n        sta $d406,y\n        jmp no_ad',
+            '        ora tmp40\n        sta $d406,y\n        pla\n        lda #$00\n'
+            '        sta $d405,y\n        jmp ni_voldone')
+        engine = engine.replace(
+            '        sta $d405,y\n        lda durrel,x',
+            '        sta $d405,y\nni_voldone:\n        lda durrel,x')
         # family-4 pulse_run uses an 8-bit step counter ($1830 vs $23BC[pos+1]),
         # not the family-3 16-bit counter (pulselo[pos+1]:pulsehi[pos+1]). With the
         # 16-bit check, family-4's nonzero pulselo[pos+1] ($23A3) makes pwctr_hi(0)
