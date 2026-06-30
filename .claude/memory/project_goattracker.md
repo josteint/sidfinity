@@ -343,7 +343,23 @@ cmp #gatetimer in the pulse path"), MINE fetched at chntick==GATETIMER(=2) so th
 modulation-SKIP frame was misaligned by 2 ticks (GATETIMER is the HR-flag preset, NOT the
 fetch offset). Gated `tick_fetch_cmp=''` for optimized → fetch at 0. Blueseczka div 33→63,
 MM7-Bass 30→60; Joker+Faderik FULL. STILL necessary-not-sufficient.
-**HONEST STATE of the optimized grind:** the divergences are LARGELY inaudible idle
+**⚠️ OPTIMIZED BUCKET = ALL-OR-NOTHING MULTI-CAUSE + MULTI-SUB-VARIANT (re-batch
+2026-06-30, 164/1359 UNCHANGED after both knobs).** The C16-order + fetch-tick knobs are
+CORRECT (no regression, writelog moves deeper: Blueseczka 3→63, the v1_pwlo div<50 ×302
+bucket collapsed) but converted ZERO to FULL — every optimized tune is uniformly multi-
+cause, so nothing converts until ALL its causes are fixed. Causes mapped so far: (1) C16
+pulse order ✓ (2) fetch-tick ✓ (3) HR/fetch decoupling ($13f7 look-ahead, RE_NOTES §11a)
+(4) **per-frame FILTER/VOLUME — a SUB-VARIANT split:** Kyokumei + Dont_You_Want_Me
+(optimized) write $D418/$D416 every frame, Blueseczka (also optimized, same detection)
+does NOT — so my `filter_exec=''` is right for Blueseczka, wrong for Kyokumei; needs a
+per-tune filter-write detection, NOT a universal knob. So the optimized variant is a ZOO
+of sub-variants (filter-writing vs not, + likely HR variants), each a detect+knob. This
+is a MAJOR multi-session RE effort (essentially fully RE-ing "a substantially different
+player" w/ sub-variants), NOT a quick grind — the FULL count won't move until a whole
+tune's causes ALL land. STRATEGIC: the foundation (2 knobs) is laid + the causes mapped;
+the realistic path is a sub-variant census (cluster the optimized partials by their write-
+stream sub-variant) THEN per-sub-variant knobs, OR interleave with the deep-partial
+one-fix-from-FULL tunes for visible count gains. **HONEST STATE of the optimized grind:** the divergences are LARGELY inaudible idle
 freewheel (RESTING voices' pulse/freq sweep — confirmed via pc-trace, Blueseczka v1 is all
 rests; player1.5 resets phase via $09 → C15 audibly equivalent). Strict (user choice)
 requires reproducing them = a LONG grind of intricate tick/HR knobs (C16 order ✓, fetch-
