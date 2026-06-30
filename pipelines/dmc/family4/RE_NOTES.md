@@ -402,6 +402,24 @@ the orig's PW per off-table pointer. The play-sim horizon is correct and necessa
 (bounds the table) but insufficient alone — the capture's off-table WALK must match
 first. Horizon prototype in the session transcript; NOT committed.
 
+### 🧩 OBSERVE-AND-FIT PROTOTYPE + the DE-FUSION COUPLING (2026-06-30) — supersedes the ptr-19 framing
+Prototyped Phase 1 of the unified off-table transform (`docs/offtable_unified_transform.md`)
+on this blocker. OBSERVING the orig's actual PW writes (vs re-implementing the walk)
+gave the divergence directly: at PW_lo=$60 the orig switches from PW_lo +$20 to **PW_hi
++$08** (the off-table sweep); committed `_capture_env` keeps ramping PW_lo. Observation
+refuted my -512-ramp + long-sweep theories — V2/V3 PW are short oscillating bursts, not
+the clean sweep I modeled.
+**THE deeper finding (proven):** the de-fused pulse table is CROSS-INSTRUMENT COUPLED.
+Changing ONLY ptr 2 (V3's off-table inst) — growing its env — regressed **V2 PW hi at
+flat-7416** (a DIFFERENT VOICE), far before V3's own 56000 divergence. Programs that
+run longer than their captured phases walk off their own end into the adjacent
+re-packed bytes (another inst's data); committed "works" partly by accident (the layout
+coincidentally supplies the right tail). So EVERY per-instrument/horizon fix regresses —
+it's all-or-nothing. The fix must capture EVERY program's COMPLETE contour (observe-
+and-fit, full play-sim duration) so the composer never walks off a program's end. This
+promotes the play-sim horizon from heuristic to correctness requirement. See the design
+doc's "Phase-1 prototype outcome". Prototype scripts: `tmp/proto_*.py`.
+
 ### 📊 FAMILY-4 WIDE-SAMPLE CENSUS (80/686 members, 2026-06-30) — 0 FULL
 First batch through `dmc_v5_family_batch.py` after this session's gated knobs
 (filter/vibrato/wave-speed/$D418-skip). Build path routes (`dmc_v5_config` →

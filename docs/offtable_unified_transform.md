@@ -169,6 +169,43 @@ Grade A — violates the through-USF/ML purpose), Grade-S/A/B/C/F snapshot toler
 - **Defer** — Z3 oracle + e-graph canonicalisation; document as fallbacks, build only
   if greedy fit proves insufficient (history says it usually won't).
 
+## Phase-1 prototype outcome (2026-06-30, Jupiter41)
+
+Prototyped the observe-and-fit REALIZE step on the family-4 blocker. Two results:
+
+**1. Observe-don't-reimplement is validated.** Observing the orig's actual `$D4xx`
+writes (vs re-implementing the walk) refuted three of my re-implementation-based
+theories in a row and gave the divergence *directly*: at PW_lo=`$60` the orig switches
+from ramping PW_lo (+$20) to ramping **PW_hi (+$08)** — the off-table sweep — while the
+committed `_capture_env` keeps ramping PW_lo. The observed contour is unambiguous;
+no walk-model can be wrong because it reads ground truth.
+
+**2. NEW load-bearing finding — the de-fusion/off-table COUPLING (proven).** In the
+de-fused representation each program is captured independently and re-packed into a
+SHARED pulse table at a composer-chosen offset. Family-4 programs that run longer than
+their captured phases walk off their own end into the ADJACENT re-packed bytes — which
+are *another instrument's* data. So instruments are COUPLED through the shared layout,
+and the committed code "works" partly by accident (the re-packed layout coincidentally
+supplies the right off-table-tail bytes). **Proof:** changing ONLY V3's off-table
+instrument (ptr 2) — growing its env by a few phases — shifted the shared table and
+regressed a DIFFERENT VOICE (**V2 PW hi at flat-7416**), far before V3's own divergence
+at 56000. Every per-instrument / horizon fix this session regressed for exactly this
+reason.
+
+**Design implication (refines the proposal):** a per-instrument off-table fix CANNOT
+work for a coupled table — any layout change cascades cross-voice. The transform must
+capture EVERY program's COMPLETE contour (to its full play-sim duration) so the
+composer NEVER walks off a program's end into adjacent data. This makes the off-table
+fix **all-or-nothing per tune**, and promotes the play-sim re-init horizon from a
+heuristic bound to a **correctness requirement** (capture ≥ the longest each program
+actually plays). It is also the strongest argument FOR observe-and-fit: an observed
+complete contour is self-contained, which *breaks* the layout coupling that the
+current independent-capture-into-shared-table approach cannot escape.
+
+**Status:** thesis validated + the coupling structure uncovered; no green verdict yet
+(a passing fix requires the full all-programs observe-and-fit build, which the coupling
+finding now shows is necessary — not optional). Prototype scripts: `tmp/proto_*.py`.
+
 ## Risks / honest scope
 
 - Substantial refactor touching DMC v4/v5, FC, Hubbard extract paths; migration must

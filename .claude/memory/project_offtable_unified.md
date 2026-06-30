@@ -40,9 +40,23 @@ KEY FINDINGS:
   greedy BEAT Z3 100% vs 95.9% — greedy first). `taint_tracker.py` = REALIZE+CLASSIFY.
   `info_theory_analysis.py` = MDL accept test.
 
-STAGING: Phase 1 (REALIZE-by-observation/cycle-detection, replace `_capture_env`)
-alone unblocks family-4 ptr-19. Phase 2 unify offtable_freq code. Phase 3 port the
-contour FIT. Defer Z3/e-graph unless greedy proves insufficient.
+PHASE-1 PROTOTYPE (2026-06-30, Jupiter41): (1) observe-don't-reimplement VALIDATED —
+observing the orig's PW writes refuted 3 re-implementation theories and gave the
+divergence directly (at PW_lo=$60 the orig switches PW_lo+$20 → PW_hi+$08; committed
+`_capture_env` keeps ramping PW_lo). (2) ⭐ NEW PROVEN FINDING — the de-fused pulse table
+is CROSS-INSTRUMENT COUPLED: changing ONLY V3's off-table inst (ptr 2) regressed V2 PW
+hi at flat-7416 (different voice). Programs that outrun their captured phases walk off
+into adjacent re-packed bytes (another inst's data); committed "works" by layout
+accident. So per-instrument off-table fixes are ALL-OR-NOTHING — the transform MUST
+capture EVERY program's COMPLETE contour (full play-sim duration), which is exactly why
+observe-and-fit (self-contained contours) is the right tool. Play-sim horizon promoted
+from heuristic to correctness requirement. No green verdict yet (needs the full
+all-programs build). Earlier "ptr-19 walk model wrong" framing is SUPERSEDED by the
+coupling — the real issue is the shared-table coupling, not just one pointer's walk.
+
+STAGING: Phase 1 = observe-and-fit ALL pulse programs completely (breaks the coupling),
+NOT per-instrument. Phase 2 unify offtable_freq code. Phase 3 port the contour FIT.
+Defer Z3/e-graph unless greedy proves insufficient.
 
 Relates to [[project_dmc]] (family-4 ptr-19 = the live blocker), the ledger C2/C6/C7/C11,
 and `docs/usf_representation_principle.md` §7.
