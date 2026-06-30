@@ -337,9 +337,20 @@ timing** (the sweep lags one frame: orig $20→$40→$60 from f2, reb $20→$20�
 note/pulse-mod-start timing issue analogous to player2's tick0-defer). A few stay at
 div=3 (Dungeon_Horror/dynamit/Murphys_Law/Redlight — a different early cause). So the
 435 bucket needs the C16 knob (done) + the pulse-mod-start timing (NEXT) + per-residue.
-**C15 NOTE (recorded):** the player1.5 idle divergence here is AUDIBLY EQUIVALENT (phase
-reset via $09 → idle freq inaudible; same-frame latch) — under the deferred audio-
-equivalence verdict most of the 435 pass with no change; on STRICT by user choice.
+**2nd knob LANDED — optimized FETCH-TICK (commit 44d3af3):** the pulse-mod lag traces to
+the note-fetch tick condition: optimized fetches at chntick==0 (RE_NOTES §11 tick0; "NO
+cmp #gatetimer in the pulse path"), MINE fetched at chntick==GATETIMER(=2) so the
+modulation-SKIP frame was misaligned by 2 ticks (GATETIMER is the HR-flag preset, NOT the
+fetch offset). Gated `tick_fetch_cmp=''` for optimized → fetch at 0. Blueseczka div 33→63,
+MM7-Bass 30→60; Joker+Faderik FULL. STILL necessary-not-sufficient.
+**HONEST STATE of the optimized grind:** the divergences are LARGELY inaudible idle
+freewheel (RESTING voices' pulse/freq sweep — confirmed via pc-trace, Blueseczka v1 is all
+rests; player1.5 resets phase via $09 → C15 audibly equivalent). Strict (user choice)
+requires reproducing them = a LONG grind of intricate tick/HR knobs (C16 order ✓, fetch-
+tick ✓, more remain), each moving the bucket deeper but NOT converting (3→33→63). Next
+causes: Hawk_Intro div@0 + Cactus_Inc div@15 (different early causes), Blueseczka div@63
+(likely the optimized HR mechanism via $13f7, RE_NOTES §11). Under the deferred C15 audio-
+equivalence verdict most of the 435 pass with NO knobs — the standing tension.
 
 **⚠️ SAMPLE-CAP UNDERCOUNTS (historical, now superseded by the batch above):** the ~3/30
 used a 75s duration CAP for speed, which
