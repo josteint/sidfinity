@@ -324,6 +324,23 @@ real levers):**
 NEXT: the player1 optimized-layout write-order fix is the single highest-leverage item
 (435 tunes). Then detect_fail (gatetimer anchor), then deep partials per-cause.
 
+**✅ C16 EMISSION-ORDER KNOB LANDED (commit 3f20ab5) — but NECESSARY-NOT-SUFFICIENT.**
+After a re-anchor (user) + ledger consult: I'd MIS-SCOPED the #1 lever as a "flow
+restructure" (the exact anti-pattern C16 warns against — trace first, it's a bounded
+knob; FC `nextvoice_write_order` precedent). The real fix is an `optimized`-gated knob:
+pulseexec modulates chnpulse/chnpulsedir but doesn't emit $D402/$D403; loadregs emits
+them every frame after $D404 (player2 loadpulse-after-freq order). Gated → V1.5 (Joker)
++ player2 (Faderik) byte-identical, ZERO regression. **MEASURED on a 25-tune optimized
+sample: moved the whole bucket div 3 → 15/30, but 0 → FULL.** So the order cause is
+fixed; the 435 bucket has MORE causes — the new wall is **div≈15 = pulse-mod-START
+timing** (the sweep lags one frame: orig $20→$40→$60 from f2, reb $20→$20→$40; a new-
+note/pulse-mod-start timing issue analogous to player2's tick0-defer). A few stay at
+div=3 (Dungeon_Horror/dynamit/Murphys_Law/Redlight — a different early cause). So the
+435 bucket needs the C16 knob (done) + the pulse-mod-start timing (NEXT) + per-residue.
+**C15 NOTE (recorded):** the player1.5 idle divergence here is AUDIBLY EQUIVALENT (phase
+reset via $09 → idle freq inaudible; same-frame latch) — under the deferred audio-
+equivalence verdict most of the 435 pass with no change; on STRICT by user choice.
+
 **⚠️ SAMPLE-CAP UNDERCOUNTS (historical, now superseded by the batch above):** the ~3/30
 used a 75s duration CAP for speed, which
 undercounts (masks FULL on long tunes + boundary-truncates). Re-checked the div=None
