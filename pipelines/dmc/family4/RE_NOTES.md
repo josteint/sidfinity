@@ -320,7 +320,57 @@ unless step-doubling ($1812=byte7>>4). So a per-voice `vibrev` flag set on the U
 reversal (the inc-vibdir path), cleared each frame at vib_on entry; write_vol skips
 $D418 when vibspd!=0 && vibrev!=0 (commit 8a8e8b8).
 
-### NEXT (write 56000, ~67s): V3 OFF-TABLE pulse program
+### ⛔ V3 OFF-TABLE pulse — FULLY DIAGNOSED MECHANISM (write 56000, ~67s)
+**The pulse PERSISTS across notes.** Init handler $13F4: `LDA $2290,y` (instr
+byte3 = pulse_ptr) → `BEQ $1411` — the pulse re-inits (pulsepos=byte3, PW from
+pulselo/hi[byte3], INC $1800) ONLY when byte3≠0. Instruments with byte3=0 do NOT
+reset the pulse, so a single pulse program keeps running across MANY notes (each
+note ~48 frames, but the sweep at $07 ran 256+ frames ≈ 5 notes). So the pulse
+HORIZON is the inter-reinit interval (frames between byte3≠0 instrument loads),
+NOT the note duration (my first note-duration hypothesis was REFUTED: max note
+frames = 48, far short of the observed 256+).
+**Off-table walk:** pulsepos advances by 2 (odd positions $07→$09→$0B…); the $90
+loop markers sit at EVEN positions ($06,$0A) → the walk NEVER loops; it reads the
+table's COUNT bytes ($23BC, odd offsets) as pulse adds, ramping PW (PW_hi +$08 for
+256 frames at $07, +$00/8 at $09, +$02/240 at $0B…). Long counts → a long sweep.
+**Why it doesn't de-fuse:** capturing the off-table sweep with accurate 8-bit
+counts over the whole-song reach (16260) walks ~96 phases → de-fused pulse table
+= 513 > 256 (`pulse_table_overflow`). A GLOBAL note-bounded reach REGRESSES (match
+56000→7416) because (a) some overflowing instruments are off-table too and the
+16-bit fallback's garbage-count truncation only ACCIDENTALLY matches their short
+notes, and (b) the shared-table re-pack shifts other instruments' data.
+**Correct fix (non-trivial, multi-part):** per-instrument re-init horizon from a
+play simulation (frames between byte3≠0 loads on each voice) + DROP the 16-bit
+fallback for family-4 (family-4 counts are ALWAYS 8-bit → 16-bit is wrong). With
+the right horizon each off-table sweep is ~6–12 phases (fits). Multiple long
+off-table sweeps may still need a larger/separate sweep representation. This is
+the residue-triage "architectural-limit-last" class.
+**Scope (80-member sample):** off-table sweep is the SINGLE biggest build-blocker
+(pulse_table_overflow 8 + sweep_too_long 8 + filter_table_overflow 4 = 20/80).
+
+### 📊 FAMILY-4 WIDE-SAMPLE CENSUS (80/686 members, 2026-06-30) — 0 FULL
+First batch through `dmc_v5_family_batch.py` after this session's gated knobs
+(filter/vibrato/wave-speed/$D418-skip). Build path routes (`dmc_v5_config` →
+`_family4_config`). **0/80 FULL** — family-4 is early-stage with 5 blocker classes:
+| blocker | n | type | tier |
+|---|---|---|---|
+| off-table pulse/filter (pulse_table_overflow 8 + sweep_too_long 8 + filter_table_overflow 4) | 20 | build | unblock-builds |
+| unknown sector cmd $F0 / $EF | 16 | build | unblock-builds (decode $F0/$EF) |
+| partials (diverse: init-order $D400/$D406, $D418=$0F order, later) | 35 | write-stream | fix-effects |
+| USF parse error (stray `}` token) | 3 | build | unblock-builds (USF-gen escape bug) |
+| misc unsupported (player_code_mismatch 3, capture_loop 2, trailing 1) | 6 | build | — |
+**Dependency-ordered plan (residue-triage):**
+1. **unblock-builds**: (a) decode sector cmds $F0/$EF (16, likely a quick decoder
+   addition — check disasm sector handler); (b) fix the USF-gen `}` escape bug (3);
+   (c) off-table pulse/filter horizon (20, the hard one — see mechanism above).
+2. **fix-effects**: the 35 partials — START with the 6× frame-0 init-order
+   `(0,0)/(6,0)` ($D400 vs $D406 = freq-lo vs SR ordering at note-load) + the
+   `$D418=$0F` ordering cluster (shared init-write-order knob, like family-1's
+   nextvoice_write_order / master_vol_every_note). These are cheap shared levers.
+3. Jupiter41 (the rep) is itself a partial blocked at ~67s by the off-table pulse;
+   first ~67s write-exact. Its init+play matches (the session's knobs landed).
+
+### (superseded) NEXT (write 56000, ~67s): V3 OFF-TABLE pulse program
 V3 ramps PW_lo += $20 (matched), then the orig advances to PW_hi += $08 (→$2460→
 $2C60→$3460, holds), but the rebuild's pulse loops $5C↔$5E (spurious re-packed $90).
 ROOT: family-4's pulse COUNT is 8-bit ($23BC[pos+1]); _capture_env read it 16-bit
