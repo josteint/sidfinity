@@ -237,31 +237,35 @@ is the final structural piece for the player2 majority.
 as inst*8 (interleaved byte offset; pc-trace v2=$10→instpulsespd[$10]=inst-2's field)
 while OUR engine stores the inst INDEX (lsr×3 on note-load) → idle chninstnum must be
 >>3, else it reads the wrong instrument's pulsespd. (NOT a separate-arrays layout —
-instruments ARE interleaved; chninstnum is just the *8 offset.) **CURRENT: Faderik
-div@58 (f6, first real notes) — mine writes an EXTRA v2 pulse ($09/$0a) on the new-note
-frame where orig doesn't** (the new-note ADSR-init vs pulse-mod path selection; likely
-systematic across notes). 4 systematic fixes landed this session-segment (freq table /
-subA emission / idle priming / chninstnum>>3). Player2 FULL = a continued per-frame
-convergence grind (each systematic fix moves first_div forward; pc-trace + find_first_
-divergence are the loop). Pc-trace works: `tools/siddump SID --pc-trace FILE A B --frames N`.
+instruments ARE interleaved; chninstnum is just the *8 offset.)
 
-**div@58 ANALYSIS (the next divergence, NOT yet fixed):** per-IRQ shows ALL 3 voices'
-note-load is one play() late in mine (orig: newnoteinit play#5 → ADSR-init #6 → pulse
-#7; mine: newnoteinit #6 → ADSR-init #7). BUT the obvious fix (init chntick=DEF-1)
-OVERSHOOT — it made notes one play EARLY (div 58→41) AND diverged inside the idle (so
-chntick DOES affect the idle, not just the notes). So it's NOT a simple init-tick
-off-by-one — the newnoteinit→ADSR-init→pulse→tick interaction is subtle. **SOURCE REVIEW + pc-trace RESOLVED the tick theory (negative result):** Faderik's
-deferred init sets `chntick=5` (pc-trace: c455=5/c456=5/c42a=5 = chntick/chntempo/
-chnnewnote) — IDENTICAL to subB (v1_player2_125.s l.208) and to MINE. So chntick=5 is
-correct, **DEF-1 was a wrong guess, and the one-play-late is NOT the init tick.** Don't
-re-chase the tick. The reb is +1236 writes longer than orig over the song (not just one
-late note) → likely SYSTEMATIC extra writes (the subA pulse model writing pulse on
-frames orig doesn't, e.g. the ADSR-init/new-note frame, OR the loadpulse-vs-mod split).
-NEXT: pc-trace MINE's rebuild vs ORIG instruction-by-instruction across the note-load
-(the first $D405 AD-write is orig frame 6, PC ~c130) to see which path writes the extra
-pulse — `tools/siddump tmp/faderik.reb.sid --pc-trace ...` on BOTH and diff the SID-write
-PCs. (DEF-1 reverted; div@58 is the best state, all 4 systematic fixes committed.) This
-is intricate per-frame convergence; player2 FULL is a multi-session grind from here. **KEY correctness result this turn: PCM
+**✅✅ FADERIK (player2/gamemusic CANARY) IS FULL (2026-06-30) — instruction-sequence-
+exact at full songlength; Joker (player1) still FULL.** div 3 → FULL across the session
+via 8 fixes. The tick-theory was a RED HERRING (chntick=5 is correct, DEF-1 overshot —
+don't re-chase the init tick). The REAL chain of fixes (mine-vs-orig pc-trace of the
+note-load was the cracking tool, `tools/siddump SID --pc-trace FILE A B --frames N`):
+1. per-player freq table; 2. subA emission (pulse-in-mod); 3. idle priming; 4.
+chninstnum>>3 (index vs inst*8). Then the structural ones (commits f4bc81e + 2b2718b):
+5. **tick0-defer**: ALL tick0 cmd handlers `jmp nextchn` (NOT effects2) — orig's tick0
+cmds all go cmddonothing→nextchn, so the hard-restart/gate-off frame writes no pulse/freq
+and newnoteinit is deferred ONE play(). 6. **ADSR-init instwave POINTER**: ctrl=wctrl
+[instwave] (orig X-swap: stx temp1; tax; lda wctrl,x; ldx temp1 — keeps Y=chninstnum for
+instad/instsr), and `ef_skipwavetbl: jmp ew_skipwave` (run the wave program for freq, NOT
+jmp loadpulse). 7. **ctrl-FIRST order** (orig: ctrl,AD,SR). 8. **packed-rest re-dispatch**:
+`gp_cont: ldy chncommand; jmp gn_rest` (orig mt_packedrest→mt_rest) so a held SETSUSTAIN
+keeps re-applying SR each rest row. KEY player2 mechanism learned: **the tick0 (note-fetch)
+frame does hard-restart (AD=0/SR=0/gate-off) + cmd-tick0-action then nextchn — the note's
+pulse (newnoteinit) is +1 frame, gate-on/freq (ADSR-init) is +2 frames.**
+
+**PLAYER2 FAMILY RESIDUE (next work):** GT V1 = 1359 (884 player1 + 339 player2 +136
+detect_fail). Sample of 45 player2 verified post-fix: **8 FULL, 37 partial.** So Faderik
+was ONE variant; the family has more buckets. Partial clusters by first_div: **div=3**
+(Lovin_SID/No_Effort_Left/Krak_Zak_2/Magnetic_Moons — early, idle-priming/freq-table) /
+**div=44** (Improper_C0nnections/Yummy_Pizza/Scenial/Wobbly_the_Duck — SAME length olen==
+rlen → within-frame order/value) / **div=0** (A_Goat_Day/Truck_Driver/beastie_boys —
+immediate, init/detect) / div=56/60. NEXT: census these buckets (the div=44 same-length
+cluster looks high-leverage = an order/value fix like #6/#7). No GT-V1 batch tool yet —
+build `tools/gt_v1_family_batch.py` (FC-standard-shaped) for the wide run. **KEY correctness result earlier: PCM
 audio comparison CANNOT be a verdict (rebuilds are per-frame-exact not cycle-exact,
 Trap B); the audio-equivalence soundness is decided by the TEST BIT (phase reset),
 not by rendering — proven, recorded in ledger C15.** gatetimer 30 = optimized-init tunes whose HR-flag
