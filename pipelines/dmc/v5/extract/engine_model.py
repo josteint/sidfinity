@@ -154,6 +154,11 @@ _CMD = {
     0xF8: ('frq', 2), 0xF9: ('flt', 2),
     0xFA: ('slide', 3), 0xFB: ('glide', 4),
     0xFC: ('snd', 2), 0xFD: ('dur', 2), 0xFE: ('gate', 1),
+    # family-4-only commands (never present in family-3/V5 sector data, so
+    # adding them to the shared map is inert for those families):
+    #   $EF nn -> per-voice freq-lo BIAS ($1842,x), added in the wave-step.
+    #   $F0 nn -> per-note vib width (nn&7) + wave/freq re-load (nn>>4 = count).
+    0xEF: ('freq_bias', 2), 0xF0: ('f0', 2),
 }
 
 

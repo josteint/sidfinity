@@ -418,6 +418,11 @@ fx_flag: "tie"                  -> fx_tie
        | "fade_out" "=" number  -> fx_fade_out
        | "adr" "=" number       -> fx_adr
        | "srr" "=" number       -> fx_srr
+       // DMC V5 family-4 positioned sector commands: per-voice freq-lo
+       // BIAS ($EF -> $1842,x, added in the wave-step) and the per-note
+       // vib-width / wave-reload command ($F0, low 3 bits = vib width).
+       | "freq_bias" "=" number -> fx_freq_bias
+       | "f0" "=" number        -> fx_f0
        // DMC V5 gate-mask-toggle tie ($F4): hold current note one more
        // duration AND flip the gate bit (vs `tie` = plain hold $FE).
        | "gate_tie"             -> fx_gate_tie

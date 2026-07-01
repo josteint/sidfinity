@@ -430,10 +430,29 @@ sd_f7:
         jmp sector_disp
 sd_f6:
         cmp #$f6
-        bne sd_done
+        bne sd_ef
         iny
         lda ($f8),y
         sta fadeout
+        inc secpos,x
+        inc secpos,x
+        jmp sector_disp
+sd_ef:
+        cmp #$ef                ; family-4 $EF nn: per-voice freq-lo BIAS
+        bne sd_f0               ; ($1842,x), added in the wave-step (frqbias)
+        iny
+        lda ($f8),y
+        sta frqbias,x
+        inc secpos,x
+        inc secpos,x
+        jmp sector_disp
+sd_f0:
+        cmp #$f0                ; family-4 $F0 nn: per-note vib width (nn&7).
+        bne sd_done             ; (the wave/freq re-load part is deferred; the
+        iny                     ; command is byte-synced so the walk stays in
+        lda ($f8),y             ; step and the member builds.)
+        and #$07
+        sta vibwidth
         inc secpos,x
         inc secpos,x
         jmp sector_disp

@@ -231,6 +231,9 @@ _PREFIX = {
     'adr': lambda v: f'adr=${v:02X}',
     'srr': lambda v: f'srr=${v:02X}',
     'flt': lambda v: f'filter=${v:02X}',
+    # family-4-only prefix commands (see engine_model._CMD)
+    'freq_bias': lambda v: f'freq_bias=${v:02X}',
+    'f0': lambda v: f'f0=${v:02X}',
 }
 
 

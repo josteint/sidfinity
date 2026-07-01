@@ -44,6 +44,8 @@ _PREFIX_BYTE = {
     'set_dur': 0xFD, 'set_instr': 0xFC, 'vol': 0xF3, 'frq': 0xF8,
     'fade_in': 0xF7, 'fade_out': 0xF6, 'adr': 0xF2, 'srr': 0xF1,
     'filter': 0xF9,
+    # family-4-only prefix commands (see engine_model._CMD)
+    'freq_bias': 0xEF, 'f0': 0xF0,
 }
 
 
