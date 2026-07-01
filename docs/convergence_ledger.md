@@ -78,6 +78,7 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
 | command-per-row tracker effect (note + fx + param per row) · porta/vibrato/arp/filter/tempo on a row · NOT per-instrument · how to represent in NoteRow | C14 | recurring (FC + GoatTracker V1) |
 | INAUDIBLE writes · idle/gate-off voice freewheels · "audio-equivalence" verdict relaxation | C15 | ⛔ REMOVED (user decision 2026-07-01): every SID gets STRICT write-stream match, always — never propose relaxing the verdict during per-engine work. If an idle-freewheel divergence blocks a member, REPRODUCE the writes (core tenet permits reproducing the mechanism). Design parked in `refactor_1_remaining.md` as a Move-1-era-ONLY consideration. |
 | per-frame WRITE-ORDER differs · orig batches note-on writes (SR/AD/CTRL) separately from wave-step writes (freq/PW/CTRL) or uses a different voice interleave · rebuild emits a different order · NOT a wholesale composer rewrite — PARAMETRIZE the composer's EMISSION order (precedent: FC `nextvoice_write_order`) | C16 | logged |
+| HETEROGENEOUS per-step write shapes in a trace-lift · one superset order can't embed all steps (conflicting reg orders / intra-step dups / sections) · cluster steps by EXACT write shape → K positional templates + per-step template id | C17 | logged |
 
 ---
 
@@ -611,3 +612,40 @@ revisited ONLY around Move 1, when most/all engines are uready — not before.
   player1's partials). I MIS-SCOPED it as a "flow restructure" first; the C16 consult
   + the FC precedent reframed it to a bounded knob (the same lesson C16 already
   records for DMC family-4 — trace first, don't pre-scope a rewrite).
+
+
+### C17 — Heterogeneous per-step write shapes in a trace-lift (multi-template)
+- **The problem class:** a trace-lifted per-step write model assumes ONE step
+  template (or one superset order + per-step masks). Real hand-authored tunes
+  (basic_program) have K DISTINCT step shapes — alternating one-voice-per-step
+  textures, sections with different register orders, gate-off groups writing a
+  register twice — so a single ordered union does not exist (`_union_order`
+  precedence cycle) or an intra-step dup breaks the reg-keyed superset.
+- **Census first (the shape of the evidence):** 143 censused residue members —
+  112 fail on ORDER conflicts, the rest on release-side dups; K ≤ 16 shapes for
+  137/143, top-16 shapes cover ≥95% of steps for 142/143. Small K ⟹ the general
+  form is affordable.
+- **Canonical:** cluster steps by their EXACT (attack reg-seq, release reg-seq)
+  shape; each cluster is a POSITIONAL template (const/perstep per slot — a
+  repeated register is just two slots, so dups are free); each step carries a
+  template id. The single template and the masked superset are the K=1 special
+  cases. Write model (templates + tids) goes in scalar `params{}` exactly like
+  `bp_atk{i}`/`bp_mask{k}`; musical content (pitch/duration/instrument/global
+  track) stays in the USF body unchanged. Player = per-template straight-line
+  emit blocks + a tid dispatch. TWO exactness sub-lessons (C12 family): keep
+  HOLD exact too (a zero-length hold — gate-off in the gate-on frame — floored
+  to 1 accumulates +1/step drift), and a per-note RELEASE ctrl that isn't
+  `attack_ctrl & $FE` is instrument content (the gate-off waveform) — carried
+  as `Instrument.waveform[1]`, not derivable.
+- **Status:** logged (basic_program `_multi_templates` + `build_player_multi` +
+  `bp_multi` params, 2026-07-02; wired as a best_attempt verify-fallback →
+  0-regression by construction). **RESULT: +107 FULL (278→385, 57.2%→79.2%),
+  0 regressions**, cutting across FIVE prior buckets (variable_template 41 /
+  too_few_after_trim 33 / length_fail 12 / legato_variable 12 /
+  overlap_diverge 9) — the census-predicted shared lever.
+- **Boundary:** kmax=48 shapes / 250-byte record stride. Applies to TRACE-LIFT
+  write models (the engine IS arbitrary hand-written code); tracker engines with
+  a real per-frame player don't have this DOF (their write order is the player's
+  code — C16 territory, parametrize the composer's emission order instead).
+- **Consumers:** basic_program (`pipelines/basic_program/semantic_lift.py`,
+  `usf_roundtrip.py`).

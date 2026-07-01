@@ -230,6 +230,43 @@ def _superset_templates(steps):
     return (atk_t, [r for r, k, v, vo in atk_t if k == 'perstep'],
             rel_t, [r for r, k, v, vo in rel_t if k == 'perstep'])
 
+def _multi_templates(steps, kmax=48):
+    """MULTI-TEMPLATE derivation: cluster steps by their exact (attack reg-seq,
+    release reg-seq) SHAPE; each cluster gets a POSITIONAL template (const/perstep
+    per slot). The general form of the superset+mask: conflicting register orders
+    (each shape keeps its own order), intra-step dups (a repeated reg is just two
+    slots), and subset shapes (each its own template) are all handled. Steps gain
+    s['tid']. Returns templates = [{'atk': t4-list, 'rel': t4-list}, ...] or None
+    when the tune has more than kmax distinct shapes (not a small-section tune)."""
+    keys = {}; order = []
+    for s in steps:
+        k = (tuple(r for r, v in s['attack']),
+             tuple(r for r, v in (s['release'] or [])))
+        if k not in keys:
+            keys[k] = len(order); order.append(k)
+        s['tid'] = keys[k]
+    if len(order) > kmax:
+        return None
+    def classify(seqs):
+        t = []
+        for i in range(len(seqs[0])):
+            reg = seqs[0][i][0]
+            vals = [sq[i][1] for sq in seqs]
+            if len(set(vals)) == 1:
+                t.append((reg, 'const', vals[0], voice_of(reg)))
+            else:
+                t.append((reg, 'perstep', None, voice_of(reg)))
+        return t
+    templates = []
+    for k in order:
+        members = [s for s in steps if s['tid'] == keys[k]]
+        atk_t = classify([s['attack'] for s in members])
+        rels = [s['release'] or [] for s in members]
+        rel_t = classify(rels) if rels[0] else []
+        templates.append({'atk': atk_t, 'rel': rel_t})
+    return templates
+
+
 def _song_end_writes(frames, steps):
     """The trailing SILENCE the engine emits to stop the song. When the writelog
     ends with master-vol=$00 (the tune silences itself), capture every write AFTER
@@ -396,7 +433,8 @@ def _emit_pw_data_asm(em, pw_program):
         em(f'pwsrep_v{vc}: .byte ' + ', '.join(f'${r:02X}' for o, l, r in secs))
 
 
-def build_model(sid, dur, force_split=None, min_trim=False, detect_song_end=False, detect_modulation=False):
+def build_model(sid, dur, force_split=None, min_trim=False, detect_song_end=False, detect_modulation=False,
+                multi_template=False):
     """Lift to a build-ready model, or {'unsupported': reason}. Tries the unsplit
     segmentation first (consistent templates incl. consistent intra-step dup, via
     derive_template); only if that fails on a template/dup reason does it retry with
@@ -410,7 +448,10 @@ def build_model(sid, dur, force_split=None, min_trim=False, detect_song_end=Fals
     detect_song_end captures a trailing master-vol=$00 silence as the song-end (forces
     play-once + emits the silence) — a best_attempt fallback for false-loop fade-outs.
     detect_modulation captures free-running per-voice pulse-width sweeps (SweepEnvelope,
-    ledger C1) emitted per-tick during note holds — a best_attempt fallback."""
+    ledger C1) emitted per-tick during note holds — a best_attempt fallback.
+    multi_template clusters steps by exact write shape (K positional templates +
+    per-step template id) — the general form of the superset+mask, for tunes whose
+    step shapes have conflicting register orders / dups — a best_attempt fallback."""
     frames = capture_real(sid, dur)
     window = len(frames)
     last_write = max((i for i, fr in enumerate(frames) if fr), default=0)  # song-end signal
@@ -475,26 +516,50 @@ def build_model(sid, dur, force_split=None, min_trim=False, detect_song_end=Fals
         init, steps, start_frame, legato = segment(seg_frames, split_dups=force_split)
         _annot(steps)
         se = _song_end_writes(seg_frames, steps) if detect_song_end else None
-        return _inject(_build_model_from_steps(sid, init, steps, legato, window, last_write, min_trim, se))
+        return _inject(_build_model_from_steps(sid, init, steps, legato, window, last_write, min_trim, se,
+                                               multi_template))
     result = None
     for split_dups in (False, True):
         init, steps, start_frame, legato = segment(seg_frames, split_dups=split_dups)
         _annot(steps)
         se = _song_end_writes(seg_frames, steps) if detect_song_end else None
-        result = _build_model_from_steps(sid, init, steps, legato, window, last_write, min_trim, se)
+        result = _build_model_from_steps(sid, init, steps, legato, window, last_write, min_trim, se,
+                                         multi_template)
         if ('unsupported' not in result or result['unsupported'] not in (
                 'variable_template', 'legato_variable', 'too_few_after_trim',
-                'too_few_steps', 'template_derive')):
+                'too_few_steps', 'template_derive', 'too_many_shapes')):
             return _inject(result)
     return _inject(result)
 
 
-def _build_model_from_steps(sid, init, steps, legato, window=0, last_write=0, min_trim=False, song_end=None):
+def _build_model_from_steps(sid, init, steps, legato, window=0, last_write=0, min_trim=False, song_end=None,
+                            multi_template=False):
     from pipelines.basic_program.proof_multivoice import measure_rho, _find_loop
     import struct
     if len(steps) < 2:
         return {'unsupported': 'too_few_steps'}
-    if legato:
+    multi = None
+    if multi_template:
+        # Light trailing trim only: drop a trailing capture-cutoff step (gated: its
+        # gate-off never captured). Complete differing final sections are KEPT — a
+        # different shape is just another template.
+        if not legato:
+            while len(steps) > 2 and steps[-1]['release'] is None:
+                steps.pop()
+        if len(steps) < 2:
+            return {'unsupported': 'too_few_after_trim'}
+        multi = _multi_templates(steps)
+        if multi is None:
+            return {'unsupported': 'too_many_shapes'}
+        # record stride + perstep slot offsets are single bytes in the player
+        _hdr = 3 if legato else 5
+        _nps = max(sum(1 for e in t['atk'] if e[1] == 'perstep') +
+                   sum(1 for e in t['rel'] if e[1] == 'perstep') for t in multi)
+        if _hdr + _nps > 250:
+            return {'unsupported': 'too_many_shapes'}
+        atk_t, atk_ps, rel_t, rel_ps = [], [], [], []
+        masked = False
+    elif legato:
         # attack-only steps (gate set once in init). Drop trailing partial-note
         # groups, then use the per-register mask (covers consistent + rests).
         am = set(_modal([s['attack'] for s in steps]))
@@ -536,7 +601,7 @@ def _build_model_from_steps(sid, init, steps, legato, window=0, last_write=0, mi
         else:
             atk_t, atk_ps = derive_template([s['attack'] for s in steps])
             rel_t, rel_ps = derive_template([s['release'] for s in steps])
-    if atk_t is None or rel_t is None:
+    if not multi_template and (atk_t is None or rel_t is None):
         return {'unsupported': 'template_derive'}
     # frames + durations + loop
     clk = {1: 'PAL', 2: 'NTSC', 3: 'PAL'}.get((struct.unpack('>H', open(sid,'rb').read()[118:120])[0] >> 2) & 3, 'PAL')
@@ -567,7 +632,7 @@ def _build_model_from_steps(sid, init, steps, legato, window=0, last_write=0, mi
     return {'init': init, 'steps': steps, 'atk_template': atk_t, 'atk_ps': atk_ps,
             'rel_template': rel_t, 'rel_ps': rel_ps, 'loop_to': loop_to,
             'loop_period': loop_period, 'clock': clk, 'rho': rho, 'masked': masked,
-            'legato': legato, 'song_end': list(song_end or [])}
+            'legato': legato, 'song_end': list(song_end or []), 'multi': multi}
 
 def analyze(sid, dur):  # debug view
     frames = capture_real(sid, dur)
@@ -879,8 +944,134 @@ def build_player_legato(model):
         em('        .byte ' + ', '.join(f'${b:02X}' for b in rec))
     return '\n'.join(L)
 
+def build_player_multi(model):
+    """K-TEMPLATE player: each step record carries its template id (tid); the play
+    routine dispatches to that template's straight-line emit block (const values
+    inline; perstep values from the record at the template's own slot offsets).
+    Gated = 2-phase (attack at on_frame, release at off_frame — an empty-release
+    template emits nothing); legato = 1-phase. Reuses absolute-frame scheduling +
+    rho + 16-bit step pointer + loop + the catch-up loop. Record:
+    gated  [on_lo,on_hi,off_lo,off_hi,tid, <atk ps vals><rel ps vals>, pad]
+    legato [on_lo,on_hi,tid, <atk ps vals>, pad]   (uniform stride)."""
+    init, steps, templates = model['init'], model['steps'], model['multi']
+    legato = model['legato']
+    N = len(steps); K = len(templates)
+    hdr = 3 if legato else 5
+    naps = [sum(1 for e in t['atk'] if e[1] == 'perstep') for t in templates]
+    nrps = [sum(1 for e in t['rel'] if e[1] == 'perstep') for t in templates]
+    stride = hdr + max(na + nr for na, nr in zip(naps, nrps))
+    loop_to, period = model['loop_to'], model['loop_period']
+    song_end = model.get('song_end') or []
+    L = []; em = L.append
+
+    def dispatch(tag):                                 # tid -> template block (jmp trampolines)
+        em(f'        ldy #${hdr-1:02X}'); em(f'        lda ({SP}),y')
+        for t in range(K):
+            em(f'        cmp #${t:02X}'); em(f'        bne d{tag}{t}'); em(f'        jmp t{tag}{t}'); em(f'd{tag}{t}:')
+        em(f'        jmp t{tag}0')                     # unreachable fallback
+
+    def emit_entries(entries, ps_base, done_lbl):
+        slot = 0
+        for reg, kind, val, _vo in entries:
+            if kind == 'const':
+                em(f'        lda #${val:02X}'); em(f'        sta $D4{reg:02X}')
+            else:
+                em(f'        ldy #${ps_base+slot:02X}'); em(f'        lda ({SP}),y'); em(f'        sta $D4{reg:02X}')
+                slot += 1
+        em(f'        jmp {done_lbl}')
+
+    em(f'* = ${LOAD:04X}'); em('        jmp init'); em('        jmp play')
+    em('init:')
+    pi = init[1:] if init[:1] == DRIVER_PREFIX else init
+    for reg, val in pi:
+        em(f'        lda #${val:02X}'); em(f'        sta $D4{reg:02X}')
+    em('        lda #$00')
+    for s in (('done', 'framelo', 'framehi', 'loopbaselo', 'loopbasehi') if legato else
+              ('phase', 'done', 'framelo', 'framehi', 'loopbaselo', 'loopbasehi')):
+        em(f'        sta {s}')
+    em('        lda #<steprecs'); em('        sta splo'); em(f'        sta {SP}')
+    em('        lda #>steprecs'); em('        sta sphi'); em(f'        sta {SP}+1')
+    em('        jsr set_atk_target'); em('        rts')
+    em('play:'); em('        lda done'); em('        beq pl_load'); em('        rts')
+    em('pl_load:')
+    em('        lda splo'); em(f'        sta {SP}'); em('        lda sphi'); em(f'        sta {SP}+1')
+    em('pl_chk:')                                       # catch-up: fire every step due this frame
+    em('        lda framehi'); em('        cmp curtgthi'); em('        bcc pl_wait'); em('        bne pl_fire')
+    em('        lda framelo'); em('        cmp curtgtlo'); em('        bcs pl_fire')
+    em('pl_wait:'); em('        jmp pl_inc')
+    if legato:
+        em('pl_fire:')
+        dispatch('a')
+        for t in range(K):
+            em(f'ta{t}:'); emit_entries(templates[t]['atk'], hdr, 'pl_adv')
+    else:
+        em('pl_fire:'); em('        lda phase'); em('        beq pl_attack'); em('        jmp pl_release')
+        em('pl_attack:')
+        dispatch('a')
+        for t in range(K):
+            em(f'ta{t}:'); emit_entries(templates[t]['atk'], hdr, 'atk_done')
+        em('atk_done:'); em('        jsr set_rel_target'); em('        lda #$01'); em('        sta phase'); em('        jmp pl_chk')
+        em('pl_release:')
+        dispatch('r')
+        for t in range(K):
+            em(f'tr{t}:'); emit_entries(templates[t]['rel'], hdr + naps[t], 'pl_adv')
+    em('pl_adv:')
+    em('        clc'); em(f'        lda {SP}'); em(f'        adc #${stride:02X}'); em(f'        sta {SP}')
+    em(f'        lda {SP}+1'); em('        adc #$00'); em(f'        sta {SP}+1')
+    eoff = N * stride
+    em(f'        lda {SP}'); em(f'        cmp #<(steprecs+{eoff})'); em('        bne pl_setatk')
+    em(f'        lda {SP}+1'); em(f'        cmp #>(steprecs+{eoff})'); em('        bne pl_setatk')
+    if loop_to is not None:
+        loff = loop_to * stride
+        em(f'        lda #<(steprecs+{loff})'); em(f'        sta {SP}')
+        em(f'        lda #>(steprecs+{loff})'); em(f'        sta {SP}+1')
+        em('        clc'); em('        lda loopbaselo'); em(f'        adc #${period&0xFF:02X}'); em('        sta loopbaselo')
+        em('        lda loopbasehi'); em(f'        adc #${(period>>8)&0xFF:02X}'); em('        sta loopbasehi')
+    else:
+        for _sereg, _seval in song_end:                # emit the song-end silence, then halt
+            em(f'        lda #${_seval:02X}'); em(f'        sta $D4{_sereg:02X}')
+        em('        lda #$01'); em('        sta done'); em('        jmp pl_inc')
+    em('pl_setatk:'); em('        jsr set_atk_target')
+    if not legato:
+        em('        lda #$00'); em('        sta phase')
+    em('        jmp pl_chk')
+    em('pl_inc:')
+    em(f'        lda {SP}'); em('        sta splo'); em(f'        lda {SP}+1'); em('        sta sphi')
+    em('        inc framelo'); em('        bne pl_ret'); em('        inc framehi'); em('pl_ret:'); em('        rts')
+    em('set_atk_target:'); em('        clc')
+    em('        ldy #$00'); em(f'        lda ({SP}),y'); em('        adc loopbaselo'); em('        sta curtgtlo')
+    em('        ldy #$01'); em(f'        lda ({SP}),y'); em('        adc loopbasehi'); em('        sta curtgthi'); em('        rts')
+    if not legato:
+        em('set_rel_target:'); em('        clc')
+        em('        ldy #$02'); em(f'        lda ({SP}),y'); em('        adc loopbaselo'); em('        sta curtgtlo')
+        em('        ldy #$03'); em(f'        lda ({SP}),y'); em('        adc loopbasehi'); em('        sta curtgthi'); em('        rts')
+    for s in (('splo', 'sphi', 'done', 'framelo', 'framehi',
+               'loopbaselo', 'loopbasehi', 'curtgtlo', 'curtgthi')
+              + (() if legato else ('phase',))):
+        em(f'{s}: .byte 0')
+    em('steprecs:')
+    for s in steps:
+        t = s['tid']
+        onf = s['on_frame']
+        off = s['off_frame'] if s.get('off_frame') is not None else onf
+        rec = [onf & 0xFF, (onf >> 8) & 0xFF]
+        if not legato:
+            rec += [off & 0xFF, (off >> 8) & 0xFF]
+        rec.append(t)
+        aslots = [i for i, e in enumerate(templates[t]['atk']) if e[1] == 'perstep']
+        rec += [s['attack'][i][1] & 0xFF for i in aslots]
+        rslots = [i for i, e in enumerate(templates[t]['rel']) if e[1] == 'perstep']
+        rel = s['release'] or []
+        rec += [rel[i][1] & 0xFF for i in rslots]
+        rec += [0] * (stride - len(rec))
+        em('        .byte ' + ', '.join(f'${b:02X}' for b in rec))
+    return '\n'.join(L)
+
+
 def build_psid(model, title='probe'):
-    if model.get('legato'):
+    if model.get('multi'):
+        asm = build_player_multi(model)
+    elif model.get('legato'):
         asm = build_player_legato(model)
     elif model.get('masked'):
         asm = build_player_masked(model)
