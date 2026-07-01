@@ -810,8 +810,11 @@ class _T(Transformer):
     def fx_freq_bias(self, items):
         return f'freq_bias=${int(items[0]):02X}'
 
-    def fx_f0(self, items):
-        return f'f0=${int(items[0]):02X}'
+    def fx_f0_vib_width(self, items):
+        return f'f0_vib_width={int(items[0])}'
+
+    def fx_f0_wave_count(self, items):
+        return f'f0_wave_count={int(items[0])}'
 
     def fx_gate_tie(self, _):
         return 'gate_tie'

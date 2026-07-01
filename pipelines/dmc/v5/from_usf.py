@@ -44,8 +44,10 @@ _PREFIX_BYTE = {
     'set_dur': 0xFD, 'set_instr': 0xFC, 'vol': 0xF3, 'frq': 0xF8,
     'fade_in': 0xF7, 'fade_out': 0xF6, 'adr': 0xF2, 'srr': 0xF1,
     'filter': 0xF9,
-    # family-4-only prefix commands (see engine_model._CMD)
-    'freq_bias': 0xEF, 'f0': 0xF0,
+    # family-4-only prefix command (see engine_model._CMD). $F0 is handled
+    # separately in _encode_sector: its two decomposed fields (f0_vib_width /
+    # f0_wave_count) recompose into the packed byte.
+    'freq_bias': 0xEF,
 }
 
 
@@ -53,10 +55,21 @@ def _encode_sector(rows) -> bytes:
     out = bytearray()
     for row in rows:
         glide = glide_to = None
+        f0_vw = f0_wc = None
         for fl in row.fx_flags:
             key = fl.split('=', 1)[0]
             if key in _PREFIX_BYTE:
                 out += bytes([_PREFIX_BYTE[key], _flag_val(fl) & 0xFF])
+            elif key == 'f0_vib_width':      # family-4 $F0: the two decomposed
+                f0_vw = _flag_val(fl)        # fields recompose into one packed
+                if f0_wc is not None:        # byte (low 3 bits | count << 4),
+                    out += bytes([0xF0, (f0_wc << 4) | (f0_vw & 0x07)])
+                    f0_vw = f0_wc = None     # emitted once both are seen (the
+            elif key == 'f0_wave_count':     # extract always emits the pair).
+                f0_wc = _flag_val(fl)
+                if f0_vw is not None:
+                    out += bytes([0xF0, (f0_wc << 4) | (f0_vw & 0x07)])
+                    f0_vw = f0_wc = None
             elif fl == 'gate_toggle':
                 out.append(0xF5)
             elif key == 'glide':

@@ -231,9 +231,9 @@ _PREFIX = {
     'adr': lambda v: f'adr=${v:02X}',
     'srr': lambda v: f'srr=${v:02X}',
     'flt': lambda v: f'filter=${v:02X}',
-    # family-4-only prefix commands (see engine_model._CMD)
+    # family-4-only prefix command (see engine_model._CMD). $F0 is handled
+    # separately in _sector_rows (it decomposes into two fields).
     'freq_bias': lambda v: f'freq_bias=${v:02X}',
-    'f0': lambda v: f'f0=${v:02X}',
 }
 
 
@@ -261,6 +261,9 @@ def _sector_rows(events: list) -> list:
             if cmd == 'dur':
                 dur = e[1]
             pending.append(_PREFIX[cmd](e[1]))
+        elif cmd == 'f0':                # $F0: decompose the packed byte into
+            pending.append(f'f0_vib_width={e[1] & 0x07}')   # vib width ($1856)
+            pending.append(f'f0_wave_count={e[1] >> 4}')     # wave count ($1809)
         elif cmd == 'gate_toggle':       # $F5: flip gate flag (no duration)
             pending.append('gate_toggle')
         elif cmd == 'note':

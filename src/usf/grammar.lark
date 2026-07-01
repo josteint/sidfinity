@@ -420,9 +420,12 @@ fx_flag: "tie"                  -> fx_tie
        | "srr" "=" number       -> fx_srr
        // DMC V5 family-4 positioned sector commands: per-voice freq-lo
        // BIAS ($EF -> $1842,x, added in the wave-step) and the per-note
-       // vib-width / wave-reload command ($F0, low 3 bits = vib width).
-       | "freq_bias" "=" number -> fx_freq_bias
-       | "f0" "=" number        -> fx_f0
+       // wave/vib setup command ($F0), decomposed into its two engine-
+       // semantic sub-fields (low 3 bits = vib width -> $1856; high nibble
+       // = wave count -> $1809,x) rather than the raw packed byte.
+       | "freq_bias" "=" number      -> fx_freq_bias
+       | "f0_vib_width" "=" INT       -> fx_f0_vib_width
+       | "f0_wave_count" "=" INT      -> fx_f0_wave_count
        // DMC V5 gate-mask-toggle tie ($F4): hold current note one more
        // duration AND flip the gate bit (vs `tie` = plain hold $FE).
        | "gate_tie"             -> fx_gate_tie
