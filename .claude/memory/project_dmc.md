@@ -7,6 +7,44 @@ metadata:
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
 ---
 
+## 🔬 V5 FAMILY-4 — SESSION 2026-07-01: verdict+unblock fixes + partial triage
+Baseline `tmp/dmc_family4_full2.jsonl`: 26 full / 336 partial / 156 unsupported /
+168 error. Worked residue-triage dependency order (verdict→unblock→triage). THREE
+committed fixes (f6b613f / ea087b2 / 1b8f5f2), **full regression GREEN (0 regressed
+all 7 families)**:
+1. **PER-IRQ verdict for family-4** (batch + verify_v5). family-4 is VBLANK but its
+   SHORT orig-init fits init+play1 in siddump frame 0 while our longer universal-
+   reset init pushes play1 to frame 1 → flat capture buckets play streams 1 frame
+   apart (Trap C via init-length). Force `writelog_per_irq_capture`. VERDICT-NEUTRAL
+   (26 FULL stay, partials stay) but makes flat_div RELIABLE for clustering.
+2. **`}` empty-filter-block fix** (`src/usf/writer.py`, SHARED): all-zero InitFilter
+   emitted `filter {  }` (grammar-rejected) → 39 UsfParseErrors. Omit empty block.
+3. **$EF/$F0 sector-cmd decode** (extract→to_usf→from_usf→grammar→parser→composer):
+   125 "unknown sector cmd" errors. $EF→frqbias (composer already reads it),
+   $F0→vibwidth+byte-sync ($F0 wave/freq reload DEFERRED). All 125 now BUILD.
+Errors 168→~1 (moved to partial). FULL count ~unchanged (~26-30; fixes were
+unblock-builds, not new FULLs — Black_Sun etc from the `}` fix).
+**RELIABLE PARTIAL TRIAGE (per-IRQ flat_div, `tmp/f4_periqr_measure.jsonl`):** the
+336 partials are REAL (0 flip to FULL under per-IRQ). Split:
+- **EARLY <64 = 239 (71%) = THE LEADIN (dominant next blocker).** play() ($1095)
+  uses **$1016 as a 2-phase toggle** (DEC;BMI → MAIN vs TICK; TICK decs durctr).
+  $1016 is a FILE-IMAGE LEFTOVER (init doesn't clear it) → sets the leadin phase =
+  # idle plays before 1st note-on. Bach($1016=0)→play2=composer default; 2_Hours
+  ($1016=1)→play3, composer 1 play short. BUT $1016∈{0,1} doesn't predict pass
+  (15 FULLs have $1016=1, all NONZERO idle; partials have idle=[0,0,N]). **Seeding
+  LEFT_SPDCTR=mem[base+$16] did NOT fix it** (regr-safe, 0 recoveries — the
+  composer's spdctr counter ≠ the orig $1016 DEC/BMI/reset-to-1 toggle; only
+  represents phase 0/1). trichotomy ALSO tolerates SOME leadin diffs (Plasmostyle
+  FULL despite leadin ctrl $80-vs-$00) not others — rule uncracked. NEXT: reproduce
+  the $1016 2-phase EXACTLY in the composer (family4-gated, seeded mem[base+$16]) so
+  the idle-play COUNT + durctr/hard-restart timing match; OR crack why trichotomy
+  passes Plasmostyle not 2_Hours (both $1016=1; discriminator = idle-note-0 → the
+  hard-restart SR=0 on the extra idle play). $16 dist over partials: {0:111,1:222,2:2,255:1}.
+- **DEEP ≥64 = 97 = off-table freq/filter tail** (FLO 71 + FC_HI 15) = known-hard
+  C2/C11 off-table pulse/filter sweep, overlaps the 71 overflow. Architectural-last.
+Artifacts: tmp/f4_periqr_measure.jsonl, f4_partials_members.json, f4_full_members.json,
+f4_rerun_fixes.jsonl (full re-run w/ all fixes).
+
 ## 🔬 V5 FAMILY-4 (686 SIDs, Jupiter41) — Phase A RE DONE (2026-06-29)
 
 Started the family-4 migration (`pipelines/dmc/family4/`: disassembly.s seed +
