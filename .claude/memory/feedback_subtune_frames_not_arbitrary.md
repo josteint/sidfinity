@@ -1,34 +1,36 @@
 ---
 name: subtune-frames-not-arbitrary
-description: "Verify with songlength × 1.5 frames (subtune_frames), never an arbitrary N. User has had to remind me multiple times."
+description: "Verify at songlength × 1.1 (the RATIFIED standard, 2026-07-02) — never an arbitrary N, never 1.0x. The overshoot verifies cross-songlength/loop behaviour. song_exact (1.0x) lever REJECTED."
 metadata: 
   node_type: memory
   type: feedback
   originSessionId: 0dddd211-01d5-48ea-b899-54adc79e22ae
 ---
 
-When comparing rebuilt SID vs original via py65 snapshots, the frame
-count is **songlength × 1.5 × 50 Hz** — never an arbitrary 500 / 1000
-/ 2000. The Hubbard verify path uses
-`pipelines.hubbard.verify.subtune_frames(config, passes=1.5)`; the
-companion / new-engine paths get the same number by reading
-`songlength_s` from `hvsc84.db` and computing
-`round(1.5 * songlen * 50)`.
+The verify window is **songlength × 1.1 × 50 Hz** — never an arbitrary
+500 / 1000 / 2000, and **never 1.0x**. (Historically 1.5x in the early
+Hubbard era; the project-wide standard is 1.1x, ratified explicitly by
+the user 2026-07-02.)
 
-**Why:** Arbitrary frame counts either (a) cut off the song before
-verifying the loops and tail, or (b) run for so long that the
-post-song-end garbage past the engine's terminator dominates and
-introduces false failures. The songlength × 1.5 window is exactly
-calibrated for "play the whole song with a small safety margin."
+**Why (user's rationale, 2026-07-02):** the rebuilt SID must match the
+original's **cross-songlength behaviour** — at least 10% past the
+songlength — because that is what covers correct audio for **looping
+songs** (the wrap into the loop's next iteration, carried modulation
+phase, etc.). A 1.0x window verifies only the first pass.
 
-**How to apply:** Any time I'm about to write `n_frames=500` or
-similar, stop and look up the HVSC songlength from `hvsc84.db`. For
-ad-hoc smoke tests during iteration a short window is fine, but for
-"is this engine done?" the only legitimate question is **does every
-subtune match for the full songlength × 1.5 window**. The skill
-`migrate-hubbard-engine` already requires this; the rule applies to
-all engines.
+**song_exact (1.0x) lever REJECTED (2026-07-02):** the June "+32
+family-1 FULLs at 1.0x" (byte-exact for the song, tiny modulation-phase
+drift in the loop's 2nd iteration) was pending ratification; the user
+rejected it — those 32 were reverted to partial and their written
+.usf/.sidfinity.sid removed. Fixing them means making the loop wrap
+match too (reproduce the carried phase — core tenet permits reproducing
+the mechanism), not shrinking the window. Related: [[feedback_strict_writestream_always]].
 
-User has reminded me of this multiple times — last
+**How to apply:** any time I'm about to write `n_frames=500` or
+`duration=song`, stop — the verdict window is `songlength * 1.1`
+(from `hvsc84.csv` / Songlengths.md5). Short windows are fine only for
+ad-hoc iteration probes, never for a FULL verdict.
+
+User has reminded me of the no-arbitrary-N rule multiple times — one
 nudge: *"why 500? Arbitrary! do subtunelength x 1.5! we have talked
 about this many times"*.
