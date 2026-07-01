@@ -1,5 +1,62 @@
 # DMC V5 family-4 — reverse-engineering notes (Phase A, in progress)
 
+## 📋 SESSION 2026-07-01 — 3 unblock/verdict fixes + partial triage (committed)
+Baseline (tmp/dmc_family4_full2.jsonl): 26 full / 336 partial / 156 unsupported
+/ 168 error. Attacked in residue-triage dependency order (verdict → unblock →
+triage). Three committed fixes (full regression GREEN, 0 regressed all families):
+- **PER-IRQ VERDICT (f6b613f):** family-4 is VBLANK but its SHORT orig-init fits
+  init+play1 in siddump frame 0, while our longer universal-reset init pushes
+  play1 to frame 1 → flat per-frame capture buckets the play streams one frame
+  apart (Trap C via differing init length). Force `writelog_per_irq_capture`
+  for family-4 (batch + verify_v5). VERDICT-NEUTRAL (26 FULL stay FULL; partials
+  stay partial) but makes the batch flat_div RELIABLE — it revealed the true
+  partial split instead of the Trap-C phantom "V1 freq pos 2-3" that contaminated
+  the flat clustering.
+- **`}` FILTER-BLOCK FIX (ea087b2):** `src/usf/writer.py` emitted `filter {  }`
+  when the InitFilter is all-zero (grammar rejects it) → UsfParseError on 39
+  members. Omit the empty block. Some → FULL (Black_Sun).
+- **$EF/$F0 DECODE (1b8f5f2):** 125 members raised "unknown sector cmd $F0/$EF".
+  Both are 2-byte family-4 commands. Threaded through the data-driven path
+  (extract _CMD → to_usf _PREFIX → from_usf _PREFIX_BYTE → grammar+parser →
+  composer sd_ef/sd_f0). $EF→frqbias (composer already reads it); $F0→vibwidth +
+  byte-sync ($F0's wave/freq re-load DEFERRED → members build to partial). All
+  125 now BUILD (error→partial).
+
+**⚠️ RELIABLE PARTIAL TRIAGE (per-IRQ flat_div, tmp/f4_periqr_measure.jsonl):**
+of the 336 pre-fix partials, per-IRQ flips 0 to FULL (they are REAL divergences)
+and splits them cleanly:
+- **EARLY <64 = 239 (71%) = THE LEADIN (dominant next blocker).** The composer's
+  first play() output doesn't match the orig's leading idle plays. MECHANISM:
+  play() ($1095) uses **$1016 as a 2-phase toggle** (`DEC $1016; BMI` alternates
+  MAIN vs TICK; TICK decrements durctr). $1016 is a FILE-IMAGE LEFTOVER (init
+  $1040 does NOT clear/set it), so its initial value sets the LEADIN PHASE = how
+  many idle plays before the first note-on. Bach ($1016=0) → note-on play2 (2
+  idle plays) = MATCHES composer (LEFT_SPDCTR=0). 2_Hours ($1016=1) → note-on
+  play3 (3 idle plays) → composer is one play short. **BUT $1016∈{0,1} does NOT
+  by itself predict full/partial** (15 FULLs have $1016=1; those have NONZERO
+  idle notes, the partials have idle=[0,0,N]). **Seeding LEFT_SPDCTR=mem[base+
+  $16] did NOT fix it** (regression-SAFE — FULLs unaffected — but 0 recoveries;
+  2_Hours pm 1→0). The composer's spdctr counter (reload-to-speed, compare
+  ==speed) only represents phase 0/1 and does NOT map to the orig's $1016
+  DEC/BMI/reset-to-1 toggle. The trichotomy verdict ALSO has state-match/
+  shift-recovery nuances that tolerate SOME leadin diffs (Plasmostyle FULL
+  despite a leadin ctrl $80-vs-$00 diff at its first idle play) but not others —
+  the exact tolerance rule is not yet cracked. NEXT: either (a) reproduce the
+  orig's $1016 2-phase EXACTLY in the composer (DEC toggle seeded from mem[base+
+  $16], gated on m.family4) so the leadin idle-play COUNT + the durctr/hard-
+  restart timing match bit-for-bit; or (b) understand why the trichotomy passes
+  Plasmostyle but not 2_Hours (both $1016=1) — the discriminator is idle-note-0
+  vs nonzero, so the hard-restart SR=0 write on the extra idle play is the
+  likely culprit. dist of mem[base+$16] over partials: {0:111, 1:222, 2:2, 255:1}.
+- **DEEP ≥64 = 97 = the off-table freq/filter tail** (V1/V2/V3 FLO 71 + FC_HI
+  filter 15) = the known-hard C2/C11 off-table pulse/filter sweep, overlapping
+  the 71 pulse/filter_table_overflow unsupported. This is the "emit-and-walk the
+  shared table" work (see the OFF-TABLE sections below); architectural-limit-last.
+
+Tooling: tmp/f4_periqr_measure.jsonl (336 partials re-verified per-IRQ, with
+flat_div), tmp/f4_partials_members.json, tmp/f4_full_members.json.
+
+
 **Rep:** `DEMOS/G-L/Jupiter41.sid` (Victory/Tempest 1997). **686 SIDs**
 (fingerprint `68901f5d7f01f574f73d57aea07f7c2d3cae5b93`, member list in
 `tmp/v5_family4_members.json`). The V5 factory already DETECTS this family
