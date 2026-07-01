@@ -44,3 +44,20 @@ write-log revealed it had been silently FALSE-PASSING 25 subtunes:
 These are REAL divergences (not instruction-sequence exact under ground truth), now
 correctly flagged. See [[feedback_verification_modes]] and
 [[feedback_py65_misses_dispatch_bugs]].
+
+**The rule extends to LOCALIZATION, not just the verdict (2026-07-01, family-4 pulse).**
+Localizing a divergence with per-siddump-frame register snapshots is ALSO Trap-C-invalid:
+siddump frame buckets ≠ PSID play() invocations, so per-frame streams drift between orig
+and rebuild even when the flat write-log matches. This session I built a per-frame PW
+phase-diff, "found" a systematic +1 off-by-one across 3 family-4 members, chased it for
+hours, then RETRACTED it — it was a Trap-C artifact. **The catch: a NEGATIVE CONTROL** —
+run the same comparison method on a KNOWN-FULL member (write-log matches by definition);
+if it reports ANY divergence, the METHOD is producing false positives. The per-frame
+phase-diff "diverged" on every FULL family-3 member → method invalid. The FLAT
+(reg,val) write-stream method (replicate `compare_instruction_stream`'s alignment on the
+concatenated stream, then extract the contour from the FLAT order) localized the real
+divergence cleanly and led straight to the root cause + the first family-4 FULL.
+**DISCIPLINE: before trusting ANY new comparison/localization method, negative-control it
+on a known-FULL member. And segment/localize on the FLAT write-stream, never per-frame
+snapshots.** (User surfaced both the `--memtrace`-over-per-frame-`--memwatch` taint fix and
+the negative-control idea — the same lesson twice.)

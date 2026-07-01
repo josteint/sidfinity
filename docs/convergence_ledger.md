@@ -136,6 +136,29 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
   the adjacent bytes the overrun index reads (or SIMULATE the walk and emit the
   resolved sequence — the wave marker-chain resolver), never bound by the array's
   nominal length. **Seen 5×+ now (freq C6, pulse, wave×2, filter) — canonicalize.**
+- **Off-table ONE-SHOT program (no $90 loop) — family-4 pulse, FIRST family-4 FULL
+  (Jupiter41, 2026-07-01).** A pointer that walks off-table with no loop is a one-shot
+  ramp into adjacent STATIC bytes. Four sub-lessons, all needed:
+  1. **CLASSIFY first — taint-check the source.** `siddump --memtrace` (per-ACCESS,
+     within-frame-complete; NOT per-frame `--memwatch`, which has a within-frame blind
+     spot). Source never written during play ⟹ REPRESENTABLE; written ⟹ hard residue.
+     Pure black-box observation CANNOT classify it — you must read the source. (This is
+     the concrete method for the CLASSIFY step; cross-cuts C6 freq too.)
+  2. **Reach = the RE-INIT INTERVAL, not the whole-song window.** A program that re-inits
+     every note-load never runs the full song; bounding the walk by the verify window
+     over-captures.
+  3. **On PHASE_CAP, TRUNCATE the prefix — never fall back to a different-count-WIDTH
+     walk.** A one-shot ramp generates unbounded phases at the whole-song reach → phase
+     cap. Keep the captured prefix (`_capture_env(truncate_on_cap)`), which covers ≫ the
+     re-init interval. The old family-4 fallback to the 16-bit `_capture_env` mis-read the
+     8-bit count (`E0`→`0xFFE0`=65504 terminal hold), collapsing the program to `+32`
+     forever and DISCARDING the off-table sweep.
+  4. **The correct capture is LARGE ⟹ overflow-gated pooling (C8)** to fit the 256-byte
+     single-byte index (Jupiter41: 356 B un-shared → 209 B shared).
+  ALWAYS localize with the FLAT write-stream (Trap-C-robust), NEVER per-frame register
+  snapshots (retracted 3 per-frame localizations this session as Trap-C artifacts, caught
+  by a negative control on FULL members). Status: **logged** (1 member: Jupiter41 FULL,
+  0 regression); canonicalize when it recurs on another off-table one-shot program.
 
 ### C3 — "No program" detection at table position 0
 - **Canonical:** a leading `(0,0)` is a VALID zero-rate phase (its count is at
