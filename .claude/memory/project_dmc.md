@@ -1544,7 +1544,18 @@ composer_asm `wave pool overflow` assert. Same overflow-gated dedup could unbloc
 the small `pulse_table_overflow`/`filter_table_overflow` buckets (add_env, also
 absolute markers) but family-4 has 0 FULL so low yield — deferred.
 
-**⭐ FIRST FAMILY-4 FULL — Jupiter41 (2026-07-01).** The off-table pulse blocker is fixed;
+**⭐ FAMILY-4: 0 → 20 FULL (2026-07-01).** The off-table pulse fix, applied to the full
+686-member family-4 corpus (`tools/dmc_v5_family_batch.py --members tmp/v5_family4_members.json`),
+took family-4 from 0 to **20 FULL** (Jupiter41 + 19 others whose LAST blocker was the
+off-table pulse: Exterminate, Plasmostyle, Greensleeves, Bach, Commando_95, Tamagotchi1/2,
+Agony, Swift_Kick, …). Mass-written + hvsc84.csv refreshed. RESIDUE (686): partial 295,
+error 158, unsupported 213 — the two biggest fixable buckets are `sweep_too_long` 56 +
+`filter_table_overflow` 31 = the FILTER/WAVE analog of the pulse fix (I only touched the
+pulse path); extend the SAME technique (truncate_on_cap + overflow-gated dedup) to
+`_capture_env_f4`/filter-pool for likely more FULLs. Also `pulse_table_overflow` 42 (needs
+suffix-overlap for all-unique programs) + player_code_mismatch 36 / capture_loop 31 /
+no_jumptable 15 (unrelated: relocation/variant/sector). Batch: `tmp/dmc_family4_full.jsonl`.
+The off-table pulse blocker is fixed;
 Jupiter41 is FULL at full 292s songlength (play_match 268831/268831). Root cause (found via
 the Trap-C-ROBUST FLAT write-stream localizer, `tmp/reframe_flat_localize.py` — per-frame PW
 snapshots were RETRACTED as Trap-C artifacts, caught by a negative control on FULL family-3
