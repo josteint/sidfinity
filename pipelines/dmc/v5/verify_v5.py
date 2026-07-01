@@ -18,7 +18,7 @@ sys.path.insert(0, os.path.join(_ROOT, 'tools'))
 sys.path.insert(0, os.path.join(_ROOT, 'tools', 'py65_lib'))
 
 from pipelines.hubbard.verify_cycle import (
-    writelog_capture, compare_instruction_stream,
+    writelog_capture, writelog_per_irq_capture, compare_instruction_stream,
 )
 from src.songlengths import load_database, get_durations
 from src.usf.parser import parse_file
@@ -47,12 +47,18 @@ def verify_v5(cfg: DMCV5Config, hvsc_root: str | None = None) -> dict:
     with tempfile.NamedTemporaryFile(suffix='.sid', delete=False) as f:
         f.write(rebuilt)
         tmp = f.name
+    # family-4's short orig-init fits play1 in siddump frame 0; our longer
+    # universal-reset init pushes play1 to frame 1, so the flat per-frame
+    # capture misaligns the play streams by one frame (Trap C via differing
+    # init length). Capture per play() (drops init prefix, init-length-robust).
+    cap = (writelog_per_irq_capture if getattr(cfg, 'family4', False)
+           else writelog_capture)
     out = {'subtunes': {}, 'ok': True}
     try:
         for sub in range(n):
             dur = (durs[sub] if durs and sub < len(durs) else 110) * 1.1
-            a = writelog_capture(orig, subtune=sub, duration=dur)
-            b = writelog_capture(tmp, subtune=sub, duration=dur)
+            a = cap(orig, subtune=sub, duration=dur)
+            b = cap(tmp, subtune=sub, duration=dur)
             r = compare_instruction_stream(a, b, mode='trichotomy')
             out['subtunes'][sub] = {
                 'is_full': r['is_full'], 'state_match': r['state_match'],

@@ -55,6 +55,13 @@ def run_member(rel: str) -> dict:
         except DMCV5Unsupported as e:
             return {'path': rel, 'status': 'unsupported',
                     'reason': e.reason, 'detail': e.detail[:80]}
+        # family-4 is VBLANK (speed bit 0) but its ORIG init is short enough to
+        # fit init+play1 in siddump frame 0, whereas our longer universal-reset
+        # init pushes play1 to frame 1 → the flat per-frame capture buckets the
+        # play streams one frame apart (Trap C via differing init length). Force
+        # the per-IRQ (per-play()) capture, which drops the init prefix and
+        # aligns the play streams regardless of init length.
+        f4 = getattr(cfg, 'family4', False)
         orig = os.path.join(hvsc, rel)
         rebuilt = build_from_cfg(cfg, hvsc_root=hvsc)
         with tempfile.NamedTemporaryFile(suffix='.sid', delete=False) as f:
@@ -76,7 +83,8 @@ def run_member(rel: str) -> dict:
                 dur = (durs[sub] if durs and sub < len(durs) else 110) * 1.1
                 dur = max(5.0, min(dur, 1500.0))
                 cia = bool(speed & (1 << sub)) if sub < 32 else bool(speed & 1)
-                cap = writelog_per_irq_capture if cia else writelog_capture
+                per_irq = cia or f4
+                cap = writelog_per_irq_capture if per_irq else writelog_capture
                 a = cap(orig, subtune=sub, duration=dur)
                 b = cap(tmp, subtune=sub, duration=dur)
                 r = compare_instruction_stream(a, b, mode='trichotomy')
@@ -94,7 +102,7 @@ def run_member(rel: str) -> dict:
                     # vblank capture (composer emits its own universal-reset
                     # init); the per-IRQ (CIA) capture already drops the init.
                     if flat_div is None:
-                        skip0 = 0 if cia else 1
+                        skip0 = 0 if per_irq else 1
                         fla = [(w[1], w[2]) for k, fr in enumerate(a)
                                if k >= skip0 for w in fr]
                         flb = [(w[1], w[2]) for k, fr in enumerate(b)
