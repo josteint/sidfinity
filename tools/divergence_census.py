@@ -75,11 +75,45 @@ def _dmc_v5_context(path, r):
     return out
 
 
+def _dmc_v4_diagnose(path):
+    from pipelines.dmc.v4.factory import dmc_v4_config, DMCV4Unsupported
+    try:
+        dmc_v4_config(path)
+        return {'status': 'ok', 'detail': ''}
+    except DMCV4Unsupported as e:
+        return {'status': e.reason, 'detail': e.detail}
+    except Exception as e:  # extract-stage crashes are part of the residue
+        return {'status': f'error:{type(e).__name__}',
+                'detail': str(e)[:60]}
+
+
+def _dmc_v4_cluster_key(r):
+    # detail carries the per-member site/value (a hex addr, an opcode byte);
+    # normalize it so same-shape rejects bucket together.
+    import re
+    d = re.sub(r'0x[0-9a-fA-F]+|\$[0-9A-Fa-f]+', '$?', r['detail'])[:40]
+    return (r['status'], d)
+
+
+def _dmc_v4_context(path, r):
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__))))
+    from seed_disassembly import parse_psid
+    s = parse_psid(os.path.join('hvsc84', path))
+    return (f"status={r['status']} detail={r['detail']!r} | "
+            f"load=${s['load']:04X} init=${s['init']:04X} "
+            f"play=${s['play']:04X} songs={s['songs']}")
+
+
 ENGINES = {
     'dmc_v5': {
         'diagnose': _dmc_v5_diagnose,
         'cluster_key': _dmc_v5_cluster_key,
         'context': _dmc_v5_context,
+    },
+    'dmc_v4': {
+        'diagnose': _dmc_v4_diagnose,
+        'cluster_key': _dmc_v4_cluster_key,
+        'context': _dmc_v4_context,
     },
 }
 
@@ -138,14 +172,30 @@ def _reg_role(reg):
     return _REG_GLOBAL.get(reg, f'reg{reg}')
 
 
-def _partial_key(first_diff):
+def _pos_bucket(pos):
+    return ('<64' if pos < 64 else '64-512' if pos < 512
+            else '512-4k' if pos < 4096 else '>=4k')
+
+
+def _partial_key(r):
+    # PREFER the batch's flat_div [sub, pos, reg, orig, mine] — the flat
+    # (reg,val)-prefix divergence, Trap-C-robust and init-skipping. The
+    # trichotomy first_diff is the FALLBACK only: for DMC it carries phantom
+    # D418 noise (see project memory) and must not drive clustering when
+    # flat_div is present. The position bucket separates leadin/early
+    # divergences from deep effect/off-table tails.
+    fd = r.get('flat_div')
+    if fd and len(fd) >= 5:
+        sub, pos, reg = fd[0], fd[1], fd[2]
+        return (f'${0xD400 + reg:04X}', f'{_reg_role(reg)} @{_pos_bucket(pos)}')
+    first_diff = r.get('first_diff')
     if not first_diff:
         return ('no_first_diff', '')
     state_match = first_diff[1]
     if len(first_diff) < 4:          # [sub, state_match] only
         return ('check_A_state_only', '') if not state_match else ('unknown', '')
     reg = first_diff[2][0]
-    return (f'${0xD400 + reg:04X}', _reg_role(reg))
+    return (f'${0xD400 + reg:04X}', _reg_role(reg) + ' [first_diff]')
 
 
 def cluster_partials(rows, top, reps):
@@ -153,19 +203,26 @@ def cluster_partials(rows, top, reps):
     if not parts:
         print("(no verify partials)")
         return
+    n_flat = sum(1 for r in parts if r.get('flat_div'))
     print(f"=== verify-partial clusters by first writelog divergence "
-          f"({len(parts)} partials) ===")
+          f"({len(parts)} partials; {n_flat} keyed on flat_div, "
+          f"{len(parts) - n_flat} on trichotomy first_diff fallback) ===")
     hist = collections.Counter()
     by_key = collections.defaultdict(list)
     for r in parts:
-        key = _partial_key(r.get('first_diff'))
+        key = _partial_key(r)
         hist[key] += 1
         by_key[key].append(r)
     for (reg, role), n in hist.most_common(top):
         print(f"  {n:4d}  {reg:>10}  {role}")
         for r in by_key[(reg, role)][:reps]:
-            fd = r.get('first_diff') or []
-            tail = f"  orig={fd[2]} mine={fd[3]}" if len(fd) >= 4 else ""
+            fd = r.get('flat_div')
+            if fd and len(fd) >= 5:
+                tail = (f"  pos={fd[1]} orig=${fd[3]:02X} mine=${fd[4]:02X}"
+                        f" (sub {fd[0]})")
+            else:
+                fdd = r.get('first_diff') or []
+                tail = f"  orig={fdd[2]} mine={fdd[3]}" if len(fdd) >= 4 else ""
             print(f"          {r['path']}{tail}")
     shown = sum(n for _, n in hist.most_common(top))
     tail = sum(hist.values()) - shown
