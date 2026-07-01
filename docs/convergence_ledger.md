@@ -69,7 +69,7 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
 | detection ≠ FULL · residue triage · accept-at-detect | C5 | methodology |
 | off-table FREQ lookup · index past freq table · wave-relative note offset | C6 | recurring (FC + v5) |
 | ANTI-PATTERN: verbatim/opaque musical bytes · leapfrog · content-by-reference blob | C7 | methodology (recurring) |
-| de-fused per-entity pool exceeds byte-index capacity · "pool overflow" · separate copies per instrument | C8 | logged |
+| de-fused per-entity pool exceeds byte-index capacity · "pool overflow" · separate copies per instrument | C8 | canonicalized |
 | runtime param unreadable by py65 (init hangs / IRQ-set / bad opcode) · measure from libsidplayfp writelog | C9 | logged |
 | chip-global $D415-$D418 automation during a song · master vol / filter varies · global_track vs MasterVolConfig/filter_programs · explicit-event vs parametric | C10 | logged |
 | engine reads a table via an 8-bit index register (`base,Y` w/ Y=#*stride) · orig "reads garbage"/looks broken · extractor must wrap `(#*stride)&0xFF` · suspect OUR extractor not the packer | C11 | logged |
@@ -263,14 +263,26 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
   identical entities point at one pooled copy. Byte-identical for the write
   stream — each entity re-inits its position to its start per use and reads the
   same byte sequence. This is what the original packer does (programs share).
-- **Status:** logged (DMC v4 wave pool, 2026-06-25).
-- **Boundary:** dedup is pure packing (zero write-stream change) and recovers
-  exact-duplicate programs only. SUFFIX/substring overlap (a program that is a
-  tail of another) is the next packing tier — needed for the residue that
-  exceeds 255 even after dedup (DMC: Marek_Bilinski_1 / Riders / Abject_17, all
-  all-unique programs). Not yet built.
+- **Status:** canonicalized ≥2× (DMC v4 wave pool 2026-06-25; DMC v5 wave pool
+  2026-07-01).
+- **Boundary:** dedup is pure packing (zero write-stream change) ONLY when the
+  pool layout is position-INDEPENDENT — i.e. the loop marker is RELATIVE (V4's
+  `$90 + n - loop`, identical bytes at any position). When the marker encodes an
+  ABSOLUTE target (V5's `$90, s+loop`), moving a program rewrites its marker and
+  dedup is NOT guaranteed byte-identical: it perturbed a currently-FULL member
+  (CreaMD Ambient, freq divergence — the de-fusion adjacency coupling the pulse
+  table also shows). Fix = OVERFLOW-GATE the dedup (share only when the un-shared
+  pool > 256), which is zero-regression BY CONSTRUCTION: it only ever touches
+  members that can't build un-shared (all currently non-FULL), so no working
+  member changes. SUFFIX/substring overlap (a program that is a tail of another)
+  is the next packing tier for the residue that exceeds 255 even after dedup
+  (DMC v4: Marek_Bilinski_1 / Riders / Abject_17; DMC v5: For_Zeor 318,
+  Samael_01 1848). Not yet built — measured to add nothing on the current V5
+  overflow set (17/19 already fit with plain dedup).
 - **Consumers:** DMC v4 `composer_asm.py` wave pool (`add_prog` dedup cache,
-  commit c73a1d0 — 40 overflow members → 37 build, +5 FULL).
+  commit c73a1d0 — 40 overflow members → 37 build, +5 FULL). DMC v5
+  `from_usf.py add_wave` (overflow-gated, 2026-07-01 — 17/19 overflow members
+  build, +5 FULL, 0 regression).
 
 ### C9 — A runtime parameter py65 can't read → measure it from the writelog
 - **Canonical:** when a build-time parameter is set by code py65 can't execute

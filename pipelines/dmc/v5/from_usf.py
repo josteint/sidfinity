@@ -151,15 +151,43 @@ def usf_to_model(usf: UsfFile) -> V5Model:
     #      each instrument's program) and reassign pointers -------------
     wave = []
 
+    # Dedup identical (ctrl, freq, loop) wave programs into one pooled copy. The
+    # single-byte wavepos caps the pool at 256 bytes; un-shared per-instrument
+    # programs overflow it on many-instrument tunes (wave_table_overflow). Sharing
+    # is byte-identical for the write stream — each note re-inits wavepos to the
+    # instrument's ptr and reads the same sequence, and the absolute $90 target
+    # loops to the shared copy's own loop point — so this is pure packing. Mirrors
+    # the V4 composer_asm pool dedup (ledger C8), ported to the V5 from_usf path.
+    _wseen: dict = {}
+
     def add_wave(ctrl, freq, loop):
+        n = len(ctrl)
+        cb = tuple(c & 0xFF for c in ctrl)
+        fb = tuple(f & 0xFF for f in (list(freq) + [0] * n)[:n])
+        key = (cb, fb, loop)
+        if _dedup and key in _wseen:
+            return _wseen[key]
         s = len(wave)
-        freq = (list(freq) + [0] * len(ctrl))[:len(ctrl)]
-        for c, f in zip(ctrl, freq):
-            wave.append((c & 0xFF, f & 0xFF))
+        for c, f in zip(cb, fb):
+            wave.append((c, f))
         wave.append((0x90, (s + loop) & 0xFF))       # V5 marker: freq = abs target
+        _wseen[key] = s
         return s
 
+    # Share identical (ctrl, freq, loop) programs ONLY when the un-shared pool
+    # would overflow the 256-byte single-byte wavepos. Non-overflow members keep
+    # their exact un-shared layout: sharing moves programs and rewrites the
+    # absolute $90 loop-marker targets, which is POSITION-DEPENDENT — even for
+    # byte-identical programs it perturbed a currently-FULL member (CreaMD's
+    # Ambient regressed; the divergence is freq, likely the de-fusion adjacency
+    # coupling the pulse table also shows). Overflow members can't build at all
+    # un-shared, so best-effort sharing there is pure upside, and gating to
+    # overflow-only is zero-regression by construction (it never touches a member
+    # that already builds). Mirrors the V4 composer_asm pool dedup (ledger C8).
     ip = usf.wave_programs.get(0)
+    _idle_n = (len(ip['ctrl']) + 1) if (ip and ip['ctrl']) else 0
+    _dedup = _idle_n + sum(len(i.waveform) + 1 for i in usf.instruments) > 256
+
     if ip and ip['ctrl']:
         add_wave(ip['ctrl'], ip['freq'], ip.get('loop', 0))
 

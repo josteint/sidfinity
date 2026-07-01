@@ -1526,6 +1526,24 @@ see [[project_fc_fingerprint_and_standard]]), surfacing the dual lo/hi-read wind
 bug + the close_tol 64→80 boundary fix. Phase 7 (remove the `freq_overrun` field
 from the shared schema, now both consumers are off it) is the remaining cleanup.
 
+**V5 wave-pool dedup (2026-07-01, +5 FULL):** the V5 `from_usf.py add_wave`
+concatenated every instrument's wave program with NO sharing (V4's composer_asm
+dedup was never ported), overflowing the 256-byte single-byte wavepos on many-
+instrument tunes (`wave_table_overflow`). Ported identical-(ctrl,freq,loop) dedup
+(ledger C8) — 17/19 overflow members now build, +5 FULL (Autumn_Symphony,
+Breakpoint, Mysterious_Energy, Sky, Life_Plus); 2 genuinely exceed 256B of
+distinct wave content (For_Zeor 318, Samael_01 1848 = the single-byte-wavepos
+architectural limit). KEY LESSON: V5's loop marker is ABSOLUTE (`$90, s+loop`),
+not V4's RELATIVE (`$90+n-loop`), so moving a program rewrites its marker and
+dedup is POSITION-DEPENDENT — even byte-identical programs regressed a FULL member
+(CreaMD Ambient, freq divergence; the de-fusion adjacency coupling the pulse table
+shows). Fix = OVERFLOW-GATE (share only when un-shared pool >256): zero-regression
+BY CONSTRUCTION (never touches a member that already builds). Batch reason
+`wave_table_overflow` = raised in `from_usf.py:279` (`len(tbl)>256`), NOT the
+composer_asm `wave pool overflow` assert. Same overflow-gated dedup could unblock
+the small `pulse_table_overflow`/`filter_table_overflow` buckets (add_env, also
+absolute markers) but family-4 has 0 FULL so low yield — deferred.
+
 ## Related
 [[project_fc_fingerprint_and_standard]] (the playbook this follows),
 [[feedback_dataflow_over_heuristics]] (the operand-patching finding is
