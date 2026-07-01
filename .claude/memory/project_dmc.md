@@ -1544,6 +1544,25 @@ composer_asm `wave pool overflow` assert. Same overflow-gated dedup could unbloc
 the small `pulse_table_overflow`/`filter_table_overflow` buckets (add_env, also
 absolute markers) but family-4 has 0 FULL so low yield — deferred.
 
+**⭐ FIRST FAMILY-4 FULL — Jupiter41 (2026-07-01).** The off-table pulse blocker is fixed;
+Jupiter41 is FULL at full 292s songlength (play_match 268831/268831). Root cause (found via
+the Trap-C-ROBUST FLAT write-stream localizer, `tmp/reframe_flat_localize.py` — per-frame PW
+snapshots were RETRACTED as Trap-C artifacts, caught by a negative control on FULL family-3
+members): `_pulse_env_for`'s count8bit walk hit `_PHASE_CAP=48` on the off-table one-shot ramp
+at the whole-song reach → raised `sweep_too_long` → fell back to the family-4-INCORRECT 16-bit
+`_capture_env` (read the 8-bit count E0=224 as 16-bit 0xFFE0=65504 terminal hold → collapsed
+the program to +32 forever, DISCARDING the +2048 off-table sweep → divergence at write 56000).
+Two family-4-scoped fixes: (1) `_capture_env(truncate_on_cap=True)` — keep the captured prefix
+at PHASE_CAP (covers ~7000 frames >> any note; the pulse re-inits every note-load) instead of
+the wrong 16-bit fallback; (2) overflow-gated PULSE-pool dedup in `from_usf.py add_pulse`
+(mirrors the wave dedup, ledger C8) — the correct capture is large (16 insts / 5 programs =
+356 B un-shared → 209 B shared, fits 256). Regression: family-3 30/30 FULL (0), cross-engine
+`tools/regression.py` 0 regressed. PREREQUISITE PROVEN EARLIER: the off-table pulse source
+($23A3-$24BB) is 100% STATIC (`tmp/taint_memtrace.py`, --memtrace within-frame-complete) ⇒
+representable, not residue. The other 35 building family-4 members stay partial (other
+blockers: note/freq/filter foundation) — Jupiter41's LAST blocker was the pulse. Tools:
+`tmp/reframe_flat_localize.py`, `tmp/verify_pulse_fix.py`.
+
 ## Related
 [[project_fc_fingerprint_and_standard]] (the playbook this follows),
 [[feedback_dataflow_over_heuristics]] (the operand-patching finding is

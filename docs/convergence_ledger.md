@@ -282,7 +282,13 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
 - **Consumers:** DMC v4 `composer_asm.py` wave pool (`add_prog` dedup cache,
   commit c73a1d0 — 40 overflow members → 37 build, +5 FULL). DMC v5
   `from_usf.py add_wave` (overflow-gated, 2026-07-01 — 17/19 overflow members
-  build, +5 FULL, 0 regression).
+  build, +5 FULL, 0 regression). DMC v5 `from_usf.py` PULSE pool (`add_pulse`
+  overflow-gated dedup, 2026-07-01) — a correctly-captured OFF-TABLE pulse program
+  is large (~97 B, a one-shot ramp truncated at `_PHASE_CAP`), so many instruments
+  over few programs overflow un-shared (Jupiter41: 16 insts / 5 programs = 356 B →
+  209 B shared). Paired with the `_capture_env(truncate_on_cap)` fix (keep the
+  off-table prefix instead of the family-4-incorrect 16-bit fallback), this landed
+  **the first family-4 FULL (Jupiter41)**, 0 family-3 regression.
 
 ### C9 — A runtime parameter py65 can't read → measure it from the writelog
 - **Canonical:** when a build-time parameter is set by code py65 can't execute

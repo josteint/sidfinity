@@ -76,7 +76,8 @@ def _pitch(note: int) -> Pitch:
 # the reachable horizon is the packer's space-saving mechanism — Rule 1).
 def _capture_env(table: list, ptr: int, has_start: bool = True,
                  start_val: int = 0, reach: int | None = None,
-                 count8bit: bool = False) -> SweepEnvelope:
+                 count8bit: bool = False,
+                 truncate_on_cap: bool = False) -> SweepEnvelope:
     # has_start=True: table[ptr] is the loaded START value, phases begin at
     # ptr+1 (per-instrument pulse/filter — filter_init/pulse_init load the
     # start). has_start=False: ptr is already the first ADD pair, phases begin
@@ -110,7 +111,9 @@ def _capture_env(table: list, ptr: int, has_start: bool = True,
             raise RuntimeError(   # appends no phase) — bail clean, don't spin.
                 f'unsupported:capture_loop @{ptr}')
         if len(phases) >= _PHASE_CAP:
-            raise RuntimeError(f'unsupported:sweep_too_long @{ptr}')
+            if truncate_on_cap:       # off-table one-shot ramp (no loop): keep the
+                break                 # captured prefix — it covers far more frames
+            raise RuntimeError(f'unsupported:sweep_too_long @{ptr}')  # than any note
         lo, hi = table[pos]
         if lo == 0x90:            # jump to the target byte position
             tgt = hi
@@ -341,17 +344,27 @@ def _orderlist(events: list) -> Orderlist:
 
 def _pulse_env_for(model, ptr, reach):
     """Per-instrument pulse env. family-4's pulse count is 8-bit; capture it that
-    way so a multi-step PWM program isn't truncated early. But an OFF-TABLE pulse
-    pointer (program bleeds into garbage) has no real loop — under 8-bit counts the
-    walk runs past _PHASE_CAP, whereas the 16-bit read's huge garbage counts make
-    `cum > reach` bound it. So fall back to the 16-bit capture on overflow."""
+    way so a multi-step PWM program isn't truncated early. An OFF-TABLE pulse pointer
+    (program walks past the real table into adjacent STATIC bytes — proven static by
+    the $23A3-$24BB taint check) is a one-shot ramp with no $90 loop, so under 8-bit
+    counts the walk runs past _PHASE_CAP. The old fallback to the 16-bit capture was
+    WRONG for family-4: it read the 8-bit count byte as the low half of a 16-bit count
+    (e.g. E0 -> 0xFFE0 = 65504, a terminal hold), collapsing the whole program to a
+    single +32 ramp and DISCARDING the off-table sweep (the flat-stream localized
+    Jupiter41 blocker at write 56000). Instead, TRUNCATE the 8-bit walk at the phase
+    cap: family-4 pulse programs re-init on every note-load, so the walk never runs
+    longer than one note — and _PHASE_CAP phases already cover far more frames than any
+    note holds, so the captured prefix (which keeps the +2048 sweep) is faithful."""
     if not ptr:
         return None
     if getattr(model, 'family4', False):
         try:
             return _capture_env(model.pulse, ptr, reach=reach, count8bit=True)
         except RuntimeError:
-            pass
+            # off-table one-shot ramp overflowed the phase cap: keep the correct
+            # 8-bit-count prefix rather than the family-4-incorrect 16-bit fallback.
+            return _capture_env(model.pulse, ptr, reach=reach, count8bit=True,
+                                truncate_on_cap=True)
     return _capture_env(model.pulse, ptr, reach=reach)
 
 

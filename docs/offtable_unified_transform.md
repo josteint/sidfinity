@@ -450,3 +450,173 @@ develop the hold/re-init fit there with a real proof bed, not as a standalone ph
 variant to ride on family-4. Tools left in `tmp/`: `find_offtable_pulse_partial.py`,
 `jup_true_div.py`, `of_decomposer.py` (now with `OF_FORCE=1` force-observe toggle +
 trichotomy verify).
+
+## The "reframe" investigation (2026-07-01) — observe-and-fit vs the mechanism
+
+User challenge: the off-table difficulties look like artifacts of mirroring the engine's
+mechanism; per the core tenet we're free to reproduce the write-log any other way, maybe
+elegantly, using ideas from the git-history math tools. Investigated deeply.
+
+**The reframe = the project's ORIGINAL vision.** `deprecated/lean_codegen/formal/docs/
+mathematical_framework.md` §6.3 already defines the "universal α_trace path"
+(`regtrace_to_usf.py`): recover USF from the register trace alone, zero engine code. But
+it targeted the *tolerance* relation (8 audible-equivalence layers, 59% Grade A) — the
+approach later REJECTED for exact write-log match. The exact-match decomposition tools DO
+exist in `deprecated/python_experiments/`: `strip_decompose.py` ("final residual MUST be
+zero" — lossless, proven full-song Commando), `z3_decompose.py` (joint SMT, "target 100%"),
+`auto_effect_discover.py` (system-ID: naive baseline + residual classification),
+`effect_detect.py` (engine-agnostic detectors: `constant_delta`, DFT, `detect_pwm_sweep`…),
+`info_theory_analysis.py` (MDL / minimal lossless size). Revival cost is low — pure math;
+swap the dead `ground_truth.py` capture for `siddump --writelog`.
+
+**Experiment on Jupiter41's pulse (the SweepEnvelope's nemesis)** — `tmp/reframe_*.py`:
+- Stateless note-age contour, reset-on-gate-on: 20–45% frames. Gate-on is the WRONG reset.
+- Reset on TRUE re-init events, grouped by program: the well-behaved in-table programs are
+  PERFECT (`ptr=11` 287/287, `ptr=19` 29/29) — the reframe wins these outright, off-table
+  dissolved. The long/off-table programs (`ptr=1/2/7`) are NOT consistent.
+- **Probe (initially mis-read):** the per-frame PW delta looked only 84–94% predictable
+  from `$1800` pulsepos + `$1830` counter + `$182A/D` accumulator — I first read this as
+  "couples to external state, leans genuine residue (a)." **That conclusion was WRONG.**
+
+⭐ **GREY-BOX TAINT CHECK — VERDICT FLIPS TO REPRESENTABLE (b) (2026-07-01).** Following the
+research's grey-box recommendation, read the disassembly + taint-checked the source:
+- Disassembly (`family4/disassembly.s` $14B4): the pulse read is plain `LDA $23A3,Y` /
+  `LDA $23BC,Y` (Y=pulsepos), NO self-modification, byte-indexed — so same pulsepos ⇒ same
+  source address, deterministically. add=`(HI[pos]<<8|LO[pos])`, count=`LO[pos+1]`, `$90`
+  marker on `HI[pos]` loops to `LO[pos]`.
+- Taint (`tmp/taint_memtrace.py`, `--memtrace`, within-frame-complete, per-ACCESS not
+  per-frame): the ENTIRE source region `$23A3-$24BB` is **100% STATIC** — 24k read accesses
+  over 45s, ZERO writes, ever. (An earlier per-frame `--memwatch` snapshot said the same but
+  has a within-frame blind spot — user correctly flagged it; `--memtrace` closes it.)
+- ⟹ the off-table pulse output IS a deterministic function of {static tables + pulsepos
+  trajectory + re-init events}. The probe's 84–94% was a **capture-timing artifact**:
+  the segmenter snapshots `$1800` at the `$D403` write = the POST-advance pulsepos, which
+  ≠ the read-index `Y` (the pulse code advances `$1800` conditionally). Same source byte,
+  mislabeled index → spurious "non-determinism." **There is NO hidden dynamic coupling.**
+
+**Status of the positive end-to-end verify (NOT yet green):** representability is
+ESTABLISHED (static source + deterministic byte-indexed read + records already captured in
+the full 256-entry `m.pulse`). A clean *green* was NOT produced: (1) hand-simulation
+inherits the same capture-timing gap (`tmp/reframe_pulse_static_repro.py` caps at 82–91%,
+the identical benign artifact); (2) reproducing via the composer needs the family-4 pulse
+walk to match the disassembly's byte order. `_capture_env` (count8bit) reads
+`rate=(lo<<8|hi)` / `count=chi` / marker-on-`lo`, while `m.pulse[i]=(LO[i],HI[i])` and the
+engine adds `(HI<<8|LO)`, count `LO[pos+1]`, marker on `HI` — an apparent LO/HI (+marker/
+count) discrepancy. CAVEAT: family-4 pulse PARTIALLY works (match 60→92 in prior commits),
+which a naive swap would break even for simple programs — so there is likely compensation
+elsewhere in the compose/verify path I have NOT fully traced. The green-verify blocker is
+therefore "make the family-4 pulse compose+walk exactly reproduce the disassembly walk on
+the full static table" (a bounded trace-and-fix on the load-bearing family-4 pulse path),
+NOT a fundamental limit.
+
+**Conclusion (corrected):** the off-table pulse is **representable, not residue** — user's
+thesis vindicated, no hidden dynamic coupling. The reframe wins the stateless majority
+outright, and the grey-box move (read binary → name mechanism → taint source) *classified*
+the hard case that pure observation could not — exactly what the research said grey-box does.
+
+**Careful trace-and-fix attempt for a GREEN (2026-07-01, `tmp/trace_f4_pulse.py`,
+`tmp/localize_v3_pulse.py`):** ruled out every obvious composer bug and pinned the real one.
+- Byte-order: **REFUTED as a bug.** The config SWAPS `op_pulse_lo`→`$23A3`(HI),
+  `op_pulse_hi`→`$23BC`(LO), so `m.pulse[pos]=(HI,LO)` and `_capture_env`'s `rate=(lo<<8|hi)
+  =(HI<<8|LO)` is CORRECT. `_capture_env` produces the exact ptr-2 phases
+  `(+32,224),(+32,2),(+2048,256)` (verified by hand-walking the engine from ptr+1 — adds
+  begin at ptr+1 because ptr is the start value).
+- Count semantics: **CORRECT.** Family-4 8-bit patch (composer_v5 ~1114) compares `pwctr_lo`
+  to `pulsehi[pos+1]` = engine `LO[pos+1]`. Apply→INC→compare order matches the engine.
+- Re-init PW reset: **CORRECT.** note_init loads `PW=(pulselo[pos]<<8|pulsehi[pos])` =
+  engine start `pulse[ptr]`, then INC pulsepos → same as the engine's $1411 re-init.
+- **Actual blocker (localized):** the rebuild's V3 ptr-2 pulse ramp starts **2 frames LATE**
+  (orig ramps `20,20,40,60,80` from f320; reb the same shape from f322). `freqhi` is
+  IDENTICAL on both throughout, so the NOTE is on time — it is purely a **+2 count lag in
+  the pulse walk** (a hold-phase count captured 2 too long in the rebuild). This is the
+  original "7416 re-init/count timing" hard problem, now precisely characterized and with
+  three prior sub-hypotheses (byte-order / count-semantics / re-init-PW-reset) ruled OUT.
+
+**Status: representability ESTABLISHED and the composer mechanics VERIFIED CORRECT; a green
+was NOT reached.** The remaining blocker is a pulse phase-timing off-by-one.
+
+**⛔ RETRACTED — the per-frame phase-diff was TRAP C (2026-07-01).** I ran a per-siddump-frame
+PW comparison (`tmp/phase_diff.py`, `tmp/localize_v3_pulse.py`) and reported a "systematic +1
+first-phase off-by-one" across the 3 family-4 members. **This was a measurement artifact.**
+Negative control (`tmp/negative_control.py`, user's suggestion): ran the SAME phase-diff on 6
+FULL family-3 members — whose write-logs match the original BY DEFINITION — and ALL show the
+same kind of "divergence" (around frame ~125). So the phase-diff produces FALSE POSITIVES:
+siddump frame buckets ≠ PSID play() invocations, so per-frame PW streams drift between orig
+and rebuild even when the flat write-log matches (**Trap C**, documented in CLAUDE.md). The
+robust verdict `compare_instruction_stream` flattens across frames and is unaffected — which
+is why those members are FULL. **The "+1 off-by-one" and the "2-frames-late" localizations
+are both withdrawn.** Composer mechanics (byte-order, count semantics, re-init PW/counter
+reset, note-load pulse_run skip) were still verified correct against the disassembly — those
+checks stand; only the per-frame divergence LOCALIZATION was invalid.
+
+**Method lesson (reinforced):** never localize a divergence with per-siddump-frame register
+snapshots — that is Trap A/C. Use the FLAT (reg,val) write-log stream. Always negative-control
+a new comparison method on a KNOWN-FULL member before trusting it.
+
+**The real blocker — VALIDLY localized (Trap-C-robust, `tmp/reframe_flat_localize.py`,
+2026-07-01).** Replicated the trichotomy alignment on the FLAT concatenated (reg,val) stream
+(init shift d=0, play_match=56000/125809) and extracted the V3 PW contour + phase segments
+from the flat stream (segmenting the FLAT contour is valid; per-siddump-frame was not):
+```
+ORIG: (32,4),(0,1),(32,2),(2048,3),(0,1),(2048,4),(0,1)
+REB:  (0,1),(32,4),(0,1),(32,5),(0,1),(32,4),(0,1)
+```
+Both ramp `+32` identically up to the divergence, then the ORIG switches into the `+2048`
+OFF-TABLE sweep (pwhi jumping +8/step) while the REBUILD keeps repeating `+32` in-table and
+NEVER transitions to `+2048`. **So the off-table `+2048` sweep — proven static/representable
+by the taint check — is NOT being reproduced at runtime.** The rebuild's V3 ptr-2 walk stays
+in-table (loops/repeats `+32`) instead of walking off-table to the `+2048` phase at pulsepos 7.
+
+**⭐ ROOT CAUSE — DEFINITIVELY FOUND (2026-07-01).** The off-table ptr-2 walk is a ONE-SHOT
+ramp (no `$90` loop; `loop=None`) that generates ever more phases as the capture reach grows:
+reach 400 → 3 phases `(+32,224),(+32,2),(+2048,256)` ✓; reach 2000 → 14 phases ✓; reach 16260
+(the PRODUCTION verify window) → **> `_PHASE_CAP` (=48) phases → `_capture_env(count8bit=True)`
+raises `unsupported:sweep_too_long`**. `_pulse_env_for` catches it and FALLS BACK to the 16-bit
+`_capture_env` — which is WRONG for family-4: it reads the 8-bit count byte (`E0`=224) as the
+low half of a 16-bit count (`FF,E0`=`0xFFE0`=65504), a terminal hold, collapsing the entire
+off-table program to a single `('+32', 65504)` phase. So the rebuild ramps `+32` forever and
+never emits the `+2048` off-table sweep — exactly the flat-stream divergence at write 56000.
+
+**So the off-table pulse IS representable (taint: static source) — the failure is a specific,
+fixable CAPTURE bug, not a fundamental limit:** (a) `_PHASE_CAP=48` truncates the one-shot
+off-table ramp at the large production reach; (b) the RuntimeError fallback to the 16-bit
+`_capture_env` is family-4-incorrect (mis-reads the 8-bit count). Fix DIRECTIONS (design nuance
+— do with fresh focus + family-3 regression care): (1) for family-4, on `sweep_too_long` do
+NOT fall back to the 16-bit walk — it always mis-reads the count; (2) the one-shot off-table
+ramp can't be a bounded SweepEnvelope for an arbitrarily long note UNLESS bounded by the
+re-init (note-load) interval — so the right capture reach is the re-init interval, not the
+whole song; (3) cleanest long-term: for off-table one-shot programs, emit the static pulse
+table and WALK it at runtime (like the engine) instead of un-fusing into a SweepEnvelope —
+the static bytes are already in the 256-entry `m.pulse` and the taint check proved them
+static. Tools: `tmp/reframe_flat_localize.py` (valid localizer), `tmp/trace_f4_pulse.py`.
+
+## ✅✅ RESOLVED — FIRST FAMILY-4 FULL (Jupiter41, 2026-07-01)
+
+The off-table pulse is fixed, and **Jupiter41 is FULL at full 292s songlength
+(play_match 268831/268831, state_match)** — the first-ever family-4 FULL member. Two
+family-4-scoped fixes in `pipelines/dmc/v5/`:
+1. `extract/to_usf.py` — `_capture_env(truncate_on_cap=True)`: on `_PHASE_CAP` for an
+   off-table one-shot ramp, KEEP the captured prefix instead of raising. The prefix
+   covers ~7000 frames — far more than any note (the pulse re-inits every note-load) — so
+   it's faithful AND keeps the `+2048` sweep. `_pulse_env_for` uses it for family-4 instead
+   of the family-4-INCORRECT 16-bit fallback (which mis-read the 8-bit count).
+2. `from_usf.py` — overflow-gated pulse-pool dedup (mirrors the wave dedup, ledger C8): the
+   correct capture is large, so Jupiter41's 16 instruments over 5 programs overflow the
+   256-byte pulsepos un-shared (356 B); identical-`(start,phases,loop)` dedup fits it (209 B).
+   Gated to overflow-only ⟹ zero-regression by construction.
+
+Regression: family-3 30/30 FULL (0 regressions), cross-engine `tools/regression.py` 0
+regressed, family-4 batch +1 FULL (Jupiter41). The OTHER 35 building family-4 members remain
+partial — they have OTHER blockers (note/freq/filter foundation), not the off-table pulse;
+Jupiter41 was the case whose LAST blocker was the pulse. **The whole thread's arc:
+"representable, not residue" (taint) → valid flat-stream localization (after retracting the
+per-frame Trap-C artifacts) → root cause (PHASE_CAP + wrong fallback) → fix → first family-4
+FULL. The correct method was the flat write-stream throughout; per-frame snapshots were the
+trap.** Verified: `tmp/verify_pulse_fix.py`.
+
+**Next (user steer): the math literature is vast — research it.** The problem is precisely
+"learn a compact EXACT generator of a deterministic integer sequence with hidden/external
+state, from observation" — a mature area (active automata learning / L* / register
+automata, Myhill-Nerode minimization, PSRs / OOMs / spectral-Hankel weighted-automata,
+Koopman, subspace ID, smallest-grammar compression, CEGIS/SyGuS synthesis). Launched a
+deep-research survey (run `wf_d87b53b2-72d`) to rank the most promising frameworks to try.

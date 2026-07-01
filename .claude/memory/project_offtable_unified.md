@@ -33,6 +33,37 @@ OPPOSITE maturity (full detail = the doc's "GO / NO-GO" section):
   divergence localization use the TRICHOTOMY `first_play_diff` (state_match-aligned), NOT
   the batch `flat_div` (init-structure-contaminated by universal-reset).
 
+⭐ REFRAME INVESTIGATION (2026-07-01, full detail in the doc's "reframe" section): user
+challenged that the off-table difficulties are just mechanism-mirroring artifacts (core
+tenet frees us to reproduce the write-log any way). Findings: (1) the "observe the trace,
+don't parse the tables" reframe IS the project's ORIGINAL vision — `mathematical_framework.md`
+§6.3 universal α_trace path — but built for the REJECTED tolerance relation (59% Grade A);
+the EXACT-match decomposition tools exist in `deprecated/python_experiments/`
+(`strip_decompose` residual-must-be-zero, `z3_decompose` 100%-target, `auto_effect_discover`
+system-ID, `effect_detect` detectors, `info_theory_analysis` MDL) — revivable, swap capture
+to `siddump --writelog`. (2) Experiment (`tmp/reframe_*.py`): observe-and-fit WINS the
+stateless in-table pulse programs outright (ptr=11 287/287, ptr=19 29/29 exact contours,
+off-table dissolved) but the long/off-table ptr=1/2/7 are not consistent. (3) ⭐ VERDICT FLIP — off-table pulse is
+REPRESENTABLE (b), NOT residue. The probe (delta 84-94%-predictable from $1800+$1830+$182A/D)
+FIRST read as "couples to external state" was WRONG. GREY-BOX check (research's rec):
+disassembly ($14B4) shows plain `LDA $23A3,Y`/`$23BC,Y`, byte-indexed, no SMC (add=HI<<8|LO,
+count=LO[pos+1], $90 marker on HI); TAINT check (`tmp/taint_memtrace.py`, --memtrace,
+within-frame-complete per-ACCESS) proves source $23A3-$24BB is 100% STATIC (24k reads, 0
+writes). So the pulse IS deterministic in {static tables + pulsepos + reinit}; the 84-94%
+was a CAPTURE-TIMING artifact (segmenter snapshots $1800 at the $D403 write = POST-advance
+pulsepos ≠ read-index Y). NO hidden dynamic coupling — user's thesis vindicated. NB user
+correctly flagged: per-frame --memwatch snapshot has a within-frame blind spot; use
+--memtrace (per-access) for taint. POSITIVE verify NOT yet green: records already captured
+(full 256-entry m.pulse), but (a) hand-sim inherits the capture-timing gap (82-91%), (b)
+the composer's family-4 pulse walk (`_capture_env` count8bit) reads rate=(lo<<8|hi)/count=chi
+/marker-on-lo = LO/HI SWAPPED vs the engine — a fixable walk-convention bug on the
+load-bearing family-4 pulse path. (4) Pivot: launched a deep-research
+survey (run `wf_d87b53b2-72d`) of the vast literature on exact identification of
+deterministic transducers with hidden/external state (active automata learning / L* /
+register automata, Myhill-Nerode minimization, PSRs/OOMs/spectral-Hankel, Koopman, subspace
+ID, smallest-grammar, CEGIS/SyGuS). Family-4 pulse state addrs (extract-only): pulsepos
+$1800,x / PW accum $182A,x(lo) $182D,x(hi) / 8-bit count $1830,x / pulse tables $23BC,$23A3.
+
 KEY FINDINGS:
 - **20 occurrences** censused. Decisive axis = WHAT lies past the end: another
   musical table → `SweepEnvelope`; static instr bytes → exact value; work-RAM at

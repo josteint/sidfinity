@@ -286,9 +286,35 @@ def usf_to_model(usf: UsfFile) -> V5Model:
         return s
 
     _f4 = getattr(m, 'family4', False)
+    # Overflow-gated identical-pulse-program dedup (mirrors the wave-pool dedup,
+    # ledger C8). A family-4 OFF-TABLE pulse program is large (a one-shot ramp
+    # captured to _PHASE_CAP ~= 97 bytes), so many instruments sharing a few
+    # programs overflow the 256-byte single-byte pulsepos when un-shared (Jupiter41:
+    # 16 insts, 5 distinct programs -> 356 bytes un-shared, 209 shared). When the
+    # un-shared pool would overflow, share identical (start, phases, loop) programs:
+    # byte-identical for the write stream (each note re-inits pulsepos to the program
+    # start and reads the same sequence). Gated to overflow-only — non-overflow
+    # members keep their exact un-shared layout (pulse sharing is position-dependent
+    # like wave, via the absolute $90 markers), so this is zero-regression by
+    # construction (never touches a member that already builds).
+    def _env_bytes(env):
+        return 2 + 2 * len(env.phases) if env.phases else 4
+    _pulse_undedup = len(pulse) + sum(_env_bytes(i.pulse_env)
+                                      for i in usf.instruments if i.pulse_env)
+    _pulse_dedup = _pulse_undedup > 256
+    _pseen: dict = {}
+
+    def add_pulse(env):
+        key = (env.start, tuple(env.phases), env.loop)
+        if _pulse_dedup and key in _pseen:
+            return _pseen[key]
+        s = add_env(pulse, env)
+        _pseen[key] = s
+        return s
+
     for inst in usf.instruments:
         wptr = add_wave(inst.waveform, inst.wave_freq, inst.loop)
-        pptr = add_env(pulse, inst.pulse_env) if inst.pulse_env else 0
+        pptr = add_pulse(inst.pulse_env) if inst.pulse_env else 0
         fptr = ((add_env_f4(filt, inst.filter_env) if _f4
                  else add_env(filt, inst.filter_env)) if inst.filter_env else 0)
         v = inst.vibrato
