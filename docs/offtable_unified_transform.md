@@ -398,3 +398,55 @@ all-programs swap cascade. Scripts: `tmp/of_decomposer.py`, `tmp/diag_ptr7.py`,
 - Over-engineering risk: the Z3/e-graph/MDL layers may be gold-plating. The proven
   cheap path (observe + greedy contour fit) is likely sufficient; add the heavy math
   only behind a demonstrated need.
+
+## GO / NO-GO — Phase-1 viability verdict (2026-06-30)
+
+**The method splits into TWO variants with OPPOSITE maturity. Treat them separately.**
+
+### FREQ overrun-trace (`offtable_freq` records) — ✅ MATURE, roll out
+
+- Proven in shipping FULL members (DMC family-3); the records are content-by-reference
+  `(offset, note, lo, hi)`, USF carries only the 96-entry tuning table.
+- Tightening proof on **Electric_Drum** (genuinely FULL): restricting `offtable_freq` to
+  the reads the engine actually EMITS dropped 11→7 records and the member STAYED FULL —
+  observe's tighter capture is both correct and sufficient.
+- **GT V1** (parallel session) independently arrived at the identical canonical
+  `offtable_freq` + the constant-≥128-size padding layout-stability fix (Trap-B guard).
+  Independent convergence = strong design validation.
+
+### PROGRAM overrun-trace (`SweepEnvelope` decomposer) — ❌ NOT MATURE; go/no-go FAILED
+
+Hunted for the simplest member where an off-table PROGRAM is the sole blocker, to take it
+green as the gate. **No such green is achievable today.** Evidence:
+
+1. Off-table PULSE programs are **family-4-only** — 0 of 120 scanned family-3 partials
+   have one (`tmp/find_offtable_pulse_partial.py`). Family-3's off-table reads are all
+   FREQ (handled by the mature variant).
+2. In family-4, only **3** partials have a PW register as their real (trichotomy
+   `first_play_diff`) first divergence: Jupiter41, Motorway_Crash, Experiences_2. The
+   batch `flat_div` is **init-structure-contaminated** for family-4 (universal-reset init
+   writes in a different order than the orig — confirmed by inspecting the write-22
+   context), so the trichotomy is authoritative here, NOT `flat_div`. (The memory note
+   "use flat_div since DMC inits match" applies to family-1/2 V4, not family-4.)
+3. The decomposer on those 3, verified with **trichotomy** (the correct comparator):
+   - **Jupiter41**: makes it WORSE — production play_match 56000 → decomposer 7416. It
+     recovers ptr-2's validated contour but breaks an earlier hold/re-init program
+     (V2pwhi 0x08→0x00). The hold/re-init contour fit is genuinely unsolved (3 refuted
+     hypotheses, documented above).
+   - **Motorway_Crash**: decomposer == production == force-always-observe (all 5252,
+     identical V1pwlo 0x11 vs 0x32). Forcing the observed contour changes NOTHING, so the
+     divergence is **upstream** (instrument/note/gating), not the pulse program — a
+     trichotomy mislabel, not a real off-table-pulse case.
+   - So Jupiter41 is the ONLY genuine off-table-pulse blocker, and the decomposer regresses it.
+
+**Verdict:** the PROGRAM decomposer cannot mature in isolation — there is no member where
+it is both the sole blocker AND a net improvement. It is double-gated: (a) its own
+hold/re-init contour fit, and (b) the family-4 note/freq/init foundation that precedes the
+pulse in every member's stream. **Do NOT roll it out.** Fold it into family-4 completion
+(fix the note/freq/init foundation first; the decomposer becomes the last pulse fix), and
+develop the hold/re-init fit there with a real proof bed, not as a standalone phase.
+
+**Rollout decision:** ship the FREQ variant now (Phase-1 = freq only). Defer the PROGRAM
+variant to ride on family-4. Tools left in `tmp/`: `find_offtable_pulse_partial.py`,
+`jup_true_div.py`, `of_decomposer.py` (now with `OF_FORCE=1` force-observe toggle +
+trichotomy verify).

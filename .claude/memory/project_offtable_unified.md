@@ -13,6 +13,26 @@ Hubbard, DMC (v4/v5/family-2/family-4), Future Composer — and is the current
 family-4 (Jupiter41) blocker. 3-agent sweep (2026-06-30: census + git-history math
 archaeology + pipeline/principle map) → **proposal doc `docs/offtable_unified_transform.md`**.
 
+⭐ GO/NO-GO VERDICT (2026-06-30, end of session) — the method SPLITS into two variants of
+OPPOSITE maturity (full detail = the doc's "GO / NO-GO" section):
+- **FREQ overrun-trace (`offtable_freq`) = ✅ MATURE, roll out.** Ships in FULL family-3
+  members; Electric_Drum tighten-to-observed-reads proof (11→7 records, stayed FULL); GT
+  V1 independent convergence (same records + ≥128-size padding Trap-B guard).
+- **PROGRAM overrun-trace (`SweepEnvelope` decomposer) = ❌ NOT MATURE, go/no-go FAILED,
+  do NOT roll out.** No green achievable: off-table PULSE is family-4-ONLY (0/120 family-3
+  partials have one); only 3 family-4 partials are PW-first (via TRICHOTOMY first_play_diff
+  — `flat_div` is init-structure-contaminated for family-4 universal-reset, so it's NOT
+  reliable here, unlike family-1/2). On those 3: Jupiter41 decomposer makes it WORSE
+  (play_match 56000→7416, breaks an earlier hold program); Motorway_Crash + force-observe
+  change NOTHING (5252, identical) ⇒ that V1pwlo divergence is UPSTREAM (note/gating), a
+  trichotomy mislabel, not the pulse. So the decomposer is double-gated: its own
+  hold/re-init contour fit AND the family-4 note/freq/init foundation that precedes the
+  pulse in every member's stream. FOLD IT INTO family-4 completion, not a standalone phase.
+- Tools: `tmp/find_offtable_pulse_partial.py`, `tmp/jup_true_div.py`, `tmp/of_decomposer.py`
+  (now trichotomy-verify + `OF_FORCE=1` force-observe). KEY METHOD LESSON: for family-4
+  divergence localization use the TRICHOTOMY `first_play_diff` (state_match-aligned), NOT
+  the batch `flat_div` (init-structure-contaminated by universal-reset).
+
 KEY FINDINGS:
 - **20 occurrences** censused. Decisive axis = WHAT lies past the end: another
   musical table → `SweepEnvelope`; static instr bytes → exact value; work-RAM at
