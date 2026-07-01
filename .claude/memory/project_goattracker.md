@@ -11,6 +11,14 @@ GoatTracker = 2nd-largest HVSC family after DMC: **8,670 SIDs** (7,311 V2 +
 1,359 V1). Family-doc state `OK`. **Active focus: V1** (the *original*
 GoatTracker 1.x by Cadaver, NOT GoatTracker 2 — user-directed 2026-06-29).
 
+**⛔ POLICY OVERRIDE (user, 2026-07-01) — supersedes every C15/audio-equivalence
+mention below:** every SID always gets the STRICT write-stream match; ledger C15
+is REMOVED (design parked in `docs/refactor_1_remaining.md`, Move-1-era-only —
+never propose it during per-engine work). The V1 idle-freewheel partials must be
+solved by REPRODUCING the idle writes (the core tenet permits reproducing the
+mechanism; the composer — not USF — may carry/derive the idle state). References
+to "re-verify under audio-equivalence" below are void.
+
 **Status: ✅ 2 tunes FULLY CONVERGED (Topaz/Joker + Dexter/Menace47, instruction-
 sequence-exact at full songlength). Working V1.5 engine + full SID→USF→SID
 pipeline.** Imdunk at 18%. KEY fixes this session (each high-leverage):
