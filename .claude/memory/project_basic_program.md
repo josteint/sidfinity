@@ -1,6 +1,6 @@
 ---
 name: project_basic_program
-description: "Basic_Program family (486 RSID-BASIC tunes) — PRODUCTIONIZED round-trip: 278/486 (57.2%) FULL through real USF, mass-written + regression"
+description: "Basic_Program family (486 RSID-BASIC tunes) — PRODUCTIONIZED round-trip: 385/486 (79.2%) FULL through real USF (multi-template C17 +107), mass-written + regression"
 metadata: 
   node_type: memory
   type: project
@@ -397,13 +397,31 @@ status depends on it; do NOT chase it. (The 4 build_fail-no-detail tunes were 2 
 now guarded as `no_note_voices` (commit 52f8c13), + 2 not_clean.) Victory's real blocker is structural: a mixed
 gated/held-note tune (196 gate-ons / 54 gate-offs) with a V1-solo final section — forcing legato gives legato_variable.
 
-**NEXT (highest-leverage first):** (1) variable_template 67 + legato_variable 29 + the remaining too_few 47-via-min_trim
-= the SAME heterogeneous-template root (~140 tunes, the biggest lever but structural: mixed gated/held-note sections,
-arp/dup, the union-order superset's dup_reg gap). (2) length_fail remainder (~20): bigger shortfalls Tron 3616 /
-Knightrider 922 / Legion_of_One 905 (loop/section structure) + filter multi-rate channels (Sullen) + held-notes. (3)
-overlap_diverge 19 (zero-all silence + early per-tune emission bugs). (4) too_many_pitches 13 (vibrato >96 — needs a
-glide/vibrato effect representation). Iterate via `family_batch.py` (resumes from the OUT jsonl; delete to force clean).
-METHOD THAT WORKS: census a bucket for a SHARED lever (gap-exactness +13, too_few-fallback +12 both came this way).
+**✅✅ MULTI-TEMPLATE (ledger C17, commit ecc87ce, 2026-07-02): 278→385 FULL (+107!! 57.2%→79.2%), 0 regr.** The
+heterogeneous-template cluster CRACKED by one lever, census-first: of 143 censused residue members, 112 failed on
+register-ORDER conflicts (one superset order can't embed all steps) + the rest on release-side dups; K≤16 distinct step
+shapes for 137/143. Fix: cluster steps by their EXACT (attack reg-seq, release reg-seq) SHAPE → K POSITIONAL templates
+(const/perstep per slot — an intra-step dup is just two slots, so arps/gate-off-groups are free) + per-step template id;
+the single template and the masked superset are the K=1 special cases. `build_player_multi` = per-template straight-line
+emit blocks + tid dispatch (cmp-chain w/ jmp trampolines); records [on,off,tid,vals] uniform stride. USF: `bp_multi`/
+`bp_ntmpl`/`bp_t{t}_atk{i}`/`bp_tid{j}` params (write model only, same precedent as bp_mask); musical content unchanged.
+TWO exactness sub-fixes found via Barbs_Boat: (1) HOLD kept exact in multi (a zero-length hold — gate-off in the gate-on
+frame — floored to 1 accumulates +1/step drift, the C12 lesson a 3rd time); (2) a per-note RELEASE ctrl ≠ attack_ctrl&$FE
+is instrument content (the gate-off WAVEFORM) → carried as `Instrument.waveform[1]`, inst_val(release) reads it. Wired as
+a best_attempt verify-fallback (fires only on failure, accepts only FULL → 0-regression by construction; composes with
+gap_exact 2nd pass). New FULLs by prior bucket: variable_template 41 / too_few_after_trim 33 / length_fail 12 /
+legato_variable 12 / overlap_diverge 9 — ONE lever cut across FIVE buckets. Full regression green.
+
+**RESIDUE (101):** variable_template 26 + legato_variable 17 (multi still failing — likely K>48, >250-byte stride, or
+value-level divergence e.g. non-ctrl perstep release timbre) + build_fail 15 (mostly too_many_pitches = vibrato >96
+freq slots) + too_few_after_trim 14 + overlap_diverge 10 (Deutschlandlied close m=1672/1678; Praeludium/Dark_Tower early)
++ too_few_steps 9 + length_fail 8 (Tron 320/3936 structural; Bond_Alan Doom_Comer/Glass_Jaw/Legion near-miss tails) +
+no_note_voices 2 + 1 digi (Black_Box_V8_Demo → Mode 2).
+
+**NEXT:** (1) census the REMAINING multi failures (why does multi not land them — K/stride caps vs value divergence);
+(2) too_many_pitches 13 (vibrato >96 — needs a glide/vibrato effect representation); (3) length_fail structural tails.
+Iterate via `family_batch.py` (resumes from the OUT jsonl; delete rows to force re-run).
+METHOD THAT WORKS: census a bucket for a SHARED lever (multi-template +107, gap-exactness +13, too_few-fallback +12).
 
 **CONVERGENCE (ledger C10, 2026-06-27):** the `global_track` is the EXPLICIT-event form of chip-global $D415-$D418
 automation; the OTHER engines already represent the same registers PARAMETRICALLY (`MasterVolConfig` fade formula,
