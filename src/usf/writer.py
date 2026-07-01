@@ -141,7 +141,11 @@ def _write_init_sid(sid: InitSid) -> list[str]:
             parts.append(f'cutoff_hi: {_hex(f.cutoff_hi)}')
         if f.res_routing:
             parts.append(f'res_routing: {_hex(f.res_routing)}')
-        lines.append('    filter { ' + '  '.join(parts) + ' }')
+        # An all-zero InitFilter carries no priming (identical to no block);
+        # emitting `filter {  }` would be rejected by the grammar (it requires
+        # at least one field). Omit the block entirely in that case.
+        if parts:
+            lines.append('    filter { ' + '  '.join(parts) + ' }')
     for v in sorted(sid.voices, key=lambda x: x.id):
         lines.append(_write_init_sid_voice(v))
     lines.append('  }')
