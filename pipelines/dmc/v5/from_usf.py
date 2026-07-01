@@ -312,11 +312,27 @@ def usf_to_model(usf: UsfFile) -> V5Model:
         _pseen[key] = s
         return s
 
+    # Overflow-gated FILTER-pool dedup — same as the pulse/wave pools (ledger C8). A
+    # correctly-captured off-table filter program is large, so many instruments over
+    # few programs overflow the 256-byte filterpos un-shared; share identical programs
+    # when the un-shared pool would overflow. Gated to overflow-only -> zero-regression.
+    _filter_undedup = len(filt) + sum(_env_bytes(i.filter_env)
+                                      for i in usf.instruments if i.filter_env)
+    _filter_dedup = _filter_undedup > 256
+    _fseen: dict = {}
+
+    def add_filter(env):
+        key = (env.start, tuple(env.phases), env.loop)
+        if _filter_dedup and key in _fseen:
+            return _fseen[key]
+        s = add_env_f4(filt, env) if _f4 else add_env(filt, env)
+        _fseen[key] = s
+        return s
+
     for inst in usf.instruments:
         wptr = add_wave(inst.waveform, inst.wave_freq, inst.loop)
         pptr = add_pulse(inst.pulse_env) if inst.pulse_env else 0
-        fptr = ((add_env_f4(filt, inst.filter_env) if _f4
-                 else add_env(filt, inst.filter_env)) if inst.filter_env else 0)
+        fptr = add_filter(inst.filter_env) if inst.filter_env else 0
         v = inst.vibrato
         m.instruments.append(V5Instrument(
             id=inst.id, ad=inst.adsr[0], sr=inst.adsr[1],

@@ -156,7 +156,8 @@ def _capture_env(table: list, ptr: int, has_start: bool = True,
 
 def _capture_env_f4(table: list, ptr: int, start_val: int = 0,
                     has_start: bool = False,
-                    reach: int | None = None) -> SweepEnvelope:
+                    reach: int | None = None,
+                    truncate_on_cap: bool = False) -> SweepEnvelope:
     """family-4 filter program: 8-bit (add, count) steps, walked 2 table
     positions per step. `add` = table[pos][0] (filterlo[pos], signed 8-bit);
     `count` = table[pos+1][1] (filterhi[pos+1]); a $90 at table[pos][0] loops
@@ -185,6 +186,8 @@ def _capture_env_f4(table: list, ptr: int, start_val: int = 0,
         if iters > _WALK_CAP:
             raise RuntimeError(f'unsupported:capture_loop @{ptr}')
         if len(phases) >= _PHASE_CAP:
+            if truncate_on_cap:        # off-table one-shot filter ramp (no loop):
+                break                  # keep the prefix (covers >> the re-init interval)
             raise RuntimeError(f'unsupported:sweep_too_long @{ptr}')
         lo, hi = table[pos]
         if lo == 0x90:                 # $90 -> loop to target position `hi`
@@ -368,6 +371,29 @@ def _pulse_env_for(model, ptr, reach):
     return _capture_env(model.pulse, ptr, reach=reach)
 
 
+def _filter_env_for(model, ptr, reach):
+    """Per-instrument filter env — same off-table one-shot-ramp handling as
+    _pulse_env_for. A filter pointer that walks off-table (past its table into
+    adjacent static bytes, no $90 loop) is a one-shot ramp that generates unbounded
+    phases at the whole-song reach -> _PHASE_CAP -> sweep_too_long. The filter
+    re-inits on every note-load (V3, $1421), so it never runs longer than one note;
+    TRUNCATE the captured prefix (which covers >> the re-init interval) instead of
+    raising. Only kicks in on RuntimeError, so a member whose filter already captures
+    cleanly (all currently-FULL members) is untouched -> zero-regression by construction."""
+    if not ptr:
+        return None
+    if getattr(model, 'family4', False):
+        try:
+            return _capture_env_f4(model.filter, ptr, has_start=True, reach=reach)
+        except RuntimeError:
+            return _capture_env_f4(model.filter, ptr, has_start=True, reach=reach,
+                                   truncate_on_cap=True)
+    try:
+        return _capture_env(model.filter, ptr, reach=reach)
+    except RuntimeError:
+        return _capture_env(model.filter, ptr, reach=reach, truncate_on_cap=True)
+
+
 def _instrument_to_usf(ins, model: V5Model, reach: int | None = None):
     """Map a V5Instrument to a USF Instrument. The wave program is decoded
     inline (self-looping, separable); pulse/filter are entry indices into
@@ -384,12 +410,7 @@ def _instrument_to_usf(ins, model: V5Model, reach: int | None = None):
         adsr=(ins.ad, ins.sr),
         pwm=PwmConfig(keep_running=(ins.pulse_ptr == 0)),
         pulse_env=_pulse_env_for(model, ins.pulse_ptr, reach),
-        filter_env=(
-            (_capture_env_f4(model.filter, ins.filter_ptr, has_start=True,
-                             reach=reach)
-             if getattr(model, 'family4', False)
-             else _capture_env(model.filter, ins.filter_ptr, reach=reach))
-            if ins.filter_ptr else None),
+        filter_env=_filter_env_for(model, ins.filter_ptr, reach),
         vibrato=VibratoConfig(onset=ins.vib_delay, speed=ins.vib_speed,
                               amplitude=ins.vib_width),
         offtable_freq=list(ins.offtable_freq),
