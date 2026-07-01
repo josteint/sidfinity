@@ -139,11 +139,15 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
 - **Off-table ONE-SHOT program (no $90 loop) — family-4 pulse, FIRST family-4 FULL
   (Jupiter41, 2026-07-01).** A pointer that walks off-table with no loop is a one-shot
   ramp into adjacent STATIC bytes. Four sub-lessons, all needed:
-  1. **CLASSIFY first — taint-check the source.** `siddump --memtrace` (per-ACCESS,
-     within-frame-complete; NOT per-frame `--memwatch`, which has a within-frame blind
-     spot). Source never written during play ⟹ REPRESENTABLE; written ⟹ hard residue.
-     Pure black-box observation CANNOT classify it — you must read the source. (This is
-     the concrete method for the CLASSIFY step; cross-cuts C6 freq too.)
+  1. **CLASSIFY first — taint-check the source** with `tools/taint_source.py <sid>
+     <LO-HI> --all` (built 2026-07-01). It runs `siddump --memtrace` (per-ACCESS,
+     within-frame-complete; NOT per-frame `--memwatch`, which misses a write-then-restore
+     inside one play()) over all subtunes and reports whether the source region is ever
+     written. Source never written ⟹ REPRESENTABLE; written ⟹ hard residue. Pure
+     black-box observation CANNOT classify it — you must read the source RAM. Cross-cuts
+     C6 freq too. (Maturity: one concrete probe validated on Jupiter41 — an OBSERVATION
+     over played code paths, not a proof over unexercised branches; raise `--duration` if
+     a write might occur only late in the song.)
   2. **Reach = the RE-INIT INTERVAL, not the whole-song window.** A program that re-inits
      every note-load never runs the full song; bounding the walk by the verify window
      over-captures.
