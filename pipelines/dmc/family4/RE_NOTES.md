@@ -41,13 +41,22 @@ and splits them cleanly:
   DEC/BMI/reset-to-1 toggle. The trichotomy verdict ALSO has state-match/
   shift-recovery nuances that tolerate SOME leadin diffs (Plasmostyle FULL
   despite a leadin ctrl $80-vs-$00 diff at its first idle play) but not others —
-  the exact tolerance rule is not yet cracked. NEXT: either (a) reproduce the
-  orig's $1016 2-phase EXACTLY in the composer (DEC toggle seeded from mem[base+
-  $16], gated on m.family4) so the leadin idle-play COUNT + the durctr/hard-
-  restart timing match bit-for-bit; or (b) understand why the trichotomy passes
-  Plasmostyle but not 2_Hours (both $1016=1) — the discriminator is idle-note-0
-  vs nonzero, so the hard-restart SR=0 write on the extra idle play is the
-  likely culprit. dist of mem[base+$16] over partials: {0:111, 1:222, 2:2, 255:1}.
+  the exact tolerance rule is not yet cracked. **⇒ THIS IS A LEDGER C15 CLASS
+  (checked 2026-07-01): the leadin idle plays are GATE-OFF (2_Hours O0 CTRL
+  $04=00) → the differing freq writes make NO SOUND; a one-play difference in the
+  leadin COUNT before the first note-on is inaudible.** So the CANONICAL first
+  move per C15 is NOT composer surgery — it is the **audio-equivalence verdict**:
+  (1) MEASURE how many of the 239 are provably audio-identical (gate-off leadin
+  only, chip STATE converges by the first note-on) — zero-risk; (2) apply C15's
+  audio-equivalence recovery to that subset, which is a VERDICT-CRITERION CHANGE
+  and NEEDS USER RATIFICATION (same status as the DMC song_exact/1.0x lever;
+  that is why C15 is logged-DEFERRED). ONLY the genuinely-audible remainder (a
+  leadin voice gate-ON during the divergence) warrants reproducing the $1016
+  2-phase in the composer (core-tenet-permitted; family4-gated, seed from
+  mem[base+$16], REUSE the lo_spdctr/speed_ctr_init startup-phase pattern — do
+  NOT invent a new counter; the earlier LEFT_SPDCTR=mem[base+$16] attempt FAILED
+  because the composer's reload-to-speed counter ≠ the orig DEC/BMI/reset-to-1
+  toggle). dist of mem[base+$16] over partials: {0:111, 1:222, 2:2, 255:1}.
 - **DEEP ≥64 = 97 = the off-table freq/filter tail** (V1/V2/V3 FLO 71 + FC_HI
   filter 15) = the known-hard C2/C11 off-table pulse/filter sweep, overlapping
   the 71 pulse/filter_table_overflow unsupported. This is the "emit-and-walk the

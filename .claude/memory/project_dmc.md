@@ -34,12 +34,16 @@ unblock-builds, not new FULLs — Black_Sun etc from the `}` fix).
   (15 FULLs have $1016=1, all NONZERO idle; partials have idle=[0,0,N]). **Seeding
   LEFT_SPDCTR=mem[base+$16] did NOT fix it** (regr-safe, 0 recoveries — the
   composer's spdctr counter ≠ the orig $1016 DEC/BMI/reset-to-1 toggle; only
-  represents phase 0/1). trichotomy ALSO tolerates SOME leadin diffs (Plasmostyle
-  FULL despite leadin ctrl $80-vs-$00) not others — rule uncracked. NEXT: reproduce
-  the $1016 2-phase EXACTLY in the composer (family4-gated, seeded mem[base+$16]) so
-  the idle-play COUNT + durctr/hard-restart timing match; OR crack why trichotomy
-  passes Plasmostyle not 2_Hours (both $1016=1; discriminator = idle-note-0 → the
-  hard-restart SR=0 on the extra idle play). $16 dist over partials: {0:111,1:222,2:2,255:1}.
+  represents phase 0/1). **⇒ THIS IS LEDGER C15 (checked 2026-07-01): the leadin
+  idle plays are GATE-OFF (2_Hours O0 CTRL=$00) → inaudible. CANONICAL first move
+  is the AUDIO-EQUIVALENCE verdict, NOT composer surgery:** (1) measure the
+  audio-identical subset (gate-off leadin, state converges by 1st note-on,
+  zero-risk); (2) apply C15 recovery = a VERDICT-CRITERION CHANGE needing USER
+  RATIFICATION (like song_exact/1.0x; why C15 is logged-DEFERRED). Only the
+  gate-ON-during-divergence remainder warrants reproducing the $1016 2-phase in
+  the composer (family4-gated, reuse the lo_spdctr/speed_ctr_init phase pattern —
+  the LEFT_SPDCTR=mem[base+$16] attempt FAILED: composer's reload-to-speed counter
+  ≠ orig DEC/BMI/reset-to-1). $16 dist over partials: {0:111,1:222,2:2,255:1}.
 - **DEEP ≥64 = 97 = off-table freq/filter tail** (FLO 71 + FC_HI 15) = known-hard
   C2/C11 off-table pulse/filter sweep, overlaps the 71 overflow. Architectural-last.
 Artifacts: tmp/f4_periqr_measure.jsonl, f4_partials_members.json, f4_full_members.json,
