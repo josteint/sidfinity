@@ -301,11 +301,21 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
   table also shows). Fix = OVERFLOW-GATE the dedup (share only when the un-shared
   pool > 256), which is zero-regression BY CONSTRUCTION: it only ever touches
   members that can't build un-shared (all currently non-FULL), so no working
-  member changes. SUFFIX/substring overlap (a program that is a tail of another)
-  is the next packing tier for the residue that exceeds 255 even after dedup
-  (DMC v4: Marek_Bilinski_1 / Riders / Abject_17; DMC v5: For_Zeor 318,
-  Samael_01 1848). Not yet built — measured to add nothing on the current V5
-  overflow set (17/19 already fit with plain dedup).
+  member changes. **SUFFIX/OVERLAP packing is REFUTED as the next tier (2026-07-01,
+  `tmp/measure_suffix_overlap.py`):** measured on the DMC v5 family-4 pulse-overflow
+  members, suffix-containment AND greedy shortest-common-superstring add essentially
+  NOTHING over identical-dedup (e.g. Deep_Acid 346→346, Speed_Biker 306→305; 2/10 fit).
+  REASON: each program is captured as a SEPARATE SweepEnvelope with its START value
+  PREPENDED to its phases; in the ORIGINAL shared table a program's start is just a
+  position that ALSO serves as another program's phase byte (start+phases overlap), but
+  the un-fused capture puts a distinct start (a PW value) in front of each phase list, so
+  the sequences don't share suffixes even when the programs walk the same table. The
+  engine's compactness IS the shared table — packing the separate captures can't recover
+  it. **The real next tier is EMIT-AND-WALK the shared static table** (emit the 256-entry
+  m.pulse/filter once, point each instrument's pulse_ptr/filter_ptr into it, like the
+  engine) — fits by construction (256 positions = the byte pointer's range) but is a
+  representation change, not a packing tweak. Deferred (bigger architectural change);
+  the 71 family-4 `pulse/filter_table_overflow` members are current residue.
 - **Consumers:** DMC v4 `composer_asm.py` wave pool (`add_prog` dedup cache,
   commit c73a1d0 — 40 overflow members → 37 build, +5 FULL). DMC v5
   `from_usf.py add_wave` (overflow-gated, 2026-07-01 — 17/19 overflow members
