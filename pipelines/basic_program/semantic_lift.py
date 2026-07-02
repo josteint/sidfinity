@@ -1163,6 +1163,39 @@ def build_player_multi(model):
     return '\n'.join(L)
 
 
+START_CAP = 0                                          # NO leading silence (user policy 2026-07-02):
+#   every tune's first event lands at frame 0, structurally identical to the
+#   other engine families' USFs (first row fires on the first play() call) —
+#   uniform structure across the corpus for ML training.
+
+
+def cap_start_frames(model, cap=START_CAP):
+    """PURE TIME TRANSLATION: when the original's BASIC setup delay (silence
+    before the first event — a "PLEASE WAIT" DATA-decode phase, engine
+    bookkeeping per the init trichotomy, NOT musical content) exceeds `cap`
+    frames, shift every absolute frame target down so the first step lands at
+    `cap`. All RELATIVE timing (rhythm, holds, loop period, sweep clock) is
+    untouched, so the emitted (reg,val) write stream is identical — the music
+    just starts at once. Applied at the MODEL level, so the USF itself carries
+    no dead air (user decision: no delay in the USF). m['start_shift'] records
+    the removed frames so verification can compare equal MUSIC-TIME windows."""
+    steps = model.get('steps') or []
+    if not steps:
+        return model
+    first = min(s['on_frame'] for s in steps)
+    if first <= cap:
+        return model
+    d = first - cap
+    m = dict(model)
+    m['steps'] = [dict(s, on_frame=s['on_frame'] - d,
+                       off_frame=(s['off_frame'] - d if s.get('off_frame') is not None else None))
+                  for s in steps]
+    if m.get('mod_start'):
+        m['mod_start'] = max(0, m['mod_start'] - d)
+    m['start_shift'] = d
+    return m
+
+
 def build_psid(model, title='probe'):
     if model.get('multi'):
         asm = build_player_multi(model)

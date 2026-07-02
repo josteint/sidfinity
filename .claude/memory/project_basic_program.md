@@ -1,6 +1,6 @@
 ---
 name: project_basic_program
-description: "Basic_Program family (486 RSID-BASIC tunes) — PRODUCTIONIZED round-trip: 444/486 (91.4%) FULL through real USF (multi-template C17 +107/+35, glide +11/+5/+7/+1), mass-written + regression"
+description: "Basic_Program family (486 RSID-BASIC tunes) — PRODUCTIONIZED round-trip: 452/486 (93.0%) FULL through real USF; NO-SILENCE start policy; mass-written + regression"
 metadata: 
   node_type: memory
   type: project
@@ -471,6 +471,25 @@ captures (Music_BASIC + Beisikki both under different MUSICIANS dirs than assume
 **Near-miss diagnoses (recorded, not fixed):** Beisikki (diverge at write 1565/1566: doubled gate-off at the loop
 seam — orig's release group differs between loop iterations); Crac_Mur (orig fully reproduced but rebuild loops ~11%
 FAST — loop_period too short, timing infidelity, needs loop-seam gap work); both per-tune loop-seam issues.
+
+**✅✅ NO-SILENCE START POLICY (user-ratified 2026-07-02): 444→452 FULL (93.0%), full-family re-lift.** THE POLICY:
+every basic_program USF starts its music at frame 0 — NO leading silence, NO `bp_start_frame` field (REMOVED; reader
+defaults 0) — structurally uniform with the other engine families for ML training (user: "no silence is best"; evolved
+from cap=5 in-session). The BASIC setup dead-air ("PLEASE WAIT" DATA-decode, up to 105s among prior FULLs) is engine
+bookkeeping per the init trichotomy, NOT musical content. Mechanism: `semantic_lift.cap_start_frames(model, cap=0)`
+applied at MODEL level in `_attempt_model` — pure time translation (all relative timing intact → identical write
+stream), `m['start_shift']` records the removed (rho-scaled) frames. VERIFICATION = equal MUSIC-TIME windows: the
+rebuild's capture window shrinks by the removed dead-air; CRITICAL rho subtlety (cost 1 false regression,
+Curly_Calypso): start_shift is in rho-SCALED model frames — divide by rho to get orig frames BEFORE converting to
+seconds, else the window under-shrinks by (1-rho)≈8% of the delay and dense loops overshoot the |len|<=64 tolerance.
+`verify_usf` (regression path) estimates the shift from the ORIG capture (first gate-on frame backed over freq-only
+frames, in unscaled orig frames) since the USF deliberately carries no delay. AMENDED WINDOW (same round): when the
+canonical songlength*1.1 window has ZERO gate-ons (HVSC songlength SHORTER than the BASIC setup phase — the 9
+"PLEASE WAIT" tunes; lengths presumably measured by a silence-detector), best_attempt probes a 240s capture for the
+real music start and lifts/verifies over [0, music_start + window]. 7 of the 9 landed (Baroque_Music_64,
+God_Save_the_King, Mexican_Hat_Dance, Pong, Small_World, Casino_Poker, Sonata; the ear-test mystery SOLVED: the
+programs print "PLEASE WAIT 1 2/3 MINUTES" etc. and pre-decode DATA for 1-3 min — SIDs fine, sidplayfp fine, HVSC
+songlengths wrong). All 486 re-lifted from scratch (USF content changed family-wide).
 
 **RESIDUE (rest):** variable_template 16 + build_fail 15 (mostly too_many_pitches = vibrato >96 freq slots) +
 too_few_steps 9 + legato_variable 8 (incl. Chicken_Song/Argument_Emulator/Dunes = Bond_Alan vibrato-heavy) +

@@ -297,8 +297,10 @@ def model_to_usf(model, title='bp', gap_exact=False):
             gtrack.append(GlobalEvent(step=k, **chg))
     sub = MusicSubtune(id=0, tempo=1, voices=vblocks, global_track=gtrack)
     # structural write-model -> packed scalar params
+    # bp_start_frame is GONE (user policy 2026-07-02): the start-cap normalizes
+    # every tune to start at frame 0 — no leading silence in the USF, same
+    # structure as the other engine families (the reader defaults to 0).
     fields = {'bp': 1, 'bp_legato': int(model['legato']),
-              'bp_start_frame': steps[0]['on_frame'] if steps else 0,
               'bp_loop_to': model['loop_to'] if model['loop_to'] is not None else -1,
               'bp_loop_period': model['loop_period'],
               'bp_rho_milli': round(model['rho'] * 1000),
@@ -545,7 +547,7 @@ def usf_to_model(usf):
             'song_end': song_end, 'pw_program': pw_program, 'mod_start': mod_start, 'mod_inc': mod_inc}
 
 # ------------------------------------------------------------- verify -----
-def _compare_with_extend(orig_wl, reb_sid, dur, loops):
+def _compare_with_extend(orig_wl, reb_sid, dur, loops, reb_dur=None):
     """Compare the orig writelog vs the rebuild SID captured at `dur`. If the
     rebuild is a correct but SHORT prefix AND the tune LOOPS, re-capture it for
     more frames and accept ONLY iff the orig's ENTIRE writelog is then reproduced
@@ -557,7 +559,9 @@ def _compare_with_extend(orig_wl, reb_sid, dur, loops):
     DIVERGES from the orig when extended fails the exact-prefix check and stays
     length_fail. Returns (compare_result, extended_full)."""
     from pipelines.hubbard.verify_cycle import writelog_capture, compare_instruction_stream
-    r = compare_instruction_stream(orig_wl, writelog_capture(reb_sid, 0, dur), skip_init=False)
+    if reb_dur is None:
+        reb_dur = dur                                  # equal music-time window (start-cap shift)
+    r = compare_instruction_stream(orig_wl, writelog_capture(reb_sid, 0, reb_dur), skip_init=False)
     a0, b0 = r['len_all_a'], r['len_all_b']
     # Try the extension for play-once rebuilds too (not just loops): a rebuild that
     # merely runs slower than the free-running BASIC gets cut by the fixed window
@@ -566,7 +570,7 @@ def _compare_with_extend(orig_wl, reb_sid, dur, loops):
     # false-pass — the extra capture is the only cost.
     if r['match_all'] == min(a0, b0) and a0 - b0 > 64:             # only would-be length_fail
 
-        ext = min(dur * (a0 / max(b0, 1)) * 1.2 + 2, 240.0)
+        ext = min(reb_dur * (a0 / max(b0, 1)) * 1.2 + 2, 240.0)
         r2 = compare_instruction_stream(orig_wl, writelog_capture(reb_sid, 0, ext), skip_init=False)
         if r2['match_all'] == r2['len_all_a']:            # whole orig reproduced as prefix
             return r2, True
@@ -586,12 +590,23 @@ def _attempt_model(m, sid, dur, orig_wl, title='bp', gap_exact=False):
     from pipelines.basic_program.proof_multivoice import verdict_basic
     if 'unsupported' in m:
         return ('unsupported:' + m['unsupported'], 0, 0, 0, None, None)
+    # Start-cap at the MODEL level (user policy: no delay in the USF) — the
+    # setup dead-air is engine bookkeeping, not musical content. Verification
+    # then compares equal MUSIC-TIME windows: the rebuild plays start_shift
+    # frames more music per wall-second, so its capture window shrinks by it.
+    m = S.cap_start_frames(m)
     if not is_clean(m):
         return ('not_clean', 0, 0, 0, None, None)
     try:
         usf = model_to_usf(m, title=title, gap_exact=gap_exact)
     except ValueError as e:                            # e.g. too_many_pitches (vibrato > 96 slots)
         return (str(e), 0, 0, 0, None, None)
+    rate = 60.0 if m.get('clock') == 'NTSC' else 50.0
+    # start_shift is in rho-SCALED (model) frames; the orig's dead-air is in
+    # unscaled frames — un-scale before converting to seconds or the window
+    # under-shrinks by (1-rho) of the delay.
+    shift_orig = m.get('start_shift', 0) / max(m.get('rho', 1.0) or 1.0, 0.01)
+    reb_dur = max(5.0, dur - shift_orig / rate)
     fd, up = tempfile.mkstemp(suffix='.usf'); os.close(fd)
     fd, sp = tempfile.mkstemp(suffix='.sid'); os.close(fd)
     extended_full = False
@@ -601,7 +616,8 @@ def _attempt_model(m, sid, dur, orig_wl, title='bp', gap_exact=False):
             sid_bytes = build_psid(usf_to_model(parse_file(up)))
             with open(sp, 'wb') as fo:
                 fo.write(sid_bytes)
-            r, extended_full = _compare_with_extend(orig_wl, sp, dur, m.get('loop_to') is not None)
+            r, extended_full = _compare_with_extend(orig_wl, sp, dur, m.get('loop_to') is not None,
+                                                    reb_dur=reb_dur)
         except Exception:                              # degenerate model (e.g. empty voices)
             return ('build_fail', 0, 0, 0, None, None)
     finally:
@@ -628,6 +644,21 @@ def best_attempt(sid_rel, dur, title='bp'):
     from pipelines.hubbard.verify_cycle import writelog_capture
     sid = os.path.join(ROOT, 'hvsc84', sid_rel)
     orig_wl = writelog_capture(sid, 0, dur)
+    # AMENDED WINDOW (user-ratified 2026-07-02): some type-in programs pre-decode
+    # their DATA for 1-3 MINUTES before the first note ("PLEASE WAIT" screens), and
+    # the HVSC songlength is SHORTER than that setup phase — the canonical window
+    # then contains zero gate-ons. When that happens, probe an extended capture for
+    # the real music start and lift/verify over [0, music_start + window] (cap 240s)
+    # instead of the broken canonical length. Tunes with no music within 240s stay
+    # residue.
+    CTRLR = {0x04, 0x0b, 0x12}
+    if not any(r in CTRLR and (v & 1) for fr in orig_wl for (c, r, v) in fr):
+        frames = S.capture_real(sid, 240.0)
+        fg = next((i for i, fr in enumerate(frames)
+                   if any(r in CTRLR and (v & 1) for (c, r, v) in fr)), None)
+        if fg is not None:
+            dur = min(240.0, fg / 50.0 + max(dur, 30.0))
+            orig_wl = writelog_capture(sid, 0, dur)
 
     def _try(gap_exact):
         res = _attempt_model(build_model(sid, dur), sid, dur, orig_wl, title, gap_exact=gap_exact)
@@ -713,7 +744,21 @@ def verify_usf(usf_rel, sid_rel, dur):
         fo.write(build_psid(m2)); out = fo.name
     try:
         orig_wl = writelog_capture(sid, 0, dur)
-        r, extended_full = _compare_with_extend(orig_wl, out, dur, m2.get('loop_to') is not None)
+        # The USF carries NO start delay (user policy) while the orig has the
+        # BASIC setup dead-air — estimate the removed shift from the orig's
+        # first music frame so both sides get equal MUSIC-TIME windows.
+        CTRLR = {0x04, 0x0b, 0x12}
+        frames = S.capture_real(sid, dur)
+        fg = next((i for i, fr in enumerate(frames)
+                   if any(rg in CTRLR and (v & 1) for (c, rg, v) in fr)), None)
+        reb_dur = None
+        if fg is not None:
+            while fg > 0 and frames[fg - 1] and all(rg in FREQ for (c, rg, v) in frames[fg - 1]):
+                fg -= 1                                # back over the note's freq-only frames
+            rate = 60.0 if m2.get('clock') == 'NTSC' else 50.0
+            reb_dur = max(5.0, dur - max(0, fg) / rate)   # fg is in ORIG (unscaled) frames
+        r, extended_full = _compare_with_extend(orig_wl, out, dur, m2.get('loop_to') is not None,
+                                                reb_dur=reb_dur)
     finally:
         os.unlink(out)
     ok = extended_full or verdict_basic(r)[0]
