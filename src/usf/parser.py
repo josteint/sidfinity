@@ -837,6 +837,9 @@ class _T(Transformer):
     def fx_glide_ticks(self, items):
         return f'glide_ticks={int(items[0])}'
 
+    def fx_glide_hold(self, items):
+        return f'glide_hold={int(items[0])}'
+
     def fx_wave_adjust(self, items):
         return f'wave_adjust={int(items[0])}'
 

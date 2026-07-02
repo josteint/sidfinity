@@ -151,7 +151,7 @@ def model_to_usf(model, title='bp', gap_exact=False):
     kept = list(range(len(steps)))
     # per-tune lossless freq alphabet (distinct freq -> unique freq_table slot)
     allfreqs = {fq for i in kept for vc2, fq in eff[i].items()
-                if fq is not None and steps[i].get('glide_member') != vc2}
+                if fq is not None and vc2 not in steps[i].get('glide_member', ())}
     slotmap = _assign_slots(allfreqs)
     if slotmap is None:
         raise ValueError('too_many_pitches')
@@ -223,7 +223,7 @@ def model_to_usf(model, title='bp', gap_exact=False):
               (max(0, nxt - on - hold) if (multi and gated) else 1)
         for vc in voices:
             f = eff[k][vc]
-            if multi and s.get('glide_member') == vc:  # glide member: rest row, freq derived at read
+            if multi and vc in s.get('glide_member', ()):  # glide member: rest row, freq derived at read
                 vrows[vc].append(NoteRow(pitch=Pitch.rest(), duration=hold))
                 if gated:
                     vrows[vc].append(NoteRow(pitch=Pitch.rest(), duration=gap))
@@ -247,12 +247,14 @@ def model_to_usf(model, title='bp', gap_exact=False):
             else:
                 slot = slotmap[f]; nm, octv = _slot_pitch(slot)
                 ftab[slot] = (f >> 8) & 0xFF; ftab[128 + slot] = f & 0xFF
-                g = s.get('glide')
+                g = (s.get('glide') or {}).get(vc)
                 fx = ()
-                if g and g['voice'] == vc:             # linear glide from this note
+                if g:                                  # linear glide from this note
                     d = g['delta']
                     fx = (f'glide_{"up" if d > 0 else "down"}=${abs(d):04X}',
                           f'glide_ticks={g["n"]}')
+                    if g.get('hold', 1) > 1:           # staircase: level held R ticks
+                        fx += (f'glide_hold={g["hold"]}',)
                 vrows[vc].append(NoteRow(pitch=Pitch(name=nm, octave=octv),
                                          duration=hold, instr=InstrumentRef(id=note_instr(vc, s)),
                                          fx_flags=fx))
@@ -478,7 +480,8 @@ def usf_to_model(usf):
                     dlt = (int(fl['glide_up'].lstrip('$'), 16) if 'glide_up' in fl
                            else -int(fl['glide_down'].lstrip('$'), 16))
                     glides[vc] = [_pitch_freq(vrows[vc][hi].pitch, ftab) or 0,
-                                  dlt, 0, int(fl['glide_ticks'])]
+                                  dlt, 0, int(fl['glide_ticks']),
+                                  int(fl.get('glide_hold', 1))]
         attack = []; release = []; amask = 0; rmask = 0
         stepped = set()                                # glide tick: once per STEP (hi+lo pair)
         for i, (reg, kind, val, vc) in enumerate(a_ent):
@@ -498,7 +501,7 @@ def usf_to_model(usf):
                     g = glides[vc]
                     if vc not in stepped:
                         g[2] += 1; stepped.add(vc)
-                    fq = (g[0] + g[2] * g[1]) & 0xFFFF
+                    fq = (g[0] + (g[2] // g[4]) * g[1]) & 0xFFFF
                 elif p.is_rest:
                     fq = 0
                 else:
@@ -674,7 +677,8 @@ def best_attempt(sid_rel, dur, title='bp'):
                                   sid, dur, orig_wl, title, gap_exact=gap_exact)
             if res8[0] == 'FULL':
                 return res8
-            if res8[0] == 'length_fail':               # trailing releaseless run was trimmed
+            if res8[0] != 'FULL':                      # e.g. the trim ate a trailing run, or the
+                # trimmed tail's pitches pushed the alphabet over (min_trim keeps them liftable)
                 res9 = _attempt_model(build_model(sid, dur, multi_template=True, force_split=True,
                                                   detect_glide=True, min_trim=True),
                                       sid, dur, orig_wl, title, gap_exact=gap_exact)

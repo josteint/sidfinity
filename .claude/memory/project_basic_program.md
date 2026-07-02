@@ -1,6 +1,6 @@
 ---
 name: project_basic_program
-description: "Basic_Program family (486 RSID-BASIC tunes) — PRODUCTIONIZED round-trip: 436/486 (89.7%) FULL through real USF (multi-template C17 +107/+35, glide +11/+5), mass-written + regression"
+description: "Basic_Program family (486 RSID-BASIC tunes) — PRODUCTIONIZED round-trip: 443/486 (91.2%) FULL through real USF (multi-template C17 +107/+35, glide +11/+5/+7), mass-written + regression"
 metadata: 
   node_type: memory
   type: project
@@ -443,7 +443,23 @@ tunes (~12: C_Prog examples, Star_Ship, Snaker, Alpine_Escape, Bunny_Hop, Cliffh
 Organ_Torture, Close_Encounters(float vibrato), Dunes(random ramp), Guy_Next_Door) — BASIC float arithmetic not
 parametrically reproducible.
 
-**RESIDUE (50 post-interleave):** variable_template 16 + build_fail 15 (mostly too_many_pitches = vibrato >96 freq slots) +
+**✅ GLIDE ROUND 3: per-voice chains + staircase + kmax (2026-07-02): 436→443 FULL (+7, 91.2%), 0 regr.**
+(a) PER-VOICE CHAINS: a step writing several voices' freqs ([V1hi,V2hi] tick) contributes to EACH voice's chain
+(candidate for V iff among V's regs it writes only freq; other voices/globals in the step fine) — simultaneous
+bundled glides lift (Wood_Steve/Music 2345/2345). (b) STAIRCASE `u_t = u0 + (t//R)*delta` + NEW param `glide_hold=R`.
+(c) multi kmax 48→128 (Christmas_Album K>48 → FULL). (d) res9 (min_trim glide retry) fires on ANY non-FULL res8
+(alphabet-driven min_trim need, not just length). (e) CAPTURE-RETRY hardening (verify_cycle.writelog_capture +
+capture_real retry 3x on rc!=0/empty — parallel-load siddump death read as empty capture, caused phantom verdicts
++ the portfolio flake; ALSO siddump silently returns empty on a WRONG PATH — check paths before debugging "0 writes").
+In_Your_Head + Deutschlandlied + Hackers_Rap + Strawberry_Fields + Nightwalker landed too.
+
+**RESIDUE (43): PENDING USER DECISION — 8 no-music-in-window tunes** (Baroque_Music_64, C_Prog_09, God_Save,
+Mexican_Hat, Pong, Small_World, Casino_Poker, Hacksville_Hoedown, Sonata): HVSC songlength < the BASIC program's
+DATA/setup phase, so the ratified songlength*1.1 window holds only ~9-33 setup writes, no notes. Options: init-only
+degenerate FULL (games the metric, encodes silence) / exclude via excluded_sids.json / lift+verify at a longer
+window (needs user to amend the ratified window policy). Recommended: exclude or amend.
+
+**RESIDUE (rest):** variable_template 16 + build_fail 15 (mostly too_many_pitches = vibrato >96 freq slots) +
 too_few_steps 9 + legato_variable 8 (incl. Chicken_Song/Argument_Emulator/Dunes = Bond_Alan vibrato-heavy) +
 overlap_diverge 8 (Deutschlandlied close m=1672/1678; Crazy_Conveyors/Dark_Tower/Escape_from_Death early) +
 too_few_after_trim 5 + length_fail 3 + no_note_voices 2 + 1 digi (Black_Box_V8_Demo → Mode 2).

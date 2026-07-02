@@ -505,7 +505,20 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
   min_trim variants retain it downstream. NOT handled: dual alternating glide
   streams within ONE voice (Sleepy V2 — odd/even substreams each constant-delta)
   and exponential/float-computed slides (C_Prog_07 — BASIC float rounding is not
-  parametrically reproducible).
+  parametrically reproducible). **ROUND 3 (+7, 443 total, 2026-07-02):**
+  (a) PER-VOICE CHAINS — a step writing several voices' freqs (a two-voice
+  [V1hi,V2hi] tick) contributes an observation to EACH voice's chain; a step is a
+  candidate for voice V iff among V's regs it writes ONLY freq (other voices' /
+  global regs in the same step are fine), so simultaneous multi-voice glides
+  bundled in shared steps lift (Wood_Steve/Music FULL 2345/2345). (b) STAIRCASE
+  fit `u_t = u0 + (t//R)*delta` + NEW musical param `glide_hold=R` (level held R
+  ticks; R=1 = plain ramp). (c) multi kmax 48→128 (Christmas_Album K>48 → FULL
+  1867/1867; tid is a byte, the stride guard still bounds records). (d) the
+  min_trim glide retry fires on ANY non-FULL res8 (Music needed min_trim for the
+  ALPHABET, not for length). ALSO capture-retry hardening: verify_cycle
+  writelog_capture + proof_twinkle capture_real retry 3x on rc!=0/empty stdout —
+  a parallel-load siddump death silently read as "the SID emits nothing" and
+  corrupted verdicts (the transient portfolio flake).
 
 ### C12 — Accumulated per-step rounding drift in a delta-encoded round-trip
 - **The bug class:** the USF (or any parametric form) stores a sequence as

@@ -446,6 +446,10 @@ fx_flag: "tie"                  -> fx_tie
        // glide performs over the row (basic_program trace-lift; engines
        // whose glide ticks at the player's own loop rate, not per-frame).
        | "glide_ticks" "=" INT    -> fx_glide_ticks
+       // Slide step-hold: each level of the glide is held for this many
+       // ticks before advancing (a staircase ramp; default 1 = advance
+       // every tick).
+       | "glide_hold" "=" INT     -> fx_glide_hold
        | "wave_adjust" "=" INT  -> fx_wave_adjust
        | "filter" "=" number    -> fx_filter
        // FC $F0 marker: play this note WITHOUT retriggering the

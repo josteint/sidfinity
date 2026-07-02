@@ -235,7 +235,7 @@ def _superset_templates(steps):
     return (atk_t, [r for r, k, v, vo in atk_t if k == 'perstep'],
             rel_t, [r for r, k, v, vo in rel_t if k == 'perstep'])
 
-def _multi_templates(steps, kmax=48):
+def _multi_templates(steps, kmax=128):
     """MULTI-TEMPLATE derivation: cluster steps by their exact (attack reg-seq,
     release reg-seq) SHAPE; each cluster gets a POSITIONAL template (const/perstep
     per slot). The general form of the superset+mask: conflicting register orders
@@ -293,55 +293,62 @@ def _mark_glide_runs(steps, init, loop_to):
             if FHIr[vc] in d: hi[vc] = d[FHIr[vc]]
             if FLOr[vc] in d: lo[vc] = d[FLOr[vc]]
     upd(dict(init))
-    info = []                                          # (shape, voice, freq16) | (None, voices_touched)
+    # Per-voice observation chains. For each step and voice: 'cand' = the step
+    # writes ONLY freq regs of that voice (other voices' / global regs in the
+    # same step are fine — a two-voice [V1hi,V2hi] tick contributes to BOTH
+    # chains), no release; 'brk' = the step touches the voice some other way
+    # (note ctrl / timbre / its release) and breaks its chain; else the step
+    # doesn't involve the voice and is skipped.
+    obs = []                                           # per step: {vc: ('cand', freq16) | ('brk',)}
     for s in steps:
-        regs = [r for r, v in s['attack']]
         d = dict(s['attack'])
-        vcs = {voice_of(r) for r in regs}
-        ok = (len(vcs) == 1 and None not in vcs and all(r in FREQ for r in regs)
-              and not s['release'])
+        rl = dict(s['release']) if s['release'] else {}
         upd(d)
-        if ok:
-            vc0 = next(iter(vcs))
-            info.append((tuple(regs), vc0, (hi[vc0] << 8) | lo[vc0]))
-        else:
-            info.append((None, {v for v in vcs if v}))
+        entry = {}
+        for vc in (1, 2, 3):
+            aregs = [r for r in d if voice_of(r) == vc]
+            rregs = [r for r in rl if voice_of(r) == vc]
+            if not aregs and not rregs:
+                continue
+            if rregs or any(r not in FREQ for r in aregs):
+                entry[vc] = ('brk',)
+            else:
+                entry[vc] = ('cand', (hi[vc] << 8) | lo[vc])
+        obs.append(entry)
     n = len(steps)
     for vc in (1, 2, 3):
-        # this voice's candidate indices, run-scan over ITS subsequence; any
-        # same-voice non-candidate step (incl. a note/release) breaks the chain.
         k = 0
         while k < n:
-            e = info[k]
-            if e[0] is None or e[1] != vc:
+            e = obs[k].get(vc)
+            if not e or e[0] != 'cand':
                 k += 1; continue
-            shape, _vc, f0 = e
-            idxs = [k]; prev = f0; d0 = None
+            # collect the maximal candidate stretch, then fit the staircase form
+            # u_t = u0 + (t // R) * delta (R = per-level hold, 1 = plain ramp)
+            idxs = [k]; vals = [e[1]]
             j = k + 1
             while j < n:
-                ej = info[j]
-                if ej[0] is None:
-                    if vc in ej[1]:                    # same-voice foreign step ends the run
-                        break
-                    j += 1; continue                   # other-voice step: interleave allowed
-                if ej[1] != vc:
-                    j += 1; continue
-                if ej[0] != shape:
+                ej = obs[j].get(vc)
+                if ej is None:
+                    j += 1; continue                   # step doesn't involve this voice
+                if ej[0] != 'cand':
                     break
                 if loop_to is not None and j == loop_to:
                     break
-                dd = ej[2] - prev
-                if dd == 0 or (d0 is not None and dd != d0):
-                    break
-                if d0 is None:
-                    d0 = dd
-                prev = ej[2]; idxs.append(j); j += 1
-            m = len(idxs) - 1                          # members after the head
-            if d0 is not None and m >= GLIDE_MIN - 1:
-                steps[idxs[0]]['glide'] = {'delta': d0, 'n': m, 'voice': vc}
-                for t in idxs[1:]:
-                    steps[t]['glide_member'] = vc
-                k = idxs[-1] + 1
+                idxs.append(j); vals.append(ej[1]); j += 1
+            R0 = next((t for t in range(1, len(vals)) if vals[t] != vals[0]), None)
+            L = 0
+            if R0 is not None and R0 <= 4:
+                delta = vals[R0] - vals[0]
+                while L < len(vals) and vals[L] == vals[0] + (L // R0) * delta:
+                    L += 1
+            if L - 1 >= GLIDE_MIN - 1:
+                g = {'delta': delta, 'n': L - 1}
+                if R0 > 1:
+                    g['hold'] = R0
+                steps[idxs[0]].setdefault('glide', {})[vc] = g
+                for t in idxs[1:L]:
+                    steps[t].setdefault('glide_member', set()).add(vc)
+                k = idxs[L - 1] + 1
             else:
                 k += 1
 

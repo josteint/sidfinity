@@ -48,7 +48,13 @@ def writelog_capture(sid_path: str, subtune: int = 0,
            '--duration', str(duration), '--writelog', '--raw']
     if force_rsid:
         cmd.append('--force-rsid')
-    r = subprocess.run(cmd, capture_output=True, text=True)
+    # Retry on failure/empty: under heavy parallel load a siddump run can die
+    # (fork/OOM) with empty stdout, which would silently read as "the SID emits
+    # nothing" and corrupt the verdict (false too_few/diverge).
+    for _try in range(3):
+        r = subprocess.run(cmd, capture_output=True, text=True)
+        if r.returncode == 0 and r.stdout:
+            break
     frames: list[Frame] = []
     for line in r.stdout.splitlines():
         if '|W:' not in line:

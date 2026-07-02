@@ -37,8 +37,13 @@ def capture_real(sid_path, duration):
     line; writelog_capture drops empty frames, losing hold-duration). Returns
     list-of-frames where index = real frame number, each = [(cyc,reg,val),...].
     """
-    r = subprocess.run([SIDDUMP, sid_path, '--writelog', '--duration',
-                        str(duration)], capture_output=True, text=True)
+    # Retry on failure/empty (parallel-load siddump death would silently read
+    # as an empty capture and corrupt the lift — see writelog_capture).
+    for _try in range(3):
+        r = subprocess.run([SIDDUMP, sid_path, '--writelog', '--duration',
+                            str(duration)], capture_output=True, text=True)
+        if r.returncode == 0 and r.stdout:
+            break
     frames = []
     for line in r.stdout.splitlines():
         # a per-frame register-dump line starts with a 2-hex-digit byte; skip
