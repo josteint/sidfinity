@@ -7,6 +7,26 @@ metadata:
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
 ---
 
+## ✅ FAMILY-1 round 11 (2026-07-03): DATAFLOW-route phase observer (+3, 4220/5401)
+The V1flo pos~24 sub-class (17) root-caused = **C18 phase wrappers on the
+RE-ASSEMBLED (dataflow) route** — the round-4/5 observer was canon-only, and its
+PC offsets (base+$85/$1F9/$41C) don't hold for shifted code (Arrive's whole state
+block is +1: $1717/$1719 not $1716/$1718 — the FIRST memwatch at canon addrs read
+garbage, re-check the shift before trusting state samples on dataflow members!).
+NEW `_observe_play_phases_writes` = OFFSET-BLIND classification by SID-write
+footprint: P = writes the $D416 global-filter tail (unconditional in the canon
+play body, unreachable from the frame entry/refresh), F<voices> = per-voice
+writes without it (values advancing), R = identical values to the previous call,
+S = none. Wired into `_build_via_dataflow`; same token output, zero composer
+change. Arrive = CIA 6x `P_F123_F123_F123_F123_F123` (full play every 6th call —
+without the knob the rebuild ticked 6x fast, notes 6x short). **+3 FULL
+(Hang_Drum/Autumn_Memoir/Bad_Ass); massive re-localizations (Arrive 29→576k,
+Pongish 29→789k, Player→526k, Inhale→767k = the deep freq tail is now their
+blocker)**. FULL-side census: 0 dataflow FULLs observe a schedule (provably
+0-regression). Full regression green. Residue of the 17: 4 still early
+(Ucieczka @31 unchanged, Paint_Me_Blue @127, Turbulent_Times @67, Little_Beat
+@71 — different causes), 10 deep. Artifacts: tmp/f1_v1flo24_verify.jsonl.
+
 ## ✅ FAMILY-1 round 10 (2026-07-02): guard + dtmp map rows (+3, 4217/5401) — early cluster CHARACTERIZED
 (a) **GUARD ROW LANDED** — the round-9 objection was a MISREAD: re-RE of the play
 body shows $1322 (guard check) runs for EVERY voice every frame ($10B3 freewheels

@@ -402,6 +402,81 @@ def _observe_play_phases(sid_path: str, subtune: int, base: int,
     return None
 
 
+def _observe_play_phases_writes(sid_path: str, subtune: int,
+                                n_calls: int = 12,
+                                max_steps: int = 200_000):
+    """OFFSET-BLIND play-phase observation for RE-ASSEMBLED (dataflow-route)
+    members, where the canon entry-point offsets don't hold. Classify each
+    play() call by its SID-WRITE FOOTPRINT instead of PCs:
+      P = writes $D416 (the canon play body's unconditional global-filter
+          tail — the per-voice frame entry and the refresh stub never reach it)
+      F<voices> = per-voice writes without the $D416 tail, values ADVANCING
+          vs the previous call (effects ran)
+      R<voices> = per-voice writes identical in value to the previous call's
+          per-voice writes (pure register refresh, no state advance)
+      S = no SID writes.
+    Same 'P_F123...' output as _observe_play_phases; the verify gate is the
+    net for any misclassification (C18: observe, don't parse)."""
+    import sys
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__),
+                                    '..', '..', '..', 'tools', 'py65_lib'))
+    from py65.devices.mpu6502 import MPU
+    from py65.memory import ObservableMemory
+    from seed_disassembly import parse_psid
+    s = parse_psid(sid_path)
+    mpu = MPU()
+    mem = ObservableMemory()
+    writes = []
+    mem.subscribe_to_write(range(0xD400, 0xD419),
+                           lambda addr, val: writes.append((addr, val)))
+    for i, b in enumerate(s['payload']):
+        if s['load'] + i < 0x10000:
+            mem[s['load'] + i] = b
+    mpu.memory = mem
+
+    def run(pc, acc):
+        mpu.stPush(0x00)
+        mpu.stPush(0x00)           # RTS sentinel -> PC = $0001
+        mpu.pc = pc
+        mpu.a = acc
+        del writes[:]
+        for _ in range(max_steps):
+            if mpu.pc == 0x0001:
+                return list(writes)
+            try:
+                mpu.step()
+            except Exception:
+                return None
+        return None
+
+    if run(s['init'], subtune) is None:
+        return None
+    seq = []
+    prev_vals = None
+    for _ in range(n_calls):
+        w = run(s['play'], 0)
+        if w is None:
+            return None
+        if not w:
+            seq.append('S')
+            continue
+        regs = {a & 0x1F for a, _ in w}
+        if 0x16 in regs:
+            seq.append('P')
+        else:
+            voices = sorted({r // 7 for r, _ in
+                             ((a & 0x1F, v) for a, v in w) if r < 21})
+            vs = ''.join(str(v + 1) for v in voices)
+            vals = [(a & 0x1F, v) for a, v in w]
+            seq.append(('R' if prev_vals is not None
+                        and set(vals) <= set(prev_vals) else 'F') + vs)
+        prev_vals = [(a & 0x1F, v) for a, v in w]
+    for p in range(1, n_calls // 2 + 1):
+        if all(seq[i] == seq[i % p] for i in range(n_calls)):
+            return '_'.join(seq[:p])
+    return None
+
+
 def _detect_play_repeat(mem, play: int, base: int, load: int) -> int:
     """INTERNAL multispeed: a play vector that is N consecutive `JSR T` (same
     target T) terminated by RTS runs the engine N times per VBI (e.g. High_Speed
@@ -559,6 +634,16 @@ def _build_via_dataflow(sid_path: str, hvsc_root: str):
         name=os.path.splitext(os.path.basename(sid_path))[0],
         base=base, cia_period=cia_period, play_repeat=play_repeat,
         extra_params=_dataflow_knob_probes(mem, load), **loc)
+    # PLAY-PHASE wrapper on the RE-ASSEMBLED route (C18): canon entry-point
+    # offsets don't hold here, so observe by SID-write footprint instead of
+    # PCs (P = the $D416 global-filter tail; F/R = per-voice writes without
+    # it). E.g. Arrive: CIA 6x with full play every 6th call, effects-only
+    # between — without the knob the rebuild ticks 6x too fast.
+    if cfg.play_repeat == 1:
+        ph = _observe_play_phases_writes(os.path.join(hvsc_root, sid_path),
+                                         s['start'] - 1)
+        if (ph and '_' in ph and 'P' in ph.split('_')):
+            cfg.extra_params['play_phases'] = ph
     # POST-INIT leftover capture: canon's leftover priming (d417 shadow,
     # idle notes/masks, dual phase) reads the file image because canon init
     # never touches those bytes. A re-assembled init MAY clear/rewrite them
