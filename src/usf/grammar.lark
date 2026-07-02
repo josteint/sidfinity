@@ -124,6 +124,8 @@ init_filter_field: "cutoff_lo" ":" number      -> ifilt_lo
                  | "res_routing" ":" number    -> ifilt_res
 isid_voice_field: "envelope_prime" ":" "(" number "," number ")"  -> isidv_env
                 | "pw_init" ":" number                              -> isidv_pw
+                | "ctrl_init" ":" number                            -> isidv_ctrl
+                | "freq_init" ":" number                            -> isidv_freq
 
 // ----- freq table (optional) -----
 // Per-tune freq table bytes. The codegen places them at the canonical

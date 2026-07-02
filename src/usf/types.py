@@ -667,11 +667,19 @@ class InitSidVoice:
     or $D410/$D411 (V3). For raw-register pulse-width priming
     independent of any instrument's `pwm.init`.
 
+    `ctrl_init`: the voice ctrl register ($D404/$D40B/$D412) primed at
+    init — waveform/gate state going into play. `freq_init`: a 16-bit
+    freq seed primed at init (some engines' partial-freq first notes
+    rely on it). Both are chip priming per the init trichotomy — the
+    same typed family as pw_init (surfaced by basic_program).
+
     Fields are `None` = "don't prime this slot."
     """
     id: int
     envelope_prime: Optional[tuple] = None  # (ad, sr) or None
     pw_init: Optional[int] = None           # 16-bit pulse-width or None
+    ctrl_init: Optional[int] = None         # ctrl byte or None
+    freq_init: Optional[int] = None         # 16-bit freq seed or None
 
 
 @dataclass

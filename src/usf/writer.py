@@ -129,6 +129,10 @@ def _write_init_sid_voice(v: InitSidVoice) -> str:
         parts.append(f'envelope_prime: ({_hex(ad)}, {_hex(sr)})')
     if v.pw_init is not None:
         parts.append(f'pw_init: {_hex(v.pw_init, 4)}')
+    if getattr(v, 'ctrl_init', None) is not None:
+        parts.append(f'ctrl_init: {_hex(v.ctrl_init)}')
+    if getattr(v, 'freq_init', None) is not None:
+        parts.append(f'freq_init: {_hex(v.freq_init, 4)}')
     return f'    voice {v.id} {{ ' + '  '.join(parts) + ' }'
 
 

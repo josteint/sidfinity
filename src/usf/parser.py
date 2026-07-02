@@ -198,6 +198,12 @@ class _T(Transformer):
     def isidv_pw(self, items):
         return ('pw_init', items[0])
 
+    def isidv_ctrl(self, items):
+        return ('ctrl_init', items[0])
+
+    def isidv_freq(self, items):
+        return ('freq_init', items[0])
+
     def isid_voice(self, items):
         voice_id = int(items[0])
         v = InitSidVoice(id=voice_id)

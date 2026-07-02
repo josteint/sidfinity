@@ -1,6 +1,6 @@
 ---
 name: project_basic_program
-description: "Basic_Program family (486 RSID-BASIC tunes) — PRODUCTIONIZED round-trip: 455/486 (93.6%) FULL; NO-SILENCE + NORMAL FORM stage 1 (260 NF / 195 legacy); mass-written + regression"
+description: "Basic_Program family (486 RSID-BASIC tunes) — PRODUCTIONIZED round-trip: 455/486 (93.6%) FULL; NORMAL FORM stages 1+2 (246 NF: order decls + typed init.sid; 209 legacy); mass-written + regression"
 metadata: 
   node_type: memory
   type: project
@@ -511,6 +511,18 @@ instruments absorb ALL written timbre (const+perstep incl. gate values + release
 join with __ (CNAME-safe). tie/no_release fx mark gateless/releaseless notes (existing vocabulary).
 STAGE 2-4 REMAIN: init→typed init.sid priming (trichotomy verdict), merged rest rows + union-onset step grid (user
 point B), loop seam-gap extension (kill bp_loop_period), rho→composer, sweeps→typed C1 form, legacy-tune census.
+
+**✅ NORMAL FORM STAGE 2 (2026-07-03): bp_init DISSOLVED into typed init.sid (455 held, 246 NF / 209 legacy).**
+Trichotomy decomposition (`_init_sid_typed`): only the FINAL pre-music chip state matters (Check A) — zero finals
+drop (universal reset), nonzero finals become TYPED priming: master_vol / filter{cutoff_lo,cutoff_hi,res_routing} /
+envelope_prime / pw_init + NEW schema siblings `ctrl_init` + `freq_init` (InitSidVoice; surfaced exactly as the init
+report predicted "when surfaced"). Reader (`_init_writes_from_sid`): DRIVER slot + universal reset (zero $00-$17
+ascending) + priming in canonical order. VERDICT = the FC universal_reset precedent (`_compare_music`): Check A
+end-of-init state equality + Check B flat music-stream compare (prefix + |len|<=64 + extend). KEY LESSON — the
+SELF-ALIGNING SPLIT (`_split_aligned`): a gate-on-based music-start split MISFIRES when init PRIMES a gate
+(legato ctrl_init) or freq seed; instead the rebuild's init length is KNOWN (len(m2.init)) and the orig's split
+point is found by locating the rebuild's first 8 music writes in the orig stream (cost: 70 tunes fell out of NF
+until fixed). 14 stage-1-NF tunes still fall back on init conflicts (census later). bp_init gone from NF files.
 
 **(superseded plan note)** The user flagged the params block as
 anti-ML (packed ints) — review confirmed it is representation-principle §3 FAILURE MODE B (the USF carrying a

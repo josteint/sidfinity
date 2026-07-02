@@ -13,7 +13,8 @@ and reproduces the exact writelog.
 import os, sys, math
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, ROOT); sys.path.insert(0, os.path.join(ROOT, 'src'))
-from src.usf import (UsfFile, PsidMeta, Params, InitState, InitSid, Instrument,
+from src.usf import (UsfFile, PsidMeta, Params, InitState, InitSid, InitFilter,
+                     InitSidVoice, Instrument,
                      MusicSubtune, VoiceBlock, Pattern, NoteRow, Orderlist,
                      Pitch, InstrumentRef, PwmConfig, GlobalEvent, write_file, parse_file)
 from pipelines.basic_program.semantic_lift import build_model, build_psid, FREQ as _F
@@ -102,6 +103,75 @@ def _assign_slots(freqs):
                 return None
         slot[f] = s; taken.add(s)
     return slot
+
+def _init_sid_typed(init_writes):
+    """Trichotomy decomposition of the captured pre-music writes: only the FINAL
+    chip state matters (Check A); zero finals are the universal reset's job;
+    nonzero finals become TYPED init.sid priming (master_vol / filter /
+    envelope_prime / pw_init / ctrl_init / freq_init). A nonzero final on any
+    other register -> nf_conflict (falls back to the legacy verbatim form)."""
+    wr = init_writes[1:] if init_writes[:1] == [(0x18, 0x0F)] else list(init_writes)
+    fin = {}
+    for r0, v0 in wr:
+        fin[r0] = v0
+    isid = InitSid(); vmap = {}
+    for r0, v0 in sorted(fin.items()):
+        if r0 == 0x18:
+            isid.master_vol = v0                       # incl. $00 fade-in intent
+        elif r0 in (0x15, 0x16, 0x17):
+            if v0 == 0:
+                continue
+            if isid.filter is None:
+                isid.filter = InitFilter()
+            setattr(isid.filter,
+                    {0x15: 'cutoff_lo', 0x16: 'cutoff_hi', 0x17: 'res_routing'}[r0], v0)
+        elif r0 < 0x15:
+            if v0 == 0:
+                continue                               # reset covers zero finals
+            vc0 = r0 // 7 + 1; off = r0 % 7
+            v = vmap.setdefault(vc0, InitSidVoice(id=vc0))
+            if off in (5, 6):
+                ad, sr = v.envelope_prime or (0, 0)
+                v.envelope_prime = (v0, sr) if off == 5 else (ad, v0)
+            elif off in (2, 3):
+                pw = v.pw_init or 0
+                v.pw_init = (pw & 0xFF00) | v0 if off == 2 else (pw & 0xFF) | (v0 << 8)
+            elif off == 4:
+                v.ctrl_init = v0
+            else:
+                fq = v.freq_init or 0
+                v.freq_init = (fq & 0xFF00) | v0 if off == 0 else (fq & 0xFF) | (v0 << 8)
+        else:
+            raise ValueError('nf_conflict')            # write beyond $D418
+    isid.voices = [vmap[k2] for k2 in sorted(vmap)]
+    return isid
+
+
+def _init_writes_from_sid(isid):
+    """Composer-side init: DRIVER prefix slot + universal reset (zero $00-$17)
+    + the typed priming writes, in one canonical order."""
+    init = [(0x18, 0x0F)]                              # driver-prefix slot (players strip it)
+    init += [(r, 0) for r in range(0x00, 0x18)]        # universal reset
+    if isid is not None:
+        if isid.filter is not None:
+            for r0, att in ((0x15, 'cutoff_lo'), (0x16, 'cutoff_hi'), (0x17, 'res_routing')):
+                v0 = getattr(isid.filter, att)
+                if v0:
+                    init.append((r0, v0))
+        for v in (isid.voices or []):
+            b = (v.id - 1) * 7
+            if v.freq_init is not None:
+                init += [(b + 0, v.freq_init & 0xFF), (b + 1, (v.freq_init >> 8) & 0xFF)]
+            if v.pw_init is not None:
+                init += [(b + 2, v.pw_init & 0xFF), (b + 3, (v.pw_init >> 8) & 0xFF)]
+            if v.envelope_prime is not None:
+                init += [(b + 5, v.envelope_prime[0]), (b + 6, v.envelope_prime[1])]
+            if v.ctrl_init is not None:
+                init.append((b + 4, v.ctrl_init))
+        if isid.master_vol is not None:
+            init.append((0x18, isid.master_vol))
+    return init
+
 
 # --------------------------------------------------------- model -> usf ----
 def model_to_usf(model, title='bp', gap_exact=False, nf=False):
@@ -399,10 +469,11 @@ def model_to_usf(model, title='bp', gap_exact=False, nf=False):
               'bp_loop_to': model['loop_to'] if model['loop_to'] is not None else -1,
               'bp_loop_period': model['loop_period'],
               'bp_rho_milli': round(model['rho'] * 1000),
-              'bp_atk_n': len(atk), 'bp_rel_n': len(rel),
-              'bp_init_n': len(model['init'])}
-    for i, (reg, val) in enumerate(model['init']):
-        fields[f'bp_init{i}'] = (reg << 8) | (val & 0xFF)
+              'bp_atk_n': len(atk), 'bp_rel_n': len(rel)}
+    if not nf:
+        fields['bp_init_n'] = len(model['init'])
+        for i, (reg, val) in enumerate(model['init']):
+            fields[f'bp_init{i}'] = (reg << 8) | (val & 0xFF)
     song_end = model.get('song_end') or []             # song-end silence (bookend of init)
     fields['bp_songend_n'] = len(song_end)
     for i, (reg, val) in enumerate(song_end):
@@ -477,7 +548,9 @@ def model_to_usf(model, title='bp', gap_exact=False, nf=False):
                       released=model.get('released') or 'sidfinity',
                       clock=model['clock'], sid=6581, start_song=1, speed=0),
         params=Params(fields=fields),
-        init=InitState(sid=InitSid(master_vol=dict(model['init']).get(0x18, 0x0F))),
+        init=InitState(sid=(_init_sid_typed(model['init'])
+                            if nf else
+                            InitSid(master_vol=dict(model['init']).get(0x18, 0x0F)))),
         instruments=instrs, freq_table=list(ftab), subtunes=[sub])
 
 # --------------------------------------------------------- usf -> model ----
@@ -512,7 +585,12 @@ def usf_to_model(usf):
         multi_t = [{'atk': _dec(f'bp_t{t}_atk', f[f'bp_t{t}_atk_n']),
                     'rel': _dec(f'bp_t{t}_rel', f[f'bp_t{t}_rel_n'])}
                    for t in range(f['bp_ntmpl'])]
-    init = [((f[f'bp_init{i}'] >> 8) & 0xFF, f[f'bp_init{i}'] & 0xFF) for i in range(f['bp_init_n'])]
+    if 'bp_init_n' in f:
+        init = [((f[f'bp_init{i}'] >> 8) & 0xFF, f[f'bp_init{i}'] & 0xFF) for i in range(f['bp_init_n'])]
+        init_typed = False
+    else:                                              # NF stage 2: typed priming
+        init = _init_writes_from_sid(usf.init.sid if usf.init else None)
+        init_typed = True
     song_end = [((f[f'bp_songend{i}'] >> 8) & 0xFF, f[f'bp_songend{i}'] & 0xFF)
                 for i in range(f.get('bp_songend_n', 0))]
     pw_program = {}                                     # modulation sweep program (ch 1-3 = PW, 4 = filter)
@@ -708,6 +786,7 @@ def usf_to_model(usf):
         if multi_o is None:
             raise ValueError('nf_kmax')
     return {'init': init, 'steps': steps, 'atk_template': atk_o, 'rel_template': rel_o,
+            'init_typed': init_typed,
             'title': usf.psid.title, 'author': usf.psid.author, 'released': usf.psid.released,
             'atk_ps': [e[0] for e in atk_o if e[1] == 'perstep'],
             'rel_ps': [e[0] for e in rel_o if e[1] == 'perstep'],
@@ -718,6 +797,72 @@ def usf_to_model(usf):
             'song_end': song_end, 'pw_program': pw_program, 'mod_start': mod_start, 'mod_inc': mod_inc}
 
 # ------------------------------------------------------------- verify -----
+def _flatw(wl):
+    return [(r, v) for fr in wl for (c, r, v) in fr]
+
+
+def _split_aligned(orig_flat, reb_flat, reb_init_len):
+    """Self-aligning trichotomy split: the rebuild's init length is KNOWN (the
+    typed reset+priming the reader emitted), and the original's split point is
+    found by locating the rebuild's first music writes inside the original
+    stream (a gate-on-based split misfires when init PRIMES a gate or freq
+    seed). Returns (oa_pre, oa_mus, rb_pre, rb_mus) or None when the rebuild's
+    music opening never occurs in the original (a real divergence)."""
+    rb_pre, rb_mus = reb_flat[:reb_init_len], reb_flat[reb_init_len:]
+    probe = rb_mus[:8] if len(rb_mus) >= 8 else rb_mus
+    if not probe:
+        return orig_flat, [], rb_pre, rb_mus
+    n = len(probe)
+    for i in range(len(orig_flat) - n + 1):
+        if orig_flat[i:i + n] == probe:
+            return orig_flat[:i], orig_flat[i:], rb_pre, rb_mus
+    return None
+
+
+def _init_state(pre):
+    st = {r: 0 for r in range(0x19)}                   # chip reset state
+    for r, v in pre:
+        if r <= 0x18:
+            st[r] = v
+    return st
+
+
+def _compare_music(orig_wl, reb_sid, dur, loops, reb_dur=None, reb_init_len=0):
+    """Trichotomy verdict for typed-init rebuilds (the FC universal_reset
+    precedent): Check A — the end-of-init chip STATE matches (the init write
+    SEQUENCES legitimately differ: orig setup vs our reset+priming); Check B —
+    the flat MUSIC streams match with the family's usual prefix/length/extend
+    rules. Returns (r_dict, extended_full, state_ok)."""
+    from pipelines.hubbard.verify_cycle import writelog_capture
+    if reb_dur is None:
+        reb_dur = dur
+    of = _flatw(orig_wl)
+    sp = _split_aligned(of, _flatw(writelog_capture(reb_sid, 0, reb_dur)), reb_init_len)
+    if sp is None:
+        return ({'match_all': 0, 'len_all_a': len(of), 'len_all_b': 0}, False, False)
+    oa_pre, oa, rb_pre, rb = sp
+    if _init_state(oa_pre) != _init_state(rb_pre):
+        return ({'match_all': 0, 'len_all_a': len(oa), 'len_all_b': len(rb)}, False, False)
+    def _pref(a, b):
+        i = 0
+        while i < min(len(a), len(b)) and a[i] == b[i]:
+            i += 1
+        return i
+    m = _pref(oa, rb)
+    r = {'match_all': m, 'len_all_a': len(oa), 'len_all_b': len(rb)}
+    if m == min(len(oa), len(rb)) and len(oa) - len(rb) > 64:   # short exact prefix
+        ext = min(reb_dur * (len(oa) / max(len(rb), 1)) * 1.2 + 2, 240.0)
+        rb2 = _flatw(writelog_capture(reb_sid, 0, ext))[reb_init_len:]
+        m2 = _pref(oa, rb2)
+        r2 = {'match_all': m2, 'len_all_a': len(oa), 'len_all_b': len(rb2)}
+        if m2 == len(oa):
+            return (r2, True, True)
+        if m2 == len(rb2) and len(oa) - m2 <= 64:
+            return (r2, True, True)
+    return (r, False, True)
+
+
+
 def _compare_with_extend(orig_wl, reb_sid, dur, loops, reb_dur=None):
     """Compare the orig writelog vs the rebuild SID captured at `dur`. If the
     rebuild is a correct but SHORT prefix AND the tune LOOPS, re-capture it for
@@ -786,11 +931,19 @@ def _attempt_model(m, sid, dur, orig_wl, title='bp', gap_exact=False, nf=False):
     try:
         try:
             write_file(usf, up)
-            sid_bytes = build_psid(usf_to_model(parse_file(up)))
+            m2 = usf_to_model(parse_file(up))
+            sid_bytes = build_psid(m2)
             with open(sp, 'wb') as fo:
                 fo.write(sid_bytes)
-            r, extended_full = _compare_with_extend(orig_wl, sp, dur, m.get('loop_to') is not None,
-                                                    reb_dur=reb_dur)
+            if m2.get('init_typed'):
+                r, extended_full, state_ok = _compare_music(
+                    orig_wl, sp, dur, m.get('loop_to') is not None, reb_dur=reb_dur,
+                    reb_init_len=len(m2['init']))
+                if not state_ok:
+                    return ('init_state_diff', 0, 0, 0, None, None)
+            else:
+                r, extended_full = _compare_with_extend(orig_wl, sp, dur, m.get('loop_to') is not None,
+                                                        reb_dur=reb_dur)
         except Exception:                              # degenerate model (e.g. empty voices)
             return ('build_fail', 0, 0, 0, None, None)
     finally:
@@ -951,8 +1104,15 @@ def verify_usf(usf_rel, sid_rel, dur):
                 fg -= 1                                # back over the note's freq-only frames
             rate = 60.0 if m2.get('clock') == 'NTSC' else 50.0
             reb_dur = max(5.0, dur - max(0, fg) / rate)   # fg is in ORIG (unscaled) frames
-        r, extended_full = _compare_with_extend(orig_wl, out, dur, m2.get('loop_to') is not None,
-                                                reb_dur=reb_dur)
+        if m2.get('init_typed'):
+            r, extended_full, state_ok = _compare_music(
+                orig_wl, out, dur, m2.get('loop_to') is not None, reb_dur=reb_dur,
+                reb_init_len=len(m2['init']))
+            if not state_ok:
+                return {'ok': False, 'match': 0, 'len_a': r['len_all_a'], 'len_b': r['len_all_b']}
+        else:
+            r, extended_full = _compare_with_extend(orig_wl, out, dur, m2.get('loop_to') is not None,
+                                                    reb_dur=reb_dur)
     finally:
         os.unlink(out)
     ok = extended_full or verdict_basic(r)[0]
