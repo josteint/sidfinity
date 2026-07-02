@@ -477,6 +477,59 @@ def _observe_play_phases_writes(sid_path: str, subtune: int,
     return None
 
 
+def _observe_play_phases_writelog(sid_path: str, subtune: int):
+    """⚠️ PARKED — NOT WIRED (2026-07-03). Ground-truth play-phase observation
+    (C9: when py65 can't run the member, measure from libsidplayfp): classify
+    each per-IRQ writelog chunk by the same footprint rules as
+    _observe_play_phases_writes (P = the $D416 tail; F/R/S). UNRELIABLE as-is:
+    (a) the per-IRQ splitter's straddle handling makes chunk footprints noisy
+    (Domination_Bakery's orig stream shows an aperiodic 'F12,P,P' hiccup in an
+    otherwise clean P_R123 alternation — the period fit then locks onto a
+    WRONG schedule like P_S); (b) the phase rotation back to call 1 is guessy
+    even with the P-placement self-check. Needs a straddle-robust chunker +
+    glitch-tolerant period fit before wiring. Kept as the starting point for
+    that round; the pos~8 wrapper class (tmp/f1_v1flo8.json) is its test bed."""
+    try:
+        from pipelines.hubbard.verify_cycle import writelog_per_irq_capture
+        irqs = writelog_per_irq_capture(sid_path, subtune, duration=1.0)
+    except Exception:
+        return None
+    if len(irqs) < 16:
+        return None
+    toks = []
+    prev = None
+    for irq in irqs[:28]:
+        vals = [(w[1] & 0x1F, w[2]) for w in irq]
+        regs = {r for r, _ in vals}
+        if not vals:
+            toks.append('S')
+        elif 0x16 in regs:
+            toks.append('P')
+        else:
+            voices = sorted({r // 7 for r in regs if r < 21})
+            vs = ''.join(str(v + 1) for v in voices)
+            toks.append(('R' if prev is not None and set(vals) <= set(prev)
+                         else 'F') + vs)
+        prev = vals
+    tail = toks[4:]
+    for p in range(1, len(tail) // 2 + 1):
+        if all(tail[i] == tail[i % p] for i in range(len(tail))):
+            # rotate so position 0 = call 1: tail[0] is call 5 (chunk 4)
+            sched = [tail[(i - 4) % p] for i in range(p)]
+            # SELF-CHECK the phase alignment: the rotation assumes the
+            # periodicity extends back to call 1, but chunks 0-3 can carry
+            # init spill / warm-up divergence (Real_Hardcore: rotated F-first
+            # while the true call 1 is a full play). Accept only when the
+            # early chunks match the predicted schedule; P (the $D416 tail)
+            # is the reliable marker, so mismatched P placement rejects.
+            for i in range(4):
+                pred, got = sched[i % p], toks[i]
+                if (pred == 'P') != (got == 'P'):
+                    return None
+            return '_'.join(sched)
+    return None
+
+
 def _detect_play_repeat(mem, play: int, base: int, load: int) -> int:
     """INTERNAL multispeed: a play vector that is N consecutive `JSR T` (same
     target T) terminated by RTS runs the engine N times per VBI (e.g. High_Speed

@@ -7,6 +7,23 @@ metadata:
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
 ---
 
+## 🔬 FAMILY-1 round 12 (2026-07-03): pos~8 class probed — writelog phase observer PARKED (0 FULL)
+The V1flo pos~8 class (15, tmp/f1_v1flo8.json: Real_Hardcore/Domination_Bakery/
+Compotune...) = MORE C18 wrappers, but py65 can't drive most (Real_Hardcore idles
+silent under py65 — CIA-armed). Tried a C9 writelog-based observer
+(`_observe_play_phases_writelog`, footprint-classifies per-IRQ chunks) — **PARKED,
+NOT WIRED, do not re-wire as-is**: (a) per-IRQ straddle artifacts make chunk
+footprints noisy — Domination's orig stream is clean P_R123 alternation with an
+aperiodic 'F12,P,P' hiccup, and the period fit then locks a WRONG schedule (P_S:
+rebuild played every other call, orig every call); (b) the phase rotation back to
+call 1 is guessy (Real_Hardcore got F-first, truth P-first, regressed its div
+11→0) — a P-placement self-check was added but ground truth needs a
+straddle-robust chunker + glitch-tolerant period fit first. ALSO: even with
+correct-looking schedules the class's flat_divs mostly DIDN'T move (@11-15) —
+the schedule may not be the (only) blocker; the divergence is the FIRST play's
+V1 note freq. All 15 re-verified with the fallback removed (honest rows).
+NEXT for this class: build the robust chunker, then re-diagnose.
+
 ## ✅ FAMILY-1 round 11 (2026-07-03): DATAFLOW-route phase observer (+3, 4220/5401)
 The V1flo pos~24 sub-class (17) root-caused = **C18 phase wrappers on the
 RE-ASSEMBLED (dataflow) route** — the round-4/5 observer was canon-only, and its
