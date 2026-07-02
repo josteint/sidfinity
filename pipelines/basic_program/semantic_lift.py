@@ -1041,15 +1041,18 @@ def build_player_multi(model):
     Gated = 2-phase (attack at on_frame, release at off_frame — an empty-release
     template emits nothing); legato = 1-phase. Reuses absolute-frame scheduling +
     rho + 16-bit step pointer + loop + the catch-up loop. Record:
-    gated  [on_lo,on_hi,off_lo,off_hi,tid, <atk ps vals><rel ps vals>, pad]
-    legato [on_lo,on_hi,tid, <atk ps vals>, pad]   (uniform stride)."""
+    gated  [on_lo,on_hi,off_lo,off_hi,tid, <atk ps vals><rel ps vals>]
+    legato [on_lo,on_hi,tid, <atk ps vals>]
+    PER-TEMPLATE stride (strtab, indexed by tid) — no pad; a glide-member-heavy
+    tune would otherwise blow the record table past $D000 into the IO region
+    (the player then reads SID registers as record bytes and silently stops)."""
     init, steps, templates = model['init'], model['steps'], model['multi']
     legato = model['legato']
     N = len(steps); K = len(templates)
     hdr = 3 if legato else 5
     naps = [sum(1 for e in t['atk'] if e[1] == 'perstep') for t in templates]
     nrps = [sum(1 for e in t['rel'] if e[1] == 'perstep') for t in templates]
-    stride = hdr + max(na + nr for na, nr in zip(naps, nrps))
+    stride_t = [hdr + na + nr for na, nr in zip(naps, nrps)]
     loop_to, period = model['loop_to'], model['loop_period']
     song_end = model.get('song_end') or []
     L = []; em = L.append
@@ -1106,13 +1109,15 @@ def build_player_multi(model):
         for t in range(K):
             em(f'tr{t}:'); emit_entries(templates[t]['rel'], hdr + naps[t], 'pl_adv')
     em('pl_adv:')
-    em('        clc'); em(f'        lda {SP}'); em(f'        adc #${stride:02X}'); em(f'        sta {SP}')
+    em(f'        ldy #${hdr-1:02X}'); em(f'        lda ({SP}),y'); em('        tay')   # tid -> stride
+    em('        lda strtab,y')
+    em('        clc'); em(f'        adc {SP}'); em(f'        sta {SP}')
     em(f'        lda {SP}+1'); em('        adc #$00'); em(f'        sta {SP}+1')
-    eoff = N * stride
+    eoff = sum(stride_t[s['tid']] for s in steps)
     em(f'        lda {SP}'); em(f'        cmp #<(steprecs+{eoff})'); em('        bne pl_setatk')
     em(f'        lda {SP}+1'); em(f'        cmp #>(steprecs+{eoff})'); em('        bne pl_setatk')
     if loop_to is not None:
-        loff = loop_to * stride
+        loff = sum(stride_t[s['tid']] for s in steps[:loop_to])
         em(f'        lda #<(steprecs+{loff})'); em(f'        sta {SP}')
         em(f'        lda #>(steprecs+{loff})'); em(f'        sta {SP}+1')
         em('        clc'); em('        lda loopbaselo'); em(f'        adc #${period&0xFF:02X}'); em('        sta loopbaselo')
@@ -1139,6 +1144,7 @@ def build_player_multi(model):
                'loopbaselo', 'loopbasehi', 'curtgtlo', 'curtgthi')
               + (() if legato else ('phase',))):
         em(f'{s}: .byte 0')
+    em('strtab: .byte ' + ', '.join(f'${st:02X}' for st in stride_t))
     em('steprecs:')
     for s in steps:
         t = s['tid']
@@ -1153,7 +1159,6 @@ def build_player_multi(model):
         rslots = [i for i, e in enumerate(templates[t]['rel']) if e[1] == 'perstep']
         rel = s['release'] or []
         rec += [rel[i][1] & 0xFF for i in rslots]
-        rec += [0] * (stride - len(rec))
         em('        .byte ' + ', '.join(f'${b:02X}' for b in rec))
     return '\n'.join(L)
 
@@ -1172,9 +1177,12 @@ def build_psid(model, title='probe'):
     # less music per second -> overlap-exact but a short (truncated-prefix) stream.
     clock_bits = {'PAL': 1, 'NTSC': 2}.get(model.get('clock'), 1)
     flags = (clock_bits << 2) | (1 << 4)               # clock bits 2-3 + 6581 (bit 4)
+    body = assemble(asm)
+    if LOAD + len(body) > 0xCF00:                      # image must stay below IO at $D000:
+        raise ValueError('image_too_big')              # records read from IO = silent garbage
     return build_header(load=LOAD, init=LOAD, play=LOAD+3, songs=1, start_song=1,
                         speed=0, title=title, author='x', released='x',
-                        flags=flags) + assemble(asm)
+                        flags=flags) + body
 
 def verify(sid_rel, dur=20.0, title='probe'):
     from pipelines.hubbard.verify_cycle import writelog_capture, compare_instruction_stream

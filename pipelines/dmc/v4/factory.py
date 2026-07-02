@@ -322,6 +322,80 @@ def _post_init_ram(sid_path: str, subtune: int,
     return None
 
 
+def _observe_play_phases(sid_path: str, subtune: int, base: int,
+                         n_calls: int = 12,
+                         max_steps: int = 200_000):
+    """OBSERVE a play-vector wrapper's phase behaviour (C9: measure, don't
+    parse). Some canon members ship a PLAY WRAPPER (play != base+3) that
+    cycles a counter and runs the FULL canon play only every Nth call,
+    dispatching the other calls to a per-voice frame-entry stub (effects
+    only, no tick, no $D416/$D417 tail) hidden in a compare-masked region
+    (the copyright string, the re-authored all-off slot) — the DMC
+    'multispeed effects / slow tempo' editing trick. Wrapper SHAPES vary
+    (SMC JSR-operand table, DEC counter + dual JMP, INC+AND) so parsing is
+    fragile; instead run init then call play() n times under py65 and
+    classify each call by the engine entry it reaches:
+        P = the full play body (base+$85)
+        F = the per-voice frame entry (base+$1F9) without the play body
+        S = neither (silent no-op)
+    Returns the minimal repeating period as a 'PFFF'-style string, or None
+    when observation fails / the sequence doesn't settle into a period.
+    """
+    import sys
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__),
+                                    '..', '..', '..', 'tools', 'py65_lib'))
+    from py65.devices.mpu6502 import MPU
+    from py65.memory import ObservableMemory
+    from seed_disassembly import parse_psid
+    s = parse_psid(sid_path)
+    mpu = MPU()
+    mem = ObservableMemory()
+    for i, b in enumerate(s['payload']):
+        if s['load'] + i < 0x10000:
+            mem[s['load'] + i] = b
+    mpu.memory = mem
+
+    def run(pc, acc):
+        mpu.stPush(0x00)
+        mpu.stPush(0x00)           # RTS sentinel -> PC = $0001
+        mpu.pc = pc
+        mpu.a = acc
+        hit_play = False
+        fx_voices = set()          # X values seen at the frame entry
+        for _ in range(max_steps):
+            if mpu.pc == 0x0001:
+                return hit_play, fx_voices
+            if mpu.pc == base + 0x85:
+                hit_play = True
+            elif mpu.pc == base + 0x1F9:
+                fx_voices.add(mpu.x & 0x03)
+            try:
+                mpu.step()
+            except Exception:
+                return None
+        return None
+
+    if run(s['init'], subtune) is None:
+        return None
+    seq = []
+    for _ in range(n_calls):
+        r = run(s['play'], 0)
+        if r is None:
+            return None
+        hp, fv = r
+        if hp:
+            seq.append('P')
+        elif fv:                   # F + the voice set it ran (stubs vary:
+            seq.append('F' + ''.join(str(v + 1)  # some NOP out a voice)
+                              for v in sorted(fv)))
+        else:
+            seq.append('S')
+    for p in range(1, n_calls // 2 + 1):
+        if all(seq[i] == seq[i % p] for i in range(n_calls)):
+            return '_'.join(seq[:p])
+    return None
+
+
 def _detect_play_repeat(mem, play: int, base: int, load: int) -> int:
     """INTERNAL multispeed: a play vector that is N consecutive `JSR T` (same
     target T) terminated by RTS runs the engine N times per VBI (e.g. High_Speed
@@ -649,6 +723,20 @@ def _build_via_canon(sid_path: str, hvsc_root: str = 'hvsc84') -> DMCV4Config:
     # INTERNAL multispeed (vblank wrapper, no speed bit) — independent of CIA.
     play_repeat = (1 if (s.get('speed', 0) & 1)
                    else _detect_play_repeat(mem, s['play'], base, s['load']))
+    # PLAY-PHASE wrapper (not an N-JSR repeat): the play vector cycles
+    # full-play / effects-only calls — with the CIA speed bit this is TRUE
+    # multispeed EFFECTS (e.g. $1331 4x + 'PFFF' = engine ticks at 50Hz,
+    # effect chain runs at 200Hz); without it, a slow-tempo cycler. A pure
+    # CIA rate wrapper (every call a full play) observes as 'P' = no knob,
+    # so the existing cia_multispeed members are untouched. Observed under
+    # py65 (C9: measure, don't parse — wrapper shapes vary: SMC operand
+    # table, DEC+dual-JMP, INC+AND, stubs hidden in compare-masked regions).
+    play_phases = None
+    if play_repeat == 1 and s['play'] != base + 3:
+        play_phases = _observe_play_phases(
+            os.path.join(hvsc_root, sid_path), s['start'] - 1, base)
+        if play_phases in ('P', 'S', None):
+            play_phases = None
     delta = base - 0x1000
 
     def at(canon_addr):                 # canonical $1xxx addr -> mem index
@@ -715,6 +803,8 @@ def _build_via_canon(sid_path: str, hvsc_root: str = 'hvsc84') -> DMCV4Config:
     # existing composer knob or emit the same writes. Each masks its site
     # so the variant passes the compare; the verify is the safety net. ----
     extra = {}
+    if play_phases:
+        extra['play_phases'] = play_phases
     # rest/switch/slide-tail dispatch ($1180): canon JMP $1322 (run
     # effects); a sub-build JMP $1591 (wavestep) — the modulators hold one
     # frame at each tie (the family-2 rest_effects='skip' behavior).

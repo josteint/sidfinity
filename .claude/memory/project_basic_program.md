@@ -1,6 +1,6 @@
 ---
 name: project_basic_program
-description: "Basic_Program family (486 RSID-BASIC tunes) — PRODUCTIONIZED round-trip: 443/486 (91.2%) FULL through real USF (multi-template C17 +107/+35, glide +11/+5/+7), mass-written + regression"
+description: "Basic_Program family (486 RSID-BASIC tunes) — PRODUCTIONIZED round-trip: 444/486 (91.4%) FULL through real USF (multi-template C17 +107/+35, glide +11/+5/+7/+1), mass-written + regression"
 metadata: 
   node_type: memory
   type: project
@@ -458,6 +458,19 @@ Mexican_Hat, Pong, Small_World, Casino_Poker, Hacksville_Hoedown, Sonata): HVSC 
 DATA/setup phase, so the ratified songlength*1.1 window holds only ~9-33 setup writes, no notes. Options: init-only
 degenerate FULL (games the metric, encodes silence) / exclude via excluded_sids.json / lift+verify at a longer
 window (needs user to amend the ratified window policy). Recommended: exclude or amend.
+
+**✅ PER-TEMPLATE RECORD STRIDE + $D000 IMAGE GUARD (2026-07-02): 443→444 (+1 Arcade_Alley 6996/6996), 0 regr.**
+Arcade's 4935 records x padded max-stride crossed $D000 — the player read SID IO as record bytes and SILENTLY stopped
+(looked like an early halt at write 6415). Fix: per-template stride (strtab indexed by tid, no pad — glide members
+shrink to 6 bytes) + build_psid guard `LOAD+len(body) > $CF00 -> ValueError('image_too_big')` (honest build_fail
+instead of silent corruption). Sibling of [[feedback_c64_banking_relocation]]: data tables crossing into IO read
+garbage — ALWAYS guard generated-image size. ALSO 2x wrong-path lesson this session: siddump prints 'could not open
+file' but the capture layer returns EMPTY (reads as 'SID emits nothing') — VERIFY THE PATH before debugging 0-write
+captures (Music_BASIC + Beisikki both under different MUSICIANS dirs than assumed).
+
+**Near-miss diagnoses (recorded, not fixed):** Beisikki (diverge at write 1565/1566: doubled gate-off at the loop
+seam — orig's release group differs between loop iterations); Crac_Mur (orig fully reproduced but rebuild loops ~11%
+FAST — loop_period too short, timing infidelity, needs loop-seam gap work); both per-tune loop-seam issues.
 
 **RESIDUE (rest):** variable_template 16 + build_fail 15 (mostly too_many_pitches = vibrato >96 freq slots) +
 too_few_steps 9 + legato_variable 8 (incl. Chicken_Song/Argument_Emulator/Dunes = Bond_Alan vibrato-heavy) +

@@ -468,7 +468,66 @@ def compose_dmc_asm(usf: UsfFile) -> str:
     # (the original's `JSR play x N : RTS`), so each VBI logs N play()s worth of
     # writes — matching the orig's per-frame write count under flat capture.
     play_repeat = max(1, int(usf.params.fields.get('play_repeat', 1)))
-    if play_repeat > 1:
+    # PLAY-PHASE wrapper (factory-observed, ledger C9): the original's play
+    # vector cycles full-play / effects-only calls — the DMC slow-tempo /
+    # smooth-effects editing trick (e.g. 'PFFF' = full play every 4th call;
+    # the other calls run the per-voice frame entry $11F9 directly: pending
+    # note-init / running effects, NO tick, NO $D416/$D417 tail). Reproduce
+    # the mechanism: a phase counter dispatching full-play (P), fx-only (F)
+    # or silence (S) per call. phasectr lives in code (not the cleared state
+    # block), seeded so call #1 executes phases[0] = the observed sequence.
+    play_phases = str(usf.params.fields.get('play_phases', '') or '')
+    tokens = [t for t in play_phases.split('_') if t] if play_phases else []
+    if (tokens and 'P' in tokens and len(tokens) > 1
+            and all(t == 'P' or t == 'S'
+                    or (t[0] == 'F' and t[1:]
+                        and set(t[1:]) <= set('123')) for t in tokens)):
+        n_ph = len(tokens)
+        # one routine per DISTINCT token; phasetab holds the routine index
+        kinds = []
+        for t in tokens:
+            if t not in kinds:
+                kinds.append(t)
+        tab = ','.join(str(kinds.index(t)) for t in tokens)
+        disp, routines = '', ''
+        for k, t in enumerate(kinds):
+            disp += (f'        cmp #{k}\n'
+                     f'        beq pp_r{k}\n')
+            if t == 'P':
+                body = '        jmp playframe                ; P = full play\n'
+            elif t == 'S':
+                body = '        rts                          ; S = silent call\n'
+            else:                     # F<voices>: per-voice frame entry only
+                body = ''
+                for v in t[1:]:
+                    body += (f'        ldx #{int(v) - 1}\n'
+                             '        jsr voice_fx\n')
+                body += '        rts\n'
+            routines += f'pp_r{k}:\n{body}'
+        play_entry = 'playphases'
+        play_wrapper = (
+            'playphases:\n'
+            '        ldy phasectr\n'
+            '        iny\n'
+            f'        cpy #{n_ph}\n'
+            '        bne pp_set\n'
+            '        ldy #$00\n'
+            'pp_set:\n'
+            '        sty phasectr\n'
+            '        lda phasetab,y\n'
+            + disp
+            + '        rts                          ; (unreachable)\n'
+            + routines
+            + f'phasetab: .byt {tab}\n'
+            f'phasectr: .byt {n_ph - 1}\n'
+            'voice_fx:                            ; $11F9 direct: note-init or\n'
+            '        lda trkpos,x                 ; running effects only (no\n'
+            '        lsr                          ; tick). otrk derivation\n'
+            '        clc                          ; repeated from voice:\n'
+            '        adc #$01                     ; idempotent, keeps the\n'
+            '        sta otrk,x                   ; off-table reads current.\n'
+            '        jmp frame_entry\n\n')
+    elif play_repeat > 1:
         play_entry = 'playrepeat'
         play_wrapper = ('playrepeat:\n'
                         + '        jsr playframe\n' * play_repeat
