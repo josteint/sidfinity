@@ -7,6 +7,28 @@ metadata:
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
 ---
 
+## 🔄 FAMILY-1 PIVOT (2026-07-02): 4159/5401 (77.0%) — 1.1x ratified, drift +18, fresh census
+Pivoted back to family-1. (1) **1.1x RATIFIED as THE verify standard** (user: the
+rebuild must match cross-songlength/loop behaviour ≥10% past songlength) — the 32
+song_exact (1.0x) members REVERTED to partial (rows flagged song_exact_rejected;
+files deleted; fixing them = match the loop-wrap carried modulation phase).
+(2) **Drift re-verify of all 1,260 non-FULL** with current code: +18 FULL
+(17 partial + 1 error), mass-written, DB refreshed, jsonl merged current (every
+partial has a current-code flat_div). (3) **divergence_census wired for dmc_v4** +
+cluster_partials now keys on flat_div (NOT the phantom-D418 first_diff) with
+position buckets. FRESH CENSUS (1,011 partials): DEEP ≥4k freq ~505 (For_Insider
+class, the hard tail) · **EARLY <64 = ~158 (V1 FLO 105 + V2 FLO 20 + V3 FLO 18 +
+V1 PWLO 15)** — the family-4-leadin analog, one-shared-mechanism candidates (e.g.
+Hyper pos=2 PW $00-vs-$50 = unprimed idle PW leftover; Attah_2 pos=21 wrong idle
+freq; Reggae_Me pos=62 orig==mine value ⇒ an ORDER/extra-write diff, reg differs)
+· MID 64-512 ~72 · **$D416 cutoff-hi ≥4k = 16 with ±1 values ($99 vs $98)** = a
+single filter-accum off-by-one candidate. Unsup: sector_decode 81 / no_jumptable
+62 (C13 probe pending) / player_code_mismatch 23 / wave_marker_chain 13 /
+nonstandard_instr_base 12 / loop_site 11. NEXT (approved plan step 3+): early-<64
+cluster attack (leadin idle freq/PW priming) + taint_source STATIC/DYNAMIC pass
+on the off-table subset + C13 no_jumptable probe + C2 one-shot for 3 wave-pool
+errors. Artifacts: tmp/f1_reverify.jsonl, tmp/f1_drift_recovered.json.
+
 ## 🔬 V5 FAMILY-4 — SESSION 2026-07-01: verdict+unblock fixes + partial triage
 Baseline `tmp/dmc_family4_full2.jsonl`: 26 full / 336 partial / 156 unsupported /
 168 error. Worked residue-triage dependency order (verdict→unblock→triage). THREE
