@@ -628,6 +628,11 @@ class InitVoice:
     # DMC work files ship this uncleared; audible only in the idle
     # ctrl writes. None = 0.
     gate_mask: Optional[int] = None
+    # Initial post-note-guard state before the voice's first note
+    # (DMC: a work-file leftover, e.g. $FF; the guard normally counts
+    # 2->1->0 after each note-init). Audible only when an off-table
+    # read sonifies it. None = 0.
+    guard: Optional[int] = None
 
 
 # ---------------------------------------------------------------------------

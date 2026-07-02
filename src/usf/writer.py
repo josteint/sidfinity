@@ -39,6 +39,8 @@ def _format_param_value(key: str, val) -> str:
         return 'true' if val else 'false'
     if isinstance(val, int):
         return _hex(val) if key in _HEX_FIELDS else str(val)
+    if isinstance(val, str) and (' ' in val or not val.isidentifier()):
+        return '"' + val + '"'                         # readable string knob
     return str(val)
 
 
@@ -115,6 +117,8 @@ def _write_init_voice(v: InitVoice) -> str:
         parts.append(f'note: {v.note}')
     if v.gate_mask is not None:
         parts.append(f'gate_mask: {_hex(v.gate_mask)}')
+    if v.guard is not None:
+        parts.append(f'guard: {_hex(v.guard)}')
     return f'  voice {v.id} {{ ' + '  '.join(parts) + ' }'
 
 

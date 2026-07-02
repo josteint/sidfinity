@@ -98,13 +98,16 @@ DMC_OFFTABLE_STATE = [
     (0x1756, 'cpwmax', 3),   # PW bound A (instr byte 2 hi nibble)
     (0x1759, 'cpwmin', 3),   # PW bound B (= bound A EOR $0F)
     (0x175F, 'cpwbase', 3),  # PW step base (instr byte 6 hi nibble)
-    (0x1726, 'otrk', 3),     # track byte-offset (derived from orderlist pos)
+    (0x1726, 'otrk', 3),     # track byte-offset (entry-table value + INC at
+                             # sector end — mirrors $10FB/$182D/$10DF exactly)
     (0x1783, 'wnote', 3),    # arp note = wave-offset + curnote (derived in wavestep)
-    # NOT (yet) mapped: (0x1786,'guard',3) — the composer guard,x is op-for-op
-    # the orig's $12FA/$1327, BUT the orig byte can hold a FILE LEFTOVER (e.g.
-    # $FF) until the voice's first note-init (0ldsk00l_endtheme reads V3's
-    # $1788=$FF off-table; our state-cleared 0 regressed it). Needs guard
-    # leftover priming first — pair with the round-8 otrk revival.
+    # NOT (yet) mapped: (0x1786,'guard',3) — the note-init/DEC ops match the
+    # orig ($12FA/$1327), BUT the orig's DEC SCHEDULE for a never-inited /
+    # stopped voice differs from our run_effects freewheel (0ldsk00l's V3
+    # leftover stays $FF ~1700 frames in the orig; our freewheel would count
+    # it down — and a primed $FF also skips gate logic 255 frames). Needs the
+    # orig's guard-path reachability RE'd for stopped voices before mapping;
+    # InitVoice.guard + iguard priming plumbing exists, inert until then.
     # NOTE: wavepos ($177A) + fcut ($171C) are read off-table by Object_of_Art's
     # wave program (arp=213 -> hi=wavepos, lo=fcut). Mapping them was net-negative
     # (0 recoveries, 1 regression / 33 FULLs): the HI byte sonifies the ABSOLUTE
@@ -232,7 +235,24 @@ class _Model:
                 track = bytearray()
                 ol = v.orderlist
                 pat_by_local = {p.id: p for p in v.patterns}
+                # per-entry orig track byte-offset (of the entry's SECTOR
+                # byte): the orig emits [transpose cmd byte]? [sector byte]
+                # per entry, transpose byte present on CHANGE plus a per-voice
+                # constant PAD of redundant editor-placed commands (the
+                # otrk_pad phase scalar, extract-measured; the dual_phase
+                # pattern). Off-table reads sonify this counter ($1726,x), so
+                # the runtime keeps otrk,x as real state seeded per entry.
+                pad = int(usf.params.fields.get(
+                    f'otrk_pad_s{sub.id}_v{v.id}', 0) or 0)
+                period = int(usf.params.fields.get(
+                    f'otrk_period_s{sub.id}_v{v.id}', 0) or 0) \
+                    or len(ol.entries) or 1
+                legacy = bool(usf.params.fields.get(
+                    f'otrk_legacy_s{sub.id}_v{v.id}', 0))
+                off, cur = pad, 0
                 for i, e in enumerate(ol.entries):
+                    if i and i % period == 0:
+                        off = pad    # physical-track pass boundary
                     enc = _encode_pattern(
                         [_row_event(r, self.inst_slot)
                          for r in pat_by_local[e].rows])
@@ -241,11 +261,18 @@ class _Model:
                         gid = len(self.patterns)
                         self.patterns.append(enc)
                         pat_ids[enc] = gid
-                    track += bytes([(ol.transpose_at(i) + 64) & 0xFF, gid])
+                    t = ol.transpose_at(i)
+                    if t != cur:
+                        off, cur = off + 1, t
+                    # legacy: unmodeled counter phase (piecewise redundancy)
+                    # -> the historical entry+1 approximation, unchanged
+                    val = (i + 1) if legacy else off
+                    track += bytes([(t + 64) & 0xFF, gid, val & 0xFF])
+                    off += 1
                 if ol.stop:
                     track.append(0xFE)
                 else:
-                    track += bytes([0xFF, ((ol.loop_to or 0) * 2) & 0xFF])
+                    track += bytes([0xFF, ((ol.loop_to or 0) * 3) & 0xFF])
                 voices.append(bytes(track))
             sid = sub.init.sid if (sub.init and sub.init.sid) else None
             mvol = sid.master_vol if sid and sid.master_vol is not None else 0x0F
@@ -538,12 +565,7 @@ def compose_dmc_asm(usf: UsfFile) -> str:
             + f'phasetab: .byt {tab}\n'
             f'phasectr: .byt {n_ph - 1}\n'
             'voice_fx:                            ; $11F9 direct: note-init or\n'
-            '        lda trkpos,x                 ; running effects only (no\n'
-            '        lsr                          ; tick). otrk derivation\n'
-            '        clc                          ; repeated from voice:\n'
-            '        adc #$01                     ; idempotent, keeps the\n'
-            '        sta otrk,x                   ; off-table reads current.\n'
-            '        jmp frame_entry\n\n')
+            '        jmp frame_entry\n\n')         # running effects, no tick
     elif play_repeat > 1:
         play_entry = 'playrepeat'
         play_wrapper = ('playrepeat:\n'
@@ -554,11 +576,14 @@ def compose_dmc_asm(usf: UsfFile) -> str:
         play_wrapper = ''
     idle = [0, 0, 0]
     imask = [0, 0, 0]
+    iguard = [0, 0, 0]
     for v in usf.init.voices:
         if v.note is not None:
             idle[v.id - 1] = v.note
         if v.gate_mask is not None:
             imask[v.id - 1] = v.gate_mask
+        if v.guard is not None:
+            iguard[v.id - 1] = v.guard
     if usf.freq_table:
         assert len(usf.freq_table) == 192, len(usf.freq_table)
         flo, fhi = usf.freq_table[:96], usf.freq_table[96:]
@@ -589,6 +614,7 @@ def compose_dmc_asm(usf: UsfFile) -> str:
     data = []
     data.append('inote:\n' + _byt(idle))
     data.append('imask:\n' + _byt(imask))
+    data.append('iguard:\n' + _byt(iguard))
     data.append('freqlo:\n' + _byt(flo))
     data.append('freqhi:\n' + _byt(fhi))
     # off-table overrun window: the original reads past its freq tables
@@ -759,6 +785,8 @@ ini_v:
         sta curnote,x
         lda imask,x                  ; idle gate-mask priming
         sta gatemask,x
+        lda iguard,x                 ; post-note-guard leftover priming
+        sta guard,x
         inx
         cpx #$03
         bne ini_v
@@ -795,13 +823,6 @@ pf_notick:
 
 ;; ===================== per-voice tick/fetch =====================
 voice:
-        lda trkpos,x                 ; otrk = orig track byte-offset ($1726),
-        lsr                          ; derived from our own orderlist position:
-        clc                          ; our trkpos is 2 bytes/entry; the original
-        adc #$01                     ; track has a leading transpose byte then
-        sta otrk,x                   ; 1-byte sectors, so $1726 = entry#+1 =
-                                     ; (trkpos>>1)+1. Read off-table as a freq by
-                                     ; the "engine state as pitch" modulation idiom.
         lda vactive,x
         beq vo_frame
         lda spd
@@ -842,6 +863,10 @@ trk2:
         sbc #64                      ; entry byte 0 = transpose + 64
         sta transp,x
         iny
+        iny
+        lda ($f8),y                  ; entry byte 2 = orig track byte-offset
+        sta otrk,x                   ; ($1726,x) of this entry's sector byte
+        dey
         lda ($f8),y                  ; entry byte 1 = pattern id
         tay
         lda patlo,y
@@ -989,10 +1014,11 @@ ev_n_hard:
 pat_end:
         lda trkpos,x
         clc
-        adc #$02
+        adc #$03
         sta trkpos,x
-        lda #$00
-        sta path,x                   ; mark: next fetch reads the track
+        inc otrk,x                   ; orig $182D: track position++ at sector
+        lda #$00                     ; end (points past the sector byte until
+        sta path,x                   ; the next fetch re-seeds from the entry)
         rts
 
 peekend:

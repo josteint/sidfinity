@@ -98,7 +98,63 @@ def _instrument_to_usf(inst) -> Instrument:
     )
 
 
+def _otrk_model(v):
+    """The otrk phase scalars (pad, period): the engine's track counter
+    ($1726,x) counts BYTES of the orig encoding, where a transpose command
+    byte is editor-placed — usually on change, but sometimes redundantly
+    (measured: a leading constant, {+1: 146} of 540 tracks). The composer
+    derives per-entry offsets as transpose-CHANGE count + PAD (the
+    dual_phase-style phase scalar), resetting every PERIOD entries — the
+    physical track length the loop-unrolling walk obscured (offsets are
+    periodic because each pass re-reads the same bytes). Returns (pad,
+    period) only when the model reproduces the walked ground-truth offsets
+    EXACTLY; None = keep the plain derivation (piecewise mid-track
+    redundancy — the documented residue tail)."""
+    n = len(v.entries)
+    if not v.entry_offsets or len(v.entry_offsets) != n:
+        return None
+    # physical period = first offset reset (loop-unrolled walks); else n
+    period = n
+    for i in range(1, n):
+        if v.entry_offsets[i] <= v.entry_offsets[i - 1]:
+            period = i
+            break
+    pad = v.entry_offsets[0]      # leading redundant-command count
+    off, cur = pad, 0
+    for i in range(n):
+        if i and i % period == 0:
+            off = pad             # pass boundary: orig re-reads from start
+        t = v.transposes[i] if v.transposes else 0
+        if t != cur:
+            off, cur = off + 1, t
+        if v.entry_offsets[i] != off:
+            return None
+        off += 1
+    return pad, period
+
+
+def _emit_otrk_fields(m) -> dict:
+    fields = {}
+    for song in m.songs:
+        for vi, v in enumerate(song.voices):
+            r = _otrk_model(v)
+            if r is None:
+                # piecewise mid-track redundancy — the phase-scalar model
+                # can't represent this voice's counter; mark it so the
+                # composer keeps the historical entry+1 approximation
+                # (documented residue; a modeled voice never gets this).
+                fields[f'otrk_legacy_s{song.id}_v{vi + 1}'] = 1
+                continue
+            pad, period = r
+            if pad:
+                fields[f'otrk_pad_s{song.id}_v{vi + 1}'] = pad
+            if period < len(v.entries):
+                fields[f'otrk_period_s{song.id}_v{vi + 1}'] = period
+    return fields
+
+
 def model_to_usf(m: DmcModel) -> UsfFile:
+    pad_fields = _emit_otrk_fields(m)
     subtunes = []
     for song in m.songs:
         voices = []
@@ -131,8 +187,14 @@ def model_to_usf(m: DmcModel) -> UsfFile:
             **({'cia_period': m.cia_period} if m.cia_period else {}),
             # internal-multispeed play-repeat count (>1 = play() loops Nx/VBI)
             **({'play_repeat': m.play_repeat} if m.play_repeat > 1 else {}),
+            # otrk phase-offset scalars (see _otrk_pad)
+            **pad_fields,
             # family-2 build knobs (factory-probed; empty for canon)
             **m.extra_params}),
+        # NB idle_guards deliberately NOT emitted yet — the composer's guard
+        # freewheel schedule for stopped voices is unverified vs the orig
+        # (see composer_asm DMC_OFFTABLE_STATE note); priming would change
+        # gate-logic behaviour for every member with $1786-8 leftovers.
         init=InitState(voices=[
             InitVoice(id=v + 1,
                       note=m.idle_notes[v] or None,

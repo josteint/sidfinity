@@ -106,6 +106,10 @@ class DmcVoice:
     patterns: list = field(default_factory=list)     # list[list[DmcRow]]
     entries: list = field(default_factory=list)      # indices into patterns
     transposes: list = field(default_factory=list)   # signed, per entry
+    entry_offsets: list = field(default_factory=list)  # orig track byte offset
+                                                     # of each entry's sector
+                                                     # byte (walk-time ground
+                                                     # truth for otrk_pad)
     loop_to: int | None = None
     stop: bool = False
 
@@ -136,6 +140,9 @@ class DmcModel:
                                      # freq, loop
     idle_notes: tuple = (0, 0, 0)    # $1012-$1014 work-file leftovers
     idle_masks: tuple = (0, 0, 0)    # $100F-$1011 gate-mask leftovers
+    idle_guards: tuple = (0, 0, 0)   # $1786-$1788 post-note-guard leftovers
+                                     # (uncleared until the voice's first
+                                     # note-init; sonified by off-table reads)
     title: str = ''
     author: str = ''
     released: str = ''
@@ -362,6 +369,7 @@ def _walk_track(mem, track_addr: int, secp_lo: int, secp_hi: int,
             pos += 1
             b = mem[track_addr + pos]
         sec = b
+        v.entry_offsets.append(pos)
         sec_addr = mem[secp_lo + sec] | (mem[secp_hi + sec] << 8)
         rows = _simulate_sector(mem, sec_addr, st, fmt)
         key = tuple((r.note, r.duration, r.instr, r.vol, r.soft,
@@ -586,6 +594,9 @@ def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc84') -> DmcModel:
                                  (mem[cn], mem[cn + 1], mem[cn + 2]))),
         idle_masks=tuple(pis.get('idle_masks',
                                  (mem[gm], mem[gm + 1], mem[gm + 2]))),
+        idle_guards=tuple(pis.get('idle_guards',
+                                  (mem[b + 0x786], mem[b + 0x787],
+                                   mem[b + 0x788]))),
         dual_phase=pis.get('dual_phase', mem[b + 0x19] & 1),
         cia_period=cfg.cia_period,
         play_repeat=cfg.play_repeat,

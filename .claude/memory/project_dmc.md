@@ -7,7 +7,31 @@ metadata:
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
 ---
 
-## ⏸️ FAMILY-1 round 8 (2026-07-02): otrk exactness — BLOCKED ON A USF SCHEMA DECISION
+## ✅ FAMILY-1 round 9 (2026-07-02): otrk PHASE SCALARS landed (0 FULL yet — guard is the pair's other half)
+USER-STEERED RESOLUTION of round 8 (transpose_cmds WITHDRAWN): the sonified track
+counter = a **structure-synced staircase**, parametric over musical data — per-entry
+offset = transpose-CHANGE count + `otrk_pad` (per-voice phase scalar, the leading
+redundant-command count; measured {+1:146}/540 tracks, dual_phase precedent) with a
+reset every `otrk_period` entries (the PHYSICAL orderlist length that _walk_track's
+loop-unrolling obscured — offsets are periodic; Crystal = 2×28-entry passes).
+Params `otrk_pad_sN_vN`/`otrk_period_sN_vN`; extract emits them ONLY when the model
+reproduces the walked ground-truth `entry_offsets` exactly; inexact (piecewise
+mid-track redundancy, e.g. 0ldsk00l) → `otrk_legacy_sN_vN` = keep the historical
+entry+1 values (zero-regression by construction). RUNTIME: 3-byte track entries
+[t+64, gid, off]; otrk,x = real state (seeded at fetch/trk2, INC at pat_end =
+orig $182D, loop wrap handled by re-seed). Smoke: prior regressions (Decoy/Crystal,
+Nasty_Track) FULL again; Bizarre 17→18 = blocked ONLY on the guard hi-byte now.
+Early-sweep 168: 0 new FULL — **these reads consume the (lo=otrk, hi=guard) PAIR;
+FULL yield awaits the GUARD RE** = the next round: the orig's guard DEC schedule for
+stopped/never-inited voices ≠ our run_effects freewheel (0ldsk00l's V3 leftover
+stays $FF ~1700 frames in the orig). InitVoice.guard + iguard priming plumbing is
+IN but inert (to_usf doesn't emit it) until that RE. ⚠️ PALIMPSEST LESSON:
+0ldsk00l_endtheme's 'full' row was STALE — partial at HEAD pre-otrk (verified in a
+HEAD worktree); re-bucketed honestly (4215→4214). FULL-side censuses: otrk-idx
+readers 5 (4 FULL + the stale one), guard-idx 5. Artifacts: tmp/f1_pad_final_smoke*,
+f1_early_sweep*, f1_otrk_exposed*.
+
+## ⏸️ FAMILY-1 round 8 (2026-07-02): otrk exactness — BLOCKED ON A USF SCHEMA DECISION (superseded by round 9)
 Bizarre_Emotions (early-V1FLO rep, 73-member cluster) root-caused: idle-wave
 off-table read idx 224/225 = (V2 $1727 otrk, V2 $1787 post-note guard). TWO parts:
 (1) **guard map row** (0x1786,'guard',3) — op-for-op identical state, SAFE
