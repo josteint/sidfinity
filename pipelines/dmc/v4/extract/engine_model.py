@@ -162,6 +162,33 @@ def _rd16(mem, addr):
     return mem[addr] | (mem[addr + 1] << 8)
 
 
+def _postinit_window(s, lo: int, n: int):
+    """Bytes [lo, lo+n) AFTER running the member's init under py65 (subtune =
+    start song). Some inits REWRITE static data the extract reads from the
+    file image (e.g. the 'Ed' members' init stamps res/mode + initial cutoff
+    over every filter def record) — the engine then reads the rewritten bytes,
+    so the file-image capture is wrong. Returns None when py65 can't complete
+    the init (C9 territory; caller keeps the file image)."""
+    try:
+        from py65.devices.mpu6502 import MPU
+        mpu = MPU()
+        load = s['load']
+        for i, b in enumerate(s['payload']):
+            if load + i < 0x10000:
+                mpu.memory[load + i] = b
+        mpu.stPush(0x00)
+        mpu.stPush(0x00)             # RTS sentinel -> PC = $0001
+        mpu.pc = s['init']
+        mpu.a = (s.get('start', 1) or 1) - 1
+        for _ in range(1_000_000):
+            if mpu.pc == 0x0001:
+                return [mpu.memory[(lo + k) & 0xFFFF] for k in range(n)]
+            mpu.step()
+    except Exception:
+        pass
+    return None
+
+
 # ---------------------------------------------------------------------------
 # Sector (pattern) simulation
 # ---------------------------------------------------------------------------
@@ -606,10 +633,18 @@ def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc84') -> DmcModel:
     # 17 records = 272 bytes >= the 266-byte window (16*16 + the 10 bytes the
     # +10 durations view reaches at walk index 250..255); the 17th record's
     # last 6 bytes are unreachable padding, kept typed for uniformity.
+    # POST-INIT ground truth: some inits rewrite the def records (the 'Ed'
+    # members stamp res/mode + initial cutoff over every def) — decode what
+    # the engine reads, not the file image; py65-fail keeps the file image.
     if any(m.instruments[i].filter_on for i in m.instruments):
+        post = _postinit_window(s, filtdef, 272)
+        fmem = mem
+        if post is not None and list(mem[filtdef:filtdef + 272]) != post:
+            fmem = bytearray(mem)
+            fmem[filtdef:filtdef + 272] = bytes(post)
         for d in range(17):
             if filtdef + d * 16 + 16 <= 0x10000:
-                m.filter_defs[d] = _decode_filter_def(mem, filtdef, d)
+                m.filter_defs[d] = _decode_filter_def(fmem, filtdef, d)
     # family 2: cymbal fires one frame later (frame 2, params.cymbal_onset),
     # and the vibrato swells differently — note-init stores freq_hi(note)>>1
     # to $178C and RAMPS the 16-bit step ($1792/$1795) by it each half-cycle

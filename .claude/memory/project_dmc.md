@@ -7,6 +7,20 @@ metadata:
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
 ---
 
+## 🎯 FAMILY-1 round 7 (2026-07-02): POST-INIT filter-def decode (0 FULL, correctness; Ed class characterized)
+The early-$D416 residue (Ed's Cliche_Beat @21 etc.): **init REWRITES the def
+records** (stamps res/mode=$11 + init-cutoff=$02 over every def) — extract read
+the file image. Fix: `_postinit_window` (py65 init run, subtune=start; None →
+file image) feeds `_decode_filter_def`. Exposure census: **0 FULLs** init-rewrite
+the window (provably 0-regression); 4 partials, all Ed's. All 4 re-localize
+deeper but stay partial: **the Ed players RAMP the res nibble of every def
+record DURING PLAY** ($11→$21→$31 every ~8-16 frames, $1723 follows on each ni)
+= a res-sweep automation implemented by rewriting the def table — a REAL musical
+feature (C10 chip-global automation class), needs representation + finding the
+rewriting code (canon-route members, so it hides in a masked/wrapper region).
+Deferred (4 members). Hardtechno @73 / Seaside_99 @197 = a different early-$D416
+cause, undiagnosed. Artifacts: tmp/f1_edclass_verify.jsonl, f1_postinit_defs_*.
+
 ## 🎯 FAMILY-1 round 6 (2026-07-02): fdrec filter-def image layout (+17, 4215/5401 = 78.0%)
 The $D416 ±1 deep cluster root-caused on Psycho_Tune = **C2 unbounded filter-def
 WALK**: a def's repeat byte >5 (Psycho_Tune $1F) reloads the step index past the
