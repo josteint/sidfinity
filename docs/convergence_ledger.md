@@ -127,7 +127,14 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
   table-handling convergence is a Move-1 factor-candidate. **Seen 3×.**
 - **Boundary:** byte-indexed `(step,count)` or `(ctrl,freq)` program tables laid
   out contiguously by a packer.
-- **Consumers:** DMC v5 filter (orig), pulse (+17 FULL), wave (+6 FULL) — all
+- **Consumers:** DMC v4 filter-def walk (2026-07-02, +17 FULL): repeat>5 reloads
+  the step index past the 6-entry arrays and the exact-match `CMP #6` wrap never
+  fires again → an unbounded upward walk through adjacent 16-byte def records.
+  Canonical form here = emit the composer's table in the ORIG's record layout
+  (fdrec, 17 records = the full 8-bit index window; fdstep/fddur as +4/+10 label
+  views) so every walked read is byte-exact by construction — reproducing the
+  layout beats capturing per-index values when the walk is unbounded.
+  DMC v5 filter (orig), pulse (+17 FULL), wave (+6 FULL) — all
   2026-06-18. **DMC v4 (2026-06-23):** wave off-table (`_slice_wave` extended +
   `_resolve_wave_chain` for multi-hop marker chains, zero_wave_table 117 -> 37
   FULL); FILTER step-index overrun (the `repeat` byte > 5 indexes past the 6

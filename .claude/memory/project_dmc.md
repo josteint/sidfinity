@@ -7,6 +7,26 @@ metadata:
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
 ---
 
+## 🎯 FAMILY-1 round 6 (2026-07-02): fdrec filter-def image layout (+17, 4215/5401 = 78.0%)
+The $D416 ±1 deep cluster root-caused on Psycho_Tune = **C2 unbounded filter-def
+WALK**: a def's repeat byte >5 (Psycho_Tune $1F) reloads the step index past the
+6-entry size/dur arrays, and the engine's wrap check is EXACT-match `CMP #6` —
+once past, INC walks the index upward FOREVER, reading sizes at def-table+4+idx /
+durs at +10+idx across ADJACENT 16-byte def records (idx is 8-bit Y → window =
+[filtdef, filtdef+266)). The composer's old 12-byte re-packed stride matched only
+within-def overruns (idx 6-11). FIX (single universal form, no mode flag): extract
+captures **17 typed def records** (272 B ≥ the window; byte-lossless round-trip:
+res/mode/init/repeat/stop/6 sizes/6 durs), composer emits them DENSE in orig def#
+order as `fdrec` with `fdstep=fdrec+4` / `fddur=fdrec+10` label views and
+`fbase=16*def#` — every walked read byte-exact by construction. **+17 FULL** (28
+D416 partials verified: 17 full / 11 other-cause); **FULL-side exposure census =
+555 FULLs referencing a repeat>5 def, ALL 555 re-verified FULL, 0 regressions**
+(their .sidfinity.sid rewritten — data layout changed). Ledger C2 consumer note
+added. NB: first attempt stored the 10-byte window tail as a params string —
+grammar rejects digit-leading CNAME values; the 17th typed record is the clean
+form. Residue 11 of the 28: early-$D416 (Hardtechno @73, Seaside_99 @197,
+Cliche_Beat @21) + other-reg re-localizations — different filter bugs, next.
+
 ## 🎯 FAMILY-1 round 5 (2026-07-02): R-REFRESH phase (+26, 4198/5401 = 77.7%)
 The P_S class root-caused on Toccata: **the wrapper's non-play call is NOT silent —
 it's a REGISTER REFRESH**: wrapper `LDA ctr/INC/AND #1` alternates play ($1003)

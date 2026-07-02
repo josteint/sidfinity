@@ -595,9 +595,20 @@ def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc84') -> DmcModel:
         inst = _decode_instrument(mem, instr_base, iid, ctrl_tab, freq_tab,
                                   n_wave)
         m.instruments[iid] = inst
-        if inst.filter_on:
-            d = inst.filter_def
-            if d not in m.filter_defs:
+    # Filter defs: capture the ENTIRE 8-bit walk window, not just the defs
+    # instruments reference. The engine's repeat reload ($1719 = def+2) can be
+    # > 5; the step index then walks UPWARD forever (INC + CMP #6 exact-match
+    # never fires again), reading size/duration bytes at def-table offsets that
+    # cross into ADJACENT records (and, via the +10 durations view, up to
+    # def-table+265). Emitting the composer's table in the orig's 16-byte
+    # record layout (composer fdrec) makes every walked read byte-exact — so
+    # ship all 16 records (typed, byte-lossless) + the 10-byte tail. C2 class.
+    # 17 records = 272 bytes >= the 266-byte window (16*16 + the 10 bytes the
+    # +10 durations view reaches at walk index 250..255); the 17th record's
+    # last 6 bytes are unreachable padding, kept typed for uniformity.
+    if any(m.instruments[i].filter_on for i in m.instruments):
+        for d in range(17):
+            if filtdef + d * 16 + 16 <= 0x10000:
                 m.filter_defs[d] = _decode_filter_def(mem, filtdef, d)
     # family 2: cymbal fires one frame later (frame 2, params.cymbal_onset),
     # and the vibrato swells differently — note-init stores freq_hi(note)>>1

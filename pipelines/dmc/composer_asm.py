@@ -207,11 +207,16 @@ class _Model:
         self.usf = usf
         self.instruments = list(usf.instruments)
         self.inst_slot = {i.id: k for k, i in enumerate(self.instruments)}
-        # filter defs: program key -> slot
-        self.filter_slots = {prog: k for k, prog in
-                             enumerate(sorted(usf.filter_programs))}
-        self.filter_defs = [usf.filter_programs[p]
-                            for p in sorted(usf.filter_programs)]
+        # filter defs: program key -> slot = orig def# (key-1). The def table
+        # is emitted DENSE in orig order at the orig 16-byte record stride so
+        # off-table walk reads (repeat > 5) hit the same bytes as the orig;
+        # gaps (older sparse USF files) are zero records.
+        self.filter_slots = {prog: prog - 1 for prog in usf.filter_programs}
+        _zero_def = {'res': 0, 'mode': 0, 'init': 0, 'repeat': 0, 'stop': 0,
+                     'steps': [(0, 0)] * 6}
+        _maxd = max((p - 1 for p in usf.filter_programs), default=-1)
+        self.filter_defs = [usf.filter_programs.get(d + 1, _zero_def)
+                            for d in range(_maxd + 1)]
         # global pattern pool (content-deduped) + per subtune/voice tracks
         self.patterns: list[bytes] = []
         pat_ids: dict[bytes, int] = {}
@@ -368,21 +373,22 @@ def compose_dmc_asm(usf: UsfFile) -> str:
     fdinit = [d['init'] for d in fd]
     fdrep = [d['repeat'] for d in fd]
     fdstop = [d['stop'] for d in fd]
-    # 12-byte stride mirroring the original 16-byte def's contiguity (sizes at
-    # def+4, durations at def+10): a `repeat` index > 5 OVERRUNS the 6 sizes
-    # into the 6 durations (the engine reads size = def+4+index, so index 6..11
-    # = the duration bytes) — that's the rising-to-stop sweep (e.g. repeat 10 ->
-    # size = duration[4]). The duration overrun reads 0 = "stay on this step
-    # until cutoff == stop", matching the engine's freeze-at-stop. Was an 8-byte
-    # stride (6 sizes + 2 pad) which broke the overrun -> wrong rise step.
-    fdstep = []
-    fddur = []
+    # fdrec = the orig's 16-byte def RECORD layout, dense in orig def# order:
+    # [res<<4|mode, init, repeat, stop, size*6, dur*6]. The walk arrays are
+    # VIEWS into it (fdstep = fdrec+4, fddur = fdrec+10), so a step index that
+    # overruns its def (repeat > 5: the INC/CMP #6 wrap never fires again and
+    # the index walks upward forever) reads size/duration bytes from ADJACENT
+    # records — byte-identical to the orig by construction (C2 extended
+    # window; the extract ships 17 records = the full 266-byte window). The
+    # old 12-byte stride matched only within-def overruns (index 6..11);
+    # cross-def walks read the wrong bytes (Psycho_Tune's repeat=$1F).
+    fdrec = []
     for d in fd:
         steps = (d['steps'] + [(0, 0)] * 6)[:6]
-        sizes = [s & 0xFF for s, _ in steps]
-        durs = [f & 0xFF for _, f in steps]
-        fdstep += sizes + durs
-        fddur += durs + [0] * 6
+        fdrec += ([((d['res'] << 4) | (d['mode'] & 0x0F)) & 0xFF,
+                   d['init'] & 0xFF, d['repeat'] & 0xFF, d['stop'] & 0xFF]
+                  + [s & 0xFF for s, _ in steps]
+                  + [f & 0xFF for _, f in steps])
 
     # ---- tune records + tracks + patterns ----
     tune_lines = []
@@ -618,8 +624,8 @@ def compose_dmc_asm(usf: UsfFile) -> str:
                       ('fdinit', fdinit), ('fdrep', fdrep),
                       ('fdstop', fdstop)]:
         data.append(f'{name}:\n' + _byt(arr or [0]))
-    data.append('fdstep:\n' + _byt(fdstep or [0]))
-    data.append('fddur:\n' + _byt(fddur or [0]))
+    data.append('fdrec:\n' + _byt(fdrec or [0] * 16))
+    data.append('fdstep = fdrec+4\nfddur = fdrec+10')
     data.append('wctab:\n' + _byt(m.wctrl))
     data.append('wftab:\n' + _byt(m.wfreq))
     data.append('tunetab:\n' + '\n'.join(tune_lines))
@@ -1062,13 +1068,11 @@ ni_f_on:
         sta fstep
         sta fframe
         lda ifdef,y
-        tay                          ; y = def slot (scalar tables)
-        asl                          ; 2*slot
-        asl                          ; 4*slot
-        sta fbase
-        asl                          ; 8*slot
-        clc
-        adc fbase                    ; 12*slot (step table: 6 sizes + 6 durs)
+        tay                          ; y = def slot = orig def#
+        asl
+        asl
+        asl
+        asl                          ; 16*def# (orig def-record stride)
         sta fbase
         lda fdres,y
         sta fres
