@@ -443,7 +443,49 @@ def _build_via_dataflow(sid_path: str, hvsc_root: str):
         sid_path=sid_path,
         name=os.path.splitext(os.path.basename(sid_path))[0],
         base=base, cia_period=cia_period, play_repeat=play_repeat,
-        extra_params={}, **loc)
+        extra_params=_dataflow_knob_probes(mem, load), **loc)
+
+
+def _dataflow_knob_probes(mem, load: int) -> dict:
+    """Variant-knob probes for re-assembled players (the dataflow path).
+
+    The canon path probes its sub-build knobs at canon-relative sites
+    ($1180 rest dispatch, ...); a re-assembled layout moves those sites, so
+    the probes silently missed and every dataflow member got default knobs
+    (Hyper's rest-skip player diverged at flat pos 2 because rest_effects
+    stayed 'run'). Probe by OPCODE SHAPE instead (layout-independent, the
+    same idiom dataflow.locate uses):
+
+    rest/switch/slide-tail dispatch — the rest handler is
+        LDA dur_reload,x / STA dur,x / INC secpos,x / [JSR end-check] /
+        JMP target
+    and `target` classifies the variant by its own signature:
+        wave-step = LDA flags,x / AND #$01 / BNE   (BD .. .. 29 01 D0)
+                    -> rest_effects='skip'
+        effects   = LDA guard,x / BEQ .. / DEC     (BD .. .. F0 .. DE)
+                    -> canon 'run' (no knob)
+    """
+    extra = {}
+    hi = min(0x10000, load + 0x2000) - 16
+    for a in range(load, hi):
+        if not (mem[a] == 0xBD and mem[a + 3] == 0x9D and mem[a + 6] == 0xFE):
+            continue
+        p = a + 9
+        if mem[p] == 0x20:                      # optional JSR end-check
+            p += 3
+        if mem[p] != 0x4C:
+            continue
+        tgt = mem[p + 1] | (mem[p + 2] << 8)
+        if tgt + 6 >= 0x10000:
+            continue
+        if (mem[tgt] == 0xBD and mem[tgt + 3] == 0x29
+                and mem[tgt + 4] == 0x01 and mem[tgt + 5] == 0xD0):
+            extra['rest_effects'] = 'skip'      # wave-step target
+            break
+        if (mem[tgt] == 0xBD and mem[tgt + 3] == 0xF0
+                and mem[tgt + 5] == 0xDE):
+            break                               # effects target = canon 'run'
+    return extra
 
 
 def _build_via_canon(sid_path: str, hvsc_root: str = 'hvsc84') -> DMCV4Config:

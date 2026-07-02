@@ -553,6 +553,22 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
 - **Consumers:** `pipelines/dmc/v4/factory.py` `_jt_layout`. WATCH-LIST: any
   feature-driven family whose detection compares init/dispatch code — the
   verdict is the play stream, so dispatch should key on the play body.
+- **COROLLARY — variant-KNOB probes must be layout-independent too (2026-07-02,
+  DMC family-1 dataflow path).** Accepting a re-assembled member is only half
+  the job: the canon path's sub-build KNOB probes (rest-skip dispatch, $D418
+  helper, ...) read canon-RELATIVE sites, so on a re-assembled layout they
+  silently MISS and the member builds with default knobs — a wrong-MECHANISM
+  rebuild that presents as an early (<64) flat divergence, not a build-fail
+  (Hyper: rest-skip player + default `rest_effects='run'` → flat pos 2). Fix:
+  re-probe each knob by OPCODE SHAPE (`factory._dataflow_knob_probes`: find the
+  rest handler `LDA,x/STA,x/INC,x/[JSR]/JMP` and classify the JMP target by the
+  wave-step `BD..29 01 D0` vs effects `BD..F0..DE` signature). Landed: 29
+  partials re-typed, +5 FULL immediately, Hyper's divergence moved pos 2 →
+  296k; 0 currently-FULL members flip (probe census first — always census the
+  FULL-side flip set before landing a knob probe). REMAINING: the other canon
+  probes (D418 helper, all-off mask, hard-restart variant, filter-mode
+  extraction) still canon-site-only — port them the same way when their
+  clusters surface (~10 of the 29 still diverge early on other knobs).
 
 ### C15 — ⛔ REMOVED (audio-equivalence verdict relaxation)
 **User decision 2026-07-01: every SID always gets the STRICT write-stream match.**
