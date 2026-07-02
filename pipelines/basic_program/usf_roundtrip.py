@@ -292,7 +292,7 @@ def model_to_usf(model, title='bp', gap_exact=False, nf=False):
     # median delta as the last step's fallback (its real duration is the loop wrap)
     deltas = [steps[k+1]['on_frame'] - steps[k]['on_frame'] for k in range(len(steps)-1)]
     med = sorted(deltas)[len(deltas)//2] if deltas else 1
-    nf_gregs = None; nf_decls = {}
+    nf_gregs = None; nf_decls = {}; nf_events = {vc: [] for vc in voices}
     if nf:
         # NF precheck: every global write must coincide with a global-track CHANGE
         # (a re-poked unchanged global is invisible to the reader -> conflict), and
@@ -352,6 +352,8 @@ def model_to_usf(model, title='bp', gap_exact=False, nf=False):
                     ctx[vc] = {'kind': 'glide'}
                     if f is not None:
                         _ph[vc] = (f >> 8) & 0xFF; _pl[vc] = f & 0xFF
+                    nf_events[vc].append({'kind': 'tick', 'on': on})
+                    continue
                 vrows[vc].append(NoteRow(pitch=Pitch.rest(), duration=hold))
                 if gated:
                     vrows[vc].append(NoteRow(pitch=Pitch.rest(), duration=gap))
@@ -373,16 +375,19 @@ def model_to_usf(model, title='bp', gap_exact=False, nf=False):
                         # (the row genuinely re-pokes it) — an unchanged-instr
                         # re-poke would otherwise be row-invisible to the reader.
                         iid = note_instr(vc, s); last_instr[vc] = iid
-                        _ref = InstrumentRef(id=iid)
                         ctx[vc] = {'kind': 'timbre'}
-                    else:
-                        _ref = iref(vc, note_instr(vc, s))
+                        nf_events[vc].append({'kind': 'timbre', 'on': on,
+                                              'ref': InstrumentRef(id=iid)})
+                        continue
+                    _ref = iref(vc, note_instr(vc, s))
                     vrows[vc].append(NoteRow(pitch=Pitch.rest(), duration=hold,
                                              instr=_ref))
                 else:
-                    if nf and (creg in atk_d or creg in rel_d or
-                               any(r in atk_d for r in (FHI[vc], FLO[vc]))):
-                        raise ValueError('nf_conflict')    # voice event invisible to rows
+                    if nf:
+                        if (creg in atk_d or creg in rel_d or
+                                any(r in atk_d for r in (FHI[vc], FLO[vc]))):
+                            raise ValueError('nf_conflict')  # voice event invisible to rows
+                        continue                            # plain rest: no event
                     vrows[vc].append(NoteRow(pitch=Pitch.rest(), duration=hold))
             else:
                 slot = slotmap[f]; nm, octv = _slot_pitch(slot)
@@ -409,6 +414,12 @@ def model_to_usf(model, title='bp', gap_exact=False, nf=False):
                         fx += ('tie',)
                     if e['no_rel'] and not e['tie']:
                         fx += ('no_release',)
+                    nf_events[vc].append({'kind': 'note', 'on': on,
+                                          'hold': (off - on) if (gated and off is not None) else None,
+                                          'pitch': Pitch(name=nm, octave=octv),
+                                          'ref': _ref, 'fx': fx,
+                                          'glide_n': (g or {}).get('n', 0) if g else 0})
+                    continue
                 vrows[vc].append(NoteRow(pitch=Pitch(name=nm, octave=octv),
                                          duration=hold, instr=_ref,
                                          fx_flags=fx))
@@ -416,6 +427,8 @@ def model_to_usf(model, title='bp', gap_exact=False, nf=False):
                 vrows[vc].append(NoteRow(pitch=Pitch.rest(), duration=gap))
         if nf:
             from pipelines.basic_program import normal_form as NF
+            if not ctx and nf_gregs[kk]:
+                raise ValueError('nf_conflict')        # pure-global step: no row anchor
             ctx['globals'] = nf_gregs[kk]
             sig = NF.step_sig(ctx)
             a_regs = tuple(r for r, v in s['attack'])
@@ -425,6 +438,57 @@ def model_to_usf(model, title='bp', gap_exact=False, nf=False):
             dc = NF.regs_to_decl(a_regs, r_regs)
             if nf_decls.setdefault(sig, dc) != dc:
                 raise ValueError('nf_conflict')        # same event type, different order
+    if nf:
+        # ---- STAGE 3: true tracker rows from the event streams ----
+        # Per voice: note rows (duration = sounding hold; a glide head's duration
+        # = the tick span; releaseless/legato notes span to the next event), at
+        # most ONE merged rest between events, timbre-setup rests carry their
+        # instrument. Every voice's rows sum to the same total T; for looping
+        # tunes T = loop_onset + loop_period, so the loop seam is IN the rows
+        # and bp_loop_period dies (the reader re-derives it).
+        for vc in voices:                              # fold ticks into their head's span
+            evs = nf_events[vc]; out = []
+            i = 0
+            while i < len(evs):
+                ev = evs[i]
+                if ev['kind'] == 'note' and ev.get('glide_n'):
+                    n = ev['glide_n']; ticks = evs[i + 1:i + 1 + n]
+                    if len(ticks) != n or any(t['kind'] != 'tick' for t in ticks):
+                        raise ValueError('nf_conflict')
+                    ev = dict(ev, span=ticks[-1]['on'] - ev['on'])
+                    i += n
+                elif ev['kind'] == 'tick':
+                    raise ValueError('nf_conflict')    # orphan tick
+                out.append(ev); i += 1
+            nf_events[vc] = out
+        grid_end = max((ev['on'] + (ev.get('hold') or ev.get('span') or 0)
+                        for vc in voices for ev in nf_events[vc]), default=0) + 1
+        if model['loop_to'] is not None:
+            lt_on = steps[kept[model['loop_to']]]['on_frame']
+            grid_end = max(grid_end, lt_on + model['loop_period'])
+        for vc in voices:
+            cum = 0
+            for j, ev in enumerate(nf_events[vc]):
+                if ev['on'] < cum:
+                    raise ValueError('nf_conflict')    # same-onset events on one voice
+                if ev['on'] > cum:
+                    vrows[vc].append(NoteRow(pitch=Pitch.rest(), duration=ev['on'] - cum))
+                    cum = ev['on']
+                nxt_on = (nf_events[vc][j + 1]['on'] if j + 1 < len(nf_events[vc]) else grid_end)
+                if ev['kind'] == 'timbre':
+                    vrows[vc].append(NoteRow(pitch=Pitch.rest(), duration=nxt_on - cum,
+                                             instr=ev['ref']))
+                    cum = nxt_on
+                else:
+                    dur = (ev['span'] if 'span' in ev else
+                           ev['hold'] if ev['hold'] is not None else nxt_on - ev['on'])
+                    if dur <= 0:
+                        dur = max(dur, 0)
+                    vrows[vc].append(NoteRow(pitch=ev['pitch'], duration=dur,
+                                             instr=ev['ref'], fx_flags=ev['fx']))
+                    cum = ev['on'] + dur
+            if cum < grid_end:
+                vrows[vc].append(NoteRow(pitch=Pitch.rest(), duration=grid_end - cum))
     # non-inst voices: one instrument (waveform from the gate-on const ctrl)
     for vc in voices:
         if vc not in inst_voices:
@@ -467,10 +531,10 @@ def model_to_usf(model, title='bp', gap_exact=False, nf=False):
     # structure as the other engine families (the reader defaults to 0).
     fields = {'bp': 1, 'bp_legato': int(model['legato']),
               'bp_loop_to': model['loop_to'] if model['loop_to'] is not None else -1,
-              'bp_loop_period': model['loop_period'],
               'bp_rho_milli': round(model['rho'] * 1000),
               'bp_atk_n': len(atk), 'bp_rel_n': len(rel)}
     if not nf:
+        fields['bp_loop_period'] = model['loop_period']
         fields['bp_init_n'] = len(model['init'])
         for i, (reg, val) in enumerate(model['init']):
             fields[f'bp_init{i}'] = (reg << 8) | (val & 0xFF)
@@ -641,7 +705,7 @@ def usf_to_model(usf):
     gated = (not bool(f['bp_legato'])) if (multi_t or nf_decls) else len(rel) > 0
     per_step = 2 if gated else 1                       # gated row pair: note(hold)+rest(gap)
     aps = [e[0] for e in atk if e[1] == 'perstep']; rps = [e[0] for e in rel if e[1] == 'perstep']
-    nsteps = min(len(r) for r in vrows.values()) // per_step
+    nsteps = 0 if nf_decls else (min(len(r) for r in vrows.values()) // per_step)
     has_masks = f.get('bp_has_masks', 0) == 1
     steps = []
     glides = {}                                        # vc -> [base_freq, delta, k, n] (armed glide)
@@ -650,8 +714,112 @@ def usf_to_model(usf):
         for vc in voices:
             if _r == FHI[vc]: _ph[vc] = _v
             elif _r == FLO[vc]: _pl[vc] = _v
+    nf_loop_period = 0
     if nf_decls:
         from pipelines.basic_program import normal_form as NF
+        # ---- STAGE 3: derive the step grid from the union of event onsets ----
+        evmap = {}
+        for vc in voices:
+            cum = 0
+            for row in vrows[vc]:
+                fxs = set(row.fx_flags)
+                fl = dict(x.split('=', 1) for x in row.fx_flags if '=' in x)
+                if row.pitch.is_rest:
+                    if row.instr is not None:
+                        if vc in evmap.setdefault(cum, {}):
+                            raise ValueError('nf_grid_collision')
+                        evmap[cum][vc] = {'kind': 'timbre', 'row': row}
+                else:
+                    if vc in evmap.setdefault(cum, {}):
+                        raise ValueError('nf_grid_collision')
+                    isgl = 'glide_ticks' in fl and ('glide_up' in fl or 'glide_down' in fl)
+                    evmap[cum][vc] = {'kind': 'note', 'row': row, 'fxs': fxs,
+                                      'hold': (row.duration if (gated and 'no_release' not in fxs
+                                                                and not isgl) else None)}
+                    if isgl:                           # implied tick events, spread over the span
+                        n = int(fl['glide_ticks']); span = row.duration
+                        dlt = (int(fl['glide_up'].lstrip('$'), 16) if 'glide_up' in fl
+                               else -int(fl['glide_down'].lstrip('$'), 16))
+                        R = int(fl.get('glide_hold', 1))
+                        base = _pitch_freq(row.pitch, ftab) or 0
+                        for t in range(1, n + 1):
+                            ton = cum + (t * span) // n if n else cum
+                            if vc in evmap.setdefault(ton, {}):
+                                raise ValueError('nf_grid_collision')
+                            evmap[ton][vc] = {'kind': 'tick',
+                                              'freq': (base + (t // R) * dlt) & 0xFFFF}
+                cum += row.duration
+        onsets = sorted(evmap)
+        run_instr2 = {}
+        for k, on in enumerate(onsets):
+            evs = evmap[on]
+            ctx = {}
+            for vc, ev in evs.items():
+                if ev['kind'] == 'tick':
+                    ctx[vc] = {'kind': 'glide'}
+                elif ev['kind'] == 'timbre':
+                    ctx[vc] = {'kind': 'timbre'}
+                else:
+                    fq = _pitch_freq(ev['row'].pitch, ftab) or 0
+                    ctx[vc] = {'kind': 'note',
+                               'hi_ch': ((fq >> 8) & 0xFF) != _ph[vc],
+                               'lo_ch': (fq & 0xFF) != _pl[vc],
+                               'tie': 'tie' in ev['fxs'],
+                               'no_rel': gated and ('no_release' in ev['fxs'] or 'tie' in ev['fxs']),
+                               'instr_ch': ev['row'].instr is not None}
+                if ev['kind'] != 'tick' and ev['row'].instr is not None:
+                    run_instr2[vc] = ev['row'].instr.id
+            ge2 = gevents.get(k)
+            gr = []
+            if ge2 is not None:
+                if ge2.dyn is not None or ge2.mode is not None: gr.append(0x18)
+                if ge2.res is not None or ge2.route is not None: gr.append(0x17)
+                if ge2.cutoff is not None: gr.append(0x16)
+                for fld in ('dyn', 'cutoff', 'res', 'mode', 'route'):
+                    if getattr(ge2, fld) is not None:
+                        run_g[fld] = getattr(ge2, fld)
+            ctx['globals'] = tuple(sorted(gr))
+            sig = NF.step_sig(ctx)
+            dc = nf_decls.get(sig)
+            if dc is None:
+                raise ValueError('nf_missing_sig:' + sig)
+            a_regs, r_regs = NF.decl_to_regs(dc)
+
+            def _val(reg, release):
+                kd = NF.entry_kind(reg)
+                vc2 = REG_VOICE.get(reg) if reg < 0x15 else None
+                if kd == 'global':
+                    return gpack(reg)
+                if kd == 'perstep':
+                    ev2 = evs.get(vc2)
+                    fq2 = (ev2['freq'] if ev2['kind'] == 'tick'
+                           else (_pitch_freq(ev2['row'].pitch, ftab) or 0))
+                    return (fq2 >> 8) & 0xFF if reg in FHI.values() else fq2 & 0xFF
+                iid = run_instr2.get(vc2)
+                if iid is None:
+                    raise ValueError('not_clean')
+                ctrl, ad, sr, pw, rctrl = itab[iid]
+                fld = REG_FIELD[reg]
+                if fld == 'ctrl':
+                    if release:
+                        return rctrl if rctrl is not None else (ctrl & 0xFE)
+                    return ctrl
+                return {'ad': ad, 'sr': sr, 'pwlo': pw & 0xFF, 'pwhi': (pw >> 8) & 0xFF}[fld]
+
+            attack = [(rg, _val(rg, False)) for rg in a_regs]
+            release = [(rg, _val(rg, True)) for rg in r_regs]
+            hold2 = next((ev.get('hold') for ev in evs.values() if ev.get('hold') is not None), None)
+            steps.append({'attack': attack, 'release': release or None,
+                          'on_frame': on,
+                          'off_frame': (on + hold2) if (gated and hold2 is not None) else None,
+                          'next': None, 'atk_mask': 0, 'rel_mask': 0, 'tid': 0})
+            for rg, vv in attack:                      # advance running freq (sig tracking)
+                for vc2 in voices:
+                    if rg == FHI[vc2]: _ph[vc2] = vv
+                    elif rg == FLO[vc2]: _pl[vc2] = vv
+        T = sum(r2.duration for r2 in vrows[voices[0]])
+        if f['bp_loop_to'] >= 0 and onsets:
+            nf_loop_period = T - onsets[min(f['bp_loop_to'], len(onsets) - 1)]
     onf = f.get('bp_start_frame', 0)
     for k in range(nsteps):
         hi = k * per_step
@@ -791,7 +959,8 @@ def usf_to_model(usf):
             'atk_ps': [e[0] for e in atk_o if e[1] == 'perstep'],
             'rel_ps': [e[0] for e in rel_o if e[1] == 'perstep'],
             'loop_to': None if f['bp_loop_to'] < 0 else f['bp_loop_to'],
-            'loop_period': f['bp_loop_period'], 'rho': f['bp_rho_milli'] / 1000.0,
+            'loop_period': f.get('bp_loop_period', nf_loop_period),
+            'rho': f['bp_rho_milli'] / 1000.0,
             'clock': usf.psid.clock, 'masked': True, 'legato': bool(f['bp_legato']),
             'multi': multi_o,
             'song_end': song_end, 'pw_program': pw_program, 'mod_start': mod_start, 'mod_inc': mod_inc}

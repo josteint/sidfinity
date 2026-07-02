@@ -1,6 +1,6 @@
 ---
 name: project_basic_program
-description: "Basic_Program family (486 RSID-BASIC tunes) — PRODUCTIONIZED round-trip: 455/486 (93.6%) FULL; NORMAL FORM stages 1+2 (246 NF: order decls + typed init.sid; 209 legacy); mass-written + regression"
+description: "Basic_Program family (486 RSID-BASIC tunes) — PRODUCTIONIZED round-trip: 455/486 (93.6%) FULL; NORMAL FORM stages 1-3 (189 NF: order decls + typed init.sid + merged tracker rows; 266 legacy); mass-written + regression"
 metadata: 
   node_type: memory
   type: project
@@ -523,6 +523,22 @@ SELF-ALIGNING SPLIT (`_split_aligned`): a gate-on-based music-start split MISFIR
 (legato ctrl_init) or freq seed; instead the rebuild's init length is KNOWN (len(m2.init)) and the orig's split
 point is found by locating the rebuild's first 8 music writes in the orig stream (cost: 70 tunes fell out of NF
 until fixed). 14 stage-1-NF tunes still fall back on init conflicts (census later). bp_init gone from NF files.
+
+**✅ NORMAL FORM STAGE 3 (2026-07-03): merged tracker rows + union-onset grid (455 held, 189 NF / 266 legacy).**
+Rows are now TRUE tracker events: note rows (duration = sounding hold; glide-head duration = the tick span;
+releaseless/tie/legato notes span to the next event), at most ONE merged rest between a voice's events, timbre-setup
+rests carry their instrument — the `--- N` runs are GONE from NF files (God_Save: `--- 24 i100 / E-5 2 i103 tie /
+--- 6` per phrase). Writer collects per-voice EVENTS (nf_events) and emits rows per voice; every voice's rows sum to
+the same total T; for looping tunes T = loop_onset + loop_period so the LOOP SEAM lives in the trailing rest and
+`bp_loop_period` is GONE (reader re-derives it). Reader derives the step grid from the UNION of event onsets
+(evmap), reconstructs each step from sig→decl, resolves values from event rows (running instrument per voice in
+grid order); glide ticks are IMPLIED events spread `on + (t*span)//n` over the head row's duration. ADOPTION DROP
+246→189: stage-3-specific losses = grid collisions (same-onset events on one voice: hold-0 chains, tick collisions
+→ 'nf_grid_collision' caught as build_fail) + a few tick-spread order divergences (interleaved glides) — census
+tmp: 39/60 legacy sample = pre-existing stage-2 conflicts, 15 build_fail + 4 diverge = stage-3 tail. RECOVERY IDEAS
+(not done): nudge colliding tick onsets ±1; per-PATTERN order-decl scoping for the 81 order-conflict tunes; census
+the 57 lost members for a shared lever. STAGE 4 REMAINS: bp_rho_milli → composer (derive from clock), bp_mod_* →
+typed C1 sweep form, bp_songend → typed, bp_legato/bp_atk_n/bp_rel_n cleanup — then params is ONLY bp + order decls.
 
 **(superseded plan note)** The user flagged the params block as
 anti-ML (packed ints) — review confirmed it is representation-principle §3 FAILURE MODE B (the USF carrying a
