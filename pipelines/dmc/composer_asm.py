@@ -480,7 +480,7 @@ def compose_dmc_asm(usf: UsfFile) -> str:
     tokens = [t for t in play_phases.split('_') if t] if play_phases else []
     if (tokens and 'P' in tokens and len(tokens) > 1
             and all(t == 'P' or t == 'S'
-                    or (t[0] == 'F' and t[1:]
+                    or (t[0] in 'FR' and t[1:]
                         and set(t[1:]) <= set('123')) for t in tokens)):
         n_ph = len(tokens)
         # one routine per DISTINCT token; phasetab holds the routine index
@@ -497,6 +497,12 @@ def compose_dmc_asm(usf: UsfFile) -> str:
                 body = '        jmp playframe                ; P = full play\n'
             elif t == 'S':
                 body = '        rts                          ; S = silent call\n'
+            elif t[0] == 'R':         # R<voices>: register refresh — the
+                body = ''             # per-voice glide/write tail ($141C)
+                for v in t[1:]:       # only; re-emits current freq/PW/ctrl
+                    body += (f'        ldx #{int(v) - 1}\n'
+                             '        jsr fx_glide\n')
+                body += '        rts\n'
             else:                     # F<voices>: per-voice frame entry only
                 body = ''
                 for v in t[1:]:

@@ -79,6 +79,7 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
 | INAUDIBLE writes · idle/gate-off voice freewheels · "audio-equivalence" verdict relaxation | C15 | ⛔ REMOVED (user decision 2026-07-01): every SID gets STRICT write-stream match, always — never propose relaxing the verdict during per-engine work. If an idle-freewheel divergence blocks a member, REPRODUCE the writes (core tenet permits reproducing the mechanism). Design parked in `refactor_1_remaining.md` as a Move-1-era-ONLY consideration. |
 | per-frame WRITE-ORDER differs · orig batches note-on writes (SR/AD/CTRL) separately from wave-step writes (freq/PW/CTRL) or uses a different voice interleave · rebuild emits a different order · NOT a wholesale composer rewrite — PARAMETRIZE the composer's EMISSION order (precedent: FC `nextvoice_write_order`) | C16 | logged |
 | HETEROGENEOUS per-step write shapes in a trace-lift · one superset order can't embed all steps (conflicting reg orders / intra-step dups / sections) · cluster steps by EXACT write shape → K positional templates + per-step template id | C17 | logged |
+| play-vector WRAPPER with per-call PHASE behaviour · slow-tempo / multispeed-effects cycler · every Nth call runs the full play, others run effects-only / register-refresh / nothing · wrapper shapes vary (SMC, DEC+dual-JMP, parity AND) — OBSERVE entry-point reachability under py65, don't parse | C18 | logged |
 
 ---
 
@@ -711,3 +712,28 @@ revisited ONLY around Move 1, when most/all engines are uready — not before.
   code — C16 territory, parametrize the composer's emission order instead).
 - **Consumers:** basic_program (`pipelines/basic_program/semantic_lift.py`,
   `usf_roundtrip.py`).
+
+### C18 — Play-vector wrapper with per-call PHASE behaviour
+- **Canonical:** when a member's play vector is a WRAPPER that behaves
+  differently on successive calls (the editor's slow-tempo / multispeed-effects
+  trick), do NOT parse the wrapper code (shapes vary: SMC JSR-operand table,
+  DEC counter + dual JMP, parity `AND #1`, re-authored JT slots). OBSERVE it:
+  run init + N play() calls under py65 and classify each call by which engine
+  ENTRY POINT it reaches — full play body (P) / per-voice frame entry, effects
+  only (F<voices>) / per-voice glide+write tail, register REFRESH re-emitting
+  current freq/PW/ctrl without ticking (R<voices>) / none (S). Take the minimal
+  repeating period as a schedule string (`P_S`, `P_F123_F123_F123`, `P_R123`)
+  and have the composer emit a phase-counter dispatcher whose per-phase routines
+  JSR the composer's OWN corresponding entry points. Entry-point mirroring makes
+  the reproduction exact by construction — the phase routine runs the same code
+  the original's phase runs.
+- **Trap:** a call that emits SID writes can still classify as S if you only
+  watch the P/F entries — Toccata's "silent" phase was a register refresh hidden
+  in the re-authored all-off JT slot (`LDX/JSR $141C ×3`). Before accepting an S
+  classification for a diverging member, check the orig's per-IRQ stream for
+  writes in the non-P calls.
+- **Status:** logged (DMC family-1, 2026-07-02: P/F/S round +5 FULL, R round
+  +26 FULL → 4198/5401).
+- **Consumers:** DMC v4 `factory._observe_play_phases` + `composer_asm`
+  play_phases dispatcher. Sibling of C9 (measure, don't parse) — C9 measures
+  from the libsidplayfp writelog, C18 from py65 entry-point reachability.

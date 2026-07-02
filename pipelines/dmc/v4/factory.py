@@ -362,13 +362,16 @@ def _observe_play_phases(sid_path: str, subtune: int, base: int,
         mpu.a = acc
         hit_play = False
         fx_voices = set()          # X values seen at the frame entry
+        rf_voices = set()          # X values seen at the glide/write tail
         for _ in range(max_steps):
             if mpu.pc == 0x0001:
-                return hit_play, fx_voices
+                return hit_play, fx_voices, rf_voices
             if mpu.pc == base + 0x85:
                 hit_play = True
             elif mpu.pc == base + 0x1F9:
                 fx_voices.add(mpu.x & 0x03)
+            elif mpu.pc == base + 0x41C:
+                rf_voices.add(mpu.x & 0x03)
             try:
                 mpu.step()
             except Exception:
@@ -382,14 +385,17 @@ def _observe_play_phases(sid_path: str, subtune: int, base: int,
         r = run(s['play'], 0)
         if r is None:
             return None
-        hp, fv = r
+        hp, fv, rv = r
         if hp:
             seq.append('P')
         elif fv:                   # F + the voice set it ran (stubs vary:
             seq.append('F' + ''.join(str(v + 1)  # some NOP out a voice)
                               for v in sorted(fv)))
-        else:
-            seq.append('S')
+        elif rv:                   # R = register REFRESH: the wrapper calls
+            seq.append('R' + ''.join(str(v + 1)  # the per-voice glide/write
+                              for v in sorted(rv)))  # tail ($141C) directly —
+        else:                      # re-emits current freq/PW/ctrl (Toccata's
+            seq.append('S')        # re-authored all-off slot: LDX/JSR $141C x3)
     for p in range(1, n_calls // 2 + 1):
         if all(seq[i] == seq[i % p] for i in range(n_calls)):
             return '_'.join(seq[:p])

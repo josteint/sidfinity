@@ -7,6 +7,44 @@ metadata:
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
 ---
 
+## 🎯 FAMILY-1 round 5 (2026-07-02): R-REFRESH phase (+26, 4198/5401 = 77.7%)
+The P_S class root-caused on Toccata: **the wrapper's non-play call is NOT silent —
+it's a REGISTER REFRESH**: wrapper `LDA ctr/INC/AND #1` alternates play ($1003)
+with the THIRD JT entry ($1006), whose target is the RE-AUTHORED all-off slot
+($162F: `LDX #0/JSR $141C/INX/...` ×3) = the per-voice glide/write tail — re-emits
+current freq/PW/ctrl (15 writes, no filter/ADSR) at 100Hz without ticking. The
+observer misread it as S (reaches neither base+$85 nor base+$1F9). FIX: observer
+classifies base+$41C hits as `R<voices>`; composer R token = `ldx #v/jsr fx_glide`
+per voice (fx_glide IS the $141C analog; entry-point mirror = exact by
+construction). **+26 FULL, 0 regressions** (whole 64-member wrapper list re-run;
+the 5 round-4 FULLs held). Residue 33: early-<64 22 (mostly the observe-None /
+dataflow sub-class — re-assembled players w/ shifted bodies, e.g. Speed_It_Up =
+plain JSR×4 repeat + a different early bug; wrapper obs not wired on the dataflow
+route) · deep ≥4k 7 (knob works; separate causes: Tekkno_Power 88k, Big_City 333k)
+· close-tail 2 (Compotune_1/2 — pure length mismatch at cutoff, tail ~1.2-1.4k >
+scaled close_tol; the phase period stretches the cutoff straddle — close_tol
+follow-up, strict policy respected). Artifacts: tmp/f1_refresh_verify.jsonl.
+
+## 🎯 FAMILY-1 round 4 (2026-07-02): PLAY-PHASE wrapper (+5, 4172/5401) — banked 129812e
+Fuck_Off (the round-3 undiagnosed rep) cracked = **PLAY-PHASE WRAPPER**: the play
+vector cycles full-play / effects-only calls (the DMC slow-tempo / multispeed-
+effects editing trick, e.g. 'PFFF'). Factory `_observe_play_phases` (C9 measure-
+don't-parse: run init+12 plays under py65, classify each call by the entry it
+reaches — P=base+$85 full play / F<voices>=base+$1F9 per-voice frame entry /
+S=neither; minimal period → `play_phases='P_F123_F123_F123'`). Composer emits a
+phasectr dispatcher (P→playframe / F→voice_fx stub w/ otrk re-derivation / S→rts);
+gate requires ≥2 tokens incl. 'P'. **+5 FULL** (Fuck_Off/Words/Beverly_Hills_Cop/
+Music_of_Wind_intro/Image). NB the code was accidentally swept into bfa1604 (the
+parallel basic_program session's commit); banking commit = 129812e. FULL-side
+census 4167: 1 hit (Surgeon/0104 `S_F123`x5 no-P → gate rejects, build proven
+byte-identical; re-verified FULL, stored build refreshed). **Wrapper residue 59
+(of the 64-member list tmp/f1_fxwrap_members.json): P_S_S_S 24 / P_S 14 /
+observe-None 10 / P_F* 11; 55 still diverge EARLY (<64) WITH the knob** —
+next: diagnose a P_S rep (Toccata @pos11) — suspect the 'S' calls aren't truly
+silent (tick without writes shifting later timing?) or CIA bucketing. P_F123
+members diverging DEEP (Tekkno_Power 88k, Mac 75k, Kick_Up 137k) = knob works,
+separate deep residue. Artifacts: tmp/f1_fxwrap_verify.jsonl, f1_phases_census.jsonl.
+
 ## 🎯 FAMILY-1 EARLY-CLUSTER round 3 (2026-07-02): wave-chain 8-bit WRAP (+3, 4167)
 CANON-route rep Attah_2 root-caused = **ledger C11's wave-walk instance**: the
 engine's wave position is 8-BIT (INC wraps $FF→$00) but `_resolve_wave_chain`
