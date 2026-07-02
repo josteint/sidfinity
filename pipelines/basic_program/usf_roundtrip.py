@@ -198,6 +198,12 @@ def model_to_usf(model, title='bp', gap_exact=False):
     gated = (not model['legato']) if multi else len(rel) > 0
     ftab = bytearray(256)
     vrows = {vc: [] for vc in voices}
+    last_instr = {}
+    def iref(vc, iid):                                 # instrument only on CHANGE
+        if last_instr.get(vc) == iid:
+            return None
+        last_instr[vc] = iid
+        return InstrumentRef(id=iid)
     # median delta as the last step's fallback (its real duration is the loop wrap)
     deltas = [steps[k+1]['on_frame'] - steps[k]['on_frame'] for k in range(len(steps)-1)]
     med = sorted(deltas)[len(deltas)//2] if deltas else 1
@@ -241,7 +247,7 @@ def model_to_usf(model, title='bp', gap_exact=False):
                 if vc in inst_voices and any(r in d_all for r in pt[vc]) \
                         and FHI[vc] not in dict(s['attack']) and FLO[vc] not in dict(s['attack']):
                     vrows[vc].append(NoteRow(pitch=Pitch.rest(), duration=hold,
-                                             instr=InstrumentRef(id=note_instr(vc, s))))
+                                             instr=iref(vc, note_instr(vc, s))))
                 else:
                     vrows[vc].append(NoteRow(pitch=Pitch.rest(), duration=hold))
             else:
@@ -256,7 +262,7 @@ def model_to_usf(model, title='bp', gap_exact=False):
                     if g.get('hold', 1) > 1:           # staircase: level held R ticks
                         fx += (f'glide_hold={g["hold"]}',)
                 vrows[vc].append(NoteRow(pitch=Pitch(name=nm, octave=octv),
-                                         duration=hold, instr=InstrumentRef(id=note_instr(vc, s)),
+                                         duration=hold, instr=iref(vc, note_instr(vc, s)),
                                          fx_flags=fx))
             if gated:
                 vrows[vc].append(NoteRow(pitch=Pitch.rest(), duration=gap))
@@ -368,7 +374,9 @@ def model_to_usf(model, title='bp', gap_exact=False):
         for k, s in enumerate(steps):
             fields[f'bp_mask{k}'] = (s.get('atk_mask', 0) << 16) | s.get('rel_mask', 0)
     return UsfFile(
-        psid=PsidMeta(title=title, author='basic_program', released='sidfinity',
+        psid=PsidMeta(title=model.get('title') or title,
+                      author=model.get('author') or 'sidfinity',
+                      released=model.get('released') or 'sidfinity',
                       clock=model['clock'], sid=6581, start_song=1, speed=0),
         params=Params(fields=fields),
         init=InitState(sid=InitSid(master_vol=dict(model['init']).get(0x18, 0x0F))),
@@ -431,11 +439,14 @@ def usf_to_model(usf):
                      ins.waveform[1] if len(ins.waveform) > 1 else None)  # release ctrl
             for ins in usf.instruments}
 
+    run_instr = {}                                     # running instrument per voice (instr-on-change)
+
     def inst_val(vc, hi, reg, release=False):
         note = vrows[vc][hi]
-        if note.instr is None:                         # timbre written on a rest step (no note) — defer
+        iid = note.instr.id if note.instr is not None else run_instr.get(vc)
+        if iid is None:                                # no instrument established yet — defer
             raise ValueError('not_clean')
-        ctrl, ad, sr, pw, rctrl = itab[note.instr.id]
+        ctrl, ad, sr, pw, rctrl = itab[iid]
         fld = REG_FIELD[reg]
         if fld == 'ctrl':
             if release:
@@ -458,6 +469,10 @@ def usf_to_model(usf):
     onf = f.get('bp_start_frame', 0)
     for k in range(nsteps):
         hi = k * per_step
+        for vc in voices:                              # advance the running instrument
+            iv = vrows[vc][hi].instr
+            if iv is not None:
+                run_instr[vc] = iv.id
         hold = (vrows[voices[0]][hi].duration if multi_t                # exact (C12)
                 else max(1, vrows[voices[0]][hi].duration))
         gap = vrows[voices[0]][hi + 1].duration if gated else 0   # exact (0 = back-to-back notes)
@@ -538,6 +553,7 @@ def usf_to_model(usf):
     multi_o = ([{'atk': _to_ps(t['atk']), 'rel': _to_ps(t['rel'])} for t in multi_t]
                if multi_t else None)                   # the player only knows const/perstep
     return {'init': init, 'steps': steps, 'atk_template': atk_o, 'rel_template': rel_o,
+            'title': usf.psid.title, 'author': usf.psid.author, 'released': usf.psid.released,
             'atk_ps': [e[0] for e in atk_o if e[1] == 'perstep'],
             'rel_ps': [e[0] for e in rel_o if e[1] == 'perstep'],
             'loop_to': None if f['bp_loop_to'] < 0 else f['bp_loop_to'],
@@ -595,6 +611,8 @@ def _attempt_model(m, sid, dur, orig_wl, title='bp', gap_exact=False):
     # then compares equal MUSIC-TIME windows: the rebuild plays start_shift
     # frames more music per wall-second, so its capture window shrinks by it.
     m = S.cap_start_frames(m)
+    m = dict(m)
+    m['title'], m['author'], m['released'] = S.read_sid_meta(sid)   # original PSID header metadata
     if not is_clean(m):
         return ('not_clean', 0, 0, 0, None, None)
     try:

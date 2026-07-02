@@ -1196,7 +1196,18 @@ def cap_start_frames(model, cap=START_CAP):
     return m
 
 
-def build_psid(model, title='probe'):
+def read_sid_meta(sid_path):
+    """(title, author, released) from the original SID header (latin-1)."""
+    raw = open(sid_path, 'rb').read()
+    def s(off):
+        return raw[off:off + 32].split(b'\0')[0].decode('latin-1', errors='replace')
+    return s(0x16), s(0x36), s(0x56)
+
+
+def build_psid(model, title=None, author=None, released=None):
+    title = title if title is not None else (model.get('title') or 'sidfinity')
+    author = author if author is not None else (model.get('author') or 'sidfinity')
+    released = released if released is not None else (model.get('released') or 'sidfinity')
     if model.get('multi'):
         asm = build_player_multi(model)
     elif model.get('legato'):
@@ -1214,7 +1225,7 @@ def build_psid(model, title='probe'):
     if LOAD + len(body) > 0xCF00:                      # image must stay below IO at $D000:
         raise ValueError('image_too_big')              # records read from IO = silent garbage
     return build_header(load=LOAD, init=LOAD, play=LOAD+3, songs=1, start_song=1,
-                        speed=0, title=title, author='x', released='x',
+                        speed=0, title=title, author=author, released=released,
                         flags=flags) + body
 
 def verify(sid_rel, dur=20.0, title='probe'):

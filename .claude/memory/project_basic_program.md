@@ -491,6 +491,25 @@ God_Save_the_King, Mexican_Hat_Dance, Pong, Small_World, Casino_Poker, Sonata; t
 programs print "PLEASE WAIT 1 2/3 MINUTES" etc. and pre-decode DATA for 1-3 min — SIDs fine, sidplayfp fine, HVSC
 songlengths wrong). All 486 re-lifted from scratch (USF content changed family-wide).
 
+**✅ METADATA + INSTR-ON-CHANGE (2026-07-02): user-reported fixes, family re-lifted (452 held).** (a) The original
+PSID header title/author/released now transfer into BOTH the USF psid block and the built .sidfinity.sid header
+(read_sid_meta; was "probe/x/x"). (b) Instrument refs emit ONLY on change (tracker convention; reader tracks a
+running instrument per voice; timbre-only rest rows still resolve via running). Musette (per-note-instr canary) FULL.
+
+**🔄 NEXT: USF NORMAL-FORM redesign (user-driven, principle-reviewed).** The user flagged the params block as
+anti-ML (packed ints) — review confirmed it is representation-principle §3 FAILURE MODE B (the USF carrying a
+per-tune engine program; "complete but unlearnable"). DERIVABILITY CENSUS (tmp/bp_census_derivable.py, 277 FULLs):
+Q1 79% of tunes have a perfect unordered-writes→order function (templates+tids fully derivable from rows; the 50
+conflicted tunes are glide/legato where the crude signature conflates event types — row-aware signatures will raise
+this). Q2 ordering vocabulary small per tune → residue = NAMED per-event-type order declarations (C16 knob shape).
+Q3 82% of inits decompose into reset (composer universal) + EXISTING typed init.sid priming (master_vol/
+envelope_prime/filter/pw_init); remainder = ctrl_prime + freq_seed → typed priming siblings. Q4 loop_period ≈
+row-span + seam gap → extend the final rest to cover the seam, then Orderlist.loop_to alone carries the loop.
+PLAN: rows become true tracker rows (note+duration, ONE merged rest between events — the user-approved B); step
+grid derived from union of event onsets + row-aware event types; init→init.sid via trichotomy verification; sweeps
+→ typed C1 forms; rho/reset → composer. End state: basic USFs structurally identical to FC/DMC (psid + small named
+params + init.sid + instruments + patterns).
+
 **RESIDUE (rest):** variable_template 16 + build_fail 15 (mostly too_many_pitches = vibrato >96 freq slots) +
 too_few_steps 9 + legato_variable 8 (incl. Chicken_Song/Argument_Emulator/Dunes = Bond_Alan vibrato-heavy) +
 overlap_diverge 8 (Deutschlandlied close m=1672/1678; Crazy_Conveyors/Dark_Tower/Escape_from_Death early) +
