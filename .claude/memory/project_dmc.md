@@ -7,6 +7,21 @@ metadata:
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
 ---
 
+## 🎯 FAMILY-1 EARLY-CLUSTER round 2 (2026-07-02): POST-INIT capture (commit after dc46d0e)
+Second dataflow-path mechanism fixed: **post-init leftover capture**. The $D417
+early cluster (Scalework/Blue_Magic/Depression, o=$00 m=$07 @pos10) root cause =
+the extract primes leftovers (d417 shadow / idle notes / masks / dual_phase) from
+the FILE IMAGE — valid for canon (init never touches them) but a RE-ASSEMBLED
+init may clear them (Scalework clears its $1017 shadow). Fix: factory dataflow
+path runs the member's init in py65 (`_post_init_ram`) → `cfg.post_init_state`
+(extract-only, never USF); extract prefers it. SAFETY CENSUS FIRST (the standing
+discipline): 267/267 dataflow FULLs post-init==file (zero exposure); 11 partials
+differ → re-verified: 0 new FULLs at 1.1x but honest re-localization (Scalework
+10→128k, Depression 10→215k — the early mechanism fixed, next blockers deep;
+C5). Remaining early-cluster residue: 98_Mix (reg7 @7) + Noising_Funk (reg0
+@13) + Pimpin_Power/Viiskyt (@0-1) = other early causes, per-member trace next;
+plus the CANON-route early divergers (~22/40 sample) still undiagnosed.
+
 ## 🎯 FAMILY-1 EARLY-CLUSTER ATTACK (2026-07-02, cont.): 4164 FULL — dataflow knob probes (commit dc46d0e)
 The early-<64 cluster (222 w/ current flat_div) root-caused on Hyper (pos 2, PW
 $00-vs-$50): **re-assembled members recovered via `_build_via_dataflow` never get
