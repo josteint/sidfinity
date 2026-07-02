@@ -432,22 +432,29 @@ def _resolve_wave_chain(ctrl_tab: list, freq_tab: list, start: int):
     n = len(ctrl_tab)
     ctrl, freq = [], []
     seen = {}                       # settled position -> emit index (loop pt)
-    pos = start
+    # The engine's wave position is an 8-BIT byte (INC $177A,x wraps
+    # $FF -> $00; the marker hop SBC wraps too) — so the walk is mod 256
+    # (ledger C11: 8-bit index wrap, the wave-walk instance). Attah_2 inst 22:
+    # wave_start $FF reads (ctrl $03, +17) then WRAPS to $00 for the real
+    # program [(41,+0)] loop; the old linear walk read past index 255 into
+    # the extended window and produced a bogus program. Positions are
+    # wrapped; reads stay within the first 256 bytes of the window.
+    pos = start & 0xFF
     for _ in range(512):
         hops = 0
-        while 0 <= pos < n and ctrl_tab[pos] >= 0x90:
-            pos -= (ctrl_tab[pos] - 0x90)
+        while pos < min(n, 256) and ctrl_tab[pos] >= 0x90:
+            pos = (pos - (ctrl_tab[pos] - 0x90)) & 0xFF
             hops += 1
             if hops > 128:
                 raise RuntimeError(f'unsupported:wave_marker_chain @{start}')
-        if not (0 <= pos < n):       # walked off the readable window -> hold
+        if pos >= min(n, 256):       # beyond the readable window -> hold
             break
         if pos in seen:
             return ctrl, freq, seen[pos]
         seen[pos] = len(ctrl)
         ctrl.append(ctrl_tab[pos])
         freq.append(freq_tab[pos])
-        pos += 1
+        pos = (pos + 1) & 0xFF
     if not ctrl:
         raise RuntimeError(f'unsupported:wave_marker_chain @{start}')
     return ctrl, freq, max(0, len(ctrl) - 1)
