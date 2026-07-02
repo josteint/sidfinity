@@ -1,6 +1,6 @@
 ---
 name: project_basic_program
-description: "Basic_Program family (486 RSID-BASIC tunes) — PRODUCTIONIZED round-trip: 431/486 (88.7%) FULL through real USF (multi-template C17 +107/+35, glide lift +11), mass-written + regression"
+description: "Basic_Program family (486 RSID-BASIC tunes) — PRODUCTIONIZED round-trip: 436/486 (89.7%) FULL through real USF (multi-template C17 +107/+35, glide +11/+5), mass-written + regression"
 metadata: 
   node_type: memory
   type: project
@@ -430,7 +430,20 @@ one never grows = can't false-pass); (b) extended verdict gets the same |len|<=6
 glides (Sleepy — steps alternate voices, run rule breaks), exponential/float slides (C_Prog_07), >128 distinct glide
 START pitches (In_Your_Head, 144 kept heads).
 
-**RESIDUE (55 post-glide):** variable_template 16 + build_fail 15 (mostly too_many_pitches = vibrato >96 freq slots) +
+**✅ GLIDE REST-ROW REFACTOR + interleave (2026-07-02): 431→436 FULL (+5, 89.7%), 0 regr.** Unified scheme replaces
+the drop-scheme: members stay ORDINARY steps (own tid/frames/durations) whose gliding-voice row is a REST; the reader
+arms per-voice glide state from the head fx and derives member freqs (head + k*delta) at rest-rows whose template
+writes that voice's freq. Exact order/frames by construction; INTERLEAVED simultaneous multi-voice glides work
+(per-voice run scan skips other voices; Tron FULL 3936/3936 exact); deleted kept-filter/span-params/loop-remap. Plus
+segment() now KEEPS the trailing capture-cut partial group (gate-off past window; only min_trim retains downstream) —
+was silently dropping final sections (Tron 173 writes). The 11 old drop-scheme .usf regenerated. STRUCTURE CENSUS
+(tmp/bp_census_wobble.py, runs/cycles/interleaved coverage per voice): cycle-covered tunes fail for OTHER reasons
+(cycles-as-rows do not reduce distinct pitches — no cycle representation needed); the hard tail = float/random freq
+tunes (~12: C_Prog examples, Star_Ship, Snaker, Alpine_Escape, Bunny_Hop, Cliffhanger, Dragonwick, Gobblers,
+Organ_Torture, Close_Encounters(float vibrato), Dunes(random ramp), Guy_Next_Door) — BASIC float arithmetic not
+parametrically reproducible.
+
+**RESIDUE (50 post-interleave):** variable_template 16 + build_fail 15 (mostly too_many_pitches = vibrato >96 freq slots) +
 too_few_steps 9 + legato_variable 8 (incl. Chicken_Song/Argument_Emulator/Dunes = Bond_Alan vibrato-heavy) +
 overlap_diverge 8 (Deutschlandlied close m=1672/1678; Crazy_Conveyors/Dark_Tower/Escape_from_Death early) +
 too_few_after_trim 5 + length_fail 3 + no_note_voices 2 + 1 digi (Black_Box_V8_Demo → Mode 2).

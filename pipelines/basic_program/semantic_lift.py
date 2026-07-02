@@ -116,6 +116,11 @@ def segment(frames, split_dups=False):
             nxt_gc = nxt is not None and nxt[1] in CTRL and not (nxt[2] & 1)
             if not nxt_gc:
                 raw.append(cur); cur = []
+    if cur:
+        # trailing capture-cut partial (its gate-off lies past the window) — the
+        # orig PLAYED these writes. Kept only by the min_trim variants (every
+        # other path's trailing-trim pops releaseless steps right back off).
+        raw.append(cur)
     steps = []
     for st in raw:
         ri = len(st)
@@ -271,15 +276,16 @@ GLIDE_MIN = 4                                          # min run length worth co
 
 
 def _mark_glide_runs(steps, init, loop_to):
-    """LINEAR-GLIDE detection (multi+split path): a maximal run of >= GLIDE_MIN
-    consecutive steps that are freq-only writes to ONE voice, all the same shape,
-    releaseless, with a CONSTANT nonzero 16-bit freq delta. The head stays a normal
-    step and gains s['glide'] = {'delta', 'n', 'voice'}; the n members after it get
-    s['glide_drop'] and are REGENERATED from the head at usf_to_model time
-    (freq = head + k*delta, the head's own template) — the intermediate freqs are
-    engine-generated glide mechanism, not per-note musical content, so they never
-    enter the USF (no freq-alphabet slots, no rows, no tids). A run never spans the
-    loop head (loop_to stays a kept step index)."""
+    """LINEAR-GLIDE detection (multi+split path): PER VOICE, a maximal run of
+    >= GLIDE_MIN freq-only same-shape releaseless steps of that voice with a
+    CONSTANT nonzero 16-bit freq delta. Steps of OTHER voices may interleave the
+    run (simultaneous glides); a same-voice non-run step ends it. The head stays
+    a normal note (pitch row + glide fx); the n members gain
+    s['glide_member'] = voice — they remain ORDINARY steps (own tid / frames /
+    durations) but their gliding-voice row is a REST, and the reader re-derives
+    their freq from the armed glide (head_pitch + k*delta). The intermediate
+    freqs are engine-generated mechanism, so they never enter the freq alphabet.
+    A run never spans the loop head."""
     hi = {1: 0, 2: 0, 3: 0}; lo = {1: 0, 2: 0, 3: 0}
     FHIr = {1: 0x01, 2: 0x08, 3: 0x0f}; FLOr = {1: 0x00, 2: 0x07, 3: 0x0e}
     def upd(d):
@@ -287,7 +293,7 @@ def _mark_glide_runs(steps, init, loop_to):
             if FHIr[vc] in d: hi[vc] = d[FHIr[vc]]
             if FLOr[vc] in d: lo[vc] = d[FLOr[vc]]
     upd(dict(init))
-    info = []                                          # (shape, voice, freq16) | None
+    info = []                                          # (shape, voice, freq16) | (None, voices_touched)
     for s in steps:
         regs = [r for r, v in s['attack']]
         d = dict(s['attack'])
@@ -299,30 +305,45 @@ def _mark_glide_runs(steps, init, loop_to):
             vc0 = next(iter(vcs))
             info.append((tuple(regs), vc0, (hi[vc0] << 8) | lo[vc0]))
         else:
-            info.append(None)
-    k, n = 0, len(steps)
-    while k < n:
-        if info[k] is None:
-            k += 1; continue
-        shape, vc0, f0 = info[k]
-        j = k + 1; prev = f0; d0 = None
-        while j < n and info[j] is not None and info[j][0] == shape and info[j][1] == vc0:
-            if loop_to is not None and j == loop_to:   # never absorb the loop head
-                break
-            dd = info[j][2] - prev
-            if dd == 0 or (d0 is not None and dd != d0):
-                break
-            if d0 is None:
-                d0 = dd
-            prev = info[j][2]; j += 1
-        m = j - k - 1                                  # members after the head
-        if d0 is not None and m >= GLIDE_MIN - 1:
-            steps[k]['glide'] = {'delta': d0, 'n': m, 'voice': vc0}
-            for t in range(k + 1, j):
-                steps[t]['glide_drop'] = True
-            k = j
-        else:
-            k += 1
+            info.append((None, {v for v in vcs if v}))
+    n = len(steps)
+    for vc in (1, 2, 3):
+        # this voice's candidate indices, run-scan over ITS subsequence; any
+        # same-voice non-candidate step (incl. a note/release) breaks the chain.
+        k = 0
+        while k < n:
+            e = info[k]
+            if e[0] is None or e[1] != vc:
+                k += 1; continue
+            shape, _vc, f0 = e
+            idxs = [k]; prev = f0; d0 = None
+            j = k + 1
+            while j < n:
+                ej = info[j]
+                if ej[0] is None:
+                    if vc in ej[1]:                    # same-voice foreign step ends the run
+                        break
+                    j += 1; continue                   # other-voice step: interleave allowed
+                if ej[1] != vc:
+                    j += 1; continue
+                if ej[0] != shape:
+                    break
+                if loop_to is not None and j == loop_to:
+                    break
+                dd = ej[2] - prev
+                if dd == 0 or (d0 is not None and dd != d0):
+                    break
+                if d0 is None:
+                    d0 = dd
+                prev = ej[2]; idxs.append(j); j += 1
+            m = len(idxs) - 1                          # members after the head
+            if d0 is not None and m >= GLIDE_MIN - 1:
+                steps[idxs[0]]['glide'] = {'delta': d0, 'n': m, 'voice': vc}
+                for t in idxs[1:]:
+                    steps[t]['glide_member'] = vc
+                k = idxs[-1] + 1
+            else:
+                k += 1
 
 
 def _song_end_writes(frames, steps):

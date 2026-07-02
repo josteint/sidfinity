@@ -492,10 +492,20 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
   template, frames spread over a `bp_glide{k}` span param) — they never enter the
   freq alphabet / rows / tids. This is what keeps >96-distinct-freq glide tunes
   inside the 96-slot per-tune pitch alphabet. Detection `semantic_lift
-  _mark_glide_runs` (loop-head-safe); NOT yet handled: interleaved multi-voice
-  simultaneous glides (Sleepy — consecutive steps alternate voices, breaking the
-  run rule) and exponential/float-computed slides (C_Prog_07 — BASIC float
-  rounding is not parametrically reproducible).
+  _mark_glide_runs` (loop-head-safe). **REFINED to the REST-ROW scheme (+5 more,
+  436 total, 2026-07-02):** members are NOT dropped — they stay ordinary steps
+  (own tid / exact frames / durations) whose gliding-voice row is a REST; the
+  reader arms a per-voice glide state from the head's fx and derives each
+  member's freq (head + k*delta) when it sees a rest row whose template writes
+  that voice's freq. Exact order+frames by construction, works for INTERLEAVED
+  multi-voice simultaneous glides (per-voice run scan skips other voices' steps;
+  Tron FULL 3936/3936), and deleted the drop-scheme's kept-filter / span params /
+  loop-remap complexity. Paired with a segment() fix: the gated grouper now KEEPS
+  the trailing capture-cut partial group (gate-off past the window) — only the
+  min_trim variants retain it downstream. NOT handled: dual alternating glide
+  streams within ONE voice (Sleepy V2 — odd/even substreams each constant-delta)
+  and exponential/float-computed slides (C_Prog_07 — BASIC float rounding is not
+  parametrically reproducible).
 
 ### C12 — Accumulated per-step rounding drift in a delta-encoded round-trip
 - **The bug class:** the USF (or any parametric form) stores a sequence as

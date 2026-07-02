@@ -145,12 +145,13 @@ def model_to_usf(model, title='bp', gap_exact=False):
             row[vc] = ((run_hi[vc] << 8) | run_lo[vc]) \
                 if ((wh or wl) and vc in run_hi and vc in run_lo) else None
         eff.append(row)
-    # glide members (linear-glide intermediates) are regenerated from the head at
-    # read time — they get no rows, no tids, no freq-alphabet slots.
-    kept = ([i for i, s in enumerate(steps) if not s.get('glide_drop')]
-            if multi else list(range(len(steps))))
+    # glide members stay ORDINARY steps (own tid / frames / durations) but their
+    # gliding-voice row is a REST — the reader re-derives their freq from the
+    # armed glide (head + k*delta), so they never enter the freq alphabet.
+    kept = list(range(len(steps)))
     # per-tune lossless freq alphabet (distinct freq -> unique freq_table slot)
-    allfreqs = {fq for i in kept for fq in eff[i].values() if fq is not None}
+    allfreqs = {fq for i in kept for vc2, fq in eff[i].items()
+                if fq is not None and steps[i].get('glide_member') != vc2}
     slotmap = _assign_slots(allfreqs)
     if slotmap is None:
         raise ValueError('too_many_pitches')
@@ -222,6 +223,11 @@ def model_to_usf(model, title='bp', gap_exact=False):
               (max(0, nxt - on - hold) if (multi and gated) else 1)
         for vc in voices:
             f = eff[k][vc]
+            if multi and s.get('glide_member') == vc:  # glide member: rest row, freq derived at read
+                vrows[vc].append(NoteRow(pitch=Pitch.rest(), duration=hold))
+                if gated:
+                    vrows[vc].append(NoteRow(pitch=Pitch.rest(), duration=gap))
+                continue
             if f is None:
                 # timbre-only step: the voice writes a perstep-timbre reg but no note
                 # (instrument setup for an upcoming note). Carry the instrument on the
@@ -337,12 +343,6 @@ def model_to_usf(model, title='bp', gap_exact=False):
         for j in range(0, len(tids), 4):
             ch = (tids[j:j + 4] + [0, 0, 0, 0])[:4]
             fields[f'bp_tid{j // 4}'] = (ch[0] << 24) | (ch[1] << 16) | (ch[2] << 8) | ch[3]
-        for kk, ki in enumerate(kept):                 # glide-head spans (write-model timing)
-            g = steps[ki].get('glide')
-            if g:
-                fields[f'bp_glide{kk}'] = steps[ki + g['n']]['on_frame'] - steps[ki]['on_frame']
-        if model['loop_to'] is not None and len(kept) != len(steps):
-            fields['bp_loop_to'] = kept.index(model['loop_to'])   # remap to compressed index
     else:
         for i, e in enumerate(atk):
             fields[f'bp_atk{i}'] = (e[0] << 16) | (_kind(e) << 8) | ((e[2] or 0) & 0xFF)
@@ -450,6 +450,7 @@ def usf_to_model(usf):
     nsteps = min(len(r) for r in vrows.values()) // per_step
     has_masks = f.get('bp_has_masks', 0) == 1
     steps = []
+    glides = {}                                        # vc -> [base_freq, delta, k, n] (armed glide)
     onf = f.get('bp_start_frame', 0)
     for k in range(nsteps):
         hi = k * per_step
@@ -469,7 +470,17 @@ def usf_to_model(usf):
         active = {vc for vc in voices if not vrows[vc][hi].pitch.is_rest}
         mask_a = (f[f'bp_mask{k}'] >> 16) & 0xFFFF if has_masks else None
         mask_r = f[f'bp_mask{k}'] & 0xFFFF if has_masks else None
+        if multi_t:
+            # arm a linear glide from this step's fx (per-voice; simultaneous OK)
+            for vc in voices:
+                fl = dict(x.split('=', 1) for x in vrows[vc][hi].fx_flags if '=' in x)
+                if 'glide_ticks' in fl and ('glide_up' in fl or 'glide_down' in fl):
+                    dlt = (int(fl['glide_up'].lstrip('$'), 16) if 'glide_up' in fl
+                           else -int(fl['glide_down'].lstrip('$'), 16))
+                    glides[vc] = [_pitch_freq(vrows[vc][hi].pitch, ftab) or 0,
+                                  dlt, 0, int(fl['glide_ticks'])]
         attack = []; release = []; amask = 0; rmask = 0
+        stepped = set()                                # glide tick: once per STEP (hi+lo pair)
         for i, (reg, kind, val, vc) in enumerate(a_ent):
             present = True if multi_t else (((mask_a >> i) & 1) if has_masks else (vc is None or vc in active))
             if not present:
@@ -482,7 +493,16 @@ def usf_to_model(usf):
             elif kind == 'global':                     # chip-global dynamics/filter from the global track
                 attack.append((reg, gpack(reg)))
             else:                                      # perstep freq from the note's pitch
-                fq = _pitch_freq(vrows[vc][hi].pitch, ftab) or 0
+                p = vrows[vc][hi].pitch
+                if p.is_rest and vc in glides:         # glide member: derived freq
+                    g = glides[vc]
+                    if vc not in stepped:
+                        g[2] += 1; stepped.add(vc)
+                    fq = (g[0] + g[2] * g[1]) & 0xFFFF
+                elif p.is_rest:
+                    fq = 0
+                else:
+                    fq = _pitch_freq(p, ftab) or 0
                 attack.append((reg, (fq >> 8) & 0xFF if reg in FHI.values() else fq & 0xFF))
         for i, (reg, kind, val, vc) in enumerate(r_ent):
             present = True if multi_t else (((mask_r >> i) & 1) if has_masks else (vc is None or vc in active))
@@ -499,33 +519,9 @@ def usf_to_model(usf):
                       'on_frame': onf, 'off_frame': (onf + hold) if gated else None,
                       'next': None, 'atk_mask': amask, 'rel_mask': rmask,
                       'tid': (tid if multi_t else 0)})
-        if multi_t:
-            # linear glide: regenerate the run's intermediate steps from the head
-            # (freq = head + t*delta, the head's own template; frames spread over
-            # the stored span). The intermediates are glide MECHANISM — they have
-            # no rows/tids/alphabet slots in the USF.
-            gl = None
-            for vc in voices:
-                fl = dict(x.split('=', 1) for x in vrows[vc][hi].fx_flags if '=' in x)
-                if 'glide_ticks' in fl and ('glide_up' in fl or 'glide_down' in fl):
-                    dlt = (int(fl['glide_up'].lstrip('$'), 16) if 'glide_up' in fl
-                           else -int(fl['glide_down'].lstrip('$'), 16))
-                    gl = (vc, dlt, int(fl['glide_ticks']))
-            if gl:
-                vcg, dlt, ng = gl
-                span = f.get(f'bp_glide{k}', ng)
-                head_f = _pitch_freq(vrows[vcg][hi].pitch, ftab) or 0
-                tmpl = multi_t[tid]['atk']
-                if gated:                              # empty-release head: advance at once
-                    steps[-1]['off_frame'] = onf
-                for t in range(1, ng + 1):
-                    fq = (head_f + t * dlt) & 0xFFFF
-                    gatk = [(reg, val) if kind == 'const' else
-                            (reg, (fq >> 8) & 0xFF if reg in FHI.values() else fq & 0xFF)
-                            for reg, kind, val, _v in tmpl]
-                    steps.append({'attack': gatk, 'release': None,
-                                  'on_frame': onf + (t * span) // ng, 'off_frame': None,
-                                  'next': None, 'atk_mask': 0, 'rel_mask': 0, 'tid': tid})
+        for vc in stepped:                             # disarm exhausted glides at step end
+            if vc in glides and glides[vc][2] >= glides[vc][3]:
+                del glides[vc]
         onf += hold + gap
     for k in range(len(steps) - 1):
         steps[k]['next'] = steps[k + 1]['on_frame']
