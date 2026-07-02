@@ -104,8 +104,23 @@ def _assign_slots(freqs):
     return slot
 
 # --------------------------------------------------------- model -> usf ----
-def model_to_usf(model, title='bp', gap_exact=False):
+def model_to_usf(model, title='bp', gap_exact=False, nf=False):
     pt = _perstep_timbre(model)                        # {vc: [perstep timbre regs]}
+    if nf:
+        # NORMAL FORM: every written timbre reg (const or perstep) resolves via
+        # the note's instrument, so the bundles absorb them all; templates and
+        # tids are replaced by per-event-type ORDER declarations (bp_order_*).
+        if not model.get('multi'):
+            raise ValueError('nf_needs_multi')
+        pt = {}
+        for _s in model['steps']:
+            for _r, _v in _s['attack']:
+                if _r in TIMBRE:
+                    pt.setdefault(REG_VOICE[_r], set()).add(_r)
+            for _r, _v in (_s['release'] or []):
+                if _r in TIMBRE and REG_FIELD[_r] != 'ctrl':
+                    raise ValueError('nf_conflict')    # release timbre beyond gate-off
+        pt = {vc: sorted(rs) for vc, rs in pt.items()}
     inst_voices = set(pt)
     inst_slots = {(vc, r) for vc in inst_voices for r in pt[vc]}
 
@@ -177,7 +192,7 @@ def model_to_usf(model, title='bp', gap_exact=False):
         # attack ctrl with the gate bit cleared) is instrument content too — carried
         # as a second waveform entry [attack_ctrl, release_ctrl].
         rctrl = None
-        if multi and s['release']:
+        if (multi or nf) and s['release']:
             rd = dict(s['release'])
             for r in pt[vc]:
                 if r in rd and REG_FIELD[r] == 'ctrl':
@@ -207,6 +222,36 @@ def model_to_usf(model, title='bp', gap_exact=False):
     # median delta as the last step's fallback (its real duration is the loop wrap)
     deltas = [steps[k+1]['on_frame'] - steps[k]['on_frame'] for k in range(len(steps)-1)]
     med = sorted(deltas)[len(deltas)//2] if deltas else 1
+    nf_gregs = None; nf_decls = {}
+    if nf:
+        # NF precheck: every global write must coincide with a global-track CHANGE
+        # (a re-poked unchanged global is invisible to the reader -> conflict), and
+        # $D415 is unsupported. Records each step's written-global set for the sig.
+        from pipelines.basic_program import normal_form as NF
+        nf_gregs = []; _rg = {}
+        for ki in kept:
+            s2 = steps[ki]
+            dd = dict(s2['attack']); dd.update(dict(s2['release']) if s2['release'] else {})
+            written = sorted(r for r in dd if r >= 0x15)
+            changed = set()
+            for reg in (0x16, 0x17, 0x18):
+                if reg not in dd:
+                    continue
+                fv = ({'cutoff': dd[reg]} if reg == 0x16 else
+                      {'res': dd[reg] >> 4, 'route': dd[reg] & 0xF} if reg == 0x17 else
+                      {'mode': dd[reg] >> 4, 'dyn': dd[reg] & 0xF})
+                if any(_rg.get(f2) != v2 for f2, v2 in fv.items()):
+                    changed.add(reg)
+                for f2, v2 in fv.items():
+                    _rg[f2] = v2
+            if set(written) != changed:
+                raise ValueError('nf_conflict')
+            nf_gregs.append(tuple(written))
+        _ph = {vc: 0 for vc in voices}; _pl = {vc: 0 for vc in voices}
+        for _r, _v in model['init']:
+            for vc in voices:
+                if _r == FHI[vc]: _ph[vc] = _v
+                elif _r == FLO[vc]: _pl[vc] = _v
     for kk, ki in enumerate(kept):                     # gated: note(hold)+rest(gap); legato: note(step)
         s = steps[ki]; k = ki
         on = s['on_frame']; off = s['off_frame']
@@ -227,9 +272,16 @@ def model_to_usf(model, title='bp', gap_exact=False):
         # step, gap exactly 0 -> on_frames reconstruct losslessly (ledger C12).
         gap = max(gmin, nxt - off) if (gated and off is not None) else \
               (max(0, nxt - on - hold) if (multi and gated) else 1)
+        ctx = {}
+        atk_d = dict(s['attack']); rel_d = dict(s['release'] or [])
         for vc in voices:
             f = eff[k][vc]
+            creg = (vc - 1) * 7 + 4
             if multi and vc in s.get('glide_member', ()):  # glide member: rest row, freq derived at read
+                if nf:
+                    ctx[vc] = {'kind': 'glide'}
+                    if f is not None:
+                        _ph[vc] = (f >> 8) & 0xFF; _pl[vc] = f & 0xFF
                 vrows[vc].append(NoteRow(pitch=Pitch.rest(), duration=hold))
                 if gated:
                     vrows[vc].append(NoteRow(pitch=Pitch.rest(), duration=gap))
@@ -246,9 +298,21 @@ def model_to_usf(model, title='bp', gap_exact=False):
                     d_all.update(dict(s['release']))
                 if vc in inst_voices and any(r in d_all for r in pt[vc]) \
                         and FHI[vc] not in dict(s['attack']) and FLO[vc] not in dict(s['attack']):
+                    if nf:
+                        # a timbre-setup rest row ALWAYS carries its instrument
+                        # (the row genuinely re-pokes it) — an unchanged-instr
+                        # re-poke would otherwise be row-invisible to the reader.
+                        iid = note_instr(vc, s); last_instr[vc] = iid
+                        _ref = InstrumentRef(id=iid)
+                        ctx[vc] = {'kind': 'timbre'}
+                    else:
+                        _ref = iref(vc, note_instr(vc, s))
                     vrows[vc].append(NoteRow(pitch=Pitch.rest(), duration=hold,
-                                             instr=iref(vc, note_instr(vc, s))))
+                                             instr=_ref))
                 else:
+                    if nf and (creg in atk_d or creg in rel_d or
+                               any(r in atk_d for r in (FHI[vc], FLO[vc]))):
+                        raise ValueError('nf_conflict')    # voice event invisible to rows
                     vrows[vc].append(NoteRow(pitch=Pitch.rest(), duration=hold))
             else:
                 slot = slotmap[f]; nm, octv = _slot_pitch(slot)
@@ -261,11 +325,36 @@ def model_to_usf(model, title='bp', gap_exact=False):
                           f'glide_ticks={g["n"]}')
                     if g.get('hold', 1) > 1:           # staircase: level held R ticks
                         fx += (f'glide_hold={g["hold"]}',)
+                _ref = iref(vc, note_instr(vc, s))
+                if nf:
+                    e = {'kind': 'note',
+                         'hi_ch': ((f >> 8) & 0xFF) != _ph[vc],
+                         'lo_ch': (f & 0xFF) != _pl[vc],
+                         'tie': creg not in atk_d,
+                         'no_rel': gated and (creg not in rel_d),
+                         'instr_ch': _ref is not None}
+                    ctx[vc] = e
+                    _ph[vc] = (f >> 8) & 0xFF; _pl[vc] = f & 0xFF
+                    if e['tie']:
+                        fx += ('tie',)
+                    if e['no_rel'] and not e['tie']:
+                        fx += ('no_release',)
                 vrows[vc].append(NoteRow(pitch=Pitch(name=nm, octave=octv),
-                                         duration=hold, instr=iref(vc, note_instr(vc, s)),
+                                         duration=hold, instr=_ref,
                                          fx_flags=fx))
             if gated:
                 vrows[vc].append(NoteRow(pitch=Pitch.rest(), duration=gap))
+        if nf:
+            from pipelines.basic_program import normal_form as NF
+            ctx['globals'] = nf_gregs[kk]
+            sig = NF.step_sig(ctx)
+            a_regs = tuple(r for r, v in s['attack'])
+            r_regs = tuple(r for r, v in (s['release'] or []))
+            if any(r not in NF.REG_TOK for r in a_regs + r_regs):
+                raise ValueError('nf_conflict')
+            dc = NF.regs_to_decl(a_regs, r_regs)
+            if nf_decls.setdefault(sig, dc) != dc:
+                raise ValueError('nf_conflict')        # same event type, different order
     # non-inst voices: one instrument (waveform from the gate-on const ctrl)
     for vc in voices:
         if vc not in inst_voices:
@@ -336,7 +425,16 @@ def model_to_usf(model, title='bp', gap_exact=False):
         if e[1] == 'perstep' and (e[3], e[0]) in inst_slots:
             return 2
         return 0 if e[1] == 'const' else 1             # a CONST timbre slot stays const
-    if multi:
+    if nf:
+        # NORMAL FORM: the write model reduces to named per-event-type ORDER
+        # declarations; WHAT each step writes derives from the rows (pitches,
+        # changed freq bytes, glide fx, instrument changes, tie/no_release,
+        # global-track events); every VALUE is musical (pitch / instrument /
+        # global track). No templates, no tids, no masks.
+        fields['bp_atk_n'] = 0; fields['bp_rel_n'] = 0
+        for sig, dc in sorted(nf_decls.items()):
+            fields[f'bp_order_{sig}'] = dc
+    elif multi:
         # K per-shape templates + per-step template id (packed 4/int) — the write
         # model, same params{} precedent as bp_atk{i}/bp_mask{k}. Musical content
         # (pitch/duration/instrument/global track) is in the USF body as always.
@@ -459,13 +557,23 @@ def usf_to_model(usf):
         if reg == 0x18: return ((run_g.get('mode', 0) & 0xF) << 4) | (run_g.get('dyn', 0) & 0xF)
         if reg == 0x17: return ((run_g.get('res', 0) & 0xF) << 4) | (run_g.get('route', 0) & 0xF)
         return run_g.get('cutoff', 0) & 0xFF           # $D416
-    gated = (not bool(f['bp_legato'])) if multi_t else len(rel) > 0
+    nf_decls = {k[len('bp_order_'):]: v for k in list(f)
+                if isinstance(k, str) and k.startswith('bp_order_')
+                for v in (f[k],)}
+    gated = (not bool(f['bp_legato'])) if (multi_t or nf_decls) else len(rel) > 0
     per_step = 2 if gated else 1                       # gated row pair: note(hold)+rest(gap)
     aps = [e[0] for e in atk if e[1] == 'perstep']; rps = [e[0] for e in rel if e[1] == 'perstep']
     nsteps = min(len(r) for r in vrows.values()) // per_step
     has_masks = f.get('bp_has_masks', 0) == 1
     steps = []
     glides = {}                                        # vc -> [base_freq, delta, k, n] (armed glide)
+    _ph = {vc: 0 for vc in voices}; _pl = {vc: 0 for vc in voices}   # running freq (NF sig)
+    for _r, _v in init:
+        for vc in voices:
+            if _r == FHI[vc]: _ph[vc] = _v
+            elif _r == FLO[vc]: _pl[vc] = _v
+    if nf_decls:
+        from pipelines.basic_program import normal_form as NF
     onf = f.get('bp_start_frame', 0)
     for k in range(nsteps):
         hi = k * per_step
@@ -473,7 +581,7 @@ def usf_to_model(usf):
             iv = vrows[vc][hi].instr
             if iv is not None:
                 run_instr[vc] = iv.id
-        hold = (vrows[voices[0]][hi].duration if multi_t                # exact (C12)
+        hold = (vrows[voices[0]][hi].duration if (multi_t or nf_decls)  # exact (C12)
                 else max(1, vrows[voices[0]][hi].duration))
         gap = vrows[voices[0]][hi + 1].duration if gated else 0   # exact (0 = back-to-back notes)
         ge = gevents.get(k)                            # advance the global state this step
@@ -481,7 +589,43 @@ def usf_to_model(usf):
             for fld in ('dyn', 'cutoff', 'res', 'mode', 'route'):
                 if getattr(ge, fld) is not None:
                     run_g[fld] = getattr(ge, fld)
-        if multi_t:                                    # the step's own template, no masks
+        if nf_decls:
+            # NORMAL FORM: derive the step's writes from row-level facts + the
+            # per-event-type order declaration.
+            ctx = {}
+            for vc in voices:
+                row = vrows[vc][hi]
+                fxs = set(row.fx_flags)
+                if row.pitch.is_rest:
+                    if vc in glides and glides[vc][2] < glides[vc][3]:
+                        ctx[vc] = {'kind': 'glide'}
+                    elif row.instr is not None:
+                        ctx[vc] = {'kind': 'timbre'}
+                else:
+                    fq = _pitch_freq(row.pitch, ftab) or 0
+                    ctx[vc] = {'kind': 'note',
+                               'hi_ch': ((fq >> 8) & 0xFF) != _ph[vc],
+                               'lo_ch': (fq & 0xFF) != _pl[vc],
+                               'tie': 'tie' in fxs,
+                               'no_rel': gated and ('no_release' in fxs or 'tie' in fxs),
+                               'instr_ch': row.instr is not None}
+            ge2 = gevents.get(k)
+            gr = []
+            if ge2 is not None:
+                if ge2.dyn is not None or ge2.mode is not None: gr.append(0x18)
+                if ge2.res is not None or ge2.route is not None: gr.append(0x17)
+                if ge2.cutoff is not None: gr.append(0x16)
+            ctx['globals'] = tuple(sorted(gr))
+            sig = NF.step_sig(ctx)
+            dc = nf_decls.get(sig)
+            if dc is None:
+                raise ValueError('nf_missing_sig:' + sig)
+            a_regs, r_regs = NF.decl_to_regs(dc)
+            a_ent = [(rg, NF.entry_kind(rg), None,
+                      (REG_VOICE.get(rg) if rg < 0x15 else None)) for rg in a_regs]
+            r_ent = [(rg, NF.entry_kind(rg), None,
+                      (REG_VOICE.get(rg) if rg < 0x15 else None)) for rg in r_regs]
+        elif multi_t:                                  # the step's own template, no masks
             tid = (f[f'bp_tid{k // 4}'] >> (8 * (3 - k % 4))) & 0xFF
             a_ent, r_ent = multi_t[tid]['atk'], multi_t[tid]['rel']
         else:
@@ -489,7 +633,7 @@ def usf_to_model(usf):
         active = {vc for vc in voices if not vrows[vc][hi].pitch.is_rest}
         mask_a = (f[f'bp_mask{k}'] >> 16) & 0xFFFF if has_masks else None
         mask_r = f[f'bp_mask{k}'] & 0xFFFF if has_masks else None
-        if multi_t:
+        if multi_t or nf_decls:
             # arm a linear glide from this step's fx (per-voice; simultaneous OK)
             for vc in voices:
                 fl = dict(x.split('=', 1) for x in vrows[vc][hi].fx_flags if '=' in x)
@@ -502,7 +646,7 @@ def usf_to_model(usf):
         attack = []; release = []; amask = 0; rmask = 0
         stepped = set()                                # glide tick: once per STEP (hi+lo pair)
         for i, (reg, kind, val, vc) in enumerate(a_ent):
-            present = True if multi_t else (((mask_a >> i) & 1) if has_masks else (vc is None or vc in active))
+            present = True if (multi_t or nf_decls) else (((mask_a >> i) & 1) if has_masks else (vc is None or vc in active))
             if not present:
                 continue
             amask |= (1 << i)
@@ -525,7 +669,7 @@ def usf_to_model(usf):
                     fq = _pitch_freq(p, ftab) or 0
                 attack.append((reg, (fq >> 8) & 0xFF if reg in FHI.values() else fq & 0xFF))
         for i, (reg, kind, val, vc) in enumerate(r_ent):
-            present = True if multi_t else (((mask_r >> i) & 1) if has_masks else (vc is None or vc in active))
+            present = True if (multi_t or nf_decls) else (((mask_r >> i) & 1) if has_masks else (vc is None or vc in active))
             if not present:
                 continue
             rmask |= (1 << i)
@@ -539,6 +683,11 @@ def usf_to_model(usf):
                       'on_frame': onf, 'off_frame': (onf + hold) if gated else None,
                       'next': None, 'atk_mask': amask, 'rel_mask': rmask,
                       'tid': (tid if multi_t else 0)})
+        if nf_decls:                                   # advance the running freq (sig tracking)
+            for rg, vv in attack:
+                for vc in voices:
+                    if rg == FHI[vc]: _ph[vc] = vv
+                    elif rg == FLO[vc]: _pl[vc] = vv
         for vc in stepped:                             # disarm exhausted glides at step end
             if vc in glides and glides[vc][2] >= glides[vc][3]:
                 del glides[vc]
@@ -552,6 +701,12 @@ def usf_to_model(usf):
     atk_o, rel_o = _to_ps(atk), _to_ps(rel)
     multi_o = ([{'atk': _to_ps(t['atk']), 'rel': _to_ps(t['rel'])} for t in multi_t]
                if multi_t else None)                   # the player only knows const/perstep
+    if nf_decls:
+        # The player's K templates + tids are INTERNAL artifacts now — re-derived
+        # from the reconstructed steps, never stored in the USF.
+        multi_o = S._multi_templates(steps)
+        if multi_o is None:
+            raise ValueError('nf_kmax')
     return {'init': init, 'steps': steps, 'atk_template': atk_o, 'rel_template': rel_o,
             'title': usf.psid.title, 'author': usf.psid.author, 'released': usf.psid.released,
             'atk_ps': [e[0] for e in atk_o if e[1] == 'perstep'],
@@ -598,7 +753,7 @@ def _compare_with_extend(orig_wl, reb_sid, dur, loops, reb_dur=None):
     return r, False
 
 
-def _attempt_model(m, sid, dur, orig_wl, title='bp', gap_exact=False):
+def _attempt_model(m, sid, dur, orig_wl, title='bp', gap_exact=False, nf=False):
     """Build a rebuild from model m and verify against the (cached) orig writelog.
     Returns (status, match, len_a, len_b, usf_or_None, sid_bytes_or_None). Pool-safe."""
     import tempfile
@@ -616,8 +771,8 @@ def _attempt_model(m, sid, dur, orig_wl, title='bp', gap_exact=False):
     if not is_clean(m):
         return ('not_clean', 0, 0, 0, None, None)
     try:
-        usf = model_to_usf(m, title=title, gap_exact=gap_exact)
-    except ValueError as e:                            # e.g. too_many_pitches (vibrato > 96 slots)
+        usf = model_to_usf(m, title=title, gap_exact=gap_exact, nf=nf)
+    except ValueError as e:                            # e.g. too_many_pitches / nf_conflict
         return (str(e), 0, 0, 0, None, None)
     rate = 60.0 if m.get('clock') == 'NTSC' else 50.0
     # start_shift is in rho-SCALED (model) frames; the orig's dead-air is in
@@ -678,6 +833,20 @@ def best_attempt(sid_rel, dur, title='bp'):
             dur = min(240.0, fg / 50.0 + max(dur, 30.0))
             orig_wl = writelog_capture(sid, 0, dur)
 
+    def _try_nf(gap_exact):
+        # NORMAL FORM first (user policy): rows + named order declarations; the
+        # writer raises nf_conflict when the tune's write model isn't row-
+        # derivable, and ordinary verification gates everything -> tunes that
+        # can't take the normal form fall through to the legacy forms.
+        for fs in (False, True):
+            for mt in (False, True):
+                m = build_model(sid, dur, multi_template=True, force_split=fs,
+                                detect_glide=True, min_trim=mt)
+                r = _attempt_model(m, sid, dur, orig_wl, title, gap_exact=gap_exact, nf=True)
+                if r[0] == 'FULL':
+                    return r
+        return None
+
     def _try(gap_exact):
         res = _attempt_model(build_model(sid, dur), sid, dur, orig_wl, title, gap_exact=gap_exact)
         # too_few_after_trim = the AGGRESSIVE trailing-trim dropped a heterogeneous step
@@ -735,11 +904,18 @@ def best_attempt(sid_rel, dur, title='bp'):
                     return res9
         return res
 
+    rnf = _try_nf(False)
+    if rnf:
+        return rnf
     res = _try(False)
     if res[0] == 'length_fail' or res[0].startswith('unsupported:too_few'):  # drift / over-trim
         resg = _try(True)
         if resg[0] == 'FULL':
             return resg
+    if res[0] != 'FULL':
+        rnf = _try_nf(True)                            # NF + exact gaps (long back-to-back tunes)
+        if rnf:
+            return rnf
     return res
 
 

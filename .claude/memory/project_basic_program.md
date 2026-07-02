@@ -1,6 +1,6 @@
 ---
 name: project_basic_program
-description: "Basic_Program family (486 RSID-BASIC tunes) — PRODUCTIONIZED round-trip: 452/486 (93.0%) FULL through real USF; NO-SILENCE start policy; mass-written + regression"
+description: "Basic_Program family (486 RSID-BASIC tunes) — PRODUCTIONIZED round-trip: 455/486 (93.6%) FULL; NO-SILENCE + NORMAL FORM stage 1 (260 NF / 195 legacy); mass-written + regression"
 metadata: 
   node_type: memory
   type: project
@@ -496,7 +496,23 @@ PSID header title/author/released now transfer into BOTH the USF psid block and 
 (read_sid_meta; was "probe/x/x"). (b) Instrument refs emit ONLY on change (tracker convention; reader tracks a
 running instrument per voice; timbre-only rest rows still resolve via running). Musette (per-note-instr canary) FULL.
 
-**🔄 NEXT: USF NORMAL-FORM redesign (user-driven, principle-reviewed).** The user flagged the params block as
+**✅ NORMAL FORM STAGE 1 SHIPPED (2026-07-02): 452→455 FULL (93.6%), 260 NF / 195 legacy.** The write model
+dissolves into NAMED per-event-type ORDER DECLARATIONS: `bp_order_<sig>: "v1_flo v1_fhi v1_ctrl / v1_ctrl"`
+(attack / release) — sig = row-derivable event types per voice (n=note+changed-byte flags hl / n0 re-poke / t=tie /
+z=no_release / i=instr-change / g=glide tick / x=timbre-setup / G<regs> globals). WHAT a step writes derives from
+rows; every VALUE is musical (pitch/instrument/global track); templates+tids+masks are gone from NF files — the
+player's K templates are RE-DERIVED internally (reader: steps → S._multi_templates). Params grammar gained STRING
+values (shared schema; packing into ints was the §3 failure). Writer computes sigs alongside rows and raises
+nf_conflict on any non-derivable case (same-sig different order, re-poked unchanged global, release timbre beyond
+gate-off, rel-only voices) → chain falls back to legacy forms (coverage cannot regress; NF attempts run FIRST:
+_try_nf(False) → legacy chain → _try_nf(True)). KEY SYMMETRY LESSONS: (1) timbre-setup rest rows must ALWAYS carry
+their instrument ref (an unchanged-instr re-poke is otherwise row-invisible) and 'x' sigs carry no i-flag; (2) NF
+instruments absorb ALL written timbre (const+perstep incl. gate values + release ctrl as waveform[1]); (3) sig keys
+join with __ (CNAME-safe). tie/no_release fx mark gateless/releaseless notes (existing vocabulary).
+STAGE 2-4 REMAIN: init→typed init.sid priming (trichotomy verdict), merged rest rows + union-onset step grid (user
+point B), loop seam-gap extension (kill bp_loop_period), rho→composer, sweeps→typed C1 form, legacy-tune census.
+
+**(superseded plan note)** The user flagged the params block as
 anti-ML (packed ints) — review confirmed it is representation-principle §3 FAILURE MODE B (the USF carrying a
 per-tune engine program; "complete but unlearnable"). DERIVABILITY CENSUS (tmp/bp_census_derivable.py, 277 FULLs):
 Q1 79% of tunes have a perfect unordered-writes→order function (templates+tids fully derivable from rows; the 50
@@ -505,6 +521,10 @@ this). Q2 ordering vocabulary small per tune → residue = NAMED per-event-type 
 Q3 82% of inits decompose into reset (composer universal) + EXISTING typed init.sid priming (master_vol/
 envelope_prime/filter/pw_init); remainder = ctrl_prime + freq_seed → typed priming siblings. Q4 loop_period ≈
 row-span + seam gap → extend the final rest to cover the seam, then Orderlist.loop_to alone carries the loop.
+ROW-AWARE CENSUS (tmp/bp_census_rowaware.py, all 452): 82% (371) fully order-derivable; median 3 order
+declarations/tune (max 60); 81 tunes have same-event-type order conflicts (likely per-SECTION poke-loop changes —
+candidate scopes: per-pattern order declarations, or keep C17 templates for just those). With a corpus-default
+order, typical tunes need ~0-3 named declarations = FC-knob scale.
 PLAN: rows become true tracker rows (note+duration, ONE merged rest between events — the user-approved B); step
 grid derived from union of event onsets + row-aware event types; init→init.sid via trichotomy verification; sweeps
 → typed C1 forms; rho/reset → composer. End state: basic USFs structurally identical to FC/DMC (psid + small named

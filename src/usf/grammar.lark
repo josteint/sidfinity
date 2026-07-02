@@ -88,6 +88,11 @@ params_field: CNAME ":" param_value
 param_value: signed_int      -> param_number
            | CNAME           -> param_keyword
            | bool            -> param_bool
+           // Named readable knob values (e.g. a per-event write-order
+           // declaration "v1_fhi v1_flo v1_gate") — the alternative is packing
+           // structure into opaque ints, the representation-principle §3
+           // failure mode.
+           | STRING          -> param_string
 
 // ----- init -----
 // `init_inner*`: each entry is either an init_voice (engine-state

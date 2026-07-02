@@ -719,6 +719,22 @@ revisited ONLY around Move 1, when most/all engines are uready — not before.
   code — C16 territory, parametrize the composer's emission order instead).
 - **Consumers:** basic_program (`pipelines/basic_program/semantic_lift.py`,
   `usf_roundtrip.py`).
+- **NORMAL-FORM EVOLUTION (2026-07-02, user-driven):** storing the K templates +
+  per-step tids in USF params was recognized as representation-principle §3
+  FAILURE MODE B (the USF carrying a per-tune engine program — "complete but
+  unlearnable"). Resolution per §4: WHAT a step writes derives from row-level
+  event types (note + changed-byte flags / re-poke / tie / glide tick /
+  timbre-setup / globals-from-track); the per-tune residue is NAMED string
+  params `bp_order_<sig>: "v1_flo v1_fhi v1_ctrl / v1_ctrl"` (the C16 knob
+  shape; params grammar gained string values). Templates + tids became INTERNAL
+  player artifacts, re-derived by the reader via `_multi_templates(steps)` —
+  C17's clustering lives on as mechanism, not as USF content. Non-derivable
+  tunes (same-sig order conflicts, re-poked unchanged globals) raise
+  `nf_conflict` and keep the legacy form (260 NF / 195 legacy at stage 1).
+  LESSON: when a write model lands in params, ask FIRST whether rows + a few
+  named order knobs derive it — the census (`tmp/bp_census_derivable.py` /
+  `_rowaware.py`) made the call quantitative (79-82% derivable) before any
+  code was written.
 
 ### C18 — Play-vector wrapper with per-call PHASE behaviour
 - **Canonical:** when a member's play vector is a WRAPPER that behaves

@@ -128,6 +128,9 @@ class _T(Transformer):
     def param_bool(self, items):
         return items[0]
 
+    def param_string(self, items):
+        return str(items[0])[1:-1]                     # strip quotes
+
     def param_value(self, items):
         return items[0]
 
