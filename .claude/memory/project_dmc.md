@@ -7,6 +7,29 @@ metadata:
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
 ---
 
+## 🎯 FAMILY-1 EARLY-CLUSTER ATTACK (2026-07-02, cont.): 4164 FULL — dataflow knob probes (commit dc46d0e)
+The early-<64 cluster (222 w/ current flat_div) root-caused on Hyper (pos 2, PW
+$00-vs-$50): **re-assembled members recovered via `_build_via_dataflow` never get
+the canon sub-build KNOB probes** (canon-site-relative, e.g. $1180 rest dispatch)
+→ built with default knobs = wrong MECHANISM presenting as an early divergence.
+Hyper = the rest-skip variant ($7E rest handler JMPs to the WAVE STEP, skipping
+gate-logic+pulse on the fetch frame; composer knob `rest_effects='skip'` existed,
+never set). FIX: `factory._dataflow_knob_probes` — probe by OPCODE SHAPE
+(rest handler `LDA,x/STA,x/INC,x/[JSR]/JMP`; classify JMP target: wave-step
+`BD..29 01 D0` → skip / effects `BD..F0..DE` → run). Probe census FIRST: 29
+partials flip, **0 FULLs flip** (no regression exposure — census the FULL-side
+flip set before landing any knob probe). +5 FULL; Hyper re-localized pos 2→296k.
+Ledger C13 corollary. METHOD (validated): effect_chain_profiler PC-attribution +
+`assemble(return_labels=True)` + `--memwatch-on-write D404 <composer-state>` =
+the state-provenance recipe that cracked it (gatemask=$FE + stepped pulse pre-note
+in the rebuild vs zeros in the orig). NEXT for the early cluster: (a) port the
+REMAINING canon probes to shape-probes (D418 helper, all-off mask, hard-restart,
+filter-mode) — ~10 of the 29 still diverge early on those (reg23 $D417 @pos10,
+ctrl variants); (b) the canon-route early divergers (~22/40 of the cluster sample)
+= a DIFFERENT shared cause, undiagnosed (reps: Attah_2 pos21 o=$0C m=$F6,
+Reggae_Me pos62 ORDER diff). Census artifacts: tmp/f1_probe_census.jsonl,
+tmp/f1_skip_verify.jsonl.
+
 ## 🔄 FAMILY-1 PIVOT (2026-07-02): 4159/5401 (77.0%) — 1.1x ratified, drift +18, fresh census
 Pivoted back to family-1. (1) **1.1x RATIFIED as THE verify standard** (user: the
 rebuild must match cross-songlength/loop behaviour ≥10% past songlength) — the 32
