@@ -287,6 +287,41 @@ def _cia_period_from_init(sid_path: str, subtune: int,
     return mem[0xDC04] | (mem[0xDC05] << 8)
 
 
+def _post_init_ram(sid_path: str, subtune: int,
+                   max_cycles: int = 3_000_000):
+    """Run the PSID init in py65 and return the post-init RAM (an
+    ObservableMemory), or None if init never returns / crashes. Used by the
+    dataflow path to capture leftover-priming bytes a re-assembled init may
+    clear (canon init provably never touches them, so canon keeps reading
+    the file image)."""
+    import sys
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__),
+                                    '..', '..', '..', 'tools', 'py65_lib'))
+    from py65.devices.mpu6502 import MPU
+    from py65.memory import ObservableMemory
+    from seed_disassembly import parse_psid
+    s = parse_psid(sid_path)
+    mpu = MPU()
+    mem = ObservableMemory()
+    for i, b in enumerate(s['payload']):
+        if s['load'] + i < 0x10000:
+            mem[s['load'] + i] = b
+    mpu.memory = mem
+    mpu.stPush(0x00)
+    mpu.stPush(0x00)               # RTS sentinel -> PC = $0001
+    mpu.pc = s['init']
+    mpu.a = subtune
+    mpu.x = mpu.y = 0
+    for _ in range(max_cycles):
+        if mpu.pc == 0x0001:
+            return mem
+        try:
+            mpu.step()
+        except Exception:
+            return None
+    return None
+
+
 def _detect_play_repeat(mem, play: int, base: int, load: int) -> int:
     """INTERNAL multispeed: a play vector that is N consecutive `JSR T` (same
     target T) terminated by RTS runs the engine N times per VBI (e.g. High_Speed
@@ -439,11 +474,28 @@ def _build_via_dataflow(sid_path: str, hvsc_root: str):
             cia_period = cp
     play_repeat = (1 if (s.get('speed', 0) & 1)
                    else _detect_play_repeat(mem, s['play'], base, load))
-    return DMCV4Config(
+    cfg = DMCV4Config(
         sid_path=sid_path,
         name=os.path.splitext(os.path.basename(sid_path))[0],
         base=base, cia_period=cia_period, play_repeat=play_repeat,
         extra_params=_dataflow_knob_probes(mem, load), **loc)
+    # POST-INIT leftover capture: canon's leftover priming (d417 shadow,
+    # idle notes/masks, dual phase) reads the file image because canon init
+    # never touches those bytes. A re-assembled init MAY clear/rewrite them
+    # (Scalework clears its route shadow), so run THIS member's init and
+    # capture the values the play loop actually starts from. Falls back to
+    # the file image when init can't be run (None).
+    ram = _post_init_ram(os.path.join(hvsc_root, sid_path), s['start'] - 1)
+    if ram is not None:
+        cn = cfg.curnote_addr if cfg.curnote_addr is not None else base + 0x12
+        gm = cfg.gatemask_addr if cfg.gatemask_addr is not None else base + 0x0F
+        cfg.post_init_state = {
+            'd417_shadow': ram[cfg.d417_shadow_addr],
+            'idle_notes': (ram[cn], ram[cn + 1], ram[cn + 2]),
+            'idle_masks': (ram[gm], ram[gm + 1], ram[gm + 2]),
+            'dual_phase': ram[base + 0x19] & 1,
+        }
+    return cfg
 
 
 def _dataflow_knob_probes(mem, load: int) -> dict:

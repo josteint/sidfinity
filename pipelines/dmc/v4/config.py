@@ -77,6 +77,15 @@ class DMCV4Config:
     # helper), so the factory probes each from the member's code rather
     # than hardcoding. Empty for canonical V4 (canon defaults apply).
     extra_params: dict = field(default_factory=dict)
+    # POST-INIT leftover values (dataflow/re-assembled members only; None =
+    # read the file image). Canon's leftover priming (d417 shadow, idle
+    # notes/masks, dual phase) reads the FILE IMAGE because canon init never
+    # touches those bytes — but a re-assembled init MAY clear/rewrite them
+    # (Scalework's init clears its $1017 route shadow), so the factory runs
+    # the member's init in py65 and captures the values the play loop
+    # actually starts from. Keys: 'd417_shadow', 'idle_notes', 'idle_masks',
+    # 'dual_phase'. Extract-only (never USF).
+    post_init_state: dict = None
 
 
 ZAKS = DMCV4Config(
