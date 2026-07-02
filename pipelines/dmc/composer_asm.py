@@ -98,16 +98,23 @@ DMC_OFFTABLE_STATE = [
     (0x1756, 'cpwmax', 3),   # PW bound A (instr byte 2 hi nibble)
     (0x1759, 'cpwmin', 3),   # PW bound B (= bound A EOR $0F)
     (0x175F, 'cpwbase', 3),  # PW step base (instr byte 6 hi nibble)
+    (0x1724, 'dtmpl', 1),    # dual-slide freq temp lo — GLOBAL scratch written
+    (0x1725, 'dtmph', 1),    # only by the $40 slide path ($14CB/$14D3);
+                             # shadowed 1:1 in fx_dual_run
     (0x1726, 'otrk', 3),     # track byte-offset (entry-table value + INC at
                              # sector end — mirrors $10FB/$182D/$10DF exactly)
     (0x1783, 'wnote', 3),    # arp note = wave-offset + curnote (derived in wavestep)
-    # NOT (yet) mapped: (0x1786,'guard',3) — the note-init/DEC ops match the
-    # orig ($12FA/$1327), BUT the orig's DEC SCHEDULE for a never-inited /
-    # stopped voice differs from our run_effects freewheel (0ldsk00l's V3
-    # leftover stays $FF ~1700 frames in the orig; our freewheel would count
-    # it down — and a primed $FF also skips gate logic 255 frames). Needs the
-    # orig's guard-path reachability RE'd for stopped voices before mapping;
-    # InitVoice.guard + iguard priming plumbing exists, inert until then.
+    (0x1786, 'guard', 3),    # post-note guard (2 at note-init, DEC 2->1->0;
+                             # op-for-op the orig's $12FA/$1327). RE-VERIFIED
+                             # (round 10): the orig's $1322 check runs for
+                             # EVERY voice every frame — stopped voices
+                             # included ($10B3 freewheels into $11F9, same as
+                             # our run_effects) — and init CLEARS $1786-8, so
+                             # both sides start 0 and track in lockstep. The
+                             # earlier "leftover $FF" objection was a misread:
+                             # $FF is not a possible guard value (BEQ guards
+                             # the DEC); that member's read was wnote idx 221
+                             # and its FULL status a stale palimpsest.
     # NOTE: wavepos ($177A) + fcut ($171C) are read off-table by Object_of_Art's
     # wave program (arp=213 -> hi=wavepos, lo=fcut). Mapping them was net-negative
     # (0 recoveries, 1 regression / 33 FULLs): the HI byte sonifies the ABSOLUTE
@@ -1303,9 +1310,12 @@ fx_dual_run:
         clc
         adc accl,x
         sta tmp
-        lda fbh,x
-        adc #$00                     ; hi: carry only (as the family does)
-        sta tmp2
+        sta dtmpl                    ; orig $1724: the dual-slide freq temp is
+        lda fbh,x                    ; a GLOBAL leftover ("last dual voice's
+        adc #$00                     ; base+accum") that off-table reads
+        sta tmp2                     ; sonify (idx 221) — shadow it 1:1
+        lda tmp2
+        sta dtmph                    ; orig $1725
         lda tmp
         sec
         sbc slal,x
@@ -1495,6 +1505,8 @@ wctrl:    .dsb 3, 0
 guard:    .dsb 3, 0
 slal:     .dsb 3, 0
 slah:     .dsb 3, 0
+dtmpl:    .dsb 1, 0                  ; dual-slide freq temp (= orig $1724/25,
+dtmph:    .dsb 1, 0                  ; global; sonified by off-table idx 221)
 spdctr:   .dsb 1, 0
 shadow17: .dsb 1, 0
 dualpar:  .dsb 1, 0

@@ -7,6 +7,29 @@ metadata:
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
 ---
 
+## ✅ FAMILY-1 round 10 (2026-07-02): guard + dtmp map rows (+3, 4217/5401) — early cluster CHARACTERIZED
+(a) **GUARD ROW LANDED** — the round-9 objection was a MISREAD: re-RE of the play
+body shows $1322 (guard check) runs for EVERY voice every frame ($10B3 freewheels
+stopped voices into $11F9, same as our run_effects), init CLEARS $1786-8, and the
+BEQ guards the DEC (no 0→$FF wrap) — so composer guard,x tracks in lockstep, no
+priming needed (0ldsk00l's "$FF leftover" was a wnote idx-221 hi read + a stale-FULL
+palimpsest; guard values are only 0-2). 4 guard-exposed FULLs hold. Bizarre 18→136.
+(b) **DTMP ROWS** — the 20-member identical-signature class ([pos 38, V1flo, $D1,0])
+= off-table idx 221/222 reading **$1724/$1725 = the GLOBAL dual-slide freq temp**
+(written only by the $40 slide path $14CB/$14D3, "last dual voice's base+accum").
+Composer fx_dual_run now shadows it (dtmpl/dtmph, global n=1 rows). Sidelined_2 +
+Summers_Coming + Half_a_Year_Later FULL; 8 dtmp-exposed FULLs hold; full regression
+green. **EARLY-CLUSTER TRUTH (census of the 168 flat_div<64): it is ~12 DISTINCT
+sub-classes, NOT one mechanism** — staircase (otrk+guard, done: Bizarre/Trifle
+re-localized deep), dtmp (done, +3; the other 17 of its 20 have SECOND blockers),
+remaining: V1flo pos~24 (17: Arrive/Autumn_Memoir), V1flo pos~8 (15: Real_Hardcore
+= the dataflow/wrapper Nones), pos~16 (9: Staring_at_the_Ceiling), V3flo (8:
+Object_of_Art = the KNOWN wavepos-blocked class), V1flo pos~0 (8), V1pwl (8+4:
+Headache [24,2,64,79]), D418 pos~0 (8: Super_Seven), V1sr (6), V2flo pos~56 (5:
+Reggae_Me ORDER diff), V1fhi pos~0 (3: Speed_It_Up). Each = its own diagnosis
+round (the knob-hypothesis holds: identical signatures within sub-class).
+Artifacts: tmp/f1_early_sweep3.jsonl (fresh flat_div for all 168), f1_dtmp_*.
+
 ## ✅ FAMILY-1 round 9 (2026-07-02): otrk PHASE SCALARS landed (0 FULL yet — guard is the pair's other half)
 USER-STEERED RESOLUTION of round 8 (transpose_cmds WITHDRAWN): the sonified track
 counter = a **structure-synced staircase**, parametric over musical data — per-entry
