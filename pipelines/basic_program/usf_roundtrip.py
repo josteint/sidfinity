@@ -199,9 +199,10 @@ def model_to_usf(model, title='bp', gap_exact=False):
     for k, s in enumerate(steps):                      # gated: note(hold)+rest(gap); legato: note(step)
         on = s['on_frame']; off = s['off_frame']
         nxt = steps[k+1]['on_frame'] if k + 1 < len(steps) else on + med
-        # multi: hold stays EXACT (0 = gate-off in the gate-on frame) — flooring it
-        # accumulates +1/step drift on zero-hold steps (ledger C12).
-        hold = max(0 if multi else 1, (off - on)) if (gated and off is not None) else max(1, nxt - on)
+        # multi: hold stays EXACT (0 = gate-off in the gate-on frame, or a same-frame
+        # split sub-step) — flooring it accumulates +1/step drift (ledger C12).
+        hmin = 0 if multi else 1
+        hold = max(hmin, (off - on)) if (gated and off is not None) else max(hmin, nxt - on)
         # gap may be 0 (back-to-back notes: the gate-off frame == the next gate-on frame).
         # Forcing max(1,...) inflates every such step by 1 frame -> a progressive timing
         # drift that accumulates past the |len|<=64 tolerance on LONG tunes (500+ steps).
@@ -603,6 +604,14 @@ def best_attempt(sid_rel, dur, title='bp'):
             res6 = _attempt_model(build_model(sid, dur, multi_template=True), sid, dur, orig_wl, title, gap_exact=gap_exact)
             if res6[0] == 'FULL':
                 return res6
+            # multi + split: an intra-step dup FREQ (arp within a step) round-trips
+            # wrong through one NoteRow pitch per step — the unsplit multi MODEL
+            # builds (positional dups) so the auto split-fallback never fires; force
+            # the split so each freq gets its own sub-step (its own NoteRow).
+            res7 = _attempt_model(build_model(sid, dur, multi_template=True, force_split=True),
+                                  sid, dur, orig_wl, title, gap_exact=gap_exact)
+            if res7[0] == 'FULL':
+                return res7
         return res
 
     res = _try(False)

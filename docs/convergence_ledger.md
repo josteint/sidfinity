@@ -643,6 +643,16 @@ revisited ONLY around Move 1, when most/all engines are uready — not before.
   0 regressions**, cutting across FIVE prior buckets (variable_template 41 /
   too_few_after_trim 33 / length_fail 12 / legato_variable 12 /
   overlap_diverge 9) — the census-predicted shared lever.
+- **Round 2 — multi+SPLIT (+35 FULL, 385→420, 86.4%):** an intra-step dup FREQ
+  (arp within one step) builds fine positionally but round-trips WRONG through
+  the USF — one NoteRow pitch per step can't carry two freqs, so both dup slots
+  reconstruct the same value (early freq-reg divergence, the residue census
+  tell). The unsplit multi MODEL succeeds, so the auto split-fallback never
+  fired; the fix is an explicit `multi_template=True, force_split=True` retry
+  (each freq gets its own sub-step = its own NoteRow) + holds kept exact in ALL
+  multi branches (same-frame split sub-steps otherwise drift +1). Lesson: a
+  representation can be write-stream-complete at the MODEL level and still
+  lossy at the USF level — always census the round-trip, not just the build.
 - **Boundary:** kmax=48 shapes / 250-byte record stride. Applies to TRACE-LIFT
   write models (the engine IS arbitrary hand-written code); tracker engines with
   a real per-frame player don't have this DOF (their write order is the player's

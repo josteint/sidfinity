@@ -1,6 +1,6 @@
 ---
 name: project_basic_program
-description: "Basic_Program family (486 RSID-BASIC tunes) — PRODUCTIONIZED round-trip: 385/486 (79.2%) FULL through real USF (multi-template C17 +107), mass-written + regression"
+description: "Basic_Program family (486 RSID-BASIC tunes) — PRODUCTIONIZED round-trip: 420/486 (86.4%) FULL through real USF (multi-template C17 +107, multi+split +35), mass-written + regression"
 metadata: 
   node_type: memory
   type: project
@@ -412,16 +412,22 @@ a best_attempt verify-fallback (fires only on failure, accepts only FULL → 0-r
 gap_exact 2nd pass). New FULLs by prior bucket: variable_template 41 / too_few_after_trim 33 / length_fail 12 /
 legato_variable 12 / overlap_diverge 9 — ONE lever cut across FIVE buckets. Full regression green.
 
-**RESIDUE (101):** variable_template 26 + legato_variable 17 (multi still failing — likely K>48, >250-byte stride, or
-value-level divergence e.g. non-ctrl perstep release timbre) + build_fail 15 (mostly too_many_pitches = vibrato >96
-freq slots) + too_few_after_trim 14 + overlap_diverge 10 (Deutschlandlied close m=1672/1678; Praeludium/Dark_Tower early)
-+ too_few_steps 9 + length_fail 8 (Tron 320/3936 structural; Bond_Alan Doom_Comer/Glass_Jaw/Legion near-miss tails) +
-no_note_voices 2 + 1 digi (Black_Box_V8_Demo → Mode 2).
+**✅ MULTI+SPLIT round 2 (2026-07-02): 385→420 FULL (+35, 86.4%), 0 regr.** Residue census (43 multi-failures) showed
+28 diverging EARLY on freq regs = intra-step dup FREQ (arp within a step): builds positionally but round-trips WRONG
+(one NoteRow pitch per step can't carry two freqs — both dup slots reconstruct the same value). The unsplit multi MODEL
+succeeds, so the auto split-fallback never fired → explicit `build_model(multi_template=True, force_split=True)` retry
+(res7 in best_attempt; each freq = own sub-step = own NoteRow) + holds exact in ALL multi branches (same-frame split
+sub-steps otherwise drift +1). LESSON: a model can be write-stream-complete yet USF-lossy — census the ROUND-TRIP.
 
-**NEXT:** (1) census the REMAINING multi failures (why does multi not land them — K/stride caps vs value divergence);
-(2) too_many_pitches 13 (vibrato >96 — needs a glide/vibrato effect representation); (3) length_fail structural tails.
-Iterate via `family_batch.py` (resumes from the OUT jsonl; delete rows to force re-run).
-METHOD THAT WORKS: census a bucket for a SHARED lever (multi-template +107, gap-exactness +13, too_few-fallback +12).
+**RESIDUE (66):** variable_template 16 + build_fail 15 (mostly too_many_pitches = vibrato >96 freq slots) +
+too_few_steps 9 + legato_variable 8 (incl. Chicken_Song/Argument_Emulator/Dunes = Bond_Alan vibrato-heavy) +
+overlap_diverge 8 (Deutschlandlied close m=1672/1678; Crazy_Conveyors/Dark_Tower/Escape_from_Death early) +
+too_few_after_trim 5 + length_fail 3 + no_note_voices 2 + 1 digi (Black_Box_V8_Demo → Mode 2).
+
+**NEXT:** (1) too_many_pitches ~19 incl. build_fail + several *_variable (vibrato >96 distinct freqs — needs a
+glide/vibrato effect representation, the largest remaining coherent bucket); (2) too_few_steps 9 (degenerate/short
+segmentation); (3) the early-diverge misc tail. Iterate via `family_batch.py` (resumes from OUT jsonl).
+METHOD THAT WORKS: census a bucket for a SHARED lever (multi-template +107, multi+split +35, gap-exactness +13).
 
 **CONVERGENCE (ledger C10, 2026-06-27):** the `global_track` is the EXPLICIT-event form of chip-global $D415-$D418
 automation; the OTHER engines already represent the same registers PARAMETRICALLY (`MasterVolConfig` fade formula,
