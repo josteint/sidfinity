@@ -100,6 +100,11 @@ DMC_OFFTABLE_STATE = [
     (0x175F, 'cpwbase', 3),  # PW step base (instr byte 6 hi nibble)
     (0x1726, 'otrk', 3),     # track byte-offset (derived from orderlist pos)
     (0x1783, 'wnote', 3),    # arp note = wave-offset + curnote (derived in wavestep)
+    # NOT (yet) mapped: (0x1786,'guard',3) — the composer guard,x is op-for-op
+    # the orig's $12FA/$1327, BUT the orig byte can hold a FILE LEFTOVER (e.g.
+    # $FF) until the voice's first note-init (0ldsk00l_endtheme reads V3's
+    # $1788=$FF off-table; our state-cleared 0 regressed it). Needs guard
+    # leftover priming first — pair with the round-8 otrk revival.
     # NOTE: wavepos ($177A) + fcut ($171C) are read off-table by Object_of_Art's
     # wave program (arp=213 -> hi=wavepos, lo=fcut). Mapping them was net-negative
     # (0 recoveries, 1 regression / 33 FULLs): the HI byte sonifies the ABSOLUTE

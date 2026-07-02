@@ -7,6 +7,28 @@ metadata:
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
 ---
 
+## ⏸️ FAMILY-1 round 8 (2026-07-02): otrk exactness — BLOCKED ON A USF SCHEMA DECISION
+Bizarre_Emotions (early-V1FLO rep, 73-member cluster) root-caused: idle-wave
+off-table read idx 224/225 = (V2 $1727 otrk, V2 $1787 post-note guard). TWO parts:
+(1) **guard map row** (0x1786,'guard',3) — op-for-op identical state, SAFE
+(isolation-tested; FULL-side idx-223-225 census run). (2) **otrk exactness**: orig
+$1726,x = byte offset of the entry's SECTOR byte in the orig track stream; a
+transpose cmd byte precedes an entry OR NOT — **the placement is EDITOR-CHOSEN,
+not derivable from transpose VALUES** (measured on 60 FULLs: 78 tracks match
+emit-on-change, 102 have REDUNDANT re-assertions, 0 always-explicit). The old
+`(trkpos>>1)+1` formula assumes always-explicit; emit-on-change fixes Bizarre
+(17→136) but REGRESSED Decoy/Crystal + Surgeon/Nasty_Track (redundant-byte
+FULLs). Neither derivation is universal ⇒ needs the explicit-cmd placement in
+USF. **DECISION FOR USER** (schema-addition discipline — derivation exhausted
+empirically): (a) `Orderlist.transpose_cmds` field (per-entry bool / sparse index
+list — sequence-COMMAND placement, same class as repeats/voiceincs; my
+recommendation), (b) params-string channel (no schema, but positional-data-in-
+params smell + digit-CNAME grammar workaround), (c) accept-residue (Bizarre class
+stays partial). CODE STASHED: `git stash` "otrk emit-on-change rework" — 3-byte
+track entries [t+64, gid, off] + trk2 seeds otrk + pat_end INC (mirrors
+$10FB/$182D/$10DF); revive + swap the off computation to the captured cmd flags
+once ratified. Smoke list tmp/f1_otrk2_smoke.json (19: otrk-bank FULLs + reps).
+
 ## 🎯 FAMILY-1 round 7 (2026-07-02): POST-INIT filter-def decode (0 FULL, correctness; Ed class characterized)
 The early-$D416 residue (Ed's Cliche_Beat @21 etc.): **init REWRITES the def
 records** (stamps res/mode=$11 + init-cutoff=$02 over every def) — extract read
