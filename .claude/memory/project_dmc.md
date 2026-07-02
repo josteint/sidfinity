@@ -7,6 +7,27 @@ metadata:
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
 ---
 
+## 🎯 FAMILY-1 EARLY-CLUSTER round 3 (2026-07-02): wave-chain 8-bit WRAP (+3, 4167)
+CANON-route rep Attah_2 root-caused = **ledger C11's wave-walk instance**: the
+engine's wave position is 8-BIT (INC wraps $FF→$00) but `_resolve_wave_chain`
+walked LINEARLY past index 255 into the extended window → bogus programs for
+off-table wave pointers near the top (Attah_2 inst 22 ws=$FF: true program
+[(3,+17),(41,+0)]loop — one step then WRAP; old walk gave [3,7,7,..]). Fixed
+(mod-256 walk, reads bounded to the 256-byte window; in-table slice path
+untouched). SAFETY: used-instrument census 4155/4164 FULLs unchanged; the 9
+changed re-verified all-FULL (unreached tails). Transfer: 91 canon-early
+re-verified → **+3 FULL (Attah_2/Escape_from_Tropic/Winters_Theme), 4167/5401**,
+mass-written+DB. **SURVIVING canon-early cluster = 88 (V1_FLO<64 43) — a
+DIFFERENT shared cause, still undiagnosed**: NOT bucketing skew (per-IRQ also
+diverges: Fuck_Off pm=29, Short_Track pm=0, Bizarre_Emotions pm=32); values
+heterogeneous (o=$1E m=$87 / o=$DF m=$00 / o=$47 m=$16). First finding on
+Fuck_Off: orig play1 = ALL-voice HR fetch + $D417=$02 (a nonzero res write on
+play1!); rebuild's first-note sequence differs around note-init. NEXT: full
+state-provenance pass (the Hyper recipe) on Fuck_Off + Short_Track; also note
+Klepkomania diverges on SUB 3 (subtune-dependent — check per-subtune leftover
+priming). Artifacts: tmp/f1_canon_early_verify.jsonl (fresh flat_div),
+tmp/f1_wavewrap_census2.jsonl.
+
 ## 🎯 FAMILY-1 EARLY-CLUSTER round 2 (2026-07-02): POST-INIT capture (commit after dc46d0e)
 Second dataflow-path mechanism fixed: **post-init leftover capture**. The $D417
 early cluster (Scalework/Blue_Magic/Depression, o=$00 m=$07 @pos10) root cause =
