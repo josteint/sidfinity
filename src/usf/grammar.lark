@@ -442,6 +442,10 @@ fx_flag: "tie"                  -> fx_tie
        | "glide_up" "=" number    -> fx_glide_up
        | "glide_down" "=" number  -> fx_glide_down
        | "glide_onset" "=" INT    -> fx_glide_onset
+       // Discrete slide granularity: the number of rate-sized updates the
+       // glide performs over the row (basic_program trace-lift; engines
+       // whose glide ticks at the player's own loop rate, not per-frame).
+       | "glide_ticks" "=" INT    -> fx_glide_ticks
        | "wave_adjust" "=" INT  -> fx_wave_adjust
        | "filter" "=" number    -> fx_filter
        // FC $F0 marker: play this note WITHOUT retriggering the

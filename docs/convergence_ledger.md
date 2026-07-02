@@ -482,7 +482,20 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
   `RowCommand` union could replace the strings if the vocabulary stabilises — but
   strings are the current shared form; do NOT add a schema field per family.
 - **Consumers:** FC (`pipelines/future_composer/to_usf.py` `_pattern_to_rows`),
-  GoatTracker V1 (planned, RE_NOTES §7).
+  GoatTracker V1 (planned, RE_NOTES §7). **basic_program linear glide (2026-07-02,
+  +11 FULL):** REUSED the standard-FC `glide_up=$XXXX`/`glide_down=$XXXX`
+  directional-rate vocabulary + ONE new musical param `glide_ticks=N` (discrete
+  slide granularity — engines that tick at their own loop rate, not per-frame).
+  A constant-delta freq run (>=4 releaseless same-shape single-voice steps) lifts
+  to the head NoteRow + these flags; the intermediates are engine MECHANISM and
+  are regenerated at read time (freq = head + k*delta, the head's own C17
+  template, frames spread over a `bp_glide{k}` span param) — they never enter the
+  freq alphabet / rows / tids. This is what keeps >96-distinct-freq glide tunes
+  inside the 96-slot per-tune pitch alphabet. Detection `semantic_lift
+  _mark_glide_runs` (loop-head-safe); NOT yet handled: interleaved multi-voice
+  simultaneous glides (Sleepy — consecutive steps alternate voices, breaking the
+  run rule) and exponential/float-computed slides (C_Prog_07 — BASIC float
+  rounding is not parametrically reproducible).
 
 ### C12 — Accumulated per-step rounding drift in a delta-encoded round-trip
 - **The bug class:** the USF (or any parametric form) stores a sequence as

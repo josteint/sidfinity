@@ -267,6 +267,64 @@ def _multi_templates(steps, kmax=48):
     return templates
 
 
+GLIDE_MIN = 4                                          # min run length worth compressing
+
+
+def _mark_glide_runs(steps, init, loop_to):
+    """LINEAR-GLIDE detection (multi+split path): a maximal run of >= GLIDE_MIN
+    consecutive steps that are freq-only writes to ONE voice, all the same shape,
+    releaseless, with a CONSTANT nonzero 16-bit freq delta. The head stays a normal
+    step and gains s['glide'] = {'delta', 'n', 'voice'}; the n members after it get
+    s['glide_drop'] and are REGENERATED from the head at usf_to_model time
+    (freq = head + k*delta, the head's own template) — the intermediate freqs are
+    engine-generated glide mechanism, not per-note musical content, so they never
+    enter the USF (no freq-alphabet slots, no rows, no tids). A run never spans the
+    loop head (loop_to stays a kept step index)."""
+    hi = {1: 0, 2: 0, 3: 0}; lo = {1: 0, 2: 0, 3: 0}
+    FHIr = {1: 0x01, 2: 0x08, 3: 0x0f}; FLOr = {1: 0x00, 2: 0x07, 3: 0x0e}
+    def upd(d):
+        for vc in (1, 2, 3):
+            if FHIr[vc] in d: hi[vc] = d[FHIr[vc]]
+            if FLOr[vc] in d: lo[vc] = d[FLOr[vc]]
+    upd(dict(init))
+    info = []                                          # (shape, voice, freq16) | None
+    for s in steps:
+        regs = [r for r, v in s['attack']]
+        d = dict(s['attack'])
+        vcs = {voice_of(r) for r in regs}
+        ok = (len(vcs) == 1 and None not in vcs and all(r in FREQ for r in regs)
+              and not s['release'])
+        upd(d)
+        if ok:
+            vc0 = next(iter(vcs))
+            info.append((tuple(regs), vc0, (hi[vc0] << 8) | lo[vc0]))
+        else:
+            info.append(None)
+    k, n = 0, len(steps)
+    while k < n:
+        if info[k] is None:
+            k += 1; continue
+        shape, vc0, f0 = info[k]
+        j = k + 1; prev = f0; d0 = None
+        while j < n and info[j] is not None and info[j][0] == shape and info[j][1] == vc0:
+            if loop_to is not None and j == loop_to:   # never absorb the loop head
+                break
+            dd = info[j][2] - prev
+            if dd == 0 or (d0 is not None and dd != d0):
+                break
+            if d0 is None:
+                d0 = dd
+            prev = info[j][2]; j += 1
+        m = j - k - 1                                  # members after the head
+        if d0 is not None and m >= GLIDE_MIN - 1:
+            steps[k]['glide'] = {'delta': d0, 'n': m, 'voice': vc0}
+            for t in range(k + 1, j):
+                steps[t]['glide_drop'] = True
+            k = j
+        else:
+            k += 1
+
+
 def _song_end_writes(frames, steps):
     """The trailing SILENCE the engine emits to stop the song. When the writelog
     ends with master-vol=$00 (the tune silences itself), capture every write AFTER
@@ -434,7 +492,7 @@ def _emit_pw_data_asm(em, pw_program):
 
 
 def build_model(sid, dur, force_split=None, min_trim=False, detect_song_end=False, detect_modulation=False,
-                multi_template=False):
+                multi_template=False, detect_glide=False):
     """Lift to a build-ready model, or {'unsupported': reason}. Tries the unsplit
     segmentation first (consistent templates incl. consistent intra-step dup, via
     derive_template); only if that fails on a template/dup reason does it retry with
@@ -517,14 +575,14 @@ def build_model(sid, dur, force_split=None, min_trim=False, detect_song_end=Fals
         _annot(steps)
         se = _song_end_writes(seg_frames, steps) if detect_song_end else None
         return _inject(_build_model_from_steps(sid, init, steps, legato, window, last_write, min_trim, se,
-                                               multi_template))
+                                               multi_template, detect_glide))
     result = None
     for split_dups in (False, True):
         init, steps, start_frame, legato = segment(seg_frames, split_dups=split_dups)
         _annot(steps)
         se = _song_end_writes(seg_frames, steps) if detect_song_end else None
         result = _build_model_from_steps(sid, init, steps, legato, window, last_write, min_trim, se,
-                                         multi_template)
+                                         multi_template, detect_glide)
         if ('unsupported' not in result or result['unsupported'] not in (
                 'variable_template', 'legato_variable', 'too_few_after_trim',
                 'too_few_steps', 'template_derive', 'too_many_shapes')):
@@ -533,7 +591,7 @@ def build_model(sid, dur, force_split=None, min_trim=False, detect_song_end=Fals
 
 
 def _build_model_from_steps(sid, init, steps, legato, window=0, last_write=0, min_trim=False, song_end=None,
-                            multi_template=False):
+                            multi_template=False, detect_glide=False):
     from pipelines.basic_program.proof_multivoice import measure_rho, _find_loop
     import struct
     if len(steps) < 2:
@@ -542,8 +600,10 @@ def _build_model_from_steps(sid, init, steps, legato, window=0, last_write=0, mi
     if multi_template:
         # Light trailing trim only: drop a trailing capture-cutoff step (gated: its
         # gate-off never captured). Complete differing final sections are KEPT — a
-        # different shape is just another template.
-        if not legato:
+        # different shape is just another template. min_trim keeps even the
+        # releaseless tail: with split, a final glide run's gate-off may simply lie
+        # past the capture window — the orig PLAYED those writes.
+        if not legato and not min_trim:
             while len(steps) > 2 and steps[-1]['release'] is None:
                 steps.pop()
         if len(steps) < 2:
@@ -629,6 +689,8 @@ def _build_model_from_steps(sid, init, steps, legato, window=0, last_write=0, mi
         if s['off_frame'] is not None:                 # legato has no release frame
             s['off_frame'] = round(s['off_frame'] * rho)
     loop_period = round(loop_period * rho)
+    if multi is not None and detect_glide:
+        _mark_glide_runs(steps, init, loop_to)
     return {'init': init, 'steps': steps, 'atk_template': atk_t, 'atk_ps': atk_ps,
             'rel_template': rel_t, 'rel_ps': rel_ps, 'loop_to': loop_to,
             'loop_period': loop_period, 'clock': clk, 'rho': rho, 'masked': masked,

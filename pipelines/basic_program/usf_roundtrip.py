@@ -145,8 +145,12 @@ def model_to_usf(model, title='bp', gap_exact=False):
             row[vc] = ((run_hi[vc] << 8) | run_lo[vc]) \
                 if ((wh or wl) and vc in run_hi and vc in run_lo) else None
         eff.append(row)
+    # glide members (linear-glide intermediates) are regenerated from the head at
+    # read time — they get no rows, no tids, no freq-alphabet slots.
+    kept = ([i for i, s in enumerate(steps) if not s.get('glide_drop')]
+            if multi else list(range(len(steps))))
     # per-tune lossless freq alphabet (distinct freq -> unique freq_table slot)
-    allfreqs = {fq for row in eff for fq in row.values() if fq is not None}
+    allfreqs = {fq for i in kept for fq in eff[i].values() if fq is not None}
     slotmap = _assign_slots(allfreqs)
     if slotmap is None:
         raise ValueError('too_many_pitches')
@@ -196,9 +200,10 @@ def model_to_usf(model, title='bp', gap_exact=False):
     # median delta as the last step's fallback (its real duration is the loop wrap)
     deltas = [steps[k+1]['on_frame'] - steps[k]['on_frame'] for k in range(len(steps)-1)]
     med = sorted(deltas)[len(deltas)//2] if deltas else 1
-    for k, s in enumerate(steps):                      # gated: note(hold)+rest(gap); legato: note(step)
+    for kk, ki in enumerate(kept):                     # gated: note(hold)+rest(gap); legato: note(step)
+        s = steps[ki]; k = ki
         on = s['on_frame']; off = s['off_frame']
-        nxt = steps[k+1]['on_frame'] if k + 1 < len(steps) else on + med
+        nxt = steps[kept[kk+1]]['on_frame'] if kk + 1 < len(kept) else on + med
         # multi: hold stays EXACT (0 = gate-off in the gate-on frame, or a same-frame
         # split sub-step) — flooring it accumulates +1/step drift (ledger C12).
         hmin = 0 if multi else 1
@@ -236,8 +241,15 @@ def model_to_usf(model, title='bp', gap_exact=False):
             else:
                 slot = slotmap[f]; nm, octv = _slot_pitch(slot)
                 ftab[slot] = (f >> 8) & 0xFF; ftab[128 + slot] = f & 0xFF
+                g = s.get('glide')
+                fx = ()
+                if g and g['voice'] == vc:             # linear glide from this note
+                    d = g['delta']
+                    fx = (f'glide_{"up" if d > 0 else "down"}=${abs(d):04X}',
+                          f'glide_ticks={g["n"]}')
                 vrows[vc].append(NoteRow(pitch=Pitch(name=nm, octave=octv),
-                                         duration=hold, instr=InstrumentRef(id=note_instr(vc, s))))
+                                         duration=hold, instr=InstrumentRef(id=note_instr(vc, s)),
+                                         fx_flags=fx))
             if gated:
                 vrows[vc].append(NoteRow(pitch=Pitch.rest(), duration=gap))
     # non-inst voices: one instrument (waveform from the gate-on const ctrl)
@@ -260,7 +272,8 @@ def model_to_usf(model, title='bp', gap_exact=False):
     # ($D418=mode<<4|dyn, $D417=res<<4|route, $D416=cutoff); sparse running-state
     # events keyed by step. The composer re-packs the bytes at the template position.
     gtrack = []; run_g = {}
-    for k, s in enumerate(steps):
+    for kk, ki in enumerate(kept):
+        s = steps[ki]; k = kk
         d = dict(s['attack']); d.update(dict(s['release']) if s['release'] else {})
         chg = {}
         for reg in (0x16, 0x17, 0x18):
@@ -320,10 +333,16 @@ def model_to_usf(model, title='bp', gap_exact=False):
             fields[f'bp_t{t}_rel_n'] = len(tp['rel'])
             for i, e in enumerate(tp['rel']):
                 fields[f'bp_t{t}_rel{i}'] = (e[0] << 16) | (_kind(e) << 8) | ((e[2] or 0) & 0xFF)
-        tids = [s['tid'] for s in steps]
+        tids = [steps[i]['tid'] for i in kept]
         for j in range(0, len(tids), 4):
             ch = (tids[j:j + 4] + [0, 0, 0, 0])[:4]
             fields[f'bp_tid{j // 4}'] = (ch[0] << 24) | (ch[1] << 16) | (ch[2] << 8) | ch[3]
+        for kk, ki in enumerate(kept):                 # glide-head spans (write-model timing)
+            g = steps[ki].get('glide')
+            if g:
+                fields[f'bp_glide{kk}'] = steps[ki + g['n']]['on_frame'] - steps[ki]['on_frame']
+        if model['loop_to'] is not None and len(kept) != len(steps):
+            fields['bp_loop_to'] = kept.index(model['loop_to'])   # remap to compressed index
     else:
         for i, e in enumerate(atk):
             fields[f'bp_atk{i}'] = (e[0] << 16) | (_kind(e) << 8) | ((e[2] or 0) & 0xFF)
@@ -480,6 +499,33 @@ def usf_to_model(usf):
                       'on_frame': onf, 'off_frame': (onf + hold) if gated else None,
                       'next': None, 'atk_mask': amask, 'rel_mask': rmask,
                       'tid': (tid if multi_t else 0)})
+        if multi_t:
+            # linear glide: regenerate the run's intermediate steps from the head
+            # (freq = head + t*delta, the head's own template; frames spread over
+            # the stored span). The intermediates are glide MECHANISM — they have
+            # no rows/tids/alphabet slots in the USF.
+            gl = None
+            for vc in voices:
+                fl = dict(x.split('=', 1) for x in vrows[vc][hi].fx_flags if '=' in x)
+                if 'glide_ticks' in fl and ('glide_up' in fl or 'glide_down' in fl):
+                    dlt = (int(fl['glide_up'].lstrip('$'), 16) if 'glide_up' in fl
+                           else -int(fl['glide_down'].lstrip('$'), 16))
+                    gl = (vc, dlt, int(fl['glide_ticks']))
+            if gl:
+                vcg, dlt, ng = gl
+                span = f.get(f'bp_glide{k}', ng)
+                head_f = _pitch_freq(vrows[vcg][hi].pitch, ftab) or 0
+                tmpl = multi_t[tid]['atk']
+                if gated:                              # empty-release head: advance at once
+                    steps[-1]['off_frame'] = onf
+                for t in range(1, ng + 1):
+                    fq = (head_f + t * dlt) & 0xFFFF
+                    gatk = [(reg, val) if kind == 'const' else
+                            (reg, (fq >> 8) & 0xFF if reg in FHI.values() else fq & 0xFF)
+                            for reg, kind, val, _v in tmpl]
+                    steps.append({'attack': gatk, 'release': None,
+                                  'on_frame': onf + (t * span) // ng, 'off_frame': None,
+                                  'next': None, 'atk_mask': 0, 'rel_mask': 0, 'tid': tid})
         onf += hold + gap
     for k in range(len(steps) - 1):
         steps[k]['next'] = steps[k + 1]['on_frame']
@@ -514,11 +560,21 @@ def _compare_with_extend(orig_wl, reb_sid, dur, loops):
     from pipelines.hubbard.verify_cycle import writelog_capture, compare_instruction_stream
     r = compare_instruction_stream(orig_wl, writelog_capture(reb_sid, 0, dur), skip_init=False)
     a0, b0 = r['len_all_a'], r['len_all_b']
-    if loops and r['match_all'] == min(a0, b0) and a0 - b0 > 64:   # only would-be length_fail
+    # Try the extension for play-once rebuilds too (not just loops): a rebuild that
+    # merely runs slower than the free-running BASIC gets cut by the fixed window
+    # even when it plays once (e.g. long glide-expanded step lists). A rebuild that
+    # truly HALTED (done=1) never grows, so the exact-prefix acceptance can't
+    # false-pass — the extra capture is the only cost.
+    if r['match_all'] == min(a0, b0) and a0 - b0 > 64:             # only would-be length_fail
 
         ext = min(dur * (a0 / max(b0, 1)) * 1.2 + 2, 240.0)
         r2 = compare_instruction_stream(orig_wl, writelog_capture(reb_sid, 0, ext), skip_init=False)
         if r2['match_all'] == r2['len_all_a']:            # whole orig reproduced as prefix
+            return r2, True
+        # Play-once rebuild fully consumed with only a short orig tail left: the
+        # same |len|<=64 tolerance the base verdict grants (the orig's final
+        # capture-cut partial note, dropped at segmentation).
+        if r2['match_all'] == r2['len_all_b'] and r2['len_all_a'] - r2['match_all'] <= 64:
             return r2, True
     return r, False
 
@@ -612,6 +668,22 @@ def best_attempt(sid_rel, dur, title='bp'):
                                   sid, dur, orig_wl, title, gap_exact=gap_exact)
             if res7[0] == 'FULL':
                 return res7
+        if res[0] in ('overlap_diverge', 'length_fail', 'too_many_pitches') or \
+                res[0].startswith('unsupported:'):
+            # linear glides: constant-delta freq runs lift to glide_up/down +
+            # glide_ticks row commands (the intermediates are engine mechanism,
+            # not per-note content — they'd otherwise blow the 96-slot alphabet).
+            res8 = _attempt_model(build_model(sid, dur, multi_template=True, force_split=True,
+                                              detect_glide=True),
+                                  sid, dur, orig_wl, title, gap_exact=gap_exact)
+            if res8[0] == 'FULL':
+                return res8
+            if res8[0] == 'length_fail':               # trailing releaseless run was trimmed
+                res9 = _attempt_model(build_model(sid, dur, multi_template=True, force_split=True,
+                                                  detect_glide=True, min_trim=True),
+                                      sid, dur, orig_wl, title, gap_exact=gap_exact)
+                if res9[0] == 'FULL':
+                    return res9
         return res
 
     res = _try(False)

@@ -1,6 +1,6 @@
 ---
 name: project_basic_program
-description: "Basic_Program family (486 RSID-BASIC tunes) — PRODUCTIONIZED round-trip: 420/486 (86.4%) FULL through real USF (multi-template C17 +107, multi+split +35), mass-written + regression"
+description: "Basic_Program family (486 RSID-BASIC tunes) — PRODUCTIONIZED round-trip: 431/486 (88.7%) FULL through real USF (multi-template C17 +107/+35, glide lift +11), mass-written + regression"
 metadata: 
   node_type: memory
   type: project
@@ -419,7 +419,18 @@ succeeds, so the auto split-fallback never fired → explicit `build_model(multi
 (res7 in best_attempt; each freq = own sub-step = own NoteRow) + holds exact in ALL multi branches (same-frame split
 sub-steps otherwise drift +1). LESSON: a model can be write-stream-complete yet USF-lossy — census the ROUND-TRIP.
 
-**RESIDUE (66):** variable_template 16 + build_fail 15 (mostly too_many_pitches = vibrato >96 freq slots) +
+**✅ LINEAR-GLIDE LIFT (2026-07-02): 420→431 FULL (+11, 88.7%), 0 regr.** Constant-delta freq runs (>=4 releaseless
+same-shape single-voice steps) lift to the head NoteRow + `glide_up/glide_down=$RATE` (REUSED FC vocabulary, C14) +
+NEW musical param `glide_ticks=N` (grammar+parser); intermediates = engine mechanism, regenerated at read time
+(head_freq + k*delta via the head's C17 template, frames spread over `bp_glide{k}` span) — never enter the 96-slot
+alphabet. Chain: res8 = multi+split+glide, res9 = +min_trim (the multi trim ate trailing capture-cut runs).
+EXTEND-VERIFY relaxed: (a) fires for play-once rebuilds too (a slow rebuild gets window-cut without looping; a halted
+one never grows = can't false-pass); (b) extended verdict gets the same |len|<=64 tail tolerance as the base verdict
+(segmentation drops the orig's final capture-cut partial note). NOT handled: interleaved simultaneous multi-voice
+glides (Sleepy — steps alternate voices, run rule breaks), exponential/float slides (C_Prog_07), >128 distinct glide
+START pitches (In_Your_Head, 144 kept heads).
+
+**RESIDUE (55 post-glide):** variable_template 16 + build_fail 15 (mostly too_many_pitches = vibrato >96 freq slots) +
 too_few_steps 9 + legato_variable 8 (incl. Chicken_Song/Argument_Emulator/Dunes = Bond_Alan vibrato-heavy) +
 overlap_diverge 8 (Deutschlandlied close m=1672/1678; Crazy_Conveyors/Dark_Tower/Escape_from_Death early) +
 too_few_after_trim 5 + length_fail 3 + no_note_voices 2 + 1 digi (Black_Box_V8_Demo → Mode 2).
