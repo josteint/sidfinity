@@ -47,13 +47,18 @@ def _row_to_usf(r: DmcRow) -> NoteRow:
         flags.append('gate_toggle')
     if r.soft or r.glide_slide:
         flags.append('noretrig')
-    if r.glide_speed or r.glide_slide:
-        # slide rows ALWAYS carry glide=N, including speed 0: a $Dx slide
-        # with a zero speed nibble is the engine's "set target, no note
-        # load, hold" — suppressing glide=0 rendered it identically to a
-        # plain soft note and the composer LOADED the note early
-        # (Apocalypsa: octave drop 10 frames before the orig; ledger C22,
-        # the encoding must be injective over engine ops).
+    if r.glide_speed or r.glide_slide or r.glide_to is not None:
+        # glide/slide rows ALWAYS carry glide=N, including speed 0 (ledger
+        # C22 — the encoding must be injective over engine ops). Mode 1: a
+        # $Dx slide with a zero speed nibble is the engine's "set target,
+        # no note load, hold" — suppressing glide=0 rendered it identically
+        # to a plain soft note and the composer LOADED the note early
+        # (Apocalypsa: octave drop 10 frames before the orig). Mode 0: a
+        # $Cx glide with a zero speed nibble is the engine's GLIDE-CANCEL
+        # ($1136 stores 0 to glsp) — suppressing it rendered a plain note,
+        # so a previous row's armed glide kept ramping the freq accumulator
+        # in the rebuild (Grave_Story_intro +$10/frame; the ×16-quantized
+        # deep freq drift class, family-1 round 19).
         flags.append(f'glide={r.glide_speed}')
     if r.glide_to is not None:
         flags.append(f'glide_to={_pitch(r.glide_to)}')

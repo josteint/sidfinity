@@ -218,9 +218,12 @@ def _encode_pattern(rows_events: list) -> bytes:
             out += bytes([0x04, gspd, note, dur & 0x3F])
         else:
             _, soft, note, dur, slot, vol, gspd, target = ev
-            f = soft | (2 if gspd else 0)
+            # glide tail keyed on TARGET PRESENCE, not speed truthiness: a
+            # mode-0 glide with speed 0 is the engine's glide-cancel (glsp
+            # gets STORED 0), which must reach ev_note's glide path (C22).
+            f = soft | (2 if target is not None else 0)
             out += bytes([0x01, f, note, dur & 0x3F, slot, vol])
-            if gspd:
+            if target is not None:
                 out += bytes([gspd, target])
     out.append(0x00)
     return bytes(out)
