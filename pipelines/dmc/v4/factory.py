@@ -636,6 +636,20 @@ def _hr_patch_probe(path: str, base: int):
     return None
 
 
+def _d418_play_wrapper(path: str, base: int):
+    """$D418 play-vector wrapper probe: the PSID play address points at
+    `LDA #imm / STA $D418 / JMP base+3` (PVCF / Zyron / Signor) — a constant
+    master-vol|filter-mode write on every play() call before the canon play
+    body. Returns imm, or None when the play vector isn't this shape."""
+    mem, s = _load(path)
+    p = s['play']
+    if (mem[p] == 0xA9 and bytes(mem[p + 2:p + 5]) == b'\x8d\x18\xd4'
+            and mem[p + 5] == 0x4C
+            and mem[p + 6] | (mem[p + 7] << 8) == base + 3):
+        return mem[p + 1]
+    return None
+
+
 def dmc_v4_config(sid_path: str, hvsc_root: str = 'hvsc84') -> DMCV4Config:
     """Primary canonical-layout build; on a moved-layout rejection, fall back
     to the layout-independent dataflow extractor (pipelines.dmc.v4.dataflow).
@@ -660,6 +674,9 @@ def dmc_v4_config(sid_path: str, hvsc_root: str = 'hvsc84') -> DMCV4Config:
     if hr is not None:
         cfg.extra_params['hr_patch'] = 1
         cfg.extra_params['hr_test_init'] = hr
+    dp = _d418_play_wrapper(os.path.join(hvsc_root, sid_path), cfg.base)
+    if dp is not None:
+        cfg.extra_params['d418_every_play'] = dp
     return cfg
 
 

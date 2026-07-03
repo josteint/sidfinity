@@ -616,6 +616,18 @@ def compose_dmc_asm(usf: UsfFile) -> str:
     else:
         play_entry = 'playframe'
         play_wrapper = ''
+    # $D418 play-vector wrapper (PVCF / Zyron / Signor, 6 members): the
+    # original's PSID play vector points at `LDA #imm / STA $D418 / JMP
+    # base+3` — a constant master-vol|filter-mode assertion on EVERY play()
+    # call, before the play body (factory-probed at the PSID play address).
+    d418_every_play = usf.params.fields.get('d418_every_play', None)
+    if d418_every_play is not None:
+        play_wrapper = (
+            'playd418:\n'
+            f'        lda #${int(d418_every_play) & 0xFF:02X}\n'
+            '        sta $d418                    ; play-vector wrapper\n'
+            f'        jmp {play_entry}\n\n') + play_wrapper
+        play_entry = 'playd418'
     idle = [0, 0, 0]
     imask = [0, 0, 0]
     iguard = [0, 0, 0]
