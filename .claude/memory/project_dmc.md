@@ -7,6 +7,41 @@ metadata:
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
 ---
 
+## ✅ FAMILY-1 round 19 (2026-07-03): full deep census → 2 fixes → +100 FULL = 4670/5401 (86.5%) — commits f0d4ae8/93cc8ea/22f47ca
+Full-set deep census (`tmp/f1_deep_census.py`, all 353 deep freq partials →
+tmp/f1_deep_census_r19.jsonl): in_table 144 / off_table 138 (top hits:
+durreload 32, notectr 14, long unmapped tail) / cia_skipped 56. Two fixes:
+1. **hold_gateoff STATIC opcode probe (C19 CANONICALIZED 2×):** a widespread
+   editor build (Surgeon/Imaic/Rio/Taxim/Phobos/Behdad: 514 FULL + 97 partial
+   carriers) patches ONE byte — sub_17EC's $17EF BC→60 (LDY→RTS) = mask-only
+   gate-off. Found via the Rio pos~330 cluster (rebuild emitted an extra
+   AD/SR=$00 pair at a holding gate-off). `factory._hold_gateoff_probe`
+   follows the holding-branch JSR by OPCODE SHAPE (layout-blind) and reads
+   the patched instruction — the blind `frames_clear_adsr` retry could NOT
+   reach these 97 (their origs write AD/SR=0 via other paths). +17 FULL,
+   all 514 exposed FULL carriers hold. LESSON: probe a patch STATICALLY
+   (read the instruction), never via a bounded write-stream scan.
+2. **Mode-0 glide-cancel, $C0 speed 0 (C22 3rd occurrence):** the $Cx handler
+   unconditionally stores the speed nibble to glsp — speed 0 = GLIDE-CANCEL.
+   to_usf suppressed glide=0 on mode-0 rows AND the composer's encoder keyed
+   the glide tail on `if gspd` → the cancel became a plain note and a previous
+   row's armed glide kept ramping accl +speed×16/frame forever
+   (Grave_Story_intro @6427 → FULL). THE ×16-QUANTIZED DELTA TELL: censusing
+   (mine−orig) over the in_table class showed 56/104 deltas ≡ 0 mod 16 = the
+   speed-nibble ASL×4 — census the delta histogram BEFORE per-member drilling.
+   53/104 in_table members flipped FULL. 41 exposed FULLs re-verified all-FULL.
+CLOSEOUT: 640-member sweep +100 FULL total, 0 regressions anywhere; 647
+builds mass-written; full regression green. RESIDUE (515 partial / 25 error):
+off-table deep tail (durreload 32 = NEXT: add (0x173E,'durrel',3) redirect
+row — composer has NO durreload var; per-event durations == the orig reload
+value by construction, so shadow it at every `sta dur,x` site + post-init
+leftover priming + C11 transfer test; then notectr [=sector position,
+encoding-specific like otrk — needs orig byte-offsets carried]), in_table
+non-quantized 48 (true per-member drift, arbitrary deltas −99..+113),
+cia_skipped 56 (census tool lacks a per-IRQ event-alignment mode), pos~8
+wrapper class 15 (parked, round 12), Object_of_Art wavepos class (blocked,
+C11 hard boundary).
+
 ## ✅ FAMILY-1 round 18 CLOSEOUT (2026-07-03): deep-tail census → 3 fixes → +215 FULL = 4570/5401 (84.6%) — commits 9c243d7/e596bd7/3d3a930
 CLOSEOUT DONE: batch-harness sweep (1060 = all non-FULL + 14 exposed FULLs) →
 **+215 newly FULL, 0 down** (all exposed FULLs hold); 229 builds mass-written
