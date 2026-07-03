@@ -548,6 +548,18 @@ gone; bp_songend → readable string `bp_song_end: "vol=$00 v3_ctrl=$00"`; sweep
 present). Legacy files keep all packed forms (reader supports both). NOTE: Cascading regressed NF→legacy at some
 stage (its NF chain lacks detect_modulation) — recovery-round item.
 
+**🔎 ADOPTION-RECOVERY CENSUS (2026-07-03, all 266 legacy):** reasons: nf_conflict 173 / nf_missing_sig 34 /
+nf_grid_collision 27 / overlap_diverge 11 / too_few 9 / init_state_diff 7 (Cascading class: the aligned-split probe
+matches inside the orig init where the sweep interleaves) / FULL-at-census 4. SECTION STRUCTURE of the conflicts
+(greedy sig→order segments): seg=1 83 (conflict from NON-order rules: global re-pokes / release-timbre / rel-only
+voices — cheap per-rule fixes, census EACH), 2-8 segs 68 (cleanly SECTIONED → the multi-pattern design), 9-16 12,
+>16 94 (interleaved order alternation = honest residue). NEXT-ROUND DESIGN (recorded, not built): SECTIONS AS
+PATTERNS — split each voice's rows at section boundaries into multiple Pattern blocks sequenced by the Orderlist
+(schema exists; tracker-native; aligns basic_program with multi-pattern families), order decls scoped per pattern
+(`bp_order_p{N}_<sig>`), loop_to → orderlist loop entry. Quick levers shipped this round: precise ValueError reasons
+from the round-trip (was blanket build_fail), NF detect_modulation attempts (Cascading still blocked on the
+init-boundary probe), reader tick-collision nudge (no adoption change — collisions weren't binding).
+
 **(superseded plan note)** The user flagged the params block as
 anti-ML (packed ints) — review confirmed it is representation-principle §3 FAILURE MODE B (the USF carrying a
 per-tune engine program; "complete but unlearnable"). DERIVABILITY CENSUS (tmp/bp_census_derivable.py, 277 FULLs):

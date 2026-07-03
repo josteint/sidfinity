@@ -784,6 +784,8 @@ def usf_to_model(usf):
                         base = _pitch_freq(row.pitch, ftab) or 0
                         for t in range(1, n + 1):
                             ton = cum + (t * span) // n if n else cum
+                            while vc in evmap.setdefault(ton, {}) and ton > cum:
+                                ton -= 1               # nudge off a same-voice collision
                             if vc in evmap.setdefault(ton, {}):
                                 raise ValueError('nf_grid_collision')
                             evmap[ton][vc] = {'kind': 'tick',
@@ -1155,6 +1157,8 @@ def _attempt_model(m, sid, dur, orig_wl, title='bp', gap_exact=False, nf=False):
             else:
                 r, extended_full = _compare_with_extend(orig_wl, sp, dur, m.get('loop_to') is not None,
                                                         reb_dur=reb_dur)
+        except ValueError as e:                        # nf_grid_collision / nf_missing_sig / ...
+            return (str(e)[:40], 0, 0, 0, None, None)
         except Exception:                              # degenerate model (e.g. empty voices)
             return ('build_fail', 0, 0, 0, None, None)
     finally:
@@ -1209,6 +1213,12 @@ def best_attempt(sid_rel, dur, title='bp'):
                 r = _attempt_model(m, sid, dur, orig_wl, title, gap_exact=gap_exact, nf=True)
                 if r[0] == 'FULL':
                     return r
+        for fs in (False, True):                       # free-running sweep tunes (Cascading class)
+            m = build_model(sid, dur, multi_template=True, force_split=fs,
+                            detect_glide=True, detect_modulation=True)
+            r = _attempt_model(m, sid, dur, orig_wl, title, gap_exact=gap_exact, nf=True)
+            if r[0] == 'FULL':
+                return r
         return None
 
     def _try(gap_exact):
