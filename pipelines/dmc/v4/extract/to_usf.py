@@ -186,6 +186,22 @@ def model_to_usf(m: DmcModel) -> UsfFile:
         subtunes.append(MusicSubtune(id=song.id, tempo=song.speed,
                                      voices=voices, init=sub_init))
 
+    # duration-reload leftover priming ($173E-$1740): emitted ONLY when an
+    # off-table freq read actually lands on the durreload rows (flo idx
+    # 247-249 / fhi idx 151-153) — the composer's live `durrel` shadow then
+    # needs the pre-first-event value for voices that haven't fetched yet
+    # (stopped/never-inited voices keep it forever). Members that never read
+    # the window carry no leftover (ML-cleanliness) and their USF is
+    # unchanged.
+    _DURREL_WIN = {151, 152, 153, 247, 248, 249}
+    reads_durrel = any(((off + note) & 0xFF) in _DURREL_WIN
+                       for inst in m.instruments.values()
+                       for off, note, _lo, _hi in
+                       (getattr(inst, 'offtable_freq', []) or []))
+    durrel_fields = ({f'durrel_init{v + 1}': m.durrel_init[v]
+                      for v in range(3)}
+                     if reads_durrel and any(m.durrel_init) else {})
+
     return UsfFile(
         psid=PsidMeta(title=m.title, author=m.author, released=m.released,
                       start_song=m.start_song),
@@ -200,6 +216,8 @@ def model_to_usf(m: DmcModel) -> UsfFile:
             **({'play_repeat': m.play_repeat} if m.play_repeat > 1 else {}),
             # otrk phase-offset scalars (see _otrk_pad)
             **pad_fields,
+            # durreload leftover priming (window-reading members only)
+            **durrel_fields,
             # family-2 build knobs (factory-probed; empty for canon)
             **m.extra_params}),
         # NB idle_guards deliberately NOT emitted yet — the composer's guard

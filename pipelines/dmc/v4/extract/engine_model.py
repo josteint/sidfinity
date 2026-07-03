@@ -141,6 +141,11 @@ class DmcModel:
     idle_notes: tuple = (0, 0, 0)    # $1012-$1014 work-file leftovers
     idle_masks: tuple = (0, 0, 0)    # $100F-$1011 gate-mask leftovers
     idle_guards: tuple = (0, 0, 0)   # $1786-$1788 post-note-guard leftovers
+    durrel_init: tuple = (0, 0, 0)   # $173E-$1740 duration-reload leftovers
+                                     # (init never writes $173E; the leftover
+                                     # is read via off-table freq idx 247-249
+                                     # lo / 151-153 hi until the voice's first
+                                     # event stores its row duration)
                                      # (uncleared until the voice's first
                                      # note-init; sonified by off-table reads)
     title: str = ''
@@ -623,6 +628,9 @@ def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc84') -> DmcModel:
         idle_guards=tuple(pis.get('idle_guards',
                                   (mem[b + 0x786], mem[b + 0x787],
                                    mem[b + 0x788]))),
+        durrel_init=tuple(pis.get('durrel_init',
+                                  (mem[b + 0x73E], mem[b + 0x73F],
+                                   mem[b + 0x740]))),
         dual_phase=pis.get('dual_phase', mem[dp] & 1),
         cia_period=cfg.cia_period,
         play_repeat=cfg.play_repeat,

@@ -76,6 +76,15 @@ DMC_OFFTABLE_STATE = [
     (0x1735, 'accl', 3),     # freq offset accumulator lo (vibrato/glide)
     (0x1738, 'acch', 3),     # freq offset accumulator hi
     (0x173B, 'dur', 3),      # per-voice duration counter (DEC per tick)
+    (0x173E, 'durrel', 3),   # duration reload — the orig's $173E only
+                             # changes at a $80-$BF duration prefix, and
+                             # every row reloads its counter from it, so
+                             # each event's stored duration == the live
+                             # reload; the composer shadows it at every
+                             # `sta dur,x` event site (NOT the init seed —
+                             # orig init writes $173B=1 but never $173E;
+                             # the pre-first-event leftover is primed from
+                             # the durrel_init params via idurl)
     (0x1741, 'glsp', 3),     # glide speed nibble
     (0x1744, 'gla', 3),      # glide start note
     (0x1747, 'glb', 3),      # glide target note
@@ -651,6 +660,8 @@ def compose_dmc_asm(usf: UsfFile) -> str:
     idle = [0, 0, 0]
     imask = [0, 0, 0]
     iguard = [0, 0, 0]
+    idurl = [int(usf.params.fields.get(f'durrel_init{v + 1}', 0)) & 0xFF
+             for v in range(3)]
     for v in usf.init.voices:
         if v.note is not None:
             idle[v.id - 1] = v.note
@@ -689,6 +700,7 @@ def compose_dmc_asm(usf: UsfFile) -> str:
     data.append('inote:\n' + _byt(idle))
     data.append('imask:\n' + _byt(imask))
     data.append('iguard:\n' + _byt(iguard))
+    data.append('idurl:\n' + _byt(idurl))
     data.append('freqlo:\n' + _byt(flo))
     data.append('freqhi:\n' + _byt(fhi))
     # off-table overrun window: the original reads past its freq tables
@@ -865,6 +877,8 @@ ini_v:
         sta gatemask,x
         lda iguard,x                 ; post-note-guard leftover priming
         sta guard,x
+        lda idurl,x                  ; duration-reload leftover priming
+        sta durrel,x                 ; (orig init never writes $173E)
         inx
         cpx #$03
         bne ini_v
@@ -963,14 +977,22 @@ patrd:
         sta $f9
         ldy #$00
         lda ($f8),y
-        cmp #$01
-        beq ev_note
+        cmp #$01                     ; dispatch via JMP trampolines - the
+        bne evd1                     ; handler bodies exceed branch range
+        jmp ev_note
+evd1:
         cmp #$02
-        beq ev_rest
+        bne evd2
+        jmp ev_rest
+evd2:
         cmp #$03
-        beq ev_switch
+        bne evd3
+        jmp ev_switch
+evd3:
         cmp #$04
-        beq ev_slide
+        bne evd4
+        jmp ev_slide
+evd4:
         ; defensive: stray end marker - advance track
         jsr pat_end
         jmp fetch
@@ -990,6 +1012,7 @@ ev_rest:
         ldy #$01
         lda ($f8),y
         sta dur,x
+        sta durrel,x                 ; live $173E shadow
         lda #$02
         jsr adv
         jsr peekend
@@ -999,6 +1022,7 @@ ev_switch:
         ldy #$01
         lda ($f8),y
         sta dur,x
+        sta durrel,x                 ; live $173E shadow
         lda gatemask,x
         eor #$01
         sta gatemask,x
@@ -1021,6 +1045,7 @@ ev_slide:                            ; glide mode 1: current -> target
         iny
         lda ($f8),y                  ; duration
         sta dur,x
+        sta durrel,x                 ; live $173E shadow
         lda #$04
         jsr adv
         jsr peekend
@@ -1043,6 +1068,7 @@ ev_note:
         ldy #$03
         lda ($f8),y                  ; duration
         sta dur,x
+        sta durrel,x                 ; live $173E shadow
         iny
         lda ($f8),y                  ; instrument slot
         sta curinst,x
@@ -1595,6 +1621,7 @@ tmp2:     .dsb 1, 0
 evflags:  .dsb 1, 0
 otrk:     .dsb 3, 0                  ; orig track byte-offset shadow (= $1726)
 wnote:    .dsb 3, 0                  ; orig arp-note shadow (= $1783)
+durrel:   .dsb 3, 0                  ; orig duration-reload shadow (= $173E)
 state_end:
 {hr_test_var}        .byt $00
 """

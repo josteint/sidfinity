@@ -788,6 +788,8 @@ def _build_via_dataflow(sid_path: str, hvsc_root: str):
             'idle_notes': (ram[cn], ram[cn + 1], ram[cn + 2]),
             'idle_masks': (ram[gm], ram[gm + 1], ram[gm + 2]),
             'dual_phase': ram[dp] & 1,
+            'durrel_init': (ram[base + 0x73E], ram[base + 0x73F],
+                            ram[base + 0x740]),
         }
     return cfg
 
