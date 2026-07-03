@@ -84,6 +84,11 @@ DMC_OFFTABLE_STATE = [
     (0x1753, 'pwh', 3),      # pulse width hi
     (0x1762, 'pwphase', 3),  # PW phase index
     (0x1765, 'pwdir', 3),    # PW direction
+    (0x175C, 'pwstep', 3),   # current PW step (phase nibble + base) — live
+                             # shadow written in fx_pulse exactly where the
+                             # orig's $1379 STA runs (guard + freewheel
+                             # frames included); init-wiped on both sides
+                             # (Brendas idx 182 = V2 $175D)
     (0x1768, 'vibdir', 3),   # vibrato direction
     (0x176B, 'vibctr', 3),   # vibrato step counter
     (0x176E, 'rampctr', 3),  # vibrato ramp counter
@@ -1230,6 +1235,8 @@ fx_pulse:
         clc
         adc cpwbase,x                ; + cached base (0 while idling)
         sta tmp
+        sta pwstep,x                 ; live shadow of orig $175C (current PW
+                                     ; step) — off-table hi reads sonify it
         lda pwdir,x
         bne fx_pw_dn
         lda pwl,x
@@ -1545,7 +1552,7 @@ cpwmax:   .dsb 3, 0
 cpwbase:  .dsb 3, 0
 pwphase:  .dsb 3, 0
 pwdir:    .dsb 3, 0
-{hr_test_var}
+pwstep:   .dsb 3, 0
 vibdir:   .dsb 3, 0
 vibctr:   .dsb 3, 0
 rampctr:  .dsb 3, 0
@@ -1580,7 +1587,7 @@ evflags:  .dsb 1, 0
 otrk:     .dsb 3, 0                  ; orig track byte-offset shadow (= $1726)
 wnote:    .dsb 3, 0                  ; orig arp-note shadow (= $1783)
 state_end:
-        .byt $00
+{hr_test_var}        .byt $00
 """
 
 
