@@ -580,6 +580,9 @@ def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc84') -> DmcModel:
     # LOCATES them (cfg.curnote_addr / cfg.gatemask_addr) — fall back to canon.
     cn = cfg.curnote_addr if cfg.curnote_addr is not None else b + 0x12
     gm = cfg.gatemask_addr if cfg.gatemask_addr is not None else b + 0x0F
+    dp = (getattr(cfg, 'dual_parity_addr', None)
+          if getattr(cfg, 'dual_parity_addr', None) is not None
+          else b + 0x19)
     # Leftover priming: prefer the factory's POST-INIT capture (dataflow /
     # re-assembled members whose init may clear these bytes — canon init
     # provably never touches them, so canon has no post_init_state and
@@ -597,7 +600,7 @@ def extract(cfg: DMCV4Config, hvsc_root: str = 'hvsc84') -> DmcModel:
         idle_guards=tuple(pis.get('idle_guards',
                                   (mem[b + 0x786], mem[b + 0x787],
                                    mem[b + 0x788]))),
-        dual_phase=pis.get('dual_phase', mem[b + 0x19] & 1),
+        dual_phase=pis.get('dual_phase', mem[dp] & 1),
         cia_period=cfg.cia_period,
         play_repeat=cfg.play_repeat,
         title=s.get('name', ''), author=s.get('author', ''),

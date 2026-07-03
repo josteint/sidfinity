@@ -50,6 +50,10 @@ class DMCV4Config:
     # (None => fall back to the canon base offset in extract).
     curnote_addr: int = None
     gatemask_addr: int = None
+    # The $40 dual-effect GLOBAL half-rate parity byte (canon $1019). Its
+    # file-image leftover seeds slide_phase; a shifted body moves it
+    # (Staring_at_the_Ceiling: $101A). None => canon base+0x19.
+    dual_parity_addr: int = None
     # Track-loop variant (factory-probed): the canonical player's $FF
     # loops to track position 0; the JSR-$1042 hook variant reads the
     # NEXT track byte as the loop position ($FF nn).

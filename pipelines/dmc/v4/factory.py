@@ -749,11 +749,13 @@ def _build_via_dataflow(sid_path: str, hvsc_root: str):
     if ram is not None:
         cn = cfg.curnote_addr if cfg.curnote_addr is not None else base + 0x12
         gm = cfg.gatemask_addr if cfg.gatemask_addr is not None else base + 0x0F
+        dp = (cfg.dual_parity_addr if cfg.dual_parity_addr is not None
+              else base + 0x19)
         cfg.post_init_state = {
             'd417_shadow': ram[cfg.d417_shadow_addr],
             'idle_notes': (ram[cn], ram[cn + 1], ram[cn + 2]),
             'idle_masks': (ram[gm], ram[gm + 1], ram[gm + 2]),
-            'dual_phase': ram[base + 0x19] & 1,
+            'dual_phase': ram[dp] & 1,
         }
     return cfg
 

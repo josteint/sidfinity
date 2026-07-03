@@ -50,7 +50,13 @@ _CANON_DATA = {'freq_lo': 0x1647, 'freq_hi': 0x16A7,
 # shift), so the extract must LOCATE these, not assume base+0x12 / base+0x0F.
 # Located by the operand of the first canon instruction that references each
 # (curnote: $1168 LDA $1012,x; gatemask: $11E0 STA $100f,x).
-_CANON_STATE = {'curnote': 0x1012, 'gatemask': 0x100F}
+_CANON_STATE = {'curnote': 0x1012, 'gatemask': 0x100F,
+                # the $40 dual-effect GLOBAL half-rate parity (canon $1019,
+                # INC/LDA/STA at $14B1-$14B9). Its file-image leftover seeds
+                # slide_phase; a shifted body moves it (Staring_at_the_Ceiling:
+                # $101A — reading base+0x19 there hits the member's $D417
+                # shadow and mis-seeds the wave-step/slide interleave phase).
+                'dual_parity': 0x1019}
 # the track-loop hook ($10DF): canon STA $1726,x (loop-to-0, track_loop_target
 # =False); a JSR-hook variant reads the next track byte (=True). Located by
 # opcode signature so a moved hook is still classified (verify gate is the net).
@@ -186,5 +192,6 @@ def locate(mem: bytearray, base: int) -> dict | None:
         'freq_lo_addr': data['freq_lo'], 'freq_hi_addr': data['freq_hi'],
         'vibdepth_addr': data['vibdepth'], 'd417_shadow_addr': data['d417'],
         'curnote_addr': state['curnote'], 'gatemask_addr': state['gatemask'],
+        'dual_parity_addr': state['dual_parity'],
         'track_loop_target': track_loop_target,
     }
