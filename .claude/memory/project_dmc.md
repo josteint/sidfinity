@@ -7,6 +7,52 @@ metadata:
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
 ---
 
+## ✅ FAMILY-1 round 18 CLOSEOUT (2026-07-03): deep-tail census → 3 fixes → +215 FULL = 4570/5401 (84.6%) — commits 9c243d7/e596bd7/3d3a930
+CLOSEOUT DONE: batch-harness sweep (1060 = all non-FULL + 14 exposed FULLs) →
+**+215 newly FULL, 0 down** (all exposed FULLs hold); 229 builds mass-written
+(incl. the 14 exposed — data layout changed); dmc_wide_results.jsonl merged
+(full 4570 / partial 615 / unsup 191 / error 25); hvsc84.csv refreshed;
+regression portfolio RE-DERIVED (5 → 6 members, now covers pat:slide);
+full regression green ×2. Fresh flat_divs for the 615 partials are in the
+merged jsonl — next round starts with divergence_census / f1_deep_census on
+them (the deep in_table drift class + the unmapped-addr off-table tail).
+DEEP-TAIL METHOD WIN: built `tmp/f1_deep_census.py` — for each deep (≥4k) freq
+partial, memwatch wnote+curnote AT the divergent write (event index = per-reg
+write count up to flat_div pos) → classify in-table drift vs off-table hit +
+name the state addr. 100-sample: **in_table 59%** (NOT the off-table class!) +
+long heterogeneous off-table addr tail. Three root causes found + landed, full
+regression green, ledger updated:
+1. **Wave-walk 8-bit jump-back UNDERFLOW (C11; engine_model._slice_wave):**
+   marker hop `pos - (byte-$90)` is 8-bit SBC — underflow wraps HIGH
+   (Cool_Compo_Tune: $FF marker at pos $26 → $B7); in-table slicer's negative
+   loop_pos did a Python NEGATIVE slice (extended-table tail garbage), pre-chain
+   variant RAISED wave_marker_chain (13 false rejects). Fix: route both to
+   `_resolve_wave_chain` (existing mod-256 walk). +20 FULL (10 ex-unsupported,
+   2 ex-error), 5 exposed FULLs hold.
+2. **Mode-0 glide under soft-start misrouted to slide (NEW ledger C22):**
+   `_row_event` tested `noretrig and glide` — but mode-0-soft rows carry
+   noretrig TOO; true discriminator adds `NOT glide_to`. Gangstallica: rebuild
+   held old base gliding DOWN where orig rebased to note A gliding UP. **+138
+   FULL** (172 exposed partials verified; 2 exposed FULLs hold — they coincide
+   when prev==A).
+3. **Slide speed-nibble 0 rendered = soft note (C22 2nd occurrence →
+   CANONICALIZED):** $Dx speed 0 = engine "set target, NO note load, hold"
+   (jumps to the REST tail $1174); to_usf suppressed `glide=0` → composer
+   loaded the note early (Apocalypsa octave drop; the Surgeon deep cluster).
+   Fix: slide rows ALWAYS emit glide=N; decoder tests flag PRESENCE. +30 (81
+   exposed; 7 exposed FULLs hold — 2 of them via the batch's mask_only retry;
+   my ad-hoc verify_dmc harness LACKS that retry, initial 'regressions' were
+   harness artifacts).
+CENSUS RESIDUE (next rounds): remaining in_table deep = per-member drift
+(Apocalypsa/Shudder 2nd blocker = a hold-gate-off adsr-clear asymmetry, dur
+check order — UNRESOLVED, look there first); off-table map-row candidates:
+$1718 spdctr / $1719-$171A fstep+fframe / $1720 filter-claim (composer already
+models them), notectr+dur+gla rows, hi_table(static) hits (should be capturable
+— why aren't they?), CIA skipped 9. NB parallel basic_program session live in
+the tree (src/usf cutoff_lo changes = theirs, additive) — commits file-scoped.
+CLOSEOUT PENDING: tmp/f1_r18_sweep.jsonl (batch harness, 1060 = all non-FULL +
+14 exposed FULLs) → merge → mass-write → DB → portfolio re-derive.
+
 ## ✅ FAMILY-1 rounds 16/17 CLOSEOUT (2026-07-03): +79 recovery sweep → 4355/5401 = 80.6% — commit 8831188
 The all-partials sweep (893) under round-16/17 code recovered **+79 FULL**
 (long-orderlist partials fixed by the 16-bit track pointer + exact inst-offset
