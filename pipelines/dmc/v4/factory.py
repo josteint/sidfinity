@@ -22,6 +22,7 @@ dual parity, record-0 wave_start with an idling voice).
 from __future__ import annotations
 
 import os
+import re
 
 from pipelines.dmc.v4.config import DMCV4Config
 from pipelines.dmc.engine_constants import VIBDEPTH
@@ -636,6 +637,33 @@ def _hr_patch_probe(path: str, base: int):
     return None
 
 
+_HOLD_BRANCH = re.compile(rb'\x29\x10\xF0\x0E\xBD..\xC9\x01\xD0\x13\xA9\xFE\x20(..)')
+
+
+def _hold_gateoff_probe(path: str):
+    """Holding gate-off variant probe (STATIC, opcode-shape — layout-blind).
+    A widespread editor build (Surgeon / Imaic / Rio / Taxim / Phobos /
+    Behdad_Arman, 660+ carriers) patches ONE byte in sub_17EC: $17EF BC->60,
+    turning `gate mask + AD/SR=$00` into `gate mask / RTS` — i.e. the
+    composer's hold_gateoff='mask_only' semantics as a 1-byte wedge (C19).
+    Locate the holding branch (`AND #$10 / BEQ / LDA dur,x / CMP #$01 /
+    BNE / LDA #$FE / JSR T`), follow the JSR, require the gate-mask STA
+    abs,x at T, and classify the next opcode: $BC (LDY -> clear) = canon,
+    $60 (RTS) = mask_only. Returns 'mask_only' or None (canon / not found).
+    NB: unlike a write-stream scan this cannot false-negative on
+    late-gate-off members — it reads the patched instruction itself. The
+    batch's frames_clear_adsr retry stays as the fallback for members this
+    shape probe misses."""
+    mem, _ = _load(path)
+    m = _HOLD_BRANCH.search(bytes(mem))
+    if not m:
+        return None
+    t = m.group(1)[0] | (m.group(1)[1] << 8)
+    if mem[t] == 0x9D and mem[t + 3] == 0x60:
+        return 'mask_only'
+    return None
+
+
 def _d418_play_wrapper(path: str, base: int):
     """$D418 play-vector wrapper probe: the PSID play address points at
     `LDA #imm / STA $D418 / JMP base+3` (PVCF / Zyron / Signor) — a constant
@@ -654,10 +682,11 @@ def dmc_v4_config(sid_path: str, hvsc_root: str = 'hvsc84') -> DMCV4Config:
     """Primary canonical-layout build; on a moved-layout rejection, fall back
     to the layout-independent dataflow extractor (pipelines.dmc.v4.dataflow).
 
-    hold_gateoff (mask_only vs adsr_clear) is NOT decided here — the reliable
-    detection needs a FULL-songlength orig scan, which the verify batch does by
-    reusing its orig capture (see frames_clear_adsr); a bounded factory probe
-    false-negatives on late-gate-off members and regresses FULLs."""
+    hold_gateoff: the STATIC opcode probe (_hold_gateoff_probe) detects the
+    1-byte sub_17EC patch ($17EF BC->60 = mask_only) directly — it reads the
+    patched instruction, so it cannot false-negative on late-gate-off members
+    (unlike a bounded write-stream scan). The verify batch's frames_clear_adsr
+    mask_only retry remains as the fallback for shapes the probe misses."""
     try:
         cfg = _build_via_canon(sid_path, hvsc_root)
     except DMCV4Unsupported as e:
@@ -677,6 +706,9 @@ def dmc_v4_config(sid_path: str, hvsc_root: str = 'hvsc84') -> DMCV4Config:
     dp = _d418_play_wrapper(os.path.join(hvsc_root, sid_path), cfg.base)
     if dp is not None:
         cfg.extra_params['d418_every_play'] = dp
+    hg = _hold_gateoff_probe(os.path.join(hvsc_root, sid_path))
+    if hg is not None:
+        cfg.extra_params['hold_gateoff'] = hg
     return cfg
 
 
