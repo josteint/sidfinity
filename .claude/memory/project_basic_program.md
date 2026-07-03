@@ -1,6 +1,6 @@
 ---
 name: project_basic_program
-description: "Basic_Program family (486 RSID-BASIC tunes) — PRODUCTIONIZED round-trip: 455/486 (93.6%) FULL; NORMAL FORM stages 1-3 (189 NF: order decls + typed init.sid + merged tracker rows; 266 legacy); mass-written + regression"
+description: "Basic_Program family (486 RSID-BASIC tunes) — PRODUCTIONIZED round-trip: 455/486 (93.6%) FULL; NORMAL FORM COMPLETE stages 1-4 (189 NF: params = bp + loop_to + order decls ONLY; 266 legacy); mass-written + regression"
 metadata: 
   node_type: memory
   type: project
@@ -539,6 +539,14 @@ tmp: 39/60 legacy sample = pre-existing stage-2 conflicts, 15 build_fail + 4 div
 (not done): nudge colliding tick onsets ±1; per-PATTERN order-decl scoping for the 81 order-conflict tunes; census
 the 57 lost members for a shared lever. STAGE 4 REMAINS: bp_rho_milli → composer (derive from clock), bp_mod_* →
 typed C1 sweep form, bp_songend → typed, bp_legato/bp_atk_n/bp_rel_n cleanup — then params is ONLY bp + order decls.
+
+**✅ NORMAL FORM STAGE 4 (2026-07-03): params minimized (455 held, 189 NF).** NF params are now ONLY `bp`,
+`bp_loop_to` and the order declarations: bp_rho_milli DERIVED (measure_rho(clock) — a composer timing constant,
+cached per clock); bp_legato DERIVED from the decls (legato ≡ no release parts and no 'z' flags); bp_atk_n/rel_n
+gone; bp_songend → readable string `bp_song_end: "vol=$00 v3_ctrl=$00"`; sweep programs → readable strings
+`bp_sweep{v}_values: "$80 $84 ..."` + `bp_sweep{v}_sections: "off:lenxrep ..."` (+ bp_mod_start/inc only when
+present). Legacy files keep all packed forms (reader supports both). NOTE: Cascading regressed NF→legacy at some
+stage (its NF chain lacks detect_modulation) — recovery-round item.
 
 **(superseded plan note)** The user flagged the params block as
 anti-ML (packed ints) — review confirmed it is representation-principle §3 FAILURE MODE B (the USF carrying a

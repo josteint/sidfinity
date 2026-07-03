@@ -529,31 +529,51 @@ def model_to_usf(model, title='bp', gap_exact=False, nf=False):
     # bp_start_frame is GONE (user policy 2026-07-02): the start-cap normalizes
     # every tune to start at frame 0 — no leading silence in the USF, same
     # structure as the other engine families (the reader defaults to 0).
-    fields = {'bp': 1, 'bp_legato': int(model['legato']),
-              'bp_loop_to': model['loop_to'] if model['loop_to'] is not None else -1,
-              'bp_rho_milli': round(model['rho'] * 1000),
-              'bp_atk_n': len(atk), 'bp_rel_n': len(rel)}
+    fields = {'bp': 1,
+              'bp_loop_to': model['loop_to'] if model['loop_to'] is not None else -1}
+    if not nf:
+        # NF derives these: legato from the declarations (no release parts, no
+        # 'z' flags), rho from the clock (a composer timing constant, not
+        # per-tune content), template counts are gone entirely.
+        fields['bp_legato'] = int(model['legato'])
+        fields['bp_rho_milli'] = round(model['rho'] * 1000)
+        fields['bp_atk_n'] = len(atk); fields['bp_rel_n'] = len(rel)
     if not nf:
         fields['bp_loop_period'] = model['loop_period']
         fields['bp_init_n'] = len(model['init'])
         for i, (reg, val) in enumerate(model['init']):
             fields[f'bp_init{i}'] = (reg << 8) | (val & 0xFF)
     song_end = model.get('song_end') or []             # song-end silence (bookend of init)
-    fields['bp_songend_n'] = len(song_end)
-    for i, (reg, val) in enumerate(song_end):
-        fields[f'bp_songend{i}'] = (reg << 8) | (val & 0xFF)
+    if nf:
+        if song_end:
+            from pipelines.basic_program import normal_form as NF
+            if any(r not in NF.REG_TOK for r, v in song_end):
+                raise ValueError('nf_conflict')
+            fields['bp_song_end'] = ' '.join(f'{NF.REG_TOK[r]}=${v:02X}' for r, v in song_end)
+    else:
+        fields['bp_songend_n'] = len(song_end)
+        for i, (reg, val) in enumerate(song_end):
+            fields[f'bp_songend{i}'] = (reg << 8) | (val & 0xFF)
     pw_program = model.get('pw_program') or {}          # per-voice PW sweep PROGRAM (C1 orderlist)
-    fields['bp_pwprog_voices'] = sum(1 << (vc - 1) for vc in pw_program)   # bitmask of modulated voices
-    fields['bp_mod_start'] = model.get('mod_start', 0)  # play-frame the sweep begins
-    fields['bp_mod_inc'] = model.get('mod_inc', 0)      # fractional tick rate (per play, /256)
-    for vc, (tab, secs) in pw_program.items():
-        fields[f'bp_pwprog{vc}_ntab'] = len(tab)        # value table (4 bytes per int)
-        for i in range((len(tab) + 3) // 4):
-            ch = (tab[4 * i:4 * i + 4] + [0, 0, 0, 0])[:4]
-            fields[f'bp_pwprog{vc}_t{i}'] = (ch[0] << 24) | (ch[1] << 16) | (ch[2] << 8) | ch[3]
-        fields[f'bp_pwprog{vc}_nsec'] = len(secs)       # sections: (offset, period_len, repeats)
-        for i, (off, ln, rep) in enumerate(secs):
-            fields[f'bp_pwprog{vc}_s{i}'] = (off << 16) | (ln << 8) | rep
+    if nf:
+        if pw_program:
+            fields['bp_mod_start'] = model.get('mod_start', 0)
+            fields['bp_mod_inc'] = model.get('mod_inc', 0)
+            for vc, (tab, secs) in pw_program.items():
+                fields[f'bp_sweep{vc}_values'] = ' '.join(f'${b:02X}' for b in tab)
+                fields[f'bp_sweep{vc}_sections'] = ' '.join(f'{off}:{ln}x{rep}' for off, ln, rep in secs)
+    else:
+        fields['bp_pwprog_voices'] = sum(1 << (vc - 1) for vc in pw_program)   # bitmask of modulated voices
+        fields['bp_mod_start'] = model.get('mod_start', 0)  # play-frame the sweep begins
+        fields['bp_mod_inc'] = model.get('mod_inc', 0)      # fractional tick rate (per play, /256)
+        for vc, (tab, secs) in pw_program.items():
+            fields[f'bp_pwprog{vc}_ntab'] = len(tab)        # value table (4 bytes per int)
+            for i in range((len(tab) + 3) // 4):
+                ch = (tab[4 * i:4 * i + 4] + [0, 0, 0, 0])[:4]
+                fields[f'bp_pwprog{vc}_t{i}'] = (ch[0] << 24) | (ch[1] << 16) | (ch[2] << 8) | ch[3]
+            fields[f'bp_pwprog{vc}_nsec'] = len(secs)       # sections: (offset, period_len, repeats)
+            for i, (off, ln, rep) in enumerate(secs):
+                fields[f'bp_pwprog{vc}_s{i}'] = (off << 16) | (ln << 8) | rep
     def _kind(e):                                      # 2 = from instrument; 3 = from global track
         if e[1] == 'perstep' and e[0] in GLOBAL_TRACK:
             return 3
@@ -566,7 +586,6 @@ def model_to_usf(model, title='bp', gap_exact=False, nf=False):
         # changed freq bytes, glide fx, instrument changes, tie/no_release,
         # global-track events); every VALUE is musical (pitch / instrument /
         # global track). No templates, no tids, no masks.
-        fields['bp_atk_n'] = 0; fields['bp_rel_n'] = 0
         for sig, dc in sorted(nf_decls.items()):
             fields[f'bp_order_{sig}'] = dc
     elif multi:
@@ -632,10 +651,10 @@ def usf_to_model(usf):
     atk = []; rel = []
     def _pvoice(reg, kind):                            # inst slots voice-tied; else freq-voice / voiceless
         return REG_VOICE.get(reg) if kind == 'inst' else VOICE_OF.get(reg)
-    for i in range(f['bp_atk_n']):
+    for i in range(f.get('bp_atk_n', 0)):
         x = f[f'bp_atk{i}']; reg = x >> 16; kind = _KINDS[(x >> 8) & 0xFF]
         atk.append((reg, kind, (x & 0xFF) if kind == 'const' else None, _pvoice(reg, kind)))
-    for i in range(f['bp_rel_n']):
+    for i in range(f.get('bp_rel_n', 0)):
         x = f[f'bp_rel{i}']; reg = x >> 16; kind = _KINDS[(x >> 8) & 0xFF]
         rel.append((reg, kind, (x & 0xFF) if kind == 'const' else None, _pvoice(reg, kind)))
     multi_t = None
@@ -657,8 +676,21 @@ def usf_to_model(usf):
         init_typed = True
     song_end = [((f[f'bp_songend{i}'] >> 8) & 0xFF, f[f'bp_songend{i}'] & 0xFF)
                 for i in range(f.get('bp_songend_n', 0))]
+    if not song_end and isinstance(f.get('bp_song_end'), str):
+        from pipelines.basic_program import normal_form as NF2
+        song_end = [(NF2.TOK_REG[t.split('=')[0]], int(t.split('=$')[1], 16))
+                    for t in f['bp_song_end'].split()]
     pw_program = {}                                     # modulation sweep program (ch 1-3 = PW, 4 = filter)
     for vc in (1, 2, 3, 4):
+        if isinstance(f.get(f'bp_sweep{vc}_values'), str):
+            tab = [int(x.lstrip('$'), 16) for x in f[f'bp_sweep{vc}_values'].split()]
+            secs = []
+            for tok in f[f'bp_sweep{vc}_sections'].split():
+                off, _, lr = tok.partition(':')
+                ln, _, rep = lr.partition('x')
+                secs.append((int(off), int(ln), int(rep)))
+            pw_program[vc] = (tab, secs)
+            continue
         if f.get('bp_pwprog_voices', 0) & (1 << (vc - 1)):
             ntab = f[f'bp_pwprog{vc}_ntab']; tab = []
             for i in range((ntab + 3) // 4):
@@ -702,7 +734,15 @@ def usf_to_model(usf):
     nf_decls = {k[len('bp_order_'):]: v for k in list(f)
                 if isinstance(k, str) and k.startswith('bp_order_')
                 for v in (f[k],)}
-    gated = (not bool(f['bp_legato'])) if (multi_t or nf_decls) else len(rel) > 0
+    if 'bp_legato' in f:
+        legato = bool(f['bp_legato'])
+    elif nf_decls:
+        # derive: a gated tune has release decl parts or 'z' (no-release) flags
+        legato = not (any(v.partition(' / ')[2].strip() for v in nf_decls.values())
+                      or any('z' in k for k in nf_decls))
+    else:
+        legato = False
+    gated = (not legato) if (multi_t or nf_decls) else len(rel) > 0
     per_step = 2 if gated else 1                       # gated row pair: note(hold)+rest(gap)
     aps = [e[0] for e in atk if e[1] == 'perstep']; rps = [e[0] for e in rel if e[1] == 'perstep']
     nsteps = 0 if nf_decls else (min(len(r) for r in vrows.values()) // per_step)
@@ -960,8 +1000,10 @@ def usf_to_model(usf):
             'rel_ps': [e[0] for e in rel_o if e[1] == 'perstep'],
             'loop_to': None if f['bp_loop_to'] < 0 else f['bp_loop_to'],
             'loop_period': f.get('bp_loop_period', nf_loop_period),
-            'rho': f['bp_rho_milli'] / 1000.0,
-            'clock': usf.psid.clock, 'masked': True, 'legato': bool(f['bp_legato']),
+            'rho': (f['bp_rho_milli'] / 1000.0 if 'bp_rho_milli' in f else
+                    __import__('pipelines.basic_program.proof_multivoice',
+                               fromlist=['measure_rho']).measure_rho(usf.psid.clock or 'PAL')),
+            'clock': usf.psid.clock, 'masked': True, 'legato': legato,
             'multi': multi_o,
             'song_end': song_end, 'pw_program': pw_program, 'mod_start': mod_start, 'mod_inc': mod_inc}
 
