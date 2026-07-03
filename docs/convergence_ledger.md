@@ -412,6 +412,15 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
   wrap threshold are byte-identical (no change), so it can only fix, never
   regress. ALWAYS read the indexing instruction (is it `,Y`/`,X` 8-bit, or a
   16-bit pointer?) before trusting a `base + i*stride` extract.
+- **⚠️ REFINEMENT (2026-07-03, DMC family-1 round 16):** `& 0xFF` models the
+  wrap ONLY when the engine multiplies in one step. When the offset is an ADD
+  CHAIN with a single CLC (DMC v4 `$1213`: CLC/ASL×3/ADC #n ×3), an
+  INTERMEDIATE ADC's carry-out feeds the NEXT add — the result is NOT
+  `(n*stride) & 0xFF` (DMC iid 26: chain gives $1F, mod-256 gives $1E; every
+  iid ≥ 26 is +1, ≥ 52 +2). EMULATE THE EXACT INSTRUCTION SEQUENCE, don't
+  algebraize it. The mod-256 model validated on iid 24-25 where the two
+  coincide — validate a wrap model on an entry PAST the first intermediate
+  carry, not just past the wrap threshold.
 - **TELL / how it presents:** the orig appears to read "out-of-range / garbage"
   data and the SID seems "broken" — but a real packer does NOT emit broken SIDs.
   When a trace shows an out-of-range/garbage read, SUSPECT THE EXTRACTOR (8-bit

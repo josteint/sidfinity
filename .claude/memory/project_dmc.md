@@ -7,6 +7,34 @@ metadata:
   originSessionId: c83d6f65-8c2c-42bb-8f55-d46a1994efb2
 ---
 
+## ✅ FAMILY-1 round 16 (2026-07-03): exact inst-offset chain + 16-BIT TRACK POINTER (+1 now, 4277/5401; sweeps queued) — commit d99fe19
+Two exactness/capacity fixes from the V1sr class dig (heterogeneous bucket — 
+only Techno shared the cause; 4 others still open, per-member):
+(a) **instrument offset ≠ (iid*11)&0xFF** — the canon chain (CLC/ASL×3/ADC×3,
+one CLC) propagates an INTERMEDIATE ADC carry into the next add: iid≥26 = +1
+(≥52 +2) vs mod-256. The Hardcore-era fix validated on iid 24-25 where the
+models coincide. Now emulated exactly in `_decode_instrument`. Techno FULL.
+Ledger C11 REFINED (emulate the instruction sequence, don't algebraize).
+(b) **round-9 LATENT: 3-byte track entries broke the 8-bit track index** past
+85 orderlist entries (`ldy trkpos,x` wraps; loop tail `(loop_to*3)&0xFF`
+masked). Exposed as a stale-FULL palimpsest: Happy_Hour (V1 198 entries,
+loop@99) verified via its PRE-round-9 stored build but current code failed it
+at the wrap (~write 108k, V1 misses the loop-boundary hard restart while
+V2/V3 continue). **727 FULLs carry >85-entry orderlists = all latently
+non-reproducible since round 9.** FIX: trkpl/trkph = 16-bit RUNNING entry
+pointer (pat_end +=3 w/ carry; $FF loop tail = `.byt $FF, <(lbl+n*3),
+>(lbl+n*3)` label arithmetic; trkpos deleted). Gate: 82-member stratified
+sample (40 long-orderlist + 18 inst-26-exposed + recent classes + the
+1532/1032-entry extremes) 0 regr; full regression green. QUEUED (running,
+tmp/f1_round16_sweeps.py): (A) all-727 re-verify + rewrite, (B) ALL-partials
+recovery sweep (long-orderlist partials may flip — Happy_Hour-like cases in
+the "deep tail"; also refreshes flat_div for clustering). DIAGNOSIS PATH:
+Happy_Hour's regression was blamed on my inst fix → USF diff exonerated it
+(only otrk_period/filter-prog params differed) → param bisect exonerated
+THOSE → divergence context (all-voice hard restart missed at the song loop)
+pointed at the track runtime. Lesson: attribute a re-extract regression by
+USF-DIFF + param-bisect BEFORE blaming the newest change.
+
 ## ✅ FAMILY-1 round 15 (2026-07-03): dual-parity address on shifted bodies (+27, 4276/5401 = 79.2%) — commit 9c2fa6c
 The pos~16 class (rep Staring_at_the_Ceiling) + most remaining Psych858o
 early/deep partials = ONE extract bug: the Psych858o sub-family is the
