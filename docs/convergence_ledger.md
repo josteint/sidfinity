@@ -80,6 +80,7 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
 | per-frame WRITE-ORDER differs · orig batches note-on writes (SR/AD/CTRL) separately from wave-step writes (freq/PW/CTRL) or uses a different voice interleave · rebuild emits a different order · NOT a wholesale composer rewrite — PARAMETRIZE the composer's EMISSION order (precedent: FC `nextvoice_write_order`) | C16 | logged |
 | HETEROGENEOUS per-step write shapes in a trace-lift · one superset order can't embed all steps (conflicting reg orders / intra-step dups / sections) · cluster steps by EXACT write shape → K positional templates + per-step template id | C17 | logged |
 | play-vector WRAPPER with per-call PHASE behaviour · slow-tempo / multispeed-effects cycler · every Nth call runs the full play, others run effects-only / register-refresh / nothing · wrapper shapes vary (SMC, DEC+dual-JMP, parity AND) — OBSERVE entry-point reachability under py65, don't parse | C18 | logged |
+| hand-patched player WEDGE inside the canon body · SMC opcode toggle · JMP over canonical loads · runtime state ≠ static file byte · fingerprint + census carriers · reproduce semantics behind a factory-probed param | C19 | logged |
 
 ---
 
@@ -760,3 +761,35 @@ revisited ONLY around Move 1, when most/all engines are uready — not before.
 - **Consumers:** DMC v4 `factory._observe_play_phases` + `composer_asm`
   play_phases dispatcher. Sibling of C9 (measure, don't parse) — C9 measures
   from the libsidplayfp writelog, C18 from py65 entry-point reachability.
+
+### C19 — Hand-patched player wedge (SMC opcode toggle / skipped-load variants)
+- **Canonical:** a scene-circle "editor mod" ships a CANON player with a few
+  BYTE-LEVEL WEDGES (a JMP over 2-3 canonical loads, a JSR re-pointed through
+  a stub, a store retargeted at another instruction's OPCODE = an SMC toggle).
+  Diagnose with the divergence recipe, then: (1) dump the ORIG's bytes at the
+  canon site the disassembly says produces the diverging write — a wedge shows
+  as a changed opcode (`JMP` where canon has `LDA abs,y`); (2) fingerprint the
+  wedge bytes base-relative and CENSUS the whole family for carriers (both to
+  size the class and to prove 0-FULL regression exposure); (3) reproduce the
+  wedge's SEMANTICS in the composer behind a factory-probed boolean param —
+  e.g. `hr_patch`: PW step base never loaded + phase/dir persist + the
+  hard-restart TEST write gated by a global flag toggled per note-init from
+  the instrument's $04 flag (the orig toggles the STA/LDA opcode at $17FB;
+  the composer keeps an explicit `hrtest` byte primed from the file-image
+  opcode). Reproduce state-machine EFFECTS, never the SMC mechanism.
+- **Trap:** the file-image state of the toggled byte differs per member (save
+  moment) — it is PRIMING, so capture it as a param (`hr_test_init`), don't
+  assume a constant.
+- **Diagnosis tell:** runtime state ≠ file-image table byte while taint_source
+  says the byte is STATIC ⇒ the READ SITE differs from canon — dump the
+  operand/opcode at the canon site.
+- **Status:** logged (DMC family-1 round 13, 2026-07-03: 24-member
+  The_Syndrom/Tragic_Error/Gaston class, +23 FULL, commit 193bbbc).
+- **Consumers:** DMC v4 `factory._hr_patch_probe` + composer_asm
+  hr_patch/hr_test_init gating. Sibling of C18 (wrapper OUTSIDE the player) —
+  C19 is patches INSIDE the canon body. The round-14 $D418 play-vector prefix
+  (`LDA #imm/STA $D418/JMP base+3`, factory `_d418_play_wrapper` →
+  `d418_every_play`, +6 FULL, commit efbf639) is the degenerate stateless
+  case: a wrapper with NO phase behaviour — probe the PSID play vector's
+  target shape whenever a member's play ≠ base+3 OR the JT entry target ≠ the
+  canon play body.
