@@ -425,8 +425,14 @@ def _slice_wave(ctrl_tab: list, freq_tab: list, start: int, n_inbound=None):
     guard = 0
     while start < n and ctrl_tab[start] >= 0x90:
         back = ctrl_tab[start] - 0x90
-        if back == 0 or start - back < 0:
+        if back == 0:
             raise RuntimeError(f'unsupported:wave_marker_chain @{start}')
+        if start - back < 0:
+            # the engine's SBC is 8-bit: the hop UNDERFLOWS and wraps to a
+            # high position in the 256-byte read window (Cool_Compo_Tune:
+            # marker $FF at pos $26 -> $B7). Resolve by simulating the
+            # mod-256 walk over the extended window.
+            return _resolve_wave_chain(ctrl_tab, freq_tab, start)
         start -= back
         guard += 1
         if guard > 64:
@@ -444,6 +450,12 @@ def _slice_wave(ctrl_tab: list, freq_tab: list, start: int, n_inbound=None):
         return ctrl, freq, max(0, len(ctrl) - 1)
     back = ctrl_tab[end] - 0x90
     loop_pos = end - back
+    if loop_pos < 0:
+        # 8-bit underflow: the engine wraps to a high window position and
+        # keeps playing from there (NOT a Python negative slice — that read
+        # the extended table's TAIL, garbage far past the real window).
+        # Simulate the mod-256 walk instead (family-1 deep-tail round 18).
+        return _resolve_wave_chain(ctrl_tab, freq_tab, start)
     if loop_pos >= start:
         return (ctrl_tab[start:end], freq_tab[start:end], loop_pos - start)
     # loop target before the start: cycle = [loop_pos..end-1]; the
