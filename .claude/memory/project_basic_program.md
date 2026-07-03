@@ -560,6 +560,16 @@ PATTERNS — split each voice's rows at section boundaries into multiple Pattern
 from the round-trip (was blanket build_fail), NF detect_modulation attempts (Cascading still blocked on the
 init-boundary probe), reader tick-collision nudge (no adoption change — collisions weren't binding).
 
+**✅ NF RECOVERY ROUND 2 (2026-07-03): tagged conflicts + global-repoke fix (189→199 NF, 455 held).** Writer
+conflict rules now raise DISTINCT reasons (nf_order_conflict / nf_global_repoke / nf_ghost_voice / nf_rel_timbre /
+nf_pure_global / nf_unknown_reg / nf_tick_* / nf_same_onset). TAGGED CENSUS (266): order_conflict 89 /
+global_repoke 61 / missing_sig 34 / grid_collision 27 / unknown-reg-in-init 13 / diverge 11 / pure_global 10 /
+too_few 9 / init_state_diff 7. FIX SHIPPED: the NF global track records WRITTEN fields (an unchanged re-poke is a
+real per-note write, e.g. master-vol re-asserted — the Devils_Galop idiom); legacy stays change-only. +10 NF
+(Deutschlandlied class; the rest of the 61 hit their NEXT conflict — layered failures). REMAINING LADDER:
+sections-as-patterns (68 sectioned order-conflicts; design recorded above), reader asymmetries (missing_sig 34 +
+grid_collision 27), honest residue (94 interleaved orders, pure_global 10, $D419+ init writers 13).
+
 **(superseded plan note)** The user flagged the params block as
 anti-ML (packed ints) — review confirmed it is representation-principle §3 FAILURE MODE B (the USF carrying a
 per-tune engine program; "complete but unlearnable"). DERIVABILITY CENSUS (tmp/bp_census_derivable.py, 277 FULLs):

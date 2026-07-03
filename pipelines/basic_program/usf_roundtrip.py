@@ -314,8 +314,6 @@ def model_to_usf(model, title='bp', gap_exact=False, nf=False):
                     changed.add(reg)
                 for f2, v2 in fv.items():
                     _rg[f2] = v2
-            if set(written) != changed:
-                raise ValueError('nf_conflict')
             nf_gregs.append(tuple(written))
         _ph = {vc: 0 for vc in voices}; _pl = {vc: 0 for vc in voices}
         for _r, _v in model['init']:
@@ -386,7 +384,7 @@ def model_to_usf(model, title='bp', gap_exact=False, nf=False):
                     if nf:
                         if (creg in atk_d or creg in rel_d or
                                 any(r in atk_d for r in (FHI[vc], FLO[vc]))):
-                            raise ValueError('nf_conflict')  # voice event invisible to rows
+                            raise ValueError('nf_ghost_voice')  # voice event invisible to rows
                         continue                            # plain rest: no event
                     vrows[vc].append(NoteRow(pitch=Pitch.rest(), duration=hold))
             else:
@@ -428,16 +426,16 @@ def model_to_usf(model, title='bp', gap_exact=False, nf=False):
         if nf:
             from pipelines.basic_program import normal_form as NF
             if not ctx and nf_gregs[kk]:
-                raise ValueError('nf_conflict')        # pure-global step: no row anchor
+                raise ValueError('nf_pure_global')     # pure-global step: no row anchor
             ctx['globals'] = nf_gregs[kk]
             sig = NF.step_sig(ctx)
             a_regs = tuple(r for r, v in s['attack'])
             r_regs = tuple(r for r, v in (s['release'] or []))
             if any(r not in NF.REG_TOK for r in a_regs + r_regs):
-                raise ValueError('nf_conflict')
+                raise ValueError('nf_unknown_reg')
             dc = NF.regs_to_decl(a_regs, r_regs)
             if nf_decls.setdefault(sig, dc) != dc:
-                raise ValueError('nf_conflict')        # same event type, different order
+                raise ValueError('nf_order_conflict')  # same event type, different order
     if nf:
         # ---- STAGE 3: true tracker rows from the event streams ----
         # Per voice: note rows (duration = sounding hold; a glide head's duration
@@ -454,11 +452,11 @@ def model_to_usf(model, title='bp', gap_exact=False, nf=False):
                 if ev['kind'] == 'note' and ev.get('glide_n'):
                     n = ev['glide_n']; ticks = evs[i + 1:i + 1 + n]
                     if len(ticks) != n or any(t['kind'] != 'tick' for t in ticks):
-                        raise ValueError('nf_conflict')
+                        raise ValueError('nf_tick_shape')
                     ev = dict(ev, span=ticks[-1]['on'] - ev['on'])
                     i += n
                 elif ev['kind'] == 'tick':
-                    raise ValueError('nf_conflict')    # orphan tick
+                    raise ValueError('nf_tick_orphan')
                 out.append(ev); i += 1
             nf_events[vc] = out
         grid_end = max((ev['on'] + (ev.get('hold') or ev.get('span') or 0)
@@ -470,7 +468,7 @@ def model_to_usf(model, title='bp', gap_exact=False, nf=False):
             cum = 0
             for j, ev in enumerate(nf_events[vc]):
                 if ev['on'] < cum:
-                    raise ValueError('nf_conflict')    # same-onset events on one voice
+                    raise ValueError('nf_same_onset')  # same-onset events on one voice
                 if ev['on'] > cum:
                     vrows[vc].append(NoteRow(pitch=Pitch.rest(), duration=ev['on'] - cum))
                     cum = ev['on']
@@ -520,7 +518,10 @@ def model_to_usf(model, title='bp', gap_exact=False, nf=False):
                   {'res': d[reg] >> 4, 'route': d[reg] & 0xF} if reg == 0x17 else
                   {'mode': d[reg] >> 4, 'dyn': d[reg] & 0xF})
             for f, v in fv.items():
-                if run_g.get(f) != v:
+                # NF: the track records WRITTEN fields (an unchanged re-poke is a
+                # real write the program makes — e.g. master-vol re-asserted per
+                # note); legacy stays change-only (masks carry presence there).
+                if nf or run_g.get(f) != v:
                     run_g[f] = v; chg[f] = v
         if chg:
             gtrack.append(GlobalEvent(step=k, **chg))
@@ -548,7 +549,7 @@ def model_to_usf(model, title='bp', gap_exact=False, nf=False):
         if song_end:
             from pipelines.basic_program import normal_form as NF
             if any(r not in NF.REG_TOK for r, v in song_end):
-                raise ValueError('nf_conflict')
+                raise ValueError('nf_unknown_reg')
             fields['bp_song_end'] = ' '.join(f'{NF.REG_TOK[r]}=${v:02X}' for r, v in song_end)
     else:
         fields['bp_songend_n'] = len(song_end)
