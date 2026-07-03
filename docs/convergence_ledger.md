@@ -81,7 +81,7 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
 | HETEROGENEOUS per-step write shapes in a trace-lift · one superset order can't embed all steps (conflicting reg orders / intra-step dups / sections) · cluster steps by EXACT write shape → K positional templates + per-step template id | C17 | logged |
 | play-vector WRAPPER with per-call PHASE behaviour · slow-tempo / multispeed-effects cycler · every Nth call runs the full play, others run effects-only / register-refresh / nothing · wrapper shapes vary (SMC, DEC+dual-JMP, parity AND) — OBSERVE entry-point reachability under py65, don't parse | C18 | logged |
 | TRICHOTOMY VERDICT alignment · rebuild emits its OWN init (universal reset+priming) so streams differ by an init prefix · Check A end-of-init state + aligned play-stream compare · TWO implementations exist: `verify_cycle._trichotomy_compare` (FC, shift recovery) + `usf_roundtrip._compare_music/_split_aligned` (basic_program, known-init-length + probe search) — CONSULT MISS, factor at Move 1 | C21 | factor-candidate (2×) |
-| hand-patched player WEDGE inside the canon body · SMC opcode toggle · JMP over canonical loads · runtime state ≠ static file byte · fingerprint + census carriers · reproduce semantics behind a factory-probed param | C19 | logged |
+| hand-patched player WEDGE inside the canon body · SMC opcode toggle · 1-byte opcode patch · JMP over canonical loads · runtime state ≠ static file byte · STATIC opcode probe, never a bounded stream scan · census carriers both sides · reproduce semantics behind a factory-probed param | C19 | canonicalized (2×) |
 | stale-FULL palimpsest · recorded 'full' the current code can't reproduce · hides members from residue censuses · verify the STORED build first, then USF-diff/param-bisect to attribute · never mass-write with code that didn't produce the verdict | C20 | canonicalized |
 | AMBIGUOUS round-trip flag encoding · two distinct engine ops render to OVERLAPPING USF flag sets · the decoder's branch test uses a SUBSET of the discriminator → misroutes one op onto the other's path · matches for most content (paths coincide when inputs coincide), diverges on the distinguishing case | C22 | canonicalized (2×) |
 
@@ -841,10 +841,26 @@ revisited ONLY around Move 1, when most/all engines are uready — not before.
 - **Diagnosis tell:** runtime state ≠ file-image table byte while taint_source
   says the byte is STATIC ⇒ the READ SITE differs from canon — dump the
   operand/opcode at the canon site.
-- **Status:** logged (DMC family-1 round 13, 2026-07-03: 24-member
-  The_Syndrom/Tragic_Error/Gaston class, +23 FULL, commit 193bbbc).
+- **Status:** CANONICALIZED (2 occurrences, DMC family-1 rounds 13 + 19,
+  2026-07-03). Canonical form: STATIC opcode probe (read the patched
+  instruction itself — never a bounded write-stream scan, which can
+  false-negative on members that exercise the path only late) → factory
+  `extra_params` → an existing/new composer param; census carriers on BOTH
+  sides (partials = recovery set, FULLs = exposure set to re-verify+rewrite).
+- **2nd occurrence (round 19):** the holding gate-off 1-BYTE patch —
+  sub_17EC's `$17EF: BC->60` (LDY→RTS) turns `gate mask + AD/SR=$00` into
+  mask-only. A widespread editor build (Surgeon/Imaic/Rio/Taxim/Phobos/
+  Behdad_Arman: 514 FULL + 97 partial carriers); 179 of the FULLs had been
+  rescued only by the batch's blind `frames_clear_adsr` mask_only retry,
+  and the 97 partials were exactly the members that retry could NOT reach
+  (their origs write AD/SR=$00 through OTHER paths, so the stream scan
+  gates off). `factory._hold_gateoff_probe` follows the holding-branch JSR
+  by opcode shape (layout-blind, C13 corollary) and classifies the byte
+  after the gate-mask STA. The param (`hold_gateoff='mask_only'`) already
+  existed for family-2 — the probe just feeds it for family-1 carriers.
 - **Consumers:** DMC v4 `factory._hr_patch_probe` + composer_asm
-  hr_patch/hr_test_init gating. Sibling of C18 (wrapper OUTSIDE the player) —
+  hr_patch/hr_test_init gating; `factory._hold_gateoff_probe` →
+  `hold_gateoff` param. Sibling of C18 (wrapper OUTSIDE the player) —
   C19 is patches INSIDE the canon body. The round-14 $D418 play-vector prefix
   (`LDA #imm/STA $D418/JMP base+3`, factory `_d418_play_wrapper` →
   `d418_every_play`, +6 FULL, commit efbf639) is the degenerate stateless
@@ -903,7 +919,7 @@ revisited ONLY around Move 1, when most/all engines are uready — not before.
   derives from the row's own data (new note's base) — i.e. "the rebuild missed
   a re-anchor". Cross-check the USF row's flags against BOTH engine ops'
   renderings before suspecting the runtime.
-- **Status:** CANONICALIZED (2 occurrences, both DMC family-1 round 18):
+- **Status:** CANONICALIZED (3 occurrences, DMC family-1 rounds 18 + 19):
   (1) mode-0 glide under soft-start vs mode-1 slide — decoder tested
   `noretrig and glide` but the true discriminator adds `NOT glide_to`
   (+138 FULL, 2 exposed FULLs held); (2) mode-1 slide with SPEED NIBBLE 0
@@ -914,3 +930,19 @@ revisited ONLY around Move 1, when most/all engines are uready — not before.
   emit the distinguishing flag ALWAYS (`glide=N` incl. 0 on slide rows)
   and decode on flag PRESENCE, not truthiness. When adding any fx_flags
   rendering, check injectivity over the engine ops FIRST.
+  (3) round 19, the mode-0 twin of (2): a $Cx GLIDE with speed nibble 0 is
+  the engine's GLIDE-CANCEL (the $Cx handler unconditionally stores the
+  nibble to glsp) — to_usf suppressed `glide=0` on mode-0 rows AND the
+  composer's pattern encoder keyed the glide tail on `if gspd` — so the
+  cancel became a plain note and a previous row's armed glide kept ramping
+  the freq accumulator (+speed×16/frame) in the rebuild forever
+  (Grave_Story_intro, div @6427 → FULL 130165/130165). TELL: deep freq-LO
+  divergences whose (mine−orig) deltas are QUANTIZED TO ×16 across a
+  member class (the speed-nibble ASL×4) = a glide/slide step-count or
+  arming drift; census the delta histogram before per-member drilling.
+  Fix keys BOTH sides on presence: to_usf emits glide=N whenever
+  glide_to is set; the encoder emits the [gspd,target] tail whenever
+  target is not None. 0-regression by construction: a FULL with a
+  $C0-speed-0 row could only have matched if no glide was armed there
+  (else its old always-ramping build couldn't have been FULL), and the
+  cancel is then a no-op.
