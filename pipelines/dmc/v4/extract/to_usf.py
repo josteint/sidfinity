@@ -47,7 +47,13 @@ def _row_to_usf(r: DmcRow) -> NoteRow:
         flags.append('gate_toggle')
     if r.soft or r.glide_slide:
         flags.append('noretrig')
-    if r.glide_speed:
+    if r.glide_speed or r.glide_slide:
+        # slide rows ALWAYS carry glide=N, including speed 0: a $Dx slide
+        # with a zero speed nibble is the engine's "set target, no note
+        # load, hold" — suppressing glide=0 rendered it identically to a
+        # plain soft note and the composer LOADED the note early
+        # (Apocalypsa: octave drop 10 frames before the orig; ledger C22,
+        # the encoding must be injective over engine ops).
         flags.append(f'glide={r.glide_speed}')
     if r.glide_to is not None:
         flags.append(f'glide_to={_pitch(r.glide_to)}')

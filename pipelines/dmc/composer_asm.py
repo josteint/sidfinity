@@ -186,8 +186,14 @@ def _row_event(row, inst_slot: dict) -> tuple:
         return ('rest', row.duration)
     note = _note_num(row.pitch)
     slot = inst_slot[row.instr.id]
-    if 'noretrig' in flags and gspd:
-        # slide current note to target (DMC glide mode 1)
+    if 'noretrig' in flags and 'glide' in flags and 'glide_to' not in flags:
+        # slide current note to target (DMC glide mode 1). Mode 1 renders as
+        # `noretrig glide=N` with note=target and NO glide_to; a mode-0 glide
+        # row under soft-start mode carries noretrig TOO but keeps glide_to —
+        # it must take the note path below (full note load + rebase to note A,
+        # glide up/down toward glide_to), not the slide path (Gangstallica
+        # V2: slide held the OLD base and stepped down where the orig rebased
+        # to A and stepped up — family-1 round 18).
         return ('slide', gspd, note, row.duration)
     soft = 1 if 'noretrig' in flags else 0
     if 'glide_to' in flags:
