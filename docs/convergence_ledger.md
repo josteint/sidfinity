@@ -83,6 +83,7 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
 | TRICHOTOMY VERDICT alignment · rebuild emits its OWN init (universal reset+priming) so streams differ by an init prefix · Check A end-of-init state + aligned play-stream compare · TWO implementations exist: `verify_cycle._trichotomy_compare` (FC, shift recovery) + `usf_roundtrip._compare_music/_split_aligned` (basic_program, known-init-length + probe search) — CONSULT MISS, factor at Move 1 | C21 | factor-candidate (2×) |
 | hand-patched player WEDGE inside the canon body · SMC opcode toggle · JMP over canonical loads · runtime state ≠ static file byte · fingerprint + census carriers · reproduce semantics behind a factory-probed param | C19 | logged |
 | stale-FULL palimpsest · recorded 'full' the current code can't reproduce · hides members from residue censuses · verify the STORED build first, then USF-diff/param-bisect to attribute · never mass-write with code that didn't produce the verdict | C20 | canonicalized |
+| AMBIGUOUS round-trip flag encoding · two distinct engine ops render to OVERLAPPING USF flag sets · the decoder's branch test uses a SUBSET of the discriminator → misroutes one op onto the other's path · matches for most content (paths coincide when inputs coincide), diverges on the distinguishing case | C22 | canonicalized (2×) |
 
 ---
 
@@ -442,7 +443,14 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
   extractor's stale `>119` reject (`note_out_of_range`) predated 2-digit-octave
   off-table pitches — raising it to 255 round-trips the byte losslessly. Same lesson:
   the orig "reads garbage"/the byte looks out-of-range, but it's the WRAP — fix the
-  extractor, not the data.
+  extractor, not the data. ALSO DMC v4 wave-walk jump-back UNDERFLOW (family-1
+  round 18, +20 FULL 0 regr): the wave marker hop is an 8-bit SBC — a back-distance
+  larger than the position wraps to a HIGH window position (Cool_Compo_Tune: marker
+  $FF at pos $26 → $B7); `_slice_wave`'s in-table path used full-width arithmetic
+  (a NEGATIVE Python slice = silently read the extended table's tail; the pre-chain
+  variant RAISED wave_marker_chain = 13 false detect-rejects). Fix routes both
+  underflow cases to `_resolve_wave_chain` (the existing mod-256 walk simulator) —
+  canonical-form compliant: only previously-wrong/refused paths change.
 - **Boundary / watch-list:** the SAME class applies to ANY 8-bit-indexed engine
   table — e.g. the DMC wave POSITION ($177A is 8-bit, so a wave program crossing
   $FF wraps to wctab[0]; `_slice_wave` reads linearly past it — a candidate
@@ -873,3 +881,36 @@ revisited ONLY around Move 1, when most/all engines are uready — not before.
 - **Status:** canonicalized (4 occurrences, 2026-07-02/03, DMC family-1).
 - **Consumers:** DMC family-1 rounds 9/16/17 handling; the round-16 sweep
   runner `tmp/f1_round16_sweeps.py` (re-verify → then rewrite).
+
+### C22 — Ambiguous round-trip flag encoding (decoder misroutes one op onto another's path)
+- **The bug class:** two DISTINCT engine operations are rendered to USF with
+  OVERLAPPING flag sets (op A → `noretrig glide=N`; op B-under-mode →
+  `noretrig glide=N glide_to=X`), and the composer-side decoder branches on a
+  SUBSET of the true discriminator (`noretrig and glide` instead of
+  `noretrig and glide and NOT glide_to`) — so op B takes op A's runtime path.
+  Deadly because the two paths COINCIDE for most content (DMC: slide-from-
+  current == rebase-to-A + glide when the previous note equals note A), so
+  members verify FULL until one hits the distinguishing case, presenting as a
+  DEEP heterogeneous divergence (Gangstallica @28k: rebuild held the old base
+  and stepped DOWN where the orig rebased to note A and stepped UP).
+- **Canonical fix:** make the decoder's branch test the EXACT injective
+  discriminator (here: absence of `glide_to`). Better: when adding a flag
+  rendering in to_usf, check the flag COMBINATIONS are injective over the
+  engine ops — if two ops can render identically, the representation (not the
+  decoder) is the bug.
+- **TELL / how it presents:** a deep first divergence where the rebuild's value
+  derives from the PREVIOUS musical state (old base freq) while the orig's
+  derives from the row's own data (new note's base) — i.e. "the rebuild missed
+  a re-anchor". Cross-check the USF row's flags against BOTH engine ops'
+  renderings before suspecting the runtime.
+- **Status:** CANONICALIZED (2 occurrences, both DMC family-1 round 18):
+  (1) mode-0 glide under soft-start vs mode-1 slide — decoder tested
+  `noretrig and glide` but the true discriminator adds `NOT glide_to`
+  (+138 FULL, 2 exposed FULLs held); (2) mode-1 slide with SPEED NIBBLE 0
+  (engine op = "set target, no note load, hold" — the $Dx handler jumps to
+  the REST tail) rendered identically to a plain soft note because to_usf
+  suppressed `glide=0` — the composer then LOADED the note early
+  (Apocalypsa: octave drop 10 frames before the orig). Canonical form:
+  emit the distinguishing flag ALWAYS (`glide=N` incl. 0 on slide rows)
+  and decode on flag PRESENCE, not truthiness. When adding any fx_flags
+  rendering, check injectivity over the engine ops FIRST.
