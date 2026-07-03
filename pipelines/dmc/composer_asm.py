@@ -109,8 +109,17 @@ DMC_OFFTABLE_STATE = [
     (0x1795, 'vsteph', 3),   # vibrato step size hi
     (0x1798, 'slal', 3),     # dual-effect slide accumulator lo
     (0x179B, 'slah', 3),     # dual-effect slide accumulator hi
-    (0x1756, 'cpwmax', 3),   # PW bound A (instr byte 2 hi nibble)
-    (0x1759, 'cpwmin', 3),   # PW bound B (= bound A EOR $0F)
+    # NB the composer's `cpwmin`/`cpwmax` VARIABLES hold bound A / bound B
+    # respectively — the extract sets min_hi=pw_bound_a, max_hi=pw_bound_b, so
+    # the var named cpwmin carries orig $1756 (bound A) and cpwmax carries orig
+    # $1759 (bound B). Self-consistent for the PWM sweep (set + compare both use
+    # the swapped names), but the off-table redirect must map each ORIG address
+    # to the var HOLDING THAT ADDRESS'S VALUE: orig $1756 (bound A) -> cpwmin,
+    # orig $1759 (bound B) -> cpwmax. (family-1 round 21: the pos~74-81 V2/V3
+    # freqhi cluster read orig bound A but the redirect emitted cpwmax=bound B,
+    # so mine=$0B where orig=$04 = A EOR $0F.)
+    (0x1756, 'cpwmin', 3),   # orig PW bound A (byte2 hi nibble) = composer cpwmin
+    (0x1759, 'cpwmax', 3),   # orig PW bound B (= A EOR $0F)    = composer cpwmax
     (0x175F, 'cpwbase', 3),  # PW step base (instr byte 6 hi nibble)
     (0x1724, 'dtmpl', 1),    # dual-slide freq temp lo — GLOBAL scratch written
     (0x1725, 'dtmph', 1),    # only by the $40 slide path ($14CB/$14D3);

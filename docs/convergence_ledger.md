@@ -482,6 +482,21 @@ If the Index outgrows a quick scan, migrate to a queryable store (the
   in the 66-member exposure gate (Sweet_Honey) was a PRE-EXISTING latent —
   attribute by rebuilding under the pre-change committed tree BEFORE blaming
   the new map row (stash → build → verify; same first-divergence = exonerated).
+- **Redirect-map var-NAMING must match the value the ORIG address holds
+  (2026-07-04, +13 FULL f1+f2, 0 regr):** a composer variable can be
+  self-consistently MIS-NAMED — DMC's `cpwmin`/`cpwmax` hold PW bound A /
+  bound B (extract sets min_hi=bound_a, max_hi=bound_b), and the PWM sweep
+  set+compare both use the swapped names, so normal operation is correct and
+  the members were FULL. But the off-table redirect maps orig $1756 (bound A)
+  → var `cpwmax`, which holds bound B ($0B = A EOR $0F) → mine=$0B where
+  orig=$04. TELL: a whole cluster whose (orig,mine) values are EOR-$0F
+  complements ($04↔$0B) at an early/mid freq-hi read = a redirect entry
+  pointing at the complement var. Fix = point each orig ADDRESS at the var
+  HOLDING THAT ADDRESS'S VALUE, not the var whose NAME matches the disasm
+  label. This also cured a pre-existing Flyt/Yoko palimpsest cluster (the
+  latent the full closeout surfaced). Whenever a redirect entry names a var,
+  verify the var's RUNTIME VALUE equals the orig address's, not just that the
+  names rhyme.
 - **METHODOLOGY — the C6 off-table redirect map is NOT free; measure regressions.**
   Adding a `(addr, var, n)` entry can REGRESS a FULL whose off-table read happened
   to match via the STATIC freq-table overrun byte (the value the read got before
