@@ -497,12 +497,23 @@ def _resolve_wave_chain(ctrl_tab: list, freq_tab: list, start: int):
 
 def _decode_instrument(mem, base: int, iid: int,
                        ctrl_tab, freq_tab, n_inbound=None) -> DmcInstrument:
-    # the player indexes the record via the 8-bit Y register (LDA $18F0,Y with
-    # Y = instrument# * 11), so the offset WRAPS mod 256. For iid >= 24
-    # (24*11=264 > 255) the record start is (iid*11) & 0xFF, NOT iid*11 — a
-    # tightly-packed table reuses the low bytes for its high instruments.
-    # iid 0-23 are unaffected (23*11=253 < 256), so this never regresses them.
-    off = (iid * 11) & 0xFF
+    # the player computes the record offset in the 8-bit accumulator
+    # ($1213-$121F: CLC / ASL x3 / ADC #n x3), so it WRAPS mod 256 — but NOT
+    # as a clean (iid*11) & 0xFF: the CLC runs only once, so a carry out of
+    # an INTERMEDIATE ADC feeds the NEXT one (+1). E.g. iid=26: $D0+$1A=$EA,
+    # $EA+$1A=$104 -> A=$04 c=1, $04+$1A+1 = $1F (31), where (26*11)&$FF
+    # gives 30 (Techno's V1 first-note class, family-1 round 16). And a
+    # final ASL carry-out feeds the FIRST ADC (iid >= 32). Emulate the exact
+    # 6502 chain. iid 0-23 (offset < 256, no wraps) are unaffected.
+    off = iid
+    c = 0
+    for _ in range(3):
+        c = (off >> 7) & 1
+        off = (off << 1) & 0xFF
+    for _ in range(3):
+        off = off + iid + c
+        c = 1 if off > 0xFF else 0
+        off &= 0xFF
     b = [mem[base + off + k] for k in range(11)]
     fx = b[10]
     pw_base = b[6] >> 4

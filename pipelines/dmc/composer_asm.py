@@ -276,11 +276,17 @@ class _Model:
                     val = (i + 1) if legacy else off
                     track += bytes([(t + 64) & 0xFF, gid, val & 0xFF])
                     off += 1
+                # loop tail emitted by the data section as a label-arithmetic
+                # 16-bit target ($FF, <lbl+n*3, >lbl+n*3): a 3-byte-entry
+                # track exceeds 255 bytes past 85 entries, so both the loop
+                # target and the runtime track position must be 16-bit
+                # (Happy_Hour V1: 198 entries / 594 bytes; the old 8-bit
+                # `(loop_to*3) & 0xFF` + `ldy trkpos,x` silently wrapped).
                 if ol.stop:
                     track.append(0xFE)
+                    voices.append((bytes(track), None))
                 else:
-                    track += bytes([0xFF, ((ol.loop_to or 0) * 3) & 0xFF])
-                voices.append(bytes(track))
+                    voices.append((bytes(track), (ol.loop_to or 0)))
             sid = sub.init.sid if (sub.init and sub.init.sid) else None
             mvol = sid.master_vol if sid and sid.master_vol is not None else 0x0F
             routing = (sid.filter.res_routing
@@ -716,8 +722,12 @@ def compose_dmc_asm(usf: UsfFile) -> str:
     data.append('tunetab:\n' + '\n'.join(tune_lines))
     data.append('patlo:\n' + pat_lo)
     data.append('pathi:\n' + pat_hi)
-    for lbl, blob in track_blobs:
-        data.append(f'{lbl}:\n' + _byt(blob))
+    for lbl, (blob, loop_to) in track_blobs:
+        s = f'{lbl}:' + (('\n' + _byt(blob)) if blob else '')
+        if loop_to is not None:
+            off = loop_to * 3
+            s += f'\n        .byt $FF, <({lbl}+{off}), >({lbl}+{off})'
+        data.append(s)
     for i, blob in enumerate(m.patterns):
         data.append(f'pat_{i}:\n' + _byt(blob))
     data_asm = '\n'.join(data)
@@ -898,9 +908,9 @@ f_newpat:
         lda trkph,x
         sta $f9
 trkrd:
-        ldy trkpos,x
-        lda ($f8),y
-        cmp #$FE
+        ldy #$00                     ; trkpl/trkph = 16-bit entry pointer
+        lda ($f8),y                  ; (a 3-byte-entry track exceeds 255
+        cmp #$FE                     ;  bytes past 85 entries)
         bne trk1
         lda #$00                     ; stop: voice off (state freewheels)
         sta vactive,x
@@ -909,9 +919,12 @@ trk1:
         cmp #$FF
         bne trk2
         iny
-        lda ($f8),y                  ; loop: byte offset of the loop entry
-        sta trkpos,x
-        jmp trkrd
+        lda ($f8),y                  ; loop: 16-bit address of the loop entry
+        sta trkpl,x
+        iny
+        lda ($f8),y
+        sta trkph,x
+        jmp f_newpat
 trk2:
         sec
         sbc #64                      ; entry byte 0 = transpose + 64
@@ -1064,10 +1077,13 @@ ev_n_hard:
         rts                          ; fetch frame writes nothing else
 
 pat_end:
-        lda trkpos,x
+        lda trkpl,x                  ; 16-bit entry pointer += 3
         clc
         adc #$03
-        sta trkpos,x
+        sta trkpl,x
+        bcc pe_nc
+        inc trkph,x
+pe_nc:
         inc otrk,x                   ; orig $182D: track position++ at sector
         lda #$00                     ; end (points past the sector byte until
         sta path,x                   ; the next fetch re-seeds from the entry)
@@ -1510,7 +1526,6 @@ cinst:    .dsb 3, 0
 volovr:   .dsb 3, 0
 trkpl:    .dsb 3, 0
 trkph:    .dsb 3, 0
-trkpos:   .dsb 3, 0
 patl:     .dsb 3, 0
 path:     .dsb 3, 0
 transp:   .dsb 3, 0
